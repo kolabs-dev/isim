@@ -238,6 +238,7 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     if (target->_presented) { [target dismissViewControllerAnimated:NO completion:nil]; }      /* nested presentations go too */
     UIView *container = target->_sheetContainer, *dim = target->_sheetDim, *behind = target->_sheetBehind, *v = target.view;
     if (presenter) { presenter->_presented = nil; target->_presenting = nil; }
+    container.userInteractionEnabled = NO;              /* touches reach the presenter while the sheet leaves */
     void (^finish)(BOOL) = ^(BOOL f) {
         [target _isim_appear:NO];
         if (container) {

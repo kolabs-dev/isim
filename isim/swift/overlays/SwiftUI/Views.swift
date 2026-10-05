@@ -478,12 +478,15 @@ public struct Button<Label: View>: View, _PrimitiveView {
             let labelNode = _resolve(label, ctx.child("label").with { $0._buttonStyle = nil })
             let body = style.make(ButtonStyleConfiguration(role: role, label: .init(node: labelNode), isPressed: st.value))
             let bnode = _ButtonNode(path: ctx.path, child: _resolve(body, ctx.child("style").with { $0._buttonStyle = nil }), action: action, inList: false, enabled: env.isEnabled)
+            bnode.role = role
             bnode.onPressed = { [weak g] p in if st.value != p { st.value = p; g?.invalidate() } }
             return bnode
         }
         let labelCtx = ctx.child("label").with { $0._foreground = $0._foreground ?? tint }
         let node = _resolve(label, labelCtx)
-        return _ButtonNode(path: ctx.path, child: node, action: action, inList: env._inList, enabled: env.isEnabled)
+        let b = _ButtonNode(path: ctx.path, child: node, action: action, inList: env._inList, enabled: env.isEnabled)
+        b.role = role
+        return b
     }
 }
 extension Button where Label == Text {
@@ -506,6 +509,7 @@ extension Button where Label == SwiftUI.Label<Text, Image> {
 
 final class _ButtonNode: _WrapperNode {
     let action: () -> Void, inList: Bool, enabled: Bool
+    var role: ButtonRole?
     var onPressed: ((Bool) -> Void)?
     init(path: String, child: _Node, action: @escaping () -> Void, inList: Bool, enabled: Bool) {
         self.action = action; self.inList = inList; self.enabled = enabled

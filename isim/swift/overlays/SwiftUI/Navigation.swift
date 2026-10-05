@@ -492,7 +492,9 @@ final class _NavStackNode: _Node {
             let titleH: CGFloat = level.showsLargeTitle ? 52 : 0
             let area = CGRect(x: 0, y: top + titleH, width: rect.width, height: rect.height - top - titleH - safeBottom)
             let s = content.sizeThatFits(_Proposal(width: area.width, height: area.height))
-            content.place(CGRect(x: (area.width - min(s.width, area.width)) / 2, y: area.minY, width: min(s.width, area.width), height: min(s.height, area.height)))
+            // like SwiftUI: the content is centered in the space below the bar (and large title)
+            content.place(CGRect(x: (area.width - min(s.width, area.width)) / 2, y: area.minY + max(0, area.height - s.height) / 2,
+                                 width: min(s.width, area.width), height: min(s.height, area.height)))
         }
     }
     override func mountView(_ g: _Graph) -> UIView {
@@ -514,7 +516,7 @@ final class _NavStackNode: _Node {
         if !content.ignoresSafeArea, top.showsLargeTitle, let title = top.title {
             let l = g.view(path + "|largeTitle") { UILabel() }
             l.text = title; l.font = .systemFont(ofSize: 34, weight: .bold); l.textColor = .label
-            if l.superview !== view { view.addSubview(l) }
+            if l.superview !== view { view.addSubview(l) } else { view.bringSubview(toFront: l) }
             l.frame = CGRect(x: 20, y: safeTop + barHeight, width: view.bounds.width - 40, height: 52)
         }
         let bar = g.view(path + "|bar") { _SUINavBar(frame: .zero) }
