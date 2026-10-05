@@ -1,7 +1,9 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, UIGestureRecognizerState) { UIGestureRecognizerStatePossible, UIGestureRecognizerStateBegan, UIGestureRecognizerStateChanged, UIGestureRecognizerStateEnded, UIGestureRecognizerStateCancelled, UIGestureRecognizerStateFailed, UIGestureRecognizerStateRecognized = UIGestureRecognizerStateEnded };
+NS_SWIFT_UI_ACTOR
 @interface UIGestureRecognizer : NSObject
 - (instancetype)initWithTarget:(nullable id)target action:(nullable SEL)action NS_DESIGNATED_INITIALIZER;
 - (instancetype)init;

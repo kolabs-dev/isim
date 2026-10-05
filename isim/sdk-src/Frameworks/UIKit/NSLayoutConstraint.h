@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSLayoutAnchor<AnchorType>;
@@ -11,6 +12,7 @@ typedef NS_ENUM(NSInteger, NSLayoutAttribute) {
     NSLayoutAttributeLeadingMargin, NSLayoutAttributeTrailingMargin, NSLayoutAttributeCenterXWithinMargins,
     NSLayoutAttributeCenterYWithinMargins, NSLayoutAttributeNotAnAttribute = 0
 };
+NS_SWIFT_UI_ACTOR
 @interface NSLayoutConstraint : NSObject
 + (instancetype)constraintWithItem:(id)view1 attribute:(NSLayoutAttribute)attr1 relatedBy:(NSLayoutRelation)relation toItem:(nullable id)view2 attribute:(NSLayoutAttribute)attr2 multiplier:(CGFloat)multiplier constant:(CGFloat)c;
 + (void)activateConstraints:(NSArray<NSLayoutConstraint *> *)constraints;

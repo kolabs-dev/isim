@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIControl.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UILabel, UIImage, UIImageView, UIColor, UIFont, UIButtonConfiguration, UIImageSymbolConfiguration;
@@ -26,6 +27,7 @@ typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeS
 @end
 typedef NS_ENUM(NSInteger, UIButtonConfigurationCornerStyle) { UIButtonConfigurationCornerStyleFixed = -1, UIButtonConfigurationCornerStyleDynamic, UIButtonConfigurationCornerStyleSmall, UIButtonConfigurationCornerStyleMedium, UIButtonConfigurationCornerStyleLarge, UIButtonConfigurationCornerStyleCapsule };
 typedef NS_ENUM(NSInteger, UIButtonConfigurationSize) { UIButtonConfigurationSizeMedium = 0, UIButtonConfigurationSizeSmall, UIButtonConfigurationSizeMini, UIButtonConfigurationSizeLarge };
+NS_SWIFT_UI_ACTOR
 @interface UIButtonConfiguration : NSObject <NSCopying>
 + (instancetype)plainButtonConfiguration;
 + (instancetype)tintedButtonConfiguration;

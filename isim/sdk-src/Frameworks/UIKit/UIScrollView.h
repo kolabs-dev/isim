@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIScrollView, UIPanGestureRecognizer, UILayoutGuide;
@@ -9,6 +10,7 @@ typedef NS_ENUM(NSInteger, UIScrollViewContentInsetAdjustmentBehavior) {
 typedef NS_ENUM(NSInteger, UIScrollViewKeyboardDismissMode) { UIScrollViewKeyboardDismissModeNone, UIScrollViewKeyboardDismissModeOnDrag, UIScrollViewKeyboardDismissModeInteractive };
 typedef CGFloat UIScrollViewDecelerationRate NS_TYPED_EXTENSIBLE_ENUM;
 UIKIT_EXTERN const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal, UIScrollViewDecelerationRateFast;
+NS_SWIFT_UI_ACTOR
 @protocol UIScrollViewDelegate <NSObject>
 @optional
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView;

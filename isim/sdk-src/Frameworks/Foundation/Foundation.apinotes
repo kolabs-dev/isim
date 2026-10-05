@@ -21,6 +21,19 @@ Classes:
   SwiftName: Timer
 - Name: NSUserDefaults
   SwiftName: UserDefaults
+  Methods:
+  - Selector: 'setObject:forKey:'
+    MethodKind: Instance
+    SwiftName: 'set(_:forKey:)'
+  - Selector: 'setInteger:forKey:'
+    MethodKind: Instance
+    SwiftName: 'set(_:forKey:)'
+  - Selector: 'setBool:forKey:'
+    MethodKind: Instance
+    SwiftName: 'set(_:forKey:)'
+  - Selector: 'setDouble:forKey:'
+    MethodKind: Instance
+    SwiftName: 'set(_:forKey:)'
 - Name: NSSet
   SwiftBridge: Swift.Set
 - Name: NSDateFormatter
@@ -41,6 +54,15 @@ Classes:
   SwiftName: FileManager
 - Name: NSThread
   SwiftName: Thread
+- Name: NSOperationQueue
+  SwiftName: OperationQueue
+  Properties:
+  - Name: mainQueue
+    PropertyKind: Class
+    SwiftName: main
+  - Name: currentQueue
+    PropertyKind: Class
+    SwiftName: current
 - Name: NSCharacterSet
   SwiftName: NSCharacterSet
 - Name: NSMutableCharacterSet

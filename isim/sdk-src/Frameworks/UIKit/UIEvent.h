@@ -3,6 +3,7 @@
 NS_ASSUME_NONNULL_BEGIN
 @class UITouch, UIView, UIWindow;
 typedef NS_ENUM(NSInteger, UIEventType) { UIEventTypeTouches, UIEventTypeMotion, UIEventTypeRemoteControl, UIEventTypePresses };
+NS_SWIFT_UI_ACTOR
 @interface UIEvent : NSObject
 @property (nonatomic, readonly) UIEventType type;
 @property (nonatomic, readonly) NSTimeInterval timestamp;

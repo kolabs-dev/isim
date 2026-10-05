@@ -344,3 +344,19 @@ extension String {
 public func NSLocalizedString(_ key: String, tableName: String? = nil, bundle: Bundle = Bundle.main, value: String = "", comment: String) -> String {
   bundle.localizedString(forKey: key, value: value, table: tableName)
 }
+
+/// isim: Notification is NSNotification (Apple's Swift overlay has a bridged value type).
+public typealias Notification = NSNotification
+
+// MARK: AnyHashable: NSString/NSNumber keys compare equal to their Swift values (as on Apple platforms),
+// so `userInfo["key"]` finds entries keyed by NSString.
+extension NSString: _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? { AnyHashable(self as String) }
+}
+extension NSNumber: _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        let d = doubleValue
+        if d == d.rounded(), abs(d) < 9.2e18 { return AnyHashable(Int(d)) }
+        return AnyHashable(d)
+    }
+}

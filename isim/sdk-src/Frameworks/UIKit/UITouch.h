@@ -4,6 +4,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class UIView, UIWindow;
 typedef NS_ENUM(NSInteger, UITouchPhase) { UITouchPhaseBegan, UITouchPhaseMoved, UITouchPhaseStationary, UITouchPhaseEnded, UITouchPhaseCancelled };
 typedef NS_ENUM(NSInteger, UITouchType) { UITouchTypeDirect, UITouchTypeIndirect, UITouchTypePencil };
+NS_SWIFT_UI_ACTOR
 @interface UITouch : NSObject
 @property (nonatomic, readonly) NSTimeInterval timestamp;
 @property (nonatomic, readonly) UITouchPhase phase;

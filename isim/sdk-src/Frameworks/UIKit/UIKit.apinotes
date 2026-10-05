@@ -165,6 +165,14 @@ Classes:
   - Selector: 'removeAction:forControlEvents:'
     MethodKind: Instance
     SwiftName: 'removeAction(_:for:)'
+- Name: UIApplication
+  Methods:
+  - Selector: 'openURL:options:completionHandler:'
+    MethodKind: Instance
+    SwiftName: 'open(_:options:completionHandler:)'
+  - Selector: 'canOpenURL:'
+    MethodKind: Instance
+    SwiftName: 'canOpenURL(_:)'
 - Name: UIColor
   Properties:
   - Name: CGColor
@@ -186,6 +194,8 @@ Typedefs:
   SwiftName: UIApplication.LaunchOptionsKey
 - Name: UIApplicationOpenURLOptionsKey
   SwiftName: UIApplication.OpenURLOptionsKey
+- Name: UIApplicationOpenExternalURLOptionsKey
+  SwiftName: UIApplication.OpenExternalURLOptionsKey
 - Name: UISceneSessionRole
   SwiftName: UISceneSession.Role
 - Name: UIWindowLevel

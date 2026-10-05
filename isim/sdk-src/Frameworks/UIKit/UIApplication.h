@@ -1,14 +1,17 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIResponder.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent;
 typedef NS_ENUM(NSInteger, UIApplicationState) { UIApplicationStateActive, UIApplicationStateInactive, UIApplicationStateBackground };
 typedef NSString *UIApplicationLaunchOptionsKey NS_TYPED_ENUM;
 typedef NSString *UIApplicationOpenURLOptionsKey NS_TYPED_ENUM;
+typedef NSString *UIApplicationOpenExternalURLOptionsKey NS_TYPED_ENUM;
 UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotification, UIApplicationDidBecomeActiveNotification,
     UIApplicationWillResignActiveNotification, UIApplicationDidEnterBackgroundNotification,
     UIApplicationWillEnterForegroundNotification, UIApplicationWillTerminateNotification;
 
+NS_SWIFT_UI_ACTOR
 @protocol UIApplicationDelegate <NSObject>
 @optional
 - (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(nullable NSDictionary<UIApplicationLaunchOptionsKey, id> *)launchOptions;
@@ -31,6 +34,10 @@ UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotificatio
 @property (nullable, nonatomic, readonly) UIWindow *keyWindow;
 @property (nonatomic, readonly) NSArray<__kindof UIWindow *> *windows;
 @property (nonatomic, readonly) NSSet<UIScene *> *connectedScenes;
+/* isim: URLs are logged; with ISIM_OPEN_URLS=1, http(s)/mailto URLs open on the host desktop (xdg-open) */
+- (BOOL)canOpenURL:(NSURL *)url;
+- (void)openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenExternalURLOptionsKey, id> *)options completionHandler:(void (^ _Nullable)(BOOL success))completion;
+@property (class, nonatomic, readonly) NSString *openSettingsURLString;
 @property (nonatomic, readonly) NSSet<UISceneSession *> *openSessions;
 @property (nonatomic, readonly) BOOL supportsMultipleScenes;
 @property (nonatomic, getter=isIdleTimerDisabled) BOOL idleTimerDisabled;

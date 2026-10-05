@@ -9,7 +9,7 @@
  *   ISIM_ZOOM      window zoom factor (default 1)
  *   ISIM_HEADLESS  1 = no window (use with ISIM_SCRIPT)
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
- *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree)
+ *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
  */
 #define _GNU_SOURCE
 #include <SDL3/SDL.h>
@@ -21,12 +21,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "runtime.h"
 
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[64]; };
-enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP };
+enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP, EV_TEXT_DOWN, EV_TEXT_UP };
 
 static struct isim_device dev;
 static double zoom = 1, px_scale = 1;
@@ -297,6 +298,11 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);
+    } else if (!strcmp(cmd, "taptext") && sscanf(args, " %63[^;]", arg) == 1) {
+        for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
+        pending[npending++] = (struct isim_event){ .type = EV_TEXT_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        pending[npending++] = (struct isim_event){ .type = EV_TEXT_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        script_resume = now() + 0.05;
     } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
@@ -306,6 +312,14 @@ static int script_step(struct isim_event *ev) {
 static int button_down;
 static volatile int wakeup_pending;
 /* thread-safe: makes a pending isim_next_event return early (no event) so the app loop runs */
+/* opens a URL on the host desktop when ISIM_OPEN_URLS=1 (xdg-open); returns 1 if launched */
+int isim_open_url(const char *url) {
+    const char *e = getenv("ISIM_OPEN_URLS");
+    if (!e || strcmp(e, "1") || !url) return 0;
+    pid_t pid = fork();
+    if (pid == 0) { execlp("xdg-open", "xdg-open", url, (char *)NULL); _exit(127); }
+    return pid > 0;
+}
 void isim_post_wakeup(void) {
     if (win) { SDL_Event e; SDL_zero(e); e.type = SDL_EVENT_USER; SDL_PushEvent(&e); }
     else __atomic_store_n(&wakeup_pending, 1, __ATOMIC_RELEASE);
@@ -382,7 +396,7 @@ static const struct shim isim_table[] = {
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
     H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke),
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_set_status_bar_style), H(isim_next_event), H(isim_text_input),
-    H(isim_bundle_path), H(isim_post_wakeup),
+    H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

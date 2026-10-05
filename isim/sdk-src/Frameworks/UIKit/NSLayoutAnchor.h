@@ -1,6 +1,8 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/NSLayoutConstraint.h>
 NS_ASSUME_NONNULL_BEGIN
+NS_SWIFT_UI_ACTOR
 @interface NSLayoutAnchor<AnchorType> : NSObject <NSCopying>
 - (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor<AnchorType> *)anchor;
 - (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutAnchor<AnchorType> *)anchor;

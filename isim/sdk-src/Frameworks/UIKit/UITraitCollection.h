@@ -12,6 +12,7 @@ typedef NS_ENUM(NSInteger, UIUserInterfaceSizeClass) { UIUserInterfaceSizeClassU
 @property (nonatomic, readonly) CGFloat displayScale;
 + (UITraitCollection *)traitCollectionWithUserInterfaceStyle:(UIUserInterfaceStyle)style;
 @end
+NS_SWIFT_UI_ACTOR
 @protocol UITraitEnvironment <NSObject>
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;

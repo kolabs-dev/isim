@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIAction;
@@ -38,6 +39,7 @@ typedef NS_ENUM(NSInteger, UIControlContentVerticalAlignment) { UIControlContent
 - (void)sendActionsForControlEvents:(UIControlEvents)controlEvents;
 @end
 typedef void (^UIActionHandler)(UIAction *action);
+NS_SWIFT_UI_ACTOR
 @interface UIAction : NSObject
 + (instancetype)actionWithHandler:(UIActionHandler)handler;
 + (instancetype)actionWithTitle:(NSString *)title image:(nullable id)image identifier:(nullable NSString *)identifier handler:(UIActionHandler)handler;

@@ -207,7 +207,7 @@ static BOOL on_queue(dispatch_queue_t q) {
     return NO;
 }
 void dispatch_assert_queue(dispatch_queue_t q) {
-    if (!on_queue(q)) { fprintf(stderr, "BUG IN CLIENT OF LIBDISPATCH: Block was expected to execute on queue [%s]\n", q->label); abort(); }
+    if (!on_queue(q)) { fprintf(stderr, "BUG IN CLIENT OF LIBDISPATCH: Block was expected to execute on queue [%s] (main thread: %d)\n", q->label, pthread_main_np()); __builtin_trap(); }
 }
 void dispatch_assert_queue_not(dispatch_queue_t q) {
     if (on_queue(q)) { fprintf(stderr, "BUG IN CLIENT OF LIBDISPATCH: Block was expected not to execute on queue [%s]\n", q->label); abort(); }

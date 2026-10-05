@@ -20,6 +20,7 @@
 #import <Foundation/NSFormatter.h>
 #import <Foundation/NSTimer.h>
 #import <Foundation/NSThread.h>
+#import <Foundation/NSOperation.h>
 #import <Foundation/NSCharacterSet.h>
 #import <Foundation/NSRunLoop.h>
 #import <Foundation/NSNotification.h>

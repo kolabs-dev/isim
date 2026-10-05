@@ -463,7 +463,8 @@ NSRunLoopMode const NSRunLoopCommonModes = @"kCFRunLoopCommonModes";
 }
 - (id<NSObject>)addObserverForName:(NSNotificationName)name object:(id)obj queue:(NSOperationQueue *)q usingBlock:(void (^)(NSNotification *))block {
     __IsimObserver *o = [__IsimObserver new];
-    o.name = name; o.object = obj; o.hasObject = obj != nil; o.block = block; o.observer = o;
+    o.name = name; o.object = obj; o.hasObject = obj != nil; o.observer = o;
+    o.block = q ? ^(NSNotification *n) { if (q == NSOperationQueue.currentQueue) block(n); else [q addOperationWithBlock:^{ block(n); }]; } : block;
     @synchronized (self) { [_obs addObject:o]; }
     return o;
 }
@@ -602,4 +603,36 @@ static void thread_obj_release(void *p) { NSThread *t = (__bridge_transfer NSThr
 + (NSThread *)mainThread { static dispatch_once_t o; dispatch_once(&o, ^{ main_thread_obj = [NSThread new]; main_thread_obj.name = @"main"; }); return main_thread_obj; }
 + (void)sleepForTimeInterval:(NSTimeInterval)ti { if (ti > 0) { struct timespec ts = { (time_t)ti, (long)((ti - (time_t)ti) * 1e9) }; nanosleep(&ts, NULL); } }
 + (void)detachNewThreadWithBlock:(void (^)(void))block { dispatch_async(dispatch_get_global_queue(0, 0), block); }
+@end
+
+/* ================= NSOperationQueue ================= */
+static char opq_key;
+@implementation NSOperationQueue { dispatch_queue_t _q; dispatch_group_t _g; }
++ (NSOperationQueue *)mainQueue {
+    static NSOperationQueue *m; static dispatch_once_t o;
+    dispatch_once(&o, ^{ m = [NSOperationQueue new]; m->_q = dispatch_get_main_queue(); m.name = @"NSOperationQueue Main Queue"; m.maxConcurrentOperationCount = 1;
+                         dispatch_queue_set_specific(m->_q, &opq_key, (__bridge void *)m, NULL); });
+    return m;
+}
++ (NSOperationQueue *)currentQueue { return pthread_main_np() ? self.mainQueue : (__bridge NSOperationQueue *)dispatch_get_specific(&opq_key); }
+- (instancetype)init {
+    if ((self = [super init])) {
+        _q = dispatch_queue_create("NSOperationQueue", DISPATCH_QUEUE_CONCURRENT);
+        _g = dispatch_group_create();
+        _maxConcurrentOperationCount = -1;
+        dispatch_queue_set_specific(_q, &opq_key, (__bridge void *)self, NULL);
+    }
+    return self;
+}
+- (void)setMaxConcurrentOperationCount:(NSInteger)n {
+    _maxConcurrentOperationCount = n;
+    if (n == 1 && _q != dispatch_get_main_queue()) { _q = dispatch_queue_create("NSOperationQueue (serial)", NULL); dispatch_queue_set_specific(_q, &opq_key, (__bridge void *)self, NULL); }
+}
+- (void)addOperationWithBlock:(void (^)(void))block {
+    if (!_g) _g = dispatch_group_create();
+    dispatch_group_async(_g, _q, ^{ @autoreleasepool { block(); } });
+}
+- (void)addBarrierBlock:(void (^)(void))barrier { [self addOperationWithBlock:barrier]; }
+- (void)waitUntilAllOperationsAreFinished { if (_g && _q != dispatch_get_main_queue()) dispatch_group_wait(_g, DISPATCH_TIME_FOREVER); }
+- (void)cancelAllOperations {}
 @end

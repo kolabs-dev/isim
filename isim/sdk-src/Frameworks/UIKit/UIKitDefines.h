@@ -3,5 +3,6 @@
 #define UIKIT_EXTERN FOUNDATION_EXPORT
 #define UIKIT_STATIC_INLINE static inline
 #define UI_APPEARANCE_SELECTOR
-#define NS_SWIFT_UI_ACTOR
+/* UIKit types are main-actor isolated in Swift, as in Apple's SDK */
+#define NS_SWIFT_UI_ACTOR __attribute__((swift_attr("@UIActor")))
 #define UIKIT_CLASS_AVAILABLE_IOS_ONLY(...)

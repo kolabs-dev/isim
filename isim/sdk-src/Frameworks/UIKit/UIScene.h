@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIResponder.h>
 #import <UIKit/UIApplication.h>
 #import <UIKit/UITraitCollection.h>
@@ -9,6 +10,7 @@ UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleApplication;
 typedef NS_ENUM(NSInteger, UISceneActivationState) { UISceneActivationStateUnattached = -1, UISceneActivationStateForegroundActive, UISceneActivationStateForegroundInactive, UISceneActivationStateBackground };
 UIKIT_EXTERN NSNotificationName const UISceneWillConnectNotification, UISceneDidActivateNotification;
 
+NS_SWIFT_UI_ACTOR
 @protocol UISceneDelegate <NSObject>
 @optional
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions;
@@ -27,6 +29,7 @@ UIKIT_EXTERN NSNotificationName const UISceneWillConnectNotification, UISceneDid
 @property (null_resettable, nonatomic, copy) NSString *title;
 @end
 
+NS_SWIFT_UI_ACTOR
 @protocol UIWindowSceneDelegate <UISceneDelegate>
 @optional
 @property (nullable, nonatomic, strong) UIWindow *window;
@@ -40,6 +43,7 @@ UIKIT_EXTERN NSNotificationName const UISceneWillConnectNotification, UISceneDid
 @property (nonatomic, readonly) id coordinateSpace;
 @end
 
+NS_SWIFT_UI_ACTOR
 @interface UISceneConfiguration : NSObject <NSCopying>
 + (instancetype)configurationWithName:(nullable NSString *)name sessionRole:(UISceneSessionRole)sessionRole;
 - (instancetype)initWithName:(nullable NSString *)name sessionRole:(UISceneSessionRole)sessionRole NS_DESIGNATED_INITIALIZER;
@@ -50,6 +54,7 @@ UIKIT_EXTERN NSNotificationName const UISceneWillConnectNotification, UISceneDid
 @property (nonatomic, strong, nullable) id storyboard;
 @end
 
+NS_SWIFT_UI_ACTOR
 @interface UISceneSession : NSObject
 @property (nonatomic, readonly, nullable) UIScene *scene;
 @property (nonatomic, readonly) UISceneSessionRole role;
@@ -58,6 +63,7 @@ UIKIT_EXTERN NSNotificationName const UISceneWillConnectNotification, UISceneDid
 @property (nonatomic, copy, nullable) NSDictionary<NSString *, id> *userInfo;
 @end
 
+NS_SWIFT_UI_ACTOR
 @interface UISceneConnectionOptions : NSObject
 @property (nonatomic, readonly, copy) NSSet *URLContexts;
 @property (nonatomic, readonly, copy) NSSet *userActivities;

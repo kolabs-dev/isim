@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIResponder.h>
 #import <UIKit/UIGeometry.h>
 #import <UIKit/UITraitCollection.h>
@@ -31,6 +32,7 @@ UIKIT_EXTERN const CGFloat UIViewNoIntrinsicMetric;
 UIKIT_EXTERN const CGSize UILayoutFittingCompressedSize;
 UIKIT_EXTERN const CGSize UILayoutFittingExpandedSize;
 
+NS_SWIFT_UI_ACTOR
 @protocol UICoordinateSpace <NSObject>
 - (CGPoint)convertPoint:(CGPoint)point toCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
 - (CGPoint)convertPoint:(CGPoint)point fromCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;

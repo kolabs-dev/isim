@@ -19,6 +19,7 @@ UIKIT_EXTERN UIAccessibilityTraits const UIAccessibilityTraitNone, UIAccessibili
 @property (nonatomic) BOOL accessibilityElementsHidden;
 @property (nonatomic) BOOL accessibilityViewIsModal;
 @end
+NS_SWIFT_UI_ACTOR
 @protocol UIAccessibilityIdentification <NSObject>
 @required
 @property (nullable, nonatomic, copy) NSString *accessibilityIdentifier;

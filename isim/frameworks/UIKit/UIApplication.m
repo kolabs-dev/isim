@@ -302,6 +302,15 @@ static UIApplication *shared_app;
     ((void (*)(id, SEL, id, id))[target methodForSelector:action])(target, action, sender, event);
     return YES;
 }
++ (NSString *)openSettingsURLString { return @"app-settings:"; }
+- (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""]; }
+- (void)openURL:(NSURL *)url options:(NSDictionary *)options completionHandler:(void (^)(BOOL))completion {
+    NSString *scheme = url.scheme.lowercaseString ?: @"";
+    BOOL hostOpen = [@[@"http", @"https", @"mailto"] containsObject:scheme] && isim_open_url(url.absoluteString.UTF8String);
+    if ([scheme isEqualToString:@"app-settings"]) NSLog(@"isim: open URL %@ (the app's page in Settings; isim has no Settings app)", url.absoluteString);
+    else NSLog(@"isim: open URL %@%@", url.absoluteString, hostOpen ? @" (opened on the host)" : @" (not opened; ISIM_OPEN_URLS=1 opens http/mailto on the host)");
+    if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion([self canOpenURL:url]); });
+}
 - (void)_isim_addScene:(UIScene *)s session:(UISceneSession *)ss { [_scenes addObject:s]; [_sessions addObject:ss]; }
 @end
 
@@ -379,7 +388,10 @@ static void handle_key(const struct isim_event *ev) {
 
 static void dump_view(UIView *v, int depth) {
     CGRect f = v.frame;
-    NSString *ident = v.accessibilityIdentifier, *label = [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle : nil;
+    NSString *ident = v.accessibilityIdentifier, *label = [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
+        : [v isKindOfClass:[UITextField class]] ? [NSString stringWithFormat:@"\"%@\"%@", ((UITextField *)v).text, v.isFirstResponder ? @" (editing)" : @""]
+        : [v isKindOfClass:[UIScrollView class]] ? [NSString stringWithFormat:@"offset %g, content %g x %g, inset bottom %g", ((UIScrollView *)v).contentOffset.y,
+              ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom] : nil;
     fprintf(stderr, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
             v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "");
     for (UIView *s in v.subviews) dump_view(s, depth + 1);
@@ -391,17 +403,27 @@ static UIView *find_identified(UIView *v, NSString *ident) {
     for (UIView *s in v.subviews.reverseObjectEnumerator) { UIView *f = find_identified(s, ident); if (f) return f; }
     return [v.accessibilityIdentifier isEqualToString:ident] ? v : nil;
 }
+static UIView *find_text(UIView *v, NSString *text, CGRect visible) {
+    if (v.hidden || v.alpha <= 0.01) return nil;
+    for (UIView *s in v.subviews.reverseObjectEnumerator) { UIView *f = find_text(s, text, visible); if (f) return f; }
+    NSString *t = [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle : nil;
+    if (![t isEqualToString:text]) return nil;
+    CGRect r = [v convertRect:v.bounds toView:nil];
+    return CGRectIntersectsRect(r, visible) ? v : nil;              /* on screen (not scrolled away) */
+}
 static void handle_id_touch(const struct isim_event *ev) {
     NSString *ident = @(ev->text);
+    BOOL byText = ev->type == ISIM_EV_TEXT_DOWN || ev->type == ISIM_EV_TEXT_UP;
     UIView *found = nil;
     NSArray *windows = UIApplication.sharedApplication.windows;
-    for (UIWindow *w in windows.reverseObjectEnumerator) if (!w.hidden && (found = find_identified(w, ident))) break;
-    if (!found) { NSLog(@"isim: no visible view with accessibilityIdentifier '%@'", ident); return; }
+    for (UIWindow *w in windows.reverseObjectEnumerator)
+        if (!w.hidden && (found = byText ? find_text(w, ident, w.bounds) : find_identified(w, ident))) break;
+    if (!found) { NSLog(byText ? @"isim: no visible view showing text '%@'" : @"isim: no visible view with accessibilityIdentifier '%@'", ident); return; }
     CGRect b = found.bounds;
     CGPoint p = [found convertPoint:CGPointMake(CGRectGetMidX(b), CGRectGetMidY(b)) toView:nil];
     p = [found.window convertPoint:p toView:nil];
     struct isim_event t = *ev;
-    t.type = ev->type == ISIM_EV_ID_DOWN ? ISIM_EV_TOUCH_DOWN : ISIM_EV_TOUCH_UP;
+    t.type = ev->type == ISIM_EV_ID_DOWN || ev->type == ISIM_EV_TEXT_DOWN ? ISIM_EV_TOUCH_DOWN : ISIM_EV_TOUCH_UP;
     t.x = p.x + found.window.frame.origin.x; t.y = p.y + found.window.frame.origin.y;
     handle_touch(&t);
 }
@@ -519,7 +541,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_TOUCH_DOWN: case ISIM_EV_TOUCH_MOVE: case ISIM_EV_TOUCH_UP: handle_touch(&ev); break;
                 case ISIM_EV_REDRAW: isim_ui_set_needs_display(); break;
                 case ISIM_EV_TEXT: case ISIM_EV_KEY: handle_key(&ev); break;
-                case ISIM_EV_ID_DOWN: case ISIM_EV_ID_UP: handle_id_touch(&ev); break;
+                case ISIM_EV_ID_DOWN: case ISIM_EV_ID_UP: case ISIM_EV_TEXT_DOWN: case ISIM_EV_TEXT_UP: handle_id_touch(&ev); break;
                 case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;
                 }

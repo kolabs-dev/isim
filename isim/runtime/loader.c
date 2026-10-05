@@ -742,7 +742,7 @@ static void install_crash_handler(void) {
     struct sigaction sa = { .sa_sigaction = crash_handler, .sa_flags = SA_SIGINFO | SA_ONSTACK };
     sigemptyset(&sa.sa_mask);
     sigaction(SIGSEGV, &sa, NULL); sigaction(SIGBUS, &sa, NULL); sigaction(SIGILL, &sa, NULL);
-    sigaction(SIGFPE, &sa, NULL); sigaction(SIGTRAP, &sa, NULL);
+    sigaction(SIGFPE, &sa, NULL); sigaction(SIGTRAP, &sa, NULL); sigaction(SIGABRT, &sa, NULL);
 }
 
 #define D(n, f) { n, (void *)f, "isim" }

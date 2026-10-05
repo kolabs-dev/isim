@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <Foundation/Foundation.h>
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, UITextAutocapitalizationType) { UITextAutocapitalizationTypeNone, UITextAutocapitalizationTypeWords, UITextAutocapitalizationTypeSentences, UITextAutocapitalizationTypeAllCharacters };
@@ -13,6 +14,7 @@ typedef NS_ENUM(NSInteger, UIKeyboardAppearance) { UIKeyboardAppearanceDefault, 
 typedef NS_ENUM(NSInteger, UIReturnKeyType) { UIReturnKeyDefault, UIReturnKeyGo, UIReturnKeyGoogle, UIReturnKeyJoin, UIReturnKeyNext, UIReturnKeyRoute, UIReturnKeySearch, UIReturnKeySend, UIReturnKeyYahoo, UIReturnKeyDone, UIReturnKeyEmergencyCall, UIReturnKeyContinue };
 typedef NSString *UITextContentType NS_TYPED_ENUM;
 
+NS_SWIFT_UI_ACTOR
 @protocol UITextInputTraits <NSObject>
 @optional
 @property (nonatomic) UITextAutocapitalizationType autocapitalizationType;
@@ -25,15 +27,18 @@ typedef NSString *UITextContentType NS_TYPED_ENUM;
 @property (nonatomic, getter=isSecureTextEntry) BOOL secureTextEntry;
 @property (null_unspecified, nonatomic, copy) UITextContentType textContentType;
 @end
+NS_SWIFT_UI_ACTOR
 @protocol UIKeyInput <UITextInputTraits>
 @property (nonatomic, readonly) BOOL hasText;
 - (void)insertText:(NSString *)text;
 - (void)deleteBackward;
 @end
 /* isim: the text-range/position half of UITextInput is not implemented. */
+NS_SWIFT_UI_ACTOR
 @protocol UITextInput <UIKeyInput>
 @end
 @class UITextInputMode;
+NS_SWIFT_UI_ACTOR
 @protocol UITextDocumentProxy <UIKeyInput>
 @property (nullable, nonatomic, readonly) NSString *documentContextBeforeInput;
 @property (nullable, nonatomic, readonly) NSString *documentContextAfterInput;
@@ -43,12 +48,14 @@ typedef NSString *UITextContentType NS_TYPED_ENUM;
 - (void)setMarkedText:(NSString *)markedText selectedRange:(NSRange)selectedRange;
 - (void)unmarkText;
 @end
+NS_SWIFT_UI_ACTOR
 @protocol UITextInputDelegate <NSObject>
 - (void)selectionWillChange:(nullable id <UITextInput>)textInput;
 - (void)selectionDidChange:(nullable id <UITextInput>)textInput;
 - (void)textWillChange:(nullable id <UITextInput>)textInput;
 - (void)textDidChange:(nullable id <UITextInput>)textInput;
 @end
+NS_SWIFT_UI_ACTOR
 @interface UITextInputMode : NSObject
 @property (nullable, nonatomic, readonly, strong) NSString *primaryLanguage;
 @property (class, nonatomic, readonly) NSArray<UITextInputMode *> *activeInputModes;

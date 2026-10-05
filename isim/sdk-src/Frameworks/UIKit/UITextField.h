@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIKitDefines.h>
 #import <UIKit/UIControl.h>
 #import <UIKit/UITextInput.h>
 NS_ASSUME_NONNULL_BEGIN
@@ -6,6 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, UITextBorderStyle) { UITextBorderStyleNone, UITextBorderStyleLine, UITextBorderStyleBezel, UITextBorderStyleRoundedRect };
 typedef NS_ENUM(NSInteger, UITextFieldViewMode) { UITextFieldViewModeNever, UITextFieldViewModeWhileEditing, UITextFieldViewModeUnlessEditing, UITextFieldViewModeAlways };
 typedef NS_ENUM(NSInteger, UITextFieldDidEndEditingReason) { UITextFieldDidEndEditingReasonCommitted };
+NS_SWIFT_UI_ACTOR
 @protocol UITextFieldDelegate <NSObject>
 @optional
 - (BOOL)textFieldShouldBeginEditing:(UITextField *)textField;
