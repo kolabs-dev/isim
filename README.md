@@ -122,3 +122,13 @@ API coverage details are in [docs/compatibility-matrix.md](docs/compatibility-ma
 | `isim/samples`, `isim/tests` | demo apps and test suites |
 | `isim/release` | release packaging |
 | `docs/`, `experiments/`, `results/` | research notes and experiments |
+
+## License
+
+Apache-2.0, see [LICENSE](LICENSE). Release packages include third-party licenses in `licenses/` ([isim/release/licenses](isim/release/licenses)).
+
+## Trademarks
+
+isim is an independent project. It is not affiliated with, endorsed by, or sponsored by Apple Inc.
+Apple, iPhone, iPad, iOS, Xcode, Swift, UIKit, SwiftUI, TestFlight and App Store are trademarks of Apple Inc.,
+used here only to describe compatibility.
