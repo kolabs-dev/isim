@@ -61,10 +61,10 @@ export GUEST_LDFLAGS="-arch x86_64 -platform_version ios-simulator $MINOS 0"
 framework() { # Name srcdir [extra ld args...]
   local name=$1 src=$2; shift 2
   local fw="$SDK/System/Library/Frameworks/$name.framework" objdir="$OUT/obj/$name"
-  compgen -G "$src/*.[mc]" >/dev/null || { step "framework $name: no sources yet, skipped"; return 0; }
-  step "framework $name"
   mkdir -p "$fw/Headers" "$objdir"
   rsync -a --delete "sdk-src/Frameworks/$name/" "$fw/Headers/"
+  compgen -G "$src/*.[mc]" >/dev/null || { step "framework $name: headers only"; return 0; }
+  step "framework $name"
   local objs=()
   for f in "$src"/*.m "$src"/*.c; do
     [ -e "$f" ] || continue
@@ -77,6 +77,7 @@ framework() { # Name srcdir [extra ld args...]
       -o "$fw/$name" "${objs[@]}" -L"$SDK/usr/lib" -F"$SDK/System/Library/Frameworks" -lSystem -lobjc "$@"
 }
 
+framework CoreFoundation frameworks/CoreFoundation
 framework CoreGraphics frameworks/CoreGraphics -lisim_host
 framework Foundation frameworks/Foundation -framework CoreGraphics
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host

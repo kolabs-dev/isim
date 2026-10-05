@@ -1,0 +1,39 @@
+#pragma once
+#include <_isim_cdefs.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+__BEGIN_DECLS
+#define CF_EXPORT extern __attribute__((visibility("default")))
+#define CF_INLINE static inline
+#define CF_ENUM(_type, _name) enum _name : _type _name; enum _name : _type
+#define CF_OPTIONS(_type, _name) enum _name : _type _name; enum _name : _type
+#define CF_RETURNS_RETAINED __attribute__((cf_returns_retained))
+#define CF_IMPLICIT_BRIDGING_ENABLED
+#define CF_IMPLICIT_BRIDGING_DISABLED
+typedef unsigned char Boolean;
+typedef unsigned char UInt8;
+typedef signed long CFIndex;
+typedef unsigned long CFTypeID;
+typedef unsigned long CFOptionFlags;
+typedef unsigned long CFHashCode;
+typedef const void *CFTypeRef;
+typedef const struct __CFString *CFStringRef;
+typedef struct __CFString *CFMutableStringRef;
+typedef const struct __CFAllocator *CFAllocatorRef;
+typedef const struct __CFDictionary *CFDictionaryRef;
+typedef const struct __CFArray *CFArrayRef;
+typedef const struct __CFError *CFErrorRef;
+typedef uint32_t CFStringEncoding;
+typedef struct { CFIndex location; CFIndex length; } CFRange;
+CF_INLINE CFRange CFRangeMake(CFIndex loc, CFIndex len) { CFRange r = { loc, len }; return r; }
+typedef CF_ENUM(CFIndex, CFComparisonResult) { kCFCompareLessThan = -1L, kCFCompareEqualTo = 0, kCFCompareGreaterThan = 1 };
+#define kCFNotFound ((CFIndex)-1)
+CF_EXPORT CFTypeID CFGetTypeID(CFTypeRef cf);
+CF_EXPORT CFTypeRef CFRetain(CFTypeRef cf);
+CF_EXPORT void CFRelease(CFTypeRef cf);
+CF_EXPORT CFTypeID CFStringGetTypeID(void);
+CF_EXPORT CFIndex CFStringGetLength(CFStringRef s);
+CF_EXPORT CFHashCode CFStringHashNSString(CFStringRef s);
+CF_EXPORT CFHashCode CFStringHashCString(const uint8_t *bytes, CFIndex len);
+__END_DECLS

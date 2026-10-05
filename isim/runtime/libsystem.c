@@ -15,6 +15,10 @@
 #include <time.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <libgen.h>
+#include <linux/futex.h>
+#include <malloc.h>
+#include <sys/syscall.h>
 #include <signal.h>
 
 #include "runtime.h"
@@ -148,8 +152,8 @@ static int d_once(struct d_once *o, void (*fn)(void)) {
 }
 
 static int d_pthread_create(pthread_t *t, const void *attr, void *(*fn)(void *), void *arg) {
-    (void)attr;  /* Darwin pthread_attr_t contents are ignored: default attributes used */
-    return d_errno(pthread_create(t, NULL, fn, arg));
+    const struct { long sig; pthread_attr_t *host; } *a = attr;
+    return d_errno(pthread_create(t, a && a->sig == 0x54485241 ? a->host : NULL, fn, arg));
 }
 static int d_pthread_join(pthread_t t, void **r) { return d_errno(pthread_join(t, r)); }
 static int d_pthread_detach(pthread_t t) { return d_errno(pthread_detach(t)); }
@@ -170,6 +174,67 @@ extern int __xpg_strerror_r(int, char *, size_t);
 static int d_strerror_r(int e, char *b, size_t n) { return __xpg_strerror_r(e, b, n); }
 static int mb_cur_max_value = 1;
 static int d_system(const char *cmd) { (void)cmd; errno = ENOSYS; return -1; }   /* no subprocesses on iOS */
+
+/* ---------------- Darwin private futex (__ulock_*) on Linux futexes ---------------- */
+#define UL_OPCODE_MASK 0xff
+#define ULF_WAKE_ALL 0x100
+static int d_ulock_wait(uint32_t op, void *addr, uint64_t value, uint32_t timeout_us) {
+    struct timespec ts, *tp = NULL;
+    if (timeout_us) { ts.tv_sec = timeout_us / 1000000; ts.tv_nsec = (timeout_us % 1000000) * 1000; tp = &ts; }
+    long r = syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, (uint32_t)value, tp, NULL, 0);   /* 32-bit compare ops only */
+    if (r < 0 && (errno == EAGAIN || errno == EINTR)) return 0;
+    return r < 0 ? -d_errno(errno) : 0;
+}
+static int d_ulock_wake(uint32_t op, void *addr, uint64_t wake_value) {
+    syscall(SYS_futex, addr, FUTEX_WAKE_PRIVATE, (op & ULF_WAKE_ALL) ? INT32_MAX : 1, NULL, NULL, 0);
+    return 0;
+}
+static unsigned int d_pthread_mach_thread_np(pthread_t t) { return (unsigned int)(((uintptr_t)t >> 12) & 0xffffffff) | 1; }
+static int d_pthread_threadid_np(pthread_t t, uint64_t *id) { if (id) *id = t ? (uint64_t)(uintptr_t)t : (uint64_t)gettid(); return 0; }
+static void *d_pthread_get_stackaddr_np(pthread_t t) {
+    pthread_attr_t a; void *addr = NULL; size_t sz = 0;
+    if (pthread_getattr_np(t, &a) == 0) { pthread_attr_getstack(&a, &addr, &sz); pthread_attr_destroy(&a); }
+    return (char *)addr + sz;                                   /* Darwin returns the stack top */
+}
+static size_t d_pthread_get_stacksize_np(pthread_t t) {
+    pthread_attr_t a; void *addr = NULL; size_t sz = 0;
+    if (pthread_getattr_np(t, &a) == 0) { pthread_attr_getstack(&a, &addr, &sz); pthread_attr_destroy(&a); }
+    return sz;
+}
+/* Darwin pthread_attr_t is 64 bytes; glibc's is 56, so it is stored inline after a signature word */
+struct d_attr { long sig; pthread_attr_t *host; };
+static int d_attr_init(struct d_attr *a) { a->sig = 0x54485241; a->host = malloc(sizeof *a->host); return pthread_attr_init(a->host); }
+static int d_attr_destroy(struct d_attr *a) { if (a->host) { pthread_attr_destroy(a->host); free(a->host); a->host = NULL; } return 0; }
+static int d_attr_setstacksize(struct d_attr *a, size_t n) { return d_errno(pthread_attr_setstacksize(a->host, n)); }
+static int d_attr_getstacksize(const struct d_attr *a, size_t *n) { return d_errno(pthread_attr_getstacksize(a->host, n)); }
+static int d_attr_getstack(const struct d_attr *a, void **p, size_t *n) { return d_errno(pthread_attr_getstack(a->host, p, n)); }
+static int d_attr_setdetachstate(struct d_attr *a, int s) { return d_errno(pthread_attr_setdetachstate(a->host, s == 2 ? PTHREAD_CREATE_DETACHED : PTHREAD_CREATE_JOINABLE)); }
+
+/* ---------------- libmalloc subset ---------------- */
+static char fake_zone[64];
+static size_t d_malloc_size(const void *p) { return p ? malloc_usable_size((void *)p) : 0; }
+static size_t d_malloc_good_size(size_t n) { return (n + 15) & ~(size_t)15; }
+static void *d_malloc_default_zone(void) { return fake_zone; }
+static void *d_malloc_zone_from_ptr(const void *p) { return NULL; }
+static void *d_zone_malloc(void *z, size_t n) { return malloc(n); }
+static void *d_zone_calloc(void *z, size_t n, size_t s) { return calloc(n, s); }
+static void *d_zone_memalign(void *z, size_t a, size_t n) { void *p = NULL; return posix_memalign(&p, a < sizeof(void *) ? sizeof(void *) : a, n) ? NULL : p; }
+static void d_zone_free(void *z, void *p) { free(p); }
+
+/* ---------------- os_object (no ObjC-backed OS objects in isim) ---------------- */
+static void *d_os_retain(void *o) { return o; }
+static void d_os_release(void *o) { }
+
+/* compiler-rt / libgcc builtins: identical calling convention on Linux and Darwin x86_64 */
+extern __int128 __divti3(__int128, __int128);
+extern __int128 __modti3(__int128, __int128);
+extern unsigned __int128 __udivti3(unsigned __int128, unsigned __int128);
+extern unsigned __int128 __umodti3(unsigned __int128, unsigned __int128);
+extern float __extendhfsf2(_Float16);
+extern _Float16 __truncdfhf2(double);
+extern _Float16 __truncsfhf2(float);
+
+static char *d_progname = "app";
 
 /* ---------------- misc ---------------- */
 static uintptr_t stack_chk_guard;
@@ -206,6 +271,7 @@ static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
 void libsystem_init(int argc, char **argv) {
     d_stdinp = stdin; d_stdoutp = stdout; d_stderrp = stderr;
     guest_argc = argc; guest_argv = argv;
+    if (argc > 0) { char *a = strdup(argv[0]); d_progname = strdup(basename(a)); free(a); }
     if (getrandom(&stack_chk_guard, sizeof stack_chk_guard, 0) != sizeof stack_chk_guard) stack_chk_guard = 0x5a17e57a;
 }
 
@@ -220,6 +286,7 @@ static const struct shim libsystem_table[] = {
     P(atoi), P(atol), P(atof), P(abs), P(labs), P(llabs), P(qsort), P(bsearch), A("_bzero", d_bzero),
     P(tolower), P(toupper), P(isalpha), P(isdigit), P(isalnum), P(isspace), P(isupper), P(islower), P(isxdigit), P(ispunct), P(isprint),
     /* stdio (FILE* is opaque to guests) */
+    P(asprintf), P(vasprintf), P(flockfile), P(funlockfile), P(getc_unlocked), P(getline), P(getdelim),
     P(printf), P(fprintf), P(vprintf), P(vfprintf), P(snprintf), P(vsnprintf), P(sprintf), P(vsprintf), P(sscanf),
     P(puts), P(fputs), P(fputc), P(putchar), P(fwrite), P(fread), P(fflush), P(fopen), P(fclose), P(fgets), P(fseek), P(ftell), P(perror),
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
@@ -412,6 +479,18 @@ static const struct shim libsystem_table[] = {
     P(clearerr), P(feof), P(ferror), P(strcoll), P(strxfrm), P(strpbrk), P(strspn), P(strcspn), P(strtok), P(strtok_r),
     P(strerror), A("_strerror_r", d_strerror_r), P(strlcpy), P(strlcat), P(clock), P(difftime), P(asctime), P(ctime),
     P(gmtime), P(localtime), P(timespec_get), P(imaxabs), P(imaxdiv), P(strtoimax), P(strtoumax), P(signal), P(raise),
+    A("___ulock_wait", d_ulock_wait), A("___ulock_wake", d_ulock_wake), A("_pthread_mach_thread_np", d_pthread_mach_thread_np),
+    A("_pthread_threadid_np", d_pthread_threadid_np), A("_pthread_get_stackaddr_np", d_pthread_get_stackaddr_np),
+    A("_pthread_get_stacksize_np", d_pthread_get_stacksize_np), A("_pthread_attr_init", d_attr_init),
+    A("_pthread_attr_destroy", d_attr_destroy), A("_pthread_attr_setstacksize", d_attr_setstacksize),
+    A("_pthread_attr_getstacksize", d_attr_getstacksize), A("_pthread_attr_getstack", d_attr_getstack),
+    A("_pthread_attr_setdetachstate", d_attr_setdetachstate), P(pthread_key_delete),
+    A("_malloc_size", d_malloc_size), A("_malloc_good_size", d_malloc_good_size), A("_malloc_default_zone", d_malloc_default_zone),
+    A("_malloc_zone_from_ptr", d_malloc_zone_from_ptr), A("_malloc_zone_malloc", d_zone_malloc), A("_malloc_zone_calloc", d_zone_calloc),
+    A("_malloc_zone_memalign", d_zone_memalign), A("_malloc_zone_free", d_zone_free),
+    S("_os_retain", d_os_retain), S("_os_release", d_os_release),
+    P(__divti3), P(__modti3), P(__udivti3), P(__umodti3), P(__extendhfsf2), P(__truncdfhf2), P(__truncsfhf2),
+    A("_environ", &environ), A("___progname", &d_progname),
     /* random */
     A("_arc4random", d_arc4random), A("_arc4random_uniform", d_arc4random_uniform), A("_arc4random_buf", d_arc4random_buf),
     /* pthreads */

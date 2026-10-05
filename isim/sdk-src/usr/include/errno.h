@@ -1,5 +1,8 @@
 #pragma once
+#include <_isim_cdefs.h>
+__BEGIN_DECLS
 extern int *__error(void);
+__END_DECLS
 #define errno (*__error())
 #define EPERM 1
 #define ENOENT 2

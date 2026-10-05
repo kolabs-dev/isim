@@ -2,7 +2,7 @@
 # isim — iOS simulator for Linux (research prototype).
 #   isim run <App.app> [--device iphone15|iphonese|ipad] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
-#   isim swiftc -embedded <swiftc args...>   compile Embedded Swift for the simulator (needs docker image swift:6.2)
+#   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 set -euo pipefail
 BIN=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
@@ -28,14 +28,18 @@ case "$cmd" in
     fi
     exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
   cc)
-    exec "${CLANG:-clang}" -target x86_64-apple-ios15.0-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc "$@" ;;
+    exec "${CLANG:-clang}" -target x86_64-apple-ios15.0-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc -L "$SDK/usr/lib/swift" "$@" ;;
   swiftc)
-    [ "${1:-}" = "-embedded" ] || { echo "isim swiftc: only -embedded is supported so far (full Swift runtime: in progress)" >&2; exit 2; }
-    shift
     ws=$(cd -- "$BIN/../../.." && pwd)
-    exec docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$ws:$ws" -w "$PWD" swift:6.2 \
-      swiftc -target x86_64-apple-ios15.0-simulator -enable-experimental-feature Embedded \
-      -enable-experimental-feature Extern -wmo -parse-as-library -Osize -I "$BIN/../swift/embedded" "$@" ;;
+    run=(docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$ws:$ws" -w "$PWD" swift:6.2 swiftc -target x86_64-apple-ios15.0-simulator)
+    if [ "${1:-}" = "-embedded" ]; then
+      shift
+      exec "${run[@]}" -enable-experimental-feature Embedded -enable-experimental-feature Extern -wmo -parse-as-library -Osize \
+        -I "$BIN/../swift/embedded" "$@"
+    fi
+    # full Swift: stdlib + runtime from the isim SDK (/usr/lib/swift); Concurrency/StringProcessing not built yet
+    exec "${run[@]}" -sdk "$SDK" -O -runtime-compatibility-version none \
+      -Xfrontend -disable-implicit-concurrency-module-import -Xfrontend -disable-implicit-string-processing-module-import "$@" ;;
   info)
     f=${1:?usage: isim info <App.app|binary>}
     [ -d "$f" ] && f=$f/$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$f/Info.plist")

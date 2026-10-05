@@ -11,9 +11,23 @@ typedef void (*IMP)(void);
 typedef bool BOOL;                 /* 64-bit iOS: BOOL is bool */
 #define YES __objc_yes
 #define NO __objc_no
-#define Nil ((Class)0)
-#define nil ((id)0)
-#define OBJC_EXPORT extern __attribute__((visibility("default")))
+#ifdef __cplusplus
+#define Nil nullptr
+#define nil nullptr
+#else
+#define Nil ((void *)0)
+#define nil ((void *)0)
+#endif
+#ifndef OBJC_EXTERN
+#ifdef __cplusplus
+#define OBJC_EXTERN extern "C"
+#else
+#define OBJC_EXTERN extern
+#endif
+#endif
+#ifndef OBJC_EXPORT
+#define OBJC_EXPORT OBJC_EXTERN __attribute__((visibility("default")))
+#endif
 #define OBJC_ROOT_CLASS __attribute__((objc_root_class))
 #define NS_RETURNS_RETAINED __attribute__((ns_returns_retained))
 __BEGIN_DECLS

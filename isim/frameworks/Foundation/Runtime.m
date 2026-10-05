@@ -483,3 +483,31 @@ const char *isim_process_name(void) {
 - (NSString *)stringForKey:(NSString *)k { id v = [self objectForKey:k]; return [v isKindOfClass:[NSString class]] ? v : nil; }
 - (BOOL)synchronize { return YES; }
 @end
+
+/* ================= NSError ================= */
+NSErrorDomain const NSCocoaErrorDomain = @"NSCocoaErrorDomain";
+NSErrorDomain const NSPOSIXErrorDomain = @"NSPOSIXErrorDomain";
+NSErrorDomain const NSOSStatusErrorDomain = @"NSOSStatusErrorDomain";
+NSErrorUserInfoKey const NSLocalizedDescriptionKey = @"NSLocalizedDescription";
+NSErrorUserInfoKey const NSUnderlyingErrorKey = @"NSUnderlyingError";
+NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailureReason";
+@implementation NSError
++ (instancetype)errorWithDomain:(NSErrorDomain)d code:(NSInteger)c userInfo:(NSDictionary *)u { return [[self alloc] initWithDomain:d code:c userInfo:u]; }
+- (instancetype)initWithDomain:(NSErrorDomain)d code:(NSInteger)c userInfo:(NSDictionary *)u {
+    if ((self = [super init])) { _domain = [d copy]; _code = c; _userInfo = [u copy] ?: @{}; }
+    return self;
+}
+- (NSString *)localizedDescription {
+    NSString *s = _userInfo[NSLocalizedDescriptionKey];
+    return s ?: [NSString stringWithFormat:@"The operation couldn’t be completed. (%@ error %ld.)", _domain, (long)_code];
+}
+- (NSString *)localizedFailureReason { return _userInfo[NSLocalizedFailureReasonErrorKey]; }
+- (id)copyWithZone:(NSZone *)z { return self; }
+- (NSString *)description { return [NSString stringWithFormat:@"Error Domain=%@ Code=%ld \"%@\"", _domain, (long)_code, self.localizedDescription]; }
+@end
+
+@implementation NSCoder @end
+
+/* function-pointer variants (used by C/C++ clients such as the Swift runtime) */
+void dispatch_async_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) { dispatch_async(q, ^{ f(ctx); }); }
+void dispatch_once_f(dispatch_once_t *pred, void *ctx, dispatch_function_t f) { dispatch_once(pred, ^{ f(ctx); }); }

@@ -324,6 +324,9 @@ static NSString *map_ascii(NSString *s, int (*fn)(int), int capitalize) {
 - (NSString *)lowercaseString { return map_ascii(self, tolower, 0); }
 - (NSString *)uppercaseString { return map_ascii(self, toupper, 0); }
 - (NSString *)capitalizedString { return map_ascii(self, NULL, 1); }
+/* isim: Unicode normalization not implemented yet; strings are returned unchanged (exact for ASCII/NFC input) */
+- (NSString *)decomposedStringWithCanonicalMapping { return [[self copy] autorelease]; }
+- (NSString *)precomposedStringWithCanonicalMapping { return [[self copy] autorelease]; }
 - (double)doubleValue { return strtod([self UTF8String], NULL); }
 - (float)floatValue { return strtof([self UTF8String], NULL); }
 - (int)intValue { return (int)strtol([self UTF8String], NULL, 10); }

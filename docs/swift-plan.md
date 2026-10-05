@@ -33,6 +33,23 @@ Reproduce: `docker run --rm -v "$PWD":/w -w /w swift:6.2 swiftc -target arm64-ap
 - **SDK groundwork for stage 2:** libc++ headers (llvmorg-22.1.8) with an isim `__config_site` and a C11 libc
   header surface (math, stdlib, stdio, string, inttypes, sched, signal) + matching host functions.
 
+- **Stage 2 core done (2026-10-05):** full Swift on the isim simulator.
+  - `build-stdlib.py --full`: the regular stdlib (228 files, library evolution, ObjC interop) for
+    `x86_64-apple-ios15.0-simulator` → `swiftCore.o` (39k symbols) + `Swift.swiftmodule`/`.swiftinterface`.
+  - `build-runtime.sh`: all 92 runtime/stubs/demangler/LLVMSupport/threading sources (C++ and ObjC++) compile
+    against the isim SDK (pthreads threading, no Darwin malloc zones, no dlsym overrides, reflection on).
+  - `build-libcxx.sh`: guest `libc++.1.dylib` from llvmorg-22.1.8 libc++/libc++abi sources (no exceptions/RTTI).
+  - `build-swiftcore.sh`: `/usr/lib/swift/libswiftCore.dylib` (9 MB) linked with no undefined symbols.
+  - isim runtime additions it required: Mach-O thread-local variables (TLV thunk preserving all registers),
+    dyld image APIs + add-image callbacks + `getsectiondata`, `dlsym`/`dladdr`/`dlopen` over loaded images,
+    `__ulock_wait/wake` on Linux futexes, Darwin `pthread_attr_t`, libmalloc size queries, compiler builtins,
+    ObjC `Method` objects/`class_addMethod`/`method_setImplementation`, ivar introspection, associated objects,
+    `objc_readClassPair`, Swift class-name/image hooks, lazily named classes.
+  - `tests/swift-full`: 12/12 (existentials, protocol extensions, `type(of:)`, typed throws, class inheritance,
+    dynamic casts, `Any`, generics, optionals, `Dictionary(grouping:)`, Unicode, `String(describing:)`).
+  - Not yet: `_Concurrency` (async/await), `_StringProcessing` (Regex), Darwin/ObjectiveC/Foundation overlays,
+    module maps for `import UIKit`, `_objc_realizeClassFromSwift` (Swift uses its fallback path).
+
 ## Plan (proposals, not yet verified)
 1. Simulator Embedded Swift: build the Embedded stdlib module for
    `x86_64-apple-ios-simulator` from `swift-6.2.4-RELEASE` sources with the shipped

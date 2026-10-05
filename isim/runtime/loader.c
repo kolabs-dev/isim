@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <limits.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +40,7 @@ struct image {
     uint8_t *file; size_t file_size;
     const struct mach_header_64 *mh;
     struct segment_command_64 *segs[MAX_SEGS]; int nsegs;
-    uint64_t slide; uint8_t *base;
+    uint64_t slide; uint8_t *base; uint64_t span;
     int ndeps;
     const char *dep_names[MAX_DEPS];
     struct image *deps[MAX_DEPS];        /* NULL when the dependency is a host library */
@@ -71,8 +72,12 @@ void isim_fatal(const char *fmt, ...) {
 
 const char *isim_main_executable_path(void) { return main_image ? main_image->path : NULL; }
 
+static const struct shim dyld_table[];
+static const size_t dyld_table_count;
 const struct shim *host_lib_lookup(const struct host_lib *lib, const char *name) {
     for (size_t i = 0; i < lib->count; i++) if (!strcmp(lib->table[i].name, name)) return &lib->table[i];
+    if (lib == &host_libsystem)            /* libdyld lives inside the libSystem umbrella on Darwin */
+        for (size_t i = 0; i < dyld_table_count; i++) if (!strcmp(dyld_table[i].name, name)) return &dyld_table[i];
     return NULL;
 }
 
@@ -424,6 +429,7 @@ static struct image *map_image(const char *path, int want_type) {
     uint8_t *base = mmap(NULL, hi - lo, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (base == MAP_FAILED) isim_fatal("%s: address reservation failed", path);
     im->slide = (uint64_t)(uintptr_t)base - lo;
+    im->span = hi - lo;
     for (int i = 0; i < im->nsegs; i++) {
         struct segment_command_64 *s = im->segs[i];
         if (!is_mapped_seg(s)) continue;
@@ -432,10 +438,6 @@ static struct image *map_image(const char *path, int want_type) {
             isim_fatal("%s: segment map failed", path);
         if (s->filesize) memcpy(at, im->file + s->fileoff, s->filesize);
         if (s->fileoff == 0 && s->filesize) im->base = at;
-        const struct section_64 *sec = (const void *)(s + 1);
-        for (uint32_t j = 0; j < s->nsects; j++)
-            if ((sec[j].flags & SECTION_TYPE) == S_THREAD_LOCAL_VARIABLES)
-                fprintf(stderr, "isim: warning: %s uses thread-local variables (unsupported)\n", path);
     }
     if (!im->base) isim_fatal("%s: no segment maps the Mach-O header", path);
     if (isim_verbose) fprintf(stderr, "isim: mapped %s at %p\n", im->path, im->base);
@@ -463,6 +465,73 @@ static struct image *load_image(const char *path, int want_type) {
         im->deps[i] = dep;
     }
     return im;
+}
+
+/* ---------------- thread-local variables (Mach-O TLV) ----------------
+ * Each __thread_vars descriptor is { thunk, key, offset }. Compiled code calls desc->thunk(desc) with the
+ * descriptor in %rdi and expects the variable's address in %rax with every other register preserved.
+ * isim gives each image a pthread key; a thread's block is a copy of the image's TLV template
+ * (__thread_data contents followed by zeroed __thread_bss), allocated on first access. */
+struct tlv_image { pthread_key_t key; const uint8_t *init; size_t init_size, size; };
+static struct tlv_image tlv_images[MAX_IMAGES]; static int ntlv_images;
+struct tlv_desc { void *thunk; unsigned long key; unsigned long offset; };
+
+void *isim_tlv_addr(struct tlv_desc *d) {
+    struct tlv_image *t = &tlv_images[d->key];
+    uint8_t *block = pthread_getspecific(t->key);
+    if (!block) {
+        block = calloc(1, t->size ? t->size : 1);
+        if (t->init_size) memcpy(block, t->init, t->init_size);
+        pthread_setspecific(t->key, block);
+    }
+    return block + d->offset;
+}
+__asm__(
+    ".text\n.globl isim_tlv_get_addr\n.type isim_tlv_get_addr,@function\nisim_tlv_get_addr:\n"
+    "  push %rbp\n  mov %rsp, %rbp\n  sub $0x150, %rsp\n  and $-16, %rsp\n"
+    "  mov %rcx, 0x00(%rsp)\n  mov %rdx, 0x08(%rsp)\n  mov %rsi, 0x10(%rsp)\n  mov %rdi, 0x18(%rsp)\n"
+    "  mov %r8, 0x20(%rsp)\n  mov %r9, 0x28(%rsp)\n  mov %r10, 0x30(%rsp)\n  mov %r11, 0x38(%rsp)\n"
+    "  movdqa %xmm0, 0x40(%rsp)\n  movdqa %xmm1, 0x50(%rsp)\n  movdqa %xmm2, 0x60(%rsp)\n  movdqa %xmm3, 0x70(%rsp)\n"
+    "  movdqa %xmm4, 0x80(%rsp)\n  movdqa %xmm5, 0x90(%rsp)\n  movdqa %xmm6, 0xa0(%rsp)\n  movdqa %xmm7, 0xb0(%rsp)\n"
+    "  movdqa %xmm8, 0xc0(%rsp)\n  movdqa %xmm9, 0xd0(%rsp)\n  movdqa %xmm10, 0xe0(%rsp)\n  movdqa %xmm11, 0xf0(%rsp)\n"
+    "  movdqa %xmm12, 0x100(%rsp)\n  movdqa %xmm13, 0x110(%rsp)\n  movdqa %xmm14, 0x120(%rsp)\n  movdqa %xmm15, 0x130(%rsp)\n"
+    "  call isim_tlv_addr\n"
+    "  mov 0x00(%rsp), %rcx\n  mov 0x08(%rsp), %rdx\n  mov 0x10(%rsp), %rsi\n  mov 0x18(%rsp), %rdi\n"
+    "  mov 0x20(%rsp), %r8\n  mov 0x28(%rsp), %r9\n  mov 0x30(%rsp), %r10\n  mov 0x38(%rsp), %r11\n"
+    "  movdqa 0x40(%rsp), %xmm0\n  movdqa 0x50(%rsp), %xmm1\n  movdqa 0x60(%rsp), %xmm2\n  movdqa 0x70(%rsp), %xmm3\n"
+    "  movdqa 0x80(%rsp), %xmm4\n  movdqa 0x90(%rsp), %xmm5\n  movdqa 0xa0(%rsp), %xmm6\n  movdqa 0xb0(%rsp), %xmm7\n"
+    "  movdqa 0xc0(%rsp), %xmm8\n  movdqa 0xd0(%rsp), %xmm9\n  movdqa 0xe0(%rsp), %xmm10\n  movdqa 0xf0(%rsp), %xmm11\n"
+    "  movdqa 0x100(%rsp), %xmm12\n  movdqa 0x110(%rsp), %xmm13\n  movdqa 0x120(%rsp), %xmm14\n  movdqa 0x130(%rsp), %xmm15\n"
+    "  mov %rbp, %rsp\n  pop %rbp\n  ret\n");
+void isim_tlv_get_addr(void);
+
+static void setup_tlv(struct image *im) {
+    uint64_t lo = UINT64_MAX, hi = 0, init_hi = 0;
+    struct tlv_desc *descs = NULL; uint64_t ndescs = 0;
+    for (int i = 0; i < im->nsegs; i++) {
+        const struct section_64 *sec = (const void *)(im->segs[i] + 1);
+        for (uint32_t j = 0; j < im->segs[i]->nsects; j++) {
+            uint32_t type = sec[j].flags & SECTION_TYPE;
+            if (type == S_THREAD_LOCAL_VARIABLES) { descs = (void *)(uintptr_t)(sec[j].addr + im->slide); ndescs = sec[j].size / sizeof *descs; }
+            if (type == S_THREAD_LOCAL_REGULAR || type == S_THREAD_LOCAL_ZEROFILL) {
+                if (sec[j].addr < lo) lo = sec[j].addr;
+                if (sec[j].addr + sec[j].size > hi) hi = sec[j].addr + sec[j].size;
+                if (type == S_THREAD_LOCAL_REGULAR && sec[j].addr + sec[j].size > init_hi) init_hi = sec[j].addr + sec[j].size;
+            }
+        }
+    }
+    if (!descs) return;
+    if (ntlv_images >= MAX_IMAGES) isim_fatal("too many TLV images");
+    struct tlv_image *t = &tlv_images[ntlv_images];
+    pthread_key_create(&t->key, free);
+    if (hi > lo) {
+        t->size = hi - lo;
+        t->init = (const uint8_t *)(uintptr_t)(lo + im->slide);
+        t->init_size = init_hi > lo ? init_hi - lo : 0;
+    }
+    for (uint64_t k = 0; k < ndescs; k++) { descs[k].thunk = (void *)isim_tlv_get_addr; descs[k].key = (unsigned long)ntlv_images; }
+    if (isim_verbose) fprintf(stderr, "isim: %s: %lu thread-local variables, template %zu bytes\n", im->path, (unsigned long)ndescs, t->size);
+    ntlv_images++;
 }
 
 /* ---------------- ObjC + initializers ---------------- */
@@ -507,6 +576,8 @@ static void print_exports(const char *lib) {
     for (size_t i = 0; i < sizeof host_libs / sizeof *host_libs; i++) {
         if (strcmp(host_libs[i]->install_name, lib)) continue;
         for (size_t j = 0; j < host_libs[i]->count; j++) printf("%s %s\n", host_libs[i]->table[j].name, host_libs[i]->table[j].status);
+        if (host_libs[i] == &host_libsystem)
+            for (size_t j = 0; j < dyld_table_count; j++) printf("%s %s\n", dyld_table[j].name, dyld_table[j].status);
         return;
     }
     fprintf(stderr, "unknown host library %s\n", lib);
@@ -521,6 +592,107 @@ static const char *default_root(void) {
     snprintf(buf, sizeof buf, "%s/../sdk", dirname(self));
     return buf;
 }
+
+/* ================= libdyld / dlfcn subset (answered from the loader's image list) ================= */
+static struct image *image_for_header(const void *mh) { for (int i = 0; i < nimages; i++) if (images[i]->base == mh) return images[i]; return NULL; }
+static struct image *image_for_address(const void *addr) {
+    for (int i = 0; i < nimages; i++)
+        if ((const uint8_t *)addr >= images[i]->base && (const uint8_t *)addr < images[i]->base + images[i]->span) return images[i];
+    return NULL;
+}
+const char *isim_image_path_for_address(const void *addr) { struct image *im = image_for_address(addr); return im ? im->path : NULL; }
+
+static uint32_t d_dyld_image_count(void) { return (uint32_t)nimages; }
+static const void *d_dyld_get_image_header(uint32_t i) { return i < (uint32_t)nimages ? images[i]->base : NULL; }
+static intptr_t d_dyld_get_image_vmaddr_slide(uint32_t i) { return i < (uint32_t)nimages ? (intptr_t)images[i]->slide : 0; }
+static const char *d_dyld_get_image_name(uint32_t i) { return i < (uint32_t)nimages ? images[i]->path : NULL; }
+typedef void (*add_image_cb)(const void *mh, intptr_t slide);
+static add_image_cb add_cbs[32]; static int nadd_cbs;
+static void d_dyld_register_func_for_add_image(add_image_cb f) {
+    if (nadd_cbs < 32) add_cbs[nadd_cbs++] = f;
+    for (int i = 0; i < nimages; i++) f(images[i]->base, (intptr_t)images[i]->slide);   /* dyld calls back for existing images */
+}
+static void d_dyld_register_func_for_remove_image(add_image_cb f) { (void)f; }      /* images are never unloaded */
+static int d_dyld_is_objc_constant(int kind, const void *addr) { return 0; }
+static const char *d_dyld_image_path_containing_address(const void *addr) { return isim_image_path_for_address(addr); }
+static int d_dyld_is_memory_immutable(const void *addr, size_t n) { return 0; }
+
+static uint8_t *d_getsectiondata(const void *mh, const char *segname, const char *sectname, unsigned long *size) {
+    struct image *im = image_for_header(mh);
+    *size = 0;
+    if (!im) return NULL;
+    for (int i = 0; i < im->nsegs; i++) {
+        const struct section_64 *sec = (const void *)(im->segs[i] + 1);
+        for (uint32_t j = 0; j < im->segs[i]->nsects; j++)
+            if (!strncmp(sec[j].segname, segname, 16) && !strncmp(sec[j].sectname, sectname, 16)) {
+                *size = sec[j].size;
+                return (uint8_t *)(uintptr_t)(sec[j].addr + im->slide);
+            }
+    }
+    return NULL;
+}
+
+static __thread const char *dl_error;
+static __thread char dl_error_buf[512];
+static void *d_dlsym(void *handle, const char *name) {
+    char mangled[512]; snprintf(mangled, sizeof mangled, "_%s", name);
+    void *p = NULL;
+    intptr_t h = (intptr_t)handle;
+    if (h == -2 || h == -1 || h == -3 || h == -5 || !handle) p = isim_lookup_symbol(mangled);
+    else { uint64_t a; if (image_export(handle, mangled, &a, 0)) p = (void *)(uintptr_t)a; }
+    if (!p) { snprintf(dl_error_buf, sizeof dl_error_buf, "dlsym(%p, %s): symbol not found", handle, name); dl_error = dl_error_buf; }
+    return p;
+}
+static void *d_dlopen(const char *path, int mode) {
+    if (!path) return main_image;
+    for (int i = 0; i < nimages; i++) {
+        const char *n = images[i]->install_name;
+        if (!strcmp(images[i]->path, path) || (n && !strcmp(n, path))) return images[i];
+    }
+    for (size_t i = 0; i < sizeof host_libs / sizeof *host_libs; i++)
+        if (!strcmp(host_libs[i]->install_name, path)) return (void *)-2;      /* host libraries: global lookup */
+    snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s): loading new images at runtime is not supported by isim", path);
+    dl_error = dl_error_buf;
+    return NULL;
+}
+static int d_dlclose(void *h) { return 0; }
+static char *d_dlerror(void) { const char *e = dl_error; dl_error = NULL; return (char *)e; }
+
+struct nlist_64 { uint32_t n_strx; uint8_t n_type, n_sect; uint16_t n_desc; uint64_t n_value; };
+struct symtab_command { uint32_t cmd, cmdsize, symoff, nsyms, stroff, strsize; };
+typedef struct { const char *dli_fname; void *dli_fbase; const char *dli_sname; void *dli_saddr; } d_dl_info;
+static int d_dladdr(const void *addr, d_dl_info *info) {
+    struct image *im = image_for_address(addr);
+    if (!im) return 0;
+    info->dli_fname = im->path; info->dli_fbase = im->base; info->dli_sname = NULL; info->dli_saddr = NULL;
+    const uint8_t *lc = im->file + sizeof *im->mh;
+    for (uint32_t i = 0; i < im->mh->ncmds; i++, lc += ((const struct load_command *)lc)->cmdsize) {
+        if (((const struct load_command *)lc)->cmd != 0x2) continue;              /* LC_SYMTAB */
+        const struct symtab_command *st = (const void *)lc;
+        const struct nlist_64 *nl = (const void *)(im->file + st->symoff);
+        const char *strs = (const char *)im->file + st->stroff;
+        uint64_t best = 0;
+        for (uint32_t k = 0; k < st->nsyms; k++) {
+            if ((nl[k].n_type & 0xe0) || (nl[k].n_type & 0x0e) != 0x0e) continue;   /* defined, non-stab, N_SECT */
+            uint64_t a = nl[k].n_value + im->slide;
+            if (a <= (uint64_t)(uintptr_t)addr && a >= best) { best = a; info->dli_sname = strs + nl[k].n_strx; }
+        }
+        if (info->dli_sname) { if (*info->dli_sname == '_') info->dli_sname++; info->dli_saddr = (void *)(uintptr_t)best; }
+    }
+    return 1;
+}
+
+#define D(n, f) { n, (void *)f, "isim" }
+static const struct shim dyld_table[] = {
+    D("__dyld_image_count", d_dyld_image_count), D("__dyld_get_image_header", d_dyld_get_image_header),
+    D("__dyld_get_image_vmaddr_slide", d_dyld_get_image_vmaddr_slide), D("__dyld_get_image_name", d_dyld_get_image_name),
+    D("__dyld_register_func_for_add_image", d_dyld_register_func_for_add_image),
+    D("__dyld_register_func_for_remove_image", d_dyld_register_func_for_remove_image),
+    D("__dyld_is_objc_constant", d_dyld_is_objc_constant), D("_dyld_image_path_containing_address", d_dyld_image_path_containing_address),
+    D("__dyld_is_memory_immutable", d_dyld_is_memory_immutable), D("_getsectiondata", d_getsectiondata),
+    D("_dlsym", d_dlsym), D("_dlopen", d_dlopen), D("_dlclose", d_dlclose), D("_dlerror", d_dlerror), D("_dladdr", d_dladdr),
+};
+static const size_t dyld_table_count = sizeof dyld_table / sizeof *dyld_table;
 
 int main(int argc, char **argv, char **envp) {
     int ai = 1;
@@ -553,6 +725,8 @@ int main(int argc, char **argv, char **envp) {
             do_bind(im, im->file + d->lazy_bind_off, im->file + d->lazy_bind_off + d->lazy_bind_size, 1);
         }
     }
+
+    for (int i = 0; i < nimages; i++) setup_tlv(images[i]);   /* after fixups (descriptors' offsets are final) */
 
     struct image *order[MAX_IMAGES]; int n = 0; int visiting[MAX_IMAGES] = {0};
     order_images(main_image, order, &n, visiting);

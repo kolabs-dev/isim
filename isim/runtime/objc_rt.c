@@ -53,7 +53,9 @@ struct category_t {
 /* class->vtable (unused by modern compiled code) points at our per-class state */
 struct objc_class { Class isa, superclass; void *cache; struct rt_class *rt; uintptr_t data; };
 
+struct rt_method { SEL name; const char *types; IMP imp; Class cls; struct rt_method *next; };
 struct rt_class {
+    struct rt_method *methods;                 /* runtime-added or retargeted methods (class_addMethod, method_setImplementation) */
     Class cls, nonmeta;
     int realized, is_meta;
     int init_state;                            /* 0 none, 1 initializing, 2 done */
@@ -72,7 +74,8 @@ static pthread_mutex_t rr_lock = PTHREAD_MUTEX_INITIALIZER;   /* refcounts, weak
 static pthread_mutex_t init_lock;                              /* recursive, +initialize */
 
 static struct class_ro_t *ro_of(Class c) { return (struct class_ro_t *)(c->data & FAST_DATA_MASK); }
-static const char *cls_name(Class c) { return c ? ro_of(c)->name : "nil"; }
+static const char *class_name_of(Class c);
+static const char *cls_name(Class c) { const char *n = c ? class_name_of(c) : "nil"; return n ? n : "<unnamed>"; }
 static int is_meta(Class c) { return ro_of(c)->flags & RO_META; }
 
 /* ================= generic string/pointer hash maps ================= */
@@ -145,6 +148,7 @@ static IMP find_in_list(const struct method_list_t *ml, SEL sel) {
 }
 static IMP find_own(Class c, SEL sel) {
     struct rt_class *r = R(c);
+    if (r) for (struct rt_method *m = r->methods; m; m = m->next) if (m->name == sel) return m->imp;
     if (r) for (int i = r->ncat - 1; i >= 0; i--) { IMP p = find_in_list(r->cat_lists[i], sel); if (p) return p; }
     return find_in_list(ro_of(c)->base_methods, sel);
 }
@@ -257,6 +261,21 @@ void rt_msgSend_stret(void); void rt_msgSendSuper2_stret(void);
 static id send0(id self, SEL sel) { return self ? ((id (*)(id, SEL))objc_rt_lookup(self, self->isa, sel))(self, sel) : NULL; }
 static id send1(id self, SEL sel, void *a) { return self ? ((id (*)(id, SEL, void *))objc_rt_lookup(self, self->isa, sel))(self, sel, a) : NULL; }
 
+/* hooks installed by the Swift runtime */
+typedef int (*hook_getClass)(const char *name, Class *out);
+typedef int (*hook_getImageName)(Class cls, const char **out);
+typedef const char *(*hook_lazyNamer)(Class cls);
+static hook_getClass getclass_hook;
+static hook_getImageName imagename_hook;
+static hook_lazyNamer lazynamer_hook;
+
+/* Swift may emit class_ro_t with a NULL name and supply it lazily through a hook. */
+static const char *class_name_of(Class c) {
+    const char *n = ro_of(c)->name;
+    if (!n && lazynamer_hook) n = lazynamer_hook(c);
+    return n;
+}
+
 /* ================= realization / registration ================= */
 static void realize(Class c);
 
@@ -281,8 +300,8 @@ static void slide_ivars(Class c) {
 
 void *_NSConcreteStackBlock[32], *_NSConcreteMallocBlock[32], *_NSConcreteGlobalBlock[32];
 /* Like CoreFoundation: turn libclosure's isa storage into real class objects once Foundation defines them. */
-static void classify_block_storage(Class c) {
-    const char *n = ro_of(c)->name; void **dst = NULL;
+static void classify_block_storage(Class c, const char *n) {
+    void **dst = NULL;
     if (!strcmp(n, "__NSStackBlock__")) dst = _NSConcreteStackBlock;
     else if (!strcmp(n, "__NSMallocBlock__")) dst = _NSConcreteMallocBlock;
     else if (!strcmp(n, "__NSGlobalBlock__")) dst = _NSConcreteGlobalBlock;
@@ -299,8 +318,8 @@ static void realize(Class c) {
     if (c->isa->superclass && !c->isa->superclass->rt) rt_attach(c->isa->superclass, c->isa->superclass); /* root meta -> root class */
     c->rt->cxx_destruct = find_in_list(ro_of(c)->base_methods, s_cxx_destruct);
     c->rt->realized = c->isa->rt->realized = 1;
-    *strmap_slot(&classes, ro_of(c)->name, 1) = c;
-    classify_block_storage(c);
+    const char *name = class_name_of(c);
+    if (name) { *strmap_slot(&classes, name, 1) = c; classify_block_storage(c, name); }
 }
 
 static void attach_category(struct category_t *cat) {
@@ -399,15 +418,20 @@ Class objc_lookUpClass(const char *name) {
     pthread_mutex_unlock(&rt_lock);
     return slot ? *slot : NULL;
 }
-Class objc_getClass(const char *name) { return name ? objc_lookUpClass(name) : NULL; }
+Class objc_getClass(const char *name) {
+    if (!name) return NULL;
+    Class c = objc_lookUpClass(name);
+    if (!c && getclass_hook) getclass_hook(name, &c);
+    return c;
+}
 Class objc_getMetaClass(const char *name) { Class c = objc_getClass(name); return c ? c->isa : NULL; }
-const char *class_getName(Class c) { return c ? ro_of(c)->name : "nil"; }
+const char *class_getName(Class c) { return cls_name(c); }
 Class class_getSuperclass(Class c) { return c ? c->superclass : NULL; }
 int class_isMetaClass(Class c) { return c && is_meta(c); }
 size_t class_getInstanceSize(Class c) { return c ? ro_of(c)->instance_size : 0; }
 Class object_getClass(id o) { return o ? o->isa : NULL; }
 Class object_setClass(id o, Class c) { Class old = o ? o->isa : NULL; if (o) o->isa = c; return old; }
-const char *object_getClassName(id o) { return o ? ro_of(o->isa)->name : "nil"; }
+const char *object_getClassName(id o) { return o ? cls_name(o->isa) : "nil"; }
 int class_respondsToSelector(Class c, SEL sel) { return c && sel && lookup_nofail(c, sel) != NULL; }
 IMP class_getMethodImplementation(Class c, SEL sel) { return c ? lookup_nofail(c, sel) : NULL; }
 IMP class_lookupMethod_own(Class c, SEL sel) { return find_own(c, sel); }
@@ -437,6 +461,155 @@ int class_conformsToProtocol(Class c, struct protocol_t *p) {
     struct rt_class *r = R(c);
     for (int i = 0; r && i < r->ncatp; i++) if (proto_list_conforms(r->cat_protos[i], p->name, 0)) return 1;
     return 0;
+}
+
+/* ================= methods, ivars, hooks (APIs used by the Swift runtime) ================= */
+static const char *types_in_list(const struct method_list_t *ml, SEL sel) {
+    if (!ml) return NULL;
+    for (uint32_t i = 0; i < ml->count; i++) {
+        if (m_name(ml, i) != sel) continue;
+        const uint8_t *e = m_entry(ml, i);
+        if (ml->entsize_flags & SMALL_METHOD_LIST) return (const char *)(e + 4 + rel32(e + 4));
+        return ((const struct method_t *)e)->types;
+    }
+    return NULL;
+}
+static struct rt_method *method_for(Class cls, SEL sel, int create_on_owner) {
+    for (Class c = cls; c; c = c->superclass) {
+        struct rt_class *r = R(c);
+        if (!r) continue;
+        for (struct rt_method *m = r->methods; m; m = m->next) if (m->name == sel) return m;
+        IMP imp = find_own(c, sel);
+        if (!imp) continue;
+        /* materialize a Method object on the owning class; it now takes precedence over the metadata entry */
+        struct rt_method *m = calloc(1, sizeof *m);
+        m->name = sel; m->imp = imp; m->cls = c; m->next = r->methods; r->methods = m;
+        m->types = types_in_list(ro_of(c)->base_methods, sel);
+        for (int i = 0; !m->types && i < r->ncat; i++) m->types = types_in_list(r->cat_lists[i], sel);
+        return m;
+    }
+    return NULL;
+}
+struct rt_method *class_getInstanceMethod(Class c, SEL sel) {
+    if (!c || !sel) return NULL;
+    pthread_mutex_lock(&rt_lock); struct rt_method *m = method_for(c, sel, 0); pthread_mutex_unlock(&rt_lock);
+    return m;
+}
+struct rt_method *class_getClassMethod(Class c, SEL sel) { return c ? class_getInstanceMethod(c->isa, sel) : NULL; }
+IMP method_getImplementation(struct rt_method *m) { return m ? m->imp : NULL; }
+SEL method_getName(struct rt_method *m) { return m ? m->name : NULL; }
+const char *method_getTypeEncoding(struct rt_method *m) { return m ? m->types : NULL; }
+IMP method_setImplementation(struct rt_method *m, IMP imp) {
+    if (!m) return NULL;
+    pthread_mutex_lock(&rt_lock); IMP old = m->imp; m->imp = imp; cache_flush(); pthread_mutex_unlock(&rt_lock);
+    return old;
+}
+void method_exchangeImplementations(struct rt_method *a, struct rt_method *b) {
+    if (!a || !b) return;
+    pthread_mutex_lock(&rt_lock); IMP t = a->imp; a->imp = b->imp; b->imp = t; cache_flush(); pthread_mutex_unlock(&rt_lock);
+}
+int class_addMethod(Class c, SEL sel, IMP imp, const char *types) {
+    if (!c || !sel) return 0;
+    pthread_mutex_lock(&rt_lock);
+    if (!c->rt) rt_attach(c, is_meta(c) ? NULL : c);
+    int exists = find_own(c, sel) != NULL;
+    if (!exists) {
+        struct rt_method *m = calloc(1, sizeof *m);
+        m->name = sel; m->imp = imp; m->types = types ? strdup(types) : NULL; m->cls = c;
+        m->next = c->rt->methods; c->rt->methods = m;
+        cache_flush();
+    }
+    pthread_mutex_unlock(&rt_lock);
+    return !exists;
+}
+Class class_setSuperclass(Class c, Class newSuper) {
+    pthread_mutex_lock(&rt_lock);
+    Class old = c->superclass;
+    c->superclass = newSuper;
+    if (newSuper) c->isa->superclass = newSuper->isa;
+    cache_flush();
+    pthread_mutex_unlock(&rt_lock);
+    return old;
+}
+struct ivar_t **class_copyIvarList(Class c, unsigned int *outCount) {
+    struct ivar_list_t *il = c ? ro_of(c)->ivars : NULL;
+    unsigned n = il ? il->count : 0;
+    if (outCount) *outCount = n;
+    if (!n) return NULL;
+    struct ivar_t **out = calloc(n + 1, sizeof *out);
+    uint32_t es = il->entsize_flags & ~3u;
+    for (unsigned i = 0; i < n; i++) out[i] = (struct ivar_t *)((uint8_t *)(il + 1) + i * es);
+    return out;
+}
+ptrdiff_t ivar_getOffset(struct ivar_t *v) { return v && v->offset ? *v->offset : 0; }
+const char *ivar_getName(struct ivar_t *v) { return v ? v->name : NULL; }
+const char *ivar_getTypeEncoding(struct ivar_t *v) { return v ? v->type : NULL; }
+id objc_constructInstance(Class c, void *bytes) { if (!c || !bytes) return NULL; id o = bytes; o->isa = c; return o; }
+int object_isClass(id o) { return o && o->isa && is_meta(o->isa); }
+
+/* Swift registers runtime-instantiated classes (generic/resilient class metadata) through this. */
+Class objc_readClassPair(Class cls, const void *imageinfo) {
+    pthread_mutex_lock(&rt_lock);
+    realize(cls);
+    pthread_mutex_unlock(&rt_lock);
+    return cls;
+}
+
+void objc_setHook_getClass(hook_getClass h, hook_getClass *old) { *old = getclass_hook; getclass_hook = h; }
+void objc_setHook_getImageName(hook_getImageName h, hook_getImageName *old) { *old = imagename_hook; imagename_hook = h; }
+void objc_setHook_lazyClassNamer(hook_lazyNamer h, hook_lazyNamer *old) { *old = lazynamer_hook; lazynamer_hook = h; }
+const char *class_getImageName(Class c) {
+    const char *name = NULL;
+    if (imagename_hook && imagename_hook(c, &name)) return name;
+    return c ? isim_image_path_for_address(c) : NULL;
+}
+
+/* associated objects */
+#define ASSOC_RETAIN_NONATOMIC 1
+#define ASSOC_COPY_NONATOMIC 3
+#define ASSOC_RETAIN 01401
+#define ASSOC_COPY 01403
+struct assoc { id obj; const void *key; id value; uintptr_t policy; struct assoc *next; };
+static struct assoc *assoc_buckets[256];
+static pthread_mutex_t assoc_lock = PTHREAD_MUTEX_INITIALIZER;
+static int assoc_any;
+id objc_retain(id o);
+void objc_release(id o);
+id objc_getAssociatedObject(id o, const void *key) {
+    pthread_mutex_lock(&assoc_lock);
+    id v = NULL;
+    for (struct assoc *a = assoc_buckets[hash_ptr(o) & 255]; a; a = a->next) if (a->obj == o && a->key == key) { v = a->value; break; }
+    pthread_mutex_unlock(&assoc_lock);
+    return v;
+}
+void objc_setAssociatedObject(id o, const void *key, id value, uintptr_t policy) {
+    int copy = (policy & 0xff) == ASSOC_COPY_NONATOMIC || policy == ASSOC_COPY, retain = (policy & 0xff) == ASSOC_RETAIN_NONATOMIC || policy == ASSOC_RETAIN;
+    id nv = copy ? send0(value, s_copy) : retain ? objc_retain(value) : value;
+    id old = NULL; int oldOwned = 0;
+    pthread_mutex_lock(&assoc_lock);
+    assoc_any = 1;
+    struct assoc **pp = &assoc_buckets[hash_ptr(o) & 255];
+    for (; *pp; pp = &(*pp)->next) if ((*pp)->obj == o && (*pp)->key == key) break;
+    if (*pp) {
+        old = (*pp)->value; oldOwned = (*pp)->policy != 0;
+        if (value) { (*pp)->value = nv; (*pp)->policy = policy; }
+        else { struct assoc *dead = *pp; *pp = dead->next; free(dead); }
+    } else if (value) {
+        struct assoc *a = calloc(1, sizeof *a); a->obj = o; a->key = key; a->value = nv; a->policy = policy;
+        a->next = assoc_buckets[hash_ptr(o) & 255]; assoc_buckets[hash_ptr(o) & 255] = a;
+    }
+    pthread_mutex_unlock(&assoc_lock);
+    if (oldOwned) objc_release(old);
+}
+void objc_removeAssociatedObjects(id o) {
+    if (!assoc_any) return;
+    struct assoc *dead = NULL;
+    pthread_mutex_lock(&assoc_lock);
+    for (struct assoc **pp = &assoc_buckets[hash_ptr(o) & 255]; *pp;) {
+        if ((*pp)->obj == o) { struct assoc *a = *pp; *pp = a->next; a->next = dead; dead = a; } else pp = &(*pp)->next;
+    }
+    pthread_mutex_unlock(&assoc_lock);
+    while (dead) { struct assoc *n = dead->next; if (dead->policy) objc_release(dead->value); free(dead); dead = n; }
 }
 
 /* ================= reference counting & weak references ================= */
@@ -531,6 +704,7 @@ void objc_moveWeak(id *dst, id *src) { objc_copyWeak(dst, src); objc_destroyWeak
 
 void *objc_destructInstance(id o) {
     if (!o) return o;
+    objc_removeAssociatedObjects(o);
     for (Class c = o->isa; c; c = c->superclass)
         if (c->rt && c->rt->cxx_destruct) ((void (*)(id, SEL))c->rt->cxx_destruct)(o, s_cxx_destruct);
     pthread_mutex_lock(&rr_lock);
@@ -740,6 +914,12 @@ static const struct shim objc_table[] = {
     I(objc_sync_enter), I(objc_sync_exit), I(objc_enumerationMutation), I(objc_exception_throw),
     I(objc_alloc), I(objc_allocWithZone), I(objc_alloc_init), I(objc_opt_new), I(objc_opt_class), I(objc_opt_self),
     I(objc_opt_isKindOfClass), I(objc_opt_respondsToSelector),
+    I(class_getInstanceMethod), I(class_getClassMethod), I(method_getImplementation), I(method_getName),
+    I(method_getTypeEncoding), I(method_setImplementation), I(method_exchangeImplementations), I(class_addMethod),
+    I(class_setSuperclass), I(class_copyIvarList), I(ivar_getOffset), I(ivar_getName), I(ivar_getTypeEncoding),
+    I(objc_constructInstance), I(object_isClass), I(objc_readClassPair), I(objc_setHook_getClass),
+    I(objc_setHook_getImageName), I(objc_setHook_lazyClassNamer), I(class_getImageName),
+    I(objc_getAssociatedObject), I(objc_setAssociatedObject), I(objc_removeAssociatedObjects),
     I(_Block_copy), I(_Block_release), I(_Block_object_assign), I(_Block_object_dispose),
     J("__NSConcreteStackBlock", _NSConcreteStackBlock), J("__NSConcreteMallocBlock", _NSConcreteMallocBlock),
     J("__NSConcreteGlobalBlock", _NSConcreteGlobalBlock),

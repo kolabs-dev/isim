@@ -18,6 +18,7 @@ const struct shim *host_lib_lookup(const struct host_lib *lib, const char *name)
 /* loader services */
 void *isim_lookup_symbol(const char *mangled_name); /* flat lookup over images + host libs */
 const char *isim_main_executable_path(void);
+const char *isim_image_path_for_address(const void *addr);
 void isim_fatal(const char *fmt, ...) __attribute__((noreturn, format(printf, 1, 2)));
 extern int isim_verbose;
 

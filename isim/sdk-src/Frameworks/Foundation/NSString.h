@@ -49,6 +49,8 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 @property (readonly, copy) NSString *lowercaseString;
 @property (readonly, copy) NSString *uppercaseString;
 @property (readonly, copy) NSString *capitalizedString;
+@property (readonly, copy) NSString *decomposedStringWithCanonicalMapping;
+@property (readonly, copy) NSString *precomposedStringWithCanonicalMapping;
 @property (readonly) double doubleValue;
 @property (readonly) float floatValue;
 @property (readonly) int intValue;

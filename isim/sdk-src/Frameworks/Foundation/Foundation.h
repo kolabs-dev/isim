@@ -9,6 +9,7 @@
 #import <Foundation/NSSet.h>
 #import <Foundation/NSNull.h>
 #import <Foundation/NSException.h>
+#import <Foundation/NSError.h>
 #import <Foundation/NSAutoreleasePool.h>
 #import <Foundation/NSBundle.h>
 #import <Foundation/NSDate.h>
@@ -17,4 +18,5 @@
 #import <Foundation/NSNotification.h>
 #import <Foundation/NSProcessInfo.h>
 #import <Foundation/NSUserDefaults.h>
-#include <Foundation/dispatch.h>
+#include <dispatch/dispatch.h>
+#import <Foundation/NSCoder.h>

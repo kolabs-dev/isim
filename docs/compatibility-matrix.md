@@ -19,7 +19,7 @@ layout/semantics translated · **isim** = isim's own implementation · **stub** 
 | Export tries, two-level namespace, flat lookup, re-exports | verified | |
 | @rpath / @executable_path / @loader_path | implemented | |
 | Initializers (`__mod_init_func`, `__init_offsets`) | verified | Foundation constructor |
-| Thread-local variables (`__thread`) | **missing** | warns at load, aborts if used |
+| Thread-local variables (`__thread`, Mach-O TLV) | verified | lazily allocated per-thread blocks; used by libswiftCore |
 | Code-signature checks, dlopen, interposing | missing | |
 | Fat/universal binaries, arm64 device binaries | refused | device code needs a real iPhone |
 
@@ -92,6 +92,17 @@ layout/semantics translated · **isim** = isim's own implementation · **stub** 
 | UIImage / UIImageView | **placeholder** | no image decoding; nothing drawn |
 | UITextField / keyboard, UIScrollView, UITableView/UICollectionView, UINavigationController, UITabBarController, alerts | **missing** | next UIKit milestones |
 | Storyboards / XIBs | **missing** | needs a Linux storyboard compiler (ibtool replacement) |
+
+## Swift
+
+| Area | Status | Notes |
+|---|---|---|
+| Embedded Swift (generics, structs/enums/classes, closures, collections, strings) | verified | no existentials, no ObjC interop (Embedded limits) |
+| Full Swift: libswiftCore (stdlib + runtime, ObjC interop) built on Linux | verified | existentials, reflection names, throws, dynamic casts, `Any` |
+| Thread-local variables (needed by the Swift runtime) | verified | isim TLV thunk + per-image pthread keys |
+| `import Foundation` / `import UIKit` from Swift | **missing** | needs SDK module maps + overlays (next) |
+| async/await (`_Concurrency`), Regex (`_StringProcessing`) | **missing** | not built yet |
+| SwiftUI | **missing** | would be a re-implementation; depends on the above |
 
 ## Device chrome (host)
 

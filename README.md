@@ -23,7 +23,7 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 | 2. Run iOS-simulator binaries on Linux | ✅ | own loader + runtime (`isim/runtime`); C, threads, ObjC, Foundation self-test 32/32 |
 | 3. Simulator UI: boilerplate UIKit app in a window | ✅ | Xcode-template ObjC app (`isim/samples/HelloCounter`) runs in a Wayland window on this machine; UI test 9/9 |
 | 4a. Swift (Embedded) on the simulator | ✅ | own Embedded stdlib build for `x86_64-apple-ios-simulator`; Swift self-test 11/11 on isim — `isim/swift/` |
-| 4b. Swift (full: runtime, ObjC interop, UIKit apps) | 🟡 | in progress: libc++ + C11 headers in the isim SDK done; next: Swift runtime + stdlib for the simulator — `docs/swift-plan.md` |
+| 4b. Swift (full: runtime, ObjC interop, UIKit apps) | 🟡 | ✅ `libswiftCore.dylib` (stdlib + runtime, ObjC interop) built on Linux and running on isim: Swift self-test 12/12. Next: SDK module maps, ObjectiveC/Foundation overlays (String↔NSString bridging), a Swift UIKit app — `docs/swift-plan.md` |
 | 4c. SwiftUI | ⬜ | feasible only as a re-implementation (SwiftUI is closed source); depends on 4b — see below |
 | 4d. Simulator settings (language, region, appearance, text size, 12/24h, time zone, device) | ⬜ | planned: device profiles + `isim run` flags feeding NSLocale/NSBundle/UITraitCollection |
 | 5. Device build (arm64 .app) | 🟡 | arm64 executables link; code signature, resources, bundle not done |
@@ -67,7 +67,7 @@ this matters for "boilerplate app" fidelity. Status: planned after 4b, not promi
 
 ### Next steps
 
-1. Swift (full): build libc++ and the Swift runtime + stdlib with ObjC interop for the simulator, a Swift Foundation overlay and SDK module maps, then a Swift version of HelloCounter.
+1. Swift UIKit apps: clang module maps for the isim SDK, ObjectiveC + Foundation Swift overlays (bridging), then a Swift version of HelloCounter; later `_Concurrency` (async/await) and `_StringProcessing`.
 2. Simulator settings: language/region/appearance/text size via device profiles and `isim run` flags.
 3. UIKit breadth: UIScrollView, UITableView, UINavigationController, UITextField + keyboard, UIImage decoding, real animations.
 4. Device: ad-hoc code signature + `.app` bundle for arm64; then distribution signing experiments.

@@ -7,3 +7,13 @@
 #define NS_DEPRECATED_IOS(...)
 #define __IOS_AVAILABLE(...)
 #define __OSX_AVAILABLE(...)
+#define __OSX_AVAILABLE_STARTING(...)
+#define __OSX_AVAILABLE_BUT_DEPRECATED(...)
+#define __IOS_PROHIBITED
+#define __API_AVAILABLE(...)
+#define __API_UNAVAILABLE(...)
+#define __API_DEPRECATED(...)
+#define __OSX_AVAILABLE(...)
+#define __WATCHOS_AVAILABLE(...)
+#define __TVOS_AVAILABLE(...)
+#define __IPHONE_OS_VERSION_MIN_REQUIRED __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__

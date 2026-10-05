@@ -21,6 +21,22 @@ __BEGIN_DECLS
 #define PRIuMAX "ju"
 #define SCNd64 "lld"
 #define SCNu64 "llu"
+#define PRIi8 "hhi"
+#define PRIi16 "hi"
+#define PRIi32 "i"
+#define PRIo32 "o"
+#define PRIo64 "llo"
+#define PRIX32 "X"
+#define PRIx8 "hhx"
+#define PRIx16 "hx"
+#define PRIiPTR "li"
+#define PRIoPTR "lo"
+#define PRIXPTR "lX"
+#define PRIiMAX "ji"
+#define PRIxMAX "jx"
+#define SCNd32 "d"
+#define SCNu32 "u"
+#define SCNx64 "llx"
 typedef struct { intmax_t quot, rem; } imaxdiv_t;
 intmax_t imaxabs(intmax_t);
 imaxdiv_t imaxdiv(intmax_t, intmax_t);
