@@ -6,6 +6,8 @@ on a simulated iPhone or iPad with a home screen and a Settings app.
 
 Goal: write → build → run in the simulator → device build → sign → upload → TestFlight, all on Linux.
 
+![isim: home screen, Settings, and a SwiftUI app](docs/images/isim-overview.png)
+
 ## Quick start (no build needed)
 
 Download `isim-VERSION-linux-x86_64.tar.gz` from [Releases](https://github.com/kolabs-dev/isim/releases).
