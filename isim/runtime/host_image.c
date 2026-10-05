@@ -54,11 +54,28 @@ static int load_svg(RsvgHandle *svg, double *w, double *h) {
     return new_img(v);
 }
 
+static cairo_status_t png_read(void *closure, unsigned char *buf, unsigned int n) {
+    struct { const unsigned char *p; unsigned long left; } *rd = closure;
+    if (n > rd->left) return CAIRO_STATUS_READ_ERROR;
+    memcpy(buf, rd->p, n); rd->p += n; rd->left -= n;
+    return CAIRO_STATUS_SUCCESS;
+}
 /* Returns a handle (>0) or 0. Size is in pixels of the source (the caller applies @2x/@3x). */
 int isim_image_load_data(const void *data, unsigned long len, double *w, double *h) {
     if (len > 5 && (!memcmp(data, "<?xml", 5) || !memcmp(data, "<svg", 4))) {
         RsvgHandle *svg = rsvg_handle_new_from_data(data, len, NULL);
         return svg ? load_svg(svg, w, h) : 0;
+    }
+    /* PNG through cairo (no gdk-pixbuf loader modules needed); other formats through gdk-pixbuf */
+    if (len > 8 && !memcmp(data, "\x89PNG\r\n\x1a\n", 8)) {
+        struct { const unsigned char *p; unsigned long left; } rd = { data, len };
+        cairo_surface_t *png = cairo_image_surface_create_from_png_stream(png_read, &rd);
+        if (cairo_surface_status(png) == CAIRO_STATUS_SUCCESS) {
+            struct img v = { IMG_RASTER, png, NULL, cairo_image_surface_get_width(png), cairo_image_surface_get_height(png) };
+            *w = v.w; *h = v.h;
+            return new_img(v);
+        }
+        cairo_surface_destroy(png);
     }
     GdkPixbufLoader *l = gdk_pixbuf_loader_new();
     int ok = gdk_pixbuf_loader_write(l, data, len, NULL);

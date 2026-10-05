@@ -252,6 +252,16 @@ static struct d_sincosf d_sincosf_stret(float x) { struct d_sincosf r = { sinf(x
 /* XSI strerror_r (glibc's default strerror_r is the GNU variant returning char *) */
 extern int __xpg_strerror_r(int, char *, size_t);
 static int d_strerror_r(int e, char *b, size_t n) { return __xpg_strerror_r(e, b, n); }
+/* BSD strlcpy/strlcat (glibc has them only from 2.38) */
+static size_t d_strlcpy(char *d, const char *s, size_t n) {
+    size_t l = strlen(s);
+    if (n) { size_t c = l < n - 1 ? l : n - 1; memcpy(d, s, c); d[c] = 0; }
+    return l;
+}
+static size_t d_strlcat(char *d, const char *s, size_t n) {
+    size_t dl = strnlen(d, n);
+    return dl == n ? n + strlen(s) : dl + d_strlcpy(d + dl, s, n - dl);
+}
 static int mb_cur_max_value = 1;
 static int d_system(const char *cmd) { (void)cmd; errno = ENOSYS; return -1; }   /* no subprocesses on iOS */
 
@@ -565,7 +575,7 @@ static const struct shim libsystem_table[] = {
     S("_system", d_system), P(scanf), P(fscanf), P(vscanf), P(vfscanf), P(vsscanf), P(getc), P(getchar), P(fgetc), P(putc), P(ungetc),
     P(freopen), P(fdopen), P(fileno), P(setbuf), P(setvbuf), P(remove), P(rename), P(tmpfile), P(rewind), P(fgetpos), P(fsetpos),
     P(clearerr), P(feof), P(ferror), P(strcoll), P(strxfrm), P(strpbrk), P(strspn), P(strcspn), P(strtok), P(strtok_r),
-    P(strerror), A("_strerror_r", d_strerror_r), P(strlcpy), P(strlcat), P(clock), P(difftime), P(asctime), P(ctime),
+    P(strerror), A("_strerror_r", d_strerror_r), A("_strlcpy", d_strlcpy), A("_strlcat", d_strlcat), P(clock), P(difftime), P(asctime), P(ctime),
     P(gmtime), P(localtime), P(timespec_get), P(imaxabs), P(imaxdiv), P(strtoimax), P(strtoumax), P(signal), P(raise),
     A("___ulock_wait", d_ulock_wait), A("___ulock_wake", d_ulock_wake), A("_pthread_mach_thread_np", d_pthread_mach_thread_np),
     A("_pthread_threadid_np", d_pthread_threadid_np), A("_pthread_get_stackaddr_np", d_pthread_get_stackaddr_np),

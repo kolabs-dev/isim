@@ -21,3 +21,6 @@ experiments/04-darling/src/
 # Pinned third-party source checkouts (see isim/swift/fetch-sources.sh)
 third_party/
 __pycache__/
+
+# release packages (published on GitHub Releases)
+isim/dist/

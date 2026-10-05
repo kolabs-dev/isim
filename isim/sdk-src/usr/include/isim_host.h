@@ -3,7 +3,7 @@
 #include <_isim_cdefs.h>
 __BEGIN_DECLS
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
-struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[64]; };
+struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
 enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, ISIM_EV_QUIT, ISIM_EV_KEY, ISIM_EV_TEXT, ISIM_EV_REDRAW, ISIM_EV_ID_DOWN, ISIM_EV_ID_UP, ISIM_EV_DUMP, ISIM_EV_TEXT_DOWN, ISIM_EV_TEXT_UP,
        ISIM_EV_BACKGROUND, ISIM_EV_FOREGROUND, ISIM_EV_SETTINGS, ISIM_EV_LAUNCH_ID, ISIM_EV_OPEN_URL };
 void isim_device_metrics(struct isim_device *out);

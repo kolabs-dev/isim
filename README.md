@@ -26,14 +26,18 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 | 4a. Swift (Embedded) on the simulator | ✅ | own Embedded stdlib build for `x86_64-apple-ios-simulator`; Swift self-test 11/11 on isim — `isim/swift/` |
 | 4b. Swift (full: runtime, ObjC interop, UIKit apps) | ✅ | Xcode-template **Swift UIKit app** (`isim/samples/HelloCounterSwift`) runs on isim; `libswiftCore` + **Swift Concurrency** (`async`/`await`, actors, `@MainActor`, 11/11) built on Linux; Swift↔Foundation bridging (28/28). Not yet: Regex — `docs/swift-plan.md` |
 | 4c. SwiftUI | 🟡 | **isim re-implementation** (SwiftUI is closed source): views, `@State`/`@Binding`/`@FocusState`/`@Environment`, stacks, `Form`/`List`/`Section`, `NavigationStack`, `TextField`, toolbar, `.task`/`.onChange` — HelloSwiftUI UI test 10/10; **JustDigits runs** (below). Not yet: animations, sheets/alerts, `ScrollView`, `Grid`, `@Observable` |
-| 4d. Simulator settings (language, region, appearance, text size, 12/24h, time zone, device) | 🟡 | environment variables today (`ISIM_LANGUAGES`, `ISIM_LOCALE`, `ISIM_HOUR_CYCLE`, `TZ`, `ISIM_APPEARANCE`, `ISIM_DEVICE`); to be driven by the Settings app (4f) |
-| 4e. Home screen (SpringBoard-like): installed apps, launch/quit, Settings icon | ⬜ | new goal: `isim` launches into a home screen listing installed `.app`s (icons from asset catalogs); tapping launches the app |
-| 4f. Settings app replicating iOS Settings | ⬜ | new goal: pages are added **as each setting is implemented** (General › Language & Region, Display & Brightness › Appearance, General › Keyboard › Keyboards, Accessibility › Display & Text Size, Date & Time, …); values persist and apply to apps |
+| 4d. Simulator settings (language, region, appearance, text size, 12/24h, time zone, device) | 🟡 | set in the **Settings app** (4f) and stored as global preferences that every app reads (`$ISIM_DATA/Library/Preferences/.GlobalPreferences.plist`); environment variables still override. Not yet: text size, accessibility |
+| 4e. Home screen (SpringBoard-like): installed apps, launch/quit, Settings icon | ✅ | `isim boot`: icon grid from asset catalogs + dock; every app is its own process (shared-memory surfaces); swipe up from the bottom edge goes home, apps resume from the background; long press → Edit Home Screen / Remove App → iOS delete alert. UI test `tests/ui/boot.sh`. Not yet: App Library, jiggle animation, folders, app switcher |
+| 4f. Settings app replicating iOS Settings | 🟡 | SwiftUI app (`isim/system/Settings`): General › About, Date & Time (24-hour, time zone), Keyboard (Keyboards, Add New Keyboard, Auto-Capitalization), Language & Region; Display & Brightness › Light/Dark; per-app pages (keyboard toggles) with `UIApplication.openSettingsURLString` deep links. Pages are added as each setting is implemented |
 | 4g. Multiple iPhone sizes | ✅ | `isim run --device …`: iPhone SE (home button), 13 mini & 14 (notch), 15 / 15 Plus / 15 Pro Max, 16 Pro / 16 Pro Max (Dynamic Island) — safe areas, corner radii, status bar. Not yet: landscape / rotation |
 | 4h. iPad | 🟡 | iPad mini, Air 11", Pro 11", Pro 13" screens with regular size class. Not yet: iPad keyboard layout, readable-width form margins, sidebars/split views, rotation, multitasking (Split View, Slide Over, Stage Manager), pointer |
+| 4i. Multiple iOS versions | ⬜ | goal: `--os 17|18|…` selects the reported version (`UIDevice.systemVersion`, `#available`) **and** that version's look; today: iOS 17/18 style, `ISIM_OS_VERSION` (default 18.0) for availability checks |
+| 4j. Xcode-like project view (open project, build, run) | ⬜ | goal; the CLI covers it today: `isim build -project … && isim install … && isim boot` |
+| 4k. Linux releases | 🟡 | `isim/release/package.sh` → self-contained `isim-VER-linux-x86_64.tar.gz` (runtime built on Ubuntu 22.04 / glibc 2.35, libraries bundled, SDK + demo apps); verified on CachyOS and a clean Fedora 41 container. Published on GitHub Releases per feature milestone |
 | ✅ Real app: **JustDigits** (`../numpad`, SwiftUI + custom keyboard) | ✅ | built unmodified with `isim build` (pbxproj, string catalogs, assets, embedded `.appex`); setup screen, test field, the app's keyboard via the globe menu (loaded in-process), Privacy Policy push/back, review prompt, links |
 | 5. Device build (arm64 .app) | 🟡 | arm64 executables link; code signature, resources, bundle not done |
 | 6. Signing + .ipa | ⬜ | candidate tools identified (rcodesign, zsign) — `docs/distribution-research.md` |
+| Real app: **Mazefall** (`../mazefall`, SwiftUI + SpriteKit, AVFoundation, GameKit, StoreKit, ads SDK, Swift package) | ⬜ | next real app; needs SpriteKit, AVFoundation, GameKit, Combine, Swift packages, binary SDK stubs |
 | 7. Upload from Linux | ⬜ | Build Upload API flow documented; untested; needs your Apple account later |
 | 8. TestFlight install on iPhone | ⛔ | blocked by the policy items below |
 
@@ -100,30 +104,73 @@ this matters for "boilerplate app" fidelity. Status: planned after 4b, not promi
 | `results/` | captured outputs of experiments |
 | `probe.sh`, `probe.c` | the original object-generation probe |
 
-## Build and run
+## How to use isim
 
-Requirements (Arch/CachyOS): `clang`, `lld`, `llvm`, `sdl3`, `cairo`, `pango`, `python`, `rsync`.
+### Run it without building anything (release)
+
+Download `isim-VERSION-linux-x86_64.tar.gz` from [GitHub Releases](https://github.com/kolabs-dev/isim/releases)
+(Linux x86_64, glibc 2.35+; needs `python3`, fontconfig and `adwaita-icon-theme`):
+
+```bash
+tar xf isim-0.1.0-linux-x86_64.tar.gz
+```
+
+```bash
+isim-0.1.0-linux-x86_64/bin/isim boot
+```
+
+This opens the simulated iPhone on its home screen with the Settings app; no app needs to be
+built or installed. To add the bundled demo apps:
+
+```bash
+isim-0.1.0-linux-x86_64/bin/isim install isim-0.1.0-linux-x86_64/apps/*.app
+```
+
+### Build from source
+
+Requirements (Arch/CachyOS): `clang`, `lld`, `llvm`, `sdl3`, `cairo`, `pango`, `librsvg`, `python`, `rsync`,
+`imagemagick`, Docker (Swift parts use the `swift:6.2` image).
 
 ```bash
 isim/build.sh
 ```
 
 ```bash
-isim/out/bin/isim run isim/out/apps/HelloCounter.app
-```
-
-Options: `--device iphone15|iphonese|ipad`, `--zoom 0.8`, `--dark`. Click = touch, F12 = screenshot.
-
-```bash
 isim/test.sh
 ```
 
-Compile your own app against the isim SDK:
+The commands below use `isim/out/bin/isim` (from a release: `bin/isim`).
 
-- Objective-C: `isim/out/bin/isim cc main.m AppDelegate.m ... -framework UIKit -o MyApp.app/MyApp`
-- Swift (needs the `swift:6.2` Docker image): `isim/out/bin/isim swiftc -module-name MyApp -parse-as-library -wmo -c *.swift -o MyApp.o`, then `isim/out/bin/isim cc MyApp.o -o MyApp.app/MyApp`
+### On the device
 
-Then copy your `Info.plist` into `MyApp.app/`.
+| Command | What |
+|---|---|
+| `isim boot` | start the device on its home screen (installed apps + Settings) |
+| `isim install App.app…` / `isim uninstall NAME` / `isim apps` | manage installed apps |
+| `isim run App.app` | run one app directly, without the home screen |
+| `isim reset` | erase installed apps, app data and settings |
+| `isim build -project App.xcodeproj [-target T] [-o DIR]` | build an Xcode project (pbxproj, Swift/ObjC, asset catalogs, string catalogs, app extensions) |
+| `isim cc …` / `isim swiftc …` | compile single files for the isim SDK (`ISIM_MIN_IOS`, default 17.0) |
+| `isim info App.app` | Mach-O platform and dependencies |
+
+Device options for `boot`/`run`: `--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|ipadmini|ipadair11|ipadpro11|ipadpro13`,
+`--zoom 0.8`, `--dark`, `--headless --script "…"`.
+
+Interaction: click = touch, drag = swipe, swipe up from the bottom edge (or Ctrl+Shift+H) = home,
+press and hold an icon = Edit Home Screen / Remove App, F12 = screenshot. Settings live in the Settings app;
+data lives in `~/.local/share/isim` (`ISIM_DATA`).
+
+Scripts (automation/tests): `wait S`, `tap X Y`, `tapid ID`, `taptext TEXT`, `holdid ID`, `type TEXT`, `key NAME`,
+`home`, `launch BUNDLE_ID`, `shot FILE.png`, `dump`, `quit` — e.g.
+`isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.png; quit"`.
+
+### Make a release
+
+```bash
+isim/release/package.sh 0.1.0
+```
+
+Builds the runtime in an Ubuntu 22.04 container (`isim/release/Dockerfile`) and writes `dist/isim-0.1.0-linux-x86_64.tar.gz` + `.sha256`.
 
 ## Environment (verified 2026-10-05)
 
