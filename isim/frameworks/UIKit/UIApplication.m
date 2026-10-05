@@ -471,6 +471,8 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         if (delegateClass) { app.strongDelegate = [delegateClass new]; app.delegate = app.strongDelegate; }
         NSString *title = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: info[@"CFBundleExecutable"] ?: @"App";
         isim_display_open(title.UTF8String);
+        extern void (*isim_main_wakeup_hook)(void);
+        isim_main_wakeup_hook = isim_post_wakeup;
         NSLog(@"isim: launching %@ (%@) on %s", title, bundle.bundleIdentifier ?: @"no bundle id", isim_ui_device()->name);
 
         id<UIApplicationDelegate> d = app.delegate;

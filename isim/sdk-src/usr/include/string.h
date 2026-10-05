@@ -5,6 +5,16 @@ __BEGIN_DECLS
 void *memcpy(void *, const void *, size_t);
 void *memmove(void *, const void *, size_t);
 void *memset(void *, int, size_t);
+/* C11 Annex K (Darwin provides memset_s unconditionally) */
+#ifndef _ERRNO_T
+#define _ERRNO_T
+typedef int errno_t;
+#endif
+#ifndef _RSIZE_T
+#define _RSIZE_T
+typedef size_t rsize_t;
+#endif
+errno_t memset_s(void *dest, rsize_t destsz, int ch, rsize_t count);
 int memcmp(const void *, const void *, size_t);
 void *memchr(const void *, int, size_t);
 size_t strlen(const char *);

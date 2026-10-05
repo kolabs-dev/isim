@@ -6,7 +6,7 @@ mkdir -p third_party && cd third_party
 if [ ! -d swift ]; then   # swift-6.2.4-RELEASE = ee343b46aef81c3ac7c5d7960cb35a41a88c5a9b (Apache-2.0 with Runtime Library Exception)
   git clone -q --depth 1 --branch swift-6.2.4-RELEASE --filter=blob:none --sparse https://github.com/swiftlang/swift.git swift
   git -C swift sparse-checkout set --no-cone /stdlib/ /include/swift/Runtime/ /include/swift/ABI/ /include/swift/Basic/ \
-    /include/swift/Demangling/ /include/swift/Threading/ /include/swift/shims/ /include/llvm/ /include/swift/RemoteInspection/ \
+    /include/swift/Demangling/ /include/swift/Threading/ /include/swift/Concurrency/ /include/swift/shims/ /include/llvm/ /include/swift/RemoteInspection/ \
     /lib/Demangling/ /lib/Threading/ /cmake/modules/ /utils/gyb.py /utils/gyb_syntax_support/ /utils/swift_build_support/ \
     /utils/SwiftIntTypes.py /utils/SwiftFloatingPointTypes.py /utils/gyb_stdlib_support.py /utils/availability-macros.def
 fi

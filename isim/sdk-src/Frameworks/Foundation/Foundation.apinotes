@@ -39,6 +39,8 @@ Classes:
   SwiftBridge: Foundation.TimeZone
 - Name: NSFileManager
   SwiftName: FileManager
+- Name: NSThread
+  SwiftName: Thread
 Typedefs:
 - Name: NSRunLoopMode
   SwiftName: RunLoop.Mode

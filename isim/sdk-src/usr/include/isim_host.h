@@ -35,6 +35,7 @@ void isim_set_status_bar_style(int dark_content);
 int isim_next_event(struct isim_event *ev, double timeout);
 void isim_text_input(int on);
 const char *isim_bundle_path(void);
+void isim_post_wakeup(void);          /* any thread: wake the UI loop */
 /* images (handles > 0). Sizes: pixels for files/data; per 1pt of font size for symbols. */
 int isim_image_load(const char *path, double *w, double *h);
 int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);

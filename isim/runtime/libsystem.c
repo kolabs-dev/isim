@@ -56,11 +56,38 @@ static clockid_t clock_of(int d) {
     }
 }
 static int d_clock_gettime(int clk, struct timespec *ts) { clockid_t c = clock_of(clk); if (c == (clockid_t)-1) { errno = EINVAL; return -1; } return clock_gettime(c, ts); }
+static int d_clock_getres(int clk, struct timespec *ts) { clockid_t c = clock_of(clk); if (c == (clockid_t)-1) { errno = EINVAL; return -1; } return clock_getres(c, ts); }
+static int d_memset_s(void *dest, size_t destsz, int ch, size_t count) {
+    if (!dest) return EINVAL;
+    memset(dest, ch, count < destsz ? count : destsz);
+    __asm__ volatile("" ::: "memory");           /* not optimized away */
+    return count > destsz ? EOVERFLOW : 0;
+}
+/* OS version answered to availability checks (__builtin_available / #available).
+ * isim is not iOS; it reports the API level it emulates: ISIM_OS_VERSION (default 18.0). */
+static void isim_os_version(unsigned v[3]) {
+    const char *e = getenv("ISIM_OS_VERSION");
+    v[0] = 18; v[1] = 0; v[2] = 0;
+    if (e) sscanf(e, "%u.%u.%u", &v[0], &v[1], &v[2]);
+}
+static int d_isPlatformVersionAtLeast(unsigned platform, unsigned major, unsigned minor, unsigned sub) {
+    unsigned v[3]; isim_os_version(v);
+    if (platform != 7 && platform != 2) return 1;                   /* other platforms' checks: not this OS, treat as satisfied */
+    if (v[0] != major) return v[0] > major;
+    if (v[1] != minor) return v[1] > minor;
+    return v[2] >= sub;
+}
+static int d_isOSVersionAtLeast(int major, int minor, int sub) { return d_isPlatformVersionAtLeast(7, major, minor, sub); }
+/* QoS: reported, not enforced */
+static unsigned d_qos_class_self(void) { return getpid() == gettid() ? 0x21u : 0x15u; }
+static unsigned d_qos_class_main(void) { return 0x21u; }
+static int d_pthread_set_qos_class_self_np(unsigned q, int rel) { return 0; }
+static int d_pthread_get_qos_class_np(pthread_t t, unsigned *q, int *rel) { if (q) *q = t == pthread_self() && getpid() == gettid() ? 0x21u : 0x15u; if (rel) *rel = 0; return 0; }
 static uint64_t d_clock_gettime_nsec_np(int clk) {
     struct timespec ts; if (d_clock_gettime(clk, &ts)) return 0;
     return (uint64_t)ts.tv_sec * 1000000000ull + ts.tv_nsec;
 }
-static uint64_t d_mach_absolute_time(void) { return d_clock_gettime_nsec_np(6); }
+static uint64_t d_mach_absolute_time(void) { return d_clock_gettime_nsec_np(8); }   /* Darwin: CLOCK_UPTIME_RAW */
 struct d_timebase { uint32_t numer, denom; };
 static int d_mach_timebase_info(struct d_timebase *tb) { tb->numer = 1; tb->denom = 1; return 0; }
 
@@ -278,9 +305,11 @@ void libsystem_init(int argc, char **argv) {
     if (getrandom(&stack_chk_guard, sizeof stack_chk_guard, 0) != sizeof stack_chk_guard) stack_chk_guard = 0x5a17e57a;
 }
 
+extern int __cxa_atexit(void (*f)(void *), void *arg, void *dso);
 #define P(n) { "_" #n, (void *)n, "passthrough" }
 #define A(n, f) { n, (void *)f, "adapted" }
 #define S(n, f) { n, (void *)f, "stub" }
+#define I(n, f) { n, (void *)f, "isim" }
 static const struct shim libsystem_table[] = {
     /* memory & strings */
     P(malloc), P(calloc), P(realloc), P(free), P(posix_memalign), P(memcpy), P(memmove), P(memset), P(memcmp), P(memchr),
@@ -294,12 +323,12 @@ static const struct shim libsystem_table[] = {
     P(puts), P(fputs), P(fputc), P(putchar), P(fwrite), P(fread), P(fflush), P(fopen), P(fclose), P(fgets), P(fseek), P(ftell), P(perror),
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
     /* process & environment */
-    P(exit), P(_exit), P(abort), P(atexit), P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(sleep), P(usleep), P(nanosleep),
+    P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(sleep), P(usleep), P(nanosleep),
     A("_open", d_open), P(read), P(write), P(close), P(lseek), P(access), P(unlink), P(readlink), P(getcwd), P(mkdir), P(rmdir),
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
     P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),
-    A("_clock_gettime", d_clock_gettime), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
+    A("_clock_gettime", d_clock_gettime), A("_qos_class_self", d_qos_class_self), I("___isPlatformVersionAtLeast", d_isPlatformVersionAtLeast), I("___isOSVersionAtLeast", d_isOSVersionAtLeast), A("_qos_class_main", d_qos_class_main), A("_pthread_set_qos_class_self_np", d_pthread_set_qos_class_self_np), A("_pthread_get_qos_class_np", d_pthread_get_qos_class_np), A("_clock_getres", d_clock_getres), A("_memset_s", d_memset_s), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
     A("_mach_absolute_time", d_mach_absolute_time), A("_mach_timebase_info", d_mach_timebase_info),
     /* math (Darwin's libm lives in libSystem): full C99 set incl. f/l variants */
     P(acos),

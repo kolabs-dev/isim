@@ -3,6 +3,7 @@
 #   isim run <App.app> [--device iphone15|iphonese|ipad] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
+#   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
 #   isim build -project X.xcodeproj [-target T] [-configuration Debug]   build an Xcode project for isim
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 set -euo pipefail
@@ -29,7 +30,7 @@ case "$cmd" in
     fi
     exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
   cc)
-    exec "${CLANG:-clang}" -target x86_64-apple-ios15.0-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc -L "$SDK/usr/lib/swift" "$@" ;;
+    exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc -L "$SDK/usr/lib/swift" "$@" ;;
   swiftc)
     ws=$(cd -- "$BIN/../../.." && pwd)
     mounts=(-v "$ws:$ws")
@@ -43,17 +44,18 @@ case "$cmd" in
       [ -n "${seen[$d]:-}" ] && continue; seen[$d]=1
       mounts+=(-v "$d:$d:ro")
     done
-    run=(docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp "${mounts[@]}" -w "$PWD" swift:6.2 swiftc -target x86_64-apple-ios15.0-simulator)
+    run=(docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp "${mounts[@]}" -w "$PWD" swift:6.2 swiftc -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator)
     if [ "${1:-}" = "-embedded" ]; then
       shift
       exec "${run[@]}" -enable-experimental-feature Embedded -enable-experimental-feature Extern -wmo -parse-as-library -Osize \
         -I "$BIN/../swift/embedded" "$@"
     fi
-    # full Swift: stdlib + runtime from the isim SDK (/usr/lib/swift); Concurrency/StringProcessing not built yet
+    # full Swift: stdlib + runtime + Concurrency from the isim SDK (/usr/lib/swift); StringProcessing not built yet
     # isim's own resource dir (clang builtin headers + SwiftShims): keeps the Linux toolchain's corelibs
     # module maps (Dispatch, CoreFoundation for Linux) out of iOS builds
     exec "${run[@]}" -sdk "$SDK" -resource-dir "$BIN/../swift/resource" -O -runtime-compatibility-version none \
-      -Xfrontend -disable-implicit-concurrency-module-import -Xfrontend -disable-implicit-string-processing-module-import "$@" ;;
+      $( [ -d "$SDK/usr/lib/swift/_Concurrency.swiftmodule" ] || echo -Xfrontend -disable-implicit-concurrency-module-import ) \
+      -Xfrontend -disable-implicit-string-processing-module-import "$@" ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
   info)

@@ -263,12 +263,16 @@ id isim_plist_parse(const char *xml, NSUInteger len) {
 static pthread_mutex_t rl_lock = PTHREAD_MUTEX_INITIALIZER;
 static NSMutableArray<__IsimRunLoopItem *> *rl_items;
 
+static pthread_cond_t rl_cond = PTHREAD_COND_INITIALIZER;
+void (*isim_main_wakeup_hook)(void);      /* set by UIKit: wakes the UI event loop */
 static void rl_add(__IsimRunLoopItem *it) {
     pthread_mutex_lock(&rl_lock);
     if (!rl_items) rl_items = [NSMutableArray array];
     it.valid = YES;
     [rl_items addObject:it];
+    pthread_cond_broadcast(&rl_cond);
     pthread_mutex_unlock(&rl_lock);
+    if (!pthread_main_np() && isim_main_wakeup_hook) isim_main_wakeup_hook();
 }
 void isim_schedule_perform(id target, SEL sel, id arg, NSTimeInterval delay) {
     __IsimRunLoopItem *it = [__IsimRunLoopItem new];
@@ -284,6 +288,21 @@ static void rl_add_block(double delay, dispatch_block_t block) {
     __IsimRunLoopItem *it = [__IsimRunLoopItem new];
     it.fireAt = mono_now() + delay; it.block = block;
     rl_add(it);
+}
+
+/* main-queue services for the dispatch implementation (Dispatch.mrc.m) */
+void isim_main_enqueue_f(double delay, void (*f)(void *), void *ctx) { rl_add_block(delay, ^{ f(ctx); }); }
+double isim_main_fire_due(void) { return [NSRunLoop.mainRunLoop _isim_fireDue]; }
+void isim_main_wait(double seconds) {
+    if (seconds <= 0) return;
+    struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
+    double t = ts.tv_sec + ts.tv_nsec / 1e9 + seconds;
+    ts.tv_sec = (time_t)t; ts.tv_nsec = (long)((t - (double)ts.tv_sec) * 1e9);
+    pthread_mutex_lock(&rl_lock);
+    BOOL due = NO; double now = mono_now();
+    for (__IsimRunLoopItem *it in rl_items) if (it.fireAt <= now) { due = YES; break; }
+    if (!due) pthread_cond_timedwait(&rl_cond, &rl_lock, &ts);
+    pthread_mutex_unlock(&rl_lock);
 }
 
 @interface NSTimer ()
@@ -375,76 +394,6 @@ NSRunLoopMode const NSRunLoopCommonModes = @"kCFRunLoopCommonModes";
 }
 - (void)run { [self runUntilDate:[NSDate distantFuture]]; }
 @end
-
-/* ================= libdispatch subset ================= */
-struct dispatch_queue_s {
-    int kind;                         /* 0 main, 1 global (concurrent), 2 serial */
-    const char *label;
-    pthread_mutex_t lock; pthread_cond_t cond;
-    void **blocks; size_t n, cap; int running;
-};
-struct dispatch_queue_s _dispatch_main_q = { 0, "com.apple.main-thread", PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, NULL, 0, 0, 0 };
-static struct dispatch_queue_s global_q = { 1, "com.apple.root.default-qos", PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, NULL, 0, 0, 0 };
-
-dispatch_queue_t dispatch_get_global_queue(long identifier, unsigned long flags) { return &global_q; }
-dispatch_queue_t dispatch_queue_create(const char *label, void *attr) {
-    struct dispatch_queue_s *q = calloc(1, sizeof *q);
-    q->kind = 2; q->label = label ? strdup(label) : "";
-    pthread_mutex_init(&q->lock, NULL); pthread_cond_init(&q->cond, NULL);
-    return q;
-}
-static void *run_block_thread(void *b) {
-    @autoreleasepool { ((__bridge dispatch_block_t)b)(); }
-    _Block_release(b);
-    return NULL;
-}
-static void *serial_worker(void *arg) {
-    struct dispatch_queue_s *q = arg;
-    for (;;) {
-        pthread_mutex_lock(&q->lock);
-        if (!q->n) { q->running = 0; pthread_mutex_unlock(&q->lock); return NULL; }
-        void *b = q->blocks[0]; memmove(q->blocks, q->blocks + 1, --q->n * sizeof(void *));
-        pthread_mutex_unlock(&q->lock);
-        @autoreleasepool { ((__bridge dispatch_block_t)b)(); }
-        _Block_release(b);
-    }
-}
-void dispatch_async(dispatch_queue_t q, dispatch_block_t block) {
-    if (q->kind == 0) { rl_add_block(0, block); return; }
-    void *b = _Block_copy((__bridge void *)block);
-    pthread_t t;
-    if (q->kind == 1) { pthread_create(&t, NULL, run_block_thread, b); pthread_detach(t); return; }
-    pthread_mutex_lock(&q->lock);
-    if (q->n == q->cap) { q->cap = q->cap ? q->cap * 2 : 8; q->blocks = realloc(q->blocks, q->cap * sizeof(void *)); }
-    q->blocks[q->n++] = b;
-    int start = !q->running; q->running = 1;
-    pthread_mutex_unlock(&q->lock);
-    if (start) { pthread_create(&t, NULL, serial_worker, q); pthread_detach(t); }
-}
-void dispatch_sync(dispatch_queue_t q, dispatch_block_t block) {
-    if (q->kind != 0 || pthread_main_np()) { block(); return; }   /* isim: serial/global sync runs inline */
-    __block int done = 0;
-    pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; pthread_cond_t c = PTHREAD_COND_INITIALIZER;
-    pthread_mutex_t *mp = &m; pthread_cond_t *cp = &c;
-    rl_add_block(0, ^{ block(); pthread_mutex_lock(mp); done = 1; pthread_cond_signal(cp); pthread_mutex_unlock(mp); });
-    pthread_mutex_lock(&m); while (!done) pthread_cond_wait(&c, &m); pthread_mutex_unlock(&m);
-}
-dispatch_time_t dispatch_time(dispatch_time_t when, int64_t delta) {
-    uint64_t base = when == DISPATCH_TIME_NOW ? (uint64_t)(mono_now() * 1e9) : when;
-    return base + delta;
-}
-void dispatch_after(dispatch_time_t when, dispatch_queue_t q, dispatch_block_t block) {
-    double delay = when == DISPATCH_TIME_FOREVER ? 1e9 : (double)when / 1e9 - mono_now();
-    if (q->kind == 0) { rl_add_block(delay > 0 ? delay : 0, block); return; }
-    rl_add_block(delay > 0 ? delay : 0, ^{ dispatch_async(q, block); });
-}
-void dispatch_once(dispatch_once_t *pred, dispatch_block_t block) {
-    static pthread_mutex_t lk = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
-    if (__atomic_load_n(pred, __ATOMIC_ACQUIRE) == ~0L) return;
-    pthread_mutex_lock(&lk);
-    if (*pred != ~0L) { block(); __atomic_store_n(pred, ~0L, __ATOMIC_RELEASE); }
-    pthread_mutex_unlock(&lk);
-}
 
 /* ================= NSNotificationCenter ================= */
 @implementation NSNotification
@@ -585,8 +534,6 @@ NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailure
 @implementation NSCoder @end
 
 /* function-pointer variants (used by C/C++ clients such as the Swift runtime) */
-void dispatch_async_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) { dispatch_async(q, ^{ f(ctx); }); }
-void dispatch_once_f(dispatch_once_t *pred, void *ctx, dispatch_function_t f) { dispatch_once(pred, ^{ f(ctx); }); }
 
 /* CGColor objects (CoreGraphics allocates these so CGColorRef is retainable by ARC/Swift).
  * Layout must match struct CGColor in CoreGraphics.c: isa, 4 components, refs. */
@@ -596,4 +543,23 @@ void dispatch_once_f(dispatch_once_t *pred, void *ctx, dispatch_function_t f) { 
 - (NSString *)description { return [NSString stringWithFormat:@"<CGColor %p> [%g %g %g %g]", self, _c[0], _c[1], _c[2], _c[3]]; }
 - (BOOL)isEqual:(id)o { return o == self || ([o isKindOfClass:[__NSCGColor class]] && !memcmp(_c, ((__NSCGColor *)o)->_c, sizeof _c)); }
 - (NSUInteger)hash { return (NSUInteger)(_c[0] * 255) << 24 ^ (NSUInteger)(_c[1] * 255) << 16 ^ (NSUInteger)(_c[2] * 255) << 8 ^ (NSUInteger)(_c[3] * 255); }
+@end
+
+/* NSThread: identity objects for the calling pthread (one per thread, via a key) */
+static pthread_key_t thread_key;
+static NSThread *main_thread_obj;
+static void thread_obj_release(void *p) { NSThread *t = (__bridge_transfer NSThread *)p; (void)t; }
+@implementation NSThread
++ (void)initialize { if (self == [NSThread class]) pthread_key_create(&thread_key, thread_obj_release); }
++ (BOOL)isMainThread { return pthread_main_np() != 0; }
+- (BOOL)isMainThread { return self == main_thread_obj; }
++ (NSThread *)currentThread {
+    if (pthread_main_np()) return [self mainThread];
+    NSThread *t = (__bridge NSThread *)pthread_getspecific(thread_key);
+    if (!t) { t = [NSThread new]; pthread_setspecific(thread_key, (__bridge_retained void *)t); }
+    return t;
+}
++ (NSThread *)mainThread { static dispatch_once_t o; dispatch_once(&o, ^{ main_thread_obj = [NSThread new]; main_thread_obj.name = @"main"; }); return main_thread_obj; }
++ (void)sleepForTimeInterval:(NSTimeInterval)ti { if (ti > 0) { struct timespec ts = { (time_t)ti, (long)((ti - (time_t)ti) * 1e9) }; nanosleep(&ts, NULL); } }
++ (void)detachNewThreadWithBlock:(void (^)(void))block { dispatch_async(dispatch_get_global_queue(0, 0), block); }
 @end

@@ -298,6 +298,12 @@ static int script_step(struct isim_event *ev) {
 }
 
 static int button_down;
+static volatile int wakeup_pending;
+/* thread-safe: makes a pending isim_next_event return early (no event) so the app loop runs */
+void isim_post_wakeup(void) {
+    if (win) { SDL_Event e; SDL_zero(e); e.type = SDL_EVENT_USER; SDL_PushEvent(&e); }
+    else __atomic_store_n(&wakeup_pending, 1, __ATOMIC_RELEASE);
+}
 int isim_next_event(struct isim_event *ev, double timeout) {
     memset(ev, 0, sizeof *ev);
     double deadline = now() + timeout;
@@ -307,6 +313,8 @@ int isim_next_event(struct isim_event *ev, double timeout) {
             double left = deadline - now();
             if (left <= 0) return 0;
             double step = script_pos && script_resume > now() ? fmin(left, script_resume - now()) : fmin(left, 0.01);
+            if (__atomic_exchange_n(&wakeup_pending, 0, __ATOMIC_ACQ_REL)) return 0;
+            if (step > 0.002) step = 0.002;           /* poll the wakeup flag */
             struct timespec ts = { 0, (long)(fmax(step, 0.0005) * 1e9) }; nanosleep(&ts, NULL);
             if (!script_pos && !npending && now() >= deadline) return 0;
             continue;
@@ -318,6 +326,7 @@ int isim_next_event(struct isim_event *ev, double timeout) {
         if (!SDL_WaitEventTimeout(&e, wait_ms)) { if (now() >= deadline) return 0; continue; }
         ev->timestamp = isim_time();
         switch (e.type) {
+        case SDL_EVENT_USER: return 0;
         case SDL_EVENT_QUIT: case SDL_EVENT_WINDOW_CLOSE_REQUESTED: ev->type = EV_QUIT; return 1;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (e.button.button != SDL_BUTTON_LEFT) break;
@@ -367,7 +376,7 @@ static const struct shim isim_table[] = {
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
     H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke),
     H(isim_text_measure), H(isim_text_draw), H(isim_set_status_bar_style), H(isim_next_event), H(isim_text_input),
-    H(isim_bundle_path),
+    H(isim_bundle_path), H(isim_post_wakeup),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

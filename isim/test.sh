@@ -22,5 +22,8 @@ fi
 if [ -x out/apps/SwiftFullTest.app/SwiftFullTest ]; then
   run "swift (full runtime) self-test" bash -c 'out/bin/isim run out/apps/SwiftFullTest.app/SwiftFullTest | tail -1; exit ${PIPESTATUS[0]}'
 fi
+if [ -x out/apps/SwiftConcurrencyTest.app/SwiftConcurrencyTest ]; then
+  run "swift concurrency (async/await, actors, MainActor)" bash -c 'timeout 60 out/bin/isim run out/apps/SwiftConcurrencyTest.app/SwiftConcurrencyTest | tail -1; exit ${PIPESTATUS[0]}'
+fi
 echo; [ $status = 0 ] && echo "ALL SUITES PASSED" || echo "SOME SUITES FAILED"
 exit $status

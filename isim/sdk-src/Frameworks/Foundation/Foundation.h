@@ -19,6 +19,7 @@
 #import <Foundation/NSTimeZone.h>
 #import <Foundation/NSFormatter.h>
 #import <Foundation/NSTimer.h>
+#import <Foundation/NSThread.h>
 #import <Foundation/NSRunLoop.h>
 #import <Foundation/NSNotification.h>
 #import <Foundation/NSProcessInfo.h>
