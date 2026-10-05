@@ -71,7 +71,39 @@ extension Shape {
         if let t = self as? _TrimmedShape {
             return AnyView(_modify { ctx, _ in _StrokeNode(path: ctx.path, kind: t.kind, color: _color(of: style, ctx.environment), lineWidth: 0, fill: true, trim: (t.from, t.to)) })
         }
+        if let m = style as? Material { return AnyView(_modify { ctx, _ in _MaterialNode(path: ctx.path, kind: kind, material: m) }) }
         return AnyView(_modify { ctx, _ in _ShapeNode(path: ctx.path, kind: kind, color: _color(of: style, ctx.environment)) })
+    }
+}
+
+/// Materials: a backdrop blur with the material's tint (UIVisualEffectView), light/dark aware.
+public struct Material: ShapeStyle, Sendable {
+    let style: UIBlurEffect.Style
+    public static let ultraThin = Material(style: .systemUltraThinMaterial)
+    public static let thin = Material(style: .systemThinMaterial)
+    public static let regular = Material(style: .systemMaterial)
+    public static let thick = Material(style: .systemThickMaterial)
+    public static let ultraThick = Material(style: .systemThickMaterial)
+    public static let bar = Material(style: .systemChromeMaterial)
+}
+extension ShapeStyle where Self == Material {
+    public static var ultraThinMaterial: Material { .ultraThin }
+    public static var thinMaterial: Material { .thin }
+    public static var regularMaterial: Material { .regular }
+    public static var thickMaterial: Material { .thick }
+    public static var ultraThickMaterial: Material { .ultraThick }
+    public static var bar: Material { .bar }
+}
+final class _MaterialNode: _Node {
+    let kind: _ShapeKind, material: Material
+    init(path: String, kind: _ShapeKind, material: Material) { self.kind = kind; self.material = material; super.init(path: path, children: []) }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: p.width ?? 10, height: p.height ?? 10) }
+    override func mountView(_ g: _Graph) -> UIView {
+        let v = g.view(viewKey) { UIVisualEffectView(effect: nil) }
+        if (v.effect as? UIBlurEffect)?._isim_style != material.style { v.effect = UIBlurEffect(style: material.style) }
+        v.isUserInteractionEnabled = false
+        v.layer.cornerRadius = _radius(kind, frame.size)
+        return v
     }
 }
 

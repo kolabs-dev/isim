@@ -368,9 +368,9 @@ extension View {
     public func background<S: ShapeStyle, T: Shape>(_ style: S, in shape: T, fillStyle: FillStyle = FillStyle()) -> some View {
         let kind = (shape as? _ShapeInfo)?._kind ?? .rect
         return _modify { ctx, c in
-            _BackgroundNode(path: ctx.path, color: nil, cornerRadius: 0,
-                            background: _ShapeNode(path: ctx.path + "/bgs", kind: kind, color: _color(of: style, ctx.environment)),
-                            child: _resolve(c, ctx.child("b")))
+            let bg: _Node = (style as? Material).map { _MaterialNode(path: ctx.path + "/bgs", kind: kind, material: $0) }
+                ?? _ShapeNode(path: ctx.path + "/bgs", kind: kind, color: _color(of: style, ctx.environment))
+            return _BackgroundNode(path: ctx.path, color: nil, cornerRadius: 0, background: bg, child: _resolve(c, ctx.child("b")))
         }
     }
     public func background<V: View>(_ v: V, alignment: Alignment = .center) -> some View { background(alignment: alignment) { v } }

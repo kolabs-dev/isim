@@ -122,6 +122,8 @@ static const struct { const char *sf, *adw; } symbol_map[] = {
     { "play", "actions/media-playback-start-symbolic" }, { "pause", "actions/media-playback-pause-symbolic" },
     { "folder", "places/folder-symbolic" }, { "arrow.clockwise", "actions/view-refresh-symbolic" },
     { "square.and.arrow.up", "actions/send-to-symbolic" }, { "checkmark", "actions/object-select-symbolic" },
+    { "gamecontroller", "categories/applications-games-symbolic" }, { "list.number", "actions/view-list-ordered-symbolic" },
+    { "trophy", "status/starred-symbolic" }, { "rosette", "status/starred-symbolic" }, { "medal", "status/starred-symbolic" },
 };
 
 static int proc_symbol(int proc, int fill, const char *text, double *w, double *h) {

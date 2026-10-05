@@ -109,7 +109,12 @@ extension View {
         }
     }
     public func background<S: ShapeStyle>(_ style: S) -> some View {
-        _modify { ctx, c in _BackgroundNode(path: ctx.path, color: _color(of: style, ctx.environment), cornerRadius: 0, background: nil, child: _resolve(c, ctx.child("b"))) }
+        _modify { ctx, c in
+            if let m = style as? Material {
+                return _BackgroundNode(path: ctx.path, color: nil, cornerRadius: 0, background: _MaterialNode(path: ctx.path + "/mat", kind: .rect, material: m), child: _resolve(c, ctx.child("b")))
+            }
+            return _BackgroundNode(path: ctx.path, color: _color(of: style, ctx.environment), cornerRadius: 0, background: nil, child: _resolve(c, ctx.child("b")))
+        }
     }
     public func background<B: View>(alignment: Alignment = .center, @ViewBuilder content: () -> B) -> some View {
         let b = content()

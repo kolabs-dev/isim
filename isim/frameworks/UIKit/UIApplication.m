@@ -75,13 +75,22 @@
     __weak UIViewController *_presenting;
     UINavigationItem *_navItem;
     int _appearance;   /* 0 none, 1 will appear, 2 appeared */
+    UIView *_sheetContainer, *_sheetDim, *_sheetBehind;       /* page-sheet presentation */
+    UIColor *_sheetWindowBG; BOOL _sheetBehindClipped; CGFloat _sheetBehindRadius;
 }
+@end
+
+/* iPhone page sheet: a card below the status bar; the presenter shrinks behind it (iOS 13+ card stack).
+   Dragging the sheet's top area down dismisses it, unless isModalInPresentation. */
+@interface __IsimSheetPan : UIPanGestureRecognizer
+@property (nonatomic, weak) UIViewController *sheetController;
 @end
 @implementation UIViewController
 - (instancetype)init { return [self initWithNibName:nil bundle:nil]; }
 - (instancetype)initWithNibName:(NSString *)nib bundle:(NSBundle *)b {
     if ((self = [super init])) {
         _children = [NSMutableArray array];
+        _modalPresentationStyle = UIModalPresentationAutomatic;      /* iOS 13+: a page sheet on iPhone */
         if (nib) NSLog(@"isim: nib '%@' ignored (nib/storyboard loading is not implemented)", nib);
     }
     return self;
@@ -149,31 +158,142 @@
 - (void)willMoveToParentViewController:(UIViewController *)p {}
 - (void)didMoveToParentViewController:(UIViewController *)p {}
 
-/* modal presentation: full-screen cover inside the presenter's window */
+/* modal presentation: page sheets (automatic/pageSheet/formSheet) or full-screen covers in the presenter's window */
 - (UIViewController *)presentedViewController { return _presented; }
 - (UIViewController *)presentingViewController { return _presenting; }
+- (BOOL)_isim_presentsAsSheet {
+    if ([self isKindOfClass:NSClassFromString(@"UIAlertController")]) return NO;
+    UIModalPresentationStyle st = _modalPresentationStyle;
+    return st == UIModalPresentationAutomatic || st == UIModalPresentationPageSheet || st == UIModalPresentationFormSheet;
+}
+static CGRect sheet_frame(UIViewController *vc, CGRect b) {
+    const struct isim_device *d = isim_ui_device();
+    if (b.size.width >= 700) {                                    /* iPad: centered card */
+        BOOL form = vc.modalPresentationStyle == UIModalPresentationFormSheet;
+        CGFloat w = form ? 540 : MIN(b.size.width - 80, 704), h = form ? MIN(620, b.size.height - 80) : b.size.height - 2 * (d->safe_top + 24);
+        return CGRectMake((b.size.width - w) / 2, (b.size.height - h) / 2, w, h);
+    }
+    CGFloat top = d->safe_top + 10;
+    return CGRectMake(0, top, b.size.width, b.size.height - top);
+}
 - (void)presentViewController:(UIViewController *)vc animated:(BOOL)a completion:(void (^)(void))done {
     if (_presented) { [_presented presentViewController:vc animated:a completion:done]; return; }
     UIWindow *w = _view.window;
     if (!w) { NSLog(@"isim: presentViewController: presenter is not in a window"); return; }
     _presented = vc; vc->_presenting = self;
     UIView *v = vc.view;
-    v.frame = w.bounds; v.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     if (!v.backgroundColor) v.backgroundColor = UIColor.systemBackgroundColor;
     [vc _isim_appear:YES];
-    [w addSubview:v];
-    dispatch_async(dispatch_get_main_queue(), ^{ [vc _isim_didAppear]; if (done) done(); });
+    void (^finish)(BOOL) = ^(BOOL f) { [vc _isim_didAppear]; if (done) done(); };
+    if (![vc _isim_presentsAsSheet]) {
+        v.frame = w.bounds; v.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [w addSubview:v];
+        if (a && vc.modalPresentationStyle != UIModalPresentationOverFullScreen && ![vc isKindOfClass:NSClassFromString(@"UIAlertController")]) {
+            CGRect end = v.frame;                                 /* full screen: slides up from the bottom */
+            [UIView performWithoutAnimation:^{ v.frame = CGRectOffset(end, 0, end.size.height); }];
+            isim_ui_animate(0.5, 0, 0, 1, 1.0, 0, ^{ v.frame = end; }, finish);
+        } else dispatch_async(dispatch_get_main_queue(), ^{ finish(YES); });
+        return;
+    }
+    CGRect b = w.bounds;
+    BOOL phone = b.size.width < 700;
+    UIView *container = [[UIView alloc] initWithFrame:b];
+    container.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    UIView *dim = [[UIView alloc] initWithFrame:b];
+    dim.backgroundColor = UIColor.blackColor; dim.alpha = 0;
+    dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [container addSubview:dim];
+    CGRect end = sheet_frame(vc, b);
+    v.autoresizingMask = UIViewAutoresizingNone;
+    v.layer.cornerRadius = 10; v.clipsToBounds = YES;
+    [container addSubview:v];
+    __IsimSheetPan *pan = [[__IsimSheetPan alloc] initWithTarget:vc action:@selector(_isim_sheetPan:)];
+    pan.sheetController = vc;
+    [v addGestureRecognizer:pan];
+    /* the presenter's top-level view shrinks into a card behind the sheet (iPhone, first sheet level) */
+    UIView *behind = _view; while (behind.superview && behind.superview != w) behind = behind.superview;
+    BOOL stack = phone && behind.superview == w && !_sheetContainer;
+    vc->_sheetContainer = container; vc->_sheetDim = dim; vc->_sheetBehind = stack ? behind : nil;
+    if (stack) {
+        vc->_sheetWindowBG = w.backgroundColor; vc->_sheetBehindClipped = behind.clipsToBounds; vc->_sheetBehindRadius = behind.layer.cornerRadius;
+        w.backgroundColor = UIColor.blackColor;
+        behind.clipsToBounds = YES; behind.layer.cornerRadius = 10;
+    }
+    [w addSubview:container];
+    [UIView performWithoutAnimation:^{ v.frame = phone ? CGRectOffset(end, 0, b.size.height - end.origin.y) : CGRectOffset(end, 0, b.size.height); }];
+    const struct isim_device *d = isim_ui_device();
+    CGFloat sc = (b.size.width - 32) / b.size.width;
+    CGFloat ty = (d->safe_top - 6) - b.size.height * (1 - sc) / 2;
+    void (^anim)(void) = ^{
+        v.frame = end;
+        dim.alpha = stack ? 0.12 : 0.3;
+        if (stack) behind.transform = CGAffineTransformTranslate(CGAffineTransformMakeScale(sc, sc), 0, ty / sc);
+    };
+    if (a) isim_ui_animate(0.5, 0, 0, 1, 1.0, 0, anim, finish);
+    else { [UIView performWithoutAnimation:anim]; dispatch_async(dispatch_get_main_queue(), ^{ finish(YES); }); }
 }
 - (void)dismissViewControllerAnimated:(BOOL)a completion:(void (^)(void))done {
     UIViewController *target = _presented ?: self;
     UIViewController *presenter = _presented ? self : _presenting;
-    [target _isim_appear:NO];
-    [target.view removeFromSuperview];
+    if (target->_presented) { [target dismissViewControllerAnimated:NO completion:nil]; }      /* nested presentations go too */
+    UIView *container = target->_sheetContainer, *dim = target->_sheetDim, *behind = target->_sheetBehind, *v = target.view;
     if (presenter) { presenter->_presented = nil; target->_presenting = nil; }
-    if (done) dispatch_async(dispatch_get_main_queue(), done);
+    void (^finish)(BOOL) = ^(BOOL f) {
+        [target _isim_appear:NO];
+        if (container) {
+            [container removeFromSuperview]; [v removeFromSuperview];
+            if (behind) {
+                behind.transform = CGAffineTransformIdentity;
+                behind.clipsToBounds = target->_sheetBehindClipped; behind.layer.cornerRadius = target->_sheetBehindRadius;
+                behind.window.backgroundColor = target->_sheetWindowBG;
+            }
+            target->_sheetContainer = target->_sheetDim = target->_sheetBehind = nil;
+            v.layer.cornerRadius = 0; v.clipsToBounds = NO;
+            for (UIGestureRecognizer *g in v.gestureRecognizers) if ([g isKindOfClass:[__IsimSheetPan class]]) [v removeGestureRecognizer:g];
+        } else [v removeFromSuperview];
+        if (done) done();
+    };
+    BOOL alert = [target isKindOfClass:NSClassFromString(@"UIAlertController")];
+    if (!a || alert || (!container && target.modalPresentationStyle == UIModalPresentationOverFullScreen)) {
+        if (behind) [UIView performWithoutAnimation:^{ behind.transform = CGAffineTransformIdentity; }];
+        dispatch_async(dispatch_get_main_queue(), ^{ finish(YES); });
+        return;
+    }
+    CGFloat h = (v.window ?: (UIView *)v.superview).bounds.size.height;
+    isim_ui_animate(0.38, 0, UIViewAnimationOptionCurveEaseIn, 0, 0, 0, ^{
+        v.frame = CGRectMake(v.frame.origin.x, h, v.frame.size.width, v.frame.size.height);
+        dim.alpha = 0;
+        if (behind) behind.transform = CGAffineTransformIdentity;
+    }, finish);
+}
+/* interactive dismissal: follow the finger, then dismiss or spring back */
+- (void)_isim_sheetPan:(__IsimSheetPan *)g {
+    UIView *v = self.view, *container = _sheetContainer;
+    if (!container) return;
+    CGRect end = sheet_frame(self, container.bounds);
+    CGFloat dy = MAX(0, [g translationInView:container].y);
+    if (self.isModalInPresentation) dy = dy > 0 ? 18 * log1p(dy / 18) : 0;   /* rubber-band */
+    if (g.state == UIGestureRecognizerStateChanged || g.state == UIGestureRecognizerStateBegan) {
+        [UIView performWithoutAnimation:^{ v.frame = CGRectOffset(end, 0, dy); }];
+    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
+        CGFloat vy = [g velocityInView:container].y;
+        if (!self.isModalInPresentation && g.state == UIGestureRecognizerStateEnded && (dy > end.size.height * 0.25 || vy > 900)) {
+            [self dismissViewControllerAnimated:YES completion:nil];
+        } else isim_ui_animate(0.45, 0, 0, 1, 0.85, 0, ^{ v.frame = end; }, nil);
+    }
 }
 @end
 @implementation UINavigationItem @end
+@interface UIGestureRecognizer (IsimTouch)
+- (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event;
+@end
+@implementation __IsimSheetPan { BOOL _ignoring; }
+/* only drags that start in the sheet's top area (grabber / navigation bar) move the sheet */
+- (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event {
+    if (phase == UITouchPhaseBegan) _ignoring = [touch locationInView:self.view].y > 64;
+    if (!_ignoring) [super _isim_touch:touch phase:phase event:event];
+}
+@end
 
 @interface UIWindowScene (IsimWindows)
 - (NSMutableArray *)valueForKey_isimWindows;
@@ -471,6 +591,7 @@ static void handle_id_touch(const struct isim_event *ev) {
 
 static void render_frame(void) {
     isim_ui_keyboard_check();
+    isim_ui_animations_tick();
     UIWindow *key = top_window();
     UIViewController *vc = key.rootViewController;
     while (vc.presentedViewController) vc = vc.presentedViewController;
@@ -640,6 +761,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
             if (tm.tm_min != lastMinute) { lastMinute = tm.tm_min; isim_ui_set_needs_display(); }
             if (isim_ui_take_display() && !backgrounded) { layout_all(); render_frame(); }
             double timeout = next < 0.5 ? next : 0.5;
+            if (isim_ui_animations_running() && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
             struct isim_event ev;
             for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {
                 switch (ev.type) {

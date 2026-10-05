@@ -38,3 +38,4 @@
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIScene.h>
 #import <UIKit/UIFeedbackGenerator.h>
+#import <UIKit/UIVisualEffectView.h>

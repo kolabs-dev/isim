@@ -10,6 +10,21 @@ Classes:
     SwiftName: presentingViewController
   - Name: parentViewController
     SwiftName: parent
+  - Name: childViewControllers
+    SwiftName: children
+  Methods:
+  - Selector: 'addChildViewController:'
+    MethodKind: Instance
+    SwiftName: 'addChild(_:)'
+  - Selector: removeFromParentViewController
+    MethodKind: Instance
+    SwiftName: 'removeFromParent()'
+  - Selector: 'willMoveToParentViewController:'
+    MethodKind: Instance
+    SwiftName: 'willMove(toParent:)'
+  - Selector: 'didMoveToParentViewController:'
+    MethodKind: Instance
+    SwiftName: 'didMove(toParent:)'
 - Name: UIButtonConfiguration
   SwiftName: UIButton.Configuration
   Methods:
@@ -228,6 +243,8 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIBlurEffectStyle
+  SwiftName: UIBlurEffect.Style
 - Name: UIImpactFeedbackStyle
   SwiftName: UIImpactFeedbackGenerator.FeedbackStyle
 - Name: UINotificationFeedbackType

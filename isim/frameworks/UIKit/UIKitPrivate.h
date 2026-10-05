@@ -114,7 +114,18 @@ CGRect isim_ui_keyboard_frame(void);                     /* screen coordinates; 
 BOOL isim_ui_keyboard_needs_switch_key(void);
 void isim_ui_keyboard_advance(void);
 void isim_ui_keyboard_install(void);
-void isim_ui_keyboard_check(void);                      /* hides the keyboard if its text input went away */
+void isim_ui_keyboard_check(void);
+/* view animations (UIView.m) */
+BOOL isim_ui_animations_tick(void);                      /* evaluates running animations; YES while any runs */
+BOOL isim_ui_animations_running(void);
+void isim_ui_animate(double duration, double delay, UIViewAnimationOptions o, int spring, double damping, double velocity,
+                     void (^animations)(void), void (^completion)(BOOL));
+void isim_ui_without_animation(void (^block)(void));
+void isim_ui_set_animations_enabled(BOOL e);
+BOOL isim_ui_animations_enabled(void);
+double isim_ui_inherited_duration(void);
+/* materials (UIVisualEffect.m): blur radius in points and tint for a UIBlurEffectStyle */
+void isim_ui_material(NSInteger style, BOOL dark, double *radius, double tint[4]);                      /* hides the keyboard if its text input went away */
 NSString *isim_ui_system_apps_dir(void);
 NSString *isim_ui_installed_apps_dir(void);
 @interface UIWindow (IsimSystem)

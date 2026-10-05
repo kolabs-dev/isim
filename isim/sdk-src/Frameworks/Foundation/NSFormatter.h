@@ -6,9 +6,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)stringForObjectValue:(nullable id)obj;
 @end
 
-typedef NS_ENUM(NSUInteger, NSDateFormatterStyle) {
-    NSDateFormatterNoStyle = 0, NSDateFormatterShortStyle = 1, NSDateFormatterMediumStyle = 2,
-    NSDateFormatterLongStyle = 3, NSDateFormatterFullStyle = 4
+typedef NS_ENUM(NSUInteger, NSDateFormatterStyle) NS_SWIFT_NAME(DateFormatter.Style) {
+    NSDateFormatterNoStyle NS_SWIFT_NAME(none) = 0, NSDateFormatterShortStyle NS_SWIFT_NAME(short) = 1, NSDateFormatterMediumStyle NS_SWIFT_NAME(medium) = 2,
+    NSDateFormatterLongStyle NS_SWIFT_NAME(long) = 3, NSDateFormatterFullStyle NS_SWIFT_NAME(full) = 4
 };
 @interface NSDateFormatter : NSFormatter
 @property (null_resettable, copy) NSString *dateFormat;
@@ -24,9 +24,9 @@ typedef NS_ENUM(NSUInteger, NSDateFormatterStyle) {
 + (nullable NSString *)dateFormatFromTemplate:(NSString *)tmplate options:(NSUInteger)opts locale:(nullable NSLocale *)locale;
 @end
 
-typedef NS_ENUM(NSUInteger, NSNumberFormatterStyle) {
-    NSNumberFormatterNoStyle = 0, NSNumberFormatterDecimalStyle = 1, NSNumberFormatterCurrencyStyle = 2,
-    NSNumberFormatterPercentStyle = 3, NSNumberFormatterScientificStyle = 4, NSNumberFormatterSpellOutStyle = 5
+typedef NS_ENUM(NSUInteger, NSNumberFormatterStyle) NS_SWIFT_NAME(NumberFormatter.Style) {
+    NSNumberFormatterNoStyle NS_SWIFT_NAME(none) = 0, NSNumberFormatterDecimalStyle NS_SWIFT_NAME(decimal) = 1, NSNumberFormatterCurrencyStyle NS_SWIFT_NAME(currency) = 2,
+    NSNumberFormatterPercentStyle NS_SWIFT_NAME(percent) = 3, NSNumberFormatterScientificStyle NS_SWIFT_NAME(scientific) = 4, NSNumberFormatterSpellOutStyle NS_SWIFT_NAME(spellOut) = 5
 };
 @interface NSNumberFormatter : NSFormatter
 @property NSNumberFormatterStyle numberStyle;

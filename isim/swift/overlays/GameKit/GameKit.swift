@@ -5,6 +5,7 @@
 // the player's leaderboards and achievements. Other players, friends, challenges and multiplayer
 // matchmaking are not available.
 import UIKit
+import SwiftUI
 
 public let GKErrorDomain = "GKErrorDomain"
 public struct GKError: Error, CustomNSError, Sendable {
@@ -53,43 +54,59 @@ enum _GC {
     static func reset() { UserDefaults.standard.removeObject(forKey: achievementsKey) }
 }
 
-/// iOS-style Game Center banner at the top of the screen.
+/// iOS-style Game Center banner: slides down from the top with a spring, then slides away.
 @MainActor enum _GCBanner {
+    enum Kind { case player, achievement(String) }
     static var window: UIWindow?
-    static func show(title: String, subtitle: String) {
+    static func show(title: String, subtitle: String, kind: Kind) {
         window?.isHidden = true
         let w = UIWindow(frame: UIScreen.main.bounds)
         w.windowLevel = UIWindow.Level(rawValue: 2100)
         w.isUserInteractionEnabled = false
+        w.backgroundColor = .clear
+        let width = min(UIScreen.main.bounds.width - 24, 380), height: CGFloat = 64
+        let host = UIHostingController(rootView: _GCBannerView(title: title, subtitle: subtitle, kind: kind))
+        host.view.backgroundColor = .clear
         let root = UIViewController(); root.view.backgroundColor = .clear
-        let card = UIView()
-        card.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.97)
-        card.layer.cornerRadius = 18
-        card.layer.shadowColor = UIColor.black.cgColor; card.layer.shadowOpacity = 0.2; card.layer.shadowRadius = 10
-        card.translatesAutoresizingMaskIntoConstraints = false
-        let icon = UILabel(); icon.text = "🎮"; icon.font = .systemFont(ofSize: 26)
-        let t = UILabel(); t.text = title; t.font = .systemFont(ofSize: 15, weight: .semibold)
-        let st = UILabel(); st.text = subtitle; st.font = .systemFont(ofSize: 13); st.textColor = .secondaryLabel
-        let texts = UIStackView(arrangedSubviews: [t, st]); texts.axis = .vertical; texts.spacing = 1
-        let row = UIStackView(arrangedSubviews: [icon, texts]); row.spacing = 12; row.alignment = .center
-        row.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(row)
+        root.addChild(host)
+        let card = host.view!
+        card.frame = CGRect(x: (UIScreen.main.bounds.width - width) / 2, y: -height - 10, width: width, height: height)
         root.view.addSubview(card)
-        NSLayoutConstraint.activate([
-            card.topAnchor.constraint(equalTo: root.view.safeAreaLayoutGuide.topAnchor, constant: 6),
-            card.centerXAnchor.constraint(equalTo: root.view.centerXAnchor),
-            card.widthAnchor.constraint(lessThanOrEqualToConstant: 360),
-            card.leadingAnchor.constraint(greaterThanOrEqualTo: root.view.leadingAnchor, constant: 12),
-            row.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
-            row.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12),
-            row.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
-            row.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
-        ])
+        host.didMove(toParent: root)
         w.rootViewController = root
         window = w
         w.isHidden = false
         NSLog("isim GameKit: banner: %@ — %@", title, subtitle)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { if window === w { w.isHidden = true; window = nil } }
+        let top = max(w.safeAreaInsets.top, 20)
+        UIView.animate(withDuration: 0.6, delay: 0, usingSpringWithDamping: 0.78, initialSpringVelocity: 0, options: [], animations: {
+            card.frame.origin.y = top + 4
+        }, completion: { _ in
+            UIView.animate(withDuration: 0.35, delay: 2.4, options: [.curveEaseIn], animations: {
+                card.frame.origin.y = -height - 10
+            }, completion: { _ in if window === w { w.isHidden = true; window = nil } })
+        })
+    }
+}
+
+struct _GCBannerView: View {
+    let title: String, subtitle: String, kind: _GCBanner.Kind
+    var body: some View {
+        HStack(spacing: 12) {
+            switch kind {
+            case .player: _GCAvatar(name: _GC.alias, size: 40)
+            case .achievement(let id): _GCMedal(achievement: _GCAchievement(id: id, percent: 100, date: Date()), size: 40)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verbatim: title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                Text(verbatim: subtitle).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Image(systemName: "gamecontroller").font(.system(size: 15)).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
     }
 }
 
@@ -122,7 +139,7 @@ open class GKLocalPlayer: GKPlayer {
                 MainActor.assumeIsolated {
                     if _GC.signedIn {
                         self.authenticated = true
-                        _GCBanner.show(title: "Welcome back, \(_GC.alias)", subtitle: "isim Game Center (local)")
+                        _GCBanner.show(title: "Welcome back, \(_GC.alias)", subtitle: "Game Center", kind: .player)
                         h(nil, nil)
                     } else {
                         NSLog("isim GameKit: not signed in to Game Center (isim Settings > Game Center)")
@@ -201,8 +218,8 @@ open class GKAchievement: NSObject {
             let completedNow = _GC.setAchievement(a.identifier, percent: min(100, max(0, a.percentComplete)))
             NSLog("isim GameKit: achievement %@ %.0f%%", a.identifier, a.percentComplete)
             if completedNow && a.showsCompletionBanner {
-                let name = a.identifier
-                DispatchQueue.main.async { MainActor.assumeIsolated { _GCBanner.show(title: "Achievement Earned", subtitle: name) } }
+                let id = a.identifier, name = _GCText.title(id)
+                DispatchQueue.main.async { MainActor.assumeIsolated { _GCBanner.show(title: name, subtitle: "Achievement Earned", kind: .achievement(id)) } }
             }
         }
         DispatchQueue.main.async { completionHandler?(nil) }
@@ -251,66 +268,28 @@ open class GKGameCenterViewController: UIViewController {
 
     open override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemGroupedBackground
-        let scroll = UIScrollView()
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scroll)
-        let done = UIButton(type: .system)
-        done.setTitle("Done", for: .normal)
-        done.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
-        done.translatesAutoresizingMaskIntoConstraints = false
-        done.accessibilityIdentifier = "gc-done"
-        done.addAction(UIAction { [weak self] _ in
+        // like iOS: a material backdrop, so the game shows through (blurred) behind Game Center
+        view.backgroundColor = .clear
+        let backdrop = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+        backdrop.frame = view.bounds
+        backdrop.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(backdrop)
+        let initial: [_GCRoute]
+        switch state {
+        case .leaderboards: initial = focusLeaderboard.map { [.leaderboard($0)] } ?? [.leaderboards]
+        case .achievements: initial = [.achievements]
+        default: initial = []
+        }
+        let host = UIHostingController(rootView: _GCDashboard(initial: initial) { [weak self] in
             guard let self else { return }
             if let d = self.gameCenterDelegate { d.gameCenterViewControllerDidFinish(self) } else { self.dismiss(animated: true, completion: nil) }
-        }, for: .touchUpInside)
-        view.addSubview(done)
-        let stack = UIStackView(); stack.axis = .vertical; stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(stack)
-        NSLayoutConstraint.activate([
-            done.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            done.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            scroll.topAnchor.constraint(equalTo: done.bottomAnchor, constant: 4),
-            scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 8),
-            stack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor, constant: 20),
-            stack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor, constant: -20),
-            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -20),
-        ])
-        func label(_ t: String, _ f: UIFont, _ c: UIColor = .label) -> UILabel { let l = UILabel(); l.text = t; l.font = f; l.textColor = c; l.numberOfLines = 0; return l }
-        stack.addArrangedSubview(label("Game Center", .systemFont(ofSize: 34, weight: .bold)))
-        stack.addArrangedSubview(label("\(_GC.alias) · isim local Game Center (scores and achievements stay on this device)", .systemFont(ofSize: 13), .secondaryLabel))
-        func card(_ rows: [(String, String)], empty: String) -> UIView {
-            let c = UIView(); c.backgroundColor = .secondarySystemGroupedBackground; c.layer.cornerRadius = 12
-            let s = UIStackView(); s.axis = .vertical; s.spacing = 10; s.translatesAutoresizingMaskIntoConstraints = false
-            if rows.isEmpty { s.addArrangedSubview(label(empty, .systemFont(ofSize: 15), .secondaryLabel)) }
-            for (l, r) in rows {
-                let a = label(l, .systemFont(ofSize: 15)), b = label(r, .monospacedDigitSystemFont(ofSize: 15, weight: .semibold), .secondaryLabel)
-                b.textAlignment = .right
-                let row = UIStackView(arrangedSubviews: [a, b]); row.spacing = 8
-                s.addArrangedSubview(row)
-            }
-            c.addSubview(s)
-            NSLayoutConstraint.activate([s.topAnchor.constraint(equalTo: c.topAnchor, constant: 14), s.bottomAnchor.constraint(equalTo: c.bottomAnchor, constant: -14),
-                                         s.leadingAnchor.constraint(equalTo: c.leadingAnchor, constant: 16), s.trailingAnchor.constraint(equalTo: c.trailingAnchor, constant: -16)])
-            return c
-        }
-        if state != .achievements {
-            stack.addArrangedSubview(label("LEADERBOARDS", .systemFont(ofSize: 13), .secondaryLabel))
-            let boards = _GC.scores().keys.sorted().filter { focusLeaderboard == nil || $0 == focusLeaderboard }
-            let rows = boards.map { b -> (String, String) in ("\(b)", "#1 · \(_GC.best(b)?["value"] as? Int ?? 0)") }
-            stack.addArrangedSubview(card(rows, empty: focusLeaderboard.map { "No score yet on \($0)." } ?? "No scores yet."))
-        }
-        if state != .leaderboards {
-            stack.addArrangedSubview(label("ACHIEVEMENTS", .systemFont(ofSize: 13), .secondaryLabel))
-            let rows = _GC.achievements().sorted { $0.key < $1.key }.map { id, v -> (String, String) in
-                let p = v["percent"] as? Double ?? 0
-                return (id, p >= 100 ? "✓ Earned" : "\(Int(p))%")
-            }
-            stack.addArrangedSubview(card(rows, empty: "No achievements yet."))
-        }
+        })
+        addChild(host)
+        host.view.backgroundColor = .clear
+        host.view.frame = view.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(host.view)
+        host.didMove(toParent: self)
     }
 }
 

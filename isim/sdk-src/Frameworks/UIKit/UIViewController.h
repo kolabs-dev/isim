@@ -34,6 +34,7 @@ typedef NS_ENUM(NSInteger, UIModalPresentationStyle) { UIModalPresentationFullSc
 @property (nullable, nonatomic, readonly) UIViewController *presentedViewController;
 @property (nullable, nonatomic, readonly) UIViewController *presentingViewController;
 @property (nonatomic) UIModalPresentationStyle modalPresentationStyle;
+@property (nonatomic, getter=isModalInPresentation) BOOL modalInPresentation;
 - (void)presentViewController:(UIViewController *)viewControllerToPresent animated:(BOOL)flag completion:(void (^ _Nullable)(void))completion;
 - (void)dismissViewControllerAnimated:(BOOL)flag completion:(void (^ _Nullable)(void))completion;
 @property (nonatomic, readonly) UIStatusBarStyle preferredStatusBarStyle;

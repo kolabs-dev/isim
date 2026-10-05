@@ -23,6 +23,8 @@ void isim_gfx_rotate(double radians);
 void isim_gfx_concat(double a, double b, double c, double d, double tx, double ty);
 void isim_gfx_clip_path(void);
 double isim_gfx_get_alpha(void);
+/* blurs what is drawn under the rounded rect by `radius` points (materials / UIVisualEffectView) */
+void isim_gfx_backdrop_blur(double x, double y, double w, double h, double corner, double radius);
 void isim_gfx_push_group(void);
 void isim_gfx_pop_group(double alpha);
 void isim_path_begin(void);

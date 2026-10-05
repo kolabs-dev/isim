@@ -192,6 +192,77 @@ void isim_gfx_concat(double a, double b, double c, double d, double tx, double t
 }
 /* clips to the current path (then clears it) */
 void isim_gfx_clip_path(void) { cairo_clip(cr); }
+/* Backdrop blur (UIVisualEffectView / SwiftUI materials): blurs what is already drawn under the rounded
+ * rect (x, y, w, h, corner r) by `radius` points. Works at reduced resolution (downsample, edge-clamped
+ * 3-pass box blur, bilinear upsample) and paints back through the shape, so clips and corners apply.
+ * Inside a transparency group only the group's own content is behind the view (not blurred through). */
+static void box_blur_pass(uint32_t *px, int w, int h, int stride, int r, int horizontal) {
+    if (r < 1) return;
+    int n = horizontal ? w : h, lines = horizontal ? h : w;
+    uint32_t *tmp = malloc(sizeof *tmp * (size_t)n);
+    for (int l = 0; l < lines; l++) {
+        #define AT(i) (*(horizontal ? &px[(size_t)l * stride + (i)] : &px[(size_t)(i) * stride + l]))
+        for (int i = 0; i < n; i++) tmp[i] = AT(i);
+        long sum[4] = { 0 }; long win = 2 * r + 1;
+        for (int k = -r; k <= r; k++) { uint32_t v = tmp[k < 0 ? 0 : k >= n ? n - 1 : k]; for (int c = 0; c < 4; c++) sum[c] += (long)((v >> (8 * c)) & 255); }
+        for (int i = 0; i < n; i++) {
+            uint32_t o = 0; for (int c = 0; c < 4; c++) o |= (uint32_t)(sum[c] / win) << (8 * c);
+            AT(i) = o;
+            uint32_t add = tmp[i + r + 1 >= n ? n - 1 : i + r + 1], sub = tmp[i - r < 0 ? 0 : i - r];
+            for (int c = 0; c < 4; c++) sum[c] += (long)((add >> (8 * c)) & 255) - (long)((sub >> (8 * c)) & 255);
+        }
+        #undef AT
+    }
+    free(tmp);
+}
+void isim_gfx_backdrop_blur(double x, double y, double w, double h, double r, double radius) {
+    if (w <= 0 || h <= 0) return;
+    cairo_surface_t *tgt = cairo_get_group_target(cr);
+    if (cairo_surface_get_type(tgt) != CAIRO_SURFACE_TYPE_IMAGE) return;
+    cairo_surface_flush(tgt);
+    double xs[4] = { x, x + w, x, x + w }, ys[4] = { y, y, y + h, y + h };
+    double bx0 = 1e18, by0 = 1e18, bx1 = -1e18, by1 = -1e18;
+    for (int i = 0; i < 4; i++) {
+        cairo_user_to_device(cr, &xs[i], &ys[i]);
+        bx0 = fmin(bx0, xs[i]); by0 = fmin(by0, ys[i]); bx1 = fmax(bx1, xs[i]); by1 = fmax(by1, ys[i]);
+    }
+    cairo_matrix_t m; cairo_get_matrix(cr, &m);
+    double scale = sqrt(m.xx * m.xx + m.yx * m.yx), rad = radius * scale;
+    double ox, oy; cairo_surface_get_device_offset(tgt, &ox, &oy);
+    int sw = cairo_image_surface_get_width(tgt), sh = cairo_image_surface_get_height(tgt);
+    int px0 = (int)floor(bx0 + ox - rad), py0 = (int)floor(by0 + oy - rad), px1 = (int)ceil(bx1 + ox + rad), py1 = (int)ceil(by1 + oy + rad);
+    if (px0 < 0) px0 = 0; if (py0 < 0) py0 = 0; if (px1 > sw) px1 = sw; if (py1 > sh) py1 = sh;
+    if (px1 <= px0 || py1 <= py0) return;
+    int f = rad > 24 ? 6 : rad > 12 ? 4 : rad > 4 ? 2 : 1;
+    int W = (px1 - px0 + f - 1) / f, H = (py1 - py0 + f - 1) / f;
+    cairo_surface_t *small = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, W, H);
+    cairo_t *c2 = cairo_create(small);
+    cairo_scale(c2, 1.0 / f, 1.0 / f);
+    cairo_set_source_surface(c2, tgt, -px0 - 0.0, -py0 - 0.0);
+    cairo_pattern_set_filter(cairo_get_source(c2), CAIRO_FILTER_GOOD);
+    cairo_set_operator(c2, CAIRO_OPERATOR_SOURCE);
+    cairo_paint(c2);
+    cairo_destroy(c2);
+    cairo_surface_flush(small);
+    uint32_t *data = (uint32_t *)cairo_image_surface_get_data(small);
+    int stride = cairo_image_surface_get_stride(small) / 4, br = (int)lround(rad / f / 2);
+    for (int pass = 0; pass < 3; pass++) { box_blur_pass(data, W, H, stride, br, 1); box_blur_pass(data, W, H, stride, br, 0); }
+    cairo_surface_mark_dirty(small);
+    cairo_save(cr);
+    rounded(x, y, w, h, r);
+    cairo_identity_matrix(cr);
+    cairo_pattern_t *p = cairo_pattern_create_for_surface(small);
+    cairo_matrix_t pm; cairo_matrix_init_scale(&pm, 1.0 / f, 1.0 / f); cairo_matrix_translate(&pm, ox - px0, oy - py0);
+    cairo_pattern_set_matrix(p, &pm);
+    cairo_pattern_set_filter(p, CAIRO_FILTER_BILINEAR);
+    cairo_pattern_set_extend(p, CAIRO_EXTEND_PAD);
+    cairo_set_source(cr, p);
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    cairo_fill(cr);
+    cairo_restore(cr);
+    cairo_pattern_destroy(p);
+    cairo_surface_destroy(small);
+}
 double isim_gfx_get_alpha(void) { return 1; }
 void isim_gfx_push_group(void) { cairo_push_group(cr); }
 void isim_gfx_pop_group(double alpha) { cairo_pop_group_to_source(cr); cairo_paint_with_alpha(cr, alpha); }
@@ -651,7 +722,7 @@ static const struct shim isim_table[] = {
     H(isim_font_register), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free), H(isim_image_draw_part), H(isim_image_pixel_size),
-    H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha),
+    H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend),
 };

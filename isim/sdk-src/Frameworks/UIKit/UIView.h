@@ -19,8 +19,16 @@ typedef NS_ENUM(NSInteger, UIViewContentMode) {
 };
 typedef NS_OPTIONS(NSUInteger, UIViewAnimationOptions) {
     UIViewAnimationOptionLayoutSubviews = 1 << 0, UIViewAnimationOptionAllowUserInteraction = 1 << 1,
-    UIViewAnimationOptionBeginFromCurrentState = 1 << 2, UIViewAnimationOptionCurveEaseInOut = 0 << 16,
-    UIViewAnimationOptionCurveEaseIn = 1 << 16, UIViewAnimationOptionCurveEaseOut = 2 << 16, UIViewAnimationOptionCurveLinear = 3 << 16
+    UIViewAnimationOptionBeginFromCurrentState = 1 << 2, UIViewAnimationOptionRepeat = 1 << 3, UIViewAnimationOptionAutoreverse = 1 << 4,
+    UIViewAnimationOptionOverrideInheritedDuration = 1 << 5, UIViewAnimationOptionOverrideInheritedCurve = 1 << 6,
+    UIViewAnimationOptionAllowAnimatedContent = 1 << 7, UIViewAnimationOptionShowHideTransitionViews = 1 << 8,
+    UIViewAnimationOptionOverrideInheritedOptions = 1 << 9, UIViewAnimationOptionCurveEaseInOut = 0 << 16,
+    UIViewAnimationOptionCurveEaseIn = 1 << 16, UIViewAnimationOptionCurveEaseOut = 2 << 16, UIViewAnimationOptionCurveLinear = 3 << 16,
+    UIViewAnimationOptionTransitionNone = 0 << 20, UIViewAnimationOptionTransitionFlipFromLeft = 1 << 20,
+    UIViewAnimationOptionTransitionFlipFromRight = 2 << 20, UIViewAnimationOptionTransitionCurlUp = 3 << 20,
+    UIViewAnimationOptionTransitionCurlDown = 4 << 20, UIViewAnimationOptionTransitionCrossDissolve = 5 << 20,
+    UIViewAnimationOptionTransitionFlipFromTop = 6 << 20, UIViewAnimationOptionTransitionFlipFromBottom = 7 << 20,
+    UIViewAnimationOptionPreferredFramesPerSecondDefault = 0 << 24, UIViewAnimationOptionPreferredFramesPerSecond60 = 3 << 24
 };
 typedef NS_ENUM(NSInteger, UILayoutConstraintAxis) { UILayoutConstraintAxisHorizontal = 0, UILayoutConstraintAxisVertical = 1 };
 typedef float UILayoutPriority NS_TYPED_EXTENSIBLE_ENUM;
@@ -134,11 +142,17 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) NSArray<__kindof UIGestureRecognizer *> *gestureRecognizers;
 - (void)addGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer;
 - (void)removeGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer;
-/* animation (isim: changes apply immediately; completion runs on the next run-loop turn) */
+/* animation: frame/center/bounds, alpha, transform and backgroundColor animate (curves, springs, delay,
+   repeat, autoreverse); transitions other than cross dissolve apply without the flip/curl effect */
 + (void)animateWithDuration:(NSTimeInterval)duration animations:(void (^)(void))animations;
 + (void)animateWithDuration:(NSTimeInterval)duration animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
 + (void)animateWithDuration:(NSTimeInterval)duration delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
 + (void)animateWithDuration:(NSTimeInterval)duration delay:(NSTimeInterval)delay usingSpringWithDamping:(CGFloat)dampingRatio initialSpringVelocity:(CGFloat)velocity options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
 + (void)performWithoutAnimation:(void (NS_NOESCAPE ^)(void))actionsWithoutAnimation;
++ (void)animateWithSpringDuration:(NSTimeInterval)duration bounce:(CGFloat)bounce initialSpringVelocity:(CGFloat)velocity delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion
+    NS_SWIFT_NAME(animate(springDuration:bounce:initialSpringVelocity:delay:options:animations:completion:)) API_AVAILABLE(ios(17.0));
++ (void)transitionWithView:(UIView *)view duration:(NSTimeInterval)duration options:(UIViewAnimationOptions)options animations:(void (^ _Nullable)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
+@property (class, nonatomic, getter=areAnimationsEnabled) BOOL animationsEnabled;
+@property (class, nonatomic, readonly) NSTimeInterval inheritedAnimationDuration;
 @end
 NS_ASSUME_NONNULL_END
