@@ -5,7 +5,8 @@
 #   isim uninstall <name|bundle id>   remove an installed app (and its data container)
 #   isim apps                    list installed apps
 #   isim reset                   erase the device: installed apps, app data and settings
-#   isim run <App.app> [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
+#   isim run <App.app> [args...]: install, boot and open the app (headless or ISIM_STANDALONE=1: the app alone)
+#     options: [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
@@ -82,6 +83,16 @@ case "$cmd" in
     if [ -d "$app" ]; then
       name=$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$app/Info.plist")
       exe=$app/$name
+    fi
+    if [ -d "$app" ] && [ -z "${ISIM_HEADLESS:-}" ] && [ -z "${ISIM_STANDALONE:-}" ]; then
+      # like Xcode: install the app, boot the device and open the app over the home screen
+      # (launch arguments apply to this launch; ISIM_STANDALONE=1 runs the app alone, without the home screen)
+      mkdir -p "$DATA/Applications"
+      dst=$DATA/Applications/$(basename "$app")
+      if [ "$(readlink -f "$app")" != "$(readlink -f "$dst")" ]; then rm -rf "$dst"; cp -a "$app" "$dst"; fi
+      export ISIM_DATA=$DATA ISIM_SYSTEM_APPS=$SDK/Applications ISIM_APPS=$DATA/Applications
+      exec "$BIN/isim-runtime" --root "$SDK" --shell "$SDK/Applications/SpringBoard.app" "$SDK/Applications/SpringBoard.app/SpringBoard" \
+        --open "$dst" "$dst/$name" "$@"
     fi
     exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
   cc)

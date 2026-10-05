@@ -806,12 +806,14 @@ int main(int argc, char **argv, char **envp) {
         else if (!strcmp(argv[ai], "--root") && ai + 1 < argc) { sysroot = argv[ai + 1]; ai += 2; }
         else if (!strcmp(argv[ai], "--print-exports") && ai + 1 < argc) { print_exports(argv[ai + 1]); return 0; }
         else if (!strcmp(argv[ai], "--shell") && ai + 2 < argc) {
-            /* --shell <home screen .app> <its executable>: run the isim shell (each app is a child process) */
-            extern int isim_shell_main(const char *self, const char *root, const char *bundle, const char *exe);
+            /* --shell <home screen .app> <its executable> [--open <App.app> <its executable> [args...]]:
+               run the isim shell (each app is a child process), optionally opening an app at boot */
+            extern int isim_shell_main(const char *self, const char *root, const char *bundle, const char *exe, char **open);
             if (!sysroot) sysroot = default_root();
             char *rr = realpath(sysroot, NULL); if (rr) sysroot = rr;
             char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1); if (n > 0) self[n] = 0;
-            return isim_shell_main(self, sysroot, argv[ai + 1], argv[ai + 2]);
+            char **open = ai + 5 < argc && !strcmp(argv[ai + 3], "--open") ? argv + ai + 4 : NULL;
+            return isim_shell_main(self, sysroot, argv[ai + 1], argv[ai + 2], open);
         }
         else break;
     }

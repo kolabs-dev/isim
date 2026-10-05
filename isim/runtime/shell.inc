@@ -189,6 +189,7 @@ static void shell_activate(int i) {
     shell_send(i, EV_FOREGROUND);
     shell_show(i);
 }
+static char **open_args;      /* launch arguments for the app opened at boot (isim run) */
 static int shell_spawn(const char *bundle, const char *exe, const char *url) {
     if (nclients >= (int)(sizeof clients / sizeof *clients)) { fprintf(stderr, "isim shell: too many apps\n"); return -1; }
     int sv[2];
@@ -208,7 +209,12 @@ static int shell_spawn(const char *bundle, const char *exe, const char *url) {
         setenv("ISIM_CLIENT_SOCK", b1, 1); setenv("ISIM_CLIENT_SURFACE", b2, 1); setenv("ISIM_CLIENT_SCALE", b3, 1);
         unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_HEADLESS"); unsetenv("ISIM_CONTROL");
         if (url && *url) setenv("ISIM_LAUNCH_URL", url, 1); else unsetenv("ISIM_LAUNCH_URL");
-        execl(shell_self, shell_self, "--root", shell_root, exe, (char *)NULL);
+        char *av[64]; int n = 0;
+        av[n++] = (char *)shell_self; av[n++] = "--root"; av[n++] = (char *)shell_root; av[n++] = (char *)exe;
+        if (open_args && nclients > 0 && !strcmp(bundle, open_args[0]))
+            for (char **a = open_args + 2; *a && n < 63; a++) av[n++] = *a;
+        av[n] = NULL;
+        execv(shell_self, av);
         perror("isim shell: exec"); _exit(127);
     }
     close(sv[1]); close(mfd);
@@ -284,7 +290,8 @@ static void shell_handle(int i, const struct shell_msg *m) {
     }
 }
 
-int isim_shell_main(const char *self, const char *root, const char *springboard_bundle, const char *springboard_exe) {
+int isim_shell_main(const char *self, const char *root, const char *springboard_bundle, const char *springboard_exe, char **open) {
+    open_args = open && open[0] && open[1] ? open : NULL;
     shell_self = self; shell_root = root;
     signal(SIGPIPE, SIG_IGN);
     if (!dev.width) device_from_env();
@@ -306,6 +313,10 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
 
     if (shell_spawn(springboard_bundle, springboard_exe, NULL) != 0) return 1;
     active = 0;
+    if (open_args) {                       /* isim run: open the app over the home screen, like Xcode */
+        int i = shell_spawn(open_args[0], open_args[1], NULL);
+        if (i > 0) { shell_send(0, EV_BACKGROUND); active = i; }
+    }
     int gesture = 0; double gesture_y = 0;
     for (;;) {
         /* children */
