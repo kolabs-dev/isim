@@ -1,7 +1,8 @@
 // isim AVFoundation (audio subset): AVAudioSession, AVAudioEngine/AVAudioPlayerNode/AVAudioMixerNode,
 // AVAudioFile, AVAudioPCMBuffer, AVAudioFormat, AVAudioPlayer. Self-authored; sound goes to the host's
-// mixer (libisim_host, SDL3 audio). Decodes linear-PCM CAF and WAV files; compressed formats (AAC, MP3,
-// ALAC) are not decodable on isim yet and fail to open with an error, as an unreadable file would.
+// mixer (libisim_host, SDL3 audio). Decodes linear-PCM CAF and WAV files itself; compressed formats (AAC/ALAC
+// m4a, MP3, FLAC, ...) are decoded by the host's ffmpeg or GStreamer (gst-launch-1.0); without either they fail
+// to open like an unreadable file.
 // No video, capture, effects or 3D audio.
 @_exported import Foundation
 import isim_host
@@ -153,6 +154,19 @@ struct _DecodedAudio { var rate: Double; var channels: [[Float]] }
 
 enum _AudioDecoder {
     static func decode(_ url: URL) throws -> _DecodedAudio {
+        do { return try decodePCM(url) } catch let pcmError {
+            // not linear PCM: let the host decode it (AAC, ALAC, MP3, FLAC, Ogg, ...)
+            var out: UnsafeMutablePointer<Float>? = nil
+            var frames = 0, channels: Int32 = 0, rate = 0.0
+            guard isim_audio_decode_file(url.path, &out, &frames, &channels, &rate) != 0, let pcm = out else { throw pcmError }
+            defer { isim_audio_free(pcm) }
+            let ch = Int(channels)
+            var deinter = [[Float]](repeating: [Float](repeating: 0, count: frames), count: ch)
+            for c in 0..<ch { deinter[c].withUnsafeMutableBufferPointer { d in for i in 0..<frames { d[i] = pcm[i * ch + c] } } }
+            return _DecodedAudio(rate: rate, channels: deinter)
+        }
+    }
+    static func decodePCM(_ url: URL) throws -> _DecodedAudio {
         let data = try Data(contentsOf: url)
         let b = [UInt8](data)
         func be32(_ o: Int) -> UInt32 { UInt32(b[o]) << 24 | UInt32(b[o + 1]) << 16 | UInt32(b[o + 2]) << 8 | UInt32(b[o + 3]) }
@@ -167,8 +181,9 @@ enum _AudioDecoder {
                 let body = o + 12
                 if type == "desc" {
                     rate = Double(bitPattern: UInt64(be32(body)) << 32 | UInt64(be32(body + 4)))
-                    fmt = be32(body + 8); flags = be32(body + 12); bytesPerFrame = be32(body + 20)
-                    chans = be32(body + 28); bits = be32(body + 32)
+                    // AudioStreamBasicDescription: rate(8) formatID flags bytesPerPacket framesPerPacket channels bits
+                    fmt = be32(body + 8); flags = be32(body + 12); bytesPerFrame = be32(body + 16)
+                    chans = be32(body + 24); bits = be32(body + 28)
                 } else if type == "data" {
                     guard fmt == 0x6C70636D else {                         // 'lpcm'
                         throw _avError("isim AVFoundation: \(url.lastPathComponent): only linear PCM CAF files can be decoded on isim")
@@ -201,7 +216,7 @@ enum _AudioDecoder {
             }
             throw _avError("isim AVFoundation: \(url.lastPathComponent): malformed WAV file")
         }
-        throw _avError("isim AVFoundation: \(url.lastPathComponent): this audio format (\(url.pathExtension)) cannot be decoded on isim yet (supported: PCM CAF, PCM WAV)")
+        throw _avError("isim AVFoundation: \(url.lastPathComponent): this audio format (\(url.pathExtension)) cannot be decoded on isim (PCM CAF/WAV; compressed formats need the host's ffmpeg or GStreamer)")
     }
 
     static func pcm(_ b: [UInt8], _ start: Int, _ end: Int, _ rate: Double, _ chans: Int, _ bits: Int, _ frameBytes: Int,

@@ -80,4 +80,8 @@ int isim_audio_is_playing(long voice);
 double isim_audio_position(long voice);
 void isim_audio_seek(long voice, double seconds);
 void isim_audio_suspend(int suspended);
+/* decodes a compressed audio file (AAC/ALAC m4a, MP3, FLAC, ...) to interleaved float PCM with the host's
+   ffmpeg or gst-launch-1.0 (48 kHz stereo); returns 0 if it cannot. Free the samples with isim_audio_free. */
+int isim_audio_decode_file(const char *path, float *_Nullable *_Nonnull out, long *frames, int *channels, double *rate);
+void isim_audio_free(float *_Nullable pcm);
 __END_DECLS

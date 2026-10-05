@@ -179,3 +179,59 @@ void isim_audio_suspend(int s) {
     if (!mtx) return;
     SDL_LockMutex(mtx); suspended = s; SDL_UnlockMutex(mtx);
 }
+
+/* ---------------- compressed audio files (AAC/ALAC m4a, MP3, FLAC, Ogg, ...) ----------------
+ * Decoded by the host's ffmpeg, or GStreamer's gst-launch-1.0, in a child process (so the decoder's
+ * threads and plugins stay out of the app process), to 48 kHz stereo float — the mixer's output format.
+ * Without either tool these formats fail to open, like an unreadable file. */
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
+extern char **environ;
+
+static int run_decoder(char *const argv[], float **out, long *frames) {
+    int fds[2];
+    if (pipe(fds)) return 0;
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_adddup2(&fa, fds[1], 1);
+    posix_spawn_file_actions_addclose(&fa, fds[0]);
+    posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
+    pid_t pid;
+    int ok = posix_spawnp(&pid, argv[0], &fa, NULL, argv, environ) == 0;
+    posix_spawn_file_actions_destroy(&fa);
+    close(fds[1]);
+    if (!ok) { close(fds[0]); return 0; }
+    size_t cap = 1 << 20, len = 0;
+    char *buf = malloc(cap);
+    for (;;) {
+        if (len == cap) { cap *= 2; buf = realloc(buf, cap); }
+        ssize_t n = read(fds[0], buf + len, cap - len);
+        if (n <= 0) break;
+        len += (size_t)n;
+    }
+    close(fds[0]);
+    int status = 0;
+    waitpid(pid, &status, 0);
+    long fr = (long)(len / (2 * sizeof(float)));
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0 || fr == 0) { free(buf); return 0; }
+    *out = (float *)buf; *frames = fr;
+    return 1;
+}
+
+int isim_audio_decode_file(const char *path, float **out, long *out_frames, int *out_channels, double *out_rate) {
+    if (access(path, R_OK)) return 0;
+    char *ff[] = { "ffmpeg", "-nostdin", "-v", "error", "-i", (char *)path, "-vn", "-f", "f32le", "-ac", "2", "-ar", "48000", "-", NULL };
+    int ok = run_decoder(ff, out, out_frames);
+    if (!ok) {
+        char loc[4200]; snprintf(loc, sizeof loc, "location=%s", path);
+        char *gst[] = { "gst-launch-1.0", "-q", "filesrc", loc, "!", "decodebin", "!", "audioconvert", "!", "audioresample", "!",
+                        "audio/x-raw,format=F32LE,layout=interleaved,channels=2,rate=48000", "!", "fdsink", "fd=1", NULL };
+        ok = run_decoder(gst, out, out_frames);
+    }
+    if (!ok) { fprintf(stderr, "isim audio: cannot decode %s (needs ffmpeg or gst-launch-1.0 on the host)\n", path); return 0; }
+    *out_channels = 2; *out_rate = OUT_RATE;
+    return 1;
+}
+void isim_audio_free(float *pcm) { free(pcm); }

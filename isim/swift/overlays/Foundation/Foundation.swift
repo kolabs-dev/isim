@@ -389,6 +389,13 @@ extension String {
 extension NSError: Error {
     public var _domain: String { domain }
     public var _code: Int { code }
+    public var _userInfo: AnyObject? { userInfo as NSDictionary }
+}
+// The Swift runtime finds the Error conformance of (toll-free bridged) NSError objects through CFError's.
+extension CFError: Error {
+    public var _domain: String { unsafeBitCast(self, to: NSError.self).domain }
+    public var _code: Int { unsafeBitCast(self, to: NSError.self).code }
+    public var _userInfo: AnyObject? { unsafeBitCast(self, to: NSError.self).userInfo as NSDictionary }
 }
 public func _convertNSErrorToError(_ error: NSError?) -> Error {
     error ?? NSError(domain: "Foundation._GenericObjCError", code: 0, userInfo: nil)

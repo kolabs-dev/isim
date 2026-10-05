@@ -59,6 +59,10 @@ class Greeter: NSObject {
         let count = 3
         check(String(localized: "You have \(count) items") == "You have 3 items", "String(localized:) fallback with interpolation")
         check(NSLocalizedString("plain", comment: "") == "plain", "NSLocalizedString fallback")
+        // thrown NSErrors: the runtime finds their Error conformance through CFError's
+        let thrown: Error = NSError(domain: "isim.test", code: 7, userInfo: [NSLocalizedDescriptionKey: "boom"])
+        check("\(type(of: thrown))" == "NSError", "NSError as Error: dynamic type")
+        check((thrown as NSError).code == 7 && (thrown as NSError).localizedDescription == "boom", "Error as NSError bridging")
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }
