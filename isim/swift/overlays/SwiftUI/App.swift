@@ -53,15 +53,25 @@ extension App {
 }
 
 @objc(_SUIAppDelegate) final class _SUIAppDelegate: UIResponder, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool { true }
+    /// Like SwiftUI on iOS: the WindowGroup lives in a UIWindowScene.
+    func application(_ application: UIApplication, configurationForConnecting session: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let c = UISceneConfiguration(name: "Default Configuration", sessionRole: session.role)
+        c.delegateClass = _SUISceneDelegate.self
+        return c
+    }
+}
+
+@objc(_SUISceneDelegate) final class _SUISceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        let w = UIWindow(frame: UIScreen.main.bounds)
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        guard let ws = scene as? UIWindowScene else { return }
+        let w = UIWindow(windowScene: ws)
         let root = _SUIAppRoot.makeRoot ?? { AnyView(EmptyView()) }
         w.rootViewController = _SUIHostingController(root: { root() })
         w.tintColor = _accentUIColor()
         window = w
         w.makeKeyAndVisible()
-        return true
     }
 }
 

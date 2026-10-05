@@ -59,7 +59,7 @@ struct SettingsApp: App {
 }
 
 enum Route: Hashable {
-    case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display
+    case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter
     case app(String), appKeyboards(String)
 }
 
@@ -94,6 +94,10 @@ struct RootView: View {
                         .accessibilityIdentifier("settings-general")
                     NavigationLink(value: Route.display) { Label { Text("Display & Brightness") } icon: { SettingsIcon(symbol: "sun.max", color: .blue) } }
                         .accessibilityIdentifier("settings-display")
+                }
+                Section {
+                    NavigationLink(value: Route.gameCenter) { Label { Text("Game Center") } icon: { SettingsIcon(symbol: "gamecontroller", color: .pink) } }
+                        .accessibilityIdentifier("settings-gamecenter")
                 }
                 let apps = installedApps()
                 if !apps.isEmpty {
@@ -130,6 +134,7 @@ struct RootView: View {
         case .dateTime: DateTimeView()
         case .timeZone: TimeZoneView()
         case .display: DisplayView()
+        case .gameCenter: GameCenterView()
         case .app(let id): AppSettingsView(id: id)
         case .appKeyboards(let id): AppKeyboardsView(id: id)
         }
@@ -366,6 +371,31 @@ struct TimeZoneView: View {
             }
         }
         .navigationTitle("Time Zone").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Game Center
+
+/// isim's Game Center is local: games' scores and achievements stay on this device.
+struct GameCenterView: View {
+    @State private var signedIn = (Store.global.object(forKey: "ISIMGameCenterSignedIn") as? Bool) ?? true
+    @State private var nickname = Store.global.string(forKey: "ISIMGameCenterNickname") ?? "Player"
+    var body: some View {
+        List {
+            Section {
+                Toggle("Game Center", isOn: Binding(get: { signedIn }, set: { signedIn = $0; Store.set("ISIMGameCenterSignedIn", $0) }))
+                    .accessibilityIdentifier("settings-gamecenter-toggle")
+            } footer: {
+                Text("On isim, Game Center is local: games sign in as this player, and their leaderboard scores and achievements are kept on this device.")
+            }
+            if signedIn {
+                Section("Profile") {
+                    TextField("Nickname", text: Binding(get: { nickname }, set: { nickname = $0; Store.set("ISIMGameCenterNickname", $0) }))
+                        .accessibilityIdentifier("settings-gamecenter-nickname")
+                }
+            }
+        }
+        .navigationTitle("Game Center").navigationBarTitleDisplayMode(.inline)
     }
 }
 

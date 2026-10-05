@@ -229,6 +229,32 @@ def build_package_product(project, product, ref, objdir, built):
     sys.exit(f'isim build: package product {product!r} not found in the local packages')
 
 
+# ---------------- schemes ----------------
+def storekit_configuration(project, target_name):
+    """The StoreKit configuration file the target's scheme uses for local testing (Xcode: Run > Options)."""
+    import glob, xml.etree.ElementTree as ET
+    xp = project.xcodeproj
+    for scheme in sorted(glob.glob(os.path.join(xp, 'xcshareddata', 'xcschemes', '*.xcscheme')) +
+                         glob.glob(os.path.join(xp, 'xcuserdata', '*', 'xcschemes', '*.xcscheme'))):
+        try:
+            root = ET.parse(scheme).getroot()
+        except ET.ParseError:
+            continue
+        launch = root.find('LaunchAction')
+        if launch is None:
+            continue
+        names = [b.get('BlueprintName') for b in launch.iter('BuildableReference')]
+        ref = launch.find('StoreKitConfigurationFileReference')
+        if target_name not in names or ref is None:
+            continue
+        ident = ref.get('identifier', '')
+        for base in (os.path.join(xp, 'xcshareddata'), os.path.dirname(scheme), xp, os.path.dirname(xp)):
+            cand = os.path.normpath(os.path.join(base, ident))
+            if os.path.isfile(cand):
+                return cand
+    return None
+
+
 # ---------------- Info.plist ----------------
 def make_info_plist(target, settings, bundle, extra_localizations):
     src = settings.get('INFOPLIST_FILE')
@@ -351,7 +377,15 @@ def build_target(project, name, configuration, outdir, built):
             localizations.add(os.path.basename(res)[:-6])
         else:
             copy_resource(res, bundle)
-    make_info_plist(target, s, bundle, localizations)
+    info = make_info_plist(target, s, bundle, localizations)
+    if ext == '.app':
+        sk = storekit_configuration(project, name)
+        if sk:
+            shutil.copy2(sk, os.path.join(bundle, 'isim-StoreKitConfiguration.storekit'))
+            info['ISIMStoreKitConfiguration'] = 'isim-StoreKitConfiguration.storekit'      # isim-private key
+            with open(os.path.join(bundle, 'Info.plist'), 'wb') as f:
+                plistlib.dump(info, f)
+            log(f'{name}: StoreKit local testing with {os.path.basename(sk)} (from the scheme; nothing is charged)')
 
     for spec, emb in target.embedded():
         product_path = build_target(project, emb, configuration, outdir, built)

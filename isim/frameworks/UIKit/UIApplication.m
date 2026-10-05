@@ -617,7 +617,8 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidFinishLaunchingNotification object:app];
 
         NSDictionary *manifest = info[@"UIApplicationSceneManifest"];
-        if (manifest) connect_scene(app, manifest);
+        /* scene-based apps: a scene manifest, or a delegate that configures scenes (SwiftUI apps) */
+        if (manifest || [app.delegate respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)]) connect_scene(app, manifest ?: @{});
         else if ([d respondsToSelector:@selector(window)] && d.window && d.window.hidden) [d.window makeKeyAndVisible];
         app.applicationState = UIApplicationStateActive;
         [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimGlobalPreferencesChanged" object:nil queue:nil usingBlock:^(NSNotification *n) {
