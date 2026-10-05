@@ -23,11 +23,20 @@ mkdir -p ../out/apps/SwiftEmbeddedTest.app
 echo "built ../out/apps/SwiftEmbeddedTest.app"
 
 # stage 2: full Swift
+if [ ! -d ../out/swift/resource/shims ]; then   # resource dir for iOS builds: clang builtin headers + SwiftShims only
+  mkdir -p ../out/swift/resource
+  ./swiftc-docker bash -c 'cp -rL /usr/lib/swift/clang /usr/lib/swift/shims /usr/lib/swift/apinotes ../out/swift/resource/'
+fi
 ./build-libcxx.sh
 ./build-runtime.sh | tail -1
 [ ! -s ../out/swift/runtime-failures.txt ] || { echo "swift runtime: some files failed to compile"; cat ../out/swift/runtime-failures.txt; exit 1; }
 ./build-swiftcore.sh
+./build-overlays.sh
 ../out/bin/isim swiftc -parse-as-library -c ../tests/swift-full/main.swift -o ../out/swift/full-test.o
 mkdir -p ../out/apps/SwiftFullTest.app
 ../out/bin/isim cc ../out/swift/full-test.o -o ../out/apps/SwiftFullTest.app/SwiftFullTest
 echo "built ../out/apps/SwiftFullTest.app"
+../out/bin/isim swiftc -parse-as-library -c ../tests/swift-foundation/main.swift -o ../out/swift/foundation-test.o
+mkdir -p ../out/apps/SwiftFoundationTest.app
+../out/bin/isim cc ../out/swift/foundation-test.o -o ../out/apps/SwiftFoundationTest.app/SwiftFoundationTest
+echo "built ../out/apps/SwiftFoundationTest.app"

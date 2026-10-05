@@ -265,14 +265,20 @@ static id send1(id self, SEL sel, void *a) { return self ? ((id (*)(id, SEL, voi
 typedef int (*hook_getClass)(const char *name, Class *out);
 typedef int (*hook_getImageName)(Class cls, const char **out);
 typedef const char *(*hook_lazyNamer)(Class cls);
-static hook_getClass getclass_hook;
-static hook_getImageName imagename_hook;
-static hook_lazyNamer lazynamer_hook;
+/* Like libobjc, hooks start out as default implementations so chained hooks can always call "old". */
+Class objc_lookUpClass(const char *name);
+const char *isim_image_path_for_address(const void *addr);
+static int default_getclass(const char *name, Class *out) { *out = objc_lookUpClass(name); return *out != NULL; }
+static int default_imagename(Class cls, const char **out) { *out = cls ? isim_image_path_for_address(cls) : NULL; return *out != NULL; }
+static const char *default_lazynamer(Class cls) { return NULL; }
+static hook_getClass getclass_hook = default_getclass;
+static hook_getImageName imagename_hook = default_imagename;
+static hook_lazyNamer lazynamer_hook = default_lazynamer;
 
 /* Swift may emit class_ro_t with a NULL name and supply it lazily through a hook. */
 static const char *class_name_of(Class c) {
     const char *n = ro_of(c)->name;
-    if (!n && lazynamer_hook) n = lazynamer_hook(c);
+    if (!n) n = lazynamer_hook(c);
     return n;
 }
 
@@ -421,7 +427,7 @@ Class objc_lookUpClass(const char *name) {
 Class objc_getClass(const char *name) {
     if (!name) return NULL;
     Class c = objc_lookUpClass(name);
-    if (!c && getclass_hook) getclass_hook(name, &c);
+    if (!c) getclass_hook(name, &c);      /* e.g. Swift mangled names, resolved by the Swift runtime */
     return c;
 }
 Class objc_getMetaClass(const char *name) { Class c = objc_getClass(name); return c ? c->isa : NULL; }
@@ -560,8 +566,8 @@ void objc_setHook_getImageName(hook_getImageName h, hook_getImageName *old) { *o
 void objc_setHook_lazyClassNamer(hook_lazyNamer h, hook_lazyNamer *old) { *old = lazynamer_hook; lazynamer_hook = h; }
 const char *class_getImageName(Class c) {
     const char *name = NULL;
-    if (imagename_hook && imagename_hook(c, &name)) return name;
-    return c ? isim_image_path_for_address(c) : NULL;
+    imagename_hook(c, &name);
+    return name;
 }
 
 /* associated objects */

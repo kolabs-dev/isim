@@ -1,0 +1,25 @@
+---
+# isim Foundation API notes (self-authored). Like Apple's, they tell Swift's Clang importer which
+# Foundation classes bridge to Swift value types.
+Name: Foundation
+Classes:
+- Name: NSString
+  SwiftBridge: Swift.String
+- Name: NSArray
+  SwiftBridge: Swift.Array
+- Name: NSDictionary
+  SwiftBridge: Swift.Dictionary
+- Name: NSBundle
+  SwiftName: Bundle
+- Name: NSProcessInfo
+  SwiftName: ProcessInfo
+- Name: NSNotificationCenter
+  SwiftName: NotificationCenter
+- Name: NSRunLoop
+  SwiftName: RunLoop
+- Name: NSTimer
+  SwiftName: Timer
+- Name: NSUserDefaults
+  SwiftName: UserDefaults
+- Name: NSSet
+  SwiftBridge: Swift.Set

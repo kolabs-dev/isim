@@ -46,9 +46,11 @@ layout/semantics translated · **isim** = isim's own implementation · **stub** 
 | ARC entry points, weak references, autorelease pools | verified | side-table refcounts |
 | Blocks (global/stack/malloc, __block byref) | verified | libclosure ABI subset |
 | @synchronized, property accessors, fast-enumeration mutation check | implemented | |
-| Message forwarding, resolveInstanceMethod, swizzling APIs | **missing** | |
+| Method objects, class_addMethod, method_setImplementation/exchange, ivar introspection, associated objects | implemented | used by the Swift runtime |
+| Message forwarding, resolveInstanceMethod | **missing** | |
 | @try/@catch/@throw | **missing** | throw prints the exception and aborts |
-| Tagged pointers, non-pointer isa, associated objects | missing | |
+| Tagged pointers, non-pointer isa | missing | |
+| Swift integration: lazily named classes, objc_readClassPair, getClass/imageName/lazyClassNamer hooks | verified | Swift classes subclassing ObjC classes, `Module.Class` lookups |
 
 ## Foundation (guest Mach-O dylib)
 
@@ -100,7 +102,11 @@ layout/semantics translated · **isim** = isim's own implementation · **stub** 
 | Embedded Swift (generics, structs/enums/classes, closures, collections, strings) | verified | no existentials, no ObjC interop (Embedded limits) |
 | Full Swift: libswiftCore (stdlib + runtime, ObjC interop) built on Linux | verified | existentials, reflection names, throws, dynamic casts, `Any` |
 | Thread-local variables (needed by the Swift runtime) | verified | isim TLV thunk + per-image pthread keys |
-| `import Foundation` / `import UIKit` from Swift | **missing** | needs SDK module maps + overlays (next) |
+| `import Foundation` / `import UIKit` from Swift (SDK module maps, API notes) | verified | Swift names via API notes for common UIKit/Foundation types; less-common names may differ from Apple's |
+| Overlays: ObjectiveC (`Selector`/`#selector`, NSObject Equatable/Hashable/CVarArg, autoreleasepool) | verified | isim-authored |
+| Overlays: Foundation (String/Array/Dictionary/Set/number bridging, `String(format:)`, `NSLog`, String NSString-API subset) | verified | bridging copies instead of lazy bridging |
+| Overlays: UIKit (`@main` app delegate) | verified | |
+| Swift UIKit app (Xcode template: `@main` AppDelegate, SceneDelegate, ViewController) | verified | HelloCounterSwift UI test 9/9 |
 | async/await (`_Concurrency`), Regex (`_StringProcessing`) | **missing** | not built yet |
 | SwiftUI | **missing** | would be a re-implementation; depends on the above |
 

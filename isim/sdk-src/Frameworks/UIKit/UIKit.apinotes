@@ -1,0 +1,160 @@
+---
+# isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
+Name: UIKit
+Classes:
+- Name: UIButtonConfiguration
+  SwiftName: UIButton.Configuration
+  Methods:
+  - Selector: plainButtonConfiguration
+    MethodKind: Class
+    SwiftName: plain()
+  - Selector: tintedButtonConfiguration
+    MethodKind: Class
+    SwiftName: tinted()
+  - Selector: grayButtonConfiguration
+    MethodKind: Class
+    SwiftName: gray()
+  - Selector: filledButtonConfiguration
+    MethodKind: Class
+    SwiftName: filled()
+  - Selector: borderlessButtonConfiguration
+    MethodKind: Class
+    SwiftName: borderless()
+  - Selector: borderedButtonConfiguration
+    MethodKind: Class
+    SwiftName: bordered()
+  - Selector: borderedTintedButtonConfiguration
+    MethodKind: Class
+    SwiftName: borderedTinted()
+  - Selector: borderedProminentButtonConfiguration
+    MethodKind: Class
+    SwiftName: borderedProminent()
+- Name: UISceneConnectionOptions
+  SwiftName: UIScene.ConnectionOptions
+- Name: NSLayoutAnchor
+  Methods:
+  - Selector: 'constraintEqualToAnchor:'
+    MethodKind: Instance
+    SwiftName: 'constraint(equalTo:)'
+  - Selector: 'constraintGreaterThanOrEqualToAnchor:'
+    MethodKind: Instance
+    SwiftName: 'constraint(greaterThanOrEqualTo:)'
+  - Selector: 'constraintLessThanOrEqualToAnchor:'
+    MethodKind: Instance
+    SwiftName: 'constraint(lessThanOrEqualTo:)'
+  - Selector: 'constraintEqualToAnchor:constant:'
+    MethodKind: Instance
+    SwiftName: 'constraint(equalTo:constant:)'
+  - Selector: 'constraintGreaterThanOrEqualToAnchor:constant:'
+    MethodKind: Instance
+    SwiftName: 'constraint(greaterThanOrEqualTo:constant:)'
+  - Selector: 'constraintLessThanOrEqualToAnchor:constant:'
+    MethodKind: Instance
+    SwiftName: 'constraint(lessThanOrEqualTo:constant:)'
+- Name: NSLayoutDimension
+  Methods:
+  - Selector: 'constraintEqualToConstant:'
+    MethodKind: Instance
+    SwiftName: 'constraint(equalToConstant:)'
+  - Selector: 'constraintGreaterThanOrEqualToConstant:'
+    MethodKind: Instance
+    SwiftName: 'constraint(greaterThanOrEqualToConstant:)'
+  - Selector: 'constraintLessThanOrEqualToConstant:'
+    MethodKind: Instance
+    SwiftName: 'constraint(lessThanOrEqualToConstant:)'
+  - Selector: 'constraintEqualToAnchor:multiplier:'
+    MethodKind: Instance
+    SwiftName: 'constraint(equalTo:multiplier:)'
+  - Selector: 'constraintEqualToAnchor:multiplier:constant:'
+    MethodKind: Instance
+    SwiftName: 'constraint(equalTo:multiplier:constant:)'
+- Name: NSLayoutXAxisAnchor
+  Methods:
+  - Selector: 'constraintEqualToSystemSpacingAfterAnchor:multiplier:'
+    MethodKind: Instance
+    SwiftName: 'constraint(equalToSystemSpacingAfter:multiplier:)'
+- Name: NSLayoutYAxisAnchor
+  Methods:
+  - Selector: 'constraintEqualToSystemSpacingBelowAnchor:multiplier:'
+    MethodKind: Instance
+    SwiftName: 'constraint(equalToSystemSpacingBelow:multiplier:)'
+- Name: NSLayoutConstraint
+  Methods:
+  - Selector: 'activateConstraints:'
+    MethodKind: Class
+    SwiftName: 'activate(_:)'
+  - Selector: 'deactivateConstraints:'
+    MethodKind: Class
+    SwiftName: 'deactivate(_:)'
+Typedefs:
+- Name: UIFontTextStyle
+  SwiftName: UIFont.TextStyle
+- Name: UIFontWeight
+  SwiftName: UIFont.Weight
+- Name: UIApplicationLaunchOptionsKey
+  SwiftName: UIApplication.LaunchOptionsKey
+- Name: UIApplicationOpenURLOptionsKey
+  SwiftName: UIApplication.OpenURLOptionsKey
+- Name: UISceneSessionRole
+  SwiftName: UISceneSession.Role
+- Name: UIWindowLevel
+  SwiftName: UIWindow.Level
+- Name: UILayoutPriority
+  SwiftName: UILayoutPriority
+- Name: CALayerCornerCurve
+  SwiftName: CALayerCornerCurve
+Tags:
+- Name: UIControlEvents
+  SwiftName: UIControl.Event
+- Name: UIControlState
+  SwiftName: UIControl.State
+- Name: UIControlContentHorizontalAlignment
+  SwiftName: UIControl.ContentHorizontalAlignment
+- Name: UIControlContentVerticalAlignment
+  SwiftName: UIControl.ContentVerticalAlignment
+- Name: UIButtonType
+  SwiftName: UIButton.ButtonType
+- Name: UIButtonConfigurationCornerStyle
+  SwiftName: UIButton.Configuration.CornerStyle
+- Name: UIButtonConfigurationSize
+  SwiftName: UIButton.Configuration.Size
+- Name: UIStackViewAlignment
+  SwiftName: UIStackView.Alignment
+- Name: UIStackViewDistribution
+  SwiftName: UIStackView.Distribution
+- Name: UILayoutConstraintAxis
+  SwiftName: NSLayoutConstraint.Axis
+- Name: NSLayoutAttribute
+  SwiftName: NSLayoutConstraint.Attribute
+- Name: NSLayoutRelation
+  SwiftName: NSLayoutConstraint.Relation
+- Name: UIViewAutoresizing
+  SwiftName: UIView.AutoresizingMask
+- Name: UIViewContentMode
+  SwiftName: UIView.ContentMode
+- Name: UIViewAnimationOptions
+  SwiftName: UIView.AnimationOptions
+- Name: UIGestureRecognizerState
+  SwiftName: UIGestureRecognizer.State
+- Name: UITouchPhase
+  SwiftName: UITouch.Phase
+- Name: UITouchType
+  SwiftName: UITouch.TouchType
+- Name: UIEventType
+  SwiftName: UIEvent.EventType
+- Name: UIApplicationState
+  SwiftName: UIApplication.State
+- Name: UISceneActivationState
+  SwiftName: UIScene.ActivationState
+- Name: UIModalPresentationStyle
+  SwiftName: UIModalPresentationStyle
+Enumerators:
+- Name: UIControlStateNormal
+  SwiftName: normal
+- Name: UIViewAutoresizingNone
+  SwiftName: none
+Globals:
+- Name: UIWindowSceneSessionRoleApplication
+  SwiftName: UISceneSession.Role.windowApplication
+- Name: UIApplicationMain
+  SwiftName: UIApplicationMain(_:_:_:_:)

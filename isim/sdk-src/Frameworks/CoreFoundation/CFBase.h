@@ -6,8 +6,10 @@
 __BEGIN_DECLS
 #define CF_EXPORT extern __attribute__((visibility("default")))
 #define CF_INLINE static inline
-#define CF_ENUM(_type, _name) enum _name : _type _name; enum _name : _type
-#define CF_OPTIONS(_type, _name) enum _name : _type _name; enum _name : _type
+#ifndef CF_ENUM
+#define CF_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type
+#define CF_OPTIONS(_type, _name) enum __attribute__((flag_enum, enum_extensibility(open))) _name : _type _name; enum _name : _type
+#endif
 #define CF_RETURNS_RETAINED __attribute__((cf_returns_retained))
 #define CF_IMPLICIT_BRIDGING_ENABLED
 #define CF_IMPLICIT_BRIDGING_DISABLED

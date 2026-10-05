@@ -63,6 +63,8 @@ framework() { # Name srcdir [extra ld args...]
   local fw="$SDK/System/Library/Frameworks/$name.framework" objdir="$OUT/obj/$name"
   mkdir -p "$fw/Headers" "$objdir"
   rsync -a --delete "sdk-src/Frameworks/$name/" "$fw/Headers/"
+  mkdir -p "$fw/Modules"
+  printf 'framework module %s [system] [extern_c] {\n  umbrella header "%s.h"\n  export *\n  module * { export * }\n}\n' "$name" "$name" > "$fw/Modules/module.modulemap"
   compgen -G "$src/*.[mc]" >/dev/null || { step "framework $name: headers only"; return 0; }
   step "framework $name"
   local objs=()
@@ -85,11 +87,12 @@ framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -
 # install the isim tool
 [ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"
 
+step "swift"
+bash swift/build.sh
+
 for app in samples/*/ tests/*/; do
   [ -f "$app/build.sh" ] || continue
   step "sample $(basename "$app")"
   ISIM_SDK=$SDK ISIM_CC=$CC ISIM_LD=$LD bash "$app/build.sh" "$OUT/apps"
 done
-step "swift (embedded)"
-bash swift/build.sh
 step "done: $OUT"

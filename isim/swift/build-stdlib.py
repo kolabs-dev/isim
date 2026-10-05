@@ -61,7 +61,11 @@ cmd = os.environ.get("SWIFTC", "swiftc").split() + ["-emit-module", "-target", T
 if FULL:
     cmd += ["-Xfrontend", "-disable-objc-attr-requires-foundation-module",
             "-enable-library-evolution", "-library-level", "api", "-Xfrontend", "-require-explicit-availability=ignore",
-            "-D", "SWIFT_ENABLE_REFLECTION", "-module-link-name", "swiftCore", "-Xfrontend", "-enable-lexical-lifetimes=false",
+            "-D", "SWIFT_ENABLE_REFLECTION", "-module-link-name", "swiftCore",
+            # StdlibOptions.cmake defaults (OS versioning stays off: isim has no real iOS version to check)
+            "-D", "SWIFT_STDLIB_ENABLE_UNICODE_DATA", "-D", "SWIFT_STDLIB_ENABLE_VECTOR_TYPES",
+            "-D", "SWIFT_STDLIB_HAS_COMMANDLINE", "-D", "SWIFT_STDLIB_HAS_STDIN",
+            "-D", "SWIFT_STDLIB_HAS_ENVIRON", "-Xcc", "-DSWIFT_STDLIB_HAS_ENVIRON", "-Xfrontend", "-enable-lexical-lifetimes=false",
             "-emit-module-interface-path", f"{moddir}/{MODTRIPLE}.swiftinterface",
             "-c", "-o", f"{OUT}/full/swiftCore.o"]
 else:

@@ -47,8 +47,17 @@ Reproduce: `docker run --rm -v "$PWD":/w -w /w swift:6.2 swiftc -target arm64-ap
     `objc_readClassPair`, Swift class-name/image hooks, lazily named classes.
   - `tests/swift-full`: 12/12 (existentials, protocol extensions, `type(of:)`, typed throws, class inheritance,
     dynamic casts, `Any`, generics, optionals, `Dictionary(grouping:)`, Unicode, `String(describing:)`).
-  - Not yet: `_Concurrency` (async/await), `_StringProcessing` (Regex), Darwin/ObjectiveC/Foundation overlays,
-    module maps for `import UIKit`, `_objc_realizeClassFromSwift` (Swift uses its fallback path).
+  - Not yet: `_Concurrency` (async/await), `_StringProcessing` (Regex), `_objc_realizeClassFromSwift`
+    (Swift uses its fallback path).
+- **Stage 2 apps done (2026-10-05):** Swift UIKit apps.
+  - SDK: Clang module maps (`Darwin`, `ObjectiveC`, `Dispatch`, framework modules), API notes for Foundation
+    (`SwiftBridge` for NSString/NSArray/NSDictionary/NSSet, Swift class names) and UIKit (nested type names,
+    `UIButton.Configuration`, Auto Layout `constraint(equalTo:)`, `UISceneSession.Role.windowApplication`),
+    real `NS_ENUM`/`NS_OPTIONS`/`NS_TYPED_ENUM`/`NS_SWIFT_NAME` semantics.
+  - isim-authored overlays: ObjectiveC, Foundation, UIKit (`swift/overlays/`); isim's own Swift resource dir
+    (clang builtin headers + SwiftShims) so the Linux toolchain's corelibs module maps stay out of iOS builds.
+  - libobjc hooks now start as default implementations (the Swift runtime chains to the previous hook).
+  - Results: `tests/swift-foundation` 15/15; `samples/HelloCounterSwift` (Xcode Swift UIKit template) UI test 9/9.
 
 ## Plan (proposals, not yet verified)
 1. Simulator Embedded Swift: build the Embedded stdlib module for

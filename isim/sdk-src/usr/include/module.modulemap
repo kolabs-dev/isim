@@ -1,0 +1,49 @@
+// isim SDK module maps (self-authored). Lets Swift's Clang importer see the C library as `Darwin`,
+// the ObjC runtime as `ObjectiveC` and libdispatch as `Dispatch`.
+module Darwin [system] [extern_c] {
+  module C {
+    header "assert.h"
+    header "ctype.h"
+    header "errno.h"
+    header "inttypes.h"
+    header "math.h"
+    header "signal.h"
+    header "stdio.h"
+    header "stdlib.h"
+    header "string.h"
+    header "time.h"
+    export *
+  }
+  module POSIX {
+    header "unistd.h"
+    header "fcntl.h"
+    header "pthread.h"
+    header "sched.h"
+    header "dlfcn.h"
+    header "sys/types.h"
+    header "sys/time.h"
+    export *
+  }
+  module Mach {
+    header "mach-o/dyld.h"
+    header "malloc/malloc.h"
+    export *
+  }
+  export *
+}
+module ObjectiveC [system] [extern_c] {
+  header "objc/objc.h"
+  header "objc/runtime.h"
+  header "objc/message.h"
+  header "objc/NSObject.h"
+  header "objc/NSObjCRuntime.h"
+  export *
+}
+module Dispatch [system] [extern_c] {
+  header "dispatch/dispatch.h"
+  export *
+}
+module isim_host [system] [extern_c] {
+  header "isim_host.h"
+  export *
+}

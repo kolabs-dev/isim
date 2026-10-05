@@ -38,7 +38,9 @@ case "$cmd" in
         -I "$BIN/../swift/embedded" "$@"
     fi
     # full Swift: stdlib + runtime from the isim SDK (/usr/lib/swift); Concurrency/StringProcessing not built yet
-    exec "${run[@]}" -sdk "$SDK" -O -runtime-compatibility-version none \
+    # isim's own resource dir (clang builtin headers + SwiftShims): keeps the Linux toolchain's corelibs
+    # module maps (Dispatch, CoreFoundation for Linux) out of iOS builds
+    exec "${run[@]}" -sdk "$SDK" -resource-dir "$BIN/../swift/resource" -O -runtime-compatibility-version none \
       -Xfrontend -disable-implicit-concurrency-module-import -Xfrontend -disable-implicit-string-processing-module-import "$@" ;;
   info)
     f=${1:?usage: isim info <App.app|binary>}

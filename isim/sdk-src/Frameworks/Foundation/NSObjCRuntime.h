@@ -34,18 +34,18 @@
 #define NS_REQUIRES_SUPER __attribute__((objc_requires_super))
 #define NS_REQUIRES_NIL_TERMINATION __attribute__((sentinel(0, 1)))
 #define NS_FORMAT_FUNCTION(F, A) __attribute__((format(__NSString__, F, A)))
-#define NS_SWIFT_NAME(...)
+#define NS_SWIFT_NAME(_name) __attribute__((swift_name(#_name)))
 #define NS_SWIFT_UI_ACTOR
-#define NS_REFINED_FOR_SWIFT
+#define NS_REFINED_FOR_SWIFT __attribute__((swift_private))
 #define NS_NOESCAPE __attribute__((noescape))
 #define NS_RETURNS_INNER_POINTER __attribute__((objc_returns_inner_pointer))
-#define NS_ENUM(_type, _name) enum _name : _type _name; enum _name : _type
-#define NS_OPTIONS(_type, _name) enum _name : _type _name; enum _name : _type
-#define NS_CLOSED_ENUM(_type, _name) NS_ENUM(_type, _name)
-#define NS_TYPED_ENUM
-#define NS_TYPED_EXTENSIBLE_ENUM
-#define NS_EXTENSIBLE_STRING_ENUM
-#define NS_STRING_ENUM
+#define NS_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type
+#define NS_OPTIONS(_type, _name) enum __attribute__((flag_enum, enum_extensibility(open))) _name : _type _name; enum _name : _type
+#define NS_CLOSED_ENUM(_type, _name) enum __attribute__((enum_extensibility(closed))) _name : _type _name; enum _name : _type
+#define NS_TYPED_ENUM __attribute__((swift_wrapper(struct)))
+#define NS_TYPED_EXTENSIBLE_ENUM __attribute__((swift_wrapper(struct)))
+#define NS_EXTENSIBLE_STRING_ENUM __attribute__((swift_wrapper(struct)))
+#define NS_STRING_ENUM __attribute__((swift_wrapper(enum)))
 #define NS_ERROR_ENUM(_domain, _name) NS_ENUM(NSInteger, _name)
 #define UIKIT_EXTERN FOUNDATION_EXPORT
 #define NS_AVAILABLE(...)
@@ -79,6 +79,7 @@ NS_INLINE BOOL NSLocationInRange(NSUInteger loc, NSRange r) { return loc - r.loc
 #endif
 
 #ifdef __OBJC__
+NS_ASSUME_NONNULL_BEGIN
 @class NSString, Protocol;
 typedef id (^NSComparator_t)(id, id);
 typedef NSComparisonResult (^NSComparator)(id obj1, id obj2);
@@ -95,4 +96,5 @@ FOUNDATION_EXPORT NSString *NSStringFromCGPoint(CGPoint p);
 FOUNDATION_EXPORT NSString *NSStringFromCGSize(CGSize s);
 FOUNDATION_EXPORT NSString *NSStringFromCGRect(CGRect r);
 __END_DECLS
+NS_ASSUME_NONNULL_END
 #endif

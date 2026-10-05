@@ -12,6 +12,6 @@ typedef double CGFloat;
 #define CG_EXTERN extern __attribute__((visibility("default")))
 #define CG_INLINE static inline
 #ifndef CF_ENUM
-#define CF_ENUM(_type, _name) enum _name : _type _name; enum _name : _type
-#define CF_OPTIONS(_type, _name) enum _name : _type _name; enum _name : _type
+#define CF_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type
+#define CF_OPTIONS(_type, _name) enum __attribute__((flag_enum, enum_extensibility(open))) _name : _type _name; enum _name : _type
 #endif

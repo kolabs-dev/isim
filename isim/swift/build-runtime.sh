@@ -24,7 +24,7 @@ stubs=(Assert.cpp GlobalObjects.cpp LibcShims.cpp Random.cpp Stubs.cpp ThreadLoc
 files=()
 for f in "${runtime[@]}"; do files+=("$P/runtime/$f"); done
 for f in "${stubs[@]}"; do files+=("$P/stubs/$f"); done
-files+=("$OUT/gyb-runtime/SwiftNativeNSXXXBase.mm")
+files+=("$OUT/gyb-runtime/SwiftNativeNSXXXBase.mm" "$P/CommandLineSupport/CommandLine.cpp")
 for f in "$SRC"/lib/Demangling/*.cpp "$P"/LLVMSupport/*.cpp; do files+=("$f"); done
 # stdlib/public/Threading/CMakeLists.txt: the platform files only (Errors.cpp belongs to the compiler)
 for f in C11 Linux Pthreads Win32 ThreadSanitizer; do files+=("$SRC/lib/Threading/$f.cpp"); done
@@ -33,7 +33,7 @@ FLAGS=(-target x86_64-apple-ios15.0-simulator -isysroot "$SDK" -O2 -fno-exceptio
   -I "$PWD/gen-include" -I "$SRC/include" -I "$SRC/stdlib/include" -I "$P/SwiftShims" -I "$P/stubs/Unicode" -I "$P/runtime"
   -DNDEBUG -DswiftCore_EXPORTS -DSWIFT_TARGET_LIBRARY_NAME=swiftRuntimeCore -DSWIFT_RUNTIME -DSWIFT_LIBRARY_EVOLUTION=1 -DSWIFT_ENABLE_REFLECTION
   -DSWIFT_STDLIB_HAS_DLADDR -DSWIFT_STDLIB_HAS_DLSYM=0 -DSWIFT_STDLIB_HAS_DARWIN_LIBMALLOC=0 -DSWIFT_STDLIB_HAS_STDIN
-  -DSWIFT_STDLIB_HAS_ENVIRON -DSWIFT_THREADING_PTHREADS -DSWIFT_STDLIB_HAS_TYPE_PRINTING
+  -DSWIFT_STDLIB_HAS_ENVIRON -DSWIFT_STDLIB_HAS_COMMANDLINE -DSWIFT_THREADING_PTHREADS -DSWIFT_STDLIB_HAS_TYPE_PRINTING
   -DSWIFT_STDLIB_ENABLE_UNICODE_DATA -DSWIFT_STDLIB_ENABLE_VECTOR_TYPES
   -DSWIFT_OBJC_INTEROP=1 -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
 compile() {

@@ -23,7 +23,7 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 | 2. Run iOS-simulator binaries on Linux | ✅ | own loader + runtime (`isim/runtime`); C, threads, ObjC, Foundation self-test 32/32 |
 | 3. Simulator UI: boilerplate UIKit app in a window | ✅ | Xcode-template ObjC app (`isim/samples/HelloCounter`) runs in a Wayland window on this machine; UI test 9/9 |
 | 4a. Swift (Embedded) on the simulator | ✅ | own Embedded stdlib build for `x86_64-apple-ios-simulator`; Swift self-test 11/11 on isim — `isim/swift/` |
-| 4b. Swift (full: runtime, ObjC interop, UIKit apps) | 🟡 | ✅ `libswiftCore.dylib` (stdlib + runtime, ObjC interop) built on Linux and running on isim: Swift self-test 12/12. Next: SDK module maps, ObjectiveC/Foundation overlays (String↔NSString bridging), a Swift UIKit app — `docs/swift-plan.md` |
+| 4b. Swift (full: runtime, ObjC interop, UIKit apps) | ✅ | Xcode-template **Swift UIKit app** (`isim/samples/HelloCounterSwift`) runs on isim (UI test 9/9); `libswiftCore` built on Linux (12/12), Swift↔Foundation bridging (15/15). Not yet: async/await, Regex — `docs/swift-plan.md` |
 | 4c. SwiftUI | ⬜ | feasible only as a re-implementation (SwiftUI is closed source); depends on 4b — see below |
 | 4d. Simulator settings (language, region, appearance, text size, 12/24h, time zone, device) | ⬜ | planned: device profiles + `isim run` flags feeding NSLocale/NSBundle/UITraitCollection |
 | 5. Device build (arm64 .app) | 🟡 | arm64 executables link; code signature, resources, bundle not done |
@@ -40,7 +40,7 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 | Objective-C runtime (dispatch, categories, ivar sliding, +initialize, ARC, weak, blocks) | ✅ | no exceptions, no forwarding, no tagged pointers |
 | Foundation subset (strings, collections, numbers, bundle/Info.plist, timers, run loop, dispatch subset, notifications) | ✅ | in-memory NSUserDefaults; XML plists only |
 | CoreGraphics subset (geometry, colors, simple context drawing) | ✅ | |
-| UIKit: app/scene lifecycle, views, labels, buttons, switches, stack views, Auto Layout subset, touches, light/dark | ✅ | subset — see `docs/compatibility-matrix.md` |
+| UIKit: app/scene lifecycle, views, labels, buttons, switches, stack views, Auto Layout subset, touches, light/dark | ✅ | subset, usable from Objective-C and Swift — see `docs/compatibility-matrix.md` |
 | Rendering + input (SDL3 window on Wayland, cairo/pango software rendering, device chrome) | ✅ | mouse = single touch; headless scripted mode for tests |
 | Images, text input/keyboard, scrolling, tables, navigation/tab controllers, real animations, storyboards | ⬜ | next UIKit milestones |
 | SwiftUI, WebKit, Metal | ⬜ | later investigations, not promised |
@@ -52,8 +52,9 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 3. 🟡 Unproven: whether Apple accepts Linux-produced `Assets.car`, signatures, and the `AppStoreInfo.plist` asset description.
 
 ![HelloCounter running in isim on Linux (light and dark appearance)](docs/images/hellocounter.png)
+![HelloCounterSwift running in isim on Linux (light and dark appearance)](docs/images/hellocounter-swift.png)
 
-_HelloCounter — the Xcode Objective-C App template plus a small counter UI — rendered by isim on Linux (left: after three taps; right: dark appearance)._
+_The Xcode App template (Objective-C, top; Swift, bottom) plus a small counter UI, compiled on Linux and rendered by isim (left: after three taps; right: dark appearance)._
 
 ### Can isim support SwiftUI?
 
@@ -67,7 +68,7 @@ this matters for "boilerplate app" fidelity. Status: planned after 4b, not promi
 
 ### Next steps
 
-1. Swift UIKit apps: clang module maps for the isim SDK, ObjectiveC + Foundation Swift overlays (bridging), then a Swift version of HelloCounter; later `_Concurrency` (async/await) and `_StringProcessing`.
+1. Swift: `_Concurrency` (async/await, `@MainActor`) and `_StringProcessing` (Regex); more API-notes fidelity for Swift names.
 2. Simulator settings: language/region/appearance/text size via device profiles and `isim run` flags.
 3. UIKit breadth: UIScrollView, UITableView, UINavigationController, UITextField + keyboard, UIImage decoding, real animations.
 4. Device: ad-hoc code signature + `.app` bundle for arm64; then distribution signing experiments.
@@ -103,7 +104,12 @@ Options: `--device iphone15|iphonese|ipad`, `--zoom 0.8`, `--dark`. Click = touc
 isim/test.sh
 ```
 
-Compile your own app against the isim SDK: `isim/out/bin/isim cc main.m AppDelegate.m ... -framework UIKit -o MyApp.app/MyApp`.
+Compile your own app against the isim SDK:
+
+- Objective-C: `isim/out/bin/isim cc main.m AppDelegate.m ... -framework UIKit -o MyApp.app/MyApp`
+- Swift (needs the `swift:6.2` Docker image): `isim/out/bin/isim swiftc -module-name MyApp -parse-as-library -wmo -c *.swift -o MyApp.o`, then `isim/out/bin/isim cc MyApp.o -o MyApp.app/MyApp`
+
+Then copy your `Info.plist` into `MyApp.app/`.
 
 ## Environment (verified 2026-10-05)
 

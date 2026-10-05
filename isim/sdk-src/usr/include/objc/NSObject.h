@@ -10,15 +10,16 @@
 #define OBJC_ARC_UNAVAILABLE_ATTR
 #endif
 @class NSString, Protocol;
+#pragma clang assume_nonnull begin
 @protocol NSObject
-- (BOOL)isEqual:(id)object;
+- (BOOL)isEqual:(nullable id)object;
 @property (readonly) NSUInteger hash;
-@property (readonly) Class superclass;
+@property (readonly, nullable) Class superclass;
 - (Class)class;
 - (instancetype)self;
 - (id)performSelector:(SEL)aSelector;
-- (id)performSelector:(SEL)aSelector withObject:(id)object;
-- (id)performSelector:(SEL)aSelector withObject:(id)object1 withObject:(id)object2;
+- (id)performSelector:(SEL)aSelector withObject:(nullable id)object;
+- (id)performSelector:(SEL)aSelector withObject:(nullable id)object1 withObject:(nullable id)object2;
 - (BOOL)isProxy;
 - (BOOL)isKindOfClass:(Class)aClass;
 - (BOOL)isMemberOfClass:(Class)aClass;
@@ -39,7 +40,7 @@ __attribute__((objc_root_class))
 + (void)initialize;
 - (instancetype)init;
 + (instancetype)new;
-+ (instancetype)allocWithZone:(struct _NSZone *)zone;
++ (instancetype)allocWithZone:(nullable struct _NSZone *)zone;
 + (instancetype)alloc;
 - (void)dealloc;
 - (id)copy;
@@ -49,11 +50,12 @@ __attribute__((objc_root_class))
 - (IMP)methodForSelector:(SEL)aSelector;
 + (IMP)instanceMethodForSelector:(SEL)aSelector;
 - (void)doesNotRecognizeSelector:(SEL)aSelector;
-- (id)forwardingTargetForSelector:(SEL)aSelector;
+- (nullable id)forwardingTargetForSelector:(SEL)aSelector;
 + (BOOL)isSubclassOfClass:(Class)aClass;
 + (Class)superclass;
 + (Class)class;
 + (NSString *)description;
 + (NSString *)debugDescription;
 @end
+#pragma clang assume_nonnull end
 #endif
