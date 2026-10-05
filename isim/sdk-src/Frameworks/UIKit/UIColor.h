@@ -27,6 +27,9 @@ NS_ASSUME_NONNULL_BEGIN
     *secondarySystemFillColor, *tertiarySystemFillColor, *quaternarySystemFillColor, *lightTextColor, *darkTextColor;
 - (UIColor *)colorWithAlphaComponent:(CGFloat)alpha;
 - (UIColor *)resolvedColorWithTraitCollection:(UITraitCollection *)traitCollection;
+/* named colors from the app's asset catalog (isim-assets.plist) */
++ (nullable UIColor *)colorNamed:(NSString *)name;
++ (nullable UIColor *)colorNamed:(NSString *)name inBundle:(nullable NSBundle *)bundle compatibleWithTraitCollection:(nullable UITraitCollection *)traitCollection;
 - (BOOL)getRed:(nullable CGFloat *)red green:(nullable CGFloat *)green blue:(nullable CGFloat *)blue alpha:(nullable CGFloat *)alpha;
 - (BOOL)getWhite:(nullable CGFloat *)white alpha:(nullable CGFloat *)alpha;
 - (void)set;

@@ -22,4 +22,10 @@ typedef NS_ENUM(NSInteger, UIGestureRecognizerState) { UIGestureRecognizerStateP
 - (void)setTranslation:(CGPoint)translation inView:(nullable UIView *)view;
 - (CGPoint)velocityInView:(nullable UIView *)view;
 @end
+@interface UILongPressGestureRecognizer : UIGestureRecognizer
+@property (nonatomic) NSUInteger numberOfTapsRequired;
+@property (nonatomic) NSUInteger numberOfTouchesRequired;
+@property (nonatomic) NSTimeInterval minimumPressDuration;
+@property (nonatomic) CGFloat allowableMovement;
+@end
 NS_ASSUME_NONNULL_END

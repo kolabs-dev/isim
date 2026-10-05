@@ -86,6 +86,95 @@ Classes:
   - Selector: 'deactivateConstraints:'
     MethodKind: Class
     SwiftName: 'deactivate(_:)'
+- Name: UIImage
+  Methods:
+  - Selector: 'imageNamed:'
+    MethodKind: Class
+    SwiftName: 'init(named:)'
+  - Selector: 'imageNamed:inBundle:withConfiguration:'
+    MethodKind: Class
+    SwiftName: 'init(named:in:with:)'
+  - Selector: 'systemImageNamed:'
+    MethodKind: Class
+    SwiftName: 'init(systemName:)'
+  - Selector: 'systemImageNamed:withConfiguration:'
+    MethodKind: Class
+    SwiftName: 'init(systemName:withConfiguration:)'
+  - Selector: 'imageWithContentsOfFile:'
+    MethodKind: Class
+    SwiftName: 'init(contentsOfFile:)'
+  - Selector: 'imageWithRenderingMode:'
+    MethodKind: Instance
+    SwiftName: 'withRenderingMode(_:)'
+  - Selector: 'imageWithTintColor:'
+    MethodKind: Instance
+    SwiftName: 'withTintColor(_:)'
+  - Selector: 'imageWithTintColor:renderingMode:'
+    MethodKind: Instance
+    SwiftName: 'withTintColor(_:renderingMode:)'
+  - Selector: 'imageByApplyingSymbolConfiguration:'
+    MethodKind: Instance
+    SwiftName: 'applyingSymbolConfiguration(_:)'
+  - Selector: 'imageWithConfiguration:'
+    MethodKind: Instance
+    SwiftName: 'withConfiguration(_:)'
+  - Selector: 'drawInRect:'
+    MethodKind: Instance
+    SwiftName: 'draw(in:)'
+  - Selector: 'drawAtPoint:'
+    MethodKind: Instance
+    SwiftName: 'draw(at:)'
+- Name: UIImageConfiguration
+  SwiftName: UIImage.Configuration
+- Name: UIImageSymbolConfiguration
+  SwiftName: UIImage.SymbolConfiguration
+  Methods:
+  - Selector: 'configurationWithPointSize:'
+    MethodKind: Class
+    SwiftName: 'init(pointSize:)'
+  - Selector: 'configurationWithPointSize:weight:'
+    MethodKind: Class
+    SwiftName: 'init(pointSize:weight:)'
+  - Selector: 'configurationWithPointSize:weight:scale:'
+    MethodKind: Class
+    SwiftName: 'init(pointSize:weight:scale:)'
+  - Selector: 'configurationWithScale:'
+    MethodKind: Class
+    SwiftName: 'init(scale:)'
+  - Selector: 'configurationWithWeight:'
+    MethodKind: Class
+    SwiftName: 'init(weight:)'
+  - Selector: 'configurationWithTextStyle:'
+    MethodKind: Class
+    SwiftName: 'init(textStyle:)'
+  - Selector: 'configurationWithFont:'
+    MethodKind: Class
+    SwiftName: 'init(font:)'
+  - Selector: 'configurationByApplyingConfiguration:'
+    MethodKind: Instance
+    SwiftName: 'applying(_:)'
+  Properties:
+  - Name: unspecifiedConfiguration
+    PropertyKind: Class
+    SwiftName: unspecified
+- Name: UIControl
+  Methods:
+  - Selector: 'addAction:forControlEvents:'
+    MethodKind: Instance
+    SwiftName: 'addAction(_:for:)'
+  - Selector: 'removeAction:forControlEvents:'
+    MethodKind: Instance
+    SwiftName: 'removeAction(_:for:)'
+- Name: UIColor
+  Properties:
+  - Name: CGColor
+    PropertyKind: Instance
+    SwiftName: cgColor
+- Name: UIInputViewController
+  Methods:
+  - Selector: 'handleInputModeListFromView:withEvent:'
+    MethodKind: Instance
+    SwiftName: 'handleInputModeList(from:with:)'
 Typedefs:
 - Name: UIFontTextStyle
   SwiftName: UIFont.TextStyle
@@ -104,6 +193,16 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIImageRenderingMode
+  SwiftName: UIImage.RenderingMode
+- Name: UIImageSymbolScale
+  SwiftName: UIImage.SymbolScale
+- Name: UIImageSymbolWeight
+  SwiftName: UIImage.SymbolWeight
+- Name: UIInputViewStyle
+  SwiftName: UIInputView.Style
+- Name: UIReturnKeyType
+  SwiftName: UIReturnKeyType
 - Name: UIControlEvents
   SwiftName: UIControl.Event
 - Name: UIControlState

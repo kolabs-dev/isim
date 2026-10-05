@@ -114,6 +114,7 @@ UIKIT_EXTERN const CGSize UILayoutFittingExpandedSize;
 @property (nonatomic, readonly) CGSize intrinsicContentSize;
 - (void)invalidateIntrinsicContentSize;
 - (CGSize)systemLayoutSizeFittingSize:(CGSize)targetSize;
+- (CGSize)systemLayoutSizeFittingSize:(CGSize)targetSize withHorizontalFittingPriority:(UILayoutPriority)horizontalFittingPriority verticalFittingPriority:(UILayoutPriority)verticalFittingPriority;
 - (UILayoutPriority)contentHuggingPriorityForAxis:(UILayoutConstraintAxis)axis;
 - (void)setContentHuggingPriority:(UILayoutPriority)priority forAxis:(UILayoutConstraintAxis)axis;
 - (UILayoutPriority)contentCompressionResistancePriorityForAxis:(UILayoutConstraintAxis)axis;

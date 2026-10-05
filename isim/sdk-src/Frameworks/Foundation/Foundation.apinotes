@@ -44,6 +44,6 @@ Typedefs:
   SwiftName: RunLoop.Mode
 Globals:
 - Name: NSDefaultRunLoopMode
-  SwiftName: RunLoop.Mode.default
+  SwiftName: default
 - Name: NSRunLoopCommonModes
-  SwiftName: RunLoop.Mode.common
+  SwiftName: common

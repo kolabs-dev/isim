@@ -1,7 +1,7 @@
 #pragma once
 #import <UIKit/UIControl.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UILabel, UIImage, UIImageView, UIColor, UIFont, UIButtonConfiguration;
+@class UILabel, UIImage, UIImageView, UIColor, UIFont, UIButtonConfiguration, UIImageSymbolConfiguration;
 typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeSystem = 1, UIButtonTypeDetailDisclosure, UIButtonTypeInfoLight, UIButtonTypeInfoDark, UIButtonTypeContactAdd, UIButtonTypeClose = 7, UIButtonTypeRoundedRect = UIButtonTypeSystem };
 @interface UIButton : UIControl
 + (instancetype)buttonWithType:(UIButtonType)buttonType;
@@ -14,6 +14,9 @@ typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeS
 - (void)setTitle:(nullable NSString *)title forState:(UIControlState)state;
 - (void)setTitleColor:(nullable UIColor *)color forState:(UIControlState)state;
 - (void)setImage:(nullable UIImage *)image forState:(UIControlState)state;
+- (nullable UIImage *)imageForState:(UIControlState)state;
+@property (nullable, nonatomic, readonly, strong) UIImage *currentImage;
+- (void)setPreferredSymbolConfiguration:(nullable UIImageSymbolConfiguration *)configuration forImageInState:(UIControlState)state;
 - (nullable NSString *)titleForState:(UIControlState)state;
 - (nullable UIColor *)titleColorForState:(UIControlState)state;
 @property (nullable, nonatomic, readonly) NSString *currentTitle;

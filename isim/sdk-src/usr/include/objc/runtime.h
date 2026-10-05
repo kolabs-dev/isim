@@ -17,7 +17,10 @@ OBJC_EXPORT SEL _Nonnull method_getName(Method _Nonnull m);
 OBJC_EXPORT const char * _Nullable method_getTypeEncoding(Method _Nonnull m);
 OBJC_EXPORT BOOL class_addMethod(Class _Nullable cls, SEL _Nonnull name, IMP _Nonnull imp, const char * _Nullable types);
 OBJC_EXPORT id _Nullable objc_getAssociatedObject(id _Nonnull object, const void * _Nonnull key);
-OBJC_EXPORT void objc_setAssociatedObject(id _Nonnull object, const void * _Nonnull key, id _Nullable value, uintptr_t policy);
+typedef uintptr_t objc_AssociationPolicy;
+enum { OBJC_ASSOCIATION_ASSIGN = 0, OBJC_ASSOCIATION_RETAIN_NONATOMIC = 1, OBJC_ASSOCIATION_COPY_NONATOMIC = 3,
+       OBJC_ASSOCIATION_RETAIN = 01401, OBJC_ASSOCIATION_COPY = 01403 };
+OBJC_EXPORT void objc_setAssociatedObject(id _Nonnull object, const void * _Nonnull key, id _Nullable value, objc_AssociationPolicy policy);
 OBJC_EXPORT const char * _Nullable class_getImageName(Class _Nullable cls);
 OBJC_EXPORT Class _Nullable objc_getRequiredClass(const char * _Nonnull name);
 OBJC_EXPORT Class _Nonnull * _Nullable objc_copyClassList(unsigned int * _Nullable outCount);

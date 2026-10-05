@@ -1,7 +1,7 @@
 #pragma once
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
-@class NSArray<ObjectType>, NSString;
+@class NSArray<ObjectType>, NSString, NSEnumerator<ObjectType>;
 @interface NSDictionary<__covariant KeyType, __covariant ObjectType> : NSObject <NSCopying, NSMutableCopying, NSSecureCoding, NSFastEnumeration>
 @property (readonly) NSUInteger count;
 - (nullable ObjectType)objectForKey:(KeyType)aKey;
@@ -19,6 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, copy) NSArray<ObjectType> *allValues;
 - (void)enumerateKeysAndObjectsUsingBlock:(void (NS_NOESCAPE ^)(KeyType key, ObjectType obj, BOOL *stop))block;
 - (BOOL)isEqualToDictionary:(NSDictionary<KeyType, ObjectType> *)otherDictionary;
+- (NSEnumerator<KeyType> *)keyEnumerator;
+- (NSEnumerator<ObjectType> *)objectEnumerator;
 @end
 
 @interface NSMutableDictionary<KeyType, ObjectType> : NSDictionary<KeyType, ObjectType>

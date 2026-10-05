@@ -2,6 +2,7 @@
 #pragma once
 #import <UIKit/UIKit.h>
 #include <isim_host.h>
+#include "Cassowary.h"
 
 /* frame scheduling */
 void isim_ui_set_needs_display(void);
@@ -78,3 +79,39 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect
 @end
 
 CGContextRef isim_cg_current_context(void);
+
+/* Auto Layout engine (UIView.m) */
+typedef struct isim_al isim_al;
+void isim_ui_constraints_changed(void);                 /* engine inputs changed: re-solve on next layout */
+void isim_ui_layout_window(UIView *root);
+/* sum(coeffs[i] * attr(items[i])) + constant REL 0; priority > 1000 = structural */
+BOOL isim_al_add_expr(isim_al *al, NSUInteger n, __unsafe_unretained id const *items, const NSLayoutAttribute *attrs, const CGFloat *coeffs,
+                      CGFloat constant, NSLayoutRelation rel, UILayoutPriority priority);
+BOOL isim_al_add(isim_al *al, id a, NSLayoutAttribute aa, NSLayoutRelation rel, id b, NSLayoutAttribute ba, CGFloat mult, CGFloat constant, UILayoutPriority priority);
+@interface UIView (IsimAutoLayout)
+- (CGSize)_isim_intrinsicSizeForWidth:(CGFloat)width;   /* width-dependent intrinsic size (multi-line text) */
+- (void)_isim_addEngineConstraints:(isim_al *)al;       /* engine-internal constraints (UIStackView) */
+- (int *)_isim_alVars:(unsigned)gen;
+- (NSArray<UILayoutGuide *> *)_isim_allGuides;
+@end
+@interface UILayoutGuide (IsimAutoLayout)
+- (int *)_isim_alVars:(unsigned)gen;
+- (void)_isim_allocVars:(cw_solver *)s gen:(unsigned)gen;
+- (void)_isim_addEngineConstraints:(isim_al *)al owner:(UIView *)owner;
+- (BOOL)_isim_applySolution:(cw_solver *)s owner:(UIView *)owner;
+@end
+void isim_ui_gesture_recognized(UIGestureRecognizer *g);
+UIResponder *isim_ui_first_responder(void);
+@interface UIInputViewController (IsimPrivate)
+- (void)_isim_setTextInput:(nullable id<UIKeyInput>)input;
+@end
+
+@interface UIImage (IsimPrivate)
+- (void)_isim_drawInRect:(CGRect)r tint:(nullable UIColor *)tint alpha:(CGFloat)alpha;
+@property (nonatomic, readonly) BOOL _isim_isTemplate;
+@end
+@interface UIImageSymbolConfiguration (IsimPrivate)
+@property (nonatomic, readonly) CGFloat _isim_pointSize;
+@property (nonatomic, readonly) UIImageSymbolWeight _isim_weight;
+@property (nonatomic, readonly) UIImageSymbolScale _isim_scale;
+@end

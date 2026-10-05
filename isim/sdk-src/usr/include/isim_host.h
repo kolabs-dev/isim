@@ -3,8 +3,8 @@
 #include <_isim_cdefs.h>
 __BEGIN_DECLS
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
-struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[32]; };
-enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, ISIM_EV_QUIT, ISIM_EV_KEY, ISIM_EV_TEXT, ISIM_EV_REDRAW };
+struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[64]; };
+enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, ISIM_EV_QUIT, ISIM_EV_KEY, ISIM_EV_TEXT, ISIM_EV_REDRAW, ISIM_EV_ID_DOWN, ISIM_EV_ID_UP, ISIM_EV_DUMP };
 void isim_device_metrics(struct isim_device *out);
 int isim_display_open(const char *title);
 void isim_frame_begin(void);
@@ -35,4 +35,11 @@ void isim_set_status_bar_style(int dark_content);
 int isim_next_event(struct isim_event *ev, double timeout);
 void isim_text_input(int on);
 const char *isim_bundle_path(void);
+/* images (handles > 0). Sizes: pixels for files/data; per 1pt of font size for symbols. */
+int isim_image_load(const char *path, double *w, double *h);
+int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
+int isim_image_symbol(const char *name, double *w, double *h);
+void isim_image_draw(int handle, double x, double y, double w, double h, const double *tint_rgba, double alpha);
+int isim_image_is_template(int handle);
+void isim_image_free(int handle);
 __END_DECLS

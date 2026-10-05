@@ -327,13 +327,4 @@ typedef struct { int op; double v[6]; } path_el;
 - (void)stroke { [self _replay]; CGContextSetLineWidth(isim_cg_current_context(), _lineWidth); CGContextStrokePath(isim_cg_current_context()); }
 @end
 
-/* ================= UIImage / UIImageView (placeholders) ================= */
-@implementation UIImage
-+ (UIImage *)imageNamed:(NSString *)name { NSLog(@"isim: UIImage imageNamed:%@ -> nil (image decoding not implemented)", name); return nil; }
-+ (UIImage *)systemImageNamed:(NSString *)name { return nil; }
-- (CGFloat)scale { return 1; }
-@end
-@implementation UIImageView
-- (instancetype)initWithImage:(UIImage *)image { if ((self = [self initWithFrame:CGRectZero])) _image = image; return self; }
-- (CGSize)intrinsicContentSize { return _image ? _image.size : CGSizeMake(UIViewNoIntrinsicMetric, UIViewNoIntrinsicMetric); }
-@end
+

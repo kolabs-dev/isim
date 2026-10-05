@@ -87,14 +87,37 @@ CGAffineTransform CGAffineTransformConcat(CGAffineTransform t1, CGAffineTransfor
 bool CGAffineTransformIsIdentity(CGAffineTransform t) { return !memcmp(&t, &CGAffineTransformIdentity, sizeof t); }
 CGPoint CGPointApplyAffineTransform(CGPoint p, CGAffineTransform t) { return CGPointMake(t.a * p.x + t.c * p.y + t.tx, t.b * p.x + t.d * p.y + t.ty); }
 
-/* ---- CGColor: refcounted RGBA ---- */
-struct CGColor { int refs; CGFloat c[4]; };
+/* ---- CGColor: RGBA in an Objective-C object ----
+ * Swift (and ARC code) treat CGColorRef as a CF object and retain/release it with
+ * objc_retain/objc_release, so CGColor is an instance of Foundation's __NSCGColor
+ * (isa + 4 components). Without Foundation loaded, the same layout is malloc'd with
+ * isa = NULL and refcounted here. */
+struct CGColor { void *isa; CGFloat c[4]; int refs; };
+typedef struct objc_class *Class;
+extern Class objc_getClass(const char *name);
+extern void *class_createInstance(Class cls, unsigned long extra);
+extern void *objc_retain(void *o);
+extern void objc_release(void *o);
 CGColorRef CGColorCreateSRGB(CGFloat r, CGFloat g, CGFloat b, CGFloat a) {
-    CGColorRef col = malloc(sizeof *col); col->refs = 1; col->c[0] = r; col->c[1] = g; col->c[2] = b; col->c[3] = a; return col;
+    static Class k; static int looked;
+    if (!looked) { k = objc_getClass("__NSCGColor"); looked = k != NULL; }
+    CGColorRef col = k ? class_createInstance(k, 0) : calloc(1, sizeof *col);
+    col->refs = 1; col->c[0] = r; col->c[1] = g; col->c[2] = b; col->c[3] = a; return col;
 }
-CGColorRef CGColorRetain(CGColorRef c) { if (c) __atomic_add_fetch(&c->refs, 1, __ATOMIC_RELAXED); return c; }
-void CGColorRelease(CGColorRef c) { if (c && __atomic_sub_fetch(&c->refs, 1, __ATOMIC_ACQ_REL) == 0) free(c); }
+CGColorRef CGColorCreateGenericRGB(CGFloat r, CGFloat g, CGFloat b, CGFloat a) { return CGColorCreateSRGB(r, g, b, a); }
+CGColorRef CGColorCreateGenericGray(CGFloat w, CGFloat a) { return CGColorCreateSRGB(w, w, w, a); }
+CGColorRef CGColorRetain(CGColorRef c) {
+    if (c && c->isa) objc_retain(c); else if (c) __atomic_add_fetch(&c->refs, 1, __ATOMIC_RELAXED);
+    return c;
+}
+void CGColorRelease(CGColorRef c) {
+    if (c && c->isa) objc_release(c);
+    else if (c && __atomic_sub_fetch(&c->refs, 1, __ATOMIC_ACQ_REL) == 0) free(c);
+}
 const CGFloat *CGColorGetComponents(CGColorRef c) { return c ? c->c : NULL; }
+size_t CGColorGetNumberOfComponents(CGColorRef c) { return 4; }
+bool CGColorEqualToColor(CGColorRef a, CGColorRef b) { return a == b || (a && b && !memcmp(a->c, b->c, sizeof a->c)); }
+CGColorRef CGColorCreateCopyWithAlpha(CGColorRef c, CGFloat alpha) { return CGColorCreateSRGB(c->c[0], c->c[1], c->c[2], alpha); }
 CGFloat CGColorGetAlpha(CGColorRef c) { return c ? c->c[3] : 0; }
 
 /* ---- CGContext: single current surface; state is fill/stroke color + line width ---- */

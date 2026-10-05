@@ -91,6 +91,32 @@ NUMU(numberWithUnsignedLongLong:, unsigned long long) NUMI(numberWithInteger:, N
 @end
 
 /* ================= NSArray / NSMutableArray ================= */
+/* NSEnumerator over a snapshot array */
+@interface __NSArrayEnumerator : NSEnumerator { @public NSArray *_a; NSUInteger _i; BOOL _rev; }
+@end
+@implementation NSEnumerator
+- (id)nextObject { return nil; }
+- (NSArray *)allObjects { NSMutableArray *a = [NSMutableArray array]; for (id o; (o = [self nextObject]);) [a addObject:o]; return a; }
+- (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(id *)buf count:(NSUInteger)len {
+    static unsigned long nomut;
+    st->mutationsPtr = &nomut; st->itemsPtr = buf;
+    NSUInteger n = 0;
+    for (id o; n < len && (o = [self nextObject]);) buf[n++] = o;
+    return n;
+}
+@end
+@implementation __NSArrayEnumerator
+- (id)nextObject {
+    NSUInteger c = [_a count];
+    if (_i >= c) return nil;
+    id o = [_a objectAtIndex:_rev ? c - 1 - _i : _i]; _i++; return o;
+}
+- (void)dealloc { [_a release]; [super dealloc]; }
+@end
+static NSEnumerator *array_enum(NSArray *a, BOOL rev) {
+    __NSArrayEnumerator *e = [[__NSArrayEnumerator alloc] init]; e->_a = [a copy]; e->_rev = rev; return [e autorelease];
+}
+
 @implementation NSArray { @public id *_items; NSUInteger _count, _cap; unsigned long _mutations; }
 + (instancetype)array { return [[[self alloc] init] autorelease]; }
 + (instancetype)arrayWithObject:(id)o { return [[[self alloc] initWithObjects:&o count:1] autorelease]; }
@@ -182,6 +208,8 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
     return n;
 }
 - (id)copyWithZone:(NSZone *)z { return [self class] == [NSArray class] ? [self retain] : [[NSArray alloc] initWithArray:self]; }
+- (NSEnumerator *)objectEnumerator { return array_enum(self, NO); }
+- (NSEnumerator *)reverseObjectEnumerator { return array_enum(self, YES); }
 - (id)mutableCopyWithZone:(NSZone *)z { return [[NSMutableArray alloc] initWithArray:self]; }
 - (NSString *)description {
     NSMutableString *s = [NSMutableString stringWithString:@"(\n"];
@@ -308,6 +336,8 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
     return n;
 }
 - (id)copyWithZone:(NSZone *)z { return [self class] == [NSDictionary class] ? [self retain] : [[NSDictionary alloc] initWithDictionary:self]; }
+- (NSEnumerator *)keyEnumerator { return array_enum([self allKeys], NO); }
+- (NSEnumerator *)objectEnumerator { return array_enum([self allValues], NO); }
 - (id)mutableCopyWithZone:(NSZone *)z { return [[NSMutableDictionary alloc] initWithDictionary:self]; }
 - (NSString *)description {
     NSMutableString *s = [NSMutableString stringWithString:@"{\n"];
@@ -369,6 +399,7 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 - (void)enumerateObjectsUsingBlock:(void (^)(id, BOOL *))block { BOOL stop = NO; for (id o in _a) { block(o, &stop); if (stop) break; } }
 - (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(id *)buf count:(NSUInteger)len { return [_a countByEnumeratingWithState:st objects:buf count:len]; }
 - (id)copyWithZone:(NSZone *)z { return [[NSSet alloc] initWithArray:_a]; }
+- (NSEnumerator *)objectEnumerator { return array_enum(_a, NO); }
 - (id)mutableCopyWithZone:(NSZone *)z { return [[NSMutableSet alloc] initWithArray:_a]; }
 - (BOOL)isEqual:(id)o {
     if (![o isKindOfClass:[NSSet class]] || [o count] != [self count]) return NO;

@@ -47,6 +47,12 @@
     CGSize s = isim_ui_measure(_text, _font, [self _wrapWidth], _numberOfLines);
     return CGSizeMake(ceil(s.width), ceil(s.height));
 }
+- (CGSize)_isim_intrinsicSizeForWidth:(CGFloat)w {
+    if (_numberOfLines == 1 || _preferredMaxLayoutWidth > 0 || w <= 0) return [self intrinsicContentSize];
+    if (!_text.length) return CGSizeZero;
+    CGSize s = isim_ui_measure(_text, _font, w, _numberOfLines);
+    return CGSizeMake(ceil(s.width), ceil(s.height));
+}
 - (CGSize)sizeThatFits:(CGSize)size {
     CGSize s = isim_ui_measure(_text, _font, _numberOfLines == 1 ? 0 : size.width, _numberOfLines);
     return CGSizeMake(ceil(s.width), ceil(s.height));
@@ -180,7 +186,8 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 @end
 
 /* ================= UIButton ================= */
-@implementation UIButton { NSMutableDictionary<NSNumber *, NSString *> *_titles; NSMutableDictionary<NSNumber *, UIColor *> *_colors; UILabel *_label; }
+@implementation UIButton { NSMutableDictionary<NSNumber *, NSString *> *_titles; NSMutableDictionary<NSNumber *, UIColor *> *_colors; UILabel *_label;
+    NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs; }
 + (instancetype)buttonWithType:(UIButtonType)t { UIButton *b = [[self alloc] initWithFrame:CGRectZero]; b->_buttonType = t; [b _isim_applyType]; return b; }
 + (instancetype)systemButtonWithPrimaryAction:(UIAction *)a {
     UIButton *b = [self buttonWithType:UIButtonTypeSystem];
@@ -195,7 +202,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
-        _titles = [NSMutableDictionary dictionary]; _colors = [NSMutableDictionary dictionary];
+        _titles = [NSMutableDictionary dictionary]; _colors = [NSMutableDictionary dictionary]; _images = [NSMutableDictionary dictionary]; _symbolConfigs = [NSMutableDictionary dictionary];
         _label = [[UILabel alloc] initWithFrame:CGRectZero];
         _label.textAlignment = NSTextAlignmentCenter;
         _label.font = [UIFont systemFontOfSize:15];
@@ -213,11 +220,28 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 - (void)setNeedsUpdateConfiguration { isim_ui_set_needs_display(); }
 - (void)setContentEdgeInsets:(UIEdgeInsets)i { _contentEdgeInsets = i; [self invalidateIntrinsicContentSize]; }
 - (void)setTitle:(NSString *)t forState:(UIControlState)s {
+    NSString *old = _titles[@(s)];
+    if (old == t || [old isEqualToString:t]) return;
     if (t) _titles[@(s)] = [t copy]; else [_titles removeObjectForKey:@(s)];
     [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
 }
 - (void)setTitleColor:(UIColor *)c forState:(UIControlState)s { if (c) _colors[@(s)] = c; else [_colors removeObjectForKey:@(s)]; isim_ui_set_needs_display(); }
-- (void)setImage:(UIImage *)i forState:(UIControlState)s {}
+- (void)setImage:(UIImage *)i forState:(UIControlState)s {
+    if (i) _images[@(s)] = i; else [_images removeObjectForKey:@(s)];
+    [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
+}
+- (UIImage *)imageForState:(UIControlState)s { return _images[@(s)] ?: _images[@(UIControlStateNormal)]; }
+- (void)setPreferredSymbolConfiguration:(UIImageSymbolConfiguration *)c forImageInState:(UIControlState)s {
+    if (c) _symbolConfigs[@(s)] = c; else [_symbolConfigs removeObjectForKey:@(s)];
+    [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
+}
+- (UIImage *)currentImage {
+    UIImage *i = _configuration.image ?: [self imageForState:self.state];
+    UIImageSymbolConfiguration *c = _symbolConfigs[@(self.state)] ?: _symbolConfigs[@(UIControlStateNormal)];
+    if (c && i.symbolImage) i = [i imageByApplyingSymbolConfiguration:c];
+    else if (i.symbolImage && !i.symbolConfiguration) i = [i imageByApplyingSymbolConfiguration:[UIImageSymbolConfiguration configurationWithFont:[self _font]]];
+    return i;
+}
 - (NSString *)titleForState:(UIControlState)s { return _titles[@(s)] ?: _titles[@(UIControlStateNormal)]; }
 - (UIColor *)titleColorForState:(UIControlState)s {
     UIColor *c = _colors[@(s)] ?: _colors[@(UIControlStateNormal)];
@@ -262,9 +286,12 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     default: return 8;
     }
 }
+- (CGFloat)_imagePadding { return _configuration ? (_configuration.imagePadding ?: 6) : 0; }
 - (CGSize)intrinsicContentSize {
     NSString *t = self.currentTitle;
-    CGSize s = isim_ui_measure(t ?: @"", [self _font], 0, 1);
+    CGSize s = t.length || !self.currentImage ? isim_ui_measure(t ?: @"", [self _font], 0, 1) : CGSizeZero;
+    UIImage *img = self.currentImage;
+    if (img) { s.width += img.size.width + (t.length ? [self _imagePadding] : 0); s.height = MAX(s.height, img.size.height); }
     UIEdgeInsets in = [self _insets];
     if (!_configuration && _buttonType == UIButtonTypeSystem && UIEdgeInsetsEqualToEdgeInsets(in, UIEdgeInsetsZero)) in = UIEdgeInsetsMake(6, 0, 6, 0);
     CGFloat h = ceil(s.height) + in.top + in.bottom;
@@ -282,11 +309,24 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
         isim_gfx_fill_rounded(0, 0, b.size.width, b.size.height, [self _radius:b.size], c);
     }
     NSString *t = self.currentTitle;
-    if (!t.length) return;
+    UIImage *img = self.currentImage;
+    if (!t.length && !img) return;
     UIEdgeInsets in = [self _insets];
     CGRect tr = UIEdgeInsetsInsetRect(b, in);
     double fgAlpha = (bg && _configuration) ? 1 : hl;
     if (self.highlighted && _buttonType == UIButtonTypeCustom && !_configuration) fgAlpha = 1;
+    if (img) {
+        CGSize is = img.size;
+        CGFloat tw = t.length ? ceil(isim_ui_measure(t, [self _font], 0, 1).width) + [self _imagePadding] : 0;
+        CGFloat x = tr.origin.x + (tr.size.width - is.width - tw) / 2;
+        CGRect ir = CGRectMake(round(x), round(tr.origin.y + (tr.size.height - is.height) / 2), is.width, is.height);
+        UIColor *tint = _configuration || _buttonType == UIButtonTypeSystem ? [self _fg] : self.tintColor;
+        [img _isim_drawInRect:ir tint:tint alpha:fgAlpha];
+        if (!t.length) return;
+        tr = CGRectMake(ir.origin.x + is.width + [self _imagePadding], tr.origin.y, tw - [self _imagePadding], tr.size.height);
+        isim_ui_draw_text(t, [self _font], [self _fg], tr, NSTextAlignmentLeft, 1, fgAlpha);
+        return;
+    }
     NSTextAlignment align = self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentLeft || self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentLeading ? NSTextAlignmentLeft
         : self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentRight || self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentTrailing ? NSTextAlignmentRight : NSTextAlignmentCenter;
     isim_ui_draw_text(t, [self _font], [self _fg], tr, align, 1, fgAlpha);
@@ -328,69 +368,111 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     [_arranged insertObject:v atIndex:MIN(i, _arranged.count)];
     v.translatesAutoresizingMaskIntoConstraints = NO;
     if (v.superview != self) [self addSubview:v];
-    [self invalidateIntrinsicContentSize]; [self setNeedsLayout];
+    isim_ui_constraints_changed(); [self setNeedsLayout];
 }
-- (void)removeArrangedSubview:(UIView *)v { [_arranged removeObjectIdenticalTo:v]; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
+- (void)removeArrangedSubview:(UIView *)v { [_arranged removeObjectIdenticalTo:v]; isim_ui_constraints_changed(); [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
 - (void)willRemoveSubview:(UIView *)v { [_arranged removeObjectIdenticalTo:v]; [self invalidateIntrinsicContentSize]; }
-- (void)setAxis:(UILayoutConstraintAxis)a { _axis = a; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
-- (void)setSpacing:(CGFloat)s { _spacing = s; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
-- (void)setAlignment:(UIStackViewAlignment)a { _alignment = a; [self setNeedsLayout]; }
-- (void)setDistribution:(UIStackViewDistribution)d { _distribution = d; [self setNeedsLayout]; }
+- (void)setAxis:(UILayoutConstraintAxis)a { _axis = a; isim_ui_constraints_changed(); [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
+- (void)setSpacing:(CGFloat)s { _spacing = s; isim_ui_constraints_changed(); [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
+- (void)setAlignment:(UIStackViewAlignment)a { _alignment = a; isim_ui_constraints_changed(); [self setNeedsLayout]; }
+- (void)setDistribution:(UIStackViewDistribution)d { _distribution = d; isim_ui_constraints_changed(); [self setNeedsLayout]; }
 - (void)setCustomSpacing:(CGFloat)s afterView:(UIView *)v { _customSpacing[[NSValue valueWithNonretainedObject:v]] = @(s); [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
-- (CGFloat)_spacingAfter:(UIView *)v { NSNumber *n = _customSpacing[[NSValue valueWithNonretainedObject:v]]; return n ? n.doubleValue : _spacing; }
+- (CGFloat)_spacingAfter:(UIView *)v {
+    NSNumber *n = _customSpacing[[NSValue valueWithNonretainedObject:v]];
+    CGFloat sp = n ? n.doubleValue : _spacing;
+    if (sp == UIStackViewSpacingUseDefault) sp = _spacing;
+    if (sp == UIStackViewSpacingUseSystem) sp = 8;
+    return sp;
+}
 - (NSArray<UIView *> *)_visible { NSMutableArray *a = [NSMutableArray array]; for (UIView *v in _arranged) if (!v.hidden) [a addObject:v]; return a; }
 - (UIEdgeInsets)_pad { return _layoutMarginsRelativeArrangement ? self.layoutMargins : UIEdgeInsetsZero; }
-static CGFloat main_of(CGSize s, UILayoutConstraintAxis a) { return a == UILayoutConstraintAxisHorizontal ? s.width : s.height; }
-static CGFloat cross_of(CGSize s, UILayoutConstraintAxis a) { return a == UILayoutConstraintAxisHorizontal ? s.height : s.width; }
-- (CGSize)intrinsicContentSize {
+/* Arrangement is expressed as engine constraints (as UIKit's UISV-* constraints). */
+- (CGSize)intrinsicContentSize { return CGSizeMake(UIViewNoIntrinsicMetric, UIViewNoIntrinsicMetric); }
+- (void)_isim_addEngineConstraints:(isim_al *)al {
     NSArray<UIView *> *vs = [self _visible];
-    CGFloat main = 0, cross = 0;
-    for (NSUInteger i = 0; i < vs.count; i++) {
-        CGSize s = [vs[i] _isim_fittingSize];
-        main += MAX(0, main_of(s, _axis)); cross = MAX(cross, cross_of(s, _axis));
-        if (i + 1 < vs.count) main += [self _spacingAfter:vs[i]];
-    }
-    UIEdgeInsets p = [self _pad];
-    return _axis == UILayoutConstraintAxisHorizontal ? CGSizeMake(main + p.left + p.right, cross + p.top + p.bottom) : CGSizeMake(cross + p.left + p.right, main + p.top + p.bottom);
-}
-- (void)layoutSubviews {
-    NSArray<UIView *> *vs = [self _visible];
-    if (!vs.count) return;
-    CGRect area = UIEdgeInsetsInsetRect(self.bounds, [self _pad]);
-    CGFloat avail = main_of(area.size, _axis), crossAvail = cross_of(area.size, _axis);
     NSUInteger n = vs.count;
-    CGFloat sizes[n], total = 0, gaps = 0;
-    for (NSUInteger i = 0; i < n; i++) {
-        CGSize s = [vs[i] _isim_fittingSize];
-        sizes[i] = main_of(s, _axis); if (sizes[i] < 0) sizes[i] = -1;
-        if (i + 1 < n) gaps += [self _spacingAfter:vs[i]];
+    if (!n) return;
+    BOOL h = _axis == UILayoutConstraintAxisHorizontal;
+    NSLayoutAttribute mMin = h ? NSLayoutAttributeLeading : NSLayoutAttributeTop, mMax = h ? NSLayoutAttributeTrailing : NSLayoutAttributeBottom;
+    NSLayoutAttribute mSize = h ? NSLayoutAttributeWidth : NSLayoutAttributeHeight, mCen = h ? NSLayoutAttributeCenterX : NSLayoutAttributeCenterY;
+    NSLayoutAttribute cMin = h ? NSLayoutAttributeTop : NSLayoutAttributeLeading, cMax = h ? NSLayoutAttributeBottom : NSLayoutAttributeTrailing;
+    NSLayoutAttribute cSize = h ? NSLayoutAttributeHeight : NSLayoutAttributeWidth, cCen = h ? NSLayoutAttributeCenterY : NSLayoutAttributeCenterX;
+    UIEdgeInsets p = [self _pad];
+    CGFloat mLead = h ? p.left : p.top, mTrail = h ? p.right : p.bottom, cLead = h ? p.top : p.left, cTrail = h ? p.bottom : p.right;
+    const UILayoutPriority R = UILayoutPriorityRequired;
+    const NSLayoutRelation EQ = NSLayoutRelationEqual, GE = NSLayoutRelationGreaterThanOrEqual, LE = NSLayoutRelationLessThanOrEqual;
+    BOOL spaced = _distribution == UIStackViewDistributionEqualSpacing || _distribution == UIStackViewDistributionEqualCentering;
+
+    /* main axis: edges and spacing */
+    isim_al_add(al, vs[0], mMin, EQ, self, mMin, 1, mLead, R);
+    CGFloat gaps = 0;
+    for (NSUInteger i = 0; i + 1 < n; i++) {
+        CGFloat sp = [self _spacingAfter:vs[i]]; gaps += sp;
+        isim_al_add(al, vs[i + 1], mMin, spaced ? GE : EQ, vs[i], mMax, 1, sp, R);
     }
-    if (_distribution == UIStackViewDistributionFillEqually) for (NSUInteger i = 0; i < n; i++) sizes[i] = (avail - gaps) / n;
-    else {
-        NSUInteger flex = NSNotFound; UILayoutPriority lowest = 10000;
-        for (NSUInteger i = 0; i < n; i++) { if (sizes[i] < 0) { flex = i; sizes[i] = 0; } }
-        if (flex == NSNotFound) for (NSUInteger i = 0; i < n; i++) { UILayoutPriority p = [vs[i] contentHuggingPriorityForAxis:_axis]; if (p <= lowest) { lowest = p; flex = i; } }
-        for (NSUInteger i = 0; i < n; i++) total += sizes[i];
-        CGFloat extra = avail - gaps - total;
-        if (_distribution == UIStackViewDistributionFill || _distribution == UIStackViewDistributionFillProportionally) { if (flex != NSNotFound) sizes[flex] = MAX(0, sizes[flex] + extra); }
-        else if (n > 1 && extra > 0) gaps += extra;    /* equal spacing / centering */
+    isim_al_add(al, vs[n - 1], mMax, EQ, self, mMax, 1, -mTrail, R);
+    switch (_distribution) {
+    case UIStackViewDistributionFillEqually:
+        for (NSUInteger i = 1; i < n; i++) isim_al_add(al, vs[i], mSize, EQ, vs[0], mSize, 1, 0, R);
+        break;
+    case UIStackViewDistributionFillProportionally: {
+        CGFloat sum = 0, sizes[n];
+        for (NSUInteger i = 0; i < n; i++) { CGSize s = [vs[i] intrinsicContentSize]; sizes[i] = MAX(0, h ? s.width : s.height); sum += sizes[i]; }
+        if (sum > 0) for (NSUInteger i = 0; i < n; i++) {
+            CGFloat k = sizes[i] / sum;
+            __unsafe_unretained id items[2] = { vs[i], self }; NSLayoutAttribute at[2] = { mSize, mSize }; CGFloat co[2] = { 1, -k };
+            isim_al_add_expr(al, 2, items, at, co, k * (mLead + mTrail + gaps), EQ, 999);
+        }
+        break; }
+    case UIStackViewDistributionEqualSpacing: case UIStackViewDistributionEqualCentering:
+        for (NSUInteger i = 0; i + 2 < n; i++) {
+            if (_distribution == UIStackViewDistributionEqualSpacing) {
+                __unsafe_unretained id items[4] = { vs[i + 1], vs[i], vs[i + 2], vs[i + 1] };
+                NSLayoutAttribute at[4] = { mMin, mMax, mMin, mMax }; CGFloat co[4] = { 1, -1, -1, 1 };
+                isim_al_add_expr(al, 4, items, at, co, 0, EQ, R);
+            } else {
+                __unsafe_unretained id items[3] = { vs[i + 1], vs[i], vs[i + 2] };
+                NSLayoutAttribute at[3] = { mCen, mCen, mCen }; CGFloat co[3] = { 2, -1, -1 };
+                isim_al_add_expr(al, 3, items, at, co, 0, EQ, 999);
+            }
+        }
+        break;
+    default:
+        /* fill: when hugging priorities tie, the first arranged view stretches (UIKit resolves by index) */
+        for (NSUInteger i = 1; i < n; i++) {
+            CGSize s = [vs[i] intrinsicContentSize]; CGFloat want = h ? s.width : s.height;
+            if (want >= 0) isim_al_add(al, vs[i], mSize, LE, nil, NSLayoutAttributeNotAnAttribute, 1, want, 0.001 * i);
+        }
     }
-    CGFloat extraGap = (_distribution == UIStackViewDistributionEqualSpacing || _distribution == UIStackViewDistributionEqualCentering) && n > 1
-        ? (avail - gaps - ({ CGFloat t = 0; for (NSUInteger i = 0; i < n; i++) t += sizes[i]; t; })) / (n - 1) : 0;
-    if (extraGap < 0) extraGap = 0;
-    CGFloat pos = 0;
-    for (NSUInteger i = 0; i < n; i++) {
-        UIView *v = vs[i];
-        CGSize fit = [v _isim_fittingSize];
-        CGFloat cross = cross_of(fit, _axis), crossPos = 0;
-        if (_alignment == UIStackViewAlignmentFill || cross < 0) { cross = crossAvail; }
-        else if (_alignment == UIStackViewAlignmentCenter) crossPos = (crossAvail - cross) / 2;
-        else if (_alignment == UIStackViewAlignmentTrailing) crossPos = crossAvail - cross;
-        CGRect f = _axis == UILayoutConstraintAxisHorizontal ? CGRectMake(area.origin.x + pos, area.origin.y + crossPos, sizes[i], cross)
-                                                             : CGRectMake(area.origin.x + crossPos, area.origin.y + pos, cross, sizes[i]);
-        if (!CGRectEqualToRect(f, v.frame)) v.frame = f;
-        pos += sizes[i] + (i + 1 < n ? [self _spacingAfter:v] + extraGap : 0);
+
+    /* cross axis */
+    for (UIView *v in vs) {
+        switch (_alignment) {
+        case UIStackViewAlignmentFill:
+            isim_al_add(al, v, cMin, EQ, self, cMin, 1, cLead, R);
+            isim_al_add(al, v, cMax, EQ, self, cMax, 1, -cTrail, R);
+            break;
+        case UIStackViewAlignmentLeading:
+            isim_al_add(al, v, cMin, EQ, self, cMin, 1, cLead, R);
+            isim_al_add(al, v, cMax, LE, self, cMax, 1, -cTrail, R);
+            break;
+        case UIStackViewAlignmentTrailing:
+            isim_al_add(al, v, cMax, EQ, self, cMax, 1, -cTrail, R);
+            isim_al_add(al, v, cMin, GE, self, cMin, 1, cLead, R);
+            break;
+        case UIStackViewAlignmentCenter:
+            isim_al_add(al, v, cCen, EQ, self, cCen, 1, (cLead - cTrail) / 2, R);
+            isim_al_add(al, v, cMin, GE, self, cMin, 1, cLead, R);
+            break;
+        default: {   /* first / last baseline (horizontal stacks) */
+            NSLayoutAttribute b = _alignment == UIStackViewAlignmentFirstBaseline ? NSLayoutAttributeFirstBaseline : NSLayoutAttributeLastBaseline;
+            if (v != vs[0]) isim_al_add(al, v, b, EQ, vs[0], b, 1, 0, R);
+            isim_al_add(al, v, cMin, GE, self, cMin, 1, cLead, R);
+            isim_al_add(al, v, cMax, LE, self, cMax, 1, -cTrail, R);
+        } }
     }
+    /* non-fill alignments: the stack hugs its tallest/widest arranged view */
+    if (_alignment != UIStackViewAlignmentFill) isim_al_add(al, self, cSize, EQ, nil, NSLayoutAttributeNotAnAttribute, 1, 0, 0.5);
 }
 @end
 
@@ -412,7 +494,10 @@ static CGFloat cross_of(CGSize s, UILayoutConstraintAxis a) { return a == UILayo
 - (void)removeTarget:(id)target action:(SEL)action { for (__IsimTargetAction *t in [_targets copy]) if ((!target || t.target == target) && (!action || t.action == action)) [_targets removeObjectIdenticalTo:t]; }
 - (void)_isim_setView:(UIView *)v { _view = v; }
 - (CGPoint)locationInView:(UIView *)v { return [self.view convertPoint:_lastPoint toView:v]; }
-- (void)_fire { for (__IsimTargetAction *t in [_targets copy]) { id tg = t.target; if (tg) ((void (*)(id, SEL, id))[tg methodForSelector:t.action])(tg, t.action, self); } }
+- (void)_fire {
+    if (_state == UIGestureRecognizerStateBegan || _state == UIGestureRecognizerStateEnded) isim_ui_gesture_recognized(self);
+    for (__IsimTargetAction *t in [_targets copy]) { id tg = t.target; if (tg) ((void (*)(id, SEL, id))[tg methodForSelector:t.action])(tg, t.action, self); }
+}
 - (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event {}
 @end
 @implementation UITapGestureRecognizer

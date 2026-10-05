@@ -28,5 +28,8 @@
 #import <UIKit/UIGraphics.h>
 #import <UIKit/UIBezierPath.h>
 #import <UIKit/UIGestureRecognizer.h>
+#import <UIKit/UIAccessibility.h>
+#import <UIKit/UITextInput.h>
+#import <UIKit/UIInputViewController.h>
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIScene.h>

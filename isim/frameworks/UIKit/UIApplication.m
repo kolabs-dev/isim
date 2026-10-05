@@ -130,7 +130,7 @@
     [c willMoveToParentViewController:self];
     [_children addObject:c]; [c _isim_setParent:self];
 }
-- (void)removeFromParentViewController { [_parent->_children removeObjectIdenticalTo:self]; _parent = nil; }
+- (void)removeFromParentViewController { UIViewController *p = _parent; if (p) [p->_children removeObjectIdenticalTo:self]; _parent = nil; }
 - (void)willMoveToParentViewController:(UIViewController *)p {}
 - (void)didMoveToParentViewController:(UIViewController *)p {}
 
@@ -316,6 +316,17 @@ static UIWindow *top_window(void) {
     return best && !best.hidden ? best : nil;
 }
 
+static UIEvent *cur_event;
+static BOOL touch_cancelled;
+
+/* A recognizer that cancels touches in its view just recognized: the hit view gets
+ * touchesCancelled once and no further touch callbacks for this sequence. */
+void isim_ui_gesture_recognized(UIGestureRecognizer *g) {
+    if (!g.cancelsTouchesInView || !cur_touch || touch_cancelled || ![cur_gestures containsObject:g]) return;
+    touch_cancelled = YES;
+    [cur_touch.view touchesCancelled:cur_event.allTouches withEvent:cur_event];
+}
+
 static void handle_touch(const struct isim_event *ev) {
     CGPoint p = CGPointMake(ev->x, ev->y);
     if (ev->type == ISIM_EV_TOUCH_DOWN) {
@@ -325,6 +336,7 @@ static void handle_touch(const struct isim_event *ev) {
         cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:p time:ev->timestamp];
         if (ev->timestamp - last_tap_time < 0.35 && hypot(p.x - last_tap_point.x, p.y - last_tap_point.y) < 20) [cur_touch setValue_isimTapCount:2];
         cur_gestures = [NSMutableArray array];
+        touch_cancelled = NO;
         for (UIView *v = hit; v; v = v.superview) for (UIGestureRecognizer *g in v.gestureRecognizers) if (g.enabled) [cur_gestures addObject:g];
     }
     UITouch *t = cur_touch;
@@ -332,18 +344,57 @@ static void handle_touch(const struct isim_event *ev) {
     UITouchPhase phase = ev->type == ISIM_EV_TOUCH_DOWN ? UITouchPhaseBegan : ev->type == ISIM_EV_TOUCH_MOVE ? UITouchPhaseMoved : UITouchPhaseEnded;
     [t _isim_setPhase:phase location:p time:ev->timestamp];
     UIEvent *e = [[UIEvent alloc] initWithIsimTouch:t];
+    cur_event = e;
     NSSet *set = e.allTouches;
-    BOOL recognized = NO;
-    for (UIGestureRecognizer *g in cur_gestures) {
-        [g _isim_touch:t phase:phase event:e];
-        if (g.cancelsTouchesInView && g.state != UIGestureRecognizerStatePossible && g.state != UIGestureRecognizerStateFailed) recognized = YES;
-    }
     UIView *v = t.view;
-    switch (phase) {
-    case UITouchPhaseBegan: [v touchesBegan:set withEvent:e]; break;
-    case UITouchPhaseMoved: if (recognized) [v touchesCancelled:set withEvent:e]; else [v touchesMoved:set withEvent:e]; break;
-    default: [v touchesEnded:set withEvent:e]; last_tap_time = ev->timestamp; last_tap_point = p; cur_touch = nil; cur_gestures = nil; break;
+    /* Began reaches the view before recognizers act on it, as on iOS (no delaysTouchesBegan). */
+    if (phase == UITouchPhaseBegan) [v touchesBegan:set withEvent:e];
+    for (UIGestureRecognizer *g in [cur_gestures copy]) [g _isim_touch:t phase:phase event:e];
+    if (!touch_cancelled) {
+        if (phase == UITouchPhaseMoved) [v touchesMoved:set withEvent:e];
+        else if (phase == UITouchPhaseEnded) [v touchesEnded:set withEvent:e];
     }
+    if (phase == UITouchPhaseEnded) { last_tap_time = ev->timestamp; last_tap_point = p; cur_touch = nil; cur_gestures = nil; cur_event = nil; }
+}
+
+/* hardware keyboard / scripted typing goes to the first responder if it accepts key input */
+static void handle_key(const struct isim_event *ev) {
+    id fr = isim_ui_first_responder();
+    if (![fr respondsToSelector:@selector(insertText:)]) return;
+    if (ev->type == ISIM_EV_TEXT) [fr insertText:@(ev->text)];
+    else if (ev->key == 8) [fr deleteBackward];
+    else if (ev->key == 13) [fr insertText:@"\n"];
+    else if (ev->key == 9) [fr insertText:@"\t"];
+    isim_ui_set_needs_display();
+}
+
+static void dump_view(UIView *v, int depth) {
+    CGRect f = v.frame;
+    NSString *ident = v.accessibilityIdentifier, *label = [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle : nil;
+    fprintf(stderr, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
+            v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "");
+    for (UIView *s in v.subviews) dump_view(s, depth + 1);
+}
+
+/* scripted touches addressed by accessibilityIdentifier (ISIM_SCRIPT tapid/holdid) */
+static UIView *find_identified(UIView *v, NSString *ident) {
+    if (v.hidden || v.alpha <= 0.01) return nil;
+    for (UIView *s in v.subviews.reverseObjectEnumerator) { UIView *f = find_identified(s, ident); if (f) return f; }
+    return [v.accessibilityIdentifier isEqualToString:ident] ? v : nil;
+}
+static void handle_id_touch(const struct isim_event *ev) {
+    NSString *ident = @(ev->text);
+    UIView *found = nil;
+    NSArray *windows = UIApplication.sharedApplication.windows;
+    for (UIWindow *w in windows.reverseObjectEnumerator) if (!w.hidden && (found = find_identified(w, ident))) break;
+    if (!found) { NSLog(@"isim: no visible view with accessibilityIdentifier '%@'", ident); return; }
+    CGRect b = found.bounds;
+    CGPoint p = [found convertPoint:CGPointMake(CGRectGetMidX(b), CGRectGetMidY(b)) toView:nil];
+    p = [found.window convertPoint:p toView:nil];
+    struct isim_event t = *ev;
+    t.type = ev->type == ISIM_EV_ID_DOWN ? ISIM_EV_TOUCH_DOWN : ISIM_EV_TOUCH_UP;
+    t.x = p.x + found.window.frame.origin.x; t.y = p.y + found.window.frame.origin.y;
+    handle_touch(&t);
 }
 
 @implementation UITouch (IsimTap)
@@ -367,7 +418,7 @@ static void render_frame(void) {
 
 static void layout_all(void) {
     for (int i = 0; i < 4 && isim_ui_take_layout(); i++)
-        for (UIWindow *w in UIApplication.sharedApplication.windows) [w _isim_layoutPass];
+        for (UIWindow *w in UIApplication.sharedApplication.windows) { isim_ui_layout_window(w); [w _isim_layoutPass]; }
 }
 
 static Class class_named(NSString *name) {
@@ -451,6 +502,9 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_QUIT: quit = YES; break;
                 case ISIM_EV_TOUCH_DOWN: case ISIM_EV_TOUCH_MOVE: case ISIM_EV_TOUCH_UP: handle_touch(&ev); break;
                 case ISIM_EV_REDRAW: isim_ui_set_needs_display(); break;
+                case ISIM_EV_TEXT: case ISIM_EV_KEY: handle_key(&ev); break;
+                case ISIM_EV_ID_DOWN: case ISIM_EV_ID_UP: handle_id_touch(&ev); break;
+                case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;
                 }
                 if (quit) break;

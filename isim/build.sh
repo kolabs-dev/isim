@@ -14,9 +14,9 @@ mkdir -p "$OUT/bin" "$SDK/usr/lib" "$SDK/System/Library/Frameworks"
 step() { printf '\n== %s\n' "$*"; }
 
 step "host runtime"
-PKGS="sdl3 cairo pangocairo"
+PKGS="sdl3 cairo pangocairo librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread
 
 step "SDK headers"

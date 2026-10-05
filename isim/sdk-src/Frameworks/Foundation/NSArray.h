@@ -2,6 +2,10 @@
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSIndexSet;
+@interface NSEnumerator<ObjectType> : NSObject <NSFastEnumeration>
+- (nullable ObjectType)nextObject;
+@property (readonly, copy) NSArray<ObjectType> *allObjects;
+@end
 typedef NS_OPTIONS(NSUInteger, NSEnumerationOptions) { NSEnumerationConcurrent = (1UL << 0), NSEnumerationReverse = (1UL << 1) };
 
 @interface NSArray<__covariant ObjectType> : NSObject <NSCopying, NSMutableCopying, NSSecureCoding, NSFastEnumeration>
@@ -17,6 +21,8 @@ typedef NS_OPTIONS(NSUInteger, NSEnumerationOptions) { NSEnumerationConcurrent =
 + (instancetype)arrayWithObjects:(ObjectType)firstObj, ... NS_REQUIRES_NIL_TERMINATION;
 + (instancetype)arrayWithArray:(NSArray<ObjectType> *)array;
 - (ObjectType)objectAtIndexedSubscript:(NSUInteger)idx;
+- (NSEnumerator<ObjectType> *)objectEnumerator;
+- (NSEnumerator<ObjectType> *)reverseObjectEnumerator;
 @property (nullable, nonatomic, readonly) ObjectType firstObject;
 @property (nullable, nonatomic, readonly) ObjectType lastObject;
 - (BOOL)containsObject:(ObjectType)anObject;

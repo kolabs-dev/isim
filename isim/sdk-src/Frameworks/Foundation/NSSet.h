@@ -1,7 +1,7 @@
 #pragma once
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
-@class NSArray<ObjectType>;
+@class NSArray<ObjectType>, NSEnumerator<ObjectType>;
 @interface NSSet<__covariant ObjectType> : NSObject <NSCopying, NSMutableCopying, NSSecureCoding, NSFastEnumeration>
 @property (readonly) NSUInteger count;
 - (nullable ObjectType)member:(ObjectType)object;
@@ -17,6 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable ObjectType)anyObject;
 - (BOOL)containsObject:(ObjectType)anObject;
 - (void)enumerateObjectsUsingBlock:(void (NS_NOESCAPE ^)(ObjectType obj, BOOL *stop))block;
+- (NSEnumerator<ObjectType> *)objectEnumerator;
 @end
 @interface NSMutableSet<ObjectType> : NSSet<ObjectType>
 - (void)addObject:(ObjectType)object;

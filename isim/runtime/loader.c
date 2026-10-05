@@ -15,7 +15,10 @@
  * dlopen, code signature validation, dyld interposing, DYLD_* env vars.
  */
 #define _GNU_SOURCE
+#include <dlfcn.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <ucontext.h>
 #include <libgen.h>
 #include <limits.h>
 #include <pthread.h>
@@ -682,6 +685,49 @@ static int d_dladdr(const void *addr, d_dl_info *info) {
     return 1;
 }
 
+/* ---- crash reports: signal, faulting address, and a frame-pointer backtrace symbolized
+ * against the loaded Mach-O images (Darwin code always keeps frame pointers). ---- */
+static void print_frame(int i, uintptr_t pc) {
+    d_dl_info di;
+    if (d_dladdr((void *)pc, &di)) {
+        const char *base = strrchr(di.dli_fname, '/');
+        fprintf(stderr, "  #%-2d 0x%012lx %s`%s + %lu\n", i, (unsigned long)pc, base ? base + 1 : di.dli_fname,
+                di.dli_sname ? di.dli_sname : "?", di.dli_saddr ? (unsigned long)(pc - (uintptr_t)di.dli_saddr) : 0UL);
+    } else {
+        Dl_info hi;
+        if (dladdr((void *)pc, &hi) && hi.dli_sname) fprintf(stderr, "  #%-2d 0x%012lx [host] %s + %lu\n", i, (unsigned long)pc, hi.dli_sname, (unsigned long)(pc - (uintptr_t)hi.dli_saddr));
+        else fprintf(stderr, "  #%-2d 0x%012lx [host]%s%s\n", i, (unsigned long)pc, hi.dli_fname ? " " : "", hi.dli_fname ? hi.dli_fname : "");
+    }
+}
+static void crash_handler(int sig, siginfo_t *si, void *ctx) {
+    ucontext_t *uc = ctx;
+    uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP], fp = uc->uc_mcontext.gregs[REG_RBP], sp = uc->uc_mcontext.gregs[REG_RSP];
+    fprintf(stderr, "\nisim: guest crashed: %s at address %p\n", strsignal(sig), si->si_addr);
+    print_frame(0, pc);
+    /* the return address is at [rsp] if the crash happened before the frame was set up (e.g. in a leaf) */
+    uintptr_t ret0 = 0; if (sp && !(sp & 7)) ret0 = *(uintptr_t *)sp;
+    if (ret0 && image_for_address((void *)ret0)) print_frame(1, ret0);
+    for (int i = 2; i < 64 && fp && !(fp & 7); i++) {
+        uintptr_t next = ((uintptr_t *)fp)[0], ret = ((uintptr_t *)fp)[1];
+        if (!ret) break;
+        print_frame(i, ret);
+        if (next <= fp) break;
+        fp = next;
+    }
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+static void install_crash_handler(void) {
+    if (getenv("ISIM_NO_CRASH_HANDLER")) return;
+    static char altstack[64 * 1024];
+    stack_t ss = { .ss_sp = altstack, .ss_size = sizeof altstack };
+    sigaltstack(&ss, NULL);
+    struct sigaction sa = { .sa_sigaction = crash_handler, .sa_flags = SA_SIGINFO | SA_ONSTACK };
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGSEGV, &sa, NULL); sigaction(SIGBUS, &sa, NULL); sigaction(SIGILL, &sa, NULL);
+    sigaction(SIGFPE, &sa, NULL); sigaction(SIGTRAP, &sa, NULL);
+}
+
 #define D(n, f) { n, (void *)f, "isim" }
 static const struct shim dyld_table[] = {
     D("__dyld_image_count", d_dyld_image_count), D("__dyld_get_image_header", d_dyld_get_image_header),
@@ -714,6 +760,7 @@ int main(int argc, char **argv, char **envp) {
     if (!load_image(argv[ai], MH_EXECUTE)) isim_fatal("cannot open %s", argv[ai]);
     if (!main_image->entry) isim_fatal("%s: no LC_MAIN", main_image->path);
 
+    install_crash_handler();
     libsystem_init(argc - ai, argv + ai);
     for (int i = 0; i < nimages; i++) {
         struct image *im = images[i];

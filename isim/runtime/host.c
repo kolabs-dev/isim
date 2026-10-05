@@ -9,6 +9,7 @@
  *   ISIM_ZOOM      window zoom factor (default 1)
  *   ISIM_HEADLESS  1 = no window (use with ISIM_SCRIPT)
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
+ *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree)
  */
 #define _GNU_SOURCE
 #include <SDL3/SDL.h>
@@ -24,8 +25,8 @@
 #include "runtime.h"
 
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
-struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[32]; };
-enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW };
+struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[64]; };
+enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP };
 
 static struct isim_device dev;
 static double zoom = 1, px_scale = 1;
@@ -40,7 +41,7 @@ static double t0;
 /* ---------------- script ---------------- */
 static char *script, *script_pos;
 static double script_resume;
-static struct isim_event pending[8]; static int npending;
+static struct isim_event pending[16]; static int npending;
 
 static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 double isim_time(void) { return now() - t0; }
@@ -245,14 +246,19 @@ static void screenshot(const char *path) {
 }
 
 /* ---------------- events ---------------- */
+static char held_id[64]; static double held_until;
 static int script_step(struct isim_event *ev) {
+    if (held_until && now() >= held_until) {
+        held_until = 0; pending[npending++] = (struct isim_event){ .type = EV_ID_UP };
+        snprintf(pending[npending - 1].text, sizeof pending->text, "%s", held_id);
+    }
     if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
     if (!script_pos) return 0;
     if (now() < script_resume) return 0;
     while (*script_pos == ' ' || *script_pos == ';') script_pos++;
     if (!*script_pos) { script_pos = NULL; return 0; }
     char cmd[16] = {0}, arg[512] = {0}; double a, b, c, d; int n = 0;
-    sscanf(script_pos, "%15s%n", cmd, &n);
+    sscanf(script_pos, "%15[^; ]%n", cmd, &n);
     char *args = script_pos + n;
     char *end = strchr(script_pos, ';');
     script_pos = end ? end + 1 : script_pos + strlen(script_pos);
@@ -265,10 +271,28 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = c, .y = d };
+    } else if (!strcmp(cmd, "tapid") && sscanf(args, " %63[^; ]", arg) == 1) {
+        pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        pending[npending++] = (struct isim_event){ .type = EV_ID_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        script_resume = now() + 0.05;
+    } else if (!strcmp(cmd, "holdid") && sscanf(args, " %63[^; ] %lf", arg, &a) == 2) {
+        pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        snprintf(held_id, sizeof held_id, "%s", arg); held_until = now() + a; script_resume = held_until + 0.05;
+    } else if (!strcmp(cmd, "type") && sscanf(args, " %511[^;]", arg) == 1) {
+        for (char *t = arg; *t && npending < 8; t += strlen(pending[npending - 1].text)) {
+            pending[npending++] = (struct isim_event){ .type = EV_TEXT };
+            snprintf(pending[npending - 1].text, 32, "%s", t);       /* 31-byte chunks (ASCII-safe) */
+        }
+        script_resume = now() + 0.05;
+    } else if (!strcmp(cmd, "key") && sscanf(args, " %63[^; ]", arg) == 1) {
+        int k = !strcmp(arg, "backspace") ? 8 : !strcmp(arg, "return") ? 13 : !strcmp(arg, "tab") ? 9 : !strcmp(arg, "escape") ? 27 : 0;
+        if (k) pending[npending++] = (struct isim_event){ .type = EV_KEY, .key = k };
+        else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);
-    } else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
+    } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
+    else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
     return script_step(ev);
 }
@@ -326,6 +350,15 @@ const char *isim_bundle_path(void) {
     return p;
 }
 
+cairo_t *isim_host_cairo(void) { return cr; }
+
+int isim_image_load(const char *path, double *w, double *h);
+int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
+int isim_image_symbol(const char *name, double *w, double *h);
+void isim_image_draw(int hd, double x, double y, double w, double h, const double *tint, double alpha);
+int isim_image_is_template(int hd);
+void isim_image_free(int hd);
+
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
     H(isim_device_metrics), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
@@ -335,5 +368,6 @@ static const struct shim isim_table[] = {
     H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke),
     H(isim_text_measure), H(isim_text_draw), H(isim_set_status_bar_style), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path),
+    H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
