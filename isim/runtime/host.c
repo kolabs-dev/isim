@@ -44,7 +44,7 @@ enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_T
        EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */ };
 /* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
 struct shell_msg { int type; struct isim_event ev; char a[512], b[512], c[512]; };
-enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP };
+enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON };
 static int client_sock = -1, client_wake[2] = { -1, -1 };
 static unsigned char *client_pixels;
 
@@ -442,8 +442,21 @@ static void control_poll(void) {
         script_pos = script + off;
     }
 }
+/* "drag x1 y1 x2 y2 seconds": a timed drag, one move per ~16 ms */
+static struct { int on; double a, b, c, d, t0, dur, last; } sdrag;
 static int script_step(struct isim_event *ev) {
     control_poll();
+    if (sdrag.on && !npending) {
+        double t = now();
+        if (t - sdrag.last >= 0.016) {
+            double p = fmin(1, (t - sdrag.t0) / sdrag.dur);
+            sdrag.last = t;
+            pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = sdrag.a + (sdrag.c - sdrag.a) * p, .y = sdrag.b + (sdrag.d - sdrag.b) * p };
+            if (p >= 1) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = sdrag.c, .y = sdrag.d }; sdrag.on = 0; }
+        }
+        if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
+        return 0;
+    }
     if (held_until && now() >= held_until) {
         held_until = 0; pending[npending++] = (struct isim_event){ .type = EV_ID_UP };
         snprintf(pending[npending - 1].text, sizeof pending->text, "%s", held_id);
@@ -464,6 +477,10 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = a, .y = b };
         script_resume = now() + 0.05;
+    } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &sdrag.dur) == 5 && sdrag.dur > 0) {
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
+        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.t0 = sdrag.last = now();
+        script_resume = now() + sdrag.dur + 0.02;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };

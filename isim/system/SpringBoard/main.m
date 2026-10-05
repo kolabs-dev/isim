@@ -174,6 +174,16 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     i = 0;
     for (HSIcon *icon in _dock.subviews) { icon.frame = CGRectMake(start + i * dColW + (dColW - s) / 2, (dockH - s) / 2, s, s); i++; }
     _done.frame = CGRectMake(b.size.width - 82, safe.top + 2, 66, 30);
+    /* tell the shell where each app's icon is (app open/close animations zoom from/to it) */
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (UIView *container in @[self->_grid, self->_dock]) for (HSIcon *icon in container.subviews) {
+            if (![icon isKindOfClass:[HSIcon class]] || !icon.app.path) continue;
+            CGRect r = [icon convertRect:icon.iconView.frame toView:self.view];
+            char geo[128];
+            snprintf(geo, sizeof geo, "%g %g %g %g %g", r.origin.x, r.origin.y, r.size.width, r.size.height, icon.iconView.layer.cornerRadius);
+            isim_shell_request(ISIM_SHELL_ICON, icon.app.path.UTF8String, geo, NULL);
+        }
+    });
 }
 - (void)launch:(HSApp *)a {
     NSLog(@"SpringBoard: launching %@ (%@)", a.name, a.bundleID);
