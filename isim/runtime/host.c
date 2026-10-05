@@ -47,11 +47,32 @@ static struct isim_event pending[16]; static int npending;
 static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 double isim_time(void) { return now() - t0; }
 
+/* device presets (points, scale, safe areas, display corner radius, cutout: 0 none, 1 Dynamic Island, 2 notch) */
+static const struct { const char *id; struct isim_device d; } devices[] = {
+    { "iphonese",       { 375, 667, 2, 20, 0, 0, 0, "iPhone SE (3rd generation)" } },
+    { "iphone13mini",   { 375, 812, 3, 50, 34, 44, 2, "iPhone 13 mini" } },
+    { "iphone14",       { 390, 844, 3, 47, 34, 47, 2, "iPhone 14" } },
+    { "iphone15",       { 393, 852, 3, 59, 34, 55, 1, "iPhone 15" } },
+    { "iphone15plus",   { 430, 932, 3, 59, 34, 55, 1, "iPhone 15 Plus" } },
+    { "iphone15promax", { 430, 932, 3, 59, 34, 55, 1, "iPhone 15 Pro Max" } },
+    { "iphone16pro",    { 402, 874, 3, 62, 34, 62, 1, "iPhone 16 Pro" } },
+    { "iphone16promax", { 440, 956, 3, 62, 34, 62, 1, "iPhone 16 Pro Max" } },
+    { "ipadmini",       { 744, 1133, 2, 24, 20, 21, 0, "iPad mini (6th generation)" } },
+    { "ipad",           { 820, 1180, 2, 24, 20, 18, 0, "iPad Air 11-inch" } },
+    { "ipadair11",      { 820, 1180, 2, 24, 20, 18, 0, "iPad Air 11-inch" } },
+    { "ipadpro11",      { 834, 1210, 2, 24, 20, 18, 0, "iPad Pro 11-inch" } },
+    { "ipadpro13",      { 1032, 1376, 2, 24, 20, 18, 0, "iPad Pro 13-inch" } },
+};
 static void device_from_env(void) {
     const char *d = getenv("ISIM_DEVICE");
-    if (d && !strcmp(d, "iphonese")) dev = (struct isim_device){ 375, 667, 2, 20, 0, 0, 0, "iPhone SE (3rd generation)" };
-    else if (d && !strcmp(d, "ipad")) dev = (struct isim_device){ 820, 1180, 2, 24, 20, 18, 0, "iPad Air (5th generation)" };
-    else dev = (struct isim_device){ 393, 852, 3, 59, 34, 55, 1, "iPhone 15" };
+    dev = devices[3].d;                                   /* iPhone 15 */
+    int found = !d;
+    for (size_t i = 0; d && i < sizeof devices / sizeof *devices; i++) if (!strcmp(devices[i].id, d)) { dev = devices[i].d; found = 1; }
+    if (!found) {
+        fprintf(stderr, "isim: unknown device '%s'; available:", d);
+        for (size_t i = 0; i < sizeof devices / sizeof *devices; i++) fprintf(stderr, " %s", devices[i].id);
+        fprintf(stderr, " (using iPhone 15)\n");
+    }
     const char *z = getenv("ISIM_ZOOM"); if (z) zoom = atof(z) > 0.1 ? atof(z) : 1;
 }
 
@@ -215,7 +236,11 @@ static void draw_chrome(void) {
     /* cellular bars */
     double cx0 = wx - 30;
     for (int i = 0; i < 4; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
-    if (dev.has_island) { double k[4] = { 0, 0, 0, 1 }; isim_gfx_fill_rounded(dev.width / 2 - 62.5, 11, 125, 37, 18.5, k); }
+    if (dev.has_island == 1) { double k[4] = { 0, 0, 0, 1 }; isim_gfx_fill_rounded(dev.width / 2 - 62.5, 11, 125, 37, 18.5, k); }
+    if (dev.has_island == 2) {                                     /* notch: flat top, rounded bottom corners */
+        double k[4] = { 0, 0, 0, 1 };
+        isim_gfx_fill_rounded(dev.width / 2 - 81, -20, 162, 52, 20, k);
+    }
     if (dev.safe_bottom > 0) isim_gfx_fill_rounded(dev.width / 2 - 67, dev.height - 8 - 5, 134, 5, 2.5, fg);
 }
 

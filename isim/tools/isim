@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # isim — iOS simulator for Linux (research prototype).
-#   isim run <App.app> [--device iphone15|iphonese|ipad] [--zoom N] [--dark] [--headless --script "..."]
+#   isim run <App.app> [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)

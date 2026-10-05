@@ -29,6 +29,8 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 | 4d. Simulator settings (language, region, appearance, text size, 12/24h, time zone, device) | 🟡 | environment variables today (`ISIM_LANGUAGES`, `ISIM_LOCALE`, `ISIM_HOUR_CYCLE`, `TZ`, `ISIM_APPEARANCE`, `ISIM_DEVICE`); to be driven by the Settings app (4f) |
 | 4e. Home screen (SpringBoard-like): installed apps, launch/quit, Settings icon | ⬜ | new goal: `isim` launches into a home screen listing installed `.app`s (icons from asset catalogs); tapping launches the app |
 | 4f. Settings app replicating iOS Settings | ⬜ | new goal: pages are added **as each setting is implemented** (General › Language & Region, Display & Brightness › Appearance, General › Keyboard › Keyboards, Accessibility › Display & Text Size, Date & Time, …); values persist and apply to apps |
+| 4g. Multiple iPhone sizes | ✅ | `isim run --device …`: iPhone SE (home button), 13 mini & 14 (notch), 15 / 15 Plus / 15 Pro Max, 16 Pro / 16 Pro Max (Dynamic Island) — safe areas, corner radii, status bar. Not yet: landscape / rotation |
+| 4h. iPad | 🟡 | iPad mini, Air 11", Pro 11", Pro 13" screens with regular size class. Not yet: iPad keyboard layout, readable-width form margins, sidebars/split views, rotation, multitasking (Split View, Slide Over, Stage Manager), pointer |
 | ✅ Real app: **JustDigits** (`../numpad`, SwiftUI + custom keyboard) | ✅ | built unmodified with `isim build` (pbxproj, string catalogs, assets, embedded `.appex`); setup screen, test field, the app's keyboard via the globe menu (loaded in-process), Privacy Policy push/back, review prompt, links |
 | 5. Device build (arm64 .app) | 🟡 | arm64 executables link; code signature, resources, bundle not done |
 | 6. Signing + .ipa | ⬜ | candidate tools identified (rcodesign, zsign) — `docs/distribution-research.md` |
@@ -64,6 +66,9 @@ _The Xcode App template (Objective-C, top; Swift, bottom) plus a small counter U
 ![JustDigits (SwiftUI) running in isim](docs/images/justdigits-home.png)
 
 _JustDigits, a real SwiftUI app with a custom keyboard extension, built from its Xcode project on Linux with `isim build` and running on isim's SwiftUI._
+
+![JustDigits on iPhone SE, iPhone 13 mini and iPhone 16 Pro Max](docs/images/justdigits-iphones.png)
+![JustDigits on iPad Pro 11-inch](docs/images/justdigits-ipad.png)
 
 ### Can isim support SwiftUI?
 
