@@ -40,7 +40,7 @@ isim-0.1.0-linux-x86_64/bin/isim install isim-0.1.0-linux-x86_64/apps/*.app
 | `isim info App.app` | show Mach-O platform and dependencies |
 
 **Options** for `boot` and `run`:
-- `--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|ipadmini|ipadair11|ipadpro11|ipadpro13`
+- `--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13`
 - `--zoom 0.8`
 - `--dark`
 - `--headless --script "…"`
@@ -92,7 +92,7 @@ isim/release/package.sh 0.1.0
 | SwiftUI | 🟡 | isim's own implementation (SwiftUI is closed source): common views, state, Form/List, NavigationStack. Not yet: animations, sheets, ScrollView, Grid, `@Observable` |
 | Home screen | ✅ | apps run as separate processes; home gesture; background/resume; delete apps. Not yet: App Library, app switcher |
 | Settings app | 🟡 | General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, per-app pages |
-| Devices | 🟡 | 8 iPhones and 4 iPads. Not yet: rotation, iPad multitasking |
+| Devices | 🟡 | 12 iPhones (SE to 17 Pro Max) and 4 iPads. Not yet: rotation, iPad multitasking |
 | Multiple iOS versions | ⬜ | planned: `--os` picks the reported version and the look (today: iOS 17/18) |
 | Xcode-like project view | ⬜ | planned; the CLI covers it today |
 | Linux releases | ✅ | self-contained tarballs on GitHub Releases |

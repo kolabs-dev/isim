@@ -5,7 +5,7 @@
 #   isim uninstall <name|bundle id>   remove an installed app (and its data container)
 #   isim apps                    list installed apps
 #   isim reset                   erase the device: installed apps, app data and settings
-#   isim run <App.app> [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
+#   isim run <App.app> [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)

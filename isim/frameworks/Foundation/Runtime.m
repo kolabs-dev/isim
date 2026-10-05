@@ -582,8 +582,24 @@ static void mkdir_p(NSString *dir) {
         [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimGlobalPreferencesChanged" object:nil];
     });
 }
+/* NSArgumentDomain: "-key value" launch arguments override everything (as on iOS; e.g. Xcode scheme arguments) */
+static NSDictionary *argument_domain(void) {
+    static NSDictionary *args; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableDictionary *d = [NSMutableDictionary dictionary];
+        NSArray *a = NSProcessInfo.processInfo.arguments;
+        for (NSUInteger i = 1; i + 1 < a.count; i++) {
+            NSString *k = a[i];
+            if (k.length > 1 && [k hasPrefix:@"-"] && ![k hasPrefix:@"--"]) { d[[k substringFromIndex:1]] = a[i + 1]; i++; }
+        }
+        args = [d copy];
+    });
+    return args;
+}
 - (id)objectForKey:(NSString *)k {
-    id v; @synchronized (self) { v = _d[k]; }
+    id v = _standard ? argument_domain()[k] : nil;
+    if (v) return v;
+    @synchronized (self) { v = _d[k]; }
     if (!v && _standard) v = isim_global_preferences()[k];        /* search list: app domain, then global domain */
     return v;
 }

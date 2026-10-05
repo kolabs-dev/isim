@@ -259,17 +259,28 @@ final class _GroupNode: _Node {
     // flexibility = max - min along the axis; least flexible first, higher layout priority first
     func prop(_ v: CGFloat) -> _Proposal { axis == .vertical ? _Proposal(width: p.width, height: v) : _Proposal(width: v, height: p.height) }
     let flex = nodes.map { $0.isSpacer ? CGFloat.infinity : min($0.sizeThatFits(prop(1e6))[axis], 1e6) - $0.sizeThatFits(prop(0))[axis] }
-    var order = Array(0..<n)
+    // like SwiftUI: spacers reserve their minimum length and take what the other views leave;
+    // the other views are offered an equal share of the rest, least flexible first
+    let spacerIdx = (0..<n).filter { nodes[$0].isSpacer }
+    let spacerMin = spacerIdx.reduce(CGFloat(0)) { $0 + ((nodes[$1] as? _SpacerNode)?.minLength ?? 8) }
+    var order = (0..<n).filter { !nodes[$0].isSpacer }
     order.sort { (nodes[$0].layoutPriority, -flex[$0]) > (nodes[$1].layoutPriority, -flex[$1]) }
-    var remaining = max(0, total - gaps)
+    var remaining = max(0, total - gaps - spacerMin)
     var sizes = [CGSize](repeating: .zero, count: n)
-    var left = n
+    var left = order.count
     for i in order {
         let share = remaining / CGFloat(left)
         let s = measure(nodes[i], prop(share))
         sizes[i] = s
         remaining = max(0, remaining - s[axis])
         left -= 1
+    }
+    remaining += spacerMin
+    for (k, i) in spacerIdx.enumerated() {
+        let share = remaining / CGFloat(spacerIdx.count - k)
+        let s = measure(nodes[i], prop(share))
+        sizes[i] = s
+        remaining = max(0, remaining - s[axis])
     }
     return sizes
 }

@@ -462,9 +462,8 @@ final class _ScrollNode: _WrapperNode {
     }
     override func sizeThatFits(_ p: _Proposal) -> CGSize {
         let c = child.sizeThatFits(contentProposal(p))
-        // a scroll view takes the proposed space along its axes
-        return CGSize(width: axes.contains(.horizontal) ? (p.width ?? c.width) : min(c.width, p.width ?? c.width),
-                      height: axes.contains(.vertical) ? (p.height ?? c.height) : min(c.height, p.height ?? c.height))
+        // like SwiftUI: a scroll view takes the proposed space (content narrower than it is centered)
+        return CGSize(width: min(p.width ?? c.width, 1e6), height: min(p.height ?? c.height, 1e6))
     }
     override func place(_ rect: CGRect) {
         frame = rect
@@ -494,7 +493,7 @@ public struct ScrollViewProxy {
     weak var graph: _Graph?
     public func scrollTo<ID: Hashable>(_ id: ID, anchor: UnitPoint? = nil) {
         MainActor.assumeIsolated {
-            guard let v = graph?.idViews["\(id)"] else { return }
+            guard let v = graph?.idViews["\(id)"] else { NSLog("isim SwiftUI: scrollTo(%@): no view with that id", "\(id)"); return }
             var s: UIView? = v.superview
             while let x = s, !(x is UIScrollView) { s = x.superview }
             guard let sv = s as? UIScrollView else { return }

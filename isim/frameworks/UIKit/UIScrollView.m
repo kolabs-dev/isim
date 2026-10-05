@@ -37,6 +37,10 @@ const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal = 0.998, U
 /* ---- geometry ---- */
 - (CGPoint)contentOffset { return self.bounds.origin; }
 - (void)setContentOffset:(CGPoint)o {
+    _userScrolled = YES;                       /* an explicit position sticks (only an untouched view rests at the top) */
+    [self _isim_applyOffset:o];
+}
+- (void)_isim_applyOffset:(CGPoint)o {
     CGRect b = self.bounds;
     if (CGPointEqualToPoint(o, b.origin)) return;
     b.origin = o;
@@ -97,7 +101,7 @@ const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal = 0.998, U
 - (BOOL)_canScrollY { return _alwaysBounceVertical || [self _maxOffset].y > [self _minOffset].y; }
 - (void)_clampIfIdle {
     if (_dragging || _decelerating || _anim) return;
-    if (!_userScrolled) { self.contentOffset = [self _minOffset]; return; }     /* rest at the top until the user scrolls */
+    if (!_userScrolled) { [self _isim_applyOffset:[self _minOffset]]; return; }     /* rest at the top until scrolled or positioned */
     CGPoint c = [self _clamped:self.contentOffset];
     if (!CGPointEqualToPoint(c, self.contentOffset)) self.contentOffset = c;
 }

@@ -44,7 +44,7 @@ On the device:
 | Screenshot | F12 (saves `isim-screenshot.png`) |
 
 Other devices: `bin/isim boot --device iphonese` (also `iphone13mini`, `iphone14`, `iphone15`,
-`iphone15plus`, `iphone15promax`, `iphone16pro`, `iphone16promax`, `ipadmini`, `ipadair11`,
+`iphone15plus`, `iphone15promax`, `iphone16pro`, `iphone16promax`, `iphone17`, `iphoneair`, `iphone17pro`, `iphone17promax`, `ipadmini`, `ipadair11`,
 `ipadpro11`, `ipadpro13`). `--zoom 0.8` makes the window smaller.
 
 Run a single app without the home screen: `bin/isim run apps/HelloSwiftUI.app`.
