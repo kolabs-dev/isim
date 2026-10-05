@@ -290,16 +290,11 @@ extension View {
     public func textFieldStyle<S>(_ style: S) -> some View { self }
     public func toggleStyle<S>(_ style: S) -> some View { self }
     public func contentShape<S>(_ shape: S) -> some View { self }
-    public func animation<V: Equatable>(_ animation: Animation?, value: V) -> some View { self }
 }
 public struct ScrollDismissesKeyboardMode: Sendable {
     public static let automatic = ScrollDismissesKeyboardMode(), immediately = ScrollDismissesKeyboardMode()
     public static let interactively = ScrollDismissesKeyboardMode(), never = ScrollDismissesKeyboardMode()
 }
-public struct Animation: Equatable, Sendable {
-    public static let `default` = Animation(), easeInOut = Animation(), easeIn = Animation(), easeOut = Animation(), linear = Animation(), spring = Animation()
-}
-@MainActor public func withAnimation<Result>(_ animation: Animation? = .default, _ body: () throws -> Result) rethrows -> Result { try body() }
 
 public struct SafeAreaRegions: OptionSet, Sendable {
     public let rawValue: UInt

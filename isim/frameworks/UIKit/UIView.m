@@ -183,6 +183,8 @@ enum { AK_FRAME, AK_ALPHA, AK_TRANSFORM, AK_BG, AK_COUNT };
 static void anim_set(UIView *v, int key, const double *model_old, const double *model_new, int n);
 static BOOL anim_presentation(UIView *v, int key, double *out);
 static BOOL anim_capturing(void);
+static void anim_rebase(UIView *v, int key, const double *model_old, const double *model_new, int n);
+static void anim_remove_all(UIView *v);
 
 @implementation UIView
 @synthesize layer = _layer;
@@ -201,6 +203,7 @@ static BOOL anim_capturing(void);
     return self;
 }
 - (void)dealloc { free(_anim); }
+- (void)_isim_removeAllAnimations { anim_remove_all(self); }
 - (NSString *)description {
     return [NSString stringWithFormat:@"<%@: %p; frame = (%g %g; %g %g)%s>", [self class], self, _frame.origin.x, _frame.origin.y, _frame.size.width, _frame.size.height, _hidden ? "; hidden" : ""];
 }
@@ -214,6 +217,9 @@ static BOOL anim_capturing(void);
     if (anim_capturing() && !CGRectEqualToRect(f, _frame)) {
         double a[4] = { _frame.origin.x, _frame.origin.y, _frame.size.width, _frame.size.height }, b[4] = { f.origin.x, f.origin.y, f.size.width, f.size.height };
         anim_set(self, AK_FRAME, a, b, 4);
+    } else if (_anim && !CGRectEqualToRect(f, _frame)) {
+        double a[4] = { _frame.origin.x, _frame.origin.y, _frame.size.width, _frame.size.height }, b[4] = { f.origin.x, f.origin.y, f.size.width, f.size.height };
+        anim_rebase(self, AK_FRAME, a, b, 4);
     }
     _frame = f;
     if (!CGSizeEqualToSize(old, f.size)) {
@@ -1000,3 +1006,23 @@ void isim_ui_without_animation(void (^block)(void)) { suppress_depth++; if (bloc
 void isim_ui_set_animations_enabled(BOOL e) { animations_enabled = e; }
 BOOL isim_ui_animations_enabled(void) { return animations_enabled; }
 double isim_ui_inherited_duration(void) { return anim_capturing() ? cur_ctx->duration : 0; }
+
+/* the model value changed without animation while a track runs: keep the motion, relative to the new value */
+static void anim_rebase(UIView *v, int key, const double *model_old, const double *model_new, int n) {
+    anim_track *t = &v->_anim->t[key];
+    if (!t->active) return;
+    for (int i = 0; i < n; i++) { double d = model_new[i] - model_old[i]; t->from[i] += d; t->to[i] += d; t->cur[i] += d; }
+}
+/* CALayer.removeAllAnimations(): presentation snaps to the model values; completions run with finished = NO */
+static void anim_remove_all(UIView *v) {
+    if (!v->_anim) return;
+    for (int k = 0; k < AK_COUNT; k++) {
+        anim_track *t = &v->_anim->t[k];
+        if (!t->active) continue;
+        t->active = NO;
+        __IsimAnimationGroup *g = t->group; t->group = nil;
+        if (g) { g->pending--; group_done(g, NO); }
+    }
+    [animating removeObjectIdenticalTo:v];
+    isim_ui_set_needs_display();
+}

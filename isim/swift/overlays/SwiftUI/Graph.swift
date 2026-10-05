@@ -69,6 +69,13 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             }))
         }
     }
+    // animation bookkeeping (Animation.swift)
+    var transitions: [String: AnyTransition] = [:]         // view key -> its .transition (for removal)
+    var fresh: Set<ObjectIdentifier> = []                   // views created during this render
+    var mountedViews: Set<ObjectIdentifier> = []
+    var matchedFrames: [String: CGRect] = [:]               // matchedGeometryEffect id -> window frame (last render)
+    var newMatched: [String: CGRect] = [:]
+    var matchedKeys: [String: String] = [:]                 // view key -> matched id
     var focusLinks: [(String, _FocusLink)] = []
     var submitActions: [String: () -> Void] = [:]
     /// innermost .focused() applied at or above a path
@@ -111,9 +118,15 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
                              y: node.ignoresSafeArea ? area.minY : area.minY + (area.height - min(size.height, area.height)) / 2)
         node.place(CGRect(origin: origin, size: node.ignoresSafeArea ? area.size : size))
         extendIntoSafeArea(node, offset: .zero, safe: bounds.inset(by: safeArea), bounds: bounds)
-        if let host = hostView { mount(node, in: host, order: 0) }
-        // unmount views of nodes that went away
-        for (k, v) in views where !mountedKeys.contains(k) { v.removeFromSuperview(); views[k] = nil }
+        fresh = []; mountedViews = []; newMatched = [:]
+        let oldTransitions = transitions, oldMatchedKeys = matchedKeys
+        transitions = [:]; matchedKeys = [:]
+        let update = {
+            if let host = self.hostView { self.mount(node, in: host, order: 0) }
+            self.unmountGone(oldTransitions, oldMatchedKeys)
+        }
+        if let anim = _AnimationContext.take(), hostView?.window != nil { anim._run(update) } else { update() }
+        matchedFrames = newMatched
         storage = storage.filter { usedKeys.contains($0.key) }
         changeValues = changeValues.filter { usedChanges.contains($0.key) }
         for (k, t) in tasks where !usedTasks.contains(k) { t.cancel(); tasks[k] = nil }
@@ -153,7 +166,35 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         views[key]?.removeFromSuperview()
         let v = make()
         views[key] = v
+        fresh.insert(ObjectIdentifier(v))
         return v
+    }
+
+    /// Views of nodes that went away. In an animated update the outermost ones play their removal
+    /// transition (default: fade out) and leave afterwards, together with their subviews.
+    func unmountGone(_ oldTransitions: [String: AnyTransition], _ oldMatchedKeys: [String: String]) {
+        let gone = views.filter { !mountedKeys.contains($0.key) }
+        for k in gone.keys { views[k] = nil }
+        let animating = UIView.inheritedAnimationDuration > 0
+        var leaving: [UIView] = []
+        for (k, v) in gone {
+            guard let sup = v.superview, mountedViews.contains(ObjectIdentifier(sup)) || sup === hostView else { continue }
+            if let m = oldMatchedKeys[k], newMatched[m] != nil { continue }          // its match took over
+            let t = oldTransitions[k]
+            guard animating || t?.animation != nil else { continue }
+            if case .identity? = t?.kind { continue }
+            v.isUserInteractionEnabled = false
+            let container = sup.bounds
+            let out = { v.frame = AnyTransition.apply(t?.kind ?? .opacity, insertion: false, to: v, frame: v.frame, container: container) }
+            if let a = t?.animation { a._run(out, completion: { v.removeFromSuperview() }) }
+            else {
+                out()
+                let d = UIView.inheritedAnimationDuration
+                DispatchQueue.main.asyncAfter(deadline: .now() + d + 0.05) { v.removeFromSuperview() }
+            }
+            leaving.append(v)
+        }
+        for (_, v) in gone where !leaving.contains(where: { v === $0 || v.isDescendant(of: $0) }) { v.removeFromSuperview() }
     }
 
     /// Mounts a node (and its subtree) as a subview of `parent` at `frame` (node.frame is parent-relative).
@@ -163,8 +204,33 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             return
         }
         let v = node.mountView(self)
+        mountedViews.insert(ObjectIdentifier(v))
         if v.superview !== parent { parent.addSubview(v) } else { parent.bringSubview(toFront: v) }
-        if v.frame != node.frame { v.frame = node.frame }
+        if fresh.contains(ObjectIdentifier(v)) {
+            // a new view: no animation from its initial (zero) state; the outermost new view plays its transition
+            v._isim_removeAllAnimations()
+            let matched = (node as? _MatchedNode).flatMap { matchedFrames[$0.matchKey] }.map { parent.convert($0, from: nil) }
+            let t = (node as? _TransitionNode)?.transition
+            if !fresh.contains(ObjectIdentifier(parent)), UIView.inheritedAnimationDuration > 0 || t?.animation != nil {
+                let alpha = v.alpha, transform = v.transform
+                var skip = false
+                UIView.performWithoutAnimation {
+                    if let matched { v.frame = matched }
+                    else if case .identity? = t?.kind { v.frame = node.frame; skip = true }
+                    else { v.frame = AnyTransition.apply(t?.kind ?? .opacity, insertion: true, to: v, frame: node.frame, container: parent.bounds) }
+                }
+                if !skip {
+                    let settle = { v.frame = node.frame; v.alpha = alpha; v.transform = transform }
+                    if let a = t?.animation { a._run(settle) } else { settle() }
+                }
+            } else {
+                UIView.performWithoutAnimation { v.frame = node.frame }
+            }
+        } else if v.frame != node.frame { v.frame = node.frame }
+        if let m = node as? _MatchedNode {
+            matchedKeys[m.viewKey] = m.matchKey
+            if v.window != nil { newMatched[m.matchKey] = parent.convert(node.frame, to: nil) }
+        }
         if let id = node.accessibilityIdentifier { v.accessibilityIdentifier = id }
         if let label = node.accessibilityLabel { v.accessibilityLabel = label }
         node.mountChildren(self, in: v)

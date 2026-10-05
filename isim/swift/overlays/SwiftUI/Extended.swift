@@ -1,6 +1,6 @@
 // isim SwiftUI: observable objects, more environment values, visual effects, GeometryReader,
 // ScrollView/ScrollViewReader, LazyVGrid, overlay/offset/zIndex, gestures, button styles,
-// UIViewRepresentable. Animations and transitions are accepted but changes apply immediately.
+// UIViewRepresentable. Animations and transitions: see Animation.swift.
 import UIKit
 import Combine
 
@@ -149,40 +149,6 @@ extension EnvironmentValues {
     env.layoutDirection = Locale.Language(identifier: lang).characterDirection == .rightToLeft ? .rightToLeft : .leftToRight
 }
 
-// MARK: - Animation & transitions (accepted; changes are applied without animation)
-
-extension Animation {
-    public static func easeIn(duration: Double) -> Animation { .easeIn }
-    public static func easeOut(duration: Double) -> Animation { .easeOut }
-    public static func easeInOut(duration: Double) -> Animation { .easeInOut }
-    public static func linear(duration: Double) -> Animation { .linear }
-    public static func spring(response: Double = 0.5, dampingFraction: Double = 0.825, blendDuration: Double = 0) -> Animation { .spring }
-    public static func spring(duration: Double = 0.5, bounce: Double = 0, blendDuration: Double = 0) -> Animation { .spring }
-    public static func interactiveSpring(response: Double = 0.15, dampingFraction: Double = 0.86, blendDuration: Double = 0.25) -> Animation { .spring }
-    public static var bouncy: Animation { .spring }
-    public static var snappy: Animation { .spring }
-    public static var smooth: Animation { .spring }
-    public func repeatForever(autoreverses: Bool = true) -> Animation { self }
-    public func repeatCount(_ n: Int, autoreverses: Bool = true) -> Animation { self }
-    public func delay(_ d: Double) -> Animation { self }
-    public func speed(_ s: Double) -> Animation { self }
-}
-
-public struct AnyTransition: Sendable {
-    let id: Int
-    public static let identity = AnyTransition(id: 0)
-    public static let opacity = AnyTransition(id: 1)
-    public static let scale = AnyTransition(id: 2)
-    public static let slide = AnyTransition(id: 3)
-    public static func scale(scale: CGFloat, anchor: UnitPoint = .center) -> AnyTransition { .scale }
-    public static func move(edge: Edge) -> AnyTransition { AnyTransition(id: 4) }
-    public static func offset(x: CGFloat = 0, y: CGFloat = 0) -> AnyTransition { AnyTransition(id: 5) }
-    public static func push(from edge: Edge) -> AnyTransition { AnyTransition(id: 6) }
-    public static func asymmetric(insertion: AnyTransition, removal: AnyTransition) -> AnyTransition { insertion }
-    public func combined(with other: AnyTransition) -> AnyTransition { self }
-    public func animation(_ a: Animation?) -> AnyTransition { self }
-}
-
 public struct UnitPoint: Hashable, Sendable {
     public var x: CGFloat, y: CGFloat
     public init(x: CGFloat, y: CGFloat) { self.x = x; self.y = y }
@@ -219,10 +185,6 @@ public struct Namespace: DynamicProperty, Sendable {
 }
 
 extension View {
-    public func transition(_ t: AnyTransition) -> some View { self }
-    public func animation(_ animation: Animation?) -> some View { self }
-    public func matchedGeometryEffect<ID: Hashable>(id: ID, in namespace: Namespace.ID, properties: MatchedGeometryProperties = .frame,
-                                                    anchor: UnitPoint = .center, isSource: Bool = true) -> some View { self }
     public func defersSystemGestures(on edges: Edge.Set) -> some View { self }
     public func persistentSystemOverlays(_ visibility: Visibility) -> some View { self }
     public func statusBarHidden(_ hidden: Bool = true) -> some View {
@@ -932,7 +894,6 @@ public struct Transaction: Sendable {
     public init() {}
     public init(animation: Animation?) { self.animation = animation }
 }
-public func withTransaction<R>(_ t: Transaction, _ body: () throws -> R) rethrows -> R { try body() }
 
 final class _RepresentableState<R: UIViewRepresentable>: _AnyStorage {
     let view: R.UIViewType
