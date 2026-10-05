@@ -1,9 +1,0 @@
-2026-10-05T09:48:03-03:00
-PASS: simulator is a Mach-O object with expected CPU and platform.
-PASS: device is a Mach-O object with expected CPU and platform.
-Object generation only: linking, execution, UIKit, signing and upload remain unproven.
-probe exit=0
-clang version 22.1.8
-Target: x86_64-pc-linux-gnu
-Thread model: posix
-InstalledDir: /usr/bin

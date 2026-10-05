@@ -1,0 +1,13 @@
+--- !tapi-tbd
+# Self-authored stub (NOT from Apple's SDK). Declares only the symbols these tests import
+# so ld64.lld can emit binds against /usr/lib/libSystem.B.dylib for every target tested.
+tbd-version:     4
+targets:         [ x86_64-ios-simulator, arm64-ios, x86_64-macos ]
+install-name:    '/usr/lib/libSystem.B.dylib'
+current-version: 1336
+exports:
+  - targets:     [ x86_64-ios-simulator, arm64-ios, x86_64-macos ]
+    symbols:     [ _puts, _printf, _malloc, _free, _strlen,
+                   _pthread_create, _pthread_join, _pthread_mutex_lock, _pthread_mutex_unlock,
+                   _isim_test_unimplemented, dyld_stub_binder ]
+...

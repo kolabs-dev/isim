@@ -4,7 +4,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 status=0
 run() { echo "=== $1"; shift; "$@" || status=1; }
-run "loader (experiments/03)" ../experiments/03-loader/tests/run.sh
+run "loader" tests/loader/run.sh
 run "foundation self-test" bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -3; exit ${PIPESTATUS[0]}'
 run "ui: HelloCounter (Objective-C)" tests/ui/hellocounter.sh HelloCounter
 if [ -x out/apps/HelloCounterSwift.app/HelloCounterSwift ]; then   # Swift, systemOrange light/dark

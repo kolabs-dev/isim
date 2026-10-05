@@ -121,7 +121,7 @@ API coverage details are in [docs/compatibility-matrix.md](docs/compatibility-ma
 | `isim/tools` | `isim` CLI and Xcode project builder |
 | `isim/samples`, `isim/tests` | demo apps and test suites |
 | `isim/release` | release packaging |
-| `docs/`, `experiments/`, `results/` | research notes and experiments |
+| `docs/` | research notes |
 
 ## License
 

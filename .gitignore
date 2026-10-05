@@ -1,14 +1,7 @@
-# Build products (reproducible via the build.sh / probe.sh scripts)
-build/
-experiments/*/out/
+# Build products (reproducible via the build.sh scripts)
 isim/out/
 isim/**/out/
 *.o
-
-# Third-party downloads and source clones used for evaluation (not redistributed here;
-# see experiments/04-darling for the pinned commits/URLs and fetch scripts)
-experiments/04-darling/dl/
-experiments/04-darling/src/
 
 # Never commit signing material or API credentials
 *.p8

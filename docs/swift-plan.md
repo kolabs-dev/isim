@@ -10,7 +10,7 @@ Objective-C and Swift** with the isim toolchain on Linux.
 | Full Swift stdlib for Darwin/iOS in the Linux toolchain | **Absent** (`/usr/lib/swift/iphonesimulator` missing). `swiftc -target x86_64-apple-ios15.0-simulator` fails: "unable to load standard library". |
 | Embedded Swift stdlib modules shipped | `arm64-apple-ios`, `arm64e-apple-ios`, `*-apple-none-macho`, ELF/wasm targets. **No `x86_64-apple-ios-simulator`.** |
 | Embedded Swift → `arm64-apple-ios15.0` | Rejected: module minimum deployment target is iOS 18. |
-| Embedded Swift → `arm64-apple-ios18.0` (`experiments/06-swift/hello.swift`) | **Compiles** to a Mach-O object, `LC_BUILD_VERSION platform ios minos 18.0`. Undefined symbols: `___stack_chk_fail ___stack_chk_guard _bzero _free _memmove _posix_memalign _puts` (all provided by isim's libSystem). |
+| Embedded Swift → `arm64-apple-ios18.0` (`experiments/06-swift/hello.swift`, in git history up to `bef462d`) | **Compiles** to a Mach-O object, `LC_BUILD_VERSION platform ios minos 18.0`. Undefined symbols: `___stack_chk_fail ___stack_chk_guard _bzero _free _memmove _posix_memalign _puts` (all provided by isim's libSystem). |
 
 Reproduce: `docker run --rm -v "$PWD":/w -w /w swift:6.2 swiftc -target arm64-apple-ios18.0 -enable-experimental-feature Embedded -wmo -parse-as-library -Osize -c hello.swift -o hello.dev.o`
 

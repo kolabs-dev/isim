@@ -1,7 +1,8 @@
 # Darling evaluation: loading x86_64 iOS Simulator Mach-O executables on Linux
 
 Date: 2026-10-05. Host: CachyOS, kernel 7.2.7-1-cachyos, Intel Core Ultra 9 275HX, Docker 29.8.1.
-Scripts, logs and inputs: `experiments/04-darling/`. Labels: **VERIFIED** means I ran it or read it at
+Scripts, logs and inputs: `experiments/04-darling/`, removed from the tree after commit `bef462d`
+(`git show bef462d:experiments/04-darling/...` to read them). Labels: **VERIFIED** means I ran it or read it at
 the pinned SHA. **INFERRED** means it is reasoning or documentation that I did not exercise.
 
 ## TL;DR
