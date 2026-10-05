@@ -81,6 +81,8 @@ isim/release/package.sh 0.1.0
 
 ## Status
 
+Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs/COVERAGE.md](docs/COVERAGE.md) — after editing its rows, run `isim/tools/coverage-summary.py` to refresh the summary.
+
 ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 
 | Area | Status | Notes |

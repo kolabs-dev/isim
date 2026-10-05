@@ -35,12 +35,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 75 | 19 | 15 | 85 | 194 | 44% |
+| **SwiftUI** | 78 | 21 | 15 | 80 | 194 | 46% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 8 | 1 | 0 | 8 | 17 | 50% |
 | &nbsp;&nbsp;↳ Views & controls | 13 | 2 | 1 | 22 | 38 | 37% |
 | &nbsp;&nbsp;↳ Containers & layout | 12 | 4 | 2 | 9 | 27 | 52% |
-| &nbsp;&nbsp;↳ Navigation & presentation | 5 | 3 | 1 | 14 | 23 | 28% |
+| &nbsp;&nbsp;↳ Navigation & presentation | 8 | 5 | 1 | 9 | 23 | 46% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 10 | 2 | 8 | 4 | 24 | 46% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 3 | 1 | 0 | 5 | 9 | 39% |
 | &nbsp;&nbsp;↳ Animation | 2 | 3 | 1 | 6 | 12 | 29% |
@@ -70,7 +70,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | SpriteKit | 9 | 1 | 3 | 5 | 18 | 53% |
 | GameKit (Game Center) | 4 | 1 | 3 | 6 | 14 | 32% |
 | GameController, SceneKit, RealityKit & ARKit | 0 | 0 | 0 | 5 | 5 | 0% |
-| AVFoundation & audio | 0 | 4 | 0 | 10 | 14 | 14% |
+| AVFoundation & audio | 1 | 4 | 0 | 9 | 14 | 21% |
 | Photos, Vision, Core ML & camera | 0 | 0 | 0 | 7 | 7 | 0% |
 | StoreKit | 8 | 2 | 3 | 8 | 21 | 43% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **246** | **71** | **39** | **350** | **706** | **40%** |
+| **All areas** | **250** | **73** | **39** | **344** | **706** | **41%** |
 
 ---
 
@@ -481,11 +481,11 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `toolbarBackground`, `toolbarColorScheme`, `toolbar(.hidden)` | ❌ | |
 | `TabView` (tab bar, `.tabItem`, `.badge`, selection) | ❌ | |
 | `TabView` `.tabViewStyle(.page)` | ❌ | |
-| `.sheet(isPresented:)` / `.sheet(item:)` | ❌ | UIKit page sheets exist, not wired to SwiftUI yet |
-| `.fullScreenCover` | ❌ | |
-| `.popover` | ❌ | |
-| `.alert` | ❌ | |
-| `.confirmationDialog` | ❌ | |
+| `.sheet(isPresented:)` / `.sheet(item:)` | ✅ | page sheet with swipe-down dismiss; content gets the environment + `dismiss`; tested (HelloPresentations) |
+| `.fullScreenCover` | ✅ | slides up full screen; tested |
+| `.popover` | 🟡 | shown as a sheet (iPhone behaviour); no arrow popovers on iPad |
+| `.alert` | 🟡 | title, message, button roles (UIAlertController); no text fields in alerts; tested |
+| `.confirmationDialog` | ✅ | action sheet with Cancel; tested |
 | `presentationDetents`, `presentationDragIndicator`, `interactiveDismissDisabled` | ❌ | |
 | `@Environment(\.dismiss)` | 🟡 | pops the navigation stack; nothing else to dismiss |
 | `.searchable` | ❌ | |
@@ -927,7 +927,7 @@ isim's Game Center is local: one player per device, no Apple servers.
 | `AVAudioPlayer` (play, pause, stop, seek, loops, volume, delegate) | 🟡 | `rate`/`pan`/metering not applied; reports 1 channel |
 | `AVAudioEngine`, `AVAudioPlayerNode`, `AVAudioMixerNode` | 🟡 | buffer/file scheduling and mixing; no effects, taps or 3D audio |
 | `AVAudioFile`, `AVAudioPCMBuffer`, `AVAudioFormat` | 🟡 | reads linear-PCM CAF and WAV only |
-| Compressed audio decoding (AAC/M4A, MP3, ALAC) | ❌ | fail to open today; host GStreamer decoding is in progress (uncommitted on 2026-10-05) |
+| Compressed audio decoding (AAC/M4A, MP3, ALAC) | ✅ | decoded by the host's ffmpeg or gst-launch-1.0 (48 kHz stereo); needs one of them installed |
 | Effects (`AVAudioUnitReverb`, EQ, time pitch) | ❌ | |
 | Recording (`AVAudioRecorder`, input node) | ❌ | |
 | `AVPlayer`, `AVPlayerItem`, `AVQueuePlayer`, `AVPlayerLayer` (video/streaming) | ❌ | |
