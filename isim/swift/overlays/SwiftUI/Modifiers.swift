@@ -131,9 +131,13 @@ extension View {
         _modify { ctx, c in _PriorityNode(path: ctx.path, priority: value, child: _resolve(c, ctx.child("lp"))) }
     }
     public func fixedSize() -> some View { self }
+    public func monospacedDigitFont() -> some View { self }
     public func fixedSize(horizontal: Bool, vertical: Bool) -> some View { self }
-    public func ignoresSafeArea(_ regions: Any? = nil, edges: Edge.Set = .all) -> some View { self }
-    public func id<ID: Hashable>(_ id: ID) -> some View { _modify { ctx, c in _resolve(c, ctx.child("id:\(id)")) } }
+    public func ignoresSafeArea(_ regions: SafeAreaRegions = .all, edges: Edge.Set = .all) -> some View {
+        _modify { ctx, c in _IgnoreSafeAreaNode(path: ctx.path, edges: edges, child: _resolve(c, ctx.child("isa"))) }
+    }
+    public func edgesIgnoringSafeArea(_ edges: Edge.Set) -> some View { ignoresSafeArea(.all, edges: edges) }
+    public func id<ID: Hashable>(_ id: ID) -> some View { _modify { ctx, c in _IDNode(path: ctx.path, tag: "\(id)", child: _resolve(c, ctx.child("id:\(id)"))) } }
     public func tag<V: Hashable>(_ tag: V) -> some View { self }
     public func clipped() -> some View { self }
 }
@@ -275,7 +279,6 @@ extension View {
         _modify { ctx, c in _ButtonNode(path: ctx.path, child: _resolve(c, ctx.child("tap")), action: action, inList: ctx.environment._inList, enabled: true) }
     }
     public func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> some View { self }
-    public func buttonStyle<S>(_ style: S) -> some View { self }
     public func labelStyle<S>(_ style: S) -> some View { self }
     public func textFieldStyle<S>(_ style: S) -> some View { self }
     public func toggleStyle<S>(_ style: S) -> some View { self }
@@ -290,3 +293,19 @@ public struct Animation: Equatable, Sendable {
     public static let `default` = Animation(), easeInOut = Animation(), easeIn = Animation(), easeOut = Animation(), linear = Animation(), spring = Animation()
 }
 @MainActor public func withAnimation<Result>(_ animation: Animation? = .default, _ body: () throws -> Result) rethrows -> Result { try body() }
+
+public struct SafeAreaRegions: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let container = SafeAreaRegions(rawValue: 1), keyboard = SafeAreaRegions(rawValue: 2), all = SafeAreaRegions(rawValue: 3)
+}
+
+/// Extends past the safe area on the given edges when it is laid out against them (see _Graph.extendIntoSafeArea).
+final class _IgnoreSafeAreaNode: _WrapperNode {
+    let edges: Edge.Set
+    init(path: String, edges: Edge.Set, child: _Node) { self.edges = edges; super.init(path: path, child: child) }
+    override var ignoresSafeArea: Bool { true }
+    override var layoutPriority: Double { child.layoutPriority }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
+    override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
+}

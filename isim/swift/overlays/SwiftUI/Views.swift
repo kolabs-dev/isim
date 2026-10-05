@@ -76,6 +76,13 @@ public struct Color: View, ShapeStyle, Hashable, CustomStringConvertible, _Primi
         provider = _ColorProvider("rgb\(red),\(green),\(blue),\(opacity)") { UIColor(red: red, green: green, blue: blue, alpha: opacity) }
     }
     public init(white: Double, opacity: Double = 1) { provider = _ColorProvider("w\(white),\(opacity)") { UIColor(white: white, alpha: opacity) } }
+    public enum RGBColorSpace: Hashable, Sendable { case sRGB, sRGBLinear, displayP3 }
+    public init(_ space: RGBColorSpace, red: Double, green: Double, blue: Double, opacity: Double = 1) { self.init(red: red, green: green, blue: blue, opacity: opacity) }
+    public init(_ space: RGBColorSpace, white: Double, opacity: Double = 1) { self.init(white: white, opacity: opacity) }
+    public init(hue: Double, saturation: Double, brightness: Double, opacity: Double = 1) {
+        provider = _ColorProvider("hsb\(hue),\(saturation),\(brightness),\(opacity)") { UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: opacity) }
+    }
+    public init(cgColor: CGColor) { self.init(uiColor: UIColor(cgColor: cgColor)) }
     public var uiColor: UIColor { provider.make() }
     public var description: String { provider.name }
     public func opacity(_ o: Double) -> Color { let base = self; return Color("\(provider.name)@\(o)") { base.uiColor.withAlphaComponent(o) } }
@@ -163,6 +170,8 @@ public struct Font: Hashable, Sendable {
     var weight: Weight
     var design: Design = .default
     var isItalic = false
+    var customName: String?
+    var weightSet = false
     static func style(_ s: TextStyle) -> Font {
         switch s {
         case .largeTitle: return Font(size: 34, weight: .regular)
@@ -187,11 +196,29 @@ public struct Font: Hashable, Sendable {
     public static func system(size: CGFloat, weight: Weight? = nil, design: Design? = nil) -> Font {
         Font(size: size, weight: weight ?? .regular, design: design ?? .default)
     }
-    public func bold() -> Font { var f = self; f.weight = .bold; return f }
-    public func weight(_ w: Weight) -> Font { var f = self; f.weight = w; return f }
+    public func bold() -> Font { var f = self; f.weight = .bold; f.weightSet = true; return f }
+    public func weight(_ w: Weight) -> Font { var f = self; f.weight = w; f.weightSet = true; return f }
+    /// A font by PostScript or family name (bundled with UIAppFonts or installed); falls back to the system font.
+    public static func custom(_ name: String, size: CGFloat) -> Font { var f = Font(size: size, weight: .regular); f.customName = name; return f }
+    public static func custom(_ name: String, size: CGFloat, relativeTo style: TextStyle) -> Font { custom(name, size: size) }
+    public static func custom(_ name: String, fixedSize: CGFloat) -> Font { custom(name, size: fixedSize) }
+    public func monospacedDigit() -> Font { self }
+    public func leading(_ l: Leading) -> Font { self }
+    public enum Leading: Sendable { case standard, tight, loose }
+    public func width(_ w: Width) -> Font { self }
+    public struct Width: Hashable, Sendable { let v: Double; public static let compressed = Width(v: -0.3), condensed = Width(v: -0.2), standard = Width(v: 0), expanded = Width(v: 0.2) }
     public func italic() -> Font { var f = self; f.isItalic = true; return f }
     public func monospaced() -> Font { var f = self; f.design = .monospaced; return f }
+    static let weightNames: [(CGFloat, String)] = [(-0.8, "Thin"), (-0.6, "ExtraLight"), (-0.4, "Light"), (0, "Regular"), (0.23, "Medium"),
+                                                   (0.3, "SemiBold"), (0.4, "Bold"), (0.56, "ExtraBold"), (0.62, "Black")]
     var uiFont: UIFont {
+        if let name = customName {
+            if weightSet, weight.value != 0, let wn = Font.weightNames.first(where: { $0.0 == weight.value })?.1 {
+                let base = name.split(separator: "-").first.map(String.init) ?? name
+                if let f = UIFont(name: "\(base)-\(wn)", size: size) { return f }
+            }
+            if let f = UIFont(name: name, size: size) { return f }
+        }
         if design == .monospaced { return UIFont.monospacedSystemFont(ofSize: size, weight: UIFont.Weight(rawValue: weight.value)) }
         return UIFont.systemFont(ofSize: size, weight: UIFont.Weight(rawValue: weight.value))
     }
@@ -313,6 +340,7 @@ public struct Image: View, _PrimitiveView {
     let source: Source
     var isResizable = false
     var renderingMode: TemplateRenderingMode?
+    var interpolationMode: Interpolation?
     public enum TemplateRenderingMode: Sendable { case template, original }
     public enum Scale: Sendable { case small, medium, large }
     public init(systemName: String) { source = .system(systemName) }
@@ -332,11 +360,14 @@ public struct Image: View, _PrimitiveView {
         }
         if renderingMode == .template { template = true } else if renderingMode == .original { template = false }
         let color = (ctx.environment._foreground ?? .primary).uiColor
-        return _ImageNode(path: ctx.path, image: img, tint: template ? color : nil, resizable: isResizable)
+        let node = _ImageNode(path: ctx.path, image: img, tint: template ? color : nil, resizable: isResizable)
+        node.nearest = interpolationMode == Interpolation.none
+        return node
     }
 }
 final class _ImageNode: _Node {
     let image: UIImage?, tint: UIColor?, resizable: Bool
+    var nearest = false
     init(path: String, image: UIImage?, tint: UIColor?, resizable: Bool) {
         self.image = image; self.tint = tint; self.resizable = resizable; super.init(path: path, children: [])
     }
@@ -350,6 +381,7 @@ final class _ImageNode: _Node {
         v.image = tint != nil ? image?.withRenderingMode(.alwaysTemplate) : image?.withRenderingMode(.alwaysOriginal)
         if let t = tint { v.tintColor = t }
         v.contentMode = resizable ? .scaleToFill : .center
+        v.layer.magnificationFilter = nearest ? .nearest : .linear
         return v
     }
 }
@@ -419,6 +451,7 @@ extension Label where Title == Text, Icon == Image {
     public init(_ titleKey: LocalizedStringKey, systemImage name: String) { self.init(title: { Text(titleKey) }, icon: { Image(systemName: name) }) }
     @_disfavoredOverload public init<S: StringProtocol>(_ title: S, systemImage name: String) { self.init(title: { Text(title) }, icon: { Image(systemName: name) }) }
     public init(_ titleKey: LocalizedStringKey, image name: String) { self.init(title: { Text(titleKey) }, icon: { Image(name) }) }
+    @_disfavoredOverload public init<S: StringProtocol>(_ title: S, image name: String) { self.init(title: { Text(title) }, icon: { Image(name) }) }
 }
 
 // MARK: - Button & Link
@@ -436,6 +469,18 @@ public struct Button<Label: View>: View, _PrimitiveView {
     func _makeNode(_ ctx: _Context) -> _Node {
         let env = ctx.environment
         let tint: Color = role == .destructive ? .red : (env._tint ?? .accentColor)
+        if let style = env._buttonStyle, !env._inList {
+            // custom ButtonStyle: the style draws the label; the pressed state lives in the graph
+            let key = ctx.path + "#pressed"
+            let g = ctx.graph
+            let st = (g.storage[key] as? _StateStorage<Bool>) ?? { let x = _StateStorage(false); g.storage[key] = x; return x }()
+            g.usedKeys.insert(key)
+            let labelNode = _resolve(label, ctx.child("label").with { $0._buttonStyle = nil })
+            let body = style.make(ButtonStyleConfiguration(role: role, label: .init(node: labelNode), isPressed: st.value))
+            let bnode = _ButtonNode(path: ctx.path, child: _resolve(body, ctx.child("style").with { $0._buttonStyle = nil }), action: action, inList: false, enabled: env.isEnabled)
+            bnode.onPressed = { [weak g] p in if st.value != p { st.value = p; g?.invalidate() } }
+            return bnode
+        }
         let labelCtx = ctx.child("label").with { $0._foreground = $0._foreground ?? tint }
         let node = _resolve(label, labelCtx)
         return _ButtonNode(path: ctx.path, child: node, action: action, inList: env._inList, enabled: env.isEnabled)
@@ -461,6 +506,7 @@ extension Button where Label == SwiftUI.Label<Text, Image> {
 
 final class _ButtonNode: _WrapperNode {
     let action: () -> Void, inList: Bool, enabled: Bool
+    var onPressed: ((Bool) -> Void)?
     init(path: String, child: _Node, action: @escaping () -> Void, inList: Bool, enabled: Bool) {
         self.action = action; self.inList = inList; self.enabled = enabled
         super.init(path: path, child: child)
@@ -473,7 +519,8 @@ final class _ButtonNode: _WrapperNode {
         let c = g.view(viewKey) { _SUIControl(frame: .zero) }
         c.action = action
         c.isEnabled = enabled
-        c.alpha = enabled ? 1 : 0.4
+        c.onPressed = onPressed
+        c.alpha = enabled || onPressed != nil ? 1 : 0.4
         return c
     }
 }
@@ -481,13 +528,20 @@ final class _ButtonNode: _WrapperNode {
 /// Tappable container: dims while pressed, fires on touch up inside.
 final class _SUIControl: UIControl {
     var action: (() -> Void)?
+    /// set for custom button styles: they show the pressed state themselves
+    var onPressed: ((Bool) -> Void)?
     override init(frame: CGRect) {
         super.init(frame: frame)
         addTarget(self, action: #selector(fire), for: .touchUpInside)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func fire() { action?() }
-    override var isHighlighted: Bool { didSet { for s in subviews { s.alpha = isHighlighted ? 0.25 : 1 } } }
+    override var isHighlighted: Bool {
+        didSet {
+            if let p = onPressed { if isHighlighted != oldValue { p(isHighlighted) } }
+            else { for s in subviews { s.alpha = isHighlighted ? 0.25 : 1 } }
+        }
+    }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard !isHidden, alpha > 0.01, isUserInteractionEnabled, self.point(inside: point, with: event) else { return nil }
         return self

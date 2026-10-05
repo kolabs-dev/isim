@@ -11,7 +11,7 @@
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
 #   isim build -project X.xcodeproj [-target T] [-configuration Debug]   build an Xcode project for isim
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
-#   device options: --device NAME --zoom N --dark --headless --script "..."; device data: ISIM_DATA (~/.local/share/isim)
+#   device options: --device NAME --zoom N --dark --headless --script "..." --control FIFO (live script commands, one per line); device data: ISIM_DATA (~/.local/share/isim)
 set -euo pipefail
 BIN=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
 SDK=${ISIM_SDK:-$BIN/../sdk}
@@ -23,6 +23,7 @@ device_opts() {   # sets env from device options; leaves the rest in REST
     case "$1" in
       --device) export ISIM_DEVICE=$2; shift 2 ;;
       --zoom) export ISIM_ZOOM=$2; shift 2 ;;
+      --control) export ISIM_CONTROL=$2; [ -p "$2" ] || mkfifo "$2"; shift 2 ;;
       --dark) export ISIM_APPEARANCE=dark; shift ;;
       --headless) export ISIM_HEADLESS=1; shift ;;
       --script) export ISIM_SCRIPT=$2; shift 2 ;;
@@ -70,6 +71,7 @@ case "$cmd" in
       case "$1" in
         --device) export ISIM_DEVICE=$2; shift 2 ;;
         --zoom) export ISIM_ZOOM=$2; shift 2 ;;
+      --control) export ISIM_CONTROL=$2; [ -p "$2" ] || mkfifo "$2"; shift 2 ;;
         --dark) export ISIM_APPEARANCE=dark; shift ;;
         --headless) export ISIM_HEADLESS=1; shift ;;
         --script) export ISIM_SCRIPT=$2; shift 2 ;;

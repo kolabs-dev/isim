@@ -32,6 +32,8 @@ NS_SWIFT_UI_ACTOR
 @property (class, nonatomic, readonly) UIApplication *sharedApplication;
 @property (nullable, nonatomic, assign) id<UIApplicationDelegate> delegate;
 @property (nonatomic, readonly) UIApplicationState applicationState;
+@property (nonatomic, readonly, getter=isStatusBarHidden) BOOL statusBarHidden;
+- (void)_isim_setStatusBarHidden:(BOOL)hidden;      /* isim-private: SwiftUI statusBarHidden(_:) */
 @property (nullable, nonatomic, readonly) UIWindow *keyWindow;
 @property (nonatomic, readonly) NSArray<__kindof UIWindow *> *windows;
 @property (nonatomic, readonly) NSSet<UIScene *> *connectedScenes;

@@ -54,6 +54,21 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         urlHandlers[path] = h
         if !pendingURLs.isEmpty { let urls = pendingURLs; pendingURLs = []; postRender.append { for u in urls { h(u) } } }
     }
+    var subscriptions: [String: (id: ObjectIdentifier, c: AnyCancellable)] = [:]
+    var usedSubscriptions: Set<String> = []
+    var receiveActions: [String: AnyObject] = [:]
+    var idViews: [String: UIView] = [:]
+    var appObservers: [NSObjectProtocol] = []
+    func installAppObservers() {
+        // scenePhase follows the application state
+        let names = [UIApplication.didBecomeActiveNotification, UIApplication.willResignActiveNotification,
+                     UIApplication.didEnterBackgroundNotification, UIApplication.willEnterForegroundNotification]
+        for n in names {
+            appObservers.append(NotificationCenter.default.addObserver(forName: n, object: nil, queue: nil, using: { [weak self] (_: NSNotification) in
+                MainActor.assumeIsolated { self?.invalidate() }
+            }))
+        }
+    }
     var focusLinks: [(String, _FocusLink)] = []
     var submitActions: [String: () -> Void] = [:]
     /// innermost .focused() applied at or above a path
@@ -64,7 +79,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         submitActions.filter { path.hasPrefix($0.key) }.max { $0.key.count < $1.key.count }?.value
     }
 
-    init(root: @escaping () -> any View) { self.root = root; installURLObserver() }
+    init(root: @escaping () -> any View) { self.root = root; installURLObserver(); installAppObservers() }
 
     /// Callable from any context (bindings, UIKit callbacks); state changes happen on the main thread.
     nonisolated func invalidate() {
@@ -83,8 +98,10 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         defer { rendering = false }
         self.safeArea = safeArea
         usedKeys = []; mountedKeys = []; usedChanges = []; usedTasks = []; usedAppear = []; postRender = []; focusLinks = []; submitActions = [:]; urlHandlers = [:]
+        usedSubscriptions = []; idViews = [:]
         var env = EnvironmentValues()
         env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
+        _systemEnvironment(&env, traits: traits)
         let ctx = _Context(graph: self, path: "root", environment: env, nav: nil)
         let node = _resolve(root(), ctx)
         // layout: content that does not manage the safe area itself stays inside it
@@ -93,17 +110,40 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         let origin = CGPoint(x: area.minX + (area.width - min(size.width, area.width)) / 2,
                              y: node.ignoresSafeArea ? area.minY : area.minY + (area.height - min(size.height, area.height)) / 2)
         node.place(CGRect(origin: origin, size: node.ignoresSafeArea ? area.size : size))
+        extendIntoSafeArea(node, offset: .zero, safe: bounds.inset(by: safeArea), bounds: bounds)
         if let host = hostView { mount(node, in: host, order: 0) }
         // unmount views of nodes that went away
         for (k, v) in views where !mountedKeys.contains(k) { v.removeFromSuperview(); views[k] = nil }
         storage = storage.filter { usedKeys.contains($0.key) }
         changeValues = changeValues.filter { usedChanges.contains($0.key) }
         for (k, t) in tasks where !usedTasks.contains(k) { t.cancel(); tasks[k] = nil }
+        for k in subscriptions.keys where !usedSubscriptions.contains(k) { subscriptions[k] = nil; receiveActions[k] = nil }
         for k in appeared where !usedAppear.contains(k) { appeared.remove(k); disappearActions.removeValue(forKey: k)?() }
         let work = postRender
         postRender = []
         for w in work { w() }
         if pending { pending = false; hostView?.setNeedsLayout() }
+    }
+
+    /// .ignoresSafeArea(): a view that reaches a safe-area edge grows to the screen edge (like SwiftUI).
+    func extendIntoSafeArea(_ n: _Node, offset: CGPoint, safe: CGRect, bounds: CGRect) {
+        let abs = n.frame.offsetBy(dx: offset.x, dy: offset.y)
+        if let i = n as? _IgnoreSafeAreaNode {
+            var f = abs
+            let e = i.edges, eps: CGFloat = 0.5
+            if e.contains(.top), f.minY <= safe.minY + eps, f.minY > bounds.minY { f.size.height += f.minY - bounds.minY; f.origin.y = bounds.minY }
+            if e.contains(.bottom), f.maxY >= safe.maxY - eps, f.maxY < bounds.maxY { f.size.height = bounds.maxY - f.minY }
+            if e.contains(.leading), f.minX <= safe.minX + eps, f.minX > bounds.minX { f.size.width += f.minX - bounds.minX; f.origin.x = bounds.minX }
+            if e.contains(.trailing), f.maxX >= safe.maxX - eps, f.maxX < bounds.maxX { f.size.width = bounds.maxX - f.minX }
+            if f != abs {
+                n.frame = f.offsetBy(dx: -offset.x, dy: -offset.y)
+                n.children[0].place(CGRect(origin: .zero, size: f.size))
+            }
+            return
+        }
+        // stacks and other containers splice group children with container-relative frames
+        let base = n.transparent ? offset : CGPoint(x: abs.minX, y: abs.minY)
+        for c in n.children { extendIntoSafeArea(c, offset: base, safe: safe, bounds: bounds) }
     }
 
     /// Reuses the UIKit view for a node position (same class), or creates it.
@@ -293,11 +333,13 @@ final class _ZStackNode: _Node {
         frame = rect
         for c in _flatten(children) {
             let cs = c.sizeThatFits(_Proposal(width: rect.width, height: rect.height))
-            c.place(_align(cs, in: CGRect(origin: .zero, size: rect.size), alignment))
+            c.place(_align(CGSize(width: min(cs.width, rect.width), height: min(cs.height, rect.height)), in: CGRect(origin: .zero, size: rect.size), alignment))
         }
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {
-        for (i, c) in _flatten(children).enumerated() { g.mount(c, in: view, order: i) }
+        // later children draw on top; .zIndex reorders (stable)
+        let items = _flatten(children).enumerated().map { ($0.offset, $0.element, ($0.element as? _EffectNode)?.zIndexValue ?? 0) }
+        for (i, c, _) in items.sorted(by: { $0.2 != $1.2 ? $0.2 < $1.2 : $0.0 < $1.0 }) { g.mount(c, in: view, order: i) }
     }
 }
 

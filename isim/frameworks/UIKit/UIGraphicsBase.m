@@ -182,7 +182,22 @@ const UIFontTextStyle UIFontTextStyleLargeTitle = @"UICTFontTextStyleTitle0", UI
     UIFontTextStyleFootnote = @"UICTFontTextStyleFootnote", UIFontTextStyleCaption1 = @"UICTFontTextStyleCaption1",
     UIFontTextStyleCaption2 = @"UICTFontTextStyleCaption2";
 
-@implementation UIFont { CGFloat _size, _weight; BOOL _mono; NSString *_name; }
+/* App fonts (Info.plist UIAppFonts), registered once per process before the first font lookup. */
+void isim_ui_register_app_fonts(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSBundle *b = NSBundle.mainBundle;
+        for (NSString *file in [b objectForInfoDictionaryKey:@"UIAppFonts"] ?: @[]) {
+            if (![file isKindOfClass:[NSString class]]) continue;
+            NSString *path = [b.bundlePath stringByAppendingPathComponent:file];
+            if (![NSFileManager.defaultManager fileExistsAtPath:path]) path = [b pathForResource:file.stringByDeletingPathExtension ofType:file.pathExtension];
+            if (path && isim_font_register(path.UTF8String)) NSLog(@"isim: registered app font %@", file);
+            else NSLog(@"isim: UIAppFonts entry %@ not found in the bundle", file);
+        }
+    });
+}
+
+@implementation UIFont { CGFloat _size, _weight; BOOL _mono; NSString *_name, *_family; }
 + (UIFont *)_size:(CGFloat)s weight:(CGFloat)w mono:(BOOL)m name:(NSString *)n {
     UIFont *f = [UIFont new]; f->_size = s; f->_weight = w; f->_mono = m; f->_name = n; return f;
 }
@@ -195,11 +210,42 @@ const UIFontTextStyle UIFontTextStyleLargeTitle = @"UICTFontTextStyleTitle0", UI
 }
 + (UIFont *)monospacedDigitSystemFontOfSize:(CGFloat)s weight:(UIFontWeight)w { return [self systemFontOfSize:s weight:w]; }
 + (UIFont *)monospacedSystemFontOfSize:(CGFloat)s weight:(UIFontWeight)w { return [self _size:s weight:w mono:YES name:@".SFMono-Regular"]; }
-+ (UIFont *)fontWithName:(NSString *)name size:(CGFloat)s {
-    BOOL bold = [name.lowercaseString containsString:@"bold"];
-    BOOL mono = [name.lowercaseString containsString:@"mono"] || [name.lowercaseString containsString:@"courier"] || [name.lowercaseString containsString:@"menlo"];
-    return [self _size:s weight:bold ? UIFontWeightBold : UIFontWeightRegular mono:mono name:name];
+/* Fonts that ship with iOS: available by name even when the host lacks them (drawn with a similar host font). */
+static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
+    static NSArray *mono_fams, *fams;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        mono_fams = @[@"Menlo", @"Courier", @"CourierNewPS", @"Courier New", @"SFMono", @".SFMono"];
+        fams = @[@"Helvetica", @"HelveticaNeue", @"Helvetica Neue", @"Arial", @"ArialMT", @"Avenir", @"AvenirNext", @"Avenir Next",
+                 @"Georgia", @"TimesNewRomanPS", @"Times New Roman", @"Palatino", @"Futura", @"GillSans", @"Gill Sans", @"Verdana",
+                 @"TrebuchetMS", @"AmericanTypewriter", @"Baskerville", @"ChalkboardSE", @"Didot", @"Optima", @"Rockwell",
+                 @"Noteworthy", @"MarkerFelt", @"Kailasa", @"HiraginoSans", @"PingFangSC", @"AppleSDGothicNeo", @".SFUI", @".SFUIText", @"SFProText", @"SFProDisplay"];
+    });
+    NSString *base = [name componentsSeparatedByString:@"-"].firstObject;
+    for (NSString *f in mono_fams) if ([base isEqualToString:f]) { *mono = YES; return YES; }
+    for (NSString *f in fams) if ([base isEqualToString:f]) { *mono = NO; return YES; }
+    return NO;
 }
++ (UIFont *)fontWithName:(NSString *)name size:(CGFloat)s {
+    if (!name.length) return nil;
+    isim_ui_register_app_fonts();
+    char fam[256]; double w = 0; int italic = 0;
+    if (isim_font_lookup(name.UTF8String, fam, sizeof fam, &w, &italic)) {
+        UIFont *f = [self _size:s weight:w mono:NO name:name];
+        f->_family = [NSString stringWithUTF8String:fam];
+        return f;
+    }
+    BOOL mono = NO;
+    if (ios_builtin_family(name, &mono)) {
+        NSString *l = name.lowercaseString;
+        CGFloat weight = [l containsString:@"black"] || [l containsString:@"heavy"] ? UIFontWeightHeavy : [l containsString:@"bold"] ? UIFontWeightBold
+                       : [l containsString:@"semibold"] ? UIFontWeightSemibold : [l containsString:@"medium"] ? UIFontWeightMedium
+                       : [l containsString:@"light"] ? UIFontWeightLight : UIFontWeightRegular;
+        return [self _size:s weight:weight mono:mono name:name];
+    }
+    return nil;                 /* like iOS: no font with that name is available */
+}
++ (NSArray<NSString *> *)familyNames { return @[@"Helvetica", @"Menlo"]; }
 + (UIFont *)preferredFontForTextStyle:(UIFontTextStyle)style {
     NSDictionary *sizes = @{ UIFontTextStyleLargeTitle: @34, UIFontTextStyleTitle1: @28, UIFontTextStyleTitle2: @22, UIFontTextStyleTitle3: @20,
                              UIFontTextStyleHeadline: @17, UIFontTextStyleBody: @17, UIFontTextStyleCallout: @16, UIFontTextStyleSubheadline: @15,
@@ -211,8 +257,9 @@ const UIFontTextStyle UIFontTextStyleLargeTitle = @"UICTFontTextStyleTitle0", UI
 + (CGFloat)buttonFontSize { return 18; }
 + (CGFloat)smallSystemFontSize { return 12; }
 + (CGFloat)systemFontSize { return 14; }
-- (UIFont *)fontWithSize:(CGFloat)s { return [UIFont _size:s weight:_weight mono:_mono name:_name]; }
-- (NSString *)familyName { return _mono ? @".SF Mono" : @".SF UI Text"; }
+- (UIFont *)fontWithSize:(CGFloat)s { UIFont *f = [UIFont _size:s weight:_weight mono:_mono name:_name]; f->_family = _family; return f; }
+- (NSString *)familyName { return _family ?: (_mono ? @".SF Mono" : @".SF UI Text"); }
+- (NSString *)_isim_family { return _family; }
 - (NSString *)fontName { return _name; }
 - (CGFloat)pointSize { return _size; }
 - (CGFloat)ascender { return _size * 0.952; }
@@ -224,7 +271,7 @@ const UIFontTextStyle UIFontTextStyleLargeTitle = @"UICTFontTextStyleTitle0", UI
 - (CGFloat)_isim_weight { return _weight; }
 - (BOOL)_isim_mono { return _mono; }
 - (id)copyWithZone:(NSZone *)z { return self; }
-- (BOOL)isEqual:(UIFont *)o { return [o isKindOfClass:[UIFont class]] && o->_size == _size && o->_weight == _weight && o->_mono == _mono; }
+- (BOOL)isEqual:(UIFont *)o { return [o isKindOfClass:[UIFont class]] && o->_size == _size && o->_weight == _weight && o->_mono == _mono && (o->_family == _family || [o->_family isEqualToString:_family]); }
 - (NSUInteger)hash { return (NSUInteger)(_size * 100) ^ (NSUInteger)(_weight * 1000); }
 - (NSString *)description { return [NSString stringWithFormat:@"<UICTFont: %p> font-family: \"%@\"; font-weight: %g; font-size: %.2fpt", self, self.familyName, _weight, _size]; }
 @end
@@ -234,13 +281,13 @@ CGSize isim_ui_measure(NSString *text, UIFont *font, CGFloat maxWidth, NSInteger
     if (!text.length) return CGSizeZero;
     if (!font) font = [UIFont systemFontOfSize:17];
     double w, h;
-    isim_text_measure(text.UTF8String, font.pointSize, font._isim_weight, font._isim_mono, maxWidth, (int)lines, &w, &h);
+    isim_text_measure_f(text.UTF8String, font._isim_family.UTF8String, font.pointSize, font._isim_weight, font._isim_mono, maxWidth, (int)lines, &w, &h);
     return CGSizeMake(w, h);
 }
 CGPoint isim_ui_text_end_point(NSString *text, UIFont *font, CGFloat maxWidth) {
     if (!font) font = [UIFont systemFontOfSize:17];
     double x = 0, y = 0;
-    if (text.length) isim_text_end_point(text.UTF8String, font.pointSize, font._isim_weight, font._isim_mono, maxWidth, &x, &y);
+    if (text.length) isim_text_end_point_f(text.UTF8String, font._isim_family.UTF8String, font.pointSize, font._isim_weight, font._isim_mono, maxWidth, &x, &y);
     return CGPointMake(x, y);
 }
 void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect r, NSTextAlignment align, NSInteger lines, CGFloat alpha) {
@@ -250,14 +297,15 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect r, N
     CGSize sz = isim_ui_measure(text, font, lines == 1 ? 0 : r.size.width, lines);
     double y = r.origin.y + (r.size.height - MIN(sz.height, r.size.height)) / 2;
     int a = align == NSTextAlignmentCenter ? 1 : align == NSTextAlignmentRight ? 2 : 0;
-    isim_text_draw(text.UTF8String, r.origin.x, y, r.size.width, font.pointSize, font._isim_weight, font._isim_mono, a, (int)(lines == 1 ? 1 : lines), c);
+    isim_text_draw_f(text.UTF8String, font._isim_family.UTF8String, r.origin.x, y, r.size.width, font.pointSize, font._isim_weight, font._isim_mono, a, (int)(lines == 1 ? 1 : lines), c);
 }
 
 /* ================= CALayer ================= */
 CALayerCornerCurve const kCACornerCurveCircular = @"circular", kCACornerCurveContinuous = @"continuous";
+CALayerContentsFilter const kCAFilterNearest = @"nearest", kCAFilterLinear = @"linear", kCAFilterTrilinear = @"trilinear";
 @implementation CALayer
 + (instancetype)layer { return [self new]; }
-- (instancetype)init { if ((self = [super init])) { _opacity = 1; _cornerCurve = kCACornerCurveCircular; _shadowOffset = CGSizeMake(0, -3); } return self; }
+- (instancetype)init { if ((self = [super init])) { _opacity = 1; _cornerCurve = kCACornerCurveCircular; _shadowOffset = CGSizeMake(0, -3); _magnificationFilter = kCAFilterLinear; _minificationFilter = kCAFilterLinear; } return self; }
 - (void)dealloc { if (_borderColor) CGColorRelease(_borderColor); if (_backgroundColor) CGColorRelease(_backgroundColor); if (_shadowColor) CGColorRelease(_shadowColor); }
 - (void)setBorderColor:(CGColorRef)c { CGColorRetain(c); if (_borderColor) CGColorRelease(_borderColor); _borderColor = c; isim_ui_set_needs_display(); }
 - (void)setBackgroundColor:(CGColorRef)c { CGColorRetain(c); if (_backgroundColor) CGColorRelease(_backgroundColor); _backgroundColor = c; isim_ui_set_needs_display(); }

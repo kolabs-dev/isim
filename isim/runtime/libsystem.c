@@ -57,6 +57,14 @@ static clockid_t clock_of(int d) {
 }
 static int d_clock_gettime(int clk, struct timespec *ts) { clockid_t c = clock_of(clk); if (c == (clockid_t)-1) { errno = EINVAL; return -1; } return clock_gettime(c, ts); }
 static int d_clock_getres(int clk, struct timespec *ts) { clockid_t c = clock_of(clk); if (c == (clockid_t)-1) { errno = EINVAL; return -1; } return clock_getres(c, ts); }
+/* Darwin's memset_pattern4/8/16: fill with a repeated 4/8/16-byte pattern */
+static void fill_pattern(void *b, const void *pat, size_t plen, size_t len) {
+    unsigned char *d = b; const unsigned char *p = pat;
+    for (size_t i = 0; i < len; i++) d[i] = p[i % plen];
+}
+static void d_memset_pattern4(void *b, const void *p, size_t len) { fill_pattern(b, p, 4, len); }
+static void d_memset_pattern8(void *b, const void *p, size_t len) { fill_pattern(b, p, 8, len); }
+static void d_memset_pattern16(void *b, const void *p, size_t len) { fill_pattern(b, p, 16, len); }
 static int d_memset_s(void *dest, size_t destsz, int ch, size_t count) {
     if (!dest) return EINVAL;
     memset(dest, ch, count < destsz ? count : destsz);
@@ -394,7 +402,7 @@ static const struct shim libsystem_table[] = {
     A("_opendir$INODE64", d_opendir), A("_readdir$INODE64", d_readdir),
     A("_iswalpha", d_iswalpha), A("_iswdigit", d_iswdigit), A("_iswalnum", d_iswalnum), A("_iswspace", d_iswspace), A("_iswpunct", d_iswpunct),
     A("_iswupper", d_iswupper), A("_iswlower", d_iswlower), A("_iswcntrl", d_iswcntrl), A("_iswprint", d_iswprint), A("_iswxdigit", d_iswxdigit),
-    A("_iswgraph", d_iswgraph), A("_towupper", d_towupper), A("_towlower", d_towlower), A("_qos_class_self", d_qos_class_self), I("___isPlatformVersionAtLeast", d_isPlatformVersionAtLeast), I("___isOSVersionAtLeast", d_isOSVersionAtLeast), A("_qos_class_main", d_qos_class_main), A("_pthread_set_qos_class_self_np", d_pthread_set_qos_class_self_np), A("_pthread_get_qos_class_np", d_pthread_get_qos_class_np), A("_clock_getres", d_clock_getres), A("_memset_s", d_memset_s), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
+    A("_iswgraph", d_iswgraph), A("_towupper", d_towupper), A("_towlower", d_towlower), A("_qos_class_self", d_qos_class_self), I("___isPlatformVersionAtLeast", d_isPlatformVersionAtLeast), I("___isOSVersionAtLeast", d_isOSVersionAtLeast), A("_qos_class_main", d_qos_class_main), A("_pthread_set_qos_class_self_np", d_pthread_set_qos_class_self_np), A("_pthread_get_qos_class_np", d_pthread_get_qos_class_np), A("_clock_getres", d_clock_getres), A("_memset_s", d_memset_s), I("_memset_pattern4", d_memset_pattern4), I("_memset_pattern8", d_memset_pattern8), I("_memset_pattern16", d_memset_pattern16), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
     A("_mach_absolute_time", d_mach_absolute_time), A("_mach_timebase_info", d_mach_timebase_info),
     /* math (Darwin's libm lives in libSystem): full C99 set incl. f/l variants */
     P(acos),

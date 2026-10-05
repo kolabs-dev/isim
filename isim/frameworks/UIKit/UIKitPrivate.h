@@ -19,6 +19,7 @@ void isim_ui_pop_style(void);
 void isim_ui_rgba(UIColor *c, double out[4]);          /* resolve against the current style */
 
 /* text */
+void isim_ui_register_app_fonts(void);
 CGSize isim_ui_measure(NSString *text, UIFont *font, CGFloat maxWidth, NSInteger lines);
 CGPoint isim_ui_text_end_point(NSString *text, UIFont *font, CGFloat maxWidth);  /* where a caret after the text goes */
 void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect, NSTextAlignment align, NSInteger lines, CGFloat alpha);
@@ -26,6 +27,7 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect
 @interface UIFont (IsimPrivate)
 @property (nonatomic, readonly) CGFloat _isim_weight;
 @property (nonatomic, readonly) BOOL _isim_mono;
+@property (nonatomic, readonly, nullable) NSString *_isim_family;   /* nil = system font */
 @end
 
 @interface UIView (IsimPrivate)
@@ -126,6 +128,7 @@ NSString *isim_ui_installed_apps_dir(void);
 
 @interface UIImage (IsimPrivate)
 - (void)_isim_drawInRect:(CGRect)r tint:(nullable UIColor *)tint alpha:(CGFloat)alpha;
+- (void)_isim_drawInRect:(CGRect)r tint:(nullable UIColor *)tint alpha:(CGFloat)alpha nearest:(BOOL)nearest;
 @property (nonatomic, readonly) BOOL _isim_isTemplate;
 @end
 @interface UIImageSymbolConfiguration (IsimPrivate)

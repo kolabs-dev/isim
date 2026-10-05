@@ -16,9 +16,10 @@ static NSDictionary *asset_index(NSBundle *bundle) {
 /* ---------------- host image handle (shared between derived images) ---------------- */
 @interface __IsimImageData : NSObject
 @property (nonatomic) int handle;
+@property (nonatomic, strong) id owner;            /* set when the handle belongs to someone else (a CGImage) */
 @end
 @implementation __IsimImageData
-- (void)dealloc { if (_handle) isim_image_free(_handle); }
+- (void)dealloc { if (_handle && !_owner) isim_image_free(_handle); }
 @end
 
 /* ---------------- symbol configuration ---------------- */
@@ -57,12 +58,13 @@ static NSDictionary *asset_index(NSBundle *bundle) {
     UIImageSymbolConfiguration *_config;
     UIColor *_tint;
     NSString *_name;
+    CGRect _crop;                       /* pixel rectangle of the host image; CGRectNull = all */
 }
 
 - (UIImage *)_copy {
     UIImage *i = [UIImage new];
     i->_data = _data; i->_size = _size; i->_scale = _scale; i->_mode = _mode; i->_symbol = _symbol;
-    i->_unitW = _unitW; i->_unitH = _unitH; i->_config = _config; i->_tint = _tint; i->_name = _name;
+    i->_unitW = _unitW; i->_unitH = _unitH; i->_config = _config; i->_tint = _tint; i->_name = _name; i->_crop = _crop;
     return i;
 }
 
@@ -70,9 +72,31 @@ static UIImage *image_from_handle(int h, double w, double hgt, CGFloat scale) {
     if (!h) return nil;
     UIImage *i = [UIImage new];
     i->_data = [__IsimImageData new]; i->_data.handle = h;
-    i->_scale = scale; i->_size = CGSizeMake(w / scale, hgt / scale);
+    i->_scale = scale; i->_size = CGSizeMake(w / scale, hgt / scale); i->_crop = CGRectNull;
     return i;
 }
+- (instancetype)init { if ((self = [super init])) _crop = CGRectNull; return self; }
+
+/* ---- CGImage ---- */
++ (UIImage *)imageWithCGImage:(CGImageRef)cg { return [[self alloc] initWithCGImage:cg scale:1 orientation:UIImageOrientationUp]; }
++ (UIImage *)imageWithCGImage:(CGImageRef)cg scale:(CGFloat)scale orientation:(UIImageOrientation)o { return [[self alloc] initWithCGImage:cg scale:scale orientation:o]; }
+- (instancetype)initWithCGImage:(CGImageRef)cg { return [self initWithCGImage:cg scale:1 orientation:UIImageOrientationUp]; }
+- (instancetype)initWithCGImage:(CGImageRef)cg scale:(CGFloat)scale orientation:(UIImageOrientation)o {
+    CGRect r; int h = isim_cg_image_handle(cg, &r);
+    if (!h || !(self = [super init])) return nil;
+    _data = [__IsimImageData new]; _data.handle = h; _data.owner = (__bridge id)cg;
+    _scale = scale > 0 ? scale : 1; _crop = r;
+    _size = CGSizeMake(r.size.width / _scale, r.size.height / _scale);
+    return self;
+}
+- (CGImageRef)CGImage {
+    if (_symbol || !_data.handle) return NULL;
+    CGRect r = _crop;
+    if (CGRectIsNull(r)) { double w, h; isim_image_pixel_size(_data.handle, &w, &h); r = CGRectMake(0, 0, w, h); }
+    CGImageRef cg = isim_cg_image_create(_data.handle, r, (__bridge void *)(_data.owner ?: _data));
+    return (CGImageRef)CFAutorelease(cg);
+}
+- (UIImageOrientation)imageOrientation { return UIImageOrientationUp; }
 
 static CGFloat scale_from_name(NSString *path) {
     NSString *base = path.lastPathComponent.stringByDeletingPathExtension;
@@ -163,10 +187,18 @@ static CGFloat scale_from_name(NSString *path) {
 }
 - (NSString *)description { return [NSString stringWithFormat:@"<UIImage:%p %@%@ {%g, %g}>", self, _symbol ? @"symbol(substitute) " : @"", _name ?: @"", _size.width, _size.height]; }
 
-- (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha {
+- (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha { [self _isim_drawInRect:r tint:tint alpha:alpha nearest:NO]; }
+- (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha nearest:(BOOL)nearest {
     double rgba[4]; const double *t = NULL;
     UIColor *c = _tint ?: (_mode == UIImageRenderingModeAlwaysTemplate ? (tint ?: UIColor.labelColor) : nil);
     if (c) { isim_ui_rgba(c, rgba); t = rgba; }
+    if (!t && (nearest || !CGRectIsNull(_crop)) && !_symbol) {
+        CGRect src = _crop;
+        if (CGRectIsNull(src)) { double w, h; isim_image_pixel_size(_data.handle, &w, &h); src = CGRectMake(0, 0, w, h); }
+        isim_image_draw_part(_data.handle, src.origin.x, src.origin.y, src.size.width, src.size.height,
+                             r.origin.x, r.origin.y, r.size.width, r.size.height, nearest, NULL, 0, alpha);
+        return;
+    }
     isim_image_draw(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, t, alpha);
 }
 - (void)drawInRect:(CGRect)r { [self _isim_drawInRect:r tint:nil alpha:1]; }
@@ -210,7 +242,7 @@ static CGFloat scale_from_name(NSString *path) {
         double k = fmin(b.size.width / s.width, b.size.height / s.height);
         r = CGRectMake((b.size.width - s.width * k) / 2, (b.size.height - s.height * k) / 2, s.width * k, s.height * k);
     }
-    [img _isim_drawInRect:r tint:self.tintColor alpha:1];
+    [img _isim_drawInRect:r tint:self.tintColor alpha:1 nearest:[self.layer.magnificationFilter isEqualToString:kCAFilterNearest]];
 }
 @end
 

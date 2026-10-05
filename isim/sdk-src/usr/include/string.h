@@ -5,6 +5,9 @@ __BEGIN_DECLS
 void *memcpy(void *, const void *, size_t);
 void *memmove(void *, const void *, size_t);
 void *memset(void *, int, size_t);
+void memset_pattern4(void *b, const void *pattern4, size_t len);
+void memset_pattern8(void *b, const void *pattern8, size_t len);
+void memset_pattern16(void *b, const void *pattern16, size_t len);
 /* C11 Annex K (Darwin provides memset_s unconditionally) */
 #ifndef _ERRNO_T
 #define _ERRNO_T

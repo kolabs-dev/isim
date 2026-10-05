@@ -25,7 +25,17 @@ typedef NS_ENUM(NSInteger, UIImageSymbolWeight) {
 + (instancetype)configurationWithFont:(UIFont *)font;
 - (instancetype)configurationByApplyingConfiguration:(nullable UIImageSymbolConfiguration *)configuration;
 @end
+typedef NS_ENUM(NSInteger, UIImageOrientation) {
+    UIImageOrientationUp, UIImageOrientationDown, UIImageOrientationLeft, UIImageOrientationRight,
+    UIImageOrientationUpMirrored, UIImageOrientationDownMirrored, UIImageOrientationLeftMirrored, UIImageOrientationRightMirrored
+};
 @interface UIImage : NSObject
++ (UIImage *)imageWithCGImage:(CGImageRef)cgImage;
++ (UIImage *)imageWithCGImage:(CGImageRef)cgImage scale:(CGFloat)scale orientation:(UIImageOrientation)orientation;
+- (instancetype)initWithCGImage:(CGImageRef)cgImage;
+- (instancetype)initWithCGImage:(CGImageRef)cgImage scale:(CGFloat)scale orientation:(UIImageOrientation)orientation;
+@property (nullable, nonatomic, readonly) CGImageRef CGImage;
+@property (nonatomic, readonly) UIImageOrientation imageOrientation;
 + (nullable UIImage *)imageNamed:(NSString *)name;
 + (nullable UIImage *)imageNamed:(NSString *)name inBundle:(nullable NSBundle *)bundle withConfiguration:(nullable UIImageConfiguration *)configuration;
 + (nullable UIImage *)systemImageNamed:(NSString *)name;

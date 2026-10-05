@@ -37,3 +37,4 @@
 #import <UIKit/UITextField.h>
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIScene.h>
+#import <UIKit/UIFeedbackGenerator.h>

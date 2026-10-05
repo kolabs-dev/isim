@@ -228,6 +228,10 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIImpactFeedbackStyle
+  SwiftName: UIImpactFeedbackGenerator.FeedbackStyle
+- Name: UINotificationFeedbackType
+  SwiftName: UINotificationFeedbackGenerator.FeedbackType
 - Name: UIAlertActionStyle
   SwiftName: UIAlertAction.Style
 - Name: UIAlertControllerStyle
@@ -304,6 +308,24 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UIApplicationDidFinishLaunchingNotification
+  SwiftName: UIApplication.didFinishLaunchingNotification
+- Name: UIApplicationDidBecomeActiveNotification
+  SwiftName: UIApplication.didBecomeActiveNotification
+- Name: UIApplicationWillResignActiveNotification
+  SwiftName: UIApplication.willResignActiveNotification
+- Name: UIApplicationDidEnterBackgroundNotification
+  SwiftName: UIApplication.didEnterBackgroundNotification
+- Name: UIApplicationWillEnterForegroundNotification
+  SwiftName: UIApplication.willEnterForegroundNotification
+- Name: UIApplicationWillTerminateNotification
+  SwiftName: UIApplication.willTerminateNotification
+- Name: kCAFilterNearest
+  SwiftName: CALayerContentsFilter.nearest
+- Name: kCAFilterLinear
+  SwiftName: CALayerContentsFilter.linear
+- Name: kCAFilterTrilinear
+  SwiftName: CALayerContentsFilter.trilinear
 - Name: UIKeyboardWillShowNotification
   SwiftName: UIResponder.keyboardWillShowNotification
 - Name: UIKeyboardDidShowNotification

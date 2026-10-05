@@ -69,3 +69,120 @@ extension CGAffineTransform: Equatable {
         a.a == b.a && a.b == b.b && a.c == b.c && a.d == b.d && a.tx == b.tx && a.ty == b.ty
     }
 }
+extension CGAffineTransform {
+    public func inverted() -> CGAffineTransform { CGAffineTransformInvert(self) }
+}
+extension CGSize {
+    public func applying(_ t: CGAffineTransform) -> CGSize { CGSizeApplyAffineTransform(self, t) }
+}
+extension CGRect {
+    public func applying(_ t: CGAffineTransform) -> CGRect { CGRectApplyAffineTransform(self, t) }
+}
+
+// MARK: - CGPath (Apple's Swift API over the C functions)
+extension CGPath {
+    public var boundingBox: CGRect { CGPathGetBoundingBox(self) }
+    public var boundingBoxOfPath: CGRect { CGPathGetPathBoundingBox(self) }
+    public var isEmpty: Bool { CGPathIsEmpty(self) }
+    public var currentPoint: CGPoint { CGPathGetCurrentPoint(self) }
+    public func copy() -> CGPath? { CGPathCreateCopy(self) }
+    public func mutableCopy() -> CGMutablePath? { CGPathCreateMutableCopy(self) }
+    public func contains(_ point: CGPoint, using rule: CGPathFillRule = .winding, transform: CGAffineTransform = .identity) -> Bool {
+        var t = transform
+        return CGPathContainsPoint(self, &t, point, rule == .evenOdd)
+    }
+    public func applyWithBlock(_ block: (UnsafePointer<CGPathElement>) -> Void) {
+        withoutActuallyEscaping(block) { b in
+            var ctx = b
+            withUnsafeMutablePointer(to: &ctx) { p in
+                CGPathApply(self, p) { info, el in
+                    guard let info else { return }
+                    info.assumingMemoryBound(to: ((UnsafePointer<CGPathElement>) -> Void).self).pointee(el)
+                }
+            }
+        }
+    }
+}
+public enum CGPathFillRule: Int, Sendable { case winding, evenOdd }
+
+extension CGMutablePath {
+    public func move(to p: CGPoint, transform: CGAffineTransform = .identity) { var t = transform; CGPathMoveToPoint(self, &t, p.x, p.y) }
+    public func addLine(to p: CGPoint, transform: CGAffineTransform = .identity) { var t = transform; CGPathAddLineToPoint(self, &t, p.x, p.y) }
+    public func addLines(between points: [CGPoint], transform: CGAffineTransform = .identity) {
+        for (i, p) in points.enumerated() { if i == 0 { move(to: p, transform: transform) } else { addLine(to: p, transform: transform) } }
+    }
+    public func addQuadCurve(to end: CGPoint, control: CGPoint, transform: CGAffineTransform = .identity) {
+        var t = transform; CGPathAddQuadCurveToPoint(self, &t, control.x, control.y, end.x, end.y)
+    }
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint, transform: CGAffineTransform = .identity) {
+        var t = transform; CGPathAddCurveToPoint(self, &t, control1.x, control1.y, control2.x, control2.y, end.x, end.y)
+    }
+    public func addRect(_ r: CGRect, transform: CGAffineTransform = .identity) { var t = transform; CGPathAddRect(self, &t, r) }
+    public func addRects(_ rs: [CGRect], transform: CGAffineTransform = .identity) { for r in rs { addRect(r, transform: transform) } }
+    public func addEllipse(in r: CGRect, transform: CGAffineTransform = .identity) { var t = transform; CGPathAddEllipseInRect(self, &t, r) }
+    public func addRoundedRect(in r: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat, transform: CGAffineTransform = .identity) {
+        var t = transform; CGPathAddRoundedRect(self, &t, r, cornerWidth, cornerHeight)
+    }
+    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool, transform: CGAffineTransform = .identity) {
+        var t = transform; CGPathAddArc(self, &t, center.x, center.y, radius, startAngle, endAngle, clockwise)
+    }
+    public func addRelativeArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, delta: CGFloat, transform: CGAffineTransform = .identity) {
+        var t = transform; CGPathAddRelativeArc(self, &t, center.x, center.y, radius, startAngle, delta)
+    }
+    public func addPath(_ path: CGPath, transform: CGAffineTransform = .identity) { var t = transform; CGPathAddPath(self, &t, path) }
+    public func closeSubpath() { CGPathCloseSubpath(self) }
+}
+
+// MARK: - CGImage
+extension CGImage {
+    public var width: Int { CGImageGetWidth(self) }
+    public var height: Int { CGImageGetHeight(self) }
+    public func cropping(to rect: CGRect) -> CGImage? { CGImageCreateWithImageInRect(self, rect) }
+}
+
+// MARK: - CGContext (Apple's Swift API)
+extension CGContext {
+    public func saveGState() { CGContextSaveGState(self) }
+    public func restoreGState() { CGContextRestoreGState(self) }
+    public func translateBy(x: CGFloat, y: CGFloat) { CGContextTranslateCTM(self, x, y) }
+    public func scaleBy(x: CGFloat, y: CGFloat) { CGContextScaleCTM(self, x, y) }
+    public func rotate(by angle: CGFloat) { CGContextRotateCTM(self, angle) }
+    public func concatenate(_ t: CGAffineTransform) { CGContextConcatCTM(self, t) }
+    public func setFillColor(_ c: CGColor) { CGContextSetFillColorWithColor(self, c) }
+    public func setStrokeColor(_ c: CGColor) { CGContextSetStrokeColorWithColor(self, c) }
+    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { CGContextSetRGBFillColor(self, red, green, blue, alpha) }
+    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { CGContextSetRGBStrokeColor(self, red, green, blue, alpha) }
+    public func setLineWidth(_ w: CGFloat) { CGContextSetLineWidth(self, w) }
+    public func setLineCap(_ cap: CGLineCap) { CGContextSetLineCap(self, cap) }
+    public func setLineJoin(_ join: CGLineJoin) { CGContextSetLineJoin(self, join) }
+    public func setAlpha(_ a: CGFloat) { CGContextSetAlpha(self, a) }
+    public var interpolationQuality: CGInterpolationQuality {
+        get { CGContextGetInterpolationQuality(self) }
+        set { CGContextSetInterpolationQuality(self, newValue) }
+    }
+    public func fill(_ r: CGRect) { CGContextFillRect(self, r) }
+    public func stroke(_ r: CGRect) { CGContextStrokeRect(self, r) }
+    public func fillEllipse(in r: CGRect) { CGContextFillEllipseInRect(self, r) }
+    public func strokeEllipse(in r: CGRect) { CGContextStrokeEllipseInRect(self, r) }
+    public func clear(_ r: CGRect) { CGContextClearRect(self, r) }
+    public func beginPath() { CGContextBeginPath(self) }
+    public func move(to p: CGPoint) { CGContextMoveToPoint(self, p.x, p.y) }
+    public func addLine(to p: CGPoint) { CGContextAddLineToPoint(self, p.x, p.y) }
+    public func addLines(between points: [CGPoint]) { CGContextAddLines(self, points, points.count) }
+    public func addRect(_ r: CGRect) { CGContextAddRect(self, r) }
+    public func addEllipse(in r: CGRect) { CGContextAddEllipseInRect(self, r) }
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) { CGContextAddCurveToPoint(self, control1.x, control1.y, control2.x, control2.y, end.x, end.y) }
+    public func addQuadCurve(to end: CGPoint, control: CGPoint) { CGContextAddQuadCurveToPoint(self, control.x, control.y, end.x, end.y) }
+    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
+        CGContextAddArc(self, center.x, center.y, radius, startAngle, endAngle, clockwise ? 1 : 0)
+    }
+    public func addPath(_ p: CGPath) { CGContextAddPath(self, p) }
+    public func closePath() { CGContextClosePath(self) }
+    public func fillPath(using rule: CGPathFillRule = .winding) { rule == .evenOdd ? CGContextEOFillPath(self) : CGContextFillPath(self) }
+    public func strokePath() { CGContextStrokePath(self) }
+    public func drawPath(using mode: CGPathDrawingMode) { CGContextDrawPath(self, mode) }
+    public func clip(using rule: CGPathFillRule = .winding) { CGContextClip(self) }
+    public func clip(to r: CGRect) { CGContextClipToRect(self, r) }
+    public func strokeLineSegments(between points: [CGPoint]) { CGContextStrokeLineSegments(self, points, points.count) }
+    public func draw(_ image: CGImage, in rect: CGRect) { CGContextDrawImage(self, rect, image) }
+}

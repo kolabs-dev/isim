@@ -716,6 +716,17 @@ static void print_frame(int i, uintptr_t pc) {
         else fprintf(stderr, "  #%-2d 0x%012lx [host]%s%s\n", i, (unsigned long)pc, hi.dli_fname ? " " : "", hi.dli_fname ? hi.dli_fname : "");
     }
 }
+/* backtrace from a frame pointer (used for fatal Objective-C errors) */
+void isim_print_backtrace(void *frame) {
+    uintptr_t fp = (uintptr_t)frame;
+    for (int i = 0; i < 64 && fp && !(fp & 7); i++) {
+        uintptr_t next = ((uintptr_t *)fp)[0], ret = ((uintptr_t *)fp)[1];
+        if (!ret) break;
+        print_frame(i, ret);
+        if (next <= fp) break;
+        fp = next;
+    }
+}
 static void crash_handler(int sig, siginfo_t *si, void *ctx) {
     ucontext_t *uc = ctx;
     uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP], fp = uc->uc_mcontext.gregs[REG_RBP], sp = uc->uc_mcontext.gregs[REG_RSP];

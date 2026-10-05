@@ -19,6 +19,10 @@ void isim_gfx_clip_rounded(double x, double y, double w, double h, double r);
 void isim_gfx_fill_rounded(double x, double y, double w, double h, double r, const double *rgba);
 void isim_gfx_stroke_rounded(double x, double y, double w, double h, double r, double lw, const double *rgba);
 void isim_gfx_fill_ellipse(double x, double y, double w, double h, const double *rgba);
+void isim_gfx_rotate(double radians);
+void isim_gfx_concat(double a, double b, double c, double d, double tx, double ty);
+void isim_gfx_clip_path(void);
+double isim_gfx_get_alpha(void);
 void isim_gfx_push_group(void);
 void isim_gfx_pop_group(double alpha);
 void isim_path_begin(void);
@@ -33,7 +37,15 @@ void isim_path_stroke(double lw, const double *rgba);
 void isim_text_measure(const char *utf8, double size, double weight, int mono, double maxw, int lines, double *w, double *h);
 void isim_text_end_point(const char *utf8, double size, double weight, int mono, double maxw, double *x, double *y);
 void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba);
+/* text with a font family (NULL = system font); fonts registered by the app or installed on the host */
+void isim_text_measure_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, int lines, double *w, double *h);
+void isim_text_end_point_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, double *x, double *y);
+void isim_text_draw_f(const char *utf8, const char *family, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba);
+int isim_font_register(const char *path);
+int isim_font_lookup(const char *name, char *family, int famlen, double *weight, int *italic);
+int isim_font_has_char(const char *family, unsigned codepoint);
 void isim_set_status_bar_style(int dark_content);
+void isim_set_status_bar_hidden(int hidden);
 int isim_next_event(struct isim_event *ev, double timeout);
 void isim_text_input(int on);
 const char *isim_bundle_path(void);
@@ -50,4 +62,19 @@ int isim_image_symbol(const char *name, double *w, double *h);
 void isim_image_draw(int handle, double x, double y, double w, double h, const double *tint_rgba, double alpha);
 int isim_image_is_template(int handle);
 void isim_image_free(int handle);
+void isim_image_draw_part(int handle, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
+                          int nearest, const double *blend_rgba, double blend_factor, double alpha);
+void isim_image_pixel_size(int handle, double *w, double *h);
+/* audio: PCM buffers (float, interleaved) played as mixed voices. Voice handles are longs (> 0). */
+int isim_audio_available(void);
+int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate);
+void isim_audio_buffer_release(int buffer);
+long isim_audio_play(int buffer, double volume, int loops);      /* loops: 0 once, n extra times, -1 forever */
+void isim_audio_stop(long voice);
+void isim_audio_pause(long voice, int paused);
+void isim_audio_set_volume(long voice, double volume);
+int isim_audio_is_playing(long voice);
+double isim_audio_position(long voice);
+void isim_audio_seek(long voice, double seconds);
+void isim_audio_suspend(int suspended);
 __END_DECLS

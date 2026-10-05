@@ -3,6 +3,7 @@
 // lazily, which is an optimisation, not an observable difference for these immutable values.
 @_exported import Foundation
 @_exported import Dispatch
+@_exported import Combine
 
 public typealias TimeInterval = Double
 
@@ -107,6 +108,17 @@ extension Dictionary: _ObjectiveCBridgeable {
 
 // MARK: formatting & logging
 extension String {
+  public init(format: String, locale: Locale?, _ arguments: CVarArg...) { self.init(format: format, arguments: arguments) }
+  public init(format: String, locale: Locale?, arguments: [CVarArg]) { self.init(format: format, arguments: arguments) }
+  public static func localizedStringWithFormat(_ format: String, _ arguments: CVarArg...) -> String { String(format: format, arguments: arguments) }
+  public func uppercased(with locale: Locale?) -> String { _localeCase(self, locale, upper: true) }
+  public func lowercased(with locale: Locale?) -> String { _localeCase(self, locale, upper: false) }
+  public func capitalized(with locale: Locale?) -> String {
+    var out = "", start = true
+    for ch in self { out += start ? _localeCase(String(ch), locale, upper: true) : String(ch); start = ch.isWhitespace }
+    return out
+  }
+  public var capitalized: String { capitalized(with: nil) }
   public init(format: String, _ arguments: CVarArg...) { self.init(format: format, arguments: arguments) }
   public init(format: String, arguments: [CVarArg]) {
     self = withVaList(arguments) { NSString(format: format, arguments: $0) as String }
@@ -430,6 +442,20 @@ extension CustomNSError {
 }
 extension Error {
     public var localizedDescription: String { _convertErrorToNSError(self).localizedDescription }
+}
+
+/// Case mapping with the locale's special rules (Turkish/Azeri dotted i, Lithuanian handled as default).
+func _localeCase(_ s: String, _ locale: Locale?, upper: Bool) -> String {
+  let lang = locale?.languageCode ?? ""
+  if lang == "tr" || lang == "az" {
+    var out = ""
+    for ch in s {
+      if upper { out += ch == "i" ? "İ" : String(ch).uppercased() }
+      else { out += ch == "I" ? "ı" : ch == "İ" ? "i" : String(ch).lowercased() }
+    }
+    return out
+  }
+  return upper ? s.uppercased() : s.lowercased()
 }
 
 // MARK: Decimal

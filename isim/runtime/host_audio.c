@@ -1,0 +1,181 @@
+/* libisim_host audio: a small software mixer on an SDL3 playback stream (48 kHz stereo float).
+ * Guests upload PCM buffers (float, interleaved, any rate/channel count) and play them as voices
+ * with volume, looping and pause; voices are resampled linearly and mixed in the SDL callback.
+ * Used by isim's AVFoundation. If no audio device can be opened, everything still works silently. */
+#include <SDL3/SDL.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define OUT_RATE 48000
+#define MAX_BUFS 1024
+#define MAX_VOICES 64
+
+struct abuf { float *pcm; long frames; int channels; double rate; int refs; };
+struct voice { int buf, playing, paused, loops; double pos, volume; unsigned gen; };
+
+static struct abuf bufs[MAX_BUFS];
+static struct voice voices[MAX_VOICES];
+static unsigned voice_gen = 1;
+static SDL_Mutex *mtx;
+static SDL_AudioStream *stream;
+static int audio_state;          /* 0 = not tried, 1 = open, -1 = unavailable */
+static int suspended;
+static float *mixbuf; static int mixcap;
+
+static void unref(int b) {
+    if (b <= 0 || b >= MAX_BUFS || !bufs[b].pcm) return;
+    if (--bufs[b].refs == 0) { free(bufs[b].pcm); memset(&bufs[b], 0, sizeof bufs[b]); }
+}
+
+static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total) {
+    int frames = additional / (int)(2 * sizeof(float));
+    if (frames <= 0) return;
+    if (frames * 2 > mixcap) { mixcap = frames * 2; mixbuf = realloc(mixbuf, mixcap * sizeof(float)); }
+    memset(mixbuf, 0, frames * 2 * sizeof(float));
+    SDL_LockMutex(mtx);
+    if (!suspended) {
+        for (int v = 0; v < MAX_VOICES; v++) {
+            struct voice *vo = &voices[v];
+            if (!vo->playing || vo->paused) continue;
+            struct abuf *b = &bufs[vo->buf];
+            if (!b->pcm || b->frames <= 0) { vo->playing = 0; continue; }
+            double step = b->rate / OUT_RATE;
+            float vol = (float)vo->volume;
+            for (int i = 0; i < frames; i++) {
+                if (vo->pos >= b->frames) {
+                    if (vo->loops != 0) { vo->pos -= b->frames; if (vo->loops > 0) vo->loops--; }
+                    else { vo->playing = 0; unref(vo->buf); vo->buf = 0; break; }
+                }
+                long i0 = (long)vo->pos;
+                long i1 = i0 + 1 < b->frames ? i0 + 1 : (vo->loops != 0 ? 0 : i0);
+                float t = (float)(vo->pos - (double)i0);
+                float l, r;
+                if (b->channels == 1) {
+                    l = r = b->pcm[i0] + (b->pcm[i1] - b->pcm[i0]) * t;
+                } else {
+                    const float *a = b->pcm + i0 * b->channels, *c = b->pcm + i1 * b->channels;
+                    l = a[0] + (c[0] - a[0]) * t;
+                    r = a[1] + (c[1] - a[1]) * t;
+                }
+                mixbuf[2 * i] += l * vol;
+                mixbuf[2 * i + 1] += r * vol;
+                vo->pos += step;
+            }
+        }
+    }
+    SDL_UnlockMutex(mtx);
+    for (int i = 0; i < frames * 2; i++) {          /* soft clip */
+        float x = mixbuf[i];
+        if (x > 1.f) x = 1.f; else if (x < -1.f) x = -1.f;
+        mixbuf[i] = x;
+    }
+    SDL_PutAudioStreamData(s, mixbuf, frames * 2 * (int)sizeof(float));
+}
+
+static int ensure_open(void) {
+    if (audio_state) return audio_state > 0;
+    audio_state = -1;
+    if (!mtx) mtx = SDL_CreateMutex();
+    int headless = getenv("ISIM_HEADLESS") && atoi(getenv("ISIM_HEADLESS"));
+    if ((getenv("ISIM_MUTE") && atoi(getenv("ISIM_MUTE"))) || (headless && !getenv("ISIM_AUDIO"))) return 0;   /* tests: silent */
+    if (!SDL_WasInit(SDL_INIT_AUDIO) && !SDL_InitSubSystem(SDL_INIT_AUDIO)) {
+        fprintf(stderr, "isim audio: no audio (%s); playing silently\n", SDL_GetError());
+        return 0;
+    }
+    SDL_AudioSpec spec = { SDL_AUDIO_F32, 2, OUT_RATE };
+    stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, feed, NULL);
+    if (!stream) { fprintf(stderr, "isim audio: cannot open playback device (%s); playing silently\n", SDL_GetError()); return 0; }
+    SDL_ResumeAudioStreamDevice(stream);
+    audio_state = 1;
+    return 1;
+}
+
+/* ---- guest API ---- */
+int isim_audio_available(void) { return ensure_open(); }
+
+int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate) {
+    ensure_open();
+    if (!pcm || frames <= 0 || channels < 1 || rate <= 0) return 0;
+    SDL_LockMutex(mtx);
+    int b = 0;
+    for (int i = 1; i < MAX_BUFS; i++) if (!bufs[i].pcm) { b = i; break; }
+    if (b) {
+        size_t n = (size_t)frames * channels;
+        bufs[b].pcm = malloc(n * sizeof(float));
+        memcpy(bufs[b].pcm, pcm, n * sizeof(float));
+        bufs[b].frames = frames; bufs[b].channels = channels; bufs[b].rate = rate; bufs[b].refs = 1;
+    } else fprintf(stderr, "isim audio: too many buffers\n");
+    SDL_UnlockMutex(mtx);
+    return b;
+}
+void isim_audio_buffer_release(int b) { if (!mtx) return; SDL_LockMutex(mtx); unref(b); SDL_UnlockMutex(mtx); }
+
+/* Returns a voice handle (> 0): index + generation, so stale handles are ignored. loops: 0 = once, n = n extra, -1 = forever. */
+long isim_audio_play(int b, double volume, int loops) {
+    if (!ensure_open() || b <= 0 || b >= MAX_BUFS) return 0;
+    SDL_LockMutex(mtx);
+    long h = 0;
+    if (bufs[b].pcm) {
+        int v = -1;
+        for (int i = 0; i < MAX_VOICES; i++) if (!voices[i].playing) { v = i; break; }
+        if (v < 0) {                                  /* steal the voice closest to its end */
+            double best = -1;
+            for (int i = 0; i < MAX_VOICES; i++) {
+                struct abuf *bb = &bufs[voices[i].buf];
+                double rem = bb->frames ? (double)bb->frames - voices[i].pos : 0;
+                if (voices[i].loops == 0 && (v < 0 || rem < best)) { best = rem; v = i; }
+            }
+            if (v < 0) v = 0;
+            unref(voices[v].buf);
+        }
+        bufs[b].refs++;
+        voices[v] = (struct voice){ .buf = b, .playing = 1, .paused = 0, .loops = loops, .pos = 0, .volume = volume, .gen = voice_gen++ };
+        h = ((long)voices[v].gen << 8) | v;
+    }
+    SDL_UnlockMutex(mtx);
+    return h;
+}
+static struct voice *lookup(long h) {
+    int v = (int)(h & 0xFF);
+    if (h <= 0 || v >= MAX_VOICES || voices[v].gen != (unsigned)(h >> 8)) return NULL;
+    return &voices[v];
+}
+void isim_audio_stop(long h) {
+    if (!mtx) return;
+    SDL_LockMutex(mtx);
+    struct voice *vo = lookup(h);
+    if (vo && vo->playing) { vo->playing = 0; unref(vo->buf); vo->buf = 0; }
+    SDL_UnlockMutex(mtx);
+}
+void isim_audio_pause(long h, int paused) {
+    if (!mtx) return;
+    SDL_LockMutex(mtx); struct voice *vo = lookup(h); if (vo) vo->paused = paused; SDL_UnlockMutex(mtx);
+}
+void isim_audio_set_volume(long h, double volume) {
+    if (!mtx) return;
+    SDL_LockMutex(mtx); struct voice *vo = lookup(h); if (vo) vo->volume = volume; SDL_UnlockMutex(mtx);
+}
+int isim_audio_is_playing(long h) {
+    if (!mtx) return 0;
+    SDL_LockMutex(mtx); struct voice *vo = lookup(h); int p = vo && vo->playing && !vo->paused; SDL_UnlockMutex(mtx);
+    return p;
+}
+/* playback position in seconds of the voice's buffer (0 when finished) */
+double isim_audio_position(long h) {
+    if (!mtx) return 0;
+    SDL_LockMutex(mtx);
+    struct voice *vo = lookup(h);
+    double t = vo && vo->playing ? vo->pos / bufs[vo->buf].rate : 0;
+    SDL_UnlockMutex(mtx);
+    return t;
+}
+void isim_audio_seek(long h, double seconds) {
+    if (!mtx) return;
+    SDL_LockMutex(mtx); struct voice *vo = lookup(h); if (vo && vo->playing) vo->pos = seconds * bufs[vo->buf].rate; SDL_UnlockMutex(mtx);
+}
+/* app moved to the background / foreground (the app's audio session is interrupted like on iOS) */
+void isim_audio_suspend(int s) {
+    if (!mtx) return;
+    SDL_LockMutex(mtx); suspended = s; SDL_UnlockMutex(mtx);
+}

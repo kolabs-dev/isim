@@ -114,9 +114,13 @@ def compile_xcassets(path, bundle):
                     dst = f'{name}-{fn}'
                     shutil.copy2(os.path.join(full, fn), os.path.join(outdir, dst))
                     appearance = next((a.get('value') for a in img.get('appearances', []) if a.get('appearance') == 'luminosity'), 'any')
-                    files.append({'file': f'isim-assets/{dst}', 'scale': img.get('scale', '1x'),
-                                  'idiom': img.get('idiom', 'universal'), 'appearance': appearance,
-                                  'size': img.get('size')})
+                    entry = {'file': f'isim-assets/{dst}', 'scale': img.get('scale', '1x'),
+                             'idiom': img.get('idiom', 'universal'), 'appearance': appearance}
+                    if img.get('size'):
+                        entry['size'] = img['size']
+                    if meta.get('properties', {}).get('template-rendering-intent') == 'template':
+                        entry['templateRendering'] = True
+                    files.append(entry)
                 index['appIcons' if kind == '.appiconset' else 'images'][name] = files
     with open(index_path, 'w') as f:
         json.dump(index, f, indent=1, sort_keys=True)

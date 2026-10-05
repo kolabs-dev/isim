@@ -717,9 +717,9 @@ static IMP base_drawRect;
     CGSize sz = _frame.size;
     isim_gfx_save();
     isim_gfx_translate(_frame.origin.x, _frame.origin.y);
-    if (!CGAffineTransformIsIdentity(_transform)) {
-        isim_gfx_translate(sz.width / 2 + _transform.tx, sz.height / 2 + _transform.ty);
-        isim_gfx_scale(_transform.a, _transform.d);
+    if (!CGAffineTransformIsIdentity(_transform)) {      /* about the center, like UIKit */
+        isim_gfx_translate(sz.width / 2, sz.height / 2);
+        isim_gfx_concat(_transform.a, _transform.b, _transform.c, _transform.d, _transform.tx, _transform.ty);
         isim_gfx_translate(-sz.width / 2, -sz.height / 2);
     }
     BOOL pushedStyle = _overrideUserInterfaceStyle != UIUserInterfaceStyleUnspecified;

@@ -31,10 +31,87 @@ public struct Capsule: Shape, _ShapeInfo, _PrimitiveView {
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node { _ShapeNode(path: ctx.path, kind: _kind, color: ctx.environment._foreground ?? .primary) }
 }
+public struct StrokeStyle: Equatable, Sendable {
+    public var lineWidth: CGFloat, lineCap: CGLineCap, lineJoin: CGLineJoin, miterLimit: CGFloat, dash: [CGFloat], dashPhase: CGFloat
+    public init(lineWidth: CGFloat = 1, lineCap: CGLineCap = .butt, lineJoin: CGLineJoin = .miter, miterLimit: CGFloat = 10, dash: [CGFloat] = [], dashPhase: CGFloat = 0) {
+        self.lineWidth = lineWidth; self.lineCap = lineCap; self.lineJoin = lineJoin; self.miterLimit = miterLimit; self.dash = dash; self.dashPhase = dashPhase
+    }
+}
+/// A shape with a trim range (from/to as fractions of its outline).
+public struct _TrimmedShape: Shape, _ShapeInfo, _PrimitiveView {
+    let kind: _ShapeKind, from: CGFloat, to: CGFloat
+    var _kind: _ShapeKind { kind }
+    public var body: Never { fatalError() }
+    func _makeNode(_ ctx: _Context) -> _Node { _StrokeNode(path: ctx.path, kind: kind, color: ctx.environment._foreground ?? .primary, lineWidth: 1, fill: true, trim: (from, to)) }
+}
 extension Shape {
+    public func stroke<S: ShapeStyle>(_ style: S, lineWidth: CGFloat = 1) -> some View {
+        let kind = (self as? _ShapeInfo)?._kind ?? .rect
+        let trim = (self as? _TrimmedShape).map { ($0.from, $0.to) } ?? (0, 1)
+        return _modify { ctx, _ in _StrokeNode(path: ctx.path, kind: kind, color: _color(of: style, ctx.environment), lineWidth: lineWidth, fill: false, trim: trim) }
+    }
+    public func stroke<S: ShapeStyle>(_ style: S, style strokeStyle: StrokeStyle) -> some View {
+        let kind = (self as? _ShapeInfo)?._kind ?? .rect
+        let trim = (self as? _TrimmedShape).map { ($0.from, $0.to) } ?? (0, 1)
+        return _modify { ctx, _ in _StrokeNode(path: ctx.path, kind: kind, color: _color(of: style, ctx.environment), lineWidth: strokeStyle.lineWidth, fill: false, trim: trim, cap: strokeStyle.lineCap) }
+    }
+    public func stroke(lineWidth: CGFloat = 1) -> some View {
+        let kind = (self as? _ShapeInfo)?._kind ?? .rect
+        let trim = (self as? _TrimmedShape).map { ($0.from, $0.to) } ?? (0, 1)
+        return _modify { ctx, _ in _StrokeNode(path: ctx.path, kind: kind, color: ctx.environment._foreground ?? .primary, lineWidth: lineWidth, fill: false, trim: trim) }
+    }
+    public func stroke(style strokeStyle: StrokeStyle) -> some View { stroke(lineWidth: strokeStyle.lineWidth) }
+    public func strokeBorder<S: ShapeStyle>(_ style: S, lineWidth: CGFloat = 1) -> some View { stroke(style, lineWidth: lineWidth) }
+    public func strokeBorder(lineWidth: CGFloat = 1) -> some View { stroke(lineWidth: lineWidth) }
+    public func trim(from: CGFloat = 0, to: CGFloat = 1) -> _TrimmedShape {
+        _TrimmedShape(kind: (self as? _ShapeInfo)?._kind ?? .rect, from: from, to: to)
+    }
     public func fill<S: ShapeStyle>(_ style: S) -> some View {
         let kind = (self as? _ShapeInfo)?._kind ?? .rect
-        return _modify { ctx, _ in _ShapeNode(path: ctx.path, kind: kind, color: _color(of: style, ctx.environment)) }
+        if let t = self as? _TrimmedShape {
+            return AnyView(_modify { ctx, _ in _StrokeNode(path: ctx.path, kind: t.kind, color: _color(of: style, ctx.environment), lineWidth: 0, fill: true, trim: (t.from, t.to)) })
+        }
+        return AnyView(_modify { ctx, _ in _ShapeNode(path: ctx.path, kind: kind, color: _color(of: style, ctx.environment)) })
+    }
+}
+
+/// A stroked (or trimmed) shape outline, drawn with Core Graphics.
+final class _StrokeNode: _Node {
+    let kind: _ShapeKind, color: Color, lineWidth: CGFloat, fill: Bool, trim: (CGFloat, CGFloat), cap: CGLineCap
+    init(path: String, kind: _ShapeKind, color: Color, lineWidth: CGFloat, fill: Bool, trim: (CGFloat, CGFloat), cap: CGLineCap = .butt) {
+        self.kind = kind; self.color = color; self.lineWidth = lineWidth; self.fill = fill; self.trim = trim; self.cap = cap
+        super.init(path: path, children: [])
+    }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: p.width ?? 10, height: p.height ?? 10) }
+    override func mountView(_ g: _Graph) -> UIView {
+        let v = g.view(viewKey) { _SUIShapeView(frame: .zero) }
+        v.kind = kind; v.color = color.uiColor; v.lineWidth = lineWidth; v.fillShape = fill; v.trim = trim
+        v.setNeedsDisplay()
+        return v
+    }
+}
+final class _SUIShapeView: UIView {
+    var kind: _ShapeKind = .rect, color: UIColor = .label, lineWidth: CGFloat = 1, fillShape = false, trim: (CGFloat, CGFloat) = (0, 1)
+    override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; isUserInteractionEnabled = false }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext(), trim.1 > trim.0 else { return }
+        let r = bounds.insetBy(dx: fillShape ? 0 : lineWidth / 2, dy: fillShape ? 0 : lineWidth / 2)
+        let path = CGMutablePath()
+        let full = trim.0 <= 0 && trim.1 >= 1
+        switch kind {
+        case .circle where !full, .capsule where !full && abs(r.width - r.height) < 0.5:
+            // SwiftUI circles start at 3 o'clock and go clockwise (in y-down coordinates)
+            let c = CGPoint(x: r.midX, y: r.midY), rad = min(r.width, r.height) / 2
+            path.addArc(center: c, radius: rad, startAngle: 2 * .pi * trim.0, endAngle: 2 * .pi * trim.1, clockwise: false)
+        case .circle: path.addEllipse(in: CGRect(x: r.midX - min(r.width, r.height) / 2, y: r.midY - min(r.width, r.height) / 2, width: min(r.width, r.height), height: min(r.width, r.height)))
+        case .capsule: let k = min(r.width, r.height) / 2; path.addRoundedRect(in: r, cornerWidth: k, cornerHeight: k)
+        case .rounded(let k): let kk = min(k, min(r.width, r.height) / 2); path.addRoundedRect(in: r, cornerWidth: kk, cornerHeight: kk)
+        case .rect: path.addRect(r)
+        }
+        ctx.addPath(path)
+        if fillShape { ctx.setFillColor(color.cgColor); ctx.fillPath() }
+        else { ctx.setStrokeColor(color.cgColor); ctx.setLineWidth(lineWidth); ctx.strokePath() }
     }
 }
 
@@ -77,9 +154,12 @@ extension View {
         let kind = (shape as? _ShapeInfo)?._kind ?? .rect
         return _modify { ctx, c in _ClipNode(path: ctx.path, kind: kind, child: _resolve(c, ctx.child("clip"))) }
     }
-    public func scaledToFit() -> some View { self }
-    public func scaledToFill() -> some View { self }
-    public func aspectRatio(_ ratio: CGFloat? = nil, contentMode: ContentMode) -> some View { self }
+    public func scaledToFit() -> some View { aspectRatio(nil, contentMode: .fit) }
+    public func scaledToFill() -> some View { aspectRatio(nil, contentMode: .fill) }
+    public func aspectRatio(_ ratio: CGFloat? = nil, contentMode: ContentMode) -> some View {
+        _modify { ctx, c in _AspectNode(path: ctx.path, ratio: ratio, fill: contentMode == .fill, child: _resolve(c, ctx.child("ar"))) }
+    }
+    public func aspectRatio(_ size: CGSize, contentMode: ContentMode) -> some View { aspectRatio(size.width / size.height, contentMode: contentMode) }
     /// Called with URLs opened in this app (UIApplication openURL deliveries, launch URLs).
     public func onOpenURL(perform action: @escaping (URL) -> Void) -> some View {
         _modify { ctx, c in

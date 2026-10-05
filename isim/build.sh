@@ -14,9 +14,9 @@ mkdir -p "$OUT/bin" "$SDK/usr/lib" "$SDK/System/Library/Frameworks"
 step() { printf '\n== %s\n' "$*"; }
 
 step "host runtime"
-PKGS="sdl3 cairo pangocairo librsvg-2.0 gdk-pixbuf-2.0"
+PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread
 
 step "SDK headers"
@@ -82,6 +82,7 @@ framework() { # Name srcdir [extra ld args...]
 framework CoreFoundation frameworks/CoreFoundation
 framework CoreGraphics frameworks/CoreGraphics -lisim_host
 framework Foundation frameworks/Foundation -framework CoreGraphics
+framework CoreText frameworks/CoreText -framework Foundation -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
 
 # install the isim tool

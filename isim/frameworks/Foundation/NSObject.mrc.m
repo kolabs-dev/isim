@@ -154,3 +154,13 @@ NSString *NSStringFromRange(NSRange r) { return [NSString stringWithFormat:@"{%l
 NSString *NSStringFromCGPoint(CGPoint p) { return [NSString stringWithFormat:@"{%g, %g}", p.x, p.y]; }
 NSString *NSStringFromCGSize(CGSize s) { return [NSString stringWithFormat:@"{%g, %g}", s.width, s.height]; }
 NSString *NSStringFromCGRect(CGRect r) { return [NSString stringWithFormat:@"{{%g, %g}, {%g, %g}}", r.origin.x, r.origin.y, r.size.width, r.size.height]; }
+
+/* ================= CoreFoundation memory functions =================
+ * isim's CF types (CGColor, CTFont, ...) and the toll-free bridged ones are Objective-C objects. */
+#include <CoreFoundation/CoreFoundation.h>
+CFTypeRef CFRetain(CFTypeRef cf) { return cf ? (CFTypeRef)[(id)cf retain] : NULL; }
+void CFRelease(CFTypeRef cf) { if (cf) [(id)cf release]; }
+CFTypeRef CFAutorelease(CFTypeRef cf) { return cf ? (CFTypeRef)[(id)cf autorelease] : NULL; }
+CFIndex CFGetRetainCount(CFTypeRef cf) { return cf ? (CFIndex)[(id)cf retainCount] : 0; }
+Boolean CFEqual(CFTypeRef a, CFTypeRef b) { return a == b || (a && b && [(id)a isEqual:(id)b]); }
+CFHashCode CFHash(CFTypeRef cf) { return cf ? [(id)cf hash] : 0; }

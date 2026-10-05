@@ -2,7 +2,7 @@
 #import <UIKit/UIKitDefines.h>
 #include <CoreGraphics/CGContext.h>
 NS_ASSUME_NONNULL_BEGIN
-UIKIT_EXTERN CGContextRef _Nullable UIGraphicsGetCurrentContext(void);
+UIKIT_EXTERN CGContextRef _Nullable UIGraphicsGetCurrentContext(void) __attribute__((cf_returns_not_retained));
 UIKIT_EXTERN void UIRectFill(CGRect rect);
 UIKIT_EXTERN void UIRectFrame(CGRect rect);
 NS_ASSUME_NONNULL_END

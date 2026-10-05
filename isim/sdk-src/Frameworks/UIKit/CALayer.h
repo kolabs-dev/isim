@@ -5,6 +5,8 @@
 NS_ASSUME_NONNULL_BEGIN
 typedef NSString *CALayerCornerCurve NS_TYPED_ENUM;
 UIKIT_EXTERN CALayerCornerCurve const kCACornerCurveCircular, kCACornerCurveContinuous;
+typedef NSString *CALayerContentsFilter NS_TYPED_ENUM;
+UIKIT_EXTERN CALayerContentsFilter const kCAFilterNearest, kCAFilterLinear, kCAFilterTrilinear;
 @interface CALayer : NSObject
 + (instancetype)layer;
 @property CGRect frame, bounds;
@@ -15,6 +17,7 @@ UIKIT_EXTERN CALayerCornerCurve const kCACornerCurveCircular, kCACornerCurveCont
 @property CGSize shadowOffset;
 @property BOOL masksToBounds, hidden;
 @property (copy) CALayerCornerCurve cornerCurve;
+@property (copy) CALayerContentsFilter magnificationFilter, minificationFilter;   /* isim: nearest affects image drawing */
 @property (nullable, weak, readonly) id delegate;
 @property (nullable, readonly) CALayer *superlayer;
 - (void)setNeedsDisplay;

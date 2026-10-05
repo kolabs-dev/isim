@@ -79,70 +79,142 @@ NSString *isim_string_copy(const char *bytes, NSUInteger len) {
     return isim_string_take(b, len);
 }
 
-/* ---------------- formatting ---------------- */
+/* ---------------- formatting ----------------
+ * Two passes, so positional arguments ("%2$@ %1$d", common in localized strings) work: the first pass
+ * records each argument's type by position, the arguments are read from the va_list in order, and the
+ * second pass formats them. */
+enum { FA_NONE, FA_INT, FA_LONG, FA_LLONG, FA_UINT, FA_ULONG, FA_ULLONG, FA_DOUBLE, FA_LDOUBLE, FA_ID, FA_PTR, FA_CSTR, FA_USTR };
+typedef union { long long ll; unsigned long long ull; double d; long double ld; void *p; } farg_t;
+typedef struct { NSUInteger start, end; int pos, starw, starp, flagsN; char flags[8]; int width, prec; int lng; char conv; } fspec_t;
+
+/* parses the conversion at f[i] (after '%'); returns NO at the end of the format */
+static BOOL parse_spec(const char *f, NSUInteger fn, NSUInteger *ip, fspec_t *sp, int *seq) {
+    NSUInteger i = *ip;
+    memset(sp, 0, sizeof *sp); sp->width = -1; sp->prec = -1; sp->starw = sp->starp = -1; sp->pos = -1;
+    sp->start = i - 1;
+    /* position: digits followed by '$' */
+    NSUInteger j = i; int num = 0;
+    while (j < fn && isdigit((unsigned char)f[j])) num = num * 10 + (f[j++] - '0');
+    if (j < fn && f[j] == '$' && j > i) { sp->pos = num - 1; i = j + 1; }
+    while (i < fn && strchr("-+ #0'", f[i])) { if (sp->flagsN < 7) sp->flags[sp->flagsN++] = f[i]; i++; }
+    if (i < fn && f[i] == '*') {
+        i++; int n2 = 0; NSUInteger k = i;
+        while (k < fn && isdigit((unsigned char)f[k])) n2 = n2 * 10 + (f[k++] - '0');
+        if (k < fn && f[k] == '$' && k > i) { sp->starw = n2 - 1; i = k + 1; } else sp->starw = (*seq)++;
+    } else if (i < fn && isdigit((unsigned char)f[i])) { sp->width = 0; while (i < fn && isdigit((unsigned char)f[i])) sp->width = sp->width * 10 + (f[i++] - '0'); }
+    if (i < fn && f[i] == '.') {
+        i++; sp->prec = 0;
+        if (i < fn && f[i] == '*') {
+            i++; int n2 = 0; NSUInteger k = i;
+            while (k < fn && isdigit((unsigned char)f[k])) n2 = n2 * 10 + (f[k++] - '0');
+            if (k < fn && f[k] == '$' && k > i) { sp->starp = n2 - 1; i = k + 1; } else sp->starp = (*seq)++;
+        } else while (i < fn && isdigit((unsigned char)f[i])) sp->prec = sp->prec * 10 + (f[i++] - '0');
+    }
+    while (i < fn && strchr("hlqLztj", f[i])) {
+        char c = f[i++];
+        if (c == 'h') sp->lng = -1; else if (c == 'l') sp->lng = sp->lng == 1 ? 2 : 1; else if (c == 'q' || c == 'j') sp->lng = 2;
+        else if (c == 'L') sp->lng = 3; else sp->lng = 1;
+    }
+    if (i >= fn) { *ip = i; return NO; }
+    sp->conv = f[i++];
+    sp->end = i;
+    if (sp->conv != '%' && sp->pos < 0) sp->pos = (*seq)++;
+    *ip = i;
+    return YES;
+}
+static int arg_type(const fspec_t *s) {
+    switch (s->conv) {
+    case 'd': case 'i': return s->lng == 2 ? FA_LLONG : s->lng == 1 ? FA_LONG : FA_INT;
+    case 'u': case 'o': case 'x': case 'X': return s->lng == 2 ? FA_ULLONG : s->lng == 1 ? FA_ULONG : FA_UINT;
+    case 'f': case 'F': case 'e': case 'E': case 'g': case 'G': case 'a': case 'A': return s->lng == 3 ? FA_LDOUBLE : FA_DOUBLE;
+    case '@': return FA_ID;
+    case 'c': case 'C': return FA_INT;
+    case 's': return FA_CSTR;
+    case 'S': return FA_USTR;
+    case 'p': case 'n': return FA_PTR;
+    default: return FA_NONE;
+    }
+}
 NSString *isim_format(NSString *fmt, va_list ap) {
     NSUInteger fn; const char *f = [fmt _isim_bytes:&fn];
-    buf_t out = {0}; buf_add(&out, "", 0);
-    va_list args; va_copy(args, ap);
+    enum { MAXA = 64 };
+    int types[MAXA] = {0}; int nargs = 0, seq = 0;
+    /* pass 1: argument types */
     for (NSUInteger i = 0; i < fn;) {
-        if (f[i] != '%') { NSUInteger j = i; while (j < fn && f[j] != '%') j++; buf_add(&out, f + i, j - i); i = j; continue; }
-        NSUInteger start = i++;
-        char spec[64]; int sp = 0; spec[sp++] = '%';
-        while (i < fn && strchr("-+ #0'", f[i])) { if (sp < 40) spec[sp++] = f[i]; i++; }
-        if (i < fn && f[i] == '*') { sp += snprintf(spec + sp, 12, "%d", va_arg(args, int)); i++; }
-        else while (i < fn && isdigit((unsigned char)f[i])) { if (sp < 40) spec[sp++] = f[i]; i++; }
-        if (i < fn && f[i] == '$') { buf_add(&out, f + start, fn - start); break; }     /* positional args unsupported */
-        if (i < fn && f[i] == '.') {
-            spec[sp++] = '.'; i++;
-            if (i < fn && f[i] == '*') { sp += snprintf(spec + sp, 12, "%d", va_arg(args, int)); i++; }
-            else while (i < fn && isdigit((unsigned char)f[i])) { if (sp < 50) spec[sp++] = f[i]; i++; }
-        }
-        int lng = 0;   /* 0 int, 1 long, 2 long long, 3 long double, -1 short/char */
-        while (i < fn && strchr("hlqLztj", f[i])) {
-            char c = f[i++];
-            if (c == 'h') lng = -1; else if (c == 'l') lng = lng == 1 ? 2 : 1; else if (c == 'q' || c == 'j') lng = 2;
-            else if (c == 'L') lng = 3; else lng = 1;
-        }
-        if (i >= fn) break;
-        char conv = f[i++];
-        char tmp[512]; int n = 0;
-        switch (conv) {
-        case '%': buf_add(&out, "%", 1); break;
-        case '@': {
-            id o = va_arg(args, id);
-            const char *s = o ? [[o description] UTF8String] : "(null)";
-            buf_add(&out, s, strlen(s)); break; }
-        case 'd': case 'i':
-            if (lng == 2) { spec[sp++] = 'l'; spec[sp++] = 'l'; spec[sp++] = conv; spec[sp] = 0; n = snprintf(tmp, sizeof tmp, spec, va_arg(args, long long)); }
-            else if (lng == 1) { spec[sp++] = 'l'; spec[sp++] = conv; spec[sp] = 0; n = snprintf(tmp, sizeof tmp, spec, va_arg(args, long)); }
-            else { spec[sp++] = conv; spec[sp] = 0; n = snprintf(tmp, sizeof tmp, spec, va_arg(args, int)); }
-            buf_add(&out, tmp, n < (int)sizeof tmp ? n : (int)sizeof tmp - 1); break;
-        case 'u': case 'o': case 'x': case 'X':
-            if (lng == 2) { spec[sp++] = 'l'; spec[sp++] = 'l'; spec[sp++] = conv; spec[sp] = 0; n = snprintf(tmp, sizeof tmp, spec, va_arg(args, unsigned long long)); }
-            else if (lng == 1) { spec[sp++] = 'l'; spec[sp++] = conv; spec[sp] = 0; n = snprintf(tmp, sizeof tmp, spec, va_arg(args, unsigned long)); }
-            else { spec[sp++] = conv; spec[sp] = 0; n = snprintf(tmp, sizeof tmp, spec, va_arg(args, unsigned int)); }
-            buf_add(&out, tmp, n < (int)sizeof tmp ? n : (int)sizeof tmp - 1); break;
-        case 'f': case 'F': case 'e': case 'E': case 'g': case 'G': case 'a': case 'A':
-            if (lng == 3) { spec[sp++] = 'L'; spec[sp++] = conv; spec[sp] = 0; n = snprintf(tmp, sizeof tmp, spec, va_arg(args, long double)); }
-            else { spec[sp++] = conv; spec[sp] = 0; n = snprintf(tmp, sizeof tmp, spec, va_arg(args, double)); }
-            buf_add(&out, tmp, n < (int)sizeof tmp ? n : (int)sizeof tmp - 1); break;
-        case 'c': { char c = (char)va_arg(args, int); buf_add(&out, &c, 1); break; }
-        case 'C': { char e[4]; NSUInteger k = encode_utf8((uint32_t)va_arg(args, int), e); buf_add(&out, e, k); break; }
-        case 's': {
-            const char *s = va_arg(args, const char *);
-            spec[sp++] = 's'; spec[sp] = 0;
-            if (!s) s = "(null)";
-            if (sp == 2) buf_add(&out, s, strlen(s));
-            else { n = snprintf(tmp, sizeof tmp, spec, s); buf_add(&out, tmp, n < (int)sizeof tmp ? n : (int)sizeof tmp - 1); }
-            break; }
-        case 'S': { const unichar *u = va_arg(args, const unichar *); NSUInteger k = 0; while (u && u[k]) k++;
-                    NSUInteger ol; char *s = utf16_to_utf8(u, k, &ol); buf_add(&out, s, ol); free(s); break; }
-        case 'p': n = snprintf(tmp, sizeof tmp, "%p", va_arg(args, void *)); buf_add(&out, tmp, n); break;
-        case 'n': (void)va_arg(args, void *); break;
-        default: buf_add(&out, f + start, i - start); break;
+        if (f[i] != '%') { i++; continue; }
+        i++;
+        fspec_t sp;
+        if (!parse_spec(f, fn, &i, &sp, &seq)) break;
+        if (sp.conv == '%') continue;
+        if (sp.starw >= 0 && sp.starw < MAXA) { types[sp.starw] = FA_INT; if (sp.starw + 1 > nargs) nargs = sp.starw + 1; }
+        if (sp.starp >= 0 && sp.starp < MAXA) { types[sp.starp] = FA_INT; if (sp.starp + 1 > nargs) nargs = sp.starp + 1; }
+        if (sp.pos >= 0 && sp.pos < MAXA) { int t = arg_type(&sp); if (t) types[sp.pos] = t; if (sp.pos + 1 > nargs) nargs = sp.pos + 1; }
+    }
+    /* read the arguments in order */
+    farg_t vals[MAXA]; memset(vals, 0, sizeof vals);
+    va_list args; va_copy(args, ap);
+    for (int k = 0; k < nargs; k++) {
+        switch (types[k]) {
+        case FA_INT: vals[k].ll = va_arg(args, int); break;
+        case FA_UINT: vals[k].ull = va_arg(args, unsigned int); break;
+        case FA_LONG: vals[k].ll = va_arg(args, long); break;
+        case FA_ULONG: vals[k].ull = va_arg(args, unsigned long); break;
+        case FA_LLONG: vals[k].ll = va_arg(args, long long); break;
+        case FA_ULLONG: vals[k].ull = va_arg(args, unsigned long long); break;
+        case FA_DOUBLE: vals[k].d = va_arg(args, double); break;
+        case FA_LDOUBLE: vals[k].ld = va_arg(args, long double); break;
+        default: vals[k].p = va_arg(args, void *); break;       /* id, pointers, strings, unknown */
         }
     }
     va_end(args);
+    /* pass 2: format */
+    buf_t out = {0}; buf_add(&out, "", 0);
+    seq = 0;
+    for (NSUInteger i = 0; i < fn;) {
+        if (f[i] != '%') { NSUInteger j = i; while (j < fn && f[j] != '%') j++; buf_add(&out, f + i, j - i); i = j; continue; }
+        i++;
+        fspec_t sp;
+        if (!parse_spec(f, fn, &i, &sp, &seq)) break;
+        if (sp.conv == '%') { buf_add(&out, "%", 1); continue; }
+        if (sp.pos < 0 || sp.pos >= MAXA) continue;
+        int width = sp.starw >= 0 && sp.starw < MAXA ? (int)vals[sp.starw].ll : sp.width;
+        int prec = sp.starp >= 0 && sp.starp < MAXA ? (int)vals[sp.starp].ll : sp.prec;
+        char spec[64]; int n = 0;
+        spec[n++] = '%';
+        for (int k = 0; k < sp.flagsN; k++) spec[n++] = sp.flags[k];
+        if (width >= 0) n += snprintf(spec + n, 16, "%d", width);
+        if (prec >= 0) n += snprintf(spec + n, 16, ".%d", prec);
+        farg_t v = vals[sp.pos];
+        char tmp[512]; int w = 0;
+        switch (sp.conv) {
+        case '@': {
+            id o = (id)v.p;
+            const char *s = o ? [[o description] UTF8String] : "(null)";
+            if (width < 0 && prec < 0) buf_add(&out, s, strlen(s));
+            else { spec[n++] = 's'; spec[n] = 0; w = snprintf(tmp, sizeof tmp, spec, s); buf_add(&out, tmp, w < (int)sizeof tmp ? w : (int)sizeof tmp - 1); }
+            break; }
+        case 'd': case 'i': spec[n++] = 'l'; spec[n++] = 'l'; spec[n++] = sp.conv; spec[n] = 0;
+            w = snprintf(tmp, sizeof tmp, spec, sp.lng == -1 ? (long long)(short)v.ll : v.ll); buf_add(&out, tmp, w < (int)sizeof tmp ? w : (int)sizeof tmp - 1); break;
+        case 'u': case 'o': case 'x': case 'X': spec[n++] = 'l'; spec[n++] = 'l'; spec[n++] = sp.conv; spec[n] = 0;
+            w = snprintf(tmp, sizeof tmp, spec, v.ull); buf_add(&out, tmp, w < (int)sizeof tmp ? w : (int)sizeof tmp - 1); break;
+        case 'f': case 'F': case 'e': case 'E': case 'g': case 'G': case 'a': case 'A':
+            if (sp.lng == 3) { spec[n++] = 'L'; spec[n++] = sp.conv; spec[n] = 0; w = snprintf(tmp, sizeof tmp, spec, v.ld); }
+            else { spec[n++] = sp.conv; spec[n] = 0; w = snprintf(tmp, sizeof tmp, spec, v.d); }
+            buf_add(&out, tmp, w < (int)sizeof tmp ? w : (int)sizeof tmp - 1); break;
+        case 'c': { char c = (char)v.ll; buf_add(&out, &c, 1); break; }
+        case 'C': { char e[4]; NSUInteger k = encode_utf8((uint32_t)v.ll, e); buf_add(&out, e, k); break; }
+        case 's': {
+            const char *s = v.p ? (const char *)v.p : "(null)";
+            if (width < 0 && prec < 0) buf_add(&out, s, strlen(s));
+            else { spec[n++] = 's'; spec[n] = 0; w = snprintf(tmp, sizeof tmp, spec, s); buf_add(&out, tmp, w < (int)sizeof tmp ? w : (int)sizeof tmp - 1); }
+            break; }
+        case 'S': { const unichar *u = v.p; NSUInteger k = 0; while (u && u[k]) k++;
+                    NSUInteger ol; char *s = utf16_to_utf8(u, k, &ol); buf_add(&out, s, ol); free(s); break; }
+        case 'p': w = snprintf(tmp, sizeof tmp, "%p", v.p); buf_add(&out, tmp, w); break;
+        case 'n': break;
+        default: buf_add(&out, f + sp.start, sp.end - sp.start); break;
+        }
+    }
     return isim_string_take(out.b, out.n);
 }
 

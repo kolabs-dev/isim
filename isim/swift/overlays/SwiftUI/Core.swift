@@ -4,6 +4,7 @@
 // position (identity path). See docs/compatibility-matrix.md for the supported API.
 @_exported import UIKit
 @_exported import Foundation
+@_exported import Combine
 
 // MARK: - View
 
@@ -131,12 +132,20 @@ func _typeName(_ t: Any.Type) -> String { String(describing: t) }
 /// Evaluates a view at a structural position: attaches property-wrapper storage
 /// (@State, @FocusState, @Environment, ...) for that position, then builds its node.
 @MainActor func _resolve(_ view: any View, _ ctx: _Context) -> _Node {
+    if let r = view as? any UIViewRepresentable { _attach(view, ctx); return _representableNode(r, ctx) }
+    if let r = view as? any UIViewControllerRepresentable { _attach(view, ctx); return _vcRepresentableNode(r, ctx) }
     if let p = view as? _PrimitiveView {
         _attach(view, ctx)
         return p._makeNode(ctx)
     }
     _attach(view, ctx)
     return _evaluateBody(view, ctx)
+}
+@MainActor func _representableNode<R: UIViewRepresentable>(_ r: R, _ ctx: _Context) -> _Node {
+    _RepresentableNode(path: ctx.path, rep: r, env: ctx.environment, graph: ctx.graph)
+}
+@MainActor func _vcRepresentableNode<R: UIViewControllerRepresentable>(_ r: R, _ ctx: _Context) -> _Node {
+    _VCRepresentableNode(path: ctx.path, rep: r, env: ctx.environment, graph: ctx.graph)
 }
 @MainActor private func _evaluateBody<V: View>(_ view: V, _ ctx: _Context) -> _Node {
     ctx.graph.evaluations += 1

@@ -69,7 +69,7 @@ static int shell_spawn(const char *bundle, const char *exe, const char *url) {
         char b1[16], b2[16], b3[32];
         snprintf(b1, sizeof b1, "%d", sv[1]); snprintf(b2, sizeof b2, "%d", mfd); snprintf(b3, sizeof b3, "%g", px_scale);
         setenv("ISIM_CLIENT_SOCK", b1, 1); setenv("ISIM_CLIENT_SURFACE", b2, 1); setenv("ISIM_CLIENT_SCALE", b3, 1);
-        unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_HEADLESS");
+        unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_HEADLESS"); unsetenv("ISIM_CONTROL");
         if (url && *url) setenv("ISIM_LAUNCH_URL", url, 1); else unsetenv("ISIM_LAUNCH_URL");
         execl(shell_self, shell_self, "--root", shell_root, exe, (char *)NULL);
         perror("isim shell: exec"); _exit(127);
@@ -144,6 +144,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         else { px_scale = SDL_GetWindowPixelDensity(win) * zoom; SDL_StartTextInput(win); }
     }
     if (headless) px_scale = getenv("ISIM_SHOT_SCALE") ? atof(getenv("ISIM_SHOT_SCALE")) : 2;
+    if (headless && !getenv("ISIM_AUDIO")) setenv("ISIM_MUTE", "1", 1);      /* headless runs (tests) are silent */
     surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
     surface_bytes = (size_t)surf_w * surf_h * 4;
     pctx = NULL;

@@ -4,4 +4,6 @@
 #include <CoreGraphics/CGGeometry.h>
 #include <CoreGraphics/CGAffineTransform.h>
 #include <CoreGraphics/CGColor.h>
+#include <CoreGraphics/CGPath.h>
+#include <CoreGraphics/CGImage.h>
 #include <CoreGraphics/CGContext.h>

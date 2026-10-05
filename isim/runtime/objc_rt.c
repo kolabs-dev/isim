@@ -1,3 +1,4 @@
+#include <signal.h>
 /*
  * isim Objective-C runtime (host side) for Apple's ObjC2 x86_64 ABI as emitted by
  * clang for the iOS simulator. Classes, categories, selectors and protocols are
@@ -813,6 +814,9 @@ void objc_exception_throw(id e) {
     const char *(*utf8)(id, SEL) = desc ? (void *)objc_rt_lookup(desc, desc->isa, sel_registerName("UTF8String")) : NULL;
     fprintf(stderr, "isim objc: FATAL: uncaught exception (exceptions are not implemented): %s\n",
             utf8 ? utf8(desc, sel_registerName("UTF8String")) : "?");
+    extern void isim_print_backtrace(void *frame);
+    isim_print_backtrace(__builtin_frame_address(0));
+    signal(SIGABRT, SIG_DFL);
     abort();
 }
 

@@ -639,6 +639,24 @@ NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailure
 - (NSUInteger)hash { return (NSUInteger)(_c[0] * 255) << 24 ^ (NSUInteger)(_c[1] * 255) << 16 ^ (NSUInteger)(_c[2] * 255) << 8 ^ (NSUInteger)(_c[3] * 255); }
 @end
 
+/* CGPath / CGImage / CGContext objects (allocated by CoreGraphics; layouts must match CoreGraphics.c) */
+@interface __NSCGPath : NSObject { @public void *_els; long _count, _cap; }
+@end
+@implementation __NSCGPath
+- (void)dealloc { free(_els); }
+- (NSString *)description { return [NSString stringWithFormat:@"<CGPath %p> %ld elements", self, _count]; }
+@end
+@interface __NSCGImage : NSObject { @public int _handle; double _x, _y, _w, _h; void *_owner; }
+@end
+@implementation __NSCGImage
+- (void)dealloc { if (_owner) CFRelease(_owner); }
+- (NSString *)description { return [NSString stringWithFormat:@"<CGImage %p> (%g x %g)", self, _w, _h]; }
+@end
+@interface __NSCGContext : NSObject
+@end
+@implementation __NSCGContext
+@end
+
 /* NSThread: identity objects for the calling pthread (one per thread, via a key) */
 static pthread_key_t thread_key;
 static NSThread *main_thread_obj;

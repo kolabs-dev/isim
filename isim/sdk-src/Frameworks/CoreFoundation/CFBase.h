@@ -20,12 +20,15 @@ typedef unsigned long CFTypeID;
 typedef unsigned long CFOptionFlags;
 typedef unsigned long CFHashCode;
 typedef const void *CFTypeRef;
-typedef const struct __CFString *CFStringRef;
-typedef struct __CFString *CFMutableStringRef;
+/* toll-free bridged to the Foundation classes, as on Apple platforms */
+typedef const struct __attribute__((objc_bridge(NSString))) __CFString *CFStringRef;
+typedef struct __attribute__((objc_bridge_mutable(NSMutableString))) __CFString *CFMutableStringRef;
+typedef const struct __attribute__((objc_bridge(NSCharacterSet))) __CFCharacterSet *CFCharacterSetRef;
+typedef const struct __attribute__((objc_bridge(NSURL))) __CFURL *CFURLRef;
 typedef const struct __CFAllocator *CFAllocatorRef;
-typedef const struct __CFDictionary *CFDictionaryRef;
-typedef const struct __CFArray *CFArrayRef;
-typedef const struct __CFError *CFErrorRef;
+typedef const struct __attribute__((objc_bridge(NSDictionary))) __CFDictionary *CFDictionaryRef;
+typedef const struct __attribute__((objc_bridge(NSArray))) __CFArray *CFArrayRef;
+typedef struct __attribute__((objc_bridge(NSError))) __CFError *CFErrorRef;
 typedef uint32_t CFStringEncoding;
 typedef struct { CFIndex location; CFIndex length; } CFRange;
 CF_INLINE CFRange CFRangeMake(CFIndex loc, CFIndex len) { CFRange r = { loc, len }; return r; }
@@ -34,6 +37,10 @@ typedef CF_ENUM(CFIndex, CFComparisonResult) { kCFCompareLessThan = -1L, kCFComp
 CF_EXPORT CFTypeID CFGetTypeID(CFTypeRef cf);
 CF_EXPORT CFTypeRef CFRetain(CFTypeRef cf);
 CF_EXPORT void CFRelease(CFTypeRef cf);
+CF_EXPORT CFTypeRef CFAutorelease(CFTypeRef cf);
+CF_EXPORT CFIndex CFGetRetainCount(CFTypeRef cf);
+CF_EXPORT Boolean CFEqual(CFTypeRef a, CFTypeRef b);
+CF_EXPORT CFHashCode CFHash(CFTypeRef cf);
 CF_EXPORT CFTypeID CFStringGetTypeID(void);
 CF_EXPORT CFIndex CFStringGetLength(CFStringRef s);
 CF_EXPORT CFHashCode CFStringHashNSString(CFStringRef s);

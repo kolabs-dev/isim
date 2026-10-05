@@ -18,6 +18,17 @@
 
 
 /* ---------------- NSURL ---------------- */
+/* percent-encodes what may not appear in a URL path (spaces, %, #, ?, quotes, non-ASCII ...) */
+static NSString *encode_path(NSString *path, BOOL keepSlash) {
+    NSUInteger n; const char *b = [path _isim_bytes:&n];
+    NSMutableString *out = [NSMutableString string];
+    for (NSUInteger i = 0; i < n; i++) {
+        unsigned char c = (unsigned char)b[i];
+        if (isalnum(c) || strchr("-._~!$&'()*+,;=:@", c) || (c == '/' && keepSlash)) [out appendFormat:@"%c", c];
+        else [out appendFormat:@"%%%02X", c];
+    }
+    return out;
+}
 @implementation NSURL { NSString *_string; NSString *_scheme, *_host, *_path, *_query, *_fragment, *_user; NSNumber *_port; }
 + (instancetype)URLWithString:(NSString *)s { return [[self alloc] initWithString:s]; }
 + (instancetype)URLWithString:(NSString *)s relativeToURL:(NSURL *)base {
@@ -29,7 +40,7 @@
 + (NSURL *)fileURLWithPath:(NSString *)path isDirectory:(BOOL)d { return [self fileURLWithPath:d && ![path hasSuffix:@"/"] ? [path stringByAppendingString:@"/"] : path]; }
 - (instancetype)initFileURLWithPath:(NSString *)path {
     NSString *abs = [path hasPrefix:@"/"] ? path : [NSHomeDirectory() stringByAppendingPathComponent:path];
-    return [self initWithString:[@"file://" stringByAppendingString:abs]];
+    return [self initWithString:[@"file://" stringByAppendingString:encode_path(abs, YES)]];
 }
 - (instancetype)initWithString:(NSString *)s {
     if (!s.length) return nil;
@@ -83,7 +94,7 @@
 - (NSString *)pathExtension { return self.path.pathExtension; }
 - (NSURL *)URLByAppendingPathComponent:(NSString *)c {
     NSString *base = [_string hasSuffix:@"/"] ? _string : [_string stringByAppendingString:@"/"];
-    return [NSURL URLWithString:[base stringByAppendingString:c]];
+    return [NSURL URLWithString:[base stringByAppendingString:encode_path(c, YES)]];
 }
 @end
 

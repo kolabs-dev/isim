@@ -115,7 +115,7 @@ public final class DispatchWorkItem: @unchecked Sendable {
     private var cancelled = false
     private var done = false
     private var notifications: [(DispatchQueue, () -> Void)] = []
-    public init(qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [], block: @escaping @Sendable @convention(block) () -> Void) {
+    public init(qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [], block: @escaping @convention(block) () -> Void) {
         self.block = block; self.flags = flags
         pthread_mutex_init(lock, nil)
     }
@@ -129,7 +129,7 @@ public final class DispatchWorkItem: @unchecked Sendable {
     public func cancel() { pthread_mutex_lock(lock); cancelled = true; pthread_mutex_unlock(lock) }
     public var isCancelled: Bool { pthread_mutex_lock(lock); defer { pthread_mutex_unlock(lock) }; return cancelled }
     public func notify(queue: DispatchQueue, execute: DispatchWorkItem) { notify(queue: queue) { execute.perform() } }
-    public func notify(qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [], queue: DispatchQueue, execute: @escaping @Sendable @convention(block) () -> Void) {
+    public func notify(qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [], queue: DispatchQueue, execute: @escaping @convention(block) () -> Void) {
         pthread_mutex_lock(lock)
         if done { pthread_mutex_unlock(lock); queue.async(execute: execute); return }
         notifications.append((queue, execute))
@@ -192,7 +192,7 @@ public final class DispatchQueue: DispatchObject, @unchecked Sendable {
     public var label: String { String(cString: dispatch_queue_get_label(queue)) }
 
     public func async(group: DispatchGroup? = nil, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
-                      execute work: @escaping @Sendable @convention(block) () -> Void) {
+                      execute work: @escaping @convention(block) () -> Void) {
         if let g = group { dispatch_group_async(g.group, queue, work) }
         else if flags.contains(.barrier) { dispatch_barrier_async(queue, work) }
         else { dispatch_async(queue, work) }
@@ -205,14 +205,14 @@ public final class DispatchQueue: DispatchObject, @unchecked Sendable {
         dispatch_group_async(group.group, queue) { workItem.perform() }
     }
     public func asyncAfter(deadline: DispatchTime, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
-                           execute work: @escaping @Sendable @convention(block) () -> Void) {
+                           execute work: @escaping @convention(block) () -> Void) {
         dispatch_after(deadline.rawValue, queue, work)
     }
     public func asyncAfter(deadline: DispatchTime, execute: DispatchWorkItem) {
         dispatch_after(deadline.rawValue, queue) { execute.perform() }
     }
     public func asyncAfter(wallDeadline: DispatchWallTime, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
-                           execute work: @escaping @Sendable @convention(block) () -> Void) {
+                           execute work: @escaping @convention(block) () -> Void) {
         dispatch_after(wallDeadline.rawValue, queue, work)
     }
     public func asyncAfter(wallDeadline: DispatchWallTime, execute: DispatchWorkItem) {
@@ -273,7 +273,7 @@ public final class DispatchGroup: DispatchObject, @unchecked Sendable {
     public func wait(timeout: DispatchTime) -> DispatchTimeoutResult { dispatch_group_wait(group, timeout.rawValue) == 0 ? .success : .timedOut }
     public func wait(wallTimeout: DispatchWallTime) -> DispatchTimeoutResult { dispatch_group_wait(group, wallTimeout.rawValue) == 0 ? .success : .timedOut }
     public func notify(qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [], queue: DispatchQueue,
-                       execute work: @escaping @Sendable @convention(block) () -> Void) {
+                       execute work: @escaping @convention(block) () -> Void) {
         dispatch_group_notify(group, queue.queue, work)
     }
     public func notify(queue: DispatchQueue, work: DispatchWorkItem) { dispatch_group_notify(group, queue.queue) { work.perform() } }
@@ -291,8 +291,8 @@ public final class DispatchSemaphore: DispatchObject, @unchecked Sendable {
 // MARK: - Timer sources
 
 public protocol DispatchSourceProtocol {
-    func setEventHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@Sendable @convention(block) () -> Void)?)
-    func setCancelHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@Sendable @convention(block) () -> Void)?)
+    func setEventHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@convention(block) () -> Void)?)
+    func setCancelHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@convention(block) () -> Void)?)
     func resume()
     func suspend()
     func activate()
@@ -304,8 +304,8 @@ public protocol DispatchSourceTimer: DispatchSourceProtocol {
     func schedule(deadline: DispatchTime, repeating interval: Double, leeway: DispatchTimeInterval)
 }
 extension DispatchSourceProtocol {
-    public func setEventHandler(handler: (@Sendable @convention(block) () -> Void)?) { setEventHandler(qos: .unspecified, flags: [], handler: handler) }
-    public func setCancelHandler(handler: (@Sendable @convention(block) () -> Void)?) { setCancelHandler(qos: .unspecified, flags: [], handler: handler) }
+    public func setEventHandler(handler: (@convention(block) () -> Void)?) { setEventHandler(qos: .unspecified, flags: [], handler: handler) }
+    public func setCancelHandler(handler: (@convention(block) () -> Void)?) { setCancelHandler(qos: .unspecified, flags: [], handler: handler) }
 }
 extension DispatchSourceTimer {
     public func schedule(deadline: DispatchTime, repeating interval: DispatchTimeInterval = .never, leeway: DispatchTimeInterval = .nanoseconds(0)) {
@@ -332,10 +332,10 @@ final class _TimerSource: DispatchObject, DispatchSourceTimer, @unchecked Sendab
     init(queue: DispatchQueue) {
         super.init(UnsafeMutableRawPointer(dispatch_source_create(_isim_dispatch_timer_type(), 0, 0, queue.queue)!))
     }
-    func setEventHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@Sendable @convention(block) () -> Void)?) {
+    func setEventHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@convention(block) () -> Void)?) {
         dispatch_source_set_event_handler(source, handler ?? {})
     }
-    func setCancelHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@Sendable @convention(block) () -> Void)?) {
+    func setCancelHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@convention(block) () -> Void)?) {
         dispatch_source_set_cancel_handler(source, handler ?? {})
     }
     func schedule(deadline: DispatchTime, repeating interval: DispatchTimeInterval, leeway: DispatchTimeInterval) {

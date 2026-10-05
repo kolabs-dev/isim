@@ -293,6 +293,12 @@ static UIApplication *shared_app;
     NSMutableSet<UISceneSession *> *_sessions;
 }
 + (UIApplication *)sharedApplication { return shared_app; }
+static BOOL status_bar_hidden;
+- (BOOL)isStatusBarHidden { return status_bar_hidden; }
+- (void)_isim_setStatusBarHidden:(BOOL)h {
+    if (h == status_bar_hidden) return;
+    status_bar_hidden = h; isim_set_status_bar_hidden(h); isim_ui_set_needs_display();
+}
 - (instancetype)init {
     if ((self = [super init])) { _allWindows = [NSMutableArray array]; _scenes = [NSMutableSet set]; _sessions = [NSMutableSet set]; _applicationState = UIApplicationStateInactive; if (!shared_app) shared_app = self; }
     return self;
@@ -494,6 +500,7 @@ static void each_scene_delegate(void (^f)(UIScene *, id<UISceneDelegate>)) {
     for (UIScene *s in UIApplication.sharedApplication.connectedScenes) f(s, s.delegate);
 }
 static void enter_background(void) {
+    isim_audio_suspend(1);          /* like an interrupted audio session */
     if (backgrounded) return;
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
@@ -507,6 +514,7 @@ static void enter_background(void) {
     [isim_ui_first_responder() resignFirstResponder];
 }
 static void enter_foreground(void) {
+    isim_audio_suspend(0);
     if (!backgrounded) { isim_ui_set_needs_display(); return; }
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
@@ -588,6 +596,8 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
     @autoreleasepool {
         NSBundle *bundle = NSBundle.mainBundle;
         NSDictionary *info = bundle.infoDictionary;
+        isim_ui_register_app_fonts();
+        if ([info[@"UIStatusBarHidden"] boolValue]) { status_bar_hidden = YES; isim_set_status_bar_hidden(1); }
         Class appClass = class_named(principalClassName ?: info[@"NSPrincipalClass"]) ?: [UIApplication class];
         UIApplication *app = [appClass new];
         shared_app = app;

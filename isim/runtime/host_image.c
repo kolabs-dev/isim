@@ -259,6 +259,52 @@ void isim_image_draw(int hd, double x, double y, double w, double h, const doubl
     cairo_restore(c);
 }
 
+/* Draws the source rectangle (sx, sy, sw, sh in image pixels) of a raster image into (x, y, w, h).
+ * nearest: pixel-art filtering. blend: mix the color into the image's opaque pixels by factor (SpriteKit's
+ * colorBlendFactor). Vector/procedural images are drawn whole. */
+void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
+                          int nearest, const double *blend, double factor, double alpha) {
+    struct img *im = get(hd); cairo_t *c = isim_host_cairo();
+    if (!im || !c || w == 0 || h == 0 || sw <= 0 || sh <= 0) return;
+    if (im->kind != IMG_RASTER) { isim_image_draw(hd, x, y, w, h, NULL, alpha); return; }
+    cairo_save(c);
+    cairo_translate(c, x, y);
+    cairo_rectangle(c, 0, 0, w, h);
+    cairo_clip(c);
+    if (!blend || factor <= 0) {                     /* fast path: no group */
+        cairo_scale(c, w / sw, h / sh);
+        cairo_set_source_surface(c, im->surf, -sx, -sy);
+        cairo_pattern_set_filter(cairo_get_source(c), nearest ? CAIRO_FILTER_NEAREST : CAIRO_FILTER_GOOD);
+        cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+        if (alpha >= 0.999) cairo_paint(c); else cairo_paint_with_alpha(c, alpha);
+        cairo_restore(c);
+        return;
+    }
+    cairo_push_group(c);
+    cairo_save(c);
+    cairo_scale(c, w / sw, h / sh);
+    cairo_set_source_surface(c, im->surf, -sx, -sy);
+    cairo_pattern_set_filter(cairo_get_source(c), nearest ? CAIRO_FILTER_NEAREST : CAIRO_FILTER_GOOD);
+    cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
+    cairo_paint(c);
+    cairo_restore(c);
+    if (blend && factor > 0) {
+        cairo_set_operator(c, CAIRO_OPERATOR_ATOP);
+        cairo_set_source_rgba(c, blend[0], blend[1], blend[2], factor > 1 ? 1 : factor);
+        cairo_paint(c);
+    }
+    cairo_pattern_t *pat = cairo_pop_group(c);
+    cairo_set_source(c, pat);
+    cairo_paint_with_alpha(c, alpha);
+    cairo_pattern_destroy(pat);
+    cairo_restore(c);
+}
+/* Pixel size of an image (vector images: their intrinsic size). */
+void isim_image_pixel_size(int hd, double *w, double *h) {
+    struct img *im = get(hd);
+    *w = im ? im->w : 0; *h = im ? im->h : 0;
+}
+
 /* Is the image a symbol/template by nature (single-color art)? */
 int isim_image_is_template(int hd) { struct img *im = get(hd); return im && im->kind == IMG_PROC; }
 
