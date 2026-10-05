@@ -130,9 +130,11 @@ extension View {
     public func layoutPriority(_ value: Double) -> some View {
         _modify { ctx, c in _PriorityNode(path: ctx.path, priority: value, child: _resolve(c, ctx.child("lp"))) }
     }
-    public func fixedSize() -> some View { self }
-    public func monospacedDigitFont() -> some View { self }
-    public func fixedSize(horizontal: Bool, vertical: Bool) -> some View { self }
+    public func fixedSize() -> some View { fixedSize(horizontal: true, vertical: true) }
+    /// The child's ideal size on the fixed axes, whatever is proposed (text then never wraps or truncates).
+    public func fixedSize(horizontal: Bool, vertical: Bool) -> some View {
+        _modify { ctx, c in _FixedSizeNode(path: ctx.path, horizontal: horizontal, vertical: vertical, child: _resolve(c, ctx.child("fx"))) }
+    }
     public func ignoresSafeArea(_ regions: SafeAreaRegions = .all, edges: Edge.Set = .all) -> some View {
         _modify { ctx, c in _IgnoreSafeAreaNode(path: ctx.path, edges: edges, child: _resolve(c, ctx.child("isa"))) }
     }
@@ -308,4 +310,17 @@ final class _IgnoreSafeAreaNode: _WrapperNode {
     override var layoutPriority: Double { child.layoutPriority }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
     override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
+}
+
+final class _FixedSizeNode: _WrapperNode {
+    let horizontal: Bool, vertical: Bool
+    init(path: String, horizontal: Bool, vertical: Bool, child: _Node) { self.horizontal = horizontal; self.vertical = vertical; super.init(path: path, child: child) }
+    override var layoutPriority: Double { child.layoutPriority }
+    func proposal(_ p: _Proposal) -> _Proposal { _Proposal(width: horizontal ? nil : p.width, height: vertical ? nil : p.height) }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(proposal(p)) }
+    override func place(_ rect: CGRect) {
+        frame = rect
+        let s = child.sizeThatFits(proposal(_Proposal(width: rect.width, height: rect.height)))
+        child.place(CGRect(x: (rect.width - s.width) / 2, y: (rect.height - s.height) / 2, width: s.width, height: s.height))
+    }
 }
