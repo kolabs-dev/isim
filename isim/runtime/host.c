@@ -44,7 +44,7 @@ enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_T
        EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */ };
 /* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
 struct shell_msg { int type; struct isim_event ev; char a[512], b[512], c[512]; };
-enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON };
+enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM };
 static int client_sock = -1, client_wake[2] = { -1, -1 };
 static unsigned char *client_pixels;
 

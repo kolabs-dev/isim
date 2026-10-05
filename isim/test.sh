@@ -3,6 +3,7 @@
 set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 status=0
+export ISIM_STANDALONE=1     # `isim run` runs each test app alone (no home screen, nothing installed on the device)
 run() { echo "=== $1"; shift; "$@" || status=1; }
 run "loader" tests/loader/run.sh
 run "foundation self-test" bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -3; exit ${PIPESTATUS[0]}'

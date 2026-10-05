@@ -387,6 +387,14 @@ static NSArray *rows_for(int layer) {
     [self _post:UIKeyboardDidChangeFrameNotification from:from to:to];
     NSLog(@"isim: keyboard shown (%@)", [self _currentName]);
 }
+/* the edited view was deallocated or left its window without resigning */
+- (void)_check {
+    if (!_shown) return;
+    UIView *t = (UIView *)_target;
+    if (!t || isim_ui_first_responder() != (id)t || ([t isKindOfClass:[UIView class]] && !t.window)) {
+        if (t && isim_ui_first_responder() == (id)t) [t resignFirstResponder]; else [self _hide];
+    }
+}
 - (void)_hide {
     if (!_shown) return;
     _shown = NO;
@@ -482,4 +490,5 @@ static NSArray *rows_for(int layer) {
 /* custom keyboards ask this through needsInputModeSwitchKey */
 BOOL isim_ui_keyboard_needs_switch_key(void) { return isim_ui_device()->safe_bottom <= 0; }
 void isim_ui_keyboard_advance(void) { [[__IsimKeyboardController shared] _next]; }
+void isim_ui_keyboard_check(void) { [[__IsimKeyboardController shared] _check]; }
 void isim_ui_keyboard_install(void) { [__IsimKeyboardController load_isim]; }

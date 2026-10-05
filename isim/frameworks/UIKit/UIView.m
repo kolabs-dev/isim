@@ -244,6 +244,8 @@ ANCHORS(UILayoutGuide)
 - (UIWindow *)window { return _window; }
 - (void)_isim_movedToWindow:(UIWindow *)w {
     if (_window == w) return;
+    /* a first responder leaving the window resigns (e.g. its page was popped), so the keyboard goes away */
+    if (!w && (UIResponder *)self == first_responder) [self resignFirstResponder];
     [self willMoveToWindow:w];
     _window = w;
     for (UIView *s in _subs) [s _isim_movedToWindow:w];

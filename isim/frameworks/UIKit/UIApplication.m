@@ -470,6 +470,7 @@ static void handle_id_touch(const struct isim_event *ev) {
 @end
 
 static void render_frame(void) {
+    isim_ui_keyboard_check();
     UIWindow *key = top_window();
     UIViewController *vc = key.rootViewController;
     while (vc.presentedViewController) vc = vc.presentedViewController;

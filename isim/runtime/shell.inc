@@ -9,7 +9,7 @@
  * - Clients ask to launch apps (SM_LAUNCH), report settings changes (broadcast as EV_SETTINGS),
  *   go home, or terminate the other apps (language changes). */
 
-struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; };
+struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; };
 static struct shell_client clients[32];
 static int nclients, active = -1;
 static const char *shell_self, *shell_root;
@@ -190,8 +190,9 @@ static void shell_activate(int i) {
     shell_show(i);
 }
 static char **open_args;      /* launch arguments for the app opened at boot (isim run) */
-static int shell_spawn(const char *bundle, const char *exe, const char *url) {
-    if (nclients >= (int)(sizeof clients / sizeof *clients)) { fprintf(stderr, "isim shell: too many apps\n"); return -1; }
+static int open_slot = -1;    /* that app: when it exits by itself, the run ends with its exit code */
+static int shell_spawn_at(int slot, const char *bundle, const char *exe, const char *url) {
+    if (slot < 0 && nclients >= (int)(sizeof clients / sizeof *clients)) { fprintf(stderr, "isim shell: too many apps\n"); return -1; }
     int sv[2];
     if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sv)) { perror("isim shell: socketpair"); return -1; }
     int mfd = memfd_create("isim-surface", MFD_CLOEXEC);
@@ -211,19 +212,23 @@ static int shell_spawn(const char *bundle, const char *exe, const char *url) {
         if (url && *url) setenv("ISIM_LAUNCH_URL", url, 1); else unsetenv("ISIM_LAUNCH_URL");
         char *av[64]; int n = 0;
         av[n++] = (char *)shell_self; av[n++] = "--root"; av[n++] = (char *)shell_root; av[n++] = (char *)exe;
-        if (open_args && nclients > 0 && !strcmp(bundle, open_args[0]))
+        if (open_args && slot < 0 && nclients > 0 && !strcmp(bundle, open_args[0]))
             for (char **a = open_args + 2; *a && n < 63; a++) av[n++] = *a;
         av[n] = NULL;
         execv(shell_self, av);
         perror("isim shell: exec"); _exit(127);
     }
     close(sv[1]); close(mfd);
-    struct shell_client *c = &clients[nclients];
-    *c = (struct shell_client){ pid, sv[0], px, "", 1, 0 };
+    int idx = slot >= 0 ? slot : nclients;
+    struct shell_client *c = &clients[idx];
+    if (slot >= 0 && c->pixels) munmap(c->pixels, surface_bytes);
+    *c = (struct shell_client){ pid, sv[0], px, "", 1, 0, "", 0, 0 };
     snprintf(c->bundle, sizeof c->bundle, "%s", bundle);
+    snprintf(c->exe, sizeof c->exe, "%s", exe);
     fprintf(stderr, "isim shell: launched %s (pid %d)\n", bundle, pid);
-    return nclients++;
+    return slot >= 0 ? slot : nclients++;
 }
+static int shell_spawn(const char *bundle, const char *exe, const char *url) { return shell_spawn_at(-1, bundle, exe, url); }
 static void shell_launch(const char *bundle, const char *exe, const char *url) {
     int from_home = active == 0;
     int i = shell_find(bundle);
@@ -280,11 +285,17 @@ static void shell_handle(int i, const struct shell_msg *m) {
         for (int k = 0; k < nclients; k++) if (k != i) shell_send(k, EV_SETTINGS);
         break;
     case SM_TERMINATE_OTHERS:                         /* e.g. after a language change, like iOS */
-        for (int k = 1; k < nclients; k++) if (k != i && clients[k].alive) shell_send(k, EV_QUIT);
+        for (int k = 1; k < nclients; k++) if (k != i && clients[k].alive) { clients[k].sysquit = 1; shell_send(k, EV_QUIT); }
+        break;
+    case SM_RESTART_SYSTEM:                           /* language change: like iOS, the UI restarts */
+        for (int k = 0; k < nclients; k++) if (clients[k].alive) {
+            if (k == 0 || k == i) clients[k].relaunch = 1; else clients[k].sysquit = 1;
+            shell_send(k, EV_QUIT);
+        }
         break;
     case SM_TERMINATE_APP: {                          /* the app is being deleted */
         int k = shell_find(m->a);
-        if (k > 0) { shell_send(k, EV_QUIT); if (k == active) { active = -1; shell_activate(0); } }
+        if (k > 0) { clients[k].sysquit = 1; shell_send(k, EV_QUIT); if (k == active) { active = -1; shell_activate(0); } }
         break; }
     default: break;
     }
@@ -315,7 +326,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     active = 0;
     if (open_args) {                       /* isim run: open the app over the home screen, like Xcode */
         int i = shell_spawn(open_args[0], open_args[1], NULL);
-        if (i > 0) { shell_send(0, EV_BACKGROUND); active = i; }
+        if (i > 0) { shell_send(0, EV_BACKGROUND); active = i; open_slot = i; }
     }
     int gesture = 0; double gesture_y = 0;
     for (;;) {
@@ -325,6 +336,16 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
             for (int i = 0; i < nclients; i++) if (clients[i].pid == dead && clients[i].alive) {
                 clients[i].alive = 0; close(clients[i].sock);
                 fprintf(stderr, "isim shell: %s exited\n", clients[i].bundle);
+                if (i == open_slot && !clients[i].relaunch && !clients[i].sysquit) {
+                    int code = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+                    fprintf(stderr, "isim shell: the run ended (%s exited with %d)\n", clients[i].bundle, code);
+                    shell_quit(); return code;
+                }
+                if (clients[i].relaunch) {           /* restarted by the system (language change) */
+                    char b[512], x[512];
+                    snprintf(b, sizeof b, "%s", clients[i].bundle); snprintf(x, sizeof x, "%s", clients[i].exe);
+                    if (shell_spawn_at(i, b, x, NULL) == i) { if (i == active) shell_send(i, EV_FOREGROUND); else shell_send(i, EV_BACKGROUND); continue; }
+                }
                 if (i == 0) { fprintf(stderr, "isim shell: the home screen exited; shutting down\n"); shell_quit(); return 0; }
                 if (i == active) { active = -1; shell_activate(0); }
             }

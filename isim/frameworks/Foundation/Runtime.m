@@ -134,6 +134,9 @@ id isim_plist_parse(const char *xml, NSUInteger len) {
 /* bundles of app extensions loaded into this process (isim hosts custom keyboards in-process):
  * their code asks Bundle.main for its strings, so the main bundle falls back to them */
 static NSMutableArray<NSBundle *> *extension_bundles;
+@interface NSBundle (IsimLookup)
+- (NSString *)_isim_lookup:(NSString *)key table:(NSString *)t;
+@end
 @implementation NSBundle { NSString *_path; NSDictionary *_info; NSMutableDictionary *_tables; }
 + (NSBundle *)mainBundle {
     static NSBundle *main;
@@ -179,7 +182,17 @@ static NSMutableArray<NSBundle *> *extension_bundles;
     if (!_info) _info = [NSDictionary dictionaryWithContentsOfFile:[_path stringByAppendingPathComponent:@"Info.plist"]] ?: @{};
     return _info;
 }
-- (id)objectForInfoDictionaryKey:(NSString *)key { return self.infoDictionary[key]; }
+/* like iOS: values localized in <lang>.lproj/InfoPlist.strings win (e.g. CFBundleDisplayName) */
+- (id)objectForInfoDictionaryKey:(NSString *)key {
+    if (!key) return nil;
+    NSString *loc = [self _isim_lookup:key table:@"InfoPlist"];
+    return loc ?: self.infoDictionary[key];
+}
+- (NSDictionary *)localizedInfoDictionary {
+    NSMutableDictionary *d = [self.infoDictionary mutableCopy];
+    for (NSString *k in self.infoDictionary) { NSString *loc = [self _isim_lookup:k table:@"InfoPlist"]; if (loc) d[k] = loc; }
+    return d;
+}
 - (NSString *)bundleIdentifier { return self.infoDictionary[@"CFBundleIdentifier"]; }
 - (NSArray<NSString *> *)localizations {
     NSMutableArray *out = [NSMutableArray array];

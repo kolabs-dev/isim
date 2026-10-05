@@ -41,7 +41,8 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
         HSApp *a = [HSApp new];
         a.path = path; a.system = system;
         a.executable = [path stringByAppendingPathComponent:info[@"CFBundleExecutable"] ?: n.stringByDeletingPathExtension];
-        a.name = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: n.stringByDeletingPathExtension;
+        NSBundle *b = [NSBundle bundleWithPath:path];          /* localized names (InfoPlist.strings), as on iOS */
+        a.name = [b objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: [b objectForInfoDictionaryKey:@"CFBundleName"] ?: n.stringByDeletingPathExtension;
         a.bundleID = info[@"CFBundleIdentifier"] ?: n;
         a.iconPath = icon_path(path, info);
         [out addObject:a];
@@ -215,8 +216,8 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     }
     [overlay addSubview:lifted];
     /* the menu */
-    NSMutableArray *items = [NSMutableArray arrayWithObject:@[@"Edit Home Screen", @"square.grid.2x2", @"edit"]];
-    if (!icon.app.system) [items addObject:@[@"Remove App", @"minus.circle", @"remove"]];
+    NSMutableArray *items = [NSMutableArray arrayWithObject:@[NSLocalizedString(@"Edit Home Screen", nil), @"square.grid.2x2", @"edit"]];
+    if (!icon.app.system) [items addObject:@[NSLocalizedString(@"Remove App", nil), @"minus.circle", @"remove"]];
     CGFloat W = 250, rowH = 44, H = rowH * items.count;
     UIView *card = [UIView new];
     card.backgroundColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.2 alpha:0.96] : [UIColor colorWithWhite:0.97 alpha:0.96]; }];
@@ -255,7 +256,7 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     for (HSIcon *i in _dock.subviews) i.editing = e;
     if (e && !_done) {
         _done = [UIButton buttonWithType:UIButtonTypeSystem];
-        [_done setTitle:@"Done" forState:UIControlStateNormal];
+        [_done setTitle:NSLocalizedString(@"Done", nil) forState:UIControlStateNormal];
         _done.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
         [_done setTitleColor:UIColor.blackColor forState:UIControlStateNormal];
         _done.backgroundColor = [UIColor colorWithWhite:1 alpha:0.75]; _done.layer.cornerRadius = 15;
@@ -268,10 +269,10 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
 }
 - (void)doneEditing { [self setEditingMode:NO]; }
 - (void)confirmDelete:(HSApp *)a {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"Delete “%@”?", a.name]
-                                                                   message:@"Deleting this app will also delete its data." preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Delete" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *act) { [self deleteApp:a]; }]];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:NSLocalizedString(@"Delete “%@”?", nil), a.name]
+                                                                   message:NSLocalizedString(@"Deleting this app will also delete its data.", nil) preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil) style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Delete", nil) style:UIAlertActionStyleDestructive handler:^(UIAlertAction *act) { [self deleteApp:a]; }]];
     [self presentViewController:alert animated:YES completion:nil];
 }
 - (void)deleteApp:(HSApp *)a {

@@ -114,6 +114,7 @@ CGRect isim_ui_keyboard_frame(void);                     /* screen coordinates; 
 BOOL isim_ui_keyboard_needs_switch_key(void);
 void isim_ui_keyboard_advance(void);
 void isim_ui_keyboard_install(void);
+void isim_ui_keyboard_check(void);                      /* hides the keyboard if its text input went away */
 NSString *isim_ui_system_apps_dir(void);
 NSString *isim_ui_installed_apps_dir(void);
 @interface UIWindow (IsimSystem)

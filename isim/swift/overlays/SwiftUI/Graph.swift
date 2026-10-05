@@ -375,6 +375,8 @@ final class _SpacerNode: _Node {
 
 class _WrapperNode: _Node {
     var child: _Node { children[0] }
+    /// modifiers (overlay, background, ...) lay out like the content they wrap
+    override var ignoresSafeArea: Bool { child.ignoresSafeArea }
     init(path: String, child: _Node) { super.init(path: path, children: [child]) }
 }
 

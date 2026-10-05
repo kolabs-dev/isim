@@ -53,7 +53,8 @@ void isim_post_wakeup(void);          /* any thread: wake the UI loop */
 int isim_open_url(const char *url);
 /* shell (isim boot): is this app running under the shell; requests to it */
 int isim_shell_present(void);
-enum { ISIM_SHELL_LAUNCH = 3, ISIM_SHELL_SETTINGS = 4, ISIM_SHELL_HOME = 5, ISIM_SHELL_TERMINATE_OTHERS = 6, ISIM_SHELL_TERMINATE_APP = 7, ISIM_SHELL_ICON = 8 };
+enum { ISIM_SHELL_LAUNCH = 3, ISIM_SHELL_SETTINGS = 4, ISIM_SHELL_HOME = 5, ISIM_SHELL_TERMINATE_OTHERS = 6, ISIM_SHELL_TERMINATE_APP = 7, ISIM_SHELL_ICON = 8,
+       ISIM_SHELL_RESTART_SYSTEM = 9 /* e.g. after a language change: quit apps, relaunch the home screen and the sender */ };
 void isim_shell_request(int type, const char *a, const char *b, const char *c);
 /* images (handles > 0). Sizes: pixels for files/data; per 1pt of font size for symbols. */
 int isim_image_load(const char *path, double *w, double *h);

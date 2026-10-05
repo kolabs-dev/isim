@@ -25,7 +25,9 @@ struct KeyboardExtension: Hashable { let id: String, name: String, appName: Stri
     for name in ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted() where name.hasSuffix(".app") {
         let path = (dir as NSString).appendingPathComponent(name)
         guard let info = NSDictionary(contentsOfFile: (path as NSString).appendingPathComponent("Info.plist")) as? [String: Any] else { continue }
-        let display = info["CFBundleDisplayName"] as? String ?? info["CFBundleName"] as? String ?? (name as NSString).deletingPathExtension
+        let b = Bundle(path: path)
+        let display = b?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? b?.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? (name as NSString).deletingPathExtension
         var kbs: [KeyboardExtension] = []
         let plugins = (path as NSString).appendingPathComponent("PlugIns")
         for ext in ((try? FileManager.default.contentsOfDirectory(atPath: plugins)) ?? []).sorted() where ext.hasSuffix(".appex") {
@@ -85,7 +87,12 @@ struct AppIcon: View {
 }
 
 struct RootView: View {
-    @State private var path: [Route] = []
+    @State private var path: [Route] = RootView.initialPath()
+    /// After a language change the system restarts; like iOS, Settings comes back on Language & Region.
+    static func initialPath() -> [Route] {
+        UserDefaults.standard.bool(forKey: reopenLanguageKey) ? [.general, .language] : []
+    }
+    @ObservedObject private var system = SystemState.shared
     var body: some View {
         NavigationStack(path: $path) {
             List {
@@ -111,6 +118,7 @@ struct RootView: View {
             }
             .navigationTitle("Settings")
             .navigationDestination(for: Route.self) { route in destination(route) }
+            .onAppear { UserDefaults.standard.removeObject(forKey: reopenLanguageKey) }
             .onOpenURL { url in
                 // app-settings:<bundle id> opens the app's page, as on iOS
                 let s = url.absoluteString
@@ -120,6 +128,7 @@ struct RootView: View {
                 }
             }
         }
+        .overlay { if system.settingLanguage { SettingLanguageCover() } }
     }
     @ViewBuilder func destination(_ r: Route) -> some View {
         switch r {
@@ -277,6 +286,25 @@ let regionOptions: [(String, String)] = [
     ("es_MX", "Mexico"), ("fr_FR", "France"), ("de_DE", "Germany"), ("it_IT", "Italy"), ("ja_JP", "Japan"), ("ko_KR", "South Korea"),
 ]
 
+let reopenLanguageKey = "_ISIMReopenLanguage"
+
+/// "Setting Language…" covers the whole screen while the system restarts, as on iOS.
+@MainActor final class SystemState: ObservableObject {
+    static let shared = SystemState()
+    @Published var settingLanguage = false
+}
+struct SettingLanguageCover: View {
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 14) {
+                ProgressView().tint(.white)
+                Text("Setting Language…").foregroundStyle(.white)
+            }
+        }
+    }
+}
+
 struct LanguageView: View {
     var body: some View {
         let lang = Store.languages.first ?? "en"
@@ -285,8 +313,15 @@ struct LanguageView: View {
             Section {
                 ForEach(languageOptions, id: \.0) { opt in
                     Button {
+                        guard opt.0 != lang else { return }
                         Store.set("AppleLanguages", [opt.0])
-                        isim_shell_request(Int32(ISIM_SHELL_TERMINATE_OTHERS), nil, nil, nil)     // apps restart in the new language, as on iOS
+                        guard getenv("ISIM_CLIENT_SOCK") != nil else { return }      // plain `isim run`: no system to restart
+                        // as on iOS, the system UI restarts in the new language: apps quit, the home screen and Settings relaunch
+                        UserDefaults.standard.set(true, forKey: reopenLanguageKey)
+                        SystemState.shared.settingLanguage = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            isim_shell_request(Int32(ISIM_SHELL_RESTART_SYSTEM), nil, nil, nil)
+                        }
                     } label: {
                         HStack {
                             Text(opt.1).foregroundStyle(.primary)
@@ -296,7 +331,7 @@ struct LanguageView: View {
                     }
                     .accessibilityIdentifier("settings-lang-\(opt.0)")
                 }
-            } header: { Text("Preferred Languages") } footer: { Text("Apps and websites use the first language in this list. Running apps restart.") }
+            } header: { Text("Preferred Languages") } footer: { Text("Apps and websites use the first language in this list.") }
             Section {
                 NavigationLink(value: Route.region) {
                     LabeledContent("Region", value: regionOptions.first { $0.0 == region }?.1 ?? region)
@@ -409,8 +444,8 @@ struct DisplayView: View {
             Section("Appearance") {
                 HStack(spacing: 40) {
                     Spacer()
-                    appearanceOption("Light", selected: !dark, id: "settings-light") { Store.set("AppleInterfaceStyle", nil); bump += 1 }
-                    appearanceOption("Dark", selected: dark, id: "settings-dark") { Store.set("AppleInterfaceStyle", "Dark"); bump += 1 }
+                    appearanceOption("Light", dark: false, selected: !dark, id: "settings-light") { Store.set("AppleInterfaceStyle", nil); bump += 1 }
+                    appearanceOption("Dark", dark: true, selected: dark, id: "settings-dark") { Store.set("AppleInterfaceStyle", "Dark"); bump += 1 }
                     Spacer()
                 }
                 .padding(.vertical, 8)
@@ -418,11 +453,11 @@ struct DisplayView: View {
         }
         .navigationTitle("Display & Brightness").navigationBarTitleDisplayMode(.inline)
     }
-    func appearanceOption(_ title: String, selected: Bool, id: String, action: @escaping () -> Void) -> some View {
+    func appearanceOption(_ title: LocalizedStringKey, dark: Bool, selected: Bool, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 8) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10).fill(title == "Dark" ? Color.black : Color(white: 0.95))
+                    RoundedRectangle(cornerRadius: 10).fill(dark ? Color.black : Color(white: 0.95))
                     VStack(spacing: 4) {
                         RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.6)).frame(width: 40, height: 6)
                         RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.4)).frame(width: 40, height: 6)

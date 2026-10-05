@@ -15,6 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, readonly, copy) NSString *bundleIdentifier;
 @property (nullable, readonly, copy) NSDictionary<NSString *, id> *infoDictionary;
 - (nullable id)objectForInfoDictionaryKey:(NSString *)key;
+@property (readonly, copy, nullable) NSDictionary<NSString *, id> *localizedInfoDictionary;
 - (nullable NSString *)pathForResource:(nullable NSString *)name ofType:(nullable NSString *)ext;
 @property (readonly, copy) NSArray<NSString *> *localizations;
 @property (readonly, copy) NSArray<NSString *> *preferredLocalizations;
