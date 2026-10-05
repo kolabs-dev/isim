@@ -2,8 +2,9 @@
 
 Write code → compile → run in a local iOS-compatible simulator → build for iPhone/iPad →
 sign → package → upload to App Store Connect, **entirely on Linux** (no macOS machine, VM,
-remote Mac or Mac CI). Apps in **Objective-C and Swift**, with UIKit and (as a later goal) **SwiftUI**,
-and a simulator whose **device settings** (language, region, appearance, text size, …) are configurable.
+remote Mac or Mac CI). Apps in **Objective-C and Swift**, with UIKit and **SwiftUI**, and a simulator that feels like an
+iPhone: a **home screen** with the installed apps and a **Settings** app whose pages replicate iOS
+Settings as each setting (language, region, appearance, text size, keyboards, …) is implemented.
 
 **Acceptance test:** the same sample app runs in our Linux simulator, is built and signed on
 Linux, uploaded from Linux, and installs on an iPhone through TestFlight. (App Review is a
@@ -23,9 +24,12 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 | 2. Run iOS-simulator binaries on Linux | ✅ | own loader + runtime (`isim/runtime`); C, threads, ObjC, Foundation self-test 32/32 |
 | 3. Simulator UI: boilerplate UIKit app in a window | ✅ | Xcode-template ObjC app (`isim/samples/HelloCounter`) runs in a Wayland window on this machine; UI test 9/9 |
 | 4a. Swift (Embedded) on the simulator | ✅ | own Embedded stdlib build for `x86_64-apple-ios-simulator`; Swift self-test 11/11 on isim — `isim/swift/` |
-| 4b. Swift (full: runtime, ObjC interop, UIKit apps) | ✅ | Xcode-template **Swift UIKit app** (`isim/samples/HelloCounterSwift`) runs on isim (UI test 9/9); `libswiftCore` built on Linux (12/12), Swift↔Foundation bridging (15/15). Not yet: async/await, Regex — `docs/swift-plan.md` |
-| 4c. SwiftUI | ⬜ | feasible only as a re-implementation (SwiftUI is closed source); depends on 4b — see below |
-| 4d. Simulator settings (language, region, appearance, text size, 12/24h, time zone, device) | ⬜ | planned: device profiles + `isim run` flags feeding NSLocale/NSBundle/UITraitCollection |
+| 4b. Swift (full: runtime, ObjC interop, UIKit apps) | ✅ | Xcode-template **Swift UIKit app** (`isim/samples/HelloCounterSwift`) runs on isim; `libswiftCore` + **Swift Concurrency** (`async`/`await`, actors, `@MainActor`, 11/11) built on Linux; Swift↔Foundation bridging (28/28). Not yet: Regex — `docs/swift-plan.md` |
+| 4c. SwiftUI | 🟡 | **isim re-implementation** (SwiftUI is closed source): views, `@State`/`@Binding`/`@FocusState`/`@Environment`, stacks, `Form`/`List`/`Section`, `NavigationStack`, `TextField`, toolbar, `.task`/`.onChange` — HelloSwiftUI UI test 10/10; **JustDigits runs** (below). Not yet: animations, sheets/alerts, `ScrollView`, `Grid`, `@Observable` |
+| 4d. Simulator settings (language, region, appearance, text size, 12/24h, time zone, device) | 🟡 | environment variables today (`ISIM_LANGUAGES`, `ISIM_LOCALE`, `ISIM_HOUR_CYCLE`, `TZ`, `ISIM_APPEARANCE`, `ISIM_DEVICE`); to be driven by the Settings app (4f) |
+| 4e. Home screen (SpringBoard-like): installed apps, launch/quit, Settings icon | ⬜ | new goal: `isim` launches into a home screen listing installed `.app`s (icons from asset catalogs); tapping launches the app |
+| 4f. Settings app replicating iOS Settings | ⬜ | new goal: pages are added **as each setting is implemented** (General › Language & Region, Display & Brightness › Appearance, General › Keyboard › Keyboards, Accessibility › Display & Text Size, Date & Time, …); values persist and apply to apps |
+| ✅ Real app: **JustDigits** (`../numpad`, SwiftUI + custom keyboard) | ✅ | built unmodified with `isim build` (pbxproj, string catalogs, assets, embedded `.appex`); setup screen, test field, the app's keyboard via the globe menu (loaded in-process), Privacy Policy push/back, review prompt, links |
 | 5. Device build (arm64 .app) | 🟡 | arm64 executables link; code signature, resources, bundle not done |
 | 6. Signing + .ipa | ⬜ | candidate tools identified (rcodesign, zsign) — `docs/distribution-research.md` |
 | 7. Upload from Linux | ⬜ | Build Upload API flow documented; untested; needs your Apple account later |
@@ -38,12 +42,13 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 | Mach-O loading (exec + dylibs, chained fixups, legacy binds, export tries, rpaths) | ✅ | refuses non-iOS-simulator binaries |
 | libSystem subset (libc, pthreads with Darwin layouts, time, errno) | ✅ | passthrough vs adapted vs stub labelled per symbol |
 | Objective-C runtime (dispatch, categories, ivar sliding, +initialize, ARC, weak, blocks) | ✅ | no exceptions, no forwarding, no tagged pointers |
-| Foundation subset (strings, collections, numbers, bundle/Info.plist, timers, run loop, dispatch subset, notifications) | ✅ | in-memory NSUserDefaults; XML plists only |
+| Foundation subset (strings, collections, numbers, bundle/Info.plist + localization, locale/formatters, URL/FileManager, timers, run loop, libdispatch subset, notifications, operation queues) | ✅ | persisted NSUserDefaults; XML plists only |
 | CoreGraphics subset (geometry, colors, simple context drawing) | ✅ | |
-| UIKit: app/scene lifecycle, views, labels, buttons, switches, stack views, Auto Layout subset, touches, light/dark | ✅ | subset, usable from Objective-C and Swift — see `docs/compatibility-matrix.md` |
+| UIKit: app/scene lifecycle, views, labels, buttons, switches, stack views, **Auto Layout (Cassowary solver)**, images + SF Symbol substitutes, scroll views, text fields, gestures (tap/pan/long press), light/dark | ✅ | subset, usable from Objective-C and Swift — see `docs/compatibility-matrix.md` |
+| System keyboard + **custom keyboard extensions** (preview host; in-app via the globe menu) | ✅ | QWERTY/number layers, auto-capitalization, return key types; extensions loaded in-process |
 | Rendering + input (SDL3 window on Wayland, cairo/pango software rendering, device chrome) | ✅ | mouse = single touch; headless scripted mode for tests |
-| Images, text input/keyboard, scrolling, tables, navigation/tab controllers, real animations, storyboards | ⬜ | next UIKit milestones |
-| SwiftUI, WebKit, Metal | ⬜ | later investigations, not promised |
+| Tables/collection views, UIKit navigation/tab controllers, alerts, real animations, storyboards | ⬜ | next UIKit milestones |
+| WebKit, Metal | ⬜ | later investigations, not promised |
 
 ### Distribution blockers (from `docs/distribution-research.md`)
 
@@ -55,6 +60,10 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 ![HelloCounterSwift running in isim on Linux (light and dark appearance)](docs/images/hellocounter-swift.png)
 
 _The Xcode App template (Objective-C, top; Swift, bottom) plus a small counter UI, compiled on Linux and rendered by isim (left: after three taps; right: dark appearance)._
+
+![JustDigits (SwiftUI) running in isim](docs/images/justdigits-home.png)
+
+_JustDigits, a real SwiftUI app with a custom keyboard extension, built from its Xcode project on Linux with `isim build` and running on isim's SwiftUI._
 
 ### Can isim support SwiftUI?
 
