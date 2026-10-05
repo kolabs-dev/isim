@@ -158,3 +158,189 @@ extension Set: _ObjectiveCBridgeable {
     var r: Set?; if let s { _forceBridgeFromObjectiveC(s, result: &r) }; return r ?? []
   }
 }
+
+// MARK: Date
+public struct Date: Hashable, Comparable, Sendable, CustomStringConvertible {
+  public var timeIntervalSinceReferenceDate: Double
+  public init(timeIntervalSinceReferenceDate t: Double) { timeIntervalSinceReferenceDate = t }
+  public init() { self.init(timeIntervalSinceReferenceDate: NSDate.__isim_now()) }
+  public init(timeIntervalSince1970 t: Double) { self.init(timeIntervalSinceReferenceDate: t - Date.timeIntervalBetween1970AndReferenceDate) }
+  public init(timeIntervalSinceNow t: Double) { self.init(timeIntervalSinceReferenceDate: NSDate.__isim_now() + t) }
+  public init(timeInterval t: Double, since date: Date) { self.init(timeIntervalSinceReferenceDate: date.timeIntervalSinceReferenceDate + t) }
+  public static let timeIntervalBetween1970AndReferenceDate: Double = 978307200
+  public static var now: Date { Date() }
+  public static let distantPast = Date(timeIntervalSinceReferenceDate: -63114076800)
+  public static let distantFuture = Date(timeIntervalSinceReferenceDate: 63113904000)
+  public var timeIntervalSince1970: Double { timeIntervalSinceReferenceDate + Date.timeIntervalBetween1970AndReferenceDate }
+  public var timeIntervalSinceNow: Double { timeIntervalSinceReferenceDate - NSDate.__isim_now() }
+  public func timeIntervalSince(_ d: Date) -> Double { timeIntervalSinceReferenceDate - d.timeIntervalSinceReferenceDate }
+  public func addingTimeInterval(_ t: Double) -> Date { Date(timeIntervalSinceReferenceDate: timeIntervalSinceReferenceDate + t) }
+  public mutating func addTimeInterval(_ t: Double) { timeIntervalSinceReferenceDate += t }
+  public static func < (a: Date, b: Date) -> Bool { a.timeIntervalSinceReferenceDate < b.timeIntervalSinceReferenceDate }
+  public static func + (d: Date, t: Double) -> Date { d.addingTimeInterval(t) }
+  public static func - (d: Date, t: Double) -> Date { d.addingTimeInterval(-t) }
+  public var description: String { _bridgeToObjectiveC().description }
+}
+extension NSDate {
+  @usableFromInline static func __isim_now() -> Double { NSDate.timeIntervalSinceReferenceDate_isim() }
+}
+extension Date: _ObjectiveCBridgeable {
+  public func _bridgeToObjectiveC() -> NSDate { NSDate(timeIntervalSinceReferenceDate: timeIntervalSinceReferenceDate) }
+  public static func _forceBridgeFromObjectiveC(_ x: NSDate, result: inout Date?) { result = Date(timeIntervalSinceReferenceDate: x.timeIntervalSinceReferenceDate) }
+  public static func _conditionallyBridgeFromObjectiveC(_ x: NSDate, result: inout Date?) -> Bool { _forceBridgeFromObjectiveC(x, result: &result); return true }
+  public static func _unconditionallyBridgeFromObjectiveC(_ s: NSDate?) -> Date { Date(timeIntervalSinceReferenceDate: s?.timeIntervalSinceReferenceDate ?? 0) }
+}
+
+// MARK: Locale
+public struct Locale: Hashable, @unchecked Sendable, CustomStringConvertible {
+  @usableFromInline let _ns: NSLocale
+  public init(identifier: String) { _ns = NSLocale(localeIdentifier: identifier) }
+  init(_ns: NSLocale) { self._ns = _ns }
+  public static var current: Locale { Locale(identifier: NSLocale.__isim_currentIdentifier()) }
+  public static var autoupdatingCurrent: Locale { current }
+  public static var preferredLanguages: [String] { NSLocale.preferredLanguages }
+  public var identifier: String { _ns.localeIdentifier }
+  public var languageCode: String? { _ns.languageCode }
+  public var regionCode: String? { _ns.countryCode }
+  public var scriptCode: String? { _ns.scriptCode }
+  public var decimalSeparator: String? { _ns.decimalSeparator }
+  public var groupingSeparator: String? { _ns.groupingSeparator }
+  public var currencySymbol: String? { _ns.currencySymbol }
+  public var currencyCode: String? { _ns.currencyCode }
+  public var usesMetricSystem: Bool { _ns.usesMetricSystem }
+  public func localizedString(forIdentifier i: String) -> String? { _ns.localizedString(forLocaleIdentifier: i) }
+  public func localizedString(forLanguageCode c: String) -> String? { _ns.localizedString(forLanguageCode: c) }
+  public func localizedString(forRegionCode c: String) -> String? { _ns.localizedString(forCountryCode: c) }
+  public var description: String { identifier }
+  public static func == (a: Locale, b: Locale) -> Bool { a.identifier == b.identifier }
+  public func hash(into h: inout Hasher) { h.combine(identifier) }
+}
+extension NSLocale {
+  @usableFromInline static func __isim_currentIdentifier() -> String {
+    // currentLocale is bridged to Locale in Swift; fetch the identifier through the ObjC object directly
+    let cls: AnyObject = NSLocale.self
+    let obj = cls.perform(Selector("currentLocale")).takeUnretainedValue() as! NSLocale
+    return obj.localeIdentifier
+  }
+}
+extension Locale: _ObjectiveCBridgeable {
+  public func _bridgeToObjectiveC() -> NSLocale { _ns }
+  public static func _forceBridgeFromObjectiveC(_ x: NSLocale, result: inout Locale?) { result = Locale(_ns: x) }
+  public static func _conditionallyBridgeFromObjectiveC(_ x: NSLocale, result: inout Locale?) -> Bool { result = Locale(_ns: x); return true }
+  public static func _unconditionallyBridgeFromObjectiveC(_ s: NSLocale?) -> Locale { s.map { Locale(_ns: $0) } ?? Locale(identifier: "") }
+}
+
+// MARK: TimeZone
+public struct TimeZone: Hashable, @unchecked Sendable, CustomStringConvertible {
+  @usableFromInline let _ns: NSTimeZone
+  init(_ns: NSTimeZone) { self._ns = _ns }
+  public init?(identifier: String) { guard let z = NSTimeZone(name: identifier) else { return nil }; _ns = z }
+  public init?(secondsFromGMT s: Int) { _ns = NSTimeZone(forSecondsFromGMT: s) }
+  public static var current: TimeZone {
+    let cls: AnyObject = NSTimeZone.self
+    return TimeZone(_ns: cls.perform(Selector("localTimeZone")).takeUnretainedValue() as! NSTimeZone)
+  }
+  public static var autoupdatingCurrent: TimeZone { current }
+  public static var gmt: TimeZone { TimeZone(secondsFromGMT: 0)! }
+  public var identifier: String { _ns.name }
+  public func secondsFromGMT(for date: Date = Date()) -> Int { _ns.secondsFromGMT(for: date) }
+  public func abbreviation(for date: Date = Date()) -> String? { _ns.abbreviation(for: date) }
+  public var description: String { identifier }
+  public static func == (a: TimeZone, b: TimeZone) -> Bool { a.identifier == b.identifier }
+  public func hash(into h: inout Hasher) { h.combine(identifier) }
+}
+extension TimeZone: _ObjectiveCBridgeable {
+  public func _bridgeToObjectiveC() -> NSTimeZone { _ns }
+  public static func _forceBridgeFromObjectiveC(_ x: NSTimeZone, result: inout TimeZone?) { result = TimeZone(_ns: x) }
+  public static func _conditionallyBridgeFromObjectiveC(_ x: NSTimeZone, result: inout TimeZone?) -> Bool { result = TimeZone(_ns: x); return true }
+  public static func _unconditionallyBridgeFromObjectiveC(_ s: NSTimeZone?) -> TimeZone { s.map { TimeZone(_ns: $0) } ?? .gmt }
+}
+
+// MARK: URL
+public struct URL: Hashable, @unchecked Sendable, CustomStringConvertible {
+  @usableFromInline let _ns: NSURL
+  init(_ns: NSURL) { self._ns = _ns }
+  public init?(string: String) { guard let u = NSURL(string: string) else { return nil }; _ns = u }
+  public init?(string: String, relativeTo base: URL?) { guard let u = NSURL(string: string, relativeTo: base) else { return nil }; _ns = u }
+  public init(fileURLWithPath path: String) { _ns = NSURL(fileURLWithPath: path) }
+  public init(fileURLWithPath path: String, isDirectory: Bool) { self = NSURL.fileURL(withPath: path, isDirectory: isDirectory) }
+  public var absoluteString: String { _ns.absoluteString ?? "" }
+  public var scheme: String? { _ns.scheme }
+  public var host: String? { _ns.host }
+  public var port: Int? { let n: NSNumber? = _ns.port; return n.map { Int($0.intValue) } }
+  public var path: String { _ns.path ?? "" }
+  public var query: String? { _ns.query }
+  public var fragment: String? { _ns.fragment }
+  public var isFileURL: Bool { _ns.isFileURL }
+  public var lastPathComponent: String { _ns.lastPathComponent ?? "" }
+  public var pathExtension: String { _ns.pathExtension ?? "" }
+  public func appendingPathComponent(_ c: String) -> URL { _ns.appendingPathComponent(c)! }
+  public var description: String { absoluteString }
+  public static func == (a: URL, b: URL) -> Bool { a.absoluteString == b.absoluteString }
+  public func hash(into h: inout Hasher) { h.combine(absoluteString) }
+}
+extension URL: _ObjectiveCBridgeable {
+  public func _bridgeToObjectiveC() -> NSURL { _ns }
+  public static func _forceBridgeFromObjectiveC(_ x: NSURL, result: inout URL?) { result = URL(_ns: x) }
+  public static func _conditionallyBridgeFromObjectiveC(_ x: NSURL, result: inout URL?) -> Bool { result = URL(_ns: x); return true }
+  public static func _unconditionallyBridgeFromObjectiveC(_ s: NSURL?) -> URL { URL(_ns: s ?? NSURL(string: "about:blank")!) }
+}
+
+// MARK: localization
+extension String {
+  /// A localizable string with interpolations recorded as format specifiers (Apple's `String.LocalizationValue`).
+  public struct LocalizationValue: ExpressibleByStringInterpolation, Equatable, Sendable, CustomStringConvertible {
+    public var key: String
+    var arguments: [String]
+    public init(_ value: String) { key = value; arguments = [] }
+    public init(stringLiteral value: String) { key = value; arguments = [] }
+    public init(stringInterpolation i: StringInterpolation) { key = i.key; arguments = i.arguments }
+    public var description: String { key }
+    public struct StringInterpolation: StringInterpolationProtocol {
+      var key = ""; var arguments: [String] = []
+      public init(literalCapacity: Int, interpolationCount: Int) {}
+      public mutating func appendLiteral(_ s: String) { key += s.replacingOccurrences(of: "%", with: "%%") }
+      public mutating func appendInterpolation(_ s: String) { key += "%@"; arguments.append(s) }
+      public mutating func appendInterpolation<T: BinaryInteger>(_ v: T) { key += "%lld"; arguments.append(String(v)) }
+      public mutating func appendInterpolation(_ v: Double) { key += "%lf"; arguments.append(String(v)) }
+      public mutating func appendInterpolation<T>(_ v: T) { key += "%@"; arguments.append(String(describing: v)) }
+    }
+    func resolve(_ format: String) -> String {
+      guard !arguments.isEmpty else { return format.replacingOccurrences(of: "%%", with: "%") }
+      var out = "", i = format.startIndex, argIndex = 0
+      while i < format.endIndex {
+        if format[i] == "%", format.index(after: i) < format.endIndex {
+          var j = format.index(after: i)
+          if format[j] == "%" { out += "%"; i = format.index(after: j); continue }
+          // positional %1$@ / plain conversions: consume up to the conversion character
+          var position: Int? = nil
+          var digits = ""
+          while j < format.endIndex, format[j].isNumber { digits.append(format[j]); j = format.index(after: j) }
+          if j < format.endIndex, format[j] == "$" { position = Int(digits).map { $0 - 1 }; j = format.index(after: j) }
+          while j < format.endIndex, "lhqzt".contains(format[j]) { j = format.index(after: j) }
+          if j < format.endIndex {
+            let idx = position ?? argIndex
+            if position == nil { argIndex += 1 }
+            out += idx < arguments.count ? arguments[idx] : ""
+            i = format.index(after: j); continue
+          }
+        }
+        out.append(format[i]); i = format.index(after: i)
+      }
+      return out
+    }
+  }
+  public init(localized key: LocalizationValue, table: String? = nil, bundle: Bundle? = nil, locale: Locale = .current, comment: StaticString? = nil) {
+    let b = bundle ?? Bundle.main
+    let format = b.localizedString(forKey: key.key, value: nil, table: table)
+    self = key.resolve(format)
+  }
+  public init(localized keyAndValue: String.LocalizationValue, defaultValue: String.LocalizationValue, table: String? = nil, bundle: Bundle? = nil, locale: Locale = .current, comment: StaticString? = nil) {
+    let b = bundle ?? Bundle.main
+    let format = b.localizedString(forKey: keyAndValue.key, value: defaultValue.key, table: table)
+    self = keyAndValue.resolve(format)
+  }
+}
+public func NSLocalizedString(_ key: String, tableName: String? = nil, bundle: Bundle = Bundle.main, value: String = "", comment: String) -> String {
+  bundle.localizedString(forKey: key, value: value, table: tableName)
+}

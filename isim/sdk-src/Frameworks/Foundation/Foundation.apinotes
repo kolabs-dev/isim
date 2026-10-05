@@ -23,3 +23,27 @@ Classes:
   SwiftName: UserDefaults
 - Name: NSSet
   SwiftBridge: Swift.Set
+- Name: NSDateFormatter
+  SwiftName: DateFormatter
+- Name: NSNumberFormatter
+  SwiftName: NumberFormatter
+- Name: NSFormatter
+  SwiftName: Formatter
+- Name: NSURL
+  SwiftBridge: Foundation.URL
+- Name: NSLocale
+  SwiftBridge: Foundation.Locale
+- Name: NSDate
+  SwiftBridge: Foundation.Date
+- Name: NSTimeZone
+  SwiftBridge: Foundation.TimeZone
+- Name: NSFileManager
+  SwiftName: FileManager
+Typedefs:
+- Name: NSRunLoopMode
+  SwiftName: RunLoop.Mode
+Globals:
+- Name: NSDefaultRunLoopMode
+  SwiftName: RunLoop.Mode.default
+- Name: NSRunLoopCommonModes
+  SwiftName: RunLoop.Mode.common

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/random.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
@@ -165,6 +166,8 @@ static int d_pthread_main_np(void) { return getpid() == gettid(); }
 
 /* Darwin libm: sin+cos pair returned in xmm0/xmm1 (SysV struct return, same on Linux) */
 struct d_sincos { double s, c; };
+static double d_exp10(double x) { return pow(10.0, x); }      /* Darwin libm extension */
+static float d_exp10f(float x) { return powf(10.0f, x); }
 static struct d_sincos d_sincos_stret(double x) { struct d_sincos r = { sin(x), cos(x) }; return r; }
 struct d_sincosf { float s, c; };
 static struct d_sincosf d_sincosf_stret(float x) { struct d_sincosf r = { sinf(x), cosf(x) }; return r; }
@@ -292,10 +295,10 @@ static const struct shim libsystem_table[] = {
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
     /* process & environment */
     P(exit), P(_exit), P(abort), P(atexit), P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(sleep), P(usleep), P(nanosleep),
-    A("_open", d_open), P(read), P(write), P(close), P(lseek), P(access), P(unlink),
+    A("_open", d_open), P(read), P(write), P(close), P(lseek), P(access), P(unlink), P(readlink), P(getcwd), P(mkdir), P(rmdir),
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
-    P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime),
+    P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),
     A("_clock_gettime", d_clock_gettime), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
     A("_mach_absolute_time", d_mach_absolute_time), A("_mach_timebase_info", d_mach_timebase_info),
     /* math (Darwin's libm lives in libSystem): full C99 set incl. f/l variants */
@@ -470,7 +473,7 @@ static const struct shim libsystem_table[] = {
     P(fma),
     P(fmaf),
     P(fmal),
-    A("___sincos_stret", d_sincos_stret), A("___sincosf_stret", d_sincosf_stret),
+    A("___sincos_stret", d_sincos_stret), A("___sincosf_stret", d_sincosf_stret), A("___exp10", d_exp10), A("___exp10f", d_exp10f),
     /* more C11 / POSIX */
     P(rand), P(srand), P(random), P(srandom), P(div), P(ldiv), P(lldiv), P(strtold), P(atoll), P(aligned_alloc),
     P(_Exit), P(quick_exit), P(at_quick_exit), P(unsetenv), P(mblen), P(realpath), A("___mb_cur_max", &mb_cur_max_value),

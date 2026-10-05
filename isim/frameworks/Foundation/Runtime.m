@@ -129,7 +129,7 @@ id isim_plist_parse(const char *xml, NSUInteger len) {
 }
 
 /* ================= NSBundle ================= */
-@implementation NSBundle { NSString *_path; NSDictionary *_info; }
+@implementation NSBundle { NSString *_path; NSDictionary *_info; NSMutableDictionary *_tables; }
 + (NSBundle *)mainBundle {
     static NSBundle *main;
     static dispatch_once_t once;
@@ -153,16 +153,79 @@ id isim_plist_parse(const char *xml, NSUInteger len) {
 }
 - (id)objectForInfoDictionaryKey:(NSString *)key { return self.infoDictionary[key]; }
 - (NSString *)bundleIdentifier { return self.infoDictionary[@"CFBundleIdentifier"]; }
-- (NSString *)pathForResource:(NSString *)name ofType:(NSString *)ext {
+- (NSArray<NSString *> *)localizations {
+    NSMutableArray *out = [NSMutableArray array];
+    NSArray *declared = self.infoDictionary[@"CFBundleLocalizations"];
+    NSMutableArray *candidates = [NSMutableArray arrayWithArray:declared ?: @[]];
+    for (NSString *l in isim_preferred_languages()) { [candidates addObject:l]; [candidates addObject:[l componentsSeparatedByString:@"-"].firstObject]; }
+    for (NSString *c in @[@"Base", @"en"]) [candidates addObject:c];
+    if (self.developmentLocalization) [candidates addObject:self.developmentLocalization];
+    for (NSString *c in candidates) {
+        if ([out containsObject:c]) continue;
+        NSString *dir = [_path stringByAppendingPathComponent:[c stringByAppendingString:@".lproj"]];
+        if (access(dir.UTF8String, R_OK) == 0) [out addObject:c];
+    }
+    return out;
+}
+- (NSString *)developmentLocalization { return self.infoDictionary[@"CFBundleDevelopmentRegion"] ?: @"en"; }
+/* Matches preferred languages against available localizations the way iOS does in spirit:
+ * exact match ("pt-BR"), then language-only ("pt"), then a same-language variant ("pt-PT"). */
++ (NSArray<NSString *> *)preferredLocalizationsFromArray:(NSArray<NSString *> *)available {
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *pref in isim_preferred_languages()) {
+        NSString *lang = [pref componentsSeparatedByString:@"-"].firstObject;
+        NSString *hit = nil;
+        for (NSString *a in available) if ([a caseInsensitiveCompare:pref] == NSOrderedSame || [[a stringByReplacingOccurrencesOfString:@"_" withString:@"-"] caseInsensitiveCompare:pref] == NSOrderedSame) hit = a;
+        if (!hit) for (NSString *a in available) if ([a isEqualToString:lang]) hit = a;
+        if (!hit) for (NSString *a in available) if ([a hasPrefix:[lang stringByAppendingString:@"-"]] || [a hasPrefix:[lang stringByAppendingString:@"_"]]) { hit = a; break; }
+        if (hit) { [out addObject:hit]; break; }
+    }
+    return out;
+}
+- (NSArray<NSString *> *)preferredLocalizations {
+    NSMutableArray *avail = [NSMutableArray array];
+    for (NSString *l in self.localizations) if (![l isEqualToString:@"Base"]) [avail addObject:l];
+    NSArray *pref = [NSBundle preferredLocalizationsFromArray:avail];
+    if (pref.count) return pref;
+    return avail.count ? @[[avail containsObject:self.developmentLocalization] ? self.developmentLocalization : avail.firstObject] : @[self.developmentLocalization];
+}
+- (NSString *)pathForResource:(NSString *)name ofType:(NSString *)ext inDirectory:(NSString *)sub forLocalization:(NSString *)loc {
     NSString *file = ext.length ? [name stringByAppendingPathExtension:ext] : name;
-    NSString *p = [_path stringByAppendingPathComponent:file];
+    NSString *dir = sub.length ? [_path stringByAppendingPathComponent:sub] : _path;
+    NSString *p = [(loc ? [dir stringByAppendingPathComponent:[loc stringByAppendingString:@".lproj"]] : dir) stringByAppendingPathComponent:file];
     return access(p.UTF8String, R_OK) == 0 ? p : nil;
 }
-- (NSString *)localizedStringForKey:(NSString *)key value:(NSString *)value table:(NSString *)t { return value.length ? value : key; }
+- (NSString *)pathForResource:(NSString *)name ofType:(NSString *)ext {
+    NSString *p = [self pathForResource:name ofType:ext inDirectory:nil forLocalization:nil];
+    if (p) return p;
+    for (NSString *loc in [self.preferredLocalizations arrayByAddingObjectsFromArray:@[@"Base", self.developmentLocalization]])
+        if ((p = [self pathForResource:name ofType:ext inDirectory:nil forLocalization:loc])) return p;
+    return nil;
+}
+- (NSString *)localizedStringForKey:(NSString *)key value:(NSString *)value table:(NSString *)t {
+    if (!key) return value ?: @"";
+    NSString *table = t.length ? t : @"Localizable";
+    @synchronized (self) {
+        if (!_tables) _tables = [NSMutableDictionary dictionary];
+        for (NSString *loc in [self.preferredLocalizations arrayByAddingObject:self.developmentLocalization]) {
+            NSString *cacheKey = [NSString stringWithFormat:@"%@/%@", loc, table];
+            NSDictionary *strings = _tables[cacheKey];
+            if (!strings) {
+                NSString *path = [self pathForResource:table ofType:@"strings" inDirectory:nil forLocalization:loc];
+                strings = (path ? isim_parse_strings_file(path) : nil) ?: @{};
+                _tables[cacheKey] = strings;
+            }
+            NSString *hit = strings[key];
+            if (hit) return hit;
+        }
+    }
+    return value.length ? value : key;
+}
 @end
 
 /* ================= NSDate ================= */
 @implementation NSDate { NSTimeInterval _t; }
++ (NSTimeInterval)timeIntervalSinceReferenceDate_isim { return wall_now() - REF_EPOCH; }
 + (instancetype)date { return [[self alloc] initWithTimeIntervalSinceReferenceDate:wall_now() - REF_EPOCH]; }
 + (instancetype)dateWithTimeIntervalSinceNow:(NSTimeInterval)s { return [[self alloc] initWithTimeIntervalSinceReferenceDate:wall_now() - REF_EPOCH + s]; }
 + (instancetype)dateWithTimeIntervalSince1970:(NSTimeInterval)s { return [[self alloc] initWithTimeIntervalSinceReferenceDate:s - REF_EPOCH]; }
@@ -470,18 +533,31 @@ const char *isim_process_name(void) {
 - (NSTimeInterval)systemUptime { return mono_now(); }
 @end
 
-@implementation NSUserDefaults { NSMutableDictionary *_d; }
+@implementation NSUserDefaults { NSMutableDictionary *_d; NSString *_file; }
 + (NSUserDefaults *)standardUserDefaults { static NSUserDefaults *u; static dispatch_once_t o; dispatch_once(&o, ^{ u = [NSUserDefaults new]; }); return u; }
-- (instancetype)init { if ((self = [super init])) _d = [NSMutableDictionary dictionary]; return self; }
+- (instancetype)init {
+    if ((self = [super init])) {
+        NSString *ident = NSBundle.mainBundle.bundleIdentifier ?: @(isim_process_name());
+        _file = [NSString stringWithFormat:@"%@/Library/Preferences/%@.plist", NSHomeDirectory(), ident];
+        _d = [[NSDictionary dictionaryWithContentsOfFile:_file] mutableCopy] ?: [NSMutableDictionary dictionary];
+    }
+    return self;
+}
+- (void)_save { [isim_plist_xml(_d) writeToFile:_file atomically:YES encoding:NSUTF8StringEncoding error:NULL]; }
 - (id)objectForKey:(NSString *)k { @synchronized (self) { return _d[k]; } }
-- (void)setObject:(id)v forKey:(NSString *)k { @synchronized (self) { _d[k] = v; } }
-- (void)removeObjectForKey:(NSString *)k { @synchronized (self) { [_d removeObjectForKey:k]; } }
+- (void)setObject:(id)v forKey:(NSString *)k { @synchronized (self) { _d[k] = v; [self _save]; } }
+- (void)removeObjectForKey:(NSString *)k { @synchronized (self) { [_d removeObjectForKey:k]; [self _save]; } }
 - (NSInteger)integerForKey:(NSString *)k { return [[self objectForKey:k] integerValue]; }
 - (void)setInteger:(NSInteger)v forKey:(NSString *)k { [self setObject:@(v) forKey:k]; }
 - (BOOL)boolForKey:(NSString *)k { return [[self objectForKey:k] boolValue]; }
 - (void)setBool:(BOOL)v forKey:(NSString *)k { [self setObject:@(v) forKey:k]; }
 - (NSString *)stringForKey:(NSString *)k { id v = [self objectForKey:k]; return [v isKindOfClass:[NSString class]] ? v : nil; }
-- (BOOL)synchronize { return YES; }
+- (double)doubleForKey:(NSString *)k { return [[self objectForKey:k] doubleValue]; }
+- (void)setDouble:(double)v forKey:(NSString *)k { [self setObject:@(v) forKey:k]; }
+- (NSArray *)arrayForKey:(NSString *)k { id v = [self objectForKey:k]; return [v isKindOfClass:[NSArray class]] ? v : nil; }
+- (NSDictionary *)dictionaryForKey:(NSString *)k { id v = [self objectForKey:k]; return [v isKindOfClass:[NSDictionary class]] ? v : nil; }
+- (void)registerDefaults:(NSDictionary *)defaults { @synchronized (self) { for (NSString *k in defaults) if (!_d[k]) _d[k] = defaults[k]; } }
+- (BOOL)synchronize { @synchronized (self) { [self _save]; } return YES; }
 @end
 
 /* ================= NSError ================= */

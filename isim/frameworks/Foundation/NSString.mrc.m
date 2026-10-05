@@ -70,6 +70,7 @@ static void buf_add(buf_t *b, const char *s, NSUInteger n) {
 
 NSString *isim_string_take(char *bytes, NSUInteger len) {
     __NSImmString *s = class_createInstance([__NSImmString class], 0);
+    bytes = realloc(bytes, len + 1); bytes[len] = 0;   /* storage is always NUL-terminated (UTF8String) */
     s->_b = bytes; s->_n = len;
     return s;
 }

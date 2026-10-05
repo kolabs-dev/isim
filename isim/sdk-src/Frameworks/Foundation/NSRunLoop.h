@@ -2,7 +2,7 @@
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSTimer, NSDate, NSString;
-typedef NSString *NSRunLoopMode;
+typedef NSString *NSRunLoopMode NS_TYPED_EXTENSIBLE_ENUM;
 FOUNDATION_EXPORT NSRunLoopMode const NSDefaultRunLoopMode;
 FOUNDATION_EXPORT NSRunLoopMode const NSRunLoopCommonModes;
 @interface NSRunLoop : NSObject

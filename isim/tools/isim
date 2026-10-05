@@ -3,6 +3,7 @@
 #   isim run <App.app> [--device iphone15|iphonese|ipad] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
+#   isim build -project X.xcodeproj [-target T] [-configuration Debug]   build an Xcode project for isim
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 set -euo pipefail
 BIN=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
@@ -31,7 +32,18 @@ case "$cmd" in
     exec "${CLANG:-clang}" -target x86_64-apple-ios15.0-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc -L "$SDK/usr/lib/swift" "$@" ;;
   swiftc)
     ws=$(cd -- "$BIN/../../.." && pwd)
-    run=(docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$ws:$ws" -w "$PWD" swift:6.2 swiftc -target x86_64-apple-ios15.0-simulator)
+    mounts=(-v "$ws:$ws")
+    # also expose input files that live outside the isim workspace (e.g. an app project elsewhere), read-only
+    declare -A seen=(["$ws"]=1)
+    for a in "$@" "$PWD/"; do
+      [[ "$a" == /* ]] || continue
+      d=$a; [ -d "$d" ] || d=$(dirname -- "$a")
+      [ -d "$d" ] || continue
+      case "$d/" in "$ws"/*) continue ;; esac
+      [ -n "${seen[$d]:-}" ] && continue; seen[$d]=1
+      mounts+=(-v "$d:$d:ro")
+    done
+    run=(docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp "${mounts[@]}" -w "$PWD" swift:6.2 swiftc -target x86_64-apple-ios15.0-simulator)
     if [ "${1:-}" = "-embedded" ]; then
       shift
       exec "${run[@]}" -enable-experimental-feature Embedded -enable-experimental-feature Extern -wmo -parse-as-library -Osize \
@@ -42,10 +54,12 @@ case "$cmd" in
     # module maps (Dispatch, CoreFoundation for Linux) out of iOS builds
     exec "${run[@]}" -sdk "$SDK" -resource-dir "$BIN/../swift/resource" -O -runtime-compatibility-version none \
       -Xfrontend -disable-implicit-concurrency-module-import -Xfrontend -disable-implicit-string-processing-module-import "$@" ;;
+  build)
+    exec python3 "$BIN/isim-build.py" "$@" ;;
   info)
     f=${1:?usage: isim info <App.app|binary>}
     [ -d "$f" ] && f=$f/$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$f/Info.plist")
     llvm-objdump --macho --private-headers "$f" | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos|sdk'
     llvm-otool -L "$f" | tail -n +2 ;;
-  *) sed -n '2,7p' "$0" ;;
+  *) sed -n '2,8p' "$0" ;;
 esac

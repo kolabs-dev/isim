@@ -19,3 +19,15 @@ const char *isim_process_name(void);
 
 /* property list parsing (NSBundle.m) */
 id isim_plist_parse(const char *xml, NSUInteger len);
+
+/* localization (Locale.m) */
+NSArray<NSString *> *isim_preferred_languages(void);
+NSDictionary *isim_parse_strings_file(NSString *path);
+NSString *isim_plist_xml(id root);
+NSString *NSTemporaryDirectory_isim(void);
+@interface NSString (IsimPercent)
+- (NSString *)stringByRemovingPercentEncoding_isim;
+@end
+@interface NSString (IsimPad)
+- (NSString *)stringByPaddingToLength_isim:(NSUInteger)n;
+@end

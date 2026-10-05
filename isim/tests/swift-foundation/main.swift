@@ -41,6 +41,24 @@ class Greeter: NSObject {
         NSLog("NSLog from Swift: %@ / %ld", "string arg", 7)
         let bundleID = Bundle.main.bundleIdentifier
         check(bundleID == nil || bundleID!.contains("."), "Bundle.main")
+        let d1 = Date(timeIntervalSince1970: 0)
+        check(d1.timeIntervalSinceReferenceDate == -978307200 && Date() > d1, "Date value type")
+        let nsd = d1 as NSDate
+        check((nsd as Date) == d1, "Date <-> NSDate bridging")
+        let loc = Locale(identifier: "pt_BR")
+        check(loc.languageCode == "pt" && loc.regionCode == "BR" && loc.decimalSeparator == ",", "Locale value type")
+        check(!Locale.current.identifier.isEmpty, "Locale.current")
+        check(TimeZone(identifier: "UTC")?.secondsFromGMT() == 0, "TimeZone value type")
+        let url = URL(string: "https://example.com:8080/a/b.txt?q=1#f")!
+        check(url.host == "example.com", "URL host")
+        check(url.port == 8080, "URL port")
+        check(url.path == "/a/b.txt", "URL path")
+        check(url.pathExtension == "txt", "URL pathExtension")
+        check(url.query == "q=1", "URL query")
+        check(URL(fileURLWithPath: "/tmp").appendingPathComponent("x").path == "/tmp/x", "file URL")
+        let count = 3
+        check(String(localized: "You have \(count) items") == "You have 3 items", "String(localized:) fallback with interpolation")
+        check(NSLocalizedString("plain", comment: "") == "plain", "NSLocalizedString fallback")
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }

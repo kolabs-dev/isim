@@ -1,8 +1,8 @@
 #pragma once
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
-@class NSString;
-/* isim: in-memory only (not persisted between launches). */
+@class NSString, NSArray, NSDictionary<KeyType, ObjectType>;
+/* isim: persisted as an XML plist in the app container (Library/Preferences/<bundle id>.plist). */
 @interface NSUserDefaults : NSObject
 @property (class, readonly, strong) NSUserDefaults *standardUserDefaults;
 - (nullable id)objectForKey:(NSString *)defaultName;
@@ -13,6 +13,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)boolForKey:(NSString *)defaultName;
 - (void)setBool:(BOOL)value forKey:(NSString *)defaultName;
 - (nullable NSString *)stringForKey:(NSString *)defaultName;
+- (double)doubleForKey:(NSString *)defaultName;
+- (void)setDouble:(double)value forKey:(NSString *)defaultName;
+- (nullable NSArray *)arrayForKey:(NSString *)defaultName;
+- (nullable NSDictionary<NSString *, id> *)dictionaryForKey:(NSString *)defaultName;
+- (void)registerDefaults:(NSDictionary<NSString *, id> *)registrationDictionary;
 - (BOOL)synchronize;
 @end
 NS_ASSUME_NONNULL_END

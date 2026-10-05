@@ -13,6 +13,11 @@
 #import <Foundation/NSAutoreleasePool.h>
 #import <Foundation/NSBundle.h>
 #import <Foundation/NSDate.h>
+#import <Foundation/NSLocale.h>
+#import <Foundation/NSURL.h>
+#import <Foundation/NSFileManager.h>
+#import <Foundation/NSTimeZone.h>
+#import <Foundation/NSFormatter.h>
 #import <Foundation/NSTimer.h>
 #import <Foundation/NSRunLoop.h>
 #import <Foundation/NSNotification.h>

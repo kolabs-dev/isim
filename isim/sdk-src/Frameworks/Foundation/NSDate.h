@@ -3,6 +3,8 @@
 NS_ASSUME_NONNULL_BEGIN
 @interface NSDate : NSObject <NSCopying, NSSecureCoding>
 @property (readonly) NSTimeInterval timeIntervalSinceReferenceDate;
+/* isim: current time without allocating an NSDate (used by the Swift overlay) */
++ (NSTimeInterval)timeIntervalSinceReferenceDate_isim;
 + (instancetype)date;
 + (instancetype)dateWithTimeIntervalSinceNow:(NSTimeInterval)secs;
 + (instancetype)dateWithTimeIntervalSince1970:(NSTimeInterval)secs;

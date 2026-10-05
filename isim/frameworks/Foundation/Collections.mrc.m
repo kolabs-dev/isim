@@ -84,6 +84,7 @@ NUMU(numberWithUnsignedLongLong:, unsigned long long) NUMI(numberWithInteger:, N
     long long a = _n.i, b = o->_n.i; return a < b ? NSOrderedAscending : a > b ? NSOrderedDescending : NSOrderedSame;
 }
 - (BOOL)isEqualToNumber:(NSNumber *)o { return [self compare:o] == NSOrderedSame; }
+- (BOOL)_isim_isBool { return _t == N_BOOL; }
 - (BOOL)isEqual:(id)o { return [o isKindOfClass:[NSNumber class]] && [self isEqualToNumber:o]; }
 - (NSUInteger)hash { return _t == N_DBL && _n.d != (double)(long long)_n.d ? (NSUInteger)(_n.d * 2654435761.0) : (NSUInteger)[self longLongValue]; }
 - (id)copyWithZone:(NSZone *)z { return [self retain]; }
