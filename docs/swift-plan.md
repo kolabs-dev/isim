@@ -24,6 +24,15 @@ Reproduce: `docker run --rm -v "$PWD":/w -w /w swift:6.2 swiftc -target arm64-ap
   `x86_64-apple-ios-simulator` (our runtime) and `arm64-apple-ios` (device), plus Swift
   overlays/module maps for our SDK (`Foundation`, `UIKit`, `Darwin`).
 
+## Progress
+- **Stage 1 done (2026-10-05):** Embedded Swift on the isim simulator. `isim/swift/build-embedded-stdlib.py` builds
+  `Swift.swiftmodule` for `x86_64-apple-ios15.0-simulator` from swift-6.2.4 sources (205 files, ~20 s) mirroring
+  the CMake embedded recipe; `build-embedded-support.sh` builds the Unicode tables + SwiftDtoa float printing
+  (the toolchain's device library lacks float printing). `tests/swift-embedded` passes 11/11 under isim.
+  Limits of Embedded Swift observed: no existentials (`any P`), no ObjC interop, no reflection.
+- **SDK groundwork for stage 2:** libc++ headers (llvmorg-22.1.8) with an isim `__config_site` and a C11 libc
+  header surface (math, stdlib, stdio, string, inttypes, sched, signal) + matching host functions.
+
 ## Plan (proposals, not yet verified)
 1. Simulator Embedded Swift: build the Embedded stdlib module for
    `x86_64-apple-ios-simulator` from `swift-6.2.4-RELEASE` sources with the shipped

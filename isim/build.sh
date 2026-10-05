@@ -22,6 +22,15 @@ $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runt
 step "SDK headers"
 rsync -a --delete sdk-src/usr/include/ "$SDK/usr/include/"
 cp sdk-src/SDKSettings.json "$SDK/"
+# libc++ headers (llvmorg-22.1.8, third_party/llvm-project) configured for isim
+LIBCXX=${LIBCXX_SRC:-../third_party/llvm-project}
+if [ -d "$LIBCXX/libcxx/include" ]; then
+  mkdir -p "$SDK/usr/include/c++/v1"
+  rsync -a --delete --exclude='*.in' --exclude=CMakeLists.txt "$LIBCXX/libcxx/include/" "$SDK/usr/include/c++/v1/"
+  cp sdk-src/libcxx/__config_site "$SDK/usr/include/c++/v1/__config_site"
+  cp "$LIBCXX/libcxx/vendor/llvm/default_assertion_handler.in" "$SDK/usr/include/c++/v1/__assertion_handler"
+  cp "$LIBCXX"/libcxxabi/include/*.h "$SDK/usr/include/c++/v1/"
+fi
 
 step "host library stubs (.tbd generated from the runtime's export tables)"
 gen_tbd() { # install-name out.tbd
@@ -80,4 +89,6 @@ for app in samples/*/ tests/*/; do
   step "sample $(basename "$app")"
   ISIM_SDK=$SDK ISIM_CC=$CC ISIM_LD=$LD bash "$app/build.sh" "$OUT/apps"
 done
+step "swift (embedded)"
+bash swift/build.sh
 step "done: $OUT"

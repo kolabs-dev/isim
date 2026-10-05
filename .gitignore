@@ -17,3 +17,6 @@ experiments/04-darling/src/
 *.cer
 *.key
 .env
+
+# Pinned third-party source checkouts (see isim/swift/fetch-sources.sh)
+third_party/

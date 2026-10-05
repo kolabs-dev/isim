@@ -2,7 +2,8 @@
 
 Write code → compile → run in a local iOS-compatible simulator → build for iPhone/iPad →
 sign → package → upload to App Store Connect, **entirely on Linux** (no macOS machine, VM,
-remote Mac or Mac CI). Apps in **Objective-C and Swift**.
+remote Mac or Mac CI). Apps in **Objective-C and Swift**, with UIKit and (as a later goal) **SwiftUI**,
+and a simulator whose **device settings** (language, region, appearance, text size, …) are configurable.
 
 **Acceptance test:** the same sample app runs in our Linux simulator, is built and signed on
 Linux, uploaded from Linux, and installs on an iPhone through TestFlight. (App Review is a
@@ -21,7 +22,10 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 | 1. Compile for iOS targets on Linux | ✅ | clang/lld 22.1.8 produce iOS-simulator (x86_64) and iOS (arm64) Mach-O objects and executables — `results/01-probe.txt`, `experiments/02-link` |
 | 2. Run iOS-simulator binaries on Linux | ✅ | own loader + runtime (`isim/runtime`); C, threads, ObjC, Foundation self-test 32/32 |
 | 3. Simulator UI: boilerplate UIKit app in a window | ✅ | Xcode-template ObjC app (`isim/samples/HelloCounter`) runs in a Wayland window on this machine; UI test 9/9 |
-| 4. Swift support | 🟡 | Embedded Swift → arm64 iOS Mach-O works on Linux; full Swift runtime for simulator not started — `docs/swift-plan.md` |
+| 4a. Swift (Embedded) on the simulator | ✅ | own Embedded stdlib build for `x86_64-apple-ios-simulator`; Swift self-test 11/11 on isim — `isim/swift/` |
+| 4b. Swift (full: runtime, ObjC interop, UIKit apps) | 🟡 | in progress: libc++ + C11 headers in the isim SDK done; next: Swift runtime + stdlib for the simulator — `docs/swift-plan.md` |
+| 4c. SwiftUI | ⬜ | feasible only as a re-implementation (SwiftUI is closed source); depends on 4b — see below |
+| 4d. Simulator settings (language, region, appearance, text size, 12/24h, time zone, device) | ⬜ | planned: device profiles + `isim run` flags feeding NSLocale/NSBundle/UITraitCollection |
 | 5. Device build (arm64 .app) | 🟡 | arm64 executables link; code signature, resources, bundle not done |
 | 6. Signing + .ipa | ⬜ | candidate tools identified (rcodesign, zsign) — `docs/distribution-research.md` |
 | 7. Upload from Linux | ⬜ | Build Upload API flow documented; untested; needs your Apple account later |
@@ -51,12 +55,23 @@ _Last updated: 2026-10-05._ Legend: ✅ done and verified · 🟡 in progress / 
 
 _HelloCounter — the Xcode Objective-C App template plus a small counter UI — rendered by isim on Linux (left: after three taps; right: dark appearance)._
 
+### Can isim support SwiftUI?
+
+Yes, but only by **re-implementing** it, the same way isim re-implements UIKit: SwiftUI is a closed-source
+Apple framework, so its binaries can't be used. A compatible implementation needs (1) the full Swift runtime
+(stage 4b — SwiftUI leans on generic metadata, opaque result types, result builders, property wrappers and
+Observation), and (2) a SwiftUI-compatible framework rendering through isim's UIKit/renderer. Existing
+open-source SwiftUI re-implementations (e.g. OpenSwiftUI, Tokamak) are candidates to evaluate as a base
+(licenses and completeness not yet checked). Note that Xcode's default new-project template is SwiftUI, so
+this matters for "boilerplate app" fidelity. Status: planned after 4b, not promised.
+
 ### Next steps
 
-1. Swift: build Embedded Swift for the simulator target, then the full Swift runtime/stdlib cross-build, and a Swift version of HelloCounter.
-2. UIKit breadth: UIScrollView, UITableView, UINavigationController, UITextField + keyboard, UIImage decoding, real animations.
-3. Device: ad-hoc code signature + `.app` bundle for arm64; then distribution signing experiments.
-4. Storyboard support (a Linux storyboard compiler) so the unmodified Xcode template works.
+1. Swift (full): build libc++ and the Swift runtime + stdlib with ObjC interop for the simulator, a Swift Foundation overlay and SDK module maps, then a Swift version of HelloCounter.
+2. Simulator settings: language/region/appearance/text size via device profiles and `isim run` flags.
+3. UIKit breadth: UIScrollView, UITableView, UINavigationController, UITextField + keyboard, UIImage decoding, real animations.
+4. Device: ad-hoc code signature + `.app` bundle for arm64; then distribution signing experiments.
+5. Storyboard support (a Linux storyboard compiler) so the unmodified Xcode template works.
 
 ---
 
