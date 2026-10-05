@@ -230,6 +230,12 @@ CGSize isim_ui_measure(NSString *text, UIFont *font, CGFloat maxWidth, NSInteger
     isim_text_measure(text.UTF8String, font.pointSize, font._isim_weight, font._isim_mono, maxWidth, (int)lines, &w, &h);
     return CGSizeMake(w, h);
 }
+CGPoint isim_ui_text_end_point(NSString *text, UIFont *font, CGFloat maxWidth) {
+    if (!font) font = [UIFont systemFontOfSize:17];
+    double x = 0, y = 0;
+    if (text.length) isim_text_end_point(text.UTF8String, font.pointSize, font._isim_weight, font._isim_mono, maxWidth, &x, &y);
+    return CGPointMake(x, y);
+}
 void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect r, NSTextAlignment align, NSInteger lines, CGFloat alpha) {
     if (!text.length) return;
     if (!font) font = [UIFont systemFontOfSize:17];

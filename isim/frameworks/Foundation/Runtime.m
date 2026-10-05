@@ -2,6 +2,7 @@
  * process info, user defaults, libdispatch subset. */
 #import <Foundation/Foundation.h>
 #include <objc/isim_internal.h>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,6 +130,9 @@ id isim_plist_parse(const char *xml, NSUInteger len) {
 }
 
 /* ================= NSBundle ================= */
+/* bundles of app extensions loaded into this process (isim hosts custom keyboards in-process):
+ * their code asks Bundle.main for its strings, so the main bundle falls back to them */
+static NSMutableArray<NSBundle *> *extension_bundles;
 @implementation NSBundle { NSString *_path; NSDictionary *_info; NSMutableDictionary *_tables; }
 + (NSBundle *)mainBundle {
     static NSBundle *main;
@@ -141,6 +145,29 @@ id isim_plist_parse(const char *xml, NSUInteger len) {
     });
     return main;
 }
++ (instancetype)bundleWithPath:(NSString *)path { return [[self alloc] initWithPath:path]; }
+- (instancetype)initWithPath:(NSString *)path {
+    BOOL dir = NO;
+    if (!path || ![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&dir] || !dir) return nil;
+    if ((self = [super init])) _path = [path copy];
+    return self;
+}
+/* the bundle whose executable contains the class's code (app, or an extension loaded in-process) */
++ (NSBundle *)bundleForClass:(Class)cls {
+    Dl_info di;
+    if (cls && dladdr((__bridge void *)cls, &di) && di.dli_fname) {
+        NSString *dir = [@(di.dli_fname) stringByDeletingLastPathComponent];
+        if ([dir isEqualToString:NSBundle.mainBundle.bundlePath]) return NSBundle.mainBundle;
+        if ([dir hasSuffix:@".appex"] || [dir hasSuffix:@".bundle"] || [dir hasSuffix:@".app"]) return [NSBundle bundleWithPath:dir] ?: NSBundle.mainBundle;
+    }
+    return NSBundle.mainBundle;
+}
++ (NSBundle *)bundleWithIdentifier:(NSString *)ident {
+    if ([NSBundle.mainBundle.bundleIdentifier isEqualToString:ident]) return NSBundle.mainBundle;
+    for (NSBundle *b in extension_bundles) if ([b.bundleIdentifier isEqualToString:ident]) return b;
+    return nil;
+}
+- (NSString *)builtInPlugInsPath { return [_path stringByAppendingPathComponent:@"PlugIns"]; }
 - (NSString *)bundlePath { return _path; }
 - (NSString *)resourcePath { return _path; }
 - (NSString *)executablePath {
@@ -202,8 +229,21 @@ id isim_plist_parse(const char *xml, NSUInteger len) {
         if ((p = [self pathForResource:name ofType:ext inDirectory:nil forLocalization:loc])) return p;
     return nil;
 }
+void isim_bundle_register_extension(NSString *path) {
+    NSBundle *b = [NSBundle bundleWithPath:path];
+    if (!b) return;
+    @synchronized ([NSBundle class]) { if (!extension_bundles) extension_bundles = [NSMutableArray array]; [extension_bundles addObject:b]; }
+}
 - (NSString *)localizedStringForKey:(NSString *)key value:(NSString *)value table:(NSString *)t {
     if (!key) return value ?: @"";
+    NSString *hit = [self _isim_lookup:key table:t];
+    if (!hit && self == NSBundle.mainBundle) {
+        NSArray *exts; @synchronized ([NSBundle class]) { exts = [extension_bundles copy]; }
+        for (NSBundle *b in exts) if ((hit = [b _isim_lookup:key table:t])) break;
+    }
+    return hit ?: (value.length ? value : key);
+}
+- (NSString *)_isim_lookup:(NSString *)key table:(NSString *)t {
     NSString *table = t.length ? t : @"Localizable";
     @synchronized (self) {
         if (!_tables) _tables = [NSMutableDictionary dictionary];
@@ -219,7 +259,7 @@ id isim_plist_parse(const char *xml, NSUInteger len) {
             if (hit) return hit;
         }
     }
-    return value.length ? value : key;
+    return nil;
 }
 @end
 

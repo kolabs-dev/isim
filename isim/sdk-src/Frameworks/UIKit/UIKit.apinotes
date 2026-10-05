@@ -176,6 +176,8 @@ Classes:
     MethodKind: Instance
     SwiftName: 'handleInputModeList(from:with:)'
 Typedefs:
+- Name: UIScrollViewDecelerationRate
+  SwiftName: UIScrollView.DecelerationRate
 - Name: UIFontTextStyle
   SwiftName: UIFont.TextStyle
 - Name: UIFontWeight
@@ -193,6 +195,16 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIScrollViewContentInsetAdjustmentBehavior
+  SwiftName: UIScrollView.ContentInsetAdjustmentBehavior
+- Name: UIScrollViewKeyboardDismissMode
+  SwiftName: UIScrollView.KeyboardDismissMode
+- Name: UITextBorderStyle
+  SwiftName: UITextField.BorderStyle
+- Name: UITextFieldViewMode
+  SwiftName: UITextField.ViewMode
+- Name: UITextFieldDidEndEditingReason
+  SwiftName: UITextField.DidEndEditingReason
 - Name: UIImageRenderingMode
   SwiftName: UIImage.RenderingMode
 - Name: UIImageSymbolScale
@@ -253,6 +265,32 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UIKeyboardWillShowNotification
+  SwiftName: UIResponder.keyboardWillShowNotification
+- Name: UIKeyboardDidShowNotification
+  SwiftName: UIResponder.keyboardDidShowNotification
+- Name: UIKeyboardWillHideNotification
+  SwiftName: UIResponder.keyboardWillHideNotification
+- Name: UIKeyboardDidHideNotification
+  SwiftName: UIResponder.keyboardDidHideNotification
+- Name: UIKeyboardWillChangeFrameNotification
+  SwiftName: UIResponder.keyboardWillChangeFrameNotification
+- Name: UIKeyboardDidChangeFrameNotification
+  SwiftName: UIResponder.keyboardDidChangeFrameNotification
+- Name: UIKeyboardFrameEndUserInfoKey
+  SwiftName: UIResponder.keyboardFrameEndUserInfoKey
+- Name: UIKeyboardFrameBeginUserInfoKey
+  SwiftName: UIResponder.keyboardFrameBeginUserInfoKey
+- Name: UIKeyboardAnimationDurationUserInfoKey
+  SwiftName: UIResponder.keyboardAnimationDurationUserInfoKey
+- Name: UIKeyboardAnimationCurveUserInfoKey
+  SwiftName: UIResponder.keyboardAnimationCurveUserInfoKey
+- Name: UITextFieldTextDidChangeNotification
+  SwiftName: UITextField.textDidChangeNotification
+- Name: UITextFieldTextDidBeginEditingNotification
+  SwiftName: UITextField.textDidBeginEditingNotification
+- Name: UITextFieldTextDidEndEditingNotification
+  SwiftName: UITextField.textDidEndEditingNotification
 - Name: UIWindowSceneSessionRoleApplication
   SwiftName: UISceneSession.Role.windowApplication
 - Name: UIApplicationMain

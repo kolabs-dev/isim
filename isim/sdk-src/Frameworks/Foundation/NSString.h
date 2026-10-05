@@ -45,6 +45,8 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 - (NSString *)substringFromIndex:(NSUInteger)from;
 - (NSString *)substringToIndex:(NSUInteger)to;
 - (NSString *)substringWithRange:(NSRange)range;
+- (NSRange)rangeOfComposedCharacterSequenceAtIndex:(NSUInteger)index;
+- (NSString *)stringByReplacingCharactersInRange:(NSRange)range withString:(NSString *)replacement;
 - (NSArray<NSString *> *)componentsSeparatedByString:(NSString *)separator;
 @property (readonly, copy) NSString *lowercaseString;
 @property (readonly, copy) NSString *uppercaseString;

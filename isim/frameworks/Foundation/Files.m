@@ -4,6 +4,7 @@
  * equivalent of the simulator's per-app data container: Documents/, Library/Preferences/, tmp/. */
 #import <Foundation/Foundation.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -141,7 +142,18 @@ NSArray<NSString *> *NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory d
     return access(p.UTF8String, F_OK) == 0;
 }
 - (BOOL)removeItemAtPath:(NSString *)p error:(id *)err { return unlink(p.UTF8String) == 0 || rmdir(p.UTF8String) == 0; }
-- (NSArray<NSString *> *)contentsOfDirectoryAtPath:(NSString *)p error:(id *)err { return @[]; }   /* isim: directory listing not implemented */
+- (NSArray<NSString *> *)contentsOfDirectoryAtPath:(NSString *)p error:(id *)err {
+    DIR *d = opendir(p.UTF8String);
+    if (!d) { if (err) *err = [NSError errorWithDomain:@"NSCocoaErrorDomain" code:260 userInfo:@{ @"NSFilePath": p ?: @"" }]; return nil; }
+    NSMutableArray *out = [NSMutableArray array];
+    for (struct dirent *e; (e = readdir(d));) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        [out addObject:@(e->d_name)];
+    }
+    closedir(d);
+    [out sortUsingSelector:@selector(compare:)];
+    return out;
+}
 - (NSArray<NSURL *> *)URLsForDirectory:(NSSearchPathDirectory)d inDomains:(NSSearchPathDomainMask)m {
     NSMutableArray *out = [NSMutableArray array];
     for (NSString *p in NSSearchPathForDirectoriesInDomains(d, m, YES)) [out addObject:[NSURL fileURLWithPath:p isDirectory:YES]];

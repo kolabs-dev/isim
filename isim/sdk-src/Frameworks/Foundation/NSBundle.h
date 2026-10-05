@@ -4,6 +4,11 @@ NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSArray<ObjectType>, NSDictionary<KeyType, ObjectType>;
 @interface NSBundle : NSObject
 @property (class, readonly, strong) NSBundle *mainBundle;
++ (nullable instancetype)bundleWithPath:(NSString *)path;
+- (nullable instancetype)initWithPath:(NSString *)path;
++ (NSBundle *)bundleForClass:(Class)aClass;
++ (nullable NSBundle *)bundleWithIdentifier:(NSString *)identifier;
+@property (readonly, copy) NSString *builtInPlugInsPath;
 @property (readonly, copy) NSString *bundlePath;
 @property (nullable, readonly, copy) NSString *resourcePath;
 @property (nullable, readonly, copy) NSString *executablePath;

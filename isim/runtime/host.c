@@ -168,6 +168,12 @@ void isim_text_measure(const char *utf8, double size, double weight, int mono, d
     *w = ceil((double)log.width / PANGO_SCALE); *h = ceil((double)log.height / PANGO_SCALE);
     g_object_unref(l);
 }
+void isim_text_end_point(const char *utf8, double size, double weight, int mono, double maxw, double *x, double *y) {
+    PangoLayout *l = layout_for(utf8, size, weight, mono, maxw, 0, 0);
+    PangoRectangle pos; pango_layout_index_to_pos(l, (int)strlen(utf8), &pos);
+    *x = pos.x / (double)PANGO_SCALE; *y = pos.y / (double)PANGO_SCALE;
+    g_object_unref(l);
+}
 void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba) {
     PangoLayout *l = layout_for(utf8, size, weight, mono, w, lines, align);
     pango_cairo_update_context(cr, pctx);
@@ -375,7 +381,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_fill_rounded), H(isim_gfx_stroke_rounded), H(isim_gfx_fill_ellipse), H(isim_gfx_push_group), H(isim_gfx_pop_group),
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
     H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke),
-    H(isim_text_measure), H(isim_text_draw), H(isim_set_status_bar_style), H(isim_next_event), H(isim_text_input),
+    H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_set_status_bar_style), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free),
 };

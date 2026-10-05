@@ -213,6 +213,7 @@ const UIWindowLevel UIWindowLevelNormal = 0, UIWindowLevelAlert = 2000, UIWindow
 - (UIResponder *)nextResponder { return (UIResponder *)_windowScene ?: (UIResponder *)UIApplication.sharedApplication; }
 - (void)sendEvent:(UIEvent *)e {}
 - (void)_isim_renderFrame { [self _isim_render]; }
+- (BOOL)_isim_isSystemWindow { return NO; }
 @end
 
 /* ================= scenes ================= */
@@ -312,7 +313,7 @@ static NSTimeInterval last_tap_time; static CGPoint last_tap_point;
 static UIWindow *top_window(void) {
     UIWindow *best = UIApplication.sharedApplication.keyWindow;
     for (UIWindow *w in UIApplication.sharedApplication.windows)
-        if (!w.hidden && (!best || best.hidden || w.windowLevel > best.windowLevel)) best = w;
+        if (!w.hidden && ![w _isim_isSystemWindow] && (!best || best.hidden || w.windowLevel > best.windowLevel)) best = w;
     return best && !best.hidden ? best : nil;
 }
 
@@ -330,10 +331,17 @@ void isim_ui_gesture_recognized(UIGestureRecognizer *g) {
 static void handle_touch(const struct isim_event *ev) {
     CGPoint p = CGPointMake(ev->x, ev->y);
     if (ev->type == ISIM_EV_TOUCH_DOWN) {
-        UIWindow *w = top_window();
-        UIView *hit = [w hitTest:p withEvent:nil];
+        /* front-most window (by level) whose frame contains the point and has a view there */
+        NSArray *ws = [UIApplication.sharedApplication.windows sortedArrayUsingComparator:^NSComparisonResult(UIWindow *a, UIWindow *b) {
+            return a.windowLevel > b.windowLevel ? NSOrderedAscending : a.windowLevel < b.windowLevel ? NSOrderedDescending : NSOrderedSame; }];
+        UIWindow *w = nil; UIView *hit = nil;
+        for (UIWindow *c in ws) {
+            if (c.hidden || !CGRectContainsPoint(c.frame, p)) continue;
+            hit = [c hitTest:CGPointMake(p.x - c.frame.origin.x, p.y - c.frame.origin.y) withEvent:nil];
+            if (hit) { w = c; break; }
+        }
         if (!hit) { cur_touch = nil; return; }
-        cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:p time:ev->timestamp];
+        cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y) time:ev->timestamp];
         if (ev->timestamp - last_tap_time < 0.35 && hypot(p.x - last_tap_point.x, p.y - last_tap_point.y) < 20) [cur_touch setValue_isimTapCount:2];
         cur_gestures = [NSMutableArray array];
         touch_cancelled = NO;
@@ -342,7 +350,8 @@ static void handle_touch(const struct isim_event *ev) {
     UITouch *t = cur_touch;
     if (!t) return;
     UITouchPhase phase = ev->type == ISIM_EV_TOUCH_DOWN ? UITouchPhaseBegan : ev->type == ISIM_EV_TOUCH_MOVE ? UITouchPhaseMoved : UITouchPhaseEnded;
-    [t _isim_setPhase:phase location:p time:ev->timestamp];
+    CGRect wf = t.window.frame;
+    [t _isim_setPhase:phase location:CGPointMake(p.x - wf.origin.x, p.y - wf.origin.y) time:ev->timestamp];
     UIEvent *e = [[UIEvent alloc] initWithIsimTouch:t];
     cur_event = e;
     NSSet *set = e.allTouches;
@@ -418,7 +427,11 @@ static void render_frame(void) {
 
 static void layout_all(void) {
     for (int i = 0; i < 4 && isim_ui_take_layout(); i++)
-        for (UIWindow *w in UIApplication.sharedApplication.windows) { isim_ui_layout_window(w); [w _isim_layoutPass]; }
+    {
+        NSArray *ws = UIApplication.sharedApplication.windows;
+        isim_ui_layout_roots(ws);
+        for (UIWindow *w in ws) [w _isim_layoutPass];
+    }
 }
 
 static Class class_named(NSString *name) {
@@ -471,6 +484,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         if (delegateClass) { app.strongDelegate = [delegateClass new]; app.delegate = app.strongDelegate; }
         NSString *title = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: info[@"CFBundleExecutable"] ?: @"App";
         isim_display_open(title.UTF8String);
+        isim_ui_keyboard_install();
         extern void (*isim_main_wakeup_hook)(void);
         isim_main_wakeup_hook = isim_post_wakeup;
         NSLog(@"isim: launching %@ (%@) on %s", title, bundle.bundleIdentifier ?: @"no bundle id", isim_ui_device()->name);

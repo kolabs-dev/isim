@@ -298,6 +298,48 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     NSUInteger s = isim_utf16_to_byte(b, n, r.location), e = isim_utf16_to_byte(b, n, NSMaxRange(r));
     return [isim_string_copy(b + s, e - s) autorelease];
 }
+/* user-perceived character (approximation of extended grapheme clusters): surrogate pairs,
+ * combining marks, variation selectors, emoji modifiers, ZWJ sequences, regional-indicator pairs */
+static uint32_t scalar_at(NSString *s, NSUInteger i, NSUInteger len, NSUInteger *units) {
+    unichar c = [s characterAtIndex:i];
+    if (c >= 0xD800 && c < 0xDC00 && i + 1 < len) {
+        unichar d = [s characterAtIndex:i + 1];
+        if (d >= 0xDC00 && d < 0xE000) { *units = 2; return 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00); }
+    }
+    *units = 1; return c;
+}
+static BOOL is_extender(uint32_t u) {
+    return (u >= 0x300 && u <= 0x36F) || (u >= 0x1AB0 && u <= 0x1AFF) || (u >= 0x1DC0 && u <= 0x1DFF) || (u >= 0x20D0 && u <= 0x20FF) ||
+           (u >= 0xFE00 && u <= 0xFE0F) || (u >= 0xFE20 && u <= 0xFE2F) || (u >= 0x1F3FB && u <= 0x1F3FF) || (u >= 0xE0020 && u <= 0xE007F) || u == 0x200D;
+}
+static BOOL is_ri(uint32_t u) { return u >= 0x1F1E6 && u <= 0x1F1FF; }
+- (NSRange)rangeOfComposedCharacterSequenceAtIndex:(NSUInteger)idx {
+    NSUInteger len = [self length];
+    if (idx >= len) [NSException raise:NSRangeException format:@"-[NSString rangeOfComposedCharacterSequenceAtIndex:]: index %lu out of bounds", (unsigned long)idx];
+    /* walk clusters from the start until one contains idx */
+    NSUInteger start = 0;
+    while (start < len) {
+        NSUInteger u, end = start;
+        uint32_t first = scalar_at(self, end, len, &u); end += u;
+        BOOL joined = NO; int ri = is_ri(first);
+        while (end < len) {
+            NSUInteger v; uint32_t next = scalar_at(self, end, len, &v);
+            if (is_extender(next)) { joined = next == 0x200D; end += v; continue; }
+            if (joined) { joined = NO; end += v; continue; }
+            if (ri == 1 && is_ri(next)) { ri = 2; end += v; continue; }
+            break;
+        }
+        if (idx < end) return NSMakeRange(start, end - start);
+        start = end;
+    }
+    return NSMakeRange(idx, 1);
+}
+- (NSString *)stringByReplacingCharactersInRange:(NSRange)r withString:(NSString *)rep {
+    NSUInteger len = [self length];
+    if (NSMaxRange(r) > len) [NSException raise:NSRangeException format:@"-[NSString stringByReplacingCharactersInRange:withString:]: range {%lu, %lu} out of bounds", (unsigned long)r.location, (unsigned long)r.length];
+    NSString *a = [self substringToIndex:r.location], *b = [self substringFromIndex:NSMaxRange(r)];
+    return [[a stringByAppendingString:rep ?: @""] stringByAppendingString:b];
+}
 - (NSString *)substringFromIndex:(NSUInteger)i { return [self substringWithRange:NSMakeRange(i, [self length] - i)]; }
 - (NSString *)substringToIndex:(NSUInteger)i { return [self substringWithRange:NSMakeRange(0, i)]; }
 - (NSArray *)componentsSeparatedByString:(NSString *)sep {

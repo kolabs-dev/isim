@@ -512,19 +512,34 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     self.lastPoint = p;
 }
 @end
-@implementation UIPanGestureRecognizer
+@implementation UIPanGestureRecognizer { CGPoint _samples[8]; double _times[8]; int _ns; }
+- (void)_sample:(CGPoint)p time:(double)t {
+    if (_ns == 8) { memmove(_samples, _samples + 1, 7 * sizeof *_samples); memmove(_times, _times + 1, 7 * sizeof *_times); _ns = 7; }
+    _samples[_ns] = p; _times[_ns++] = t;
+}
 - (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event {
-    CGPoint p = [touch locationInView:self.view];
-    if (phase == UITouchPhaseBegan) { self.startPoint = p; self.state = UIGestureRecognizerStatePossible; }
+    CGPoint p = [touch locationInView:self.view.window];      /* window coordinates: stable while the view scrolls */
+    if (phase == UITouchPhaseBegan) { self.startPoint = p; self.state = UIGestureRecognizerStatePossible; _ns = 0; [self _sample:p time:touch.timestamp]; }
     else if (phase == UITouchPhaseMoved) {
-        if (self.state == UIGestureRecognizerStatePossible && hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) { self.state = UIGestureRecognizerStateBegan; self.lastPoint = p; [self _fire]; }
+        [self _sample:p time:touch.timestamp];
+        if (self.state == UIGestureRecognizerStatePossible && hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) { self.startPoint = p; self.state = UIGestureRecognizerStateBegan; self.lastPoint = p; [self _fire]; }
         else if (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged) { self.state = UIGestureRecognizerStateChanged; self.lastPoint = p; [self _fire]; }
     } else if (phase == UITouchPhaseEnded && (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged)) {
+        [self _sample:p time:touch.timestamp];
         self.lastPoint = p; self.state = UIGestureRecognizerStateEnded; [self _fire]; self.state = UIGestureRecognizerStatePossible;
-    }
+    } else if (phase == UITouchPhaseEnded) self.state = UIGestureRecognizerStatePossible;
     if (phase != UITouchPhaseMoved || self.state != UIGestureRecognizerStatePossible) self.lastPoint = p;
 }
+- (CGPoint)locationInView:(UIView *)v { return [self.view.window convertPoint:self.lastPoint toView:v]; }
 - (CGPoint)translationInView:(UIView *)v { return CGPointMake(self.lastPoint.x - self.startPoint.x, self.lastPoint.y - self.startPoint.y); }
 - (void)setTranslation:(CGPoint)t inView:(UIView *)v { self.startPoint = CGPointMake(self.lastPoint.x - t.x, self.lastPoint.y - t.y); }
-- (CGPoint)velocityInView:(UIView *)v { return CGPointZero; }
+/* points per second over the last ~100 ms of movement */
+- (CGPoint)velocityInView:(UIView *)v {
+    if (_ns < 2) return CGPointZero;
+    int last = _ns - 1, first = last;
+    while (first > 0 && _times[last] - _times[first - 1] <= 0.1) first--;
+    double dt = _times[last] - _times[first];
+    if (dt <= 0.001) return CGPointZero;
+    return CGPointMake((_samples[last].x - _samples[first].x) / dt, (_samples[last].y - _samples[first].y) / dt);
+}
 @end

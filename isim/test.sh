@@ -13,6 +13,9 @@ fi
 if [ -x out/apps/HelloKeyboard.appex/HelloKeyboard ]; then         # Swift keyboard extension in the keyboard host
   run "ui: HelloKeyboard (keyboard extension)" tests/ui/keyboard.sh
 fi
+if [ -x out/apps/HelloKeyboardApp.app/HelloKeyboardApp ]; then   # UIScrollView, UITextField, system keyboard, in-process extension
+  run "ui: HelloKeyboardApp (system keyboard + embedded extension)" tests/ui/keyboard-app.sh
+fi
 if [ -x out/apps/SwiftEmbeddedTest.app/SwiftEmbeddedTest ]; then
   run "swift (embedded) self-test" bash -c 'out/bin/isim run out/apps/SwiftEmbeddedTest.app/SwiftEmbeddedTest | tail -1; exit ${PIPESTATUS[0]}'
 fi

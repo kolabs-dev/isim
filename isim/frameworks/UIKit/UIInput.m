@@ -143,10 +143,16 @@ BOOL UIAccessibilityIsBoldTextEnabled(void) { return env_flag("ISIM_BOLD_TEXT");
 - (void)setInputView:(UIInputView *)v { self.view = v; }
 - (void)loadView { self.view = [[UIInputView alloc] initWithFrame:CGRectZero inputViewStyle:UIInputViewStyleKeyboard]; }
 - (BOOL)hasFullAccess { return NO; }
-/* isim has one keyboard at a time, but report the switch key as needed, like a device with several keyboards. */
-- (BOOL)needsInputModeSwitchKey { return YES; }
-- (void)dismissKeyboard { [[NSNotificationCenter defaultCenter] postNotificationName:@"_IsimDismissKeyboard" object:self]; }
-- (void)advanceToNextInputMode { [[NSNotificationCenter defaultCenter] postNotificationName:@"_IsimAdvanceInputMode" object:self]; }
+/* Face ID devices show the globe key in the system bar below the keyboard, so extensions don't need one */
+- (BOOL)needsInputModeSwitchKey { return isim_ui_keyboard_needs_switch_key(); }
+- (void)dismissKeyboard {
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"_IsimDismissKeyboard" object:self];
+    if (!isim_ui_system_keyboard_disabled) [isim_ui_first_responder() resignFirstResponder];
+}
+- (void)advanceToNextInputMode {
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"_IsimAdvanceInputMode" object:self];
+    if (!isim_ui_system_keyboard_disabled) isim_ui_keyboard_advance();
+}
 - (void)handleInputModeListFromView:(UIView *)view withEvent:(UIEvent *)event {
     if (event.allTouches.anyObject.phase == UITouchPhaseEnded) [self advanceToNextInputMode];
 }
@@ -210,6 +216,7 @@ BOOL UIAccessibilityIsBoldTextEnabled(void) { return env_flag("ISIM_BOLD_TEXT");
     __IsimKeyboardPreviewField *_field;
 }
 - (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)options {
+    isim_ui_system_keyboard_disabled = YES;          /* this host docks the extension itself */
     NSDictionary *info = NSBundle.mainBundle.infoDictionary, *ext = info[@"NSExtension"];
     NSString *principal = ext[@"NSExtensionPrincipalClass"];
     Class cls = NSClassFromString(principal);

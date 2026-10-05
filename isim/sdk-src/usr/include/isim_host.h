@@ -30,6 +30,7 @@ void isim_path_rect(double x, double y, double w, double h, double r);
 void isim_path_fill(const double *rgba);
 void isim_path_stroke(double lw, const double *rgba);
 void isim_text_measure(const char *utf8, double size, double weight, int mono, double maxw, int lines, double *w, double *h);
+void isim_text_end_point(const char *utf8, double size, double weight, int mono, double maxw, double *x, double *y);
 void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba);
 void isim_set_status_bar_style(int dark_content);
 int isim_next_event(struct isim_event *ev, double timeout);

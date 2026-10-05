@@ -20,6 +20,7 @@ void isim_ui_rgba(UIColor *c, double out[4]);          /* resolve against the cu
 
 /* text */
 CGSize isim_ui_measure(NSString *text, UIFont *font, CGFloat maxWidth, NSInteger lines);
+CGPoint isim_ui_text_end_point(NSString *text, UIFont *font, CGFloat maxWidth);  /* where a caret after the text goes */
 void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect, NSTextAlignment align, NSInteger lines, CGFloat alpha);
 
 @interface UIFont (IsimPrivate)
@@ -84,6 +85,7 @@ CGContextRef isim_cg_current_context(void);
 typedef struct isim_al isim_al;
 void isim_ui_constraints_changed(void);                 /* engine inputs changed: re-solve on next layout */
 void isim_ui_layout_window(UIView *root);
+void isim_ui_layout_roots(NSArray<UIView *> *roots);
 /* sum(coeffs[i] * attr(items[i])) + constant REL 0; priority > 1000 = structural */
 BOOL isim_al_add_expr(isim_al *al, NSUInteger n, __unsafe_unretained id const *items, const NSLayoutAttribute *attrs, const CGFloat *coeffs,
                       CGFloat constant, NSLayoutRelation rel, UILayoutPriority priority);
@@ -93,6 +95,8 @@ BOOL isim_al_add(isim_al *al, id a, NSLayoutAttribute aa, NSLayoutRelation rel, 
 - (void)_isim_addEngineConstraints:(isim_al *)al;       /* engine-internal constraints (UIStackView) */
 - (int *)_isim_alVars:(unsigned)gen;
 - (NSArray<UILayoutGuide *> *)_isim_allGuides;
+- (void)_isim_drawOverlay;                 /* drawn above subviews (scroll indicators) */
+- (void)_isim_didSolve;                   /* after an engine pass applied frames */
 @end
 @interface UILayoutGuide (IsimAutoLayout)
 - (int *)_isim_alVars:(unsigned)gen;
@@ -102,6 +106,18 @@ BOOL isim_al_add(isim_al *al, id a, NSLayoutAttribute aa, NSLayoutRelation rel, 
 @end
 void isim_ui_gesture_recognized(UIGestureRecognizer *g);
 UIResponder *isim_ui_first_responder(void);
+/* system keyboard (UIKeyboard.m) */
+extern BOOL isim_ui_system_keyboard_disabled;
+CGRect isim_ui_keyboard_frame(void);                     /* screen coordinates; empty when hidden */
+BOOL isim_ui_keyboard_needs_switch_key(void);
+void isim_ui_keyboard_advance(void);
+void isim_ui_keyboard_install(void);
+@interface UIWindow (IsimSystem)
+- (BOOL)_isim_isSystemWindow;
+@end
+@interface UIScrollView (IsimPrivate)
+- (void)_isim_markContentFromLayout;
+@end
 @interface UIInputViewController (IsimPrivate)
 - (void)_isim_setTextInput:(nullable id<UIKeyInput>)input;
 @end

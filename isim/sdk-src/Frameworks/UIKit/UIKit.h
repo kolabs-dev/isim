@@ -31,5 +31,7 @@
 #import <UIKit/UIAccessibility.h>
 #import <UIKit/UITextInput.h>
 #import <UIKit/UIInputViewController.h>
+#import <UIKit/UIScrollView.h>
+#import <UIKit/UITextField.h>
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIScene.h>

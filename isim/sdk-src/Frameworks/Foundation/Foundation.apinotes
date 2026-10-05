@@ -41,6 +41,10 @@ Classes:
   SwiftName: FileManager
 - Name: NSThread
   SwiftName: Thread
+- Name: NSCharacterSet
+  SwiftName: NSCharacterSet
+- Name: NSMutableCharacterSet
+  SwiftName: NSMutableCharacterSet
 Typedefs:
 - Name: NSRunLoopMode
   SwiftName: RunLoop.Mode

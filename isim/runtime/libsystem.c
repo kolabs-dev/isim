@@ -63,6 +63,40 @@ static int d_memset_s(void *dest, size_t destsz, int ch, size_t count) {
     __asm__ volatile("" ::: "memory");           /* not optimized away */
     return count > destsz ? EOVERFLOW : 0;
 }
+/* wide-character classes: Unicode-aware like Darwin's (glibc's "C" locale is ASCII-only) */
+#include <wctype.h>
+#include <locale.h>
+static locale_t utf8_locale(void) {
+    static locale_t l;
+    if (!l) { l = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0); if (!l) l = newlocale(LC_CTYPE_MASK, "en_US.UTF-8", (locale_t)0); }
+    return l;
+}
+#define WCLS(n) static int d_##n(wint_t c) { locale_t l = utf8_locale(); return l ? n##_l(c, l) : n(c); }
+WCLS(iswalpha) WCLS(iswdigit) WCLS(iswalnum) WCLS(iswspace) WCLS(iswpunct) WCLS(iswupper) WCLS(iswlower)
+WCLS(iswcntrl) WCLS(iswprint) WCLS(iswxdigit) WCLS(iswgraph)
+static wint_t d_towupper(wint_t c) { locale_t l = utf8_locale(); return l ? towupper_l(c, l) : towupper(c); }
+static wint_t d_towlower(wint_t c) { locale_t l = utf8_locale(); return l ? towlower_l(c, l) : towlower(c); }
+/* directories: Darwin struct dirent (64-bit, 1024-byte name) from the host's */
+#include <dirent.h>
+struct d_dirent { uint64_t d_ino, d_seekoff; uint16_t d_reclen, d_namlen; uint8_t d_type; char d_name[1024]; };
+struct d_dir { DIR *host; struct d_dirent ent; };
+static struct d_dir *d_opendir(const char *name) {
+    DIR *h = opendir(name);
+    if (!h) return NULL;
+    struct d_dir *d = calloc(1, sizeof *d); d->host = h; return d;
+}
+static struct d_dirent *d_readdir(struct d_dir *d) {
+    struct dirent *e = readdir(d->host);
+    if (!e) return NULL;
+    d->ent.d_ino = e->d_ino; d->ent.d_seekoff = (uint64_t)e->d_off; d->ent.d_type = e->d_type;
+    size_t n = strlen(e->d_name); if (n > 1023) n = 1023;
+    memcpy(d->ent.d_name, e->d_name, n); d->ent.d_name[n] = 0;
+    d->ent.d_namlen = (uint16_t)n; d->ent.d_reclen = (uint16_t)sizeof d->ent;
+    return &d->ent;
+}
+static int d_closedir(struct d_dir *d) { int r = closedir(d->host); free(d); return r; }
+static void d_rewinddir(struct d_dir *d) { rewinddir(d->host); }
+static int d_dirfd(struct d_dir *d) { return dirfd(d->host); }
 /* OS version answered to availability checks (__builtin_available / #available).
  * isim is not iOS; it reports the API level it emulates: ISIM_OS_VERSION (default 18.0). */
 static void isim_os_version(unsigned v[3]) {
@@ -328,7 +362,12 @@ static const struct shim libsystem_table[] = {
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
     P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),
-    A("_clock_gettime", d_clock_gettime), A("_qos_class_self", d_qos_class_self), I("___isPlatformVersionAtLeast", d_isPlatformVersionAtLeast), I("___isOSVersionAtLeast", d_isOSVersionAtLeast), A("_qos_class_main", d_qos_class_main), A("_pthread_set_qos_class_self_np", d_pthread_set_qos_class_self_np), A("_pthread_get_qos_class_np", d_pthread_get_qos_class_np), A("_clock_getres", d_clock_getres), A("_memset_s", d_memset_s), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
+    A("_clock_gettime", d_clock_gettime),
+    A("_opendir", d_opendir), A("_readdir", d_readdir), A("_closedir", d_closedir), A("_rewinddir", d_rewinddir), A("_dirfd", d_dirfd),
+    A("_opendir$INODE64", d_opendir), A("_readdir$INODE64", d_readdir),
+    A("_iswalpha", d_iswalpha), A("_iswdigit", d_iswdigit), A("_iswalnum", d_iswalnum), A("_iswspace", d_iswspace), A("_iswpunct", d_iswpunct),
+    A("_iswupper", d_iswupper), A("_iswlower", d_iswlower), A("_iswcntrl", d_iswcntrl), A("_iswprint", d_iswprint), A("_iswxdigit", d_iswxdigit),
+    A("_iswgraph", d_iswgraph), A("_towupper", d_towupper), A("_towlower", d_towlower), A("_qos_class_self", d_qos_class_self), I("___isPlatformVersionAtLeast", d_isPlatformVersionAtLeast), I("___isOSVersionAtLeast", d_isOSVersionAtLeast), A("_qos_class_main", d_qos_class_main), A("_pthread_set_qos_class_self_np", d_pthread_set_qos_class_self_np), A("_pthread_get_qos_class_np", d_pthread_get_qos_class_np), A("_clock_getres", d_clock_getres), A("_memset_s", d_memset_s), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
     A("_mach_absolute_time", d_mach_absolute_time), A("_mach_timebase_info", d_mach_timebase_info),
     /* math (Darwin's libm lives in libSystem): full C99 set incl. f/l variants */
     P(acos),

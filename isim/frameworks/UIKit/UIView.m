@@ -334,6 +334,8 @@ ANCHORS(UILayoutGuide)
 - (void)setNeedsDisplayInRect:(CGRect)r { isim_ui_set_needs_display(); }
 - (void)drawRect:(CGRect)r {}
 - (void)_isim_drawContent {}
+- (void)_isim_drawOverlay {}
+- (void)_isim_didSolve {}
 
 /* ---- coordinates ---- */
 - (CGPoint)_isim_toWindow:(CGPoint)p {
@@ -511,7 +513,17 @@ BOOL isim_al_add_expr(isim_al *al, NSUInteger n, __unsafe_unretained id const *i
     cw_add(al->s, vars, cs, k, c, op, strength);
     return YES;
 }
+/* constraints between a scroll view's edges and its descendants refer to the content area */
+static id al_scroll_content(id item, id other) {
+    if (![item isKindOfClass:[UIScrollView class]] || !other) return item;
+    UIView *o = [other isKindOfClass:[UILayoutGuide class]] ? ((UILayoutGuide *)other).owningView : other;
+    if (![o isKindOfClass:[UIView class]] || o == item || ![o isDescendantOfView:item]) return item;
+    UIScrollView *sv = item;
+    [sv _isim_markContentFromLayout];
+    return sv.contentLayoutGuide;
+}
 BOOL isim_al_add(isim_al *al, id a, NSLayoutAttribute aa, NSLayoutRelation rel, id b, NSLayoutAttribute ba, CGFloat mult, CGFloat constant, UILayoutPriority priority) {
+    if (priority <= 1000) { id a2 = al_scroll_content(a, b), b2 = al_scroll_content(b, a); a = a2; b = b2; }
     if (!b || ba == NSLayoutAttributeNotAnAttribute) { CGFloat one = 1; return isim_al_add_expr(al, 1, &a, &aa, &one, -constant, rel, priority); }
     __unsafe_unretained id items[2] = { a, b }; NSLayoutAttribute attrs[2] = { aa, ba }; CGFloat k[2] = { 1, -mult };
     return isim_al_add_expr(al, 2, items, attrs, k, -constant, rel, priority);
@@ -526,6 +538,7 @@ static int *al_vars(id item, unsigned gen) {
     if ([item isKindOfClass:[UILayoutGuide class]]) return [(UILayoutGuide *)item _isim_alVars:gen];
     return NULL;
 }
+static CGPoint al_bo(UIView *v) { return [v isKindOfClass:[UIScrollView class]] ? CGPointZero : v->_boundsOrigin; }
 static void al_collect(UIView *v, NSMutableArray *out) { [out addObject:v]; for (UIView *s in v->_subs) al_collect(s, out); }
 - (NSArray<UILayoutGuide *> *)_isim_allGuides {
     NSMutableArray *g = [NSMutableArray array];
@@ -553,7 +566,7 @@ static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
         double sw[2] = { 1, 0 };
         if (v != root) {
             UIView *sup = v->_superview; int *p = sup->_alVars;
-            double off[2] = { v->_frame.origin.x - sup->_boundsOrigin.x, v->_frame.origin.y - sup->_boundsOrigin.y };
+            double off[2] = { v->_frame.origin.x - al_bo(sup).x, v->_frame.origin.y - al_bo(sup).y };
             double strength = v->_translatesAutoresizingMaskIntoConstraints ? AL_STRUCTURAL : AL_WEAK;
             for (int axis = 0; axis < 2; axis++) {
                 int pv[2] = { x[axis], p[axis] }; double pc[2] = { 1, -1 };
@@ -589,7 +602,7 @@ static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
         if (v == root || v->_translatesAutoresizingMaskIntoConstraints) continue;
         UIView *sup = v->_superview; int *x = v->_alVars, *p = sup->_alVars;
         #define PX(val) (round((val) * scale) / scale)
-        double l = cw_value(s, x[0]) - cw_value(s, p[0]) + sup->_boundsOrigin.x, t = cw_value(s, x[1]) - cw_value(s, p[1]) + sup->_boundsOrigin.y;
+        double l = cw_value(s, x[0]) - cw_value(s, p[0]) + al_bo(sup).x, t = cw_value(s, x[1]) - cw_value(s, p[1]) + al_bo(sup).y;
         CGRect f = CGRectMake(PX(l), PX(t), PX(cw_value(s, x[0]) + cw_value(s, x[2])) - PX(cw_value(s, x[0])), PX(cw_value(s, x[1]) + cw_value(s, x[3])) - PX(cw_value(s, x[1])));
         #undef PX
         if (f.size.width < 0) f.size.width = 0;
@@ -598,23 +611,31 @@ static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
         if (fabs(f.size.width - v->_alUsedWidth) > 0.5 && [v isKindOfClass:[UILabel class]] && ((UILabel *)v).numberOfLines != 1) again = YES;
     }
     for (UIView *v in views) for (UILayoutGuide *g in [v _isim_allGuides]) if ([g _isim_applySolution:s owner:v]) again = YES;
+    for (UIView *v in views) [v _isim_didSolve];
     al_applying = NO;
     cw_free(s);
     return again || al_tamic_moved;
 }
-void isim_ui_layout_window(UIView *root) {
-    if (!al_dirty) return;
-    al_dirty = NO;
+static void al_solve_root(UIView *root) {
     NSMutableArray *views = [NSMutableArray array];
     al_collect(root, views);
     BOOL any = active_constraints.count > 0;
     for (UIView *v in views) if (!v->_translatesAutoresizingMaskIntoConstraints && v != root) { any = YES; break; }
     if (!any) return;
-    for (int pass = 0; pass < 4; pass++) {
-        BOOL again = al_solve_once(root, views);
-        if (!again && !al_dirty) break;
+    for (int pass = 0; pass < 4; pass++) if (!al_solve_once(root, views)) break;
+}
+/* engine inputs are tracked globally, so a dirty engine re-solves every root given */
+void isim_ui_layout_roots(NSArray<UIView *> *roots) {
+    for (int round = 0; round < 3 && al_dirty; round++) {
         al_dirty = NO;
+        for (UIView *r in roots) al_solve_root(r);
     }
+}
+void isim_ui_layout_window(UIView *root) {
+    if (!al_dirty) return;
+    al_dirty = NO;
+    al_solve_root(root);
+    al_dirty = YES;      /* other roots (windows) may depend on the same changes */
 }
 
 /* fitting size: solve the view's subtree alone with its size pulled towards the target */
@@ -632,7 +653,7 @@ void isim_ui_layout_window(UIView *root) {
         if (v != self) {
             UIView *sup = v->_superview; int *p = sup->_alVars;
             double strength = v->_translatesAutoresizingMaskIntoConstraints ? AL_STRUCTURAL : AL_WEAK;
-            double off[2] = { v->_frame.origin.x - sup->_boundsOrigin.x, v->_frame.origin.y - sup->_boundsOrigin.y };
+            double off[2] = { v->_frame.origin.x - al_bo(sup).x, v->_frame.origin.y - al_bo(sup).y };
             for (int axis = 0; axis < 2; axis++) {
                 int pv[2] = { x[axis], p[axis] }; double pc[2] = { 1, -1 };
                 al_raw(&al, 2, pv, pc, -off[axis], CW_EQ, strength);
@@ -732,6 +753,7 @@ static IMP base_drawRect;
     }
     isim_gfx_translate(-_boundsOrigin.x, -_boundsOrigin.y);
     for (UIView *s in _subs) [s _isim_render];
+    [self _isim_drawOverlay];
     if (clip) isim_gfx_restore();
     if (_layer.borderWidth > 0 && _layer.borderColor) {
         const CGFloat *c = CGColorGetComponents(_layer.borderColor); double bc[4] = { c[0], c[1], c[2], c[3] };

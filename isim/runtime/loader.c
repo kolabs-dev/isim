@@ -395,7 +395,8 @@ static struct image *map_image(const char *path, int want_type) {
         isim_fatal("%s: not a thin 64-bit Mach-O (fat files unsupported)", path);
     if (im->mh->cputype != CPU_TYPE_X86_64)
         isim_fatal("%s: not x86_64 (arm64 device binaries are not runnable here)", path);
-    if (im->mh->filetype != (uint32_t)want_type)
+    if (want_type == 0 && (im->mh->filetype == MH_EXECUTE || im->mh->filetype == MH_DYLIB || im->mh->filetype == 8 /* MH_BUNDLE */)) { /* dlopen */ }
+    else if (im->mh->filetype != (uint32_t)want_type)
         isim_fatal("%s: unexpected Mach-O filetype %u", path, im->mh->filetype);
 
     int platform = -1;
@@ -646,6 +647,11 @@ static void *d_dlsym(void *handle, const char *name) {
     if (!p) { snprintf(dl_error_buf, sizeof dl_error_buf, "dlsym(%p, %s): symbol not found", handle, name); dl_error = dl_error_buf; }
     return p;
 }
+/* Runtime loading (dlopen of a dylib, bundle or another executable such as an app extension's):
+ * maps the image and new dependencies, then fixups, TLV, ObjC registration, dyld add-image
+ * callbacks (Swift metadata) and initializers, dependencies first. Images are never unloaded. */
+static void link_new_images(int first, int gargc, char **gargv);
+static pthread_mutex_t dlopen_lock = PTHREAD_MUTEX_INITIALIZER;
 static void *d_dlopen(const char *path, int mode) {
     if (!path) return main_image;
     for (int i = 0; i < nimages; i++) {
@@ -654,9 +660,20 @@ static void *d_dlopen(const char *path, int mode) {
     }
     for (size_t i = 0; i < sizeof host_libs / sizeof *host_libs; i++)
         if (!strcmp(host_libs[i]->install_name, path)) return (void *)-2;      /* host libraries: global lookup */
-    snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s): loading new images at runtime is not supported by isim", path);
-    dl_error = dl_error_buf;
-    return NULL;
+    if (access(path, R_OK) != 0) {
+        snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s): image not found", path);
+        dl_error = dl_error_buf;
+        return NULL;
+    }
+    pthread_mutex_lock(&dlopen_lock);
+    int first = nimages;
+    struct image *saved_main = main_image;
+    struct image *im = load_image(path, 0);
+    main_image = saved_main;
+    if (im) link_new_images(first, 0, NULL);
+    pthread_mutex_unlock(&dlopen_lock);
+    if (!im) { snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s): cannot load", path); dl_error = dl_error_buf; }
+    return im;
 }
 static int d_dlclose(void *h) { return 0; }
 static char *d_dlerror(void) { const char *e = dl_error; dl_error = NULL; return (char *)e; }
@@ -739,6 +756,36 @@ static const struct shim dyld_table[] = {
     D("_dlsym", d_dlsym), D("_dlopen", d_dlopen), D("_dlclose", d_dlclose), D("_dlerror", d_dlerror), D("_dladdr", d_dladdr),
 };
 static const size_t dyld_table_count = sizeof dyld_table / sizeof *dyld_table;
+
+static void link_new_images(int first, int gargc, char **gargv) {
+    for (int i = first; i < nimages; i++) {
+        struct image *im = images[i];
+        if (im->chained) do_chained(im);
+        if (im->dyld_info) {
+            const struct dyld_info_command *d = im->dyld_info;
+            do_rebase(im, im->file + d->rebase_off, im->file + d->rebase_off + d->rebase_size);
+            do_bind(im, im->file + d->bind_off, im->file + d->bind_off + d->bind_size, 0);
+            do_bind(im, im->file + d->lazy_bind_off, im->file + d->lazy_bind_off + d->lazy_bind_size, 1);
+        }
+    }
+    for (int i = first; i < nimages; i++) setup_tlv(images[i]);
+    /* dependencies are mapped after the image that needs them: reverse order = dependencies first */
+    int n = nimages - first;
+    struct image *order[MAX_IMAGES]; struct objc_image *oimgs = calloc(n ? n : 1, sizeof *oimgs);
+    for (int i = 0; i < n; i++) order[i] = images[nimages - 1 - i];
+    for (int i = 0; i < n; i++) { oimgs[i] = (struct objc_image){ order[i]->path, img_find_section, order[i] }; objc_rt_map_image(&oimgs[i]); }
+    for (int i = 0; i < n; i++)
+        for (int s = 0; s < order[i]->nsegs; s++) {
+            struct segment_command_64 *sg = order[i]->segs[s];
+            if (is_mapped_seg(sg)) mprotect((void *)(uintptr_t)(sg->vmaddr + order[i]->slide), sg->vmsize, prot_of(sg->initprot));
+        }
+    for (int i = 0; i < n; i++) for (int c = 0; c < nadd_cbs; c++) add_cbs[c](order[i]->base, (intptr_t)order[i]->slide);
+    char *apple[] = { NULL };
+    char *noargv[] = { NULL };
+    for (int i = 0; i < n; i++) objc_rt_load_image(&oimgs[i]);
+    for (int i = 0; i < n; i++) run_initializers(order[i], gargc, gargv ? gargv : noargv, environ, apple);
+    /* the objc image records must outlive the call (the runtime keeps pointers) */
+}
 
 int main(int argc, char **argv, char **envp) {
     int ai = 1;
