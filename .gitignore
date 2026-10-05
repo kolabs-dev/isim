@@ -1,0 +1,17 @@
+# Build products (reproducible via the build.sh / probe.sh scripts)
+ios-linux-research/build/
+ios-linux-research/experiments/*/out/
+*.o
+
+# Third-party downloads and source clones used for evaluation (not redistributed here;
+# see experiments/04-darling for the pinned commits/URLs and fetch scripts)
+ios-linux-research/experiments/04-darling/dl/
+ios-linux-research/experiments/04-darling/src/
+
+# Never commit signing material or API credentials
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+*.key
+.env

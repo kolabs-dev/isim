@@ -1,0 +1,79 @@
+== DYLD_ROOT_PATH=/nonexistent-simroot hello.sim
+dyld: loaded: <4C4C440E-5555-3144-A173-42F8DF9C9103> /Volumes/SystemRoot/inputs/hello.sim
+dyld: Library not loaded: /usr/lib/libSystem.B.dylib
+  Referenced from: /Volumes/SystemRoot/inputs/hello.sim
+  Reason: no suitable image found.  Did find:
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+abort_with_payload: reason: dyld: No shared cache present
+Library not loaded: /usr/lib/libSystem.B.dylib
+  Referenced from: /Volumes/SystemRoot/inputs/hello.sim
+  Reason: no suitable image found.  Did find:
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSysrc=1
+== DYLD_ROOT_PATH=/nonexistent-simroot hello.sim.chained
+dyld: loaded: <4C4C443E-5555-3144-A159-A8851633CC0E> /Volumes/SystemRoot/inputs/hello.sim.chained
+dyld: Library not loaded: /usr/lib/libSystem.B.dylib
+  Referenced from: /Volumes/SystemRoot/inputs/hello.sim.chained
+  Reason: no suitable image found.  Did find:
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+abort_with_payload: reason: dyld: No shared cache present
+Library not loaded: /usr/lib/libSystem.B.dylib
+  Referenced from: /Volumes/SystemRoot/inputs/hello.sim.chained
+  Reason: no suitable image found.  Did find:
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lirc=1
+== DYLD_ROOT_PATH=/ hello.sim
+dyld: loaded: <4C4C440E-5555-3144-A173-42F8DF9C9103> /Volumes/SystemRoot/inputs/hello.sim
+abort_with_payload: reason: dyld: No shared cache present
+Library not loaded: /usr/lib/libSystem.B.dylib
+  Referenced from: /Volumes/SystemRoot/inputs/hello.sim
+  Reason: no suitable image found.  Did find:
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim; code: 1
+dyld: Library not loaded: /usr/lib/libSystem.B.dylib
+  Referenced from: /Volumes/SystemRoot/inputs/hello.sim
+  Reason: no suitable image found.  Did find:
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+rc=1
+== DYLD_ROOT_PATH=/ hello.sim.chained
+dyld: loaded: <4C4C443E-5555-3144-A159-A8851633CC0E> /Volumes/SystemRoot/inputs/hello.sim.chained
+abort_with_payload: reason: dyld: No shared cache present
+Library not loaded: /usr/lib/libSystem.B.dylib
+  Referenced from: /Volumes/SystemRoot/inputs/hello.sim.chained
+  Reason: no suitable image found.  Did find:
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim; code: 1dyld: Library not loaded: /usr/lib/libSystem.B.dylib
+  Referenced from: /Volumes/SystemRoot/inputs/hello.sim.chained
+  Reason: no suitable image found.  Did find:
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+	/usr/lib/libSystem.B.dylib: mach-o, but not built for platform iOS-sim
+rc=1
+== DYLD_FORCE_PLATFORM=2 hello.sim (no root path)
+dyld: attempt to run simulator program outside simulator (DYLD_ROOT_PATH not set)
+abort_with_payload: reason: attempt to run simulator program outside simulator (DYLD_ROOT_PATH not set); code: 9
+rc=1

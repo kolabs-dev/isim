@@ -1,0 +1,47 @@
+dyld: loaded: <4C4C440E-5555-3144-A173-42F8DF9C9103> /Volumes/SystemRoot/inputs/hello.sim
+dyld: loaded: <6F1EC845-55AA-3259-A30D-9C7EA974463C> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/libSystem.B.dylib
+dyld: loaded: <5900C44A-3F8F-3F5C-9CD7-F8A4D251AB6B> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_sandbox.dylib
+dyld: loaded: <40EB20D2-7D74-3543-9229-ADC05FF5B27F> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libquarantine.dylib
+dyld: loaded: <A3F698E5-7A94-3116-8D77-F1C2551AA0FF> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libremovefile.dylib
+dyld: loaded: <2EAE599C-381B-3400-A101-8C63EEB71D71> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libcopyfile.dylib
+dyld: loaded: <39B2D6C1-881D-3DF3-B9C5-B031BC7CACDD> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_coreservices.dylib
+dyld: loaded: <9977575D-15F2-30BE-9B98-51C98FCA7C23> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_coretls.dylib
+dyld: loaded: <1FA0731B-F0EA-310E-8808-B4118C4E62D8> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_malloc.dylib
+dyld: loaded: <D31FE383-B47A-37B3-8EDA-A7421F43BFB1> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_c.dylib
+dyld: loaded: <ADA05CF3-ACFD-380B-8C1A-3444BAB7B1A4> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_kernel.dylib
+dyld: loaded: <6724C527-F7E8-32FD-998D-5731E7A5B89B> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_trace.dylib
+dyld: loaded: <1E172247-3CC0-3DDA-8D55-1FC68A91417A> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libkeymgr.dylib
+dyld: loaded: <A19FE080-2AFF-3429-AC73-058422675962> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_m.dylib
+dyld: loaded: <25D24752-F454-3180-A01D-9126C8882B98> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_info.dylib
+dyld: loaded: <458D5F6A-2B21-33B4-865A-29E32EB358DD> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_notify.dylib
+dyld: loaded: <80D4D9C6-107B-3B26-AF34-83ACE0B0167C> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libdispatch.dylib
+dyld: loaded: <AE80E25A-CFCD-3D3C-A86C-5D6B2881ED8A> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/liblaunch.dylib
+dyld: loaded: <3305ADFD-1FE1-3243-B52D-D0AC90AF71CF> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libcompiler_rt.dylib
+dyld: loaded: <88593B82-12F1-380C-B743-CF0DC013EDFA> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libdyld.dylib
+dyld: loaded: <D32F392F-07CD-35B6-B2D6-6374F13E9843> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libmacho.dylib
+dyld: loaded: <0AB24E6D-CBCE-3D58-9EB9-C29EE24B5D7D> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_pthread.dylib
+dyld: loaded: <B6F7FB48-1564-3EAF-BF9A-58F26682FDDE> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_platform.dylib
+dyld: loaded: <CE18A2FD-BDBD-3296-A10D-DBCFEBF11F8A> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_asl.dylib
+dyld: loaded: <3EA09BC6-9693-3B82-89C6-0CF63824556C> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_duct.dylib
+dyld: loaded: <9F395C73-8AFA-3AB6-A765-28A7D64615D9> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_blocks.dylib
+dyld: loaded: <3973EBCA-6F78-3EB5-B2D5-6ABB8B842E97> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libxpc.dylib
+dyld: loaded: <5B658B08-1C9B-308B-96AE-0C78F660FE07> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libcorecrypto.dylib
+dyld: loaded: <77543880-7C8B-331F-B7B8-A1831E0DF3D3> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libcommonCrypto.dylib
+dyld: loaded: <4F7351B2-096E-3320-8606-8D617DB42BAF> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_dnssd.dylib
+dyld: loaded: <576EF536-6CB9-3099-BC45-7C88196E8D6C> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_networkextension.dylib
+dyld: loaded: <32F06CE6-CD86-32DD-9EFB-4B93000BAE63> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libunwind.dylib
+dyld: loaded: <D6BB501B-5154-3FA9-95E9-17E26FCFC88D> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_darwin.dylib
+dyld: loaded: <21C34BC3-DA06-32E5-90A1-3240AB99900B> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libcache.dylib
+dyld: loaded: <2FEFC883-F897-3601-9D70-E97CB847C10C> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/system/libsystem_configuration.dylib
+dyld: loaded: <61453717-7A60-3E38-831B-09AEF15B3A7F> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/libobjc.A.dylib
+dyld: loaded: <BD05168B-DCEA-3EEB-8467-D0CF19E35F3A> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/libc++.1.dylib
+dyld: loaded: <45A14FA0-EC51-387F-A742-59E9B520DB43> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/libc++abi.dylib
+dyld: loaded: <DA50C3BA-A133-3C3D-8289-8B3128678FFA> /Volumes/SystemRoot/opt/eval/simroot/usr/lib/libresolv.9.dylib
+hello from an iOS-simulator Mach-O
+argc=1 argv[0]=/Volumes/SystemRoot/inputs/hello.sim
+malloc ok, strlen=63
+threads ok, counter=400000 (expect 400000)
+rc=42
+== hello.dev under simroot
+No supported architecture found in fat binary.
+rc=1

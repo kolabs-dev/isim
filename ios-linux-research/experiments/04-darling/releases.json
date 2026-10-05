@@ -1,0 +1,5 @@
+{"assets":[{"name":"darling-source.tar.xz","size":505807588},{"name":"debs_20260608.zip","size":118018438}],"published_at":"2026-06-09T04:41:09Z","tag_name":"v0.1.20260608"}
+{"assets":[{"name":"darling-source.tar.gz","size":804820275},{"name":"debs_20260222.zip","size":117779746}],"published_at":"2026-02-22T23:59:26Z","tag_name":"v0.1.20260222"}
+{"assets":[{"name":"darling_debs_20251023.zip","size":121117002}],"published_at":"2025-10-31T04:26:30Z","tag_name":"v0.1.20251023"}
+{"assets":[{"name":"darling_0.1.20230310.jammy_amd64.deb","size":123429806}],"published_at":"2023-03-11T00:51:25Z","tag_name":"v0.1.20230310_update_sources_11_5"}
+{"assets":[{"name":"darling_0.1.20220929.focal_amd64.deb","size":113881448}],"published_at":"2022-10-01T04:45:07Z","tag_name":"v0.1.20220929_update_sources_11_5"}
