@@ -31,3 +31,7 @@ NSString *NSTemporaryDirectory_isim(void);
 @interface NSString (IsimPad)
 - (NSString *)stringByPaddingToLength_isim:(NSUInteger)n;
 @end
+
+/* device data & system preferences (Runtime.m, Files.m) */
+NSString *isim_data_dir(void);
+NSDictionary *isim_global_preferences(void);

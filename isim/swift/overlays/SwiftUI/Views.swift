@@ -469,7 +469,7 @@ final class _ButtonNode: _WrapperNode {
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
     override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
     override func mountView(_ g: _Graph) -> UIView {
-        if inList { return g.view(viewKey) { _PassthroughView() } }    // the list row handles taps and highlight
+        // a button that is a whole list row is handled by the row (full-width highlight); nested ones are controls
         let c = g.view(viewKey) { _SUIControl(frame: .zero) }
         c.action = action
         c.isEnabled = enabled

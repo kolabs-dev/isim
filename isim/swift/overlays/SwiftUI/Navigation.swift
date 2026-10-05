@@ -347,17 +347,44 @@ public enum NavigationBarItem {
     var scrolledPastTitle = false
     let index: Int
     weak var bar: _SUINavBar?
+    var registry: _NavRegistry?
+    var pushValue: ((AnyHashable) -> Void)?
     let push: (AnyView) -> Void
     init(index: Int, push: @escaping (AnyView) -> Void) { self.index = index; self.push = push }
     var isLarge: Bool { displayMode == .large || (displayMode == .automatic && index == 0) }
     var showsLargeTitle: Bool { isLarge && title != nil }
 }
 
-final class _NavState: _AnyStorage { var stack: [AnyView] = [] }
+enum _NavEntry { case view(AnyView), value(AnyHashable) }
+final class _NavState: _AnyStorage { var stack: [_NavEntry] = [] }
+/// navigationDestination(for:) builders, per stack (registered while the root level evaluates)
+@MainActor final class _NavRegistry { var builders: [ObjectIdentifier: (Any) -> AnyView] = [:] }
+
+public struct NavigationPath: Equatable {
+    var elements: [AnyHashable] = []
+    public init() {}
+    public init<S: Sequence>(_ elements: S) where S.Element: Hashable { self.elements = elements.map { AnyHashable($0) } }
+    public var count: Int { elements.count }
+    public var isEmpty: Bool { elements.isEmpty }
+    public mutating func append<V: Hashable>(_ value: V) { elements.append(AnyHashable(value)) }
+    public mutating func removeLast(_ k: Int = 1) { elements.removeLast(k) }
+}
 
 public struct NavigationStack<Root: View>: View, _PrimitiveView {
     let root: Root
-    public init(@ViewBuilder root: () -> Root) { self.root = root() }
+    let pathGet: (() -> [AnyHashable])?
+    let pathSet: (([AnyHashable]) -> Void)?
+    public init(@ViewBuilder root: () -> Root) { self.root = root(); pathGet = nil; pathSet = nil }
+    public init<D: Hashable>(path: Binding<[D]>, @ViewBuilder root: () -> Root) {
+        self.root = root()
+        pathGet = { path.wrappedValue.map { AnyHashable($0) } }
+        pathSet = { v in path.wrappedValue = v.compactMap { $0.base as? D } }
+    }
+    public init(path: Binding<NavigationPath>, @ViewBuilder root: () -> Root) {
+        self.root = root()
+        pathGet = { path.wrappedValue.elements }
+        pathSet = { v in var p = NavigationPath(); p.elements = v; path.wrappedValue = p }
+    }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
         let key = ctx.path + "#nav"
@@ -365,20 +392,66 @@ public struct NavigationStack<Root: View>: View, _PrimitiveView {
         ctx.graph.storage[key] = state
         ctx.graph.usedKeys.insert(key)
         let g = ctx.graph
+        let registry = _NavRegistry()
+        // entries: values from the bound path (if any), then views pushed by NavigationLink(destination:)
+        let pathSet = self.pathSet, pathGet = self.pathGet
+        let bound = pathGet?() ?? []
+        let hasPath = pathGet != nil
+        let entries: [_NavEntry] = bound.map { .value($0) } + state.stack.filter { if case .view = $0 { return true }; return !hasPath }
+        func push(_ e: _NavEntry) {
+            if case .value(let v) = e, let set = pathSet, let get = pathGet { set(get() + [v]) }
+            else { state.stack.append(e) }
+            g.invalidate()
+        }
+        func popTo(_ count: Int) {           /* keep `count` entries */
+            var remaining = count
+            if let set = pathSet, let get = pathGet {
+                let values = get()
+                if remaining <= values.count { set(Array(values.prefix(remaining))); state.stack.removeAll { if case .view = $0 { return true }; return false } }
+                else { remaining -= values.count; let views = state.stack; state.stack = Array(views.prefix(remaining)) }
+            } else { state.stack = Array(state.stack.prefix(remaining)) }
+            g.invalidate()
+        }
         var levels: [_NavLevel] = []
         var nodes: [_Node] = []
-        for i in 0...state.stack.count {
-            let level = _NavLevel(index: i) { [weak g] v in state.stack.append(v); g?.invalidate() }
+        for i in 0...entries.count {
+            let level = _NavLevel(index: i) { v in push(.view(v)) }
+            level.registry = registry
+            level.pushValue = { v in push(.value(v)) }
             if i > 0, let prev = levels.last, prev.displayMode == .large, level.displayMode == .automatic { level.displayMode = .large }
             let lctx = _Context(graph: g, path: ctx.path + "/L\(i)", environment: ctx.environment, nav: level)
-            lctx.environment.dismiss = DismissAction { [weak g] in if state.stack.count >= i, i > 0 { state.stack.removeLast(state.stack.count - i + 1); g?.invalidate() } }
-            let node = i == 0 ? _resolve(root, lctx) : _resolve(state.stack[i - 1], lctx)
+            lctx.environment.dismiss = DismissAction { if i > 0 { popTo(i - 1) } }
+            let node: _Node
+            if i == 0 { node = _resolve(root, lctx) }
+            else {
+                switch entries[i - 1] {
+                case .view(let v): node = _resolve(v, lctx)
+                case .value(let v):
+                    if let b = registry.builders[ObjectIdentifier(type(of: v.base))] { node = _resolve(b(v.base), lctx) }
+                    else { print("isim SwiftUI: no navigationDestination for \(type(of: v.base))"); node = _resolve(EmptyView(), lctx) }
+                }
+            }
             levels.append(level); nodes.append(node)
         }
-        let node = _NavStackNode(path: ctx.path, levels: levels, nodes: nodes, pop: { [weak g] in if !state.stack.isEmpty { state.stack.removeLast(); g?.invalidate() } })
+        let node = _NavStackNode(path: ctx.path, levels: levels, nodes: nodes, pop: { if !entries.isEmpty { popTo(entries.count - 1) } })
         node.safeTop = g.safeArea.top; node.safeBottom = g.safeArea.bottom
         return node
     }
+}
+extension View {
+    public func navigationDestination<D: Hashable, C: View>(for data: D.Type, @ViewBuilder destination: @escaping (D) -> C) -> some View {
+        _modify { ctx, c in
+            ctx.nav?.registry?.builders[ObjectIdentifier(D.self)] = { any in AnyView(destination(any as! D)) }
+            return _resolve(c, ctx.child("nd"))
+        }
+    }
+}
+extension NavigationLink where Destination == Never {
+    public init<P: Hashable>(value: P?, @ViewBuilder label: () -> Label) { self.label = label(); self.destination = nil; self.value = value.map { AnyHashable($0) } }
+}
+extension NavigationLink where Destination == Never, Label == Text {
+    public init<P: Hashable>(_ titleKey: LocalizedStringKey, value: P?) { self.init(value: value) { Text(titleKey) } }
+    @_disfavoredOverload public init<S: StringProtocol, P: Hashable>(_ title: S, value: P?) { self.init(value: value) { Text(title) } }
 }
 /// NavigationView: same as a NavigationStack on iPhone.
 public struct NavigationView<Content: View>: View, _PrimitiveView {
@@ -511,15 +584,21 @@ final class _SUINavBar: UIView {
 }
 
 public struct NavigationLink<Label: View, Destination: View>: View, _PrimitiveView {
-    let label: Label, destination: Destination
+    let label: Label, destination: Destination?
+    var value: AnyHashable? = nil
     public init(@ViewBuilder destination: () -> Destination, @ViewBuilder label: () -> Label) { self.destination = destination(); self.label = label() }
     public init(destination: Destination, @ViewBuilder label: () -> Label) { self.destination = destination; self.label = label() }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
-        let push = ctx.nav?.push, dest = AnyView(destination)
+        let nav = ctx.nav, value = self.value
+        let dest = destination.map { AnyView($0) }
+        let push: ((AnyView) -> Void)? = { v in
+            if let d = dest { nav?.push(d) } else if let val = value { nav?.pushValue?(val) }
+            _ = v
+        }
         let inList = ctx.environment._inList
         let labelNode = _resolve(label, ctx.child("label").with { if !inList { $0._foreground = $0._foreground ?? $0._tint ?? .accentColor } })
-        let node = _ButtonNode(path: ctx.path, child: labelNode, action: { push?(dest) }, inList: inList, enabled: ctx.environment.isEnabled)
+        let node = _ButtonNode(path: ctx.path, child: labelNode, action: { push?(AnyView(EmptyView())) }, inList: inList, enabled: ctx.environment.isEnabled)
         return inList ? _AccessoryNode(path: ctx.path + "/acc", child: node, accessory: "chevron.right") : node
     }
 }

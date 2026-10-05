@@ -10,6 +10,11 @@
  *   ISIM_HEADLESS  1 = no window (use with ISIM_SCRIPT)
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
+ *                  shell only: "home", "launch BUNDLE-ID"
+ *
+ * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
+ * installed apps) is a child process ("client") that renders into a shared-memory surface and
+ * receives input/lifecycle events over a socket (ISIM_CLIENT_SOCK / ISIM_CLIENT_SURFACE).
  */
 #define _GNU_SOURCE
 #include <SDL3/SDL.h>
@@ -22,12 +27,24 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
 
 #include "runtime.h"
 
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[64]; };
-enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP, EV_TEXT_DOWN, EV_TEXT_UP };
+enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP, EV_TEXT_DOWN, EV_TEXT_UP,
+       EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */ };
+/* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
+struct shell_msg { int type; struct isim_event ev; char a[512], b[512], c[512]; };
+enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP };
+static int client_sock = -1, client_wake[2] = { -1, -1 };
+static unsigned char *client_pixels;
 
 static struct isim_device dev;
 static double zoom = 1, px_scale = 1;
@@ -81,12 +98,14 @@ void isim_device_metrics(struct isim_device *out) { if (!dev.width) device_from_
 static void make_surface(void) {
     if (cr) { cairo_destroy(cr); cairo_surface_destroy(surf); }
     surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
-    surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
+    surf = client_pixels ? cairo_image_surface_create_for_data(client_pixels, CAIRO_FORMAT_ARGB32, surf_w, surf_h, surf_w * 4)
+                         : cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
     cr = cairo_create(surf);
     if (!pctx) { pctx = pango_cairo_create_context(cr); pango_cairo_context_set_resolution(pctx, 72); }
     cairo_font_options_t *fo = cairo_font_options_create();
     cairo_font_options_set_antialias(fo, CAIRO_ANTIALIAS_GRAY);
     cairo_font_options_set_hint_style(fo, CAIRO_HINT_STYLE_SLIGHT);
+    cairo_font_options_set_hint_metrics(fo, CAIRO_HINT_METRICS_OFF);   /* advances independent of the pixel scale: measure == draw */
     pango_cairo_context_set_font_options(pctx, fo);
     cairo_font_options_destroy(fo);
 }
@@ -94,6 +113,17 @@ static void make_surface(void) {
 int isim_display_open(const char *title) {
     if (!dev.width) device_from_env();
     t0 = now();
+    if (getenv("ISIM_CLIENT_SOCK")) {              /* running under the shell: draw into its shared surface */
+        client_sock = atoi(getenv("ISIM_CLIENT_SOCK"));
+        px_scale = atof(getenv("ISIM_CLIENT_SCALE"));
+        headless = 1;
+        int w = (int)lround(dev.width * px_scale), h = (int)lround(dev.height * px_scale);
+        client_pixels = mmap(NULL, (size_t)w * h * 4, PROT_READ | PROT_WRITE, MAP_SHARED, atoi(getenv("ISIM_CLIENT_SURFACE")), 0);
+        if (client_pixels == MAP_FAILED) { perror("isim client: mmap surface"); exit(1); }
+        if (pipe2(client_wake, O_NONBLOCK | O_CLOEXEC)) perror("isim client: pipe");
+        make_surface();
+        return 0;
+    }
     headless = getenv("ISIM_HEADLESS") && atoi(getenv("ISIM_HEADLESS"));
     if (getenv("ISIM_SCRIPT")) { script = strdup(getenv("ISIM_SCRIPT")); script_pos = script; }
     if (!headless) {
@@ -260,6 +290,7 @@ void isim_frame_end(void) {
     draw_chrome();
     apply_corner_mask();
     cairo_surface_flush(surf);
+    if (client_sock >= 0) { struct shell_msg m = { .type = SM_FRAME }; send(client_sock, &m, sizeof m, MSG_NOSIGNAL); return; }
     if (headless || !win) return;
     SDL_Surface *ws = SDL_GetWindowSurface(win);
     if (!ws) return;
@@ -328,6 +359,10 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.05;
+    } else if (!strcmp(cmd, "home")) { pending[npending++] = (struct isim_event){ .type = EV_HOME }; script_resume = now() + 0.3; }
+    else if (!strcmp(cmd, "launch") && sscanf(args, " %63[^; ]", arg) == 1) {
+        pending[npending++] = (struct isim_event){ .type = EV_LAUNCH_ID }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        script_resume = now() + 0.5;
     } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
@@ -346,12 +381,24 @@ int isim_open_url(const char *url) {
     return pid > 0;
 }
 void isim_post_wakeup(void) {
+    if (client_sock >= 0) { if (write(client_wake[1], "w", 1) < 0) {} return; }
     if (win) { SDL_Event e; SDL_zero(e); e.type = SDL_EVENT_USER; SDL_PushEvent(&e); }
     else __atomic_store_n(&wakeup_pending, 1, __ATOMIC_RELEASE);
 }
 int isim_next_event(struct isim_event *ev, double timeout) {
     memset(ev, 0, sizeof *ev);
     double deadline = now() + timeout;
+    if (client_sock >= 0) {
+        struct pollfd p[2] = { { client_sock, POLLIN, 0 }, { client_wake[0], POLLIN, 0 } };
+        int r = poll(p, 2, timeout <= 0 ? 0 : (int)(timeout * 1000) + 1);
+        if (r <= 0) return 0;
+        if (p[1].revents) { char buf[64]; while (read(client_wake[0], buf, sizeof buf) > 0) {} if (!p[0].revents) return 0; }
+        struct shell_msg m;
+        ssize_t n = recv(client_sock, &m, sizeof m, 0);
+        if (n <= 0) { ev->type = EV_QUIT; return 1; }        /* the shell went away */
+        *ev = m.ev; ev->timestamp = isim_time();
+        return 1;
+    }
     for (;;) {
         if (script_step(ev)) return 1;
         if (headless || !win) {
@@ -413,6 +460,18 @@ void isim_image_draw(int hd, double x, double y, double w, double h, const doubl
 int isim_image_is_template(int hd);
 void isim_image_free(int hd);
 
+/* ---------------- client side of the shell protocol (guest API) ---------------- */
+int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
+/* type: 3 launch (a = bundle path, b = executable, c = URL to open), 4 settings changed, 5 go home, 6 terminate other apps */
+void isim_shell_request(int type, const char *a, const char *b, const char *c) {
+    if (client_sock < 0) return;
+    struct shell_msg m = { .type = type };
+    snprintf(m.a, sizeof m.a, "%s", a ? a : ""); snprintf(m.b, sizeof m.b, "%s", b ? b : ""); snprintf(m.c, sizeof m.c, "%s", c ? c : "");
+    send(client_sock, &m, sizeof m, MSG_NOSIGNAL);
+}
+
+#include "shell.inc"
+
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
     H(isim_device_metrics), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
@@ -421,7 +480,7 @@ static const struct shim isim_table[] = {
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
     H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke),
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_set_status_bar_style), H(isim_next_event), H(isim_text_input),
-    H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url),
+    H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

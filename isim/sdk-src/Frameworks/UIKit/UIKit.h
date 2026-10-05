@@ -17,6 +17,7 @@
 #import <UIKit/NSLayoutConstraint.h>
 #import <UIKit/NSLayoutAnchor.h>
 #import <UIKit/UIScreen.h>
+#import <UIKit/UIDevice.h>
 #import <UIKit/UIWindow.h>
 #import <UIKit/UIViewController.h>
 #import <UIKit/UILabel.h>
@@ -32,6 +33,7 @@
 #import <UIKit/UITextInput.h>
 #import <UIKit/UIInputViewController.h>
 #import <UIKit/UIScrollView.h>
+#import <UIKit/UIAlertController.h>
 #import <UIKit/UITextField.h>
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIScene.h>

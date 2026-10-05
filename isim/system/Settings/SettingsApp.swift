@@ -1,0 +1,451 @@
+// isim Settings: replicates iOS Settings for the settings isim implements. Values go to the
+// system (global) preferences domain, which every app reads; the shell tells running apps.
+import SwiftUI
+import isim_host
+
+// MARK: - Store
+
+@MainActor enum Store {
+    static let global = UserDefaults(suiteName: ".GlobalPreferences")!
+    static var languages: [String] { global.object(forKey: "AppleLanguages") as? [String] ?? ["en"] }
+    static var locale: String? { global.object(forKey: "AppleLocale") as? String }
+    static var keyboards: [String] { global.object(forKey: "AppleKeyboards") as? [String] ?? [] }
+    static func set(_ key: String, _ value: Any?) { global.set(value, forKey: key) }
+}
+
+struct InstalledApp: Identifiable, Hashable {
+    let id: String, name: String, path: String, iconPath: String?
+    let keyboards: [KeyboardExtension]
+}
+struct KeyboardExtension: Hashable { let id: String, name: String, appName: String }
+
+@MainActor func installedApps() -> [InstalledApp] {
+    let dir = getenv("ISIM_APPS").map { String(cString: $0) } ?? (isimDataDir() as NSString).appendingPathComponent("Applications")
+    var apps: [InstalledApp] = []
+    for name in ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted() where name.hasSuffix(".app") {
+        let path = (dir as NSString).appendingPathComponent(name)
+        guard let info = NSDictionary(contentsOfFile: (path as NSString).appendingPathComponent("Info.plist")) as? [String: Any] else { continue }
+        let display = info["CFBundleDisplayName"] as? String ?? info["CFBundleName"] as? String ?? (name as NSString).deletingPathExtension
+        var kbs: [KeyboardExtension] = []
+        let plugins = (path as NSString).appendingPathComponent("PlugIns")
+        for ext in ((try? FileManager.default.contentsOfDirectory(atPath: plugins)) ?? []).sorted() where ext.hasSuffix(".appex") {
+            let einfo = NSDictionary(contentsOfFile: ((plugins as NSString).appendingPathComponent(ext) as NSString).appendingPathComponent("Info.plist")) as? [String: Any]
+            let point = (einfo?["NSExtension"] as? [String: Any])?["NSExtensionPointIdentifier"] as? String
+            if point == "com.apple.keyboard-service", let kid = einfo?["CFBundleIdentifier"] as? String {
+                kbs.append(KeyboardExtension(id: kid, name: einfo?["CFBundleDisplayName"] as? String ?? display, appName: display))
+            }
+        }
+        apps.append(InstalledApp(id: info["CFBundleIdentifier"] as? String ?? name, name: display, path: path, iconPath: iconPath(path), keyboards: kbs))
+    }
+    return apps.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+}
+func isimDataDir() -> String {
+    if let d = getenv("ISIM_DATA") { return String(cString: d) }
+    return (String(cString: getenv("HOME")) as NSString).appendingPathComponent(".local/share/isim")
+}
+func iconPath(_ app: String) -> String? {
+    guard let assets = NSDictionary(contentsOfFile: (app as NSString).appendingPathComponent("isim-assets.plist")) as? [String: Any],
+          let icons = assets["appIcons"] as? [String: Any], let files = (icons["AppIcon"] ?? icons.values.first) as? [[String: Any]] else { return nil }
+    let usable = files.filter { ($0["appearance"] as? String ?? "any") == "any" }
+    guard let f = usable.last?["file"] as? String ?? files.first?["file"] as? String else { return nil }
+    return (app as NSString).appendingPathComponent(f)
+}
+
+// MARK: - App
+
+@main
+struct SettingsApp: App {
+    var body: some Scene { WindowGroup { RootView() } }
+}
+
+enum Route: Hashable {
+    case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display
+    case app(String), appKeyboards(String)
+}
+
+struct SettingsIcon: View {
+    let symbol: String, color: Color
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7).fill(color)
+            Image(systemName: symbol).font(.system(size: 16, weight: .medium)).foregroundStyle(.white)
+        }
+        .frame(width: 29, height: 29)
+    }
+}
+struct AppIcon: View {
+    let app: InstalledApp
+    var body: some View {
+        if let p = app.iconPath, let img = UIImage(contentsOfFile: p) {
+            Image(uiImage: img).resizable().frame(width: 29, height: 29).clipShape(RoundedRectangle(cornerRadius: 7))
+        } else {
+            SettingsIcon(symbol: "square.grid.2x2", color: .gray)
+        }
+    }
+}
+
+struct RootView: View {
+    @State private var path: [Route] = []
+    var body: some View {
+        NavigationStack(path: $path) {
+            List {
+                Section {
+                    NavigationLink(value: Route.general) { Label { Text("General") } icon: { SettingsIcon(symbol: "gear", color: .gray) } }
+                        .accessibilityIdentifier("settings-general")
+                    NavigationLink(value: Route.display) { Label { Text("Display & Brightness") } icon: { SettingsIcon(symbol: "sun.max", color: .blue) } }
+                        .accessibilityIdentifier("settings-display")
+                }
+                let apps = installedApps()
+                if !apps.isEmpty {
+                    Section("Apps") {
+                        ForEach(apps) { app in
+                            NavigationLink(value: Route.app(app.id)) { Label { Text(app.name) } icon: { AppIcon(app: app) } }
+                                .accessibilityIdentifier("settings-app-\(app.id)")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+            .navigationDestination(for: Route.self) { route in destination(route) }
+            .onOpenURL { url in
+                // app-settings:<bundle id> opens the app's page, as on iOS
+                let s = url.absoluteString
+                if s.hasPrefix("app-settings:") {
+                    let id = String(s.dropFirst("app-settings:".count))
+                    path = id.isEmpty ? [] : [.app(id)]
+                }
+            }
+        }
+    }
+    @ViewBuilder func destination(_ r: Route) -> some View {
+        switch r {
+        case .general: GeneralView()
+        case .about: AboutView()
+        case .keyboard: KeyboardView()
+        case .keyboards: KeyboardsView()
+        case .addKeyboard: AddKeyboardView()
+        case .keyboardDetail(let id): KeyboardDetailView(id: id)
+        case .language: LanguageView()
+        case .region: RegionView()
+        case .dateTime: DateTimeView()
+        case .timeZone: TimeZoneView()
+        case .display: DisplayView()
+        case .app(let id): AppSettingsView(id: id)
+        case .appKeyboards(let id): AppKeyboardsView(id: id)
+        }
+    }
+}
+
+// MARK: - General
+
+struct GeneralView: View {
+    var body: some View {
+        List {
+            Section { NavigationLink("About", value: Route.about) }
+            Section {
+                NavigationLink("Date & Time", value: Route.dateTime)
+                NavigationLink("Keyboard", value: Route.keyboard).accessibilityIdentifier("settings-keyboard")
+                NavigationLink("Language & Region", value: Route.language).accessibilityIdentifier("settings-language")
+            }
+        }
+        .navigationTitle("General").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct AboutView: View {
+    var body: some View {
+        List {
+            Section {
+                LabeledContent("Name", value: UIDevice.current.name)
+                LabeledContent("iOS Version", value: "\(UIDevice.current.systemVersion) (isim)")
+                LabeledContent("Model Name", value: UIDevice.current._isim_deviceName)
+            }
+            Section {
+                LabeledContent("Applications", value: "\(installedApps().count)")
+            } footer: { Text("isim emulates the iOS \(UIDevice.current.systemVersion) API on Linux. It is not Apple's iOS.") }
+        }
+        .navigationTitle("About").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Keyboard
+
+let builtinKeyboard = "English (US)"
+@MainActor func allKeyboards() -> [KeyboardExtension] { installedApps().flatMap { $0.keyboards } }
+
+struct KeyboardView: View {
+    @State private var bump = 0
+    var body: some View {
+        let count = 1 + Store.keyboards.count
+        let autoCap = Store.global.object(forKey: "KeyboardAutocapitalization") as? Bool ?? true
+        List {
+            Section {
+                NavigationLink(value: Route.keyboards) { LabeledContent("Keyboards", value: "\(count)") }
+                    .accessibilityIdentifier("settings-keyboards")
+            }
+            Section("All Keyboards") {
+                Toggle("Auto-Capitalization", isOn: Binding(get: { autoCap }, set: { Store.set("KeyboardAutocapitalization", $0); bump += 1 }))
+            }
+        }
+        .navigationTitle("Keyboard").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct KeyboardsView: View {
+    var body: some View {
+        let all = allKeyboards()
+        List {
+            Section {
+                Text(builtinKeyboard)
+                ForEach(Store.keyboards, id: \.self) { id in
+                    let kb = all.first { $0.id == id }
+                    NavigationLink(value: Route.keyboardDetail(id)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(kb?.name ?? id)
+                            if let app = kb?.appName { Text(app).font(.footnote).foregroundStyle(.secondary) }
+                        }
+                    }
+                }
+            }
+            Section {
+                NavigationLink("Add New Keyboard…", value: Route.addKeyboard).accessibilityIdentifier("settings-add-keyboard")
+            }
+        }
+        .navigationTitle("Keyboards").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct AddKeyboardView: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        let available = allKeyboards().filter { !Store.keyboards.contains($0.id) }
+        List {
+            Section("Third-Party Keyboards") {
+                if available.isEmpty { Text("No other keyboards are installed.").foregroundStyle(.secondary) }
+                ForEach(available, id: \.id) { kb in
+                    Button {
+                        Store.set("AppleKeyboards", Store.keyboards + [kb.id])
+                        dismiss()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(kb.name).foregroundStyle(.primary)
+                            Text(kb.appName).font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("settings-add-\(kb.id)")
+                }
+            }
+        }
+        .navigationTitle("Add New Keyboard").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct KeyboardDetailView: View {
+    let id: String
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        let kb = allKeyboards().first { $0.id == id }
+        List {
+            Section {
+                Toggle("Allow Full Access", isOn: .constant(false)).disabled(true)
+            } footer: { Text("isim does not grant keyboards Full Access (network and shared container access).") }
+            Section {
+                Button("Remove Keyboard", role: .destructive) {
+                    Store.set("AppleKeyboards", Store.keyboards.filter { $0 != id })
+                    dismiss()
+                }
+            }
+        }
+        .navigationTitle(kb?.name ?? id).navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Language & Region
+
+let languageOptions: [(String, String)] = [
+    ("en", "English"), ("en-GB", "English (UK)"), ("pt-BR", "Português (Brasil)"), ("pt-PT", "Português (Portugal)"),
+    ("es", "Español"), ("fr", "Français"), ("de", "Deutsch"), ("it", "Italiano"), ("nl", "Nederlands"),
+    ("ja", "日本語"), ("ko", "한국어"), ("zh-Hans", "简体中文"), ("ar", "العربية"), ("he", "עברית"),
+]
+let regionOptions: [(String, String)] = [
+    ("en_US", "United States"), ("en_GB", "United Kingdom"), ("pt_BR", "Brazil"), ("pt_PT", "Portugal"), ("es_ES", "Spain"),
+    ("es_MX", "Mexico"), ("fr_FR", "France"), ("de_DE", "Germany"), ("it_IT", "Italy"), ("ja_JP", "Japan"), ("ko_KR", "South Korea"),
+]
+
+struct LanguageView: View {
+    var body: some View {
+        let lang = Store.languages.first ?? "en"
+        let region = Store.locale ?? Locale.current.identifier
+        List {
+            Section {
+                ForEach(languageOptions, id: \.0) { opt in
+                    Button {
+                        Store.set("AppleLanguages", [opt.0])
+                        isim_shell_request(Int32(ISIM_SHELL_TERMINATE_OTHERS), nil, nil, nil)     // apps restart in the new language, as on iOS
+                    } label: {
+                        HStack {
+                            Text(opt.1).foregroundStyle(.primary)
+                            Spacer()
+                            if opt.0 == lang { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                        }
+                    }
+                    .accessibilityIdentifier("settings-lang-\(opt.0)")
+                }
+            } header: { Text("Preferred Languages") } footer: { Text("Apps and websites use the first language in this list. Running apps restart.") }
+            Section {
+                NavigationLink(value: Route.region) {
+                    LabeledContent("Region", value: regionOptions.first { $0.0 == region }?.1 ?? region)
+                }
+            }
+        }
+        .navigationTitle("Language & Region").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct RegionView: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        let current = Store.locale
+        List {
+            ForEach(regionOptions, id: \.0) { opt in
+                Button {
+                    Store.set("AppleLocale", opt.0)
+                    isim_shell_request(Int32(ISIM_SHELL_TERMINATE_OTHERS), nil, nil, nil)
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text(opt.1).foregroundStyle(.primary)
+                        Spacer()
+                        if opt.0 == current { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Region").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Date & Time
+
+let timeZoneOptions = ["America/Los_Angeles", "America/New_York", "America/Sao_Paulo", "Europe/London", "Europe/Lisbon",
+                       "Europe/Berlin", "Asia/Tokyo", "Australia/Sydney", "UTC"]
+
+struct DateTimeView: View {
+    @State private var bump = 0
+    var body: some View {
+        let h24 = Store.global.bool(forKey: "AppleICUForce24HourTime")
+        let tz = Store.global.object(forKey: "TimeZone") as? String
+        List {
+            Section {
+                Toggle("24-Hour Time", isOn: Binding(get: { h24 }, set: { Store.set("AppleICUForce24HourTime", $0); bump += 1 }))
+                    .accessibilityIdentifier("settings-24h")
+            }
+            Section {
+                Toggle("Set Automatically", isOn: Binding(get: { tz == nil }, set: { auto in Store.set("TimeZone", auto ? nil : TimeZone.current.identifier); bump += 1 }))
+                if tz != nil {
+                    NavigationLink(value: Route.timeZone) { LabeledContent("Time Zone", value: tz ?? "") }
+                }
+            } footer: { Text("Automatic uses the Linux host's time zone. Apps read the setting when they start.") }
+        }
+        .navigationTitle("Date & Time").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct TimeZoneView: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        List {
+            ForEach(timeZoneOptions, id: \.self) { z in
+                Button {
+                    Store.set("TimeZone", z)
+                    dismiss()
+                } label: {
+                    HStack { Text(z.replacingOccurrences(of: "_", with: " ")).foregroundStyle(.primary); Spacer()
+                        if z == Store.global.object(forKey: "TimeZone") as? String { Image(systemName: "checkmark").foregroundStyle(.tint) } }
+                }
+            }
+        }
+        .navigationTitle("Time Zone").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Display & Brightness
+
+struct DisplayView: View {
+    @State private var bump = 0
+    var body: some View {
+        let dark = (Store.global.object(forKey: "AppleInterfaceStyle") as? String) == "Dark"
+        List {
+            Section("Appearance") {
+                HStack(spacing: 40) {
+                    Spacer()
+                    appearanceOption("Light", selected: !dark, id: "settings-light") { Store.set("AppleInterfaceStyle", nil); bump += 1 }
+                    appearanceOption("Dark", selected: dark, id: "settings-dark") { Store.set("AppleInterfaceStyle", "Dark"); bump += 1 }
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .navigationTitle("Display & Brightness").navigationBarTitleDisplayMode(.inline)
+    }
+    func appearanceOption(_ title: String, selected: Bool, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10).fill(title == "Dark" ? Color.black : Color(white: 0.95))
+                    VStack(spacing: 4) {
+                        RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.6)).frame(width: 40, height: 6)
+                        RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.4)).frame(width: 40, height: 6)
+                        RoundedRectangle(cornerRadius: 3).fill(Color.gray.opacity(0.4)).frame(width: 40, height: 6)
+                    }
+                }
+                .frame(width: 70, height: 120)
+                Text(title).foregroundStyle(.primary)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle").foregroundStyle(selected ? Color.blue : Color.gray)
+            }
+        }
+        .accessibilityIdentifier(id)
+    }
+}
+
+// MARK: - Per-app pages
+
+struct AppSettingsView: View {
+    let id: String
+    var body: some View {
+        let app = installedApps().first { $0.id == id }
+        List {
+            if let app = app, !app.keyboards.isEmpty {
+                Section("Allow \(app.name) to Access") {
+                    NavigationLink(value: Route.appKeyboards(app.id)) {
+                        Label { Text("Keyboards") } icon: { SettingsIcon(symbol: "keyboard", color: .gray) }
+                    }
+                    .accessibilityIdentifier("settings-app-keyboards")
+                }
+            } else {
+                Section { Text("No settings for this app.").foregroundStyle(.secondary) }
+            }
+        }
+        .navigationTitle(app?.name ?? id).navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct AppKeyboardsView: View {
+    let id: String
+    @State private var bump = 0
+    var body: some View {
+        let app = installedApps().first { $0.id == id }
+        List {
+            Section {
+                ForEach(app?.keyboards ?? [], id: \.id) { kb in
+                    Toggle(kb.name, isOn: Binding(get: { Store.keyboards.contains(kb.id) }, set: { on in
+                        Store.set("AppleKeyboards", on ? Store.keyboards + [kb.id] : Store.keyboards.filter { $0 != kb.id }); bump += 1
+                    }))
+                    .accessibilityIdentifier("settings-enable-\(kb.id)")
+                    Toggle("Allow Full Access", isOn: .constant(false)).disabled(true)
+                }
+            }
+        }
+        .navigationTitle("Keyboards").navigationBarTitleDisplayMode(.inline)
+    }
+}

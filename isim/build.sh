@@ -91,6 +91,9 @@ install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 644 tool
 step "swift"
 bash swift/build.sh
 
+step "system apps (home screen, Settings)"
+ISIM_SDK=$SDK ISIM_CC=$CC bash system/build.sh
+
 for app in samples/*/ tests/*/; do
   [ -f "$app/build.sh" ] || continue
   step "sample $(basename "$app")"

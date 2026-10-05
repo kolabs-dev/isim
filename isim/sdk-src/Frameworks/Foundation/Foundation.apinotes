@@ -75,3 +75,6 @@ Globals:
   SwiftName: default
 - Name: NSRunLoopCommonModes
   SwiftName: common
+Tags:
+- Name: NSComparisonResult
+  SwiftName: ComparisonResult

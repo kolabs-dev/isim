@@ -40,6 +40,20 @@
 @end
 
 /* ================= UIScreen ================= */
+@implementation UIDevice
++ (UIDevice *)currentDevice { static UIDevice *d; if (!d) d = [UIDevice new]; return d; }
+- (BOOL)_pad { return isim_ui_device()->width >= 700; }
+- (NSString *)name { return [self _pad] ? @"iPad" : @"iPhone"; }
+- (NSString *)model { return [self _pad] ? @"iPad" : @"iPhone"; }
+- (NSString *)localizedModel { return self.model; }
+- (NSString *)systemName { return @"iOS"; }
+- (NSString *)systemVersion { const char *v = getenv("ISIM_OS_VERSION"); return v && *v ? @(v) : @"18.0"; }
+- (UIDeviceOrientation)orientation { return UIDeviceOrientationPortrait; }
+- (UIUserInterfaceIdiom)userInterfaceIdiom { return [self _pad] ? UIUserInterfaceIdiomPad : UIUserInterfaceIdiomPhone; }
+- (BOOL)isMultitaskingSupported { return YES; }
+- (NSString *)_isim_deviceName { return @(isim_ui_device()->name); }
+@end
+
 @implementation UIScreen
 + (UIScreen *)mainScreen { static UIScreen *s; if (!s) s = [UIScreen new]; return s; }
 - (CGRect)bounds { const struct isim_device *d = isim_ui_device(); return CGRectMake(0, 0, d->width, d->height); }
@@ -306,6 +320,14 @@ static UIApplication *shared_app;
 - (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""]; }
 - (void)openURL:(NSURL *)url options:(NSDictionary *)options completionHandler:(void (^)(BOOL))completion {
     NSString *scheme = url.scheme.lowercaseString ?: @"";
+    if ([scheme isEqualToString:@"app-settings"] && isim_shell_present()) {
+        NSString *settings = [isim_ui_system_apps_dir() stringByAppendingPathComponent:@"Settings.app"];
+        NSString *target = [NSString stringWithFormat:@"app-settings:%@", NSBundle.mainBundle.bundleIdentifier ?: @""];
+        isim_shell_request(ISIM_SHELL_LAUNCH, settings.UTF8String, [settings stringByAppendingPathComponent:@"Settings"].UTF8String, target.UTF8String);
+        NSLog(@"isim: open URL %@ -> Settings", url.absoluteString);
+        if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(YES); });
+        return;
+    }
     BOOL hostOpen = [@[@"http", @"https", @"mailto"] containsObject:scheme] && isim_open_url(url.absoluteString.UTF8String);
     if ([scheme isEqualToString:@"app-settings"]) NSLog(@"isim: open URL %@ (the app's page in Settings; isim has no Settings app)", url.absoluteString);
     else NSLog(@"isim: open URL %@%@", url.absoluteString, hostOpen ? @" (opened on the host)" : @" (not opened; ISIM_OPEN_URLS=1 opens http/mailto on the host)");
@@ -354,7 +376,15 @@ static void handle_touch(const struct isim_event *ev) {
         if (ev->timestamp - last_tap_time < 0.35 && hypot(p.x - last_tap_point.x, p.y - last_tap_point.y) < 20) [cur_touch setValue_isimTapCount:2];
         cur_gestures = [NSMutableArray array];
         touch_cancelled = NO;
-        for (UIView *v = hit; v; v = v.superview) for (UIGestureRecognizer *g in v.gestureRecognizers) if (g.enabled) [cur_gestures addObject:g];
+        /* UIKit rule: a tap on a UIControl is not taken over by tap recognizers on its superviews */
+        UIControl *control = nil;
+        for (UIView *v = hit; v; v = v.superview) if ([v isKindOfClass:[UIControl class]] && ((UIControl *)v).enabled) { control = (UIControl *)v; break; }
+        BOOL aboveControl = NO;
+        for (UIView *v = hit; v; v = v.superview) {
+            for (UIGestureRecognizer *g in v.gestureRecognizers)
+                if (g.enabled && !(aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) [cur_gestures addObject:g];
+            if (v == control) aboveControl = YES;
+        }
     }
     UITouch *t = cur_touch;
     if (!t) return;
@@ -447,6 +477,64 @@ static void render_frame(void) {
     isim_frame_end();
 }
 
+/* ---- shell lifecycle (isim boot): background/foreground, settings, URLs ---- */
+NSString *isim_ui_system_apps_dir(void) {
+    const char *e = getenv("ISIM_SYSTEM_APPS");
+    return e && *e ? @(e) : [[@(isim_bundle_path()) stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"."];
+}
+/* installed apps: ISIM_APPS or <isim data>/Applications */
+NSString *isim_ui_installed_apps_dir(void) {
+    const char *e = getenv("ISIM_APPS");
+    extern NSString *isim_data_dir(void);
+    return e && *e ? @(e) : [isim_data_dir() stringByAppendingPathComponent:@"Applications"];
+}
+static BOOL backgrounded;
+static void each_scene_delegate(void (^f)(UIScene *, id<UISceneDelegate>)) {
+    for (UIScene *s in UIApplication.sharedApplication.connectedScenes) f(s, s.delegate);
+}
+static void enter_background(void) {
+    if (backgrounded) return;
+    UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+    NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { if ([sd respondsToSelector:@selector(sceneWillResignActive:)]) [sd sceneWillResignActive:s]; });
+    if ([d respondsToSelector:@selector(applicationWillResignActive:)]) [d applicationWillResignActive:app];
+    [nc postNotificationName:UIApplicationWillResignActiveNotification object:app];
+    backgrounded = YES; app.applicationState = UIApplicationStateBackground;
+    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateBackground; if ([sd respondsToSelector:@selector(sceneDidEnterBackground:)]) [sd sceneDidEnterBackground:s]; });
+    if ([d respondsToSelector:@selector(applicationDidEnterBackground:)]) [d applicationDidEnterBackground:app];
+    [nc postNotificationName:UIApplicationDidEnterBackgroundNotification object:app];
+    [isim_ui_first_responder() resignFirstResponder];
+}
+static void enter_foreground(void) {
+    if (!backgrounded) { isim_ui_set_needs_display(); return; }
+    UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+    NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundInactive; if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:s]; });
+    if ([d respondsToSelector:@selector(applicationWillEnterForeground:)]) [d applicationWillEnterForeground:app];
+    [nc postNotificationName:UIApplicationWillEnterForegroundNotification object:app];
+    backgrounded = NO; app.applicationState = UIApplicationStateActive;
+    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundActive; if ([sd respondsToSelector:@selector(sceneDidBecomeActive:)]) [sd sceneDidBecomeActive:s]; });
+    if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
+    [nc postNotificationName:UIApplicationDidBecomeActiveNotification object:app];
+    isim_ui_set_needs_layout();
+}
+static void trait_changed(UIView *v) { [v traitCollectionDidChange:nil]; for (UIView *s in v.subviews) trait_changed(s); }
+static void settings_changed(void) {
+    extern void isim_ui_reload_settings(void);
+    isim_ui_reload_settings();
+    for (UIWindow *w in UIApplication.sharedApplication.windows) trait_changed(w);
+    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSettingsChanged" object:nil];
+    isim_ui_set_needs_display();
+}
+static void deliver_url(NSString *s) {
+    NSURL *url = [NSURL URLWithString:s];
+    if (!url) return;
+    UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+    NSLog(@"isim: opening URL %@ in the app", s);
+    if ([d respondsToSelector:@selector(application:openURL:options:)]) [(id)d application:app openURL:url options:@{}];
+    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimOpenURL" object:url];     /* SwiftUI .onOpenURL */
+}
+
 static void layout_all(void) {
     for (int i = 0; i < 4 && isim_ui_take_layout(); i++)
     {
@@ -521,6 +609,11 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         if (manifest) connect_scene(app, manifest);
         else if ([d respondsToSelector:@selector(window)] && d.window && d.window.hidden) [d.window makeKeyAndVisible];
         app.applicationState = UIApplicationStateActive;
+        [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimGlobalPreferencesChanged" object:nil queue:nil usingBlock:^(NSNotification *n) {
+            settings_changed();
+            isim_shell_request(ISIM_SHELL_SETTINGS, NULL, NULL, NULL);      /* other apps re-read the settings too */
+        }];
+        if (getenv("ISIM_LAUNCH_URL")) { NSString *u = @(getenv("ISIM_LAUNCH_URL")); dispatch_async(dispatch_get_main_queue(), ^{ deliver_url(u); }); }
         if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:app];
     }
@@ -532,7 +625,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
             layout_all();
             time_t now = time(NULL); struct tm tm; localtime_r(&now, &tm);
             if (tm.tm_min != lastMinute) { lastMinute = tm.tm_min; isim_ui_set_needs_display(); }
-            if (isim_ui_take_display()) { layout_all(); render_frame(); }
+            if (isim_ui_take_display() && !backgrounded) { layout_all(); render_frame(); }
             double timeout = next < 0.5 ? next : 0.5;
             struct isim_event ev;
             for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {
@@ -542,6 +635,11 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_REDRAW: isim_ui_set_needs_display(); break;
                 case ISIM_EV_TEXT: case ISIM_EV_KEY: handle_key(&ev); break;
                 case ISIM_EV_ID_DOWN: case ISIM_EV_ID_UP: case ISIM_EV_TEXT_DOWN: case ISIM_EV_TEXT_UP: handle_id_touch(&ev); break;
+                case ISIM_EV_BACKGROUND: enter_background(); break;
+                case ISIM_EV_FOREGROUND: enter_foreground(); break;
+                case ISIM_EV_SETTINGS: settings_changed(); break;
+                case ISIM_EV_LAUNCH_ID: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimShellLaunch" object:@(ev.text)]; break;
+                case ISIM_EV_OPEN_URL: deliver_url(@(ev.text)); break;
                 case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;
                 }

@@ -19,6 +19,9 @@ fi
 if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   run "ui: HelloSwiftUI (SwiftUI)" tests/ui/swiftui.sh
 fi
+if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device shell: home screen + Settings
+  run "ui: isim boot (home screen, Settings, multitasking)" tests/ui/boot.sh
+fi
 if [ -x out/apps/SwiftEmbeddedTest.app/SwiftEmbeddedTest ]; then
   run "swift (embedded) self-test" bash -c 'out/bin/isim run out/apps/SwiftEmbeddedTest.app/SwiftEmbeddedTest | tail -1; exit ${PIPESTATUS[0]}'
 fi

@@ -234,8 +234,10 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     return a == b && !memcmp(x, y, a);
 }
 - (NSComparisonResult)compare:(NSString *)o { return [self compare:o options:0]; }
-- (NSComparisonResult)caseInsensitiveCompare:(NSString *)o { return [self compare:o options:NSCaseInsensitiveSearch]; }
 - (NSComparisonResult)localizedCompare:(NSString *)o { return [self compare:o options:0]; }
+- (NSComparisonResult)localizedCaseInsensitiveCompare:(NSString *)o { return [self compare:o options:NSCaseInsensitiveSearch]; }
+- (NSComparisonResult)localizedStandardCompare:(NSString *)o { return [self compare:o options:NSCaseInsensitiveSearch | NSNumericSearch]; }
+- (NSComparisonResult)caseInsensitiveCompare:(NSString *)o { return [self compare:o options:NSCaseInsensitiveSearch]; }
 - (NSComparisonResult)compare:(NSString *)o options:(NSStringCompareOptions)mask {
     NSUInteger a, b; const char *x = [self _isim_bytes:&a], *y = [o _isim_bytes:&b];
     if (mask & NSNumericSearch) {

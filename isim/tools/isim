@@ -1,16 +1,69 @@
 #!/usr/bin/env bash
 # isim — iOS simulator for Linux (research prototype).
+#   isim boot [device options]   start the simulated device on its home screen (installed apps + Settings)
+#   isim install <App.app>...    install apps on the device (shown on the home screen)
+#   isim uninstall <name|bundle id>   remove an installed app (and its data container)
+#   isim apps                    list installed apps
+#   isim reset                   erase the device: installed apps, app data and settings
 #   isim run <App.app> [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
 #   isim build -project X.xcodeproj [-target T] [-configuration Debug]   build an Xcode project for isim
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
+#   device options: --device NAME --zoom N --dark --headless --script "..."; device data: ISIM_DATA (~/.local/share/isim)
 set -euo pipefail
 BIN=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
 SDK=${ISIM_SDK:-$BIN/../sdk}
+DATA=${ISIM_DATA:-$HOME/.local/share/isim}
 cmd=${1:-help}; shift || true
+device_opts() {   # sets env from device options; leaves the rest in REST
+  REST=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --device) export ISIM_DEVICE=$2; shift 2 ;;
+      --zoom) export ISIM_ZOOM=$2; shift 2 ;;
+      --dark) export ISIM_APPEARANCE=dark; shift ;;
+      --headless) export ISIM_HEADLESS=1; shift ;;
+      --script) export ISIM_SCRIPT=$2; shift 2 ;;
+      *) REST+=("$1"); shift ;;
+    esac
+  done
+}
+plist_get() { python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb")).get(sys.argv[2],""))' "$1" "$2"; }
 case "$cmd" in
+  boot)
+    device_opts "$@"
+    mkdir -p "$DATA/Applications"
+    export ISIM_DATA=$DATA ISIM_SYSTEM_APPS=$SDK/Applications ISIM_APPS=$DATA/Applications
+    exec "$BIN/isim-runtime" --root "$SDK" --shell "$SDK/Applications/SpringBoard.app" "$SDK/Applications/SpringBoard.app/SpringBoard" ;;
+  install)
+    [ $# -gt 0 ] || { echo "usage: isim install <App.app>..." >&2; exit 2; }
+    mkdir -p "$DATA/Applications"
+    for app in "$@"; do
+      [ -f "$app/Info.plist" ] || { echo "isim install: $app is not an app bundle" >&2; exit 1; }
+      dst=$DATA/Applications/$(basename "$app")
+      rm -rf "$dst"; cp -a "$app" "$dst"
+      echo "installed $(plist_get "$app/Info.plist" CFBundleDisplayName || true) ($(plist_get "$app/Info.plist" CFBundleIdentifier)) -> $dst"
+    done ;;
+  uninstall)
+    want=${1:?usage: isim uninstall <name|bundle id>}
+    for app in "$DATA"/Applications/*.app; do
+      [ -d "$app" ] || continue
+      id=$(plist_get "$app/Info.plist" CFBundleIdentifier)
+      if [ "$id" = "$want" ] || [ "$(basename "$app" .app)" = "$want" ] || [ "$(plist_get "$app/Info.plist" CFBundleDisplayName)" = "$want" ]; then
+        rm -rf "$app" "$DATA/Containers/$id"; echo "uninstalled $id"; exit 0
+      fi
+    done
+    echo "isim uninstall: '$want' is not installed" >&2; exit 1 ;;
+  apps)
+    for app in "$DATA"/Applications/*.app; do
+      [ -d "$app" ] || continue
+      printf '%-28s %-40s %s\n' "$(plist_get "$app/Info.plist" CFBundleDisplayName)" "$(plist_get "$app/Info.plist" CFBundleIdentifier)" "$app"
+    done ;;
+  reset)
+    rm -rf "$DATA/Applications" "$DATA/Containers" "$DATA/Library" "$DATA/Shared"
+    echo "erased the isim device at $DATA" ;;
   run)
     app=${1:?usage: isim run <App.app>}; shift
     while [ $# -gt 0 ]; do

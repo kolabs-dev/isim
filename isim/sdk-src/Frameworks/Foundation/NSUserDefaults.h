@@ -3,8 +3,11 @@
 NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSArray, NSDictionary<KeyType, ObjectType>;
 /* isim: persisted as an XML plist in the app container (Library/Preferences/<bundle id>.plist). */
+FOUNDATION_EXPORT NSString *const NSGlobalDomain;
 @interface NSUserDefaults : NSObject
 @property (class, readonly, strong) NSUserDefaults *standardUserDefaults;
+- (nullable instancetype)initWithSuiteName:(nullable NSString *)suitename;
+- (NSDictionary<NSString *, id> *)dictionaryRepresentation;
 - (nullable id)objectForKey:(NSString *)defaultName;
 - (void)setObject:(nullable id)value forKey:(NSString *)defaultName;
 - (void)removeObjectForKey:(NSString *)defaultName;

@@ -112,6 +112,8 @@ CGRect isim_ui_keyboard_frame(void);                     /* screen coordinates; 
 BOOL isim_ui_keyboard_needs_switch_key(void);
 void isim_ui_keyboard_advance(void);
 void isim_ui_keyboard_install(void);
+NSString *isim_ui_system_apps_dir(void);
+NSString *isim_ui_installed_apps_dir(void);
 @interface UIWindow (IsimSystem)
 - (BOOL)_isim_isSystemWindow;
 @end

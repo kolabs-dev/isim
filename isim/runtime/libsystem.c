@@ -76,6 +76,22 @@ WCLS(iswalpha) WCLS(iswdigit) WCLS(iswalnum) WCLS(iswspace) WCLS(iswpunct) WCLS(
 WCLS(iswcntrl) WCLS(iswprint) WCLS(iswxdigit) WCLS(iswgraph)
 static wint_t d_towupper(wint_t c) { locale_t l = utf8_locale(); return l ? towupper_l(c, l) : towupper(c); }
 static wint_t d_towlower(wint_t c) { locale_t l = utf8_locale(); return l ? towlower_l(c, l) : towlower(c); }
+/* stat: Darwin layout (64-bit inode) */
+struct d_stat {
+    int32_t st_dev; uint16_t st_mode, st_nlink; uint64_t st_ino; uint32_t st_uid, st_gid; int32_t st_rdev;
+    struct timespec st_atim, st_mtim, st_ctim, st_birthtim;
+    int64_t st_size, st_blocks; int32_t st_blksize; uint32_t st_flags, st_gen; int32_t st_lspare; int64_t st_qspare[2];
+};
+static void to_darwin_stat(const struct stat *h, struct d_stat *d) {
+    memset(d, 0, sizeof *d);
+    d->st_dev = (int32_t)h->st_dev; d->st_mode = (uint16_t)h->st_mode; d->st_nlink = (uint16_t)h->st_nlink; d->st_ino = h->st_ino;
+    d->st_uid = h->st_uid; d->st_gid = h->st_gid; d->st_rdev = (int32_t)h->st_rdev;
+    d->st_atim = h->st_atim; d->st_mtim = h->st_mtim; d->st_ctim = h->st_ctim; d->st_birthtim = h->st_ctim;
+    d->st_size = h->st_size; d->st_blocks = h->st_blocks; d->st_blksize = (int32_t)h->st_blksize;
+}
+static int d_stat(const char *p, struct d_stat *d) { struct stat h; int r = stat(p, &h); if (!r) to_darwin_stat(&h, d); return r; }
+static int d_lstat(const char *p, struct d_stat *d) { struct stat h; int r = lstat(p, &h); if (!r) to_darwin_stat(&h, d); return r; }
+static int d_fstat(int fd, struct d_stat *d) { struct stat h; int r = fstat(fd, &h); if (!r) to_darwin_stat(&h, d); return r; }
 /* directories: Darwin struct dirent (64-bit, 1024-byte name) from the host's */
 #include <dirent.h>
 struct d_dirent { uint64_t d_ino, d_seekoff; uint16_t d_reclen, d_namlen; uint8_t d_type; char d_name[1024]; };
@@ -363,6 +379,7 @@ static const struct shim libsystem_table[] = {
     /* time */
     P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),
     A("_clock_gettime", d_clock_gettime),
+    A("_stat", d_stat), A("_lstat", d_lstat), A("_fstat", d_fstat), A("_stat$INODE64", d_stat), A("_lstat$INODE64", d_lstat), A("_fstat$INODE64", d_fstat),
     A("_opendir", d_opendir), A("_readdir", d_readdir), A("_closedir", d_closedir), A("_rewinddir", d_rewinddir), A("_dirfd", d_dirfd),
     A("_opendir$INODE64", d_opendir), A("_readdir$INODE64", d_readdir),
     A("_iswalpha", d_iswalpha), A("_iswdigit", d_iswdigit), A("_iswalnum", d_iswalnum), A("_iswspace", d_iswspace), A("_iswpunct", d_iswpunct),

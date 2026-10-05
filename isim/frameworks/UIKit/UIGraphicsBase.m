@@ -19,11 +19,18 @@ const struct isim_device *isim_ui_device(void) {
 }
 
 static UIUserInterfaceStyle style_stack[64]; static int style_depth = -1;
+static UIUserInterfaceStyle cached_style;
+/* ISIM_APPEARANCE, else Settings > Display & Brightness (AppleInterfaceStyle = "Dark" in the global domain) */
 static UIUserInterfaceStyle base_style(void) {
-    static UIUserInterfaceStyle s;
-    if (!s) { const char *e = getenv("ISIM_APPEARANCE"); s = e && !strcmp(e, "dark") ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight; }
-    return s;
+    if (!cached_style) {
+        const char *e = getenv("ISIM_APPEARANCE");
+        extern NSDictionary *isim_global_preferences(void);
+        if (e && *e) cached_style = !strcmp(e, "dark") ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
+        else cached_style = [isim_global_preferences()[@"AppleInterfaceStyle"] isEqual:@"Dark"] ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
+    }
+    return cached_style;
 }
+void isim_ui_reload_settings(void) { cached_style = 0; }
 UIUserInterfaceStyle isim_ui_style(void) { return style_depth >= 0 ? style_stack[style_depth] : base_style(); }
 void isim_ui_push_style(UIUserInterfaceStyle s) { if (style_depth < 63) style_stack[++style_depth] = s == UIUserInterfaceStyleUnspecified ? isim_ui_style() : s; }
 void isim_ui_pop_style(void) { if (style_depth >= 0) style_depth--; }

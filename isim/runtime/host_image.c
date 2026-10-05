@@ -21,7 +21,7 @@
 cairo_t *isim_host_cairo(void);
 
 enum { IMG_RASTER = 1, IMG_SVG, IMG_PROC };
-enum { PROC_NUM_CIRCLE = 1, PROC_CHECK_CIRCLE, PROC_GRID, PROC_PLACEHOLDER, PROC_KB_DOWN, PROC_GLOBE };
+enum { PROC_NUM_CIRCLE = 1, PROC_CHECK_CIRCLE, PROC_GRID, PROC_PLACEHOLDER, PROC_KB_DOWN, PROC_GLOBE, PROC_CIRCLE, PROC_MINUS_CIRCLE };
 struct img { int kind; cairo_surface_t *surf; RsvgHandle *svg; double w, h; int proc, fill; char text[8]; };
 static struct img *imgs; static int nimgs, capimgs;
 
@@ -84,6 +84,10 @@ int isim_image_load(const char *path, double *w, double *h) {
 static const struct { const char *sf, *adw; } symbol_map[] = {
     { "delete.left", "actions/edit-clear-symbolic" }, { "delete.backward", "actions/edit-clear-symbolic" },
     { "network", "legacy/web-browser-symbolic" },
+    { "clock", "legacy/preferences-system-time-symbolic" }, { "sun.max", "status/weather-clear-symbolic" },
+    { "textformat.size", "legacy/preferences-desktop-font-symbolic" }, { "textformat", "legacy/preferences-desktop-font-symbolic" },
+    { "accessibility", "legacy/preferences-desktop-accessibility-symbolic" }, { "character.bubble", "legacy/preferences-desktop-locale-symbolic" },
+    { "square.grid.2x2", "legacy/preferences-desktop-apps-symbolic" }, { "iphone", "devices/phone-symbolic" }, { "info.circle", "status/dialog-information-symbolic" },
     { "keyboard", "devices/input-keyboard-symbolic" },
     { "gear", "legacy/emblem-system-symbolic" }, { "gearshape", "legacy/emblem-system-symbolic" },
     { "lock.shield", "status/channel-secure-symbolic" }, { "lock", "status/system-lock-screen-symbolic" },
@@ -121,6 +125,8 @@ int isim_image_symbol(const char *name, double *w, double *h) {
         if (strspn(num, "0123456789") == strlen(num)) return proc_symbol(PROC_NUM_CIRCLE, fill, num, w, h);
     }
     if (!strcmp(base, "checkmark.circle")) return proc_symbol(PROC_CHECK_CIRCLE, fill, NULL, w, h);
+    if (!strcmp(base, "circle")) return proc_symbol(PROC_CIRCLE, fill, NULL, w, h);
+    if (!strcmp(base, "minus.circle")) return proc_symbol(PROC_MINUS_CIRCLE, fill, NULL, w, h);
     if (!strncmp(base, "circle.grid.3x3", 15)) return proc_symbol(PROC_GRID, 1, NULL, w, h);
     if (!strcmp(base, "globe")) return proc_symbol(PROC_GLOBE, 0, NULL, w, h);
     if (!strcmp(base, "keyboard.chevron.compact.down")) return proc_symbol(PROC_KB_DOWN, 0, NULL, w, h);
@@ -180,6 +186,16 @@ static void draw_proc(cairo_t *c, struct img *im, double w, double h) {
         cairo_move_to(c, w / 2 - w * 0.12, h * 0.72); cairo_line_to(c, w / 2, h * 0.84); cairo_line_to(c, w / 2 + w * 0.12, h * 0.72);
         cairo_stroke(c);
         break; }
+    case PROC_MINUS_CIRCLE:
+        cairo_new_sub_path(c); cairo_arc(c, cx, cy, r, 0, 2 * M_PI);
+        if (im->fill) { cairo_fill(c); cairo_set_operator(c, CAIRO_OPERATOR_CLEAR); } else cairo_stroke(c);
+        cairo_move_to(c, cx - r * 0.5, cy); cairo_line_to(c, cx + r * 0.5, cy); cairo_stroke(c);
+        cairo_set_operator(c, CAIRO_OPERATOR_OVER);
+        break;
+    case PROC_CIRCLE:
+        cairo_new_sub_path(c); cairo_arc(c, cx, cy, r, 0, 2 * M_PI);
+        if (im->fill) cairo_fill(c); else cairo_stroke(c);
+        break;
     case PROC_GLOBE:
         cairo_set_line_width(c, lw * 0.85);
         cairo_new_sub_path(c); cairo_arc(c, cx, cy, r, 0, 2 * M_PI); cairo_stroke(c);

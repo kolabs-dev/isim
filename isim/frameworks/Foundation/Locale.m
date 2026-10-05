@@ -30,8 +30,10 @@ NSArray<NSString *> *isim_preferred_languages(void) {
     static NSArray *langs;
     if (!langs) {
         const char *e = getenv("ISIM_LANGUAGES");
+        NSArray *pref = isim_global_preferences()[@"AppleLanguages"];          /* Settings > General > Language & Region */
+        NSString *list = e && *e ? @(e) : [pref isKindOfClass:[NSArray class]] && pref.count ? [pref componentsJoinedByString:@","] : @"en";
         NSMutableArray *a = [NSMutableArray array];
-        for (NSString *p in [@(e && *e ? e : "en") componentsSeparatedByString:@","]) {
+        for (NSString *p in [list componentsSeparatedByString:@","]) {
             NSString *t = [p stringByReplacingOccurrencesOfString:@" " withString:@""];
             if (t.length) [a addObject:[t stringByReplacingOccurrencesOfString:@"_" withString:@"-"]];
         }
@@ -42,6 +44,8 @@ NSArray<NSString *> *isim_preferred_languages(void) {
 static NSString *default_locale_identifier(void) {
     const char *e = getenv("ISIM_LOCALE");
     if (e && *e) return [@(e) stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
+    NSString *pref = isim_global_preferences()[@"AppleLocale"];
+    if ([pref isKindOfClass:[NSString class]] && pref.length) return [pref stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
     NSString *first = isim_preferred_languages().firstObject;            /* "pt-BR" -> "pt_BR"; "en" -> "en_US" */
     if ([first containsString:@"-"]) {
         NSArray *parts = [first componentsSeparatedByString:@"-"];
@@ -171,6 +175,9 @@ static NSDictionary *country_names(void) {
     const char *hc = getenv("ISIM_HOUR_CYCLE");
     if (hc && !strcmp(hc, "24")) return NO;
     if (hc && !strcmp(hc, "12")) return YES;
+    NSDictionary *g = isim_global_preferences();                             /* Settings > General > Date & Time */
+    if ([g[@"AppleICUForce24HourTime"] boolValue]) return NO;
+    if ([g[@"AppleICUForce12HourTime"] boolValue]) return YES;
     return [self _region]->hour12;
 }
 - (id)objectForKey:(NSLocaleKey)key {
@@ -544,4 +551,11 @@ NSDictionary *isim_parse_strings_file(NSString *path) {
         if (p < end && *p == ';') p++;
     }
     return d;
+}
+
+/* Settings > General > Date & Time > Time Zone (the TZ environment variable wins) */
+__attribute__((constructor)) static void isim_apply_time_zone_setting(void) {
+    if (getenv("TZ")) return;
+    NSString *tz = isim_global_preferences()[@"TimeZone"];
+    if ([tz isKindOfClass:[NSString class]] && tz.length) { setenv("TZ", tz.UTF8String, 1); tzset(); }
 }

@@ -360,3 +360,25 @@ extension NSNumber: _HasCustomAnyHashableRepresentation {
         return AnyHashable(d)
     }
 }
+
+// MARK: String comparison (NSString API on String)
+extension String {
+    public func compare(_ other: String) -> ComparisonResult { (self as NSString).compare(other) }
+    public func caseInsensitiveCompare(_ other: String) -> ComparisonResult { (self as NSString).caseInsensitiveCompare(other) }
+    public func localizedCompare(_ other: String) -> ComparisonResult { (self as NSString).localizedCompare(other) }
+    public func localizedCaseInsensitiveCompare(_ other: String) -> ComparisonResult { (self as NSString).localizedCaseInsensitiveCompare(other) }
+    public func localizedStandardCompare(_ other: String) -> ComparisonResult { (self as NSString).localizedStandardCompare(other) }
+}
+
+// MARK: NSError <-> Error (used by the compiler for throwing Objective-C methods)
+extension NSError: Error {
+    public var _domain: String { domain }
+    public var _code: Int { code }
+}
+public func _convertNSErrorToError(_ error: NSError?) -> Error {
+    error ?? NSError(domain: "Foundation._GenericObjCError", code: 0, userInfo: nil)
+}
+public func _convertErrorToNSError(_ error: Error) -> NSError {
+    if let ns = error as AnyObject as? NSError { return ns }
+    return NSError(domain: error._domain, code: error._code, userInfo: [NSLocalizedDescriptionKey: String(describing: error)])
+}

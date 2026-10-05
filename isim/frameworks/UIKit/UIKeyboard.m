@@ -164,6 +164,9 @@ static NSArray *rows_for(int layer) {
     UITextAutocapitalizationType ac = [t respondsToSelector:@selector(autocapitalizationType)] ? [(id<UITextInputTraits>)t autocapitalizationType] : UITextAutocapitalizationTypeSentences;
     NSString *text = [t respondsToSelector:@selector(text)] ? [t text] : @"";
     BOOL want = NO;
+    extern NSDictionary *isim_global_preferences(void);
+    NSNumber *pref = isim_global_preferences()[@"KeyboardAutocapitalization"];      /* Settings > General > Keyboard */
+    if (pref && !pref.boolValue && ac != UITextAutocapitalizationTypeAllCharacters) ac = UITextAutocapitalizationTypeNone;
     if (ac == UITextAutocapitalizationTypeAllCharacters) want = YES;
     else if (ac == UITextAutocapitalizationTypeSentences) {
         NSString *trim = [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
@@ -242,26 +245,67 @@ static NSArray *rows_for(int layer) {
     [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimFirstResponderDidChange" object:nil queue:nil usingBlock:^(NSNotification *n) {
         [[__IsimKeyboardController shared] _responderChanged:n.object];
     }];
+    [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimSettingsChanged" object:nil queue:nil usingBlock:^(NSNotification *n) {
+        [[__IsimKeyboardController shared] _settingsChanged];
+    }];
 }
 - (BOOL)_barVisible { return isim_ui_device()->safe_bottom > 0; }
-- (void)_discover {
-    if (_custom) return;
-    _custom = [NSMutableArray array];
-    const char *env = getenv("ISIM_KEYBOARDS");
-    if (env && !strcmp(env, "none")) return;
-    NSString *plugins = [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"PlugIns"];
+/* Keyboards: the app's own embedded keyboards, and under the shell those of every installed app.
+ * Under the shell only keyboards enabled in Settings > General > Keyboard > Keyboards are offered
+ * (AppleKeyboards in the global domain); with plain `isim run` the app's own keyboards are enabled.
+ * ISIM_KEYBOARDS=all|none overrides. */
+- (void)_addKeyboardsIn:(NSString *)appPath enabled:(NSArray *)enabled all:(BOOL)all {
+    NSString *plugins = [appPath stringByAppendingPathComponent:@"PlugIns"];
     for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:plugins error:NULL]) {
         if (![name hasSuffix:@".appex"]) continue;
         NSString *path = [plugins stringByAppendingPathComponent:name];
         NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[path stringByAppendingPathComponent:@"Info.plist"]];
         NSDictionary *ext = info[@"NSExtension"];
         if (![ext[@"NSExtensionPointIdentifier"] isEqualToString:@"com.apple.keyboard-service"]) continue;
-        __IsimCustomKeyboard *k = [__IsimCustomKeyboard new];
-        k.bundleID = info[@"CFBundleIdentifier"]; k.name = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: name.stringByDeletingPathExtension;
-        k.executable = [path stringByAppendingPathComponent:info[@"CFBundleExecutable"] ?: name.stringByDeletingPathExtension];
-        k.principal = ext[@"NSExtensionPrincipalClass"];
-        [_custom addObject:k];
+        NSString *ident = info[@"CFBundleIdentifier"];
+        if (!all && ![enabled containsObject:ident]) continue;
+        for (__IsimCustomKeyboard *k in _custom) if ([k.bundleID isEqualToString:ident]) goto next;
+        {
+            __IsimCustomKeyboard *k = [__IsimCustomKeyboard new];
+            k.bundleID = ident; k.name = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: name.stringByDeletingPathExtension;
+            k.executable = [path stringByAppendingPathComponent:info[@"CFBundleExecutable"] ?: name.stringByDeletingPathExtension];
+            k.principal = ext[@"NSExtensionPrincipalClass"];
+            [_custom addObject:k];
+        }
+        next:;
     }
+}
+- (void)_discover {
+    if (_custom) return;
+    _custom = [NSMutableArray array];
+    const char *env = getenv("ISIM_KEYBOARDS");
+    if (env && !strcmp(env, "none")) return;
+    extern NSDictionary *isim_global_preferences(void);
+    NSArray *enabled = isim_global_preferences()[@"AppleKeyboards"];
+    if (![enabled isKindOfClass:[NSArray class]]) enabled = @[];
+    BOOL all = (env && !strcmp(env, "all")) || !isim_shell_present();
+    if (isim_shell_present()) {
+        /* iOS order: the order keyboards were added in Settings */
+        NSString *apps = isim_ui_installed_apps_dir();
+        NSMutableArray *paths = [NSMutableArray arrayWithObject:NSBundle.mainBundle.bundlePath];
+        for (NSString *a in [NSFileManager.defaultManager contentsOfDirectoryAtPath:apps error:NULL])
+            if ([a hasSuffix:@".app"]) [paths addObject:[apps stringByAppendingPathComponent:a]];
+        for (NSString *a in paths) [self _addKeyboardsIn:a enabled:enabled all:all];
+        [_custom sortUsingComparator:^NSComparisonResult(__IsimCustomKeyboard *x, __IsimCustomKeyboard *y) {
+            NSUInteger i = [enabled indexOfObject:x.bundleID], j = [enabled indexOfObject:y.bundleID];
+            return i < j ? NSOrderedAscending : i > j ? NSOrderedDescending : NSOrderedSame; }];
+    } else [self _addKeyboardsIn:NSBundle.mainBundle.bundlePath enabled:enabled all:all];
+}
+- (void)_settingsChanged {
+    /* keyboards enabled/disabled in Settings: rebuild the list (keep the current one if still enabled) */
+    NSString *current = _current > 0 ? _custom[_current - 1].bundleID : nil;
+    NSMutableArray *old = _custom;
+    _custom = nil; [self _discover];
+    for (__IsimCustomKeyboard *k in _custom) for (__IsimCustomKeyboard *o in old) if ([o.bundleID isEqualToString:k.bundleID]) k.controller = o.controller;
+    NSInteger idx = 0;
+    for (NSUInteger i = 0; i < _custom.count; i++) if ([_custom[i].bundleID isEqualToString:current]) idx = (NSInteger)i + 1;
+    if (_current > 0 && idx == 0) [self _activate:0];
+    _current = idx;
 }
 - (void)_build {
     if (_window) return;

@@ -35,6 +35,25 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var usedAppear: Set<String> = []
     var disappearActions: [String: () -> Void] = [:]
     var rendering = false, pending = false
+    var urlHandlers: [String: (URL) -> Void] = [:]
+    var urlObserver: NSObjectProtocol?
+    var pendingURLs: [URL] = []
+    func installURLObserver() {
+        if urlObserver == nil {
+            urlObserver = NotificationCenter.default.addObserver(forName: "_IsimOpenURL", object: nil, queue: nil, using: { [weak self] (n: NSNotification) in
+                guard let url = n.object as? NSURL else { return }
+                let u = url as URL
+                MainActor.assumeIsolated {
+                    guard let self = self else { return }
+                    if self.urlHandlers.isEmpty { self.pendingURLs.append(u) } else { for h in self.urlHandlers.values { h(u) } }
+                }
+            })
+        }
+    }
+    func registerURLHandler(_ path: String, _ h: @escaping (URL) -> Void) {
+        urlHandlers[path] = h
+        if !pendingURLs.isEmpty { let urls = pendingURLs; pendingURLs = []; postRender.append { for u in urls { h(u) } } }
+    }
     var focusLinks: [(String, _FocusLink)] = []
     var submitActions: [String: () -> Void] = [:]
     /// innermost .focused() applied at or above a path
@@ -45,7 +64,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         submitActions.filter { path.hasPrefix($0.key) }.max { $0.key.count < $1.key.count }?.value
     }
 
-    init(root: @escaping () -> any View) { self.root = root }
+    init(root: @escaping () -> any View) { self.root = root; installURLObserver() }
 
     /// Callable from any context (bindings, UIKit callbacks); state changes happen on the main thread.
     nonisolated func invalidate() {
@@ -63,7 +82,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         rendering = true
         defer { rendering = false }
         self.safeArea = safeArea
-        usedKeys = []; mountedKeys = []; usedChanges = []; usedTasks = []; usedAppear = []; postRender = []; focusLinks = []; submitActions = [:]
+        usedKeys = []; mountedKeys = []; usedChanges = []; usedTasks = []; usedAppear = []; postRender = []; focusLinks = []; submitActions = [:]; urlHandlers = [:]
         var env = EnvironmentValues()
         env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
         let ctx = _Context(graph: self, path: "root", environment: env, nav: nil)

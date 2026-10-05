@@ -162,9 +162,13 @@ extension View {
 }
 /// Accessibility attributes go to the interactive element (text field, control) when there is one.
 @MainActor func _tagDeepest(_ n: _Node, _ apply: (_Node) -> Void) {
-    var target = n
-    while target.children.count == 1, !(target is _ButtonNode) { target = target.children[0] }
-    apply(target is _TextFieldNode || target is _ButtonNode ? target : n)
+    // the interactive element inside (switch, text field, button) carries the attributes, as in UIKit
+    func find(_ x: _Node) -> _Node? {
+        if x is _SwitchNode || x is _TextFieldNode || x is _ButtonNode { return x }
+        for c in _flatten(x.children) { if let f = find(c) { return f } }
+        return nil
+    }
+    apply(find(n) ?? n)
 }
 
 // MARK: - Focus

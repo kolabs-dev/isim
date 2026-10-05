@@ -165,6 +165,21 @@ Classes:
   - Selector: 'removeAction:forControlEvents:'
     MethodKind: Instance
     SwiftName: 'removeAction(_:for:)'
+- Name: UIAlertAction
+  Methods:
+  - Selector: 'actionWithTitle:style:handler:'
+    MethodKind: Class
+    SwiftName: 'init(title:style:handler:)'
+- Name: UIAlertController
+  Methods:
+  - Selector: 'alertControllerWithTitle:message:preferredStyle:'
+    MethodKind: Class
+    SwiftName: 'init(title:message:preferredStyle:)'
+- Name: UIDevice
+  Properties:
+  - Name: currentDevice
+    PropertyKind: Class
+    SwiftName: current
 - Name: UIApplication
   Methods:
   - Selector: 'openURL:options:completionHandler:'
@@ -205,6 +220,12 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIAlertActionStyle
+  SwiftName: UIAlertAction.Style
+- Name: UIAlertControllerStyle
+  SwiftName: UIAlertController.Style
+- Name: UIDeviceOrientation
+  SwiftName: UIDeviceOrientation
 - Name: UIScrollViewContentInsetAdjustmentBehavior
   SwiftName: UIScrollView.ContentInsetAdjustmentBehavior
 - Name: UIScrollViewKeyboardDismissMode

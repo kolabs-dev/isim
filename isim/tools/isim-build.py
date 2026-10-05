@@ -116,6 +116,9 @@ def compile_xcassets(path, bundle):
                 index['appIcons' if kind == '.appiconset' else 'images'][name] = files
     with open(index_path, 'w') as f:
         json.dump(index, f, indent=1, sort_keys=True)
+    # the runtime (UIImage imageNamed:, UIColor colorNamed:, the home screen) reads the plist form
+    with open(os.path.join(bundle, 'isim-assets.plist'), 'wb') as f:
+        plistlib.dump(json.loads(json.dumps(index)), f, fmt=plistlib.FMT_XML)
     return index
 
 

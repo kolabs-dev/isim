@@ -9,7 +9,7 @@ build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays
   local srcs=("overlays/$m.swift"); [ -d "overlays/$m" ] && srcs=(overlays/"$m"/*.swift)
   mkdir -p "$SDK/usr/lib/swift/$m.swiftmodule"
   ../out/bin/isim swiftc -parse-as-library -module-name "$m" -module-link-name "swift$m" \
-    -Xfrontend -disable-objc-attr-requires-foundation-module \
+    -Xfrontend -disable-objc-attr-requires-foundation-module $( [ "$m" = SwiftUI ] || [ "$m" = StoreKit ] && echo -enable-library-evolution ) \
     -emit-module -emit-module-path "$SDK/usr/lib/swift/$m.swiftmodule/x86_64-apple-ios-simulator.swiftmodule" \
     -wmo -c "${srcs[@]}" -o "$OBJ/$m.o"
   ld64.lld -arch x86_64 -platform_version ios-simulator 15.0 0 -dylib -install_name "/usr/lib/swift/libswift$m.dylib" \

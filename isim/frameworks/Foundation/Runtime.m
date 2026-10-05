@@ -4,6 +4,7 @@
 #include <objc/isim_internal.h>
 #include <dlfcn.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -523,8 +524,38 @@ const char *isim_process_name(void) {
 - (NSTimeInterval)systemUptime { return mono_now(); }
 @end
 
-@implementation NSUserDefaults { NSMutableDictionary *_d; NSString *_file; }
-+ (NSUserDefaults *)standardUserDefaults { static NSUserDefaults *u; static dispatch_once_t o; dispatch_once(&o, ^{ u = [NSUserDefaults new]; }); return u; }
+/* System-wide preferences (the global domain, ".GlobalPreferences"): written by the Settings app,
+ * read by every app (languages, region, appearance, keyboards, ...). Environment variables win. */
+NSString *const NSGlobalDomain = @"NSGlobalDomain";
+extern NSString *isim_data_dir(void);
+static NSString *global_prefs_path(void) {
+    return [isim_data_dir() stringByAppendingPathComponent:@"Library/Preferences/.GlobalPreferences.plist"];
+}
+NSDictionary *isim_global_preferences(void) {
+    static NSDictionary *cache; static struct timespec mtime; static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
+    struct stat st;
+    pthread_mutex_lock(&lk);
+    if (stat(global_prefs_path().UTF8String, &st) != 0) { cache = @{}; mtime = (struct timespec){ 0, 0 }; }
+    else if (!cache || st.st_mtimespec.tv_sec != mtime.tv_sec || st.st_mtimespec.tv_nsec != mtime.tv_nsec) {
+        cache = [NSDictionary dictionaryWithContentsOfFile:global_prefs_path()] ?: @{};
+        mtime = st.st_mtimespec;
+    }
+    NSDictionary *d = cache;
+    pthread_mutex_unlock(&lk);
+    return d;
+}
+static void mkdir_p(NSString *dir) {
+    char buf[4096]; snprintf(buf, sizeof buf, "%s", dir.UTF8String);
+    for (char *p = buf + 1; *p; p++) if (*p == '/') { *p = 0; mkdir(buf, 0755); *p = '/'; }
+    mkdir(buf, 0755);
+}
+
+@implementation NSUserDefaults { NSMutableDictionary *_d; NSString *_file; BOOL _global, _standard; }
++ (NSUserDefaults *)standardUserDefaults {
+    static NSUserDefaults *u; static dispatch_once_t o;
+    dispatch_once(&o, ^{ u = [NSUserDefaults new]; u->_standard = YES; });
+    return u;
+}
 - (instancetype)init {
     if ((self = [super init])) {
         NSString *ident = NSBundle.mainBundle.bundleIdentifier ?: @(isim_process_name());
@@ -533,10 +564,32 @@ const char *isim_process_name(void) {
     }
     return self;
 }
-- (void)_save { [isim_plist_xml(_d) writeToFile:_file atomically:YES encoding:NSUTF8StringEncoding error:NULL]; }
-- (id)objectForKey:(NSString *)k { @synchronized (self) { return _d[k]; } }
-- (void)setObject:(id)v forKey:(NSString *)k { @synchronized (self) { _d[k] = v; [self _save]; } }
+/* suites: ".GlobalPreferences" / NSGlobalDomain is the system domain; other names are shared (app group) domains */
+- (instancetype)initWithSuiteName:(NSString *)suite {
+    if (!suite.length || [suite isEqualToString:NSBundle.mainBundle.bundleIdentifier]) return [self init];
+    if ((self = [super init])) {
+        _global = [suite isEqualToString:@".GlobalPreferences"] || [suite isEqualToString:NSGlobalDomain];
+        _file = _global ? global_prefs_path()
+                        : [NSString stringWithFormat:@"%@/Shared/AppGroup/%@/Library/Preferences/%@.plist", isim_data_dir(), suite, suite];
+        mkdir_p(_file.stringByDeletingLastPathComponent);
+        _d = [[NSDictionary dictionaryWithContentsOfFile:_file] mutableCopy] ?: [NSMutableDictionary dictionary];
+    }
+    return self;
+}
+- (void)_save {
+    [isim_plist_xml(_d) writeToFile:_file atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    if (_global) dispatch_async(dispatch_get_main_queue(), ^{
+        [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimGlobalPreferencesChanged" object:nil];
+    });
+}
+- (id)objectForKey:(NSString *)k {
+    id v; @synchronized (self) { v = _d[k]; }
+    if (!v && _standard) v = isim_global_preferences()[k];        /* search list: app domain, then global domain */
+    return v;
+}
+- (void)setObject:(id)v forKey:(NSString *)k { @synchronized (self) { if (v) _d[k] = v; else [_d removeObjectForKey:k]; [self _save]; } }
 - (void)removeObjectForKey:(NSString *)k { @synchronized (self) { [_d removeObjectForKey:k]; [self _save]; } }
+- (NSDictionary *)dictionaryRepresentation { @synchronized (self) { return [_d copy]; } }
 - (NSInteger)integerForKey:(NSString *)k { return [[self objectForKey:k] integerValue]; }
 - (void)setInteger:(NSInteger)v forKey:(NSString *)k { [self setObject:@(v) forKey:k]; }
 - (BOOL)boolForKey:(NSString *)k { return [[self objectForKey:k] boolValue]; }

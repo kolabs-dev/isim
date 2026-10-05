@@ -5,6 +5,7 @@
 #import <Foundation/Foundation.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -105,11 +106,22 @@ static void mkdirs(NSString *path) {
     for (char *p = buf + 1; *p; p++) if (*p == '/') { *p = 0; mkdir(buf, 0755); *p = '/'; }
     mkdir(buf, 0755);
 }
+/* isim's device data: ISIM_DATA or ~/.local/share/isim (installed apps, app containers, system preferences) */
+NSString *isim_data_dir(void) {
+    const char *d = getenv("ISIM_DATA");
+    if (d && *d) return @(d);
+    const char *h = getenv("HOME");
+    return [@(h && *h ? h : "/tmp") stringByAppendingPathComponent:@".local/share/isim"];
+}
 NSString *NSHomeDirectory(void) {
     static NSString *home;
     if (!home) {
         const char *h = getenv("ISIM_HOME");
-        home = h && *h ? @(h) : [NSTemporaryDirectory_isim() stringByAppendingPathComponent:@"isim-app-home"];
+        if (h && *h) home = @(h);
+        else if (getenv("ISIM_CLIENT_SOCK") || getenv("ISIM_DATA")) {      /* under the shell: one container per app, like iOS */
+            NSString *ident = NSBundle.mainBundle.bundleIdentifier ?: @"unknown";
+            home = [[isim_data_dir() stringByAppendingPathComponent:@"Containers"] stringByAppendingPathComponent:ident];
+        } else home = [NSTemporaryDirectory_isim() stringByAppendingPathComponent:@"isim-app-home"];
         for (NSString *sub in @[@"Documents", @"Library/Preferences", @"Library/Caches", @"Library/Application Support", @"tmp"])
             mkdirs([home stringByAppendingPathComponent:sub]);
     }
@@ -141,7 +153,28 @@ NSArray<NSString *> *NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory d
     if (inter) mkdirs(p); else mkdir(p.UTF8String, 0755);
     return access(p.UTF8String, F_OK) == 0;
 }
-- (BOOL)removeItemAtPath:(NSString *)p error:(id *)err { return unlink(p.UTF8String) == 0 || rmdir(p.UTF8String) == 0; }
+static BOOL remove_tree(const char *path) {
+    struct stat st;
+    if (lstat(path, &st) != 0) return NO;
+    if (S_ISDIR(st.st_mode)) {
+        DIR *d = opendir(path);
+        if (d) {
+            for (struct dirent *e; (e = readdir(d));) {
+                if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+                char child[4096]; snprintf(child, sizeof child, "%s/%s", path, e->d_name);
+                remove_tree(child);
+            }
+            closedir(d);
+        }
+        return rmdir(path) == 0;
+    }
+    return unlink(path) == 0;
+}
+- (BOOL)removeItemAtPath:(NSString *)p error:(NSError **)err {
+    if (remove_tree(p.UTF8String)) return YES;
+    if (err) *err = [NSError errorWithDomain:NSCocoaErrorDomain code:4 userInfo:@{ @"NSFilePath": p ?: @"" }];
+    return NO;
+}
 - (NSArray<NSString *> *)contentsOfDirectoryAtPath:(NSString *)p error:(id *)err {
     DIR *d = opendir(p.UTF8String);
     if (!d) { if (err) *err = [NSError errorWithDomain:@"NSCocoaErrorDomain" code:260 userInfo:@{ @"NSFilePath": p ?: @"" }]; return nil; }
