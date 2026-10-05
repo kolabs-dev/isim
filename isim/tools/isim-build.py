@@ -11,6 +11,9 @@ What it does per target (dependencies first):
     .xcassets -> <bundle>/isim-assets.json + images (isim's asset format; NOT Apple's Assets.car),
     .xcprivacy and other files copied
   * embeds app extensions into <App>.app/PlugIns/
+  * Swift packages: local packages are built from source (targets as modules, manifest read with
+    `swift package dump-package`); remote packages are NOT fetched -- a remote product builds only
+    if isim ships a declared stand-in for it (usr/share/isim/package-standins.json), and the log says so
 
 It never writes Xcode/SDK identity keys (DTXcode, DTSDKName, ...): products are honest isim builds.
 """
@@ -28,6 +31,7 @@ from xcodeproj import Project, expand  # noqa: E402
 
 BIN = os.path.dirname(os.path.realpath(__file__))
 ISIM = os.path.join(BIN, 'isim')
+SDK = os.environ.get('ISIM_SDK') or os.path.normpath(os.path.join(BIN, '..', 'sdk'))
 
 
 def log(msg):
@@ -135,6 +139,92 @@ def copy_resource(path, bundle):
         shutil.copy2(path, dst_dir)
 
 
+# ---------------- Swift packages ----------------
+def dump_package(path, cache_dir):
+    """Package.swift -> manifest JSON (evaluated by SwiftPM in the swift:6.2 container; cached)."""
+    os.makedirs(cache_dir, exist_ok=True)
+    cache = os.path.join(cache_dir, re.sub(r'[^A-Za-z0-9]', '_', path) + '.json')
+    manifest = os.path.join(path, 'Package.swift')
+    if os.path.exists(cache) and os.path.getmtime(cache) >= os.path.getmtime(manifest):
+        with open(cache) as f:
+            return json.load(f)
+    r = subprocess.run(['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
+                        '--mount', f'type=bind,src={path},dst={path},readonly', '-w', '/tmp', 'swift:6.2',
+                        'swift', 'package', '--package-path', path, '--scratch-path', '/tmp/spm', 'dump-package'],
+                       capture_output=True, text=True)
+    if r.returncode:
+        sys.exit(f'isim build: cannot read {manifest}:\n{r.stderr}')
+    with open(cache, 'w') as f:
+        f.write(r.stdout)
+    return json.loads(r.stdout)
+
+
+def load_standins():
+    path = os.path.join(SDK, 'usr', 'share', 'isim', 'package-standins.json')
+    if not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        return {k.lower().rstrip('/').removesuffix('.git'): v for k, v in json.load(f).items()}
+
+
+def build_package_product(project, product, ref, objdir, built):
+    """Builds a package product's targets as Swift modules into objdir/modules. Returns object files."""
+    isa = ref.get('isa') if ref else 'XCLocalSwiftPackageReference'
+    if isa == 'XCRemoteSwiftPackageReference':
+        url = ref.get('repositoryURL', '').lower().rstrip('/').removesuffix('.git')
+        standin = load_standins().get(url)
+        if not standin or product not in standin.get('products', {}):
+            sys.exit(f'isim build: remote package product {product!r} ({ref.get("repositoryURL")}) is not available: '
+                     'isim does not fetch or run binary SDKs, and has no stand-in for it')
+        log(f'{product}: isim stand-in ({standin.get("kind", "stub")}): {standin.get("note", "")}')
+        return []
+    if ref is None:                                 # product of a local package: find the package that has it
+        refs = [project.objects[r] for r in project.project.get('packageReferences', [])
+                if project.objects[r].get('isa') == 'XCLocalSwiftPackageReference']
+    else:
+        refs = [ref]
+    for r in refs:
+        pkg_path = os.path.normpath(os.path.join(project.root, r.get('relativePath', '')))
+        m = dump_package(pkg_path, os.path.join(objdir, '..', 'packages'))
+        prod = next((p for p in m.get('products', []) if p['name'] == product), None)
+        if not prod:
+            continue
+        version = m.get('toolsVersion', {}).get('_version', '5.9')
+        swift_version = '6' if int(version.split('.')[0]) >= 6 else '5'
+        targets = {t['name']: t for t in m.get('targets', [])}
+        objs = []
+
+        def build(tname):
+            if tname in built:
+                return
+            built[tname] = True
+            t = targets[tname]
+            for d in t.get('dependencies', []):
+                name = (d.get('byName') or d.get('target') or [None])[0]
+                if name in targets:
+                    build(name)
+                elif d.get('product'):
+                    sys.exit(f'isim build: {tname}: dependencies on other packages are not supported yet')
+            if t.get('resources'):
+                log(f'{tname}: package resources are not copied yet (Bundle.module unavailable)')
+            src = os.path.join(pkg_path, t.get('path') or os.path.join('Sources', tname))
+            files = sorted(os.path.join(dp, f) for dp, _, fs in os.walk(src) for f in fs if f.endswith('.swift'))
+            if not files:
+                sys.exit(f'isim build: {tname}: only Swift package targets are supported so far')
+            mdir = os.path.join(objdir, 'modules')
+            os.makedirs(mdir, exist_ok=True)
+            obj = os.path.join(objdir, f'pkg-{tname}.o')
+            log(f'{product}: package target {tname} ({len(files)} Swift files)')
+            run([ISIM, 'swiftc', '-parse-as-library', '-module-name', tname, '-swift-version', swift_version,
+                 '-D', 'SWIFT_PACKAGE', '-I', mdir, '-emit-module', '-emit-module-path', os.path.join(mdir, tname + '.swiftmodule'),
+                 '-wmo', '-c', '-o', obj] + files)
+            objs.append(obj)
+        for tname in prod['targets']:
+            build(tname)
+        return objs
+    sys.exit(f'isim build: package product {product!r} not found in the local packages')
+
+
 # ---------------- Info.plist ----------------
 def make_info_plist(target, settings, bundle, extra_localizations):
     src = settings.get('INFOPLIST_FILE')
@@ -211,9 +301,12 @@ def build_target(project, name, configuration, outdir, built):
     swift = [f for f in sources if f.endswith('.swift')]
     other = [f for f in sources if f.endswith(('.m', '.mm', '.c', '.cpp'))]
     objs = []
+    pkg_built = {}
+    for product, ref in target.package_products():
+        objs += build_package_product(project, product, ref, objdir, pkg_built)
     if swift:
         obj = os.path.join(objdir, f'{s["PRODUCT_MODULE_NAME"]}.o')
-        cmd = [ISIM, 'swiftc', '-module-name', s['PRODUCT_MODULE_NAME'], '-wmo', '-c', '-o', obj]
+        cmd = [ISIM, 'swiftc', '-module-name', s['PRODUCT_MODULE_NAME'], '-wmo', '-c', '-o', obj, '-I', os.path.join(objdir, 'modules')]
         if not any(os.path.basename(f) == 'main.swift' for f in swift):
             cmd.append('-parse-as-library')                     # Xcode does the same when there is no main.swift
         sv = str(s.get('SWIFT_VERSION', '5')).split('.')[0]
@@ -232,8 +325,11 @@ def build_target(project, name, configuration, outdir, built):
         objs.append(obj)
     exe = os.path.join(bundle, s['EXECUTABLE_NAME'])
     link = [ISIM, 'cc'] + objs + ['-o', exe, '-framework', 'Foundation', '-framework', 'UIKit']
+    products = {p for p, _ in target.package_products()}
     for fw in target.frameworks():
         n = fw.replace('.framework', '')
+        if n in products or not n:
+            continue
         if n not in ('Foundation', 'UIKit'):
             link += ['-framework', n]
     if ext == '.appex':

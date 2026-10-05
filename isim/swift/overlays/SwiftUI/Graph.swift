@@ -40,7 +40,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var pendingURLs: [URL] = []
     func installURLObserver() {
         if urlObserver == nil {
-            urlObserver = NotificationCenter.default.addObserver(forName: "_IsimOpenURL", object: nil, queue: nil, using: { [weak self] (n: NSNotification) in
+            urlObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimOpenURL"), object: nil, queue: nil, using: { [weak self] (n: NSNotification) in
                 guard let url = n.object as? NSURL else { return }
                 let u = url as URL
                 MainActor.assumeIsolated {

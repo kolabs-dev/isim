@@ -2,7 +2,7 @@
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSDictionary<KeyType, ObjectType>, NSOperationQueue;
-typedef NSString *NSNotificationName;
+typedef NSString *NSNotificationName NS_TYPED_EXTENSIBLE_ENUM;
 @interface NSNotification : NSObject <NSCopying>
 @property (readonly, copy) NSNotificationName name;
 @property (nullable, readonly, retain) id object;

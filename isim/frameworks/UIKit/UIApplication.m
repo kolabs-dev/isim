@@ -87,6 +87,7 @@
     return self;
 }
 - (instancetype)initWithCoder:(NSCoder *)c { return [self initWithNibName:nil bundle:nil]; }
+- (void)encodeWithCoder:(NSCoder *)c {}   /* isim: archiving is not implemented */
 - (UIView *)view {
     if (!_view) {
         [self loadView];

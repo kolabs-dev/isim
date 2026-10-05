@@ -124,4 +124,8 @@ FOUNDATION_EXPORT void dispatch_source_set_cancel_handler(dispatch_source_t sour
 FOUNDATION_EXPORT void dispatch_group_async(dispatch_group_t group, dispatch_queue_t queue, dispatch_block_t block);
 FOUNDATION_EXPORT void dispatch_group_notify(dispatch_group_t group, dispatch_queue_t queue, dispatch_block_t block);
 #endif
+/* isim: accessors for macro-only values, used by the Swift Dispatch overlay */
+static inline dispatch_queue_t _isim_dispatch_main_queue(void) { return &_dispatch_main_q; }
+static inline dispatch_queue_attr_t _isim_dispatch_concurrent_attr(void) { return DISPATCH_QUEUE_CONCURRENT; }
+static inline dispatch_source_type_t _isim_dispatch_timer_type(void) { return DISPATCH_SOURCE_TYPE_TIMER; }
 __END_DECLS

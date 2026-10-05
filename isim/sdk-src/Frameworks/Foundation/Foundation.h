@@ -24,6 +24,7 @@
 #import <Foundation/NSCharacterSet.h>
 #import <Foundation/NSRunLoop.h>
 #import <Foundation/NSNotification.h>
+#import <Foundation/NSLock.h>
 #import <Foundation/NSProcessInfo.h>
 #import <Foundation/NSUserDefaults.h>
 #include <dispatch/dispatch.h>

@@ -39,7 +39,7 @@ NS_SWIFT_UI_ACTOR
 @property (readonly, nonatomic) CGRect bounds;
 @end
 
-@interface UIView : UIResponder <UITraitEnvironment, UICoordinateSpace>
+@interface UIView : UIResponder <NSCoding, UITraitEnvironment, UICoordinateSpace>
 @property (class, nonatomic, readonly) Class layerClass;
 - (instancetype)initWithFrame:(CGRect)frame NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;

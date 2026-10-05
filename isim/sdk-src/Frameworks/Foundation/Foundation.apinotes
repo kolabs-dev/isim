@@ -52,6 +52,10 @@ Classes:
   SwiftBridge: Foundation.TimeZone
 - Name: NSFileManager
   SwiftName: FileManager
+  Methods:
+  - Selector: 'URLsForDirectory:inDomains:'
+    MethodKind: Instance
+    SwiftName: 'urls(for:in:)'
 - Name: NSThread
   SwiftName: Thread
 - Name: NSOperationQueue
@@ -70,6 +74,8 @@ Classes:
 Typedefs:
 - Name: NSRunLoopMode
   SwiftName: RunLoop.Mode
+- Name: NSNotificationName
+  SwiftName: NSNotification.Name
 Globals:
 - Name: NSDefaultRunLoopMode
   SwiftName: default
@@ -78,3 +84,7 @@ Globals:
 Tags:
 - Name: NSComparisonResult
   SwiftName: ComparisonResult
+- Name: NSSearchPathDirectory
+  SwiftName: FileManager.SearchPathDirectory
+- Name: NSSearchPathDomainMask
+  SwiftName: FileManager.SearchPathDomainMask

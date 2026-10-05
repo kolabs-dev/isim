@@ -95,7 +95,7 @@ case "$cmd" in
       [ -d "$d" ] || continue
       case "$d/" in "$ws"/*) continue ;; esac
       [ -n "${seen[$d]:-}" ] && continue; seen[$d]=1
-      mounts+=(-v "$d:$d:ro")
+      mounts+=(--mount "type=bind,src=$d,dst=$d,readonly")
     done
     run=(docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp "${mounts[@]}" -w "$PWD" swift:6.2 swiftc -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator)
     if [ "${1:-}" = "-embedded" ]; then

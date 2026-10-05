@@ -2,6 +2,14 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: UIViewController
+  Properties:
+  - Name: presentedViewController
+    SwiftName: presentedViewController
+  - Name: presentingViewController
+    SwiftName: presentingViewController
+  - Name: parentViewController
+    SwiftName: parent
 - Name: UIButtonConfiguration
   SwiftName: UIButton.Configuration
   Methods:

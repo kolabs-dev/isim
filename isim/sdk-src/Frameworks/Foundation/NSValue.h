@@ -38,6 +38,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithInteger:(NSInteger)value;
 - (instancetype)initWithDouble:(double)value;
 - (instancetype)initWithBool:(BOOL)value;
+- (instancetype)initWithLongLong:(long long)value;
+- (instancetype)initWithUnsignedLongLong:(unsigned long long)value;
+- (instancetype)initWithUnsignedInteger:(NSUInteger)value;
+- (instancetype)initWithFloat:(float)value;
 @property (readonly) char charValue;
 @property (readonly) unsigned char unsignedCharValue;
 @property (readonly) short shortValue;
@@ -49,6 +53,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) unsigned long long unsignedLongLongValue;
 @property (readonly) float floatValue;
 @property (readonly) double doubleValue;
+@property (readonly) const char *objCType NS_RETURNS_INNER_POINTER;
+@property (readonly) BOOL _isim_isBool;   /* isim-private: created from a BOOL */
 @property (readonly) BOOL boolValue;
 @property (readonly) NSInteger integerValue;
 @property (readonly) NSUInteger unsignedIntegerValue;

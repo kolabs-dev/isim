@@ -183,6 +183,7 @@ ANCHORS(UILayoutGuide)
 + (Class)layerClass { return [CALayer class]; }
 - (instancetype)init { return [self initWithFrame:CGRectZero]; }
 - (instancetype)initWithCoder:(NSCoder *)c { return [self initWithFrame:CGRectZero]; }
+- (void)encodeWithCoder:(NSCoder *)c {}   /* isim: archiving is not implemented */
 - (instancetype)initWithFrame:(CGRect)frame {
     if ((self = [super init])) {
         _frame = frame; _subs = [NSMutableArray array]; _alpha = 1; _userInteractionEnabled = YES; _autoresizesSubviews = YES;

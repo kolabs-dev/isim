@@ -227,6 +227,7 @@ final class _SUIRowControl: UIControl {
         super.init(frame: frame)
         addTarget(self, action: #selector(fire), for: .touchUpInside)
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func fire() { action?() }
     override var isHighlighted: Bool { didSet { backgroundColor = isHighlighted && action != nil ? .systemGray4 : nil } }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -257,6 +258,7 @@ final class _SUIListScroll: UIScrollView, UIScrollViewDelegate {
         })
         observers.append(token)
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     func keyboardChanged(_ end: CGRect) {
         guard let w = window else { return }
         let mine = convert(bounds, to: nil)
@@ -329,6 +331,7 @@ final class _SwitchNode: _Node {
 final class _SUISwitch: UISwitch {
     var binding: Binding<Bool>?
     override init(frame: CGRect) { super.init(frame: frame); addTarget(self, action: #selector(changed), for: .valueChanged) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func changed() { binding?.wrappedValue = isOn }
 }
 
@@ -554,6 +557,7 @@ final class _SUINavBar: UIView {
         back.accessibilityIdentifier = "isim-nav-back"
         addSubview(back)
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     func configure(level: _NavLevel, previousTitle: String?, safeTop: CGFloat, pop: (() -> Void)?) {
         self.level = level
         titleLabel.text = level.title

@@ -92,6 +92,13 @@ def parse_openstep(text):
     return value()
 
 
+SOURCE_EXTS = ('.swift', '.m', '.mm', '.c', '.cpp', '.cc')
+HEADER_EXTS = ('.h', '.hpp', '.pch', '.modulemap')
+FOLDER_RESOURCE_EXTS = ('.xcassets', '.lproj', '.bundle', '.scnassets', '.spriteatlas', '.xcdatamodeld', '.storyboard', '.xib')
+# files Xcode does not copy into the product from a synchronized folder
+NON_RESOURCE_EXTS = ('.entitlements', '.xcconfig', '.storekit', '.xctestplan', '.docc')
+
+
 class Project:
     def __init__(self, xcodeproj):
         self.xcodeproj = os.path.abspath(xcodeproj)
@@ -156,7 +163,45 @@ class Target:
         return out
 
     def sources(self):
-        return [self.p.path_of(ref) for ph in self.phases('PBXSourcesBuildPhase') for ref, _ in self._files(ph)]
+        out = [self.p.path_of(ref) for ph in self.phases('PBXSourcesBuildPhase') for ref, _ in self._files(ph)]
+        return out + [f for f in self.synchronized_files() if f.endswith(SOURCE_EXTS)]
+
+    def synchronized_files(self):
+        """Files of Xcode 16 folder-synchronized groups that belong to this target (membership exceptions
+        removed). Bundle-like folders (.xcassets, .lproj, .bundle, ...) count as one file."""
+        out = []
+        for gid in self.obj.get('fileSystemSynchronizedGroups', []):
+            root = self.p.path_of(gid)
+            excluded = set()
+            for ex in self.p.objects[gid].get('exceptions', []):
+                e = self.p.objects[ex]
+                if e.get('isa') == 'PBXFileSystemSynchronizedBuildFileExceptionSet' and e.get('target') == self.id:
+                    excluded.update(os.path.normpath(os.path.join(root, m)) for m in e.get('membershipExceptions', []))
+            for dirpath, dirnames, filenames in os.walk(root):
+                keep = []
+                for d in sorted(dirnames):
+                    full = os.path.join(dirpath, d)
+                    if d.startswith('.') or full in excluded:
+                        continue
+                    if d.endswith(FOLDER_RESOURCE_EXTS):
+                        out.append(full)
+                    else:
+                        keep.append(d)
+                dirnames[:] = keep
+                for f in sorted(filenames):
+                    full = os.path.join(dirpath, f)
+                    if not f.startswith('.') and full not in excluded and not f.endswith(NON_RESOURCE_EXTS):
+                        out.append(full)
+        return out
+
+    def package_products(self):
+        """Swift package products this target depends on: [(product name, package reference object or None)]."""
+        out = []
+        for pid in self.obj.get('packageProductDependencies', []):
+            dep = self.p.objects[pid]
+            ref = dep.get('package')
+            out.append((dep.get('productName'), self.p.objects[ref] if ref else None))
+        return out
 
     def resources(self):
         out = []
@@ -168,7 +213,7 @@ class Target:
                         out.append(self.p.path_of(child))
                 else:
                     out.append(self.p.path_of(ref))
-        return out
+        return out + [f for f in self.synchronized_files() if not f.endswith(SOURCE_EXTS + HEADER_EXTS)]
 
     def frameworks(self):
         names = []

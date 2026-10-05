@@ -10,7 +10,10 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol NSMutableCopying
 - (id)mutableCopyWithZone:(nullable NSZone *)zone;
 @end
+@class NSCoder;
 @protocol NSCoding
+- (void)encodeWithCoder:(NSCoder *)coder;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder;
 @end
 @protocol NSSecureCoding <NSCoding>
 @end

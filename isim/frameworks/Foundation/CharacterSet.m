@@ -28,6 +28,8 @@
 + (NSCharacterSet *)characterSetWithRange:(NSRange)r { return [self _with:^BOOL(unichar c) { return c >= r.location && c < NSMaxRange(r); }]; }
 - (NSCharacterSet *)invertedSet { BOOL (^t)(unichar) = self.test; return [NSCharacterSet _with:^BOOL(unichar c) { return !t(c); }]; }
 - (BOOL)characterIsMember:(unichar)c { return self.test ? self.test(c) : NO; }
+/* isim: these sets are defined over UTF-16 code units, so supplementary-plane scalars are not members */
+- (BOOL)longCharacterIsMember:(UTF32Char)c { return c <= 0xFFFF ? [self characterIsMember:(unichar)c] : NO; }
 - (id)copyWithZone:(NSZone *)z { return self; }
 @end
 @implementation NSMutableCharacterSet

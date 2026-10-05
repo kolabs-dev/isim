@@ -34,5 +34,8 @@ fi
 if [ -x out/apps/SwiftConcurrencyTest.app/SwiftConcurrencyTest ]; then
   run "swift concurrency (async/await, actors, MainActor)" bash -c 'timeout 60 out/bin/isim run out/apps/SwiftConcurrencyTest.app/SwiftConcurrencyTest | tail -1; exit ${PIPESTATUS[0]}'
 fi
+if [ -x out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest ]; then
+  run "swift libraries (Dispatch, Combine, JSON/Codable, Calendar, ...)" bash -c 'timeout 60 out/bin/isim run out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest | tail -1; exit ${PIPESTATUS[0]}'
+fi
 echo; [ $status = 0 ] && echo "ALL SUITES PASSED" || echo "SOME SUITES FAILED"
 exit $status

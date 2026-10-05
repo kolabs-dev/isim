@@ -5,7 +5,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class UINavigationItem, UIStoryboard, NSBundle;
 typedef NS_ENUM(NSInteger, UIStatusBarStyle) { UIStatusBarStyleDefault = 0, UIStatusBarStyleLightContent = 1, UIStatusBarStyleDarkContent = 3 };
 typedef NS_ENUM(NSInteger, UIModalPresentationStyle) { UIModalPresentationFullScreen = 0, UIModalPresentationPageSheet, UIModalPresentationFormSheet, UIModalPresentationCurrentContext, UIModalPresentationCustom, UIModalPresentationOverFullScreen, UIModalPresentationOverCurrentContext, UIModalPresentationPopover, UIModalPresentationNone = -1, UIModalPresentationAutomatic = -2 };
-@interface UIViewController : UIResponder <UITraitEnvironment>
+@interface UIViewController : UIResponder <NSCoding, UITraitEnvironment>
 - (instancetype)initWithNibName:(nullable NSString *)nibNameOrNil bundle:(nullable NSBundle *)nibBundleOrNil NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 @property (null_resettable, nonatomic, strong) UIView *view;

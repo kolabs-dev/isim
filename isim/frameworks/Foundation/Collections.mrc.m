@@ -59,6 +59,10 @@ NUMU(numberWithUnsignedLongLong:, unsigned long long) NUMI(numberWithInteger:, N
 - (instancetype)initWithInteger:(NSInteger)v { _t = N_INT; _n.i = v; return self; }
 - (instancetype)initWithDouble:(double)v { _t = N_DBL; _n.d = v; return self; }
 - (instancetype)initWithBool:(BOOL)v { _t = N_BOOL; _n.i = v; return self; }
+- (instancetype)initWithLongLong:(long long)v { _t = N_INT; _n.i = v; return self; }
+- (instancetype)initWithUnsignedLongLong:(unsigned long long)v { _t = N_UINT; _n.u = v; return self; }
+- (instancetype)initWithUnsignedInteger:(NSUInteger)v { _t = N_UINT; _n.u = v; return self; }
+- (instancetype)initWithFloat:(float)v { _t = N_DBL; _n.d = v; return self; }
 - (long long)longLongValue { return _t == N_DBL ? (long long)_n.d : _n.i; }
 - (unsigned long long)unsignedLongLongValue { return _t == N_DBL ? (unsigned long long)_n.d : _n.u; }
 - (double)doubleValue { return _t == N_DBL ? _n.d : _t == N_UINT ? (double)_n.u : (double)_n.i; }
@@ -85,6 +89,7 @@ NUMU(numberWithUnsignedLongLong:, unsigned long long) NUMI(numberWithInteger:, N
 }
 - (BOOL)isEqualToNumber:(NSNumber *)o { return [self compare:o] == NSOrderedSame; }
 - (BOOL)_isim_isBool { return _t == N_BOOL; }
+- (const char *)objCType { return _t == N_DBL ? "d" : _t == N_UINT ? "Q" : _t == N_BOOL ? "c" : "q"; }
 - (BOOL)isEqual:(id)o { return [o isKindOfClass:[NSNumber class]] && [self isEqualToNumber:o]; }
 - (NSUInteger)hash { return _t == N_DBL && _n.d != (double)(long long)_n.d ? (NSUInteger)(_n.d * 2654435761.0) : (NSUInteger)[self longLongValue]; }
 - (id)copyWithZone:(NSZone *)z { return [self retain]; }

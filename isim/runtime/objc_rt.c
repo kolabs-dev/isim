@@ -328,6 +328,14 @@ static void realize(Class c) {
     if (name) { *strmap_slot(&classes, name, 1) = c; classify_block_storage(c, name); }
 }
 
+/* Swift classes whose layout is computed at run time (e.g. stored properties of resilient types):
+ * the Swift runtime fills in the instance size and ivar offsets, then hands the class to ObjC. */
+Class _objc_realizeClassFromSwift(Class cls, void *previously) {
+    (void)previously;
+    realize(cls);
+    return cls;
+}
+
 static void attach_category(struct category_t *cat) {
     Class c = cat->cls;
     if (!c) { fprintf(stderr, "isim objc: warning: category %s on missing class ignored\n", cat->name); return; }
@@ -909,7 +917,7 @@ static const struct shim objc_table[] = {
     I(class_getMethodImplementation), I(class_createInstance), I(object_dispose), I(objc_destructInstance),
     I(objc_getProtocol), I(protocol_getName), I(protocol_conformsToProtocol), I(class_conformsToProtocol),
     I(_objc_rootRetain), I(_objc_rootRelease), I(_objc_rootReleaseWasZero), I(_objc_rootRetainCount), I(_objc_rootAutorelease),
-    I(_objc_rootIsDeallocating),
+    I(_objc_rootIsDeallocating), I(_objc_realizeClassFromSwift),
     I(objc_retain), I(objc_release), I(objc_autorelease), I(objc_retainAutorelease), I(objc_retainAutoreleaseReturnValue),
     I(objc_autoreleaseReturnValue), I(objc_retainAutoreleasedReturnValue), I(objc_claimAutoreleasedReturnValue),
     I(objc_unsafeClaimAutoreleasedReturnValue), I(objc_storeStrong), I(objc_retainBlock),

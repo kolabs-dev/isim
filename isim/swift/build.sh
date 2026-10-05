@@ -45,3 +45,7 @@ echo "built ../out/apps/SwiftConcurrencyTest.app"
 mkdir -p ../out/apps/SwiftFoundationTest.app
 ../out/bin/isim cc ../out/swift/foundation-test.o -o ../out/apps/SwiftFoundationTest.app/SwiftFoundationTest
 echo "built ../out/apps/SwiftFoundationTest.app"
+../out/bin/isim swiftc -parse-as-library -c ../tests/swift-libraries/main.swift -o ../out/swift/libraries-test.o
+mkdir -p ../out/apps/SwiftLibrariesTest.app
+../out/bin/isim cc ../out/swift/libraries-test.o -o ../out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest
+echo "built ../out/apps/SwiftLibrariesTest.app"

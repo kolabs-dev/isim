@@ -75,6 +75,7 @@ final class _SUIHostView: UIView {
         graph.hostView = self
         backgroundColor = .systemBackground
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     override func layoutSubviews() {
         super.layoutSubviews()
         graph.render(bounds: bounds, safeArea: safeAreaInsets, traits: traitCollection)
@@ -88,6 +89,7 @@ class _SUIHostingController: UIViewController {
         graph = _Graph(root: root)
         super.init(nibName: nil, bundle: nil)
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     override func loadView() { view = _SUIHostView(graph: graph) }
 }
 
@@ -104,6 +106,7 @@ open class UIHostingController<Content: View>: UIViewController {
         super.init(nibName: nil, bundle: nil)
         box.get = { [unowned self] in self.rootView }
     }
+    public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     open override func loadView() { view = _SUIHostView(graph: graph) }
     public func sizeThatFits(in size: CGSize) -> CGSize { size }
 }

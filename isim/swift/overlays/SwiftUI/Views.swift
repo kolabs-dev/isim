@@ -485,6 +485,7 @@ final class _SUIControl: UIControl {
         super.init(frame: frame)
         addTarget(self, action: #selector(fire), for: .touchUpInside)
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func fire() { action?() }
     override var isHighlighted: Bool { didSet { for s in subviews { s.alpha = isHighlighted ? 0.25 : 1 } } }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -610,6 +611,7 @@ final class _SUITextField: UITextField {
         addTarget(self, action: #selector(began), for: .editingDidBegin)
         addTarget(self, action: #selector(ended), for: .editingDidEnd)
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func changed() { node?.text.wrappedValue = text ?? "" }
     override func insertText(_ t: String) {
         if t == "\n", let n = node, n.axis != .vertical, let g = n.graph, let submit = g.submitAction(for: n.path) { submit(); return }
