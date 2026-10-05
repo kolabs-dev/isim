@@ -1,0 +1,9 @@
+#pragma once
+#define API_AVAILABLE(...)
+#define API_UNAVAILABLE(...)
+#define API_DEPRECATED(...)
+#define API_DEPRECATED_WITH_REPLACEMENT(...)
+#define NS_AVAILABLE_IOS(...)
+#define NS_DEPRECATED_IOS(...)
+#define __IOS_AVAILABLE(...)
+#define __OSX_AVAILABLE(...)

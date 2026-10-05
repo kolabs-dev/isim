@@ -1,0 +1,141 @@
+#pragma once
+#import <UIKit/UIResponder.h>
+#import <UIKit/UIGeometry.h>
+#import <UIKit/UITraitCollection.h>
+#include <CoreGraphics/CGAffineTransform.h>
+NS_ASSUME_NONNULL_BEGIN
+@class NSCoder, UIColor, CALayer, UIWindow, UILayoutGuide, NSLayoutConstraint, NSLayoutXAxisAnchor, NSLayoutYAxisAnchor, NSLayoutDimension, UIGestureRecognizer;
+
+typedef NS_OPTIONS(NSUInteger, UIViewAutoresizing) {
+    UIViewAutoresizingNone = 0, UIViewAutoresizingFlexibleLeftMargin = 1 << 0, UIViewAutoresizingFlexibleWidth = 1 << 1,
+    UIViewAutoresizingFlexibleRightMargin = 1 << 2, UIViewAutoresizingFlexibleTopMargin = 1 << 3,
+    UIViewAutoresizingFlexibleHeight = 1 << 4, UIViewAutoresizingFlexibleBottomMargin = 1 << 5
+};
+typedef NS_ENUM(NSInteger, UIViewContentMode) {
+    UIViewContentModeScaleToFill, UIViewContentModeScaleAspectFit, UIViewContentModeScaleAspectFill, UIViewContentModeRedraw,
+    UIViewContentModeCenter, UIViewContentModeTop, UIViewContentModeBottom, UIViewContentModeLeft, UIViewContentModeRight,
+    UIViewContentModeTopLeft, UIViewContentModeTopRight, UIViewContentModeBottomLeft, UIViewContentModeBottomRight
+};
+typedef NS_OPTIONS(NSUInteger, UIViewAnimationOptions) {
+    UIViewAnimationOptionLayoutSubviews = 1 << 0, UIViewAnimationOptionAllowUserInteraction = 1 << 1,
+    UIViewAnimationOptionBeginFromCurrentState = 1 << 2, UIViewAnimationOptionCurveEaseInOut = 0 << 16,
+    UIViewAnimationOptionCurveEaseIn = 1 << 16, UIViewAnimationOptionCurveEaseOut = 2 << 16, UIViewAnimationOptionCurveLinear = 3 << 16
+};
+typedef NS_ENUM(NSInteger, UILayoutConstraintAxis) { UILayoutConstraintAxisHorizontal = 0, UILayoutConstraintAxisVertical = 1 };
+typedef float UILayoutPriority NS_TYPED_EXTENSIBLE_ENUM;
+static const UILayoutPriority UILayoutPriorityRequired = 1000;
+static const UILayoutPriority UILayoutPriorityDefaultHigh = 750;
+static const UILayoutPriority UILayoutPriorityDefaultLow = 250;
+static const UILayoutPriority UILayoutPriorityFittingSizeLevel = 50;
+UIKIT_EXTERN const CGFloat UIViewNoIntrinsicMetric;
+UIKIT_EXTERN const CGSize UILayoutFittingCompressedSize;
+UIKIT_EXTERN const CGSize UILayoutFittingExpandedSize;
+
+@protocol UICoordinateSpace <NSObject>
+- (CGPoint)convertPoint:(CGPoint)point toCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
+- (CGPoint)convertPoint:(CGPoint)point fromCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
+@property (readonly, nonatomic) CGRect bounds;
+@end
+
+@interface UIView : UIResponder <UITraitEnvironment, UICoordinateSpace>
+@property (class, nonatomic, readonly) Class layerClass;
+- (instancetype)initWithFrame:(CGRect)frame NS_DESIGNATED_INITIALIZER;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
+@property (nonatomic, getter=isUserInteractionEnabled) BOOL userInteractionEnabled;
+@property (nonatomic) NSInteger tag;
+@property (nonatomic, readonly, strong) CALayer *layer;
+@property (nonatomic) CGRect frame;
+@property (nonatomic) CGRect bounds;
+@property (nonatomic) CGPoint center;
+@property (nonatomic) CGAffineTransform transform;
+@property (nonatomic, readonly, nullable) UIView *superview;
+@property (nonatomic, readonly, copy) NSArray<__kindof UIView *> *subviews;
+@property (nonatomic, readonly, nullable) UIWindow *window;
+- (void)removeFromSuperview;
+- (void)insertSubview:(UIView *)view atIndex:(NSInteger)index;
+- (void)exchangeSubviewAtIndex:(NSInteger)index1 withSubviewAtIndex:(NSInteger)index2;
+- (void)addSubview:(UIView *)view;
+- (void)insertSubview:(UIView *)view belowSubview:(UIView *)siblingSubview;
+- (void)insertSubview:(UIView *)view aboveSubview:(UIView *)siblingSubview;
+- (void)bringSubviewToFront:(UIView *)view;
+- (void)sendSubviewToBack:(UIView *)view;
+- (void)didAddSubview:(UIView *)subview;
+- (void)willRemoveSubview:(UIView *)subview;
+- (void)willMoveToSuperview:(nullable UIView *)newSuperview;
+- (void)didMoveToSuperview;
+- (void)willMoveToWindow:(nullable UIWindow *)newWindow;
+- (void)didMoveToWindow;
+- (BOOL)isDescendantOfView:(UIView *)view;
+- (nullable __kindof UIView *)viewWithTag:(NSInteger)tag;
+- (void)setNeedsLayout;
+- (void)layoutIfNeeded;
+- (void)layoutSubviews;
+@property (nonatomic) UIEdgeInsets layoutMargins;
+@property (nonatomic) NSDirectionalEdgeInsets directionalLayoutMargins;
+@property (nonatomic, readonly) UIEdgeInsets safeAreaInsets;
+- (void)safeAreaInsetsDidChange;
+@property (nonatomic, readonly, strong) UILayoutGuide *layoutMarginsGuide;
+@property (nonatomic, readonly, strong) UILayoutGuide *safeAreaLayoutGuide;
+@property (nonatomic, readonly, strong) UILayoutGuide *readableContentGuide;
+- (CGPoint)convertPoint:(CGPoint)point toView:(nullable UIView *)view;
+- (CGPoint)convertPoint:(CGPoint)point fromView:(nullable UIView *)view;
+- (CGRect)convertRect:(CGRect)rect toView:(nullable UIView *)view;
+- (CGRect)convertRect:(CGRect)rect fromView:(nullable UIView *)view;
+@property (nonatomic) BOOL autoresizesSubviews;
+@property (nonatomic) UIViewAutoresizing autoresizingMask;
+- (CGSize)sizeThatFits:(CGSize)size;
+- (void)sizeToFit;
+- (nullable UIView *)hitTest:(CGPoint)point withEvent:(nullable UIEvent *)event;
+- (BOOL)pointInside:(CGPoint)point withEvent:(nullable UIEvent *)event;
+@property (nonatomic, getter=isMultipleTouchEnabled) BOOL multipleTouchEnabled;
+@property (nonatomic, getter=isExclusiveTouch) BOOL exclusiveTouch;
+- (void)drawRect:(CGRect)rect;
+- (void)setNeedsDisplay;
+- (void)setNeedsDisplayInRect:(CGRect)rect;
+@property (nonatomic) BOOL clipsToBounds;
+@property (nonatomic, copy, nullable) UIColor *backgroundColor;
+@property (nonatomic) CGFloat alpha;
+@property (nonatomic, getter=isOpaque) BOOL opaque;
+@property (nonatomic) BOOL clearsContextBeforeDrawing;
+@property (nonatomic, getter=isHidden) BOOL hidden;
+@property (nonatomic) UIViewContentMode contentMode;
+@property (null_resettable, nonatomic, strong) UIColor *tintColor;
+- (void)tintColorDidChange;
+@property (nonatomic) UIUserInterfaceStyle overrideUserInterfaceStyle;
+@property (nonatomic, readonly) UITraitCollection *traitCollection;
+- (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;
+/* Auto Layout */
+@property (nonatomic, readonly) NSArray<__kindof NSLayoutConstraint *> *constraints;
+- (void)addConstraint:(NSLayoutConstraint *)constraint;
+- (void)addConstraints:(NSArray<__kindof NSLayoutConstraint *> *)constraints;
+- (void)removeConstraint:(NSLayoutConstraint *)constraint;
+- (void)removeConstraints:(NSArray<__kindof NSLayoutConstraint *> *)constraints;
+@property (nonatomic) BOOL translatesAutoresizingMaskIntoConstraints;
+@property (nonatomic, readonly) CGSize intrinsicContentSize;
+- (void)invalidateIntrinsicContentSize;
+- (CGSize)systemLayoutSizeFittingSize:(CGSize)targetSize;
+- (UILayoutPriority)contentHuggingPriorityForAxis:(UILayoutConstraintAxis)axis;
+- (void)setContentHuggingPriority:(UILayoutPriority)priority forAxis:(UILayoutConstraintAxis)axis;
+- (UILayoutPriority)contentCompressionResistancePriorityForAxis:(UILayoutConstraintAxis)axis;
+- (void)setContentCompressionResistancePriority:(UILayoutPriority)priority forAxis:(UILayoutConstraintAxis)axis;
+- (void)setNeedsUpdateConstraints;
+- (void)updateConstraintsIfNeeded;
+- (void)updateConstraints NS_REQUIRES_SUPER;
+- (void)addLayoutGuide:(UILayoutGuide *)layoutGuide;
+- (void)removeLayoutGuide:(UILayoutGuide *)layoutGuide;
+@property (nonatomic, readonly, copy) NSArray<__kindof UILayoutGuide *> *layoutGuides;
+@property (nonatomic, readonly, strong) NSLayoutXAxisAnchor *leadingAnchor, *trailingAnchor, *leftAnchor, *rightAnchor, *centerXAnchor;
+@property (nonatomic, readonly, strong) NSLayoutYAxisAnchor *topAnchor, *bottomAnchor, *centerYAnchor, *firstBaselineAnchor, *lastBaselineAnchor;
+@property (nonatomic, readonly, strong) NSLayoutDimension *widthAnchor, *heightAnchor;
+/* gestures */
+@property (nullable, nonatomic, copy) NSArray<__kindof UIGestureRecognizer *> *gestureRecognizers;
+- (void)addGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer;
+- (void)removeGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer;
+/* animation (isim: changes apply immediately; completion runs on the next run-loop turn) */
++ (void)animateWithDuration:(NSTimeInterval)duration animations:(void (^)(void))animations;
++ (void)animateWithDuration:(NSTimeInterval)duration animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
++ (void)animateWithDuration:(NSTimeInterval)duration delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
++ (void)animateWithDuration:(NSTimeInterval)duration delay:(NSTimeInterval)delay usingSpringWithDamping:(CGFloat)dampingRatio initialSpringVelocity:(CGFloat)velocity options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
++ (void)performWithoutAnimation:(void (NS_NOESCAPE ^)(void))actionsWithoutAnimation;
+@end
+NS_ASSUME_NONNULL_END

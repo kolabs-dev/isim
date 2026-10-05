@@ -1,0 +1,32 @@
+#pragma once
+/* isim SDK UIKit subset (self-authored; API-compatible names, not Apple's headers).
+ * See docs/compatibility-matrix.md for what is implemented. */
+#import <Foundation/Foundation.h>
+#include <CoreGraphics/CoreGraphics.h>
+#import <UIKit/UIKitDefines.h>
+#import <UIKit/UIGeometry.h>
+#import <UIKit/UIColor.h>
+#import <UIKit/UIFont.h>
+#import <UIKit/CALayer.h>
+#import <UIKit/UIResponder.h>
+#import <UIKit/UIEvent.h>
+#import <UIKit/UITouch.h>
+#import <UIKit/UITraitCollection.h>
+#import <UIKit/UIView.h>
+#import <UIKit/UILayoutGuide.h>
+#import <UIKit/NSLayoutConstraint.h>
+#import <UIKit/NSLayoutAnchor.h>
+#import <UIKit/UIScreen.h>
+#import <UIKit/UIWindow.h>
+#import <UIKit/UIViewController.h>
+#import <UIKit/UILabel.h>
+#import <UIKit/UIControl.h>
+#import <UIKit/UIButton.h>
+#import <UIKit/UISwitch.h>
+#import <UIKit/UIStackView.h>
+#import <UIKit/UIImage.h>
+#import <UIKit/UIGraphics.h>
+#import <UIKit/UIBezierPath.h>
+#import <UIKit/UIGestureRecognizer.h>
+#import <UIKit/UIApplication.h>
+#import <UIKit/UIScene.h>

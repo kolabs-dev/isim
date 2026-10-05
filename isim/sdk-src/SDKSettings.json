@@ -1,0 +1,9 @@
+{
+  "CanonicalName": "isim-iphonesimulator",
+  "DisplayName": "isim iOS Simulator SDK (self-authored; NOT an Apple SDK)",
+  "Version": "0.0",
+  "IsBaseSDK": "YES",
+  "DefaultDeploymentTarget": "15.0",
+  "MaximumDeploymentTarget": "99.0",
+  "SupportedTargets": { "iphonesimulator": { "Archs": ["x86_64"], "MinimumDeploymentTarget": "13.0", "PlatformFamilyName": "iOS", "LLVMTargetTripleVendor": "apple", "LLVMTargetTripleSys": "ios", "LLVMTargetTripleEnvironment": "simulator" } }
+}

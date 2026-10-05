@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# isim — iOS simulator for Linux (research prototype).
+#   isim run <App.app> [--device iphone15|iphonese|ipad] [--zoom N] [--dark] [--headless --script "..."]
+#   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
+#   isim info <App.app|binary>   show Mach-O platform / dependencies
+set -euo pipefail
+BIN=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
+SDK=${ISIM_SDK:-$BIN/../sdk}
+cmd=${1:-help}; shift || true
+case "$cmd" in
+  run)
+    app=${1:?usage: isim run <App.app>}; shift
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --device) export ISIM_DEVICE=$2; shift 2 ;;
+        --zoom) export ISIM_ZOOM=$2; shift 2 ;;
+        --dark) export ISIM_APPEARANCE=dark; shift ;;
+        --headless) export ISIM_HEADLESS=1; shift ;;
+        --script) export ISIM_SCRIPT=$2; shift 2 ;;
+        *) break ;;
+      esac
+    done
+    exe=$app
+    if [ -d "$app" ]; then
+      name=$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$app/Info.plist")
+      exe=$app/$name
+    fi
+    exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
+  cc)
+    exec "${CLANG:-clang}" -target x86_64-apple-ios15.0-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc "$@" ;;
+  info)
+    f=${1:?usage: isim info <App.app|binary>}
+    [ -d "$f" ] && f=$f/$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$f/Info.plist")
+    llvm-objdump --macho --private-headers "$f" | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos|sdk'
+    llvm-otool -L "$f" | tail -n +2 ;;
+  *) sed -n '2,6p' "$0" ;;
+esac

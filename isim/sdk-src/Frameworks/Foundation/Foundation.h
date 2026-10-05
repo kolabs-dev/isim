@@ -1,0 +1,20 @@
+#pragma once
+/* isim SDK Foundation subset (self-authored; API-compatible names, not Apple's headers). */
+#include <Foundation/NSObjCRuntime.h>
+#import <Foundation/NSObject.h>
+#import <Foundation/NSString.h>
+#import <Foundation/NSValue.h>
+#import <Foundation/NSArray.h>
+#import <Foundation/NSDictionary.h>
+#import <Foundation/NSSet.h>
+#import <Foundation/NSNull.h>
+#import <Foundation/NSException.h>
+#import <Foundation/NSAutoreleasePool.h>
+#import <Foundation/NSBundle.h>
+#import <Foundation/NSDate.h>
+#import <Foundation/NSTimer.h>
+#import <Foundation/NSRunLoop.h>
+#import <Foundation/NSNotification.h>
+#import <Foundation/NSProcessInfo.h>
+#import <Foundation/NSUserDefaults.h>
+#include <Foundation/dispatch.h>

@@ -1,0 +1,45 @@
+#pragma once
+#import <UIKit/UIResponder.h>
+NS_ASSUME_NONNULL_BEGIN
+@class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent;
+typedef NS_ENUM(NSInteger, UIApplicationState) { UIApplicationStateActive, UIApplicationStateInactive, UIApplicationStateBackground };
+typedef NSString *UIApplicationLaunchOptionsKey NS_TYPED_ENUM;
+typedef NSString *UIApplicationOpenURLOptionsKey NS_TYPED_ENUM;
+UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotification, UIApplicationDidBecomeActiveNotification,
+    UIApplicationWillResignActiveNotification, UIApplicationDidEnterBackgroundNotification,
+    UIApplicationWillEnterForegroundNotification, UIApplicationWillTerminateNotification;
+
+@protocol UIApplicationDelegate <NSObject>
+@optional
+- (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(nullable NSDictionary<UIApplicationLaunchOptionsKey, id> *)launchOptions;
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(nullable NSDictionary<UIApplicationLaunchOptionsKey, id> *)launchOptions;
+- (void)applicationDidFinishLaunching:(UIApplication *)application;
+- (void)applicationDidBecomeActive:(UIApplication *)application;
+- (void)applicationWillResignActive:(UIApplication *)application;
+- (void)applicationDidEnterBackground:(UIApplication *)application;
+- (void)applicationWillEnterForeground:(UIApplication *)application;
+- (void)applicationWillTerminate:(UIApplication *)application;
+- (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
+- (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;
+@property (nullable, nonatomic, strong) UIWindow *window;
+@end
+
+@interface UIApplication : UIResponder
+@property (class, nonatomic, readonly) UIApplication *sharedApplication;
+@property (nullable, nonatomic, assign) id<UIApplicationDelegate> delegate;
+@property (nonatomic, readonly) UIApplicationState applicationState;
+@property (nullable, nonatomic, readonly) UIWindow *keyWindow;
+@property (nonatomic, readonly) NSArray<__kindof UIWindow *> *windows;
+@property (nonatomic, readonly) NSSet<UIScene *> *connectedScenes;
+@property (nonatomic, readonly) NSSet<UISceneSession *> *openSessions;
+@property (nonatomic, readonly) BOOL supportsMultipleScenes;
+@property (nonatomic, getter=isIdleTimerDisabled) BOOL idleTimerDisabled;
+@property (nonatomic) NSInteger applicationIconBadgeNumber;
+- (BOOL)sendAction:(SEL)action to:(nullable id)target from:(nullable id)sender forEvent:(nullable UIEvent *)event;
+- (void)sendEvent:(UIEvent *)event;
+- (void)beginIgnoringInteractionEvents;
+- (void)endIgnoringInteractionEvents;
+@end
+
+UIKIT_EXTERN int UIApplicationMain(int argc, char * _Nullable argv[_Nonnull], NSString * _Nullable principalClassName, NSString * _Nullable delegateClassName);
+NS_ASSUME_NONNULL_END

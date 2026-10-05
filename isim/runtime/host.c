@@ -1,0 +1,339 @@
+/*
+ * libisim_host: the simulator "device" — window, input, software rendering and
+ * system chrome. Guest UIKit calls these isim-private functions (install name
+ * /usr/lib/libisim_host.dylib). Rendering: cairo + pango into an ARGB surface
+ * presented through an SDL3 window surface (no GPU path).
+ *
+ * Environment:
+ *   ISIM_DEVICE    iphone15 (default) | iphonese | ipad
+ *   ISIM_ZOOM      window zoom factor (default 1)
+ *   ISIM_HEADLESS  1 = no window (use with ISIM_SCRIPT)
+ *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
+ */
+#define _GNU_SOURCE
+#include <SDL3/SDL.h>
+#include <cairo.h>
+#include <pango/pangocairo.h>
+#include <libgen.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include "runtime.h"
+
+struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
+struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[32]; };
+enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW };
+
+static struct isim_device dev;
+static double zoom = 1, px_scale = 1;
+static int headless;
+static SDL_Window *win;
+static cairo_surface_t *surf;
+static cairo_t *cr;
+static PangoContext *pctx;
+static int surf_w, surf_h;
+static double t0;
+
+/* ---------------- script ---------------- */
+static char *script, *script_pos;
+static double script_resume;
+static struct isim_event pending[8]; static int npending;
+
+static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
+double isim_time(void) { return now() - t0; }
+
+static void device_from_env(void) {
+    const char *d = getenv("ISIM_DEVICE");
+    if (d && !strcmp(d, "iphonese")) dev = (struct isim_device){ 375, 667, 2, 20, 0, 0, 0, "iPhone SE (3rd generation)" };
+    else if (d && !strcmp(d, "ipad")) dev = (struct isim_device){ 820, 1180, 2, 24, 20, 18, 0, "iPad Air (5th generation)" };
+    else dev = (struct isim_device){ 393, 852, 3, 59, 34, 55, 1, "iPhone 15" };
+    const char *z = getenv("ISIM_ZOOM"); if (z) zoom = atof(z) > 0.1 ? atof(z) : 1;
+}
+
+void isim_device_metrics(struct isim_device *out) { if (!dev.width) device_from_env(); *out = dev; }
+
+static void make_surface(void) {
+    if (cr) { cairo_destroy(cr); cairo_surface_destroy(surf); }
+    surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
+    surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
+    cr = cairo_create(surf);
+    if (!pctx) { pctx = pango_cairo_create_context(cr); pango_cairo_context_set_resolution(pctx, 72); }
+    cairo_font_options_t *fo = cairo_font_options_create();
+    cairo_font_options_set_antialias(fo, CAIRO_ANTIALIAS_GRAY);
+    cairo_font_options_set_hint_style(fo, CAIRO_HINT_STYLE_SLIGHT);
+    pango_cairo_context_set_font_options(pctx, fo);
+    cairo_font_options_destroy(fo);
+}
+
+int isim_display_open(const char *title) {
+    if (!dev.width) device_from_env();
+    t0 = now();
+    headless = getenv("ISIM_HEADLESS") && atoi(getenv("ISIM_HEADLESS"));
+    if (getenv("ISIM_SCRIPT")) { script = strdup(getenv("ISIM_SCRIPT")); script_pos = script; }
+    if (!headless) {
+        if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "isim host: SDL_Init failed: %s (falling back to headless)\n", SDL_GetError()); headless = 1; }
+    }
+    if (!headless) {
+        char t[256]; snprintf(t, sizeof t, "%s — %s (isim)", title ? title : "App", dev.name);
+        win = SDL_CreateWindow(t, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom), SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        if (!win) { fprintf(stderr, "isim host: SDL_CreateWindow failed: %s\n", SDL_GetError()); headless = 1; }
+        else px_scale = SDL_GetWindowPixelDensity(win) * zoom;
+        if (isim_verbose) fprintf(stderr, "isim host: video driver %s, pixel scale %.2f\n", SDL_GetCurrentVideoDriver(), px_scale);
+    }
+    if (headless) px_scale = getenv("ISIM_SHOT_SCALE") ? atof(getenv("ISIM_SHOT_SCALE")) : 2;
+    make_surface();
+    return 0;
+}
+
+/* ---------------- drawing (all coordinates in points) ---------------- */
+void isim_frame_begin(void) {
+    cairo_identity_matrix(cr);
+    cairo_reset_clip(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_paint(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    cairo_scale(cr, px_scale, px_scale);
+}
+void isim_gfx_save(void) { cairo_save(cr); }
+void isim_gfx_restore(void) { cairo_restore(cr); }
+void isim_gfx_translate(double x, double y) { cairo_translate(cr, x, y); }
+void isim_gfx_scale(double sx, double sy) { cairo_scale(cr, sx, sy); }
+
+static void rounded(double x, double y, double w, double h, double r) {
+    if (r <= 0) { cairo_rectangle(cr, x, y, w, h); return; }
+    r = fmin(r, fmin(w, h) / 2);
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, x + w - r, y + r, r, -M_PI / 2, 0);
+    cairo_arc(cr, x + w - r, y + h - r, r, 0, M_PI / 2);
+    cairo_arc(cr, x + r, y + h - r, r, M_PI / 2, M_PI);
+    cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);
+    cairo_close_path(cr);
+}
+void isim_gfx_clip_rounded(double x, double y, double w, double h, double r) { rounded(x, y, w, h, r); cairo_clip(cr); }
+void isim_gfx_fill_rounded(double x, double y, double w, double h, double r, const double *rgba) {
+    rounded(x, y, w, h, r); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
+}
+void isim_gfx_stroke_rounded(double x, double y, double w, double h, double r, double lw, const double *rgba) {
+    rounded(x + lw / 2, y + lw / 2, w - lw, h - lw, r - lw / 2);
+    cairo_set_line_width(cr, lw); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_stroke(cr);
+}
+void isim_gfx_fill_ellipse(double x, double y, double w, double h, const double *rgba) {
+    cairo_save(cr); cairo_translate(cr, x + w / 2, y + h / 2); cairo_scale(cr, w / 2, h / 2);
+    cairo_arc(cr, 0, 0, 1, 0, 2 * M_PI); cairo_restore(cr);
+    cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
+}
+void isim_gfx_push_group(void) { cairo_push_group(cr); }
+void isim_gfx_pop_group(double alpha) { cairo_pop_group_to_source(cr); cairo_paint_with_alpha(cr, alpha); }
+
+/* path API for UIBezierPath / CGContext subset */
+void isim_path_begin(void) { cairo_new_path(cr); }
+void isim_path_move(double x, double y) { cairo_move_to(cr, x, y); }
+void isim_path_line(double x, double y) { cairo_line_to(cr, x, y); }
+void isim_path_curve(double x1, double y1, double x2, double y2, double x, double y) { cairo_curve_to(cr, x1, y1, x2, y2, x, y); }
+void isim_path_arc(double cx, double cy, double r, double a0, double a1, int cw) {
+    if (cw) cairo_arc(cr, cx, cy, r, a0, a1); else cairo_arc_negative(cr, cx, cy, r, a0, a1);
+}
+void isim_path_close(void) { cairo_close_path(cr); }
+void isim_path_rect(double x, double y, double w, double h, double r) { rounded(x, y, w, h, r); }
+void isim_path_fill(const double *rgba) { cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill_preserve(cr); }
+void isim_path_stroke(double lw, const double *rgba) { cairo_set_line_width(cr, lw); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_stroke_preserve(cr); }
+
+/* ---------------- text ---------------- */
+static int pango_weight(double w) {
+    if (w < -0.6) return 100; if (w < -0.3) return 200; if (w < -0.1) return 300; if (w < 0.1) return 400;
+    if (w < 0.26) return 500; if (w < 0.35) return 600; if (w < 0.5) return 700; if (w < 0.6) return 800; return 900;
+}
+static PangoLayout *layout_for(const char *utf8, double size, double weight, int mono, double maxw, int lines, int align) {
+    PangoLayout *l = pango_layout_new(pctx);
+    PangoFontDescription *fd = pango_font_description_new();
+    pango_font_description_set_family(fd, mono ? "Adwaita Mono,Noto Sans Mono,monospace" : "Adwaita Sans,Inter,Noto Sans,sans-serif");
+    pango_font_description_set_absolute_size(fd, size * PANGO_SCALE);
+    pango_font_description_set_weight(fd, pango_weight(weight));
+    pango_layout_set_font_description(l, fd);
+    pango_font_description_free(fd);
+    pango_layout_set_text(l, utf8 ? utf8 : "", -1);
+    if (maxw > 0) { pango_layout_set_width(l, (int)(maxw * PANGO_SCALE)); pango_layout_set_wrap(l, PANGO_WRAP_WORD_CHAR); }
+    if (lines > 0 && maxw > 0) { pango_layout_set_height(l, -lines); pango_layout_set_ellipsize(l, PANGO_ELLIPSIZE_END); }
+    pango_layout_set_alignment(l, align == 1 ? PANGO_ALIGN_CENTER : align == 2 ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT);
+    return l;
+}
+void isim_text_measure(const char *utf8, double size, double weight, int mono, double maxw, int lines, double *w, double *h) {
+    PangoLayout *l = layout_for(utf8, size, weight, mono, maxw, lines, 0);
+    PangoRectangle log; pango_layout_get_extents(l, NULL, &log);
+    *w = ceil((double)log.width / PANGO_SCALE); *h = ceil((double)log.height / PANGO_SCALE);
+    g_object_unref(l);
+}
+void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba) {
+    PangoLayout *l = layout_for(utf8, size, weight, mono, w, lines, align);
+    pango_cairo_update_context(cr, pctx);
+    cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
+    cairo_move_to(cr, x, y);
+    pango_cairo_show_layout(cr, l);
+    g_object_unref(l);
+}
+
+/* ---------------- system chrome (drawn by the "device", not the app) ---------------- */
+static int status_dark_content = 1;
+void isim_set_status_bar_style(int dark_content) { status_dark_content = dark_content; }
+
+static void draw_chrome(void) {
+    double c = status_dark_content ? 0 : 1;
+    double fg[4] = { c, c, c, 1 };
+    time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
+    char clock[16]; snprintf(clock, sizeof clock, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
+    double sb = dev.safe_top >= 44 ? 54 : dev.safe_top;   /* status bar band height */
+    double cy = dev.has_island ? 18 + 11 : sb / 2;          /* text baseline centre */
+    double tw, th; isim_text_measure(clock, 17, 0.3, 0, 0, 1, &tw, &th);
+    isim_text_draw(clock, dev.has_island ? 51 - tw / 2 + 26 : 8, cy - th / 2, 0, 17, 0.3, 0, 0, 1, fg);
+    double rx = dev.width - (dev.has_island ? 34 : 10);
+    /* battery */
+    double bw = 25, bh = 12, bx = rx - bw, by = cy - bh / 2;
+    double dim[4] = { c, c, c, 0.4 };
+    isim_gfx_stroke_rounded(bx, by, bw, bh, 3.5, 1, dim);
+    isim_gfx_fill_rounded(bx + 2, by + 2, (bw - 4) * 0.8, bh - 4, 2, fg);
+    isim_gfx_fill_rounded(bx + bw + 1, by + 4, 1.5, 4, 0.75, dim);
+    /* wifi (three arcs) */
+    double wx = bx - 16, wy = cy + 4.5;
+    cairo_set_source_rgba(cr, c, c, c, 1);
+    for (int i = 0; i < 3; i++) {
+        cairo_new_path(cr);
+        cairo_arc(cr, wx, wy, 3 + i * 3.6, -M_PI * 0.75, -M_PI * 0.25);
+        cairo_set_line_width(cr, 2.0); cairo_stroke(cr);
+    }
+    /* cellular bars */
+    double cx0 = wx - 30;
+    for (int i = 0; i < 4; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
+    if (dev.has_island) { double k[4] = { 0, 0, 0, 1 }; isim_gfx_fill_rounded(dev.width / 2 - 62.5, 11, 125, 37, 18.5, k); }
+    if (dev.safe_bottom > 0) isim_gfx_fill_rounded(dev.width / 2 - 67, dev.height - 8 - 5, 134, 5, 2.5, fg);
+}
+
+static void apply_corner_mask(void) {
+    if (dev.corner_radius <= 0) return;
+    cairo_save(cr);
+    cairo_rectangle(cr, 0, 0, dev.width, dev.height);
+    rounded(0, 0, dev.width, dev.height, dev.corner_radius);
+    cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
+    cairo_set_source_rgb(cr, 0.09, 0.09, 0.1);
+    cairo_fill(cr);
+    cairo_restore(cr);
+}
+
+void isim_frame_end(void) {
+    cairo_identity_matrix(cr); cairo_reset_clip(cr); cairo_scale(cr, px_scale, px_scale);
+    draw_chrome();
+    apply_corner_mask();
+    cairo_surface_flush(surf);
+    if (headless || !win) return;
+    SDL_Surface *ws = SDL_GetWindowSurface(win);
+    if (!ws) return;
+    SDL_Surface *src = SDL_CreateSurfaceFrom(surf_w, surf_h, SDL_PIXELFORMAT_ARGB8888,
+                                             cairo_image_surface_get_data(surf), cairo_image_surface_get_stride(surf));
+    if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
+    else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
+    SDL_DestroySurface(src);
+    SDL_UpdateWindowSurface(win);
+}
+
+static void screenshot(const char *path) {
+    cairo_surface_flush(surf);
+    cairo_status_t st = cairo_surface_write_to_png(surf, path);
+    fprintf(stderr, "isim host: screenshot %s (%dx%d px): %s\n", path, surf_w, surf_h, cairo_status_to_string(st));
+}
+
+/* ---------------- events ---------------- */
+static int script_step(struct isim_event *ev) {
+    if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
+    if (!script_pos) return 0;
+    if (now() < script_resume) return 0;
+    while (*script_pos == ' ' || *script_pos == ';') script_pos++;
+    if (!*script_pos) { script_pos = NULL; return 0; }
+    char cmd[16] = {0}, arg[512] = {0}; double a, b, c, d; int n = 0;
+    sscanf(script_pos, "%15s%n", cmd, &n);
+    char *args = script_pos + n;
+    char *end = strchr(script_pos, ';');
+    script_pos = end ? end + 1 : script_pos + strlen(script_pos);
+    if (!strcmp(cmd, "wait") && sscanf(args, "%lf", &a) == 1) script_resume = now() + a;
+    else if (!strcmp(cmd, "tap") && sscanf(args, "%lf %lf", &a, &b) == 2) {
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = a, .y = b };
+        script_resume = now() + 0.05;
+    } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
+        for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = c, .y = d };
+    } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
+        for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
+        screenshot(arg);
+    } else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
+    else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
+    return script_step(ev);
+}
+
+static int button_down;
+int isim_next_event(struct isim_event *ev, double timeout) {
+    memset(ev, 0, sizeof *ev);
+    double deadline = now() + timeout;
+    for (;;) {
+        if (script_step(ev)) return 1;
+        if (headless || !win) {
+            double left = deadline - now();
+            if (left <= 0) return 0;
+            double step = script_pos && script_resume > now() ? fmin(left, script_resume - now()) : fmin(left, 0.01);
+            struct timespec ts = { 0, (long)(fmax(step, 0.0005) * 1e9) }; nanosleep(&ts, NULL);
+            if (!script_pos && !npending && now() >= deadline) return 0;
+            continue;
+        }
+        SDL_Event e;
+        double left = deadline - now();
+        int wait_ms = left <= 0 ? 0 : (int)(left * 1000);
+        if (script_pos && wait_ms > 10) wait_ms = 10;
+        if (!SDL_WaitEventTimeout(&e, wait_ms)) { if (now() >= deadline) return 0; continue; }
+        ev->timestamp = isim_time();
+        switch (e.type) {
+        case SDL_EVENT_QUIT: case SDL_EVENT_WINDOW_CLOSE_REQUESTED: ev->type = EV_QUIT; return 1;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (e.button.button != SDL_BUTTON_LEFT) break;
+            button_down = 1; ev->type = EV_TOUCH_DOWN; ev->x = e.button.x / zoom; ev->y = e.button.y / zoom; return 1;
+        case SDL_EVENT_MOUSE_MOTION:
+            if (!button_down) break;
+            ev->type = EV_TOUCH_MOVE; ev->x = e.motion.x / zoom; ev->y = e.motion.y / zoom; return 1;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            if (e.button.button != SDL_BUTTON_LEFT || !button_down) break;
+            button_down = 0; ev->type = EV_TOUCH_UP; ev->x = e.button.x / zoom; ev->y = e.button.y / zoom; return 1;
+        case SDL_EVENT_KEY_DOWN:
+            if (e.key.key == SDLK_F12) { screenshot("isim-screenshot.png"); break; }
+            ev->type = EV_KEY; ev->key = (int)e.key.key; ev->mods = e.key.mod; return 1;
+        case SDL_EVENT_TEXT_INPUT:
+            ev->type = EV_TEXT; snprintf(ev->text, sizeof ev->text, "%s", e.text.text); return 1;
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: case SDL_EVENT_WINDOW_EXPOSED:
+            if (e.type != SDL_EVENT_WINDOW_EXPOSED) { px_scale = SDL_GetWindowPixelDensity(win) * zoom; make_surface(); }
+            ev->type = EV_REDRAW; return 1;
+        default: break;
+        }
+    }
+}
+
+void isim_text_input(int on) { if (win) { if (on) SDL_StartTextInput(win); else SDL_StopTextInput(win); } }
+
+/* main bundle path = directory of the main executable */
+const char *isim_bundle_path(void) {
+    static char *p;
+    if (!p) { char *e = strdup(isim_main_executable_path()); p = strdup(dirname(e)); free(e); }
+    return p;
+}
+
+#define H(n) { "_" #n, (void *)n, "isim" }
+static const struct shim isim_table[] = {
+    H(isim_device_metrics), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
+    H(isim_gfx_save), H(isim_gfx_restore), H(isim_gfx_translate), H(isim_gfx_scale), H(isim_gfx_clip_rounded),
+    H(isim_gfx_fill_rounded), H(isim_gfx_stroke_rounded), H(isim_gfx_fill_ellipse), H(isim_gfx_push_group), H(isim_gfx_pop_group),
+    H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
+    H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke),
+    H(isim_text_measure), H(isim_text_draw), H(isim_set_status_bar_style), H(isim_next_event), H(isim_text_input),
+    H(isim_bundle_path),
+};
+const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
