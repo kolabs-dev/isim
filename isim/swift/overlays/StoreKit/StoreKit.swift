@@ -1,12 +1,12 @@
-// isim StoreKit: the App Store review request only (RequestReviewAction / SKStoreReviewController).
-// No App Store connection: isim shows a stand-in rating card (as iOS does for development builds,
-// where the prompt always appears and submitting does nothing) and logs the request.
+// isim StoreKit: the App Store review request (RequestReviewAction / SKStoreReviewController).
+// No App Store connection: isim shows a stand-in rating card and logs the request. Like iOS, the prompt
+// appears at most 3 times in 365 days per app (further requests are ignored); nothing is submitted.
 import UIKit
 import SwiftUI
 
 public struct RequestReviewAction {
     public init() {}
-    @MainActor public func callAsFunction() { _ISIMReviewPrompt.present() }
+    @MainActor public func callAsFunction() { _ISIMReviewPrompt.request() }
 }
 struct _RequestReviewKey: EnvironmentKey { static var defaultValue: RequestReviewAction { RequestReviewAction() } }
 extension EnvironmentValues {
@@ -17,12 +17,26 @@ extension EnvironmentValues {
 }
 
 open class SKStoreReviewController: NSObject {
-    @MainActor public class func requestReview() { _ISIMReviewPrompt.present() }
-    @MainActor public class func requestReview(in windowScene: UIWindowScene) { _ISIMReviewPrompt.present() }
+    @MainActor public class func requestReview() { _ISIMReviewPrompt.request() }
+    @MainActor public class func requestReview(in windowScene: UIWindowScene) { _ISIMReviewPrompt.request() }
 }
 
 @MainActor enum _ISIMReviewPrompt {
     static var window: UIWindow?
+    static let key = "_ISIMStoreKitReviewPrompts"
+    /// iOS shows the prompt at most three times within 365 days.
+    static func request() {
+        let now = Date().timeIntervalSince1970
+        var shown = (UserDefaults.standard.array(forKey: key) as? [Double] ?? []).filter { now - $0 < 365 * 86400 }
+        guard window == nil else { return }
+        guard shown.count < 3 else {
+            NSLog("isim StoreKit: requestReview() ignored: the prompt was already shown 3 times in the last 365 days")
+            return
+        }
+        shown.append(now)
+        UserDefaults.standard.set(shown, forKey: key)
+        present()
+    }
     static func present() {
         let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
             ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "this app"

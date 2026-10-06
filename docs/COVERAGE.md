@@ -68,11 +68,11 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | QuartzCore / Core Animation | 2 | 3 | 0 | 4 | 9 | 39% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
 | SpriteKit | 15 | 17 | 5 | 3 | 40 | 59% |
-| GameKit (Game Center) | 4 | 1 | 3 | 6 | 14 | 32% |
+| GameKit (Game Center) | 10 | 4 | 3 | 1 | 18 | 67% |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 7 | 5 | 1 | 6 | 19 | 50% |
 | AVFoundation & audio | 10 | 11 | 3 | 4 | 28 | 55% |
 | Photos, Vision, Core ML & camera | 0 | 0 | 0 | 7 | 7 | 0% |
-| StoreKit | 8 | 2 | 3 | 8 | 21 | 43% |
+| StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
 | Data & persistence | 2 | 0 | 0 | 4 | 6 | 33% |
 | Identity & security | 4 | 0 | 1 | 5 | 10 | 40% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **411** | **149** | **45** | **208** | **813** | **60%** |
+| **All areas** | **429** | **159** | **42** | **195** | **825** | **62%** |
 
 ---
 
@@ -963,24 +963,30 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 
 ## GameKit (Game Center)
 
-isim's Game Center is local: one player per device, no Apple servers.
+isim's Game Center is local: one player per device, no Apple servers. App Store Connect metadata (titles,
+descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter.json` next to the `.xcodeproj`
+(see [GAMECENTER.md](GAMECENTER.md)); without it titles are derived from identifiers. Tested by `tests/ui/gamecenter.sh`.
 
 | API / feature | Status | Notes |
 |---|---|---|
 | `GKLocalPlayer.local.authenticateHandler` | ✅ | signed-in state from Settings > Game Center; "Welcome back" banner |
 | Player identity (`alias`, `displayName`, `gamePlayerID`, `teamPlayerID`) | ✅ | nickname from Settings |
-| Player photos (`loadPhoto`) | 🧩 | returns "not supported" |
-| Leaderboards: `GKLeaderboard.submitScore`, `loadLeaderboards`, `loadEntries` | 🟡 | stored per app on the device; you are the only entry; titles derived from IDs |
-| Leaderboard sets, recurring leaderboards, leaderboard images | ❌ | |
+| Player photos (`loadPhoto`) | ✅ | generated monogram (initials on a gray circle), like the default Game Center avatar |
+| Leaderboards: `GKLeaderboard.submitScore`, `loadLeaderboards`, `loadEntries` | 🟡 | stored per app on the device; you are the only entry; titles and sort order (high/low) from the configuration |
+| Recurring leaderboards (`type`, `startDate`, `nextStartDate`, `duration`, `loadPreviousOccurrence`) | ✅ | local occurrences from `start` + `duration` in the configuration (any ISO 8601 duration, e.g. PT6S for tests); dashboard shows "resets in" |
+| Leaderboard sets (`GKLeaderboardSet`, `GKGameCenterViewController(leaderboardSetID:)`) | ✅ | from the configuration; shown in the dashboard |
+| Leaderboard / set images (`loadImage`) | 🟡 | image file from the configuration, else a generated placeholder |
 | Achievements: `GKAchievement.report`, `loadAchievements`, `resetAchievements`, completion banner | ✅ | local |
-| `GKAchievementDescription` (titles, images, points) | ❌ | no App Store Connect metadata locally |
-| Dashboard UI (`GKGameCenterViewController`, leaderboards/achievements states) | ✅ | iOS-style SwiftUI dashboard |
-| `GKAccessPoint` | 🧩 | `isVisible` is always false; `trigger` just runs the handler |
-| Friends (`loadFriends`, friend requests) | 🧩 | returns an empty list |
-| Real-time multiplayer (`GKMatchmaker`, `GKMatch`, `GKMatchmakerViewController`) | ❌ | |
-| Turn-based multiplayer (`GKTurnBasedMatch`) | ❌ | |
-| Challenges, invites, activities | ❌ | |
-| Saved games (`GKSavedGame`) | ❌ | |
+| `GKAchievementDescription` (titles, descriptions, points, hidden, images) | ✅ | from the configuration; images: configured file or generated medal; `rarityPercent` is nil |
+| Dashboard UI (`GKGameCenterViewController`, leaderboards/achievements/sets states) | ✅ | iOS-style SwiftUI dashboard; achievement descriptions and points; not-started configured achievements listed, hidden ones hidden |
+| `GKAccessPoint` | ✅ | floating monogram bubble at the configured corner while active and signed in; tapping opens the dashboard; hidden while Game Center UI is shown; `showHighlights` ignored |
+| Friends (`loadFriends`, `loadFriendsAuthorizationStatus`, recent players) | 🧩 | always an empty list (no other players) |
+| Friend requests (`GKFriendRequestComposeViewController`, `presentFriendRequestCreator`) | 🟡 | composer UI works; the request is never sent |
+| Saved games (`saveGameData`, `fetchSavedGames`, `deleteSavedGames`, `resolveConflictingSavedGames`, `GKLocalPlayerListener`) | ✅ | stored in the device data (`Library/GameCenter/<bundle id>`), survives app deletion; conflicts come from `isim gamecenter <app> conflict` (no second device) |
+| Real-time multiplayer (`GKMatchmaker`, `GKMatch`, `GKMatchmakerViewController`) | 🟡 | matchmaker UI shows and cancels; finding players always fails (no other players, no loopback match) |
+| Turn-based multiplayer (`GKTurnBasedMatch`, `GKTurnBasedMatchmakerViewController`) | 🧩 | UI finds nobody; `loadMatches` is empty (unverified) |
+| Challenges, invites | 🧩 | `GKChallenge.loadReceivedChallenges` is empty; invites never arrive (unverified) |
+| Game activities (iOS 26 `GKGameActivity`) | ❌ | |
 
 ## GameController, GameplayKit, SceneKit, RealityKit & ARKit
 
@@ -1061,31 +1067,42 @@ Headless test runs are silent (no audio device); timing, frames and callbacks st
 
 ## StoreKit
 
-Local StoreKit testing, like Xcode's: products come from the project's `.storekit` configuration; nothing is charged.
+Local StoreKit testing, like Xcode's: products come from the project's `.storekit` configuration; nothing is
+charged, nothing reaches Apple, transactions are `.verified` and JWS/receipts are local and **unsigned**.
+The ledger lives in the app container (`Library/isim/StoreKit/ledger.json`); `isim storekit <app> ...` is the
+Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 
 | API / feature | Status | Notes |
 |---|---|---|
-| StoreKit configuration files (`.storekit` selected by the scheme) | ✅ | copied into the bundle by `isim build` |
-| `Product.products(for:)` (id, type, display name, description, price, display price) | ✅ | |
-| `Product.purchase()` with confirmation sheet | ✅ | always succeeds when confirmed; `.pending` never happens |
-| Purchase options (`appAccountToken`, `quantity`) | 🧩 | accepted, ignored |
-| `Transaction.currentEntitlements`, `all`, `latest(for:)`, `currentEntitlement(for:)` | ✅ | persisted in the app container |
-| `Transaction.updates` | 🧩 | always empty (no outside purchases) |
-| `Transaction.finish()` | 🧩 | no-op |
-| `VerificationResult` | ✅ | always `.verified`, as in local testing |
-| `AppStore.sync()` (restore) | 🟡 | no-op; local ledger is already on the device |
+| StoreKit configuration files (`.storekit` selected by the scheme) | ✅ | copied into the bundle by `isim build`; products, subscription groups, offers, `_timeRate`, `_storefront` |
+| `Product.products(for:)` (id, type, display name, description, price, display price) | ✅ | prices shown in USD |
+| `Product.purchase()` with confirmation sheet | ✅ | always succeeds when confirmed; `.pending` (Ask to Buy) never happens; owned non-consumables / current plan show the iOS notice |
+| Purchase options (`appAccountToken`, `quantity`) | ✅ | stored on the transaction |
+| `Transaction.currentEntitlements`, `all`, `latest(for:)`, `currentEntitlement(for:)`, `unfinished` | ✅ | `all` leaves out finished consumables (unless `SKIncludeConsumableInAppPurchaseHistory`) |
+| `Transaction.updates` | ✅ | unfinished transactions at launch, renewals, refunds, offer-code redemptions, Transaction Manager changes |
+| `Transaction.finish()` | ✅ | unfinished transactions are delivered again at the next launch |
+| `VerificationResult` | ✅ | always `.verified`; `jwsRepresentation` is an unsigned local token (`alg: none`) |
+| `AppStore.sync()` (restore) | 🟡 | re-reads the local ledger (no account to sync) |
 | `AppStore.canMakePayments` | ✅ | |
 | Consumables / non-consumables | ✅ | |
-| Auto-renewable subscriptions (`Product.SubscriptionInfo`, status, renewal, groups, expiration) | ❌ | product type exists; no subscription info or expiry |
-| Introductory / promotional / win-back offers, offer codes | ❌ | |
-| Refunds (`beginRefundRequest`), `revocationDate` | 🟡 | `revocationDate` is always nil; refund UI missing |
-| `showManageSubscriptions`, `AppStore.showManageSubscriptions` | ❌ | |
-| StoreKit views (`StoreView`, `ProductView`, `SubscriptionStoreView`) | ❌ | |
-| `AppTransaction` | ❌ | |
-| `SKStoreReviewController.requestReview`, `@Environment(\.requestReview)` | ✅ | development-style rating card; nothing sent |
-| StoreKit 1 (`SKProductsRequest`, `SKPaymentQueue`, `SKPaymentTransactionObserver`) | ❌ | |
-| `SKOverlay`, `SKStoreProductViewController` | ❌ | |
-| Transaction Manager UI (Xcode's debug tools: refund, expire, clear) | ❌ | |
+| Auto-renewable subscriptions: `Product.SubscriptionInfo` (group, period, level, group name) | ✅ | |
+| Subscription status (`status`, `Status.updates`, `RenewalInfo`, `RenewalState`) | ✅ | subscribed / expired / revoked / billing retry; one status per group (no Family Sharing) |
+| Renewals on an accelerated clock | ✅ | Xcode time rate from `.storekit` `_timeRate` (SKTestSession.TimeRate order; mapping unverified against Xcode) or `ISIM_STOREKIT_TIME_RATE` (`month=4`, `renewal=10`, names); renews while the app runs and catches up at launch |
+| Expiration, cancel (auto-renew off), billing issues | 🟡 | expiry and cancel tested; billing retry via `isim storekit billing-issue` unverified; no grace period |
+| Upgrade / downgrade / crossgrade within a group | ✅ | upgrades (and same-period crossgrades) immediate, `isUpgraded` set; downgrades at the next renewal |
+| Introductory offers (free trial, pay as you go, pay up front), `isEligibleForIntroOffer` | ✅ | eligible until the first subscription in the group |
+| Promotional offers (`.promotionalOffer(...)`) | 🟡 | from `.storekit` `adHocOffers`; the signature is not verified locally |
+| Win-back offers (`.winBackOffer`) | 🟡 | from `winbackOffers`; eligible only after a lapsed subscription; no automatic win-back sheet |
+| Offer codes (`presentOfferCodeRedeemSheet`, `offerCodeRedemption`) | 🟡 | redeem sheet; codes are the `.storekit` `codeOffers` reference names / IDs; subscriptions only |
+| Refunds (`beginRefundRequest`, `refundRequestSheet`), `revocationDate` / `revocationReason` | ✅ | refund sheet; local requests are approved at once; revoked transactions arrive in `Transaction.updates` |
+| `showManageSubscriptions`, `manageSubscriptionsSheet` | ✅ | iOS-style sheet: status, change plan, cancel |
+| StoreKit views (`StoreView`, `ProductView`, `SubscriptionStoreView`) | 🟡 | iOS-like look; styles compact/regular/large; `storeButton`, `onInAppPurchaseCompletion/Start`, `subscriptionStatusTask`, `currentEntitlementTask`; custom control styles, policies and promotional icons ignored |
+| `AppTransaction` | 🟡 | local: original app version = CFBundleVersion at first launch on this device; environment `.xcode`; unsigned |
+| `SKStoreReviewController.requestReview`, `@Environment(\.requestReview)` | ✅ | development-style rating card, at most 3 times per 365 days; nothing sent |
+| StoreKit 1 (`SKProductsRequest`, `SKProduct`/`SKProductDiscount`, `SKPaymentQueue`, observers, `finishTransaction`, restore) | ✅ | shares the StoreKit 2 ledger; renewals reach the observer |
+| App receipt (`Bundle.main.appStoreReceiptURL`, `SKReceiptRefreshRequest`) | 🟡 | a local, unsigned JSON summary — not PKCS #7; receipt validation rejects it |
+| `SKOverlay`, `SKStoreProductViewController` | 🟡 | placeholder overlay card / product page (the App Store isn't available) |
+| Transaction Manager (refund, expire, cancel, clear) | ✅ | `isim storekit <app> list\|refund\|expire\|cancel\|resume\|billing-issue\|delete\|clear`; the running app picks changes up within 0.5 s |
 
 ## Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP)
 

@@ -41,6 +41,8 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloCharts.app/HelloCharts ] && run "ui: HelloCharts (Swift Charts marks, axes, legend)" tests/ui/charts.sh
   [ -x out/apps/HelloVideo.app/HelloVideo ] && run "ui: HelloVideo (AVPlayer, AVPlayerLayer, AVKit, VideoPlayer)" tests/ui/video.sh
   [ -x out/apps/HelloAudio.app/HelloAudio ] && run "ui: HelloAudio (speech, effects, recording, MediaPlayer)" tests/ui/audio.sh
+  [ -x out/apps/HelloStore.app/HelloStore ] && run "ui: HelloStore (StoreKit testing: subscriptions, offers, refunds, StoreKit 1)" tests/ui/store.sh
+  [ -x out/apps/HelloGameCenter.app/HelloGameCenter ] && run "ui: HelloGameCenter (local Game Center: config, access point, saved games)" tests/ui/gamecenter.sh
 fi
 if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device shell: home screen + Settings
   run "ui: isim boot (home screen, Settings, multitasking)" tests/ui/boot.sh

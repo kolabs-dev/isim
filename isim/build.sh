@@ -89,7 +89,7 @@ framework UserNotifications frameworks/UserNotifications -framework Foundation -
 
 # install the isim tool
 [ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"
-install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 644 tools/xcodeproj.py "$OUT/bin/xcodeproj.py"
+install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 755 tools/isim-services.py "$OUT/bin/isim-services.py"; install -m 644 tools/xcodeproj.py "$OUT/bin/xcodeproj.py"
 
 step "swift"
 bash swift/build.sh

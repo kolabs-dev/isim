@@ -261,6 +261,21 @@ def storekit_configuration(project, target_name):
     return None
 
 
+def game_center_configuration(project):
+    """isim's local Game Center configuration (leaderboards, sets, achievements; see docs/GAMECENTER.md):
+    an isim-GameCenter.json next to the .xcodeproj or up to two folders below it."""
+    top = os.path.dirname(project.xcodeproj)
+    found = []
+    for dirpath, dirnames, filenames in os.walk(top):
+        rel = os.path.relpath(dirpath, top)
+        depth = 0 if rel == '.' else rel.count(os.sep) + 1
+        dirnames[:] = [] if depth >= 2 else [d for d in dirnames if not d.startswith('.') and not d.endswith(('.xcodeproj', '.xcassets'))
+                                              and d not in ('build', 'DerivedData', 'Pods', 'node_modules')]
+        if 'isim-GameCenter.json' in filenames:
+            found.append((depth, os.path.join(dirpath, 'isim-GameCenter.json')))
+    return min(found)[1] if found else None
+
+
 # ---------------- Info.plist ----------------
 def make_info_plist(target, settings, bundle, extra_localizations):
     src = settings.get('INFOPLIST_FILE')
@@ -403,6 +418,10 @@ def build_target(project, name, configuration, outdir, built):
             with open(os.path.join(bundle, 'Info.plist'), 'wb') as f:
                 plistlib.dump(info, f)
             log(f'{name}: StoreKit local testing with {os.path.basename(sk)} (from the scheme; nothing is charged)')
+        gc = game_center_configuration(project)
+        if gc:
+            shutil.copy2(gc, os.path.join(bundle, 'isim-GameCenter.json'))
+            log(f'{name}: local Game Center configuration {os.path.relpath(gc, os.path.dirname(project.xcodeproj))}')
 
     for spec, emb in target.embedded():
         product_path = build_target(project, emb, configuration, outdir, built)
