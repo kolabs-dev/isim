@@ -591,6 +591,8 @@ static NSString *regex_escape(NSString *s) {
 }
 static int run_swift_testing(swift_testing_entry entry, NSArray<NSString *> *only, NSArray<NSString *> *skip, NSString *bundleBase) {
     NSMutableArray *args = [NSMutableArray arrayWithObject:@"xctest"];
+    const char *par = getenv("ISIM_SWIFT_TESTING_PARALLEL");
+    if (!par || strcmp(par, "1")) [args addObject:@"--no-parallel"];
     for (NSString *o in only) {          /* [Bundle/]Suite/test -> a filter on the test ID */
         NSArray *p = [o componentsSeparatedByString:@"/"];
         if ([p.firstObject isEqualToString:bundleBase]) p = [p subarrayWithRange:NSMakeRange(1, p.count - 1)];
