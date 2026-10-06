@@ -2,6 +2,7 @@
  * process info, user defaults, libdispatch subset. */
 #import <Foundation/Foundation.h>
 #include <objc/isim_internal.h>
+#include <objc/objc-exception.h>
 #include <dlfcn.h>
 #include <pthread.h>
 #include <sys/stat.h>
@@ -29,8 +30,54 @@ NSExceptionName const NSRangeException = @"NSRangeException";
 NSExceptionName const NSInvalidArgumentException = @"NSInvalidArgumentException";
 NSExceptionName const NSInternalInconsistencyException = @"NSInternalInconsistencyException";
 
+@interface NSException () { @public NSArray<NSNumber *> *_isimCallStack; } @end
+/* exception preprocessor (libobjc): records the throw site's return addresses (frame pointer chain) */
+static id isim_exception_preprocessor(id e) {
+    if ([e isKindOfClass:[NSException class]] && !((NSException *)e)->_isimCallStack) {
+        NSMutableArray *a = [NSMutableArray array];
+        void **fp = __builtin_frame_address(0);
+        for (int i = 0; i < 128 && fp && !((uintptr_t)fp & 7); i++) {
+            void **next = fp[0]; void *ret = fp[1];
+            if (!ret) break;
+            [a addObject:@((uintptr_t)ret)];
+            if (next <= fp) break;
+            fp = next;
+        }
+        ((NSException *)e)->_isimCallStack = [a copy];
+    }
+    return e;
+}
+static NSUncaughtExceptionHandler *uncaught_handler;
+NSUncaughtExceptionHandler *NSGetUncaughtExceptionHandler(void) { return uncaught_handler; }
+void NSSetUncaughtExceptionHandler(NSUncaughtExceptionHandler *h) {
+    uncaught_handler = h;
+    objc_setUncaughtExceptionHandler((objc_uncaught_exception_handler)h);
+}
+__attribute__((constructor)) static void isim_install_exception_preprocessor(void) { objc_setExceptionPreprocessor(isim_exception_preprocessor); }
+
 @implementation NSException
 + (NSException *)exceptionWithName:(NSExceptionName)n reason:(NSString *)r userInfo:(NSDictionary *)u { return [[self alloc] initWithName:n reason:r userInfo:u]; }
++ (void)raise:(NSExceptionName)name format:(NSString *)format arguments:(va_list)ap {
+    [[self exceptionWithName:name reason:[[NSString alloc] initWithFormat:format arguments:ap] userInfo:nil] raise];
+    __builtin_unreachable();
+}
+- (NSArray<NSNumber *> *)callStackReturnAddresses { return _isimCallStack ?: @[]; }
+- (NSArray<NSString *> *)callStackSymbols {
+    NSMutableArray *out = [NSMutableArray array];
+    NSUInteger i = 0;
+    for (NSNumber *n in self.callStackReturnAddresses) {
+        Dl_info di; void *pc = (void *)(uintptr_t)n.unsignedLongValue;
+        const char *img = "???", *sym = NULL; uintptr_t off = 0;
+        if (dladdr(pc, &di)) {
+            if (di.dli_fname) { const char *b = strrchr(di.dli_fname, '/'); img = b ? b + 1 : di.dli_fname; }
+            if (di.dli_sname) { sym = di.dli_sname; off = (uintptr_t)pc - (uintptr_t)di.dli_saddr; }
+        }
+        [out addObject:sym ? [NSString stringWithFormat:@"%-3lu %-35s 0x%016lx %s + %lu", (unsigned long)i, img, (unsigned long)(uintptr_t)pc, sym, (unsigned long)off]
+                           : [NSString stringWithFormat:@"%-3lu %-35s 0x%016lx", (unsigned long)i, img, (unsigned long)(uintptr_t)pc]];
+        i++;
+    }
+    return out;
+}
 - (instancetype)initWithName:(NSExceptionName)n reason:(NSString *)r userInfo:(NSDictionary *)u {
     if ((self = [super init])) { _name = [n copy]; _reason = [r copy]; _userInfo = [u copy]; }
     return self;
