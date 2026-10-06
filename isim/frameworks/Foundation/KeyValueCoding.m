@@ -378,6 +378,7 @@ TRAMPOLINE(kvo_set_rect, CGRect)
 TRAMPOLINE(kvo_set_range, NSRange)
 
 static void install_setter_hook(id obj, NSString *key) {
+    if (![[obj class] automaticallyNotifiesObserversForKey:key]) return;   /* the class notifies by hand */
     SEL sel = NSSelectorFromString([NSString stringWithFormat:@"set%@:", cap(key)]);
     Class cls = object_getClass(obj);
     Method m = class_getInstanceMethod(cls, sel);
@@ -460,7 +461,11 @@ static void install_setter_hook(id obj, NSString *key) {
 }
 @end
 @implementation NSObject (NSKeyValueObserverNotification)
-+ (BOOL)automaticallyNotifiesObserversForKey:(NSString *)key { return YES; }
++ (BOOL)automaticallyNotifiesObserversForKey:(NSString *)key {
+    SEL s = NSSelectorFromString([@"automaticallyNotifiesObserversOf" stringByAppendingString:cap(key)]);
+    if ([self respondsToSelector:s]) return ((BOOL (*)(id, SEL))objc_msgSend)(self, s);
+    return YES;
+}
 + (NSSet<NSString *> *)keyPathsForValuesAffectingValueForKey:(NSString *)key {
     SEL s = NSSelectorFromString([@"keyPathsForValuesAffecting" stringByAppendingString:cap(key)]);
     if ([self respondsToSelector:s]) return ((NSSet *(*)(id, SEL))objc_msgSend)(self, s);

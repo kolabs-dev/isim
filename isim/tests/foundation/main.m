@@ -49,6 +49,11 @@ static int initialized;
 @property (nonatomic, strong) Person *friend;
 @end
 @implementation Person
+- (void)encodeWithCoder:(NSCoder *)c { [c encodeObject:_name forKey:@"name"]; [c encodeInteger:_age forKey:@"age"]; [c encodeObject:_friend forKey:@"friend"]; }
+- (instancetype)initWithCoder:(NSCoder *)c {
+    if ((self = [super init])) { _name = [c decodeObjectForKey:@"name"]; _age = [c decodeIntegerForKey:@"age"]; _friend = [c decodeObjectForKey:@"friend"]; }
+    return self;
+}
 @end
 @interface AgeWatcher : NSObject
 @property (nonatomic, strong) NSMutableArray<NSString *> *changes;
@@ -184,6 +189,29 @@ int main(int argc, char *argv[]) {
         CHECK(([[NSPredicate predicateWithFormat:@"SELF MATCHES '[0-9]{3}'"] evaluateWithObject:@"123"] && [[NSPredicate predicateWithFormat:@"%K BETWEEN {20, 40}", @"age"] evaluateWithObject:ada]));
         CHECK([[NSPredicate predicateWithFormat:@"friend.name == 'Bob' && NOT (age < 30)"] evaluateWithObject:ada]);
         CHECK([[NSPredicate predicateWithFormat:@"age == $AGE"] evaluateWithObject:bob substitutionVariables:@{@"AGE": @30}]);
+
+        // data, property lists, keyed archives, UUID, undo
+        NSData *bytes = [@"hello" dataUsingEncoding:NSUTF8StringEncoding];
+        CHECK(bytes.length == 5 && [[bytes base64EncodedStringWithOptions:0] isEqualToString:@"aGVsbG8="] && [[[NSData alloc] initWithBase64EncodedString:@"aGVsbG8=" options:0] isEqualToData:bytes]);
+        CHECK([[[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] isEqualToString:@"hello"]);
+        NSDictionary *plist = @{ @"name": @"isim", @"n": @42, @"pi": @3.5, @"yes": @YES, @"blob": bytes, @"list": @[@1, @"two"], @"when": [NSDate dateWithTimeIntervalSince1970:0] };
+        for (NSNumber *fmtNum in @[@(NSPropertyListBinaryFormat_v1_0), @(NSPropertyListXMLFormat_v1_0)]) {
+            NSError *perr = nil; NSPropertyListFormat got = 0;
+            NSData *pd = [NSPropertyListSerialization dataWithPropertyList:plist format:fmtNum.unsignedIntegerValue options:0 error:&perr];
+            NSDictionary *pback = [NSPropertyListSerialization propertyListWithData:pd options:NSPropertyListImmutable format:&got error:&perr];
+            CHECK(pd && got == fmtNum.unsignedIntegerValue && [pback isEqualToDictionary:plist]);
+        }
+        CHECK([[NSPropertyListSerialization propertyListWithData:[@"{ a = 1; b = (x, \"y z\"); }" dataUsingEncoding:NSUTF8StringEncoding] options:0 format:NULL error:NULL][@"b"] count] == 2);
+        NSDictionary *graph = @{ @"people": people, @"tags": [NSSet setWithObjects:@"a", @"b", nil], @"uuid": [[NSUUID alloc] initWithUUIDString:@"E621E1F8-C36C-495A-93FC-0C247A3E6E5F"] };
+        NSData *archive = [NSKeyedArchiver archivedDataWithRootObject:graph requiringSecureCoding:NO error:NULL];
+        NSDictionary *unarchived = [NSKeyedUnarchiver unarchiveObjectWithData:archive];
+        CHECK([[unarchived[@"people"] valueForKey:@"name"] isEqualToArray:(@[@"Ada L.", @"Bob"])] && [unarchived[@"tags"] count] == 2 && [[unarchived[@"uuid"] UUIDString] isEqualToString:@"E621E1F8-C36C-495A-93FC-0C247A3E6E5F"]);
+        CHECK([[unarchived[@"people"][0] valueForKeyPath:@"friend.name"] isEqualToString:@"Bob"] && [unarchived[@"people"][0] friend] == [unarchived[@"people"] lastObject]);   // shared references survive
+        NSUndoManager *um = [NSUndoManager new]; um.groupsByEvent = NO;
+        NSMutableArray *stack = [NSMutableArray arrayWithObject:@"a"];
+        [um registerUndoWithTarget:stack selector:@selector(removeObject:) object:@"b"]; [stack addObject:@"b"];
+        [um undo];
+        CHECK(stack.count == 1 && !um.canUndo);
 
         // numbers & collections
         NSArray *arr = @[@3, @1, @2];

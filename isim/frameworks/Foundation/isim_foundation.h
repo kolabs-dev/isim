@@ -39,3 +39,12 @@ NSDictionary *isim_global_preferences(void);
 /* regular expressions (Regex.m) */
 NSRange isim_regex_search(NSString *string, NSString *pattern, NSStringCompareOptions mask, NSRange range);
 uint32_t isim_case_map(uint32_t c, int upper);   /* StringExtras.m */
+
+/* property lists (PropertyList.m) */
+@interface _IsimPlistUID : NSObject <NSCopying>
+@property (readonly) uint64_t value;
++ (instancetype)uidWithValue:(uint64_t)value;
+@end
+id isim_plist_read(const void *bytes, NSUInteger len, NSPropertyListReadOptions opts, NSPropertyListFormat *format);
+NSData *isim_plist_binary(id root);
+NSString *isim_plist_write_xml(id root);

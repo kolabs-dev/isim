@@ -37,3 +37,7 @@
 #import <Foundation/NSIndexSet.h>
 #import <Foundation/NSOrderedCollections.h>
 #import <Foundation/NSPredicate.h>
+#import <Foundation/NSData.h>
+#import <Foundation/NSPropertyList.h>
+#import <Foundation/NSUUID.h>
+#import <Foundation/NSUndoManager.h>

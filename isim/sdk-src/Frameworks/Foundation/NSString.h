@@ -5,7 +5,10 @@ NS_ASSUME_NONNULL_BEGIN
 @class NSArray<ObjectType>, NSData;
 typedef unsigned short unichar;
 typedef NSUInteger NSStringEncoding;
-enum { NSASCIIStringEncoding = 1, NSUTF8StringEncoding = 4, NSISOLatin1StringEncoding = 5, NSUTF16StringEncoding = 10 };
+enum { NSASCIIStringEncoding = 1, NSNEXTSTEPStringEncoding = 2, NSJapaneseEUCStringEncoding = 3, NSUTF8StringEncoding = 4, NSISOLatin1StringEncoding = 5,
+       NSNonLossyASCIIStringEncoding = 7, NSUTF16StringEncoding = 10, NSUnicodeStringEncoding = 10, NSWindowsCP1252StringEncoding = 12, NSMacOSRomanStringEncoding = 30,
+       NSUTF16BigEndianStringEncoding = 0x90000100, NSUTF16LittleEndianStringEncoding = 0x94000100, NSUTF32StringEncoding = 0x8c000100,
+       NSUTF32BigEndianStringEncoding = 0x98000100, NSUTF32LittleEndianStringEncoding = 0x9c000100 };
 typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
     NSCaseInsensitiveSearch NS_SWIFT_NAME(caseInsensitive) = 1, NSLiteralSearch NS_SWIFT_NAME(literal) = 2,
     NSBackwardsSearch NS_SWIFT_NAME(backwards) = 4, NSAnchoredSearch NS_SWIFT_NAME(anchored) = 8, NSNumericSearch NS_SWIFT_NAME(numeric) = 64,

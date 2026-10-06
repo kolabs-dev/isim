@@ -37,6 +37,7 @@
 #define NS_SWIFT_NAME(_name) __attribute__((swift_name(#_name)))
 #define NS_SWIFT_UI_ACTOR
 #define NS_REFINED_FOR_SWIFT __attribute__((swift_private))
+#define NS_SWIFT_UNAVAILABLE(_msg) __attribute__((availability(swift, unavailable, message=_msg)))
 #define NS_NOESCAPE __attribute__((noescape))
 #define NS_RETURNS_INNER_POINTER __attribute__((objc_returns_inner_pointer))
 #define NS_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type

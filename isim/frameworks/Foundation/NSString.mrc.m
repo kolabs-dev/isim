@@ -254,7 +254,7 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     return isim_string_copy(bytes, len);
 }
 - (instancetype)initWithCharacters:(const unichar *)c length:(NSUInteger)n { [self release]; NSUInteger ol; char *u = utf16_to_utf8(c, n, &ol); return isim_string_take(u, ol); }
-- (instancetype)initWithData:(NSData *)data encoding:(NSStringEncoding)e { [self release]; return nil; }
+- (instancetype)initWithData:(NSData *)data encoding:(NSStringEncoding)e { return data ? [self initWithBytes:[data bytes] length:[data length] encoding:e] : ([self release], nil); }
 - (instancetype)initWithString:(NSString *)s { NSUInteger n; const char *b = [s _isim_bytes:&n]; return [self initWithBytes:b length:n encoding:NSUTF8StringEncoding]; }
 - (instancetype)initWithUTF8String:(const char *)s { if (!s) { [self release]; return nil; } return [self initWithBytes:s length:strlen(s) encoding:NSUTF8StringEncoding]; }
 - (instancetype)initWithFormat:(NSString *)format, ... {

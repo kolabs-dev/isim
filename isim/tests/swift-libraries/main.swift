@@ -26,6 +26,20 @@ struct Save: Codable, Equatable {
     struct Settings: Codable, Equatable { var sound = true; var mode: Mode = .swipe; var volume = 0.75 }
 }
 
+final class Note: NSObject, NSSecureCoding {
+    static var supportsSecureCoding: Bool { true }
+    let title: String; let tags: [String]; let count: Int
+    init(title: String, tags: [String], count: Int) { self.title = title; self.tags = tags; self.count = count }
+    func encode(with coder: NSCoder) {
+        coder.encode(title, forKey: "title"); coder.encode(tags, forKey: "tags"); coder.encode(count, forKey: "count")
+    }
+    init?(coder: NSCoder) {
+        guard let t = coder.decodeObject(of: NSString.self, forKey: "title") as String?,
+              let tags = coder.decodeArrayOfObjects(ofClass: NSString.self, forKey: "tags") as [String]? else { return nil }
+        title = t; self.tags = tags; count = coder.decodeInteger(forKey: "count")
+    }
+}
+
 @main struct Main {
     static func main() {
         // MARK: Dispatch
@@ -249,6 +263,62 @@ struct Save: Codable, Equatable {
         mf.unitOptions = .providedUnit; mf.unitStyle = .short
         eq(mf.string(from: Measurement(value: 70, unit: UnitMass.kilograms)), "70kg", "MeasurementFormatter short, provided unit")
         check((try? JSONDecoder().decode(Measurement<UnitLength>.self, from: JSONEncoder().encode(run))) == run, "Measurement Codable")
+
+        // MARK: property lists, keyed archives, Data/UUID bridging, UndoManager, Progress
+        do {
+            let enc = PropertyListEncoder()
+            let bin = try enc.encode(save)
+            let binBack = try PropertyListDecoder().decode(Save.self, from: bin)
+            check(bin.starts(with: Array("bplist00".utf8)) && binBack == save, "PropertyListEncoder/Decoder round trip (binary)")
+            enc.outputFormat = .xml
+            let xml = try enc.encode(save)
+            let xmlText = String(data: xml, encoding: .utf8) ?? ""
+            let xmlBack = try PropertyListDecoder().decode(Save.self, from: xml)
+            check(xmlText.contains("<key>level</key>") && xmlText.contains("<integer>7</integer>") && xmlBack == save, "PropertyListEncoder XML")
+            let plist: [String: Any] = ["name": "isim", "n": 42, "pi": 3.5, "ok": true, "when": Date(timeIntervalSince1970: 0), "bytes": Data([1, 2, 3]), "list": ["a", "b"]]
+            let pdata = try PropertyListSerialization.data(fromPropertyList: plist, format: .binary, options: 0)
+            var fmt = PropertyListSerialization.PropertyListFormat.xml
+            let back = try PropertyListSerialization.propertyList(from: pdata, options: [], format: &fmt) as? [String: Any]
+            check(fmt == .binary && back?["n"] as? Int == 42 && back?["ok"] as? Bool == true && back?["bytes"] as? Data == Data([1, 2, 3]) && back?["when"] as? Date == Date(timeIntervalSince1970: 0) && back?["list"] as? [String] == ["a", "b"], "PropertyListSerialization binary round trip")
+        } catch { check(false, "property lists: \(error)") }
+        do {
+            let note = Note(title: "Groceries", tags: ["food", "weekly"], count: 3)
+            let data = try NSKeyedArchiver.archivedData(withRootObject: note, requiringSecureCoding: true)
+            let decoded = try NSKeyedUnarchiver.unarchivedObject(ofClass: Note.self, from: data)
+            check(decoded?.title == "Groceries" && decoded?.tags == ["food", "weekly"] && decoded?.count == 3, "NSKeyedArchiver/NSKeyedUnarchiver with a Swift NSSecureCoding class")
+            let root = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
+            check(root?["$archiver"] as? String == "NSKeyedArchiver" && (root?["$objects"] as? [Any])?.first as? String == "$null", "keyed archive layout ($archiver, $objects)")
+            let arr = try NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSArray.self, NSString.self, NSNumber.self], from: NSKeyedArchiver.archivedData(withRootObject: ["x", 1] as NSArray, requiringSecureCoding: true)) as? [Any]
+            check(arr?.count == 2 && arr?.first as? String == "x", "archive Foundation collections")
+        } catch { check(false, "keyed archiving: \(error)") }
+        let nsData = Data([0xCA, 0xFE]) as NSData
+        check(nsData.length == 2 && (nsData as Data) == Data([0xCA, 0xFE]) && nsData.base64EncodedString() == "yv4=", "Data <-> NSData bridging")
+        let uid = UUID()
+        check(((uid as NSUUID) as UUID) == uid && (uid as NSUUID).uuidString == uid.uuidString, "UUID <-> NSUUID bridging")
+        let undo = UndoManager(); undo.groupsByEvent = false
+        final class Counter { var value = 0 }
+        let counter = Counter()
+        func setValue(_ v: Int) {
+            let old = counter.value; counter.value = v
+            undo.registerUndo(withTarget: counter) { _ in setValue(old) }
+            undo.setActionName("Set \(v)")
+        }
+        setValue(5); setValue(9)
+        check(undo.canUndo && undo.undoActionName == "Set 9", "UndoManager registration (\(undo.undoActionName))")
+        undo.undo()
+        check(counter.value == 5 && undo.canRedo, "UndoManager.undo()")
+        undo.redo()
+        check(counter.value == 9, "UndoManager.redo()")
+        let progress = Progress(totalUnitCount: 10)
+        var fractions: [Double] = []
+        let pobs = progress.observe(\.fractionCompleted, options: [.new]) { p, _ in fractions.append(p.fractionCompleted) }
+        progress.completedUnitCount = 5
+        let child = Progress(totalUnitCount: 2, parent: progress, pendingUnitCount: 4)
+        child.completedUnitCount = 1
+        check(progress.fractionCompleted == 0.7 && fractions.first == 0.5, "Progress + child progress (\(progress.fractionCompleted), \(fractions))")
+        child.completedUnitCount = 2
+        check(progress.completedUnitCount == 9 && progress.localizedDescription == "90% completed", "Progress folds finished children (\(progress.localizedDescription ?? ""))")
+        pobs.invalidate()
 
         // MARK: Timer.publish (needs the main run loop)
         var ticks = 0

@@ -140,13 +140,37 @@ void NSLog(NSString *format, ...) { va_list ap; va_start(ap, format); NSLogv(for
 
 NSString *NSStringFromSelector(SEL s) { return s ? [NSString stringWithUTF8String:sel_getName(s)] : nil; }
 SEL NSSelectorFromString(NSString *s) { return s ? sel_registerName([s UTF8String]) : NULL; }
-NSString *NSStringFromClass(Class c) { return c ? [NSString stringWithUTF8String:class_getName(c)] : nil; }
+/* Swift classes have mangled runtime names ("_TtC4main6Person"); Foundation shows them as "main.Person" */
+static NSString *demangle_swift_class(const char *n) {
+    if (strncmp(n, "_TtC", 4)) return nil;
+    const char *p = n + 4; NSMutableArray *parts = [NSMutableArray array];
+    while (*p >= '0' && *p <= '9') {
+        long len = strtol(p, (char **)&p, 10);
+        if (len <= 0 || (long)strlen(p) < len) return nil;
+        [parts addObject:[[[NSString alloc] initWithBytes:p length:(NSUInteger)len encoding:NSUTF8StringEncoding] autorelease]];
+        p += len;
+        if (*p == 'C') p++;           /* nested class marker */
+    }
+    return *p == 0 && parts.count >= 2 ? [parts componentsJoinedByString:@"."] : nil;
+}
+NSString *NSStringFromClass(Class c) {
+    if (!c) return nil;
+    const char *n = class_getName(c);
+    NSString *d = demangle_swift_class(n);
+    return d ?: [NSString stringWithUTF8String:n];
+}
 Class NSClassFromString(NSString *s) {
     if (!s) return Nil;
     const char *n = [s UTF8String];
-    const char *dot = strrchr(n, '.');          /* "Module.Class" (Swift-style names in Info.plist) */
     Class c = objc_getClass(n);
-    if (!c && dot) c = objc_getClass(dot + 1);
+    if (!c && strchr(n, '.')) {                   /* "Module.Class" -> Swift's mangled name, else the unqualified name */
+        NSArray *parts = [s componentsSeparatedByString:@"."];
+        NSMutableString *m = [NSMutableString stringWithString:@"_TtC"];
+        for (NSUInteger i = 0; i < parts.count; i++) [m appendFormat:@"%s%lu%@", i > 1 ? "C" : "", (unsigned long)[parts[i] length], parts[i]];
+        if (parts.count > 2) { m = [NSMutableString stringWithString:@"_TtC"]; for (NSUInteger i = 0; i < parts.count; i++) { if (i == 1) [m appendString:@""]; [m appendFormat:@"%lu%@", (unsigned long)[parts[i] length], parts[i]]; } [m insertString:[@"" stringByPaddingToLength:parts.count - 2 withString:@"C" startingAtIndex:0] atIndex:4]; }
+        c = objc_getClass([m UTF8String]);
+        if (!c) c = objc_getClass(strrchr(n, '.') + 1);
+    }
     return c;
 }
 NSString *NSStringFromProtocol(Protocol *p) { return [NSString stringWithUTF8String:protocol_getName(p)]; }

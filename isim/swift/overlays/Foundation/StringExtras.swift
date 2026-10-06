@@ -147,3 +147,6 @@ let _isimComposeTable: [String: Unicode.Scalar] = {
     for (k, v) in _isimDecomposeTable { t[v] = k }
     return t
 }()
+
+// like Apple's overlay: print(object) and string interpolation use -description / -debugDescription
+extension NSObject: @retroactive CustomStringConvertible, @retroactive CustomDebugStringConvertible {}

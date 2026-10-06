@@ -64,6 +64,16 @@ Classes:
   SwiftBridge: Foundation.Calendar
 - Name: NSIndexSet
   SwiftBridge: Foundation.IndexSet
+- Name: NSData
+  SwiftBridge: Foundation.Data
+- Name: NSUUID
+  SwiftBridge: Foundation.UUID
+- Name: NSUndoManager
+  SwiftName: UndoManager
+- Name: NSProgress
+  SwiftName: Progress
+- Name: NSPropertyListSerialization
+  SwiftName: PropertyListSerialization
 - Name: NSDateComponents
   SwiftBridge: Foundation.DateComponents
 - Name: NSURL

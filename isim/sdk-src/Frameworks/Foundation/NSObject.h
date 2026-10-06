@@ -17,6 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable instancetype)initWithCoder:(NSCoder *)coder;
 @end
 @protocol NSSecureCoding <NSCoding>
+@required
+@property (class, readonly) BOOL supportsSecureCoding;
 @end
 
 typedef struct {
