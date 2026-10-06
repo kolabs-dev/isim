@@ -170,7 +170,9 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 
 /* ================= navigation items & appearances ================= */
 @implementation UINavigationItem
-- (instancetype)initWithTitle:(NSString *)t { if ((self = [super init])) _title = [t copy]; return self; }
+- (instancetype)init { if ((self = [super init])) _hidesSearchBarWhenScrolling = YES; return self; }
+- (instancetype)initWithTitle:(NSString *)t { if ((self = [self init])) _title = [t copy]; return self; }
+- (void)setSearchController:(UISearchController *)s { _searchController = s; bar_item_changed(self); }
 - (void)setTitle:(NSString *)t { _title = [t copy]; bar_item_changed(self); }
 - (void)setTitleView:(UIView *)v { _titleView = v; bar_item_changed(self); }
 - (void)setPrompt:(NSString *)p { _prompt = [p copy]; bar_item_changed(self); }
@@ -254,7 +256,7 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 @end
 
 @interface UINavigationBar ()
-@property (nonatomic) CGFloat _isim_safeTop, _isim_largeExtra;
+@property (nonatomic) CGFloat _isim_safeTop, _isim_largeExtra, _isim_searchExtra;
 @property (nonatomic) BOOL _isim_scrolledEdge;
 @property (nonatomic, copy) void (^_isim_back)(void);
 @end
@@ -356,6 +358,7 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         _large.frame = CGRectMake(margin, extra - 52, W - 2 * margin, 50);
     }
     [self bringSubviewToFront:_back];
+    [self _isim_placeSearchBarAtY:y + 44 + (large ? extra : 0) visible:self._isim_searchExtra];   /* UISearch.m */
 }
 @end
 
@@ -593,7 +596,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 - (void)setToolbarHidden:(BOOL)h animated:(BOOL)a { _toolbarHidden = h; _toolbar.hidden = h; [self.viewIfLoaded setNeedsLayout]; [self _isim_updateInsets]; }
 
 /* the bar's height below the status bar: 44, plus 52 for a large title */
-- (CGFloat)_isim_barContent { return _navigationBarHidden ? 0 : 44 + ([_bar _isim_topIsLarge] ? 52 : 0); }
+- (CGFloat)_isim_barContent { return (_navigationBarHidden ? 0 : 44 + ([_bar _isim_topIsLarge] ? 52 : 0)) + [self _isim_searchBarHeight]; }
 - (CGFloat)_isim_toolbarContent { return _toolbarHidden ? 0 : 44; }
 - (void)_isim_updateInsets {
     for (UIViewController *vc in _stack) vc.additionalSafeAreaInsets = UIEdgeInsetsMake([self _isim_barContent], 0, [self _isim_toolbarContent], 0);
@@ -618,11 +621,13 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     BOOL large = [_bar _isim_topIsLarge];
     UIScrollView *sv = _tracked;
     CGFloat y = sv ? sv.contentOffset.y + sv.adjustedContentInset.top : 0;   /* 0 = resting at the top */
+    /* a search bar below the title collapses first (hidesSearchBarWhenScrolling), then the large title */
+    CGFloat searchH = [self _isim_searchBarHeight], search = searchH;
+    if (searchH > 0 && self.topViewController.navigationItem.hidesSearchBarWhenScrolling) { search = fmin(searchH, fmax(0, searchH - y)); y = fmax(0, y - searchH); }
     CGFloat extra = large ? fmin(52, fmax(0, 52 - y)) : 0;
-    _bar._isim_safeTop = safeTop; _bar._isim_largeExtra = extra;
+    _bar._isim_safeTop = safeTop; _bar._isim_largeExtra = extra; _bar._isim_searchExtra = search;
     _bar._isim_scrolledEdge = large ? y > 52 - 0.5 : y > 0.5;
-    _bar.tintColor = host.tintColor;
-    _bar.frame = CGRectMake(0, 0, W, safeTop + 44 + extra);
+    _bar.frame = CGRectMake(0, 0, W, safeTop + 44 + extra + search);
     [_bar setNeedsLayout]; [_bar layoutIfNeeded];
 }
 - (void)_isim_layoutContainer {
@@ -848,7 +853,6 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     CGFloat safeBottom = isim_ui_safe_insets_for_rect(host, [host convertRect:host.bounds toView:nil]).bottom;
     if (!host.window) safeBottom = isim_ui_device()->safe_bottom;
     _bar.frame = CGRectMake(0, H - 49 - safeBottom, W, 49 + safeBottom);
-    _bar.tintColor = host.tintColor;
     [host bringSubviewToFront:_bar];
     self.selectedViewController.viewIfLoaded.frame = host.bounds;
 }

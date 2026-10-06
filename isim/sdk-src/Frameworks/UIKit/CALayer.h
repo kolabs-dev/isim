@@ -38,5 +38,8 @@ UIKIT_EXTERN CALayerContentsFilter const kCAFilterNearest, kCAFilterLinear, kCAF
 - (void)displayIfNeeded;
 /* isim: called on every frame the layer is drawn, in the layer's coordinates */
 - (void)drawInContext:(CGContextRef)ctx;
+/* isim (UIAnimation.m): a view's layer reports in-flight animation values (frame, opacity, corner radius, border, shadow) */
+- (nullable instancetype)presentationLayer NS_SWIFT_NAME(presentation());
+- (void)removeAllAnimations;
 @end
 NS_ASSUME_NONNULL_END

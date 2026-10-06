@@ -76,7 +76,7 @@ NS_SWIFT_UI_ACTOR
 - (void)willMoveToWindow:(nullable UIWindow *)newWindow;
 - (void)didMoveToWindow;
 - (BOOL)isDescendantOfView:(UIView *)view;
-- (nullable __kindof UIView *)viewWithTag:(NSInteger)tag;
+- (nullable __kindof UIView *)viewWithTag:(NSInteger)tag NS_SWIFT_NAME(viewWithTag(_:));
 - (void)setNeedsLayout;
 - (void)layoutIfNeeded;
 - (void)layoutSubviews;

@@ -392,3 +392,15 @@ extension UIInterfaceOrientation {
     public var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }
     public var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
 }
+
+// MARK: - Buttons (Swift default arguments from Apple's UIKit overlay)
+extension UIButton {
+    public convenience init(configuration: UIButton.Configuration) { self.init(configuration: configuration, primaryAction: nil) }
+}
+
+// MARK: - Page view controllers (options: nil by default, as in Apple's SDK)
+extension UIPageViewController {
+    public convenience init(transitionStyle style: UIPageViewController.TransitionStyle, navigationOrientation: UIPageViewController.NavigationOrientation) {
+        self.init(transitionStyle: style, navigationOrientation: navigationOrientation, options: nil)
+    }
+}

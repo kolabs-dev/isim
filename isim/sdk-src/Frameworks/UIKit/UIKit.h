@@ -47,3 +47,16 @@
 #import <UIKit/NSAttributedString.h>
 #import <UIKit/UIOrientation.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>
+#import <UIKit/UITextView.h>
+#import <UIKit/UIPickerView.h>
+#import <UIKit/UIDatePicker.h>
+#import <UIKit/UISearchBar.h>
+#import <UIKit/UIRefreshControl.h>
+#import <UIKit/UIColorPickerViewController.h>
+#import <UIKit/UIAppearance.h>
+#import <UIKit/UIPasteboard.h>
+#import <UIKit/UIViewPropertyAnimator.h>
+#import <UIKit/UIPresentationController.h>
+#import <UIKit/UISplitViewController.h>
+#import <UIKit/UIActivityViewController.h>
+#import <UIKit/UIContentUnavailableConfiguration.h>

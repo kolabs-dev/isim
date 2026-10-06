@@ -11,11 +11,14 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIAlertActionStyle style;
 @property (nonatomic, getter=isEnabled) BOOL enabled;
 @end
-/* isim: alerts and action sheets drawn with iOS 17/18 metrics; no text fields yet. */
+/* isim: alerts and action sheets drawn with iOS 17/18 metrics; alerts can have text fields (the first one is
+   focused and the alert moves above the keyboard). */
 NS_SWIFT_UI_ACTOR
 @interface UIAlertController : UIViewController
 + (instancetype)alertControllerWithTitle:(nullable NSString *)title message:(nullable NSString *)message preferredStyle:(UIAlertControllerStyle)preferredStyle;
 - (void)addAction:(UIAlertAction *)action;
+- (void)addTextFieldWithConfigurationHandler:(void (^ _Nullable)(UITextField *textField))configurationHandler;
+@property (nullable, nonatomic, readonly) NSArray<UITextField *> *textFields;
 @property (nonatomic, readonly) NSArray<UIAlertAction *> *actions;
 @property (nonatomic, strong, nullable) UIAlertAction *preferredAction;
 @property (nullable, nonatomic, copy) NSString *title;

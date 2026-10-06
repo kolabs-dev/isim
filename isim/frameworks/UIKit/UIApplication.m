@@ -171,6 +171,8 @@
 
 /* modal presentation: page sheets (automatic/pageSheet/formSheet) or full-screen covers in the presenter's window */
 - (UIViewController *)presentedViewController { return _presented; }
+- (void)_isim_setPresented:(UIViewController *)p { _presented = p; }
+- (void)_isim_setPresenting:(UIViewController *)p { _presenting = p; }
 - (UIViewController *)presentingViewController { return _presenting; }
 - (BOOL)_isim_presentsAsSheet {
     if ([self isKindOfClass:NSClassFromString(@"UIAlertController")]) return NO;
@@ -191,6 +193,7 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     if (_presented) { [_presented presentViewController:vc animated:a completion:done]; return; }
     UIWindow *w = _view.window;
     if (!w) { NSLog(@"isim: presentViewController: presenter is not in a window"); return; }
+    if (isim_ui_present(self, vc, a, done)) return;            /* UIPresentation.m: everything but alerts */
     _presented = vc; vc->_presenting = self;
     UIView *v = vc.view;
     if (!v.backgroundColor) v.backgroundColor = UIColor.systemBackgroundColor;
@@ -244,6 +247,7 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     else { [UIView performWithoutAnimation:anim]; dispatch_async(dispatch_get_main_queue(), ^{ finish(YES); }); }
 }
 - (void)dismissViewControllerAnimated:(BOOL)a completion:(void (^)(void))done {
+    if (isim_ui_dismiss(self, a, done)) return;                /* presented by UIPresentation.m */
     UIViewController *target = _presented ?: self;
     UIViewController *presenter = _presented ? self : _presenting;
     if (target->_presented) { [target dismissViewControllerAnimated:NO completion:nil]; }      /* nested presentations go too */
@@ -615,7 +619,8 @@ static void handle_key(const struct isim_event *ev) {
 
 static void dump_view(UIView *v, int depth) {
     CGRect f = v.frame;
-    NSString *ident = v.accessibilityIdentifier, *label = [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
+    NSString *ident = v.accessibilityIdentifier, *label = [v respondsToSelector:@selector(_isim_dumpText)] ? [(id)v _isim_dumpText]
+        : [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
         : [v isKindOfClass:[UITextField class]] ? [NSString stringWithFormat:@"\"%@\"%@", ((UITextField *)v).text, v.isFirstResponder ? @" (editing)" : @""]
         : [v isKindOfClass:[UIScrollView class]] ? [NSString stringWithFormat:@"offset %g, content %g x %g, inset bottom %g", ((UIScrollView *)v).contentOffset.y,
               ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom]

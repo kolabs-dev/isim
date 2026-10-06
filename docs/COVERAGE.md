@@ -22,12 +22,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 91 | 32 | 10 | 64 | 197 | 54% |
-| &nbsp;&nbsp;↳ Application & scenes | 7 | 4 | 5 | 7 | 23 | 39% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 11 | 2 | 0 | 16 | 29 | 41% |
-| &nbsp;&nbsp;↳ Views & controls | 24 | 14 | 1 | 12 | 51 | 61% |
+| **UIKit** | 106 | 41 | 10 | 41 | 198 | 64% |
+| &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 18 | 7 | 0 | 5 | 30 | 72% |
+| &nbsp;&nbsp;↳ Views & controls | 29 | 16 | 1 | 5 | 51 | 73% |
 | &nbsp;&nbsp;↳ Layout | 13 | 1 | 1 | 4 | 19 | 71% |
-| &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
+| &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 1 | 12 | 79% |
 | &nbsp;&nbsp;↳ Gestures & touches | 9 | 1 | 0 | 3 | 13 | 73% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 12 | 3 | 0 | 3 | 18 | 75% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **429** | **159** | **42** | **195** | **825** | **62%** |
+| **All areas** | **444** | **168** | **42** | **172** | **826** | **64%** |
 
 ---
 
@@ -115,7 +115,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Alternate app icons (`setAlternateIconName`) | ❌ | |
 | Memory warnings (`didReceiveMemoryWarning`) | 🧩 | method exists; never sent |
 | Remote notification registration | 🧩 | `registerForRemoteNotifications` fails with NSCocoaErrorDomain 3010 through `didFailToRegisterForRemoteNotificationsWithError` (no APNs on isim) |
-| `UIPasteboard` | ❌ | |
+| `UIPasteboard` | 🟡 | `general` + named pasteboards: strings, URLs, images, colors, items, `changeCount`, `hasStrings`…, change notification; strings/URLs are shared between the apps of the device (stored in its data directory); tested (HelloTransitions share sheet). No paste prompt, no edit-menu copy/paste in text fields |
 
 ### View controllers & presentation
 
@@ -124,32 +124,33 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIViewController` lifecycle (`loadView`, `viewDidLoad`, appear/disappear, layout callbacks) | ✅ | |
 | Child view-controller containment | ✅ | |
 | `init(nibName:bundle:)` / storyboard-instantiated controllers | ❌ | nib name is logged and ignored |
-| Full-screen modal (`.fullScreen`, `.overFullScreen`) | ✅ | slides up from the bottom |
-| Page / form sheet (`.automatic`, `.pageSheet`, `.formSheet`) | 🟡 | iOS 15+ card look, presenter shrinks behind it, swipe-down dismiss, iPad centered card; no detents, no grabber |
+| Full-screen modal (`.fullScreen`, `.overFullScreen`, `.currentContext`, `.overCurrentContext`) | ✅ | slides up; `.fullScreen`/`.currentContext` send the presenter viewWillDisappear/viewDidAppear, the "over" styles keep it; context styles cover the `definesPresentationContext` controller; tested (HelloTransitions; context styles unverified) |
+| Page / form sheet (`.automatic`, `.pageSheet`, `.formSheet`) | ✅ | iOS 15+ card look, presenter shrinks behind it at the large detent, swipe-down dismiss (presentation controller delegate: should/will/did dismiss, did attempt), iPad centered card (tap outside or swipe down dismisses; `preferredContentSize` for form sheets, unverified); tested on iPhone and iPad (HelloTransitions, HelloPresentations) |
 | `isModalInPresentation` | ✅ | rubber-bands instead of dismissing |
-| `UISheetPresentationController` (detents, grabber, largest undimmed detent) | ❌ | |
-| Popover presentation (`UIPopoverPresentationController`) | ❌ | |
-| `modalTransitionStyle` (cross dissolve, flip, partial curl) | ❌ | |
-| Custom transitions (`UIViewControllerTransitioningDelegate`, interactive) | ❌ | |
+| `UISheetPresentationController` (detents, grabber, largest undimmed detent) | ✅ | `.medium()`, `.large()`, `.custom(identifier:resolver:)`, grabber, dimming above `largestUndimmedDetentIdentifier` (touches pass through below it), `selectedDetentIdentifier` + `animateChanges`, dragging between detents with the delegate callback, `prefersScrollingExpandsWhenScrolledToEdge`; tested (HelloTransitions). iPad keeps centered cards (no detents) |
+| Popover presentation (`UIPopoverPresentationController`) | ✅ | iPhone adapts to a sheet unless the adaptive delegate returns `.none`; real popovers: card with an arrow towards `sourceView`/`sourceRect` or `barButtonItem`, `permittedArrowDirections`, `preferredContentSize`, tap outside to dismiss (delegate), `passthroughViews`; tested (HelloTransitions; bar button anchoring unverified) |
+| `modalTransitionStyle` (cross dissolve, flip, partial curl) | 🟡 | cross dissolve fades; flip horizontal is adapted (2D fold/unfold, no perspective); partial curl is shown as cover vertical (adapted); tested (HelloTransitions) |
+| Custom transitions (`UIViewControllerTransitioningDelegate`, interactive) | ✅ | animators with a transition context (container, from/to views and controllers, final frames, `completeTransition`), custom `UIPresentationController` subclasses (frame, will/did begin/end, container layout), `transitionCoordinator.animate(alongsideTransition:)`, `UIPercentDrivenInteractiveTransition` (update/finish/cancel; scrubs the animator's UIView animations or its interruptible animator); tested (HelloTransitions) |
 | `UINavigationController` (push/pop, back swipe) | ✅ | push/pop/popTo, parallax animation, back button, left-edge back swipe, delegate; tested (HelloNavigation) |
 | `UINavigationItem` (title, bar button items, search controller, large titles) | ✅ | title, titleView, left/right bar button items, back title, large title display mode |
 | `UITabBarController` | ✅ | tab bar, selection, delegate, badges, hidesBottomBarWhenPushed, tap-again pops to root; tested |
-| `UISplitViewController` | ❌ | |
-| `UIPageViewController` | ❌ | |
+| `UISplitViewController` | 🟡 | collapsed on iPhone into one navigation stack (`topColumnForCollapsingToProposedTopColumn`, classic `collapseSecondary`, `.compact` column), `showDetailViewController` pushes, `show/hideColumn`; regular width (iPad): primary + secondary columns side by side; tested on iPhone and iPad (HelloTransitions). No display-mode button behaviour, no overlay/displace, no collapse/expand on size changes |
+| `UIPageViewController` | ✅ | scroll style with paging (horizontal/vertical, inter-page spacing), data source neighbours, delegate will/did transition, page dots (presentation count/index), animated `setViewControllers`; tested (HelloTransitions). Page curl is shown as scroll (adapted) |
 | `UIAlertController` `.alert` | ✅ | iOS 17/18 metrics, preferred action |
 | `UIAlertController` `.actionSheet` | 🟡 | drawn as a bottom sheet; iPad popover anchoring unverified |
-| `UIAlertController.addTextField` | ❌ | header says "no text fields yet" |
-| `UIActivityViewController` (share sheet) | ❌ | |
-| `UISearchController` | ❌ | |
+| `UIAlertController.addTextField` | ✅ | grouped fields in the card, first one focused, card stays above the keyboard; `UIAlertAction.isEnabled` updates its button live; tested (HelloTransitions) |
+| `UIActivityViewController` (share sheet) | 🟡 | sheet with an item preview, Copy (to `UIPasteboard.general`) and `applicationActivities` (`UIActivity` subclasses), `excludedActivityTypes`, `UIActivityItemSource`, `completionWithItemsHandler`; tested (HelloTransitions). No other apps to share to (no AirDrop/Messages/Mail rows) |
+| `UISearchController` | 🟡 | in `navigationItem.searchController`: bar below the (large) title, collapses on scroll (`hidesSearchBarWhenScrolling`); activating hides the navigation bar, shows Cancel, dims the content (`obscuresBackgroundDuringPresentation`), calls the results updater per keystroke, restores the scroll position on cancel; tested (HelloInputs). Results controller and standalone use unverified; no animated bar transition |
 | `UIImagePickerController` (camera/library) | ❌ | |
 | `UIDocumentPickerViewController` / `UIDocumentBrowserViewController` | ❌ | |
-| `UIColorPickerViewController`, `UIFontPickerViewController` | ❌ | |
+| `UIColorPickerViewController` | 🟡 | grid (tested, via UIColorWell), spectrum and RGB sliders, opacity, delegate callbacks; no eyedropper or saved colors; spectrum/sliders unverified |
+| `UIFontPickerViewController` | ❌ | |
 | `UIReferenceLibraryViewController`, `QLPreviewController` | ❌ | |
 | `UIInputViewController` (custom keyboard extension) | ✅ | loaded in-process; no Full Access |
 | `overrideUserInterfaceStyle` | ✅ | |
 | `setEditing(_:animated:)`, `editButtonItem` | ✅ | Edit/Done item; `UITableViewController` forwards to its table; tested (HelloTable) |
-| `preferredContentSize` | ❌ | |
-| `UIContentUnavailableConfiguration` | ❌ | |
+| `preferredContentSize` | 🟡 | sizes popovers (tested) and iPad form sheets; notifies the parent and presentation controller |
+| `UIContentUnavailableConfiguration` | ✅ | `.empty()`, `.loading()`, `.search()`; image/text/secondary text/buttons; `contentUnavailableConfiguration`, `setNeedsUpdateContentUnavailableConfiguration`, `updateContentUnavailableConfiguration(using:)` (search text from the search controller), `UIContentUnavailableView`; tested (HelloTransitions). A class here, not a struct (adapted) |
 
 ### Views & controls
 
@@ -175,17 +176,17 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIImageView` | ✅ | PNG/JPEG/… via gdk-pixbuf, SVG via librsvg |
 | Animated images (`animationImages`, `UIImage.animatedImage`) | ❌ | |
 | `UITextField` | 🟡 | caret always at the end: no selection, cursor movement, copy/paste |
-| `UITextView` | ❌ | |
+| `UITextView` | 🟡 | plain text, editable/scrollable, self-sizing when `isScrollEnabled = false`, delegate (should/did begin/end, `shouldChangeTextIn`, did change), notifications, keyboard traits, tap places the caret, `selectedRange`, `scrollRangeToVisible`; tested (HelloInputs). No attributed text, selection UI, edit menu or data detectors (stored) |
 | `UISwitch` | ✅ | |
 | `UISlider` | ✅ | thumb drag, continuous/non-continuous, track tints; tested (HelloControls) |
 | `UIStepper` | ✅ | min/max/step/wraps; tested |
 | `UISegmentedControl` | ✅ | titles/images, sliding selection, momentary, per-segment enable; tested |
-| `UIPickerView` | ❌ | |
-| `UIDatePicker` | ❌ | |
+| `UIPickerView` | ✅ | wheels drawn on a cylinder behind the selection band, drag/fling/tap a row, `selectRow`, reload, title rows, row widths/heights; tested (HelloInputs). `viewForRow` views unverified |
+| `UIDatePicker` | ✅ | `.time`/`.date`/`.dateAndTime`/`.countDownTimer` (`.yearAndMonth` unverified); wheels (cyclic, invalid days spin back), compact (pills open a calendar or time popover), inline calendar (+ time pill); min/max dates, `minuteInterval`; tested (HelloInputs). Device locale/time zone are used; the `locale`/`timeZone` properties are stored only |
 | `UIProgressView` | ✅ | default and bar styles |
 | `UIActivityIndicatorView` | ✅ | medium/large, spins (CADisplayLink) |
 | `UIPageControl` | ✅ | tap to page; tested |
-| `UIColorWell` | ❌ | |
+| `UIColorWell` | ✅ | rainbow ring + color, presents the color picker, `.valueChanged`; tested (HelloInputs) |
 | `UIScrollView` | 🟡 | one-finger pan, rubber-banding, deceleration, insets, delegate, `isPagingEnabled`, `scrollViewWillEndDragging(_:withVelocity:targetContentOffset:)`; no zooming; paging unverified outside collection-view carousels |
 | `UITableView` (cells, sections, editing, swipe actions) | 🟡 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing actions, edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`; tested (HelloTable). Missing: leading swipe actions, drag to reorder, section index, prefetching, nibs |
 | `UITableViewDiffableDataSource` | ✅ | snapshots diffed into animated row inserts/deletes; reload/reconfigure; tested (HelloTable) |
@@ -198,12 +199,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIVibrancyEffect` | 🧩 | content drawn normally |
 | `UIMenu`, `UIContextMenuInteraction` (context menus, previews) | 🟡 | UIMenu pop-ups for UIButton.menu (sections, checkmarks, destructive, submenus); no context-menu previews |
 | `UIToolbar`, `UIBarButtonItem` | ✅ | system items, titles, images, primary actions, menus, flexible/fixed spaces; tested |
-| `UINavigationBar` (standalone, appearance) | 🟡 | large titles collapsing on scroll, scroll-edge transparency, appearances (basic); no UIAppearance proxies |
+| `UINavigationBar` (standalone, appearance) | 🟡 | large titles collapsing on scroll, scroll-edge transparency, appearances (basic), UIAppearance proxies (tint tested) |
 | `UITabBar` | ✅ | items, badges, selected/unselected tints; no "More" tab beyond 5 items |
-| `UISearchBar` | ❌ | |
-| `UIRefreshControl` | ❌ | |
+| `UISearchBar` | ✅ | search field (magnifier, placeholder, clear button, search return key), Cancel button, delegate, keyboard traits; tested (HelloInputs). Scope bar and bar styles unverified |
+| `UIRefreshControl` | ✅ | `scrollView.refreshControl` / `UITableViewController.refreshControl`: pull past the threshold starts refreshing (`.valueChanged`), spinner stays until `endRefreshing()`; tested (HelloInputs). No `attributedTitle` (no NSAttributedString) |
 | `UIEditMenuInteraction` (copy/paste menu) | ❌ | |
-| `UIAppearance` proxies (`UINavigationBar.appearance()`) | ❌ | |
+| `UIAppearance` proxies (`UINavigationBar.appearance()`) | 🟡 | adapted (no message forwarding): proxies are offscreen instances; changed appearance properties (colors, bar appearances, title attributes, fonts, translucency, …) apply when a view first enters a window unless it set them itself; `whenContainedInInstancesOf:` and trait style; tested (HelloInputs). Per-state setters (`setTitleTextAttributes(_:for:)`) and `UIBarItem` proxies not applied |
 | `UIInputView`, `inputView` / `inputAccessoryView` | 🟡 | custom keyboards work; arbitrary input views unverified |
 | `UIPointerInteraction`, `UIPencilInteraction`, Apple Pencil | ❌ | |
 
@@ -235,17 +236,17 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `UIView.animate(withDuration:…)` | ✅ | frame/center/bounds, alpha, transform, backgroundColor interpolate |
+| `UIView.animate(withDuration:…)` | ✅ | frame/center/bounds, alpha, transform, backgroundColor and layer corner radius/border/shadow interpolate |
 | Timing curves (ease in/out, linear) | ✅ | |
 | Spring animations (damping/velocity; iOS 17 `springDuration`/`bounce`) | ✅ | |
 | Delay, repeat, autoreverse, begin-from-current-state | ✅ | retargets from the current value |
 | `performWithoutAnimation`, `areAnimationsEnabled` | ✅ | |
 | Constraint animations (`layoutIfNeeded` in an animation block) | 🟡 | frames set inside the block animate; unverified end to end |
-| `UIView.transition(with:)` | 🟡 | cross dissolve only (fade-in); flips/curls apply without the effect |
-| `transition(from:to:)` | ❌ | |
-| `animateKeyframes` / `addKeyframe` | ❌ | |
-| `UIViewPropertyAnimator` (interruptible, scrubbable) | ❌ | |
-| Layer property animations (cornerRadius, shadow, …) | ❌ | only the view properties above animate |
+| `UIView.transition(with:)` | 🟡 | adapted: flips and curls squash the view to its axis and unfold it (2D, no perspective) with the changes applied at the midpoint; cross dissolve fades out and back in (no snapshot cross-fade); tested (HelloAnimations) |
+| `transition(from:to:)` | ✅ | cross dissolve between the views, flips/curls as above (2D), `.showHideTransitionViews` or replacement in the superview; tested (HelloAnimations) |
+| `animateKeyframes` / `addKeyframe` | ✅ | keyframe segments per property on one timeline, overall curve from the options, discrete mode; cubic/paced modes interpolate linearly; tested (HelloAnimations) |
+| `UIViewPropertyAnimator` (interruptible, scrubbable) | ✅ | start/pause/stop/finish(at:), `fractionComplete` scrubbing, `isReversed`, add animations/completions, `pausesOnCompletion`, cubic/spring timing parameters, `runningPropertyAnimator`; `layer.presentation()` reports in-flight values; tested (HelloAnimations). `continueAnimation` ignores new timing parameters (duration factor only) |
+| Layer property animations (cornerRadius, shadow, …) | 🟡 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (tested: radius, border); no `CABasicAnimation`/`CAKeyframeAnimation` objects |
 | UIKit Dynamics (`UIDynamicAnimator`, behaviors) | ❌ | |
 
 ### Gestures & touches
