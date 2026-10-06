@@ -1,10 +1,11 @@
-// isim AVFoundation (audio subset): AVAudioSession, AVAudioEngine/AVAudioPlayerNode/AVAudioMixerNode,
-// AVAudioFile, AVAudioPCMBuffer, AVAudioFormat, AVAudioPlayer. Self-authored; sound goes to the host's
-// mixer (libisim_host, SDL3 audio). Decodes linear-PCM CAF and WAV files itself; compressed formats (AAC/ALAC
-// m4a, MP3, FLAC, ...) are decoded by the host's ffmpeg or GStreamer (gst-launch-1.0); without either they fail
-// to open like an unreadable file.
-// No video, capture, effects or 3D audio.
+// isim AVFoundation: AVAudioSession, AVAudioEngine/AVAudioPlayerNode/AVAudioMixerNode, AVAudioFile, AVAudioPCMBuffer,
+// AVAudioFormat, AVAudioPlayer (this file); assets and video playback (AVAsset.swift, AVPlayer.swift); speech
+// (AVSpeech.swift); effects, offline rendering, input and recording (AVAudioExtras.swift). Self-authored; sound goes
+// to the host's mixer (libisim_host, SDL3 audio). Decodes linear-PCM CAF and WAV files itself; compressed formats
+// and video are decoded by the host's ffmpeg (or GStreamer's gst-launch-1.0 for audio files); without them those
+// fail to open like an unreadable file. No capture devices (camera), composition/export or 3D audio.
 @_exported import Foundation
+@_exported import CoreMedia
 import isim_host
 
 public typealias AVAudioFrameCount = UInt32
