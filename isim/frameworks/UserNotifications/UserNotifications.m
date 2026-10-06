@@ -3,11 +3,13 @@
  * State per app (NSUserDefaults, i.e. the app container): the authorization answer and the pending requests,
  * so requests survive relaunches. Triggers are timers on the main queue while the app runs. When one fires and
  * the app is in the foreground, the delegate's willPresent decides the presentation; a banner slides in at the
- * top (tap: didReceive with the default action, swipe up: dismiss). In the background (home screen of
- * `isim boot`) the notification is recorded as delivered and logged.
+ * top (tap: didReceive with the default action, swipe up: dismiss). In the background under `isim boot` the
+ * shell shows the banner over the home screen or the app in front; tapping it brings this app to the front
+ * and calls didReceive. Apps that are not running do not get their notifications (no system scheduler).
  * Automation: ISIM_NOTIFICATION_PERMISSION=allow|deny answers the permission prompt without the alert. */
 #import <UserNotifications/UserNotifications.h>
 #import <UIKit/UIKit.h>
+#include <isim_host.h>
 #include <time.h>
 
 NSString * const UNErrorDomain = @"UNErrorDomain";
@@ -307,18 +309,23 @@ static NSString *app_name(void) {
     NSDictionary *info = NSBundle.mainBundle.infoDictionary;
     return info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: @"App";
 }
-static UIImage *app_icon(void) {
+/* the app icon file (asset-catalog app icon, largest; else icon.png), like the home screen picks it */
+static NSString *app_icon_path(void) {
     NSString *app = NSBundle.mainBundle.bundlePath;
     NSDictionary *assets = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"isim-assets.plist"]];
     NSDictionary *icons = assets[@"appIcons"];
     NSArray *files = icons[NSBundle.mainBundle.infoDictionary[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] ?: @"AppIcon"] ?: icons.allValues.firstObject;
+    NSString *best = nil; double bestPx = -1;
     for (NSDictionary *f in files) {
         if ([f[@"appearance"] length]) continue;
-        UIImage *img = [UIImage imageWithContentsOfFile:[app stringByAppendingPathComponent:f[@"file"]]];
-        if (img) return img;
+        double px = [[[f[@"size"] ?: @"1024x1024" componentsSeparatedByString:@"x"] firstObject] doubleValue] * ([f[@"scale"] doubleValue] ?: 1);
+        if (px > bestPx) { bestPx = px; best = [app stringByAppendingPathComponent:f[@"file"]]; }
     }
-    return [UIImage imageWithContentsOfFile:[app stringByAppendingPathComponent:@"icon.png"]];
+    if (best) return best;
+    NSString *plain = [app stringByAppendingPathComponent:@"icon.png"];
+    return [NSFileManager.defaultManager fileExistsAtPath:plain] ? plain : nil;
 }
+static UIImage *app_icon(void) { NSString *p = app_icon_path(); return p ? [UIImage imageWithContentsOfFile:p] : nil; }
 
 @interface ISIMNotificationBanner : NSObject
 + (void)show:(UNNotification *)n onTap:(void (^)(void))tap;
@@ -421,6 +428,11 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
             [_pending addObject:r]; if (fire > 0) _fire[r.identifier] = @(fire);
         }
         dispatch_async(dispatch_get_main_queue(), ^{ for (UNNotificationRequest *r in [self->_pending copy]) [self schedule:r]; });
+        /* the shell's banner for a notification delivered in the background was tapped */
+        [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimNotificationResponse" object:nil queue:nil usingBlock:^(NSNotification *note) {
+            for (UNNotification *n in [self->_delivered copy])
+                if ([n.request.identifier isEqualToString:note.object]) { [self respond:n action:UNNotificationDefaultActionIdentifier]; break; }
+        }];
     }
     return self;
 }
@@ -550,8 +562,13 @@ static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_
     [_delivered addObject:n];
     UIApplication *app = UIApplication.sharedApplication;
     if (app.applicationState == UIApplicationStateBackground) {
-        NSLog(@"isim UserNotifications: delivered “%@” while %@ is in the background (banners outside the app are not shown on isim)", r.identifier, app_name());
+        NSLog(@"isim UserNotifications: delivered “%@” in the background", r.identifier);
         if (r.content.badge && ([self grantedOptions] & UNAuthorizationOptionBadge)) app.applicationIconBadgeNumber = r.content.badge.integerValue;
+        if (isim_shell_present() && (([self grantedOptions] & UNAuthorizationOptionAlert) || [self status] == UNAuthorizationStatusProvisional)) {
+            NSString *a = [NSString stringWithFormat:@"%@\x1f%@", r.identifier, app_icon_path() ?: @""];
+            NSString *body = r.content.subtitle.length ? [NSString stringWithFormat:@"%@\n%@", r.content.subtitle, r.content.body] : r.content.body;
+            isim_shell_request(ISIM_SHELL_NOTIFY, a.UTF8String, (r.content.title.length ? r.content.title : app_name()).UTF8String, body.UTF8String);
+        }
         return;
     }
     id<UNUserNotificationCenterDelegate> d = self.delegate;

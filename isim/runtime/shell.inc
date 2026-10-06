@@ -25,8 +25,10 @@ static void shell_forward(int i, const struct isim_event *ev) {
     struct shell_msg m = { .type = SM_EVENT }; m.ev = *ev;
     send(clients[i].sock, &m, sizeof m, MSG_NOSIGNAL);
 }
+static int nb_visible(void); static void nb_draw(void);
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
+    if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
     /* the screenshot / blit source is the foreground client's surface */
     if (cr) { cairo_destroy(cr); cr = NULL; }
     if (surf) cairo_surface_destroy(surf);
@@ -137,9 +139,114 @@ static void compose(int app, struct rectf r, double radius, double app_alpha, do
     cairo_destroy(c);
     present_comp();
 }
+
 static void start_anim(int kind, int client, struct rectf from, struct rectf to, double rfrom, double rto, double dur) {
     anim.kind = kind; anim.client = client; anim.t0 = now(); anim.dur = dur;
     anim.from = from; anim.to = to; anim.rfrom = rfrom; anim.rto = rto;
+}
+/* ---- notification banners posted by apps in the background (UserNotifications), drawn over the screen ---- */
+static struct { int on, client; char id[512], title[512], body[512], icon[512]; double t0, hide_t0; struct rectf r; } nb;
+#define NB_SHOW 5.0
+static int nb_visible(void) { return nb.on && anim.kind == ANIM_NONE && active >= 0; }
+static void nb_post(int i, const struct shell_msg *m) {
+    const char *sep = strchr(m->a, '\x1f');
+    if (sep) { snprintf(nb.id, sizeof nb.id, "%.*s", (int)(sep - m->a), m->a); snprintf(nb.icon, sizeof nb.icon, "%s", sep + 1); }
+    else { snprintf(nb.id, sizeof nb.id, "%s", m->a); nb.icon[0] = 0; }
+    snprintf(nb.title, sizeof nb.title, "%s", m->b); snprintf(nb.body, sizeof nb.body, "%s", m->c);
+    nb.on = 1; nb.client = i; nb.t0 = now(); nb.hide_t0 = 0;
+    double w = fmin(dev.width - 16, 400);
+    nb.r = (struct rectf){ (dev.width - w) / 2, fmax(dev.safe_top, 20) + 2, w, 76 };
+    fprintf(stderr, "isim shell: notification banner from %s: %s\n", clients[i].bundle, nb.title);
+}
+static void nb_text(cairo_t *c, const char *utf8, double x, double y, double w, double size, int bold, int lines, double gray, int center) {
+    PangoLayout *l = pango_cairo_create_layout(c);
+    PangoFontDescription *fd = pango_font_description_new();
+    pango_font_description_set_family(fd, SYSTEM_SANS);
+    pango_font_description_set_absolute_size(fd, size * PANGO_SCALE);
+    pango_font_description_set_weight(fd, bold ? PANGO_WEIGHT_SEMIBOLD : PANGO_WEIGHT_NORMAL);
+    pango_layout_set_font_description(l, fd); pango_font_description_free(fd);
+    pango_layout_set_text(l, utf8, -1);
+    pango_layout_set_width(l, (int)(w * PANGO_SCALE)); pango_layout_set_wrap(l, PANGO_WRAP_WORD_CHAR);
+    pango_layout_set_height(l, -lines); pango_layout_set_ellipsize(l, PANGO_ELLIPSIZE_END);
+    if (center) pango_layout_set_alignment(l, PANGO_ALIGN_CENTER);
+    cairo_set_source_rgb(c, gray, gray, gray); cairo_move_to(c, x, y); pango_cairo_show_layout(c, l);
+    g_object_unref(l);
+}
+static void nb_draw(void) {
+    if (!comp) comp = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
+    cairo_t *c = cairo_create(comp);
+    cairo_surface_t *s = client_surface(active);
+    cairo_set_operator(c, CAIRO_OPERATOR_SOURCE); cairo_set_source_surface(c, s, 0, 0); cairo_paint(c);
+    cairo_surface_destroy(s);
+    cairo_set_operator(c, CAIRO_OPERATOR_OVER);
+    cairo_scale(c, px_scale, px_scale);
+    double t = now() - nb.t0, off;                                   /* slide in, stay, slide out */
+    if (nb.hide_t0 > 0) off = -(nb.r.y + nb.r.h + 12) * ease_out((now() - nb.hide_t0) / 0.3);
+    else off = -(nb.r.y + nb.r.h + 12) * (1 - spring(t / 0.55));
+    struct rectf r = nb.r; r.y += off;
+    cairo_new_sub_path(c);
+    double rad = 22;
+    cairo_arc(c, r.x + r.w - rad, r.y + rad, rad, -M_PI / 2, 0); cairo_arc(c, r.x + r.w - rad, r.y + r.h - rad, rad, 0, M_PI / 2);
+    cairo_arc(c, r.x + rad, r.y + r.h - rad, rad, M_PI / 2, M_PI); cairo_arc(c, r.x + rad, r.y + rad, rad, M_PI, 1.5 * M_PI);
+    cairo_close_path(c);
+    cairo_set_source_rgba(c, 0.96, 0.96, 0.97, 0.97); cairo_fill(c);
+    double ix = r.x + 12, iy = r.y + (r.h - 38) / 2;
+    cairo_surface_t *icon = nb.icon[0] ? cairo_image_surface_create_from_png(nb.icon) : NULL;
+    cairo_save(c);
+    cairo_new_sub_path(c);
+    cairo_arc(c, ix + 38 - 9, iy + 9, 9, -M_PI / 2, 0); cairo_arc(c, ix + 38 - 9, iy + 38 - 9, 9, 0, M_PI / 2);
+    cairo_arc(c, ix + 9, iy + 38 - 9, 9, M_PI / 2, M_PI); cairo_arc(c, ix + 9, iy + 9, 9, M_PI, 1.5 * M_PI);
+    cairo_close_path(c); cairo_clip(c);
+    if (icon && cairo_surface_status(icon) == CAIRO_STATUS_SUCCESS && cairo_image_surface_get_width(icon) > 0) {
+        double sc = 38.0 / cairo_image_surface_get_width(icon);
+        cairo_translate(c, ix, iy); cairo_scale(c, sc, sc);
+        cairo_set_source_surface(c, icon, 0, 0); cairo_pattern_set_filter(cairo_get_source(c), CAIRO_FILTER_BILINEAR); cairo_paint(c);
+    } else {
+        cairo_set_source_rgb(c, 0.0, 0.48, 1.0); cairo_paint(c);
+        nb_text(c, (const char[]){ nb.title[0] ? nb.title[0] : '?', 0 }, ix, iy + 8, 38, 18, 1, 1, 1, 1);
+    }
+    cairo_restore(c);
+    if (icon) cairo_surface_destroy(icon);
+    nb_text(c, nb.title, r.x + 60, r.y + 12, r.w - 120, 15, 1, 1, 0.0, 0);
+    nb_text(c, "now", r.x + r.w - 54, r.y + 13, 40, 13, 0, 1, 0.45, 0);
+    nb_text(c, nb.body, r.x + 60, r.y + 33, r.w - 74, 15, 0, 2, 0.0, 0);
+    cairo_destroy(c);
+    present_comp();
+}
+static void nb_hide(void) { if (nb.on && !nb.hide_t0) nb.hide_t0 = now(); }
+/* per loop iteration: animate, expire */
+static void nb_tick(void) {
+    if (!nb.on) return;
+    if (nb.client < 0 || nb.client >= nclients || !clients[nb.client].alive) { nb.on = 0; shell_show(active); return; }
+    double t = now() - nb.t0;
+    if (!nb.hide_t0 && t > NB_SHOW) nb_hide();
+    if (nb.hide_t0 && now() - nb.hide_t0 > 0.3) { nb.on = 0; if (anim.kind == ANIM_NONE) shell_show(active); return; }
+    if (nb_visible() && (t < 0.8 || nb.hide_t0)) nb_draw();
+}
+/* tapping the banner opens the app and delivers the response */
+static void nb_open(void) {
+    int i = nb.client;
+    nb.on = 0;
+    if (i < 0 || i >= nclients || !clients[i].alive) { shell_show(active); return; }
+    fprintf(stderr, "isim shell: opened notification %s\n", nb.id);
+    int from_home = active == 0;
+    if (active != i) { if (active >= 0) shell_send(active, EV_BACKGROUND); active = i; shell_send(i, EV_FOREGROUND); }
+    struct isim_event e = { .type = EV_NOTIFICATION_RESPONSE }; snprintf(e.text, sizeof e.text, "%s", nb.id);
+    shell_forward(i, &e);
+    double r0; struct rectf from = icon_target(i, &r0);
+    if (from_home) start_anim(ANIM_OPEN, i, from, full_rect(), r0, dev.corner_radius, 0.5);
+    else shell_show(i);
+}
+/* input over the banner: tap opens, swipe up dismisses; returns 1 when the event was the banner's */
+static int nb_input(const struct isim_event *ev) {
+    static int down; static double y0;
+    if (!nb_visible() || nb.hide_t0) { down = 0; return 0; }
+    if ((ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) && !strcmp(ev->text, "isim-notification-banner")) { if (ev->type == EV_ID_UP) nb_open(); return 1; }
+    int inside = ev->x >= nb.r.x && ev->x <= nb.r.x + nb.r.w && ev->y >= nb.r.y && ev->y <= nb.r.y + nb.r.h;
+    if (ev->type == EV_TOUCH_DOWN && inside) { down = 1; y0 = ev->y; return 1; }
+    if (down && ev->type == EV_TOUCH_MOVE) return 1;
+    if (down && ev->type == EV_TOUCH_UP) { down = 0; if (y0 - ev->y > 10) nb_hide(); else nb_open(); return 1; }
+    return 0;
 }
 /* one animation frame; returns 0 when the animation has finished */
 static int anim_frame(void) {
@@ -279,6 +386,7 @@ static void shell_handle(int i, const struct shell_msg *m) {
         if (i == active && anim.kind == ANIM_NONE && !drag_active) shell_show(i);
         break;
     case SM_ICON: set_icon(m->a, m->b); break;
+    case SM_NOTIFY: nb_post(i, m); break;
     case SM_LAUNCH: shell_launch(m->a, m->b, m->c); break;
     case SM_HOME: shell_home(); break;
     case SM_SETTINGS:
@@ -359,6 +467,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
             }
         /* input (script or window) */
         anim_frame();
+        nb_tick();
         struct isim_event ev;
         if (!isim_next_event(&ev, anim.kind != ANIM_NONE ? 0.004 : 0.008)) continue;
         if (ev.type == EV_QUIT) { shell_quit(); return 0; }
@@ -369,6 +478,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         /* home-indicator gesture: touches starting at the bottom edge belong to the system */
         /* home indicator: a swipe up starting at the bottom edge (iOS). The edge zone is generous for a mouse. */
         if (anim.kind != ANIM_NONE && (ev.type == EV_TOUCH_DOWN || ev.type == EV_TOUCH_MOVE || ev.type == EV_TOUCH_UP)) continue;
+        if (nb_input(&ev)) continue;
         if (ev.type == EV_TOUCH_DOWN && ev.y > dev.height - 34 && active > 0) {
             gesture = 1; (void)gesture_y;
             drag_active = 0; drag_x0 = drag_x = ev.x; drag_y0 = drag_y = ev.y; drag_t = now(); drag_vy = 0;

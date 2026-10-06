@@ -795,6 +795,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_SETTINGS: settings_changed(); break;
                 case ISIM_EV_LAUNCH_ID: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimShellLaunch" object:@(ev.text)]; break;
                 case ISIM_EV_OPEN_URL: deliver_url(@(ev.text)); break;
+                case ISIM_EV_NOTIFICATION_RESPONSE: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimNotificationResponse" object:@(ev.text)]; break;
                 case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;
                 }

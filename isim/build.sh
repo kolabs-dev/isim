@@ -85,7 +85,7 @@ framework CoreGraphics frameworks/CoreGraphics -lisim_host
 framework Foundation frameworks/Foundation -framework CoreGraphics
 framework CoreText frameworks/CoreText -framework Foundation -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
-framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics
+framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 
 # install the isim tool
 [ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"
