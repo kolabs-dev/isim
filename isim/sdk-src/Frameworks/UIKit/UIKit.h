@@ -47,6 +47,7 @@
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>
 #import <UIKit/UIOrientation.h>
+#import <UIKit/UILayoutExtras.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>
 #import <UIKit/UITextView.h>
 #import <UIKit/UIPickerView.h>

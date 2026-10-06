@@ -479,6 +479,7 @@ public struct Button<Label: View>: View, _PrimitiveView {
     public init(role: ButtonRole?, action: @escaping () -> Void, @ViewBuilder label: () -> Label) { self.action = action; self.label = label(); self.role = role }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
+        _registerShortcut(ctx, action)
         if let p = _primitiveButton(label, role: role, action: action, ctx) { return p }
         let env = ctx.environment
         let tint: Color = role == .destructive ? .red : (env._tint ?? .accentColor)

@@ -682,6 +682,7 @@ static void handle_id_touch(const struct isim_event *ev) {
 @end
 
 static void render_frame(void) {
+    { extern void isim_ui_trait_registrations_tick(void); isim_ui_trait_registrations_tick(); }
     isim_ui_keyboard_check();
     isim_ui_display_links_fire();
     isim_ui_animations_tick();
