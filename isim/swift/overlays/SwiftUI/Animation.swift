@@ -4,7 +4,8 @@
 //  - withAnimation { ... } animates the next render; .animation(_:value:) animates its subtree when the value changes
 //  - views inserted in an animated update play their transition (default .opacity); removed ones fade/move out
 //  - matchedGeometryEffect: a view inserted with an id that was on screen moves from the old frame
-// Not animated: text/shape content (trim, path, gradients), and custom Animatable/animatableData.
+// Animatable data (shape trims and paths, gradients, colors of shapes, custom Animatable views, modifiers and
+// GeometryEffects) interpolates per frame during the same updates (Animatable.swift). Not animated: text content.
 import UIKit
 
 public struct Animation: Equatable, Sendable {
@@ -85,6 +86,7 @@ public struct Animation: Equatable, Sendable {
 
 public struct Spring: Hashable, Sendable {
     public var response: Double, dampingRatio: Double
+    public init() { self.init(response: 0.5, dampingRatio: 1) }
     public init(response: Double = 0.5, dampingRatio: Double = 1) { self.response = response; self.dampingRatio = dampingRatio }
     public init(duration: Double = 0.5, bounce: Double = 0) { response = duration; dampingRatio = bounce >= 0 ? 1 - bounce : 1 / (1 - bounce) }
     public static var smooth: Spring { Spring(duration: 0.5, bounce: 0) }
@@ -186,7 +188,8 @@ extension View {
             let box = ctx.graph.storage[key] as? _AnimValueBox
             let changed = box.map { !$0.equals(value) } ?? false
             ctx.graph.storage[key] = _AnimValueBox(value)
-            return _AnimationScopeNode(path: ctx.path, animation: animation, active: changed, child: _resolve(c, ctx.child("an")))
+            let cctx = changed ? ctx.child("an").with { $0._transactionAnimation = animation } : ctx.child("an")
+            return _AnimationScopeNode(path: ctx.path, animation: animation, active: changed, child: _resolve(c, cctx))
         }
     }
     /// Deprecated form: animates every change in this view.
@@ -196,7 +199,8 @@ extension View {
             ctx.graph.usedKeys.insert(key)
             let first = ctx.graph.storage[key] == nil
             ctx.graph.storage[key] = _AnimValueBox(0)
-            return _AnimationScopeNode(path: ctx.path, animation: animation, active: !first, child: _resolve(c, ctx.child("an")))
+            let cctx = first ? ctx.child("an") : ctx.child("an").with { $0._transactionAnimation = animation }
+            return _AnimationScopeNode(path: ctx.path, animation: animation, active: !first, child: _resolve(c, cctx))
         }
     }
     public func matchedGeometryEffect<ID: Hashable>(id: ID, in namespace: Namespace.ID, properties: MatchedGeometryProperties = .frame,

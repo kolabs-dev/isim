@@ -35,22 +35,22 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 88 | 22 | 14 | 70 | 194 | 51% |
+| **SwiftUI** | 110 | 26 | 14 | 60 | 210 | 59% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 11 | 2 | 0 | 4 | 17 | 71% |
 | &nbsp;&nbsp;↳ Views & controls | 17 | 2 | 1 | 18 | 38 | 47% |
 | &nbsp;&nbsp;↳ Containers & layout | 12 | 4 | 2 | 9 | 27 | 52% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 10 | 5 | 1 | 7 | 23 | 54% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 11 | 2 | 7 | 4 | 24 | 50% |
-| &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 3 | 1 | 0 | 5 | 9 | 39% |
-| &nbsp;&nbsp;↳ Animation | 2 | 3 | 1 | 6 | 12 | 29% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 13 | 4 | 7 | 3 | 27 | 56% |
+| &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 2 | 23 | 85% |
+| &nbsp;&nbsp;↳ Animation | 7 | 3 | 1 | 0 | 11 | 77% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
 | &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 0 | 0 | 2 | 7 | 71% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ Environment values | 3 | 1 | 0 | 3 | 7 | 50% |
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
-| Swift Charts | 0 | 0 | 0 | 3 | 3 | 0% |
+| Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
 | **Foundation** | 50 | 20 | 1 | 9 | 80 | 75% |
 | &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
 | &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
@@ -63,7 +63,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Combine | 10 | 0 | 0 | 4 | 14 | 71% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
 | Objective-C runtime & C library | 6 | 2 | 0 | 2 | 10 | 70% |
-| Core Graphics | 8 | 0 | 0 | 8 | 16 | 50% |
+| Core Graphics | 9 | 0 | 0 | 7 | 16 | 56% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
 | QuartzCore / Core Animation | 2 | 2 | 0 | 5 | 9 | 33% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **340** | **117** | **45** | **268** | **770** | **52%** |
+| **All areas** | **375** | **123** | **45** | **256** | **799** | **55%** |
 
 ---
 
@@ -501,12 +501,15 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `font`, `foregroundColor`, `foregroundStyle` (Color, `.primary`…`.quaternary`, `.tint`) | ✅ | |
 | `tint`, `accentColor` | ✅ | |
 | `opacity`, `hidden`, `disabled` | ✅ | |
-| `cornerRadius`, `clipShape` (rect, rounded rect, circle, capsule) | ✅ | |
+| `cornerRadius`, `clipShape` (any shape; built-in shapes as a rounded clip, others clip to their path) | ✅ | custom-shape clip tested (HelloDrawing) |
 | `clipped()` | 🧩 | returns the view unchanged |
-| `mask` | 🟡 | clips to the mask's shape only (no alpha masks) |
+| `mask` | 🟡 | clips to the mask's shape (any shape's path); no alpha masks |
 | `shadow` | 🟡 | layer-shadow approximation |
-| `rotationEffect`, `scaleEffect`, `offset` | ✅ | |
-| `rotation3DEffect`, `projectionEffect`, `transformEffect` | ❌ | |
+| `rotationEffect`, `scaleEffect`, `offset` | ✅ | offset content is drawn and hit-tested at its new position |
+| `transformEffect` | ✅ | |
+| `rotation3DEffect` | 🟡 | drawn as the affine transform that best fits the rotated corners: no perspective foreshortening (y-axis rotation tested) |
+| `projectionEffect`, `ProjectionTransform` | 🟡 | affine part exact; perspective terms approximated like rotation3DEffect (unverified) |
+| `GeometryEffect` (custom, animatable), `ignoredByLayout` | ✅ | custom shear tested |
 | `blur`, `brightness`, `contrast`, `saturation`, `grayscale`, `colorMultiply`, `hueRotation`, `blendMode` | 🧩 | accepted, no effect |
 | `drawingGroup`, `compositingGroup` | 🧩 | |
 | `allowsHitTesting` | ✅ | |
@@ -525,22 +528,40 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 
 ### Shapes, paths, gradients & materials
 
+Shapes, paths, gradients and Canvas draw through libisim_host (cairo); tested by HelloDrawing (`tests/ui/drawing.sh`, pixel checks).
+
 | API / feature | Status | Notes |
 |---|---|---|
-| `Rectangle`, `RoundedRectangle`, `Circle`, `Capsule` | ✅ | |
-| `fill`, `stroke`, `strokeBorder`, `trim` | 🟡 | `strokeBorder` is drawn as `stroke`; `StrokeStyle` dashes/caps ignored |
-| `Ellipse`, `UnevenRoundedRectangle`, `ContainerRelativeShape` | ❌ | |
-| Custom `Shape` (`path(in:)`), `Path` | ❌ | `Shape` has no `path(in:)` requirement |
-| `InsettableShape`, `AnyShape`, shape `.offset`/`.rotation`/`.scale` | ❌ | |
-| `LinearGradient`, `RadialGradient`, `AngularGradient`, `EllipticalGradient`, `.gradient` | ❌ | |
+| `Rectangle`, `RoundedRectangle`, `Circle`, `Capsule` | ✅ | color fills use a view with a corner radius; other paints draw the path |
+| Custom `Shape` (`path(in:)`) | ✅ | shape inits and `path(in:)` are not main-actor isolated, like SwiftUI |
+| `Path` (move/line/quad/curve, `addArc` (center and tangent forms), `addRelativeArc`, rects, rounded rects, ellipses, `Path { }`, `Path(CGPath)`, `cgPath`) | ✅ | arcs become cubic curves |
+| `Path` queries (`boundingRect`, `contains(_:eoFill:)`, `trimmedPath`, `applying`, `offsetBy`, string form) | ✅ | |
+| `Path.strokedPath`, boolean operations (`union`, `intersection`, …), `Shape.union` etc. | ❌ | |
+| `fill` (colors, any style, `FillStyle(eoFill:)`) | ✅ | |
+| `stroke` / `stroke(style:)` with `StrokeStyle` (width, caps, joins, miter limit, dashes, dash phase) | ✅ | dashes tested; joins and miter limit unverified |
+| `trim(from:to:)` | ✅ | exact on curves (arc length) |
+| `Ellipse`, `UnevenRoundedRectangle` | ✅ | |
+| `ContainerRelativeShape` | 🟡 | the frame's rectangle (isim has no container shapes) |
+| `InsettableShape` (`inset(by:)`, `strokeBorder`) | ✅ | |
+| `AnyShape` | ✅ | |
+| Shape `.offset`, `.rotation`, `.scale`, `.transform`, `.size` | ✅ | offset and rotation tested; scale/transform/size unverified |
+| `fill(_:).stroke(_:)` on a filled shape (iOS 17) | 🟡 | drawn as an overlay (unverified) |
+| `LinearGradient`, `RadialGradient`, `AngularGradient` / `conicGradient`, `EllipticalGradient`, `Gradient` (colors, stops) | ✅ | as views and shape styles |
+| Gradients in `fill`, `foregroundStyle`, `background`, `background(_:in:)`, `overlay` | ✅ | gradient strokes unverified |
+| `Color.gradient` (`AnyGradient`) | ✅ | a top-to-bottom gradient a little lighter at the top (approximates Apple's) |
+| Text with a gradient `foregroundStyle` | 🟡 | drawn in the gradient's first color (tested); no gradient across the glyphs |
 | `Material` (`.ultraThinMaterial` … `.bar`) | ✅ | real backdrop blur (UIVisualEffectView) |
 | `Color` (system colors, RGB/HSB/white, `Color(uiColor:)`, asset colors) | ✅ | |
-| `ImagePaint`, shaders (`ShaderLibrary`, `.colorEffect`) | ❌ | |
+| `ImagePaint` (`.image(_:sourceRect:scale:)`) | ✅ | tiles fills; image strokes are not drawn |
+| `Canvas` / `GraphicsContext` (fill/stroke paths with colors, styles and gradients, text, images, transforms, opacity, clip, `drawLayer`) | ✅ | filters, blend modes, `clipToLayer` and symbols are accepted and not drawn |
+| Shaders (`ShaderLibrary`, `.colorEffect`, `.layerEffect`, `.distortionEffect`) | ❌ | need Metal, which isim does not have |
 
 ### Animation
 
 Landed 2026-10-05 (commit d0dcb9b, `swift/overlays/SwiftUI/Animation.swift`): an animated update runs the view updates
-inside UIKit's animation engine, so frames, opacity, transforms and colors interpolate. No UI test covers it yet.
+inside UIKit's animation engine, so frames, opacity, transforms and colors interpolate. Animatable data (shape trims
+and paths, custom `Animatable` shapes/views/modifiers, shape colors and gradients) interpolates per frame in the same
+updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half-way through a 2 s linear animation.
 
 | API / feature | Status | Notes |
 |---|---|---|
@@ -550,12 +571,11 @@ inside UIKit's animation engine, so frames, opacity, transforms and colors inter
 | Transitions (`.opacity`, `.scale`, `.slide`, `.move`, `.offset`, `.push`, `asymmetric`, `combined`) | 🟡 | insertion and removal play; each kind unverified |
 | `matchedGeometryEffect` | 🟡 | an inserted view moves from the matched view's old frame; no simultaneous source/target |
 | `contentTransition` (`.numericText`, `.interpolate`) | 🧩 | text content is not animated |
-| Animating shape `trim`, paths, gradients | ❌ | |
-| `Animatable` / `animatableData`, `AnimatableModifier` | ❌ | |
-| `phaseAnimator` | ❌ | |
-| `keyframeAnimator` | ❌ | |
-| `TimelineView` | ❌ | |
-| `Canvas` | ❌ | |
+| Animating shape `trim`, paths, colors, gradients | ✅ | trim, custom path, fill color and gradient stops tested mid-animation |
+| `Animatable` / `animatableData` (`VectorArithmetic`, `AnimatablePair`), `AnimatableModifier` | ✅ | custom shape and modifier tested; repeating animations of animatable data unverified |
+| `phaseAnimator`, `PhaseAnimator` | ✅ | continuous cycling tested; `trigger:` form unverified |
+| `keyframeAnimator`, `KeyframeAnimator`, `KeyframeTimeline` (`LinearKeyframe`, `SpringKeyframe`, `CubicKeyframe`, `MoveKeyframe`, `UnitCurve`) | ✅ | trigger form, linear/move/cubic values tested; spring keyframes and the repeating form unverified; keyframe velocities ignored |
+| `TimelineView` (`.animation`, `.periodic`, `.everyMinute`, `.explicit`) | ✅ | `.periodic` and `.animation` tested; `.everyMinute`/`.explicit` unverified |
 
 ### Gestures
 
@@ -626,9 +646,22 @@ inside UIKit's animation engine, so frames, opacity, transforms and colors inter
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `Chart` view | ❌ | module not provided |
-| Marks (`BarMark`, `LineMark`, `PointMark`, `AreaMark`, `RuleMark`, `RectangleMark`, `SectorMark`) | ❌ | |
-| Axes, scales, legends, annotations, selection | ❌ | |
+| `Chart` view (`Chart { }`, `Chart(data) { }`, `ForEach` of marks, `if`/`else` content), `import Charts` | ✅ | isim's own implementation on its SwiftUI (`swift/overlays/Charts`; `if`/`else` content unverified); tested by HelloCharts (`tests/ui/charts.sh`, measured in the screenshot) |
+| `BarMark` (vertical, horizontal, ranges, date bins with `unit:`, `width`/`height`) | ✅ | |
+| Bar stacking (`.standard`), grouping (`position(by:)`) | ✅ | `.normalized`/`.center` stacking unverified |
+| `LineMark` (`series:`, `interpolationMethod`), `PointMark` | ✅ | linear and catmullRom drawn in the test; step/cardinal/monotone unverified |
+| `symbol(_:)`, `symbol(by:)`, `symbolSize` | 🟡 | basic symbol shapes (circle, square, triangle, diamond, pentagon, plus, cross); unverified; `symbol { view }` missing |
+| `AreaMark` (stacked series, `yStart`/`yEnd`) | ✅ | stacking of several series unverified |
+| `RuleMark`, `RectangleMark` | ✅ | |
+| `SectorMark` (pie, donut `innerRadius`, `outerRadius`, `angularInset`) | ✅ | `angularInset` unverified; corner radius ignored |
+| `PlottableValue.value(_:_:)`, `Plottable` (numbers, strings, dates, `RawRepresentable` enums) | ✅ | |
+| `foregroundStyle(by:)` with the default palette and a legend, `chartForegroundStyleScale`, `chartLegend` | ✅ | `chartLegend(position: .top)` and custom legend content unverified |
+| Axes: `chartXAxis`/`chartYAxis` (`.hidden`, `AxisMarks` position and values, `AxisGridLine`, `AxisTick`, `AxisValueLabel` with custom content), date axes | ✅ | `AxisTick` unverified; `AxisValueLabel(format:)` missing (no `FormatStyle` on isim) |
+| Scales: `chartXScale`/`chartYScale(domain:)` (ranges, category lists, `.automatic(includesZero:reversed:)`) | ✅ | log/sqrt/power scale types are drawn linear |
+| `annotation(position:alignment:spacing:)` | ✅ | |
+| `chartXAxisLabel`, `chartYAxisLabel` | 🟡 | simple placement (unverified) |
+| `chartOverlay`/`chartBackground` (`ChartProxy`), selection (`chartXSelection`), scrolling (`chartScrollableAxes`) | ❌ | |
+| `chartPlotStyle`, vectorized plots (`BarPlot`, `LinePlot`, iOS 18), `Chart3D` | ❌ | |
 
 ---
 
@@ -832,9 +865,9 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 |---|---|---|
 | Geometry (`CGRect`/`CGPoint`/`CGSize` functions, Swift helpers) | ✅ | `CGFloat` is a typealias of `Double` |
 | `CGAffineTransform` | ✅ | |
-| `CGContext` paths: rects, ellipses, arcs, lines, curves; fill, EO fill, stroke | ✅ | via host cairo |
-| Graphics state, CTM (translate/scale/rotate/concat), alpha, line width/cap/join | ✅ | |
-| Clipping (`clip`, `clip(to: rect)`) | ✅ | |
+| `CGContext` paths: rects, ellipses, arcs, lines, curves; fill, EO fill, stroke | ✅ | via host cairo; even-odd fill tested (HelloDrawing) |
+| Graphics state, CTM (translate/scale/rotate/concat), alpha, line width/cap/join/miter limit | ✅ | caps/joins/miter limit unverified |
+| Clipping (`clip`, `clip(using: .evenOdd)`, `clip(to: rect)`) | ✅ | even-odd clip unverified |
 | `CGPath` / `CGMutablePath` (build, bounding box, contains, apply) | ✅ | |
 | `CGColor` (RGB, gray, copy with alpha) | ✅ | |
 | `CGColorSpace`, Display P3, pattern colors | ❌ | P3 colors become sRGB |
@@ -842,7 +875,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `CGImage` from raw bytes (`CGDataProvider`, `CGImageCreate`) | ❌ | |
 | `CGBitmapContext` (offscreen drawing, pixel access) | ❌ | |
 | `CGGradient`, `CGShading` | ❌ | |
-| Line dashes (`setLineDash`) | ❌ | |
+| Line dashes (`setLineDash`) | ✅ | tested (HelloDrawing) |
 | Shadows (`setShadow`), blend modes, transparency layers | ❌ | |
 | Text drawing in CG | ❌ | |
 | PDF documents/contexts | ❌ | |

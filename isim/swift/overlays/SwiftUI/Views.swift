@@ -158,6 +158,8 @@ extension ShapeStyle where Self == TintShapeStyle {
         return h.color
     case is TintShapeStyle: return env._tint ?? .accentColor
     case let a as AnyShapeStyle: return _color(of: a.base, env)
+    case let f as _ColorFallback: return f._fallbackColor(env)
+    case is ForegroundStyle: return env._foreground ?? .primary
     default: return .primary
     }
 }
@@ -294,7 +296,7 @@ public struct Text: View, Equatable, _PrimitiveView {
     }
     public func font(_ f: Font?) -> Text { var t = self; t.font = f; return t }
     public func foregroundColor(_ c: Color?) -> Text { var t = self; t.color = c; return t }
-    public func foregroundStyle<S: ShapeStyle>(_ s: S) -> Text { var t = self; t.color = s as? Color ?? (s as? HierarchicalShapeStyle)?.color; return t }
+    public func foregroundStyle<S: ShapeStyle>(_ s: S) -> Text { var t = self; t.color = s as? Color ?? (s as? HierarchicalShapeStyle)?.color ?? (s as? _ColorFallback)?._fallbackColor(EnvironmentValues()); return t }
     public func bold(_ active: Bool = true) -> Text { var t = self; if active { t.weight = .bold }; return t }
     public func fontWeight(_ w: Font.Weight?) -> Text { var t = self; t.weight = w; return t }
     public func italic(_ active: Bool = true) -> Text { var t = self; t.italicFlag = active; return t }

@@ -857,6 +857,9 @@ int isim_audio_is_playing(long h);
 double isim_audio_position(long h);
 void isim_audio_seek(long h, double seconds);
 void isim_audio_suspend(int s);
+void isim_path_set_line_style(int cap, int join, double miter, const double *dash, int ndash, double phase);
+void isim_path_set_fill_rule(int even_odd);
+void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *matrix);
 int isim_audio_decode_file(const char *path, float **out, long *frames, int *channels, double *rate);
 void isim_audio_free(float *pcm);
 struct isim_http; struct isim_ws;
@@ -896,7 +899,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_save), H(isim_gfx_restore), H(isim_gfx_translate), H(isim_gfx_scale), H(isim_gfx_clip_rounded),
     H(isim_gfx_fill_rounded), H(isim_gfx_stroke_rounded), H(isim_gfx_fill_ellipse), H(isim_gfx_push_group), H(isim_gfx_pop_group),
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
-    H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke),
+    H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke), H(isim_path_set_line_style), H(isim_path_set_fill_rule), H(isim_path_gradient),
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_text_measure_f), H(isim_text_end_point_f), H(isim_text_draw_f),
     H(isim_font_register), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),

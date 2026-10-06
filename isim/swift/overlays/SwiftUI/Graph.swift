@@ -110,6 +110,8 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         var env = EnvironmentValues()
         env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
         _systemEnvironment(&env, traits: traits)
+        let animation = hostView?.window != nil ? _AnimationContext.take() : nil
+        env._transactionAnimation = animation
         let ctx = _Context(graph: self, path: "root", environment: env, nav: nil)
         // @Observable: properties read while the views evaluate are tracked; a change re-renders
         var resolved: _Node?
@@ -129,7 +131,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             if let host = self.hostView { self.mount(node, in: host, order: 0) }
             self.unmountGone(oldTransitions, oldMatchedKeys)
         }
-        if let anim = _AnimationContext.take(), hostView?.window != nil { anim._run(update) } else { update() }
+        if let anim = animation { anim._run(update) } else { update() }
         matchedFrames = newMatched
         storage = storage.filter { usedKeys.contains($0.key) }
         changeValues = changeValues.filter { usedChanges.contains($0.key) }
@@ -291,7 +293,10 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
 final class _PassthroughView: UIView {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
-        return v === self ? nil : v
+        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self ? nil : v }
+        // like SwiftUI, content outside a container's frame (offset, overflowing) still takes touches
+        for s in subviews.reversed() { if let h = s.hitTest(s.convert(point, from: self), with: event) { return h } }
+        return nil
     }
 }
 
