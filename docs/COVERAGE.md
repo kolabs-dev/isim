@@ -82,8 +82,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
-| Platform & tooling | 17 | 7 | 1 | 11 | 36 | 57% |
-| **All areas** | **494** | **193** | **42** | **137** | **866** | **68%** |
+| Platform & tooling | 25 | 11 | 1 | 7 | 44 | 69% |
+| **All areas** | **502** | **197** | **42** | **133** | **874** | **69%** |
 
 ---
 
@@ -1264,13 +1264,18 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 |---|---|---|
 | Compile ObjC/C for iOS on Linux (`isim cc`) | ✅ | clang/lld; simulator x86_64 and device arm64 Mach-O |
 | Compile Swift (`isim swiftc`) | ✅ | Docker `swift:6.2` image |
-| `isim build` for Xcode projects (`.xcodeproj`, targets, schemes, configurations, build settings) | ✅ | |
+| `isim build` for Xcode projects (`.xcodeproj`, targets, schemes, configurations, build settings) | ✅ | `-scheme` (BuildAction), `-configuration Debug/Release` (Debug: `-Onone`, SwiftOnoneSupport built for isim), `SETTING=VALUE` overrides, target dependencies; tested (HelloToolchain: Debug and Release) |
+| Workspaces (`-workspace`, `.xcworkspace`, cross-project dependencies) | ✅ | projects of `contents.xcworkspacedata`, schemes of the workspace or its projects, products found across projects (implicit dependencies), `PBXContainerItemProxy` into referenced projects (unverified); tested (HelloToolchain builds from its workspace) |
+| `.xcconfig` files (`#include`, `$(inherited)`, conditional settings) | ✅ | project/target base configurations; `KEY[sdk=iphonesimulator*]`/`[config=…]`/`[arch=…]`; tested (HelloToolchain: bundle id from a conditional setting, Info.plist key, compilation conditions) |
+| Mixed Swift / Objective-C targets (bridging header, `<Module>-Swift.h`) | ✅ | `SWIFT_OBJC_BRIDGING_HEADER`, generated header in `DerivedSources` (and a framework's `Headers/`), frameworks import their umbrella header into their own Swift (`-import-underlying-module`); tested (HelloToolchain app and Greeter framework) |
+| Shell script build phases | 🟡 | run only with `-run-script-phases` (they often call macOS tools; unverified); CocoaPods `[CP]` phases always skipped |
 | App extensions in projects (`.appex`, embedded in `PlugIns/`) | ✅ | keyboards run; other extension types are built but not hosted |
-| Static libraries / framework targets in projects | ❌ | "product type not supported yet" |
-| Local Swift packages | ✅ | targets built as modules |
-| Remote Swift packages (GitHub dependencies) | 🟡 | not fetched; build only if isim ships a stand-in (Google Mobile Ads today) |
-| Package-to-package dependencies | ❌ | "dependencies on other packages are not supported yet" |
-| CocoaPods / Carthage / binary `.xcframework`s | ❌ | |
+| Static libraries / framework targets in projects | ✅ | static libraries (`.a`, headers via copy-files `include/$(PRODUCT_NAME)`, module map with `DEFINES_MODULE`), dynamic frameworks (`@rpath/Name.framework/Name`, Headers/Modules, Swift module, resources, embedded in `Frameworks/` without headers), static frameworks and dylibs (unverified), resource bundles (unverified); tested (HelloToolchain: MathKit, Greeter) |
+| Local Swift packages | ✅ | Swift and C/ObjC targets (module map from `include/` or the target's own), `swiftSettings`/`cSettings` (define, unsafeFlags, headerSearchPath), resources (`process`/`copy`) in `<Package>_<Target>.bundle` with a generated `Bundle.module`, local `binaryTarget` XCFrameworks (unverified); tested (HelloToolchain: Units -> Core -> CCore, units.json) |
+| Remote Swift packages (GitHub dependencies) | 🟡 | never downloaded: built from a local checkout in `-package-cache DIR` / `$ISIM_PACKAGE_CACHE` (`DIR/<name>` or `DIR/checkouts/<name>`, e.g. Xcode's SourcePackages; unverified), or an isim stand-in (Google Mobile Ads); remote `binaryTarget`s only from an extracted XCFramework in the cache |
+| Package-to-package dependencies | ✅ | `.package(path:)` and products of dependency packages (`.product(name:package:)`, by name); tested (HelloToolchain: Units depends on Core) |
+| Binary `.xcframework`s | 🟡 | the x86_64 iOS-simulator slice is linked (static library or framework; dynamic frameworks embedded, universal binaries thinned); arm64-only XCFrameworks are rejected with a clear message (isim runs x86_64 simulator code only, so vendor SDKs shipping only arm64 slices cannot run); tested (HelloToolchain: Sum.xcframework; arm64-only rejection). Prebuilt dynamic frameworks from Xcode are unverified |
+| CocoaPods / Carthage | 🟡 | no `pod install`/`carthage` on isim: an existing Pods workspace builds through workspace support (Pods project targets, `.xcconfig`, `[CP]` phases replaced by isim's embedding) and Carthage output through XCFrameworks — both unverified with real projects |
 | Asset catalogs (images, colors, app icon) | ✅ | compiled to isim's own format (not `Assets.car`) |
 | Info.plist (`$(VARS)`, `INFOPLIST_KEY_*`) | ✅ | never claims Xcode/SDK identity |
 | Entitlements | 🧩 | not enforced or signed |
@@ -1278,7 +1283,10 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Launch screen (`UILaunchScreen` dictionary, LaunchScreen storyboard) | ✅ | shown in-app while the app launches (above its windows, no touches), fades out ≥ 0.25 s after launch (`ISIM_LAUNCH_SCREEN_SECS`); `UILaunchStoryboardName` (and `~iphone`/`~ipad`) initial controller; dictionary: `UIColorName`, `UIImageName`, `UIImageRespectsSafeAreaInsets`, `UINavigationBar`/`UITabBar`/`UIToolbar`; tested (HelloStoryboards). Not a cached snapshot like iOS; the home screen does not show it before the process starts |
 | Storyboards / XIBs (`UIMainStoryboardFile`, `UISceneStoryboardFile`, nibs) | 🟡 | `isim build` compiles `.storyboard`/`.xib` (Xcode 15/16 XML) with isim's ibtool (`isim/tools/ibtool.py`) into isim's own archive format (`<Name>.storyboardc/isim-storyboard.plist`, `<Name>.nib/isim-nib.plist` — not Apple's binary nibs). Scenes: view/navigation/tab bar/table view/collection view (unverified)/page view (unverified) controllers; views and standard controls with their attributes (frames, autoresizing, colors incl. system/named, fonts incl. text styles, images incl. SF Symbols, button configurations, segments, text input traits, accessibility, runtime attributes, tags); Auto Layout (safe area/margins/scroll guides, priorities, multipliers, placeholders removed); outlets, outlet collections, actions, segues, prototype cells; `UIMainStoryboardFile` / `UISceneStoryboardFile` windows; tested (HelloStoryboards). Missing: static table cells (compiled, not shown), size classes/variations, `@IBDesignable` rendering, localized storyboards' `.strings` |
 | Localization (`.xcstrings`, `.lproj/.strings`, app language from Settings) | 🟡 | plurals limited (see Foundation) |
-| Unit tests (XCTest, Swift Testing), UI tests (XCUITest) | ❌ | test bundles are skipped by `isim build`; isim's own script driver exists |
+| `isim test` (xcodebuild-style test runs) | ✅ | scheme Testables (skipped tests honored), `-only-testing:`/`-skip-testing:`, Xcode console format, `** TEST SUCCEEDED/FAILED **`, exit 65 on failures, `-resultBundlePath DIR` (logs + JUnit/xUnit XML; not an `.xcresult`); hosted tests run inside the app (`TEST_HOST`, bundle in `PlugIns/`), others in isim's `xctest` runner; tested (HelloToolchain, passing and deliberately failing runs) |
+| Unit tests: XCTest (ObjC and Swift) | ✅ | ObjC-runtime discovery (`test*` methods; Swift `throws`/`async` variants), setUp/tearDown (class, `WithError`, `async`), teardown blocks, assertions (ObjC macros with `@try/@catch` for `XCTAssertThrows*`; Swift functions incl. accuracy, identity, `XCTAssertThrowsError`, `XCTUnwrap`), uncaught NSExceptions and thrown Swift errors recorded, `continueAfterFailure = false` (interruption exception), expectations (`wait(for:)`, `waitForExpectations`, inverted, notification/predicate (unverified), `fulfillment(of:)`, enforced order (unverified)), `XCTWaiter`, `XCTSkip`/`XCTSkipIf`, `measure` (10 runs, average; no baselines), `XCTestObservation` (unverified); tested (HelloToolchain) |
+| Swift Testing (`import Testing`, `@Test`, `@Suite`, `#expect`, `#require`) | ✅ | swift-testing 6.2.4 built for isim (`isim/swift/build-testing.sh`); parameterized tests, async tests, filters/skips from `isim test`, xUnit output; exit tests unavailable (no process spawning, as on iOS); tested (HelloToolchain: AppSwiftTests) |
+| UI tests (XCUITest) | 🟡 | `XCUIApplication` launches the TEST_TARGET_NAME app as its own simulator process (launch arguments/environment, terminate, state); element queries by type/identifier/label/predicate on accessibility snapshots (`dump FILE`), `exists`, `waitForExistence`, `label`/`value`/`placeholderValue`/`isHittable`/`hasFocus`, `tap`, `typeText`, switches; tested (HelloToolchain). `swipe*`, `press(forDuration:)`, `adjust(toNormalizedSliderPosition:)`, coordinates, `XCUIDevice` orientation/home are unverified; no keyboard/keys elements, no system alerts/springboard; `;` cannot be typed |
 | Scripted automation (`--script`/`--control`: tap, type, screenshot, dump) | ✅ | |
 | Device presets: iPhone SE, 13 mini, 14, 15, 15 Plus, 15 Pro Max, 16 Pro, 16 Pro Max, 17, Air, 17 Pro, 17 Pro Max | ✅ | safe areas, Dynamic Island, rounded corners |
 | iPad presets: mini, Air 11", Pro 11", Pro 13" | 🟡 | run iPhone-style; no multitasking or pointer |

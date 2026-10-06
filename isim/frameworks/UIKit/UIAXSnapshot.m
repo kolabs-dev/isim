@@ -93,7 +93,7 @@ static void emit(NSMutableString *out, UIView *v, int depth, CGRect screen) {
     } else if ([type isEqualToString:@"navigationBar"]) {
         NSString *title = [v isKindOfClass:[UINavigationBar class]] ? ((UINavigationBar *)v).topItem.title : nil;
         if (!title) { NSMutableArray *texts = [NSMutableArray array]; for (UIView *s in v.subviews) if ([s isKindOfClass:[UILabel class]] && !s.hidden && ((UILabel *)s).text.length) [texts addObject:((UILabel *)s).text]; title = texts.firstObject; }
-        ident = ident ?: title;                                      /* like iOS: the bar is identified by its title */
+        ident = ident ?: title; label = label ?: title;              /* like iOS: the bar is identified by its title */
     }
     if (![value isKindOfClass:[NSString class]]) value = value ? [NSString stringWithFormat:@"%@", value] : nil;
     BOOL focused = focused_in(v);

@@ -13,6 +13,7 @@
             <BuildableReference BuildableIdentifier = "primary" BlueprintIdentifier = "A7C00020219F9750A615D83F" BuildableName = "AppTests.xctest" BlueprintName = "AppTests" ReferencedContainer = "container:HelloToolchain.xcodeproj"></BuildableReference>
             <SkippedTests>
                <Test Identifier = "ExpectedFailureTests"></Test>
+               <Test Identifier = "ExpectedObjCFailureTests"></Test>
             </SkippedTests>
          </TestableReference>
          <TestableReference skipped = "NO">

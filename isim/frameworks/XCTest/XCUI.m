@@ -8,6 +8,8 @@
 #include <unistd.h>
 
 static const double kSettle = 0.25;          /* after an action, let the app process it and start animations */
+static double xcui_now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
+static void xcui_sleep(double s) { struct timespec ts = { (time_t)s, (long)((s - (time_t)s) * 1e9) }; while (nanosleep(&ts, &ts) != 0) {} }
 
 /* ---------------- snapshot model ---------------- */
 @interface _XCUINode : NSObject
@@ -267,13 +269,13 @@ TYPEQ(keyboards, XCUIElementTypeKeyboard) TYPEQ(keys, XCUIElementTypeKey) TYPEQ(
 - (BOOL)exists { return [self _isim_peek] != nil; }
 - (BOOL)isHittable { _XCUINode *n = [self _isim_peek]; return n.hittable; }
 - (BOOL)waitForExistenceWithTimeout:(NSTimeInterval)t {
-    NSDate *end = [NSDate dateWithTimeIntervalSinceNow:t];
-    do { if (self.exists) return YES; usleep(50000); } while ([end timeIntervalSinceNow] > 0);
+    double end = xcui_now() + t;
+    do { if (self.exists) return YES; xcui_sleep(50 / 1000.0); } while (xcui_now() < end);
     return self.exists;
 }
 - (BOOL)waitForNonExistenceWithTimeout:(NSTimeInterval)t {
-    NSDate *end = [NSDate dateWithTimeIntervalSinceNow:t];
-    do { if (!self.exists) return YES; usleep(50000); } while ([end timeIntervalSinceNow] > 0);
+    double end = xcui_now() + t;
+    do { if (!self.exists) return YES; xcui_sleep(50 / 1000.0); } while (xcui_now() < end);
     return !self.exists;
 }
 #define ATTR(type, name, expr, dflt) - (type)name { _XCUINode *n = [self _isim_resolveFor:@"get " #name]; return n ? (expr) : (dflt); }
@@ -321,7 +323,7 @@ static CGPoint center_of(_XCUINode *n) { return CGPointMake(CGRectGetMidX(n.fram
     if (!n) return;
     XCUIApplication *app = [self _isim_app];
     f(n, app);
-    usleep((unsigned)(kSettle * 1e6));
+    xcui_sleep(kSettle);
 }
 - (void)tap {
     [self _isim_do:@"tap" with:^(_XCUINode *n, XCUIApplication *app) { CGPoint c = center_of(n); [app _isim_send:[NSString stringWithFormat:@"tap %g %g", c.x, c.y]]; }];
@@ -333,14 +335,14 @@ static CGPoint center_of(_XCUINode *n) { return CGPointMake(CGRectGetMidX(n.fram
 - (void)twoFingerTap { [self tap]; }
 - (void)pressForDuration:(NSTimeInterval)d {
     [self _isim_do:@"press" with:^(_XCUINode *n, XCUIApplication *app) {
-        CGPoint c = center_of(n); [app _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g", c.x, c.y, c.x, c.y, d]]; usleep((unsigned)(d * 1e6)); }];
+        CGPoint c = center_of(n); [app _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g", c.x, c.y, c.x, c.y, d]]; xcui_sleep(d); }];
 }
 - (void)_isim_swipe:(CGVector)dir name:(NSString *)name {
     [self _isim_do:name with:^(_XCUINode *n, XCUIApplication *app) {
         CGPoint c = center_of(n);
         double dist = fmax(80, fmin(300, (dir.dx ? n.frame.size.width : n.frame.size.height) * 0.6));
         [app _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g 0.2", c.x, c.y, c.x + dir.dx * dist, c.y + dir.dy * dist]];
-        usleep(200000); }];
+        xcui_sleep(200 / 1000.0); }];
 }
 - (void)swipeUp { [self _isim_swipe:CGVectorMake(0, -1) name:@"swipe up"]; }
 - (void)swipeDown { [self _isim_swipe:CGVectorMake(0, 1) name:@"swipe down"]; }
@@ -351,7 +353,7 @@ static CGPoint center_of(_XCUINode *n) { return CGPointMake(CGRectGetMidX(n.fram
         double cur = n.value.doubleValue / 100.0, inset = 14, w = n.frame.size.width - 2 * inset, y = CGRectGetMidY(n.frame);
         double x0 = n.frame.origin.x + inset + w * cur, x1 = n.frame.origin.x + inset + w * fmin(1, fmax(0, pos));
         [app _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g 0.3", x0, y, x1, y]];
-        usleep(300000); }];
+        xcui_sleep(300 / 1000.0); }];
 }
 - (void)typeText:(NSString *)text {
     _XCUINode *n = [self _isim_resolveFor:@"type text"];
@@ -369,7 +371,7 @@ static CGPoint center_of(_XCUINode *n) { return CGPointMake(CGRectGetMidX(n.fram
         if (p.length) [app _isim_send:[@"type " stringByAppendingString:p]];
         if (i + 1 < parts.count) [app _isim_send:@"key return"];
     }
-    usleep((unsigned)(kSettle * 1e6));
+    xcui_sleep(kSettle);
 }
 - (XCUICoordinate *)coordinateWithNormalizedOffset:(CGVector)off {
     XCUICoordinate *c = [XCUICoordinate new];
@@ -417,17 +419,17 @@ static void describe_tree(NSMutableString *s, _XCUINode *n, int depth) {
     return c;
 }
 - (XCUIApplication *)_isim_app { return _referencedElement.binding == XCUIBindApp ? (XCUIApplication *)_referencedElement : _referencedElement.ownerApp ?: last_app; }
-- (void)tap { CGPoint p = self.screenPoint; [[self _isim_app] _isim_send:[NSString stringWithFormat:@"tap %g %g", p.x, p.y]]; usleep((unsigned)(kSettle * 1e6)); }
+- (void)tap { CGPoint p = self.screenPoint; [[self _isim_app] _isim_send:[NSString stringWithFormat:@"tap %g %g", p.x, p.y]]; xcui_sleep(kSettle); }
 - (void)doubleTap { [self tap]; [self tap]; }
 - (void)pressForDuration:(NSTimeInterval)d {
     CGPoint p = self.screenPoint;
     [[self _isim_app] _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g", p.x, p.y, p.x, p.y, d]];
-    usleep((unsigned)((d + kSettle) * 1e6));
+    xcui_sleep((d + kSettle));
 }
 - (void)pressForDuration:(NSTimeInterval)d thenDragToCoordinate:(XCUICoordinate *)other {
     CGPoint a = self.screenPoint, b = other.screenPoint;
     [[self _isim_app] _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g", a.x, a.y, b.x, b.y, fmax(0.2, d + 0.3)]];
-    usleep((unsigned)((d + 0.3 + kSettle) * 1e6));
+    xcui_sleep((d + 0.3 + kSettle));
 }
 @end
 
@@ -477,12 +479,14 @@ static NSString *app_for_bundle_id(NSString *bid) {
     free(argv); free(envp);
     if (_handle < 0) { _XCTIsimRecordFailure([NSString stringWithFormat:@"Failed to launch %@", _appPath.lastPathComponent], nil, 0, YES); return; }
     last_app = self;
-    /* launched = it answers a snapshot with at least one window (like XCUITest waiting for the app to idle) */
-    NSDate *end = [NSDate dateWithTimeIntervalSinceNow:30];
-    while ([end timeIntervalSinceNow] > 0 && isim_xcui_running(_handle)) {
+    /* launched = it answers a snapshot with a window that has content (like XCUITest waiting for the app to idle) */
+    double end = xcui_now() + 30;
+    while (xcui_now() < end && isim_xcui_running(_handle)) {
         _XCUINode *root = [self _isim_snapshotQuiet:YES];
-        if (root.children.count) { usleep((unsigned)(kSettle * 1e6)); return; }
-        usleep(50000);
+        BOOL content = NO;                    /* a window with views (the root view controller has loaded) */
+        for (_XCUINode *w in root.children) if (w.children.count) content = YES;
+        if (content) { xcui_sleep(kSettle); return; }
+        xcui_sleep(50 / 1000.0);
     }
     _XCTIsimRecordFailure([NSString stringWithFormat:@"Failed to launch %@: %@", _appPath.lastPathComponent,
         isim_xcui_running(_handle) ? @"the app did not show a window within 30 seconds" : @"the app exited"], nil, 0, YES);
@@ -490,8 +494,8 @@ static NSString *app_for_bundle_id(NSString *bid) {
 - (void)activate { if (!isim_xcui_running(_handle)) [self launch]; }
 - (void)terminate { isim_xcui_terminate(_handle); }
 - (BOOL)waitForState:(XCUIApplicationState)st timeout:(NSTimeInterval)t {
-    NSDate *end = [NSDate dateWithTimeIntervalSinceNow:t];
-    do { if (self.state == st) return YES; usleep(50000); } while ([end timeIntervalSinceNow] > 0);
+    double end = xcui_now() + t;
+    do { if (self.state == st) return YES; xcui_sleep(50 / 1000.0); } while (xcui_now() < end);
     return self.state == st;
 }
 - (void)_isim_send:(NSString *)cmd { if (isim_xcui_send(_handle, cmd.UTF8String) != 0) _XCTIsimRecordFailure(@"The application is not running", nil, 0, YES); }
@@ -514,10 +518,10 @@ static NSString *app_for_bundle_id(NSString *bid) {
     NSString *name = o == UIDeviceOrientationLandscapeLeft ? @"landscapeleft" : o == UIDeviceOrientationLandscapeRight ? @"landscaperight"
         : o == UIDeviceOrientationPortraitUpsideDown ? @"upsidedown" : @"portrait";
     XCUIApplication *app = last_app;
-    if (app) { [app _isim_send:[@"rotate " stringByAppendingString:name]]; usleep(700000); }
+    if (app) { [app _isim_send:[@"rotate " stringByAppendingString:name]]; xcui_sleep(700 / 1000.0); }
 }
 - (void)pressButton:(XCUIDeviceButton)b {
     XCUIApplication *app = last_app;
-    if (b == XCUIDeviceButtonHome && app) { [app _isim_send:@"home"]; usleep(400000); }
+    if (b == XCUIDeviceButtonHome && app) { [app _isim_send:@"home"]; xcui_sleep(400 / 1000.0); }
 }
 @end

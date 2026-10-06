@@ -117,9 +117,12 @@ def main():
             renv.pop('ISIM_HEADLESS')
         if opts['device']:
             renv['ISIM_DEVICE'] = opts['device']
-        renv['ISIM_XCTEST_ONLY'] = ','.join(o.split('/', 1)[1] for o in mine if '/' in o)
-        renv['ISIM_XCTEST_SKIP'] = ','.join(s.split('/', 1)[1] for s in skip + ([] if mine else scheme_skips) if s.split('/')[0] == tname and '/' in s)
         bundle_base = os.path.splitext(os.path.basename(product['path']))[0]
+        # identifiers as Bundle[/Class[/test]] (Xcode's Target/... form, with the bundle's name)
+        def ids(lst):
+            return ','.join('/'.join([bundle_base] + x.split('/')[1:]) for x in lst if x.split('/')[0] == tname)
+        renv['ISIM_XCTEST_ONLY'] = ids(mine)
+        renv['ISIM_XCTEST_SKIP'] = ids(skip + ([] if mine else scheme_skips))
         if results:
             renv['ISIM_XCTEST_JUNIT'] = os.path.join(results, bundle_base + '.junit.xml')
             renv['ISIM_SWIFT_TESTING_XUNIT'] = os.path.join(results, bundle_base + '.swift-testing.xml')

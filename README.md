@@ -35,7 +35,8 @@ isim-0.2.0-linux-x86_64/bin/isim install isim-0.2.0-linux-x86_64/apps/*.app
 | `isim install App.app…` · `isim uninstall NAME` · `isim apps` | manage installed apps |
 | `isim run App.app [args…]` | install, boot and open the app over the home screen (headless or `ISIM_STANDALONE=1`: the app alone) |
 | `isim reset` | erase installed apps, app data and settings |
-| `isim build -project App.xcodeproj [-target T] [-o DIR]` | build an Xcode project |
+| `isim build (-project App.xcodeproj \| -workspace App.xcworkspace) [-scheme S \| -target T] [-configuration Release] [-o DIR]` | build an Xcode project or workspace: apps, extensions, frameworks, static libraries, local Swift packages, `.xcframework`s (x86_64 simulator slice), `.xcconfig` files |
+| `isim test -project App.xcodeproj -scheme S [-only-testing:Target/Class/test] [-resultBundlePath DIR]` | build and run the scheme's test targets like `xcodebuild test`: XCTest (hosted in the app or standalone), Swift Testing and XCUITest; exits 65 on failures |
 | `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
 | `isim info App.app` | show Mach-O platform and dependencies |
 
@@ -100,6 +101,7 @@ Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs
 | Area | Status | Notes |
 |---|---|---|
 | Compile for iOS on Linux | ✅ | clang/lld produce iOS-simulator (x86_64) and device (arm64) Mach-O |
+| Build and test Xcode projects | ✅ | `isim build` (workspaces, schemes, frameworks, static libraries, packages, xcconfig) and `isim test` (XCTest, Swift Testing, XCUITest). Remote packages are never downloaded; arm64-only binary SDKs cannot run |
 | Run simulator binaries | ✅ | own Mach-O loader, libSystem subset, Objective-C runtime, Foundation |
 | UIKit | 🟡 | views, controls (sliders, steppers, segmented, menus…), Auto Layout, scroll views, text fields, keyboards, alerts, page sheets, view animations, blur, navigation and tab bar controllers, table and collection views (flow, compositional and list layouts, diffable data sources). Not yet: storyboards |
 | Swift | ✅ | full runtime, Swift Concurrency, Regex / RegexBuilder, Foundation bridging |

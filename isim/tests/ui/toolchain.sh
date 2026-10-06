@@ -36,7 +36,8 @@ check "XCTSkip (Swift and ObjC)"                    'grep -q "ModelTests testSki
 check "measure reports an average"                  'grep -q "testMeasure\]. measured \[Time, seconds\] average:" <<<"$tlog"'
 check "setUp/tearDown order"                        'grep -q "ModelTests testZLifecycleOrder\]. passed" <<<"$tlog"'
 check "ObjC XCTestCase in the same bundle"          'grep -q "Test Case .-\[ObjCTests testCalculator\]. passed" <<<"$tlog"'
-check "scheme skips the failing class"              '! grep -q "ExpectedFailureTests" <<<"$tlog"'
+check "ObjC XCTAssertThrows (@try/@catch)"          'grep -q "Test Case .-\[ObjCTests testExceptions\]. passed" <<<"$tlog"'
+check "scheme skips the failing classes"            '! grep -q "ExpectedFailureTests\|ExpectedObjCFailureTests" <<<"$tlog"'
 check "XCTest summary"                              'grep -Eq "Executed 1[0-9] tests, with 2 tests skipped and 0 failures" <<<"$tlog"'
 check "Swift Testing runs @Test / @Suite"           'grep -q "Test conversion() passed" <<<"$tlog" && grep -q "with 3 test cases passed" <<<"$tlog" && grep -q "Suite UnitsSuite passed" <<<"$tlog"'
 check "Swift Testing skips FailingSuite (scheme)"   '! grep -q "deliberateFailure" <<<"$tlog"'
@@ -45,14 +46,15 @@ check "JUnit / xUnit reports written"               'grep -q "<testcase classnam
 
 # deliberately failing tests are reported as failures
 flog=$(cd "$proj" && timeout 600 ../../out/bin/isim test -workspace HelloToolchain.xcworkspace -scheme HelloToolchain -o "$work" \
-  -only-testing:AppTests/ExpectedFailureTests -only-testing:AppSwiftTests/FailingSuite -only-testing:AppUITests/ExpectedUIFailureTests 2>&1); frc=$?
+  -only-testing:AppTests/ExpectedFailureTests -only-testing:AppTests/ExpectedObjCFailureTests -only-testing:AppSwiftTests/FailingSuite -only-testing:AppUITests/ExpectedUIFailureTests 2>&1); frc=$?
 echo "$flog" > "$shots/failing.log"
 check "failing run exits 65 with TEST FAILED"       '[ $frc = 65 ] && grep -q "^\*\* TEST FAILED \*\*" <<<"$flog"'
 check "XCTAssertEqual failure with file:line"       'grep -Eq "ModelTests.swift:[0-9]+: error: -\[AppTests.ExpectedFailureTests testEqualFails\] : XCTAssertEqual failed: \(\"5\"\) is not equal to \(\"6\"\) - deliberate" <<<"$flog"'
 check "thrown error recorded"                       'grep -q "testThrownError\] : caught error" <<<"$flog" && grep -q "testThrownError\]. failed" <<<"$flog"'
 check "continueAfterFailure = false stops"          'grep -q "first failure" <<<"$flog" && ! grep -q "never reached" <<<"$flog"'
 check "unfulfilled expectation times out"           'grep -q "Exceeded timeout of 0.2 seconds, with unfulfilled expectations: \"never fulfilled\"" <<<"$flog"'
-check "only the selected tests ran"                 'grep -Eq "Executed 4 tests, with 4 failures" <<<"$flog" && ! grep -q "testLinkedLibraries" <<<"$flog"'
+check "uncaught NSException recorded"               'grep -q "testUncaughtException\] : failed: caught \"NSInternalInconsistencyException\", \"deliberate exception\"" <<<"$flog" && ! grep -q "not reached" <<<"$flog"'
+check "only the selected tests ran"                 'grep -Eq "Executed 5 tests, with 5 failures" <<<"$flog" && ! grep -q "testLinkedLibraries" <<<"$flog"'
 check "Swift Testing failure reported"              'grep -q "Expectation failed: (Units.convert(1) → 10000) == 1" <<<"$flog" && grep -q "Test deliberateFailure() failed" <<<"$flog"'
 check "XCUITest: tapping a missing element fails"   'grep -q "Failed to tap: No matches found" <<<"$flog" && grep -q "ExpectedUIFailureTests testMissingButton\]. failed" <<<"$flog"'
 

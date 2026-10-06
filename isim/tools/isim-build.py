@@ -1007,6 +1007,8 @@ class Builder:
             if (csrc or is_framework) and str(s.get('SWIFT_INSTALL_OBJC_HEADER', 'YES')) == 'YES':
                 swift_header = os.path.join(derived, s['SWIFT_OBJC_INTERFACE_HEADER_NAME'])
                 cmd += ['-emit-objc-header-path', swift_header]
+                if '-emit-module' not in cmd:            # else swiftc leaves a temporary <Module>-1.swiftmodule in the cwd
+                    cmd += ['-emit-module', '-emit-module-path', os.path.join(objdir, module + '.swiftmodule')]
             bridging = s.get('SWIFT_OBJC_BRIDGING_HEADER')
             if bridging and not is_framework:
                 bpath = bridging if os.path.isabs(bridging) else os.path.join(target.p.root, bridging)

@@ -10,26 +10,17 @@
 #include <time.h>
 #include <unistd.h>
 
-/* ---------------- non-local exit for fatal failures (continueAfterFailure = NO, ObjC XCTSkip) ----------------
- * isim has no exception unwinding, so the runner jumps back to the test invocation like XCTest's interruption
- * exception does (skipping the frames in between; their cleanups do not run, as with an exception in ObjC). */
-typedef long xct_jmp_buf[8];
-__attribute__((naked, returns_twice)) static int xct_setjmp(__attribute__((unused)) xct_jmp_buf b) {
-    __asm__ volatile(
-        "movq %rbx, 0(%rdi)\n\t movq %rbp, 8(%rdi)\n\t movq %r12, 16(%rdi)\n\t movq %r13, 24(%rdi)\n\t"
-        "movq %r14, 32(%rdi)\n\t movq %r15, 40(%rdi)\n\t leaq 8(%rsp), %rdx\n\t movq %rdx, 48(%rdi)\n\t"
-        "movq (%rsp), %rdx\n\t movq %rdx, 56(%rdi)\n\t xorl %eax, %eax\n\t ret\n\t");
-}
-__attribute__((naked, noreturn)) static void xct_longjmp(__attribute__((unused)) xct_jmp_buf b, __attribute__((unused)) int v) {
-    __asm__ volatile(
-        "movq 0(%rdi), %rbx\n\t movq 8(%rdi), %rbp\n\t movq 16(%rdi), %r12\n\t movq 24(%rdi), %r13\n\t"
-        "movq 32(%rdi), %r14\n\t movq 40(%rdi), %r15\n\t movq 48(%rdi), %rsp\n\t movl %esi, %eax\n\t"
-        "testl %eax, %eax\n\t jnz 1f\n\t incl %eax\n1:\n\t jmpq *56(%rdi)\n\t");
-}
+/* ---------------- interruption (continueAfterFailure = NO, ObjC XCTSkip) ----------------
+ * Like XCTest: an internal exception unwinds from the failing assertion to the test invocation. Tests that
+ * throw an NSException themselves are recorded as failures ("caught ..."). */
+@interface _XCTestCaseInterruption : NSException
+@end
+@implementation _XCTestCaseInterruption
+@end
 
 static XCTestCase *current_case;
 static pthread_t runner_thread;
-static xct_jmp_buf *interrupt_buf;        /* set while a test's synchronous code runs on the runner thread */
+static int interruptible;                 /* set while a test's synchronous code runs on the runner thread */
 static int waiting_depth;                 /* > 0 while the runner spins the run loop (async work in progress) */
 static NSMutableArray *observers;
 static FILE *out_fp;
@@ -398,17 +389,18 @@ static BOOL overrides(XCTestCase *tc, SEL sel) {
     say(@"Test Case '%@' started.", self.name);
     [run start];
     @autoreleasepool {
-        xct_jmp_buf buf;
-        if (xct_setjmp(buf) == 0) {
-            interrupt_buf = &buf;
-            [self invokeTest];
+        for (int phase = 0; phase < 2; phase++) {
+            interruptible = 1;
+            @try {
+                if (phase == 0) [self invokeTest]; else [self _isim_tearDown];
+            } @catch (_XCTestCaseInterruption *e) {
+                /* stopped after a failure or a skip; already recorded */
+            } @catch (NSException *e) {
+                interruptible = 0;
+                _XCTIsimRecordFailure([NSString stringWithFormat:@"failed: caught \"%@\", \"%@\"", e.name, e.reason], nil, 0, NO);
+            }
+            interruptible = 0;
         }
-        interrupt_buf = NULL;
-        if (xct_setjmp(buf) == 0) {
-            interrupt_buf = &buf;
-            [self _isim_tearDown];
-        }
-        interrupt_buf = NULL;
         if (_unwaited.count && !_isimSkipped) {
             NSArray *u = _unwaited; _unwaited = nil;
             _XCTIsimRecordFailure([NSString stringWithFormat:@"Failed due to unwaited expectation%@ %@.", u.count > 1 ? @"s" : @"", quoted_list(u)], nil, 0, YES);
@@ -429,9 +421,9 @@ static BOOL overrides(XCTestCase *tc, SEL sel) {
 XCTestCase *_XCTCurrentTestCase(void) { return current_case; }
 
 static void maybe_interrupt(void) {
-    if (interrupt_buf && !waiting_depth && pthread_equal(pthread_self(), runner_thread)) {
-        xct_jmp_buf *b = interrupt_buf; interrupt_buf = NULL;
-        xct_longjmp(*b, 1);
+    if (interruptible && !waiting_depth && pthread_equal(pthread_self(), runner_thread)) {
+        interruptible = 0;
+        @throw [_XCTestCaseInterruption exceptionWithName:@"_XCTestCaseInterruption" reason:@"test interrupted" userInfo:nil];
     }
 }
 void _XCTIsimRecordFailure(NSString *description, NSString *filePath, NSUInteger line, BOOL expected) {
@@ -546,8 +538,10 @@ static BOOL id_matches(NSString *ident, NSString *bundle, Class c, NSString *met
     NSString *cls = short_class_name(c), *full = readable_class_name(c);
     BOOL (^clsMatch)(NSString *) = ^BOOL(NSString *x) { return [x isEqualToString:cls] || [x isEqualToString:full]; };
     if (p.count == 1) return [p[0] isEqualToString:bundle] || clsMatch(p[0]);
-    if (p.count == 2)                    /* Class/test, or Bundle/Class (a class may be named like its bundle) */
-        return (clsMatch(p[0]) && (!method || [p[1] isEqualToString:method])) || ([p[0] isEqualToString:bundle] && clsMatch(p[1]));
+    if (p.count == 2) {                  /* Bundle/Class (isim test passes Xcode's Target/Class form), else Class/test */
+        if ([p[0] isEqualToString:bundle]) return clsMatch(p[1]);
+        return clsMatch(p[0]) && (!method || [p[1] isEqualToString:method]);
+    }
     return [p[0] isEqualToString:bundle] && clsMatch(p[1]) && (!method || [p[2] isEqualToString:method]);
 }
 static NSString *xml_escape(NSString *s) {
@@ -603,8 +597,11 @@ static int run_swift_testing(swift_testing_entry entry, NSArray<NSString *> *onl
         if (!p.count) continue;                                       /* the whole bundle: no filter */
         [args addObjectsFromArray:@[@"--filter", regex_escape([p componentsJoinedByString:@"/"])]];
     }
-    if (only.count && args.count == 1) { /* only other bundles/classes selected */ }
-    for (NSString *s in skip) [args addObjectsFromArray:@[@"--skip", regex_escape(s)]];
+    for (NSString *s in skip) {
+        NSArray *p = [s componentsSeparatedByString:@"/"];
+        if ([p.firstObject isEqualToString:bundleBase]) p = [p subarrayWithRange:NSMakeRange(1, p.count - 1)];
+        if (p.count) [args addObjectsFromArray:@[@"--skip", regex_escape([p componentsJoinedByString:@"/"])]];
+    }
     const char *xunit = getenv("ISIM_SWIFT_TESTING_XUNIT");
     if (xunit && *xunit) [args addObjectsFromArray:@[@"--xunit-output", @(xunit)]];
     const char **argv = calloc(args.count + 1, sizeof *argv);

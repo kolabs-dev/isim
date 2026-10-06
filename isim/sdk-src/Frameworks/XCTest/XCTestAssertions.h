@@ -2,9 +2,8 @@
 #import <XCTest/XCTestObservation.h>
 
 /* Objective-C assertion macros. They report through _XCTIsimRecordFailure with the file and line of the
- * assertion; with continueAfterFailure = NO the runner stops the test after the first failure.
- * isim has no Objective-C exceptions: XCTAssertThrows* record a failure saying so and XCTAssertNoThrow*
- * just evaluate the expression. */
+ * assertion; with continueAfterFailure = NO the runner stops the test after the first failure (an internal
+ * exception unwinds to the runner, as in XCTest). XCTAssertThrows* use @try/@catch. */
 
 NS_ASSUME_NONNULL_BEGIN
 XCT_EXPORT NSString *_XCTIsimDescribe(const char *objCType, const void *value);
@@ -76,11 +75,25 @@ NS_ASSUME_NONNULL_END
         _XCTRegisterFailure(nil, ([NSString stringWithFormat:@"((" #expression1 ") not equal to (" #expression2 ") +/- (" #accuracy ")) failed: (\"%g\") is equal to (\"%g\") +/- (\"%g\")", _xct_a, _xct_b, _xct_acc]), __VA_ARGS__); \
 } while (0)
 
-#define XCTAssertThrows(expression, ...) \
-    _XCTRegisterFailure(nil, @"((" #expression ") throws) failed: Objective-C exceptions are not supported on isim", __VA_ARGS__)
-#define XCTAssertThrowsSpecific(expression, exception_class, ...) XCTAssertThrows(expression, __VA_ARGS__)
-#define XCTAssertThrowsSpecificNamed(expression, exception_class, exception_name, ...) XCTAssertThrows(expression, __VA_ARGS__)
-#define XCTAssertNoThrow(expression, ...) do { (void)(expression); } while (0)
+#define XCTAssertThrows(expression, ...) do { \
+    BOOL _xct_threw = NO; \
+    @try { (void)(expression); } @catch (id _xct_e) { _xct_threw = YES; } \
+    if (!_xct_threw) _XCTRegisterFailure(nil, @"((" #expression ") throws) failed", __VA_ARGS__); \
+} while (0)
+#define XCTAssertThrowsSpecific(expression, exception_class, ...) do { \
+    BOOL _xct_ok = NO; NSString *_xct_got = @"no exception"; \
+    @try { (void)(expression); } @catch (id _xct_e) { _xct_ok = [_xct_e isKindOfClass:[exception_class class]]; _xct_got = NSStringFromClass([_xct_e class]); } \
+    if (!_xct_ok) _XCTRegisterFailure(nil, ([NSString stringWithFormat:@"((" #expression ") throws <" #exception_class ">) failed: %@", _xct_got]), __VA_ARGS__); \
+} while (0)
+#define XCTAssertThrowsSpecificNamed(expression, exception_class, exception_name, ...) do { \
+    BOOL _xct_ok = NO; \
+    @try { (void)(expression); } @catch (id _xct_e) { _xct_ok = [_xct_e isKindOfClass:[exception_class class]] && [[_xct_e name] isEqualToString:exception_name]; } \
+    if (!_xct_ok) _XCTRegisterFailure(nil, @"((" #expression ") throws <" #exception_class ", \"" #exception_name "\">) failed", __VA_ARGS__); \
+} while (0)
+#define XCTAssertNoThrow(expression, ...) do { \
+    @try { (void)(expression); } \
+    @catch (id _xct_e) { _XCTRegisterFailure(nil, ([NSString stringWithFormat:@"((" #expression ") does not throw) failed: throwing \"%@\"", [_xct_e reason]]), __VA_ARGS__); } \
+} while (0)
 #define XCTAssertNoThrowSpecific(expression, exception_class, ...) XCTAssertNoThrow(expression, __VA_ARGS__)
 #define XCTAssertNoThrowSpecificNamed(expression, exception_class, exception_name, ...) XCTAssertNoThrow(expression, __VA_ARGS__)
 
