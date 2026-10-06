@@ -44,8 +44,7 @@ typedef NS_ENUM(NSInteger, UIModalPresentationStyle) { UIModalPresentationFullSc
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;
 @property (nonatomic, readonly, strong) UINavigationItem *navigationItem;
-@end
-@interface UINavigationItem : NSObject
-@property (nullable, nonatomic, copy) NSString *title;
+@property (nonatomic) UIEdgeInsets additionalSafeAreaInsets;
+- (void)viewSafeAreaInsetsDidChange;
 @end
 NS_ASSUME_NONNULL_END

@@ -347,6 +347,14 @@ static void rl_add_block(double delay, dispatch_block_t block) {
 /* main-queue services for the dispatch implementation (Dispatch.mrc.m) */
 void isim_main_enqueue_f(double delay, void (*f)(void *), void *ctx) { rl_add_block(delay, ^{ f(ctx); }); }
 double isim_main_fire_due(void) { return [NSRunLoop.mainRunLoop _isim_fireDue]; }
+/* seconds until the next main run loop item is due (0 if one is due now) without firing anything */
+double isim_main_next_due(void) {
+    double next = 1e9, now = mono_now();
+    pthread_mutex_lock(&rl_lock);
+    for (__IsimRunLoopItem *it in rl_items) if (it.fireAt - now < next) next = it.fireAt - now;
+    pthread_mutex_unlock(&rl_lock);
+    return next < 0 ? 0 : next;
+}
 void isim_main_wait(double seconds) {
     if (seconds <= 0) return;
     struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);

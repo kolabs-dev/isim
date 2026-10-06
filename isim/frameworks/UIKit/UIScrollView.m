@@ -46,6 +46,7 @@ const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal = 0.998, U
     b.origin = o;
     self.bounds = b;
     isim_ui_set_needs_display();
+    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimScrollViewDidScroll" object:self];    /* navigation bars follow their content */
     id<UIScrollViewDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(scrollViewDidScroll:)]) [d scrollViewDidScroll:self];
 }
@@ -83,10 +84,7 @@ const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal = 0.998, U
     /* the safe area of a scroll view is measured on its frame (independent of scrolling) */
     UIView *sup = self.superview;
     if (!self.window || !sup) return UIEdgeInsetsZero;
-    const struct isim_device *d = isim_ui_device();
-    CGRect inWin = [sup convertRect:self.frame toView:nil];
-    CGFloat top = MAX(0, d->safe_top - inWin.origin.y), bottom = MAX(0, CGRectGetMaxY(inWin) - (d->height - d->safe_bottom));
-    return UIEdgeInsetsMake(MIN(top, inWin.size.height), 0, MIN(bottom, inWin.size.height), 0);
+    return isim_ui_safe_insets_for_rect(self, [sup convertRect:self.frame toView:nil]);
 }
 - (CGPoint)_minOffset { UIEdgeInsets a = self.adjustedContentInset; return CGPointMake(-a.left, -a.top); }
 - (CGPoint)_maxOffset {

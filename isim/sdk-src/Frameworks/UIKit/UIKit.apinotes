@@ -243,6 +243,16 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIBarButtonItemStyle
+  SwiftName: UIBarButtonItem.Style
+- Name: UIBarButtonSystemItem
+  SwiftName: UIBarButtonItem.SystemItem
+- Name: UINavigationItemLargeTitleDisplayMode
+  SwiftName: UINavigationItem.LargeTitleDisplayMode
+- Name: UITabBarSystemItem
+  SwiftName: UITabBarItem.SystemItem
+- Name: UINavigationControllerOperation
+  SwiftName: UINavigationController.Operation
 - Name: UIActivityIndicatorViewStyle
   SwiftName: UIActivityIndicatorView.Style
 - Name: UIProgressViewStyle

@@ -129,6 +129,13 @@
 - (void)didReceiveMemoryWarning {}
 - (void)setTitle:(NSString *)t { _title = [t copy]; self.navigationItem.title = t; }
 - (UINavigationItem *)navigationItem { if (!_navItem) _navItem = [UINavigationItem new]; return _navItem; }
+- (void)setAdditionalSafeAreaInsets:(UIEdgeInsets)i {
+    if (UIEdgeInsetsEqualToEdgeInsets(i, _additionalSafeAreaInsets)) return;
+    _additionalSafeAreaInsets = i;
+    isim_ui_constraints_changed(); [_view setNeedsLayout]; isim_ui_set_needs_layout();
+    [self viewSafeAreaInsetsDidChange];
+}
+- (void)viewSafeAreaInsetsDidChange {}
 - (UIResponder *)nextResponder { return _view.superview ?: (UIResponder *)_parent; }
 - (UITraitCollection *)traitCollection { return _view ? _view.traitCollection : [UITraitCollection currentTraitCollection]; }
 - (void)traitCollectionDidChange:(UITraitCollection *)p {}
@@ -138,11 +145,14 @@
 - (void)setNeedsStatusBarAppearanceUpdate { isim_ui_set_needs_display(); }
 
 /* appearance callbacks, propagated to children */
+/* containers (navigation/tab controllers) forward appearance only to the children on screen */
+- (NSArray<UIViewController *> *)_isim_visibleChildren { return _children; }
+- (BOOL)_isim_isVisible { return _appearance != 0; }
 - (void)_isim_appear:(BOOL)visible {
-    if (visible && _appearance == 0) { _appearance = 1; [self viewWillAppear:NO]; for (UIViewController *c in _children) [c _isim_appear:YES]; }
+    if (visible && _appearance == 0) { _appearance = 1; [self viewWillAppear:NO]; for (UIViewController *c in [self _isim_visibleChildren]) [c _isim_appear:YES]; }
     else if (!visible && _appearance) { [self viewWillDisappear:NO]; _appearance = 0; for (UIViewController *c in _children) [c _isim_appear:NO]; [self viewDidDisappear:NO]; }
 }
-- (void)_isim_didAppear { if (_appearance == 1) { _appearance = 2; [self viewDidAppear:NO]; for (UIViewController *c in _children) [c _isim_didAppear]; } [_presented _isim_didAppear]; }
+- (void)_isim_didAppear { if (_appearance == 1) { _appearance = 2; [self viewDidAppear:NO]; for (UIViewController *c in [self _isim_visibleChildren]) [c _isim_didAppear]; } [_presented _isim_didAppear]; }
 
 /* containment */
 - (UIViewController *)parentViewController { return _parent; }
@@ -284,7 +294,6 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     }
 }
 @end
-@implementation UINavigationItem @end
 @interface UIGestureRecognizer (IsimTouch)
 - (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event;
 @end
@@ -774,6 +783,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
             if (isim_ui_take_display() && !backgrounded) { layout_all(); render_frame(); }
             double timeout = next < 0.5 ? next : 0.5;
             if ((isim_ui_animations_running() || isim_ui_display_links_active()) && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
+            { extern double isim_main_next_due(void); double due = isim_main_next_due(); if (due < timeout) timeout = due; }   /* blocks queued while rendering run right away */
             struct isim_event ev;
             for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {
                 switch (ev.type) {

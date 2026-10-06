@@ -22,11 +22,11 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 70 | 25 | 10 | 91 | 196 | 42% |
+| **UIKit** | 77 | 27 | 9 | 84 | 197 | 46% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 4 | 9 | 23 | 35% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 7 | 2 | 1 | 19 | 29 | 28% |
-| &nbsp;&nbsp;↳ Views & controls | 19 | 8 | 1 | 23 | 51 | 45% |
-| &nbsp;&nbsp;↳ Layout | 11 | 1 | 1 | 5 | 18 | 64% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 10 | 3 | 0 | 16 | 29 | 40% |
+| &nbsp;&nbsp;↳ Views & controls | 22 | 9 | 1 | 19 | 51 | 52% |
+| &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
 | &nbsp;&nbsp;↳ Gestures & touches | 4 | 0 | 0 | 9 | 13 | 31% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **268** | **75** | **38** | **325** | **706** | **43%** |
+| **All areas** | **275** | **77** | **37** | **318** | **707** | **44%** |
 
 ---
 
@@ -131,9 +131,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Popover presentation (`UIPopoverPresentationController`) | ❌ | |
 | `modalTransitionStyle` (cross dissolve, flip, partial curl) | ❌ | |
 | Custom transitions (`UIViewControllerTransitioningDelegate`, interactive) | ❌ | |
-| `UINavigationController` (push/pop, back swipe) | ❌ | SwiftUI `NavigationStack` has its own bar |
-| `UINavigationItem` (title, bar button items, search controller, large titles) | 🧩 | `title` stored; nothing displays it |
-| `UITabBarController` | ❌ | |
+| `UINavigationController` (push/pop, back swipe) | ✅ | push/pop/popTo, parallax animation, back button, left-edge back swipe, delegate; tested (HelloNavigation) |
+| `UINavigationItem` (title, bar button items, search controller, large titles) | ✅ | title, titleView, left/right bar button items, back title, large title display mode |
+| `UITabBarController` | ✅ | tab bar, selection, delegate, badges, hidesBottomBarWhenPushed, tap-again pops to root; tested |
 | `UISplitViewController` | ❌ | |
 | `UIPageViewController` | ❌ | |
 | `UIAlertController` `.alert` | ✅ | iOS 17/18 metrics, preferred action |
@@ -147,7 +147,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIReferenceLibraryViewController`, `QLPreviewController` | ❌ | |
 | `UIInputViewController` (custom keyboard extension) | ✅ | loaded in-process; no Full Access |
 | `overrideUserInterfaceStyle` | ✅ | |
-| `setEditing(_:animated:)`, `editButtonItem` | ❌ | |
+| `setEditing(_:animated:)`, `editButtonItem` | 🟡 | editing flag and Edit/Done item; no table editing UI yet |
 | `preferredContentSize` | ❌ | |
 | `UIContentUnavailableConfiguration` | ❌ | |
 
@@ -170,7 +170,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UILabel.attributedText` | ❌ | no `NSAttributedString` |
 | `UIButton` system/custom, title/color/image per state | ✅ | `imageView` returns nil |
 | `UIButton.Configuration` (plain/tinted/gray/filled/bordered*, subtitle, image padding, corner style, size) | 🟡 | no `configurationUpdateHandler`, attributed titles or activity indicator |
-| Button menus (`menu`, `showsMenuAsPrimaryAction`), pop-up buttons | ❌ | |
+| Button menus (`menu`, `showsMenuAsPrimaryAction`), pop-up buttons | ✅ | UIButton.menu + showsMenuAsPrimaryAction, UIBarButtonItem menus; tested |
 | `UIControl` target-action, `UIAction`, control events/states | ✅ | |
 | `UIImageView` | ✅ | PNG/JPEG/… via gdk-pixbuf, SVG via librsvg |
 | Animated images (`animationImages`, `UIImage.animatedImage`) | ❌ | |
@@ -197,9 +197,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIVisualEffectView` + `UIBlurEffect` (system materials) | ✅ | real backdrop blur + light/dark tint; no saturation boost |
 | `UIVibrancyEffect` | 🧩 | content drawn normally |
 | `UIMenu`, `UIContextMenuInteraction` (context menus, previews) | 🟡 | UIMenu pop-ups for UIButton.menu (sections, checkmarks, destructive, submenus); no context-menu previews |
-| `UIToolbar`, `UIBarButtonItem` | ❌ | |
-| `UINavigationBar` (standalone, appearance) | ❌ | |
-| `UITabBar` | ❌ | |
+| `UIToolbar`, `UIBarButtonItem` | ✅ | system items, titles, images, primary actions, menus, flexible/fixed spaces; tested |
+| `UINavigationBar` (standalone, appearance) | 🟡 | large titles collapsing on scroll, scroll-edge transparency, appearances (basic); no UIAppearance proxies |
+| `UITabBar` | ✅ | items, badges, selected/unselected tints; no "More" tab beyond 5 items |
 | `UISearchBar` | ❌ | |
 | `UIRefreshControl` | ❌ | |
 | `UIEditMenuInteraction` (copy/paste menu) | ❌ | |
@@ -217,6 +217,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Intrinsic content size, hugging / compression resistance | ✅ | |
 | `systemLayoutSizeFitting` | ✅ | |
 | `UILayoutGuide`, `safeAreaLayoutGuide`, `layoutMarginsGuide` | ✅ | per-device safe areas |
+| `additionalSafeAreaInsets` (container insets propagate to children) | ✅ | navigation/tab bars; scroll views adjust |
 | `readableContentGuide` | 🟡 | exists; width rules unverified |
 | `keyboardLayoutGuide` | ❌ | |
 | Layout margins, `directionalLayoutMargins` | ✅ | |

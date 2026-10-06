@@ -40,3 +40,13 @@ extension UIMenu {
         self.subtitle = subtitle
     }
 }
+
+// MARK: - Bar button items (Swift conveniences from Apple's UIKit overlay)
+extension UIBarButtonItem {
+    public convenience init(title: String? = nil, image: UIImage? = nil, primaryAction: UIAction? = nil, menu: UIMenu? = nil) {
+        self.init(__title: title, image: image, primaryAction: primaryAction, menu: menu)
+    }
+    public convenience init(systemItem: UIBarButtonItem.SystemItem, primaryAction: UIAction? = nil, menu: UIMenu? = nil) {
+        if let menu { self.init(barButtonSystemItem: systemItem, menu: menu) } else { self.init(barButtonSystemItem: systemItem, primaryAction: primaryAction) }
+    }
+}

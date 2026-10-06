@@ -44,6 +44,10 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect
 
 @interface UIViewController (IsimPrivate)
 - (void)_isim_setParent:(UIViewController *)p;
+- (void)_isim_appear:(BOOL)visible;                 /* viewWill(Dis)Appear (+ viewDidDisappear) for it and its visible children */
+- (void)_isim_didAppear;
+- (NSArray<UIViewController *> *)_isim_visibleChildren;
+- (BOOL)_isim_isVisible;
 @end
 
 @interface UIControl (IsimPrivate)
@@ -156,3 +160,7 @@ NSString *isim_ui_installed_apps_dir(void);
 - (nullable UIActionHandler)handler;
 - (void)setSender:(nullable id)sender;
 @end
+
+/* safe area (UIView.m): window-space safe rect for content in a view, and insets of a window-space rect */
+CGRect isim_ui_safe_rect(UIView *v);
+UIEdgeInsets isim_ui_safe_insets_for_rect(UIView *v, CGRect inWindow);

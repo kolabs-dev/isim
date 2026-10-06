@@ -393,12 +393,37 @@ static void anim_remove_all(UIView *v);
 - (CGPoint)convertPoint:(CGPoint)p fromCoordinateSpace:(id<UICoordinateSpace>)s { return [s isKindOfClass:[UIView class]] ? [self convertPoint:p fromView:(UIView *)s] : [self _isim_fromWindow:p]; }
 
 /* ---- safe area & margins ---- */
+/* The safe area in window coordinates for content inside `v`: the device's safe area, narrowed by the
+ * additionalSafeAreaInsets of every view controller whose view encloses `v` (navigation/tab bars). */
+CGRect isim_ui_safe_rect(UIView *v) {
+    UIWindow *w = v.window;
+    if (!w) return CGRectNull;
+    const struct isim_device *d = isim_ui_device();
+    CGRect r = CGRectMake(0, d->safe_top, w.bounds.size.width, MAX(0, w.bounds.size.height - d->safe_top - d->safe_bottom));
+    NSMutableArray *chain = [NSMutableArray array];
+    for (UIView *x = v; x && x != (UIView *)w; x = x.superview) [chain insertObject:x atIndex:0];
+    for (UIView *a in chain) {
+        UIViewController *vc = [a _isim_viewController];
+        if (!vc) continue;
+        UIEdgeInsets add = vc.additionalSafeAreaInsets;
+        if (UIEdgeInsetsEqualToEdgeInsets(add, UIEdgeInsetsZero)) continue;
+        CGRect af = a.superview ? [a.superview convertRect:a.frame toView:nil] : a.frame;
+        CGRect inner = CGRectIntersection(r, af);
+        if (CGRectIsNull(inner)) inner = af;
+        r = UIEdgeInsetsInsetRect(inner, add);
+    }
+    return r;
+}
+UIEdgeInsets isim_ui_safe_insets_for_rect(UIView *v, CGRect inWin) {
+    CGRect r = isim_ui_safe_rect(v);
+    if (CGRectIsNull(r)) return UIEdgeInsetsZero;
+    CGFloat top = MAX(0, CGRectGetMinY(r) - inWin.origin.y), bottom = MAX(0, CGRectGetMaxY(inWin) - CGRectGetMaxY(r));
+    CGFloat left = MAX(0, CGRectGetMinX(r) - inWin.origin.x), right = MAX(0, CGRectGetMaxX(inWin) - CGRectGetMaxX(r));
+    return UIEdgeInsetsMake(MIN(top, inWin.size.height), MIN(left, inWin.size.width), MIN(bottom, inWin.size.height), MIN(right, inWin.size.width));
+}
 - (UIEdgeInsets)safeAreaInsets {
     if (!_window) return UIEdgeInsetsZero;
-    const struct isim_device *d = isim_ui_device();
-    CGRect inWin = [self convertRect:self.bounds toView:nil];
-    CGFloat top = MAX(0, d->safe_top - inWin.origin.y), bottom = MAX(0, CGRectGetMaxY(inWin) - (d->height - d->safe_bottom));
-    return UIEdgeInsetsMake(MIN(top, inWin.size.height), 0, MIN(bottom, inWin.size.height), 0);
+    return isim_ui_safe_insets_for_rect(self, [self convertRect:self.bounds toView:nil]);
 }
 - (void)safeAreaInsetsDidChange {}
 - (void)setLayoutMargins:(UIEdgeInsets)m { if (UIEdgeInsetsEqualToEdgeInsets(m, _layoutMargins)) return; _layoutMargins = m; isim_ui_constraints_changed(); [self setNeedsLayout]; }

@@ -40,3 +40,4 @@
 #import <UIKit/UIFeedbackGenerator.h>
 #import <UIKit/UIVisualEffectView.h>
 #import <UIKit/UIMoreControls.h>
+#import <UIKit/UINavigationController.h>
