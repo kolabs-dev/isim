@@ -231,6 +231,4 @@ public struct PresentationDetent: Hashable, Sendable {
 public enum PopoverAttachmentAnchor: Sendable {
     case rect(Anchor<CGRect>.Source), point(UnitPoint)
 }
-public struct Anchor<Value>: Sendable {
-    public struct Source: Sendable { public static var bounds: Source { Source() } }
-}
+// Anchor: Preferences.swift

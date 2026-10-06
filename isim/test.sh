@@ -23,6 +23,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloForms.app/HelloForms ] && run "ui: HelloForms (SwiftUI controls, TabView, @AppStorage)" tests/ui/forms.sh
   [ -x out/apps/HelloText.app/HelloText ] && run "ui: HelloText (rich Text, Markdown, dates, timers)" tests/ui/text.sh
   [ -x out/apps/HelloPickers.app/HelloPickers ] && run "ui: HelloPickers (DatePicker, ColorPicker, Gauge, more controls)" tests/ui/pickers.sh
+  [ -x out/apps/HelloLayout.app/HelloLayout ] && run "ui: HelloLayout (Grid, Layout protocol, alignment guides, preferences, scroll targets)" tests/ui/layout.sh
   [ -x out/apps/HelloNavigation.app/HelloNavigation ] && run "ui: HelloNavigation (UINavigationController, UITabBarController)" tests/ui/navigation.sh
   [ -x out/apps/HelloTable.app/HelloTable ] && run "ui: HelloTable (UITableView, diffable data source)" tests/ui/table.sh
   [ -x out/apps/HelloCollection.app/HelloCollection ] && run "ui: HelloCollection (UICollectionView flow/compositional/list)" tests/ui/collection.sh

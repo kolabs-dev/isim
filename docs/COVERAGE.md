@@ -35,17 +35,17 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 98 | 30 | 14 | 52 | 194 | 58% |
+| **SwiftUI** | 104 | 36 | 13 | 41 | 194 | 63% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
-| &nbsp;&nbsp;↳ State & data flow | 11 | 2 | 0 | 4 | 17 | 71% |
+| &nbsp;&nbsp;↳ State & data flow | 12 | 3 | 0 | 2 | 17 | 79% |
 | &nbsp;&nbsp;↳ Views & controls | 26 | 10 | 1 | 1 | 38 | 82% |
-| &nbsp;&nbsp;↳ Containers & layout | 12 | 4 | 2 | 9 | 27 | 52% |
+| &nbsp;&nbsp;↳ Containers & layout | 17 | 8 | 1 | 1 | 27 | 78% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 10 | 5 | 1 | 7 | 23 | 54% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 12 | 2 | 7 | 3 | 24 | 54% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 3 | 1 | 0 | 5 | 9 | 39% |
 | &nbsp;&nbsp;↳ Animation | 2 | 3 | 1 | 6 | 12 | 29% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
-| &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 0 | 0 | 2 | 7 | 71% |
+| &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 1 | 0 | 1 | 7 | 79% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ Environment values | 3 | 1 | 0 | 3 | 7 | 50% |
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **325** | **116** | **46** | **279** | **766** | **50%** |
+| **All areas** | **331** | **122** | **45** | **268** | **766** | **51%** |
 
 ---
 
@@ -386,9 +386,9 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@FocusState` (Bool and Hashable) | ✅ | |
 | `@Namespace` | ✅ | |
 | `@GestureState` | ❌ | |
-| `@ScaledMetric` | ❌ | |
+| `@ScaledMetric` | 🟡 | scales with `dynamicTypeSize` (tested); the system text size is always `.large` on isim and fonts do not scale with dynamic type |
 | `@FocusedValue`, `@FocusedBinding` | ❌ | |
-| `PreferenceKey`, `.preference`, `.onPreferenceChange`, anchor preferences | ❌ | |
+| `PreferenceKey`, `.preference`, `.onPreferenceChange`, anchor preferences | ✅ | values reduce up the laid-out tree (incl. GeometryReader backgrounds), `transformPreference`, `anchorPreference` / `transformAnchorPreference` with `overlayPreferenceValue` / `backgroundPreferenceValue` and `proxy[anchor]`; tested (HelloLayout) |
 | `Transaction`, `withTransaction` | 🟡 | carries the animation / `disablesAnimations`; custom transaction keys missing |
 
 ### Views & controls
@@ -442,12 +442,12 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `Spacer(minLength:)`, `layoutPriority`, `fixedSize` | ✅ | |
 | `LazyVStack`, `LazyHStack` | 🟡 | laid out like plain stacks; `pinnedViews` ignored |
 | `LazyVGrid` (`GridItem` fixed / flexible / adaptive) | 🟡 | `pinnedViews` ignored |
-| `LazyHGrid` | ❌ | a typealias of `LazyVGrid`; `init(rows:)` does not exist |
-| `Grid`, `GridRow` | ❌ | |
+| `LazyHGrid` | ✅ | `init(rows:)` with fixed / flexible / adaptive rows, items flow down then across; laid out eagerly; tested (HelloLayout) |
+| `Grid`, `GridRow` | ✅ | column widths from the widest cells, flexible cells share the rest; `gridCellColumns`, `gridColumnAlignment`, `gridCellAnchor`, `gridCellUnsizedAxes`, row alignment, full-width non-row views; tested (HelloLayout) |
 | `ScrollView` (vertical, horizontal) | ✅ | |
 | `ScrollViewReader`, `scrollTo` | ✅ | |
-| `scrollIndicators`, `scrollDisabled`, `scrollBounceBehavior` | 🧩 | accepted, ignored |
-| `scrollPosition`, `scrollTargetBehavior` (paging), `scrollTransition`, `onScrollGeometryChange` | ❌ | |
+| `scrollIndicators`, `scrollDisabled`, `scrollBounceBehavior` | 🟡 | `scrollDisabled` tested (HelloLayout); hidden indicators and `.basedOnSize` bounce unverified |
+| `scrollPosition`, `scrollTargetBehavior` (paging), `scrollTransition`, `onScrollGeometryChange` | 🟡 | `.paging` (UIScrollView paging), `.viewAligned` + `scrollTargetLayout()` (snaps to children), custom `ScrollTargetBehavior.updateTarget`, `scrollPosition(id:)` both ways; tested (HelloLayout). `scrollTransition`, `onScrollGeometryChange` missing |
 | `List` (content builder, sections) | 🟡 | inset-grouped look; no `List(data)`, selection or editing |
 | `listStyle`, `listRowBackground`, `listRowSeparator`, `listSectionSpacing`, `scrollContentBackground` | 🧩 | accepted, ignored |
 | `.onDelete`, `.onMove`, `.swipeActions`, edit mode | ❌ | |
@@ -457,13 +457,13 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `Group`, `AnyView`, `if`/`switch` in builders | ✅ | |
 | `GeometryReader`, `GeometryProxy.size`, `frame(in: .local/.global)`, safe-area insets | ✅ | |
 | Named coordinate spaces | 🟡 | `.named` falls back to global |
-| `ViewThatFits` | ❌ | |
-| `Layout` protocol, `AnyLayout` | ❌ | |
-| `containerRelativeFrame` | ❌ | |
+| `ViewThatFits` | ✅ | first child whose ideal size fits (per axis); tested (HelloLayout) |
+| `Layout` protocol, `AnyLayout` | ✅ | `sizeThatFits` / `placeSubviews` with subviews' `sizeThatFits` / `dimensions` / `place(at:anchor:proposal:)`, caches, `layoutValue`; `AnyLayout` switching keeps child state; `HStackLayout` / `VStackLayout` / `ZStackLayout` / `GridLayout`; tested (HelloLayout). Spacing preferences are a fixed 8 pt; not animatable |
+| `containerRelativeFrame` | 🟡 | relative to the nearest scroll view, else the window's safe area (navigation/tab content are not containers of their own); `count:span:spacing:` and closure forms; tested (HelloLayout) |
 | `frame` (fixed, min/ideal/max, alignment), `padding`, `aspectRatio`, `offset` | ✅ | |
-| `position`, `alignmentGuide` | ❌ | |
+| `position`, `alignmentGuide` | ✅ | `position` centres the view at a point; explicit guides and custom `AlignmentID`s line up views in HStack / VStack / ZStack, also through nested stacks; tested (HelloLayout) |
 | `ignoresSafeArea`, `edgesIgnoringSafeArea` | ✅ | |
-| `safeAreaInset`, `safeAreaPadding`, `contentMargins` | ❌ | |
+| `safeAreaInset`, `safeAreaPadding`, `contentMargins` | 🟡 | `safeAreaInset` lays the inset view at the edge and the content in the rest (content does not scroll beneath it); `safeAreaPadding` is padding; `contentMargins` pads scroll view content; inset and margins tested (HelloLayout) |
 | `overlay`, `background` (view, shape style, `in:` shape), `zIndex` | ✅ | |
 
 ### Navigation & presentation
@@ -579,7 +579,7 @@ inside UIKit's animation engine, so frames, opacity, transforms and colors inter
 | `onReceive` | ✅ | |
 | `onSubmit` | ✅ | |
 | `onKeyPress`, `keyboardShortcut` | ❌ | |
-| `onGeometryChange`, `onContinuousHover`, `onHover` | ❌ | |
+| `onGeometryChange`, `onContinuousHover`, `onHover` | 🟡 | `onGeometryChange` (size; `frame(in: .global)` is approximate) tested (HelloLayout); hover modifiers missing |
 
 ### Focus & keyboard
 

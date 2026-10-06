@@ -28,11 +28,12 @@ check "ProgressView with a label"                     'grep -A1 "id=progress" <<
 check "DisclosureGroup expands"                       '! grep -q "advanced-body" <<<"$(sed -n "/id=gauge-linear/,\$p" <<<"$other" | head -40)" && grep -q "id=advanced-body text=Hidden option" <<<"$other"'
 check "OutlineGroup expands a parent"                 'grep -q "text=Resume.pdf" <<<"$other" && grep -q "text=Taxes" <<<"$other"'
 check "ControlGroup buttons"                          'grep -q "^control cut" <<<"$other"'
-check "controlSize mini < large"                      'grep -q "(0 11; 50 x 27) id=btn-mini" <<<"$other" && grep -q "x 49) id=btn-large" <<<"$other"'
+h() { grep -m1 "id=$1" <<<"$other" | sed -E 's/.* x ([0-9.]+)\).*/\1/'; }
+check "controlSize mini < large"                      'awk -v a="$(h btn-mini)" -v b="$(h btn-large)" "BEGIN{exit !(a>0 && a<b)}"'
 check "PrimitiveButtonStyle triggers on long press only" '[ "$(grep -c "^long press" <<<"$other")" = 1 ]'
 check "ShareLink shows a share sheet"                 'grep -q "^isim: share https://example.com/item" <<<"$other" && grep -q "id=share-item text=https://example.com/item" <<<"$other"'
 check "PasteButton is disabled (no pasteboard)"       'grep -B3 "text=Paste" <<<"$other" | grep -q "alpha<1"'
-check "AsyncImage loads a data URL"                   'grep -q "^AsyncImage loaded" <<<"$other" && grep -q "(164 0; 32 x 32) id=async" <<<"$other"'
+check "AsyncImage loads a data URL"                   'grep -q "^AsyncImage loaded" <<<"$other" && grep -q "; 32 x 32) id=async" <<<"$other"'
 check "ContentUnavailableView"                        'grep -q "text=No Mail" <<<"$other"'
 check "exits cleanly"                                 '[ $rc1 = 0 ] && [ $rc2 = 0 ] && [ $rc3 = 0 ]'
 [ $fail = 0 ] || { echo "--- app log"; echo "$dates$other" | grep -v "^ " | tail -30; }

@@ -315,10 +315,14 @@ final class _TextNode: _Node {
         let w = p.width ?? 1e6
         var s = l.sizeThatFits(CGSize(width: w >= 1e6 ? 0 : max(1, w), height: 1e6))
         if w < 1e6 {
-            // the label is drawn at its own (measured) width: make that width wrap exactly like the measurement
-            s.width = min(w, ceil(s.width) + 1)
-            let again = l.sizeThatFits(CGSize(width: s.width, height: 1e6))
-            s.height = max(s.height, again.height)
+            let natural = l.sizeThatFits(CGSize(width: 0, height: 1e6))
+            if natural.width <= w { s = natural }      // fits unwrapped: its ideal size (a stack offered its ideal width fits exactly)
+            else {
+                // the label is drawn at its own (measured) width: make that width wrap exactly like the measurement
+                s.width = min(w, ceil(s.width) + 1)
+                let again = l.sizeThatFits(CGSize(width: s.width, height: 1e6))
+                s.height = max(s.height, again.height)
+            }
         }
         if let mn = minLines { s.height = max(s.height, CGFloat(mn) * ceil(font.lineHeight)) }
         return CGSize(width: ceil(s.width), height: ceil(s.height))

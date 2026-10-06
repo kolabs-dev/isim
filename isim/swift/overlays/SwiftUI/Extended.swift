@@ -412,7 +412,8 @@ public struct ScrollView<Content: View>: View, _PrimitiveView {
     }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
-        _ScrollNode(path: ctx.path, axes: axes, indicators: showsIndicators, child: _resolve(content, ctx.child("scroll")))
+        // content margins and scroll behaviours: Scroll+Paging.swift
+        _makeScrollNode(axes: axes, indicators: showsIndicators, ctx) { _resolve(content, $0) }
     }
 }
 final class _ScrollNode: _WrapperNode {
@@ -422,13 +423,18 @@ final class _ScrollNode: _WrapperNode {
     func contentProposal(_ p: _Proposal) -> _Proposal {
         _Proposal(width: axes.contains(.horizontal) ? nil : p.width, height: axes.contains(.vertical) ? nil : p.height)
     }
+    var options = _ScrollOptions()
     override func sizeThatFits(_ p: _Proposal) -> CGSize {
+        _containerSizes.append(CGSize(width: min(p.width ?? 1e6, 1e6), height: min(p.height ?? 1e6, 1e6)))
+        defer { _containerSizes.removeLast() }
         let c = child.sizeThatFits(contentProposal(p))
         // like SwiftUI: a scroll view takes the proposed space (content narrower than it is centered)
         return CGSize(width: min(p.width ?? c.width, 1e6), height: min(p.height ?? c.height, 1e6))
     }
     override func place(_ rect: CGRect) {
         frame = rect
+        _containerSizes.append(rect.size)
+        defer { _containerSizes.removeLast() }
         var s = child.sizeThatFits(contentProposal(_Proposal(width: rect.width, height: rect.height)))
         if !axes.contains(.horizontal) { s.width = rect.width }
         if !axes.contains(.vertical) { s.height = rect.height }
@@ -443,10 +449,12 @@ final class _ScrollNode: _WrapperNode {
         v.alwaysBounceVertical = axes.contains(.vertical)
         v.alwaysBounceHorizontal = axes.contains(.horizontal)
         if v.contentSize != contentSize { v.contentSize = contentSize }
+        _applyScrollOptions(self, v, g)
         return v
     }
 }
 final class _SUIScrollView: UIScrollView {
+    var behavior: _ScrollBehavior?           // paging / view-aligned snapping, scroll position (Scroll+Paging.swift)
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; contentInsetAdjustmentBehavior = .never }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
@@ -480,9 +488,7 @@ public struct ScrollViewReader<Content: View>: View, _PrimitiveView {
     func _makeNode(_ ctx: _Context) -> _Node { _resolve(content(ScrollViewProxy(graph: ctx.graph)), ctx.child("reader")) }
 }
 extension View {
-    public func scrollIndicators(_ v: ScrollIndicatorVisibility, axes: Axis.Set = [.vertical, .horizontal]) -> some View { self }
-    public func scrollDisabled(_ d: Bool) -> some View { self }
-    public func scrollBounceBehavior(_ b: ScrollBounceBehavior, axes: Axis.Set = [.vertical]) -> some View { self }
+    // scrollIndicators, scrollDisabled, scrollBounceBehavior: Scroll+Paging.swift
 }
 public struct ScrollIndicatorVisibility: Sendable { let id: Int; public static let automatic = Self(id: 0), visible = Self(id: 1), hidden = Self(id: 2), never = Self(id: 3) }
 public struct ScrollBounceBehavior: Sendable { let id: Int; public static let automatic = Self(id: 0), always = Self(id: 1), basedOnSize = Self(id: 2) }
@@ -522,7 +528,6 @@ public struct LazyVGrid<Content: View>: View, _PrimitiveView {
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node { _GridNode(path: ctx.path, columns: columns, spacing: spacing ?? 8, child: _resolve(content, ctx.child("grid"))) }
 }
-public typealias LazyHGrid = LazyVGrid
 public struct PinnedScrollableViews: OptionSet, Sendable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }

@@ -117,10 +117,12 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         let node = resolved!
         // layout: content that does not manage the safe area itself stays inside it
         let area = node.ignoresSafeArea ? bounds : bounds.inset(by: safeArea)
+        _containerSizes = [bounds.inset(by: safeArea).size]          // containerRelativeFrame (CustomLayout.swift)
         let size = node.sizeThatFits(_Proposal(width: area.width, height: area.height))
         let origin = CGPoint(x: area.minX + (area.width - min(size.width, area.width)) / 2,
                              y: node.ignoresSafeArea ? area.minY : area.minY + (area.height - min(size.height, area.height)) / 2)
         node.place(CGRect(origin: origin, size: node.ignoresSafeArea ? area.size : size))
+        _containerSizes = []
         extendIntoSafeArea(node, offset: .zero, safe: bounds.inset(by: safeArea), bounds: bounds)
         fresh = []; mountedViews = []; newMatched = [:]
         let oldTransitions = transitions, oldMatchedKeys = matchedKeys
@@ -359,11 +361,13 @@ final class _GroupNode: _Node {
     }
     return sizes
 }
-@MainActor func _stackSize(_ children: [_Node], axis: Axis, spacing: CGFloat, _ p: _Proposal) -> CGSize {
+@MainActor func _stackSize(_ children: [_Node], axis: Axis, spacing: CGFloat, _ p: _Proposal, alignment: Alignment? = nil) -> CGSize {
     let nodes = _flatten(children)
     let sizes = _stackSizes(nodes, axis: axis, spacing: spacing, p)
     let main = sizes.reduce(0) { $0 + $1[axis] } + spacing * CGFloat(max(0, nodes.count - 1))
-    let cross = sizes.map { $0[axis == .vertical ? .horizontal : .vertical] }.max() ?? 0
+    var cross = sizes.map { $0[axis == .vertical ? .horizontal : .vertical] }.max() ?? 0
+    // alignment guides (CustomLayout.swift) can widen the stack across its axis
+    if let a = alignment, let g = _guidedAxis(nodes, sizes, horizontal: axis == .vertical, axis == .vertical ? a.horizontal.id : a.vertical.id) { cross = g.extent }
     return axis == .vertical ? CGSize(width: cross, height: main) : CGSize(width: main, height: cross)
 }
 /// Places children inside `rect`; with relative = true frames are relative to rect's origin.
@@ -372,16 +376,20 @@ final class _GroupNode: _Node {
     let sizes = _stackSizes(nodes, axis: axis, spacing: spacing, _Proposal(width: rect.width, height: rect.height))
     var pos: CGFloat = 0
     let base = relative ? CGPoint.zero : rect.origin
+    let guided = _guidedAxis(nodes, sizes, horizontal: axis == .vertical, axis == .vertical ? alignment.horizontal.id : alignment.vertical.id)
+    let guidedStart = guided.map { max(0, ((axis == .vertical ? rect.width : rect.height) - $0.extent) / 2) } ?? 0
     for (i, node) in nodes.enumerated() {
         let s = sizes[i]
         var f: CGRect
         if axis == .vertical {
             var x: CGFloat = (rect.width - s.width) / 2
             if alignment.horizontal == .leading { x = 0 } else if alignment.horizontal == .trailing { x = rect.width - s.width }
+            if let g = guided { x = guidedStart + g.offsets[i] }
             f = CGRect(x: base.x + x, y: base.y + pos, width: s.width, height: s.height)
         } else {
             var y: CGFloat = (rect.height - s.height) / 2
             if alignment.vertical == .top { y = 0 } else if alignment.vertical == .bottom { y = rect.height - s.height }
+            if let g = guided { y = guidedStart + g.offsets[i] }
             f = CGRect(x: base.x + pos, y: base.y + y, width: s.width, height: s.height)
         }
         node.place(f)
@@ -397,7 +405,7 @@ final class _StackNode: _Node {
         super.init(path: path, children: children)
         rowAction = nil
     }
-    override func sizeThatFits(_ p: _Proposal) -> CGSize { _stackSize(children, axis: axis, spacing: spacing, p) }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { _stackSize(children, axis: axis, spacing: spacing, p, alignment: alignment) }
     override func place(_ rect: CGRect) {
         frame = rect
         _stackPlace(children, axis: axis, spacing: spacing, alignment: alignment, in: rect, relative: true)
@@ -412,14 +420,24 @@ final class _ZStackNode: _Node {
     init(path: String, alignment: Alignment, children: [_Node]) { self.alignment = alignment; super.init(path: path, children: children); rowAction = nil }
     override func sizeThatFits(_ p: _Proposal) -> CGSize {
         var s = CGSize.zero
-        for c in _flatten(children) { let cs = c.sizeThatFits(p); s.width = max(s.width, cs.width); s.height = max(s.height, cs.height) }
+        let nodes = _flatten(children)
+        let sizes = nodes.map { $0.sizeThatFits(p) }
+        for cs in sizes { s.width = max(s.width, cs.width); s.height = max(s.height, cs.height) }
+        // alignment guides (CustomLayout.swift)
+        if let g = _guidedAxis(nodes, sizes, horizontal: true, alignment.horizontal.id) { s.width = g.extent }
+        if let g = _guidedAxis(nodes, sizes, horizontal: false, alignment.vertical.id) { s.height = g.extent }
         return s
     }
     override func place(_ rect: CGRect) {
         frame = rect
-        for c in _flatten(children) {
-            let cs = c.sizeThatFits(_Proposal(width: rect.width, height: rect.height))
-            c.place(_align(CGSize(width: min(cs.width, rect.width), height: min(cs.height, rect.height)), in: CGRect(origin: .zero, size: rect.size), alignment))
+        let nodes = _flatten(children)
+        let sizes = nodes.map { cs in let s = cs.sizeThatFits(_Proposal(width: rect.width, height: rect.height)); return CGSize(width: min(s.width, rect.width), height: min(s.height, rect.height)) }
+        let hg = _guidedAxis(nodes, sizes, horizontal: true, alignment.horizontal.id), vg = _guidedAxis(nodes, sizes, horizontal: false, alignment.vertical.id)
+        for (i, c) in nodes.enumerated() {
+            var f = _align(sizes[i], in: CGRect(origin: .zero, size: rect.size), alignment)
+            if let g = hg { f.origin.x = _align(CGSize(width: g.extent, height: 0), in: CGRect(origin: .zero, size: rect.size), alignment).minX + g.offsets[i] }
+            if let g = vg { f.origin.y = _align(CGSize(width: 0, height: g.extent), in: CGRect(origin: .zero, size: rect.size), alignment).minY + g.offsets[i] }
+            c.place(f)
         }
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {
