@@ -101,8 +101,8 @@ static NSString *icon_state_file(void) {
 @implementation HomeViewController {
     NSArray<HSApp *> *_apps; NSMutableArray *_layout;
     UIScrollView *_pages; UIView *_dock; UIImageView *_wallpaper; UIView *_menu; BOOL _editing; UIButton *_done, *_searchPill;
-    NSMutableArray<UIView *> *_pageViews; UIView *_library;
-    UIView *_dragging; NSInteger _dragFrom; CGPoint _dragOffset;
+    NSMutableArray<UIView *> *_pageViews; UIView *_library; NSArray *_place;
+    UIView *_dragging; NSInteger _dragFrom; CGPoint _dragOffset; UIButton *_addWidget;
 }
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleLightContent; }
 - (CGFloat)iconSize { return self.view.bounds.size.width >= 700 ? 74 : 60; }
@@ -139,6 +139,7 @@ static NSString *icon_state_file(void) {
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(launchByID:) name:@"_IsimShellLaunch" object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(showSpotlight) name:@"_SBShowSpotlight" object:nil];
     [self installSystemObservers];
+    [self installWidgetObservers];
     [self reload];
 }
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)g shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)o { return YES; }
@@ -158,6 +159,7 @@ static NSString *icon_state_file(void) {
     [self.view setNeedsLayout];
     [self rebuild];
     [self publishAppInfo];
+    [self discoverWidgets];
 }
 - (NSArray<HSApp *> *)apps { return _apps; }
 - (HSApp *)appWithIdentifier:(NSString *)ident {
@@ -172,6 +174,7 @@ static NSString *icon_state_file(void) {
     NSMutableArray *items = [NSMutableArray array];
     for (id it in [NSDictionary dictionaryWithContentsOfFile:icon_state_file()][@"items"]) {
         if ([it isKindOfClass:[NSString class]]) { HSApp *a = [self appForID:it]; if (a && !a.system) [items addObject:it]; }
+        else if ([it isKindOfClass:[NSDictionary class]] && it[@"widget"]) { if ([self appForID:it[@"app"]]) [items addObject:[it mutableCopy]]; }
         else if ([it isKindOfClass:[NSDictionary class]]) {
             NSMutableArray *ids = [NSMutableArray array];
             for (NSString *i in it[@"apps"]) if ([self appForID:i]) [ids addObject:i];
@@ -179,7 +182,7 @@ static NSString *icon_state_file(void) {
         }
     }
     NSMutableSet *placed = [NSMutableSet set];
-    for (id it in items) { if ([it isKindOfClass:[NSString class]]) [placed addObject:it]; else [placed addObjectsFromArray:it[@"apps"]]; }
+    for (id it in items) { if ([it isKindOfClass:[NSString class]]) [placed addObject:it]; else if (it[@"apps"]) [placed addObjectsFromArray:it[@"apps"]]; }
     for (HSApp *a in _apps) if (!a.system && ![placed containsObject:a.bundleID]) [items addObject:a.bundleID];
     _layout = items;
     [self saveLayout];
@@ -190,16 +193,49 @@ static NSString *icon_state_file(void) {
     CGFloat rowH = pad ? 120 : 102, avail = b.size.height - self.view.safeAreaInsets.top - (pad ? 40 : 14) - 150;
     return (pad ? 6 : 4) * MAX(1, (NSInteger)(avail / rowH));
 }
+/* grid placement: icons take one cell; widgets 2x2 (small, at column 0 or 2), 4x2 (medium), 4x4 (large) */
+static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
+    *cw = *ch = 1;
+    if (![it isKindOfClass:[NSDictionary class]] || !it[@"widget"]) return;
+    NSString *f = it[@"family"];
+    if ([f isEqual:@"systemMedium"]) { *cw = cols; *ch = 2; } else if ([f isEqual:@"systemLarge"]) { *cw = cols; *ch = 4; } else { *cw = 2; *ch = 2; }
+}
+- (NSArray<NSArray<NSNumber *> *> *)placements {
+    BOOL pad = self.view.bounds.size.width >= 700;
+    NSInteger cols = pad ? 6 : 4, rows = MAX(1, [self perPage] / cols);
+    NSMutableArray *out = [NSMutableArray array];
+    NSMutableArray<NSMutableData *> *grids = [NSMutableArray array];
+    for (id it in _layout) {
+        NSInteger cw, ch; item_span(it, cols, &cw, &ch);
+        BOOL done = NO;
+        for (NSInteger p = 0; !done; p++) {
+            if ((NSInteger)grids.count <= p) [grids addObject:[NSMutableData dataWithLength:(NSUInteger)(rows * cols)]];
+            char *g = grids[p].mutableBytes;
+            for (NSInteger r = 0; r + ch <= rows && !done; r++) for (NSInteger c = 0; c + cw <= cols && !done; c += (cw > 1 ? 2 : 1)) {
+                BOOL free = YES;
+                for (NSInteger y = r; y < r + ch && free; y++) for (NSInteger x = c; x < c + cw; x++) if (g[y * cols + x]) { free = NO; break; }
+                if (!free) continue;
+                for (NSInteger y = r; y < r + ch; y++) for (NSInteger x = c; x < c + cw; x++) g[y * cols + x] = 1;
+                [out addObject:@[@(p), @(c), @(r), @(cw), @(ch)]]; done = YES;
+            }
+            if (p > 64) { [out addObject:@[@(p), @0, @0, @1, @1]]; done = YES; }
+        }
+    }
+    return out;
+}
 - (void)rebuild {
     for (UIView *v in _pages.subviews) [v removeFromSuperview];
     for (UIView *v in _dock.subviews) [v removeFromSuperview];
     _pageViews = [NSMutableArray array];
     CGFloat s = self.iconSize;
-    NSInteger per = MAX(1, [self perPage]), npages = MAX(1, ((NSInteger)_layout.count + per - 1) / per);
+    _place = [self placements];
+    NSInteger npages = 1; for (NSArray *pl in _place) npages = MAX(npages, [pl[0] integerValue] + 1);
     for (NSInteger p = 0; p < npages; p++) { UIView *pv = [UIView new]; pv.accessibilityIdentifier = [NSString stringWithFormat:@"home-page-%ld", (long)p]; [_pages addSubview:pv]; [_pageViews addObject:pv]; }
     for (NSUInteger i = 0; i < _layout.count; i++) {
         id it = _layout[i]; UIControl *icon;
-        if ([it isKindOfClass:[NSString class]]) {
+        if ([it isKindOfClass:[NSDictionary class]] && it[@"widget"]) {
+            icon = [self makeWidgetView:it];
+        } else if ([it isKindOfClass:[NSString class]]) {
             HSIcon *ai = [[HSIcon alloc] initWithApp:[self appForID:it] size:s label:YES];
             [ai addTarget:self action:@selector(tapped:) forControlEvents:UIControlEventTouchUpInside];
             [ai addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)]];
@@ -215,7 +251,7 @@ static NSString *icon_state_file(void) {
         }
         icon.tag = (NSInteger)i;
         if (_editing) [icon addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(iconPanned:)]];
-        [_pageViews[i / per] addSubview:icon];
+        [_pageViews[[_place[i][0] integerValue]] addSubview:icon];
     }
     for (HSApp *a in _apps) if (a.system) {                 /* system apps (Settings) live in the dock */
         HSIcon *icon = [[HSIcon alloc] initWithApp:a size:s label:NO];
@@ -242,11 +278,11 @@ static NSString *icon_state_file(void) {
     for (NSUInteger p = 0; p < np; p++) {
         UIView *pv = _pageViews[p];
         pv.frame = CGRectMake(p * b.size.width, 0, b.size.width, _pages.bounds.size.height);
-        NSInteger i = 0;
         for (UIView *icon in pv.subviews) {
-            if (icon == _dragging) { i++; continue; }
-            icon.frame = CGRectMake(margin + (i % cols) * colW + (colW - s) / 2, top + (i / cols) * rowH, s, s + 22);
-            i++;
+            if (icon == _dragging || icon.tag < 0 || icon.tag >= (NSInteger)_place.count) continue;
+            NSArray *pl = _place[icon.tag];
+            NSInteger c = [pl[1] integerValue], r = [pl[2] integerValue], cw = [pl[3] integerValue], ch = [pl[4] integerValue];
+            icon.frame = CGRectMake(margin + c * colW + (colW - s) / 2, top + r * rowH, (cw - 1) * colW + s, (ch - 1) * rowH + s + 22);
         }
     }
     _library.frame = CGRectMake(np * b.size.width, 0, b.size.width, _pages.bounds.size.height);
@@ -257,6 +293,7 @@ static NSString *icon_state_file(void) {
     NSInteger i = 0;
     for (HSIcon *icon in _dock.subviews) { icon.frame = CGRectMake(start + i * dColW + (dColW - s) / 2, (dockH - s) / 2, s, s); i++; }
     _done.frame = CGRectMake(b.size.width - 82, safe.top + 2, 66, 30);
+    _addWidget.frame = CGRectMake(16, safe.top + 2, 40, 30);
     /* tell the shell where each app's icon is (app open/close animations zoom from/to it; apps in folders: the folder) */
     dispatch_async(dispatch_get_main_queue(), ^{
         CGFloat page = self->_pages.contentOffset.x;
@@ -268,7 +305,7 @@ static NSString *icon_state_file(void) {
             if (container != self->_dock && fabs(container.frame.origin.x - page) > 1) r = CGRectMake(b.size.width / 2 - 30, b.size.height / 2 - 30, 60, 60);
             char geo[128];
             snprintf(geo, sizeof geo, "%g %g %g %g %g", r.origin.x, r.origin.y, r.size.width, r.size.height, iv.layer.cornerRadius);
-            NSArray *ids = [v isKindOfClass:[HSFolderIcon class]] ? ((HSFolderIcon *)v).folder[@"apps"] : @[((HSIcon *)v).app.bundleID ?: @""];
+            NSArray *ids = [v isKindOfClass:[HSFolderIcon class]] ? ((HSFolderIcon *)v).folder[@"apps"] : [v isKindOfClass:[HSIcon class]] ? @[((HSIcon *)v).app.bundleID ?: @""] : @[];
             for (NSString *ident in ids) { HSApp *a = [self appForID:ident]; if (a.path) isim_shell_request(ISIM_SHELL_ICON, a.path.UTF8String, geo, NULL); }
         }
     });
@@ -344,6 +381,8 @@ static NSString *icon_state_file(void) {
 }
 /* the items of the arrangement, for the folder view (SBFolders.m) */
 - (NSMutableArray *)_layoutItems { return _layout; }
+- (BOOL)_isEditing { return _editing; }
+- (UIButton *)_doneButton { return _done; }
 - (void)_layoutChanged { [self saveLayout]; [self rebuild]; }
 
 /* ---- long press: context menu (iOS 17/18), edit mode, delete ---- */
@@ -448,6 +487,17 @@ static NSString *icon_state_file(void) {
         [self.view addSubview:_done];
     }
     _done.hidden = !e;
+    if (e && !_addWidget) {                                  /* + : the widget gallery */
+        _addWidget = [UIButton buttonWithType:UIButtonTypeSystem];
+        [_addWidget setTitle:@"+" forState:UIControlStateNormal];
+        _addWidget.titleLabel.font = [UIFont systemFontOfSize:22 weight:UIFontWeightSemibold];
+        [_addWidget setTitleColor:UIColor.blackColor forState:UIControlStateNormal];
+        _addWidget.backgroundColor = [UIColor colorWithWhite:1 alpha:0.75]; _addWidget.layer.cornerRadius = 15;
+        _addWidget.accessibilityIdentifier = @"home-add-widget";
+        [_addWidget addTarget:self action:@selector(showWidgetGallery) forControlEvents:UIControlEventTouchUpInside];
+        [self.view addSubview:_addWidget];
+    }
+    _addWidget.hidden = !e;
     NSLog(@"SpringBoard: %@ edit mode", e ? @"entered" : @"left");
     [self rebuild];
 }

@@ -2,6 +2,11 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: UIView
+  Methods:
+  - Selector: 'drawViewHierarchyInRect:afterScreenUpdates:'
+    MethodKind: Instance
+    SwiftName: 'drawHierarchy(in:afterScreenUpdates:)'
 - Name: UIWindowScene
   Methods:
   - Selector: 'requestGeometryUpdateWithPreferences:errorHandler:'

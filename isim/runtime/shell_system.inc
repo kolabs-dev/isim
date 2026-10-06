@@ -311,6 +311,7 @@ static void cc_draw(cairo_t *c) {
 }
 
 /* ---- lock screen ---- */
+static double la_draw_lock(cairo_t *c, double top);
 static cairo_surface_t *wallpaper;
 static void wallpaper_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     if (!wallpaper && shell_springboard) {                     /* the home screen's wallpaper image */
@@ -332,7 +333,9 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     sys_text(c, dstr, 0, top + 30, dev.width, 19, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 0.9);
     sys_text(c, t, 0, top + 50, dev.width, 92, PANGO_WEIGHT_BOLD, 1, 1, 1, 1, 1, 0.95);
     el_add("lock-clock", t, (struct rectf){ 0, top + 50, dev.width, 100 }, EL_NONE, 0);
-    nc_draw_list(c, dev.height * 0.42, 1);
+    double lt = dev.height * 0.30;
+    lt += la_draw_lock(c, lt);
+    nc_draw_list(c, fmax(lt, dev.height * 0.42), 1);
     cairo_set_source_rgba(c, 1, 1, 1, 0.9);
     sys_text(c, "Swipe up to open", 0, dev.height - 62, dev.width, 15, PANGO_WEIGHT_NORMAL, 1, 1, 1, 1, 1, 0.85);
     struct rectf bl = { 46, dev.height - 108, 50, 50 }, br = { dev.width - 96, dev.height - 108, 50, 50 };
@@ -340,6 +343,94 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     cairo_arc(c, br.x + 25, br.y + 25, 25, 0, 2 * M_PI); cairo_fill(c);
     sys_symbol(c, "flashlight.off.fill", bl.x + 25, bl.y + 25, 20, 1, 1, 1);
     sys_symbol(c, "camera.fill", br.x + 25, br.y + 25, 20, 1, 1, 1);
+}
+
+
+/* ---- Live Activities: drawn on the lock screen and around the Dynamic Island (images rendered by the app's widget
+   extension; the home screen sends "la-show APP DIR" with lock.png, leading.png, trailing.png, minimal.png, expanded.png) ---- */
+static struct { int on, expanded; char app[512]; cairo_surface_t *lock, *leading, *trailing, *minimal, *exp; } la;
+static cairo_surface_t *la_png(const char *dir, const char *name) {
+    char p[1100]; snprintf(p, sizeof p, "%s/%s.png", dir, name);
+    cairo_surface_t *s = cairo_image_surface_create_from_png(p);
+    if (cairo_surface_status(s) != CAIRO_STATUS_SUCCESS) { cairo_surface_destroy(s); return NULL; }
+    return s;
+}
+static void la_clear(void) {
+    cairo_surface_t **ss[5] = { &la.lock, &la.leading, &la.trailing, &la.minimal, &la.exp };
+    for (int i = 0; i < 5; i++) if (*ss[i]) { cairo_surface_destroy(*ss[i]); *ss[i] = NULL; }
+    la.on = la.expanded = 0;
+}
+static void la_set(const char *app, const char *dir) {
+    la_clear();
+    snprintf(la.app, sizeof la.app, "%s", app);
+    la.lock = la_png(dir, "lock"); la.leading = la_png(dir, "leading"); la.trailing = la_png(dir, "trailing");
+    la.minimal = la_png(dir, "minimal"); la.exp = la_png(dir, "expanded");
+    la.on = la.lock != NULL;
+    fprintf(stderr, "isim shell: Live Activity from %s %s\n", app, la.on ? "shown" : "(no images)");
+}
+static int la_island_visible(void) {
+    if (!la.on || dev.has_island != 1 || locked || ov != OV_NONE || anim.kind != ANIM_NONE) return 0;
+    return la.expanded || active != shell_find(la.app);           /* compact while the app is not in the foreground */
+}
+static struct rectf la_compact_rect(void) { return (struct rectf){ dev.width / 2 - 62.5 - 64, 11, 125 + 128, 37 }; }
+static struct rectf la_expanded_rect(void) { return (struct rectf){ 8, 8, dev.width - 16, 176 }; }
+static void la_img(cairo_t *c, cairo_surface_t *s, double x, double y, double w, double h) {
+    if (!s) return;
+    double iw = cairo_image_surface_get_width(s), ih = cairo_image_surface_get_height(s);
+    cairo_save(c); cairo_translate(c, x, y); cairo_scale(c, w / iw, h / ih);
+    cairo_set_source_surface(c, s, 0, 0); cairo_pattern_set_filter(cairo_get_source(c), CAIRO_FILTER_GOOD); cairo_paint(c);
+    cairo_restore(c);
+}
+static void la_draw_island(cairo_t *c) {
+    if (la.expanded) {
+        struct rectf r = la_expanded_rect();
+        sys_round(c, r.x, r.y, r.w, r.h, 44); cairo_set_source_rgb(c, 0, 0, 0); cairo_fill(c);
+        double w = fmin(370, r.w - 8);
+        la_img(c, la.exp, r.x + (r.w - w) / 2, r.y + 10, w, w * 160 / 370);
+        el_add("dynamic-island", "expanded", r, EL_NONE, 1);
+    } else {
+        struct rectf r = la_compact_rect();
+        sys_round(c, r.x, r.y, r.w, r.h, 18.5); cairo_set_source_rgb(c, 0, 0, 0); cairo_fill(c);
+        la_img(c, la.leading, r.x + 2, r.y, 64, 37);
+        la_img(c, la.trailing, r.x + r.w - 66, r.y, 64, 37);
+        el_add("dynamic-island", "compact", r, EL_NONE, 1);
+    }
+}
+static double la_draw_lock(cairo_t *c, double top) {           /* returns the height used */
+    if (!la.on || !la.lock) return 0;
+    double w = fmin(dev.width - 16, 400), x = (dev.width - w) / 2, h = w * 160 / 370;
+    cairo_save(c);
+    sys_round(c, x, top, w, h, 22); cairo_clip_preserve(c);
+    cairo_set_source_rgba(c, 0.95, 0.95, 0.97, 0.88); cairo_fill(c);
+    la_img(c, la.lock, x, top, w, h);
+    cairo_restore(c);
+    el_add("live-activity", "Live Activity", (struct rectf){ x, top, w, h }, EL_NONE, 0);
+    return h + 10;
+}
+
+/* ---- widget extension helpers (WidgetKit): short-lived processes the home screen asks for ---- */
+static struct { pid_t pid; char req[512]; } helpers[16];
+static void sys_run_helper(const char *exe, const char *req) {
+    int slot = -1;
+    for (int i = 0; i < 16; i++) if (!helpers[i].pid) { slot = i; break; }
+    if (slot < 0) { fprintf(stderr, "isim shell: too many widget extension processes\n"); return; }
+    pid_t pid = fork();
+    if (pid < 0) return;
+    if (pid == 0) {
+        for (int fd = 3; fd < 256; fd++) close(fd);
+        unsetenv("ISIM_CLIENT_SOCK"); unsetenv("ISIM_CLIENT_SURFACE"); unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_CONTROL");
+        unsetenv("ISIM_LAUNCH_URL"); unsetenv("ISIM_LAUNCH_BACKGROUND");
+        setenv("ISIM_HEADLESS", "1", 1); setenv("ISIM_WIDGET_REQUEST", req, 1); setenv("ISIM_MUTE", "1", 1);
+        execl(shell_self, shell_self, "--root", shell_root, exe, (char *)NULL);
+        _exit(127);
+    }
+    helpers[slot].pid = pid; snprintf(helpers[slot].req, sizeof helpers[slot].req, "%s", req);
+}
+static void sys_reaped(pid_t pid, int status) {
+    for (int i = 0; i < 16; i++) if (helpers[i].pid == pid) {
+        helpers[i].pid = 0;
+        sys_send_text(0, "widget-done %d %s", WIFEXITED(status) ? WEXITSTATUS(status) : 128, helpers[i].req);
+    }
 }
 
 static void sys_draw(void) {
@@ -352,7 +443,14 @@ static void sys_draw(void) {
     cairo_surface_t *bs = client_surface(base);
     cairo_surface_t *home = client_surface(0); int hw, hh; client_dims(0, &hw, &hh);
     double slide = fmin(1, (now() - ov_t0) / 0.28), e = 1 - pow(1 - slide, 3);
-    if (ov == OV_LOCK) {
+    if (ov == OV_NONE) {                                              /* the app, with the Dynamic Island over it */
+        cairo_save(c); cairo_identity_matrix(c);
+        cairo_scale(c, (double)surf_w / bw, (double)surf_h / bh);
+        cairo_set_source_surface(c, bs, 0, 0); cairo_paint(c);
+        cairo_restore(c);
+        cairo_scale(c, px_scale, px_scale);
+        la_draw_island(c);
+    } else if (ov == OV_LOCK) {
         cairo_scale(c, px_scale, px_scale);
         lock_draw(c, home, hw, hh);
     } else if (ov == OV_SWITCHER) {
@@ -552,6 +650,21 @@ static int sys_input(const struct isim_event *ev) {
         return 0;
     }
     if (ev->type == EV_DEVICE_ORIENTATION && cc_on[CC_ORIENT]) { device_orient = 1; fprintf(stderr, "isim shell: rotation ignored (orientation lock)\n"); return 1; }
+    if (ov == OV_NONE && la_island_visible()) {                 /* the Dynamic Island: tap expands / collapses */
+        struct rectf r = la.expanded ? la_expanded_rect() : la_compact_rect();
+        if ((ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) && !strcmp(ev->text, "dynamic-island")) {
+            if (ev->type == EV_ID_UP) { la.expanded = !la.expanded; fprintf(stderr, "isim shell: Dynamic Island %s\n", la.expanded ? "expanded" : "compact"); shell_show(active); }
+            return 1;
+        }
+        if (ev->type == EV_DUMP) {
+            fprintf(stderr, "IsimDynamicIsland (%g %g; %g x %g) id=dynamic-island text=%s\n", r.x, r.y, r.w, r.h, la.expanded ? "expanded" : "compact");
+            return 0;
+        }
+        int inside = ev->x >= r.x && ev->x <= r.x + r.w && ev->y >= r.y && ev->y <= r.y + r.h;
+        if (ev->type == EV_TOUCH_DOWN && (inside || la.expanded)) { top_drag.on = 0; return 1; }
+        if (ev->type == EV_TOUCH_UP && (inside || la.expanded)) { la.expanded = inside ? !la.expanded : 0; shell_show(active); return 1; }
+        if (ev->type == EV_TOUCH_MOVE && la.expanded) return 1;
+    }
     if (ov == OV_NONE) {
         /* pull down from the top edge: Notification Center (left / middle) or Control Center (right corner) */
         if (ev->type == EV_TOUCH_DOWN && ev->y < 24 && active >= 0) { top_drag.on = 1; top_drag.sys = 0; top_drag.x0 = ev->x; top_drag.y0 = ev->y; top_drag.t0 = now(); return 1; }
@@ -646,6 +759,17 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
             if (match) { memmove(&ncl[k], &ncl[k + 1], (nnc - k - 1) * sizeof *ncl); nnc--; }
         }
         if (ov != OV_NONE) sys_draw();
+    } else if (!strcmp(verb, "widget-run")) {               /* the home screen runs a widget extension */
+        sys_run_helper(m->b, m->c);
+    } else if (!strcmp(verb, "widget-reload")) {            /* WidgetCenter.reloadTimelines(ofKind:) */
+        sys_send_text(0, "widget-reload %s", m->c);
+    } else if (!strcmp(verb, "live-activity")) {            /* ActivityKit: the home screen renders it */
+        sys_send_text(0, "live-activity %s %s", m->b, m->c);
+    } else if (!strcmp(verb, "la-show")) {
+        la_set(m->b, m->c);
+        shell_show(active >= 0 ? active : 0);
+    } else if (!strcmp(verb, "la-hide")) {
+        if (!strcmp(la.app, m->b)) { la_clear(); fprintf(stderr, "isim shell: Live Activity ended\n"); shell_show(active >= 0 ? active : 0); }
     } else if (!strcmp(verb, "openurl")) {
         sys_send_text(0, "openurl %s", m->c);
     } else if (!strcmp(verb, "reload-home")) {
@@ -669,6 +793,11 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "switcher")) { if (!locked) sys_open(OV_SWITCHER); return 1; }
     if (!strcmp(verb, "notifications")) { if (!locked) sys_open(OV_NC); return 1; }
     if (!strcmp(verb, "controlcenter")) { if (!locked) sys_open(OV_CC); return 1; }
+    if (!strcmp(verb, "island")) {
+        if (la.on) { la.expanded = !la.expanded; fprintf(stderr, "isim shell: Dynamic Island %s\n", la.expanded ? "expanded" : "compact"); shell_show(active); }
+        else fprintf(stderr, "isim shell: no Live Activity\n");
+        return 1;
+    }
     if (!strcmp(verb, "spotlight")) { if (!locked && active == 0) sys_send_text(0, "spotlight"); return 1; }
     fprintf(stderr, "isim shell: '%s' is not available\n", verb);
     return 1;

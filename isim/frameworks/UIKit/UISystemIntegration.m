@@ -518,6 +518,23 @@ void isim_sys_event(const char *text) {
     } else [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
 }
 
+/* ---- snapshots (widgets and Live Activities are rendered this way by WidgetKit) ---- */
+@implementation UIView (UISnapshotting)
+- (BOOL)drawViewHierarchyInRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates {
+    if (afterUpdates) { [self setNeedsLayout]; [self layoutIfNeeded]; }
+    CGRect f = self.frame;
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (!ctx) return NO;
+    CGContextSaveGState(ctx);
+    CGContextTranslateCTM(ctx, rect.origin.x, rect.origin.y);
+    if (f.size.width > 0 && f.size.height > 0) CGContextScaleCTM(ctx, rect.size.width / f.size.width, rect.size.height / f.size.height);
+    CGContextTranslateCTM(ctx, -f.origin.x, -f.origin.y);
+    [self _isim_render];
+    CGContextRestoreGState(ctx);
+    return YES;
+}
+@end
+
 /* ---- opening URLs in other apps (custom schemes, universal links), under the shell ---- */
 NSString *isim_ui_installed_apps_dir(void);
 NSString *isim_ui_system_apps_dir(void);

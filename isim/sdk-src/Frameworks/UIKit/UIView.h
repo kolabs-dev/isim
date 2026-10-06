@@ -156,4 +156,8 @@ NS_SWIFT_UI_ACTOR
 @property (class, nonatomic, getter=areAnimationsEnabled) BOOL animationsEnabled;
 @property (class, nonatomic, readonly) NSTimeInterval inheritedAnimationDuration;
 @end
+/* snapshots: draws the view and its subviews into the current graphics context (UIGraphicsImageRenderer) */
+@interface UIView (UISnapshotting)
+- (BOOL)drawViewHierarchyInRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates;
+@end
 NS_ASSUME_NONNULL_END

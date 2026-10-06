@@ -43,9 +43,10 @@ static void shell_forward(int i, const struct isim_event *ev) {
 }
 static int nb_visible(void); static void nb_draw(void);
 static int sys_visible(void); static void sys_draw(void); static int sys_hides_banners(void);   /* shell_system.inc */
+static int la_island_visible(void);
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
-    if (sys_visible()) { sys_draw(); return; }                     /* lock screen, app switcher, Notification/Control Center */
+    if (sys_visible() || la_island_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island */
     shell_apply_orient(clients[i].orient);
     if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
     /* the screenshot / blit source is the foreground client's surface */
@@ -471,7 +472,8 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     for (;;) {
         /* children */
         int status; pid_t dead;
-        while ((dead = waitpid(-1, &status, WNOHANG)) > 0)
+        while ((dead = waitpid(-1, &status, WNOHANG)) > 0) {
+            sys_reaped(dead, status);                    /* widget extension helpers (shell_system.inc) */
             for (int i = 0; i < nclients; i++) if (clients[i].pid == dead && clients[i].alive) {
                 clients[i].alive = 0; close(clients[i].sock);
                 fprintf(stderr, "isim shell: %s exited\n", clients[i].bundle);
@@ -488,6 +490,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
                 if (i == 0) { fprintf(stderr, "isim shell: the home screen exited; shutting down\n"); shell_quit(); return 0; }
                 if (i == active) { active = -1; shell_activate(0); }
             }
+        }
         /* client messages */
         struct pollfd pf[32]; int map[32], np = 0;
         for (int i = 0; i < nclients; i++) if (clients[i].alive) { pf[np] = (struct pollfd){ clients[i].sock, POLLIN, 0 }; map[np++] = i; }

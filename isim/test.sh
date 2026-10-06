@@ -58,6 +58,7 @@ if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device she
   run "ui: isim boot (home screen, Settings, multitasking)" tests/ui/boot.sh
   run "ui: Settings Date & Time (24-hour, time zone)" tests/ui/datetime.sh
   [ -x out/apps/HelloSystem.app/HelloSystem ] && run "ui: HelloSystem (quick actions, alternate icons, URLs, state restoration, background tasks)" tests/ui/system.sh
+  [ -x out/apps/HelloWidgets.app/HelloWidgets ] && run "ui: HelloWidgets (WidgetKit timelines + interactive widget, ActivityKit Live Activity, App Intents)" tests/ui/widgets.sh
   [ -x out/apps/HelloScenes.app/HelloScenes ] && run "ui: HelloScenes (SwiftUI scenes, delegate adaptor, user activities, background task, windows)" tests/ui/scenes.sh
   [ -x out/apps/HelloSystem.app/HelloSystem ] && run "ui: home screen (folders, rearranging, App Library, Spotlight, CoreSpotlight)" tests/ui/homescreen.sh
   [ -x out/apps/HelloSecurity.app/HelloSecurity ] && [ -x out/apps/HelloSystem.app/HelloSystem ] && run "ui: system UI (lock screen, Notification Center, Control Center, app switcher)" tests/ui/systemui.sh

@@ -425,6 +425,31 @@ def build_target(project, name, configuration, outdir, built):
         else:
             copy_resource(res, bundle)
     info = make_info_plist(target, s, bundle, localizations)
+    # alternate app icons from the asset catalog (Xcode: "Include All App Icon Assets" or an explicit list)
+    alt_names = str(s.get('ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES', '')).split()
+    assets_index = os.path.join(bundle, 'isim-assets.json')
+    if ext == '.app' and os.path.exists(assets_index):
+        with open(assets_index) as f:
+            icon_sets = json.load(f).get('appIcons', {})
+        primary = s.get('ASSETCATALOG_COMPILER_APPICON_NAME', 'AppIcon')
+        if str(s.get('ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS', 'NO')).upper() == 'YES':
+            alt_names = [n for n in icon_sets if n != primary]
+        alt = {n: {'CFBundleIconName': n} for n in alt_names if n in icon_sets}
+        if alt:
+            icons = info.setdefault('CFBundleIcons', {})
+            icons.setdefault('CFBundlePrimaryIcon', {'CFBundleIconName': primary})
+            icons.setdefault('CFBundleAlternateIcons', {}).update(alt)
+            with open(os.path.join(bundle, 'Info.plist'), 'wb') as f:
+                plistlib.dump(info, f)
+            log(f'{name}: alternate app icons {", ".join(sorted(alt))}')
+    # isim has no code signature: the entitlements (associated domains, app groups) go next to the executable
+    if s.get('CODE_SIGN_ENTITLEMENTS'):
+        ent = os.path.join(target.p.root, expand(s['CODE_SIGN_ENTITLEMENTS'], s))
+        if os.path.exists(ent):
+            with open(ent, 'rb') as f:
+                ent_plist = plistlib.load(f)
+            with open(os.path.join(bundle, 'isim-entitlements.plist'), 'wb') as f:
+                plistlib.dump(ent_plist, f)
     if ext == '.app':
         sk = storekit_configuration(project, name)
         if sk:

@@ -59,6 +59,17 @@ NSString *HSCategoryName(NSString *category);
 @interface HomeViewController (Library)
 - (UIView *)makeLibraryPage:(CGRect)frame;
 @end
+@interface HomeViewController (Widgets)
+- (UIControl *)makeWidgetView:(NSMutableDictionary *)item;        /* { widget = kind; app = bundle id; family } */
+- (void)installWidgetObservers;
+- (void)showWidgetGallery;
+- (void)discoverWidgets;
+@end
+@interface HomeViewController (Layout)
+- (NSMutableArray *)_layoutItems;
+- (void)_layoutChanged;
+- (BOOL)_isEditing;
+@end
 @interface HomeViewController (Spotlight)
 - (void)showSpotlight;
 - (void)hideSpotlight;
