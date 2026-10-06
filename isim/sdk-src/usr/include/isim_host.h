@@ -5,7 +5,8 @@ __BEGIN_DECLS
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
 enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, ISIM_EV_QUIT, ISIM_EV_KEY, ISIM_EV_TEXT, ISIM_EV_REDRAW, ISIM_EV_ID_DOWN, ISIM_EV_ID_UP, ISIM_EV_DUMP, ISIM_EV_TEXT_DOWN, ISIM_EV_TEXT_UP,
-       ISIM_EV_BACKGROUND, ISIM_EV_FOREGROUND, ISIM_EV_SETTINGS, ISIM_EV_LAUNCH_ID, ISIM_EV_OPEN_URL };
+       ISIM_EV_BACKGROUND, ISIM_EV_FOREGROUND, ISIM_EV_SETTINGS, ISIM_EV_LAUNCH_ID, ISIM_EV_OPEN_URL,
+       ISIM_EV_KEY_UP = 19 /* key released; for ISIM_EV_KEY / ISIM_EV_KEY_UP `pad` is the USB HID usage (0 if unknown) */ };
 void isim_device_metrics(struct isim_device *out);
 int isim_display_open(const char *title);
 void isim_frame_begin(void);
@@ -27,6 +28,8 @@ double isim_gfx_get_alpha(void);
 void isim_gfx_backdrop_blur(double x, double y, double w, double h, double corner, double radius);
 void isim_gfx_push_group(void);
 void isim_gfx_pop_group(double alpha);
+void isim_gfx_pop_group_masked(double alpha);   /* after push_group (content) + push_group (mask): content through the mask's alpha */
+void isim_gfx_set_blend(int mode);   /* until restore: 0 over, 1 add, 2 subtract, 3 multiply, 4 screen, 5 replace */
 void isim_path_begin(void);
 void isim_path_move(double x, double y);
 void isim_path_line(double x, double y);
