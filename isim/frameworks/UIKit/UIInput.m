@@ -47,10 +47,7 @@ static char k_label, k_hint, k_value, k_traits, k_element, k_ident, k_hidden, k_
 - (NSString *)accessibilityIdentifier { return objc_getAssociatedObject(self, &k_ident); }
 - (void)setAccessibilityIdentifier:(NSString *)v { objc_setAssociatedObject(self, &k_ident, v, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 @end
-static BOOL env_flag(const char *name) { const char *v = getenv(name); return v && *v && strcmp(v, "0"); }
-BOOL UIAccessibilityIsVoiceOverRunning(void) { return NO; }
-BOOL UIAccessibilityIsReduceMotionEnabled(void) { return env_flag("ISIM_REDUCE_MOTION"); }
-BOOL UIAccessibilityIsBoldTextEnabled(void) { return env_flag("ISIM_BOLD_TEXT"); }
+/* UIAccessibilityIsVoiceOverRunning & co: UIAccessibilityRuntime.m */
 
 /* ---------------- long press ---------------- */
 @interface UIGestureRecognizer ()
@@ -100,8 +97,19 @@ BOOL UIAccessibilityIsBoldTextEnabled(void) { return env_flag("ISIM_BOLD_TEXT");
 
 /* ---------------- custom keyboards ---------------- */
 @implementation UITextInputMode
-+ (NSArray<UITextInputMode *> *)activeInputModes { return @[[UITextInputMode new]]; }
-- (NSString *)primaryLanguage { return NSLocale.preferredLanguages.firstObject ?: @"en-US"; }
+/* one mode per built-in keyboard enabled in Settings (en-US, pt-BR, ..., emoji) */
++ (NSArray<UITextInputMode *> *)activeInputModes {
+    extern NSArray<NSString *> *isim_ui_keyboard_enabled(void);
+    NSMutableArray *a = [NSMutableArray array];
+    for (NSString *k in isim_ui_keyboard_enabled()) {
+        if (![@[@"en_US", @"pt_BR", @"es_ES", @"fr_FR", @"de_DE", @"emoji"] containsObject:k]) continue;
+        UITextInputMode *m = [UITextInputMode new];
+        objc_setAssociatedObject(m, "isim.lang", [k stringByReplacingOccurrencesOfString:@"_" withString:@"-"], OBJC_ASSOCIATION_COPY_NONATOMIC);
+        [a addObject:m];
+    }
+    return a.count ? a : @[[UITextInputMode new]];
+}
+- (NSString *)primaryLanguage { return objc_getAssociatedObject(self, "isim.lang") ?: @"en-US"; }
 @end
 
 @implementation UIInputView
@@ -121,13 +129,28 @@ BOOL UIAccessibilityIsBoldTextEnabled(void) { return env_flag("ISIM_BOLD_TEXT");
 - (void)insertText:(NSString *)text { [_target insertText:text]; }
 - (void)deleteBackward { [_target deleteBackward]; }
 - (NSString *)_text { id t = _target; return [t respondsToSelector:@selector(text)] ? [t text] : nil; }
-- (NSString *)documentContextBeforeInput { return [self _text]; }   /* isim: caret is always at the end */
-- (NSString *)documentContextAfterInput { return [self _text] ? @"" : nil; }
-- (NSString *)selectedText { return nil; }
+- (id<UITextInput>)_input { id t = _target; return [t conformsToProtocol:@protocol(UITextInput)] ? t : nil; }
+- (NSString *)_textFrom:(UITextPosition *)a to:(UITextPosition *)b { id<UITextInput> t = [self _input]; UITextRange *r = a && b ? [t textRangeFromPosition:a toPosition:b] : nil; return r ? [t textInRange:r] : nil; }
+- (NSString *)documentContextBeforeInput {
+    id<UITextInput> t = [self _input];
+    return t ? [self _textFrom:t.beginningOfDocument to:t.selectedTextRange.start] : [self _text];
+}
+- (NSString *)documentContextAfterInput {
+    id<UITextInput> t = [self _input];
+    return t ? [self _textFrom:t.selectedTextRange.end to:t.endOfDocument] : ([self _text] ? @"" : nil);
+}
+- (NSString *)selectedText { id<UITextInput> t = [self _input]; UITextRange *r = t.selectedTextRange; return r && !r.isEmpty ? [t textInRange:r] : nil; }
 - (UITextInputMode *)documentInputMode { return UITextInputMode.activeInputModes.firstObject; }
-- (void)adjustTextPositionByCharacterOffset:(NSInteger)offset {}
-- (void)setMarkedText:(NSString *)markedText selectedRange:(NSRange)selectedRange { [self insertText:markedText]; }
-- (void)unmarkText {}
+- (void)adjustTextPositionByCharacterOffset:(NSInteger)offset {
+    id<UITextInput> t = [self _input];
+    UITextPosition *p = [t positionFromPosition:t.selectedTextRange.end offset:offset];
+    if (p) t.selectedTextRange = [t textRangeFromPosition:p toPosition:p];
+}
+- (void)setMarkedText:(NSString *)markedText selectedRange:(NSRange)selectedRange {
+    id<UITextInput> t = [self _input];
+    if (t) [t setMarkedText:markedText selectedRange:selectedRange]; else [self insertText:markedText];
+}
+- (void)unmarkText { [[self _input] unmarkText]; }
 @end
 
 @implementation UIInputViewController { __IsimTextDocumentProxy *_proxy; }

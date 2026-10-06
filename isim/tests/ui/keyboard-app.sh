@@ -9,7 +9,7 @@ log=$(ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.3; tapid field; wait
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
 check "scroll content sized by Auto Layout" 'h=$(grep -o "contentSize 393 x [0-9.]*" <<<"$log" | tail -1 | cut -d" " -f4); [ -n "$h" ] && awk "BEGIN{exit !($h > 1180 && $h < 1215)}"'
-check "keyboard shows for the text field"   'grep -q "keyboard did show, height 295" <<<"$log"'
+check "keyboard shows for the text field (with the predictive bar)"   'grep -q "keyboard did show, height 339" <<<"$log"'
 check "typing with auto-capitalization"     'grep -q "text = \"Hi\"" <<<"$log"'
 check "globe loads the embedded keyboard"   'grep -q "loaded keyboard extension Hello Keyboard" <<<"$log" && grep -q "keyboard frame height 139" <<<"$log"'
 check "custom keyboard types via proxy"     'grep -q "text = \"Hi12\"" <<<"$log"'

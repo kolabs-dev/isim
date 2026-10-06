@@ -2,6 +2,7 @@
  * UIApplicationMain with the simulator event/render loop (ARC). */
 #import "UIKitPrivate.h"
 #include <objc/message.h>
+#import "UIKitInputPrivate.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 @property (nonatomic, readwrite, strong) UIWindow *window;
 @property (nonatomic, readwrite, strong) UIView *view;
 @property (nonatomic) CGPoint loc, prev;
+@property (nonatomic) int isimFinger;
 @end
 @implementation UITouch
 - (instancetype)initWithIsimView:(UIView *)v window:(UIWindow *)w location:(CGPoint)p time:(NSTimeInterval)t {
@@ -23,7 +25,22 @@
 }
 - (void)_isim_setPhase:(UITouchPhase)ph location:(CGPoint)p time:(NSTimeInterval)t { _phase = ph; _prev = _loc; _loc = p; _timestamp = t; }
 - (void)_isim_setView:(UIView *)v { _view = v; }
+- (void)_isim_setFinger:(int)f { _isimFinger = f; }
+- (int)_isim_finger { return _isimFinger; }
+- (void)_isim_setStationary { if (_phase != UITouchPhaseEnded && _phase != UITouchPhaseCancelled) { _phase = UITouchPhaseStationary; _prev = _loc; } }
 - (UITouchType)type { return UITouchTypeDirect; }
+- (CGFloat)majorRadius { return 20; }
+- (CGFloat)majorRadiusTolerance { return 5; }
+- (CGFloat)force { return _phase == UITouchPhaseEnded || _phase == UITouchPhaseCancelled ? 0 : 1; }
+- (CGFloat)maximumPossibleForce { return 0; }        /* no 3D Touch */
+- (CGFloat)altitudeAngle { return M_PI / 2; }
+- (CGPoint)preciseLocationInView:(UIView *)v { return [self locationInView:v]; }
+- (CGPoint)precisePreviousLocationInView:(UIView *)v { return [self previousLocationInView:v]; }
+- (NSArray *)gestureRecognizers {
+    NSMutableArray *a = [NSMutableArray array];
+    for (UIView *v = _view; v; v = v.superview) for (UIGestureRecognizer *g in v.gestureRecognizers) [a addObject:g];
+    return a;
+}
 - (CGPoint)locationInView:(UIView *)v { return v ? [v _isim_fromWindow:_loc] : _loc; }
 - (CGPoint)previousLocationInView:(UIView *)v { return v ? [v _isim_fromWindow:_prev] : _prev; }
 @end
@@ -33,12 +50,24 @@
 @end
 @implementation UIEvent
 - (instancetype)initWithIsimTouch:(UITouch *)t { if ((self = [super init])) _touchSet = [NSSet setWithObject:t]; return self; }
+- (instancetype)initWithIsimTouches:(NSSet *)ts { if ((self = [super init])) _touchSet = [ts copy]; return self; }
 - (UIEventType)type { return UIEventTypeTouches; }
 - (UIEventSubtype)subtype { return UIEventSubtypeNone; }
 - (NSTimeInterval)timestamp { return _touchSet ? [_touchSet.anyObject timestamp] : isim_time(); }
 - (NSSet *)allTouches { return _touchSet; }
-- (NSSet *)touchesForView:(UIView *)v { UITouch *t = _touchSet.anyObject; return [t.view isDescendantOfView:v] ? _touchSet : nil; }
-- (NSSet *)touchesForWindow:(UIWindow *)w { UITouch *t = _touchSet.anyObject; return t.window == w ? _touchSet : nil; }
+- (NSSet *)touchesForView:(UIView *)v {
+    NSMutableSet *r = [NSMutableSet set];
+    for (UITouch *t in _touchSet) if ([t.view isDescendantOfView:v]) [r addObject:t];
+    return r.count ? r : nil;
+}
+- (NSSet *)touchesForWindow:(UIWindow *)w {
+    NSMutableSet *r = [NSMutableSet set];
+    for (UITouch *t in _touchSet) if (t.window == w) [r addObject:t];
+    return r.count ? r : nil;
+}
+- (NSSet *)touchesForGestureRecognizer:(UIGestureRecognizer *)g { return g.view ? [self touchesForView:g.view] : nil; }
+- (NSArray *)coalescedTouchesForTouch:(UITouch *)t { return t ? @[t] : nil; }
+- (NSArray *)predictedTouchesForTouch:(UITouch *)t { return @[]; }
 @end
 
 /* ================= UIScreen ================= */
@@ -513,7 +542,7 @@ static BOOL status_bar_hidden;
 /* ================= UIApplicationMain + run loop ================= */
 static UITouch *cur_touch;
 static NSMutableArray<UIGestureRecognizer *> *cur_gestures;
-static NSTimeInterval last_tap_time; static CGPoint last_tap_point;
+static NSTimeInterval last_tap_time; static CGPoint last_tap_point; static NSUInteger last_tap_count;
 
 static UIWindow *top_window(void) {
     UIWindow *best = UIApplication.sharedApplication.keyWindow;
@@ -524,6 +553,8 @@ static UIWindow *top_window(void) {
 
 static UIEvent *cur_event;
 static BOOL touch_cancelled;
+static NSMutableDictionary<NSNumber *, UITouch *> *active_touches;     /* finger -> touch */
+static BOOL view_gets_touch(UITouch *t);
 
 /* A recognizer that cancels touches in its view just recognized: the hit view gets
  * touchesCancelled once and no further touch callbacks for this sequence. */
@@ -540,12 +571,41 @@ void isim_ui_gesture_recognized(UIGestureRecognizer *g) {
     }
     if (!g.cancelsTouchesInView || !cur_touch || touch_cancelled || ![cur_gestures containsObject:g]) return;
     touch_cancelled = YES;
-    [cur_touch.view touchesCancelled:cur_event.allTouches withEvent:cur_event];
+    NSMutableSet *views = [NSMutableSet set];
+    for (UITouch *t in active_touches.allValues) if (view_gets_touch(t) && t.view) [views addObject:t.view];
+    for (UIView *v in views) {
+        NSMutableSet *ts = [NSMutableSet set];
+        for (UITouch *t in active_touches.allValues) if (t.view == v) [ts addObject:t];
+        [v touchesCancelled:ts withEvent:cur_event];
+    }
 }
 
+/* Touches. A touch sequence starts with the first finger down and ends when the last finger lifts; the second finger
+ * (host Option-drag, script pinch/rotate2/twofinger; ev->pad = 1) joins it. Recognizers collected for the first touch
+ * also get later touches inside their view if they handle several touches (pinch, rotation, pan, custom subclasses);
+ * a view gets the extra touches if it isMultipleTouchEnabled (or the touch began on another view). */
+static NSMutableSet<UITouch *> *all_touches(void) { return [NSMutableSet setWithArray:active_touches.allValues ?: @[]]; }
+static BOOL view_gets_touch(UITouch *t) {
+    return t == cur_touch || t.view != cur_touch.view || t.view.multipleTouchEnabled;
+}
+static BOOL synthesizing;
 static void handle_touch(const struct isim_event *ev) {
+    if (!synthesizing && isim_ui_touch_filtered(ev)) return;              /* VoiceOver, drag sessions (UIKitInputPrivate.h) */
     CGPoint p = CGPointMake(ev->x, ev->y);
-    if (ev->type == ISIM_EV_TOUCH_DOWN) {
+    int finger = ev->pad == 1 ? 1 : 0;
+    if (!active_touches) active_touches = [NSMutableDictionary dictionary];
+    if (ev->type == ISIM_EV_TOUCH_DOWN && active_touches[@(finger)]) {    /* a lost up: end the old touch first */
+        struct isim_event up = *ev; up.type = ISIM_EV_TOUCH_UP; handle_touch(&up);
+    }
+    if (ev->type == ISIM_EV_TOUCH_DOWN && cur_touch && active_touches.count) {
+        /* another finger joins the sequence */
+        UIWindow *w = cur_touch.window;
+        CGPoint wp = CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y);
+        UIView *hit = [w hitTest:wp withEvent:nil] ?: cur_touch.view;
+        UITouch *t = [[UITouch alloc] initWithIsimView:hit window:w location:wp time:ev->timestamp];
+        [t _isim_setFinger:finger];
+        active_touches[@(finger)] = t;
+    } else if (ev->type == ISIM_EV_TOUCH_DOWN) {
         /* front-most window (by level) whose frame contains the point and has a view there */
         NSArray *ws = [UIApplication.sharedApplication.windows sortedArrayUsingComparator:^NSComparisonResult(UIWindow *a, UIWindow *b) {
             return a.windowLevel > b.windowLevel ? NSOrderedAscending : a.windowLevel < b.windowLevel ? NSOrderedDescending : NSOrderedSame; }];
@@ -557,7 +617,10 @@ static void handle_touch(const struct isim_event *ev) {
         }
         if (!hit) { cur_touch = nil; return; }
         cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y) time:ev->timestamp];
-        if (ev->timestamp - last_tap_time < 0.35 && hypot(p.x - last_tap_point.x, p.y - last_tap_point.y) < 20) [cur_touch setValue_isimTapCount:2];
+        [cur_touch _isim_setFinger:finger];
+        [active_touches removeAllObjects];
+        active_touches[@(finger)] = cur_touch;
+        if (ev->timestamp - last_tap_time < 0.35 && hypot(p.x - last_tap_point.x, p.y - last_tap_point.y) < 20) [cur_touch setValue_isimTapCount:last_tap_count + 1];
         cur_gestures = [NSMutableArray array];
         touch_cancelled = NO;
         /* UIKit rule: a tap on a UIControl is not taken over by tap recognizers on its superviews */
@@ -572,29 +635,51 @@ static void handle_touch(const struct isim_event *ev) {
                 if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
                 id<UIGestureRecognizerDelegate> gd = g.delegate;
                 if ([gd respondsToSelector:@selector(gestureRecognizer:shouldReceiveTouch:)] && ![gd gestureRecognizer:g shouldReceiveTouch:cur_touch]) continue;
+                [g _isim_beginTouchSequence];         /* forget touches of an earlier sequence it was dropped from */
                 [cur_gestures addObject:g];
             }
             if (v == control) aboveControl = YES;
         }
     }
-    UITouch *t = cur_touch;
+    UITouch *t = active_touches[@(finger)];
     if (!t) return;
     UITouchPhase phase = ev->type == ISIM_EV_TOUCH_DOWN ? UITouchPhaseBegan : ev->type == ISIM_EV_TOUCH_MOVE ? UITouchPhaseMoved : UITouchPhaseEnded;
     CGRect wf = t.window.frame;
     [t _isim_setPhase:phase location:CGPointMake(p.x - wf.origin.x, p.y - wf.origin.y) time:ev->timestamp];
-    UIEvent *e = [[UIEvent alloc] initWithIsimTouch:t];
+    for (UITouch *o in active_touches.allValues) if (o != t) [o _isim_setStationary];
+    UIEvent *e = [[UIEvent alloc] initWithIsimTouches:all_touches()];
     cur_event = e;
-    NSSet *set = e.allTouches;
+    NSSet *set = [NSSet setWithObject:t];
     UIView *v = t.view;
+    BOOL toView = view_gets_touch(t);
     /* Began reaches the view before recognizers act on it, as on iOS (no delaysTouchesBegan). */
-    if (phase == UITouchPhaseBegan) [v touchesBegan:set withEvent:e];
-    for (UIGestureRecognizer *g in [cur_gestures copy]) if ([cur_gestures containsObject:g]) [g _isim_touch:t phase:phase event:e];
-    if (!touch_cancelled) {
+    if (phase == UITouchPhaseBegan && toView) [v touchesBegan:set withEvent:e];
+    for (UIGestureRecognizer *g in [cur_gestures copy]) {
+        if (![cur_gestures containsObject:g]) continue;
+        if (t != cur_touch && (![g _isim_acceptsExtraTouches] || ![t.view isDescendantOfView:g.view])) continue;
+        [g _isim_touch:t phase:phase event:e];
+    }
+    if (!touch_cancelled && toView) {
         if (phase == UITouchPhaseMoved) [v touchesMoved:set withEvent:e];
         else if (phase == UITouchPhaseEnded) [v touchesEnded:set withEvent:e];
     }
-    if (phase == UITouchPhaseEnded) { last_tap_time = ev->timestamp; last_tap_point = p; cur_touch = nil; cur_gestures = nil; cur_event = nil; }
+    if (phase == UITouchPhaseEnded) {
+        [active_touches removeObjectForKey:@(finger)];
+        if (t == cur_touch) { last_tap_time = ev->timestamp; last_tap_point = p; last_tap_count = t.tapCount; }
+        if (!active_touches.count) { cur_touch = nil; cur_gestures = nil; cur_event = nil; }
+    }
 }
+/* VoiceOver activation: a tap at a screen point that skips the touch filters */
+void isim_ui_synthesize_tap(CGPoint p) {
+    synthesizing = YES;
+    struct isim_event ev = { .type = ISIM_EV_TOUCH_DOWN, .x = p.x, .y = p.y, .timestamp = isim_time() };
+    handle_touch(&ev);
+    ev.type = ISIM_EV_TOUCH_UP; ev.timestamp = isim_time() + 0.01;
+    handle_touch(&ev);
+    synthesizing = NO;
+}
+/* the touches currently down (drag sessions, VoiceOver) */
+NSSet<UITouch *> *isim_ui_active_touches(void) { return all_touches(); }
 
 /* hardware key presses and releases (USB HID usage in ev->pad) for GameController's GCKeyboard */
 static void post_hardware_key(const struct isim_event *ev, BOOL down) {
@@ -613,6 +698,8 @@ static void handle_key(const struct isim_event *ev) {
         if (isim_ui_hardware_key(ev->pad, ev->key, ev->mods, YES)) return;     /* a UIKeyCommand took it */
     }
     id fr = isim_ui_first_responder();
+    /* text navigation and editing shortcuts (arrows, Shift-select, Cmd/Ctrl+A/C/X/V, forward delete) */
+    if (ev->type == ISIM_EV_KEY && [fr conformsToProtocol:@protocol(IsimEditableText)] && isim_ui_text_handle_key(fr, ev->pad, ev->mods)) { isim_ui_set_needs_display(); return; }
     if (![fr respondsToSelector:@selector(insertText:)]) return;
     if (ev->type == ISIM_EV_TEXT) [fr insertText:@(ev->text)];
     else if (ev->key == 8) [fr deleteBackward];
@@ -631,8 +718,12 @@ static void dump_view(UIView *v, int depth) {
         : [v isKindOfClass:[UISwitch class]] ? (((UISwitch *)v).on ? @"on" : @"off")
         : [v isKindOfClass:[UISlider class]] ? [NSString stringWithFormat:@"%g", ((UISlider *)v).value]
         : [v isKindOfClass:[UISegmentedControl class]] ? [NSString stringWithFormat:@"segment %ld", (long)((UISegmentedControl *)v).selectedSegmentIndex] : nil;
-    fprintf(stderr, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
-            v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "");
+    static int ax = -1;
+    if (ax < 0) { const char *e = getenv("ISIM_DUMP_ACCESSIBILITY"); ax = e && *e && strcmp(e, "0"); }   /* ax="label, value, traits" */
+    NSString *axs = ax ? isim_ui_accessibility_dump(v) : nil;
+    fprintf(stderr, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
+            v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "",
+            axs ? " ax=\"" : "", axs ? axs.UTF8String : "", axs ? "\"" : "");
     for (UIView *s in v.subviews) dump_view(s, depth + 1);
 }
 
@@ -685,6 +776,7 @@ static void handle_id_touch(const struct isim_event *ev) {
 static void render_frame(void) {
     { extern void isim_ui_trait_registrations_tick(void); isim_ui_trait_registrations_tick(); }
     isim_ui_keyboard_check();
+    { extern void isim_ui_accessibility_frame_tick(void); isim_ui_accessibility_frame_tick(); }
     isim_ui_display_links_fire();
     isim_ui_animations_tick();
     UIWindow *key = top_window();
@@ -754,6 +846,7 @@ static void settings_changed(void) {
     extern void isim_reapply_time_zone_setting(void);
     isim_ui_reload_settings();
     isim_reapply_time_zone_setting();                 /* Date & Time > Time Zone applies live */
+    isim_ui_accessibility_reload_settings();          /* Settings > Accessibility (Dynamic Type, VoiceOver, ...) */
     for (UIWindow *w in UIApplication.sharedApplication.windows) trait_changed(w);
     [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSettingsChanged" object:nil];
     isim_ui_set_needs_display();
@@ -834,6 +927,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         NSString *title = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: info[@"CFBundleExecutable"] ?: @"App";
         isim_display_open(title.UTF8String);
         isim_ui_keyboard_install();
+        { extern void isim_ui_accessibility_install(void); isim_ui_accessibility_install(); }
         extern void (*isim_main_wakeup_hook)(void);
         isim_main_wakeup_hook = isim_post_wakeup;
         NSLog(@"isim: launching %@ (%@) on %s", title, bundle.bundleIdentifier ?: @"no bundle id", isim_ui_device()->name);
@@ -892,6 +986,9 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_OPEN_URL: deliver_url(@(ev.text)); break;
                 case ISIM_EV_DEVICE_ORIENTATION: isim_ui_device_orientation_changed(ev.key); break;
                 case ISIM_EV_NOTIFICATION_RESPONSE: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimNotificationResponse" object:@(ev.text)]; break;
+                case ISIM_EV_HOVER: isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
+                case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
+                case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
                 case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;
                 }

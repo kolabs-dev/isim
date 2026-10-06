@@ -433,15 +433,35 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
 - (void)_isim_didSolve {}
 
 /* ---- coordinates ---- */
-- (CGPoint)_isim_toWindow:(CGPoint)p {
-    for (UIView *v = self; v && ![v isKindOfClass:[UIWindow class]]; v = v->_superview) {
-        p.x += v->_frame.origin.x - v->_boundsOrigin.x; p.y += v->_frame.origin.y - v->_boundsOrigin.y;
+/* a point in a view's bounds -> its superview, and back: transforms apply about the view's center, as drawn */
+static inline CGPoint to_superview(UIView *v, CGPoint p, CGRect frame, CGPoint origin, CGAffineTransform t) {
+    p.x -= origin.x; p.y -= origin.y;
+    if (!CGAffineTransformIsIdentity(t)) {
+        double cx = frame.size.width / 2, cy = frame.size.height / 2, x = p.x - cx, y = p.y - cy;
+        p.x = t.a * x + t.c * y + t.tx + cx; p.y = t.b * x + t.d * y + t.ty + cy;
     }
+    p.x += frame.origin.x; p.y += frame.origin.y;
+    return p;
+}
+static inline CGPoint from_superview(UIView *v, CGPoint p, CGRect frame, CGPoint origin, CGAffineTransform t) {
+    p.x -= frame.origin.x; p.y -= frame.origin.y;
+    if (!CGAffineTransformIsIdentity(t)) {
+        CGAffineTransform inv = CGAffineTransformInvert(t);
+        double cx = frame.size.width / 2, cy = frame.size.height / 2, x = p.x - cx, y = p.y - cy;
+        p.x = inv.a * x + inv.c * y + inv.tx + cx; p.y = inv.b * x + inv.d * y + inv.ty + cy;
+    }
+    p.x += origin.x; p.y += origin.y;
+    return p;
+}
+- (CGPoint)_isim_toWindow:(CGPoint)p {
+    for (UIView *v = self; v && ![v isKindOfClass:[UIWindow class]]; v = v->_superview) p = to_superview(v, p, v->_frame, v->_boundsOrigin, v->_transform);
     return p;
 }
 - (CGPoint)_isim_fromWindow:(CGPoint)p {
-    CGPoint o = [self _isim_toWindow:CGPointZero];
-    return CGPointMake(p.x - o.x, p.y - o.y);
+    UIView *chain[64]; int n = 0;
+    for (UIView *v = self; v && ![v isKindOfClass:[UIWindow class]] && n < 64; v = v->_superview) chain[n++] = v;
+    while (n > 0) { UIView *v = chain[--n]; p = from_superview(v, p, v->_frame, v->_boundsOrigin, v->_transform); }
+    return p;
 }
 - (CGPoint)convertPoint:(CGPoint)p toView:(UIView *)v { CGPoint w = [self _isim_toWindow:p]; return v ? [v _isim_fromWindow:w] : w; }
 - (CGPoint)convertPoint:(CGPoint)p fromView:(UIView *)v { CGPoint w = v ? [v _isim_toWindow:p] : p; return [self _isim_fromWindow:w]; }
@@ -819,7 +839,7 @@ void isim_ui_layout_window(UIView *root) {
     if (_hidden || !_userInteractionEnabled || _alpha < 0.01 || ![self pointInside:p withEvent:e]) return nil;
     for (NSInteger i = (NSInteger)_subs.count - 1; i >= 0; i--) {
         UIView *s = _subs[(NSUInteger)i];
-        CGPoint q = CGPointMake(p.x - s->_frame.origin.x + s->_boundsOrigin.x, p.y - s->_frame.origin.y + s->_boundsOrigin.y);
+        CGPoint q = from_superview(s, p, s->_frame, s->_boundsOrigin, s->_transform);
         UIView *h = [s hitTest:q withEvent:e];
         if (h) return h;
     }

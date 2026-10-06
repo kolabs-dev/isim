@@ -66,3 +66,9 @@
 #import <UIKit/UIFontPickerViewController.h>
 #import <UIKit/CALayers.h>
 #import <UIKit/UIDynamicAnimator.h>
+#import <UIKit/UIInteraction.h>
+#import <UIKit/UITargetedPreview.h>
+#import <UIKit/UIMultiTouch.h>
+#import <UIKit/UITextChecker.h>
+#import <UIKit/UIEditMenuInteraction.h>
+#import <UIKit/UIContentSizeCategory.h>

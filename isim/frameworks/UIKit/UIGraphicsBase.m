@@ -212,6 +212,8 @@ void isim_ui_register_app_fonts(void) {
 + (UIFont *)boldSystemFontOfSize:(CGFloat)s { return [self systemFontOfSize:s weight:UIFontWeightBold]; }
 + (UIFont *)italicSystemFontOfSize:(CGFloat)s { return [self systemFontOfSize:s weight:UIFontWeightRegular]; }
 + (UIFont *)systemFontOfSize:(CGFloat)s weight:(UIFontWeight)w {
+    extern CGFloat isim_ui_bold_text_weight(CGFloat w);     /* Settings > Accessibility > Bold Text (UIAccessibilityRuntime.m) */
+    w = isim_ui_bold_text_weight(w);
     NSString *n = w >= UIFontWeightBold ? @".SFUI-Bold" : w >= UIFontWeightSemibold ? @".SFUI-Semibold" : w >= UIFontWeightMedium ? @".SFUI-Medium" : @".SFUI-Regular";
     return [self _size:s weight:w mono:NO name:n];
 }
@@ -257,8 +259,12 @@ static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
     NSDictionary *sizes = @{ UIFontTextStyleLargeTitle: @34, UIFontTextStyleTitle1: @28, UIFontTextStyleTitle2: @22, UIFontTextStyleTitle3: @20,
                              UIFontTextStyleHeadline: @17, UIFontTextStyleBody: @17, UIFontTextStyleCallout: @16, UIFontTextStyleSubheadline: @15,
                              UIFontTextStyleFootnote: @13, UIFontTextStyleCaption1: @12, UIFontTextStyleCaption2: @11 };
-    CGFloat s = [sizes[style] doubleValue] ?: 17;
-    return [self systemFontOfSize:s weight:[style isEqualToString:UIFontTextStyleHeadline] ? UIFontWeightSemibold : UIFontWeightRegular];
+    extern CGFloat isim_ui_content_size_multiplier(void);    /* Dynamic Type (UIAccessibilityRuntime.m) */
+    extern void isim_ui_font_set_text_style(UIFont *f, NSString *style);
+    CGFloat s = round(([sizes[style] doubleValue] ?: 17) * isim_ui_content_size_multiplier());
+    UIFont *f = [self systemFontOfSize:s weight:[style isEqualToString:UIFontTextStyleHeadline] ? UIFontWeightSemibold : UIFontWeightRegular];
+    isim_ui_font_set_text_style(f, style);
+    return f;
 }
 + (CGFloat)labelFontSize { return 17; }
 + (CGFloat)buttonFontSize { return 18; }

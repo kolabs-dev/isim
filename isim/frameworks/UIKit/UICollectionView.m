@@ -6,6 +6,7 @@
 #import "UIKitPrivate.h"
 #include <math.h>
 #include <objc/runtime.h>
+#include <objc/message.h>
 
 NSString *const UICollectionElementKindSectionHeader = @"UICollectionElementKindSectionHeader";
 NSString *const UICollectionElementKindSectionFooter = @"UICollectionElementKindSectionFooter";
@@ -239,7 +240,7 @@ static BOOL acc_leading(UICellAccessory *a) {
         if (![self _isim_shown:a] || acc_leading(a)) continue;
         CGFloat w = acc_width(a);
         if ([a isKindOfClass:[UICellAccessoryCustomView class]]) { UIView *v = ((UICellAccessoryCustomView *)a).customView; CGSize s = v.bounds.size; v.frame = CGRectMake(right - w + 4, (b.size.height - s.height) / 2, s.width, s.height); }
-        void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? [(id)a actionHandler] : nil;
+        void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? (void (^)(void))((id (*)(id, SEL))objc_msgSend)(a, @selector(actionHandler)) : nil;
         if (h) [self _isim_button:CGRectMake(right - w, 0, w, b.size.height) handler:h name:a];
         right -= w;
     }
@@ -247,7 +248,7 @@ static BOOL acc_leading(UICellAccessory *a) {
         if (![self _isim_shown:a] || !acc_leading(a)) continue;
         CGFloat w = acc_width(a);
         if ([a isKindOfClass:[UICellAccessoryCustomView class]]) { UIView *v = ((UICellAccessoryCustomView *)a).customView; CGSize s = v.bounds.size; v.frame = CGRectMake(left + 12, (b.size.height - s.height) / 2, s.width, s.height); }
-        void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? [(id)a actionHandler] : nil;
+        void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? (void (^)(void))((id (*)(id, SEL))objc_msgSend)(a, @selector(actionHandler)) : nil;
         if (h) [self _isim_button:CGRectMake(left, 0, w, b.size.height) handler:h name:a];
         left += w;
     }
