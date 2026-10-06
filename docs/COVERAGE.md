@@ -67,9 +67,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
 | QuartzCore / Core Animation | 2 | 3 | 0 | 4 | 9 | 39% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
-| SpriteKit | 15 | 17 | 5 | 3 | 40 | 59% |
+| SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
 | GameKit (Game Center) | 10 | 4 | 3 | 1 | 18 | 67% |
-| GameController, GameplayKit, SceneKit, RealityKit & ARKit | 7 | 5 | 1 | 6 | 19 | 50% |
+| GameController, GameplayKit, SceneKit, RealityKit & ARKit | 13 | 8 | 1 | 4 | 26 | 65% |
 | AVFoundation & audio | 10 | 11 | 3 | 4 | 28 | 55% |
 | Photos, Vision, Core ML & camera | 3 | 1 | 0 | 4 | 8 | 44% |
 | StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **463** | **176** | **42** | **159** | **840** | **66%** |
+| **All areas** | **476** | **180** | **42** | **155** | **853** | **66%** |
 
 ---
 
@@ -919,22 +919,26 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 
 ## SpriteKit
 
-isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit).
+isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit) and `tests/ui/spritekit2.sh` (HelloSpriteKit2).
 
 | API / feature | Status | Notes |
 |---|---|---|
 | `SKView`, `SKScene` (size, scale modes, anchor point, background, frame loop, delegate) | ✅ | 60 fps; per frame: `update`, actions, physics, constraints, particles, `didFinishUpdate` |
 | `SKNode` tree (position, z-order, scale, rotation, alpha, hidden, name lookup, `enumerateChildNodes`) | ✅ | |
 | `SKSpriteNode` (texture, color, color blend, anchor, size, blend modes) | ✅ | |
-| `centerRect` (9-slice), `normalTexture`, lighting/shadow masks, `warpGeometry` | 🧩 | stored, not drawn |
+| `centerRect` (9-slice), `normalTexture`, lighting/shadow masks | 🧩 | stored, not drawn |
+| `SKWarpGeometryGrid`, `SKWarpable` (`warpGeometry`, `subdivisionLevels`) on sprites | ✅ | drawn as a triangle mesh (each grid cell subdivided 2^levels per side, bilinear, at most ~2k triangles; each texture triangle mapped affinely); trapezoid warp checked by pixels. On `SKEffectNode` ❌ (sprites only) |
+| `SKAction.warp(to:duration:)`, `animate(withWarps:times:)`, `animate(withWarps:times:restore:)` | ✅ | interpolate destination positions; warps must share the grid shape |
 | `SKShapeNode` (path, rect, rounded rect, circle, ellipse, points, spline, fill/stroke, line width, glow, blend mode, `lineLength`) | 🟡 | line cap/join/miter, fill/stroke textures and shaders ignored |
 | `SKLabelNode` (font, size, color, alignment, multi-line, color blend, blend mode) | ✅ | |
-| `SKLabelNode.attributedText` | ❌ | `NSAttributedString` exists now; SpriteKit does not draw it yet |
-| `SKTexture` (`imageNamed:` incl. atlases, `init(rect:in:)`, `textureRect`, filtering, `preload`) | 🟡 | no noise/`data:` textures; `cgImage()` returns nil |
+| `SKLabelNode.attributedText`, `init(attributedText:)` | ✅ | drawn by UIKit's attributed string drawing: per-run font, color, kerning, underline/strike, paragraph alignment and line spacing (red/blue runs checked by pixels); `fontName`/`fontColor` ignored as on iOS |
+| `SKTexture` (`imageNamed:` incl. atlases, `init(rect:in:)`, `textureRect`, filtering, `preload`) | 🟡 | no noise textures; `cgImage()` returns nil |
+| `SKTexture(data:size:)`, `(data:size:flipped:)`, `(data:size:rowLength:alignment:)` | 🟡 | RGBA8 straight alpha, first row at the bottom unless flipped; `data:size:` tested, the others unverified |
+| `SKMutableTexture` (`init(size:)`, `modifyPixelData`) | ✅ | RGBA8 buffer (first row at the bottom) uploaded to the host after each block; pixel format argument ignored |
 | `SKTextureAtlas` (`.atlas` folders, `textureNamed`, `textureNames`, `preload`, `init(dictionary:)`) | ✅ | picks the @2x/@3x file for the screen |
 | `.spriteatlas` in asset catalogs | 🟡 | `isim build` lists them for `SKTextureAtlas(named:)`; unverified in an app |
 | `SKAction` (move, rotate, scale, fade, colorize, resize, sequence, group, repeat, wait, run block, custom, follow path, speed, timing modes) | ✅ | |
-| `SKAction.reversed()` | ❌ | returns the action unchanged |
+| `SKAction.reversed()` | ✅ | move/rotate/scale/resize/fade/speed `by`, fadeIn↔fadeOut, hide↔unhide, sequence (reversed order), group (aligned to end together), repeat / repeatForever, texture animation, follow path, volume/mass/charge/strength/falloff `by`; `to` actions, colorize, physics impulses etc. return themselves like iOS; easeIn↔easeOut |
 | Physics, field and audio actions (`applyForce`/`applyImpulse`/`applyTorque`, `changeMass`/`changeCharge`, `strength`/`falloff`, `play`/`pause`/`stop`, `changeVolume`) | 🟡 | unverified; playback rate, panning, reverb, obstruction/occlusion and `reach` actions only wait |
 | `SKAction.playSoundFileNamed` | ✅ | through isim's AVFoundation (PCM CAF/WAV; compressed formats via the host's ffmpeg/GStreamer); overlapping plays mix |
 | `SKAudioNode` | 🟡 | looping playback and volume; not positional (`isPositional` ignored); `avAudioNode` not connected to an engine; unverified |
@@ -962,7 +966,9 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 | `SKReferenceNode` | 🟡 | loads an .sks file's children; unverified |
 | `SKView` debug overlays (`showsFPS`, `showsNodeCount`, `showsDrawCount`, `showsPhysics`) | 🟡 | node count tested; `showsPhysics` outlines bodies (unverified); `showsFields` ignored |
 | `SKView.texture(from:)` | 🧩 | returns nil |
-| `SKVideoNode`, `SKTransformNode`, `SK3DNode`, `SKWarpGeometry`, `SKRenderer`, `SKMutableTexture` | ❌ | |
+| `SKVideoNode` (`init(avPlayer:)`, `init(fileNamed:)`, `init(url:)`, `play`, `pause`, `size`, `anchorPoint`) | ✅ | draws isim AVPlayer's current frame (host ffmpeg decodes); size defaults to the video size; red→green clip checked by pixels |
+| `SKTransformNode` (`xRotation`/`yRotation`/`zRotation`, euler angles, `quaternion`, `rotationMatrix`) | ✅ | R = Rx·Ry·Rz, children projected orthographically (no perspective); width halving at 60° checked by pixels |
+| `SK3DNode`, `SKRenderer` | ❌ | |
 
 ## GameKit (Game Center)
 
@@ -995,9 +1001,10 @@ descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `GCController` (`controllers()`, `current`, connect / disconnect / current notifications, `playerIndex`) | ✅ | only isim's virtual controller connects |
+| `GCController` (`controllers()`, `current`, connect / disconnect / current notifications, `playerIndex`) | ✅ | virtual controller and host gamepads |
 | `GCExtendedGamepad`, `GCMicroGamepad` (buttons, d-pad, thumbsticks, triggers, value / pressed / touched handlers) | ✅ | tested with the virtual controller |
-| Physical game controllers on the host | ❌ | host gamepads are not forwarded to apps |
+| Physical game controllers on the host | ✅ | SDL3 gamepads (Xbox / PlayStation / Switch / generic via SDL's mapping database) polled at 60 Hz: each becomes a `GCController` with `GCExtendedGamepad` (+ micro profile), `vendorName` from SDL, `productCategory` from the SDL pad type; `ISIM_GAMEPADS=0` disables. Tested through an SDL virtual joystick (`gamepad` script command), not a physical pad |
+| Gamepad rumble (`GCDeviceHaptics`) | ❌ | no CoreHaptics; the host side (`isim_gamepad_rumble`) exists but is not reachable from apps |
 | `GCKeyboard.coalesced`, `GCKeyboardInput` (`button(forKeyCode:)`, `keyChangedHandler`, `isAnyKeyPressed`), `GCKeyCode` | ✅ | the host keyboard; key presses and releases arrive as USB HID usages (scripts: `keydown`/`keyup`) |
 | `GCVirtualController` (iOS 15) | 🟡 | thumbsticks, d-pad, A/B/X/Y, shoulders, triggers and menu drawn over the key window; element configurations only hide elements (custom paths ignored) |
 | `GCMouse`, motion, haptics, light, battery | 🧩 | no mice; the others are nil |
@@ -1009,11 +1016,17 @@ descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter
 | `GKRandomSource`, `GKARC4RandomSource`, `GKMersenneTwisterRandomSource`, `GKLinearCongruentialRandomSource`, `arrayByShufflingObjects` | 🟡 | MT19937 matches the reference generator; ARC4 is RC4; LCG is the 64-bit MMIX generator; seeded sequences are not checked against iOS's |
 | `GKRandomDistribution`, `GKGaussianDistribution`, `GKShuffledDistribution` | ✅ | |
 | `GKGraph`, `GKGridGraph`, `GKGraphNode`, `GKGraphNode2D/3D`, `findPath` (A*) | ✅ | |
-| `GKObstacleGraph`, `GKMeshGraph`, `GKPolygonObstacle` | ❌ | |
+| `GKObstacleGraph`, `GKPolygonObstacle` (`bufferRadius`, `connectUsingObstacles` incl. ignoring variants, `lock`/`unlockConnection`, `nodes(forObstacle:)`, `nodeClass`), `SKNode.obstacles(fromNodeBounds:)` | ✅ | visibility graph between buffered (mitered) corners; paths, locking and custom node classes tested; ignoring variants unverified; `obstacles(fromNodePhysicsBodies:)` / `(fromSpriteTextures:)` ❌ |
+| `GKMeshGraph` (`triangulate`, `triangulationMode`, `triangle(at:)`, `connectUsingObstacles`) | 🟡 | Delaunay (Bowyer-Watson) with extra points along obstacle edges, triangles inside buffered obstacles dropped — not a constrained triangulation, so thin obstacles can be cut across; paths tested |
+| `GKCircleObstacle`, `GKSphereObstacle`, `GKGoal.toAvoid(_ obstacles:)` | 🟡 | unverified |
 | `GKNoise`, `GKNoiseMap`, noise sources (Perlin, billow, ridged, Voronoi, constant, cylinders, spheres, checkerboard) | 🟡 | own algorithms (values differ from iOS); no `SKTexture(noiseMap:)`; unverified |
 | `GKAgent2D`, `GKGoal`, `GKBehavior`, `GKPath` | 🟡 | simple steering (seek tested; flee, intercept, wander, target speed, avoid, separate/align/cohere, follow/stay on path unverified); `GKAgent3D` ❌ |
 | `GKRuleSystem`, `GKRule` | 🟡 | block-based rules, facts with grades; `NSPredicate` rules ❌; unverified |
-| `GKMinmaxStrategist`, `GKMonteCarloStrategist`, `GKDecisionTree`, `GKQuadtree`, `GKRTree` | ❌ | |
+| `GKGameModel` / `GKGameModelPlayer` / `GKGameModelUpdate`, `GKMinmaxStrategist` (`maxLookAheadDepth`, `randomSource` tie-breaks, `bestMove`, `randomMove`) | ✅ | alpha-beta on copies (`unapplyGameModelUpdate` not used); win / block / perfect tic-tac-toe self-play tested |
+| `GKMonteCarloStrategist` (`budget`, `explorationParameter`) | ✅ | UCT with random playouts; win / block tested |
+| `GKDecisionTree`, `GKDecisionNode` (value / predicate / weight branches; learned from examples) | 🟡 | ID3 (categorical, numeric thresholds) tested; unseen answers fall back to the majority action; `export(to:)` / `init(url:)` ❌ |
+| `GKQuadtree`, `GKOctree` (add at point / in quad or box, `elements(at:)`, `elements(in:)`, remove) | ✅ | `elements(in:)` returns elements overlapping the query (iOS: whole cells); removal matches `isEqual` |
+| `GKRTree` (add / remove / query, half / linear / quadratic / reduce-overlap splits) | ✅ | Guttman R-tree; all four strategies checked against brute force |
 
 ---
 
