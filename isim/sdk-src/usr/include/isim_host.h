@@ -4,13 +4,17 @@
 #include <stddef.h>
 #include <stdint.h>
 __BEGIN_DECLS
-struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
+struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48];
+                     double safe_left, safe_right; int orientation; };   /* orientation: UIInterfaceOrientation of the screen */
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
 enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, ISIM_EV_QUIT, ISIM_EV_KEY, ISIM_EV_TEXT, ISIM_EV_REDRAW, ISIM_EV_ID_DOWN, ISIM_EV_ID_UP, ISIM_EV_DUMP, ISIM_EV_TEXT_DOWN, ISIM_EV_TEXT_UP,
        ISIM_EV_BACKGROUND, ISIM_EV_FOREGROUND, ISIM_EV_SETTINGS, ISIM_EV_LAUNCH_ID, ISIM_EV_OPEN_URL,
        ISIM_EV_KEY_UP = 19 /* key released; for ISIM_EV_KEY / ISIM_EV_KEY_UP `pad` is the USB HID usage (0 if unknown) */
-       , ISIM_EV_NOTIFICATION_RESPONSE = 20 /* text: request identifier (18 is shell-internal) */ };
+       , ISIM_EV_NOTIFICATION_RESPONSE = 20 /* text: request identifier (18 is shell-internal) */
+       , ISIM_EV_DEVICE_ORIENTATION = 21 /* key: UIDeviceOrientation (the device was turned) */ };
 void isim_device_metrics(struct isim_device *out);
+int isim_set_orientation(int interfaceOrientation);   /* the screen takes this UIInterfaceOrientation; 1 if it changed */
+int isim_device_orientation(void);                    /* current UIDeviceOrientation */
 int isim_display_open(const char *title);
 void isim_frame_begin(void);
 void isim_frame_end(void);

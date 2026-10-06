@@ -222,6 +222,12 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (self.showsMenuAsPrimaryAction && self.menu) [self _isim_presentMenu:self.menu fromRect:self.bounds];
 }
 + (instancetype)buttonWithType:(UIButtonType)t { UIButton *b = [[self alloc] initWithFrame:CGRectZero]; b->_buttonType = t; [b _isim_applyType]; return b; }
++ (instancetype)buttonWithType:(UIButtonType)t primaryAction:(UIAction *)action {
+    UIButton *b = [self buttonWithType:t];
+    if (action) { if (action.title.length) [b setTitle:action.title forState:UIControlStateNormal]; if (action.image) [b setImage:action.image forState:UIControlStateNormal];
+                  [b addAction:action forControlEvents:UIControlEventPrimaryActionTriggered]; }
+    return b;
+}
 + (instancetype)systemButtonWithPrimaryAction:(UIAction *)a {
     UIButton *b = [self buttonWithType:UIButtonTypeSystem];
     if (a) { [b addAction:a forControlEvents:UIControlEventPrimaryActionTriggered]; [b setTitle:a.title forState:UIControlStateNormal]; }

@@ -40,17 +40,21 @@
 #include "runtime.h"
 #include "host_crypto.h"
 
-struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
+struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48];
+                     double safe_left, safe_right; int orientation; };   /* orientation: UIInterfaceOrientation (0 = portrait) */
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
 enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP, EV_TEXT_DOWN, EV_TEXT_UP,
-       EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */, EV_KEY_UP, EV_NOTIFICATION_RESPONSE };
+       EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */, EV_KEY_UP, EV_NOTIFICATION_RESPONSE,
+       EV_DEVICE_ORIENTATION /* key = UIDeviceOrientation */ };
 /* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
 struct shell_msg { int type; struct isim_event ev; char a[512], b[512], c[512]; };
-enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM, SM_NOTIFY };
+enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM, SM_NOTIFY, SM_ORIENT /* a = UIInterfaceOrientation of the client's screen */ };
 static int client_sock = -1, client_wake[2] = { -1, -1 };
 static unsigned char *client_pixels;
 
 static struct isim_device dev;
+static struct isim_device portrait_dev;             /* the preset, upright */
+static int device_orient = 1;                       /* UIDeviceOrientation: 1 portrait, 2 upside down, 3 landscape left, 4 landscape right */
 static double zoom = 1, px_scale = 1;
 static int headless;
 static SDL_Window *win;
@@ -69,6 +73,8 @@ static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts
 double isim_time(void) { return now() - t0; }
 
 /* device presets (points, scale, safe areas, display corner radius, cutout: 0 none, 1 Dynamic Island, 2 notch) */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"     /* orientation fields default to 0 */
 static const struct { const char *id; struct isim_device d; } devices[] = {
     { "iphonese",       { 375, 667, 2, 20, 0, 0, 0, "iPhone SE (3rd generation)" } },
     { "iphone13mini",   { 375, 812, 3, 50, 34, 44, 2, "iPhone 13 mini" } },
@@ -88,6 +94,7 @@ static const struct { const char *id; struct isim_device d; } devices[] = {
     { "ipadpro11",      { 834, 1210, 2, 24, 20, 18, 0, "iPad Pro 11-inch" } },
     { "ipadpro13",      { 1032, 1376, 2, 24, 20, 18, 0, "iPad Pro 13-inch" } },
 };
+#pragma GCC diagnostic pop
 static void device_from_env(void) {
     const char *d = getenv("ISIM_DEVICE");
     dev = devices[3].d;                                   /* iPhone 15 */
@@ -99,10 +106,53 @@ static void device_from_env(void) {
         fprintf(stderr, " (using iPhone 15)\n");
     }
     const char *z = getenv("ISIM_ZOOM"); if (z) zoom = atof(z) > 0.1 ? atof(z) : 1;
+    dev.orientation = 1;
+    portrait_dev = dev;
+    const char *o = getenv("ISIM_DEVICE_ORIENTATION");     /* set by the shell for apps launched while turned */
+    if (o && atoi(o) >= 1 && atoi(o) <= 4) device_orient = atoi(o);
 }
 
 void isim_device_metrics(struct isim_device *out) { if (!dev.width) device_from_env(); *out = dev; }
 
+/* ---- orientation. The device (portrait geometry from the preset) can be turned (Ctrl+Left/Right, script
+   `rotate`); each app then picks its interface orientation and the screen takes that shape: landscape swaps
+   width/height, moves the sensor housing to a side (left/right safe areas), and hides the iPhone status bar. ---- */
+static struct isim_device oriented(int o) {        /* o: UIInterfaceOrientation 1 portrait, 2 upside down, 3 landscape right, 4 landscape left */
+    if (!portrait_dev.width) device_from_env();
+    struct isim_device d = portrait_dev;
+    d.orientation = o < 1 ? 1 : o;
+    int pad = portrait_dev.width >= 700;
+    if (o == 3 || o == 4) {
+        d.width = portrait_dev.height; d.height = portrait_dev.width;
+        if (pad) { d.safe_left = d.safe_right = 0; }
+        else {          /* status bar hidden; the cutout's side and the opposite one are inset; home indicator band 21 */
+            d.safe_top = 0; d.safe_bottom = portrait_dev.has_island ? 21 : 0;
+            d.safe_left = d.safe_right = portrait_dev.has_island ? portrait_dev.safe_top : 0;
+        }
+    }
+    return d;
+}
+int isim_device_orientation(void) { return device_orient; }
+static void send_orient_to_shell(int o);
+static void make_surface(void);
+/* the app's screen takes interface orientation o; returns 1 if the geometry changed */
+int isim_set_orientation(int o) {
+    if (!dev.width) device_from_env();
+    if (o < 1 || o > 4 || o == (dev.orientation ? dev.orientation : 1)) return 0;
+    struct isim_device old = dev;
+    dev = oriented(o);
+    if (old.width == dev.width && old.height == dev.height) { send_orient_to_shell(o); return 1; }
+    if (cr) make_surface();
+    if (win) SDL_SetWindowSize(win, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom));
+    send_orient_to_shell(o);
+    return 1;
+}
+
+static void send_orient_to_shell(int o) {
+    if (client_sock < 0) return;
+    struct shell_msg m = { .type = SM_ORIENT }; snprintf(m.a, sizeof m.a, "%d", o);
+    send(client_sock, &m, sizeof m, MSG_NOSIGNAL);
+}
 static void make_surface(void) {
     if (cr) { cairo_destroy(cr); cairo_surface_destroy(surf); }
     surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
@@ -501,6 +551,8 @@ static void load_clock_prefs(void) {
 static void draw_chrome(void) {
     double c = status_dark_content ? 0 : 1;
     double fg[4] = { c, c, c, 1 };
+    int landscape = dev.orientation == 3 || dev.orientation == 4;
+    if (landscape && portrait_dev.width < 700) goto hardware;       /* iPhones hide the status bar in landscape */
     if (status_hidden) goto hardware;
     load_clock_prefs();
     time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
@@ -530,12 +582,18 @@ static void draw_chrome(void) {
     double cx0 = wx - 30;
     for (int i = 0; i < 4; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
 hardware:                                                          /* island, notch and home indicator stay */
-    if (dev.has_island == 1) { double k[4] = { 0, 0, 0, 1 }; isim_gfx_fill_rounded(dev.width / 2 - 62.5, 11, 125, 37, 18.5, k); }
-    if (dev.has_island == 2) {                                     /* notch: flat top, rounded bottom corners */
-        double k[4] = { 0, 0, 0, 1 };
-        isim_gfx_fill_rounded(dev.width / 2 - 81, -20, 162, 52, 20, k);
+    if (landscape) {                   /* the sensor housing is on the side the device's top edge points to */
+        double k[4] = { 0, 0, 0, 1 }; int left = dev.orientation == 3;
+        if (dev.has_island == 1) isim_gfx_fill_rounded(left ? 11 : dev.width - 11 - 37, dev.height / 2 - 62.5, 37, 125, 18.5, k);
+        if (dev.has_island == 2) isim_gfx_fill_rounded(left ? -20 : dev.width - 32, dev.height / 2 - 81, 52, 162, 20, k);
+    } else {
+        if (dev.has_island == 1) { double k[4] = { 0, 0, 0, 1 }; isim_gfx_fill_rounded(dev.width / 2 - 62.5, 11, 125, 37, 18.5, k); }
+        if (dev.has_island == 2) {                                 /* notch: flat top, rounded bottom corners */
+            double k[4] = { 0, 0, 0, 1 };
+            isim_gfx_fill_rounded(dev.width / 2 - 81, -20, 162, 52, 20, k);
+        }
     }
-    if (dev.safe_bottom > 0) isim_gfx_fill_rounded(dev.width / 2 - 67, dev.height - 8 - 5, 134, 5, 2.5, fg);
+    if (dev.safe_bottom > 0) { double hw = landscape ? 208 : 134; isim_gfx_fill_rounded(dev.width / 2 - hw / 2, dev.height - 8 - 5, hw, 5, 2.5, fg); }
 }
 
 static void apply_corner_mask(void) {
@@ -678,6 +736,13 @@ static int script_step(struct isim_event *ev) {
         if (hid) pending[npending++] = (struct isim_event){ .type = cmd[3] == 'd' ? EV_KEY : EV_KEY_UP, .pad = hid, .key = key };
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
         script_resume = now() + 0.02;
+    } else if (!strcmp(cmd, "rotate") && sscanf(args, " %63[^; ]", arg) == 1) {
+        /* turn the device: portrait, upsidedown, landscapeleft, landscaperight, or left/right (90 degrees) */
+        static const int ccw[5] = { 0, 3, 4, 2, 1 }, cw[5] = { 0, 4, 3, 1, 2 };
+        int o = !strcmp(arg, "portrait") ? 1 : !strcmp(arg, "upsidedown") ? 2 : !strcmp(arg, "landscapeleft") ? 3 : !strcmp(arg, "landscaperight") ? 4
+              : !strcmp(arg, "left") ? ccw[device_orient] : !strcmp(arg, "right") ? cw[device_orient] : 0;
+        if (o) { device_orient = o; pending[npending++] = (struct isim_event){ .type = EV_DEVICE_ORIENTATION, .key = o }; script_resume = now() + 0.5; }
+        else fprintf(stderr, "isim host: unknown orientation '%s'\n", arg);
     } else if (!strcmp(cmd, "shake")) {          /* Device > Shake (motion event) */
         pending[npending++] = (struct isim_event){ .type = EV_KEY, .key = 0x7fff0001 };
         script_resume = now() + 0.3;
@@ -761,6 +826,11 @@ int isim_next_event(struct isim_event *ev, double timeout) {
             button_down = 0; ev->type = EV_TOUCH_UP; ev->x = e.button.x / zoom; ev->y = e.button.y / zoom; return 1;
         case SDL_EVENT_KEY_DOWN:
             if (e.key.key == SDLK_F12) { screenshot("isim-screenshot.png"); break; }
+            if ((e.key.mod & SDL_KMOD_CTRL) && (e.key.key == SDLK_LEFT || e.key.key == SDLK_RIGHT)) {   /* Device > Rotate Left/Right */
+                static const int ccw[5] = { 0, 3, 4, 2, 1 }, cw[5] = { 0, 4, 3, 1, 2 };
+                device_orient = e.key.key == SDLK_LEFT ? ccw[device_orient] : cw[device_orient];
+                ev->type = EV_DEVICE_ORIENTATION; ev->key = device_orient; return 1;
+            }
             ev->type = EV_KEY; ev->key = (int)e.key.key; ev->mods = e.key.mod; ev->pad = (int)e.key.scancode; return 1;   /* pad: USB HID usage */
         case SDL_EVENT_KEY_UP:
             ev->type = EV_KEY_UP; ev->key = (int)e.key.key; ev->mods = e.key.mod; ev->pad = (int)e.key.scancode; return 1;
@@ -912,6 +982,7 @@ static const struct shim isim_table[] = {
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
+    H(isim_set_orientation), H(isim_device_orientation),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),

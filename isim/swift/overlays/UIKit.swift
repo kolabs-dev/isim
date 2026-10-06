@@ -376,3 +376,19 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
         return v
     }
 }
+
+// MARK: - Rotation
+extension UIWindowScene.GeometryPreferences {
+    /// `UIWindowScene.GeometryPreferences.iOS(interfaceOrientations:)` (the importer cannot nest this class two levels deep)
+    public typealias iOS = UIWindowSceneGeometryPreferencesIOS
+}
+extension UIDeviceOrientation {
+    public var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }
+    public var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
+    public var isFlat: Bool { self == .faceUp || self == .faceDown }
+    public var isValidInterfaceOrientation: Bool { isPortrait || isLandscape }
+}
+extension UIInterfaceOrientation {
+    public var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }
+    public var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
+}

@@ -22,11 +22,11 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 89 | 32 | 10 | 66 | 197 | 53% |
-| &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 5 | 8 | 23 | 35% |
+| **UIKit** | 91 | 32 | 10 | 64 | 197 | 54% |
+| &nbsp;&nbsp;↳ Application & scenes | 7 | 4 | 5 | 7 | 23 | 39% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 11 | 2 | 0 | 16 | 29 | 41% |
 | &nbsp;&nbsp;↳ Views & controls | 24 | 14 | 1 | 12 | 51 | 61% |
-| &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
+| &nbsp;&nbsp;↳ Layout | 13 | 1 | 1 | 4 | 19 | 71% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
 | &nbsp;&nbsp;↳ Gestures & touches | 9 | 1 | 0 | 3 | 13 | 73% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **400** | **141** | **42** | **216** | **799** | **59%** |
+| **All areas** | **402** | **141** | **42** | **214** | **799** | **59%** |
 
 ---
 
@@ -101,7 +101,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIScreen.main` (bounds, scale, nativeBounds, maximumFramesPerSecond) | ✅ | per-device presets |
 | `UIScreen.brightness` | 🧩 | stored only |
 | `UIDevice` (name, model, systemVersion, userInterfaceIdiom) | 🟡 | systemVersion is the emulated API level (`ISIM_OS_VERSION`, default 18.0) |
-| Device orientation, rotation, `supportedInterfaceOrientations` | ❌ | always portrait |
+| Device orientation, rotation, `supportedInterfaceOrientations` | ✅ | Ctrl+Left/Right or script `rotate`; Info.plist/delegate/VC masks (containers use their visible child; no plist key = portrait, adapted), `requestGeometryUpdate`, device notifications, landscape screen through the shell; tested (HelloRotation) |
 | Application/scene lifecycle notifications (`didBecomeActiveNotification`, …) | ✅ | |
 | `open(_:options:)` / `canOpenURL` | 🟡 | logged; `app-settings:` opens Settings; http(s)/mailto open on the host only with `ISIM_OPEN_URLS=1` |
 | Incoming URLs (custom URL schemes, `application(_:open:)`, scene URL contexts) | 🟡 | URLs can be delivered to the app (script/control); `CFBundleURLTypes` routing between apps unverified |
@@ -229,7 +229,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Dynamic Type: `preferredFont(forTextStyle:)` | ✅ | default (Large) size only |
 | Dynamic Type size changes, `UIFontMetrics`, `adjustsFontForContentSizeCategory` | 🧩 | property stored; text size never changes |
 | Right-to-left layout, `semanticContentAttribute` | ❌ | |
-| Rotation layout (`viewWillTransition(to:with:)`) | ❌ | |
+| Rotation layout (`viewWillTransition(to:with:)`) | ✅ | coordinator alongside/completion, size classes, side safe areas; tested (HelloRotation). Landscape nav bars keep portrait height |
 
 ### Animation
 
