@@ -161,6 +161,11 @@ struct ContentView: View {
             content.title = "Security demo"
             content.body = "Your notes were backed up."
             content.sound = .default
+            let daily = UNCalendarNotificationTrigger(dateMatching: DateComponents(hour: 9, minute: 30), repeats: true)
+            if let next = daily.nextTriggerDate() {
+                let c = Calendar.current.dateComponents([.hour, .minute], from: next)
+                print("calendar next \(c.hour ?? -1):\(c.minute ?? -1) in \(Int(next.timeIntervalSinceNow / 3600))h repeats \(daily.repeats) hour \(daily.dateComponents.hour ?? -1)")
+            }
             let request = UNNotificationRequest(identifier: "backup", content: content,
                                                 trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false))
             do {

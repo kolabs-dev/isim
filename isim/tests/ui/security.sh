@@ -27,6 +27,7 @@ check "SQLite3: insert + query in the app container"       'grep -q "sqlite 2 no
 check "os.Logger: public values shown, private redacted"  'grep -q "\[dev.isim.samples.HelloSecurity:demo\] crypto done, digest 2cf24dba" <<<"$log" && grep -q "saved a token <private>" <<<"$log" && ! grep -q "saved a token tok-" <<<"$log"'
 check "Face ID: permission alert, then simulated scan"     'grep -q "biometry faceID" <<<"$log" && grep -q "Face ID matched" <<<"$log" && grep -q "auth Unlocked" <<<"$log"'
 check "notifications: permission alert"                    'grep -q "notifications allowed for Security" <<<"$log" && grep -q "notify scheduled \[\"backup\"\]" <<<"$log"'
+check "UNCalendarNotificationTrigger next date (daily 9:30)" 'grep -Eq "calendar next 9:30 in ([0-9]|1[0-9]|2[0-3])h repeats true hour 9" <<<"$log"'
 check "notification: willPresent + foreground banner"      'grep -q "willPresent backup" <<<"$log" && grep -q "id=isim-notification-banner" <<<"$log" && grep -q "text=Your notes were backed up." <<<"$log"'
 check "notification: tapping the banner -> didReceive"     'grep -q "opened backup action default" <<<"$log" && grep -q "text=Opened backup" <<<"$log"'
 check "keychain item survives a relaunch, then deletes"    'grep -q "keychain load 0 token" <<<"$log2" && grep -q "keychain delete 0" <<<"$log2" && grep -q "keychain load -25300 not found" <<<"$log2"'
