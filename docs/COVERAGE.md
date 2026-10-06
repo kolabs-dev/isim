@@ -73,17 +73,17 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | AVFoundation & audio | 10 | 11 | 3 | 4 | 28 | 55% |
 | Photos, Vision, Core ML & camera | 3 | 1 | 0 | 4 | 8 | 44% |
 | StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
-| Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
-| Data & persistence | 10 | 3 | 0 | 4 | 17 | 68% |
-| Identity & security | 4 | 0 | 1 | 5 | 10 | 40% |
+| Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
+| Data & persistence | 13 | 6 | 0 | 4 | 23 | 70% |
+| Identity & security | 6 | 1 | 1 | 3 | 11 | 59% |
 | Notifications & background work | 1 | 2 | 1 | 3 | 7 | 29% |
 | App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
 | Location & maps | 1 | 1 | 0 | 1 | 3 | 50% |
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
-| Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
+| Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **467** | **180** | **42** | **151** | **840** | **66%** |
+| **All areas** | **473** | **185** | **42** | **148** | **848** | **67%** |
 
 ---
 
@@ -1113,7 +1113,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | API / feature | Status | Notes |
 |---|---|---|
 | `ATTrackingManager.requestTrackingAuthorization`, `trackingAuthorizationStatus` | ✅ | iOS-style prompt; choice persists per app; missing usage string is logged |
-| `ASIdentifierManager` (IDFA) | ❌ | |
+| `ASIdentifierManager` (IDFA, `isAdvertisingTrackingEnabled`) | ✅ | all zeros unless the app's ATT answer is Allow; then a random per-device UUID kept in the device data (stable across apps and launches, new after `isim reset`). Nothing is sent. Tested: HelloSignIn |
 | Google Mobile Ads stand-in (`MobileAds.start`, `BannerView`, `InterstitialAd`, `RewardedAd`, `AppOpenAd`) | 🧩 | builds and runs; every ad load fails with "unavailable on isim" |
 | Google UMP stand-in (`ConsentInformation`, `ConsentForm`) | 🧩 | succeeds without a form; `canRequestAds` is false |
 | Privacy manifests (`PrivacyInfo.xcprivacy`) | 🧩 | copied into the bundle; not checked |
@@ -1136,9 +1136,15 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Core Data: `NSFetchedResultsController` | ✅ | Sections by key path, index titles, `object(at:)`/`indexPath(forObject:)`; delegate insert/delete/move/update + section changes, or `controller(_:didChangeContentWith:)` with an `NSDiffableDataSourceSnapshotReference` that bridges to `NSDiffableDataSourceSnapshot<String, NSManagedObjectID>`. No cache. Tested: CoreDataTest |
 | Core Data: SwiftUI (`@FetchRequest`, `FetchedResults`, `@SectionedFetchRequest`, `\.managedObjectContext`) | ✅ | Re-fetches on context changes (saves, merges) with the request's animation; `nsPredicate`/`nsSortDescriptors` settable; Swift `SortDescriptor`s sort in memory. Tested: HelloCoreData |
 | Core Data: migration | 🟡 | Lightweight only (`shouldMigrateStoreAutomatically` + `shouldInferMappingModelAutomatically`, the defaults): added entities/attributes/relationships, renaming identifiers; removed properties are left in the store; changed attribute types keep stored values; no mapping models / `NSMigrationManager` / staged migration. Tested: CoreDataTest |
-| Core Data: persistent history, `NSPersistentCloudKitContainer`, derived attributes, `NSBatchInsertRequest`, undo | ❌ | `undoManager` is stored but changes are not registered with it |
+| Core Data: persistent history, derived attributes, `NSBatchInsertRequest`, undo | ❌ | `undoManager` is stored but changes are not registered with it |
+| Core Data: `NSPersistentCloudKitContainer`, `NSPersistentCloudKitContainerOptions`, `cloudKitContainerOptions` | 🟡 | adapted: an `NSPersistentContainer` subclass whose store stays on the device — **local, no iCloud mirroring**; options are remembered, `initializeCloudKitSchema` only logs, `canUpdateRecord`/… return true, no `eventChangedNotification` events. Tested: HelloCloudKit (load, save, count) |
 | SwiftData (`@Model`, `ModelContainer`, `@Query`) | ❌ | needs Apple's Swift macros (`@Model`, `#Predicate`), which isim cannot build; Core Data is the supported persistence framework |
-| CloudKit (`CKContainer`, records, subscriptions, `NSPersistentCloudKitContainer`) | ❌ | |
+| CloudKit: containers, account (`CKContainer.default()`, `accountStatus`, `userRecordID`, `ISIM_ICLOUD=noAccount`) | ✅ | **local, no iCloud sync**: a simulated account; `ISIM_ICLOUD=noAccount\|restricted\|temporarilyUnavailable` changes the status, and private/shared operations (and public writes) fail with `CKError.notAuthenticated`. Default container `iCloud.<bundle id>`. Tested: HelloCloudKit |
+| CloudKit: records (`CKRecord` typed values, `CKAsset`, `CKRecord.Reference`, `CLLocation`, lists, `changedKeys`, change tags, dates, `encodeSystemFields`) | ✅ | stored per container/database as JSON in `$ISIM_DATA/Library/isim/CloudKit/<container>/`; assets copied into the store; `.deleteSelf` references cascade; values read back as Objective-C-style values (`as? String/Int/Double/Date/[String]`). `encryptedValues` are stored like other fields (not encrypted at rest). Tested: HelloCloudKit (relaunch persistence) |
+| CloudKit: `CKDatabase` save/fetch/delete (+ async), `records(matching:)`, `modifyRecords`, `CKQuery` (NSPredicate + sort), `CKQueryOperation` (cursor, `resultsLimit`), `CKModifyRecordsOperation` (save policies, atomic), `CKFetchRecordsOperation`, `CKError` | ✅ | `serverRecordChanged` with server/client records, `.changedKeys`/`.allKeys`, atomic batches in custom zones (`batchRequestFailed`), `unknownItem` for missing records/types, `partialFailure`. Predicates use isim's NSPredicate (no `distanceToLocation:`); `CKOperation` is not an `NSOperation` (isim has none): add operations to a database/container. Tested: HelloCloudKit |
+| CloudKit: zones, change tokens (`CKRecordZone`, `CKFetchDatabaseChangesOperation`, `CKFetchRecordZoneChangesOperation`) | 🟡 | custom zones in the private database, zone changes and deletions since a `CKServerChangeToken`; no `moreComing` paging. Tested: HelloCloudKit (zone changes); database changes unverified |
+| CloudKit: subscriptions (`CKQuerySubscription`, `CKDatabaseSubscription`, `CKRecordZoneSubscription`, `CKNotification`) | 🟡 | saved and listed; changes made **in this process** that match send a CloudKit-style push payload in-process to `application(_:didReceiveRemoteNotification:fetchCompletionHandler:)` (no APNs; other processes' changes don't notify; no banner for `alertBody`). Tested: HelloCloudKit (query + database) |
+| CloudKit: sharing (`CKShare`, `UICloudSharingController`), `CKSyncEngine`, user discovery | ❌ | |
 | SQLite (`sqlite3` C API, `import SQLite3`) | ✅ | `/usr/lib/libsqlite3.dylib` forwards to the host's `libsqlite3.so.0` (loaded on first use; a function the host's SQLite lacks stops the app with a message). Tested: SecurityTest, HelloSecurity |
 | Keychain passwords (`SecItemAdd/CopyMatching/Update/Delete`, generic + internet passwords) | ✅ | Swift (isim's Security module; Objective-C callers not yet). iOS attribute keys, duplicate detection, return data/attributes/persistent refs, match limits, access groups (default: bundle id). Stored per access group in `$ISIM_DATA/Library/Keychains` (0600 JSON, not encrypted; survives app deletion, erased by `isim reset`). `SecAccessControl` flags stored, not enforced |
 | Keychain keys, certificates, identities (`SecKey`, `SecCertificate`, `SecIdentity`) | ❌ | `SecItemAdd` returns `errSecUnimplemented` for these classes |
@@ -1147,9 +1153,10 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 
 | API / feature | Status | Notes |
 |---|---|---|
-| Sign in with Apple (`ASAuthorizationAppleIDProvider`, `SignInWithAppleButton`) | ❌ | |
+| Sign in with Apple (`ASAuthorizationAppleIDProvider`, `ASAuthorizationController`, `ASAuthorizationAppleIDButton`, `SignInWithAppleButton`) | ✅ | **local simulation, no Apple servers**: iOS-style sheet (Apple ID / Apple Account wording by `ISIM_OS_VERSION`, name, Share/Hide My Email, Continue/close) for a fake account in the device data; returning users get the short sheet without name/email. `identityToken` is an **unsigned JWT (`alg: none`, issuer `isim-local-simulation`)** and `authorizationCode` a random local string — servers that verify Apple signatures reject them. `getCredentialState` authorized/revoked/notFound per app; `isim appleid <app> revoke` posts `credentialRevokedNotification` to the running app. Buttons: black/white/whiteOutline, sign in/continue/sign up, isim-drawn logo. Tested: HelloSignIn |
 | `ASWebAuthenticationSession` (OAuth) | ❌ | |
-| Passkeys, password AutoFill (`ASAuthorizationController`) | ❌ | |
+| Passkeys (`ASAuthorizationPlatformPublicKeyCredentialProvider` registration + assertion) | ✅ | real WebAuthn data: P-256 key (CryptoKit), CBOR attestation object with format `none` (AAGUID zero, COSE key), clientDataJSON with origin `https://<rp>`, assertion signature over authData ‖ SHA-256(clientDataJSON) that verifies. Keys kept unencrypted in the device data (not synced). iOS-style save/sign-in sheets; no passkey → canceled (no nearby-device QR); `preferImmediatelyAvailableCredentials` → `notInteractive`. Security keys (`ASAuthorizationSecurityKey…`), PRF/large blob missing. Tested: HelloSignIn |
+| Password sign-in (`ASAuthorizationPasswordProvider`, `ASPasswordCredential`) | 🟡 | offers the app's own internet passwords from isim's keychain in a chooser sheet; no iCloud Keychain/Passwords app, no QuickType AutoFill bar, `performAutoFillAssistedRequests` behaves like `preferImmediatelyAvailableCredentials`. Tested: HelloSignIn |
 | LocalAuthentication (Face ID / Touch ID, `LAContext`) | ✅ | `canEvaluatePolicy`/`evaluatePolicy` (+ async), `LAError`, `biometryType` from the device (Face ID; Touch ID on iPhone SE and non-Pro iPads). Face ID permission alert (`NSFaceIDUsageDescription`, remembered), simulated scan alert (Matching / Non-matching / Cancel), passcode fallback; `ISIM_BIOMETRY=match\|nomatch\|cancel`, `ISIM_BIOMETRY_ENROLLED=0`. Reply on a background queue like iOS |
 | CryptoKit (SHA-2, HMAC, AES-GCM, ChaChaPoly, P256, Curve25519) | ✅ | also P384/P521, `Insecure.MD5/SHA1`, HKDF, `SharedSecret` HKDF/X9.63 KDFs, ECDSA DER, public keys raw/X9.63/compressed/DER/PEM. AES/ChaCha/EC on the host's OpenSSL `libcrypto.so.3`. Byte inputs are `ContiguousBytes` (isim's Foundation has no `DataProtocol`). Known-answer tests from the RFCs/NIST |
 | CryptoKit: Secure Enclave, HPKE, `AES.KeyWrap`, compact keys, private-key PEM/DER | ❌ | |
@@ -1227,7 +1234,8 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Signposts (`OSSignposter`, `os_signpost`) | 🧩 | accepted, not recorded |
 | `OSLogStore` (reading logs back) | 🧩 | throws |
 | `os_unfair_lock`, `OSAllocatedUnfairLock` | ✅ | futex-backed, with owner checks |
-| MetricKit, crash reporting | ❌ | |
+| MetricKit (`MXMetricManager`, subscribers, `MXMetricPayload`/`MXDiagnosticPayload`, metrics, diagnostics, `jsonRepresentation`) | 🟡 | like the Simulator, nothing is measured and nothing arrives by itself; the `metrickit` script/control command or `isim metrickit` (Xcode's Debug > Simulate MetricKit Payloads) delivers one fixed sample metric payload and one diagnostic payload (crash, hang, CPU, disk-write, launch) to running apps' subscribers within 0.5 s. `pastPayloads` empty; display metrics nil. Tested: HelloCloudKit |
+| Crash reporting (crash logs, `NSSetUncaughtExceptionHandler` reports) | ❌ | |
 | `assert`, `precondition`, `fatalError` messages | ✅ | |
 
 ---
