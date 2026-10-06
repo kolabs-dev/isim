@@ -22,26 +22,26 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 109 | 45 | 10 | 35 | 199 | 66% |
+| **UIKit** | 113 | 45 | 10 | 31 | 199 | 68% |
 | &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
-| &nbsp;&nbsp;↳ Views & controls | 29 | 16 | 1 | 5 | 51 | 73% |
+| &nbsp;&nbsp;↳ Views & controls | 32 | 15 | 1 | 3 | 51 | 77% |
 | &nbsp;&nbsp;↳ Layout | 15 | 2 | 1 | 1 | 19 | 84% |
-| &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 1 | 12 | 79% |
+| &nbsp;&nbsp;↳ Animation | 8 | 4 | 0 | 0 | 12 | 83% |
 | &nbsp;&nbsp;↳ Gestures & touches | 9 | 1 | 0 | 3 | 13 | 73% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 12 | 3 | 0 | 3 | 18 | 75% |
-| &nbsp;&nbsp;↳ Haptics & feedback | 0 | 0 | 1 | 2 | 3 | 0% |
+| &nbsp;&nbsp;↳ Haptics & feedback | 1 | 0 | 1 | 1 | 3 | 33% |
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 1 | 0 | 2 | 3 | 17% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 137 | 47 | 11 | 15 | 210 | 76% |
+| **SwiftUI** | 139 | 45 | 11 | 15 | 210 | 77% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 12 | 4 | 0 | 1 | 17 | 82% |
 | &nbsp;&nbsp;↳ Views & controls | 30 | 7 | 0 | 1 | 38 | 88% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 14 | 8 | 1 | 0 | 23 | 78% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 15 | 6 | 6 | 0 | 27 | 67% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 17 | 4 | 6 | 0 | 27 | 70% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 2 | 23 | 85% |
 | &nbsp;&nbsp;↳ Animation | 7 | 3 | 1 | 0 | 11 | 77% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
@@ -65,7 +65,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Objective-C runtime & C library | 12 | 3 | 0 | 0 | 15 | 90% |
 | Core Graphics | 9 | 0 | 0 | 7 | 16 | 56% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
-| QuartzCore / Core Animation | 2 | 3 | 0 | 4 | 9 | 39% |
+| QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
 | SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
 | GameKit (Game Center) | 10 | 4 | 3 | 1 | 18 | 67% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 17 | 7 | 1 | 11 | 36 | 57% |
-| **All areas** | **494** | **193** | **42** | **137** | **866** | **68%** |
+| **All areas** | **513** | **193** | **43** | **129** | **878** | **69%** |
 
 ---
 
@@ -160,11 +160,11 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIView` hierarchy, frames/bounds/center, hit-testing, coordinate conversion | ✅ | |
 | Autoresizing masks | ✅ | |
 | `transform` (2D affine: translate/scale/rotate) | ✅ | about the view's center |
-| 3D transforms (`CATransform3D`, perspective) | ❌ | |
+| 3D transforms (`CATransform3D`, perspective) | ✅ | `layer.transform`, `view.transform3D`, `sublayerTransform`; affine results drawn directly, perspective (m34 / non-affine) by rendering the layer/view offscreen and warping it onto its projected quad (host homography warp); `isDoubleSided`. Layers are flattened per level (no shared 3D space / depth sorting beyond `zPosition` order). Tested (HelloCoreAnimation: a rotated card is a trapezoid) |
 | Background color, alpha (group opacity), hidden, `clipsToBounds` | ✅ | software rendering (cairo) |
 | `layer.cornerRadius`, border, `cornerCurve` | ✅ | |
-| Layer shadows (`shadowColor/Opacity/Radius/Offset`) | 🟡 | blur approximated by stacked fills; only under a background shape; no `shadowPath` |
-| `layer.mask`, `mask` view | ❌ | |
+| Layer shadows (`shadowColor/Opacity/Radius/Offset`, `shadowPath`) | ✅ | Gaussian-like blur (3-pass box, sigma = radius/2) of `shadowPath` or, for views, the background shape; standalone layers shadow their whole content (sublayers included). A view with a clear background and no `shadowPath` casts no shadow (iOS shadows its content). Tested (HelloCoreAnimation falloff pixels) |
+| `layer.mask`, `mask` view | ✅ | content drawn through the mask layer's / mask view's alpha (any layer kind: shape, gradient, image contents). Tested (circle shape mask, half-width mask view) |
 | `draw(_:)` custom drawing with `UIGraphicsGetCurrentContext` | ✅ | |
 | `tintColor` / `tintColorDidChange` | 🟡 | tint inheritance details unverified |
 | `contentMode` | 🟡 | used by image views; all modes unverified |
@@ -247,8 +247,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `transition(from:to:)` | ✅ | cross dissolve between the views, flips/curls as above (2D), `.showHideTransitionViews` or replacement in the superview; tested (HelloAnimations) |
 | `animateKeyframes` / `addKeyframe` | ✅ | keyframe segments per property on one timeline, overall curve from the options, discrete mode; cubic/paced modes interpolate linearly; tested (HelloAnimations) |
 | `UIViewPropertyAnimator` (interruptible, scrubbable) | ✅ | start/pause/stop/finish(at:), `fractionComplete` scrubbing, `isReversed`, add animations/completions, `pausesOnCompletion`, cubic/spring timing parameters, `runningPropertyAnimator`; `layer.presentation()` reports in-flight values; tested (HelloAnimations). `continueAnimation` ignores new timing parameters (duration factor only) |
-| Layer property animations (cornerRadius, shadow, …) | 🟡 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (tested: radius, border); no `CABasicAnimation`/`CAKeyframeAnimation` objects |
-| UIKit Dynamics (`UIDynamicAnimator`, behaviors) | ❌ | |
+| Layer property animations (cornerRadius, shadow, …) | 🟡 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (tested: radius, border); Core Animation objects (`CABasicAnimation`, keyframes, springs, groups, transitions) also animate a view's layer (position, bounds, transform incl. `transform.rotation.z`, opacity, colours, corner radius, border, shadow); see QuartzCore |
+| UIKit Dynamics (`UIDynamicAnimator`, behaviors) | 🟡 | gravity, collision (reference bounds + insets, segment and path boundaries, item–item, contact delegate), snap, push (continuous / instantaneous), attachment (spring or rigid, item or anchor), `UIDynamicItemBehavior` (elasticity, friction, density, resistance, anchored, linear/angular velocity), actions, pause/resume delegate. Adapted: items collide as axis-aligned rectangles and collisions never spin them; ellipse/path collision bounds use the rectangle. Tested: gravity + collision (falls, rests on the boundary); others unverified |
 
 ### Gestures & touches
 
@@ -315,7 +315,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | API / feature | Status | Notes |
 |---|---|---|
 | `UIImpactFeedbackGenerator`, `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator` | 🧩 | no haptics, like Apple's Simulator |
-| Core Haptics (`CHHapticEngine`) | ❌ | |
+| Core Haptics (`CHHapticEngine`) | ✅ | like Apple's Simulator there is no haptic hardware: `capabilitiesForHardware().supportsHaptics` is false. Engine, events, parameters, parameter curves, patterns (incl. AHAP dictionaries/files, `exportDictionary`), players and advanced players (pause/resume/seek/loop/rate, completion handlers, `notifyWhenPlayersFinished`) are modelled and timed; playback is logged on stderr, never felt or heard. Tested (HelloCoreAnimation) |
 | `AudioServicesPlaySystemSound` / vibration | ❌ | |
 
 ### Accessibility
@@ -509,8 +509,8 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `shadow` | 🟡 | layer-shadow approximation |
 | `rotationEffect`, `scaleEffect`, `offset` | ✅ | offset content is drawn and hit-tested at its new position |
 | `transformEffect` | ✅ | |
-| `rotation3DEffect` | 🟡 | drawn as the affine transform that best fits the rotated corners: no perspective foreshortening (y-axis rotation tested) |
-| `projectionEffect`, `ProjectionTransform` | 🟡 | affine part exact; perspective terms approximated like rotation3DEffect (unverified) |
+| `rotation3DEffect` | ✅ | true perspective: the rotated corners define a homography drawn through the view's `transform3D` (y-axis rotation tested) |
+| `projectionEffect`, `ProjectionTransform` | ✅ | non-affine transforms drawn with perspective through `transform3D` (unverified) |
 | `GeometryEffect` (custom, animatable), `ignoredByLayout` | ✅ | custom shear tested |
 | `blur`, `brightness`, `contrast`, `saturation`, `grayscale`, `colorMultiply`, `hueRotation`, `blendMode` | 🧩 | accepted, no effect |
 | `drawingGroup`, `compositingGroup` | 🧩 | |
@@ -899,17 +899,32 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 
 ## QuartzCore / Core Animation
 
+Core Animation lives in isim's UIKit (`import QuartzCore` re-exports it). Layers render every frame with cairo from
+their presentation copies (model + running animations); there is no separate render server.
+
 | API / feature | Status | Notes |
 |---|---|---|
-| `CALayer` basics (frame, bounds, corner radius/curve, border, background, opacity, `masksToBounds`, hidden) | 🟡 | minimal; lives in UIKit; a view's layer reports the view's frame/bounds |
-| Layer shadows | 🟡 | approximated (see UIKit) |
+| `CALayer` basics (frame, bounds, position, anchorPoint, corner radius/curve, `maskedCorners`, border, background, opacity, `masksToBounds`, hidden) | ✅ | standalone layer trees keep their own geometry; a view's layer reports the view's (anchorPoint of a view's layer is stored, not applied). `cornerCurve` continuous draws circular corners. Tested (HelloCoreAnimation, HelloVideo) |
+| `zPosition`, `transform`, `sublayerTransform`, `convert(_:from:/to:)`, `hitTest`, `contains` | ✅ | zPosition orders siblings (no depth buffer); conversions through the full 4x4 chain. Ordering/conversion unverified |
+| Layer shadows | ✅ | blurred, `shadowPath` (see UIKit) |
+| `mask` | ✅ | see UIKit |
 | `magnificationFilter` / `minificationFilter` | ✅ | nearest affects image drawing |
-| Sublayers (`addSublayer`), custom layer drawing (`draw(in:)`, `contents`) | 🟡 | sublayers (add/insert/remove/replace) draw above the view's content and below its subviews; `draw(in:)` overrides run every frame; no `contents`, transforms or z-ordering among subviews (AVPlayerLayer tested in HelloVideo) |
-| `CAShapeLayer`, `CAGradientLayer`, `CATextLayer`, `CAReplicatorLayer`, `CAEmitterLayer` | ❌ | |
-| `CABasicAnimation`, `CAKeyframeAnimation`, `CASpringAnimation`, `CAAnimationGroup` | ❌ | |
-| `CATransaction`, `CAMediaTimingFunction` | ❌ | |
+| Sublayers, custom drawing (`draw(in:)`, delegate `draw(_:in:)`/`display(_:)`/`layoutSublayers(of:)`), `setNeedsDisplay`/`setNeedsLayout` | ✅ | content is redrawn every frame; display/layout run when flagged. Tested (sublayers, AVPlayerLayer in HelloVideo) |
+| `contents` (CGImage / UIImage), `contentsGravity`, `contentsRect`, `contentsScale` | 🟡 | all gravities; `contentsCenter` (9-slice) stored, not applied; unverified |
+| `CAShapeLayer` | ✅ | path fill (rules) and stroke (width, caps, joins, miter, dashes + phase), `strokeStart`/`strokeEnd` trimming along the path length, animatable path (same-structure paths morph, others switch half-way). Tested (strokeEnd half-way pixels) |
+| `CAGradientLayer` | ✅ | axial, radial (ellipse from startPoint reaching endPoint), conic; `locations`; animatable colours/locations/points. Tested (axial pixels); radial/conic unverified |
+| `CATextLayer` | 🟡 | NSString/NSAttributedString, font (UIFont, name), size, colour, alignment, wrapping; truncation modes stored |
+| `CAReplicatorLayer` | ✅ | `instanceCount`, `instanceTransform` (perspective too), `instanceDelay`, `instanceColor` + RGBA offsets. Tested (5 copies) |
+| `CAEmitterLayer`, `CAEmitterCell` | 🟡 | adapted: 2D particle simulation (point/line/rectangle/circle shapes, birth rate, lifetime, velocity, emission angle/range, acceleration, scale/spin/colour speeds and ranges, additive render mode); nested `emitterCells` and 3D emission stored only. Tested (particles spawn) |
+| `CATransformLayer`, `CAScrollLayer` | 🟡 | transform layer renders like a plain layer (no shared 3D space); scroll layer scrolls its bounds. Unverified |
+| `CABasicAnimation`, `CAKeyframeAnimation`, `CASpringAnimation`, `CAAnimationGroup` | ✅ | from/to/by (missing end = current presentation value), additive, cumulative, keyframe values or path, keyTimes, timingFunctions, linear/discrete/paced/cubic modes, rotationMode; damped-spring physics with settlingDuration and perceptual duration/bounce; groups; key paths incl. `transform.rotation.z`, `position.x`, `bounds.size`, custom KVC keys. Tested (keyframe positions at times, spring, group, view-layer rotation) |
+| CAMediaTiming (`beginTime`, `duration`, `speed`, `timeOffset`, `repeatCount`/`repeatDuration`, `autoreverses`, `fillMode`, `isRemovedOnCompletion`); layer timing (`speed = 0` pausing, `convertTime`) | ✅ | Tested (paused layer + timeOffset, fillMode forwards) |
+| Animation delegate, `add(_:forKey:)`, `removeAnimation(forKey:)`, `animation(forKey:)`, `animationKeys()`, `presentation()`/`model()` | ✅ | Tested |
+| `CATransition` | 🟡 | fade, push, moveIn, reveal with subtypes: the previous on-screen appearance (a snapshot when added) leaves while the new state comes in; unverified |
+| `CATransaction`, implicit animations, `CAMediaTimingFunction` | ✅ | begin/commit, duration, timing function, `setDisableActions`, completion blocks (wait for the transaction's animations), implicit 0.25 s animations for standalone layers only (not a view's layer, as on iOS), `actions`/delegate `action(for:forKey:)`/NSNull; custom control-point curves. Tested |
 | `CADisplayLink` | ✅ | fires once per frame while added; keeps the run loop at 60 fps |
-| `CATransform3D` | ❌ | |
+| `CATransform3D` | ✅ | full 4x4 math (make/translate/scale/rotate/concat/invert/isAffine/affine conversions), NSValue boxing and Swift bridging. Tested |
+| `CAValueFunction`, `filters`/`compositingFilter`, `shouldRasterize` | 🧩 | stored, not applied |
 
 ## Core Image, ImageIO & Metal
 

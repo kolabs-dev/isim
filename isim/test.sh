@@ -35,6 +35,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloConstraints.app/HelloConstraints ] && run "ui: HelloConstraints (VFL, keyboard layout guide, trait registration)" tests/ui/constraints.sh
   [ -x out/apps/HelloKeys.app/HelloKeys ] && run "ui: HelloKeys (SwiftUI shortcuts, key presses, focus, inspector)" tests/ui/keys.sh
   [ -x out/apps/HelloInputs.app/HelloInputs ] && run "ui: HelloInputs (UITextView, pickers, search, refresh, color well, appearance)" tests/ui/inputs.sh
+  [ -x out/apps/HelloCoreAnimation.app/HelloCoreAnimation ] && run "ui: HelloCoreAnimation (CA layers/animations, 3D, masks, Dynamics, CoreHaptics)" tests/ui/coreanimation.sh
   [ -x out/apps/HelloAnimations.app/HelloAnimations ] && run "ui: HelloAnimations (property animator, keyframes, transitions)" tests/ui/animations.sh
   [ -x out/apps/HelloTransitions.app/HelloTransitions ] && run "ui: HelloTransitions (presentations, sheets, popovers, custom transitions, containers)" tests/ui/transitions.sh
   [ -x out/apps/HelloControls.app/HelloControls ] && run "ui: HelloControls (UIKit controls, menus)" tests/ui/controls.sh

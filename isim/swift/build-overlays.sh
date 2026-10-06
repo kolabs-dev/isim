@@ -4,7 +4,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 SDK=$(realpath ../out/sdk); OBJ=../out/swift/obj/overlays; mkdir -p "$OBJ"
-EVOLUTION="CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices"   # app-facing re-implementations: stable ABI across isim updates
+EVOLUTION="CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices QuartzCore CoreHaptics"   # app-facing re-implementations: stable ABI across isim updates
 PRIVACY="CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation"   # modules that also compile overlays/_Privacy (permission alerts, device data)
 ONLY=" $* "   # build-overlays.sh [Module...]: only these (default: all)
 build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays/<Module>/*.swift)
@@ -53,6 +53,8 @@ build MediaPlayer -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftCor
 build CoreData -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreData
 build StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift_Concurrency -framework Foundation -framework UIKit
 build CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
+build QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
+build CoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 build CoreMotion -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 build CoreBluetooth -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 build CoreNFC -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
