@@ -19,6 +19,7 @@ if [ -x out/apps/HelloKeyboardApp.app/HelloKeyboardApp ]; then   # UIScrollView,
 fi
 if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   run "ui: HelloSwiftUI (SwiftUI)" tests/ui/swiftui.sh
+  [ -x out/apps/HelloObservation.app/HelloObservation ] && run "ui: HelloObservation (@Observable, @Bindable, @Environment)" tests/ui/observation.sh
   [ -x out/apps/HelloForms.app/HelloForms ] && run "ui: HelloForms (SwiftUI controls, TabView, @AppStorage)" tests/ui/forms.sh
   [ -x out/apps/HelloControls.app/HelloControls ] && run "ui: HelloControls (UIKit controls, menus)" tests/ui/controls.sh
   [ -x out/apps/HelloPresentations.app/HelloPresentations ] && run "ui: HelloPresentations (sheets, alerts, dialogs)" tests/ui/presentations.sh

@@ -32,6 +32,7 @@ fi
 [ ! -s ../out/swift/runtime-failures.txt ] || { echo "swift runtime: some files failed to compile"; cat ../out/swift/runtime-failures.txt; exit 1; }
 ./build-swiftcore.sh
 python3 build-concurrency.py | tail -1
+./build-observation.sh | tail -1
 ./build-overlays.sh
 ../out/bin/isim swiftc -parse-as-library -c ../tests/swift-full/main.swift -o ../out/swift/full-test.o
 mkdir -p ../out/apps/SwiftFullTest.app

@@ -35,9 +35,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 86 | 22 | 14 | 72 | 194 | 50% |
+| **SwiftUI** | 88 | 22 | 14 | 70 | 194 | 51% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
-| &nbsp;&nbsp;↳ State & data flow | 9 | 2 | 0 | 6 | 17 | 59% |
+| &nbsp;&nbsp;↳ State & data flow | 11 | 2 | 0 | 4 | 17 | 71% |
 | &nbsp;&nbsp;↳ Views & controls | 17 | 2 | 1 | 18 | 38 | 47% |
 | &nbsp;&nbsp;↳ Containers & layout | 12 | 4 | 2 | 9 | 27 | 52% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 10 | 5 | 1 | 7 | 23 | 54% |
@@ -59,7 +59,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 1 | 0 | 4 | 9 | 50% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 5 | 2 | 0 | 2 | 9 | 67% |
 | &nbsp;&nbsp;↳ Networking | 1 | 0 | 0 | 6 | 7 | 14% |
-| **Swift runtime, stdlib & concurrency** | 26 | 1 | 0 | 10 | 37 | 72% |
+| **Swift runtime, stdlib & concurrency** | 27 | 1 | 0 | 9 | 37 | 74% |
 | &nbsp;&nbsp;↳ Combine | 9 | 0 | 0 | 4 | 13 | 69% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
 | Objective-C runtime & C library | 5 | 2 | 0 | 2 | 9 | 67% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **265** | **75** | **38** | **328** | **706** | **43%** |
+| **All areas** | **268** | **75** | **38** | **325** | **706** | **43%** |
 
 ---
 
@@ -378,8 +378,8 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@StateObject`, `@ObservedObject` | ✅ | |
 | `@EnvironmentObject`, `.environmentObject` | ✅ | |
 | `@Environment(keyPath)`, custom `EnvironmentKey`, `.environment(_:_:)` | ✅ | |
-| `@Observable` macro / Observation | ❌ | Observation module not built |
-| `@Bindable`, `@Environment(Model.self)` | ❌ | need Observation |
+| `@Observable` macro / Observation | ✅ | Observation built from Swift sources; macro via the toolchain plugin; renders track reads; tested (HelloObservation) |
+| `@Bindable`, `@Environment(Model.self)` | ✅ | plus `.environment(_:)` for Observable objects; tested |
 | `@AppStorage` | ✅ | Bool/Int/Double/String/URL/Data/RawRepresentable/optionals; persists; tested (HelloForms) |
 | `@SceneStorage` | 🟡 | kept for the app lifetime (not restored across launches) |
 | `@FocusState` (Bool and Hashable) | ✅ | |
@@ -755,12 +755,12 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `AsyncSequence`, `AsyncStream`, `AsyncThrowingStream` | ✅ | |
 | `Clock`, `ContinuousClock`, `Duration`, `Task.sleep(for:)` | ✅ | tested |
 | Swift 6 strict concurrency checking | ✅ | compile time |
-| Observation (`@Observable`, `withObservationTracking`) | ❌ | module not built |
+| Observation (`@Observable`, `withObservationTracking`) | ✅ | libswiftObservation (upstream sources, isim pthread hooks) |
 | `Regex`, regex literals, `RegexBuilder` (`_StringProcessing`) | ❌ | not built yet |
 | `Synchronization` (`Mutex`, `Atomic`) | ❌ | not built |
 | Distributed actors | ❌ | |
 | C++ interop | ❌ | |
-| Swift macros from packages | 🟡 | `@Observable`/`#Preview` unavailable; package macro targets unverified |
+| Swift macros from packages | 🟡 | `@Observable` works (toolchain plugin); `#Preview` and package macro targets unverified |
 
 ### Combine
 

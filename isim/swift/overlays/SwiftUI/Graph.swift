@@ -111,7 +111,10 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
         _systemEnvironment(&env, traits: traits)
         let ctx = _Context(graph: self, path: "root", environment: env, nav: nil)
-        let node = _resolve(root(), ctx)
+        // @Observable: properties read while the views evaluate are tracked; a change re-renders
+        var resolved: _Node?
+        withObservationTracking { resolved = _resolve(root(), ctx) } onChange: { [weak self] in self?.invalidate() }
+        let node = resolved!
         // layout: content that does not manage the safe area itself stays inside it
         let area = node.ignoresSafeArea ? bounds : bounds.inset(by: safeArea)
         let size = node.sizeThatFits(_Proposal(width: area.width, height: area.height))

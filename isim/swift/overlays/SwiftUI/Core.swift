@@ -5,6 +5,7 @@
 @_exported import UIKit
 @_exported import Foundation
 @_exported import Combine
+@_exported import Observation
 
 // MARK: - View
 
@@ -275,14 +276,26 @@ public struct EnvironmentValues: CustomStringConvertible {
 @propertyWrapper
 public struct Environment<Value>: DynamicProperty, _DynamicProperty {
     final class Box { var value: Value?; init() {} }
-    let keyPath: KeyPath<EnvironmentValues, Value>
+    let read: (EnvironmentValues) -> Value
     let box = Box()
-    public init(_ keyPath: KeyPath<EnvironmentValues, Value>) { self.keyPath = keyPath }
+    public init(_ keyPath: KeyPath<EnvironmentValues, Value>) { read = { $0[keyPath: keyPath] } }
+    /// iOS 17: an @Observable object put in the environment with .environment(_:)
+    public init(_ objectType: Value.Type) where Value: AnyObject & Observable {
+        read = { env in
+            guard let o = env._objects[ObjectIdentifier(Value.self)] as? Value else {
+                fatalError("No Observable object of type \(Value.self) found. A View.environment(_:) for \(Value.self) may be missing as an ancestor of this view.")
+            }
+            return o
+        }
+    }
+    public init<T: AnyObject & Observable>(_ objectType: T.Type) where Value == T? {
+        read = { $0._objects[ObjectIdentifier(T.self)] as? T }
+    }
     public var wrappedValue: Value {
         if let v = box.value { return v }
-        return EnvironmentValues()[keyPath: keyPath]
+        return read(EnvironmentValues())
     }
-    func _install(_ ctx: _Context, label: String) { box.value = ctx.environment[keyPath: keyPath] }
+    func _install(_ ctx: _Context, label: String) { box.value = read(ctx.environment) }
 }
 
 struct _ColorSchemeKey: EnvironmentKey { static var defaultValue: ColorScheme { .light } }
