@@ -75,6 +75,9 @@ fi
 if [ -x out/apps/SwiftExtrasTest.app/SwiftExtrasTest ]; then      # Combine operators, Dispatch sources/IO/Data, Synchronization, Distributed
   run "swift extras (Combine operators, Dispatch sources/IO, Synchronization, Distributed)" bash -c 'timeout 90 out/bin/isim run out/apps/SwiftExtrasTest.app | tail -1; exit ${PIPESTATUS[0]}'
 fi
+if [ -x out/apps/SwiftCxxTest.app/SwiftCxxTest ]; then            # Swift <-> C++ interoperability
+  run "swift C++ interop" bash -c 'timeout 30 out/bin/isim run out/apps/SwiftCxxTest.app | tail -1; exit ${PIPESTATUS[0]}'
+fi
 if [ -x out/apps/SwiftNetworkTest.app/SwiftNetworkTest ]; then   # sockets + URLSession against an in-process server (no Internet)
   run "swift networking (sockets, URLSession, cookies, cache, NWPathMonitor)" bash -c 'export ISIM_DATA=$PWD/out/test-data/swift-network; rm -rf "$ISIM_DATA"; timeout 90 out/bin/isim run out/apps/SwiftNetworkTest.app/SwiftNetworkTest | tail -1; exit ${PIPESTATUS[0]}'
 fi
