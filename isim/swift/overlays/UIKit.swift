@@ -404,3 +404,41 @@ extension UIPageViewController {
         self.init(transitionStyle: style, navigationOrientation: navigationOrientation, options: nil)
     }
 }
+
+// MARK: - Core Animation (QuartzCore names live in isim's UIKit; import QuartzCore re-exports them)
+extension CATransform3D: Equatable {
+    public static func == (a: CATransform3D, b: CATransform3D) -> Bool { CATransform3DEqualToTransform(a, b) }
+}
+extension CATransform3D: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSValue { NSValue(caTransform3D: self) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSValue, result: inout CATransform3D?) { result = x.caTransform3DValue }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSValue, result: inout CATransform3D?) -> Bool {
+        guard String(cString: x.objCType).hasPrefix("{CATransform3D") else { return false }
+        result = x.caTransform3DValue; return true
+    }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSValue?) -> CATransform3D { s?.caTransform3DValue ?? CATransform3DIdentity }
+}
+extension CGAffineTransform: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSValue { NSValue(cgAffineTransform: self) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSValue, result: inout CGAffineTransform?) { result = x.cgAffineTransformValue }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSValue, result: inout CGAffineTransform?) -> Bool {
+        guard String(cString: x.objCType).hasPrefix("{CGAffineTransform") else { return false }
+        result = x.cgAffineTransformValue; return true
+    }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSValue?) -> CGAffineTransform { s?.cgAffineTransformValue ?? .identity }
+}
+extension CGVector: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSValue { NSValue(cgVector: self) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSValue, result: inout CGVector?) { result = x.cgVectorValue }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSValue, result: inout CGVector?) -> Bool {
+        guard String(cString: x.objCType).hasPrefix("{CGVector") else { return false }
+        result = x.cgVectorValue; return true
+    }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSValue?) -> CGVector { s?.cgVectorValue ?? CGVector(dx: 0, dy: 0) }
+}
+extension CAMediaTimingFunction {
+    /// Apple's Swift spelling: CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1).
+    public convenience init(controlPoints c1x: Float, _ c1y: Float, _ c2x: Float, _ c2y: Float) {
+        self.init(__controlPoints: c1x, c1y, c2x, c2y)
+    }
+}

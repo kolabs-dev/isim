@@ -990,6 +990,10 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 void isim_media_remote_post(const char *cmd);
 int isim_remote_command_poll(char *buf, int len);
+void isim_image_draw_quad(int handle, const double *quad, double alpha);           /* host_ca.c */
+void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+int isim_gfx_screen_snapshot(double x, double y, double w, double h);
+void isim_gfx_pop_group_tinted(const double *rgba, double alpha);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -1029,5 +1033,6 @@ static const struct shim isim_table[] = {
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
+    H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

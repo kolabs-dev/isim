@@ -167,6 +167,12 @@ int isim_tts_synthesize(const char *text, const char *voice, double wpm, double 
 int isim_audio_input_start(void);
 long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
+/* Core Animation (host_ca.c): perspective warp of a raster image onto a quad (tl, tr, br, bl in user space);
+   pop a group as a blurred, tinted, offset drop shadow of its alpha */
+void isim_image_draw_quad(int handle, const double *quad, double alpha);
+void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+int isim_gfx_screen_snapshot(double x, double y, double w, double h);   /* what is on the target under the rect (the last frame) */
+void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group painted with its pixels multiplied by rgba */
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
 __END_DECLS
