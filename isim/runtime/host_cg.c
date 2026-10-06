@@ -443,7 +443,8 @@ void isim_cg_draw_image_tiled(int hd, double sx, double sy, double sw, double sh
     if (!s || sw <= 0 || sh <= 0 || tw <= 0 || th <= 0) return;
     cairo_surface_t *sub = cairo_surface_create_for_rectangle(s, sx, sy, sw, sh);
     cairo_pattern_t *p = cairo_pattern_create_for_surface(sub);
-    cairo_pattern_set_extend(p, CAIRO_EXTEND_REPEAT);
+    /* one tile covering the rect = a stretch: pad the edges so neighbouring source pixels do not bleed in */
+    cairo_pattern_set_extend(p, tw >= w - 1e-9 && th >= h - 1e-9 ? CAIRO_EXTEND_PAD : CAIRO_EXTEND_REPEAT);
     cairo_matrix_t m; cairo_matrix_init_scale(&m, sw / tw, sh / th); cairo_matrix_translate(&m, -x, -y);
     cairo_pattern_set_matrix(p, &m);
     cairo_save(cr); cairo_new_path(cr); cairo_rectangle(cr, x, y, w, h); cairo_set_source(cr, p); cairo_fill(cr); cairo_restore(cr);
@@ -579,7 +580,8 @@ void isim_ct_line_draw(void *l, int line, double x, double y, const double *tm, 
 }
 
 /* ---------------- ImageIO ---------------- */
-static int has_prefix(const unsigned char *d, long len, long off, const char *s) { long n = (long)strlen(s); return len >= off + n && !memcmp(d + off, s, n); }
+static int has_bytes(const unsigned char *d, long len, long off, const char *s, long n) { return len >= off + n && !memcmp(d + off, s, n); }
+static int has_prefix(const unsigned char *d, long len, long off, const char *s) { return has_bytes(d, len, off, s, (long)strlen(s)); }
 static const char *sniff(const unsigned char *d, long len) {
     if (has_prefix(d, len, 0, "\x89PNG\r\n\x1a\n")) return "public.png";
     if (len > 3 && d[0] == 0xff && d[1] == 0xd8 && d[2] == 0xff) return "public.jpeg";
@@ -588,8 +590,8 @@ static const char *sniff(const unsigned char *d, long len) {
     if (has_prefix(d, len, 4, "ftypheic") || has_prefix(d, len, 4, "ftypheix") || has_prefix(d, len, 4, "ftypmif1") || has_prefix(d, len, 4, "ftypheis")) return "public.heic";
     if (has_prefix(d, len, 4, "ftypavif")) return "public.avif";
     if (has_prefix(d, len, 0, "BM")) return "com.microsoft.bmp";
-    if (has_prefix(d, len, 0, "II*\0") || has_prefix(d, len, 0, "MM\0*")) return "public.tiff";
-    if (has_prefix(d, len, 0, "\0\0\1\0")) return "com.microsoft.ico";
+    if (has_bytes(d, len, 0, "II*\0", 4) || has_bytes(d, len, 0, "MM\0*", 4)) return "public.tiff";
+    if (has_bytes(d, len, 0, "\0\0\1\0", 4) && len > 6 && d[4]) return "com.microsoft.ico";
     if (has_prefix(d, len, 0, "<?xml") || has_prefix(d, len, 0, "<svg")) return "public.svg-image";
     return NULL;
 }

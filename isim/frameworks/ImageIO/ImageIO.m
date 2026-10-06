@@ -66,7 +66,9 @@ CGImageSourceRef CGImageSourceCreateIncremental(CFDictionaryRef opts) {
     return (CGImageSourceRef)CFBridgingRetain(s);
 }
 void CGImageSourceUpdateData(CGImageSourceRef src, CFDataRef data, bool final) {
-    __CGImageSource *s = SRC(src); s->_data = [(__bridge NSData *)data copy]; s->_final = final; [s->_cache removeAllObjects];
+    __CGImageSource *s = SRC(src);
+    for (NSArray *c in s->_cache.allValues) isim_image_free([c[0] intValue]);   /* cached frames of the old data */
+    s->_data = [(__bridge NSData *)data copy]; s->_final = final; [s->_cache removeAllObjects];
     if (final) [s scan]; else s->_frames = 0;
 }
 CFStringRef CGImageSourceGetType(CGImageSourceRef src) {

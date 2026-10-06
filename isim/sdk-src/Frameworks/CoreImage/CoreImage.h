@@ -13,3 +13,4 @@
 #import <CoreImage/CIFilter.h>
 #import <CoreImage/CIContext.h>
 #import <CoreImage/CIFilterBuiltins.h>
+#import <CoreImage/CIUIKitAdditions.h>
