@@ -316,6 +316,7 @@ struct _TextTraits {
     var autocorrectionDisabled = false
     var autocapitalization: TextInputAutocapitalization? = nil
     var submitLabel: UIReturnKeyType = .default
+    var roundedBorder = false
 }
 
 extension EnvironmentValues {

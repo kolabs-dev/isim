@@ -103,10 +103,19 @@ struct ViewsTab: View {
     @State private var expanded = false
     @State private var taps = 0
     @State private var progress = 0.25
+    @State private var bold = false
+    @State private var rounded = ""
     static let pixel = URL(string: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGElEQVR4nGP476BAEmIY1TAaSgrDNmkAAHmWXxAbW7gfAAAAAElFTkSuQmCC")
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    Label("Star", systemImage: "star").labelStyle(.iconOnly).accessibilityIdentifier("label-icon")
+                    Label("Title only", systemImage: "star").labelStyle(.titleOnly).accessibilityIdentifier("label-title")
+                    Toggle("Bold", isOn: $bold).toggleStyle(.button).accessibilityIdentifier("bold-toggle")
+                    Text("Secret balance").redacted(reason: .placeholder).accessibilityIdentifier("redacted")
+                }
+                TextField("Rounded", text: $rounded).textFieldStyle(.roundedBorder).accessibilityIdentifier("rounded")
                 Gauge(value: 0.4) { Text("Battery") } currentValueLabel: { Text("40%") }.accessibilityIdentifier("gauge-linear")
                 HStack(spacing: 20) {
                     Gauge(value: 72, in: 0...100) { Text("BPM") } currentValueLabel: { Text("72") }
@@ -137,6 +146,7 @@ struct ViewsTab: View {
                     AsyncImage(url: Self.pixel) { img in img.resizable().frame(width: 32, height: 32) } placeholder: { ProgressView() }
                         .accessibilityIdentifier("async")
                 }
+                Color.clear.frame(height: 1).onChange(of: bold) { _, b in print("bold \(b)") }
                 ContentUnavailableView("No Mail", systemImage: "tray", description: Text("New messages appear here."))
                     .frame(height: 200)
             }

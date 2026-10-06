@@ -289,9 +289,7 @@ extension View {
         _modify { ctx, c in _ButtonNode(path: ctx.path, child: _resolve(c, ctx.child("tap")), action: action, inList: ctx.environment._inList, enabled: true) }
     }
     public func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> some View { self }
-    public func labelStyle<S>(_ style: S) -> some View { self }
-    public func textFieldStyle<S>(_ style: S) -> some View { self }
-    public func toggleStyle<S>(_ style: S) -> some View { self }
+    // labelStyle, textFieldStyle, toggleStyle: Styles.swift
     public func contentShape<S>(_ shape: S) -> some View { self }
 }
 public struct ScrollDismissesKeyboardMode: Sendable {

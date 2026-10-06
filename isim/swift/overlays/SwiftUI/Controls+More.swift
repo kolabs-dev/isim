@@ -373,7 +373,7 @@ public struct ContentUnavailableView<Label: View, Description: View, Actions: Vi
     }
     public var body: some View {
         VStack(spacing: 8) {
-            label.labelStyle(_VerticalLabel())
+            label._verticalLabels()
             description.font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
             actions.padding(.top, 8)
         }
@@ -400,7 +400,7 @@ extension ContentUnavailableView where Label == SwiftUI.Label<Text, Image>, Desc
     }
 }
 extension View {
-    func labelStyle(_ s: _VerticalLabel) -> some View {
+    func _verticalLabels() -> some View {
         // ContentUnavailableView: a big icon above a bold title
         _env { $0._verticalLabel = true }
     }

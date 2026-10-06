@@ -375,6 +375,11 @@ extension Text {
     if let c = textCase { for i in runs.indices { runs[i].text = c == .uppercase ? runs[i].text.uppercased() : runs[i].text.lowercased() } }
     let lines = env._lineRange
     let style = env._textStyle
+    if env.redactionReasons.contains(.placeholder), let first = runs.first {       // .redacted(reason: .placeholder) (Styles.swift)
+        let n = _TextNode(path: ctx.path + "/redacted", text: runs.map(\.text).joined(), font: first.font, color: first.color, minLines: lines.0, maxLines: lines.1,
+                          alignment: env.multilineTextAlignment)
+        return _RedactedTextNode(path: ctx.path, child: n)
+    }
     if let first = runs.first, runs.allSatisfy({ $0.plain && $0.sameStyle(first) }) {
         let n = _TextNode(path: ctx.path, text: runs.map(\.text).joined(), font: first.font, color: first.color, minLines: lines.0, maxLines: lines.1,
                           alignment: env.multilineTextAlignment)

@@ -332,8 +332,10 @@ public struct Toggle<Label: View>: View, _PrimitiveView {
     public init(isOn: Binding<Bool>, @ViewBuilder label: () -> Label) { self.isOn = isOn; self.label = label() }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
-        let l = _resolve(label, ctx.child("label"))
+        if let styled = _styledToggle(label, isOn, ctx) { return styled }      // .toggleStyle (Styles.swift)
         let sw = _SwitchNode(path: ctx.path + "/switch", isOn: isOn, tint: ctx.environment._tint)
+        if ctx.environment._labelsHidden { return sw }
+        let l = _resolve(label, ctx.child("label"))
         return _StackNode(path: ctx.path, axis: .horizontal, spacing: 8, alignment: .center, children: [l, _SpacerNode(path: ctx.path + "/sp", minLength: 8), sw])
     }
 }

@@ -35,13 +35,13 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 108 | 42 | 13 | 31 | 194 | 66% |
+| **SwiftUI** | 110 | 43 | 11 | 30 | 194 | 68% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 12 | 3 | 0 | 2 | 17 | 79% |
-| &nbsp;&nbsp;↳ Views & controls | 26 | 10 | 1 | 1 | 38 | 82% |
+| &nbsp;&nbsp;↳ Views & controls | 27 | 10 | 0 | 1 | 38 | 84% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 13 | 8 | 1 | 1 | 23 | 74% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 12 | 3 | 7 | 2 | 24 | 56% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 13 | 4 | 6 | 1 | 24 | 62% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 3 | 1 | 0 | 5 | 9 | 39% |
 | &nbsp;&nbsp;↳ Animation | 2 | 3 | 1 | 6 | 12 | 29% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **335** | **128** | **45** | **258** | **766** | **52%** |
+| **All areas** | **337** | **129** | **43** | **257** | **766** | **52%** |
 
 ---
 
@@ -411,7 +411,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | Button styles: `.plain`, `.borderless`, `.bordered`, `.borderedProminent`, custom `ButtonStyle` | ✅ | |
 | `PrimitiveButtonStyle`, `.controlSize`, `.buttonBorderShape` | ✅ | primitive styles build the whole button and call `trigger()`; control size sets bordered padding/font; capsule / rounded / circle shapes; tested (HelloPickers) |
 | `Toggle` (switch) | ✅ | |
-| `toggleStyle` (`.button`, `.checkbox`, custom) | 🧩 | accepted, ignored |
+| `toggleStyle` (`.button`, `.checkbox`, custom) | ✅ | `.switch`, `.button` (tinted when on) and custom `ToggleStyle`s (`.checkbox` is macOS-only); `.button` tested (HelloPickers) |
 | `Slider` | ✅ | UISlider; step, value labels, onEditingChanged; tested |
 | `Stepper` | ✅ | value/bounds/step and onIncrement/onDecrement; tested |
 | `Picker` (menu, segmented, wheel, inline, navigationLink styles) | ✅ | all five styles; `.wheel` is a snapping scroll-wheel drawn by isim (no UIPickerView); tested (HelloForms, HelloPickers) |
@@ -517,10 +517,10 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `persistentSystemOverlays`, `defersSystemGestures` | 🧩 | |
 | `sensoryFeedback` | 🧩 | no haptics |
 | `keyboardType`, `autocorrectionDisabled`, `textInputAutocapitalization`, `submitLabel` | ✅ | keyboard type is stored only (see UIKit) |
-| `textFieldStyle`, `labelStyle` | 🧩 | ignored |
+| `textFieldStyle`, `labelStyle` | ✅ | `.roundedBorder` / `.plain` fields; `.iconOnly` / `.titleOnly` / `.titleAndIcon` and custom `LabelStyle`s; tested (HelloPickers) |
 | `pickerStyle`, `datePickerStyle`, `progressViewStyle`, `gaugeStyle` | ✅ | see the controls above; tested (HelloForms, HelloPickers) |
 | `ViewModifier`, `.modifier` | ✅ | |
-| `redacted`, `privacySensitive` | ❌ | |
+| `redacted`, `privacySensitive` | 🟡 | `.redacted(reason: .placeholder)` draws text as grey bars (tested, HelloPickers); images are not redacted; `privacySensitive` has no effect |
 | `badge`, `help`, `contextMenu` | 🟡 | `badge` on tabs and list rows, `contextMenu` (long press -> pop-up menu) tested (HelloLists); preview ignored; `help` missing |
 
 ### Shapes, paths, gradients & materials

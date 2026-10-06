@@ -438,6 +438,7 @@ public struct Label<Title: View, Icon: View>: View, _PrimitiveView {
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
         // in lists the icon is tinted and sits in a fixed-width column (UIKit list cell layout)
+        if let styled = _styledLabel(title, icon, ctx) { return styled }        // .labelStyle (Styles.swift)
         let inList = ctx.environment._inList
         if ctx.environment._verticalLabel {          // ContentUnavailableView: big icon above a bold title
             let icon = _resolve(icon, ctx.child("icon").with { $0._verticalLabel = false; $0.font = .system(size: 48); $0._foreground = $0._foreground ?? .secondary })
@@ -645,6 +646,7 @@ final class _TextFieldNode: _Node {
         let w = min(p.width ?? 200, 1e6)
         let line = ceil(font.lineHeight)
         var h = line * CGFloat(minLines)
+        if traits.roundedBorder && axis != .vertical { h += 14 }           // .textFieldStyle(.roundedBorder)
         if axis == .vertical {
             let l = _measureLabel
             l.text = text.wrappedValue.isEmpty ? placeholder : text.wrappedValue; l.font = font; l.numberOfLines = maxLines
@@ -663,6 +665,7 @@ final class _TextFieldNode: _Node {
         f.autocorrectionType = traits.autocorrectionDisabled ? UITextAutocorrectionType.no : UITextAutocorrectionType.default
         if let a = traits.autocapitalization { f.autocapitalizationType = a.value }
         f.returnKeyType = traits.submitLabel
+        f.borderStyle = traits.roundedBorder ? .roundedRect : .none
         if axis == .vertical { f._isim_setLineLimitMin(minLines, max: maxLines) }
         if let focus = focus {
             let want = focus.get()
