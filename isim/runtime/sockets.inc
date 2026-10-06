@@ -78,6 +78,10 @@ static void sa_to_darwin(const struct sockaddr *h, socklen_t hlen, void *dsa, so
     *dlen = n;
 }
 
+/* read/write also serve sockets and pipes, where EAGAIN, ECONNRESET, ... must read as Darwin values */
+static ssize_t d_read(int fd, void *b, size_t n) { return NETRET(read(fd, b, n)); }
+static ssize_t d_write(int fd, const void *b, size_t n) { return NETRET(write(fd, b, n)); }
+
 static int d_socket(int domain, int type, int proto) { return NETRET(socket(host_af(domain), type, proto)); }
 static int d_socketpair(int domain, int type, int proto, int sv[2]) { return NETRET(socketpair(host_af(domain), type, proto, sv)); }
 static int d_bind(int fd, const void *sa, socklen_t len) {

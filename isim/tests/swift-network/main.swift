@@ -236,6 +236,14 @@ func code(_ e: Error?) -> Int { (e as? URLError)?.code.rawValue ?? (e.map { ($0 
             var tv = timeval(tv_sec: 1, tv_usec: 0)
             let sel = select(pair[0] + 1, &set, nil, nil, &tv)
             check(sel == 1, "select() reports a readable socket")
+            var rbuf = [UInt8](repeating: 0, count: 8)
+            _ = read(pair[0], &rbuf, 8)                      // "pong"
+            var rcvTimeout = timeval(tv_sec: 0, tv_usec: 100_000)
+            let so = setsockopt(pair[0], SOL_SOCKET, SO_RCVTIMEO, &rcvTimeout, socklen_t(MemoryLayout<timeval>.size))
+            let t0 = Date()
+            let r = read(pair[0], &rbuf, 8)
+            let readErr = errno, waited = Date().timeIntervalSince(t0)
+            check(so == 0 && r == -1 && readErr == EAGAIN && waited > 0.05 && waited < 1, "SO_RCVTIMEO (Darwin timeval) + read() errno EAGAIN (\(readErr), \(waited)s)")
             close(pair[0]); close(pair[1])
         } else { check(false, "socketpair") }
         var ifs: UnsafeMutablePointer<ifaddrs>? = nil
