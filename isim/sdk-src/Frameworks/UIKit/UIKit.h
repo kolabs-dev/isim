@@ -51,3 +51,4 @@
 #import <UIKit/UIColorPickerViewController.h>
 #import <UIKit/UIAppearance.h>
 #import <UIKit/UIPasteboard.h>
+#import <UIKit/UIViewPropertyAnimator.h>

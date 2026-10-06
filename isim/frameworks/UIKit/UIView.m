@@ -179,16 +179,69 @@ ANCHORS(UILayoutGuide)
 }
 @end
 /* view animation engine (bottom of this file) */
-enum { AK_FRAME, AK_ALPHA, AK_TRANSFORM, AK_BG, AK_COUNT };
+enum { AK_FRAME, AK_ALPHA, AK_TRANSFORM, AK_BG, AK_RADIUS, AK_BORDERW, AK_BORDERCOLOR, AK_SHADOWOP, AK_SHADOWRAD, AK_SHADOWOFF, AK_COUNT };
 static void anim_set(UIView *v, int key, const double *model_old, const double *model_new, int n);
 static BOOL anim_presentation(UIView *v, int key, double *out);
 static BOOL anim_capturing(void);
 static void anim_rebase(UIView *v, int key, const double *model_old, const double *model_new, int n);
 static void anim_remove_all(UIView *v);
 
+/* a view's own layer: corner radius, border and shadow changes animate inside animation blocks */
+@interface __IsimViewLayer : CALayer { @public __weak UIView *_isim_view; }
+@end
+static void anim_layer_changed(UIView *v, int key, const double *old, const double *nw, int n) {
+    if (!v) return;
+    if (anim_capturing()) anim_set(v, key, old, nw, n); else if (v->_anim) anim_rebase(v, key, old, nw, n);
+}
+static void cg_rgba(CGColorRef c, double out[4]) {
+    if (!c) { out[0] = out[1] = out[2] = out[3] = 0; return; }
+    const CGFloat *k = CGColorGetComponents(c); size_t n = CGColorGetNumberOfComponents(c);
+    if (n >= 4) { for (int i = 0; i < 4; i++) out[i] = k[i]; } else if (n == 2) { out[0] = out[1] = out[2] = k[0]; out[3] = k[1]; } else { out[0] = out[1] = out[2] = 0; out[3] = 1; }
+}
+@implementation __IsimViewLayer
+- (void)setCornerRadius:(CGFloat)r { double a = self.cornerRadius, b = r; anim_layer_changed(_isim_view, AK_RADIUS, &a, &b, 1); [super setCornerRadius:r]; }
+- (void)setBorderWidth:(CGFloat)w { double a = self.borderWidth, b = w; anim_layer_changed(_isim_view, AK_BORDERW, &a, &b, 1); [super setBorderWidth:w]; }
+- (void)setShadowOpacity:(float)o { double a = self.shadowOpacity, b = o; anim_layer_changed(_isim_view, AK_SHADOWOP, &a, &b, 1); [super setShadowOpacity:o]; isim_ui_set_needs_display(); }
+- (void)setShadowRadius:(CGFloat)r { double a = self.shadowRadius, b = r; anim_layer_changed(_isim_view, AK_SHADOWRAD, &a, &b, 1); [super setShadowRadius:r]; isim_ui_set_needs_display(); }
+- (void)setShadowOffset:(CGSize)o { CGSize c = self.shadowOffset; double a[2] = { c.width, c.height }, b[2] = { o.width, o.height }; anim_layer_changed(_isim_view, AK_SHADOWOFF, a, b, 2); [super setShadowOffset:o]; isim_ui_set_needs_display(); }
+- (void)setBorderColor:(CGColorRef)c {
+    double a[4], b[4]; cg_rgba(self.borderColor, a); cg_rgba(c, b);
+    if (!self.borderColor) { memcpy(a, b, sizeof a); a[3] = 0; }
+    anim_layer_changed(_isim_view, AK_BORDERCOLOR, a, b, 4);
+    [super setBorderColor:c];
+}
+- (void)removeAllAnimations { UIView *v = _isim_view; if (v) anim_remove_all(v); }
+/* a snapshot with the in-flight values (frame is the transformed bounding box, like Core Animation) */
+- (instancetype)presentationLayer {
+    UIView *v = _isim_view;
+    if (!v) return self;
+    isim_ui_animations_tick();                       /* values for now, not for the last rendered frame */
+    double x[6];
+    CGRect f = v.frame; CGAffineTransform t = v.transform; double alpha = v.alpha;
+    CALayer *p = [CALayer new];
+    p.cornerRadius = self.cornerRadius; p.borderWidth = self.borderWidth; p.shadowOpacity = self.shadowOpacity; p.shadowRadius = self.shadowRadius;
+    p.shadowOffset = self.shadowOffset; p.borderColor = self.borderColor; p.shadowColor = self.shadowColor; p.backgroundColor = v.backgroundColor.CGColor ?: self.backgroundColor;
+    if (anim_presentation(v, AK_FRAME, x)) f = CGRectMake(x[0], x[1], x[2], x[3]);
+    if (anim_presentation(v, AK_TRANSFORM, x)) t = (CGAffineTransform){ x[0], x[1], x[2], x[3], x[4], x[5] };
+    if (anim_presentation(v, AK_ALPHA, x)) alpha = x[0];
+    if (anim_presentation(v, AK_RADIUS, x)) p.cornerRadius = x[0];
+    if (anim_presentation(v, AK_BORDERW, x)) p.borderWidth = x[0];
+    if (anim_presentation(v, AK_SHADOWOP, x)) p.shadowOpacity = (float)x[0];
+    if (anim_presentation(v, AK_SHADOWRAD, x)) p.shadowRadius = x[0];
+    if (anim_presentation(v, AK_SHADOWOFF, x)) p.shadowOffset = CGSizeMake(x[0], x[1]);
+    if (anim_presentation(v, AK_BG, x)) p.backgroundColor = [UIColor colorWithRed:x[0] green:x[1] blue:x[2] alpha:x[3]].CGColor;
+    p.bounds = CGRectMake(0, 0, f.size.width, f.size.height);
+    CGPoint c = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
+    CGRect r = CGRectApplyAffineTransform(CGRectMake(-f.size.width / 2, -f.size.height / 2, f.size.width, f.size.height), t);
+    p.frame = CGRectOffset(r, c.x, c.y);
+    p.opacity = (float)(alpha * self.opacity);
+    return (id)p;
+}
+@end
+
 @implementation UIView
 @synthesize layer = _layer;
-+ (Class)layerClass { return [CALayer class]; }
++ (Class)layerClass { return [__IsimViewLayer class]; }
 - (instancetype)init { return [self initWithFrame:CGRectZero]; }
 - (instancetype)initWithCoder:(NSCoder *)c { return [self initWithFrame:CGRectZero]; }
 - (void)encodeWithCoder:(NSCoder *)c {}   /* isim: archiving is not implemented */
@@ -196,6 +249,7 @@ static void anim_remove_all(UIView *v);
     if ((self = [super init])) {
         _frame = frame; _subs = [NSMutableArray array]; _alpha = 1; _userInteractionEnabled = YES; _autoresizesSubviews = YES;
         _translatesAutoresizingMaskIntoConstraints = YES; _layer = [[[self class] layerClass] new]; _needsLayout = YES;
+        if ([_layer isKindOfClass:[__IsimViewLayer class]]) ((__IsimViewLayer *)_layer)->_isim_view = self;
         _layoutMargins = UIEdgeInsetsMake(8, 8, 8, 8); _clearsContextBeforeDrawing = YES; _multipleTouchEnabled = NO;
         _transform = CGAffineTransformIdentity;
         _hug[0] = _hug[1] = UILayoutPriorityDefaultLow; _resist[0] = _resist[1] = UILayoutPriorityDefaultHigh;
@@ -780,7 +834,15 @@ static IMP base_drawRect;
     /* presentation values: model values, or the in-flight value of a running animation */
     CGRect frame = _frame; CGFloat alpha = _alpha; CGAffineTransform xf = _transform;
     double pv[6]; BOOL bgAnim = NO; double bgv[4] = { 0 };
+    double radius = _layer.cornerRadius, borderW = _layer.borderWidth, shadowOp = _layer.shadowOpacity, shadowRad = _layer.shadowRadius;
+    CGSize shadowOff = _layer.shadowOffset; double borderC[4]; BOOL borderAnim = NO;
     if (_anim) {
+        if (anim_presentation(self, AK_RADIUS, pv)) radius = fmax(0, pv[0]);
+        if (anim_presentation(self, AK_BORDERW, pv)) borderW = fmax(0, pv[0]);
+        if (anim_presentation(self, AK_SHADOWOP, pv)) shadowOp = fmin(1, fmax(0, pv[0]));
+        if (anim_presentation(self, AK_SHADOWRAD, pv)) shadowRad = fmax(0, pv[0]);
+        if (anim_presentation(self, AK_SHADOWOFF, pv)) shadowOff = CGSizeMake(pv[0], pv[1]);
+        if (anim_presentation(self, AK_BORDERCOLOR, borderC)) borderAnim = YES;
         if (anim_presentation(self, AK_FRAME, pv)) frame = CGRectMake(pv[0], pv[1], fmax(0, pv[2]), fmax(0, pv[3]));
         if (anim_presentation(self, AK_ALPHA, pv)) alpha = fmin(1, fmax(0, pv[0]));
         if (anim_presentation(self, AK_TRANSFORM, pv)) xf = (CGAffineTransform){ pv[0], pv[1], pv[2], pv[3], pv[4], pv[5] };
@@ -800,19 +862,19 @@ static IMP base_drawRect;
     double a = alpha * _layer.opacity;
     BOOL group = a < 0.999;
     if (group) isim_gfx_push_group();
-    double radius = _layer.cornerRadius, bg[4];
+    double bg[4];
     if (bgAnim) memcpy(bg, bgv, sizeof bg);
     else if (_backgroundColor) isim_ui_rgba(_backgroundColor, bg);
     else if (_layer.backgroundColor) { const CGFloat *c = CGColorGetComponents(_layer.backgroundColor); for (int i = 0; i < 4; i++) bg[i] = c[i]; }
     else bg[3] = 0;
-    if (bg[3] > 0 && _layer.shadowOpacity > 0 && _layer.shadowColor) {
+    if (bg[3] > 0 && shadowOp > 0 && _layer.shadowColor) {
         /* drop shadow under the background shape; blur approximated by stacked expanding fills */
         const CGFloat *sc = CGColorGetComponents(_layer.shadowColor);
-        CGSize o = _layer.shadowOffset; double blur = _layer.shadowRadius;
+        CGSize o = shadowOff; double blur = shadowRad;
         int steps = blur > 0.5 ? 5 : 1;
         for (int i = steps - 1; i >= 0; i--) {
             double e = steps > 1 ? blur * (i + 1) / steps : 0;
-            double col[4] = { sc[0], sc[1], sc[2], sc[3] * _layer.shadowOpacity / steps };
+            double col[4] = { sc[0], sc[1], sc[2], sc[3] * shadowOp / steps };
             isim_gfx_fill_rounded(o.width - e, o.height - e, sz.width + 2 * e, sz.height + 2 * e, radius + e, col);
         }
     }
@@ -830,9 +892,9 @@ static IMP base_drawRect;
     for (UIView *s in _subs) [s _isim_render];
     [self _isim_drawOverlay];
     if (clip) isim_gfx_restore();
-    if (_layer.borderWidth > 0 && _layer.borderColor) {
-        const CGFloat *c = CGColorGetComponents(_layer.borderColor); double bc[4] = { c[0], c[1], c[2], c[3] };
-        isim_gfx_stroke_rounded(0, 0, sz.width, sz.height, radius, _layer.borderWidth, bc);
+    if (borderW > 0 && (_layer.borderColor || borderAnim)) {
+        double bc[4]; if (borderAnim) memcpy(bc, borderC, sizeof bc); else cg_rgba(_layer.borderColor, bc);
+        isim_gfx_stroke_rounded(borderW / 2, borderW / 2, sz.width - borderW, sz.height - borderW, fmax(0, radius - borderW / 2), borderW, bc);
     }
     if (group) isim_gfx_pop_group(a);
     if (pushedStyle) isim_ui_pop_style();
@@ -853,11 +915,8 @@ static IMP base_drawRect;
     isim_ui_animate(d * 1.6, delay, o, 1, bounce >= 0 ? 1 - bounce : 1 / (1 + bounce), v, a, c);
 }
 + (void)transitionWithView:(UIView *)view duration:(NSTimeInterval)d options:(UIViewAnimationOptions)o animations:(void (^)(void))a completion:(void (^)(BOOL))c {
-    /* isim: transitions (cross dissolve, flips) are not drawn; the changes apply with an animated fade-in for cross dissolve */
-    BOOL dissolve = ((o >> 20) & 7) == 5;
-    if (a) a();
-    if (dissolve && view) { CGFloat target = view.alpha; [UIView performWithoutAnimation:^{ view.alpha = target * 0.35; }]; isim_ui_animate(d, 0, UIViewAnimationOptionCurveEaseOut, 0, 0, 0, ^{ view.alpha = target; }, c); }
-    else isim_ui_animate(d, 0, o, 0, 0, 0, nil, c);
+    extern void isim_ui_transition_with_view(UIView *, double, UIViewAnimationOptions, void (^)(void), void (^)(BOOL));
+    isim_ui_transition_with_view(view, d, o, a, c);       /* UIAnimation.m */
 }
 + (void)performWithoutAnimation:(void (^)(void))a { isim_ui_without_animation(a); }
 + (void)setAnimationsEnabled:(BOOL)e { isim_ui_set_animations_enabled(e); }
@@ -867,28 +926,55 @@ static IMP base_drawRect;
 
 
 /* ================= view animations =================
- * Core Animation-style: inside an animation block, setting frame/center/bounds, alpha, transform or
- * backgroundColor changes the model value at once and records a track from the current presentation
- * value to the new one. Each frame the tracks are evaluated (timing curve or spring, delay, repeat,
- * autoreverse) and rendering uses the in-flight values. A block's completion runs when its tracks end. */
+ * Core Animation-style: inside an animation block, setting frame/center/bounds, alpha, transform,
+ * backgroundColor or the layer's cornerRadius/border/shadow changes the model value at once and records a
+ * track from the current presentation value to the new one. Each frame the tracks are evaluated (timing
+ * curve, custom cubic Bézier or spring; delay, repeat, autoreverse) and rendering uses the in-flight values.
+ * A block's completion runs when its tracks end.
+ *
+ * Keyframe animations (UIView.animateKeyframes) give a track further segments on the same clock; the
+ * overall timing curve warps the whole keyframe timeline.
+ *
+ * Timelines (UIViewPropertyAnimator, interactive view-controller transitions): tracks captured for a
+ * timeline read its virtual clock, which can be paused, scrubbed, reversed or run at another speed; they
+ * stay until the timeline finishes at its end, its start (model values go back) or the current position. */
+#define KF_MAX 16
 typedef struct {
     BOOL active; int n;
     double from[6], to[6], cur[6];
-    double start, dur;
-    int curve;                              /* 0 ease in-out, 1 ease in, 2 ease out, 3 linear, 4 spring */
+    double start, dur;                      /* first segment (real or timeline time) */
+    int curve;                              /* 0 ease in-out, 1 ease in, 2 ease out, 3 linear, 4 spring, 5 cubic Bézier */
+    double bz[4];
     double damping, velocity;
     BOOL repeat, autoreverse;
+    BOOL keyframed, discrete;               /* keyframes: extra segments, and the whole timeline's span */
+    int nkf; double kfStart[KF_MAX], kfDur[KF_MAX], kfTo[KF_MAX][6];
+    double kfBase, kfTotal;
     __unsafe_unretained id group;
 } anim_track;
 struct anim_state { anim_track t[AK_COUNT]; };
 
-@interface __IsimAnimationGroup : NSObject { @public void (^completion)(BOOL); int pending; BOOL closed; double end; }
+@interface __IsimTimeline : NSObject {
+@public
+    double v0, t0, speed, duration;         /* virtual time = v0 + (now - t0) * speed (frozen at v0 while paused) */
+    BOOL paused, autoFinish, done;
+    void (^onFinish)(int position);         /* 0 end, 1 start */
+    NSMutableArray *groups;                 /* groups without tracks: complete with the timeline */
+    NSMutableArray *stopped;                /* tracks removed by a "current" finish: [view, key, from, to] */
+}
+@end
+@implementation __IsimTimeline @end
+static double tl_now(__IsimTimeline *tl) { return tl->paused ? tl->v0 : tl->v0 + (isim_time() - tl->t0) * tl->speed; }
+static NSMutableArray<__IsimTimeline *> *timelines;    /* running timelines watched for their end */
+
+@interface __IsimAnimationGroup : NSObject { @public void (^completion)(BOOL); int pending; BOOL closed; __IsimTimeline *timeline; }
 @end
 @implementation __IsimAnimationGroup
 @end
 
 typedef struct anim_ctx {
-    double duration, delay; int curve; double damping, velocity; BOOL repeat, autoreverse;
+    double duration, delay; int curve; double bz[4]; double damping, velocity; BOOL repeat, autoreverse;
+    BOOL keyframe, discrete; double kfBase, kfTotal;      /* inside animateKeyframes: delay/duration are relative to kfBase */
     __unsafe_unretained __IsimAnimationGroup *group; struct anim_ctx *prev;
 } anim_ctx;
 static anim_ctx *cur_ctx;
@@ -905,11 +991,19 @@ static void group_done(__IsimAnimationGroup *g, BOOL finished) {
     [live_groups removeObject:g];
     if (c) dispatch_async(dispatch_get_main_queue(), ^{ c(finished); });
 }
+static double ctx_clock(anim_ctx *c) { return c->group && c->group->timeline ? tl_now(c->group->timeline) : isim_time(); }
 
 static void anim_set(UIView *v, int key, const double *model_old, const double *model_new, int n) {
     anim_ctx *c = cur_ctx;
     if (!v->_anim) v->_anim = calloc(1, sizeof *v->_anim);
     anim_track *t = &v->_anim->t[key];
+    if (c->keyframe && t->active && t->keyframed && t->group == c->group && t->nkf < KF_MAX) {   /* a later keyframe of the same property */
+        int i = t->nkf++;
+        t->kfStart[i] = c->kfBase + c->delay; t->kfDur[i] = fmax(c->duration, 1e-4);
+        memcpy(t->kfTo[i], model_new, sizeof(double) * (size_t)n);
+        isim_ui_set_needs_display();
+        return;
+    }
     double from[6];
     if (t->active) {                                           /* retarget from where it is now (additive-like) */
         memcpy(from, t->cur, sizeof from);
@@ -921,9 +1015,11 @@ static void anim_set(UIView *v, int key, const double *model_old, const double *
     memcpy(t->from, from, sizeof(double) * (size_t)n);
     memcpy(t->to, model_new, sizeof(double) * (size_t)n);
     memcpy(t->cur, from, sizeof(double) * (size_t)n);
-    t->start = isim_time() + c->delay;
+    t->keyframed = c->keyframe; t->discrete = c->discrete; t->nkf = 0;
+    t->kfBase = c->kfBase; t->kfTotal = fmax(c->kfTotal, 1e-4);
+    t->start = (c->keyframe ? c->kfBase : ctx_clock(c)) + c->delay;
     t->dur = c->duration > 0 ? c->duration : 0.0001;
-    t->curve = c->curve; t->damping = c->damping; t->velocity = c->velocity;
+    t->curve = c->curve; memcpy(t->bz, c->bz, sizeof t->bz); t->damping = c->damping; t->velocity = c->velocity;
     t->repeat = c->repeat; t->autoreverse = c->autoreverse;
     t->group = c->group;
     t->active = YES;
@@ -964,82 +1060,253 @@ static double spring(double zeta, double v0, double dur, double t) {
     double w0 = 9.2 / dur, e = exp(-w0 * t);
     return 1 - e * (1 + (w0 - v0 * w0) * t);
 }
-static double timing(const anim_track *t, double x, double elapsed) {
-    switch (t->curve) {
+static double curve_at(int curve, const double *bz, double damping, double velocity, double dur, double x) {
+    switch (curve) {
     case 1: return bezier(0.42, 0, 1, 1, x);
     case 2: return bezier(0, 0, 0.58, 1, x);
     case 3: return x;
-    case 4: return spring(t->damping, t->velocity, t->dur, elapsed);
+    case 4: return spring(damping, velocity, dur, x * dur);
+    case 5: return bezier(bz[0], bz[1], bz[2], bz[3], x);
     default: return bezier(0.42, 0, 0.58, 1, x);
     }
 }
+static double timing(const anim_track *t, double x, double elapsed) {
+    return t->curve == 4 ? spring(t->damping, t->velocity, t->dur, elapsed) : curve_at(t->curve, t->bz, 0, 0, t->dur, x);
+}
+static void lerp(anim_track *t, const double *a, const double *b, double p) { for (int i = 0; i < t->n; i++) t->cur[i] = a[i] + (b[i] - a[i]) * p; }
+
+/* keyframed track at clock time `now` (segments linear, or discrete jumps); YES once past its end */
+static BOOL kf_eval(anim_track *t, double now) {
+    double x = (now - t->kfBase) / t->kfTotal;
+    BOOL done = x >= 1;
+    double w = x <= 0 ? x : x >= 1 ? 1 : curve_at(t->curve, t->bz, t->damping, t->velocity, t->kfTotal, x);
+    double tt = t->kfBase + w * t->kfTotal;
+    const double *prev = t->from;
+    double s = t->start, d = t->dur; const double *to = t->to;
+    for (int i = -1; i < t->nkf; i++) {
+        if (i >= 0) { prev = i == 0 ? t->to : t->kfTo[i - 1]; s = t->kfStart[i]; d = t->kfDur[i]; to = t->kfTo[i]; }
+        if (tt < s) { lerp(t, prev, prev, 0); return done; }
+        if (tt < s + d) { lerp(t, prev, to, t->discrete ? 0 : (tt - s) / d); if (t->discrete) lerp(t, to, to, 0); return done; }
+    }
+    lerp(t, to, to, 0);
+    return done;
+}
+
+static BOOL timeline_running(__IsimTimeline *tl) { return tl && !tl->paused && !tl->done; }
+static void timeline_finish(__IsimTimeline *tl, int position);
 
 /* evaluates every running track; returns YES while any animation is running */
 BOOL isim_ui_animations_tick(void) {
-    if (!animating.count) return NO;
-    double now = isim_time();
+    /* timelines that reached their end (or their start, reversed) finish themselves */
+    for (__IsimTimeline *tl in [timelines copy]) {
+        if (tl->done || tl->paused || !tl->autoFinish) continue;
+        double v = tl_now(tl);
+        if (tl->speed > 0 && v >= tl->duration) { tl->paused = YES; tl->v0 = tl->duration; timeline_finish(tl, 0); }
+        else if (tl->speed < 0 && v <= 0) { tl->paused = YES; tl->v0 = 0; timeline_finish(tl, 1); }
+    }
+    if (!animating.count) { for (__IsimTimeline *tl in timelines) if (timeline_running(tl)) return YES; return NO; }
+    double real = isim_time();
     BOOL any = NO;
     for (UIView *v in [animating copy]) {
         BOOL viewActive = NO;
         for (int k = 0; k < AK_COUNT; k++) {
             anim_track *t = &v->_anim->t[k];
             if (!t->active) continue;
-            double el = now - t->start;
-            if (el < 0) { viewActive = YES; continue; }          /* delayed: still at its start value */
-            double cycle = t->dur, p, x;
+            __IsimTimeline *tl = t->group ? ((__IsimAnimationGroup *)t->group)->timeline : nil;
+            double now = tl ? tl_now(tl) : real;
             BOOL done = NO;
-            if (t->repeat) {
-                double period = t->autoreverse ? 2 * cycle : cycle, ph = fmod(el, period);
-                BOOL back = t->autoreverse && ph >= cycle;
-                double le = back ? ph - cycle : ph;
-                x = le / cycle; p = timing(t, x, le); if (back) p = 1 - p;
-            } else if (t->autoreverse) {
-                if (el >= 2 * cycle) { done = YES; p = 1; }
-                else { BOOL back = el >= cycle; double le = back ? el - cycle : el; p = timing(t, le / cycle, le); if (back) p = 1 - p; }
-            } else if (el >= cycle) { done = YES; p = 1; }
-            else { x = el / cycle; p = timing(t, x, el); }
-            for (int i = 0; i < t->n; i++) t->cur[i] = t->from[i] + (t->to[i] - t->from[i]) * p;
+            if (t->keyframed) {
+                done = kf_eval(t, now);
+                if (tl) done = NO;
+            } else if (tl) {                                       /* scrubbable: clamp to the track's span, never done by itself */
+                double el = fmin(t->dur, fmax(0, now - t->start));
+                lerp(t, t->from, t->to, el <= 0 ? 0 : el >= t->dur ? 1 : timing(t, el / t->dur, el));
+            } else {
+                double el = now - t->start;
+                if (el < 0) { viewActive = YES; continue; }          /* delayed: still at its start value */
+                double cycle = t->dur, p, x;
+                if (t->repeat) {
+                    double period = t->autoreverse ? 2 * cycle : cycle, ph = fmod(el, period);
+                    BOOL back = t->autoreverse && ph >= cycle;
+                    double le = back ? ph - cycle : ph;
+                    x = le / cycle; p = timing(t, x, le); if (back) p = 1 - p;
+                } else if (t->autoreverse) {
+                    if (el >= 2 * cycle) { done = YES; p = 1; }
+                    else { BOOL back = el >= cycle; double le = back ? el - cycle : el; p = timing(t, le / cycle, le); if (back) p = 1 - p; }
+                } else if (el >= cycle) { done = YES; p = 1; }
+                else { x = el / cycle; p = timing(t, x, el); }
+                lerp(t, t->from, t->to, p);
+            }
             if (done) {
                 t->active = NO;
                 __IsimAnimationGroup *g = t->group; t->group = nil;
                 if (g) { g->pending--; group_done(g, YES); }
-            } else viewActive = YES;
+            } else {
+                viewActive = YES;
+                if (!tl || timeline_running(tl)) any = YES;
+            }
         }
         if (!viewActive) [animating removeObjectIdenticalTo:v];
-        else any = YES;
     }
     isim_ui_set_needs_display();
-    return any || animating.count > 0;
+    for (__IsimTimeline *tl in timelines) if (timeline_running(tl)) any = YES;
+    return any;
 }
-BOOL isim_ui_animations_running(void) { return animating.count > 0; }
+BOOL isim_ui_animations_running(void) {
+    for (UIView *v in animating)
+        for (int k = 0; k < AK_COUNT; k++) {
+            anim_track *t = &v->_anim->t[k];
+            if (t->active && (!t->group || !((__IsimAnimationGroup *)t->group)->timeline || timeline_running(((__IsimAnimationGroup *)t->group)->timeline))) return YES;
+        }
+    for (__IsimTimeline *tl in timelines) if (timeline_running(tl)) return YES;
+    return NO;
+}
 
-void isim_ui_animate(double duration, double delay, UIViewAnimationOptions o, int springy, double damping, double velocity,
-                     void (^animations)(void), void (^completion)(BOOL)) {
+static void animate_ctx(anim_ctx ctx, void (^animations)(void), void (^completion)(BOOL), __IsimTimeline *tl) {
     __IsimAnimationGroup *g = [__IsimAnimationGroup new];
-    g->completion = completion;
+    g->completion = completion; g->timeline = tl;
     if (!live_groups) live_groups = [NSMutableSet set];
     [live_groups addObject:g];
-    int curve = springy ? 4 : (int)((o >> 16) & 3);
-    anim_ctx ctx = { duration, delay, curve, damping, velocity, (o & (1 << 3)) != 0, (o & (1 << 4)) != 0, g, cur_ctx };
+    ctx.group = g; ctx.prev = cur_ctx;
     cur_ctx = &ctx;
     if (animations) animations();
     cur_ctx = ctx.prev;
     g->closed = YES;
-    if (g->pending == 0) {                                   /* nothing animatable changed: complete after the delay */
+    if (g->pending == 0) {                                   /* nothing animatable changed */
+        if (tl) { if (!tl->groups) tl->groups = [NSMutableArray array]; [tl->groups addObject:g]; return; }   /* completes with the timeline */
         void (^c)(BOOL) = g->completion; g->completion = nil; [live_groups removeObject:g];
-        if (c) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ c(YES); });
+        double wait = ctx.keyframe ? ctx.kfBase + ctx.kfTotal - isim_time() : ctx.delay;
+        if (c) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(fmax(0, wait) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ c(YES); });
     }
+}
+void isim_ui_animate(double duration, double delay, UIViewAnimationOptions o, int springy, double damping, double velocity,
+                     void (^animations)(void), void (^completion)(BOOL)) {
+    anim_ctx ctx = { duration, delay, springy ? 4 : (int)((o >> 16) & 3), { 0 }, damping, velocity, (o & (1 << 3)) != 0, (o & (1 << 4)) != 0 };
+    animate_ctx(ctx, animations, completion, nil);
 }
 void isim_ui_without_animation(void (^block)(void)) { suppress_depth++; if (block) block(); suppress_depth--; }
 void isim_ui_set_animations_enabled(BOOL e) { animations_enabled = e; }
 BOOL isim_ui_animations_enabled(void) { return animations_enabled; }
-double isim_ui_inherited_duration(void) { return anim_capturing() ? cur_ctx->duration : 0; }
+double isim_ui_inherited_duration(void) { return anim_capturing() ? (cur_ctx->keyframe ? cur_ctx->kfTotal : cur_ctx->duration) : 0; }
+
+/* ---- keyframes ---- */
+void isim_ui_animate_keyframes(double duration, double delay, NSUInteger options, void (^animations)(void), void (^completion)(BOOL)) {
+    int mode = (int)((options >> 10) & 7);                   /* calculation mode: 1 discrete; linear/paced/cubic are linear here */
+    anim_ctx ctx = { duration, 0, (int)((options >> 16) & 3), { 0 }, 0, 0, NO, NO, YES, mode == 1, isim_time() + delay, fmax(duration, 1e-4) };
+    animate_ctx(ctx, animations, completion, nil);
+}
+void isim_ui_add_keyframe(double relStart, double relDuration, void (^animations)(void)) {
+    anim_ctx *c = cur_ctx;
+    if (!c || !c->keyframe) { if (animations) animations(); return; }     /* outside animateKeyframes: applies at once */
+    anim_ctx k = *c;
+    k.delay = fmax(0, relStart) * c->kfTotal; k.duration = fmax(0, relDuration) * c->kfTotal;
+    k.prev = c;
+    cur_ctx = &k;
+    if (animations) animations();
+    cur_ctx = c;
+}
+
+/* ---- timelines (UIViewPropertyAnimator, interactive transitions) ---- */
+id isim_ui_timeline_create(double duration, void (^onFinish)(int position)) {
+    __IsimTimeline *tl = [__IsimTimeline new];
+    tl->duration = fmax(duration, 1e-4); tl->speed = 1; tl->paused = YES; tl->autoFinish = YES; tl->onFinish = [onFinish copy];
+    if (!timelines) timelines = [NSMutableArray array];
+    [timelines addObject:tl];
+    return tl;
+}
+double isim_ui_timeline_time(id o) { return tl_now(o); }
+double isim_ui_timeline_duration(id o) { return ((__IsimTimeline *)o)->duration; }
+void isim_ui_timeline_set(id o, double time, BOOL paused, double speed) {
+    __IsimTimeline *tl = o;
+    tl->v0 = time; tl->t0 = isim_time(); tl->paused = paused; tl->speed = speed;
+    if (!tl->done && [timelines indexOfObjectIdenticalTo:tl] == NSNotFound) [timelines addObject:tl];
+    isim_ui_set_needs_display();
+}
+void isim_ui_timeline_set_duration(id o, double duration) { ((__IsimTimeline *)o)->duration = fmax(duration, 1e-4); }
+void isim_ui_timeline_set_autofinish(id o, BOOL a) { ((__IsimTimeline *)o)->autoFinish = a; }
+/* curve: 0 ease in-out, 1 ease in, 2 ease out, 3 linear, 4 spring (damping ratio, velocity), 5 cubic Bézier (bz) */
+void isim_ui_timeline_capture(id o, double duration, double delay, int curve, const double *bz, double damping, double velocity, void (^animations)(void), void (^completion)(BOOL)) {
+    anim_ctx ctx = { duration, delay, curve, { 0 }, damping, velocity };
+    if (bz) memcpy(ctx.bz, bz, sizeof ctx.bz);
+    animate_ctx(ctx, animations, completion, o);
+}
+static void anim_apply_model(UIView *v, int key, const double *x) {
+    suppress_depth++;
+    switch (key) {
+    case AK_FRAME: v.frame = CGRectMake(x[0], x[1], x[2], x[3]); break;
+    case AK_ALPHA: v.alpha = x[0]; break;
+    case AK_TRANSFORM: v.transform = (CGAffineTransform){ x[0], x[1], x[2], x[3], x[4], x[5] }; break;
+    case AK_BG: v.backgroundColor = x[3] > 0 ? [UIColor colorWithRed:x[0] green:x[1] blue:x[2] alpha:x[3]] : v.backgroundColor ? [UIColor colorWithRed:x[0] green:x[1] blue:x[2] alpha:0] : nil; break;
+    case AK_RADIUS: v.layer.cornerRadius = x[0]; break;
+    case AK_BORDERW: v.layer.borderWidth = x[0]; break;
+    case AK_SHADOWOP: v.layer.shadowOpacity = (float)x[0]; break;
+    case AK_SHADOWRAD: v.layer.shadowRadius = x[0]; break;
+    case AK_SHADOWOFF: v.layer.shadowOffset = CGSizeMake(x[0], x[1]); break;
+    case AK_BORDERCOLOR: v.layer.borderColor = [UIColor colorWithRed:x[0] green:x[1] blue:x[2] alpha:x[3]].CGColor; break;
+    }
+    suppress_depth--;
+}
+/* position 0: end (model values stay), 1: start (model values go back), 2: current (model = presentation; the
+   removed tracks are remembered for isim_ui_timeline_settle) */
+static void timeline_finish(__IsimTimeline *tl, int position) {
+    if (tl->done) return;
+    tl->done = YES;
+    [timelines removeObjectIdenticalTo:tl];
+    NSMutableArray *groups = [NSMutableArray array];
+    for (UIView *v in [animating copy]) {
+        BOOL still = NO;
+        for (int k = 0; k < AK_COUNT; k++) {
+            anim_track *t = &v->_anim->t[k];
+            if (!t->active) continue;
+            __IsimAnimationGroup *g = t->group;
+            if (g->timeline != tl) { still = YES; continue; }
+            if (t->keyframed) kf_eval(t, tl_now(tl));
+            double from[6], to[6], cur[6]; int n = t->n;
+            memcpy(from, t->from, sizeof from); memcpy(cur, t->cur, sizeof cur);
+            memcpy(to, t->keyframed && t->nkf ? t->kfTo[t->nkf - 1] : t->to, sizeof to);
+            t->active = NO; t->group = nil;
+            if (position == 1) anim_apply_model(v, k, from);
+            else if (position == 2) {
+                anim_apply_model(v, k, cur);
+                if (!tl->stopped) tl->stopped = [NSMutableArray array];
+                NSMutableArray *a = [NSMutableArray array], *b = [NSMutableArray array];
+                for (int i = 0; i < n; i++) { [a addObject:@(from[i])]; [b addObject:@(to[i])]; }
+                [tl->stopped addObject:@[v, @(k), a, b]];
+            }
+            g->pending--;
+            if ([groups indexOfObjectIdenticalTo:g] == NSNotFound) [groups addObject:g];
+        }
+        if (!still) [animating removeObjectIdenticalTo:v];
+    }
+    for (__IsimAnimationGroup *g in groups) group_done(g, position != 2);
+    for (__IsimAnimationGroup *g in tl->groups) { void (^c)(BOOL) = g->completion; g->completion = nil; [live_groups removeObject:g]; if (c) dispatch_async(dispatch_get_main_queue(), ^{ c(position != 2); }); }
+    tl->groups = nil;
+    void (^f)(int) = tl->onFinish; tl->onFinish = nil;
+    if (f && position != 2) f(position);
+    isim_ui_set_needs_display();
+}
+void isim_ui_timeline_finish(id o, int position) { timeline_finish(o, position); }
+/* after a "current" finish: put the stopped properties at their start (1) or end (0) values */
+void isim_ui_timeline_settle(id o, int position) {
+    __IsimTimeline *tl = o;
+    for (NSArray *r in tl->stopped) {
+        NSArray *vals = position == 1 ? r[2] : r[3];
+        double x[6] = { 0 };
+        for (NSUInteger i = 0; i < vals.count && i < 6; i++) x[i] = [vals[i] doubleValue];
+        anim_apply_model(r[0], [r[1] intValue], x);
+    }
+    tl->stopped = nil;
+}
 
 /* the model value changed without animation while a track runs: keep the motion, relative to the new value */
 static void anim_rebase(UIView *v, int key, const double *model_old, const double *model_new, int n) {
     anim_track *t = &v->_anim->t[key];
     if (!t->active) return;
-    for (int i = 0; i < n; i++) { double d = model_new[i] - model_old[i]; t->from[i] += d; t->to[i] += d; t->cur[i] += d; }
+    for (int i = 0; i < n; i++) {
+        double d = model_new[i] - model_old[i];
+        t->from[i] += d; t->to[i] += d; t->cur[i] += d;
+        for (int k = 0; k < t->nkf; k++) t->kfTo[k][i] += d;
+    }
 }
 /* CALayer.removeAllAnimations(): presentation snaps to the model values; completions run with finished = NO */
 static void anim_remove_all(UIView *v) {

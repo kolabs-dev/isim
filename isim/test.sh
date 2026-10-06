@@ -25,6 +25,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloTable.app/HelloTable ] && run "ui: HelloTable (UITableView, diffable data source)" tests/ui/table.sh
   [ -x out/apps/HelloCollection.app/HelloCollection ] && run "ui: HelloCollection (UICollectionView flow/compositional/list)" tests/ui/collection.sh
   [ -x out/apps/HelloInputs.app/HelloInputs ] && run "ui: HelloInputs (UITextView, pickers, search, refresh, color well, appearance)" tests/ui/inputs.sh
+  [ -x out/apps/HelloAnimations.app/HelloAnimations ] && run "ui: HelloAnimations (property animator, keyframes, transitions)" tests/ui/animations.sh
   [ -x out/apps/HelloControls.app/HelloControls ] && run "ui: HelloControls (UIKit controls, menus)" tests/ui/controls.sh
   [ -x out/apps/HelloPresentations.app/HelloPresentations ] && run "ui: HelloPresentations (sheets, alerts, dialogs)" tests/ui/presentations.sh
   [ -x out/apps/HelloNetwork.app/HelloNetwork ] && run "ui: HelloNetwork (URLSession, cookies, WebSocket, NWPathMonitor; local server)" tests/ui/network.sh

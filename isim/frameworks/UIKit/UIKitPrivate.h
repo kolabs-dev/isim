@@ -132,6 +132,22 @@ void isim_ui_without_animation(void (^block)(void));
 void isim_ui_set_animations_enabled(BOOL e);
 BOOL isim_ui_animations_enabled(void);
 double isim_ui_inherited_duration(void);
+/* keyframes (UIView.m): animations made inside isim_ui_add_keyframe become segments of one keyframe timeline */
+void isim_ui_animate_keyframes(double duration, double delay, NSUInteger options, void (^animations)(void), void (^completion)(BOOL));
+void isim_ui_add_keyframe(double relStart, double relDuration, void (^animations)(void));
+/* timelines (UIView.m): a virtual clock that tracks captured for it follow (paused, scrubbed, reversed, any speed).
+   It starts paused at 0; when running it finishes by itself at its duration (or at 0 running backwards) and calls
+   onFinish(0 end / 1 start). Curves: 0 ease in-out, 1 ease in, 2 ease out, 3 linear, 4 spring, 5 cubic Bézier. */
+id isim_ui_timeline_create(double duration, void (^onFinish)(int position));
+double isim_ui_timeline_time(id timeline);
+double isim_ui_timeline_duration(id timeline);
+void isim_ui_timeline_set(id timeline, double time, BOOL paused, double speed);
+void isim_ui_timeline_set_duration(id timeline, double duration);
+void isim_ui_timeline_set_autofinish(id timeline, BOOL autoFinish);   /* NO: it just runs past its ends (the owner watches) */
+void isim_ui_timeline_capture(id timeline, double duration, double delay, int curve, const double *bezier, double damping, double velocity,
+                              void (^animations)(void), void (^completion)(BOOL));
+void isim_ui_timeline_finish(id timeline, int position);          /* 0 end, 1 start (model reverts), 2 current (model = presentation) */
+void isim_ui_timeline_settle(id timeline, int position);          /* after finishing at the current position: jump to the start/end values */
 /* materials (UIVisualEffect.m): blur radius in points and tint for a UIBlurEffectStyle */
 void isim_ui_material(NSInteger style, BOOL dark, double *radius, double tint[4]);                      /* hides the keyboard if its text input went away */
 NSString *isim_ui_system_apps_dir(void);

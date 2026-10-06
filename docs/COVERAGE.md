@@ -22,12 +22,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 84 | 36 | 10 | 68 | 198 | 52% |
+| **UIKit** | 87 | 37 | 10 | 64 | 198 | 53% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 5 | 8 | 23 | 35% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 11 | 4 | 0 | 15 | 30 | 43% |
 | &nbsp;&nbsp;↳ Views & controls | 28 | 16 | 1 | 6 | 51 | 71% |
 | &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
-| &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
+| &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 1 | 12 | 79% |
 | &nbsp;&nbsp;↳ Gestures & touches | 4 | 1 | 0 | 8 | 13 | 35% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 8 | 3 | 0 | 7 | 18 | 53% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **320** | **112** | **46** | **289** | **767** | **49%** |
+| **All areas** | **323** | **113** | **46** | **285** | **767** | **49%** |
 
 ---
 
@@ -236,17 +236,17 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `UIView.animate(withDuration:…)` | ✅ | frame/center/bounds, alpha, transform, backgroundColor interpolate |
+| `UIView.animate(withDuration:…)` | ✅ | frame/center/bounds, alpha, transform, backgroundColor and layer corner radius/border/shadow interpolate |
 | Timing curves (ease in/out, linear) | ✅ | |
 | Spring animations (damping/velocity; iOS 17 `springDuration`/`bounce`) | ✅ | |
 | Delay, repeat, autoreverse, begin-from-current-state | ✅ | retargets from the current value |
 | `performWithoutAnimation`, `areAnimationsEnabled` | ✅ | |
 | Constraint animations (`layoutIfNeeded` in an animation block) | 🟡 | frames set inside the block animate; unverified end to end |
-| `UIView.transition(with:)` | 🟡 | cross dissolve only (fade-in); flips/curls apply without the effect |
-| `transition(from:to:)` | ❌ | |
-| `animateKeyframes` / `addKeyframe` | ❌ | |
-| `UIViewPropertyAnimator` (interruptible, scrubbable) | ❌ | |
-| Layer property animations (cornerRadius, shadow, …) | ❌ | only the view properties above animate |
+| `UIView.transition(with:)` | 🟡 | adapted: flips and curls squash the view to its axis and unfold it (2D, no perspective) with the changes applied at the midpoint; cross dissolve fades out and back in (no snapshot cross-fade); tested (HelloAnimations) |
+| `transition(from:to:)` | ✅ | cross dissolve between the views, flips/curls as above (2D), `.showHideTransitionViews` or replacement in the superview; tested (HelloAnimations) |
+| `animateKeyframes` / `addKeyframe` | ✅ | keyframe segments per property on one timeline, overall curve from the options, discrete mode; cubic/paced modes interpolate linearly; tested (HelloAnimations) |
+| `UIViewPropertyAnimator` (interruptible, scrubbable) | ✅ | start/pause/stop/finish(at:), `fractionComplete` scrubbing, `isReversed`, add animations/completions, `pausesOnCompletion`, cubic/spring timing parameters, `runningPropertyAnimator`; `layer.presentation()` reports in-flight values; tested (HelloAnimations). `continueAnimation` ignores new timing parameters (duration factor only) |
+| Layer property animations (cornerRadius, shadow, …) | 🟡 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (tested: radius, border); no `CABasicAnimation`/`CAKeyframeAnimation` objects |
 | UIKit Dynamics (`UIDynamicAnimator`, behaviors) | ❌ | |
 
 ### Gestures & touches

@@ -376,3 +376,8 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
         return v
     }
 }
+
+// MARK: - Buttons (Swift default arguments from Apple's UIKit overlay)
+extension UIButton {
+    public convenience init(configuration: UIButton.Configuration) { self.init(configuration: configuration, primaryAction: nil) }
+}
