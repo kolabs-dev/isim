@@ -17,6 +17,7 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(nullable NSDictionary<UIApplicationLaunchOptionsKey, id> *)launchOptions;
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(nullable NSDictionary<UIApplicationLaunchOptionsKey, id> *)launchOptions;
 - (void)applicationDidFinishLaunching:(UIApplication *)application;
+- (NSUInteger)application:(UIApplication *)application supportedInterfaceOrientationsForWindow:(nullable UIWindow *)window;   /* UIInterfaceOrientationMask */
 - (void)applicationDidBecomeActive:(UIApplication *)application;
 - (void)applicationWillResignActive:(UIApplication *)application;
 - (void)applicationDidEnterBackground:(UIApplication *)application;

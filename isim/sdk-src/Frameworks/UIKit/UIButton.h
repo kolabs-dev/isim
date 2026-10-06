@@ -7,6 +7,7 @@ typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeS
 @interface UIButton : UIControl
 + (instancetype)buttonWithType:(UIButtonType)buttonType;
 + (instancetype)systemButtonWithPrimaryAction:(nullable UIAction *)primaryAction;
++ (instancetype)buttonWithType:(UIButtonType)buttonType primaryAction:(nullable UIAction *)primaryAction;
 + (instancetype)buttonWithConfiguration:(UIButtonConfiguration *)configuration primaryAction:(nullable UIAction *)primaryAction;
 @property (nonatomic, readonly) UIButtonType buttonType;
 @property (nonatomic, copy, nullable) UIButtonConfiguration *configuration;

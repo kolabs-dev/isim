@@ -13,6 +13,8 @@ extern BOOL isim_ui_in_layout;
 
 /* device / appearance */
 const struct isim_device *isim_ui_device(void);
+void isim_ui_device_refresh(void);                    /* re-read the screen geometry after a rotation */
+void isim_ui_device_orientation_changed(int deviceOrientation);   /* the device was turned (host event) */
 UIUserInterfaceStyle isim_ui_style(void);              /* style currently used to resolve dynamic colors */
 void isim_ui_push_style(UIUserInterfaceStyle s);
 void isim_ui_pop_style(void);

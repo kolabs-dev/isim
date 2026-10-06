@@ -170,6 +170,7 @@ typedef NS_ENUM(NSInteger, UINavigationControllerOperation) { UINavigationContro
 @optional
 - (void)navigationController:(UINavigationController *)navigationController willShowViewController:(UIViewController *)viewController animated:(BOOL)animated;
 - (void)navigationController:(UINavigationController *)navigationController didShowViewController:(UIViewController *)viewController animated:(BOOL)animated;
+- (NSUInteger)navigationControllerSupportedInterfaceOrientations:(UINavigationController *)navigationController;   /* UIInterfaceOrientationMask */
 @end
 NS_SWIFT_UI_ACTOR
 @interface UINavigationController : UIViewController

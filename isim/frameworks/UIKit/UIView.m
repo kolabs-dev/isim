@@ -399,7 +399,7 @@ CGRect isim_ui_safe_rect(UIView *v) {
     UIWindow *w = v.window;
     if (!w) return CGRectNull;
     const struct isim_device *d = isim_ui_device();
-    CGRect r = CGRectMake(0, d->safe_top, w.bounds.size.width, MAX(0, w.bounds.size.height - d->safe_top - d->safe_bottom));
+    CGRect r = CGRectMake(d->safe_left, d->safe_top, MAX(0, w.bounds.size.width - d->safe_left - d->safe_right), MAX(0, w.bounds.size.height - d->safe_top - d->safe_bottom));
     NSMutableArray *chain = [NSMutableArray array];
     for (UIView *x = v; x && x != (UIView *)w; x = x.superview) [chain insertObject:x atIndex:0];
     for (UIView *a in chain) {

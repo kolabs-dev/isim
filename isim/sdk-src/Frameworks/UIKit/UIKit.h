@@ -45,4 +45,5 @@
 #import <UIKit/UICollectionView.h>
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>
+#import <UIKit/UIOrientation.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>

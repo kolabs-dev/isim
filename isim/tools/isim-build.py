@@ -283,7 +283,12 @@ def make_info_plist(target, settings, bundle, extra_localizations):
     for k, v in settings.items():          # INFOPLIST_KEY_<Key> build settings (Xcode 13+)
         if k.startswith('INFOPLIST_KEY_'):
             key = k[len('INFOPLIST_KEY_'):]
-            info.setdefault(key, {'YES': True, 'NO': False}.get(v, v))
+            # device-specific keys: Xcode writes UISupportedInterfaceOrientations_iPhone as ..~iphone
+            for suffix, plist in (('_iPhone', '~iphone'), ('_iPad', '~ipad')):
+                if key.endswith(suffix): key = key[:-len(suffix)] + plist
+            if key.startswith('UISupportedInterfaceOrientations') and isinstance(v, str):
+                v = v.split()                # a space-separated list in build settings, an array in Info.plist
+            info.setdefault(key, {'YES': True, 'NO': False}.get(v, v) if isinstance(v, str) else v)
     info.setdefault('CFBundleExecutable', settings['EXECUTABLE_NAME'])
     info.setdefault('CFBundleIdentifier', settings.get('PRODUCT_BUNDLE_IDENTIFIER', ''))
     info.setdefault('CFBundleName', settings['PRODUCT_NAME'])

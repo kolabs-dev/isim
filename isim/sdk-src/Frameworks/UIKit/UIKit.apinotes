@@ -2,6 +2,11 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: UIWindowScene
+  Methods:
+  - Selector: 'requestGeometryUpdateWithPreferences:errorHandler:'
+    MethodKind: Instance
+    SwiftName: 'requestGeometryUpdate(_:errorHandler:)'
 - Name: UIGraphicsImageRenderer
   Methods:
   - Selector: 'imageWithActions:'
@@ -425,6 +430,8 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIInterfaceOrientationMask
+  SwiftName: UIInterfaceOrientationMask
 - Name: NSUnderlineStyle
   SwiftName: NSUnderlineStyle
 - Name: NSStringDrawingOptions
@@ -573,6 +580,8 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UIDeviceOrientationDidChangeNotification
+  SwiftName: UIDevice.orientationDidChangeNotification
 - Name: NSFontAttributeName
   SwiftName: font
 - Name: NSParagraphStyleAttributeName

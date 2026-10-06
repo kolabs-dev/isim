@@ -12,11 +12,12 @@ void isim_ui_set_needs_layout(void) { needs_layout = YES; needs_display = YES; }
 BOOL isim_ui_take_display(void) { BOOL d = needs_display; needs_display = NO; return d; }
 BOOL isim_ui_take_layout(void) { BOOL d = needs_layout; needs_layout = NO; return d; }
 
+static struct isim_device ui_dev; static BOOL ui_dev_init;
 const struct isim_device *isim_ui_device(void) {
-    static struct isim_device dev; static BOOL init;
-    if (!init) { isim_device_metrics(&dev); init = YES; }
-    return &dev;
+    if (!ui_dev_init) { isim_device_metrics(&ui_dev); ui_dev_init = YES; }
+    return &ui_dev;
 }
+void isim_ui_device_refresh(void) { isim_device_metrics(&ui_dev); ui_dev_init = YES; }   /* after a rotation */
 
 static UIUserInterfaceStyle style_stack[64]; static int style_depth = -1;
 static UIUserInterfaceStyle cached_style;
@@ -45,9 +46,14 @@ NSString *NSStringFromUIEdgeInsets(UIEdgeInsets i) { return [NSString stringWith
 + (UITraitCollection *)traitCollectionWithUserInterfaceStyle:(UIUserInterfaceStyle)style {
     UITraitCollection *t = [UITraitCollection new];
     t->_userInterfaceStyle = style;
-    t->_userInterfaceIdiom = isim_ui_device()->width >= 700 ? UIUserInterfaceIdiomPad : UIUserInterfaceIdiomPhone;
-    t->_horizontalSizeClass = t->_userInterfaceIdiom == UIUserInterfaceIdiomPad ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact;
-    t->_verticalSizeClass = UIUserInterfaceSizeClassRegular;
+    const struct isim_device *d = isim_ui_device();
+    BOOL landscape = d->width > d->height;
+    t->_userInterfaceIdiom = MIN(d->width, d->height) >= 700 ? UIUserInterfaceIdiomPad : UIUserInterfaceIdiomPhone;
+    /* size classes: iPad regular/regular; iPhone compact width (regular in landscape on the large phones) and
+       compact height in landscape */
+    BOOL pad = t->_userInterfaceIdiom == UIUserInterfaceIdiomPad;
+    t->_horizontalSizeClass = pad || (landscape && MIN(d->width, d->height) >= 414) ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact;
+    t->_verticalSizeClass = pad || !landscape ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact;
     t->_displayScale = isim_ui_device()->scale;
     return t;
 }

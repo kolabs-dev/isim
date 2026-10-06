@@ -43,13 +43,13 @@
 /* ================= UIScreen ================= */
 @implementation UIDevice
 + (UIDevice *)currentDevice { static UIDevice *d; if (!d) d = [UIDevice new]; return d; }
-- (BOOL)_pad { return isim_ui_device()->width >= 700; }
+- (BOOL)_pad { const struct isim_device *d = isim_ui_device(); return MIN(d->width, d->height) >= 700; }
 - (NSString *)name { return [self _pad] ? @"iPad" : @"iPhone"; }
 - (NSString *)model { return [self _pad] ? @"iPad" : @"iPhone"; }
 - (NSString *)localizedModel { return self.model; }
 - (NSString *)systemName { return @"iOS"; }
 - (NSString *)systemVersion { const char *v = getenv("ISIM_OS_VERSION"); return v && *v ? @(v) : @"18.0"; }
-- (UIDeviceOrientation)orientation { return UIDeviceOrientationPortrait; }
+@dynamic orientation;                       /* UIOrientation.m */
 - (UIUserInterfaceIdiom)userInterfaceIdiom { return [self _pad] ? UIUserInterfaceIdiomPad : UIUserInterfaceIdiomPhone; }
 - (BOOL)isMultitaskingSupported { return YES; }
 - (NSString *)_isim_deviceName { return @(isim_ui_device()->name); }
@@ -179,7 +179,7 @@
 }
 static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     const struct isim_device *d = isim_ui_device();
-    if (b.size.width >= 700) {                                    /* iPad: centered card */
+    if (MIN(b.size.width, b.size.height) >= 700) {                /* iPad: centered card */
         BOOL form = vc.modalPresentationStyle == UIModalPresentationFormSheet;
         CGFloat w = form ? 540 : MIN(b.size.width - 80, 704), h = form ? MIN(620, b.size.height - 80) : b.size.height - 2 * (d->safe_top + 24);
         return CGRectMake((b.size.width - w) / 2, (b.size.height - h) / 2, w, h);
@@ -324,13 +324,16 @@ const UIWindowLevel UIWindowLevelNormal = 0, UIWindowLevelAlert = 2000, UIWindow
     if ((self = [self initWithFrame:UIScreen.mainScreen.bounds])) self.windowScene = scene;
     return self;
 }
+static UIWindowScene *implicit_scene(void);
+@synthesize windowScene = _windowScene;
+- (UIWindowScene *)windowScene { return _windowScene ?: implicit_scene(); }
 - (void)setWindowScene:(UIWindowScene *)s {
     _windowScene = s;
     NSMutableArray *list = [s valueForKey_isimWindows];
     if (list && [list indexOfObjectIdenticalTo:self] == NSNotFound) [list addObject:self];
 }
 - (UIWindow *)window { return self; }
-- (UIEdgeInsets)safeAreaInsets { const struct isim_device *d = isim_ui_device(); return UIEdgeInsetsMake(d->safe_top, 0, d->safe_bottom, 0); }
+- (UIEdgeInsets)safeAreaInsets { const struct isim_device *d = isim_ui_device(); return UIEdgeInsetsMake(d->safe_top, d->safe_left, d->safe_bottom, d->safe_right); }
 - (BOOL)isKeyWindow { return UIApplication.sharedApplication.keyWindow == self; }
 - (BOOL)canBecomeKeyWindow { return YES; }
 - (void)becomeKeyWindow {}
@@ -388,6 +391,18 @@ NSNotificationName const UISceneDidActivateNotification = @"UISceneDidActivateNo
 @property (nonatomic, readwrite) UISceneSession *session;
 @property (nonatomic, readwrite) UISceneActivationState activationState;
 @end
+/* apps without a scene manifest still have a scene on iOS 13+: windows get an implicit one */
+static UIWindowScene *implicit_scene(void) {
+    static UIWindowScene *scene;
+    if (!scene) {
+        UISceneSession *session = [UISceneSession new];
+        session.role = UIWindowSceneSessionRoleApplication;
+        scene = [[UIWindowScene alloc] initWithSession:session connectionOptions:[UISceneConnectionOptions new]];
+        session.scene = scene;
+        scene.activationState = UISceneActivationStateForegroundActive;
+    }
+    return scene;
+}
 @implementation UIScene
 - (instancetype)initWithSession:(UISceneSession *)s connectionOptions:(UISceneConnectionOptions *)o {
     if ((self = [super init])) { _session = s; _activationState = UISceneActivationStateUnattached; _title = @""; }
@@ -849,6 +864,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_SETTINGS: settings_changed(); break;
                 case ISIM_EV_LAUNCH_ID: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimShellLaunch" object:@(ev.text)]; break;
                 case ISIM_EV_OPEN_URL: deliver_url(@(ev.text)); break;
+                case ISIM_EV_DEVICE_ORIENTATION: isim_ui_device_orientation_changed(ev.key); break;
                 case ISIM_EV_NOTIFICATION_RESPONSE: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimNotificationResponse" object:@(ev.text)]; break;
                 case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;

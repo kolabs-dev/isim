@@ -9,12 +9,28 @@
  * - Clients ask to launch apps (SM_LAUNCH), report settings changes (broadcast as EV_SETTINGS),
  *   go home, or terminate the other apps (language changes). */
 
-struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; };
+struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; int orient; };
 static struct shell_client clients[32];
 static int nclients, active = -1;
 static const char *shell_self, *shell_root;
 static size_t surface_bytes;
 
+/* the window takes the shape of the foreground client's interface orientation (the home screen is portrait) */
+static int win_orient = 1;
+static cairo_surface_t *comp;          /* composited frame (device pixels) */
+static void client_dims(int i, int *w, int *h) {
+    struct isim_device d = oriented(clients[i].orient > 0 ? clients[i].orient : 1);
+    *w = (int)lround(d.width * px_scale); *h = (int)lround(d.height * px_scale);
+}
+static void shell_apply_orient(int o) {
+    if (o < 1) o = 1;
+    if (o == win_orient) return;
+    win_orient = o;
+    dev = oriented(o);
+    surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
+    if (comp) { cairo_surface_destroy(comp); comp = NULL; }
+    if (win) SDL_SetWindowSize(win, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom));
+}
 static void shell_send(int i, int type) {
     if (i < 0 || i >= nclients || !clients[i].alive) return;
     struct shell_msg m = { .type = SM_EVENT }; m.ev.type = type;
@@ -28,6 +44,7 @@ static void shell_forward(int i, const struct isim_event *ev) {
 static int nb_visible(void); static void nb_draw(void);
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
+    shell_apply_orient(clients[i].orient);
     if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
     /* the screenshot / blit source is the foreground client's surface */
     if (cr) { cairo_destroy(cr); cr = NULL; }
@@ -50,7 +67,6 @@ struct icon_rect { char path[512]; struct rectf r; double radius; };
 static struct icon_rect icons[256]; static int nicons;
 enum { ANIM_NONE, ANIM_OPEN, ANIM_CLOSE, ANIM_BACK };
 static struct { int kind, client; double t0, dur; struct rectf from, to; double rfrom, rto; } anim;
-static cairo_surface_t *comp;          /* composited frame (device pixels) */
 static int drag_active; static double drag_x0, drag_y0, drag_x, drag_y, drag_t, drag_vy;
 
 static const struct icon_rect *icon_for(const char *path) {
@@ -77,7 +93,8 @@ static struct rectf lerp_rect(struct rectf a, struct rectf b, double p) {
     return (struct rectf){ a.x + (b.x - a.x) * p, a.y + (b.y - a.y) * p, a.w + (b.w - a.w) * p, a.h + (b.h - a.h) * p };
 }
 static cairo_surface_t *client_surface(int i) {
-    return cairo_image_surface_create_for_data(clients[i].pixels, CAIRO_FORMAT_ARGB32, surf_w, surf_h, surf_w * 4);
+    int w, h; client_dims(i, &w, &h);
+    return cairo_image_surface_create_for_data(clients[i].pixels, CAIRO_FORMAT_ARGB32, w, h, w * 4);
 }
 static void present_comp(void) {
     if (cr) { cairo_destroy(cr); cr = NULL; }
@@ -126,7 +143,8 @@ static void compose(int app, struct rectf r, double radius, double app_alpha, do
         }
         if (app_alpha > 0.01 && clients[app].has_frame) {
             cairo_surface_t *as = client_surface(app);
-            cairo_translate(c, r.x, r.y); cairo_scale(c, r.w / dev.width, r.h / dev.height);
+            int aw, ah; client_dims(app, &aw, &ah);            /* the app may be turned while the screen is not */
+            cairo_translate(c, r.x, r.y); cairo_scale(c, r.w / (aw / px_scale), r.h / (ah / px_scale));
             cairo_scale(c, 1 / px_scale, 1 / px_scale);
             cairo_set_source_surface(c, as, 0, 0);
             cairo_pattern_set_filter(cairo_get_source(c), CAIRO_FILTER_BILINEAR);
@@ -317,6 +335,7 @@ static int shell_spawn_at(int slot, const char *bundle, const char *exe, const c
         setenv("ISIM_CLIENT_SOCK", b1, 1); setenv("ISIM_CLIENT_SURFACE", b2, 1); setenv("ISIM_CLIENT_SCALE", b3, 1);
         unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_HEADLESS"); unsetenv("ISIM_CONTROL");
         if (url && *url) setenv("ISIM_LAUNCH_URL", url, 1); else unsetenv("ISIM_LAUNCH_URL");
+        char ob[8]; snprintf(ob, sizeof ob, "%d", device_orient); setenv("ISIM_DEVICE_ORIENTATION", ob, 1);
         char *av[64]; int n = 0;
         av[n++] = (char *)shell_self; av[n++] = "--root"; av[n++] = (char *)shell_root; av[n++] = (char *)exe;
         if (open_args && slot < 0 && nclients > 0 && !strcmp(bundle, open_args[0]))
@@ -329,7 +348,7 @@ static int shell_spawn_at(int slot, const char *bundle, const char *exe, const c
     int idx = slot >= 0 ? slot : nclients;
     struct shell_client *c = &clients[idx];
     if (slot >= 0 && c->pixels) munmap(c->pixels, surface_bytes);
-    *c = (struct shell_client){ pid, sv[0], px, "", 1, 0, "", 0, 0 };
+    *c = (struct shell_client){ pid, sv[0], px, "", 1, 0, "", 0, 0, 1 };
     snprintf(c->bundle, sizeof c->bundle, "%s", bundle);
     snprintf(c->exe, sizeof c->exe, "%s", exe);
     fprintf(stderr, "isim shell: launched %s (pid %d)\n", bundle, pid);
@@ -362,6 +381,7 @@ static void shell_home_from(struct rectf from, double radius) {
     shell_send(app, EV_BACKGROUND);
     active = 0;
     shell_send(0, EV_FOREGROUND);
+    if (win_orient != 1) { shell_apply_orient(1); from = full_rect(); radius = dev.corner_radius; }   /* the home screen is upright */
     double r1; struct rectf to = icon_target(app, &r1);
     start_anim(ANIM_CLOSE, app, from, to, radius, r1, 0.42);
 }
@@ -386,6 +406,10 @@ static void shell_handle(int i, const struct shell_msg *m) {
         if (i == active && anim.kind == ANIM_NONE && !drag_active) shell_show(i);
         break;
     case SM_ICON: set_icon(m->a, m->b); break;
+    case SM_ORIENT:
+        clients[i].orient = atoi(m->a);
+        if (i == active && anim.kind == ANIM_NONE && !drag_active) shell_show(i);
+        break;
     case SM_NOTIFY: nb_post(i, m); break;
     case SM_LAUNCH: shell_launch(m->a, m->b, m->c); break;
     case SM_HOME: shell_home(); break;
@@ -474,6 +498,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         if (ev.type == EV_HOME) { shell_home(); continue; }
         if (ev.type == EV_LAUNCH_ID) { shell_forward(0, &ev); continue; }        /* the home screen resolves bundle ids */
         if (ev.type == EV_REDRAW) { shell_send(active, EV_REDRAW); continue; }
+        if (ev.type == EV_DEVICE_ORIENTATION) { for (int k = 0; k < nclients; k++) shell_forward(k, &ev); continue; }
         if (ev.type == EV_KEY && (ev.mods & SDL_KMOD_CTRL) && (ev.mods & SDL_KMOD_SHIFT) && (ev.key == 'h' || ev.key == 'H')) { shell_home(); continue; }
         /* home-indicator gesture: touches starting at the bottom edge belong to the system */
         /* home indicator: a swipe up starting at the bottom edge (iOS). The edge zone is generous for a mouse. */
