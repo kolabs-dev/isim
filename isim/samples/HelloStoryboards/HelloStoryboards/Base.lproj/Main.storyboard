@@ -137,6 +137,7 @@
                             </connections>
                         </barButtonItem>
                         <barButtonItem key="rightBarButtonItem" systemItem="add" id="bbi-00-002">
+                            <accessibility key="accessibilityConfiguration" identifier="bar-Add"/>
                             <connections>
                                 <segue destination="nv3-00-001" kind="presentation" identifier="compose" id="seg-00-002"/>
                             </connections>

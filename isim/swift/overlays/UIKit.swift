@@ -419,3 +419,18 @@ extension UIViewController {
         __register(forTraitChanges: traits.map { $0 as! AnyClass }, withHandler: { env, previous in handler(env as! T, previous) })
     }
 }
+
+// MARK: - Storyboards (UIKit Swift overlay API): creator blocks get the coder so `init?(coder:)` can take extra arguments
+extension UIStoryboard {
+    public func instantiateInitialViewController<ViewController: UIViewController>(creator: ((NSCoder) -> ViewController?)? = nil) -> ViewController? {
+        guard let creator else { return __instantiateInitialViewController(creator: nil) as? ViewController }
+        return __instantiateInitialViewController(creator: { creator($0) }) as? ViewController
+    }
+    public func instantiateViewController<ViewController: UIViewController>(identifier: String, creator: ((NSCoder) -> ViewController?)? = nil) -> ViewController {
+        let vc: UIViewController
+        if let creator { vc = __instantiateViewController(withIdentifier: identifier, creator: { creator($0) }) }
+        else { vc = __instantiateViewController(withIdentifier: identifier, creator: nil) }
+        guard let typed = vc as? ViewController else { fatalError("Storyboard view controller '\(identifier)' is not a \(ViewController.self)") }
+        return typed
+    }
+}

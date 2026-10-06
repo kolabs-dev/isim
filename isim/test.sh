@@ -81,6 +81,9 @@ fi
 if [ -x out/apps/HelloCoreData.app/HelloCoreData ]; then         # Xcode project + .xcdatamodeld, @FetchRequest, relaunch persistence
   run "ui: HelloCoreData (Core Data + SwiftUI @FetchRequest, xcodeproj)" tests/ui/coredata.sh
 fi
+if [ -x out/apps/HelloStoryboards.app/HelloStoryboards ]; then     # Xcode project with storyboards, xibs, launch screen, Settings.bundle
+  run "ui: HelloStoryboards (storyboards, xibs, segues, launch screen, Settings.bundle)" tests/ui/storyboards.sh
+fi
 if [ -x out/apps/CoreDataTest.app/CoreDataTest ]; then       # models, SQLite/in-memory stores, contexts, fetches, FRC, migration
   run "Core Data (models, stores, contexts, fetching, FRC, migration)" bash -c 'tests/coredata/run.sh | tail -1; exit ${PIPESTATUS[0]}'
 fi

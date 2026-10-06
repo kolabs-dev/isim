@@ -1,6 +1,7 @@
 /* isim UIKit: touches/events, screen, window, view controllers, scenes, UIApplication and
  * UIApplicationMain with the simulator event/render loop (ARC). */
 #import "UIKitPrivate.h"
+#include <objc/message.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -737,6 +738,10 @@ static void enter_foreground(void) {
     each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundInactive; if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:s]; });
     if ([d respondsToSelector:@selector(applicationWillEnterForeground:)]) [d applicationWillEnterForeground:app];
     [nc postNotificationName:UIApplicationWillEnterForegroundNotification object:app];
+    /* values changed in Settings (Settings.bundle) while the app was in the background */
+    if ([NSUserDefaults.standardUserDefaults respondsToSelector:NSSelectorFromString(@"_isim_reloadFromDisk")] &&
+        ((BOOL (*)(id, SEL))objc_msgSend)(NSUserDefaults.standardUserDefaults, NSSelectorFromString(@"_isim_reloadFromDisk")))
+        [nc postNotificationName:@"NSUserDefaultsDidChangeNotification" object:NSUserDefaults.standardUserDefaults];
     backgrounded = NO; app.applicationState = UIApplicationStateActive;
     each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundActive; if ([sd respondsToSelector:@selector(sceneDidBecomeActive:)]) [sd sceneDidBecomeActive:s]; });
     if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
