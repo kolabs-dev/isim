@@ -13,6 +13,7 @@ func check(_ ok: Bool, _ what: String) {
         commonCryptoTests()
         cryptoKitTests()
         sqliteTests()
+        keychainTests()
         print("security test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
     }

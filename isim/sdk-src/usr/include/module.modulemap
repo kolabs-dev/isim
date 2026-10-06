@@ -22,6 +22,7 @@ module Darwin [system] [extern_c] {
     header "dlfcn.h"
     header "sys/types.h"
     header "sys/time.h"
+    header "sys/stat.h"
     export *
   }
   module Mach {
