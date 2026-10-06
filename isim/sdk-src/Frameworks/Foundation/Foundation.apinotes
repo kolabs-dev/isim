@@ -42,6 +42,44 @@ Classes:
   SwiftName: NumberFormatter
 - Name: NSFormatter
   SwiftName: Formatter
+- Name: NSISO8601DateFormatter
+  SwiftName: ISO8601DateFormatter
+- Name: NSRelativeDateTimeFormatter
+  SwiftName: RelativeDateTimeFormatter
+- Name: NSDateComponentsFormatter
+  SwiftName: DateComponentsFormatter
+- Name: NSDateIntervalFormatter
+  SwiftName: DateIntervalFormatter
+- Name: NSByteCountFormatter
+  SwiftName: ByteCountFormatter
+- Name: NSListFormatter
+  SwiftName: ListFormatter
+- Name: NSPersonNameComponentsFormatter
+  SwiftName: PersonNameComponentsFormatter
+- Name: NSMeasurementFormatter
+  SwiftName: MeasurementFormatter
+- Name: NSPersonNameComponents
+  SwiftBridge: Foundation.PersonNameComponents
+- Name: NSCalendar
+  SwiftBridge: Foundation.Calendar
+- Name: NSIndexSet
+  SwiftBridge: Foundation.IndexSet
+- Name: NSData
+  SwiftBridge: Foundation.Data
+- Name: NSUUID
+  SwiftBridge: Foundation.UUID
+- Name: NSUndoManager
+  SwiftName: UndoManager
+- Name: NSFileHandle
+  SwiftName: FileHandle
+- Name: NSScanner
+  SwiftName: Scanner
+- Name: NSProgress
+  SwiftName: Progress
+- Name: NSPropertyListSerialization
+  SwiftName: PropertyListSerialization
+- Name: NSDateComponents
+  SwiftBridge: Foundation.DateComponents
 - Name: NSURL
   SwiftBridge: Foundation.URL
 - Name: NSIndexPath

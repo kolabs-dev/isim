@@ -13,6 +13,13 @@ struct TextGallery: View {
     static let fixed = Date(timeIntervalSince1970: 1_767_366_240)
     @State private var start = Date()
     @State private var opened = ""
+    static let attributed: AttributedString = {
+        var a = (try? AttributedString(markdown: "Plain, **strong** and [a site](https://isim.dev)")) ?? AttributedString("markdown failed")
+        var red = AttributedString(" red")
+        red.foregroundColor = .red
+        a.append(red)
+        return a
+    }()
     static let currency: NumberFormatter = { let f = NumberFormatter(); f.numberStyle = .decimal; f.minimumFractionDigits = 2; f.maximumFractionDigits = 2; return f }()
     var body: some View {
         ScrollView {
@@ -48,6 +55,10 @@ struct TextGallery: View {
                     Text("Wrapped markdown: this **long sentence** keeps *going* so that the words wrap onto a second line")
                         .accessibilityIdentifier("wrapped")
                 }
+                Text(1234.5, format: .number).accessibilityIdentifier("format-number")
+                Text(0.25, format: .percent).accessibilityIdentifier("format-percent")
+                Text("Total \(19.99, format: .currency(code: "USD"))").accessibilityIdentifier("format-interp")
+                Text(Self.attributed).accessibilityIdentifier("attributed")
                 Text(opened).accessibilityIdentifier("opened")
             }
             .padding()

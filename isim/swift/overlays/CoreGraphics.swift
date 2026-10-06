@@ -155,6 +155,8 @@ extension CGContext {
     public func setLineWidth(_ w: CGFloat) { CGContextSetLineWidth(self, w) }
     public func setLineCap(_ cap: CGLineCap) { CGContextSetLineCap(self, cap) }
     public func setLineJoin(_ join: CGLineJoin) { CGContextSetLineJoin(self, join) }
+    public func setMiterLimit(_ limit: CGFloat) { CGContextSetMiterLimit(self, limit) }
+    public func setLineDash(phase: CGFloat, lengths: [CGFloat]) { CGContextSetLineDash(self, phase, lengths, lengths.count) }
     public func setAlpha(_ a: CGFloat) { CGContextSetAlpha(self, a) }
     public var interpolationQuality: CGInterpolationQuality {
         get { CGContextGetInterpolationQuality(self) }
@@ -181,7 +183,7 @@ extension CGContext {
     public func fillPath(using rule: CGPathFillRule = .winding) { rule == .evenOdd ? CGContextEOFillPath(self) : CGContextFillPath(self) }
     public func strokePath() { CGContextStrokePath(self) }
     public func drawPath(using mode: CGPathDrawingMode) { CGContextDrawPath(self, mode) }
-    public func clip(using rule: CGPathFillRule = .winding) { CGContextClip(self) }
+    public func clip(using rule: CGPathFillRule = .winding) { rule == .evenOdd ? CGContextEOClip(self) : CGContextClip(self) }
     public func clip(to r: CGRect) { CGContextClipToRect(self, r) }
     public func strokeLineSegments(between points: [CGPoint]) { CGContextStrokeLineSegments(self, points, points.count) }
     public func draw(_ image: CGImage, in rect: CGRect) { CGContextDrawImage(self, rect, image) }

@@ -33,7 +33,8 @@
 @implementation UIEvent
 - (instancetype)initWithIsimTouch:(UITouch *)t { if ((self = [super init])) _touchSet = [NSSet setWithObject:t]; return self; }
 - (UIEventType)type { return UIEventTypeTouches; }
-- (NSTimeInterval)timestamp { return [_touchSet.anyObject timestamp]; }
+- (UIEventSubtype)subtype { return UIEventSubtypeNone; }
+- (NSTimeInterval)timestamp { return _touchSet ? [_touchSet.anyObject timestamp] : isim_time(); }
 - (NSSet *)allTouches { return _touchSet; }
 - (NSSet *)touchesForView:(UIView *)v { UITouch *t = _touchSet.anyObject; return [t.view isDescendantOfView:v] ? _touchSet : nil; }
 - (NSSet *)touchesForWindow:(UIWindow *)w { UITouch *t = _touchSet.anyObject; return t.window == w ? _touchSet : nil; }
@@ -582,6 +583,12 @@ static void post_hardware_key(const struct isim_event *ev, BOOL down) {
 /* hardware keyboard / scripted typing goes to the first responder if it accepts key input */
 static void handle_key(const struct isim_event *ev) {
     if (ev->type == ISIM_EV_KEY) post_hardware_key(ev, YES);
+    if (ev->type == ISIM_EV_KEY) {
+        /* Device > Shake: Ctrl+Shift+Z, or the script command `shake` */
+        BOOL ctrlShift = (ev->mods & 0x00c0) && (ev->mods & 0x0003);
+        if (ev->key == 0x7fff0001 || (ctrlShift && (ev->key == 'z' || ev->key == 'Z'))) { isim_ui_shake(); return; }
+        if (isim_ui_hardware_key(ev->pad, ev->key, ev->mods, YES)) return;     /* a UIKeyCommand took it */
+    }
     id fr = isim_ui_first_responder();
     if (![fr respondsToSelector:@selector(insertText:)]) return;
     if (ev->type == ISIM_EV_TEXT) [fr insertText:@(ev->text)];
@@ -835,7 +842,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_TOUCH_DOWN: case ISIM_EV_TOUCH_MOVE: case ISIM_EV_TOUCH_UP: handle_touch(&ev); break;
                 case ISIM_EV_REDRAW: isim_ui_set_needs_display(); break;
                 case ISIM_EV_TEXT: case ISIM_EV_KEY: handle_key(&ev); break;
-                case ISIM_EV_KEY_UP: post_hardware_key(&ev, NO); break;
+                case ISIM_EV_KEY_UP: post_hardware_key(&ev, NO); isim_ui_hardware_key(ev.pad, ev.key, ev.mods, NO); break;
                 case ISIM_EV_ID_DOWN: case ISIM_EV_ID_UP: case ISIM_EV_TEXT_DOWN: case ISIM_EV_TEXT_UP: handle_id_touch(&ev); break;
                 case ISIM_EV_BACKGROUND: enter_background(); break;
                 case ISIM_EV_FOREGROUND: enter_foreground(); break;

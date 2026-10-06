@@ -22,48 +22,48 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 79 | 32 | 10 | 76 | 197 | 48% |
+| **UIKit** | 89 | 32 | 10 | 66 | 197 | 53% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 5 | 8 | 23 | 35% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 11 | 2 | 0 | 16 | 29 | 41% |
-| &nbsp;&nbsp;↳ Views & controls | 23 | 14 | 1 | 13 | 51 | 59% |
+| &nbsp;&nbsp;↳ Views & controls | 24 | 14 | 1 | 12 | 51 | 61% |
 | &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
-| &nbsp;&nbsp;↳ Gestures & touches | 4 | 1 | 0 | 8 | 13 | 35% |
+| &nbsp;&nbsp;↳ Gestures & touches | 9 | 1 | 0 | 3 | 13 | 73% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
-| &nbsp;&nbsp;↳ Drawing, images & symbols | 8 | 3 | 0 | 7 | 18 | 53% |
+| &nbsp;&nbsp;↳ Drawing, images & symbols | 12 | 3 | 0 | 3 | 18 | 75% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 0 | 0 | 1 | 2 | 3 | 0% |
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 110 | 43 | 11 | 30 | 194 | 68% |
+| **SwiftUI** | 135 | 44 | 11 | 20 | 210 | 75% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 12 | 3 | 0 | 2 | 17 | 79% |
-| &nbsp;&nbsp;↳ Views & controls | 27 | 10 | 0 | 1 | 38 | 84% |
+| &nbsp;&nbsp;↳ Views & controls | 30 | 7 | 0 | 1 | 38 | 88% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 13 | 8 | 1 | 1 | 23 | 74% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 13 | 4 | 6 | 1 | 24 | 62% |
-| &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 3 | 1 | 0 | 5 | 9 | 39% |
-| &nbsp;&nbsp;↳ Animation | 2 | 3 | 1 | 6 | 12 | 29% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 15 | 6 | 6 | 0 | 27 | 67% |
+| &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 2 | 23 | 85% |
+| &nbsp;&nbsp;↳ Animation | 7 | 3 | 1 | 0 | 11 | 77% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
 | &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 1 | 0 | 1 | 7 | 79% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ Environment values | 3 | 3 | 0 | 1 | 7 | 64% |
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
-| Swift Charts | 0 | 0 | 0 | 3 | 3 | 0% |
-| **Foundation** | 36 | 11 | 2 | 27 | 76 | 55% |
-| &nbsp;&nbsp;↳ Strings & text | 5 | 2 | 0 | 5 | 12 | 50% |
-| &nbsp;&nbsp;↳ Collections & values | 5 | 1 | 0 | 5 | 11 | 50% |
-| &nbsp;&nbsp;↳ Encoding & serialization | 3 | 0 | 1 | 3 | 7 | 43% |
-| &nbsp;&nbsp;↳ Dates, calendars & formatters | 3 | 3 | 0 | 5 | 11 | 41% |
-| &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 1 | 0 | 4 | 9 | 50% |
-| &nbsp;&nbsp;↳ Notifications, timers & threads | 5 | 2 | 0 | 2 | 9 | 67% |
+| Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
+| **Foundation** | 50 | 20 | 1 | 9 | 80 | 75% |
+| &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
+| &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
+| &nbsp;&nbsp;↳ Encoding & serialization | 7 | 0 | 0 | 0 | 7 | 100% |
+| &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
+| &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 2 | 0 | 3 | 9 | 56% |
+| &nbsp;&nbsp;↳ Notifications, timers & threads | 6 | 2 | 0 | 1 | 9 | 78% |
 | &nbsp;&nbsp;↳ Networking | 11 | 2 | 1 | 3 | 17 | 71% |
-| **Swift runtime, stdlib & concurrency** | 28 | 1 | 0 | 9 | 38 | 75% |
+| **Swift runtime, stdlib & concurrency** | 29 | 1 | 0 | 8 | 38 | 78% |
 | &nbsp;&nbsp;↳ Combine | 10 | 0 | 0 | 4 | 14 | 71% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
 | Objective-C runtime & C library | 6 | 2 | 0 | 2 | 10 | 70% |
-| Core Graphics | 8 | 0 | 0 | 8 | 16 | 50% |
+| Core Graphics | 9 | 0 | 0 | 7 | 16 | 56% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
 | QuartzCore / Core Animation | 2 | 2 | 0 | 5 | 9 | 33% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **337** | **129** | **43** | **257** | **766** | **52%** |
+| **All areas** | **400** | **141** | **42** | **216** | **799** | **59%** |
 
 ---
 
@@ -167,7 +167,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `tintColor` / `tintColorDidChange` | 🟡 | tint inheritance details unverified |
 | `contentMode` | 🟡 | used by image views; all modes unverified |
 | `UILabel` (font, color, alignment, multi-line, line break, `adjustsFontSizeToFitWidth`) | ✅ | Pango text; Adwaita Sans stands in for SF Pro, so metrics differ slightly |
-| `UILabel.attributedText` | ❌ | no `NSAttributedString` |
+| `UILabel.attributedText` | ✅ | fonts, colours, background, kern, underline, strikethrough, baseline offset, paragraph alignment/line spacing (Pango markup); tested (HelloImages). Attachments and shadows are not drawn |
 | `UIButton` system/custom, title/color/image per state | ✅ | `imageView` returns nil |
 | `UIButton.Configuration` (plain/tinted/gray/filled/bordered*, subtitle, image padding, corner style, size) | 🟡 | no `configurationUpdateHandler`, attributed titles or activity indicator |
 | Button menus (`menu`, `showsMenuAsPrimaryAction`), pop-up buttons | ✅ | UIButton.menu + showsMenuAsPrimaryAction, UIBarButtonItem menus; tested |
@@ -257,14 +257,14 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UITapGestureRecognizer` | ✅ | |
 | `UIPanGestureRecognizer` (translation, velocity) | ✅ | |
 | `UILongPressGestureRecognizer` | ✅ | |
-| `UISwipeGestureRecognizer` | ❌ | |
+| `UISwipeGestureRecognizer` | ✅ | directions, delegate, failure requirements; tested (HelloGestures) |
 | `UIPinchGestureRecognizer`, `UIRotationGestureRecognizer` | ❌ | need multi-touch |
-| `UIScreenEdgePanGestureRecognizer` | ❌ | |
+| `UIScreenEdgePanGestureRecognizer` | ✅ | starts only within 20 pt of `edges`; tested (HelloGestures) |
 | `UIHoverGestureRecognizer` | ❌ | |
-| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | 🟡 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`; no `require(toFail:)`; unverified apart from table swipes |
-| Custom `UIGestureRecognizer` subclasses | ❌ | touch hooks are isim-private |
-| Shake / motion events | ❌ | |
-| Hardware keys (`UIKeyCommand`, `pressesBegan`) | ❌ | host typing goes to text fields only |
+| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | 🟡 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`, `require(toFail:)` for discrete recognizers (tested: single vs double tap); `shouldRequireFailure(of:)` overrides are not consulted |
+| Custom `UIGestureRecognizer` subclasses | ✅ | `UIGestureRecognizerSubclass`: touches callbacks, settable `state` sends actions, `reset`; tested (HelloGestures) |
+| Shake / motion events | ✅ | `motionBegan/Ended` (shake) via Ctrl+Shift+Z or the script command `shake`; tested (HelloGestures) |
+| Hardware keys (`UIKeyCommand`, `pressesBegan`) | ✅ | host keyboard → `UIPress`/`UIKey` (HID usage, modifiers) on the responder chain; `keyCommands`/`addKeyCommand` matched before typing; tested (HelloGestures). No discoverability HUD |
 
 ### Text input & keyboard
 
@@ -291,12 +291,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 |---|---|---|
 | `UIBezierPath` (rect, oval, rounded rect, arcs, curves, fill, stroke) | 🟡 | no dashes, line caps/joins, `addClip`, `contains` |
 | `UIRectFill`, `UIRectFrame` | ✅ | |
-| `UIGraphicsImageRenderer` / `UIGraphicsBeginImageContext` (offscreen drawing) | ❌ | |
+| `UIGraphicsImageRenderer` / `UIGraphicsBeginImageContext` (offscreen drawing) | ✅ | image/pngData/jpegData renderers, formats (scale, opaque), renderer context helpers, nested contexts; tested (HelloImages). Backdrop blur inside an offscreen context reads the screen |
 | `UIGraphicsPDFRenderer`, printing | ❌ | |
 | `UIImage(named:)` (bundle + asset catalog, 1x/2x/3x, dark variants) | ✅ | |
 | `UIImage(contentsOfFile:)`, `UIImage(cgImage:)` | ✅ | |
-| `UIImage(data:)` | ❌ | not in the header |
-| `pngData()` / `jpegData()` | ❌ | |
+| `UIImage(data:)` | ✅ | PNG/JPEG/GIF/SVG via the host decoders, with `scale:`; tested (HelloImages) |
+| `pngData()` / `jpegData()` | ✅ | `UIImagePNGRepresentation`/`UIImageJPEGRepresentation` (JPEG composites transparency over black, as iOS does); tested (HelloImages) |
 | `resizableImage(withCapInsets:)`, `withHorizontallyFlippedOrientation` | ❌ | |
 | `withTintColor`, rendering modes (template/original) | ✅ | |
 | SF Symbols (`UIImage(systemName:)`) | 🟡 | substitutes (procedural shapes / Adwaita symbolic icons), not Apple's glyphs |
@@ -306,7 +306,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Named asset-catalog colors (light/dark) | ✅ | |
 | `UIFont` (system weights, italic, monospaced, monospaced digits, metrics) | 🟡 | Adwaita Sans substitutes SF Pro; `fontDescriptor` missing |
 | Custom fonts (`UIAppFonts`) | ✅ | registered at launch |
-| `NSString.draw(in:withAttributes:)`, `boundingRect(with:)` | ❌ | |
+| `NSString.draw(in:withAttributes:)`, `boundingRect(with:)` | ✅ | NSString and NSAttributedString drawing/measuring, `NSParagraphStyle`, `NSStringDrawingOptions`; tested (HelloImages). `NSShadow` is accepted, not drawn |
 
 ### Haptics & feedback
 
@@ -397,8 +397,8 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 |---|---|---|
 | `Text` (verbatim, `LocalizedStringKey` with interpolation, font/weight/italic/color) | ✅ | |
 | `Text + Text` concatenation | ✅ | parts keep their own font/colour/weight; mixed styles laid out word by word (adapted); tested (HelloText) |
-| `Text(date, style:)`, `Text(_:format:)`, `Text(timerInterval:)` | 🟡 | `.time/.date/.relative/.offset/.timer` styles (relative ones re-render every second), date ranges, `\(date, style:)` interpolation and `Text(_:formatter:)` tested (HelloText); `Text(_:format:)` is compiled only once isim Foundation has `FormatStyle` (unverified) |
-| Markdown in `Text`, `AttributedString` | 🟡 | string literals parse `**bold**`, `*italic*`, `***both***`, `` `code` ``, `~~strike~~`, `[links](url)` (tap opens through `openURL`); tested. Italic is a sheared glyph run (isim fonts have no italic faces). `Text(AttributedString)` and the SwiftUI attribute scope compile only once isim Foundation has `AttributedString` (unverified) |
+| `Text(date, style:)`, `Text(_:format:)`, `Text(timerInterval:)` | ✅ | `.time/.date/.relative/.offset/.timer` styles (relative ones re-render every second), date ranges, `Text(_:format:)` with Foundation format styles, `\(value, format:)` / `\(date, style:)` interpolation, `Text(_:formatter:)`; tested (HelloText) |
+| Markdown in `Text`, `AttributedString` | ✅ | string literals parse `**bold**`, `*italic*`, `***both***`, `` `code` ``, `~~strike~~`, `[links](url)` (tap opens through `openURL`); `Text(AttributedString)` maps presentation intents, links and the SwiftUI attribute scope (`foregroundColor`, `font`, underline/strikethrough, kern, baselineOffset); tested (HelloText). Italic is a sheared glyph run (isim fonts have no italic faces) |
 | `strikethrough`, `underline`, `kerning`, `tracking`, `textCase`, `baselineOffset` | ✅ | on `Text` and as view modifiers; lines are hairline views, kerning places glyphs one by one (`tracking` = `kerning`), line patterns drawn solid; tested (HelloText) |
 | `lineLimit`, `multilineTextAlignment` | ✅ | |
 | `truncationMode`, `minimumScaleFactor`, `allowsTightening` | 🟡 | head/middle/tail truncation of one-line text (tested), `minimumScaleFactor` shrinks one-line labels to fit (screenshot only); `allowsTightening` is stored, no effect |
@@ -418,7 +418,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `DatePicker`, `MultiDatePicker` | 🟡 | `DatePicker`: compact (date/time pills open a calendar or time wheel in a sheet — iOS uses a popover), graphical (month grid, month paging, time row), wheel; `.date` / `.hourAndMinute`; ranges; `labelsHidden`; tested (HelloPickers). `MultiDatePicker` missing |
 | `ColorPicker` | 🟡 | colour well opening a sheet with iOS's colour grid and an opacity slider (no spectrum/sliders pages, no eyedropper); `Color` and `CGColor` bindings; tested (HelloPickers) |
 | `TextField` (String binding, placeholder, `axis: .vertical` multi-line) | ✅ | `prompt` ignored |
-| `TextField(value:format:)`, `TextField(value:formatter:)` | 🟡 | `formatter:` (NumberFormatter / DateFormatter) parses on Return or end of editing, reverting unparseable text; tested (HelloPickers). `format:` compiles only once isim Foundation has `ParseableFormatStyle` (unverified) |
+| `TextField(value:format:)`, `TextField(value:formatter:)` | ✅ | parseable format styles and NumberFormatter / DateFormatter values, parsed on Return or end of editing (unparseable text reverts); tested (HelloPickers) |
 | `SecureField` | ✅ | |
 | `TextEditor` | ✅ | multi-line field that fills its frame; tested (HelloPickers) |
 | `ProgressView` | ✅ | UIProgressView bar / spinning UIActivityIndicatorView; labels and current-value labels, `.linear` / `.circular` / custom `ProgressViewStyle`; label tested (HelloPickers) |
@@ -501,12 +501,15 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `font`, `foregroundColor`, `foregroundStyle` (Color, `.primary`…`.quaternary`, `.tint`) | ✅ | |
 | `tint`, `accentColor` | ✅ | |
 | `opacity`, `hidden`, `disabled` | ✅ | |
-| `cornerRadius`, `clipShape` (rect, rounded rect, circle, capsule) | ✅ | |
+| `cornerRadius`, `clipShape` (any shape; built-in shapes as a rounded clip, others clip to their path) | ✅ | custom-shape clip tested (HelloDrawing) |
 | `clipped()` | 🧩 | returns the view unchanged |
-| `mask` | 🟡 | clips to the mask's shape only (no alpha masks) |
+| `mask` | 🟡 | clips to the mask's shape (any shape's path); no alpha masks |
 | `shadow` | 🟡 | layer-shadow approximation |
-| `rotationEffect`, `scaleEffect`, `offset` | ✅ | |
-| `rotation3DEffect`, `projectionEffect`, `transformEffect` | ❌ | |
+| `rotationEffect`, `scaleEffect`, `offset` | ✅ | offset content is drawn and hit-tested at its new position |
+| `transformEffect` | ✅ | |
+| `rotation3DEffect` | 🟡 | drawn as the affine transform that best fits the rotated corners: no perspective foreshortening (y-axis rotation tested) |
+| `projectionEffect`, `ProjectionTransform` | 🟡 | affine part exact; perspective terms approximated like rotation3DEffect (unverified) |
+| `GeometryEffect` (custom, animatable), `ignoredByLayout` | ✅ | custom shear tested |
 | `blur`, `brightness`, `contrast`, `saturation`, `grayscale`, `colorMultiply`, `hueRotation`, `blendMode` | 🧩 | accepted, no effect |
 | `drawingGroup`, `compositingGroup` | 🧩 | |
 | `allowsHitTesting` | ✅ | |
@@ -525,22 +528,40 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 
 ### Shapes, paths, gradients & materials
 
+Shapes, paths, gradients and Canvas draw through libisim_host (cairo); tested by HelloDrawing (`tests/ui/drawing.sh`, pixel checks).
+
 | API / feature | Status | Notes |
 |---|---|---|
-| `Rectangle`, `RoundedRectangle`, `Circle`, `Capsule` | ✅ | |
-| `fill`, `stroke`, `strokeBorder`, `trim` | 🟡 | `strokeBorder` is drawn as `stroke`; `StrokeStyle` dashes/caps ignored |
-| `Ellipse`, `UnevenRoundedRectangle`, `ContainerRelativeShape` | ❌ | |
-| Custom `Shape` (`path(in:)`), `Path` | ❌ | `Shape` has no `path(in:)` requirement |
-| `InsettableShape`, `AnyShape`, shape `.offset`/`.rotation`/`.scale` | ❌ | |
-| `LinearGradient`, `RadialGradient`, `AngularGradient`, `EllipticalGradient`, `.gradient` | ❌ | |
+| `Rectangle`, `RoundedRectangle`, `Circle`, `Capsule` | ✅ | color fills use a view with a corner radius; other paints draw the path |
+| Custom `Shape` (`path(in:)`) | ✅ | shape inits and `path(in:)` are not main-actor isolated, like SwiftUI |
+| `Path` (move/line/quad/curve, `addArc` (center and tangent forms), `addRelativeArc`, rects, rounded rects, ellipses, `Path { }`, `Path(CGPath)`, `cgPath`) | ✅ | arcs become cubic curves |
+| `Path` queries (`boundingRect`, `contains(_:eoFill:)`, `trimmedPath`, `applying`, `offsetBy`, string form) | ✅ | |
+| `Path.strokedPath`, boolean operations (`union`, `intersection`, …), `Shape.union` etc. | ❌ | |
+| `fill` (colors, any style, `FillStyle(eoFill:)`) | ✅ | |
+| `stroke` / `stroke(style:)` with `StrokeStyle` (width, caps, joins, miter limit, dashes, dash phase) | ✅ | dashes tested; joins and miter limit unverified |
+| `trim(from:to:)` | ✅ | exact on curves (arc length) |
+| `Ellipse`, `UnevenRoundedRectangle` | ✅ | |
+| `ContainerRelativeShape` | 🟡 | the frame's rectangle (isim has no container shapes) |
+| `InsettableShape` (`inset(by:)`, `strokeBorder`) | ✅ | |
+| `AnyShape` | ✅ | |
+| Shape `.offset`, `.rotation`, `.scale`, `.transform`, `.size` | ✅ | offset and rotation tested; scale/transform/size unverified |
+| `fill(_:).stroke(_:)` on a filled shape (iOS 17) | 🟡 | drawn as an overlay (unverified) |
+| `LinearGradient`, `RadialGradient`, `AngularGradient` / `conicGradient`, `EllipticalGradient`, `Gradient` (colors, stops) | ✅ | as views and shape styles |
+| Gradients in `fill`, `foregroundStyle`, `background`, `background(_:in:)`, `overlay` | ✅ | gradient strokes unverified |
+| `Color.gradient` (`AnyGradient`) | ✅ | a top-to-bottom gradient a little lighter at the top (approximates Apple's) |
+| Text with a gradient `foregroundStyle` | 🟡 | drawn in the gradient's first color (tested); no gradient across the glyphs |
 | `Material` (`.ultraThinMaterial` … `.bar`) | ✅ | real backdrop blur (UIVisualEffectView) |
 | `Color` (system colors, RGB/HSB/white, `Color(uiColor:)`, asset colors) | ✅ | |
-| `ImagePaint`, shaders (`ShaderLibrary`, `.colorEffect`) | ❌ | |
+| `ImagePaint` (`.image(_:sourceRect:scale:)`) | ✅ | tiles fills; image strokes are not drawn |
+| `Canvas` / `GraphicsContext` (fill/stroke paths with colors, styles and gradients, text, images, transforms, opacity, clip, `drawLayer`) | ✅ | filters, blend modes, `clipToLayer` and symbols are accepted and not drawn |
+| Shaders (`ShaderLibrary`, `.colorEffect`, `.layerEffect`, `.distortionEffect`) | ❌ | need Metal, which isim does not have |
 
 ### Animation
 
 Landed 2026-10-05 (commit d0dcb9b, `swift/overlays/SwiftUI/Animation.swift`): an animated update runs the view updates
-inside UIKit's animation engine, so frames, opacity, transforms and colors interpolate. No UI test covers it yet.
+inside UIKit's animation engine, so frames, opacity, transforms and colors interpolate. Animatable data (shape trims
+and paths, custom `Animatable` shapes/views/modifiers, shape colors and gradients) interpolates per frame in the same
+updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half-way through a 2 s linear animation.
 
 | API / feature | Status | Notes |
 |---|---|---|
@@ -550,12 +571,11 @@ inside UIKit's animation engine, so frames, opacity, transforms and colors inter
 | Transitions (`.opacity`, `.scale`, `.slide`, `.move`, `.offset`, `.push`, `asymmetric`, `combined`) | 🟡 | insertion and removal play; each kind unverified |
 | `matchedGeometryEffect` | 🟡 | an inserted view moves from the matched view's old frame; no simultaneous source/target |
 | `contentTransition` (`.numericText`, `.interpolate`) | 🧩 | text content is not animated |
-| Animating shape `trim`, paths, gradients | ❌ | |
-| `Animatable` / `animatableData`, `AnimatableModifier` | ❌ | |
-| `phaseAnimator` | ❌ | |
-| `keyframeAnimator` | ❌ | |
-| `TimelineView` | ❌ | |
-| `Canvas` | ❌ | |
+| Animating shape `trim`, paths, colors, gradients | ✅ | trim, custom path, fill color and gradient stops tested mid-animation |
+| `Animatable` / `animatableData` (`VectorArithmetic`, `AnimatablePair`), `AnimatableModifier` | ✅ | custom shape and modifier tested; repeating animations of animatable data unverified |
+| `phaseAnimator`, `PhaseAnimator` | ✅ | continuous cycling tested; `trigger:` form unverified |
+| `keyframeAnimator`, `KeyframeAnimator`, `KeyframeTimeline` (`LinearKeyframe`, `SpringKeyframe`, `CubicKeyframe`, `MoveKeyframe`, `UnitCurve`) | ✅ | trigger form, linear/move/cubic values tested; spring keyframes and the repeating form unverified; keyframe velocities ignored |
+| `TimelineView` (`.animation`, `.periodic`, `.everyMinute`, `.explicit`) | ✅ | `.periodic` and `.animation` tested; `.everyMinute`/`.explicit` unverified |
 
 ### Gestures
 
@@ -626,9 +646,22 @@ inside UIKit's animation engine, so frames, opacity, transforms and colors inter
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `Chart` view | ❌ | module not provided |
-| Marks (`BarMark`, `LineMark`, `PointMark`, `AreaMark`, `RuleMark`, `RectangleMark`, `SectorMark`) | ❌ | |
-| Axes, scales, legends, annotations, selection | ❌ | |
+| `Chart` view (`Chart { }`, `Chart(data) { }`, `ForEach` of marks, `if`/`else` content), `import Charts` | ✅ | isim's own implementation on its SwiftUI (`swift/overlays/Charts`; `if`/`else` content unverified); tested by HelloCharts (`tests/ui/charts.sh`, measured in the screenshot) |
+| `BarMark` (vertical, horizontal, ranges, date bins with `unit:`, `width`/`height`) | ✅ | |
+| Bar stacking (`.standard`), grouping (`position(by:)`) | ✅ | `.normalized`/`.center` stacking unverified |
+| `LineMark` (`series:`, `interpolationMethod`), `PointMark` | ✅ | linear and catmullRom drawn in the test; step/cardinal/monotone unverified |
+| `symbol(_:)`, `symbol(by:)`, `symbolSize` | 🟡 | basic symbol shapes (circle, square, triangle, diamond, pentagon, plus, cross); unverified; `symbol { view }` missing |
+| `AreaMark` (stacked series, `yStart`/`yEnd`) | ✅ | stacking of several series unverified |
+| `RuleMark`, `RectangleMark` | ✅ | |
+| `SectorMark` (pie, donut `innerRadius`, `outerRadius`, `angularInset`) | ✅ | `angularInset` unverified; corner radius ignored |
+| `PlottableValue.value(_:_:)`, `Plottable` (numbers, strings, dates, `RawRepresentable` enums) | ✅ | |
+| `foregroundStyle(by:)` with the default palette and a legend, `chartForegroundStyleScale`, `chartLegend` | ✅ | `chartLegend(position: .top)` and custom legend content unverified |
+| Axes: `chartXAxis`/`chartYAxis` (`.hidden`, `AxisMarks` position and values, `AxisGridLine`, `AxisTick`, `AxisValueLabel` with custom content), date axes | ✅ | `AxisTick` unverified; `AxisValueLabel(format:)` missing (no `FormatStyle` on isim) |
+| Scales: `chartXScale`/`chartYScale(domain:)` (ranges, category lists, `.automatic(includesZero:reversed:)`) | ✅ | log/sqrt/power scale types are drawn linear |
+| `annotation(position:alignment:spacing:)` | ✅ | |
+| `chartXAxisLabel`, `chartYAxisLabel` | 🟡 | simple placement (unverified) |
+| `chartOverlay`/`chartBackground` (`ChartProxy`), selection (`chartXSelection`), scrolling (`chartScrollableAxes`) | ❌ | |
+| `chartPlotStyle`, vectorized plots (`BarPlot`, `LinePlot`, iOS 18), `Chart3D` | ❌ | |
 
 ---
 
@@ -642,13 +675,16 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | Notes |
 |---|---|---|
 | `String` ⇄ `NSString` bridging | ✅ | copies instead of lazy bridging |
-| `NSString` / `NSMutableString` API (search, replace, case, trimming, components, paths) | 🟡 | common subset; comparisons are code-point ordered, not locale-aware |
+| `NSString` / `NSMutableString` API (search, replace, case, trimming, components, paths) | 🟡 | search options (case/diacritic-insensitive, anchored, backwards, regex), Unicode case mapping, substring/line enumeration; comparisons are code-point ordered, not locale-aware |
 | `String(format:)`, `NSLog` | ✅ | |
 | String encodings (`data(using:)`, `String(data:encoding:)`, `String(contentsOf:)`) | ✅ | |
 | `CharacterSet` | ✅ | BMP only |
-| `NSAttributedString`, `AttributedString` | ❌ | |
-| `NSRegularExpression`, `NSDataDetector` | ❌ | |
-| `Scanner` | ❌ | |
+| `NSAttributedString`, `NSMutableAttributedString` | ✅ | Foundation keys only (UIKit's font/color keys belong to UIKit); `mutableString` is a snapshot |
+| `AttributedString`, `AttributeContainer`, attribute scopes, runs | 🟡 | Foundation scope (link, inline/presentation intents, imageURL, ...); no Codable, no iOS 17 invalidation/inheritance rules |
+| `AttributedString(markdown:)` | 🟡 | CommonMark + GFM blocks/inlines as presentation intents; no reference links, extended attributes or source positions |
+| `NSRegularExpression`, `NSTextCheckingResult` | ✅ | host PCRE2 (close to ICU syntax); templates, named groups, options |
+| `NSDataDetector` | 🟡 | links, phone numbers, dates; addresses and transit info are not detected |
+| `Scanner` | ✅ | ObjC and Swift (`scanString`, `scanInt`, `scanDouble`, `scanDecimal`, `currentIndex`) APIs |
 | `String(localized:)`, `NSLocalizedString`, `Bundle.localizedString` | ✅ | |
 | `LocalizedStringResource` | ❌ | |
 | String Catalogs (`.xcstrings`) | 🟡 | compiled to `.strings`; plural variants use "other" only; device/width variants dropped |
@@ -659,16 +695,17 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | Notes |
 |---|---|---|
 | `NSArray`, `NSDictionary`, `NSSet` (+ mutable), literals, fast enumeration, sorting | ✅ | |
-| `NSOrderedSet`, `NSCountedSet`, `NSIndexSet`, `NSCache`, `NSHashTable`, `NSMapTable` | ❌ | |
+| `NSOrderedSet`, `NSCountedSet`, `NSIndexSet` / `IndexSet`, `NSCache`, `NSHashTable`, `NSMapTable`, `NSPointerArray` | ✅ | `NSCache` evicts by count/cost limits only (no memory-pressure purging); weak tables use ObjC weak references |
 | `IndexPath` / `NSIndexPath` (+ UIKit `row`/`section`/`item`) | ✅ | value type bridged to NSIndexPath; tested (HelloTable) |
 | `NSNumber`, `NSValue` (CG geometry), `NSNull` | ✅ | |
 | `UUID` | ✅ | |
-| `Decimal` | 🟡 | Int64 mantissa + exponent; less precision than Apple's 38 digits |
+| `Decimal` | 🟡 | 38 significant digits, exact arithmetic, `NSDecimalRound`/`NSDecimalAdd`..., `pow`; no `NSDecimalNumber`, does not bridge to an Objective-C object |
 | `NSError`, `LocalizedError`, `CustomNSError` | ✅ | |
-| `NSPredicate`, `NSExpression`, `NSSortDescriptor`, `SortDescriptor` | ❌ | |
-| Key-value coding (`value(forKey:)`) and observing (KVO, `observe(\.x)`) | ❌ | |
-| `UndoManager` | ❌ | |
-| `Progress` | ❌ | |
+| `NSPredicate`, `NSExpression` (format strings, `filtered(using:)`) | 🟡 | comparisons, string operators (`CONTAINS[cd]`, `LIKE`, `MATCHES`, ...), aggregates, `ANY`/`ALL`, key paths, block predicates; no subqueries or function expressions; the `#Predicate` macro is not available |
+| `NSSortDescriptor`, `SortDescriptor`, `KeyPathComparator`, `sorted(using:)` | ✅ | |
+| Key-value coding (`value(forKey:)`, key paths, collection operators) and observing (KVO, `observe(\.x)`, `publisher(for:)`) | ✅ | KVO wraps setters; `@objc dynamic` Swift properties observable |
+| `UndoManager` | ✅ | groups, run-loop grouping, redo, action names, `registerUndo(withTarget:handler:)` |
+| `Progress` | 🟡 | units, children, KVO on `fractionCompleted`, localized description; no publishing/file progress |
 
 ### Encoding & serialization
 
@@ -676,11 +713,11 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 |---|---|---|
 | `JSONEncoder` / `JSONDecoder` (key/date/data/float strategies, output formatting) | ✅ | |
 | `JSONSerialization` | ✅ | NSNumber/NSNull like Apple |
-| `PropertyListEncoder` / `PropertyListDecoder` | ❌ | |
-| `PropertyListSerialization` | ❌ | |
+| `PropertyListEncoder` / `PropertyListDecoder` | ✅ | XML and binary |
+| `PropertyListSerialization` | ✅ | XML, binary, OpenStep (read) |
 | Reading XML plists (`NSDictionary(contentsOfFile:)`, Info.plist) | ✅ | |
-| Binary plists | ❌ | logged and rejected |
-| `NSKeyedArchiver` / `NSKeyedUnarchiver`, `NSCoding` | 🧩 | `NSCoder` exists so `init(coder:)` compiles; archiving not implemented |
+| Binary plists | ✅ | read and written (Info.plist, user defaults, serialization) |
+| `NSKeyedArchiver` / `NSKeyedUnarchiver`, `NSCoding`, `NSSecureCoding` | ✅ | Apple's keyed-archive format (bplist `$objects`/`$top`), shared references and cycles, allowed classes, class name mapping |
 
 ### Dates, calendars & formatters
 
@@ -690,13 +727,13 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `Calendar`, `DateComponents`, `DateInterval` | 🟡 | Gregorian + ISO 8601; other calendars compute as Gregorian |
 | `TimeZone` (named zones, DST) | ✅ | Settings > Date & Time or the host's zone; changes apply live (`NSSystemTimeZoneDidChange`, `resetSystemTimeZone`) |
 | `Locale` (identifiers, language/region, separators, currency, `Locale.Language`) | ✅ | |
-| `DateFormatter` (styles, `dateFormat`, templates) | 🟡 | common patterns; full CLDR data unverified |
-| `NumberFormatter` (decimal, currency, percent, digits, grouping) | 🟡 | common styles |
-| `ISO8601DateFormatter` | ❌ | |
-| `RelativeDateTimeFormatter`, `DateComponentsFormatter`, `DateIntervalFormatter` | ❌ | |
-| `.formatted()` / `FormatStyle` (dates, numbers, currency, lists) | ❌ | |
-| `Measurement`, `Unit*`, `MeasurementFormatter` | ❌ | |
-| `ByteCountFormatter`, `PersonNameComponentsFormatter`, `ListFormatter` | ❌ | |
+| `DateFormatter` (styles, `dateFormat`, templates, parsing) | 🟡 | built-in CLDR subset: en, pt, es, fr, de, it, ja names and ~40 regions; other languages fall back to English names |
+| `NumberFormatter` (decimal, currency, percent, scientific, spell-out, ordinal, rounding, parsing) | 🟡 | ICU-style rounding; locale data limited to the built-in regions; spell-out English only |
+| `ISO8601DateFormatter` | ✅ | |
+| `RelativeDateTimeFormatter`, `DateComponentsFormatter`, `DateIntervalFormatter` | 🟡 | localized for the built-in languages |
+| `.formatted()` / `FormatStyle` (dates, ISO 8601, relative, intervals, numbers, currency, percent, lists, byte counts, durations, measurements) and parse strategies | 🟡 | follows the device region; same locale data limits as the formatters |
+| `Measurement`, `Unit*`, `MeasurementFormatter` | 🟡 | 22 unit families with conversion; locale-preferred units for length, mass, temperature, speed, volume; unit names localized for the built-in languages |
+| `ByteCountFormatter`, `PersonNameComponentsFormatter`, `ListFormatter` | ✅ | |
 
 ### Files, bundles & preferences
 
@@ -705,7 +742,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | App sandbox container (Documents, Library, Caches, tmp) | ✅ | per app, under `ISIM_DATA` |
 | `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | 🟡 | no attributes, enumerators, symlinks, `replaceItem` |
 | `Data(contentsOf:)`, `Data.write(to:)` | ✅ | |
-| `FileHandle`, `InputStream` / `OutputStream` | ❌ | |
+| `FileHandle`, `InputStream` / `OutputStream` | 🟡 | files, memory and standard I/O; `readabilityHandler` on a thread; no sockets / bound stream pairs |
 | App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ❌ | |
 | iCloud Drive / ubiquity containers | ❌ | |
 | `Bundle` (main, by path/id, resources, Info.plist, localizations) | ✅ | |
@@ -724,7 +761,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `OperationQueue` | 🟡 | block operations only; no `Operation` subclasses or dependencies |
 | `NSLock`, `NSRecursiveLock`, `NSCondition` | ✅ | |
 | `ProcessInfo` (environment, arguments, processor count, uptime) | ✅ | |
-| `ProcessInfo.thermalState`, `isLowPowerModeEnabled` | ❌ | |
+| `ProcessInfo.thermalState`, `isLowPowerModeEnabled`, `physicalMemory`, `operatingSystemVersion`, activities | ✅ | a simulated iPhone: always `.nominal`, never Low Power Mode, memory per device model |
 
 ### Networking
 
@@ -768,7 +805,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `Clock`, `ContinuousClock`, `Duration`, `Task.sleep(for:)` | ✅ | tested |
 | Swift 6 strict concurrency checking | ✅ | compile time |
 | Observation (`@Observable`, `withObservationTracking`) | ✅ | libswiftObservation (upstream sources, isim pthread hooks) |
-| `Regex`, regex literals, `RegexBuilder` (`_StringProcessing`) | ❌ | not built yet |
+| `Regex`, regex literals, `RegexBuilder` (`_StringProcessing`) | ✅ | built from swift-experimental-string-processing (swift-6.2.4); bare `/.../` literals need `-enable-bare-slash-regex` or Swift 6 mode like Xcode |
 | `Synchronization` (`Mutex`, `Atomic`) | ❌ | not built |
 | Distributed actors | ❌ | |
 | C++ interop | ❌ | |
@@ -828,9 +865,9 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 |---|---|---|
 | Geometry (`CGRect`/`CGPoint`/`CGSize` functions, Swift helpers) | ✅ | `CGFloat` is a typealias of `Double` |
 | `CGAffineTransform` | ✅ | |
-| `CGContext` paths: rects, ellipses, arcs, lines, curves; fill, EO fill, stroke | ✅ | via host cairo |
-| Graphics state, CTM (translate/scale/rotate/concat), alpha, line width/cap/join | ✅ | |
-| Clipping (`clip`, `clip(to: rect)`) | ✅ | |
+| `CGContext` paths: rects, ellipses, arcs, lines, curves; fill, EO fill, stroke | ✅ | via host cairo; even-odd fill tested (HelloDrawing) |
+| Graphics state, CTM (translate/scale/rotate/concat), alpha, line width/cap/join/miter limit | ✅ | caps/joins/miter limit unverified |
+| Clipping (`clip`, `clip(using: .evenOdd)`, `clip(to: rect)`) | ✅ | even-odd clip unverified |
 | `CGPath` / `CGMutablePath` (build, bounding box, contains, apply) | ✅ | |
 | `CGColor` (RGB, gray, copy with alpha) | ✅ | |
 | `CGColorSpace`, Display P3, pattern colors | ❌ | P3 colors become sRGB |
@@ -838,7 +875,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `CGImage` from raw bytes (`CGDataProvider`, `CGImageCreate`) | ❌ | |
 | `CGBitmapContext` (offscreen drawing, pixel access) | ❌ | |
 | `CGGradient`, `CGShading` | ❌ | |
-| Line dashes (`setLineDash`) | ❌ | |
+| Line dashes (`setLineDash`) | ✅ | tested (HelloDrawing) |
 | Shadows (`setShadow`), blend modes, transparency layers | ❌ | |
 | Text drawing in CG | ❌ | |
 | PDF documents/contexts | ❌ | |
@@ -889,7 +926,7 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 | `centerRect` (9-slice), `normalTexture`, lighting/shadow masks, `warpGeometry` | 🧩 | stored, not drawn |
 | `SKShapeNode` (path, rect, rounded rect, circle, ellipse, points, spline, fill/stroke, line width, glow, blend mode, `lineLength`) | 🟡 | line cap/join/miter, fill/stroke textures and shaders ignored |
 | `SKLabelNode` (font, size, color, alignment, multi-line, color blend, blend mode) | ✅ | |
-| `SKLabelNode.attributedText` | ❌ | isim Foundation has no `NSAttributedString` yet |
+| `SKLabelNode.attributedText` | ❌ | `NSAttributedString` exists now; SpriteKit does not draw it yet |
 | `SKTexture` (`imageNamed:` incl. atlases, `init(rect:in:)`, `textureRect`, filtering, `preload`) | 🟡 | no noise/`data:` textures; `cgImage()` returns nil |
 | `SKTextureAtlas` (`.atlas` folders, `textureNamed`, `textureNames`, `preload`, `init(dictionary:)`) | ✅ | picks the @2x/@3x file for the screen |
 | `.spriteatlas` in asset catalogs | 🟡 | `isim build` lists them for `SKTextureAtlas(named:)`; unverified in an app |

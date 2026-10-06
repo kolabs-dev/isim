@@ -1,11 +1,9 @@
 // isim SwiftUI: the parts of Text / TextField that sit on Foundation's FormatStyle and AttributedString —
 // `Text(_:format:)`, `"\(value, format:)"` interpolation, `TextField(value:format:)`, `Text(AttributedString)` and the
 // SwiftUI attribute scope (font, foregroundColor, backgroundColor, underline/strikethrough, kern, tracking,
-// baselineOffset). Compiled only when isim's Foundation overlay provides those types (build-overlays.sh defines
-// ISIM_FOUNDATION_FORMATSTYLE / ISIM_FOUNDATION_ATTRIBUTEDSTRING when it finds them).
+// baselineOffset).
 import UIKit
 
-#if ISIM_FOUNDATION_FORMATSTYLE
 extension Text {
     public init<F: FormatStyle>(_ input: F.FormatInput, format: F) where F.FormatInput: Equatable, F.FormatOutput == String {
         self.init(verbatim: format.format(input))
@@ -34,9 +32,7 @@ func _formatBinding<F: ParseableFormatStyle>(_ value: Binding<F.FormatInput>, fo
         value.wrappedValue = v; return true
     })
 }
-#endif
 
-#if ISIM_FOUNDATION_ATTRIBUTEDSTRING
 extension AttributeScopes {
     public var swiftUI: SwiftUIAttributes.Type { SwiftUIAttributes.self }
     public struct SwiftUIAttributes: AttributeScope {
@@ -91,4 +87,3 @@ extension Text {
         if parts.count == 1 { self = parts[0] } else { self.init(verbatim: ""); _x.parts = parts }
     }
 }
-#endif

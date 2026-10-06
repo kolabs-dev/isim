@@ -139,14 +139,14 @@ CGFloat CGColorGetAlpha(CGColorRef c) { return c ? c->c[3] : 0; }
 
 /* ---- CGContext: the single current host surface (one object); state stack of fill/stroke/line/alpha ---- */
 struct CGContext { void *isa; };
-struct gstate { CGFloat fill[4], stroke[4], lw, alpha; int interp; };
+struct gstate { CGFloat fill[4], stroke[4], lw, alpha; int interp; int cap, join; CGFloat miter, dash[16], phase; int ndash; };
 static struct gstate gstack[32]; static int gdepth;
 static struct gstate *cur(void) { return &gstack[gdepth]; }
 static Class objc_class_named(const char *n) { return objc_getClass(n); }
 CGContextRef isim_cg_current_context(void) {           /* isim: used by UIKit's UIGraphicsGetCurrentContext */
     static struct CGContext *ctx;
     if (!ctx) {
-        gstack[0] = (struct gstate){ { 0, 0, 0, 1 }, { 0, 0, 0, 1 }, 1, 1, 0 };
+        gstack[0] = (struct gstate){ { 0, 0, 0, 1 }, { 0, 0, 0, 1 }, 1, 1, 0, 0, 0, 10, { 0 }, 0, 0 };
         Class k = objc_class_named("__NSCGContext");
         ctx = k ? class_createInstance(k, 0) : calloc(1, sizeof *ctx);
     }
@@ -180,8 +180,18 @@ void CGContextConcatCTM(CGContextRef c, CGAffineTransform t) { isim_gfx_concat(t
 void CGContextSetAlpha(CGContextRef c, CGFloat alpha) { cur()->alpha = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha; }
 void CGContextSetInterpolationQuality(CGContextRef c, CGInterpolationQuality q) { cur()->interp = q; }
 CGInterpolationQuality CGContextGetInterpolationQuality(CGContextRef c) { return cur()->interp; }
-void CGContextSetLineCap(CGContextRef c, CGLineCap cap) {}
-void CGContextSetLineJoin(CGContextRef c, CGLineJoin join) {}
+/* line caps, joins, miter limit and dashes live in the host's graphics state (saved/restored with it) */
+static void line_style(void) { struct gstate *g = cur(); isim_path_set_line_style(g->cap, g->join, g->miter, g->ndash ? g->dash : NULL, g->ndash, g->phase); }
+void CGContextSetLineCap(CGContextRef c, CGLineCap cap) { cur()->cap = cap; line_style(); }
+void CGContextSetLineJoin(CGContextRef c, CGLineJoin join) { cur()->join = join; line_style(); }
+void CGContextSetMiterLimit(CGContextRef c, CGFloat limit) { cur()->miter = limit; line_style(); }
+void CGContextSetLineDash(CGContextRef c, CGFloat phase, const CGFloat *lengths, size_t count) {
+    struct gstate *g = cur();
+    g->ndash = lengths ? (int)(count < 16 ? count : 16) : 0;
+    for (int i = 0; i < g->ndash; i++) g->dash[i] = lengths[i];
+    g->phase = phase;
+    line_style();
+}
 void CGContextAddLines(CGContextRef c, const CGPoint *p, size_t n) {
     for (size_t i = 0; i < n; i++) { if (i == 0) isim_path_move(p[i].x, p[i].y); else isim_path_line(p[i].x, p[i].y); }
 }
@@ -203,14 +213,18 @@ void CGContextAddQuadCurveToPoint(CGContextRef c, CGFloat cpx, CGFloat cpy, CGFl
 }
 void CGContextDrawPath(CGContextRef c, CGPathDrawingMode mode) {
     double a[4];
+    int eo = mode == kCGPathEOFill || mode == kCGPathEOFillStroke;
+    if (eo) isim_path_set_fill_rule(1);
     if (mode == kCGPathFill || mode == kCGPathEOFill || mode == kCGPathFillStroke || mode == kCGPathEOFillStroke) isim_path_fill(with_alpha(cur()->fill, a));
+    if (eo) isim_path_set_fill_rule(0);
     if (mode == kCGPathStroke || mode == kCGPathFillStroke || mode == kCGPathEOFillStroke) isim_path_stroke(cur()->lw, with_alpha(cur()->stroke, a));
     isim_path_begin();
 }
-void CGContextEOFillPath(CGContextRef c) { CGContextFillPath(c); }
+void CGContextEOFillPath(CGContextRef c) { isim_path_set_fill_rule(1); CGContextFillPath(c); isim_path_set_fill_rule(0); }
 void CGContextStrokeEllipseInRect(CGContextRef c, CGRect r) { isim_path_begin(); CGContextAddEllipseInRect(c, r); CGContextStrokePath(c); }
 void CGContextClearRect(CGContextRef c, CGRect r) { double z[4] = { 0, 0, 0, 0 }; isim_gfx_fill_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 0, z); }
 void CGContextClip(CGContextRef c) { isim_gfx_clip_path(); }
+void CGContextEOClip(CGContextRef c) { isim_path_set_fill_rule(1); isim_gfx_clip_path(); isim_path_set_fill_rule(0); }
 void CGContextClipToRect(CGContextRef c, CGRect r) { isim_gfx_clip_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 0); }
 void CGContextStrokeLineSegments(CGContextRef c, const CGPoint *p, size_t n) {
     isim_path_begin();

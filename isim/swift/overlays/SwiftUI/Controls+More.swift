@@ -580,8 +580,7 @@ final class _AsyncImageState: _AnyStorage {
 }
 struct _AsyncImageError: Error, CustomStringConvertible { let description: String }
 
-/// Loads with URLSession (http(s), file and data URLs); isim's UIImage decodes from a file, so the bytes go through
-/// a temporary file.
+/// Loads with URLSession (http(s), file and data URLs) and decodes with UIImage(data:scale:).
 public struct AsyncImage<Content: View>: View, _PrimitiveView {
     let url: URL?, scale: CGFloat, make: @MainActor (AsyncImagePhase) -> AnyView
     public var body: Never { fatalError() }
@@ -609,10 +608,7 @@ public struct AsyncImage<Content: View>: View, _PrimitiveView {
                     let phase: AsyncImagePhase
                     do {
                         let (data, _) = try await URLSession.shared.data(from: url)
-                        let file = NSTemporaryDirectory() + "isim-asyncimage-\(UUID().uuidString)"
-                        try data.write(to: URL(fileURLWithPath: file))
-                        let img = UIImage(contentsOfFile: file)
-                        try? FileManager.default.removeItem(atPath: file)
+                        let img = UIImage(data: data, scale: scale)
                         phase = img.map { .success(Image(uiImage: $0)) } ?? .failure(_AsyncImageError(description: "isim: the data at \(url) is not an image"))
                     } catch { phase = .failure(error) }
                     guard let st, !Task.isCancelled, st.url == url else { return }

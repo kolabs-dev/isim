@@ -77,6 +77,16 @@ static UIImage *image_from_handle(int h, double w, double hgt, CGFloat scale) {
     return i;
 }
 - (instancetype)init { if ((self = [super init])) _crop = CGRectNull; return self; }
++ (UIImage *)_isim_imageWithHandle:(int)h scale:(CGFloat)scale { double w, hh; isim_image_pixel_size(h, &w, &hh); return image_from_handle(h, w, hh, scale > 0 ? scale : 1); }
+- (instancetype)initWithContentsOfFile:(NSString *)p { return [UIImage imageWithContentsOfFile:p]; }
++ (UIImage *)imageWithData:(NSData *)d { return [self imageWithData:d scale:1]; }
++ (UIImage *)imageWithData:(NSData *)d scale:(CGFloat)s {
+    if (!d.length) return nil;
+    double w, h; int hd = isim_image_load_data(d.bytes, d.length, &w, &h);
+    return image_from_handle(hd, w, h, s > 0 ? s : 1);
+}
+- (instancetype)initWithData:(NSData *)d { return [UIImage imageWithData:d scale:1]; }
+- (instancetype)initWithData:(NSData *)d scale:(CGFloat)s { return [UIImage imageWithData:d scale:s]; }
 
 /* ---- CGImage ---- */
 + (UIImage *)imageWithCGImage:(CGImageRef)cg { return [[self alloc] initWithCGImage:cg scale:1 orientation:UIImageOrientationUp]; }

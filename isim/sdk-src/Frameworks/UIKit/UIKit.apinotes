@@ -2,6 +2,29 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: UIGraphicsImageRenderer
+  Methods:
+  - Selector: 'imageWithActions:'
+    MethodKind: Instance
+    SwiftName: 'image(actions:)'
+  - Selector: 'PNGDataWithActions:'
+    MethodKind: Instance
+    SwiftName: 'pngData(actions:)'
+  - Selector: 'JPEGDataWithCompressionQuality:actions:'
+    MethodKind: Instance
+    SwiftName: 'jpegData(withCompressionQuality:actions:)'
+- Name: UIGraphicsRendererContext
+  Properties:
+  - Name: CGContext
+    SwiftName: cgContext
+- Name: UIGraphicsRendererFormat
+  Methods:
+  - Selector: defaultFormat
+    MethodKind: Class
+    SwiftName: 'default()'
+  - Selector: preferredFormat
+    MethodKind: Class
+    SwiftName: 'preferred()'
 - Name: NSCollectionLayoutDimension
   Methods:
   - Selector: 'fractionalWidthDimension:'
@@ -402,6 +425,20 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: NSUnderlineStyle
+  SwiftName: NSUnderlineStyle
+- Name: NSStringDrawingOptions
+  SwiftName: NSStringDrawingOptions
+- Name: UIGraphicsImageRendererFormatRange
+  SwiftName: UIGraphicsImageRendererFormat.Range
+- Name: UIPressPhase
+  SwiftName: UIPress.Phase
+- Name: UIPressType
+  SwiftName: UIPress.PressType
+- Name: UIEventSubtype
+  SwiftName: UIEvent.EventSubtype
+- Name: UISwipeGestureRecognizerDirection
+  SwiftName: UISwipeGestureRecognizer.Direction
 - Name: UICollectionViewScrollDirection
   SwiftName: UICollectionView.ScrollDirection
 - Name: UICollectionViewScrollPosition
@@ -536,6 +573,64 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: NSFontAttributeName
+  SwiftName: font
+- Name: NSParagraphStyleAttributeName
+  SwiftName: paragraphStyle
+- Name: NSForegroundColorAttributeName
+  SwiftName: foregroundColor
+- Name: NSBackgroundColorAttributeName
+  SwiftName: backgroundColor
+- Name: NSLigatureAttributeName
+  SwiftName: ligature
+- Name: NSKernAttributeName
+  SwiftName: kern
+- Name: NSTrackingAttributeName
+  SwiftName: tracking
+- Name: NSStrikethroughStyleAttributeName
+  SwiftName: strikethroughStyle
+- Name: NSUnderlineStyleAttributeName
+  SwiftName: underlineStyle
+- Name: NSStrokeColorAttributeName
+  SwiftName: strokeColor
+- Name: NSStrokeWidthAttributeName
+  SwiftName: strokeWidth
+- Name: NSShadowAttributeName
+  SwiftName: shadow
+- Name: NSAttachmentAttributeName
+  SwiftName: attachment
+- Name: NSLinkAttributeName
+  SwiftName: link
+- Name: NSBaselineOffsetAttributeName
+  SwiftName: baselineOffset
+- Name: NSUnderlineColorAttributeName
+  SwiftName: underlineColor
+- Name: NSStrikethroughColorAttributeName
+  SwiftName: strikethroughColor
+- Name: NSObliquenessAttributeName
+  SwiftName: obliqueness
+- Name: NSExpansionAttributeName
+  SwiftName: expansion
+- Name: UIKeyInputUpArrow
+  SwiftName: UIKeyCommand.inputUpArrow
+- Name: UIKeyInputDownArrow
+  SwiftName: UIKeyCommand.inputDownArrow
+- Name: UIKeyInputLeftArrow
+  SwiftName: UIKeyCommand.inputLeftArrow
+- Name: UIKeyInputRightArrow
+  SwiftName: UIKeyCommand.inputRightArrow
+- Name: UIKeyInputEscape
+  SwiftName: UIKeyCommand.inputEscape
+- Name: UIKeyInputPageUp
+  SwiftName: UIKeyCommand.inputPageUp
+- Name: UIKeyInputPageDown
+  SwiftName: UIKeyCommand.inputPageDown
+- Name: UIKeyInputHome
+  SwiftName: UIKeyCommand.inputHome
+- Name: UIKeyInputEnd
+  SwiftName: UIKeyCommand.inputEnd
+- Name: UIKeyInputDelete
+  SwiftName: UIKeyCommand.inputDelete
 - Name: UICollectionElementKindSectionHeader
   SwiftName: UICollectionView.elementKindSectionHeader
 - Name: UICollectionElementKindSectionFooter

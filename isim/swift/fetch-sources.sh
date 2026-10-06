@@ -15,4 +15,8 @@ if [ ! -d llvm-project ]; then   # llvmorg-22.1.8 = ca7933e47d3a3451d81e72ac174d
   git -C llvm-project sparse-checkout set --no-cone /libcxx/include/ /libcxx/src/ /libcxx/CMakeLists.txt /libcxxabi/include/ \
     /libcxxabi/src/ /libcxx/vendor/ /runtimes/cmake/
 fi
+if [ ! -d swift-experimental-string-processing ]; then   # swift-6.2.4-RELEASE (Apache-2.0 with Runtime Library Exception): Regex, RegexBuilder
+  git clone -q --depth 1 --branch swift-6.2.4-RELEASE https://github.com/swiftlang/swift-experimental-string-processing.git
+fi
 git -C swift log -1 --format='swift %H'; git -C llvm-project log -1 --format='llvm-project %H'
+git -C swift-experimental-string-processing log -1 --format='swift-experimental-string-processing %H'

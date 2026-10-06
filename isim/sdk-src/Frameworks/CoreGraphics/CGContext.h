@@ -37,6 +37,9 @@ CG_EXTERN void CGContextSetInterpolationQuality(CGContextRef c, CGInterpolationQ
 CG_EXTERN CGInterpolationQuality CGContextGetInterpolationQuality(CGContextRef c);
 CG_EXTERN void CGContextSetLineCap(CGContextRef c, CGLineCap cap);
 CG_EXTERN void CGContextSetLineJoin(CGContextRef c, CGLineJoin join);
+CG_EXTERN void CGContextSetMiterLimit(CGContextRef c, CGFloat limit);
+/* dash lengths (count 0 = solid) starting `phase` points into the pattern */
+CG_EXTERN void CGContextSetLineDash(CGContextRef c, CGFloat phase, const CGFloat * _Nullable lengths, size_t count);
 CG_EXTERN void CGContextAddPath(CGContextRef c, CGPathRef path);
 CG_EXTERN void CGContextAddLines(CGContextRef c, const CGPoint *points, size_t count);
 CG_EXTERN void CGContextAddEllipseInRect(CGContextRef c, CGRect r);
@@ -47,6 +50,7 @@ CG_EXTERN void CGContextEOFillPath(CGContextRef c);
 CG_EXTERN void CGContextStrokeEllipseInRect(CGContextRef c, CGRect r);
 CG_EXTERN void CGContextClearRect(CGContextRef c, CGRect r);
 CG_EXTERN void CGContextClip(CGContextRef c);
+CG_EXTERN void CGContextEOClip(CGContextRef c);
 CG_EXTERN void CGContextClipToRect(CGContextRef c, CGRect r);
 CG_EXTERN void CGContextStrokeLineSegments(CGContextRef c, const CGPoint *points, size_t count);
 /* Draws an image into rect. Like Core Graphics, the image appears vertically flipped in UIKit's

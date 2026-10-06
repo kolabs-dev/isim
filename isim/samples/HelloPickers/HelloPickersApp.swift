@@ -57,6 +57,7 @@ struct InputsTab: View {
     @State private var color = Color.blue
     @State private var qty = 3
     @State private var notes = "First line"
+    @State private var price = 2.5
     static let number: NumberFormatter = { let f = NumberFormatter(); f.numberStyle = .decimal; return f }()
     var body: some View {
         Form {
@@ -71,6 +72,8 @@ struct InputsTab: View {
                 ColorPicker("Tint", selection: $color)
                 TextField("Quantity", value: $qty, formatter: Self.number).accessibilityIdentifier("qty")
                 Text("qty \(qty)").accessibilityIdentifier("qty-value")
+                TextField("Price", value: $price, format: .number).accessibilityIdentifier("price")
+                Text("price \(price)").accessibilityIdentifier("price-value")
             }
             Section("Notes") {
                 TextEditor(text: $notes).frame(height: 90).accessibilityIdentifier("notes")

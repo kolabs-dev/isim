@@ -359,3 +359,52 @@ void isim_image_free(int hd) {
     if (im->svg) g_object_unref(im->svg);
     memset(im, 0, sizeof *im);
 }
+
+/* ---------------- offscreen results and encoding (UIGraphicsImageRenderer, pngData/jpegData) ---------------- */
+/* a copy of a cairo surface as a raster image handle */
+int isim_image_from_surface(cairo_surface_t *src) {
+    cairo_surface_flush(src);
+    int w = cairo_image_surface_get_width(src), h = cairo_image_surface_get_height(src);
+    cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+    cairo_t *c = cairo_create(s);
+    cairo_set_source_surface(c, src, 0, 0); cairo_set_operator(c, CAIRO_OPERATOR_SOURCE); cairo_paint(c);
+    cairo_destroy(c);
+    struct img v = { IMG_RASTER, s, NULL, w, h };
+    return new_img(v);
+}
+static cairo_status_t png_write(void *closure, const unsigned char *data, unsigned int n) {
+    GByteArray *a = closure; g_byte_array_append(a, data, n); return CAIRO_STATUS_SUCCESS;
+}
+/* encodes a raster image: fmt 0 PNG, 1 JPEG (quality 0..1). Returns the byte count (0 on failure); *out is malloc'd */
+long isim_image_encode(int hd, int fmt, double quality, unsigned char **out) {
+    struct img *im = get(hd);
+    *out = NULL;
+    if (!im || im->kind != IMG_RASTER || !im->surf) return 0;
+    cairo_surface_flush(im->surf);
+    GByteArray *a = g_byte_array_new();
+    if (fmt == 0) {
+        if (cairo_surface_write_to_png_stream(im->surf, png_write, a) != CAIRO_STATUS_SUCCESS) { g_byte_array_free(a, TRUE); return 0; }
+    } else {
+        int w = cairo_image_surface_get_width(im->surf), h = cairo_image_surface_get_height(im->surf), ss = cairo_image_surface_get_stride(im->surf);
+        const unsigned char *src = cairo_image_surface_get_data(im->surf);
+        GdkPixbuf *pb = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, w, h);
+        int rs = gdk_pixbuf_get_rowstride(pb); guchar *dst = gdk_pixbuf_get_pixels(pb);
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+            uint32_t px; memcpy(&px, src + y * ss + x * 4, 4);
+            /* JPEG has no alpha: premultiplied values are the image over black, as iOS encodes transparent pixels */
+            guchar *p = dst + y * rs + x * 3;
+            p[0] = px >> 16 & 255; p[1] = px >> 8 & 255; p[2] = px & 255;
+        }
+        char q[8]; snprintf(q, sizeof q, "%d", (int)fmax(1, fmin(100, quality * 100)));
+        gchar *buf = NULL; gsize len = 0;
+        gboolean ok = gdk_pixbuf_save_to_buffer(pb, &buf, &len, "jpeg", NULL, "quality", q, NULL);
+        g_object_unref(pb);
+        if (!ok) { g_byte_array_free(a, TRUE); return 0; }
+        g_byte_array_append(a, (const guint8 *)buf, (guint)len); g_free(buf);
+    }
+    long n = a->len;
+    *out = malloc(n ? n : 1); memcpy(*out, a->data, n);
+    g_byte_array_free(a, TRUE);
+    return n;
+}
+void isim_image_bytes_free(unsigned char *p) { free(p); }

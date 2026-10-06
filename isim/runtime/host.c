@@ -326,13 +326,23 @@ static PangoLayout *layout_for_family(const char *utf8, const char *family, doub
     pango_layout_set_alignment(l, align == 1 ? PANGO_ALIGN_CENTER : align == 2 ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT);
     return l;
 }
+/* text is measured with the screen's pixel scale, as it will be drawn: glyph advances differ at 1x, 2x and 3x
+   (hinting, optical sizes), and a line measured at another scale can wrap or truncate when drawn */
+static void measure_context(void) {
+    static cairo_t *mcr;
+    if (!mcr) { cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1); mcr = cairo_create(s); cairo_surface_destroy(s); }
+    cairo_identity_matrix(mcr); cairo_scale(mcr, px_scale, px_scale);
+    pango_cairo_update_context(mcr, pctx);
+}
 void isim_text_measure_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, int lines, double *w, double *h) {
+    measure_context();
     PangoLayout *l = layout_for_family(utf8, family, size, weight, mono, maxw, lines, 0);
     PangoRectangle log; pango_layout_get_extents(l, NULL, &log);
     *w = ceil((double)log.width / PANGO_SCALE); *h = ceil((double)log.height / PANGO_SCALE);
     g_object_unref(l);
 }
 void isim_text_end_point_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, double *x, double *y) {
+    measure_context();
     PangoLayout *l = layout_for_family(utf8, family, size, weight, mono, maxw, 0, 0);
     PangoRectangle pos; pango_layout_index_to_pos(l, (int)strlen(utf8), &pos);
     *x = pos.x / (double)PANGO_SCALE; *y = pos.y / (double)PANGO_SCALE;
@@ -668,6 +678,9 @@ static int script_step(struct isim_event *ev) {
         if (hid) pending[npending++] = (struct isim_event){ .type = cmd[3] == 'd' ? EV_KEY : EV_KEY_UP, .pad = hid, .key = key };
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
         script_resume = now() + 0.02;
+    } else if (!strcmp(cmd, "shake")) {          /* Device > Shake (motion event) */
+        pending[npending++] = (struct isim_event){ .type = EV_KEY, .key = 0x7fff0001 };
+        script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);
@@ -772,7 +785,60 @@ const char *isim_bundle_path(void) {
 
 cairo_t *isim_host_cairo(void) { return cr; }
 
+/* ---- offscreen drawing (UIGraphicsBeginImageContext / UIGraphicsImageRenderer): a stack of image surfaces
+   that temporarily replace the screen as the drawing target ---- */
+static cairo_t *cr_stack[16]; static int cr_depth;
+int isim_image_from_surface(cairo_surface_t *src);
+int isim_gfx_offscreen_begin(double w, double h, double scale, int opaque) {
+    if (cr_depth >= 16 || w <= 0 || h <= 0) return 0;
+    int pw = (int)ceil(w * scale), ph = (int)ceil(h * scale);
+    cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, pw, ph);
+    cr_stack[cr_depth++] = cr;
+    cr = cairo_create(s); cairo_surface_destroy(s);
+    if (opaque) { cairo_set_source_rgb(cr, 0, 0, 0); cairo_paint(cr); }
+    cairo_scale(cr, scale, scale);
+    return 1;
+}
+int isim_gfx_offscreen_snapshot(void) { return cr_depth ? isim_image_from_surface(cairo_get_target(cr)) : 0; }
+void isim_gfx_offscreen_end(void) {
+    if (!cr_depth) return;
+    cairo_destroy(cr);
+    cr = cr_stack[--cr_depth];
+}
+int isim_gfx_offscreen_depth(void) { return cr_depth; }
+
+/* ---- attributed text: Pango markup (spans carry font, colour, kerning, underline, strike, rise) ---- */
+static PangoLayout *layout_markup(const char *markup, double maxw, int lines, int align, double spacing) {
+    PangoLayout *l = layout_for_family("", NULL, 17, 400, 0, maxw, lines, align);
+    pango_layout_set_markup(l, markup ? markup : "", -1);
+    if (spacing > 0) pango_layout_set_spacing(l, (int)(spacing * PANGO_SCALE));
+    return l;
+}
+void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h) {
+    measure_context();
+    PangoLayout *l = layout_markup(markup, maxw, lines, align, spacing);
+    PangoRectangle log; pango_layout_get_extents(l, NULL, &log);
+    *w = ceil((double)log.width / PANGO_SCALE); *h = ceil((double)log.height / PANGO_SCALE);
+    g_object_unref(l);
+}
+void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba) {
+    PangoLayout *l = layout_markup(markup, w, lines, align, spacing);
+    pango_cairo_update_context(cr, pctx);
+    pango_layout_context_changed(l);
+    if (w > 0) {     /* text that fits on one line (with these drawing metrics) is not wrapped by a rounding error */
+        PangoLayout *one = layout_markup(markup, 0, 1, 0, spacing);
+        PangoRectangle log; pango_layout_get_extents(one, NULL, &log); g_object_unref(one);
+        if ((double)log.width / PANGO_SCALE <= w + 2) pango_layout_set_width(l, (int)(fmax(w, (double)log.width / PANGO_SCALE + 1) * PANGO_SCALE));
+    }
+    cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
+    cairo_move_to(cr, x, y);
+    pango_cairo_show_layout(cr, l);
+    g_object_unref(l);
+}
+
 int isim_image_load(const char *path, double *w, double *h);
+long isim_image_encode(int hd, int fmt, double quality, unsigned char **out);
+void isim_image_bytes_free(unsigned char *p);
 int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
 int isim_image_symbol(const char *name, double *w, double *h);
 void isim_image_draw(int hd, double x, double y, double w, double h, const double *tint, double alpha);
@@ -791,6 +857,9 @@ int isim_audio_is_playing(long h);
 double isim_audio_position(long h);
 void isim_audio_seek(long h, double seconds);
 void isim_audio_suspend(int s);
+void isim_path_set_line_style(int cap, int join, double miter, const double *dash, int ndash, double phase);
+void isim_path_set_fill_rule(int even_odd);
+void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *matrix);
 int isim_audio_decode_file(const char *path, float **out, long *frames, int *channels, double *rate);
 void isim_audio_free(float *pcm);
 struct isim_http; struct isim_ws;
@@ -805,6 +874,12 @@ int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
 int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
 void isim_ws_close(struct isim_ws *w);
 int isim_net_path(int *flags);
+void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int options, int unix_lines, int *err, unsigned long *erroffset);
+void isim_regex_free(void *code);
+int isim_regex_capture_count(void *code);
+int isim_regex_group_number(void *code, const char *name);
+void isim_regex_error_message(int err, char *buf, unsigned long n);
+int isim_regex_match(void *code, const char *subject, unsigned long len, unsigned long start, unsigned int options, long *ovector, int pairs);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -824,7 +899,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_save), H(isim_gfx_restore), H(isim_gfx_translate), H(isim_gfx_scale), H(isim_gfx_clip_rounded),
     H(isim_gfx_fill_rounded), H(isim_gfx_stroke_rounded), H(isim_gfx_fill_ellipse), H(isim_gfx_push_group), H(isim_gfx_pop_group),
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
-    H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke),
+    H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke), H(isim_path_set_line_style), H(isim_path_set_fill_rule), H(isim_path_gradient),
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_text_measure_f), H(isim_text_end_point_f), H(isim_text_draw_f),
     H(isim_font_register), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
@@ -837,5 +912,8 @@ static const struct shim isim_table[] = {
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
+    H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
+    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_draw_markup),
+    H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

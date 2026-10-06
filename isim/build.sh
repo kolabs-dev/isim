@@ -16,7 +16,7 @@ step() { printf '\n== %s\n' "$*"; }
 step "host runtime"
 PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread -ldl
 
 step "SDK headers"
@@ -82,7 +82,7 @@ framework() { # Name srcdir [extra ld args...]
 
 framework CoreFoundation frameworks/CoreFoundation
 framework CoreGraphics frameworks/CoreGraphics -lisim_host
-framework Foundation frameworks/Foundation -framework CoreGraphics
+framework Foundation frameworks/Foundation -framework CoreGraphics -lisim_host
 framework CoreText frameworks/CoreText -framework Foundation -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
 framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host

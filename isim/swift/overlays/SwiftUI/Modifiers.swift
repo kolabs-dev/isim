@@ -37,6 +37,7 @@ extension ModifiedContent: View, _PrimitiveView where Content: View, Modifier: V
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
         let c = content
+        if let g = modifier as? any GeometryEffect { _attach(modifier, ctx); return _geometryEffectNode(g, c, ctx) }
         let inner = _ViewModifier_Content<Modifier>(make: { cctx in _resolve(c, cctx.child("content")) })
         _attach(modifier, ctx)
         return _resolve(modifier.body(content: inner), ctx.child("m"))
@@ -51,7 +52,7 @@ extension View {
 extension View {
     public func font(_ font: Font?) -> some View { _env { $0.font = font } }
     public func foregroundStyle<S: ShapeStyle>(_ style: S) -> some View {
-        _modify { ctx, c in _resolve(c, ctx.child("e").with { $0._foreground = _color(of: style, ctx.environment) }) }
+        _modify { ctx, c in _resolve(c, ctx.child("e").with { $0._foreground = _color(of: style, ctx.environment); _recordForeground(style, &$0) }) }
     }
     public func foregroundColor(_ color: Color?) -> some View { _env { $0._foreground = color } }
     public func tint(_ color: Color?) -> some View { _env { $0._tint = color } }
@@ -112,6 +113,9 @@ extension View {
         _modify { ctx, c in
             if let m = style as? Material {
                 return _BackgroundNode(path: ctx.path, color: nil, cornerRadius: 0, background: _MaterialNode(path: ctx.path + "/mat", kind: .rect, material: m), child: _resolve(c, ctx.child("b")))
+            }
+            if let bg = _styleBackgroundNode(style, shape: Rectangle(), ctx) {         // gradients, image paint
+                return _BackgroundNode(path: ctx.path, color: nil, cornerRadius: 0, background: bg, child: _resolve(c, ctx.child("b")))
             }
             return _BackgroundNode(path: ctx.path, color: _color(of: style, ctx.environment), cornerRadius: 0, background: nil, child: _resolve(c, ctx.child("b")))
         }

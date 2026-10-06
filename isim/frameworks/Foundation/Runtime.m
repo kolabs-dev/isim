@@ -47,88 +47,7 @@ NSExceptionName const NSInternalInconsistencyException = @"NSInternalInconsisten
 - (NSString *)description { return [NSString stringWithFormat:@"%@: %@", _name, _reason]; }
 @end
 
-/* ================= property lists (XML) ================= */
-typedef struct { const char *p, *end; } px_t;
-static void px_ws(px_t *x) { while (x->p < x->end && (*x->p == ' ' || *x->p == '\n' || *x->p == '\r' || *x->p == '\t')) x->p++; }
-static void px_skip_meta(px_t *x) {
-    for (;;) {
-        px_ws(x);
-        if (x->p + 4 < x->end && !strncmp(x->p, "<!--", 4)) { const char *e = strstr(x->p, "-->"); x->p = e ? e + 3 : x->end; continue; }
-        if (x->p + 1 < x->end && x->p[0] == '<' && (x->p[1] == '?' || x->p[1] == '!')) { while (x->p < x->end && *x->p != '>') x->p++; x->p++; continue; }
-        return;
-    }
-}
-static NSString *px_text_until(px_t *x, const char *close) {
-    const char *e = strstr(x->p, close);
-    if (!e) e = x->end;
-    NSMutableString *s = [NSMutableString string];
-    for (const char *q = x->p; q < e;) {
-        if (*q == '&') {
-            const char *ents[][2] = { { "&amp;", "&" }, { "&lt;", "<" }, { "&gt;", ">" }, { "&quot;", "\"" }, { "&apos;", "'" } };
-            BOOL hit = NO;
-            for (int i = 0; i < 5; i++) { size_t n = strlen(ents[i][0]); if (!strncmp(q, ents[i][0], n)) { [s appendString:@(ents[i][1])]; q += n; hit = YES; break; } }
-            if (hit) continue;
-        }
-        const char *r = q; while (r < e && *r != '&') r++;
-        if (r == q) r++;
-        NSString *chunk = [[NSString alloc] initWithBytes:q length:(NSUInteger)(r - q) encoding:NSUTF8StringEncoding];
-        [s appendString:chunk];
-        q = r;
-    }
-    x->p = e + strlen(close);
-    return [s copy];
-}
-static id px_value(px_t *x) {
-    px_skip_meta(x);
-    if (x->p >= x->end || *x->p != '<') return nil;
-    char tag[32] = {0}; int n = 0;
-    const char *q = x->p + 1;
-    while (q < x->end && *q != '>' && *q != ' ' && *q != '/' && n < 31) tag[n++] = *q++;
-    while (q < x->end && *q != '>') q++;
-    BOOL selfClosing = q[-1] == '/';
-    x->p = q + 1;
-    if (!strcmp(tag, "plist")) { id v = px_value(x); px_skip_meta(x); return v; }
-    if (!strcmp(tag, "true")) return @YES;
-    if (!strcmp(tag, "false")) return @NO;
-    if (!strcmp(tag, "dict")) {
-        NSMutableDictionary *d = [NSMutableDictionary dictionary];
-        if (selfClosing) return d;
-        for (;;) {
-            px_skip_meta(x);
-            if (!strncmp(x->p, "</dict>", 7)) { x->p += 7; break; }
-            if (strncmp(x->p, "<key>", 5)) return d;
-            x->p += 5;
-            NSString *k = px_text_until(x, "</key>");
-            id v = px_value(x);
-            if (v) d[k] = v;
-        }
-        return d;
-    }
-    if (!strcmp(tag, "array")) {
-        NSMutableArray *a = [NSMutableArray array];
-        if (selfClosing) return a;
-        for (;;) {
-            px_skip_meta(x);
-            if (!strncmp(x->p, "</array>", 8)) { x->p += 8; break; }
-            id v = px_value(x);
-            if (!v) break;
-            [a addObject:v];
-        }
-        return a;
-    }
-    if (selfClosing) return !strcmp(tag, "string") ? @"" : nil;
-    char close[40]; snprintf(close, sizeof close, "</%s>", tag);
-    NSString *text = px_text_until(x, close);
-    if (!strcmp(tag, "string") || !strcmp(tag, "date")) return text;
-    if (!strcmp(tag, "integer")) return @([text longLongValue]);
-    if (!strcmp(tag, "real")) return @([text doubleValue]);
-    return [NSNull null];                         /* <data> etc. not supported */
-}
-id isim_plist_parse(const char *xml, NSUInteger len) {
-    if (len >= 8 && !memcmp(xml, "bplist00", 8)) { NSLog(@"isim: binary property lists are not supported"); return nil; }
-    px_t x = { xml, xml + len };
-    return px_value(&x);
-}
+/* property lists: PropertyList.m (isim_plist_parse) */
 
 /* ================= NSBundle ================= */
 /* bundles of app extensions loaded into this process (isim hosts custom keyboards in-process):
@@ -666,7 +585,7 @@ NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailure
 - (NSString *)description { return [NSString stringWithFormat:@"Error Domain=%@ Code=%ld \"%@\"", self.domain, (long)self.code, self.localizedDescription]; }
 @end
 
-@implementation NSCoder @end
+/* NSCoder: Archiver.m */
 
 /* function-pointer variants (used by C/C++ clients such as the Swift runtime) */
 

@@ -79,7 +79,7 @@ public protocol DynamicViewContent: View {
     associatedtype Data: Collection
     var data: Data { get }
 }
-extension ForEach: DynamicViewContent {}
+extension ForEach: DynamicViewContent where Content: View {}
 public struct _EditableContent<Base: DynamicViewContent>: DynamicViewContent, _PrimitiveView {
     let base: Base
     var onDelete: ((IndexSet) -> Void)?

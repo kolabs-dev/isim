@@ -9,7 +9,7 @@ shots=out/test-shots/HelloPickers; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/pickers; rm -rf "$ISIM_DATA"
 run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloPickers.app 2>&1; }
 dates=$(run "wait 1; shot $shots/dates.png; tapid day-15; wait 0.3; tapid month-next; wait 0.3; dump; tapid day-1; wait 0.3; tapid date-pill; wait 0.8; tapid day-20; wait 0.3; shot $shots/calendar-sheet.png; tapid date-done; wait 0.6; tapid time-pill; wait 0.8; swipeid wheel-0 0 -32 1.2; wait 1.2; tapid date-done; wait 0.6; swipeid wheel-1 0 -64 1.5; wait 1.5; dump; quit"); rc1=$?
-other=$(run "wait 1; tapid tab-Inputs; wait 0.5; swipeid wheel-0 0 -64 1.5; wait 1.2; tapid qty; wait 0.3; key backspace; type 42; key return; wait 0.4; tapid notes; wait 0.3; type more; key return; type x; wait 0.3; tapid color-well; wait 0.8; tapid color-5-0; wait 0.3; shot $shots/colors.png; tapid color-done; wait 0.6; dump; quit"); rc2=$?
+other=$(run "wait 1; tapid tab-Inputs; wait 0.5; swipeid wheel-0 0 -64 1.5; wait 1.2; tapid qty; wait 0.3; key backspace; type 42; key return; wait 0.4; tapid price; wait 0.3; key backspace; key backspace; key backspace; type 7.75; key return; wait 0.4; tapid notes; wait 0.3; type more; key return; type x; wait 0.3; tapid color-well; wait 0.8; tapid color-5-0; wait 0.3; shot $shots/colors.png; tapid color-done; wait 0.6; dump; quit"); rc2=$?
 views=$(run "wait 1; tapid tab-Views; wait 0.8; shot $shots/views.png; dump; tapid bold-toggle; wait 0.3; tapid advanced; wait 0.4; taptext Documents; wait 0.4; taptext Cut; wait 0.2; taptext Hold; wait 0.2; holdid hold 0.8; wait 0.3; taptext Share; wait 0.8; dump; tapid share-done; wait 0.6; quit"); rc3=$?
 other="$other$views"
 fail=0
@@ -21,6 +21,7 @@ check "DatePicker compact: time pill -> wheel"        'grep -q "^start 2026-03-2
 check "DatePicker wheel (hourAndMinute) drag"         'grep -q "^alarm 09:32" <<<"$dates" && grep -q "id=alarm-value text=alarm 09:32" <<<"$dates"'
 check "Picker .wheel style"                           'grep -q "^fruit Date" <<<"$other"'
 check "TextField(value:formatter:) parses on Return"  'grep -q "^qty 42" <<<"$other" && grep -q "id=qty-value text=qty 42" <<<"$other"'
+check "TextField(value:format:) parses on Return"    'grep -q "id=price-value text=price 7.75" <<<"$other"'
 check "TextEditor: multi-line editing"                'grep -q "id=notes-value text=notes 16 chars" <<<"$other"'
 check "ColorPicker grid sheet sets the color"         'grep -q "^color picked 5,0" <<<"$other" && grep -q "^color changed" <<<"$other"'
 check "Gauge fill is 40% of the track"                'grep -q "(0 0; 148 x 6) id=gauge-fill" <<<"$other"'

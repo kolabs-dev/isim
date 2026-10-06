@@ -103,10 +103,14 @@ public struct Group<Content: View>: View, _PrimitiveView {
     func _makeNode(_ ctx: _Context) -> _Node { _resolve(content, ctx) }
 }
 
-public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: View>: View, _PrimitiveView {
+public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content> {
     public var data: Data
     public var content: (Data.Element) -> Content
     let id: (Data.Element) -> ID
+    /// For other modules' ForEach conformances (Charts): data, element id and content.
+    public init(_data: Data, _id: @escaping (Data.Element) -> ID, _content: @escaping (Data.Element) -> Content) { data = _data; id = _id; content = _content }
+}
+extension ForEach: View, _PrimitiveView where Content: View {
     public init(_ data: Data, id: KeyPath<Data.Element, ID>, @ViewBuilder content: @escaping (Data.Element) -> Content) {
         self.data = data; self.content = content; self.id = { $0[keyPath: id] }
     }
@@ -119,12 +123,12 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: View>
         })
     }
 }
-extension ForEach where Data.Element: Identifiable, ID == Data.Element.ID {
+extension ForEach where Data.Element: Identifiable, ID == Data.Element.ID, Content: View {
     public init(_ data: Data, @ViewBuilder content: @escaping (Data.Element) -> Content) {
         self.data = data; self.content = content; self.id = { $0.id }
     }
 }
-extension ForEach where Data == Range<Int>, ID == Int {
+extension ForEach where Data == Range<Int>, ID == Int, Content: View {
     public init(_ data: Range<Int>, @ViewBuilder content: @escaping (Int) -> Content) {
         self.data = data; self.content = content; self.id = { $0 }
     }
@@ -137,6 +141,7 @@ func _typeName(_ t: Any.Type) -> String { String(describing: t) }
 /// Evaluates a view at a structural position: attaches property-wrapper storage
 /// (@State, @FocusState, @Environment, ...) for that position, then builds its node.
 @MainActor func _resolve(_ view: any View, _ ctx: _Context) -> _Node {
+    let view = _animatableHook(view, ctx)          // Animatable views: in-flight values while animating
     if let r = view as? any UIViewRepresentable { _attach(view, ctx); return _representableNode(r, ctx) }
     if let r = view as? any UIViewControllerRepresentable { _attach(view, ctx); return _vcRepresentableNode(r, ctx) }
     if let p = view as? _PrimitiveView {

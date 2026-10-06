@@ -41,6 +41,11 @@ typedef NS_ENUM(NSInteger, UIImageOrientation) {
 + (nullable UIImage *)systemImageNamed:(NSString *)name;
 + (nullable UIImage *)systemImageNamed:(NSString *)name withConfiguration:(nullable UIImageConfiguration *)configuration;
 + (nullable UIImage *)imageWithContentsOfFile:(NSString *)path;
+- (nullable instancetype)initWithContentsOfFile:(NSString *)path;
++ (nullable UIImage *)imageWithData:(NSData *)data;
++ (nullable UIImage *)imageWithData:(NSData *)data scale:(CGFloat)scale;
+- (nullable instancetype)initWithData:(NSData *)data;
+- (nullable instancetype)initWithData:(NSData *)data scale:(CGFloat)scale;
 @property (nonatomic, readonly) CGSize size;
 @property (nonatomic, readonly) CGFloat scale;
 @property (nonatomic, readonly) UIImageRenderingMode renderingMode;
@@ -54,6 +59,8 @@ typedef NS_ENUM(NSInteger, UIImageOrientation) {
 - (void)drawInRect:(CGRect)rect;
 - (void)drawAtPoint:(CGPoint)point;
 @end
+UIKIT_EXTERN NSData *_Nullable UIImagePNGRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.pngData(self:));
+UIKIT_EXTERN NSData *_Nullable UIImageJPEGRepresentation(UIImage *image, CGFloat compressionQuality) NS_SWIFT_NAME(UIImage.jpegData(self:compressionQuality:));
 @interface UIImageView : UIView
 - (instancetype)initWithImage:(nullable UIImage *)image;
 @property (nullable, nonatomic, strong) UIImage *image;

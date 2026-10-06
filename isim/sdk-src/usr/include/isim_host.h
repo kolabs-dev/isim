@@ -42,6 +42,14 @@ void isim_path_close(void);
 void isim_path_rect(double x, double y, double w, double h, double r);
 void isim_path_fill(const double *rgba);
 void isim_path_stroke(double lw, const double *rgba);
+/* stroke style of the graphics state: cap 0 butt 1 round 2 square; join 0 miter 1 round 2 bevel; dash lengths (ndash 0 = solid) */
+void isim_path_set_line_style(int cap, int join, double miter, const double *_Nullable dash, int ndash, double phase);
+/* fill rule of the graphics state for fills and clips: 0 nonzero winding, 1 even-odd */
+void isim_path_set_fill_rule(int even_odd);
+/* gradient paint of the current path (kept): mode 0 fill, 1 stroke (width lw), 2 paint the clip area.
+   kind 0 linear (geom x0 y0 x1 y1), 1 radial (cx0 cy0 r0 cx1 cy1 r1), 2 conic (cx cy startAngle endAngle, radians, y-down).
+   n stops: locs[n], rgba[4n]; extend 0 none 1 pad 2 repeat 3 reflect; matrix: optional gradient -> user space [a b c d tx ty] */
+void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *_Nullable matrix);
 void isim_text_measure(const char *utf8, double size, double weight, int mono, double maxw, int lines, double *w, double *h);
 void isim_text_end_point(const char *utf8, double size, double weight, int mono, double maxw, double *x, double *y);
 void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba);
@@ -75,6 +83,17 @@ void isim_image_free(int handle);
 void isim_image_draw_part(int handle, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
                           int nearest, const double *blend_rgba, double blend_factor, double alpha);
 void isim_image_pixel_size(int handle, double *w, double *h);
+/* offscreen drawing: begin pushes an image surface (w x h points at scale) as the drawing target; snapshot copies
+   it into a new image handle; end pops it. encode: fmt 0 PNG, 1 JPEG; returns the length, *out freed with bytes_free */
+int isim_gfx_offscreen_begin(double w, double h, double scale, int opaque);
+int isim_gfx_offscreen_snapshot(void);
+void isim_gfx_offscreen_end(void);
+int isim_gfx_offscreen_depth(void);
+long isim_image_encode(int handle, int fmt, double quality, unsigned char *_Nullable *_Nonnull out);
+void isim_image_bytes_free(unsigned char *_Nullable bytes);
+/* attributed text as Pango markup (<span font_family= size= weight= foreground= ...>); align 0 left 1 center 2 right */
+void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h);
+void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba);
 /* audio: PCM buffers (float, interleaved) played as mixed voices. Voice handles are longs (> 0). */
 int isim_audio_available(void);
 int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate);

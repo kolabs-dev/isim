@@ -254,7 +254,7 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     return isim_string_copy(bytes, len);
 }
 - (instancetype)initWithCharacters:(const unichar *)c length:(NSUInteger)n { [self release]; NSUInteger ol; char *u = utf16_to_utf8(c, n, &ol); return isim_string_take(u, ol); }
-- (instancetype)initWithData:(NSData *)data encoding:(NSStringEncoding)e { [self release]; return nil; }
+- (instancetype)initWithData:(NSData *)data encoding:(NSStringEncoding)e { return data ? [self initWithBytes:[data bytes] length:[data length] encoding:e] : ([self release], nil); }
 - (instancetype)initWithString:(NSString *)s { NSUInteger n; const char *b = [s _isim_bytes:&n]; return [self initWithBytes:b length:n encoding:NSUTF8StringEncoding]; }
 - (instancetype)initWithUTF8String:(const char *)s { if (!s) { [self release]; return nil; } return [self initWithBytes:s length:strlen(s) encoding:NSUTF8StringEncoding]; }
 - (instancetype)initWithFormat:(NSString *)format, ... {
@@ -335,6 +335,7 @@ NSString *isim_format(NSString *fmt, va_list ap) {
 }
 - (NSRange)rangeOfString:(NSString *)s { return [self rangeOfString:s options:0]; }
 - (NSRange)rangeOfString:(NSString *)s options:(NSStringCompareOptions)mask {
+    if (mask & NSRegularExpressionSearch) return isim_regex_search(self, s, mask, NSMakeRange(0, [self length]));
     NSUInteger a, b; const char *x = [self _isim_bytes:&a], *y = [s _isim_bytes:&b];
     if (b == 0 || b > a) return NSMakeRange(NSNotFound, 0);
     for (NSUInteger k = 0; k + b <= a; k++) {
@@ -427,20 +428,24 @@ static BOOL is_ri(uint32_t u) { return u >= 0x1F1E6 && u <= 0x1F1FF; }
     [parts addObject:[isim_string_copy(x + start, a - start) autorelease]];
     return parts;
 }
-static NSString *map_ascii(NSString *s, int (*fn)(int), int capitalize) {
+static NSString *map_case(NSString *s, int mode) {   /* mode: 0 lower, 1 upper, 2 capitalize words */
     NSUInteger n; const char *b = [s _isim_bytes:&n];
-    char *r = malloc(n + 1); int word = 1;
-    for (NSUInteger i = 0; i < n; i++) {
-        unsigned char c = (unsigned char)b[i];
-        if (capitalize) { r[i] = (char)(word ? toupper(c) : tolower(c)); word = c == ' ' || c == '\t' || c == '\n'; }
-        else r[i] = c < 0x80 ? (char)fn(c) : (char)c;
+    buf_t o = {0}; buf_add(&o, "", 0);
+    int word = 1;
+    for (NSUInteger i = 0; i < n;) {
+        uint32_t cp = decode_at(b, n, &i);
+        int up = mode == 1 || (mode == 2 && word);
+        char tmp[8];
+        if (up && cp == 0xDF) { buf_add(&o, "SS", 2); word = 0; continue; }       /* ß */
+        uint32_t m = isim_case_map(cp, up);
+        buf_add(&o, tmp, encode_utf8(m, tmp));
+        if (mode == 2) word = !(isalnum((int)(cp < 0x80 ? cp : 'a')) || cp >= 0x80 || cp == '\'' || cp == 0x2019);
     }
-    r[n] = 0;
-    return [isim_string_take(r, n) autorelease];
+    return [isim_string_take(o.b, o.n) autorelease];
 }
-- (NSString *)lowercaseString { return map_ascii(self, tolower, 0); }
-- (NSString *)uppercaseString { return map_ascii(self, toupper, 0); }
-- (NSString *)capitalizedString { return map_ascii(self, NULL, 1); }
+- (NSString *)lowercaseString { return map_case(self, 0); }
+- (NSString *)uppercaseString { return map_case(self, 1); }
+- (NSString *)capitalizedString { return map_case(self, 2); }
 /* isim: Unicode normalization not implemented yet; strings are returned unchanged (exact for ASCII/NFC input) */
 - (NSString *)decomposedStringWithCanonicalMapping { return [[self copy] autorelease]; }
 - (NSString *)precomposedStringWithCanonicalMapping { return [[self copy] autorelease]; }
