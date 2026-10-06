@@ -81,9 +81,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Location & maps | 0 | 0 | 0 | 3 | 3 | 0% |
 | Personal data & device sensors | 0 | 0 | 0 | 6 | 6 | 0% |
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
-| Logging & diagnostics | 4 | 0 | 2 | 2 | 8 | 50% |
+| Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **277** | **77** | **43** | **317** | **714** | **44%** |
+| **All areas** | **278** | **77** | **43** | **316** | **714** | **44%** |
 
 ---
 
@@ -1082,7 +1082,7 @@ Local StoreKit testing, like Xcode's: products come from the project's `.storeki
 |---|---|---|
 | `print`, `NSLog`, `debugPrint` | ✅ | to the terminal running isim |
 | `os.Logger`, `os_log`, `OSLog` (Swift) | ✅ | levels, `OSLogMessage` interpolation with privacy (strings/objects `<private>` unless `.public`; `.private(mask: .hash)`), number/bool formatting, printf-style `os_log` with `%{public}`; stderr in `log stream` compact style. `ISIM_LOG_PRIVATE=1` shows private values, `ISIM_LOG_LEVEL` filters |
-| `os_log` C macros (Objective-C) | ❌ | `os/log.h` exists for module imports only |
+| `os_log` C macros (Objective-C), `os_log_create` | ✅ | clang's `__builtin_os_log_format` buffers decoded by isim's libSystem; same output and privacy rules as Swift |
 | Signposts (`OSSignposter`, `os_signpost`) | 🧩 | accepted, not recorded |
 | `OSLogStore` (reading logs back) | 🧩 | throws |
 | `os_unfair_lock`, `OSAllocatedUnfairLock` | ✅ | futex-backed, with owner checks |

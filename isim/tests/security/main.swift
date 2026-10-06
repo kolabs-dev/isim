@@ -8,6 +8,8 @@ func check(_ ok: Bool, _ what: String) {
     if ok { print("PASS  \(what)") } else { failures += 1; print("FAIL  \(what)") }
 }
 
+@_silgen_name("isim_test_c_os_log") func cOSLogTest()
+
 @main struct Main {
     static func main() {
         commonCryptoTests()
@@ -15,6 +17,7 @@ func check(_ ok: Bool, _ what: String) {
         sqliteTests()
         keychainTests()
         logTests()
+        cOSLogTest()
         print("security test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
     }
