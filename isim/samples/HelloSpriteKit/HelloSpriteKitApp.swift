@@ -209,6 +209,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         addHero()
         addTurretAndCrop()
         addLab()
+        setUpEntities()
         setUpControllers()
         checkRandomSources()
     }
@@ -360,6 +361,22 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
 
+    /// entities and components: the hero node in a GKSKNodeComponent, and a chaser agent seeking a target agent
+    let heroEntity = GKEntity()
+    let chaser = GKAgent2D(), target = GKAgent2D()
+    let agents = GKComponentSystem<GKAgent2D>(componentClass: GKAgent2D.self)
+    func setUpEntities() {
+        if let hero = childNode(withName: "hero") { heroEntity.addComponent(GKSKNodeComponent(node: hero)) }
+        chaser.maxSpeed = 200; chaser.maxAcceleration = 400
+        target.position = vector_float2(300, 0)
+        chaser.behavior = GKBehavior(goal: GKGoal.toSeekAgent(target), weight: 1)
+        let chaserEntity = GKEntity()
+        chaserEntity.addComponent(chaser)
+        agents.addComponent(foundIn: chaserEntity)
+        let node = heroEntity.component(ofType: GKSKNodeComponent.self)?.node
+        print("entity: node component \(node?.name ?? "nil"), back link \(node?.entity === heroEntity), agents \(agents.components.count)")
+    }
+
     func checkRandomSources() {
         let mt = GKMersenneTwisterRandomSource(seed: 5489)
         print("mt19937 first \(UInt32(bitPattern: Int32(truncatingIfNeeded: mt.nextInt())))")
@@ -405,6 +422,11 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         lastTime = currentTime
         elapsed += dt
         machine.update(deltaTime: dt)
+        agents.update(deltaTime: dt)
+        if elapsed > 1, !reported.contains("agent") {
+            reported.insert("agent")
+            print("agent: chaser moved toward target: \(chaser.position.x > 50 && chaser.position.x < 320) speed \(Int(chaser.speed))")
+        }
         if machine.currentState is ReadyState && elapsed > 0.2 { machine.enter(PlayingState.self) }
     }
 
