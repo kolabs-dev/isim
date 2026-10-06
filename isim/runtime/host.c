@@ -674,6 +674,18 @@ static void set_simulated_location(const char *arg) {
     fclose(f);
     fprintf(stderr, "isim host: simulated location %s\n", line);
 }
+/* Debug > Simulate MetricKit Payloads: apps with an MXMetricManager subscriber watch this file (isim's MetricKit) */
+static void simulate_metrickit(void) {
+    char path[1024]; const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    if (data && *data) snprintf(path, sizeof path, "%s/Library", data);
+    else snprintf(path, sizeof path, "%s/.local/share/isim/Library", home ? home : "");
+    mkdir(path, 0755); strncat(path, "/isim", sizeof path - strlen(path) - 1); mkdir(path, 0755);
+    strncat(path, "/MetricKitTrigger", sizeof path - strlen(path) - 1);
+    FILE *f = fopen(path, "w");
+    if (!f) { fprintf(stderr, "isim host: cannot write %s\n", path); return; }
+    fprintf(f, "%.6f\n", isim_time()); fclose(f);
+    fprintf(stderr, "isim host: simulate MetricKit payloads\n");
+}
 /* "drag x1 y1 x2 y2 seconds": a timed drag, one move per ~16 ms */
 static struct { int on; double a, b, c, d, t0, dur, last; } sdrag;
 static int script_step(struct isim_event *ev) {
@@ -766,6 +778,8 @@ static int script_step(struct isim_event *ev) {
         script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "location") && sscanf(args, " %511[^;]", arg) == 1) {
         set_simulated_location(arg);             /* Features > Location: "location LAT LON" or "location none" */
+    } else if (!strcmp(cmd, "metrickit")) {
+        simulate_metrickit();                    /* Debug > Simulate MetricKit Payloads */
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);
