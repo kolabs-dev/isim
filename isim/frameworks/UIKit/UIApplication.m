@@ -244,6 +244,8 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     else { [UIView performWithoutAnimation:anim]; dispatch_async(dispatch_get_main_queue(), ^{ finish(YES); }); }
 }
 - (void)dismissViewControllerAnimated:(BOOL)a completion:(void (^)(void))done {
+    /* like UIKit: a child controller (e.g. the root of a presented navigation controller) forwards to its parent */
+    if (!_presented && !_presenting && self.parentViewController) { [self.parentViewController dismissViewControllerAnimated:a completion:done]; return; }
     UIViewController *target = _presented ?: self;
     UIViewController *presenter = _presented ? self : _presenting;
     if (target->_presented) { [target dismissViewControllerAnimated:NO completion:nil]; }      /* nested presentations go too */
