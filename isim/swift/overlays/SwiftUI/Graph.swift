@@ -76,6 +76,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var matchedFrames: [String: CGRect] = [:]               // matchedGeometryEffect id -> window frame (last render)
     var newMatched: [String: CGRect] = [:]
     var matchedKeys: [String: String] = [:]                 // view key -> matched id
+    var appStorageObserver: NSObjectProtocol?                 // @AppStorage: re-render when a key changes
     var focusLinks: [(String, _FocusLink)] = []
     var submitActions: [String: () -> Void] = [:]
     /// innermost .focused() applied at or above a path
@@ -205,7 +206,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         }
         let v = node.mountView(self)
         mountedViews.insert(ObjectIdentifier(v))
-        if v.superview !== parent { parent.addSubview(v) } else { parent.bringSubview(toFront: v) }
+        if v.superview !== parent { parent.addSubview(v) } else { parent.bringSubviewToFront(v) }
         if fresh.contains(ObjectIdentifier(v)) {
             // a new view: no animation from its initial (zero) state; the outermost new view plays its transition
             v._isim_removeAllAnimations()
@@ -245,6 +246,11 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var frame: CGRect = .zero
     var accessibilityIdentifier: String?
     var accessibilityLabel: String?
+    /// .tag(_:) (or ForEach's id): the value Picker and TabView select by
+    var tag: AnyHashable?
+    /// .tabItem { } content and .badge
+    var tabItem: _Node?
+    var badge: String?
     /// action when this node is a whole list row (Button, NavigationLink, Link)
     var rowAction: (() -> Void)?
     var rowAccessory: String? { children.count == 1 ? children[0].rowAccessory : nil }

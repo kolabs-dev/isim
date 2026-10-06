@@ -508,9 +508,14 @@ static void handle_touch(const struct isim_event *ev) {
         UIControl *control = nil;
         for (UIView *v = hit; v; v = v.superview) if ([v isKindOfClass:[UIControl class]] && ((UIControl *)v).enabled) { control = (UIControl *)v; break; }
         BOOL aboveControl = NO;
+        /* like UIScrollView.touchesShouldCancel(in:): dragging a slider does not scroll its scroll view */
+        BOOL dragControl = [control isKindOfClass:[UISlider class]];
         for (UIView *v = hit; v; v = v.superview) {
-            for (UIGestureRecognizer *g in v.gestureRecognizers)
-                if (g.enabled && !(aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) [cur_gestures addObject:g];
+            for (UIGestureRecognizer *g in v.gestureRecognizers) {
+                if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) continue;
+                if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
+                [cur_gestures addObject:g];
+            }
             if (v == control) aboveControl = YES;
         }
     }

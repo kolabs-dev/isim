@@ -145,7 +145,9 @@ extension View {
     }
     public func edgesIgnoringSafeArea(_ edges: Edge.Set) -> some View { ignoresSafeArea(.all, edges: edges) }
     public func id<ID: Hashable>(_ id: ID) -> some View { _modify { ctx, c in _IDNode(path: ctx.path, tag: "\(id)", child: _resolve(c, ctx.child("id:\(id)"))) } }
-    public func tag<V: Hashable>(_ tag: V) -> some View { self }
+    public func tag<V: Hashable>(_ tag: V) -> some View {
+        _modify { ctx, c in let n = _resolve(c, ctx); n.tag = AnyHashable(tag); return n }
+    }
     public func clipped() -> some View { self }
 }
 

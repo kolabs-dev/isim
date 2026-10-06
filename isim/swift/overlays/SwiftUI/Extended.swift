@@ -489,13 +489,13 @@ public struct ScrollBounceBehavior: Sendable { let id: Int; public static let au
 
 /// Records the view for an explicit .id(...) (ScrollViewReader looks views up by id).
 final class _IDNode: _WrapperNode {
-    let tag: String
-    init(path: String, tag: String, child: _Node) { self.tag = tag; super.init(path: path, child: child) }
+    let idTag: String
+    init(path: String, tag: String, child: _Node) { self.idTag = tag; super.init(path: path, child: child) }
     override var layoutPriority: Double { child.layoutPriority }
     override var isSpacer: Bool { child.isSpacer }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
     override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
-    override func mountView(_ g: _Graph) -> UIView { let v = g.view(viewKey) { _PassthroughView() }; g.idViews[tag] = v; return v }
+    override func mountView(_ g: _Graph) -> UIView { let v = g.view(viewKey) { _PassthroughView() }; g.idViews[idTag] = v; return v }
 }
 
 // MARK: - Grids
@@ -631,36 +631,14 @@ final class _ProgressNode: _Node {
         fraction == nil ? CGSize(width: 20, height: 20) : CGSize(width: min(p.width ?? 100, 1e6), height: 4)
     }
     override func mountView(_ g: _Graph) -> UIView {
-        let v = g.view(viewKey) { _SUIProgressView(frame: .zero) }
-        v.fraction = fraction; v.tint = tint
-        v.setNeedsDisplay()
-        return v
-    }
-}
-final class _SUIProgressView: UIView {
-    var fraction: Double?, tint: UIColor = .systemBlue
-    override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; isUserInteractionEnabled = false }
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-    override func draw(_ rect: CGRect) {
-        guard let ctx = UIGraphicsGetCurrentContext() else { return }
-        if let f = fraction {
-            ctx.setFillColor(UIColor.systemGray5.cgColor)
-            ctx.addPath(CGPath(roundedRect: bounds, cornerWidth: bounds.height / 2, cornerHeight: bounds.height / 2, transform: nil)); ctx.fillPath()
-            ctx.setFillColor(tint.cgColor)
-            let w = bounds.width * f
-            ctx.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: w, height: bounds.height), cornerWidth: bounds.height / 2, cornerHeight: bounds.height / 2, transform: nil)); ctx.fillPath()
-        } else {
-            // a static "spinner": eight spokes with fading opacity
-            let c = CGPoint(x: bounds.midX, y: bounds.midY), r = min(bounds.width, bounds.height) / 2
-            ctx.setLineWidth(2.2)
-            for i in 0..<8 {
-                let a = Double(i) * .pi / 4
-                ctx.setStrokeColor(UIColor.secondaryLabel.withAlphaComponent(0.25 + 0.75 * Double(i) / 8).cgColor)
-                ctx.move(to: CGPoint(x: c.x + cos(a) * r * 0.45, y: c.y + sin(a) * r * 0.45))
-                ctx.addLine(to: CGPoint(x: c.x + cos(a) * r * 0.9, y: c.y + sin(a) * r * 0.9))
-                ctx.strokePath()
-            }
+        if let f = fraction {                                  // determinate: UIProgressView
+            let v = g.view(viewKey + "/bar") { UIProgressView(progressViewStyle: .default) }
+            v.progress = Float(f); v.progressTintColor = tint
+            return v
         }
+        let v = g.view(viewKey + "/spin") { UIActivityIndicatorView(style: .medium) }   // indeterminate: spinning
+        if !v.isAnimating { v.startAnimating() }
+        return v
     }
 }
 

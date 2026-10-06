@@ -21,7 +21,7 @@
 cairo_t *isim_host_cairo(void);
 
 enum { IMG_RASTER = 1, IMG_SVG, IMG_PROC };
-enum { PROC_NUM_CIRCLE = 1, PROC_CHECK_CIRCLE, PROC_GRID, PROC_PLACEHOLDER, PROC_KB_DOWN, PROC_GLOBE, PROC_CIRCLE, PROC_MINUS_CIRCLE };
+enum { PROC_NUM_CIRCLE = 1, PROC_CHECK_CIRCLE, PROC_GRID, PROC_PLACEHOLDER, PROC_KB_DOWN, PROC_GLOBE, PROC_CIRCLE, PROC_MINUS_CIRCLE, PROC_UPDOWN, PROC_ELLIPSIS };
 struct img { int kind; cairo_surface_t *surf; RsvgHandle *svg; double w, h; int proc, fill; char text[8]; };
 static struct img *imgs; static int nimgs, capimgs;
 
@@ -129,6 +129,8 @@ static const struct { const char *sf, *adw; } symbol_map[] = {
 static int proc_symbol(int proc, int fill, const char *text, double *w, double *h) {
     struct img v = { IMG_PROC, NULL, NULL, 1.2, 1.2, proc, fill };
     if (proc == PROC_KB_DOWN) { v.w = 1.45; v.h = 1.2; }
+    if (proc == PROC_UPDOWN) { v.w = 0.62; v.h = 1.0; }
+    if (proc == PROC_ELLIPSIS && fill < 2) { v.w = 1.2; v.h = 0.3; }
     snprintf(v.text, sizeof v.text, "%s", text ? text : "");
     *w = v.w; *h = v.h;
     return new_img(v);
@@ -149,6 +151,9 @@ int isim_image_symbol(const char *name, double *w, double *h) {
     if (!strncmp(base, "circle.grid.3x3", 15)) return proc_symbol(PROC_GRID, 1, NULL, w, h);
     if (!strcmp(base, "globe")) return proc_symbol(PROC_GLOBE, 0, NULL, w, h);
     if (!strcmp(base, "keyboard.chevron.compact.down")) return proc_symbol(PROC_KB_DOWN, 0, NULL, w, h);
+    if (!strcmp(base, "chevron.up.chevron.down")) return proc_symbol(PROC_UPDOWN, 0, NULL, w, h);    /* menu pickers */
+    if (!strcmp(base, "ellipsis")) return proc_symbol(PROC_ELLIPSIS, 0, NULL, w, h);
+    if (!strcmp(base, "ellipsis.circle")) return proc_symbol(PROC_ELLIPSIS, fill ? 3 : 2, NULL, w, h);
     for (int pass = 0; pass < 2; pass++)
         for (size_t i = 0; i < sizeof symbol_map / sizeof *symbol_map; i++)
             if (!strcmp(symbol_map[i].sf, pass ? base : name)) {
@@ -191,6 +196,25 @@ static void draw_proc(cairo_t *c, struct img *im, double w, double h) {
             cairo_new_sub_path(c); cairo_arc(c, cx + (i - 1) * s * 0.34, cy + (j - 1) * s * 0.34, s * 0.13, 0, 2 * M_PI);
         }
         cairo_fill(c);
+        break;
+    case PROC_ELLIPSIS: {                       /* fill: 0 dots, 2 circle outline, 3 filled circle with cut-out dots */
+        double r = w * 0.075, cy = h / 2;
+        if (im->fill >= 2) {
+            cairo_arc(c, w / 2, cy, w * 0.44, 0, 2 * M_PI);
+            if (im->fill == 3) { cairo_fill(c); cairo_set_operator(c, CAIRO_OPERATOR_CLEAR); }
+            else { cairo_set_line_width(c, lw); cairo_stroke(c); }
+        } else r = w * 0.09;
+        double gap = im->fill >= 2 ? w * 0.22 : w * 0.34;
+        for (int k = -1; k <= 1; k++) { cairo_new_sub_path(c); cairo_arc(c, w / 2 + k * gap, cy, r, 0, 2 * M_PI); }
+        cairo_fill(c);
+        cairo_set_operator(c, CAIRO_OPERATOR_OVER);
+        break; }
+    case PROC_UPDOWN:
+        cairo_set_line_width(c, lw * 1.1);
+        cairo_set_line_cap(c, CAIRO_LINE_CAP_ROUND); cairo_set_line_join(c, CAIRO_LINE_JOIN_ROUND);
+        cairo_move_to(c, w * 0.12, h * 0.38); cairo_line_to(c, w * 0.5, h * 0.14); cairo_line_to(c, w * 0.88, h * 0.38);
+        cairo_move_to(c, w * 0.12, h * 0.62); cairo_line_to(c, w * 0.5, h * 0.86); cairo_line_to(c, w * 0.88, h * 0.62);
+        cairo_stroke(c);
         break;
     case PROC_KB_DOWN: {
         double kw = w * 0.9, kh = h * 0.52, kx = (w - kw) / 2, ky = h * 0.04, rr = kh * 0.18;

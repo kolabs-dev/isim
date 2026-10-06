@@ -122,6 +122,11 @@ public struct HierarchicalShapeStyle: ShapeStyle, Sendable {
     var color: Color { [Color.primary, .secondary, Color("tertiary") { .tertiaryLabel }, Color("quaternary") { .quaternaryLabel }][level] }
 }
 public struct TintShapeStyle: ShapeStyle, Sendable { public init() {} }
+/// A type-erased shape style.
+public struct AnyShapeStyle: ShapeStyle {
+    let base: any ShapeStyle
+    public init<S: ShapeStyle>(_ style: S) { base = style }
+}
 extension ShapeStyle where Self == Color {
     public static var red: Color { Color.red }
     public static var orange: Color { Color.orange }
@@ -152,6 +157,7 @@ extension ShapeStyle where Self == TintShapeStyle {
         if h.level == 0 { return env._foreground ?? .primary }
         return h.color
     case is TintShapeStyle: return env._tint ?? .accentColor
+    case let a as AnyShapeStyle: return _color(of: a.base, env)
     default: return .primary
     }
 }

@@ -67,8 +67,8 @@ NS_SWIFT_UI_ACTOR
 - (void)addSubview:(UIView *)view;
 - (void)insertSubview:(UIView *)view belowSubview:(UIView *)siblingSubview;
 - (void)insertSubview:(UIView *)view aboveSubview:(UIView *)siblingSubview;
-- (void)bringSubviewToFront:(UIView *)view;
-- (void)sendSubviewToBack:(UIView *)view;
+- (void)bringSubviewToFront:(UIView *)view NS_SWIFT_NAME(bringSubviewToFront(_:));
+- (void)sendSubviewToBack:(UIView *)view NS_SWIFT_NAME(sendSubviewToBack(_:));
 - (void)didAddSubview:(UIView *)subview;
 - (void)willRemoveSubview:(UIView *)subview;
 - (void)willMoveToSuperview:(nullable UIView *)newSuperview;

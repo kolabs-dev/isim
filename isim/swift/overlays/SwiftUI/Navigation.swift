@@ -506,7 +506,7 @@ final class _NavStackNode: _Node {
         // every level stays mounted (scroll positions, text fields keep their state); only the top one shows
         for (i, node) in nodes.enumerated() {
             let container = g.view(path + "|level\(i)") { _PassthroughView() }
-            if container.superview !== view { view.addSubview(container) } else { view.bringSubview(toFront: container) }
+            if container.superview !== view { view.addSubview(container) } else { view.bringSubviewToFront(container) }
             container.frame = view.bounds
             container.isHidden = i != nodes.count - 1
             container.backgroundColor = levels[i].contentIsList ? .systemGroupedBackground : .systemBackground
@@ -516,11 +516,11 @@ final class _NavStackNode: _Node {
         if !content.ignoresSafeArea, top.showsLargeTitle, let title = top.title {
             let l = g.view(path + "|largeTitle") { UILabel() }
             l.text = title; l.font = .systemFont(ofSize: 34, weight: .bold); l.textColor = .label
-            if l.superview !== view { view.addSubview(l) } else { view.bringSubview(toFront: l) }
+            if l.superview !== view { view.addSubview(l) } else { view.bringSubviewToFront(l) }
             l.frame = CGRect(x: 20, y: safeTop + barHeight, width: view.bounds.width - 40, height: 52)
         }
         let bar = g.view(path + "|bar") { _SUINavBar(frame: .zero) }
-        if bar.superview !== view { view.addSubview(bar) } else { view.bringSubview(toFront: bar) }
+        if bar.superview !== view { view.addSubview(bar) } else { view.bringSubviewToFront(bar) }
         bar.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: safeTop + barHeight)
         bar.configure(level: top, previousTitle: levels.count > 1 ? levels[levels.count - 2].title : nil, safeTop: safeTop, pop: levels.count > 1 ? pop : nil)
         top.bar = bar

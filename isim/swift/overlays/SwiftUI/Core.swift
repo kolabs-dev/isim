@@ -111,7 +111,11 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: View>
     }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
-        _GroupNode(path: ctx.path, children: data.map { e in _resolve(content(e), ctx.child("id:\(id(e))")) })
+        _GroupNode(path: ctx.path, children: data.map { e in
+            let n = _resolve(content(e), ctx.child("id:\(id(e))"))
+            if n.tag == nil { n.tag = AnyHashable(id(e)) }          // implicit tag (Picker, TabView)
+            return n
+        })
     }
 }
 extension ForEach where Data.Element: Identifiable, ID == Data.Element.ID {

@@ -14,8 +14,8 @@ typedef NSString *NSNotificationName NS_TYPED_EXTENSIBLE_ENUM;
 - (void)addObserver:(id)observer selector:(SEL)aSelector name:(nullable NSNotificationName)aName object:(nullable id)anObject;
 - (id<NSObject>)addObserverForName:(nullable NSNotificationName)name object:(nullable id)obj queue:(nullable NSOperationQueue *)queue usingBlock:(void (^)(NSNotification *notification))block;
 - (void)postNotification:(NSNotification *)notification;
-- (void)postNotificationName:(NSNotificationName)aName object:(nullable id)anObject;
-- (void)postNotificationName:(NSNotificationName)aName object:(nullable id)anObject userInfo:(nullable NSDictionary *)aUserInfo;
+- (void)postNotificationName:(NSNotificationName)aName object:(nullable id)anObject NS_SWIFT_NAME(post(name:object:));
+- (void)postNotificationName:(NSNotificationName)aName object:(nullable id)anObject userInfo:(nullable NSDictionary *)aUserInfo NS_SWIFT_NAME(post(name:object:userInfo:));
 - (void)removeObserver:(id)observer;
 - (void)removeObserver:(id)observer name:(nullable NSNotificationName)aName object:(nullable id)anObject;
 @end
