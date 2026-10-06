@@ -69,12 +69,23 @@ static void sendv(int view, const char *ev, ...) {
         if (w <= 0) break;
         p += w; n -= w;
     }
-    if (debug) fprintf(stderr, "isim-webkit -> %.200s", o->str);
+    if (debug) fprintf(stderr, "isim-webkit -> %.2000s", o->str);
     g_string_free(o, TRUE);
 }
 #define SEND(v, ev, ...) sendv(v, ev, __VA_ARGS__, NULL)
 static char *itoa_(long v) { static char b[8][32]; static int i; i = (i + 1) & 7; snprintf(b[i], 32, "%ld", v); return b[i]; }
 static char *ftoa_(double v) { static char b[8][G_ASCII_DTOSTR_BUF_SIZE]; static int i; i = (i + 1) & 7; return g_ascii_formatd(b[i], sizeof b[i], "%.6g", v); }
+
+/* the inside of a JSON string literal (UTF-8 kept; quotes, backslashes and controls escaped); g_free it */
+static char *json_esc(const char *s) {
+    GString *o = g_string_new(NULL);
+    for (const unsigned char *p = (const unsigned char *)(s ? s : ""); *p; p++) {
+        if (*p == '"' || *p == '\\') { g_string_append_c(o, '\\'); g_string_append_c(o, *p); }
+        else if (*p < 0x20) g_string_append_printf(o, "\\u%04x", *p);
+        else g_string_append_c(o, *p);
+    }
+    return g_string_free(o, FALSE);
+}
 
 /* ---------------- views ---------------- */
 struct view {
@@ -93,6 +104,10 @@ struct view {
     GHashTable *pending;             /* request id -> WebKitPolicyDecision / WebKitScriptDialog / reply (by kind) */
     int next_req;
     int policy_cancelled;            /* the last navigation was cancelled by the app's policy: hide its error */
+    GHashTable *alt_html;            /* URL -> HTML loaded with loadHTMLString(_:baseURL:) (back/forward re-shows it, like iOS) */
+    char *bf_alt;                    /* a back/forward navigation to such a URL is under way */
+    int alt_reloading;               /* re-showing it: the guest already saw "started" */
+    int skip_finish;                 /* the replaced load's "finished" is not reported */
 };
 static GHashTable *views;            /* id -> struct view */
 static WebKitNetworkSession *persistent, *ephemeral;
@@ -228,7 +243,8 @@ static void finished_title(GObject *o, GAsyncResult *r, gpointer data) {
 static void on_load(WebKitWebView *wv, WebKitLoadEvent ev, gpointer data) {
     struct view *v = view_get(GPOINTER_TO_INT(data)); if (!v) return;
     const char *names[] = { "started", "redirected", "committed", "finished" };
-    if (ev == WEBKIT_LOAD_STARTED) v->policy_cancelled = 0;
+    if (ev == WEBKIT_LOAD_STARTED) { v->policy_cancelled = 0; if (v->alt_reloading) { v->alt_reloading = 0; hot(v); return; } }
+    if (ev == WEBKIT_LOAD_FINISHED && v->skip_finish) { v->skip_finish = 0; return; }
     if (ev == WEBKIT_LOAD_FINISHED) {   /* iOS has the title before didFinish: read it from the document first */
         webkit_web_view_evaluate_javascript(wv, "document.title", -1, "isim", NULL, NULL, finished_title, GINT_TO_POINTER(v->id));
         return;
@@ -238,6 +254,12 @@ static void on_load(WebKitWebView *wv, WebKitLoadEvent ev, gpointer data) {
 }
 static gboolean on_load_failed(WebKitWebView *wv, WebKitLoadEvent ev, const char *uri, GError *e, gpointer data) {
     struct view *v = view_get(GPOINTER_TO_INT(data)); if (!v) return TRUE;
+    if (v->bf_alt && uri && !strcmp(uri, v->bf_alt)) {    /* back/forward to a loadHTMLString page: show its HTML again */
+        const char *html = g_hash_table_lookup(v->alt_html, v->bf_alt);
+        char *u = v->bf_alt; v->bf_alt = NULL;
+        if (html) { v->alt_reloading = 1; v->skip_finish = 1; webkit_web_view_load_alternate_html(wv, html, u, u); g_free(u); return TRUE; }
+        g_free(u);
+    }
     const char *domain; long code; error_fields(e, &domain, &code);
     if (v->policy_cancelled && !strcmp(domain, "WebKitErrorDomain")) return TRUE;
     SEND(v->id, "fail", ev == WEBKIT_LOAD_COMMITTED ? "0" : "1", domain, itoa_(code), e ? e->message : "", uri ?: "");
@@ -259,8 +281,8 @@ static void bf_changed(struct view *v) {
     for (GList *i = back; i; i = i->next) {
         WebKitBackForwardListItem *it = i->data;
         JSCContext *ctx = NULL; (void)ctx;
-        char *u = g_strescape(webkit_back_forward_list_item_get_uri(it) ?: "", NULL), *t = g_strescape(webkit_back_forward_list_item_get_title(it) ?: "", NULL),
-             *o = g_strescape(webkit_back_forward_list_item_get_original_uri(it) ?: "", NULL);
+        char *u = json_esc(webkit_back_forward_list_item_get_uri(it) ?: ""), *t = json_esc(webkit_back_forward_list_item_get_title(it) ?: ""),
+             *o = json_esc(webkit_back_forward_list_item_get_original_uri(it) ?: "");
         g_string_append_printf(j, "%s[\"%s\",\"%s\",\"%s\"]", first ? "" : ",", u, t, o); first = 0;
         g_free(u); g_free(t); g_free(o);
     }
@@ -268,15 +290,15 @@ static void bf_changed(struct view *v) {
     first = 1;
     for (GList *i = fwd; i; i = i->next) {
         WebKitBackForwardListItem *it = i->data;
-        char *u = g_strescape(webkit_back_forward_list_item_get_uri(it) ?: "", NULL), *t = g_strescape(webkit_back_forward_list_item_get_title(it) ?: "", NULL),
-             *o = g_strescape(webkit_back_forward_list_item_get_original_uri(it) ?: "", NULL);
+        char *u = json_esc(webkit_back_forward_list_item_get_uri(it) ?: ""), *t = json_esc(webkit_back_forward_list_item_get_title(it) ?: ""),
+             *o = json_esc(webkit_back_forward_list_item_get_original_uri(it) ?: "");
         g_string_append_printf(j, "%s[\"%s\",\"%s\",\"%s\"]", first ? "" : ",", u, t, o); first = 0;
         g_free(u); g_free(t); g_free(o);
     }
     WebKitBackForwardListItem *cur = webkit_back_forward_list_get_current_item(l);
     if (cur) {
-        char *u = g_strescape(webkit_back_forward_list_item_get_uri(cur) ?: "", NULL), *t = g_strescape(webkit_back_forward_list_item_get_title(cur) ?: "", NULL),
-             *o = g_strescape(webkit_back_forward_list_item_get_original_uri(cur) ?: "", NULL);
+        char *u = json_esc(webkit_back_forward_list_item_get_uri(cur) ?: ""), *t = json_esc(webkit_back_forward_list_item_get_title(cur) ?: ""),
+             *o = json_esc(webkit_back_forward_list_item_get_original_uri(cur) ?: "");
         g_string_append_printf(j, "],\"current\":[\"%s\",\"%s\",\"%s\"]}", u, t, o);
         g_free(u); g_free(t); g_free(o);
     } else g_string_append(j, "]}");
@@ -299,8 +321,8 @@ static void on_notify(GObject *o, GParamSpec *p, gpointer data) {
 }
 static char *request_json(WebKitURIRequest *rq) {
     GString *j = g_string_new("{");
-    char *u = g_strescape(webkit_uri_request_get_uri(rq) ?: "", NULL);
-    char *m = g_strescape(webkit_uri_request_get_http_method(rq) ?: "GET", NULL);
+    char *u = json_esc(webkit_uri_request_get_uri(rq) ?: "");
+    char *m = json_esc(webkit_uri_request_get_http_method(rq) ?: "GET");
     g_string_append_printf(j, "\"url\":\"%s\",\"method\":\"%s\",\"headers\":{", u, m);
     g_free(u); g_free(m);
     SoupMessageHeaders *h = webkit_uri_request_get_http_headers(rq);
@@ -308,12 +330,12 @@ static char *request_json(WebKitURIRequest *rq) {
         SoupMessageHeadersIter it; const char *name, *value; int first = 1;
         soup_message_headers_iter_init(&it, h);
         while (soup_message_headers_iter_next(&it, &name, &value)) {
-            char *a = g_strescape(name, NULL), *b = g_strescape(value, NULL);
+            char *a = json_esc(name), *b = json_esc(value);
             g_string_append_printf(j, "%s\"%s\":\"%s\"", first ? "" : ",", a, b); first = 0;
             g_free(a); g_free(b);
         }
     }
-    g_string_append(j, "}");
+    g_string_append(j, "}}");
     return g_string_free(j, FALSE);
 }
 static gboolean on_policy(WebKitWebView *wv, WebKitPolicyDecision *d, WebKitPolicyDecisionType type, gpointer data) {
@@ -323,8 +345,13 @@ static gboolean on_policy(WebKitWebView *wv, WebKitPolicyDecision *d, WebKitPoli
     if (type == WEBKIT_POLICY_DECISION_TYPE_RESPONSE) {
         WebKitResponsePolicyDecision *r = WEBKIT_RESPONSE_POLICY_DECISION(d);
         WebKitURIResponse *resp = webkit_response_policy_decision_get_response(r);
+        if (v->bf_alt && webkit_response_policy_decision_is_main_frame_main_resource(r) && !g_strcmp0(webkit_uri_response_get_uri(resp), v->bf_alt)) {
+            webkit_policy_decision_ignore(d);          /* the load fails; on_load_failed re-shows the app's HTML */
+            g_string_free(j, TRUE);
+            return TRUE;
+        }
         char *rq = request_json(webkit_response_policy_decision_get_request(r));
-        char *u = g_strescape(webkit_uri_response_get_uri(resp) ?: "", NULL), *mime = g_strescape(webkit_uri_response_get_mime_type(resp) ?: "", NULL);
+        char *u = json_esc(webkit_uri_response_get_uri(resp) ?: ""), *mime = json_esc(webkit_uri_response_get_mime_type(resp) ?: "");
         g_string_append_printf(j, "{\"request\":%s,\"url\":\"%s\",\"status\":%u,\"mime\":\"%s\",\"length\":%" G_GUINT64_FORMAT ",\"canShow\":%s,\"mainFrame\":%s,\"headers\":{",
                                rq, u, webkit_uri_response_get_status_code(resp), mime, webkit_uri_response_get_content_length(resp),
                                webkit_response_policy_decision_is_mime_type_supported(r) ? "true" : "false",
@@ -334,7 +361,7 @@ static gboolean on_policy(WebKitWebView *wv, WebKitPolicyDecision *d, WebKitPoli
             SoupMessageHeadersIter it; const char *name, *value; int first = 1;
             soup_message_headers_iter_init(&it, h);
             while (soup_message_headers_iter_next(&it, &name, &value)) {
-                char *a = g_strescape(name, NULL), *b = g_strescape(value, NULL);
+                char *a = json_esc(name), *b = json_esc(value);
                 g_string_append_printf(j, "%s\"%s\":\"%s\"", first ? "" : ",", a, b); first = 0;
                 g_free(a); g_free(b);
             }
@@ -344,9 +371,13 @@ static gboolean on_policy(WebKitWebView *wv, WebKitPolicyDecision *d, WebKitPoli
         kind = "response";
     } else {
         WebKitNavigationAction *a = webkit_navigation_policy_decision_get_navigation_action(WEBKIT_NAVIGATION_POLICY_DECISION(d));
+        const char *target = webkit_uri_request_get_uri(webkit_navigation_action_get_request(a));
+        g_free(v->bf_alt); v->bf_alt = NULL;
+        if (type == WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION && webkit_navigation_action_get_navigation_type(a) == WEBKIT_NAVIGATION_TYPE_BACK_FORWARD
+            && target && g_hash_table_contains(v->alt_html, target)) v->bf_alt = g_strdup(target);
         char *rq = request_json(webkit_navigation_action_get_request(a));
         const char *frame = webkit_navigation_action_get_frame_name(a);
-        char *fn = g_strescape(frame ?: "", NULL);
+        char *fn = json_esc(frame ?: "");
         g_string_append_printf(j, "{\"request\":%s,\"type\":%d,\"button\":%u,\"modifiers\":%u,\"userGesture\":%s,\"redirect\":%s,\"frameName\":\"%s\"}",
                                rq, webkit_navigation_action_get_navigation_type(a), webkit_navigation_action_get_mouse_button(a),
                                webkit_navigation_action_get_modifiers(a), webkit_navigation_action_is_user_gesture(a) ? "true" : "false",
@@ -422,7 +453,7 @@ static void on_scheme(WebKitURISchemeRequest *rq, gpointer data) {
     int id = next_scheme_req++;
     g_hash_table_insert(scheme_reqs, GINT_TO_POINTER(id), s);
     GString *j = g_string_new("{");
-    char *u = g_strescape(webkit_uri_scheme_request_get_uri(rq) ?: "", NULL), *m = g_strescape(webkit_uri_scheme_request_get_http_method(rq) ?: "GET", NULL);
+    char *u = json_esc(webkit_uri_scheme_request_get_uri(rq) ?: ""), *m = json_esc(webkit_uri_scheme_request_get_http_method(rq) ?: "GET");
     g_string_append_printf(j, "\"url\":\"%s\",\"method\":\"%s\",\"headers\":{", u, m);
     g_free(u); g_free(m);
     SoupMessageHeaders *h = webkit_uri_scheme_request_get_http_headers(rq);
@@ -430,7 +461,7 @@ static void on_scheme(WebKitURISchemeRequest *rq, gpointer data) {
         SoupMessageHeadersIter it; const char *name, *value; int first = 1;
         soup_message_headers_iter_init(&it, h);
         while (soup_message_headers_iter_next(&it, &name, &value)) {
-            char *a = g_strescape(name, NULL), *b = g_strescape(value, NULL);
+            char *a = json_esc(name), *b = json_esc(value);
             g_string_append_printf(j, "%s\"%s\":\"%s\"", first ? "" : ",", a, b); first = 0;
             g_free(a); g_free(b);
         }
@@ -477,10 +508,12 @@ static void view_new(int id, double w, double h, double scale, int ephem, const 
     struct view *v = g_new0(struct view, 1);
     v->id = id; v->w = w; v->h = h; v->scale = scale; v->zoom = 1;
     v->pending = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+    v->alt_html = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
     v->ucm = webkit_user_content_manager_new();
     g_object_set_data(G_OBJECT(v->ucm), "isim-view", GINT_TO_POINTER(id));
     WebKitSettings *st = webkit_settings_new();
     webkit_settings_set_enable_javascript(st, js);
+    webkit_settings_set_enable_page_cache(st, TRUE);
     webkit_settings_set_allow_file_access_from_file_urls(st, TRUE);
     webkit_settings_set_javascript_can_open_windows_automatically(st, FALSE);
     webkit_settings_set_enable_developer_extras(st, FALSE);
@@ -552,6 +585,7 @@ static void view_close(struct view *v) {
         else { webkit_script_message_reply_return_error_message(p->obj, "web view closed"); webkit_script_message_reply_unref(p->obj); }
     }
     g_hash_table_destroy(v->pending);
+    g_hash_table_destroy(v->alt_html); g_free(v->bf_alt);
     gtk_window_destroy(GTK_WINDOW(v->win));
     if (v->mem) { munmap(v->mem, v->memsize); close(v->memfd); }
     g_free(v->last);
@@ -650,8 +684,8 @@ static void cookies_done(GObject *o, GAsyncResult *r, gpointer data) {
     GString *j = g_string_new("[");
     for (GList *i = list; i; i = i->next) {
         SoupCookie *c = i->data;
-        char *n = g_strescape(soup_cookie_get_name(c) ?: "", NULL), *val = g_strescape(soup_cookie_get_value(c) ?: "", NULL),
-             *d = g_strescape(soup_cookie_get_domain(c) ?: "", NULL), *p = g_strescape(soup_cookie_get_path(c) ?: "/", NULL);
+        char *n = json_esc(soup_cookie_get_name(c) ?: ""), *val = json_esc(soup_cookie_get_value(c) ?: ""),
+             *d = json_esc(soup_cookie_get_domain(c) ?: ""), *p = json_esc(soup_cookie_get_path(c) ?: "/");
         GDateTime *ex = soup_cookie_get_expires(c);
         g_string_append_printf(j, "%s{\"name\":\"%s\",\"value\":\"%s\",\"domain\":\"%s\",\"path\":\"%s\",\"secure\":%s,\"httpOnly\":%s,\"expires\":%" G_GINT64_FORMAT "}",
                                i == list ? "" : ",", n, val, d, p, soup_cookie_get_secure(c) ? "true" : "false",
@@ -747,7 +781,14 @@ static void cmd(char **f, int n) {
         webkit_web_view_load_request(v->wv, rq);
         g_object_unref(rq);
     }
-    else if (!strcmp(c, "html")) webkit_web_view_load_html(v->wv, ARG(3), *ARG(2) ? ARG(2) : NULL);
+    else if (!strcmp(c, "html")) {
+        /* with a real base URL the page is loaded "as" that URL so it gets a back-forward item, like iOS */
+        if (*ARG(2) && strcmp(ARG(2), "about:blank")) {
+            g_hash_table_insert(v->alt_html, g_strdup(ARG(2)), g_strdup(ARG(3)));
+            webkit_web_view_load_alternate_html(v->wv, ARG(3), ARG(2), ARG(2));
+        }
+        else webkit_web_view_load_html(v->wv, ARG(3), NULL);
+    }
     else if (!strcmp(c, "data")) {
         gsize len; guchar *d = g_base64_decode(ARG(5), &len);
         GBytes *b = g_bytes_new_take(d, len);
@@ -939,6 +980,7 @@ int main(int argc, char **argv) {
     if (start_broadway() < 0) { const char *m = "error\t0\tgtk4-broadwayd could not be started\n"; if (write(PROTO_FD, m, strlen(m))) {} return 1; }
     setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1", 0);
     gtk_init();
+    webkit_web_context_set_cache_model(webkit_web_context_get_default(), WEBKIT_CACHE_MODEL_WEB_BROWSER);
     views = g_hash_table_new(g_direct_hash, g_direct_equal);
     schemes = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
     scheme_reqs = g_hash_table_new(g_direct_hash, g_direct_equal);

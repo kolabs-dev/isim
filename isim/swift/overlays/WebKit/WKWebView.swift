@@ -344,11 +344,11 @@ open class WKWebView: UIView, UIKeyInput {
     }
     @discardableResult open func loadFileRequest(_ request: URLRequest, allowingReadAccessTo readAccessURL: URL) -> WKNavigation { load(request) ?? WKNavigation() }
     @discardableResult open func goBack() -> WKNavigation? {
-        guard canGoBack else { return nil }
+        guard canGoBack || isLoading else { return nil }   /* the engine checks again (state may lag a navigation) */
         let nav = WKNavigation(); _requestedNavigation = nav; _send(["back"]); return nav
     }
     @discardableResult open func goForward() -> WKNavigation? {
-        guard canGoForward else { return nil }
+        guard canGoForward || isLoading else { return nil }
         let nav = WKNavigation(); _requestedNavigation = nav; _send(["forward"]); return nav
     }
     @discardableResult open func go(to item: WKBackForwardListItem) -> WKNavigation? {
@@ -399,7 +399,9 @@ open class WKWebView: UIView, UIKeyInput {
         try await withCheckedThrowingContinuation { c in
             _evaluate(javaScriptString, world: .page) { r in
                 switch r {
-                case .success(let v): c.resume(returning: v as Any)
+                case .success(let v?): c.resume(returning: v)
+                /* like iOS: the async form cannot return "no value" (undefined) */
+                case .success(nil): c.resume(throwing: WKError(.javaScriptResultTypeIsUnsupported, userInfo: [NSLocalizedDescriptionKey: "JavaScript execution returned a result of an unsupported type"]))
                 case .failure(let e): c.resume(throwing: e)
                 }
             }
@@ -627,7 +629,7 @@ open class WKWebView: UIView, UIKeyInput {
             let u = URL(string: o["url"] as? String ?? "") ?? URL(string: rqo["url"] as? String ?? "") ?? URL(string: "about:blank")!
             let status = o["status"] as? Int ?? 0
             let headers = o["headers"] as? [String: String] ?? [:]
-            let response: URLResponse = (u.scheme == "http" || u.scheme == "https") && status > 0
+            let response: URLResponse = status > 0
                 ? (HTTPURLResponse(url: u, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers) ?? URLResponse(url: u, mimeType: o["mime"] as? String, expectedContentLength: -1, textEncodingName: nil))
                 : URLResponse(url: u, mimeType: o["mime"] as? String, expectedContentLength: (o["length"] as? Int) ?? -1, textEncodingName: nil)
             let r = WKNavigationResponse(isForMainFrame: o["mainFrame"] as? Bool ?? true, response: response, canShowMIMEType: o["canShow"] as? Bool ?? true)
