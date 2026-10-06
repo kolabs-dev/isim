@@ -548,7 +548,7 @@ Shapes, paths, gradients and Canvas draw through libisim_host (cairo); tested by
 | `LinearGradient`, `RadialGradient`, `AngularGradient` / `conicGradient`, `EllipticalGradient`, `Gradient` (colors, stops) | ✅ | as views and shape styles |
 | Gradients in `fill`, `foregroundStyle`, `background`, `background(_:in:)`, `overlay` | ✅ | gradient strokes unverified |
 | `Color.gradient` (`AnyGradient`) | ✅ | a top-to-bottom gradient a little lighter at the top (approximates Apple's) |
-| Text with a gradient `foregroundStyle` | 🟡 | drawn in the gradient's first color |
+| Text with a gradient `foregroundStyle` | 🟡 | drawn in the gradient's first color (tested); no gradient across the glyphs |
 | `Material` (`.ultraThinMaterial` … `.bar`) | ✅ | real backdrop blur (UIVisualEffectView) |
 | `Color` (system colors, RGB/HSB/white, `Color(uiColor:)`, asset colors) | ✅ | |
 | `ImagePaint` (`.image(_:sourceRect:scale:)`) | ✅ | tiles fills; image strokes are not drawn |
