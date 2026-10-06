@@ -48,6 +48,7 @@ dark='r<60 && g<60 && b<60'
 check "ImagePaint tiles an image (20 pt symbol)"  'grep -q "symbol size 20x20" <<<"$log" && is shapes 230 710 "$dark" && is shapes 250 710 "$dark" && is shapes 230 730 "$dark" && is shapes 221 701 "$white"'
 check "Canvas draws an image"                     'is shapes 360 400 "$dark" && is shapes 360 385 "$white"'
 check "custom GeometryEffect (shear)"             'is shapes 22 702 "r>130 && b>180 && g<120" && is shapes 22 738 "$white" && is shapes 42 738 "r>130 && b>180 && g<120"'
+check "Core Graphics even-odd fill and line dash" 'is shapes 40 770 "$white" && is shapes 24 754 "r>230 && g<40" && is shapes 75 770 "$dark" && is shapes 85 770 "$white" && is shapes 95 770 "$dark"'
 check "Path API (description, bounds, contains, trim, CGPath, parse, arc)" 'grep -q "path description: 0 0 m 100 0 l 100 50 l h" <<<"$log" && grep -q "path bounds: (0.0, 0.0, 100.0, 50.0)" <<<"$log" && grep -q "path contains inside: true outside: false" <<<"$log" && grep -q "trimmed: 0 0 m 100 0 l 100 100 l" <<<"$log" && grep -q "from CGPath bounds: (0.0, 0.0, 20.0, 20.0)" <<<"$log" && grep -q "parsed: 0 0 m 10 0 l 10 10 l h" <<<"$log" && grep -q "arc end: 0,10" <<<"$log"'
 check "KeyframeTimeline values, UnitCurve"       'grep -q "timeline duration 2.0 at 0.5: 5.0 at 1.5: true end: 0.0" <<<"$log" && grep -q "unit curve easeIn 0.5: true" <<<"$log"'
 # animations: 2 s linear, screenshot ~1 s in

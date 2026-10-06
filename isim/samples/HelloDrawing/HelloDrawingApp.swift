@@ -105,6 +105,8 @@ struct ShapesPage: View {
             // image paint, custom GeometryEffect
             Rectangle().fill(ImagePaint(image: Image(systemName: "circle.fill"))).at(220, 700, 160, 40)
             Rectangle().fill(Color.purple).modifier(Skew(amount: 0.5)).at(20, 700, 40, 40)
+            // Core Graphics in a UIKit view: even-odd fill and a dashed line
+            CGDrawing().at(20, 750, 110, 40)
         }
     }
 }
@@ -154,6 +156,26 @@ struct MotionPage: View {
 enum Ticks {
     static var first: Date?
     static func count(_ d: Date) -> Int { if first == nil { first = d }; return Int((d.timeIntervalSince(first!) * 2).rounded()) }
+}
+/// A UIKit view drawing with Core Graphics (UIViewRepresentable).
+struct CGDrawing: UIViewRepresentable {
+    final class DrawView: UIView {
+        override func draw(_ rect: CGRect) {
+            guard let ctx = UIGraphicsGetCurrentContext() else { return }
+            ctx.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+            ctx.addRect(CGRect(x: 0, y: 0, width: 40, height: 40))
+            ctx.addRect(CGRect(x: 10, y: 10, width: 20, height: 20))
+            ctx.fillPath(using: .evenOdd)
+            ctx.setStrokeColor(red: 0, green: 0, blue: 0, alpha: 1)
+            ctx.setLineWidth(6)
+            ctx.setLineCap(.butt)
+            ctx.setLineDash(phase: 0, lengths: [10, 10])
+            ctx.move(to: CGPoint(x: 50, y: 20)); ctx.addLine(to: CGPoint(x: 110, y: 20))
+            ctx.strokePath()
+        }
+    }
+    func makeUIView(context: Context) -> DrawView { let v = DrawView(); v.backgroundColor = .clear; return v }
+    func updateUIView(_ v: DrawView, context: Context) { v.setNeedsDisplay() }
 }
 /// Moves its content by x (an AnimatableModifier: the offset interpolates).
 struct Shift: AnimatableModifier {
