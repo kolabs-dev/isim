@@ -51,10 +51,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
 | Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
-| **Foundation** | 50 | 20 | 1 | 9 | 80 | 75% |
+| **Foundation** | 51 | 20 | 1 | 9 | 81 | 75% |
 | &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
 | &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
-| &nbsp;&nbsp;↳ Encoding & serialization | 7 | 0 | 0 | 0 | 7 | 100% |
+| &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 2 | 0 | 3 | 9 | 56% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 6 | 2 | 0 | 1 | 9 | 78% |
@@ -62,7 +62,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | **Swift runtime, stdlib & concurrency** | 29 | 1 | 0 | 8 | 38 | 78% |
 | &nbsp;&nbsp;↳ Combine | 10 | 0 | 0 | 4 | 14 | 71% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
-| Objective-C runtime & C library | 6 | 2 | 0 | 2 | 10 | 70% |
+| Objective-C runtime & C library | 7 | 2 | 0 | 2 | 11 | 73% |
 | Core Graphics | 9 | 0 | 0 | 7 | 16 | 56% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
 | QuartzCore / Core Animation | 2 | 3 | 0 | 4 | 9 | 39% |
@@ -74,7 +74,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Photos, Vision, Core ML & camera | 0 | 0 | 0 | 7 | 7 | 0% |
 | StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
-| Data & persistence | 2 | 0 | 0 | 4 | 6 | 33% |
+| Data & persistence | 10 | 3 | 0 | 4 | 17 | 68% |
 | Identity & security | 4 | 0 | 1 | 5 | 10 | 40% |
 | Notifications & background work | 1 | 2 | 1 | 3 | 7 | 29% |
 | App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **444** | **168** | **42** | **172** | **826** | **64%** |
+| **All areas** | **454** | **171** | **42** | **172** | **839** | **64%** |
 
 ---
 
@@ -719,6 +719,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Reading XML plists (`NSDictionary(contentsOfFile:)`, Info.plist) | ✅ | |
 | Binary plists | ✅ | read and written (Info.plist, user defaults, serialization) |
 | `NSKeyedArchiver` / `NSKeyedUnarchiver`, `NSCoding`, `NSSecureCoding` | ✅ | Apple's keyed-archive format (bplist `$objects`/`$top`), shared references and cycles, allowed classes, class name mapping |
+| `ValueTransformer` (`NSValueTransformer`), `NSSecureUnarchiveFromDataTransformer` | ✅ | named registry (class names register on first use), negate/is-nil built-ins, keyed-archive transformers. Tested: CoreDataTest |
 
 ### Dates, calendars & formatters
 
@@ -851,7 +852,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | ARC, weak references, autorelease pools, blocks | ✅ | |
 | Associated objects, method swizzling (`method_exchangeImplementations`), introspection | ✅ | |
 | `@synchronized`, properties, fast enumeration | ✅ | |
-| Message forwarding (`forwardInvocation:`, `resolveInstanceMethod:`) | ❌ | unknown selectors abort |
+| Dynamic method resolution (`+resolveInstanceMethod:`, `+resolveClassMethod:`), property introspection (`class_getProperty`, `class_copyPropertyList`, `property_getAttributes`) | ✅ | also consulted by `respondsToSelector:` / `class_getMethodImplementation`. Tested: CoreDataTest (`@NSManaged` accessors) |
+| Message forwarding (`forwardingTargetForSelector:`, `forwardInvocation:`) | ❌ | unknown selectors abort |
 | `@try`/`@catch`/`@throw`, C++ exceptions | ❌ | a throw aborts |
 | libc / POSIX (stdio, malloc, string, pthreads, time, files) | ✅ | host glibc with Darwin layouts |
 | `errno` from Swift | ✅ | provided by the Foundation overlay (no Swift Darwin overlay) |
@@ -1122,8 +1124,19 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 
 | API / feature | Status | Notes |
 |---|---|---|
-| Core Data (`NSPersistentContainer`, `NSManagedObjectContext`, fetch requests, `@FetchRequest`) | ❌ | |
-| SwiftData (`@Model`, `ModelContainer`, `@Query`) | ❌ | needs macros + Observation |
+| Core Data: stack (`NSPersistentContainer`, `NSPersistentStoreCoordinator`, `NSPersistentStoreDescription`) | ✅ | isim's Objective-C `CoreData` framework (+ Swift overlay). Container finds `<name>.momd` in the main bundle; SQLite store in Library/Application Support/`<name>`.sqlite; `/dev/null` URL or `NSInMemoryStoreType` = in-memory. Store layout is isim's own (see docs/COREDATA.md). Tested: CoreDataTest, HelloCoreData |
+| Core Data: models (`NSManagedObjectModel`, `NSEntityDescription`, attributes, relationships, inheritance) | ✅ | Built in code or loaded from isim-compiled models. All attribute types incl. UUID, URI, Date, Binary, Decimal (as NSNumber/REAL), Transformable (value transformer data); to-one/to-many/ordered/many-to-many with inverses; fetch request templates, fetched properties, configurations. Tested: CoreDataTest |
+| Core Data: `.xcdatamodeld` in Xcode projects + codegen | ✅ | `isim build` compiles `.xcdatamodeld`/`.xcdatamodel` (versions, `.xccurrentversion`) to `<Name>.momd` in **isim's own model format** (XML plists; not Apple's binary .mom) and generates the Swift that Xcode's Class Definition / Category codegen makes (`@NSManaged` properties, `fetchRequest()`, to-many accessors). Decimal attributes generate `NSNumber?` (isim has no NSDecimalNumber). Tested: CoreDataTest, HelloCoreData |
+| Core Data: `NSManagedObject` (`@NSManaged` accessors, faults, KVC/KVO, `changedValues`, validation) | ✅ | Dynamic accessors via `+resolveInstanceMethod:` typed from the property's declared type (scalars, objects, `add<Key>Object:` & co., ordered accessors, `primitive<Key>`); `ObservableObject` + `Identifiable`; lazy faults (`object(with:)`, to-many loaded on first access); validation: mandatory, min/max, regex, validation predicates, `validate<Key>:error:`, relationship counts, deny. Tested: CoreDataTest |
+| Core Data: `NSManagedObjectContext` (insert/delete/save/rollback/reset/refresh, delete rules, notifications) | ✅ | Cascade/nullify/deny/no-action; `ObjectsDidChange` (end of event / `processPendingChanges`), `WillSave`/`DidSave`; `perform`/`performAndWait` (+ async `perform`, `performBackgroundTask`), main/private queues; parent/child contexts; `automaticallyMergesChangesFromParent` (children and sibling root contexts); `mergeChanges(fromContextDidSave:)`, `mergeChanges(fromRemoteContextSave:into:)`; permanent IDs + `URIRepresentation`. Tested: CoreDataTest |
+| Core Data: merge policies | 🟡 | Optimistic locking per row; error, object-trump, store-trump, overwrite, rollback policies decide per object (property-level merge simplified). Uniqueness constraints are parsed but not enforced. Tested: error, object trump, store trump |
+| Core Data: `NSFetchRequest` (predicates, sorting, limits, result types) | ✅ | Comparisons, BEGINSWITH/ENDSWITH/CONTAINS/LIKE (`[c]` for ASCII), IN, BETWEEN, AND/OR/NOT, `nil`, to-one/SELF equality run as SQL; anything else (key paths across relationships, `@count`, ANY, custom selectors) is evaluated in memory; pending changes (inserted/updated/deleted) always included. Managed objects, object IDs, dictionaries (`propertiesToFetch`, `NSExpressionDescription` aggregates, group by), counts; `count(for:)`; `execute()` in perform blocks. `fetchBatchSize`/prefetching accepted, everything is fetched at once. Tested: CoreDataTest |
+| Core Data: `NSBatchDeleteRequest` / `NSBatchUpdateRequest` | 🟡 | Run directly in SQLite (no delete rules; dangling to-one keys and join rows cleared); merge results with `mergeChanges(fromRemoteContextSave:into:)`. `NSBatchInsertRequest` missing. Tested: CoreDataTest |
+| Core Data: `NSFetchedResultsController` | ✅ | Sections by key path, index titles, `object(at:)`/`indexPath(forObject:)`; delegate insert/delete/move/update + section changes, or `controller(_:didChangeContentWith:)` with an `NSDiffableDataSourceSnapshotReference` that bridges to `NSDiffableDataSourceSnapshot<String, NSManagedObjectID>`. No cache. Tested: CoreDataTest |
+| Core Data: SwiftUI (`@FetchRequest`, `FetchedResults`, `@SectionedFetchRequest`, `\.managedObjectContext`) | ✅ | Re-fetches on context changes (saves, merges) with the request's animation; `nsPredicate`/`nsSortDescriptors` settable; Swift `SortDescriptor`s sort in memory. Tested: HelloCoreData |
+| Core Data: migration | 🟡 | Lightweight only (`shouldMigrateStoreAutomatically` + `shouldInferMappingModelAutomatically`, the defaults): added entities/attributes/relationships, renaming identifiers; removed properties are left in the store; changed attribute types keep stored values; no mapping models / `NSMigrationManager` / staged migration. Tested: CoreDataTest |
+| Core Data: persistent history, `NSPersistentCloudKitContainer`, derived attributes, `NSBatchInsertRequest`, undo | ❌ | `undoManager` is stored but changes are not registered with it |
+| SwiftData (`@Model`, `ModelContainer`, `@Query`) | ❌ | needs Apple's Swift macros (`@Model`, `#Predicate`), which isim cannot build; Core Data is the supported persistence framework |
 | CloudKit (`CKContainer`, records, subscriptions, `NSPersistentCloudKitContainer`) | ❌ | |
 | SQLite (`sqlite3` C API, `import SQLite3`) | ✅ | `/usr/lib/libsqlite3.dylib` forwards to the host's `libsqlite3.so.0` (loaded on first use; a function the host's SQLite lacks stops the app with a message). Tested: SecurityTest, HelloSecurity |
 | Keychain passwords (`SecItemAdd/CopyMatching/Update/Delete`, generic + internet passwords) | ✅ | Swift (isim's Security module; Objective-C callers not yet). iOS attribute keys, duplicate detection, return data/attributes/persistent refs, match limits, access groups (default: bundle id). Stored per access group in `$ISIM_DATA/Library/Keychains` (0600 JSON, not encrypted; survives app deletion, erased by `isim reset`). `SecAccessControl` flags stored, not enforced |

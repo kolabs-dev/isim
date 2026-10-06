@@ -11,7 +11,8 @@
  * autorelease pools, property accessors, @synchronized, fast-enumeration mutation
  * hook, class/object introspection subset.
  *
- * Not implemented: message forwarding (aborts with the selector), resolveInstanceMethod,
+ * +resolveInstanceMethod:/+resolveClassMethod:, property introspection (class_getProperty & co.).
+ * Not implemented: message forwarding (aborts with the selector),
  * tagged pointers, non-pointer isa, associated objects, exceptions (throw aborts),
  * method swizzling APIs, class_addMethod, ivar/property introspection, fpret variants.
  */
@@ -62,6 +63,7 @@ struct rt_class {
     int init_state;                            /* 0 none, 1 initializing, 2 done */
     struct method_list_t **cat_lists; int ncat, catcap;
     struct protocol_list_t **cat_protos; int ncatp;
+    void **cat_props; int ncatprops;           /* categories' instance property lists (class_getProperty) */
     IMP cxx_destruct;
 };
 
@@ -205,9 +207,29 @@ static void ensure_initialized(Class c) {
 }
 
 /* called from assembly trampolines */
+/* +resolveInstanceMethod: / +resolveClassMethod: (dynamic method resolution, e.g. Core Data's @NSManaged
+ * accessors): asked once when a lookup misses; the class may class_addMethod the selector and return YES. */
+static __thread int resolve_depth;
+static int try_resolve(Class cls, SEL sel) {
+    static SEL s_rim, s_rcm;
+    if (!s_rim) { s_rim = sel_registerName("resolveInstanceMethod:"); s_rcm = sel_registerName("resolveClassMethod:"); }
+    if (!cls || !cls->rt || !cls->rt->nonmeta || resolve_depth > 4) return 0;
+    int meta = is_meta(cls);
+    SEL rs = meta ? s_rcm : s_rim;
+    if (sel == rs || sel == s_initialize) return 0;
+    Class target = meta ? cls->rt->nonmeta : cls;
+    IMP r = lookup_nofail(target->isa, rs);
+    if (!r) return 0;
+    resolve_depth++;
+    int ok = ((unsigned char (*)(Class, SEL, SEL))r)(target, rs, sel) & 1;
+    resolve_depth--;
+    return ok && lookup_nofail(cls, sel) != NULL;
+}
+
 IMP objc_rt_lookup(id self, Class cls, SEL sel) {
     if (cls->rt && cls->rt->nonmeta && cls->rt->nonmeta->rt->init_state != 2) ensure_initialized(cls->rt->nonmeta);
     IMP imp = lookup_nofail(cls, sel);
+    if (!imp && try_resolve(cls, sel)) imp = lookup_nofail(cls, sel);
     if (!imp) {
         fflush(NULL);
         fprintf(stderr, "isim objc: FATAL: %c[%s %s]: unrecognized selector sent to %s %p (forwarding not implemented)\n",
@@ -354,6 +376,11 @@ static void attach_category(struct category_t *cat) {
         r->cat_protos = realloc(r->cat_protos, (r->ncatp + 1) * sizeof *r->cat_protos);
         r->cat_protos[r->ncatp++] = cat->protocols;
     }
+    if (cat->inst_props) {
+        struct rt_class *r = R(c);
+        r->cat_props = realloc(r->cat_props, (r->ncatprops + 1) * sizeof *r->cat_props);
+        r->cat_props[r->ncatprops++] = cat->inst_props;
+    }
 }
 
 /* Host-defined class for Protocol objects (Apple's lives in libobjc). Messages to it abort. */
@@ -447,8 +474,51 @@ size_t class_getInstanceSize(Class c) { return c ? ro_of(c)->instance_size : 0; 
 Class object_getClass(id o) { return o ? o->isa : NULL; }
 Class object_setClass(id o, Class c) { Class old = o ? o->isa : NULL; if (o) o->isa = c; return old; }
 const char *object_getClassName(id o) { return o ? cls_name(o->isa) : "nil"; }
-int class_respondsToSelector(Class c, SEL sel) { return c && sel && lookup_nofail(c, sel) != NULL; }
-IMP class_getMethodImplementation(Class c, SEL sel) { return c ? lookup_nofail(c, sel) : NULL; }
+int class_respondsToSelector(Class c, SEL sel) { return c && sel && (lookup_nofail(c, sel) != NULL || try_resolve(c, sel)); }
+IMP class_getMethodImplementation(Class c, SEL sel) {
+    if (!c) return NULL;
+    IMP imp = lookup_nofail(c, sel);
+    return imp || !try_resolve(c, sel) ? imp : lookup_nofail(c, sel);
+}
+
+/* ================= properties (declared @property / Swift @objc metadata, incl. categories) ================= */
+struct property_t { const char *name, *attributes; };
+struct property_list_t { uint32_t entsize, count; };
+static struct property_t *prop_in_list(void *list, const char *name) {
+    struct property_list_t *pl = list;
+    if (!pl) return NULL;
+    for (uint32_t i = 0; i < pl->count; i++) {
+        struct property_t *p = (struct property_t *)((uint8_t *)(pl + 1) + i * pl->entsize);
+        if (p->name && !strcmp(p->name, name)) return p;
+    }
+    return NULL;
+}
+struct property_t *class_getProperty(Class cls, const char *name) {
+    if (!name) return NULL;
+    for (Class c = cls; c; c = c->superclass) {
+        struct rt_class *r = R(c);
+        for (int i = r ? r->ncatprops - 1 : -1; i >= 0; i--) { struct property_t *p = prop_in_list(r->cat_props[i], name); if (p) return p; }
+        struct property_t *p = prop_in_list(ro_of(c)->base_properties, name);
+        if (p) return p;
+    }
+    return NULL;
+}
+struct property_t **class_copyPropertyList(Class c, unsigned int *outCount) {
+    unsigned n = 0, cap = 0; struct property_t **out = NULL;
+    struct rt_class *r = c ? R(c) : NULL;
+    for (int k = -1; c && k < (r ? r->ncatprops : 0); k++) {
+        struct property_list_t *pl = k < 0 ? ro_of(c)->base_properties : r->cat_props[k];
+        for (uint32_t i = 0; pl && i < pl->count; i++) {
+            if (n + 2 > cap) { cap = cap ? cap * 2 : 16; out = realloc(out, cap * sizeof *out); }
+            out[n++] = (struct property_t *)((uint8_t *)(pl + 1) + i * pl->entsize);
+        }
+    }
+    if (out) out[n] = NULL;
+    if (outCount) *outCount = n;
+    return out;
+}
+const char *property_getName(struct property_t *p) { return p ? p->name : NULL; }
+const char *property_getAttributes(struct property_t *p) { return p ? p->attributes : NULL; }
 IMP class_lookupMethod_own(Class c, SEL sel) { return find_own(c, sel); }
 
 struct protocol_t *objc_getProtocol(const char *name) {
@@ -938,6 +1008,7 @@ static const struct shim objc_table[] = {
     I(objc_constructInstance), I(object_isClass), I(objc_readClassPair), I(objc_setHook_getClass),
     I(objc_setHook_getImageName), I(objc_setHook_lazyClassNamer), I(class_getImageName),
     I(objc_getAssociatedObject), I(objc_setAssociatedObject), I(objc_removeAssociatedObjects),
+    I(class_getProperty), I(class_copyPropertyList), I(property_getName), I(property_getAttributes),
     I(_Block_copy), I(_Block_release), I(_Block_object_assign), I(_Block_object_dispose),
     J("__NSConcreteStackBlock", _NSConcreteStackBlock), J("__NSConcreteMallocBlock", _NSConcreteMallocBlock),
     J("__NSConcreteGlobalBlock", _NSConcreteGlobalBlock),

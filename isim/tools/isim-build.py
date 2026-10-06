@@ -10,6 +10,8 @@ What it does per target (dependencies first):
   * resources: .xcstrings -> <lang>.lproj/<Table>.strings, .strings/.lproj copied,
     .xcassets -> <bundle>/isim-assets.json + images (isim's asset format; NOT Apple's Assets.car),
     .xcprivacy and other files copied
+  * Core Data models: .xcdatamodeld/.xcdatamodel -> <Name>.momd (isim's own model format, NOT Apple's binary
+    .mom; see isim/tools/momc.py) plus the Swift classes Xcode's Class Definition / Category codegen makes
   * embeds app extensions into <App>.app/PlugIns/
   * Swift packages: local packages are built from source (targets as modules, manifest read with
     `swift package dump-package`); remote packages are NOT fetched -- a remote product builds only
@@ -28,6 +30,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from xcodeproj import Project, expand  # noqa: E402
+import momc  # noqa: E402
 
 BIN = os.path.dirname(os.path.realpath(__file__))
 ISIM = os.path.join(BIN, 'isim')
@@ -355,6 +358,16 @@ def build_target(project, name, configuration, outdir, built):
 
     sources = target.sources()
     swift = [f for f in sources if f.endswith('.swift')]
+    # Core Data models (Sources phase in classic projects, resources in folder-synchronized groups)
+    models = [f for f in sources + target.resources() if f.rstrip('/').endswith(('.xcdatamodeld', '.xcdatamodel'))
+              and not os.path.dirname(f.rstrip('/')).endswith('.xcdatamodeld')]
+    for m in dict.fromkeys(models):
+        gen_dir = os.path.join(objdir, 'coredata-codegen', os.path.basename(m.rstrip('/')))
+        shutil.rmtree(gen_dir, ignore_errors=True)
+        momd, gen = momc.compile_model(m, bundle, gen_dir)
+        swift += gen
+        log(f'{name}: Core Data model {os.path.basename(m.rstrip("/"))} -> {os.path.basename(momd)} (isim model format)'
+            + (f', {len(gen)} generated Swift files' if gen else ''))
     other = [f for f in sources if f.endswith(('.m', '.mm', '.c', '.cpp'))]
     objs = []
     pkg_built = {}
@@ -400,6 +413,8 @@ def build_target(project, name, configuration, outdir, built):
 
     localizations = set()
     for res in target.resources():
+        if res.rstrip('/').endswith(('.xcdatamodeld', '.xcdatamodel')):
+            continue                                   # compiled above
         if res.endswith('.xcstrings'):
             localizations.update(compile_xcstrings(res, bundle))
         elif res.endswith('.xcassets'):

@@ -86,10 +86,11 @@ framework Foundation frameworks/Foundation -framework CoreGraphics -lisim_host
 framework CoreText frameworks/CoreText -framework Foundation -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
 framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
+framework CoreData frameworks/CoreData -framework Foundation -lsqlite3
 
 # install the isim tool
 [ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"
-install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 755 tools/isim-services.py "$OUT/bin/isim-services.py"; install -m 644 tools/xcodeproj.py "$OUT/bin/xcodeproj.py"
+install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 755 tools/isim-services.py "$OUT/bin/isim-services.py"; install -m 644 tools/xcodeproj.py "$OUT/bin/xcodeproj.py"; install -m 755 tools/momc.py "$OUT/bin/momc.py"
 
 step "swift"
 bash swift/build.sh

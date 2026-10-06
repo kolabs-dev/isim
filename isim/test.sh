@@ -72,5 +72,11 @@ fi
 if [ -x out/apps/SecurityTest.app/SecurityTest ]; then          # known-answer vectors, keychain on isolated device data, log lines
   run "security (CommonCrypto, CryptoKit, SQLite3, Keychain, os.Logger)" bash -c 'tests/security/run.sh | tail -1; exit ${PIPESTATUS[0]}'
 fi
+if [ -x out/apps/HelloCoreData.app/HelloCoreData ]; then         # Xcode project + .xcdatamodeld, @FetchRequest, relaunch persistence
+  run "ui: HelloCoreData (Core Data + SwiftUI @FetchRequest, xcodeproj)" tests/ui/coredata.sh
+fi
+if [ -x out/apps/CoreDataTest.app/CoreDataTest ]; then       # models, SQLite/in-memory stores, contexts, fetches, FRC, migration
+  run "Core Data (models, stores, contexts, fetching, FRC, migration)" bash -c 'tests/coredata/run.sh | tail -1; exit ${PIPESTATUS[0]}'
+fi
 echo; [ $status = 0 ] && echo "ALL SUITES PASSED" || echo "SOME SUITES FAILED"
 exit $status
