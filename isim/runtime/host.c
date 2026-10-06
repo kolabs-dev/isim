@@ -700,6 +700,18 @@ void isim_audio_seek(long h, double seconds);
 void isim_audio_suspend(int s);
 int isim_audio_decode_file(const char *path, float **out, long *frames, int *channels, double *rate);
 void isim_audio_free(float *pcm);
+struct isim_http; struct isim_ws;
+struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len, double timeout, double resource_timeout, int flags);
+int isim_http_response(struct isim_http *h, long *status, char **url, char **headers);
+long isim_http_read(struct isim_http *h, void *buf, long cap);
+const char *isim_http_error_message(struct isim_http *h);
+void isim_http_cancel(struct isim_http *h);
+void isim_http_close(struct isim_http *h);
+struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err);
+int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
+int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
+void isim_ws_close(struct isim_ws *w);
+int isim_net_path(int *flags);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -727,5 +739,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free),
+    H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close),
+    H(isim_ws_open), H(isim_ws_send), H(isim_ws_recv), H(isim_ws_close), H(isim_net_path),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

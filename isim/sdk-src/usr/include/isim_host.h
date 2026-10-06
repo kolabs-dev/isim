@@ -84,4 +84,20 @@ void isim_audio_suspend(int suspended);
    ffmpeg or gst-launch-1.0 (48 kHz stereo); returns 0 if it cannot. Free the samples with isim_audio_free. */
 int isim_audio_decode_file(const char *path, float *_Nullable *_Nonnull out, long *frames, int *channels, double *rate);
 void isim_audio_free(float *_Nullable pcm);
+/* networking (host libcurl, dlopen'd): HTTP(S) transfers read with blocking calls from a background thread.
+   Errors are NSURLError codes (< 0). isim_http_start returns NULL when the host has no libcurl. */
+struct isim_http;
+struct isim_http *_Nullable isim_http_start(const char *method, const char *url, const char *_Nullable headers, const void *_Nullable body, long body_len,
+                                            double timeout, double resource_timeout, int flags);   /* flags: 1 = do not follow redirects */
+int isim_http_response(struct isim_http *h, long *status, char *_Nullable *_Nonnull url, char *_Nullable *_Nonnull headers);
+long isim_http_read(struct isim_http *h, void *buf, long cap);
+const char *isim_http_error_message(struct isim_http *h);
+void isim_http_cancel(struct isim_http *h);
+void isim_http_close(struct isim_http *_Nullable h);
+struct isim_ws;
+struct isim_ws *_Nullable isim_ws_open(const char *url, const char *_Nullable headers, double timeout, int *err);
+int isim_ws_send(struct isim_ws *w, int kind, const void *_Nullable data, long len);    /* kind: 1 text, 2 binary, 8 close, 9 ping */
+int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char *_Nullable *_Nonnull data, long *len);
+void isim_ws_close(struct isim_ws *_Nullable w);
+int isim_net_path(int *_Nullable flags);   /* 1 = connected; flags: 1 Wi-Fi, 2 wired, 4 IPv4, 8 IPv6, 16 other (VPN) */
 __END_DECLS
