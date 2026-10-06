@@ -6,6 +6,7 @@
 // fail to open like an unreadable file. No capture devices (camera), composition/export or 3D audio.
 @_exported import Foundation
 @_exported import CoreMedia
+@_exported import AudioToolbox
 import isim_host
 
 public typealias AVAudioFrameCount = UInt32
@@ -251,17 +252,38 @@ open class AVAudioFile: NSObject {
     public let url: URL
     public let fileFormat: AVAudioFormat
     public let processingFormat: AVAudioFormat
-    public let length: AVAudioFramePosition
+    open var length: AVAudioFramePosition { _writer.map { AVAudioFramePosition($0.frames) } ?? AVAudioFramePosition(decoded.channels.first?.count ?? 0) }
     open var framePosition: AVAudioFramePosition = 0
     let decoded: _DecodedAudio
+    var _writer: _AudioFileWriter?      // files opened for writing (AVAudioExtras.swift)
     public init(forReading url: URL) throws {
         self.url = url
         decoded = try _AudioDecoder.decode(url)
         let ch = AVAudioChannelCount(decoded.channels.count)
         fileFormat = AVAudioFormat(standardFormatWithSampleRate: decoded.rate, channels: ch)!
         processingFormat = fileFormat
-        length = AVAudioFramePosition(decoded.channels.first?.count ?? 0)
     }
+    /// Writing: PCM WAV/CAF directly; other extensions (m4a, aac, mp3, flac, aiff) are encoded by the host's ffmpeg
+    /// when the file is closed.
+    public init(forWriting url: URL, settings: [String: Any]) throws {
+        self.url = url
+        let w = try _AudioFileWriter(url: url, settings: settings)
+        _writer = w
+        decoded = _DecodedAudio(rate: w.rate, channels: [])
+        fileFormat = AVAudioFormat(standardFormatWithSampleRate: w.rate, channels: AVAudioChannelCount(w.channelCount))!
+        processingFormat = fileFormat
+    }
+    public convenience init(forWriting url: URL, settings: [String: Any], commonFormat: AVAudioCommonFormat, interleaved: Bool) throws {
+        try self.init(forWriting: url, settings: settings)
+    }
+    open func write(from buffer: AVAudioPCMBuffer) throws {
+        guard let w = _writer else { throw _avError("isim AVFoundation: \(url.lastPathComponent) is not open for writing") }
+        w.append(buffer)
+        framePosition = AVAudioFramePosition(w.frames)
+    }
+    open var isOpen: Bool { _writer.map { !$0.closed } ?? true }
+    open func close() { try? _writer?.finish() }
+    deinit { try? _writer?.finish() }
     public convenience init(forReading url: URL, commonFormat: AVAudioCommonFormat, interleaved: Bool) throws { try self.init(forReading: url) }
     open func read(into buffer: AVAudioPCMBuffer) throws { try read(into: buffer, frameCount: buffer.frameCapacity) }
     open func read(into buffer: AVAudioPCMBuffer, frameCount: AVAudioFrameCount) throws {
@@ -311,6 +333,10 @@ public enum AVAudioPlayerNodeCompletionCallbackType: Int, Sendable { case dataCo
 /// Plays scheduled buffers one after another; each runs as a voice in the host mixer.
 open class AVAudioPlayerNode: AVAudioNode {
     struct Item { let buffer: AVAudioPCMBuffer; let options: AVAudioPlayerNodeBufferOptions; let completion: (() -> Void)? }
+    // offline (manual rendering) state: the processed current item, pulled by AVAudioEngine.renderOffline
+    var _offItem: Item?
+    var _offPCM: [[Float]] = []
+    var _offPos = 0
     var queue: [Item] = []
     var voice = 0
     var current: Item?
@@ -346,22 +372,24 @@ open class AVAudioPlayerNode: AVAudioNode {
     }
     open func play(at when: AVAudioTime?) { play() }
     open func pause() { isPlaying = false; if voice != 0 { isim_audio_pause(voice, 1) } }
-    open func stop() { isPlaying = false; stopVoice(); queue = [] }
+    open func stop() { isPlaying = false; stopVoice(); queue = []; _offItem = nil; _offPCM = []; _offPos = 0 }
     open override func reset() { stop() }
     func stopVoice() { if voice != 0 { isim_audio_stop(voice); voice = 0 }; current = nil; generation += 1 }
     func applyVolume() { if voice != 0 { isim_audio_set_volume(voice, effectiveVolume) } }
 
     func startNext() {
         guard isPlaying, !queue.isEmpty else { voice = 0; return }
+        if engine?._manual != nil { return }          // renderOffline pulls the queue
         let item = queue.removeFirst()
         current = item
         let loops = item.options.contains(.loops)
-        let hb = item.buffer.host()
+        let processed = engine?._applyEffects(item.buffer, from: self) ?? item.buffer   // effect nodes downstream
+        let hb = processed.host()
         voice = hb > 0 ? isim_audio_play(hb, effectiveVolume, loops ? -1 : 0) : 0
         generation += 1
         guard !loops else { return }
         let gen = generation
-        let seconds = Double(item.buffer.frameLength) / item.buffer.format.sampleRate
+        let seconds = Double(processed.frameLength) / processed.format.sampleRate
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
             guard let self, self.generation == gen else { return }
             self.voice = 0
@@ -376,6 +404,15 @@ open class AVAudioEngine: NSObject {
     public let mainMixerNode = AVAudioMixerNode()
     public let outputNode = AVAudioOutputNode()
     var nodes: [AVAudioNode] = []
+    var _outputs: [ObjectIdentifier: AVAudioNode] = [:]     // node -> the node its output is connected to
+    var _manual: _ManualRendering?
+    var _inputNode: AVAudioInputNode?
+    /// The microphone (isim: ISIM_AUDIO_INPUT, see AVAudioExtras.swift).
+    open var inputNode: AVAudioInputNode {
+        if let n = _inputNode { return n }
+        let n = AVAudioInputNode(); n.engine = self; _inputNode = n
+        return n
+    }
     open private(set) var isRunning = false
     public override init() {
         super.init()
@@ -385,16 +422,17 @@ open class AVAudioEngine: NSObject {
     open var attachedNodes: Set<AVAudioNode> { Set(nodes) }
     open func attach(_ node: AVAudioNode) { node.engine = self; if !nodes.contains(node) { nodes.append(node) } }
     open func detach(_ node: AVAudioNode) { (node as? AVAudioPlayerNode)?.stop(); nodes.removeAll { $0 === node } }
-    open func connect(_ a: AVAudioNode, to b: AVAudioNode, format: AVAudioFormat?) {}
-    open func connect(_ a: AVAudioNode, to b: AVAudioNode, fromBus: AVAudioNodeBus, toBus: AVAudioNodeBus, format: AVAudioFormat?) {}
-    open func disconnectNodeOutput(_ node: AVAudioNode) {}
+    open func connect(_ a: AVAudioNode, to b: AVAudioNode, format: AVAudioFormat?) { _outputs[ObjectIdentifier(a)] = b }
+    open func connect(_ a: AVAudioNode, to b: AVAudioNode, fromBus: AVAudioNodeBus, toBus: AVAudioNodeBus, format: AVAudioFormat?) { _outputs[ObjectIdentifier(a)] = b }
+    open func disconnectNodeOutput(_ node: AVAudioNode) { _outputs[ObjectIdentifier(node)] = nil }
+    open func disconnectNodeOutput(_ node: AVAudioNode, bus: AVAudioNodeBus) { _outputs[ObjectIdentifier(node)] = nil }
     open func prepare() {}
     open func start() throws {
         _ = isim_audio_available()     // opens the device (or reports that sound is unavailable)
         isRunning = true
     }
     open func pause() { isRunning = false; for case let p as AVAudioPlayerNode in nodes { p.pause() } }
-    open func stop() { isRunning = false; for case let p as AVAudioPlayerNode in nodes { p.stop() } }
+    open func stop() { isRunning = false; for case let p as AVAudioPlayerNode in nodes { p.stop() }; _inputNode?._stopCapture() }
     open func reset() { for n in nodes { n.reset() } }
     func volumesChanged() { for case let p as AVAudioPlayerNode in nodes { p.applyVolume() } }
 }

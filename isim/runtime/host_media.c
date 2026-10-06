@@ -303,7 +303,7 @@ int isim_tts_synthesize(const char *text, const char *voice, double wpm, double 
     const char *tools[] = { "espeak-ng", "espeak" };
     char *wav = NULL; size_t n = 0;
     for (int i = 0; i < 2 && !wav; i++) {
-        char *argv[] = { (char *)tools[i], "-q", "--stdout", "-v", (char *)(voice && *voice ? voice : "en-us"), "-s", s, "-p", p, "-f", path, NULL };
+        char *argv[] = { (char *)tools[i], "--stdout", "-v", (char *)(voice && *voice ? voice : "en-us"), "-s", s, "-p", p, "-f", path, NULL };
         wav = run_capture(argv, &n);
     }
     unlink(path);

@@ -10,6 +10,17 @@ import isim_host
 
 public typealias OSStatus = Int32     // MacTypes (isim has no CoreServices module)
 public typealias SystemSoundID = UInt32
+// CoreAudioTypes format IDs (four-char codes), used in AVAudioRecorder/AVAudioFile settings
+public typealias AudioFormatID = UInt32
+public let kAudioFormatLinearPCM: AudioFormatID = 0x6C70_636D        // 'lpcm'
+public let kAudioFormatMPEG4AAC: AudioFormatID = 0x6161_6320         // 'aac '
+public let kAudioFormatAppleLossless: AudioFormatID = 0x616C_6163    // 'alac'
+public let kAudioFormatMPEGLayer3: AudioFormatID = 0x2E6D_7033       // '.mp3'
+public let kAudioFormatFLAC: AudioFormatID = 0x666C_6163             // 'flac'
+public let kAudioFormatOpus: AudioFormatID = 0x6F70_7573             // 'opus'
+public let kAudioFormatAppleIMA4: AudioFormatID = 0x696D_6134        // 'ima4'
+public let kAudioFormatULaw: AudioFormatID = 0x756C_6177             // 'ulaw'
+public let kAudioFormatALaw: AudioFormatID = 0x616C_6177             // 'alaw'
 public typealias AudioServicesSystemSoundCompletionProc = @convention(c) (SystemSoundID, UnsafeMutableRawPointer?) -> Void
 public let kSystemSoundID_Vibrate: SystemSoundID = 4095
 public let kSystemSoundID_UserPreferredAlert: SystemSoundID = 0x1000
