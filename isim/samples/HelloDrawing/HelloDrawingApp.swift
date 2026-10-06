@@ -85,6 +85,7 @@ struct ShapesPage: View {
                 clipped.fill(Path(CGRect(x: 100, y: 40, width: 60, height: 60)),
                              with: .linearGradient(Gradient(colors: [.yellow, .orange]), startPoint: CGPoint(x: 100, y: 0), endPoint: CGPoint(x: 160, y: 0)))
                 ctx.draw(Text("Canvas").font(.system(size: 12)), at: CGPoint(x: 80, y: 80))
+                ctx.draw(Image(systemName: "circle.fill"), at: CGPoint(x: 140, y: 20))
             }.at(220, 380, 160, 100).accessibilityIdentifier("canvas")
             // more styles
             Rectangle().fill(Color.blue.gradient).at(20, 480, 100, 40)
@@ -101,6 +102,9 @@ struct ShapesPage: View {
             AnyShape(Capsule()).fill(Color.indigo).at(140, 600, 100, 30)
             Circle().offset(x: 20).fill(Color.brown).at(280, 640, 40, 40)
             Rectangle().inset(by: 10).fill(Color.mint).at(140, 650, 60, 60)
+            // image paint, custom GeometryEffect
+            Rectangle().fill(ImagePaint(image: Image(systemName: "circle.fill"))).at(220, 700, 160, 40)
+            Rectangle().fill(Color.purple).modifier(Skew(amount: 0.5)).at(20, 700, 40, 40)
         }
     }
 }
@@ -110,6 +114,7 @@ struct MotionPage: View {
     @State private var fraction: CGFloat = 0.1
     @State private var warm = false
     @State private var bounce = 0
+    @State private var shifted = false
     var body: some View {
         ZStack(alignment: .topLeading) {
             TimelineView(.periodic(from: Date(), by: 0.5)) { context in
@@ -118,10 +123,14 @@ struct MotionPage: View {
             Circle().trim(from: 0, to: progress).stroke(Color.purple, style: StrokeStyle(lineWidth: 10, lineCap: .butt))
                 .at(20, 120, 100, 100)
             Bar(fraction: fraction).fill(Color.blue).at(140, 120, 240, 40)
+            Rectangle().fill(Color.green).modifier(Shift(x: shifted ? 200 : 0)).at(20, 500, 40, 40)
+            TimelineView(.animation) { context in
+                Text(FrameCounter.tick(context))
+            }.at(200, 380, 180, 30)
             Triangle().fill(warm ? Color(red: 0, green: 0, blue: 1) : Color(red: 1, green: 0, blue: 0)).at(140, 170, 60, 60)
             Rectangle().fill(LinearGradient(colors: warm ? [.orange, .yellow] : [.blue, .cyan], startPoint: .leading, endPoint: .trailing)).at(220, 170, 160, 40)
             Button("Animate") {
-                print("animate tapped"); withAnimation(.linear(duration: 2)) { progress = 1; fraction = 1; warm = true }
+                print("animate tapped"); withAnimation(.linear(duration: 2)) { progress = 1; fraction = 1; warm = true; shifted = true }
             }.accessibilityIdentifier("animate").at(20, 240, 120, 44)
             Text("phase").phaseAnimator([0, 1, 2]) { content, phase in
                 content.opacity(phase == 1 ? 0.5 : 1).overlay { PhaseProbe(phase: phase) }
@@ -145,6 +154,27 @@ struct MotionPage: View {
 enum Ticks {
     static var first: Date?
     static func count(_ d: Date) -> Int { if first == nil { first = d }; return Int((d.timeIntervalSince(first!) * 2).rounded()) }
+}
+/// Moves its content by x (an AnimatableModifier: the offset interpolates).
+struct Shift: AnimatableModifier {
+    var x: CGFloat
+    var animatableData: CGFloat { get { x } set { x = newValue } }
+    func body(content: Content) -> some View { content.offset(x: x) }
+}
+/// Shears the view horizontally (a custom GeometryEffect).
+struct Skew: GeometryEffect {
+    var amount: CGFloat
+    var animatableData: CGFloat { get { amount } set { amount = newValue } }
+    func effectValue(size: CGSize) -> ProjectionTransform { ProjectionTransform(CGAffineTransform(a: 1, b: 0, c: amount, d: 1, tx: 0, ty: 0)) }
+}
+/// Counts TimelineView(.animation) updates.
+enum FrameCounter {
+    static var frames = 0
+    static func tick(_ c: TimelineViewDefaultContext) -> String {
+        frames += 1
+        if frames == 30 { print("animation timeline 30 frames, live: \(c.cadence == .live)") }
+        return "frame \(frames)"
+    }
 }
 struct PhaseProbe: View {
     let phase: Int
@@ -176,6 +206,8 @@ enum PathChecks {
         }
         print("timeline duration \(t.duration) at 0.5: \(t.value(time: 0.5)) at 1.5: \(t.value(time: 1.5) > 0 && t.value(time: 1.5) < 50) end: \(t.value(time: 3))")
         print("unit curve easeIn 0.5: \(UnitCurve.easeIn.value(at: 0.5) < 0.5)")
+        let sym = UIImage(systemName: "circle.fill", withConfiguration: UIImage.SymbolConfiguration(font: UIFont.systemFont(ofSize: 17)))?.size ?? .zero
+        print("symbol size \(Int(sym.width.rounded()))x\(Int(sym.height.rounded()))")
         print("rect contains: \(Rectangle().path(in: CGRect(x: 0, y: 0, width: 10, height: 10)).contains(CGPoint(x: 5, y: 5)))")
     }
 }

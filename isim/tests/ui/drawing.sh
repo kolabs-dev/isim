@@ -44,6 +44,10 @@ check "Shape.rotation (diamond past its frame)"  'is shapes 310 537 "r>200 && g<
 check "AnyShape(Capsule())"                      'is shapes 190 615 "b>150 && r<120 && g<120" && is shapes 141 601 "$white"'
 check "Shape.offset"                             'is shapes 320 660 "r>120 && g>90 && b<120 && r<200" && is shapes 285 660 "$white"'
 check "InsettableShape.inset(by:)"               'is shapes 145 655 "$white" && is shapes 170 680 "g>180 && b>150 && r<120"'
+dark='r<60 && g<60 && b<60'
+check "ImagePaint tiles an image (20 pt symbol)"  'grep -q "symbol size 20x20" <<<"$log" && is shapes 230 710 "$dark" && is shapes 250 710 "$dark" && is shapes 230 730 "$dark" && is shapes 221 701 "$white"'
+check "Canvas draws an image"                     'is shapes 360 400 "$dark" && is shapes 360 385 "$white"'
+check "custom GeometryEffect (shear)"             'is shapes 22 702 "r>130 && b>180 && g<120" && is shapes 22 738 "$white" && is shapes 42 738 "r>130 && b>180 && g<120"'
 check "Path API (description, bounds, contains, trim, CGPath, parse, arc)" 'grep -q "path description: 0 0 m 100 0 l 100 50 l h" <<<"$log" && grep -q "path bounds: (0.0, 0.0, 100.0, 50.0)" <<<"$log" && grep -q "path contains inside: true outside: false" <<<"$log" && grep -q "trimmed: 0 0 m 100 0 l 100 100 l" <<<"$log" && grep -q "from CGPath bounds: (0.0, 0.0, 20.0, 20.0)" <<<"$log" && grep -q "parsed: 0 0 m 10 0 l 10 10 l h" <<<"$log" && grep -q "arc end: 0,10" <<<"$log"'
 check "KeyframeTimeline values, UnitCurve"       'grep -q "timeline duration 2.0 at 0.5: 5.0 at 1.5: true end: 0.0" <<<"$log" && grep -q "unit curve easeIn 0.5: true" <<<"$log"'
 # animations: 2 s linear, screenshot ~1 s in
@@ -52,7 +56,9 @@ check "custom Animatable shape interpolates"     'is motion-mid 200 140 "b>200 &
 check "shape color interpolates"                 'is motion0 170 215 "r>200 && b<60" && is motion-mid 170 215 "r>50 && r<210 && b>50 && b<210"'
 check "gradient stops interpolate"               'is motion0 225 190 "b>200 && r<60" && is motion-mid 225 190 "r>60 && b<200"'
 check "animations end at the new values"         'is motion-end 70 121 "r>130 && b>180 && g<120" && is motion-end 356 140 "b>200 && r<60" && is motion-end 170 215 "b>200 && r<60"'
-check "Canvas arc stroke"                        'is motion0 110 430 "r<60 && g<60 && b<60" && is motion0 98 402 "$white"'
+check "AnimatableModifier interpolates"           'is motion0 40 520 "g>150 && r<120" && is motion-mid 40 520 "$white" && is motion-mid 140 520 "g>150 && r<120" && is motion-end 240 520 "g>150 && r<120" && is motion-end 140 520 "$white"'
+check "TimelineView(.animation) updates per frame" 'grep -q "animation timeline 30 frames, live: true" <<<"$log"'
+check "Canvas arc stroke"                       'is motion0 110 430 "r<60 && g<60 && b<60" && is motion0 98 402 "$white"'
 ticks=$(grep -o "text=tick [0-9]*" <<<"$log" | sort -u | wc -l)
 check "TimelineView(.periodic) re-renders"        '[ "$ticks" -ge 2 ]'
 check "phaseAnimator cycles through phases"       '[ $(grep -c "^phase 0" <<<"$log") -ge 2 ] && grep -q "^phase 1" <<<"$log" && grep -q "^phase 2" <<<"$log"'
