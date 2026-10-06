@@ -42,5 +42,8 @@ fi
 if [ -x out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest ]; then
   run "swift libraries (Dispatch, Combine, JSON/Codable, Calendar, ...)" bash -c 'timeout 60 out/bin/isim run out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest | tail -1; exit ${PIPESTATUS[0]}'
 fi
+if [ -x out/apps/SecurityTest.app/SecurityTest ]; then          # known-answer vectors, keychain on isolated device data, log lines
+  run "security (CommonCrypto, CryptoKit, SQLite3, Keychain, os.Logger)" bash -c 'tests/security/run.sh | tail -1; exit ${PIPESTATUS[0]}'
+fi
 echo; [ $status = 0 ] && echo "ALL SUITES PASSED" || echo "SOME SUITES FAILED"
 exit $status

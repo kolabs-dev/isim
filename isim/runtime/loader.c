@@ -82,7 +82,10 @@ const struct shim *host_lib_lookup(const struct host_lib *lib, const char *name)
         if (!strcmp(lib->table[i].name, name)) { if (lib == &host_sqlite) host_sqlite_load(); return &lib->table[i]; }
     if (lib == &host_libsystem)            /* libdyld lives inside the libSystem umbrella on Darwin */
         for (size_t i = 0; i < dyld_table_count; i++) if (!strcmp(dyld_table[i].name, name)) return &dyld_table[i];
-    if (lib == &host_libsystem) return host_lib_lookup(&host_commoncrypto, name);
+    if (lib == &host_libsystem) {
+        const struct shim *s = host_lib_lookup(&host_commoncrypto, name);
+        return s ? s : host_lib_lookup(&host_libsystem_os, name);
+    }
     return NULL;
 }
 
@@ -585,7 +588,8 @@ static void print_exports(const char *lib) {
         if (host_libs[i] == &host_libsystem)
             for (size_t j = 0; j < dyld_table_count; j++) printf("%s %s\n", dyld_table[j].name, dyld_table[j].status);
         if (host_libs[i] == &host_libsystem)
-            for (size_t j = 0; j < host_commoncrypto.count; j++) printf("%s %s\n", host_commoncrypto.table[j].name, host_commoncrypto.table[j].status);
+            for (const struct host_lib *x = &host_commoncrypto; x; x = x == &host_commoncrypto ? &host_libsystem_os : NULL)
+                for (size_t j = 0; j < x->count; j++) printf("%s %s\n", x->table[j].name, x->table[j].status);
         return;
     }
     fprintf(stderr, "unknown host library %s\n", lib);
