@@ -75,6 +75,17 @@ void isim_image_free(int handle);
 void isim_image_draw_part(int handle, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
                           int nearest, const double *blend_rgba, double blend_factor, double alpha);
 void isim_image_pixel_size(int handle, double *w, double *h);
+/* offscreen drawing: begin pushes an image surface (w x h points at scale) as the drawing target; snapshot copies
+   it into a new image handle; end pops it. encode: fmt 0 PNG, 1 JPEG; returns the length, *out freed with bytes_free */
+int isim_gfx_offscreen_begin(double w, double h, double scale, int opaque);
+int isim_gfx_offscreen_snapshot(void);
+void isim_gfx_offscreen_end(void);
+int isim_gfx_offscreen_depth(void);
+long isim_image_encode(int handle, int fmt, double quality, unsigned char *_Nullable *_Nonnull out);
+void isim_image_bytes_free(unsigned char *_Nullable bytes);
+/* attributed text as Pango markup (<span font_family= size= weight= foreground= ...>); align 0 left 1 center 2 right */
+void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h);
+void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba);
 /* audio: PCM buffers (float, interleaved) played as mixed voices. Voice handles are longs (> 0). */
 int isim_audio_available(void);
 int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate);

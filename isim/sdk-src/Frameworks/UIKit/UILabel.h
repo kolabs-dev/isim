@@ -1,11 +1,12 @@
 #pragma once
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIFont, UIColor;
+@class UIFont, UIColor, NSAttributedString;
 typedef NS_ENUM(NSInteger, NSTextAlignment) { NSTextAlignmentLeft = 0, NSTextAlignmentCenter = 1, NSTextAlignmentRight = 2, NSTextAlignmentJustified = 3, NSTextAlignmentNatural = 4 };
 typedef NS_ENUM(NSInteger, NSLineBreakMode) { NSLineBreakByWordWrapping = 0, NSLineBreakByCharWrapping, NSLineBreakByClipping, NSLineBreakByTruncatingHead, NSLineBreakByTruncatingTail, NSLineBreakByTruncatingMiddle };
 @interface UILabel : UIView
 @property (nullable, nonatomic, copy) NSString *text;
+@property (nullable, nonatomic, copy) NSAttributedString *attributedText;
 @property (null_resettable, nonatomic, strong) UIFont *font;
 @property (null_resettable, nonatomic, strong) UIColor *textColor;
 @property (nonatomic) NSTextAlignment textAlignment;

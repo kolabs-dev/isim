@@ -44,4 +44,5 @@
 #import <UIKit/UITableView.h>
 #import <UIKit/UICollectionView.h>
 #import <UIKit/UIKeyCommand.h>
+#import <UIKit/NSAttributedString.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>

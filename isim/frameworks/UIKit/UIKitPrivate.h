@@ -23,6 +23,10 @@ void isim_ui_register_app_fonts(void);
 CGSize isim_ui_measure(NSString *text, UIFont *font, CGFloat maxWidth, NSInteger lines);
 CGPoint isim_ui_text_end_point(NSString *text, UIFont *font, CGFloat maxWidth);  /* where a caret after the text goes */
 void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect, NSTextAlignment align, NSInteger lines, CGFloat alpha);
+/* attributed text (Pango markup); font/color are the defaults where the string has none */
+NSString *isim_ui_markup(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, NSTextAlignment *_Nullable align, CGFloat *_Nullable spacing);
+CGSize isim_ui_measure_attributed(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, CGFloat maxWidth, NSInteger lines);
+void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, CGRect rect, NSTextAlignment align, NSInteger lines, CGFloat alpha);
 
 @interface UIFont (IsimPrivate)
 @property (nonatomic, readonly) CGFloat _isim_weight;

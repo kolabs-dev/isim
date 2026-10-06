@@ -16,7 +16,18 @@
     return self;
 }
 - (void)_changed { [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
-- (void)setText:(NSString *)t { if (t == _text || [t isEqualToString:_text]) return; _text = [t copy]; [self _changed]; }
+- (void)setText:(NSString *)t { _attributedText = nil; if (t == _text || [t isEqualToString:_text]) return; _text = [t copy]; [self _changed]; }
+@synthesize attributedText = _attributedText;
+- (void)setAttributedText:(NSAttributedString *)a { _attributedText = [a copy]; _text = [a.string copy]; [self _changed]; }
+- (NSAttributedString *)attributedText {
+    if (_attributedText) return _attributedText;
+    if (!_text) return nil;
+    return [[NSAttributedString alloc] initWithString:_text attributes:@{ NSFontAttributeName: _font, NSForegroundColorAttributeName: _textColor }];
+}
+/* the label's text measured with its attributes when it has some */
+- (CGSize)_isim_measure:(CGFloat)maxw lines:(NSInteger)lines font:(UIFont *)f {
+    return _attributedText ? isim_ui_measure_attributed(_attributedText, f, _textColor, maxw, lines) : isim_ui_measure(_text, f, maxw, lines);
+}
 - (void)setFont:(UIFont *)f { _font = f ?: [UIFont systemFontOfSize:17]; [self _changed]; }
 - (void)setTextColor:(UIColor *)c { _textColor = c ?: UIColor.labelColor; isim_ui_set_needs_display(); }
 - (void)setTextAlignment:(NSTextAlignment)a { _textAlignment = a; isim_ui_set_needs_display(); }
@@ -44,25 +55,26 @@
 }
 - (CGSize)intrinsicContentSize {
     if (!_text.length) return CGSizeZero;
-    CGSize s = isim_ui_measure(_text, _font, [self _wrapWidth], _numberOfLines);
+    CGSize s = [self _isim_measure:[self _wrapWidth] lines:_numberOfLines font:_font];
     return CGSizeMake(ceil(s.width), ceil(s.height));
 }
 - (CGSize)_isim_intrinsicSizeForWidth:(CGFloat)w {
     if (_numberOfLines == 1 || _preferredMaxLayoutWidth > 0 || w <= 0) return [self intrinsicContentSize];
     if (!_text.length) return CGSizeZero;
-    CGSize s = isim_ui_measure(_text, _font, w, _numberOfLines);
+    CGSize s = [self _isim_measure:w lines:_numberOfLines font:_font];
     return CGSizeMake(ceil(s.width), ceil(s.height));
 }
 - (CGSize)sizeThatFits:(CGSize)size {
-    CGSize s = isim_ui_measure(_text, _font, _numberOfLines == 1 ? 0 : size.width, _numberOfLines);
+    CGSize s = [self _isim_measure:_numberOfLines == 1 ? 0 : size.width lines:_numberOfLines font:_font];
     return CGSizeMake(ceil(s.width), ceil(s.height));
 }
 - (CGRect)textRectForBounds:(CGRect)b limitedToNumberOfLines:(NSInteger)n {
-    CGSize s = isim_ui_measure(_text, _font, n == 1 ? 0 : b.size.width, n);
+    CGSize s = [self _isim_measure:n == 1 ? 0 : b.size.width lines:n font:_font];
     return CGRectMake(b.origin.x, b.origin.y, MIN(s.width, b.size.width), MIN(s.height, b.size.height));
 }
 - (void)drawTextInRect:(CGRect)r {
     UIColor *c = _highlighted && _highlightedTextColor ? _highlightedTextColor : _textColor;
+    if (_attributedText) { isim_ui_draw_attributed(_attributedText, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
     isim_ui_draw_text(_text, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4);
 }
 - (void)_isim_drawContent { [self drawTextInRect:self.bounds]; }

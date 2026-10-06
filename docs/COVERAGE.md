@@ -22,15 +22,15 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 84 | 32 | 10 | 71 | 197 | 51% |
+| **UIKit** | 89 | 32 | 10 | 66 | 197 | 53% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 5 | 8 | 23 | 35% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 11 | 2 | 0 | 16 | 29 | 41% |
-| &nbsp;&nbsp;↳ Views & controls | 23 | 14 | 1 | 13 | 51 | 59% |
+| &nbsp;&nbsp;↳ Views & controls | 24 | 14 | 1 | 12 | 51 | 61% |
 | &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
 | &nbsp;&nbsp;↳ Gestures & touches | 9 | 1 | 0 | 3 | 13 | 73% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
-| &nbsp;&nbsp;↳ Drawing, images & symbols | 8 | 3 | 0 | 7 | 18 | 53% |
+| &nbsp;&nbsp;↳ Drawing, images & symbols | 12 | 3 | 0 | 3 | 18 | 75% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 0 | 0 | 1 | 2 | 3 | 0% |
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **335** | **117** | **45** | **273** | **770** | **51%** |
+| **All areas** | **340** | **117** | **45** | **268** | **770** | **52%** |
 
 ---
 
@@ -167,7 +167,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `tintColor` / `tintColorDidChange` | 🟡 | tint inheritance details unverified |
 | `contentMode` | 🟡 | used by image views; all modes unverified |
 | `UILabel` (font, color, alignment, multi-line, line break, `adjustsFontSizeToFitWidth`) | ✅ | Pango text; Adwaita Sans stands in for SF Pro, so metrics differ slightly |
-| `UILabel.attributedText` | ❌ | no `NSAttributedString` |
+| `UILabel.attributedText` | ✅ | fonts, colours, background, kern, underline, strikethrough, baseline offset, paragraph alignment/line spacing (Pango markup); tested (HelloImages). Attachments and shadows are not drawn |
 | `UIButton` system/custom, title/color/image per state | ✅ | `imageView` returns nil |
 | `UIButton.Configuration` (plain/tinted/gray/filled/bordered*, subtitle, image padding, corner style, size) | 🟡 | no `configurationUpdateHandler`, attributed titles or activity indicator |
 | Button menus (`menu`, `showsMenuAsPrimaryAction`), pop-up buttons | ✅ | UIButton.menu + showsMenuAsPrimaryAction, UIBarButtonItem menus; tested |
@@ -291,12 +291,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 |---|---|---|
 | `UIBezierPath` (rect, oval, rounded rect, arcs, curves, fill, stroke) | 🟡 | no dashes, line caps/joins, `addClip`, `contains` |
 | `UIRectFill`, `UIRectFrame` | ✅ | |
-| `UIGraphicsImageRenderer` / `UIGraphicsBeginImageContext` (offscreen drawing) | ❌ | |
+| `UIGraphicsImageRenderer` / `UIGraphicsBeginImageContext` (offscreen drawing) | ✅ | image/pngData/jpegData renderers, formats (scale, opaque), renderer context helpers, nested contexts; tested (HelloImages). Backdrop blur inside an offscreen context reads the screen |
 | `UIGraphicsPDFRenderer`, printing | ❌ | |
 | `UIImage(named:)` (bundle + asset catalog, 1x/2x/3x, dark variants) | ✅ | |
 | `UIImage(contentsOfFile:)`, `UIImage(cgImage:)` | ✅ | |
-| `UIImage(data:)` | ❌ | not in the header |
-| `pngData()` / `jpegData()` | ❌ | |
+| `UIImage(data:)` | ✅ | PNG/JPEG/GIF/SVG via the host decoders, with `scale:`; tested (HelloImages) |
+| `pngData()` / `jpegData()` | ✅ | `UIImagePNGRepresentation`/`UIImageJPEGRepresentation` (JPEG composites transparency over black, as iOS does); tested (HelloImages) |
 | `resizableImage(withCapInsets:)`, `withHorizontallyFlippedOrientation` | ❌ | |
 | `withTintColor`, rendering modes (template/original) | ✅ | |
 | SF Symbols (`UIImage(systemName:)`) | 🟡 | substitutes (procedural shapes / Adwaita symbolic icons), not Apple's glyphs |
@@ -306,7 +306,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Named asset-catalog colors (light/dark) | ✅ | |
 | `UIFont` (system weights, italic, monospaced, monospaced digits, metrics) | 🟡 | Adwaita Sans substitutes SF Pro; `fontDescriptor` missing |
 | Custom fonts (`UIAppFonts`) | ✅ | registered at launch |
-| `NSString.draw(in:withAttributes:)`, `boundingRect(with:)` | ❌ | |
+| `NSString.draw(in:withAttributes:)`, `boundingRect(with:)` | ✅ | NSString and NSAttributedString drawing/measuring, `NSParagraphStyle`, `NSStringDrawingOptions`; tested (HelloImages). `NSShadow` is accepted, not drawn |
 
 ### Haptics & feedback
 
@@ -893,7 +893,7 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 | `centerRect` (9-slice), `normalTexture`, lighting/shadow masks, `warpGeometry` | 🧩 | stored, not drawn |
 | `SKShapeNode` (path, rect, rounded rect, circle, ellipse, points, spline, fill/stroke, line width, glow, blend mode, `lineLength`) | 🟡 | line cap/join/miter, fill/stroke textures and shaders ignored |
 | `SKLabelNode` (font, size, color, alignment, multi-line, color blend, blend mode) | ✅ | |
-| `SKLabelNode.attributedText` | ❌ | isim Foundation has no `NSAttributedString` yet |
+| `SKLabelNode.attributedText` | ❌ | `NSAttributedString` exists now; SpriteKit does not draw it yet |
 | `SKTexture` (`imageNamed:` incl. atlases, `init(rect:in:)`, `textureRect`, filtering, `preload`) | 🟡 | no noise/`data:` textures; `cgImage()` returns nil |
 | `SKTextureAtlas` (`.atlas` folders, `textureNamed`, `textureNames`, `preload`, `init(dictionary:)`) | ✅ | picks the @2x/@3x file for the screen |
 | `.spriteatlas` in asset catalogs | 🟡 | `isim build` lists them for `SKTextureAtlas(named:)`; unverified in an app |
