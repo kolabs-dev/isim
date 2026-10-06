@@ -23,6 +23,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloForms.app/HelloForms ] && run "ui: HelloForms (SwiftUI controls, TabView, @AppStorage)" tests/ui/forms.sh
   [ -x out/apps/HelloControls.app/HelloControls ] && run "ui: HelloControls (UIKit controls, menus)" tests/ui/controls.sh
   [ -x out/apps/HelloPresentations.app/HelloPresentations ] && run "ui: HelloPresentations (sheets, alerts, dialogs)" tests/ui/presentations.sh
+  [ -x out/apps/HelloSecurity.app/HelloSecurity ] && run "ui: HelloSecurity (CryptoKit, keychain, SQLite, Face ID, notifications)" tests/ui/security.sh
 fi
 if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device shell: home screen + Settings
   run "ui: isim boot (home screen, Settings, multitasking)" tests/ui/boot.sh
