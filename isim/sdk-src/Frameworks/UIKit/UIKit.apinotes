@@ -570,6 +570,10 @@ Tags:
   SwiftName: UIEvent.EventType
 - Name: UIApplicationState
   SwiftName: UIApplication.State
+- Name: UIBackgroundRefreshStatus
+  SwiftName: UIBackgroundRefreshStatus
+- Name: UIApplicationShortcutIconType
+  SwiftName: UIApplicationShortcutIcon.IconType
 - Name: UISceneActivationState
   SwiftName: UIScene.ActivationState
 - Name: UIModalPresentationStyle
@@ -580,6 +584,14 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UIApplicationOpenURLOptionUniversalLinksOnly
+  SwiftName: UIApplication.OpenExternalURLOptionsKey.universalLinksOnly
+- Name: UIApplicationBackgroundFetchIntervalMinimum
+  SwiftName: UIApplication.backgroundFetchIntervalMinimum
+- Name: UIApplicationBackgroundFetchIntervalNever
+  SwiftName: UIApplication.backgroundFetchIntervalNever
+- Name: UIApplicationBackgroundRefreshStatusDidChangeNotification
+  SwiftName: UIApplication.backgroundRefreshStatusDidChangeNotification
 - Name: UIDeviceOrientationDidChangeNotification
   SwiftName: UIDevice.orientationDidChangeNotification
 - Name: NSFontAttributeName

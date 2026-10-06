@@ -11,7 +11,8 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        ISIM_EV_BACKGROUND, ISIM_EV_FOREGROUND, ISIM_EV_SETTINGS, ISIM_EV_LAUNCH_ID, ISIM_EV_OPEN_URL,
        ISIM_EV_KEY_UP = 19 /* key released; for ISIM_EV_KEY / ISIM_EV_KEY_UP `pad` is the USB HID usage (0 if unknown) */
        , ISIM_EV_NOTIFICATION_RESPONSE = 20 /* text: request identifier (18 is shell-internal) */
-       , ISIM_EV_DEVICE_ORIENTATION = 21 /* key: UIDeviceOrientation (the device was turned) */ };
+       , ISIM_EV_DEVICE_ORIENTATION = 21 /* key: UIDeviceOrientation (the device was turned) */
+       , ISIM_EV_SYSTEM = 40 /* text: a system message ("shortcut TYPE", "bgtask ID", "activity PATH", ...) */ };
 void isim_device_metrics(struct isim_device *out);
 int isim_set_orientation(int interfaceOrientation);   /* the screen takes this UIInterfaceOrientation; 1 if it changed */
 int isim_device_orientation(void);                    /* current UIDeviceOrientation */
@@ -75,7 +76,8 @@ int isim_open_url(const char *url);
 int isim_shell_present(void);
 enum { ISIM_SHELL_LAUNCH = 3, ISIM_SHELL_SETTINGS = 4, ISIM_SHELL_HOME = 5, ISIM_SHELL_TERMINATE_OTHERS = 6, ISIM_SHELL_TERMINATE_APP = 7, ISIM_SHELL_ICON = 8,
        ISIM_SHELL_RESTART_SYSTEM = 9 /* e.g. after a language change: quit apps, relaunch the home screen and the sender */,
-       ISIM_SHELL_NOTIFY = 10 /* banner from a background app: a = identifier "\x1f" icon path, b = title, c = body */ };
+       ISIM_SHELL_NOTIFY = 10 /* banner from a background app: a = identifier "\x1f" icon path, b = title, c = body */,
+       ISIM_SHELL_SYSTEM = 40 /* system integration: a = verb, b/c = arguments (see runtime/shell_system.inc) */ };
 void isim_shell_request(int type, const char *a, const char *b, const char *c);
 /* images (handles > 0). Sizes: pixels for files/data; per 1pt of font size for symbols. */
 int isim_image_load(const char *path, double *w, double *h);

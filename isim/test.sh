@@ -54,6 +54,7 @@ fi
 if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device shell: home screen + Settings
   run "ui: isim boot (home screen, Settings, multitasking)" tests/ui/boot.sh
   run "ui: Settings Date & Time (24-hour, time zone)" tests/ui/datetime.sh
+  [ -x out/apps/HelloSystem.app/HelloSystem ] && run "ui: HelloSystem (quick actions, alternate icons, URLs, state restoration, background tasks)" tests/ui/system.sh
 fi
 if [ -x out/apps/SwiftEmbeddedTest.app/SwiftEmbeddedTest ]; then
   run "swift (embedded) self-test" bash -c 'out/bin/isim run out/apps/SwiftEmbeddedTest.app/SwiftEmbeddedTest | tail -1; exit ${PIPESTATUS[0]}'

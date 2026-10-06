@@ -314,6 +314,7 @@ static void shell_activate(int i) {
     shell_send(i, EV_FOREGROUND);
     shell_show(i);
 }
+static int spawn_background;  /* shell_system.inc: the next spawn starts the app in the background */
 static char **open_args;      /* launch arguments for the app opened at boot (isim run) */
 static int open_slot = -1;    /* that app: when it exits by itself, the run ends with its exit code */
 static int shell_spawn_at(int slot, const char *bundle, const char *exe, const char *url) {
@@ -335,6 +336,7 @@ static int shell_spawn_at(int slot, const char *bundle, const char *exe, const c
         setenv("ISIM_CLIENT_SOCK", b1, 1); setenv("ISIM_CLIENT_SURFACE", b2, 1); setenv("ISIM_CLIENT_SCALE", b3, 1);
         unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_HEADLESS"); unsetenv("ISIM_CONTROL");
         if (url && *url) setenv("ISIM_LAUNCH_URL", url, 1); else unsetenv("ISIM_LAUNCH_URL");
+        if (spawn_background) setenv("ISIM_LAUNCH_BACKGROUND", "1", 1); else unsetenv("ISIM_LAUNCH_BACKGROUND");
         char ob[8]; snprintf(ob, sizeof ob, "%d", device_orient); setenv("ISIM_DEVICE_ORIENTATION", ob, 1);
         char *av[64]; int n = 0;
         av[n++] = (char *)shell_self; av[n++] = "--root"; av[n++] = (char *)shell_root; av[n++] = (char *)exe;
@@ -398,6 +400,8 @@ static void shell_quit(void) {
     }
 }
 
+#include "shell_system.inc"
+
 /* one client message */
 static void shell_handle(int i, const struct shell_msg *m) {
     switch (m->type) {
@@ -411,6 +415,7 @@ static void shell_handle(int i, const struct shell_msg *m) {
         if (i == active && anim.kind == ANIM_NONE && !drag_active) shell_show(i);
         break;
     case SM_NOTIFY: nb_post(i, m); break;
+    case SM_SYSTEM: sys_handle_msg(i, m); break;
     case SM_LAUNCH: shell_launch(m->a, m->b, m->c); break;
     case SM_HOME: shell_home(); break;
     case SM_SETTINGS:
@@ -497,6 +502,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         if (ev.type == EV_QUIT) { shell_quit(); return 0; }
         if (ev.type == EV_HOME) { shell_home(); continue; }
         if (ev.type == EV_LAUNCH_ID) { shell_forward(0, &ev); continue; }        /* the home screen resolves bundle ids */
+        if (ev.type == EV_SHELL_CMD) { sys_command(ev.text); continue; }
         if (ev.type == EV_REDRAW) { shell_send(active, EV_REDRAW); continue; }
         if (ev.type == EV_DEVICE_ORIENTATION) { for (int k = 0; k < nclients; k++) shell_forward(k, &ev); continue; }
         if (ev.type == EV_KEY && (ev.mods & SDL_KMOD_CTRL) && (ev.mods & SDL_KMOD_SHIFT) && (ev.key == 'h' || ev.key == 'H')) { shell_home(); continue; }

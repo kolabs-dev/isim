@@ -1,35 +1,7 @@
 // isim home screen ("SpringBoard"): installed apps as icons; tapping one asks the isim shell to
 // launch (or resume) it. Runs as an isim system app under `isim boot`.
-#import <UIKit/UIKit.h>
-#include <isim_host.h>
+#import "SpringBoard.h"
 #import <objc/runtime.h>
-
-NSString *isim_ui_system_apps_dir(void);
-NSString *isim_ui_installed_apps_dir(void);
-
-@interface HSApp : NSObject
-@property (nonatomic, copy) NSString *path, *executable, *name, *bundleID, *iconPath;
-@property (nonatomic) BOOL system;
-@end
-@implementation HSApp @end
-
-/* the best icon file in an app: asset-catalog app icon (largest), else icon.png */
-static NSString *icon_path(NSString *app, NSDictionary *info) {
-    NSDictionary *assets = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"isim-assets.plist"]];
-    NSDictionary *icons = assets[@"appIcons"];
-    NSString *name = info[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] ?: @"AppIcon";
-    NSArray *files = icons[name] ?: icons.allValues.firstObject;
-    NSString *best = nil; double bestScore = -1;
-    for (NSDictionary *f in files) {
-        if ([f[@"appearance"] isEqualToString:@"dark"] || [f[@"appearance"] isEqualToString:@"tinted"]) continue;
-        NSString *size = f[@"size"] ?: @"1024x1024";
-        double px = [[size componentsSeparatedByString:@"x"].firstObject doubleValue] * ([f[@"scale"] doubleValue] ?: 1);
-        if (px > bestScore) { bestScore = px; best = f[@"file"]; }
-    }
-    if (best) return [app stringByAppendingPathComponent:best];
-    NSString *plain = [app stringByAppendingPathComponent:@"icon.png"];
-    return [NSFileManager.defaultManager fileExistsAtPath:plain] ? plain : nil;
-}
 
 static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     NSMutableArray *out = [NSMutableArray array];
@@ -44,7 +16,9 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
         NSBundle *b = [NSBundle bundleWithPath:path];          /* localized names (InfoPlist.strings), as on iOS */
         a.name = [b objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: [b objectForInfoDictionaryKey:@"CFBundleName"] ?: n.stringByDeletingPathExtension;
         a.bundleID = info[@"CFBundleIdentifier"] ?: n;
-        a.iconPath = icon_path(path, info);
+        a.info = info;
+        a.category = info[@"LSApplicationCategoryType"];
+        a.iconPath = HSIconPath(path, info, a.bundleID);
         [out addObject:a];
     }
     [out sortUsingComparator:^NSComparisonResult(HSApp *x, HSApp *y) { return [x.name localizedCaseInsensitiveCompare:y.name]; }];
@@ -109,8 +83,6 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
 - (void)setHighlighted:(BOOL)h { [super setHighlighted:h]; _image.alpha = h ? 0.6 : 1; }
 @end
 
-@interface HomeViewController : UIViewController
-@end
 @implementation HomeViewController { NSArray<HSApp *> *_apps; UIView *_grid, *_dock; UIImageView *_wallpaper; UIView *_menu; BOOL _editing; UIButton *_done; }
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleLightContent; }
 - (void)viewDidLoad {
@@ -128,6 +100,7 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     [self.view addSubview:_dock];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(reload) name:UIApplicationWillEnterForegroundNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(launchByID:) name:@"_IsimShellLaunch" object:nil];
+    [self installSystemObservers];
     [self reload];
 }
 - (void)reload {
@@ -139,6 +112,14 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     NSLog(@"SpringBoard: %lu app(s): %@", (unsigned long)apps.count, [names componentsJoinedByString:@", "]);
     [self.view setNeedsLayout];
     [self rebuild];
+    [self publishAppInfo];
+}
+- (NSArray<HSApp *> *)apps { return _apps; }
+- (HSApp *)appWithIdentifier:(NSString *)ident {
+    for (HSApp *a in _apps) if ([a.bundleID isEqualToString:ident] || [a.name isEqualToString:ident]) return a;
+    [self reload];
+    for (HSApp *a in _apps) if ([a.bundleID isEqualToString:ident] || [a.name isEqualToString:ident]) return a;
+    return nil;
 }
 - (void)rebuild {
     for (UIView *v in _grid.subviews) [v removeFromSuperview];
@@ -186,9 +167,10 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
         }
     });
 }
-- (void)launch:(HSApp *)a {
-    NSLog(@"SpringBoard: launching %@ (%@)", a.name, a.bundleID);
-    isim_shell_request(ISIM_SHELL_LAUNCH, a.path.UTF8String, a.executable.UTF8String, NULL);
+- (void)launch:(HSApp *)a { [self launch:a url:nil]; }
+- (void)launch:(HSApp *)a url:(NSString *)url {
+    NSLog(@"SpringBoard: launching %@ (%@)%@%@", a.name, a.bundleID, url ? @" with " : @"", url ?: @"");
+    isim_shell_request(ISIM_SHELL_LAUNCH, a.path.UTF8String, a.executable.UTF8String, url.UTF8String);
 }
 - (void)tapped:(HSIcon *)icon { if (!_editing) [self launch:icon.app]; }
 
@@ -216,31 +198,55 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     }
     [overlay addSubview:lifted];
     /* the menu */
-    NSMutableArray *items = [NSMutableArray arrayWithObject:@[NSLocalizedString(@"Edit Home Screen", nil), @"square.grid.2x2", @"edit"]];
+    /* quick actions (UIApplicationShortcutItem) first, then the system items */
+    NSArray *quick = HSQuickActions(icon.app);
+    NSMutableArray *items = [NSMutableArray array];
+    for (NSDictionary *q in quick) [items addObject:@[q[@"title"], q[@"symbol"] ?: @"", [@"shortcut:" stringByAppendingString:q[@"type"]], q[@"subtitle"] ?: @""]];
+    [items addObject:@[NSLocalizedString(@"Edit Home Screen", nil), @"square.grid.2x2", @"edit"]];
     if (!icon.app.system) [items addObject:@[NSLocalizedString(@"Remove App", nil), @"minus.circle", @"remove"]];
-    CGFloat W = 250, rowH = 44, H = rowH * items.count;
+    CGFloat W = 250, rowH = 44, gap = quick.count ? 8 : 0, H = rowH * items.count + gap;
+    NSLog(@"SpringBoard: %lu quick action(s) for %@", (unsigned long)quick.count, icon.app.name);
     UIView *card = [UIView new];
     card.backgroundColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.2 alpha:0.96] : [UIColor colorWithWhite:0.97 alpha:0.96]; }];
     card.layer.cornerRadius = 13; card.clipsToBounds = YES;
     CGFloat x = MIN(MAX(12, r.origin.x), self.view.bounds.size.width - W - 12);
     BOOL below = CGRectGetMaxY(r) + 12 + H < self.view.bounds.size.height - 40;
     card.frame = CGRectMake(x, below ? CGRectGetMaxY(r) + 12 : r.origin.y - 12 - H, W, H);
+    CGFloat y = 0;
     for (NSUInteger i = 0; i < items.count; i++) {
         NSArray *it = items[i];
+        BOOL shortcut = [it[2] hasPrefix:@"shortcut:"];
+        if (i == quick.count && quick.count) {           /* a thick separator between the app's actions and the system's */
+            UIView *g = [[UIView alloc] initWithFrame:CGRectMake(0, y, W, gap)];
+            g.backgroundColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.08 alpha:0.6] : [UIColor colorWithWhite:0.82 alpha:0.6]; }];
+            [card addSubview:g]; y += gap;
+        }
         UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
-        b.frame = CGRectMake(0, i * rowH, W, rowH);
+        b.frame = CGRectMake(0, y, W, rowH);
         BOOL destructive = [it[2] isEqual:@"remove"];
         UIColor *c = destructive ? UIColor.systemRedColor : UIColor.labelColor;
-        UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(16, 0, W - 60, rowH)]; l.text = it[0]; l.textColor = c; l.font = [UIFont systemFontOfSize:17]; l.userInteractionEnabled = NO;
-        UIImageView *iv = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:it[1] withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:17]]];
-        iv.tintColor = c; iv.frame = CGRectMake(W - 38, (rowH - 22) / 2, 22, 22); iv.contentMode = UIViewContentModeCenter; iv.userInteractionEnabled = NO;
-        [b addSubview:l]; [b addSubview:iv];
+        NSString *sub = it.count > 3 ? it[3] : @"";
+        UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(16, sub.length ? 3 : 0, W - 60, sub.length ? 22 : rowH)]; l.text = it[0]; l.textColor = c; l.font = [UIFont systemFontOfSize:sub.length ? 16 : 17]; l.userInteractionEnabled = NO;
+        [b addSubview:l];
+        if (sub.length) {
+            UILabel *sl = [[UILabel alloc] initWithFrame:CGRectMake(16, 23, W - 60, 17)]; sl.text = sub; sl.textColor = UIColor.secondaryLabelColor; sl.font = [UIFont systemFontOfSize:13]; sl.userInteractionEnabled = NO;
+            [b addSubview:sl];
+        }
+        UIImage *img = [it[1] length] ? [UIImage systemImageNamed:it[1] withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:17]] : nil;
+        if (img) {
+            UIImageView *iv = [[UIImageView alloc] initWithImage:img];
+            iv.tintColor = c; iv.frame = CGRectMake(W - 38, (rowH - 22) / 2, 22, 22); iv.contentMode = UIViewContentModeCenter; iv.userInteractionEnabled = NO;
+            [b addSubview:iv];
+        }
         b.accessibilityIdentifier = [@"menu-" stringByAppendingString:it[2]];
+        b.accessibilityLabel = it[0];
         b.tag = (NSInteger)i;
         objc_setAssociatedObject(b, "hsapp", icon.app, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [b addTarget:self action:destructive ? @selector(menuRemove:) : @selector(menuEdit:) forControlEvents:UIControlEventTouchUpInside];
-        if (i > 0) { UIView *h = [[UIView alloc] initWithFrame:CGRectMake(0, i * rowH, W, 0.5)]; h.backgroundColor = UIColor.separatorColor; [card addSubview:h]; }
+        objc_setAssociatedObject(b, "hsaction", it[2], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [b addTarget:self action:destructive ? @selector(menuRemove:) : shortcut ? @selector(menuShortcut:) : @selector(menuEdit:) forControlEvents:UIControlEventTouchUpInside];
+        if (i > 0 && i != quick.count) { UIView *h = [[UIView alloc] initWithFrame:CGRectMake(0, y, W, 0.5)]; h.backgroundColor = UIColor.separatorColor; [card addSubview:h]; }
         [card addSubview:b];
+        y += rowH;
     }
     [overlay addSubview:card];
     [self.view addSubview:overlay];
@@ -248,6 +254,13 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
 }
 - (void)dismissMenu { [_menu removeFromSuperview]; _menu = nil; }
 - (void)menuEdit:(UIButton *)b { [self dismissMenu]; [self setEditingMode:YES]; }
+- (void)menuShortcut:(UIButton *)b {
+    HSApp *a = objc_getAssociatedObject(b, "hsapp"); NSString *action = objc_getAssociatedObject(b, "hsaction");
+    [self dismissMenu];
+    NSString *type = [action substringFromIndex:9];
+    NSLog(@"SpringBoard: quick action %@ for %@", type, a.name);
+    [self launch:a url:[@"isim-shortcut:" stringByAppendingString:type]];
+}
 - (void)menuRemove:(UIButton *)b { HSApp *a = objc_getAssociatedObject(b, "hsapp"); [self dismissMenu]; [self confirmDelete:a]; }
 - (void)badgeTapped:(UIButton *)badge { [self confirmDelete:((HSIcon *)badge.superview).app]; }
 - (void)setEditingMode:(BOOL)e {
@@ -293,10 +306,8 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
 }
 - (void)launchByID:(NSNotification *)n {
     NSString *ident = n.object;
-    for (HSApp *a in _apps) if ([a.bundleID isEqualToString:ident] || [a.name isEqualToString:ident]) { [self launch:a]; return; }
-    [self reload];
-    for (HSApp *a in _apps) if ([a.bundleID isEqualToString:ident] || [a.name isEqualToString:ident]) { [self launch:a]; return; }
-    NSLog(@"SpringBoard: no installed app '%@'", ident);
+    HSApp *a = [self appWithIdentifier:ident];
+    if (a) [self launch:a]; else NSLog(@"SpringBoard: no installed app '%@'", ident);
 }
 @end
 
