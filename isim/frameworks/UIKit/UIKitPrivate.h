@@ -166,3 +166,17 @@ NSString *isim_ui_installed_apps_dir(void);
 /* safe area (UIView.m): window-space safe rect for content in a view, and insets of a window-space rect */
 CGRect isim_ui_safe_rect(UIView *v);
 UIEdgeInsets isim_ui_safe_insets_for_rect(UIView *v, CGRect inWindow);
+
+/* search controllers in navigation items (UISearch.m) */
+@interface UINavigationBar (IsimSearch)
+- (void)_isim_placeSearchBarAtY:(CGFloat)y visible:(CGFloat)visible;
+@end
+@interface UINavigationController (IsimSearch)
+- (CGFloat)_isim_searchBarHeight;
+@end
+
+/* optional per-view hooks (UITextView, pickers, ...) */
+@interface NSObject (IsimViewHooks)
+- (NSString *)_isim_dumpText;             /* text=... in ISIM_SCRIPT "dump" */
+- (BOOL)_isim_heightTracksWidth;          /* intrinsic height depends on the width (wrapping text): re-solve after width changes */
+@end

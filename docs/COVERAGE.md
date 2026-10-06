@@ -22,10 +22,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 79 | 32 | 10 | 76 | 197 | 48% |
+| **UIKit** | 84 | 36 | 10 | 68 | 198 | 52% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 5 | 8 | 23 | 35% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 11 | 2 | 0 | 16 | 29 | 41% |
-| &nbsp;&nbsp;↳ Views & controls | 23 | 14 | 1 | 13 | 51 | 59% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 11 | 4 | 0 | 15 | 30 | 43% |
+| &nbsp;&nbsp;↳ Views & controls | 28 | 16 | 1 | 6 | 51 | 71% |
 | &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
 | &nbsp;&nbsp;↳ Gestures & touches | 4 | 1 | 0 | 8 | 13 | 35% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **315** | **108** | **46** | **297** | **766** | **48%** |
+| **All areas** | **320** | **112** | **46** | **289** | **767** | **49%** |
 
 ---
 
@@ -140,10 +140,11 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIAlertController` `.actionSheet` | 🟡 | drawn as a bottom sheet; iPad popover anchoring unverified |
 | `UIAlertController.addTextField` | ❌ | header says "no text fields yet" |
 | `UIActivityViewController` (share sheet) | ❌ | |
-| `UISearchController` | ❌ | |
+| `UISearchController` | 🟡 | in `navigationItem.searchController`: bar below the (large) title, collapses on scroll (`hidesSearchBarWhenScrolling`); activating hides the navigation bar, shows Cancel, dims the content (`obscuresBackgroundDuringPresentation`), calls the results updater per keystroke, restores the scroll position on cancel; tested (HelloInputs). Results controller and standalone use unverified; no animated bar transition |
 | `UIImagePickerController` (camera/library) | ❌ | |
 | `UIDocumentPickerViewController` / `UIDocumentBrowserViewController` | ❌ | |
-| `UIColorPickerViewController`, `UIFontPickerViewController` | ❌ | |
+| `UIColorPickerViewController` | 🟡 | grid (tested, via UIColorWell), spectrum and RGB sliders, opacity, delegate callbacks; no eyedropper or saved colors; spectrum/sliders unverified |
+| `UIFontPickerViewController` | ❌ | |
 | `UIReferenceLibraryViewController`, `QLPreviewController` | ❌ | |
 | `UIInputViewController` (custom keyboard extension) | ✅ | loaded in-process; no Full Access |
 | `overrideUserInterfaceStyle` | ✅ | |
@@ -175,17 +176,17 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIImageView` | ✅ | PNG/JPEG/… via gdk-pixbuf, SVG via librsvg |
 | Animated images (`animationImages`, `UIImage.animatedImage`) | ❌ | |
 | `UITextField` | 🟡 | caret always at the end: no selection, cursor movement, copy/paste |
-| `UITextView` | ❌ | |
+| `UITextView` | 🟡 | plain text, editable/scrollable, self-sizing when `isScrollEnabled = false`, delegate (should/did begin/end, `shouldChangeTextIn`, did change), notifications, keyboard traits, tap places the caret, `selectedRange`, `scrollRangeToVisible`; tested (HelloInputs). No attributed text, selection UI, edit menu or data detectors (stored) |
 | `UISwitch` | ✅ | |
 | `UISlider` | ✅ | thumb drag, continuous/non-continuous, track tints; tested (HelloControls) |
 | `UIStepper` | ✅ | min/max/step/wraps; tested |
 | `UISegmentedControl` | ✅ | titles/images, sliding selection, momentary, per-segment enable; tested |
-| `UIPickerView` | ❌ | |
-| `UIDatePicker` | ❌ | |
+| `UIPickerView` | ✅ | wheels drawn on a cylinder behind the selection band, drag/fling/tap a row, `selectRow`, reload, title rows, row widths/heights; tested (HelloInputs). `viewForRow` views unverified |
+| `UIDatePicker` | ✅ | `.time`/`.date`/`.dateAndTime`/`.countDownTimer` (`.yearAndMonth` unverified); wheels (cyclic, invalid days spin back), compact (pills open a calendar or time popover), inline calendar (+ time pill); min/max dates, `minuteInterval`; tested (HelloInputs). Device locale/time zone are used; the `locale`/`timeZone` properties are stored only |
 | `UIProgressView` | ✅ | default and bar styles |
 | `UIActivityIndicatorView` | ✅ | medium/large, spins (CADisplayLink) |
 | `UIPageControl` | ✅ | tap to page; tested |
-| `UIColorWell` | ❌ | |
+| `UIColorWell` | ✅ | rainbow ring + color, presents the color picker, `.valueChanged`; tested (HelloInputs) |
 | `UIScrollView` | 🟡 | one-finger pan, rubber-banding, deceleration, insets, delegate, `isPagingEnabled`, `scrollViewWillEndDragging(_:withVelocity:targetContentOffset:)`; no zooming; paging unverified outside collection-view carousels |
 | `UITableView` (cells, sections, editing, swipe actions) | 🟡 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing actions, edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`; tested (HelloTable). Missing: leading swipe actions, drag to reorder, section index, prefetching, nibs |
 | `UITableViewDiffableDataSource` | ✅ | snapshots diffed into animated row inserts/deletes; reload/reconfigure; tested (HelloTable) |
@@ -198,12 +199,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIVibrancyEffect` | 🧩 | content drawn normally |
 | `UIMenu`, `UIContextMenuInteraction` (context menus, previews) | 🟡 | UIMenu pop-ups for UIButton.menu (sections, checkmarks, destructive, submenus); no context-menu previews |
 | `UIToolbar`, `UIBarButtonItem` | ✅ | system items, titles, images, primary actions, menus, flexible/fixed spaces; tested |
-| `UINavigationBar` (standalone, appearance) | 🟡 | large titles collapsing on scroll, scroll-edge transparency, appearances (basic); no UIAppearance proxies |
+| `UINavigationBar` (standalone, appearance) | 🟡 | large titles collapsing on scroll, scroll-edge transparency, appearances (basic), UIAppearance proxies (tint tested) |
 | `UITabBar` | ✅ | items, badges, selected/unselected tints; no "More" tab beyond 5 items |
-| `UISearchBar` | ❌ | |
-| `UIRefreshControl` | ❌ | |
+| `UISearchBar` | ✅ | search field (magnifier, placeholder, clear button, search return key), Cancel button, delegate, keyboard traits; tested (HelloInputs). Scope bar and bar styles unverified |
+| `UIRefreshControl` | ✅ | `scrollView.refreshControl` / `UITableViewController.refreshControl`: pull past the threshold starts refreshing (`.valueChanged`), spinner stays until `endRefreshing()`; tested (HelloInputs). No `attributedTitle` (no NSAttributedString) |
 | `UIEditMenuInteraction` (copy/paste menu) | ❌ | |
-| `UIAppearance` proxies (`UINavigationBar.appearance()`) | ❌ | |
+| `UIAppearance` proxies (`UINavigationBar.appearance()`) | 🟡 | adapted (no message forwarding): proxies are offscreen instances; changed appearance properties (colors, bar appearances, title attributes, fonts, translucency, …) apply when a view first enters a window unless it set them itself; `whenContainedInInstancesOf:` and trait style; tested (HelloInputs). Per-state setters (`setTitleTextAttributes(_:for:)`) and `UIBarItem` proxies not applied |
 | `UIInputView`, `inputView` / `inputAccessoryView` | 🟡 | custom keyboards work; arbitrary input views unverified |
 | `UIPointerInteraction`, `UIPencilInteraction`, Apple Pencil | ❌ | |
 

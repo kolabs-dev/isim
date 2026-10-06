@@ -43,3 +43,11 @@
 #import <UIKit/UINavigationController.h>
 #import <UIKit/UITableView.h>
 #import <UIKit/UICollectionView.h>
+#import <UIKit/UITextView.h>
+#import <UIKit/UIPickerView.h>
+#import <UIKit/UIDatePicker.h>
+#import <UIKit/UISearchBar.h>
+#import <UIKit/UIRefreshControl.h>
+#import <UIKit/UIColorPickerViewController.h>
+#import <UIKit/UIAppearance.h>
+#import <UIKit/UIPasteboard.h>

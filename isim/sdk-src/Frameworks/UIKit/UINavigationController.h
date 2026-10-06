@@ -4,7 +4,7 @@
 #import <UIKit/UIViewController.h>
 #import <UIKit/UIControl.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIImage, UIColor, UIMenu, UIGestureRecognizer, UIFont, UIBlurEffect;
+@class UIImage, UIColor, UIMenu, UIGestureRecognizer, UIFont, UIBlurEffect, UISearchController;
 
 typedef NS_ENUM(NSInteger, UIBarButtonItemStyle) { UIBarButtonItemStylePlain, UIBarButtonItemStyleBordered, UIBarButtonItemStyleDone, UIBarButtonItemStyleProminent = 3 };
 typedef NS_ENUM(NSInteger, UIBarButtonSystemItem) {
@@ -72,7 +72,7 @@ NS_SWIFT_UI_ACTOR
 - (void)setRightBarButtonItems:(nullable NSArray<UIBarButtonItem *> *)items animated:(BOOL)animated;
 @property (nonatomic) BOOL leftItemsSupplementBackButton;
 @property (nonatomic) UINavigationItemLargeTitleDisplayMode largeTitleDisplayMode;
-@property (nullable, nonatomic, strong) id searchController;
+@property (nullable, nonatomic, strong) UISearchController *searchController;
 @property (nonatomic) BOOL hidesSearchBarWhenScrolling;
 @property (nullable, nonatomic, copy) id standardAppearance;
 @property (nullable, nonatomic, copy) id scrollEdgeAppearance;

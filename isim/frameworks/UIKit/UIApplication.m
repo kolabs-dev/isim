@@ -593,7 +593,8 @@ static void handle_key(const struct isim_event *ev) {
 
 static void dump_view(UIView *v, int depth) {
     CGRect f = v.frame;
-    NSString *ident = v.accessibilityIdentifier, *label = [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
+    NSString *ident = v.accessibilityIdentifier, *label = [v respondsToSelector:@selector(_isim_dumpText)] ? [(id)v _isim_dumpText]
+        : [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
         : [v isKindOfClass:[UITextField class]] ? [NSString stringWithFormat:@"\"%@\"%@", ((UITextField *)v).text, v.isFirstResponder ? @" (editing)" : @""]
         : [v isKindOfClass:[UIScrollView class]] ? [NSString stringWithFormat:@"offset %g, content %g x %g, inset bottom %g", ((UIScrollView *)v).contentOffset.y,
               ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom]

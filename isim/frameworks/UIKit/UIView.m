@@ -265,8 +265,10 @@ static void anim_remove_all(UIView *v);
 - (UIView *)superview { return _superview; }
 - (NSArray *)subviews { return [_subs copy]; }
 - (UIWindow *)window { return _window; }
+void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies apply when a view first enters a window */
 - (void)_isim_movedToWindow:(UIWindow *)w {
     if (_window == w) return;
+    if (w && isim_ui_appearance_hook) isim_ui_appearance_hook(self);
     /* a first responder leaving the window resigns (e.g. its page was popped), so the keyboard goes away */
     if (!w && (UIResponder *)self == first_responder) [self resignFirstResponder];
     [self willMoveToWindow:w];
@@ -670,7 +672,8 @@ static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
         if (f.size.width < 0) f.size.width = 0;
         if (f.size.height < 0) f.size.height = 0;
         if (!CGRectEqualToRect(f, v->_frame)) v.frame = f;
-        if (fabs(f.size.width - v->_alUsedWidth) > 0.5 && [v isKindOfClass:[UILabel class]] && ((UILabel *)v).numberOfLines != 1) again = YES;
+        if (fabs(f.size.width - v->_alUsedWidth) > 0.5 && (([v isKindOfClass:[UILabel class]] && ((UILabel *)v).numberOfLines != 1)
+            || ([v respondsToSelector:@selector(_isim_heightTracksWidth)] && [(id)v _isim_heightTracksWidth]))) again = YES;
     }
     for (UIView *v in views) for (UILayoutGuide *g in [v _isim_allGuides]) if ([g _isim_applySolution:s owner:v]) again = YES;
     for (UIView *v in views) [v _isim_didSolve];
