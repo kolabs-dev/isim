@@ -34,6 +34,16 @@ layout/semantics translated · **isim** = isim's own implementation · **stub** 
 | open() flags, errno, sysconf | adapted | errno values > 34 not translated |
 | math (libm), `__sincos_stret` | verified | |
 | exceptions / unwinding | **stub** | `_Unwind_Resume`, personality abort |
+| CommonCrypto (libcommonCrypto): digests, HMAC, PBKDF2, random | verified (isim) | `runtime/host_crypto.c`; known-answer tests in SecurityTest |
+| CommonCrypto CCCrypt/CCCryptor (AES, 3DES) | verified (isim) | host OpenSSL `libcrypto.so.3`, dlopen'ed on first use |
+| `os_unfair_lock`, `os_log_create` / `_os_log_impl` (C `os_log` macros) | verified (isim) | `runtime/host_os.c`: futex lock with owner checks; decodes clang's os_log buffers |
+
+## Host-backed libraries
+
+| Library | Status | Notes |
+|---|---|---|
+| `/usr/lib/libsqlite3.dylib` (SQLite C API, `import SQLite3`) | verified (passthrough) | every `sqlite3_*` symbol forwards to the host's `libsqlite3.so.0` (dlopen on first lookup); `.tbd` generated from the table |
+| libisim_host `isim_crypto_*` (CryptoKit AEADs, NIST curves, X25519/Ed25519) | verified (isim) | host OpenSSL `libcrypto.so.3` |
 
 ## Objective-C runtime (host)
 
