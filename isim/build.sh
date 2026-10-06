@@ -89,7 +89,7 @@ framework UserNotifications frameworks/UserNotifications -framework Foundation -
 framework CoreData frameworks/CoreData -framework Foundation -lsqlite3
 
 # install the isim tool
-[ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"
+[ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"; install -m 644 VERSION "$OUT/bin/VERSION"
 install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 755 tools/isim-services.py "$OUT/bin/isim-services.py"; install -m 644 tools/xcodeproj.py "$OUT/bin/xcodeproj.py"; install -m 755 tools/momc.py "$OUT/bin/momc.py"
 
 step "swift"
