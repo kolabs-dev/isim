@@ -16,6 +16,7 @@ uid_t getuid(void);
 int isatty(int);
 unsigned int sleep(unsigned int);
 int usleep(unsigned int);
+int gethostname(char *, size_t);
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2

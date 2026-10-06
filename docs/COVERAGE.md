@@ -51,18 +51,18 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
 | Swift Charts | 0 | 0 | 0 | 3 | 3 | 0% |
-| **Foundation** | 26 | 9 | 1 | 30 | 66 | 46% |
+| **Foundation** | 36 | 11 | 2 | 27 | 76 | 55% |
 | &nbsp;&nbsp;↳ Strings & text | 5 | 2 | 0 | 5 | 12 | 50% |
 | &nbsp;&nbsp;↳ Collections & values | 5 | 1 | 0 | 5 | 11 | 50% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 3 | 0 | 1 | 3 | 7 | 43% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 3 | 3 | 0 | 5 | 11 | 41% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 1 | 0 | 4 | 9 | 50% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 5 | 2 | 0 | 2 | 9 | 67% |
-| &nbsp;&nbsp;↳ Networking | 1 | 0 | 0 | 6 | 7 | 14% |
-| **Swift runtime, stdlib & concurrency** | 27 | 1 | 0 | 9 | 37 | 74% |
-| &nbsp;&nbsp;↳ Combine | 9 | 0 | 0 | 4 | 13 | 69% |
+| &nbsp;&nbsp;↳ Networking | 11 | 2 | 1 | 3 | 17 | 71% |
+| **Swift runtime, stdlib & concurrency** | 28 | 1 | 0 | 9 | 38 | 75% |
+| &nbsp;&nbsp;↳ Combine | 10 | 0 | 0 | 4 | 14 | 71% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
-| Objective-C runtime & C library | 5 | 2 | 0 | 2 | 9 | 67% |
+| Objective-C runtime & C library | 6 | 2 | 0 | 2 | 10 | 70% |
 | Core Graphics | 8 | 0 | 0 | 8 | 16 | 50% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
 | QuartzCore / Core Animation | 2 | 2 | 0 | 5 | 9 | 33% |
@@ -80,10 +80,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
 | Location & maps | 0 | 0 | 0 | 3 | 3 | 0% |
 | Personal data & device sensors | 0 | 0 | 0 | 6 | 6 | 0% |
-| Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
+| Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **278** | **80** | **37** | **313** | **708** | **45%** |
+| **All areas** | **292** | **83** | **38** | **309** | **722** | **46%** |
 
 ---
 
@@ -405,7 +405,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `Image` (asset/bundle name, `uiImage:`), `resizable`, `renderingMode`, `interpolation` | ✅ | |
 | `Image(systemName:)` | 🟡 | substitute glyphs, not SF Symbols |
 | `imageScale`, `symbolRenderingMode`, `symbolVariant`, `symbolEffect` | ❌ | |
-| `AsyncImage` | ❌ | needs networking |
+| `AsyncImage` | ❌ | not implemented (URLSession is available) |
 | `Label` | ✅ | |
 | `Button` (action, label, role) | ✅ | |
 | Button styles: `.plain`, `.borderless`, `.bordered`, `.borderedProminent`, custom `ButtonStyle` | ✅ | |
@@ -730,13 +730,23 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `URL` (parsing, components, file URLs, path helpers, percent encoding) | ✅ | |
-| `URLComponents`, `URLQueryItem` | ❌ | |
-| `URLRequest`, `HTTPURLResponse` | ❌ | |
-| `URLSession` data/download/upload tasks (completion and async) | ❌ | the biggest Foundation gap |
-| `URLSessionWebSocketTask` | ❌ | |
-| Background `URLSession` | ❌ | |
-| `URLCache`, `HTTPCookieStorage` | ❌ | |
+| `URL` (parsing, components, file URLs, path helpers, percent encoding) | ✅ | RFC 3986 relative resolution, IPv6 hosts, `appending(queryItems:)`, `init(string:encodingInvalidCharacters:)` |
+| `URLComponents`, `URLQueryItem` | ✅ | parse/build, percent-encoded and decoded accessors, `queryItems` encoding like Apple's (`+` kept); tested |
+| `URLRequest` (method, headers, body, timeout, cache policy, cookies flag) | ✅ | tested |
+| `URLResponse`, `HTTPURLResponse` (status, `allHeaderFields`, `value(forHTTPHeaderField:)`, MIME type, length) | ✅ | tested |
+| `URLError` (codes, `failingURL`, `catch URLError.code`, NSError bridging) | ✅ | host errors mapped (refused, DNS, timeout, TLS, offline, cancelled); tested |
+| `URLSession` data/download/upload tasks (completion and async) | ✅ | Swift API; HTTP/HTTPS through the host's libcurl (dlopen'd, needed at run time); handlers on the session's background `delegateQueue`; cancellation; redirects; `ISIM_NETWORK=offline` simulates no network; tested (self-test + HelloNetwork) |
+| `URLSession` delegates (data, download, redirect, completion) | ✅ | Swift protocols with default implementations (Apple's are `@objc` optional methods); tested; `didCreateTask`, `willCacheResponse` unverified |
+| `bytes(from:)` / `bytes(for:)`, `AsyncBytes.lines` | ✅ | `lines` skips empty lines like Apple's; tested |
+| `URLSessionConfiguration` (`.default`, `.ephemeral`, timeouts, extra headers, cache/cookie settings) | ✅ | `timeoutIntervalForRequest` is an idle timeout as on iOS; `waitsForConnectivity`, `allowsCellularAccess` and service types are stored only |
+| `file:` and `data:` URLs in `URLSession` | ✅ | tested |
+| `URLSessionWebSocketTask` | 🟡 | send/receive text and data, ping, close codes; needs a libcurl with WebSocket support (7.86+); the negotiated subprotocol is not reported; tested (text echo); ping and close handshake unverified |
+| Authentication challenges (`didReceive challenge`, `URLCredential`, `URLProtectionSpace`), certificate pinning | ❌ | TLS uses the host's CA store |
+| `URLSessionTaskMetrics`, task `progress`, resumable downloads (`resumeData`) | ❌ | |
+| Background `URLSession` | 🧩 | `background(withIdentifier:)` sessions run like default sessions while the app runs |
+| `HTTPCookie`, `HTTPCookieStorage` | ✅ | Set-Cookie parsing (domain, path, expiry, secure); `shared` persists in the app container; ephemeral sessions get a private jar; tested; accept policies unverified |
+| `URLCache`, `CachedURLResponse` | 🟡 | in memory only (nothing written to disk); max-age/Expires/heuristic freshness, ETag/Last-Modified revalidation, request cache policies; tested |
+| Objective-C `NSURLSession`, `NSURLRequest`, `NSURLComponents`, `NSHTTPCookie` | ❌ | the networking API is Swift-only |
 
 ---
 
@@ -780,7 +790,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `catch`, `retry`, `replaceError`, `mapError`, `switchToLatest`, `decode`/`encode` | ❌ | |
 | `.values` (async bridge), `print`, `breakpoint` | ❌ | |
 | Foundation publishers: `Timer.publish`, `NotificationCenter.publisher`; RunLoop/DispatchQueue schedulers | ✅ | |
-| `URLSession.dataTaskPublisher`, KVO publisher | ❌ | |
+| `URLSession.dataTaskPublisher` | ✅ | tested |
+| KVO publisher (`publisher(for: \.keyPath)`) | ❌ | |
 
 ### Dispatch
 
@@ -805,6 +816,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Message forwarding (`forwardInvocation:`, `resolveInstanceMethod:`) | ❌ | unknown selectors abort |
 | `@try`/`@catch`/`@throw`, C++ exceptions | ❌ | a throw aborts |
 | libc / POSIX (stdio, malloc, string, pthreads, time, files) | ✅ | host glibc with Darwin layouts |
+| `errno` from Swift | ✅ | provided by the Foundation overlay (no Swift Darwin overlay) |
 | `dlopen` of app-bundled dylibs/frameworks | 🟡 | used for keyboard extensions; embedded frameworks unverified |
 | Mach APIs (`mach_absolute_time` ✅; ports, tasks) | 🟡 | timing only |
 
@@ -1069,8 +1081,10 @@ Local StoreKit testing, like Xcode's: products come from the project's `.storeki
 | WebKit (`WKWebView`, navigation delegate, JavaScript bridge) | ❌ | |
 | SafariServices (`SFSafariViewController`) | ❌ | |
 | MessageUI (`MFMailComposeViewController`, `MFMessageComposeViewController`) | ❌ | |
-| Network framework (`NWConnection`, `NWPathMonitor`) | ❌ | |
-| BSD sockets (`socket`, `getaddrinfo`) | ❌ | not exported by isim's libSystem |
+| Network framework `NWPathMonitor` (`pathUpdateHandler`, `currentPath`, `for await`) | ✅ | mirrors the host's connectivity (Wi-Fi/Ethernet), polled every 2 s; tested |
+| Network framework `NWConnection`, `NWListener`, `NWBrowser`, `NWEndpoint` | ❌ | |
+| BSD sockets (`socket`, `bind`/`listen`/`accept`, `connect`, `send`/`recv`, `getaddrinfo`, `inet_pton`, `poll`/`select`, `getifaddrs`) | ✅ | Darwin structs, constants and errno translated to the host's; tested (TCP server + client, socketpair, poll, select, getifaddrs, `SO_RCVTIMEO`); `read`/`write` errno translated too; UDP unverified |
+| `fcntl`, `ioctl` (e.g. non-blocking sockets) | 🟡 | C/Objective-C only: Swift cannot call these variadic functions without a Swift Darwin overlay |
 | MultipeerConnectivity | ❌ | |
 | Universal Links / Associated Domains | ❌ | |
 

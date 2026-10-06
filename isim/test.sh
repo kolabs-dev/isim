@@ -25,6 +25,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloTable.app/HelloTable ] && run "ui: HelloTable (UITableView, diffable data source)" tests/ui/table.sh
   [ -x out/apps/HelloControls.app/HelloControls ] && run "ui: HelloControls (UIKit controls, menus)" tests/ui/controls.sh
   [ -x out/apps/HelloPresentations.app/HelloPresentations ] && run "ui: HelloPresentations (sheets, alerts, dialogs)" tests/ui/presentations.sh
+  [ -x out/apps/HelloNetwork.app/HelloNetwork ] && run "ui: HelloNetwork (URLSession, cookies, WebSocket, NWPathMonitor; local server)" tests/ui/network.sh
 fi
 if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device shell: home screen + Settings
   run "ui: isim boot (home screen, Settings, multitasking)" tests/ui/boot.sh
@@ -44,6 +45,9 @@ if [ -x out/apps/SwiftConcurrencyTest.app/SwiftConcurrencyTest ]; then
 fi
 if [ -x out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest ]; then
   run "swift libraries (Dispatch, Combine, JSON/Codable, Calendar, ...)" bash -c 'timeout 60 out/bin/isim run out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest | tail -1; exit ${PIPESTATUS[0]}'
+fi
+if [ -x out/apps/SwiftNetworkTest.app/SwiftNetworkTest ]; then   # sockets + URLSession against an in-process server (no Internet)
+  run "swift networking (sockets, URLSession, cookies, cache, NWPathMonitor)" bash -c 'export ISIM_DATA=$PWD/out/test-data/swift-network; rm -rf "$ISIM_DATA"; timeout 90 out/bin/isim run out/apps/SwiftNetworkTest.app/SwiftNetworkTest | tail -1; exit ${PIPESTATUS[0]}'
 fi
 echo; [ $status = 0 ] && echo "ALL SUITES PASSED" || echo "SOME SUITES FAILED"
 exit $status

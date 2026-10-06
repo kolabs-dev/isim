@@ -366,6 +366,8 @@ static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
     memcpy(buf, p, n); return 0;
 }
 
+#include "sockets.inc"     /* BSD sockets, name resolution, poll/select, fcntl/ioctl, getifaddrs */
+
 void libsystem_init(int argc, char **argv) {
     d_stdinp = stdin; d_stdoutp = stdout; d_stderrp = stderr;
     guest_argc = argc; guest_argv = argv;
@@ -392,7 +394,7 @@ static const struct shim libsystem_table[] = {
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
     /* process & environment */
     P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(sleep), P(usleep), P(nanosleep),
-    A("_open", d_open), P(read), P(write), P(close), P(lseek), P(access), P(unlink), P(readlink), P(getcwd), P(mkdir), P(rmdir),
+    A("_open", d_open), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(access), P(unlink), P(readlink), P(getcwd), P(mkdir), P(rmdir),
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
     P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),
@@ -597,6 +599,8 @@ static const struct shim libsystem_table[] = {
     S("_os_retain", d_os_retain), S("_os_release", d_os_release),
     P(__divti3), P(__modti3), P(__udivti3), P(__umodti3), P(__extendhfsf2), P(__truncdfhf2), P(__truncsfhf2),
     A("_environ", &environ), A("___progname", &d_progname),
+    /* sockets */
+    SOCKET_SHIMS,
     /* random */
     A("_arc4random", d_arc4random), A("_arc4random_uniform", d_arc4random_uniform), A("_arc4random_buf", d_arc4random_buf),
     /* pthreads */

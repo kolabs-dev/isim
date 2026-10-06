@@ -16,8 +16,8 @@ step() { printf '\n== %s\n' "$*"; }
 step "host runtime"
 PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c \
-    $(pkg-config --cflags --libs $PKGS) -lm -lpthread
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c \
+    $(pkg-config --cflags --libs $PKGS) -lm -lpthread -ldl
 
 step "SDK headers"
 rsync -a --delete sdk-src/usr/include/ "$SDK/usr/include/"

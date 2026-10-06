@@ -24,6 +24,20 @@ module Darwin [system] [extern_c] {
     header "sys/time.h"
     export *
   }
+  module Networking {
+    header "sys/socket.h"
+    header "sys/un.h"
+    header "sys/select.h"
+    header "sys/ioctl.h"
+    header "netinet/in.h"
+    header "netinet/tcp.h"
+    header "arpa/inet.h"
+    header "netdb.h"
+    header "poll.h"
+    header "ifaddrs.h"
+    header "net/if.h"
+    export *
+  }
   module Mach {
     header "mach-o/dyld.h"
     header "malloc/malloc.h"
