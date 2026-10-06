@@ -24,7 +24,7 @@ check "SKAction.warp(to:) reaches the target"              'has "warp action fin
 check "SKAction.animate(withWarps:times:restore:)"         'has "animate(withWarps:) restored: true"'
 check "SKMutableTexture.modifyPixelData buffer"            'has "mutable texture 64x64 bytes 16384"'
 check "reversed(): forward state"                          'has "forward done: x=150 rot=1.57 scale=2.00 alpha=0.50 size=60x50"'
-check "reversed(): sequence/group/repeat/move/rotate/scale/fade/resize undone" 'has "reversed done: position back=true rot=-0.00 scale=1.00 alpha=1.00 size=40x40"'
+check "reversed(): sequence/group/repeat/move/rotate/scale/fade/resize undone" '{ has "reversed done: position back=true rot=-0.00 scale=1.00 alpha=1.00 size=40x40" || has "reversed done: position back=true rot=0.00 scale=1.00 alpha=1.00 size=40x40"; }'
 check "reversed(): rules (moveTo itself, easeIn->easeOut, fadeIn<->fadeOut, animate, group)" 'has "reverse rules: moveTo itself true, easeIn -> easeOut, fadeIn reversed duration 0.30, animate reversed true, group duration 0.50" && has "hide reversed unhides: true" && has "fadeOut reversed -> alpha 1.00"'
 check "GKObstacleGraph: buffered corners, custom node class" 'has "obstacle graph: corners 4 (90,90) (210,90) (210,210) (90,210) custom class true nodes 6"'
 check "GKObstacleGraph: path around the obstacle"           'has "obstacle path: 4 nodes (50,150) (90,90) (210,90) (250,150) length 264 clear true" && has "start sees end directly false, start links 2"'
