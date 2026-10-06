@@ -226,21 +226,42 @@ static int try_resolve(Class cls, SEL sel) {
     return ok && lookup_nofail(cls, sel) != NULL;
 }
 
-IMP objc_rt_lookup(id self, Class cls, SEL sel) {
+/* message forwarding: a lookup miss returns _objc_msgForward(_stret), which captures the argument
+ * registers in a frame and calls the handler Foundation installs (forwardingTargetForSelector:,
+ * methodSignatureForSelector:/forwardInvocation:, doesNotRecognizeSelector:). */
+void rt_msgForward(void); void rt_msgForward_stret(void);
+static IMP lookup_or_forward(id self, Class cls, SEL sel, int stret) {
     if (cls->rt && cls->rt->nonmeta && cls->rt->nonmeta->rt->init_state != 2) ensure_initialized(cls->rt->nonmeta);
     IMP imp = lookup_nofail(cls, sel);
     if (!imp && try_resolve(cls, sel)) imp = lookup_nofail(cls, sel);
-    if (!imp) {
-        fflush(NULL);
-        fprintf(stderr, "isim objc: FATAL: %c[%s %s]: unrecognized selector sent to %s %p (forwarding not implemented)\n",
-                is_meta(cls) ? '+' : '-', cls_name(cls), sel, is_meta(cls) ? "class" : "instance", (void *)self);
-        abort();
-    }
+    if (!imp) imp = stret ? (IMP)rt_msgForward_stret : (IMP)rt_msgForward;
     return imp;
+}
+IMP objc_rt_lookup(id self, Class cls, SEL sel) { return lookup_or_forward(self, cls, sel, 0); }
+IMP objc_rt_lookup_stret(id self, Class cls, SEL sel) { return lookup_or_forward(self, cls, sel, 1); }
+
+/* frame layout shared with Foundation (isim_objc_frame in <objc/isim_internal.h>) */
+enum { FWD_STRET_SLOT = 0xf0 / 8 };
+typedef id (*fwd_handler_fn)(id self, SEL sel, uint64_t *frame);
+static fwd_handler_fn fwd_handler;
+void isim_objc_set_forward_handler(fwd_handler_fn h) { fwd_handler = h; }
+id objc_forward_dispatch(uint64_t *frame) {
+    int stret = frame[FWD_STRET_SLOT] != 0;
+    id self = (id)frame[stret ? 1 : 0]; SEL sel = (SEL)frame[stret ? 2 : 1];
+    if (fwd_handler && self) return fwd_handler(self, sel, frame);
+    if (!self) return NULL;
+    Class cls = self->isa;
+    fflush(NULL);
+    fprintf(stderr, "isim objc: FATAL: %c[%s %s]: unrecognized selector sent to %s %p\n",
+            is_meta(cls) ? '+' : '-', cls_name(cls), sel, is_meta(cls) ? "class" : "instance", (void *)self);
+    extern void isim_print_backtrace(void *frame);
+    isim_print_backtrace(__builtin_frame_address(0));
+    signal(SIGABRT, SIG_DFL);
+    abort();
 }
 
 #define SAVE_ARGS \
-    "  push %rbp\n  mov %rsp, %rbp\n  sub $0xc0, %rsp\n" \
+    "  push %rbp\n  .cfi_def_cfa_offset 16\n  .cfi_offset %rbp, -16\n  mov %rsp, %rbp\n  .cfi_def_cfa_register %rbp\n  sub $0xc0, %rsp\n" \
     "  movdqa %xmm0, 0x00(%rsp)\n  movdqa %xmm1, 0x10(%rsp)\n  movdqa %xmm2, 0x20(%rsp)\n  movdqa %xmm3, 0x30(%rsp)\n" \
     "  movdqa %xmm4, 0x40(%rsp)\n  movdqa %xmm5, 0x50(%rsp)\n  movdqa %xmm6, 0x60(%rsp)\n  movdqa %xmm7, 0x70(%rsp)\n" \
     "  mov %rdi, 0x80(%rsp)\n  mov %rsi, 0x88(%rsp)\n  mov %rdx, 0x90(%rsp)\n  mov %rcx, 0x98(%rsp)\n" \
@@ -251,35 +272,71 @@ IMP objc_rt_lookup(id self, Class cls, SEL sel) {
     "  movdqa 0x40(%rsp), %xmm4\n  movdqa 0x50(%rsp), %xmm5\n  movdqa 0x60(%rsp), %xmm6\n  movdqa 0x70(%rsp), %xmm7\n" \
     "  mov 0x80(%rsp), %rdi\n  mov 0x88(%rsp), %rsi\n  mov 0x90(%rsp), %rdx\n  mov 0x98(%rsp), %rcx\n" \
     "  mov 0xa0(%rsp), %r8\n  mov 0xa8(%rsp), %r9\n  mov 0xb0(%rsp), %rax\n" \
-    "  mov %rbp, %rsp\n  pop %rbp\n  jmp *%r11\n"
+    "  mov %rbp, %rsp\n  pop %rbp\n  .cfi_def_cfa %rsp, 8\n  jmp *%r11\n"
+
+/* _objc_msgForward(_stret): save the argument registers into an isim_objc_frame (0x100 bytes on the
+ * stack), call objc_forward_dispatch; a non-nil result is a new receiver (forwardingTargetForSelector:)
+ * to which the original message is re-sent with the untouched stack arguments, else the frame's
+ * return registers are loaded and we return to the caller. */
+#define FORWARD(name, selfslot, resend, stret) \
+    ".globl " name "\n.type " name ",@function\n" name ":\n  .cfi_startproc\n" \
+    "  push %rbp\n  .cfi_def_cfa_offset 16\n  .cfi_offset %rbp, -16\n  mov %rsp, %rbp\n  .cfi_def_cfa_register %rbp\n  sub $0x100, %rsp\n" \
+    "  mov %rdi, 0x00(%rsp)\n  mov %rsi, 0x08(%rsp)\n  mov %rdx, 0x10(%rsp)\n  mov %rcx, 0x18(%rsp)\n  mov %r8, 0x20(%rsp)\n  mov %r9, 0x28(%rsp)\n" \
+    "  movdqu %xmm0, 0x30(%rsp)\n  movdqu %xmm1, 0x40(%rsp)\n  movdqu %xmm2, 0x50(%rsp)\n  movdqu %xmm3, 0x60(%rsp)\n" \
+    "  movdqu %xmm4, 0x70(%rsp)\n  movdqu %xmm5, 0x80(%rsp)\n  movdqu %xmm6, 0x90(%rsp)\n  movdqu %xmm7, 0xa0(%rsp)\n" \
+    "  lea 16(%rbp), %r10\n  mov %r10, 0xb0(%rsp)\n  mov %rax, 0xb8(%rsp)\n  xor %r10d, %r10d\n" \
+    "  mov %r10, 0xc0(%rsp)\n  mov %r10, 0xc8(%rsp)\n  mov %r10, 0xd0(%rsp)\n  mov %r10, 0xd8(%rsp)\n  mov %r10, 0xe0(%rsp)\n  mov %r10, 0xe8(%rsp)\n" \
+    "  movq " stret ", 0xf0(%rsp)\n  mov %r10, 0xf8(%rsp)\n" \
+    "  mov %rsp, %rdi\n  call objc_forward_dispatch\n  test %rax, %rax\n  jnz 7f\n" \
+    "  mov 0xc0(%rsp), %rax\n  mov 0xc8(%rsp), %rdx\n  movdqu 0xd0(%rsp), %xmm0\n  movdqu 0xe0(%rsp), %xmm1\n" \
+    "  leave\n  .cfi_remember_state\n  .cfi_def_cfa %rsp, 8\n  ret\n  .cfi_restore_state\n" \
+    "7:\n  mov %rax, " selfslot "(%rsp)\n" \
+    "  movdqu 0x30(%rsp), %xmm0\n  movdqu 0x40(%rsp), %xmm1\n  movdqu 0x50(%rsp), %xmm2\n  movdqu 0x60(%rsp), %xmm3\n" \
+    "  movdqu 0x70(%rsp), %xmm4\n  movdqu 0x80(%rsp), %xmm5\n  movdqu 0x90(%rsp), %xmm6\n  movdqu 0xa0(%rsp), %xmm7\n" \
+    "  mov 0x00(%rsp), %rdi\n  mov 0x08(%rsp), %rsi\n  mov 0x10(%rsp), %rdx\n  mov 0x18(%rsp), %rcx\n  mov 0x20(%rsp), %r8\n  mov 0x28(%rsp), %r9\n" \
+    "  mov 0xb8(%rsp), %rax\n  leave\n  .cfi_def_cfa %rsp, 8\n  jmp " resend "\n  .cfi_endproc\n"
 
 __asm__(
     ".text\n"
     /* id objc_msgSend(id self, SEL op, ...) */
-    ".globl rt_msgSend\n.type rt_msgSend,@function\nrt_msgSend:\n"
+    ".globl rt_msgSend\n.type rt_msgSend,@function\nrt_msgSend:\n  .cfi_startproc\n"
     "  test %rdi, %rdi\n  jz 1f\n" SAVE_ARGS
     "  mov %rsi, %rdx\n  mov (%rdi), %rsi\n  call objc_rt_lookup\n" RESTORE_AND_JUMP
-    "1:\n  xor %eax, %eax\n  xor %edx, %edx\n  pxor %xmm0, %xmm0\n  pxor %xmm1, %xmm1\n  ret\n"
+    "1:\n  xor %eax, %eax\n  xor %edx, %edx\n  pxor %xmm0, %xmm0\n  pxor %xmm1, %xmm1\n  ret\n  .cfi_endproc\n"
     /* objc_msgSendSuper2(struct objc_super *{receiver, current_class}, SEL, ...) */
-    ".globl rt_msgSendSuper2\n.type rt_msgSendSuper2,@function\nrt_msgSendSuper2:\n" SAVE_ARGS
+    ".globl rt_msgSendSuper2\n.type rt_msgSendSuper2,@function\nrt_msgSendSuper2:\n  .cfi_startproc\n" SAVE_ARGS
     "  mov (%rdi), %r10\n  mov %r10, 0x80(%rsp)\n"
-    "  mov %rsi, %rdx\n  mov 8(%rdi), %rsi\n  mov 8(%rsi), %rsi\n  mov %r10, %rdi\n  call objc_rt_lookup\n" RESTORE_AND_JUMP
+    "  mov %rsi, %rdx\n  mov 8(%rdi), %rsi\n  mov 8(%rsi), %rsi\n  mov %r10, %rdi\n  call objc_rt_lookup\n" RESTORE_AND_JUMP "  .cfi_endproc\n"
     /* objc_msgSendSuper(struct objc_super *{receiver, class}, SEL, ...) */
-    ".globl rt_msgSendSuper\n.type rt_msgSendSuper,@function\nrt_msgSendSuper:\n" SAVE_ARGS
+    ".globl rt_msgSendSuper\n.type rt_msgSendSuper,@function\nrt_msgSendSuper:\n  .cfi_startproc\n" SAVE_ARGS
     "  mov (%rdi), %r10\n  mov %r10, 0x80(%rsp)\n"
-    "  mov %rsi, %rdx\n  mov 8(%rdi), %rsi\n  mov %r10, %rdi\n  call objc_rt_lookup\n" RESTORE_AND_JUMP
+    "  mov %rsi, %rdx\n  mov 8(%rdi), %rsi\n  mov %r10, %rdi\n  call objc_rt_lookup\n" RESTORE_AND_JUMP "  .cfi_endproc\n"
     /* void objc_msgSend_stret(void *ret, id self, SEL op, ...) */
-    ".globl rt_msgSend_stret\n.type rt_msgSend_stret,@function\nrt_msgSend_stret:\n"
+    ".globl rt_msgSend_stret\n.type rt_msgSend_stret,@function\nrt_msgSend_stret:\n  .cfi_startproc\n"
     "  test %rsi, %rsi\n  jz 2f\n" SAVE_ARGS
-    "  mov %rsi, %rdi\n  mov (%rsi), %rsi\n  call objc_rt_lookup\n" RESTORE_AND_JUMP
-    "2:\n  mov %rdi, %rax\n  ret\n"
+    "  mov %rsi, %rdi\n  mov (%rsi), %rsi\n  call objc_rt_lookup_stret\n" RESTORE_AND_JUMP
+    "2:\n  mov %rdi, %rax\n  ret\n  .cfi_endproc\n"
     /* void objc_msgSendSuper2_stret(void *ret, struct objc_super *, SEL, ...) */
-    ".globl rt_msgSendSuper2_stret\n.type rt_msgSendSuper2_stret,@function\nrt_msgSendSuper2_stret:\n" SAVE_ARGS
+    ".globl rt_msgSendSuper2_stret\n.type rt_msgSendSuper2_stret,@function\nrt_msgSendSuper2_stret:\n  .cfi_startproc\n" SAVE_ARGS
     "  mov (%rsi), %r10\n  mov %r10, 0x88(%rsp)\n"
-    "  mov 8(%rsi), %rsi\n  mov 8(%rsi), %rsi\n  mov %r10, %rdi\n  call objc_rt_lookup\n" RESTORE_AND_JUMP
+    "  mov 8(%rsi), %rsi\n  mov 8(%rsi), %rsi\n  mov %r10, %rdi\n  call objc_rt_lookup_stret\n" RESTORE_AND_JUMP "  .cfi_endproc\n"
+    FORWARD("rt_msgForward", "0x00", "rt_msgSend", "$0") FORWARD("rt_msgForward_stret", "0x08", "rt_msgSend_stret", "$1")
+    /* void isim_objc_call_frame(isim_objc_call *c): call c->fn with the given argument registers and stack words */
+    ".globl isim_objc_call_frame\n.type isim_objc_call_frame,@function\nisim_objc_call_frame:\n  .cfi_startproc\n"
+    "  push %rbp\n  .cfi_def_cfa_offset 16\n  .cfi_offset %rbp, -16\n  mov %rsp, %rbp\n  .cfi_def_cfa_register %rbp\n"
+    "  push %rbx\n  .cfi_offset %rbx, -24\n  push %r12\n  .cfi_offset %r12, -32\n  mov %rdi, %rbx\n"
+    "  mov 0xc0(%rbx), %rcx\n  lea 15(,%rcx,8), %rax\n  and $-16, %rax\n  sub %rax, %rsp\n"
+    "  mov 0xb8(%rbx), %rsi\n  xor %edx, %edx\n"
+    "5:\n  cmp %rcx, %rdx\n  jae 6f\n  mov (%rsi,%rdx,8), %r8\n  mov %r8, (%rsp,%rdx,8)\n  inc %rdx\n  jmp 5b\n"
+    "6:\n  movdqu 0x38(%rbx), %xmm0\n  movdqu 0x48(%rbx), %xmm1\n  movdqu 0x58(%rbx), %xmm2\n  movdqu 0x68(%rbx), %xmm3\n"
+    "  movdqu 0x78(%rbx), %xmm4\n  movdqu 0x88(%rbx), %xmm5\n  movdqu 0x98(%rbx), %xmm6\n  movdqu 0xa8(%rbx), %xmm7\n"
+    "  mov 0x10(%rbx), %rsi\n  mov 0x18(%rbx), %rdx\n  mov 0x20(%rbx), %rcx\n  mov 0x28(%rbx), %r8\n  mov 0x30(%rbx), %r9\n"
+    "  mov 0x08(%rbx), %rdi\n  mov 0xc8(%rbx), %rax\n  call *0x00(%rbx)\n"
+    "  mov %rax, 0xd0(%rbx)\n  mov %rdx, 0xd8(%rbx)\n  movdqu %xmm0, 0xe0(%rbx)\n  movdqu %xmm1, 0xf0(%rbx)\n"
+    "  lea -16(%rbp), %rsp\n  pop %r12\n  pop %rbx\n  pop %rbp\n  .cfi_def_cfa %rsp, 8\n  ret\n  .cfi_endproc\n"
 );
 void rt_msgSend(void); void rt_msgSendSuper2(void); void rt_msgSendSuper(void);
-void rt_msgSend_stret(void); void rt_msgSendSuper2_stret(void);
+void rt_msgSend_stret(void); void rt_msgSendSuper2_stret(void); void isim_objc_call_frame(void *c);
 
 static id send0(id self, SEL sel) { return self ? ((id (*)(id, SEL))objc_rt_lookup(self, self->isa, sel))(self, sel) : NULL; }
 static id send1(id self, SEL sel, void *a) { return self ? ((id (*)(id, SEL, void *))objc_rt_lookup(self, self->isa, sel))(self, sel, a) : NULL; }
@@ -476,9 +533,14 @@ Class object_setClass(id o, Class c) { Class old = o ? o->isa : NULL; if (o) o->
 const char *object_getClassName(id o) { return o ? cls_name(o->isa) : "nil"; }
 int class_respondsToSelector(Class c, SEL sel) { return c && sel && (lookup_nofail(c, sel) != NULL || try_resolve(c, sel)); }
 IMP class_getMethodImplementation(Class c, SEL sel) {
-    if (!c) return NULL;
+    if (!c || !sel) return NULL;
     IMP imp = lookup_nofail(c, sel);
-    return imp || !try_resolve(c, sel) ? imp : lookup_nofail(c, sel);
+    if (!imp && try_resolve(c, sel)) imp = lookup_nofail(c, sel);
+    return imp ? imp : (IMP)rt_msgForward;             /* like libobjc: unknown selectors map to _objc_msgForward */
+}
+IMP class_getMethodImplementation_stret(Class c, SEL sel) {
+    IMP imp = class_getMethodImplementation(c, sel);
+    return imp == (IMP)rt_msgForward ? (IMP)rt_msgForward_stret : imp;
 }
 
 /* ================= properties (declared @property / Swift @objc metadata, incl. categories) ================= */
@@ -878,17 +940,16 @@ int objc_sync_enter(id o) { static pthread_once_t once = PTHREAD_ONCE_INIT; pthr
 int objc_sync_exit(id o) { if (o) pthread_mutex_unlock(&sync_locks[hash_ptr(o) & 63]); return 0; }
 
 void objc_enumerationMutation(id o) { fflush(NULL); fprintf(stderr, "isim objc: FATAL: collection %p mutated while being enumerated\n", (void *)o); abort(); }
-void objc_exception_throw(id e) {
-    fflush(NULL);
-    id desc = send0(e, s_description);
-    const char *(*utf8)(id, SEL) = desc ? (void *)objc_rt_lookup(desc, desc->isa, sel_registerName("UTF8String")) : NULL;
-    fprintf(stderr, "isim objc: FATAL: uncaught exception (exceptions are not implemented): %s\n",
-            utf8 ? utf8(desc, sel_registerName("UTF8String")) : "?");
-    extern void isim_print_backtrace(void *frame);
-    isim_print_backtrace(__builtin_frame_address(0));
-    signal(SIGABRT, SIG_DFL);
-    abort();
-}
+/* exceptions: objc_exc.c */
+void objc_exception_throw(id e);
+id objc_begin_catch(void *exc);
+void objc_end_catch(void);
+void objc_exception_rethrow(void);
+void objc_terminate(void);
+void *objc_setUncaughtExceptionHandler(void *h);
+void *objc_setExceptionPreprocessor(void *p);
+extern void *objc_ehtype_vtable[];
+extern char OBJC_EHTYPE_id[];
 
 /* objc_alloc & friends: semantically [cls alloc] etc. */
 id objc_alloc(Class c) { return send0((id)c, s_alloc); }
@@ -984,11 +1045,13 @@ static void *empty_cache[2];
 static const struct shim objc_table[] = {
     J("_objc_msgSend", rt_msgSend), J("_objc_msgSendSuper", rt_msgSendSuper), J("_objc_msgSendSuper2", rt_msgSendSuper2),
     J("_objc_msgSend_stret", rt_msgSend_stret), J("_objc_msgSendSuper2_stret", rt_msgSendSuper2_stret),
+    J("__objc_msgForward", rt_msgForward), J("__objc_msgForward_stret", rt_msgForward_stret),
+    I(isim_objc_set_forward_handler), I(isim_objc_call_frame),
     J("__objc_empty_cache", empty_cache), J("_OBJC_CLASS_$_Protocol", &protocol_class), J("_OBJC_METACLASS_$_Protocol", &protocol_meta),
     I(sel_registerName), J("_sel_getUid", sel_registerName), I(sel_getName), I(sel_isEqual),
     I(objc_getClass), I(objc_lookUpClass), I(objc_getMetaClass), I(class_getName), I(class_getSuperclass), I(class_isMetaClass),
     I(class_getInstanceSize), I(object_getClass), I(object_setClass), I(object_getClassName), I(class_respondsToSelector),
-    I(class_getMethodImplementation), I(class_createInstance), I(object_dispose), I(objc_destructInstance),
+    I(class_getMethodImplementation), I(class_getMethodImplementation_stret), I(class_createInstance), I(object_dispose), I(objc_destructInstance),
     I(objc_getProtocol), I(protocol_getName), I(protocol_conformsToProtocol), I(class_conformsToProtocol),
     I(_objc_rootRetain), I(_objc_rootRelease), I(_objc_rootReleaseWasZero), I(_objc_rootRetainCount), I(_objc_rootAutorelease),
     I(_objc_rootIsDeallocating), I(_objc_realizeClassFromSwift),
@@ -1000,6 +1063,8 @@ static const struct shim objc_table[] = {
     I(objc_getProperty), I(objc_setProperty), I(objc_setProperty_atomic), I(objc_setProperty_nonatomic),
     I(objc_setProperty_atomic_copy), I(objc_setProperty_nonatomic_copy), I(objc_copyStruct),
     I(objc_sync_enter), I(objc_sync_exit), I(objc_enumerationMutation), I(objc_exception_throw),
+    I(objc_begin_catch), I(objc_end_catch), I(objc_exception_rethrow), I(objc_terminate), I(objc_setUncaughtExceptionHandler),
+    I(objc_setExceptionPreprocessor), J("_objc_ehtype_vtable", objc_ehtype_vtable), J("_OBJC_EHTYPE_id", OBJC_EHTYPE_id),
     I(objc_alloc), I(objc_allocWithZone), I(objc_alloc_init), I(objc_opt_new), I(objc_opt_class), I(objc_opt_self),
     I(objc_opt_isKindOfClass), I(objc_opt_respondsToSelector),
     I(class_getInstanceMethod), I(class_getClassMethod), I(method_getImplementation), I(method_getName),
