@@ -9,6 +9,7 @@ ONLY=" $* "   # build-overlays.sh [Module...]: only these (default: all)
 swiftui_defs() {   # SwiftUI parts that build on newer Foundation overlay types, when isim's Foundation has them
   grep -qs "protocol FormatStyle" overlays/Foundation/*.swift && echo "-D ISIM_FOUNDATION_FORMATSTYLE"
   grep -qs "struct AttributedString\b" overlays/Foundation/*.swift && echo "-D ISIM_FOUNDATION_ATTRIBUTEDSTRING"
+  grep -qs "struct IndexSet" overlays/Foundation/*.swift && echo "-D ISIM_FOUNDATION_INDEXSET"
   true
 }
 build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays/<Module>/*.swift)

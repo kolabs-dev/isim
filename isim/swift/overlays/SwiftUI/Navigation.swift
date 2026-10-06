@@ -48,8 +48,9 @@ public struct Form<Content: View>: View, _PrimitiveView {
 }
 public struct List<SelectionValue: Hashable, Content: View>: View, _PrimitiveView {
     let content: Content
+    var _selection: _ListSelection? = nil          // List(selection:) (Lists+Editing.swift)
     public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node { _makeList(content, ctx) }
+    func _makeNode(_ ctx: _Context) -> _Node { _makeList(content, ctx.with { $0._listSelection = _selection }) }
 }
 extension List where SelectionValue == Never {
     public init(@ViewBuilder content: () -> Content) { self.content = content() }
@@ -74,7 +75,7 @@ public struct GroupedListStyle { public init() {} }
 public struct PlainListStyle { public init() {} }
 
 @MainActor func _makeList<C: View>(_ content: C, _ ctx: _Context) -> _Node {
-    let inner = ctx.child("list").with { $0._inList = true }
+    let inner = ctx.child("list").with { $0._inList = true; $0._listSelection = nil }
     let nodes = _flatten([_resolve(content, inner)])
     // rows outside sections form implicit sections
     var sections: [_SectionNode] = []
@@ -84,7 +85,9 @@ public struct PlainListStyle { public init() {} }
     flush()
     let level = ctx.nav
     level?.contentIsList = true
-    return _ListNode(path: ctx.path, sections: sections, level: level, graph: ctx.graph)
+    let node = _ListNode(path: ctx.path, sections: sections, level: level, graph: ctx.graph)
+    node.extras = _listExtras(ctx)             // editing, selection, refresh (Lists+Editing.swift)
+    return node
 }
 
 extension EnvironmentValues {
@@ -104,6 +107,8 @@ final class _ListNode: _Node {
     var headers: [(_Node, CGRect)] = []
     var footers: [(_Node, CGRect)] = []
     var largeTitleRect: CGRect?
+    var searchRect: CGRect?
+    var extras = _ListExtras()
     var contentHeight: CGFloat = 0
     init(path: String, sections: [_SectionNode], level: _NavLevel?, graph: _Graph) {
         self.sections = sections; self.level = level; self.graph = graph
@@ -114,7 +119,7 @@ final class _ListNode: _Node {
     static let margin: CGFloat = 20, rowInset: CGFloat = 20, minRow: CGFloat = 44
     override func place(_ rect: CGRect) {
         frame = rect
-        rows = []; cards = []; headers = []; footers = []; largeTitleRect = nil
+        rows = []; cards = []; headers = []; footers = []; largeTitleRect = nil; searchRect = nil
         let W = rect.width, cardX = _ListNode.margin, cardW = W - 2 * _ListNode.margin
         let rowContentW = cardW - 2 * _ListNode.rowInset
         var y: CGFloat = 0
@@ -122,6 +127,10 @@ final class _ListNode: _Node {
             largeTitleRect = CGRect(x: 20, y: 0, width: W - 40, height: 52)
             y = 52
         } else { y = 18 }
+        if level?.search != nil {                               // .searchable: the field under the title
+            searchRect = CGRect(x: 16, y: largeTitleRect == nil ? 8 : y, width: W - 32, height: 36)
+            y = searchRect!.maxY + 12
+        }
         for (si, sec) in sections.enumerated() {
             if si > 0 { y += sec.header == nil ? 35 : 22 } else if sec.header != nil { y += 4 }
             if let h = sec.header {
@@ -132,10 +141,11 @@ final class _ListNode: _Node {
             }
             let cardTop = y
             for row in sec.rows {
-                let s = row.sizeThatFits(_Proposal(width: rowContentW - (row.rowAccessory != nil ? 20 : 0), height: nil))
+                let (lead, trail) = _rowEditInsets(row, extras)
+                let s = row.sizeThatFits(_Proposal(width: rowContentW - lead - trail - (row.rowAccessory != nil ? 20 : 0), height: nil))
                 let h = max(_ListNode.minRow, s.height + 22)
                 let rr = CGRect(x: cardX, y: y, width: cardW, height: h)
-                let cr = CGRect(x: _ListNode.rowInset, y: (h - s.height) / 2, width: min(s.width, rowContentW), height: s.height)
+                let cr = CGRect(x: _ListNode.rowInset + lead, y: (h - s.height) / 2, width: min(s.width, rowContentW - lead - trail), height: s.height)
                 row.place(cr)
                 rows.append(RowLayout(node: row, rect: rr, contentRect: cr, separatorLeading: _separatorLeading(row), section: si))
                 y += h
@@ -181,12 +191,12 @@ final class _ListNode: _Node {
         var previous: RowLayout?
         for (i, r) in rows.enumerated() {
             guard let card = g.views[path + "|card\(r.section)"] else { continue }
-            let rowView = g.view(path + "|row\(i)|" + r.node.path) { _SUIRowControl(frame: .zero) }
+            let rowView = g.view(path + "|row\(i)|" + r.node.path) { _SUIListRow(frame: .zero) }
             rowView.action = r.node.rowAction
             rowView.frame = CGRect(x: 0, y: r.rect.minY - cards[r.section].minY, width: r.rect.width, height: r.rect.height)
             if rowView.superview !== card { card.addSubview(rowView) }
             g.mount(r.node, in: rowView, order: 0)
-            if let acc = r.node.rowAccessory {
+            if let acc = r.node.rowAccessory, !extras.editing {
                 let iv = g.view(path + "|acc\(i)") { UIImageView() }
                 iv.image = UIImage(systemName: acc, withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold))
                 iv.tintColor = .tertiaryLabel
@@ -194,6 +204,8 @@ final class _ListNode: _Node {
                 let s = iv.image?.size ?? .zero
                 iv.frame = CGRect(x: r.rect.width - 16 - s.width, y: (r.rect.height - s.height) / 2, width: s.width, height: s.height)
             }
+            _configureListRow(rowView, r.node, index: i, rowHeight: r.rect.height, list: self, g)
+            if extras.editing, r.node.rowAccessory != nil { g.views[path + "|acc\(i)"]?.removeFromSuperview(); g.views[path + "|acc\(i)"] = nil }
             // separator above this row (between rows of the same section)
             if let p = previous, p.section == r.section {
                 let sep = g.view(path + "|sep\(i)") { UIView() }
@@ -204,6 +216,14 @@ final class _ListNode: _Node {
                 sep.frame = CGRect(x: lead, y: r.rect.minY - cards[r.section].minY, width: r.rect.width - lead, height: hair)
             }
             previous = r
+        }
+        if let sr = searchRect, let cfg = level?.search {
+            let b = g.view(path + "|search") { _SUISearchBar(frame: .zero) }
+            if b.superview !== sv { sv.addSubview(b) }
+            b.frame = sr; b.configure(cfg)
+        }
+        if extras.refresh != nil || sv.refresher != nil {                    // .refreshable
+            let rd = sv.refresher ?? _RefreshDriver(); sv.refresher = rd; rd.attach(sv, extras.refresh)
         }
         sv.scrollViewDidScroll(sv)
     }
@@ -221,7 +241,7 @@ final class _ListNode: _Node {
 }
 
 /// A list row: highlights while pressed and runs the row action (Button / NavigationLink / Link rows).
-final class _SUIRowControl: UIControl {
+class _SUIRowControl: UIControl {
     var action: (() -> Void)?
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -242,6 +262,10 @@ final class _SUIRowControl: UIControl {
 /// to the navigation bar (large title -> inline title).
 final class _SUIListScroll: UIScrollView, UIScrollViewDelegate {
     var level: _NavLevel?
+    var refresher: _RefreshDriver?
+    func scrollViewDidEndDragging(_ s: UIScrollView, willDecelerate d: Bool) { refresher?.endDragging(s) }
+    /// horizontal drags on swipeable rows and reorder drags go to the rows (Lists+Editing.swift)
+    override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool { g === panGestureRecognizer ? _listShouldBeginPan(self, g) : true }
     var largeTitleBottom: CGFloat = 0
     var keyboardOverlap: CGFloat = 0
     private var observers: [NSObjectProtocol] = []
@@ -277,6 +301,7 @@ final class _SUIListScroll: UIScrollView, UIScrollViewDelegate {
         return nil
     }
     func scrollViewDidScroll(_ s: UIScrollView) {
+        refresher?.scrolled(s)
         let offset = s.contentOffset.y + s.adjustedContentInset.top
         let past = largeTitleBottom > 0 ? offset > largeTitleBottom - 8 : offset > 1
         level?.scrolledPastTitle = past
@@ -348,6 +373,13 @@ public enum NavigationBarItem {
     var toolbar: [(ToolbarItemPlacement, _Node)] = []
     var contentIsList = false
     var scrolledPastTitle = false
+    // Navigation+More.swift / Search.swift
+    var destinations: [_NavDestination] = []
+    var barHidden = false
+    var barBackground: Color?
+    var barBackgroundVisibility: Visibility = .automatic
+    var barScheme: ColorScheme?
+    var search: _SearchConfig?
     let index: Int
     weak var bar: _SUINavBar?
     var registry: _NavRegistry?
@@ -355,7 +387,7 @@ public enum NavigationBarItem {
     let push: (AnyView) -> Void
     init(index: Int, push: @escaping (AnyView) -> Void) { self.index = index; self.push = push }
     var isLarge: Bool { displayMode == .large || (displayMode == .automatic && index == 0) }
-    var showsLargeTitle: Bool { isLarge && title != nil }
+    var showsLargeTitle: Bool { isLarge && title != nil && !barHidden }
 }
 
 enum _NavEntry { case view(AnyView), value(AnyHashable) }
@@ -417,26 +449,44 @@ public struct NavigationStack<Root: View>: View, _PrimitiveView {
         }
         var levels: [_NavLevel] = []
         var nodes: [_Node] = []
-        for i in 0...entries.count {
+        // levels: the root, then path / pushed entries; a level with a presented navigationDestination(isPresented:)
+        // or (item:) is followed by that destination (Navigation+More.swift)
+        var i = 0, consumed = 0
+        var pending: _NavDestination? = nil
+        var popActions: [Int: () -> Void] = [:]
+        while true {
             let level = _NavLevel(index: i) { v in push(.view(v)) }
             level.registry = registry
             level.pushValue = { v in push(.value(v)) }
             if i > 0, let prev = levels.last, prev.displayMode == .large, level.displayMode == .automatic { level.displayMode = .large }
             let lctx = _Context(graph: g, path: ctx.path + "/L\(i)", environment: ctx.environment, nav: level)
-            lctx.environment.dismiss = DismissAction { if i > 0 { popTo(i - 1) } }
+            lctx.environment.isPresented = i > 0
             let node: _Node
             if i == 0 { node = _resolve(root, lctx) }
-            else {
-                switch entries[i - 1] {
+            else if let d = pending {
+                pending = nil
+                popActions[i] = d.pop
+                lctx.environment.dismiss = DismissAction(action: d.pop)
+                node = _resolve(d.view, lctx)
+            } else {
+                let keep = consumed
+                popActions[i] = { popTo(keep) }
+                lctx.environment.dismiss = DismissAction { popTo(keep) }
+                switch entries[consumed] {
                 case .view(let v): node = _resolve(v, lctx)
                 case .value(let v):
                     if let b = registry.builders[ObjectIdentifier(type(of: v.base))] { node = _resolve(b(v.base), lctx) }
                     else { print("isim SwiftUI: no navigationDestination for \(type(of: v.base))"); node = _resolve(EmptyView(), lctx) }
                 }
+                consumed += 1
             }
             levels.append(level); nodes.append(node)
+            if let d = level.destinations.first(where: { $0.isPresented }) { pending = d; i += 1; continue }
+            if consumed < entries.count { i += 1; continue }
+            break
         }
-        let node = _NavStackNode(path: ctx.path, levels: levels, nodes: nodes, pop: { if !entries.isEmpty { popTo(entries.count - 1) } })
+        let topIndex = levels.count - 1
+        let node = _NavStackNode(path: ctx.path, levels: levels, nodes: nodes, pop: { popActions[topIndex]?() })
         node.safeTop = g.safeArea.top; node.safeBottom = g.safeArea.bottom
         return node
     }
@@ -484,7 +534,7 @@ final class _NavStackNode: _Node {
         }
     }
     func placeLevel(_ content: _Node, _ level: _NavLevel, _ rect: CGRect) {
-        let top = safeTop + barHeight
+        let top = safeTop + (level.barHidden ? 0 : barHeight)
         if content.ignoresSafeArea {
             content.place(CGRect(x: 0, y: top, width: rect.width, height: rect.height - top))
         } else {
@@ -523,6 +573,7 @@ final class _NavStackNode: _Node {
         if bar.superview !== view { view.addSubview(bar) } else { view.bringSubviewToFront(bar) }
         bar.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: safeTop + barHeight)
         bar.configure(level: top, previousTitle: levels.count > 1 ? levels[levels.count - 2].title : nil, safeTop: safeTop, pop: levels.count > 1 ? pop : nil)
+        bar.isHidden = top.barHidden                                 // .toolbar(.hidden, for: .navigationBar)
         top.bar = bar
         if bar.levelIndex != top.index { bar.scrolled = false; bar.levelIndex = top.index }
         for (i, (placement, item)) in top.toolbar.enumerated() {
@@ -585,6 +636,10 @@ final class _SUINavBar: UIView {
         titleLabel.alpha = inline ? 1 : 0
         let solid = scrolled
         backgroundColor = solid ? UIColor.systemBackground.withAlphaComponent(0.94) : (l.contentIsList ? .systemGroupedBackground : .systemBackground)
+        // .toolbarBackground / .toolbarColorScheme (Navigation+More.swift)
+        if l.barBackgroundVisibility == .visible || l.barBackground != nil { backgroundColor = l.barBackground?.uiColor ?? UIColor.systemBackground.withAlphaComponent(0.94); hairline.isHidden = false }
+        if l.barBackgroundVisibility == .hidden { backgroundColor = .clear; hairline.isHidden = true }
+        overrideUserInterfaceStyle = l.barScheme == .dark ? .dark : l.barScheme == .light ? .light : .unspecified
         hairline.isHidden = !solid
     }
 }

@@ -278,9 +278,10 @@ extension View {
     public func onChange<V: Equatable>(of value: V, perform action: @escaping (V) -> Void) -> some View {
         onChange(of: value, initial: false) { (_: V, new: V) in action(new) }
     }
-    public func onSubmit(of triggers: Any? = nil, _ action: @escaping () -> Void) -> some View {
+    public func onSubmit(of triggers: SubmitTriggers = .text, _ action: @escaping () -> Void) -> some View {
         _modify { ctx, c in
-            ctx.graph.submitActions[ctx.path] = action
+            if triggers.contains(.text) { ctx.graph.submitActions[ctx.path] = action }
+            _registerSearchSubmit(ctx, triggers, action)              // .onSubmit(of: .search) (Search.swift)
             return _resolve(c, ctx.child("s"))
         }
     }

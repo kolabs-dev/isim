@@ -35,19 +35,19 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 104 | 36 | 13 | 41 | 194 | 63% |
+| **SwiftUI** | 108 | 42 | 13 | 31 | 194 | 66% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 12 | 3 | 0 | 2 | 17 | 79% |
 | &nbsp;&nbsp;↳ Views & controls | 26 | 10 | 1 | 1 | 38 | 82% |
-| &nbsp;&nbsp;↳ Containers & layout | 17 | 8 | 1 | 1 | 27 | 78% |
-| &nbsp;&nbsp;↳ Navigation & presentation | 10 | 5 | 1 | 7 | 23 | 54% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 12 | 2 | 7 | 3 | 24 | 54% |
+| &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
+| &nbsp;&nbsp;↳ Navigation & presentation | 13 | 8 | 1 | 1 | 23 | 74% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 12 | 3 | 7 | 2 | 24 | 56% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 3 | 1 | 0 | 5 | 9 | 39% |
 | &nbsp;&nbsp;↳ Animation | 2 | 3 | 1 | 6 | 12 | 29% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
 | &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 1 | 0 | 1 | 7 | 79% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 0 | 1 | 1 | 4 | 50% |
-| &nbsp;&nbsp;↳ Environment values | 3 | 1 | 0 | 3 | 7 | 50% |
+| &nbsp;&nbsp;↳ Environment values | 3 | 3 | 0 | 1 | 7 | 64% |
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
 | Swift Charts | 0 | 0 | 0 | 3 | 3 | 0% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **331** | **122** | **45** | **268** | **766** | **51%** |
+| **All areas** | **335** | **128** | **45** | **258** | **766** | **52%** |
 
 ---
 
@@ -430,7 +430,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `LabeledContent` | ✅ | |
 | `ContentUnavailableView` | ✅ | icon, title, description, actions; `.search` / `.search(text:)`; tested (HelloPickers) |
 | `ControlGroup`, `GroupBox`, `DisclosureGroup`, `OutlineGroup` | ✅ | disclosure rows expand/collapse (own state or `isExpanded:` binding; in a List the content follows as indented rows); `OutlineGroup` and `List(_:children:)` build the tree; control groups share one bordered row (`controlGroupStyle` ignored); tested (HelloPickers) |
-| `EditButton`, `PasteButton`, `RenameButton` | 🟡 | `EditButton`: see lists; `PasteButton` is a stub (no pasteboard on isim: shown disabled, tested); `RenameButton` missing |
+| `EditButton`, `PasteButton`, `RenameButton` | 🟡 | `EditButton` toggles `\.editMode` (tested, HelloLists); `PasteButton` is a stub (no pasteboard on isim: shown disabled, tested); `RenameButton` missing |
 | `VideoPlayer` (AVKit), `Map` (MapKit), `SceneView` | ❌ | |
 | `SpriteView` | ✅ | see SpriteKit |
 
@@ -448,9 +448,9 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `ScrollViewReader`, `scrollTo` | ✅ | |
 | `scrollIndicators`, `scrollDisabled`, `scrollBounceBehavior` | 🟡 | `scrollDisabled` tested (HelloLayout); hidden indicators and `.basedOnSize` bounce unverified |
 | `scrollPosition`, `scrollTargetBehavior` (paging), `scrollTransition`, `onScrollGeometryChange` | 🟡 | `.paging` (UIScrollView paging), `.viewAligned` + `scrollTargetLayout()` (snaps to children), custom `ScrollTargetBehavior.updateTarget`, `scrollPosition(id:)` both ways; tested (HelloLayout). `scrollTransition`, `onScrollGeometryChange` missing |
-| `List` (content builder, sections) | 🟡 | inset-grouped look; no `List(data)`, selection or editing |
+| `List` (content builder, sections, data, selection) | 🟡 | inset-grouped look; `List(data)`, `List(data, children:)`, `List(selection:)` single (tested via NavigationSplitView) and multiple (circles in edit mode, unverified) |
 | `listStyle`, `listRowBackground`, `listRowSeparator`, `listSectionSpacing`, `scrollContentBackground` | 🧩 | accepted, ignored |
-| `.onDelete`, `.onMove`, `.swipeActions`, edit mode | ❌ | |
+| `.onDelete`, `.onMove`, `.swipeActions`, edit mode | ✅ | swipe to delete, leading/trailing swipe actions (tint, full swipe), edit mode delete buttons and reorder handles; tested (HelloLists) |
 | `Form` | ✅ | inset-grouped rows; `formStyle` ignored |
 | `Section` (header, footer) | ✅ | |
 | `ForEach` (`id:`, `Identifiable`, `Range`) | ✅ | |
@@ -473,13 +473,13 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `NavigationStack` (root, path `[D]` / `NavigationPath`) | 🟡 | nav bar with large/inline title and back button; push/pop not animated, no edge-swipe back |
 | `NavigationLink(destination:)`, `NavigationLink(value:)` | ✅ | |
 | `navigationDestination(for:)` | ✅ | |
-| `navigationDestination(isPresented:)`, `navigationDestination(item:)` | ❌ | |
+| `navigationDestination(isPresented:)`, `navigationDestination(item:)` | ✅ | pushes while presented; back / `dismiss` reset the binding; tested (HelloLists) |
 | `NavigationView` | ✅ | stack style |
-| `NavigationSplitView` | ❌ | |
+| `NavigationSplitView` | 🟡 | iPhone (compact) behaviour only: columns as a stack, a `List(selection:)` choice shows the next column; tested (HelloLists). No side-by-side columns (iPad), `columnVisibility` ignored |
 | `navigationTitle`, `navigationBarTitleDisplayMode` | ✅ | |
 | `navigationBarBackButtonHidden` | 🧩 | ignored |
 | `.toolbar` with `ToolbarItem` / `ToolbarItemGroup` | 🟡 | top-bar leading/trailing only; `.principal`, `.bottomBar`, `.keyboard` not placed as on iOS |
-| `toolbarBackground`, `toolbarColorScheme`, `toolbar(.hidden)` | ❌ | |
+| `toolbarBackground`, `toolbarColorScheme`, `toolbar(.hidden)` | 🟡 | `toolbar(.hidden, for: .navigationBar / .tabBar)` tested (HelloLists); bar background colour / visibility and colour scheme applied to the navigation bar (unverified) |
 | `TabView` (tab bar, `.tabItem`, `.badge`, selection) | ✅ | material tab bar, SF Symbol items, badges, selection, iOS 18 `Tab`; tested |
 | `TabView` `.tabViewStyle(.page)` | ✅ | swipe paging with page dots; tested |
 | `.sheet(isPresented:)` / `.sheet(item:)` | ✅ | page sheet with swipe-down dismiss; content gets the environment + `dismiss`; tested (HelloPresentations) |
@@ -487,10 +487,10 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `.popover` | 🟡 | shown as a sheet (iPhone behaviour); no arrow popovers on iPad |
 | `.alert` | 🟡 | title, message, button roles (UIAlertController); no text fields in alerts; tested |
 | `.confirmationDialog` | ✅ | action sheet with Cancel; tested |
-| `presentationDetents`, `presentationDragIndicator`, `interactiveDismissDisabled` | ❌ | |
-| `@Environment(\.dismiss)` | 🟡 | pops the navigation stack; nothing else to dismiss |
-| `.searchable` | ❌ | |
-| `.refreshable` | ❌ | |
+| `presentationDetents`, `presentationDragIndicator`, `interactiveDismissDisabled` | 🟡 | adapted: sheets with detents other than `.large` are isim-drawn cards over a dimmed backdrop (`.medium`, `.large`, `.fraction`, `.height`; drag between detents or down to dismiss; selection binding); tested (HelloLists, HelloPickers). `interactiveDismissDisabled` on detent cards unverified |
+| `@Environment(\.dismiss)` | ✅ | closes sheets / covers (tested, HelloPresentations), pops navigation levels and resets `navigationDestination` bindings (tested, HelloLists) |
+| `.searchable` | 🟡 | search field under the List's large title (above other content), Cancel, `isSearching`, `dismissSearch`, `.onSubmit(of: .search)`; filtering and Cancel tested (HelloLists). Suggestions and scopes are ignored |
+| `.refreshable` | ✅ | pull past 60 pt and release: spinner while the async action runs (List tested, HelloLists; ScrollView unverified) |
 | `.inspector` | ❌ | |
 | `@Environment(\.openURL)` | ✅ | |
 
@@ -521,7 +521,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `pickerStyle`, `datePickerStyle`, `progressViewStyle`, `gaugeStyle` | ✅ | see the controls above; tested (HelloForms, HelloPickers) |
 | `ViewModifier`, `.modifier` | ✅ | |
 | `redacted`, `privacySensitive` | ❌ | |
-| `badge`, `help`, `contextMenu` | ❌ | |
+| `badge`, `help`, `contextMenu` | 🟡 | `badge` on tabs and list rows, `contextMenu` (long press -> pop-up menu) tested (HelloLists); preview ignored; `help` missing |
 
 ### Shapes, paths, gradients & materials
 
@@ -597,8 +597,8 @@ inside UIKit's animation engine, so frames, opacity, transforms and colors inter
 | `colorScheme`, `locale`, `font`, `isEnabled`, `lineLimit`, `multilineTextAlignment` | ✅ | |
 | `horizontalSizeClass`, `verticalSizeClass`, `displayScale` | ✅ | |
 | `layoutDirection` | 🟡 | value exists; RTL layout not implemented |
-| `calendar`, `timeZone`, `dynamicTypeSize`, `colorSchemeContrast` | ❌ | |
-| `editMode`, `isPresented`, `isSearching`, `presentationMode` | ❌ | |
+| `calendar`, `timeZone`, `dynamicTypeSize`, `colorSchemeContrast` | 🟡 | values exist and can be set; `dynamicTypeSize` drives `@ScaledMetric` (tested) but text does not scale; `colorSchemeContrast` is always `.standard` |
+| `editMode`, `isPresented`, `isSearching`, `presentationMode` | 🟡 | `editMode` (a window-wide binding, or your own via `.environment`) and `isPresented` tested (HelloLists); `isSearching`, `presentationMode` unverified |
 | `accessibilityReduceMotion` and other accessibility values | ❌ | |
 | `requestReview` | ✅ | see StoreKit |
 

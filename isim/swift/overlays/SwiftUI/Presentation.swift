@@ -16,6 +16,7 @@ final class _SUIPresentedHostingController: UIHostingController<AnyView> {
 
 @MainActor final class _PresentationState {
     var controller: UIViewController?
+    let sheetConfig = _SheetConfig()          // presentationDetents & co (Navigation+More.swift)
     var lastContentID: AnyHashable?
 }
 
@@ -35,6 +36,7 @@ struct _PresentedContent<Content: View>: View, _PrimitiveView {
     func _makeNode(_ ctx: _Context) -> _Node {
         var env = environment
         env.dismiss = DismissAction(action: dismiss)
+        env.isPresented = true
         env.colorScheme = ctx.environment.colorScheme
         return _resolve(content, _Context(graph: ctx.graph, path: ctx.path, environment: env, nav: nil))
     }
@@ -65,14 +67,11 @@ extension View {
                                        @ViewBuilder content: @escaping () -> Content) -> some View {
         sheet(isPresented: isPresented, content: content)
     }
-    public func presentationDetents(_ detents: Set<PresentationDetent>) -> some View { self }
-    public func presentationDetents(_ detents: Set<PresentationDetent>, selection: Binding<PresentationDetent>) -> some View { self }
-    public func presentationDragIndicator(_ visibility: Visibility) -> some View { self }
-    public func presentationCornerRadius(_ radius: CGFloat?) -> some View { self }
-    public func presentationBackground<S: ShapeStyle>(_ style: S) -> some View { self }
+    // presentationDetents, presentationDragIndicator, presentationCornerRadius, presentationBackground: Navigation+More.swift
     public func interactiveDismissDisabled(_ isDisabled: Bool = true) -> some View {
         _modify { ctx, c in
             let node = _resolve(c, ctx.child("idd"))
+            ctx.environment._sheetConfig?.dismissDisabled = isDisabled
             ctx.graph.postRender.append { [weak g = ctx.graph] in
                 var r: UIResponder? = g?.hostView
                 while let x = r, !(x is UIViewController) { r = x.next }
@@ -91,17 +90,22 @@ extension View {
             g.usedKeys.insert(skey)
             let state = (g.storage[skey] as? _PresentationStateBox)?.state ?? _PresentationState()
             g.storage[skey] = _PresentationStateBox(state)
-            let env = ctx.environment
+            var env = ctx.environment
+            env._sheetConfig = fullScreen ? nil : state.sheetConfig
             let node = _resolve(c, ctx.child("pr"))
             g.postRender.append { [weak g] in
                 let wrapped = { AnyView(_PresentedContent(environment: env, dismiss: { setPresented(false) }, content: content())) }
                 if isPresented {
                     if let hc = state.controller as? _SUIPresentedHostingController, state.lastContentID == id {
-                        hc.rootView = wrapped()                     // presenter state changed: refresh the content
+                        // presenter state changed: refresh the content
+                        hc.rootView = state.sheetConfig.custom ? AnyView(_DetentSheet(config: state.sheetConfig, content: { wrapped() }, dismiss: { setPresented(false) })) : wrapped()
                     } else {
                         if let old = state.controller { old.dismiss(animated: false, completion: nil) }
                         let hc = _SUIPresentedHostingController(rootView: wrapped())
                         hc.modalPresentationStyle = fullScreen ? .fullScreen : .pageSheet
+                        if !fullScreen {                // detents other than .large: isim's own card (Navigation+More.swift)
+                            _ = _prepareDetentSheet(hc, state.sheetConfig, from: g?.hostView, content: { wrapped() }, dismiss: { setPresented(false) })
+                        }
                         hc.onUIKitDismiss = { [weak state] in
                             guard let state, state.controller != nil else { return }
                             state.controller = nil

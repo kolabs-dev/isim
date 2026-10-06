@@ -46,8 +46,7 @@ extension View {
     public func badge(_ label: Text?) -> some View {
         _modify { ctx, c in let n = _resolve(c, ctx); n.badge = label?.string; return n }
     }
-    public func toolbarBackground(_ visibility: Visibility, for bars: ToolbarPlacement...) -> some View { self }
-    public func toolbar(_ visibility: Visibility, for bars: ToolbarPlacement...) -> some View { self }
+    // toolbar(_:for:), toolbarBackground: Navigation+More.swift
 }
 public struct ToolbarPlacement: Sendable {
     let id: Int
@@ -114,6 +113,7 @@ public struct TabView<SelectionValue: Hashable, Content: View>: View, _Primitive
         let node = _TabViewNode(path: ctx.path, tabs: children, items: items, selected: index, select: select, style: style,
                                 tint: (ctx.environment._tint ?? .accentColor).uiColor)
         node.safeTop = saved.top; node.safeBottom = saved.bottom
+        if index < children.count { node.barHidden = _tabBarHidden(children[index]) }   // .toolbar(.hidden, for: .tabBar)
         return node
     }
 }
@@ -126,13 +126,14 @@ struct _TabItemInfo { let title: String, image: UIImage?, badge: String? }
 final class _TabViewNode: _Node {
     let tabs: [_Node], items: [_TabItemInfo], selected: Int, select: (Int) -> Void, style: _TabStyle, tint: UIColor
     var safeTop: CGFloat = 0, safeBottom: CGFloat = 0
+    var barHidden = false
     init(path: String, tabs: [_Node], items: [_TabItemInfo], selected: Int, select: @escaping (Int) -> Void, style: _TabStyle, tint: UIColor) {
         self.tabs = tabs; self.items = items; self.selected = selected; self.select = select; self.style = style; self.tint = tint
         super.init(path: path, children: tabs)
     }
     override var ignoresSafeArea: Bool { if case .bar = style { return true }; return false }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: p.width ?? 320, height: p.height ?? 480) }
-    var barHeight: CGFloat { 49 + safeBottom }
+    var barHeight: CGFloat { barHidden ? 0 : 49 + safeBottom }
     override func place(_ rect: CGRect) {
         frame = rect
         let area: CGRect
@@ -179,6 +180,7 @@ final class _TabViewNode: _Node {
             if bar.superview !== view { view.addSubview(bar) } else { view.bringSubviewToFront(bar) }
             bar.frame = CGRect(x: 0, y: view.bounds.height - barHeight, width: view.bounds.width, height: barHeight)
             bar.update(items: items, selected: selected, tint: tint, select: select)
+            bar.isHidden = barHidden
         }
     }
 }
@@ -197,6 +199,11 @@ final class _SUIPager: UIView {
         let v = super.hitTest(point, with: event)
         if v === self, let n = node, case .page = n.style { return self }        // pages take swipes
         return v === self ? nil : v
+    }
+    /// only the page style pages: a tab-bar TabView's pan must not take drags from its content (list row swipes)
+    override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        if g === pan, let n = node, case .bar = n.style { return false }
+        return true
     }
     @objc func panned(_ g: UIPanGestureRecognizer) {
         guard let n = node, case .page = n.style else { return }

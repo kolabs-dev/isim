@@ -110,6 +110,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         var env = EnvironmentValues()
         env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
         _systemEnvironment(&env, traits: traits)
+        _rootEnvironment(&env, self)                              // edit mode (Lists+Editing.swift)
         let ctx = _Context(graph: self, path: "root", environment: env, nav: nil)
         // @Observable: properties read while the views evaluate are tracked; a change re-renders
         var resolved: _Node?

@@ -12,6 +12,7 @@ struct _ScrollOptions {
     var viewAligned = false
     var custom: ((inout ScrollTarget, ScrollTargetBehaviorContext) -> Void)? = nil
     var position: (get: () -> AnyHashable?, set: (AnyHashable?) -> Void)? = nil
+    var refresh: RefreshAction? = nil
 }
 struct _ScrollOptionsKey: EnvironmentKey { static var defaultValue: _ScrollOptions { _ScrollOptions() } }
 extension EnvironmentValues { var _scrollOptions: _ScrollOptions { get { self[_ScrollOptionsKey.self] } set { self[_ScrollOptionsKey.self] = newValue } } }
@@ -23,6 +24,7 @@ extension EnvironmentValues { var _scrollOptions: _ScrollOptions { get { self[_S
     if let m = margins { child = _PaddingNode(path: ctx.path + "/margins", insets: m, child: child) }
     let n = _ScrollNode(path: ctx.path, axes: axes, indicators: indicators && env._scrollOptions.indicators != false, child: child)
     n.options = env._scrollOptions
+    n.options.refresh = env.refresh            // .refreshable (Lists+Editing.swift)
     return n
 }
 
@@ -56,9 +58,10 @@ final class _ScrollTargetLayoutNode: _WrapperNode {
         v.alwaysBounceHorizontal = n.axes.contains(.horizontal) && n.contentSize.width > n.frame.width
     }
     v.isPagingEnabled = o.paging
-    guard o.viewAligned || o.position != nil || o.custom != nil else { v.behavior = nil; v.delegate = nil; return }
+    guard o.viewAligned || o.position != nil || o.custom != nil || o.refresh != nil else { v.behavior = nil; v.delegate = nil; return }
     let b = v.behavior ?? _ScrollBehavior()
     v.behavior = b; v.delegate = b
+    if o.refresh != nil || b.refresher != nil { let rd = b.refresher ?? _RefreshDriver(); b.refresher = rd; rd.attach(v, o.refresh) }
     // targets are measured relative to the scroll view's content (its child is at the origin)
     b.targets = _scrollTargets(n.child)
     b.horizontal = n.axes.contains(.horizontal) && !n.axes.contains(.vertical)
@@ -79,6 +82,8 @@ final class _ScrollBehavior: NSObject, UIScrollViewDelegate {
     var custom: ((inout ScrollTarget, ScrollTargetBehaviorContext) -> Void)?
     var position: (get: () -> AnyHashable?, set: (AnyHashable?) -> Void)?
     var reported: AnyHashable?
+    var refresher: _RefreshDriver?
+    func scrollViewDidScroll(_ s: UIScrollView) { refresher?.scrolled(s) }
     func clamp(_ p: CGPoint, _ s: UIScrollView) -> CGPoint {
         CGPoint(x: min(max(0, p.x), max(0, s.contentSize.width - s.bounds.width)), y: min(max(0, p.y), max(0, s.contentSize.height - s.bounds.height)))
     }
@@ -102,7 +107,7 @@ final class _ScrollBehavior: NSObject, UIScrollViewDelegate {
         if v < -0.2, best >= cur - 0.5, let prev = edges.last(where: { $0 < cur - 0.5 }) { best = prev }
         t.pointee = clamp(horizontal ? CGPoint(x: best, y: t.pointee.y) : CGPoint(x: t.pointee.x, y: best), s)
     }
-    func scrollViewDidEndDragging(_ s: UIScrollView, willDecelerate d: Bool) { if !d { report(s) } }
+    func scrollViewDidEndDragging(_ s: UIScrollView, willDecelerate d: Bool) { refresher?.endDragging(s); if !d { report(s) } }
     func scrollViewDidEndDecelerating(_ s: UIScrollView) { report(s) }
     func scrollViewDidEndScrollingAnimation(_ s: UIScrollView) { report(s) }
     /// scrollPosition(id:) gets the first target whose frame reaches past the top/leading edge.
