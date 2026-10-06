@@ -92,13 +92,6 @@ static BOOL compact_width(UIView *v) { CGFloat w = v.window ? v.window.bounds.si
     NSArray *cs = [_alongsideCompletions copy]; [_alongsideCompletions removeAllObjects];
     for (void (^b)(id) in cs) b(self);
 }
-- (BOOL)initiallyInteractive { return NO; }
-- (BOOL)isInterruptible { return NO; }
-- (CGFloat)percentComplete { return 0; }
-- (CGFloat)completionVelocity { return 1; }
-- (BOOL)animateAlongsideTransitionInView:(UIView *)v animation:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))a completion:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))c {
-    return [self animateAlongsideTransition:a completion:c];
-}
 /* animations alongside: queued until the transition animation starts, then run in an animation of the same length */
 - (BOOL)animateAlongsideTransition:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))a completion:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))c {
     if (c) [_alongsideCompletions addObject:[c copy]];

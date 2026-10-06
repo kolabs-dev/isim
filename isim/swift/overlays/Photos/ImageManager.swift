@@ -133,7 +133,7 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
     public func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "p", for: indexPath)
         let iv: UIImageView
-        if let v = cell.contentView.withTag(77) as? UIImageView { iv = v } else {
+        if let v = cell.contentView.viewWithTag(77) as? UIImageView { iv = v } else {
             iv = UIImageView(frame: cell.contentView.bounds)
             iv.tag = 77; iv.contentMode = .scaleAspectFill; iv.clipsToBounds = true
             iv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -142,7 +142,7 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
         let a = assets[indexPath.item]
         iv.image = PHImageManager.image(a, CGSize(width: 200, height: 200), .aspectFill)
         let badge: UILabel
-        if let b = cell.contentView.withTag(78) as? UILabel { badge = b } else {
+        if let b = cell.contentView.viewWithTag(78) as? UILabel { badge = b } else {
             badge = UILabel(frame: CGRect(x: cell.bounds.width - 28, y: cell.bounds.height - 28, width: 22, height: 22))
             badge.tag = 78; badge.textAlignment = .center; badge.textColor = .white; badge.backgroundColor = .systemBlue
             badge.font = .systemFont(ofSize: 13, weight: .bold); badge.layer.cornerRadius = 11; badge.clipsToBounds = true

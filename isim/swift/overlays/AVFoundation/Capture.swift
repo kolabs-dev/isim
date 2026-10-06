@@ -8,17 +8,6 @@ import UIKit
 extension AVMediaType {
     public static let depthData = AVMediaType("dpth")     /* the rest: AVAsset.swift */
 }
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public static let video = AVMediaType("vide")
-    public static let audio = AVMediaType("soun")
-    public static let text = AVMediaType("text")
-    public static let closedCaption = AVMediaType("clcp")
-    public static let subtitle = AVMediaType("sbtl")
-    public static let timecode = AVMediaType("tmcd")
-    public static let metadata = AVMediaType("meta")
-    public static let muxed = AVMediaType("muxx")
-    public static let depthData = AVMediaType("dpth")
-}
 
 @objc public enum AVAuthorizationStatus: Int, Sendable { case notDetermined = 0, restricted, denied, authorized }
 
@@ -187,10 +176,3 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
     open func stopRunning() { isRunning = false }
 }
 
-public struct AVLayerVideoGravity: RawRepresentable, Hashable, Sendable {
-    public let rawValue: String
-    public init(rawValue: String) { self.rawValue = rawValue }
-    public static let resize = AVLayerVideoGravity(rawValue: "AVLayerVideoGravityResize")
-    public static let resizeAspect = AVLayerVideoGravity(rawValue: "AVLayerVideoGravityResizeAspect")
-    public static let resizeAspectFill = AVLayerVideoGravity(rawValue: "AVLayerVideoGravityResizeAspectFill")
-}
