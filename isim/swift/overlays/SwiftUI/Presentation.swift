@@ -218,6 +218,7 @@ final class _PresentationStateBox { let state: _PresentationState; init(_ s: _Pr
 }
 @MainActor func _collectText(_ n: _Node) -> [String] {
     if let t = n as? _TextNode { return [t.text] }
+    if let r = n as? _RichTextNode { return [r.plain] }
     return n.children.flatMap { _collectText($0) }
 }
 

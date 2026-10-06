@@ -285,13 +285,12 @@ public struct Text: View, Equatable, _PrimitiveView {
     var color: Color?
     var weight: Font.Weight?
     var italicFlag = false
+    var _x = _TextExtras()          // concatenation, live text, decorations (Text+Formatting.swift)
     public init(verbatim content: String) { storage = .verbatim(content) }
     @_disfavoredOverload public init<S: StringProtocol>(_ content: S) { storage = .verbatim(String(content)) }
     public init(_ key: LocalizedStringKey, tableName: String? = nil, bundle: Bundle? = nil, comment: StaticString? = nil) { storage = .localized(key, bundle) }
     public static func == (a: Text, b: Text) -> Bool { a.storage == b.storage && a.font == b.font && a.color == b.color }
-    var string: String {
-        switch storage { case .verbatim(let s): return s; case .localized(let k, let b): return k.resolved(b) }
-    }
+    var string: String { _plain }
     public func font(_ f: Font?) -> Text { var t = self; t.font = f; return t }
     public func foregroundColor(_ c: Color?) -> Text { var t = self; t.color = c; return t }
     public func foregroundStyle<S: ShapeStyle>(_ s: S) -> Text { var t = self; t.color = s as? Color ?? (s as? HierarchicalShapeStyle)?.color; return t }
@@ -299,20 +298,13 @@ public struct Text: View, Equatable, _PrimitiveView {
     public func fontWeight(_ w: Font.Weight?) -> Text { var t = self; t.weight = w; return t }
     public func italic(_ active: Bool = true) -> Text { var t = self; t.italicFlag = active; return t }
     public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node {
-        var f = font ?? ctx.environment.font ?? .body
-        if let w = weight { f.weight = w }
-        let color = self.color ?? ctx.environment._foreground ?? .primary
-        let lines = ctx.environment._lineRange
-        let shown = ctx.environment._sectionHeader ? string.uppercased() : string     // inset-grouped section headers
-        return _TextNode(path: ctx.path, text: shown, font: f.uiFont, color: color.uiColor, minLines: lines.0, maxLines: lines.1,
-                         alignment: ctx.environment.multilineTextAlignment)
-    }
+    func _makeNode(_ ctx: _Context) -> _Node { _makeTextNode(self, ctx) }
 }
 
 @MainActor let _measureLabel = UILabel()
 final class _TextNode: _Node {
     let text: String, font: UIFont, color: UIColor, minLines: Int?, maxLines: Int?, alignment: TextAlignment
+    var truncation = Text.TruncationMode.tail, minimumScale: CGFloat = 1
     init(path: String, text: String, font: UIFont, color: UIColor, minLines: Int?, maxLines: Int?, alignment: TextAlignment) {
         self.text = text; self.font = font; self.color = color; self.minLines = minLines; self.maxLines = maxLines; self.alignment = alignment
         super.init(path: path, children: [])
@@ -333,7 +325,9 @@ final class _TextNode: _Node {
     }
     override func mountView(_ g: _Graph) -> UIView {
         let l = g.view(viewKey) { UILabel() }
-        l.text = text; l.font = font; l.textColor = color; l.numberOfLines = maxLines ?? 0
+        l.text = maxLines == 1 && truncation != .tail ? _truncate(text, font: font, width: frame.width, mode: truncation) : text
+        l.font = font; l.textColor = color; l.numberOfLines = maxLines ?? 0
+        l.adjustsFontSizeToFitWidth = minimumScale < 1; l.minimumScaleFactor = minimumScale
         l.textAlignment = alignment == .center ? .center : alignment == .trailing ? .right : .left
         return l
     }
@@ -360,7 +354,7 @@ public struct Image: View, _PrimitiveView {
         var img: UIImage?
         var template = false
         switch source {
-        case .system(let n): img = UIImage(systemName: n, withConfiguration: UIImage.SymbolConfiguration(font: font)); template = true
+        case .system(let n): img = UIImage(systemName: _symbolName(n, ctx.environment), withConfiguration: _symbolConfig(font, ctx.environment)); template = true
         case .named(let n, _): img = UIImage(named: n)
         case .ui(let u): img = u
         }

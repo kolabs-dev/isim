@@ -35,10 +35,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 88 | 22 | 14 | 70 | 194 | 51% |
+| **SwiftUI** | 90 | 26 | 14 | 64 | 194 | 53% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 11 | 2 | 0 | 4 | 17 | 71% |
-| &nbsp;&nbsp;↳ Views & controls | 17 | 2 | 1 | 18 | 38 | 47% |
+| &nbsp;&nbsp;↳ Views & controls | 19 | 6 | 1 | 12 | 38 | 58% |
 | &nbsp;&nbsp;↳ Containers & layout | 12 | 4 | 2 | 9 | 27 | 52% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 10 | 5 | 1 | 7 | 23 | 54% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 11 | 2 | 7 | 4 | 24 | 50% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **315** | **108** | **46** | **297** | **766** | **48%** |
+| **All areas** | **317** | **112** | **46** | **291** | **766** | **49%** |
 
 ---
 
@@ -396,15 +396,15 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | API / feature | Status | Notes |
 |---|---|---|
 | `Text` (verbatim, `LocalizedStringKey` with interpolation, font/weight/italic/color) | ✅ | |
-| `Text + Text` concatenation | ❌ | |
-| `Text(date, style:)`, `Text(_:format:)`, `Text(timerInterval:)` | ❌ | |
-| Markdown in `Text`, `AttributedString` | ❌ | |
-| `strikethrough`, `underline`, `kerning`, `tracking`, `textCase`, `baselineOffset` | ❌ | |
+| `Text + Text` concatenation | ✅ | parts keep their own font/colour/weight; mixed styles laid out word by word (adapted); tested (HelloText) |
+| `Text(date, style:)`, `Text(_:format:)`, `Text(timerInterval:)` | 🟡 | `.time/.date/.relative/.offset/.timer` styles (relative ones re-render every second), date ranges, `\(date, style:)` interpolation and `Text(_:formatter:)` tested (HelloText); `Text(_:format:)` is compiled only once isim Foundation has `FormatStyle` (unverified) |
+| Markdown in `Text`, `AttributedString` | 🟡 | string literals parse `**bold**`, `*italic*`, `***both***`, `` `code` ``, `~~strike~~`, `[links](url)` (tap opens through `openURL`); tested. Italic is a sheared glyph run (isim fonts have no italic faces). `Text(AttributedString)` and the SwiftUI attribute scope compile only once isim Foundation has `AttributedString` (unverified) |
+| `strikethrough`, `underline`, `kerning`, `tracking`, `textCase`, `baselineOffset` | ✅ | on `Text` and as view modifiers; lines are hairline views, kerning places glyphs one by one (`tracking` = `kerning`), line patterns drawn solid; tested (HelloText) |
 | `lineLimit`, `multilineTextAlignment` | ✅ | |
-| `truncationMode`, `minimumScaleFactor`, `allowsTightening` | ❌ | |
+| `truncationMode`, `minimumScaleFactor`, `allowsTightening` | 🟡 | head/middle/tail truncation of one-line text (tested), `minimumScaleFactor` shrinks one-line labels to fit (screenshot only); `allowsTightening` is stored, no effect |
 | `Image` (asset/bundle name, `uiImage:`), `resizable`, `renderingMode`, `interpolation` | ✅ | |
 | `Image(systemName:)` | 🟡 | substitute glyphs, not SF Symbols |
-| `imageScale`, `symbolRenderingMode`, `symbolVariant`, `symbolEffect` | ❌ | |
+| `imageScale`, `symbolRenderingMode`, `symbolVariant`, `symbolEffect` | 🟡 | `imageScale` sizes symbols (tested); `symbolVariant` appends `.fill`/`.circle`/... to the symbol name (unverified); `symbolRenderingMode` accepted, ignored; `symbolEffect` missing |
 | `AsyncImage` | ❌ | not implemented (URLSession is available) |
 | `Label` | ✅ | |
 | `Button` (action, label, role) | ✅ | |
