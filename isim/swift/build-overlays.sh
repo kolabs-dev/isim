@@ -4,7 +4,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 SDK=$(realpath ../out/sdk); OBJ=../out/swift/obj/overlays; mkdir -p "$OBJ"
-EVOLUTION="AVFoundation SpriteKit Combine SwiftUI StoreKit GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform CryptoKit Security os OSLog"   # app-facing re-implementations: stable ABI across isim updates
+EVOLUTION="AVFoundation SpriteKit Combine SwiftUI StoreKit GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform CryptoKit Security os OSLog LocalAuthentication DeviceCheck UserNotifications"   # app-facing re-implementations: stable ABI across isim updates
 ONLY=" $* "   # build-overlays.sh [Module...]: only these (default: all)
 build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays/<Module>/*.swift)
   local m=$1; shift
@@ -37,6 +37,9 @@ build CryptoKit -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim
 build Security -lswiftObjectiveC -lswiftFoundation -framework Foundation
 build os -lswiftObjectiveC -lswiftFoundation -framework Foundation
 build OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation
+build LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
+build DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
+build UserNotifications -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit -framework UserNotifications
 build StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift_Concurrency -framework Foundation -framework UIKit
 
 # stand-ins for remote Swift packages that isim cannot fetch or run (isim build reads this)

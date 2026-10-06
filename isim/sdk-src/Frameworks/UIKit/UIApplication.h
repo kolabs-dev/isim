@@ -25,6 +25,7 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options;
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
 - (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;
+- (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error;
 @property (nullable, nonatomic, strong) UIWindow *window;
 @end
 
@@ -47,6 +48,10 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) NSInteger applicationIconBadgeNumber;
 - (BOOL)sendAction:(SEL)action to:(nullable id)target from:(nullable id)sender forEvent:(nullable UIEvent *)event;
 - (void)sendEvent:(UIEvent *)event;
+/* isim: push notifications are not available; registration fails with NSCocoaErrorDomain 3010 */
+- (void)registerForRemoteNotifications;
+- (void)unregisterForRemoteNotifications;
+@property (nonatomic, readonly, getter=isRegisteredForRemoteNotifications) BOOL registeredForRemoteNotifications;
 - (void)beginIgnoringInteractionEvents;
 - (void)endIgnoringInteractionEvents;
 @end

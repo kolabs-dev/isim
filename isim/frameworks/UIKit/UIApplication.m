@@ -462,6 +462,19 @@ static BOOL status_bar_hidden;
     if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion([self canOpenURL:url]); });
 }
 - (void)_isim_addScene:(UIScene *)s session:(UISceneSession *)ss { [_scenes addObject:s]; [_sessions addObject:ss]; }
+/* push notifications need APNs and an Apple developer identity: registration always fails, like the old Simulator */
+- (void)registerForRemoteNotifications {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSError *e = [NSError errorWithDomain:@"NSCocoaErrorDomain" code:3010
+                                     userInfo:@{ NSLocalizedDescriptionKey: @"remote notifications are not supported on isim" }];
+        NSLog(@"isim: registerForRemoteNotifications: %@", e.localizedDescription);
+        id<UIApplicationDelegate> d = self.delegate;
+        if ([d respondsToSelector:@selector(application:didFailToRegisterForRemoteNotificationsWithError:)])
+            [d application:self didFailToRegisterForRemoteNotificationsWithError:e];
+    });
+}
+- (void)unregisterForRemoteNotifications {}
+- (BOOL)isRegisteredForRemoteNotifications { return NO; }
 @end
 
 /* ================= UIApplicationMain + run loop ================= */
