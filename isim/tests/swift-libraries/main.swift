@@ -236,6 +236,20 @@ struct Save: Codable, Equatable {
         eq(df.string(from: when), "Mon, 05 Oct 2026 15:04:05 +0000", "DateFormatter RFC 1123")
         check(df.date(from: "Mon, 05 Oct 2026 08:04:05 -0700") == when, "DateFormatter parses month names and offsets")
 
+        // MARK: Measurement / Unit
+        let run = Measurement(value: 5, unit: UnitLength.kilometers)
+        check(abs(run.converted(to: .miles).value - 3.10686) < 1e-4 && run + Measurement(value: 500, unit: UnitLength.meters) == Measurement(value: 5.5, unit: UnitLength.kilometers), "Measurement conversion + arithmetic")
+        check(Measurement(value: 1, unit: UnitLength.miles) > run / 5 && Measurement(value: 90, unit: UnitDuration.minutes).converted(to: .hours).value == 1.5, "Measurement comparison, UnitDuration")
+        eq(Measurement(value: 20, unit: UnitTemperature.celsius).formatted(.measurement(width: .abbreviated).locale(us)), "68°F", "temperature in the US region")
+        eq(Measurement(value: 20, unit: UnitTemperature.celsius).formatted(.measurement(width: .abbreviated).locale(deDE)), "20\u{A0}°C", "temperature in de_DE")
+        eq(run.formatted(.measurement(width: .wide, usage: .asProvided).locale(us)), "5 kilometers", "Measurement.FormatStyle wide, asProvided")
+        eq(run.formatted(.measurement(width: .wide).locale(br)), "5 quilômetros", "Measurement.FormatStyle pt_BR")
+        let mf = MeasurementFormatter(); mf.locale = us
+        eq(mf.string(from: run), "3.107 mi", "MeasurementFormatter converts to the region's units")
+        mf.unitOptions = .providedUnit; mf.unitStyle = .short
+        eq(mf.string(from: Measurement(value: 70, unit: UnitMass.kilograms)), "70kg", "MeasurementFormatter short, provided unit")
+        check((try? JSONDecoder().decode(Measurement<UnitLength>.self, from: JSONEncoder().encode(run))) == run, "Measurement Codable")
+
         // MARK: Timer.publish (needs the main run loop)
         var ticks = 0
         let timer = Timer.publish(every: 0.02, on: .main, in: .common).autoconnect().sink { _ in ticks += 1 }

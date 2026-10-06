@@ -30,3 +30,6 @@
 #include <dispatch/dispatch.h>
 #import <Foundation/NSCoder.h>
 #import <Foundation/NSRegularExpression.h>
+#import <Foundation/NSCalendar.h>
+#import <Foundation/NSUnit.h>
+#import <Foundation/NSMeasurement.h>
