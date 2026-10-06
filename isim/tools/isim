@@ -116,12 +116,13 @@ case "$cmd" in
       exec "${run[@]}" -enable-experimental-feature Embedded -enable-experimental-feature Extern -wmo -parse-as-library -Osize \
         -I "$BIN/../swift/embedded" "$@"
     fi
-    # full Swift: stdlib + runtime + Concurrency from the isim SDK (/usr/lib/swift); StringProcessing not built yet
+    # full Swift: stdlib + runtime + Concurrency + _StringProcessing (Regex) from the isim SDK (/usr/lib/swift),
+    # implicitly imported like Apple's toolchain does once they are built
     # isim's own resource dir (clang builtin headers + SwiftShims): keeps the Linux toolchain's corelibs
     # module maps (Dispatch, CoreFoundation for Linux) out of iOS builds
     exec "${run[@]}" -sdk "$SDK" -resource-dir "$BIN/../swift/resource" -O -runtime-compatibility-version none \
       $( [ -d "$SDK/usr/lib/swift/_Concurrency.swiftmodule" ] || echo -Xfrontend -disable-implicit-concurrency-module-import ) \
-      -Xfrontend -disable-implicit-string-processing-module-import "$@" ;;
+      $( [ -d "$SDK/usr/lib/swift/_StringProcessing.swiftmodule" ] || echo -Xfrontend -disable-implicit-string-processing-module-import ) "$@" ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
   info)

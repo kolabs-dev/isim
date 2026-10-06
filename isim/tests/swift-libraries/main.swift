@@ -1,7 +1,8 @@
 // Library self-test on isim: Dispatch (Swift API), Combine, JSON/Codable, Data, Calendar,
-// CharacterSet, UUID, Decimal, String encodings, FileManager/Bundle URL APIs.
+// CharacterSet, UUID, Decimal, String encodings, FileManager/Bundle URL APIs, Regex.
 import Foundation
 import Combine
+import RegexBuilder
 
 var failures = 0, checks = 0
 func check(_ ok: Bool, _ what: String) {
@@ -144,6 +145,40 @@ struct Save: Codable, Equatable {
         check(UUID(uuidString: u.uuidString) == u && u.uuidString.count == 36, "UUID round trip")
         check(Decimal(string: "2.99")! < Decimal(string: "5.99")! && (Decimal(string: "0.1")! + Decimal(string: "0.2")!).description == "0.3", "Decimal exact arithmetic")
         check(Locale.Language(identifier: "ar").characterDirection == .rightToLeft && Locale.Language(identifier: "pt-BR").characterDirection == .leftToRight, "Locale.Language.characterDirection")
+
+        // MARK: Regex (_StringProcessing, RegexBuilder)
+        let text = "Order 66 shipped 2024-10-05, order 7 on 1999-01-02."
+        let dates = text.matches(of: /(\d{4})-(\d{2})-(\d{2})/).map { "\($0.1)/\($0.2)/\($0.3)" }
+        check(dates == ["2024/10/05", "1999/01/02"], "regex literal + matches(of:) captures (\(dates))")
+        if let m = text.firstMatch(of: #/order (?<n>\d+)/#.ignoresCase()) { check(m.n == "66", "named capture, ignoresCase (\(m.n))") }
+        else { check(false, "firstMatch(of:) with named capture") }
+        check("abc123".wholeMatch(of: /[a-z]+\d+/) != nil && "abc123!".wholeMatch(of: /[a-z]+\d+/) == nil, "wholeMatch(of:)")
+        check(text.contains("shipped") && !text.contains("lost") && text.contains(/\d{4}-/), "String.contains(String) / contains(Regex)")
+        check(text.ranges(of: "rder").count == 2 && "a--b--c".split(separator: "--") == ["a", "b", "c"], "ranges(of:) / split(separator: String)")
+        check(text.replacing(/\d+/, with: "#") == "Order # shipped #-#-#, order # on #-#-#.", "replacing(Regex, with:)")
+        check("a1b22".replacing(/\d+/) { "<\($0.output)>" } == "a<1>b<22>" && "x.y.z".replacing(".", with: "/") == "x/y/z", "replacing with closure / String")
+        let builder = Regex {
+            "#"
+            Capture { OneOrMore(.hexDigit) }
+            Optionally { ";" }
+        }
+        let colors = "#ff00aa; #123".matches(of: builder).map { String($0.1) }
+        check(colors == ["ff00aa", "123"], "RegexBuilder Capture/OneOrMore/Optionally (\(colors))")
+        let kv = Regex {
+            Capture { OneOrMore(.word) }
+            "="
+            TryCapture { OneOrMore(.digit) } transform: { Int($0) }
+        }
+        if let m = "level=42".wholeMatch(of: kv) { check(m.1 == "level" && m.2 == 42, "TryCapture transform") } else { check(false, "TryCapture transform") }
+        do {
+            let dyn = try Regex(#"(\w+)@(\w+)\.com"#)
+            let m = try dyn.firstMatch(in: "mail bob@example.com now")
+            check(m?.output[1].substring == "bob" && m?.output[2].substring == "example", "Regex(String) runtime pattern, AnyRegexOutput")
+        } catch { check(false, "Regex(String): \(error)") }
+        check((try? Regex("(unclosed")) == nil, "invalid runtime pattern throws")
+        check("Hello World".trimmingPrefix("Hello ") == "World" && "aaab".trimmingPrefix(/a+/) == "b", "trimmingPrefix")
+        check("one two  three".split(separator: /\s+/).count == 3, "split(separator: Regex)")
+        check("cafe\u{301}".firstMatch(of: /caf./)?.0 == "café", "Regex matches grapheme clusters")
 
         // MARK: Timer.publish (needs the main run loop)
         var ticks = 0

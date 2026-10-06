@@ -341,6 +341,8 @@ def build_target(project, name, configuration, outdir, built):
             cmd.append('-parse-as-library')                     # Xcode does the same when there is no main.swift
         sv = str(s.get('SWIFT_VERSION', '5')).split('.')[0]
         cmd += ['-swift-version', sv]
+        if str(s.get('SWIFT_ENABLE_BARE_SLASH_REGEX', 'NO')).upper() == 'YES' and sv < '6':
+            cmd.append('-enable-bare-slash-regex')              # Swift 6 has /regex/ literals on by default
         for flag in str(s.get('OTHER_SWIFT_FLAGS', '')).split():
             if flag != '$(inherited)':
                 cmd.append(flag)
