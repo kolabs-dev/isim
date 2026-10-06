@@ -23,6 +23,11 @@ script="wait 1; tapid demo-full; wait 0.8; tapid close-Full; wait 0.8;
  tapid demo-share; wait 0.8; shot $shots/share.png; tapid share-Copy; wait 1; tapid demo-share; wait 0.8; tapid share-Shout; wait 1;
  tapid demo-unavailable; wait 1; shot $shots/unavailable.png; dump; tapid unavailable-Load; wait 0.2; shot $shots/loading.png; wait 1; dump; quit"
 log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 120 out/bin/isim run out/apps/HelloTransitions.app 2>&1); rc=$?
+# regular width (iPad): sheets are centered cards (swipe down dismisses), popovers stay popovers, split view columns
+padscript="wait 1; tapid demo-sheet; wait 0.8; shot $shots/ipad-sheet.png; dump; drag 400 70 400 700 0.3; wait 0.8;
+ tapid demo-popsheet; wait 0.8; shot $shots/ipad-popover.png; tap 700 1100; wait 0.8;
+ tapid demo-split; wait 1; tapid item-3; wait 1; shot $shots/ipad-split.png; dump; quit"
+padlog=$(ISIM_DEVICE=ipad ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$padscript" timeout 60 out/bin/isim run out/apps/HelloTransitions.app 2>&1); padrc=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
 between() { sed -n "/$1/,/$2/p" <<<"$log"; }
@@ -49,5 +54,10 @@ check "custom UIActivity"                                 'grep -q "SHOUT: HELLO
 check "content unavailable configuration"                'grep -q "inbox is empty" <<<"$log" && grep -q "id=content-unavailable text=No Mail | New messages appear here." <<<"$log"'
 check "loading configuration, then content"              'grep -q "isim: content unavailable: Loading" <<<"$log" && grep -q "inbox shows 2 items" <<<"$log" && grep -q "id=inbox-label text=Welcome, Hello" <<<"$log"'
 check "exits cleanly"                                     '[ $rc = 0 ]'
-[ $fail = 0 ] || { echo "--- app log"; echo "$log" | grep -v "^ " | tail -50; }
+check "iPad: page sheet is a centered card"              'grep -q "UIView (58 48; 704 x 1084) id=sheet-content" <<<"$padlog"'
+check "iPad: swipe down dismisses the card"              'grep -q "swiped away SheetContentViewController" <<<"$padlog"'
+check "iPad: popover is not adapted"                     'grep -q "isim: popover shown, arrow up" <<<"$padlog" && grep -q "Adapted disappeared" <<<"$padlog" && ! grep -q "adapted to a sheet" <<<"$padlog"'
+check "iPad: split view shows columns side by side"      'grep -q "split collapsed false, stack 1" <<<"$padlog" && grep -Eq "UINavigationController|id=label-Detail 3" <<<"$padlog" && grep -q "Detail 3 appeared" <<<"$padlog"'
+check "iPad: exits cleanly"                               '[ $padrc = 0 ]'
+[ $fail = 0 ] || { echo "--- app log"; echo "$log" | grep -v "^ " | tail -50; echo "--- iPad log"; echo "$padlog" | grep -v "^ " | tail -20; }
 exit $fail

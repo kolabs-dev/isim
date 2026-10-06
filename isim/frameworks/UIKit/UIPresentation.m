@@ -395,7 +395,7 @@ enum { P_FULL, P_SHEET, P_POPOVER, P_FORMCARD };          /* layout kinds */
 }
 - (void)tappedOutside {
     if (_dismissing || _presentingNow) return;
-    if (_kind == P_SHEET && _dim.alpha >= 0.01) { [self userDismissAttempt]; return; }
+    if ((_kind == P_SHEET && _dim.alpha >= 0.01) || _kind == P_FORMCARD) { [self userDismissAttempt]; return; }
     if (_kind == P_POPOVER) {
         UIPopoverPresentationController *pop = (UIPopoverPresentationController *)_pc;
         id<UIPopoverPresentationControllerDelegate> d = pop.delegate;
@@ -424,8 +424,23 @@ enum { P_FULL, P_SHEET, P_POPOVER, P_FORMCARD };          /* layout kinds */
 
 /* ---- sheet dragging ---- */
 - (BOOL)atLargestDetent { return fabs(_sheetTop - [[self detentTops].firstObject[0] doubleValue]) < 1; }
+/* iPad sheets (centered cards): follow the finger down, then dismiss or spring back */
+- (void)cardDragged:(__IsimSheetDrag *)g {
+    UIView *v = _presented.view;
+    CGRect home = [self presentedFrame];
+    CGFloat dy = [g translationInView:_container].y;
+    dy = dy > 0 ? (_presented.isModalInPresentation ? 18 * log1p(dy / 18) : dy) : -12 * log1p(-dy / 12);
+    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) {
+        [UIView performWithoutAnimation:^{ v.frame = CGRectOffset(home, 0, dy); }];
+        return;
+    }
+    CGFloat vy = g.state == UIGestureRecognizerStateEnded ? [g velocityInView:_container].y : 0;
+    if (g.state == UIGestureRecognizerStateEnded && (dy > home.size.height * 0.25 || vy > 900)) { [self userDismissAttempt]; if (!_dismissing) isim_ui_animate(0.45, 0, 0, 1, 0.85, 0, ^{ v.frame = home; }, nil); return; }
+    isim_ui_animate(0.45, 0, 0, 1, 0.85, 0, ^{ v.frame = home; }, nil);
+}
 - (void)sheetDragged:(__IsimSheetDrag *)g {
     if (_dismissing || _presentingNow) return;
+    if (_kind == P_FORMCARD) { [self cardDragged:g]; return; }
     CGFloat dy = [g translationInView:_container].y;
     NSArray *tops = [self detentTops];
     CGFloat large = [tops.firstObject[0] doubleValue], smallest = [tops.lastObject[0] doubleValue];
@@ -639,6 +654,9 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
     CGRect end = [self presentedFrame];
     v.autoresizingMask = UIViewAutoresizingNone; v.layer.cornerRadius = 10; v.clipsToBounds = YES;
     [c addSubview:v];
+    _drag = [[__IsimSheetDrag alloc] initWithTarget:self action:@selector(sheetDragged:)];
+    _drag.presentation = self;
+    [v addGestureRecognizer:_drag];
     [UIView performWithoutAnimation:^{ v.frame = CGRectOffset(end, 0, c.bounds.size.height); }];
     __IsimTransitionContext *ctx = _context; ctx.duration = animated ? 0.5 : 0; ctx.toFinal = end;
     void (^anim)(void) = ^{ v.frame = end; self.dim.alpha = 0.3; };
