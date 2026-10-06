@@ -5,6 +5,13 @@ __BEGIN_DECLS
 ssize_t read(int, void *, size_t);
 ssize_t write(int, const void *, size_t);
 int close(int);
+ssize_t pread(int, void *, size_t, off_t);
+ssize_t pwrite(int, const void *, size_t, off_t);
+int pipe(int[2]);
+int dup(int);
+int dup2(int, int);
+int fsync(int);
+int ftruncate(int, off_t);
 off_t lseek(int, off_t, int);
 int access(const char *, int);
 int unlink(const char *);

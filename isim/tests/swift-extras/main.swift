@@ -14,6 +14,7 @@ func pause(_ seconds: Double) { Thread.sleep(forTimeInterval: seconds) }
 @main struct Main {
     static func main() async {
         print("--- Combine"); combineTests(); await combineAsyncTests()
+        print("--- Dispatch"); dispatchTests()
         print("swift extras test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
     }
