@@ -158,6 +158,17 @@ final class Note: NSObject, NSSecureCoding {
         let u = UUID()
         check(UUID(uuidString: u.uuidString) == u && u.uuidString.count == 36, "UUID round trip")
         check(Decimal(string: "2.99")! < Decimal(string: "5.99")! && (Decimal(string: "0.1")! + Decimal(string: "0.2")!).description == "0.3", "Decimal exact arithmetic")
+        check((Decimal(1) / Decimal(3)).description == "0.33333333333333333333333333333333333333" && (Decimal(2) / 3).description == "0.66666666666666666666666666666666666667", "Decimal division to 38 digits")
+        check((Decimal(string: "12345678901234567890")! * Decimal(string: "10000000000000000001")!).description == "123456789012345678912345678901234567890", "Decimal 38-digit multiplication")
+        check(Decimal(string: "1.50")! == 1.5 && Decimal(string: "1.50")!.description == "1.5" && Decimal(string: "7.25 kg") == 7.25 && Decimal(string: "kg") == nil, "Decimal(string:) compact / prefix parse")
+        var dIn = Decimal(string: "2.675")!, dOut = Decimal(), dHalf = Decimal(string: "2.665")!
+        NSDecimalRound(&dOut, &dIn, 2, .plain); let plain = dOut
+        NSDecimalRound(&dOut, &dHalf, 2, .bankers)
+        check(plain == Decimal(string: "2.68") && dOut == Decimal(string: "2.66"), "NSDecimalRound plain / bankers")
+        check(pow(Decimal(2), 100).description == "1267650600228229401496703205376" && (Decimal(1) / 0).isNaN && Decimal(string: "1.25")!.exponent == -2, "Decimal pow / NaN / exponent")
+        check(Array(stride(from: Decimal(0), to: 1, by: Decimal(string: "0.25")!)).count == 4 && Decimal(-5) < 3, "Decimal Strideable / Comparable")
+        let refNow = Date.timeIntervalSinceReferenceDate
+        check(abs(refNow - Date().timeIntervalSinceReferenceDate) < 1 && Date(timeIntervalSinceReferenceDate: 10).distance(to: Date(timeIntervalSinceReferenceDate: 25)) == 15, "Date.timeIntervalSinceReferenceDate / Strideable")
         check(Locale.Language(identifier: "ar").characterDirection == .rightToLeft && Locale.Language(identifier: "pt-BR").characterDirection == .leftToRight, "Locale.Language.characterDirection")
 
         // MARK: Regex (_StringProcessing, RegexBuilder)

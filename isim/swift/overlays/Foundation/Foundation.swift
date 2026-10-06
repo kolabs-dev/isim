@@ -194,7 +194,18 @@ public struct Date: Hashable, Comparable, Sendable, CustomStringConvertible {
   public static func < (a: Date, b: Date) -> Bool { a.timeIntervalSinceReferenceDate < b.timeIntervalSinceReferenceDate }
   public static func + (d: Date, t: Double) -> Date { d.addingTimeInterval(t) }
   public static func - (d: Date, t: Double) -> Date { d.addingTimeInterval(-t) }
+  public static func += (d: inout Date, t: Double) { d.addTimeInterval(t) }
+  public static func -= (d: inout Date, t: Double) { d.addTimeInterval(-t) }
+  /// The current time as seconds since 2001-01-01 00:00:00 UTC.
+  public static var timeIntervalSinceReferenceDate: Double { NSDate.__isim_now() }
   public var description: String { _bridgeToObjectiveC().description }
+}
+extension Date: Strideable {
+  public func distance(to other: Date) -> Double { other.timeIntervalSinceReferenceDate - timeIntervalSinceReferenceDate }
+  public func advanced(by n: Double) -> Date { addingTimeInterval(n) }
+  // explicit: Strideable's default == would recurse through distance(to:)
+  public static func == (a: Date, b: Date) -> Bool { a.timeIntervalSinceReferenceDate == b.timeIntervalSinceReferenceDate }
+  public func hash(into h: inout Hasher) { h.combine(timeIntervalSinceReferenceDate) }
 }
 extension NSDate {
   @usableFromInline static func __isim_now() -> Double { NSDate.timeIntervalSinceReferenceDate_isim() }
@@ -465,81 +476,3 @@ func _localeCase(_ s: String, _ locale: Locale?, upper: Bool) -> String {
   return upper ? s.uppercased() : s.lowercased()
 }
 
-// MARK: Decimal
-/// isim: base-10 decimal (64-bit mantissa, power-of-ten exponent): exact for prices and other short decimals.
-/// Apple's Decimal has a 128-bit mantissa (38 digits); values beyond ~18 significant digits lose precision here.
-public struct Decimal: Hashable, Comparable, Sendable, CustomStringConvertible,
-                       ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, SignedNumeric, Codable {
-  var mantissa: Int64
-  var exponent: Int32
-  public init(_ value: Int) { mantissa = Int64(value); exponent = 0 }
-  public init(_ value: Double) {
-    if let d = Decimal(string: String(value)) { self = d } else { mantissa = 0; exponent = 0 }
-  }
-  public init(integerLiteral value: Int) { self.init(value) }
-  public init(floatLiteral value: Double) { self.init(value) }
-  public init?<T: BinaryInteger>(exactly source: T) { guard let v = Int64(exactly: source) else { return nil }; mantissa = v; exponent = 0 }
-  init(mantissa: Int64, exponent: Int32) { self.mantissa = mantissa; self.exponent = exponent; normalize() }
-  public init?(string: String, locale: Locale? = nil) {
-    var s = Substring(string).drop(while: { $0 == " " })
-    while s.last == " " { s = s.dropLast() }
-    var neg = false
-    if s.first == "-" { neg = true; s = s.dropFirst() } else if s.first == "+" { s = s.dropFirst() }
-    var exp: Int32 = 0
-    if let e = s.firstIndex(where: { $0 == "e" || $0 == "E" }) {
-      guard let x = Int32(s[s.index(after: e)...]) else { return nil }
-      exp = x; s = s[..<e]
-    }
-    let parts = s.split(separator: ".", omittingEmptySubsequences: false)
-    guard parts.count <= 2, !s.isEmpty else { return nil }
-    var digits = String(parts[0]) + (parts.count == 2 ? String(parts[1]) : "")
-    exp -= Int32(parts.count == 2 ? parts[1].count : 0)
-    while digits.count > 18 { digits.removeLast(); exp += 1 }
-    guard !digits.isEmpty, let m = Int64(digits) else { return nil }
-    let signed: Int64 = neg ? 0 - m : m
-    self.init(mantissa: signed, exponent: exp)
-  }
-  mutating func normalize() {
-    if mantissa == 0 { exponent = 0; return }
-    while mantissa % 10 == 0 { mantissa /= 10; exponent += 1 }
-  }
-  static func align(_ a: Decimal, _ b: Decimal) -> (Int64, Int64, Int32) {
-    var x = a, y = b
-    while x.exponent > y.exponent, abs(x.mantissa) < Int64.max / 10 { x.mantissa *= 10; x.exponent -= 1 }
-    while y.exponent > x.exponent, abs(y.mantissa) < Int64.max / 10 { y.mantissa *= 10; y.exponent -= 1 }
-    while x.exponent < y.exponent { x.mantissa /= 10; x.exponent += 1 }
-    while y.exponent < x.exponent { y.mantissa /= 10; y.exponent += 1 }
-    return (x.mantissa, y.mantissa, x.exponent)
-  }
-  public static let zero = Decimal(0)
-  public var magnitude: Decimal { Decimal(mantissa: abs(mantissa), exponent: exponent) }
-  public var isZero: Bool { mantissa == 0 }
-  public var sign: FloatingPointSign { mantissa < 0 ? .minus : .plus }
-  public var doubleValue: Double { Double(mantissa) * pow10(exponent) }
-  func pow10(_ e: Int32) -> Double { var r = 1.0; for _ in 0..<abs(e) { r *= 10 }; return e < 0 ? 1 / r : r }
-  public static func + (a: Decimal, b: Decimal) -> Decimal { let (x, y, e) = align(a, b); return Decimal(mantissa: x + y, exponent: e) }
-  public static func - (a: Decimal, b: Decimal) -> Decimal { let (x, y, e) = align(a, b); return Decimal(mantissa: x - y, exponent: e) }
-  public static func * (a: Decimal, b: Decimal) -> Decimal { Decimal(mantissa: a.mantissa &* b.mantissa, exponent: a.exponent + b.exponent) }
-  public static func / (a: Decimal, b: Decimal) -> Decimal { Decimal(a.doubleValue / b.doubleValue) }
-  public static func += (a: inout Decimal, b: Decimal) { a = a + b }
-  public static func -= (a: inout Decimal, b: Decimal) { a = a - b }
-  public static func *= (a: inout Decimal, b: Decimal) { a = a * b }
-  public static func /= (a: inout Decimal, b: Decimal) { a = a / b }
-  public static prefix func - (a: Decimal) -> Decimal { Decimal(mantissa: -a.mantissa, exponent: a.exponent) }
-  public static func < (a: Decimal, b: Decimal) -> Bool { let (x, y, _) = align(a, b); return x < y }
-  public static func == (a: Decimal, b: Decimal) -> Bool { a.mantissa == b.mantissa && a.exponent == b.exponent }
-  public func hash(into h: inout Hasher) { h.combine(mantissa); h.combine(exponent) }
-  public var description: String {
-    if exponent >= 0 { return String(mantissa) + String(repeating: "0", count: Int(exponent)) }
-    var digits = String(abs(mantissa))
-    let frac = Int(-exponent)
-    if digits.count <= frac { digits = String(repeating: "0", count: frac - digits.count + 1) + digits }
-    let i = digits.index(digits.endIndex, offsetBy: -frac)
-    return (mantissa < 0 ? "-" : "") + digits[..<i] + "." + digits[i...]
-  }
-  public init(from decoder: Decoder) throws { self = Decimal(string: try decoder.singleValueContainer().decode(String.self)) ?? .zero }
-  public func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); try c.encode(description) }
-}
-extension Double {
-  public init(truncating d: Decimal) { self = d.doubleValue }
-}
