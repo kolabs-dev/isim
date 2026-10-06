@@ -53,7 +53,7 @@ isim-0.1.0-linux-x86_64/bin/isim install isim-0.1.0-linux-x86_64/apps/*.app
 - Device data lives in `~/.local/share/isim` (override with `ISIM_DATA`).
 
 **Scripts** (for automation and tests) accept `wait S`, `tap X Y`, `tapid ID`, `taptext TEXT`, `holdid ID S`, `swipeid ID DX DY S`,
-`type TEXT`, `key NAME`, `home`, `launch BUNDLE_ID`, `shot FILE.png`, `dump` and `quit`. Example:
+`type TEXT`, `key NAME`, `keydown NAME`, `keyup NAME` (hardware key press/release, e.g. for GCKeyboard), `home`, `launch BUNDLE_ID`, `shot FILE.png`, `dump` and `quit`. Example:
 
 ```bash
 isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.png; quit"

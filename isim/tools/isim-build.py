@@ -122,6 +122,12 @@ def compile_xcassets(path, bundle):
                         entry['templateRendering'] = True
                     files.append(entry)
                 index['appIcons' if kind == '.appiconset' else 'images'][name] = files
+                # images in a sprite atlas (Foo.spriteatlas/bar.imageset): SKTextureAtlas(named: "Foo") lists them
+                atlas = os.path.basename(dirpath)
+                if kind == '.imageset' and atlas.endswith('.spriteatlas'):
+                    names = index.setdefault('atlases', {}).setdefault(atlas[:-len('.spriteatlas')], [])
+                    if name not in names:
+                        names.append(name)
     with open(index_path, 'w') as f:
         json.dump(index, f, indent=1, sort_keys=True)
     # the runtime (UIImage imageNamed:, UIColor colorNamed:, the home screen) reads the plist form
@@ -361,6 +367,10 @@ def build_target(project, name, configuration, outdir, built):
         if n in products or not n:
             continue
         if n not in ('Foundation', 'UIKit'):
+            # frameworks isim implements only as Swift modules (SpriteKit, GameplayKit, ...) are autolinked
+            if not os.path.isdir(os.path.join(SDK, 'System/Library/Frameworks', n + '.framework')) and \
+                    os.path.exists(os.path.join(SDK, 'usr/lib/swift', f'libswift{n}.dylib')):
+                continue
             link += ['-framework', n]
     if ext == '.appex':
         link += ['-Wl,-e,_NSExtensionMain']

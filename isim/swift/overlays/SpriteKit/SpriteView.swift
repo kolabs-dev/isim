@@ -16,9 +16,11 @@ public struct SpriteView: UIViewRepresentable {
         public static let showsNodeCount = DebugOptions(rawValue: 8), showsPhysics = DebugOptions(rawValue: 16), showsQuadCount = DebugOptions(rawValue: 32)
     }
     let scene: SKScene, isPaused: Bool, fps: Int, options: Options, debug: DebugOptions
+    var transition: SKTransition?
     public init(scene: SKScene, transition: SKTransition? = nil, isPaused: Bool = false, preferredFramesPerSecond: Int = 60,
                 options: Options = [], debugOptions: DebugOptions = [], shouldRender: @escaping (TimeInterval) -> Bool = { _ in true }) {
         self.scene = scene; self.isPaused = isPaused; fps = preferredFramesPerSecond; self.options = options; debug = debugOptions
+        self.transition = transition
     }
     public func makeUIView(context: Context) -> SKView {
         let v = SKView(frame: .zero)
@@ -32,6 +34,14 @@ public struct SpriteView: UIViewRepresentable {
         v.showsNodeCount = debug.contains(.showsNodeCount)
         if v.preferredFramesPerSecond != fps { v.preferredFramesPerSecond = fps }
         v.isPaused = isPaused
-        if v.scene !== scene { v.presentScene(scene) }
+        v.showsPhysics = debug.contains(.showsPhysics)
+        v.showsDrawCount = debug.contains(.showsDrawCount)
+        // present when SwiftUI passes a different scene (scenes the game presents itself stay)
+        if v.swiftUIScene !== scene {
+            v.swiftUIScene = scene
+            // not laid out yet: present once the view has its size (didMove(to:) sees the final scene size)
+            if v.bounds.size == .zero && v.scene == nil { v.pendingPresentation = scene; return }
+            if let t = transition, v.scene != nil { v.presentScene(scene, transition: t) } else { v.presentScene(scene) }
+        }
     }
 }

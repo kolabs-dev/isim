@@ -42,7 +42,7 @@
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
 enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP, EV_TEXT_DOWN, EV_TEXT_UP,
-       EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */ };
+       EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */, EV_KEY_UP };
 /* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
 struct shell_msg { int type; struct isim_event ev; char a[512], b[512], c[512]; };
 enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM };
@@ -266,6 +266,24 @@ void isim_gfx_backdrop_blur(double x, double y, double w, double h, double r, do
 }
 double isim_gfx_get_alpha(void) { return 1; }
 void isim_gfx_push_group(void) { cairo_push_group(cr); }
+/* two groups pushed (content, then mask): paints the content through the mask's alpha (SKCropNode) */
+void isim_gfx_pop_group_masked(double alpha) {
+    cairo_pattern_t *mask = cairo_pop_group(cr);
+    cairo_pattern_t *content = cairo_pop_group(cr);
+    cairo_save(cr);
+    cairo_set_source(cr, content);
+    if (alpha >= 0.999) cairo_mask(cr, mask);
+    else { cairo_push_group(cr); cairo_mask(cr, mask); cairo_pop_group_to_source(cr); cairo_paint_with_alpha(cr, alpha); }
+    cairo_restore(cr);
+    cairo_pattern_destroy(mask); cairo_pattern_destroy(content);
+}
+/* compositing for the following draws (until restore): 0 over, 1 add, 2 subtract (difference), 3 multiply,
+   4 screen, 5 replace (source) -- SpriteKit blend modes */
+void isim_gfx_set_blend(int mode) {
+    static const cairo_operator_t ops[] = { CAIRO_OPERATOR_OVER, CAIRO_OPERATOR_ADD, CAIRO_OPERATOR_DIFFERENCE, CAIRO_OPERATOR_MULTIPLY,
+                                            CAIRO_OPERATOR_SCREEN, CAIRO_OPERATOR_SOURCE };
+    cairo_set_operator(cr, mode >= 0 && mode < 6 ? ops[mode] : CAIRO_OPERATOR_OVER);
+}
 void isim_gfx_pop_group(double alpha) { cairo_pop_group_to_source(cr); cairo_paint_with_alpha(cr, alpha); }
 
 /* path API for UIBezierPath / CGContext subset */
@@ -634,6 +652,21 @@ static int script_step(struct isim_event *ev) {
         int k = !strcmp(arg, "backspace") ? 8 : !strcmp(arg, "return") ? 13 : !strcmp(arg, "tab") ? 9 : !strcmp(arg, "escape") ? 27 : 0;
         if (k) pending[npending++] = (struct isim_event){ .type = EV_KEY, .key = k };
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
+    } else if ((!strcmp(cmd, "keydown") || !strcmp(cmd, "keyup")) && sscanf(args, " %63[^; ]", arg) == 1) {
+        /* hardware key press/release by name (GameController's GCKeyboard): a-z, 0-9, space, return, escape, tab,
+           backspace, up, down, left, right, shift, ctrl, alt, cmd. pad = USB HID usage, key = SDL keycode */
+        static const struct { const char *n; int hid, key; } names[] = {
+            { "space", 44, ' ' }, { "return", 40, 13 }, { "escape", 41, 27 }, { "tab", 43, 9 }, { "backspace", 42, 8 },
+            { "right", 79, 0x4000004f }, { "left", 80, 0x40000050 }, { "down", 81, 0x40000051 }, { "up", 82, 0x40000052 },
+            { "ctrl", 224, 0x400000e0 }, { "shift", 225, 0x400000e1 }, { "alt", 226, 0x400000e2 }, { "cmd", 227, 0x400000e3 } };
+        int hid = 0, key = 0;
+        if (!arg[1] && arg[0] >= 'a' && arg[0] <= 'z') { hid = 4 + arg[0] - 'a'; key = arg[0]; }
+        else if (!arg[1] && arg[0] >= '1' && arg[0] <= '9') { hid = 30 + arg[0] - '1'; key = arg[0]; }
+        else if (!strcmp(arg, "0")) { hid = 39; key = '0'; }
+        else for (size_t i = 0; i < sizeof names / sizeof *names; i++) if (!strcmp(arg, names[i].n)) { hid = names[i].hid; key = names[i].key; }
+        if (hid) pending[npending++] = (struct isim_event){ .type = cmd[3] == 'd' ? EV_KEY : EV_KEY_UP, .pad = hid, .key = key };
+        else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
+        script_resume = now() + 0.02;
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);
@@ -714,7 +747,9 @@ int isim_next_event(struct isim_event *ev, double timeout) {
             button_down = 0; ev->type = EV_TOUCH_UP; ev->x = e.button.x / zoom; ev->y = e.button.y / zoom; return 1;
         case SDL_EVENT_KEY_DOWN:
             if (e.key.key == SDLK_F12) { screenshot("isim-screenshot.png"); break; }
-            ev->type = EV_KEY; ev->key = (int)e.key.key; ev->mods = e.key.mod; return 1;
+            ev->type = EV_KEY; ev->key = (int)e.key.key; ev->mods = e.key.mod; ev->pad = (int)e.key.scancode; return 1;   /* pad: USB HID usage */
+        case SDL_EVENT_KEY_UP:
+            ev->type = EV_KEY_UP; ev->key = (int)e.key.key; ev->mods = e.key.mod; ev->pad = (int)e.key.scancode; return 1;
         case SDL_EVENT_TEXT_INPUT:
             ev->type = EV_TEXT; snprintf(ev->text, sizeof ev->text, "%s", e.text.text); return 1;
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: case SDL_EVENT_WINDOW_EXPOSED:
@@ -793,7 +828,7 @@ static const struct shim isim_table[] = {
     H(isim_font_register), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free), H(isim_image_draw_part), H(isim_image_pixel_size),
-    H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur),
+    H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free),
     H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close),

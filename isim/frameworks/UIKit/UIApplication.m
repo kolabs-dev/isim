@@ -559,8 +559,16 @@ static void handle_touch(const struct isim_event *ev) {
     if (phase == UITouchPhaseEnded) { last_tap_time = ev->timestamp; last_tap_point = p; cur_touch = nil; cur_gestures = nil; cur_event = nil; }
 }
 
+/* hardware key presses and releases (USB HID usage in ev->pad) for GameController's GCKeyboard */
+static void post_hardware_key(const struct isim_event *ev, BOOL down) {
+    if (ev->pad <= 0) return;
+    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimHardwareKey" object:nil
+                                                    userInfo:@{ @"usage": @(ev->pad), @"down": @(down), @"key": @(ev->key), @"mods": @(ev->mods) }];
+}
+
 /* hardware keyboard / scripted typing goes to the first responder if it accepts key input */
 static void handle_key(const struct isim_event *ev) {
+    if (ev->type == ISIM_EV_KEY) post_hardware_key(ev, YES);
     id fr = isim_ui_first_responder();
     if (![fr respondsToSelector:@selector(insertText:)]) return;
     if (ev->type == ISIM_EV_TEXT) [fr insertText:@(ev->text)];
@@ -814,6 +822,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_TOUCH_DOWN: case ISIM_EV_TOUCH_MOVE: case ISIM_EV_TOUCH_UP: handle_touch(&ev); break;
                 case ISIM_EV_REDRAW: isim_ui_set_needs_display(); break;
                 case ISIM_EV_TEXT: case ISIM_EV_KEY: handle_key(&ev); break;
+                case ISIM_EV_KEY_UP: post_hardware_key(&ev, NO); break;
                 case ISIM_EV_ID_DOWN: case ISIM_EV_ID_UP: case ISIM_EV_TEXT_DOWN: case ISIM_EV_TEXT_UP: handle_id_touch(&ev); break;
                 case ISIM_EV_BACKGROUND: enter_background(); break;
                 case ISIM_EV_FOREGROUND: enter_foreground(); break;
