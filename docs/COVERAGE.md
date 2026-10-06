@@ -22,10 +22,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 64 | 24 | 10 | 98 | 196 | 39% |
+| **UIKit** | 70 | 25 | 10 | 91 | 196 | 42% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 4 | 9 | 23 | 35% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 7 | 2 | 1 | 19 | 29 | 28% |
-| &nbsp;&nbsp;↳ Views & controls | 13 | 7 | 1 | 30 | 51 | 32% |
+| &nbsp;&nbsp;↳ Views & controls | 19 | 8 | 1 | 23 | 51 | 45% |
 | &nbsp;&nbsp;↳ Layout | 11 | 1 | 1 | 5 | 18 | 64% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
 | &nbsp;&nbsp;↳ Gestures & touches | 4 | 0 | 0 | 9 | 13 | 31% |
@@ -35,13 +35,13 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 78 | 21 | 15 | 80 | 194 | 46% |
+| **SwiftUI** | 86 | 22 | 14 | 72 | 194 | 50% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
-| &nbsp;&nbsp;↳ State & data flow | 8 | 1 | 0 | 8 | 17 | 50% |
-| &nbsp;&nbsp;↳ Views & controls | 13 | 2 | 1 | 22 | 38 | 37% |
+| &nbsp;&nbsp;↳ State & data flow | 9 | 2 | 0 | 6 | 17 | 59% |
+| &nbsp;&nbsp;↳ Views & controls | 17 | 2 | 1 | 18 | 38 | 47% |
 | &nbsp;&nbsp;↳ Containers & layout | 12 | 4 | 2 | 9 | 27 | 52% |
-| &nbsp;&nbsp;↳ Navigation & presentation | 8 | 5 | 1 | 9 | 23 | 46% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 10 | 2 | 8 | 4 | 24 | 46% |
+| &nbsp;&nbsp;↳ Navigation & presentation | 10 | 5 | 1 | 7 | 23 | 54% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 11 | 2 | 7 | 4 | 24 | 50% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 3 | 1 | 0 | 5 | 9 | 39% |
 | &nbsp;&nbsp;↳ Animation | 2 | 3 | 1 | 6 | 12 | 29% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
@@ -65,7 +65,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Objective-C runtime & C library | 5 | 2 | 0 | 2 | 9 | 67% |
 | Core Graphics | 8 | 0 | 0 | 8 | 16 | 50% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
-| QuartzCore / Core Animation | 1 | 2 | 0 | 6 | 9 | 22% |
+| QuartzCore / Core Animation | 2 | 2 | 0 | 5 | 9 | 33% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
 | SpriteKit | 9 | 1 | 3 | 5 | 18 | 53% |
 | GameKit (Game Center) | 4 | 1 | 3 | 6 | 14 | 32% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **250** | **73** | **39** | **344** | **706** | **41%** |
+| **All areas** | **265** | **75** | **38** | **328** | **706** | **43%** |
 
 ---
 
@@ -177,14 +177,14 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UITextField` | 🟡 | caret always at the end: no selection, cursor movement, copy/paste |
 | `UITextView` | ❌ | |
 | `UISwitch` | ✅ | |
-| `UISlider` | ❌ | |
-| `UIStepper` | ❌ | |
-| `UISegmentedControl` | ❌ | |
+| `UISlider` | ✅ | thumb drag, continuous/non-continuous, track tints; tested (HelloControls) |
+| `UIStepper` | ✅ | min/max/step/wraps; tested |
+| `UISegmentedControl` | ✅ | titles/images, sliding selection, momentary, per-segment enable; tested |
 | `UIPickerView` | ❌ | |
 | `UIDatePicker` | ❌ | |
-| `UIProgressView` | ❌ | |
-| `UIActivityIndicatorView` | ❌ | |
-| `UIPageControl` | ❌ | |
+| `UIProgressView` | ✅ | default and bar styles |
+| `UIActivityIndicatorView` | ✅ | medium/large, spins (CADisplayLink) |
+| `UIPageControl` | ✅ | tap to page; tested |
 | `UIColorWell` | ❌ | |
 | `UIScrollView` | 🟡 | one-finger pan, rubber-banding, deceleration, insets, delegate; no zooming, no paging animation |
 | `UITableView` (cells, sections, editing, swipe actions) | ❌ | biggest UIKit gap for list apps |
@@ -196,7 +196,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIStackView` (axis, spacing, custom spacing, alignment, distribution) | ✅ | arranged as Auto Layout constraints |
 | `UIVisualEffectView` + `UIBlurEffect` (system materials) | ✅ | real backdrop blur + light/dark tint; no saturation boost |
 | `UIVibrancyEffect` | 🧩 | content drawn normally |
-| `UIMenu`, `UIContextMenuInteraction` (context menus, previews) | ❌ | |
+| `UIMenu`, `UIContextMenuInteraction` (context menus, previews) | 🟡 | UIMenu pop-ups for UIButton.menu (sections, checkmarks, destructive, submenus); no context-menu previews |
 | `UIToolbar`, `UIBarButtonItem` | ❌ | |
 | `UINavigationBar` (standalone, appearance) | ❌ | |
 | `UITabBar` | ❌ | |
@@ -380,8 +380,8 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@Environment(keyPath)`, custom `EnvironmentKey`, `.environment(_:_:)` | ✅ | |
 | `@Observable` macro / Observation | ❌ | Observation module not built |
 | `@Bindable`, `@Environment(Model.self)` | ❌ | need Observation |
-| `@AppStorage` | ❌ | very common in real apps |
-| `@SceneStorage` | ❌ | |
+| `@AppStorage` | ✅ | Bool/Int/Double/String/URL/Data/RawRepresentable/optionals; persists; tested (HelloForms) |
+| `@SceneStorage` | 🟡 | kept for the app lifetime (not restored across launches) |
 | `@FocusState` (Bool and Hashable) | ✅ | |
 | `@Namespace` | ✅ | |
 | `@GestureState` | ❌ | |
@@ -411,20 +411,20 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `PrimitiveButtonStyle`, `.controlSize`, `.buttonBorderShape` | ❌ | |
 | `Toggle` (switch) | ✅ | |
 | `toggleStyle` (`.button`, `.checkbox`, custom) | 🧩 | accepted, ignored |
-| `Slider` | ❌ | |
-| `Stepper` | ❌ | |
-| `Picker` (menu, segmented, wheel, inline, navigationLink styles) | ❌ | |
+| `Slider` | ✅ | UISlider; step, value labels, onEditingChanged; tested |
+| `Stepper` | ✅ | value/bounds/step and onIncrement/onDecrement; tested |
+| `Picker` (menu, segmented, wheel, inline, navigationLink styles) | 🟡 | menu, segmented, inline, navigationLink styles; wheel shown as a menu; tested |
 | `DatePicker`, `MultiDatePicker` | ❌ | |
 | `ColorPicker` | ❌ | |
 | `TextField` (String binding, placeholder, `axis: .vertical` multi-line) | ✅ | `prompt` ignored |
 | `TextField(value:format:)` | ❌ | |
 | `SecureField` | ✅ | |
 | `TextEditor` | ❌ | |
-| `ProgressView` | 🟡 | determinate bar works; indeterminate spinner is static (doesn't spin) |
+| `ProgressView` | ✅ | UIProgressView bar / spinning UIActivityIndicatorView |
 | `Gauge` | ❌ | |
 | `Link` | ✅ | opens through `openURL` |
 | `ShareLink` | ❌ | |
-| `Menu` | ❌ | |
+| `Menu` | ✅ | pop-up menu with sections, submenus, pickers, destructive buttons; tested |
 | `Divider`, `Spacer`, `EmptyView`, `Color` as a view | ✅ | |
 | `LabeledContent` | ✅ | |
 | `ContentUnavailableView` | ❌ | |
@@ -479,8 +479,8 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `navigationBarBackButtonHidden` | 🧩 | ignored |
 | `.toolbar` with `ToolbarItem` / `ToolbarItemGroup` | 🟡 | top-bar leading/trailing only; `.principal`, `.bottomBar`, `.keyboard` not placed as on iOS |
 | `toolbarBackground`, `toolbarColorScheme`, `toolbar(.hidden)` | ❌ | |
-| `TabView` (tab bar, `.tabItem`, `.badge`, selection) | ❌ | |
-| `TabView` `.tabViewStyle(.page)` | ❌ | |
+| `TabView` (tab bar, `.tabItem`, `.badge`, selection) | ✅ | material tab bar, SF Symbol items, badges, selection, iOS 18 `Tab`; tested |
+| `TabView` `.tabViewStyle(.page)` | ✅ | swipe paging with page dots; tested |
 | `.sheet(isPresented:)` / `.sheet(item:)` | ✅ | page sheet with swipe-down dismiss; content gets the environment + `dismiss`; tested (HelloPresentations) |
 | `.fullScreenCover` | ✅ | slides up full screen; tested |
 | `.popover` | 🟡 | shown as a sheet (iPhone behaviour); no arrow popovers on iPad |
@@ -511,7 +511,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `allowsHitTesting` | ✅ | |
 | `contentShape` | 🧩 | ignored |
 | `id(_:)` | ✅ | resets state |
-| `tag` | 🧩 | no Picker/TabView to read it |
+| `tag` | ✅ | explicit, and implicit from ForEach ids |
 | `statusBarHidden`, `preferredColorScheme` | ✅ | |
 | `persistentSystemOverlays`, `defersSystemGestures` | 🧩 | |
 | `sensoryFeedback` | 🧩 | no haptics |
@@ -849,7 +849,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `CAShapeLayer`, `CAGradientLayer`, `CATextLayer`, `CAReplicatorLayer`, `CAEmitterLayer` | ❌ | |
 | `CABasicAnimation`, `CAKeyframeAnimation`, `CASpringAnimation`, `CAAnimationGroup` | ❌ | |
 | `CATransaction`, `CAMediaTimingFunction` | ❌ | |
-| `CADisplayLink` | ❌ | games often need it |
+| `CADisplayLink` | ✅ | fires once per frame while added; keeps the run loop at 60 fps |
 | `CATransform3D` | ❌ | |
 
 ## Core Image, ImageIO & Metal
