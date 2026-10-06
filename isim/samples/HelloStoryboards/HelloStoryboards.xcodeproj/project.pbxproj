@@ -1,0 +1,354 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5B0A00010000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000001 /* AppDelegate.swift */; };
+		5B0A00010000000000000002 /* NotesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000002 /* NotesViewController.swift */; };
+		5B0A00010000000000000003 /* NoteDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000003 /* NoteDetailViewController.swift */; };
+		5B0A00010000000000000004 /* ControlsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000004 /* ControlsViewController.swift */; };
+		5B0A00010000000000000005 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000001 /* Main.storyboard */; };
+		5B0A00010000000000000006 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000002 /* LaunchScreen.storyboard */; };
+		5B0A00010000000000000007 /* ProfileViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000007 /* ProfileViewController.xib */; };
+		5B0A00010000000000000008 /* BadgeCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000008 /* BadgeCell.xib */; };
+		5B0A00010000000000000009 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000009 /* Settings.bundle */; };
+		5B0A0001000000000000000A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A0002000000000000000A /* Assets.xcassets */; };
+		5B0A00010000000000000011 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000011 /* main.m */; };
+		5B0A00010000000000000012 /* Classic.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000003 /* Classic.storyboard */; };
+		5B0A00010000000000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000013 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		5B0A00020000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		5B0A00020000000000000002 /* NotesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesViewController.swift; sourceTree = "<group>"; };
+		5B0A00020000000000000003 /* NoteDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteDetailViewController.swift; sourceTree = "<group>"; };
+		5B0A00020000000000000004 /* ControlsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlsViewController.swift; sourceTree = "<group>"; };
+		5B0A00020000000000000005 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		5B0A00020000000000000006 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		5B0A00020000000000000007 /* ProfileViewController.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = ProfileViewController.xib; sourceTree = "<group>"; };
+		5B0A00020000000000000008 /* BadgeCell.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = BadgeCell.xib; sourceTree = "<group>"; };
+		5B0A00020000000000000009 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
+		5B0A0002000000000000000A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5B0A0002000000000000000B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5B0A0002000000000000000C /* HelloStoryboards.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloStoryboards.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5B0A00020000000000000011 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		5B0A00020000000000000012 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Classic.storyboard; sourceTree = "<group>"; };
+		5B0A00020000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5B0A00020000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5B0A00020000000000000015 /* HelloStoryboardsClassic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloStoryboardsClassic.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5B0A00040000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B0A00040000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5B0A00050000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				5B0A00050000000000000002 /* HelloStoryboards */,
+				5B0A00050000000000000003 /* Classic */,
+				5B0A00050000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5B0A00050000000000000002 /* HelloStoryboards */ = {
+			isa = PBXGroup;
+			children = (
+				5B0A00020000000000000001 /* AppDelegate.swift */,
+				5B0A00020000000000000002 /* NotesViewController.swift */,
+				5B0A00020000000000000003 /* NoteDetailViewController.swift */,
+				5B0A00020000000000000004 /* ControlsViewController.swift */,
+				5B0A00030000000000000001 /* Main.storyboard */,
+				5B0A00020000000000000007 /* ProfileViewController.xib */,
+				5B0A00020000000000000008 /* BadgeCell.xib */,
+				5B0A0002000000000000000A /* Assets.xcassets */,
+				5B0A00030000000000000002 /* LaunchScreen.storyboard */,
+				5B0A00020000000000000009 /* Settings.bundle */,
+				5B0A0002000000000000000B /* Info.plist */,
+			);
+			path = HelloStoryboards;
+			sourceTree = "<group>";
+		};
+		5B0A00050000000000000003 /* Classic */ = {
+			isa = PBXGroup;
+			children = (
+				5B0A00020000000000000011 /* main.m */,
+				5B0A00030000000000000003 /* Classic.storyboard */,
+				5B0A00020000000000000013 /* Assets.xcassets */,
+				5B0A00020000000000000014 /* Info.plist */,
+			);
+			path = Classic;
+			sourceTree = "<group>";
+		};
+		5B0A00050000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5B0A0002000000000000000C /* HelloStoryboards.app */,
+				5B0A00020000000000000015 /* HelloStoryboardsClassic.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5B0A00060000000000000001 /* HelloStoryboards */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B0A000A0000000000000002 /* Build configuration list for PBXNativeTarget "HelloStoryboards" */;
+			buildPhases = (
+				5B0A00070000000000000001 /* Sources */,
+				5B0A00040000000000000001 /* Frameworks */,
+				5B0A00080000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HelloStoryboards;
+			productName = HelloStoryboards;
+			productReference = 5B0A0002000000000000000C /* HelloStoryboards.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5B0A00060000000000000002 /* HelloStoryboardsClassic */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B0A000A0000000000000003 /* Build configuration list for PBXNativeTarget "HelloStoryboardsClassic" */;
+			buildPhases = (
+				5B0A00070000000000000002 /* Sources */,
+				5B0A00040000000000000002 /* Frameworks */,
+				5B0A00080000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HelloStoryboardsClassic;
+			productName = HelloStoryboardsClassic;
+			productReference = 5B0A00020000000000000015 /* HelloStoryboardsClassic.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5B0A00090000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+			};
+			buildConfigurationList = 5B0A000A0000000000000001 /* Build configuration list for PBXProject "HelloStoryboards" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 5B0A00050000000000000001;
+			productRefGroup = 5B0A00050000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5B0A00060000000000000001 /* HelloStoryboards */,
+				5B0A00060000000000000002 /* HelloStoryboardsClassic */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5B0A00080000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B0A00010000000000000006 /* LaunchScreen.storyboard in Resources */,
+				5B0A0001000000000000000A /* Assets.xcassets in Resources */,
+				5B0A00010000000000000005 /* Main.storyboard in Resources */,
+				5B0A00010000000000000007 /* ProfileViewController.xib in Resources */,
+				5B0A00010000000000000008 /* BadgeCell.xib in Resources */,
+				5B0A00010000000000000009 /* Settings.bundle in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B0A00080000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B0A00010000000000000012 /* Classic.storyboard in Resources */,
+				5B0A00010000000000000013 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5B0A00070000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B0A00010000000000000001 /* AppDelegate.swift in Sources */,
+				5B0A00010000000000000002 /* NotesViewController.swift in Sources */,
+				5B0A00010000000000000003 /* NoteDetailViewController.swift in Sources */,
+				5B0A00010000000000000004 /* ControlsViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B0A00070000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B0A00010000000000000011 /* main.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		5B0A00030000000000000001 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				5B0A00020000000000000005 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		5B0A00030000000000000002 /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				5B0A00020000000000000006 /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+		5B0A00030000000000000003 /* Classic.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				5B0A00020000000000000012 /* Base */,
+			);
+			name = Classic.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		5B0A000B0000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5B0A000B0000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		5B0A000B0000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CURRENT_PROJECT_VERSION = 7;
+				INFOPLIST_FILE = HelloStoryboards/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStoryboards;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5B0A000B0000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CURRENT_PROJECT_VERSION = 7;
+				INFOPLIST_FILE = HelloStoryboards/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStoryboards;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5B0A000B0000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = Classic/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStoryboardsClassic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5B0A000B0000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = Classic/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStoryboardsClassic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5B0A000A0000000000000001 /* Build configuration list for PBXProject "HelloStoryboards" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B0A000B0000000000000001 /* Debug */,
+				5B0A000B0000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5B0A000A0000000000000002 /* Build configuration list for PBXNativeTarget "HelloStoryboards" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B0A000B0000000000000003 /* Debug */,
+				5B0A000B0000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5B0A000A0000000000000003 /* Build configuration list for PBXNativeTarget "HelloStoryboardsClassic" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B0A000B0000000000000005 /* Debug */,
+				5B0A000B0000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5B0A00090000000000000001 /* Project object */;
+}

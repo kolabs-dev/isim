@@ -14,6 +14,9 @@ Xcode projects. It is a research prototype: an independent re-implementation, no
   draw as dashed placeholders). GNOME desktops already have it.
 - For apps that use them: SQLite (`libsqlite3.so.0`, for `import SQLite3`) and OpenSSL 3 (`libcrypto.so.3`, for
   CryptoKit's AES/ChaChaPoly/public-key operations and `CCCrypt`); both are preinstalled on most distributions
+- For apps that use them: libcurl (URLSession networking), PCRE2 (`libpcre2-8.so.0`, NSRegularExpression),
+  `ffmpeg`/`ffprobe` (video playback, compressed audio, thumbnails), `espeak-ng` (AVSpeechSynthesizer); each is
+  loaded or run only when an app needs it
 - Optional, to compile apps: `clang` + `lld` 17 or newer, Docker with the `swift:6.2` image (for Swift)
 
 The graphics, Wayland/X11 and audio libraries come from your system; everything else isim

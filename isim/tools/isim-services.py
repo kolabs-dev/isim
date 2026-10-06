@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""isim debug tools for the local App Store and Game Center (like Xcode's Transaction Manager).
+"""isim debug tools for the local App Store, Game Center and Sign in with Apple (like Xcode's Transaction Manager).
 
   isim storekit <app> list                         transactions and subscriptions of an app
   isim storekit <app> refund <transaction id>      refund (revoke) a transaction; the app gets it in Transaction.updates
@@ -12,6 +12,9 @@
   isim gamecenter <app> saved-games                list saved games
   isim gamecenter <app> conflict <name> [text]     add a conflicting saved-game version from "Other Device"
   isim gamecenter <app> reset                      erase the app's local Game Center data
+  isim appleid <app> list                          Sign in with Apple state of an app (local simulation)
+  isim appleid <app> revoke                        Settings > Apple Account > Sign in with Apple > Stop Using
+  isim appleid <app> reset                         forget the app (next sign-in is a new account again)
 
 <app> is a bundle identifier, an .app bundle or an installed app's name. Running apps notice changes
 within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/.
@@ -167,12 +170,37 @@ def gamecenter(app, cmd, args):
         die(f'unknown gamecenter command {cmd}')
 
 
+def appleid(app, cmd, args):
+    bid = bundle_id(app)
+    path = os.path.join(DATA, 'Library/isim/AppleAccount/SignInWithApple.json')
+    apps = json.load(open(path)) if os.path.exists(path) else {}
+    e = apps.get(bid)
+    if cmd == 'list':
+        if not e:
+            print(f'{bid}: not signed in with Apple')
+        else:
+            print(f'{bid}: user {e.get("user")} state {e.get("state")} email {e.get("email") or "-"} since {when(e.get("created"))}')
+        return
+    elif cmd == 'revoke':
+        if not e:
+            die(f'{bid} has no Sign in with Apple credential')
+        e['state'] = 'revoked'
+        print(f'revoked Sign in with Apple for {bid} (user {e.get("user")})')
+    elif cmd == 'reset':
+        apps.pop(bid, None)
+        print(f'forgot Sign in with Apple for {bid}')
+    else:
+        die(f'unknown appleid command {cmd}')
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    write_json(path, apps)
+
+
 def main():
     if len(sys.argv) < 4:
         print(__doc__.strip())
         sys.exit(2)
     kind, app, cmd, args = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
-    {'storekit': storekit, 'gamecenter': gamecenter}.get(kind, lambda *a: die(f'unknown tool {kind}'))(app, cmd, args)
+    {'storekit': storekit, 'gamecenter': gamecenter, 'appleid': appleid}.get(kind, lambda *a: die(f'unknown tool {kind}'))(app, cmd, args)
 
 
 if __name__ == '__main__':

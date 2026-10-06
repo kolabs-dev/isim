@@ -178,4 +178,13 @@ int isim_xcui_send(int handle, const char *script_command);
 char *isim_xcui_snapshot(int handle, double timeout);
 void isim_xcui_free(char *text);
 void isim_xcui_terminate(int handle);
+/* host game controllers (SDL3 gamepads; ISIM_GAMEPADS=0 disables). buttons: bit i = SDL_GamepadButton i (0 south/A,
+   1 east/B, 2 west/X, 3 north/Y, 4 back, 5 guide, 6 start, 7/8 stick clicks, 9/10 shoulders, 11-14 dpad up/down/left/right);
+   axes: left x, left y, right x, right y (-1...1, y down), left / right trigger (0...1) */
+struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24]; };
+int isim_gamepad_poll(struct isim_gamepad *out, int max);   /* connected pads (count), -1 when disabled */
+int isim_gamepad_rumble(int id, double low, double high, double seconds);
+/* raster image from 32-bit premultiplied BGRA pixels (rows top-down), updated in place */
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
 __END_DECLS

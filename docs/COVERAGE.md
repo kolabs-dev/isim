@@ -22,9 +22,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 108 | 43 | 10 | 37 | 198 | 65% |
+| **UIKit** | 109 | 45 | 10 | 35 | 199 | 66% |
 | &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 18 | 7 | 0 | 5 | 30 | 72% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
 | &nbsp;&nbsp;↳ Views & controls | 29 | 16 | 1 | 5 | 51 | 73% |
 | &nbsp;&nbsp;↳ Layout | 15 | 2 | 1 | 1 | 19 | 84% |
 | &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 1 | 12 | 79% |
@@ -62,28 +62,28 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | **Swift runtime, stdlib & concurrency** | 30 | 1 | 0 | 7 | 38 | 80% |
 | &nbsp;&nbsp;↳ Combine | 11 | 0 | 0 | 3 | 14 | 79% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
-| Objective-C runtime & C library | 7 | 2 | 0 | 2 | 11 | 73% |
+| Objective-C runtime & C library | 12 | 3 | 0 | 0 | 15 | 90% |
 | Core Graphics | 9 | 0 | 0 | 7 | 16 | 56% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
 | QuartzCore / Core Animation | 2 | 3 | 0 | 4 | 9 | 39% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
-| SpriteKit | 15 | 17 | 5 | 3 | 40 | 59% |
+| SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
 | GameKit (Game Center) | 10 | 4 | 3 | 1 | 18 | 67% |
-| GameController, GameplayKit, SceneKit, RealityKit & ARKit | 7 | 5 | 1 | 6 | 19 | 50% |
+| GameController, GameplayKit, SceneKit, RealityKit & ARKit | 13 | 8 | 1 | 4 | 26 | 65% |
 | AVFoundation & audio | 10 | 11 | 3 | 4 | 28 | 55% |
 | Photos, Vision, Core ML & camera | 3 | 1 | 0 | 4 | 8 | 44% |
 | StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
-| Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
-| Data & persistence | 10 | 3 | 0 | 4 | 17 | 68% |
-| Identity & security | 4 | 0 | 1 | 5 | 10 | 40% |
+| Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
+| Data & persistence | 13 | 6 | 0 | 4 | 23 | 70% |
+| Identity & security | 6 | 1 | 1 | 3 | 11 | 59% |
 | Notifications & background work | 1 | 2 | 1 | 3 | 7 | 29% |
 | App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
 | Location & maps | 1 | 1 | 0 | 1 | 3 | 50% |
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
-| Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
-| Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **467** | **180** | **42** | **151** | **840** | **66%** |
+| Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
+| Platform & tooling | 17 | 7 | 1 | 11 | 36 | 57% |
+| **All areas** | **494** | **193** | **42** | **137** | **866** | **68%** |
 
 ---
 
@@ -123,7 +123,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 |---|---|---|
 | `UIViewController` lifecycle (`loadView`, `viewDidLoad`, appear/disappear, layout callbacks) | ✅ | |
 | Child view-controller containment | ✅ | |
-| `init(nibName:bundle:)` / storyboard-instantiated controllers | ❌ | nib name is logged and ignored |
+| `init(nibName:bundle:)` / storyboard-instantiated controllers | ✅ | `init(nibName:bundle:)` loads `<Name>.nib` (explicit name, else one named after the class / class minus "Controller"), `nibName`/`nibBundle`, `init?(coder:)` through an IB coder (Swift classes that only implement `init(coder:)` work: UIKit initializers run without dispatching to app overrides), lazy storyboard views, `storyboard`, `performSegue(withIdentifier:sender:)`, `shouldPerformSegue`, `prepare(for:sender:)`, unwind (`canPerformUnwindSegueAction`, `@IBAction func x(_ segue:)`); tested (HelloStoryboards). `allowedChildrenForUnwinding` / `unwind(for:towards:)` are not consulted |
+| `UIStoryboard`, `UIStoryboardSegue`, `UINib`, `Bundle.loadNibNamed`, `awakeFromNib` | 🟡 | `UIStoryboard(name:bundle:)`, `instantiateInitialViewController(creator:)`, `instantiateViewController(withIdentifier:)` / `(identifier:creator:)` (creator unverified), storyboard references (unverified), segue kinds show/push/showDetail/presentation/modal (+ modal styles), embed, relationship (root/viewControllers), unwind, custom segue classes (unverified); triggered by controls, bar button items, gesture recognizers, table/collection cell selection; `UINib(nibName:bundle:).instantiate(withOwner:options:)` with external objects (unverified), `register(_:forCellReuseIdentifier:)` for nibs and storyboard prototypes; tested (HelloStoryboards). Missing: `@IBSegueAction`, popover anchors, size-class variations (base values used), `nibWithData` of Apple binary nibs |
 | Full-screen modal (`.fullScreen`, `.overFullScreen`, `.currentContext`, `.overCurrentContext`) | ✅ | slides up; `.fullScreen`/`.currentContext` send the presenter viewWillDisappear/viewDidAppear, the "over" styles keep it; context styles cover the `definesPresentationContext` controller; tested (HelloTransitions; context styles unverified) |
 | Page / form sheet (`.automatic`, `.pageSheet`, `.formSheet`) | ✅ | iOS 15+ card look, presenter shrinks behind it at the large detent, swipe-down dismiss (presentation controller delegate: should/will/did dismiss, did attempt), iPad centered card (tap outside or swipe down dismisses; `preferredContentSize` for form sheets, unverified); tested on iPhone and iPad (HelloTransitions, HelloPresentations) |
 | `isModalInPresentation` | ✅ | rubber-bands instead of dismissing |
@@ -144,7 +145,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIImagePickerController` (camera/library) | ❌ | |
 | `UIDocumentPickerViewController` / `UIDocumentBrowserViewController` | ❌ | |
 | `UIColorPickerViewController` | 🟡 | grid (tested, via UIColorWell), spectrum and RGB sliders, opacity, delegate callbacks; no eyedropper or saved colors; spectrum/sliders unverified |
-| `UIFontPickerViewController` | ❌ | |
+| `UIFontPickerViewController` | 🟡 | searchable list of the iOS font families (+ installed app fonts) drawn in their own face, `selectedFontDescriptor`, delegate pick/cancel, minimal `UIFontDescriptor` (`family`/`name`/`size`, `UIFont(descriptor:size:)`); tested (HelloStoryboards). No faces list (`includeFaces`), no `filteredTraits` |
 | `UIReferenceLibraryViewController`, `QLPreviewController` | ❌ | |
 | `UIInputViewController` (custom keyboard extension) | ✅ | loaded in-process; no Full Access |
 | `overrideUserInterfaceStyle` | ✅ | |
@@ -853,8 +854,12 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Associated objects, method swizzling (`method_exchangeImplementations`), introspection | ✅ | |
 | `@synchronized`, properties, fast enumeration | ✅ | |
 | Dynamic method resolution (`+resolveInstanceMethod:`, `+resolveClassMethod:`), property introspection (`class_getProperty`, `class_copyPropertyList`, `property_getAttributes`) | ✅ | also consulted by `respondsToSelector:` / `class_getMethodImplementation`. Tested: CoreDataTest (`@NSManaged` accessors) |
-| Message forwarding (`forwardingTargetForSelector:`, `forwardInvocation:`) | ❌ | unknown selectors abort |
-| `@try`/`@catch`/`@throw`, C++ exceptions | ❌ | a throw aborts |
+| Message forwarding (`forwardingTargetForSelector:`, `methodSignatureForSelector:`/`forwardInvocation:`, `doesNotRecognizeSelector:`, `_objc_msgForward(_stret)`) | ✅ | lookup misses go to forwarding trampolines that capture the x86_64 argument registers + stack; int/char/short/BOOL/long, float/double, small structs (CGPoint, CGSize, NSRange, mixed int/float), stack-spilled args, `CGRect`/large-struct `stret` results; class methods too; unrecognized selectors raise `NSInvalidArgumentException` (iOS message). `respondsToSelector:` does not consult forwarding (like iOS). x87 `long double` results unsupported. Tested: tests/objc-runtime |
+| `NSMethodSignature`, `NSInvocation` (`invoke`, `invokeWithTarget:`, `invokeUsingIMP:`, get/set argument & return value, `retainArguments`), `NSGetSizeAndAlignment` | ✅ | SysV classification of ObjC type encodings; Swift-unavailable as on iOS. Tested: tests/objc-runtime |
+| `NSProxy` | ✅ | root class; `isKindOfClass:`/`isMemberOfClass:`/`respondsToSelector:`/`conformsToProtocol:` forwarded as invocations. Tested: tests/objc-runtime (proxies to a custom class and to `NSMutableString`) |
+| `@try`/`@catch`/`@finally`/`@throw`, `@throw;` rethrow, `NSException` `raise`, `@synchronized` unlock on throw, ARC cleanups (`-fobjc-arc-exceptions`) | ✅ | host libgcc two-phase unwinder over FDEs synthesized from each image's compact unwind info (`__unwind_info`; DWARF-mode entries re-encoded from `__eh_frame`), `__objc_personality_v0` LSDA parser, `OBJC_EHTYPE` class matching; nested, rethrown and other-thread exceptions, exceptions passing through forwarding/`NSInvocation` frames. Swift async frames are not unwound. Tested: tests/objc-runtime |
+| Uncaught exceptions (`*** Terminating app due to uncaught exception …`, first throw call stack, `NSSetUncaughtExceptionHandler`, `callStackReturnAddresses`/`callStackSymbols`) | ✅ | SIGABRT like iOS; an NSException raised by ObjC code called from Swift is not catchable by Swift `do/catch` (same as iOS) and terminates with the report. Tested: tests/objc-runtime (ObjCUncaught, SwiftUncaught) |
+| C++ exceptions (`throw`/`try`/`catch`) | 🟡 | C++ frames (`__gxx_personality_v0`) run cleanups and `catch (...)` for Objective-C exceptions passing through (unverified); throwing C++ exceptions needs a libc++abi built with exceptions/RTTI (isim's libc++ is `-fno-exceptions`); the `_Unwind_*` entry points are already exported for it |
 | libc / POSIX (stdio, malloc, string, pthreads, time, files) | ✅ | host glibc with Darwin layouts |
 | `errno` from Swift | ✅ | provided by the Foundation overlay (no Swift Darwin overlay) |
 | `dlopen` of app-bundled dylibs/frameworks | 🟡 | used for keyboard extensions; embedded frameworks unverified |
@@ -919,22 +924,26 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 
 ## SpriteKit
 
-isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit).
+isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit) and `tests/ui/spritekit2.sh` (HelloSpriteKit2).
 
 | API / feature | Status | Notes |
 |---|---|---|
 | `SKView`, `SKScene` (size, scale modes, anchor point, background, frame loop, delegate) | ✅ | 60 fps; per frame: `update`, actions, physics, constraints, particles, `didFinishUpdate` |
 | `SKNode` tree (position, z-order, scale, rotation, alpha, hidden, name lookup, `enumerateChildNodes`) | ✅ | |
 | `SKSpriteNode` (texture, color, color blend, anchor, size, blend modes) | ✅ | |
-| `centerRect` (9-slice), `normalTexture`, lighting/shadow masks, `warpGeometry` | 🧩 | stored, not drawn |
+| `centerRect` (9-slice), `normalTexture`, lighting/shadow masks | 🧩 | stored, not drawn |
+| `SKWarpGeometryGrid`, `SKWarpable` (`warpGeometry`, `subdivisionLevels`) on sprites | ✅ | drawn as a triangle mesh (each grid cell subdivided 2^levels per side, bilinear, at most ~2k triangles; each texture triangle mapped affinely); trapezoid warp checked by pixels. On `SKEffectNode` ❌ (sprites only) |
+| `SKAction.warp(to:duration:)`, `animate(withWarps:times:)`, `animate(withWarps:times:restore:)` | ✅ | interpolate destination positions; warps must share the grid shape |
 | `SKShapeNode` (path, rect, rounded rect, circle, ellipse, points, spline, fill/stroke, line width, glow, blend mode, `lineLength`) | 🟡 | line cap/join/miter, fill/stroke textures and shaders ignored |
 | `SKLabelNode` (font, size, color, alignment, multi-line, color blend, blend mode) | ✅ | |
-| `SKLabelNode.attributedText` | ❌ | `NSAttributedString` exists now; SpriteKit does not draw it yet |
-| `SKTexture` (`imageNamed:` incl. atlases, `init(rect:in:)`, `textureRect`, filtering, `preload`) | 🟡 | no noise/`data:` textures; `cgImage()` returns nil |
+| `SKLabelNode.attributedText`, `init(attributedText:)` | ✅ | drawn by UIKit's attributed string drawing: per-run font, color, kerning, underline/strike, paragraph alignment and line spacing (red/blue runs checked by pixels); `fontName`/`fontColor` ignored as on iOS |
+| `SKTexture` (`imageNamed:` incl. atlases, `init(rect:in:)`, `textureRect`, filtering, `preload`) | 🟡 | no noise textures; `cgImage()` returns nil |
+| `SKTexture(data:size:)`, `(data:size:flipped:)`, `(data:size:rowLength:alignment:)` | 🟡 | RGBA8 straight alpha, first row at the bottom unless flipped; `data:size:` tested, the others unverified |
+| `SKMutableTexture` (`init(size:)`, `modifyPixelData`) | ✅ | RGBA8 buffer (first row at the bottom) uploaded to the host after each block; pixel format argument ignored |
 | `SKTextureAtlas` (`.atlas` folders, `textureNamed`, `textureNames`, `preload`, `init(dictionary:)`) | ✅ | picks the @2x/@3x file for the screen |
 | `.spriteatlas` in asset catalogs | 🟡 | `isim build` lists them for `SKTextureAtlas(named:)`; unverified in an app |
 | `SKAction` (move, rotate, scale, fade, colorize, resize, sequence, group, repeat, wait, run block, custom, follow path, speed, timing modes) | ✅ | |
-| `SKAction.reversed()` | ❌ | returns the action unchanged |
+| `SKAction.reversed()` | ✅ | move/rotate/scale/resize/fade/speed `by`, fadeIn↔fadeOut, hide↔unhide, sequence (reversed order), group (aligned to end together), repeat / repeatForever, texture animation, follow path, volume/mass/charge/strength/falloff `by`; `to` actions, colorize, physics impulses etc. return themselves like iOS; easeIn↔easeOut |
 | Physics, field and audio actions (`applyForce`/`applyImpulse`/`applyTorque`, `changeMass`/`changeCharge`, `strength`/`falloff`, `play`/`pause`/`stop`, `changeVolume`) | 🟡 | unverified; playback rate, panning, reverb, obstruction/occlusion and `reach` actions only wait |
 | `SKAction.playSoundFileNamed` | ✅ | through isim's AVFoundation (PCM CAF/WAV; compressed formats via the host's ffmpeg/GStreamer); overlapping plays mix |
 | `SKAudioNode` | 🟡 | looping playback and volume; not positional (`isPositional` ignored); `avAudioNode` not connected to an engine; unverified |
@@ -962,7 +971,9 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 | `SKReferenceNode` | 🟡 | loads an .sks file's children; unverified |
 | `SKView` debug overlays (`showsFPS`, `showsNodeCount`, `showsDrawCount`, `showsPhysics`) | 🟡 | node count tested; `showsPhysics` outlines bodies (unverified); `showsFields` ignored |
 | `SKView.texture(from:)` | 🧩 | returns nil |
-| `SKVideoNode`, `SKTransformNode`, `SK3DNode`, `SKWarpGeometry`, `SKRenderer`, `SKMutableTexture` | ❌ | |
+| `SKVideoNode` (`init(avPlayer:)`, `init(fileNamed:)`, `init(url:)`, `play`, `pause`, `size`, `anchorPoint`) | ✅ | draws isim AVPlayer's current frame (host ffmpeg decodes); size defaults to the video size; red→green clip checked by pixels |
+| `SKTransformNode` (`xRotation`/`yRotation`/`zRotation`, euler angles, `quaternion`, `rotationMatrix`) | ✅ | R = Rx·Ry·Rz, children projected orthographically (no perspective); width halving at 60° checked by pixels |
+| `SK3DNode`, `SKRenderer` | ❌ | |
 
 ## GameKit (Game Center)
 
@@ -995,9 +1006,10 @@ descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `GCController` (`controllers()`, `current`, connect / disconnect / current notifications, `playerIndex`) | ✅ | only isim's virtual controller connects |
+| `GCController` (`controllers()`, `current`, connect / disconnect / current notifications, `playerIndex`) | ✅ | virtual controller and host gamepads |
 | `GCExtendedGamepad`, `GCMicroGamepad` (buttons, d-pad, thumbsticks, triggers, value / pressed / touched handlers) | ✅ | tested with the virtual controller |
-| Physical game controllers on the host | ❌ | host gamepads are not forwarded to apps |
+| Physical game controllers on the host | ✅ | SDL3 gamepads (Xbox / PlayStation / Switch / generic via SDL's mapping database) polled at 60 Hz: each becomes a `GCController` with `GCExtendedGamepad` (+ micro profile), `vendorName` from SDL, `productCategory` from the SDL pad type; `ISIM_GAMEPADS=0` disables. Tested through an SDL virtual joystick (`gamepad` script command), not a physical pad |
+| Gamepad rumble (`GCDeviceHaptics`) | ❌ | no CoreHaptics; the host side (`isim_gamepad_rumble`) exists but is not reachable from apps |
 | `GCKeyboard.coalesced`, `GCKeyboardInput` (`button(forKeyCode:)`, `keyChangedHandler`, `isAnyKeyPressed`), `GCKeyCode` | ✅ | the host keyboard; key presses and releases arrive as USB HID usages (scripts: `keydown`/`keyup`) |
 | `GCVirtualController` (iOS 15) | 🟡 | thumbsticks, d-pad, A/B/X/Y, shoulders, triggers and menu drawn over the key window; element configurations only hide elements (custom paths ignored) |
 | `GCMouse`, motion, haptics, light, battery | 🧩 | no mice; the others are nil |
@@ -1009,11 +1021,17 @@ descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter
 | `GKRandomSource`, `GKARC4RandomSource`, `GKMersenneTwisterRandomSource`, `GKLinearCongruentialRandomSource`, `arrayByShufflingObjects` | 🟡 | MT19937 matches the reference generator; ARC4 is RC4; LCG is the 64-bit MMIX generator; seeded sequences are not checked against iOS's |
 | `GKRandomDistribution`, `GKGaussianDistribution`, `GKShuffledDistribution` | ✅ | |
 | `GKGraph`, `GKGridGraph`, `GKGraphNode`, `GKGraphNode2D/3D`, `findPath` (A*) | ✅ | |
-| `GKObstacleGraph`, `GKMeshGraph`, `GKPolygonObstacle` | ❌ | |
+| `GKObstacleGraph`, `GKPolygonObstacle` (`bufferRadius`, `connectUsingObstacles` incl. ignoring variants, `lock`/`unlockConnection`, `nodes(forObstacle:)`, `nodeClass`), `SKNode.obstacles(fromNodeBounds:)` | ✅ | visibility graph between buffered (mitered) corners; paths, locking and custom node classes tested; ignoring variants unverified; `obstacles(fromNodePhysicsBodies:)` / `(fromSpriteTextures:)` ❌ |
+| `GKMeshGraph` (`triangulate`, `triangulationMode`, `triangle(at:)`, `connectUsingObstacles`) | 🟡 | Delaunay (Bowyer-Watson) with extra points along obstacle edges, triangles inside buffered obstacles dropped — not a constrained triangulation, so thin obstacles can be cut across; paths tested |
+| `GKCircleObstacle`, `GKSphereObstacle`, `GKGoal.toAvoid(_ obstacles:)` | 🟡 | unverified |
 | `GKNoise`, `GKNoiseMap`, noise sources (Perlin, billow, ridged, Voronoi, constant, cylinders, spheres, checkerboard) | 🟡 | own algorithms (values differ from iOS); no `SKTexture(noiseMap:)`; unverified |
 | `GKAgent2D`, `GKGoal`, `GKBehavior`, `GKPath` | 🟡 | simple steering (seek tested; flee, intercept, wander, target speed, avoid, separate/align/cohere, follow/stay on path unverified); `GKAgent3D` ❌ |
 | `GKRuleSystem`, `GKRule` | 🟡 | block-based rules, facts with grades; `NSPredicate` rules ❌; unverified |
-| `GKMinmaxStrategist`, `GKMonteCarloStrategist`, `GKDecisionTree`, `GKQuadtree`, `GKRTree` | ❌ | |
+| `GKGameModel` / `GKGameModelPlayer` / `GKGameModelUpdate`, `GKMinmaxStrategist` (`maxLookAheadDepth`, `randomSource` tie-breaks, `bestMove`, `randomMove`) | ✅ | alpha-beta on copies (`unapplyGameModelUpdate` not used); win / block / perfect tic-tac-toe self-play tested |
+| `GKMonteCarloStrategist` (`budget`, `explorationParameter`) | ✅ | UCT with random playouts; win / block tested |
+| `GKDecisionTree`, `GKDecisionNode` (value / predicate / weight branches; learned from examples) | 🟡 | ID3 (categorical, numeric thresholds) tested; unseen answers fall back to the majority action; `export(to:)` / `init(url:)` ❌ |
+| `GKQuadtree`, `GKOctree` (add at point / in quad or box, `elements(at:)`, `elements(in:)`, remove) | ✅ | `elements(in:)` returns elements overlapping the query (iOS: whole cells); removal matches `isEqual` |
+| `GKRTree` (add / remove / query, half / linear / quadratic / reduce-overlap splits) | ✅ | Guttman R-tree; all four strategies checked against brute force |
 
 ---
 
@@ -1113,7 +1131,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | API / feature | Status | Notes |
 |---|---|---|
 | `ATTrackingManager.requestTrackingAuthorization`, `trackingAuthorizationStatus` | ✅ | iOS-style prompt; choice persists per app; missing usage string is logged |
-| `ASIdentifierManager` (IDFA) | ❌ | |
+| `ASIdentifierManager` (IDFA, `isAdvertisingTrackingEnabled`) | ✅ | all zeros unless the app's ATT answer is Allow; then a random per-device UUID kept in the device data (stable across apps and launches, new after `isim reset`). Nothing is sent. Tested: HelloSignIn |
 | Google Mobile Ads stand-in (`MobileAds.start`, `BannerView`, `InterstitialAd`, `RewardedAd`, `AppOpenAd`) | 🧩 | builds and runs; every ad load fails with "unavailable on isim" |
 | Google UMP stand-in (`ConsentInformation`, `ConsentForm`) | 🧩 | succeeds without a form; `canRequestAds` is false |
 | Privacy manifests (`PrivacyInfo.xcprivacy`) | 🧩 | copied into the bundle; not checked |
@@ -1136,9 +1154,15 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Core Data: `NSFetchedResultsController` | ✅ | Sections by key path, index titles, `object(at:)`/`indexPath(forObject:)`; delegate insert/delete/move/update + section changes, or `controller(_:didChangeContentWith:)` with an `NSDiffableDataSourceSnapshotReference` that bridges to `NSDiffableDataSourceSnapshot<String, NSManagedObjectID>`. No cache. Tested: CoreDataTest |
 | Core Data: SwiftUI (`@FetchRequest`, `FetchedResults`, `@SectionedFetchRequest`, `\.managedObjectContext`) | ✅ | Re-fetches on context changes (saves, merges) with the request's animation; `nsPredicate`/`nsSortDescriptors` settable; Swift `SortDescriptor`s sort in memory. Tested: HelloCoreData |
 | Core Data: migration | 🟡 | Lightweight only (`shouldMigrateStoreAutomatically` + `shouldInferMappingModelAutomatically`, the defaults): added entities/attributes/relationships, renaming identifiers; removed properties are left in the store; changed attribute types keep stored values; no mapping models / `NSMigrationManager` / staged migration. Tested: CoreDataTest |
-| Core Data: persistent history, `NSPersistentCloudKitContainer`, derived attributes, `NSBatchInsertRequest`, undo | ❌ | `undoManager` is stored but changes are not registered with it |
+| Core Data: persistent history, derived attributes, `NSBatchInsertRequest`, undo | ❌ | `undoManager` is stored but changes are not registered with it |
+| Core Data: `NSPersistentCloudKitContainer`, `NSPersistentCloudKitContainerOptions`, `cloudKitContainerOptions` | 🟡 | adapted: an `NSPersistentContainer` subclass whose store stays on the device — **local, no iCloud mirroring**; options are remembered, `initializeCloudKitSchema` only logs, `canUpdateRecord`/… return true, no `eventChangedNotification` events. Tested: HelloCloudKit (load, save, count) |
 | SwiftData (`@Model`, `ModelContainer`, `@Query`) | ❌ | needs Apple's Swift macros (`@Model`, `#Predicate`), which isim cannot build; Core Data is the supported persistence framework |
-| CloudKit (`CKContainer`, records, subscriptions, `NSPersistentCloudKitContainer`) | ❌ | |
+| CloudKit: containers, account (`CKContainer.default()`, `accountStatus`, `userRecordID`, `ISIM_ICLOUD=noAccount`) | ✅ | **local, no iCloud sync**: a simulated account; `ISIM_ICLOUD=noAccount\|restricted\|temporarilyUnavailable` changes the status, and private/shared operations (and public writes) fail with `CKError.notAuthenticated`. Default container `iCloud.<bundle id>`. Tested: HelloCloudKit |
+| CloudKit: records (`CKRecord` typed values, `CKAsset`, `CKRecord.Reference`, `CLLocation`, lists, `changedKeys`, change tags, dates, `encodeSystemFields`) | ✅ | stored per container/database as JSON in `$ISIM_DATA/Library/isim/CloudKit/<container>/`; assets copied into the store; `.deleteSelf` references cascade; values read back as Objective-C-style values (`as? String/Int/Double/Date/[String]`). `encryptedValues` are stored like other fields (not encrypted at rest). Tested: HelloCloudKit (relaunch persistence) |
+| CloudKit: `CKDatabase` save/fetch/delete (+ async), `records(matching:)`, `modifyRecords`, `CKQuery` (NSPredicate + sort), `CKQueryOperation` (cursor, `resultsLimit`), `CKModifyRecordsOperation` (save policies, atomic), `CKFetchRecordsOperation`, `CKError` | ✅ | `serverRecordChanged` with server/client records, `.changedKeys`/`.allKeys`, atomic batches in custom zones (`batchRequestFailed`), `unknownItem` for missing records/types, `partialFailure`. Predicates use isim's NSPredicate (no `distanceToLocation:`); `CKOperation` is not an `NSOperation` (isim has none): add operations to a database/container. Tested: HelloCloudKit |
+| CloudKit: zones, change tokens (`CKRecordZone`, `CKFetchDatabaseChangesOperation`, `CKFetchRecordZoneChangesOperation`) | 🟡 | custom zones in the private database, zone changes and deletions since a `CKServerChangeToken`; no `moreComing` paging. Tested: HelloCloudKit (zone changes); database changes unverified |
+| CloudKit: subscriptions (`CKQuerySubscription`, `CKDatabaseSubscription`, `CKRecordZoneSubscription`, `CKNotification`) | 🟡 | saved and listed; changes made **in this process** that match send a CloudKit-style push payload in-process to `application(_:didReceiveRemoteNotification:fetchCompletionHandler:)` (no APNs; other processes' changes don't notify; no banner for `alertBody`). Tested: HelloCloudKit (query + database) |
+| CloudKit: sharing (`CKShare`, `UICloudSharingController`), `CKSyncEngine`, user discovery | ❌ | |
 | SQLite (`sqlite3` C API, `import SQLite3`) | ✅ | `/usr/lib/libsqlite3.dylib` forwards to the host's `libsqlite3.so.0` (loaded on first use; a function the host's SQLite lacks stops the app with a message). Tested: SecurityTest, HelloSecurity |
 | Keychain passwords (`SecItemAdd/CopyMatching/Update/Delete`, generic + internet passwords) | ✅ | Swift (isim's Security module; Objective-C callers not yet). iOS attribute keys, duplicate detection, return data/attributes/persistent refs, match limits, access groups (default: bundle id). Stored per access group in `$ISIM_DATA/Library/Keychains` (0600 JSON, not encrypted; survives app deletion, erased by `isim reset`). `SecAccessControl` flags stored, not enforced |
 | Keychain keys, certificates, identities (`SecKey`, `SecCertificate`, `SecIdentity`) | ❌ | `SecItemAdd` returns `errSecUnimplemented` for these classes |
@@ -1147,9 +1171,10 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 
 | API / feature | Status | Notes |
 |---|---|---|
-| Sign in with Apple (`ASAuthorizationAppleIDProvider`, `SignInWithAppleButton`) | ❌ | |
+| Sign in with Apple (`ASAuthorizationAppleIDProvider`, `ASAuthorizationController`, `ASAuthorizationAppleIDButton`, `SignInWithAppleButton`) | ✅ | **local simulation, no Apple servers**: iOS-style sheet (Apple ID / Apple Account wording by `ISIM_OS_VERSION`, name, Share/Hide My Email, Continue/close) for a fake account in the device data; returning users get the short sheet without name/email. `identityToken` is an **unsigned JWT (`alg: none`, issuer `isim-local-simulation`)** and `authorizationCode` a random local string — servers that verify Apple signatures reject them. `getCredentialState` authorized/revoked/notFound per app; `isim appleid <app> revoke` posts `credentialRevokedNotification` to the running app. Buttons: black/white/whiteOutline, sign in/continue/sign up, isim-drawn logo. Tested: HelloSignIn |
 | `ASWebAuthenticationSession` (OAuth) | ❌ | |
-| Passkeys, password AutoFill (`ASAuthorizationController`) | ❌ | |
+| Passkeys (`ASAuthorizationPlatformPublicKeyCredentialProvider` registration + assertion) | ✅ | real WebAuthn data: P-256 key (CryptoKit), CBOR attestation object with format `none` (AAGUID zero, COSE key), clientDataJSON with origin `https://<rp>`, assertion signature over authData ‖ SHA-256(clientDataJSON) that verifies. Keys kept unencrypted in the device data (not synced). iOS-style save/sign-in sheets; no passkey → canceled (no nearby-device QR); `preferImmediatelyAvailableCredentials` → `notInteractive`. Security keys (`ASAuthorizationSecurityKey…`), PRF/large blob missing. Tested: HelloSignIn |
+| Password sign-in (`ASAuthorizationPasswordProvider`, `ASPasswordCredential`) | 🟡 | offers the app's own internet passwords from isim's keychain in a chooser sheet; no iCloud Keychain/Passwords app, no QuickType AutoFill bar, `performAutoFillAssistedRequests` behaves like `preferImmediatelyAvailableCredentials`. Tested: HelloSignIn |
 | LocalAuthentication (Face ID / Touch ID, `LAContext`) | ✅ | `canEvaluatePolicy`/`evaluatePolicy` (+ async), `LAError`, `biometryType` from the device (Face ID; Touch ID on iPhone SE and non-Pro iPads). Face ID permission alert (`NSFaceIDUsageDescription`, remembered), simulated scan alert (Matching / Non-matching / Cancel), passcode fallback; `ISIM_BIOMETRY=match\|nomatch\|cancel`, `ISIM_BIOMETRY_ENROLLED=0`. Reply on a background queue like iOS |
 | CryptoKit (SHA-2, HMAC, AES-GCM, ChaChaPoly, P256, Curve25519) | ✅ | also P384/P521, `Insecure.MD5/SHA1`, HKDF, `SharedSecret` HKDF/X9.63 KDFs, ECDSA DER, public keys raw/X9.63/compressed/DER/PEM. AES/ChaCha/EC on the host's OpenSSL `libcrypto.so.3`. Byte inputs are `ContiguousBytes` (isim's Foundation has no `DataProtocol`). Known-answer tests from the RFCs/NIST |
 | CryptoKit: Secure Enclave, HPKE, `AES.KeyWrap`, compact keys, private-key PEM/DER | ❌ | |
@@ -1227,7 +1252,8 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Signposts (`OSSignposter`, `os_signpost`) | 🧩 | accepted, not recorded |
 | `OSLogStore` (reading logs back) | 🧩 | throws |
 | `os_unfair_lock`, `OSAllocatedUnfairLock` | ✅ | futex-backed, with owner checks |
-| MetricKit, crash reporting | ❌ | |
+| MetricKit (`MXMetricManager`, subscribers, `MXMetricPayload`/`MXDiagnosticPayload`, metrics, diagnostics, `jsonRepresentation`) | 🟡 | like the Simulator, nothing is measured and nothing arrives by itself; the `metrickit` script/control command or `isim metrickit` (Xcode's Debug > Simulate MetricKit Payloads) delivers one fixed sample metric payload and one diagnostic payload (crash, hang, CPU, disk-write, launch) to running apps' subscribers within 0.5 s. `pastPayloads` empty; display metrics nil. Tested: HelloCloudKit |
+| Crash reporting (crash logs, `NSSetUncaughtExceptionHandler` reports) | ❌ | |
 | `assert`, `precondition`, `fatalError` messages | ✅ | |
 
 ---
@@ -1249,8 +1275,8 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Info.plist (`$(VARS)`, `INFOPLIST_KEY_*`) | ✅ | never claims Xcode/SDK identity |
 | Entitlements | 🧩 | not enforced or signed |
 | App icons on the home screen | ✅ | from the asset catalog |
-| Launch screen (`UILaunchScreen` dictionary, LaunchScreen storyboard) | ❌ | |
-| Storyboards / XIBs (`UIMainStoryboardFile`, `UISceneStoryboardFile`, nibs) | ❌ | needs an ibtool replacement; logged and ignored |
+| Launch screen (`UILaunchScreen` dictionary, LaunchScreen storyboard) | ✅ | shown in-app while the app launches (above its windows, no touches), fades out ≥ 0.25 s after launch (`ISIM_LAUNCH_SCREEN_SECS`); `UILaunchStoryboardName` (and `~iphone`/`~ipad`) initial controller; dictionary: `UIColorName`, `UIImageName`, `UIImageRespectsSafeAreaInsets`, `UINavigationBar`/`UITabBar`/`UIToolbar`; tested (HelloStoryboards). Not a cached snapshot like iOS; the home screen does not show it before the process starts |
+| Storyboards / XIBs (`UIMainStoryboardFile`, `UISceneStoryboardFile`, nibs) | 🟡 | `isim build` compiles `.storyboard`/`.xib` (Xcode 15/16 XML) with isim's ibtool (`isim/tools/ibtool.py`) into isim's own archive format (`<Name>.storyboardc/isim-storyboard.plist`, `<Name>.nib/isim-nib.plist` — not Apple's binary nibs). Scenes: view/navigation/tab bar/table view/collection view (unverified)/page view (unverified) controllers; views and standard controls with their attributes (frames, autoresizing, colors incl. system/named, fonts incl. text styles, images incl. SF Symbols, button configurations, segments, text input traits, accessibility, runtime attributes, tags); Auto Layout (safe area/margins/scroll guides, priorities, multipliers, placeholders removed); outlets, outlet collections, actions, segues, prototype cells; `UIMainStoryboardFile` / `UISceneStoryboardFile` windows; tested (HelloStoryboards). Missing: static table cells (compiled, not shown), size classes/variations, `@IBDesignable` rendering, localized storyboards' `.strings` |
 | Localization (`.xcstrings`, `.lproj/.strings`, app language from Settings) | 🟡 | plurals limited (see Foundation) |
 | Unit tests (XCTest, Swift Testing), UI tests (XCUITest) | ❌ | test bundles are skipped by `isim build`; isim's own script driver exists |
 | Scripted automation (`--script`/`--control`: tap, type, screenshot, dump) | ✅ | |
@@ -1263,7 +1289,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | App switcher / multitasking | ❌ | |
 | Lock screen, Notification Center, Control Center | ❌ | |
 | Settings app: General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, Game Center, per-app pages | 🟡 | only the settings isim implements |
-| Settings bundles (`Settings.bundle` for app pages) | ❌ | |
+| Settings bundles (`Settings.bundle` for app pages) | ✅ | the app's page in Settings: PSGroupSpecifier (header/footer), PSTextFieldSpecifier (secure), PSToggleSwitchSpecifier (True/FalseValue), PSMultiValueSpecifier, PSRadioGroupSpecifier (unverified), PSSliderSpecifier, PSTitleValueSpecifier, PSChildPaneSpecifier, StringsTable localization; written to the app's `UserDefaults` domain (re-read when the app returns to the foreground, posting "NSUserDefaultsDidChangeNotification" by name — the constant is not declared yet); tested (HelloStoryboards). Apps with keyboard extensions keep the Keyboards page instead |
 | System keyboard + keyboard extensions | ✅ | English (US) only |
 | Light/dark mode, screenshots (F12), zoom | ✅ | |
 | Audio output | ✅ | SDL3 mixer |
