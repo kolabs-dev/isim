@@ -59,8 +59,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 2 | 0 | 3 | 9 | 56% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 6 | 2 | 0 | 1 | 9 | 78% |
 | &nbsp;&nbsp;↳ Networking | 11 | 2 | 1 | 3 | 17 | 71% |
-| **Swift runtime, stdlib & concurrency** | 29 | 1 | 0 | 8 | 38 | 78% |
-| &nbsp;&nbsp;↳ Combine | 10 | 0 | 0 | 4 | 14 | 71% |
+| **Swift runtime, stdlib & concurrency** | 30 | 1 | 0 | 7 | 38 | 80% |
+| &nbsp;&nbsp;↳ Combine | 11 | 0 | 0 | 3 | 14 | 79% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
 | Objective-C runtime & C library | 6 | 2 | 0 | 2 | 10 | 70% |
 | Core Graphics | 9 | 0 | 0 | 7 | 16 | 56% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **444** | **168** | **42** | **172** | **826** | **64%** |
+| **All areas** | **445** | **168** | **42** | **171** | **826** | **64%** |
 
 ---
 
@@ -829,7 +829,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `.values` (async bridge), `print`, `breakpoint` | ❌ | |
 | Foundation publishers: `Timer.publish`, `NotificationCenter.publisher`; RunLoop/DispatchQueue schedulers | ✅ | |
 | `URLSession.dataTaskPublisher` | ✅ | tested |
-| KVO publisher (`publisher(for: \.keyPath)`) | ❌ | |
+| KVO publisher (`publisher(for: \.keyPath)`) | ✅ | Foundation KVO; tested with `AVPlayer.timeControlStatus` (HelloVideo) |
 
 ### Dispatch
 

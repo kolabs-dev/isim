@@ -1,6 +1,7 @@
 // isim AVFoundation: video/audio playback — AVPlayerItem, AVPlayer, AVQueuePlayer, AVPlayerLooper, AVPlayerLayer,
 // periodic/boundary time observers, AVPlayerItemDidPlayToEndTime, key-value observing of status/rate/
-// timeControlStatus (see Foundation's KVO.swift: changes are posted with will/didChangeValue(forKey:)).
+// timeControlStatus, readyForDisplay (Foundation KVO: the observable properties are @objc and these classes post
+// will/didChangeValue(forKey:) themselves — automaticallyNotifiesObservers(forKey:) is false).
 // Decoding runs in the host's ffmpeg (host_media.c): frames stream into an image that AVPlayerLayer draws, the
 // soundtrack streams into the audio mixer. The clock is the host's monotonic clock; only rate 1 plays sound
 // (other positive rates play video only); reverse playback is not supported.
@@ -13,8 +14,9 @@ open class AVPlayerItem: NSObject, @unchecked Sendable {
     @objc public enum Status: Int, Sendable { case unknown = 0, readyToPlay, failed }
     public let asset: AVAsset
     public let automaticallyLoadedAssetKeys: [String]
-    open private(set) var status: Status = .unknown
+    @objc open private(set) var status: Status = .unknown
     open private(set) var error: Error?
+    open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { false }
     open var forwardPlaybackEndTime: CMTime = .invalid
     open var reversePlaybackEndTime: CMTime = .invalid
     open var preferredForwardBufferDuration: TimeInterval = 0
@@ -43,10 +45,10 @@ open class AVPlayerItem: NSObject, @unchecked Sendable {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self._info = info
-                self.willChangeValue(forKey: "duration"); self.willChangeValue(forKey: "presentationSize")
+                self.willChangeValue(forKey: "presentationSize")
                 if let info, info.ok { self._setStatus(.readyToPlay) }
                 else { self.error = _avLoadError(asset); self._setStatus(.failed) }
-                self.didChangeValue(forKey: "duration"); self.didChangeValue(forKey: "presentationSize")
+                self.didChangeValue(forKey: "presentationSize")
                 self._player?._itemStatusChanged(self)
             }
         }
@@ -68,7 +70,7 @@ open class AVPlayerItem: NSObject, @unchecked Sendable {
         if forwardPlaybackEndTime.isNumeric { return min(i.duration, forwardPlaybackEndTime.seconds) }
         return i.duration
     }
-    open var presentationSize: CGSize { guard let i = _info, i.hasVideo else { return .zero }; return CGSize(width: i.width, height: i.height) }
+    @objc open var presentationSize: CGSize { guard let i = _info, i.hasVideo else { return .zero }; return CGSize(width: i.width, height: i.height) }
     open func currentTime() -> CMTime { CMTime(seconds: _player?.currentItem === self ? _player!._now() : _position, preferredTimescale: 600) }
     open var currentDate: Date? { nil }
     open var isPlaybackLikelyToKeepUp: Bool { status == .readyToPlay }
@@ -160,10 +162,11 @@ open class AVPlayer: NSObject, @unchecked Sendable {
         public static let noItemToPlay = WaitingReason(rawValue: "AVPlayerWaitingWithNoItemToPlayReason")
     }
 
-    open private(set) var currentItem: AVPlayerItem?
-    open private(set) var status: Status = .readyToPlay
+    @objc open private(set) var currentItem: AVPlayerItem?
+    @objc open private(set) var status: Status = .readyToPlay
     open private(set) var error: Error?
-    open private(set) var timeControlStatus: TimeControlStatus = .paused
+    @objc open private(set) var timeControlStatus: TimeControlStatus = .paused
+    open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { false }
     open private(set) var reasonForWaitingToPlay: WaitingReason?
     open var actionAtItemEnd: ActionAtItemEnd = .pause
     open var automaticallyWaitsToMinimizeStalling = true
@@ -177,7 +180,7 @@ open class AVPlayer: NSObject, @unchecked Sendable {
     open var isMuted = false { didSet { _applyAudio() } }
 
     /// rate: 0 = paused. Setting it starts or stops playback, like on iOS.
-    open var rate: Float {
+    @objc open var rate: Float {
         get { _rate }
         set {
             var r = newValue
@@ -235,7 +238,7 @@ open class AVPlayer: NSObject, @unchecked Sendable {
     func _itemStatusChanged(_ item: AVPlayerItem?) {
         guard item === currentItem else { return }
         if item?.status == .failed {
-            willChangeValue(forKey: "error"); error = item?.error; didChangeValue(forKey: "error")
+            error = item?.error
         }
         if item?.status == .readyToPlay { _anchorWall = isim_time(); _openMedia(at: _anchor) }
         _updateState()
@@ -309,7 +312,7 @@ open class AVPlayer: NSObject, @unchecked Sendable {
             _anchor = t; _anchorWall = isim_time()
             didChangeValue(forKey: "timeControlStatus")
         }
-        if reason != reasonForWaitingToPlay { willChangeValue(forKey: "reasonForWaitingToPlay"); reasonForWaitingToPlay = reason; didChangeValue(forKey: "reasonForWaitingToPlay") }
+        reasonForWaitingToPlay = reason
         if newStatus == .playing, _media == 0, item?.status == .readyToPlay { _openMedia(at: _anchor) }
         _applyAudio()
         _updateTicking()
@@ -523,9 +526,10 @@ open class AVPlayerLayer: CALayer {
         }
     }
     open var videoGravity: AVLayerVideoGravity = .resizeAspect { didSet { setNeedsDisplay() } }
+    open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { false }
     open var pixelBufferAttributes: [String: Any]?
     var _wasReady = false
-    open var isReadyForDisplay: Bool { (player?._frame ?? 0) != 0 }
+    @objc open var isReadyForDisplay: Bool { (player?._frame ?? 0) != 0 }
     func _readyChanged() {
         let r = isReadyForDisplay
         guard r != _wasReady else { return }
