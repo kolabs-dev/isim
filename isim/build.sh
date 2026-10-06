@@ -87,6 +87,7 @@ framework CoreGraphics frameworks/CoreGraphics -lisim_host -U ___CFConstantStrin
 framework Foundation frameworks/Foundation -framework CoreGraphics -lisim_host
 framework CoreText frameworks/CoreText -framework Foundation -framework CoreGraphics -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
+framework ImageIO frameworks/ImageIO -framework Foundation -framework CoreGraphics -lisim_host
 framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 framework CoreData frameworks/CoreData -framework Foundation -lsqlite3
 
