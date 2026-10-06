@@ -24,7 +24,8 @@ build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays
 }
 build CoreGraphics -framework CoreGraphics
 build ObjectiveC -framework Foundation   # NSObject lives in isim Foundation, not libobjc
-build Combine
+../out/bin/isim cc -c overlays/Combine/compat.c -o "$OBJ/Combine-compat.o"   # enum case symbols for apps built before Completion was @frozen
+build Combine "$OBJ/Combine-compat.o"
 build Dispatch -framework Foundation
 build Foundation -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
 build UIKit -lswiftObjectiveC -lswiftFoundation -framework Foundation -framework UIKit

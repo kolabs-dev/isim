@@ -149,3 +149,9 @@ final class _FoundationForwardingSubscription<S: Subscriber>: Subscription {
         demand += s.receive(v)
     }
 }
+
+// Combine's decode(type:decoder:) / encode(encoder:)
+extension JSONDecoder: TopLevelDecoder { public typealias Input = Data }
+extension JSONEncoder: TopLevelEncoder { public typealias Output = Data }
+extension PropertyListDecoder: TopLevelDecoder { public typealias Input = Data }
+extension PropertyListEncoder: TopLevelEncoder { public typealias Output = Data }
