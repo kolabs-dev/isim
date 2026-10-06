@@ -15,3 +15,5 @@
 #include <time.h>
 #include <CoreFoundation/CFBase.h>
 #include <CoreFoundation/CFNumber.h>
+#include <CoreFoundation/CFData.h>
+#include <CoreFoundation/CFArray.h>

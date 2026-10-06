@@ -195,8 +195,7 @@ static void anim_layer_changed(UIView *v, int key, const double *old, const doub
 }
 static void cg_rgba(CGColorRef c, double out[4]) {
     if (!c) { out[0] = out[1] = out[2] = out[3] = 0; return; }
-    const CGFloat *k = CGColorGetComponents(c); size_t n = CGColorGetNumberOfComponents(c);
-    if (n >= 4) { for (int i = 0; i < 4; i++) out[i] = k[i]; } else if (n == 2) { out[0] = out[1] = out[2] = k[0]; out[3] = k[1]; } else { out[0] = out[1] = out[2] = 0; out[3] = 1; }
+    isim_cg_color_rgba(c, out);          /* sRGB, whatever the color's space */
 }
 @implementation __IsimViewLayer
 - (void)setCornerRadius:(CGFloat)r { double a = self.cornerRadius, b = r; anim_layer_changed(_isim_view, AK_RADIUS, &a, &b, 1); [super setCornerRadius:r]; }
@@ -865,11 +864,11 @@ static IMP base_drawRect;
     double bg[4];
     if (bgAnim) memcpy(bg, bgv, sizeof bg);
     else if (_backgroundColor) isim_ui_rgba(_backgroundColor, bg);
-    else if (_layer.backgroundColor) { const CGFloat *c = CGColorGetComponents(_layer.backgroundColor); for (int i = 0; i < 4; i++) bg[i] = c[i]; }
+    else if (_layer.backgroundColor) cg_rgba(_layer.backgroundColor, bg);
     else bg[3] = 0;
     if (bg[3] > 0 && shadowOp > 0 && _layer.shadowColor) {
         /* drop shadow under the background shape; blur approximated by stacked expanding fills */
-        const CGFloat *sc = CGColorGetComponents(_layer.shadowColor);
+        double sc[4]; cg_rgba(_layer.shadowColor, sc);
         CGSize o = shadowOff; double blur = shadowRad;
         int steps = blur > 0.5 ? 5 : 1;
         for (int i = steps - 1; i >= 0; i--) {

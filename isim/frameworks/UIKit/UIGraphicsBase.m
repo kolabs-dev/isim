@@ -84,7 +84,7 @@ NSString *NSStringFromUIEdgeInsets(UIEdgeInsets i) { return [NSString stringWith
 + (UIColor *)colorWithDisplayP3Red:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a { return [self colorWithRed:r green:g blue:b alpha:a]; }
 + (UIColor *)colorWithWhite:(CGFloat)w alpha:(CGFloat)a { return [[self alloc] initWithWhite:w alpha:a]; }
 + (UIColor *)colorWithHue:(CGFloat)h saturation:(CGFloat)s brightness:(CGFloat)b alpha:(CGFloat)a { return [[self alloc] initWithHue:h saturation:s brightness:b alpha:a]; }
-+ (UIColor *)colorWithCGColor:(CGColorRef)cg { const CGFloat *c = CGColorGetComponents(cg); return c ? [self colorWithRed:c[0] green:c[1] blue:c[2] alpha:c[3]] : [self clearColor]; }
++ (UIColor *)colorWithCGColor:(CGColorRef)cg { if (!cg) return [self clearColor]; double c[4]; isim_cg_color_rgba(cg, c); return [self colorWithRed:c[0] green:c[1] blue:c[2] alpha:c[3]]; }
 + (UIColor *)colorWithDynamicProvider:(UIColor * (^)(UITraitCollection *))p { return [[self alloc] initWithDynamicProvider:p]; }
 
 static UIColor *rgb255(int r, int g, int b, double a) { return [UIColor colorWithRed:r / 255.0 green:g / 255.0 blue:b / 255.0 alpha:a]; }
@@ -394,14 +394,14 @@ static IMP base_drawInContext;
     isim_gfx_translate(f.origin.x, f.origin.y);
     BOOL group = _opacity < 0.999;
     if (group) isim_gfx_push_group();
-    if (_backgroundColor) { const CGFloat *c = CGColorGetComponents(_backgroundColor); double bg[4] = { c[0], c[1], c[2], c[3] }; isim_gfx_fill_rounded(0, 0, f.size.width, f.size.height, _cornerRadius, bg); }
+    if (_backgroundColor) { double bg[4]; isim_cg_color_rgba(_backgroundColor, bg); isim_gfx_fill_rounded(0, 0, f.size.width, f.size.height, _cornerRadius, bg); }
     if (_masksToBounds) { isim_gfx_save(); isim_gfx_clip_rounded(0, 0, f.size.width, f.size.height, _cornerRadius); }
     isim_gfx_translate(-_bounds.origin.x, -_bounds.origin.y);
     [self _isim_renderLayerContents];
     isim_gfx_translate(_bounds.origin.x, _bounds.origin.y);
     if (_masksToBounds) isim_gfx_restore();
     if (_borderWidth > 0 && _borderColor) {
-        const CGFloat *c = CGColorGetComponents(_borderColor); double bc[4] = { c[0], c[1], c[2], c[3] };
+        double bc[4]; isim_cg_color_rgba(_borderColor, bc);
         isim_gfx_stroke_rounded(0, 0, f.size.width, f.size.height, _cornerRadius, _borderWidth, bc);
     }
     if (group) isim_gfx_pop_group(_opacity);
