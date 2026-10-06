@@ -22,8 +22,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 108 | 43 | 10 | 37 | 198 | 65% |
-| &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
+| **UIKit** | 111 | 46 | 10 | 32 | 199 | 67% |
+| &nbsp;&nbsp;↳ Application & scenes | 10 | 8 | 5 | 1 | 24 | 58% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 18 | 7 | 0 | 5 | 30 | 72% |
 | &nbsp;&nbsp;↳ Views & controls | 29 | 16 | 1 | 5 | 51 | 73% |
 | &nbsp;&nbsp;↳ Layout | 15 | 2 | 1 | 1 | 19 | 84% |
@@ -35,9 +35,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 1 | 0 | 2 | 3 | 17% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 137 | 47 | 11 | 15 | 210 | 76% |
-| &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
-| &nbsp;&nbsp;↳ State & data flow | 12 | 4 | 0 | 1 | 17 | 82% |
+| **SwiftUI** | 140 | 49 | 11 | 10 | 210 | 78% |
+| &nbsp;&nbsp;↳ App & scenes | 6 | 4 | 0 | 1 | 11 | 73% |
+| &nbsp;&nbsp;↳ State & data flow | 13 | 3 | 0 | 1 | 17 | 85% |
 | &nbsp;&nbsp;↳ Views & controls | 30 | 7 | 0 | 1 | 38 | 88% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 14 | 8 | 1 | 0 | 23 | 78% |
@@ -51,12 +51,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
-| **Foundation** | 51 | 20 | 1 | 9 | 81 | 75% |
+| **Foundation** | 52 | 20 | 1 | 8 | 81 | 77% |
 | &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
 | &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
-| &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 2 | 0 | 3 | 9 | 56% |
+| &nbsp;&nbsp;↳ Files, bundles & preferences | 5 | 2 | 0 | 2 | 9 | 67% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 6 | 2 | 0 | 1 | 9 | 78% |
 | &nbsp;&nbsp;↳ Networking | 11 | 2 | 1 | 3 | 17 | 71% |
 | **Swift runtime, stdlib & concurrency** | 30 | 1 | 0 | 7 | 38 | 80% |
@@ -76,14 +76,14 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
 | Data & persistence | 10 | 3 | 0 | 4 | 17 | 68% |
 | Identity & security | 4 | 0 | 1 | 5 | 10 | 40% |
-| Notifications & background work | 1 | 2 | 1 | 3 | 7 | 29% |
-| App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
+| Notifications & background work | 2 | 3 | 1 | 1 | 7 | 50% |
+| App extensions & system integration | 2 | 3 | 0 | 4 | 9 | 39% |
 | Location & maps | 1 | 1 | 0 | 1 | 3 | 50% |
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
-| Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
+| Web & communication | 2 | 2 | 0 | 5 | 9 | 33% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
-| Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **472** | **181** | **42** | **149** | **844** | **67%** |
+| Platform & tooling | 18 | 6 | 1 | 11 | 36 | 58% |
+| **All areas** | **484** | **191** | **42** | **128** | **845** | **69%** |
 
 ---
 
@@ -96,23 +96,24 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIApplicationMain`, `@main` app delegate | ✅ | Xcode App template lifecycle |
 | `UIApplicationDelegate` launch/active/background/terminate callbacks | ✅ | apps background and resume from the home screen |
 | Scene manifest, `UIWindowSceneDelegate`, `UIWindowScene` | ✅ | one scene per app |
-| Multiple scenes / windows (iPad multi-window, `requestSceneSessionActivation`) | ❌ | `supportsMultipleScenes` exists; only one scene is ever created |
+| `UIView.drawHierarchy(in:afterScreenUpdates:)` | 🟡 | draws the view tree into the current image context (used for widget rendering; tested through HelloWidgets) |
+| Multiple scenes / windows (iPad multi-window, `requestSceneSessionActivation`) | ❌ | `supportsMultipleScenes` exists; only one scene is ever created; `requestSceneSessionActivation` logs and calls the error handler (stub) |
 | `UIWindow` (`makeKeyAndVisible`, `rootViewController`, `windowLevel`) | ✅ | |
 | `UIScreen.main` (bounds, scale, nativeBounds, maximumFramesPerSecond) | ✅ | per-device presets |
 | `UIScreen.brightness` | 🧩 | stored only |
 | `UIDevice` (name, model, systemVersion, userInterfaceIdiom) | 🟡 | systemVersion is the emulated API level (`ISIM_OS_VERSION`, default 18.0) |
 | Device orientation, rotation, `supportedInterfaceOrientations` | ✅ | Ctrl+Left/Right or script `rotate`; Info.plist/delegate/VC masks (containers use their visible child; no plist key = portrait, adapted), `requestGeometryUpdate`, device notifications, landscape screen through the shell; tested (HelloRotation) |
 | Application/scene lifecycle notifications (`didBecomeActiveNotification`, …) | ✅ | |
-| `open(_:options:)` / `canOpenURL` | 🟡 | logged; `app-settings:` opens Settings; http(s)/mailto open on the host only with `ISIM_OPEN_URLS=1` |
-| Incoming URLs (custom URL schemes, `application(_:open:)`, scene URL contexts) | 🟡 | URLs can be delivered to the app (script/control); `CFBundleURLTypes` routing between apps unverified |
-| Universal links, `NSUserActivity`, Handoff | ❌ | |
+| `open(_:options:)` / `canOpenURL` | 🟡 | URLs of installed apps' schemes and universal links open those apps through the home screen (`universalLinksOnly` honoured), `canOpenURL` sees installed schemes (tested, HelloSystem); `app-settings:` opens Settings; other http(s)/mailto open on the host only with `ISIM_OPEN_URLS=1` |
+| Incoming URLs (custom URL schemes, `application(_:open:)`, scene URL contexts) | ✅ | `CFBundleURLTypes` routing (script `openurl URL`, other apps' `open`), `scene(_:openURLContexts:)` and `connectionOptions.urlContexts` on cold launch, `application(_:open:options:)` for apps without scenes, SwiftUI `onOpenURL`. Tested (HelloSystem) |
+| Universal links, `NSUserActivity`, Handoff | 🟡 | `NSUserActivity` (Foundation, adapted): `becomeCurrent` indexes `isEligibleForSearch` activities for the home screen's Spotlight; continuing one (Spotlight, universal links) calls `scene(_:continue:)` / `application(_:continue:restorationHandler:)` or `connectionOptions.userActivities` / launch options on cold launch. Universal links: script `openurl https://…` or `UIApplication.open` from another app opens the app whose `isim-entitlements.plist` (copied by `isim build` from `CODE_SIGN_ENTITLEMENTS`) has `applinks:` for the host — no apple-app-site-association download (offline), every path matches. URL schemes (`CFBundleURLTypes`) open other apps; `canOpenURL` sees installed schemes. `scene(_:openURLContexts:)` + `connectionOptions.urlContexts`. Tested (HelloSystem). No Handoff (one device) |
 | `applicationIconBadgeNumber` | 🧩 | stored; no badge on the home-screen icon |
-| `isIdleTimerDisabled` | 🧩 | no screen lock exists |
+| `isIdleTimerDisabled` | 🧩 | stored; the device never locks by itself (lock: Ctrl+L / script `lock`) |
 | Status bar (`prefersStatusBarHidden`, `preferredStatusBarStyle`) | 🟡 | hide works (SwiftUI `statusBarHidden`); style/appearance updates unverified |
-| `beginBackgroundTask`, background fetch/modes | ❌ | |
-| State restoration (`stateRestorationActivity`, restoration IDs) | ❌ | |
-| Home-screen quick actions (`UIApplicationShortcutItem`) | ❌ | |
-| Alternate app icons (`setAlternateIconName`) | ❌ | |
+| `beginBackgroundTask`, background fetch/modes | 🟡 | adapted: isim does not suspend apps; `beginBackgroundTask(withName:expirationHandler:)` / `endBackgroundTask` / `backgroundTimeRemaining` with expiration after `ISIM_BACKGROUND_TASK_SECONDS` (30) in the background; apps launched into the background (BackgroundTasks) get `.background` state and connect their scene on first foreground. Background fetch: script `bgtask BUNDLE --fetch` calls `performFetchWithCompletionHandler` (unverified). Tested (HelloSystem) |
+| State restoration (`stateRestorationActivity`, restoration IDs) | 🟡 | scene-based: `stateRestorationActivity(for:)` saved when the scene goes to the background (app container), `session.stateRestorationActivity` + `scene(_:restoreInteractionStateWith:)` on the next launch; discarded when the app is closed in the app switcher (like iOS). Tested (HelloSystem). View-controller restoration (restoration identifiers, `encodeRestorableState`) ❌ |
+| Home-screen quick actions (`UIApplicationShortcutItem`) | ✅ | static (Info.plist `UIApplicationShortcutItems`, localized titles, icon types/symbols) + dynamic `UIApplication.shortcutItems` (saved in the container); listed in the icon's long-press menu (max 4); cold launch: `launchOptions[.shortcutItem]` / `connectionOptions.shortcutItem`; warm: `windowScene(_:performActionFor:)` / `application(_:performActionFor:)`. Tested (HelloSystem, HelloScenes) |
+| Alternate app icons (`setAlternateIconName`) | ✅ | Info.plist `CFBundleAlternateIcons` (icon files or asset-catalog sets; `isim build` adds them for `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` / include-all, unverified), `supportsAlternateIcons`, `alternateIconName`, the system alert, errors for unknown names / background; the home screen shows the chosen icon. Tested (HelloSystem) |
 | Memory warnings (`didReceiveMemoryWarning`) | 🧩 | method exists; never sent |
 | Remote notification registration | 🧩 | `registerForRemoteNotifications` fails with NSCocoaErrorDomain 3010 through `didFailToRegisterForRemoteNotificationsWithError` (no APNs on isim) |
 | `UIPasteboard` | 🟡 | `general` + named pasteboards: strings, URLs, images, colors, items, `changeCount`, `hasStrings`…, change notification; strings/URLs are shared between the apps of the device (stored in its data directory); tested (HelloTransitions share sheet). No paste prompt, no edit-menu copy/paste in text fields |
@@ -360,14 +361,14 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 |---|---|---|
 | `App` protocol, `@main` | ✅ | |
 | `WindowGroup` | ✅ | one window; `title`/`id` ignored |
-| Several scenes in `body`, `Settings`, `DocumentGroup`, `Window` | ❌ | `SceneBuilder` takes one scene |
+| Several scenes in `body`, `Settings`, `DocumentGroup`, `Window` | 🟡 | several `WindowGroup`s (`id:`, `for:`) and scene modifiers in `body`; the first group is shown. `Settings`/`Window` are macOS-only (not provided, like the iOS SDK); `DocumentGroup` ❌. Tested (HelloScenes) |
 | `@Environment(\.scenePhase)` | ✅ | active / inactive / background |
-| `@UIApplicationDelegateAdaptor` | ❌ | |
+| `@UIApplicationDelegateAdaptor` | ✅ | launch callbacks, every other `UIApplicationDelegate` method forwarded (ObjC forwarding), a scene delegate class from its `configurationForConnecting` gets the scene callbacks SwiftUI does not handle. Tested (HelloScenes) |
 | `UIHostingController` | ✅ | |
 | `.onOpenURL` | 🟡 | delivered from isim's URL handling; inter-app routing unverified |
-| `.onContinueUserActivity`, `.handlesExternalEvents` | ❌ | |
-| `.backgroundTask` | ❌ | |
-| `openWindow` / `dismissWindow` | ❌ | |
+| `.onContinueUserActivity`, `.handlesExternalEvents` | ✅ | `.onContinueUserActivity` (Spotlight, universal links; queued until a handler registers), `.userActivity(_:isActive:_:)` advertises/indexes; `.handlesExternalEvents` accepted (one scene). Tested (HelloScenes) |
+| `.backgroundTask` | 🟡 | `.appRefresh(id)` runs when the request is launched (script `bgtask BUNDLE ID`), also in a background launch; `.urlSession` accepted, not delivered. Tested (HelloScenes) |
+| `openWindow` / `dismissWindow` | 🟡 | adapted: iPad + `UIApplicationSupportsMultipleScenes`: the requested `WindowGroup` replaces the window's content, `dismissWindow` goes back (isim shows one window per app); iPhone: ignored like iOS; `supportsMultipleWindows`. Tested (HelloScenes) |
 | `#Preview` / `PreviewProvider` | ❌ | no preview canvas; `#Preview` does not compile |
 
 ### State & data flow
@@ -383,7 +384,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@Observable` macro / Observation | ✅ | Observation built from Swift sources; macro via the toolchain plugin; renders track reads; tested (HelloObservation) |
 | `@Bindable`, `@Environment(Model.self)` | ✅ | plus `.environment(_:)` for Observable objects; tested |
 | `@AppStorage` | ✅ | Bool/Int/Double/String/URL/Data/RawRepresentable/optionals; persists; tested (HelloForms) |
-| `@SceneStorage` | 🟡 | kept for the app lifetime (not restored across launches) |
+| `@SceneStorage` | ✅ | saved with the scene's state restoration activity (Bool/Int/Double/String) and restored on the next launch unless the app was closed in the app switcher. Tested (HelloScenes) |
 | `@FocusState` (Bool and Hashable) | ✅ | |
 | `@Namespace` | ✅ | |
 | `@GestureState` | ❌ | |
@@ -745,7 +746,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | 🟡 | no attributes, enumerators, symlinks, `replaceItem` |
 | `Data(contentsOf:)`, `Data.write(to:)` | ✅ | |
 | `FileHandle`, `InputStream` / `OutputStream` | 🟡 | files, memory and standard I/O; `readabilityHandler` on a thread; no sockets / bound stream pairs |
-| App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ❌ | |
+| App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ✅ | `<isim data>/Shared/AppGroup/<id>`, shared by apps and their extensions; `UserDefaults(suiteName:)` uses it. Tested (HelloWidgets: the widget extension and the app share a counter) |
 | iCloud Drive / ubiquity containers | ❌ | |
 | `Bundle` (main, by path/id, resources, Info.plist, localizations) | ✅ | |
 | `UserDefaults` (standard, suites, register defaults, argument domain) | ✅ | persisted as an XML plist in the container |
@@ -1053,7 +1054,7 @@ Headless test runs are silent (no audio device); timing, frames and callbacks st
 | AudioToolbox System Sound Services (`AudioServicesCreateSystemSoundID`, `PlaySystemSound`, completions) | 🟡 | sounds from files play; built-in IDs (e.g. 1104) play a synthesized click/chime instead of Apple's recordings |
 | `kSystemSoundID_Vibrate`, `AudioServicesPlayAlertSound` vibration | 🧩 | logged only (no haptics on the host) |
 | Audio Queues, Audio Units, Audio File/Converter services | ❌ | |
-| MediaPlayer `MPNowPlayingInfoCenter` | 🟡 | stored and logged; no lock screen/Control Center to show it |
+| MediaPlayer `MPNowPlayingInfoCenter` | 🟡 | stored and logged; Control Center's Now Playing module shows "Not Playing" (the info is not passed to the shell) |
 | MediaPlayer `MPRemoteCommandCenter` | 🟡 | handlers and selector targets; commands come from the `remote NAME [ARG]` script/control command (tested: play, skip, seek, disabled command) |
 | `MPVolumeView` | 🧩 | a slider that does not change the host volume |
 | Music library (`MPMediaLibrary`, `MPMediaQuery`, `MPMusicPlayerController`), MusicKit | ❌ | |
@@ -1168,25 +1169,25 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 |---|---|---|
 | UserNotifications: authorization request | ✅ | the iOS permission alert, answer remembered per app; provisional authorization; `notificationSettings()`; `ISIM_NOTIFICATION_PERMISSION=allow\|deny`. No per-app page in isim Settings |
 | Local notifications (`UNNotificationRequest`, time/calendar triggers) | 🟡 | time-interval and calendar (`DateComponents`) triggers, repeating, pending/delivered lists, persisted across launches; fire while the app runs (foreground, or background under `isim boot`). Not delivered while the app is not running (no system scheduler) |
-| Notification presentation (banners, Notification Center, actions, foreground delegate) | 🟡 | `willPresent`/`didReceive` (+ async); iOS-style banner in the app or, for a backgrounded app, drawn by the shell over the home screen; tap opens the app with the default action. No Notification Center list, action buttons, sounds or attachments |
+| Notification presentation (banners, Notification Center, actions, foreground delegate) | 🟡 | `willPresent`/`didReceive` (+ async); iOS-style banner in the app or, for a backgrounded app, drawn by the shell over the home screen; tap opens the app with the default action. Delivered notifications are listed in Notification Center and on the lock screen (open, clear; `removeDeliveredNotifications` removes them); Focus (Control Center) hides banners. Tested (systemui). No action buttons, grouping, sounds or attachments |
 | Push notifications (APNs registration, remote payloads) | 🧩 | registration fails with NSCocoaErrorDomain 3010 |
 | Notification Service/Content extensions | ❌ | |
-| BackgroundTasks (`BGAppRefreshTask`, `BGProcessingTask`) | ❌ | |
-| Background audio, location, VoIP modes | ❌ | |
+| BackgroundTasks (`BGAppRefreshTask`, `BGProcessingTask`) | ✅ | `register` (checks `BGTaskSchedulerPermittedIdentifiers`), `submit` (checks `UIBackgroundModes`, errors), pending/cancel; no scheduler decides when — like Xcode's `_simulateLaunchForTaskWithIdentifier`, the script/control command `bgtask BUNDLE-ID TASK-ID` launches a pending task, starting the app in the background if needed; expiration handler after `ISIM_BACKGROUND_TASK_SECONDS`. Tested (HelloSystem) |
+| Background audio, location, VoIP modes | 🟡 | honest passthrough: apps are never suspended on isim, so background audio/location keep running whether or not `UIBackgroundModes` declares them (unverified); VoIP/PushKit ❌ |
 
 ## App extensions & system integration
 
 | API / feature | Status | Notes |
 |---|---|---|
 | Custom keyboard extensions | ✅ | built, embedded and hosted in-process |
-| WidgetKit (home/lock screen widgets, timelines) | ❌ | |
-| ActivityKit (Live Activities, Dynamic Island) | ❌ | |
-| App Intents (Shortcuts, Siri, Spotlight, interactive widgets, `AppShortcutsProvider`) | ❌ | |
+| WidgetKit (home/lock screen widgets, timelines) | 🟡 | widget extensions (`@main` Widget/WidgetBundle, entry `_NSExtensionMain`) run as helper processes: `StaticConfiguration` / `AppIntentConfiguration` (default intent), `TimelineProvider` / `AppIntentTimelineProvider`, entries rendered by isim SwiftUI into images, shown by date, reload by policy and `WidgetCenter.reloadTimelines`; widget gallery (Edit Home Screen > +), small/medium/large on the home screen; `containerBackground`, `widgetFamily`; interactive widgets (`Button(intent:)` runs the AppIntent in the extension, then reloads). Tested (HelloWidgets). No lock-screen accessory widgets, widget editing (intent parameters), placeholder/snapshot UI, StandBy |
+| ActivityKit (Live Activities, Dynamic Island) | 🟡 | `Activity.request/update/end`, `activities`, `ActivityAuthorizationInfo` (NSSupportsLiveActivities); the widget extension's `ActivityConfiguration` renders the lock-screen view (with `activityBackgroundTint`) and the Dynamic Island compact/minimal/expanded regions; the shell draws them on the lock screen and around the island (compact when the app is not in front; tap / script `island` expands). Tested (HelloWidgets). No push updates, alerts, stale dates shown, minimal multi-activity layout |
+| App Intents (Shortcuts, Siri, Spotlight, interactive widgets, `AppShortcutsProvider`) | 🟡 | `AppIntent` (perform, results, dialogs), `@Parameter`, `AppEnum`/`AppEntity`/`EntityQuery` types, `Button(intent:)` / `Toggle(isOn:intent:)` (in apps and interactive widgets — tested, HelloWidgets). Stubs: `AppShortcutsProvider`/`AppShortcut` compile but nothing lists them (no Shortcuts app, Siri or App Shortcuts in Spotlight) |
 | SiriKit (Intents) | ❌ | |
 | Share / Action extensions | ❌ | "extension point not supported" is logged |
-| Spotlight (`CSSearchableItem`), `NSUserActivity` indexing | ❌ | |
+| Spotlight (`CSSearchableItem`), `NSUserActivity` indexing | ✅ | CoreSpotlight `CSSearchableIndex` index/delete (ids, domains, all), `CSSearchableItemAttributeSet` (title, description, keywords); activities with `isEligibleForSearch`; the home screen's Spotlight finds them and continues `CSSearchableItemActionType` / the activity in the app. Tested (homescreen, HelloScenes). `CSSearchQuery` is a stub (no results) |
 | App Clips | ❌ | |
-| Focus filters, Control Center controls | ❌ | |
+| Focus filters, Control Center controls | ❌ | Control Center exists (shell) but apps cannot add controls; Focus is one Do Not Disturb toggle (hides banners), no Focus filters |
 
 ## Location & maps
 
@@ -1219,7 +1220,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | BSD sockets (`socket`, `bind`/`listen`/`accept`, `connect`, `send`/`recv`, `getaddrinfo`, `inet_pton`, `poll`/`select`, `getifaddrs`) | ✅ | Darwin structs, constants and errno translated to the host's; tested (TCP server + client, socketpair, poll, select, getifaddrs, `SO_RCVTIMEO`); `read`/`write` errno translated too; UDP unverified |
 | `fcntl`, `ioctl` (e.g. non-blocking sockets) | 🟡 | C/Objective-C only: Swift cannot call these variadic functions without a Swift Darwin overlay |
 | MultipeerConnectivity | ❌ | |
-| Universal Links / Associated Domains | ❌ | |
+| Universal Links / Associated Domains | 🟡 | `applinks:` entitlements (`isim-entitlements.plist`, copied by `isim build`) route https links opened by other apps or `openurl` to the app as `NSUserActivityTypeBrowsingWeb`; no AASA download/path matching (offline). Tested (HelloSystem) |
 
 ## Logging & diagnostics
 
@@ -1243,7 +1244,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Compile ObjC/C for iOS on Linux (`isim cc`) | ✅ | clang/lld; simulator x86_64 and device arm64 Mach-O |
 | Compile Swift (`isim swiftc`) | ✅ | Docker `swift:6.2` image |
 | `isim build` for Xcode projects (`.xcodeproj`, targets, schemes, configurations, build settings) | ✅ | |
-| App extensions in projects (`.appex`, embedded in `PlugIns/`) | ✅ | keyboards run; other extension types are built but not hosted |
+| App extensions in projects (`.appex`, embedded in `PlugIns/`) | ✅ | keyboards run; widget extensions run as helper processes (WidgetKit); other extension types are built but not hosted |
 | Static libraries / framework targets in projects | ❌ | "product type not supported yet" |
 | Local Swift packages | ✅ | targets built as modules |
 | Remote Swift packages (GitHub dependencies) | 🟡 | not fetched; build only if isim ships a stand-in (Google Mobile Ads today) |
@@ -1252,7 +1253,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Asset catalogs (images, colors, app icon) | ✅ | compiled to isim's own format (not `Assets.car`) |
 | Info.plist (`$(VARS)`, `INFOPLIST_KEY_*`) | ✅ | never claims Xcode/SDK identity |
 | Entitlements | 🧩 | not enforced or signed |
-| App icons on the home screen | ✅ | from the asset catalog |
+| App icons on the home screen | ✅ | from the asset catalog, `CFBundleIconFiles`, or the alternate icon the app chose |
 | Launch screen (`UILaunchScreen` dictionary, LaunchScreen storyboard) | ❌ | |
 | Storyboards / XIBs (`UIMainStoryboardFile`, `UISceneStoryboardFile`, nibs) | ❌ | needs an ibtool replacement; logged and ignored |
 | Localization (`.xcstrings`, `.lproj/.strings`, app language from Settings) | 🟡 | plurals limited (see Foundation) |
@@ -1263,9 +1264,9 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Rotation / landscape | ❌ | |
 | Multiple iOS versions (`--os`: reported version and look) | 🟡 | `ISIM_OS_VERSION` changes the reported version; look is always iOS 17/18 |
 | Home screen: launch, background/resume, home gesture (swipe up / Ctrl+Shift+H), delete apps | ✅ | apps run as separate processes |
-| Home screen: folders, App Library, widgets, rearranging icons, Spotlight | ❌ | |
-| App switcher / multitasking | ❌ | |
-| Lock screen, Notification Center, Control Center | ❌ | |
+| Home screen: folders, App Library, widgets, rearranging icons, Spotlight | ✅ | pages; edit mode: drag to rearrange, drop on an icon to make a folder (named from `LSApplicationCategoryType`), saved in `Library/SpringBoard/IconState.plist`; folders open; App Library page (categories, search); widgets (gallery, grid placement); Spotlight (pull down, Search button, script `spotlight`). Tested (homescreen, widgets). No folder renaming, dragging out of folders or across pages, jiggle animation |
+| App switcher / multitasking | ✅ | swipe up and hold, Ctrl+Shift+H twice, script `switcher`: cards of running apps (last frames) in recent order; swipe a card up to close the app (scene sessions discarded), tap to switch. Tested (systemui). No Slide Over / Split View |
+| Lock screen, Notification Center, Control Center | ✅ | lock (Ctrl+L, script `lock`): apps go to the background, clock, notifications and Live Activities; swipe up / `unlock`. Notification Center (pull down from the top): list, open (didReceive), clear. Control Center (pull down at the top right): Wi-Fi / Airplane Mode make the network unavailable (NWPathMonitor, URLSession), Dark Mode (the global setting), orientation lock, Focus (hides banners); brightness dims the screen; cellular, Bluetooth, mirroring, volume, flashlight, timer are cosmetic. Tested (systemui) |
 | Settings app: General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, Game Center, per-app pages | 🟡 | only the settings isim implements |
 | Settings bundles (`Settings.bundle` for app pages) | ❌ | |
 | System keyboard + keyboard extensions | ✅ | English (US) only |
