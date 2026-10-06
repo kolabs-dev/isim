@@ -84,7 +84,7 @@ NSString *NSStringFromUIEdgeInsets(UIEdgeInsets i) { return [NSString stringWith
 + (UIColor *)colorWithDisplayP3Red:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a { return [self colorWithRed:r green:g blue:b alpha:a]; }
 + (UIColor *)colorWithWhite:(CGFloat)w alpha:(CGFloat)a { return [[self alloc] initWithWhite:w alpha:a]; }
 + (UIColor *)colorWithHue:(CGFloat)h saturation:(CGFloat)s brightness:(CGFloat)b alpha:(CGFloat)a { return [[self alloc] initWithHue:h saturation:s brightness:b alpha:a]; }
-+ (UIColor *)colorWithCGColor:(CGColorRef)cg { const CGFloat *c = CGColorGetComponents(cg); return c ? [self colorWithRed:c[0] green:c[1] blue:c[2] alpha:c[3]] : [self clearColor]; }
++ (UIColor *)colorWithCGColor:(CGColorRef)cg { if (!cg) return [self clearColor]; double c[4]; isim_cg_color_rgba(cg, c); return [self colorWithRed:c[0] green:c[1] blue:c[2] alpha:c[3]]; }
 + (UIColor *)colorWithDynamicProvider:(UIColor * (^)(UITraitCollection *))p { return [[self alloc] initWithDynamicProvider:p]; }
 
 static UIColor *rgb255(int r, int g, int b, double a) { return [UIColor colorWithRed:r / 255.0 green:g / 255.0 blue:b / 255.0 alpha:a]; }

@@ -909,6 +909,8 @@ const char *isim_bundle_path(void) {
 }
 
 cairo_t *isim_host_cairo(void) { return cr; }
+/* host_cg.c: makes another cairo context the drawing target (bitmap/PDF contexts); returns the previous one */
+cairo_t *isim_host_swap_cairo(cairo_t *n) { cairo_t *o = cr; cr = n; return o; }
 
 /* ---- offscreen drawing (UIGraphicsBeginImageContext / UIGraphicsImageRenderer): a stack of image surfaces
    that temporarily replace the screen as the drawing target ---- */
@@ -1042,6 +1044,7 @@ void isim_shell_request(int type, const char *a, const char *b, const char *c) {
 }
 
 #include "shell.inc"
+#include "host_cg_exports.h"
 
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
@@ -1069,6 +1072,7 @@ static const struct shim isim_table[] = {
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
+    ISIM_CG_EXPORTS(H),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
 };

@@ -423,5 +423,31 @@ void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h) {
     for (int y = 0; y < h; y++) memcpy(dst + y * ds, px + (size_t)y * w * 4, (size_t)w * 4);
     cairo_surface_mark_dirty(im->surf);
 }
+
+/* ---------------- surfaces for host_cg.c (Core Graphics pixel access, ImageIO, Core Image) ---------------- */
+/* the pixels of an image: raster images give their surface (*owned = 0); vector/procedural images are
+   rasterized at their intrinsic size into a new surface (*owned = 1, destroy it) */
+cairo_surface_t *isim_image_get_surface(int hd, int *owned) {
+    struct img *im = get(hd);
+    *owned = 0;
+    if (!im) return NULL;
+    if (im->kind == IMG_RASTER) { cairo_surface_flush(im->surf); return im->surf; }
+    int w = (int)ceil(im->w), h = (int)ceil(im->h);
+    if (im->kind == IMG_PROC) { w = (int)ceil(im->w * 64); h = (int)ceil(im->h * 64); }
+    if (w <= 0 || h <= 0) return NULL;
+    cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+    cairo_t *c = cairo_create(s);
+    if (im->kind == IMG_SVG) { RsvgRectangle vp = { 0, 0, w, h }; rsvg_handle_render_document(im->svg, c, &vp, NULL); }
+    else { cairo_set_source_rgba(c, 0, 0, 0, 1); draw_proc(c, im, w, h); }
+    cairo_destroy(c);
+    cairo_surface_flush(s);
+    *owned = 1;
+    return s;
+}
+/* a new raster image that takes over an ARGB32 surface */
+int isim_image_adopt_surface(cairo_surface_t *s) {
+    struct img v = { IMG_RASTER, s, NULL, cairo_image_surface_get_width(s), cairo_image_surface_get_height(s) };
+    return new_img(v);
+}
 /* the raster surface behind a handle (NULL for vector/procedural images); used by host_ca.c */
 cairo_surface_t *isim_image_surface(int hd) { struct img *im = get(hd); return im && im->kind == IMG_RASTER ? im->surf : NULL; }

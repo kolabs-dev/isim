@@ -16,7 +16,7 @@ step() { printf '\n== %s\n' "$*"; }
 step "host runtime"
 PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/objc_exc.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c runtime/host_gamepad.c runtime/host_ca.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/objc_exc.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c runtime/host_gamepad.c runtime/host_ca.c runtime/host_cg.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread -ldl
 
 step "SDK headers"
@@ -81,10 +81,14 @@ framework() { # Name srcdir [extra ld args...]
 }
 
 framework CoreFoundation frameworks/CoreFoundation
-framework CoreGraphics frameworks/CoreGraphics -lisim_host
+# CoreGraphics sits below Foundation: CF strings/data/collections it uses resolve at load time (flat lookup)
+framework CoreGraphics frameworks/CoreGraphics -lisim_host -U ___CFConstantStringClassReference -U _CFDataCreate -U _CFDataGetBytePtr \
+    -U _CFDataGetLength -U _CFDataAppendBytes -U _CFArrayGetCount -U _CFArrayGetValueAtIndex -U _CFDictionaryGetValue -U _CFRetain -U _CFRelease
 framework Foundation frameworks/Foundation -framework CoreGraphics -lisim_host
-framework CoreText frameworks/CoreText -framework Foundation -lisim_host
+framework CoreText frameworks/CoreText -framework Foundation -framework CoreGraphics -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
+framework ImageIO frameworks/ImageIO -framework Foundation -framework CoreGraphics -lisim_host
+framework CoreImage frameworks/CoreImage -framework Foundation -framework CoreGraphics -framework ImageIO -framework UIKit -lisim_host
 framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 framework CoreData frameworks/CoreData -framework Foundation -lsqlite3
 

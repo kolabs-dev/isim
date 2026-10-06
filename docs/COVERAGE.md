@@ -22,15 +22,15 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 123 | 50 | 9 | 17 | 199 | 74% |
+| **UIKit** | 126 | 50 | 9 | 15 | 200 | 76% |
 | &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
-| &nbsp;&nbsp;↳ Views & controls | 32 | 15 | 1 | 3 | 51 | 77% |
+| &nbsp;&nbsp;↳ Views & controls | 33 | 15 | 1 | 2 | 51 | 79% |
 | &nbsp;&nbsp;↳ Layout | 16 | 2 | 0 | 1 | 19 | 89% |
 | &nbsp;&nbsp;↳ Animation | 8 | 4 | 0 | 0 | 12 | 83% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 9 | 3 | 2 | 0 | 14 | 75% |
-| &nbsp;&nbsp;↳ Drawing, images & symbols | 12 | 3 | 0 | 3 | 18 | 75% |
+| &nbsp;&nbsp;↳ Drawing, images & symbols | 14 | 3 | 0 | 2 | 19 | 82% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 1 | 0 | 1 | 1 | 3 | 33% |
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
@@ -63,10 +63,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Combine | 11 | 0 | 0 | 3 | 14 | 79% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
 | Objective-C runtime & C library | 12 | 3 | 0 | 0 | 15 | 90% |
-| Core Graphics | 9 | 0 | 0 | 7 | 16 | 56% |
-| Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
+| Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
+| Core Text | 4 | 3 | 0 | 0 | 7 | 79% |
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
-| Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
+| Core Image, ImageIO & Metal | 2 | 1 | 0 | 2 | 5 | 50% |
 | SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
 | GameKit (Game Center) | 10 | 4 | 3 | 1 | 18 | 67% |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 13 | 8 | 1 | 4 | 26 | 65% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 17 | 7 | 1 | 11 | 36 | 57% |
-| **All areas** | **530** | **198** | **41** | **110** | **879** | **72%** |
+| **All areas** | **544** | **208** | **41** | **97** | **890** | **73%** |
 
 ---
 
@@ -175,7 +175,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Button menus (`menu`, `showsMenuAsPrimaryAction`), pop-up buttons | ✅ | UIButton.menu + showsMenuAsPrimaryAction, UIBarButtonItem menus; tested |
 | `UIControl` target-action, `UIAction`, control events/states | ✅ | |
 | `UIImageView` | ✅ | PNG/JPEG/… via gdk-pixbuf, SVG via librsvg |
-| Animated images (`animationImages`, `UIImage.animatedImage`) | ❌ | |
+| Animated images (`animationImages`, `UIImage.animatedImage`) | ✅ | `UIImage.animatedImage(with:duration:)` / `animatedImageNamed`, `UIImageView.animationImages` / duration / repeat count / `startAnimating`; an animated `image` plays by itself; frames advanced per display frame; tested (HelloImaging). `highlightedAnimationImages` unverified |
 | `UITextField` | 🟡 | caret always at the end: no selection, cursor movement, copy/paste |
 | `UITextView` | 🟡 | plain text, editable/scrollable, self-sizing when `isScrollEnabled = false`, delegate (should/did begin/end, `shouldChangeTextIn`, did change), notifications, keyboard traits, tap places the caret, `selectedRange`, `scrollRangeToVisible`; tested (HelloInputs). No attributed text, selection UI, edit menu or data detectors (stored) |
 | `UISwitch` | ✅ | |
@@ -294,12 +294,13 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIBezierPath` (rect, oval, rounded rect, arcs, curves, fill, stroke) | 🟡 | no dashes, line caps/joins, `addClip`, `contains` |
 | `UIRectFill`, `UIRectFrame` | ✅ | |
 | `UIGraphicsImageRenderer` / `UIGraphicsBeginImageContext` (offscreen drawing) | ✅ | image/pngData/jpegData renderers, formats (scale, opaque), renderer context helpers, nested contexts; tested (HelloImages). Backdrop blur inside an offscreen context reads the screen |
-| `UIGraphicsPDFRenderer`, printing | ❌ | |
+| `UIGraphicsPDFRenderer`, `UIGraphicsBeginPDFContextToData/File` | ✅ | cairo PDF surface; UIKit drawing (fills, text, images) goes to the page; `pdfData`, multiple pages, `beginPage(withBounds:)`; tested (HelloQuartz, read back with CGPDFDocument). `writePDF(to:)` unverified; links/destinations ignored |
+| Printing (`UIPrintInteractionController`) | ❌ | |
 | `UIImage(named:)` (bundle + asset catalog, 1x/2x/3x, dark variants) | ✅ | |
 | `UIImage(contentsOfFile:)`, `UIImage(cgImage:)` | ✅ | |
 | `UIImage(data:)` | ✅ | PNG/JPEG/GIF/SVG via the host decoders, with `scale:`; tested (HelloImages) |
 | `pngData()` / `jpegData()` | ✅ | `UIImagePNGRepresentation`/`UIImageJPEGRepresentation` (JPEG composites transparency over black, as iOS does); tested (HelloImages) |
-| `resizableImage(withCapInsets:)`, `withHorizontallyFlippedOrientation` | ❌ | |
+| `resizableImage(withCapInsets:resizingMode:)`, `withHorizontallyFlippedOrientation`, `imageOrientation` | ✅ | nine slices (caps fixed, edges/center stretched or tiled), orientations drawn rotated/mirrored with swapped sizes for left/right; tested (HelloImaging). Tile mode and `stretchableImage` unverified; `imageFlippedForRightToLeftLayoutDirection` returns the image (isim is LTR) |
 | `withTintColor`, rendering modes (template/original) | ✅ | |
 | SF Symbols (`UIImage(systemName:)`) | 🟡 | substitutes (procedural shapes / Adwaita symbolic icons), not Apple's glyphs |
 | `UIImage.SymbolConfiguration` (point size, weight, scale, text style) | ✅ | |
@@ -878,25 +879,34 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Graphics state, CTM (translate/scale/rotate/concat), alpha, line width/cap/join/miter limit | ✅ | caps/joins/miter limit unverified |
 | Clipping (`clip`, `clip(using: .evenOdd)`, `clip(to: rect)`) | ✅ | even-odd clip unverified |
 | `CGPath` / `CGMutablePath` (build, bounding box, contains, apply) | ✅ | |
-| `CGColor` (RGB, gray, copy with alpha) | ✅ | |
-| `CGColorSpace`, Display P3, pattern colors | ❌ | P3 colors become sRGB |
+| `CGColor` (RGB, gray, copy with alpha, components in their space, `converted(to:)`) | ✅ | gray colors keep 2 components; tested (HelloQuartz) |
+| `CGColorSpace` (sRGB, Display P3, linear, gray, CMYK, pattern) | 🟡 | colors in other spaces are converted to sRGB for drawing (P3 exact conversion, out-of-gamut clamped; no wide-color output); tested (HelloQuartz) |
+| Pattern colors (`CGPattern`, `setFillPattern`) | 🟡 | colored patterns: the cell is drawn once (2x) and tiled; pattern space is relative to the current CTM; tested (HelloQuartz). Uncolored patterns and stroke patterns unverified |
 | `CGImage` (from UIImage, crop, draw into context) | ✅ | decoded by the host |
-| `CGImage` from raw bytes (`CGDataProvider`, `CGImageCreate`) | ❌ | |
-| `CGBitmapContext` (offscreen drawing, pixel access) | ❌ | |
-| `CGGradient`, `CGShading` | ❌ | |
+| `CGImage` from raw bytes (`CGDataProvider`, `CGImageCreate`, `CGImageMaskCreate`, `masking`, `dataProvider`) | ✅ | 8 bits per component (RGB(A/X) in any order, gray, gray+alpha, alpha only, masks, decode arrays); 16-bit/float layouts are refused with a log; decoded images report premultiplied RGBA bytes; tested (HelloQuartz) |
+| `CGBitmapContext` (`CGContext(data:...)`, pixel read/write, `makeImage`) | ✅ | draws into app memory (zero-copy for BGRA/A8, converted in/out for RGBA and gray), y-up like iOS; `UIGraphicsPushContext` makes UIKit draw into it; tested (HelloQuartz) |
+| `CGGradient`, `CGShading` (`CGFunction`) | ✅ | linear/radial with before/after extension; shadings sampled at 64 steps; tested (HelloQuartz). One-sided radial extension approximated |
 | Line dashes (`setLineDash`) | ✅ | tested (HelloDrawing) |
-| Shadows (`setShadow`), blend modes, transparency layers | ❌ | |
-| Text drawing in CG | ❌ | |
-| PDF documents/contexts | ❌ | |
+| Shadows (`setShadow`) | 🟡 | operations drawn as a group, alpha blurred with a 3-pass box blur and offset in base space; tested (HelloQuartz). On PDF contexts the shadow is not blurred |
+| Blend modes, transparency layers | ✅ | blend modes map to cairo operators (`plusDarker` approximated); layers composite with the outer alpha/shadow; multiply and layer tested (HelloQuartz) |
+| Clip to mask (`clip(to:mask:)`) | ✅ | alpha of masks with alpha, luminance of opaque masks; tested (HelloQuartz) |
+| Text drawing in CG (Core Text lines/frames, text matrix/position) | ✅ | glyphs drawn y-up through the text matrix (upside down in UIKit's flipped space, as on iOS); `CGContextShowTextAtPoint` (deprecated) unverified; text drawing modes other than fill/invisible draw as fill |
+| `CGContext` queries (`ctm`, `boundingBoxOfClipPath`, `path`, `isPathEmpty`, conversions) | 🟡 | unverified; `replacePathWithStrokedPath` is a no-op |
+| PDF contexts (`CGContext(consumer:mediaBox:)`, `beginPDFPage`, `closePDF`) | ✅ | cairo PDF surface, y-up pages; tested (HelloQuartz) |
+| `CGPDFDocument` / `CGPDFPage` (read, `drawPDFPage`) | 🟡 | through the host's poppler-glib when installed (fails to open otherwise); box rects are the media box; tested (HelloQuartz) |
+| `CGFont` | 🟡 | a font name only (no glyph tables); unverified |
 
 ## Core Text
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `CTFont` by name, size, names, metrics, character set | ✅ | unknown names fall back to the system font |
+| `CTFont` by name, size, names, metrics, character set | ✅ | unknown names fall back to the system font; iOS font names missing on the host keep their weight/slant on the substitute |
 | `CTFontManagerRegisterFontsForURL` | ✅ | process scope |
-| `CTFontDescriptor`, font features/traits | ❌ | |
-| `CTLine`, `CTFramesetter`, `CTRun`, typesetting | ❌ | |
+| `CTFontDescriptor`, symbolic traits, font features | 🟡 | descriptors are attribute dictionaries; bold/italic/mono traits; OpenType feature tags and a few AAT selectors go to the shaper; glyph advances are estimates; unverified |
+| `CTLine` (create, typographic bounds, offsets/indices, truncation, draw) | ✅ | laid out by Pango (HarfBuzz); tested (HelloQuartz); truncation unverified |
+| `CTRun` (glyphs, positions, advances, string indices, attributes) | 🟡 | runs are Pango glyph items; glyph ids are HarfBuzz's for the substituted font; counts tested (HelloQuartz) |
+| `CTFramesetter` / `CTFrame` (frames in a path's bounding box, line origins, suggest size) | ✅ | rectangular paths only (bounding box); tested (HelloQuartz) |
+| `CTParagraphStyle` | 🟡 | alignment and line spacing; others stored; unverified |
 
 ## QuartzCore / Core Animation
 
@@ -931,8 +941,9 @@ their presentation copies (model + running animations); there is no separate ren
 
 | API / feature | Status | Notes |
 |---|---|---|
-| Core Image (`CIImage`, `CIFilter`, `CIContext`) | ❌ | |
-| ImageIO (`CGImageSource`, metadata, GIF/HEIC decoding, `CGImageDestination`) | ❌ | UIKit decodes PNG/JPEG/SVG through the host |
+| Core Image (`CIImage`, `CIFilter`, `CIContext`, `CIFilterBuiltins`) | 🟡 | CPU renderer (adapted): premultiplied sRGB floats instead of Apple's linear working space. Filters: CIGaussianBlur, CIColorControls, CISepiaTone, CIPhotoEffect* (approximations), CIColorInvert, CIColorMatrix, CIAffineTransform, CICrop, CISourceOver/CIMultiplyCompositing, CIQRCodeGenerator, CICheckerboardGenerator, CIConstantColorGenerator, CILinearGradient, CIVignette; transforms, crops, clamping, `UIImage(ciImage:)`; tested (HelloImaging, QR decoded with zbarimg). Other built-in filters missing (`CIFilter(name:)` returns nil), no custom kernels |
+| ImageIO `CGImageSource` (types, count, properties, frames, thumbnails, EXIF orientation) | ✅ | PNG/JPEG/GIF/WebP/BMP/TIFF/ICO via gdk-pixbuf; GIF delays/loop count; thumbnails with max size and orientation transform; tested (HelloImaging). HEIC/AVIF through the host's ffmpeg (unverified); incremental sources unverified |
+| ImageIO `CGImageDestination` (PNG, JPEG, animated GIF) | ✅ | GIF palette: exact up to 255 colors, else a color cube; tested (HelloImaging). Other types (HEIC, TIFF) are refused |
 | Metal, MetalKit (`MTLDevice`, `MTKView`) | ❌ | no GPU API |
 | OpenGL ES / GLKit | ❌ | |
 

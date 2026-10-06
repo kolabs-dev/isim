@@ -123,8 +123,7 @@ CFTimeInterval CACurrentMediaTime(void) { return isim_time(); }
 /* ================= values ================= */
 void ca_rgba(CGColorRef c, double out[4]) {
     if (!c) { out[0] = out[1] = out[2] = out[3] = 0; return; }
-    const CGFloat *k = CGColorGetComponents(c);
-    for (int i = 0; i < 4; i++) out[i] = k[i];
+    isim_cg_color_rgba(c, out);          /* sRGB RGBA whatever the color's space (gray colors have 2 components) */
 }
 CGColorRef ca_color(const double rgba[4]) {
     CGColorRef c = CGColorCreateSRGB(fmin(1, fmax(0, rgba[0])), fmin(1, fmax(0, rgba[1])), fmin(1, fmax(0, rgba[2])), fmin(1, fmax(0, rgba[3])));
