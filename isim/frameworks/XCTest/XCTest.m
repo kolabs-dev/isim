@@ -546,10 +546,8 @@ static BOOL id_matches(NSString *ident, NSString *bundle, Class c, NSString *met
     NSString *cls = short_class_name(c), *full = readable_class_name(c);
     BOOL (^clsMatch)(NSString *) = ^BOOL(NSString *x) { return [x isEqualToString:cls] || [x isEqualToString:full]; };
     if (p.count == 1) return [p[0] isEqualToString:bundle] || clsMatch(p[0]);
-    if (p.count == 2) {
-        if ([p[0] isEqualToString:bundle]) return clsMatch(p[1]);
-        return clsMatch(p[0]) && (!method || [p[1] isEqualToString:method]);
-    }
+    if (p.count == 2)                    /* Class/test, or Bundle/Class (a class may be named like its bundle) */
+        return (clsMatch(p[0]) && (!method || [p[1] isEqualToString:method])) || ([p[0] isEqualToString:bundle] && clsMatch(p[1]));
     return [p[0] isEqualToString:bundle] && clsMatch(p[1]) && (!method || [p[2] isEqualToString:method]);
 }
 static NSString *xml_escape(NSString *s) {

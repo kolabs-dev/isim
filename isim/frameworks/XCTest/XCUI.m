@@ -71,7 +71,10 @@ static _XCUINode *parse_snapshot(const char *text) {
     _XCUINode *root = nil;
     NSMutableArray<_XCUINode *> *stack = [NSMutableArray array];
     for (NSString *line in lines) {
-        NSArray *f = [line componentsSeparatedByString:@"\t"];
+        NSMutableArray *f = [NSMutableArray array];        /* keep empty trailing fields */
+        NSUInteger start = 0;
+        for (NSUInteger i = 0; i <= line.length; i++)
+            if (i == line.length || [line characterAtIndex:i] == '\t') { [f addObject:[line substringWithRange:NSMakeRange(start, i - start)]]; start = i + 1; }
         if (f.count < 11) continue;
         _XCUINode *n = [_XCUINode new];
         int depth = [f[0] intValue];
@@ -494,6 +497,7 @@ static NSString *app_for_bundle_id(NSString *bid) {
 - (void)_isim_send:(NSString *)cmd { if (isim_xcui_send(_handle, cmd.UTF8String) != 0) _XCTIsimRecordFailure(@"The application is not running", nil, 0, YES); }
 - (_XCUINode *)_isim_snapshotQuiet:(BOOL)quiet {
     char *text = isim_xcui_snapshot(_handle, 10);
+    if (getenv("ISIM_XCUI_DEBUG")) fprintf(stderr, "xcui snapshot (handle %d):\n%s\n", _handle, text ?: "(none)");
     if (!text) return nil;
     _XCUINode *root = parse_snapshot(text);
     isim_xcui_free(text);

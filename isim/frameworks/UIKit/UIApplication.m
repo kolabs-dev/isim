@@ -850,8 +850,9 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 NSString *exe = [path stringByAppendingPathComponent:tb.infoDictionary[@"CFBundleExecutable"] ?: path.lastPathComponent.stringByDeletingPathExtension];
                 if (!dlopen(exe.UTF8String, RTLD_NOW)) { fprintf(stderr, "isim: cannot load test bundle %s: %s\n", exe.UTF8String, dlerror()); exit(70); }
                 int (*runTests)(const char *) = (int (*)(const char *))dlsym(RTLD_DEFAULT, "XCTIsimRunTestBundle");
+                int rc = runTests ? runTests(path.UTF8String) : 70;
                 fflush(NULL);
-                exit(runTests ? runTests(path.UTF8String) : 70);
+                _exit(rc);
             });
         }
         if (getenv("ISIM_LAUNCH_URL")) { NSString *u = @(getenv("ISIM_LAUNCH_URL")); dispatch_async(dispatch_get_main_queue(), ^{ deliver_url(u); }); }

@@ -358,10 +358,24 @@ class Packages:
 
     @staticmethod
     def merge(into, r):
+        def chunks(flags):                      # a flag with its argument is one unit ("-I dir", "-Xcc -Idir")
+            out, i = [], 0
+            while i < len(flags):
+                if flags[i] in ('-I', '-F', '-L', '-framework', '-Xcc', '-Xlinker') and i + 1 < len(flags):
+                    out.append(tuple(flags[i:i + 2])); i += 2
+                else:
+                    out.append((flags[i],)); i += 1
+            return out
         for k in into:
-            for x in r.get(k, []):
-                if x not in into[k]:
-                    into[k].append(x)
+            if k in ('swift_flags', 'cc_flags', 'link'):
+                have = set(chunks(into[k]))
+                for c in chunks(r.get(k, [])):
+                    if c not in have:
+                        into[k].extend(c); have.add(c)
+            else:
+                for x in r.get(k, []):
+                    if x not in into[k]:
+                        into[k].append(x)
         return into
 
     def product(self, pkg_dir, product):
@@ -540,7 +554,7 @@ class Packages:
             for f in csrc:
                 o = os.path.join(objdir, os.path.basename(f) + '.o')
                 lang = ['-fno-objc-arc'] if f.endswith(('.m', '.mm')) else []     # SwiftPM: no ARC unless asked
-                run([ISIM, 'cc', '-c', f, '-o', o] + lang + cflags + flags)
+                run([ISIM, 'cc', '-Wno-unused-command-line-argument', '-c', f, '-o', o] + lang + cflags + flags)
                 res['objs'].append(o)
             # module map for importers (Swift and C): the target's own include/module.modulemap, or a generated one
             mapdir = os.path.join(objdir, 'module')
@@ -556,7 +570,7 @@ class Packages:
                 with open(os.path.join(mapdir, 'module.modulemap'), 'w') as f:
                     f.write(f'module {tname} {{\n  {body}\n  export *\n}}\n')
                 res['swift_flags'] += ['-I', mapdir]
-            res['swift_flags'] += ['-Xcc', '-I', '-Xcc', include]
+            res['swift_flags'] += ['-Xcc', '-I' + include]
             res['cc_flags'] += ['-I', include]
             log(f'{tname}: package C/ObjC target ({len(csrc)} files)')
         if swift:
@@ -806,7 +820,7 @@ class Builder:
             lib, headers = xcframework_slice(path)
             if headers:
                 res['cc_flags'] += ['-I', headers]
-                res['swift_flags'] += ['-I', headers, '-Xcc', '-I', '-Xcc', headers]
+                res['swift_flags'] += ['-I', headers, '-Xcc', '-I' + headers]
             return self.add_binary(lib, res)
         if name.endswith('.framework'):
             fw = name[:-len('.framework')]
@@ -966,7 +980,7 @@ class Builder:
                 cmd += ['-I', d]
             for i in range(0, len(common_cc), 2):
                 flag, val = common_cc[i], common_cc[i + 1]
-                cmd += ['-F', val] if flag == '-F' else ['-Xcc', '-I', '-Xcc', val]
+                cmd += ['-F', val] if flag == '-F' else ['-Xcc', '-I' + val]
             for d in defs:
                 cmd += ['-Xcc', '-D' + d]
             cmd += deps['swift_flags']
@@ -982,7 +996,7 @@ class Builder:
             bridging = s.get('SWIFT_OBJC_BRIDGING_HEADER')
             if bridging and not is_framework:
                 bpath = bridging if os.path.isabs(bridging) else os.path.join(target.p.root, bridging)
-                cmd += ['-import-objc-header', bpath, '-Xcc', '-I', '-Xcc', os.path.dirname(bpath)]
+                cmd += ['-import-objc-header', bpath, '-Xcc', '-I' + os.path.dirname(bpath)]
             if is_framework and public_headers:
                 # the framework's own ObjC API, seen by its Swift code through the umbrella header (like Xcode's
                 # unextended module map); the final module map (with the -Swift.h submodule) is written after
@@ -1008,7 +1022,7 @@ class Builder:
             obj = os.path.join(objdir, os.path.basename(f) + '.o')
             os.makedirs(objdir, exist_ok=True)
             extra = split_setting(s.get('OTHER_CPLUSPLUSFLAGS')) if f.endswith(('.mm', '.cpp', '.cc')) else []
-            run([ISIM, 'cc', '-c', f, '-o', obj, '-I', os.path.dirname(f)] + cc_base + extra)
+            run([ISIM, 'cc', '-Wno-unused-command-line-argument', '-c', f, '-o', obj, '-I', os.path.dirname(f)] + cc_base + extra)
             objs.append(obj)
         objs += deps['objs']
 
@@ -1095,10 +1109,12 @@ class Builder:
             inc = os.path.join(out, 'include', product_name)
             os.makedirs(inc, exist_ok=True)
             shutil.copy2(swift_header, inc)
-        if kind == 'static' and s.get('DEFINES_MODULE') == 'YES' and public_headers:
-            inc = os.path.join(out, 'include', product_name)
+        inc = os.path.join(out, 'include', product_name)
+        if kind == 'static' and s.get('DEFINES_MODULE') == 'YES' and not swift and os.path.isdir(inc):
+            # an ObjC/C static library that defines a module: a module map over its installed public headers
+            hdrs = sorted(h for h in os.listdir(inc) if h.endswith('.h'))
             with open(os.path.join(inc, 'module.modulemap'), 'w') as f:
-                f.write(f'module {module} {{\n' + ''.join(f'  header "{os.path.basename(h)}"\n' for h in public_headers) + '  export *\n}\n')
+                f.write(f'module {module} {{\n' + ''.join(f'  header "{h}"\n' for h in hdrs) + '  export *\n}\n')
             link_result['swift_flags'] += ['-I', inc]
 
         # resources, Info.plist

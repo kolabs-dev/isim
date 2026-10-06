@@ -284,6 +284,9 @@ class Target:
             levels.append(conf.get('buildSettings', {}))
         levels.append(overrides or {})
         s = merge_levels(levels, configuration)
+        if 'PRODUCT_MODULE_NAME' not in s:
+            s['PRODUCT_MODULE_NAME'] = re.sub(r'[^A-Za-z0-9_]', '_', expand(s['PRODUCT_NAME'], s))
+        s.setdefault('EXECUTABLE_NAME', '$(PRODUCT_NAME)')
         expanded = {k: expand(v, s) for k, v in s.items()}
         expanded.setdefault('PRODUCT_MODULE_NAME', re.sub(r'[^A-Za-z0-9_]', '_', expanded['PRODUCT_NAME']))
         expanded.setdefault('EXECUTABLE_NAME', expanded['PRODUCT_NAME'])
