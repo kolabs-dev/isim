@@ -30,6 +30,10 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloCollection.app/HelloCollection ] && run "ui: HelloCollection (UICollectionView flow/compositional/list)" tests/ui/collection.sh
   [ -x out/apps/HelloGestures.app/HelloGestures ] && run "ui: HelloGestures (recognizers, key commands, shake)" tests/ui/gestures.sh
   [ -x out/apps/HelloMultiTouch.app/HelloMultiTouch ] && run "ui: HelloMultiTouch (pinch, rotation, two-finger pan, zooming, hover, pointer)" tests/ui/multitouch.sh
+  [ -x out/apps/HelloTextEditing.app/HelloTextEditing ] && run "ui: HelloTextEditing (selection, edit menu, marked text, keyboards, autocorrection)" tests/ui/textediting.sh
+  [ -x out/apps/HelloAccessibility.app/HelloAccessibility ] && run "ui: HelloAccessibility (VoiceOver, accessibility tree, Dynamic Type, settings)" tests/ui/accessibility.sh
+  [ -x out/apps/HelloDragDrop.app/HelloDragDrop ] && run "ui: HelloDragDrop (drag and drop interactions, table reordering, SwiftUI)" tests/ui/dragdrop.sh
+  [ -x out/apps/HelloSwiftUIGestures.app/HelloSwiftUIGestures ] && run "ui: HelloSwiftUIGestures (magnify, rotate, sequenced, exclusive, @GestureState)" tests/ui/swiftui-gestures.sh
   [ -x out/apps/HelloImages.app/HelloImages ] && run "ui: HelloImages (image renderer, PNG/JPEG, attributed text)" tests/ui/images.sh
   [ -x out/apps/HelloRotation.app/HelloRotation ] && run "ui: HelloRotation (device rotation, orientations, size classes)" tests/ui/rotation.sh
   [ -x out/apps/HelloConstraints.app/HelloConstraints ] && run "ui: HelloConstraints (VFL, keyboard layout guide, trait registration)" tests/ui/constraints.sh

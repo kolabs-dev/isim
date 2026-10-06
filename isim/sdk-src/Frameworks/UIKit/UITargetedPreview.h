@@ -34,4 +34,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) CGSize size;
 - (UITargetedPreview *)retargetedPreviewWithTarget:(UIPreviewTarget *)newTarget;
 @end
+/* snapshots (used for drag previews): the view as currently drawn */
+@interface UIView (UISnapshotting)
+- (nullable UIView *)snapshotViewAfterScreenUpdates:(BOOL)afterUpdates;
+- (BOOL)drawViewHierarchyInRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates;
+@end
 NS_ASSUME_NONNULL_END

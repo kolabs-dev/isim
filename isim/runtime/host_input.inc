@@ -11,6 +11,7 @@
  *   pinch X Y SCALE SECS          two fingers around (X, Y), 100 pt apart, spread to 100*SCALE pt
  *   rotate2 X Y DEGREES SECS      two fingers 120 pt apart around (X, Y), turned by DEGREES (clockwise > 0)
  *   twofinger X Y DX DY SECS      two fingers 60 pt apart, moved together by (DX, DY)
+ *   longdrag X1 Y1 X2 Y2 HOLD SECS  one finger down, held HOLD s (a long press), then moved over SECS and lifted
  *   hover X Y | hover off         pointer at (X, Y) without touching / pointer leaves
  *   compose TEXT                  IME marked text (an empty TEXT ends composing); `type` commits
  *   voiceover on|off|next|prev|activate|read   VoiceOver (the app's UIKit runs it)
@@ -49,12 +50,30 @@ static void mt_tick(void) {
     mt_push(EV_TOUCH_MOVE, pt);
     if (p >= 1) { mt_push(EV_TOUCH_UP, pt); mt.on = 0; }
 }
+/* longdrag: press, hold, then a timed move */
+static struct { int on; double x1, y1, x2, y2, hold_until, t0, dur, last; } ld;
+static void ld_tick(void) {
+    double t = now();
+    if (t < ld.hold_until || t - ld.last < 0.016) return;
+    if (!ld.t0) ld.t0 = t;
+    ld.last = t;
+    double p = fmin(1, (t - ld.t0) / ld.dur);
+    pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = ld.x1 + (ld.x2 - ld.x1) * p, .y = ld.y1 + (ld.y2 - ld.y1) * p };
+    if (p >= 1) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = ld.x2, .y = ld.y2 }; ld.on = 0; }
+}
 /* script commands of this file; returns 1 if `cmd` was one */
 static int input_script_cmd(const char *cmd, const char *args) {
     double a, b, c, d, e; char arg[512] = {0};
     if (!strcmp(cmd, "pinch") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) { mt_start(a, b, 0, 0, 50, 50 * c, 0, 0, d); return 1; }
     if (!strcmp(cmd, "rotate2") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) { mt_start(a, b, 0, 0, 60, 60, 0, c * M_PI / 180, d); return 1; }
     if (!strcmp(cmd, "twofinger") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &e) == 5) { mt_start(a, b, c, d, 30, 30, 0, 0, e); return 1; }
+    double f;
+    if (!strcmp(cmd, "longdrag") && sscanf(args, "%lf %lf %lf %lf %lf %lf", &a, &b, &c, &d, &e, &f) == 6) {
+        ld.on = 1; ld.x1 = a; ld.y1 = b; ld.x2 = c; ld.y2 = d; ld.hold_until = now() + e; ld.t0 = 0; ld.dur = f > 0.02 ? f : 0.02; ld.last = 0;
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
+        script_resume = now() + e + ld.dur + 0.1;
+        return 1;
+    }
     if (!strcmp(cmd, "hover")) {
         if (sscanf(args, "%lf %lf", &a, &b) == 2) pending[npending++] = (struct isim_event){ .type = EV_HOVER, .x = a, .y = b };
         else pending[npending++] = (struct isim_event){ .type = EV_HOVER, .pad = 1 };

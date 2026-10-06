@@ -586,8 +586,9 @@ static NSMutableSet<UITouch *> *all_touches(void) { return [NSMutableSet setWith
 static BOOL view_gets_touch(UITouch *t) {
     return t == cur_touch || t.view != cur_touch.view || t.view.multipleTouchEnabled;
 }
+static BOOL synthesizing;
 static void handle_touch(const struct isim_event *ev) {
-    if (isim_ui_touch_filtered(ev)) return;              /* VoiceOver, drag sessions (UIKitInputPrivate.h) */
+    if (!synthesizing && isim_ui_touch_filtered(ev)) return;              /* VoiceOver, drag sessions (UIKitInputPrivate.h) */
     CGPoint p = CGPointMake(ev->x, ev->y);
     int finger = ev->pad == 1 ? 1 : 0;
     if (!active_touches) active_touches = [NSMutableDictionary dictionary];
@@ -666,6 +667,15 @@ static void handle_touch(const struct isim_event *ev) {
         if (!active_touches.count) { cur_touch = nil; cur_gestures = nil; cur_event = nil; }
     }
 }
+/* VoiceOver activation: a tap at a screen point that skips the touch filters */
+void isim_ui_synthesize_tap(CGPoint p) {
+    synthesizing = YES;
+    struct isim_event ev = { .type = ISIM_EV_TOUCH_DOWN, .x = p.x, .y = p.y, .timestamp = isim_time() };
+    handle_touch(&ev);
+    ev.type = ISIM_EV_TOUCH_UP; ev.timestamp = isim_time() + 0.01;
+    handle_touch(&ev);
+    synthesizing = NO;
+}
 /* the touches currently down (drag sessions, VoiceOver) */
 NSSet<UITouch *> *isim_ui_active_touches(void) { return all_touches(); }
 
@@ -686,6 +696,8 @@ static void handle_key(const struct isim_event *ev) {
         if (isim_ui_hardware_key(ev->pad, ev->key, ev->mods, YES)) return;     /* a UIKeyCommand took it */
     }
     id fr = isim_ui_first_responder();
+    /* text navigation and editing shortcuts (arrows, Shift-select, Cmd/Ctrl+A/C/X/V, forward delete) */
+    if (ev->type == ISIM_EV_KEY && [fr conformsToProtocol:@protocol(IsimEditableText)] && isim_ui_text_handle_key(fr, ev->pad, ev->mods)) { isim_ui_set_needs_display(); return; }
     if (![fr respondsToSelector:@selector(insertText:)]) return;
     if (ev->type == ISIM_EV_TEXT) [fr insertText:@(ev->text)];
     else if (ev->key == 8) [fr deleteBackward];
@@ -704,8 +716,12 @@ static void dump_view(UIView *v, int depth) {
         : [v isKindOfClass:[UISwitch class]] ? (((UISwitch *)v).on ? @"on" : @"off")
         : [v isKindOfClass:[UISlider class]] ? [NSString stringWithFormat:@"%g", ((UISlider *)v).value]
         : [v isKindOfClass:[UISegmentedControl class]] ? [NSString stringWithFormat:@"segment %ld", (long)((UISegmentedControl *)v).selectedSegmentIndex] : nil;
-    fprintf(stderr, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
-            v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "");
+    static int ax = -1;
+    if (ax < 0) { const char *e = getenv("ISIM_DUMP_ACCESSIBILITY"); ax = e && *e && strcmp(e, "0"); }   /* ax="label, value, traits" */
+    NSString *axs = ax ? isim_ui_accessibility_dump(v) : nil;
+    fprintf(stderr, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
+            v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "",
+            axs ? " ax=\"" : "", axs ? axs.UTF8String : "", axs ? "\"" : "");
     for (UIView *s in v.subviews) dump_view(s, depth + 1);
 }
 
@@ -758,6 +774,7 @@ static void handle_id_touch(const struct isim_event *ev) {
 static void render_frame(void) {
     { extern void isim_ui_trait_registrations_tick(void); isim_ui_trait_registrations_tick(); }
     isim_ui_keyboard_check();
+    { extern void isim_ui_accessibility_frame_tick(void); isim_ui_accessibility_frame_tick(); }
     isim_ui_display_links_fire();
     isim_ui_animations_tick();
     UIWindow *key = top_window();
@@ -823,6 +840,7 @@ static void settings_changed(void) {
     extern void isim_reapply_time_zone_setting(void);
     isim_ui_reload_settings();
     isim_reapply_time_zone_setting();                 /* Date & Time > Time Zone applies live */
+    isim_ui_accessibility_reload_settings();          /* Settings > Accessibility (Dynamic Type, VoiceOver, ...) */
     for (UIWindow *w in UIApplication.sharedApplication.windows) trait_changed(w);
     [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSettingsChanged" object:nil];
     isim_ui_set_needs_display();
@@ -898,6 +916,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         NSString *title = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: info[@"CFBundleExecutable"] ?: @"App";
         isim_display_open(title.UTF8String);
         isim_ui_keyboard_install();
+        { extern void isim_ui_accessibility_install(void); isim_ui_accessibility_install(); }
         extern void (*isim_main_wakeup_hook)(void);
         isim_main_wakeup_hook = isim_post_wakeup;
         NSLog(@"isim: launching %@ (%@) on %s", title, bundle.bundleIdentifier ?: @"no bundle id", isim_ui_device()->name);

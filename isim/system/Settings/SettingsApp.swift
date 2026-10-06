@@ -10,6 +10,12 @@ import isim_host
     static var languages: [String] { global.object(forKey: "AppleLanguages") as? [String] ?? ["en"] }
     static var locale: String? { global.object(forKey: "AppleLocale") as? String }
     static var keyboards: [String] { global.object(forKey: "AppleKeyboards") as? [String] ?? [] }
+    /// AppleKeyboards with the built-in keyboards spelled out (iOS default: English (US) + Emoji)
+    static var enabledKeyboards: [String] {
+        let k = keyboards
+        if k.contains(where: { $0.contains("@sw=") }) { return k }
+        return ["en_US@sw=QWERTY;hw=Automatic"] + k + ["emoji@sw=Emoji"]
+    }
     static func set(_ key: String, _ value: Any?) { global.set(value, forKey: key) }
 }
 
@@ -61,6 +67,7 @@ struct SettingsApp: App {
 }
 
 enum Route: Hashable {
+    case accessibility, textSize, voiceOver
     case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter
     case app(String), appKeyboards(String)
 }
@@ -101,6 +108,8 @@ struct RootView: View {
                         .accessibilityIdentifier("settings-general")
                     NavigationLink(value: Route.display) { Label { Text("Display & Brightness") } icon: { SettingsIcon(symbol: "sun.max", color: .blue) } }
                         .accessibilityIdentifier("settings-display")
+                    NavigationLink(value: Route.accessibility) { Label { Text("Accessibility") } icon: { SettingsIcon(symbol: "accessibility", color: .blue) } }
+                        .accessibilityIdentifier("settings-accessibility")
                 }
                 Section {
                     NavigationLink(value: Route.gameCenter) { Label { Text("Game Center") } icon: { SettingsIcon(symbol: "gamecontroller", color: .pink) } }
@@ -132,6 +141,9 @@ struct RootView: View {
     }
     @ViewBuilder func destination(_ r: Route) -> some View {
         switch r {
+        case .accessibility: AccessibilitySettingsView()
+        case .textSize: TextSizeView()
+        case .voiceOver: VoiceOverSettingsView()
         case .general: GeneralView()
         case .about: AboutView()
         case .keyboard: KeyboardView()
@@ -186,11 +198,21 @@ struct AboutView: View {
 
 let builtinKeyboard = "English (US)"
 @MainActor func allKeyboards() -> [KeyboardExtension] { installedApps().flatMap { $0.keyboards } }
+/// isim's built-in keyboards (AppleKeyboards entries)
+let systemKeyboards: [(id: String, name: String)] = [
+    ("en_US@sw=QWERTY;hw=Automatic", "English (US)"), ("pt_BR@sw=QWERTY;hw=Automatic", "Portuguese (Brazil)"),
+    ("es_ES@sw=QWERTY-Spanish;hw=Automatic", "Spanish (Spain)"), ("fr_FR@sw=AZERTY;hw=Automatic", "French (France)"),
+    ("de_DE@sw=QWERTZ;hw=Automatic", "German (Germany)"), ("emoji@sw=Emoji", "Emoji"),
+]
+func systemKeyboardName(_ id: String) -> String? { systemKeyboards.first { $0.id.split(separator: "@").first == id.split(separator: "@").first }?.name }
 
 struct KeyboardView: View {
     @State private var bump = 0
+    func pref(_ key: String) -> Binding<Bool> {
+        Binding(get: { Store.global.object(forKey: key) as? Bool ?? true }, set: { Store.set(key, $0); bump += 1 })
+    }
     var body: some View {
-        let count = 1 + Store.keyboards.count
+        let count = Store.enabledKeyboards.count
         let autoCap = Store.global.object(forKey: "KeyboardAutocapitalization") as? Bool ?? true
         List {
             Section {
@@ -199,7 +221,13 @@ struct KeyboardView: View {
             }
             Section("All Keyboards") {
                 Toggle("Auto-Capitalization", isOn: Binding(get: { autoCap }, set: { Store.set("KeyboardAutocapitalization", $0); bump += 1 }))
+                Toggle("Auto-Correction", isOn: pref("KeyboardAutocorrection")).accessibilityIdentifier("settings-autocorrection")
+                Toggle("Check Spelling", isOn: pref("KeyboardCheckSpelling")).accessibilityIdentifier("settings-check-spelling")
+                Toggle("Predictive", isOn: pref("KeyboardPrediction")).accessibilityIdentifier("settings-predictive")
             }
+            Section {
+                Toggle("Enable Dictation", isOn: .constant(false)).disabled(true)
+            } footer: { Text("Dictation is not available on isim.") }
         }
         .navigationTitle("Keyboard").navigationBarTitleDisplayMode(.inline)
     }
@@ -210,12 +238,11 @@ struct KeyboardsView: View {
         let all = allKeyboards()
         List {
             Section {
-                Text(builtinKeyboard)
-                ForEach(Store.keyboards, id: \.self) { id in
+                ForEach(Store.enabledKeyboards, id: \.self) { id in
                     let kb = all.first { $0.id == id }
                     NavigationLink(value: Route.keyboardDetail(id)) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(kb?.name ?? id)
+                            Text(systemKeyboardName(id) ?? kb?.name ?? id)
                             if let app = kb?.appName { Text(app).font(.footnote).foregroundStyle(.secondary) }
                         }
                     }
@@ -233,12 +260,19 @@ struct AddKeyboardView: View {
     @Environment(\.dismiss) private var dismiss
     var body: some View {
         let available = allKeyboards().filter { !Store.keyboards.contains($0.id) }
+        let enabled = Store.enabledKeyboards
         List {
+            Section("Suggested Keyboards") {
+                ForEach(systemKeyboards.filter { !enabled.contains($0.id) }, id: \.id) { kb in
+                    Button { Store.set("AppleKeyboards", Store.enabledKeyboards + [kb.id]); dismiss() } label: { Text(kb.name).foregroundStyle(.primary) }
+                        .accessibilityIdentifier("settings-add-\(kb.id.split(separator: "@").first ?? "")")
+                }
+            }
             Section("Third-Party Keyboards") {
                 if available.isEmpty { Text("No other keyboards are installed.").foregroundStyle(.secondary) }
                 ForEach(available, id: \.id) { kb in
                     Button {
-                        Store.set("AppleKeyboards", Store.keyboards + [kb.id])
+                        Store.set("AppleKeyboards", Store.enabledKeyboards + [kb.id])
                         dismiss()
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
@@ -261,16 +295,16 @@ struct KeyboardDetailView: View {
         let kb = allKeyboards().first { $0.id == id }
         List {
             Section {
-                Toggle("Allow Full Access", isOn: .constant(false)).disabled(true)
-            } footer: { Text("isim does not grant keyboards Full Access (network and shared container access).") }
+                if systemKeyboardName(id) == nil { Toggle("Allow Full Access", isOn: .constant(false)).disabled(true) }
+            } footer: { Text(systemKeyboardName(id) == nil ? "isim does not grant keyboards Full Access (network and shared container access)." : "") }
             Section {
                 Button("Remove Keyboard", role: .destructive) {
-                    Store.set("AppleKeyboards", Store.keyboards.filter { $0 != id })
+                    Store.set("AppleKeyboards", Store.enabledKeyboards.filter { $0 != id })
                     dismiss()
                 }
             }
         }
-        .navigationTitle(kb?.name ?? id).navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(systemKeyboardName(id) ?? kb?.name ?? id).navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -505,7 +539,7 @@ struct AppKeyboardsView: View {
             Section {
                 ForEach(app?.keyboards ?? [], id: \.id) { kb in
                     Toggle(kb.name, isOn: Binding(get: { Store.keyboards.contains(kb.id) }, set: { on in
-                        Store.set("AppleKeyboards", on ? Store.keyboards + [kb.id] : Store.keyboards.filter { $0 != kb.id }); bump += 1
+                        Store.set("AppleKeyboards", on ? Store.enabledKeyboards + [kb.id] : Store.enabledKeyboards.filter { $0 != kb.id }); bump += 1
                     }))
                     .accessibilityIdentifier("settings-enable-\(kb.id)")
                     Toggle("Allow Full Access", isOn: .constant(false)).disabled(true)
@@ -514,4 +548,76 @@ struct AppKeyboardsView: View {
         }
         .navigationTitle("Keyboards").navigationBarTitleDisplayMode(.inline)
     }
+}
+
+// MARK: - Accessibility
+
+/// isim keys in the global domain (UIKit reads them): ISIMVoiceOver, ISIMContentSizeCategory, ISIMBoldText,
+/// ISIMIncreaseContrast, ISIMReduceMotion, ISIMReduceTransparency, ISIMDifferentiateWithoutColor
+let contentSizeCategories = ["UICTContentSizeCategoryXS", "UICTContentSizeCategoryS", "UICTContentSizeCategoryM", "UICTContentSizeCategoryL",
+                             "UICTContentSizeCategoryXL", "UICTContentSizeCategoryXXL", "UICTContentSizeCategoryXXXL",
+                             "UICTContentSizeCategoryAccessibilityM", "UICTContentSizeCategoryAccessibilityL", "UICTContentSizeCategoryAccessibilityXL",
+                             "UICTContentSizeCategoryAccessibilityXXL", "UICTContentSizeCategoryAccessibilityXXXL"]
+@MainActor func boolPref(_ key: String, _ bump: Binding<Int>) -> Binding<Bool> {
+    Binding(get: { Store.global.bool(forKey: key) }, set: { Store.set(key, $0); bump.wrappedValue += 1 })
+}
+struct AccessibilitySettingsView: View {
+    @State private var bump = 0
+    var body: some View {
+        let vo = Store.global.bool(forKey: "ISIMVoiceOver")
+        List {
+            Section("Vision") {
+                NavigationLink(value: Route.voiceOver) { LabeledContent("VoiceOver", value: vo ? "On" : "Off") }
+                    .accessibilityIdentifier("settings-voiceover")
+                NavigationLink("Display & Text Size", value: Route.textSize).accessibilityIdentifier("settings-text-size")
+            }
+            Section("Motion") {
+                Toggle("Reduce Motion", isOn: boolPref("ISIMReduceMotion", $bump)).accessibilityIdentifier("settings-reduce-motion")
+            }
+        }
+        .navigationTitle("Accessibility").navigationBarTitleDisplayMode(.inline)
+    }
+}
+struct VoiceOverSettingsView: View {
+    @State private var bump = 0
+    var body: some View {
+        List {
+            Section {
+                Toggle("VoiceOver", isOn: boolPref("ISIMVoiceOver", $bump)).accessibilityIdentifier("settings-voiceover-toggle")
+            } footer: { Text("VoiceOver speaks items on the screen (through the host's espeak-ng): tap to select an item, double-tap to activate it, swipe left or right to move between items.") }
+        }
+        .navigationTitle("VoiceOver").navigationBarTitleDisplayMode(.inline)
+    }
+}
+struct TextSizeView: View {
+    @State private var bump = 0
+    var body: some View {
+        let current = contentSizeCategories.firstIndex(of: Store.global.string(forKey: "ISIMContentSizeCategory") ?? "") ?? 3
+        let larger = Store.global.bool(forKey: "ISIMLargerAccessibilitySizes") || current > 6
+        let maxIndex = larger ? contentSizeCategories.count - 1 : 6
+        List {
+            Section {
+                Toggle("Bold Text", isOn: boolPref("ISIMBoldText", $bump)).accessibilityIdentifier("settings-bold-text")
+            }
+            Section {
+                VStack(spacing: 12) {
+                    Text("Apps that support Dynamic Type will adjust to your preferred reading size below.").font(.footnote).foregroundStyle(.secondary)
+                    HStack {
+                        Button("A") { set(max(0, current - 1)) }.font(.system(size: 14)).accessibilityIdentifier("settings-text-smaller")
+                        Slider(value: Binding(get: { Double(current) }, set: { set(Int($0.rounded())) }), in: 0...Double(maxIndex), step: 1)
+                            .accessibilityIdentifier("settings-text-slider")
+                        Button("A") { set(min(maxIndex, current + 1)) }.font(.system(size: 24)).accessibilityIdentifier("settings-text-larger")
+                    }
+                }
+                Toggle("Larger Accessibility Sizes", isOn: boolPref("ISIMLargerAccessibilitySizes", $bump)).accessibilityIdentifier("settings-larger-sizes")
+            } header: { Text("Larger Text") }
+            Section {
+                Toggle("Increase Contrast", isOn: boolPref("ISIMIncreaseContrast", $bump)).accessibilityIdentifier("settings-increase-contrast")
+                Toggle("Reduce Transparency", isOn: boolPref("ISIMReduceTransparency", $bump)).accessibilityIdentifier("settings-reduce-transparency")
+                Toggle("Differentiate Without Color", isOn: boolPref("ISIMDifferentiateWithoutColor", $bump))
+            }
+        }
+        .navigationTitle("Display & Text Size").navigationBarTitleDisplayMode(.inline)
+    }
+    func set(_ i: Int) { Store.set("ISIMContentSizeCategory", contentSizeCategories[i]); bump += 1 }
 }

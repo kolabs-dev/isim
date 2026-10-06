@@ -649,10 +649,10 @@ public enum DynamicTypeSize: Hashable, Comparable, CaseIterable, Sendable {
     public var isAccessibilitySize: Bool { self >= .accessibility1 }
 }
 public enum ColorSchemeContrast: Hashable, CaseIterable, Sendable { case standard, increased }
-struct _DynamicTypeKey: EnvironmentKey { static var defaultValue: DynamicTypeSize { .large } }
+struct _DynamicTypeKey: EnvironmentKey { static var defaultValue: DynamicTypeSize { MainActor.assumeIsolated { _systemDynamicTypeSize() } } }
 struct _CalendarKey: EnvironmentKey { static var defaultValue: Calendar { Calendar.current } }
 struct _TimeZoneKey: EnvironmentKey { static var defaultValue: TimeZone { TimeZone.current } }
-struct _ContrastKey: EnvironmentKey { static var defaultValue: ColorSchemeContrast { .standard } }
+struct _ContrastKey: EnvironmentKey { static var defaultValue: ColorSchemeContrast { UIAccessibility.isDarkerSystemColorsEnabled ? .increased : .standard } }
 extension EnvironmentValues {
     public var dynamicTypeSize: DynamicTypeSize { get { self[_DynamicTypeKey.self] } set { self[_DynamicTypeKey.self] = newValue } }
     public var calendar: Calendar { get { self[_CalendarKey.self] } set { self[_CalendarKey.self] = newValue } }

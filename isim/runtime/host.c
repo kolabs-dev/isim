@@ -680,6 +680,11 @@ static void set_simulated_location(const char *arg) {
 static struct { int on; double a, b, c, d, t0, dur, last; } sdrag;
 static int script_step(struct isim_event *ev) {
     control_poll();
+    if (ld.on && !npending) {                 /* scripted long-press drag (host_input.inc) */
+        ld_tick();
+        if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
+        return 0;
+    }
     if (mt.on && !npending) {                 /* scripted two-finger gesture (host_input.inc) */
         mt_tick();
         if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }

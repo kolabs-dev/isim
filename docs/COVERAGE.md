@@ -22,33 +22,33 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 108 | 43 | 10 | 37 | 198 | 65% |
+| **UIKit** | 118 | 48 | 9 | 23 | 198 | 72% |
 | &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 18 | 7 | 0 | 5 | 30 | 72% |
 | &nbsp;&nbsp;↳ Views & controls | 29 | 16 | 1 | 5 | 51 | 73% |
-| &nbsp;&nbsp;↳ Layout | 15 | 2 | 1 | 1 | 19 | 84% |
+| &nbsp;&nbsp;↳ Layout | 16 | 2 | 0 | 1 | 19 | 89% |
 | &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 1 | 12 | 79% |
-| &nbsp;&nbsp;↳ Gestures & touches | 9 | 1 | 0 | 3 | 13 | 73% |
-| &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
+| &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
+| &nbsp;&nbsp;↳ Text input & keyboard | 9 | 3 | 2 | 0 | 14 | 75% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 12 | 3 | 0 | 3 | 18 | 75% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 0 | 0 | 1 | 2 | 3 | 0% |
-| &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
-| &nbsp;&nbsp;↳ Drag & drop | 0 | 1 | 0 | 2 | 3 | 17% |
+| &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
+| &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 137 | 47 | 11 | 15 | 210 | 76% |
+| **SwiftUI** | 144 | 47 | 10 | 10 | 211 | 79% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
-| &nbsp;&nbsp;↳ State & data flow | 12 | 4 | 0 | 1 | 17 | 82% |
+| &nbsp;&nbsp;↳ State & data flow | 14 | 3 | 0 | 0 | 17 | 91% |
 | &nbsp;&nbsp;↳ Views & controls | 30 | 7 | 0 | 1 | 38 | 88% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 14 | 8 | 1 | 0 | 23 | 78% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 15 | 6 | 6 | 0 | 27 | 67% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 2 | 23 | 85% |
 | &nbsp;&nbsp;↳ Animation | 7 | 3 | 1 | 0 | 11 | 77% |
-| &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
+| &nbsp;&nbsp;↳ Gestures | 5 | 1 | 0 | 1 | 7 | 79% |
 | &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 2 | 0 | 0 | 7 | 86% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 1 | 1 | 0 | 4 | 62% |
-| &nbsp;&nbsp;↳ Environment values | 3 | 3 | 0 | 1 | 7 | 64% |
-| &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
+| &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
+| &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
 | **Foundation** | 51 | 20 | 1 | 9 | 81 | 75% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **467** | **180** | **42** | **151** | **840** | **66%** |
+| **All areas** | **484** | **185** | **40** | **132** | **841** | **69%** |
 
 ---
 
@@ -115,7 +115,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Alternate app icons (`setAlternateIconName`) | ❌ | |
 | Memory warnings (`didReceiveMemoryWarning`) | 🧩 | method exists; never sent |
 | Remote notification registration | 🧩 | `registerForRemoteNotifications` fails with NSCocoaErrorDomain 3010 through `didFailToRegisterForRemoteNotificationsWithError` (no APNs on isim) |
-| `UIPasteboard` | 🟡 | `general` + named pasteboards: strings, URLs, images, colors, items, `changeCount`, `hasStrings`…, change notification; strings/URLs are shared between the apps of the device (stored in its data directory); tested (HelloTransitions share sheet). No paste prompt, no edit-menu copy/paste in text fields |
+| `UIPasteboard` | 🟡 | `general` + named pasteboards: strings, URLs, images, colors, items, `changeCount`, `hasStrings`…, change notification; strings/URLs are shared between the apps of the device (stored in its data directory); text views Cut/Copy/Paste through it; tested (HelloTransitions share sheet, HelloTextEditing edit menu and Ctrl+V). No paste prompt |
 
 ### View controllers & presentation
 
@@ -187,10 +187,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIActivityIndicatorView` | ✅ | medium/large, spins (CADisplayLink) |
 | `UIPageControl` | ✅ | tap to page; tested |
 | `UIColorWell` | ✅ | rainbow ring + color, presents the color picker, `.valueChanged`; tested (HelloInputs) |
-| `UIScrollView` | 🟡 | one-finger pan, rubber-banding, deceleration, insets, delegate, `isPagingEnabled`, `scrollViewWillEndDragging(_:withVelocity:targetContentOffset:)`; no zooming; paging unverified outside collection-view carousels |
-| `UITableView` (cells, sections, editing, swipe actions) | 🟡 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing actions, edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`; tested (HelloTable). Missing: leading swipe actions, drag to reorder, section index, prefetching, nibs |
+| `UIScrollView` | 🟡 | pan (one finger, or the centroid of two), rubber-banding, deceleration, insets, delegate, `isPagingEnabled`, `scrollViewWillEndDragging(_:withVelocity:targetContentOffset:)`; pinch zooming (`viewForZooming`, min/max/`zoomScale`, `bouncesZoom` spring back, `setZoomScale(_:animated:)`, `zoom(to:animated:)`, zoom delegate calls); tested (HelloMultiTouch). The zoomed view's `frame` stays its untransformed frame (UIKit reports the scaled one); paging unverified outside collection-view carousels |
+| `UITableView` (cells, sections, editing, swipe actions) | 🟡 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing actions, edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`, drag to reorder / drop (see Drag & drop); tested (HelloTable, HelloDragDrop). Missing: leading swipe actions, section index, prefetching, nibs |
 | `UITableViewDiffableDataSource` | ✅ | snapshots diffed into animated row inserts/deletes; reload/reconfigure; tested (HelloTable) |
-| `UICollectionView` + `UICollectionViewFlowLayout` | 🟡 | cell/supplementary reuse, flow layout (both directions, delegate sizes/insets/spacing, headers/footers, pinned headers, estimated sizes), multiple selection, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToItem`, `UICollectionViewController`; tested (HelloCollection). Missing: drag and drop, reordering, prefetching, decoration views, custom layout transitions, nibs |
+| `UICollectionView` + `UICollectionViewFlowLayout` | 🟡 | cell/supplementary reuse, flow layout (both directions, delegate sizes/insets/spacing, headers/footers, pinned headers, estimated sizes), multiple selection, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToItem`, `UICollectionViewController`; drag/drop delegates (unverified); tested (HelloCollection). Missing: prefetching, decoration views, custom layout transitions, nibs |
 | `UICollectionViewCompositionalLayout` | 🟡 | items, nested horizontal/vertical groups (repeating, `count:`), fractional/absolute/estimated sizes, fixed/flexible spacing, content insets, boundary headers/footers (pinning), section provider + environment, orthogonal scrolling (continuous, paging, group paging); tested (HelloCollection). Missing: horizontal scroll direction, decoration items, `visibleItemsInvalidationHandler`, custom group providers |
 | `UICollectionViewDiffableDataSource`, `NSDiffableDataSourceSnapshot` | 🟡 | snapshots diffed into animated item inserts/deletes, reconfigure, supplementary provider, `CellRegistration`/`SupplementaryRegistration`; tested (HelloCollection). Missing: `NSDiffableDataSourceSectionSnapshot` (outlines), reordering handlers, async apply |
 | List cells (`UICollectionLayoutListConfiguration`, `UIListContentConfiguration`, cell accessories) | 🟡 | list layouts (plain, grouped, inset grouped, sidebar colours), supplementary headers/footers, separators, self-sizing rows, `UICollectionViewListCell` accessories (disclosure, checkmark, detail, delete, reorder, outline, label, custom view); tested (HelloCollection). `UIListContentConfiguration` is a class here, not a struct (adapted). Missing: list swipe actions, outline expansion, custom `UIContentConfiguration` views |
@@ -227,8 +227,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `traitCollectionDidChange` | ✅ | |
 | `registerForTraitChanges` (iOS 17), custom traits | 🟡 | handler, target/action and Swift generic forms for style, size classes, idiom, display scale (checked every frame); tested (HelloConstraints). No custom traits / `traitOverrides` |
 | Size classes | ✅ | fixed per device (portrait) |
-| Dynamic Type: `preferredFont(forTextStyle:)` | ✅ | default (Large) size only |
-| Dynamic Type size changes, `UIFontMetrics`, `adjustsFontForContentSizeCategory` | 🧩 | property stored; text size never changes |
+| Dynamic Type: `preferredFont(forTextStyle:)` | ✅ | sized for the content size category (Settings > Accessibility > Display & Text Size, 12 sizes); Bold Text makes system fonts heavier; tested (HelloAccessibility) |
+| Dynamic Type size changes, `UIFontMetrics`, `adjustsFontForContentSizeCategory` | ✅ | category changes repost `UIContentSizeCategory.didChangeNotification`, refit labels/text views/fields that adjust (text-style and `UIFontMetrics` fonts), `preferredContentSizeCategory` on the app and trait collections, `isAccessibilityCategory`; tested (HelloAccessibility). `traitCollectionDidChange` gets no previous collection |
 | Right-to-left layout, `semanticContentAttribute` | ❌ | |
 | Rotation layout (`viewWillTransition(to:with:)`) | ✅ | coordinator alongside/completion, size classes, side safe areas; tested (HelloRotation). Landscape nav bars keep portrait height |
 
@@ -254,14 +254,14 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | API / feature | Status | Notes |
 |---|---|---|
 | `touchesBegan/Moved/Ended/Cancelled`, responder chain | ✅ | |
-| Multi-touch | ❌ | the mouse is a single finger |
+| Multi-touch | ✅ | a second finger like the Simulator's: Option-drag mirrors it around the screen centre (pinch/rotate), Option+Shift-drag moves both (two-finger pan), grey finger circles while Option is held; scripts `pinch`, `rotate2`, `twofinger`; UITouch sets, `UIEvent.allTouches`, `isMultipleTouchEnabled`, `numberOfTouches`/`location(ofTouch:)`; tested (HelloMultiTouch). At most two fingers |
 | `UITapGestureRecognizer` | ✅ | |
 | `UIPanGestureRecognizer` (translation, velocity) | ✅ | |
 | `UILongPressGestureRecognizer` | ✅ | |
 | `UISwipeGestureRecognizer` | ✅ | directions, delegate, failure requirements; tested (HelloGestures) |
-| `UIPinchGestureRecognizer`, `UIRotationGestureRecognizer` | ❌ | need multi-touch |
+| `UIPinchGestureRecognizer`, `UIRotationGestureRecognizer` | ✅ | scale/rotation (settable, relative from then on), velocity, centroid location; 2-touch `UIPanGestureRecognizer` (`minimumNumberOfTouches`/`maximumNumberOfTouches`); tested (HelloMultiTouch) |
 | `UIScreenEdgePanGestureRecognizer` | ✅ | starts only within 20 pt of `edges`; tested (HelloGestures) |
-| `UIHoverGestureRecognizer` | ❌ | |
+| `UIHoverGestureRecognizer`, `UIPointerInteraction`, `UIPencilInteraction` | 🟡 | hover from host mouse motion without a button (script `hover X Y`) on every device; iPad pointer (dot, highlight / lift / hover effects, region request/enter/exit, `UIButton.isPointerInteractionEnabled`); tested (HelloMultiTouch). Pencil: honest stub, never gets taps; pointer shapes/beam not drawn |
 | `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | 🟡 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`, `require(toFail:)` for discrete recognizers (tested: single vs double tap); `shouldRequireFailure(of:)` overrides are not consulted |
 | Custom `UIGestureRecognizer` subclasses | ✅ | `UIGestureRecognizerSubclass`: touches callbacks, settable `state` sends actions, `reset`; tested (HelloGestures) |
 | Shake / motion events | ✅ | `motionBegan/Ended` (shake) via Ctrl+Shift+Z or the script command `shake`; tested (HelloGestures) |
@@ -273,18 +273,18 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 |---|---|---|
 | System keyboard (English US: letters/numbers/symbols, shift, auto-capitalization, return-key titles) | ✅ | |
 | Keyboard types (number pad, decimal, email, URL, phone) | 🟡 | trait stored; always the full keyboard |
-| Other languages, emoji keyboard | ❌ | |
-| Autocorrection, predictive bar, spell checking | ❌ | |
-| Selection, caret movement, loupe, copy/paste/edit menu | ❌ | |
+| Other languages, emoji keyboard | ✅ | built-in English (US), Portuguese (Brazil), Spanish (ñ), French (AZERTY), German (QWERTZ + üöä) and Emoji keyboards enabled in Settings > General > Keyboard > Keyboards (AppleKeyboards, default English + Emoji), globe / emoji key and list, localized space/return keys, accent popups on long press, `UITextInputMode.activeInputModes`; tested (HelloTextEditing) |
+| Autocorrection, predictive bar, spell checking, `UITextChecker` | 🟡 | `UITextChecker` over small built-in word lists (en/pt/es/fr/de): misspelled = unknown and one edit from a listed word; guesses, completions, learn/ignore; predictive bar (typed word, corrections, completions) and autocorrection on space/punctuation from the on-screen keyboard; red dotted underline while editing; Settings toggles; tested (HelloTextEditing). Small dictionaries, no learning from typing, no inline predictions |
+| Selection, caret movement, loupe, copy/paste/edit menu | ✅ | tap places the caret at a word boundary, double tap selects a word, triple tap a paragraph, long press shows the loupe and moves the caret, selection handles drag; edit menu (Cut, Copy, Paste, Select, Select All, Replace… with guesses; delegate `editMenuForTextIn`), `UIEditMenuInteraction`, `UIMenuController`; arrows, Shift-select, Option/Cmd jumps, Cmd/Ctrl+A/C/X/V, forward delete; UITextField, UITextView and SwiftUI TextField/TextEditor; tested (HelloTextEditing). No floating cursor, no undo |
 | `UITextFieldDelegate` | ✅ | |
 | Secure text entry | ✅ | bullets |
 | Keyboard notifications (`keyboardWillShow…`, frame/duration user info) | ✅ | |
 | `keyboardDismissMode` (on drag / interactive) | 🟡 | unverified |
 | Typing from the host keyboard | ✅ | `ISIM_SOFTWARE_KEYBOARD=0` hides the on-screen one |
 | Custom keyboard extensions (globe key, keyboard list) | ✅ | |
-| `UITextInput` positions/ranges, marked text (IME) | ❌ | |
+| `UITextInput` positions/ranges, marked text (IME) | ✅ | positions, ranges, `selectedTextRange`, `text(in:)`, `replace(_:withText:)`, caret/first/selection rects, `closestPosition`, `UITextInputStringTokenizer`, `inputDelegate`; marked text from the host IME (SDL text editing) or script `compose TEXT`, underlined, committed by `insertText`; custom keyboards' document proxy sees the selection; tested (HelloTextEditing) |
 | Password AutoFill, `textContentType`, one-time codes | 🧩 | trait stored; no AutoFill |
-| Dictation, Scribble | ❌ | |
+| Dictation, Scribble | 🧩 | the keyboard's mic key logs that dictation is unavailable; Settings shows dictation off; no Scribble |
 
 ### Drawing, images & symbols
 
@@ -322,20 +322,20 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | API / feature | Status | Notes |
 |---|---|---|
 | `accessibilityIdentifier` | ✅ | drives isim's scripted tests (`tapid`) |
-| `accessibilityLabel/Hint/Value/Traits`, `isAccessibilityElement` | 🟡 | stored; no assistive technology reads them |
-| VoiceOver, Switch Control, Voice Control | ❌ | |
-| `UIAccessibility.isVoiceOverRunning`, `isReduceMotionEnabled`, `isBoldTextEnabled` | 🧩 | always off |
-| `UIAccessibility.post(notification:)`, custom actions, rotors | ❌ | |
-| Larger Text sizes, Bold Text, Increase Contrast, Reduce Transparency settings | ❌ | |
-| Large Content Viewer | ❌ | |
+| `accessibilityLabel/Hint/Value/Traits`, `isAccessibilityElement`, containers | ✅ | the accessibility tree: elements in reading order (top-to-bottom, left-to-right), `accessibilityElements` order, `UIAccessibilityElement`, `accessibilityViewIsModal`, `shouldGroupAccessibilityChildren`, frames/activation points, UIKit defaults for controls (switch, slider, text fields); `dump` shows `ax=` descriptions with `ISIM_DUMP_ACCESSIBILITY=1`; tested (HelloAccessibility) |
+| VoiceOver (simulated), Switch Control, Voice Control | 🟡 | isim VoiceOver: Settings > Accessibility > VoiceOver or script `voiceover on/off/next/prev/activate/increment/decrement/action/escape/read`; black focus cursor, description logged and spoken with the host espeak-ng, tap / double tap / swipe gestures, activation by tap, adjustable values, custom actions; tested (HelloAccessibility). No rotor gestures, no Switch/Voice Control |
+| `UIAccessibility.isVoiceOverRunning`, `isReduceMotionEnabled`, `isBoldTextEnabled` & co. | ✅ | follow Settings > Accessibility (VoiceOver, Reduce Motion, Bold Text, Increase Contrast → `isDarkerSystemColorsEnabled`/`accessibilityContrast`, Reduce Transparency, Differentiate Without Color) with their change notifications; tested (HelloAccessibility). Invert colors / grayscale always off |
+| `UIAccessibility.post(notification:)`, custom actions, rotors | 🟡 | announcement / screenChanged / layoutChanged / pageScrolled logged and handled by VoiceOver (spoken, refocus), `announcementDidFinishNotification`; `UIAccessibilityCustomAction` (handler and target/selector); tested (HelloAccessibility). `UIAccessibilityCustomRotor` stored only (unverified) |
+| Larger Text sizes, Bold Text, Increase Contrast, Reduce Transparency settings | ✅ | Settings > Accessibility pages write the device preferences every app reads; tested (HelloAccessibility via preferences). Colors don't change for Increase Contrast; materials don't turn opaque |
+| Large Content Viewer | 🟡 | `UILargeContentViewerInteraction` + `showsLargeContentViewer`/`largeContentTitle`/`largeContentImage`: HUD on long press at accessibility sizes (unverified) |
 
 ### Drag & drop
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `UIDragInteraction`, `UIDropInteraction` | ❌ | |
-| Table/collection view drag & drop | ❌ | |
-| `NSItemProvider` | 🟡 | data/file representations, `loadObject(ofClass: UIImage.self)`, `loadDataRepresentation`, UTType overloads (tested through PHPicker); lives in isim's UniformTypeIdentifiers module (re-exported by PhotosUI), not Foundation; no drag & drop |
+| `UIDragInteraction`, `UIDropInteraction` | ✅ | within the app: long press lifts (script `longdrag X1 Y1 X2 Y2 HOLD SECS`), the snapshot preview follows the finger, drop targets get canHandle/enter/update/exit/performDrop/conclude, sessions (`items`, `location(in:)`, `localDragSession`, `loadObjects(ofClass:)` incl. `String`), drag delegate lift/move/end callbacks; tested (HelloDragDrop). No drags between apps; lift previews are snapshots (`UIView.snapshotView(afterScreenUpdates:)`) |
+| Table/collection view drag & drop | 🟡 | `dragDelegate`/`dropDelegate`/`dragInteractionEnabled`/`hasActiveDrag`: local moves go to the data source's `moveRowAt`/`moveItemAt`, other drops to `performDropWith` (coordinator with destination and items); tested for UITableView (HelloDragDrop); collection views unverified; no insertion gap animation |
+| `NSItemProvider` | 🟡 | data/file representations, `loadObject(ofClass:)` (UIImage, NSString/String), `loadDataRepresentation`, UTType overloads (tested through PHPicker and drag and drop); lives in isim's UniformTypeIdentifiers module (re-exported by UIKit), not Foundation |
 
 ### Appearance & dark mode
 
@@ -386,8 +386,8 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@SceneStorage` | 🟡 | kept for the app lifetime (not restored across launches) |
 | `@FocusState` (Bool and Hashable) | ✅ | |
 | `@Namespace` | ✅ | |
-| `@GestureState` | ❌ | |
-| `@ScaledMetric` | 🟡 | scales with `dynamicTypeSize` (tested); the system text size is always `.large` on isim and fonts do not scale with dynamic type |
+| `@GestureState` | ✅ | set through `.updating`, reset when the gesture ends or is cancelled; tested (HelloSwiftUIGestures) |
+| `@ScaledMetric` | ✅ | scales with `dynamicTypeSize`, which follows Settings > Accessibility > Larger Text; tested (HelloLayout, HelloAccessibility) |
 | `@FocusedValue`, `@FocusedBinding` | 🟡 | with `.focusedValue`/`.focusedSceneValue`; values are scene-wide (no per-focus chain, adapted); tested (HelloKeys) |
 | `PreferenceKey`, `.preference`, `.onPreferenceChange`, anchor preferences | ✅ | values reduce up the laid-out tree (incl. GeometryReader backgrounds), `transformPreference`, `anchorPreference` / `transformAnchorPreference` with `overlayPreferenceValue` / `backgroundPreferenceValue` and `proxy[anchor]`; tested (HelloLayout) |
 | `Transaction`, `withTransaction` | 🟡 | carries the animation / `disablesAnimations`; custom transaction keys missing |
@@ -582,12 +582,12 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `onTapGesture(count:)`, `TapGesture` | ✅ | |
+| `onTapGesture(count:)`, `TapGesture`, `onTapGesture(coordinateSpace:perform:)` | ✅ | |
 | `onLongPressGesture`, `LongPressGesture` | ✅ | |
-| `DragGesture` (`onChanged`/`onEnded`, translation, velocity, predicted end) | ✅ | |
-| `simultaneousGesture`, `highPriorityGesture` | 🟡 | treated like `.gesture` |
-| `MagnifyGesture`, `RotateGesture` | ❌ | no multi-touch |
-| `SpatialTapGesture` | ❌ | |
+| `DragGesture` (`onChanged`/`onEnded`, translation, velocity, predicted end) | ✅ | UIKit recognizers on the wrapped view; `.local`/`.global` coordinate spaces; tested (HelloSwiftUIGestures, HelloDrawing) |
+| `simultaneousGesture`, `highPriorityGesture`, `simultaneously(with:)`, `sequenced(before:)`, `exclusively(before:)`, `map` | 🟡 | composition tested (HelloSwiftUIGestures: magnify+rotate together, long press before drag, double tap before single); `highPriorityGesture` and gesture masks behave like `.gesture` |
+| `MagnifyGesture`, `RotateGesture` (+ `MagnificationGesture`, `RotationGesture`) | ✅ | two fingers from isim's multi-touch (Option-drag, script `pinch`/`rotate2`); magnification/rotation, velocity, start anchor/location; tested (HelloSwiftUIGestures) |
+| `SpatialTapGesture` | ✅ | location in local/global space; tested (HelloSwiftUIGestures) |
 | `sequenced`, `exclusively`, `simultaneously(with:)`, `.updating` | ❌ | |
 
 ### Lifecycle, async & events
@@ -618,9 +618,9 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `colorScheme`, `locale`, `font`, `isEnabled`, `lineLimit`, `multilineTextAlignment` | ✅ | |
 | `horizontalSizeClass`, `verticalSizeClass`, `displayScale` | ✅ | |
 | `layoutDirection` | 🟡 | value exists; RTL layout not implemented |
-| `calendar`, `timeZone`, `dynamicTypeSize`, `colorSchemeContrast` | 🟡 | values exist and can be set; `dynamicTypeSize` drives `@ScaledMetric` (tested) but text does not scale; `colorSchemeContrast` is always `.standard` |
+| `calendar`, `timeZone`, `dynamicTypeSize`, `colorSchemeContrast` | ✅ | `dynamicTypeSize` and `colorSchemeContrast` follow Settings > Accessibility (Larger Text, Increase Contrast); text styles (`.body`, `.headline`, …) scale with Dynamic Type; tested (HelloAccessibility) |
 | `editMode`, `isPresented`, `isSearching`, `presentationMode` | 🟡 | `editMode` (a window-wide binding, or your own via `.environment`) and `isPresented` tested (HelloLists); `isSearching`, `presentationMode` unverified |
-| `accessibilityReduceMotion` and other accessibility values | ❌ | |
+| `accessibilityReduceMotion` and other accessibility values | ✅ | `accessibilityReduceMotion`, `accessibilityReduceTransparency`, `accessibilityDifferentiateWithoutColor`, `accessibilityVoiceOverEnabled`, `legibilityWeight` from Settings > Accessibility; tested (HelloAccessibility). `accessibilityInvertColors` always false |
 | `requestReview` | ✅ | see StoreKit |
 
 ### Accessibility
@@ -629,8 +629,9 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 |---|---|---|
 | `accessibilityIdentifier` | ✅ | |
 | `accessibilityLabel` | ✅ | stored on the UIKit view |
-| `accessibilityHint`, `accessibilityHidden` | 🧩 | ignored |
-| `accessibilityValue`, `accessibilityAddTraits`, `accessibilityElement(children:)`, `accessibilityAction` | ❌ | |
+| `.draggable`, `.dropDestination`, `.onDrag`, `.onDrop` | 🟡 | Transferable payloads / NSItemProviders through UIDragInteraction/UIDropInteraction (long press to lift); `isTargeted`; tested (HelloDragDrop: String draggable → dropDestination). Custom previews ignored |
+| `accessibilityHint`, `accessibilityHidden` | ✅ | set on the mounted UIKit view; VoiceOver reads hints and skips hidden views; tested (HelloAccessibility) |
+| `accessibilityValue`, `accessibilityAddTraits`, `accessibilityElement(children:)`, `accessibilityAction`, `accessibilityAdjustableAction`, `accessibilitySortPriority` | 🟡 | feed the UIKit accessibility tree (value, traits, `.combine`/`.ignore` label from the children's text, `.contain` grouping, default and named actions, adjustable increments, sort priority); tested (HelloAccessibility: value, header trait, combine, adjustable, hidden). Named actions and sort priority unverified |
 
 ### UIKit interop
 

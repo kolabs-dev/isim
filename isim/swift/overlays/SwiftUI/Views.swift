@@ -180,7 +180,9 @@ public struct Font: Hashable, Sendable {
     var isItalic = false
     var customName: String?
     var weightSet = false
-    static func style(_ s: TextStyle) -> Font {
+    var textStyle: TextStyle?          /* text styles follow Dynamic Type (Settings > Accessibility > Larger Text) */
+    static func style(_ s: TextStyle) -> Font { var f = _style(s); f.textStyle = s; return f }
+    static func _style(_ s: TextStyle) -> Font {
         switch s {
         case .largeTitle: return Font(size: 34, weight: .regular)
         case .title: return Font(size: 28, weight: .regular)
@@ -220,6 +222,7 @@ public struct Font: Hashable, Sendable {
     static let weightNames: [(CGFloat, String)] = [(-0.8, "Thin"), (-0.6, "ExtraLight"), (-0.4, "Light"), (0, "Regular"), (0.23, "Medium"),
                                                    (0.3, "SemiBold"), (0.4, "Bold"), (0.56, "ExtraBold"), (0.62, "Black")]
     var uiFont: UIFont {
+        let size = textStyle == nil ? self.size : (UIFontMetrics.default.scaledValue(for: self.size)).rounded()
         if let name = customName {
             if weightSet, weight.value != 0, let wn = Font.weightNames.first(where: { $0.0 == weight.value })?.1 {
                 let base = name.split(separator: "-").first.map(String.init) ?? name
