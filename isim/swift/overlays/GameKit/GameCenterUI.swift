@@ -1,8 +1,9 @@
 // The Game Center dashboard (GKGameCenterViewController), drawn in SwiftUI like iOS's Game Center UI:
 // the game's icon and name, the player's monogram, leaderboard cards with rank and score, achievement medals
 // with progress rings, and a leaderboard page with Today / This Week / All Time.
-// isim's Game Center is local (one player, this device). Leaderboard and achievement titles come from the
-// identifiers (App Store Connect metadata is not available locally): "dev.example.highest_level" -> "Highest Level".
+// isim's Game Center is local (one player, this device). Titles, descriptions, points, recurrence and sets
+// come from the app's isim-GameCenter.json; without it titles are derived from the identifiers
+// ("dev.example.highest_level" -> "Highest Level").
 import Foundation
 import UIKit
 import SwiftUI
@@ -64,25 +65,49 @@ enum _GCScope: Int, CaseIterable { case today, week, allTime
 
 struct _GCBoard: Identifiable {
     let id: String
-    var title: String { _GCText.title(id) }
+    var def: _GCBoardDef { _GCConfig.board(id) }
+    var title: String { def.title }
     func best(_ scope: _GCScope) -> (score: Int, date: Date)? {
+        let (s, e) = def.occurrence()
         let list = (_GC.scores()[id] ?? []).compactMap { e -> (Int, Date)? in
             guard let v = e["value"] as? Int else { return nil }
             return (v, Date(timeIntervalSince1970: e["date"] as? Double ?? 0))
-        }.filter { scope.includes($0.1) }
-        return list.max { $0.0 < $1.0 }.map { (score: $0.0, date: $0.1) }
+        }.filter { scope.includes($0.1) && $0.1 >= s && $0.1 < e }
+        let low = def.sortLow
+        return list.max { low ? $0.0 > $1.0 : $0.0 < $1.0 }.map { (score: $0.0, date: $0.1) }
     }
-    static var all: [_GCBoard] { _GC.scores().keys.sorted().map { _GCBoard(id: $0) } }
+    /// "Resets in 3h 20m" for recurring leaderboards
+    var resetLine: String? {
+        guard def.recurring else { return nil }
+        let left = Int(def.occurrence().1.timeIntervalSinceNow)
+        let d = left / 86400, h = (left % 86400) / 3600, m = (left % 3600) / 60, sec = left % 60
+        let t = d > 0 ? "\(d)d \(h)h" : h > 0 ? "\(h)h \(m)m" : m > 0 ? "\(m)m \(sec)s" : "\(sec)s"
+        return "Recurring · resets in \(t)"
+    }
+    /// configured leaderboards first (in file order), then any other boards with scores
+    static var all: [_GCBoard] {
+        let configured = _GCConfig.boards.map { $0.id }
+        return (configured + _GC.scores().keys.sorted().filter { !configured.contains($0) }).map { _GCBoard(id: $0) }
+    }
 }
 
 struct _GCAchievement: Identifiable {
     let id: String, percent: Double, date: Date
-    var title: String { _GCText.title(id) }
+    var def: _GCAchievementDef? { _GCConfig.achievement(id) }
+    var title: String { def?.title ?? _GCText.title(id) }
     var completed: Bool { percent >= 100 }
+    var detail: String { (completed ? def?.achieved : def?.unachieved) ?? "" }
+    var points: Int { def?.points ?? 0 }
+    /// reported achievements plus the configured ones not started yet (hidden ones stay hidden)
     static var all: [_GCAchievement] {
-        _GC.achievements().map { id, v in
+        let reported = _GC.achievements()
+        var list = reported.map { id, v in
             _GCAchievement(id: id, percent: v["percent"] as? Double ?? 0, date: Date(timeIntervalSince1970: v["date"] as? Double ?? 0))
-        }.sorted { ($0.completed ? 0 : 1, $1.date, $0.title) < ($1.completed ? 0 : 1, $0.date, $1.title) }
+        }
+        for d in _GCConfig.achievements where reported[d.id] == nil && !d.hidden {
+            list.append(_GCAchievement(id: d.id, percent: 0, date: .distantPast))
+        }
+        return list.sorted { ($0.completed ? 0 : 1, $1.date, $0.title) < ($1.completed ? 0 : 1, $0.date, $1.title) }
     }
 }
 
@@ -178,7 +203,7 @@ struct _GCSegments: View {
 
 // MARK: - Pages
 
-enum _GCRoute: Hashable { case leaderboards, leaderboard(String), achievements }
+enum _GCRoute: Hashable { case leaderboards, leaderboard(String), achievements, leaderboardSet(String), friends }
 
 struct _GCDashboard: View {
     let close: () -> Void
@@ -188,8 +213,10 @@ struct _GCDashboard: View {
         switch r {
         case nil: return _GCApp.name
         case .leaderboards?: return "Leaderboards"
-        case .leaderboard(let id)?: return _GCText.title(id)
+        case .leaderboard(let id)?: return _GCConfig.board(id).title
         case .achievements?: return "Achievements"
+        case .leaderboardSet(let id)?: return _GCConfig.sets.first { $0.id == id }?.title ?? _GCText.title(id)
+        case .friends?: return "Friends"
         }
     }
     var body: some View {
@@ -204,6 +231,8 @@ struct _GCDashboard: View {
                 case .leaderboards?: _GCLeaderboards(open: { path.append($0) })
                 case .leaderboard(let id)?: _GCLeaderboardPage(board: _GCBoard(id: id))
                 case .achievements?: _GCAchievements()
+                case .leaderboardSet(let id)?: _GCLeaderboards(open: { path.append($0) }, setID: id)
+                case .friends?: _GCFriends()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -296,7 +325,8 @@ struct _GCHome: View {
                     } else {
                         Button { open(.achievements) } label: {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text(verbatim: "\(done) of \(achievements.count) Completed").font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary)
+                                Text(verbatim: "\(done) of \(achievements.count) Completed" + (_GCConfig.achievements.isEmpty ? "" : " · \(achievements.filter { $0.completed }.reduce(0) { $0 + $1.points }) points"))
+                                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary).accessibilityIdentifier("gc-achievements-summary")
                                 HStack(spacing: 6) {
                                     ForEach(achievements.prefix(6)) { a in _GCMedal(achievement: a, size: 54) }
                                     Spacer()
@@ -321,14 +351,11 @@ struct _GCBoardRow: View {
     var body: some View {
         let best = board.best(.allTime)
         HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10).fill(Color.accentColor)
-                Image(systemName: "list.number").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white)
-            }
-            .frame(width: 44, height: 44)
+            _GCBoardIcon(id: board.id, symbol: "list.number")
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: board.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
                 Text(verbatim: best.map { "#1 · \(_GCText.number($0.score))" } ?? "No score yet").font(.system(size: 14)).foregroundStyle(.secondary)
+                if let r = board.resetLine { Text(verbatim: r).font(.system(size: 12)).foregroundStyle(.secondary) }
             }
             Spacer()
             Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(uiColor: .tertiaryLabel))
@@ -339,17 +366,71 @@ struct _GCBoardRow: View {
 
 struct _GCLeaderboards: View {
     let open: (_GCRoute) -> Void
+    var setID: String? = nil
     var body: some View {
+        let boards = setID.map { id in (_GCConfig.sets.first { $0.id == id }?.boards ?? []).map { _GCBoard(id: $0) } } ?? _GCBoard.all
+        let sets = setID == nil ? _GCConfig.sets : []
         ScrollView {
-            _GCCard {
-                ForEach(Array(_GCBoard.all.enumerated()), id: \.element.id) { i, b in
-                    if i > 0 { _GCRowDivider() }
-                    Button { open(.leaderboard(b.id)) } label: { _GCBoardRow(board: b) }
+            VStack(alignment: .leading, spacing: 16) {
+                if !sets.isEmpty {
+                    _GCCard {
+                        ForEach(Array(sets.enumerated()), id: \.element.id) { i, s in
+                            if i > 0 { _GCRowDivider() }
+                            Button { open(.leaderboardSet(s.id)) } label: {
+                                HStack(spacing: 14) {
+                                    _GCBoardIcon(id: s.id, symbol: "square.grid.2x2")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(verbatim: s.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary)
+                                        Text(verbatim: "\(s.boards.count) leaderboards").font(.system(size: 14)).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(uiColor: .tertiaryLabel))
+                                }
+                                .padding(.horizontal, 14).padding(.vertical, 12)
+                            }
+                            .accessibilityIdentifier("gc-set-\(s.id)")
+                        }
+                    }
+                }
+                _GCCard {
+                    ForEach(Array(boards.enumerated()), id: \.element.id) { i, b in
+                        if i > 0 { _GCRowDivider() }
+                        Button { open(.leaderboard(b.id)) } label: { _GCBoardRow(board: b) }
+                            .accessibilityIdentifier("gc-board-\(b.id)")
+                    }
                 }
             }
             .padding(16)
         }
 
+    }
+}
+
+struct _GCBoardIcon: View {
+    let id: String, symbol: String
+    var body: some View {
+        if let img = _GCImages.bundleImage(_GCConfig.board(id).image) {
+            Image(uiImage: img).resizable().frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 10))
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10).fill(Color.accentColor)
+                Image(systemName: symbol).font(.system(size: 20, weight: .semibold)).foregroundStyle(.white)
+            }
+            .frame(width: 44, height: 44)
+        }
+    }
+}
+
+struct _GCFriends: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                Text(verbatim: "No Friends Yet").font(.system(size: 20, weight: .bold)).padding(.top, 40)
+                Text(verbatim: "isim’s Game Center is local: there are no other players on this device.")
+                    .font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            .padding(24)
+        }
     }
 }
 
@@ -380,6 +461,7 @@ struct _GCLeaderboardPage: View {
                             .font(.system(size: 15)).foregroundStyle(.secondary).padding(16)
                     }
                 }
+                if let r = board.resetLine { Text(verbatim: r).font(.system(size: 13)).foregroundStyle(.secondary).accessibilityIdentifier("gc-board-reset") }
                 Text(verbatim: "1 player · isim local Game Center").font(.system(size: 12)).foregroundStyle(.secondary)
             }
             .padding(16)
@@ -402,7 +484,8 @@ struct _GCAchievements: View {
                             _GCMedal(achievement: a, size: 56)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(verbatim: a.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary)
-                                Text(verbatim: a.completed ? "Completed · \(_GCText.date(a.date))" : "\(Int(a.percent))% complete")
+                                if !a.detail.isEmpty { Text(verbatim: a.detail).font(.system(size: 13)).foregroundStyle(.primary).lineLimit(2) }
+                                Text(verbatim: (a.completed ? "Completed · \(_GCText.date(a.date))" : "\(Int(a.percent))% complete") + (a.points > 0 ? " · \(a.points) points" : ""))
                                     .font(.system(size: 13)).foregroundStyle(.secondary)
                             }
                             Spacer()

@@ -1,0 +1,15 @@
+{
+  "leaderboards": [
+    { "id": "dev.isim.gc.high_score", "title": "High Score", "type": "classic", "sortOrder": "high" },
+    { "id": "dev.isim.gc.daily", "title": "Daily Run", "type": "recurring", "start": "2025-01-01T00:00:00Z", "duration": "PT6S" },
+    { "id": "dev.isim.gc.fastest", "title": "Fastest Clear", "type": "classic", "sortOrder": "low", "format": "elapsedTime" }
+  ],
+  "leaderboardSets": [
+    { "id": "dev.isim.gc.set.season1", "title": "Season 1", "leaderboards": [ "dev.isim.gc.high_score", "dev.isim.gc.fastest" ] }
+  ],
+  "achievements": [
+    { "id": "dev.isim.gc.first_win", "title": "First Win", "points": 10, "unachievedDescription": "Win a game.", "achievedDescription": "You won your first game." },
+    { "id": "dev.isim.gc.collector", "title": "Collector", "points": 25, "unachievedDescription": "Collect 100 gems.", "achievedDescription": "You collected 100 gems." },
+    { "id": "dev.isim.gc.secret", "title": "Secret Door", "points": 50, "hidden": true, "unachievedDescription": "???", "achievedDescription": "You found the secret door." }
+  ]
+}
