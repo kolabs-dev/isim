@@ -1,4 +1,5 @@
-// isim SwiftUI: onContinueUserActivity (universal links arrive as NSUserActivityTypeBrowsingWeb activities).
+// isim SwiftUI: onContinueUserActivity (universal links arrive as NSUserActivityTypeBrowsingWeb activities),
+// transformEnvironment, and a plain-string accessor for other isim modules (MapKit's Marker monograms).
 import Foundation
 
 extension View {
@@ -10,4 +11,13 @@ extension View {
     }
     /// Advertising activities (Handoff/Spotlight) is accepted and ignored on isim.
     public func userActivity(_ activityType: String, isActive: Bool = true, _ update: @escaping (NSUserActivity) -> Void) -> some View { self }
+}
+
+extension View {
+    public func transformEnvironment<V>(_ keyPath: WritableKeyPath<EnvironmentValues, V>, transform: @escaping (inout V) -> Void) -> some View {
+        _env { transform(&$0[keyPath: keyPath]) }
+    }
+}
+extension Text {
+    @_spi(isim) public var _isimPlainString: String { string }
 }
