@@ -22,7 +22,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 106 | 41 | 10 | 41 | 198 | 64% |
+| **UIKit** | 106 | 42 | 10 | 40 | 198 | 64% |
 | &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 18 | 7 | 0 | 5 | 30 | 72% |
 | &nbsp;&nbsp;↳ Views & controls | 29 | 16 | 1 | 5 | 51 | 73% |
@@ -33,7 +33,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 12 | 3 | 0 | 3 | 18 | 75% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 0 | 0 | 1 | 2 | 3 | 0% |
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
-| &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
+| &nbsp;&nbsp;↳ Drag & drop | 0 | 1 | 0 | 2 | 3 | 17% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
 | **SwiftUI** | 135 | 44 | 11 | 20 | 210 | 75% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
@@ -71,19 +71,19 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | GameKit (Game Center) | 10 | 4 | 3 | 1 | 18 | 67% |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 7 | 5 | 1 | 6 | 19 | 50% |
 | AVFoundation & audio | 10 | 11 | 3 | 4 | 28 | 55% |
-| Photos, Vision, Core ML & camera | 0 | 0 | 0 | 7 | 7 | 0% |
+| Photos, Vision, Core ML & camera | 3 | 1 | 0 | 4 | 8 | 44% |
 | StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
 | Data & persistence | 10 | 3 | 0 | 4 | 17 | 68% |
 | Identity & security | 4 | 0 | 1 | 5 | 10 | 40% |
 | Notifications & background work | 1 | 2 | 1 | 3 | 7 | 29% |
 | App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
-| Location & maps | 0 | 0 | 0 | 3 | 3 | 0% |
-| Personal data & device sensors | 0 | 0 | 0 | 6 | 6 | 0% |
+| Location & maps | 1 | 1 | 0 | 1 | 3 | 50% |
+| Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **454** | **171** | **42** | **172** | **839** | **64%** |
+| **All areas** | **462** | **176** | **42** | **160** | **840** | **65%** |
 
 ---
 
@@ -335,7 +335,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 |---|---|---|
 | `UIDragInteraction`, `UIDropInteraction` | ❌ | |
 | Table/collection view drag & drop | ❌ | |
-| `NSItemProvider` | ❌ | |
+| `NSItemProvider` | 🟡 | data/file representations, `loadObject(ofClass: UIImage.self)`, `loadDataRepresentation`, UTType overloads (tested through PHPicker); lives in isim's UniformTypeIdentifiers module (re-exported by PhotosUI), not Foundation; no drag & drop |
 
 ### Appearance & dark mode
 
@@ -1058,9 +1058,10 @@ Headless test runs are silent (no audio device); timing, frames and callbacks st
 
 | API / feature | Status | Notes |
 |---|---|---|
-| PhotosUI `PhotosPicker` / `PHPickerViewController` | ❌ | |
-| Photos (`PHPhotoLibrary`, `PHAsset`, saving images) | ❌ | |
-| `UIImageWriteToSavedPhotosAlbum` | ❌ | |
+| PhotosUI `PhotosPicker` / `PHPickerViewController` | ✅ | grid of the device photo library outside the app's permission; single/multiple selection, `NSItemProvider` results, `PhotosPickerItem.loadTransferable(type:)` for `Data` and `Image` (tested; custom `Transferable` types compile, unverified at run time); images only (the library has no videos) |
+| Photos (`PHPhotoLibrary`, `PHAsset`, saving images) | ✅ | device library in `$ISIM_DATA/Media` seeded with 6 generated sample pictures (stand-ins for the Simulator's); permission alert (full / limited with selection / add-only) remembered per app; fetch with sort/limit, smart albums (Recents, Favorites), `PHImageManager` scaling, `PHAssetChangeRequest` create/favorite/delete (with confirmation), change observers; images only |
+| `UIImageWriteToSavedPhotosAlbum` | ✅ | add-only permission alert, completion selector called with nil/error |
+| UniformTypeIdentifiers (`UTType`), CoreTransferable (`Transferable`, `DataRepresentation`, `FileRepresentation`, `ProxyRepresentation`) | 🟡 | fixed table of common system types with conformance, extensions and MIME types; Transferable import/export through data; `Data`, `String`, `URL`, SwiftUI `Image` conform; no drag & drop / ShareLink / pasteboard integration |
 | Vision (text recognition, barcode, face detection) | ❌ | |
 | Core ML (`MLModel`, compiled models) | ❌ | |
 | Natural Language, Speech | ❌ | |
@@ -1187,20 +1188,20 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 
 | API / feature | Status | Notes |
 |---|---|---|
-| CoreLocation (`CLLocationManager`, authorization, updates, geocoding) | ❌ | |
-| Region monitoring, beacons, visits | ❌ | |
+| CoreLocation (`CLLocationManager`, authorization, updates, geocoding) | ✅ | permission alert (Allow Once / While Using / Don't Allow, Always upgrade) remembered per app; simulated location (adapted): Apple Park by default, `ISIM_LOCATION=lat,lon` or a looping route, `location LAT LON`/`location none` script commands; `requestLocation`, `CLLocationUpdate.liveUpdates`, `CLServiceSession`; `CLGeocoder` answers offline from a small built-in gazetteer (other places: `geocodeFoundNoResult`); no heading (like the Simulator); missing usage string: request ignored + logged |
+| Region monitoring, beacons, visits | 🟡 | `CLCircularRegion` monitoring (enter/exit, `requestState`) tested; beacons ranging unavailable and no visits, like the Simulator; `CLMonitor` (iOS 17) missing |
 | MapKit (`MKMapView`, SwiftUI `Map`, annotations, overlays, directions, search) | ❌ | |
 
 ## Personal data & device sensors
 
 | API / feature | Status | Notes |
 |---|---|---|
-| Contacts / ContactsUI | ❌ | |
-| EventKit / EventKitUI (calendars, reminders) | ❌ | |
-| HealthKit | ❌ | |
-| Core Motion (accelerometer, gyroscope, pedometer) | ❌ | |
-| Core Bluetooth | ❌ | |
-| Core NFC | ❌ | |
+| Contacts / ContactsUI | ✅ | address book in `$ISIM_DATA/Library/AddressBook` seeded with the Simulator's sample contacts; permission alert (iOS 18: limited access with a selection list; iOS 17: Don't Allow/OK); fetch requests, name/phone/email/identifier predicates, save requests (add/update/delete, groups), unfetched keys raise like iOS, formatter, vCard; `CNContactPickerViewController` list (contact/property/multi selection), `CNContactViewController` card and a basic new-contact form; no images, no linked contacts |
+| EventKit / EventKitUI (calendars, reminders) | 🟡 | calendar database in `$ISIM_DATA/Library/Calendar` (default "Calendar" and "Reminders" lists); iOS 17 access alerts (full / write-only events, full reminders); events, reminders, date/completion predicates, save/remove, store-changed notification; `EKEventEditViewController` basic form (title, location, all-day; dates shown, not editable) saves without access like iOS 17; recurrence rules and alarms stored but not expanded/fired; no Birthdays/Holidays calendars |
+| HealthKit | ✅ | `isHealthDataAvailable` true on iPhone; Health Access sheet (per-type write/read switches, Turn On All) remembered per app; quantity/category samples stored in `$ISIM_DATA/Library/Health`, unit conversion, sample/statistics/statistics-collection/observer queries; read denial hidden like iOS; no workouts, characteristics unset, no clinical records |
+| Core Motion (accelerometer, gyroscope, pedometer) | 🟡 | adapted: a device held upright at rest (gravity (0,-1,0), no rotation) for accelerometer/gyro/magnetometer/device-motion push and pull updates; `ISIM_MOTION=unavailable` reports no sensors like the Simulator; pedometer, activity, altimeter unavailable (Simulator); shake stays a UIKit motion event |
+| Core Bluetooth | ✅ | like the Simulator: managers report `.unsupported`, scans log iOS's API MISUSE and find nothing |
+| Core NFC | ✅ | like the Simulator: `readingAvailable` false; sessions are invalidated with `readerErrorUnsupportedFeature` |
 
 ## Web & communication
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Photos Demo</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloPhotos</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloPhotos</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Shows your pictures.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Saves your drawings.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Takes profile pictures.</string>
+</dict>
+</plist>

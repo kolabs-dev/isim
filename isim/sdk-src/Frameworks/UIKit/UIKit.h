@@ -43,6 +43,7 @@
 #import <UIKit/UINavigationController.h>
 #import <UIKit/UITableView.h>
 #import <UIKit/UICollectionView.h>
+#import <UIKit/UIImagePickerController.h>
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>
 #import <UIKit/UIOrientation.h>

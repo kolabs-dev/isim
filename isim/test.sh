@@ -39,6 +39,10 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloNetwork.app/HelloNetwork ] && run "ui: HelloNetwork (URLSession, cookies, WebSocket, NWPathMonitor; local server)" tests/ui/network.sh
   [ -x out/apps/HelloSpriteKit.app/HelloSpriteKit ] && run "ui: HelloSpriteKit (SpriteKit physics/particles, GameplayKit, GameController)" tests/ui/spritekit.sh
   [ -x out/apps/HelloSecurity.app/HelloSecurity ] && run "ui: HelloSecurity (CryptoKit, keychain, SQLite, Face ID, notifications)" tests/ui/security.sh
+  [ -x out/apps/HelloLocation.app/HelloLocation ] && run "ui: HelloLocation (Core Location, simulated location, geocoding)" tests/ui/location.sh
+  [ -x out/apps/HelloSensors.app/HelloSensors ] && run "ui: HelloSensors (Core Motion, Bluetooth, NFC, HealthKit)" tests/ui/sensors.sh
+  [ -x out/apps/HelloPersonal.app/HelloPersonal ] && run "ui: HelloPersonal (Contacts, ContactsUI, EventKit, EventKitUI)" tests/ui/personal.sh
+  [ -x out/apps/HelloPhotos.app/HelloPhotos ] && run "ui: HelloPhotos (PhotosUI, Photos, image picker, camera)" tests/ui/photos.sh
   [ -x out/apps/HelloFormatting.app/HelloFormatting ] && run "ui: HelloFormatting (FormatStyle, region change, Regex)" tests/ui/formatting.sh
   [ -x out/apps/HelloDrawing.app/HelloDrawing ] && run "ui: HelloDrawing (shapes, paths, gradients, Canvas, animations)" tests/ui/drawing.sh
   [ -x out/apps/HelloCharts.app/HelloCharts ] && run "ui: HelloCharts (Swift Charts marks, axes, legend)" tests/ui/charts.sh
