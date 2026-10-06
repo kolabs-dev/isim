@@ -3,6 +3,7 @@
 // NSUserActivity (Spotlight), scene state restoration, beginBackgroundTask and BackgroundTasks.
 import UIKit
 import BackgroundTasks
+import Network
 
 let refreshTaskID = "dev.isim.samples.HelloSystem.refresh"
 let processingTaskID = "dev.isim.samples.HelloSystem.cleanup"
@@ -109,6 +110,16 @@ class ViewController: UIViewController {
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
         ])
         log("supportsAlternateIcons=\(UIApplication.shared.supportsAlternateIcons) alternateIconName=\(UIApplication.shared.alternateIconName ?? "nil") shortcutItems=\(UIApplication.shared.shortcutItems?.count ?? 0)")
+    }
+    let monitor = NWPathMonitor()
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        monitor.pathUpdateHandler = { p in log("network \(p.status == .satisfied ? "satisfied" : "unsatisfied")") }
+        monitor.start(queue: .main)
+    }
+    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+        super.traitCollectionDidChange(previous)
+        log("appearance \(traitCollection.userInterfaceStyle == .dark ? "dark" : "light")")
     }
     @objc func bump() { count += 1; log("count \(count)") }
     @objc func addShortcut() {

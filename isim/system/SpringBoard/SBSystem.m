@@ -112,6 +112,12 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
         if ([verb isEqualToString:@"reload"]) [self reload];
         else if ([verb isEqualToString:@"openurl"]) [self openURLString:args];
         else if ([verb isEqualToString:@"launchtask"]) [self backgroundTask:args];
+        else if ([verb isEqualToString:@"set-appearance"]) {          /* Control Center's Dark Mode: the same setting as Settings */
+            NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
+            if ([args isEqualToString:@"dark"]) [g setObject:@"Dark" forKey:@"AppleInterfaceStyle"]; else [g removeObjectForKey:@"AppleInterfaceStyle"];
+            NSLog(@"SpringBoard: appearance %@", args);
+        }
+        else if ([verb isEqualToString:@"spotlight"]) [NSNotificationCenter.defaultCenter postNotificationName:@"_SBShowSpotlight" object:nil];
     }];
 }
 - (void)openURLString:(NSString *)s {
