@@ -15,6 +15,9 @@ func pause(_ seconds: Double) { Thread.sleep(forTimeInterval: seconds) }
     static func main() async {
         print("--- Combine"); combineTests(); await combineAsyncTests()
         print("--- Dispatch"); dispatchTests()
+        print("--- Synchronization")
+        if #available(iOS 18.0, *) { synchronizationTests() } else { check(false, "Synchronization needs iOS 18 (isim device OS too old)") }
+        print("--- Distributed"); await distributedTests()
         print("swift extras test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
     }
