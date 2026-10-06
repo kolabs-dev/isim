@@ -107,6 +107,9 @@ struct ShapesPage: View {
             Rectangle().fill(Color.purple).modifier(Skew(amount: 0.5)).at(20, 700, 40, 40)
             // Core Graphics in a UIKit view: even-odd fill and a dashed line
             CGDrawing().at(20, 750, 110, 40)
+            Text("RED").font(.system(size: 30, weight: .bold))
+                .foregroundStyle(LinearGradient(colors: [Color(red: 1, green: 0, blue: 0), Color(red: 0, green: 0, blue: 1)], startPoint: .leading, endPoint: .trailing))
+                .at(220, 750, 160, 40)
         }
     }
 }
