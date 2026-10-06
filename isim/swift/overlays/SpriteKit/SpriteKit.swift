@@ -1,8 +1,11 @@
-// isim SpriteKit (2D subset), self-authored: SKNode tree, SKSpriteNode, SKShapeNode, SKLabelNode, SKScene,
-// SKView, SKTexture, SKAction. Rendered in software through libisim_host (cairo), 60 frames per second.
-// Not implemented: physics (SKPhysicsBody), particles (SKEmitterNode), effects/crop nodes, shaders,
-// lighting, tile maps, SKVideoNode, texture atlases from .atlas folders.
+// isim SpriteKit (2D), self-authored: SKNode tree, SKSpriteNode, SKShapeNode, SKLabelNode, SKScene, SKView,
+// SKTexture, SKAction, transitions and cameras. Rendered in software through libisim_host (cairo), 60 frames per
+// second. Physics (SKPhysics.swift), particles (SKEmitter.swift), more node types and constraints (SKNodes.swift),
+// atlases and audio (SKAtlasAudio.swift), .sks files (SKArchive.swift).
+// Not implemented: Core Image filters, running SKShader programs, lighting, SKVideoNode, warp geometry.
 @_exported import UIKit
+@_exported import simd
+import AVFoundation
 import isim_host
 
 public typealias SKColor = UIColor
@@ -17,6 +20,7 @@ open class SKTexture: NSObject {
     let pixels: CGRect
     let pointScale: CGFloat
     let owner: AnyObject?
+    var unitRect = CGRect(x: 0, y: 0, width: 1, height: 1)
     open var filteringMode: SKTextureFilteringMode = .linear
     open var usesMipmaps = false
 
@@ -25,7 +29,11 @@ open class SKTexture: NSObject {
     }
     public convenience init(imageNamed name: String) {
         if let img = UIImage(named: name) { self.init(image: img) }
-        else {
+        else if let atlas = SKTextureAtlas.all().first(where: { $0.has(name) }) {
+            // SpriteKit also finds textures by name in the app's texture atlases
+            let t = atlas.textureNamed(name)
+            self.init(handle: t.handle, pixels: t.pixels, scale: t.pointScale, owner: t)
+        } else {
             NSLog("isim SpriteKit: SKTexture(imageNamed: \"%@\"): no such image", name)
             self.init(handle: 0, pixels: .zero, scale: 1, owner: nil)
         }
@@ -47,12 +55,14 @@ open class SKTexture: NSObject {
                        width: rect.width * p.width, height: rect.height * p.height)
         self.init(handle: texture.handle, pixels: r, scale: texture.pointScale, owner: texture)
         filteringMode = texture.filteringMode
+        let u = texture.unitRect
+        unitRect = CGRect(x: u.minX + rect.minX * u.width, y: u.minY + rect.minY * u.height, width: rect.width * u.width, height: rect.height * u.height)
     }
     open func size() -> CGSize { CGSize(width: pixels.width / pointScale, height: pixels.height / pointScale) }
-    open func textureRect() -> CGRect { CGRect(x: 0, y: 0, width: 1, height: 1) }
+    open func textureRect() -> CGRect { unitRect }
     open func cgImage() -> CGImage? { nil }
-    open func preload(completionHandler: @escaping () -> Void) { completionHandler() }
-    open class func preload(_ textures: [SKTexture], withCompletionHandler h: @escaping () -> Void) { h() }
+    open func preload(completionHandler: @escaping () -> Void) { DispatchQueue.main.async(execute: completionHandler) }
+    open class func preload(_ textures: [SKTexture], withCompletionHandler h: @escaping () -> Void) { DispatchQueue.main.async(execute: h) }
     open override var description: String { "<SKTexture> \(size())" }
 }
 
@@ -74,9 +84,43 @@ open class SKNode: UIResponder {
     open private(set) var children: [SKNode] = []
     open private(set) weak var parent: SKNode?
     var runners: [_ActionRunner] = []
+    open var physicsBody: SKPhysicsBody? {
+        didSet {
+            if oldValue !== physicsBody { oldValue?.node = nil }
+            physicsBody?.node = self; physicsBody?.wasPlaced = false
+        }
+    }
+    open var constraints: [SKConstraint]?
+    open var reachConstraints: SKReachConstraints?
+    open var attributeValues: [String: SKAttributeValue] = [:]
 
     public override init() { super.init() }
-    public required init?(coder: NSCoder) { super.init() }
+    public required init?(coder: NSCoder) {
+        super.init()
+        guard let c = coder as? _SKCoder else { return }
+        name = c.string("name")
+        if let p = c.point("position") { position = p }
+        if let v = c.cg("zPosition") { zPosition = v }
+        if let v = c.cg("zRotation") { zRotation = v }
+        if let v = c.cg("xScale") { xScale = v }
+        if let v = c.cg("yScale") { yScale = v }
+        if let v = c.cg("alpha") { alpha = v }
+        if let v = c.bool("hidden") ?? c.bool("isHidden") { isHidden = v }
+        if let v = c.bool("paused") ?? c.bool("isPaused") { isPaused = v }
+        if let v = c.cg("speed") { speed = v }
+        if let v = c.bool("userInteractionEnabled") ?? c.bool("isUserInteractionEnabled") { isUserInteractionEnabled = v }
+        for u in c.uids("children") { if let child = c.node(uid: u), child.parent == nil { addChild(child) } }
+    }
+    open func value(forAttributeNamed key: String) -> SKAttributeValue? { attributeValues[key] }
+    open func setValue(_ value: SKAttributeValue, forAttribute key: String) { attributeValues[key] = value }
+    /// Loads a node (scene, emitter, ...) from an .sks file in the main bundle.
+    public convenience init?(fileNamed filename: String) {
+        guard let a = _SKArchive.load(named: filename), let root = a.rootUID else {
+            NSLog("isim SpriteKit: could not load %@.sks", filename)
+            return nil
+        }
+        self.init(coder: _SKCoder(archive: a, uid: root))
+    }
 
     open var scene: SKScene? {
         var n: SKNode? = self
@@ -98,13 +142,15 @@ open class SKNode: UIResponder {
         children.insert(node, at: max(0, min(index, children.count)))
         node.didAttach()
     }
-    func didAttach() {}
+    func didAttach() { for c in children { c.didAttach() } }
+    func didDetach() { for c in children { c.didDetach() } }
     open func removeFromParent() {
         guard let p = parent else { return }
         p.children.removeAll { $0 === self }
         parent = nil
+        didDetach()
     }
-    open func removeAllChildren() { for c in children { c.parent = nil }; children.removeAll() }
+    open func removeAllChildren() { let old = children; for c in old { c.parent = nil }; children.removeAll(); for c in old { c.didDetach() } }
     open func removeChildren(in nodes: [SKNode]) { for n in nodes where n.parent === self { n.removeFromParent() } }
     open func move(toParent p: SKNode) {
         let pos = parent.map { p.convert(position, from: $0) } ?? position
@@ -213,9 +259,25 @@ open class SKSpriteNode: SKNode {
     open var blendMode: SKBlendMode = .alpha
     open var centerRect = CGRect(x: 0, y: 0, width: 1, height: 1)
     var sizeFromTexture = false
+    open var normalTexture: SKTexture?
+    open var lightingBitMask: UInt32 = 0
+    open var shadowCastBitMask: UInt32 = 0
+    open var shadowedBitMask: UInt32 = 0
+    open var shader: SKShader?
+    open var warpGeometry: AnyObject?
 
     public override init() { super.init() }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        guard let c = coder as? _SKCoder else { return }
+        texture = c.texture("texture")
+        if let col = c.color("color") { color = col }
+        if let v = c.cg("colorBlendFactor") { colorBlendFactor = v }
+        if let v = c.size("size") { size = v } else if let t = texture { size = t.size() }
+        if let v = c.point("anchorPoint") { anchorPoint = v }
+        if let b = c.int("blendMode").flatMap(SKBlendMode.init(rawValue:)) { blendMode = b }
+    }
+    public convenience init(imageNamed name: String, normalMapped: Bool) { self.init(imageNamed: name) }
     public init(texture: SKTexture?, color: UIColor, size: CGSize) {
         super.init(); self.texture = texture; self.color = color; self.size = size
     }
@@ -236,6 +298,7 @@ open class SKSpriteNode: SKNode {
             if factor > 0 { blend = _rgba(color) }
             // textures are stored top-down: draw flipped in the y-up node space
             isim_gfx_save()
+            if blendMode != .alpha { isim_gfx_set_blend(_hostBlend(blendMode)) }
             isim_gfx_scale(1, -1)
             blend.withUnsafeBufferPointer { b in
                 isim_image_draw_part(t.handle, t.pixels.minX, t.pixels.minY, t.pixels.width, t.pixels.height,
@@ -245,7 +308,10 @@ open class SKSpriteNode: SKNode {
             isim_gfx_restore()
         } else if texture == nil {
             var c = _rgba(color); c[3] *= Double(a)
+            isim_gfx_save()
+            if blendMode != .alpha { isim_gfx_set_blend(_hostBlend(blendMode)) }
             c.withUnsafeBufferPointer { isim_gfx_fill_rounded(r.minX, r.minY, r.width, r.height, 0, $0.baseAddress) }
+            isim_gfx_restore()
         }
     }
 }
@@ -275,9 +341,48 @@ open class SKShapeNode: SKNode {
     open var lineCap: CGLineCap = .butt
     open var lineJoin: CGLineJoin = .miter
     open var fillTexture: SKTexture?
+    open var strokeTexture: SKTexture?
+    open var fillShader: SKShader?
+    open var strokeShader: SKShader?
+    open var blendMode: SKBlendMode = .alpha
+    open var miterLimit: CGFloat = 10
+    /// length of the path's outline in points
+    open var lineLength: CGFloat {
+        guard let path else { return 0 }
+        var total: CGFloat = 0
+        for sp in _pathPoints(path) { for i in 1..<sp.count { total += _len(_sub(sp[i], sp[i - 1])) } }
+        return total
+    }
 
     public override init() { super.init() }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        guard let c = coder as? _SKCoder else { return }
+        if let col = c.color("fillColor") { fillColor = col }
+        if let col = c.color("strokeColor") { strokeColor = col }
+        if let v = c.cg("lineWidth") { lineWidth = v }
+        if let v = c.cg("glowWidth") { glowWidth = v }
+        if let v = c.bool("antialiased") ?? c.bool("isAntialiased") { isAntialiased = v }
+        // shapes in .sks files: a rectangle or circle described by size / radius
+        if let r = c.cg("circleRadius") ?? c.cg("radius") { path = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil) }
+        else if let sz = c.size("rectSize") ?? c.size("size") { path = CGPath(rect: CGRect(x: -sz.width / 2, y: -sz.height / 2, width: sz.width, height: sz.height), transform: nil) }
+    }
+    /// a Catmull-Rom spline through the points
+    public convenience init(splinePoints points: UnsafeMutablePointer<CGPoint>, count: Int) {
+        self.init()
+        let p = CGMutablePath()
+        let pts = (0..<count).map { points[$0] }
+        guard let first = pts.first else { return }
+        p.move(to: first)
+        if pts.count > 1 {
+            for i in 0..<(pts.count - 1) {
+                let p0 = pts[max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[min(pts.count - 1, i + 2)]
+                p.addCurve(to: p2, control1: CGPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6),
+                           control2: CGPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6))
+            }
+        }
+        path = p
+    }
     public convenience init(path: CGPath) { self.init(); self.path = path }
     public convenience init(path: CGPath, centered: Bool) {
         self.init(); self.path = path
@@ -307,11 +412,22 @@ open class SKShapeNode: SKNode {
         guard let path, let ctx = UIGraphicsGetCurrentContext() else { return }
         isim_path_begin()
         ctx.addPath(path)
+        isim_gfx_save()
+        if blendMode != .alpha { isim_gfx_set_blend(_hostBlend(blendMode)) }
         var f = _rgba(fillColor); f[3] *= Double(a)
         if f[3] > 0 { f.withUnsafeBufferPointer { isim_path_fill($0.baseAddress) } }
         var s = _rgba(strokeColor); s[3] *= Double(a)
+        if s[3] > 0 && glowWidth > 0 {   // glow: soft, wider strokes under the line
+            for k in stride(from: 3, through: 1, by: -1) {
+                isim_path_begin(); ctx.addPath(path)
+                var g = s; g[3] *= 0.18
+                g.withUnsafeBufferPointer { isim_path_stroke(lineWidth + glowWidth * 2 * CGFloat(k) / 3, $0.baseAddress) }
+            }
+            isim_path_begin(); ctx.addPath(path)
+        }
         if s[3] > 0 && lineWidth > 0 { s.withUnsafeBufferPointer { isim_path_stroke(lineWidth, $0.baseAddress) } }
         isim_path_begin()
+        isim_gfx_restore()
     }
 }
 
@@ -340,9 +456,21 @@ open class SKLabelNode: SKNode {
     open var numberOfLines = 1
     open var preferredMaxLayoutWidth: CGFloat = 0
     open var lineBreakMode: NSLineBreakMode = .byTruncatingTail
+    open var blendMode: SKBlendMode = .alpha
 
     public override init() { super.init() }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        guard let c = coder as? _SKCoder else { return }
+        text = c.string("text")
+        if let f = c.string("fontName") { fontName = f }
+        if let v = c.cg("fontSize") { fontSize = v }
+        if let col = c.color("fontColor") { fontColor = col }
+        if let v = c.int("horizontalAlignmentMode").flatMap(SKLabelHorizontalAlignmentMode.init(rawValue:)) { horizontalAlignmentMode = v }
+        if let v = c.int("verticalAlignmentMode").flatMap(SKLabelVerticalAlignmentMode.init(rawValue:)) { verticalAlignmentMode = v }
+        if let v = c.int("numberOfLines") { numberOfLines = v }
+        if let v = c.cg("preferredMaxLayoutWidth") { preferredMaxLayoutWidth = v }
+    }
     public convenience init(text: String?) { self.init(); self.text = text }
     public convenience init(fontNamed name: String?) { self.init(); fontName = name }
 
@@ -376,7 +504,12 @@ open class SKLabelNode: SKNode {
         guard let t = text, !t.isEmpty else { return }
         let s = measure(), b = box(s), f = font
         var c = _rgba(fontColor ?? .white); c[3] *= Double(a)
+        if let tint = color, colorBlendFactor > 0 {
+            let t = _rgba(tint), k = Double(min(1, colorBlendFactor))
+            for i in 0..<3 { c[i] = c[i] * (1 - k) + c[i] * t[i] * k }
+        }
         isim_gfx_save()
+        if blendMode != .alpha { isim_gfx_set_blend(_hostBlend(blendMode)) }
         isim_gfx_scale(1, -1)
         let align: Int32 = horizontalAlignmentMode == .center ? 1 : horizontalAlignmentMode == .right ? 2 : 0
         c.withUnsafeBufferPointer {
@@ -400,6 +533,9 @@ func _fontWeight(_ f: UIFont) -> Double {
 
 public enum SKSceneScaleMode: Int, Sendable { case fill, aspectFill, aspectFit, resizeFill }
 
+/// while loading an .sks scene, sceneDidLoad runs after the content is decoded
+nonisolated(unsafe) var _skDecodingScene = 0
+
 open class SKScene: SKNode {
     open var size: CGSize {
         didSet { if size != oldValue { didChangeSize(oldValue) } }
@@ -412,11 +548,30 @@ open class SKScene: SKNode {
     open var camera: SKNode?
     open var listener: SKNode?
     public let physicsWorld = SKPhysicsWorld()
+    open private(set) lazy var audioEngine = AVAudioEngine()
 
-    public init(size: CGSize) { self.size = size; super.init(); isUserInteractionEnabled = true; sceneDidLoad() }
+    public init(size: CGSize) {
+        self.size = size; super.init(); isUserInteractionEnabled = true; physicsWorld.scene = self
+        if _skDecodingScene == 0 { sceneDidLoad() }
+    }
     public override convenience init() { self.init(size: CGSize(width: 1, height: 1)) }
-    public required init?(coder: NSCoder) { size = CGSize(width: 1, height: 1); super.init(coder: coder) }
-    public convenience init(fileNamed name: String) { self.init(size: CGSize(width: 1, height: 1)); NSLog("isim SpriteKit: .sks scene files are not supported (%@)", name) }
+    public required init?(coder: NSCoder) {
+        size = CGSize(width: 1, height: 1)
+        _skDecodingScene += 1
+        super.init(coder: coder)
+        _skDecodingScene -= 1
+        isUserInteractionEnabled = true
+        physicsWorld.scene = self
+        if let c = coder as? _SKCoder {
+            if let s = c.size("size") { size = s }
+            if let p = c.point("anchorPoint") { anchorPoint = p }
+            if let col = c.color("backgroundColor") { backgroundColor = col }
+            if let m = c.int("scaleMode").flatMap(SKSceneScaleMode.init(rawValue:)) { scaleMode = m }
+            if let g = c.vector("gravity") ?? c.coder(forKey: "physicsWorld")?.vector("gravity") { physicsWorld.gravity = g }
+            if let u = c.coder(forKey: "camera")?.uid { camera = c.node(uid: u) }
+        }
+        if _skDecodingScene == 0 { sceneDidLoad() }
+    }
 
     open func sceneDidLoad() {}
     open func didMove(to view: SKView) {}
@@ -439,24 +594,54 @@ open class SKScene: SKNode {
         let p = convertPoint(fromView: viewPoint)
         return nodes(at: p).first { $0.isUserInteractionEnabled } ?? self
     }
+
+    /// one frame of the SpriteKit loop (update, actions, physics, constraints, particles)
+    func runFrame(_ now: TimeInterval, _ dt: TimeInterval) {
+        update(now)
+        delegate?.update(now, for: self)
+        evaluateActions(dt)
+        didEvaluateActions()
+        delegate?.didEvaluateActions(for: self)
+        physicsWorld.simulate(dt)
+        didSimulatePhysics()
+        delegate?.didSimulatePhysics(for: self)
+        applyConstraints(self)
+        didApplyConstraints()
+        delegate?.didApplyConstraints(for: self)
+        advanceNodes(self, dt)
+        didFinishUpdate()
+        delegate?.didFinishUpdate(for: self)
+    }
+    func applyConstraints(_ n: SKNode) {
+        if let cs = n.constraints { for c in cs where c.enabled { c.apply(c, n) } }
+        for c in n.children { applyConstraints(c) }
+    }
+    /// time-driven node content: particles, animated tiles, looping audio
+    func advanceNodes(_ n: SKNode, _ dt: TimeInterval) {
+        guard !n.isPaused else { return }
+        let step = dt * Double(n.speed)
+        for c in n.children {
+            if let e = c as? SKEmitterNode, !e.isPaused { e.simulate(step * Double(e.speed)) }
+            else if let t = c as? SKTileMapNode { t.elapsed += CGFloat(step) }
+            else if let a = c as? SKAudioNode, a.autoplayLooped, !a.autoStarted, let p = a.player { a.autoStarted = true; if !p.isPlaying { p.play() } }
+            advanceNodes(c, step)
+        }
+    }
 }
 
 public protocol SKSceneDelegate: AnyObject {
     func update(_ currentTime: TimeInterval, for scene: SKScene)
     func didEvaluateActions(for scene: SKScene)
     func didFinishUpdate(for scene: SKScene)
+    func didSimulatePhysics(for scene: SKScene)
+    func didApplyConstraints(for scene: SKScene)
 }
 extension SKSceneDelegate {
     public func update(_ currentTime: TimeInterval, for scene: SKScene) {}
     public func didEvaluateActions(for scene: SKScene) {}
     public func didFinishUpdate(for scene: SKScene) {}
-}
-
-/// Physics is not simulated on isim; the world exists so scenes that configure it run.
-open class SKPhysicsWorld: NSObject {
-    open var gravity = CGVector(dx: 0, dy: -9.8)
-    open var speed: CGFloat = 1
-    open weak var contactDelegate: AnyObject?
+    public func didSimulatePhysics(for scene: SKScene) {}
+    public func didApplyConstraints(for scene: SKScene) {}
 }
 
 extension UITouch {
@@ -476,15 +661,28 @@ extension UITouch {
 // MARK: - View
 
 open class SKTransition: NSObject {
+    enum Kind: Int { case crossFade, fade, push, moveIn, reveal, doorway, doorsOpenH, doorsOpenV, doorsCloseH, doorsCloseV, flipH, flipV }
     let duration: TimeInterval
+    var kind: Kind = .crossFade
+    var direction: SKTransitionDirection = .left
+    var color: UIColor = .black
     init(duration: TimeInterval) { self.duration = duration }
-    open class func crossFade(withDuration d: TimeInterval) -> SKTransition { SKTransition(duration: d) }
-    open class func fade(withDuration d: TimeInterval) -> SKTransition { SKTransition(duration: d) }
-    open class func fade(with color: UIColor, duration d: TimeInterval) -> SKTransition { SKTransition(duration: d) }
-    open class func push(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(duration: d) }
-    open class func moveIn(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(duration: d) }
-    open class func reveal(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(duration: d) }
-    open class func doorway(withDuration d: TimeInterval) -> SKTransition { SKTransition(duration: d) }
+    convenience init(_ kind: Kind, _ d: TimeInterval, _ dir: SKTransitionDirection = .left, _ color: UIColor = .black) {
+        self.init(duration: d); self.kind = kind; direction = dir; self.color = color
+    }
+    open class func crossFade(withDuration d: TimeInterval) -> SKTransition { SKTransition(.crossFade, d) }
+    open class func fade(withDuration d: TimeInterval) -> SKTransition { SKTransition(.fade, d) }
+    open class func fade(with color: UIColor, duration d: TimeInterval) -> SKTransition { SKTransition(.fade, d, .left, color) }
+    open class func push(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(.push, d, direction) }
+    open class func moveIn(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(.moveIn, d, direction) }
+    open class func reveal(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(.reveal, d, direction) }
+    open class func doorway(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorway, d) }
+    open class func doorsOpenHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsOpenH, d) }
+    open class func doorsOpenVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsOpenV, d) }
+    open class func doorsCloseHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsCloseH, d) }
+    open class func doorsCloseVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsCloseV, d) }
+    open class func flipHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.flipH, d) }
+    open class func flipVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.flipV, d) }
     open var pausesIncomingScene = true
     open var pausesOutgoingScene = true
 }
@@ -507,11 +705,17 @@ open class SKView: UIView {
     var timer: Timer?
     var lastTime: TimeInterval?
     var frameCount = 0, fpsStart = 0.0, fps = 0.0
+    var transitioning: (old: SKScene, transition: SKTransition, start: TimeInterval)?
+    weak var swiftUIScene: SKScene?
+    var pendingPresentation: SKScene?
+    open var showsQuadCount = false
+    open var disableDepthStencilBuffer = false
 
     public override init(frame: CGRect) { super.init(frame: frame); isMultipleTouchEnabled = true }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
 
     open func presentScene(_ scene: SKScene?) {
+        if let t = transitioning { t.old.attach(nil); transitioning = nil }
         if let old = self.scene { old.willMove(from: self); old.attach(nil) }
         self.scene = scene
         lastTime = nil
@@ -523,11 +727,25 @@ open class SKView: UIView {
         restartTimer()
         setNeedsDisplay()
     }
-    open func presentScene(_ scene: SKScene, transition: SKTransition) { presentScene(scene) }
+    /// Presents a scene with an animated transition; the outgoing scene stays visible until it completes.
+    open func presentScene(_ scene: SKScene, transition: SKTransition) {
+        guard let old = self.scene, old !== scene, transition.duration > 0 else { presentScene(scene); return }
+        if let t = transitioning { t.old.attach(nil) }
+        old.willMove(from: self)
+        self.scene = scene
+        lastTime = nil
+        scene.attach(self)
+        if scene.scaleMode == .resizeFill, bounds.size.width > 0 { scene.size = bounds.size }
+        scene.didMove(to: self)
+        transitioning = (old, transition, ProcessInfo.processInfo.systemUptime)
+        restartTimer()
+        setNeedsDisplay()
+    }
 
     open override func didMoveToWindow() { super.didMoveToWindow(); restartTimer() }
     open override func layoutSubviews() {
         super.layoutSubviews()
+        if let p = pendingPresentation, bounds.size.width > 0, bounds.size.height > 0 { pendingPresentation = nil; presentScene(p) }
         if let s = scene, s.scaleMode == .resizeFill, bounds.size.width > 0, s.size != bounds.size { s.size = bounds.size }
     }
     func restartTimer() {
@@ -543,18 +761,19 @@ open class SKView: UIView {
     func tick() {
         guard let s = scene, window != nil else { timer?.invalidate(); timer = nil; return }
         let now = ProcessInfo.processInfo.systemUptime
-        if !isPaused && !s.isPaused {
+        var incomingPaused = false
+        if let t = transitioning {
+            if now - t.start >= t.transition.duration {
+                t.old.attach(nil); transitioning = nil
+            } else {
+                incomingPaused = t.transition.pausesIncomingScene
+                if !t.transition.pausesOutgoingScene && !isPaused && !t.old.isPaused { t.old.runFrame(now, 1.0 / Double(max(1, preferredFramesPerSecond))) }
+            }
+        }
+        if !isPaused && !s.isPaused && !incomingPaused {
             let dt = lastTime.map { min(now - $0, 0.25) } ?? 0
             lastTime = now
-            s.update(now)
-            s.delegate?.update(now, for: s)
-            s.evaluateActions(dt)
-            s.didEvaluateActions()
-            s.delegate?.didEvaluateActions(for: s)
-            s.didSimulatePhysics()
-            s.didApplyConstraints()
-            s.didFinishUpdate()
-            s.delegate?.didFinishUpdate(for: s)
+            s.runFrame(now, dt)
         } else {
             lastTime = nil
         }
@@ -564,8 +783,9 @@ open class SKView: UIView {
     }
 
     /// scene space -> view space
-    var sceneToView: CGAffineTransform {
-        guard let s = scene, s.size.width > 0, s.size.height > 0 else { return .identity }
+    var sceneToView: CGAffineTransform { scene.map { sceneToView(for: $0) } ?? .identity }
+    func sceneToView(for s: SKScene) -> CGAffineTransform {
+        guard s.size.width > 0, s.size.height > 0 else { return .identity }
         let b = bounds.size
         var sx = b.width / s.size.width, sy = b.height / s.size.height
         switch s.scaleMode {
@@ -574,46 +794,159 @@ open class SKView: UIView {
         case .aspectFill: sx = max(sx, sy); sy = sx
         case .resizeFill: sx = 1; sy = 1
         }
+        // a camera in the scene: its position is the view's center; its rotation and scale apply inversely
+        if let cam = s.camera, cam.scene === s {
+            return cam.sceneTransform.inverted().concatenating(CGAffineTransform(a: sx, b: 0, c: 0, d: -sy, tx: b.width / 2, ty: b.height / 2))
+        }
         let w = s.size.width * sx, h = s.size.height * sy
         let ox = (b.width - w) / 2, oy = (b.height - h) / 2
         // y up: scene (0,0) at the bottom-left of the scene rect (shifted by anchorPoint)
         return CGAffineTransform(a: sx, b: 0, c: 0, d: -sy, tx: ox + s.anchorPoint.x * w, ty: oy + h - s.anchorPoint.y * h)
     }
-    open func convert(_ p: CGPoint, to scene: SKScene) -> CGPoint { p.applying(sceneToView.inverted()) }
-    open func convert(_ p: CGPoint, from scene: SKScene) -> CGPoint { p.applying(sceneToView) }
+    open func convert(_ p: CGPoint, to scene: SKScene) -> CGPoint { p.applying(sceneToView(for: scene).inverted()) }
+    open func convert(_ p: CGPoint, from scene: SKScene) -> CGPoint { p.applying(sceneToView(for: scene)) }
+    /// isim cannot render nodes into textures (no offscreen GPU target); returns nil
+    open func texture(from node: SKNode) -> SKTexture? { nil }
+    open func texture(from node: SKNode, crop: CGRect) -> SKTexture? { nil }
 
     struct Item { let node: SKNode; let z: CGFloat; let order: Int; let t: CGAffineTransform; let alpha: CGFloat }
+    var drawnNodes = 0
 
-    open override func draw(_ rect: CGRect) {
-        guard let s = scene else { return }
+    /// draws a node's children (and, with `includeRoot`, the node itself), sorted by global z
+    func renderTree(_ root: SKNode, _ t: CGAffineTransform, _ alpha: CGFloat, includeRoot: Bool = false) {
+        var items: [Item] = []
+        if includeRoot { items.append(Item(node: root, z: 0, order: 0, t: t, alpha: alpha * root.alpha)) }
+        func walk(_ n: SKNode, _ t: CGAffineTransform, _ z: CGFloat, _ a: CGFloat) {
+            for c in n.children where !c.isHidden && c.alpha > 0.001 {
+                let ct = c.localTransform.concatenating(t), cz = z + c.zPosition, ca = a * c.alpha
+                items.append(Item(node: c, z: cz, order: items.count, t: ct, alpha: ca))
+                if !(c is SKCropNode || c is SKEffectNode) { walk(c, ct, cz, ca) }    // groups draw their own subtree
+            }
+        }
+        if includeRoot && (root is SKCropNode || root is SKEffectNode) {} else { walk(root, t, 0, includeRoot ? alpha * root.alpha : alpha) }
+        items.sort { $0.z != $1.z ? $0.z < $1.z : $0.order < $1.order }
+        drawnNodes += items.count
+        for it in items {
+            if let crop = it.node as? SKCropNode {
+                isim_gfx_push_group()
+                renderTree(crop, it.t, 1)
+                if let mask = crop.maskNode {
+                    isim_gfx_push_group()
+                    renderTree(mask, mask.localTransform.concatenating(it.t), 1, includeRoot: true)
+                    isim_gfx_pop_group_masked(Double(it.alpha))
+                } else {
+                    isim_gfx_pop_group(Double(it.alpha))
+                }
+            } else if let fx = it.node as? SKEffectNode {
+                isim_gfx_save()
+                isim_gfx_set_blend(_hostBlend(fx.blendMode))
+                isim_gfx_push_group()
+                isim_gfx_set_blend(0)
+                renderTree(fx, it.t, 1)
+                isim_gfx_pop_group(Double(it.alpha))
+                isim_gfx_restore()
+            } else {
+                isim_gfx_save()
+                isim_gfx_concat(it.t.a, it.t.b, it.t.c, it.t.d, it.t.tx, it.t.ty)
+                it.node.drawContent(alpha: it.alpha)
+                isim_gfx_restore()
+            }
+        }
+    }
+
+    /// background + content of a scene, optionally moved / scaled (transitions) and faded
+    func drawScene(_ s: SKScene, offset: CGPoint = .zero, scale: CGSize = CGSize(width: 1, height: 1), alpha: CGFloat = 1, clip: CGRect? = nil) {
+        isim_gfx_save()
+        if let clip { isim_gfx_translate(offset.x, offset.y); isim_gfx_clip_rounded(clip.minX, clip.minY, clip.width, clip.height, 0); isim_gfx_translate(-offset.x, -offset.y) }
+        isim_gfx_translate(offset.x, offset.y)
+        if scale.width != 1 || scale.height != 1 {
+            isim_gfx_translate(bounds.width / 2, bounds.height / 2); isim_gfx_scale(scale.width, scale.height); isim_gfx_translate(-bounds.width / 2, -bounds.height / 2)
+        }
+        if alpha < 0.999 { isim_gfx_push_group() }
         if !allowsTransparency || (_rgba(s.backgroundColor)[3] > 0) {
             var bg = _rgba(s.backgroundColor)
             if !allowsTransparency { bg[3] = 1 }
             if bg[3] > 0 { bg.withUnsafeBufferPointer { isim_gfx_fill_rounded(0, 0, bounds.width, bounds.height, 0, $0.baseAddress) } }
         }
-        // flatten: global z = sum of ancestors' zPosition; ties keep tree order
-        var items: [Item] = []
-        func walk(_ n: SKNode, _ t: CGAffineTransform, _ z: CGFloat, _ a: CGFloat) {
-            for c in n.children where !c.isHidden && c.alpha > 0.001 {
-                let ct = c.localTransform.concatenating(t), cz = z + c.zPosition, ca = a * c.alpha
-                items.append(Item(node: c, z: cz, order: items.count, t: ct, alpha: ca))
-                walk(c, ct, cz, ca)
+        isim_gfx_clip_rounded(0, 0, bounds.width, bounds.height, 0)
+        renderTree(s, sceneToView(for: s), s.alpha)
+        if showsPhysics { drawPhysics(s) }
+        if alpha < 0.999 { isim_gfx_pop_group(Double(max(0, alpha))) }
+        isim_gfx_restore()
+    }
+
+    func drawPhysics(_ s: SKScene) {
+        let t = sceneToView(for: s)
+        let c: [Double] = [0.4, 0.9, 1, 0.9]
+        isim_gfx_save()
+        isim_gfx_concat(t.a, t.b, t.c, t.d, t.tx, t.ty)
+        for b in s.physicsWorld.lastBodies {
+            for w in b.world {
+                isim_path_begin()
+                if w.kind == 0 { isim_path_arc(w.center.x, w.center.y, w.radius, 0, 2 * .pi, 1) }
+                else {
+                    isim_path_move(w.verts[0].x, w.verts[0].y)
+                    for v in w.verts.dropFirst() { isim_path_line(v.x, v.y) }
+                    if w.kind == 1 { isim_path_close() }
+                }
+                c.withUnsafeBufferPointer { isim_path_stroke(1 / max(0.01, abs(t.a) + abs(t.b)), $0.baseAddress) }
             }
         }
-        walk(s, sceneToView, 0, s.alpha)
-        items.sort { $0.z != $1.z ? $0.z < $1.z : $0.order < $1.order }
-        isim_gfx_save()
-        isim_gfx_clip_rounded(0, 0, bounds.width, bounds.height, 0)
-        for it in items {
-            isim_gfx_save()
-            isim_gfx_concat(it.t.a, it.t.b, it.t.c, it.t.d, it.t.tx, it.t.ty)
-            it.node.drawContent(alpha: it.alpha)
-            isim_gfx_restore()
-        }
+        isim_path_begin()
         isim_gfx_restore()
-        if showsFPS || showsNodeCount {
+    }
+
+    open override func draw(_ rect: CGRect) {
+        guard let s = scene else { return }
+        drawnNodes = 0
+        let W = bounds.width, H = bounds.height
+        if let tr = transitioning {
+            let p = min(1, max(0, (ProcessInfo.processInfo.systemUptime - tr.start) / tr.transition.duration))
+            let f = CGFloat(p), old = tr.old, t = tr.transition
+            // unit vector of the movement direction in view coordinates
+            let d: CGPoint = t.direction == .up ? CGPoint(x: 0, y: -1) : t.direction == .down ? CGPoint(x: 0, y: 1) : t.direction == .right ? CGPoint(x: 1, y: 0) : CGPoint(x: -1, y: 0)
+            let span = CGPoint(x: d.x * W, y: d.y * H)
+            let black: [Double] = [0, 0, 0, 1]
+            black.withUnsafeBufferPointer { isim_gfx_fill_rounded(0, 0, W, H, 0, $0.baseAddress) }
+            switch t.kind {
+            case .crossFade: drawScene(old); drawScene(s, alpha: f)
+            case .fade:
+                drawScene(f < 0.5 ? old : s)
+                var c = _rgba(t.color); c[3] = Double(f < 0.5 ? f * 2 : (1 - f) * 2)
+                c.withUnsafeBufferPointer { isim_gfx_fill_rounded(0, 0, W, H, 0, $0.baseAddress) }
+            case .push: drawScene(old, offset: _mul(span, f)); drawScene(s, offset: _mul(span, f - 1))
+            case .moveIn: drawScene(old); drawScene(s, offset: _mul(span, f - 1))
+            case .reveal: drawScene(s); drawScene(old, offset: _mul(span, f))
+            case .doorway, .doorsOpenH:
+                drawScene(s, scale: t.kind == .doorway ? CGSize(width: 0.7 + 0.3 * f, height: 0.7 + 0.3 * f) : CGSize(width: 1, height: 1), alpha: t.kind == .doorway ? f : 1)
+                drawScene(old, offset: CGPoint(x: -f * W / 2, y: 0), clip: CGRect(x: 0, y: 0, width: W / 2, height: H))
+                drawScene(old, offset: CGPoint(x: f * W / 2, y: 0), clip: CGRect(x: W / 2, y: 0, width: W / 2, height: H))
+            case .doorsOpenV:
+                drawScene(s)
+                drawScene(old, offset: CGPoint(x: 0, y: -f * H / 2), clip: CGRect(x: 0, y: 0, width: W, height: H / 2))
+                drawScene(old, offset: CGPoint(x: 0, y: f * H / 2), clip: CGRect(x: 0, y: H / 2, width: W, height: H / 2))
+            case .doorsCloseH:
+                drawScene(old)
+                drawScene(s, offset: CGPoint(x: -(1 - f) * W / 2, y: 0), clip: CGRect(x: 0, y: 0, width: W / 2, height: H))
+                drawScene(s, offset: CGPoint(x: (1 - f) * W / 2, y: 0), clip: CGRect(x: W / 2, y: 0, width: W / 2, height: H))
+            case .doorsCloseV:
+                drawScene(old)
+                drawScene(s, offset: CGPoint(x: 0, y: -(1 - f) * H / 2), clip: CGRect(x: 0, y: 0, width: W, height: H / 2))
+                drawScene(s, offset: CGPoint(x: 0, y: (1 - f) * H / 2), clip: CGRect(x: 0, y: H / 2, width: W, height: H / 2))
+            case .flipH, .flipV:
+                let k = max(0.001, abs(1 - 2 * f))
+                let sc = t.kind == .flipH ? CGSize(width: k, height: 1) : CGSize(width: 1, height: k)
+                let black: [Double] = [0, 0, 0, 1]
+                black.withUnsafeBufferPointer { isim_gfx_fill_rounded(0, 0, W, H, 0, $0.baseAddress) }
+                drawScene(f < 0.5 ? old : s, scale: sc)
+            }
+        } else {
+            drawScene(s)
+        }
+        if showsFPS || showsNodeCount || showsDrawCount {
             var parts: [String] = []
-            if showsNodeCount { parts.append("nodes: \(items.count)") }
+            if showsNodeCount { parts.append("nodes: \(drawnNodes)") }
+            if showsDrawCount { parts.append("draws: \(drawnNodes)") }
             if showsFPS { parts.append(String(format: "%.1f fps", fps)) }
             let c: [Double] = [1, 1, 1, 0.9]
             c.withUnsafeBufferPointer { isim_text_draw(parts.joined(separator: "  "), 6, bounds.height - 18, 0, 11, 0, 1, 0, 1, $0.baseAddress) }
@@ -829,10 +1162,96 @@ open class SKAction: NSObject {
             }
         }
     }
-    /// Sound playback from SpriteKit actions is not wired to isim's audio yet (the action completes silently).
-    open class func playSoundFileNamed(_ name: String, waitForCompletion: Bool) -> SKAction {
-        instant { _ in NSLog("isim SpriteKit: playSoundFileNamed(%@) is silent on isim", name) }
+    /// Plays a sound file from the main bundle (CAF/WAV; compressed formats need the host's ffmpeg or GStreamer).
+    open class func playSoundFileNamed(_ name: String, waitForCompletion wait: Bool) -> SKAction {
+        if !wait { return instant { _ in _SKSound.play(name) } }
+        let d = (try? AVAudioPlayer(contentsOf: _SKSound.url(for: name) ?? URL(fileURLWithPath: "/nonexistent")))?.duration ?? 0
+        return SKAction(duration: d) { node, action in
+            _TimedRunner(node: node, duration: d, action: action, setup: { _ in _SKSound.play(name); return { _ in } })
+        }
     }
+    // audio node actions
+    open class func play() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.play() } }
+    open class func pause() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.pause() } }
+    open class func stop() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.stop() } }
+    open class func changeVolume(to v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in
+            guard let a = n as? SKAudioNode else { return { _ in } }
+            let s = a.volume
+            return { f in a.volume = s + (v - s) * Float(f) }
+        }
+    }
+    open class func changeVolume(by v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in
+            guard let a = n as? SKAudioNode else { return { _ in } }
+            let s = a.volume
+            return { f in a.volume = s + v * Float(f) }
+        }
+    }
+    /// playback rate, stereo panning, obstruction, occlusion and reverb are accepted; isim plays at normal rate
+    open class func changePlaybackRate(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    open class func changePlaybackRate(by v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    open class func stereoPan(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    open class func stereoPan(by v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    open class func changeObstruction(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    open class func changeOcclusion(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    open class func changeReverb(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+
+    // physics
+    open class func applyForce(_ f: CGVector, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in { _ in n.physicsBody?.applyForce(f) } }
+    }
+    open class func applyForce(_ f: CGVector, at p: CGPoint, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in { _ in n.physicsBody?.applyForce(f, at: p) } }
+    }
+    open class func applyTorque(_ t: CGFloat, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in { _ in n.physicsBody?.applyTorque(t) } }
+    }
+    /// the impulse is spread over the duration
+    open class func applyImpulse(_ j: CGVector, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in var last = 0.0; return { f in let k = CGFloat(f - last); last = f; n.physicsBody?.applyImpulse(CGVector(dx: j.dx * k, dy: j.dy * k)) } }
+    }
+    open class func applyImpulse(_ j: CGVector, at p: CGPoint, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in var last = 0.0; return { f in let k = CGFloat(f - last); last = f; n.physicsBody?.applyImpulse(CGVector(dx: j.dx * k, dy: j.dy * k), at: p) } }
+    }
+    open class func applyAngularImpulse(_ j: CGFloat, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in var last = 0.0; return { f in let k = CGFloat(f - last); last = f; n.physicsBody?.applyAngularImpulse(j * k) } }
+    }
+    open class func changeCharge(to v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in let s = n.physicsBody?.charge ?? 0; return { f in n.physicsBody?.charge = s + (CGFloat(v) - s) * CGFloat(f) } }
+    }
+    open class func changeCharge(by v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in let s = n.physicsBody?.charge ?? 0; return { f in n.physicsBody?.charge = s + CGFloat(v) * CGFloat(f) } }
+    }
+    open class func changeMass(to v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in let s = n.physicsBody?.mass ?? 0; return { f in n.physicsBody?.mass = s + (CGFloat(v) - s) * CGFloat(f) } }
+    }
+    open class func changeMass(by v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in let s = n.physicsBody?.mass ?? 0; return { f in n.physicsBody?.mass = s + CGFloat(v) * CGFloat(f) } }
+    }
+    open class func strength(to v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in let s = (n as? SKFieldNode)?.strength ?? 0; return { f in (n as? SKFieldNode)?.strength = s + (v - s) * Float(f) } }
+    }
+    open class func strength(by v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in let s = (n as? SKFieldNode)?.strength ?? 0; return { f in (n as? SKFieldNode)?.strength = s + v * Float(f) } }
+    }
+    open class func falloff(to v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in let s = (n as? SKFieldNode)?.falloff ?? 0; return { f in (n as? SKFieldNode)?.falloff = s + (v - s) * Float(f) } }
+    }
+    open class func falloff(by v: Float, duration d: TimeInterval) -> SKAction {
+        timed(d) { n in let s = (n as? SKFieldNode)?.falloff ?? 0; return { f in (n as? SKFieldNode)?.falloff = s + v * Float(f) } }
+    }
+    // paths at a speed (points per second)
+    open class func follow(_ path: CGPath, speed: CGFloat) -> SKAction { follow(path, asOffset: true, orientToPath: true, speed: speed) }
+    open class func follow(_ path: CGPath, duration d: TimeInterval) -> SKAction { follow(path, asOffset: true, orientToPath: true, duration: d) }
+    open class func follow(_ path: CGPath, asOffset: Bool, orientToPath: Bool, speed: CGFloat) -> SKAction {
+        var length: CGFloat = 0
+        for sp in _pathPoints(path) { for i in 1..<sp.count { length += _len(_sub(sp[i], sp[i - 1])) } }
+        return follow(path, asOffset: asOffset, orientToPath: orientToPath, duration: speed > 0 ? TimeInterval(length / speed) : 0)
+    }
+    /// inverse kinematics is not simulated on isim: reach actions only wait
+    open class func reach(to p: CGPoint, rootNode: SKNode, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    open class func reach(to node: SKNode, rootNode: SKNode, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
 }
 
 // MARK: - Action runners
