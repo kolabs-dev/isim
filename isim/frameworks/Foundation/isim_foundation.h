@@ -35,3 +35,7 @@ NSString *NSTemporaryDirectory_isim(void);
 /* device data & system preferences (Runtime.m, Files.m) */
 NSString *isim_data_dir(void);
 NSDictionary *isim_global_preferences(void);
+
+/* regular expressions (Regex.m) */
+NSRange isim_regex_search(NSString *string, NSString *pattern, NSStringCompareOptions mask, NSRange range);
+uint32_t isim_case_map(uint32_t c, int upper);   /* StringExtras.m */

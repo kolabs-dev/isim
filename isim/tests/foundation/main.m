@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
         NSString *s = [NSString stringWithFormat:@"%@ %d %.2f %s %ld %05x %@", @"hi", 42, 3.14159, "c", (long)-7, 255, @[@1, @2]];
         CHECK([s hasPrefix:@"hi 42 3.14 c -7 000ff ("]);
         CHECK([@"héllo wörld" length] == 11);
-        CHECK([[@"héllo" uppercaseString] isEqualToString:@"HéLLO"]);
+        CHECK([[@"héllo" uppercaseString] isEqualToString:@"HÉLLO"] && [[@"ÇA VA" lowercaseString] isEqualToString:@"ça va"]);
         CHECK([@"a,b,,c" componentsSeparatedByString:@","].count == 4);
         CHECK([[@"/a/b/c.txt" lastPathComponent] isEqualToString:@"c.txt"]);
         CHECK([[@"/a/b/c.txt" pathExtension] isEqualToString:@"txt"]);
@@ -59,6 +59,44 @@ int main(int argc, char *argv[]) {
         CHECK([m isEqualToString:@">abc-5"]);
         CHECK([@"42" integerValue] == 42 && [@"2.5" doubleValue] == 2.5);
         CHECK([[@"shout" shout] isEqualToString:@"SHOUT!"]);               // category on a framework class
+        CHECK([[@"straße" uppercaseString] isEqualToString:@"STRASSE"] && [[@"hello wide world" capitalizedString] isEqualToString:@"Hello Wide World"]);
+        CHECK([@"Crème Brûlée" localizedStandardContainsString:@"creme brulee"] && [@"ABC" localizedCaseInsensitiveContainsString:@"b"]);
+        CHECK([@"a-b-c" rangeOfString:@"-" options:NSBackwardsSearch range:NSMakeRange(0, 5)].location == 3);
+        CHECK([[@"a.b.c" stringByReplacingOccurrencesOfString:@"." withString:@"/" options:0 range:NSMakeRange(2, 3)] isEqualToString:@"a.b/c"]);
+        __block NSMutableArray *lines = [NSMutableArray array];
+        [@"one\ntwo\r\nthree" enumerateLinesUsingBlock:^(NSString *line, BOOL *stop) { [lines addObject:line]; }];
+        CHECK([lines isEqualToArray:(@[@"one", @"two", @"three"])]);
+        __block NSMutableArray *words = [NSMutableArray array];
+        [@"Hi, it's a test." enumerateSubstringsInRange:NSMakeRange(0, 16) options:NSStringEnumerationByWords usingBlock:^(NSString *w, NSRange r, NSRange e, BOOL *stop) { [words addObject:w]; }];
+        CHECK([words isEqualToArray:(@[@"Hi", @"it's", @"a", @"test"])]);
+
+        // regular expressions (NSRegularExpression on the host's PCRE2)
+        NSError *rerr = nil;
+        NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"(\\w+)@(?<host>\\w+)\\.com" options:NSRegularExpressionCaseInsensitive error:&rerr];
+        NSString *mail = @"Mail ANA@Example.com or bob@test.com — é@x.com";
+        CHECK(re && !rerr && re.numberOfCaptureGroups == 2);
+        NSArray<NSTextCheckingResult *> *ms = [re matchesInString:mail options:0 range:NSMakeRange(0, mail.length)];
+        CHECK(ms.count == 3 && [[mail substringWithRange:[ms[0] rangeAtIndex:1]] isEqualToString:@"ANA"]);
+        CHECK([[mail substringWithRange:[ms[1] rangeWithName:@"host"]] isEqualToString:@"test"]);
+        CHECK(ms[2].range.location == 39 && ms[2].range.length == 7);             // UTF-16 indices after a non-ASCII dash
+        CHECK([[re stringByReplacingMatchesInString:mail options:0 range:NSMakeRange(0, mail.length) withTemplate:@"<$2:$1>"] isEqualToString:@"Mail <Example:ANA> or <test:bob> — <x:é>"]);
+        CHECK([re numberOfMatchesInString:mail options:0 range:NSMakeRange(5, 10)] == 0);
+        CHECK([NSRegularExpression regularExpressionWithPattern:@"(unclosed" options:0 error:&rerr] == nil && rerr.code == 2048);
+        NSRegularExpression *empty = [NSRegularExpression regularExpressionWithPattern:@"x*" options:0 error:NULL];
+        CHECK([empty numberOfMatchesInString:@"axxb" options:0 range:NSMakeRange(0, 4)] == 4);
+        NSMutableString *mm = [@"2024-10-05" mutableCopy];
+        [[NSRegularExpression regularExpressionWithPattern:@"(\\d+)-(\\d+)-(\\d+)" options:0 error:NULL] replaceMatchesInString:mm options:0 range:NSMakeRange(0, mm.length) withTemplate:@"$3/$2/$1 \\$1"];
+        CHECK([mm isEqualToString:@"05/10/2024 $1"]);
+        CHECK([@"Version 12.3" rangeOfString:@"\\d+\\.\\d+" options:NSRegularExpressionSearch].location == 8);
+        CHECK([[NSRegularExpression escapedPatternForString:@"a.b*c"] isEqualToString:@"a\\.b\\*c"]);
+        NSRegularExpression *ml = [NSRegularExpression regularExpressionWithPattern:@"^\\w+$" options:NSRegularExpressionAnchorsMatchLines error:NULL];
+        CHECK([ml numberOfMatchesInString:@"ab\ncd\nef" options:0 range:NSMakeRange(0, 8)] == 3);
+        NSDataDetector *dd = [NSDataDetector dataDetectorWithTypes:NSTextCheckingTypeLink | NSTextCheckingTypePhoneNumber | NSTextCheckingTypeDate error:NULL];
+        NSString *note = @"See https://isim.dev/docs, write to me@kolabs.dev or call +1 (555) 123-4567 on 2026-10-05.";
+        NSArray<NSTextCheckingResult *> *found = [dd matchesInString:note options:0 range:NSMakeRange(0, note.length)];
+        CHECK(found.count == 4 && found[0].resultType == NSTextCheckingTypeLink && [found[0].URL.absoluteString isEqualToString:@"https://isim.dev/docs"]);
+        CHECK(found.count == 4 && [found[1].URL.absoluteString isEqualToString:@"mailto:me@kolabs.dev"] && [found[2].phoneNumber isEqualToString:@"+1 (555) 123-4567"]);
+        CHECK(found.count == 4 && found[3].resultType == NSTextCheckingTypeDate && found[3].date != nil);
 
         // numbers & collections
         NSArray *arr = @[@3, @1, @2];

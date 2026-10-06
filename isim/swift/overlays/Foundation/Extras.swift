@@ -292,19 +292,8 @@ extension StringProtocol {
     }
 }
 extension String {
-    public struct CompareOptions: OptionSet, Sendable {
-        public let rawValue: UInt
-        public init(rawValue: UInt) { self.rawValue = rawValue }
-        public static let caseInsensitive = CompareOptions(rawValue: 1)
-        public static let literal = CompareOptions(rawValue: 2)
-        public static let backwards = CompareOptions(rawValue: 4)
-        public static let anchored = CompareOptions(rawValue: 8)
-        public static let numeric = CompareOptions(rawValue: 64)
-        public static let diacriticInsensitive = CompareOptions(rawValue: 128)
-        public static let widthInsensitive = CompareOptions(rawValue: 256)
-        public static let forcedOrdering = CompareOptions(rawValue: 512)
-        public static let regularExpression = CompareOptions(rawValue: 1024)
-    }
+    public typealias CompareOptions = NSString.CompareOptions
+    public typealias EnumerationOptions = NSString.EnumerationOptions
 }
 
 // MARK: - Locale.Language

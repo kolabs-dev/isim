@@ -29,3 +29,4 @@
 #import <Foundation/NSUserDefaults.h>
 #include <dispatch/dispatch.h>
 #import <Foundation/NSCoder.h>
+#import <Foundation/NSRegularExpression.h>
