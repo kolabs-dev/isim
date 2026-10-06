@@ -33,7 +33,7 @@ isim-0.1.0-linux-x86_64/bin/isim install isim-0.1.0-linux-x86_64/apps/*.app
 |---|---|
 | `isim boot` | start the device on its home screen |
 | `isim install App.app…` · `isim uninstall NAME` · `isim apps` | manage installed apps |
-| `isim run App.app` | run one app without the home screen |
+| `isim run App.app [args…]` | install, boot and open the app over the home screen (headless or `ISIM_STANDALONE=1`: the app alone) |
 | `isim reset` | erase installed apps, app data and settings |
 | `isim build -project App.xcodeproj [-target T] [-o DIR]` | build an Xcode project |
 | `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
@@ -89,9 +89,9 @@ Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs
 |---|---|---|
 | Compile for iOS on Linux | ✅ | clang/lld produce iOS-simulator (x86_64) and device (arm64) Mach-O |
 | Run simulator binaries | ✅ | own Mach-O loader, libSystem subset, Objective-C runtime, Foundation |
-| UIKit | 🟡 | views, controls, Auto Layout, scroll views, text fields, keyboard and keyboard extensions, alerts. Not yet: table/collection views, animations, storyboards |
+| UIKit | 🟡 | views, controls (sliders, steppers, segmented, menus…), Auto Layout, scroll views, text fields, keyboards, alerts, page sheets, view animations, blur. Not yet: table/collection views, navigation/tab controllers, storyboards |
 | Swift | ✅ | full runtime, Swift Concurrency, Foundation bridging. Not yet: Regex |
-| SwiftUI | 🟡 | isim's own implementation (SwiftUI is closed source): common views, state, Form/List, NavigationStack. Not yet: animations, sheets, ScrollView, Grid, `@Observable` |
+| SwiftUI | 🟡 | isim's own implementation (SwiftUI is closed source): views, state, `@Observable`, `@AppStorage`, Form/List, NavigationStack, TabView, pickers, sheets/alerts, animations and transitions, materials. Not yet: Grid, gradients/paths, searchable |
 | Home screen | ✅ | apps run as separate processes; home gesture; background/resume; delete apps. Not yet: App Library, app switcher |
 | Settings app | 🟡 | General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, per-app pages |
 | Devices | 🟡 | 12 iPhones (SE to 17 Pro Max) and 4 iPads. Not yet: rotation, iPad multitasking |
