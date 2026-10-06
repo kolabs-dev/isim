@@ -4,7 +4,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 isim=$(realpath ../../out/bin/isim)
-[ -f ../../out/sdk/usr/lib/swift/libswiftBackgroundTasks.dylib ] || { echo "HelloSystem: skipped (Swift SDK not built)"; exit 0; }
+[ -f ../../out/sdk/usr/lib/swift/libswiftCoreSpotlight.dylib ] || { echo "HelloSystem: skipped (Swift SDK not built)"; exit 0; }
 out=${1:?output dir}/HelloSystem.app; obj=$(realpath -m ../../out/swift/obj/HelloSystem.o)
 rm -rf "$out"; mkdir -p "$out" "$(dirname "$obj")"
 "$isim" swiftc -module-name HelloSystem -parse-as-library -wmo -c ./*.swift -o "$obj"

@@ -1,5 +1,6 @@
-// isim home screen ("SpringBoard"): installed apps as icons; tapping one asks the isim shell to
-// launch (or resume) it. Runs as an isim system app under `isim boot`.
+// isim home screen ("SpringBoard"): installed apps as icons on pages (with folders), the dock, the App Library
+// page and Spotlight. Tapping an icon asks the isim shell to launch (or resume) the app. Runs as an isim system app
+// under `isim boot`. The arrangement is saved in <isim data>/Library/SpringBoard/IconState.plist.
 #import "SpringBoard.h"
 #import <objc/runtime.h>
 
@@ -17,7 +18,7 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
         a.name = [b objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: [b objectForInfoDictionaryKey:@"CFBundleName"] ?: n.stringByDeletingPathExtension;
         a.bundleID = info[@"CFBundleIdentifier"] ?: n;
         a.info = info;
-        a.category = info[@"LSApplicationCategoryType"];
+        a.category = system ? @"public.app-category.utilities" : info[@"LSApplicationCategoryType"];
         a.iconPath = HSIconPath(path, info, a.bundleID);
         [out addObject:a];
     }
@@ -25,14 +26,19 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     return out;
 }
 
+NSString *HSCategoryName(NSString *c) {
+    NSDictionary *m = @{ @"utilities": @"Utilities", @"productivity": @"Productivity", @"games": @"Games", @"social-networking": @"Social",
+        @"entertainment": @"Entertainment", @"education": @"Education", @"finance": @"Finance", @"healthcare-fitness": @"Health & Fitness",
+        @"lifestyle": @"Lifestyle", @"music": @"Music", @"news": @"News", @"photography": @"Photo & Video", @"video": @"Photo & Video",
+        @"travel": @"Travel", @"weather": @"Weather", @"developer-tools": @"Developer Tools", @"business": @"Business", @"reference": @"Reference",
+        @"medical": @"Medical", @"navigation": @"Navigation", @"sports": @"Sports", @"food-and-drink": @"Food & Drink", @"shopping": @"Shopping",
+        @"graphics-design": @"Graphics & Design" };
+    NSString *k = [c hasPrefix:@"public.app-category."] ? [c substringFromIndex:20] : c;
+    if ([k hasSuffix:@"-games"]) return @"Games";
+    return k ? m[k] : nil;
+}
+
 /* icon + label, tappable */
-@interface HSIcon : UIControl
-@property (nonatomic, strong) HSApp *app;
-@property (nonatomic) BOOL showLabel;
-@property (nonatomic) BOOL editing;
-@property (nonatomic, readonly) UIButton *badge;
-- (UIImageView *)iconView;
-@end
 @implementation HSIcon { UIImageView *_image; UILabel *_label, *_letter; }
 @synthesize badge = _badge;
 - (void)setEditing:(BOOL)e { _editing = e; _badge.hidden = !e || _app.system; [self bringSubviewToFront:_badge]; }
@@ -83,8 +89,23 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
 - (void)setHighlighted:(BOOL)h { [super setHighlighted:h]; _image.alpha = h ? 0.6 : 1; }
 @end
 
-@implementation HomeViewController { NSArray<HSApp *> *_apps; UIView *_grid, *_dock; UIImageView *_wallpaper; UIView *_menu; BOOL _editing; UIButton *_done; }
+/* ---- the arrangement: a list of items (bundle id, or { folder, apps }) split into pages ---- */
+static NSString *icon_state_file(void) {
+    NSString *d = [isim_data_dir() stringByAppendingPathComponent:@"Library/SpringBoard"];
+    [NSFileManager.defaultManager createDirectoryAtPath:d withIntermediateDirectories:YES attributes:nil error:NULL];
+    return [d stringByAppendingPathComponent:@"IconState.plist"];
+}
+
+@interface HomeViewController () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
+@end
+@implementation HomeViewController {
+    NSArray<HSApp *> *_apps; NSMutableArray *_layout;
+    UIScrollView *_pages; UIView *_dock; UIImageView *_wallpaper; UIView *_menu; BOOL _editing; UIButton *_done, *_searchPill;
+    NSMutableArray<UIView *> *_pageViews; UIView *_library;
+    UIView *_dragging; NSInteger _dragFrom; CGPoint _dragOffset;
+}
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleLightContent; }
+- (CGFloat)iconSize { return self.view.bounds.size.width >= 700 ? 74 : 60; }
 - (void)viewDidLoad {
     [super viewDidLoad];
     _wallpaper = [[UIImageView alloc] initWithFrame:self.view.bounds];
@@ -93,15 +114,38 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     _wallpaper.contentMode = UIViewContentModeScaleAspectFill;
     _wallpaper.backgroundColor = [UIColor colorWithRed:0.16 green:0.2 blue:0.42 alpha:1];
     [self.view addSubview:_wallpaper];
-    _grid = [UIView new]; [self.view addSubview:_grid];
+    _pages = [UIScrollView new];
+    _pages.pagingEnabled = YES; _pages.showsHorizontalScrollIndicator = NO; _pages.delegate = self;
+    _pages.accessibilityIdentifier = @"home-pages";
+    _pages.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    [self.view addSubview:_pages];
     _dock = [UIView new];
     _dock.backgroundColor = [UIColor colorWithWhite:1 alpha:0.28];
     _dock.layer.cornerRadius = 32;
     [self.view addSubview:_dock];
+    _searchPill = [UIButton buttonWithType:UIButtonTypeCustom];
+    _searchPill.backgroundColor = [UIColor colorWithWhite:1 alpha:0.25]; _searchPill.layer.cornerRadius = 14;
+    [_searchPill setTitle:NSLocalizedString(@"Search", nil) forState:UIControlStateNormal];
+    [_searchPill setImage:[UIImage systemImageNamed:@"magnifyingglass" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:11]] forState:UIControlStateNormal];
+    _searchPill.tintColor = UIColor.whiteColor; _searchPill.titleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
+    _searchPill.accessibilityIdentifier = @"home-search";
+    [_searchPill addTarget:self action:@selector(showSpotlight) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:_searchPill];
+    /* pull down on the home screen: Spotlight */
+    UIPanGestureRecognizer *down = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pulledDown:)];
+    down.delegate = self; down.cancelsTouchesInView = NO;
+    [_pages addGestureRecognizer:down];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(reload) name:UIApplicationWillEnterForegroundNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(launchByID:) name:@"_IsimShellLaunch" object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(showSpotlight) name:@"_SBShowSpotlight" object:nil];
     [self installSystemObservers];
     [self reload];
+}
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)g shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)o { return YES; }
+- (void)pulledDown:(UIPanGestureRecognizer *)g {
+    if (g.state != UIGestureRecognizerStateEnded || _editing) return;
+    CGPoint t = [g translationInView:self.view];
+    if (t.y > 60 && fabs(t.x) < t.y * 0.6) [self showSpotlight];
 }
 - (void)reload {
     NSMutableArray *apps = [NSMutableArray array];
@@ -110,6 +154,7 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     _apps = apps;
     NSMutableArray *names = [NSMutableArray array]; for (HSApp *a in apps) [names addObject:a.name];
     NSLog(@"SpringBoard: %lu app(s): %@", (unsigned long)apps.count, [names componentsJoinedByString:@", "]);
+    [self reconcileLayout];
     [self.view setNeedsLayout];
     [self rebuild];
     [self publishAppInfo];
@@ -121,58 +166,185 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     for (HSApp *a in _apps) if ([a.bundleID isEqualToString:ident] || [a.name isEqualToString:ident]) return a;
     return nil;
 }
+- (HSApp *)appForID:(NSString *)ident { for (HSApp *a in _apps) if ([a.bundleID isEqualToString:ident]) return a; return nil; }
+/* the saved arrangement, minus deleted apps, plus newly installed ones at the end (system apps live in the dock) */
+- (void)reconcileLayout {
+    NSMutableArray *items = [NSMutableArray array];
+    for (id it in [NSDictionary dictionaryWithContentsOfFile:icon_state_file()][@"items"]) {
+        if ([it isKindOfClass:[NSString class]]) { HSApp *a = [self appForID:it]; if (a && !a.system) [items addObject:it]; }
+        else if ([it isKindOfClass:[NSDictionary class]]) {
+            NSMutableArray *ids = [NSMutableArray array];
+            for (NSString *i in it[@"apps"]) if ([self appForID:i]) [ids addObject:i];
+            if (ids.count) [items addObject:[@{ @"folder": it[@"folder"] ?: @"Folder", @"apps": ids } mutableCopy]];
+        }
+    }
+    NSMutableSet *placed = [NSMutableSet set];
+    for (id it in items) { if ([it isKindOfClass:[NSString class]]) [placed addObject:it]; else [placed addObjectsFromArray:it[@"apps"]]; }
+    for (HSApp *a in _apps) if (!a.system && ![placed containsObject:a.bundleID]) [items addObject:a.bundleID];
+    _layout = items;
+    [self saveLayout];
+}
+- (void)saveLayout { [@{ @"items": _layout } writeToFile:icon_state_file() atomically:YES]; }
+- (NSInteger)perPage {
+    CGRect b = self.view.bounds; BOOL pad = b.size.width >= 700;
+    CGFloat rowH = pad ? 120 : 102, avail = b.size.height - self.view.safeAreaInsets.top - (pad ? 40 : 14) - 150;
+    return (pad ? 6 : 4) * MAX(1, (NSInteger)(avail / rowH));
+}
 - (void)rebuild {
-    for (UIView *v in _grid.subviews) [v removeFromSuperview];
+    for (UIView *v in _pages.subviews) [v removeFromSuperview];
     for (UIView *v in _dock.subviews) [v removeFromSuperview];
-    BOOL pad = UIScreen.mainScreen.bounds.size.width >= 700;
-    CGFloat s = pad ? 74 : 60;
-    for (HSApp *a in _apps) {
-        BOOL inDock = a.system;                   /* system apps (Settings) live in the dock */
-        HSIcon *icon = [[HSIcon alloc] initWithApp:a size:s label:!inDock];
+    _pageViews = [NSMutableArray array];
+    CGFloat s = self.iconSize;
+    NSInteger per = MAX(1, [self perPage]), npages = MAX(1, ((NSInteger)_layout.count + per - 1) / per);
+    for (NSInteger p = 0; p < npages; p++) { UIView *pv = [UIView new]; pv.accessibilityIdentifier = [NSString stringWithFormat:@"home-page-%ld", (long)p]; [_pages addSubview:pv]; [_pageViews addObject:pv]; }
+    for (NSUInteger i = 0; i < _layout.count; i++) {
+        id it = _layout[i]; UIControl *icon;
+        if ([it isKindOfClass:[NSString class]]) {
+            HSIcon *ai = [[HSIcon alloc] initWithApp:[self appForID:it] size:s label:YES];
+            [ai addTarget:self action:@selector(tapped:) forControlEvents:UIControlEventTouchUpInside];
+            [ai addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)]];
+            [ai.badge addTarget:self action:@selector(badgeTapped:) forControlEvents:UIControlEventTouchUpInside];
+            ai.editing = _editing;
+            icon = ai;
+        } else {
+            NSMutableArray *fa = [NSMutableArray array]; for (NSString *x in it[@"apps"]) { HSApp *a = [self appForID:x]; if (a) [fa addObject:a]; }
+            HSFolderIcon *fi = [[HSFolderIcon alloc] initWithFolder:it apps:fa size:s];
+            [fi addTarget:self action:@selector(folderTapped:) forControlEvents:UIControlEventTouchUpInside];
+            [fi addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(folderHeld:)]];
+            icon = fi;
+        }
+        icon.tag = (NSInteger)i;
+        if (_editing) [icon addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(iconPanned:)]];
+        [_pageViews[i / per] addSubview:icon];
+    }
+    for (HSApp *a in _apps) if (a.system) {                 /* system apps (Settings) live in the dock */
+        HSIcon *icon = [[HSIcon alloc] initWithApp:a size:s label:NO];
         [icon addTarget:self action:@selector(tapped:) forControlEvents:UIControlEventTouchUpInside];
         [icon addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)]];
-        [icon.badge addTarget:self action:@selector(badgeTapped:) forControlEvents:UIControlEventTouchUpInside];
-        icon.editing = _editing;
-        [inDock ? _dock : _grid addSubview:icon];
+        [_dock addSubview:icon];
     }
+    _library = [self makeLibraryPage:CGRectZero];
+    [_pages addSubview:_library];
+    _pages.scrollEnabled = !_editing;
+    [self.view setNeedsLayout];
 }
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGRect b = self.view.bounds; UIEdgeInsets safe = self.view.safeAreaInsets;
     BOOL pad = b.size.width >= 700;
     NSInteger cols = pad ? 6 : 4;
-    CGFloat s = pad ? 74 : 60, margin = pad ? 60 : 28, rowH = pad ? 120 : 102;
+    CGFloat s = self.iconSize, margin = pad ? 60 : 28, rowH = pad ? 120 : 102, top = safe.top + (pad ? 40 : 14);
     CGFloat colW = (b.size.width - 2 * margin) / cols;
-    _grid.frame = CGRectMake(margin, safe.top + (pad ? 40 : 14), b.size.width - 2 * margin, b.size.height);
-    NSInteger i = 0;
-    for (HSIcon *icon in _grid.subviews) {
-        icon.frame = CGRectMake((i % cols) * colW + (colW - s) / 2, (i / cols) * rowH, s, s + 22);
-        i++;
-    }
     CGFloat dockH = pad ? 100 : 92, dockInset = pad ? (b.size.width - 420) / 2 : 12;
     _dock.frame = CGRectMake(dockInset, b.size.height - MAX(safe.bottom, 12) - dockH + (safe.bottom > 0 ? 18 : 0) - 4, b.size.width - 2 * dockInset, dockH);
+    _pages.frame = CGRectMake(0, 0, b.size.width, _dock.frame.origin.y - 36);
+    NSUInteger np = _pageViews.count;
+    for (NSUInteger p = 0; p < np; p++) {
+        UIView *pv = _pageViews[p];
+        pv.frame = CGRectMake(p * b.size.width, 0, b.size.width, _pages.bounds.size.height);
+        NSInteger i = 0;
+        for (UIView *icon in pv.subviews) {
+            if (icon == _dragging) { i++; continue; }
+            icon.frame = CGRectMake(margin + (i % cols) * colW + (colW - s) / 2, top + (i / cols) * rowH, s, s + 22);
+            i++;
+        }
+    }
+    _library.frame = CGRectMake(np * b.size.width, 0, b.size.width, _pages.bounds.size.height);
+    _pages.contentSize = CGSizeMake((np + 1) * b.size.width, _pages.bounds.size.height);
+    _searchPill.frame = CGRectMake((b.size.width - 86) / 2, _dock.frame.origin.y - 30, 86, 26);
     NSInteger n = _dock.subviews.count; CGFloat dColW = _dock.bounds.size.width / MAX(4, n);
     CGFloat start = (_dock.bounds.size.width - dColW * n) / 2;
-    i = 0;
+    NSInteger i = 0;
     for (HSIcon *icon in _dock.subviews) { icon.frame = CGRectMake(start + i * dColW + (dColW - s) / 2, (dockH - s) / 2, s, s); i++; }
     _done.frame = CGRectMake(b.size.width - 82, safe.top + 2, 66, 30);
-    /* tell the shell where each app's icon is (app open/close animations zoom from/to it) */
+    /* tell the shell where each app's icon is (app open/close animations zoom from/to it; apps in folders: the folder) */
     dispatch_async(dispatch_get_main_queue(), ^{
-        for (UIView *container in @[self->_grid, self->_dock]) for (HSIcon *icon in container.subviews) {
-            if (![icon isKindOfClass:[HSIcon class]] || !icon.app.path) continue;
-            CGRect r = [icon convertRect:icon.iconView.frame toView:self.view];
+        CGFloat page = self->_pages.contentOffset.x;
+        NSMutableArray *containers = [NSMutableArray arrayWithArray:self->_pageViews]; [containers addObject:self->_dock];
+        for (UIView *container in containers) for (UIView *v in container.subviews) {
+            UIView *iv = [v respondsToSelector:@selector(iconView)] ? [(id)v iconView] : nil;
+            if (!iv) continue;
+            CGRect r = [v convertRect:iv.frame toView:self.view];
+            if (container != self->_dock && fabs(container.frame.origin.x - page) > 1) r = CGRectMake(b.size.width / 2 - 30, b.size.height / 2 - 30, 60, 60);
             char geo[128];
-            snprintf(geo, sizeof geo, "%g %g %g %g %g", r.origin.x, r.origin.y, r.size.width, r.size.height, icon.iconView.layer.cornerRadius);
-            isim_shell_request(ISIM_SHELL_ICON, icon.app.path.UTF8String, geo, NULL);
+            snprintf(geo, sizeof geo, "%g %g %g %g %g", r.origin.x, r.origin.y, r.size.width, r.size.height, iv.layer.cornerRadius);
+            NSArray *ids = [v isKindOfClass:[HSFolderIcon class]] ? ((HSFolderIcon *)v).folder[@"apps"] : @[((HSIcon *)v).app.bundleID ?: @""];
+            for (NSString *ident in ids) { HSApp *a = [self appForID:ident]; if (a.path) isim_shell_request(ISIM_SHELL_ICON, a.path.UTF8String, geo, NULL); }
         }
     });
 }
+- (void)scrollViewDidScroll:(UIScrollView *)sv {       /* the dock and the Search button fade out on the App Library */
+    CGFloat W = MAX(1, sv.bounds.size.width), lib = _pageViews.count * W;
+    CGFloat a = 1 - MIN(1, MAX(0, (sv.contentOffset.x - (lib - W)) / W));
+    _dock.alpha = a; _searchPill.alpha = a;
+}
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)sv { [self.view setNeedsLayout]; NSLog(@"SpringBoard: page %ld%@", (long)lround(sv.contentOffset.x / MAX(1, sv.bounds.size.width)), lround(sv.contentOffset.x / MAX(1, sv.bounds.size.width)) == (long)_pageViews.count ? @" (App Library)" : @""); }
 - (void)launch:(HSApp *)a { [self launch:a url:nil]; }
 - (void)launch:(HSApp *)a url:(NSString *)url {
     NSLog(@"SpringBoard: launching %@ (%@)%@%@", a.name, a.bundleID, url ? @" with " : @"", url ?: @"");
     isim_shell_request(ISIM_SHELL_LAUNCH, a.path.UTF8String, a.executable.UTF8String, url.UTF8String);
 }
-- (void)tapped:(HSIcon *)icon { if (!_editing) [self launch:icon.app]; }
+- (void)tapped:(HSIcon *)icon { if (!_editing) { [self closeFolder]; [self hideSpotlight]; [self launch:icon.app]; } }
+- (void)folderTapped:(HSFolderIcon *)f { if (!_editing) [self openFolder:f]; }
+- (void)folderHeld:(UILongPressGestureRecognizer *)g { if (g.state == UIGestureRecognizerStateBegan && !_editing) [self setEditingMode:YES]; }
+
+/* ---- edit mode: drag icons to rearrange them; drop one on another to make a folder ---- */
+- (void)iconPanned:(UIPanGestureRecognizer *)g {
+    UIView *icon = g.view;
+    CGPoint p = [g locationInView:self.view];
+    if (g.state == UIGestureRecognizerStateBegan) {
+        _dragging = icon; _dragFrom = icon.tag;
+        CGPoint c = [icon.superview convertPoint:icon.center toView:self.view];
+        _dragOffset = CGPointMake(c.x - p.x, c.y - p.y);
+        icon.transform = CGAffineTransformMakeScale(1.12, 1.12);
+        [icon.superview bringSubviewToFront:icon];
+        return;
+    }
+    if (g.state == UIGestureRecognizerStateChanged) {
+        icon.center = [self.view convertPoint:CGPointMake(p.x + _dragOffset.x, p.y + _dragOffset.y) toView:icon.superview];
+        return;
+    }
+    if (g.state != UIGestureRecognizerStateEnded && g.state != UIGestureRecognizerStateCancelled) return;
+    _dragging = nil; icon.transform = CGAffineTransformIdentity;
+    UIView *page = icon.superview;
+    NSInteger pageIndex = (NSInteger)[_pageViews indexOfObject:page];
+    CGPoint q = [self.view convertPoint:p toView:page];
+    id moving = _layout[_dragFrom];
+    /* dropped on another icon: a folder (or into the folder) */
+    for (UIView *other in page.subviews) {
+        if (other == icon || ![other respondsToSelector:@selector(iconView)]) continue;
+        UIView *iv = [(id)other iconView];
+        CGPoint oc = [iv convertPoint:CGPointMake(iv.bounds.size.width / 2, iv.bounds.size.height / 2) toView:page];
+        if (hypot(oc.x - q.x, oc.y - q.y) > 24 || ![moving isKindOfClass:[NSString class]]) continue;
+        id target = _layout[other.tag];
+        if ([target isKindOfClass:[NSString class]]) {
+            HSApp *ta = [self appForID:target], *ma = [self appForID:moving];
+            NSString *name = HSCategoryName(ta.category) ?: HSCategoryName(ma.category) ?: NSLocalizedString(@"Folder", nil);
+            NSMutableDictionary *folder = [@{ @"folder": name, @"apps": [@[target, moving] mutableCopy] } mutableCopy];
+            _layout[other.tag] = folder;
+            NSLog(@"SpringBoard: folder “%@” with %@, %@", name, ta.name, ma.name);
+        } else {
+            [target[@"apps"] addObject:moving];
+            NSLog(@"SpringBoard: %@ added to folder “%@”", [self appForID:moving].name, target[@"folder"]);
+        }
+        [_layout removeObjectAtIndex:_dragFrom];
+        [self saveLayout]; [self rebuild];
+        return;
+    }
+    /* otherwise: the slot under the finger */
+    CGRect b = self.view.bounds; BOOL pad = b.size.width >= 700;
+    NSInteger cols = pad ? 6 : 4; CGFloat margin = pad ? 60 : 28, rowH = pad ? 120 : 102, top = self.view.safeAreaInsets.top + (pad ? 40 : 14);
+    CGFloat colW = (b.size.width - 2 * margin) / cols;
+    NSInteger col = MIN(cols - 1, MAX(0, (NSInteger)((q.x - margin) / colW))), row = MAX(0, (NSInteger)((q.y - top) / rowH));
+    NSInteger to = MIN((NSInteger)_layout.count - 1, MAX(0, pageIndex * [self perPage] + row * cols + col));
+    [_layout removeObjectAtIndex:_dragFrom];
+    [_layout insertObject:moving atIndex:MIN(to, (NSInteger)_layout.count)];
+    NSLog(@"SpringBoard: moved %@ to position %ld", [moving isKindOfClass:[NSString class]] ? [self appForID:moving].name : moving[@"folder"], (long)to);
+    [self saveLayout]; [self rebuild];
+}
+/* the items of the arrangement, for the folder view (SBFolders.m) */
+- (NSMutableArray *)_layoutItems { return _layout; }
+- (void)_layoutChanged { [self saveLayout]; [self rebuild]; }
 
 /* ---- long press: context menu (iOS 17/18), edit mode, delete ---- */
 - (void)held:(UILongPressGestureRecognizer *)g {
@@ -265,8 +437,6 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
 - (void)badgeTapped:(UIButton *)badge { [self confirmDelete:((HSIcon *)badge.superview).app]; }
 - (void)setEditingMode:(BOOL)e {
     _editing = e;
-    for (HSIcon *i in _grid.subviews) i.editing = e;
-    for (HSIcon *i in _dock.subviews) i.editing = e;
     if (e && !_done) {
         _done = [UIButton buttonWithType:UIButtonTypeSystem];
         [_done setTitle:NSLocalizedString(@"Done", nil) forState:UIControlStateNormal];
@@ -278,7 +448,8 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
         [self.view addSubview:_done];
     }
     _done.hidden = !e;
-    [self.view setNeedsLayout];
+    NSLog(@"SpringBoard: %@ edit mode", e ? @"entered" : @"left");
+    [self rebuild];
 }
 - (void)doneEditing { [self setEditingMode:NO]; }
 - (void)confirmDelete:(HSApp *)a {

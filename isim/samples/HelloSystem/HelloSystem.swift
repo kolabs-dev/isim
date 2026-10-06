@@ -4,6 +4,8 @@
 import UIKit
 import BackgroundTasks
 import Network
+import CoreSpotlight
+import UniformTypeIdentifiers
 
 let refreshTaskID = "dev.isim.samples.HelloSystem.refresh"
 let processingTaskID = "dev.isim.samples.HelloSystem.cleanup"
@@ -65,6 +67,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         for c in URLContexts { log("openURLContexts \(c.url.absoluteString)"); vc.status = "Opened \(c.url.absoluteString)" }
     }
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        if userActivity.activityType == CSSearchableItemActionType, let id = userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String {
+            log("continue spotlight item \(id)")
+            vc.status = "Spotlight item \(id)"
+            return
+        }
         log("continue \(userActivity.activityType) \(userActivity.webpageURL?.absoluteString ?? (userActivity.title ?? ""))")
         vc.status = userActivity.activityType == NSUserActivityTypeBrowsingWeb ? "Universal link \(userActivity.webpageURL?.path ?? "")" : "Continued \(userActivity.title ?? userActivity.activityType)"
     }
@@ -104,7 +111,8 @@ class ViewController: UIViewController {
         for (t, id, sel) in [("Count + 1", "bump", #selector(bump)), ("Add dynamic quick action", "addShortcut", #selector(addShortcut)),
                              ("Use dark icon", "altIcon", #selector(darkIcon)), ("Use default icon", "primaryIcon", #selector(primaryIcon)),
                              ("Begin background task", "bgTask", #selector(beginTask)), ("Schedule refresh + processing", "schedule", #selector(schedule)),
-                             ("Index activity for Spotlight", "indexActivity", #selector(indexActivity)), ("Open hellosystem://self", "openURL", #selector(openSelf))] {
+                             ("Index activity for Spotlight", "indexActivity", #selector(indexActivity)), ("Open hellosystem://self", "openURL", #selector(openSelf)),
+                             ("Index items (CoreSpotlight)", "indexItems", #selector(indexItems))] {
             let b = UIButton(type: .system)
             b.setTitle(t, for: .normal); b.accessibilityIdentifier = id
             b.titleLabel?.font = .systemFont(ofSize: 17)
@@ -162,6 +170,18 @@ class ViewController: UIViewController {
         do { try BGTaskScheduler.shared.submit(BGAppRefreshTaskRequest(identifier: "not.permitted")) }
         catch let e as BGTaskScheduler.Error { log("unpermitted submit error code \(e.code.rawValue)") } catch {}
         BGTaskScheduler.shared.getPendingTaskRequests { reqs in log("pending \(reqs.map { $0.identifier }.sorted())") }
+    }
+    @objc func indexItems() {
+        let attrs = CSSearchableItemAttributeSet(contentType: .text)
+        attrs.title = "Waffle recipe"
+        attrs.contentDescription = "Crispy waffles in 20 minutes"
+        attrs.keywords = ["breakfast", "waffles"]
+        let gone = CSSearchableItemAttributeSet(contentType: .text); gone.title = "Old recipe"
+        CSSearchableIndex.default().indexSearchableItems([CSSearchableItem(uniqueIdentifier: "recipe-waffles", domainIdentifier: "recipes", attributeSet: attrs),
+                                                          CSSearchableItem(uniqueIdentifier: "recipe-old", domainIdentifier: "recipes.old", attributeSet: gone)]) { error in
+            log("indexed items error=\(error.map { "\($0)" } ?? "nil")")
+            CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: ["recipe-old"]) { _ in log("deleted old item") }
+        }
     }
     @objc func indexActivity() {
         let a = NSUserActivity(activityType: "dev.isim.samples.HelloSystem.recipe")
