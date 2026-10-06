@@ -22,11 +22,11 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 106 | 42 | 10 | 40 | 198 | 64% |
+| **UIKit** | 108 | 43 | 10 | 37 | 198 | 65% |
 | &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 18 | 7 | 0 | 5 | 30 | 72% |
 | &nbsp;&nbsp;↳ Views & controls | 29 | 16 | 1 | 5 | 51 | 73% |
-| &nbsp;&nbsp;↳ Layout | 13 | 1 | 1 | 4 | 19 | 71% |
+| &nbsp;&nbsp;↳ Layout | 15 | 2 | 1 | 1 | 19 | 84% |
 | &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 1 | 12 | 79% |
 | &nbsp;&nbsp;↳ Gestures & touches | 9 | 1 | 0 | 3 | 13 | 73% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **463** | **176** | **42** | **159** | **840** | **66%** |
+| **All areas** | **465** | **177** | **42** | **156** | **840** | **66%** |
 
 ---
 
@@ -214,18 +214,18 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 |---|---|---|
 | Auto Layout (`NSLayoutConstraint`, activate/deactivate, priorities, inequalities) | ✅ | Cassowary solver, rebuilt per layout pass |
 | Layout anchors (`NSLayoutXAxisAnchor`, `…YAxis…`, `NSLayoutDimension`, system spacing) | ✅ | |
-| Visual Format Language (`constraints(withVisualFormat:)`) | ❌ | |
+| Visual Format Language (`constraints(withVisualFormat:)`) | ✅ | spacing (standard 8/20), sizes, metrics, view references, relations, priorities, alignment/direction options; tested (HelloConstraints) |
 | Intrinsic content size, hugging / compression resistance | ✅ | |
 | `systemLayoutSizeFitting` | ✅ | |
 | `UILayoutGuide`, `safeAreaLayoutGuide`, `layoutMarginsGuide` | ✅ | per-device safe areas |
 | `additionalSafeAreaInsets` (container insets propagate to children) | ✅ | navigation/tab bars; scroll views adjust |
 | `readableContentGuide` | 🟡 | exists; width rules unverified |
-| `keyboardLayoutGuide` | ❌ | |
+| `keyboardLayoutGuide` | ✅ | follows keyboard show/hide/frame changes (animated), bottom safe area when hidden (`usesBottomSafeArea`); tested (HelloConstraints). Undocked/floating keyboards do not exist on isim |
 | Layout margins, `directionalLayoutMargins` | ✅ | |
 | `UIScrollView` `contentLayoutGuide` / `frameLayoutGuide` | ✅ | |
 | Trait collections (style, idiom, size classes, display scale) | ✅ | |
 | `traitCollectionDidChange` | ✅ | |
-| `registerForTraitChanges` (iOS 17), custom traits | ❌ | |
+| `registerForTraitChanges` (iOS 17), custom traits | 🟡 | handler, target/action and Swift generic forms for style, size classes, idiom, display scale (checked every frame); tested (HelloConstraints). No custom traits / `traitOverrides` |
 | Size classes | ✅ | fixed per device (portrait) |
 | Dynamic Type: `preferredFont(forTextStyle:)` | ✅ | default (Large) size only |
 | Dynamic Type size changes, `UIFontMetrics`, `adjustsFontForContentSizeCategory` | 🧩 | property stored; text size never changes |
