@@ -68,11 +68,11 @@ NS_SWIFT_UI_ACTOR
 NS_SWIFT_UI_ACTOR
 @protocol UISearchControllerDelegate <NSObject>
 @optional
-- (void)willPresentSearchController:(UISearchController *)searchController;
-- (void)didPresentSearchController:(UISearchController *)searchController;
-- (void)willDismissSearchController:(UISearchController *)searchController;
-- (void)didDismissSearchController:(UISearchController *)searchController;
-- (void)presentSearchController:(UISearchController *)searchController;
+- (void)willPresentSearchController:(UISearchController *)searchController NS_SWIFT_NAME(willPresentSearchController(_:));
+- (void)didPresentSearchController:(UISearchController *)searchController NS_SWIFT_NAME(didPresentSearchController(_:));
+- (void)willDismissSearchController:(UISearchController *)searchController NS_SWIFT_NAME(willDismissSearchController(_:));
+- (void)didDismissSearchController:(UISearchController *)searchController NS_SWIFT_NAME(didDismissSearchController(_:));
+- (void)presentSearchController:(UISearchController *)searchController NS_SWIFT_NAME(presentSearchController(_:));
 @end
 
 /* isim: in a navigation item the search bar sits below the title (collapsing on scroll when

@@ -22,9 +22,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 87 | 37 | 10 | 64 | 198 | 53% |
-| &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 5 | 8 | 23 | 35% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 11 | 4 | 0 | 15 | 30 | 43% |
+| **UIKit** | 94 | 41 | 10 | 53 | 198 | 58% |
+| &nbsp;&nbsp;↳ Application & scenes | 6 | 5 | 5 | 7 | 23 | 37% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 18 | 7 | 0 | 5 | 30 | 72% |
 | &nbsp;&nbsp;↳ Views & controls | 28 | 16 | 1 | 6 | 51 | 71% |
 | &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
 | &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 1 | 12 | 79% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **323** | **113** | **46** | **285** | **767** | **49%** |
+| **All areas** | **330** | **117** | **46** | **274** | **767** | **51%** |
 
 ---
 
@@ -115,7 +115,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Alternate app icons (`setAlternateIconName`) | ❌ | |
 | Memory warnings (`didReceiveMemoryWarning`) | 🧩 | method exists; never sent |
 | Remote notification registration | 🧩 | `registerForRemoteNotifications` fails with NSCocoaErrorDomain 3010 through `didFailToRegisterForRemoteNotificationsWithError` (no APNs on isim) |
-| `UIPasteboard` | ❌ | |
+| `UIPasteboard` | 🟡 | `general` + named pasteboards: strings, URLs, images, colors, items, `changeCount`, `hasStrings`…, change notification; strings/URLs are shared between the apps of the device (stored in its data directory); tested (HelloTransitions share sheet). No paste prompt, no edit-menu copy/paste in text fields |
 
 ### View controllers & presentation
 
@@ -124,22 +124,22 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIViewController` lifecycle (`loadView`, `viewDidLoad`, appear/disappear, layout callbacks) | ✅ | |
 | Child view-controller containment | ✅ | |
 | `init(nibName:bundle:)` / storyboard-instantiated controllers | ❌ | nib name is logged and ignored |
-| Full-screen modal (`.fullScreen`, `.overFullScreen`) | ✅ | slides up from the bottom |
-| Page / form sheet (`.automatic`, `.pageSheet`, `.formSheet`) | 🟡 | iOS 15+ card look, presenter shrinks behind it, swipe-down dismiss, iPad centered card; no detents, no grabber |
+| Full-screen modal (`.fullScreen`, `.overFullScreen`, `.currentContext`, `.overCurrentContext`) | ✅ | slides up; `.fullScreen`/`.currentContext` send the presenter viewWillDisappear/viewDidAppear, the "over" styles keep it; context styles cover the `definesPresentationContext` controller; tested (HelloTransitions; context styles unverified) |
+| Page / form sheet (`.automatic`, `.pageSheet`, `.formSheet`) | ✅ | iOS 15+ card look, presenter shrinks behind it at the large detent, swipe-down dismiss (presentation controller delegate: should/will/did dismiss, did attempt), iPad centered card (`preferredContentSize` for form sheets, unverified); tested (HelloTransitions, HelloPresentations) |
 | `isModalInPresentation` | ✅ | rubber-bands instead of dismissing |
-| `UISheetPresentationController` (detents, grabber, largest undimmed detent) | ❌ | |
-| Popover presentation (`UIPopoverPresentationController`) | ❌ | |
-| `modalTransitionStyle` (cross dissolve, flip, partial curl) | ❌ | |
-| Custom transitions (`UIViewControllerTransitioningDelegate`, interactive) | ❌ | |
+| `UISheetPresentationController` (detents, grabber, largest undimmed detent) | ✅ | `.medium()`, `.large()`, `.custom(identifier:resolver:)`, grabber, dimming above `largestUndimmedDetentIdentifier` (touches pass through below it), `selectedDetentIdentifier` + `animateChanges`, dragging between detents with the delegate callback, `prefersScrollingExpandsWhenScrolledToEdge`; tested (HelloTransitions). iPad keeps centered cards (no detents) |
+| Popover presentation (`UIPopoverPresentationController`) | ✅ | iPhone adapts to a sheet unless the adaptive delegate returns `.none`; real popovers: card with an arrow towards `sourceView`/`sourceRect` or `barButtonItem`, `permittedArrowDirections`, `preferredContentSize`, tap outside to dismiss (delegate), `passthroughViews`; tested (HelloTransitions; bar button anchoring unverified) |
+| `modalTransitionStyle` (cross dissolve, flip, partial curl) | 🟡 | cross dissolve fades; flip horizontal is adapted (2D fold/unfold, no perspective); partial curl is shown as cover vertical (adapted); tested (HelloTransitions) |
+| Custom transitions (`UIViewControllerTransitioningDelegate`, interactive) | ✅ | animators with a transition context (container, from/to views and controllers, final frames, `completeTransition`), custom `UIPresentationController` subclasses (frame, will/did begin/end, container layout), `transitionCoordinator.animate(alongsideTransition:)`, `UIPercentDrivenInteractiveTransition` (update/finish/cancel; scrubs the animator's UIView animations or its interruptible animator); tested (HelloTransitions) |
 | `UINavigationController` (push/pop, back swipe) | ✅ | push/pop/popTo, parallax animation, back button, left-edge back swipe, delegate; tested (HelloNavigation) |
 | `UINavigationItem` (title, bar button items, search controller, large titles) | ✅ | title, titleView, left/right bar button items, back title, large title display mode |
 | `UITabBarController` | ✅ | tab bar, selection, delegate, badges, hidesBottomBarWhenPushed, tap-again pops to root; tested |
-| `UISplitViewController` | ❌ | |
-| `UIPageViewController` | ❌ | |
+| `UISplitViewController` | 🟡 | collapsed on iPhone into one navigation stack (`topColumnForCollapsingToProposedTopColumn`, classic `collapseSecondary`, `.compact` column), `showDetailViewController` pushes, `show/hideColumn`; tested (HelloTransitions). Regular width (iPad) side-by-side columns unverified; no display-mode button behaviour, no overlay/displace |
+| `UIPageViewController` | ✅ | scroll style with paging (horizontal/vertical, inter-page spacing), data source neighbours, delegate will/did transition, page dots (presentation count/index), animated `setViewControllers`; tested (HelloTransitions). Page curl is shown as scroll (adapted) |
 | `UIAlertController` `.alert` | ✅ | iOS 17/18 metrics, preferred action |
 | `UIAlertController` `.actionSheet` | 🟡 | drawn as a bottom sheet; iPad popover anchoring unverified |
-| `UIAlertController.addTextField` | ❌ | header says "no text fields yet" |
-| `UIActivityViewController` (share sheet) | ❌ | |
+| `UIAlertController.addTextField` | ✅ | grouped fields in the card, first one focused, card stays above the keyboard; `UIAlertAction.isEnabled` updates its button live; tested (HelloTransitions) |
+| `UIActivityViewController` (share sheet) | 🟡 | sheet with an item preview, Copy (to `UIPasteboard.general`) and `applicationActivities` (`UIActivity` subclasses), `excludedActivityTypes`, `UIActivityItemSource`, `completionWithItemsHandler`; tested (HelloTransitions). No other apps to share to (no AirDrop/Messages/Mail rows) |
 | `UISearchController` | 🟡 | in `navigationItem.searchController`: bar below the (large) title, collapses on scroll (`hidesSearchBarWhenScrolling`); activating hides the navigation bar, shows Cancel, dims the content (`obscuresBackgroundDuringPresentation`), calls the results updater per keystroke, restores the scroll position on cancel; tested (HelloInputs). Results controller and standalone use unverified; no animated bar transition |
 | `UIImagePickerController` (camera/library) | ❌ | |
 | `UIDocumentPickerViewController` / `UIDocumentBrowserViewController` | ❌ | |
@@ -149,8 +149,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIInputViewController` (custom keyboard extension) | ✅ | loaded in-process; no Full Access |
 | `overrideUserInterfaceStyle` | ✅ | |
 | `setEditing(_:animated:)`, `editButtonItem` | ✅ | Edit/Done item; `UITableViewController` forwards to its table; tested (HelloTable) |
-| `preferredContentSize` | ❌ | |
-| `UIContentUnavailableConfiguration` | ❌ | |
+| `preferredContentSize` | 🟡 | sizes popovers (tested) and iPad form sheets; notifies the parent and presentation controller |
+| `UIContentUnavailableConfiguration` | ✅ | `.empty()`, `.loading()`, `.search()`; image/text/secondary text/buttons; `contentUnavailableConfiguration`, `setNeedsUpdateContentUnavailableConfiguration`, `updateContentUnavailableConfiguration(using:)` (search text from the search controller), `UIContentUnavailableView`; tested (HelloTransitions). A class here, not a struct (adapted) |
 
 ### Views & controls
 

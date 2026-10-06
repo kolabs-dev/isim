@@ -52,3 +52,7 @@
 #import <UIKit/UIAppearance.h>
 #import <UIKit/UIPasteboard.h>
 #import <UIKit/UIViewPropertyAnimator.h>
+#import <UIKit/UIPresentationController.h>
+#import <UIKit/UISplitViewController.h>
+#import <UIKit/UIActivityViewController.h>
+#import <UIKit/UIContentUnavailableConfiguration.h>

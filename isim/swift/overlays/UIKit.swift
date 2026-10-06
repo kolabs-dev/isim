@@ -381,3 +381,10 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
 extension UIButton {
     public convenience init(configuration: UIButton.Configuration) { self.init(configuration: configuration, primaryAction: nil) }
 }
+
+// MARK: - Page view controllers (options: nil by default, as in Apple's SDK)
+extension UIPageViewController {
+    public convenience init(transitionStyle style: UIPageViewController.TransitionStyle, navigationOrientation: UIPageViewController.NavigationOrientation) {
+        self.init(transitionStyle: style, navigationOrientation: navigationOrientation, options: nil)
+    }
+}

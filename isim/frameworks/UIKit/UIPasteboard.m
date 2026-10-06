@@ -78,7 +78,8 @@ static NSString *unesc(NSString *s) {
             }
             [s appendFormat:@"\n%@", fields.count ? [fields componentsJoinedByString:@"\t"] : @"-\t-"];
         }
-        [s writeToFile:store_path() atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+        [NSFileManager.defaultManager createDirectoryAtPath:isim_data_dir() withIntermediateDirectories:YES attributes:nil error:NULL];
+        if (![s writeToFile:store_path() atomically:YES encoding:NSUTF8StringEncoding error:NULL]) NSLog(@"isim: UIPasteboard: cannot write %@", store_path());
     }
     [NSNotificationCenter.defaultCenter postNotificationName:UIPasteboardChangedNotification object:self];
 }

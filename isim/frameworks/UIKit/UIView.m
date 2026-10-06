@@ -186,12 +186,12 @@ static BOOL anim_capturing(void);
 static void anim_rebase(UIView *v, int key, const double *model_old, const double *model_new, int n);
 static void anim_remove_all(UIView *v);
 
-/* a view's own layer: corner radius, border and shadow changes animate inside animation blocks */
+/* a view's own layer: corner radius, border and shadow changes animate inside animation blocks (views in a window) */
 @interface __IsimViewLayer : CALayer { @public __weak UIView *_isim_view; }
 @end
 static void anim_layer_changed(UIView *v, int key, const double *old, const double *nw, int n) {
     if (!v) return;
-    if (anim_capturing()) anim_set(v, key, old, nw, n); else if (v->_anim) anim_rebase(v, key, old, nw, n);
+    if (anim_capturing() && v.window) anim_set(v, key, old, nw, n); else if (v->_anim) anim_rebase(v, key, old, nw, n);
 }
 static void cg_rgba(CGColorRef c, double out[4]) {
     if (!c) { out[0] = out[1] = out[2] = out[3] = 0; return; }
@@ -966,6 +966,7 @@ struct anim_state { anim_track t[AK_COUNT]; };
 @implementation __IsimTimeline @end
 static double tl_now(__IsimTimeline *tl) { return tl->paused ? tl->v0 : tl->v0 + (isim_time() - tl->t0) * tl->speed; }
 static NSMutableArray<__IsimTimeline *> *timelines;    /* running timelines watched for their end */
+static __IsimTimeline *capture_tl;                     /* isim_ui_timeline_capture_begin: plain animations join it */
 
 @interface __IsimAnimationGroup : NSObject { @public void (^completion)(BOOL); int pending; BOOL closed; __IsimTimeline *timeline; }
 @end
@@ -1182,7 +1183,7 @@ static void animate_ctx(anim_ctx ctx, void (^animations)(void), void (^completio
 void isim_ui_animate(double duration, double delay, UIViewAnimationOptions o, int springy, double damping, double velocity,
                      void (^animations)(void), void (^completion)(BOOL)) {
     anim_ctx ctx = { duration, delay, springy ? 4 : (int)((o >> 16) & 3), { 0 }, damping, velocity, (o & (1 << 3)) != 0, (o & (1 << 4)) != 0 };
-    animate_ctx(ctx, animations, completion, nil);
+    animate_ctx(ctx, animations, completion, capture_tl);
 }
 void isim_ui_without_animation(void (^block)(void)) { suppress_depth++; if (block) block(); suppress_depth--; }
 void isim_ui_set_animations_enabled(BOOL e) { animations_enabled = e; }
@@ -1192,8 +1193,8 @@ double isim_ui_inherited_duration(void) { return anim_capturing() ? (cur_ctx->ke
 /* ---- keyframes ---- */
 void isim_ui_animate_keyframes(double duration, double delay, NSUInteger options, void (^animations)(void), void (^completion)(BOOL)) {
     int mode = (int)((options >> 10) & 7);                   /* calculation mode: 1 discrete; linear/paced/cubic are linear here */
-    anim_ctx ctx = { duration, 0, (int)((options >> 16) & 3), { 0 }, 0, 0, NO, NO, YES, mode == 1, isim_time() + delay, fmax(duration, 1e-4) };
-    animate_ctx(ctx, animations, completion, nil);
+    anim_ctx ctx = { duration, 0, (int)((options >> 16) & 3), { 0 }, 0, 0, NO, NO, YES, mode == 1, (capture_tl ? tl_now(capture_tl) : isim_time()) + delay, fmax(duration, 1e-4) };
+    animate_ctx(ctx, animations, completion, capture_tl);
 }
 void isim_ui_add_keyframe(double relStart, double relDuration, void (^animations)(void)) {
     anim_ctx *c = cur_ctx;
@@ -1215,6 +1216,8 @@ id isim_ui_timeline_create(double duration, void (^onFinish)(int position)) {
     return tl;
 }
 double isim_ui_timeline_time(id o) { return tl_now(o); }
+void isim_ui_timeline_capture_begin(id o) { capture_tl = o; }
+void isim_ui_timeline_capture_end(void) { capture_tl = nil; }
 double isim_ui_timeline_duration(id o) { return ((__IsimTimeline *)o)->duration; }
 void isim_ui_timeline_set(id o, double time, BOOL paused, double speed) {
     __IsimTimeline *tl = o;

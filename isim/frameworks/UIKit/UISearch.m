@@ -267,7 +267,10 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
 - (void)_isim_barBeganEditing { if (!_active) self.active = YES; }
 - (void)_isim_barTextChanged { if (_active) { [self _isim_updateResults]; [self _isim_notify]; } }
 - (void)_isim_barCancel { self.active = NO; }
-- (void)_isim_notify { [_searchResultsUpdater updateSearchResultsForSearchController:self]; }
+- (void)_isim_notify {
+    [_searchResultsUpdater updateSearchResultsForSearchController:self];
+    [[self _isim_findHost] setNeedsUpdateContentUnavailableConfiguration];      /* its state's searchText changed */
+}
 
 - (void)_isim_activate {
     UIViewController *host = [self _isim_findHost];

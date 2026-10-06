@@ -2,27 +2,54 @@
  * separate Cancel). Presented over the presenter with a dimming layer. */
 #import "UIKitPrivate.h"
 
+@class __IsimAlertButton;
 @interface UIAlertAction ()
 @property (nonatomic, copy) void (^handler)(UIAlertAction *);
 @property (nullable, nonatomic, readwrite) NSString *title;
 @property (nonatomic, readwrite) UIAlertActionStyle style;
-@end
-@implementation UIAlertAction
-+ (instancetype)actionWithTitle:(NSString *)title style:(UIAlertActionStyle)style handler:(void (^)(UIAlertAction *))handler {
-    UIAlertAction *a = [self new]; a.title = title; a.style = style; a.handler = handler; a.enabled = YES; return a;
-}
-- (id)copyWithZone:(NSZone *)z { return self; }
+@property (nonatomic, weak) __IsimAlertButton *_isim_button;          /* enabling the action updates its button */
 @end
 
 @interface __IsimAlertButton : UIControl
 @property (nonatomic, strong) UIAlertAction *action;
 @property (nonatomic, strong) UILabel *label;
+@property (nonatomic, strong) UIColor *onColor;
 @end
 @implementation __IsimAlertButton
 - (void)setHighlighted:(BOOL)h { [super setHighlighted:h]; self.backgroundColor = h ? [UIColor colorWithWhite:0.5 alpha:0.18] : nil; }
+- (void)setEnabled:(BOOL)e { [super setEnabled:e]; self.label.textColor = e ? self.onColor : UIColor.tertiaryLabelColor; }
 @end
 
-@implementation UIAlertController { NSMutableArray<UIAlertAction *> *_actions; UIView *_dim; NSMutableArray<UIView *> *_cards; }
+@implementation UIAlertAction
++ (instancetype)actionWithTitle:(NSString *)title style:(UIAlertActionStyle)style handler:(void (^)(UIAlertAction *))handler {
+    UIAlertAction *a = [self new]; a.title = title; a.style = style; a.handler = handler; a.enabled = YES; return a;
+}
+- (void)setEnabled:(BOOL)e { _enabled = e; self._isim_button.enabled = e; }
+- (id)copyWithZone:(NSZone *)z { return self; }
+@end
+
+@implementation UIAlertController { NSMutableArray<UIAlertAction *> *_actions; UIView *_dim; NSMutableArray<UIView *> *_cards; NSMutableArray<UITextField *> *_fields; }
+- (void)addTextFieldWithConfigurationHandler:(void (^)(UITextField *))h {
+    if (_preferredStyle != UIAlertControllerStyleAlert) return;            /* UIKit raises: text fields are for alerts */
+    if (!_fields) _fields = [NSMutableArray array];
+    UITextField *f = [UITextField new];
+    f.font = [UIFont systemFontOfSize:13];
+    f.borderStyle = UITextBorderStyleNone;
+    f.accessibilityIdentifier = [NSString stringWithFormat:@"alert-field-%lu", (unsigned long)_fields.count];
+    [_fields addObject:f];
+    if (h) h(f);
+}
+- (NSArray *)textFields { return [_fields copy]; }
+/* the first field is focused; the card stays above the keyboard */
+- (void)viewDidAppear:(BOOL)a {
+    [super viewDidAppear:a];
+    if (_fields.count) {
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(_isim_keyboard:) name:UIKeyboardDidChangeFrameNotification object:nil];
+        [_fields.firstObject becomeFirstResponder];
+    }
+}
+- (void)viewWillDisappear:(BOOL)a { [super viewWillDisappear:a]; [NSNotificationCenter.defaultCenter removeObserver:self]; for (UITextField *f in _fields) [f resignFirstResponder]; }
+- (void)_isim_keyboard:(NSNotification *)n { [self.view setNeedsLayout]; }
 @dynamic title;
 + (instancetype)alertControllerWithTitle:(NSString *)title message:(NSString *)message preferredStyle:(UIAlertControllerStyle)style {
     UIAlertController *a = [self new];
@@ -48,10 +75,12 @@ static UIColor *card_color(void) {
     b.label.text = a.title;
     b.label.textAlignment = NSTextAlignmentCenter;
     b.label.font = [UIFont systemFontOfSize:sheet ? 20 : 17 weight:bold ? UIFontWeightSemibold : UIFontWeightRegular];
-    b.label.textColor = a.style == UIAlertActionStyleDestructive ? UIColor.systemRedColor : (a.enabled ? self.view.tintColor : UIColor.tertiaryLabelColor);
+    b.onColor = a.style == UIAlertActionStyleDestructive ? UIColor.systemRedColor : self.view.tintColor;
+    b.label.textColor = a.enabled ? b.onColor : UIColor.tertiaryLabelColor;
     b.label.userInteractionEnabled = NO;
     [b addSubview:b.label];
     b.enabled = a.enabled;
+    a._isim_button = b;
     b.accessibilityIdentifier = [@"alert-" stringByAppendingString:a.title ?: @""];
     [b addTarget:self action:@selector(_tap:) forControlEvents:UIControlEventTouchUpInside];
     return b;
@@ -81,6 +110,22 @@ static UIColor *card_color(void) {
             m.frame = CGRectMake(16, y + 2, W - 32, ceil(s.height)); [card addSubview:m]; y += ceil(s.height) + 2;
         }
         y += sheet ? 14 : 18;
+    }
+    if (_fields.count) {                                   /* text fields: one bordered group, hairlines between */
+        if (y == 0) y = 16;
+        CGFloat fh = 30;
+        UIView *group = [UIView new];
+        group.backgroundColor = UIColor.systemBackgroundColor;
+        group.layer.cornerRadius = 7; group.layer.borderWidth = 0.5; group.layer.borderColor = UIColor.separatorColor.CGColor; group.clipsToBounds = YES;
+        group.frame = CGRectMake(16, y, W - 32, fh * _fields.count);
+        for (NSUInteger i = 0; i < _fields.count; i++) {
+            UITextField *f = _fields[i];
+            f.frame = CGRectMake(6, i * fh, W - 32 - 12, fh);
+            [group addSubview:f];
+            if (i) { UIView *h = [self _hairline]; h.frame = CGRectMake(0, i * fh, W - 32, 0.5); [group addSubview:h]; }
+        }
+        [card addSubview:group];
+        y += group.frame.size.height + 16;
     }
     NSMutableArray *main = [NSMutableArray array]; UIAlertAction *cancel = nil;
     for (UIAlertAction *a in _actions) { if (a.style == UIAlertActionStyleCancel && !cancel) cancel = a; else [main addObject:a]; }
@@ -131,7 +176,10 @@ static UIColor *card_color(void) {
     CGRect b = self.view.bounds; UIEdgeInsets safe = self.view.safeAreaInsets;
     if (_preferredStyle == UIAlertControllerStyleAlert) {
         UIView *card = _cards.firstObject; CGSize s = card.frame.size;
-        card.frame = CGRectMake((b.size.width - s.width) / 2, (b.size.height - s.height) / 2, s.width, s.height);
+        CGRect kb = isim_ui_keyboard_frame();
+        CGFloat avail = b.size.height;
+        if (!CGRectIsEmpty(kb) && self.view.window) avail = fmin(avail, [self.view convertRect:kb fromView:nil].origin.y);   /* above the keyboard */
+        card.frame = CGRectMake((b.size.width - s.width) / 2, fmax(safe.top, (avail - s.height) / 2), s.width, s.height);
     } else {
         CGFloat y = b.size.height - MAX(safe.bottom, 8);
         for (UIView *c in _cards.reverseObjectEnumerator) {
