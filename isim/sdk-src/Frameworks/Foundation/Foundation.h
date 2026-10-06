@@ -41,3 +41,4 @@
 #import <Foundation/NSPropertyList.h>
 #import <Foundation/NSUUID.h>
 #import <Foundation/NSUndoManager.h>
+#import <Foundation/NSFileHandle.h>

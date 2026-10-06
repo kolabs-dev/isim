@@ -274,6 +274,38 @@ int main(int argc, char *argv[]) {
         CHECK([[mb objectForInfoDictionaryKey:@"UIRequiredDeviceCapabilities"] containsObject:@"arm64"]);
         CHECK([[mb.infoDictionary[@"Nested"][@"Flag"] description] isEqualToString:@"1"]);
 
+        // NSFileHandle, streams, NSScanner, NSProcessInfo device facts
+        NSString *fhPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"fh-test.txt"];
+        [[NSData data] writeToFile:fhPath atomically:NO];
+        NSFileHandle *wh = [NSFileHandle fileHandleForWritingAtPath:fhPath];
+        [wh writeData:[@"hello world" dataUsingEncoding:NSUTF8StringEncoding]];
+        CHECK(wh.offsetInFile == 11);
+        [wh truncateFileAtOffset:5]; [wh closeFile];
+        NSFileHandle *rh = [NSFileHandle fileHandleForReadingAtPath:fhPath];
+        CHECK([[[NSString alloc] initWithData:[rh readDataToEndOfFile] encoding:NSUTF8StringEncoding] isEqualToString:@"hello"]);
+        [rh seekToFileOffset:1];
+        CHECK([[rh readDataOfLength:2] isEqualToData:[@"el" dataUsingEncoding:NSUTF8StringEncoding]]);
+        CHECK([NSFileHandle fileHandleForReadingAtPath:@"/no/such/file"] == nil);
+        NSOutputStream *ostr = [NSOutputStream outputStreamToMemory]; [ostr open];
+        CHECK([ostr write:(const uint8_t *)"abc" maxLength:3] == 3);
+        NSData *written = [ostr propertyForKey:NSStreamDataWrittenToMemoryStreamKey]; [ostr close];
+        NSInputStream *istr = [NSInputStream inputStreamWithData:written]; [istr open];
+        uint8_t ibuf[8]; NSInteger n1 = [istr read:ibuf maxLength:2], n2 = [istr read:ibuf + 2 maxLength:8], n3 = [istr read:ibuf maxLength:8];
+        CHECK(n1 == 2 && n2 == 1 && n3 == 0 && memcmp(ibuf, "abc", 3) == 0 && istr.streamStatus == NSStreamStatusAtEnd);
+        NSScanner *sc = [NSScanner scannerWithString:@"  width = 42, ratio 0x1F 3.5e2 rest"];
+        NSString *word = nil; NSInteger ival = 0; unsigned hex = 0; double dval = 0;
+        CHECK([sc scanUpToString:@" =" intoString:&word] && [word isEqualToString:@"width"]);
+        CHECK([sc scanString:@"=" intoString:NULL] && [sc scanInteger:&ival] && ival == 42);
+        CHECK([sc scanString:@"," intoString:NULL] && [sc scanCharactersFromSet:NSCharacterSet.letterCharacterSet intoString:&word] && [word isEqualToString:@"ratio"]);
+        CHECK([sc scanHexInt:&hex] && hex == 31 && [sc scanDouble:&dval] && dval == 350 && !sc.atEnd);
+        CHECK(![sc scanInteger:&ival] && [sc scanUpToCharactersFromSet:NSCharacterSet.newlineCharacterSet intoString:&word] && [word isEqualToString:@"rest"] && sc.atEnd);
+        NSProcessInfo *pi = NSProcessInfo.processInfo;
+        CHECK(pi.thermalState == NSProcessInfoThermalStateNominal && !pi.lowPowerModeEnabled && pi.physicalMemory >= (1ULL << 30));
+        CHECK(pi.processorCount > 0 && pi.activeProcessorCount == pi.processorCount && pi.operatingSystemVersion.majorVersion >= 15);
+        NSOperatingSystemVersion v15 = {15, 0, 0}, v99 = {99, 0, 0};
+        CHECK([pi isOperatingSystemAtLeastVersion:v15] && ![pi isOperatingSystemAtLeastVersion:v99]);
+        CHECK([pi.operatingSystemVersionString hasPrefix:@"Version "] && pi.globallyUniqueString.length > 30 && pi.environment[@"HOME"] != nil);
+
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }
     return failures;

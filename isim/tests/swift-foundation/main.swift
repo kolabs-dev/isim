@@ -122,6 +122,30 @@ class Greeter: NSObject {
         check(os.count == 3 && (os.array as! [Int]) == [3, 1, 2], "NSMutableOrderedSet")
         let cache = NSCache<NSString, NSNumber>(); cache.setObject(1, forKey: "a")
         check(cache.object(forKey: "a") == 1, "NSCache<NSString, NSNumber>")
+        // FileHandle, Scanner, ProcessInfo
+        let fhURL = FileManager.default.temporaryDirectory.appendingPathComponent("swift-fh.txt")
+        try? Data().write(to: fhURL)
+        if let wh = try? FileHandle(forWritingTo: fhURL) {
+            try? wh.write(contentsOf: Data("line one\nline two".utf8))
+            check((try? wh.offset()) == 17, "FileHandle.write(contentsOf:) / offset()")
+            try? wh.close()
+        } else { check(false, "FileHandle(forWritingTo:)") }
+        let rh = FileHandle(forReadingAtPath: fhURL.path)
+        check(rh.flatMap { try? $0.readToEnd() }.map { String(decoding: $0, as: UTF8.self) } == "line one\nline two", "FileHandle.readToEnd()")
+        check((try? rh?.seekToEnd()) == 17 && ((try? rh?.read(upToCount: 4)) ?? nil)?.isEmpty == true, "FileHandle.seekToEnd() / read(upToCount:)")
+        let scanner = Scanner(string: "temp: -12.5C, id=0xff; name \"Ana\"")
+        check(scanner.scanUpToString(":") == "temp" && scanner.scanString(":") == ":", "Scanner.scanUpToString / scanString")
+        check(scanner.scanDouble() == -12.5 && scanner.scanCharacter() == "C", "Scanner.scanDouble / scanCharacter")
+        _ = scanner.scanUpToString("=") ; _ = scanner.scanString("=")
+        check(scanner.scanInt(representation: .hexadecimal) == 255, "Scanner.scanInt(representation: .hexadecimal)")
+        _ = scanner.scanUpToCharacters(from: CharacterSet(charactersIn: "\""))
+        check(scanner.scanString("\"") != nil && scanner.scanCharacters(from: .letters) == "Ana", "Scanner.scanCharacters(from:)")
+        check(!scanner.isAtEnd && scanner.currentIndex == scanner.string.index(before: scanner.string.endIndex), "Scanner.currentIndex")
+        check(Scanner(string: "3.14159").scanDecimal() == Decimal(string: "3.14159"), "Scanner.scanDecimal()")
+        let info = ProcessInfo.processInfo
+        check(info.thermalState == .nominal && !info.isLowPowerModeEnabled, "ProcessInfo.thermalState / isLowPowerModeEnabled")
+        check(info.processorCount > 0 && info.physicalMemory > 0 && info.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0)), "ProcessInfo device facts")
+        check(!info.isiOSAppOnMac && !info.isMacCatalystApp && info.environment["HOME"] != nil, "ProcessInfo.isiOSAppOnMac / environment")
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }

@@ -70,6 +70,10 @@ Classes:
   SwiftBridge: Foundation.UUID
 - Name: NSUndoManager
   SwiftName: UndoManager
+- Name: NSFileHandle
+  SwiftName: FileHandle
+- Name: NSScanner
+  SwiftName: Scanner
 - Name: NSProgress
   SwiftName: Progress
 - Name: NSPropertyListSerialization
