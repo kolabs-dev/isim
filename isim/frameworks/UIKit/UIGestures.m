@@ -190,6 +190,8 @@ static NSString *special_input(int hid) {
     }
 }
 
+/* modifiers held now (script keydown shift, or the host's modifier state) — text navigation uses them */
+UIKeyModifierFlags isim_ui_current_modifiers(int hostmods) { return held_mods | mods_from_host(hostmods); }
 static NSMutableDictionary<NSNumber *, UIPress *> *active_presses;
 /* returns YES when a key command consumed the key (it then does not type into a text field) */
 BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down) {

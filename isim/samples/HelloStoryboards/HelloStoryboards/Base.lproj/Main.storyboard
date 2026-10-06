@@ -1,0 +1,587 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="22505" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="tbc-00-001">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22504"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="System colors in document resources" minToolsVersion="11.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--Tab Bar Controller-->
+        <scene sceneID="sc1-tb-001">
+            <objects>
+                <tabBarController id="tbc-00-001" sceneMemberID="viewController">
+                    <tabBar key="tabBar" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" id="tbr-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="49"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                        <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    </tabBar>
+                    <connections>
+                        <segue destination="nv1-00-001" kind="relationship" relationship="viewControllers" id="rel-00-001"/>
+                        <segue destination="nv2-00-001" kind="relationship" relationship="viewControllers" id="rel-00-002"/>
+                    </connections>
+                </tabBarController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr1-00-001" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-1200" y="0.0"/>
+        </scene>
+        <!--Notes Navigation-->
+        <scene sceneID="sc2-nv-001">
+            <objects>
+                <navigationController id="nv1-00-001" sceneMemberID="viewController">
+                    <tabBarItem key="tabBarItem" title="Notes" image="list.bullet" catalog="system" id="tbi-00-001"/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" largeTitles="YES" id="nvb-00-001">
+                        <rect key="frame" x="0.0" y="59" width="393" height="96"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <connections>
+                        <segue destination="nts-00-001" kind="relationship" relationship="rootViewController" id="rel-00-003"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr2-00-001" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-400" y="-400"/>
+        </scene>
+        <!--Notes-->
+        <scene sceneID="sc3-nt-001">
+            <objects>
+                <tableViewController title="Notes" id="nts-00-001" customClass="NotesViewController" customModule="HelloStoryboards" customModuleProvider="target" sceneMemberID="viewController">
+                    <tableView key="view" clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" id="tbv-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                        <accessibility key="accessibilityConfiguration" identifier="notes-table"/>
+                        <prototypes>
+                            <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" preservesSuperviewLayoutMargins="YES" selectionStyle="default" accessoryType="disclosureIndicator" indentationWidth="10" reuseIdentifier="NoteCell" id="nce-00-001" customClass="NoteCell" customModule="HelloStoryboards" customModuleProvider="target">
+                                <rect key="frame" x="0.0" y="50" width="393" height="64"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" preservesSuperviewLayoutMargins="YES" insetsLayoutMarginsFromSafeArea="NO" tableViewCell="nce-00-001" id="ncv-00-001">
+                                    <rect key="frame" x="0.0" y="0.0" width="362.66666666666669" height="64"/>
+                                    <autoresizingMask key="autoresizingMask"/>
+                                    <subviews>
+                                        <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="star.fill" catalog="system" translatesAutoresizingMaskIntoConstraints="NO" id="nst-00-001">
+                                            <rect key="frame" x="20" y="21" width="24" height="22"/>
+                                            <color key="tintColor" systemColor="systemYellowColor"/>
+                                            <constraints>
+                                                <constraint firstAttribute="width" constant="24" id="c01-00-001"/>
+                                                <constraint firstAttribute="height" constant="24" id="c01-00-002"/>
+                                            </constraints>
+                                        </imageView>
+                                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Title" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="ntl-00-001">
+                                            <rect key="frame" x="56" y="11" width="286.66666666666669" height="21"/>
+                                            <fontDescription key="fontDescription" style="UICTFontTextStyleHeadline"/>
+                                            <nil key="textColor"/>
+                                            <nil key="highlightedColor"/>
+                                        </label>
+                                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Detail" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="ndl-00-001">
+                                            <rect key="frame" x="56" y="36" width="286.66666666666669" height="17"/>
+                                            <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                            <color key="textColor" systemColor="secondaryLabelColor"/>
+                                            <nil key="highlightedColor"/>
+                                        </label>
+                                    </subviews>
+                                    <constraints>
+                                        <constraint firstItem="nst-00-001" firstAttribute="leading" secondItem="ncv-00-001" secondAttribute="leadingMargin" id="c01-00-003"/>
+                                        <constraint firstItem="nst-00-001" firstAttribute="centerY" secondItem="ncv-00-001" secondAttribute="centerY" id="c01-00-004"/>
+                                        <constraint firstItem="ntl-00-001" firstAttribute="leading" secondItem="nst-00-001" secondAttribute="trailing" constant="12" id="c01-00-005"/>
+                                        <constraint firstItem="ntl-00-001" firstAttribute="top" secondItem="ncv-00-001" secondAttribute="topMargin" id="c01-00-006"/>
+                                        <constraint firstAttribute="trailingMargin" secondItem="ntl-00-001" secondAttribute="trailing" id="c01-00-007"/>
+                                        <constraint firstItem="ndl-00-001" firstAttribute="leading" secondItem="ntl-00-001" secondAttribute="leading" id="c01-00-008"/>
+                                        <constraint firstItem="ndl-00-001" firstAttribute="trailing" secondItem="ntl-00-001" secondAttribute="trailing" id="c01-00-009"/>
+                                        <constraint firstItem="ndl-00-001" firstAttribute="top" secondItem="ntl-00-001" secondAttribute="bottom" constant="4" id="c01-00-010"/>
+                                        <constraint firstAttribute="bottomMargin" secondItem="ndl-00-001" secondAttribute="bottom" id="c01-00-011"/>
+                                    </constraints>
+                                </tableViewCellContentView>
+                                <connections>
+                                    <outlet property="detailLabel" destination="ndl-00-001" id="o01-00-001"/>
+                                    <outlet property="starView" destination="nst-00-001" id="o01-00-002"/>
+                                    <outlet property="titleLabel" destination="ntl-00-001" id="o01-00-003"/>
+                                    <segue destination="dtl-00-001" kind="show" identifier="showNote" id="seg-00-001"/>
+                                </connections>
+                            </tableViewCell>
+                            <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" preservesSuperviewLayoutMargins="YES" selectionStyle="default" indentationWidth="10" reuseIdentifier="BasicCell" textLabel="bct-00-001" detailTextLabel="bcd-00-001" style="IBUITableViewCellStyleSubtitle" id="bce-00-001">
+                                <rect key="frame" x="0.0" y="114" width="393" height="55.666667938232422"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" preservesSuperviewLayoutMargins="YES" insetsLayoutMarginsFromSafeArea="NO" tableViewCell="bce-00-001" id="bcv-00-001">
+                                    <rect key="frame" x="0.0" y="0.0" width="393" height="55.666667938232422"/>
+                                    <autoresizingMask key="autoresizingMask"/>
+                                    <subviews>
+                                        <label opaque="NO" multipleTouchEnabled="YES" contentMode="left" insetsLayoutMarginsFromSafeArea="NO" text="Title" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" id="bct-00-001">
+                                            <rect key="frame" x="20" y="10" width="33" height="20.333333333333332"/>
+                                            <autoresizingMask key="autoresizingMask"/>
+                                            <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                            <nil key="textColor"/>
+                                            <nil key="highlightedColor"/>
+                                        </label>
+                                        <label opaque="NO" multipleTouchEnabled="YES" contentMode="left" insetsLayoutMarginsFromSafeArea="NO" text="Subtitle" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" id="bcd-00-001">
+                                            <rect key="frame" x="20" y="31.333333333333332" width="44" height="14.333333333333334"/>
+                                            <autoresizingMask key="autoresizingMask"/>
+                                            <fontDescription key="fontDescription" type="system" pointSize="12"/>
+                                            <color key="textColor" systemColor="systemPurpleColor"/>
+                                            <nil key="highlightedColor"/>
+                                        </label>
+                                    </subviews>
+                                </tableViewCellContentView>
+                            </tableViewCell>
+                        </prototypes>
+                        <connections>
+                            <outlet property="dataSource" destination="nts-00-001" id="o02-00-001"/>
+                            <outlet property="delegate" destination="nts-00-001" id="o02-00-002"/>
+                        </connections>
+                    </tableView>
+                    <navigationItem key="navigationItem" title="Notes" id="nni-00-001">
+                        <barButtonItem key="leftBarButtonItem" title="Reset" id="bbi-00-001">
+                            <connections>
+                                <action selector="resetNotes:" destination="nts-00-001" id="a01-00-001"/>
+                            </connections>
+                        </barButtonItem>
+                        <barButtonItem key="rightBarButtonItem" systemItem="add" id="bbi-00-002">
+                            <accessibility key="accessibilityConfiguration" identifier="bar-Add"/>
+                            <connections>
+                                <segue destination="nv3-00-001" kind="presentation" identifier="compose" id="seg-00-002"/>
+                            </connections>
+                        </barButtonItem>
+                    </navigationItem>
+                </tableViewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr3-00-001" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="400" y="-400"/>
+        </scene>
+        <!--Note Detail-->
+        <scene sceneID="sc4-dt-001">
+            <objects>
+                <viewController id="dtl-00-001" customClass="NoteDetailViewController" customModule="HelloStoryboards" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="dtv-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Title" textAlignment="natural" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="dtt-00-001">
+                                <rect key="frame" x="20" y="123" width="353" height="34"/>
+                                <accessibility key="accessibilityConfiguration" identifier="detail-title"/>
+                                <fontDescription key="fontDescription" style="UICTFontTextStyleTitle1"/>
+                                <nil key="textColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Body" textAlignment="natural" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="dtb-00-001">
+                                <rect key="frame" x="20" y="165" width="353" height="20.333333333333343"/>
+                                <accessibility key="accessibilityConfiguration" identifier="detail-body"/>
+                                <fontDescription key="fontDescription" style="UICTFontTextStyleBody"/>
+                                <color key="textColor" systemColor="secondaryLabelColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <containerView opaque="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="dtc-00-001">
+                                <rect key="frame" x="20" y="201" width="353" height="120"/>
+                                <accessibility key="accessibilityConfiguration" identifier="detail-container"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="120" id="c02-00-001"/>
+                                </constraints>
+                                <connections>
+                                    <segue destination="inf-00-001" kind="embed" identifier="embedInfo" id="seg-00-003"/>
+                                </connections>
+                            </containerView>
+                            <stackView opaque="NO" contentMode="scaleToFill" spacing="12" translatesAutoresizingMaskIntoConstraints="NO" id="dts-00-001">
+                                <rect key="frame" x="20" y="337" width="353" height="35"/>
+                                <subviews>
+                                    <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="dtm-00-001">
+                                        <rect key="frame" x="0.0" y="0.0" width="170.66666666666666" height="35"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="detail-more"/>
+                                        <state key="normal" title="Button"/>
+                                        <buttonConfiguration key="configuration" style="tinted" title="More"/>
+                                        <connections>
+                                            <action selector="showMore:" destination="dtl-00-001" eventType="touchUpInside" id="a02-00-001"/>
+                                        </connections>
+                                    </button>
+                                    <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="dtd-00-001">
+                                        <rect key="frame" x="182.66666666666666" y="0.0" width="170.33333333333334" height="35"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="detail-done"/>
+                                        <state key="normal" title="Button"/>
+                                        <buttonConfiguration key="configuration" style="filled" title="Done"/>
+                                        <connections>
+                                            <segue destination="ext-dt-001" kind="unwind" identifier="doneUnwind" unwindAction="unwindToNotes:" id="seg-00-004"/>
+                                        </connections>
+                                    </button>
+                                </subviews>
+                                <constraints>
+                                    <constraint firstItem="dtm-00-001" firstAttribute="width" secondItem="dtd-00-001" secondAttribute="width" id="c02-00-002"/>
+                                </constraints>
+                            </stackView>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="dsa-00-001"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                        <constraints>
+                            <constraint firstItem="dtt-00-001" firstAttribute="top" secondItem="dsa-00-001" secondAttribute="top" constant="20" id="c02-00-003"/>
+                            <constraint firstItem="dtt-00-001" firstAttribute="leading" secondItem="dsa-00-001" secondAttribute="leading" constant="20" id="c02-00-004"/>
+                            <constraint firstItem="dsa-00-001" firstAttribute="trailing" secondItem="dtt-00-001" secondAttribute="trailing" constant="20" id="c02-00-005"/>
+                            <constraint firstItem="dtb-00-001" firstAttribute="top" secondItem="dtt-00-001" secondAttribute="bottom" constant="8" id="c02-00-006"/>
+                            <constraint firstItem="dtb-00-001" firstAttribute="leading" secondItem="dtt-00-001" secondAttribute="leading" id="c02-00-007"/>
+                            <constraint firstItem="dtb-00-001" firstAttribute="trailing" secondItem="dtt-00-001" secondAttribute="trailing" id="c02-00-008"/>
+                            <constraint firstItem="dtc-00-001" firstAttribute="top" secondItem="dtb-00-001" secondAttribute="bottom" constant="16" id="c02-00-009"/>
+                            <constraint firstItem="dtc-00-001" firstAttribute="leading" secondItem="dtt-00-001" secondAttribute="leading" id="c02-00-010"/>
+                            <constraint firstItem="dtc-00-001" firstAttribute="trailing" secondItem="dtt-00-001" secondAttribute="trailing" id="c02-00-011"/>
+                            <constraint firstItem="dts-00-001" firstAttribute="top" secondItem="dtc-00-001" secondAttribute="bottom" constant="16" id="c02-00-012"/>
+                            <constraint firstItem="dts-00-001" firstAttribute="leading" secondItem="dtt-00-001" secondAttribute="leading" id="c02-00-013"/>
+                            <constraint firstItem="dts-00-001" firstAttribute="trailing" secondItem="dtt-00-001" secondAttribute="trailing" id="c02-00-014"/>
+                        </constraints>
+                    </view>
+                    <navigationItem key="navigationItem" title="Note" largeTitleDisplayMode="never" id="dni-00-001"/>
+                    <connections>
+                        <outlet property="bodyLabel" destination="dtb-00-001" id="o03-00-001"/>
+                        <outlet property="titleLabel" destination="dtt-00-001" id="o03-00-002"/>
+                        <segue destination="mor-00-001" kind="show" identifier="showMore" id="seg-00-005"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr4-00-001" sceneMemberID="firstResponder"/>
+                <exit id="ext-dt-001" userLabel="Exit" sceneMemberID="exit"/>
+            </objects>
+            <point key="canvasLocation" x="1200" y="-400"/>
+        </scene>
+        <!--Info (embedded)-->
+        <scene sceneID="sc5-in-001">
+            <objects>
+                <viewController id="inf-00-001" customClass="InfoViewController" customModule="HelloStoryboards" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="inv-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="353" height="120"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                        <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Info" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="inl-00-001">
+                                <rect key="frame" x="20" y="50" width="313" height="20.333333333333329"/>
+                                <accessibility key="accessibilityConfiguration" identifier="info-label"/>
+                                <fontDescription key="fontDescription" type="boldSystem" pointSize="17"/>
+                                <color key="textColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="isa-00-001"/>
+                        <color key="backgroundColor" red="0.20000000000000001" green="0.59999999999999998" blue="0.40000000000000002" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="inl-00-001" firstAttribute="centerY" secondItem="inv-00-001" secondAttribute="centerY" id="c03-00-001"/>
+                            <constraint firstItem="inl-00-001" firstAttribute="leading" secondItem="inv-00-001" secondAttribute="leading" constant="20" id="c03-00-002"/>
+                            <constraint firstAttribute="trailing" secondItem="inl-00-001" secondAttribute="trailing" constant="20" id="c03-00-003"/>
+                        </constraints>
+                    </view>
+                    <connections>
+                        <outlet property="infoLabel" destination="inl-00-001" id="o04-00-001"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr5-00-001" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="1200" y="400"/>
+        </scene>
+        <!--More-->
+        <scene sceneID="sc6-mo-001">
+            <objects>
+                <viewController storyboardIdentifier="MoreVC" title="More" id="mor-00-001" customClass="MoreViewController" customModule="HelloStoryboards" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="mov-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="More" textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mol-00-001">
+                                <rect key="frame" x="20" y="415.66666666666669" width="353" height="20.333333333333314"/>
+                                <accessibility key="accessibilityConfiguration" identifier="more-label"/>
+                                <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="20"/>
+                                <nil key="textColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="msa-00-001"/>
+                        <color key="backgroundColor" systemColor="systemGroupedBackgroundColor"/>
+                        <constraints>
+                            <constraint firstItem="mol-00-001" firstAttribute="centerY" secondItem="msa-00-001" secondAttribute="centerY" id="c04-00-001"/>
+                            <constraint firstItem="mol-00-001" firstAttribute="leading" secondItem="msa-00-001" secondAttribute="leading" constant="20" id="c04-00-002"/>
+                            <constraint firstItem="msa-00-001" firstAttribute="trailing" secondItem="mol-00-001" secondAttribute="trailing" constant="20" id="c04-00-003"/>
+                        </constraints>
+                    </view>
+                    <connections>
+                        <outlet property="messageLabel" destination="mol-00-001" id="o05-00-001"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr6-00-001" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="2000" y="-400"/>
+        </scene>
+        <!--Compose Navigation-->
+        <scene sceneID="sc7-nv-003">
+            <objects>
+                <navigationController id="nv3-00-001" sceneMemberID="viewController">
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="nvb-00-003">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="56"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <connections>
+                        <segue destination="cmp-00-001" kind="relationship" relationship="rootViewController" id="rel-00-004"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr7-00-001" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="400" y="-1200"/>
+        </scene>
+        <!--Compose-->
+        <scene sceneID="sc8-cm-001">
+            <objects>
+                <viewController id="cmp-00-001" customClass="ComposeViewController" customModule="HelloStoryboards" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="cmv-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="842"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <textField opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="248" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Title" textAlignment="natural" minimumFontSize="17" clearButtonMode="whileEditing" translatesAutoresizingMaskIntoConstraints="NO" id="cmf-00-001">
+                                <rect key="frame" x="20" y="76" width="353" height="34"/>
+                                <accessibility key="accessibilityConfiguration" identifier="compose-title"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                <textInputTraits key="textInputTraits" autocapitalizationType="sentences" returnKeyType="done"/>
+                            </textField>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="csa-00-001"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                        <constraints>
+                            <constraint firstItem="cmf-00-001" firstAttribute="top" secondItem="csa-00-001" secondAttribute="top" constant="20" id="c05-00-001"/>
+                            <constraint firstItem="cmf-00-001" firstAttribute="leading" secondItem="csa-00-001" secondAttribute="leading" constant="20" id="c05-00-002"/>
+                            <constraint firstItem="csa-00-001" firstAttribute="trailing" secondItem="cmf-00-001" secondAttribute="trailing" constant="20" id="c05-00-003"/>
+                        </constraints>
+                    </view>
+                    <navigationItem key="navigationItem" title="New Note" id="cni-00-001">
+                        <barButtonItem key="leftBarButtonItem" systemItem="cancel" id="bbi-00-003">
+                            <connections>
+                                <segue destination="ext-cm-001" kind="unwind" identifier="cancelUnwind" unwindAction="unwindToNotes:" id="seg-00-006"/>
+                            </connections>
+                        </barButtonItem>
+                        <barButtonItem key="rightBarButtonItem" style="done" systemItem="save" id="bbi-00-004">
+                            <connections>
+                                <segue destination="ext-cm-001" kind="unwind" identifier="saveUnwind" unwindAction="unwindToNotes:" id="seg-00-007"/>
+                            </connections>
+                        </barButtonItem>
+                    </navigationItem>
+                    <connections>
+                        <outlet property="titleField" destination="cmf-00-001" id="o06-00-001"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr8-00-001" sceneMemberID="firstResponder"/>
+                <exit id="ext-cm-001" userLabel="Exit" sceneMemberID="exit"/>
+            </objects>
+            <point key="canvasLocation" x="1200" y="-1200"/>
+        </scene>
+        <!--Controls Navigation-->
+        <scene sceneID="sc9-nv-002">
+            <objects>
+                <navigationController id="nv2-00-001" sceneMemberID="viewController">
+                    <tabBarItem key="tabBarItem" title="Controls" image="gearshape" catalog="system" id="tbi-00-002"/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="nvb-00-002">
+                        <rect key="frame" x="0.0" y="59" width="393" height="44"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <connections>
+                        <segue destination="ctl-00-001" kind="relationship" relationship="rootViewController" id="rel-00-005"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fr9-00-001" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-400" y="400"/>
+        </scene>
+        <!--Controls-->
+        <scene sceneID="sca-ct-001">
+            <objects>
+                <viewController title="Controls" id="ctl-00-001" customClass="ControlsViewController" customModule="HelloStoryboards" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="ctv-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="10" translatesAutoresizingMaskIntoConstraints="NO" id="cst-00-001">
+                                <rect key="frame" x="20" y="123" width="353" height="500"/>
+                                <subviews>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Volume 50%" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="cvl-00-001">
+                                        <rect key="frame" x="0.0" y="0.0" width="353" height="20.333333333333332"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="volume-label"/>
+                                        <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                        <nil key="textColor"/>
+                                        <nil key="highlightedColor"/>
+                                    </label>
+                                    <slider opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" value="0.5" minValue="0.0" maxValue="1" translatesAutoresizingMaskIntoConstraints="NO" id="csl-00-001">
+                                        <rect key="frame" x="-2" y="30.333333333333343" width="357" height="31"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="volume-slider"/>
+                                        <connections>
+                                            <action selector="sliderChanged:" destination="ctl-00-001" eventType="valueChanged" id="a03-00-001"/>
+                                        </connections>
+                                    </slider>
+                                    <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" on="YES" translatesAutoresizingMaskIntoConstraints="NO" id="csw-00-001">
+                                        <rect key="frame" x="0.0" y="70.333333333333343" width="353" height="31"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="controls-switch"/>
+                                        <color key="onTintColor" systemColor="systemGreenColor"/>
+                                        <connections>
+                                            <action selector="toggled:" destination="ctl-00-001" eventType="valueChanged" id="a03-00-002"/>
+                                        </connections>
+                                    </switch>
+                                    <stepper opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" value="2" maximumValue="10" translatesAutoresizingMaskIntoConstraints="NO" id="csp-00-001">
+                                        <rect key="frame" x="0.0" y="111.33333333333334" width="353" height="32"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="controls-stepper"/>
+                                        <connections>
+                                            <action selector="stepped:" destination="ctl-00-001" eventType="valueChanged" id="a03-00-003"/>
+                                        </connections>
+                                    </stepper>
+                                    <segmentedControl opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="1" translatesAutoresizingMaskIntoConstraints="NO" id="csg-00-001">
+                                        <rect key="frame" x="0.0" y="153.33333333333334" width="353" height="32"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="controls-segments"/>
+                                        <segments>
+                                            <segment title="One"/>
+                                            <segment title="Two"/>
+                                            <segment title="Three"/>
+                                        </segments>
+                                        <connections>
+                                            <action selector="segmentChanged:" destination="ctl-00-001" eventType="valueChanged" id="a03-00-004"/>
+                                        </connections>
+                                    </segmentedControl>
+                                    <progressView opaque="NO" contentMode="scaleToFill" verticalHuggingPriority="750" progress="0.25" translatesAutoresizingMaskIntoConstraints="NO" id="cpr-00-001">
+                                        <rect key="frame" x="0.0" y="194.33333333333334" width="353" height="4"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="controls-progress"/>
+                                        <color key="progressTintColor" systemColor="systemOrangeColor"/>
+                                    </progressView>
+                                    <activityIndicatorView opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" animating="YES" style="medium" translatesAutoresizingMaskIntoConstraints="NO" id="cai-00-001">
+                                        <rect key="frame" x="0.0" y="208.33333333333334" width="353" height="20"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="controls-spinner"/>
+                                    </activityIndicatorView>
+                                    <textField opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="248" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Your name" textAlignment="natural" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="ctf-00-001">
+                                        <rect key="frame" x="0.0" y="238.33333333333334" width="353" height="34"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="controls-name"/>
+                                        <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                        <textInputTraits key="textInputTraits" autocorrectionType="no"/>
+                                        <connections>
+                                            <action selector="nameChanged:" destination="ctl-00-001" eventType="editingChanged" id="a03-00-005"/>
+                                        </connections>
+                                    </textField>
+                                    <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="cap-00-001">
+                                        <rect key="frame" x="0.0" y="282.33333333333331" width="353" height="35"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="apply-button"/>
+                                        <state key="normal" title="Button"/>
+                                        <buttonConfiguration key="configuration" style="filled" title="Apply" image="checkmark.circle" catalog="system" imagePadding="6" cornerStyle="capsule"/>
+                                        <connections>
+                                            <action selector="apply:" destination="ctl-00-001" eventType="touchUpInside" id="a03-00-006"/>
+                                        </connections>
+                                    </button>
+                                    <stackView opaque="NO" contentMode="scaleToFill" distribution="fillEqually" spacing="8" translatesAutoresizingMaskIntoConstraints="NO" id="cbs-00-001">
+                                        <rect key="frame" x="0.0" y="327.33333333333331" width="353" height="35"/>
+                                        <subviews>
+                                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="cxb-00-001">
+                                                <rect key="frame" x="0.0" y="0.0" width="112.33333333333333" height="35"/>
+                                                <accessibility key="accessibilityConfiguration" identifier="open-profile"/>
+                                                <state key="normal" title="Button"/>
+                                                <buttonConfiguration key="configuration" style="gray" title="Xib"/>
+                                                <connections>
+                                                    <action selector="openProfile:" destination="ctl-00-001" eventType="touchUpInside" id="a03-00-007"/>
+                                                </connections>
+                                            </button>
+                                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="cdb-00-001">
+                                                <rect key="frame" x="120.33333333333333" y="0.0" width="112.33333333333334" height="35"/>
+                                                <accessibility key="accessibilityConfiguration" identifier="open-default-nib"/>
+                                                <state key="normal" title="Button"/>
+                                                <buttonConfiguration key="configuration" style="gray" title="Default"/>
+                                                <connections>
+                                                    <action selector="openDefaultNib:" destination="ctl-00-001" eventType="touchUpInside" id="a03-00-008"/>
+                                                </connections>
+                                            </button>
+                                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="cfb-00-001">
+                                                <rect key="frame" x="240.66666666666666" y="0.0" width="112.33333333333334" height="35"/>
+                                                <accessibility key="accessibilityConfiguration" identifier="open-fonts"/>
+                                                <state key="normal" title="Fonts"/>
+                                                <connections>
+                                                    <action selector="openFonts:" destination="ctl-00-001" eventType="touchUpInside" id="a03-00-009"/>
+                                                </connections>
+                                            </button>
+                                        </subviews>
+                                    </stackView>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Ready" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="cso-00-001">
+                                        <rect key="frame" x="0.0" y="372.33333333333331" width="353" height="20.333333333333314"/>
+                                        <accessibility key="accessibilityConfiguration" identifier="status-label"/>
+                                        <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                        <color key="textColor" systemColor="systemIndigoColor"/>
+                                        <nil key="highlightedColor"/>
+                                    </label>
+                                </subviews>
+                            </stackView>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="crv-00-001" customClass="RoundedView" customModule="HelloStoryboards" customModuleProvider="target">
+                                <rect key="frame" x="108.33333333333331" y="643" width="176.66666666666669" height="40"/>
+                                <color key="backgroundColor" systemColor="systemTealColor"/>
+                                <accessibility key="accessibilityConfiguration" identifier="rounded-view"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="40" priority="999" id="c06-00-001"/>
+                                    <constraint firstAttribute="height" constant="300" placeholder="YES" id="c06-00-002"/>
+                                </constraints>
+                                <userDefinedRuntimeAttributes>
+                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
+                                        <integer key="value" value="12"/>
+                                    </userDefinedRuntimeAttribute>
+                                    <userDefinedRuntimeAttribute type="string" keyPath="cornerTag" value="teal-pill"/>
+                                </userDefinedRuntimeAttributes>
+                                <connections>
+                                    <outletCollection property="gestureRecognizers" destination="tap-00-001" appends="YES" id="g01-00-001"/>
+                                </connections>
+                            </view>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="tsa-00-001"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                        <constraints>
+                            <constraint firstItem="cst-00-001" firstAttribute="top" secondItem="tsa-00-001" secondAttribute="top" constant="20" id="c06-00-003"/>
+                            <constraint firstItem="cst-00-001" firstAttribute="leading" secondItem="tsa-00-001" secondAttribute="leading" constant="20" id="c06-00-004"/>
+                            <constraint firstItem="tsa-00-001" firstAttribute="trailing" secondItem="cst-00-001" secondAttribute="trailing" constant="20" id="c06-00-005"/>
+                            <constraint firstItem="crv-00-001" firstAttribute="top" secondItem="cst-00-001" secondAttribute="bottom" constant="20" id="c06-00-006"/>
+                            <constraint firstItem="crv-00-001" firstAttribute="centerX" secondItem="ctv-00-001" secondAttribute="centerX" id="c06-00-007"/>
+                            <constraint firstItem="crv-00-001" firstAttribute="width" secondItem="cst-00-001" secondAttribute="width" multiplier="1:2" id="c06-00-008"/>
+                        </constraints>
+                    </view>
+                    <connections>
+                        <outlet property="nameField" destination="ctf-00-001" id="o07-00-001"/>
+                        <outlet property="progress" destination="cpr-00-001" id="o07-00-002"/>
+                        <outlet property="roundedView" destination="crv-00-001" id="o07-00-003"/>
+                        <outlet property="segments" destination="csg-00-001" id="o07-00-004"/>
+                        <outlet property="slider" destination="csl-00-001" id="o07-00-005"/>
+                        <outlet property="spinner" destination="cai-00-001" id="o07-00-006"/>
+                        <outlet property="statusLabel" destination="cso-00-001" id="o07-00-007"/>
+                        <outlet property="stepper" destination="csp-00-001" id="o07-00-008"/>
+                        <outlet property="toggle" destination="csw-00-001" id="o07-00-009"/>
+                        <outlet property="volumeLabel" destination="cvl-00-001" id="o07-00-010"/>
+                        <outletCollection property="allLabels" destination="cvl-00-001" collectionClass="NSMutableArray" id="o07-00-011"/>
+                        <outletCollection property="allLabels" destination="cso-00-001" collectionClass="NSMutableArray" id="o07-00-012"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="fra-00-001" sceneMemberID="firstResponder"/>
+                <tapGestureRecognizer id="tap-00-001">
+                    <connections>
+                        <action selector="badgeTapped:" destination="ctl-00-001" id="a03-00-010"/>
+                    </connections>
+                </tapGestureRecognizer>
+            </objects>
+            <point key="canvasLocation" x="400" y="400"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="list.bullet" catalog="system" width="128" height="87"/>
+        <image name="gearshape" catalog="system" width="128" height="123"/>
+        <image name="star.fill" catalog="system" width="128" height="116"/>
+        <image name="checkmark.circle" catalog="system" width="128" height="123"/>
+        <systemColor name="secondaryLabelColor">
+            <color red="0.23529411764705882" green="0.23529411764705882" blue="0.2627450980392157" alpha="0.59999999999999998" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemBackgroundColor">
+            <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+        </systemColor>
+        <systemColor name="systemGreenColor">
+            <color red="0.20392156862745098" green="0.7803921568627451" blue="0.34901960784313724" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemGroupedBackgroundColor">
+            <color red="0.94901960784313721" green="0.94901960784313721" blue="0.96862745098039216" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemIndigoColor">
+            <color red="0.34509803921568627" green="0.33725490196078434" blue="0.83921568627450982" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemOrangeColor">
+            <color red="1" green="0.58431372549019611" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemPurpleColor">
+            <color red="0.68627450980392157" green="0.32156862745098042" blue="0.87058823529411766" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemTealColor">
+            <color red="0.18823529411764706" green="0.69019607843137254" blue="0.7803921568627451" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemYellowColor">
+            <color red="1" green="0.80000000000000004" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+    </resources>
+</document>

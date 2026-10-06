@@ -1,7 +1,7 @@
 // isim GameplayKit, self-authored (pure Swift): state machines, entities and components, random sources and
 // distributions, graphs with A* pathfinding, noise, agents with goals, and rule systems.
-// Not implemented: GKObstacleGraph / GKMeshGraph, GKMinmaxStrategist, GKMonteCarloStrategist, GKDecisionTree,
-// GKQuadtree / GKRTree, SceneKit components.
+// Obstacle / mesh graphs (GKNavigation.swift), strategists and decision trees (GKStrategy.swift), spatial trees (GKSpatial.swift).
+// Not implemented: SceneKit components.
 @_exported import Foundation
 @_exported import simd
 import SpriteKit
@@ -332,6 +332,8 @@ open class GKGraphNode: NSObject {
 open class GKGraphNode2D: GKGraphNode {
     open var position: vector_float2
     public init(point: vector_float2) { position = point; super.init() }
+    /// lets graphs create nodes of an app's subclass (GKObstacleGraph / GKMeshGraph nodeClass)
+    public convenience override init() { self.init(point: .zero) }
     public required init?(coder: NSCoder) { position = .zero; super.init(coder: coder) }
     open override func cost(to node: GKGraphNode) -> Float {
         guard let n = node as? GKGraphNode2D else { return 1 }

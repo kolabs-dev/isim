@@ -242,6 +242,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         }
         if let id = node.accessibilityIdentifier { v.accessibilityIdentifier = id }
         if let label = node.accessibilityLabel { v.accessibilityLabel = label }
+        for apply in node.accessibilityApply { apply(v) }          // accessibility modifiers (Accessibility.swift)
         node.mountChildren(self, in: v)
     }
 }
@@ -254,6 +255,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var frame: CGRect = .zero
     var accessibilityIdentifier: String?
     var accessibilityLabel: String?
+    var accessibilityApply: [(UIView) -> Void] = []
     /// .tag(_:) (or ForEach's id): the value Picker and TabView select by
     var tag: AnyHashable?
     /// .tabItem { } content and .badge
@@ -296,7 +298,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
 final class _PassthroughView: UIView {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
-        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self ? nil : v }
+        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self && interactions.isEmpty ? nil : v }   // (drag/drop interactions make it a target)
         // like SwiftUI, content outside a container's frame (offset, overflowing) still takes touches
         for s in subviews.reversed() { if let h = s.hitTest(s.convert(point, from: self), with: event) { return h } }
         return nil

@@ -71,6 +71,7 @@ static struct isim_event pending[16]; static int npending;
 
 static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 double isim_time(void) { return now() - t0; }
+#include "host_input.inc"             /* second finger, hover, IME composition, voiceover script commands */
 
 /* device presets (points, scale, safe areas, display corner radius, cutout: 0 none, 1 Dynamic Island, 2 notch) */
 #pragma GCC diagnostic push
@@ -624,6 +625,7 @@ void isim_frame_end(void) {
     if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
     else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
     SDL_DestroySurface(src);
+    present_overlay(ws);
     SDL_UpdateWindowSurface(win);
 }
 
@@ -674,10 +676,32 @@ static void set_simulated_location(const char *arg) {
     fclose(f);
     fprintf(stderr, "isim host: simulated location %s\n", line);
 }
+/* Debug > Simulate MetricKit Payloads: apps with an MXMetricManager subscriber watch this file (isim's MetricKit) */
+static void simulate_metrickit(void) {
+    char path[1024]; const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    if (data && *data) snprintf(path, sizeof path, "%s/Library", data);
+    else snprintf(path, sizeof path, "%s/.local/share/isim/Library", home ? home : "");
+    mkdir(path, 0755); strncat(path, "/isim", sizeof path - strlen(path) - 1); mkdir(path, 0755);
+    strncat(path, "/MetricKitTrigger", sizeof path - strlen(path) - 1);
+    FILE *f = fopen(path, "w");
+    if (!f) { fprintf(stderr, "isim host: cannot write %s\n", path); return; }
+    fprintf(f, "%.6f\n", isim_time()); fclose(f);
+    fprintf(stderr, "isim host: simulate MetricKit payloads\n");
+}
 /* "drag x1 y1 x2 y2 seconds": a timed drag, one move per ~16 ms */
 static struct { int on; double a, b, c, d, t0, dur, last; } sdrag;
 static int script_step(struct isim_event *ev) {
     control_poll();
+    if (ld.on && !npending) {                 /* scripted long-press drag (host_input.inc) */
+        ld_tick();
+        if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
+        return 0;
+    }
+    if (mt.on && !npending) {                 /* scripted two-finger gesture (host_input.inc) */
+        mt_tick();
+        if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
+        return 0;
+    }
     if (sdrag.on && !npending) {
         double t = now();
         if (t - sdrag.last >= 0.016) {
@@ -766,6 +790,8 @@ static int script_step(struct isim_event *ev) {
         script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "location") && sscanf(args, " %511[^;]", arg) == 1) {
         set_simulated_location(arg);             /* Features > Location: "location LAT LON" or "location none" */
+    } else if (!strcmp(cmd, "metrickit")) {
+        simulate_metrickit();                    /* Debug > Simulate MetricKit Payloads */
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);
@@ -782,8 +808,12 @@ static int script_step(struct isim_event *ev) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "gamepad") && sscanf(args, " %511[^;]", arg) == 1) {    /* virtual SDL gamepad (host_gamepad.c) */
+        void isim_gamepad_script(const char *args);
+        isim_gamepad_script(arg);
     } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
+    else if (input_script_cmd(cmd, args)) {}
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
     return script_step(ev);
 }
@@ -836,6 +866,7 @@ int isim_next_event(struct isim_event *ev, double timeout) {
         if ((script_pos || ctl_fd >= 0) && wait_ms > 10) wait_ms = 10;
         if (!SDL_WaitEventTimeout(&e, wait_ms)) { if (now() >= deadline) return 0; continue; }
         ev->timestamp = isim_time();
+        if (input_sdl_event(&e, ev)) return 1;
         switch (e.type) {
         case SDL_EVENT_USER: return 0;
         case SDL_EVENT_QUIT: case SDL_EVENT_WINDOW_CLOSE_REQUESTED: ev->type = EV_QUIT; return 1;
@@ -990,6 +1021,15 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 void isim_media_remote_post(const char *cmd);
 int isim_remote_command_poll(char *buf, int len);
+struct isim_gamepad;
+int isim_gamepad_poll(struct isim_gamepad *out, int max);
+int isim_gamepad_rumble(int id, double low, double high, double seconds);
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
+void isim_image_draw_quad(int handle, const double *quad, double alpha);           /* host_ca.c */
+void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+int isim_gfx_screen_snapshot(double x, double y, double w, double h);
+void isim_gfx_pop_group_tinted(const double *rgba, double alpha);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -1029,5 +1069,7 @@ static const struct shim isim_table[] = {
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
+    H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
+    H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

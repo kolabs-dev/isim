@@ -339,10 +339,11 @@ static uintptr_t stack_chk_guard;
 static void d_stack_chk_fail(void) { fflush(NULL); fputs("isim: guest stack smashing detected\n", stderr); abort(); }
 static void d_stub_binder(void) { fputs("isim: dyld_stub_binder called (lazy binds are pre-resolved)\n", stderr); abort(); }
 static void d_tlv_bootstrap(void) { fputs("isim: thread-local variables are not supported\n", stderr); abort(); }
-/* Exceptions are not implemented (objc_exception_throw aborts), so unwinding never starts:
- * these are only reachable from landing pads/personality lookups that cannot execute. */
-static void d_unwind_resume(void *e) { fflush(NULL); fputs("isim: _Unwind_Resume reached (C++/ObjC exceptions unsupported)\n", stderr); abort(); }
-static int d_personality(void) { fflush(NULL); fputs("isim: exception personality invoked (exceptions unsupported)\n", stderr); abort(); }
+/* Exceptions: the host libgcc unwinder walks guest frames (objc_exc.c registers their unwind info) */
+#include <unwind.h>
+extern _Unwind_Reason_Code isim_objc_personality(int, _Unwind_Action, uint64_t, struct _Unwind_Exception *, struct _Unwind_Context *);
+extern _Unwind_Reason_Code isim_unwind_raise(struct _Unwind_Exception *);
+extern _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn, void *);
 static uint32_t d_arc4random(void) { uint32_t v; if (getrandom(&v, sizeof v, 0) != sizeof v) v = (uint32_t)random(); return v; }
 static uint32_t d_arc4random_uniform(uint32_t n) { if (n < 2) return 0; uint32_t min = -n % n, r; do r = d_arc4random(); while (r < min); return r % n; }
 static void d_arc4random_buf(void *b, size_t n) { uint8_t *p = b; while (n) { ssize_t r = getrandom(p, n, 0); if (r <= 0) break; p += r; n -= r; } }
@@ -616,6 +617,12 @@ static const struct shim libsystem_table[] = {
     A("_pthread_getspecific", d_pthread_getspecific), A("_pthread_setspecific", d_pthread_setspecific),
     /* toolchain support */
     A("___stack_chk_guard", &stack_chk_guard), A("___stack_chk_fail", d_stack_chk_fail),
-    S("dyld_stub_binder", d_stub_binder), S("__Unwind_Resume", d_unwind_resume), S("___objc_personality_v0", d_personality), S("___gxx_personality_v0", d_personality), S("__tlv_bootstrap", d_tlv_bootstrap),
+    S("dyld_stub_binder", d_stub_binder), A("__Unwind_Resume", _Unwind_Resume), A("__Unwind_RaiseException", isim_unwind_raise),
+    A("__Unwind_Resume_or_Rethrow", _Unwind_Resume_or_Rethrow), A("__Unwind_DeleteException", _Unwind_DeleteException),
+    A("__Unwind_GetLanguageSpecificData", _Unwind_GetLanguageSpecificData), A("__Unwind_GetRegionStart", _Unwind_GetRegionStart),
+    A("__Unwind_GetIP", _Unwind_GetIP), A("__Unwind_GetIPInfo", _Unwind_GetIPInfo), A("__Unwind_GetGR", _Unwind_GetGR),
+    A("__Unwind_SetGR", _Unwind_SetGR), A("__Unwind_SetIP", _Unwind_SetIP), A("__Unwind_GetCFA", _Unwind_GetCFA),
+    A("__Unwind_Backtrace", isim_unwind_backtrace),
+    A("___objc_personality_v0", isim_objc_personality), A("___gxx_personality_v0", isim_objc_personality), S("__tlv_bootstrap", d_tlv_bootstrap),
 };
 const struct host_lib host_libsystem = { "/usr/lib/libSystem.B.dylib", libsystem_table, sizeof libsystem_table / sizeof *libsystem_table };

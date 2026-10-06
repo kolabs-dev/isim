@@ -11,7 +11,11 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        ISIM_EV_BACKGROUND, ISIM_EV_FOREGROUND, ISIM_EV_SETTINGS, ISIM_EV_LAUNCH_ID, ISIM_EV_OPEN_URL,
        ISIM_EV_KEY_UP = 19 /* key released; for ISIM_EV_KEY / ISIM_EV_KEY_UP `pad` is the USB HID usage (0 if unknown) */
        , ISIM_EV_NOTIFICATION_RESPONSE = 20 /* text: request identifier (18 is shell-internal) */
-       , ISIM_EV_DEVICE_ORIENTATION = 21 /* key: UIDeviceOrientation (the device was turned) */ };
+       , ISIM_EV_DEVICE_ORIENTATION = 21 /* key: UIDeviceOrientation (the device was turned) */
+       /* touch events: `pad` is the finger (0 first, 1 second: Option-drag / script pinch, rotate2, twofinger) */
+       , ISIM_EV_HOVER = 40 /* pointer moved without touching (x, y); pad 1: the pointer left */
+       , ISIM_EV_TEXT_EDITING = 41 /* IME composition: text = marked text, key = cursor (characters), mods = selected length */
+       , ISIM_EV_VOICEOVER = 42 /* text: on|off|next|prev|activate|read (script `voiceover`) */ };
 void isim_device_metrics(struct isim_device *out);
 int isim_set_orientation(int interfaceOrientation);   /* the screen takes this UIInterfaceOrientation; 1 if it changed */
 int isim_device_orientation(void);                    /* current UIDeviceOrientation */
@@ -167,6 +171,21 @@ int isim_tts_synthesize(const char *text, const char *voice, double wpm, double 
 int isim_audio_input_start(void);
 long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
+/* Core Animation (host_ca.c): perspective warp of a raster image onto a quad (tl, tr, br, bl in user space);
+   pop a group as a blurred, tinted, offset drop shadow of its alpha */
+void isim_image_draw_quad(int handle, const double *quad, double alpha);
+void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+int isim_gfx_screen_snapshot(double x, double y, double w, double h);   /* what is on the target under the rect (the last frame) */
+void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group painted with its pixels multiplied by rgba */
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
+/* host game controllers (SDL3 gamepads; ISIM_GAMEPADS=0 disables). buttons: bit i = SDL_GamepadButton i (0 south/A,
+   1 east/B, 2 west/X, 3 north/Y, 4 back, 5 guide, 6 start, 7/8 stick clicks, 9/10 shoulders, 11-14 dpad up/down/left/right);
+   axes: left x, left y, right x, right y (-1...1, y down), left / right trigger (0...1) */
+struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24]; };
+int isim_gamepad_poll(struct isim_gamepad *out, int max);   /* connected pads (count), -1 when disabled */
+int isim_gamepad_rumble(int id, double low, double high, double seconds);
+/* raster image from 32-bit premultiplied BGRA pixels (rows top-down), updated in place */
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
 __END_DECLS

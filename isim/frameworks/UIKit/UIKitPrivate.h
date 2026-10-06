@@ -218,3 +218,19 @@ void isim_ui_timeline_capture_end(void);
 - (NSString *)_isim_dumpText;             /* text=... in ISIM_SCRIPT "dump" */
 - (BOOL)_isim_heightTracksWidth;          /* intrinsic height depends on the width (wrapping text): re-solve after width changes */
 @end
+
+/* Interface Builder runtime (UIStoryboard.m) */
+id isim_ib_init_with_coder(id self, NSCoder *coder);             /* every UIKit -initWithCoder: */
+BOOL isim_ib_vc_load_view(UIViewController *vc);                 /* storyboard/nib view; NO: make the default view */
+void isim_ib_vc_set_nib(UIViewController *vc, NSString *name, NSBundle *bundle);
+NSString *isim_ib_vc_nib_name(UIViewController *vc);
+NSBundle *isim_ib_vc_nib_bundle(UIViewController *vc);
+UITableViewCell *isim_ib_dequeue_table_cell(UITableView *tv, NSString *rid);
+UIView *isim_ib_dequeue_table_header(UITableView *tv, NSString *rid);
+UIView *isim_ib_dequeue_collection(UICollectionView *cv, NSString *key, NSString *rid);
+void isim_ib_cell_selected(UIView *cell);              /* a cell's selection segue */
+void isim_ib_show_launch_screen(void);                            /* UILaunchScreen / UILaunchStoryboardName (UILaunchScreen.m) */
+void isim_ib_hide_launch_screen(void);
+/* UIMainStoryboardFile / UISceneStoryboardFile: a window (kept alive; given to the delegate's `window`) showing the
+   storyboard's initial view controller */
+UIWindow *isim_ib_storyboard_window(UIStoryboard *storyboard, UIWindowScene *scene, id delegate);

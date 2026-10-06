@@ -423,3 +423,5 @@ void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h) {
     for (int y = 0; y < h; y++) memcpy(dst + y * ds, px + (size_t)y * w * 4, (size_t)w * 4);
     cairo_surface_mark_dirty(im->surf);
 }
+/* the raster surface behind a handle (NULL for vector/procedural images); used by host_ca.c */
+cairo_surface_t *isim_image_surface(int hd) { struct img *im = get(hd); return im && im->kind == IMG_RASTER ? im->surf : NULL; }

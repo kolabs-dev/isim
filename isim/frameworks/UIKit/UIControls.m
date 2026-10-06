@@ -1,6 +1,7 @@
 /* isim UIKit: UILabel, UIControl/UIAction, UIButton (+configuration), UISwitch, UIStackView,
  * gesture recognizers (ARC). */
 #import "UIKitPrivate.h"
+#import <objc/runtime.h>
 #include <math.h>
 
 /* ================= UILabel ================= */
@@ -530,6 +531,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 @property (nonatomic, strong) NSMutableArray *isimFailureRequirements;   /* __IsimWeakRecognizer */
 @property (nonatomic) double isimRecognizedAt;
 @property (nonatomic) BOOL isimTracking;
+@property (nonatomic, strong) NSMutableArray<UITouch *> *isimTouches;   /* touches down on it (multi-touch aware recognizers) */
 @end
 @implementation UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g { return YES; }
@@ -555,8 +557,21 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     if (_state == UIGestureRecognizerStateBegan || _state == UIGestureRecognizerStateEnded) { isim_ui_gesture_recognized(self); self.isimRecognizedAt = isim_time(); }
     for (__IsimTargetAction *t in [_targets copy]) { id tg = t.target; if (tg) ((void (*)(id, SEL, id))[tg methodForSelector:t.action])(tg, t.action, self); }
 }
-- (CGPoint)locationOfTouch:(NSUInteger)i inView:(UIView *)v { return [self locationInView:v]; }
-- (NSUInteger)numberOfTouches { return self.isimTracking ? 1 : 0; }
+- (CGPoint)locationOfTouch:(NSUInteger)i inView:(UIView *)v { return i < self.isimTouches.count ? [self.isimTouches[i] locationInView:v] : [self locationInView:v]; }
+- (NSUInteger)numberOfTouches { return self.isimTouches.count ?: (self.isimTracking ? 1 : 0); }
+/* multi-touch: recognizers that only look at one finger (tap, long press, swipe) don't get the second finger;
+   UIGestureRecognizer subclasses that use touchesBegan:... (and pan, pinch, rotation) get every touch in their view */
+- (BOOL)_isim_acceptsExtraTouches {
+    static IMP base;
+    if (!base) base = class_getMethodImplementation([UIGestureRecognizer class], @selector(_isim_touch:phase:event:));
+    return class_getMethodImplementation(object_getClass(self), @selector(_isim_touch:phase:event:)) == base;
+}
+- (void)_isim_beginTouchSequence { [self.isimTouches removeAllObjects]; }
+- (CGPoint)_isim_centroidInView:(UIView *)v {
+    CGPoint c = CGPointZero; NSUInteger n = 0;
+    for (UITouch *t in self.isimTouches) { CGPoint p = [t locationInView:v]; c.x += p.x; c.y += p.y; n++; }
+    return n ? CGPointMake(c.x / n, c.y / n) : [self locationInView:v];
+}
 /* ---- failure requirements (require(toFail:)) ---- */
 - (void)requireGestureRecognizerToFail:(UIGestureRecognizer *)other {
     if (!self.isimFailureRequirements) self.isimFailureRequirements = [NSMutableArray array];
@@ -598,13 +613,21 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 - (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {}
 - (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event {
     NSSet *set = [NSSet setWithObject:touch];
-    if (phase == UITouchPhaseBegan) { if (_state != UIGestureRecognizerStatePossible) { _state = UIGestureRecognizerStatePossible; [self reset]; } self.isimTracking = YES; }
+    if (!self.isimTouches) self.isimTouches = [NSMutableArray array];
+    if (phase == UITouchPhaseBegan) {
+        if (!self.isimTouches.count && _state != UIGestureRecognizerStatePossible) { _state = UIGestureRecognizerStatePossible; [self reset]; }
+        self.isimTracking = YES;
+        if (![self.isimTouches containsObject:touch]) [self.isimTouches addObject:touch];
+    }
+    BOOL lifting = phase == UITouchPhaseEnded || phase == UITouchPhaseCancelled;
+    BOOL lastUp = lifting && (self.isimTouches.count <= 1);
     UIGestureRecognizerState before = _state;
     if (before == UIGestureRecognizerStateFailed || before == UIGestureRecognizerStateCancelled || before == UIGestureRecognizerStateEnded) {
-        if (phase == UITouchPhaseEnded) { self.isimTracking = NO; _state = UIGestureRecognizerStatePossible; [self reset]; }
+        if (lifting) [self.isimTouches removeObjectIdenticalTo:touch];
+        if (lastUp) { self.isimTracking = NO; _state = UIGestureRecognizerStatePossible; [self reset]; }
         return;
     }
-    self.lastPoint = [touch locationInView:self.view];
+    self.lastPoint = [self _isim_centroidInView:self.view];
     if (phase == UITouchPhaseBegan) [self touchesBegan:set withEvent:event];
     else if (phase == UITouchPhaseMoved) [self touchesMoved:set withEvent:event];
     else if (phase == UITouchPhaseEnded) [self touchesEnded:set withEvent:event];
@@ -619,7 +642,8 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
         }
         else [self _fire];
     }
-    if (phase == UITouchPhaseEnded || phase == UITouchPhaseCancelled) {
+    if (lifting) [self.isimTouches removeObjectIdenticalTo:touch];
+    if (lastUp) {
         self.isimTracking = NO;
         if (_state != UIGestureRecognizerStatePossible) { _state = UIGestureRecognizerStatePossible; [self reset]; }
     }
@@ -641,27 +665,77 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     self.lastPoint = p;
 }
 @end
-@implementation UIPanGestureRecognizer { CGPoint _samples[8]; double _times[8]; int _ns; }
+@implementation UIPanGestureRecognizer { CGPoint _samples[8]; double _times[8]; int _ns; BOOL _waitAllUp; }
+- (instancetype)initWithTarget:(id)t action:(SEL)a {
+    if ((self = [super initWithTarget:t action:a])) { _minimumNumberOfTouches = 1; _maximumNumberOfTouches = NSUIntegerMax; }
+    return self;
+}
 - (void)_sample:(CGPoint)p time:(double)t {
     if (_ns == 8) { memmove(_samples, _samples + 1, 7 * sizeof *_samples); memmove(_times, _times + 1, 7 * sizeof *_times); _ns = 7; }
     _samples[_ns] = p; _times[_ns++] = t;
 }
+- (BOOL)_isim_acceptsExtraTouches { return YES; }
+/* the pan follows the centroid of its touches (window coordinates: stable while the view scrolls); a finger
+   joining or lifting moves the centroid without moving the translation */
+- (CGPoint)_centroid {
+    CGPoint c = CGPointZero; NSUInteger n = 0;
+    for (UITouch *t in self.isimTouches) { CGPoint p = [t locationInView:self.view.window]; c.x += p.x; c.y += p.y; n++; }
+    return n ? CGPointMake(c.x / n, c.y / n) : self.lastPoint;
+}
 - (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event {
-    CGPoint p = [touch locationInView:self.view.window];      /* window coordinates: stable while the view scrolls */
-    if (phase == UITouchPhaseBegan) { self.startPoint = p; self.state = UIGestureRecognizerStatePossible; _ns = 0; [self _sample:p time:touch.timestamp]; }
-    else if (phase == UITouchPhaseMoved) {
+    if (!self.isimTouches) self.isimTouches = [NSMutableArray array];
+    NSMutableArray *ts = self.isimTouches;
+    BOOL active = self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged;
+    if (phase == UITouchPhaseBegan) {
+        if (!ts.count) { _waitAllUp = NO; self.state = UIGestureRecognizerStatePossible; _ns = 0; }
+        if (ts.count >= _maximumNumberOfTouches || [ts containsObject:touch]) return;
+        BOOL had = ts.count > 0;
+        CGPoint before = [self _centroid];
+        [ts addObject:touch];
+        CGPoint c = [self _centroid];
+        if (had) { self.startPoint = CGPointMake(self.startPoint.x + c.x - before.x, self.startPoint.y + c.y - before.y); _ns = 0; }
+        else self.startPoint = c;
+        self.lastPoint = c;
+        [self _sample:c time:touch.timestamp];
+        return;
+    }
+    if (![ts containsObject:touch]) return;
+    if (phase == UITouchPhaseMoved) {
+        if (_waitAllUp) return;
+        CGPoint p = [self _centroid];
         [self _sample:p time:touch.timestamp];
-        if (self.state == UIGestureRecognizerStatePossible && hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) {
-            self.lastPoint = p;                     /* translation/velocity are readable from gestureRecognizerShouldBegin: */
-            if (![self _isim_shouldBegin]) { self.state = UIGestureRecognizerStateFailed; return; }
-            self.startPoint = p; self.state = UIGestureRecognizerStateBegan; [self _fire];
+        if (self.state == UIGestureRecognizerStatePossible) {
+            if (ts.count >= _minimumNumberOfTouches && hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) {
+                self.lastPoint = p;                     /* translation/velocity are readable from gestureRecognizerShouldBegin: */
+                if (![self _isim_shouldBegin]) { self.state = UIGestureRecognizerStateFailed; _waitAllUp = YES; return; }
+                self.startPoint = p; self.state = UIGestureRecognizerStateBegan; [self _fire];
+            }
+        } else if (active) { self.state = UIGestureRecognizerStateChanged; self.lastPoint = p; [self _fire]; }
+        return;
+    }
+    /* ended / cancelled */
+    CGPoint before = [self _centroid];
+    [ts removeObjectIdenticalTo:touch];
+    if (ts.count) {                                     /* a finger lifted, others stay down */
+        if (_waitAllUp) return;
+        if (active && ts.count < _minimumNumberOfTouches) {
+            self.lastPoint = before; self.state = UIGestureRecognizerStateEnded; [self _fire]; self.state = UIGestureRecognizerStateFailed; _waitAllUp = YES;
+            return;
         }
-        else if (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged) { self.state = UIGestureRecognizerStateChanged; self.lastPoint = p; [self _fire]; }
-    } else if (phase == UITouchPhaseEnded && (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged)) {
-        [self _sample:p time:touch.timestamp];
-        self.lastPoint = p; self.state = UIGestureRecognizerStateEnded; [self _fire]; self.state = UIGestureRecognizerStatePossible;
-    } else if (phase == UITouchPhaseEnded) self.state = UIGestureRecognizerStatePossible;
-    if (phase != UITouchPhaseMoved || self.state != UIGestureRecognizerStatePossible) self.lastPoint = p;
+        CGPoint c = [self _centroid];
+        self.startPoint = CGPointMake(self.startPoint.x + c.x - before.x, self.startPoint.y + c.y - before.y);
+        if (active) self.lastPoint = c;
+        _ns = 0; [self _sample:c time:touch.timestamp];
+        return;
+    }
+    if (!_waitAllUp && active) {
+        [self _sample:before time:touch.timestamp];
+        self.lastPoint = before;
+        self.state = phase == UITouchPhaseCancelled ? UIGestureRecognizerStateCancelled : UIGestureRecognizerStateEnded;
+        [self _fire];
+    }
+    self.state = UIGestureRecognizerStatePossible;
+    _waitAllUp = NO;
 }
 - (CGPoint)locationInView:(UIView *)v { return [self.view.window convertPoint:self.lastPoint toView:v]; }
 - (CGPoint)translationInView:(UIView *)v { return CGPointMake(self.lastPoint.x - self.startPoint.x, self.lastPoint.y - self.startPoint.y); }

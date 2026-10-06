@@ -4,6 +4,7 @@
 NS_ASSUME_NONNULL_BEGIN
 @class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent;
 typedef NS_ENUM(NSInteger, UIApplicationState) { UIApplicationStateActive, UIApplicationStateInactive, UIApplicationStateBackground };
+typedef NS_ENUM(NSUInteger, UIBackgroundFetchResult) { UIBackgroundFetchResultNewData, UIBackgroundFetchResultNoData, UIBackgroundFetchResultFailed };
 typedef NSString *UIApplicationLaunchOptionsKey NS_TYPED_ENUM;
 typedef NSString *UIApplicationOpenURLOptionsKey NS_TYPED_ENUM;
 typedef NSString *UIApplicationOpenExternalURLOptionsKey NS_TYPED_ENUM;
@@ -27,6 +28,8 @@ NS_SWIFT_UI_ACTOR
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
 - (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error;
+/* isim: there is no APNs; isim's CloudKit delivers subscription notifications here, in-process */
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler;
 @property (nullable, nonatomic, strong) UIWindow *window;
 @end
 
