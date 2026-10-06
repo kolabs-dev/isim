@@ -16,6 +16,7 @@ check "y axis value labels (0 ... 40)"             'ylabels'
 check "category axis labels"                       'grep -q "text=A$" <<<"$log" && grep -q "text=B$" <<<"$log" && grep -q "text=C$" <<<"$log" && grep -q "text=Mon$" <<<"$log" && grep -q "text=Tue$" <<<"$log"'
 check "annotations on bars"                        'grep -q "text=v10" <<<"$log" && grep -q "text=v20" <<<"$log" && grep -q "text=v40" <<<"$log"'
 check "legend for foregroundStyle(by:)"            'grep -q "text=Apples" <<<"$log" && grep -q "text=Pears" <<<"$log" && grep -q "text=Plums" <<<"$log"'
+check "chartLegend(.hidden) hides a legend"     '[ "$(grep -c "text=Apples" <<<"$log")" = 2 ]'
 check "custom AxisMarks values and labels"         'grep -q "text=0%" <<<"$log" && grep -q "text=50%" <<<"$log" && grep -q "text=100%" <<<"$log"'
 check "date axis labels"                           'grep -q "text=Jan [0-9]" <<<"$log" && grep -q "text=5000" <<<"$log"'
 python3 tests/ui/charts_check.py $shots/charts.png || fail=1

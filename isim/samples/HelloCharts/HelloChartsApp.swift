@@ -103,6 +103,15 @@ struct ChartsGallery: View {
             }
             .chartXAxis(.hidden).chartYAxis(.hidden)
             .accessibilityIdentifier("heat").at(20, 750, 100, 60)
+
+            Chart(fruit) { f in
+                BarMark(x: .value("Day", f.day), y: .value("Count", f.count))
+                    .foregroundStyle(by: .value("Fruit", f.fruit))
+                    .position(by: .value("Fruit", f.fruit))
+            }
+            .chartForegroundStyleScale(["Apples": Color(red: 1, green: 0, blue: 0), "Pears": Color(red: 0, green: 0.6, blue: 0)])
+            .chartLegend(.hidden).chartXAxis(.hidden).chartYAxis(.hidden).chartYScale(domain: 0...30)
+            .accessibilityIdentifier("grouped").at(140, 750, 240, 60)
         }
         .ignoresSafeArea()
         .onAppear { print("charts shown") }

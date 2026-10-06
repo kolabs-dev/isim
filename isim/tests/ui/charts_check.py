@@ -90,4 +90,11 @@ check("BarMark on a date axis (unit: .day)", len(runs) == 5 and all(hs[i] > hs[i
 check("RectangleMark cells", red(*im.rgb(45, 765)) and pure_blue(*im.rgb(95, 765)) and pure_blue(*im.rgb(45, 795)) and red(*im.rgb(95, 795)),
       (im.rgb(45, 765), im.rgb(95, 765)))
 
+# 9. grouped bars (position(by:)) at (140,750 240x60), axes hidden, y 0...30: Mon apples 10 (red) beside pears 30 (green)
+r = [x for x in im.runs_y(182, 745, 815, red)]
+g = [x for x in im.runs_y(218, 745, 815, green)]
+check("BarMark.position(by:) groups bars side by side", len(r) == 1 and len(g) == 1 and near(g[0][1] - g[0][0], 59, 2)
+      and near((r[0][1] - r[0][0]) / (g[0][1] - g[0][0]), 1 / 3, 0.05) and near(r[0][1], g[0][1], 1)
+      and not green(*im.rgb(182, 760)) and white(*im.rgb(182, 760)), (r, g))
+
 sys.exit(1 if failed else 0)
