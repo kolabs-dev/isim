@@ -158,6 +158,8 @@ extension ShapeStyle where Self == TintShapeStyle {
         return h.color
     case is TintShapeStyle: return env._tint ?? .accentColor
     case let a as AnyShapeStyle: return _color(of: a.base, env)
+    case let f as _ColorFallback: return f._fallbackColor(env)
+    case is ForegroundStyle: return env._foreground ?? .primary
     default: return .primary
     }
 }

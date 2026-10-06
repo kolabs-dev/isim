@@ -255,7 +255,8 @@ final class _OffsetNode: _WrapperNode {
     init(path: String, dx: CGFloat, dy: CGFloat, child: _Node) { self.dx = dx; self.dy = dy; super.init(path: path, child: child) }
     override var layoutPriority: Double { child.layoutPriority }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
-    override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(x: dx, y: dy, width: rect.width, height: rect.height)) }
+    // the offset moves this node's own view, so the content is drawn and hit-tested at the new position
+    override func place(_ rect: CGRect) { frame = rect.offsetBy(dx: dx, dy: dy); child.place(CGRect(origin: .zero, size: rect.size)) }
 }
 
 extension View {
@@ -331,6 +332,7 @@ extension View {
         let kind = (shape as? _ShapeInfo)?._kind ?? .rect
         return _modify { ctx, c in
             let bg: _Node = (style as? Material).map { _MaterialNode(path: ctx.path + "/bgs", kind: kind, material: $0) }
+                ?? _styleBackgroundNode(style, shape: shape, ctx, fillStyle: fillStyle)
                 ?? _ShapeNode(path: ctx.path + "/bgs", kind: kind, color: _color(of: style, ctx.environment))
             return _BackgroundNode(path: ctx.path, color: nil, cornerRadius: 0, background: bg, child: _resolve(c, ctx.child("b")))
         }
@@ -340,7 +342,10 @@ extension View {
     public func mask<M: View>(alignment: Alignment = .center, @ViewBuilder _ mask: () -> M) -> some View {
         let m = mask()
         let kind = (m as? _ShapeInfo)?._kind ?? (_innerShape(m) ?? .rect)
-        return _modify { ctx, c in _ClipNode(path: ctx.path, kind: kind, child: _resolve(c, ctx.child("mask"))) }
+        if _innerShape(m) == nil, let shape = _innerAnyShape(m) {      // other shapes: clip to their path
+            return AnyView(_modify { ctx, c in _PathClipNode(path: ctx.path, shape: shape, eoFill: false, child: _resolve(c, ctx.child("mask"))) })
+        }
+        return AnyView(_modify { ctx, c in _ClipNode(path: ctx.path, kind: kind, child: _resolve(c, ctx.child("mask"))) })
     }
     public func mask<M: View>(_ mask: M) -> some View { self.mask { mask } }
 }
