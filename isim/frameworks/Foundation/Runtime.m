@@ -566,6 +566,15 @@ static void mkdir_p(NSString *dir) {
     }
     return self;
 }
+/* re-read the domain from disk (the Settings app writes an app's Settings.bundle values there); YES if it changed */
+- (BOOL)_isim_reloadFromDisk {
+    NSDictionary *disk = [NSDictionary dictionaryWithContentsOfFile:_file] ?: @{};
+    @synchronized (self) {
+        if ([disk isEqualToDictionary:_d]) return NO;
+        _d = [disk mutableCopy];
+    }
+    return YES;
+}
 - (void)_save {
     [isim_plist_xml(_d) writeToFile:_file atomically:YES encoding:NSUTF8StringEncoding error:NULL];
     if (_global) dispatch_async(dispatch_get_main_queue(), ^{

@@ -63,6 +63,7 @@ struct SettingsApp: App {
 enum Route: Hashable {
     case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter
     case app(String), appKeyboards(String)
+    case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
 }
 
 struct SettingsIcon: View {
@@ -146,6 +147,8 @@ struct RootView: View {
         case .gameCenter: GameCenterView()
         case .app(let id): AppSettingsView(id: id)
         case .appKeyboards(let id): AppKeyboardsView(id: id)
+        case .appPane(let bundle, let file, let id): ChildPaneView(bundlePath: bundle, file: file, appID: id)
+        case .appMultiValue(let bundle, let file, let key): MultiValueRouteView(bundlePath: bundle, file: file, key: key)
         }
     }
 }
@@ -480,6 +483,9 @@ struct AppSettingsView: View {
     let id: String
     var body: some View {
         let app = installedApps().first { $0.id == id }
+        if let app = app, app.keyboards.isEmpty, let bundle = settingsBundlePath(app) {
+            AppBundleSettingsView(app: app, bundlePath: bundle)       // the app's Settings.bundle
+        } else {
         List {
             if let app = app, !app.keyboards.isEmpty {
                 Section("Allow \(app.name) to Access") {
@@ -493,6 +499,7 @@ struct AppSettingsView: View {
             }
         }
         .navigationTitle(app?.name ?? id).navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 
