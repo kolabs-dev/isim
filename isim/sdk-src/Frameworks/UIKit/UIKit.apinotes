@@ -2,6 +2,104 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: NSCollectionLayoutDimension
+  Methods:
+  - Selector: 'fractionalWidthDimension:'
+    MethodKind: Class
+    SwiftName: 'fractionalWidth(_:)'
+  - Selector: 'fractionalHeightDimension:'
+    MethodKind: Class
+    SwiftName: 'fractionalHeight(_:)'
+  - Selector: 'absoluteDimension:'
+    MethodKind: Class
+    SwiftName: 'absolute(_:)'
+  - Selector: 'estimatedDimension:'
+    MethodKind: Class
+    SwiftName: 'estimated(_:)'
+  - Selector: 'uniformAcrossSiblingsWithEstimate:'
+    MethodKind: Class
+    SwiftName: 'uniformAcrossSiblings(estimate:)'
+- Name: NSCollectionLayoutSpacing
+  Methods:
+  - Selector: 'flexibleSpacing:'
+    MethodKind: Class
+    SwiftName: 'flexible(_:)'
+  - Selector: 'fixedSpacing:'
+    MethodKind: Class
+    SwiftName: 'fixed(_:)'
+- Name: NSCollectionLayoutEdgeSpacing
+  Methods:
+  - Selector: 'spacingForLeading:top:trailing:bottom:'
+    MethodKind: Class
+    SwiftName: 'init(leading:top:trailing:bottom:)'
+- Name: NSCollectionLayoutGroup
+  Methods:
+  - Selector: 'horizontalGroupWithLayoutSize:subitems:'
+    MethodKind: Class
+    SwiftName: 'horizontal(layoutSize:subitems:)'
+  - Selector: 'horizontalGroupWithLayoutSize:repeatingSubitem:count:'
+    MethodKind: Class
+    SwiftName: 'horizontal(layoutSize:repeatingSubitem:count:)'
+  - Selector: 'horizontalGroupWithLayoutSize:subitem:count:'
+    MethodKind: Class
+    SwiftName: 'horizontal(layoutSize:subitem:count:)'
+  - Selector: 'verticalGroupWithLayoutSize:subitems:'
+    MethodKind: Class
+    SwiftName: 'vertical(layoutSize:subitems:)'
+  - Selector: 'verticalGroupWithLayoutSize:repeatingSubitem:count:'
+    MethodKind: Class
+    SwiftName: 'vertical(layoutSize:repeatingSubitem:count:)'
+  - Selector: 'verticalGroupWithLayoutSize:subitem:count:'
+    MethodKind: Class
+    SwiftName: 'vertical(layoutSize:subitem:count:)'
+- Name: NSCollectionLayoutSection
+  Methods:
+  - Selector: 'sectionWithListConfiguration:layoutEnvironment:'
+    MethodKind: Class
+    SwiftName: 'list(using:layoutEnvironment:)'
+- Name: UICollectionViewCompositionalLayout
+  Methods:
+  - Selector: 'layoutWithListConfiguration:'
+    MethodKind: Class
+    SwiftName: 'list(using:)'
+- Name: UICollectionViewLayoutAttributes
+  Methods:
+  - Selector: 'layoutAttributesForCellWithIndexPath:'
+    MethodKind: Class
+    SwiftName: 'init(forCellWith:)'
+  - Selector: 'layoutAttributesForSupplementaryViewOfKind:withIndexPath:'
+    MethodKind: Class
+    SwiftName: 'init(forSupplementaryViewOfKind:with:)'
+- Name: UICollectionView
+  Methods:
+  - Selector: 'registerClass:forCellWithReuseIdentifier:'
+    MethodKind: Instance
+    SwiftName: 'register(_:forCellWithReuseIdentifier:)'
+  - Selector: 'registerClass:forSupplementaryViewOfKind:withReuseIdentifier:'
+    MethodKind: Instance
+    SwiftName: 'register(_:forSupplementaryViewOfKind:withReuseIdentifier:)'
+- Name: UICellAccessory
+  SwiftName: __UICellAccessory
+- Name: UICellAccessoryDisclosureIndicator
+  SwiftName: __UICellAccessoryDisclosureIndicator
+- Name: UICellAccessoryCheckmark
+  SwiftName: __UICellAccessoryCheckmark
+- Name: UICellAccessoryDetail
+  SwiftName: __UICellAccessoryDetail
+- Name: UICellAccessoryDelete
+  SwiftName: __UICellAccessoryDelete
+- Name: UICellAccessoryReorder
+  SwiftName: __UICellAccessoryReorder
+- Name: UICellAccessoryOutlineDisclosure
+  SwiftName: __UICellAccessoryOutlineDisclosure
+- Name: UICellAccessoryLabel
+  SwiftName: __UICellAccessoryLabel
+- Name: UICellAccessoryCustomView
+  SwiftName: __UICellAccessoryCustomView
+- Name: UICollectionViewListCell
+  Properties:
+  - Name: accessories
+    SwiftName: __accessories
 - Name: UIListContentConfiguration
   Methods:
   - Selector: cellConfiguration
@@ -277,6 +375,10 @@ Classes:
     MethodKind: Instance
     SwiftName: 'handleInputModeList(from:with:)'
 Typedefs:
+- Name: UICollectionViewCompositionalLayoutSectionProvider
+  SwiftName: UICollectionViewCompositionalLayoutSectionProvider
+- Name: UICollectionLayoutListSwipeActionsConfigurationProvider
+  SwiftName: UICollectionLayoutListConfiguration.SwipeActionsConfigurationProvider
 - Name: UIContextualActionHandler
   SwiftName: UIContextualAction.Handler
 - Name: UIScrollViewDecelerationRate
@@ -300,6 +402,20 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UICollectionViewScrollDirection
+  SwiftName: UICollectionView.ScrollDirection
+- Name: UICollectionViewScrollPosition
+  SwiftName: UICollectionView.ScrollPosition
+- Name: UICollectionElementCategory
+  SwiftName: UICollectionView.ElementCategory
+- Name: UICollectionLayoutListAppearance
+  SwiftName: UICollectionLayoutListConfiguration.Appearance
+- Name: UICollectionLayoutListHeaderMode
+  SwiftName: UICollectionLayoutListConfiguration.HeaderMode
+- Name: UICollectionLayoutListFooterMode
+  SwiftName: UICollectionLayoutListConfiguration.FooterMode
+- Name: UICellAccessoryDisplayedState
+  SwiftName: __UICellAccessory.DisplayedState
 - Name: UITableViewCellStyle
   SwiftName: UITableViewCell.CellStyle
 - Name: UITableViewCellAccessoryType
@@ -420,6 +536,12 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UICollectionElementKindSectionHeader
+  SwiftName: UICollectionView.elementKindSectionHeader
+- Name: UICollectionElementKindSectionFooter
+  SwiftName: UICollectionView.elementKindSectionFooter
+- Name: UICollectionViewFlowLayoutAutomaticSize
+  SwiftName: UICollectionViewFlowLayout.automaticSize
 - Name: UITableViewAutomaticDimension
   SwiftName: UITableView.automaticDimension
 - Name: UISegmentedControlNoSegment

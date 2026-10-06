@@ -15,13 +15,14 @@ NS_SWIFT_UI_ACTOR
 @optional
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView;
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView;
+- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset;
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate;
 - (void)scrollViewWillBeginDecelerating:(UIScrollView *)scrollView;
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView;
 - (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView;
 - (void)scrollViewDidChangeAdjustedContentInset:(UIScrollView *)scrollView;
 @end
-/* isim: one-finger scrolling with rubber-banding and deceleration; no zooming or paging animation. */
+/* isim: one-finger scrolling with rubber-banding, deceleration and paging; no zooming. */
 @interface UIScrollView : UIView
 @property (nonatomic) CGPoint contentOffset;
 @property (nonatomic) CGSize contentSize;

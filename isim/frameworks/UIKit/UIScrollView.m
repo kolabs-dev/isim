@@ -154,9 +154,29 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
         _dragging = _tracking = NO;
         CGPoint v = [g velocityInView:self];
         _velocity = CGPointMake([self _canScrollX] ? -v.x : 0, [self _canScrollY] ? -v.y : 0);
-        BOOL decel = hypot(_velocity.x, _velocity.y) > 30 || !CGPointEqualToPoint([self _clamped:self.contentOffset], self.contentOffset);
+        /* where deceleration would stop: v / (-1000 ln rate) past the current offset */
+        CGPoint o = self.contentOffset; double kk = -1000 * log(_decelerationRate);
+        CGPoint natural = [self _clamped:CGPointMake(o.x + _velocity.x / kk, o.y + _velocity.y / kk)], target = natural;
+        if (_pagingEnabled) {
+            CGSize page = self.bounds.size;
+            for (int axis = 0; axis < 2; axis++) {
+                double len = axis ? page.height : page.width; if (len <= 0) continue;
+                double start = axis ? _dragStart.y : _dragStart.x, cur = axis ? o.y : o.x, vel = axis ? _velocity.y : _velocity.x;
+                double base = round(start / len), idx = round(cur / len);
+                if (fabs(vel) > 300) idx = base + (vel > 0 ? 1 : -1);
+                idx = fmax(base - 1, fmin(base + 1, idx));
+                if (axis) target.y = idx * len; else target.x = idx * len;
+            }
+            target = [self _clamped:target];
+        }
+        CGPoint proposed = target;
+        if ([d respondsToSelector:@selector(scrollViewWillEndDragging:withVelocity:targetContentOffset:)])
+            [d scrollViewWillEndDragging:self withVelocity:CGPointMake(_velocity.x / 1000, _velocity.y / 1000) targetContentOffset:&target];   /* points per millisecond */
+        BOOL snap = _pagingEnabled || !CGPointEqualToPoint(proposed, target) || !CGPointEqualToPoint(target, natural);
+        BOOL decel = snap ? !CGPointEqualToPoint(target, o) : (hypot(_velocity.x, _velocity.y) > 30 || !CGPointEqualToPoint([self _clamped:o], o));
         if ([d respondsToSelector:@selector(scrollViewDidEndDragging:willDecelerate:)]) [d scrollViewDidEndDragging:self willDecelerate:decel];
-        if (decel) [self _startDeceleration];
+        if (snap && decel) [self _snapTo:target];
+        else if (decel) [self _startDeceleration];
         break; }
     default: break;
     }
@@ -196,6 +216,26 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
         id<UIScrollViewDelegate> d = _delegate;
         if ([d respondsToSelector:@selector(scrollViewDidEndDecelerating:)]) [d scrollViewDidEndDecelerating:self];
     }
+}
+/* paging / adjusted targets: a short ease-out glide to the target, reported as deceleration */
+- (void)_snapTo:(CGPoint)target {
+    _decelerating = YES;
+    id<UIScrollViewDelegate> d = _delegate;
+    if ([d respondsToSelector:@selector(scrollViewWillBeginDecelerating:)]) [d scrollViewWillBeginDecelerating:self];
+    CGPoint from = self.contentOffset; double start = isim_time(), dur = 0.35;
+    __weak UIScrollView *weakSelf = self;
+    _anim = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *t) {
+        UIScrollView *s = weakSelf; if (!s) return;
+        double k = fmin(1, (isim_time() - start) / dur); k = 1 - pow(1 - k, 3);
+        [s _isim_applyOffset:CGPointMake(from.x + (target.x - from.x) * k, from.y + (target.y - from.y) * k)];
+        s->_indicatorUntil = isim_time() + 0.5;
+        if (k >= 1) {
+            [s _stopAnimation]; s->_decelerating = NO;
+            id<UIScrollViewDelegate> dd = s.delegate;
+            if ([dd respondsToSelector:@selector(scrollViewDidEndDecelerating:)]) [dd scrollViewDidEndDecelerating:s];
+        }
+    }];
+    [NSRunLoop.mainRunLoop addTimer:_anim forMode:NSRunLoopCommonModes];
 }
 - (void)_stopAnimation { [_anim invalidate]; _anim = nil; }
 - (void)dealloc { [_anim invalidate]; }

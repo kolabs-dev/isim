@@ -38,10 +38,10 @@ const CGFloat UITableViewAutomaticDimension = -1;
     c._isim_kind = k;
     c->_tp.font = [UIFont systemFontOfSize:17]; c->_tp.color = UIColor.labelColor;
     c->_sp.font = [UIFont systemFontOfSize:k == 2 ? 17 : 15]; c->_sp.color = UIColor.secondaryLabelColor;
-    if (k == 3 || k == 4) { c->_tp.font = [UIFont systemFontOfSize:13]; c->_tp.color = UIColor.secondaryLabelColor; }
+    if (k == 3 || k == 4) { c->_tp.font = [UIFont systemFontOfSize:13]; c->_tp.color = UIColor.secondaryLabelColor; c->_tp.numberOfLines = 0; }
     c.prefersSideBySideTextAndSecondaryText = k == 2;
     c.textToSecondaryTextVerticalPadding = 3;
-    c.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(11, 20, 11, 20);
+    c.directionalLayoutMargins = k == 3 ? NSDirectionalEdgeInsetsMake(17, 20, 6, 20) : k == 4 ? NSDirectionalEdgeInsetsMake(6, 20, 17, 20) : NSDirectionalEdgeInsetsMake(11, 20, 11, 20);
     return c;
 }
 + (instancetype)cellConfiguration { return [self _kind:0]; }
@@ -50,7 +50,10 @@ const CGFloat UITableViewAutomaticDimension = -1;
 + (instancetype)sidebarCellConfiguration { return [self _kind:0]; }
 + (instancetype)groupedHeaderConfiguration { return [self _kind:3]; }
 + (instancetype)groupedFooterConfiguration { return [self _kind:4]; }
-+ (instancetype)plainHeaderConfiguration { UIListContentConfiguration *c = [self _kind:3]; c.textProperties.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold]; c.textProperties.color = UIColor.labelColor; return c; }
++ (instancetype)plainHeaderConfiguration {
+    UIListContentConfiguration *c = [self _kind:3]; c.textProperties.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold]; c.textProperties.color = UIColor.labelColor;
+    c.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(6, 20, 6, 20); return c;
+}
 + (instancetype)plainFooterConfiguration { return [self _kind:4]; }
 + (instancetype)headerConfiguration { return [self groupedHeaderConfiguration]; }
 + (instancetype)footerConfiguration { return [self groupedFooterConfiguration]; }

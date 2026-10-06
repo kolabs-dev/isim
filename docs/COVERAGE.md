@@ -22,10 +22,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 79 | 30 | 9 | 79 | 197 | 48% |
+| **UIKit** | 79 | 32 | 9 | 77 | 197 | 48% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 4 | 9 | 23 | 35% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 11 | 2 | 0 | 16 | 29 | 41% |
-| &nbsp;&nbsp;↳ Views & controls | 23 | 12 | 1 | 15 | 51 | 57% |
+| &nbsp;&nbsp;↳ Views & controls | 23 | 14 | 1 | 13 | 51 | 59% |
 | &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
 | &nbsp;&nbsp;↳ Gestures & touches | 4 | 1 | 0 | 8 | 13 | 35% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **305** | **104** | **41** | **308** | **758** | **47%** |
+| **All areas** | **305** | **106** | **41** | **306** | **758** | **47%** |
 
 ---
 
@@ -186,13 +186,13 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIActivityIndicatorView` | ✅ | medium/large, spins (CADisplayLink) |
 | `UIPageControl` | ✅ | tap to page; tested |
 | `UIColorWell` | ❌ | |
-| `UIScrollView` | 🟡 | one-finger pan, rubber-banding, deceleration, insets, delegate; no zooming, no paging animation |
+| `UIScrollView` | 🟡 | one-finger pan, rubber-banding, deceleration, insets, delegate, `isPagingEnabled`, `scrollViewWillEndDragging(_:withVelocity:targetContentOffset:)`; no zooming; paging unverified outside collection-view carousels |
 | `UITableView` (cells, sections, editing, swipe actions) | 🟡 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing actions, edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`; tested (HelloTable). Missing: leading swipe actions, drag to reorder, section index, prefetching, nibs |
 | `UITableViewDiffableDataSource` | ✅ | snapshots diffed into animated row inserts/deletes; reload/reconfigure; tested (HelloTable) |
-| `UICollectionView` + `UICollectionViewFlowLayout` | ❌ | |
-| `UICollectionViewCompositionalLayout` | ❌ | |
-| `UICollectionViewDiffableDataSource`, `NSDiffableDataSourceSnapshot` | 🟡 | `NSDiffableDataSourceSnapshot` done (sections, items, insert/move/delete, reload); no collection view yet |
-| List cells (`UICollectionLayoutListConfiguration`, `UIListContentConfiguration`, cell accessories) | 🟡 | `UIListContentConfiguration` (cell/subtitle/value/header/footer, image, text properties) and `UIBackgroundConfiguration` in table cells; it is a class here, not a struct (adapted). No collection list layout, no custom `UIContentConfiguration` views |
+| `UICollectionView` + `UICollectionViewFlowLayout` | 🟡 | cell/supplementary reuse, flow layout (both directions, delegate sizes/insets/spacing, headers/footers, pinned headers, estimated sizes), multiple selection, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToItem`, `UICollectionViewController`; tested (HelloCollection). Missing: drag and drop, reordering, prefetching, decoration views, custom layout transitions, nibs |
+| `UICollectionViewCompositionalLayout` | 🟡 | items, nested horizontal/vertical groups (repeating, `count:`), fractional/absolute/estimated sizes, fixed/flexible spacing, content insets, boundary headers/footers (pinning), section provider + environment, orthogonal scrolling (continuous, paging, group paging); tested (HelloCollection). Missing: horizontal scroll direction, decoration items, `visibleItemsInvalidationHandler`, custom group providers |
+| `UICollectionViewDiffableDataSource`, `NSDiffableDataSourceSnapshot` | 🟡 | snapshots diffed into animated item inserts/deletes, reconfigure, supplementary provider, `CellRegistration`/`SupplementaryRegistration`; tested (HelloCollection). Missing: `NSDiffableDataSourceSectionSnapshot` (outlines), reordering handlers, async apply |
+| List cells (`UICollectionLayoutListConfiguration`, `UIListContentConfiguration`, cell accessories) | 🟡 | list layouts (plain, grouped, inset grouped, sidebar colours), supplementary headers/footers, separators, self-sizing rows, `UICollectionViewListCell` accessories (disclosure, checkmark, detail, delete, reorder, outline, label, custom view); tested (HelloCollection). `UIListContentConfiguration` is a class here, not a struct (adapted). Missing: list swipe actions, outline expansion, custom `UIContentConfiguration` views |
 | `UIStackView` (axis, spacing, custom spacing, alignment, distribution) | ✅ | arranged as Auto Layout constraints |
 | `UIVisualEffectView` + `UIBlurEffect` (system materials) | ✅ | real backdrop blur + light/dark tint; no saturation boost |
 | `UIVibrancyEffect` | 🧩 | content drawn normally |

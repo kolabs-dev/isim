@@ -42,3 +42,4 @@
 #import <UIKit/UIMoreControls.h>
 #import <UIKit/UINavigationController.h>
 #import <UIKit/UITableView.h>
+#import <UIKit/UICollectionView.h>
