@@ -91,7 +91,8 @@ int isim_media_probe(const char *url, struct isim_media_info *info) {
     size_t len; char *out = run_capture(argv, &len);
     if (!out) { fprintf(stderr, "isim media: cannot open %s (needs ffprobe/ffmpeg on the host, and a readable media file)\n", url); return 0; }
     int video = 0, seen_video = 0;
-    for (char *line = strtok(out, "\n"); line; line = strtok(NULL, "\n")) {
+    char *save = NULL;
+    for (char *line = strtok_r(out, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
         char *eq = strchr(line, '='); if (!eq) continue;
         *eq = 0; const char *k = line, *v = eq + 1;
         if (!strcmp(k, "codec_type")) {

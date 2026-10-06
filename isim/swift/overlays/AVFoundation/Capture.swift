@@ -5,9 +5,9 @@
 // Sessions accept configuration and run without inputs; nothing is ever delivered.
 import UIKit
 
-public struct AVMediaType: RawRepresentable, Hashable, Sendable {
-    public let rawValue: String
-    public init(rawValue: String) { self.rawValue = rawValue }
+extension AVMediaType {
+    public static let depthData = AVMediaType("dpth")     /* the rest: AVAsset.swift */
+}
     public init(_ rawValue: String) { self.rawValue = rawValue }
     public static let video = AVMediaType("vide")
     public static let audio = AVMediaType("soun")

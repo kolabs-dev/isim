@@ -63,6 +63,13 @@ static BOOL compact_width(UIView *v) { CGFloat w = v.window ? v.window.bounds.si
 - (BOOL)transitionWasCancelled { return _cancelled; }
 - (NSTimeInterval)transitionDuration { return _duration; }
 - (CGAffineTransform)targetTransform { return CGAffineTransformIdentity; }
+- (BOOL)initiallyInteractive { return _interactive; }
+- (BOOL)isInterruptible { return NO; }
+- (CGFloat)percentComplete { return _completed ? 1 : 0; }
+- (CGFloat)completionVelocity { return 1; }
+- (BOOL)animateAlongsideTransitionInView:(UIView *)v animation:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))a completion:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))c {
+    return [self animateAlongsideTransition:a completion:c];
+}
 - (void)updateInteractiveTransition:(CGFloat)p {}
 - (void)finishInteractiveTransition { _cancelled = NO; }
 - (void)cancelInteractiveTransition { _cancelled = YES; }
