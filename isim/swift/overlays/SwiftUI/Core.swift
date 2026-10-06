@@ -171,6 +171,7 @@ func _typeName(_ t: Any.Type) -> String { String(describing: t) }
     guard m.displayStyle == .struct || m.displayStyle == .class else { return }
     for child in m.children {
         if let d = child.value as? _DynamicProperty { d._install(ctx, label: child.label ?? "?") }
+        else if let e = child.value as? _IsimInstallableDynamicProperty { e._isimInstall(_IsimDynamicPropertySite(ctx: ctx, key: ctx.path + "#" + (child.label ?? "?"))) }
     }
 }
 
