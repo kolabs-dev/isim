@@ -1,6 +1,8 @@
 #pragma once
 /* isim private host bridge (libisim_host). Used by the isim UIKit implementation only. */
 #include <_isim_cdefs.h>
+#include <stddef.h>
+#include <stdint.h>
 __BEGIN_DECLS
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
@@ -84,4 +86,23 @@ void isim_audio_suspend(int suspended);
    ffmpeg or gst-launch-1.0 (48 kHz stereo); returns 0 if it cannot. Free the samples with isim_audio_free. */
 int isim_audio_decode_file(const char *path, float *_Nullable *_Nonnull out, long *frames, int *channels, double *rate);
 void isim_audio_free(float *_Nullable pcm);
+/* crypto for isim's CryptoKit (host OpenSSL libcrypto). Return 1 on success, 0 on failure.
+   aead alg: 0 AES-GCM, 1 ChaCha20-Poly1305 (16-byte tag; -1 if libcrypto is missing). EC curve: 256, 384 or 521
+   (n = 32, 48, 66 bytes: private scalar n, public X9.63 1+2n uncompressed or 1+n compressed, ECDSA signature r||s 2n).
+   25519 kind: 0 X25519, 1 Ed25519 (32-byte keys, 64-byte signatures). */
+int isim_crypto_available(void);
+int isim_crypto_aead(int alg, int encrypt, const void *key, size_t keylen, const void *nonce, size_t noncelen,
+                     const void *_Nullable aad, size_t aadlen, const void *_Nullable in, size_t inlen, void *_Nullable out, void *tag);
+int isim_crypto_ec_generate(int curve, uint8_t *priv);
+int isim_crypto_ec_public(int curve, const uint8_t *priv, uint8_t *pub);
+int isim_crypto_ec_import_public(int curve, const uint8_t *pub, size_t len, uint8_t *uncompressed);
+int isim_crypto_ec_compress(int curve, const uint8_t *pub, size_t len, uint8_t *compressed);
+int isim_crypto_ec_sign(int curve, const uint8_t *priv, const uint8_t *digest, size_t dlen, uint8_t *sig);
+int isim_crypto_ec_verify(int curve, const uint8_t *pub, size_t publen, const uint8_t *digest, size_t dlen, const uint8_t *sig);
+int isim_crypto_ec_ecdh(int curve, const uint8_t *priv, const uint8_t *pub, size_t publen, uint8_t *shared);
+int isim_crypto_25519_public(int kind, const uint8_t *priv, uint8_t *pub);
+int isim_crypto_25519_check_public(int kind, const uint8_t *pub);
+int isim_crypto_x25519(const uint8_t *priv, const uint8_t *pub, uint8_t *shared);
+int isim_crypto_ed25519_sign(const uint8_t *priv, const void *_Nullable msg, size_t len, uint8_t *sig);
+int isim_crypto_ed25519_verify(const uint8_t *pub, const void *_Nullable msg, size_t len, const uint8_t *sig);
 __END_DECLS

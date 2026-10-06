@@ -1,0 +1,6 @@
+// isim SDK module map (self-authored): `import SQLite3` -> /usr/lib/libsqlite3.dylib (the host's SQLite).
+module SQLite3 [system] [extern_c] {
+  header "../sqlite3.h"
+  link "sqlite3"
+  export *
+}

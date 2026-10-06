@@ -37,6 +37,7 @@
 #include <sys/wait.h>
 
 #include "runtime.h"
+#include "host_crypto.h"
 
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48]; };
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
@@ -727,5 +728,8 @@ static const struct shim isim_table[] = {
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free),
+    H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
+    H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
+    H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
