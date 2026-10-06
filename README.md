@@ -98,8 +98,6 @@ Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs
 | Multiple iOS versions | ⬜ | planned: `--os` picks the reported version and the look (today: iOS 17/18) |
 | Xcode-like project view | ⬜ | planned; the CLI covers it today |
 | Linux releases | ✅ | self-contained tarballs on GitHub Releases |
-| Real app: JustDigits (SwiftUI + keyboard extension) | ✅ | built unmodified from its Xcode project |
-| Real app: Mazefall (SwiftUI, SpriteKit, GameKit, StoreKit, ads) | 🟡 | in progress |
 | Device build (arm64 .app) | 🟡 | executables link; bundle and signature not done |
 | Signing + .ipa | ⬜ | candidates: rcodesign, zsign |
 | Upload + TestFlight | ⛔ | see below |
