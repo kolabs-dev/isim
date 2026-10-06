@@ -1,7 +1,7 @@
 // isim Network framework (self-authored): NWPathMonitor and the path/interface types it reports.
 // The path mirrors the host's connectivity (a non-loopback interface that is up and has an address);
 // ISIM_NETWORK=offline makes it unsatisfied. Changes are polled every 2 seconds.
-// Not provided: NWConnection, NWListener, NWBrowser.
+// NWConnection, NWListener and NWBrowser are in Connection.swift / Listener.swift.
 @_exported import Foundation
 import isim_host
 
@@ -25,6 +25,10 @@ public struct NWPath: Equatable, Sendable, CustomDebugStringConvertible {
     public let supportsIPv4: Bool
     public let supportsIPv6: Bool
     public let supportsDNS: Bool
+    /// the connection's local and remote addresses (NWConnection.currentPath)
+    public var localEndpoint: NWEndpoint? = nil
+    public var remoteEndpoint: NWEndpoint? = nil
+    public var gateways: [NWEndpoint] { [] }
     public func usesInterfaceType(_ type: NWInterface.InterfaceType) -> Bool { availableInterfaces.first?.type == type }
     public var debugDescription: String {
         "\(status)" + (availableInterfaces.isEmpty ? "" : " (\(availableInterfaces.map(\.name).joined(separator: ", ")))")

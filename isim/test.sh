@@ -40,6 +40,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloPresentations.app/HelloPresentations ] && run "ui: HelloPresentations (sheets, alerts, dialogs)" tests/ui/presentations.sh
   [ -x out/apps/HelloWeb.app/HelloWeb ] && run "ui: HelloWeb (WKWebView on WebKitGTK: delegates, JS bridge, scheme handler, history; local server)" tests/ui/web.sh
   [ -x out/apps/HelloSafari.app/HelloSafari ] && run "ui: HelloSafari (SFSafariViewController, ASWebAuthenticationSession, MessageUI, universal links)" tests/ui/safari.sh
+  [ -x out/apps/HelloConnections.app/HelloConnections ] && run "ui: HelloConnections (Network framework, Bonjour, Multipeer, URLSession auth/metrics/resume; local servers)" tests/ui/connections.sh
   [ -x out/apps/HelloNetwork.app/HelloNetwork ] && run "ui: HelloNetwork (URLSession, cookies, WebSocket, NWPathMonitor; local server)" tests/ui/network.sh
   [ -x out/apps/HelloSpriteKit.app/HelloSpriteKit ] && run "ui: HelloSpriteKit (SpriteKit physics/particles, GameplayKit, GameController)" tests/ui/spritekit.sh
   [ -x out/apps/HelloSecurity.app/HelloSecurity ] && run "ui: HelloSecurity (CryptoKit, keychain, SQLite, Face ID, notifications)" tests/ui/security.sh

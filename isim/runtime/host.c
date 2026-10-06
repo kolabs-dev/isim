@@ -966,6 +966,7 @@ long isim_http_read(struct isim_http *h, void *buf, long cap);
 const char *isim_http_error_message(struct isim_http *h);
 void isim_http_cancel(struct isim_http *h);
 void isim_http_close(struct isim_http *h);
+void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen);
 struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err);
 int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
 int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
@@ -995,6 +996,9 @@ void isim_media_remote_post(const char *cmd);
 int isim_remote_command_poll(char *buf, int len);
 int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
 void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
+struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
+long isim_tls_read(struct isim_tls *t, void *buf, long n); long isim_tls_write(struct isim_tls *t, const void *buf, long n);
+void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen); void isim_tls_close(struct isim_tls *t);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -1022,7 +1026,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free),
-    H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close),
+    H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close), H(isim_http_metrics),
     H(isim_ws_open), H(isim_ws_send), H(isim_ws_recv), H(isim_ws_close), H(isim_net_path),
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
@@ -1035,5 +1039,6 @@ static const struct shim isim_table[] = {
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
+    H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
