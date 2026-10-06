@@ -230,8 +230,27 @@ func code(_ e: Error?) -> Int { (e as? URLError)?.code.rawValue ?? (e.map { ($0 
             check(ready == 1 && pfd.revents & Int16(POLLIN) != 0 && n == 4 && String(decoding: rb[0..<4], as: UTF8.self) == "ping", "socketpair + send/recv + poll")
             var e: Int32 = 0
             check(recv(pair[1], &rb, 8, Int32(MSG_DONTWAIT)) == -1 && { e = errno; return e == EAGAIN }(), "MSG_DONTWAIT on an empty socket -> EAGAIN (35)")
+            _ = send(pair[1], "pong", 4, 0)
+            var set = fd_set()
+            withUnsafeMutableBytes(of: &set.fds_bits) { $0.bindMemory(to: Int32.self)[Int(pair[0]) / 32] |= Int32(1) << (pair[0] % 32) }
+            var tv = timeval(tv_sec: 1, tv_usec: 0)
+            let sel = select(pair[0] + 1, &set, nil, nil, &tv)
+            check(sel == 1, "select() reports a readable socket")
             close(pair[0]); close(pair[1])
         } else { check(false, "socketpair") }
+        var ifs: UnsafeMutablePointer<ifaddrs>? = nil
+        var loopback = false
+        if getifaddrs(&ifs) == 0 {
+            var p = ifs
+            while let a = p {
+                if let sa = a.pointee.ifa_addr, sa.pointee.sa_family == sa_family_t(AF_INET), a.pointee.ifa_flags & UInt32(IFF_LOOPBACK) != 0 {
+                    sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { loopback = $0.pointee.sin_addr.s_addr == UInt32(0x7f000001).bigEndian }
+                }
+                p = a.pointee.ifa_next
+            }
+            freeifaddrs(ifs)
+        }
+        check(loopback, "getifaddrs lists the IPv4 loopback interface")
 
         guard let server = MiniServer() else { check(false, "mini server (socket/bind/listen)"); exit(1) }
         check(server.port > 0, "socket/bind/listen/getsockname on 127.0.0.1 (port \(server.port))")
@@ -263,6 +282,12 @@ func code(_ e: Error?) -> Int { (e as? URLError)?.code.rawValue ?? (e.map { ($0 
             let s = String(decoding: data, as: UTF8.self)
             check(s.hasPrefix("ua=SwiftNetworkTest/1 isim|custom=yes|lang=") && s.hasSuffix("query=/headers?x=1&y=two"), "data(for:) sends request headers + User-Agent (\(s))")
         } catch { check(false, "data(for:) threw \(error)") }
+        do {
+            let cfg = URLSessionConfiguration.ephemeral
+            cfg.httpAdditionalHeaders = ["X-Custom": "from-config", "User-Agent": "Custom/2"]
+            let (data, _) = try await URLSession(configuration: cfg).data(from: URL(string: base + "/headers")!)
+            check(String(decoding: data, as: UTF8.self).hasPrefix("ua=Custom/2|custom=from-config|"), "httpAdditionalHeaders (\(String(decoding: data, as: UTF8.self)))")
+        } catch { check(false, "httpAdditionalHeaders threw \(error)") }
         do {
             var r = URLRequest(url: URL(string: base + "/echo")!)
             r.httpMethod = "PUT"; r.setValue("text/plain", forHTTPHeaderField: "Content-Type")
