@@ -43,3 +43,5 @@
 #import <UIKit/UINavigationController.h>
 #import <UIKit/UITableView.h>
 #import <UIKit/UICollectionView.h>
+#import <UIKit/UIKeyCommand.h>
+#import <UIKit/UIGestureRecognizerSubclass.h>

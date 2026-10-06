@@ -24,6 +24,12 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, weak) id<UIGestureRecognizerDelegate> delegate;
 @property (nullable, nonatomic, copy) NSString *name;
 - (CGPoint)locationInView:(nullable UIView *)view;
+- (CGPoint)locationOfTouch:(NSUInteger)touchIndex inView:(nullable UIView *)view;
+@property (nonatomic, readonly) NSUInteger numberOfTouches;
+@property (nonatomic) BOOL delaysTouchesBegan;
+@property (nonatomic) BOOL delaysTouchesEnded;
+@property (nonatomic) BOOL requiresExclusiveTouchType;
+- (void)requireGestureRecognizerToFail:(UIGestureRecognizer *)otherGestureRecognizer;
 @end
 @interface UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer;
@@ -36,6 +42,17 @@ NS_SWIFT_UI_ACTOR
 - (CGPoint)translationInView:(nullable UIView *)view;
 - (void)setTranslation:(CGPoint)translation inView:(nullable UIView *)view;
 - (CGPoint)velocityInView:(nullable UIView *)view;
+@end
+typedef NS_OPTIONS(NSUInteger, UISwipeGestureRecognizerDirection) {
+    UISwipeGestureRecognizerDirectionRight = 1 << 0, UISwipeGestureRecognizerDirectionLeft = 1 << 1,
+    UISwipeGestureRecognizerDirectionUp = 1 << 2, UISwipeGestureRecognizerDirectionDown = 1 << 3 };
+@interface UISwipeGestureRecognizer : UIGestureRecognizer
+@property (nonatomic) NSUInteger numberOfTouchesRequired;
+@property (nonatomic) UISwipeGestureRecognizerDirection direction;
+@end
+typedef NS_OPTIONS(NSUInteger, UIRectEdge) { UIRectEdgeNone = 0, UIRectEdgeTop = 1 << 0, UIRectEdgeLeft = 1 << 1, UIRectEdgeBottom = 1 << 2, UIRectEdgeRight = 1 << 3, UIRectEdgeAll = 15 };
+@interface UIScreenEdgePanGestureRecognizer : UIPanGestureRecognizer
+@property (nonatomic) UIRectEdge edges;
 @end
 @interface UILongPressGestureRecognizer : UIGestureRecognizer
 @property (nonatomic) NSUInteger numberOfTapsRequired;

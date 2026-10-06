@@ -114,6 +114,8 @@ BOOL isim_al_add(isim_al *al, id a, NSLayoutAttribute aa, NSLayoutRelation rel, 
 @end
 void isim_ui_gesture_recognized(UIGestureRecognizer *g);
 UIResponder *isim_ui_first_responder(void);
+BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down);   /* presses + key commands; YES if a key command took it */
+void isim_ui_shake(void);
 /* system keyboard (UIKeyboard.m) */
 extern BOOL isim_ui_system_keyboard_disabled;
 CGRect isim_ui_keyboard_frame(void);                     /* screen coordinates; empty when hidden */

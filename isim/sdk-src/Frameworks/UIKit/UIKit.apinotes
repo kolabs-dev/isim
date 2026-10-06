@@ -402,6 +402,14 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIPressPhase
+  SwiftName: UIPress.Phase
+- Name: UIPressType
+  SwiftName: UIPress.PressType
+- Name: UIEventSubtype
+  SwiftName: UIEvent.EventSubtype
+- Name: UISwipeGestureRecognizerDirection
+  SwiftName: UISwipeGestureRecognizer.Direction
 - Name: UICollectionViewScrollDirection
   SwiftName: UICollectionView.ScrollDirection
 - Name: UICollectionViewScrollPosition
@@ -536,6 +544,26 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UIKeyInputUpArrow
+  SwiftName: UIKeyCommand.inputUpArrow
+- Name: UIKeyInputDownArrow
+  SwiftName: UIKeyCommand.inputDownArrow
+- Name: UIKeyInputLeftArrow
+  SwiftName: UIKeyCommand.inputLeftArrow
+- Name: UIKeyInputRightArrow
+  SwiftName: UIKeyCommand.inputRightArrow
+- Name: UIKeyInputEscape
+  SwiftName: UIKeyCommand.inputEscape
+- Name: UIKeyInputPageUp
+  SwiftName: UIKeyCommand.inputPageUp
+- Name: UIKeyInputPageDown
+  SwiftName: UIKeyCommand.inputPageDown
+- Name: UIKeyInputHome
+  SwiftName: UIKeyCommand.inputHome
+- Name: UIKeyInputEnd
+  SwiftName: UIKeyCommand.inputEnd
+- Name: UIKeyInputDelete
+  SwiftName: UIKeyCommand.inputDelete
 - Name: UICollectionElementKindSectionHeader
   SwiftName: UICollectionView.elementKindSectionHeader
 - Name: UICollectionElementKindSectionFooter

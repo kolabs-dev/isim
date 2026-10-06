@@ -52,7 +52,7 @@ isim-0.1.0-linux-x86_64/bin/isim install isim-0.1.0-linux-x86_64/apps/*.app
 - F12 takes a screenshot.
 - Device data lives in `~/.local/share/isim` (override with `ISIM_DATA`).
 
-**Scripts** (for automation and tests) accept `wait S`, `tap X Y`, `tapid ID`, `taptext TEXT`, `holdid ID S`, `swipeid ID DX DY S`,
+**Scripts** (for automation and tests) accept `wait S`, `tap X Y`, `tapid ID`, `taptext TEXT`, `holdid ID S`, `swipeid ID DX DY S`, `shake`,
 `type TEXT`, `key NAME`, `keydown NAME`, `keyup NAME` (hardware key press/release, e.g. for GCKeyboard), `home`, `launch BUNDLE_ID`, `shot FILE.png`, `dump` and `quit`. Example:
 
 ```bash

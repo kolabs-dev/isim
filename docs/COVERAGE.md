@@ -22,13 +22,13 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 79 | 32 | 10 | 76 | 197 | 48% |
+| **UIKit** | 84 | 32 | 10 | 71 | 197 | 51% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 5 | 8 | 23 | 35% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 11 | 2 | 0 | 16 | 29 | 41% |
 | &nbsp;&nbsp;↳ Views & controls | 23 | 14 | 1 | 13 | 51 | 59% |
 | &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
-| &nbsp;&nbsp;↳ Gestures & touches | 4 | 1 | 0 | 8 | 13 | 35% |
+| &nbsp;&nbsp;↳ Gestures & touches | 9 | 1 | 0 | 3 | 13 | 73% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 8 | 3 | 0 | 7 | 18 | 53% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 0 | 0 | 1 | 2 | 3 | 0% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **315** | **108** | **46** | **297** | **766** | **48%** |
+| **All areas** | **320** | **108** | **46** | **292** | **766** | **49%** |
 
 ---
 
@@ -257,14 +257,14 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UITapGestureRecognizer` | ✅ | |
 | `UIPanGestureRecognizer` (translation, velocity) | ✅ | |
 | `UILongPressGestureRecognizer` | ✅ | |
-| `UISwipeGestureRecognizer` | ❌ | |
+| `UISwipeGestureRecognizer` | ✅ | directions, delegate, failure requirements; tested (HelloGestures) |
 | `UIPinchGestureRecognizer`, `UIRotationGestureRecognizer` | ❌ | need multi-touch |
-| `UIScreenEdgePanGestureRecognizer` | ❌ | |
+| `UIScreenEdgePanGestureRecognizer` | ✅ | starts only within 20 pt of `edges`; tested (HelloGestures) |
 | `UIHoverGestureRecognizer` | ❌ | |
-| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | 🟡 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`; no `require(toFail:)`; unverified apart from table swipes |
-| Custom `UIGestureRecognizer` subclasses | ❌ | touch hooks are isim-private |
-| Shake / motion events | ❌ | |
-| Hardware keys (`UIKeyCommand`, `pressesBegan`) | ❌ | host typing goes to text fields only |
+| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | 🟡 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`, `require(toFail:)` for discrete recognizers (tested: single vs double tap); `shouldRequireFailure(of:)` overrides are not consulted |
+| Custom `UIGestureRecognizer` subclasses | ✅ | `UIGestureRecognizerSubclass`: touches callbacks, settable `state` sends actions, `reset`; tested (HelloGestures) |
+| Shake / motion events | ✅ | `motionBegan/Ended` (shake) via Ctrl+Shift+Z or the script command `shake`; tested (HelloGestures) |
+| Hardware keys (`UIKeyCommand`, `pressesBegan`) | ✅ | host keyboard → `UIPress`/`UIKey` (HID usage, modifiers) on the responder chain; `keyCommands`/`addKeyCommand` matched before typing; tested (HelloGestures). No discoverability HUD |
 
 ### Text input & keyboard
 

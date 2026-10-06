@@ -668,6 +668,9 @@ static int script_step(struct isim_event *ev) {
         if (hid) pending[npending++] = (struct isim_event){ .type = cmd[3] == 'd' ? EV_KEY : EV_KEY_UP, .pad = hid, .key = key };
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
         script_resume = now() + 0.02;
+    } else if (!strcmp(cmd, "shake")) {          /* Device > Shake (motion event) */
+        pending[npending++] = (struct isim_event){ .type = EV_KEY, .key = 0x7fff0001 };
+        script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);
