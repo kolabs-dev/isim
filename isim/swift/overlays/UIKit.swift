@@ -404,3 +404,18 @@ extension UIPageViewController {
         self.init(transitionStyle: style, navigationOrientation: navigationOrientation, options: nil)
     }
 }
+
+// MARK: - Trait change registration (iOS 17)
+public typealias UITrait = any UITraitDefinition.Type
+extension UIView {
+    @discardableResult
+    public func registerForTraitChanges<T: UITraitEnvironment>(_ traits: [UITrait], handler: @escaping (T, UITraitCollection) -> Void) -> any UITraitChangeRegistration {
+        __register(forTraitChanges: traits.map { $0 as! AnyClass }, withHandler: { env, previous in handler(env as! T, previous) })
+    }
+}
+extension UIViewController {
+    @discardableResult
+    public func registerForTraitChanges<T: UITraitEnvironment>(_ traits: [UITrait], handler: @escaping (T, UITraitCollection) -> Void) -> any UITraitChangeRegistration {
+        __register(forTraitChanges: traits.map { $0 as! AnyClass }, withHandler: { env, previous in handler(env as! T, previous) })
+    }
+}
