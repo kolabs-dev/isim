@@ -33,6 +33,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 
@@ -420,12 +421,63 @@ static int status_dark_content = 1, status_hidden;
 void isim_set_status_bar_style(int dark_content) { status_dark_content = dark_content; }
 void isim_set_status_bar_hidden(int hidden) { status_hidden = hidden; }
 
+/* Settings > General > Date & Time for the status bar clock: 24-hour time (forced, or the region's default,
+ * as isim Foundation decides) and the time zone. Re-read when the global preferences file changes. */
+static struct { int hour24; char tz[128]; int tz_set; struct timespec mtime; double checked; } clock_prefs;
+static int plist_bool(const char *xml, const char *key) {
+    char k[96]; snprintf(k, sizeof k, "<key>%s</key>", key);
+    const char *p = strstr(xml, k); if (!p) return -1;
+    p += strlen(k); while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+    return !strncmp(p, "<true/>", 7) ? 1 : !strncmp(p, "<false/>", 8) ? 0 : -1;
+}
+static int plist_string(const char *xml, const char *key, char *out, size_t n) {
+    char k[96]; snprintf(k, sizeof k, "<key>%s</key>", key);
+    const char *p = strstr(xml, k); if (!p) return 0;
+    p = strstr(p + strlen(k), "<string>"); if (!p) return 0;
+    p += 8; const char *e = strstr(p, "</string>"); if (!e) return 0;
+    size_t l = (size_t)(e - p); if (l >= n) l = n - 1;
+    memcpy(out, p, l); out[l] = 0; return 1;
+}
+static void load_clock_prefs(void) {
+    double now = isim_time();
+    if (clock_prefs.checked && now - clock_prefs.checked < 1) return;      /* at most once a second */
+    clock_prefs.checked = now;
+    char path[1024]; const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    if (data && *data) snprintf(path, sizeof path, "%s/Library/Preferences/.GlobalPreferences.plist", data);
+    else snprintf(path, sizeof path, "%s/.local/share/isim/Library/Preferences/.GlobalPreferences.plist", home ? home : "");
+    struct stat st;
+    if (stat(path, &st) != 0) { st.st_mtim.tv_sec = 0; st.st_mtim.tv_nsec = 0; }
+    if (clock_prefs.mtime.tv_sec == st.st_mtim.tv_sec && clock_prefs.mtime.tv_nsec == st.st_mtim.tv_nsec && clock_prefs.checked != now) return;
+    clock_prefs.mtime = st.st_mtim;
+    char *xml = NULL; gsize len = 0;
+    if (!st.st_mtim.tv_sec || !g_file_get_contents(path, &xml, &len, NULL)) xml = g_strdup("");
+    const char *hc = getenv("ISIM_HOUR_CYCLE");
+    int f24 = plist_bool(xml, "AppleICUForce24HourTime"), f12 = plist_bool(xml, "AppleICUForce12HourTime");
+    char locale[32] = "en_US"; plist_string(xml, "AppleLocale", locale, sizeof locale);
+    /* regions whose default clock is 12-hour (isim Foundation's region table) */
+    static const char *twelve[] = { "en_US", "en_CA", "en_AU", "en_IN", "ar_SA" };
+    int region12 = 0; for (size_t i = 0; i < sizeof twelve / sizeof *twelve; i++) if (!strcmp(locale, twelve[i])) region12 = 1;
+    clock_prefs.hour24 = hc && !strcmp(hc, "24") ? 1 : hc && !strcmp(hc, "12") ? 0 : f24 == 1 ? 1 : f12 == 1 ? 0 : !region12;
+    char tz[128] = "";
+    plist_string(xml, "TimeZone", tz, sizeof tz);
+    if (!getenv("ISIM_KEEP_TZ") && strcmp(tz, clock_prefs.tz)) {
+        if (*tz) { setenv("TZ", tz, 1); clock_prefs.tz_set = 1; }
+        else if (clock_prefs.tz_set) { unsetenv("TZ"); clock_prefs.tz_set = 0; }      /* back to "Set Automatically" */
+        tzset();
+        snprintf(clock_prefs.tz, sizeof clock_prefs.tz, "%s", tz);
+    }
+    g_free(xml);
+}
+
 static void draw_chrome(void) {
     double c = status_dark_content ? 0 : 1;
     double fg[4] = { c, c, c, 1 };
     if (status_hidden) goto hardware;
+    load_clock_prefs();
     time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
-    char clock[16]; snprintf(clock, sizeof clock, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
+    char clock[16];
+    if (clock_prefs.hour24) snprintf(clock, sizeof clock, "%02d:%02d", tm.tm_hour, tm.tm_min);
+    else snprintf(clock, sizeof clock, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
     double sb = dev.safe_top >= 44 ? 54 : dev.safe_top;   /* status bar band height */
     double cy = dev.has_island ? 18 + 11 : sb / 2;          /* text baseline centre */
     double tw, th; isim_text_measure(clock, 17, 0.3, 0, 0, 1, &tw, &th);

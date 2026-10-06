@@ -913,78 +913,78 @@
         }
       }
     },
-    "Automatic uses the Linux host's time zone. Apps read the setting when they start.": {
+    "Automatic uses the Linux host's time zone.": {
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يستخدم الوضع التلقائي المنطقة الزمنية لمضيف Linux. تقرأ التطبيقات الإعداد عند بدء تشغيلها."
+            "value": "يستخدم الوضع التلقائي المنطقة الزمنية لمضيف Linux."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Automatisch verwendet die Zeitzone des Linux-Hosts. Apps lesen die Einstellung beim Start."
+            "value": "Automatisch verwendet die Zeitzone des Linux-Hosts."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El modo automático usa la zona horaria del host Linux. Las apps leen el ajuste al iniciarse."
+            "value": "El modo automático usa la zona horaria del host Linux."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le mode automatique utilise le fuseau horaire de l’hôte Linux. Les apps lisent ce réglage au démarrage."
+            "value": "Le mode automatique utilise le fuseau horaire de l’hôte Linux."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "מצב אוטומטי משתמש באזור הזמן של מארח ה-Linux. יישומים קוראים את ההגדרה בעת ההפעלה."
+            "value": "מצב אוטומטי משתמש באזור הזמן של מארח ה-Linux."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "In automatico si usa il fuso orario dell’host Linux. Le app leggono l’impostazione all’avvio."
+            "value": "In automatico si usa il fuso orario dell’host Linux."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "自動設定ではLinuxホストの時間帯を使用します。アプリは起動時に設定を読み込みます。"
+            "value": "自動設定ではLinuxホストの時間帯を使用します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "자동 설정은 Linux 호스트의 시간대를 사용합니다. 앱은 시작할 때 설정을 읽습니다."
+            "value": "자동 설정은 Linux 호스트의 시간대를 사용합니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Automatisch gebruikt de tijdzone van de Linux-host. Apps lezen de instelling bij het starten."
+            "value": "Automatisch gebruikt de tijdzone van de Linux-host."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O modo automático usa o fuso horário do host Linux. Os apps leem o ajuste ao iniciar."
+            "value": "O modo automático usa o fuso horário do host Linux."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O modo automático usa o fuso horário do anfitrião Linux. As apps leem a definição ao iniciar."
+            "value": "O modo automático usa o fuso horário do anfitrião Linux."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "自动设置使用 Linux 主机的时区。App 在启动时读取此设置。"
+            "value": "自动设置使用 Linux 主机的时区。"
           }
         }
       }

@@ -218,6 +218,8 @@ static NSDictionary *country_names(void) {
 @end
 
 /* ---------------- NSTimeZone ---------------- */
+NSNotificationName const NSSystemTimeZoneDidChangeNotification = @"NSSystemTimeZoneDidChangeNotification";
+void isim_reapply_time_zone_setting(void);
 static NSTimeZone *default_tz;
 static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int *dst) {
     /* evaluate in the requested zone by switching TZ temporarily (the host C library owns the tz database) */
@@ -248,6 +250,7 @@ static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int
 + (NSTimeZone *)localTimeZone { return [self defaultTimeZone]; }
 + (NSTimeZone *)defaultTimeZone { return default_tz ?: [self systemTimeZone]; }
 + (void)setDefaultTimeZone:(NSTimeZone *)tz { default_tz = [tz copy]; }
++ (void)resetSystemTimeZone { isim_reapply_time_zone_setting(); }
 + (NSArray<NSString *> *)knownTimeZoneNames {
     return @[@"America/New_York", @"America/Chicago", @"America/Denver", @"America/Los_Angeles", @"America/Sao_Paulo",
              @"America/Mexico_City", @"Europe/London", @"Europe/Lisbon", @"Europe/Madrid", @"Europe/Paris", @"Europe/Berlin",
@@ -553,9 +556,23 @@ NSDictionary *isim_parse_strings_file(NSString *path) {
     return d;
 }
 
-/* Settings > General > Date & Time > Time Zone (the TZ environment variable wins) */
+/* Settings > General > Date & Time > Time Zone (a TZ environment variable given at launch wins).
+ * Applied at launch and again whenever the settings change (live, as on iOS). */
+static BOOL tz_from_environment, tz_applied;
+static NSString *tz_current;
 __attribute__((constructor)) static void isim_apply_time_zone_setting(void) {
-    if (getenv("TZ")) return;
+    tz_from_environment = getenv("TZ") != NULL;
+    isim_reapply_time_zone_setting();
+}
+void isim_reapply_time_zone_setting(void) {
+    if (tz_from_environment) return;
     NSString *tz = isim_global_preferences()[@"TimeZone"];
-    if ([tz isKindOfClass:[NSString class]] && tz.length) { setenv("TZ", tz.UTF8String, 1); tzset(); }
+    if (![tz isKindOfClass:[NSString class]] || !tz.length) tz = nil;
+    if (tz_applied && (tz == tz_current || [tz isEqualToString:tz_current])) return;
+    BOOL changed = tz_applied;
+    tz_applied = YES; tz_current = [tz copy];
+    if (tz) setenv("TZ", tz.UTF8String, 1); else unsetenv("TZ");          /* nil: "Set Automatically" (host zone) */
+    tzset();
+    default_tz = nil;
+    if (changed) [NSNotificationCenter.defaultCenter postNotificationName:NSSystemTimeZoneDidChangeNotification object:nil];
 }

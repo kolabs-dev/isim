@@ -382,10 +382,11 @@ struct DateTimeView: View {
             }
             Section {
                 Toggle("Set Automatically", isOn: Binding(get: { tz == nil }, set: { auto in Store.set("TimeZone", auto ? nil : TimeZone.current.identifier); bump += 1 }))
+                    .accessibilityIdentifier("settings-auto-tz")
                 if tz != nil {
                     NavigationLink(value: Route.timeZone) { LabeledContent("Time Zone", value: tz ?? "") }
                 }
-            } footer: { Text("Automatic uses the Linux host's time zone. Apps read the setting when they start.") }
+            } footer: { Text("Automatic uses the Linux host's time zone.") }
         }
         .navigationTitle("Date & Time").navigationBarTitleDisplayMode(.inline)
     }

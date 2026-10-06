@@ -686,7 +686,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 |---|---|---|
 | `Date`, `TimeInterval`, `Date.now` | ✅ | |
 | `Calendar`, `DateComponents`, `DateInterval` | 🟡 | Gregorian + ISO 8601; other calendars compute as Gregorian |
-| `TimeZone` (named zones, DST) | ✅ | Settings > Date & Time or the host's zone |
+| `TimeZone` (named zones, DST) | ✅ | Settings > Date & Time or the host's zone; changes apply live (`NSSystemTimeZoneDidChange`, `resetSystemTimeZone`) |
 | `Locale` (identifiers, language/region, separators, currency, `Locale.Language`) | ✅ | |
 | `DateFormatter` (styles, `dateFormat`, templates) | 🟡 | common patterns; full CLDR data unverified |
 | `NumberFormatter` (decimal, currency, percent, digits, grouping) | 🟡 | common styles |

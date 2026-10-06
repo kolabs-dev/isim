@@ -2,10 +2,12 @@
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSDate, NSArray<ObjectType>;
+FOUNDATION_EXPORT NSNotificationName const NSSystemTimeZoneDidChangeNotification;
 @interface NSTimeZone : NSObject <NSCopying, NSSecureCoding>
 @property (class, readonly, copy) NSTimeZone *systemTimeZone;
 @property (class, readonly, copy) NSTimeZone *localTimeZone;
 @property (class, copy) NSTimeZone *defaultTimeZone;
++ (void)resetSystemTimeZone;
 @property (class, readonly, copy) NSArray<NSString *> *knownTimeZoneNames;
 + (nullable instancetype)timeZoneWithName:(NSString *)tzName;
 + (nullable instancetype)timeZoneWithAbbreviation:(NSString *)abbreviation;

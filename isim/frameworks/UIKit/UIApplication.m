@@ -554,7 +554,10 @@ static void dump_view(UIView *v, int depth) {
     NSString *ident = v.accessibilityIdentifier, *label = [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
         : [v isKindOfClass:[UITextField class]] ? [NSString stringWithFormat:@"\"%@\"%@", ((UITextField *)v).text, v.isFirstResponder ? @" (editing)" : @""]
         : [v isKindOfClass:[UIScrollView class]] ? [NSString stringWithFormat:@"offset %g, content %g x %g, inset bottom %g", ((UIScrollView *)v).contentOffset.y,
-              ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom] : nil;
+              ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom]
+        : [v isKindOfClass:[UISwitch class]] ? (((UISwitch *)v).on ? @"on" : @"off")
+        : [v isKindOfClass:[UISlider class]] ? [NSString stringWithFormat:@"%g", ((UISlider *)v).value]
+        : [v isKindOfClass:[UISegmentedControl class]] ? [NSString stringWithFormat:@"segment %ld", (long)((UISegmentedControl *)v).selectedSegmentIndex] : nil;
     fprintf(stderr, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
             v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "");
     for (UIView *s in v.subviews) dump_view(s, depth + 1);
@@ -659,7 +662,9 @@ static void enter_foreground(void) {
 static void trait_changed(UIView *v) { [v traitCollectionDidChange:nil]; for (UIView *s in v.subviews) trait_changed(s); }
 static void settings_changed(void) {
     extern void isim_ui_reload_settings(void);
+    extern void isim_reapply_time_zone_setting(void);
     isim_ui_reload_settings();
+    isim_reapply_time_zone_setting();                 /* Date & Time > Time Zone applies live */
     for (UIWindow *w in UIApplication.sharedApplication.windows) trait_changed(w);
     [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSettingsChanged" object:nil];
     isim_ui_set_needs_display();
