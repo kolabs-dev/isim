@@ -170,8 +170,23 @@ int isim_tts_synthesize(const char *text, const char *voice, double wpm, double 
 int isim_audio_input_start(void);
 long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
+/* Core Animation (host_ca.c): perspective warp of a raster image onto a quad (tl, tr, br, bl in user space);
+   pop a group as a blurred, tinted, offset drop shadow of its alpha */
+void isim_image_draw_quad(int handle, const double *quad, double alpha);
+void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+int isim_gfx_screen_snapshot(double x, double y, double w, double h);   /* what is on the target under the rect (the last frame) */
+void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group painted with its pixels multiplied by rgba */
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
+/* host game controllers (SDL3 gamepads; ISIM_GAMEPADS=0 disables). buttons: bit i = SDL_GamepadButton i (0 south/A,
+   1 east/B, 2 west/X, 3 north/Y, 4 back, 5 guide, 6 start, 7/8 stick clicks, 9/10 shoulders, 11-14 dpad up/down/left/right);
+   axes: left x, left y, right x, right y (-1...1, y down), left / right trigger (0...1) */
+struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24]; };
+int isim_gamepad_poll(struct isim_gamepad *out, int max);   /* connected pads (count), -1 when disabled */
+int isim_gamepad_rumble(int id, double low, double high, double seconds);
+/* raster image from 32-bit premultiplied BGRA pixels (rows top-down), updated in place */
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
 /* web engine for WKWebView (host_web.c + the isim-webkit helper, WebKitGTK): line protocol, TAB-separated escaped fields.
    available: 1 if the engine can run (reason for 0 in why); next: next event line or NULL (wait up to timeout s; free it);
    frame: image handle of a view's newest page frame (pixels in *w x *h; acknowledges it); release: forget a closed view */

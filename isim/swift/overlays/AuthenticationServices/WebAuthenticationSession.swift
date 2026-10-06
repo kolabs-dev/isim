@@ -11,7 +11,7 @@ import WebKit
 import SafariServices
 import SwiftUI
 
-public typealias ASPresentationAnchor = UIWindow
+/* ASPresentationAnchor is declared in Core.swift */
 
 @objc public protocol ASWebAuthenticationPresentationContextProviding: NSObjectProtocol {
     @MainActor func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor

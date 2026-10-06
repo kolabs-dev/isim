@@ -2,7 +2,8 @@
 // SKTexture, SKAction, transitions and cameras. Rendered in software through libisim_host (cairo), 60 frames per
 // second. Physics (SKPhysics.swift), particles (SKEmitter.swift), more node types and constraints (SKNodes.swift),
 // atlases and audio (SKAtlasAudio.swift), .sks files (SKArchive.swift).
-// Not implemented: Core Image filters, running SKShader programs, lighting, SKVideoNode, warp geometry.
+// More nodes (SKVideoNode, SKTransformNode), warp geometry and mutable textures: SKExtras.swift.
+// Not implemented: Core Image filters, running SKShader programs, lighting.
 @_exported import UIKit
 @_exported import simd
 import AVFoundation
@@ -264,7 +265,9 @@ open class SKSpriteNode: SKNode {
     open var shadowCastBitMask: UInt32 = 0
     open var shadowedBitMask: UInt32 = 0
     open var shader: SKShader?
-    open var warpGeometry: AnyObject?
+    /// drawn as a warped triangle mesh (SKExtras.swift)
+    open var warpGeometry: SKWarpGeometry?
+    open var subdivisionLevels = 2
 
     public override init() { super.init() }
     public required init?(coder: NSCoder) {
@@ -292,6 +295,7 @@ open class SKSpriteNode: SKNode {
     override func drawContent(alpha a: CGFloat) {
         guard size.width != 0, size.height != 0 else { return }
         let r = contentRect
+        if let grid = warpGeometry as? SKWarpGeometryGrid, !grid.isIdentity { drawWarped(grid, alpha: a); return }
         if let t = texture, t.handle > 0 {
             var blend = [0.0, 0, 0, 1]
             let factor = Double(colorBlendFactor)
@@ -457,8 +461,12 @@ open class SKLabelNode: SKNode {
     open var preferredMaxLayoutWidth: CGFloat = 0
     open var lineBreakMode: NSLineBreakMode = .byTruncatingTail
     open var blendMode: SKBlendMode = .alpha
+    /// styled text: each run's font, color, kerning, underline / strikethrough and the paragraph alignment and line
+    /// spacing are drawn (through UIKit's attributed string drawing); fontName / fontSize / fontColor are ignored
+    open var attributedText: NSAttributedString? { didSet { if let a = attributedText { text = a.string } } }
 
     public override init() { super.init() }
+    public convenience init(attributedText: NSAttributedString?) { self.init(); self.attributedText = attributedText; text = attributedText?.string }
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
         guard let c = coder as? _SKCoder else { return }
@@ -475,7 +483,13 @@ open class SKLabelNode: SKNode {
     public convenience init(fontNamed name: String?) { self.init(); fontName = name }
 
     var font: UIFont { fontName.flatMap { UIFont(name: $0, size: fontSize) } ?? .systemFont(ofSize: fontSize) }
+    var attributedBoundsWidth: CGFloat { numberOfLines != 1 && preferredMaxLayoutWidth > 0 ? preferredMaxLayoutWidth : 100_000 }
     func measure() -> CGSize {
+        if let a = attributedText {
+            guard a.length > 0 else { return .zero }
+            let r = a.boundingRect(with: CGSize(width: attributedBoundsWidth, height: 100_000), options: .usesLineFragmentOrigin, context: nil)
+            return CGSize(width: ceil(r.width), height: ceil(r.height))
+        }
         guard let t = text, !t.isEmpty else { return .zero }
         let f = font
         var w = 0.0, h = 0.0
@@ -501,6 +515,19 @@ open class SKLabelNode: SKNode {
         return CGRect(x: b.minX, y: -b.maxY, width: b.width, height: b.height)
     }
     override func drawContent(alpha a: CGFloat) {
+        if let at = attributedText {
+            guard at.length > 0 else { return }
+            let s = measure(), b = box(s)
+            isim_gfx_save()
+            if blendMode != .alpha { isim_gfx_set_blend(_hostBlend(blendMode)) }
+            isim_gfx_scale(1, -1)
+            if a < 0.999 { isim_gfx_push_group() }
+            // a little slack so measuring / drawing rounding never wraps the last word
+            at.draw(with: CGRect(x: b.minX - 4, y: b.minY, width: max(b.width, 1) + 8, height: b.height + 4), options: .usesLineFragmentOrigin, context: nil)
+            if a < 0.999 { isim_gfx_pop_group(Double(a)) }
+            isim_gfx_restore()
+            return
+        }
         guard let t = text, !t.isEmpty else { return }
         let s = measure(), b = box(s), f = font
         var c = _rgba(fontColor ?? .white); c[3] *= Double(a)
@@ -1000,8 +1027,22 @@ open class SKAction: NSObject {
         case .easeInEaseOut: return t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2
         }
     }
-    open func reversed() -> SKAction { self }
-    open override func copy() -> Any { SKAction(duration: duration, factory: factory) }
+    /// builds the reverse action (nil: not reversible, reversed() returns the action itself like iOS)
+    var reverser: (() -> SKAction)?
+    func rev(_ f: @escaping () -> SKAction) -> SKAction { reverser = f; return self }
+    open func reversed() -> SKAction {
+        guard let r = reverser?() else { return self }
+        r.speed = speed
+        // the reverse plays the timing curve backwards
+        r.timingMode = timingMode == .easeIn ? .easeOut : timingMode == .easeOut ? .easeIn : timingMode
+        if let f = timingFunction { r.timingFunction = { t in 1 - f(1 - t) } }
+        return r
+    }
+    open override func copy() -> Any {
+        let c = SKAction(duration: duration, factory: factory)
+        c.timingMode = timingMode; c.timingFunction = timingFunction; c.speed = speed; c.reverser = reverser
+        return c
+    }
 
     /// A timed action: `start` captures the starting state, `apply(fraction)` sets the node.
     static func timed(_ d: TimeInterval, _ setup: @escaping (SKNode) -> (Double) -> Void) -> SKAction {
@@ -1015,6 +1056,7 @@ open class SKAction: NSObject {
     open class func move(by v: CGVector, duration d: TimeInterval) -> SKAction { moveBy(x: v.dx, y: v.dy, duration: d) }
     open class func moveBy(x: CGFloat, y: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in var last = 0.0; return { f in let df = f - last; last = f; n.position.x += x * df; n.position.y += y * df } }
+            .rev { moveBy(x: -x, y: -y, duration: d) }
     }
     open class func move(to p: CGPoint, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.position; return { f in n.position = CGPoint(x: s.x + (p.x - s.x) * f, y: s.y + (p.y - s.y) * f) } }
@@ -1022,7 +1064,7 @@ open class SKAction: NSObject {
     open class func moveTo(x: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.position.x; return { f in n.position.x = s + (x - s) * f } } }
     open class func moveTo(y: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.position.y; return { f in n.position.y = s + (y - s) * f } } }
     open class func rotate(byAngle a: CGFloat, duration d: TimeInterval) -> SKAction {
-        timed(d) { n in var last = 0.0; return { f in n.zRotation += a * (f - last); last = f } }
+        timed(d) { n in var last = 0.0; return { f in n.zRotation += a * (f - last); last = f } }.rev { rotate(byAngle: -a, duration: d) }
     }
     open class func rotate(toAngle a: CGFloat, duration d: TimeInterval) -> SKAction { rotate(toAngle: a, duration: d, shortestUnitArc: false) }
     open class func rotate(toAngle a: CGFloat, duration d: TimeInterval, shortestUnitArc: Bool) -> SKAction {
@@ -1037,6 +1079,7 @@ open class SKAction: NSObject {
     open class func scale(by k: CGFloat, duration d: TimeInterval) -> SKAction { scaleX(by: k, y: k, duration: d) }
     open class func scaleX(by kx: CGFloat, y ky: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let sx = n.xScale, sy = n.yScale; return { f in n.xScale = sx * (1 + (kx - 1) * f); n.yScale = sy * (1 + (ky - 1) * f) } }
+            .rev { scaleX(by: kx != 0 ? 1 / kx : 0, y: ky != 0 ? 1 / ky : 0, duration: d) }
     }
     open class func scale(to k: CGFloat, duration d: TimeInterval) -> SKAction { scaleX(to: k, y: k, duration: d) }
     open class func scaleX(to kx: CGFloat, y ky: CGFloat, duration d: TimeInterval) -> SKAction {
@@ -1057,19 +1100,19 @@ open class SKAction: NSObject {
             guard let sp = n as? SKSpriteNode else { return { _ in } }
             let s = sp.size
             return { f in sp.size = CGSize(width: s.width + w * f, height: s.height + h * f) }
-        }
+        }.rev { resize(byWidth: -w, height: -h, duration: d) }
     }
     // fading
-    open class func fadeIn(withDuration d: TimeInterval) -> SKAction { fadeAlpha(to: 1, duration: d) }
-    open class func fadeOut(withDuration d: TimeInterval) -> SKAction { fadeAlpha(to: 0, duration: d) }
+    open class func fadeIn(withDuration d: TimeInterval) -> SKAction { fadeAlpha(to: 1, duration: d).rev { fadeOut(withDuration: d) } }
+    open class func fadeOut(withDuration d: TimeInterval) -> SKAction { fadeAlpha(to: 0, duration: d).rev { fadeIn(withDuration: d) } }
     open class func fadeAlpha(to a: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.alpha; return { f in n.alpha = s + (a - s) * f } }
     }
     open class func fadeAlpha(by a: CGFloat, duration d: TimeInterval) -> SKAction {
-        timed(d) { n in var last = 0.0; return { f in n.alpha += a * (f - last); last = f } }
+        timed(d) { n in var last = 0.0; return { f in n.alpha += a * (f - last); last = f } }.rev { fadeAlpha(by: -a, duration: d) }
     }
-    open class func hide() -> SKAction { instant { $0.isHidden = true } }
-    open class func unhide() -> SKAction { instant { $0.isHidden = false } }
+    open class func hide() -> SKAction { instant { $0.isHidden = true }.rev { unhide() } }
+    open class func unhide() -> SKAction { instant { $0.isHidden = false }.rev { hide() } }
     // color
     open class func colorize(with color: UIColor, colorBlendFactor k: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in
@@ -1099,6 +1142,7 @@ open class SKAction: NSObject {
     }
     open class func animate(with textures: [SKTexture], timePerFrame: TimeInterval, resize: Bool, restore: Bool) -> SKAction {
         let d = timePerFrame * Double(textures.count)
+        let reverse = { animate(with: textures.reversed(), timePerFrame: timePerFrame, resize: resize, restore: restore) }
         return SKAction(duration: d) { node, action in
             let sp = node as? SKSpriteNode
             let original = sp?.texture, originalSize = sp?.size
@@ -1112,7 +1156,7 @@ open class SKAction: NSObject {
             }, finish: {
                 if restore, let sp { sp.texture = original; if let s = originalSize { sp.size = s } }
             })
-        }
+        }.rev(reverse)
     }
     // timing & structure
     open class func wait(forDuration d: TimeInterval) -> SKAction { timed(d) { _ in { _ in } } }
@@ -1120,17 +1164,23 @@ open class SKAction: NSObject {
         let actual = max(0, d + Double.random(in: -r / 2...r / 2))
         return timed(actual) { _ in { _ in } }
     }
+    /// reversed: the reversed actions in reverse order
     open class func sequence(_ actions: [SKAction]) -> SKAction {
         SKAction(duration: actions.reduce(0) { $0 + $1.duration }) { node, _ in _SequenceRunner(node: node, actions: actions) }
+            .rev { sequence(actions.reversed().map { $0.reversed() }) }
     }
+    /// reversed: each action reversed, delayed so that they all end together (as they started together)
     open class func group(_ actions: [SKAction]) -> SKAction {
-        SKAction(duration: actions.map(\.duration).max() ?? 0) { node, _ in _GroupRunner(node: node, actions: actions) }
+        let total = actions.map(\.duration).max() ?? 0
+        return SKAction(duration: total) { node, _ in _GroupRunner(node: node, actions: actions) }
+            .rev { group(actions.map { a in a.duration < total && total.isFinite ? sequence([wait(forDuration: total - a.duration), a.reversed()]) : a.reversed() }) }
     }
     open class func `repeat`(_ action: SKAction, count: Int) -> SKAction {
         SKAction(duration: action.duration * Double(count)) { node, _ in _RepeatRunner(node: node, action: action, count: count) }
+            .rev { `repeat`(action.reversed(), count: count) }
     }
     open class func repeatForever(_ action: SKAction) -> SKAction {
-        SKAction(duration: .infinity) { node, _ in _RepeatRunner(node: node, action: action, count: -1) }
+        SKAction(duration: .infinity) { node, _ in _RepeatRunner(node: node, action: action, count: -1) }.rev { repeatForever(action.reversed()) }
     }
     open class func removeFromParent() -> SKAction { instant { $0.removeFromParent() } }
     open class func run(_ block: @escaping () -> Void) -> SKAction { instant { _ in block() } }
@@ -1142,7 +1192,7 @@ open class SKAction: NSObject {
         timed(d) { n in { f in actionBlock(n, CGFloat(f * d)) } }
     }
     open class func speed(to s: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s0 = n.speed; return { f in n.speed = s0 + (s - s0) * f } } }
-    open class func speed(by s: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in var last = 0.0; return { f in n.speed += s * (f - last); last = f } } }
+    open class func speed(by s: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in var last = 0.0; return { f in n.speed += s * (f - last); last = f } }.rev { speed(by: -s, duration: d) } }
     open class func follow(_ path: CGPath, asOffset: Bool, orientToPath: Bool, duration d: TimeInterval) -> SKAction {
         // straight segments between the path's points
         var pts: [CGPoint] = []
@@ -1151,7 +1201,11 @@ open class SKAction: NSObject {
             switch e.pointee.type { case .moveToPoint, .addLineToPoint: n = 1; case .addQuadCurveToPoint: n = 2; case .addCurveToPoint: n = 3; default: n = 0 }
             if n > 0 { pts.append(e.pointee.points[n - 1]) }
         }
-        return timed(d) { node in
+        return follow(points: pts, asOffset: asOffset, orientToPath: orientToPath, duration: d)
+    }
+    /// follows straight segments; reversed: the same points backwards (as an offset path it starts where the forward one ended)
+    static func follow(points pts: [CGPoint], asOffset: Bool, orientToPath: Bool, duration d: TimeInterval) -> SKAction {
+        timed(d) { node in
             let start = node.position
             return { f in
                 guard pts.count > 1 else { return }
@@ -1160,6 +1214,10 @@ open class SKAction: NSObject {
                 node.position = asOffset ? CGPoint(x: start.x + p.x, y: start.y + p.y) : p
                 if orientToPath { node.zRotation = atan2(pts[i + 1].y - pts[i].y, pts[i + 1].x - pts[i].x) }
             }
+        }.rev {
+            let last = pts.last ?? .zero
+            let back: [CGPoint] = asOffset ? pts.reversed().map { CGPoint(x: $0.x - last.x, y: $0.y - last.y) } : pts.reversed()
+            return follow(points: back, asOffset: asOffset, orientToPath: orientToPath, duration: d)
         }
     }
     /// Plays a sound file from the main bundle (CAF/WAV; compressed formats need the host's ffmpeg or GStreamer).
@@ -1186,7 +1244,7 @@ open class SKAction: NSObject {
             guard let a = n as? SKAudioNode else { return { _ in } }
             let s = a.volume
             return { f in a.volume = s + v * Float(f) }
-        }
+        }.rev { changeVolume(by: -v, duration: d) }
     }
     /// playback rate, stereo panning, obstruction, occlusion and reverb are accepted; isim plays at normal rate
     open class func changePlaybackRate(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
@@ -1221,25 +1279,25 @@ open class SKAction: NSObject {
         timed(d) { n in let s = n.physicsBody?.charge ?? 0; return { f in n.physicsBody?.charge = s + (CGFloat(v) - s) * CGFloat(f) } }
     }
     open class func changeCharge(by v: Float, duration d: TimeInterval) -> SKAction {
-        timed(d) { n in let s = n.physicsBody?.charge ?? 0; return { f in n.physicsBody?.charge = s + CGFloat(v) * CGFloat(f) } }
+        timed(d) { n in let s = n.physicsBody?.charge ?? 0; return { f in n.physicsBody?.charge = s + CGFloat(v) * CGFloat(f) } }.rev { changeCharge(by: -v, duration: d) }
     }
     open class func changeMass(to v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.physicsBody?.mass ?? 0; return { f in n.physicsBody?.mass = s + (CGFloat(v) - s) * CGFloat(f) } }
     }
     open class func changeMass(by v: Float, duration d: TimeInterval) -> SKAction {
-        timed(d) { n in let s = n.physicsBody?.mass ?? 0; return { f in n.physicsBody?.mass = s + CGFloat(v) * CGFloat(f) } }
+        timed(d) { n in let s = n.physicsBody?.mass ?? 0; return { f in n.physicsBody?.mass = s + CGFloat(v) * CGFloat(f) } }.rev { changeMass(by: -v, duration: d) }
     }
     open class func strength(to v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = (n as? SKFieldNode)?.strength ?? 0; return { f in (n as? SKFieldNode)?.strength = s + (v - s) * Float(f) } }
     }
     open class func strength(by v: Float, duration d: TimeInterval) -> SKAction {
-        timed(d) { n in let s = (n as? SKFieldNode)?.strength ?? 0; return { f in (n as? SKFieldNode)?.strength = s + v * Float(f) } }
+        timed(d) { n in let s = (n as? SKFieldNode)?.strength ?? 0; return { f in (n as? SKFieldNode)?.strength = s + v * Float(f) } }.rev { strength(by: -v, duration: d) }
     }
     open class func falloff(to v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = (n as? SKFieldNode)?.falloff ?? 0; return { f in (n as? SKFieldNode)?.falloff = s + (v - s) * Float(f) } }
     }
     open class func falloff(by v: Float, duration d: TimeInterval) -> SKAction {
-        timed(d) { n in let s = (n as? SKFieldNode)?.falloff ?? 0; return { f in (n as? SKFieldNode)?.falloff = s + v * Float(f) } }
+        timed(d) { n in let s = (n as? SKFieldNode)?.falloff ?? 0; return { f in (n as? SKFieldNode)?.falloff = s + v * Float(f) } }.rev { falloff(by: -v, duration: d) }
     }
     // paths at a speed (points per second)
     open class func follow(_ path: CGPath, speed: CGFloat) -> SKAction { follow(path, asOffset: true, orientToPath: true, speed: speed) }

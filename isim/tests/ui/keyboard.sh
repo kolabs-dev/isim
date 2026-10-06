@@ -20,7 +20,7 @@ check "hardware typing + backspace"      'grep -q "${after} ${after%\"}9\" ${aft
 check "dismissKeyboard hides it"         'grep -q "keyboard dismissed" <<<"$log"'
 check "exits cleanly"                    '[ $rc = 0 ]'
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
-check "keyboard background drawn"        '[ "$(px $shots/typed.png 3 780)" = "209 212 217" ]'
+check "keyboard background drawn"        '[ "$(px $shots/typed.png 1 780)" = "209 212 217" ]'   # x=1: clear of the keys' blurred shadows
 check "keys drawn white"                 '[ "$(px $shots/typed.png 40 790)" = "255 255 255" ]'
 [ $fail = 0 ] || { echo "--- texts: $texts"; echo "--- app log"; echo "$log" | tail -40; }
 exit $fail

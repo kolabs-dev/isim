@@ -33,10 +33,11 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/isim" -w /isim isim-release-bui
   patchelf --set-rpath "\$ORIGIN/../lib" $out/bin/isim-runtime
   for l in $out/lib/*.so*; do patchelf --set-rpath "\$ORIGIN" "$l"; done
 '
-cp tools/isim tools/isim-build.py tools/xcodeproj.py "$STAGE/bin/"
+cp tools/isim tools/isim-build.py tools/xcodeproj.py VERSION "$STAGE/bin/"
+for t in tools/isim-services.py tools/momc.py; do [ -f "$t" ] && cp "$t" "$STAGE/bin/"; done
 cp -a out/sdk "$STAGE/sdk"
 mkdir -p "$STAGE/swift"; cp -a out/swift/resource "$STAGE/swift/resource"      # for `isim swiftc` (Docker swift:6.2)
-for a in HelloCounter HelloCounterSwift HelloSwiftUI HelloKeyboardApp; do [ -d "out/apps/$a.app" ] && cp -a "out/apps/$a.app" "$STAGE/apps/"; done
+for a in HelloCounter HelloCounterSwift HelloSwiftUI HelloKeyboardApp HelloTable HelloCollection HelloNavigation HelloControls HelloDrawing HelloCharts; do [ -d "out/apps/$a.app" ] && cp -a "out/apps/$a.app" "$STAGE/apps/"; done
 cp release/README-release.md "$STAGE/README.md"
 cp ../LICENSE ../NOTICE "$STAGE/"; cp release/licenses/* "$STAGE/licenses/"
 tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"

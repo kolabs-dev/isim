@@ -613,6 +613,14 @@ static struct image *image_for_address(const void *addr) {
     return NULL;
 }
 const char *isim_image_path_for_address(const void *addr) { struct image *im = image_for_address(addr); return im ? im->path : NULL; }
+/* image enumeration for the exception unwinder (objc_exc.c) */
+int isim_image_count(void) { return nimages; }
+void *isim_image_section(int i, const char *sectname, uint64_t *size, uint8_t **base) {
+    if (i < 0 || i >= nimages) { *size = 0; return NULL; }
+    struct objc_image oi = { images[i]->path, img_find_section, images[i] };
+    *base = images[i]->base;
+    return img_find_section(&oi, sectname, size);
+}
 
 static uint32_t d_dyld_image_count(void) { return (uint32_t)nimages; }
 static const void *d_dyld_get_image_header(uint32_t i) { return i < (uint32_t)nimages ? images[i]->base : NULL; }

@@ -4,6 +4,7 @@
 NS_ASSUME_NONNULL_BEGIN
 @class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent;
 typedef NS_ENUM(NSInteger, UIApplicationState) { UIApplicationStateActive, UIApplicationStateInactive, UIApplicationStateBackground };
+typedef NS_ENUM(NSUInteger, UIBackgroundFetchResult) { UIBackgroundFetchResultNewData, UIBackgroundFetchResultNoData, UIBackgroundFetchResultFailed };
 typedef NSString *UIApplicationLaunchOptionsKey NS_TYPED_ENUM;
 typedef NSString *UIApplicationOpenURLOptionsKey NS_TYPED_ENUM;
 typedef NSString *UIApplicationOpenExternalURLOptionsKey NS_TYPED_ENUM;
@@ -35,6 +36,8 @@ NS_SWIFT_UI_ACTOR
 /* universal links and other user activities (isim: `openurl https://...` for a domain in the app's applinks) */
 - (BOOL)application:(UIApplication *)application willContinueUserActivityWithType:(NSString *)userActivityType;
 - (BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray<id<UIUserActivityRestoring>> *_Nullable restorableObjects))restorationHandler;
+/* isim: there is no APNs; isim's CloudKit delivers subscription notifications here, in-process */
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler;
 @property (nullable, nonatomic, strong) UIWindow *window;
 @end
 
