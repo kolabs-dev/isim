@@ -81,10 +81,11 @@ final class EffectsView: UIView {
 
 final class QuartzViewController: UIViewController {
     var y: CGFloat = 70
+    var frameImage: CGImage?
     func tile(_ image: CGImage?, _ id: String, x: CGFloat, size: CGFloat = 60, nearest: Bool = false) {
         guard let image else { print("\(id): no image"); return }
         let v = UIImageView(image: UIImage(cgImage: image))
-        v.frame = CGRect(x: x, y: y, width: size, height: size)
+        v.frame = CGRect(x: x, y: y, width: size * CGFloat(image.width) / CGFloat(image.height), height: size)
         v.accessibilityIdentifier = id
         if nearest { v.layer.magnificationFilter = .nearest }
         view.addSubview(v)
@@ -189,7 +190,7 @@ final class QuartzViewController: UIViewController {
         let runs = CTLineGetGlyphRuns(line) as! [CTRun]
         print("ctline width \(Int(width)) ascent \(Int(ascent)) descent \(Int(descent)) glyphs \(CTLineGetGlyphCount(line)) runs \(runs.count) run0 glyphs \(CTRunGetGlyphCount(runs[0]))")
         print("ctline index at x=width: \(CTLineGetStringIndexForPosition(line, CGPoint(x: width + 5, y: 0))) offset of 3: \(Int(CTLineGetOffsetForStringIndex(line, 3, nil)))")
-        tile(text.makeImage(), "ctline", x: 296, size: 60)
+        tile(text.makeImage(), "ctline", x: 296, size: 40)
     }
 
     // MARK: CGImage from bytes, cropping, masking, PDF
@@ -252,7 +253,7 @@ final class QuartzViewController: UIViewController {
             let c = rgbaContext(50, 50)
             c.drawPDFPage(page)
             print("cgpdf roundtrip bottom \(pixel(c.data!, 200, 25, 45)) top \(pixel(c.data!, 200, 25, 5))")
-            tile(c.makeImage(), "cgpdf", x: 226)
+            tile(c.makeImage(), "cgpdf", x: 286)
         }
         // Core Text frame: wrapped paragraph in a 120x60 rect
         let fctx = rgbaContext(120, 60)
@@ -266,7 +267,7 @@ final class QuartzViewController: UIViewController {
         CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
         CTFrameDraw(frame, fctx)
         print("ctframe lines \(lines.count) first origin y \(Int(origins.first?.y ?? -1)) visible \(CTFrameGetVisibleStringRange(frame).length) fit \(Int(fit.width))x\(Int(fit.height))")
-        tile(fctx.makeImage(), "ctframe", x: 296)
+        frameImage = fctx.makeImage()
     }
 
     // MARK: color spaces
@@ -280,5 +281,6 @@ final class QuartzViewController: UIViewController {
         sw.layer.backgroundColor = g
         sw.accessibilityIdentifier = "grayswatch"
         view.addSubview(sw)
+        tile(frameImage, "ctframe", x: 70)
     }
 }

@@ -95,7 +95,7 @@ static BOOL color_rgba(id c, double v[4]) {
     if (!c) return NO;
     CGColorRef cg = NULL;
     if ([c respondsToSelector:@selector(CGColor)]) cg = [c CGColor];
-    else if (CFGetTypeID((__bridge CFTypeRef)c) == CGColorGetTypeID() || [NSStringFromClass([c class]) isEqualToString:@"__NSCGColor"]) cg = (__bridge CGColorRef)c;
+    else if ([NSStringFromClass([c class]) isEqualToString:@"__NSCGColor"]) cg = (__bridge CGColorRef)c;
     if (!cg) return NO;
     isim_cg_color_rgba(cg, v);
     return YES;

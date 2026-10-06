@@ -181,7 +181,7 @@ bool CTFontGetGlyphsForCharacters(CTFontRef font, const UniChar *chars, CGGlyph 
     bool all = true;
     for (CFIndex i = 0; i < count; i++) {
         NSString *s = [NSString stringWithCharacters:&chars[i] length:1];
-        NSAttributedString *a = [[NSAttributedString alloc] initWithString:s attributes:@{ NSFontAttributeName: (__bridge id)font }];
+        NSAttributedString *a = [[NSAttributedString alloc] initWithString:s attributes:@{ (__bridge NSString *)kCTFontAttributeName: (__bridge id)font }];
         NSString *mk = isim_ct_markup(a, NULL, NULL, NULL);
         void *l = isim_ct_layout_create(mk.UTF8String, 0, 0, 0, 1);
         unsigned short g = 0;

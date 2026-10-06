@@ -468,7 +468,8 @@ static PangoContext *ct_context(void) {
 }
 void *isim_ct_layout_create(const char *markup, double width, int align, double spacing, int single) {
     PangoLayout *l = pango_layout_new(ct_context());
-    PangoFontDescription *fd = pango_font_description_from_string("Adwaita Sans,Inter,Noto Sans,sans-serif");
+    PangoFontDescription *fd = pango_font_description_new();
+    pango_font_description_set_family(fd, "Adwaita Sans,Inter,Noto Sans,sans-serif");   /* the system font, as UIKit text */
     pango_font_description_set_absolute_size(fd, 12 * PANGO_SCALE);    /* CTFont's default size */
     pango_layout_set_font_description(l, fd); pango_font_description_free(fd);
     pango_layout_set_markup(l, markup ? markup : "", -1);

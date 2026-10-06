@@ -11,8 +11,9 @@ typedef CF_ENUM(int32_t, CGColorSpaceModel) {
     kCGColorSpaceModelLab, kCGColorSpaceModelDeviceN, kCGColorSpaceModelIndexed, kCGColorSpaceModelPattern, kCGColorSpaceModelXYZ
 };
 typedef CF_ENUM(int32_t, CGColorRenderingIntent) {
-    kCGRenderingIntentDefault, kCGRenderingIntentAbsoluteColorimetric, kCGRenderingIntentRelativeColorimetric,
-    kCGRenderingIntentPerceptual, kCGRenderingIntentSaturation
+    kCGRenderingIntentDefault CG_SWIFT_NAME(defaultIntent), kCGRenderingIntentAbsoluteColorimetric CG_SWIFT_NAME(absoluteColorimetric),
+    kCGRenderingIntentRelativeColorimetric CG_SWIFT_NAME(relativeColorimetric), kCGRenderingIntentPerceptual CG_SWIFT_NAME(perceptual),
+    kCGRenderingIntentSaturation CG_SWIFT_NAME(saturation)
 };
 CG_EXTERN const CFStringRef kCGColorSpaceSRGB CG_SWIFT_NAME(CGColorSpace.sRGB);
 CG_EXTERN const CFStringRef kCGColorSpaceDisplayP3 CG_SWIFT_NAME(CGColorSpace.displayP3);
