@@ -4,7 +4,7 @@ This tracks how much of the iOS 17/18 SDK isim covers, so you can follow progres
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-05
+Last updated: 2026-10-06
 
 **Legend**
 
@@ -51,26 +51,26 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
 | Swift Charts | 0 | 0 | 0 | 3 | 3 | 0% |
-| **Foundation** | 25 | 9 | 1 | 30 | 65 | 45% |
+| **Foundation** | 25 | 10 | 1 | 29 | 65 | 46% |
 | &nbsp;&nbsp;↳ Strings & text | 5 | 2 | 0 | 5 | 12 | 50% |
-| &nbsp;&nbsp;↳ Collections & values | 4 | 1 | 0 | 5 | 10 | 45% |
+| &nbsp;&nbsp;↳ Collections & values | 4 | 2 | 0 | 4 | 10 | 50% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 3 | 0 | 1 | 3 | 7 | 43% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 3 | 3 | 0 | 5 | 11 | 41% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 1 | 0 | 4 | 9 | 50% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 5 | 2 | 0 | 2 | 9 | 67% |
 | &nbsp;&nbsp;↳ Networking | 1 | 0 | 0 | 6 | 7 | 14% |
-| **Swift runtime, stdlib & concurrency** | 27 | 1 | 0 | 9 | 37 | 74% |
-| &nbsp;&nbsp;↳ Combine | 9 | 0 | 0 | 4 | 13 | 69% |
+| **Swift runtime, stdlib & concurrency** | 27 | 2 | 0 | 9 | 38 | 74% |
+| &nbsp;&nbsp;↳ Combine | 9 | 1 | 0 | 4 | 14 | 68% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
 | Objective-C runtime & C library | 5 | 2 | 0 | 2 | 9 | 67% |
 | Core Graphics | 8 | 0 | 0 | 8 | 16 | 50% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
-| QuartzCore / Core Animation | 2 | 2 | 0 | 5 | 9 | 33% |
+| QuartzCore / Core Animation | 2 | 3 | 0 | 4 | 9 | 39% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
 | SpriteKit | 9 | 1 | 3 | 5 | 18 | 53% |
 | GameKit (Game Center) | 4 | 1 | 3 | 6 | 14 | 32% |
 | GameController, SceneKit, RealityKit & ARKit | 0 | 0 | 0 | 5 | 5 | 0% |
-| AVFoundation & audio | 1 | 4 | 0 | 9 | 14 | 21% |
+| AVFoundation & audio | 10 | 11 | 3 | 4 | 28 | 55% |
 | Photos, Vision, Core ML & camera | 0 | 0 | 0 | 7 | 7 | 0% |
 | StoreKit | 8 | 2 | 3 | 8 | 21 | 43% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **268** | **75** | **38** | **325** | **706** | **43%** |
+| **All areas** | **277** | **85** | **41** | **318** | **721** | **44%** |
 
 ---
 
@@ -664,7 +664,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `Decimal` | 🟡 | Int64 mantissa + exponent; less precision than Apple's 38 digits |
 | `NSError`, `LocalizedError`, `CustomNSError` | ✅ | |
 | `NSPredicate`, `NSExpression`, `NSSortDescriptor`, `SortDescriptor` | ❌ | |
-| Key-value coding (`value(forKey:)`) and observing (KVO, `observe(\.x)`) | ❌ | |
+| Key-value coding (`value(forKey:)`) and observing (KVO, `observe(\.x)`) | 🟡 | Swift `observe(_:options:)`, `NSKeyValueObservation` for changes posted with `will/didChangeValue(forKey:)` (isim frameworks: AVPlayer, AVPlayerItem, AVPlayerLayer — tested in HelloVideo); app `@objc dynamic` properties are not observed automatically; no `value(forKey:)` |
 | `UndoManager` | ❌ | |
 | `Progress` | ❌ | |
 
@@ -778,7 +778,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `catch`, `retry`, `replaceError`, `mapError`, `switchToLatest`, `decode`/`encode` | ❌ | |
 | `.values` (async bridge), `print`, `breakpoint` | ❌ | |
 | Foundation publishers: `Timer.publish`, `NotificationCenter.publisher`; RunLoop/DispatchQueue schedulers | ✅ | |
-| `URLSession.dataTaskPublisher`, KVO publisher | ❌ | |
+| KVO publisher (`publisher(for: \.x)`) | 🟡 | same limits as KVO (Foundation); tested with `AVPlayer.timeControlStatus` |
+| `URLSession.dataTaskPublisher` | ❌ | |
 
 ### Dispatch
 
@@ -842,10 +843,10 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `CALayer` basics (frame, bounds, corner radius/curve, border, background, opacity, `masksToBounds`, hidden) | 🟡 | minimal; lives in UIKit; no sublayer API |
+| `CALayer` basics (frame, bounds, corner radius/curve, border, background, opacity, `masksToBounds`, hidden) | 🟡 | minimal; lives in UIKit; a view's layer reports the view's frame/bounds |
 | Layer shadows | 🟡 | approximated (see UIKit) |
 | `magnificationFilter` / `minificationFilter` | ✅ | nearest affects image drawing |
-| Sublayers (`addSublayer`), custom layer drawing (`draw(in:)`, `contents`) | ❌ | |
+| Sublayers (`addSublayer`), custom layer drawing (`draw(in:)`, `contents`) | 🟡 | sublayers (add/insert/remove/replace) draw above the view's content and below its subviews; `draw(in:)` overrides run every frame; no `contents`, transforms or z-ordering among subviews (AVPlayerLayer tested in HelloVideo) |
 | `CAShapeLayer`, `CAGradientLayer`, `CATextLayer`, `CAReplicatorLayer`, `CAEmitterLayer` | ❌ | |
 | `CABasicAnimation`, `CAKeyframeAnimation`, `CASpringAnimation`, `CAAnimationGroup` | ❌ | |
 | `CATransaction`, `CAMediaTimingFunction` | ❌ | |
@@ -921,22 +922,40 @@ isim's Game Center is local: one player per device, no Apple servers.
 
 ## AVFoundation & audio
 
+Media decoding, speech and recording use host tools in child processes: **ffmpeg/ffprobe** (video, compressed audio,
+thumbnails, AAC encoding; GStreamer's `gst-launch-1.0` also decodes audio files), **espeak-ng** or espeak (speech).
+Headless test runs are silent (no audio device); timing, frames and callbacks still run.
+
 | API / feature | Status | Notes |
 |---|---|---|
-| `AVAudioSession` (category, mode, `setActive`) | 🟡 | accepted; no interruptions/route changes |
+| `AVAudioSession` (category, mode, `setActive`, record permission) | 🟡 | accepted; record permission always granted; no interruptions/route changes |
 | `AVAudioPlayer` (play, pause, stop, seek, loops, volume, delegate) | 🟡 | `rate`/`pan`/metering not applied; reports 1 channel |
-| `AVAudioEngine`, `AVAudioPlayerNode`, `AVAudioMixerNode` | 🟡 | buffer/file scheduling and mixing; no effects, taps or 3D audio |
-| `AVAudioFile`, `AVAudioPCMBuffer`, `AVAudioFormat` | 🟡 | reads linear-PCM CAF and WAV only |
-| Compressed audio decoding (AAC/M4A, MP3, ALAC) | ✅ | decoded by the host's ffmpeg or gst-launch-1.0 (48 kHz stereo); needs one of them installed |
-| Effects (`AVAudioUnitReverb`, EQ, time pitch) | ❌ | |
-| Recording (`AVAudioRecorder`, input node) | ❌ | |
-| `AVPlayer`, `AVPlayerItem`, `AVQueuePlayer`, `AVPlayerLayer` (video/streaming) | ❌ | |
-| AVKit (`AVPlayerViewController`, `VideoPlayer`) | ❌ | |
+| `AVAudioEngine`, `AVAudioPlayerNode`, `AVAudioMixerNode` | 🟡 | buffer/file scheduling and mixing; connections build effect chains; offline manual rendering (`enableManualRenderingMode`, `renderOffline`) tested; no 3D audio |
+| `AVAudioFile`, `AVAudioPCMBuffer`, `AVAudioFormat` | ✅ | reads PCM CAF/WAV itself and compressed formats via the host decoder; writes WAV/CAF, and m4a/AAC (and other extensions) via host ffmpeg (HelloAudio) |
+| Compressed audio decoding (AAC/M4A, MP3, ALAC) | ✅ | decoded by the host's ffmpeg or gst-launch-1.0 (48 kHz stereo); needs one of them installed; mono sources come out ~3 dB quieter (ffmpeg upmix) |
+| Effects (`AVAudioUnitReverb`, `AVAudioUnitEQ`, `AVAudioUnitTimePitch`, `AVAudioUnitVarispeed`, `AVAudioUnitDelay`, `AVAudioUnitDistortion`) | 🟡 | adapted: isim's own DSP (Freeverb-style reverb, RBJ biquads, overlap-add time stretch), applied when a buffer starts, so parameter changes affect the next buffer; tested offline (HelloAudio); varispeed unverified |
+| Taps (`installTap`) | 🟡 | input node (real time) and main mixer during offline rendering; no taps on real-time output |
+| Recording (`AVAudioRecorder`, `AVAudioEngine.inputNode`) | 🟡 | input is `ISIM_AUDIO_INPUT=<file>` (played into the mic in real time — tested) or `=mic` (host capture via ffmpeg-pulse/arecord, unverified); silence otherwise — the host microphone is never opened unless asked; metering is RMS/peak of recent input |
+| `AVPlayer`, `AVPlayerItem` (status, duration, `currentTime`, `seek`, rate, `timeControlStatus`, volume/mute) | ✅ | host ffmpeg decodes frames (≤960 px) and streams the soundtrack to the mixer; local files tested; http(s) URLs go to ffmpeg too (unverified); only rate 1 plays sound, no reverse playback |
+| Time observers (`addPeriodicTimeObserver`, `addBoundaryTimeObserver`), `AVPlayerItemDidPlayToEndTime`, `actionAtItemEnd` | ✅ | evaluated once per display frame |
+| `AVQueuePlayer`, `AVPlayerLooper` | ✅ | |
+| `AVPlayerLayer` (`player`, `videoGravity`, `isReadyForDisplay`, `videoRect`) | ✅ | a CALayer drawn by UIKit's renderer: as a sublayer or a view's `layerClass` |
+| `AVAsset`/`AVURLAsset` (duration, tracks, `naturalSize`, `nominalFrameRate`, `load(_:)`, `loadTracks`) | ✅ | probed with ffprobe; no metadata, no preferred transform |
+| `AVAssetImageGenerator` (thumbnails) | ✅ | one frame via host ffmpeg; tolerances ignored |
+| `CMTime`, `CMTimeRange` (CoreMedia) | ✅ | arithmetic, comparison, conversion, `NSValue(time:)`; no sample buffers or clocks |
+| AVKit `AVPlayerViewController` | 🟡 | iOS 17-style controls (play/pause, ±10 s, scrubber, elapsed/remaining, mute, close when presented, auto-hide); no picture in picture, AirPlay, speed menu UI or info panels |
+| SwiftUI `VideoPlayer` (with `videoOverlay`) | ✅ | the overlay does not take touches |
+| Picture in picture (`AVPictureInPictureController`), `AVRoutePickerView` | 🧩 | PiP reports unsupported; route picker is an empty view |
 | Capture (`AVCaptureSession`, camera, QR scanning) | ❌ | |
-| `AVSpeechSynthesizer` | ❌ | |
-| `AVAsset`, export, composition | ❌ | |
-| AudioToolbox (`AudioServicesPlaySystemSound`, Audio Queues, Audio Units) | ❌ | |
-| MediaPlayer (`MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`, music library) | ❌ | |
+| `AVSpeechSynthesizer`, `AVSpeechUtterance`, `AVSpeechSynthesisVoice` | 🟡 | adapted: host espeak-ng voices (rate/pitch/volume/voice mapped); delegate start/finish/pause/continue/cancel; `willSpeakRangeOfSpeechString` approximated by word length; `write(_:toBufferCallback:)` renders PCM; without a TTS engine utterances run silently with a logged message |
+| Composition and export (`AVMutableComposition`, `AVAssetExportSession`, `AVAssetReader`/`Writer`) | ❌ | |
+| AudioToolbox System Sound Services (`AudioServicesCreateSystemSoundID`, `PlaySystemSound`, completions) | 🟡 | sounds from files play; built-in IDs (e.g. 1104) play a synthesized click/chime instead of Apple's recordings |
+| `kSystemSoundID_Vibrate`, `AudioServicesPlayAlertSound` vibration | 🧩 | logged only (no haptics on the host) |
+| Audio Queues, Audio Units, Audio File/Converter services | ❌ | |
+| MediaPlayer `MPNowPlayingInfoCenter` | 🟡 | stored and logged; no lock screen/Control Center to show it |
+| MediaPlayer `MPRemoteCommandCenter` | 🟡 | handlers and selector targets; commands come from the `remote NAME [ARG]` script/control command (tested: play, skip, seek, disabled command) |
+| `MPVolumeView` | 🧩 | a slider that does not change the host volume |
+| Music library (`MPMediaLibrary`, `MPMediaQuery`, `MPMusicPlayerController`), MusicKit | ❌ | |
 
 ## Photos, Vision, Core ML & camera
 

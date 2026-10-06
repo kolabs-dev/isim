@@ -53,7 +53,9 @@ isim-0.1.0-linux-x86_64/bin/isim install isim-0.1.0-linux-x86_64/apps/*.app
 - Device data lives in `~/.local/share/isim` (override with `ISIM_DATA`).
 
 **Scripts** (for automation and tests) accept `wait S`, `tap X Y`, `tapid ID`, `taptext TEXT`, `holdid ID`,
-`type TEXT`, `key NAME`, `home`, `launch BUNDLE_ID`, `shot FILE.png`, `dump` and `quit`. Example:
+`type TEXT`, `key NAME`, `home`, `launch BUNDLE_ID`, `remote NAME [ARG]` (MPRemoteCommandCenter: play, pause, toggle,
+next, previous, skipforward, skipback, seek S, rate R), `shot FILE.png`, `dump` and `quit`. Microphone input for
+AVAudioRecorder/`inputNode` comes from `ISIM_AUDIO_INPUT=file.wav` (or `=mic` for the host microphone). Example:
 
 ```bash
 isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.png; quit"
