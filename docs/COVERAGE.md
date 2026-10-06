@@ -4,7 +4,7 @@ This tracks how much of the iOS 17/18 SDK isim covers, so you can follow progres
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-05
+Last updated: 2026-10-06
 
 **Legend**
 
@@ -22,8 +22,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 70 | 25 | 10 | 91 | 196 | 42% |
-| &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 4 | 9 | 23 | 35% |
+| **UIKit** | 70 | 25 | 11 | 90 | 196 | 42% |
+| &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 5 | 8 | 23 | 35% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 7 | 2 | 1 | 19 | 29 | 28% |
 | &nbsp;&nbsp;↳ Views & controls | 19 | 8 | 1 | 23 | 51 | 45% |
 | &nbsp;&nbsp;↳ Layout | 11 | 1 | 1 | 5 | 18 | 64% |
@@ -74,16 +74,16 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Photos, Vision, Core ML & camera | 0 | 0 | 0 | 7 | 7 | 0% |
 | StoreKit | 8 | 2 | 3 | 8 | 21 | 43% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 1 | 0 | 3 | 2 | 6 | 17% |
-| Data & persistence | 0 | 0 | 0 | 5 | 5 | 0% |
-| Identity & security | 0 | 0 | 0 | 7 | 7 | 0% |
-| Notifications & background work | 0 | 0 | 0 | 7 | 7 | 0% |
+| Data & persistence | 2 | 0 | 0 | 4 | 6 | 33% |
+| Identity & security | 4 | 0 | 1 | 5 | 10 | 40% |
+| Notifications & background work | 1 | 2 | 1 | 3 | 7 | 29% |
 | App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
 | Location & maps | 0 | 0 | 0 | 3 | 3 | 0% |
 | Personal data & device sensors | 0 | 0 | 0 | 6 | 6 | 0% |
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
-| Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
+| Logging & diagnostics | 4 | 0 | 2 | 2 | 8 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **268** | **75** | **38** | **325** | **706** | **43%** |
+| **All areas** | **277** | **77** | **43** | **317** | **714** | **44%** |
 
 ---
 
@@ -114,7 +114,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Home-screen quick actions (`UIApplicationShortcutItem`) | ❌ | |
 | Alternate app icons (`setAlternateIconName`) | ❌ | |
 | Memory warnings (`didReceiveMemoryWarning`) | 🧩 | method exists; never sent |
-| Remote notification registration | ❌ | see UserNotifications |
+| Remote notification registration | 🧩 | `registerForRemoteNotifications` fails with NSCocoaErrorDomain 3010 through `didFailToRegisterForRemoteNotificationsWithError` (no APNs on isim) |
 | `UIPasteboard` | ❌ | |
 
 ### View controllers & presentation
@@ -1000,8 +1000,9 @@ Local StoreKit testing, like Xcode's: products come from the project's `.storeki
 | Core Data (`NSPersistentContainer`, `NSManagedObjectContext`, fetch requests, `@FetchRequest`) | ❌ | |
 | SwiftData (`@Model`, `ModelContainer`, `@Query`) | ❌ | needs macros + Observation |
 | CloudKit (`CKContainer`, records, subscriptions, `NSPersistentCloudKitContainer`) | ❌ | |
-| SQLite (`sqlite3` C API) | ❌ | not in the SDK |
-| Keychain (`SecItemAdd/CopyMatching/Update/Delete`) | ❌ | |
+| SQLite (`sqlite3` C API, `import SQLite3`) | ✅ | `/usr/lib/libsqlite3.dylib` forwards to the host's `libsqlite3.so.0` (loaded on first use; a function the host's SQLite lacks stops the app with a message). Tested: SecurityTest, HelloSecurity |
+| Keychain passwords (`SecItemAdd/CopyMatching/Update/Delete`, generic + internet passwords) | ✅ | Swift (isim's Security module; Objective-C callers not yet). iOS attribute keys, duplicate detection, return data/attributes/persistent refs, match limits, access groups (default: bundle id). Stored per access group in `$ISIM_DATA/Library/Keychains` (0600 JSON, not encrypted; survives app deletion, erased by `isim reset`). `SecAccessControl` flags stored, not enforced |
+| Keychain keys, certificates, identities (`SecKey`, `SecCertificate`, `SecIdentity`) | ❌ | `SecItemAdd` returns `errSecUnimplemented` for these classes |
 
 ## Identity & security
 
@@ -1010,19 +1011,22 @@ Local StoreKit testing, like Xcode's: products come from the project's `.storeki
 | Sign in with Apple (`ASAuthorizationAppleIDProvider`, `SignInWithAppleButton`) | ❌ | |
 | `ASWebAuthenticationSession` (OAuth) | ❌ | |
 | Passkeys, password AutoFill (`ASAuthorizationController`) | ❌ | |
-| LocalAuthentication (Face ID / Touch ID, `LAContext`) | ❌ | |
-| CryptoKit (SHA-2, HMAC, AES-GCM, ChaChaPoly, P256, Curve25519) | ❌ | |
-| CommonCrypto, Security (`SecRandomCopyBytes`, certificates, trust) | ❌ | |
-| DeviceCheck / App Attest | ❌ | |
+| LocalAuthentication (Face ID / Touch ID, `LAContext`) | ✅ | `canEvaluatePolicy`/`evaluatePolicy` (+ async), `LAError`, `biometryType` from the device (Face ID; Touch ID on iPhone SE and non-Pro iPads). Face ID permission alert (`NSFaceIDUsageDescription`, remembered), simulated scan alert (Matching / Non-matching / Cancel), passcode fallback; `ISIM_BIOMETRY=match\|nomatch\|cancel`, `ISIM_BIOMETRY_ENROLLED=0`. Reply on a background queue like iOS |
+| CryptoKit (SHA-2, HMAC, AES-GCM, ChaChaPoly, P256, Curve25519) | ✅ | also P384/P521, `Insecure.MD5/SHA1`, HKDF, `SharedSecret` HKDF/X9.63 KDFs, ECDSA DER, public keys raw/X9.63/compressed/DER/PEM. AES/ChaCha/EC on the host's OpenSSL `libcrypto.so.3`. Byte inputs are `ContiguousBytes` (isim's Foundation has no `DataProtocol`). Known-answer tests from the RFCs/NIST |
+| CryptoKit: Secure Enclave, HPKE, `AES.KeyWrap`, compact keys, private-key PEM/DER | ❌ | |
+| CommonCrypto (`CC_SHA*`, `CC_MD5`, `CCHmac`, `CCCrypt`/`CCCryptor`, `CCKeyDerivationPBKDF`, `CCRandomGenerateBytes`) | ✅ | in libSystem like iOS; contexts copyable; AES (ECB/CBC/CTR/CFB/OFB) and 3DES via the host's OpenSSL, other ciphers `kCCUnimplemented`. Known-answer tests |
+| Security: `SecRandomCopyBytes`, `SecCopyErrorMessageString` | ✅ | |
+| Security: certificates and trust (`SecCertificate`, `SecTrust`, `SecPolicy`) | ❌ | |
+| DeviceCheck / App Attest | 🧩 | `isSupported` is false and calls fail with `DCError.featureUnsupported`, like the Simulator |
 
 ## Notifications & background work
 
 | API / feature | Status | Notes |
 |---|---|---|
-| UserNotifications: authorization request | ❌ | |
-| Local notifications (`UNNotificationRequest`, time/calendar triggers) | ❌ | |
-| Notification presentation (banners, Notification Center, actions, foreground delegate) | ❌ | |
-| Push notifications (APNs registration, remote payloads) | ❌ | |
+| UserNotifications: authorization request | ✅ | the iOS permission alert, answer remembered per app; provisional authorization; `notificationSettings()`; `ISIM_NOTIFICATION_PERMISSION=allow\|deny`. No per-app page in isim Settings |
+| Local notifications (`UNNotificationRequest`, time/calendar triggers) | 🟡 | time-interval and calendar (`DateComponents`) triggers, repeating, pending/delivered lists, persisted across launches; fire while the app runs (foreground, or background under `isim boot`). Not delivered while the app is not running (no system scheduler) |
+| Notification presentation (banners, Notification Center, actions, foreground delegate) | 🟡 | `willPresent`/`didReceive` (+ async); iOS-style banner in the app or, for a backgrounded app, drawn by the shell over the home screen; tap opens the app with the default action. No Notification Center list, action buttons, sounds or attachments |
+| Push notifications (APNs registration, remote payloads) | 🧩 | registration fails with NSCocoaErrorDomain 3010 |
 | Notification Service/Content extensions | ❌ | |
 | BackgroundTasks (`BGAppRefreshTask`, `BGProcessingTask`) | ❌ | |
 | Background audio, location, VoIP modes | ❌ | |
@@ -1077,7 +1081,11 @@ Local StoreKit testing, like Xcode's: products come from the project's `.storeki
 | API / feature | Status | Notes |
 |---|---|---|
 | `print`, `NSLog`, `debugPrint` | ✅ | to the terminal running isim |
-| `os.Logger`, `os_log`, `OSLog`, signposts | ❌ | `os` module not provided |
+| `os.Logger`, `os_log`, `OSLog` (Swift) | ✅ | levels, `OSLogMessage` interpolation with privacy (strings/objects `<private>` unless `.public`; `.private(mask: .hash)`), number/bool formatting, printf-style `os_log` with `%{public}`; stderr in `log stream` compact style. `ISIM_LOG_PRIVATE=1` shows private values, `ISIM_LOG_LEVEL` filters |
+| `os_log` C macros (Objective-C) | ❌ | `os/log.h` exists for module imports only |
+| Signposts (`OSSignposter`, `os_signpost`) | 🧩 | accepted, not recorded |
+| `OSLogStore` (reading logs back) | 🧩 | throws |
+| `os_unfair_lock`, `OSAllocatedUnfairLock` | ✅ | futex-backed, with owner checks |
 | MetricKit, crash reporting | ❌ | |
 | `assert`, `precondition`, `fatalError` messages | ✅ | |
 
