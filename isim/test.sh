@@ -51,6 +51,7 @@ if [ -x out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest ]; then
 fi
 if [ -x out/apps/SwiftNetworkTest.app/SwiftNetworkTest ]; then   # sockets + URLSession against an in-process server (no Internet)
   run "swift networking (sockets, URLSession, cookies, cache, NWPathMonitor)" bash -c 'export ISIM_DATA=$PWD/out/test-data/swift-network; rm -rf "$ISIM_DATA"; timeout 90 out/bin/isim run out/apps/SwiftNetworkTest.app/SwiftNetworkTest | tail -1; exit ${PIPESTATUS[0]}'
+fi
 if [ -x out/apps/SecurityTest.app/SecurityTest ]; then          # known-answer vectors, keychain on isolated device data, log lines
   run "security (CommonCrypto, CryptoKit, SQLite3, Keychain, os.Logger)" bash -c 'tests/security/run.sh | tail -1; exit ${PIPESTATUS[0]}'
 fi
