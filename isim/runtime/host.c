@@ -616,6 +616,11 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         pending[npending++] = (struct isim_event){ .type = EV_ID_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.05;
+    } else if (!strcmp(cmd, "swipeid") && sscanf(args, " %63[^; ] %lf %lf %lf", arg, &a, &b, &c) == 4) {
+        /* drag from the view's centre by (dx, dy) over c seconds; the app side runs the moves (mods = 1) */
+        pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN, .mods = 1, .x = a, .y = b, .key = (int)(c * 1000) };
+        snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        script_resume = now() + c + 0.05;
     } else if (!strcmp(cmd, "holdid") && sscanf(args, " %63[^; ] %lf", arg, &a) == 2) {
         pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         snprintf(held_id, sizeof held_id, "%s", arg); held_until = now() + a; script_resume = held_until + 0.05;

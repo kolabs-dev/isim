@@ -2,6 +2,61 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: UIListContentConfiguration
+  Methods:
+  - Selector: cellConfiguration
+    MethodKind: Class
+    SwiftName: cell()
+  - Selector: subtitleCellConfiguration
+    MethodKind: Class
+    SwiftName: subtitleCell()
+  - Selector: valueCellConfiguration
+    MethodKind: Class
+    SwiftName: valueCell()
+  - Selector: sidebarCellConfiguration
+    MethodKind: Class
+    SwiftName: sidebarCell()
+  - Selector: groupedHeaderConfiguration
+    MethodKind: Class
+    SwiftName: groupedHeader()
+  - Selector: groupedFooterConfiguration
+    MethodKind: Class
+    SwiftName: groupedFooter()
+  - Selector: plainHeaderConfiguration
+    MethodKind: Class
+    SwiftName: plainHeader()
+  - Selector: plainFooterConfiguration
+    MethodKind: Class
+    SwiftName: plainFooter()
+  - Selector: headerConfiguration
+    MethodKind: Class
+    SwiftName: header()
+  - Selector: footerConfiguration
+    MethodKind: Class
+    SwiftName: footer()
+- Name: UIListContentTextProperties
+  SwiftName: UIListContentConfiguration.TextProperties
+- Name: UIListContentImageProperties
+  SwiftName: UIListContentConfiguration.ImageProperties
+- Name: UIBackgroundConfiguration
+  Methods:
+  - Selector: listPlainCellConfiguration
+    MethodKind: Class
+    SwiftName: listPlainCell()
+  - Selector: listGroupedCellConfiguration
+    MethodKind: Class
+    SwiftName: listGroupedCell()
+  - Selector: clearConfiguration
+    MethodKind: Class
+    SwiftName: clear()
+- Name: UITableView
+  Methods:
+  - Selector: 'registerClass:forCellReuseIdentifier:'
+    MethodKind: Instance
+    SwiftName: 'register(_:forCellReuseIdentifier:)'
+  - Selector: 'registerClass:forHeaderFooterViewReuseIdentifier:'
+    MethodKind: Instance
+    SwiftName: 'register(_:forHeaderFooterViewReuseIdentifier:)'
 - Name: UIViewController
   Properties:
   - Name: presentedViewController
@@ -222,6 +277,8 @@ Classes:
     MethodKind: Instance
     SwiftName: 'handleInputModeList(from:with:)'
 Typedefs:
+- Name: UIContextualActionHandler
+  SwiftName: UIContextualAction.Handler
 - Name: UIScrollViewDecelerationRate
   SwiftName: UIScrollView.DecelerationRate
 - Name: UIFontTextStyle
@@ -243,6 +300,24 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UITableViewCellStyle
+  SwiftName: UITableViewCell.CellStyle
+- Name: UITableViewCellAccessoryType
+  SwiftName: UITableViewCell.AccessoryType
+- Name: UITableViewCellSelectionStyle
+  SwiftName: UITableViewCell.SelectionStyle
+- Name: UITableViewCellEditingStyle
+  SwiftName: UITableViewCell.EditingStyle
+- Name: UITableViewCellSeparatorStyle
+  SwiftName: UITableViewCell.SeparatorStyle
+- Name: UIContextualActionStyle
+  SwiftName: UIContextualAction.Style
+- Name: UITableViewStyle
+  SwiftName: UITableView.Style
+- Name: UITableViewScrollPosition
+  SwiftName: UITableView.ScrollPosition
+- Name: UITableViewRowAnimation
+  SwiftName: UITableView.RowAnimation
 - Name: UIBarButtonItemStyle
   SwiftName: UIBarButtonItem.Style
 - Name: UIBarButtonSystemItem
@@ -345,6 +420,8 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UITableViewAutomaticDimension
+  SwiftName: UITableView.automaticDimension
 - Name: UISegmentedControlNoSegment
   SwiftName: UISegmentedControl.noSegment
 - Name: UIApplicationDidFinishLaunchingNotification

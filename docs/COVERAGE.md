@@ -4,7 +4,7 @@ This tracks how much of the iOS 17/18 SDK isim covers, so you can follow progres
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-05
+Last updated: 2026-10-06
 
 **Legend**
 
@@ -22,13 +22,13 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 77 | 27 | 9 | 84 | 197 | 46% |
+| **UIKit** | 79 | 30 | 9 | 79 | 197 | 48% |
 | &nbsp;&nbsp;↳ Application & scenes | 6 | 4 | 4 | 9 | 23 | 35% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 10 | 3 | 0 | 16 | 29 | 40% |
-| &nbsp;&nbsp;↳ Views & controls | 22 | 9 | 1 | 19 | 51 | 52% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 11 | 2 | 0 | 16 | 29 | 41% |
+| &nbsp;&nbsp;↳ Views & controls | 23 | 12 | 1 | 15 | 51 | 57% |
 | &nbsp;&nbsp;↳ Layout | 12 | 1 | 1 | 5 | 19 | 66% |
 | &nbsp;&nbsp;↳ Animation | 5 | 2 | 0 | 5 | 12 | 50% |
-| &nbsp;&nbsp;↳ Gestures & touches | 4 | 0 | 0 | 9 | 13 | 31% |
+| &nbsp;&nbsp;↳ Gestures & touches | 4 | 1 | 0 | 8 | 13 | 35% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 6 | 2 | 1 | 5 | 14 | 50% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 8 | 3 | 0 | 7 | 18 | 53% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 0 | 0 | 1 | 2 | 3 | 0% |
@@ -51,9 +51,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
 | Swift Charts | 0 | 0 | 0 | 3 | 3 | 0% |
-| **Foundation** | 25 | 9 | 1 | 30 | 65 | 45% |
+| **Foundation** | 26 | 9 | 1 | 30 | 66 | 46% |
 | &nbsp;&nbsp;↳ Strings & text | 5 | 2 | 0 | 5 | 12 | 50% |
-| &nbsp;&nbsp;↳ Collections & values | 4 | 1 | 0 | 5 | 10 | 45% |
+| &nbsp;&nbsp;↳ Collections & values | 5 | 1 | 0 | 5 | 11 | 50% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 3 | 0 | 1 | 3 | 7 | 43% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 3 | 3 | 0 | 5 | 11 | 41% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 1 | 0 | 4 | 9 | 50% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **275** | **77** | **37** | **318** | **707** | **44%** |
+| **All areas** | **278** | **80** | **37** | **313** | **708** | **45%** |
 
 ---
 
@@ -147,7 +147,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIReferenceLibraryViewController`, `QLPreviewController` | ❌ | |
 | `UIInputViewController` (custom keyboard extension) | ✅ | loaded in-process; no Full Access |
 | `overrideUserInterfaceStyle` | ✅ | |
-| `setEditing(_:animated:)`, `editButtonItem` | 🟡 | editing flag and Edit/Done item; no table editing UI yet |
+| `setEditing(_:animated:)`, `editButtonItem` | ✅ | Edit/Done item; `UITableViewController` forwards to its table; tested (HelloTable) |
 | `preferredContentSize` | ❌ | |
 | `UIContentUnavailableConfiguration` | ❌ | |
 
@@ -187,12 +187,12 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIPageControl` | ✅ | tap to page; tested |
 | `UIColorWell` | ❌ | |
 | `UIScrollView` | 🟡 | one-finger pan, rubber-banding, deceleration, insets, delegate; no zooming, no paging animation |
-| `UITableView` (cells, sections, editing, swipe actions) | ❌ | biggest UIKit gap for list apps |
-| `UITableViewDiffableDataSource` | ❌ | |
+| `UITableView` (cells, sections, editing, swipe actions) | 🟡 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing actions, edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`; tested (HelloTable). Missing: leading swipe actions, drag to reorder, section index, prefetching, nibs |
+| `UITableViewDiffableDataSource` | ✅ | snapshots diffed into animated row inserts/deletes; reload/reconfigure; tested (HelloTable) |
 | `UICollectionView` + `UICollectionViewFlowLayout` | ❌ | |
 | `UICollectionViewCompositionalLayout` | ❌ | |
-| `UICollectionViewDiffableDataSource`, `NSDiffableDataSourceSnapshot` | ❌ | |
-| List cells (`UICollectionLayoutListConfiguration`, `UIListContentConfiguration`, cell accessories) | ❌ | |
+| `UICollectionViewDiffableDataSource`, `NSDiffableDataSourceSnapshot` | 🟡 | `NSDiffableDataSourceSnapshot` done (sections, items, insert/move/delete, reload); no collection view yet |
+| List cells (`UICollectionLayoutListConfiguration`, `UIListContentConfiguration`, cell accessories) | 🟡 | `UIListContentConfiguration` (cell/subtitle/value/header/footer, image, text properties) and `UIBackgroundConfiguration` in table cells; it is a class here, not a struct (adapted). No collection list layout, no custom `UIContentConfiguration` views |
 | `UIStackView` (axis, spacing, custom spacing, alignment, distribution) | ✅ | arranged as Auto Layout constraints |
 | `UIVisualEffectView` + `UIBlurEffect` (system materials) | ✅ | real backdrop blur + light/dark tint; no saturation boost |
 | `UIVibrancyEffect` | 🧩 | content drawn normally |
@@ -261,7 +261,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIPinchGestureRecognizer`, `UIRotationGestureRecognizer` | ❌ | need multi-touch |
 | `UIScreenEdgePanGestureRecognizer` | ❌ | |
 | `UIHoverGestureRecognizer` | ❌ | |
-| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | ❌ | not in the header |
+| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | 🟡 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`; no `require(toFail:)`; unverified apart from table swipes |
 | Custom `UIGestureRecognizer` subclasses | ❌ | touch hooks are isim-private |
 | Shake / motion events | ❌ | |
 | Hardware keys (`UIKeyCommand`, `pressesBegan`) | ❌ | host typing goes to text fields only |
@@ -660,6 +660,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 |---|---|---|
 | `NSArray`, `NSDictionary`, `NSSet` (+ mutable), literals, fast enumeration, sorting | ✅ | |
 | `NSOrderedSet`, `NSCountedSet`, `NSIndexSet`, `NSCache`, `NSHashTable`, `NSMapTable` | ❌ | |
+| `IndexPath` / `NSIndexPath` (+ UIKit `row`/`section`/`item`) | ✅ | value type bridged to NSIndexPath; tested (HelloTable) |
 | `NSNumber`, `NSValue` (CG geometry), `NSNull` | ✅ | |
 | `UUID` | ✅ | |
 | `Decimal` | 🟡 | Int64 mantissa + exponent; less precision than Apple's 38 digits |
@@ -717,7 +718,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 |---|---|---|
 | `NotificationCenter` (selector, block, Combine publisher) | ✅ | |
 | `NotificationQueue`, `DistributedNotificationCenter` | ❌ | |
-| `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | |
+| `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | the run loop keeps scheduled timers alive until invalidated |
 | `RunLoop` | 🟡 | main run loop only; modes ignored |
 | `Thread` (main checks, detach, sleep, name) | ✅ | |
 | `OperationQueue` | 🟡 | block operations only; no `Operation` subclasses or dependencies |

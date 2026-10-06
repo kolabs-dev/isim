@@ -3,6 +3,14 @@
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, UIGestureRecognizerState) { UIGestureRecognizerStatePossible, UIGestureRecognizerStateBegan, UIGestureRecognizerStateChanged, UIGestureRecognizerStateEnded, UIGestureRecognizerStateCancelled, UIGestureRecognizerStateFailed, UIGestureRecognizerStateRecognized = UIGestureRecognizerStateEnded };
+@class UIGestureRecognizer, UITouch;
+NS_SWIFT_UI_ACTOR
+@protocol UIGestureRecognizerDelegate <NSObject>
+@optional
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer;
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer;
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch;
+@end
 NS_SWIFT_UI_ACTOR
 @interface UIGestureRecognizer : NSObject
 - (instancetype)initWithTarget:(nullable id)target action:(nullable SEL)action NS_DESIGNATED_INITIALIZER;
@@ -13,7 +21,12 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, getter=isEnabled) BOOL enabled;
 @property (nullable, nonatomic, readonly) UIView *view;
 @property (nonatomic) BOOL cancelsTouchesInView;
+@property (nullable, nonatomic, weak) id<UIGestureRecognizerDelegate> delegate;
+@property (nullable, nonatomic, copy) NSString *name;
 - (CGPoint)locationInView:(nullable UIView *)view;
+@end
+@interface UIView (UIGestureRecognizerShouldBegin)
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer;
 @end
 @interface UITapGestureRecognizer : UIGestureRecognizer
 @property (nonatomic) NSUInteger numberOfTapsRequired;

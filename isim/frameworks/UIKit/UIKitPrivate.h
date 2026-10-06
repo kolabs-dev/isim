@@ -66,6 +66,8 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect
 @interface UIGestureRecognizer (IsimPrivate)
 - (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event;
 - (void)_isim_setView:(UIView *)v;
+- (BOOL)_isim_shouldBegin;                    /* delegate + view gestureRecognizerShouldBegin: */
+- (BOOL)_isim_exclusive; - (void)_isim_setExclusive:(BOOL)e;   /* on begin, other pending recognizers drop out */
 @end
 
 @interface NSLayoutConstraint (IsimPrivate)

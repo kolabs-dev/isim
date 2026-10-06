@@ -44,6 +44,8 @@ Classes:
   SwiftName: Formatter
 - Name: NSURL
   SwiftBridge: Foundation.URL
+- Name: NSIndexPath
+  SwiftBridge: Foundation.IndexPath
 - Name: NSLocale
   SwiftBridge: Foundation.Locale
 - Name: NSDate

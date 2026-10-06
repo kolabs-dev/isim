@@ -4,6 +4,7 @@
 #import <Foundation/NSObject.h>
 #import <Foundation/NSString.h>
 #import <Foundation/NSValue.h>
+#import <Foundation/NSIndexPath.h>
 #import <Foundation/NSArray.h>
 #import <Foundation/NSDictionary.h>
 #import <Foundation/NSSet.h>

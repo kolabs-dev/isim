@@ -491,6 +491,16 @@ static BOOL touch_cancelled;
 /* A recognizer that cancels touches in its view just recognized: the hit view gets
  * touchesCancelled once and no further touch callbacks for this sequence. */
 void isim_ui_gesture_recognized(UIGestureRecognizer *g) {
+    if (g.state == UIGestureRecognizerStateBegan && [cur_gestures containsObject:g]) {
+        /* other recognizers still waiting give way to an exclusive one (or to anyone, if their delegate says not simultaneous) */
+        for (UIGestureRecognizer *o in [cur_gestures copy]) {
+            if (o == g || o.state != UIGestureRecognizerStatePossible) continue;
+            id<UIGestureRecognizerDelegate> d = g.delegate, od = o.delegate;
+            BOOL simul = ([d respondsToSelector:@selector(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:)] && [d gestureRecognizer:g shouldRecognizeSimultaneouslyWithGestureRecognizer:o])
+                      || ([od respondsToSelector:@selector(gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:)] && [od gestureRecognizer:o shouldRecognizeSimultaneouslyWithGestureRecognizer:g]);
+            if (g._isim_exclusive && !simul) [cur_gestures removeObjectIdenticalTo:o];
+        }
+    }
     if (!g.cancelsTouchesInView || !cur_touch || touch_cancelled || ![cur_gestures containsObject:g]) return;
     touch_cancelled = YES;
     [cur_touch.view touchesCancelled:cur_event.allTouches withEvent:cur_event];
@@ -523,6 +533,8 @@ static void handle_touch(const struct isim_event *ev) {
             for (UIGestureRecognizer *g in v.gestureRecognizers) {
                 if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) continue;
                 if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
+                id<UIGestureRecognizerDelegate> gd = g.delegate;
+                if ([gd respondsToSelector:@selector(gestureRecognizer:shouldReceiveTouch:)] && ![gd gestureRecognizer:g shouldReceiveTouch:cur_touch]) continue;
                 [cur_gestures addObject:g];
             }
             if (v == control) aboveControl = YES;
@@ -539,7 +551,7 @@ static void handle_touch(const struct isim_event *ev) {
     UIView *v = t.view;
     /* Began reaches the view before recognizers act on it, as on iOS (no delaysTouchesBegan). */
     if (phase == UITouchPhaseBegan) [v touchesBegan:set withEvent:e];
-    for (UIGestureRecognizer *g in [cur_gestures copy]) [g _isim_touch:t phase:phase event:e];
+    for (UIGestureRecognizer *g in [cur_gestures copy]) if ([cur_gestures containsObject:g]) [g _isim_touch:t phase:phase event:e];
     if (!touch_cancelled) {
         if (phase == UITouchPhaseMoved) [v touchesMoved:set withEvent:e];
         else if (phase == UITouchPhaseEnded) [v touchesEnded:set withEvent:e];
@@ -600,6 +612,17 @@ static void handle_id_touch(const struct isim_event *ev) {
     struct isim_event t = *ev;
     t.type = ev->type == ISIM_EV_ID_DOWN || ev->type == ISIM_EV_TEXT_DOWN ? ISIM_EV_TOUCH_DOWN : ISIM_EV_TOUCH_UP;
     t.x = p.x + found.window.frame.origin.x; t.y = p.y + found.window.frame.origin.y;
+    if (ev->type == ISIM_EV_ID_DOWN && ev->mods == 1) {          /* script "swipeid ID dx dy seconds" */
+        double x0 = t.x, y0 = t.y, dx = ev->x, dy = ev->y, dur = fmax(0.05, ev->key / 1000.0), start = isim_time();
+        handle_touch(&t);
+        [NSTimer scheduledTimerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) {
+            double k = fmin(1, (isim_time() - start) / dur);
+            struct isim_event m = { .type = k >= 1 ? ISIM_EV_TOUCH_UP : ISIM_EV_TOUCH_MOVE, .x = x0 + dx * k, .y = y0 + dy * k, .timestamp = isim_time() };
+            if (k >= 1) { struct isim_event last = m; last.type = ISIM_EV_TOUCH_MOVE; handle_touch(&last); [timer invalidate]; }
+            handle_touch(&m);
+        }];
+        return;
+    }
     handle_touch(&t);
 }
 

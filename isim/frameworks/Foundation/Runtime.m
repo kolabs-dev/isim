@@ -311,6 +311,7 @@ void isim_bundle_register_extension(NSString *path) {
 @property (strong) id target, arg;
 @property SEL sel;
 @property (weak) NSTimer *timer;
+@property (strong) NSTimer *scheduled;     /* the run loop keeps a scheduled timer alive until it is invalidated */
 @end
 @implementation __IsimRunLoopItem @end
 
@@ -402,6 +403,7 @@ void isim_main_wait(double seconds) {
     self.item.valid = NO;
     [rl_items removeObject:self.item];
     pthread_mutex_unlock(&rl_lock);
+    self.item.scheduled = nil;
     self.target = nil; self.timerBlock = nil;
 }
 - (BOOL)isValid { return self.item.valid; }
@@ -417,6 +419,7 @@ NSRunLoopMode const NSRunLoopCommonModes = @"kCFRunLoopCommonModes";
 + (NSRunLoop *)currentRunLoop { return [self mainRunLoop]; }   /* isim: one (main) run loop */
 - (void)addTimer:(NSTimer *)t forMode:(NSRunLoopMode)mode {
     t.item.fireAt = mono_now() + t.item.interval;
+    t.item.scheduled = t;
     rl_add(t.item);
 }
 - (NSTimeInterval)_isim_fireDue {
@@ -433,7 +436,7 @@ NSRunLoopMode const NSRunLoopCommonModes = @"kCFRunLoopCommonModes";
         @autoreleasepool {
             if (!it.valid) continue;
             if (!it.repeats) it.valid = NO;
-            if (it.timer) [it.timer fire];
+            if (it.timer) { NSTimer *t = it.timer; [t fire]; if (!it.repeats) it.scheduled = nil; }
             else if (it.block) it.block();
             else if (it.target) ((void (*)(id, SEL, id))[it.target methodForSelector:it.sel])(it.target, it.sel, it.arg);
         }

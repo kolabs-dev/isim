@@ -504,6 +504,10 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 @property (nonatomic, strong) NSMutableArray<__IsimTargetAction *> *targets;
 @property (nonatomic) CGPoint startPoint, lastPoint;
 @property (nonatomic) NSTimeInterval startTime;
+@property (nonatomic) BOOL isimExclusive;
+@end
+@implementation UIView (UIGestureRecognizerShouldBegin)
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g { return YES; }
 @end
 @implementation UIGestureRecognizer
 - (instancetype)init { return [self initWithTarget:nil action:NULL]; }
@@ -514,6 +518,13 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 - (void)addTarget:(id)target action:(SEL)action { __IsimTargetAction *t = [__IsimTargetAction new]; t.target = target; t.action = action; [_targets addObject:t]; }
 - (void)removeTarget:(id)target action:(SEL)action { for (__IsimTargetAction *t in [_targets copy]) if ((!target || t.target == target) && (!action || t.action == action)) [_targets removeObjectIdenticalTo:t]; }
 - (void)_isim_setView:(UIView *)v { _view = v; }
+- (BOOL)_isim_exclusive { return self.isimExclusive; }
+- (void)_isim_setExclusive:(BOOL)e { self.isimExclusive = e; }
+- (BOOL)_isim_shouldBegin {
+    id<UIGestureRecognizerDelegate> d = _delegate;
+    if ([d respondsToSelector:@selector(gestureRecognizerShouldBegin:)] && ![d gestureRecognizerShouldBegin:self]) return NO;
+    return _view ? [_view gestureRecognizerShouldBegin:self] : YES;
+}
 - (CGPoint)locationInView:(UIView *)v { return [self.view convertPoint:_lastPoint toView:v]; }
 - (void)_fire {
     if (_state == UIGestureRecognizerStateBegan || _state == UIGestureRecognizerStateEnded) isim_ui_gesture_recognized(self);
@@ -543,7 +554,11 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     if (phase == UITouchPhaseBegan) { self.startPoint = p; self.state = UIGestureRecognizerStatePossible; _ns = 0; [self _sample:p time:touch.timestamp]; }
     else if (phase == UITouchPhaseMoved) {
         [self _sample:p time:touch.timestamp];
-        if (self.state == UIGestureRecognizerStatePossible && hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) { self.startPoint = p; self.state = UIGestureRecognizerStateBegan; self.lastPoint = p; [self _fire]; }
+        if (self.state == UIGestureRecognizerStatePossible && hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) {
+            self.lastPoint = p;                     /* translation/velocity are readable from gestureRecognizerShouldBegin: */
+            if (![self _isim_shouldBegin]) { self.state = UIGestureRecognizerStateFailed; return; }
+            self.startPoint = p; self.state = UIGestureRecognizerStateBegan; [self _fire];
+        }
         else if (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged) { self.state = UIGestureRecognizerStateChanged; self.lastPoint = p; [self _fire]; }
     } else if (phase == UITouchPhaseEnded && (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged)) {
         [self _sample:p time:touch.timestamp];
