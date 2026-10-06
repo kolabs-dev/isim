@@ -645,13 +645,14 @@ NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailure
     if ((self = [super init])) { _domain = [d copy]; _code = c; _userInfo = [u copy] ?: @{}; }
     return self;
 }
+/* through the accessors: the Swift runtime's NSError subclass for bridged Swift errors overrides them */
 - (NSString *)localizedDescription {
-    NSString *s = _userInfo[NSLocalizedDescriptionKey];
-    return s ?: [NSString stringWithFormat:@"The operation couldn’t be completed. (%@ error %ld.)", _domain, (long)_code];
+    NSString *s = self.userInfo[NSLocalizedDescriptionKey];
+    return s ?: [NSString stringWithFormat:@"The operation couldn’t be completed. (%@ error %ld.)", self.domain, (long)self.code];
 }
-- (NSString *)localizedFailureReason { return _userInfo[NSLocalizedFailureReasonErrorKey]; }
+- (NSString *)localizedFailureReason { return self.userInfo[NSLocalizedFailureReasonErrorKey]; }
 - (id)copyWithZone:(NSZone *)z { return self; }
-- (NSString *)description { return [NSString stringWithFormat:@"Error Domain=%@ Code=%ld \"%@\"", _domain, (long)_code, self.localizedDescription]; }
+- (NSString *)description { return [NSString stringWithFormat:@"Error Domain=%@ Code=%ld \"%@\"", self.domain, (long)self.code, self.localizedDescription]; }
 @end
 
 @implementation NSCoder @end

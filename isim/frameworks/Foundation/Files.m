@@ -31,10 +31,45 @@ static NSString *encode_path(NSString *path, BOOL keepSlash) {
 }
 @implementation NSURL { NSString *_string; NSString *_scheme, *_host, *_path, *_query, *_fragment, *_user; NSNumber *_port; }
 + (instancetype)URLWithString:(NSString *)s { return [[self alloc] initWithString:s]; }
+/* removes "." and ".." segments (RFC 3986 5.2.4) */
+static NSString *remove_dot_segments(NSString *path) {
+    NSMutableArray *out = [NSMutableArray array];
+    NSArray *segs = [path componentsSeparatedByString:@"/"];
+    for (NSUInteger i = 0; i < segs.count; i++) {
+        NSString *seg = segs[i]; BOOL last = i + 1 == segs.count;
+        if ([seg isEqualToString:@"."]) { if (last) [out addObject:@""]; continue; }
+        if ([seg isEqualToString:@".."]) { if (out.count > 1) [out removeLastObject]; if (last) [out addObject:@""]; continue; }
+        [out addObject:seg];
+    }
+    return [out componentsJoinedByString:@"/"];
+}
+/* RFC 3986 5.2.2 reference resolution; the result is stored as an absolute URL (no separate baseURL) */
 + (instancetype)URLWithString:(NSString *)s relativeToURL:(NSURL *)base {
-    if (!base || [s containsString:@"://"] || [s hasPrefix:@"mailto:"]) return [self URLWithString:s];
-    NSString *dir = [base.absoluteString hasSuffix:@"/"] ? base.absoluteString : [base.absoluteString stringByDeletingLastPathComponent];
-    return [self URLWithString:[s hasPrefix:@"/"] ? [NSString stringWithFormat:@"%@://%@%@", base.scheme, base.host ?: @"", s] : [dir stringByAppendingPathComponent:s]];
+    NSURL *ref = [self URLWithString:s];
+    if (!base || !ref || ref->_scheme) return ref;
+    NSString *b = base.absoluteString;
+    NSRange cut = [b rangeOfString:@"#"]; if (cut.location != NSNotFound) b = [b substringToIndex:cut.location];
+    NSString *bq = nil; cut = [b rangeOfString:@"?"];
+    if (cut.location != NSNotFound) { bq = [b substringFromIndex:cut.location]; b = [b substringToIndex:cut.location]; }
+    /* prefix = scheme://authority, bpath = the base path */
+    NSString *prefix = base->_scheme ? [base->_scheme stringByAppendingString:@":"] : @"", *bpath = [b substringFromIndex:prefix.length];
+    if ([bpath hasPrefix:@"//"]) {
+        NSRange slash = [[bpath substringFromIndex:2] rangeOfString:@"/"];
+        NSUInteger end = slash.location == NSNotFound ? bpath.length : slash.location + 2;
+        prefix = [prefix stringByAppendingString:[bpath substringToIndex:end]]; bpath = [bpath substringFromIndex:end];
+    }
+    NSString *frag = ref->_fragment ? [@"#" stringByAppendingString:ref->_fragment] : @"";
+    NSString *q = ref->_query ? [@"?" stringByAppendingString:ref->_query] : nil;
+    NSString *result;
+    if ([s hasPrefix:@"//"]) result = [NSString stringWithFormat:@"%@%@", base->_scheme ? [base->_scheme stringByAppendingString:@":"] : @"", s];
+    else if (!ref->_path.length) result = [NSString stringWithFormat:@"%@%@%@%@", prefix, bpath, q ?: (bq ?: @""), frag];
+    else if ([ref->_path hasPrefix:@"/"]) result = [NSString stringWithFormat:@"%@%@%@%@", prefix, remove_dot_segments(ref->_path), q ?: @"", frag];
+    else {
+        NSRange ls = [bpath rangeOfString:@"/" options:NSBackwardsSearch];
+        NSString *dir = ls.location == NSNotFound ? @"/" : [bpath substringToIndex:ls.location + 1];
+        result = [NSString stringWithFormat:@"%@%@%@%@", prefix, remove_dot_segments([dir stringByAppendingString:ref->_path]), q ?: @"", frag];
+    }
+    return [self URLWithString:result];
 }
 + (NSURL *)fileURLWithPath:(NSString *)path { return [[self alloc] initFileURLWithPath:path]; }
 + (NSURL *)fileURLWithPath:(NSString *)path isDirectory:(BOOL)d { return [self fileURLWithPath:d && ![path hasSuffix:@"/"] ? [path stringByAppendingString:@"/"] : path]; }
@@ -66,8 +101,13 @@ static NSString *encode_path(NSString *path, BOOL keepSlash) {
         rest = slash.location == NSNotFound ? @"" : [rest substringFromIndex:slash.location];
         NSRange at = [authority rangeOfString:@"@"];
         if (at.location != NSNotFound) { _user = [authority substringToIndex:at.location]; authority = [authority substringFromIndex:at.location + 1]; }
-        NSRange pc = [authority rangeOfString:@":" options:NSBackwardsSearch];
-        if (pc.location != NSNotFound) { _port = @([[authority substringFromIndex:pc.location + 1] integerValue]); authority = [authority substringToIndex:pc.location]; }
+        NSRange pc = [authority rangeOfString:@":" options:NSBackwardsSearch], rb = [authority rangeOfString:@"]"];
+        if (pc.location != NSNotFound && (rb.location == NSNotFound || pc.location > rb.location)) {
+            NSString *ps = [authority substringFromIndex:pc.location + 1];
+            if (ps.length) _port = @([ps integerValue]);
+            authority = [authority substringToIndex:pc.location];
+        }
+        if ([authority hasPrefix:@"["] && [authority hasSuffix:@"]"]) authority = [authority substringWithRange:NSMakeRange(1, authority.length - 2)];   /* IPv6 literal */
         _host = authority.length ? authority : nil;
     }
     _path = rest;
