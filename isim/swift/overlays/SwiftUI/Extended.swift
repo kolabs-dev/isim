@@ -821,6 +821,8 @@ extension ButtonStyle where Self == BorderedProminentButtonStyle { public static
     func updateUIView(_ uiView: UIViewType, context: Context)
     static func dismantleUIView(_ uiView: UIViewType, coordinator: Coordinator)
     func makeCoordinator() -> Coordinator
+    /// iOS 16: the representable's own size for a proposal; nil = the default sizing
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIViewType, context: Context) -> CGSize?
     typealias Context = UIViewRepresentableContext<Self>
 }
 extension UIViewRepresentable where Coordinator == Void {
@@ -828,6 +830,7 @@ extension UIViewRepresentable where Coordinator == Void {
 }
 extension UIViewRepresentable {
     public static func dismantleUIView(_ uiView: UIViewType, coordinator: Coordinator) {}
+    public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIViewType, context: Context) -> CGSize? { nil }
     public var body: Never { fatalError("UIViewRepresentable has no body") }
 }
 public struct UIViewRepresentableContext<Representable: UIViewRepresentable> {
@@ -864,8 +867,11 @@ final class _RepresentableNode<R: UIViewRepresentable>: _Node {
         return s
     }
     override func sizeThatFits(_ p: _Proposal) -> CGSize {
+        let s0 = state
+        if let own = rep.sizeThatFits(ProposedViewSize(width: p.width, height: p.height), uiView: s0.view,
+                                      context: UIViewRepresentableContext(coordinator: s0.coordinator, environment: env)) { return own }
         // like SwiftUI: the proposed size; views with an intrinsic size use it where nothing is proposed
-        let v = state.view
+        let v = s0.view
         let i = v.intrinsicContentSize
         return CGSize(width: p.width.map { min($0, 1e6) } ?? (i.width > 0 ? i.width : 10),
                       height: p.height.map { min($0, 1e6) } ?? (i.height > 0 ? i.height : 10))
@@ -885,10 +891,14 @@ final class _RepresentableNode<R: UIViewRepresentable>: _Node {
     func makeUIViewController(context: Context) -> UIViewControllerType
     func updateUIViewController(_ vc: UIViewControllerType, context: Context)
     func makeCoordinator() -> Coordinator
+    func sizeThatFits(_ proposal: ProposedViewSize, uiViewController: UIViewControllerType, context: Context) -> CGSize?
     typealias Context = UIViewControllerRepresentableContext<Self>
 }
 extension UIViewControllerRepresentable where Coordinator == Void { public func makeCoordinator() -> Coordinator { () } }
-extension UIViewControllerRepresentable { public var body: Never { fatalError("UIViewControllerRepresentable has no body") } }
+extension UIViewControllerRepresentable {
+    public var body: Never { fatalError("UIViewControllerRepresentable has no body") }
+    public func sizeThatFits(_ proposal: ProposedViewSize, uiViewController: UIViewControllerType, context: Context) -> CGSize? { nil }
+}
 public struct UIViewControllerRepresentableContext<Representable: UIViewControllerRepresentable> {
     public let coordinator: Representable.Coordinator
     public var environment: EnvironmentValues
@@ -906,7 +916,12 @@ final class _VCRepresentableNode<R: UIViewControllerRepresentable>: _Node {
         graph.storage[key] = s
         return s
     }
-    override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: min(p.width ?? 10, 1e6), height: min(p.height ?? 10, 1e6)) }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize {
+        let s = state
+        if let own = rep.sizeThatFits(ProposedViewSize(width: p.width, height: p.height), uiViewController: s.vc,
+                                      context: UIViewControllerRepresentableContext(coordinator: s.coord, environment: env)) { return own }
+        return CGSize(width: min(p.width ?? 10, 1e6), height: min(p.height ?? 10, 1e6))
+    }
     override func mountView(_ g: _Graph) -> UIView {
         let s = state
         g.mountedKeys.insert(viewKey)
