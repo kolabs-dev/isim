@@ -621,6 +621,17 @@ static const char *types_in_list(const struct method_list_t *ml, SEL sel) {
     }
     return NULL;
 }
+struct objc_method_description { SEL name; const char *types; };
+static const char *proto_method_types(struct protocol_t *p, SEL sel, int req, int inst, int depth) {
+    if (!p || depth > 16) return NULL;
+    const char *t = types_in_list(req ? (inst ? p->inst : p->cls) : (inst ? p->opt_inst : p->opt_cls), sel);
+    for (uintptr_t i = 0; !t && p->protocols && i < p->protocols->count; i++) t = proto_method_types(p->protocols->list[i], sel, req, inst, depth + 1);
+    return t;
+}
+struct objc_method_description protocol_getMethodDescription(struct protocol_t *p, SEL sel, int req, int inst) {
+    const char *t = sel ? proto_method_types(p, sel, req & 1, inst & 1, 0) : NULL;
+    return (struct objc_method_description){ t ? sel : NULL, t };
+}
 static struct rt_method *method_for(Class cls, SEL sel, int create_on_owner) {
     for (Class c = cls; c; c = c->superclass) {
         struct rt_class *r = R(c);
@@ -1052,7 +1063,7 @@ static const struct shim objc_table[] = {
     I(objc_getClass), I(objc_lookUpClass), I(objc_getMetaClass), I(class_getName), I(class_getSuperclass), I(class_isMetaClass),
     I(class_getInstanceSize), I(object_getClass), I(object_setClass), I(object_getClassName), I(class_respondsToSelector),
     I(class_getMethodImplementation), I(class_getMethodImplementation_stret), I(class_createInstance), I(object_dispose), I(objc_destructInstance),
-    I(objc_getProtocol), I(protocol_getName), I(protocol_conformsToProtocol), I(class_conformsToProtocol),
+    I(objc_getProtocol), I(protocol_getMethodDescription), I(protocol_getName), I(protocol_conformsToProtocol), I(class_conformsToProtocol),
     I(_objc_rootRetain), I(_objc_rootRelease), I(_objc_rootReleaseWasZero), I(_objc_rootRetainCount), I(_objc_rootAutorelease),
     I(_objc_rootIsDeallocating), I(_objc_realizeClassFromSwift),
     I(objc_retain), I(objc_release), I(objc_autorelease), I(objc_retainAutorelease), I(objc_retainAutoreleaseReturnValue),
