@@ -174,6 +174,14 @@ Class NSClassFromString(NSString *s) {
     return c;
 }
 NSString *NSStringFromProtocol(Protocol *p) { return [NSString stringWithUTF8String:protocol_getName(p)]; }
+NSRange NSUnionRange(NSRange a, NSRange b) {
+    NSUInteger lo = MIN(a.location, b.location), hi = MAX(NSMaxRange(a), NSMaxRange(b));
+    return NSMakeRange(lo, hi - lo);
+}
+NSRange NSIntersectionRange(NSRange a, NSRange b) {
+    NSUInteger lo = MAX(a.location, b.location), hi = MIN(NSMaxRange(a), NSMaxRange(b));
+    return hi > lo ? NSMakeRange(lo, hi - lo) : NSMakeRange(0, 0);
+}
 NSString *NSStringFromRange(NSRange r) { return [NSString stringWithFormat:@"{%lu, %lu}", (unsigned long)r.location, (unsigned long)r.length]; }
 NSString *NSStringFromCGPoint(CGPoint p) { return [NSString stringWithFormat:@"{%g, %g}", p.x, p.y]; }
 NSString *NSStringFromCGSize(CGSize s) { return [NSString stringWithFormat:@"{%g, %g}", s.width, s.height]; }

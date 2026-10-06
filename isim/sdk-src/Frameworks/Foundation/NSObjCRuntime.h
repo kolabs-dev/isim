@@ -68,6 +68,9 @@ typedef NSRange *NSRangePointer;
 NS_INLINE NSRange NSMakeRange(NSUInteger loc, NSUInteger len) { NSRange r = { loc, len }; return r; }
 NS_INLINE NSUInteger NSMaxRange(NSRange r) { return r.location + r.length; }
 NS_INLINE BOOL NSLocationInRange(NSUInteger loc, NSRange r) { return loc - r.location < r.length; }
+NS_INLINE BOOL NSEqualRanges(NSRange a, NSRange b) { return a.location == b.location && a.length == b.length; }
+FOUNDATION_EXPORT NSRange NSUnionRange(NSRange range1, NSRange range2);
+FOUNDATION_EXPORT NSRange NSIntersectionRange(NSRange range1, NSRange range2);
 
 #ifndef MIN
 #define MIN(A, B) ({ __typeof__(A) __a = (A); __typeof__(B) __b = (B); __a < __b ? __a : __b; })

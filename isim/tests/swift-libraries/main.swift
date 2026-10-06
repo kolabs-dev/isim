@@ -1,5 +1,5 @@
 // Library self-test on isim: Dispatch (Swift API), Combine, JSON/Codable, Data, Calendar,
-// CharacterSet, UUID, Decimal, String encodings, FileManager/Bundle URL APIs, Regex.
+// CharacterSet, UUID, Decimal, String encodings, FileManager/Bundle URL APIs, Regex, AttributedString/Markdown.
 import Foundation
 import Combine
 import RegexBuilder
@@ -330,6 +330,30 @@ final class Note: NSObject, NSSecureCoding {
         child.completedUnitCount = 2
         check(progress.completedUnitCount == 9 && progress.localizedDescription == "90% completed", "Progress folds finished children (\(progress.localizedDescription ?? ""))")
         pobs.invalidate()
+
+
+        // MARK: AttributedString + Markdown
+        var attr = AttributedString("Hello world")
+        attr.link = URL(string: "https://example.com")
+        let worldRange = attr.range(of: "world")!
+        attr[worldRange].inlinePresentationIntent = .stronglyEmphasized
+        check(attr.runs.count == 2 && String(attr[worldRange].characters) == "world" && attr[worldRange].link?.absoluteString == "https://example.com", "AttributedString runs / range(of:) / substring attributes")
+        attr.characters.append(contentsOf: "!")
+        attr += AttributedString(" bye", attributes: AttributeContainer().inlinePresentationIntent(.emphasized))
+        check(String(attr.characters) == "Hello world! bye" && attr.runs.count == 3, "AttributedString characters / append / AttributeContainer builder")
+        let nsAttr = NSAttributedString(attr)
+        check(nsAttr.string == "Hello world! bye" && (nsAttr.attribute(NSAttributedString.Key("NSLink"), at: 0, effectiveRange: nil) as? NSURL) != nil && AttributedString(nsAttr) == attr, "AttributedString <-> NSAttributedString")
+        let mdInline = try! AttributedString(markdown: "Hi **bold** *it* `code` [link](https://x.y/z) ~~old~~")
+        let intents = mdInline.runs.compactMap { $0.inlinePresentationIntent }
+        check(String(mdInline.characters) == "Hi bold it code link old" && intents == [.stronglyEmphasized, .emphasized, .code, .strikethrough], "AttributedString(markdown:) inline styles")
+        check(mdInline.runs.first { $0.link != nil }.map { String(mdInline[$0.range].characters) } == "link", "AttributedString(markdown:) links")
+        let mdDoc = try! AttributedString(markdown: "# Title\n\nBody text\n\n- one\n- two\n\n```swift\nlet x = 1\n```")
+        let kinds = mdDoc.runs[\.presentationIntent].compactMap { $0.0?.components.first?.kind }
+        check(kinds == [.header(level: 1), .paragraph, .paragraph, .paragraph, .codeBlock(languageHint: "swift")] && String(mdDoc.characters) == "TitleBody textonetwolet x = 1\n", "AttributedString(markdown:) blocks -> presentationIntent (\(kinds))")
+        let listItem = mdDoc.runs.first { String(mdDoc[$0.range].characters) == "two" }?.presentationIntent
+        check(listItem?.components.map(\.kind) == [.paragraph, .listItem(ordinal: 2), .unorderedList], "Markdown list item presentation intent")
+        let preserved = try! AttributedString(markdown: "line one\nline **two**", options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))
+        check(String(preserved.characters) == "line one\nline two", "Markdown inlineOnlyPreservingWhitespace")
 
         // MARK: Timer.publish (needs the main run loop)
         var ticks = 0

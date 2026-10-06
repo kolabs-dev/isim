@@ -306,6 +306,30 @@ int main(int argc, char *argv[]) {
         CHECK([pi isOperatingSystemAtLeastVersion:v15] && ![pi isOperatingSystemAtLeastVersion:v99]);
         CHECK([pi.operatingSystemVersionString hasPrefix:@"Version "] && pi.globallyUniqueString.length > 30 && pi.environment[@"HOME"] != nil);
 
+        // NSAttributedString / NSMutableAttributedString
+        NSMutableAttributedString *mas = [[NSMutableAttributedString alloc] initWithString:@"Hello world" attributes:@{@"k": @1}];
+        [mas addAttribute:@"b" value:@YES range:NSMakeRange(6, 5)];
+        NSRange er; NSDictionary *at = [mas attributesAtIndex:7 effectiveRange:&er];
+        CHECK(er.location == 6 && er.length == 5 && [at[@"k"] isEqual:@1] && [at[@"b"] isEqual:@YES]);
+        CHECK([[mas attribute:@"k" atIndex:7 effectiveRange:&er] isEqual:@1] && er.location == 0 && er.length == 11);
+        [mas replaceCharactersInRange:NSMakeRange(0, 5) withString:@"Goodbye"];
+        CHECK([mas.string isEqualToString:@"Goodbye world"] && [mas attribute:@"b" atIndex:8 effectiveRange:&er] && er.location == 8);
+        [mas appendAttributedString:[[NSAttributedString alloc] initWithString:@"!" attributes:@{@"k": @1}]];
+        __block int runCount = 0;
+        [mas enumerateAttributesInRange:NSMakeRange(0, mas.length) options:0 usingBlock:^(NSDictionary *a, NSRange r, BOOL *stop) { runCount++; }];
+        CHECK(runCount == 3 && mas.length == 14);
+        [mas removeAttribute:@"b" range:NSMakeRange(0, mas.length)];
+        runCount = 0;
+        [mas enumerateAttributesInRange:NSMakeRange(0, mas.length) options:0 usingBlock:^(NSDictionary *a, NSRange r, BOOL *stop) { runCount++; }];
+        CHECK(runCount == 1);
+        NSAttributedString *sub = [mas attributedSubstringFromRange:NSMakeRange(8, 5)];
+        CHECK([sub.string isEqualToString:@"world"] && [sub isEqual:[[NSAttributedString alloc] initWithString:@"world" attributes:@{@"k": @1}]]);
+        NSData *asArchive = [NSKeyedArchiver archivedDataWithRootObject:mas requiringSecureCoding:YES error:NULL];
+        [mas addAttribute:@"c" value:@"x" range:NSMakeRange(0, 3)];
+        NSAttributedString *back = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSAttributedString class] fromData:[NSKeyedArchiver archivedDataWithRootObject:mas requiringSecureCoding:YES error:NULL] error:NULL];
+        if (![back isEqualToAttributedString:mas]) NSLog(@"archived %@ -> %@", mas, back);
+        CHECK(asArchive.length > 0 && [back isEqualToAttributedString:mas]);
+
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }
     return failures;

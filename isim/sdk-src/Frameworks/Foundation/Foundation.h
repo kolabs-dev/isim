@@ -42,3 +42,4 @@
 #import <Foundation/NSUUID.h>
 #import <Foundation/NSUndoManager.h>
 #import <Foundation/NSFileHandle.h>
+#import <Foundation/NSAttributedString.h>
