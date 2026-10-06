@@ -9,7 +9,7 @@
 #else
 #define OBJC_ARC_UNAVAILABLE_ATTR
 #endif
-@class NSString, Protocol;
+@class NSString, Protocol, NSMethodSignature, NSInvocation;
 #pragma clang assume_nonnull begin
 @protocol NSObject
 - (BOOL)isEqual:(nullable id)object;
@@ -58,6 +58,12 @@ __attribute__((objc_root_class))
 + (Class)class;
 + (NSString *)description;
 + (NSString *)debugDescription;
+@end
+/* message forwarding (implemented by isim's Foundation, Invocation.mrc.m) */
+@interface NSObject (NSObjectForwarding)
+- (void)forwardInvocation:(NSInvocation *)anInvocation __attribute__((availability(swift, unavailable)));
+- (null_unspecified NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector __attribute__((availability(swift, unavailable)));
++ (null_unspecified NSMethodSignature *)instanceMethodSignatureForSelector:(SEL)aSelector __attribute__((availability(swift, unavailable)));
 @end
 #pragma clang assume_nonnull end
 #endif

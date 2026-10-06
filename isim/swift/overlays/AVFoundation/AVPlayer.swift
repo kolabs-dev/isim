@@ -564,3 +564,8 @@ public func AVMakeRect(aspectRatio: CGSize, insideRect boundingRect: CGRect) -> 
     guard aspectRatio.width > 0, aspectRatio.height > 0 else { return .zero }
     return AVMakeRect(aspectRatio: aspectRatio, gravity: .resizeAspect, in: boundingRect)
 }
+
+extension AVPlayer {
+    /// isim: host image handle of the current video frame (0 before the first frame); SpriteKit's SKVideoNode draws it
+    public var _isimVideoFrame: Int32 { _frame }
+}

@@ -64,7 +64,7 @@ void isim_ui_material(NSInteger style, BOOL dark, double *radius, double tint[4]
     return self;
 }
 - (instancetype)initWithFrame:(CGRect)frame { if ((self = [self initWithEffect:nil])) self.frame = frame; return self; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithEffect:nil]; }
+- (instancetype)initWithCoder:(NSCoder *)c { extern id isim_ib_init_with_coder(id, NSCoder *); return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (UIView *)contentView { return _content; }
 - (void)setEffect:(UIVisualEffect *)e { _effect = e; isim_ui_set_needs_display(); }
 - (void)layoutSubviews { [super layoutSubviews]; _content.frame = self.bounds; }

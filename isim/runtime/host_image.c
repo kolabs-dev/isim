@@ -449,3 +449,5 @@ int isim_image_adopt_surface(cairo_surface_t *s) {
     struct img v = { IMG_RASTER, s, NULL, cairo_image_surface_get_width(s), cairo_image_surface_get_height(s) };
     return new_img(v);
 }
+/* the raster surface behind a handle (NULL for vector/procedural images); used by host_ca.c */
+cairo_surface_t *isim_image_surface(int hd) { struct img *im = get(hd); return im && im->kind == IMG_RASTER ? im->surf : NULL; }
