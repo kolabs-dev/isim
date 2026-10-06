@@ -180,6 +180,62 @@ struct Save: Codable, Equatable {
         check("one two  three".split(separator: /\s+/).count == 3, "split(separator: Regex)")
         check("cafe\u{301}".firstMatch(of: /caf./)?.0 == "café", "Regex matches grapheme clusters")
 
+        // MARK: FormatStyle / formatters (explicit locales and time zones)
+        let us = Locale(identifier: "en_US"), br = Locale(identifier: "pt_BR"), deDE = Locale(identifier: "de_DE"), fr = Locale(identifier: "fr_FR")
+        let la = TimeZone(identifier: "America/Los_Angeles")!
+        let when = Date(timeIntervalSince1970: 1_791_212_645)          // 2026-10-05 15:04:05 UTC
+        func eq(_ a: String, _ b: String, _ what: String) { check(a == b, "\(what): \(a)") }
+        eq(Date.FormatStyle(date: .numeric, time: .shortened, locale: us, timeZone: la).format(when), "10/5/2026, 8:04\u{202F}AM", "Date.FormatStyle numeric+shortened en_US")
+        eq(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: us, timeZone: la).format(when), "Oct 5, 2026", "Date.FormatStyle abbreviated")
+        eq(Date.FormatStyle(date: .complete, time: .omitted, locale: br, timeZone: la).format(when), "segunda-feira, 5 de outubro de 2026", "Date.FormatStyle complete pt_BR")
+        eq(Date.FormatStyle(date: .long, time: .omitted, locale: deDE, timeZone: la).format(when), "5. Oktober 2026", "Date.FormatStyle long de_DE")
+        eq(Date.FormatStyle(locale: us, timeZone: la).weekday(.wide).month(.abbreviated).day().format(when), "Monday, Oct 5", ".dateTime builders")
+        eq(Date.FormatStyle(locale: fr, timeZone: la).hour().minute().format(when), "08:04", "24-hour time in fr_FR")
+        eq(when.formatted(.iso8601), "2026-10-05T15:04:05Z", "Date.ISO8601FormatStyle")
+        check((try? Date("2026-10-05T08:04:05-07:00", strategy: .iso8601)) == when, "Date(_:strategy: .iso8601)")
+        let isoF = ISO8601DateFormatter(); isoF.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        eq(isoF.string(from: when.addingTimeInterval(0.25)), "2026-10-05T15:04:05.250Z", "ISO8601DateFormatter fractional seconds")
+        check(isoF.date(from: "2026-10-05T15:04:05.250Z") == when.addingTimeInterval(0.25), "ISO8601DateFormatter parses")
+        eq(1_234_567.formatted(.number.locale(us)), "1,234,567", "Int.formatted(.number)")
+        eq(1_234_567.89.formatted(.number.locale(deDE)), "1.234.567,89", "Double.formatted de_DE")
+        eq(Double.pi.formatted(.number.locale(us)), "3.141593", "default 6 fraction digits")
+        eq(2.675.formatted(.number.precision(.fractionLength(2)).locale(us)), "2.68", "precision rounds the decimal value (half-even)")
+        eq(0.256.formatted(.percent.locale(us)), "25.6%", "Double.formatted(.percent)")
+        eq(25.formatted(.percent.locale(fr)), "25\u{202F}%", "Int.formatted(.percent) fr_FR")
+        eq(1234.5.formatted(.currency(code: "USD").locale(us)), "$1,234.50", "currency USD en_US")
+        eq(1234.5.formatted(.currency(code: "BRL").locale(br)), "R$\u{A0}1.234,50", "currency BRL pt_BR")
+        eq(1234.5.formatted(.currency(code: "EUR").locale(deDE)), "1.234,50\u{A0}€", "currency EUR de_DE")
+        eq((-3.5).formatted(.currency(code: "USD").locale(us)), "-$3.50", "negative currency")
+        eq(Decimal(string: "19.99")!.formatted(.currency(code: "USD").locale(us)), "$19.99", "Decimal currency")
+        eq(1_234_567.formatted(.number.notation(.compactName).locale(us)), "1.2M", "compact name")
+        eq(42.formatted(.number.sign(strategy: .always()).locale(us)), "+42", "sign strategy always")
+        eq(["Apples", "Pears", "Plums"].formatted(.list(type: .and).locale(us)), "Apples, Pears, and Plums", "ListFormatStyle en_US")
+        eq(["maçãs", "peras"].formatted(.list(type: .or).locale(br)), "maçãs ou peras", "ListFormatStyle or pt_BR")
+        eq(Int64(1_234_567).formatted(.byteCount(style: .file).locale(us)), "1.2 MB", "ByteCountFormatStyle")
+        eq(ByteCountFormatter.string(fromByteCount: 0, countStyle: .file), "Zero KB", "ByteCountFormatter zero")
+        eq(Duration.seconds(3725).formatted(), "1:02:05", "Duration.formatted()")
+        eq(Duration.seconds(3725).formatted(.units(allowed: [.hours, .minutes], width: .wide).locale(us)), "1 hour, 2 minutes", "Duration units")
+        let rel = RelativeDateTimeFormatter(); rel.locale = us
+        eq(rel.localizedString(fromTimeInterval: -7200), "2 hours ago", "RelativeDateTimeFormatter numeric")
+        rel.dateTimeStyle = .named
+        eq(rel.localizedString(fromTimeInterval: -86400), "yesterday", "RelativeDateTimeFormatter named")
+        rel.locale = br; rel.dateTimeStyle = .numeric
+        eq(rel.localizedString(fromTimeInterval: 3 * 86400), "em 3 dias", "RelativeDateTimeFormatter pt_BR")
+        let dcf = DateComponentsFormatter(); dcf.unitsStyle = .abbreviated
+        eq(dcf.string(from: 3725) ?? "", "1h 2m 5s", "DateComponentsFormatter abbreviated")
+        dcf.unitsStyle = .positional; dcf.allowedUnits = [.minute, .second]
+        eq(dcf.string(from: 65) ?? "", "1:05", "DateComponentsFormatter positional")
+        dcf.unitsStyle = .full; dcf.allowedUnits = [.hour, .minute]
+        eq(dcf.string(from: DateComponents(hour: 2, minute: 30)) ?? "", "2 hours, 30 minutes", "DateComponentsFormatter(DateComponents)")
+        let dif = DateIntervalFormatter(); dif.locale = us; dif.timeZone = la
+        eq(dif.string(from: when, to: when.addingTimeInterval(3600)), "10/5/26, 8:04\u{2009}–\u{2009}9:04\u{202F}AM", "DateIntervalFormatter same day")
+        eq(PersonNameComponents(givenName: "Ada", familyName: "Lovelace").formatted(.name(style: .abbreviated)), "AL", "PersonNameComponents abbreviated")
+        check((try? Int("1,234", format: .number.locale(us))) == 1234 && (try? Double("12.5%", format: .percent.locale(us))) == 0.125, "number parse strategies")
+        check((try? Date("2026-10-05", strategy: Date.ParseStrategy(format: "\(year: .defaultDigits)-\(month: .twoDigits)-\(day: .twoDigits)", timeZone: .gmt))) == Date(timeIntervalSince1970: 1_791_158_400), "Date.ParseStrategy with Date.FormatString")
+        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX"); df.timeZone = .gmt; df.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
+        eq(df.string(from: when), "Mon, 05 Oct 2026 15:04:05 +0000", "DateFormatter RFC 1123")
+        check(df.date(from: "Mon, 05 Oct 2026 08:04:05 -0700") == when, "DateFormatter parses month names and offsets")
+
         // MARK: Timer.publish (needs the main run loop)
         var ticks = 0
         let timer = Timer.publish(every: 0.02, on: .main, in: .common).autoconnect().sink { _ in ticks += 1 }

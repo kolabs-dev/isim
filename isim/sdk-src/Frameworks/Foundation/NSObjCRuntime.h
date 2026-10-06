@@ -58,7 +58,7 @@ typedef unsigned long NSUInteger;
 #define NSIntegerMin (-__LONG_MAX__ - 1L)
 #define NSUIntegerMax (__LONG_MAX__ * 2UL + 1UL)
 static const NSInteger NSNotFound = NSIntegerMax;
-typedef double NSTimeInterval;
+typedef double NSTimeInterval NS_SWIFT_NAME(TimeInterval);
 typedef struct _NSZone NSZone;
 
 typedef NS_ENUM(NSInteger, NSComparisonResult) { NSOrderedAscending = -1L, NSOrderedSame, NSOrderedDescending };

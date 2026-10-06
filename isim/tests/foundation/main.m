@@ -98,6 +98,28 @@ int main(int argc, char *argv[]) {
         CHECK(found.count == 4 && [found[1].URL.absoluteString isEqualToString:@"mailto:me@kolabs.dev"] && [found[2].phoneNumber isEqualToString:@"+1 (555) 123-4567"]);
         CHECK(found.count == 4 && found[3].resultType == NSTextCheckingTypeDate && found[3].date != nil);
 
+        // formatters (explicit locales; the device region drives the defaults)
+        NSLocale *enUS = [NSLocale localeWithLocaleIdentifier:@"en_US"], *ptBR = [NSLocale localeWithLocaleIdentifier:@"pt_BR"];
+        NSDate *when = [NSDate dateWithTimeIntervalSince1970:1791212645];       // 2026-10-05 15:04:05 UTC
+        NSDateFormatter *dfm = [NSDateFormatter new]; dfm.locale = enUS; dfm.timeZone = [NSTimeZone timeZoneWithName:@"America/Los_Angeles"];
+        dfm.dateStyle = NSDateFormatterMediumStyle; dfm.timeStyle = NSDateFormatterShortStyle;
+        CHECK([[dfm stringFromDate:when] isEqualToString:@"Oct 5, 2026, 8:04 AM"]);
+        dfm.locale = ptBR; dfm.dateStyle = NSDateFormatterLongStyle; dfm.timeStyle = NSDateFormatterNoStyle;
+        CHECK([[dfm stringFromDate:when] isEqualToString:@"5 de outubro de 2026"]);
+        [dfm setLocalizedDateFormatFromTemplate:@"MMMMd"];
+        CHECK([dfm.dateFormat isEqualToString:@"d 'de' MMMM"]);
+        NSNumberFormatter *nfm = [NSNumberFormatter new]; nfm.locale = ptBR; nfm.numberStyle = NSNumberFormatterCurrencyStyle;
+        CHECK([[nfm stringFromNumber:@1234.5] isEqualToString:@"R$ 1.234,50"] && [[nfm numberFromString:@"R$ 10,25"] doubleValue] == 10.25);
+        nfm.locale = enUS; nfm.numberStyle = NSNumberFormatterSpellOutStyle;
+        CHECK([[nfm stringFromNumber:@42] isEqualToString:@"forty-two"]);
+        nfm.numberStyle = NSNumberFormatterOrdinalStyle;
+        CHECK([[nfm stringFromNumber:@23] isEqualToString:@"23rd"]);
+        CHECK([[[NSISO8601DateFormatter new] stringFromDate:when] isEqualToString:@"2026-10-05T15:04:05Z"]);
+        NSByteCountFormatter *bcf = [NSByteCountFormatter new];
+        CHECK([[bcf stringFromByteCount:999] isEqualToString:@"999 bytes"] && [[bcf stringFromByteCount:2500000000] isEqualToString:@"2.5 GB"]);
+        NSListFormatter *lfm = [NSListFormatter new]; lfm.locale = ptBR;
+        CHECK([[lfm stringFromItems:(@[@"a", @"b", @"c"])] isEqualToString:@"a, b e c"]);
+
         // numbers & collections
         NSArray *arr = @[@3, @1, @2];
         NSArray *sorted = [arr sortedArrayUsingSelector:@selector(compare:)];

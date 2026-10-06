@@ -5,7 +5,7 @@
 @_exported import Dispatch
 @_exported import Combine
 
-public typealias TimeInterval = Double
+// TimeInterval is the imported NSTimeInterval typedef (Double), like Apple's Foundation
 
 // MARK: String <-> NSString
 extension String: _ObjectiveCBridgeable {
@@ -211,7 +211,7 @@ public struct Locale: Hashable, @unchecked Sendable, CustomStringConvertible {
   @usableFromInline let _ns: NSLocale
   public init(identifier: String) { _ns = NSLocale(localeIdentifier: identifier) }
   init(_ns: NSLocale) { self._ns = _ns }
-  public static var current: Locale { Locale(identifier: NSLocale.__isim_currentIdentifier()) }
+  public static var current: Locale { Locale(_ns: NSLocale.__isim_current()) }
   public static var autoupdatingCurrent: Locale { current }
   public static var preferredLanguages: [String] { NSLocale.preferredLanguages }
   public var identifier: String { _ns.localeIdentifier }
@@ -231,11 +231,11 @@ public struct Locale: Hashable, @unchecked Sendable, CustomStringConvertible {
   public func hash(into h: inout Hasher) { h.combine(identifier) }
 }
 extension NSLocale {
-  @usableFromInline static func __isim_currentIdentifier() -> String {
-    // currentLocale is bridged to Locale in Swift; fetch the identifier through the ObjC object directly
+  @usableFromInline static func __isim_currentIdentifier() -> String { __isim_current().localeIdentifier }
+  /// the current locale object (carries the user's preferences, e.g. 24-hour time); currentLocale is bridged to Locale in Swift
+  static func __isim_current() -> NSLocale {
     let cls: AnyObject = NSLocale.self
-    let obj = cls.perform(Selector("currentLocale")).takeUnretainedValue() as! NSLocale
-    return obj.localeIdentifier
+    return cls.perform(Selector("currentLocale")).takeUnretainedValue() as! NSLocale
   }
 }
 extension Locale: _ObjectiveCBridgeable {
