@@ -285,7 +285,9 @@ open class PHPhotoLibrary: NSObject, @unchecked Sendable {
         for r in reqs {
             if let c = r as? PHAssetChangeRequest {
                 if c.creating {
-                    guard let (data, ext, w, h) = c.payload(), let rec = _PHStore.add(data, ext: ext, width: w, height: h, created: c.creationDate ?? Date(), id: c.placeholder.localIdentifier) else {
+                    // image encoding draws with the host renderer, which belongs to the main thread
+                    let payload = Thread.isMainThread ? c.payload() : DispatchQueue.main.sync { c.payload() }
+                    guard let (data, ext, w, h) = payload, let rec = _PHStore.add(data, ext: ext, width: w, height: h, created: c.creationDate ?? Date(), id: c.placeholder.localIdentifier) else {
                         throw PHPhotosError(.invalidResource)
                     }
                     c.placeholder.localIdentifier = rec.id
