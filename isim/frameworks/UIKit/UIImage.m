@@ -60,6 +60,7 @@ static NSDictionary *asset_index(NSBundle *bundle) {
     NSString *_name;
     CGRect _crop;                       /* pixel rectangle of the host image; CGRectNull = all */
 }
+- (id)copyWithZone:(NSZone *)z { return self; }          /* images are immutable */
 
 - (UIImage *)_copy {
     UIImage *i = [UIImage new];

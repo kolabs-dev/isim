@@ -2,7 +2,7 @@
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIControl.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UILabel, UIImage, UIImageView, UIColor, UIFont, UIButtonConfiguration, UIImageSymbolConfiguration;
+@class UILabel, UIImage, UIImageView, UIColor, UIFont, UIButtonConfiguration, UIImageSymbolConfiguration, UIMenu;
 typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeSystem = 1, UIButtonTypeDetailDisclosure, UIButtonTypeInfoLight, UIButtonTypeInfoDark, UIButtonTypeContactAdd, UIButtonTypeClose = 7, UIButtonTypeRoundedRect = UIButtonTypeSystem };
 @interface UIButton : UIControl
 + (instancetype)buttonWithType:(UIButtonType)buttonType;
@@ -10,6 +10,9 @@ typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeS
 + (instancetype)buttonWithConfiguration:(UIButtonConfiguration *)configuration primaryAction:(nullable UIAction *)primaryAction;
 @property (nonatomic, readonly) UIButtonType buttonType;
 @property (nonatomic, copy, nullable) UIButtonConfiguration *configuration;
+@property (nullable, nonatomic, copy) UIMenu *menu;
+@property (nonatomic) BOOL showsMenuAsPrimaryAction;
+@property (nonatomic) BOOL changesSelectionAsPrimaryAction;
 - (void)setNeedsUpdateConfiguration;
 @property (nonatomic) UIEdgeInsets contentEdgeInsets;
 - (void)setTitle:(nullable NSString *)title forState:(UIControlState)state;

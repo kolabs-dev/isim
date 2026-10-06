@@ -22,3 +22,21 @@ extension CGRect {
         CGRect(x: origin.x + i.left, y: origin.y + i.top, width: size.width - i.left - i.right, height: size.height - i.top - i.bottom)
     }
 }
+
+// MARK: - Menus (Swift conveniences from Apple's UIKit overlay)
+extension UIAction {
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+                            discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [],
+                            state: UIMenuElement.State = .off, handler: @escaping UIActionHandler) {
+        self.init(__title: title, image: image, identifier: identifier, discoverabilityTitle: discoverabilityTitle,
+                  attributes: attributes, state: state, handler: handler)
+        self.subtitle = subtitle
+    }
+}
+extension UIMenu {
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+                            options: UIMenu.Options = [], children: [UIMenuElement] = []) {
+        self.init(__title: title, image: image, identifier: identifier, options: options, children: children)
+        self.subtitle = subtitle
+    }
+}

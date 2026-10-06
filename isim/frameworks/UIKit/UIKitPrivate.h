@@ -118,6 +118,8 @@ void isim_ui_keyboard_check(void);
 /* view animations (UIView.m) */
 BOOL isim_ui_animations_tick(void);                      /* evaluates running animations; YES while any runs */
 BOOL isim_ui_animations_running(void);
+BOOL isim_ui_display_links_fire(void);                  /* CADisplayLink callbacks for this frame (UIMoreControls.m) */
+BOOL isim_ui_display_links_active(void);
 void isim_ui_animate(double duration, double delay, UIViewAnimationOptions o, int spring, double damping, double velocity,
                      void (^animations)(void), void (^completion)(BOOL));
 void isim_ui_without_animation(void (^block)(void));
@@ -147,4 +149,10 @@ NSString *isim_ui_installed_apps_dir(void);
 @property (nonatomic, readonly) CGFloat _isim_pointSize;
 @property (nonatomic, readonly) UIImageSymbolWeight _isim_weight;
 @property (nonatomic, readonly) UIImageSymbolScale _isim_scale;
+@end
+
+/* UIAction internals (UIControls.m) */
+@interface UIAction (IsimPrivate)
+- (nullable UIActionHandler)handler;
+- (void)setSender:(nullable id)sender;
 @end

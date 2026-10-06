@@ -39,3 +39,4 @@
 #import <UIKit/UIScene.h>
 #import <UIKit/UIFeedbackGenerator.h>
 #import <UIKit/UIVisualEffectView.h>
+#import <UIKit/UIMoreControls.h>

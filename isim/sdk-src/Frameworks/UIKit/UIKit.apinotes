@@ -243,6 +243,16 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIActivityIndicatorViewStyle
+  SwiftName: UIActivityIndicatorView.Style
+- Name: UIProgressViewStyle
+  SwiftName: UIProgressView.Style
+- Name: UIMenuElementAttributes
+  SwiftName: UIMenuElement.Attributes
+- Name: UIMenuElementState
+  SwiftName: UIMenuElement.State
+- Name: UIMenuOptions
+  SwiftName: UIMenu.Options
 - Name: UIBlurEffectStyle
   SwiftName: UIBlurEffect.Style
 - Name: UIImpactFeedbackStyle
@@ -325,6 +335,8 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UISegmentedControlNoSegment
+  SwiftName: UISegmentedControl.noSegment
 - Name: UIApplicationDidFinishLaunchingNotification
   SwiftName: UIApplication.didFinishLaunchingNotification
 - Name: UIApplicationDidBecomeActiveNotification

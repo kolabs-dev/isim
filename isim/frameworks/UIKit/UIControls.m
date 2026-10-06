@@ -74,9 +74,19 @@
 @property (nonatomic, copy) UIActionHandler handler;
 @property (nonatomic, weak) id sender;
 @end
+@implementation UIMenuElement
+- (instancetype)init { if ((self = [super init])) _title = @""; return self; }
+- (id)copyWithZone:(NSZone *)z { return self; }
+@end
 @implementation UIAction
 + (instancetype)actionWithHandler:(UIActionHandler)h { UIAction *a = [self new]; a.handler = h; a.title = @""; return a; }
-+ (instancetype)actionWithTitle:(NSString *)t image:(id)i identifier:(NSString *)ident handler:(UIActionHandler)h { UIAction *a = [self actionWithHandler:h]; a.title = t; return a; }
++ (instancetype)actionWithTitle:(NSString *)t image:(UIImage *)i identifier:(NSString *)ident handler:(UIActionHandler)h {
+    UIAction *a = [self actionWithHandler:h]; a.title = t ?: @""; a.image = i; a.identifier = ident; return a;
+}
++ (instancetype)actionWithTitle:(NSString *)t image:(UIImage *)i identifier:(NSString *)ident discoverabilityTitle:(NSString *)d
+                     attributes:(UIMenuElementAttributes)attr state:(UIMenuElementState)st handler:(UIActionHandler)h {
+    UIAction *a = [self actionWithTitle:t image:i identifier:ident handler:h]; a.attributes = attr; a.state = st; return a;
+}
 @end
 
 /* ================= UIControl ================= */
@@ -134,14 +144,20 @@
 }
 - (void)sendActionsForControlEvents:(UIControlEvents)ev { [self _isim_sendEvents:ev withEvent:nil]; }
 - (BOOL)_isim_inside:(CGPoint)p { return CGRectContainsPoint(CGRectInset(self.bounds, -70, -70), p); }  /* UIKit-like touch slop */
+- (BOOL)beginTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event { return YES; }
+- (BOOL)continueTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event { return YES; }
+- (void)endTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event {}
+- (void)cancelTrackingWithEvent:(UIEvent *)event {}
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)e {
     if (!_enabled) return;
     _tracking = YES; _inside = YES; _start = [touches.anyObject locationInView:self];
     self.highlighted = YES;
     [self _isim_sendEvents:UIControlEventTouchDown withEvent:e];
+    if (![self beginTrackingWithTouch:touches.anyObject withEvent:e]) _tracking = NO;
 }
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)e {
     if (!_tracking) return;
+    if (![self continueTrackingWithTouch:touches.anyObject withEvent:e]) { _tracking = NO; self.highlighted = NO; return; }
     BOOL inside = [self _isim_inside:[touches.anyObject locationInView:self]];
     if (inside != _inside) [self _isim_sendEvents:inside ? UIControlEventTouchDragEnter : UIControlEventTouchDragExit withEvent:e];
     _inside = inside; self.highlighted = inside;
@@ -150,6 +166,7 @@
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)e {
     if (!_tracking) return;
     _tracking = NO; self.highlighted = NO;
+    [self endTrackingWithTouch:touches.anyObject withEvent:e];
     BOOL inside = [self _isim_inside:[touches.anyObject locationInView:self]];
     if (inside) { [self _isim_touchUpInside]; [self _isim_sendEvents:UIControlEventTouchUpInside | UIControlEventPrimaryActionTriggered withEvent:e]; }
     else [self _isim_sendEvents:UIControlEventTouchUpOutside withEvent:e];
@@ -157,6 +174,7 @@
 - (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)e {
     if (!_tracking) return;
     _tracking = NO; self.highlighted = NO;
+    [self cancelTrackingWithEvent:e];
     [self _isim_sendEvents:UIControlEventTouchCancel withEvent:e];
 }
 - (void)_isim_touchUpInside {}
@@ -188,6 +206,9 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 /* ================= UIButton ================= */
 @implementation UIButton { NSMutableDictionary<NSNumber *, NSString *> *_titles; NSMutableDictionary<NSNumber *, UIColor *> *_colors; UILabel *_label;
     NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs; }
+- (void)_isim_touchUpInside {
+    if (self.showsMenuAsPrimaryAction && self.menu) [self _isim_presentMenu:self.menu fromRect:self.bounds];
+}
 + (instancetype)buttonWithType:(UIButtonType)t { UIButton *b = [[self alloc] initWithFrame:CGRectZero]; b->_buttonType = t; [b _isim_applyType]; return b; }
 + (instancetype)systemButtonWithPrimaryAction:(UIAction *)a {
     UIButton *b = [self buttonWithType:UIButtonTypeSystem];

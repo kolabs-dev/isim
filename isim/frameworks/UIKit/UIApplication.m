@@ -592,6 +592,7 @@ static void handle_id_touch(const struct isim_event *ev) {
 
 static void render_frame(void) {
     isim_ui_keyboard_check();
+    isim_ui_display_links_fire();
     isim_ui_animations_tick();
     UIWindow *key = top_window();
     UIViewController *vc = key.rootViewController;
@@ -762,7 +763,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
             if (tm.tm_min != lastMinute) { lastMinute = tm.tm_min; isim_ui_set_needs_display(); }
             if (isim_ui_take_display() && !backgrounded) { layout_all(); render_frame(); }
             double timeout = next < 0.5 ? next : 0.5;
-            if (isim_ui_animations_running() && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
+            if ((isim_ui_animations_running() || isim_ui_display_links_active()) && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
             struct isim_event ev;
             for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {
                 switch (ev.type) {

@@ -2,7 +2,7 @@
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIAction;
+@class UIAction, UITouch;
 typedef NS_OPTIONS(NSUInteger, UIControlEvents) {
     UIControlEventTouchDown = 1 << 0, UIControlEventTouchDownRepeat = 1 << 1, UIControlEventTouchDragInside = 1 << 2,
     UIControlEventTouchDragOutside = 1 << 3, UIControlEventTouchDragEnter = 1 << 4, UIControlEventTouchDragExit = 1 << 5,
@@ -37,13 +37,32 @@ typedef NS_ENUM(NSInteger, UIControlContentVerticalAlignment) { UIControlContent
 - (nullable NSArray<NSString *> *)actionsForTarget:(nullable id)target forControlEvent:(UIControlEvents)controlEvent;
 - (void)sendAction:(SEL)action to:(nullable id)target forEvent:(nullable UIEvent *)event;
 - (void)sendActionsForControlEvents:(UIControlEvents)controlEvents;
+- (BOOL)beginTrackingWithTouch:(UITouch *)touch withEvent:(nullable UIEvent *)event;
+- (BOOL)continueTrackingWithTouch:(UITouch *)touch withEvent:(nullable UIEvent *)event;
+- (void)endTrackingWithTouch:(nullable UITouch *)touch withEvent:(nullable UIEvent *)event;
+- (void)cancelTrackingWithEvent:(nullable UIEvent *)event;
 @end
 typedef void (^UIActionHandler)(UIAction *action);
+@class UIImage;
+typedef NS_OPTIONS(NSUInteger, UIMenuElementAttributes) { UIMenuElementAttributesDisabled = 1 << 0, UIMenuElementAttributesDestructive = 1 << 1, UIMenuElementAttributesHidden = 1 << 2 };
+typedef NS_ENUM(NSInteger, UIMenuElementState) { UIMenuElementStateOff, UIMenuElementStateOn, UIMenuElementStateMixed };
 NS_SWIFT_UI_ACTOR
-@interface UIAction : NSObject
-+ (instancetype)actionWithHandler:(UIActionHandler)handler;
-+ (instancetype)actionWithTitle:(NSString *)title image:(nullable id)image identifier:(nullable NSString *)identifier handler:(UIActionHandler)handler;
+@interface UIMenuElement : NSObject <NSCopying>
 @property (nonatomic, copy) NSString *title;
+@property (nullable, nonatomic, copy) UIImage *image;
+@property (nullable, nonatomic, copy) NSString *subtitle;
+@end
+NS_SWIFT_UI_ACTOR
+@interface UIAction : UIMenuElement
++ (instancetype)actionWithHandler:(UIActionHandler)handler;
++ (instancetype)actionWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(nullable NSString *)identifier handler:(UIActionHandler)handler;
++ (instancetype)actionWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(nullable NSString *)identifier
+           discoverabilityTitle:(nullable NSString *)discoverabilityTitle attributes:(UIMenuElementAttributes)attributes
+                          state:(UIMenuElementState)state handler:(UIActionHandler)handler
+    NS_SWIFT_NAME(init(__title:image:identifier:discoverabilityTitle:attributes:state:handler:));
 @property (nonatomic, readonly, nullable) id sender;
+@property (nonatomic) UIMenuElementAttributes attributes;
+@property (nonatomic) UIMenuElementState state;
+@property (nonatomic, copy) NSString *identifier;
 @end
 NS_ASSUME_NONNULL_END
