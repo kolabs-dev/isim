@@ -169,4 +169,13 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
+/* web engine for WKWebView (host_web.c + the isim-webkit helper, WebKitGTK): line protocol, TAB-separated escaped fields.
+   available: 1 if the engine can run (reason for 0 in why); next: next event line or NULL (wait up to timeout s; free it);
+   frame: image handle of a view's newest page frame (pixels in *w x *h; acknowledges it); release: forget a closed view */
+int isim_web_available(char *_Nullable why, int cap);
+void isim_web_send(const char *line);
+char *_Nullable isim_web_next(double timeout);
+void isim_web_free(char *_Nullable s);
+int isim_web_frame(int view, int *_Nullable w, int *_Nullable h);
+void isim_web_release(int view);
 __END_DECLS
