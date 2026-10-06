@@ -416,7 +416,7 @@ static __IsimCATx *tx_current(BOOL create) {
 }
 static id tx_value(NSString *key) {
     for (__IsimCATx *tx in [tx_stack reverseObjectEnumerator]) { id v = tx->vals[key]; if (v) return v; }
-    return implicit_tx->vals[key];
+    return implicit_tx ? implicit_tx->vals[key] : nil;
 }
 NSArray *ca_tx_current_list(void) {
     NSMutableArray *a = [NSMutableArray arrayWithArray:tx_stack ?: @[]];

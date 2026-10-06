@@ -137,7 +137,7 @@ void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, dou
     cairo_matrix_t m; cairo_get_matrix(cr, &m);
     double scale = sqrt(fabs(m.xx * m.yy - m.xy * m.yx)); if (scale <= 0) scale = 1;
     double rad = radius * scale;
-    int r = (int)lround(rad / 2);                 /* three box passes of width 2r+1 ~ Gaussian with sigma ~ radius / 2 */
+    int r = (int)lround((sqrt(rad * rad + 1) - 1) / 2);   /* three box passes of width 2r+1 ~ a Gaussian with sigma = radius / 2 */
     int pad = 3 * r + 2;
     /* only the non-empty part of the group */
     int minx = sw, miny = sh, maxx = -1, maxy = -1;
