@@ -44,3 +44,4 @@
 #import <Foundation/NSUndoManager.h>
 #import <Foundation/NSFileHandle.h>
 #import <Foundation/NSAttributedString.h>
+#import <Foundation/NSValueTransformer.h>

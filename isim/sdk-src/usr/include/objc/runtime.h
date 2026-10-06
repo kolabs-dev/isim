@@ -29,6 +29,10 @@ OBJC_EXPORT Ivar _Nonnull * _Nullable class_copyIvarList(Class _Nullable cls, un
 OBJC_EXPORT ptrdiff_t ivar_getOffset(Ivar _Nonnull v);
 OBJC_EXPORT const char * _Nullable ivar_getName(Ivar _Nonnull v);
 OBJC_EXPORT const char * _Nullable ivar_getTypeEncoding(Ivar _Nonnull v);
+OBJC_EXPORT objc_property_t _Nullable class_getProperty(Class _Nullable cls, const char * _Nonnull name);
+OBJC_EXPORT objc_property_t _Nonnull * _Nullable class_copyPropertyList(Class _Nullable cls, unsigned int * _Nullable outCount);
+OBJC_EXPORT const char * _Nonnull property_getName(objc_property_t _Nonnull property);
+OBJC_EXPORT const char * _Nullable property_getAttributes(objc_property_t _Nonnull property);
 OBJC_EXPORT Class _Nonnull class_setSuperclass(Class _Nonnull cls, Class _Nonnull newSuper);
 OBJC_EXPORT IMP _Nonnull method_setImplementation(Method _Nonnull m, IMP _Nonnull imp);
 OBJC_EXPORT void method_exchangeImplementations(Method _Nonnull m1, Method _Nonnull m2);

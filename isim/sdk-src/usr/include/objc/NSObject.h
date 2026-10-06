@@ -46,6 +46,8 @@ __attribute__((objc_root_class))
 - (id)copy;
 - (id)mutableCopy;
 + (BOOL)instancesRespondToSelector:(SEL)aSelector;
++ (BOOL)resolveInstanceMethod:(SEL)sel;
++ (BOOL)resolveClassMethod:(SEL)sel;
 + (BOOL)conformsToProtocol:(Protocol *)protocol;
 - (IMP)methodForSelector:(SEL)aSelector;
 + (IMP)instanceMethodForSelector:(SEL)aSelector;

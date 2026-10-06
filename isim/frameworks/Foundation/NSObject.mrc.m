@@ -51,6 +51,8 @@
 - (BOOL)respondsToSelector:(SEL)sel { return class_respondsToSelector(object_getClass(self), sel); }
 + (BOOL)respondsToSelector:(SEL)sel { return class_respondsToSelector(object_getClass(self), sel); }
 + (BOOL)instancesRespondToSelector:(SEL)sel { return class_respondsToSelector(self, sel); }
++ (BOOL)resolveInstanceMethod:(SEL)sel { return NO; }
++ (BOOL)resolveClassMethod:(SEL)sel { return NO; }
 - (BOOL)conformsToProtocol:(Protocol *)p { return [object_getClass(self) conformsToProtocol:p]; }
 + (BOOL)conformsToProtocol:(Protocol *)p {
     for (Class c = self; c; c = class_getSuperclass(c)) if (class_conformsToProtocol(c, p)) return YES;
