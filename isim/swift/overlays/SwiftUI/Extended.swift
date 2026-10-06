@@ -607,40 +607,7 @@ final class _GridNode: _Node {
     override func mountChildren(_ g: _Graph, in view: UIView) { for (i, c) in items.enumerated() { g.mount(c, in: view, order: i) } }
 }
 
-// MARK: - ProgressView
-
-public struct ProgressView<Label: View, CurrentValueLabel: View>: View, _PrimitiveView {
-    let value: Double?, total: Double
-    public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node {
-        _ProgressNode(path: ctx.path, fraction: value.map { min(1, max(0, $0 / max(total, .ulpOfOne))) }, tint: (ctx.environment._tint ?? .accentColor).uiColor)
-    }
-}
-extension ProgressView where Label == EmptyView, CurrentValueLabel == EmptyView {
-    public init() { value = nil; total = 1 }
-    public init<V: BinaryFloatingPoint>(value: V?, total: V = 1.0) { self.value = value.map(Double.init); self.total = Double(total) }
-}
-extension ProgressView where CurrentValueLabel == EmptyView {
-    public init(@ViewBuilder label: () -> Label) { value = nil; total = 1 }
-    public init<S: StringProtocol>(_ title: S) where Label == Text { value = nil; total = 1 }
-}
-final class _ProgressNode: _Node {
-    let fraction: Double?, tint: UIColor
-    init(path: String, fraction: Double?, tint: UIColor) { self.fraction = fraction; self.tint = tint; super.init(path: path, children: []) }
-    override func sizeThatFits(_ p: _Proposal) -> CGSize {
-        fraction == nil ? CGSize(width: 20, height: 20) : CGSize(width: min(p.width ?? 100, 1e6), height: 4)
-    }
-    override func mountView(_ g: _Graph) -> UIView {
-        if let f = fraction {                                  // determinate: UIProgressView
-            let v = g.view(viewKey + "/bar") { UIProgressView(progressViewStyle: .default) }
-            v.progress = Float(f); v.progressTintColor = tint
-            return v
-        }
-        let v = g.view(viewKey + "/spin") { UIActivityIndicatorView(style: .medium) }   // indeterminate: spinning
-        if !v.isAnimating { v.startAnimating() }
-        return v
-    }
-}
+// ProgressView: see Controls+More.swift
 
 // MARK: - Gestures
 
@@ -788,9 +755,9 @@ final class _SUIGestureView: UIView {
 
 public struct ButtonStyleConfiguration {
     public struct Label: View, _PrimitiveView {
-        let node: _Node
+        let make: @MainActor (_Context) -> _Node
         public var body: Never { fatalError() }
-        func _makeNode(_ ctx: _Context) -> _Node { node }
+        func _makeNode(_ ctx: _Context) -> _Node { make(ctx) }
     }
     public let role: ButtonRole?
     public let label: Label
@@ -823,19 +790,11 @@ public struct DefaultButtonStyle: ButtonStyle {
 }
 public struct BorderedButtonStyle: ButtonStyle {
     public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label.padding(.horizontal, 12).padding(.vertical, 7)
-            .background(Color("fill") { .tertiarySystemFill }, in: RoundedRectangle(cornerRadius: 8))
-            .opacity(configuration.isPressed ? 0.5 : 1)
-    }
+    public func makeBody(configuration: Configuration) -> some View { _BorderedButtonBody(configuration: configuration, prominent: false) }
 }
 public struct BorderedProminentButtonStyle: ButtonStyle {
     public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label.foregroundStyle(Color.white).padding(.horizontal, 12).padding(.vertical, 7)
-            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
-            .opacity(configuration.isPressed ? 0.6 : 1)
-    }
+    public func makeBody(configuration: Configuration) -> some View { _BorderedButtonBody(configuration: configuration, prominent: true) }
 }
 extension ButtonStyle where Self == PlainButtonStyle { public static var plain: PlainButtonStyle { PlainButtonStyle() } }
 extension ButtonStyle where Self == BorderlessButtonStyle { public static var borderless: BorderlessButtonStyle { BorderlessButtonStyle() } }

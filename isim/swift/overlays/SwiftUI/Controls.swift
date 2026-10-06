@@ -1,6 +1,6 @@
 // isim SwiftUI: input controls on UIKit's — Slider (UISlider), Stepper (UIStepper), Picker (segmented =
 // UISegmentedControl; menu = pop-up UIMenu; inline rows with checkmarks; navigationLink page; wheel shown as
-// a menu), Menu (pop-up UIMenu with sections, submenus and pickers) and ProgressView.
+// a menu), Menu (pop-up UIMenu with sections, submenus and pickers). ProgressView: Controls+More.swift; wheels: DatePicker.swift.
 import UIKit
 
 // MARK: - Slider
@@ -185,7 +185,7 @@ extension PickerStyle where Self == InlinePickerStyle { public static var inline
 extension PickerStyle where Self == WheelPickerStyle { public static var wheel: WheelPickerStyle { .init() } }
 extension PickerStyle where Self == NavigationLinkPickerStyle { public static var navigationLink: NavigationLinkPickerStyle { .init() } }
 extension PickerStyle where Self == PalettePickerStyle { public static var palette: PalettePickerStyle { .init() } }
-enum _PickerKind { case automatic, segmented, menu, inline, navigationLink }
+enum _PickerKind { case automatic, segmented, menu, inline, navigationLink, wheel }
 struct _PickerStyleKey: EnvironmentKey { static var defaultValue: _PickerKind { .automatic } }
 extension EnvironmentValues { var _pickerStyle: _PickerKind { get { self[_PickerStyleKey.self] } set { self[_PickerStyleKey.self] = newValue } } }
 extension View {
@@ -195,7 +195,8 @@ extension View {
         case is SegmentedPickerStyle, is PalettePickerStyle: k = .segmented
         case is InlinePickerStyle: k = .inline
         case is NavigationLinkPickerStyle: k = .navigationLink
-        case is MenuPickerStyle, is WheelPickerStyle: k = .menu            // isim: wheels show as menus
+        case is MenuPickerStyle: k = .menu
+        case is WheelPickerStyle: k = .wheel                               // DatePicker.swift's wheel
         default: k = .automatic
         }
         return _env { $0._pickerStyle = k }
@@ -274,6 +275,9 @@ public struct Picker<Label: View, SelectionValue: Hashable, Content: View>: View
             visual = _resolve(NavigationLink(destination: page) {
                 HStack { _NodeView(node: labelNode); Spacer(); Text(verbatim: currentTitle).foregroundStyle(.secondary) }
             }, ctx.child("nav"))
+        case .wheel:
+            visual = _WheelNode(path: ctx.path + "/wheel", columns: [options.map(\.title)], selected: [options.firstIndex { $0.tag == current } ?? 0],
+                                enabled: env.isEnabled) { _, r in if r < options.count { select(options[r].tag) } }
         case .menu, .automatic:
             let pickerMenu = { () -> UIMenu in
                 UIMenu(title: "", children: options.map { o in

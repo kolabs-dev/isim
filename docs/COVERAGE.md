@@ -35,13 +35,13 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 0 | 0 | 3 | 3 | 0% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 90 | 26 | 14 | 64 | 194 | 53% |
+| **SwiftUI** | 98 | 30 | 14 | 52 | 194 | 58% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 11 | 2 | 0 | 4 | 17 | 71% |
-| &nbsp;&nbsp;↳ Views & controls | 19 | 6 | 1 | 12 | 38 | 58% |
+| &nbsp;&nbsp;↳ Views & controls | 26 | 10 | 1 | 1 | 38 | 82% |
 | &nbsp;&nbsp;↳ Containers & layout | 12 | 4 | 2 | 9 | 27 | 52% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 10 | 5 | 1 | 7 | 23 | 54% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 11 | 2 | 7 | 4 | 24 | 50% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 12 | 2 | 7 | 3 | 24 | 54% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 3 | 1 | 0 | 5 | 9 | 39% |
 | &nbsp;&nbsp;↳ Animation | 2 | 3 | 1 | 6 | 12 | 29% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **317** | **112** | **46** | **291** | **766** | **49%** |
+| **All areas** | **325** | **116** | **46** | **279** | **766** | **50%** |
 
 ---
 
@@ -405,32 +405,32 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `Image` (asset/bundle name, `uiImage:`), `resizable`, `renderingMode`, `interpolation` | ✅ | |
 | `Image(systemName:)` | 🟡 | substitute glyphs, not SF Symbols |
 | `imageScale`, `symbolRenderingMode`, `symbolVariant`, `symbolEffect` | 🟡 | `imageScale` sizes symbols (tested); `symbolVariant` appends `.fill`/`.circle`/... to the symbol name (unverified); `symbolRenderingMode` accepted, ignored; `symbolEffect` missing |
-| `AsyncImage` | ❌ | not implemented (URLSession is available) |
+| `AsyncImage` | ✅ | URLSession (http(s), file, data URLs); phases, `content:placeholder:`; decoded through a temporary file (isim's UIImage has no `init(data:)`); tested (HelloPickers) |
 | `Label` | ✅ | |
 | `Button` (action, label, role) | ✅ | |
 | Button styles: `.plain`, `.borderless`, `.bordered`, `.borderedProminent`, custom `ButtonStyle` | ✅ | |
-| `PrimitiveButtonStyle`, `.controlSize`, `.buttonBorderShape` | ❌ | |
+| `PrimitiveButtonStyle`, `.controlSize`, `.buttonBorderShape` | ✅ | primitive styles build the whole button and call `trigger()`; control size sets bordered padding/font; capsule / rounded / circle shapes; tested (HelloPickers) |
 | `Toggle` (switch) | ✅ | |
 | `toggleStyle` (`.button`, `.checkbox`, custom) | 🧩 | accepted, ignored |
 | `Slider` | ✅ | UISlider; step, value labels, onEditingChanged; tested |
 | `Stepper` | ✅ | value/bounds/step and onIncrement/onDecrement; tested |
-| `Picker` (menu, segmented, wheel, inline, navigationLink styles) | 🟡 | menu, segmented, inline, navigationLink styles; wheel shown as a menu; tested |
-| `DatePicker`, `MultiDatePicker` | ❌ | |
-| `ColorPicker` | ❌ | |
+| `Picker` (menu, segmented, wheel, inline, navigationLink styles) | ✅ | all five styles; `.wheel` is a snapping scroll-wheel drawn by isim (no UIPickerView); tested (HelloForms, HelloPickers) |
+| `DatePicker`, `MultiDatePicker` | 🟡 | `DatePicker`: compact (date/time pills open a calendar or time wheel in a sheet — iOS uses a popover), graphical (month grid, month paging, time row), wheel; `.date` / `.hourAndMinute`; ranges; `labelsHidden`; tested (HelloPickers). `MultiDatePicker` missing |
+| `ColorPicker` | 🟡 | colour well opening a sheet with iOS's colour grid and an opacity slider (no spectrum/sliders pages, no eyedropper); `Color` and `CGColor` bindings; tested (HelloPickers) |
 | `TextField` (String binding, placeholder, `axis: .vertical` multi-line) | ✅ | `prompt` ignored |
-| `TextField(value:format:)` | ❌ | |
+| `TextField(value:format:)`, `TextField(value:formatter:)` | 🟡 | `formatter:` (NumberFormatter / DateFormatter) parses on Return or end of editing, reverting unparseable text; tested (HelloPickers). `format:` compiles only once isim Foundation has `ParseableFormatStyle` (unverified) |
 | `SecureField` | ✅ | |
-| `TextEditor` | ❌ | |
-| `ProgressView` | ✅ | UIProgressView bar / spinning UIActivityIndicatorView |
-| `Gauge` | ❌ | |
+| `TextEditor` | ✅ | multi-line field that fills its frame; tested (HelloPickers) |
+| `ProgressView` | ✅ | UIProgressView bar / spinning UIActivityIndicatorView; labels and current-value labels, `.linear` / `.circular` / custom `ProgressViewStyle`; label tested (HelloPickers) |
+| `Gauge` | ✅ | linear capacity (default), `.accessoryLinear`, `.accessoryCircular`, `.accessoryCircularCapacity`, custom `GaugeStyle`; tested (HelloPickers) |
 | `Link` | ✅ | opens through `openURL` |
-| `ShareLink` | ❌ | |
+| `ShareLink` | 🟡 | opens a share sheet showing the item; isim has no share destinations (adapted) ; tested (HelloPickers) |
 | `Menu` | ✅ | pop-up menu with sections, submenus, pickers, destructive buttons; tested |
 | `Divider`, `Spacer`, `EmptyView`, `Color` as a view | ✅ | |
 | `LabeledContent` | ✅ | |
-| `ContentUnavailableView` | ❌ | |
-| `ControlGroup`, `GroupBox`, `DisclosureGroup`, `OutlineGroup` | ❌ | |
-| `EditButton`, `PasteButton`, `RenameButton` | ❌ | |
+| `ContentUnavailableView` | ✅ | icon, title, description, actions; `.search` / `.search(text:)`; tested (HelloPickers) |
+| `ControlGroup`, `GroupBox`, `DisclosureGroup`, `OutlineGroup` | ✅ | disclosure rows expand/collapse (own state or `isExpanded:` binding; in a List the content follows as indented rows); `OutlineGroup` and `List(_:children:)` build the tree; control groups share one bordered row (`controlGroupStyle` ignored); tested (HelloPickers) |
+| `EditButton`, `PasteButton`, `RenameButton` | 🟡 | `EditButton`: see lists; `PasteButton` is a stub (no pasteboard on isim: shown disabled, tested); `RenameButton` missing |
 | `VideoPlayer` (AVKit), `Map` (MapKit), `SceneView` | ❌ | |
 | `SpriteView` | ✅ | see SpriteKit |
 
@@ -518,7 +518,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `sensoryFeedback` | 🧩 | no haptics |
 | `keyboardType`, `autocorrectionDisabled`, `textInputAutocapitalization`, `submitLabel` | ✅ | keyboard type is stored only (see UIKit) |
 | `textFieldStyle`, `labelStyle` | 🧩 | ignored |
-| `pickerStyle`, `datePickerStyle`, `progressViewStyle`, `gaugeStyle` | ❌ | |
+| `pickerStyle`, `datePickerStyle`, `progressViewStyle`, `gaugeStyle` | ✅ | see the controls above; tested (HelloForms, HelloPickers) |
 | `ViewModifier`, `.modifier` | ✅ | |
 | `redacted`, `privacySensitive` | ❌ | |
 | `badge`, `help`, `contextMenu` | ❌ | |

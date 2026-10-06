@@ -435,6 +435,11 @@ public struct Label<Title: View, Icon: View>: View, _PrimitiveView {
     func _makeNode(_ ctx: _Context) -> _Node {
         // in lists the icon is tinted and sits in a fixed-width column (UIKit list cell layout)
         let inList = ctx.environment._inList
+        if ctx.environment._verticalLabel {          // ContentUnavailableView: big icon above a bold title
+            let icon = _resolve(icon, ctx.child("icon").with { $0._verticalLabel = false; $0.font = .system(size: 48); $0._foreground = $0._foreground ?? .secondary })
+            let title = _resolve(title, ctx.child("title").with { $0._verticalLabel = false; $0.font = .title2.bold() })
+            return _StackNode(path: ctx.path, axis: .vertical, spacing: 12, alignment: .center, children: [icon, title])
+        }
         let iconCtx = inList ? ctx.child("icon").with { if $0._foreground == nil { $0._foreground = $0._tint ?? .accentColor } } : ctx.child("icon")
         let iconNode = _resolve(icon, iconCtx)
         let titleNode = _resolve(title, ctx.child("title"))
@@ -467,6 +472,7 @@ public struct Button<Label: View>: View, _PrimitiveView {
     public init(role: ButtonRole?, action: @escaping () -> Void, @ViewBuilder label: () -> Label) { self.action = action; self.label = label(); self.role = role }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
+        if let p = _primitiveButton(label, role: role, action: action, ctx) { return p }
         let env = ctx.environment
         let tint: Color = role == .destructive ? .red : (env._tint ?? .accentColor)
         if let style = env._buttonStyle, !env._inList {
@@ -475,8 +481,9 @@ public struct Button<Label: View>: View, _PrimitiveView {
             let g = ctx.graph
             let st = (g.storage[key] as? _StateStorage<Bool>) ?? { let x = _StateStorage(false); g.storage[key] = x; return x }()
             g.usedKeys.insert(key)
-            let labelNode = _resolve(label, ctx.child("label").with { $0._buttonStyle = nil })
-            let body = style.make(ButtonStyleConfiguration(role: role, label: .init(node: labelNode), isPressed: st.value))
+            // the label resolves where the style places it (so the style's foreground/font apply to it)
+            let lbl = label
+            let body = style.make(ButtonStyleConfiguration(role: role, label: .init(make: { c in _resolve(lbl, c.with { $0._buttonStyle = nil }) }), isPressed: st.value))
             let bnode = _ButtonNode(path: ctx.path, child: _resolve(body, ctx.child("style").with { $0._buttonStyle = nil }), action: action, inList: false, enabled: env.isEnabled)
             bnode.role = role
             bnode.onPressed = { [weak g] p in if st.value != p { st.value = p; g?.invalidate() } }
@@ -583,12 +590,15 @@ public struct SubmitLabel: Equatable, Sendable {
 
 public struct TextField<Label: View>: View, _PrimitiveView {
     let placeholder: String, text: Binding<String>, axis: Axis, secure: Bool
+    var _commit: _ValueText? = nil          // TextField(value:formatter:/format:) (Controls+More.swift)
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
         let env = ctx.environment
-        return _TextFieldNode(path: ctx.path, placeholder: placeholder, text: text, axis: axis, secure: secure,
+        let n = _TextFieldNode(path: ctx.path, placeholder: placeholder, text: text, axis: axis, secure: secure,
                               font: (env.font ?? .body).uiFont, traits: env._textTraits, lines: env._lineRange,
                               focus: ctx.graph.focusLink(for: ctx.path), inList: env._inList, graph: ctx.graph)
+        n.commit = _commit
+        return n
     }
 }
 extension TextField where Label == Text {
@@ -617,6 +627,7 @@ final class _FocusLink {
 final class _TextFieldNode: _Node {
     let placeholder: String, text: Binding<String>, axis: Axis, secure: Bool, font: UIFont, traits: _TextTraits
     let lines: (Int?, Int?), focus: _FocusLink?, inList: Bool
+    var commit: _ValueText?
     weak var graph: _Graph?
     init(path: String, placeholder: String, text: Binding<String>, axis: Axis, secure: Bool, font: UIFont, traits: _TextTraits,
          lines: (Int?, Int?), focus: _FocusLink?, inList: Bool, graph: _Graph) {
@@ -640,7 +651,7 @@ final class _TextFieldNode: _Node {
     override func mountView(_ g: _Graph) -> UIView {
         let f = g.view(viewKey) { _SUITextField(frame: .zero) }
         f.node = self
-        if f.text != text.wrappedValue { f.text = text.wrappedValue }
+        if f.text != text.wrappedValue && !(commit != nil && f.isFirstResponder) { f.text = text.wrappedValue }
         f.placeholder = placeholder
         f.font = font
         f.isSecureTextEntry = secure
@@ -672,9 +683,13 @@ final class _SUITextField: UITextField {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func changed() { node?.text.wrappedValue = text ?? "" }
     override func insertText(_ t: String) {
+        if t == "\n", let n = node, n.commit != nil, n.axis != .vertical { _ = resignFirstResponder(); n.graph?.submitAction(for: n.path)?(); return }
         if t == "\n", let n = node, n.axis != .vertical, let g = n.graph, let submit = g.submitAction(for: n.path) { submit(); return }
         super.insertText(t)
     }
     @objc func began() { if let f = node?.focus, !f.get() { f.set(true) } }
-    @objc func ended() { if let f = node?.focus, f.get() { f.set(false) } }
+    @objc func ended() {
+        if let c = node?.commit, !c.commit(text ?? "") { text = c.display() }     // unparseable: back to the value
+        if let f = node?.focus, f.get() { f.set(false) }
+    }
 }
