@@ -90,7 +90,7 @@ Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs
 | Compile for iOS on Linux | ✅ | clang/lld produce iOS-simulator (x86_64) and device (arm64) Mach-O |
 | Run simulator binaries | ✅ | own Mach-O loader, libSystem subset, Objective-C runtime, Foundation |
 | UIKit | 🟡 | views, controls, Auto Layout, scroll views, text fields, keyboard and keyboard extensions, alerts. Not yet: table/collection views, animations, storyboards |
-| Swift | ✅ | full runtime, Swift Concurrency, Foundation bridging. Not yet: Regex |
+| Swift | ✅ | full runtime, Swift Concurrency, Regex / RegexBuilder, Foundation bridging |
 | SwiftUI | 🟡 | isim's own implementation (SwiftUI is closed source): common views, state, Form/List, NavigationStack. Not yet: animations, sheets, ScrollView, Grid, `@Observable` |
 | Home screen | ✅ | apps run as separate processes; home gesture; background/resume; delete apps. Not yet: App Library, app switcher |
 | Settings app | 🟡 | General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, per-app pages |
