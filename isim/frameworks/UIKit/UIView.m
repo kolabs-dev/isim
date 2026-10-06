@@ -195,7 +195,7 @@ static void anim_remove_all(UIView *v);
 - (instancetype)initWithFrame:(CGRect)frame {
     if ((self = [super init])) {
         _frame = frame; _subs = [NSMutableArray array]; _alpha = 1; _userInteractionEnabled = YES; _autoresizesSubviews = YES;
-        _translatesAutoresizingMaskIntoConstraints = YES; _layer = [[[self class] layerClass] new]; _needsLayout = YES;
+        _translatesAutoresizingMaskIntoConstraints = YES; _layer = [[[self class] layerClass] new]; [_layer _isim_setOwnerView:self]; _needsLayout = YES;
         _layoutMargins = UIEdgeInsetsMake(8, 8, 8, 8); _clearsContextBeforeDrawing = YES; _multipleTouchEnabled = NO;
         _transform = CGAffineTransformIdentity;
         _hug[0] = _hug[1] = UILayoutPriorityDefaultLow; _resist[0] = _resist[1] = UILayoutPriorityDefaultHigh;
@@ -817,6 +817,7 @@ static IMP base_drawRect;
     BOOL clip = _clipsToBounds || _layer.masksToBounds;
     if (clip) { isim_gfx_save(); isim_gfx_clip_rounded(0, 0, sz.width, sz.height, radius); }
     [self _isim_drawContent];
+    [_layer _isim_renderLayerContents];      /* drawInContext: overrides (AVPlayerLayer) and sublayers */
     if (!base_drawRect) base_drawRect = class_getMethodImplementation([UIView class], @selector(drawRect:));
     if (class_getMethodImplementation(object_getClass(self), @selector(drawRect:)) != base_drawRect) {
         isim_gfx_save(); CGContextSaveGState(isim_cg_current_context());

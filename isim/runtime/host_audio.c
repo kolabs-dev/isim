@@ -28,12 +28,27 @@ static void unref(int b) {
     if (--bufs[b].refs == 0) { free(bufs[b].pcm); memset(&bufs[b], 0, sizeof bufs[b]); }
 }
 
+/* streams: rings of 48 kHz stereo float filled by a producer thread (video soundtracks, host_media.c) */
+#define MAX_STREAMS 8
+#define STREAM_FRAMES (OUT_RATE / 2)            /* 0.5 s ring */
+struct astream { int used, paused; double volume; float *ring; long rd, wr; /* frame counters */ };
+static struct astream streams[MAX_STREAMS];
+
 static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total) {
     int frames = additional / (int)(2 * sizeof(float));
     if (frames <= 0) return;
     if (frames * 2 > mixcap) { mixcap = frames * 2; mixbuf = realloc(mixbuf, mixcap * sizeof(float)); }
     memset(mixbuf, 0, frames * 2 * sizeof(float));
     SDL_LockMutex(mtx);
+    if (!suspended) for (int k = 0; k < MAX_STREAMS; k++) {
+        struct astream *st = &streams[k];
+        if (!st->used || st->paused) continue;
+        float vol = (float)st->volume;
+        for (int i = 0; i < frames && st->rd < st->wr; i++, st->rd++) {
+            const float *p = st->ring + (st->rd % STREAM_FRAMES) * 2;
+            mixbuf[2 * i] += p[0] * vol; mixbuf[2 * i + 1] += p[1] * vol;
+        }
+    }
     if (!suspended) {
         for (int v = 0; v < MAX_VOICES; v++) {
             struct voice *vo = &voices[v];
@@ -235,3 +250,41 @@ int isim_audio_decode_file(const char *path, float **out, long *out_frames, int 
     return 1;
 }
 void isim_audio_free(float *pcm) { free(pcm); }
+
+/* ---------------- streams (host-internal: host_media.c) ----------------
+ * A stream is a small ring the mixer drains in real time; the producer writes what fits. Returns 0 when
+ * there is no audio device (headless tests), so producers can skip decoding sound altogether. */
+int isim_audio_stream_open(double volume) {
+    if (!ensure_open()) return 0;
+    SDL_LockMutex(mtx);
+    int s = 0;
+    for (int i = 0; i < MAX_STREAMS; i++) if (!streams[i].used) {
+        streams[i] = (struct astream){ .used = 1, .volume = volume, .ring = calloc(STREAM_FRAMES * 2, sizeof(float)) };
+        s = i + 1; break;
+    }
+    SDL_UnlockMutex(mtx);
+    return s;
+}
+/* writes up to `frames` interleaved stereo frames; returns how many fit (0 = ring full, try later) */
+long isim_audio_stream_write(int s, const float *pcm, long frames) {
+    if (s <= 0 || s > MAX_STREAMS) return 0;
+    SDL_LockMutex(mtx);
+    struct astream *st = &streams[s - 1];
+    long n = 0;
+    if (st->used) {
+        long room = STREAM_FRAMES - (st->wr - st->rd);
+        n = frames < room ? frames : room;
+        for (long i = 0; i < n; i++) { float *p = st->ring + ((st->wr + i) % STREAM_FRAMES) * 2; p[0] = pcm[2 * i]; p[1] = pcm[2 * i + 1]; }
+        st->wr += n;
+    }
+    SDL_UnlockMutex(mtx);
+    return n;
+}
+void isim_audio_stream_control(int s, int paused, double volume) {
+    if (s <= 0 || s > MAX_STREAMS || !mtx) return;
+    SDL_LockMutex(mtx); streams[s - 1].paused = paused; streams[s - 1].volume = volume; SDL_UnlockMutex(mtx);
+}
+void isim_audio_stream_close(int s) {
+    if (s <= 0 || s > MAX_STREAMS || !mtx) return;
+    SDL_LockMutex(mtx); free(streams[s - 1].ring); memset(&streams[s - 1], 0, sizeof streams[s - 1]); SDL_UnlockMutex(mtx);
+}

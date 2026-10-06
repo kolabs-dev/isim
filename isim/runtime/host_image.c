@@ -408,3 +408,18 @@ long isim_image_encode(int hd, int fmt, double quality, unsigned char **out) {
     return n;
 }
 void isim_image_bytes_free(unsigned char *p) { free(p); }
+/* Raster image from 32-bit BGRA pixels (cairo ARGB32 byte order on little-endian; opaque video frames).
+ * Used by host_media.c for video frames: created once, then updated in place on the UI thread. */
+int isim_image_create_bgra(int w, int h) {
+    if (w <= 0 || h <= 0) return 0;
+    struct img v = { IMG_RASTER, cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h), NULL, w, h };
+    return new_img(v);
+}
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h) {
+    struct img *im = get(hd);
+    if (!im || im->kind != IMG_RASTER || (int)im->w != w || (int)im->h != h) return;
+    cairo_surface_flush(im->surf);
+    unsigned char *dst = cairo_image_surface_get_data(im->surf); int ds = cairo_image_surface_get_stride(im->surf);
+    for (int y = 0; y < h; y++) memcpy(dst + y * ds, px + (size_t)y * w * 4, (size_t)w * 4);
+    cairo_surface_mark_dirty(im->surf);
+}

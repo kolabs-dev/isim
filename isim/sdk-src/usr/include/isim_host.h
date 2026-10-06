@@ -149,4 +149,24 @@ int isim_crypto_25519_check_public(int kind, const uint8_t *pub);
 int isim_crypto_x25519(const uint8_t *priv, const uint8_t *pub, uint8_t *shared);
 int isim_crypto_ed25519_sign(const uint8_t *priv, const void *_Nullable msg, size_t len, uint8_t *sig);
 int isim_crypto_ed25519_verify(const uint8_t *pub, const void *_Nullable msg, size_t len, const uint8_t *sig);
+/* media (host_media.c): video/audio files and http(s) URLs through the host's ffprobe/ffmpeg */
+struct isim_media_info { double duration, width, height, fps; int has_video, has_audio; };
+int isim_media_probe(const char *url, struct isim_media_info *info);            /* 0: unreadable / no ffprobe */
+/* playback session from `start` seconds: video frames (if want_video) and the soundtrack to the mixer (if want_audio) */
+int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
+/* UI thread: image handle of the frame for time t (0 before the first frame); eof once all frames were shown */
+int isim_media_video_frame(int media, double t, int *eof, double *pts);
+void isim_media_set_audio(int media, int paused, double volume);
+void isim_media_close(int media);
+int isim_media_thumbnail_png(const char *url, double t, double max_side, void *_Nullable *_Nonnull out, long *len);
+int isim_media_transcode(const char *in, const char *out);
+void isim_media_free(void *_Nullable p);
+/* text to speech with espeak-ng/espeak: mono float PCM (free with isim_media_free); 0 if no TTS on the host */
+int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float *_Nullable *_Nonnull out, long *frames, double *rate);
+/* audio input (ISIM_AUDIO_INPUT=file|mic): 48 kHz stereo float, paced in real time. start returns 2 mic, 1 file, 0 silence */
+int isim_audio_input_start(void);
+long isim_audio_input_read(float *out, long max_frames);
+void isim_audio_input_stop(void);
+/* remote-control commands queued by the `remote NAME` script command */
+int isim_remote_command_poll(char *buf, int len);
 __END_DECLS

@@ -36,6 +36,11 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UICo
 @property (nonatomic, readonly, nullable) NSString *_isim_family;   /* nil = system font */
 @end
 
+@interface CALayer (IsimPrivate)
+- (void)_isim_setOwnerView:(id)view;
+- (void)_isim_renderLayerContents;
+- (void)_isim_renderAsSublayer;
+@end
 @interface UIView (IsimPrivate)
 - (UIViewController *)_isim_viewController;
 - (void)_isim_setViewController:(UIViewController *)vc;

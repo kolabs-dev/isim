@@ -758,6 +758,10 @@ static int script_step(struct isim_event *ev) {
     else if (!strcmp(cmd, "launch") && sscanf(args, " %63[^; ]", arg) == 1) {
         pending[npending++] = (struct isim_event){ .type = EV_LAUNCH_ID }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.5;
+    } else if (!strcmp(cmd, "remote") && sscanf(args, " %63[^;]", arg) == 1) {    /* MPRemoteCommandCenter: remote play|pause|toggle|next|previous|seek S|skipforward|skipback */
+        for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
+        void isim_media_remote_post(const char *cmd);
+        isim_media_remote_post(arg);
     } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
@@ -950,6 +954,22 @@ int isim_regex_capture_count(void *code);
 int isim_regex_group_number(void *code, const char *name);
 void isim_regex_error_message(int err, char *buf, unsigned long n);
 int isim_regex_match(void *code, const char *subject, unsigned long len, unsigned long start, unsigned int options, long *ovector, int pairs);
+/* host_media.c */
+struct isim_media_info;
+int isim_media_probe(const char *url, struct isim_media_info *info);
+int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
+int isim_media_video_frame(int h, double t, int *eof, double *pts);
+void isim_media_set_audio(int h, int paused, double volume);
+void isim_media_close(int h);
+int isim_media_thumbnail_png(const char *url, double t, double max_side, void **out, long *len);
+int isim_media_transcode(const char *in, const char *out);
+void isim_media_free(void *p);
+int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float **out, long *frames, double *rate);
+int isim_audio_input_start(void);
+long isim_audio_input_read(float *out, long max_frames);
+void isim_audio_input_stop(void);
+void isim_media_remote_post(const char *cmd);
+int isim_remote_command_poll(char *buf, int len);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -986,5 +1006,8 @@ static const struct shim isim_table[] = {
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
+    H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
+    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
+    H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
