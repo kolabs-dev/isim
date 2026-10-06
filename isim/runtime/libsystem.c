@@ -366,6 +366,8 @@ static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
     memcpy(buf, p, n); return 0;
 }
 
+#include "sockets.inc"     /* BSD sockets, name resolution, poll/select, fcntl/ioctl, getifaddrs */
+
 void libsystem_init(int argc, char **argv) {
     d_stdinp = stdin; d_stdoutp = stdout; d_stderrp = stderr;
     guest_argc = argc; guest_argv = argv;
@@ -597,6 +599,8 @@ static const struct shim libsystem_table[] = {
     S("_os_retain", d_os_retain), S("_os_release", d_os_release),
     P(__divti3), P(__modti3), P(__udivti3), P(__umodti3), P(__extendhfsf2), P(__truncdfhf2), P(__truncsfhf2),
     A("_environ", &environ), A("___progname", &d_progname),
+    /* sockets */
+    SOCKET_SHIMS,
     /* random */
     A("_arc4random", d_arc4random), A("_arc4random_uniform", d_arc4random_uniform), A("_arc4random_buf", d_arc4random_buf),
     /* pthreads */
