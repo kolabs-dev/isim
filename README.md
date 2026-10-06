@@ -53,7 +53,7 @@ isim-0.1.0-linux-x86_64/bin/isim install isim-0.1.0-linux-x86_64/apps/*.app
 - Device data lives in `~/.local/share/isim` (override with `ISIM_DATA`).
 
 **Scripts** (for automation and tests) accept `wait S`, `tap X Y`, `tapid ID`, `taptext TEXT`, `holdid ID S`, `swipeid ID DX DY S`, `shake`,
-`type TEXT`, `key NAME`, `keydown NAME`, `keyup NAME` (hardware key press/release, e.g. for GCKeyboard), `home`, `launch BUNDLE_ID`, `shot FILE.png`, `dump` and `quit`. Example:
+`type TEXT`, `key NAME`, `keydown NAME`, `keyup NAME` (hardware key press/release, e.g. for GCKeyboard), `home`, `launch BUNDLE_ID`, `shot FILE.png`, `location LAT LON` / `location none` (simulated location), `dump` and `quit`. Example:
 
 ```bash
 isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.png; quit"
@@ -62,7 +62,11 @@ isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.
 **System prompts and logs:** Face ID / Touch ID scans show an alert standing in for the Simulator's Features menu
 (Matching / Non-matching / Cancel); `ISIM_BIOMETRY=match|nomatch|cancel` answers scans automatically and
 `ISIM_BIOMETRY_ENROLLED=0` simulates no enrollment. `ISIM_NOTIFICATION_PERMISSION=allow|deny` answers the
-notification permission prompt. App `Logger`/`os_log` lines go to the terminal with private values shown as
+notification permission prompt. Privacy prompts work the same way: `ISIM_LOCATION_PERMISSION=once|wheninuse|always|deny`,
+`ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_PHOTOS_PERMISSION` (`allow|limited|deny`),
+`ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`. The simulated location (like the Simulator's
+Features ▸ Location) is Apple Park unless `ISIM_LOCATION=lat,lon` (or `lat,lon;lat,lon;...@speed` for a route, or `none`).
+The address book, calendars, photo library and Health data live in the device data (`ISIM_DATA`), seeded like the Simulator's. App `Logger`/`os_log` lines go to the terminal with private values shown as
 `<private>`, like iOS (`ISIM_LOG_PRIVATE=1` reveals them, `ISIM_LOG_LEVEL=info|default|error` filters).
 
 **Compiling** needs clang/lld 17+. Swift needs Docker with the `swift:6.2` image.
