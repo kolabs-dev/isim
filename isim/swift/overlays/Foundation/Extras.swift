@@ -73,6 +73,18 @@ extension NSNumber {
     public var uint8Value: UInt8 { unsignedCharValue }
     public var uintValue: UInt { unsignedLongValue }
 }
+// like Apple's overlay: string literals where an NSString is expected (NSCache<NSString, _> keys, ...)
+extension NSString: ExpressibleByStringLiteral, ExpressibleByUnicodeScalarLiteral, ExpressibleByExtendedGraphemeClusterLiteral {
+    public required convenience init(stringLiteral value: String) { self.init(string: value) }
+    public required convenience init(unicodeScalarLiteral value: String) { self.init(string: value) }
+    public required convenience init(extendedGraphemeClusterLiteral value: String) { self.init(string: value) }
+}
+// like Apple's overlay: number literals where an NSNumber is expected (NumberFormatter.string(from: 42))
+extension NSNumber: ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral {
+    public required convenience init(integerLiteral value: Int) { self.init(integer: value) }
+    public required convenience init(floatLiteral value: Double) { self.init(double: value) }
+    public required convenience init(booleanLiteral value: Bool) { self.init(bool: value) }
+}
 extension Int64: _ObjectiveCBridgeable {
     public func _bridgeToObjectiveC() -> NSNumber { NSNumber(value: self) }
     public static func _forceBridgeFromObjectiveC(_ x: NSNumber, result: inout Int64?) { result = x.longLongValue }
@@ -292,19 +304,8 @@ extension StringProtocol {
     }
 }
 extension String {
-    public struct CompareOptions: OptionSet, Sendable {
-        public let rawValue: UInt
-        public init(rawValue: UInt) { self.rawValue = rawValue }
-        public static let caseInsensitive = CompareOptions(rawValue: 1)
-        public static let literal = CompareOptions(rawValue: 2)
-        public static let backwards = CompareOptions(rawValue: 4)
-        public static let anchored = CompareOptions(rawValue: 8)
-        public static let numeric = CompareOptions(rawValue: 64)
-        public static let diacriticInsensitive = CompareOptions(rawValue: 128)
-        public static let widthInsensitive = CompareOptions(rawValue: 256)
-        public static let forcedOrdering = CompareOptions(rawValue: 512)
-        public static let regularExpression = CompareOptions(rawValue: 1024)
-    }
+    public typealias CompareOptions = NSString.CompareOptions
+    public typealias EnumerationOptions = NSString.EnumerationOptions
 }
 
 // MARK: - Locale.Language

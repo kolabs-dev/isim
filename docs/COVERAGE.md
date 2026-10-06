@@ -51,15 +51,15 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
 | &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
 | Swift Charts | 0 | 0 | 0 | 3 | 3 | 0% |
-| **Foundation** | 36 | 11 | 2 | 27 | 76 | 55% |
-| &nbsp;&nbsp;↳ Strings & text | 5 | 2 | 0 | 5 | 12 | 50% |
-| &nbsp;&nbsp;↳ Collections & values | 5 | 1 | 0 | 5 | 11 | 50% |
-| &nbsp;&nbsp;↳ Encoding & serialization | 3 | 0 | 1 | 3 | 7 | 43% |
-| &nbsp;&nbsp;↳ Dates, calendars & formatters | 3 | 3 | 0 | 5 | 11 | 41% |
-| &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 1 | 0 | 4 | 9 | 50% |
-| &nbsp;&nbsp;↳ Notifications, timers & threads | 5 | 2 | 0 | 2 | 9 | 67% |
+| **Foundation** | 50 | 20 | 1 | 9 | 80 | 75% |
+| &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
+| &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
+| &nbsp;&nbsp;↳ Encoding & serialization | 7 | 0 | 0 | 0 | 7 | 100% |
+| &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
+| &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 2 | 0 | 3 | 9 | 56% |
+| &nbsp;&nbsp;↳ Notifications, timers & threads | 6 | 2 | 0 | 1 | 9 | 78% |
 | &nbsp;&nbsp;↳ Networking | 11 | 2 | 1 | 3 | 17 | 71% |
-| **Swift runtime, stdlib & concurrency** | 28 | 1 | 0 | 9 | 38 | 75% |
+| **Swift runtime, stdlib & concurrency** | 29 | 1 | 0 | 8 | 38 | 78% |
 | &nbsp;&nbsp;↳ Combine | 10 | 0 | 0 | 4 | 14 | 71% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
 | Objective-C runtime & C library | 6 | 2 | 0 | 2 | 10 | 70% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **320** | **108** | **46** | **292** | **766** | **49%** |
+| **All areas** | **335** | **117** | **45** | **273** | **770** | **51%** |
 
 ---
 
@@ -642,13 +642,16 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | Notes |
 |---|---|---|
 | `String` ⇄ `NSString` bridging | ✅ | copies instead of lazy bridging |
-| `NSString` / `NSMutableString` API (search, replace, case, trimming, components, paths) | 🟡 | common subset; comparisons are code-point ordered, not locale-aware |
+| `NSString` / `NSMutableString` API (search, replace, case, trimming, components, paths) | 🟡 | search options (case/diacritic-insensitive, anchored, backwards, regex), Unicode case mapping, substring/line enumeration; comparisons are code-point ordered, not locale-aware |
 | `String(format:)`, `NSLog` | ✅ | |
 | String encodings (`data(using:)`, `String(data:encoding:)`, `String(contentsOf:)`) | ✅ | |
 | `CharacterSet` | ✅ | BMP only |
-| `NSAttributedString`, `AttributedString` | ❌ | |
-| `NSRegularExpression`, `NSDataDetector` | ❌ | |
-| `Scanner` | ❌ | |
+| `NSAttributedString`, `NSMutableAttributedString` | ✅ | Foundation keys only (UIKit's font/color keys belong to UIKit); `mutableString` is a snapshot |
+| `AttributedString`, `AttributeContainer`, attribute scopes, runs | 🟡 | Foundation scope (link, inline/presentation intents, imageURL, ...); no Codable, no iOS 17 invalidation/inheritance rules |
+| `AttributedString(markdown:)` | 🟡 | CommonMark + GFM blocks/inlines as presentation intents; no reference links, extended attributes or source positions |
+| `NSRegularExpression`, `NSTextCheckingResult` | ✅ | host PCRE2 (close to ICU syntax); templates, named groups, options |
+| `NSDataDetector` | 🟡 | links, phone numbers, dates; addresses and transit info are not detected |
+| `Scanner` | ✅ | ObjC and Swift (`scanString`, `scanInt`, `scanDouble`, `scanDecimal`, `currentIndex`) APIs |
 | `String(localized:)`, `NSLocalizedString`, `Bundle.localizedString` | ✅ | |
 | `LocalizedStringResource` | ❌ | |
 | String Catalogs (`.xcstrings`) | 🟡 | compiled to `.strings`; plural variants use "other" only; device/width variants dropped |
@@ -659,16 +662,17 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | Notes |
 |---|---|---|
 | `NSArray`, `NSDictionary`, `NSSet` (+ mutable), literals, fast enumeration, sorting | ✅ | |
-| `NSOrderedSet`, `NSCountedSet`, `NSIndexSet`, `NSCache`, `NSHashTable`, `NSMapTable` | ❌ | |
+| `NSOrderedSet`, `NSCountedSet`, `NSIndexSet` / `IndexSet`, `NSCache`, `NSHashTable`, `NSMapTable`, `NSPointerArray` | ✅ | `NSCache` evicts by count/cost limits only (no memory-pressure purging); weak tables use ObjC weak references |
 | `IndexPath` / `NSIndexPath` (+ UIKit `row`/`section`/`item`) | ✅ | value type bridged to NSIndexPath; tested (HelloTable) |
 | `NSNumber`, `NSValue` (CG geometry), `NSNull` | ✅ | |
 | `UUID` | ✅ | |
-| `Decimal` | 🟡 | Int64 mantissa + exponent; less precision than Apple's 38 digits |
+| `Decimal` | 🟡 | 38 significant digits, exact arithmetic, `NSDecimalRound`/`NSDecimalAdd`..., `pow`; no `NSDecimalNumber`, does not bridge to an Objective-C object |
 | `NSError`, `LocalizedError`, `CustomNSError` | ✅ | |
-| `NSPredicate`, `NSExpression`, `NSSortDescriptor`, `SortDescriptor` | ❌ | |
-| Key-value coding (`value(forKey:)`) and observing (KVO, `observe(\.x)`) | ❌ | |
-| `UndoManager` | ❌ | |
-| `Progress` | ❌ | |
+| `NSPredicate`, `NSExpression` (format strings, `filtered(using:)`) | 🟡 | comparisons, string operators (`CONTAINS[cd]`, `LIKE`, `MATCHES`, ...), aggregates, `ANY`/`ALL`, key paths, block predicates; no subqueries or function expressions; the `#Predicate` macro is not available |
+| `NSSortDescriptor`, `SortDescriptor`, `KeyPathComparator`, `sorted(using:)` | ✅ | |
+| Key-value coding (`value(forKey:)`, key paths, collection operators) and observing (KVO, `observe(\.x)`, `publisher(for:)`) | ✅ | KVO wraps setters; `@objc dynamic` Swift properties observable |
+| `UndoManager` | ✅ | groups, run-loop grouping, redo, action names, `registerUndo(withTarget:handler:)` |
+| `Progress` | 🟡 | units, children, KVO on `fractionCompleted`, localized description; no publishing/file progress |
 
 ### Encoding & serialization
 
@@ -676,11 +680,11 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 |---|---|---|
 | `JSONEncoder` / `JSONDecoder` (key/date/data/float strategies, output formatting) | ✅ | |
 | `JSONSerialization` | ✅ | NSNumber/NSNull like Apple |
-| `PropertyListEncoder` / `PropertyListDecoder` | ❌ | |
-| `PropertyListSerialization` | ❌ | |
+| `PropertyListEncoder` / `PropertyListDecoder` | ✅ | XML and binary |
+| `PropertyListSerialization` | ✅ | XML, binary, OpenStep (read) |
 | Reading XML plists (`NSDictionary(contentsOfFile:)`, Info.plist) | ✅ | |
-| Binary plists | ❌ | logged and rejected |
-| `NSKeyedArchiver` / `NSKeyedUnarchiver`, `NSCoding` | 🧩 | `NSCoder` exists so `init(coder:)` compiles; archiving not implemented |
+| Binary plists | ✅ | read and written (Info.plist, user defaults, serialization) |
+| `NSKeyedArchiver` / `NSKeyedUnarchiver`, `NSCoding`, `NSSecureCoding` | ✅ | Apple's keyed-archive format (bplist `$objects`/`$top`), shared references and cycles, allowed classes, class name mapping |
 
 ### Dates, calendars & formatters
 
@@ -690,13 +694,13 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `Calendar`, `DateComponents`, `DateInterval` | 🟡 | Gregorian + ISO 8601; other calendars compute as Gregorian |
 | `TimeZone` (named zones, DST) | ✅ | Settings > Date & Time or the host's zone; changes apply live (`NSSystemTimeZoneDidChange`, `resetSystemTimeZone`) |
 | `Locale` (identifiers, language/region, separators, currency, `Locale.Language`) | ✅ | |
-| `DateFormatter` (styles, `dateFormat`, templates) | 🟡 | common patterns; full CLDR data unverified |
-| `NumberFormatter` (decimal, currency, percent, digits, grouping) | 🟡 | common styles |
-| `ISO8601DateFormatter` | ❌ | |
-| `RelativeDateTimeFormatter`, `DateComponentsFormatter`, `DateIntervalFormatter` | ❌ | |
-| `.formatted()` / `FormatStyle` (dates, numbers, currency, lists) | ❌ | |
-| `Measurement`, `Unit*`, `MeasurementFormatter` | ❌ | |
-| `ByteCountFormatter`, `PersonNameComponentsFormatter`, `ListFormatter` | ❌ | |
+| `DateFormatter` (styles, `dateFormat`, templates, parsing) | 🟡 | built-in CLDR subset: en, pt, es, fr, de, it, ja names and ~40 regions; other languages fall back to English names |
+| `NumberFormatter` (decimal, currency, percent, scientific, spell-out, ordinal, rounding, parsing) | 🟡 | ICU-style rounding; locale data limited to the built-in regions; spell-out English only |
+| `ISO8601DateFormatter` | ✅ | |
+| `RelativeDateTimeFormatter`, `DateComponentsFormatter`, `DateIntervalFormatter` | 🟡 | localized for the built-in languages |
+| `.formatted()` / `FormatStyle` (dates, ISO 8601, relative, intervals, numbers, currency, percent, lists, byte counts, durations, measurements) and parse strategies | 🟡 | follows the device region; same locale data limits as the formatters |
+| `Measurement`, `Unit*`, `MeasurementFormatter` | 🟡 | 22 unit families with conversion; locale-preferred units for length, mass, temperature, speed, volume; unit names localized for the built-in languages |
+| `ByteCountFormatter`, `PersonNameComponentsFormatter`, `ListFormatter` | ✅ | |
 
 ### Files, bundles & preferences
 
@@ -705,7 +709,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | App sandbox container (Documents, Library, Caches, tmp) | ✅ | per app, under `ISIM_DATA` |
 | `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | 🟡 | no attributes, enumerators, symlinks, `replaceItem` |
 | `Data(contentsOf:)`, `Data.write(to:)` | ✅ | |
-| `FileHandle`, `InputStream` / `OutputStream` | ❌ | |
+| `FileHandle`, `InputStream` / `OutputStream` | 🟡 | files, memory and standard I/O; `readabilityHandler` on a thread; no sockets / bound stream pairs |
 | App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ❌ | |
 | iCloud Drive / ubiquity containers | ❌ | |
 | `Bundle` (main, by path/id, resources, Info.plist, localizations) | ✅ | |
@@ -724,7 +728,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `OperationQueue` | 🟡 | block operations only; no `Operation` subclasses or dependencies |
 | `NSLock`, `NSRecursiveLock`, `NSCondition` | ✅ | |
 | `ProcessInfo` (environment, arguments, processor count, uptime) | ✅ | |
-| `ProcessInfo.thermalState`, `isLowPowerModeEnabled` | ❌ | |
+| `ProcessInfo.thermalState`, `isLowPowerModeEnabled`, `physicalMemory`, `operatingSystemVersion`, activities | ✅ | a simulated iPhone: always `.nominal`, never Low Power Mode, memory per device model |
 
 ### Networking
 
@@ -768,7 +772,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `Clock`, `ContinuousClock`, `Duration`, `Task.sleep(for:)` | ✅ | tested |
 | Swift 6 strict concurrency checking | ✅ | compile time |
 | Observation (`@Observable`, `withObservationTracking`) | ✅ | libswiftObservation (upstream sources, isim pthread hooks) |
-| `Regex`, regex literals, `RegexBuilder` (`_StringProcessing`) | ❌ | not built yet |
+| `Regex`, regex literals, `RegexBuilder` (`_StringProcessing`) | ✅ | built from swift-experimental-string-processing (swift-6.2.4); bare `/.../` literals need `-enable-bare-slash-regex` or Swift 6 mode like Xcode |
 | `Synchronization` (`Mutex`, `Atomic`) | ❌ | not built |
 | Distributed actors | ❌ | |
 | C++ interop | ❌ | |

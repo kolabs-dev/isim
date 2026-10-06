@@ -272,12 +272,7 @@ static void plist_write(NSMutableString *out, id v, int depth) {
         [out appendFormat:@"%@</dict>\n", ind];
     }
 }
-NSString *isim_plist_xml(id root) {
-    NSMutableString *out = [NSMutableString stringWithString:@"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n"];
-    plist_write(out, root, 0);
-    [out appendString:@"</plist>\n"];
-    return out;
-}
+NSString *isim_plist_xml(id root) { return isim_plist_write_xml(root); }
 
 @implementation NSString (IsimPad)
 - (NSString *)stringByPaddingToLength_isim:(NSUInteger)n { NSMutableString *s = [NSMutableString string]; for (NSUInteger i = 0; i < n; i++) [s appendString:@"\t"]; return s; }

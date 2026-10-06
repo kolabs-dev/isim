@@ -28,6 +28,12 @@ static NSValue *mkval(int kind) { NSValue *v = [[[NSValue alloc] init] autorelea
 - (CGPoint)CGPointValue { return _v.pt; }
 - (CGSize)CGSizeValue { return _v.sz; }
 - (CGRect)CGRectValue { return _v.rect; }
+- (const char *)objCType {
+    switch (_kind) {
+    case V_RANGE: return "{_NSRange=QQ}"; case V_POINT: return "{CGPoint=dd}"; case V_SIZE: return "{CGSize=dd}";
+    case V_RECT: return "{CGRect={CGPoint=dd}{CGSize=dd}}"; case V_NONRET: return "@"; default: return "^v";
+    }
+}
 - (id)copyWithZone:(NSZone *)z { return [self retain]; }
 - (BOOL)isEqualToValue:(NSValue *)o { return [o isKindOfClass:[NSValue class]] && o->_kind == _kind && !memcmp(&_v, &o->_v, sizeof _v); }
 - (BOOL)isEqual:(id)o { return [o isKindOfClass:[NSValue class]] && [self isEqualToValue:o]; }

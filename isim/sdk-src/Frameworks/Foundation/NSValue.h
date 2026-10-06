@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) CGSize CGSizeValue;
 @property (readonly) CGRect CGRectValue;
 - (BOOL)isEqualToValue:(NSValue *)value;
+@property (readonly) const char *objCType NS_RETURNS_INNER_POINTER;
 @end
 
 @interface NSNumber : NSValue

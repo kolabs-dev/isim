@@ -30,3 +30,17 @@
 #import <Foundation/NSUserDefaults.h>
 #include <dispatch/dispatch.h>
 #import <Foundation/NSCoder.h>
+#import <Foundation/NSRegularExpression.h>
+#import <Foundation/NSCalendar.h>
+#import <Foundation/NSUnit.h>
+#import <Foundation/NSMeasurement.h>
+#import <Foundation/NSKeyValueCoding.h>
+#import <Foundation/NSIndexSet.h>
+#import <Foundation/NSOrderedCollections.h>
+#import <Foundation/NSPredicate.h>
+#import <Foundation/NSData.h>
+#import <Foundation/NSPropertyList.h>
+#import <Foundation/NSUUID.h>
+#import <Foundation/NSUndoManager.h>
+#import <Foundation/NSFileHandle.h>
+#import <Foundation/NSAttributedString.h>

@@ -808,6 +808,12 @@ int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
 int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
 void isim_ws_close(struct isim_ws *w);
 int isim_net_path(int *flags);
+void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int options, int unix_lines, int *err, unsigned long *erroffset);
+void isim_regex_free(void *code);
+int isim_regex_capture_count(void *code);
+int isim_regex_group_number(void *code, const char *name);
+void isim_regex_error_message(int err, char *buf, unsigned long n);
+int isim_regex_match(void *code, const char *subject, unsigned long len, unsigned long start, unsigned int options, long *ovector, int pairs);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -840,5 +846,6 @@ static const struct shim isim_table[] = {
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
+    H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

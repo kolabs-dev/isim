@@ -37,6 +37,7 @@
 #define NS_SWIFT_NAME(_name) __attribute__((swift_name(#_name)))
 #define NS_SWIFT_UI_ACTOR
 #define NS_REFINED_FOR_SWIFT __attribute__((swift_private))
+#define NS_SWIFT_UNAVAILABLE(_msg) __attribute__((availability(swift, unavailable, message=_msg)))
 #define NS_NOESCAPE __attribute__((noescape))
 #define NS_RETURNS_INNER_POINTER __attribute__((objc_returns_inner_pointer))
 #define NS_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type
@@ -58,7 +59,7 @@ typedef unsigned long NSUInteger;
 #define NSIntegerMin (-__LONG_MAX__ - 1L)
 #define NSUIntegerMax (__LONG_MAX__ * 2UL + 1UL)
 static const NSInteger NSNotFound = NSIntegerMax;
-typedef double NSTimeInterval;
+typedef double NSTimeInterval NS_SWIFT_NAME(TimeInterval);
 typedef struct _NSZone NSZone;
 
 typedef NS_ENUM(NSInteger, NSComparisonResult) { NSOrderedAscending = -1L, NSOrderedSame, NSOrderedDescending };
@@ -67,6 +68,9 @@ typedef NSRange *NSRangePointer;
 NS_INLINE NSRange NSMakeRange(NSUInteger loc, NSUInteger len) { NSRange r = { loc, len }; return r; }
 NS_INLINE NSUInteger NSMaxRange(NSRange r) { return r.location + r.length; }
 NS_INLINE BOOL NSLocationInRange(NSUInteger loc, NSRange r) { return loc - r.location < r.length; }
+NS_INLINE BOOL NSEqualRanges(NSRange a, NSRange b) { return a.location == b.location && a.length == b.length; }
+FOUNDATION_EXPORT NSRange NSUnionRange(NSRange range1, NSRange range2);
+FOUNDATION_EXPORT NSRange NSIntersectionRange(NSRange range1, NSRange range2);
 
 #ifndef MIN
 #define MIN(A, B) ({ __typeof__(A) __a = (A); __typeof__(B) __b = (B); __a < __b ? __a : __b; })
