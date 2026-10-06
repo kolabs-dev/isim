@@ -73,6 +73,12 @@ extension NSNumber {
     public var uint8Value: UInt8 { unsignedCharValue }
     public var uintValue: UInt { unsignedLongValue }
 }
+// like Apple's overlay: number literals where an NSNumber is expected (NumberFormatter.string(from: 42))
+extension NSNumber: ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral {
+    public required convenience init(integerLiteral value: Int) { self.init(integer: value) }
+    public required convenience init(floatLiteral value: Double) { self.init(double: value) }
+    public required convenience init(booleanLiteral value: Bool) { self.init(bool: value) }
+}
 extension Int64: _ObjectiveCBridgeable {
     public func _bridgeToObjectiveC() -> NSNumber { NSNumber(value: self) }
     public static func _forceBridgeFromObjectiveC(_ x: NSNumber, result: inout Int64?) { result = x.longLongValue }
