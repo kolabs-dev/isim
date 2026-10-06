@@ -41,6 +41,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloPresentations.app/HelloPresentations ] && run "ui: HelloPresentations (sheets, alerts, dialogs)" tests/ui/presentations.sh
   [ -x out/apps/HelloNetwork.app/HelloNetwork ] && run "ui: HelloNetwork (URLSession, cookies, WebSocket, NWPathMonitor; local server)" tests/ui/network.sh
   [ -x out/apps/HelloSpriteKit.app/HelloSpriteKit ] && run "ui: HelloSpriteKit (SpriteKit physics/particles, GameplayKit, GameController)" tests/ui/spritekit.sh
+  [ -x out/apps/HelloSpriteKit2.app/HelloSpriteKit2 ] && run "ui: HelloSpriteKit2 (warp/transform/video nodes, reversed actions, GameplayKit AI and spatial trees, host gamepads)" tests/ui/spritekit2.sh
   [ -x out/apps/HelloSecurity.app/HelloSecurity ] && run "ui: HelloSecurity (CryptoKit, keychain, SQLite, Face ID, notifications)" tests/ui/security.sh
   [ -x out/apps/HelloLocation.app/HelloLocation ] && run "ui: HelloLocation (Core Location, simulated location, geocoding)" tests/ui/location.sh
   [ -x out/apps/HelloSensors.app/HelloSensors ] && run "ui: HelloSensors (Core Motion, Bluetooth, NFC, HealthKit)" tests/ui/sensors.sh

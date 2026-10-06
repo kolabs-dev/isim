@@ -782,6 +782,9 @@ static int script_step(struct isim_event *ev) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "gamepad") && sscanf(args, " %511[^;]", arg) == 1) {    /* virtual SDL gamepad (host_gamepad.c) */
+        void isim_gamepad_script(const char *args);
+        isim_gamepad_script(arg);
     } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
@@ -990,6 +993,11 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 void isim_media_remote_post(const char *cmd);
 int isim_remote_command_poll(char *buf, int len);
+struct isim_gamepad;
+int isim_gamepad_poll(struct isim_gamepad *out, int max);
+int isim_gamepad_rumble(int id, double low, double high, double seconds);
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -1029,5 +1037,6 @@ static const struct shim isim_table[] = {
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
+    H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
