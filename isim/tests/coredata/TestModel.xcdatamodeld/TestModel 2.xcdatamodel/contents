@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="v2">
+    <entity name="Author" representedClassName="Author" syncable="YES" codeGenerationType="class">
+        <attribute name="name" attributeType="String"/>
+        <attribute name="born" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="books" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Book" inverseName="author" inverseEntity="Book"/>
+    </entity>
+    <entity name="Book" representedClassName="Book" syncable="YES" codeGenerationType="class">
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <attribute name="pages" optional="YES" attributeType="Integer 32" minValueString="0" maxValueString="5000" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="rating" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="isbn" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="link" optional="YES" attributeType="URI"/>
+        <attribute name="cover" optional="YES" attributeType="Binary"/>
+        <attribute name="tags" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromData" customClassName="[String]"/>
+        <attribute name="borrowed" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="sold" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+        <relationship name="author" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Author" inverseName="books" inverseEntity="Author"/>
+        <relationship name="shelves" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Shelf" inverseName="books" inverseEntity="Shelf"/>
+    </entity>
+    <entity name="Novel" representedClassName="Novel" parentEntity="Book" syncable="YES" codeGenerationType="class">
+        <attribute name="genre" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="Shelf" representedClassName="Shelf" syncable="YES" codeGenerationType="class">
+        <attribute name="label" optional="YES" attributeType="String"/>
+        <relationship name="books" optional="YES" toMany="YES" deletionRule="Deny" destinationEntity="Book" inverseName="shelves" inverseEntity="Book"/>
+        <relationship name="featured" optional="YES" toMany="YES" ordered="YES" deletionRule="Nullify" destinationEntity="Book"/>
+    </entity>
+    <entity name="Publisher" representedClassName="Publisher" syncable="YES" codeGenerationType="category">
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <fetchedProperty name="authorsA" optional="YES">
+            <fetchRequest name="fetchedPropertyFetchRequest" entity="Author" predicateString="name BEGINSWITH 'A'"/>
+        </fetchedProperty>
+    </entity>
+    <fetchRequest name="LongBooks" entity="Book" predicateString="pages &gt; 300"/>
+</model>

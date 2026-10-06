@@ -1,0 +1,216 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		C0DA7A010000000000000001 /* HelloCoreDataApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DA7A020000000000000001 /* HelloCoreDataApp.swift */; };
+		C0DA7A010000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DA7A020000000000000002 /* ContentView.swift */; };
+		C0DA7A010000000000000003 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DA7A020000000000000003 /* Persistence.swift */; };
+		C0DA7A010000000000000004 /* HelloCoreData.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = C0DA7A020000000000000004 /* HelloCoreData.xcdatamodeld */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		C0DA7A020000000000000001 /* HelloCoreDataApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelloCoreDataApp.swift; sourceTree = "<group>"; };
+		C0DA7A020000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		C0DA7A020000000000000003 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
+		C0DA7A020000000000000005 /* HelloCoreData.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = HelloCoreData.xcdatamodel; sourceTree = "<group>"; };
+		C0DA7A020000000000000006 /* HelloCoreData.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloCoreData.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C0DA7A030000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C0DA7A040000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				C0DA7A040000000000000002 /* HelloCoreData */,
+				C0DA7A040000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C0DA7A040000000000000002 /* HelloCoreData */ = {
+			isa = PBXGroup;
+			children = (
+				C0DA7A020000000000000001 /* HelloCoreDataApp.swift */,
+				C0DA7A020000000000000002 /* ContentView.swift */,
+				C0DA7A020000000000000003 /* Persistence.swift */,
+				C0DA7A020000000000000004 /* HelloCoreData.xcdatamodeld */,
+			);
+			path = HelloCoreData;
+			sourceTree = "<group>";
+		};
+		C0DA7A040000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C0DA7A020000000000000006 /* HelloCoreData.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C0DA7A050000000000000001 /* HelloCoreData */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0DA7A090000000000000002 /* Build configuration list for PBXNativeTarget "HelloCoreData" */;
+			buildPhases = (
+				C0DA7A060000000000000001 /* Sources */,
+				C0DA7A030000000000000001 /* Frameworks */,
+				C0DA7A070000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HelloCoreData;
+			productName = HelloCoreData;
+			productReference = C0DA7A020000000000000006 /* HelloCoreData.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C0DA7A080000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+			};
+			buildConfigurationList = C0DA7A090000000000000001 /* Build configuration list for PBXProject "HelloCoreData" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = C0DA7A040000000000000001;
+			productRefGroup = C0DA7A040000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C0DA7A050000000000000001 /* HelloCoreData */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C0DA7A070000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C0DA7A060000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0DA7A010000000000000004 /* HelloCoreData.xcdatamodeld in Sources */,
+				C0DA7A010000000000000003 /* Persistence.swift in Sources */,
+				C0DA7A010000000000000002 /* ContentView.swift in Sources */,
+				C0DA7A010000000000000001 /* HelloCoreDataApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C0DA7A0A0000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C0DA7A0A0000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		C0DA7A0A0000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloCoreData;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C0DA7A0A0000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloCoreData;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C0DA7A090000000000000001 /* Build configuration list for PBXProject "HelloCoreData" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0DA7A0A0000000000000001 /* Debug */,
+				C0DA7A0A0000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0DA7A090000000000000002 /* Build configuration list for PBXNativeTarget "HelloCoreData" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0DA7A0A0000000000000003 /* Debug */,
+				C0DA7A0A0000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCVersionGroup section */
+		C0DA7A020000000000000004 /* HelloCoreData.xcdatamodeld */ = {
+			isa = XCVersionGroup;
+			children = (
+				C0DA7A020000000000000005 /* HelloCoreData.xcdatamodel */,
+			);
+			currentVersion = C0DA7A020000000000000005 /* HelloCoreData.xcdatamodel */;
+			path = HelloCoreData.xcdatamodeld;
+			sourceTree = "<group>";
+			versionGroupType = wrapper.xcdatamodel;
+		};
+/* End XCVersionGroup section */
+	};
+	rootObject = C0DA7A080000000000000001 /* Project object */;
+}
