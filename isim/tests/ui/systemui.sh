@@ -12,6 +12,7 @@ log=$(ISIM_DEVICE=iphone17 ISIM_SHOT_SCALE=1 ISIM_NOTIFICATION_PERMISSION=allow 
   launch dev.isim.samples.HelloSecurity; wait 1.2; tapid notify; wait 0.4; launch dev.isim.samples.HelloSystem; wait 1;
   lock; wait 4; shot $shots/lock.png; dump; drag 200 860 200 600 0.3; wait 0.6;
   drag 120 4 120 320 0.3; wait 0.6; shot $shots/notification-center.png; dump; tapid nc-item-backup; wait 1.2; dump;
+  tapid notify; wait 0.4; home; wait 3.6; launch dev.isim.samples.HelloSystem; wait 1;
   switcher; wait 0.5; shot $shots/switcher.png; dump; swipeid switcher-HelloSecurity 0 -300 0.3; wait 0.8; dump; tapid switcher-HelloSystem; wait 0.8;
   drag 380 4 380 320 0.3; wait 0.6; shot $shots/control-center.png; dump; tapid cc-wifi; wait 2.6; tapid cc-dark; wait 0.8; tapid cc-orientation; tapid cc-focus; wait 0.3;
   shot $shots/control-center-on.png; tapid cc-background; wait 0.4; rotate left; wait 0.6;
@@ -29,7 +30,7 @@ PY'
 check "swipe up unlocks; the app returns to the foreground"     'grep -q "isim shell: unlocked" <<<"$log" && after "isim shell: unlocked" | grep -q "HelloSystem: scene foreground"'
 check "pull down from the top: Notification Center"              'grep -q "isim shell: Notification Center (1 notification)" <<<"$log" && grep -q "IsimNotificationCenter" <<<"$log"'
 check "opening the notification reopens its app (didReceive)"   'grep -q "opened notification backup from Notification Center" <<<"$log" && grep -q "opened backup action default" <<<"$log"'
-check "app switcher: cards in recent order"                     'grep -q "app switcher (2 apps)" <<<"$log" && grep -A3 "^IsimAppSwitcher" <<<"$log" | head -4 | tr "\n" " " | grep -q "switcher-HelloSystem.*switcher-HelloSecurity"'
+check "app switcher: cards in recent order (newest on top)"     'grep -q "app switcher (2 apps)" <<<"$log" && grep -A3 "^IsimAppSwitcher" <<<"$log" | head -4 | tr "\n" " " | grep -q "switcher-HelloSecurity.*switcher-HelloSystem"'
 check "swipe a card up: the app is closed"                      'grep -q "closed .*HelloSecurity.app from the app switcher" <<<"$log" && grep -q "HelloSecurity.app exited" <<<"$log"'
 check "tap a card: switch to that app"                          'grep -q "switched to .*HelloSystem.app" <<<"$log"'
 check "pull down from the top-right: Control Center"            'grep -q "IsimControlCenter" <<<"$log" && grep -q "id=cc-wifi text=on" <<<"$log"'
@@ -38,10 +39,10 @@ check "Dark Mode: apps switch appearance"                       'grep -q "Spring
 check "orientation lock ignores rotation"                       'grep -q "rotation ignored (orientation lock)" <<<"$log"'
 check "Control Center drawn (pixels: blue Wi-Fi button)"        'python3 - "$shots/control-center.png" <<PY
 import subprocess, sys
-out = subprocess.run(["magick", sys.argv[1], "-crop", "20x20+65+207", "+repage", "-format", "%[fx:mean.b] %[fx:mean.r]", "info:"], capture_output=True, text=True).stdout.split()
+out = subprocess.run(["magick", sys.argv[1], "-crop", "6x6+52+214", "+repage", "-format", "%[fx:mean.b] %[fx:mean.r]", "info:"], capture_output=True, text=True).stdout.split()
 sys.exit(0 if out and float(out[0]) > 0.8 and float(out[1]) < 0.3 else 1)
 PY'
-check "Notification Center clear"                               'grep -q "cleared 1 notification(s)" <<<"$log"'
+check "Notification Center: a second notification listed, cleared" 'grep -q "Notification Center (1 notification)" <<<"$log" && grep -q "cleared 1 notification(s)" <<<"$log"'
 check "exits cleanly"                                           '[ $rc = 0 ]'
 [ $fail = 0 ] || { echo "--- log"; echo "$log" | grep -v "^ \{4,\}" | grep -E "shell|HelloSystem:|Isim|SpringBoard: app" | tail -60; }
 exit $fail

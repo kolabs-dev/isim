@@ -507,6 +507,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         if (ev.type == EV_LAUNCH_ID) { shell_forward(0, &ev); continue; }        /* the home screen resolves bundle ids */
         if (ev.type == EV_SHELL_CMD) { sys_command(ev.text); continue; }
         if (ev.type == EV_REDRAW) { shell_send(active, EV_REDRAW); continue; }
+        if ((ev.type == EV_DEVICE_ORIENTATION || ev.type == EV_KEY) && sys_input(&ev)) continue;   /* orientation lock, system keys */
         if (ev.type == EV_DEVICE_ORIENTATION) { for (int k = 0; k < nclients; k++) shell_forward(k, &ev); continue; }
         if (ev.type == EV_KEY && (ev.mods & SDL_KMOD_CTRL) && (ev.mods & SDL_KMOD_SHIFT) && (ev.key == 'h' || ev.key == 'H')) { shell_home(); continue; }
         /* home-indicator gesture: touches starting at the bottom edge belong to the system */

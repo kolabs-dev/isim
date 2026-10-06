@@ -77,6 +77,14 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func sceneWillEnterForeground(_ scene: UIScene) { log("scene foreground") }
 }
 
+/// logs appearance changes (Settings / Control Center Dark Mode)
+class AppearanceProbe: UIView {
+    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+        super.traitCollectionDidChange(previous)
+        log("appearance \(traitCollection.userInterfaceStyle == .dark ? "dark" : "light")")
+    }
+}
+
 class ViewController: UIViewController {
     var count = 0 { didSet { countLabel?.text = "Count \(count)" } }
     var status = "Ready" { didSet { statusLabel?.text = status } }
@@ -90,6 +98,7 @@ class ViewController: UIViewController {
         let st = UILabel(); st.text = status; st.accessibilityIdentifier = "status"; st.numberOfLines = 2; st.textColor = .secondaryLabel
         let cl = UILabel(); cl.text = "Count \(count)"; cl.accessibilityIdentifier = "count"
         statusLabel = st; countLabel = cl
+        view.addSubview(AppearanceProbe(frame: .zero))
         let stack = UIStackView(arrangedSubviews: [title, st, cl])
         stack.axis = .vertical; stack.spacing = 10; stack.alignment = .leading
         for (t, id, sel) in [("Count + 1", "bump", #selector(bump)), ("Add dynamic quick action", "addShortcut", #selector(addShortcut)),
@@ -116,10 +125,6 @@ class ViewController: UIViewController {
         super.viewDidAppear(animated)
         monitor.pathUpdateHandler = { p in log("network \(p.status == .satisfied ? "satisfied" : "unsatisfied")") }
         monitor.start(queue: .main)
-    }
-    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
-        super.traitCollectionDidChange(previous)
-        log("appearance \(traitCollection.userInterfaceStyle == .dark ? "dark" : "light")")
     }
     @objc func bump() { count += 1; log("count \(count)") }
     @objc func addShortcut() {
