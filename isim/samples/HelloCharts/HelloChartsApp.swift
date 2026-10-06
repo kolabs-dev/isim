@@ -84,6 +84,10 @@ struct ChartsGallery: View {
                     AxisGridLine()
                     AxisValueLabel { Text("\(value.as(Int.self) ?? -1)%") }
                 }
+                AxisMarks(position: .leading, values: [25, 75]) { value in
+                    AxisTick()
+                    AxisValueLabel { Text("q\(value.as(Int.self) ?? -1)") }
+                }
             }
             .chartXAxis(.hidden)
             .accessibilityIdentifier("custom-axis").at(210, 510, 170, 100)
@@ -112,6 +116,12 @@ struct ChartsGallery: View {
             .chartForegroundStyleScale(["Apples": Color(red: 1, green: 0, blue: 0), "Pears": Color(red: 0, green: 0.6, blue: 0)])
             .chartLegend(.hidden).chartXAxis(.hidden).chartYAxis(.hidden).chartYScale(domain: 0...30)
             .accessibilityIdentifier("grouped").at(140, 750, 240, 60)
+
+            // in a scroll view (no height offered) a chart takes its ideal height
+            ScrollView {
+                Chart { BarMark(x: .value("k", "a"), y: .value("v", 1)) }.accessibilityIdentifier("ideal")
+            }
+            .at(300, 820, 80, 30)
         }
         .ignoresSafeArea()
         .onAppear { print("charts shown") }

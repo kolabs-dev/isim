@@ -18,7 +18,9 @@ check "annotations on bars"                        'grep -q "text=v10" <<<"$log"
 check "legend for foregroundStyle(by:)"            'grep -q "text=Apples" <<<"$log" && grep -q "text=Pears" <<<"$log" && grep -q "text=Plums" <<<"$log"'
 check "chartLegend(.hidden) hides a legend"     '[ "$(grep -c "text=Apples" <<<"$log")" = 2 ]'
 check "custom AxisMarks values and labels"         'grep -q "text=0%" <<<"$log" && grep -q "text=50%" <<<"$log" && grep -q "text=100%" <<<"$log"'
-check "date axis labels"                           'grep -q "text=Jan [0-9]" <<<"$log" && grep -q "text=5000" <<<"$log"'
+check "several AxisMarks on one axis"              'grep -q "text=q25" <<<"$log" && grep -q "text=q75" <<<"$log"'
+check "a chart in a ScrollView is 200 pt tall"      'grep -q "x 200) id=ideal" <<<"$log"'
+check "date axis labels"                          'grep -q "text=Jan [0-9]" <<<"$log" && grep -q "text=5000" <<<"$log"'
 python3 tests/ui/charts_check.py $shots/charts.png || fail=1
 check "exits cleanly"                              '[ $rc = 0 ]'
 [ $fail = 0 ] || { echo "--- app log"; echo "$log" | grep -v "^ " | tail -30; }

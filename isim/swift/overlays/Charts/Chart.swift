@@ -31,7 +31,8 @@ public struct Chart<Content: ChartContent>: View {
         let cfg = _ChartConfig(xVisibility: xVisibility, yVisibility: yVisibility, xAxis: xAxis?.specs, yAxis: yAxis?.specs, xDomain: xScale, yDomain: yScale,
                                styleScale: styleScale, legend: legend, xLabel: xLabel?.view, yLabel: yLabel?.view)
         let marks = _resolveMarks(content)
-        return GeometryReader { geo in _ChartRenderer(marks: marks, cfg: cfg, size: geo.size).view() }
+        // fills the space it is offered; where a height is left open (scroll views) it is 200 pt tall
+        return GeometryReader { geo in _ChartRenderer(marks: marks, cfg: cfg, size: geo.size).view() }._isimIdealSize(height: 200)
     }
 }
 
@@ -320,15 +321,26 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
             default: return v.category
             }
         }
-        let xSpec = cfg.xAxis?.first, ySpec = cfg.yAxis?.first
-        let xTicks = xHidden ? [] : tickValues(xKind, xStep, xSpec)
-        let yTicks = yHidden ? [] : tickValues(yKind, yStep, ySpec)
-        func parts(_ spec: _AxisMarksSpec?, _ v: _PV, _ i: Int, _ n: Int) -> _AxisPartList {
-            guard let spec else { return _AxisPartList(parts: [.grid(nil), .label(nil, nil)]) }
-            return (spec.content(AxisValue(index: i, count: n, pv: v)) as? _AxisPartProvider)?._parts ?? _AxisPartList()
+        let xSpec = cfg.xAxis?.first { $0.position != .automatic } ?? cfg.xAxis?.first
+        let ySpec = cfg.yAxis?.first { $0.position != .automatic } ?? cfg.yAxis?.first
+        // every AxisMarks of an axis contributes its values, each with its grid line, tick and label
+        func axisMarks(_ specs: [_AxisMarksSpec]?, _ kind: _Scale.Kind, _ step: Double) -> ([_PV], [_AxisPartList]) {
+            guard let specs else {
+                let t = tickValues(kind, step, nil)
+                return (t, t.map { _ in _AxisPartList(parts: [.grid(nil), .label(nil, nil)]) })
+            }
+            var values: [_PV] = [], parts: [_AxisPartList] = []
+            for spec in specs {
+                let t = tickValues(kind, step, spec)
+                for (i, v) in t.enumerated() {
+                    values.append(v)
+                    parts.append((spec.content(AxisValue(index: i, count: t.count, pv: v)) as? _AxisPartProvider)?._parts ?? _AxisPartList())
+                }
+            }
+            return (values, parts)
         }
-        let xParts = xTicks.enumerated().map { parts(xSpec, $0.element, $0.offset, xTicks.count) }
-        let yParts = yTicks.enumerated().map { parts(ySpec, $0.element, $0.offset, yTicks.count) }
+        let (xTicks, xParts) = xHidden ? ([], []) : axisMarks(cfg.xAxis, xKind, xStep)
+        let (yTicks, yParts) = yHidden ? ([], []) : axisMarks(cfg.yAxis, yKind, yStep)
         let yLabels = yTicks.map { label($0, yKind, yStep) }
         // label widths: measured for value labels; custom label views get room for a few more characters
         let yLabelW = zip(yLabels, yParts).compactMap { (s, ps) -> CGFloat? in
@@ -383,7 +395,7 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
             for p in ps.parts {
                 switch p {
                 case .grid(let s):
-                    if xs.isBand && xSpec == nil { continue }          // category axes: no vertical grid lines by default
+                    if xs.isBand && cfg.xAxis == nil { continue }      // category axes: no vertical grid lines by default
                     draws.append(_ChartDraw(path: Path { $0.move(to: CGPoint(x: x, y: plot.minY)); $0.addLine(to: CGPoint(x: x, y: plot.maxY)) },
                                             style: ps.style ?? grid, stroke: s ?? StrokeStyle(lineWidth: 0.5), opacity: 1))
                 case .tick(let len, let s):

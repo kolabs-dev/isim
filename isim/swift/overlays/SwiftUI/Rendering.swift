@@ -287,6 +287,23 @@ func _paintCurrentPath(_ paint: _Paint, mode: Int, lineWidth: CGFloat, alpha: Do
     }
 }
 
+// MARK: - Ideal size (for other isim modules)
+
+extension View {
+    /// isim: the size a view takes along a dimension its parent leaves open (scroll views, fixedSize),
+    /// like an ideal size. Used by Charts.
+    public func _isimIdealSize(width: CGFloat? = nil, height: CGFloat? = nil) -> some View {
+        _modify { ctx, c in _IdealSizeNode(path: ctx.path, width: width, height: height, child: _resolve(c, ctx.child("ideal"))) }
+    }
+}
+final class _IdealSizeNode: _WrapperNode {
+    let width: CGFloat?, height: CGFloat?
+    init(path: String, width: CGFloat?, height: CGFloat?, child: _Node) { self.width = width; self.height = height; super.init(path: path, child: child) }
+    override var layoutPriority: Double { child.layoutPriority }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(_Proposal(width: p.width ?? width, height: p.height ?? height)) }
+    override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
+}
+
 // MARK: - Clipping to a path (clipShape / mask with any shape)
 
 final class _PathClipNode: _WrapperNode {
