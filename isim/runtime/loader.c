@@ -63,7 +63,7 @@ static const char *sysroot;
 static int unresolved_count;
 int isim_verbose;
 
-static const struct host_lib *const host_libs[] = { &host_libsystem, &host_libobjc, &host_isim };
+static const struct host_lib *const host_libs[] = { &host_libsystem, &host_libobjc, &host_isim, &host_sqlite };
 
 void isim_fatal(const char *fmt, ...) {
     va_list ap; va_start(ap, fmt);
@@ -78,9 +78,14 @@ const char *isim_main_executable_path(void) { return main_image ? main_image->pa
 static const struct shim dyld_table[];
 static const size_t dyld_table_count;
 const struct shim *host_lib_lookup(const struct host_lib *lib, const char *name) {
-    for (size_t i = 0; i < lib->count; i++) if (!strcmp(lib->table[i].name, name)) return &lib->table[i];
+    for (size_t i = 0; i < lib->count; i++)
+        if (!strcmp(lib->table[i].name, name)) { if (lib == &host_sqlite) host_sqlite_load(); return &lib->table[i]; }
     if (lib == &host_libsystem)            /* libdyld lives inside the libSystem umbrella on Darwin */
         for (size_t i = 0; i < dyld_table_count; i++) if (!strcmp(dyld_table[i].name, name)) return &dyld_table[i];
+    if (lib == &host_libsystem) {
+        const struct shim *s = host_lib_lookup(&host_commoncrypto, name);
+        return s ? s : host_lib_lookup(&host_libsystem_os, name);
+    }
     return NULL;
 }
 
@@ -582,6 +587,9 @@ static void print_exports(const char *lib) {
         for (size_t j = 0; j < host_libs[i]->count; j++) printf("%s %s\n", host_libs[i]->table[j].name, host_libs[i]->table[j].status);
         if (host_libs[i] == &host_libsystem)
             for (size_t j = 0; j < dyld_table_count; j++) printf("%s %s\n", dyld_table[j].name, dyld_table[j].status);
+        if (host_libs[i] == &host_libsystem)
+            for (const struct host_lib *x = &host_commoncrypto; x; x = x == &host_commoncrypto ? &host_libsystem_os : NULL)
+                for (size_t j = 0; j < x->count; j++) printf("%s %s\n", x->table[j].name, x->table[j].status);
         return;
     }
     fprintf(stderr, "unknown host library %s\n", lib);

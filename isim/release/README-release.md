@@ -12,6 +12,8 @@ Xcode projects. It is a research prototype: an independent re-implementation, no
 - `fontconfig` and a sans-serif font; "Adwaita Sans" or "Inter" look closest to iOS
 - `adwaita-icon-theme` (stand-ins for SF Symbols such as chevrons and `plus`; without it they
   draw as dashed placeholders). GNOME desktops already have it.
+- For apps that use them: SQLite (`libsqlite3.so.0`, for `import SQLite3`) and OpenSSL 3 (`libcrypto.so.3`, for
+  CryptoKit's AES/ChaChaPoly/public-key operations and `CCCrypt`); both are preinstalled on most distributions
 - Optional, to compile apps: `clang` + `lld` 17 or newer, Docker with the `swift:6.2` image (for Swift)
 
 The graphics, Wayland/X11 and audio libraries come from your system; everything else isim

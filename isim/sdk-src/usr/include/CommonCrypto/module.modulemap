@@ -1,0 +1,6 @@
+// isim SDK module map (self-authored): `import CommonCrypto` (the functions live in libSystem).
+module CommonCrypto [system] [extern_c] {
+  umbrella header "CommonCrypto.h"
+  export *
+  module * { export * }
+}

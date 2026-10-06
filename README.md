@@ -59,6 +59,12 @@ isim-0.1.0-linux-x86_64/bin/isim install isim-0.1.0-linux-x86_64/apps/*.app
 isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.png; quit"
 ```
 
+**System prompts and logs:** Face ID / Touch ID scans show an alert standing in for the Simulator's Features menu
+(Matching / Non-matching / Cancel); `ISIM_BIOMETRY=match|nomatch|cancel` answers scans automatically and
+`ISIM_BIOMETRY_ENROLLED=0` simulates no enrollment. `ISIM_NOTIFICATION_PERMISSION=allow|deny` answers the
+notification permission prompt. App `Logger`/`os_log` lines go to the terminal with private values shown as
+`<private>`, like iOS (`ISIM_LOG_PRIVATE=1` reveals them, `ISIM_LOG_LEVEL=info|default|error` filters).
+
 **Compiling** needs clang/lld 17+. Swift needs Docker with the `swift:6.2` image.
 
 ## Build from source

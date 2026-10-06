@@ -471,6 +471,19 @@ static BOOL status_bar_hidden;
     if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion([self canOpenURL:url]); });
 }
 - (void)_isim_addScene:(UIScene *)s session:(UISceneSession *)ss { [_scenes addObject:s]; [_sessions addObject:ss]; }
+/* push notifications need APNs and an Apple developer identity: registration always fails, like the old Simulator */
+- (void)registerForRemoteNotifications {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSError *e = [NSError errorWithDomain:@"NSCocoaErrorDomain" code:3010
+                                     userInfo:@{ NSLocalizedDescriptionKey: @"remote notifications are not supported on isim" }];
+        NSLog(@"isim: registerForRemoteNotifications: %@", e.localizedDescription);
+        id<UIApplicationDelegate> d = self.delegate;
+        if ([d respondsToSelector:@selector(application:didFailToRegisterForRemoteNotificationsWithError:)])
+            [d application:self didFailToRegisterForRemoteNotificationsWithError:e];
+    });
+}
+- (void)unregisterForRemoteNotifications {}
+- (BOOL)isRegisteredForRemoteNotifications { return NO; }
 @end
 
 /* ================= UIApplicationMain + run loop ================= */
@@ -829,6 +842,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_SETTINGS: settings_changed(); break;
                 case ISIM_EV_LAUNCH_ID: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimShellLaunch" object:@(ev.text)]; break;
                 case ISIM_EV_OPEN_URL: deliver_url(@(ev.text)); break;
+                case ISIM_EV_NOTIFICATION_RESPONSE: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimNotificationResponse" object:@(ev.text)]; break;
                 case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;
                 }

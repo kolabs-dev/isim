@@ -394,7 +394,7 @@ static const struct shim libsystem_table[] = {
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
     /* process & environment */
     P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(sleep), P(usleep), P(nanosleep),
-    A("_open", d_open), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(access), P(unlink), P(readlink), P(getcwd), P(mkdir), P(rmdir),
+    A("_open", d_open), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(access), P(unlink), P(readlink), P(getcwd), P(mkdir), P(rmdir), P(chmod),
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
     P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),

@@ -14,3 +14,4 @@
 #include <string.h>
 #include <time.h>
 #include <CoreFoundation/CFBase.h>
+#include <CoreFoundation/CFNumber.h>

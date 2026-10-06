@@ -1,0 +1,8 @@
+// isim SDK module map (self-authored): the C side of `import os` (os.log, os.lock, os.signpost).
+// The Swift os module (usr/lib/swift/os.swiftmodule) re-exports it and adds Logger, OSLog, os_log, OSSignposter.
+module os [system] [extern_c] {
+  module log { header "log.h" export * }
+  module lock { header "lock.h" export * }
+  module signpost { header "signpost.h" export * }
+  export *
+}

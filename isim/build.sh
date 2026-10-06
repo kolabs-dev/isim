@@ -16,7 +16,7 @@ step() { printf '\n== %s\n' "$*"; }
 step "host runtime"
 PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread -ldl
 
 step "SDK headers"
@@ -51,6 +51,7 @@ TBD
 gen_tbd /usr/lib/libSystem.B.dylib "$SDK/usr/lib/libSystem.tbd"
 gen_tbd /usr/lib/libobjc.A.dylib "$SDK/usr/lib/libobjc.tbd"
 gen_tbd /usr/lib/libisim_host.dylib "$SDK/usr/lib/libisim_host.tbd"
+gen_tbd /usr/lib/libsqlite3.dylib "$SDK/usr/lib/libsqlite3.tbd"
 
 # common guest flags: iOS-simulator target, our sysroot headers only
 GUEST_CFLAGS=(-target x86_64-apple-ios$MINOS-simulator -nostdlibinc -isystem "$SDK/usr/include"
@@ -84,6 +85,7 @@ framework CoreGraphics frameworks/CoreGraphics -lisim_host
 framework Foundation frameworks/Foundation -framework CoreGraphics
 framework CoreText frameworks/CoreText -framework Foundation -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
+framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 
 # install the isim tool
 [ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"

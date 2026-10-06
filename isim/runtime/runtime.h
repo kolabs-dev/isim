@@ -12,7 +12,9 @@ struct shim { const char *name; void *addr; const char *status; };
 
 /* host pseudo-libraries: install name -> symbol table */
 struct host_lib { const char *install_name; const struct shim *table; size_t count; };
-extern const struct host_lib host_libsystem, host_libobjc, host_isim;
+extern const struct host_lib host_libsystem, host_libobjc, host_isim, host_sqlite;
+extern const struct host_lib host_commoncrypto, host_libsystem_os;   /* searched as part of libSystem */
+void host_sqlite_load(void);                       /* dlopens the host libsqlite3 (before the first lookup) */
 const struct shim *host_lib_lookup(const struct host_lib *lib, const char *name);
 
 /* loader services */
