@@ -30,6 +30,11 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect
 @property (nonatomic, readonly, nullable) NSString *_isim_family;   /* nil = system font */
 @end
 
+@interface CALayer (IsimPrivate)
+- (void)_isim_setOwnerView:(id)view;
+- (void)_isim_renderLayerContents;
+- (void)_isim_renderAsSublayer;
+@end
 @interface UIView (IsimPrivate)
 - (UIViewController *)_isim_viewController;
 - (void)_isim_setViewController:(UIViewController *)vc;

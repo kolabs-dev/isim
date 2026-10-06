@@ -1,5 +1,6 @@
 /* isim UIKit: colors, fonts, layers, traits, text helpers, graphics, images (ARC). */
 #import "UIKitPrivate.h"
+#include <objc/runtime.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -303,8 +304,103 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect r, N
 /* ================= CALayer ================= */
 CALayerCornerCurve const kCACornerCurveCircular = @"circular", kCACornerCurveContinuous = @"continuous";
 CALayerContentsFilter const kCAFilterNearest = @"nearest", kCAFilterLinear = @"linear", kCAFilterTrilinear = @"trilinear";
-@implementation CALayer
+@implementation CALayer {
+    CGRect _frame, _bounds;
+    NSMutableArray<CALayer *> *_subs;
+    __weak CALayer *_isimSuper;
+}
 + (instancetype)layer { return [self new]; }
+/* a view's own layer: its delegate is the view, and its geometry is the view's */
+- (void)_isim_setOwnerView:(id)view { _delegate = view; }
+- (UIView *)_isim_ownerView { id d = _delegate; return [d isKindOfClass:[UIView class]] ? d : nil; }
+- (CGRect)frame { UIView *v = [self _isim_ownerView]; return v ? v.frame : _frame; }
+- (void)setFrame:(CGRect)f {
+    UIView *v = [self _isim_ownerView];
+    if (v) { v.frame = f; return; }
+    _frame = f; _bounds.size = f.size; isim_ui_set_needs_display();
+}
+- (CGRect)bounds { UIView *v = [self _isim_ownerView]; return v ? v.bounds : _bounds; }
+- (void)setBounds:(CGRect)b {
+    UIView *v = [self _isim_ownerView];
+    if (v) { v.bounds = b; return; }
+    CGPoint c = CGPointMake(CGRectGetMidX(_frame), CGRectGetMidY(_frame));
+    _bounds = b; _frame = CGRectMake(c.x - b.size.width / 2, c.y - b.size.height / 2, b.size.width, b.size.height);
+    isim_ui_set_needs_display();
+}
+- (CALayer *)superlayer { return _isimSuper; }
+- (NSArray<CALayer *> *)sublayers { return _subs.count ? [_subs copy] : nil; }
+- (void)setSublayers:(NSArray<CALayer *> *)subs {
+    for (CALayer *l in [_subs copy]) [l removeFromSuperlayer];
+    for (CALayer *l in subs) [self addSublayer:l];
+}
+- (void)insertSublayer:(CALayer *)l atIndex:(unsigned)idx {
+    if (!l || l == self) return;
+    [l removeFromSuperlayer];
+    if (!_subs) _subs = [NSMutableArray array];
+    [_subs insertObject:l atIndex:MIN((NSUInteger)idx, _subs.count)];
+    l->_isimSuper = self;
+    isim_ui_set_needs_display();
+}
+- (void)addSublayer:(CALayer *)l { [self insertSublayer:l atIndex:(unsigned)_subs.count]; }
+- (void)insertSublayer:(CALayer *)l below:(CALayer *)sib {
+    NSUInteger i = sib ? [_subs indexOfObjectIdenticalTo:sib] : NSNotFound;
+    [self insertSublayer:l atIndex:i == NSNotFound ? 0 : (unsigned)i];
+}
+- (void)insertSublayer:(CALayer *)l above:(CALayer *)sib {
+    NSUInteger i = sib ? [_subs indexOfObjectIdenticalTo:sib] : NSNotFound;
+    if (i == NSNotFound) { [self addSublayer:l]; return; }
+    [l removeFromSuperlayer];
+    i = [_subs indexOfObjectIdenticalTo:sib];
+    [self insertSublayer:l atIndex:(unsigned)(i + 1)];
+}
+- (void)replaceSublayer:(CALayer *)old with:(CALayer *)l {
+    NSUInteger i = [_subs indexOfObjectIdenticalTo:old];
+    if (i == NSNotFound) return;
+    [old removeFromSuperlayer];
+    [self insertSublayer:l atIndex:(unsigned)i];
+}
+- (void)removeFromSuperlayer {
+    CALayer *s = _isimSuper;
+    if (!s) return;
+    [s->_subs removeObjectIdenticalTo:self];
+    _isimSuper = nil;
+    isim_ui_set_needs_display();
+}
+- (void)layoutSublayers {}
+- (void)layoutIfNeeded {}
+- (void)displayIfNeeded {}
+- (void)drawInContext:(CGContextRef)ctx {}
+static IMP base_drawInContext;
+/* the layer's own content (drawInContext: overrides) and its sublayers, in its coordinates */
+- (void)_isim_renderLayerContents {
+    if (!base_drawInContext) base_drawInContext = class_getMethodImplementation([CALayer class], @selector(drawInContext:));
+    if (class_getMethodImplementation(object_getClass(self), @selector(drawInContext:)) != base_drawInContext) {
+        isim_gfx_save(); CGContextSaveGState(isim_cg_current_context());
+        [self drawInContext:isim_cg_current_context()];
+        CGContextRestoreGState(isim_cg_current_context()); isim_gfx_restore();
+    }
+    for (CALayer *l in [_subs copy]) [l _isim_renderAsSublayer];
+}
+- (void)_isim_renderAsSublayer {
+    if (_hidden || _opacity <= 0.01) return;
+    CGRect f = _frame;
+    isim_gfx_save();
+    isim_gfx_translate(f.origin.x, f.origin.y);
+    BOOL group = _opacity < 0.999;
+    if (group) isim_gfx_push_group();
+    if (_backgroundColor) { const CGFloat *c = CGColorGetComponents(_backgroundColor); double bg[4] = { c[0], c[1], c[2], c[3] }; isim_gfx_fill_rounded(0, 0, f.size.width, f.size.height, _cornerRadius, bg); }
+    if (_masksToBounds) { isim_gfx_save(); isim_gfx_clip_rounded(0, 0, f.size.width, f.size.height, _cornerRadius); }
+    isim_gfx_translate(-_bounds.origin.x, -_bounds.origin.y);
+    [self _isim_renderLayerContents];
+    isim_gfx_translate(_bounds.origin.x, _bounds.origin.y);
+    if (_masksToBounds) isim_gfx_restore();
+    if (_borderWidth > 0 && _borderColor) {
+        const CGFloat *c = CGColorGetComponents(_borderColor); double bc[4] = { c[0], c[1], c[2], c[3] };
+        isim_gfx_stroke_rounded(0, 0, f.size.width, f.size.height, _cornerRadius, _borderWidth, bc);
+    }
+    if (group) isim_gfx_pop_group(_opacity);
+    isim_gfx_restore();
+}
 - (instancetype)init { if ((self = [super init])) { _opacity = 1; _cornerCurve = kCACornerCurveCircular; _shadowOffset = CGSizeMake(0, -3); _magnificationFilter = kCAFilterLinear; _minificationFilter = kCAFilterLinear; } return self; }
 - (void)dealloc { if (_borderColor) CGColorRelease(_borderColor); if (_backgroundColor) CGColorRelease(_backgroundColor); if (_shadowColor) CGColorRelease(_shadowColor); }
 - (void)setBorderColor:(CGColorRef)c { CGColorRetain(c); if (_borderColor) CGColorRelease(_borderColor); _borderColor = c; isim_ui_set_needs_display(); }
