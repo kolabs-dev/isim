@@ -16,7 +16,7 @@ step() { printf '\n== %s\n' "$*"; }
 step "host runtime"
 PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c runtime/host_xctest.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread -ldl
 
 step "SDK headers"
@@ -87,10 +87,15 @@ framework CoreText frameworks/CoreText -framework Foundation -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
 framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 framework CoreData frameworks/CoreData -framework Foundation -lsqlite3
+framework XCTest frameworks/XCTest -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 
 # install the isim tool
 [ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"
 install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 755 tools/isim-services.py "$OUT/bin/isim-services.py"; install -m 644 tools/xcodeproj.py "$OUT/bin/xcodeproj.py"; install -m 755 tools/momc.py "$OUT/bin/momc.py"
+install -m 755 tools/isim-test.py "$OUT/bin/isim-test.py"
+# xctest: the runner for test bundles (isim test)
+mkdir -p "$SDK/usr/bin"
+"$OUT/bin/isim" cc -O1 -g frameworks/XCTest/runner/xctest.m -o "$SDK/usr/bin/xctest" -framework Foundation -framework XCTest
 
 step "swift"
 bash swift/build.sh

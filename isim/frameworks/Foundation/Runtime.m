@@ -81,7 +81,8 @@ static NSMutableArray<NSBundle *> *extension_bundles;
     if (cls && dladdr((__bridge void *)cls, &di) && di.dli_fname) {
         NSString *dir = [@(di.dli_fname) stringByDeletingLastPathComponent];
         if ([dir isEqualToString:NSBundle.mainBundle.bundlePath]) return NSBundle.mainBundle;
-        if ([dir hasSuffix:@".appex"] || [dir hasSuffix:@".bundle"] || [dir hasSuffix:@".app"]) return [NSBundle bundleWithPath:dir] ?: NSBundle.mainBundle;
+        if ([dir hasSuffix:@".appex"] || [dir hasSuffix:@".bundle"] || [dir hasSuffix:@".app"] || [dir hasSuffix:@".xctest"] || [dir hasSuffix:@".framework"])
+            return [NSBundle bundleWithPath:dir] ?: NSBundle.mainBundle;
     }
     return NSBundle.mainBundle;
 }

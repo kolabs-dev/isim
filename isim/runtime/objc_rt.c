@@ -626,6 +626,40 @@ struct ivar_t **class_copyIvarList(Class c, unsigned int *outCount) {
     for (unsigned i = 0; i < n; i++) out[i] = (struct ivar_t *)((uint8_t *)(il + 1) + i * es);
     return out;
 }
+/* every registered (realized) class; NULL-terminated, free() it */
+Class *objc_copyClassList(unsigned int *outCount) {
+    pthread_mutex_lock(&rt_lock);
+    Class *out = calloc(classes.n + 1, sizeof *out);
+    unsigned k = 0;
+    for (size_t i = 0; i < classes.cap && k < classes.n; i++) if (classes.k[i] && classes.v[i]) out[k++] = classes.v[i];
+    pthread_mutex_unlock(&rt_lock);
+    if (outCount) *outCount = k;
+    return out;
+}
+/* the class's own methods (metadata, categories, runtime-added); not its superclasses' (XCTest test discovery) */
+struct rt_method **class_copyMethodList(Class c, unsigned int *outCount) {
+    if (outCount) *outCount = 0;
+    if (!c) return NULL;
+    pthread_mutex_lock(&rt_lock);
+    realize(c);
+    struct rt_class *r = R(c);
+    size_t cap = 16, n = 0;
+    SEL *sels = malloc(cap * sizeof *sels);
+    #define ADD_SEL(s) do { SEL _s = (s); int _dup = 0; for (size_t _i = 0; _i < n; _i++) if (sels[_i] == _s) { _dup = 1; break; } \
+        if (!_dup) { if (n == cap) sels = realloc(sels, (cap *= 2) * sizeof *sels); sels[n++] = _s; } } while (0)
+    if (r) for (struct rt_method *m = r->methods; m; m = m->next) if (m->cls == c) ADD_SEL(m->name);
+    if (r) for (int i = 0; i < r->ncat; i++) for (uint32_t j = 0; r->cat_lists[i] && j < r->cat_lists[i]->count; j++) ADD_SEL(m_name(r->cat_lists[i], j));
+    struct method_list_t *ml = ro_of(c)->base_methods;
+    for (uint32_t j = 0; ml && j < ml->count; j++) ADD_SEL(m_name(ml, j));
+    #undef ADD_SEL
+    struct rt_method **out = n ? calloc(n + 1, sizeof *out) : NULL;
+    unsigned k = 0;
+    for (size_t i = 0; i < n; i++) { struct rt_method *m = method_for(c, sels[i], 0); if (m) out[k++] = m; }
+    pthread_mutex_unlock(&rt_lock);
+    free(sels);
+    if (outCount) *outCount = k;
+    return out;
+}
 ptrdiff_t ivar_getOffset(struct ivar_t *v) { return v && v->offset ? *v->offset : 0; }
 const char *ivar_getName(struct ivar_t *v) { return v ? v->name : NULL; }
 const char *ivar_getTypeEncoding(struct ivar_t *v) { return v ? v->type : NULL; }
@@ -1004,7 +1038,7 @@ static const struct shim objc_table[] = {
     I(objc_opt_isKindOfClass), I(objc_opt_respondsToSelector),
     I(class_getInstanceMethod), I(class_getClassMethod), I(method_getImplementation), I(method_getName),
     I(method_getTypeEncoding), I(method_setImplementation), I(method_exchangeImplementations), I(class_addMethod),
-    I(class_setSuperclass), I(class_copyIvarList), I(ivar_getOffset), I(ivar_getName), I(ivar_getTypeEncoding),
+    I(class_setSuperclass), I(class_copyIvarList), I(class_copyMethodList), I(objc_copyClassList), I(ivar_getOffset), I(ivar_getName), I(ivar_getTypeEncoding),
     I(objc_constructInstance), I(object_isClass), I(objc_readClassPair), I(objc_setHook_getClass),
     I(objc_setHook_getImageName), I(objc_setHook_lazyClassNamer), I(class_getImageName),
     I(objc_getAssociatedObject), I(objc_setAssociatedObject), I(objc_removeAssociatedObjects),

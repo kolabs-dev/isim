@@ -74,6 +74,7 @@ void isim_fatal(const char *fmt, ...) {
 }
 
 const char *isim_main_executable_path(void) { return main_image ? main_image->path : NULL; }
+const char *isim_sysroot(void) { return sysroot; }   /* --root (XCUITest launches apps with the same root) */
 
 static const struct shim dyld_table[];
 static const size_t dyld_table_count;

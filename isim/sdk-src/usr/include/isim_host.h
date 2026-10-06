@@ -169,4 +169,13 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
+/* XCUITest (isim XCTest): run the app under test as a child process driven through a control FIFO.
+ * argv/envp are NULL-terminated (envp: KEY=VALUE added to the environment); snapshot returns the app's
+ * accessibility snapshot text (free with isim_xcui_free) or NULL. */
+int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp);
+int isim_xcui_running(int handle);
+int isim_xcui_send(int handle, const char *script_command);
+char *isim_xcui_snapshot(int handle, double timeout);
+void isim_xcui_free(char *text);
+void isim_xcui_terminate(int handle);
 __END_DECLS

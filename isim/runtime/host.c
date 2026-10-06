@@ -782,7 +782,10 @@ static int script_step(struct isim_event *ev) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
-    } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
+    } else if (!strcmp(cmd, "dump")) {        /* "dump": view tree on stderr; "dump FILE": accessibility snapshot (XCUITest) */
+        pending[npending++] = (struct isim_event){ .type = EV_DUMP };
+        if (sscanf(args, " %511[^;]", arg) == 1) { for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg); }
+    }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
     return script_step(ev);
@@ -990,6 +993,9 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 void isim_media_remote_post(const char *cmd);
 int isim_remote_command_poll(char *buf, int len);
+/* XCUITest: the app under test as a child process (host_xctest.c) */
+int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp); int isim_xcui_running(int h);
+int isim_xcui_send(int h, const char *line); char *isim_xcui_snapshot(int h, double timeout); void isim_xcui_free(char *p); void isim_xcui_terminate(int h);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -1029,5 +1035,6 @@ static const struct shim isim_table[] = {
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
+    H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
