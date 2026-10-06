@@ -58,6 +58,7 @@ static void shell_show(int i) {
     if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
     else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
     SDL_DestroySurface(src);
+    present_overlay(ws);
     SDL_UpdateWindowSurface(win);
 }
 
@@ -108,6 +109,7 @@ static void present_comp(void) {
     if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
     else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
     SDL_DestroySurface(src);
+    present_overlay(ws);
     SDL_UpdateWindowSurface(win);
 }
 /* Home screen behind; the app as a rounded card in r (points). icon_alpha crossfades the icon in. */

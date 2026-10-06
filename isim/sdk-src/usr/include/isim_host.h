@@ -11,7 +11,11 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        ISIM_EV_BACKGROUND, ISIM_EV_FOREGROUND, ISIM_EV_SETTINGS, ISIM_EV_LAUNCH_ID, ISIM_EV_OPEN_URL,
        ISIM_EV_KEY_UP = 19 /* key released; for ISIM_EV_KEY / ISIM_EV_KEY_UP `pad` is the USB HID usage (0 if unknown) */
        , ISIM_EV_NOTIFICATION_RESPONSE = 20 /* text: request identifier (18 is shell-internal) */
-       , ISIM_EV_DEVICE_ORIENTATION = 21 /* key: UIDeviceOrientation (the device was turned) */ };
+       , ISIM_EV_DEVICE_ORIENTATION = 21 /* key: UIDeviceOrientation (the device was turned) */
+       /* touch events: `pad` is the finger (0 first, 1 second: Option-drag / script pinch, rotate2, twofinger) */
+       , ISIM_EV_HOVER = 40 /* pointer moved without touching (x, y); pad 1: the pointer left */
+       , ISIM_EV_TEXT_EDITING = 41 /* IME composition: text = marked text, key = cursor (characters), mods = selected length */
+       , ISIM_EV_VOICEOVER = 42 /* text: on|off|next|prev|activate|read (script `voiceover`) */ };
 void isim_device_metrics(struct isim_device *out);
 int isim_set_orientation(int interfaceOrientation);   /* the screen takes this UIInterfaceOrientation; 1 if it changed */
 int isim_device_orientation(void);                    /* current UIDeviceOrientation */

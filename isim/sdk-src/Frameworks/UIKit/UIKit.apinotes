@@ -402,6 +402,30 @@ Classes:
   - Selector: 'handleInputModeListFromView:withEvent:'
     MethodKind: Instance
     SwiftName: 'handleInputModeList(from:with:)'
+- Name: UIPointerEffect
+  SwiftName: __UIPointerEffect
+- Name: UIPointerHighlightEffect
+  SwiftName: __UIPointerHighlightEffect
+- Name: UIPointerLiftEffect
+  SwiftName: __UIPointerLiftEffect
+- Name: UIPointerHoverEffect
+  SwiftName: __UIPointerHoverEffect
+- Name: UIPointerShape
+  SwiftName: __UIPointerShape
+- Name: UIPointerStyle
+  Methods:
+  - Selector: 'styleWithEffect:shape:'
+    MethodKind: Class
+    SwiftName: 'init(__effect:shape:)'
+  - Selector: 'styleWithShape:constrainedAxes:'
+    MethodKind: Class
+    SwiftName: 'init(__shape:constrainedAxes:)'
+  - Selector: hiddenPointerStyle
+    MethodKind: Class
+    SwiftName: 'hidden()'
+  - Selector: systemPointerStyle
+    MethodKind: Class
+    SwiftName: 'system()'
 Typedefs:
 - Name: UICollectionViewCompositionalLayoutSectionProvider
   SwiftName: UICollectionViewCompositionalLayoutSectionProvider
@@ -430,6 +454,8 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIPointerEffectTintMode
+  SwiftName: __UIPointerEffectTintMode
 - Name: UIInterfaceOrientationMask
   SwiftName: UIInterfaceOrientationMask
 - Name: NSUnderlineStyle

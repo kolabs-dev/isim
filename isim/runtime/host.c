@@ -71,6 +71,7 @@ static struct isim_event pending[16]; static int npending;
 
 static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 double isim_time(void) { return now() - t0; }
+#include "host_input.inc"             /* second finger, hover, IME composition, voiceover script commands */
 
 /* device presets (points, scale, safe areas, display corner radius, cutout: 0 none, 1 Dynamic Island, 2 notch) */
 #pragma GCC diagnostic push
@@ -624,6 +625,7 @@ void isim_frame_end(void) {
     if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
     else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
     SDL_DestroySurface(src);
+    present_overlay(ws);
     SDL_UpdateWindowSurface(win);
 }
 
@@ -678,6 +680,11 @@ static void set_simulated_location(const char *arg) {
 static struct { int on; double a, b, c, d, t0, dur, last; } sdrag;
 static int script_step(struct isim_event *ev) {
     control_poll();
+    if (mt.on && !npending) {                 /* scripted two-finger gesture (host_input.inc) */
+        mt_tick();
+        if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
+        return 0;
+    }
     if (sdrag.on && !npending) {
         double t = now();
         if (t - sdrag.last >= 0.016) {
@@ -784,6 +791,7 @@ static int script_step(struct isim_event *ev) {
         isim_media_remote_post(arg);
     } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
+    else if (input_script_cmd(cmd, args)) {}
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
     return script_step(ev);
 }
@@ -836,6 +844,7 @@ int isim_next_event(struct isim_event *ev, double timeout) {
         if ((script_pos || ctl_fd >= 0) && wait_ms > 10) wait_ms = 10;
         if (!SDL_WaitEventTimeout(&e, wait_ms)) { if (now() >= deadline) return 0; continue; }
         ev->timestamp = isim_time();
+        if (input_sdl_event(&e, ev)) return 1;
         switch (e.type) {
         case SDL_EVENT_USER: return 0;
         case SDL_EVENT_QUIT: case SDL_EVENT_WINDOW_CLOSE_REQUESTED: ev->type = EV_QUIT; return 1;

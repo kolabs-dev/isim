@@ -11,6 +11,7 @@ build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays
   local m=$1; shift
   [ "$ONLY" = "  " ] || [[ "$ONLY" == *" $m "* ]] || return 0
   local srcs=("overlays/$m.swift"); [ -d "overlays/$m" ] && srcs=(overlays/"$m"/*.swift)
+  for x in overlays/"$m"+*.swift; do if [ -e "$x" ]; then srcs+=("$x"); fi; done      # overlays/<Module>+Part.swift
   case " $PRIVACY " in *" $m "*) srcs+=(overlays/_Privacy/*.swift) ;; esac
   mkdir -p "$SDK/usr/lib/swift/$m.swiftmodule"
   ../out/bin/isim swiftc -parse-as-library -module-name "$m" -module-link-name "swift$m" \
