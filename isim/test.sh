@@ -7,6 +7,7 @@ export ISIM_STANDALONE=1     # `isim run` runs each test app alone (no home scre
 run() { echo "=== $1"; shift; "$@" || status=1; }
 run "loader" tests/loader/run.sh
 run "foundation self-test" bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -3; exit ${PIPESTATUS[0]}'
+run "objc runtime (exceptions, forwarding, NSInvocation, NSProxy, uncaught exceptions)" bash -c 'tests/objc-runtime/run.sh | tail -1; exit ${PIPESTATUS[0]}'
 run "ui: HelloCounter (Objective-C)" tests/ui/hellocounter.sh HelloCounter
 if [ -x out/apps/HelloCounterSwift.app/HelloCounterSwift ]; then   # Swift, systemOrange light/dark
   run "ui: HelloCounterSwift (Swift)" tests/ui/hellocounter.sh HelloCounterSwift "255 149 0" "255 159 10"
@@ -81,6 +82,9 @@ if [ -x out/apps/SecurityTest.app/SecurityTest ]; then          # known-answer v
 fi
 if [ -x out/apps/HelloCoreData.app/HelloCoreData ]; then         # Xcode project + .xcdatamodeld, @FetchRequest, relaunch persistence
   run "ui: HelloCoreData (Core Data + SwiftUI @FetchRequest, xcodeproj)" tests/ui/coredata.sh
+fi
+if [ -x out/apps/HelloStoryboards.app/HelloStoryboards ]; then     # Xcode project with storyboards, xibs, launch screen, Settings.bundle
+  run "ui: HelloStoryboards (storyboards, xibs, segues, launch screen, Settings.bundle)" tests/ui/storyboards.sh
 fi
 if [ -x out/apps/CoreDataTest.app/CoreDataTest ]; then       # models, SQLite/in-memory stores, contexts, fetches, FRC, migration
   run "Core Data (models, stores, contexts, fetching, FRC, migration)" bash -c 'tests/coredata/run.sh | tail -1; exit ${PIPESTATUS[0]}'

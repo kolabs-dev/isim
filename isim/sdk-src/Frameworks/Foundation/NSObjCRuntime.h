@@ -31,6 +31,7 @@
 #define NS_ASSUME_NONNULL_END _Pragma("clang assume_nonnull end")
 #define NS_DESIGNATED_INITIALIZER __attribute__((objc_designated_initializer))
 #define NS_UNAVAILABLE __attribute__((unavailable))
+#define NS_ROOT_CLASS __attribute__((objc_root_class))
 #define NS_REQUIRES_SUPER __attribute__((objc_requires_super))
 #define NS_REQUIRES_NIL_TERMINATION __attribute__((sentinel(0, 1)))
 #define NS_FORMAT_FUNCTION(F, A) __attribute__((format(__NSString__, F, A)))

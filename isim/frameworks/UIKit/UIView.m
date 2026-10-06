@@ -245,7 +245,7 @@ static void cg_rgba(CGColorRef c, double out[4]) {
 @synthesize layer = _layer;
 + (Class)layerClass { return [__IsimViewLayer class]; }
 - (instancetype)init { return [self initWithFrame:CGRectZero]; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithFrame:CGRectZero]; }
+- (instancetype)initWithCoder:(NSCoder *)c { extern id isim_ib_init_with_coder(id, NSCoder *); return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (void)encodeWithCoder:(NSCoder *)c {}   /* isim: archiving is not implemented */
 - (instancetype)initWithFrame:(CGRect)frame {
     if ((self = [super init])) {

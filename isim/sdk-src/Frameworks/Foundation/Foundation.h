@@ -10,6 +10,9 @@
 #import <Foundation/NSSet.h>
 #import <Foundation/NSNull.h>
 #import <Foundation/NSException.h>
+#import <Foundation/NSMethodSignature.h>
+#import <Foundation/NSInvocation.h>
+#import <Foundation/NSProxy.h>
 #import <Foundation/NSError.h>
 #import <Foundation/NSAutoreleasePool.h>
 #import <Foundation/NSBundle.h>

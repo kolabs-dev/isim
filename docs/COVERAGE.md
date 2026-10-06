@@ -22,9 +22,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 112 | 43 | 10 | 33 | 198 | 67% |
+| **UIKit** | 113 | 45 | 10 | 31 | 199 | 68% |
 | &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 18 | 7 | 0 | 5 | 30 | 72% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
 | &nbsp;&nbsp;↳ Views & controls | 32 | 15 | 1 | 3 | 51 | 77% |
 | &nbsp;&nbsp;↳ Layout | 15 | 2 | 1 | 1 | 19 | 84% |
 | &nbsp;&nbsp;↳ Animation | 8 | 4 | 0 | 0 | 12 | 83% |
@@ -62,7 +62,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | **Swift runtime, stdlib & concurrency** | 30 | 1 | 0 | 7 | 38 | 80% |
 | &nbsp;&nbsp;↳ Combine | 11 | 0 | 0 | 3 | 14 | 79% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
-| Objective-C runtime & C library | 7 | 2 | 0 | 2 | 11 | 73% |
+| Objective-C runtime & C library | 12 | 3 | 0 | 0 | 15 | 90% |
 | Core Graphics | 9 | 0 | 0 | 7 | 16 | 56% |
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
@@ -82,8 +82,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
-| Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **486** | **180** | **43** | **143** | **852** | **68%** |
+| Platform & tooling | 17 | 7 | 1 | 11 | 36 | 57% |
+| **All areas** | **494** | **184** | **43** | **136** | **857** | **68%** |
 
 ---
 
@@ -123,7 +123,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 |---|---|---|
 | `UIViewController` lifecycle (`loadView`, `viewDidLoad`, appear/disappear, layout callbacks) | ✅ | |
 | Child view-controller containment | ✅ | |
-| `init(nibName:bundle:)` / storyboard-instantiated controllers | ❌ | nib name is logged and ignored |
+| `init(nibName:bundle:)` / storyboard-instantiated controllers | ✅ | `init(nibName:bundle:)` loads `<Name>.nib` (explicit name, else one named after the class / class minus "Controller"), `nibName`/`nibBundle`, `init?(coder:)` through an IB coder (Swift classes that only implement `init(coder:)` work: UIKit initializers run without dispatching to app overrides), lazy storyboard views, `storyboard`, `performSegue(withIdentifier:sender:)`, `shouldPerformSegue`, `prepare(for:sender:)`, unwind (`canPerformUnwindSegueAction`, `@IBAction func x(_ segue:)`); tested (HelloStoryboards). `allowedChildrenForUnwinding` / `unwind(for:towards:)` are not consulted |
+| `UIStoryboard`, `UIStoryboardSegue`, `UINib`, `Bundle.loadNibNamed`, `awakeFromNib` | 🟡 | `UIStoryboard(name:bundle:)`, `instantiateInitialViewController(creator:)`, `instantiateViewController(withIdentifier:)` / `(identifier:creator:)` (creator unverified), storyboard references (unverified), segue kinds show/push/showDetail/presentation/modal (+ modal styles), embed, relationship (root/viewControllers), unwind, custom segue classes (unverified); triggered by controls, bar button items, gesture recognizers, table/collection cell selection; `UINib(nibName:bundle:).instantiate(withOwner:options:)` with external objects (unverified), `register(_:forCellReuseIdentifier:)` for nibs and storyboard prototypes; tested (HelloStoryboards). Missing: `@IBSegueAction`, popover anchors, size-class variations (base values used), `nibWithData` of Apple binary nibs |
 | Full-screen modal (`.fullScreen`, `.overFullScreen`, `.currentContext`, `.overCurrentContext`) | ✅ | slides up; `.fullScreen`/`.currentContext` send the presenter viewWillDisappear/viewDidAppear, the "over" styles keep it; context styles cover the `definesPresentationContext` controller; tested (HelloTransitions; context styles unverified) |
 | Page / form sheet (`.automatic`, `.pageSheet`, `.formSheet`) | ✅ | iOS 15+ card look, presenter shrinks behind it at the large detent, swipe-down dismiss (presentation controller delegate: should/will/did dismiss, did attempt), iPad centered card (tap outside or swipe down dismisses; `preferredContentSize` for form sheets, unverified); tested on iPhone and iPad (HelloTransitions, HelloPresentations) |
 | `isModalInPresentation` | ✅ | rubber-bands instead of dismissing |
@@ -144,7 +145,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | `UIImagePickerController` (camera/library) | ❌ | |
 | `UIDocumentPickerViewController` / `UIDocumentBrowserViewController` | ❌ | |
 | `UIColorPickerViewController` | 🟡 | grid (tested, via UIColorWell), spectrum and RGB sliders, opacity, delegate callbacks; no eyedropper or saved colors; spectrum/sliders unverified |
-| `UIFontPickerViewController` | ❌ | |
+| `UIFontPickerViewController` | 🟡 | searchable list of the iOS font families (+ installed app fonts) drawn in their own face, `selectedFontDescriptor`, delegate pick/cancel, minimal `UIFontDescriptor` (`family`/`name`/`size`, `UIFont(descriptor:size:)`); tested (HelloStoryboards). No faces list (`includeFaces`), no `filteredTraits` |
 | `UIReferenceLibraryViewController`, `QLPreviewController` | ❌ | |
 | `UIInputViewController` (custom keyboard extension) | ✅ | loaded in-process; no Full Access |
 | `overrideUserInterfaceStyle` | ✅ | |
@@ -853,8 +854,12 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Associated objects, method swizzling (`method_exchangeImplementations`), introspection | ✅ | |
 | `@synchronized`, properties, fast enumeration | ✅ | |
 | Dynamic method resolution (`+resolveInstanceMethod:`, `+resolveClassMethod:`), property introspection (`class_getProperty`, `class_copyPropertyList`, `property_getAttributes`) | ✅ | also consulted by `respondsToSelector:` / `class_getMethodImplementation`. Tested: CoreDataTest (`@NSManaged` accessors) |
-| Message forwarding (`forwardingTargetForSelector:`, `forwardInvocation:`) | ❌ | unknown selectors abort |
-| `@try`/`@catch`/`@throw`, C++ exceptions | ❌ | a throw aborts |
+| Message forwarding (`forwardingTargetForSelector:`, `methodSignatureForSelector:`/`forwardInvocation:`, `doesNotRecognizeSelector:`, `_objc_msgForward(_stret)`) | ✅ | lookup misses go to forwarding trampolines that capture the x86_64 argument registers + stack; int/char/short/BOOL/long, float/double, small structs (CGPoint, CGSize, NSRange, mixed int/float), stack-spilled args, `CGRect`/large-struct `stret` results; class methods too; unrecognized selectors raise `NSInvalidArgumentException` (iOS message). `respondsToSelector:` does not consult forwarding (like iOS). x87 `long double` results unsupported. Tested: tests/objc-runtime |
+| `NSMethodSignature`, `NSInvocation` (`invoke`, `invokeWithTarget:`, `invokeUsingIMP:`, get/set argument & return value, `retainArguments`), `NSGetSizeAndAlignment` | ✅ | SysV classification of ObjC type encodings; Swift-unavailable as on iOS. Tested: tests/objc-runtime |
+| `NSProxy` | ✅ | root class; `isKindOfClass:`/`isMemberOfClass:`/`respondsToSelector:`/`conformsToProtocol:` forwarded as invocations. Tested: tests/objc-runtime (proxies to a custom class and to `NSMutableString`) |
+| `@try`/`@catch`/`@finally`/`@throw`, `@throw;` rethrow, `NSException` `raise`, `@synchronized` unlock on throw, ARC cleanups (`-fobjc-arc-exceptions`) | ✅ | host libgcc two-phase unwinder over FDEs synthesized from each image's compact unwind info (`__unwind_info`; DWARF-mode entries re-encoded from `__eh_frame`), `__objc_personality_v0` LSDA parser, `OBJC_EHTYPE` class matching; nested, rethrown and other-thread exceptions, exceptions passing through forwarding/`NSInvocation` frames. Swift async frames are not unwound. Tested: tests/objc-runtime |
+| Uncaught exceptions (`*** Terminating app due to uncaught exception …`, first throw call stack, `NSSetUncaughtExceptionHandler`, `callStackReturnAddresses`/`callStackSymbols`) | ✅ | SIGABRT like iOS; an NSException raised by ObjC code called from Swift is not catchable by Swift `do/catch` (same as iOS) and terminates with the report. Tested: tests/objc-runtime (ObjCUncaught, SwiftUncaught) |
+| C++ exceptions (`throw`/`try`/`catch`) | 🟡 | C++ frames (`__gxx_personality_v0`) run cleanups and `catch (...)` for Objective-C exceptions passing through (unverified); throwing C++ exceptions needs a libc++abi built with exceptions/RTTI (isim's libc++ is `-fno-exceptions`); the `_Unwind_*` entry points are already exported for it |
 | libc / POSIX (stdio, malloc, string, pthreads, time, files) | ✅ | host glibc with Darwin layouts |
 | `errno` from Swift | ✅ | provided by the Foundation overlay (no Swift Darwin overlay) |
 | `dlopen` of app-bundled dylibs/frameworks | 🟡 | used for keyboard extensions; embedded frameworks unverified |
@@ -1264,8 +1269,8 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Info.plist (`$(VARS)`, `INFOPLIST_KEY_*`) | ✅ | never claims Xcode/SDK identity |
 | Entitlements | 🧩 | not enforced or signed |
 | App icons on the home screen | ✅ | from the asset catalog |
-| Launch screen (`UILaunchScreen` dictionary, LaunchScreen storyboard) | ❌ | |
-| Storyboards / XIBs (`UIMainStoryboardFile`, `UISceneStoryboardFile`, nibs) | ❌ | needs an ibtool replacement; logged and ignored |
+| Launch screen (`UILaunchScreen` dictionary, LaunchScreen storyboard) | ✅ | shown in-app while the app launches (above its windows, no touches), fades out ≥ 0.25 s after launch (`ISIM_LAUNCH_SCREEN_SECS`); `UILaunchStoryboardName` (and `~iphone`/`~ipad`) initial controller; dictionary: `UIColorName`, `UIImageName`, `UIImageRespectsSafeAreaInsets`, `UINavigationBar`/`UITabBar`/`UIToolbar`; tested (HelloStoryboards). Not a cached snapshot like iOS; the home screen does not show it before the process starts |
+| Storyboards / XIBs (`UIMainStoryboardFile`, `UISceneStoryboardFile`, nibs) | 🟡 | `isim build` compiles `.storyboard`/`.xib` (Xcode 15/16 XML) with isim's ibtool (`isim/tools/ibtool.py`) into isim's own archive format (`<Name>.storyboardc/isim-storyboard.plist`, `<Name>.nib/isim-nib.plist` — not Apple's binary nibs). Scenes: view/navigation/tab bar/table view/collection view (unverified)/page view (unverified) controllers; views and standard controls with their attributes (frames, autoresizing, colors incl. system/named, fonts incl. text styles, images incl. SF Symbols, button configurations, segments, text input traits, accessibility, runtime attributes, tags); Auto Layout (safe area/margins/scroll guides, priorities, multipliers, placeholders removed); outlets, outlet collections, actions, segues, prototype cells; `UIMainStoryboardFile` / `UISceneStoryboardFile` windows; tested (HelloStoryboards). Missing: static table cells (compiled, not shown), size classes/variations, `@IBDesignable` rendering, localized storyboards' `.strings` |
 | Localization (`.xcstrings`, `.lproj/.strings`, app language from Settings) | 🟡 | plurals limited (see Foundation) |
 | Unit tests (XCTest, Swift Testing), UI tests (XCUITest) | ❌ | test bundles are skipped by `isim build`; isim's own script driver exists |
 | Scripted automation (`--script`/`--control`: tap, type, screenshot, dump) | ✅ | |
@@ -1278,7 +1283,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | App switcher / multitasking | ❌ | |
 | Lock screen, Notification Center, Control Center | ❌ | |
 | Settings app: General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, Game Center, per-app pages | 🟡 | only the settings isim implements |
-| Settings bundles (`Settings.bundle` for app pages) | ❌ | |
+| Settings bundles (`Settings.bundle` for app pages) | ✅ | the app's page in Settings: PSGroupSpecifier (header/footer), PSTextFieldSpecifier (secure), PSToggleSwitchSpecifier (True/FalseValue), PSMultiValueSpecifier, PSRadioGroupSpecifier (unverified), PSSliderSpecifier, PSTitleValueSpecifier, PSChildPaneSpecifier, StringsTable localization; written to the app's `UserDefaults` domain (re-read when the app returns to the foreground, posting "NSUserDefaultsDidChangeNotification" by name — the constant is not declared yet); tested (HelloStoryboards). Apps with keyboard extensions keep the Keyboards page instead |
 | System keyboard + keyboard extensions | ✅ | English (US) only |
 | Light/dark mode, screenshots (F12), zoom | ✅ | |
 | Audio output | ✅ | SDL3 mixer |

@@ -20,7 +20,7 @@ FOUNDATION_EXPORT NSString *const NSGlobalDomain;
 - (void)setDouble:(double)value forKey:(NSString *)defaultName;
 - (nullable NSArray *)arrayForKey:(NSString *)defaultName;
 - (nullable NSDictionary<NSString *, id> *)dictionaryForKey:(NSString *)defaultName;
-- (void)registerDefaults:(NSDictionary<NSString *, id> *)registrationDictionary;
+- (void)registerDefaults:(NSDictionary<NSString *, id> *)registrationDictionary NS_SWIFT_NAME(register(defaults:));
 - (BOOL)synchronize;
 @end
 NS_ASSUME_NONNULL_END
