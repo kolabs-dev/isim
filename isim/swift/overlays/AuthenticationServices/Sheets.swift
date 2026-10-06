@@ -197,7 +197,7 @@ struct _ASAppleIDSheet: View {
             _ASHeader(title: "Sign in with Apple", closeID: "siwa-cancel", onClose: onCancel)
             _ASAppIcon().padding(.top, 14)
             Text(verbatim: headline).font(.system(size: 22, weight: .bold)).multilineTextAlignment(.center)
-                .padding(.horizontal, 28).padding(.top, 14).accessibilityIdentifier("siwa-title")
+                .accessibilityIdentifier("siwa-title").padding(.horizontal, 28).padding(.top, 14)
             if !returning && (askName || askEmail) {
                 VStack(spacing: 0) {
                     if askName { row(label: "NAME", id: "siwa-name") { Text(verbatim: "\(account.first) \(account.last)").font(.system(size: 17)) } }
@@ -266,7 +266,7 @@ struct _ASPasskeySheet: View {
             HStack { Spacer(); _ASCloseButton(id: "passkey-cancel", action: onCancel) }.padding(.horizontal, 16).padding(.top, 16)
             _ASPasskeyGlyph()
             Text(verbatim: "Save a passkey for “\(name)”?").font(.system(size: 22, weight: .bold)).multilineTextAlignment(.center)
-                .padding(.horizontal, 28).padding(.top, 14).accessibilityIdentifier("passkey-title")
+                .accessibilityIdentifier("passkey-title").padding(.horizontal, 28).padding(.top, 14)
             Text(verbatim: "Passkeys let you sign in to \(rp) without a password. This one is saved on this simulated device only (not synced to iCloud Keychain).")
                 .font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal, 32).padding(.top, 8)
             Spacer(minLength: 16)
@@ -285,7 +285,7 @@ struct _ASChooserSheet: View {
             HStack { Spacer(); _ASCloseButton(id: "signin-cancel", action: onCancel) }.padding(.horizontal, 16).padding(.top, 16)
             _ASPasskeyGlyph()
             Text(verbatim: "Sign in to “\(site)”?").font(.system(size: 22, weight: .bold)).multilineTextAlignment(.center)
-                .padding(.horizontal, 28).padding(.top, 14).accessibilityIdentifier("signin-title")
+                .accessibilityIdentifier("signin-title").padding(.horizontal, 28).padding(.top, 14)
             VStack(spacing: 0) {
                 ForEach(0..<choices.count, id: \.self) { i in
                     Button { selected = i } label: {
