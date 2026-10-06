@@ -598,6 +598,24 @@ static void control_poll(void) {
         script_pos = script + off;
     }
 }
+/* Features > Location: the simulated location lives in the device data, where Core Location (isim's CoreLocation
+ * module, in every app process) reads it: $ISIM_DATA/Library/isim/SimulatedLocation = "LAT LON" or "none" */
+static void set_simulated_location(const char *arg) {
+    double lat, lon; char line[96];
+    if (sscanf(arg, "%lf %lf", &lat, &lon) == 2 || sscanf(arg, "%lf,%lf", &lat, &lon) == 2) snprintf(line, sizeof line, "%.6f %.6f", lat, lon);
+    else if (!strncmp(arg, "none", 4)) snprintf(line, sizeof line, "none");
+    else { fprintf(stderr, "isim host: location expects LAT LON or none\n"); return; }
+    char path[1024]; const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    if (data && *data) snprintf(path, sizeof path, "%s/Library", data);
+    else snprintf(path, sizeof path, "%s/.local/share/isim/Library", home ? home : "");
+    mkdir(path, 0755); strncat(path, "/isim", sizeof path - strlen(path) - 1); mkdir(path, 0755);
+    strncat(path, "/SimulatedLocation", sizeof path - strlen(path) - 1);
+    FILE *f = fopen(path, "w");
+    if (!f) { fprintf(stderr, "isim host: cannot write %s\n", path); return; }
+    fprintf(f, "%s\n%.3f\n", line, isim_time());          /* the second line makes every command a change */
+    fclose(f);
+    fprintf(stderr, "isim host: simulated location %s\n", line);
+}
 /* "drag x1 y1 x2 y2 seconds": a timed drag, one move per ~16 ms */
 static struct { int on; double a, b, c, d, t0, dur, last; } sdrag;
 static int script_step(struct isim_event *ev) {
@@ -681,6 +699,8 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "shake")) {          /* Device > Shake (motion event) */
         pending[npending++] = (struct isim_event){ .type = EV_KEY, .key = 0x7fff0001 };
         script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "location") && sscanf(args, " %511[^;]", arg) == 1) {
+        set_simulated_location(arg);             /* Features > Location: "location LAT LON" or "location none" */
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);

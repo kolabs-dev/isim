@@ -226,6 +226,12 @@ NSString *isim_format(NSString *fmt, va_list ap) {
 }
 - (instancetype)init { return self; }
 - (const char *)_isim_bytes:(NSUInteger *)len { *len = 0; return ""; }
+/* The Swift stdlib bridges small ASCII strings (String._bridgeToObjectiveCImpl, used e.g. for error domains when a
+ * Swift Error crosses into Objective-C) by sending this to __StringStorage, whose superclass is connected to NSString.
+ * Apple's Foundation answers with a tagged pointer; isim returns an ordinary immutable string (+1, "new" family). */
++ (id)newTaggedNSStringWithASCIIBytes_:(const unsigned char *)bytes length_:(NSInteger)len {
+    return [[NSString alloc] initWithBytes:bytes length:(NSUInteger)len encoding:NSUTF8StringEncoding];
+}
 
 + (instancetype)string { return [[[self alloc] init] autorelease]; }
 + (instancetype)stringWithString:(NSString *)s { return [[[self alloc] initWithString:s] autorelease]; }

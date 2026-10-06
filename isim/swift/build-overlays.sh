@@ -4,12 +4,14 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 SDK=$(realpath ../out/sdk); OBJ=../out/swift/obj/overlays; mkdir -p "$OBJ"
-EVOLUTION="AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication DeviceCheck UserNotifications"   # app-facing re-implementations: stable ABI across isim updates
+EVOLUTION="CoreLocation AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication DeviceCheck UserNotifications"   # app-facing re-implementations: stable ABI across isim updates
+PRIVACY="CoreLocation"   # modules that also compile overlays/_Privacy (permission alerts, device data)
 ONLY=" $* "   # build-overlays.sh [Module...]: only these (default: all)
 build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays/<Module>/*.swift)
   local m=$1; shift
   [ "$ONLY" = "  " ] || [[ "$ONLY" == *" $m "* ]] || return 0
   local srcs=("overlays/$m.swift"); [ -d "overlays/$m" ] && srcs=(overlays/"$m"/*.swift)
+  case " $PRIVACY " in *" $m "*) srcs+=(overlays/_Privacy/*.swift) ;; esac
   mkdir -p "$SDK/usr/lib/swift/$m.swiftmodule"
   ../out/bin/isim swiftc -parse-as-library -module-name "$m" -module-link-name "swift$m" \
     -Xfrontend -disable-objc-attr-requires-foundation-module $( case " $EVOLUTION " in *" $m "*) echo -enable-library-evolution ;; esac ) \
@@ -45,6 +47,7 @@ build LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswi
 build DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 build UserNotifications -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit -framework UserNotifications
 build StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift_Concurrency -framework Foundation -framework UIKit
+build CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 build Network -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
 
 # stand-ins for remote Swift packages that isim cannot fetch or run (isim build reads this)
