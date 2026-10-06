@@ -85,6 +85,23 @@ enum _Privacy {
         for (i, b) in buttons.enumerated() { a.addAction(UIAlertAction(title: b.0, style: b.1) { _ in done(i) }) }
         vc.present(a, animated: true, completion: nil)
     }
+    /// a navigation bar button backed by a real UIButton, so scripts can `taptext` it and `tapid` its identifier
+    @MainActor static func barButton(_ title: String, bold: Bool = false, id: String? = nil, _ target: Any?, _ action: Selector) -> UIBarButtonItem {
+        let b = UIButton(type: .system)
+        b.setTitle(title, for: .normal)
+        b.titleLabel?.font = bold ? .systemFont(ofSize: 17, weight: .semibold) : .systemFont(ofSize: 17)
+        b.addTarget(target, action: action, for: .touchUpInside)
+        b.accessibilityIdentifier = id
+        b.sizeToFit()
+        return UIBarButtonItem(customView: b)
+    }
+    /// dismisses the modal presentation `vc` belongs to (asks the presenting controller, like iOS does)
+    @MainActor static func dismiss(_ vc: UIViewController, _ completion: (() -> Void)? = nil) {
+        var root = vc
+        while let p = root.parent { root = p }
+        if let presenter = root.presentingViewController { presenter.dismiss(animated: true, completion: completion) }
+        else { root.dismiss(animated: true, completion: completion) }
+    }
     /// runs `body` on the main thread (now if already there)
     static func onMain(_ body: @escaping @MainActor () -> Void) {
         if Thread.isMainThread { MainActor.assumeIsolated { body() } }
