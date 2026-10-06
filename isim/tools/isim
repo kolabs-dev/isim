@@ -14,6 +14,7 @@
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 #   isim storekit <app> list|refund|expire|cancel|resume|clear ...   local StoreKit Transaction Manager
 #   isim gamecenter <app> saved-games|conflict|reset ...              local Game Center data
+#   isim version                                                      print the isim version
 #   device options: --device NAME --zoom N --dark --headless --script "..." --control FIFO (live script commands, one per line); device data: ISIM_DATA (~/.local/share/isim)
 set -euo pipefail
 BIN=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
@@ -36,6 +37,8 @@ device_opts() {   # sets env from device options; leaves the rest in REST
 }
 plist_get() { python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb")).get(sys.argv[2],""))' "$1" "$2"; }
 case "$cmd" in
+  version|--version|-v)
+    echo "isim $(cat "$BIN/VERSION" 2>/dev/null || echo unknown)" ;;
   boot)
     device_opts "$@"
     mkdir -p "$DATA/Applications"
