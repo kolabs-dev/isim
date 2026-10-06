@@ -42,6 +42,24 @@ static int initialized;
 - (NSString *)who { return [[super who] stringByAppendingFormat:@"+derived%d", _mine]; }
 @end
 
+@interface Person : NSObject { NSString *_hidden; }
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic) NSInteger age;
+@property (nonatomic) double score;
+@property (nonatomic, strong) Person *friend;
+@end
+@implementation Person
+@end
+@interface AgeWatcher : NSObject
+@property (nonatomic, strong) NSMutableArray<NSString *> *changes;
+@end
+@implementation AgeWatcher
+- (instancetype)init { if ((self = [super init])) _changes = [NSMutableArray array]; return self; }
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    [_changes addObject:[NSString stringWithFormat:@"%@->%@", change[NSKeyValueChangeOldKey], change[NSKeyValueChangeNewKey]]];
+}
+@end
+
 int main(int argc, char *argv[]) {
     @autoreleasepool {
         // strings & formatting
@@ -119,6 +137,53 @@ int main(int argc, char *argv[]) {
         CHECK([[bcf stringFromByteCount:999] isEqualToString:@"999 bytes"] && [[bcf stringFromByteCount:2500000000] isEqualToString:@"2.5 GB"]);
         NSListFormatter *lfm = [NSListFormatter new]; lfm.locale = ptBR;
         CHECK([[lfm stringFromItems:(@[@"a", @"b", @"c"])] isEqualToString:@"a, b e c"]);
+
+        // key-value coding & observing
+        Person *ada = [Person new]; ada.name = @"Ada"; ada.age = 36;
+        Person *bob = [Person new]; bob.name = @"Bob"; bob.age = 25;
+        CHECK([[ada valueForKey:@"name"] isEqualToString:@"Ada"] && [[ada valueForKey:@"age"] integerValue] == 36);
+        [ada setValue:@37 forKey:@"age"]; [ada setValue:@"Ada L." forKey:@"name"]; [ada setValue:@2.5 forKey:@"score"];
+        CHECK(ada.age == 37 && [ada.name isEqualToString:@"Ada L."] && ada.score == 2.5);
+        [ada setValue:@"secret" forKey:@"hidden"];                                   // ivar access (_hidden)
+        CHECK([[ada valueForKey:@"hidden"] isEqualToString:@"secret"]);
+        ada.friend = bob;
+        CHECK([[ada valueForKeyPath:@"friend.name"] isEqualToString:@"Bob"]);
+        NSArray *people = @[ada, bob];
+        CHECK([[people valueForKey:@"name"] isEqualToArray:(@[@"Ada L.", @"Bob"])] && [[people valueForKeyPath:@"@sum.age"] integerValue] == 62 && [[people valueForKeyPath:@"@max.age"] integerValue] == 37);
+        CHECK([[@{@"k": @1} valueForKey:@"k"] intValue] == 1);
+        AgeWatcher *watcher = [AgeWatcher new];
+        [bob addObserver:watcher forKeyPath:@"age" options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:NULL];
+        bob.age = 26; [bob setValue:@27 forKey:@"age"];
+        CHECK(watcher.changes.count == 2 && [watcher.changes[0] isEqualToString:@"25->26"] && [watcher.changes[1] isEqualToString:@"26->27"]);
+        [bob removeObserver:watcher forKeyPath:@"age"];
+        bob.age = 30;
+        CHECK(watcher.changes.count == 2);
+
+        // more collections, sorting, predicates
+        NSMutableIndexSet *is = [NSMutableIndexSet indexSetWithIndexesInRange:NSMakeRange(2, 3)];
+        [is addIndex:9]; [is addIndex:5]; [is removeIndex:3];
+        CHECK(is.count == 4 && is.firstIndex == 2 && is.lastIndex == 9 && [is containsIndex:5] && ![is containsIndex:3] && [is indexGreaterThanIndex:5] == 9);
+        CHECK(([[@[@"a", @"b", @"c", @"d"] objectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(1, 2)]] isEqualToArray:(@[@"b", @"c"])]));
+        NSMutableOrderedSet *os = [NSMutableOrderedSet orderedSetWithArray:@[@"x", @"y", @"x", @"z"]];
+        [os insertObject:@"w" atIndex:0]; [os addObject:@"y"];
+        CHECK(os.count == 4 && [os.array isEqualToArray:(@[@"w", @"x", @"y", @"z"])] && [os indexOfObject:@"y"] == 2);
+        NSCountedSet *cs = [[NSCountedSet alloc] initWithArray:@[@"a", @"b", @"a"]];
+        CHECK(cs.count == 2 && [cs countForObject:@"a"] == 2);
+        NSCache *cache = [NSCache new]; cache.countLimit = 2;
+        [cache setObject:@1 forKey:@"one"]; [cache setObject:@2 forKey:@"two"]; [cache setObject:@3 forKey:@"three"];
+        CHECK([cache objectForKey:@"one"] == nil && [[cache objectForKey:@"three"] intValue] == 3);
+        NSHashTable *weakTable = [NSHashTable weakObjectsHashTable];
+        @autoreleasepool { NSObject *tmp = [NSObject new]; [weakTable addObject:tmp]; [weakTable addObject:ada]; CHECK(weakTable.count == 2); }
+        CHECK(weakTable.count == 1);
+        NSArray *byAge = [people sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"age" ascending:YES]]];
+        CHECK(byAge.firstObject == bob);
+        NSPredicate *pred = [NSPredicate predicateWithFormat:@"age > %d AND name BEGINSWITH[c] %@", 28, @"b"];
+        CHECK([pred evaluateWithObject:bob] && ![pred evaluateWithObject:ada]);
+        CHECK([[people filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"name CONTAINS 'L.' OR age IN {1, 2, 30}"]] count] == 2);
+        CHECK(([[@[@"apple", @"Banana", @"cherry"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF LIKE[c] '*an*'"]] isEqualToArray:(@[@"Banana"])]));
+        CHECK(([[NSPredicate predicateWithFormat:@"SELF MATCHES '[0-9]{3}'"] evaluateWithObject:@"123"] && [[NSPredicate predicateWithFormat:@"%K BETWEEN {20, 40}", @"age"] evaluateWithObject:ada]));
+        CHECK([[NSPredicate predicateWithFormat:@"friend.name == 'Bob' && NOT (age < 30)"] evaluateWithObject:ada]);
+        CHECK([[NSPredicate predicateWithFormat:@"age == $AGE"] evaluateWithObject:bob substitutionVariables:@{@"AGE": @30}]);
 
         // numbers & collections
         NSArray *arr = @[@3, @1, @2];

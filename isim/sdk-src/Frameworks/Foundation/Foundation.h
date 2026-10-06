@@ -33,3 +33,7 @@
 #import <Foundation/NSCalendar.h>
 #import <Foundation/NSUnit.h>
 #import <Foundation/NSMeasurement.h>
+#import <Foundation/NSKeyValueCoding.h>
+#import <Foundation/NSIndexSet.h>
+#import <Foundation/NSOrderedCollections.h>
+#import <Foundation/NSPredicate.h>

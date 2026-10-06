@@ -73,6 +73,12 @@ extension NSNumber {
     public var uint8Value: UInt8 { unsignedCharValue }
     public var uintValue: UInt { unsignedLongValue }
 }
+// like Apple's overlay: string literals where an NSString is expected (NSCache<NSString, _> keys, ...)
+extension NSString: ExpressibleByStringLiteral, ExpressibleByUnicodeScalarLiteral, ExpressibleByExtendedGraphemeClusterLiteral {
+    public required convenience init(stringLiteral value: String) { self.init(string: value) }
+    public required convenience init(unicodeScalarLiteral value: String) { self.init(string: value) }
+    public required convenience init(extendedGraphemeClusterLiteral value: String) { self.init(string: value) }
+}
 // like Apple's overlay: number literals where an NSNumber is expected (NumberFormatter.string(from: 42))
 extension NSNumber: ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral {
     public required convenience init(integerLiteral value: Int) { self.init(integer: value) }

@@ -62,6 +62,8 @@ Classes:
   SwiftBridge: Foundation.PersonNameComponents
 - Name: NSCalendar
   SwiftBridge: Foundation.Calendar
+- Name: NSIndexSet
+  SwiftBridge: Foundation.IndexSet
 - Name: NSDateComponents
   SwiftBridge: Foundation.DateComponents
 - Name: NSURL

@@ -81,6 +81,47 @@ class Greeter: NSObject {
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let links = detector?.matches(in: "go to www.isim.dev now", range: NSRange(location: 0, length: 22)).compactMap { $0.url?.absoluteString }
         check(links == ["http://www.isim.dev"], "NSDataDetector links (\(links ?? []))")
+        // key-value coding / observing from Swift
+        let g2 = Greeter()
+        var seen: [Int] = []
+        let observation = g2.observe(\.count, options: [.initial, .new]) { _, change in seen.append(change.newValue ?? -1) }
+        g2.count = 3; g2.count = 4
+        check(seen == [0, 3, 4], "observe(\\.count) on an @objc dynamic property (\(seen))")
+        observation.invalidate(); g2.count = 9
+        check(seen == [0, 3, 4], "NSKeyValueObservation.invalidate()")
+        check(g2.value(forKey: "count") as? Int == 9, "value(forKey:) on a Swift @objc property")
+        g2.setValue(12, forKey: "count")
+        check(g2.count == 12, "setValue(_:forKey:) on a Swift @objc property")
+        var published: [Int] = []
+        let sub = g2.publisher(for: \.count).sink { published.append($0) }
+        g2.count = 13
+        check(published == [12, 13], "publisher(for:) KVO publisher (\(published))")
+        sub.cancel()
+
+        // IndexSet, sorting, predicates
+        var idx = IndexSet(integersIn: 2..<5)
+        idx.insert(9); idx.remove(3)
+        check(Array(idx) == [2, 4, 9] && idx.count == 3 && idx.contains(4) && idx.rangeView.count == 3, "IndexSet")
+        let nsIdx = idx as NSIndexSet
+        check(nsIdx.count == 3 && nsIdx.contains(9) && (nsIdx as IndexSet) == idx, "IndexSet <-> NSIndexSet bridging")
+        var items = ["b", "a", "c"]; items.remove(atOffsets: IndexSet(integer: 0)); items.move(fromOffsets: IndexSet(integer: 1), toOffset: 0)
+        check(items == ["c", "a"], "remove(atOffsets:) / move(fromOffsets:toOffset:)")
+        struct Song { var title: String; var plays: Int }
+        let songs = [Song(title: "b", plays: 3), Song(title: "A", plays: 9), Song(title: "c", plays: 3)]
+        check(songs.sorted(using: KeyPathComparator(\.plays, order: .reverse)).map(\.title) == ["A", "b", "c"], "sorted(using: KeyPathComparator)")
+        check(songs.sorted(using: [KeyPathComparator(\Song.plays), KeyPathComparator(\Song.title, order: .reverse)]).map(\.title) == ["c", "b", "A"], "sorted(using: [comparators])")
+        check(songs.sorted(using: SortDescriptor(\.title)).map(\.title) == ["A", "b", "c"], "SortDescriptor with localizedStandard strings")
+        let people = [Greeter(), Greeter()]; people[0].count = 5; people[1].count = 1
+        let byCount = (people as NSArray).sortedArray(using: [NSSortDescriptor(key: "count", ascending: true)]) as! [Greeter]
+        check(byCount.first === people[1], "NSSortDescriptor on @objc properties")
+        let pred = NSPredicate(format: "count > %d", 2)
+        check(pred.evaluate(with: people[0]) && !pred.evaluate(with: people[1]), "NSPredicate(format:_:) with Swift arguments")
+        check((["apple", "Banana", "cherry"] as NSArray).filtered(using: NSPredicate(format: "SELF CONTAINS[c] %@", "an")) as! [String] == ["Banana"], "NSArray.filtered(using:)")
+        check(NSPredicate { obj, _ in (obj as? Int ?? 0) > 1 }.evaluate(with: 2), "NSPredicate(block:)")
+        let os = NSMutableOrderedSet(array: [3, 1, 3, 2])
+        check(os.count == 3 && (os.array as! [Int]) == [3, 1, 2], "NSMutableOrderedSet")
+        let cache = NSCache<NSString, NSNumber>(); cache.setObject(1, forKey: "a")
+        check(cache.object(forKey: "a") == 1, "NSCache<NSString, NSNumber>")
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }
