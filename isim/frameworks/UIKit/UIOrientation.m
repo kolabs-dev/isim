@@ -96,6 +96,8 @@ static UIInterfaceOrientation choose(UIDeviceOrientation dev, UIInterfaceOrienta
 - (CGFloat)completionVelocity { return 1; }
 - (UIView *)containerView { return _container ?: UIApplication.sharedApplication.keyWindow; }
 - (CGAffineTransform)targetTransform { return _transform; }
+- (UIViewController *)viewControllerForKey:(UITransitionContextViewControllerKey)key { return nil; }
+- (UIView *)viewForKey:(UITransitionContextViewKey)key { return nil; }
 - (BOOL)animateAlongsideTransition:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))a completion:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))c {
     if (a) [_alongside addObject:[a copy]];
     if (c) [_completions addObject:[c copy]];

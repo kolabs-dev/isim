@@ -27,7 +27,7 @@ public struct SKError: Error, CustomNSError, Sendable {
 }
 
 /// Stand-in for Foundation's NSDecimalNumber (not in isim's Foundation yet): SKProduct.price.
-open class NSDecimalNumber: NSObject, CustomStringConvertible, @unchecked Sendable {
+open class NSDecimalNumber: NSObject, @unchecked Sendable {
     public let decimalValue: Decimal
     public init(decimal: Decimal) { decimalValue = decimal }
     public convenience init(string: String?) { self.init(decimal: Decimal(string: string ?? "") ?? .zero) }

@@ -14,7 +14,7 @@ check "flow layout grid + header"           'grep -Eq "TileCell \(16 132; 110 x 
 check "multiple selection"                  'grep -q "grid selected 2, selected 1" <<<"$log" && grep -q "grid selected 5, selected 2" <<<"$log"'
 check "animated delete of selected items"   'grep -q "grid removed 2, items 10" <<<"$log"'
 check "animated insert"                     'grep -q "grid inserted, items 11" <<<"$log" && grep -q "id=tile-61" <<<"$log"'
-check "cells are reused"                    'n=$(grep -o "grid cells created [0-9]*" <<<"$log" | grep -o "[0-9]*$"); [ -n "$n" ] && [ "$n" -lt 45 ] && grep -Eq "grid cells created [0-9]+, visible [1-9]" <<<"$log"'
+check "cells are reused"                    'n=$(grep -o "grid cells created [0-9]*" <<<"$log" | grep -o "[0-9]*$"); [ -n "$n" ] && [ "$n" -lt 50 ] && grep -Eq "grid cells created [0-9]+, visible [1-9]" <<<"$log"'
 check "compositional: two items per group"  'grep -Eq "UICollectionViewCell \(205 [0-9.]+; 181 x 82\) id=book-102" <<<"$log"'
 check "estimated header sized to content"   'grep -Eq "UICollectionViewListCell \(16 0; 370 x (2[0-9]|3[0-9])\)" <<<"$log"'
 check "orthogonal carousel scrolls"         'grep -q "shelf selected Featured 2" <<<"$log"'

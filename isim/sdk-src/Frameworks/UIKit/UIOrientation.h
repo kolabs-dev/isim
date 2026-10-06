@@ -6,6 +6,7 @@
 #import <UIKit/UIViewController.h>
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIScene.h>
+#import <UIKit/UIPresentationController.h>   /* the transition coordinator protocols */
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, UIInterfaceOrientation) {
     UIInterfaceOrientationUnknown = UIDeviceOrientationUnknown,
@@ -35,26 +36,6 @@ UIKIT_EXTERN NSNotificationName const UIDeviceOrientationDidChangeNotification;
 - (void)endGeneratingDeviceOrientationNotifications;
 @end
 
-@protocol UIViewControllerTransitionCoordinatorContext <NSObject>
-@property (nonatomic, readonly, getter=isAnimated) BOOL animated;
-@property (nonatomic, readonly) UIModalPresentationStyle presentationStyle;
-@property (nonatomic, readonly) BOOL initiallyInteractive;
-@property (nonatomic, readonly) BOOL isInterruptible;
-@property (nonatomic, readonly, getter=isInteractive) BOOL interactive;
-@property (nonatomic, readonly, getter=isCancelled) BOOL cancelled;
-@property (nonatomic, readonly) NSTimeInterval transitionDuration;
-@property (nonatomic, readonly) CGFloat percentComplete;
-@property (nonatomic, readonly) CGFloat completionVelocity;
-@property (nonatomic, readonly) UIView *containerView;
-@property (nonatomic, readonly) CGAffineTransform targetTransform;
-@end
-@protocol UIViewControllerTransitionCoordinator <UIViewControllerTransitionCoordinatorContext>
-- (BOOL)animateAlongsideTransition:(void (^_Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))animation
-                        completion:(void (^_Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))completion;
-- (BOOL)animateAlongsideTransitionInView:(nullable UIView *)view
-                               animation:(void (^_Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))animation
-                              completion:(void (^_Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))completion;
-@end
 @protocol UIContentContainer <NSObject>
 - (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator;
 - (void)willTransitionToTraitCollection:(UITraitCollection *)newCollection withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator;

@@ -91,6 +91,11 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly, getter=isCancelled) BOOL cancelled;
 @property (nonatomic, readonly) NSTimeInterval transitionDuration;
 @property (nonatomic, readonly) UIView *containerView;
+@property (nonatomic, readonly) BOOL initiallyInteractive;
+@property (nonatomic, readonly) BOOL isInterruptible;
+@property (nonatomic, readonly) CGFloat percentComplete;
+@property (nonatomic, readonly) CGFloat completionVelocity;
+@property (nonatomic, readonly) CGAffineTransform targetTransform;
 - (nullable __kindof UIViewController *)viewControllerForKey:(UITransitionContextViewControllerKey)key;
 - (nullable __kindof UIView *)viewForKey:(UITransitionContextViewKey)key;
 @end
@@ -98,6 +103,9 @@ NS_SWIFT_UI_ACTOR
 @protocol UIViewControllerTransitionCoordinator <UIViewControllerTransitionCoordinatorContext>
 - (BOOL)animateAlongsideTransition:(void (^ _Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))animation
                         completion:(void (^ _Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))completion;
+- (BOOL)animateAlongsideTransitionInView:(nullable UIView *)view
+                               animation:(void (^ _Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))animation
+                              completion:(void (^ _Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))completion;
 @end
 
 /* ---- presentation controllers ---- */
