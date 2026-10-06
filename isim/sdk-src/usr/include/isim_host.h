@@ -36,6 +36,14 @@ void isim_path_close(void);
 void isim_path_rect(double x, double y, double w, double h, double r);
 void isim_path_fill(const double *rgba);
 void isim_path_stroke(double lw, const double *rgba);
+/* stroke style of the graphics state: cap 0 butt 1 round 2 square; join 0 miter 1 round 2 bevel; dash lengths (ndash 0 = solid) */
+void isim_path_set_line_style(int cap, int join, double miter, const double *_Nullable dash, int ndash, double phase);
+/* fill rule of the graphics state for fills and clips: 0 nonzero winding, 1 even-odd */
+void isim_path_set_fill_rule(int even_odd);
+/* gradient paint of the current path (kept): mode 0 fill, 1 stroke (width lw), 2 paint the clip area.
+   kind 0 linear (geom x0 y0 x1 y1), 1 radial (cx0 cy0 r0 cx1 cy1 r1), 2 conic (cx cy startAngle endAngle, radians, y-down).
+   n stops: locs[n], rgba[4n]; extend 0 none 1 pad 2 repeat 3 reflect; matrix: optional gradient -> user space [a b c d tx ty] */
+void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *_Nullable matrix);
 void isim_text_measure(const char *utf8, double size, double weight, int mono, double maxw, int lines, double *w, double *h);
 void isim_text_end_point(const char *utf8, double size, double weight, int mono, double maxw, double *x, double *y);
 void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba);
