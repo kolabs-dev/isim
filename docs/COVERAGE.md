@@ -67,9 +67,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Core Text | 2 | 0 | 0 | 2 | 4 | 50% |
 | QuartzCore / Core Animation | 2 | 2 | 0 | 5 | 9 | 33% |
 | Core Image, ImageIO & Metal | 0 | 0 | 0 | 4 | 4 | 0% |
-| SpriteKit | 9 | 1 | 3 | 5 | 18 | 53% |
+| SpriteKit | 15 | 17 | 5 | 3 | 40 | 59% |
 | GameKit (Game Center) | 4 | 1 | 3 | 6 | 14 | 32% |
-| GameController, SceneKit, RealityKit & ARKit | 0 | 0 | 0 | 5 | 5 | 0% |
+| GameController, GameplayKit, SceneKit, RealityKit & ARKit | 7 | 5 | 1 | 6 | 19 | 50% |
 | AVFoundation & audio | 1 | 4 | 0 | 9 | 14 | 21% |
 | Photos, Vision, Core ML & camera | 0 | 0 | 0 | 7 | 7 | 0% |
 | StoreKit | 8 | 2 | 3 | 8 | 21 | 43% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 0 | 0 | 0 | 7 | 7 | 0% |
 | Logging & diagnostics | 2 | 0 | 0 | 2 | 4 | 50% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **268** | **75** | **38** | **325** | **706** | **43%** |
+| **All areas** | **281** | **96** | **41** | **324** | **742** | **44%** |
 
 ---
 
@@ -865,26 +865,50 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 
 ## SpriteKit
 
+isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit).
+
 | API / feature | Status | Notes |
 |---|---|---|
-| `SKView`, `SKScene` (size, scale modes, anchor point, background, update loop, delegate) | ✅ | software rendered at 60 fps |
+| `SKView`, `SKScene` (size, scale modes, anchor point, background, frame loop, delegate) | ✅ | 60 fps; per frame: `update`, actions, physics, constraints, particles, `didFinishUpdate` |
 | `SKNode` tree (position, z-order, scale, rotation, alpha, hidden, name lookup, `enumerateChildNodes`) | ✅ | |
-| `SKSpriteNode` (texture, color, color blend, anchor, `centerRect`) | ✅ | |
-| `SKShapeNode` (path, rect, circle, fill/stroke, line width) | ✅ | |
-| `SKLabelNode` (font, size, color, alignment, multi-line) | ✅ | |
-| `SKTexture` (`imageNamed:`, sub-rect, filtering) | ✅ | |
-| `SKAction` (move, rotate, scale, fade, colorize, resize, sequence, group, repeat, wait, run block, custom, timing modes) | ✅ | |
-| `SKAction.playSoundFileNamed` | 🧩 | completes silently |
+| `SKSpriteNode` (texture, color, color blend, anchor, size, blend modes) | ✅ | |
+| `centerRect` (9-slice), `normalTexture`, lighting/shadow masks, `warpGeometry` | 🧩 | stored, not drawn |
+| `SKShapeNode` (path, rect, rounded rect, circle, ellipse, points, spline, fill/stroke, line width, glow, blend mode, `lineLength`) | 🟡 | line cap/join/miter, fill/stroke textures and shaders ignored |
+| `SKLabelNode` (font, size, color, alignment, multi-line, color blend, blend mode) | ✅ | |
+| `SKLabelNode.attributedText` | ❌ | isim Foundation has no `NSAttributedString` yet |
+| `SKTexture` (`imageNamed:` incl. atlases, `init(rect:in:)`, `textureRect`, filtering, `preload`) | 🟡 | no noise/`data:` textures; `cgImage()` returns nil |
+| `SKTextureAtlas` (`.atlas` folders, `textureNamed`, `textureNames`, `preload`, `init(dictionary:)`) | ✅ | picks the @2x/@3x file for the screen |
+| `.spriteatlas` in asset catalogs | 🟡 | `isim build` lists them for `SKTextureAtlas(named:)`; unverified in an app |
+| `SKAction` (move, rotate, scale, fade, colorize, resize, sequence, group, repeat, wait, run block, custom, follow path, speed, timing modes) | ✅ | |
+| `SKAction.reversed()` | ❌ | returns the action unchanged |
+| Physics, field and audio actions (`applyForce`/`applyImpulse`/`applyTorque`, `changeMass`/`changeCharge`, `strength`/`falloff`, `play`/`pause`/`stop`, `changeVolume`) | 🟡 | unverified; playback rate, panning, reverb, obstruction/occlusion and `reach` actions only wait |
+| `SKAction.playSoundFileNamed` | ✅ | through isim's AVFoundation (PCM CAF/WAV; compressed formats via the host's ffmpeg/GStreamer); overlapping plays mix |
+| `SKAudioNode` | 🟡 | looping playback and volume; not positional (`isPositional` ignored); `avAudioNode` not connected to an engine; unverified |
 | Touch handling in scenes/nodes | ✅ | via SKView |
-| `SKTransition` / `presentScene(_:transition:)` | 🧩 | presents without the transition effect |
-| `SpriteView` (SwiftUI) | ✅ | |
-| `camera` | 🟡 | typed as `SKNode`; no `SKCameraNode` class |
-| `SKPhysicsBody`, contacts, joints, fields | ❌ | `SKPhysicsWorld` exists so scenes that configure it run |
-| `SKEmitterNode` (particles, `.sks` emitters) | ❌ | |
-| `.sks` scene files (`SKScene(fileNamed:)`) | 🧩 | logs and returns an empty scene |
-| `SKTextureAtlas` / `.atlas` folders | ❌ | |
-| `SKCropNode`, `SKEffectNode`, `SKShader`, `SKLightNode`, `SKTileMapNode`, `SKVideoNode`, `SKReferenceNode` | ❌ | |
-| `SKConstraint`, `SKAudioNode` | ❌ | |
+| `SKTransition` / `presentScene(_:transition:)` | ✅ | crossFade, fade (with color), push, moveIn, reveal, doorway, doors open/close, flips; pauses incoming/outgoing scenes. `SKTransition(ciFilter:)` ❌ |
+| `SpriteView` (SwiftUI) | ✅ | scene, transition, paused, options, debug options |
+| `SKCameraNode` (position/rotation/scale drive the view, children as HUD, `contains`, `containedNodeSet`) | 🟡 | `SKScene.camera` is typed `SKNode?` (iOS: `SKCameraNode?`) to keep isim's ABI |
+| `SKPhysicsWorld` (gravity, speed, `contactDelegate`, joints, `body(at:)`, `body(in:)`, ray casts) | 🟡 | `contactDelegate` is typed `AnyObject?` (ABI); `sampleFields(at:)` ❌ |
+| `SKPhysicsBody` shapes (circle, rectangle, polygon, edge, edge chain/loop, compound) | 🟡 | concave polygons use their convex hull; texture-based bodies use the bounding rectangle |
+| `SKPhysicsBody` dynamics (mass/density/area, friction, restitution, damping, velocity, forces, impulses, torque, `allowsRotation`, `pinned`, `affectedByGravity`, `isResting`) | ✅ | 150 points per meter like SpriteKit; sequential impulses without warm starting (tall stacks settle less firmly than Box2D) |
+| Category / collision / contact bit masks, `SKPhysicsContact`, `didBegin` / `didEnd` | ✅ | collision response is per body, as in SpriteKit; static bodies moved by actions push dynamic ones |
+| `usesPreciseCollisionDetection` | 🟡 | more substeps instead of continuous collision detection |
+| `SKPhysicsJoint` (pin, fixed, spring, limit, sliding) | 🟡 | pin, limit and spring tested; fixed and sliding unverified; `reactionForce`/`reactionTorque` approximate |
+| `SKFieldNode` (linear/radial gravity, spring, drag, vortex, velocity, noise, turbulence, electric, magnetic, custom; `SKRegion`) | 🟡 | radial gravity tested; the others are unverified approximations; fields do not act on particles |
+| `SKEmitterNode` (birth rate, lifetime, position range, speed, emission angle, acceleration, alpha/scale/rotation/color + ranges, speeds and keyframe sequences, blend modes, texture, `targetNode`, `advanceSimulationTime`, `resetSimulation`) | ✅ | simulated on the CPU; `particleAction`, `shader` and field interaction ignored |
+| `SKKeyframeSequence` | ✅ | linear, spline (smoothstep), step; clamp/loop |
+| `.sks` files (`SKNode(fileNamed:)`, `SKScene(fileNamed:)`, `SKEmitterNode(fileNamed:)`) | 🟡 | binary keyed archives read by isim's own decoder; SpriteKit's private archive keys are matched by property name, so only archives laid out like isim's test files are known to load (no Xcode-made .sks was available to verify); scenes: nodes, sprites, labels, simple shapes, emitters, camera, crop/effect nodes; no actions, physics bodies or tile maps from files |
+| `SKCropNode` | ✅ | alpha mask from the mask node |
+| `SKEffectNode` | 🟡 | children composited as a group (alpha, blend mode); Core Image filters ❌; `shouldRasterize` has no effect |
+| `SKShader`, `SKUniform`, `SKAttribute` | 🧩 | stored, not run (no GPU) |
+| `SKLightNode` | 🧩 | stored; nothing is lit or shadowed |
+| `SKConstraint`, `SKRange` (position, distance, orientation, rotation, scale) | 🟡 | orientation tested; others unverified |
+| `SKReachConstraints`, inverse kinematics | 🧩 | stored; reach actions only wait |
+| `SKTileMapNode`, `SKTileSet`, `SKTileGroup`, `SKTileDefinition` | 🟡 | grid maps built in code (fill, set/get, tile indices and centers, animated definitions); unverified; no tile sets from files, no automapping; isometric/hex drawn as a grid |
+| `SKReferenceNode` | 🟡 | loads an .sks file's children; unverified |
+| `SKView` debug overlays (`showsFPS`, `showsNodeCount`, `showsDrawCount`, `showsPhysics`) | 🟡 | node count tested; `showsPhysics` outlines bodies (unverified); `showsFields` ignored |
+| `SKView.texture(from:)` | 🧩 | returns nil |
+| `SKVideoNode`, `SKTransformNode`, `SK3DNode`, `SKWarpGeometry`, `SKRenderer`, `SKMutableTexture` | ❌ | |
 
 ## GameKit (Game Center)
 
@@ -907,15 +931,29 @@ isim's Game Center is local: one player per device, no Apple servers.
 | Challenges, invites, activities | ❌ | |
 | Saved games (`GKSavedGame`) | ❌ | |
 
-## GameController, SceneKit, RealityKit & ARKit
+## GameController, GameplayKit, SceneKit, RealityKit & ARKit
 
 | API / feature | Status | Notes |
 |---|---|---|
-| GameController (`GCController`, `GCKeyboard`, virtual controller) | ❌ | |
+| `GCController` (`controllers()`, `current`, connect / disconnect / current notifications, `playerIndex`) | ✅ | only isim's virtual controller connects |
+| `GCExtendedGamepad`, `GCMicroGamepad` (buttons, d-pad, thumbsticks, triggers, value / pressed / touched handlers) | ✅ | tested with the virtual controller |
+| Physical game controllers on the host | ❌ | host gamepads are not forwarded to apps |
+| `GCKeyboard.coalesced`, `GCKeyboardInput` (`button(forKeyCode:)`, `keyChangedHandler`, `isAnyKeyPressed`), `GCKeyCode` | ✅ | the host keyboard; key presses and releases arrive as USB HID usages (scripts: `keydown`/`keyup`) |
+| `GCVirtualController` (iOS 15) | 🟡 | thumbsticks, d-pad, A/B/X/Y, shoulders, triggers and menu drawn over the key window; element configurations only hide elements (custom paths ignored) |
+| `GCMouse`, motion, haptics, light, battery | 🧩 | no mice; the others are nil |
 | SceneKit (`SCNView`, `SCNScene`, `SceneView`) | ❌ | |
 | RealityKit | ❌ | |
 | ARKit | ❌ | no camera or sensors |
-| GameplayKit (state machines, random sources, pathfinding) | ❌ | |
+| `GKStateMachine`, `GKState` | ✅ | |
+| `GKEntity`, `GKComponent`, `GKComponentSystem`, `GKSKNodeComponent`, `SKNode.entity` | ✅ | |
+| `GKRandomSource`, `GKARC4RandomSource`, `GKMersenneTwisterRandomSource`, `GKLinearCongruentialRandomSource`, `arrayByShufflingObjects` | 🟡 | MT19937 matches the reference generator; ARC4 is RC4; LCG is the 64-bit MMIX generator; seeded sequences are not checked against iOS's |
+| `GKRandomDistribution`, `GKGaussianDistribution`, `GKShuffledDistribution` | ✅ | |
+| `GKGraph`, `GKGridGraph`, `GKGraphNode`, `GKGraphNode2D/3D`, `findPath` (A*) | ✅ | |
+| `GKObstacleGraph`, `GKMeshGraph`, `GKPolygonObstacle` | ❌ | |
+| `GKNoise`, `GKNoiseMap`, noise sources (Perlin, billow, ridged, Voronoi, constant, cylinders, spheres, checkerboard) | 🟡 | own algorithms (values differ from iOS); no `SKTexture(noiseMap:)`; unverified |
+| `GKAgent2D`, `GKGoal`, `GKBehavior`, `GKPath` | 🟡 | simple steering (seek tested; flee, intercept, wander, target speed, avoid, separate/align/cohere, follow/stay on path unverified); `GKAgent3D` ❌ |
+| `GKRuleSystem`, `GKRule` | 🟡 | block-based rules, facts with grades; `NSPredicate` rules ❌; unverified |
+| `GKMinmaxStrategist`, `GKMonteCarloStrategist`, `GKDecisionTree`, `GKQuadtree`, `GKRTree` | ❌ | |
 
 ---
 
