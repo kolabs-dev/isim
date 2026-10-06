@@ -126,7 +126,7 @@ const CGFloat UITableViewAutomaticDimension = -1;
     return self;
 }
 - (instancetype)initWithFrame:(CGRect)f { return [self initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil]; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (UIView *)contentView { return _content; }
 - (UILabel *)textLabel {
     if (!_text) { _text = [UILabel new]; _text.font = [UIFont systemFontOfSize:17]; _text.numberOfLines = 1; [_content addSubview:_text]; }
@@ -407,7 +407,7 @@ const CGFloat UITableViewAutomaticDimension = -1;
     return self;
 }
 - (instancetype)initWithFrame:(CGRect)f { return [self initWithReuseIdentifier:nil]; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithReuseIdentifier:nil]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (UIView *)contentView { return _content; }
 - (UILabel *)textLabel { if (!_label) { _label = [UILabel new]; _label.font = [UIFont systemFontOfSize:13]; _label.textColor = UIColor.secondaryLabelColor; _label.numberOfLines = 0; [_content addSubview:_label]; } return _label; }
 - (UIListContentConfiguration *)defaultContentConfiguration { return [UIListContentConfiguration groupedHeaderConfiguration]; }
@@ -459,7 +459,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     return self;
 }
 - (instancetype)initWithFrame:(CGRect)f { return [self initWithFrame:f style:UITableViewStylePlain]; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithFrame:CGRectZero style:UITableViewStylePlain]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (void)dealloc { [self _freeModel]; }
 - (void)_freeModel { for (NSInteger s = 0; s < _nsecs; s++) { free(_secs[s].heights); free(_secs[s].measured); } free(_secs); _secs = NULL; _nsecs = 0; }
 - (id<UITableViewDelegate>)delegate { return (id<UITableViewDelegate>)[super delegate]; }
@@ -552,7 +552,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     UITableViewCell *c = pool.lastObject;
     if (c) { [pool removeLastObject]; [c prepareForReuse]; return c; }
     Class cls = _cellClasses[rid];
-    if (!cls) return nil;
+    if (!cls) return isim_ib_dequeue_table_cell(self, rid);      /* registered nib / storyboard prototype */
     return [[cls alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:rid];
 }
 - (UITableViewCell *)dequeueReusableCellWithIdentifier:(NSString *)rid forIndexPath:(NSIndexPath *)ip {
@@ -565,7 +565,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     UITableViewHeaderFooterView *v = pool.lastObject;
     if (v) { [pool removeLastObject]; [v prepareForReuse]; return v; }
     Class cls = _hfClasses[rid];
-    return cls ? [[cls alloc] initWithReuseIdentifier:rid] : nil;
+    return cls ? [[cls alloc] initWithReuseIdentifier:rid] : (UITableViewHeaderFooterView *)isim_ib_dequeue_table_header(self, rid);
 }
 - (UITableViewCell *)_cellFor:(NSIndexPath *)ip {
     UITableViewCell *c = [_dataSource tableView:self cellForRowAtIndexPath:ip];
@@ -742,6 +742,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     [_selected addObject:ip];
     [_visible[ip] setSelected:YES animated:NO];
     if ([d respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)]) [d tableView:self didSelectRowAtIndexPath:ip];
+    isim_ib_cell_selected(c);                    /* storyboard selection segue */
 }
 - (void)selectRowAtIndexPath:(NSIndexPath *)ip animated:(BOOL)a scrollPosition:(UITableViewScrollPosition)pos {
     if (!ip) { for (NSIndexPath *o in [_selected allObjects]) [self deselectRowAtIndexPath:o animated:a]; return; }
@@ -942,8 +943,9 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     return self;
 }
 - (instancetype)initWithNibName:(NSString *)n bundle:(NSBundle *)b { if ((self = [super initWithNibName:n bundle:b])) { _tvStyle = UITableViewStylePlain; _clearsSelectionOnViewWillAppear = YES; } return self; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithStyle:UITableViewStylePlain]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (void)loadView {
+    if (isim_ib_vc_load_view(self)) return;      /* storyboard / nib */
     UITableView *tv = [[UITableView alloc] initWithFrame:UIScreen.mainScreen.bounds style:_tvStyle];
     tv.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     tv.dataSource = self; tv.delegate = self;

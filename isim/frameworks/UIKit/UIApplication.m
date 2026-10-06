@@ -92,11 +92,11 @@
     if ((self = [super init])) {
         _children = [NSMutableArray array];
         _modalPresentationStyle = UIModalPresentationAutomatic;      /* iOS 13+: a page sheet on iPhone */
-        if (nib) NSLog(@"isim: nib '%@' ignored (nib/storyboard loading is not implemented)", nib);
+        if (nib || b) isim_ib_vc_set_nib(self, nib, b);           /* loaded by -loadView (UIStoryboard.m) */
     }
     return self;
 }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithNibName:nil bundle:nil]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (void)encodeWithCoder:(NSCoder *)c {}   /* isim: archiving is not implemented */
 - (UIView *)view {
     if (!_view) {
@@ -109,6 +109,7 @@
 }
 - (void)setView:(UIView *)v { [_view _isim_setViewController:nil]; _view = v; [v _isim_setViewController:self]; }
 - (void)loadView {
+    if (isim_ib_vc_load_view(self)) return;      /* storyboard scene or nib */
     UIView *v = [[UIView alloc] initWithFrame:UIScreen.mainScreen.bounds];
     v.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     v.layoutMargins = UIEdgeInsetsMake(0, 16, 0, 16);
@@ -118,8 +119,8 @@
 - (UIView *)viewIfLoaded { return _view; }
 - (BOOL)isViewLoaded { return _view != nil; }
 - (void)viewDidLoad {}
-- (NSString *)nibName { return nil; }
-- (NSBundle *)nibBundle { return nil; }
+- (NSString *)nibName { return isim_ib_vc_nib_name(self); }
+- (NSBundle *)nibBundle { return isim_ib_vc_nib_bundle(self); }
 - (void)viewWillAppear:(BOOL)a {}
 - (void)viewDidAppear:(BOOL)a {}
 - (void)viewWillDisappear:(BOOL)a {}
@@ -792,15 +793,20 @@ static void connect_scene(UIApplication *app, NSDictionary *manifest) {
     if (!config) config = [UISceneConfiguration configurationWithName:plistConfig[@"UISceneConfigurationName"] sessionRole:UIWindowSceneSessionRoleApplication];
     if (!config.delegateClass) config.delegateClass = class_named(plistConfig[@"UISceneDelegateClassName"]);
     if (!config.sceneClass) config.sceneClass = class_named(plistConfig[@"UISceneClassName"]) ?: [UIWindowScene class];
-    if (plistConfig[@"UISceneStoryboardFile"]) NSLog(@"isim: UISceneStoryboardFile '%@' ignored (storyboards are not implemented)", plistConfig[@"UISceneStoryboardFile"]);
+    if (!config.storyboard && plistConfig[@"UISceneStoryboardFile"])
+        config.storyboard = [UIStoryboard storyboardWithName:plistConfig[@"UISceneStoryboardFile"] bundle:nil];
     session.configuration = config;
     UIScene *scene = [[config.sceneClass alloc] initWithSession:session connectionOptions:options];
     session.scene = scene;
     [app _isim_addScene:scene session:session];
     if (config.delegateClass) scene.delegate = [config.delegateClass new];
     id<UISceneDelegate> sd = scene.delegate;
+    /* a storyboard scene: the window and its initial view controller exist before scene:willConnectToSession: */
+    UIWindow *storyboardWindow = config.storyboard && [scene isKindOfClass:[UIWindowScene class]]
+        ? isim_ib_storyboard_window(config.storyboard, (UIWindowScene *)scene, sd) : nil;
     [NSNotificationCenter.defaultCenter postNotificationName:UISceneWillConnectNotification object:scene];
     if ([sd respondsToSelector:@selector(scene:willConnectToSession:options:)]) [sd scene:scene willConnectToSession:session options:options];
+    if (storyboardWindow.hidden) [storyboardWindow makeKeyAndVisible];
     scene.activationState = UISceneActivationStateForegroundInactive;
     if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:scene];
     scene.activationState = UISceneActivationStateForegroundActive;
@@ -827,6 +833,11 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         NSLog(@"isim: launching %@ (%@) on %s", title, bundle.bundleIdentifier ?: @"no bundle id", isim_ui_device()->name);
 
         id<UIApplicationDelegate> d = app.delegate;
+        isim_ib_show_launch_screen();                 /* UILaunchScreen / UILaunchStoryboardName while launching */
+        /* UIMainStoryboardFile (apps without a scene manifest): window + initial view controller before launch callbacks */
+        UIWindow *storyboardWindow = nil;
+        if (info[@"UIMainStoryboardFile"] && !info[@"UIApplicationSceneManifest"])
+            storyboardWindow = isim_ib_storyboard_window([UIStoryboard storyboardWithName:info[@"UIMainStoryboardFile"] bundle:bundle], nil, d);
         if ([d respondsToSelector:@selector(application:willFinishLaunchingWithOptions:)]) [d application:app willFinishLaunchingWithOptions:nil];
         if ([d respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]) [d application:app didFinishLaunchingWithOptions:nil];
         else if ([d respondsToSelector:@selector(applicationDidFinishLaunching:)]) [d applicationDidFinishLaunching:app];
@@ -836,6 +847,8 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         /* scene-based apps: a scene manifest, or a delegate that configures scenes (SwiftUI apps) */
         if (manifest || [app.delegate respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)]) connect_scene(app, manifest ?: @{});
         else if ([d respondsToSelector:@selector(window)] && d.window && d.window.hidden) [d.window makeKeyAndVisible];
+        else if (storyboardWindow.hidden) [storyboardWindow makeKeyAndVisible];
+        isim_ib_hide_launch_screen();
         app.applicationState = UIApplicationStateActive;
         [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimGlobalPreferencesChanged" object:nil queue:nil usingBlock:^(NSNotification *n) {
             settings_changed();
