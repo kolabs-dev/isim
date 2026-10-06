@@ -782,6 +782,9 @@ static int script_step(struct isim_event *ev) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "openurl") && sscanf(args, " %511[^; ]", arg) == 1) {   /* open a URL in the foreground app (custom schemes, universal links) */
+        pending[npending++] = (struct isim_event){ .type = EV_OPEN_URL }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);

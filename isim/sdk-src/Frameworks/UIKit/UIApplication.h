@@ -11,6 +11,11 @@ UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotificatio
     UIApplicationWillResignActiveNotification, UIApplicationDidEnterBackgroundNotification,
     UIApplicationWillEnterForegroundNotification, UIApplicationWillTerminateNotification;
 
+@class NSUserActivity;
+NS_SWIFT_UI_ACTOR
+@protocol UIUserActivityRestoring <NSObject>
+- (void)restoreUserActivityState:(NSUserActivity *)userActivity;
+@end
 NS_SWIFT_UI_ACTOR
 @protocol UIApplicationDelegate <NSObject>
 @optional
@@ -27,6 +32,9 @@ NS_SWIFT_UI_ACTOR
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
 - (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error;
+/* universal links and other user activities (isim: `openurl https://...` for a domain in the app's applinks) */
+- (BOOL)application:(UIApplication *)application willContinueUserActivityWithType:(NSString *)userActivityType;
+- (BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray<id<UIUserActivityRestoring>> *_Nullable restorableObjects))restorationHandler;
 @property (nullable, nonatomic, strong) UIWindow *window;
 @end
 

@@ -755,6 +755,8 @@ static void settings_changed(void) {
 static void deliver_url(NSString *s) {
     NSURL *url = [NSURL URLWithString:s];
     if (!url) return;
+    extern BOOL isim_ui_open_web_url(NSURL *url);
+    if (isim_ui_open_web_url(url)) return;            /* http(s): a universal link of this app, or Safari (UIUniversalLinks.m) */
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
     NSLog(@"isim: opening URL %@ in the app", s);
     if ([d respondsToSelector:@selector(application:openURL:options:)]) [(id)d application:app openURL:url options:@{}];
