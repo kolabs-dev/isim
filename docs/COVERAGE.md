@@ -35,21 +35,21 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 1 | 1 | 1 | 4 | 7 | 21% |
 | &nbsp;&nbsp;↳ Drag & drop | 0 | 1 | 0 | 2 | 3 | 17% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 135 | 44 | 11 | 20 | 210 | 75% |
+| **SwiftUI** | 137 | 47 | 11 | 15 | 210 | 76% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
-| &nbsp;&nbsp;↳ State & data flow | 12 | 3 | 0 | 2 | 17 | 79% |
+| &nbsp;&nbsp;↳ State & data flow | 12 | 4 | 0 | 1 | 17 | 82% |
 | &nbsp;&nbsp;↳ Views & controls | 30 | 7 | 0 | 1 | 38 | 88% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
-| &nbsp;&nbsp;↳ Navigation & presentation | 13 | 8 | 1 | 1 | 23 | 74% |
+| &nbsp;&nbsp;↳ Navigation & presentation | 14 | 8 | 1 | 0 | 23 | 78% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 15 | 6 | 6 | 0 | 27 | 67% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 2 | 23 | 85% |
 | &nbsp;&nbsp;↳ Animation | 7 | 3 | 1 | 0 | 11 | 77% |
 | &nbsp;&nbsp;↳ Gestures | 3 | 1 | 0 | 3 | 7 | 50% |
-| &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 1 | 0 | 1 | 7 | 79% |
-| &nbsp;&nbsp;↳ Focus & keyboard | 2 | 0 | 1 | 1 | 4 | 50% |
+| &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 2 | 0 | 0 | 7 | 86% |
+| &nbsp;&nbsp;↳ Focus & keyboard | 2 | 1 | 1 | 0 | 4 | 62% |
 | &nbsp;&nbsp;↳ Environment values | 3 | 3 | 0 | 1 | 7 | 64% |
 | &nbsp;&nbsp;↳ Accessibility | 2 | 0 | 1 | 1 | 4 | 50% |
-| &nbsp;&nbsp;↳ UIKit interop | 3 | 0 | 0 | 1 | 4 | 75% |
+| &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
 | **Foundation** | 51 | 20 | 1 | 9 | 81 | 75% |
 | &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
 | Logging & diagnostics | 5 | 0 | 2 | 1 | 8 | 62% |
 | Platform & tooling | 15 | 6 | 1 | 14 | 36 | 50% |
-| **All areas** | **465** | **177** | **42** | **156** | **840** | **66%** |
+| **All areas** | **467** | **180** | **42** | **151** | **840** | **66%** |
 
 ---
 
@@ -388,7 +388,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@Namespace` | ✅ | |
 | `@GestureState` | ❌ | |
 | `@ScaledMetric` | 🟡 | scales with `dynamicTypeSize` (tested); the system text size is always `.large` on isim and fonts do not scale with dynamic type |
-| `@FocusedValue`, `@FocusedBinding` | ❌ | |
+| `@FocusedValue`, `@FocusedBinding` | 🟡 | with `.focusedValue`/`.focusedSceneValue`; values are scene-wide (no per-focus chain, adapted); tested (HelloKeys) |
 | `PreferenceKey`, `.preference`, `.onPreferenceChange`, anchor preferences | ✅ | values reduce up the laid-out tree (incl. GeometryReader backgrounds), `transformPreference`, `anchorPreference` / `transformAnchorPreference` with `overlayPreferenceValue` / `backgroundPreferenceValue` and `proxy[anchor]`; tested (HelloLayout) |
 | `Transaction`, `withTransaction` | 🟡 | carries the animation / `disablesAnimations`; custom transaction keys missing |
 
@@ -492,7 +492,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@Environment(\.dismiss)` | ✅ | closes sheets / covers (tested, HelloPresentations), pops navigation levels and resets `navigationDestination` bindings (tested, HelloLists) |
 | `.searchable` | 🟡 | search field under the List's large title (above other content), Cancel, `isSearching`, `dismissSearch`, `.onSubmit(of: .search)`; filtering and Cancel tested (HelloLists). Suggestions and scopes are ignored |
 | `.refreshable` | ✅ | pull past 60 pt and release: spinner while the async action runs (List tested, HelloLists; ScrollView unverified) |
-| `.inspector` | ❌ | |
+| `.inspector` | ✅ | presented as a sheet, as in compact width on iPhone; tested (HelloKeys) |
 | `@Environment(\.openURL)` | ✅ | |
 
 ### Modifiers & visual effects
@@ -599,7 +599,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `onChange(of:)` (old/new, `initial:`) | ✅ | |
 | `onReceive` | ✅ | |
 | `onSubmit` | ✅ | |
-| `onKeyPress`, `keyboardShortcut` | ❌ | |
+| `onKeyPress`, `keyboardShortcut` | 🟡 | shortcuts on buttons become UIKeyCommands (incl. `defaultAction`/`cancelAction`); `onKeyPress` key/characters/phases forms; tested (HelloKeys). No focus routing: every onKeyPress on screen sees presses, innermost first (adapted) |
 | `onGeometryChange`, `onContinuousHover`, `onHover` | 🟡 | `onGeometryChange` (size; `frame(in: .global)` is approximate) tested (HelloLayout); hover modifiers missing |
 
 ### Focus & keyboard
@@ -607,7 +607,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | API / feature | Status | Notes |
 |---|---|---|
 | `focused(_:)`, `focused(_:equals:)` | ✅ | |
-| `focusable`, `defaultFocus`, `focusSection` | ❌ | |
+| `focusable`, `defaultFocus`, `focusSection` | 🟡 | `defaultFocus` sets the focus binding on appear (tested, HelloKeys); `focusable`/`focusSection` accepted, no effect (no focus engine for non-text views) |
 | `scrollDismissesKeyboard` | 🧩 | ignored |
 | Form scrolls the focused field above the keyboard | ✅ | |
 
@@ -639,7 +639,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `UIViewRepresentable` (coordinator, update, dismantle) | ✅ | |
 | `UIViewControllerRepresentable` | ✅ | |
 | `UIHostingController` in UIKit apps | ✅ | |
-| `sizeThatFits(_:uiView:context:)` on representables | ❌ | |
+| `sizeThatFits(_:uiView:context:)` on representables | ✅ | also `sizeThatFits(_:uiViewController:context:)`; tested (HelloKeys) |
 
 ---
 

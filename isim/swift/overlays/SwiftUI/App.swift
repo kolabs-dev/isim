@@ -101,6 +101,10 @@ class _SUIHostingController: UIViewController {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     override func loadView() { view = _SUIHostView(graph: graph) }
+    override var keyCommands: [UIKeyCommand]? { _suiKeyCommands(graph, target: #selector(_isimSwiftUIShortcut(_:))) }
+    @objc func _isimSwiftUIShortcut(_ c: UIKeyCommand) { _suiPerformShortcut(graph, c) }
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) { if !_suiHandlePresses(graph, presses, up: false) { super.pressesBegan(presses, with: event) } }
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) { if !_suiHandlePresses(graph, presses, up: true) { super.pressesEnded(presses, with: event) } }
 }
 
 final class _RootBox<C> { var get: (() -> C)? }
@@ -119,4 +123,8 @@ open class UIHostingController<Content: View>: UIViewController {
     public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     open override func loadView() { view = _SUIHostView(graph: graph) }
     public func sizeThatFits(in size: CGSize) -> CGSize { size }
+    open override var keyCommands: [UIKeyCommand]? { _suiKeyCommands(graph, target: #selector(_isimSwiftUIShortcut(_:))) }
+    @objc func _isimSwiftUIShortcut(_ c: UIKeyCommand) { _suiPerformShortcut(graph, c) }
+    open override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) { if !_suiHandlePresses(graph, presses, up: false) { super.pressesBegan(presses, with: event) } }
+    open override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) { if !_suiHandlePresses(graph, presses, up: true) { super.pressesEnded(presses, with: event) } }
 }
