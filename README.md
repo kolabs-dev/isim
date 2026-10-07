@@ -14,17 +14,17 @@ Download `isim-VERSION-linux-x86_64.tar.gz` from [Releases](https://github.com/k
 It needs Linux x86_64 with glibc 2.35+, plus `python3`, fontconfig and `adwaita-icon-theme`.
 
 ```bash
-tar xf isim-0.4.0-linux-x86_64.tar.gz
+tar xf isim-0.5.0-linux-x86_64.tar.gz
 ```
 
 ```bash
-isim-0.4.0-linux-x86_64/bin/isim boot
+isim-0.5.0-linux-x86_64/bin/isim boot
 ```
 
 This opens the device on its home screen, with Settings in the dock. To add the demo apps:
 
 ```bash
-isim-0.4.0-linux-x86_64/bin/isim install isim-0.4.0-linux-x86_64/apps/*.app
+isim-0.5.0-linux-x86_64/bin/isim install isim-0.5.0-linux-x86_64/apps/*.app
 ```
 
 ## Usage
@@ -88,7 +88,7 @@ isim/test.sh
 Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (the build runs in an Ubuntu 22.04 container):
 
 ```bash
-isim/release/package.sh 0.4.0
+isim/release/package.sh 0.5.0
 ```
 
 ## Status
