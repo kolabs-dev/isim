@@ -61,3 +61,9 @@ uint32_t isim_case_map(uint32_t c, int upper);   /* StringExtras.m */
 id isim_plist_read(const void *bytes, NSUInteger len, NSPropertyListReadOptions opts, NSPropertyListFormat *format);
 NSData *isim_plist_binary(id root);
 NSString *isim_plist_write_xml(id root);
+
+/* plural rules (Plurals.m): a localized format from a .stringsdict entry; isim_format expands its %#@var@ */
+NSString *isim_plural_format(NSDictionary *entry, NSString *language);
+NSString *isim_plural_expand(NSString *fmt, double (^value)(int position), BOOL *expanded);
+NSString *isim_plural_category(NSString *language, double n);
+NSString *isim_plural_typed(NSString *fmt);   /* %#@var@ -> %<value type>, or nil when fmt is no known plural format */

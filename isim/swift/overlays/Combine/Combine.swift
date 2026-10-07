@@ -74,7 +74,7 @@ extension Subscribers {
         public static func == (a: Demand, b: Int) -> Bool { a.raw == b }
     }
 
-    public enum Completion<Failure: Error> {
+    @frozen public enum Completion<Failure: Error> {
         case finished
         case failure(Failure)
     }
@@ -376,7 +376,7 @@ public struct Just<Output>: Publisher {
     public let output: Output
     public init(_ output: Output) { self.output = output }
     public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Never {
-        let sub = _ForwardingSubscription(subscriber)
+        let sub = _Outlet(subscriber); sub.name = "Just"
         subscriber.receive(subscription: sub)
         sub.send(output)
         sub.finish(.finished)
@@ -466,16 +466,61 @@ extension Optional {
 
 public enum Publishers {}
 
+/// Emits a sequence's elements lazily as the subscriber requests them (infinite sequences work).
+final class _SequenceSubscription<S: Subscriber, I: IteratorProtocol>: Subscription, CustomStringConvertible where I.Element == S.Input {
+    private let lock = _CombineLock(recursive: true)
+    private var downstream: S?
+    private var iterator: I
+    private var lookahead: I.Element?
+    private var demand: Subscribers.Demand = .none
+    private var emitting = false
+    private var started = false
+    init(_ s: S, _ it: I) { downstream = s; iterator = it }
+    var description: String { "Sequence" }
+    func start() { lock.lock(); started = true; lock.unlock(); emit() }
+    func request(_ d: Subscribers.Demand) { lock.lock(); demand += d; lock.unlock(); emit() }
+    func cancel() { lock.lock(); downstream = nil; lock.unlock() }
+    private func nextElement() -> I.Element? {
+        if let l = lookahead { lookahead = nil; return l }
+        return iterator.next()
+    }
+    private func emit() {
+        lock.lock()
+        guard started, !emitting else { lock.unlock(); return }
+        emitting = true
+        while let s = downstream {
+            if demand > 0 {
+                guard let v = nextElement() else {
+                    downstream = nil; lock.unlock()
+                    s.receive(completion: .finished)
+                    lock.lock(); break
+                }
+                demand -= 1
+                lock.unlock()
+                let more = s.receive(v)
+                lock.lock()
+                demand += more
+                continue
+            }
+            // no demand: finish now if the sequence is exhausted (like Apple's, completion needs no demand)
+            if lookahead == nil { lookahead = iterator.next() }
+            if lookahead == nil { downstream = nil; lock.unlock(); s.receive(completion: .finished); lock.lock() }
+            break
+        }
+        emitting = false
+        lock.unlock()
+    }
+}
+
 extension Publishers {
     public struct Sequence<Elements: Swift.Sequence, Failure: Error>: Publisher {
         public typealias Output = Elements.Element
         public let sequence: Elements
         public init(sequence: Elements) { self.sequence = sequence }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
-            let sub = _ForwardingSubscription(subscriber)
+            let sub = _SequenceSubscription(subscriber, sequence.makeIterator())
             subscriber.receive(subscription: sub)
-            for e in sequence { guard sub.downstream != nil else { return }; sub.send(e) }
-            sub.finish(.finished)
+            sub.start()
         }
     }
 
@@ -575,9 +620,12 @@ extension Publishers {
         public let upstream: Upstream
         public var receiveOutput: ((Output) -> Void)?
         public var receiveCompletion: ((Subscribers.Completion<Failure>) -> Void)?
+        public var receiveSubscription: ((Subscription) -> Void)? = nil
+        public var receiveCancel: (() -> Void)? = nil
+        public var receiveRequest: ((Subscribers.Demand) -> Void)? = nil
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
-            let o = receiveOutput, c = receiveCompletion
-            _relay(upstream, to: subscriber, value: { v, send, _ in o?(v); send(v) }, completion: { x, finish in c?(x); finish(x) })
+            upstream.subscribe(_ProxySubscriber(subscriber, onSubscription: receiveSubscription, onValue: receiveOutput,
+                                                onCompletion: receiveCompletion, onRequest: receiveRequest, onCancel: receiveCancel))
         }
     }
 
@@ -665,14 +713,40 @@ extension Publishers {
         public typealias Failure = Upstream.Failure
         public let upstream: Upstream
         public let transform: (Upstream.Output) -> NewPublisher
+        /// At most this many inner publishers are subscribed at once; later upstream values wait their turn.
+        public var maxPublishers: Subscribers.Demand = .unlimited
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
-            let t = transform
-            let inner = _Ref<[Cancellable]>([])
-            _relay(upstream, to: subscriber, value: { v, send, finish in
-                let s = _ClosureSubscriber<NewPublisher.Output, NewPublisher.Failure>(value: send, completion: { c in if case .failure = c { finish(c) } })
-                inner.value.append(s)
-                t(v).subscribe(s)
-            }, completion: { c, finish in finish(c) })
+            let t = transform, limit = maxPublishers
+            let lock = _CombineLock(recursive: true)
+            let st = _Ref((active: 0, waiting: [Upstream.Output](), outerDone: false, inner: [ObjectIdentifier: Cancellable]()))
+            func start(_ v: Upstream.Output, _ o: _Outlet<S>) {
+                let idBox = _Ref<ObjectIdentifier?>(nil)
+                let inner = _ClosureSubscriber<NewPublisher.Output, NewPublisher.Failure>(value: { o.send($0) }, completion: { c in
+                    if case .failure = c { o.terminate(c); return }
+                    lock.lock()
+                    if let id = idBox.value { st.value.inner[id] = nil }
+                    st.value.active -= 1
+                    var next: Upstream.Output? = nil
+                    if !st.value.waiting.isEmpty { next = st.value.waiting.removeFirst(); st.value.active += 1 }
+                    let done = st.value.outerDone && st.value.active == 0
+                    lock.unlock()
+                    if let next { start(next, o) } else if done { o.finish(.finished) }
+                })
+                idBox.value = ObjectIdentifier(inner)
+                lock.lock(); st.value.inner[ObjectIdentifier(inner)] = inner; lock.unlock()
+                t(v).subscribe(inner)
+            }
+            let out = _operator(upstream, subscriber, name: "FlatMap", value: { v, o in
+                lock.lock()
+                if limit > st.value.active { st.value.active += 1; lock.unlock(); start(v, o) }
+                else { st.value.waiting.append(v); lock.unlock() }
+            }, completion: { c, o in
+                if case .failure = c { o.terminate(c); return }
+                lock.lock(); st.value.outerDone = true; let done = st.value.active == 0; lock.unlock()
+                if done { o.finish(.finished) }
+            })
+            let prev = out.onCancel
+            out.onCancel = { prev?(); lock.lock(); let all = Array(st.value.inner.values); st.value.inner = [:]; lock.unlock(); for c in all { c.cancel() } }
         }
     }
 
@@ -746,7 +820,8 @@ extension Publisher {
     public func handleEvents(receiveSubscription: ((Subscription) -> Void)? = nil, receiveOutput: ((Output) -> Void)? = nil,
                              receiveCompletion: ((Subscribers.Completion<Failure>) -> Void)? = nil,
                              receiveCancel: (() -> Void)? = nil, receiveRequest: ((Subscribers.Demand) -> Void)? = nil) -> Publishers.HandleEvents<Self> {
-        Publishers.HandleEvents(upstream: self, receiveOutput: receiveOutput, receiveCompletion: receiveCompletion)
+        Publishers.HandleEvents(upstream: self, receiveOutput: receiveOutput, receiveCompletion: receiveCompletion,
+                                receiveSubscription: receiveSubscription, receiveCancel: receiveCancel, receiveRequest: receiveRequest)
     }
     public func receive<S: Scheduler>(on scheduler: S, options: S.SchedulerOptions? = nil) -> Publishers.ReceiveOn<Self, S> {
         Publishers.ReceiveOn(upstream: self, scheduler: scheduler)
@@ -760,8 +835,12 @@ extension Publisher {
     public func merge<P: Publisher>(with other: P) -> Publishers.Merge<Self, P> where P.Output == Output, P.Failure == Failure {
         Publishers.Merge(self, other)
     }
+    @_disfavoredOverload   // kept for binary compatibility; the maxPublishers form below is Apple's
     public func flatMap<P: Publisher>(_ transform: @escaping (Output) -> P) -> Publishers.FlatMap<P, Self> where P.Failure == Failure {
         Publishers.FlatMap(upstream: self, transform: transform)
+    }
+    public func flatMap<P: Publisher>(maxPublishers: Subscribers.Demand = .unlimited, _ transform: @escaping (Output) -> P) -> Publishers.FlatMap<P, Self> where P.Failure == Failure {
+        Publishers.FlatMap(upstream: self, transform: transform, maxPublishers: maxPublishers)
     }
     public func share() -> Publishers.Share<Self> { Publishers.Share(upstream: self) }
 }

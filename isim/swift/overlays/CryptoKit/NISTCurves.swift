@@ -1,14 +1,14 @@
 // isim CryptoKit: ECDSA signing and ECDH key agreement on NIST P-256, P-384 and P-521 (host OpenSSL libcrypto).
 // The three curves share one implementation (_EC); P384 and P521 are the P256 declarations with their curve
 // and hash (SHA384/SHA512) substituted. Private keys: raw scalar and X9.63; public keys: raw, X9.63, compressed,
-// DER/PEM SubjectPublicKeyInfo. Not implemented: compact representations, private-key DER/PEM.
+// DER/PEM SubjectPublicKeyInfo. Compact representations and private-key DER/PEM are in KeyCoding.swift.
 import Foundation
 
 public enum P256 {
     public enum Signing {
         public struct PrivateKey: Sendable {
             let d: [UInt8], q: [UInt8]
-            public init(compactRepresentable: Bool = true) { d = _EC.generate(256); q = try! _EC.publicKey(256, d) }
+            public init(compactRepresentable: Bool = true) { (d, q) = _ECKeyCoding.generate(256, compact: compactRepresentable) }
             public init<D: ContiguousBytes>(rawRepresentation data: D) throws { d = _bytes(data); q = try _EC.publicKey(256, d) }
             public init<D: ContiguousBytes>(x963Representation data: D) throws {
                 let b = _bytes(data), n = _EC.size(256)
@@ -71,7 +71,7 @@ public enum P256 {
     public enum KeyAgreement {
         public struct PrivateKey: Sendable {
             let d: [UInt8], q: [UInt8]
-            public init(compactRepresentable: Bool = true) { d = _EC.generate(256); q = try! _EC.publicKey(256, d) }
+            public init(compactRepresentable: Bool = true) { (d, q) = _ECKeyCoding.generate(256, compact: compactRepresentable) }
             public init<D: ContiguousBytes>(rawRepresentation data: D) throws { d = _bytes(data); q = try _EC.publicKey(256, d) }
             public init<D: ContiguousBytes>(x963Representation data: D) throws {
                 let b = _bytes(data), n = _EC.size(256)
@@ -117,7 +117,7 @@ public enum P384 {
     public enum Signing {
         public struct PrivateKey: Sendable {
             let d: [UInt8], q: [UInt8]
-            public init(compactRepresentable: Bool = true) { d = _EC.generate(384); q = try! _EC.publicKey(384, d) }
+            public init(compactRepresentable: Bool = true) { (d, q) = _ECKeyCoding.generate(384, compact: compactRepresentable) }
             public init<D: ContiguousBytes>(rawRepresentation data: D) throws { d = _bytes(data); q = try _EC.publicKey(384, d) }
             public init<D: ContiguousBytes>(x963Representation data: D) throws {
                 let b = _bytes(data), n = _EC.size(384)
@@ -180,7 +180,7 @@ public enum P384 {
     public enum KeyAgreement {
         public struct PrivateKey: Sendable {
             let d: [UInt8], q: [UInt8]
-            public init(compactRepresentable: Bool = true) { d = _EC.generate(384); q = try! _EC.publicKey(384, d) }
+            public init(compactRepresentable: Bool = true) { (d, q) = _ECKeyCoding.generate(384, compact: compactRepresentable) }
             public init<D: ContiguousBytes>(rawRepresentation data: D) throws { d = _bytes(data); q = try _EC.publicKey(384, d) }
             public init<D: ContiguousBytes>(x963Representation data: D) throws {
                 let b = _bytes(data), n = _EC.size(384)
@@ -226,7 +226,7 @@ public enum P521 {
     public enum Signing {
         public struct PrivateKey: Sendable {
             let d: [UInt8], q: [UInt8]
-            public init(compactRepresentable: Bool = true) { d = _EC.generate(521); q = try! _EC.publicKey(521, d) }
+            public init(compactRepresentable: Bool = true) { (d, q) = _ECKeyCoding.generate(521, compact: compactRepresentable) }
             public init<D: ContiguousBytes>(rawRepresentation data: D) throws { d = _bytes(data); q = try _EC.publicKey(521, d) }
             public init<D: ContiguousBytes>(x963Representation data: D) throws {
                 let b = _bytes(data), n = _EC.size(521)
@@ -289,7 +289,7 @@ public enum P521 {
     public enum KeyAgreement {
         public struct PrivateKey: Sendable {
             let d: [UInt8], q: [UInt8]
-            public init(compactRepresentable: Bool = true) { d = _EC.generate(521); q = try! _EC.publicKey(521, d) }
+            public init(compactRepresentable: Bool = true) { (d, q) = _ECKeyCoding.generate(521, compact: compactRepresentable) }
             public init<D: ContiguousBytes>(rawRepresentation data: D) throws { d = _bytes(data); q = try _EC.publicKey(521, d) }
             public init<D: ContiguousBytes>(x963Representation data: D) throws {
                 let b = _bytes(data), n = _EC.size(521)

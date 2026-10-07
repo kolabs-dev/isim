@@ -6,7 +6,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 export ISIM_DATA=$PWD/out/test-data/datetime; rm -rf "$ISIM_DATA"; mkdir -p "$ISIM_DATA/Library/Preferences"
 prefs=$ISIM_DATA/Library/Preferences/.GlobalPreferences.plist
 printf '%s' '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>AppleICUForce24HourTime</key><true/><key>TimeZone</key><string>America/New_York</string></dict></plist>' > "$prefs"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; launch dev.isim.settings; wait 1.5; tapid settings-general; wait 0.8; taptext Date & Time; wait 0.8; dump; tapid settings-24h; wait 0.8; tapid settings-auto-tz; wait 0.8; dump; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; launch dev.isim.settings; wait 1.5; tapid settings-general; wait 0.8; taptext Date & Time; wait 0.8; dump; tapid settings-24h; wait 0.8; tapid settings-auto-tz; wait 0.8; dump; quit" \
       timeout 60 out/bin/isim boot 2>&1); rc=$?
 flat=$(tr -d '\n\t ' < "$prefs")
 fail=0

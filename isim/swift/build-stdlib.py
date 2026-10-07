@@ -62,7 +62,10 @@ if FULL:
     cmd += ["-Xfrontend", "-disable-objc-attr-requires-foundation-module",
             "-enable-library-evolution", "-library-level", "api", "-Xfrontend", "-require-explicit-availability=ignore",
             "-D", "SWIFT_ENABLE_REFLECTION", "-module-link-name", "swiftCore",
-            # StdlibOptions.cmake defaults (OS versioning stays off: isim has no real iOS version to check)
+            # StdlibOptions.cmake defaults, including SWIFT_STDLIB_OS_VERSIONING (on for Darwin): #available /
+            # if #available / the stdlib's own SwiftStdlib checks call __isPlatformVersionAtLeast, which isim's
+            # libSystem answers from the selected iOS version (isim --os, ISIM_OS_VERSION)
+            "-D", "SWIFT_RUNTIME_OS_VERSIONING",
             "-D", "SWIFT_STDLIB_ENABLE_UNICODE_DATA", "-D", "SWIFT_STDLIB_ENABLE_VECTOR_TYPES",
             "-D", "SWIFT_STDLIB_HAS_COMMANDLINE", "-D", "SWIFT_STDLIB_HAS_STDIN",
             "-D", "SWIFT_STDLIB_HAS_ENVIRON", "-Xcc", "-DSWIFT_STDLIB_HAS_ENVIRON", "-Xfrontend", "-enable-lexical-lifetimes=false",

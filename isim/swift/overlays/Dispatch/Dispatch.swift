@@ -288,24 +288,36 @@ public final class DispatchSemaphore: DispatchObject, @unchecked Sendable {
     public func wait(wallTimeout: DispatchWallTime) -> DispatchTimeoutResult { dispatch_semaphore_wait(sema, wallTimeout.rawValue) == 0 ? .success : .timedOut }
 }
 
-// MARK: - Timer sources
+// MARK: - Sources
+
+public typealias DispatchSourceHandler = @convention(block) () -> Void
 
 public protocol DispatchSourceProtocol {
-    func setEventHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@convention(block) () -> Void)?)
-    func setCancelHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@convention(block) () -> Void)?)
+    func setEventHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: DispatchSourceHandler?)
+    func setEventHandler(handler: DispatchWorkItem)
+    func setCancelHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: DispatchSourceHandler?)
+    func setCancelHandler(handler: DispatchWorkItem)
+    func setRegistrationHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: DispatchSourceHandler?)
+    func setRegistrationHandler(handler: DispatchWorkItem)
     func resume()
     func suspend()
     func activate()
     func cancel()
+    var handle: UInt { get }
+    var mask: UInt { get }
+    var data: UInt { get }
     var isCancelled: Bool { get }
+}
+extension DispatchSourceProtocol {
+    public func setEventHandler(handler: DispatchSourceHandler?) { setEventHandler(qos: .unspecified, flags: [], handler: handler) }
+    public func setCancelHandler(handler: DispatchSourceHandler?) { setCancelHandler(qos: .unspecified, flags: [], handler: handler) }
+    public func setRegistrationHandler(handler: DispatchSourceHandler?) { setRegistrationHandler(qos: .unspecified, flags: [], handler: handler) }
 }
 public protocol DispatchSourceTimer: DispatchSourceProtocol {
     func schedule(deadline: DispatchTime, repeating interval: DispatchTimeInterval, leeway: DispatchTimeInterval)
     func schedule(deadline: DispatchTime, repeating interval: Double, leeway: DispatchTimeInterval)
-}
-extension DispatchSourceProtocol {
-    public func setEventHandler(handler: (@convention(block) () -> Void)?) { setEventHandler(qos: .unspecified, flags: [], handler: handler) }
-    public func setCancelHandler(handler: (@convention(block) () -> Void)?) { setCancelHandler(qos: .unspecified, flags: [], handler: handler) }
+    func schedule(wallDeadline: DispatchWallTime, repeating interval: DispatchTimeInterval, leeway: DispatchTimeInterval)
+    func schedule(wallDeadline: DispatchWallTime, repeating interval: Double, leeway: DispatchTimeInterval)
 }
 extension DispatchSourceTimer {
     public func schedule(deadline: DispatchTime, repeating interval: DispatchTimeInterval = .never, leeway: DispatchTimeInterval = .nanoseconds(0)) {
@@ -314,6 +326,36 @@ extension DispatchSourceTimer {
     public func schedule(deadline: DispatchTime, repeating interval: Double, leeway: DispatchTimeInterval = .nanoseconds(0)) {
         schedule(deadline: deadline, repeating: interval, leeway: leeway)
     }
+    public func schedule(wallDeadline: DispatchWallTime, repeating interval: DispatchTimeInterval = .never, leeway: DispatchTimeInterval = .nanoseconds(0)) {
+        schedule(wallDeadline: wallDeadline, repeating: interval, leeway: leeway)
+    }
+    public func schedule(wallDeadline: DispatchWallTime, repeating interval: Double, leeway: DispatchTimeInterval = .nanoseconds(0)) {
+        schedule(wallDeadline: wallDeadline, repeating: interval, leeway: leeway)
+    }
+}
+public protocol DispatchSourceUserDataAdd: DispatchSourceProtocol { func add(data: UInt) }
+public protocol DispatchSourceUserDataOr: DispatchSourceProtocol { func or(data: UInt) }
+public protocol DispatchSourceUserDataReplace: DispatchSourceProtocol { func replace(data: UInt) }
+public protocol DispatchSourceRead: DispatchSourceProtocol {}
+public protocol DispatchSourceWrite: DispatchSourceProtocol {}
+public protocol DispatchSourceSignal: DispatchSourceProtocol {}
+public protocol DispatchSourceProcess: DispatchSourceProtocol {}
+public protocol DispatchSourceFileSystemObject: DispatchSourceProtocol {}
+public protocol DispatchSourceMemoryPressure: DispatchSourceProtocol {}
+// typed views, like Apple's overlay (overloads of the UInt requirements)
+extension DispatchSourceProcess {
+    public var handle: pid_t { pid_t(truncatingIfNeeded: (self as DispatchSourceProtocol).handle) }
+    public var data: DispatchSource.ProcessEvent { DispatchSource.ProcessEvent(rawValue: (self as DispatchSourceProtocol).data) }
+    public var mask: DispatchSource.ProcessEvent { DispatchSource.ProcessEvent(rawValue: (self as DispatchSourceProtocol).mask) }
+}
+extension DispatchSourceFileSystemObject {
+    public var handle: Int32 { Int32(truncatingIfNeeded: (self as DispatchSourceProtocol).handle) }
+    public var data: DispatchSource.FileSystemEvent { DispatchSource.FileSystemEvent(rawValue: (self as DispatchSourceProtocol).data) }
+    public var mask: DispatchSource.FileSystemEvent { DispatchSource.FileSystemEvent(rawValue: (self as DispatchSourceProtocol).mask) }
+}
+extension DispatchSourceMemoryPressure {
+    public var data: DispatchSource.MemoryPressureEvent { DispatchSource.MemoryPressureEvent(rawValue: (self as DispatchSourceProtocol).data) }
+    public var mask: DispatchSource.MemoryPressureEvent { DispatchSource.MemoryPressureEvent(rawValue: (self as DispatchSourceProtocol).mask) }
 }
 
 public enum DispatchSource {
@@ -322,22 +364,96 @@ public enum DispatchSource {
         public init(rawValue: UInt) { self.rawValue = rawValue }
         public static let strict = TimerFlags(rawValue: 1)
     }
+    public struct ProcessEvent: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let exit = ProcessEvent(rawValue: 0x8000_0000)
+        public static let fork = ProcessEvent(rawValue: 0x4000_0000)
+        public static let exec = ProcessEvent(rawValue: 0x2000_0000)
+        public static let signal = ProcessEvent(rawValue: 0x0800_0000)
+        public static let all: ProcessEvent = [.exit, .fork, .exec, .signal]
+    }
+    public struct FileSystemEvent: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let delete = FileSystemEvent(rawValue: 0x1)
+        public static let write = FileSystemEvent(rawValue: 0x2)
+        public static let extend = FileSystemEvent(rawValue: 0x4)
+        public static let attrib = FileSystemEvent(rawValue: 0x8)
+        public static let link = FileSystemEvent(rawValue: 0x10)
+        public static let rename = FileSystemEvent(rawValue: 0x20)
+        public static let revoke = FileSystemEvent(rawValue: 0x40)
+        public static let funlock = FileSystemEvent(rawValue: 0x100)
+        public static let all: FileSystemEvent = [.delete, .write, .extend, .attrib, .link, .rename, .revoke]
+    }
+    public struct MemoryPressureEvent: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let normal = MemoryPressureEvent(rawValue: 1)
+        public static let warning = MemoryPressureEvent(rawValue: 2)
+        public static let critical = MemoryPressureEvent(rawValue: 4)
+        public static let all: MemoryPressureEvent = [.normal, .warning, .critical]
+    }
     public static func makeTimerSource(flags: TimerFlags = [], queue: DispatchQueue? = nil) -> DispatchSourceTimer {
         _TimerSource(queue: queue ?? DispatchQueue.global())
     }
+    public static func makeUserDataAddSource(queue: DispatchQueue? = nil) -> DispatchSourceUserDataAdd { _UserDataSource(kind: 1, queue: queue) }
+    public static func makeUserDataOrSource(queue: DispatchQueue? = nil) -> DispatchSourceUserDataOr { _UserDataSource(kind: 2, queue: queue) }
+    public static func makeUserDataReplaceSource(queue: DispatchQueue? = nil) -> DispatchSourceUserDataReplace { _UserDataSource(kind: 3, queue: queue) }
+    public static func makeReadSource(fileDescriptor: Int32, queue: DispatchQueue? = nil) -> DispatchSourceRead {
+        _FDSource(kind: 4, handle: UInt(bitPattern: Int(fileDescriptor)), mask: 0, queue: queue)
+    }
+    public static func makeWriteSource(fileDescriptor: Int32, queue: DispatchQueue? = nil) -> DispatchSourceWrite {
+        _FDSource(kind: 5, handle: UInt(bitPattern: Int(fileDescriptor)), mask: 0, queue: queue)
+    }
+    public static func makeSignalSource(signal: Int32, queue: DispatchQueue? = nil) -> DispatchSourceSignal {
+        _FDSource(kind: 6, handle: UInt(signal), mask: 0, queue: queue)
+    }
+    public static func makeProcessSource(identifier: pid_t, eventMask: ProcessEvent, queue: DispatchQueue? = nil) -> DispatchSourceProcess {
+        _ProcessSource(kind: 7, handle: UInt(identifier), mask: eventMask.rawValue, queue: queue)
+    }
+    public static func makeFileSystemObjectSource(fileDescriptor: Int32, eventMask: FileSystemEvent, queue: DispatchQueue? = nil) -> DispatchSourceFileSystemObject {
+        _FileSystemSource(kind: 8, handle: UInt(bitPattern: Int(fileDescriptor)), mask: eventMask.rawValue, queue: queue)
+    }
+    /// isim never reports memory pressure (no such events), like the Simulator unless you simulate a warning.
+    public static func makeMemoryPressureSource(eventMask: MemoryPressureEvent, queue: DispatchQueue? = nil) -> DispatchSourceMemoryPressure {
+        _MemoryPressureSource(kind: 9, handle: 0, mask: eventMask.rawValue, queue: queue)
+    }
 }
 
-final class _TimerSource: DispatchObject, DispatchSourceTimer, @unchecked Sendable {
+class _SourceBase: DispatchObject, @unchecked Sendable {
     var source: dispatch_source_t { OpaquePointer(object) }
-    init(queue: DispatchQueue) {
-        super.init(UnsafeMutableRawPointer(dispatch_source_create(_isim_dispatch_timer_type(), 0, 0, queue.queue)!))
+    init(type: dispatch_source_type_t, handle: UInt, mask: UInt, queue: DispatchQueue?) {
+        // an invalid file descriptor or signal gives a source that never fires (Apple crashes instead)
+        let q = (queue ?? DispatchQueue.global()).queue
+        let s = dispatch_source_create(type, handle, mask, q) ?? dispatch_source_create(_isim_dispatch_source_type(1), 0, 0, q)!
+        super.init(UnsafeMutableRawPointer(s))
     }
-    func setEventHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@convention(block) () -> Void)?) {
+    deinit { dispatch_release(object) }
+    func setEventHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: DispatchSourceHandler?) {
         dispatch_source_set_event_handler(source, handler ?? {})
     }
-    func setCancelHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: (@convention(block) () -> Void)?) {
+    func setEventHandler(handler: DispatchWorkItem) { dispatch_source_set_event_handler(source) { handler.perform() } }
+    func setCancelHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: DispatchSourceHandler?) {
         dispatch_source_set_cancel_handler(source, handler ?? {})
     }
+    func setCancelHandler(handler: DispatchWorkItem) { dispatch_source_set_cancel_handler(source) { handler.perform() } }
+    func setRegistrationHandler(qos: DispatchQoS, flags: DispatchWorkItemFlags, handler: DispatchSourceHandler?) {
+        dispatch_source_set_registration_handler(source, handler ?? {})
+    }
+    func setRegistrationHandler(handler: DispatchWorkItem) { dispatch_source_set_registration_handler(source) { handler.perform() } }
+    func cancel() { dispatch_source_cancel(source) }
+    var isCancelled: Bool { dispatch_source_testcancel(source) != 0 }
+    var rawHandle: UInt { dispatch_source_get_handle(source) }
+    var rawMask: UInt { dispatch_source_get_mask(source) }
+    var rawData: UInt { dispatch_source_get_data(source) }
+}
+
+final class _TimerSource: _SourceBase, DispatchSourceTimer, @unchecked Sendable {
+    var handle: UInt { rawHandle }
+    var mask: UInt { rawMask }
+    var data: UInt { rawData }
+    init(queue: DispatchQueue) { super.init(type: _isim_dispatch_timer_type(), handle: 0, mask: 0, queue: queue) }
     func schedule(deadline: DispatchTime, repeating interval: DispatchTimeInterval, leeway: DispatchTimeInterval) {
         let i: UInt64 = interval == .never ? DISPATCH_TIME_FOREVER : UInt64(max(0, interval.nanos))
         dispatch_source_set_timer(source, deadline.rawValue, i, UInt64(max(0, leeway.nanos)))
@@ -345,8 +461,51 @@ final class _TimerSource: DispatchObject, DispatchSourceTimer, @unchecked Sendab
     func schedule(deadline: DispatchTime, repeating interval: Double, leeway: DispatchTimeInterval) {
         dispatch_source_set_timer(source, deadline.rawValue, interval.isInfinite ? DISPATCH_TIME_FOREVER : UInt64(interval * 1e9), UInt64(max(0, leeway.nanos)))
     }
-    func cancel() { dispatch_source_cancel(source) }
-    var isCancelled: Bool { dispatch_source_testcancel(source) != 0 }
+    func schedule(wallDeadline: DispatchWallTime, repeating interval: DispatchTimeInterval, leeway: DispatchTimeInterval) {
+        let i: UInt64 = interval == .never ? DISPATCH_TIME_FOREVER : UInt64(max(0, interval.nanos))
+        dispatch_source_set_timer(source, wallDeadline.rawValue, i, UInt64(max(0, leeway.nanos)))
+    }
+    func schedule(wallDeadline: DispatchWallTime, repeating interval: Double, leeway: DispatchTimeInterval) {
+        dispatch_source_set_timer(source, wallDeadline.rawValue, interval.isInfinite ? DISPATCH_TIME_FOREVER : UInt64(interval * 1e9), UInt64(max(0, leeway.nanos)))
+    }
+}
+
+final class _UserDataSource: _SourceBase, DispatchSourceUserDataAdd, DispatchSourceUserDataOr, DispatchSourceUserDataReplace, @unchecked Sendable {
+    var handle: UInt { rawHandle }
+    var mask: UInt { rawMask }
+    var data: UInt { rawData }
+    init(kind: Int32, queue: DispatchQueue?) { super.init(type: _isim_dispatch_source_type(kind), handle: 0, mask: 0, queue: queue) }
+    func add(data: UInt) { dispatch_source_merge_data(source, data) }
+    func or(data: UInt) { dispatch_source_merge_data(source, data) }
+    func replace(data: UInt) { dispatch_source_merge_data(source, data) }
+}
+
+final class _FDSource: _SourceBase, DispatchSourceRead, DispatchSourceWrite, DispatchSourceSignal, @unchecked Sendable {
+    var handle: UInt { rawHandle }
+    var mask: UInt { rawMask }
+    var data: UInt { rawData }
+    init(kind: Int32, handle: UInt, mask: UInt, queue: DispatchQueue?) { super.init(type: _isim_dispatch_source_type(kind), handle: handle, mask: mask, queue: queue) }
+}
+
+final class _ProcessSource: _SourceBase, DispatchSourceProcess, @unchecked Sendable {
+    var handle: UInt { rawHandle }
+    var mask: UInt { rawMask }
+    var data: UInt { rawData }
+    init(kind: Int32, handle: UInt, mask: UInt, queue: DispatchQueue?) { super.init(type: _isim_dispatch_source_type(kind), handle: handle, mask: mask, queue: queue) }
+}
+
+final class _FileSystemSource: _SourceBase, DispatchSourceFileSystemObject, @unchecked Sendable {
+    var handle: UInt { rawHandle }
+    var mask: UInt { rawMask }
+    var data: UInt { rawData }
+    init(kind: Int32, handle: UInt, mask: UInt, queue: DispatchQueue?) { super.init(type: _isim_dispatch_source_type(kind), handle: handle, mask: mask, queue: queue) }
+}
+
+final class _MemoryPressureSource: _SourceBase, DispatchSourceMemoryPressure, @unchecked Sendable {
+    var handle: UInt { rawHandle }
+    var mask: UInt { rawMask }
+    var data: UInt { rawData }
+    init(kind: Int32, handle: UInt, mask: UInt, queue: DispatchQueue?) { super.init(type: _isim_dispatch_source_type(kind), handle: handle, mask: mask, queue: queue) }
 }
 
 // MARK: - Preconditions

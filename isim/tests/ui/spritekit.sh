@@ -7,7 +7,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloSpriteKit; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/spritekit; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.5; shot $shots/menu.png; tap 201 477; wait 0.3; shot $shots/doorway.png; wait 1.3; shot $shots/game.png; keydown right; wait 0.2; keyup right; tap 310 794; wait 6; shot $shots/win.png; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.5; shot $shots/menu.png; tap 201 477; wait 0.3; shot $shots/doorway.png; wait 1.3; shot $shots/game.png; keydown right; wait 0.2; keyup right; tap 310 794; wait 6; shot $shots/win.png; quit" \
       timeout 60 out/bin/isim run out/apps/HelloSpriteKit.app 2>&1); rc=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }

@@ -8,7 +8,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloLayout; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/layout; rm -rf "$ISIM_DATA"
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloLayout.app 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloLayout.app 2>&1; }
 grid=$(run "wait 1; shot $shots/grid.png; dump; tapid switch; wait 0.4; dump; quit"); rc1=$?
 align=$(run "wait 1; tapid tab-Align; wait 0.6; shot $shots/align.png; dump; tapid geo; wait 0.5; quit"); rc2=$?
 scroll=$(run "wait 1; tapid tab-Scroll; wait 0.5; shot $shots/scroll.png; swipeid pager 0 -100 0.6; wait 1.5; swipeid aligned 0 -95 0.6; wait 1.5; swipeid locked 0 -40 0.4; wait 1; dump; tapid go8; wait 0.6; dump; quit"); rc3=$?

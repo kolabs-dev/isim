@@ -346,7 +346,7 @@ BOOL isim_ui_display_links_active(void) { for (CADisplayLink *l in display_links
         CGSize is = img.size; double k = fmin(1, 20 / fmax(is.width, is.height)); is.width *= k; is.height *= k;
         [img _isim_drawInRect:CGRectMake(s.width - 16 - is.width, s.height / 2 - is.height / 2, is.width, is.height) tint:c alpha:alpha];
     }
-    if (!self.last) fill(UIColor.separatorColor, 0, s.height - 0.5, s.width, 0.5, 0, 1);
+    if (!self.last && !isim_ui_glass()) fill(UIColor.separatorColor, 0, s.height - 0.5, s.width, 0.5, 0, 1);   /* iOS 26 menus: no row separators */
 }
 @end
 
@@ -429,8 +429,16 @@ static void collect(UIMenu *m, NSMutableArray<NSMutableArray *> *sections) {
     o.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     o.source = self;
     o.accessibilityIdentifier = @"isim-menu";
-    o.card = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterial]];
-    o.card.layer.cornerRadius = 13; o.card.clipsToBounds = YES;
+    if (isim_ui_glass()) {                    /* iOS 26: glass menu with large corners */
+        UIGlassEffect *g = [UIGlassEffect effectWithStyle:UIGlassEffectStyleRegular];
+        g.tintColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return [UIColor colorWithWhite:t.userInterfaceStyle == UIUserInterfaceStyleDark ? 0.12 : 0.98 alpha:0.55]; }];
+        o.card = [[UIVisualEffectView alloc] initWithEffect:g];
+        o.card.layer.cornerRadius = 26;
+    } else {
+        o.card = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterial]];
+        o.card.layer.cornerRadius = 13;
+    }
+    o.card.clipsToBounds = YES;
     [o addSubview:o.card];
     [w addSubview:o];
     current_menu = o;

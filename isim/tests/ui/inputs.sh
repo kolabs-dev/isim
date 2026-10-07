@@ -17,7 +17,7 @@ script="wait 1; shot $shots/text.png; tapid bio; wait 0.4; type grows to two lin
  drag 8 700 8 300 2; wait 1; tapid isim-calendar-next; wait 0.3; taptext 10; wait 0.5; shot $shots/calendar.png; drag 8 700 8 200 2; wait 1; swipeid countdown 0 -34 2; wait 1.5; dump;
  tapid tab-List; wait 1; drag 200 300 200 560 0.8; wait 0.5; shot $shots/refreshing.png; dump; wait 1.5;
  tapid search-field; wait 0.4; type Ar; wait 0.5; shot $shots/search.png; dump; tapid search-cancel; wait 0.6; dump; quit"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 120 out/bin/isim run out/apps/HelloInputs.app 2>&1); rc=$?
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 120 out/bin/isim run out/apps/HelloInputs.app 2>&1); rc=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
 check "UITextView edits through the keyboard"      'grep -q "begin bio" <<<"$log" && grep -q "changed bio: 52 chars" <<<"$log" && grep -q "isim: keyboard shown" <<<"$log"'

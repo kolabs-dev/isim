@@ -1,6 +1,6 @@
 // isim AVFoundation: assets (AVAsset, AVURLAsset, AVAssetTrack, async property loading, AVAssetImageGenerator).
 // Media is inspected by the host's ffprobe and thumbnails come from ffmpeg (host_media.c); local files and
-// http(s) URLs. No composition, export or metadata.
+// http(s) URLs. Composition, export, reader and writer: AVComposition.swift. No metadata.
 import UIKit
 import isim_host
 
@@ -72,8 +72,8 @@ open class AVAsset: NSObject, AVAsynchronousKeyValueLoading, @unchecked Sendable
     open func loadTrack(withTrackID id: CMPersistentTrackID) async throws -> AVAssetTrack? { try _check(); return track(withTrackID: id) }
     open var isPlayable: Bool { _media?.ok ?? false }
     open var isReadable: Bool { _media?.ok ?? false }
-    open var isExportable: Bool { false }
-    open var isComposable: Bool { false }
+    open var isExportable: Bool { _media?.ok ?? false }
+    open var isComposable: Bool { _media?.ok ?? false }
     open var hasProtectedContent: Bool { false }
     open var providesPreciseDurationAndTiming: Bool { true }
     open var preferredRate: Float { 1 }
@@ -92,6 +92,11 @@ open class AVAsset: NSObject, AVAsynchronousKeyValueLoading, @unchecked Sendable
     }
     open func cancelLoading() {}
     func _check() throws { if _media?.ok != true { throw _avLoadError(self) } }
+    /// the media file and time within it that shows this asset's video at time t (compositions map their segments)
+    func _videoSource(at t: Double) -> (URL, Double)? {
+        guard let u = _url, isPlayable else { return nil }
+        return (u, t)
+    }
 }
 
 func _avLoadError(_ a: AVAsset) -> NSError {
@@ -113,11 +118,14 @@ open class AVAssetTrack: NSObject, AVAsynchronousKeyValueLoading, @unchecked Sen
     public private(set) weak var asset: AVAsset?
     public let trackID: CMPersistentTrackID
     public let mediaType: AVMediaType
-    public let naturalSize: CGSize
-    public let nominalFrameRate: Float
-    public let timeRange: CMTimeRange
-    init(asset: AVAsset, id: Int32, type: AVMediaType, size: CGSize, fps: Float, range: CMTimeRange) {
-        self.asset = asset; trackID = id; mediaType = type; naturalSize = size; nominalFrameRate = fps; timeRange = range
+    var _naturalSize: CGSize
+    var _nominalFrameRate: Float
+    var _timeRange: CMTimeRange
+    public final var naturalSize: CGSize { _naturalSize }
+    public final var nominalFrameRate: Float { _nominalFrameRate }
+    public final var timeRange: CMTimeRange { _timeRange }
+    init(asset: AVAsset?, id: Int32, type: AVMediaType, size: CGSize, fps: Float, range: CMTimeRange) {
+        self.asset = asset; trackID = id; mediaType = type; _naturalSize = size; _nominalFrameRate = fps; _timeRange = range
     }
     open var isPlayable: Bool { true }
     open var isEnabled: Bool { true }
@@ -196,12 +204,12 @@ open class AVAssetImageGenerator: NSObject, @unchecked Sendable {
     public init(asset: AVAsset) { self.asset = asset }
 
     open func copyCGImage(at requestedTime: CMTime, actualTime: UnsafeMutablePointer<CMTime>?) throws -> CGImage {
-        guard let u = asset._url, asset.isPlayable, asset.tracks(withMediaType: .video).count > 0 else { throw _avLoadError(asset) }
+        let t = max(0, requestedTime.isNumeric ? requestedTime.seconds : 0)
+        guard let (u, st) = asset._videoSource(at: t), asset.tracks(withMediaType: .video).count > 0 else { throw _avLoadError(asset) }
         let side = max(maximumSize.width, maximumSize.height)
         var out: UnsafeMutableRawPointer? = nil
         var len = 0
-        let t = max(0, requestedTime.isNumeric ? requestedTime.seconds : 0)
-        guard isim_media_thumbnail_png(u.isFileURL ? u.path : u.absoluteString, t, Double(side), &out, &len) != 0, let p = out else { throw _avLoadError(asset) }
+        guard isim_media_thumbnail_png(u.isFileURL ? u.path : u.absoluteString, st, Double(side), &out, &len) != 0, let p = out else { throw _avLoadError(asset) }
         var w = 0.0, h = 0.0
         let handle = isim_image_load_data(p, UInt(len), &w, &h)
         isim_media_free(p)

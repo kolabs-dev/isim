@@ -9,7 +9,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloWidgets; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/widgets; rm -rf "$ISIM_DATA"
 out/bin/isim install out/apps/HelloWidgets.app >/dev/null
-boot() { ISIM_DEVICE=iphone17 ISIM_SHOT_SCALE=1 timeout 120 out/bin/isim boot --headless --script "$1" 2>&1; }
+boot() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 timeout 120 out/bin/isim boot --headless --script "$1" 2>&1; }
 log=$(boot "wait 2.5; holdid app-dev.isim.samples.HelloWidgets 0.8; wait 0.4; tapid menu-edit; wait 0.4; tapid home-add-widget; wait 0.5; shot $shots/gallery.png; dump;
             tapid widget-add-Counter-systemSmall; wait 2; tapid home-add-widget; wait 0.4; tapid widget-add-Ticker-systemMedium; wait 2; tapid home-done; wait 0.6; shot $shots/widgets.png; dump;
             tap 114 400; wait 2; shot $shots/tapped.png;

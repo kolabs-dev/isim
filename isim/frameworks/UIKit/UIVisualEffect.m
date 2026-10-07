@@ -6,9 +6,32 @@
 - (id)copyWithZone:(NSZone *)z { return self; }
 @end
 
+int isim_ui_os_major(void) { static int m; if (!m) m = isim_os_version() / 10000; return m; }
+BOOL isim_ui_glass(void) { return isim_ui_os_major() >= 26; }
+void isim_ui_draw_glass(CGRect r, CGFloat radius, UIColor *tint, int flags) {
+    double t[4] = { 0, 0, 0, 0 };
+    if (tint) isim_ui_rgba(tint, t);
+    if (isim_ui_style() == UIUserInterfaceStyleDark) flags |= 1;
+    isim_gfx_glass(r.origin.x, r.origin.y, r.size.width, r.size.height, radius, tint ? t : NULL, flags);
+}
+
 @implementation UIBlurEffect { UIBlurEffectStyle _style; }
 + (UIBlurEffect *)effectWithStyle:(UIBlurEffectStyle)style { UIBlurEffect *e = [self new]; e->_style = style; return e; }
 - (UIBlurEffectStyle)_isim_style { return _style; }
+@end
+
+@implementation UIGlassEffect { UIGlassEffectStyle _style; }
++ (UIGlassEffect *)effectWithStyle:(UIGlassEffectStyle)style { UIGlassEffect *e = [self new]; e->_style = style; return e; }
+- (UIGlassEffectStyle)_isim_style { return _style; }
+- (id)copyWithZone:(NSZone *)z { UIGlassEffect *e = [UIGlassEffect effectWithStyle:_style]; e.interactive = _interactive; e.tintColor = _tintColor; return e; }
+@end
+@implementation UIGlassContainerEffect
+- (id)copyWithZone:(NSZone *)z { UIGlassContainerEffect *e = [UIGlassContainerEffect new]; e.spacing = _spacing; return e; }
+@end
+@implementation UIBackgroundExtensionView
+- (instancetype)initWithFrame:(CGRect)f { if ((self = [super initWithFrame:f])) _automaticallyPlacesContentView = YES; return self; }
+- (void)setContentView:(UIView *)v { [_contentView removeFromSuperview]; _contentView = v; if (v) [self addSubview:v]; [self setNeedsLayout]; }
+- (void)layoutSubviews { [super layoutSubviews]; if (_automaticallyPlacesContentView) _contentView.frame = self.bounds; }
 @end
 
 @implementation UIVibrancyEffect
@@ -53,7 +76,7 @@ void isim_ui_material(NSInteger style, BOOL dark, double *radius, double tint[4]
 @implementation __IsimEffectContentView
 @end
 
-@implementation UIVisualEffectView { UIView *_content; }
+@implementation UIVisualEffectView { UIView *_content; BOOL _isim_pressed; }
 - (instancetype)initWithEffect:(UIVisualEffect *)effect {
     if ((self = [super initWithFrame:CGRectZero])) {
         _effect = effect;
@@ -68,7 +91,16 @@ void isim_ui_material(NSInteger style, BOOL dark, double *radius, double tint[4]
 - (UIView *)contentView { return _content; }
 - (void)setEffect:(UIVisualEffect *)e { _effect = e; isim_ui_set_needs_display(); }
 - (void)layoutSubviews { [super layoutSubviews]; _content.frame = self.bounds; }
+- (void)touchesBegan:(NSSet *)t withEvent:(UIEvent *)e { if ([_effect isKindOfClass:[UIGlassEffect class]] && ((UIGlassEffect *)_effect).interactive) { _isim_pressed = YES; isim_ui_set_needs_display(); } [super touchesBegan:t withEvent:e]; }
+- (void)touchesEnded:(NSSet *)t withEvent:(UIEvent *)e { if (_isim_pressed) { _isim_pressed = NO; isim_ui_set_needs_display(); } [super touchesEnded:t withEvent:e]; }
+- (void)touchesCancelled:(NSSet *)t withEvent:(UIEvent *)e { if (_isim_pressed) { _isim_pressed = NO; isim_ui_set_needs_display(); } [super touchesCancelled:t withEvent:e]; }
 - (void)_isim_drawContent {
+    if ([_effect isKindOfClass:[UIGlassEffect class]]) {
+        UIGlassEffect *g = (UIGlassEffect *)_effect; CGSize s = self.bounds.size;
+        isim_ui_draw_glass(CGRectMake(0, 0, s.width, s.height), self.layer.cornerRadius, g.tintColor,
+                           (g._isim_style == UIGlassEffectStyleClear ? 2 : 0) | (_isim_pressed ? 8 : 0) | (self.clipsToBounds ? 4 : 0));
+        return;
+    }
     if (![_effect isKindOfClass:[UIBlurEffect class]]) return;
     double radius, tint[4];
     isim_ui_material(((UIBlurEffect *)_effect)._isim_style, isim_ui_style() == UIUserInterfaceStyleDark, &radius, tint);

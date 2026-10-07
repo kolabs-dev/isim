@@ -16,7 +16,7 @@ step() { printf '\n== %s\n' "$*"; }
 step "host runtime"
 PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/objc_exc.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c runtime/host_gamepad.c runtime/host_ca.c runtime/host_cg.c runtime/host_web.c runtime/host_tls.c runtime/host_xctest.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/objc_exc.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_pki.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c runtime/host_gamepad.c runtime/host_ca.c runtime/host_cg.c runtime/host_web.c runtime/host_tls.c runtime/host_xctest.c runtime/host_capture.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread -ldl
 
 # web engine helper for WKWebView (optional): the host's WebKitGTK 6.0 on a private broadway display

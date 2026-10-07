@@ -12,7 +12,7 @@ shots=out/test-shots/HelloCoreAnimation; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/coreanimation; rm -rf "$ISIM_DATA"
 script="wait 1; shot $shots/main.png; tapid btn-Report; wait 0.3; tapid btn-Tx; wait 1.2; tapid btn-Anim; wait 0.2; shot $shots/spin.png; wait 1.5;
  tapid btn-Drop; wait 3; shot $shots/drop.png; tapid btn-Haptic; wait 1; quit"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 60 out/bin/isim run out/apps/HelloCoreAnimation.app 2>&1); rc=$?
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 60 out/bin/isim run out/apps/HelloCoreAnimation.app 2>&1); rc=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
 px() { magick "$shots/$1.png" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info: 2>/dev/null; }

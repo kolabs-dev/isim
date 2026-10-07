@@ -18,6 +18,8 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        , ISIM_EV_VOICEOVER = 42 /* text: on|off|next|prev|activate|read (script `voiceover`) */
        , ISIM_EV_SYSTEM = 50 /* text: a system message from the shell ("bgtask ID", "discard-scenes", ...; shell_system.inc) */ };
 void isim_device_metrics(struct isim_device *out);
+int isim_os_version(void);                            /* the iOS version isim emulates (--os): major*10000 + minor*100 + patch */
+void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags);   /* Liquid Glass; flags 1 dark, 2 clear, 4 no shadow, 8 pressed */
 int isim_set_orientation(int interfaceOrientation);   /* the screen takes this UIInterfaceOrientation; 1 if it changed */
 int isim_device_orientation(void);                    /* current UIDeviceOrientation */
 int isim_display_open(const char *title);
@@ -158,6 +160,30 @@ int isim_crypto_25519_check_public(int kind, const uint8_t *pub);
 int isim_crypto_x25519(const uint8_t *priv, const uint8_t *pub, uint8_t *shared);
 int isim_crypto_ed25519_sign(const uint8_t *priv, const void *_Nullable msg, size_t len, uint8_t *sig);
 int isim_crypto_ed25519_verify(const uint8_t *pub, const void *_Nullable msg, size_t len, const uint8_t *sig);
+/* public-key infrastructure for isim's Security module (host_pki.c, host OpenSSL). Return 1 on success, 0 on failure
+   (isim_pki_error: why). Key type 0 RSA, 1 EC. Keys in Apple's external representation: RSA PKCS#1 DER; EC X9.63
+   04|X|Y (public) / 04|X|Y|D (private). Sizes are in/out: capacity in, length out.
+   sign/verify alg: digest (0 none, 1 SHA-1, 2 SHA-224, 3 SHA-256, 4 SHA-384, 5 SHA-512) | 16 if the data is a message
+   | scheme << 8 (0 RSA PKCS#1 v1.5, 1 RSA PSS, 2 ECDSA DER signature, 3 ECDSA r||s, 4 RSA raw).
+   encrypt/decrypt alg (RSA): 0 PKCS#1 v1.5, 1 raw, 2..6 OAEP SHA-1/224/256/384/512. */
+int isim_pki_available(void);
+const char *isim_pki_error(void);
+int isim_pki_generate(int type, int bits, uint8_t *_Nullable out, size_t *outlen);
+int isim_pki_public(int type, const uint8_t *priv, size_t len, uint8_t *_Nullable out, size_t *outlen);
+int isim_pki_key_bits(int type, const uint8_t *key, size_t len, int isPrivate);
+int isim_pki_sign(int type, const uint8_t *priv, size_t len, int alg, const uint8_t *_Nullable data, size_t dlen, uint8_t *sig, size_t *siglen);
+int isim_pki_verify(int type, const uint8_t *pub, size_t len, int alg, const uint8_t *_Nullable data, size_t dlen, const uint8_t *sig, size_t siglen);
+int isim_pki_encrypt(const uint8_t *pub, size_t len, int alg, const uint8_t *_Nullable in, size_t inlen, uint8_t *out, size_t *outlen);
+int isim_pki_decrypt(const uint8_t *priv, size_t len, int alg, const uint8_t *in, size_t inlen, uint8_t *out, size_t *outlen);
+int isim_pki_ecdh(const uint8_t *priv, size_t len, const uint8_t *pub, size_t publen, uint8_t *out, size_t *outlen);
+/* certificate description as JSON (see host_pki.c) */
+int isim_pki_cert_parse(const uint8_t *der, size_t len, char *json, size_t cap);
+/* chain verification: DER certificates (leaf first) and anchors, each concatenated with their sizes in lens */
+int isim_pki_trust(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *_Nullable anchors, const size_t *_Nullable alens, int nanchors,
+                   int useSystemAnchors, int sslServer, const char *_Nullable hostname, double when, char *err, size_t errcap, int *chainlen);
+/* PKCS#12: private key (+ type) and certificates (identity certificate first); ncerts -1 if not PKCS#12 */
+int isim_pki_pkcs12(const uint8_t *data, size_t len, const char *_Nullable password, uint8_t *key, size_t *keylen, int *keytype,
+                    uint8_t *certs, size_t certscap, size_t *certlens, int *ncerts);
 /* media (host_media.c): video/audio files and http(s) URLs through the host's ffprobe/ffmpeg */
 struct isim_media_info { double duration, width, height, fps; int has_video, has_audio; };
 int isim_media_probe(const char *url, struct isim_media_info *info);            /* 0: unreadable / no ffprobe */
@@ -184,6 +210,41 @@ int isim_gfx_screen_snapshot(double x, double y, double w, double h);   /* what 
 void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group painted with its pixels multiplied by rgba */
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
+/* AVAudioSession events queued by the `audio` script command ("interrupt begin", "interrupt end resume", "route headphones") */
+int isim_audio_session_poll(char *buf, int len);
+/* audio streams (AudioQueue output): 48 kHz interleaved stereo float drained by the mixer in real time. open returns 0
+   when there is no audio device (headless); write returns how many frames fit (0 = full, try later) */
+int isim_audio_stream_open(double volume);
+long isim_audio_stream_write(int stream, const float *pcm, long frames);
+void isim_audio_stream_control(int stream, int paused, double volume);
+void isim_audio_stream_close(int stream);
+/* stereo balance of a playing voice: -1 left .. 1 right */
+void isim_audio_set_pan(long voice, double pan);
+/* copies pixels of an image as premultiplied BGRA (rows packed, w*4 bytes) */
+int isim_image_read_bgra(int handle, int x, int y, int w, int h, unsigned char *out);
+/* simulated camera (host_capture.c): ISIM_CAMERA=<image|video file> or webcam[:/dev/videoN]. source kind: 0 none,
+   1 image, 2 video, 3 webcam. frame copies the newest BGRA frame newer than seq (waiting up to timeout s) and returns
+   its sequence number, 0 if none; preview (UI thread) returns an image handle of the newest frame */
+int isim_camera_source(char *_Nullable desc, int len);
+int isim_camera_open(int max_side, double fps, int *w, int *h);
+long isim_camera_frame(int camera, unsigned char *_Nullable out, long seq, double timeout);
+int isim_camera_preview(int camera);
+void isim_camera_close(int camera);
+/* runs ffmpeg with args (no shell); progress in seconds of output; *cancel != 0 stops it. 0 ok, -1 no ffmpeg, -2 cancelled */
+int isim_ffmpeg_run(const char *_Nullable const *_Nonnull args, int nargs, double *_Nullable progress, volatile int *_Nullable cancel, char *_Nullable err, long errlen);
+/* decoded media streams: kind 0 video (BGRA w x h at rate fps), 1 audio (float32 interleaved at rate Hz, channels) */
+int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels);
+long isim_media_reader_read(int reader, void *buf, long n);
+void isim_media_reader_close(int reader);
+/* Vision backends: available kind 1 barcodes (libzbar), 2 text (tesseract), 3 faces (none). Results are malloc'd
+   text (free with isim_media_free), NULL when the backend is missing */
+int isim_vision_available(int kind);
+char *_Nullable isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
+char *_Nullable isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *_Nullable langs);
+char *_Nullable isim_vision_text_languages(void);
+/* speech recognition: 1 whisper.cpp (ISIM_WHISPER_MODEL), 2 vosk (ISIM_VOSK_MODEL), 0 none; transcribe takes 16 kHz mono */
+int isim_speech_available(void);
+char *_Nullable isim_speech_transcribe(const float *pcm, long frames, const char *_Nullable lang);
 /* XCUITest (isim XCTest): run the app under test as a child process driven through a control FIFO.
  * argv/envp are NULL-terminated (envp: KEY=VALUE added to the environment); snapshot returns the app's
  * accessibility snapshot text (free with isim_xcui_free) or NULL. */

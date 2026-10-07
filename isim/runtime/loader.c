@@ -822,6 +822,10 @@ int main(int argc, char **argv, char **envp) {
         if (!strcmp(argv[ai], "-v")) { isim_verbose = 1; ai++; }
         else if (!strcmp(argv[ai], "--root") && ai + 1 < argc) { sysroot = argv[ai + 1]; ai += 2; }
         else if (!strcmp(argv[ai], "--print-exports") && ai + 1 < argc) { print_exports(argv[ai + 1]); return 0; }
+        else if (!strcmp(argv[ai], "--list-devices")) { extern void isim_list_devices(void); isim_list_devices(); return 0; }
+        else if (!strcmp(argv[ai], "--os-check")) {          /* validate ISIM_DEVICE + ISIM_OS_VERSION/ISIM_OS_DEFAULT, print the version */
+            extern int isim_os_select(void); int r = isim_os_select(); if (!r) printf("%s\n", getenv("ISIM_OS_VERSION")); return r;
+        }
         else if (!strcmp(argv[ai], "--shell") && ai + 2 < argc) {
             /* --shell <home screen .app> <its executable> [--open <App.app> <its executable> [args...]]:
                run the isim shell (each app is a child process), optionally opening an app at boot */
@@ -830,6 +834,7 @@ int main(int argc, char **argv, char **envp) {
             char *rr = realpath(sysroot, NULL); if (rr) sysroot = rr;
             char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1); if (n > 0) self[n] = 0;
             char **open = ai + 5 < argc && !strcmp(argv[ai + 3], "--open") ? argv + ai + 4 : NULL;
+            extern int isim_os_select(void); if (isim_os_select()) return 2;
             return isim_shell_main(self, sysroot, argv[ai + 1], argv[ai + 2], open);
         }
         else break;
@@ -842,6 +847,7 @@ int main(int argc, char **argv, char **envp) {
     if (!sysroot) sysroot = default_root();
     char *rr = realpath(sysroot, NULL); if (rr) sysroot = rr;
 
+    { extern int isim_os_select(void); if (isim_os_select()) return 2; }   /* the iOS version this run reports (host.c) */
     if (!load_image(argv[ai], MH_EXECUTE)) isim_fatal("cannot open %s", argv[ai]);
     if (!main_image->entry) isim_fatal("%s: no LC_MAIN", main_image->path);
 

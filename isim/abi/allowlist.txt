@@ -14,3 +14,12 @@ usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit12SKSpriteNodeC12warpGeometry
 # be declared next to the imported properties.
 usr/lib/swift/libswiftCoreGraphics.dylib _$sSo10CGImageRefa12CoreGraphicsE5widthSivpMV
 usr/lib/swift/libswiftCoreGraphics.dylib _$sSo10CGImageRefa12CoreGraphicsE6heightSivpMV
+# 0.6: AVCapturePhotoOutput.maxPhotoQualityPrioritization was typed Int (iOS types it AVCapturePhotoOutput.
+# QualityPrioritization). Its getter and setter dispatch thunks are still exported under the 0.2.0 names
+# (Capture.swift); the modify coroutine and the method/property descriptors (subclass overrides, key paths) cannot be
+# declared next to the enum-typed property. The photo output delivered nothing before 0.6.
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivMTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivMTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivpMV
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivsTq

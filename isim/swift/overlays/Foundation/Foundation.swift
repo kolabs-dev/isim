@@ -331,6 +331,12 @@ extension String {
       public mutating func appendInterpolation(_ v: Double) { key += "%lf"; arguments.append(String(v)) }
       public mutating func appendInterpolation<T>(_ v: T) { key += "%@"; arguments.append(String(describing: v)) }
     }
+    /// A .stringsdict plural format ("%#@items@") with each variable replaced by the rule text for its argument.
+    func expandingPlurals(_ format: String) -> String {
+      guard format.contains("#@") else { return format }
+      let values = arguments.map { NSNumber(value: Double($0) ?? 0) }
+      return (format as NSString)._isim_expandingPlurals(withValues: values).map { $0 as String } ?? format
+    }
     func resolve(_ format: String) -> String {
       guard !arguments.isEmpty else { return format.replacingOccurrences(of: "%%", with: "%") }
       var out = "", i = format.startIndex, argIndex = 0
@@ -359,14 +365,89 @@ extension String {
   public init(localized key: LocalizationValue, table: String? = nil, bundle: Bundle? = nil, locale: Locale = .current, comment: StaticString? = nil) {
     let b = bundle ?? Bundle.main
     let format = b.localizedString(forKey: key.key, value: nil, table: table)
-    self = key.resolve(format)
+    self = key.resolve(key.expandingPlurals(format))
   }
   public init(localized keyAndValue: String.LocalizationValue, defaultValue: String.LocalizationValue, table: String? = nil, bundle: Bundle? = nil, locale: Locale = .current, comment: StaticString? = nil) {
     let b = bundle ?? Bundle.main
     let format = b.localizedString(forKey: keyAndValue.key, value: defaultValue.key, table: table)
-    self = keyAndValue.resolve(format)
+    self = keyAndValue.resolve(keyAndValue.expandingPlurals(format))
+  }
+  @_disfavoredOverload   // a string literal argument means String.LocalizationValue, as on Apple platforms
+  public init(localized resource: LocalizedStringResource) {
+    // the key looked up; the default value carries the interpolated arguments
+    let format = resource.bundle._bundle.localizedString(forKey: resource.key, value: resource.defaultValue.key, table: resource.table)
+    self = resource.defaultValue.resolve(resource.defaultValue.expandingPlurals(format))
   }
 }
+/// A reference to a localized string, resolved later (iOS 16). isim resolves it with the same lookup as
+/// String(localized:).
+@available(iOS 15.0, *) @_originallyDefinedIn(module: "AppIntents", iOS 15.0)   // isim 0.5.0 had it in AppIntents (no OS version moved it: 15.0 = isim's oldest target)
+public struct LocalizedStringResource: Equatable, Hashable, Sendable, ExpressibleByStringInterpolation, CustomStringConvertible {
+  public enum BundleDescription: Equatable, Hashable, Sendable {
+    case main
+    case forClass(AnyClass)
+    case atURL(URL)
+    public static func == (a: BundleDescription, b: BundleDescription) -> Bool {
+      switch (a, b) {
+      case (.main, .main): return true
+      case (.forClass(let x), .forClass(let y)): return x == y
+      case (.atURL(let x), .atURL(let y)): return x == y
+      default: return false
+      }
+    }
+    public func hash(into h: inout Hasher) {
+      switch self {
+      case .main: h.combine(0)
+      case .forClass(let c): h.combine(ObjectIdentifier(c))
+      case .atURL(let u): h.combine(u)
+      }
+    }
+    var _bundle: Bundle {
+      switch self {
+      case .main: return .main
+      case .forClass(let c): return Bundle(for: c)
+      case .atURL(let u): return Bundle(path: u.path) ?? .main
+      }
+    }
+  }
+  public let key: String
+  public var defaultValue: String.LocalizationValue
+  public var table: String?
+  public var locale: Locale
+  public var bundle: BundleDescription
+  public var comment: String?
+  public init(_ key: StaticString, defaultValue: String.LocalizationValue, table: String? = nil, locale: Locale = .current,
+              bundle: BundleDescription = .main, comment: StaticString? = nil) {
+    self.key = "\(key)"; self.defaultValue = defaultValue; self.table = table
+    self.locale = locale; self.bundle = bundle; self.comment = comment.map { "\($0)" }
+  }
+  public init(_ keyAndValue: String.LocalizationValue, table: String? = nil, locale: Locale = .current,
+              bundle: BundleDescription = .main, comment: StaticString? = nil) {
+    key = keyAndValue.key; defaultValue = keyAndValue; self.table = table; self.locale = locale; self.bundle = bundle
+    self.comment = comment.map { "\($0)" }
+  }
+  public init(stringLiteral value: String) { self.init(String.LocalizationValue(value)) }
+  public init(stringInterpolation: String.LocalizationValue.StringInterpolation) {
+    self.init(String.LocalizationValue(stringInterpolation: stringInterpolation))
+  }
+  public var description: String { String(localized: self) }
+
+  // isim 0.5.0 declared this type in AppIntents (hence @_originallyDefinedIn): the members it had then, under
+  // their 0.5.0 names, for apps built with that release
+  public typealias StringInterpolation = String.LocalizationValue.StringInterpolation
+  @usableFromInline init(stringInterpolation: DefaultStringInterpolation) {
+    self.init(String.LocalizationValue(String(stringInterpolation: stringInterpolation)))
+  }
+  @usableFromInline init(_ key: String) { self.init(String.LocalizationValue(key)) }
+  public static func == (a: LocalizedStringResource, b: LocalizedStringResource) -> Bool {
+    a.key == b.key && a.table == b.table && a.bundle == b.bundle && a.locale == b.locale
+  }
+  public func hash(into h: inout Hasher) { h.combine(key); h.combine(table) }
+}
+extension String.LocalizationValue: Hashable {
+  public func hash(into h: inout Hasher) { h.combine(key); h.combine(arguments) }
+}
+
 public func NSLocalizedString(_ key: String, tableName: String? = nil, bundle: Bundle = Bundle.main, value: String = "", comment: String) -> String {
   bundle.localizedString(forKey: key, value: value, table: tableName)
 }

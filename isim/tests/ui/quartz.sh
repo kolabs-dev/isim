@@ -6,7 +6,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloQuartz; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/quartz; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/quartz.png; dump; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/quartz.png; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloQuartz.app 2>&1); rc=$?
 px() { magick "$shots/quartz.png" -format "%[fx:int(255*u.p{$1,$2}.r)] %[fx:int(255*u.p{$1,$2}.g)] %[fx:int(255*u.p{$1,$2}.b)]" info: 2>/dev/null; }
 near() { read -r r g b <<<"$(px "$1" "$2")"; [ -n "$r" ] && [ $(( (r-$3)*(r-$3) + (g-$4)*(g-$4) + (b-$5)*(b-$5) )) -lt ${6:-2500} ]; }

@@ -368,6 +368,7 @@ static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
 }
 
 #include "sockets.inc"     /* BSD sockets, name resolution, poll/select, fcntl/ioctl, getifaddrs */
+#include "posix_extras.inc"   /* pipe, pread/pwrite, dup, kill, signal numbers */
 
 void libsystem_init(int argc, char **argv) {
     d_stdinp = stdin; d_stdoutp = stdout; d_stderrp = stderr;
@@ -587,7 +588,7 @@ static const struct shim libsystem_table[] = {
     P(freopen), P(fdopen), P(fileno), P(setbuf), P(setvbuf), P(remove), P(rename), P(tmpfile), P(rewind), P(fgetpos), P(fsetpos),
     P(clearerr), P(feof), P(ferror), P(strcoll), P(strxfrm), P(strpbrk), P(strspn), P(strcspn), P(strtok), P(strtok_r),
     P(strerror), A("_strerror_r", d_strerror_r), A("_strlcpy", d_strlcpy), A("_strlcat", d_strlcat), P(clock), P(difftime), P(asctime), P(ctime),
-    P(gmtime), P(localtime), P(timespec_get), P(imaxabs), P(imaxdiv), P(strtoimax), P(strtoumax), P(signal), P(raise),
+    P(gmtime), P(localtime), P(timespec_get), P(imaxabs), P(imaxdiv), P(strtoimax), P(strtoumax), POSIX_EXTRAS,
     A("___ulock_wait", d_ulock_wait), A("___ulock_wake", d_ulock_wake), A("_pthread_mach_thread_np", d_pthread_mach_thread_np),
     A("_pthread_threadid_np", d_pthread_threadid_np), A("_pthread_get_stackaddr_np", d_pthread_get_stackaddr_np),
     A("_pthread_get_stacksize_np", d_pthread_get_stacksize_np), A("_pthread_attr_init", d_attr_init),
