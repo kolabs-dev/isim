@@ -37,17 +37,17 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 4 | 0 | 3 | 10 | 50% |
-| **SwiftUI** | 146 | 55 | 16 | 17 | 234 | 74% |
+| **SwiftUI** | 149 | 55 | 16 | 17 | 237 | 74% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 14 | 3 | 0 | 0 | 17 | 91% |
-| &nbsp;&nbsp;↳ Views & controls | 30 | 8 | 0 | 0 | 38 | 89% |
+| &nbsp;&nbsp;↳ Views & controls | 31 | 8 | 0 | 0 | 39 | 90% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 1 | 28 | 79% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 14 | 13 | 6 | 4 | 37 | 55% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 17 | 8 | 7 | 2 | 34 | 62% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 3 | 24 | 81% |
 | &nbsp;&nbsp;↳ Animation | 7 | 3 | 1 | 0 | 11 | 77% |
-| &nbsp;&nbsp;↳ Gestures | 5 | 1 | 0 | 1 | 7 | 79% |
-| &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 2 | 0 | 0 | 7 | 86% |
+| &nbsp;&nbsp;↳ Gestures | 6 | 1 | 0 | 1 | 8 | 81% |
+| &nbsp;&nbsp;↳ Lifecycle, async & events | 6 | 2 | 0 | 0 | 8 | 88% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 1 | 1 | 0 | 4 | 62% |
 | &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
@@ -85,7 +85,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 27 | 16 | 1 | 7 | 51 | 69% |
-| **All areas** | **563** | **242** | **48** | **100** | **953** | **72%** |
+| **All areas** | **566** | **242** | **48** | **100** | **956** | **72%** |
 
 ### Per iOS version
 
@@ -94,7 +94,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 76% (200) | 75% (203) | 73% (210) | 72% (214) |
-| SwiftUI | 80% (211) | 78% (217) | 77% (224) | 74% (234) |
+| SwiftUI | 80% (214) | 78% (220) | 77% (227) | 74% (237) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 77% (81) | 77% (81) | 77% (81) | 77% (81) |
 | Swift runtime, stdlib & concurrency | 82% (37) | 80% (38) | 80% (38) | 80% (38) |
@@ -119,7 +119,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 61% (9) | 61% (9) | 61% (9) | 61% (9) |
 | Platform & tooling | 69% (49) | 69% (50) | 69% (51) | 69% (51) |
-| **All areas** | **74%** (910) | **74%** (922) | **73%** (939) | **72%** (953) |
+| **All areas** | **74%** (913) | **74%** (925) | **73%** (942) | **72%** (956) |
 
 ---
 
@@ -452,6 +452,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `Text + Text` concatenation | ✅ | ≤17 | parts keep their own font/colour/weight; mixed styles laid out word by word (adapted); tested (HelloText) |
 | `Text(date, style:)`, `Text(_:format:)`, `Text(timerInterval:)` | ✅ | ≤17 | `.time/.date/.relative/.offset/.timer` styles (relative ones re-render every second), date ranges, `Text(_:format:)` with Foundation format styles, `\(value, format:)` / `\(date, style:)` interpolation, `Text(_:formatter:)`; tested (HelloText) |
 | Markdown in `Text`, `AttributedString` | ✅ | ≤17 | string literals parse `**bold**`, `*italic*`, `***both***`, `` `code` ``, `~~strike~~`, `[links](url)` (tap opens through `openURL`); `Text(AttributedString)` maps presentation intents, links and the SwiftUI attribute scope (`foregroundColor`, `font`, underline/strikethrough, kern, baselineOffset); tested (HelloText). Italic is a sheared glyph run (isim fonts have no italic faces) |
+| `Text(Image)` (inline images in text, `Text + Text`, Canvas `draw(Text)`) | ✅ | ≤17 | symbols take the text's font size, weight and colour; laid out as words in rich text; tested (HelloSourceCompat). SF Symbols without a stand-in icon draw as a placeholder |
 | `strikethrough`, `underline`, `kerning`, `tracking`, `textCase`, `baselineOffset` | ✅ | ≤17 | on `Text` and as view modifiers; lines are hairline views, kerning places glyphs one by one (`tracking` = `kerning`), line patterns drawn solid; tested (HelloText) |
 | `lineLimit`, `multilineTextAlignment` | ✅ | ≤17 | |
 | `truncationMode`, `minimumScaleFactor`, `allowsTightening` | 🟡 | ≤17 | head/middle/tail truncation of one-line text (tested), `minimumScaleFactor` shrinks one-line labels to fit (screenshot only); `allowsTightening` is stored, no effect |
@@ -660,6 +661,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `onTapGesture(count:)`, `TapGesture`, `onTapGesture(coordinateSpace:perform:)` | ✅ | ≤17 | |
 | `onLongPressGesture`, `LongPressGesture` | ✅ | ≤17 | |
 | `DragGesture` (`onChanged`/`onEnded`, translation, velocity, predicted end) | ✅ | ≤17 | UIKit recognizers on the wrapped view; `.local`/`.global` coordinate spaces; tested (HelloSwiftUIGestures, HelloDrawing) |
+| `Optional: Gesture` (`.gesture(enabled ? g : nil)`) | ✅ | ≤17 | nil installs no recognizer; tested (HelloSourceCompat) |
 | `simultaneousGesture`, `highPriorityGesture`, `simultaneously(with:)`, `sequenced(before:)`, `exclusively(before:)`, `map` | 🟡 | ≤17 | composition tested (HelloSwiftUIGestures: magnify+rotate together, long press before drag, double tap before single); `highPriorityGesture` and gesture masks behave like `.gesture` |
 | `MagnifyGesture`, `RotateGesture` (+ `MagnificationGesture`, `RotationGesture`) | ✅ | ≤17 | two fingers from isim's multi-touch (Option-drag, script `pinch`/`rotate2`); magnification/rotation, velocity, start anchor/location; tested (HelloSwiftUIGestures) |
 | `SpatialTapGesture` | ✅ | ≤17 | location in local/global space; tested (HelloSwiftUIGestures) |
@@ -672,6 +674,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `onAppear`, `onDisappear` | ✅ | ≤17 | |
 | `.task`, `.task(id:)` | ✅ | ≤17 | cancelled on disappear |
 | `onChange(of:)` (old/new, `initial:`) | ✅ | ≤17 | |
+| `Scene.onChange(of:initial:)` (e.g. `scenePhase`) | ✅ | ≤17 | adapted: wraps the scene's root view in `onChange`; tested (HelloSourceCompat) |
 | `onReceive` | ✅ | ≤17 | |
 | `onSubmit` | ✅ | ≤17 | |
 | `onKeyPress`, `keyboardShortcut` | 🟡 | ≤17 | shortcuts on buttons become UIKeyCommands (incl. `defaultAction`/`cancelAction`); `onKeyPress` key/characters/phases forms; tested (HelloKeys). No focus routing: every onKeyPress on screen sees presses, innermost first (adapted) |

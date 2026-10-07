@@ -99,7 +99,7 @@ Coverage per iOS version (rows introduced at or before that version; see [docs/C
 
 | | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| All areas | 74% (910 rows) | 74% (922) | 73% (939) | 72% (953) |
+| All areas | 74% (913 rows) | 74% (925) | 73% (942) | 72% (956) |
 
 ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 

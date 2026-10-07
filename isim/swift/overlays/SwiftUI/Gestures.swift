@@ -22,7 +22,12 @@ public protocol Gesture<Value> {
     associatedtype Value
     /// adds the recognizers for this gesture to `view`, reporting through `events`; returns them
     @MainActor func _install(on view: UIView, _ events: _GestureEvents<Value>) -> [UIGestureRecognizer]
+    /// isim 0.2.0 ABI (unused): kept so binaries built against 0.2.0 still link
+    var _isimGesture: _GestureSpec { get }
 }
+/// isim 0.2.0 ABI: the old gesture description type (unused; gestures install recognizers through `_install`)
+public struct _GestureSpec { public init() {} }
+extension Gesture { public var _isimGesture: _GestureSpec { _GestureSpec() } }
 
 /// Target object for recognizer actions.
 final class _SUIGestureTarget: NSObject {
@@ -85,7 +90,18 @@ public struct DragGesture: Gesture {
     public var minimumDistance: CGFloat
     public var coordinateSpace: CoordinateSpace
     public init(minimumDistance: CGFloat = 10, coordinateSpace: CoordinateSpace = .local) { self.minimumDistance = minimumDistance; self.coordinateSpace = coordinateSpace }
-    public func _install(on view: UIView, _ e: _GestureEvents<Value>) -> [UIGestureRecognizer] {
+    // isim 0.2.0 ABI: onChanged/onEnded returned DragGesture itself, carrying the actions
+    var _abiChanged: ((Value) -> Void)?, _abiEnded: ((Value) -> Void)?
+    public var _isimGesture: _GestureSpec { _GestureSpec() }
+    @_disfavoredOverload @usableFromInline func onChanged(_ action: @escaping (Value) -> Void) -> DragGesture {
+        var g = self; let prev = g._abiChanged; g._abiChanged = { prev?($0); action($0) }; return g
+    }
+    @_disfavoredOverload @usableFromInline func onEnded(_ action: @escaping (Value) -> Void) -> DragGesture {
+        var g = self; let prev = g._abiEnded; g._abiEnded = { prev?($0); action($0) }; return g
+    }
+    public func _install(on view: UIView, _ e0: _GestureEvents<Value>) -> [UIGestureRecognizer] {
+        let c = _abiChanged, en = _abiEnded
+        let e = (c == nil && en == nil) ? e0 : _GestureEvents(changed: { c?($0); e0.changed($0) }, ended: { en?($0); e0.ended($0) }, cancelled: e0.cancelled)
         let g = _SUIDragRecognizer(target: nil, action: nil)
         g.minimumDistance = minimumDistance
         let global = coordinateSpace == .global
@@ -111,10 +127,17 @@ public struct TapGesture: Gesture {
     public typealias Value = Void
     public var count: Int
     public init(count: Int = 1) { self.count = count }
+    // isim 0.2.0 ABI: onEnded returned TapGesture itself, carrying the action
+    var _abiEnded: (() -> Void)?
+    public var _isimGesture: _GestureSpec { _GestureSpec() }
+    @_disfavoredOverload @usableFromInline func onEnded(_ action: @escaping () -> Void) -> TapGesture {
+        var g = self; let prev = g._abiEnded; g._abiEnded = { prev?(); action() }; return g
+    }
     public func _install(on view: UIView, _ e: _GestureEvents<Void>) -> [UIGestureRecognizer] {
         let g = UITapGestureRecognizer(target: nil, action: nil)
         g.numberOfTapsRequired = max(1, count)
-        _addRecognizer(g, to: view) { r in if r.state == .ended { e.ended(()) } }
+        let en = _abiEnded
+        _addRecognizer(g, to: view) { r in if r.state == .ended { en?(); e.ended(()) } }
         return [g]
     }
 }
@@ -139,12 +162,19 @@ public struct LongPressGesture: Gesture {
     public var minimumDuration: Double
     public var maximumDistance: CGFloat
     public init(minimumDuration: Double = 0.5, maximumDistance: CGFloat = 10) { self.minimumDuration = minimumDuration; self.maximumDistance = maximumDistance }
+    // isim 0.2.0 ABI: onEnded returned LongPressGesture itself, carrying the action
+    var _abiEnded: ((Bool) -> Void)?
+    public var _isimGesture: _GestureSpec { _GestureSpec() }
+    @_disfavoredOverload @usableFromInline func onEnded(_ action: @escaping (Bool) -> Void) -> LongPressGesture {
+        var g = self; let prev = g._abiEnded; g._abiEnded = { prev?($0); action($0) }; return g
+    }
     public func _install(on view: UIView, _ e: _GestureEvents<Bool>) -> [UIGestureRecognizer] {
         let g = UILongPressGestureRecognizer(target: nil, action: nil)
         g.minimumPressDuration = minimumDuration; g.allowableMovement = maximumDistance
+        let en = _abiEnded
         _addRecognizer(g, to: view) { r in
             switch r.state {
-            case .began: e.changed(true); e.ended(true)          // a long press ends (succeeds) when held long enough
+            case .began: e.changed(true); en?(true); e.ended(true)          // a long press ends (succeeds) when held long enough
             case .cancelled: e.cancelled()
             default: break
             }
@@ -430,5 +460,14 @@ final class _SUIGestureView: UIView {
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
         if let p = pending { pending = nil; DispatchQueue.main.async { MainActor.assumeIsolated { self.reinstall(p) } } }
+    }
+}
+
+// MARK: - Optional gestures
+/// As on iOS: `.gesture(enabled ? DragGesture() : nil)`; nil installs nothing.
+extension Optional: Gesture where Wrapped: Gesture {
+    public typealias Value = Wrapped.Value
+    public func _install(on view: UIView, _ e: _GestureEvents<Wrapped.Value>) -> [UIGestureRecognizer] {
+        switch self { case .some(let g): return g._install(on: view, e); case .none: return [] }
     }
 }
