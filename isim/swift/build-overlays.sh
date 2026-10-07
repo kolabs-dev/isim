@@ -7,6 +7,7 @@ SDK=$(realpath ../out/sdk); OBJ=../out/swift/obj/overlays; mkdir -p "$OBJ"
 EVOLUTION="CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices QuartzCore CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit"   # app-facing re-implementations: stable ABI across isim updates
 EVOLUTION="$EVOLUTION WebKit SafariServices AuthenticationServices MessageUI MapKit MultipeerConnectivity"   # web & communication overlays
 EVOLUTION="$EVOLUTION BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit"   # system integration overlays
+EVOLUTION="$EVOLUTION Symbols"   # SF Symbols effects (pure Swift; UIKit plays them)
 PRIVACY="CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech"   # modules that also compile overlays/_Privacy (permission alerts, device data)
 ONLY=" $* "   # build-overlays.sh [Module...]: only these (default: all)
 build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays/<Module>/*.swift)
@@ -33,7 +34,8 @@ build Dispatch -framework Foundation
 build Foundation -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
 build UniformTypeIdentifiers -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 build CoreTransferable -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswift_Concurrency -framework Foundation
-build UIKit -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswift_Concurrency -lswiftObservation -framework Foundation -framework UIKit   # (+ drag and drop: NSItemProvider; observation tracking)
+build Symbols
+build UIKit -lswiftSymbols -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswift_Concurrency -lswiftObservation -framework Foundation -framework UIKit   # (+ drag and drop: NSItemProvider; observation tracking)
 build SwiftUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 build Charts -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 build GameKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift_Concurrency -framework Foundation -framework UIKit

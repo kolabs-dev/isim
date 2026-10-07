@@ -24,10 +24,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 130 | 57 | 10 | 18 | 215 | 74% |
-| &nbsp;&nbsp;↳ Application & scenes | 10 | 8 | 5 | 1 | 24 | 58% |
+| **UIKit** | 162 | 46 | 3 | 10 | 221 | 84% |
+| &nbsp;&nbsp;↳ Application & scenes | 19 | 6 | 0 | 0 | 25 | 88% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
-| &nbsp;&nbsp;↳ Views & controls | 33 | 17 | 2 | 8 | 60 | 69% |
+| &nbsp;&nbsp;↳ Views & controls | 46 | 11 | 0 | 3 | 60 | 86% |
 | &nbsp;&nbsp;↳ Layout | 16 | 2 | 0 | 1 | 19 | 89% |
 | &nbsp;&nbsp;↳ Animation | 8 | 4 | 0 | 0 | 12 | 83% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
@@ -36,7 +36,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Haptics & feedback | 2 | 0 | 1 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
-| &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 4 | 0 | 3 | 10 | 50% |
+| &nbsp;&nbsp;↳ Appearance & dark mode | 13 | 1 | 0 | 1 | 15 | 90% |
 | **SwiftUI** | 152 | 57 | 16 | 12 | 237 | 76% |
 | &nbsp;&nbsp;↳ App & scenes | 6 | 4 | 0 | 1 | 11 | 73% |
 | &nbsp;&nbsp;↳ State & data flow | 15 | 2 | 0 | 0 | 17 | 94% |
@@ -85,7 +85,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 31 | 15 | 1 | 4 | 51 | 75% |
-| **All areas** | **612** | **268** | **50** | **59** | **989** | **75%** |
+| **All areas** | **644** | **257** | **43** | **51** | **995** | **78%** |
 
 ### Per iOS version
 
@@ -93,7 +93,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 78% (201) | 77% (204) | 75% (211) | 74% (215) |
+| UIKit | 85% (206) | 85% (210) | 85% (217) | 84% (221) |
 | SwiftUI | 82% (214) | 80% (220) | 79% (227) | 76% (237) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (81) | 84% (81) | 84% (81) | 84% (81) |
@@ -119,7 +119,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 61% (9) | 61% (9) | 61% (9) | 61% (9) |
 | Platform & tooling | 77% (49) | 76% (50) | 75% (51) | 75% (51) |
-| **All areas** | **78%** (947) | **77%** (958) | **76%** (975) | **75%** (989) |
+| **All areas** | **80%** (952) | **79%** (964) | **79%** (981) | **78%** (995) |
 
 ---
 
@@ -131,27 +131,28 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 |---|---|---|---|
 | `UIApplicationMain`, `@main` app delegate | ✅ | ≤17 | Xcode App template lifecycle |
 | `UIApplicationDelegate` launch/active/background/terminate callbacks | ✅ | ≤17 | apps background and resume from the home screen |
-| Scene manifest, `UIWindowSceneDelegate`, `UIWindowScene` | ✅ | ≤17 | one scene per app |
+| Scene manifest, `UIWindowSceneDelegate`, `UIWindowScene` | ✅ | ≤17 | one scene on iPhone; several on iPad with `UIApplicationSupportsMultipleScenes` (next row) |
 | `UIView.drawHierarchy(in:afterScreenUpdates:)` | 🟡 | ≤17 | draws the view tree into the current image context (used for widget rendering; tested through HelloWidgets) |
-| Multiple scenes / windows (iPad multi-window, `requestSceneSessionActivation`) | ❌ | ≤17 | `supportsMultipleScenes` exists; only one scene is ever created; `requestSceneSessionActivation` logs and calls the error handler (stub) |
+| Multiple scenes / windows (iPad multi-window, `requestSceneSessionActivation`) | ✅ | ≤17 | adapted: on iPads with `UIApplicationSupportsMultipleScenes`, `requestSceneSessionActivation` / iOS 17 `activateSceneSession(for:)` (`UISceneSessionActivationRequest`, prominent scenes send the others to the background) create or bring back a session; two scenes share the screen as a split view (1/2, 2/3, 1/3 after `sizeRestrictions`, 10 pt divider) with per-scene size classes; `requestSceneSessionDestruction` (`didDiscardSceneSessions`), `requestSceneSessionRefresh`, `openSessions`, sessions and their state-restoration activities restored on the next launch; scene notifications; iPhones refuse with `UISceneError.multipleScenesNotSupported`. No drag-to-create windows or Stage Manager. Tested (HelloWindows) |
+| `UIWindowScene` geometry (`effectiveGeometry`, `coordinateSpace`, `sizeRestrictions`, `windowScene(_:didUpdate:interfaceOrientation:traitCollection:)`), `UIScene.open(_:options:)`, scene subtitle | ✅ | ≤17 | split-view widths and rotation update the geometry and call the delegate with the old values; tested (HelloWindows) |
 | `UIWindow` (`makeKeyAndVisible`, `rootViewController`, `windowLevel`) | ✅ | ≤17 | |
 | `UIScreen.main` (bounds, scale, nativeBounds, maximumFramesPerSecond) | ✅ | ≤17 | per-device presets |
-| `UIScreen.brightness` | 🧩 | ≤17 | stored only |
-| `UIDevice` (name, model, systemVersion, userInterfaceIdiom) | 🟡 | ≤17 | systemVersion is the emulated API level (`ISIM_OS_VERSION`, default 18.0) |
+| `UIScreen.brightness` | ✅ | ≤17 | adapted: a device setting (shared by the apps of the device, like iOS), `UIScreen.brightnessDidChangeNotification`; isim dims the drawn frame by `(1 - brightness) × 0.8`. Tested (HelloViews) |
+| `UIDevice` (name, model, systemVersion, userInterfaceIdiom) | ✅ | ≤17 | systemVersion is the emulated version (`--os` / `ISIM_OS_VERSION`); battery level/state and notifications from `ISIM_BATTERY` (`"LEVEL [unplugged|charging|full]"`, default `"1 full"`); `identifierForVendor` stable per device data and vendor; proximity monitoring (never near). Tested (HelloWindows) |
 | Device orientation, rotation, `supportedInterfaceOrientations` | ✅ | ≤17 | Ctrl+Left/Right or script `rotate`; Info.plist/delegate/VC masks (containers use their visible child; no plist key = portrait, adapted), `requestGeometryUpdate`, device notifications, landscape screen through the shell; tested (HelloRotation) |
 | Application/scene lifecycle notifications (`didBecomeActiveNotification`, …) | ✅ | ≤17 | |
 | `open(_:options:)` / `canOpenURL` | 🟡 | ≤17 | URLs of installed apps' schemes and universal links open those apps through the home screen (`universalLinksOnly` honoured), `canOpenURL` sees installed schemes (tested, HelloSystem); `app-settings:` opens Settings; other http(s)/mailto open on the host only with `ISIM_OPEN_URLS=1` |
 | Incoming URLs (custom URL schemes, `application(_:open:)`, scene URL contexts) | ✅ | ≤17 | `CFBundleURLTypes` routing (script `openurl URL`, other apps' `open`), `scene(_:openURLContexts:)` and `connectionOptions.urlContexts` on cold launch, `application(_:open:options:)` for apps without scenes, SwiftUI `onOpenURL`. Tested (HelloSystem) |
 | Universal links, `NSUserActivity`, Handoff | 🟡 | ≤17 | adapted: one `NSUserActivity` (Foundation): `becomeCurrent` indexes `isEligibleForSearch` activities for the home screen's Spotlight; continuing one calls `scene(_:continue:)` / `application(_:continue:restorationHandler:)` (or `connectionOptions.userActivities` / launch options on a cold launch) and SwiftUI `onContinueUserActivity` (else `onOpenURL`). Universal links: `applinks:` domains (incl. `*.` wildcards, `?mode=`) from the app's archived-expanded-entitlements.xcent (written by `isim build` from `CODE_SIGN_ENTITLEMENTS`); `openurl https://…` (script, or `isim openurl` with `--control`) — under `isim boot` the home screen opens the app that claims the domain (also for `UIApplication.open` from other apps), with `isim run` the running app gets links of its own domains, other web URLs "open in Safari" (logged). No AASA fetch (all paths match), no Handoff. Tested (HelloSystem, HelloSafari, HelloScenes) |
-| `applicationIconBadgeNumber` | 🧩 | ≤17 | stored; no badge on the home-screen icon |
-| `isIdleTimerDisabled` | 🧩 | ≤17 | stored; the device never locks by itself (lock: Ctrl+L / script `lock`) |
-| Status bar (`prefersStatusBarHidden`, `preferredStatusBarStyle`) | 🟡 | ≤17 | hide works (SwiftUI `statusBarHidden`); style/appearance updates unverified |
+| `applicationIconBadgeNumber` | ✅ | ≤17 | the home-screen icon shows the badge when notifications may badge; same store as `UNUserNotificationCenter.setBadgeCount`. Tested (HelloPush) |
+| `isIdleTimerDisabled` | ✅ | ≤17 | adapted: under `isim boot` with `ISIM_AUTOLOCK=SECONDS` the device locks after that much idle time unless the foreground app disables the idle timer (default: never locks, like the Simulator; lock: Ctrl+L / script `lock`). Tested (HelloViews) |
+| Status bar (`prefersStatusBarHidden`, `preferredStatusBarStyle`) | ✅ | ≤17 | view-controller-based (`childForStatusBarHidden/Style`, presented full-screen controllers, `setNeedsStatusBarAppearanceUpdate`) and the Info.plist keys; default/light/dark content; SwiftUI `statusBarHidden`. Tested by pixels (HelloViews) |
 | `beginBackgroundTask`, background fetch/modes | 🟡 | ≤17 | adapted: isim does not suspend apps; `beginBackgroundTask(withName:expirationHandler:)` / `endBackgroundTask` / `backgroundTimeRemaining` with expiration after `ISIM_BACKGROUND_TASK_SECONDS` (30) in the background; apps launched into the background (BackgroundTasks) get `.background` state and connect their scene on first foreground. Background fetch: script `bgtask BUNDLE --fetch` calls `performFetchWithCompletionHandler` (unverified). Tested (HelloSystem) |
 | State restoration (`stateRestorationActivity`, restoration IDs) | 🟡 | ≤17 | scene-based: `stateRestorationActivity(for:)` saved when the scene goes to the background (app container), `session.stateRestorationActivity` + `scene(_:restoreInteractionStateWith:)` on the next launch; discarded when the app is closed in the app switcher (like iOS). Tested (HelloSystem). View-controller restoration (restoration identifiers, `encodeRestorableState`) ❌ |
 | Home-screen quick actions (`UIApplicationShortcutItem`) | ✅ | ≤17 | static (Info.plist `UIApplicationShortcutItems`, localized titles, icon types/symbols) + dynamic `UIApplication.shortcutItems` (saved in the container); listed in the icon's long-press menu (max 4); cold launch: `launchOptions[.shortcutItem]` / `connectionOptions.shortcutItem`; warm: `windowScene(_:performActionFor:)` / `application(_:performActionFor:)`. Tested (HelloSystem, HelloScenes) |
 | Alternate app icons (`setAlternateIconName`) | ✅ | ≤17 | Info.plist `CFBundleAlternateIcons` (icon files or asset-catalog sets; `isim build` adds them for `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` / include-all, unverified), `supportsAlternateIcons`, `alternateIconName`, the system alert, errors for unknown names / background; the home screen shows the chosen icon. Tested (HelloSystem) |
-| Memory warnings (`didReceiveMemoryWarning`) | 🧩 | ≤17 | method exists; never sent |
-| Remote notification registration | 🧩 | ≤17 | `registerForRemoteNotifications` fails with NSCocoaErrorDomain 3010 through `didFailToRegisterForRemoteNotificationsWithError` (no APNs on isim) |
+| Memory warnings (`didReceiveMemoryWarning`) | ✅ | ≤17 | script `memorywarning` (like Debug > Simulate Memory Warning): the app delegate, `UIApplication.didReceiveMemoryWarningNotification` and every loaded view controller. Tested (HelloAppearance) |
+| Remote notification registration | ✅ | ≤17 | adapted, like the Simulator: a device token with the `aps-environment` entitlement (`ISIM_PUSH_REGISTRATION=fail` gives error 3010); payloads come from `isim push` / script `push`. Tested (HelloPush) |
 | `UIPasteboard` | 🟡 | ≤17 | `general` + named pasteboards: strings, URLs, images, colors, items, `changeCount`, `hasStrings`…, change notification; strings/URLs are shared between the apps of the device (stored in its data directory); text views Cut/Copy/Paste through it; tested (HelloTransitions share sheet, HelloTextEditing edit menu and Ctrl+V). No paste prompt |
 
 ### View controllers & presentation
@@ -203,18 +204,18 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Layer shadows (`shadowColor/Opacity/Radius/Offset`, `shadowPath`) | ✅ | ≤17 | Gaussian-like blur (3-pass box, sigma = radius/2) of `shadowPath` or, for views, the background shape; standalone layers shadow their whole content (sublayers included). A view with a clear background and no `shadowPath` casts no shadow (iOS shadows its content). Tested (HelloCoreAnimation falloff pixels) |
 | `layer.mask`, `mask` view | ✅ | ≤17 | content drawn through the mask layer's / mask view's alpha (any layer kind: shape, gradient, image contents). Tested (circle shape mask, half-width mask view) |
 | `draw(_:)` custom drawing with `UIGraphicsGetCurrentContext` | ✅ | ≤17 | |
-| `tintColor` / `tintColorDidChange` | 🟡 | ≤17 | tint inheritance details unverified |
-| `contentMode` | 🟡 | ≤17 | used by image views; all modes unverified |
+| `tintColor` / `tintColorDidChange` | ✅ | ≤17 | inherited down the tree (window default: the asset catalog `AccentColor`, else system blue), `tintColorDidChange` on changes, `tintAdjustmentMode` (dimmed gray behind alerts and sheets, inherited). Tested (HelloViews, HelloAppearance) |
+| `contentMode` | ✅ | ≤17 | all modes for images and `draw(_:)` content (`redraw` redraws on resize). Tested by pixels (HelloViews) |
 | `UILabel` (font, color, alignment, multi-line, line break, `adjustsFontSizeToFitWidth`) | ✅ | ≤17 | Pango text; Adwaita Sans stands in for SF Pro, so metrics differ slightly |
 | `UILabel.attributedText` | ✅ | ≤17 | fonts, colours, background, kern, underline, strikethrough, baseline offset, paragraph alignment/line spacing (Pango markup); tested (HelloImages). Attachments and shadows are not drawn |
 | `UIButton` system/custom, title/color/image per state | ✅ | ≤17 | `imageView` returns nil |
-| `UIButton.Configuration` (plain/tinted/gray/filled/bordered*, subtitle, image padding, corner style, size) | 🟡 | ≤17 | no `configurationUpdateHandler`, attributed titles or activity indicator |
+| `UIButton.Configuration` (plain/tinted/gray/filled/bordered*, subtitle, image padding, corner style, size) | ✅ | ≤17 | plain/tinted/gray/filled/bordered*, subtitle, image padding/placement, corner style, size, `attributedTitle`, `showsActivityIndicator`, `configurationUpdateHandler` / `updateConfiguration()` / `automaticallyUpdatesConfiguration` on state changes, `changesSelectionAsPrimaryAction`; background images and title shadows per state. Tested (HelloViews) |
 | Button menus (`menu`, `showsMenuAsPrimaryAction`), pop-up buttons | ✅ | ≤17 | UIButton.menu + showsMenuAsPrimaryAction, UIBarButtonItem menus; tested |
 | `UIControl` target-action, `UIAction`, control events/states | ✅ | ≤17 | |
 | `UIImageView` | ✅ | ≤17 | PNG/JPEG/… via gdk-pixbuf, SVG via librsvg |
 | Animated images (`animationImages`, `UIImage.animatedImage`) | ✅ | ≤17 | `UIImage.animatedImage(with:duration:)` / `animatedImageNamed`, `UIImageView.animationImages` / duration / repeat count / `startAnimating`; an animated `image` plays by itself; frames advanced per display frame; tested (HelloImaging). `highlightedAnimationImages` unverified |
-| `UITextField` | 🟡 | ≤17 | caret always at the end: no selection, cursor movement, copy/paste |
-| `UITextView` | 🟡 | ≤17 | plain text, editable/scrollable, self-sizing when `isScrollEnabled = false`, delegate (should/did begin/end, `shouldChangeTextIn`, did change), notifications, keyboard traits, tap places the caret, `selectedRange`, `scrollRangeToVisible`; tested (HelloInputs). No attributed text, selection UI, edit menu or data detectors (stored) |
+| `UITextField` | ✅ | ≤17 | UITextInput shared with UITextView: selection (double tap, handles, Shift+arrows), edit menu, marked text, cursor movement, Cut/Copy/Paste, autocorrection; tested (HelloTextEditing, HelloInputs) |
+| `UITextView` | 🟡 | ≤17 | editable/scrollable, self-sizing when `isScrollEnabled = false`, delegate (should/did begin/end, `shouldChangeTextIn`, did change, selection change), notifications, keyboard traits, selection with handles and the edit menu, `selectedRange`, `scrollRangeToVisible`; tested (HelloInputs, HelloTextEditing). Data detectors are stored only |
 | `UISwitch` | ✅ | ≤17 | |
 | `UISlider` | ✅ | ≤17 | thumb drag, continuous/non-continuous, track tints; tested (HelloControls) |
 | `UIStepper` | ✅ | ≤17 | min/max/step/wraps; tested |
@@ -234,23 +235,23 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | List cells (`UICollectionLayoutListConfiguration`, `UIListContentConfiguration`, cell accessories) | 🟡 | ≤17 | list layouts (plain, grouped, inset grouped, sidebar colours), supplementary headers/footers, separators, self-sizing rows, `UICollectionViewListCell` accessories (disclosure, checkmark, detail, delete, reorder, outline, label, custom view); tested (HelloCollection). `UIListContentConfiguration` is a class here, not a struct (adapted). Missing: list swipe actions, outline expansion, custom `UIContentConfiguration` views |
 | `UIStackView` (axis, spacing, custom spacing, alignment, distribution) | ✅ | ≤17 | arranged as Auto Layout constraints |
 | `UIVisualEffectView` + `UIBlurEffect` (system materials) | ✅ | ≤17 | real backdrop blur + light/dark tint; no saturation boost |
-| `UIVibrancyEffect` | 🧩 | ≤17 | content drawn normally |
-| `UIMenu`, `UIContextMenuInteraction` (context menus, previews) | 🟡 | ≤17 | UIMenu pop-ups for UIButton.menu (sections, checkmarks, destructive, submenus); no context-menu previews |
+| `UIVibrancyEffect` | ✅ | ≤17 | adapted: content in the vibrancy view is drawn in the vibrant colour of the blur style and `UIVibrancyEffectStyle` (label / secondary / fill / separator) through its own alpha. Tested by pixels (HelloAppearance) |
+| `UIMenu`, `UIContextMenuInteraction` (context menus, previews) | ✅ | ≤17 | UIMenu pop-ups (sections, checkmarks, destructive, submenus); context menus by long press: delegate configuration, snapshot preview or preview controller (`preferredContentSize`, committed by a tap), `willDisplay` / `willEnd`, table and collection view row menus. Tested (HelloViews). Preview targets / custom highlight previews are approximate |
 | `UIToolbar`, `UIBarButtonItem` | ✅ | ≤17 | system items, titles, images, primary actions, menus, flexible/fixed spaces; tested |
 | `UINavigationBar` (standalone, appearance) | 🟡 | ≤17 | large titles collapsing on scroll, scroll-edge transparency, appearances (basic), UIAppearance proxies (tint tested) |
 | `UITabBar` | ✅ | ≤17 | items, badges, selected/unselected tints; no "More" tab beyond 5 items |
 | `UISearchBar` | ✅ | ≤17 | search field (magnifier, placeholder, clear button, search return key), Cancel button, delegate, keyboard traits; tested (HelloInputs). Scope bar and bar styles unverified |
 | `UIRefreshControl` | ✅ | ≤17 | `scrollView.refreshControl` / `UITableViewController.refreshControl`: pull past the threshold starts refreshing (`.valueChanged`), spinner stays until `endRefreshing()`; tested (HelloInputs). No `attributedTitle` (no NSAttributedString) |
-| `UIEditMenuInteraction` (copy/paste menu) | ❌ | ≤17 | |
-| `UIAppearance` proxies (`UINavigationBar.appearance()`) | 🟡 | ≤17 | adapted (no message forwarding): proxies are offscreen instances; changed appearance properties (colors, bar appearances, title attributes, fonts, translucency, …) apply when a view first enters a window unless it set them itself; `whenContainedInInstancesOf:` and trait style; tested (HelloInputs). Per-state setters (`setTitleTextAttributes(_:for:)`) and `UIBarItem` proxies not applied |
-| `UIInputView`, `inputView` / `inputAccessoryView` | 🟡 | ≤17 | custom keyboards work; arbitrary input views unverified |
-| `UIPointerInteraction`, `UIPencilInteraction`, Apple Pencil | ❌ | ≤17 | |
+| `UIEditMenuInteraction` (copy/paste menu) | ✅ | ≤17 | the system edit menu of text views/fields and app interactions (`presentEditMenu(with:)`, delegate `menuFor:suggestedActions:`). Tested (HelloTextEditing) |
+| `UIAppearance` proxies (`UINavigationBar.appearance()`) | ✅ | ≤17 | adapted (no message forwarding): proxies are offscreen instances; changed appearance properties (colors, bar appearances, title attributes, fonts, translucency, per-state setters like `setTitleTextAttributes(_:for:)` / `setBackgroundImage(_:for:)`, `UIBarItem` / `UIBarButtonItem` proxies) apply when a view first enters a window unless it set them itself; `whenContainedInInstancesOf:` and trait style. Tested (HelloInputs, HelloAppearance) |
+| `UIInputView`, `inputView` / `inputAccessoryView` | ✅ | ≤17 | a responder's custom `inputView` replaces the keyboard (its height), `inputAccessoryView` sits above it (also above the system keyboard); keyboard notifications carry the combined frame. `reloadInputViews` is not needed (input views are read on focus). Tested (HelloViews) |
+| `UIPointerInteraction`, `UIPencilInteraction`, Apple Pencil | 🟡 | ≤17 | see Gestures & touches: iPad pointer works; Pencil is a stub |
 | `UIGlassEffect` (`.regular`/`.clear`, `tintColor`, `isInteractive`), `UIGlassContainerEffect` | 🟡 | 26.0 | adapted: isim's glass drawing (light backdrop blur, translucent body, specular rim) in the effect view's bounds and `cornerRadius`; interactive glass brightens while touched; containers do not merge or morph shapes |
 | `UIButton.Configuration` `.glass()`, `.prominentGlass()`, `.clearGlass()`, `.prominentClearGlass()` | 🟡 | 26.0 | adapted: glass capsule (prominent: tinted with the tint colour, white label); tested (HelloOSVersions) |
-| `UIBackgroundExtensionView` | 🧩 | 26.0 | the content view fills the view; isim has no sidebars/inspectors to extend under |
-| `UIScrollEdgeEffect` (scroll view edge effects) | ❌ | 26.0 | bars draw their own edge fade under `--os 26`/`27` |
-| `UIBarButtonItem.badge` | ❌ | 26.0 | |
-| `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ❌ | 18.0 | the iPad tab bar look of iOS 18 is drawn (see Appearance), the API is not |
+| `UIBackgroundExtensionView` | ✅ | 26.0 | adapted: the content view extends under the iPad tab sidebar (and the leading safe area); tested by pixels (HelloTabs) |
+| `UIScrollEdgeEffect` (scroll view edge effects) | ✅ | 26.0 | adapted: `topEdgeEffect`/… `style` (automatic/soft/hard), `isHidden`; bars draw the scroll view's effect (hard: opaque band, soft: fade) under `--os 26`/`27`. Tested (HelloTabs) |
+| `UIBarButtonItem.badge` | ✅ | 26.0 | count, string and indicator badges drawn on bar button items (iOS 26 only, like iOS); tested (HelloTabs) |
+| `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloTabs, per version: classic tabs on iOS 17) |
 | `UIDragInteraction.allowsPointerDragBeforeLiftDelay` | ❌ | 27.0 | |
 | `NSTextTable`/`NSTextBlock` in UIKit, `UITextAttachmentViewProviderReusePolicy`, viewport rendering surfaces | ❌ | 27.0 | |
 | `UIArrangementViewController`, `UIView.ReservedRegion`, `UIHingeInteraction`, vertical bar placement | ❌ | 27.1 | iPhone Duo APIs (iOS 27.1 beta) |
@@ -391,14 +392,19 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 |---|---|---|---|
 | Light / dark appearance (`--dark`, Settings > Display & Brightness) | ✅ | ≤17 | |
 | Dynamic colors resolve per trait collection | ✅ | ≤17 | |
-| Live appearance switch while the app runs | 🟡 | ≤17 | shell notifies apps; per-view refresh unverified |
+| Live appearance switch while the app runs | ✅ | ≤17 | script `appearance light|dark` / Settings / the shell: trait change pass with `traitCollectionDidChange(_:)` (previous traits) and `registerForTraitChanges` handlers, then redraw. Tested (HelloAppearance) |
 | `overrideUserInterfaceStyle` (view, controller) | ✅ | ≤17 | |
-| Accent color from the asset catalog (`AccentColor`) | 🟡 | ≤17 | used by SwiftUI's `accentColor`; UIKit global tint unverified |
+| iOS 17 trait system (`UITraitDefinition` custom traits, `traitOverrides`, `registerForTraitChanges`, `UITraitCollection(mutations:)`) | ✅ | ≤17 | per-view trait collections from the window scene (size classes, idiom, display scale, style, contrast, legibility, content size, layout direction, …), overrides on views, controllers and scenes, custom traits with default values, `UITraitCollection.current` during layout/drawing; old `UITraitDefinition` ObjC protocol kept for ABI. Tested (HelloAppearance) |
+| Increase Contrast (`accessibilityContrast`, high-contrast colors) | ✅ | ≤17 | script `contrast on|off` / Settings; high-contrast variants of system colors and asset-catalog colors/images. Tested (HelloAppearance) |
+| Dynamic images (`UIImageAsset`, asset appearance variants, `UIImage.withConfiguration`) | ✅ | ≤17 | any/dark/high-contrast variants from the asset catalog and registered images resolve per trait collection when drawn. Tested by pixels (HelloAppearance) |
+| Accent color from the asset catalog (`AccentColor`) | ✅ | ≤17 | `UIColor.tintColor` and the default tint of every window; SwiftUI `accentColor`. Tested (HelloAppearance) |
 | Liquid Glass system look (`--os 26`/`27`) | 🟡 | 26.0 | adapted: floating glass tab bar (iPhone), glass back button and bar button items (Done items prominent), scroll-edge fade instead of the bar material, glass alerts (300 pt, corner 34, leading text, capsule buttons, preferred action filled), glass menus and action sheets, rounder sheets/popovers, 63×28 switch with a pill thumb, capsule configuration buttons; tested by pixels (HelloOSVersions) |
-| iPadOS 18 tab bar (floating capsule at the top, titles only) | 🟡 | 18.0 | adapted: drawn by `UITabBarController` and SwiftUI `TabView` on iPads with `--os 18` (glass with `--os 26`/`27`); no sidebar |
+| iPadOS 18 tab bar (floating capsule at the top, titles only) | ✅ | 18.0 | adapted: drawn by `UITabBarController` and SwiftUI `TabView` on iPads with `--os 18` (glass with `--os 26`/`27`); the sidebar is under Views & controls (`UITab`) |
 | iOS 27 appearance refresh (Liquid Glass updates, tint slider) | ❌ | 27.0 | not specified in detail by Apple's documentation; `--os 27` uses the iOS 26 look |
-| Observable objects tracked in `layoutSubviews` (automatic invalidation) | ❌ | 26.0 | |
-| SF Symbols iOS 18 effects (wiggle, breathe, rotate), `UIUpdateLink`, zoom transition (`preferredTransition`) | ❌ | 18.0 | |
+| Observable objects tracked in `layoutSubviews` (automatic invalidation) | ✅ | 26.0 | Observation reads in `layoutSubviews`, `viewWillLayoutSubviews`, `updateProperties()` and friends invalidate the view on change (iOS 26 default; on iOS 18 with `UIObservationTrackingEnabled`). Tested (HelloTabs) |
+| SF Symbols effects (`addSymbolEffect`, `removeSymbolEffect`, `setSymbolImage(_:contentTransition:)`; iOS 18 wiggle, breathe, rotate; iOS 26 draw on/off) | ✅ | ≤17 | adapted (`Symbols` module + UIImageView): isim's stand-in symbols have no layers, so effects animate the whole image (scale, offset, rotation, opacity) over its own transform/alpha; `byLayer` and variable-colour layer modes only change the look slightly. Indefinite effects run or hold (scale, disappear) until removed, discrete ones honour `SymbolEffectOptions` repeat counts / `.periodic` / speed, completions report `isFinished`. Bounce and wiggle play once when added (pulse, variable colour, breathe, rotate run until removed). Tested per version (HelloSymbolEffects). SwiftUI `symbolEffect` is separate (see SwiftUI) |
+| `UIUpdateLink` | ✅ | 18.0 | per-frame actions while the view is in a visible window (`isEnabled`, `requiresContinuousUpdates`, `preferredFrameRateRange`, `wantsImmediatePresentation` accepted); tested (HelloTabs) |
+| Zoom transition (`preferredTransition = .zoom`) | ✅ | 18.0 | adapted: pushes and full-screen presentations grow from the source view and shrink back into it on pop/dismissal (`sourceViewProvider` asked each time); `.coverVertical`/`.crossDissolve`/… set the modal transition style. Tested (HelloViews) |
 
 ---
 
