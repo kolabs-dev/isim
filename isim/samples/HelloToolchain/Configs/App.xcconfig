@@ -1,0 +1,6 @@
+#include "Shared.xcconfig"
+
+// the app's Info.plist gets ToolchainGreeting from a build setting
+INFOPLIST_KEY_ToolchainGreeting = $(TOOLCHAIN_GREETING_WORD)
+INFOPLIST_KEY_CFBundleDisplayName = Toolchain
+PRODUCT_BUNDLE_IDENTIFIER[sdk=iphonesimulator*] = dev.isim.samples.HelloToolchain

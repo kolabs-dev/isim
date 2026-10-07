@@ -814,7 +814,10 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "gamepad") && sscanf(args, " %511[^;]", arg) == 1) {    /* virtual SDL gamepad (host_gamepad.c) */
         void isim_gamepad_script(const char *args);
         isim_gamepad_script(arg);
-    } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
+    } else if (!strcmp(cmd, "dump")) {        /* "dump": view tree on stderr; "dump FILE": accessibility snapshot (XCUITest) */
+        pending[npending++] = (struct isim_event){ .type = EV_DUMP };
+        if (sscanf(args, " %511[^;]", arg) == 1) { for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg); }
+    }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else if (input_script_cmd(cmd, args)) {}
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
@@ -1032,6 +1035,9 @@ void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void 
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
 long isim_tls_read(struct isim_tls *t, void *buf, long n); long isim_tls_write(struct isim_tls *t, const void *buf, long n);
 void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen); void isim_tls_close(struct isim_tls *t);
+/* XCUITest: the app under test as a child process (host_xctest.c) */
+int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp); int isim_xcui_running(int h);
+int isim_xcui_send(int h, const char *line); char *isim_xcui_snapshot(int h, double timeout); void isim_xcui_free(char *p); void isim_xcui_terminate(int h);
 struct isim_gamepad;
 int isim_gamepad_poll(struct isim_gamepad *out, int max);
 int isim_gamepad_rumble(int id, double low, double high, double seconds);
@@ -1084,6 +1090,7 @@ static const struct shim isim_table[] = {
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close),
+    H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
 };

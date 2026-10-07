@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <dlfcn.h>
 
 /* ================= UITouch / UIEvent ================= */
 @interface UITouch ()
@@ -956,6 +957,18 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
             settings_changed();
             isim_shell_request(ISIM_SHELL_SETTINGS, NULL, NULL, NULL);      /* other apps re-read the settings too */
         }];
+        if (getenv("ISIM_XCTEST_BUNDLE")) {      /* isim test: hosted unit tests run in the app once it has launched */
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                NSString *path = @(getenv("ISIM_XCTEST_BUNDLE"));
+                NSBundle *tb = [NSBundle bundleWithPath:path];
+                NSString *exe = [path stringByAppendingPathComponent:tb.infoDictionary[@"CFBundleExecutable"] ?: path.lastPathComponent.stringByDeletingPathExtension];
+                if (!dlopen(exe.UTF8String, RTLD_NOW)) { fprintf(stderr, "isim: cannot load test bundle %s: %s\n", exe.UTF8String, dlerror()); exit(70); }
+                int (*runTests)(const char *) = (int (*)(const char *))dlsym(RTLD_DEFAULT, "XCTIsimRunTestBundle");
+                int rc = runTests ? runTests(path.UTF8String) : 70;
+                fflush(NULL);
+                _exit(rc);
+            });
+        }
         if (getenv("ISIM_LAUNCH_URL")) { NSString *u = @(getenv("ISIM_LAUNCH_URL")); dispatch_async(dispatch_get_main_queue(), ^{ deliver_url(u); }); }
         if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:app];
@@ -991,7 +1004,9 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_HOVER: isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
                 case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
                 case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
-                case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
+                case ISIM_EV_DUMP: layout_all();
+                    if (ev.text[0]) { extern void isim_ui_write_ax_snapshot(const char *); isim_ui_write_ax_snapshot(ev.text); break; }   /* XCUITest */
+                    for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;
                 }
                 if (quit) break;
