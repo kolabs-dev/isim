@@ -64,10 +64,19 @@ final class _RowEditNode: _WrapperNode {
     var move: (index: Int, group: String, action: (IndexSet, Int) -> Void)?
     var leading: [_SwipeAction]?, trailing: [_SwipeAction]?
     var fullLeading = true, fullTrailing = true
+    /// outside a List (iOS 27 swipe actions on any view): the node swipes itself
+    var standalone = false
+    var container: _SwipeContainerBox?
     override init(path: String, child: _Node) { super.init(path: path, child: child); tag = child.tag }
     override var layoutPriority: Double { child.layoutPriority }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
     override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
+    override func mountView(_ g: _Graph) -> UIView {
+        guard standalone, (leading?.isEmpty == false || trailing?.isEmpty == false) else { return g.view(viewKey) { _PassthroughView() } }
+        let v = g.view(viewKey + "|swipe") { _SUISwipeHost(frame: .zero) }
+        v.leading = leading ?? []; v.trailing = trailing ?? []; v.fullLeading = fullLeading; v.fullTrailing = fullTrailing; v.container = container
+        return v
+    }
 }
 @MainActor func _rowEdit(_ n: _Node, path: String) -> _RowEditNode {
     if let e = n as? _RowEditNode { return e }
@@ -139,6 +148,7 @@ extension View {
             // buttons without their own tint are grey (iOS's default swipe action colour)
             let list = _swipeActions(_resolve(actions, ctx.child("swipe-actions").with { $0._inList = false; $0._tint = Color("swipe-default") { .systemGray } }))
             let e = _rowEdit(n, path: ctx.path + "/edit")
+            if !ctx.environment._inList { e.standalone = true; e.container = ctx.environment._swipeContainer }      // any view (iOS 27)
             if edge == .leading { e.leading = (e.leading ?? []) + list; e.fullLeading = allowsFullSwipe }
             else { e.trailing = (e.trailing ?? []) + list; e.fullTrailing = allowsFullSwipe }
             return e
@@ -639,3 +649,90 @@ final class _RefreshDriver {
     return hc.view
 }
 @MainActor var _contextPreviewControllers: [UIViewController] = []
+
+// MARK: - Swipe actions on any view (iOS 27)
+
+/// swipeActionsContainer(): one open swipe at a time among the views inside.
+final class _SwipeContainerBox: _AnyStorage { weak var open: _SUISwipeHost? }
+struct _SwipeContainerKey: EnvironmentKey { static var defaultValue: _SwipeContainerBox? { nil } }
+extension EnvironmentValues { var _swipeContainer: _SwipeContainerBox? { get { self[_SwipeContainerKey.self] } set { self[_SwipeContainerKey.self] = newValue } } }
+
+/// A view with swipe actions outside a List: a horizontal drag slides it and reveals the action buttons.
+final class _SUISwipeHost: _PassthroughViewBase, UIGestureRecognizerDelegate {
+    var leading: [_SwipeAction] = [], trailing: [_SwipeAction] = []
+    var fullLeading = true, fullTrailing = true
+    weak var container: _SwipeContainerBox?
+    private let actionsView = UIView()
+    private var offset: CGFloat = 0, start: CGFloat = 0, side = 0
+    private var pan: UIPanGestureRecognizer?
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        clipsToBounds = true
+        let p = UIPanGestureRecognizer(target: self, action: #selector(panned(_:))); p.delegate = self
+        addGestureRecognizer(p); pan = p
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard g === pan, let p = pan else { return true }
+        let v = p.velocity(in: self)
+        return abs(v.x) > abs(v.y)
+    }
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard !isHidden, self.point(inside: point, with: event) else { return nil }
+        return super.hitTest(point, with: event) ?? self                  // the whole view takes the drag
+    }
+    var content: [UIView] { subviews.filter { $0 !== actionsView } }
+    var actions: [_SwipeAction] { side < 0 ? trailing : leading }
+    func setOffset(_ x: CGFloat) {
+        offset = x
+        for v in content { v.transform = CGAffineTransform(translationX: x, y: 0) }
+        let w = abs(x)
+        actionsView.frame = side < 0 ? CGRect(x: bounds.width - w, y: 0, width: w, height: bounds.height) : CGRect(x: 0, y: 0, width: w, height: bounds.height)
+        var bx: CGFloat = 0
+        let widths = actionsView.subviews.map { $0.bounds.width }, total = max(1, widths.reduce(0, +))
+        for (i, b) in actionsView.subviews.enumerated() {          // the buttons share the revealed width
+            let bw = widths[i] / total * w
+            b.frame = CGRect(x: bx, y: 0, width: bw, height: bounds.height); bx += bw
+            b.subviews.first?.frame = b.bounds
+        }
+    }
+    func buildActions() {
+        for s in actionsView.subviews { s.removeFromSuperview() }
+        for a in actions {
+            let b = _SUIControl(frame: .zero)
+            b.backgroundColor = a.color
+            b.accessibilityIdentifier = "swipe-\(a.title)"
+            let l = UILabel(); l.text = a.title; l.textColor = .white; l.font = .systemFont(ofSize: 15, weight: .medium); l.textAlignment = .center
+            b.addSubview(l)
+            b.bounds.size.width = max(74, ceil(l.sizeThatFits(CGSize(width: 300, height: 40)).width) + 24)
+            let action = a.action
+            b.action = { [weak self] in self?.close(); action() }
+            actionsView.addSubview(b)
+        }
+        if actionsView.superview !== self { addSubview(actionsView) } else { bringSubviewToFront(actionsView) }
+    }
+    var actionsWidth: CGFloat { actionsView.subviews.reduce(0) { $0 + $1.bounds.width } }
+    @objc func panned(_ g: UIPanGestureRecognizer) {
+        let dx = g.translation(in: self).x
+        switch g.state {
+        case .began:
+            start = offset
+            if offset == 0 { side = g.velocity(in: self).x < 0 ? -1 : 1; buildActions() }
+            if let c = container, c.open !== self { c.open?.close() }
+        case .changed:
+            var x = start + dx
+            if side < 0 { x = trailing.isEmpty ? 0 : min(0, x) } else { x = leading.isEmpty ? 0 : max(0, x) }
+            UIView.performWithoutAnimation { setOffset(x) }
+        case .ended, .cancelled:
+            let w = actionsWidth, full = side < 0 ? fullTrailing : fullLeading
+            if full, let first = (side < 0 ? trailing.first : leading.first), abs(offset) > bounds.width * 0.6 { close(); first.action() }
+            else if abs(offset) > w / 2 { UIView.animate(withDuration: 0.25) { self.setOffset(CGFloat(self.side) * w) }; container?.open = self }
+            else { close() }
+        default: break
+        }
+    }
+    func close() {
+        UIView.animate(withDuration: 0.25, animations: { self.setOffset(0) }, completion: { _ in if self.offset == 0 { self.actionsView.removeFromSuperview() } })
+        if container?.open === self { container?.open = nil }
+    }
+}

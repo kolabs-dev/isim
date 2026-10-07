@@ -93,6 +93,11 @@ struct EffectsView: View {
     }
 }
 
+struct SwipeContainer: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, *) { content.swipeActionsContainer() } else { content }
+    }
+}
 /// iOS 18 scroll geometry: the first visible row while scrolling, and row 0's visibility.
 struct ScrollWatch: ViewModifier {
     func body(content: Content) -> some View {
@@ -131,6 +136,14 @@ struct MoreView: View {
                 Text("Public").accessibilityIdentifier("public-text")
             }
             .redacted(reason: redact ? .privacy : [])
+            VStack(spacing: 8) {
+                ForEach(["A", "B"], id: \.self) { s in
+                    Text("Swipe \(s)").frame(maxWidth: .infinity, minHeight: 44).background(Color.gray.opacity(0.2))
+                        .swipeActions { Button("Flag") { print("swipe: flag \(s)") }.tint(.orange) }
+                        .accessibilityIdentifier("swipe-row-\(s)")
+                }
+            }
+            .modifier(SwipeContainer())
             Text("Press and hold").padding().background(Color.yellow.opacity(0.4))
                 .contextMenu {
                     Button("Copy") { print("menu: copy") }

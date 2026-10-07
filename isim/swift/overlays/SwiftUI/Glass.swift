@@ -168,9 +168,16 @@ extension View {
             return _resolve(c, ctx.child("tmb"))
         }
     }
-    /// iOS 27: coordinates custom swipe actions in a container (isim: stub; List rows keep their swipe actions).
+    /// iOS 27: the views with swipeActions inside keep one swipe open at a time (opening one closes the other).
     @available(iOS 27.0, *)
-    public func swipeActionsContainer() -> some View { self }
+    public func swipeActionsContainer() -> some View {
+        _modify { ctx, c in
+            let key = ctx.path + "#swipecontainer", g = ctx.graph
+            let box = g.storage[key] as? _SwipeContainerBox ?? _SwipeContainerBox()
+            g.storage[key] = box; g.usedKeys.insert(key)
+            return _resolve(c, ctx.child("sac").with { $0._swipeContainer = box })
+        }
+    }
     /// iOS 27: the URLSession the AsyncImages inside load with (its configuration: headers, caching, protocols).
     @available(iOS 27.0, *)
     public func asyncImageURLSession(_ urlSession: URLSession) -> some View { _env { $0._asyncImageSession = urlSession } }
