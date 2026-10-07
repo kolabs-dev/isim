@@ -581,7 +581,7 @@ static int pill_client(void) {
 }
 static int pill_visible(void) { return pill_client() > 0 && anim.kind == ANIM_NONE; }
 static struct rectf pill_rect(double *tw) {
-    double w, h; isim_text_measure("00:00", 17, 0.3, 0, 0, 1, &w, &h);
+    double w = 46;                                                  /* the status bar clock's width ("12:34" at 17 pt) */
     if (tw) *tw = w;
     double cx = dev.has_island ? 51 + 26 : 8 + w / 2, cy = dev.has_island ? 29 : (dev.safe_top >= 44 ? 27 : dev.safe_top / 2);
     return (struct rectf){ cx - w / 2 - 12, cy - 13, w + 24, 26 };
