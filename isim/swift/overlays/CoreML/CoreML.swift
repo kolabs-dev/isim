@@ -28,6 +28,10 @@ public struct MLModelError: CustomNSError, LocalizedError, Sendable, Hashable {
     public var errorDescription: String? { _message }
     public static let generic = Code.generic, featureType = Code.featureType, io = Code.io
 }
+/// Core ML errors are NSErrors in MLModelErrorDomain (isim's Swift runtime does not bridge CustomNSError user info).
+func _mlError(_ code: MLModelError.Code, _ message: String) -> NSError {
+    NSError(domain: MLModelErrorDomain, code: code.rawValue, userInfo: [NSLocalizedDescriptionKey: message])
+}
 
 // MARK: - features
 
@@ -51,7 +55,7 @@ open class MLMultiArray: NSObject, @unchecked Sendable {
     public var count: Int { shape.reduce(1) { $0 * $1.integerValue } }
 
     public init(shape: [NSNumber], dataType: MLMultiArrayDataType) throws {
-        guard !shape.isEmpty, shape.allSatisfy({ $0.integerValue > 0 }) else { throw MLModelError(.generic, "MLMultiArray shape must be non-empty with positive dimensions") }
+        guard !shape.isEmpty, shape.allSatisfy({ $0.integerValue > 0 }) else { throw _mlError(.generic, "MLMultiArray shape must be non-empty with positive dimensions") }
         self.shape = shape; self.dataType = dataType
         var st: [Int] = [], acc = 1
         for d in shape.reversed() { st.insert(acc, at: 0); acc *= d.integerValue }
@@ -62,7 +66,7 @@ open class MLMultiArray: NSObject, @unchecked Sendable {
     }
     public init(dataPointer: UnsafeMutableRawPointer, shape: [NSNumber], dataType: MLMultiArrayDataType, strides: [NSNumber],
                 deallocator: ((UnsafeMutableRawPointer) -> Void)? = nil) throws {
-        guard shape.count == strides.count, !shape.isEmpty else { throw MLModelError(.generic, "shape and strides must have the same rank") }
+        guard shape.count == strides.count, !shape.isEmpty else { throw _mlError(.generic, "shape and strides must have the same rank") }
         self.dataPointer = dataPointer; self.shape = shape; self.strides = strides; self.dataType = dataType
         _owned = false; _deallocator = deallocator
     }
@@ -205,7 +209,7 @@ open class MLDictionaryFeatureProvider: NSObject, MLFeatureProvider, @unchecked 
             case let n as NSNumber: d[k] = MLFeatureValue(double: n.doubleValue)
             case let p as CVPixelBuffer: d[k] = MLFeatureValue(pixelBuffer: p)
             case let m as [AnyHashable: NSNumber]: d[k] = try MLFeatureValue(dictionary: m)
-            default: throw MLModelError(.featureType, "unsupported value for feature '\(k)': \(type(of: v))")
+            default: throw _mlError(.featureType, "unsupported value for feature '\(k)': \(type(of: v))")
             }
         }
         self.dictionary = d
@@ -302,7 +306,7 @@ struct _PB {
     mutating func varint() throws -> UInt64 {
         var r: UInt64 = 0, s: UInt64 = 0
         while true {
-            guard i < b.count, s < 64 else { throw MLModelError(.io, "malformed model spec") }
+            guard i < b.count, s < 64 else { throw _mlError(.io, "malformed model spec") }
             let c = b[i]; i += 1
             r |= UInt64(c & 0x7F) << s
             if c & 0x80 == 0 { return r }
@@ -315,13 +319,13 @@ struct _PB {
         let f = Int(key >> 3), w = Int(key & 7)
         switch w {
         case 0: return (f, w, try varint(), [])
-        case 1: guard i + 8 <= b.count else { throw MLModelError(.io, "malformed model spec") }; defer { i += 8 }; return (f, w, 0, b[i..<i + 8])
+        case 1: guard i + 8 <= b.count else { throw _mlError(.io, "malformed model spec") }; defer { i += 8 }; return (f, w, 0, b[i..<i + 8])
         case 2:
             let n = Int(try varint())
-            guard n >= 0, i + n <= b.count else { throw MLModelError(.io, "malformed model spec") }
+            guard n >= 0, i + n <= b.count else { throw _mlError(.io, "malformed model spec") }
             defer { i += n }; return (f, w, 0, b[i..<i + n])
-        case 5: guard i + 4 <= b.count else { throw MLModelError(.io, "malformed model spec") }; defer { i += 4 }; return (f, w, 0, b[i..<i + 4])
-        default: throw MLModelError(.io, "malformed model spec (wire type \(w))")
+        case 5: guard i + 4 <= b.count else { throw _mlError(.io, "malformed model spec") }; defer { i += 4 }; return (f, w, 0, b[i..<i + 4])
+        default: throw _mlError(.io, "malformed model spec (wire type \(w))")
         }
     }
     static func double(_ s: ArraySlice<UInt8>) -> Double { var v: UInt64 = 0; for (k, x) in s.enumerated() { v |= UInt64(x) << (8 * UInt64(k)) }; return Double(bitPattern: v) }
@@ -476,15 +480,15 @@ open class MLModel: NSObject, @unchecked Sendable {
         var specURL = url
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else {
-            throw MLModelError(.io, "no model at \(url.path)")
+            throw _mlError(.io, "no model at \(url.path)")
         }
         if isDir.boolValue {
             specURL = url.appendingPathComponent("model.mlmodel")
             guard FileManager.default.fileExists(atPath: specURL.path) else {
-                throw MLModelError(.io, "\(url.lastPathComponent) is a model compiled by Xcode; isim cannot read Apple's compiled model format. Bundle the .mlmodel and compile it at run time with MLModel.compileModel(at:)")
+                throw _mlError(.io, "\(url.lastPathComponent) is a model compiled by Xcode; isim cannot read Apple's compiled model format. Bundle the .mlmodel and compile it at run time with MLModel.compileModel(at:)")
             }
         } else if url.pathExtension == "mlmodel" {
-            throw MLModelError(.io, "\(url.lastPathComponent) is not compiled; call MLModel.compileModel(at:) first (as on iOS)")
+            throw _mlError(.io, "\(url.lastPathComponent) is not compiled; call MLModel.compileModel(at:) first (as on iOS)")
         }
         let data = try Data(contentsOf: specURL)
         _spec = try _MLSpec([UInt8](data))
@@ -507,11 +511,12 @@ open class MLModel: NSObject, @unchecked Sendable {
     static func _compile(_ modelURL: URL) throws -> URL {
         let data = try Data(contentsOf: modelURL)
         _ = try _MLSpec([UInt8](data))          // validate
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-            .appendingPathComponent(modelURL.deletingPathExtension().lastPathComponent + ".mlmodelc")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try data.write(to: dir.appendingPathComponent("model.mlmodel"))
-        return dir
+        let path = (NSTemporaryDirectory() as NSString).appendingPathComponent("isim-coreml-\(UUID().uuidString)/" + modelURL.deletingPathExtension().lastPathComponent + ".mlmodelc")
+        guard (try? FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true, attributes: nil)) != nil,
+              FileManager.default.createFile(atPath: (path as NSString).appendingPathComponent("model.mlmodel"), contents: data, attributes: nil) else {
+            throw _mlError(.io, "cannot write the compiled model to \(path)")
+        }
+        return URL(fileURLWithPath: path, isDirectory: true)
     }
     open class func compileModel(at modelURL: URL) async throws -> URL { try _compile(modelURL) }
     open class var availableComputeDevices: [Any] { [] }
@@ -523,7 +528,7 @@ open class MLModel: NSObject, @unchecked Sendable {
         switch _spec.kind {
         case "glmRegressor", "glmClassifier": return try _glm(input)
         default:
-            throw MLModelError(.generic, "isim cannot run \(_spec.kind) models: only generalized linear models (GLMRegressor, GLMClassifier) run without Apple's Core ML runtime")
+            throw _mlError(.generic, "isim cannot run \(_spec.kind) models: only generalized linear models (GLMRegressor, GLMClassifier) run without Apple's Core ML runtime")
         }
     }
     open func prediction(from input: MLFeatureProvider) async throws -> MLFeatureProvider { try prediction(from: input, options: MLPredictionOptions()) }
@@ -537,13 +542,13 @@ open class MLModel: NSObject, @unchecked Sendable {
         for d in _spec.inputs {
             guard let v = input.featureValue(for: d.name) else {
                 if d.isOptional { continue }
-                throw MLModelError(.featureType, "missing input feature '\(d.name)'")
+                throw _mlError(.featureType, "missing input feature '\(d.name)'")
             }
             switch v.type {
             case .double: x.append(v.doubleValue)
             case .int64: x.append(Double(v.int64Value))
             case .multiArray: x += v.multiArrayValue?._values ?? []
-            default: throw MLModelError(.featureType, "input '\(d.name)' must be a number or multi-array for a linear model")
+            default: throw _mlError(.featureType, "input '\(d.name)' must be a number or multi-array for a linear model")
             }
         }
         return x
@@ -551,7 +556,7 @@ open class MLModel: NSObject, @unchecked Sendable {
     func _glm(_ input: MLFeatureProvider) throws -> MLFeatureProvider {
         let x = try _vector(input)
         let z: [Double] = try _spec.weights.enumerated().map { i, w in
-            guard w.count == x.count else { throw MLModelError(.featureType, "the model expects \(w.count) input values, got \(x.count)") }
+            guard w.count == x.count else { throw _mlError(.featureType, "the model expects \(w.count) input values, got \(x.count)") }
             return zip(w, x).reduce(0) { $0 + $1.0 * $1.1 } + (i < _spec.offsets.count ? _spec.offsets[i] : 0)
         }
         func logit(_ v: Double) -> Double { 1 / (1 + exp(-v)) }
@@ -565,7 +570,7 @@ open class MLModel: NSObject, @unchecked Sendable {
         } else {
             let f: (Double) -> Double = _spec.transform == 1 ? probit : logit
             let labels = _spec.labels
-            guard !labels.isEmpty else { throw MLModelError(.generic, "the classifier has no class labels") }
+            guard !labels.isEmpty else { throw _mlError(.generic, "the classifier has no class labels") }
             var probs: [Double]
             if z.count == 1 && labels.count == 2 {
                 // binary: one weight row gives the probability of the second label (as coremltools exports scikit-learn models)
@@ -575,7 +580,7 @@ open class MLModel: NSObject, @unchecked Sendable {
                 if _spec.encoding == 0 && probs.count == labels.count - 1 { probs.append(max(0, 1 - probs.reduce(0, +))) }   // reference class
                 let s = probs.reduce(0, +); if s > 0 { probs = probs.map { $0 / s } }
             }
-            guard probs.count == labels.count else { throw MLModelError(.generic, "the classifier's weights do not match its \(labels.count) labels") }
+            guard probs.count == labels.count else { throw _mlError(.generic, "the classifier's weights do not match its \(labels.count) labels") }
             let best = probs.indices.max { probs[$0] < probs[$1] }!
             var dict: [AnyHashable: NSNumber] = [:]
             for (l, p) in zip(labels, probs) { if let s = l as? String { dict[s] = NSNumber(value: p) } else if let i = l as? Int64 { dict[i] = NSNumber(value: p) } }

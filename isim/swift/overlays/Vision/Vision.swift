@@ -22,14 +22,9 @@ public let VNErrorDomain = "com.apple.Vision"
          invalidImage = 13, invalidArgument = 14, invalidModel = 15, unsupportedRevision = 16, dataUnavailable = 17, timeStampNotFound = 18,
          unsupportedRequest = 19, timeout = 20, unsupportedComputeStage = 21, unsupportedComputeDevice = 22
 }
-public struct VNError: CustomNSError, LocalizedError, Sendable {
-    public let code: VNErrorCode
-    public let message: String
-    public init(_ code: VNErrorCode, _ message: String) { self.code = code; self.message = message }
-    public static var errorDomain: String { VNErrorDomain }
-    public var errorCode: Int { code.rawValue }
-    public var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: message] }
-    public var errorDescription: String? { message }
+/// Vision errors are NSErrors in VNErrorDomain with a VNErrorCode and a message saying what isim cannot do.
+func _vnError(_ code: VNErrorCode, _ message: String) -> NSError {
+    NSError(domain: VNErrorDomain, code: code.rawValue, userInfo: [NSLocalizedDescriptionKey: message])
 }
 
 public struct VNImageOption: RawRepresentable, Hashable, Sendable {
@@ -119,7 +114,7 @@ open class VNRequest: NSObject, @unchecked Sendable {
     public init(completionHandler: VNRequestCompletionHandler?) { self.completionHandler = completionHandler; super.init() }
     open func cancel() { _cancelled = true }
     /// subclasses: runs on the (cropped, upright) image and returns observations in ROI-relative coordinates
-    func _run(_ img: _VNImage) throws -> [VNObservation] { throw VNError(.unsupportedRequest, "\(type(of: self)) is not supported on isim") }
+    func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "\(type(of: self)) is not supported on isim") }
 }
 open class VNImageBasedRequest: VNRequest, @unchecked Sendable {
     /// normalized, lower-left origin; results are relative to it (like iOS)
@@ -164,12 +159,12 @@ open class VNDetectBarcodesRequest: VNImageBasedRequest, @unchecked Sendable {
     open var coalesceCompositeSymbologies = false
     open class var supportedSymbologies: [VNBarcodeSymbology] { isim_vision_available(1) != 0 ? VNBarcodeSymbology.hostSupported : [] }
     open func supportedSymbologies() throws -> [VNBarcodeSymbology] {
-        guard isim_vision_available(1) != 0 else { throw VNError(.unsupportedRequest, "barcode detection on isim needs the host's zbar library (libzbar.so.0)") }
+        guard isim_vision_available(1) != 0 else { throw _vnError(.unsupportedRequest, "barcode detection on isim needs the host's zbar library (libzbar.so.0)") }
         return VNBarcodeSymbology.hostSupported
     }
     open override class var supportedRevisions: IndexSet { IndexSet(1...4) }
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
-        guard isim_vision_available(1) != 0 else { throw VNError(.unsupportedRequest, "barcode detection on isim needs the host's zbar library (libzbar.so.0)") }
+        guard isim_vision_available(1) != 0 else { throw _vnError(.unsupportedRequest, "barcode detection on isim needs the host's zbar library (libzbar.so.0)") }
         let gray = img.bgra
         guard let raw = gray.withUnsafeBufferPointer({ isim_vision_barcodes($0.baseAddress!, Int32(img.width), Int32(img.height), Int32(img.width * 4)) }) else { return [] }
         defer { isim_media_free(raw) }
@@ -220,7 +215,7 @@ open class VNRecognizeTextRequest: VNImageBasedRequest, @unchecked Sendable {
         return tess[String(lang.prefix(2))]
     }
     open func supportedRecognitionLanguages() throws -> [String] {
-        guard let raw = isim_vision_text_languages() else { throw VNError(.unsupportedRequest, "text recognition on isim needs the host's tesseract command") }
+        guard let raw = isim_vision_text_languages() else { throw _vnError(.unsupportedRequest, "text recognition on isim needs the host's tesseract command") }
         defer { isim_media_free(raw) }
         let installed = Set(String(cString: raw).split(separator: "\n").map(String.init))
         let names: [(String, String)] = [("en-US", "eng"), ("fr-FR", "fra"), ("de-DE", "deu"), ("es-ES", "spa"), ("it-IT", "ita"), ("pt-BR", "por"),
@@ -232,11 +227,11 @@ open class VNRecognizeTextRequest: VNImageBasedRequest, @unchecked Sendable {
         try VNRecognizeTextRequest().supportedRecognitionLanguages()
     }
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
-        guard isim_vision_available(2) != 0 else { throw VNError(.unsupportedRequest, "text recognition on isim needs the host's tesseract command (not installed)") }
+        guard isim_vision_available(2) != 0 else { throw _vnError(.unsupportedRequest, "text recognition on isim needs the host's tesseract command (not installed)") }
         let langs = recognitionLanguages.compactMap(VNRecognizeTextRequest.code)
         let l = (langs.isEmpty ? ["eng"] : langs).joined(separator: "+")
         guard let raw = img.bgra.withUnsafeBufferPointer({ isim_vision_text($0.baseAddress!, Int32(img.width), Int32(img.height), Int32(img.width * 4), l) }) else {
-            throw VNError(.operationFailed, "tesseract failed (is the language data for \(l) installed?)")
+            throw _vnError(.operationFailed, "tesseract failed (is the language data for \(l) installed?)")
         }
         defer { isim_media_free(raw) }
         // TSV: level page block par line word left top width height conf text; group words (level 5) by line
@@ -272,7 +267,7 @@ open class VNRecognizeTextRequest: VNImageBasedRequest, @unchecked Sendable {
 /// Requests with no host backend on isim: they fail with VNError.unsupportedRequest.
 open class VNDetectFaceRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
-        throw VNError(.unsupportedRequest, "face detection is not available on isim (no host face detector); \(type(of: self)) cannot run")
+        throw _vnError(.unsupportedRequest, "face detection is not available on isim (no host face detector); \(type(of: self)) cannot run")
     }
 }
 open class VNDetectFaceLandmarksRequest: VNDetectFaceRectanglesRequest, @unchecked Sendable {
@@ -281,13 +276,13 @@ open class VNDetectFaceLandmarksRequest: VNDetectFaceRectanglesRequest, @uncheck
 open class VNDetectFaceCaptureQualityRequest: VNDetectFaceRectanglesRequest, @unchecked Sendable {}
 open class VNDetectHumanRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
     open var upperBodyOnly = true
-    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw VNError(.unsupportedRequest, "human detection is not available on isim (no host detector)") }
+    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "human detection is not available on isim (no host detector)") }
 }
 open class VNClassifyImageRequest: VNImageBasedRequest, @unchecked Sendable {
-    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw VNError(.unsupportedRequest, "image classification is not available on isim (it needs Apple's models)") }
+    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "image classification is not available on isim (it needs Apple's models)") }
 }
 open class VNGenerateImageFeaturePrintRequest: VNImageBasedRequest, @unchecked Sendable {
-    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw VNError(.unsupportedRequest, "image feature prints are not available on isim (they need Apple's models)") }
+    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "image feature prints are not available on isim (they need Apple's models)") }
 }
 open class VNDetectRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
     open var minimumAspectRatio: Float = 0.5
@@ -295,7 +290,7 @@ open class VNDetectRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
     open var minimumSize: Float = 0.2
     open var maximumObservations = 1
     open var minimumConfidence: Float = 0
-    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw VNError(.unsupportedRequest, "rectangle detection is not available on isim") }
+    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "rectangle detection is not available on isim") }
 }
 open class VNCoreMLModel: NSObject, @unchecked Sendable {
     let _model: MLModel
@@ -320,7 +315,7 @@ open class VNCoreMLRequest: VNImageBasedRequest, @unchecked Sendable {
     public init(model: VNCoreMLModel) { self.model = model; super.init() }
     public init(model: VNCoreMLModel, completionHandler: VNRequestCompletionHandler?) { self.model = model; super.init(completionHandler: completionHandler) }
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
-        throw VNError(.unsupportedRequest, "VNCoreMLRequest cannot run on isim: image models need Apple's Core ML runtime")
+        throw _vnError(.unsupportedRequest, "VNCoreMLRequest cannot run on isim: image models need Apple's Core ML runtime")
     }
 }
 
@@ -421,14 +416,14 @@ open class VNImageRequestHandler: NSObject, @unchecked Sendable {
     /// Throws the first request's error.
     open func perform(_ requests: [VNRequest]) throws {
         guard let img0 = _load() else {
-            let e = VNError(.invalidImage, "the image could not be read")
+            let e = _vnError(.invalidImage, "the image could not be read")
             for r in requests { r._results = nil; r.completionHandler?(r, e) }
             throw e
         }
         let img = img0.oriented(_orientation)
         var first: Error?
         for r in requests {
-            if r._cancelled { let e = VNError(.requestCancelled, "the request was cancelled"); r.completionHandler?(r, e); first = first ?? e; continue }
+            if r._cancelled { let e = _vnError(.requestCancelled, "the request was cancelled"); r.completionHandler?(r, e); first = first ?? e; continue }
             let roi = (r as? VNImageBasedRequest)?.regionOfInterest ?? CGRect(x: 0, y: 0, width: 1, height: 1)
             do {
                 let (crop, _) = img.cropped(roi)
@@ -436,7 +431,7 @@ open class VNImageRequestHandler: NSObject, @unchecked Sendable {
                 r.completionHandler?(r, nil)
             } catch {
                 r._results = nil
-                NSLog("isim Vision: %@", "\(error.localizedDescription)")
+                NSLog("isim Vision: %@", ((error as NSError).userInfo[NSLocalizedDescriptionKey] as? String) ?? "\(error)")
                 r.completionHandler?(r, error)
                 first = first ?? error
             }

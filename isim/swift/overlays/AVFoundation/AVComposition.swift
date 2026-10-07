@@ -83,6 +83,12 @@ func _num(_ d: [String: Any]?, _ k: String) -> Double? {
 
 // MARK: - ffmpeg
 
+/// An NSError in AVFoundationErrorDomain with a failure reason (isim's runtime does not bridge CustomNSError user info).
+func _avNSError(_ code: AVError.Code, _ reason: String) -> NSError {
+    NSError(domain: AVFoundationErrorDomain, code: code.rawValue, userInfo: [NSLocalizedDescriptionKey: AVError(code).errorDescription ?? "The operation could not be completed",
+                                                                            NSLocalizedFailureReasonErrorKey: reason])
+}
+
 enum _FFmpeg {
     /// Runs ffmpeg with args; returns nil on success, else an NSError (AVError domain). progress: output seconds.
     static func run(_ args: [String], progress: UnsafeMutablePointer<Double>? = nil, cancel: UnsafeMutablePointer<Int32>? = nil) -> NSError? {
@@ -96,7 +102,7 @@ enum _FFmpeg {
         if rc == -2 { return NSError(domain: NSCocoaErrorDomain, code: 3072 /* NSUserCancelledError */, userInfo: [NSLocalizedDescriptionKey: "Cancelled"]) }
         let reason = rc == -1 ? "isim needs ffmpeg on the host to encode media" : "ffmpeg: " + (msg.isEmpty ? "exit status \(rc)" : String(msg.suffix(600)))
         NSLog("isim AVFoundation: %@", reason)
-        return AVError(.exportFailed, reason: reason) as NSError
+        return _avNSError(.exportFailed, reason)
     }
     /// libx265 present in the host's ffmpeg?
     nonisolated(unsafe) static var _hevc: Bool?
@@ -448,15 +454,15 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
     func _fail(_ e: Error) { error = e; status = .failed }
     func _run() {
         guard status != .cancelled else { return }
-        guard let out = outputURL else { _fail(AVError(.exportFailed, reason: "outputURL is not set")); return }
-        guard let ft = outputFileType ?? (supportedFileTypes.first) else { _fail(AVError(.exportFailed, reason: "outputFileType is not set")); return }
-        guard supportedFileTypes.contains(ft) else { _fail(AVError(.exportFailed, reason: "the preset does not support \(ft.rawValue)")); return }
-        if FileManager.default.fileExists(atPath: out.path) { _fail(AVError(.fileAlreadyExists)); return }
+        guard let out = outputURL else { _fail(_avNSError(.exportFailed, "outputURL is not set")); return }
+        guard let ft = outputFileType ?? (supportedFileTypes.first) else { _fail(_avNSError(.exportFailed, "outputFileType is not set")); return }
+        guard supportedFileTypes.contains(ft) else { _fail(_avNSError(.exportFailed, "the preset does not support \(ft.rawValue)")); return }
+        if FileManager.default.fileExists(atPath: out.path) { _fail(_avNSError(.fileAlreadyExists, "the output file already exists")); return }
         status = .exporting
         let total = asset.duration.seconds
         let r0 = timeRange.start.isNumeric ? max(0, timeRange.start.seconds) : 0
         let r1 = timeRange.end.isNumeric ? min(total, timeRange.end.seconds) : total
-        guard r1 > r0 else { _fail(AVError(.exportFailed, reason: "the time range is empty")); return }
+        guard r1 > r0 else { _fail(_avNSError(.exportFailed, "the time range is empty")); return }
         let (mux, takesVideo) = ft._muxer
         let video = takesVideo && !_audioOnly
         var args = ["-y"]
@@ -467,7 +473,7 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
             if !graph.isEmpty { args += ["-filter_complex", graph] }
             if let v = vlabel { maps += ["-map", v] }
             if let a = alabel { maps += ["-map", a] }
-            if maps.isEmpty { _fail(AVError(.exportFailed, reason: "the composition has no media")); return }
+            if maps.isEmpty { _fail(_avNSError(.exportFailed, "the composition has no media")); return }
             args += maps
         } else {
             guard let u = asset._url, asset.isPlayable else { _fail(_avLoadError(asset)); return }
@@ -698,7 +704,7 @@ open class AVAssetReader: NSObject, @unchecked Sendable {
         for o in outputs where !o._start(timeRange) {
             outputs.forEach { $0._stop() }
             status = .failed
-            error = AVError(.decoderNotFound, reason: "isim needs ffmpeg on the host to decode media")
+            error = _avNSError(.decoderNotFound, "isim needs ffmpeg on the host to decode media")
             return false
         }
         return true
@@ -886,7 +892,7 @@ open class AVAssetWriter: NSObject, @unchecked Sendable {
             n += 1
         }
         defer { if let tmp { try? FileManager.default.removeItem(atPath: tmp) } }
-        guard n > 0 else { status = .failed; error = AVError(.noDataCaptured, reason: "no samples were appended"); return }
+        guard n > 0 else { status = .failed; error = _avNSError(.noDataCaptured, "no samples were appended"); return }
         for i in 0..<n { args += ["-map", "\(i)"] }
         if let v {
             let codec = (v.outputSettings?[AVVideoCodecKey] as? String).map(AVVideoCodecType.init(rawValue:)) ?? (v.outputSettings?[AVVideoCodecKey] as? AVVideoCodecType)
