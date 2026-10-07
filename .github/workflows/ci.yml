@@ -1,0 +1,54 @@
+# Builds isim and runs every test suite (plus the ABI check) on pull requests to main and on every push to main.
+# Branch protection requires the "build and test" check to pass before a pull request can be merged.
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  test:
+    name: build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune -af >/dev/null
+          df -h /
+      - name: Pinned third-party sources
+        uses: actions/cache@v4
+        with:
+          path: third_party
+          key: third-party-${{ hashFiles('isim/swift/fetch-sources.sh') }}
+      - name: Swift stdlib build cache
+        uses: actions/cache@v4
+        with:
+          path: isim/out/swift
+          key: swift-out-${{ hashFiles('isim/swift/*.py', 'isim/swift/*.sh', 'isim/swift/gyb-support/**', 'isim/swift/fetch-sources.sh') }}
+          restore-keys: swift-out-
+      - name: CI image
+        run: docker build -q -t isim-ci isim/ci
+      - name: Swift image
+        run: docker pull -q swift:6.2
+      - name: Build and test
+        run: |
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
+            -e CI=1 isim-ci isim/ci/run.sh
+      - name: Test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            isim/out/test.log
+            isim/out/test-data/**/*.log
+            isim/out/test-data/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7
