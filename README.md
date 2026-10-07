@@ -53,26 +53,18 @@ isim-0.3.0-linux-x86_64/bin/isim install isim-0.3.0-linux-x86_64/apps/*.app
 - F12 takes a screenshot.
 - Device data lives in `~/.local/share/isim` (override with `ISIM_DATA`).
 
-**Scripts** (for automation and tests) accept `wait S`, `tap X Y`, `tapid ID`, `taptext TEXT`, `holdid ID S`, `swipeid ID DX DY S`, `shake`,
-`type TEXT`, `key NAME`, `keydown NAME`, `keyup NAME` (hardware key press/release, e.g. for GCKeyboard), `home`, `launch BUNDLE_ID`, `remote NAME [ARG]` (MPRemoteCommandCenter: play, pause, toggle,
-next, previous, skipforward, skipback, seek S, rate R), `shot FILE.png`, `location LAT LON` / `location none` (simulated location), `dump` and `quit`. Microphone input for
-AVAudioRecorder/`inputNode` comes from `ISIM_AUDIO_INPUT=file.wav` (or `=mic` for the host microphone). Example:
-
-```bash
-isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.png; quit"
-```
-
-**System prompts and logs:** Face ID / Touch ID scans show an alert standing in for the Simulator's Features menu
-(Matching / Non-matching / Cancel); `ISIM_BIOMETRY=match|nomatch|cancel` answers scans automatically and
-`ISIM_BIOMETRY_ENROLLED=0` simulates no enrollment. `ISIM_NOTIFICATION_PERMISSION=allow|deny` answers the
-notification permission prompt. Privacy prompts work the same way: `ISIM_LOCATION_PERMISSION=once|wheninuse|always|deny`,
-`ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_PHOTOS_PERMISSION` (`allow|limited|deny`),
-`ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`. The simulated location (like the Simulator's
-Features ▸ Location) is Apple Park unless `ISIM_LOCATION=lat,lon` (or `lat,lon;lat,lon;...@speed` for a route, or `none`).
-The address book, calendars, photo library and Health data live in the device data (`ISIM_DATA`), seeded like the Simulator's. App `Logger`/`os_log` lines go to the terminal with private values shown as
-`<private>`, like iOS (`ISIM_LOG_PRIVATE=1` reveals them, `ISIM_LOG_LEVEL=info|default|error` filters).
+**Automation:** `--headless --script "wait 2; tapid login; shot s.png; quit"` drives the device from tests and CI;
+see [docs/SCRIPTING.md](docs/SCRIPTING.md) for every command. Permission prompts, Face ID, location, microphone
+and logs can be answered or configured with environment variables: see [docs/SYSTEM-PROMPTS.md](docs/SYSTEM-PROMPTS.md).
 
 **Compiling** needs clang/lld 17+. Swift needs Docker with the `swift:6.2` image.
+
+## Documentation
+
+- [Scripting and automation](docs/SCRIPTING.md): script commands, `--control` FIFO, interactive shortcuts
+- [System prompts, simulated hardware and logs](docs/SYSTEM-PROMPTS.md): environment variables for permissions, biometrics, location, network, logs
+- [API coverage](docs/COVERAGE.md): what is implemented, per framework
+- [Core Data](docs/COREDATA.md) · [Game Center](docs/GAMECENTER.md)
 
 ## Build from source
 
