@@ -8,14 +8,7 @@ import SwiftUI
 
 // MARK: - strings
 
-public struct LocalizedStringResource: ExpressibleByStringInterpolation, Hashable, Sendable, CustomStringConvertible {
-    public let key: String
-    public init(stringLiteral value: String) { key = value }
-    public init(stringInterpolation: DefaultStringInterpolation) { key = String(stringInterpolation: stringInterpolation) }
-    public init(_ key: String) { self.key = key }
-    public var description: String { Bundle.main.localizedString(forKey: key, value: key, table: nil) }
-}
-extension String { public init(localized r: LocalizedStringResource) { self = r.description } }
+// LocalizedStringResource is Foundation's (as on Apple platforms).
 
 public struct IntentDescription: ExpressibleByStringLiteral, Sendable {
     public let text: String
@@ -104,13 +97,13 @@ public struct DisplayRepresentation: ExpressibleByStringLiteral, Sendable {
     public let title: LocalizedStringResource
     public var subtitle: LocalizedStringResource?
     public init(title: LocalizedStringResource, subtitle: LocalizedStringResource? = nil, image: DisplayRepresentation.Image? = nil) { self.title = title; self.subtitle = subtitle }
-    public init(stringLiteral value: String) { title = LocalizedStringResource(value) }
+    public init(stringLiteral value: String) { title = LocalizedStringResource(String.LocalizationValue(value)) }
     public struct Image: Sendable { public init(systemName: String) {} }
 }
 public struct TypeDisplayRepresentation: ExpressibleByStringLiteral, Sendable {
     public let name: LocalizedStringResource
     public init(name: LocalizedStringResource) { self.name = name }
-    public init(stringLiteral value: String) { name = LocalizedStringResource(value) }
+    public init(stringLiteral value: String) { name = LocalizedStringResource(String.LocalizationValue(value)) }
 }
 public protocol AppValue {}
 public protocol AppEnum: CaseIterable, RawRepresentable, Hashable, AppValue, Sendable where RawValue == String {

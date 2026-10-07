@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
+#include <fcntl.h>
 #ifndef FOUNDATION_EXPORT
 #define FOUNDATION_EXPORT extern __attribute__((visibility("default")))
 #endif
@@ -172,7 +173,6 @@ FOUNDATION_EXPORT void dispatch_group_notify(dispatch_group_t group, dispatch_qu
 static inline dispatch_queue_t _isim_dispatch_main_queue(void) { return &_dispatch_main_q; }
 static inline dispatch_queue_attr_t _isim_dispatch_concurrent_attr(void) { return DISPATCH_QUEUE_CONCURRENT; }
 static inline dispatch_source_type_t _isim_dispatch_timer_type(void) { return DISPATCH_SOURCE_TYPE_TIMER; }
-int open(const char *, int, ...);
 static inline int _isim_dispatch_open(const char *path, int oflag, unsigned short mode) { return open(path, oflag, (int)mode); }
 static inline dispatch_source_type_t _isim_dispatch_source_type(int kind) {
     switch (kind) {

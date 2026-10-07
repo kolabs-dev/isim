@@ -107,7 +107,7 @@ final class _Keychain: @unchecked Sendable {
         guard let c = q["class"] as? String else { return (nil, errSecParam) }
         switch c {
         case "genp", "inet", "keys": return (c, errSecSuccess)
-        case "cert", "idnt": return _Keychain.certificateClassesEnabled ? (c, errSecSuccess) : (nil, errSecUnimplemented)
+        case "cert", "idnt": return (c, errSecSuccess)
         default: return (nil, errSecParam)
         }
     }
@@ -153,7 +153,7 @@ final class _Keychain: @unchecked Sendable {
             if kinds == 1 && wantPRef { return persistentRef(group, item) }
             if kinds == 1 && wantRef { return _Keychain.makeRef(item) ?? NSNull() }
             var d: [String: Any] = ["class": item.cls]
-            if wantAttrs { for (k, v) in item.attrs { d[k] = v.any } }
+            if wantAttrs { for (k, v) in item.attrs where !k.hasPrefix("_") { d[k] = v.any } }
             if wantData { d["v_Data"] = Data(item.data ?? []) }
             if wantPRef { d["v_PersistentRef"] = persistentRef(group, item) }
             if wantRef, let r = _Keychain.makeRef(item) { d["v_Ref"] = r }
@@ -294,11 +294,6 @@ final class _Keychain: @unchecked Sendable {
 // MARK: - keys, certificates and identities as keychain items
 
 extension _Keychain {
-    /// set by Certificates.swift once certificates are supported
-    nonisolated(unsafe) static var certificateClassesEnabled = false
-    nonisolated(unsafe) static var certificateRef: ((Any, String) -> (data: [UInt8], attrs: [String: _KCValue])?)? = nil
-    nonisolated(unsafe) static var makeCertificateRef: ((_KCItem) -> AnyObject?)? = nil
-
     /// the stored bytes and attributes for a kSecValueRef
     static func refAttributes(_ ref: Any, cls: String) -> (data: [UInt8], attrs: [String: _KCValue])? {
         if cls == "keys", let key = ref as? SecKey {
@@ -312,11 +307,13 @@ extension _Keychain {
             if let l = key.attributes["labl"] as? String { a["labl"] = .string(l) }
             return (key.raw, a)
         }
-        return certificateRef?(ref, cls)
+        return _certificateRefAttributes(ref, cls: cls)
     }
     static func refData(_ ref: Any) -> [UInt8]? {
         if let key = ref as? SecKey { return key.raw }
-        return certificateRef?(ref, "cert")?.data
+        if let c = ref as? SecCertificate { return c.der }
+        if let i = ref as? SecIdentity { return i.certificate.der }
+        return nil
     }
     static func makeRef(_ item: _KCItem) -> AnyObject? {
         if item.cls == "keys", let data = item.data {
@@ -329,6 +326,6 @@ extension _Keychain {
             key.attributes["perm"] = true
             return key
         }
-        return makeCertificateRef?(item)
+        return _makeCertificateRef(item)
     }
 }

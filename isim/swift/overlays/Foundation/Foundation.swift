@@ -333,7 +333,7 @@ extension String {
     }
     /// A .stringsdict plural format ("%#@items@") with each variable replaced by the rule text for its argument.
     func expandingPlurals(_ format: String) -> String {
-      guard format.contains("%#@") else { return format }
+      guard format.contains("#@") else { return format }
       let values = arguments.map { NSNumber(value: Double($0) ?? 0) }
       return (format as NSString)._isim_expandingPlurals(withValues: values).map { $0 as String } ?? format
     }

@@ -17,6 +17,7 @@ func check(_ ok: Bool, _ what: String) {
         sqliteTests()
         keychainTests()
         secKeyTests()
+        certificateTests()
         cryptoKitExtrasTests()
         logTests()
         cOSLogTest()

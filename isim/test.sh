@@ -69,6 +69,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloStore.app/HelloStore ] && run "ui: HelloStore (StoreKit testing: subscriptions, offers, refunds, StoreKit 1)" tests/ui/store.sh
   [ -x out/apps/HelloSignIn.app/HelloSignIn ] && run "ui: HelloSignIn (Sign in with Apple, passkeys, passwords, ATT + IDFA; local simulation)" tests/ui/signin.sh
   [ -x out/apps/HelloCloudKit.app/HelloCloudKit ] && run "ui: HelloCloudKit (local CloudKit, NSPersistentCloudKitContainer, MetricKit)" tests/ui/cloudkit.sh
+  [ -x out/apps/HelloSharedData.app/HelloSharedData ] && run "ui: HelloSharedData (plurals, LocalizedStringResource, app groups, iCloud key-value store, NotificationQueue)" tests/ui/shareddata.sh
   [ -x out/apps/HelloGameCenter.app/HelloGameCenter ] && run "ui: HelloGameCenter (local Game Center: config, access point, saved games)" tests/ui/gamecenter.sh
 fi
 if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device shell: home screen + Settings

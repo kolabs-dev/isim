@@ -15,8 +15,8 @@ NSString * const NSUbiquitousKeyValueStoreChangeReasonKey = @"NSUbiquitousKeyVal
 NSString * const NSUbiquitousKeyValueStoreChangedKeysKey = @"NSUbiquitousKeyValueStoreChangedKeysKey";
 
 static BOOL icloud_signed_in(void) {
-    const char *e = getenv("ISIM_ICLOUD");
-    return !(e && (!strcasecmp(e, "noAccount") || !strcmp(e, "0") || !strcasecmp(e, "off")));
+    const char *e = getenv("ISIM_ICLOUD");   /* noAccount, restricted, temporarilyUnavailable: signed out (like CloudKit's status) */
+    return !e || !*e || !strcasecmp(e, "available");
 }
 static NSString *ensure_dir(NSString *path) {
     [NSFileManager.defaultManager createDirectoryAtPath:path withIntermediateDirectories:YES attributes:nil error:NULL];

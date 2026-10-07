@@ -7,9 +7,6 @@ import Foundation
 internal import CommonCrypto
 import isim_host
 
-/// isim's Data does not bridge to NSData, so CFData is Data here (`data as CFData` and `cf as Data` both work).
-public typealias CFData = Data
-
 // MARK: - Attribute keys and values
 
 public let kSecAttrKeyType: CFString = "type" as CFString
@@ -264,7 +261,7 @@ public func SecKeyCopyPublicKey(_ key: SecKey) -> SecKey? {
     return SecKey(type: key.type, isPrivate: false, raw: pub, bits: key.bits)
 }
 public func SecKeyCopyExternalRepresentation(_ key: SecKey, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> CFData? {
-    Data(key.raw)
+    Data(key.raw) as CFData
 }
 public func SecKeyCreateWithData(_ keyData: CFData, _ attributes: CFDictionary, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> SecKey? {
     let a = (attributes as NSDictionary as? [String: Any]) ?? [:]
@@ -273,7 +270,7 @@ public func SecKeyCreateWithData(_ keyData: CFData, _ attributes: CFDictionary, 
     let cls = (_attr(a, kSecAttrKeyClass) as? String) ?? ""
     guard cls == "0" || cls == "1" else { return _secFail(error, errSecParam, "kSecAttrKeyClass must be public or private") }
     guard isim_pki_available() == 1 else { return _secFail(error, errSecNotAvailable, _hostError()) }
-    guard let key = SecKey.load(type: typeStr == "42" ? 0 : 1, isPrivate: cls == "1", raw: Array(keyData)) else {
+    guard let key = SecKey.load(type: typeStr == "42" ? 0 : 1, isPrivate: cls == "1", raw: Array(keyData as Data)) else {
         return _secFail(error, errSecDecode, "The key data could not be decoded: \(_hostError())")
     }
     return key
@@ -309,19 +306,19 @@ public func SecKeyCreateSignature(_ key: SecKey, _ algorithm: SecKeyAlgorithm, _
     guard SecKeyIsAlgorithmSupported(key, .sign, algorithm), let plan = algorithm.plan else {
         return _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for this key")
     }
-    let data = Array(dataToSign)
+    let data = Array(dataToSign as Data)
     var sig = [UInt8](repeating: 0, count: 1200), n = sig.count
     let ok = key.raw.withUnsafeBufferPointer { k in data.withUnsafeBufferPointer { d in sig.withUnsafeMutableBufferPointer { s in
         isim_pki_sign(key.type, k.baseAddress!, k.count, plan.code, d.baseAddress, d.count, s.baseAddress!, &n) } } }
     guard ok == 1 else { return _secFail(error, errSecParam, _hostError()) }
-    return Data(sig[0..<n])
+    return Data(sig[0..<n]) as CFData
 }
 public func SecKeyVerifySignature(_ key: SecKey, _ algorithm: SecKeyAlgorithm, _ signedData: CFData, _ signature: CFData,
                                   _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> Bool {
     guard SecKeyIsAlgorithmSupported(key, .verify, algorithm), let plan = algorithm.plan else {
         let _: Bool? = _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for this key"); return false
     }
-    let data = Array(signedData), sig = Array(signature)
+    let data = Array(signedData as Data), sig = Array(signature as Data)
     let ok = key.raw.withUnsafeBufferPointer { k in data.withUnsafeBufferPointer { d in sig.withUnsafeBufferPointer { s in
         isim_pki_verify(key.type, k.baseAddress!, k.count, plan.code, d.baseAddress, d.count, s.baseAddress ?? UnsafePointer(bitPattern: 1)!, s.count) } } }
     if ok != 1 { let _: Bool? = _secFail(error, -67808 /* errSecVerifyFailed */, "EC signature verification failed, signature does not match"); return false }
@@ -332,25 +329,25 @@ public func SecKeyCreateEncryptedData(_ key: SecKey, _ algorithm: SecKeyAlgorith
     guard SecKeyIsAlgorithmSupported(key, .encrypt, algorithm), let plan = algorithm.plan else {
         return _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for this key on isim")
     }
-    let input = Array(plaintext)
+    let input = Array(plaintext as Data)
     var out = [UInt8](repeating: 0, count: key.bits / 8 + 16), n = out.count
     let ok = key.raw.withUnsafeBufferPointer { k in input.withUnsafeBufferPointer { i in out.withUnsafeMutableBufferPointer { o in
         isim_pki_encrypt(k.baseAddress!, k.count, plan.code, i.baseAddress, i.count, o.baseAddress!, &n) } } }
     guard ok == 1 else { return _secFail(error, errSecParam, _hostError()) }
-    return Data(out[0..<n])
+    return Data(out[0..<n]) as CFData
 }
 public func SecKeyCreateDecryptedData(_ key: SecKey, _ algorithm: SecKeyAlgorithm, _ ciphertext: CFData,
                                       _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> CFData? {
     guard SecKeyIsAlgorithmSupported(key, .decrypt, algorithm), let plan = algorithm.plan else {
         return _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for this key on isim")
     }
-    let input = Array(ciphertext)
+    let input = Array(ciphertext as Data)
     guard !input.isEmpty else { return _secFail(error, errSecParam, "empty ciphertext") }
     var out = [UInt8](repeating: 0, count: key.bits / 8 + 16), n = out.count
     let ok = key.raw.withUnsafeBufferPointer { k in input.withUnsafeBufferPointer { i in out.withUnsafeMutableBufferPointer { o in
         isim_pki_decrypt(k.baseAddress!, k.count, plan.code, i.baseAddress!, i.count, o.baseAddress!, &n) } } }
     guard ok == 1 else { return _secFail(error, errSecDecode, _hostError()) }
-    return Data(out[0..<n])
+    return Data(out[0..<n]) as CFData
 }
 public func SecKeyCopyKeyExchangeResult(_ privateKey: SecKey, _ algorithm: SecKeyAlgorithm, _ publicKey: SecKey, _ parameters: CFDictionary,
                                         _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> CFData? {
@@ -363,7 +360,7 @@ public func SecKeyCopyKeyExchangeResult(_ privateKey: SecKey, _ algorithm: SecKe
         isim_pki_ecdh(k.baseAddress!, k.count, p.baseAddress!, p.count, o.baseAddress!, &n) } } }
     guard ok == 1 else { return _secFail(error, errSecParam, _hostError()) }
     let shared = Array(out[0..<n])
-    guard plan.kdf == 1 else { return Data(shared) }
+    guard plan.kdf == 1 else { return Data(shared) as CFData }
     // ANSI X9.63 KDF: Hash(Z || counter32 || SharedInfo) blocks
     let p = (parameters as NSDictionary as? [String: Any]) ?? [:]
     guard let size = _intAttr(p["requestedSize"]), size > 0 else { return _secFail(error, errSecParam, "kSecKeyKeyExchangeParameterRequestedSize is required") }
@@ -374,5 +371,5 @@ public func SecKeyCopyKeyExchangeResult(_ privateKey: SecKey, _ algorithm: SecKe
         derived += _digest(plan.code, shared + c + info)
         counter += 1
     }
-    return Data(derived.prefix(size))
+    return Data(derived.prefix(size)) as CFData
 }

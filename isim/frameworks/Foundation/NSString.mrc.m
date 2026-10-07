@@ -140,7 +140,7 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     enum { MAXA = 64 };
     int types[MAXA] = {0}; int nargs = 0, seq = 0;
     /* plural formats: argument types of %#@var@ come from the .stringsdict entry (NSStringFormatValueTypeKey) */
-    NSString *typed = strstr(f, "%#@") ? isim_plural_typed(fmt) : nil;
+    NSString *typed = strstr(f, "#@") ? isim_plural_typed(fmt) : nil;
     NSUInteger tfn = fn; const char *tf = typed ? [typed _isim_bytes:&tfn] : f;
     /* pass 1: argument types */
     for (NSUInteger i = 0; i < tfn;) {

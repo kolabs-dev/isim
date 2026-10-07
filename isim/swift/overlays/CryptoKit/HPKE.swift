@@ -198,6 +198,7 @@ public enum HPKE {
             return n
         }
         mutating func seal(_ pt: [UInt8], aad: [UInt8]) throws -> [UInt8] {
+            guard suite.aead != .exportOnly else { throw Errors.exportOnlyMode }
             let n = nonce(), k = SymmetricKey(data: key)
             var out: [UInt8]
             switch suite.aead {
@@ -214,6 +215,7 @@ public enum HPKE {
             return out
         }
         mutating func open(_ ct: [UInt8], aad: [UInt8]) throws -> [UInt8] {
+            guard suite.aead != .exportOnly else { throw Errors.exportOnlyMode }
             guard ct.count >= 16 else { throw Errors.ciphertextTooShort }
             let n = nonce(), k = SymmetricKey(data: key)
             let body = Array(ct.dropLast(16)), tag = Array(ct.suffix(16))
