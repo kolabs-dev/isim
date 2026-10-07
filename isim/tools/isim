@@ -14,6 +14,7 @@
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 #   isim storekit <app> list|refund|expire|cancel|resume|clear ...   local StoreKit Transaction Manager
 #   isim gamecenter <app> saved-games|conflict|reset ...              local Game Center data
+#   isim openurl <URL> [--control FIFO]   open a URL (custom scheme or universal link) in the running device's foreground app
 #   isim appleid <app> list|revoke|reset         local Sign in with Apple state (revoke = Stop Using Apple ID)
 #   isim metrickit               deliver sample MetricKit payloads to running apps (Debug > Simulate MetricKit Payloads)
 #   isim version                                                      print the isim version
@@ -132,6 +133,11 @@ case "$cmd" in
       $( [ -d "$SDK/usr/lib/swift/_StringProcessing.swiftmodule" ] || echo -Xfrontend -disable-implicit-string-processing-module-import ) "$@" ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
+  openurl)   # isim openurl URL [--control FIFO]: open a URL in the foreground app of a device started with --control FIFO
+    url=${1:?usage: isim openurl <URL> [--control FIFO]}; shift
+    [ "${1:-}" = "--control" ] && ISIM_CONTROL=$2
+    [ -p "${ISIM_CONTROL:-}" ] || { echo "isim openurl: start the device with --control FIFO (or set ISIM_CONTROL) to send it URLs" >&2; exit 2; }
+    printf 'openurl %s\n' "$url" > "$ISIM_CONTROL" ;;
   storekit|gamecenter|appleid)
     ISIM_DATA=$DATA exec python3 "$BIN/isim-services.py" "$cmd" "$@" ;;
   metrickit)   # Debug > Simulate MetricKit Payloads: running apps' MXMetricManager subscribers get sample payloads

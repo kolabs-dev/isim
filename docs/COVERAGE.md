@@ -22,8 +22,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 126 | 50 | 9 | 15 | 200 | 76% |
-| &nbsp;&nbsp;↳ Application & scenes | 7 | 5 | 5 | 6 | 23 | 41% |
+| **UIKit** | 126 | 51 | 9 | 14 | 200 | 76% |
+| &nbsp;&nbsp;↳ Application & scenes | 7 | 6 | 5 | 5 | 23 | 43% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
 | &nbsp;&nbsp;↳ Views & controls | 33 | 15 | 1 | 2 | 51 | 79% |
 | &nbsp;&nbsp;↳ Layout | 16 | 2 | 0 | 1 | 19 | 89% |
@@ -35,10 +35,10 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 146 | 45 | 10 | 10 | 211 | 80% |
+| **SwiftUI** | 146 | 46 | 10 | 9 | 211 | 80% |
 | &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
 | &nbsp;&nbsp;↳ State & data flow | 14 | 3 | 0 | 0 | 17 | 91% |
-| &nbsp;&nbsp;↳ Views & controls | 30 | 7 | 0 | 1 | 38 | 88% |
+| &nbsp;&nbsp;↳ Views & controls | 30 | 8 | 0 | 0 | 38 | 89% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 14 | 8 | 1 | 0 | 23 | 78% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 17 | 4 | 6 | 0 | 27 | 70% |
@@ -51,14 +51,14 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
-| **Foundation** | 51 | 20 | 1 | 9 | 81 | 75% |
+| **Foundation** | 52 | 21 | 1 | 7 | 81 | 77% |
 | &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
 | &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 4 | 2 | 0 | 3 | 9 | 56% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 6 | 2 | 0 | 1 | 9 | 78% |
-| &nbsp;&nbsp;↳ Networking | 11 | 2 | 1 | 3 | 17 | 71% |
+| &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
 | **Swift runtime, stdlib & concurrency** | 30 | 1 | 0 | 7 | 38 | 80% |
 | &nbsp;&nbsp;↳ Combine | 11 | 0 | 0 | 3 | 14 | 79% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
@@ -75,15 +75,15 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
 | Data & persistence | 13 | 6 | 0 | 4 | 23 | 70% |
-| Identity & security | 6 | 1 | 1 | 3 | 11 | 59% |
+| Identity & security | 7 | 1 | 1 | 2 | 11 | 68% |
 | Notifications & background work | 1 | 2 | 1 | 3 | 7 | 29% |
 | App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
-| Location & maps | 1 | 1 | 0 | 1 | 3 | 50% |
+| Location & maps | 2 | 5 | 0 | 0 | 7 | 64% |
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
-| Web & communication | 2 | 1 | 0 | 6 | 9 | 28% |
+| Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 17 | 7 | 1 | 11 | 36 | 57% |
-| **All areas** | **544** | **208** | **41** | **97** | **890** | **73%** |
+| **All areas** | **553** | **220** | **41** | **87** | **901** | **74%** |
 
 ---
 
@@ -105,7 +105,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Application/scene lifecycle notifications (`didBecomeActiveNotification`, …) | ✅ | |
 | `open(_:options:)` / `canOpenURL` | 🟡 | logged; `app-settings:` opens Settings; http(s)/mailto open on the host only with `ISIM_OPEN_URLS=1` |
 | Incoming URLs (custom URL schemes, `application(_:open:)`, scene URL contexts) | 🟡 | URLs can be delivered to the app (script/control); `CFBundleURLTypes` routing between apps unverified |
-| Universal links, `NSUserActivity`, Handoff | ❌ | |
+| Universal links, `NSUserActivity`, Handoff | 🟡 | adapted: `openurl https://…` (script command / `isim openurl` with `--control`) delivers links of the app's `applinks:` domains (archived-expanded-entitlements.xcent) as `NSUserActivityTypeBrowsingWeb` to `application(_:continue:restorationHandler:)` / `scene(_:continue:)`; other web URLs "open in Safari" (logged). No AASA fetch (all paths match), no Handoff; tested (HelloSafari). SwiftUI `onContinueUserActivity` unverified |
 | `applicationIconBadgeNumber` | 🧩 | stored; no badge on the home-screen icon |
 | `isIdleTimerDisabled` | 🧩 | no screen lock exists |
 | Status bar (`prefersStatusBarHidden`, `preferredStatusBarStyle`) | 🟡 | hide works (SwiftUI `statusBarHidden`); style/appearance updates unverified |
@@ -434,7 +434,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `ContentUnavailableView` | ✅ | icon, title, description, actions; `.search` / `.search(text:)`; tested (HelloPickers) |
 | `ControlGroup`, `GroupBox`, `DisclosureGroup`, `OutlineGroup` | ✅ | disclosure rows expand/collapse (own state or `isExpanded:` binding; in a List the content follows as indented rows); `OutlineGroup` and `List(_:children:)` build the tree; control groups share one bordered row (`controlGroupStyle` ignored); tested (HelloPickers) |
 | `EditButton`, `PasteButton`, `RenameButton` | 🟡 | `EditButton` toggles `\.editMode` (tested, HelloLists); `PasteButton` is a stub (no pasteboard on isim: shown disabled, tested); `RenameButton` missing |
-| `VideoPlayer` (AVKit), `Map` (MapKit), `SceneView` | ❌ | |
+| `VideoPlayer` (AVKit), `Map` (MapKit), `SceneView` | 🟡 | `Map` (iOS 17 MapContent + iOS 14 `coordinateRegion` API) on isim's MKMapView: tested (HelloMaps). `VideoPlayer` see AVKit; `SceneView` missing |
 | `SpriteView` | ✅ | see SpriteKit |
 
 ### Containers & layout
@@ -783,8 +783,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `URLSessionConfiguration` (`.default`, `.ephemeral`, timeouts, extra headers, cache/cookie settings) | ✅ | `timeoutIntervalForRequest` is an idle timeout as on iOS; `waitsForConnectivity`, `allowsCellularAccess` and service types are stored only |
 | `file:` and `data:` URLs in `URLSession` | ✅ | tested |
 | `URLSessionWebSocketTask` | 🟡 | send/receive text and data, ping, close codes; needs a libcurl with WebSocket support (7.86+); the negotiated subprotocol is not reported; tested (text echo); ping and close handshake unverified |
-| Authentication challenges (`didReceive challenge`, `URLCredential`, `URLProtectionSpace`), certificate pinning | ❌ | TLS uses the host's CA store |
-| `URLSessionTaskMetrics`, task `progress`, resumable downloads (`resumeData`) | ❌ | |
+| Authentication challenges (`didReceive challenge`, `URLCredential`, `URLProtectionSpace`), certificate pinning | 🟡 | HTTP Basic and Digest (MD5, qop=auth) through the task delegate (completion and async forms), `previousFailureCount`, `URLCredentialStorage` default credentials (in memory), 401 without a credential; server-trust challenge before each HTTPS request (`.useCredential` + `URLCredential(trust:)` accepts the certificate, cancel → -999). Adapted: `SecTrust` names the host only, so certificate pinning cannot inspect certificates; no client certificates, NTLM or proxies. Tested (HelloConnections) |
+| `URLSessionTaskMetrics`, task `progress`, resumable downloads (`resumeData`) | ✅ | metrics per transaction from libcurl timings (lookup, connect, TLS, request, response; protocol, addresses, reused connection, local-cache loads), redirect count; `progress` (bytes, KVO `fractionCompleted`); `cancel(byProducingResumeData:)`, failed downloads' `NSURLSessionDownloadTaskResumeData`, `downloadTask(withResumeData:)` with `Range`/`If-Range` and `didResumeAtOffset`. Tested (HelloConnections). Resumable uploads not supported |
 | Background `URLSession` | 🧩 | `background(withIdentifier:)` sessions run like default sessions while the app runs |
 | `HTTPCookie`, `HTTPCookieStorage` | ✅ | Set-Cookie parsing (domain, path, expiry, secure); `shared` persists in the app container; ephemeral sessions get a private jar; tested; accept policies unverified |
 | `URLCache`, `CachedURLResponse` | 🟡 | in memory only (nothing written to disk); max-age/Expires/heuristic freshness, ETag/Last-Modified revalidation, request cache policies; tested |
@@ -1199,7 +1199,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | API / feature | Status | Notes |
 |---|---|---|
 | Sign in with Apple (`ASAuthorizationAppleIDProvider`, `ASAuthorizationController`, `ASAuthorizationAppleIDButton`, `SignInWithAppleButton`) | ✅ | **local simulation, no Apple servers**: iOS-style sheet (Apple ID / Apple Account wording by `ISIM_OS_VERSION`, name, Share/Hide My Email, Continue/close) for a fake account in the device data; returning users get the short sheet without name/email. `identityToken` is an **unsigned JWT (`alg: none`, issuer `isim-local-simulation`)** and `authorizationCode` a random local string — servers that verify Apple signatures reject them. `getCredentialState` authorized/revoked/notFound per app; `isim appleid <app> revoke` posts `credentialRevokedNotification` to the running app. Buttons: black/white/whiteOutline, sign in/continue/sign up, isim-drawn logo. Tested: HelloSignIn |
-| `ASWebAuthenticationSession` (OAuth) | ❌ | |
+| `ASWebAuthenticationSession` (OAuth) | ✅ | iOS's “Wants to Use … to Sign In” alert (skipped when ephemeral), the page in a browser sheet on isim's WKWebView (real WebKit), callback by custom scheme or (iOS 17.4) https host+path — links, forms and server redirects; Cancel → `canceledLogin`; `presentationContextProvider` errors; SwiftUI `webAuthenticationSession` environment action. Tested against a local OAuth page (HelloSafari). Non-ephemeral sessions share SFSafariViewController's in-memory data, not Safari's |
 | Passkeys (`ASAuthorizationPlatformPublicKeyCredentialProvider` registration + assertion) | ✅ | real WebAuthn data: P-256 key (CryptoKit), CBOR attestation object with format `none` (AAGUID zero, COSE key), clientDataJSON with origin `https://<rp>`, assertion signature over authData ‖ SHA-256(clientDataJSON) that verifies. Keys kept unencrypted in the device data (not synced). iOS-style save/sign-in sheets; no passkey → canceled (no nearby-device QR); `preferImmediatelyAvailableCredentials` → `notInteractive`. Security keys (`ASAuthorizationSecurityKey…`), PRF/large blob missing. Tested: HelloSignIn |
 | Password sign-in (`ASAuthorizationPasswordProvider`, `ASPasswordCredential`) | 🟡 | offers the app's own internet passwords from isim's keychain in a chooser sheet; no iCloud Keychain/Passwords app, no QuickType AutoFill bar, `performAutoFillAssistedRequests` behaves like `preferImmediatelyAvailableCredentials`. Tested: HelloSignIn |
 | LocalAuthentication (Face ID / Touch ID, `LAContext`) | ✅ | `canEvaluatePolicy`/`evaluatePolicy` (+ async), `LAError`, `biometryType` from the device (Face ID; Touch ID on iPhone SE and non-Pro iPads). Face ID permission alert (`NSFaceIDUsageDescription`, remembered), simulated scan alert (Matching / Non-matching / Cancel), passcode fallback; `ISIM_BIOMETRY=match\|nomatch\|cancel`, `ISIM_BIOMETRY_ENROLLED=0`. Reply on a background queue like iOS |
@@ -1242,7 +1242,11 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 |---|---|---|
 | CoreLocation (`CLLocationManager`, authorization, updates, geocoding) | ✅ | permission alert (Allow Once / While Using / Don't Allow, Always upgrade) remembered per app; simulated location (adapted): Apple Park by default, `ISIM_LOCATION=lat,lon` or a looping route, `location LAT LON`/`location none` script commands; `requestLocation`, `CLLocationUpdate.liveUpdates`, `CLServiceSession`; `CLGeocoder` answers offline from a small built-in gazetteer (other places: `geocodeFoundNoResult`); no heading (like the Simulator); missing usage string: request ignored + logged |
 | Region monitoring, beacons, visits | 🟡 | `CLCircularRegion` monitoring (enter/exit, `requestState`) tested; beacons ranging unavailable and no visits, like the Simulator; `CLMonitor` (iOS 17) missing |
-| MapKit (`MKMapView`, SwiftUI `Map`, annotations, overlays, directions, search) | ❌ | |
+| MapKit `MKMapView` (region, camera, map types, gestures, conversion) | 🟡 | adapted offline basemap: land colour, lat/lon graticule with labels and a built-in list of world cities/landmarks, or raster tiles from a local cache (`ISIM_MAP_TILES` or `$ISIM_DATA/Library/Maps/Tiles/{z}/{x}/{y}.png`, never downloaded); no coastlines/roads; north-up and flat (heading/pitch stored only); drag to pan, double-tap zoom (no pinch), changes not animated; zoom range/boundary honoured. Tested (HelloMaps) |
+| MapKit annotations (`MKAnnotation`, `MKPointAnnotation`, `MKMarkerAnnotationView`, `MKAnnotationView`, user location, selection, callouts) | ✅ | iOS-style balloon markers (tint, glyph text/image, title, bigger when selected), image views, reuse/registration, callouts with accessory controls, `didSelect`/`didDeselect`, blue user-location dot from the simulated Core Location. `MKAnnotation`/delegates are Swift protocols (title defaults to nil). Clustering and dragging not supported. Tested |
+| MapKit overlays (`MKPolyline`, `MKPolygon`, `MKCircle`, renderers, `MKTileOverlay`) | 🟡 | path renderers (fill/stroke/width), geodesic polylines, tile overlays (file URLs; others through URLSession); dash patterns and polygon holes are not drawn; custom `draw(_:zoomScale:in:)` renderers are not called. Tested (polyline, circle, polygon) |
+| MapKit search, directions, Look Around, snapshots | 🟡 | `MKLocalSearch`/`MKLocalSearchCompleter` answer offline from Core Location's gazetteer + the basemap's cities (else `placemarkNotFound`); `MKDirections` fails with `directionsNotFound` (no routing data); Look Around finds no scene; `MKMapSnapshotter` renders the offline basemap. Search, directions, snapshot tested; completer unverified |
+| SwiftUI `Map` (`Marker`, `Annotation`, `MapPolyline`, `MapPolygon`, `MapCircle`, `UserAnnotation`, `MapCameraPosition`, selection, `mapStyle`, `onMapCameraChange`) | 🟡 | on MKMapView; Annotation content is SwiftUI in a hosted view; `mapControls` accepted but not drawn; legacy `Map(coordinateRegion:annotationItems:)` with `MapMarker`/`MapPin`/`MapAnnotation` unverified. Tested (markers, annotation, overlays, selection, position, camera change) |
 
 ## Personal data & device sensors
 
@@ -1259,15 +1263,22 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 
 | API / feature | Status | Notes |
 |---|---|---|
-| WebKit (`WKWebView`, navigation delegate, JavaScript bridge) | ❌ | |
-| SafariServices (`SFSafariViewController`) | ❌ | |
-| MessageUI (`MFMailComposeViewController`, `MFMessageComposeViewController`) | ❌ | |
+| WebKit `WKWebView` rendering and loading (`load`, `loadHTMLString`, `loadFileURL`, `load(_:mimeType:…)`, back/forward, reload, KVO `title`/`url`/`isLoading`/`estimatedProgress`/`canGoBack`) | ✅ | real WebKit: the host's WebKitGTK 6.0 in a helper process (`isim-webkit`, private invisible broadway display) renders frames at the screen scale; iOS-style user agent; history includes `loadHTMLString` pages. Adapted: no 980-px mobile viewport (pages lay out at the view width), `load` sends GET + headers only. Needs `webkitgtk-6.0` + `gtk4-broadwayd` on the host (else a placeholder and a failed navigation). Tested (HelloWeb) |
+| WebKit delegates (`WKNavigationDelegate` action/response policy, start/commit/finish/fail; `WKUIDelegate` alert/confirm/prompt, `createWebViewWith`) | ✅ | completion and async forms; cancelled links; JavaScript panels through the app's UI delegate (none → dismissed like iOS). Tested; `createWebViewWith`, process termination unverified |
+| WebKit JavaScript bridge (`evaluateJavaScript`, `callAsyncJavaScript`, content worlds, `WKUserScript`, `WKScriptMessageHandler`(`WithReply`), `WKURLSchemeHandler`) | ✅ | results converted like iOS (dictionaries, arrays, numbers, `WKError.javaScriptExceptionOccurred`, unsupported types); isolated worlds; replies to page promises. Tested |
+| WebKit input, scrolling, website data (`WKWebsiteDataStore`, `WKHTTPCookieStore`), snapshots | 🟡 | adapted input: taps, typing (system keyboard on focused fields) and scrolling become DOM events from an isolated world (`isTrusted` false); no text selection, `<select>` pickers, pinch zoom or context menus. `scrollView` mirrors page scrolling. Cookies get/set/delete and data removal; `takeSnapshot`. `find` unverified; `createPDF`/web archives fail. Tested (typing, scrolling, cookies, snapshot) |
+| SwiftUI `WebView` / `WebPage` (iOS 26) | ❌ | wrap WKWebView in `UIViewRepresentable` |
+| SafariServices (`SFSafariViewController`) | ✅ | iOS 17-style chrome (Done/Close/Cancel, domain + lock, “aA” button (cosmetic), back/forward/share/Open in Safari toolbar) on isim's WKWebView; delegate initial load / redirect / finish; tint colors; `DataStore.clearWebsiteData`. Adapted: its own in-memory website data (not Safari's), Reader and bar collapsing not real, Open in Safari logged. Tested (HelloSafari) |
+| MessageUI (`MFMailComposeViewController`, `MFMessageComposeViewController`) | ✅ | like the Simulator `canSendMail()`/`canSendText()` are false (presenting shows nothing); `ISIM_MAIL=1` / `ISIM_MESSAGES=1` give the device accounts: iOS 17-style composers prefilled from the API, Send / Cancel → Delete or Save Draft, results to the delegates; nothing is sent — mails become `.eml` files in `$ISIM_DATA/Library/Mail/{Outbox,Drafts}`, messages JSON in `Library/SMS/Outbox`. Tested |
 | Network framework `NWPathMonitor` (`pathUpdateHandler`, `currentPath`, `for await`) | ✅ | mirrors the host's connectivity (Wi-Fi/Ethernet), polled every 2 s; tested |
-| Network framework `NWConnection`, `NWListener`, `NWBrowser`, `NWEndpoint` | ❌ | |
+| Network framework `NWConnection`, `NWListener`, `NWEndpoint`, `NWParameters` (TCP, UDP) | ✅ | host sockets; states (`waiting` on refused/DNS failure), send/receive/receiveMessage, final messages, `currentPath` endpoints, UDP listener connections, TCP options. Tested (HelloConnections) |
+| Network framework TLS (`NWProtocolTLS`, `sec_protocol_options` verify block, ALPN) | 🟡 | client connections through the host's OpenSSL (CA store + host name, or the app's verify block; ALPN, minimum version, negotiated version/ALPN metadata); `sec_trust_t` carries no certificates; TLS listeners (server identities), DTLS and QUIC not provided. Tested |
+| Network framework Bonjour (`NWListener.service`, `NWBrowser`, `.service` endpoints, TXT records) | 🟡 | adapted: a local registry shared by the apps of this isim device (`$ISIM_DATA/Library/isim/Bonjour`), not multicast DNS — no other machines. Tested |
+| Network framework `NWProtocolWebSocket`, `NWProtocolFramer`, `NWConnectionGroup` | ❌ | use URLSessionWebSocketTask |
 | BSD sockets (`socket`, `bind`/`listen`/`accept`, `connect`, `send`/`recv`, `getaddrinfo`, `inet_pton`, `poll`/`select`, `getifaddrs`) | ✅ | Darwin structs, constants and errno translated to the host's; tested (TCP server + client, socketpair, poll, select, getifaddrs, `SO_RCVTIMEO`); `read`/`write` errno translated too; UDP unverified |
 | `fcntl`, `ioctl` (e.g. non-blocking sockets) | 🟡 | C/Objective-C only: Swift cannot call these variadic functions without a Swift Darwin overlay |
-| MultipeerConnectivity | ❌ | |
-| Universal Links / Associated Domains | ❌ | |
+| MultipeerConnectivity | 🟡 | adapted: peers on the same isim device (other apps or the same app) over loopback TCP and the local Bonjour registry: advertiser/browser, discovery info, invitations with context, session state, data (reliable/unreliable alike), resources; `MCBrowserViewController` list and `MCAdvertiserAssistant` alert unverified; no streams, no security identities. Tested (HelloConnections) |
+| Universal Links / Associated Domains | 🟡 | local simulation: `applinks:` (incl. `*.` wildcards, `?mode=`) from the app's archived-expanded-entitlements.xcent; `openurl` routes matching https links to the app as NSUserActivity, others to "Safari"; no AASA files, routing to other apps under `isim boot` not provided. Tested (HelloSafari) |
 
 ## Logging & diagnostics
 

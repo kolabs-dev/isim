@@ -13,7 +13,7 @@
 //     keys live in the device data (AppleAccount/Passkeys/<relying party>.json, unencrypted; not synced to iCloud
 //     Keychain), so a server that accepts "none" attestation can verify the whole flow.
 //   - Password requests offer the app's internet passwords from isim's keychain (kSecClassInternetPassword).
-// ASWebAuthenticationSession is not part of this module.
+// ASWebAuthenticationSession (web sign-in on isim's WKWebView) is in WebAuthenticationSession.swift.
 import Foundation
 import UIKit
 

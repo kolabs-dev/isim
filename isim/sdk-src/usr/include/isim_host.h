@@ -122,12 +122,15 @@ void isim_audio_free(float *_Nullable pcm);
    Errors are NSURLError codes (< 0). isim_http_start returns NULL when the host has no libcurl. */
 struct isim_http;
 struct isim_http *_Nullable isim_http_start(const char *method, const char *url, const char *_Nullable headers, const void *_Nullable body, long body_len,
-                                            double timeout, double resource_timeout, int flags);   /* flags: 1 = do not follow redirects */
+                                            double timeout, double resource_timeout, int flags);   /* flags: 1 = do not follow redirects, 2 = accept any certificate */
 int isim_http_response(struct isim_http *h, long *status, char *_Nullable *_Nonnull url, char *_Nullable *_Nonnull headers);
 long isim_http_read(struct isim_http *h, void *buf, long cap);
 const char *isim_http_error_message(struct isim_http *h);
 void isim_http_cancel(struct isim_http *h);
 void isim_http_close(struct isim_http *_Nullable h);
+/* after the body: timings in seconds (t[7]: total, lookup, connect, TLS, request sent, first byte, redirects; -1 unknown),
+   ints[4]: HTTP version, new connections (0 = reused), remote port, local port; remote and local IP */
+void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen);
 struct isim_ws;
 struct isim_ws *_Nullable isim_ws_open(const char *url, const char *_Nullable headers, double timeout, int *err);
 int isim_ws_send(struct isim_ws *w, int kind, const void *_Nullable data, long len);    /* kind: 1 text, 2 binary, 8 close, 9 ping */
@@ -188,4 +191,23 @@ int isim_gamepad_rumble(int id, double low, double high, double seconds);
 /* raster image from 32-bit premultiplied BGRA pixels (rows top-down), updated in place */
 int isim_image_create_bgra(int w, int h);
 void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
+/* web engine for WKWebView (host_web.c + the isim-webkit helper, WebKitGTK): line protocol, TAB-separated escaped fields.
+   available: 1 if the engine can run (reason for 0 in why); next: next event line or NULL (wait up to timeout s; free it);
+   frame: image handle of a view's newest page frame (pixels in *w x *h; acknowledges it); release: forget a closed view */
+int isim_web_available(char *_Nullable why, int cap);
+void isim_web_send(const char *line);
+char *_Nullable isim_web_next(double timeout);
+void isim_web_free(char *_Nullable s);
+int isim_web_frame(int view, int *_Nullable w, int *_Nullable h);
+void isim_web_release(int view);
+/* TLS client sessions on a connected socket (host_tls.c, the host's OpenSSL libssl) for NWConnection.
+   verify 1: CA store + host name; 0: any certificate. alpn: comma-separated or NULL; min_version: 0 or 0x0303/0x0304.
+   connect returns NULL with a message (and an OSStatus-style code) on failure; read returns 0 at close, < 0 on error */
+struct isim_tls;
+struct isim_tls *_Nullable isim_tls_connect(int fd, const char *_Nullable host, int verify, const char *_Nullable alpn, int min_version,
+                                            char *err, int errlen, int *_Nullable code);
+long isim_tls_read(struct isim_tls *t, void *buf, long n);
+long isim_tls_write(struct isim_tls *t, const void *buf, long n);
+void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen);
+void isim_tls_close(struct isim_tls *_Nullable t);
 __END_DECLS

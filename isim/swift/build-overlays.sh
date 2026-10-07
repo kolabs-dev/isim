@@ -5,6 +5,7 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 SDK=$(realpath ../out/sdk); OBJ=../out/swift/obj/overlays; mkdir -p "$OBJ"
 EVOLUTION="CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices QuartzCore CoreHaptics"   # app-facing re-implementations: stable ABI across isim updates
+EVOLUTION="$EVOLUTION WebKit SafariServices AuthenticationServices MessageUI MapKit MultipeerConnectivity"   # web & communication overlays
 PRIVACY="CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation"   # modules that also compile overlays/_Privacy (permission alerts, device data)
 ONLY=" $* "   # build-overlays.sh [Module...]: only these (default: all)
 build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays/<Module>/*.swift)
@@ -69,10 +70,15 @@ build EventKitUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftEventKi
 build Photos -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 build PhotosUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftPhotos -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 build Network -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
+build WebKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
+build SafariServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
 build AdSupport -lswiftObjectiveC -lswiftFoundation -framework Foundation
 build MetricKit -lswiftos -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 build CloudKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreLocation -lswift_Concurrency -framework Foundation -framework UIKit
-build AuthenticationServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCryptoKit -lswiftSecurity -lswiftDispatch -lswiftCoreGraphics -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
+build AuthenticationServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftSafariServices -lswiftSwiftUI -lswiftCryptoKit -lswiftSecurity -lswiftDispatch -lswiftCoreGraphics -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
+build MessageUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
+build MapKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreLocation -lswiftContacts -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
+build MultipeerConnectivity -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftNetwork -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
 
 # stand-ins for remote Swift packages that isim cannot fetch or run (isim build reads this)
 mkdir -p "$SDK/usr/share/isim"
