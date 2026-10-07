@@ -169,4 +169,35 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
+/* AVAudioSession events queued by the `audio` script command ("interrupt begin", "interrupt end resume", "route headphones") */
+int isim_audio_session_poll(char *buf, int len);
+/* stereo balance of a playing voice: -1 left .. 1 right */
+void isim_audio_set_pan(long voice, double pan);
+/* raster images from/to premultiplied BGRA pixels (rows packed, w*4 bytes) */
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int handle, const unsigned char *px, int w, int h);
+int isim_image_read_bgra(int handle, int x, int y, int w, int h, unsigned char *out);
+/* simulated camera (host_capture.c): ISIM_CAMERA=<image|video file> or webcam[:/dev/videoN]. source kind: 0 none,
+   1 image, 2 video, 3 webcam. frame copies the newest BGRA frame newer than seq (waiting up to timeout s) and returns
+   its sequence number, 0 if none; preview (UI thread) returns an image handle of the newest frame */
+int isim_camera_source(char *_Nullable desc, int len);
+int isim_camera_open(int max_side, double fps, int *w, int *h);
+long isim_camera_frame(int camera, unsigned char *_Nullable out, long seq, double timeout);
+int isim_camera_preview(int camera);
+void isim_camera_close(int camera);
+/* runs ffmpeg with args (no shell); progress in seconds of output; *cancel != 0 stops it. 0 ok, -1 no ffmpeg, -2 cancelled */
+int isim_ffmpeg_run(const char *_Nullable const *_Nonnull args, int nargs, double *_Nullable progress, volatile int *_Nullable cancel, char *_Nullable err, long errlen);
+/* decoded media streams: kind 0 video (BGRA w x h at rate fps), 1 audio (float32 interleaved at rate Hz, channels) */
+int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels);
+long isim_media_reader_read(int reader, void *buf, long n);
+void isim_media_reader_close(int reader);
+/* Vision backends: available kind 1 barcodes (libzbar), 2 text (tesseract), 3 faces (none). Results are malloc'd
+   text (free with isim_media_free), NULL when the backend is missing */
+int isim_vision_available(int kind);
+char *_Nullable isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
+char *_Nullable isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *_Nullable langs);
+char *_Nullable isim_vision_text_languages(void);
+/* speech recognition: 1 whisper.cpp (ISIM_WHISPER_MODEL), 2 vosk (ISIM_VOSK_MODEL), 0 none; transcribe takes 16 kHz mono */
+int isim_speech_available(void);
+char *_Nullable isim_speech_transcribe(const float *pcm, long frames, const char *_Nullable lang);
 __END_DECLS
