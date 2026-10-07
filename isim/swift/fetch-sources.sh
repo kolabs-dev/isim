@@ -8,7 +8,9 @@ if [ ! -d swift ]; then   # swift-6.2.4-RELEASE = ee343b46aef81c3ac7c5d7960cb35a
   git -C swift sparse-checkout set --no-cone /stdlib/ /include/swift/Runtime/ /include/swift/ABI/ /include/swift/Basic/ \
     /include/swift/Demangling/ /include/swift/Threading/ /include/swift/Concurrency/ /include/swift/shims/ /include/llvm/ /include/swift/RemoteInspection/ \
     /lib/Demangling/ /lib/Threading/ /cmake/modules/ /utils/gyb.py /utils/gyb_syntax_support/ /utils/swift_build_support/ \
-    /utils/SwiftIntTypes.py /utils/SwiftFloatingPointTypes.py /utils/gyb_stdlib_support.py /utils/availability-macros.def
+    /utils/SwiftIntTypes.py /utils/SwiftFloatingPointTypes.py /utils/gyb_stdlib_support.py /utils/availability-macros.def \
+    /include/swift/AST/LayoutConstraintKind.h /include/swift/AST/Ownership.h /include/swift/AST/ReferenceStorage.def \
+    /include/swift/AST/RequirementKind.h /include/swift/Strings.h
 fi
 if [ ! -d llvm-project ]; then   # llvmorg-22.1.8 = ca7933e47d3a3451d81e72ac174dcb5aa28b59d1 (Apache-2.0 with LLVM exception)
   git clone -q --depth 1 --branch llvmorg-22.1.8 --filter=blob:none --sparse https://github.com/llvm/llvm-project.git llvm-project
