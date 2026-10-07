@@ -39,7 +39,14 @@ static NSDictionary *asset_index(NSBundle *bundle) {
 + (instancetype)configurationWithScale:(UIImageSymbolScale)s { return [self configurationWithPointSize:0 weight:UIImageSymbolWeightUnspecified scale:s]; }
 + (instancetype)configurationWithWeight:(UIImageSymbolWeight)w { return [self configurationWithPointSize:0 weight:w scale:UIImageSymbolScaleUnspecified]; }
 + (instancetype)configurationWithTextStyle:(UIFontTextStyle)style { return [self configurationWithFont:[UIFont preferredFontForTextStyle:style]]; }
-+ (instancetype)configurationWithFont:(UIFont *)font { return [self configurationWithPointSize:font.pointSize]; }
+/* the font's weight carries over (Image(systemName:).fontWeight(.bold), .font(.system(size:weight:))) */
++ (instancetype)configurationWithFont:(UIFont *)font {
+    CGFloat fw = font._isim_weight;
+    UIImageSymbolWeight w = fw <= -0.7 ? UIImageSymbolWeightUltraLight : fw <= -0.5 ? UIImageSymbolWeightThin : fw <= -0.2 ? UIImageSymbolWeightLight
+        : fw < 0.1 ? UIImageSymbolWeightUnspecified : fw < 0.27 ? UIImageSymbolWeightMedium : fw < 0.35 ? UIImageSymbolWeightSemibold
+        : fw < 0.5 ? UIImageSymbolWeightBold : fw < 0.6 ? UIImageSymbolWeightHeavy : UIImageSymbolWeightBlack;
+    return [self configurationWithPointSize:font.pointSize weight:w];
+}
 - (instancetype)configurationByApplyingConfiguration:(UIImageSymbolConfiguration *)o {
     if (!o) return self;
     return [UIImageSymbolConfiguration configurationWithPointSize:o->_pointSize ?: _pointSize weight:o->_weight ?: _weight scale:o->_scale ?: _scale];
@@ -272,7 +279,8 @@ static CGFloat scale_from_name(NSString *path) {
                              r.origin.x, r.origin.y, r.size.width, r.size.height, nearest, NULL, 0, alpha);
         return;
     }
-    isim_image_draw(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, t, alpha);
+    if (_symbol) isim_image_draw_symbol(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, t, alpha, (int)_config._isim_weight);
+    else isim_image_draw(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, t, alpha);
 }
 /* nine slices: corners at their size, edges and center stretched or tiled (in points of the image) */
 - (BOOL)_isim_drawSlices:(CGRect)r alpha:(CGFloat)alpha nearest:(BOOL)nearest {

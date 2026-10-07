@@ -330,6 +330,22 @@ int main(int argc, char *argv[]) {
         if (![back isEqualToAttributedString:mas]) NSLog(@"archived %@ -> %@", mas, back);
         CHECK(asArchive.length > 0 && [back isEqualToAttributedString:mas]);
 
+        // NSError accessors over the userInfo keys, the default description and per-domain value providers
+        NSError *under = [NSError errorWithDomain:NSPOSIXErrorDomain code:2 userInfo:nil];
+        NSError *full = [NSError errorWithDomain:@"test.errors" code:12 userInfo:@{ NSLocalizedFailureReasonErrorKey: @"The disk is full.",
+            NSLocalizedRecoverySuggestionErrorKey: @"Free some space.", NSLocalizedRecoveryOptionsErrorKey: @[@"OK"],
+            NSHelpAnchorErrorKey: @"disk", NSUnderlyingErrorKey: under }];
+        CHECK([full.localizedDescription isEqualToString:@"The operation couldn’t be completed. The disk is full."]);
+        CHECK([full.localizedRecoverySuggestion isEqualToString:@"Free some space."] && [full.localizedRecoveryOptions isEqualToArray:@[@"OK"]]);
+        CHECK([full.helpAnchor isEqualToString:@"disk"] && full.underlyingErrors.count == 1 && full.underlyingErrors[0] == under);
+        CHECK([[NSError errorWithDomain:@"d" code:3 userInfo:nil].localizedDescription isEqualToString:@"The operation couldn’t be completed. (d error 3.)"]);
+        CHECK([[NSError errorWithDomain:@"d" code:3 userInfo:@{@"k": @1}] isEqual:[NSError errorWithDomain:@"d" code:3 userInfo:@{@"k": @1}]]);
+        [NSError setUserInfoValueProviderForDomain:@"test.provided" provider:^id(NSError *e, NSErrorUserInfoKey key) {
+            return [key isEqualToString:NSLocalizedDescriptionKey] ? [NSString stringWithFormat:@"provided %ld", (long)e.code] : nil;
+        }];
+        CHECK([[NSError errorWithDomain:@"test.provided" code:7 userInfo:nil].localizedDescription isEqualToString:@"provided 7"]);
+        CHECK([NSError userInfoValueProviderForDomain:@"test.provided"] != nil && [NSError userInfoValueProviderForDomain:@"other"] == nil);
+
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }
     return failures;
