@@ -1,6 +1,6 @@
 // isim Combine: an independent implementation of a Combine subset (Combine is closed source).
 // Publishers, subscribers with demand, subjects, common operators, @Published and ObservableObject.
-// Not Apple's Combine; see docs/compatibility-matrix.md for the supported API.
+// Not Apple's Combine; see docs/COVERAGE.md for the supported API.
 // Like Apple's, this module does not depend on Foundation; Foundation re-exports it and adds the
 // Foundation publishers and schedulers (Timer.publish, NotificationCenter.publisher, RunLoop, DispatchQueue).
 import Darwin

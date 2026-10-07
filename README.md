@@ -78,7 +78,8 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 - [System prompts, simulated hardware and logs](docs/SYSTEM-PROMPTS.md): environment variables for permissions, biometrics, location, network, logs
 - [iOS versions](docs/IOS-VERSIONS.md): `--os 17|18|26|27`, device pairing, `#available`, what changes per version (Liquid Glass)
 - [API coverage](docs/COVERAGE.md): what is implemented, per framework and per iOS version
-- [Core Data](docs/COREDATA.md) · [Game Center](docs/GAMECENTER.md)
+- [Core Data](docs/COREDATA.md) · [Game Center](docs/GAMECENTER.md): isim's model and configuration formats
+- [App Store distribution](docs/DISTRIBUTION.md): why upload from Linux is blocked
 
 ## Build from source
 
@@ -107,41 +108,24 @@ isim/release/package.sh 0.9.0
 
 ## Status
 
-Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs/COVERAGE.md](docs/COVERAGE.md) — after editing its rows, run `isim/tools/coverage-summary.py` to refresh the summary.
-
-Coverage per iOS version (rows introduced at or before that version; see [docs/COVERAGE.md](docs/COVERAGE.md)):
-
-| | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
-|---|---:|---:|---:|---:|
-| All areas | 80% (949 rows) | 79% (960) | 78% (977) | 78% (991) |
-
-✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
+API coverage is tracked per framework and per iOS version in [docs/COVERAGE.md](docs/COVERAGE.md) (about 80% of its
+rows). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 
 | Area | Status | Notes |
 |---|---|---|
-| Compile for iOS on Linux | ✅ | clang/lld produce iOS-simulator (x86_64) and device (arm64) Mach-O |
-| Build and test Xcode projects | ✅ | `isim build` (workspaces, schemes, frameworks, static libraries, packages, xcconfig) and `isim test` (XCTest, Swift Testing, XCUITest). Remote packages are never downloaded; arm64-only binary SDKs cannot run |
-| Run simulator binaries | ✅ | own Mach-O loader, libSystem subset, Objective-C runtime, Foundation |
-| UIKit | 🟡 | views, controls (sliders, steppers, segmented, menus…), Auto Layout, scroll views, text fields, keyboards, alerts, page sheets, view animations, blur, navigation and tab bar controllers, table and collection views (flow, compositional and list layouts, diffable data sources). Not yet: storyboards |
-| Swift | ✅ | full runtime, Swift Concurrency, Regex / RegexBuilder, Foundation bridging |
-| SwiftUI | 🟡 | isim's own implementation (SwiftUI is closed source): views, state, `@Observable`, `@AppStorage`, Form/List, NavigationStack, TabView, pickers, sheets/alerts, animations and transitions, materials. Not yet: Grid, gradients/paths, searchable |
-| Home screen | ✅ | apps run as separate processes; home gesture; background/resume (apps are suspended in the background unless background modes keep them running); icon badges; delete apps |
-| Settings app | 🟡 | General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, per-app pages |
-| Devices | 🟡 | 12 iPhones (SE to 17 Pro Max) and 4 iPads. rotation (Ctrl+Left/Right). Not yet: iPad multitasking |
-| Multiple iOS versions | 🟡 | `--os 17\|18\|26\|27`: reported version, `#available`, availability annotations and the look (iOS 26 Liquid Glass, iOS 18 Control Center and icon styles, Lock Screen); iOS 27 uses the iOS 26 look ([details](docs/IOS-VERSIONS.md)) |
-| Xcode-like project view | ⬜ | planned; the CLI covers it today |
-| Linux releases | ✅ | self-contained tarballs on GitHub Releases |
-| Device build (arm64 .app) | 🟡 | executables link; bundle and signature not done |
-| Signing + .ipa | ⬜ | candidates: rcodesign, zsign |
+| Build for iOS on Linux | ✅ | clang/lld and Swift 6.2 produce iOS-simulator (x86_64) and device (arm64) Mach-O; `isim build` / `isim test` handle Xcode projects, workspaces, packages and XCTest / Swift Testing / XCUITest |
+| Run simulator binaries | ✅ | own Mach-O loader, libSystem, Objective-C and Swift runtimes, Foundation; apps built with isim 0.2.0 or later keep running (ABI checked) |
+| UIKit · SwiftUI | 🟡 | broad coverage, including storyboards and SwiftUI navigation, presentation and effects; SwiftUI is isim's own implementation |
+| Device | ✅ | home screen (pages, folders, App Library, Spotlight, widgets), lock screen, Notification Center, Control Center, app switcher, Settings; 12 iPhones and 4 iPads; iOS 17, 18, 26 and 27 |
+| Linux releases | ✅ | `install.sh`, `isim update` |
+| Device build, signing, .ipa | 🟡 | arm64 executables link; bundling and signing not done |
 | Upload + TestFlight | ⛔ | see below |
-
-API coverage details are in [docs/compatibility-matrix.md](docs/compatibility-matrix.md).
 
 ## Rules and limits
 
 - **No Apple SDK or binaries.** isim ships a self-authored SDK, because the Xcode/SDK license restricts its use to Apple hardware.
 - **No faked metadata.** Builds never claim Xcode or Apple SDK versions. Binaries are never retargeted to macOS or Linux and reported as iOS compatibility.
-- **Upload is blocked.** The App Store requires builds made with a current Xcode/iOS SDK, which a Linux build cannot honestly claim. See [docs/distribution-research.md](docs/distribution-research.md).
+- **Upload is blocked.** The App Store requires builds made with a current Xcode/iOS SDK, which a Linux build cannot honestly claim. See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 - **Keys stay local.** Signing keys and API credentials stay on the machine, out of the repo.
 
 ## Repository layout
@@ -154,7 +138,7 @@ API coverage details are in [docs/compatibility-matrix.md](docs/compatibility-ma
 | `isim/tools` | `isim` CLI and Xcode project builder |
 | `isim/samples`, `isim/tests` | demo apps and test suites |
 | `isim/release` | release packaging |
-| `docs/` | research notes |
+| `docs/` | documentation |
 
 ## License
 

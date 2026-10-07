@@ -15,7 +15,9 @@ Last updated: 2026-10-07
 | 🧩 | Stub: the API exists so apps compile and run, but it does nothing real |
 | ❌ | Missing: not in isim yet (code using it does not compile, or aborts at run time) |
 
-"Unverified" in a note means the code exists but no isim test exercises that behaviour.
+"Unverified" in a note means the code exists but no isim test exercises that behaviour. Notes label behaviour as
+**passthrough** (the host's function with the same ABI), **adapted** (isim's translation of Apple's behaviour) or
+**stub**; `isim-runtime --print-exports <lib>` shows the label of every host-provided symbol.
 Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 The **iOS** column is the version that introduced the API (`≤17`: iOS 17 or earlier). The per-version summary counts a row
 toward iOS N when it was introduced at or before N, so newer versions add their rows (mostly still ❌).
@@ -37,7 +39,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 13 | 1 | 0 | 1 | 15 | 90% |
-| **SwiftUI** | 186 | 42 | 2 | 9 | 239 | 87% |
+| **SwiftUI** | 187 | 42 | 2 | 8 | 239 | 87% |
 | &nbsp;&nbsp;↳ App & scenes | 6 | 4 | 0 | 1 | 11 | 73% |
 | &nbsp;&nbsp;↳ State & data flow | 15 | 2 | 0 | 0 | 17 | 94% |
 | &nbsp;&nbsp;↳ Views & controls | 31 | 8 | 0 | 0 | 39 | 90% |
@@ -46,7 +48,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 31 | 4 | 0 | 1 | 36 | 92% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 3 | 24 | 81% |
 | &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 0 | 11 | 86% |
-| &nbsp;&nbsp;↳ Gestures | 6 | 1 | 0 | 1 | 8 | 81% |
+| &nbsp;&nbsp;↳ Gestures | 7 | 1 | 0 | 0 | 8 | 94% |
 | &nbsp;&nbsp;↳ Lifecycle, async & events | 6 | 2 | 0 | 0 | 8 | 88% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 1 | 1 | 0 | 4 | 62% |
 | &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
@@ -83,9 +85,9 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Location & maps | 2 | 5 | 0 | 0 | 7 | 64% |
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
-| Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
-| Platform & tooling | 31 | 15 | 1 | 4 | 51 | 75% |
-| **All areas** | **680** | **240** | **29** | **48** | **997** | **80%** |
+| Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
+| Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
+| **All areas** | **681** | **241** | **29** | **45** | **996** | **80%** |
 
 ### Per iOS version
 
@@ -94,7 +96,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 86% (206) | 86% (210) | 86% (217) | 84% (221) |
-| SwiftUI | 89% (216) | 88% (222) | 87% (229) | 87% (239) |
+| SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (81) | 84% (81) | 84% (81) | 84% (81) |
 | Swift runtime, stdlib & concurrency | 95% (39) | 95% (39) | 95% (39) | 95% (39) |
@@ -117,9 +119,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Location & maps | 64% (7) | 64% (7) | 64% (7) | 64% (7) |
 | Personal data & device sensors | 83% (6) | 83% (6) | 83% (6) | 83% (6) |
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
-| Logging & diagnostics | 61% (9) | 61% (9) | 61% (9) | 61% (9) |
-| Platform & tooling | 77% (49) | 76% (50) | 75% (51) | 75% (51) |
-| **All areas** | **81%** (954) | **81%** (966) | **81%** (983) | **80%** (997) |
+| Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
+| Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
+| **All areas** | **81%** (953) | **81%** (965) | **81%** (982) | **80%** (996) |
 
 ---
 
@@ -351,7 +353,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `withTintColor`, rendering modes (template/original) | ✅ | ≤17 | |
 | SF Symbols (`UIImage(systemName:)`) | 🟡 | ≤17 | stand-in drawings, not Apple's SF Symbols artwork (Apple licenses it for its own platforms only, so isim cannot ship or copy it): about 170 common names are isim's own procedural glyphs (`isim/runtime/host_symbols.inc`: heart, star, bell, envelope, person, arrows, chevrons, media controls, weather, ...) and about 220 more map to the host's Adwaita symbolic icons. Variants compose for any drawn glyph: `.fill` (solid shape), `.circle` / `.square` / `.triangle` / `.rectangle` (enclosure; with `.fill` the glyph is cut out), `.slash`. Shapes and proportions differ from iOS; names without a stand-in draw a dashed placeholder and are reported once on stderr; `UIImage(systemName:)` never returns nil. Tested (HelloSymbols: 170 names, none draws the placeholder, `.fill` differs from the outline) |
 | `UIImage.SymbolConfiguration` (point size, weight, scale, text style) | ✅ | ≤17 | weight thickens or thins the strokes of drawn glyphs (Adwaita icons keep their weight); `configurationWithFont:` takes the font's weight; tested (HelloSymbols) |
-| Symbol rendering modes (hierarchical, palette, multicolor), symbol effects | ❌ | ≤17 | |
+| Symbol rendering modes (hierarchical, palette, multicolor) | ❌ | ≤17 | isim's symbols are single-layer stand-ins (symbol effects: see below) |
 | `UIColor` (RGB/HSB/white, system & semantic colors, dynamic provider) | ✅ | ≤17 | Apple HIG light/dark values |
 | Named asset-catalog colors (light/dark) | ✅ | ≤17 | |
 | `UIFont` (system weights, italic, monospaced, monospaced digits, metrics) | 🟡 | ≤17 | Adwaita Sans substitutes SF Pro; `fontDescriptor` missing |
@@ -681,7 +683,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `simultaneousGesture`, `highPriorityGesture`, `simultaneously(with:)`, `sequenced(before:)`, `exclusively(before:)`, `map` | 🟡 | ≤17 | composition tested (HelloSwiftUIGestures: magnify+rotate together, long press before drag, double tap before single); `highPriorityGesture` and gesture masks behave like `.gesture` |
 | `MagnifyGesture`, `RotateGesture` (+ `MagnificationGesture`, `RotationGesture`) | ✅ | ≤17 | two fingers from isim's multi-touch (Option-drag, script `pinch`/`rotate2`); magnification/rotation, velocity, start anchor/location; tested (HelloSwiftUIGestures) |
 | `SpatialTapGesture` | ✅ | ≤17 | location in local/global space; tested (HelloSwiftUIGestures) |
-| `sequenced`, `exclusively`, `simultaneously(with:)`, `.updating` | ❌ | ≤17 | |
+| `sequenced`, `exclusively`, `simultaneously(with:)`, `.updating` | ✅ | ≤17 | built on UIKit recognizers; tested (HelloSwiftUIGestures) |
 
 ### Lifecycle, async & events
 
@@ -1421,7 +1423,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | `OSLogStore` (reading logs back) | 🧩 | ≤17 | throws |
 | `os_unfair_lock`, `OSAllocatedUnfairLock` | ✅ | ≤17 | futex-backed, with owner checks |
 | MetricKit (`MXMetricManager`, subscribers, `MXMetricPayload`/`MXDiagnosticPayload`, metrics, diagnostics, `jsonRepresentation`) | 🟡 | ≤17 | like the Simulator, nothing is measured and nothing arrives by itself; the `metrickit` script/control command or `isim metrickit` (Xcode's Debug > Simulate MetricKit Payloads) delivers one fixed sample metric payload and one diagnostic payload (crash, hang, CPU, disk-write, launch) to running apps' subscribers within 0.5 s. `pastPayloads` empty; display metrics nil. Tested: HelloCloudKit |
-| Crash reporting (crash logs, `NSSetUncaughtExceptionHandler` reports) | ❌ | ≤17 | |
+| Crash reporting (crash logs, `NSSetUncaughtExceptionHandler` reports) | 🟡 | ≤17 | uncaught exceptions print the iOS report ("*** Terminating app due to uncaught exception …", first throw call stack) and abort; `NSSetUncaughtExceptionHandler` runs first; tested (objc-runtime). No crash log files |
 | `assert`, `precondition`, `fatalError` messages | ✅ | ≤17 | |
 
 ---
@@ -1458,7 +1460,6 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Scripted automation (`--script`/`--control`: tap, type, screenshot, dump) | ✅ | ≤17 | |
 | Device presets: iPhone SE, 13 mini, 14, 15, 15 Plus, 15 Pro Max, 16 Pro, 16 Pro Max, 17, Air, 17 Pro, 17 Pro Max | ✅ | ≤17 | safe areas, Dynamic Island, rounded corners |
 | iPad presets: mini, Air 11", Pro 11", Pro 13" | 🟡 | ≤17 | run iPhone-style; no multitasking or pointer |
-| Rotation / landscape | ❌ | ≤17 | |
 | Multiple iOS versions (`--os`: reported version and look) | 🟡 | ≤17 | iOS 17, 18, 26, 27: version, availability and the look follow `--os` (see the rows above); iOS 27-specific visuals not done |
 | Home screen: launch, background/resume, home gesture (swipe up / Ctrl+Shift+H), delete apps | ✅ | ≤17 | apps run as separate processes |
 | Home screen: folders, App Library, widgets, rearranging icons, Spotlight | ✅ | ≤17 | edit mode: drag to rearrange, drop on an icon to make a folder (named from `LSApplicationCategoryType`); folders open; App Library page (categories, search); widgets in grid cells on any page (gallery); Spotlight (pull down on any page, Search button, script `spotlight`). Tested (homescreen, widgets, homepages). No folder renaming, dragging out of folders, jiggle animation |

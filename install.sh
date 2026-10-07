@@ -4,12 +4,12 @@
 #   curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/install.sh | bash
 #   curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/install.sh | bash -s -- 0.5.0   # a given version
 #
-# Releases are unpacked to $ISIM_HOME/<version> (default ~/.local/lib/isim), $ISIM_HOME/current points at the active
+# Releases are unpacked to $ISIM_INSTALL_DIR/<version> (default ~/.local/lib/isim), $ISIM_INSTALL_DIR/current points at the active
 # one and the `isim` command is linked into $ISIM_BIN_DIR (default ~/.local/bin). Device data (~/.local/share/isim)
 # is shared by all versions. `isim update`, `isim versions` and `isim use VERSION` manage installed versions later.
 set -euo pipefail
 REPO=${ISIM_REPO:-kolabs-dev/isim}
-ISIM_HOME=${ISIM_HOME:-$HOME/.local/lib/isim}
+ISIM_INSTALL_DIR=${ISIM_INSTALL_DIR:-$HOME/.local/lib/isim}
 BIN_DIR=${ISIM_BIN_DIR:-$HOME/.local/bin}
 want=${1:-latest}; want=${want#v}
 
@@ -24,7 +24,7 @@ if [ "$want" = latest ]; then
   [ -n "$want" ] || die "could not find the latest release of $REPO"
 fi
 name=isim-$want-linux-x86_64
-dest=$ISIM_HOME/$want
+dest=$ISIM_INSTALL_DIR/$want
 
 if [ -x "$dest/bin/isim" ]; then
   say "isim $want is already installed in $dest"
@@ -38,15 +38,15 @@ else
   else
     say "warning: no checksum published for $want; not verified"
   fi
-  mkdir -p "$ISIM_HOME"
+  mkdir -p "$ISIM_INSTALL_DIR"
   tar -xzf "$tmp/$name.tar.gz" -C "$tmp"
   rm -rf "$dest.partial"; mv "$tmp/$name" "$dest.partial"; mv "$dest.partial" "$dest"
 fi
 
-ln -sfn "$want" "$ISIM_HOME/current"
+ln -sfn "$want" "$ISIM_INSTALL_DIR/current"
 mkdir -p "$BIN_DIR"
-ln -sfn "$ISIM_HOME/current/bin/isim" "$BIN_DIR/isim"
-say "isim $want is active: $BIN_DIR/isim -> $ISIM_HOME/current/bin/isim"
+ln -sfn "$ISIM_INSTALL_DIR/current/bin/isim" "$BIN_DIR/isim"
+say "isim $want is active: $BIN_DIR/isim -> $ISIM_INSTALL_DIR/current/bin/isim"
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
   *) say "add $BIN_DIR to your PATH, e.g.: echo 'export PATH=\"$BIN_DIR:\$PATH\"' >> ~/.bashrc" ;;

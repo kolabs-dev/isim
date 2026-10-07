@@ -1,6 +1,6 @@
 # iOS versions (`--os`)
 
-isim emulates the API level and the look of **iOS 17, 18, 26 and 27**. The default is **iOS 18** (18.0), as before.
+isim emulates the API level and the look of **iOS 17, 18, 26 and 27**. The default is **iOS 18** (18.0).
 isim is not Apple's iOS: the version is what isim reports and how it behaves, and builds never claim an Apple SDK
 or Xcode version.
 

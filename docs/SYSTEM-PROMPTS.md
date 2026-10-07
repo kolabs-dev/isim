@@ -58,7 +58,41 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_MAIL=1`, `ISIM_MESSAGES=1` | make `MFMailComposeViewController` / `MFMessageComposeViewController` available; sent items are saved under `$ISIM_DATA/Library` |
 | `ISIM_ICLOUD=noAccount` | no iCloud account (also `restricted`, `temporarilyUnavailable`): CloudKit fails with `notAuthenticated`, `url(forUbiquityContainerIdentifier:)` and `ubiquityIdentityToken` are nil, `NSUbiquitousKeyValueStore` keeps nothing |
 | `ISIM_LANGUAGES=ru,en` | preferred languages for one run (overrides Settings > Language & Region): localized strings and plural rules |
+| `ISIM_GEOCODER=offline` | every `CLGeocoder` request fails with `CLError.network` (default: an offline gazetteer answers) |
 | `ISIM_MAP_TILES=DIR` | draw maps from a local `{z}/{x}/{y}.png` tile cache (nothing is ever downloaded) |
+
+## Appearance, accessibility and region
+
+These override the Settings app for one run (the device's settings stay as they are).
+
+| Variable | Effect |
+|---|---|
+| `ISIM_APPEARANCE=dark` | Dark Mode (`--dark` sets it) |
+| `ISIM_CONTENT_SIZE=UICTContentSizeCategoryXL` | Dynamic Type size (any `UIContentSizeCategory` value) |
+| `ISIM_BOLD_TEXT=1`, `ISIM_INCREASE_CONTRAST=1`, `ISIM_REDUCE_MOTION=1`, `ISIM_REDUCE_TRANSPARENCY=1` | the accessibility display settings |
+| `ISIM_LOCALE=pt_BR` | region (default: from the first preferred language) |
+| `ISIM_HOUR_CYCLE=12\|24` | 12- or 24-hour time (default: the locale's) |
+| `ISIM_KEEP_TZ=1` | keep the process's `TZ` instead of applying Settings > Date & Time |
+| `ISIM_KEYBOARDS=all\|none` | enable all, or none, of the installed keyboard extensions |
+
+## Window, screenshots and sound
+
+| Variable | Effect |
+|---|---|
+| `ISIM_ZOOM=0.8` | window zoom (`--zoom`) |
+| `ISIM_SHOT_SCALE=1` | pixel scale of headless screenshots (default 2) |
+| `ISIM_MUTE=1` | no sound (headless runs are silent unless `ISIM_AUDIO=1`) |
+
+## Toolchain and debugging
+
+| Variable | Effect |
+|---|---|
+| `ISIM_MIN_IOS=17.0` | deployment target used by `isim cc` / `isim swiftc` |
+| `ISIM_TEST_TIMEOUT=S` | `isim test`: time limit per test bundle (default 900) |
+| `ISIM_INSTALL_DIR=DIR` | where `install.sh` / `isim update` keep releases (default `~/.local/lib/isim`) |
+| `ISIM_OBJC_EXCEPTION_LOG=1` | log every Objective-C exception when it is thrown |
+| `ISIM_NO_CRASH_HANDLER=1` | no crash report / backtrace on a guest crash (for debuggers) |
+| `ISIM_WEBKIT_DEBUG=1`, `ISIM_XCUI_DEBUG=1` | WebKit helper output; XCUITest accessibility snapshots |
 
 ## Logs
 
