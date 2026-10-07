@@ -937,6 +937,7 @@ static void render_frame(void) {
     isim_ui_keyboard_check();
     { extern void isim_ui_accessibility_frame_tick(void); isim_ui_accessibility_frame_tick(); }
     isim_ui_display_links_fire();
+    isim_ui_update_links_fire();                      /* UIUpdateLink (UIUpdates.m) */
     isim_ui_animations_tick();
     UIWindow *key = top_window();
     UIViewController *vc = key.rootViewController;
@@ -1515,7 +1516,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
             if (tm.tm_min != lastMinute) { lastMinute = tm.tm_min; isim_ui_set_needs_display(); }
             if (isim_ui_take_display() && !backgrounded) { layout_all(); render_frame(); }
             double timeout = next < 0.5 ? next : 0.5;
-            if ((isim_ui_animations_running() || isim_ui_display_links_active()) && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
+            if ((isim_ui_animations_running() || isim_ui_display_links_active() || isim_ui_update_links_active()) && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
             { extern double isim_main_next_due(void); double due = isim_main_next_due(); if (due < timeout) timeout = due; }   /* blocks queued while rendering run right away */
             struct isim_event ev;
             for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {

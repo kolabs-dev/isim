@@ -55,8 +55,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIView *contentView;
 @property (nonatomic, copy, nullable) UIVisualEffect *effect;
 @end
-/* iOS 26: content that extends under sidebars and inspectors. isim has no such chrome: the content view fills the
-   view (stub geometry, the content is shown unchanged). */
+/* iOS 26: content that extends under sidebars. isim (adapted): the content view fills the view and reaches under a
+   UITabBarController sidebar that sits beside it (iPad, tabSidebar mode), so the content shows under the glass sidebar
+   instead of stopping at its edge (no mirroring / blur of the extended part). */
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0))
 @interface UIBackgroundExtensionView : UIView
 @property (nonatomic, strong, nullable) UIView *contentView;

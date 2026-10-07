@@ -45,7 +45,11 @@ NSString *isim_ui_trait_key(id trait);      /* trait class or Swift identifier -
 @interface UITraitCollection (IsimTraits)
 - (NSUInteger)_isim_traitCount;
 @end
-UIColor *isim_ui_accent_color(void);                   /* the asset catalog's accent color, or nil */
+UIColor *isim_ui_accent_color(void);
+/* the update cycle (UIUpdates.m) */
+void isim_ui_tracked(id owner, SEL sel, void (^body)(void), void (^onChange)(void));   /* observation tracking when enabled */
+void isim_ui_update_links_fire(void);
+BOOL isim_ui_update_links_active(void);                   /* the asset catalog's accent color, or nil */
 @interface UIWindowScene (IsimTraits)
 - (UITraitCollection *)_isim_traitsForWindowSize:(CGSize)size;
 @end

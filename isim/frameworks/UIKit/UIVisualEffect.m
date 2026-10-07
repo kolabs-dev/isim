@@ -1,6 +1,7 @@
 /* UIVisualEffectView: iOS materials as a real backdrop blur (host isim_gfx_backdrop_blur) under the
  * style's tint, resolved for the current light/dark appearance. Vibrancy draws content unchanged. */
 #import "UIKitPrivate.h"
+#include <objc/message.h>
 
 @implementation UIVisualEffect
 - (id)copyWithZone:(NSZone *)z { return self; }
@@ -28,10 +29,30 @@ void isim_ui_draw_glass(CGRect r, CGFloat radius, UIColor *tint, int flags) {
 @implementation UIGlassContainerEffect
 - (id)copyWithZone:(NSZone *)z { UIGlassContainerEffect *e = [UIGlassContainerEffect new]; e.spacing = _spacing; return e; }
 @end
+@interface UIViewController (IsimSidebarFrame)
+- (CGRect)_isim_sidebarFrameInWindow;        /* UITabBarController (UINavigation.m) */
+@end
 @implementation UIBackgroundExtensionView
 - (instancetype)initWithFrame:(CGRect)f { if ((self = [super initWithFrame:f])) _automaticallyPlacesContentView = YES; return self; }
 - (void)setContentView:(UIView *)v { [_contentView removeFromSuperview]; _contentView = v; if (v) [self addSubview:v]; [self setNeedsLayout]; }
-- (void)layoutSubviews { [super layoutSubviews]; if (_automaticallyPlacesContentView) _contentView.frame = self.bounds; }
+/* the content view fills the view, and reaches under a tab bar controller's sidebar beside it (UINavigation.m) */
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    if (!_automaticallyPlacesContentView) return;
+    CGRect b = self.bounds, mine = self.window ? [self convertRect:b toView:nil] : CGRectNull;
+    CGFloat extend = 0;
+    for (UIView *v = self.superview; v && !CGRectIsNull(mine); v = v.superview) {
+        UIViewController *vc = [v _isim_viewController];
+        if (![vc isKindOfClass:[UITabBarController class]] || ![vc respondsToSelector:@selector(_isim_sidebarFrameInWindow)]) continue;
+        CGRect side = [(id)vc _isim_sidebarFrameInWindow];
+        /* the sidebar ends at (or just before, floating) the view's leading edge: reach to the screen edge under it */
+        if (!CGRectIsNull(side) && CGRectGetMinX(mine) > 0 && CGRectGetMaxX(side) <= CGRectGetMinX(mine) + 1 && CGRectGetMaxX(side) >= CGRectGetMinX(mine) - 24) extend = CGRectGetMinX(mine);
+        break;
+    }
+    _contentView.frame = CGRectMake(b.origin.x - extend, b.origin.y, b.size.width + extend, b.size.height);
+    self.clipsToBounds = NO;
+}
+- (CGFloat)_isim_extension { return -_contentView.frame.origin.x; }
 @end
 
 @implementation UIVibrancyEffect { UIBlurEffect *_blur; UIVibrancyEffectStyle _vstyle; }

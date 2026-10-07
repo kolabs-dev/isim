@@ -61,6 +61,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloInputs.app/HelloInputs ] && run "ui: HelloInputs (UITextView, pickers, search, refresh, color well, appearance)" tests/ui/inputs.sh
   [ -x out/apps/HelloAppearance.app/HelloAppearance ] && run "ui: HelloAppearance (traits, custom traits, trait overrides, dynamic colors/images, appearance proxies, live dark mode)" tests/ui/appearance.sh
   [ -x out/apps/HelloWindows.app/HelloWindows ] && run "ui: HelloWindows (iPad multiple scenes: split view, activation/destruction requests, session restoration, UIDevice)" tests/ui/windows.sh
+  [ -x out/apps/HelloTabs.app/HelloTabs ] && run "ui: HelloTabs (iOS 17/18/26: UITab, iPad sidebar, UIUpdateLink, bar badges, scroll edge effects, observation tracking)" tests/ui/tabs.sh
   [ -x out/apps/HelloCoreAnimation.app/HelloCoreAnimation ] && run "ui: HelloCoreAnimation (CA layers/animations, 3D, masks, Dynamics, CoreHaptics)" tests/ui/coreanimation.sh
   [ -x out/apps/HelloAnimations.app/HelloAnimations ] && run "ui: HelloAnimations (property animator, keyframes, transitions)" tests/ui/animations.sh
   [ -x out/apps/HelloTransitions.app/HelloTransitions ] && run "ui: HelloTransitions (presentations, sheets, popovers, custom transitions, containers)" tests/ui/transitions.sh
@@ -153,7 +154,7 @@ fi
 if [ "${OS_MATRIX:-0}" = 1 ]; then
   for v in ${OS_MATRIX_VERSIONS:-17 18 26 27}; do
     case $v in 17) dev=iphone15 ;; 18) dev=iphone16pro ;; *) dev=iphone17 ;; esac
-    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation objc-literals hellocounter swiftui controls symbols boot"
+    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation objc-literals hellocounter swiftui controls symbols boot appearance"
     # suites that assert the 402-pt iPhone 16 Pro/17 screen (frames, tap points) or iPads first sold with 17.5: no
     # iPhone that runs iOS 17.0 has that screen, so they run on 18, 26 and 27
     [ "$v" = 17 ] || suites="$suites forms navigation presentations transitions table"

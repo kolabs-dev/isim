@@ -1,0 +1,175 @@
+/* The UI update cycle additions (ARC): UIUpdateLink (iOS 18) and automatic observation tracking (iOS 26; iOS 18 with
+ * Info.plist UIObservationTrackingEnabled).
+ *
+ * UIUpdateLink: per-frame callbacks for a view (while it is in a visible window) or a window scene, run with the
+ * display links before each frame is drawn; requiresContinuousUpdates keeps frames coming, otherwise a link runs on
+ * the frames that are drawn anyway (adapted: one action phase per frame, the phases are run in their order).
+ *
+ * Observation tracking: UIKit runs layoutSubviews, updateProperties, viewWillLayoutSubviews / viewDidLayoutSubviews
+ * and view controllers' updateProperties inside Observation's withObservationTracking when the class overrides them
+ * (the UIKit overlay exports the tracking function, isim_uikit_observation_track; Objective-C-only apps have no
+ * @Observable objects). A change to an @Observable property read there invalidates the view: setNeedsLayout /
+ * setNeedsUpdateProperties, like iOS 26. */
+#import "UIKitPrivate.h"
+#include <dlfcn.h>
+#include <objc/runtime.h>
+#include <string.h>
+
+/* ================= observation tracking ================= */
+typedef void (*isim_obs_track_fn)(void (^body)(void), void (^onChange)(void));
+static isim_obs_track_fn obs_track(void) {
+    static isim_obs_track_fn f; static BOOL looked;
+    if (!looked) { looked = YES; f = (isim_obs_track_fn)dlsym(RTLD_DEFAULT, "isim_uikit_observation_track"); }
+    return f;
+}
+BOOL isim_ui_observation_tracking_enabled(void) {
+    static int on = -1;
+    if (on < 0) {
+        int os = isim_ui_os_major();
+        id key = NSBundle.mainBundle.infoDictionary[@"UIObservationTrackingEnabled"];
+        on = (os >= 26 || (os >= 18 && [key respondsToSelector:@selector(boolValue)] && [key boolValue])) && obs_track() != NULL;
+        if (on) NSLog(@"isim: automatic observation tracking on (iOS %d)", os);
+    }
+    return on;
+}
+/* only methods the app's classes override are tracked (UIKit's own code reads no @Observable state) */
+static BOOL overridden_by_app(id obj, SEL sel) {
+    static NSMapTable *cache;
+    if (!cache) cache = [NSMapTable strongToStrongObjectsMapTable];
+    Class c = object_getClass(obj);
+    NSString *key = [NSString stringWithFormat:@"%p:%s", (__bridge void *)c, sel_getName(sel)];
+    NSNumber *v = [cache objectForKey:key];
+    if (!v) {
+        IMP imp = class_getMethodImplementation(c, sel);
+        Dl_info info; BOOL app = YES;
+        if (imp && dladdr((void *)imp, &info) && info.dli_fname && strstr(info.dli_fname, "UIKit.framework")) app = NO;
+        v = @(app); [cache setObject:v forKey:key];
+    }
+    return v.boolValue;
+}
+/* runs body, tracked when enabled; onChange runs on the main queue after a tracked property changed */
+void isim_ui_tracked(id owner, SEL sel, void (^body)(void), void (^onChange)(void)) {
+    if (!isim_ui_observation_tracking_enabled() || !overridden_by_app(owner, sel)) { body(); return; }
+    obs_track()(body, ^{ dispatch_async(dispatch_get_main_queue(), onChange); });
+}
+
+/* ================= updateProperties (iOS 26) ================= */
+static char k_needs_props;
+static BOOL needs_props(id o) { NSNumber *n = objc_getAssociatedObject(o, &k_needs_props); return n ? n.boolValue : YES; }   /* first time: yes */
+static void set_needs_props(id o, BOOL v) { objc_setAssociatedObject(o, &k_needs_props, @(v), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+@implementation UIView (UIUpdateProperties)
+- (void)updateProperties {}
+- (void)setNeedsUpdateProperties { set_needs_props(self, YES); [self setNeedsLayout]; isim_ui_set_needs_layout(); }
+- (void)updatePropertiesIfNeeded {
+    if (isim_ui_os_major() < 26 || !needs_props(self)) return;
+    set_needs_props(self, NO);
+    __weak UIView *w = self;
+    isim_ui_tracked(self, @selector(updateProperties), ^{ [w updateProperties]; }, ^{ [w setNeedsUpdateProperties]; });
+}
+@end
+@implementation UIViewController (UIUpdateProperties)
+- (void)updateProperties {}
+- (void)setNeedsUpdateProperties { set_needs_props(self, YES); [self.viewIfLoaded setNeedsLayout]; isim_ui_set_needs_layout(); }
+- (void)updatePropertiesIfNeeded {
+    if (isim_ui_os_major() < 26 || !needs_props(self)) return;
+    set_needs_props(self, NO);
+    __weak UIViewController *w = self;
+    isim_ui_tracked(self, @selector(updateProperties), ^{ [w updateProperties]; }, ^{ [w setNeedsUpdateProperties]; });
+}
+@end
+
+/* ================= UIUpdateLink (iOS 18) ================= */
+@implementation UIUpdateActionPhase { NSInteger _order; NSString *_name; }
+static UIUpdateActionPhase *phase(NSInteger order, NSString *name) {
+    static NSMutableDictionary *phases;
+    if (!phases) phases = [NSMutableDictionary dictionary];
+    UIUpdateActionPhase *p = phases[@(order)];
+    if (!p) { p = [UIUpdateActionPhase new]; p->_order = order; p->_name = name; phases[@(order)] = p; }
+    return p;
+}
++ (UIUpdateActionPhase *)eventDispatch { return phase(0, @"eventDispatch"); }
++ (UIUpdateActionPhase *)afterEventDispatch { return phase(1, @"afterEventDispatch"); }
++ (UIUpdateActionPhase *)beforeCADisplayLinkDispatch { return phase(2, @"beforeCADisplayLinkDispatch"); }
++ (UIUpdateActionPhase *)afterCADisplayLinkDispatch { return phase(3, @"afterCADisplayLinkDispatch"); }
++ (UIUpdateActionPhase *)beforeCATransactionCommit { return phase(4, @"beforeCATransactionCommit"); }
++ (UIUpdateActionPhase *)afterCATransactionCommit { return phase(5, @"afterCATransactionCommit"); }
+- (NSInteger)_isim_order { return _order; }
+- (NSString *)description { return [NSString stringWithFormat:@"<UIUpdateActionPhase %@>", _name]; }
+@end
+@interface UIUpdateInfo ()
+@property (nonatomic, readwrite) CFTimeInterval modelTime, completionDeadlineTime;
+@end
+@implementation UIUpdateInfo
+- (CFTimeInterval)estimatedPresentationTime { return self.completionDeadlineTime; }
+- (BOOL)isImmediatePresentationExpected { return NO; }
+- (BOOL)isLowLatencyEventDispatchConfirmed { return NO; }
+- (BOOL)isPerformingLowLatencyPhases { return NO; }
+@end
+@interface __IsimUpdateAction : NSObject
+@property (nonatomic, strong) UIUpdateActionPhase *phase;
+@property (nonatomic, copy) void (^handler)(UIUpdateLink *, UIUpdateInfo *);
+@property (nonatomic, weak) id target;
+@property (nonatomic) SEL selector;
+@end
+@implementation __IsimUpdateAction @end
+static NSHashTable<UIUpdateLink *> *update_links;
+@interface UIUpdateLink ()
+@property (nonatomic, readwrite, strong) UIUpdateInfo *currentUpdateInfo;
+@end
+@implementation UIUpdateLink { __weak UIView *_view; __weak UIWindowScene *_scene; BOOL _forScene; NSMutableArray<__IsimUpdateAction *> *_actions; }
++ (instancetype)updateLinkForWindowScene:(UIWindowScene *)scene { UIUpdateLink *l = [self new]; l->_scene = scene; l->_forScene = YES; return l; }
++ (instancetype)updateLinkForView:(UIView *)view { UIUpdateLink *l = [self new]; l->_view = view; return l; }
++ (instancetype)updateLinkForWindowScene:(UIWindowScene *)scene actionTarget:(id)target selector:(SEL)sel { UIUpdateLink *l = [self updateLinkForWindowScene:scene]; [l addActionWithTarget:target selector:sel]; return l; }
++ (instancetype)updateLinkForView:(UIView *)view actionTarget:(id)target selector:(SEL)sel { UIUpdateLink *l = [self updateLinkForView:view]; [l addActionWithTarget:target selector:sel]; return l; }
+- (instancetype)init {
+    if ((self = [super init])) {
+        _actions = [NSMutableArray array]; _preferredFrameRateRange = (CAFrameRateRange){ 0, 0, 0 };
+        if (!update_links) update_links = [NSHashTable weakObjectsHashTable];
+        [update_links addObject:self];
+    }
+    return self;
+}
+- (void)_add:(UIUpdateActionPhase *)p handler:(void (^)(UIUpdateLink *, UIUpdateInfo *))h target:(id)t selector:(SEL)s {
+    __IsimUpdateAction *a = [__IsimUpdateAction new]; a.phase = p ?: UIUpdateActionPhase.beforeCADisplayLinkDispatch; a.handler = h; a.target = t; a.selector = s;
+    [_actions addObject:a];
+    [_actions sortUsingComparator:^NSComparisonResult(__IsimUpdateAction *x, __IsimUpdateAction *y) { return [@([x.phase _isim_order]) compare:@([y.phase _isim_order])]; }];
+}
+- (void)addActionToPhase:(UIUpdateActionPhase *)p handler:(void (^)(UIUpdateLink *, UIUpdateInfo *))h { [self _add:p handler:h target:nil selector:NULL]; }
+- (void)addActionToPhase:(UIUpdateActionPhase *)p target:(id)t selector:(SEL)s { [self _add:p handler:nil target:t selector:s]; }
+- (void)addActionWithHandler:(void (^)(UIUpdateLink *, UIUpdateInfo *))h { [self _add:nil handler:h target:nil selector:NULL]; }
+- (void)addActionWithTarget:(id)t selector:(SEL)s { [self _add:nil handler:nil target:t selector:s]; }
+- (void)setEnabled:(BOOL)e { _enabled = e; if (e) isim_ui_set_needs_display(); }
+- (void)setRequiresContinuousUpdates:(BOOL)r { _requiresContinuousUpdates = r; if (r && _enabled) isim_ui_set_needs_display(); }
+/* a view's link runs while the view is in a visible window; a scene's while the scene is on screen */
+- (BOOL)_isim_live {
+    if (!_enabled) return NO;
+    if (_forScene) { UIWindowScene *s = _scene; return s && s.activationState != UISceneActivationStateBackground; }
+    UIView *v = _view; if (!v.window || v.window.hidden) return NO;
+    for (UIView *x = v; x; x = x.superview) if (x.hidden || x.alpha <= 0.01) return NO;
+    return YES;
+}
+- (void)_isim_fire:(CFTimeInterval)now {
+    UIUpdateInfo *info = [UIUpdateInfo new]; info.modelTime = now; info.completionDeadlineTime = now + 1.0 / 60;
+    self.currentUpdateInfo = info;
+    for (__IsimUpdateAction *a in [_actions copy]) {
+        if (a.handler) a.handler(self, info);
+        else if (a.target && a.selector) {
+            id t = a.target; NSUInteger n = [NSStringFromSelector(a.selector) componentsSeparatedByString:@":"].count - 1;
+            if (n == 0) ((void (*)(id, SEL))[t methodForSelector:a.selector])(t, a.selector);
+            else if (n == 1) ((void (*)(id, SEL, id))[t methodForSelector:a.selector])(t, a.selector, self);
+            else ((void (*)(id, SEL, id, id))[t methodForSelector:a.selector])(t, a.selector, self, info);
+        }
+    }
+    self.currentUpdateInfo = nil;
+}
+@end
+/* every frame (UIApplication.m render_frame) */
+void isim_ui_update_links_fire(void) {
+    if (!update_links.count) return;
+    CFTimeInterval now = isim_time();
+    for (UIUpdateLink *l in update_links.allObjects) if ([l _isim_live]) [l _isim_fire:now];
+}
+BOOL isim_ui_update_links_active(void) {
+    for (UIUpdateLink *l in update_links.allObjects) if (l.requiresContinuousUpdates && [l _isim_live]) return YES;
+    return NO;
+}

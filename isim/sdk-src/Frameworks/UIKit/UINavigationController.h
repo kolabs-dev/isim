@@ -212,11 +212,59 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL hidesBarsOnSwipe;
 @end
 
-@class UITabBarController;
+@class UITabBarController, UITabGroup;
+/* ---- iOS 18 tabs: UITab, UISearchTab, UITabGroup ---- */
+typedef NS_ENUM(NSInteger, UITabPlacement) { UITabPlacementAutomatic = 0, UITabPlacementDefault = 1, UITabPlacementOptional = 2,
+    UITabPlacementMovable = 3, UITabPlacementPinned = 4, UITabPlacementFixed = 5, UITabPlacementSidebarOnly = 6 } NS_SWIFT_NAME(UITab.Placement) API_AVAILABLE(ios(18.0));
+/* isim (adapted): a tab's provider makes its view controller when the tabs are set; a group in the tab bar shows
+   its own controller, else its selected (or first) child inside its managing navigation controller */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
+@interface UITab : NSObject
+- (instancetype)initWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(NSString *)identifier
+       viewControllerProvider:(nullable UIViewController * (^)(__kindof UITab *tab))viewControllerProvider NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+@property (nonatomic, readonly, copy) NSString *identifier;
+@property (nonatomic, copy) NSString *title;
+@property (nullable, nonatomic, copy) UIImage *image;
+@property (nullable, nonatomic, copy) NSString *subtitle;
+@property (nullable, nonatomic, copy) NSString *badgeValue;
+@property (nonatomic) UITabPlacement preferredPlacement;
+@property (nullable, nonatomic, strong) id userInfo;
+@property (nonatomic, getter=isHidden) BOOL hidden;
+@property (nonatomic) BOOL allowsHiding;
+@property (nullable, nonatomic, readonly, weak) UITabGroup *parent;
+@property (nullable, nonatomic, readonly, weak) UITabGroup *managingTabGroup;
+@property (nullable, nonatomic, readonly, weak) UITabBarController *tabBarController;
+@property (nullable, nonatomic, readonly) UIViewController *viewController;
+@end
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
+@interface UISearchTab : UITab
+- (instancetype)initWithViewControllerProvider:(nullable UIViewController * (^)(__kindof UITab *tab))viewControllerProvider;
+@end
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
+@interface UITabGroup : UITab
+- (instancetype)initWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(NSString *)identifier children:(NSArray<UITab *> *)children
+       viewControllerProvider:(nullable UIViewController * (^)(__kindof UITab *tab))viewControllerProvider;
+@property (nonatomic, copy) NSArray<UITab *> *children;
+@property (nullable, nonatomic, strong) UITab *selectedChild;
+@property (nonatomic) BOOL allowsReordering;
+@property (nonatomic, copy) NSArray<NSString *> *displayOrderIdentifiers;
+@property (nullable, nonatomic, readonly, strong) UINavigationController *managingNavigationController;
+- (nullable UITab *)tabForIdentifier:(NSString *)identifier;
+@end
+typedef NS_ENUM(NSInteger, UITabBarControllerMode) { UITabBarControllerModeAutomatic = 0, UITabBarControllerModeTabBar = 1,
+    UITabBarControllerModeTabSidebar = 2 } NS_SWIFT_NAME(UITabBarController.Mode) API_AVAILABLE(ios(18.0));
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_SWIFT_NAME(UITabBarController.Sidebar)
+@interface UITabBarControllerSidebar : NSObject
+@property (nonatomic, getter=isHidden) BOOL hidden;
+@end
+
 @protocol UITabBarControllerDelegate <NSObject>
 @optional
 - (BOOL)tabBarController:(UITabBarController *)tabBarController shouldSelectViewController:(UIViewController *)viewController;
 - (void)tabBarController:(UITabBarController *)tabBarController didSelectViewController:(UIViewController *)viewController;
+- (BOOL)tabBarController:(UITabBarController *)tabBarController shouldSelectTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:shouldSelectTab:)) API_AVAILABLE(ios(18.0));
+- (void)tabBarController:(UITabBarController *)tabBarController didSelectTab:(UITab *)selectedTab previousTab:(nullable UITab *)previousTab NS_SWIFT_NAME(tabBarController(_:didSelectTab:previousTab:)) API_AVAILABLE(ios(18.0));
 @end
 NS_SWIFT_UI_ACTOR
 @interface UITabBarController : UIViewController <UITabBarDelegate>
@@ -226,6 +274,15 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) NSUInteger selectedIndex;
 @property (nonatomic, readonly) UITabBar *tabBar;
 @property (nullable, nonatomic, weak) id<UITabBarControllerDelegate> delegate;
+/* iOS 18 */
+@property (nonatomic, copy) NSArray<UITab *> *tabs API_AVAILABLE(ios(18.0));
+- (void)setTabs:(NSArray<UITab *> *)tabs animated:(BOOL)animated API_AVAILABLE(ios(18.0));
+@property (nullable, nonatomic, strong) UITab *selectedTab API_AVAILABLE(ios(18.0));
+- (nullable UITab *)tabForIdentifier:(NSString *)identifier API_AVAILABLE(ios(18.0));
+@property (nonatomic) UITabBarControllerMode mode API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly) UITabBarControllerSidebar *sidebar API_AVAILABLE(ios(18.0));
+@property (nonatomic, getter=isTabBarHidden) BOOL tabBarHidden API_AVAILABLE(ios(18.0));
+- (void)setTabBarHidden:(BOOL)hidden animated:(BOOL)animated API_AVAILABLE(ios(18.0));
 @end
 
 @interface UIViewController (UIContainers)

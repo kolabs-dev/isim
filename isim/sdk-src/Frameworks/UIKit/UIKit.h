@@ -72,3 +72,4 @@
 #import <UIKit/UITextChecker.h>
 #import <UIKit/UIEditMenuInteraction.h>
 #import <UIKit/UIContentSizeCategory.h>
+#import <UIKit/UIUpdateLink.h>

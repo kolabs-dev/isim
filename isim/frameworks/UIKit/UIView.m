@@ -599,13 +599,20 @@ ANCHORS(UIView)
     [root _isim_layoutPass];
 }
 - (void)_isim_layoutPass {
+    if (isim_ui_os_major() >= 26) {                          /* iOS 26: properties before layout */
+        UIViewController *pvc = self._isim_viewController;
+        if (pvc) [pvc updatePropertiesIfNeeded];
+        [self updatePropertiesIfNeeded];
+    }
     if (_needsLayout) {
         _needsLayout = NO;
         UIViewController *vc = self._isim_viewController;
         isim_ui_push_traits(self.traitCollection);           /* UITraitCollection.current while laying out (iOS 17) */
-        [vc viewWillLayoutSubviews];
-        [self layoutSubviews];
-        [vc viewDidLayoutSubviews];
+        __weak UIView *weakSelf = self;
+        /* automatic observation tracking (iOS 26): @Observable reads here invalidate the layout (UIUpdates.m) */
+        if (vc) isim_ui_tracked(vc, @selector(viewWillLayoutSubviews), ^{ [vc viewWillLayoutSubviews]; }, ^{ [weakSelf setNeedsLayout]; isim_ui_set_needs_layout(); });
+        isim_ui_tracked(self, @selector(layoutSubviews), ^{ [self layoutSubviews]; }, ^{ [weakSelf setNeedsLayout]; isim_ui_set_needs_layout(); });
+        if (vc) isim_ui_tracked(vc, @selector(viewDidLayoutSubviews), ^{ [vc viewDidLayoutSubviews]; }, ^{ [weakSelf setNeedsLayout]; isim_ui_set_needs_layout(); });
         isim_ui_pop_traits();
     }
     for (UIView *s in [_subs copy]) [s _isim_layoutPass];
