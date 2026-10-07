@@ -508,7 +508,7 @@ public func AudioFileWritePackets(_ inAudioFile: AudioFileID, _ inUseCache: Bool
 final class _ExtAudioFile {
     let file: _AudioFile
     var client: AudioStreamBasicDescription
-    var position = 0                     // in file frames
+    var clientPos = 0                    // client frames read so far (reading)
     var decoded: [[Float]]?              // file samples (lazily, for reading)
     init(file: _AudioFile) { self.file = file; client = file.format }
     var samples: [[Float]] {
@@ -516,6 +516,22 @@ final class _ExtAudioFile {
         let d = file.data.withUnsafeBytes { _PCM.decode($0, file.format) }
         decoded = d
         return d
+    }
+    var ratio: Double { file.format.mSampleRate / client.mSampleRate }
+    var clientLength: Int { Int((Double(file.packetCount) / ratio).rounded()) }
+    /// `n` client frames from clientPos: channels mapped, then resampled by linear interpolation on one continuous grid
+    func read(_ n: Int) -> [[Float]] {
+        let src = samples, sc = src.count, tc = Int(client.mChannelsPerFrame)
+        guard sc > 0 else { return [] }
+        let mapped: [[Float]] = tc == sc ? src : tc == 1 ? [(0..<(src[0].count)).map { i in src.reduce(0) { $0 + $1[i] } / Float(sc) }]
+                                                        : (0..<tc).map { src[min($0, sc - 1)] }
+        let len = mapped[0].count, r = ratio
+        return mapped.map { c in
+            (0..<n).map { k in
+                let p = Double(clientPos + k) * r, i0 = min(Int(p), len - 1), i1 = min(i0 + 1, len - 1), t = Float(p - Double(Int(p)))
+                return c[i0] + (c[i1] - c[i0]) * t
+            }
+        }
     }
 }
 public func ExtAudioFileOpenURL(_ inURL: CFURL, _ outExtAudioFile: UnsafeMutablePointer<ExtAudioFileRef?>) -> OSStatus {
@@ -581,15 +597,12 @@ public func ExtAudioFileSetProperty(_ inExtAudioFile: ExtAudioFileRef, _ inPrope
 /// Reads up to *ioNumberFrames client frames, converted to the client format.
 public func ExtAudioFileRead(_ inExtAudioFile: ExtAudioFileRef, _ ioNumberFrames: UnsafeMutablePointer<UInt32>, _ ioData: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
     guard let e = _object(inExtAudioFile, _ExtAudioFile.self) else { return kAudio_ParamError }
-    let ratio = e.file.format.mSampleRate / e.client.mSampleRate
-    let want = Int(ioNumberFrames.pointee)
-    let srcFrames = min(e.file.packetCount - e.position, Int((Double(want) * ratio).rounded(.up)))
-    guard srcFrames > 0 else { ioNumberFrames.pointee = 0; let l = UnsafeMutableAudioBufferListPointer(ioData); for i in 0..<l.count { l[i].mDataByteSize = 0 }; return noErr_ }
-    let chunk = e.samples.map { Array($0[e.position..<(e.position + srcFrames)]) }
-    let conv = _PCM.adapt(chunk, from: e.file.format, to: e.client)
-    let n = _PCM.fill(UnsafeMutableAudioBufferListPointer(ioData), conv, e.client, from: 0, count: min(want, conv.first?.count ?? 0))
-    e.position += min(srcFrames, Int((Double(n) * ratio).rounded()))
-    ioNumberFrames.pointee = UInt32(n)
+    let list = UnsafeMutableAudioBufferListPointer(ioData)
+    let n = min(Int(ioNumberFrames.pointee), e.clientLength - e.clientPos)
+    guard n > 0 else { ioNumberFrames.pointee = 0; for i in 0..<list.count { list[i].mDataByteSize = 0 }; return noErr_ }
+    let got = _PCM.fill(list, e.read(n), e.client, from: 0, count: n)
+    e.clientPos += got
+    ioNumberFrames.pointee = UInt32(got)
     return noErr_
 }
 public func ExtAudioFileWrite(_ inExtAudioFile: ExtAudioFileRef, _ inNumberFrames: UInt32, _ ioData: UnsafePointer<AudioBufferList>) -> OSStatus {
@@ -599,7 +612,7 @@ public func ExtAudioFileWrite(_ inExtAudioFile: ExtAudioFileRef, _ inNumberFrame
     let y = _PCM.adapt(x, from: e.client, to: e.file.format)
     e.file.data += _PCM.encode(y, e.file.format)
     e.file.dirty = true
-    e.position = e.file.packetCount
+    e.clientPos = Int((Double(e.file.packetCount) / e.ratio).rounded())
     return noErr_
 }
 public func ExtAudioFileWriteAsync(_ inExtAudioFile: ExtAudioFileRef, _ inNumberFrames: UInt32, _ ioData: UnsafePointer<AudioBufferList>?) -> OSStatus {
@@ -608,14 +621,13 @@ public func ExtAudioFileWriteAsync(_ inExtAudioFile: ExtAudioFileRef, _ inNumber
 }
 public func ExtAudioFileSeek(_ inExtAudioFile: ExtAudioFileRef, _ inFrameOffset: Int64) -> OSStatus {
     guard let e = _object(inExtAudioFile, _ExtAudioFile.self) else { return kAudio_ParamError }
-    let p = Int((Double(inFrameOffset) * e.file.format.mSampleRate / e.client.mSampleRate).rounded())
-    guard p >= 0, p <= e.file.packetCount else { return kExtAudioFileError_InvalidSeek }
-    e.position = p
+    guard inFrameOffset >= 0, Int(inFrameOffset) <= e.clientLength else { return kExtAudioFileError_InvalidSeek }
+    e.clientPos = Int(inFrameOffset)
     return noErr_
 }
 public func ExtAudioFileTell(_ inExtAudioFile: ExtAudioFileRef, _ outFrameOffset: UnsafeMutablePointer<Int64>) -> OSStatus {
     guard let e = _object(inExtAudioFile, _ExtAudioFile.self) else { return kAudio_ParamError }
-    outFrameOffset.pointee = Int64((Double(e.position) * e.client.mSampleRate / e.file.format.mSampleRate).rounded())
+    outFrameOffset.pointee = Int64(e.clientPos)
     return noErr_
 }
 
@@ -735,7 +747,7 @@ final class _AudioQueue: @unchecked Sendable {
     func loop() {
         loopThread = Thread.current
         let rate = format.mSampleRate
-        let t0 = Date().timeIntervalSince1970
+        var t0 = Date().timeIntervalSince1970
         var paced = 0.0                   // seconds of audio handled since start (headless pacing)
         if input { _ = isim_audio_input_start() }
         while true {
@@ -764,6 +776,8 @@ final class _AudioQueue: @unchecked Sendable {
                 framesDone += Int64(frames)
                 deliver(b, ts, UInt32(frames))
             } else {
+                let now = Date().timeIntervalSince1970
+                if t0 + paced < now { t0 = now - paced }          // after a pause or an empty queue: play from now
                 let x = _PCM.decode(UnsafeRawBufferPointer(start: b.pointee.mAudioData, count: Int(b.pointee.mAudioDataByteSize)), format)
                 let frames = x.first?.count ?? 0
                 meter(x)
@@ -778,12 +792,11 @@ final class _AudioQueue: @unchecked Sendable {
                         done += w
                         if w == 0 { Thread.sleep(forTimeInterval: 0.005) }
                     }
-                } else {
-                    // no audio device: pace in real time
-                    paced += Double(frames) / rate
-                    let ahead = t0 + paced - Date().timeIntervalSince1970
-                    if ahead > 0 { Thread.sleep(forTimeInterval: ahead) }
                 }
+                // a buffer is "done" (and goes back to the app) once it has played: pace in real time (silently when headless)
+                paced += Double(frames) / rate
+                let ahead = t0 + paced - Date().timeIntervalSince1970
+                if ahead > 0 { Thread.sleep(forTimeInterval: ahead) }
                 framesDone += Int64(frames)
                 if !disposed { deliver(b, AudioTimeStamp(), 0) }
             }

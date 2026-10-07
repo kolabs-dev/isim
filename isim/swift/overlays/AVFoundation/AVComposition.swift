@@ -608,6 +608,7 @@ open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
     var _w = 0, _h = 0, _fps = 30.0, _start = 0.0
     var _asbd = AudioStreamBasicDescription()
     var _audioFrames = 0
+    var _downmix = false
     public init(track: AVAssetTrack, outputSettings: [String: Any]?) { self.track = track; self.outputSettings = outputSettings }
     override func _start(_ range: CMTimeRange) -> Bool {
         guard let u = track.asset?._url else { return false }
@@ -626,7 +627,9 @@ open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
                                                 mFormatFlags: (float ? kAudioFormatFlagIsFloat : kAudioFormatFlagIsSignedInteger) | kAudioFormatFlagIsPacked,
                                                 mBytesPerPacket: fb, mFramesPerPacket: 1, mBytesPerFrame: fb, mChannelsPerFrame: UInt32(ch),
                                                 mBitsPerChannel: UInt32(float ? 32 : bits), mReserved: 0)
-            _handle = isim_media_reader_open(_path(u), 1, _start, dur, 0, 0, rate, Int32(ch))
+            // ffmpeg's stereo-to-mono downmix is -3 dB; decode stereo and average it here instead (like iOS)
+            _downmix = ch == 1
+            _handle = isim_media_reader_open(_path(u), 1, _start, dur, 0, 0, rate, Int32(_downmix ? 2 : ch))
         }
         return _handle > 0
     }
@@ -650,11 +653,12 @@ open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
             _frame += 1
             return CMSampleBuffer(_imageBuffer: pb, presentationTime: t, duration: CMTime(seconds: 1 / _fps, preferredTimescale: 600))
         }
-        let ch = Int(_asbd.mChannelsPerFrame), chunk = 4096
-        var f = [Float](repeating: 0, count: chunk * ch)
-        let got = f.withUnsafeMutableBytes { isim_media_reader_read(_handle, $0.baseAddress!, chunk * ch * 4) }
-        let frames = got / (ch * 4)
+        let ch = Int(_asbd.mChannelsPerFrame), chunk = 4096, rch = _downmix ? 2 : ch
+        var f = [Float](repeating: 0, count: chunk * rch)
+        let got = f.withUnsafeMutableBytes { isim_media_reader_read(_handle, $0.baseAddress!, chunk * rch * 4) }
+        let frames = got / (rch * 4)
         guard frames > 0 else { _reader?._outputEnded(); return nil }
+        if _downmix { f = (0..<frames).map { (f[2 * $0] + f[2 * $0 + 1]) / 2 } }
         var bytes: [UInt8]
         if _asbd._isFloat { bytes = f.withUnsafeBytes { Array($0.prefix(frames * ch * 4)) } }
         else {

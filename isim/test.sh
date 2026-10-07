@@ -66,6 +66,9 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloCharts.app/HelloCharts ] && run "ui: HelloCharts (Swift Charts marks, axes, legend)" tests/ui/charts.sh
   [ -x out/apps/HelloVideo.app/HelloVideo ] && run "ui: HelloVideo (AVPlayer, AVPlayerLayer, AVKit, VideoPlayer)" tests/ui/video.sh
   [ -x out/apps/HelloAudio.app/HelloAudio ] && run "ui: HelloAudio (speech, effects, recording, MediaPlayer)" tests/ui/audio.sh
+  [ -x out/apps/HelloMedia.app/HelloMedia ] && run "ui: HelloMedia (composition, export, reader/writer, player rate/pan/meters, session events, AudioToolbox)" tests/ui/media.sh
+  [ -x out/apps/HelloCamera.app/HelloCamera ] && run "ui: HelloCamera (simulated camera: capture session, preview, photo, video frames, QR metadata)" tests/ui/camera.sh
+  [ -x out/apps/HelloVision.app/HelloVision ] && run "ui: HelloVision (Vision, Core ML, NaturalLanguage, Speech, VisionKit)" tests/ui/vision.sh
   [ -x out/apps/HelloStore.app/HelloStore ] && run "ui: HelloStore (StoreKit testing: subscriptions, offers, refunds, StoreKit 1)" tests/ui/store.sh
   [ -x out/apps/HelloSignIn.app/HelloSignIn ] && run "ui: HelloSignIn (Sign in with Apple, passkeys, passwords, ATT + IDFA; local simulation)" tests/ui/signin.sh
   [ -x out/apps/HelloCloudKit.app/HelloCloudKit ] && run "ui: HelloCloudKit (local CloudKit, NSPersistentCloudKitContainer, MetricKit)" tests/ui/cloudkit.sh
