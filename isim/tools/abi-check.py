@@ -6,7 +6,8 @@ built with an older isim keep running.
   abi-check.py --record VER [SDK]   write abi/vVER.txt.gz from SDK_DIR (run on the release tarball's sdk/)
 
 Baselines list "<binary path inside the SDK> <symbol>" for the dylibs under usr/lib and the framework binaries
-under System/Library/Frameworks. abi/allowlist.txt names symbols that were deliberately dropped (one
+under System/Library/Frameworks. A symbol a binary re-exports from another library (LC_REEXPORT_DYLIB) counts as
+exported by it, as the loader resolves it there. abi/allowlist.txt names symbols that were deliberately dropped (one
 "<binary path> <symbol>" per line, '#' comments say why); keep it short."""
 import gzip, os, subprocess, sys
 
@@ -25,12 +26,37 @@ def binaries(sdk):
                     yield os.path.relpath(p, sdk)
 
 
-def exports(sdk):
+def defined(sdk, rel):
+    r = subprocess.run(['llvm-nm', '-gU', '--defined-only', '-j', os.path.join(sdk, rel)], capture_output=True, text=True)
+    return set(r.stdout.split())
+
+
+def reexported(sdk, rel):
+    """install names of the libraries a binary re-exports (LC_REEXPORT_DYLIB), as SDK-relative paths"""
+    r = subprocess.run(['llvm-objdump', '--macho', '--private-headers', os.path.join(sdk, rel)], capture_output=True, text=True)
+    out, pending = [], False
+    for line in r.stdout.splitlines():
+        line = line.strip()
+        if line.startswith('cmd '):
+            pending = line == 'cmd LC_REEXPORT_DYLIB'
+        elif pending and line.startswith('name '):
+            out.append(line.split()[1].lstrip('/'))
+            pending = False
+    return out
+
+
+def exports(sdk, follow_reexports=False):
+    """'<binary> <symbol>' for every exported symbol; with follow_reexports, a binary also offers the symbols of the
+    libraries it re-exports (isim's loader resolves them there, like dyld)"""
     out = set()
-    for rel in sorted(binaries(sdk)):
-        r = subprocess.run(['llvm-nm', '-gU', '--defined-only', '-j', os.path.join(sdk, rel)],
-                           capture_output=True, text=True)
-        out.update(f'{rel} {s}' for s in r.stdout.split())
+    rels = sorted(binaries(sdk))
+    cache = {rel: defined(sdk, rel) for rel in rels}
+    for rel in rels:
+        syms = set(cache[rel])
+        if follow_reexports:
+            for dep in reexported(sdk, rel):
+                syms |= cache.get(dep) or (defined(sdk, dep) if os.path.exists(os.path.join(sdk, dep)) else set())
+        out.update(f'{rel} {s}' for s in syms)
     return out
 
 
@@ -48,7 +74,7 @@ def main(argv):
     ap = os.path.join(ABI, 'allowlist.txt')
     if os.path.exists(ap):
         allow = {l.split('#')[0].strip() for l in open(ap) if l.split('#')[0].strip()}
-    now = exports(sdk)
+    now = exports(sdk, follow_reexports=True)
     bad = 0
     for name in sorted(os.listdir(ABI)):
         if not name.endswith('.txt.gz'):

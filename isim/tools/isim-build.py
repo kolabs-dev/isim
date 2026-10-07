@@ -80,22 +80,68 @@ def split_setting(v):
 
 
 # ---------------- resources ----------------
+_FMT_SPEC = re.compile(r'%(?:\d+\$)?[-+ #0]*\d*(?:\.\d+)?((?:ll|l|h|hh|q|z|j|t|L)?[dDiuUoOxXfFeEgGaAcCsS@p])')
+
+
+def _plural_rule(variations, fallback_spec='lld', substitution=False):
+    """xcstrings plural variations -> .stringsdict rule dictionary (in substitutions, %arg is the argument)."""
+    rule = {'NSStringFormatSpecTypeKey': 'NSStringPluralRuleType'}
+    spec = fallback_spec if substitution else None
+    for cat, v in variations.items():
+        value = ((v or {}).get('stringUnit') or {}).get('value')
+        if value is None:
+            continue
+        if substitution:
+            value = value.replace('%arg', '%' + fallback_spec)
+        rule[cat] = value
+        m = _FMT_SPEC.search(value)
+        if m and not spec and m.group(1) != '@':
+            spec = m.group(1)
+    rule['NSStringFormatValueTypeKey'] = spec or fallback_spec
+    return rule
+
+
 def compile_xcstrings(path, bundle):
-    """String catalog -> <lang>.lproj/<table>.strings (stringUnit values; plural variations use 'other')."""
+    """String catalog -> <lang>.lproj/<table>.strings (+ <table>.stringsdict for plural variations and
+    substitutions, like Xcode). Device and width variations are dropped (the 'other'/first value is used)."""
     table = os.path.splitext(os.path.basename(path))[0]
     with open(path, encoding='utf-8') as f:
         cat = json.load(f)
     source = cat.get('sourceLanguage', 'en')
-    per_lang = {}
+    per_lang, plurals = {}, {}
     for key, entry in cat.get('strings', {}).items():
         locs = entry.get('localizations', {})
         if source not in locs:
             per_lang.setdefault(source, {})[key] = key        # source text is the key itself
         for lang, loc in locs.items():
             unit = loc.get('stringUnit')
+            variations = loc.get('variations', {})
+            subs = loc.get('substitutions', {})
+            if 'plural' in variations:
+                rule = _plural_rule(variations['plural'])
+                plurals.setdefault(lang, {})[key] = {'NSStringLocalizedFormatKey': '%#@value@', 'value': rule}
+                other = (variations['plural'].get('other') or {}).get('stringUnit') or {}
+                if other.get('value') is not None:
+                    per_lang.setdefault(lang, {})[key] = other['value']     # .strings fallback
+                continue
             if not unit:
-                plural = loc.get('variations', {}).get('plural', {})
-                unit = (plural.get('other') or {}).get('stringUnit')
+                for kind in ('device', 'width'):
+                    vs = variations.get(kind, {})
+                    pick = vs.get('other') or (next(iter(vs.values())) if vs else None)
+                    if pick and (pick.get('stringUnit') or {}).get('value') is not None:
+                        unit = pick['stringUnit']; break
+            if unit and unit.get('value') is not None and subs:
+                fmt = unit['value']
+                d = {}
+                for name, sub in subs.items():
+                    pos = sub.get('argNum')
+                    spec = sub.get('formatSpecifier', 'lld')
+                    if pos:
+                        fmt = fmt.replace(f'%#@{name}@', f'%{pos}$#@{name}@')
+                    d[name] = _plural_rule((sub.get('variations') or {}).get('plural', {}), spec, substitution=True)
+                d['NSStringLocalizedFormatKey'] = fmt
+                plurals.setdefault(lang, {})[key] = d
+                continue
             if unit and unit.get('value') is not None:
                 per_lang.setdefault(lang, {})[key] = unit['value']
     def esc(s):
@@ -106,7 +152,12 @@ def compile_xcstrings(path, bundle):
         with open(os.path.join(d, f'{table}.strings'), 'w', encoding='utf-8') as f:
             for k, v in sorted(strings.items()):
                 f.write(f'"{esc(k)}" = "{esc(v)}";\n')
-    return sorted(per_lang)
+    for lang, entries in plurals.items():
+        d = os.path.join(bundle, f'{lang}.lproj')
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, f'{table}.stringsdict'), 'wb') as f:
+            plistlib.dump(entries, f)
+    return sorted(set(per_lang) | set(plurals))
 
 
 def compile_xcassets(path, bundle):

@@ -10,4 +10,5 @@ rm -rf "$out"; mkdir -p "$out" "$(dirname "$obj")"
 "$isim" cc -c OSLogC.m -o "${obj%.o}-objc.o"
 "$isim" cc "$obj" "${obj%.o}-objc.o" -framework Foundation -o "$out/SecurityTest"
 cp Info.plist "$out/"
+cp pki/ca.der pki/leaf.der pki/expired.der pki/selfsigned.der pki/identity.p12 pki/ca.key "$out/"   # test PKI (see pki/make-fixtures.sh)
 echo "built $out"

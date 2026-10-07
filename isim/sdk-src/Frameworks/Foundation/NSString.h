@@ -127,4 +127,12 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 - (instancetype)initWithCapacity:(NSUInteger)capacity;
 @end
 
+/* isim: expands a .stringsdict plural format (as returned by a localized-string lookup) for the given argument
+ * values, one per format position; nil when the string is not a known plural format. Used by Swift's
+ * String(localized:). */
+@class NSNumber;
+@interface NSString (IsimPlurals)
+- (nullable NSString *)_isim_expandingPluralsWithValues:(NSArray<NSNumber *> *)values;
+@end
+
 NS_ASSUME_NONNULL_END

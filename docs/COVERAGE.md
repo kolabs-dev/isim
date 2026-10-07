@@ -4,7 +4,7 @@ This tracks how much of the iOS SDK isim covers (iOS 17, 18, 26 and 27, selected
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-06
+Last updated: 2026-10-07
 
 **Legend**
 
@@ -53,18 +53,18 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
-| **Foundation** | 53 | 21 | 1 | 6 | 81 | 78% |
-| &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
+| **Foundation** | 57 | 22 | 1 | 1 | 81 | 84% |
+| &nbsp;&nbsp;↳ Strings & text | 10 | 5 | 0 | 0 | 15 | 83% |
 | &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
-| &nbsp;&nbsp;↳ Files, bundles & preferences | 5 | 2 | 0 | 2 | 9 | 67% |
-| &nbsp;&nbsp;↳ Notifications, timers & threads | 6 | 2 | 0 | 1 | 9 | 78% |
+| &nbsp;&nbsp;↳ Files, bundles & preferences | 6 | 3 | 0 | 0 | 9 | 83% |
+| &nbsp;&nbsp;↳ Notifications, timers & threads | 7 | 2 | 0 | 0 | 9 | 89% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
-| **Swift runtime, stdlib & concurrency** | 30 | 1 | 0 | 7 | 38 | 80% |
-| &nbsp;&nbsp;↳ Combine | 11 | 0 | 0 | 3 | 14 | 79% |
-| &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
-| Objective-C runtime & C library | 12 | 3 | 0 | 0 | 15 | 90% |
+| **Swift runtime, stdlib & concurrency** | 35 | 4 | 0 | 0 | 39 | 95% |
+| &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
+| &nbsp;&nbsp;↳ Dispatch | 4 | 2 | 0 | 0 | 6 | 83% |
+| Objective-C runtime & C library | 13 | 3 | 0 | 0 | 16 | 91% |
 | Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
 | Core Text | 4 | 3 | 0 | 0 | 7 | 79% |
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
@@ -76,8 +76,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Photos, Vision, Core ML & camera | 3 | 1 | 0 | 4 | 8 | 44% |
 | StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
-| Data & persistence | 13 | 6 | 0 | 4 | 23 | 70% |
-| Identity & security | 7 | 1 | 1 | 2 | 11 | 68% |
+| Data & persistence | 14 | 6 | 0 | 3 | 23 | 74% |
+| Identity & security | 9 | 2 | 2 | 0 | 13 | 77% |
 | Notifications & background work | 2 | 3 | 1 | 1 | 7 | 50% |
 | App extensions & system integration | 2 | 3 | 0 | 4 | 9 | 39% |
 | Location & maps | 2 | 5 | 0 | 0 | 7 | 64% |
@@ -85,7 +85,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 31 | 15 | 1 | 4 | 51 | 75% |
-| **All areas** | **579** | **249** | **48** | **81** | **957** | **74%** |
+| **All areas** | **592** | **254** | **49** | **66** | **961** | **75%** |
 
 ### Per iOS version
 
@@ -96,9 +96,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 77% (201) | 76% (204) | 75% (211) | 73% (215) |
 | SwiftUI | 82% (214) | 80% (220) | 79% (227) | 76% (237) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
-| Foundation | 78% (81) | 78% (81) | 78% (81) | 78% (81) |
-| Swift runtime, stdlib & concurrency | 82% (37) | 80% (38) | 80% (38) | 80% (38) |
-| Objective-C runtime & C library | 90% (15) | 90% (15) | 90% (15) | 90% (15) |
+| Foundation | 84% (81) | 84% (81) | 84% (81) | 84% (81) |
+| Swift runtime, stdlib & concurrency | 95% (39) | 95% (39) | 95% (39) | 95% (39) |
+| Objective-C runtime & C library | 91% (16) | 91% (16) | 91% (16) | 91% (16) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
 | Core Text | 79% (7) | 79% (7) | 79% (7) | 79% (7) |
 | QuartzCore / Core Animation | 83% (21) | 83% (21) | 83% (21) | 83% (21) |
@@ -110,8 +110,8 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Photos, Vision, Core ML & camera | 44% (8) | 44% (8) | 44% (8) | 44% (8) |
 | StoreKit | 84% (29) | 84% (29) | 84% (29) | 84% (29) |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 33% (6) | 33% (6) | 33% (6) | 33% (6) |
-| Data & persistence | 70% (23) | 70% (23) | 70% (23) | 70% (23) |
-| Identity & security | 68% (11) | 68% (11) | 68% (11) | 68% (11) |
+| Data & persistence | 74% (23) | 74% (23) | 74% (23) | 74% (23) |
+| Identity & security | 77% (13) | 77% (13) | 77% (13) | 77% (13) |
 | Notifications & background work | 50% (7) | 50% (7) | 50% (7) | 50% (7) |
 | App extensions & system integration | 39% (9) | 39% (9) | 39% (9) | 39% (9) |
 | Location & maps | 64% (7) | 64% (7) | 64% (7) | 64% (7) |
@@ -119,7 +119,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 61% (9) | 61% (9) | 61% (9) | 61% (9) |
 | Platform & tooling | 77% (49) | 76% (50) | 75% (51) | 75% (51) |
-| **All areas** | **76%** (914) | **75%** (926) | **74%** (943) | **74%** (957) |
+| **All areas** | **77%** (919) | **77%** (930) | **76%** (947) | **75%** (961) |
 
 ---
 
@@ -767,9 +767,9 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `NSDataDetector` | 🟡 | ≤17 | links, phone numbers, dates; addresses and transit info are not detected |
 | `Scanner` | ✅ | ≤17 | ObjC and Swift (`scanString`, `scanInt`, `scanDouble`, `scanDecimal`, `currentIndex`) APIs |
 | `String(localized:)`, `NSLocalizedString`, `Bundle.localizedString` | ✅ | ≤17 | |
-| `LocalizedStringResource` | ❌ | ≤17 | |
-| String Catalogs (`.xcstrings`) | 🟡 | ≤17 | compiled to `.strings`; plural variants use "other" only; device/width variants dropped |
-| `.stringsdict` plural rules | ❌ | ≤17 | |
+| `LocalizedStringResource` | ✅ | ≤17 | Foundation's (also used by AppIntents); `String(localized:)` resolves it with the bundle/table/locale lookup, plurals included. Tested: HelloSharedData (en, ru) |
+| String Catalogs (`.xcstrings`) | 🟡 | ≤17 | compiled to `.strings` + `.stringsdict`: plural variations and substitutions (`%#@name@`, `argNum`, `%arg`) keep every category; device/width variations use `other`/the first value. Tested: HelloSharedData (catalog compiled by isim build's compiler) |
+| `.stringsdict` plural rules | ✅ | ≤17 | `NSStringPluralRuleType` with `zero` + CLDR integer categories for en, de, es, it, nl, sv, fr, pt (BR/PT), ru, uk, be, pl, cs, sk, hr, sr, ar, he, ro, ja, zh, ko, ...; applied by `localizedStringWithFormat:` / `stringWithFormat:` / `String(format:)` / `String(localized:)`, positional variables too. Isim finds the entry by the format text (strings bridge to Swift by copying). Tested: HelloSharedData |
 
 ### Collections & values
 
@@ -826,17 +826,18 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `Data(contentsOf:)`, `Data.write(to:)` | ✅ | ≤17 | |
 | `FileHandle`, `InputStream` / `OutputStream` | 🟡 | ≤17 | files, memory and standard I/O; `readabilityHandler` on a thread; no sockets / bound stream pairs |
 | App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ✅ | ≤17 | `<isim data>/Shared/AppGroup/<id>`, shared by apps and their extensions; `UserDefaults(suiteName:)` uses it. Tested (HelloWidgets: the widget extension and the app share a counter) |
-| iCloud Drive / ubiquity containers | ❌ | ≤17 | |
+| iCloud Drive / ubiquity containers (`url(forUbiquityContainerIdentifier:)`, `ubiquityIdentityToken`) | 🟡 | ≤17 | **local, no iCloud sync**: `<isim data>/Mobile Documents/<container>/Documents`; nil when `ISIM_ICLOUD=noAccount`. No `NSMetadataQuery`, file coordination or download states. Tested: HelloSharedData |
 | `Bundle` (main, by path/id, resources, Info.plist, localizations) | ✅ | ≤17 | |
 | `UserDefaults` (standard, suites, register defaults, argument domain) | ✅ | ≤17 | persisted as an XML plist in the container |
-| `NSUbiquitousKeyValueStore` | ❌ | ≤17 | |
+| `NSUbiquitousKeyValueStore` | ✅ | ≤17 | **local, no iCloud sync**: a plist per store under `<isim data>/Mobile Documents/KeyValueStore`; another process (or the host) writing it posts `didChangeExternallyNotification` (server change, changed keys) within 0.5 s. Tested: HelloSharedData |
 
 ### Notifications, timers & threads
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `NotificationCenter` (selector, block, Combine publisher) | ✅ | ≤17 | |
-| `NotificationQueue`, `DistributedNotificationCenter` | ❌ | ≤17 | |
+| `NotificationQueue` | ✅ | ≤17 | `.now`, `.asap` (end of the run-loop pass), `.whenIdle` (shortly after), coalescing on name/sender, `dequeueNotifications`; one queue per thread. Tested: HelloSharedData |
+| `DistributedNotificationCenter` | N/A | ≤17 | macOS only (not in the iOS SDK) |
 | `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | ≤17 | the run loop keeps scheduled timers alive until invalidated |
 | `RunLoop` | 🟡 | ≤17 | main run loop only; modes ignored |
 | `Thread` (main checks, detach, sleep, name) | ✅ | ≤17 | |
@@ -888,9 +889,9 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Swift 6 strict concurrency checking | ✅ | ≤17 | compile time |
 | Observation (`@Observable`, `withObservationTracking`) | ✅ | 17.0 | libswiftObservation (upstream sources, isim pthread hooks) |
 | `Regex`, regex literals, `RegexBuilder` (`_StringProcessing`) | ✅ | ≤17 | built from swift-experimental-string-processing (swift-6.2.4); bare `/.../` literals need `-enable-bare-slash-regex` or Swift 6 mode like Xcode |
-| `Synchronization` (`Mutex`, `Atomic`) | ❌ | 18.0 | not built |
-| Distributed actors | ❌ | ≤17 | |
-| C++ interop | ❌ | ≤17 | |
+| `Synchronization` (`Mutex`, `Atomic`, `WordPair`, `AtomicLazyReference`) | ✅ | ≤17 | built from the Swift 6.2.4 sources (iOS 18+ like Apple); `Mutex` on isim's `os_unfair_lock`; 128-bit atomics. Tested: SwiftExtrasTest |
+| Distributed actors (`Distributed`, `LocalTestingDistributedActorSystem`) | ✅ | ≤17 | built from the Swift 6.2.4 sources; distributed calls, `resolve(id:using:)`, thrown errors. Tested: SwiftExtrasTest |
+| C++ interop (`-cxx-interoperability-mode=default`) | 🟡 | ≤17 | user C++ (structs, classes, operators, static members, `enum class`, templates through inline functions, `.cpp` code) works; the C++ standard library is not importable (`import CxxStdlib`, `std::string`/`std::vector`: libc++'s headers do not build as a Clang module against isim's C headers). Tested: tests/swift-cxx |
 | Swift macros from packages | 🟡 | ≤17 | `@Observable` works (toolchain plugin); `#Preview` and package macro targets unverified |
 
 ### Combine
@@ -905,9 +906,9 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `map`, `tryMap`, `compactMap`, `filter`, `flatMap`, `removeDuplicates`, `first`, `prefix`, `dropFirst` | ✅ | ≤17 | |
 | `merge`, `combineLatest`, `debounce`, `receive(on:)`, `share`, `handleEvents`, `eraseToAnyPublisher`, `setFailureType` | ✅ | ≤17 | |
 | `autoconnect`, `ConnectablePublisher` | ✅ | ≤17 | |
-| `zip`, `scan`, `reduce`, `collect`, `delay`, `throttle`, `timeout`, `buffer` | ❌ | ≤17 | |
-| `catch`, `retry`, `replaceError`, `mapError`, `switchToLatest`, `decode`/`encode` | ❌ | ≤17 | |
-| `.values` (async bridge), `print`, `breakpoint` | ❌ | ≤17 | |
+| `zip`, `scan`, `reduce`, `collect` (all / count / time), `delay`, `throttle`, `timeout`, `buffer`, `count`, `min`/`max`, `contains`, `allSatisfy`, `first(where:)`, `last`, `output(at:/in:)`, `prefix`/`drop(while:)`, `drop`/`prefix(untilOutputFrom:)`, `append`/`prepend`, `measureInterval`, `subscribe(on:)`, `multicast`/`makeConnectable`, `Record`, `MergeMany`, `CombineLatest3/4`, `Zip3/4`, `try*` variants | ✅ | ≤17 | operators take unlimited demand upstream and queue for the subscriber (Apple propagates demand); `Publishers.Sequence` is lazy and demand-driven. Tested: SwiftExtrasTest |
+| `catch`, `tryCatch`, `retry`, `replaceError`, `replaceEmpty`, `mapError`, `assertNoFailure`, `switchToLatest`, `flatMap(maxPublishers:)`, `decode`/`encode` (JSON/property-list coders are `TopLevelDecoder`/`Encoder`) | ✅ | ≤17 | Tested: SwiftExtrasTest |
+| `.values` (`AsyncPublisher` / `AsyncThrowingPublisher`), `print`, `breakpoint`, `handleEvents` (all hooks) | ✅ | ≤17 | `.values` buffers (Apple requests one value per `next()`, so a fast PassthroughSubject loses values there, not on isim). Tested: SwiftExtrasTest |
 | Foundation publishers: `Timer.publish`, `NotificationCenter.publisher`; RunLoop/DispatchQueue schedulers | ✅ | ≤17 | |
 | `URLSession.dataTaskPublisher` | ✅ | ≤17 | tested |
 | KVO publisher (`publisher(for: \.keyPath)`) | ✅ | ≤17 | Foundation KVO; tested with `AVPlayer.timeControlStatus` (HelloVideo) |
@@ -920,7 +921,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Barriers, `DispatchWorkItem`, `dispatchPrecondition`, queue-specific values | ✅ | ≤17 | |
 | `DispatchGroup`, `DispatchSemaphore`, `concurrentPerform` / `dispatch_apply` | ✅ | ≤17 | |
 | Timer sources (`DispatchSource.makeTimerSource`) | ✅ | ≤17 | |
-| Read/write/signal/process sources, `DispatchIO`, `DispatchData` | ❌ | ≤17 | |
+| User-data (add/or/replace), read/write, signal, process, file-system-object and memory-pressure sources; registration handlers | 🟡 | ≤17 | a monitor thread polls fds; process exit via `kill(pid, 0)` and file events via `fstat` every 50 ms (renames via /proc); write sources report 1, not the free space; memory pressure and Mach sources never fire. Tested: SwiftExtrasTest |
+| `DispatchData`, `DispatchIO` (stream / random, `read`/`write`, high/low water, `close`, class `read`/`write`) | 🟡 | ≤17 | Swift API only (no C `dispatch_data_t`/`dispatch_io_t`); `setInterval` ignored. Tested: SwiftExtrasTest |
 
 ---
 
@@ -940,6 +942,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Uncaught exceptions (`*** Terminating app due to uncaught exception …`, first throw call stack, `NSSetUncaughtExceptionHandler`, `callStackReturnAddresses`/`callStackSymbols`) | ✅ | ≤17 | SIGABRT like iOS; an NSException raised by ObjC code called from Swift is not catchable by Swift `do/catch` (same as iOS) and terminates with the report. Tested: tests/objc-runtime (ObjCUncaught, SwiftUncaught) |
 | C++ exceptions (`throw`/`try`/`catch`) | 🟡 | ≤17 | C++ frames (`__gxx_personality_v0`) run cleanups and `catch (...)` for Objective-C exceptions passing through (unverified); throwing C++ exceptions needs a libc++abi built with exceptions/RTTI (isim's libc++ is `-fno-exceptions`); the `_Unwind_*` entry points are already exported for it |
 | libc / POSIX (stdio, malloc, string, pthreads, time, files) | ✅ | ≤17 | host glibc with Darwin layouts |
+| `pipe`, `pread`/`pwrite`, `dup`/`dup2`, `kill`, `signal`/`raise` with Darwin signal numbers (`SIGUSR1` = 30, ...); Swift `open`/`fcntl`/`ioctl` and `SIG_IGN`/`SIG_DFL` | ✅ | ≤17 | numbers translated to the host's and back for handlers. Tested: SwiftExtrasTest (pipe sources, `raise(SIGUSR1)`) |
 | `errno` from Swift | ✅ | ≤17 | provided by the Foundation overlay (no Swift Darwin overlay) |
 | `dlopen` of app-bundled dylibs/frameworks | 🟡 | ≤17 | used for keyboard extensions; embedded frameworks unverified |
 | Mach APIs (`mach_absolute_time` ✅; ports, tasks) | 🟡 | ≤17 | timing only |
@@ -1261,7 +1264,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Core Data: persistent history, derived attributes, `NSBatchInsertRequest`, undo | ❌ | ≤17 | `undoManager` is stored but changes are not registered with it |
 | Core Data: `NSPersistentCloudKitContainer`, `NSPersistentCloudKitContainerOptions`, `cloudKitContainerOptions` | 🟡 | ≤17 | adapted: an `NSPersistentContainer` subclass whose store stays on the device — **local, no iCloud mirroring**; options are remembered, `initializeCloudKitSchema` only logs, `canUpdateRecord`/… return true, no `eventChangedNotification` events. Tested: HelloCloudKit (load, save, count) |
 | SwiftData (`@Model`, `ModelContainer`, `@Query`) | ❌ | 17.0 | needs Apple's Swift macros (`@Model`, `#Predicate`), which isim cannot build; Core Data is the supported persistence framework |
-| CloudKit: containers, account (`CKContainer.default()`, `accountStatus`, `userRecordID`, `ISIM_ICLOUD=noAccount`) | ✅ | ≤17 | **local, no iCloud sync**: a simulated account; `ISIM_ICLOUD=noAccount\|restricted\|temporarilyUnavailable` changes the status, and private/shared operations (and public writes) fail with `CKError.notAuthenticated`. Default container `iCloud.<bundle id>`. Tested: HelloCloudKit |
+| CloudKit: containers, account (`CKContainer.default()`, `accountStatus`, `userRecordID`, `ISIM_ICLOUD=noAccount`) | ✅ | **local, no iCloud sync**: a simulated account; `ISIM_ICLOUD=noAccount\|restricted\|temporarilyUnavailable` changes the status, and private/shared operations (and public writes) fail with `CKError.notAuthenticated`. Default container `iCloud.<bundle id>`. Tested: HelloCloudKit |
 | CloudKit: records (`CKRecord` typed values, `CKAsset`, `CKRecord.Reference`, `CLLocation`, lists, `changedKeys`, change tags, dates, `encodeSystemFields`) | ✅ | ≤17 | stored per container/database as JSON in `$ISIM_DATA/Library/isim/CloudKit/<container>/`; assets copied into the store; `.deleteSelf` references cascade; values read back as Objective-C-style values (`as? String/Int/Double/Date/[String]`). `encryptedValues` are stored like other fields (not encrypted at rest). Tested: HelloCloudKit (relaunch persistence) |
 | CloudKit: `CKDatabase` save/fetch/delete (+ async), `records(matching:)`, `modifyRecords`, `CKQuery` (NSPredicate + sort), `CKQueryOperation` (cursor, `resultsLimit`), `CKModifyRecordsOperation` (save policies, atomic), `CKFetchRecordsOperation`, `CKError` | ✅ | ≤17 | `serverRecordChanged` with server/client records, `.changedKeys`/`.allKeys`, atomic batches in custom zones (`batchRequestFailed`), `unknownItem` for missing records/types, `partialFailure`. Predicates use isim's NSPredicate (no `distanceToLocation:`); `CKOperation` is not an `NSOperation` (isim has none): add operations to a database/container. Tested: HelloCloudKit |
 | CloudKit: zones, change tokens (`CKRecordZone`, `CKFetchDatabaseChangesOperation`, `CKFetchRecordZoneChangesOperation`) | 🟡 | ≤17 | custom zones in the private database, zone changes and deletions since a `CKServerChangeToken`; no `moreComing` paging. Tested: HelloCloudKit (zone changes); database changes unverified |
@@ -1269,7 +1272,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | CloudKit: sharing (`CKShare`, `UICloudSharingController`), `CKSyncEngine`, user discovery | ❌ | ≤17 | |
 | SQLite (`sqlite3` C API, `import SQLite3`) | ✅ | ≤17 | `/usr/lib/libsqlite3.dylib` forwards to the host's `libsqlite3.so.0` (loaded on first use; a function the host's SQLite lacks stops the app with a message). Tested: SecurityTest, HelloSecurity |
 | Keychain passwords (`SecItemAdd/CopyMatching/Update/Delete`, generic + internet passwords) | ✅ | ≤17 | Swift (isim's Security module; Objective-C callers not yet). iOS attribute keys, duplicate detection, return data/attributes/persistent refs, match limits, access groups (default: bundle id). Stored per access group in `$ISIM_DATA/Library/Keychains` (0600 JSON, not encrypted; survives app deletion, erased by `isim reset`). `SecAccessControl` flags stored, not enforced |
-| Keychain keys, certificates, identities (`SecKey`, `SecCertificate`, `SecIdentity`) | ❌ | ≤17 | `SecItemAdd` returns `errSecUnimplemented` for these classes |
+| Keychain keys, certificates, identities (`kSecClassKey` / `Certificate` / `Identity`, `kSecValueRef`, `kSecReturnRef`, `kSecAttrIsPermanent`) | ✅ | ≤17 | same store as passwords; Apple's primary keys (duplicates detected), tag/label/issuer/serial queries; identities keep their private key with the certificate. Tested: SecurityTest |
 
 ## Identity & security
 
@@ -1279,12 +1282,14 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | `ASWebAuthenticationSession` (OAuth) | ✅ | ≤17 | iOS's “Wants to Use … to Sign In” alert (skipped when ephemeral), the page in a browser sheet on isim's WKWebView (real WebKit), callback by custom scheme or (iOS 17.4) https host+path — links, forms and server redirects; Cancel → `canceledLogin`; `presentationContextProvider` errors; SwiftUI `webAuthenticationSession` environment action. Tested against a local OAuth page (HelloSafari). Non-ephemeral sessions share SFSafariViewController's in-memory data, not Safari's |
 | Passkeys (`ASAuthorizationPlatformPublicKeyCredentialProvider` registration + assertion) | ✅ | ≤17 | real WebAuthn data: P-256 key (CryptoKit), CBOR attestation object with format `none` (AAGUID zero, COSE key), clientDataJSON with origin `https://<rp>`, assertion signature over authData ‖ SHA-256(clientDataJSON) that verifies. Keys kept unencrypted in the device data (not synced). iOS-style save/sign-in sheets; no passkey → canceled (no nearby-device QR); `preferImmediatelyAvailableCredentials` → `notInteractive`. Security keys (`ASAuthorizationSecurityKey…`), PRF/large blob missing. Tested: HelloSignIn |
 | Password sign-in (`ASAuthorizationPasswordProvider`, `ASPasswordCredential`) | 🟡 | ≤17 | offers the app's own internet passwords from isim's keychain in a chooser sheet; no iCloud Keychain/Passwords app, no QuickType AutoFill bar, `performAutoFillAssistedRequests` behaves like `preferImmediatelyAvailableCredentials`. Tested: HelloSignIn |
-| LocalAuthentication (Face ID / Touch ID, `LAContext`) | ✅ | ≤17 | `canEvaluatePolicy`/`evaluatePolicy` (+ async), `LAError`, `biometryType` from the device (Face ID; Touch ID on iPhone SE and non-Pro iPads). Face ID permission alert (`NSFaceIDUsageDescription`, remembered), simulated scan alert (Matching / Non-matching / Cancel), passcode fallback; `ISIM_BIOMETRY=match\|nomatch\|cancel`, `ISIM_BIOMETRY_ENROLLED=0`. Reply on a background queue like iOS |
+| LocalAuthentication (Face ID / Touch ID, `LAContext`) | ✅ | `canEvaluatePolicy`/`evaluatePolicy` (+ async), `LAError`, `biometryType` from the device (Face ID; Touch ID on iPhone SE and non-Pro iPads). Face ID permission alert (`NSFaceIDUsageDescription`, remembered), simulated scan alert (Matching / Non-matching / Cancel), passcode fallback; `ISIM_BIOMETRY=match\|nomatch\|cancel`, `ISIM_BIOMETRY_ENROLLED=0`. Reply on a background queue like iOS |
 | CryptoKit (SHA-2, HMAC, AES-GCM, ChaChaPoly, P256, Curve25519) | ✅ | ≤17 | also P384/P521, `Insecure.MD5/SHA1`, HKDF, `SharedSecret` HKDF/X9.63 KDFs, ECDSA DER, public keys raw/X9.63/compressed/DER/PEM. AES/ChaCha/EC on the host's OpenSSL `libcrypto.so.3`. Byte inputs are `ContiguousBytes` (isim's Foundation has no `DataProtocol`). Known-answer tests from the RFCs/NIST |
-| CryptoKit: Secure Enclave, HPKE, `AES.KeyWrap`, compact keys, private-key PEM/DER | ❌ | ≤17 | |
+| CryptoKit: HPKE (RFC 9180, all modes; P-256/384/521 and X25519 KEMs; AES-GCM, ChaChaPoly, export-only), `AES.KeyWrap`, compact representations, private-key PKCS#8 DER/PEM (reads SEC1 too) | ✅ | ≤17 | HPKE opens messages sealed by OpenSSL's independent implementation; RFC 3394 vector. Tested: SecurityTest |
+| CryptoKit: Secure Enclave | 🧩 | ≤17 | `SecureEnclave.isAvailable` is false and keys throw, like a Simulator without one |
 | CommonCrypto (`CC_SHA*`, `CC_MD5`, `CCHmac`, `CCCrypt`/`CCCryptor`, `CCKeyDerivationPBKDF`, `CCRandomGenerateBytes`) | ✅ | ≤17 | in libSystem like iOS; contexts copyable; AES (ECB/CBC/CTR/CFB/OFB) and 3DES via the host's OpenSSL, other ciphers `kCCUnimplemented`. Known-answer tests |
 | Security: `SecRandomCopyBytes`, `SecCopyErrorMessageString` | ✅ | ≤17 | |
-| Security: certificates and trust (`SecCertificate`, `SecTrust`, `SecPolicy`) | ❌ | ≤17 | |
+| Security: `SecKey` (RSA 1024-8192, EC P-256/384/521: create, import/export in Apple's formats, sign/verify incl. PSS and RFC 4754, RSA PKCS#1/OAEP encryption, ECDH + X9.63 KDF, attributes) | ✅ | ≤17 | host OpenSSL; no Secure Enclave (`kSecAttrTokenIDSecureEnclave` fails with `errSecUnimplemented`); ECIES algorithms unsupported. Tested: SecurityTest (interoperates with CryptoKit) |
+| Security: certificates and trust (`SecCertificate`, `SecPolicy`, `SecTrust` create/anchors/verify date/evaluate (sync, async), chain, exceptions, `SecPKCS12Import`, `SecIdentity`) | 🟡 | ≤17 | host OpenSSL; system anchors are the host's CA store (Apple's trust policies — CT, key-size rules, revocation — are not applied); a URLSession challenge's trust names the host only (no chain) and evaluates as trusted because libcurl checks the server. Tested: SecurityTest (test CA, wildcard host, expired, self-signed, wrong password) |
 | DeviceCheck / App Attest | 🧩 | ≤17 | `isSupported` is false and calls fail with `DCError.featureUnsupported`, like the Simulator |
 
 ## Notifications & background work

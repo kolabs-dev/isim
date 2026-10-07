@@ -27,7 +27,8 @@ build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays
 }
 build CoreGraphics -framework CoreGraphics
 build ObjectiveC -framework Foundation   # NSObject lives in isim Foundation, not libobjc
-build Combine
+../out/bin/isim cc -c overlays/Combine/compat.c -o "$OBJ/Combine-compat.o"   # enum case symbols for apps built before Completion was @frozen
+build Combine "$OBJ/Combine-compat.o"
 build Dispatch -framework Foundation
 build Foundation -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
 build UniformTypeIdentifiers -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
@@ -47,7 +48,7 @@ build SpriteKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit
 build GameplayKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswiftSpriteKit -lswift_Concurrency -framework Foundation -framework UIKit
 build GameController -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 build CryptoKit -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
-build Security -lswiftObjectiveC -lswiftFoundation -framework Foundation
+build Security -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 build os -lswiftObjectiveC -lswiftFoundation -framework Foundation
 build OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation
 build LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
@@ -82,7 +83,7 @@ build MessageUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch
 build MapKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreLocation -lswiftContacts -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 build MultipeerConnectivity -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftNetwork -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
 build XCTest -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -framework XCTest
-build AppIntents -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
+build AppIntents -lswiftObjectiveC -reexport-lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 build ActivityKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
 build WidgetKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 build CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -framework Foundation

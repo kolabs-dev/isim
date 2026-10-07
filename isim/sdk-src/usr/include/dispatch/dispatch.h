@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
+#include <fcntl.h>
 #ifndef FOUNDATION_EXPORT
 #define FOUNDATION_EXPORT extern __attribute__((visibility("default")))
 #endif
@@ -88,10 +89,53 @@ FOUNDATION_EXPORT void dispatch_activate(dispatch_object_t object);
 FOUNDATION_EXPORT void dispatch_suspend(dispatch_object_t object);
 FOUNDATION_EXPORT void dispatch_resume(dispatch_object_t object);
 
-/* sources (timers only) */
+/* sources: timers, user data (add/or/replace), read/write (fd readiness), signals, processes (exit),
+ * vnodes (file changes); memory pressure and Mach sources are accepted but never fire on isim */
 FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_timer;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_data_add;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_data_or;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_data_replace;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_read;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_write;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_signal;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_proc;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_vnode;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_memorypressure;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_mach_send;
+FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_mach_recv;
 #define DISPATCH_SOURCE_TYPE_TIMER (&_dispatch_source_type_timer)
+#define DISPATCH_SOURCE_TYPE_DATA_ADD (&_dispatch_source_type_data_add)
+#define DISPATCH_SOURCE_TYPE_DATA_OR (&_dispatch_source_type_data_or)
+#define DISPATCH_SOURCE_TYPE_DATA_REPLACE (&_dispatch_source_type_data_replace)
+#define DISPATCH_SOURCE_TYPE_READ (&_dispatch_source_type_read)
+#define DISPATCH_SOURCE_TYPE_WRITE (&_dispatch_source_type_write)
+#define DISPATCH_SOURCE_TYPE_SIGNAL (&_dispatch_source_type_signal)
+#define DISPATCH_SOURCE_TYPE_PROC (&_dispatch_source_type_proc)
+#define DISPATCH_SOURCE_TYPE_VNODE (&_dispatch_source_type_vnode)
+#define DISPATCH_SOURCE_TYPE_MEMORYPRESSURE (&_dispatch_source_type_memorypressure)
+#define DISPATCH_SOURCE_TYPE_MACH_SEND (&_dispatch_source_type_mach_send)
+#define DISPATCH_SOURCE_TYPE_MACH_RECV (&_dispatch_source_type_mach_recv)
 #define DISPATCH_TIMER_STRICT 0x1
+#define DISPATCH_PROC_EXIT 0x80000000UL
+#define DISPATCH_PROC_FORK 0x40000000UL
+#define DISPATCH_PROC_EXEC 0x20000000UL
+#define DISPATCH_PROC_SIGNAL 0x08000000UL
+#define DISPATCH_VNODE_DELETE 0x1
+#define DISPATCH_VNODE_WRITE 0x2
+#define DISPATCH_VNODE_EXTEND 0x4
+#define DISPATCH_VNODE_ATTRIB 0x8
+#define DISPATCH_VNODE_LINK 0x10
+#define DISPATCH_VNODE_RENAME 0x20
+#define DISPATCH_VNODE_REVOKE 0x40
+#define DISPATCH_VNODE_FUNLOCK 0x100
+#define DISPATCH_MEMORYPRESSURE_NORMAL 0x01
+#define DISPATCH_MEMORYPRESSURE_WARN 0x02
+#define DISPATCH_MEMORYPRESSURE_CRITICAL 0x04
+#define DISPATCH_MACH_SEND_DEAD 0x1
+FOUNDATION_EXPORT void dispatch_source_merge_data(dispatch_source_t source, uintptr_t value);
+FOUNDATION_EXPORT uintptr_t dispatch_source_get_handle(dispatch_source_t source);
+FOUNDATION_EXPORT uintptr_t dispatch_source_get_mask(dispatch_source_t source);
+FOUNDATION_EXPORT void dispatch_source_set_registration_handler_f(dispatch_source_t source, dispatch_function_t handler);
 FOUNDATION_EXPORT dispatch_source_t dispatch_source_create(dispatch_source_type_t type, uintptr_t handle, uintptr_t mask, dispatch_queue_t queue);
 FOUNDATION_EXPORT void dispatch_source_set_timer(dispatch_source_t source, dispatch_time_t start, uint64_t interval, uint64_t leeway);
 FOUNDATION_EXPORT void dispatch_source_set_event_handler_f(dispatch_source_t source, dispatch_function_t handler);
@@ -121,6 +165,7 @@ FOUNDATION_EXPORT void dispatch_apply(size_t iterations, dispatch_queue_t queue,
 FOUNDATION_EXPORT void dispatch_once(dispatch_once_t *predicate, NS_NOESCAPE dispatch_block_t block);
 FOUNDATION_EXPORT void dispatch_source_set_event_handler(dispatch_source_t source, dispatch_block_t handler);
 FOUNDATION_EXPORT void dispatch_source_set_cancel_handler(dispatch_source_t source, dispatch_block_t handler);
+FOUNDATION_EXPORT void dispatch_source_set_registration_handler(dispatch_source_t source, dispatch_block_t handler);
 FOUNDATION_EXPORT void dispatch_group_async(dispatch_group_t group, dispatch_queue_t queue, dispatch_block_t block);
 FOUNDATION_EXPORT void dispatch_group_notify(dispatch_group_t group, dispatch_queue_t queue, dispatch_block_t block);
 #endif
@@ -128,4 +173,19 @@ FOUNDATION_EXPORT void dispatch_group_notify(dispatch_group_t group, dispatch_qu
 static inline dispatch_queue_t _isim_dispatch_main_queue(void) { return &_dispatch_main_q; }
 static inline dispatch_queue_attr_t _isim_dispatch_concurrent_attr(void) { return DISPATCH_QUEUE_CONCURRENT; }
 static inline dispatch_source_type_t _isim_dispatch_timer_type(void) { return DISPATCH_SOURCE_TYPE_TIMER; }
+static inline int _isim_dispatch_open(const char *path, int oflag, unsigned short mode) { return open(path, oflag, (int)mode); }
+static inline dispatch_source_type_t _isim_dispatch_source_type(int kind) {
+    switch (kind) {
+    case 1: return DISPATCH_SOURCE_TYPE_DATA_ADD;
+    case 2: return DISPATCH_SOURCE_TYPE_DATA_OR;
+    case 3: return DISPATCH_SOURCE_TYPE_DATA_REPLACE;
+    case 4: return DISPATCH_SOURCE_TYPE_READ;
+    case 5: return DISPATCH_SOURCE_TYPE_WRITE;
+    case 6: return DISPATCH_SOURCE_TYPE_SIGNAL;
+    case 7: return DISPATCH_SOURCE_TYPE_PROC;
+    case 8: return DISPATCH_SOURCE_TYPE_VNODE;
+    case 9: return DISPATCH_SOURCE_TYPE_MEMORYPRESSURE;
+    default: return DISPATCH_SOURCE_TYPE_TIMER;
+    }
+}
 __END_DECLS
