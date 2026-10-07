@@ -20,7 +20,7 @@ fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
 x_of() { grep -E "^ +(HSIcon|HSFolderIcon) .* id=$2\$" <<<"$1" | head -1 | sed -E 's/.*\(([0-9.]+) .*/\1/'; }
 check "edit mode: dropping an icon on another makes a folder" 'grep -q "SpringBoard: folder “Folder” with Hello SwiftUI, HelloCounter" <<<"$log"'
-check "edit mode: dragging an icon rearranges"                'grep -q "SpringBoard: moved System to position 0" <<<"$log" && [ "$(x_of "$log" app-dev.isim.samples.HelloSystem)" = 41.25 ] && [ "$(x_of "$log" folder-Folder)" = 127.75 ]'
+check "edit mode: dragging an icon rearranges"                'grep -q "SpringBoard: moved System to page 1 position 0" <<<"$log" && [ "$(x_of "$log" app-dev.isim.samples.HelloSystem)" = 41.25 ] && [ "$(x_of "$log" folder-Folder)" = 127.75 ]'
 check "arrangement saved and restored after a restart"        'grep -q "<string>Folder</string>" "$ISIM_DATA/Library/SpringBoard/IconState.plist" && [ "$(x_of "$log2" app-dev.isim.samples.HelloSystem)" = 41.25 ] && [ "$(x_of "$log2" folder-Folder)" = 127.75 ]'
 check "folder icon drawn (pixels: light square)"              'python3 - "$shots/arranged.png" <<PY
 import subprocess, sys

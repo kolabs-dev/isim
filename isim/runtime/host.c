@@ -11,7 +11,7 @@
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
  *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
- *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL"
+ *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "swipehome left|right"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
  * installed apps) is a child process ("client") that renders into a shared-memory surface and
@@ -693,7 +693,7 @@ static void simulate_metrickit(void) {
     fprintf(stderr, "isim host: simulate MetricKit payloads\n");
 }
 /* "drag x1 y1 x2 y2 seconds": a timed drag, one move per ~16 ms */
-static struct { int on; double a, b, c, d, t0, dur, last; } sdrag;
+static struct { int on; double a, b, c, d, t0, dur, last, hold, hold_end; } sdrag;   /* hold: seconds held at the end before lifting */
 static int script_step(struct isim_event *ev) {
     control_poll();
     if (ld.on && !npending) {                 /* scripted long-press drag (host_input.inc) */
@@ -711,8 +711,11 @@ static int script_step(struct isim_event *ev) {
         if (t - sdrag.last >= 0.016) {
             double p = fmin(1, (t - sdrag.t0) / sdrag.dur);
             sdrag.last = t;
+            int was_holding = sdrag.hold_end > 0;
             pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = sdrag.a + (sdrag.c - sdrag.a) * p, .y = sdrag.b + (sdrag.d - sdrag.b) * p };
-            if (p >= 1) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = sdrag.c, .y = sdrag.d }; sdrag.on = 0; }
+            if (p >= 1 && sdrag.hold > 0 && !sdrag.hold_end) sdrag.hold_end = t + sdrag.hold;     /* stay down at the end */
+            if (p >= 1 && (!sdrag.hold_end || t >= sdrag.hold_end)) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = sdrag.c, .y = sdrag.d }; sdrag.on = 0; }
+            else if (was_holding) npending--;                              /* holding: no repeated moves */
         }
         if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
         return 0;
@@ -738,9 +741,11 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = a, .y = b };
         script_resume = now() + 0.05;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &sdrag.dur) == 5 && sdrag.dur > 0) {
+        /* "drag x1 y1 x2 y2 secs [hold]": a timed drag, optionally held at the end for hold seconds before lifting */
+        double h = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf", &h);
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
-        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.t0 = sdrag.last = now();
-        script_resume = now() + sdrag.dur + 0.02;
+        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.t0 = sdrag.last = now(); sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
+        script_resume = now() + sdrag.dur + sdrag.hold + 0.02;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };
@@ -813,7 +818,7 @@ static int script_step(struct isim_event *ev) {
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
-               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island")) {
+               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand);
            "openurl URL" under the shell: the home screen opens it in the app that handles it */
@@ -828,6 +833,13 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "gamepad") && sscanf(args, " %511[^;]", arg) == 1) {    /* virtual SDL gamepad (host_gamepad.c) */
         void isim_gamepad_script(const char *args);
         isim_gamepad_script(arg);
+    } else if (!strcmp(cmd, "swipehome") && sscanf(args, " %63[^; ]", arg) == 1) {
+        /* "swipehome left|right": a quick horizontal swipe across the home screen (left: the next page) */
+        int left = !strcmp(arg, "left");
+        double y = dev.height * 0.45, x0 = left ? dev.width * 0.8 : dev.width * 0.2, x1 = left ? dev.width * 0.2 : dev.width * 0.8;
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = x0, .y = y };
+        sdrag.on = 1; sdrag.a = x0; sdrag.b = y; sdrag.c = x1; sdrag.d = y; sdrag.dur = 0.18; sdrag.t0 = sdrag.last = now(); sdrag.hold = sdrag.hold_end = 0;
+        script_resume = now() + 0.25;
     } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else if (input_script_cmd(cmd, args)) {}

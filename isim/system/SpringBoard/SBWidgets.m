@@ -212,7 +212,7 @@ static NSMutableDictionary *pending_taps;      /* request path -> widget view (t
     NSArray *parts = [b.accessibilityValue componentsSeparatedByString:@"\x1f"];
     [b.superview.superview.superview removeFromSuperview];
     NSMutableDictionary *item = [@{ @"widget": parts[1], @"app": parts[0], @"family": parts[2] } mutableCopy];
-    [[self _layoutItems] insertObject:item atIndex:0];
+    [[self _layoutItems] insertObject:item atIndex:0];       /* on the current page; what no longer fits moves on */
     NSLog(@"SpringBoard: added widget %@ (%@)", parts[1], parts[2]);
     [self _layoutChanged];
 }

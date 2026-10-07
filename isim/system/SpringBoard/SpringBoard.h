@@ -35,6 +35,41 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal);
 - (instancetype)initWithFolder:(NSMutableDictionary *)folder apps:(NSArray<HSApp *> *)apps size:(CGFloat)s;
 - (UIView *)iconView;
 @end
+/* horizontal pages (SBPages.m): rubber-banding, velocity snapping, spring settle */
+@class HSPager;
+@protocol HSPagerDelegate <NSObject>
+@optional
+- (void)pagerDidScroll:(HSPager *)pager;
+- (void)pagerDidSettle:(HSPager *)pager;
+- (void)pagerPulledDown:(HSPager *)pager;
+@end
+@interface HSPager : UIView
+@property (nonatomic, weak) id<HSPagerDelegate> delegate;
+@property (nonatomic, copy) NSArray<UIView *> *pages;
+@property (nonatomic, readonly) NSInteger currentPage;
+@property (nonatomic, readonly) CGFloat pagePosition;          /* fractional page under the screen */
+@property (nonatomic) BOOL scrollEnabled;
+@property (nonatomic, readonly, getter=isSettling) BOOL settling;
+- (void)setCurrentPage:(NSInteger)page animated:(BOOL)animated;
+- (void)appendPage:(UIView *)page;
+@end
+@class HSPageDots;
+@protocol HSPageDotsDelegate <NSObject>
+@optional
+- (void)pageDots:(HSPageDots *)dots selectPage:(NSInteger)page;
+- (void)pageDotsWantEditPages:(HSPageDots *)dots;
+@end
+@interface HSPageDots : UIControl
+@property (nonatomic, weak) id<HSPageDotsDelegate> delegate;
+@property (nonatomic) NSInteger numberOfPages, currentPage;
+@property (nonatomic) BOOL editMode;
+@end
+@interface HSEditPagesView : UIView
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *hiddenFlags;
+@property (nonatomic, copy) void (^onDone)(NSArray<NSNumber *> *hidden);
+- (instancetype)initWithFrame:(CGRect)frame thumbnails:(NSArray<UIImage *> *)thumbnails hidden:(NSArray<NSNumber *> *)hidden;
+@end
+
 /* LSApplicationCategoryType -> the name iOS uses for folders and App Library categories */
 NSString *HSCategoryName(NSString *category);
 

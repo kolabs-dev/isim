@@ -22,8 +22,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 126 | 51 | 9 | 14 | 200 | 76% |
-| &nbsp;&nbsp;↳ Application & scenes | 7 | 6 | 5 | 5 | 23 | 43% |
+| **UIKit** | 129 | 53 | 9 | 10 | 201 | 77% |
+| &nbsp;&nbsp;↳ Application & scenes | 10 | 8 | 5 | 1 | 24 | 58% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
 | &nbsp;&nbsp;↳ Views & controls | 33 | 15 | 1 | 2 | 51 | 79% |
 | &nbsp;&nbsp;↳ Layout | 16 | 2 | 0 | 1 | 19 | 89% |
@@ -35,9 +35,9 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 146 | 46 | 10 | 9 | 211 | 80% |
-| &nbsp;&nbsp;↳ App & scenes | 4 | 1 | 0 | 6 | 11 | 41% |
-| &nbsp;&nbsp;↳ State & data flow | 14 | 3 | 0 | 0 | 17 | 91% |
+| **SwiftUI** | 149 | 48 | 10 | 4 | 211 | 82% |
+| &nbsp;&nbsp;↳ App & scenes | 6 | 4 | 0 | 1 | 11 | 73% |
+| &nbsp;&nbsp;↳ State & data flow | 15 | 2 | 0 | 0 | 17 | 94% |
 | &nbsp;&nbsp;↳ Views & controls | 30 | 8 | 0 | 0 | 38 | 89% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 14 | 8 | 1 | 0 | 23 | 78% |
@@ -51,7 +51,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
-| **Foundation** | 52 | 21 | 1 | 7 | 81 | 77% |
+| **Foundation** | 53 | 21 | 1 | 6 | 81 | 78% |
 | &nbsp;&nbsp;↳ Strings & text | 8 | 5 | 0 | 2 | 15 | 70% |
 | &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
@@ -76,14 +76,14 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
 | Data & persistence | 13 | 6 | 0 | 4 | 23 | 70% |
 | Identity & security | 7 | 1 | 1 | 2 | 11 | 68% |
-| Notifications & background work | 1 | 2 | 1 | 3 | 7 | 29% |
-| App extensions & system integration | 1 | 0 | 0 | 8 | 9 | 11% |
+| Notifications & background work | 2 | 3 | 1 | 1 | 7 | 50% |
+| App extensions & system integration | 2 | 3 | 0 | 4 | 9 | 39% |
 | Location & maps | 2 | 5 | 0 | 0 | 7 | 64% |
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
-| Platform & tooling | 17 | 7 | 1 | 11 | 36 | 57% |
-| **All areas** | **553** | **220** | **41** | **87** | **901** | **74%** |
+| Platform & tooling | 21 | 7 | 1 | 8 | 37 | 66% |
+| **All areas** | **566** | **228** | **41** | **68** | **903** | **75%** |
 
 ---
 
@@ -1324,7 +1324,8 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Rotation / landscape | ❌ | |
 | Multiple iOS versions (`--os`: reported version and look) | 🟡 | `ISIM_OS_VERSION` changes the reported version; look is always iOS 17/18 |
 | Home screen: launch, background/resume, home gesture (swipe up / Ctrl+Shift+H), delete apps | ✅ | apps run as separate processes |
-| Home screen: folders, App Library, widgets, rearranging icons, Spotlight | ✅ | pages; edit mode: drag to rearrange, drop on an icon to make a folder (named from `LSApplicationCategoryType`), saved in `Library/SpringBoard/IconState.plist`; folders open; App Library page (categories, search); widgets (gallery, grid placement); Spotlight (pull down, Search button, script `spotlight`). Tested (homescreen, widgets). No folder renaming, dragging out of folders or across pages, jiggle animation |
+| Home screen: folders, App Library, widgets, rearranging icons, Spotlight | ✅ | edit mode: drag to rearrange, drop on an icon to make a folder (named from `LSApplicationCategoryType`); folders open; App Library page (categories, search); widgets in grid cells on any page (gallery); Spotlight (pull down on any page, Search button, script `spotlight`). Tested (homescreen, widgets, homepages). No folder renaming, dragging out of folders, jiggle animation |
+| Home screen pages | ✅ | 4×6 grid pages on iPhone (iPad: 6 columns), the dock fixed across pages; paging with rubber-banding at the ends, velocity snapping and a spring settle; page dots above the dock (tap / scrub to switch; one page: the Search button); edit mode: hold a dragged icon at the screen edge to turn the page, drops on a full page push the overflow to the next page, a new page past the last one, empty pages removed on Done; Edit Pages (tap the dots in edit mode): thumbnails with checkmarks to hide/show pages; saved in `Library/SpringBoard/IconState.plist` (pages, hidden, known apps); new apps go to the first page with space, or only to the App Library (Settings > Home Screen & App Library > App Library Only); script `homepage N|library`, `swipehome left|right`, `drag … secs hold`; `dump` shows "page X of N". Tested (homepages: 52 apps). No reordering of pages in Edit Pages, no page deletion button |
 | App switcher / multitasking | ✅ | swipe up and hold, Ctrl+Shift+H twice, script `switcher`: cards of running apps (last frames) in recent order; swipe a card up to close the app (scene sessions discarded), tap to switch. Tested (systemui). No Slide Over / Split View |
 | Lock screen, Notification Center, Control Center | ✅ | lock (Ctrl+L, script `lock`): apps go to the background, clock, notifications and Live Activities; swipe up / `unlock`. Notification Center (pull down from the top): list, open (didReceive), clear. Control Center (pull down at the top right): Wi-Fi / Airplane Mode make the network unavailable (NWPathMonitor, URLSession), Dark Mode (the global setting), orientation lock, Focus (hides banners); brightness dims the screen; cellular, Bluetooth, mirroring, volume, flashlight, timer are cosmetic. Tested (systemui) |
 | Settings app: General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, Game Center, per-app pages | 🟡 | only the settings isim implements |
