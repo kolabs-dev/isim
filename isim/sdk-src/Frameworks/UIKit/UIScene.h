@@ -19,8 +19,13 @@ NS_SWIFT_UI_ACTOR
 - (void)sceneWillResignActive:(UIScene *)scene;
 - (void)sceneWillEnterForeground:(UIScene *)scene;
 - (void)sceneDidEnterBackground:(UIScene *)scene;
+- (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts;
+- (nullable NSUserActivity *)stateRestorationActivityForScene:(UIScene *)scene;
+- (void)scene:(UIScene *)scene restoreInteractionStateWithUserActivity:(NSUserActivity *)stateRestorationActivity;
 - (void)scene:(UIScene *)scene willContinueUserActivityWithType:(NSString *)userActivityType;
 - (void)scene:(UIScene *)scene continueUserActivity:(NSUserActivity *)userActivity;
+- (void)scene:(UIScene *)scene didFailToContinueUserActivityWithType:(NSString *)userActivityType error:(NSError *)error;
+- (void)scene:(UIScene *)scene didUpdateUserActivity:(NSUserActivity *)userActivity;
 @end
 
 @interface UIScene : UIResponder
@@ -35,6 +40,7 @@ NS_SWIFT_UI_ACTOR
 @protocol UIWindowSceneDelegate <UISceneDelegate>
 @optional
 @property (nullable, nonatomic, strong) UIWindow *window;
+- (void)windowScene:(UIWindowScene *)windowScene performActionForShortcutItem:(UIApplicationShortcutItem *)shortcutItem completionHandler:(void (^)(BOOL succeeded))completionHandler;
 @end
 
 @interface UIWindowScene : UIScene
@@ -63,11 +69,17 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly, copy) UISceneConfiguration *configuration;
 @property (nonatomic, readonly) NSString *persistentIdentifier;
 @property (nonatomic, copy, nullable) NSDictionary<NSString *, id> *userInfo;
+/* the activity saved by stateRestorationActivity(for:) when the scene last went to the background (isim: kept in the
+   app container across launches; discarded when the app is closed from the app switcher, like iOS) */
+@property (nonatomic, strong, nullable) NSUserActivity *stateRestorationActivity;
 @end
 
 NS_SWIFT_UI_ACTOR
 @interface UISceneConnectionOptions : NSObject
-@property (nonatomic, readonly, copy) NSSet *URLContexts;
-@property (nonatomic, readonly, copy) NSSet *userActivities;
+@property (nonatomic, readonly, copy) NSSet<UIOpenURLContext *> *URLContexts;
+@property (nonatomic, readonly, copy) NSSet<NSUserActivity *> *userActivities;
+@property (nullable, nonatomic, readonly) NSString *sourceApplication;
+@property (nullable, nonatomic, readonly) NSString *handoffUserActivityType;
+@property (nullable, nonatomic, readonly) UIApplicationShortcutItem *shortcutItem;
 @end
 NS_ASSUME_NONNULL_END

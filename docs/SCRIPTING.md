@@ -19,9 +19,23 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `quit` | stop the device |
 | `home` | go to the home screen |
 | `launch BUNDLE_ID` | open an installed app |
-| `lock` / `unlock` | show / dismiss the Lock Screen (`isim boot`; the look of the `--os` version) |
-| `controlcenter` / `controlcenter off` | open / close Control Center (`isim boot`; iOS 17, the iOS 18 redesign, or iOS 26+ glass) |
-| `openurl URL` | open a URL in the foreground app: custom schemes and universal links (`isim openurl URL --control FIFO` does the same from another terminal) |
+| `openurl URL` | open a URL: under `isim boot` the home screen opens it in the app that handles it (its `CFBundleURLTypes` scheme, or an https universal link of its `applinks:` domains); with `isim run` the running app gets it (custom schemes, its own universal links, other web URLs "open in Safari"). `isim openurl URL --control FIFO` does the same from another terminal |
+| `bgtask BUNDLE_ID TASK_ID` | launch a submitted BackgroundTasks request (like Xcode's `_simulateLaunchForTaskWithIdentifier`); a closed app is started in the background. `TASK_ID` `--fetch` runs a background fetch |
+
+## System UI (`isim boot`)
+
+| Command | What it does |
+|---|---|
+| `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock |
+| `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
+| `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `tapid nc-clear` clears) |
+| `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes) |
+| `spotlight` | Spotlight on the home screen |
+| `island` | expand / collapse the Dynamic Island's Live Activity |
+| `homepage N` / `homepage library` | show home-screen page N (1-based) or the App Library |
+| `swipehome left\|right` | swipe across the home screen (left: the next page) |
+
+While one of these is shown, `dump` lists its parts (ids and text) and `tapid` / `swipeid` act on them.
 
 ## Touch
 
@@ -31,7 +45,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `tapid ID` | tap the view whose `accessibilityIdentifier` is ID |
 | `taptext TEXT` | tap the view that shows TEXT |
 | `holdid ID S` | press and hold a view for S seconds |
-| `drag X1 Y1 X2 Y2 [S]` | drag between two points, optionally over S seconds |
+| `drag X1 Y1 X2 Y2 [S [HOLD]]` | drag between two points, optionally over S seconds, then held HOLD seconds before lifting (e.g. at the screen edge to turn a home-screen page in edit mode) |
 | `swipeid ID DX DY S` | drag from a view's centre by (DX, DY) over S seconds |
 | `longdrag X1 Y1 X2 Y2 HOLD S` | press, hold HOLD seconds (to start drag and drop), then move over S seconds |
 | `pinch X Y SCALE S` | two-finger pinch around (X, Y) to SCALE over S seconds |
@@ -72,9 +86,11 @@ Coordinates are in points of the device screen, with the origin at the top left.
 
 In a window: click to touch, drag to swipe, Option-drag for a second finger (pinch/rotate), Option+Shift-drag
 to move two fingers together. Swipe up from the bottom edge or press Ctrl+Shift+H to go home; Ctrl+Left/Right
-rotates; F12 saves a screenshot. Ctrl+L locks/unlocks; a swipe down from the top-right corner opens Control Center
-(tap to close it).
+rotates; F12 saves a screenshot. Under `isim boot`: Ctrl+Shift+H twice opens the app switcher (or swipe up from the
+bottom edge and hold), Ctrl+L locks/unlocks, pulling down from the top edge opens Notification Center (Control
+Center from the top-right corner).
 
 The iOS version (`--os 17|18|26|27`, see [IOS-VERSIONS.md](IOS-VERSIONS.md)) changes what scripts see: frames of
-system controls (e.g. the iOS 26 switch is 63 × 28, bar buttons are 44 pt glass circles) and the look in screenshots.
-Set `ISIM_LOCK_TIME=H:MM` for a fixed Lock Screen clock in screenshots.
+system controls (e.g. the iOS 26 switch is 63 × 28, bar buttons are 44 pt glass circles), Control Center's parts
+(iOS 18+ adds `cc-edit` and `cc-power`) and the look in screenshots. `ISIM_LOCK_TIME=H:MM` fixes the Lock Screen
+clock for screenshots.

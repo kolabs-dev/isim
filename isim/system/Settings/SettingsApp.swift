@@ -68,7 +68,7 @@ struct SettingsApp: App {
 
 enum Route: Hashable {
     case accessibility, textSize, voiceOver
-    case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter
+    case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter, homeScreen
     case app(String), appKeyboards(String)
     case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
 }
@@ -111,6 +111,8 @@ struct RootView: View {
                         .accessibilityIdentifier("settings-display")
                     NavigationLink(value: Route.accessibility) { Label { Text("Accessibility") } icon: { SettingsIcon(symbol: "accessibility", color: .blue) } }
                         .accessibilityIdentifier("settings-accessibility")
+                    NavigationLink(value: Route.homeScreen) { Label { Text("Home Screen & App Library") } icon: { SettingsIcon(symbol: "square.grid.2x2", color: .indigo) } }
+                        .accessibilityIdentifier("settings-homescreen")
                 }
                 Section {
                     NavigationLink(value: Route.gameCenter) { Label { Text("Game Center") } icon: { SettingsIcon(symbol: "gamecontroller", color: .pink) } }
@@ -156,6 +158,7 @@ struct RootView: View {
         case .dateTime: DateTimeView()
         case .timeZone: TimeZoneView()
         case .display: DisplayView()
+        case .homeScreen: HomeScreenSettingsView()
         case .gameCenter: GameCenterView()
         case .app(let id): AppSettingsView(id: id)
         case .appKeyboards(let id): AppKeyboardsView(id: id)
@@ -508,6 +511,27 @@ struct DisplayView: View {
             }
         }
         .accessibilityIdentifier(id)
+    }
+}
+
+// MARK: - Home Screen & App Library
+
+/// Newly Downloaded Apps: Add to Home Screen / App Library Only (the home screen reads SBNewAppsToHomeScreen)
+struct HomeScreenSettingsView: View {
+    @State private var bump = 0
+    var body: some View {
+        let toHome = (Store.global.object(forKey: "SBNewAppsToHomeScreen") as? Bool) ?? true
+        List {
+            Section("Newly Downloaded Apps") {
+                Button { Store.set("SBNewAppsToHomeScreen", nil); bump += 1 } label: {
+                    HStack { Text("Add to Home Screen").foregroundStyle(.primary); Spacer(); if toHome { Image(systemName: "checkmark").foregroundStyle(.blue) } }
+                }.accessibilityIdentifier("settings-newapps-home")
+                Button { Store.set("SBNewAppsToHomeScreen", false); bump += 1 } label: {
+                    HStack { Text("App Library Only").foregroundStyle(.primary); Spacer(); if !toHome { Image(systemName: "checkmark").foregroundStyle(.blue) } }
+                }.accessibilityIdentifier("settings-newapps-library")
+            }
+        }
+        .navigationTitle("Home Screen & App Library").navigationBarTitleDisplayMode(.inline)
     }
 }
 

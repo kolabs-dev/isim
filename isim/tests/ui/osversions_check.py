@@ -51,10 +51,10 @@ for v in versions:
         safe = 62 if H > 860 else 59
         # the iOS 18 power button (top right): its glyph crosses the button's middle row
         yb = safe + 10 + 17
-        m['cc_button'] = max(lum(im.rgb(x, yb)) for x in range(W - 26 - 34, W - 26)) - lum(im.rgb(W - 26 - 17 - 40, yb))
+        m['cc_button'] = max(lum(im.rgb(x, yb)) for x in range(W - 30 - 34, W - 30)) - lum(im.rgb(W - 30 - 17 - 40, yb))
         # the connectivity platter's left edge near its top (the glass rim is bright there)
-        y0 = safe + (64 if v >= 18 else 42)
-        m['cc_rim'] = lum(im.rgb(26 + 1, y0 + 28))
+        y0 = safe + (64 if v >= 18 else 36)
+        m['cc_rim'] = lum(im.rgb(30 + 1, y0 + 28))
     if os.path.exists(path('h', v)):
         im = Image(path('h', v)); W, H = im.w, im.h
         # the dock's top edge, 70 pt right of centre: a bright glass rim on 26/27, a soft translucent edge before

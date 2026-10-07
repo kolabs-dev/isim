@@ -2,6 +2,11 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: UIView
+  Methods:
+  - Selector: 'drawViewHierarchyInRect:afterScreenUpdates:'
+    MethodKind: Instance
+    SwiftName: 'drawHierarchy(in:afterScreenUpdates:)'
 - Name: UIWindowScene
   Methods:
   - Selector: 'requestGeometryUpdateWithPreferences:errorHandler:'
@@ -625,6 +630,10 @@ Tags:
   SwiftName: UIEvent.EventType
 - Name: UIApplicationState
   SwiftName: UIApplication.State
+- Name: UIBackgroundRefreshStatus
+  SwiftName: UIBackgroundRefreshStatus
+- Name: UIApplicationShortcutIconType
+  SwiftName: UIApplicationShortcutIcon.IconType
 - Name: UISceneActivationState
   SwiftName: UIScene.ActivationState
 - Name: UIModalPresentationStyle
@@ -635,6 +644,14 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UIApplicationOpenURLOptionUniversalLinksOnly
+  SwiftName: UIApplication.OpenExternalURLOptionsKey.universalLinksOnly
+- Name: UIApplicationBackgroundFetchIntervalMinimum
+  SwiftName: UIApplication.backgroundFetchIntervalMinimum
+- Name: UIApplicationBackgroundFetchIntervalNever
+  SwiftName: UIApplication.backgroundFetchIntervalNever
+- Name: UIApplicationBackgroundRefreshStatusDidChangeNotification
+  SwiftName: UIApplication.backgroundRefreshStatusDidChangeNotification
 - Name: UIAccessibilityTraitNone
   SwiftName: UIAccessibilityTraits.none
 - Name: UIAccessibilityTraitButton

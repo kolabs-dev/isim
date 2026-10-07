@@ -3,7 +3,9 @@
  * An http(s) URL opened in the app (script `openurl URL`, or a launch URL) is a universal link of this app when
  * its host is one of the app's associated domains: `applinks:host` / `applinks:*.host` entries of
  * com.apple.developer.associated-domains in the bundle's archived-expanded-entitlements.xcent (the entitlements
- * file Xcode's simulator builds put in the .app). isim does not fetch apple-app-site-association files, so every
+ * file Xcode's simulator builds put in the .app; `isim build` writes it from CODE_SIGN_ENTITLEMENTS). Under the
+ * device shell, links opened from other apps or `openurl` are first routed by the home screen to the app that
+ * claims the domain (SpringBoard/SBSystem.m, UISystemIntegration.m). isim does not fetch apple-app-site-association files, so every
  * path of a declared domain opens the app. The link reaches the app as an NSUserActivity of type
  * NSUserActivityTypeBrowsingWeb: application(_:continue:restorationHandler:), the scene delegate's
  * scene(_:continue:), and SwiftUI's onContinueUserActivity / onOpenURL. Other web URLs "open in Safari"
@@ -55,20 +57,8 @@ BOOL isim_ui_open_web_url(NSURL *url) {
     NSLog(@"isim: universal link %@ -> this app (NSUserActivityTypeBrowsingWeb)", url.absoluteString);
     NSUserActivity *act = [[NSUserActivity alloc] initWithActivityType:NSUserActivityTypeBrowsingWeb];
     act.webpageURL = url;
-    UIApplication *app = UIApplication.sharedApplication;
-    id<UIApplicationDelegate> d = app.delegate;
-    BOOL taken = NO;
-    for (UIScene *s in app.connectedScenes) {
-        id<UISceneDelegate> sd = s.delegate;
-        if ([sd respondsToSelector:@selector(scene:willContinueUserActivityWithType:)]) [sd scene:s willContinueUserActivityWithType:act.activityType];
-        if ([sd respondsToSelector:@selector(scene:continueUserActivity:)]) { [sd scene:s continueUserActivity:act]; taken = YES; }
-    }
-    if (!taken) {
-        if ([d respondsToSelector:@selector(application:willContinueUserActivityWithType:)]) [d application:app willContinueUserActivityWithType:act.activityType];
-        if ([d respondsToSelector:@selector(application:continueUserActivity:restorationHandler:)])
-            [d application:app continueUserActivity:act restorationHandler:^(NSArray *objects) {}];
-    }
-    /* SwiftUI: onContinueUserActivity(NSUserActivityTypeBrowsingWeb), else onOpenURL */
-    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimContinueUserActivity" object:act];
+    /* scene / app delegates, SwiftUI onContinueUserActivity (else onOpenURL): UISystemIntegration.m */
+    extern void isim_sys_continue_activity(NSUserActivity *a);
+    isim_sys_continue_activity(act);
     return YES;
 }

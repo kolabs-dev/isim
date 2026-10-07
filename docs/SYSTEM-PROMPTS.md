@@ -41,7 +41,8 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 |---|---|
 | `ISIM_LOCATION=lat,lon` | simulated location (default: Apple Park); `lat,lon;lat,lon;...@speed` follows a route, `none` has no fix |
 | `ISIM_AUDIO_INPUT=file.wav` / `=mic` | microphone input for `AVAudioRecorder` / `inputNode`: a file played in real time, or the host microphone |
-| `ISIM_NETWORK=offline` | no network (`NWPathMonitor` unsatisfied, URLSession fails) |
+| `ISIM_NETWORK=offline` | no network (`NWPathMonitor` unsatisfied, URLSession fails); Control Center's Wi-Fi off / Airplane Mode does the same while it is set |
+| `ISIM_BACKGROUND_TASK_SECONDS=S` | how long `beginBackgroundTask` / BackgroundTasks tasks run in the background before their expiration handler (default 30; processing tasks 180) |
 | `ISIM_GAMEPADS=0` | ignore host game controllers |
 | `ISIM_MAIL=1`, `ISIM_MESSAGES=1` | make `MFMailComposeViewController` / `MFMessageComposeViewController` available; sent items are saved under `$ISIM_DATA/Library` |
 | `ISIM_ICLOUD=noAccount` | no iCloud account |

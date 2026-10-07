@@ -658,6 +658,39 @@ def game_center_configuration(project):
 
 
 # ---------------- Info.plist ----------------
+# alternate app icons from the asset catalog (Xcode: "Include All App Icon Assets" or an explicit list)
+def apply_alternate_icons(s, bundle, info, name):
+    alt_names = str(s.get('ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES', '')).split()
+    assets_index = os.path.join(bundle, 'isim-assets.json')
+    if not os.path.exists(assets_index):
+        return
+    with open(assets_index) as f:
+        icon_sets = json.load(f).get('appIcons', {})
+    primary = s.get('ASSETCATALOG_COMPILER_APPICON_NAME', 'AppIcon')
+    if str(s.get('ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS', 'NO')).upper() == 'YES':
+        alt_names = [n for n in icon_sets if n != primary]
+    alt = {n: {'CFBundleIconName': n} for n in alt_names if n in icon_sets}
+    if alt:
+        icons = info.setdefault('CFBundleIcons', {})
+        icons.setdefault('CFBundlePrimaryIcon', {'CFBundleIconName': primary})
+        icons.setdefault('CFBundleAlternateIcons', {}).update(alt)
+        with open(os.path.join(bundle, 'Info.plist'), 'wb') as f:
+            plistlib.dump(info, f)
+        log(f'{name}: alternate app icons {", ".join(sorted(alt))}')
+
+
+# entitlements (associated domains, app groups) as Xcode's simulator builds have them: archived-expanded-entitlements.xcent
+def apply_entitlements(target, s, bundle):
+    if not s.get('CODE_SIGN_ENTITLEMENTS'):
+        return
+    ent = os.path.join(target.p.root, expand(s['CODE_SIGN_ENTITLEMENTS'], s))
+    if os.path.exists(ent):
+        with open(ent, 'rb') as f:
+            ent_plist = plistlib.load(f)
+        with open(os.path.join(bundle, 'archived-expanded-entitlements.xcent'), 'wb') as f:
+            plistlib.dump(ent_plist, f)
+
+
 def make_info_plist(target, settings, bundle, extra_localizations, package_type='APPL'):
     src = settings.get('INFOPLIST_FILE')
     info = {}
@@ -1141,6 +1174,9 @@ class Builder:
                     continue                                   # compiled above
                 localizations.update(self.install_resource(res, path))
             info = make_info_plist(target, s, path, localizations, pkgtype)
+            if kind == 'app':
+                apply_alternate_icons(s, path, info, name)
+            apply_entitlements(target, s, path)
         bundles = deps['bundles']
         if kind in ('app', 'appex', 'xctest', 'uitest', 'framework', 'bundle'):
             for b in bundles:                                  # package resource bundles land in the product

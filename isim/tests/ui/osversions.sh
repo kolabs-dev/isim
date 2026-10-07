@@ -54,9 +54,11 @@ for v in $versions; do
   fi
   # the system: home screen, Lock Screen, Control Center
   blog=$(ISIM_LOCK_TIME=9:41 ISIM_SHOT_SCALE=1 timeout 60 out/bin/isim boot --os "$v" --device "$d" --headless \
-         --script "wait 1.5; shot $shots/h$v.png; lock; wait 0.5; shot $shots/l$v.png; unlock; wait 0.3; controlcenter; wait 0.5; shot $shots/c$v.png; controlcenter off; wait 0.3; launch dev.isim.settings; wait 1.2; tapid settings-general; wait 0.8; taptext About; wait 0.8; dump; quit" 2>&1)
+         --script "wait 1.5; shot $shots/h$v.png; lock; wait 0.5; shot $shots/l$v.png; unlock; wait 0.3; controlcenter; wait 0.6; shot $shots/c$v.png; dump; tapid cc-background; wait 0.4; launch dev.isim.settings; wait 1.2; tapid settings-general; wait 0.8; taptext About; wait 0.8; dump; quit" 2>&1)
   check "iOS $v: home screen look"                          'grep -q "SpringBoard: iOS $v look$( [ $v -ge 26 ] && echo " (Liquid Glass)")" <<<"$blog"'
-  check "iOS $v: Lock Screen and Control Center"           'grep -q "isim shell: locked (iOS $v look)" <<<"$blog" && grep -q "isim shell: control center shown (iOS $v look)" <<<"$blog"'
+  check "iOS $v: Lock Screen and Control Center"           'grep -q "isim shell: locked (iOS $v look)" <<<"$blog" && grep -q "isim shell: Control Center (iOS $v look)" <<<"$blog"'
+  if [ "$v" -ge 18 ]; then check "iOS $v: Control Center edit and power buttons (iOS 18 redesign)" 'grep -q "id=cc-power" <<<"$blog" && grep -q "id=cc-edit" <<<"$blog"'
+  else check "iOS $v: Control Center without the iOS 18 buttons" '! grep -q "id=cc-power" <<<"$blog"'; fi
   check "iOS $v: Settings > General > About"                'grep -q "text=$v.0 (isim)" <<<"$blog"'
 done
 python3 tests/ui/osversions_check.py "$shots" $versions || fail=1

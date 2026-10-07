@@ -328,6 +328,13 @@ static char k_label, k_hint, k_value, k_traits, k_element, k_ident, k_hidden, k_
 /* Entry point of app extensions (linked with -e _NSExtensionMain). */
 int NSExtensionMain(int argc, char *argv[]) {
     NSString *point = NSBundle.mainBundle.infoDictionary[@"NSExtension"][@"NSExtensionPointIdentifier"];
+    if ([point isEqualToString:@"com.apple.widgetkit-extension"]) {      /* WidgetKit: the @main WidgetBundle/Widget runs (WidgetKit.swift) */
+        extern void *dlsym(void *, const char *);
+        int (*swift_main)(int, char **) = (int (*)(int, char **))dlsym((void *)-2, "main");
+        if (swift_main) return swift_main(argc, argv);
+        NSLog(@"isim: widget extension without a main entry point (@main Widget / WidgetBundle)");
+        return 1;
+    }
     if (![point isEqualToString:@"com.apple.keyboard-service"]) {
         NSLog(@"isim: extension point '%@' is not supported (isim hosts custom keyboards only)", point);
         return 1;

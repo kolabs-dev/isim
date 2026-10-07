@@ -7,7 +7,7 @@ SDK=${ISIM_SDK:?}; CC=${ISIM_CC:-clang}; isim=$(realpath ../out/bin/isim)
 apps=$SDK/Applications; mkdir -p "$apps"
 # home screen
 sb=$apps/SpringBoard.app; rm -rf "$sb"; mkdir -p "$sb"
-"$CC" -target x86_64-apple-ios17.0-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc SpringBoard/main.m -o "$sb/SpringBoard" \
+"$CC" -target x86_64-apple-ios17.0-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc SpringBoard/*.m -o "$sb/SpringBoard" \
   -framework UIKit -framework Foundation -framework CoreGraphics -lisim_host
 cp SpringBoard/Info.plist "$sb/"
 xcstrings() {   # string catalogs -> <lang>.lproj/*.strings (the same compiler `isim build` uses)

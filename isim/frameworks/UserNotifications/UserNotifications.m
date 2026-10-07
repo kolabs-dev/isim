@@ -579,6 +579,11 @@ static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_
                 app.applicationIconBadgeNumber = r.content.badge.integerValue;
             BOOL banner = (o & (UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionAlert)) != 0;
             NSLog(@"isim UserNotifications: delivered “%@” in the foreground (%@)", r.identifier, banner ? @"banner" : @"not presented");
+            if ((o & UNNotificationPresentationOptionList) || banner) {      /* the shell's Notification Center lists it */
+                NSString *a = [NSString stringWithFormat:@"%@\x1f%@", r.identifier, app_icon_path() ?: @""];
+                NSString *tb = [NSString stringWithFormat:@"%@\x1f%@", r.content.title.length ? r.content.title : app_name(), r.content.body ?: @""];
+                isim_shell_request(ISIM_SHELL_SYSTEM, "notified", a.UTF8String, tb.UTF8String);
+            }
             if (banner && (granted & UNAuthorizationOptionAlert || [self status] == UNAuthorizationStatusProvisional))
                 [ISIMNotificationBanner show:n onTap:^{ [self respond:n action:UNNotificationDefaultActionIdentifier]; }];
         });
@@ -627,9 +632,12 @@ static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_
         NSMutableArray *keep = [NSMutableArray array];
         for (UNNotification *n in self->_delivered) if (![ids containsObject:n.request.identifier]) [keep addObject:n];
         self->_delivered = keep;
+        isim_shell_request(ISIM_SHELL_SYSTEM, "nc-remove", NULL, [ids componentsJoinedByString:@"\x1f"].UTF8String);
     });
 }
-- (void)removeAllDeliveredNotifications { dispatch_async(dispatch_get_main_queue(), ^{ [self->_delivered removeAllObjects]; }); }
+- (void)removeAllDeliveredNotifications {
+    dispatch_async(dispatch_get_main_queue(), ^{ [self->_delivered removeAllObjects]; isim_shell_request(ISIM_SHELL_SYSTEM, "nc-remove", NULL, NULL); });
+}
 - (void)setBadgeCount:(NSInteger)count withCompletionHandler:(void (^)(NSError *))completion {
     void (^done)(NSError *) = [completion copy];
     dispatch_async(dispatch_get_main_queue(), ^{

@@ -9,9 +9,26 @@ extension View {
             return _resolve(c, ctx.child("activity"))
         }
     }
-    /// Advertising activities (Handoff/Spotlight) is accepted and ignored on isim.
-    public func userActivity(_ activityType: String, isActive: Bool = true, _ update: @escaping (NSUserActivity) -> Void) -> some View { self }
+    /// Advertises a user activity while the view is shown: made current, and indexed for the home screen's Spotlight
+    /// when isEligibleForSearch (no Handoff on isim).
+    public func userActivity(_ activityType: String, isActive: Bool = true, _ update: @escaping (NSUserActivity) -> Void) -> some View {
+        _modify { ctx, c in
+            if isActive {
+                let first = _SUIAdvertised.activities[ctx.path] == nil
+                let a = _SUIAdvertised.activities[ctx.path] ?? NSUserActivity(activityType: activityType)
+                _SUIAdvertised.activities[ctx.path] = a
+                update(a)
+                if first { a.becomeCurrent() }
+            } else { _SUIAdvertised.activities[ctx.path] = nil }
+            return _resolve(c, ctx.child("useractivity"))
+        }
+    }
+    public func userActivity<P>(_ activityType: String, element: P?, _ update: @escaping (P, NSUserActivity) -> Void) -> some View {
+        userActivity(activityType, isActive: element != nil) { a in if let e = element { update(e, a) } }
+    }
+    public func handlesExternalEvents(preferring: Set<String>, allowing: Set<String>) -> some View { self }
 }
+@MainActor enum _SUIAdvertised { static var activities: [String: NSUserActivity] = [:] }
 
 extension View {
     public func transformEnvironment<V>(_ keyPath: WritableKeyPath<EnvironmentValues, V>, transform: @escaping (inout V) -> Void) -> some View {

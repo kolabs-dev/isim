@@ -3,13 +3,25 @@
 // re-renders (e.g. scenePhase changes).
 import UIKit
 
-public struct _ModifiedScene<Base: Scene>: Scene, _SceneRoot {
+/// A scene with a modifier: `transform` wraps the scene's root views; `apply` records scene-level settings
+/// (background tasks, ...; Scenes.swift collects the scenes of App.body).
+public struct _ModifiedScene<Base: Scene>: Scene, _SceneRoot, _SceneNode {
     let base: Base
     let transform: @MainActor (AnyView) -> AnyView
+    var apply: (@MainActor (_SceneCollector) -> Void)? = nil
     public var body: Never { fatalError() }
     var _rootView: AnyView {
-        let inner = (base as? _SceneRoot)?._rootView ?? AnyView(EmptyView())
+        let inner = (base as? _SceneNode).map { n -> AnyView in let c = _SceneCollector(); n._collect(c); return c.groups.first?.make() ?? AnyView(EmptyView()) }
+            ?? (base as? _SceneRoot)?._rootView ?? AnyView(EmptyView())
         return transform(inner)
+    }
+    @MainActor func _collect(_ c: _SceneCollector) {
+        apply?(c)
+        let inner = _SceneCollector()
+        if let n = base as? _SceneNode { n._collect(inner) } else if let r = base as? _SceneRoot { inner.groups.append((nil, { r._rootView })) }
+        let t = transform
+        for g in inner.groups { let make = g.make; c.groups.append((g.id, { t(make()) })) }
+        c.backgroundTasks += inner.backgroundTasks
     }
 }
 

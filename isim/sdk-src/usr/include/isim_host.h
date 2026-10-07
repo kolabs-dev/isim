@@ -15,7 +15,8 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        /* touch events: `pad` is the finger (0 first, 1 second: Option-drag / script pinch, rotate2, twofinger) */
        , ISIM_EV_HOVER = 40 /* pointer moved without touching (x, y); pad 1: the pointer left */
        , ISIM_EV_TEXT_EDITING = 41 /* IME composition: text = marked text, key = cursor (characters), mods = selected length */
-       , ISIM_EV_VOICEOVER = 42 /* text: on|off|next|prev|activate|read (script `voiceover`) */ };
+       , ISIM_EV_VOICEOVER = 42 /* text: on|off|next|prev|activate|read (script `voiceover`) */
+       , ISIM_EV_SYSTEM = 50 /* text: a system message from the shell ("bgtask ID", "discard-scenes", ...; shell_system.inc) */ };
 void isim_device_metrics(struct isim_device *out);
 int isim_os_version(void);                            /* the iOS version isim emulates (--os): major*10000 + minor*100 + patch */
 void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags);   /* Liquid Glass; flags 1 dark, 2 clear, 4 no shadow, 8 pressed */
@@ -81,7 +82,8 @@ int isim_open_url(const char *url);
 int isim_shell_present(void);
 enum { ISIM_SHELL_LAUNCH = 3, ISIM_SHELL_SETTINGS = 4, ISIM_SHELL_HOME = 5, ISIM_SHELL_TERMINATE_OTHERS = 6, ISIM_SHELL_TERMINATE_APP = 7, ISIM_SHELL_ICON = 8,
        ISIM_SHELL_RESTART_SYSTEM = 9 /* e.g. after a language change: quit apps, relaunch the home screen and the sender */,
-       ISIM_SHELL_NOTIFY = 10 /* banner from a background app: a = identifier "\x1f" icon path, b = title, c = body */ };
+       ISIM_SHELL_NOTIFY = 10 /* banner from a background app: a = identifier "\x1f" icon path, b = title, c = body */,
+       ISIM_SHELL_SYSTEM = 40 /* system integration: a = verb, b/c = arguments (see runtime/shell_system.inc) */ };
 void isim_shell_request(int type, const char *a, const char *b, const char *c);
 /* images (handles > 0). Sizes: pixels for files/data; per 1pt of font size for symbols. */
 int isim_image_load(const char *path, double *w, double *h);

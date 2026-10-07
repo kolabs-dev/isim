@@ -75,7 +75,15 @@ static int curl_load(void) {
     return ok;
 }
 
-static int offline(void) { const char *e = getenv("ISIM_NETWORK"); return e && !strcmp(e, "offline"); }
+/* ISIM_NETWORK=offline, or Control Center's Wi-Fi off / Airplane Mode (the shell creates <isim data>/Library/isim/NetworkOffline) */
+static int offline(void) {
+    const char *e = getenv("ISIM_NETWORK");
+    if (e && !strcmp(e, "offline")) return 1;
+    const char *d = getenv("ISIM_DATA");
+    if (!d || !*d) return 0;
+    char p[1024]; snprintf(p, sizeof p, "%s/Library/isim/NetworkOffline", d);
+    return access(p, F_OK) == 0;
+}
 
 /* libcurl result -> NSURLError code */
 static int url_error(CURL *c, int rc) {
