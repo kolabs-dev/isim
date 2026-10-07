@@ -33,8 +33,10 @@ fi
 ./build-swiftcore.sh
 python3 build-concurrency.py | tail -1
 ./build-observation.sh | tail -1
+./build-onone.sh | tail -1
 ./build-string-processing.sh | tail -1
 ./build-overlays.sh
+./build-testing.sh | tail -1
 ../out/bin/isim swiftc -parse-as-library -c ../tests/swift-full/main.swift -o ../out/swift/full-test.o
 mkdir -p ../out/apps/SwiftFullTest.app
 ../out/bin/isim cc ../out/swift/full-test.o -o ../out/apps/SwiftFullTest.app/SwiftFullTest

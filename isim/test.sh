@@ -97,6 +97,9 @@ fi
 if [ -x out/apps/HelloCoreData.app/HelloCoreData ]; then         # Xcode project + .xcdatamodeld, @FetchRequest, relaunch persistence
   run "ui: HelloCoreData (Core Data + SwiftUI @FetchRequest, xcodeproj)" tests/ui/coredata.sh
 fi
+if [ -x out/apps/HelloToolchain.app/HelloToolchain ]; then         # isim build (workspace, libs, packages, xcframework) + isim test (XCTest, Swift Testing, XCUITest)
+  run "ui: HelloToolchain (isim build toolchain, isim test: XCTest, Swift Testing, XCUITest)" tests/ui/toolchain.sh
+fi
 if [ -x out/apps/HelloStoryboards.app/HelloStoryboards ]; then     # Xcode project with storyboards, xibs, launch screen, Settings.bundle
   run "ui: HelloStoryboards (storyboards, xibs, segues, launch screen, Settings.bundle)" tests/ui/storyboards.sh
 fi

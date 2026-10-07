@@ -11,6 +11,7 @@
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
 #   isim build -project X.xcodeproj [-target T] [-configuration Debug]   build an Xcode project for isim
+#   isim test -project X.xcodeproj -scheme S [-only-testing:T/C/m] [-resultBundlePath D]   build + run XCTest/XCUITest/Swift Testing
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 #   isim storekit <app> list|refund|expire|cancel|resume|clear ...   local StoreKit Transaction Manager
 #   isim gamecenter <app> saved-games|conflict|reset ...              local Game Center data
@@ -138,6 +139,8 @@ case "$cmd" in
     [ "${1:-}" = "--control" ] && ISIM_CONTROL=$2
     [ -p "${ISIM_CONTROL:-}" ] || { echo "isim openurl: start the device with --control FIFO (or set ISIM_CONTROL) to send it URLs" >&2; exit 2; }
     printf 'openurl %s\n' "$url" > "$ISIM_CONTROL" ;;
+  test)
+    exec python3 "$BIN/isim-test.py" "$@" ;;
   storekit|gamecenter|appleid)
     ISIM_DATA=$DATA exec python3 "$BIN/isim-services.py" "$cmd" "$@" ;;
   metrickit)   # Debug > Simulate MetricKit Payloads: running apps' MXMetricManager subscribers get sample payloads

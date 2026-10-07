@@ -182,6 +182,15 @@ int isim_gfx_screen_snapshot(double x, double y, double w, double h);   /* what 
 void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group painted with its pixels multiplied by rgba */
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
+/* XCUITest (isim XCTest): run the app under test as a child process driven through a control FIFO.
+ * argv/envp are NULL-terminated (envp: KEY=VALUE added to the environment); snapshot returns the app's
+ * accessibility snapshot text (free with isim_xcui_free) or NULL. */
+int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp);
+int isim_xcui_running(int handle);
+int isim_xcui_send(int handle, const char *script_command);
+char *isim_xcui_snapshot(int handle, double timeout);
+void isim_xcui_free(char *text);
+void isim_xcui_terminate(int handle);
 /* host game controllers (SDL3 gamepads; ISIM_GAMEPADS=0 disables). buttons: bit i = SDL_GamepadButton i (0 south/A,
    1 east/B, 2 west/X, 3 north/Y, 4 back, 5 guide, 6 start, 7/8 stick clicks, 9/10 shoulders, 11-14 dpad up/down/left/right);
    axes: left x, left y, right x, right y (-1...1, y down), left / right trigger (0...1) */
