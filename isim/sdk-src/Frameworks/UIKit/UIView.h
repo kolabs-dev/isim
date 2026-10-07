@@ -114,6 +114,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UIUserInterfaceStyle overrideUserInterfaceStyle;
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;
+/* iOS 17: traits this view and its subviews see on top of the inherited ones */
+@property (nonatomic, readonly) id<UITraitOverrides> traitOverrides API_AVAILABLE(ios(17.0));
+- (void)updateTraitsIfNeeded API_AVAILABLE(ios(17.0));
 /* Auto Layout */
 @property (nonatomic, readonly) NSArray<__kindof NSLayoutConstraint *> *constraints;
 - (void)addConstraint:(NSLayoutConstraint *)constraint;

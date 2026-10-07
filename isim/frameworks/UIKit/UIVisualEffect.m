@@ -34,9 +34,24 @@ void isim_ui_draw_glass(CGRect r, CGFloat radius, UIColor *tint, int flags) {
 - (void)layoutSubviews { [super layoutSubviews]; if (_automaticallyPlacesContentView) _contentView.frame = self.bounds; }
 @end
 
-@implementation UIVibrancyEffect
-+ (UIVibrancyEffect *)effectForBlurEffect:(UIBlurEffect *)b { return [self new]; }
-+ (UIVibrancyEffect *)effectForBlurEffect:(UIBlurEffect *)b style:(UIVibrancyEffectStyle)s { return [self new]; }
+@implementation UIVibrancyEffect { UIBlurEffect *_blur; UIVibrancyEffectStyle _vstyle; }
++ (UIVibrancyEffect *)effectForBlurEffect:(UIBlurEffect *)b { return [self effectForBlurEffect:b style:UIVibrancyEffectStyleLabel]; }
++ (UIVibrancyEffect *)effectForBlurEffect:(UIBlurEffect *)b style:(UIVibrancyEffectStyle)s { UIVibrancyEffect *e = [self new]; e->_blur = b; e->_vstyle = s; return e; }
+- (UIVibrancyEffectStyle)_isim_style { return _vstyle; }
+- (UIBlurEffect *)_isim_blur { return _blur; }
+/* the color vibrant content is drawn in (adapted: content keeps its shape and alpha, takes this color): light or
+   dark after the blur style (its Light/Dark variants, else the current appearance) */
+- (void)_isim_color:(double[4])out {
+    NSInteger bs = _blur._isim_style;
+    BOOL dark = (bs >= UIBlurEffectStyleSystemUltraThinMaterialDark && bs <= UIBlurEffectStyleSystemChromeMaterialDark) || bs == UIBlurEffectStyleDark ? YES
+              : (bs >= UIBlurEffectStyleSystemUltraThinMaterialLight && bs <= UIBlurEffectStyleSystemChromeMaterialLight) || bs == UIBlurEffectStyleLight || bs == UIBlurEffectStyleExtraLight ? NO
+              : isim_ui_style() == UIUserInterfaceStyleDark;
+    static const double light[8] = { 0.80, 0.55, 0.30, 0.18, 0.20, 0.16, 0.12, 0.29 }, darkA[8] = { 0.90, 0.60, 0.35, 0.20, 0.36, 0.32, 0.24, 0.28 };
+    int i = _vstyle >= 0 && _vstyle < 8 ? (int)_vstyle : 0;
+    double g = dark ? 1.0 : 0.0;
+    if (!dark && i <= 3) g = 0.12;                     /* light materials: dark gray text */
+    out[0] = out[1] = out[2] = g; out[3] = dark ? darkA[i] : light[i];
+}
 @end
 
 /* blur radius (points) and tint for a style in the given appearance */
@@ -73,7 +88,22 @@ void isim_ui_material(NSInteger style, BOOL dark, double *radius, double tint[4]
 
 @interface __IsimEffectContentView : UIView
 @end
+@interface UIVibrancyEffect (IsimVibrancy)
+- (void)_isim_color:(double[4])out;
+@end
 @implementation __IsimEffectContentView
+/* inside a vibrancy effect view the content is drawn as a mask for the vibrant color */
+- (void)_isim_render {
+    UIVisualEffectView *ev = (UIVisualEffectView *)self.superview;
+    if (![ev isKindOfClass:[UIVisualEffectView class]] || ![ev.effect isKindOfClass:[UIVibrancyEffect class]] || self.hidden) { [super _isim_render]; return; }
+    CGRect f = self.frame; double c[4];
+    [(UIVibrancyEffect *)ev.effect _isim_color:c];
+    isim_gfx_push_group();
+    isim_gfx_fill_rounded(f.origin.x, f.origin.y, f.size.width, f.size.height, 0, c);
+    isim_gfx_push_group();
+    [super _isim_render];
+    isim_gfx_pop_group_masked(1);
+}
 @end
 
 @implementation UIVisualEffectView { UIView *_content; BOOL _isim_pressed; }

@@ -127,14 +127,6 @@ static UIInterfaceOrientation choose(UIDeviceOrientation dev, UIInterfaceOrienta
 + (void)attemptRotationToDeviceOrientation { isim_ui_device_orientation_changed(0); }
 @end
 
-static void trait_changed_views(UIView *v, UITraitCollection *prev) { [v traitCollectionDidChange:prev]; for (UIView *s in v.subviews) trait_changed_views(s, prev); }
-static void trait_changed_controllers(UIViewController *vc, UITraitCollection *prev) {
-    if (!vc) return;
-    [vc traitCollectionDidChange:prev];
-    for (UIViewController *c in vc.childViewControllers) trait_changed_controllers(c, prev);
-    if (vc.presentedViewController.presentingViewController == vc) trait_changed_controllers(vc.presentedViewController, prev);
-}
-
 /* containers answer for their visible child (isim: also without the navigation delegate's
    navigationControllerSupportedInterfaceOrientations) */
 @implementation UINavigationController (UIRotation)
@@ -160,16 +152,17 @@ static void rotate_interface(UIInterfaceOrientation o, BOOL animated) {
     CGSize oldSize = CGSizeMake(d->width, d->height);
     BOOL toLandscape = UIInterfaceOrientationIsLandscape(o), wasLandscape = oldSize.width > oldSize.height;
     CGSize newSize = toLandscape == wasLandscape ? oldSize : CGSizeMake(oldSize.height, oldSize.width);
-    UITraitCollection *oldTraits = [UITraitCollection traitCollectionWithUserInterfaceStyle:isim_ui_style()];
+    isim_ui_traits_flush();
+    UITraitCollection *oldTraits = isim_ui_screen_traits();
     __IsimRotationCoordinator *coord = [__IsimRotationCoordinator new];
     coord.duration = animated ? 0.35 : 0;
     CGFloat angle = (CGFloat)((toLandscape != wasLandscape) ? M_PI_2 : M_PI);
     coord.transform = CGAffineTransformMakeRotation(o == UIInterfaceOrientationLandscapeRight || interface_orientation == UIInterfaceOrientationLandscapeLeft ? -angle : angle);
     NSArray<UIWindow *> *windows = [UIApplication.sharedApplication.windows copy];
     /* the coming traits, told before the change */
-    isim_set_orientation((int)o); isim_ui_device_refresh();
-    UITraitCollection *newTraits = [UITraitCollection traitCollectionWithUserInterfaceStyle:isim_ui_style()];
-    isim_set_orientation((int)interface_orientation); isim_ui_device_refresh();
+    isim_set_orientation((int)o); isim_ui_device_refresh(); isim_ui_traits_invalidate(nil);
+    UITraitCollection *newTraits = isim_ui_screen_traits();
+    isim_set_orientation((int)interface_orientation); isim_ui_device_refresh(); isim_ui_traits_invalidate(nil);
     BOOL traitsChange = oldTraits.horizontalSizeClass != newTraits.horizontalSizeClass || oldTraits.verticalSizeClass != newTraits.verticalSizeClass;
     for (UIWindow *w in windows) {
         UIViewController *root = w.rootViewController;
@@ -180,6 +173,7 @@ static void rotate_interface(UIInterfaceOrientation o, BOOL animated) {
     interface_orientation = o;
     isim_set_orientation((int)o);
     isim_ui_device_refresh();
+    isim_ui_traits_invalidate(nil);
     void (^apply)(void) = ^{
         for (UIWindow *w in windows) {
             CGRect f = w.frame;
@@ -193,9 +187,9 @@ static void rotate_interface(UIInterfaceOrientation o, BOOL animated) {
         for (void (^c)(id) in coord.completions) c(coord);
         isim_ui_set_needs_layout();
     };
-    if (traitsChange) for (UIWindow *w in windows) { trait_changed_views(w, oldTraits); trait_changed_controllers(w.rootViewController, oldTraits); }
     if (animated) [UIView animateWithDuration:coord.duration delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:apply completion:finish];
     else { [UIView performWithoutAnimation:apply]; finish(YES); }
+    isim_ui_traits_flush();                           /* traitCollectionDidChange: with the previous traits */
     isim_ui_set_needs_layout();
     NSLog(@"isim: interface orientation %ld (%gx%g)", (long)o, newSize.width, newSize.height);
 }

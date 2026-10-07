@@ -9,7 +9,7 @@
 #import <UIKit/UITextField.h>
 #import <UIKit/UIInteraction.h>
 NS_ASSUME_NONNULL_BEGIN
-typedef NSString *UIContentSizeCategory NS_TYPED_ENUM;
+/* UIContentSizeCategory, UIAccessibilityContrast and UILegibilityWeight are declared in UITraitCollection.h */
 UIKIT_EXTERN UIContentSizeCategory const UIContentSizeCategoryUnspecified, UIContentSizeCategoryExtraSmall, UIContentSizeCategorySmall,
     UIContentSizeCategoryMedium, UIContentSizeCategoryLarge, UIContentSizeCategoryExtraLarge, UIContentSizeCategoryExtraExtraLarge,
     UIContentSizeCategoryExtraExtraExtraLarge, UIContentSizeCategoryAccessibilityMedium, UIContentSizeCategoryAccessibilityLarge,
@@ -19,8 +19,6 @@ UIKIT_EXTERN NSString *const UIContentSizeCategoryNewValueKey;
 UIKIT_EXTERN BOOL UIContentSizeCategoryIsAccessibilityCategory(UIContentSizeCategory category) NS_REFINED_FOR_SWIFT;
 UIKIT_EXTERN NSComparisonResult UIContentSizeCategoryCompareToCategory(UIContentSizeCategory lhs, UIContentSizeCategory rhs) NS_REFINED_FOR_SWIFT;
 
-typedef NS_ENUM(NSInteger, UIAccessibilityContrast) { UIAccessibilityContrastUnspecified = -1, UIAccessibilityContrastNormal, UIAccessibilityContrastHigh };
-typedef NS_ENUM(NSInteger, UILegibilityWeight) { UILegibilityWeightUnspecified = -1, UILegibilityWeightRegular, UILegibilityWeightBold };
 @interface UITraitCollection (UIContentSizeCategory)
 @property (nonatomic, copy, readonly) UIContentSizeCategory preferredContentSizeCategory;
 @property (nonatomic, readonly) UIAccessibilityContrast accessibilityContrast;

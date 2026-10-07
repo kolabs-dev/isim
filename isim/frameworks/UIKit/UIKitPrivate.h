@@ -1,5 +1,6 @@
 /* isim UIKit private interfaces (not part of the SDK). */
 #pragma once
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"   /* isim implements newer APIs inside the framework */
 #import <UIKit/UIKit.h>
 #include <isim_host.h>
 #include "Cassowary.h"
@@ -19,6 +20,35 @@ UIUserInterfaceStyle isim_ui_style(void);              /* style currently used t
 void isim_ui_push_style(UIUserInterfaceStyle s);
 void isim_ui_pop_style(void);
 void isim_ui_rgba(UIColor *c, double out[4]);          /* resolve against the current style */
+/* traits (UITraits.m) */
+UIUserInterfaceStyle isim_ui_base_style(void);         /* the device appearance (Settings / --dark) */
+UITraitCollection *isim_ui_screen_traits(void);        /* device + settings */
+UITraitCollection *isim_ui_traits_for_size(CGSize size);   /* screen traits with the size classes of a window of that size */
+UITraitCollection *isim_ui_current_traits(void);       /* UITraitCollection.current */
+void isim_ui_push_traits(UITraitCollection *t);
+void isim_ui_pop_traits(void);
+unsigned isim_ui_trait_generation(void);               /* moves whenever any view's traits may have changed */
+void isim_ui_traits_invalidate(UIView *root);   /* nil: every window (settings, rotation) */
+void isim_ui_traits_flush(void);                       /* traitCollectionDidChange: for what changed (before layout) */
+id<UITraitOverrides> isim_ui_new_trait_overrides(void (^changed)(void));
+BOOL isim_ui_trait_overrides_empty(id<UITraitOverrides> o);
+UITraitCollection *isim_ui_apply_overrides(UITraitCollection *base, id<UITraitOverrides> o, UIUserInterfaceStyle style);
+NSString *isim_ui_trait_key(id trait);      /* trait class or Swift identifier -> storage key */
+@interface UIView (IsimTraits)
+- (UITraitCollection *)_isim_inheritedTraits;          /* before this view's controller and own overrides */
+- (BOOL)_isim_hasTraitOverrides;
+@end
+@interface UIViewController (IsimTraits)
+- (UITraitCollection *)_isim_traitsFromBase:(UITraitCollection *)base;
+- (void)_isim_traitsCheck;                              /* traitCollectionDidChange: if its traits changed */
+@end
+@interface UITraitCollection (IsimTraits)
+- (NSUInteger)_isim_traitCount;
+@end
+UIColor *isim_ui_accent_color(void);                   /* the asset catalog's accent color, or nil */
+@interface UIWindowScene (IsimTraits)
+- (UITraitCollection *)_isim_traitsForWindowSize:(CGSize)size;
+@end
 
 /* iOS version isim emulates (--os): the look follows it. 17/18: the classic materials; 26+: Liquid Glass. */
 int isim_ui_os_major(void);

@@ -3,6 +3,13 @@
 #import "UIKitPrivate.h"
 #include <math.h>
 #include <isim_host_cg.h>
+#include <objc/runtime.h>
+@interface UIImageSymbolConfiguration (IsimClone)
+- (instancetype)_isim_clone;
+@end
+@interface UIImageAsset (IsimCatalog)
++ (instancetype)_isim_assetNamed:(NSString *)name bundle:(NSBundle *)bundle variants:(NSArray *)variants;
+@end
 
 /* ---------------- asset catalog index ---------------- */
 static NSDictionary *asset_index(NSBundle *bundle) {
@@ -24,10 +31,33 @@ static NSDictionary *asset_index(NSBundle *bundle) {
 @end
 
 /* ---------------- symbol configuration ---------------- */
+static char k_config_traits;
 @implementation UIImageConfiguration
 - (id)copyWithZone:(NSZone *)z { return self; }
-- (UITraitCollection *)traitCollection { return nil; }
+- (UITraitCollection *)traitCollection { return objc_getAssociatedObject(self, &k_config_traits); }
++ (instancetype)configurationWithTraitCollection:(UITraitCollection *)t { return [[self new] configurationWithTraitCollection:t]; }
+- (instancetype)configurationWithTraitCollection:(UITraitCollection *)t {
+    UIImageConfiguration *c = [self isKindOfClass:[UIImageSymbolConfiguration class]] ? [(UIImageSymbolConfiguration *)self _isim_clone] : [[self class] new];
+    objc_setAssociatedObject(c, &k_config_traits, t, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return c;
+}
 @end
+
+/* ---------------- appearance variants: asset catalog keys ("any", "light", "dark", "+-high") ---------------- */
+/* how well a variant's appearance key suits the traits (lower is better; >= 1000: unusable) */
+static int appearance_score(NSString *key, UITraitCollection *t) {
+    BOOL dark = (t.userInterfaceStyle == UIUserInterfaceStyleUnspecified ? isim_ui_style() : t.userInterfaceStyle) == UIUserInterfaceStyleDark;
+    BOOL hc = t.accessibilityContrast == UIAccessibilityContrastUnspecified ? UIAccessibilityIsDarkerSystemColorsEnabled() : t.accessibilityContrast == UIAccessibilityContrastHigh;
+    BOOL keyHigh = [key hasSuffix:@"-high"];
+    NSString *lum = keyHigh ? [key substringToIndex:key.length - 5] : key;
+    int s = 0;
+    if ([lum isEqualToString:@"dark"]) s += dark ? 0 : 1000;
+    else if ([lum isEqualToString:@"light"]) s += dark ? 1000 : 0;
+    else if ([lum isEqualToString:@"any"]) s += dark ? 10 : 1;
+    else return 5000;                                   /* tinted and other appearances: not for drawing */
+    if (keyHigh) s += hc ? 0 : 1000; else s += hc ? 5 : 0;
+    return s;
+}
 
 @implementation UIImageSymbolConfiguration { CGFloat _pointSize; UIImageSymbolWeight _weight; UIImageSymbolScale _scale; }
 + (UIImageSymbolConfiguration *)unspecifiedConfiguration { return [self new]; }
@@ -47,6 +77,7 @@ static NSDictionary *asset_index(NSBundle *bundle) {
         : fw < 0.5 ? UIImageSymbolWeightBold : fw < 0.6 ? UIImageSymbolWeightHeavy : UIImageSymbolWeightBlack;
     return [self configurationWithPointSize:font.pointSize weight:w];
 }
+- (instancetype)_isim_clone { UIImageSymbolConfiguration *c = [UIImageSymbolConfiguration new]; c->_pointSize = _pointSize; c->_weight = _weight; c->_scale = _scale; return c; }
 - (instancetype)configurationByApplyingConfiguration:(UIImageSymbolConfiguration *)o {
     if (!o) return self;
     return [UIImageSymbolConfiguration configurationWithPointSize:o->_pointSize ?: _pointSize weight:o->_weight ?: _weight scale:o->_scale ?: _scale];
@@ -70,6 +101,7 @@ static NSDictionary *asset_index(NSBundle *bundle) {
     UIImageOrientation _orient;         /* how the stored pixels are shown (Left/Right swap the size) */
     UIEdgeInsets _caps; UIImageResizingMode _rmode; BOOL _resizable;
     NSArray<UIImage *> *_frames; NSTimeInterval _duration;      /* animated images */
+    UIImageAsset *_asset;               /* appearance variants (asset catalog light/dark/high contrast, registered images) */
 }
 - (id)copyWithZone:(NSZone *)z { return self; }          /* images are immutable */
 
@@ -78,7 +110,19 @@ static NSDictionary *asset_index(NSBundle *bundle) {
     i->_data = _data; i->_size = _size; i->_scale = _scale; i->_mode = _mode; i->_symbol = _symbol;
     i->_unitW = _unitW; i->_unitH = _unitH; i->_config = _config; i->_tint = _tint; i->_name = _name; i->_crop = _crop;
     i->_orient = _orient; i->_caps = _caps; i->_rmode = _rmode; i->_resizable = _resizable; i->_frames = _frames; i->_duration = _duration;
+    i->_asset = _asset;
     return i;
+}
+- (UIImageAsset *)imageAsset { return _asset; }
+- (void)_isim_setAsset:(UIImageAsset *)a { _asset = a; }
+/* the variant of this image's asset for the traits, keeping this image's rendering mode and tint */
+- (UIImage *)_isim_resolvedForTraits:(UITraitCollection *)t {
+    if (!_asset) return self;
+    UIImage *v = [_asset imageWithTraitCollection:t];
+    if (!v || v == self || v->_data == _data) return self;
+    if (v->_mode == _mode && v->_tint == _tint && !_resizable) return v;
+    UIImage *c = [v _copy]; c->_mode = _mode; c->_tint = _tint; c->_caps = _caps; c->_rmode = _rmode; c->_resizable = _resizable;
+    return c;
 }
 
 static UIImage *image_from_handle(int h, double w, double hgt, CGFloat scale) {
@@ -180,22 +224,16 @@ static CGFloat scale_from_name(NSString *path) {
     /* 1) asset catalog: pick the variant for the current appearance closest to the screen scale */
     NSArray *variants = asset_index(bundle)[@"images"][name];
     if (variants.count) {
-        NSString *want = isim_ui_style() == UIUserInterfaceStyleDark ? @"dark" : @"any";
-        NSDictionary *best = nil; double bestScore = 1e9;
-        for (NSDictionary *v in variants) {
-            double s = [v[@"scale"] doubleValue] ?: 1;
-            double score = fabs(s - devScale) + ([v[@"appearance"] isEqualToString:want] ? 0 : [v[@"appearance"] isEqualToString:@"any"] ? 10 : 100);
-            if (score < bestScore) { bestScore = score; best = v; }
+        UITraitCollection *t = config.traitCollection ?: isim_ui_current_traits();
+        NSMutableSet *appearances = [NSMutableSet set];
+        for (NSDictionary *v in variants) [appearances addObject:v[@"appearance"] ?: @"any"];
+        if (appearances.count > 1) {               /* light/dark/high-contrast variants: an image asset picks per traits */
+            UIImageAsset *a = [UIImageAsset _isim_assetNamed:name bundle:bundle variants:variants];
+            UIImage *i = [a imageWithTraitCollection:t];
+            if (i) return i;
         }
-        NSString *path = [bundle.bundlePath stringByAppendingPathComponent:best[@"file"]];
-        double w, h; int hd = isim_image_load(path.UTF8String, &w, &h);
-        CGFloat s = [best[@"scale"] doubleValue] ?: 1;
-        UIImage *i = image_from_handle(hd, w, h, [path.pathExtension isEqualToString:@"svg"] || [path.pathExtension isEqualToString:@"pdf"] ? 1 : s);
-        if (i) {
-            i->_name = name;
-            if ([best[@"templateRendering"] boolValue]) i->_mode = UIImageRenderingModeAlwaysTemplate;
-            return i;
-        }
+        UIImage *i = [self _isim_catalogImage:name bundle:bundle variants:variants traits:t];
+        if (i) return i;
     }
     /* 2) loose files in the bundle: name@3x.png, name@2x.png, name.png, name.jpg, name.svg */
     NSString *ext = name.pathExtension, *stem = ext.length ? name.stringByDeletingPathExtension : name;
@@ -209,6 +247,25 @@ static CGFloat scale_from_name(NSString *path) {
     return nil;
 }
 
+/* the asset-catalog variant for the traits, closest to the screen scale */
++ (UIImage *)_isim_catalogImage:(NSString *)name bundle:(NSBundle *)bundle variants:(NSArray *)variants traits:(UITraitCollection *)t {
+    CGFloat devScale = isim_ui_device()->scale;
+    NSDictionary *best = nil; double bestScore = 1e9;
+    for (NSDictionary *v in variants) {
+        double s = [v[@"scale"] doubleValue] ?: 1;
+        double score = fabs(s - devScale) + appearance_score(v[@"appearance"] ?: @"any", t) * 10;
+        if (score < bestScore) { bestScore = score; best = v; }
+    }
+    if (!best) return nil;
+    NSString *path = [bundle.bundlePath stringByAppendingPathComponent:best[@"file"]];
+    double w, h; int hd = isim_image_load(path.UTF8String, &w, &h);
+    CGFloat s = [best[@"scale"] doubleValue] ?: 1;
+    UIImage *i = image_from_handle(hd, w, h, [path.pathExtension isEqualToString:@"svg"] || [path.pathExtension isEqualToString:@"pdf"] ? 1 : s);
+    if (!i) return nil;
+    i->_name = name;
+    if ([best[@"templateRendering"] boolValue]) i->_mode = UIImageRenderingModeAlwaysTemplate;
+    return i;
+}
 + (UIImage *)systemImageNamed:(NSString *)name { return [self systemImageNamed:name withConfiguration:nil]; }
 + (UIImage *)systemImageNamed:(NSString *)name withConfiguration:(UIImageConfiguration *)config {
     double w, h;
@@ -242,12 +299,18 @@ static CGFloat scale_from_name(NSString *path) {
     UIImage *i = [self _copy]; i->_config = _config ? [_config configurationByApplyingConfiguration:c] : c; [i _isim_updateSymbolSize]; return i;
 }
 - (UIImage *)imageWithConfiguration:(UIImageConfiguration *)c {
-    return [c isKindOfClass:[UIImageSymbolConfiguration class]] ? [self imageByApplyingSymbolConfiguration:(UIImageSymbolConfiguration *)c] : self;
+    UIImage *i = [c isKindOfClass:[UIImageSymbolConfiguration class]] ? [self imageByApplyingSymbolConfiguration:(UIImageSymbolConfiguration *)c] : self;
+    if (c.traitCollection && i->_asset) i = [i _isim_resolvedForTraits:c.traitCollection];   /* the asset's variant for those traits */
+    return i;
 }
 - (NSString *)description { return [NSString stringWithFormat:@"<UIImage:%p %@%@ {%g, %g}>", self, _symbol ? @"symbol(substitute) " : @"", _name ?: @"", _size.width, _size.height]; }
 
 - (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha { [self _isim_drawInRect:r tint:tint alpha:alpha nearest:NO]; }
 - (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha nearest:(BOOL)nearest {
+    if (_asset) {                                       /* dynamic image: the variant for the traits it is drawn with */
+        UIImage *v = [self _isim_resolvedForTraits:isim_ui_current_traits()];
+        if (v != self) { [v _isim_drawInRect:r tint:tint alpha:alpha nearest:nearest]; return; }
+    }
     if (_frames.count) { [_frames.firstObject _isim_drawInRect:r tint:tint alpha:alpha nearest:nearest]; return; }
     if (_resizable && !_symbol && _data.handle && [self _isim_drawSlices:r alpha:alpha nearest:nearest]) return;
     if (_orient != UIImageOrientationUp) {
@@ -409,11 +472,86 @@ static CGFloat scale_from_name(NSString *path) {
 + (UIColor *)colorNamed:(NSString *)name inBundle:(NSBundle *)bundle compatibleWithTraitCollection:(UITraitCollection *)traits {
     NSDictionary *variants = asset_index(bundle ?: NSBundle.mainBundle)[@"colors"][name];
     if (!variants.count) return nil;
-    NSArray *any = variants[@"any"] ?: variants.allValues.firstObject, *dark = variants[@"dark"] ?: any;
-    UIColor *light = [UIColor colorWithRed:[any[0] doubleValue] green:[any[1] doubleValue] blue:[any[2] doubleValue] alpha:[any[3] doubleValue]];
-    UIColor *darkC = [UIColor colorWithRed:[dark[0] doubleValue] green:[dark[1] doubleValue] blue:[dark[2] doubleValue] alpha:[dark[3] doubleValue]];
-    UIColor *c = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return t.userInterfaceStyle == UIUserInterfaceStyleDark ? darkC : light; }];
+    /* light/dark and high-contrast variants (Any, Light, Dark appearances x High Contrast), resolved per traits */
+    NSMutableDictionary<NSString *, UIColor *> *colors = [NSMutableDictionary dictionary];
+    for (NSString *k in variants) {
+        NSArray *v = variants[k];
+        if ([v isKindOfClass:[NSArray class]] && v.count >= 4) colors[k] = [UIColor colorWithRed:[v[0] doubleValue] green:[v[1] doubleValue] blue:[v[2] doubleValue] alpha:[v[3] doubleValue]];
+    }
+    UIColor *fallback = colors[@"any"] ?: colors[@"light"] ?: colors.allValues.firstObject;
+    UIColor *c = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) {
+        NSString *best = nil; int bestScore = 1000;
+        for (NSString *k in colors) { int s = appearance_score(k, t); if (s < bestScore) { bestScore = s; best = k; } }
+        return best ? colors[best] : fallback;
+    }];
     if (traits) return [c resolvedColorWithTraitCollection:traits];
     return c;
 }
 @end
+
+/* ---------------- UIImageAsset ---------------- */
+@implementation UIImageAsset { NSMutableArray<NSArray *> *_registered; NSString *_name; NSBundle *_bundle; NSArray *_variants; NSMutableDictionary *_cache; }
+- (instancetype)init { if ((self = [super init])) { _registered = [NSMutableArray array]; _cache = [NSMutableDictionary dictionary]; } return self; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c {}
+- (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
++ (instancetype)_isim_assetNamed:(NSString *)name bundle:(NSBundle *)bundle variants:(NSArray *)variants {
+    static NSMutableDictionary *assets;
+    if (!assets) assets = [NSMutableDictionary dictionary];
+    NSString *key = [NSString stringWithFormat:@"%@|%@", bundle.bundlePath, name];
+    UIImageAsset *a = assets[key];
+    if (!a) { a = [self new]; a->_name = name; a->_bundle = bundle; a->_variants = variants; assets[key] = a; }
+    return a;
+}
+/* the image for the traits: an asset-catalog variant (cached per appearance), or the registered image whose traits the
+   collection contains (the most specific one) */
+- (UIImage *)imageWithTraitCollection:(UITraitCollection *)t {
+    if (!t) t = isim_ui_current_traits();
+    if (_variants) {
+        NSString *bestKey = @"any"; int bestScore = 100000;
+        for (NSDictionary *v in _variants) { NSString *k = v[@"appearance"] ?: @"any"; int s = appearance_score(k, t); if (s < bestScore) { bestScore = s; bestKey = k; } }
+        UIImage *i = _cache[bestKey];
+        if (!i) {
+            NSMutableArray *same = [NSMutableArray array];
+            for (NSDictionary *v in _variants) if ([(v[@"appearance"] ?: @"any") isEqualToString:bestKey]) [same addObject:v];
+            i = [UIImage _isim_catalogImage:_name bundle:_bundle variants:same traits:t];
+            if (i) { [i _isim_setAsset:self]; _cache[bestKey] = i; }
+        }
+        if (i) return i;
+    }
+    UIImage *best = nil; NSUInteger bestN = 0;
+    for (NSArray *e in _registered) {
+        UITraitCollection *et = e[0];
+        if (![t containsTraitsInCollection:et]) continue;
+        NSUInteger n = [et _isim_traitCount];
+        if (!best || n > bestN) { best = e[1]; bestN = n; }
+    }
+    return best ?: _registered.firstObject[1];
+}
+- (UIImage *)imageWithConfiguration:(UIImageConfiguration *)c { return [self imageWithTraitCollection:c.traitCollection]; }
+- (void)registerImage:(UIImage *)image withTraitCollection:(UITraitCollection *)t {
+    if (!image) return;
+    t = t ?: [UITraitCollection new];
+    [self unregisterImageWithTraitCollection:t];
+    UIImage *i = [image _copy]; [i _isim_setAsset:self];
+    [_registered addObject:@[t, i]];
+}
+- (void)registerImage:(UIImage *)image withConfiguration:(UIImageConfiguration *)c { [self registerImage:image withTraitCollection:c.traitCollection]; }
+- (void)unregisterImageWithTraitCollection:(UITraitCollection *)t {
+    for (NSArray *e in [_registered copy]) if ([e[0] isEqual:t]) [_registered removeObjectIdenticalTo:e];
+}
+- (void)unregisterImageWithConfiguration:(UIImageConfiguration *)c { [self unregisterImageWithTraitCollection:c.traitCollection ?: [UITraitCollection new]]; }
+@end
+
+/* the app's accent color (asset catalog: ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME, else "AccentColor"): the
+   default tint of views and UIColor.tintColor */
+UIColor *isim_ui_accent_color(void) {
+    static UIColor *accent; static BOOL looked;
+    if (!looked) {
+        looked = YES;
+        NSString *name = NSBundle.mainBundle.infoDictionary[@"ISIMGlobalAccentColorName"];
+        if ([name isKindOfClass:[NSString class]]) accent = [UIColor colorNamed:name];
+        if (!accent) accent = [UIColor colorNamed:@"AccentColor"];
+    }
+    return accent;
+}

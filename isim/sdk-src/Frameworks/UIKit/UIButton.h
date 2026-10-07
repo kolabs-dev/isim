@@ -20,6 +20,12 @@ typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeS
 - (void)setTitleColor:(nullable UIColor *)color forState:(UIControlState)state;
 - (void)setImage:(nullable UIImage *)image forState:(UIControlState)state;
 - (nullable UIImage *)imageForState:(UIControlState)state;
+/* background images per state, drawn stretched behind the content (resizable images draw as nine slices) */
+- (void)setBackgroundImage:(nullable UIImage *)image forState:(UIControlState)state;
+- (nullable UIImage *)backgroundImageForState:(UIControlState)state;
+@property (nullable, nonatomic, readonly, strong) UIImage *currentBackgroundImage;
+- (void)setTitleShadowColor:(nullable UIColor *)color forState:(UIControlState)state;
+- (nullable UIColor *)titleShadowColorForState:(UIControlState)state;
 @property (nullable, nonatomic, readonly, strong) UIImage *currentImage;
 - (void)setPreferredSymbolConfiguration:(nullable UIImageSymbolConfiguration *)configuration forImageInState:(UIControlState)state;
 - (nullable NSString *)titleForState:(UIControlState)state;

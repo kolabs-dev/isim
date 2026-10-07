@@ -223,7 +223,8 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 
 /* ================= UIButton ================= */
 @implementation UIButton { NSMutableDictionary<NSNumber *, NSString *> *_titles; NSMutableDictionary<NSNumber *, UIColor *> *_colors; UILabel *_label;
-    NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs; }
+    NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs;
+    NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors; }
 - (void)_isim_touchUpInside {
     if (self.showsMenuAsPrimaryAction && self.menu) [self _isim_presentMenu:self.menu fromRect:self.bounds];
 }
@@ -277,6 +278,22 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
 }
 - (UIImage *)imageForState:(UIControlState)s { return _images[@(s)] ?: _images[@(UIControlStateNormal)]; }
+- (void)setBackgroundImage:(UIImage *)i forState:(UIControlState)s {
+    if (!_backgrounds) _backgrounds = [NSMutableDictionary dictionary];
+    if (i) _backgrounds[@(s)] = i; else [_backgrounds removeObjectForKey:@(s)];
+    isim_ui_set_needs_display();
+}
+- (UIImage *)backgroundImageForState:(UIControlState)s { return _backgrounds[@(s)] ?: _backgrounds[@(UIControlStateNormal)]; }
+/* what the button itself set for a state (UIAppearance does not override it) */
+- (UIColor *)_isim_explicitTitleColorForState:(UIControlState)s { return _colors[@(s)]; }
+- (UIImage *)_isim_explicitBackgroundImageForState:(UIControlState)s { return _backgrounds[@(s)]; }
+- (UIColor *)_isim_explicitTitleShadowColorForState:(UIControlState)s { return _shadowColors[@(s)]; }
+- (UIImage *)currentBackgroundImage { return [self backgroundImageForState:self.state]; }
+- (void)setTitleShadowColor:(UIColor *)c forState:(UIControlState)s {
+    if (!_shadowColors) _shadowColors = [NSMutableDictionary dictionary];
+    if (c) _shadowColors[@(s)] = c; else [_shadowColors removeObjectForKey:@(s)];
+}
+- (UIColor *)titleShadowColorForState:(UIControlState)s { return _shadowColors[@(s)] ?: _shadowColors[@(UIControlStateNormal)]; }
 - (void)setPreferredSymbolConfiguration:(UIImageSymbolConfiguration *)c forImageInState:(UIControlState)s {
     if (c) _symbolConfigs[@(s)] = c; else [_symbolConfigs removeObjectForKey:@(s)];
     [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
@@ -351,6 +368,8 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     CGRect b = self.bounds;
     UIColor *bg = [self _bg];
     double hl = self.highlighted ? (_configuration ? 0.75 : 0.2) : 1;
+    UIImage *bgImage = _configuration ? nil : self.currentBackgroundImage;
+    if (bgImage) [bgImage _isim_drawInRect:b tint:self.tintColor alpha:1];
     if ([self _isim_glassStyle]) {          /* Liquid Glass button: glass body, tinted when prominent */
         IsimButtonStyle st = _configuration.style;
         UIColor *tint = st == IsimProminentGlass || st == IsimProminentClearGlass ? (_configuration.baseBackgroundColor ?: self.tintColor) : _configuration.baseBackgroundColor;

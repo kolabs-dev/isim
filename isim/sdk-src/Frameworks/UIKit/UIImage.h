@@ -13,6 +13,21 @@ typedef NS_ENUM(NSInteger, UIImageSymbolWeight) {
 };
 @interface UIImageConfiguration : NSObject <NSCopying>
 @property (nullable, nonatomic, readonly) UITraitCollection *traitCollection;
++ (instancetype)configurationWithTraitCollection:(nullable UITraitCollection *)traitCollection;
+- (instancetype)configurationWithTraitCollection:(nullable UITraitCollection *)traitCollection;
+@end
+@class UIImage;
+/* appearance variants of an image: asset-catalog images with Any/Dark (and High Contrast) appearances get one; image
+   views, buttons and bars draw the variant for their traits, and switch when the traits change */
+@interface UIImageAsset : NSObject <NSSecureCoding>
+- (instancetype)init NS_DESIGNATED_INITIALIZER;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
+- (UIImage *)imageWithTraitCollection:(UITraitCollection *)traitCollection;
+- (void)registerImage:(UIImage *)image withTraitCollection:(UITraitCollection *)traitCollection;
+- (void)unregisterImageWithTraitCollection:(UITraitCollection *)traitCollection;
+- (UIImage *)imageWithConfiguration:(UIImageConfiguration *)configuration;
+- (void)registerImage:(UIImage *)image withConfiguration:(UIImageConfiguration *)configuration;
+- (void)unregisterImageWithConfiguration:(UIImageConfiguration *)configuration;
 @end
 @interface UIImageSymbolConfiguration : UIImageConfiguration
 @property (class, nonatomic, readonly) UIImageSymbolConfiguration *unspecifiedConfiguration;
@@ -57,6 +72,7 @@ typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, U
 - (UIImage *)imageWithTintColor:(UIColor *)color renderingMode:(UIImageRenderingMode)renderingMode;
 - (nullable UIImage *)imageByApplyingSymbolConfiguration:(UIImageSymbolConfiguration *)configuration;
 - (UIImage *)imageWithConfiguration:(UIImageConfiguration *)configuration;
+@property (nullable, nonatomic, readonly) UIImageAsset *imageAsset;
 - (void)drawInRect:(CGRect)rect;
 - (void)drawAtPoint:(CGPoint)point;
 - (void)drawInRect:(CGRect)rect blendMode:(CGBlendMode)blendMode alpha:(CGFloat)alpha;

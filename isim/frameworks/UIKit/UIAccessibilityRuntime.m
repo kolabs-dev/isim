@@ -101,17 +101,7 @@ static char k_style, k_base;
 void isim_ui_font_set_text_style(UIFont *f, NSString *style) { if (f) objc_setAssociatedObject(f, &k_style, style, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 static NSString *font_style(UIFont *f) { return f ? objc_getAssociatedObject(f, &k_style) : nil; }
 
-@implementation UITraitCollection (UIContentSizeCategory)
-static char k_tc_cat;
-- (UIContentSizeCategory)preferredContentSizeCategory { return objc_getAssociatedObject(self, &k_tc_cat) ?: settings_category(); }
-- (UIAccessibilityContrast)accessibilityContrast { return UIAccessibilityIsDarkerSystemColorsEnabled() ? UIAccessibilityContrastHigh : UIAccessibilityContrastNormal; }
-- (UILegibilityWeight)legibilityWeight { return UIAccessibilityIsBoldTextEnabled() ? UILegibilityWeightBold : UILegibilityWeightRegular; }
-+ (UITraitCollection *)traitCollectionWithPreferredContentSizeCategory:(UIContentSizeCategory)c {
-    UITraitCollection *t = [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleUnspecified];
-    objc_setAssociatedObject(t, &k_tc_cat, c, OBJC_ASSOCIATION_COPY_NONATOMIC);
-    return t;
-}
-@end
+/* UITraitCollection's preferredContentSizeCategory, accessibilityContrast, legibilityWeight: UITraits.m */
 @implementation UIApplication (UIContentSizeCategory)
 - (UIContentSizeCategory)preferredContentSizeCategory { return settings_category(); }
 @end
@@ -119,7 +109,7 @@ static char k_tc_cat;
 + (UIFont *)preferredFontForTextStyle:(UIFontTextStyle)style compatibleWithTraitCollection:(UITraitCollection *)t {
     UIFont *f = [self preferredFontForTextStyle:style];
     NSString *c = t ? t.preferredContentSizeCategory : nil;
-    if (!c || [c isEqualToString:settings_category()]) return f;
+    if (!c || [c isEqualToString:UIContentSizeCategoryUnspecified] || [c isEqualToString:settings_category()]) return f;
     UIFont *g = [f fontWithSize:round(f.pointSize / isim_ui_content_size_multiplier() * body_sizes[category_index(c)] / 17.0)];
     isim_ui_font_set_text_style(g, style);
     return g;
@@ -135,7 +125,7 @@ static char k_adjusts;
 + (UIFontMetrics *)defaultMetrics { return [[self alloc] initForTextStyle:UIFontTextStyleBody]; }
 + (instancetype)metricsForTextStyle:(UIFontTextStyle)s { return [[self alloc] initForTextStyle:s]; }
 - (instancetype)initForTextStyle:(UIFontTextStyle)s { if ((self = [super init])) _style = [s copy] ?: UIFontTextStyleBody; return self; }
-- (CGFloat)_factorFor:(NSString *)c { return body_sizes[category_index(c ?: settings_category())] / 17.0; }
+- (CGFloat)_factorFor:(NSString *)c { if ([c isEqualToString:UIContentSizeCategoryUnspecified]) c = nil; return body_sizes[category_index(c ?: settings_category())] / 17.0; }
 - (UIFont *)scaledFontForFont:(UIFont *)f { return [self scaledFontForFont:f maximumPointSize:0]; }
 - (UIFont *)scaledFontForFont:(UIFont *)f maximumPointSize:(CGFloat)max {
     CGFloat s = round(f.pointSize * [self _factorFor:nil]);

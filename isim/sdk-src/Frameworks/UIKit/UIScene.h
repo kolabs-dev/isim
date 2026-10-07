@@ -49,6 +49,9 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, readonly, strong) UIWindow *keyWindow;
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 @property (nonatomic, readonly) id coordinateSpace;
+/* iOS 17: traits every window of the scene sees */
+@property (nonatomic, readonly) id<UITraitOverrides> traitOverrides API_AVAILABLE(ios(17.0));
+- (void)updateTraitsIfNeeded API_AVAILABLE(ios(17.0));
 @end
 
 NS_SWIFT_UI_ACTOR

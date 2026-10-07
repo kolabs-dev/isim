@@ -160,6 +160,13 @@ def compile_xcstrings(path, bundle):
     return sorted(set(per_lang) | set(plurals))
 
 
+def appearance_key(appearances):
+    """an asset variant's appearance: 'any' / 'light' / 'dark' (luminosity), '-high' added for the high-contrast variant"""
+    lum = next((a.get('value') for a in appearances if a.get('appearance') == 'luminosity'), 'any')
+    high = any(a.get('appearance') == 'contrast' and a.get('value') == 'high' for a in appearances)
+    return lum + ('-high' if high else '')
+
+
 def compile_xcassets(path, bundle):
     """Asset catalog -> isim-assets.json (+ copied image files). Colors keep light/dark variants."""
     index_path = os.path.join(bundle, 'isim-assets.json')
@@ -180,10 +187,7 @@ def compile_xcassets(path, bundle):
             if kind == '.colorset':
                 variants = {}
                 for c in meta.get('colors', []):
-                    appearance = 'any'
-                    for a in c.get('appearances', []):
-                        if a.get('appearance') == 'luminosity':
-                            appearance = a.get('value')
+                    appearance = appearance_key(c.get('appearances', []))
                     comps = c.get('color', {}).get('components', {})
                     def comp(k, default='1'):
                         v = str(comps.get(k, default))
@@ -199,7 +203,7 @@ def compile_xcassets(path, bundle):
                     os.makedirs(outdir, exist_ok=True)
                     dst = f'{name}-{fn}'
                     shutil.copy2(os.path.join(full, fn), os.path.join(outdir, dst))
-                    appearance = next((a.get('value') for a in img.get('appearances', []) if a.get('appearance') == 'luminosity'), 'any')
+                    appearance = appearance_key(img.get('appearances', []))
                     entry = {'file': f'isim-assets/{dst}', 'scale': img.get('scale', '1x'),
                              'idiom': img.get('idiom', 'universal'), 'appearance': appearance}
                     if img.get('size'):

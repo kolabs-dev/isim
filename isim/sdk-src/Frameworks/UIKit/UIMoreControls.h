@@ -51,6 +51,9 @@ NS_SWIFT_UI_ACTOR
 - (void)setEnabled:(BOOL)enabled forSegmentAtIndex:(NSUInteger)segment;
 - (BOOL)isEnabledForSegmentAtIndex:(NSUInteger)segment;
 - (void)setWidth:(CGFloat)width forSegmentAtIndex:(NSUInteger)segment;
+/* segment title font / color per state (NSFontAttributeName, NSForegroundColorAttributeName; selected = the chosen segment) */
+- (void)setTitleTextAttributes:(nullable NSDictionary<NSAttributedStringKey, id> *)attributes forState:(UIControlState)state;
+- (nullable NSDictionary<NSAttributedStringKey, id> *)titleTextAttributesForState:(UIControlState)state;
 @end
 
 typedef NS_ENUM(NSInteger, UIProgressViewStyle) { UIProgressViewStyleDefault, UIProgressViewStyleBar };

@@ -716,6 +716,25 @@ void isim_sys_event(const char *text) {
     if ([verb isEqualToString:@"bgtask"]) run_background_task(args);
     else if ([verb isEqualToString:@"remote-notification"]) deliver_remote(read_push(args), 0);
     else if ([verb isEqualToString:@"nc-action"]) notification_action(args);
+    else if ([verb isEqualToString:@"appearance"] || [verb isEqualToString:@"contrast"] || [verb isEqualToString:@"boldtext"]) {
+        /* script "appearance light|dark", "contrast on|off", "boldtext on|off": the device setting, written to the global
+           domain like Settings does (every app re-reads it), applied live */
+        NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
+        BOOL on = [args isEqualToString:@"dark"] || [args isEqualToString:@"on"];
+        if ([verb isEqualToString:@"appearance"]) {
+            unsetenv("ISIM_APPEARANCE");
+            if (on) [g setObject:@"Dark" forKey:@"AppleInterfaceStyle"]; else [g removeObjectForKey:@"AppleInterfaceStyle"];
+        } else {
+            NSString *key = [verb isEqualToString:@"contrast"] ? @"ISIMIncreaseContrast" : @"ISIMBoldText";
+            unsetenv([verb isEqualToString:@"contrast"] ? "ISIM_INCREASE_CONTRAST" : "ISIM_BOLD_TEXT");
+            if (on) [g setBool:YES forKey:key]; else [g removeObjectForKey:key];
+        }
+        NSLog(@"isim: %@ %@", verb, args);
+    }
+    else if ([verb isEqualToString:@"memory-warning"]) {           /* Debug > Simulate Memory Warning */
+        extern void isim_ui_memory_warning(void);
+        isim_ui_memory_warning();
+    }
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */
         [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
         NSLog(@"isim: scene sessions discarded");

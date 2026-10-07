@@ -5,6 +5,7 @@
 #import <UIKit/UILayoutGuide.h>
 #import <UIKit/NSLayoutConstraint.h>
 #import <UIKit/UITraitCollection.h>
+#import <UIKit/UIScene.h>
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_OPTIONS(NSUInteger, NSLayoutFormatOptions) {
     NSLayoutFormatAlignAllLeft = (1 << NSLayoutAttributeLeft), NSLayoutFormatAlignAllRight = (1 << NSLayoutAttributeRight),
@@ -33,27 +34,30 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly, strong) UIKeyboardLayoutGuide *keyboardLayoutGuide;
 @end
 
-/* traits as types (iOS 17) */
-@protocol UITraitDefinition <NSObject>
-@end
-@interface UITraitUserInterfaceStyle : NSObject <UITraitDefinition> @end
-@interface UITraitHorizontalSizeClass : NSObject <UITraitDefinition> @end
-@interface UITraitVerticalSizeClass : NSObject <UITraitDefinition> @end
-@interface UITraitUserInterfaceIdiom : NSObject <UITraitDefinition> @end
-@interface UITraitDisplayScale : NSObject <UITraitDefinition> @end
+/* traits as types (iOS 17): UITraitDefinition and the system trait classes are declared in UITraitCollection.h */
 @protocol UITraitChangeRegistration <NSObject, NSCopying>
 @end
 typedef void (^UITraitChangeHandler)(id<UITraitEnvironment> traitEnvironment, UITraitCollection *previousCollection);
 @interface UIView (UITraitChangeObservable)
 - (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withHandler:(UITraitChangeHandler)handler NS_REFINED_FOR_SWIFT;
-- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withTarget:(id)target action:(SEL)action NS_SWIFT_NAME(registerForTraitChanges(_:target:action:));
-- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withAction:(SEL)action NS_SWIFT_NAME(registerForTraitChanges(_:action:));
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withTarget:(id)target action:(SEL)action NS_REFINED_FOR_SWIFT;
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withAction:(SEL)action NS_REFINED_FOR_SWIFT;
 - (void)unregisterForTraitChanges:(id<UITraitChangeRegistration>)registration NS_SWIFT_NAME(unregisterForTraitChanges(_:));
+- (id<UITraitChangeRegistration>)_isim_registerForTraits:(NSArray *)traits handler:(nullable UITraitChangeHandler)handler target:(nullable id)target action:(nullable SEL)action;   /* traits: classes or Swift trait identifiers */
 @end
 @interface UIViewController (UITraitChangeObservable)
 - (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withHandler:(UITraitChangeHandler)handler NS_REFINED_FOR_SWIFT;
-- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withTarget:(id)target action:(SEL)action NS_SWIFT_NAME(registerForTraitChanges(_:target:action:));
-- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withAction:(SEL)action NS_SWIFT_NAME(registerForTraitChanges(_:action:));
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withTarget:(id)target action:(SEL)action NS_REFINED_FOR_SWIFT;
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withAction:(SEL)action NS_REFINED_FOR_SWIFT;
 - (void)unregisterForTraitChanges:(id<UITraitChangeRegistration>)registration NS_SWIFT_NAME(unregisterForTraitChanges(_:));
+- (id<UITraitChangeRegistration>)_isim_registerForTraits:(NSArray *)traits handler:(nullable UITraitChangeHandler)handler target:(nullable id)target action:(nullable SEL)action;   /* traits: classes or Swift trait identifiers */
+@end
+@class UIWindowScene;
+@interface UIWindowScene (UITraitChangeObservable)
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withHandler:(UITraitChangeHandler)handler NS_REFINED_FOR_SWIFT;
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withTarget:(id)target action:(SEL)action NS_REFINED_FOR_SWIFT;
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withAction:(SEL)action NS_REFINED_FOR_SWIFT;
+- (void)unregisterForTraitChanges:(id<UITraitChangeRegistration>)registration NS_SWIFT_NAME(unregisterForTraitChanges(_:));
+- (id<UITraitChangeRegistration>)_isim_registerForTraits:(NSArray *)traits handler:(nullable UITraitChangeHandler)handler target:(nullable id)target action:(nullable SEL)action;   /* traits: classes or Swift trait identifiers */
 @end
 NS_ASSUME_NONNULL_END

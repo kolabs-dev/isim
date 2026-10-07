@@ -189,18 +189,13 @@ static void keyboard_moved(NSNotification *n) {
 @end
 
 /* ================= trait change registration ================= */
-@implementation UITraitUserInterfaceStyle @end
-@implementation UITraitHorizontalSizeClass @end
-@implementation UITraitVerticalSizeClass @end
-@implementation UITraitUserInterfaceIdiom @end
-@implementation UITraitDisplayScale @end
-static double trait_value(UITraitCollection *t, Class trait) {
-    if (trait == [UITraitUserInterfaceStyle class]) return t.userInterfaceStyle;
-    if (trait == [UITraitHorizontalSizeClass class]) return t.horizontalSizeClass;
-    if (trait == [UITraitVerticalSizeClass class]) return t.verticalSizeClass;
-    if (trait == [UITraitUserInterfaceIdiom class]) return t.userInterfaceIdiom;
-    if (trait == [UITraitDisplayScale class]) return t.displayScale;
-    return 0;
+/* trait classes and values: UITraits.m. Registrations compare the registered traits (system trait classes, custom
+   Objective-C trait classes, Swift trait identifiers) between the owner's last and current traits. */
+static BOOL trait_differs(UITraitCollection *a, UITraitCollection *b, id trait) {
+    NSString *k = isim_ui_trait_key(trait);
+    if (!k) return NO;
+    id x = [a _isim_objectForTraitIdentifier:k], y = [b _isim_objectForTraitIdentifier:k];
+    return !((!x && !y) || [x isEqual:y]);
 }
 @interface __IsimTraitRegistration : NSObject <UITraitChangeRegistration>
 @property (nonatomic, weak) id owner;
@@ -224,13 +219,15 @@ static id register_traits(id owner, NSArray *traits, UITraitChangeHandler h, id 
 }
 /* per frame: fire registrations whose traits changed */
 void isim_ui_trait_registrations_tick(void) {
-    if (!registrations.count) return;
+    static unsigned seen;
+    if (!registrations.count || seen == isim_ui_trait_generation()) return;
+    seen = isim_ui_trait_generation();
     for (__IsimTraitRegistration *r in [registrations copy]) {
         id owner = r.owner;
         if (!owner) { [registrations removeObjectIdenticalTo:r]; continue; }
         UITraitCollection *now = [owner traitCollection], *prev = r.last;
         BOOL changed = NO;
-        for (Class t in r.traits) if (trait_value(now, t) != trait_value(prev, t)) changed = YES;
+        for (id t in r.traits) if (trait_differs(now, prev, t)) changed = YES;
         r.last = now;
         if (!changed) continue;
         if (r.handler) r.handler(owner, prev);
@@ -247,10 +244,14 @@ void isim_ui_trait_registrations_tick(void) {
 - (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withHandler:(UITraitChangeHandler)h { return register_traits(self, traits, h, nil, NULL); } \
 - (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withTarget:(id)t action:(SEL)a { return register_traits(self, traits, nil, t, a); } \
 - (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withAction:(SEL)a { return register_traits(self, traits, nil, nil, a); } \
-- (void)unregisterForTraitChanges:(id<UITraitChangeRegistration>)r { [registrations removeObjectIdenticalTo:(id)r]; }
+- (void)unregisterForTraitChanges:(id<UITraitChangeRegistration>)r { [registrations removeObjectIdenticalTo:(id)r]; } \
+- (id<UITraitChangeRegistration>)_isim_registerForTraits:(NSArray *)traits handler:(UITraitChangeHandler)h target:(id)t action:(SEL)a { return register_traits(self, traits, h, t, a); }
 @implementation UIView (UITraitChangeObservable)
 TRAIT_REG_IMPL
 @end
 @implementation UIViewController (UITraitChangeObservable)
+TRAIT_REG_IMPL
+@end
+@implementation UIWindowScene (UITraitChangeObservable)
 TRAIT_REG_IMPL
 @end

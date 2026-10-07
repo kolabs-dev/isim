@@ -24,6 +24,8 @@ UIKIT_EXTERN const NSTimeInterval UIApplicationBackgroundFetchIntervalMinimum, U
 UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotification, UIApplicationDidBecomeActiveNotification,
     UIApplicationWillResignActiveNotification, UIApplicationDidEnterBackgroundNotification,
     UIApplicationWillEnterForegroundNotification, UIApplicationWillTerminateNotification;
+/* isim: sent by Debug > Simulate Memory Warning (script command memorywarning) */
+UIKIT_EXTERN NSNotificationName const UIApplicationDidReceiveMemoryWarningNotification;
 
 @class NSUserActivity;
 NS_SWIFT_UI_ACTOR
@@ -42,6 +44,7 @@ NS_SWIFT_UI_ACTOR
 - (void)applicationDidEnterBackground:(UIApplication *)application;
 - (void)applicationWillEnterForeground:(UIApplication *)application;
 - (void)applicationWillTerminate:(UIApplication *)application;
+- (void)applicationDidReceiveMemoryWarning:(UIApplication *)application;
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options;
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
 - (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;

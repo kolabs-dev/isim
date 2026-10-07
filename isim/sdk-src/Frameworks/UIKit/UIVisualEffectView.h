@@ -25,7 +25,8 @@ NS_SWIFT_UI_ACTOR
 + (UIBlurEffect *)effectWithStyle:(UIBlurEffectStyle)style;
 @property (nonatomic, readonly) UIBlurEffectStyle _isim_style;
 @end
-/* isim: vibrancy draws its content normally */
+/* isim (adapted): vibrant content keeps its shape and alpha and takes the style's vibrant color (light or dark after the
+   blur effect's style) */
 NS_SWIFT_UI_ACTOR
 @interface UIVibrancyEffect : UIVisualEffect
 + (UIVibrancyEffect *)effectForBlurEffect:(UIBlurEffect *)blurEffect;

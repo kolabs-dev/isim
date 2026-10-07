@@ -1,22 +1,26 @@
-/* UIAppearance proxies (adapted: isim's Objective-C runtime has no message forwarding, so a proxy cannot
- * record arbitrary invocations). +appearance returns a real offscreen instance of the class; setters run on
- * it normally. When a view first moves to a window, each proxy that applies to it (its class or a superclass,
- * matching containers / trait style) is compared with a pristine instance of the proxy's class over a list of
- * appearance properties; every property the proxy changed is copied to the view unless the view has its own
- * value (it differs from a pristine instance of the view's class). Subclass proxies win over superclass ones,
- * and contained-in proxies over plain ones. */
+/* UIAppearance proxies (adapted): +appearance returns a real offscreen instance of the class; setters (plain and
+ * per-state ones such as setTitleColor:forState:, setTitleTextAttributes:forState:, setBackgroundImage:forState:)
+ * run on it normally. When a view first moves to a window — or a bar item is first placed in a bar — each proxy that
+ * applies to it (its class or a superclass, matching containers / trait style) is compared with a pristine
+ * instance of the proxy's class over a list of appearance properties; every property the proxy changed is copied
+ * to the target unless the target has its own value (it differs from a pristine instance of its class). Subclass
+ * proxies win over superclass ones, and contained-in proxies over plain ones. */
 #import "UIKitPrivate.h"
 #import <UIKit/UIAppearance.h>
 
 /* appearance properties: getter names (setters are set<Getter>:, "is" getters map to set<Rest>:) */
 static NSArray<NSString *> *appearance_keys(void) {
     return @[@"tintColor", @"backgroundColor", @"barTintColor", @"titleTextAttributes", @"largeTitleTextAttributes",
-             @"standardAppearance", @"scrollEdgeAppearance", @"compactAppearance", @"prefersLargeTitles", @"isTranslucent", @"barStyle",
+             @"standardAppearance", @"scrollEdgeAppearance", @"compactAppearance", @"compactScrollEdgeAppearance", @"prefersLargeTitles", @"isTranslucent", @"barStyle",
              @"onTintColor", @"thumbTintColor", @"minimumTrackTintColor", @"maximumTrackTintColor", @"selectedSegmentTintColor",
              @"unselectedItemTintColor", @"pageIndicatorTintColor", @"currentPageIndicatorTintColor", @"progressTintColor",
-             @"trackTintColor", @"color", @"textColor", @"font", @"separatorColor", @"sectionIndexColor", @"searchBarStyle",
-             @"placeholder"];
+             @"trackTintColor", @"color", @"textColor", @"font", @"separatorColor", @"sectionIndexColor", @"sectionIndexBackgroundColor",
+             @"searchBarStyle", @"placeholder", @"keyboardAppearance", @"badgeColor", @"style", @"width"];
 }
+/* per-state appearance properties: <key>ForState: / set<Key>:forState: over the common control states */
+static NSArray<NSString *> *state_keys(void) { return @[@"titleColor", @"titleTextAttributes", @"backgroundImage", @"titleShadowColor"]; }
+static const UIControlState appearance_states[] = { UIControlStateNormal, UIControlStateHighlighted, UIControlStateDisabled, UIControlStateSelected };
+
 static SEL setter_for(NSString *g) {
     NSString *base = [g hasPrefix:@"is"] && g.length > 2 && isupper([g characterAtIndex:2]) ? [g substringFromIndex:2] : g;
     return NSSelectorFromString([NSString stringWithFormat:@"set%@%@:", [[base substringToIndex:1] uppercaseString], [base substringFromIndex:1]]);
@@ -24,25 +28,25 @@ static SEL setter_for(NSString *g) {
 
 static char kProxy, kApplied, kAppearanceSet;
 @interface __IsimAppearanceEntry : NSObject
-@property (nonatomic, strong) UIView *proxy;
+@property (nonatomic, strong) id proxy;
 @property (nonatomic, strong) NSArray *containers;
 @property (nonatomic) UIUserInterfaceStyle style;
 @end
 @implementation __IsimAppearanceEntry @end
 
 static NSMutableDictionary<NSString *, NSMutableArray<__IsimAppearanceEntry *> *> *entries;   /* class name -> proxies */
-static NSMutableDictionary<NSString *, UIView *> *pristines;
+static NSMutableDictionary<NSString *, id> *pristines;
 static int creating;
 extern void (*isim_ui_appearance_hook)(UIView *v);
 
-static UIView *make_instance(Class cls) {
+static id make_instance(Class cls) {
     creating++;
-    UIView *v = [[cls alloc] initWithFrame:CGRectZero];
+    id v = [cls isSubclassOfClass:[UIView class]] ? [[cls alloc] initWithFrame:CGRectZero] : [cls new];
     creating--;
     objc_setAssociatedObject(v, &kProxy, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return v;
 }
-static UIView *pristine(Class cls) {
+static id pristine(Class cls) {
     NSString *k = NSStringFromClass(cls);
     if (!pristines) pristines = [NSMutableDictionary dictionary];
     if (!pristines[k]) pristines[k] = make_instance(cls);
@@ -86,6 +90,16 @@ static void set_value(id o, SEL g, SEL s, id v) {
     case 'f': ((void (*)(id, SEL, float))imp)(o, s, [v floatValue]); break;
     }
 }
+static id get_state_value(id o, NSString *key, UIControlState st) {
+    SEL g = NSSelectorFromString([key stringByAppendingString:@"ForState:"]);
+    if (![o respondsToSelector:g]) return nil;
+    return ((id (*)(id, SEL, NSUInteger))[o methodForSelector:g])(o, g, st);
+}
+static void set_state_value(id o, NSString *key, UIControlState st, id v) {
+    SEL s = NSSelectorFromString([NSString stringWithFormat:@"set%@%@:forState:", [[key substringToIndex:1] uppercaseString], [key substringFromIndex:1]]);
+    if (![o respondsToSelector:s]) return;
+    ((void (*)(id, SEL, id, NSUInteger))[o methodForSelector:s])(o, s, v, st);
+}
 
 /* value equality that sees through fresh-but-identical objects (colors, bar appearances, attribute dictionaries) */
 static BOOL same(id a, id b);
@@ -120,10 +134,11 @@ static BOOL same(id a, id b) {
     return [a isEqual:b];
 }
 
-/* containers: each listed class must enclose the view (a superview, or the controller of one), in order */
-static BOOL contained(UIView *v, NSArray *containers) {
+/* containers: each listed class must enclose the target (a superview, or the controller of one), in order. A bar
+   item is enclosed by the bar it is placed in (host) and that bar's superviews. */
+static BOOL contained(UIView *start, NSArray *containers) {
     NSInteger want = (NSInteger)containers.count - 1;
-    for (UIView *s = v.superview; s && want >= 0; s = s.superview) {
+    for (UIView *s = start; s && want >= 0; s = s.superview) {
         Class c = containers[(NSUInteger)want];
         UIViewController *vc = [s _isim_viewController];
         if ([s isKindOfClass:c] || (vc && [vc isKindOfClass:c])) want--;
@@ -131,40 +146,67 @@ static BOOL contained(UIView *v, NSArray *containers) {
     return want < 0;
 }
 
-static void apply_appearance(UIView *v) {
-    if (creating || !entries.count || objc_getAssociatedObject(v, &kProxy) || objc_getAssociatedObject(v, &kApplied)) return;
-    objc_setAssociatedObject(v, &kApplied, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+static UIColor *inherited_tint(id target, UIView *host) {
+    if ([target isKindOfClass:[UIView class]]) { UIView *v = target; return v.superview ? v.superview.tintColor : (isim_ui_accent_color() ?: UIColor.systemBlueColor); }
+    return nil;                                        /* bar items: no inherited tint of their own */
+}
+/* target: a view (host = its superview) or a bar item (host = the bar it is placed in) */
+static void apply_to(id target, UIView *host) {
+    if (creating || !entries.count || objc_getAssociatedObject(target, &kProxy) || objc_getAssociatedObject(target, &kApplied)) return;
+    objc_setAssociatedObject(target, &kApplied, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     NSMutableArray<Class> *chain = [NSMutableArray array];
-    for (Class c = object_getClass(v); c && c != [UIResponder class]; c = class_getSuperclass(c)) [chain insertObject:c atIndex:0];
-    NSMutableSet *mine = objc_getAssociatedObject(v, &kAppearanceSet);      /* keys set by appearance (may be overridden by later proxies) */
-    UIUserInterfaceStyle style = v.traitCollection.userInterfaceStyle;
+    for (Class c = object_getClass(target); c && c != [UIResponder class] && c != [NSObject class]; c = class_getSuperclass(c)) [chain insertObject:c atIndex:0];
+    NSMutableSet *mine = objc_getAssociatedObject(target, &kAppearanceSet);      /* keys set by appearance (may be overridden by later proxies) */
+    UIUserInterfaceStyle style = ([target isKindOfClass:[UIView class]] ? [(UIView *)target traitCollection] : host.traitCollection).userInterfaceStyle;
+    if (!style) style = isim_ui_style();
     for (Class c in chain) {
         NSArray *list = entries[NSStringFromClass(c)];
         if (!list) continue;
         NSArray *ordered = [list sortedArrayUsingComparator:^NSComparisonResult(__IsimAppearanceEntry *a, __IsimAppearanceEntry *b) {
             return a.containers.count < b.containers.count ? NSOrderedAscending : a.containers.count > b.containers.count ? NSOrderedDescending : NSOrderedSame; }];
-        UIView *base = pristine(c), *own = pristine(object_getClass(v));
+        id base = pristine(c), own = pristine(object_getClass(target));
         for (__IsimAppearanceEntry *e in ordered) {
-            if (e.containers.count && !contained(v, e.containers)) continue;
+            if (e.containers.count && !contained(host, e.containers)) continue;
             if (e.style && e.style != style) continue;
             for (NSString *key in appearance_keys()) {
                 SEL g = NSSelectorFromString(key), s = setter_for(key);
-                if (![e.proxy respondsToSelector:g] || ![v respondsToSelector:s]) continue;
+                if (![e.proxy respondsToSelector:g] || ![target respondsToSelector:s]) continue;
                 id pv = get_value(e.proxy, g);
                 if (same(pv, get_value(base, g))) continue;                         /* the proxy did not set it */
                 BOOL explicitly;
-                if ([key isEqualToString:@"tintColor"]) explicitly = !same(v.tintColor, v.superview ? v.superview.tintColor : UIColor.systemBlueColor);
-                else explicitly = !same(get_value(v, g), get_value(own, g));
-                if (explicitly && ![mine containsObject:key]) continue;             /* the view's own value wins */
-                set_value(v, g, s, pv);
-                if (!mine) { mine = [NSMutableSet set]; objc_setAssociatedObject(v, &kAppearanceSet, mine, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+                if ([key isEqualToString:@"tintColor"] && [target isKindOfClass:[UIView class]]) explicitly = !same([(UIView *)target tintColor], inherited_tint(target, host));
+                else explicitly = !same(get_value(target, g), get_value(own, g));
+                if (explicitly && ![mine containsObject:key]) continue;             /* the target's own value wins */
+                set_value(target, g, s, pv);
+                if (!mine) { mine = [NSMutableSet set]; objc_setAssociatedObject(target, &kAppearanceSet, mine, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
                 [mine addObject:key];
+            }
+            for (NSString *key in state_keys()) {
+                for (size_t i = 0; i < sizeof appearance_states / sizeof *appearance_states; i++) {
+                    UIControlState st = appearance_states[i];
+                    if (![e.proxy respondsToSelector:NSSelectorFromString([key stringByAppendingString:@"ForState:"])]) break;
+                    id pv = get_state_value(e.proxy, key, st);
+                    if (same(pv, get_state_value(base, key, st))) continue;
+                    NSString *mk = [NSString stringWithFormat:@"%@.%lu", key, (unsigned long)st];
+                    /* the target's own value: what it stored for that state (_isim_explicit<Key>ForState:), else a
+                       difference from a pristine instance of its class */
+                    SEL ex = NSSelectorFromString([NSString stringWithFormat:@"_isim_explicit%@%@ForState:", [[key substringToIndex:1] uppercaseString], [key substringFromIndex:1]]);
+                    BOOL explicitly = [target respondsToSelector:ex] ? ((id (*)(id, SEL, NSUInteger))[target methodForSelector:ex])(target, ex, st) != nil
+                                                                    : !same(get_state_value(target, key, st), get_state_value(own, key, st));
+                    if (explicitly && ![mine containsObject:mk]) continue;
+                    set_state_value(target, key, st, pv);
+                    if (!mine) { mine = [NSMutableSet set]; objc_setAssociatedObject(target, &kAppearanceSet, mine, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+                    [mine addObject:mk];
+                }
             }
         }
     }
 }
+static void apply_appearance(UIView *v) { apply_to(v, v.superview); }
+/* a bar button item / tab bar item placed in a bar (UINavigation.m) */
+void isim_ui_apply_bar_item_appearance(UIBarItem *item, UIView *bar) { if (item && entries.count) apply_to(item, bar); }
 
-static UIView *proxy_for(Class cls, NSArray *containers, UITraitCollection *trait) {
+static id proxy_for(Class cls, NSArray *containers, UITraitCollection *trait) {
     if (!entries) entries = [NSMutableDictionary dictionary];
     isim_ui_appearance_hook = apply_appearance;
     NSString *k = NSStringFromClass(cls);
@@ -178,10 +220,16 @@ static UIView *proxy_for(Class cls, NSArray *containers, UITraitCollection *trai
 }
 
 @implementation UIView (UIAppearance)
-+ (instancetype)appearance { return (id)proxy_for(self, nil, nil); }
-+ (instancetype)appearanceWhenContainedInInstancesOfClasses:(NSArray *)c { return (id)proxy_for(self, c, nil); }
-+ (instancetype)appearanceForTraitCollection:(UITraitCollection *)t { return (id)proxy_for(self, nil, t); }
-+ (instancetype)appearanceForTraitCollection:(UITraitCollection *)t whenContainedInInstancesOfClasses:(NSArray *)c { return (id)proxy_for(self, c, t); }
++ (instancetype)appearance { return proxy_for(self, nil, nil); }
++ (instancetype)appearanceWhenContainedInInstancesOfClasses:(NSArray *)c { return proxy_for(self, c, nil); }
++ (instancetype)appearanceForTraitCollection:(UITraitCollection *)t { return proxy_for(self, nil, t); }
++ (instancetype)appearanceForTraitCollection:(UITraitCollection *)t whenContainedInInstancesOfClasses:(NSArray *)c { return proxy_for(self, c, t); }
+@end
+@implementation UIBarItem (UIAppearance)
++ (instancetype)appearance { return proxy_for(self, nil, nil); }
++ (instancetype)appearanceWhenContainedInInstancesOfClasses:(NSArray *)c { return proxy_for(self, c, nil); }
++ (instancetype)appearanceForTraitCollection:(UITraitCollection *)t { return proxy_for(self, nil, t); }
++ (instancetype)appearanceForTraitCollection:(UITraitCollection *)t whenContainedInInstancesOfClasses:(NSArray *)c { return proxy_for(self, c, t); }
 @end
 @implementation UIViewController (UIAppearanceContainer)
 @end

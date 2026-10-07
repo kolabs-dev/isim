@@ -94,7 +94,7 @@
 - (CGFloat)nativeScale { return self.scale; }
 - (NSInteger)maximumFramesPerSecond { return 60; }
 - (id<UICoordinateSpace>)coordinateSpace { return (id<UICoordinateSpace>)UIApplication.sharedApplication.keyWindow; }
-- (UITraitCollection *)traitCollection { return [UITraitCollection traitCollectionWithUserInterfaceStyle:isim_ui_style()]; }
+- (UITraitCollection *)traitCollection { return isim_ui_screen_traits(); }
 - (void)traitCollectionDidChange:(UITraitCollection *)p {}
 @end
 
@@ -109,6 +109,7 @@
     int _appearance;   /* 0 none, 1 will appear, 2 appeared */
     UIView *_sheetContainer, *_sheetDim, *_sheetBehind;       /* page-sheet presentation */
     UIColor *_sheetWindowBG; BOOL _sheetBehindClipped; CGFloat _sheetBehindRadius;
+    UITraitCollection *_traitReported; id<UITraitOverrides> _traitOverrides;     /* traits (UITraits.m) */
 }
 @end
 
@@ -170,9 +171,37 @@
 }
 - (void)viewSafeAreaInsetsDidChange {}
 - (UIResponder *)nextResponder { return _view.superview ?: (UIResponder *)_parent; }
-- (UITraitCollection *)traitCollection { return _view ? _view.traitCollection : [UITraitCollection currentTraitCollection]; }
+/* traits: inherited from the view's parent (or the parent controller / presenter while the view is not loaded), then
+   overrideUserInterfaceStyle and traitOverrides; the view (and child controllers) inherit them */
+- (UITraitCollection *)_isim_traitsFromBase:(UITraitCollection *)base { return isim_ui_apply_overrides(base, _traitOverrides, _overrideUserInterfaceStyle); }
+- (UITraitCollection *)traitCollection {
+    UITraitCollection *base;
+    if (_view) base = [(id)_view _isim_inheritedTraits];
+    else if (_presenting && _presenting.presentedViewController == self) base = _presenting.traitCollection;
+    else if (_parent) base = _parent.traitCollection;
+    else base = UIApplication.sharedApplication.keyWindow.traitCollection ?: isim_ui_screen_traits();
+    return [self _isim_traitsFromBase:base];
+}
+- (void)_isim_traitsCheck {
+    UITraitCollection *t = self.traitCollection, *prev = _traitReported;
+    _traitReported = t;
+    if (prev && ![prev isEqual:t]) [self traitCollectionDidChange:prev];
+}
 - (void)traitCollectionDidChange:(UITraitCollection *)p {}
-- (void)setOverrideUserInterfaceStyle:(UIUserInterfaceStyle)s { _overrideUserInterfaceStyle = s; self.view.overrideUserInterfaceStyle = s; }
+- (void)setOverrideUserInterfaceStyle:(UIUserInterfaceStyle)s {
+    if (s == _overrideUserInterfaceStyle) return;
+    _overrideUserInterfaceStyle = s;
+    if (_view) isim_ui_traits_invalidate(_view); else isim_ui_traits_invalidate(nil);
+    isim_ui_set_needs_display();
+}
+- (id<UITraitOverrides>)traitOverrides {
+    if (!_traitOverrides) {
+        __weak UIViewController *w = self;
+        _traitOverrides = isim_ui_new_trait_overrides(^{ UIViewController *vc = w; if (vc->_view) isim_ui_traits_invalidate(vc->_view); else isim_ui_traits_invalidate(nil); isim_ui_set_needs_display(); });
+    }
+    return _traitOverrides;
+}
+- (void)updateTraitsIfNeeded { isim_ui_traits_flush(); }
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleDefault; }
 - (BOOL)prefersStatusBarHidden { return NO; }
 - (void)setNeedsStatusBarAppearanceUpdate { isim_ui_set_needs_display(); }
@@ -445,12 +474,18 @@ static UIWindowScene *implicit_scene(void) {
 }
 - (UIResponder *)nextResponder { return UIApplication.sharedApplication; }
 @end
-@implementation UIWindowScene { NSMutableArray<UIWindow *> *_windows; }
+@implementation UIWindowScene { NSMutableArray<UIWindow *> *_windows; id<UITraitOverrides> _traitOverrides; }
 - (NSMutableArray *)valueForKey_isimWindows { if (!_windows) _windows = [NSMutableArray array]; return _windows; }
 - (UIScreen *)screen { return UIScreen.mainScreen; }
 - (NSArray *)windows { return [_windows copy] ?: @[]; }
 - (UIWindow *)keyWindow { for (UIWindow *w in _windows) if (w.isKeyWindow) return w; return nil; }
-- (UITraitCollection *)traitCollection { return [UITraitCollection currentTraitCollection]; }
+- (UITraitCollection *)_isim_traitsForWindowSize:(CGSize)size { return isim_ui_apply_overrides(isim_ui_traits_for_size(size), _traitOverrides, UIUserInterfaceStyleUnspecified); }
+- (UITraitCollection *)traitCollection { return [self _isim_traitsForWindowSize:[(id<UICoordinateSpace>)self.coordinateSpace bounds].size]; }
+- (id<UITraitOverrides>)traitOverrides {
+    if (!_traitOverrides) _traitOverrides = isim_ui_new_trait_overrides(^{ isim_ui_traits_invalidate(nil); isim_ui_set_needs_display(); });
+    return _traitOverrides;
+}
+- (void)updateTraitsIfNeeded { isim_ui_traits_flush(); }
 - (id)coordinateSpace { return UIScreen.mainScreen.coordinateSpace; }
 @end
 
@@ -793,6 +828,25 @@ static void render_frame(void) {
     isim_frame_end();
 }
 
+/* ---- Debug > Simulate Memory Warning (script memorywarning): the app delegate, the notification, every view
+   controller in the windows (children and presented ones included) ---- */
+NSNotificationName const UIApplicationDidReceiveMemoryWarningNotification = @"UIApplicationDidReceiveMemoryWarningNotification";
+static void vc_memory_warning(UIViewController *vc, NSMutableSet *seen) {
+    if (!vc || [seen containsObject:vc]) return;
+    [seen addObject:vc];
+    [vc didReceiveMemoryWarning];
+    for (UIViewController *c in vc.childViewControllers) vc_memory_warning(c, seen);
+    if (vc.presentedViewController.presentingViewController == vc) vc_memory_warning(vc.presentedViewController, seen);
+}
+void isim_ui_memory_warning(void) {
+    UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+    NSLog(@"isim: received memory warning");
+    if ([d respondsToSelector:@selector(applicationDidReceiveMemoryWarning:)]) [d applicationDidReceiveMemoryWarning:app];
+    [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidReceiveMemoryWarningNotification object:app];
+    NSMutableSet *seen = [NSMutableSet set];
+    for (UIWindow *w in app.windows) vc_memory_warning(w.rootViewController, seen);
+}
+
 /* ---- shell lifecycle (isim boot): background/foreground, settings, URLs ---- */
 NSString *isim_ui_system_apps_dir(void) {
     const char *e = getenv("ISIM_SYSTEM_APPS");
@@ -860,14 +914,13 @@ static void enter_foreground(void) {
     if (pending_scene_manifest) { NSDictionary *m = pending_scene_manifest; pending_scene_manifest = nil; connect_scene(app, m); }
     isim_ui_set_needs_layout();
 }
-static void trait_changed(UIView *v) { [v traitCollectionDidChange:nil]; for (UIView *s in v.subviews) trait_changed(s); }
 static void settings_changed(void) {
     extern void isim_ui_reload_settings(void);
     extern void isim_reapply_time_zone_setting(void);
     isim_ui_reload_settings();
     isim_reapply_time_zone_setting();                 /* Date & Time > Time Zone applies live */
     isim_ui_accessibility_reload_settings();          /* Settings > Accessibility (Dynamic Type, VoiceOver, ...) */
-    for (UIWindow *w in UIApplication.sharedApplication.windows) trait_changed(w);
+    isim_ui_traits_flush();                           /* appearance, Dynamic Type, contrast, bold text: traitCollectionDidChange: */
     [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSettingsChanged" object:nil];
     isim_ui_set_needs_display();
 }
@@ -884,6 +937,7 @@ static void deliver_url(NSString *s) {
 }
 
 static void layout_all(void) {
+    isim_ui_traits_flush();
     for (int i = 0; i < 4 && isim_ui_take_layout(); i++)
     {
         NSArray *ws = UIApplication.sharedApplication.windows;

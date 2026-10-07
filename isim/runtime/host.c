@@ -951,6 +951,14 @@ static int script_step(struct isim_event *ev) {
         set_simulated_location(arg);             /* Features > Location: "location LAT LON" or "location none" */
     } else if (!strcmp(cmd, "metrickit")) {
         simulate_metrickit();                    /* Debug > Simulate MetricKit Payloads */
+    } else if ((!strcmp(cmd, "appearance") || !strcmp(cmd, "contrast") || !strcmp(cmd, "boldtext")) && sscanf(args, " %63[^; ]", arg) == 1) {
+        /* "appearance light|dark", "contrast on|off", "boldtext on|off": the device setting (like Settings or
+           Control Center), applied live; the app (or the home screen) writes it and every app follows */
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s %s", cmd, arg);
+        script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "memorywarning")) {  /* Debug > Simulate Memory Warning */
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "memory-warning");
+        script_resume = now() + 0.2;
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);

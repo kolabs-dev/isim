@@ -89,7 +89,15 @@ static void fill(UIColor *c, double x, double y, double w, double h, double r, d
 
 /* ================= UISegmentedControl ================= */
 const NSInteger UISegmentedControlNoSegment = -1;
-@implementation UISegmentedControl { NSMutableArray *_items; NSMutableSet<NSNumber *> *_disabled; UIView *_thumb; NSInteger _pressedIndex; NSMutableDictionary<NSNumber *, NSNumber *> *_widths; }
+@implementation UISegmentedControl { NSMutableArray *_items; NSMutableSet<NSNumber *> *_disabled; UIView *_thumb; NSInteger _pressedIndex; NSMutableDictionary<NSNumber *, NSNumber *> *_widths;
+    NSMutableDictionary<NSNumber *, NSDictionary *> *_titleAttrs; }
+- (void)setTitleTextAttributes:(NSDictionary *)a forState:(UIControlState)s {
+    if (!_titleAttrs) _titleAttrs = [NSMutableDictionary dictionary];
+    if (a) _titleAttrs[@(s)] = [a copy]; else [_titleAttrs removeObjectForKey:@(s)];
+    [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
+}
+- (NSDictionary *)titleTextAttributesForState:(UIControlState)s { return _titleAttrs[@(s)]; }
+- (NSDictionary *)_attrs:(UIControlState)s { return _titleAttrs[@(s)] ?: _titleAttrs[@(UIControlStateNormal)]; }
 - (instancetype)initWithItems:(NSArray *)items {
     if ((self = [super initWithFrame:CGRectZero])) {
         _items = [NSMutableArray arrayWithArray:items ?: @[]]; _disabled = [NSMutableSet set]; _widths = [NSMutableDictionary dictionary];
@@ -104,7 +112,10 @@ const NSInteger UISegmentedControlNoSegment = -1;
     return self;
 }
 - (instancetype)initWithFrame:(CGRect)f { if ((self = [self initWithItems:nil])) self.frame = f; return self; }
-- (UIFont *)_font:(BOOL)sel { return [UIFont systemFontOfSize:13 weight:sel ? UIFontWeightSemibold : UIFontWeightMedium]; }
+- (UIFont *)_font:(BOOL)sel {
+    UIFont *f = [self _attrs:sel ? UIControlStateSelected : UIControlStateNormal][NSFontAttributeName];
+    return [f isKindOfClass:[UIFont class]] ? f : [UIFont systemFontOfSize:13 weight:sel ? UIFontWeightSemibold : UIFontWeightMedium];
+}
 - (CGSize)_contentSize:(NSUInteger)i {
     id it = _items[i];
     if ([it isKindOfClass:[UIImage class]]) return ((UIImage *)it).size;
@@ -190,8 +201,10 @@ const NSInteger UISegmentedControlNoSegment = -1;
             [img _isim_drawInRect:CGRectMake(CGRectGetMidX(r) - is.width / 2, CGRectGetMidY(r) - is.height / 2, is.width, is.height) tint:UIColor.labelColor alpha:a];
         } else {
             UIFont *f = [self _font:sel];
+            UIColor *c = [self _attrs:sel ? UIControlStateSelected : (![self isEnabledForSegmentAtIndex:i] || !self.enabled) ? UIControlStateDisabled : UIControlStateNormal][NSForegroundColorAttributeName];
+            if (![c isKindOfClass:[UIColor class]]) c = UIColor.labelColor;
             CGSize ts = isim_ui_measure([it description], f, r.size.width - 8, 1);
-            isim_ui_draw_text([it description], f, UIColor.labelColor, CGRectMake(r.origin.x + 4, CGRectGetMidY(r) - ts.height / 2, r.size.width - 8, ts.height), NSTextAlignmentCenter, 1, a);
+            isim_ui_draw_text([it description], f, c, CGRectMake(r.origin.x + 4, CGRectGetMidY(r) - ts.height / 2, r.size.width - 8, ts.height), NSTextAlignmentCenter, 1, a);
         }
     }
 }

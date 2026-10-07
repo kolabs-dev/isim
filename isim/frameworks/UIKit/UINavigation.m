@@ -44,8 +44,18 @@ static void draw_edge_fade(CGSize s, BOOL fromBottom) {
 }
 
 /* ================= bar items ================= */
+void isim_ui_apply_bar_item_appearance(UIBarItem *item, UIView *bar);   /* UIAppearance.m */
+static char kTitleAttrs;
 @implementation UIBarItem
 - (instancetype)init { if ((self = [super init])) _enabled = YES; return self; }
+- (void)setTitleTextAttributes:(NSDictionary *)a forState:(UIControlState)s {
+    NSMutableDictionary *d = objc_getAssociatedObject(self, &kTitleAttrs);
+    if (!d) { d = [NSMutableDictionary dictionary]; objc_setAssociatedObject(self, &kTitleAttrs, d, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    if (a) d[@(s)] = [a copy]; else [d removeObjectForKey:@(s)];
+    bar_item_changed(self);
+}
+- (NSDictionary *)titleTextAttributesForState:(UIControlState)s { return ((NSDictionary *)objc_getAssociatedObject(self, &kTitleAttrs))[@(s)]; }
+- (NSDictionary *)_isim_attrs:(UIControlState)s { NSDictionary *d = objc_getAssociatedObject(self, &kTitleAttrs); return d[@(s)] ?: d[@(UIControlStateNormal)]; }
 - (void)setEnabled:(BOOL)e { _enabled = e; bar_item_changed(self); }
 - (void)setTitle:(NSString *)t { _title = [t copy]; bar_item_changed(self); }
 - (void)setImage:(UIImage *)i { _image = i; bar_item_changed(self); }
@@ -141,6 +151,10 @@ static void draw_edge_fade(CGSize s, BOOL fromBottom) {
 @property (nonatomic) BOOL bold;
 @end
 @implementation __IsimBarButton
++ (instancetype)buttonFor:(UIBarButtonItem *)item host:(UIView *)host {
+    isim_ui_apply_bar_item_appearance(item, host);     /* UIBarButtonItem.appearance() */
+    return [self buttonFor:item];
+}
 + (instancetype)buttonFor:(UIBarButtonItem *)item {
     __IsimBarButton *b = [[self alloc] initWithFrame:CGRectZero];
     b.item = item; b.text = [item _isim_displayTitle]; b.icon = [item _isim_displayImage]; b.bold = item.style == UIBarButtonItemStyleDone;
@@ -149,7 +163,11 @@ static void draw_edge_fade(CGSize s, BOOL fromBottom) {
     return b;
 }
 - (void)fire { [self.item _isim_performFrom:self]; }
-- (UIFont *)font { return [UIFont systemFontOfSize:17 weight:self.bold ? UIFontWeightSemibold : UIFontWeightRegular]; }
+- (UIFont *)font {
+    UIFont *f = [self.item _isim_attrs:self.highlighted ? UIControlStateHighlighted : self.item.enabled ? UIControlStateNormal : UIControlStateDisabled][NSFontAttributeName];
+    return [f isKindOfClass:[UIFont class]] ? f : [UIFont systemFontOfSize:17 weight:self.bold ? UIFontWeightSemibold : UIFontWeightRegular];
+}
+- (UIColor *)_isim_attrColor { UIColor *c = [self.item _isim_attrs:self.item.enabled ? UIControlStateNormal : UIControlStateDisabled][NSForegroundColorAttributeName]; return [c isKindOfClass:[UIColor class]] ? c : nil; }
 - (CGSize)sizeThatFits:(CGSize)s {
     if (isim_ui_glass()) {                                   /* iOS 26: glass circles (symbols) and capsules (text) */
         if (self.icon) return CGSizeMake(44, 44);
@@ -175,7 +193,7 @@ static void draw_edge_fade(CGSize s, BOOL fromBottom) {
         [self.icon _isim_drawInRect:r tint:c alpha:a];
     } else if (self.text) {
         CGSize ts = isim_ui_measure(self.text, [self font], s.width, 1);
-        isim_ui_draw_text(self.text, [self font], c, CGRectMake(0, (s.height - ts.height) / 2, s.width, ts.height), NSTextAlignmentCenter, 1, a);
+        isim_ui_draw_text(self.text, [self font], [self _isim_attrColor] ?: c, CGRectMake(0, (s.height - ts.height) / 2, s.width, ts.height), NSTextAlignmentCenter, 1, a);
     }
 }
 @end
@@ -188,7 +206,7 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         if (it.hidden || [it _isim_isFlexible]) continue;
         UIView *v = it.customView;
         if ([it _isim_isFixed]) { x += rightAligned ? -it.width : it.width; continue; }
-        if (!v) v = [__IsimBarButton buttonFor:it];
+        if (!v) v = [__IsimBarButton buttonFor:it host:host];
         CGSize s = it.customView ? (CGSizeEqualToSize(v.bounds.size, CGSizeZero) ? [v sizeThatFits:CGSizeMake(200, h)] : v.bounds.size) : [v sizeThatFits:CGSizeMake(200, h)];
         if (it.width > 0) s.width = it.width;
         CGFloat vx = rightAligned ? x - s.width : x;
@@ -437,7 +455,7 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         if (it.hidden) { [sizes addObject:@0]; continue; }
         if ([it _isim_isFlexible]) { flex++; [sizes addObject:@(-1)]; continue; }
         if ([it _isim_isFixed]) { used += it.width; [sizes addObject:@(it.width)]; continue; }
-        UIView *v = it.customView ?: [__IsimBarButton buttonFor:it];
+        UIView *v = it.customView ?: [__IsimBarButton buttonFor:it host:self];
         CGSize s = it.customView && !CGSizeEqualToSize(v.bounds.size, CGSizeZero) ? v.bounds.size : [v sizeThatFits:CGSizeMake(200, 44)];
         if (it.width > 0) s.width = it.width;
         v.bounds = CGRectMake(0, 0, s.width, s.height);
@@ -483,7 +501,12 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 @property (nonatomic) int mode;                /* tabbar_mode() */
 @property (nonatomic, strong) UIColor *onColor, *offColor;
 @end
+@interface UIBarItem (IsimAttrs)
+- (NSDictionary *)_isim_attrs:(UIControlState)s;
+@end
 @implementation __IsimTabButton
+- (UIFont *)_f:(UIFont *)def { UIFont *f = [self.item _isim_attrs:self.on ? UIControlStateSelected : UIControlStateNormal][NSFontAttributeName]; return [f isKindOfClass:[UIFont class]] ? f : def; }
+- (UIColor *)_c:(UIColor *)def { UIColor *c = [self.item _isim_attrs:self.on ? UIControlStateSelected : UIControlStateNormal][NSForegroundColorAttributeName]; return [c isKindOfClass:[UIColor class]] ? c : def; }
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size; UIColor *c = self.on ? self.onColor : self.offColor; double a = self.highlighted ? 0.5 : 1;
     UIImage *img = self.on && self.item.selectedImage ? self.item.selectedImage : self.item.image;
@@ -492,9 +515,9 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
             if (self.mode == 3) isim_ui_draw_glass(CGRectMake(0, 0, s.width, s.height), s.height / 2, nil, 4 | 8);
             else { double p[4]; isim_ui_rgba(isim_ui_style() == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.36 alpha:1] : UIColor.whiteColor, p); isim_gfx_fill_rounded(0, 0, s.width, s.height, s.height / 2, p); }
         }
-        UIFont *f = [UIFont systemFontOfSize:15 weight:self.on ? UIFontWeightSemibold : UIFontWeightMedium];
+        UIFont *f = [self _f:[UIFont systemFontOfSize:15 weight:self.on ? UIFontWeightSemibold : UIFontWeightMedium]];
         CGSize ts = isim_ui_measure(self.item.title ?: @"", f, s.width - 8, 1);
-        isim_ui_draw_text(self.item.title ?: @"", f, self.on ? self.onColor : UIColor.labelColor, CGRectMake(4, (s.height - ts.height) / 2, s.width - 8, ts.height), NSTextAlignmentCenter, 1, a);
+        isim_ui_draw_text(self.item.title ?: @"", f, [self _c:self.on ? self.onColor : UIColor.labelColor], CGRectMake(4, (s.height - ts.height) / 2, s.width - 8, ts.height), NSTextAlignmentCenter, 1, a);
         return;
     }
     if (self.mode == 1) {                     /* iOS 26 floating tab bar: the selected tab sits on a lighter pill */
@@ -505,8 +528,8 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
             CGSize i = img.size; double k = 24 / fmax(1, fmax(i.width, i.height));
             [img _isim_drawInRect:CGRectMake((s.width - i.width * k) / 2, 5 + (24 - i.height * k) / 2, i.width * k, i.height * k) tint:c alpha:a];
         }
-        UIFont *f = [UIFont systemFontOfSize:10 weight:UIFontWeightSemibold];
-        isim_ui_draw_text(self.item.title ?: @"", f, c, CGRectMake(2, 32, s.width - 4, 13), NSTextAlignmentCenter, 1, a);
+        UIFont *f = [self _f:[UIFont systemFontOfSize:10 weight:UIFontWeightSemibold]];
+        isim_ui_draw_text(self.item.title ?: @"", f, [self _c:c], CGRectMake(2, 32, s.width - 4, 13), NSTextAlignmentCenter, 1, a);
         if (self.item.badgeValue) {
             UIFont *bf = [UIFont systemFontOfSize:13]; NSString *b = self.item.badgeValue;
             double bw = fmax(18, isim_ui_measure(b, bf, 100, 1).width + 10), bx = s.width / 2 + 6;
@@ -520,8 +543,8 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         CGSize i = img.size; double k = 24 / fmax(1, fmax(i.width, i.height));
         [img _isim_drawInRect:CGRectMake((s.width - i.width * k) / 2, 7 + (25 - i.height * k) / 2, i.width * k, i.height * k) tint:c alpha:a];
     }
-    UIFont *f = [UIFont systemFontOfSize:10 weight:UIFontWeightMedium];
-    isim_ui_draw_text(self.item.title ?: @"", f, c, CGRectMake(2, 34, s.width - 4, 13), NSTextAlignmentCenter, 1, a);
+    UIFont *f = [self _f:[UIFont systemFontOfSize:10 weight:UIFontWeightMedium]];
+    isim_ui_draw_text(self.item.title ?: @"", f, [self _c:c], CGRectMake(2, 34, s.width - 4, 13), NSTextAlignmentCenter, 1, a);
     if (self.item.badgeValue) {
         UIFont *bf = [UIFont systemFontOfSize:13]; NSString *b = self.item.badgeValue;
         double bw = fmax(18, isim_ui_measure(b, bf, 100, 1).width + 10), bx = s.width / 2 + 6;
@@ -565,6 +588,7 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     CGFloat w = area.size.width / fmax(1, items.count);
     for (NSUInteger i = 0; i < items.count; i++) {
         __IsimTabButton *b = _buttons[i];
+        isim_ui_apply_bar_item_appearance(items[i], self);    /* UITabBarItem.appearance() */
         b.item = items[i]; b.on = items[i] == _selectedItem; b.mode = mode;
         b.onColor = self.tintColor ?: UIColor.systemBlueColor; b.offColor = _unselectedItemTintColor ?: UIColor.systemGrayColor;
         b.frame = mode ? CGRectMake(area.origin.x + i * w, area.origin.y, w, area.size.height) : CGRectMake(i * w, 0, w, 49);

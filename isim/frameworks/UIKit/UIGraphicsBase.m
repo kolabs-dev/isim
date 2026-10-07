@@ -20,10 +20,9 @@ const struct isim_device *isim_ui_device(void) {
 }
 void isim_ui_device_refresh(void) { isim_device_metrics(&ui_dev); ui_dev_init = YES; }   /* after a rotation */
 
-static UIUserInterfaceStyle style_stack[64]; static int style_depth = -1;
 static UIUserInterfaceStyle cached_style;
 /* ISIM_APPEARANCE, else Settings > Display & Brightness (AppleInterfaceStyle = "Dark" in the global domain) */
-static UIUserInterfaceStyle base_style(void) {
+UIUserInterfaceStyle isim_ui_base_style(void) {
     if (!cached_style) {
         const char *e = getenv("ISIM_APPEARANCE");
         extern NSDictionary *isim_global_preferences(void);
@@ -32,40 +31,19 @@ static UIUserInterfaceStyle base_style(void) {
     }
     return cached_style;
 }
-void isim_ui_reload_settings(void) { cached_style = 0; }
-UIUserInterfaceStyle isim_ui_style(void) { return style_depth >= 0 ? style_stack[style_depth] : base_style(); }
-void isim_ui_push_style(UIUserInterfaceStyle s) { if (style_depth < 63) style_stack[++style_depth] = s == UIUserInterfaceStyleUnspecified ? isim_ui_style() : s; }
-void isim_ui_pop_style(void) { if (style_depth >= 0) style_depth--; }
+void isim_ui_reload_settings(void) { cached_style = 0; isim_ui_traits_invalidate(nil); }
+/* isim_ui_style / isim_ui_push_style / isim_ui_pop_style: the trait stack (UITraits.m) */
 
 const UIEdgeInsets UIEdgeInsetsZero = { 0, 0, 0, 0 };
 const NSDirectionalEdgeInsets NSDirectionalEdgeInsetsZero = { 0, 0, 0, 0 };
 NSString *NSStringFromUIEdgeInsets(UIEdgeInsets i) { return [NSString stringWithFormat:@"{%g, %g, %g, %g}", i.top, i.left, i.bottom, i.right]; }
-
-/* ================= UITraitCollection ================= */
-@implementation UITraitCollection
-+ (UITraitCollection *)currentTraitCollection { return [self traitCollectionWithUserInterfaceStyle:isim_ui_style()]; }
-+ (UITraitCollection *)traitCollectionWithUserInterfaceStyle:(UIUserInterfaceStyle)style {
-    UITraitCollection *t = [UITraitCollection new];
-    t->_userInterfaceStyle = style;
-    const struct isim_device *d = isim_ui_device();
-    BOOL landscape = d->width > d->height;
-    t->_userInterfaceIdiom = MIN(d->width, d->height) >= 700 ? UIUserInterfaceIdiomPad : UIUserInterfaceIdiomPhone;
-    /* size classes: iPad regular/regular; iPhone compact width (regular in landscape on the large phones) and
-       compact height in landscape */
-    BOOL pad = t->_userInterfaceIdiom == UIUserInterfaceIdiomPad;
-    t->_horizontalSizeClass = pad || (landscape && MIN(d->width, d->height) >= 414) ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact;
-    t->_verticalSizeClass = pad || !landscape ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact;
-    t->_displayScale = isim_ui_device()->scale;
-    return t;
-}
-- (id)copyWithZone:(NSZone *)z { return self; }
-@end
 
 /* ================= UIColor ================= */
 @implementation UIColor {
     double _c[4];
     UIColor * (^_provider)(UITraitCollection *);
     CGColorRef _cg;
+    UIColor *_lastResolved;          /* keeps the CGColor of a dynamic color's last resolution alive */
 }
 - (instancetype)initWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a {
     if ((self = [super init])) { _c[0] = r; _c[1] = g; _c[2] = b; _c[3] = a; }
@@ -91,6 +69,13 @@ static UIColor *rgb255(int r, int g, int b, double a) { return [UIColor colorWit
 static UIColor *dyn(UIColor *light, UIColor *dark) {
     return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return t.userInterfaceStyle == UIUserInterfaceStyleDark ? dark : light; }];
 }
+/* with Increase Contrast (accessibilityContrast high) variants, per Apple's Human Interface Guidelines */
+static UIColor *dyn4(UIColor *light, UIColor *dark, UIColor *lightHC, UIColor *darkHC) {
+    return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) {
+        BOOL d = t.userInterfaceStyle == UIUserInterfaceStyleDark, hc = t.accessibilityContrast == UIAccessibilityContrastHigh;
+        return d ? (hc ? darkHC : dark) : (hc ? lightHC : light);
+    }];
+}
 #define FIXED(name, expr) + (UIColor *)name { static UIColor *c; if (!c) c = (expr); return c; }
 FIXED(blackColor, [UIColor colorWithWhite:0 alpha:1]) FIXED(darkGrayColor, [UIColor colorWithWhite:1.0 / 3 alpha:1])
 FIXED(lightGrayColor, [UIColor colorWithWhite:2.0 / 3 alpha:1]) FIXED(whiteColor, [UIColor colorWithWhite:1 alpha:1])
@@ -101,25 +86,25 @@ FIXED(magentaColor, [UIColor colorWithRed:1 green:0 blue:1 alpha:1]) FIXED(orang
 FIXED(purpleColor, [UIColor colorWithRed:0.5 green:0 blue:0.5 alpha:1]) FIXED(brownColor, [UIColor colorWithRed:0.6 green:0.4 blue:0.2 alpha:1])
 FIXED(clearColor, [UIColor colorWithWhite:0 alpha:0])
 /* system palette (light / dark), per Apple's Human Interface Guidelines color values */
-FIXED(systemRedColor, dyn(rgb255(255, 59, 48, 1), rgb255(255, 69, 58, 1)))
-FIXED(systemGreenColor, dyn(rgb255(52, 199, 89, 1), rgb255(48, 209, 88, 1)))
-FIXED(systemBlueColor, dyn(rgb255(0, 122, 255, 1), rgb255(10, 132, 255, 1)))
-FIXED(systemOrangeColor, dyn(rgb255(255, 149, 0, 1), rgb255(255, 159, 10, 1)))
-FIXED(systemYellowColor, dyn(rgb255(255, 204, 0, 1), rgb255(255, 214, 10, 1)))
-FIXED(systemPinkColor, dyn(rgb255(255, 45, 85, 1), rgb255(255, 55, 95, 1)))
-FIXED(systemPurpleColor, dyn(rgb255(175, 82, 222, 1), rgb255(191, 90, 242, 1)))
-FIXED(systemTealColor, dyn(rgb255(48, 176, 199, 1), rgb255(64, 200, 224, 1)))
-FIXED(systemIndigoColor, dyn(rgb255(88, 86, 214, 1), rgb255(94, 92, 230, 1)))
-FIXED(systemMintColor, dyn(rgb255(0, 199, 190, 1), rgb255(99, 230, 226, 1)))
-FIXED(systemCyanColor, dyn(rgb255(50, 173, 230, 1), rgb255(100, 210, 255, 1)))
-FIXED(systemBrownColor, dyn(rgb255(162, 132, 94, 1), rgb255(172, 142, 104, 1)))
-FIXED(systemGrayColor, dyn(rgb255(142, 142, 147, 1), rgb255(142, 142, 147, 1)))
+FIXED(systemRedColor, dyn4(rgb255(255, 59, 48, 1), rgb255(255, 69, 58, 1), rgb255(215, 0, 21, 1), rgb255(255, 105, 97, 1)))
+FIXED(systemGreenColor, dyn4(rgb255(52, 199, 89, 1), rgb255(48, 209, 88, 1), rgb255(36, 138, 61, 1), rgb255(48, 219, 91, 1)))
+FIXED(systemBlueColor, dyn4(rgb255(0, 122, 255, 1), rgb255(10, 132, 255, 1), rgb255(0, 64, 221, 1), rgb255(64, 156, 255, 1)))
+FIXED(systemOrangeColor, dyn4(rgb255(255, 149, 0, 1), rgb255(255, 159, 10, 1), rgb255(201, 52, 0, 1), rgb255(255, 179, 64, 1)))
+FIXED(systemYellowColor, dyn4(rgb255(255, 204, 0, 1), rgb255(255, 214, 10, 1), rgb255(178, 80, 0, 1), rgb255(255, 212, 38, 1)))
+FIXED(systemPinkColor, dyn4(rgb255(255, 45, 85, 1), rgb255(255, 55, 95, 1), rgb255(211, 15, 69, 1), rgb255(255, 100, 130, 1)))
+FIXED(systemPurpleColor, dyn4(rgb255(175, 82, 222, 1), rgb255(191, 90, 242, 1), rgb255(137, 68, 171, 1), rgb255(218, 143, 255, 1)))
+FIXED(systemTealColor, dyn4(rgb255(48, 176, 199, 1), rgb255(64, 200, 224, 1), rgb255(0, 130, 153, 1), rgb255(93, 230, 255, 1)))
+FIXED(systemIndigoColor, dyn4(rgb255(88, 86, 214, 1), rgb255(94, 92, 230, 1), rgb255(54, 52, 163, 1), rgb255(125, 122, 255, 1)))
+FIXED(systemMintColor, dyn4(rgb255(0, 199, 190, 1), rgb255(99, 230, 226, 1), rgb255(12, 129, 123, 1), rgb255(102, 212, 207, 1)))
+FIXED(systemCyanColor, dyn4(rgb255(50, 173, 230, 1), rgb255(100, 210, 255, 1), rgb255(0, 113, 164, 1), rgb255(112, 215, 255, 1)))
+FIXED(systemBrownColor, dyn4(rgb255(162, 132, 94, 1), rgb255(172, 142, 104, 1), rgb255(127, 101, 69, 1), rgb255(181, 148, 105, 1)))
+FIXED(systemGrayColor, dyn4(rgb255(142, 142, 147, 1), rgb255(142, 142, 147, 1), rgb255(108, 108, 112, 1), rgb255(174, 174, 178, 1)))
 FIXED(systemGray2Color, dyn(rgb255(174, 174, 178, 1), rgb255(99, 99, 102, 1)))
 FIXED(systemGray3Color, dyn(rgb255(199, 199, 204, 1), rgb255(72, 72, 74, 1)))
 FIXED(systemGray4Color, dyn(rgb255(209, 209, 214, 1), rgb255(58, 58, 60, 1)))
 FIXED(systemGray5Color, dyn(rgb255(229, 229, 234, 1), rgb255(44, 44, 46, 1)))
 FIXED(systemGray6Color, dyn(rgb255(242, 242, 247, 1), rgb255(28, 28, 30, 1)))
-+ (UIColor *)tintColor { return [self systemBlueColor]; }
++ (UIColor *)tintColor { extern UIColor *isim_ui_accent_color(void); return isim_ui_accent_color() ?: [self systemBlueColor]; }
 FIXED(labelColor, dyn(rgb255(0, 0, 0, 1), rgb255(255, 255, 255, 1)))
 FIXED(secondaryLabelColor, dyn(rgb255(60, 60, 67, 0.6), rgb255(235, 235, 245, 0.6)))
 FIXED(tertiaryLabelColor, dyn(rgb255(60, 60, 67, 0.3), rgb255(235, 235, 245, 0.3)))
@@ -145,7 +130,8 @@ FIXED(lightTextColor, [UIColor colorWithWhite:1 alpha:0.6]) FIXED(darkTextColor,
     for (int i = 0; i < 4 && c->_provider; i++) c = c->_provider(t);
     return c;
 }
-- (UIColor *)_resolved { return _provider ? [self resolvedColorWithTraitCollection:[UITraitCollection traitCollectionWithUserInterfaceStyle:isim_ui_style()]] : self; }
+- (UIColor *)_resolved { return _provider ? [self resolvedColorWithTraitCollection:isim_ui_current_traits()] : self; }
+- (BOOL)_isim_isDynamic { return _provider != nil; }
 void isim_ui_rgba(UIColor *c, double out[4]) {
     if (!c) { out[0] = out[1] = out[2] = out[3] = 0; return; }
     UIColor *r = [c _resolved];
@@ -163,7 +149,8 @@ void isim_ui_rgba(UIColor *c, double out[4]) {
 - (BOOL)getWhite:(CGFloat *)w alpha:(CGFloat *)a { UIColor *x = [self _resolved]; if (w) *w = (x->_c[0] + x->_c[1] + x->_c[2]) / 3; if (a) *a = x->_c[3]; return YES; }
 - (CGColorRef)CGColor {
     UIColor *x = [self _resolved];
-    if (!_cg) _cg = CGColorCreateSRGB(x->_c[0], x->_c[1], x->_c[2], x->_c[3]);
+    if (x != self) { _lastResolved = x; return [x CGColor]; }     /* dynamic: the resolved color's (for the current traits) */
+    if (!_cg) _cg = CGColorCreateSRGB(_c[0], _c[1], _c[2], _c[3]);
     return _cg;
 }
 - (void)set { [self setFill]; [self setStroke]; }

@@ -177,6 +177,8 @@ ANCHORS(UILayoutGuide)
     __weak UIViewController *_vc;
     unsigned _alGen; int _alVars[4]; CGFloat _alUsedWidth;       /* Auto Layout engine */
     @public struct anim_state *_anim;                            /* running property animations (presentation values) */
+    UITraitCollection *_traitCache, *_traitReported; unsigned _traitGen;   /* traits (UITraits.m) */
+    id<UITraitOverrides> _traitOverrides;
 }
 @end
 /* view animation engine (bottom of this file) */
@@ -277,6 +279,7 @@ static void cg_rgba(CGColorRef c, double out[4]) {
         anim_rebase(self, AK_FRAME, a, b, 4);
     }
     _frame = f;
+    if (!CGSizeEqualToSize(old, f.size) && !_superview && [self isKindOfClass:[UIWindow class]]) isim_ui_traits_invalidate(self);   /* size classes */
     if (!CGSizeEqualToSize(old, f.size)) {
         if (_autoresizesSubviews) for (UIView *s in _subs) [s _isim_autoresizeFrom:old to:f.size];
         [self setNeedsLayout];
@@ -328,6 +331,7 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
     if (!w && (UIResponder *)self == first_responder) [self resignFirstResponder];
     [self willMoveToWindow:w];
     _window = w;
+    if (w) isim_ui_traits_invalidate(self); else _traitReported = nil;
     for (UIView *s in _subs) [s _isim_movedToWindow:w];
     [self didMoveToWindow];
 }
@@ -413,17 +417,50 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
     if ([_superview isKindOfClass:[UIStackView class]]) { isim_ui_constraints_changed(); [_superview setNeedsLayout]; }
 }
 - (void)setClipsToBounds:(BOOL)c { _clipsToBounds = c; isim_ui_set_needs_display(); }
-- (UIColor *)tintColor { return _tint ?: (_superview ? _superview.tintColor : UIColor.systemBlueColor); }
+- (UIColor *)tintColor { return _tint ?: (_superview ? _superview.tintColor : (isim_ui_accent_color() ?: UIColor.systemBlueColor)); }
 - (void)setTintColor:(UIColor *)c { _tint = c; [self _isim_tintChanged]; }
 - (void)_isim_tintChanged { [self tintColorDidChange]; for (UIView *s in _subs) if (!s->_tint) [s _isim_tintChanged]; isim_ui_set_needs_display(); }
 - (void)tintColorDidChange {}
-- (UITraitCollection *)traitCollection {
-    UIUserInterfaceStyle s = _overrideUserInterfaceStyle;
-    for (UIView *v = _superview; !s && v; v = v->_superview) s = v->_overrideUserInterfaceStyle;
-    return [UITraitCollection traitCollectionWithUserInterfaceStyle:s ?: isim_ui_style()];
+/* traits: the parent's (a presented controller's view: the presenter's; a window: its scene's, sized by the window),
+   then the view controller's overrides, then the view's own (UITraits.m) */
+- (UITraitCollection *)_isim_inheritedTraits {
+    UIViewController *vc = _vc, *presenter = vc.presentingViewController;
+    if (presenter && presenter.presentedViewController == vc && presenter != vc) return presenter.traitCollection;
+    if (_superview) return _superview.traitCollection;
+    if ([self isKindOfClass:[UIWindow class]]) return [((UIWindow *)self).windowScene _isim_traitsForWindowSize:_frame.size];
+    return isim_ui_screen_traits();
 }
+- (UITraitCollection *)traitCollection {
+    unsigned g = isim_ui_trait_generation();
+    if (_traitCache && _traitGen == g) return _traitCache;
+    UITraitCollection *t = [self _isim_inheritedTraits];
+    UIViewController *vc = _vc;
+    if (vc) t = [vc _isim_traitsFromBase:t];
+    t = isim_ui_apply_overrides(t, _traitOverrides, _overrideUserInterfaceStyle);
+    _traitCache = t; _traitGen = g;
+    return t;
+}
+- (BOOL)_isim_hasTraitOverrides { return _overrideUserInterfaceStyle != UIUserInterfaceStyleUnspecified || !isim_ui_trait_overrides_empty(_traitOverrides); }
 - (void)traitCollectionDidChange:(UITraitCollection *)p {}
-- (void)setOverrideUserInterfaceStyle:(UIUserInterfaceStyle)s { _overrideUserInterfaceStyle = s; isim_ui_set_needs_display(); }
+- (void)setOverrideUserInterfaceStyle:(UIUserInterfaceStyle)s {
+    if (s == _overrideUserInterfaceStyle) return;
+    _overrideUserInterfaceStyle = s; isim_ui_traits_invalidate(self); isim_ui_set_needs_display();
+}
+- (id<UITraitOverrides>)traitOverrides {
+    if (!_traitOverrides) { __weak UIView *w = self; _traitOverrides = isim_ui_new_trait_overrides(^{ UIView *v = w; if (v) { isim_ui_traits_invalidate(v); isim_ui_set_needs_display(); } }); }
+    return _traitOverrides;
+}
+- (void)updateTraitsIfNeeded { isim_ui_traits_flush(); }
+/* the trait change pass (isim_ui_traits_flush): what changed since the last pass gets traitCollectionDidChange: */
+- (void)_isim_traitsWalk {
+    if (!_window && ![self isKindOfClass:[UIWindow class]]) return;
+    UITraitCollection *t = self.traitCollection, *prev = _traitReported;
+    _traitReported = t;
+    UIViewController *vc = _vc;
+    if (vc) [vc _isim_traitsCheck];
+    if (prev && ![prev isEqual:t]) [self traitCollectionDidChange:prev];
+    for (UIView *s in [_subs copy]) [s _isim_traitsWalk];
+}
 - (void)setNeedsDisplay { isim_ui_set_needs_display(); }
 - (void)setNeedsDisplayInRect:(CGRect)r { isim_ui_set_needs_display(); }
 - (void)drawRect:(CGRect)r {}
@@ -565,9 +602,11 @@ ANCHORS(UIView)
     if (_needsLayout) {
         _needsLayout = NO;
         UIViewController *vc = self._isim_viewController;
+        isim_ui_push_traits(self.traitCollection);           /* UITraitCollection.current while laying out (iOS 17) */
         [vc viewWillLayoutSubviews];
         [self layoutSubviews];
         [vc viewDidLayoutSubviews];
+        isim_ui_pop_traits();
     }
     for (UIView *s in [_subs copy]) [s _isim_layoutPass];
 }
@@ -883,8 +922,9 @@ static IMP base_drawRect;
         isim_gfx_concat(xf.a, xf.b, xf.c, xf.d, xf.tx, xf.ty);
         isim_gfx_translate(-sz.width / 2, -sz.height / 2);
     }
-    BOOL pushedStyle = _overrideUserInterfaceStyle != UIUserInterfaceStyleUnspecified;
-    if (pushedStyle) isim_ui_push_style(_overrideUserInterfaceStyle);
+    /* a window, a view controller's view and a view with trait overrides draw with their own traits (dynamic colors) */
+    BOOL pushedStyle = _vc || [self _isim_hasTraitOverrides] || !_superview;
+    if (pushedStyle) isim_ui_push_traits(self.traitCollection);
     double a = alpha * caOpacity;
     CALayer *maskLayer = _layer.mask;
     BOOL group = a < 0.999 || maskLayer;
@@ -919,7 +959,7 @@ static IMP base_drawRect;
     if (caTransition) isim_ca_view_transition_end(_layer, sz);
     if (group && maskLayer) { isim_gfx_push_group(); isim_gfx_save(); isim_ca_render_mask(maskLayer); isim_gfx_restore(); isim_gfx_pop_group_masked(a); }
     else if (group) isim_gfx_pop_group(a);
-    if (pushedStyle) isim_ui_pop_style();
+    if (pushedStyle) isim_ui_pop_traits();
     isim_gfx_restore();
 }
 

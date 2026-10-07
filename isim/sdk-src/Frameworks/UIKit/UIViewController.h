@@ -41,6 +41,9 @@ typedef NS_ENUM(NSInteger, UIModalPresentationStyle) { UIModalPresentationFullSc
 @property (nonatomic, readonly) BOOL prefersStatusBarHidden;
 - (void)setNeedsStatusBarAppearanceUpdate;
 @property (nonatomic) UIUserInterfaceStyle overrideUserInterfaceStyle;
+/* iOS 17: traits this controller, its view, its children and the controllers it presents see */
+@property (nonatomic, readonly) id<UITraitOverrides> traitOverrides API_AVAILABLE(ios(17.0));
+- (void)updateTraitsIfNeeded API_AVAILABLE(ios(17.0));
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;
 @property (nonatomic, readonly, strong) UINavigationItem *navigationItem;

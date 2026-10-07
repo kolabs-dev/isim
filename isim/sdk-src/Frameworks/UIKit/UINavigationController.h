@@ -23,6 +23,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) NSInteger tag;
 @property (nullable, nonatomic, copy) NSString *accessibilityIdentifier;
 @property (nullable, nonatomic, copy) NSString *accessibilityLabel;
+/* title font / color per state (NSFontAttributeName, NSForegroundColorAttributeName); bar buttons and tab bar titles use them */
+- (void)setTitleTextAttributes:(nullable NSDictionary<NSAttributedStringKey, id> *)attributes forState:(UIControlState)state;
+- (nullable NSDictionary<NSAttributedStringKey, id> *)titleTextAttributesForState:(UIControlState)state;
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIBarButtonItem : UIBarItem

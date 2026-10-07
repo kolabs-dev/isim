@@ -347,6 +347,13 @@ Classes:
     SwiftName: 'draw(at:)'
 - Name: UIImageConfiguration
   SwiftName: UIImage.Configuration
+  Methods:
+  - Selector: 'configurationWithTraitCollection:'
+    MethodKind: Class
+    SwiftName: 'init(traitCollection:)'
+  - Selector: 'configurationWithTraitCollection:'
+    MethodKind: Instance
+    SwiftName: 'withTraitCollection(_:)'
 - Name: UIImageSymbolConfiguration
   SwiftName: UIImage.SymbolConfiguration
   Methods:
@@ -409,11 +416,22 @@ Classes:
   - Selector: 'canOpenURL:'
     MethodKind: Instance
     SwiftName: 'canOpenURL(_:)'
+- Name: UIVibrancyEffect
+  Methods:
+  - Selector: 'effectForBlurEffect:'
+    MethodKind: Class
+    SwiftName: 'init(blurEffect:)'
+  - Selector: 'effectForBlurEffect:style:'
+    MethodKind: Class
+    SwiftName: 'init(blurEffect:style:)'
 - Name: UIColor
   Properties:
   - Name: CGColor
     PropertyKind: Instance
     SwiftName: cgColor
+  - Name: tintColor
+    PropertyKind: Class
+    SwiftName: tintColor
 - Name: UIInputViewController
   Methods:
   - Selector: 'handleInputModeListFromView:withEvent:'
@@ -774,6 +792,8 @@ Globals:
   SwiftName: UIApplication.willEnterForegroundNotification
 - Name: UIApplicationWillTerminateNotification
   SwiftName: UIApplication.willTerminateNotification
+- Name: UIApplicationDidReceiveMemoryWarningNotification
+  SwiftName: UIApplication.didReceiveMemoryWarningNotification
 - Name: kCAFilterNearest
   SwiftName: CALayerContentsFilter.nearest
 - Name: kCAFilterLinear
