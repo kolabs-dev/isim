@@ -102,7 +102,7 @@ static NSString *ensure_dir(NSString *path) {
     if (!icloud_signed_in()) return NO;
     @synchronized (self) {
         NSDictionary *snapshot = [_values copy];
-        if (![snapshot writeToFile:_file atomically:YES]) return NO;
+        if (![isim_plist_xml(snapshot) writeToFile:_file atomically:YES encoding:NSUTF8StringEncoding error:NULL]) return NO;
         _seen = [self _mtime];
     }
     return YES;
@@ -146,11 +146,10 @@ static NSString *ensure_dir(NSString *path) {
     BOOL _asapScheduled, _idleScheduled;
 }
 + (NSNotificationQueue *)defaultQueue {
-    /* one per thread, like Apple's */
-    NSMutableDictionary *td = NSThread.currentThread.threadDictionary;
-    NSNotificationQueue *q = td[@"isim.NSNotificationQueue"];
-    if (!q) { q = [[self alloc] initWithNotificationCenter:NSNotificationCenter.defaultCenter]; td[@"isim.NSNotificationQueue"] = q; }
-    return q;
+    /* one per thread, like Apple's (kept for the thread's lifetime) */
+    static __thread void *tq;
+    if (!tq) tq = (__bridge_retained void *)[[self alloc] initWithNotificationCenter:NSNotificationCenter.defaultCenter];
+    return (__bridge NSNotificationQueue *)tq;
 }
 - (instancetype)init { return [self initWithNotificationCenter:NSNotificationCenter.defaultCenter]; }
 - (instancetype)initWithNotificationCenter:(NSNotificationCenter *)center {

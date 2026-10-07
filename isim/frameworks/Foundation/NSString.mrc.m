@@ -139,12 +139,15 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     NSUInteger fn; const char *f = [fmt _isim_bytes:&fn];
     enum { MAXA = 64 };
     int types[MAXA] = {0}; int nargs = 0, seq = 0;
+    /* plural formats: argument types of %#@var@ come from the .stringsdict entry (NSStringFormatValueTypeKey) */
+    NSString *typed = strstr(f, "%#@") ? isim_plural_typed(fmt) : nil;
+    NSUInteger tfn = fn; const char *tf = typed ? [typed _isim_bytes:&tfn] : f;
     /* pass 1: argument types */
-    for (NSUInteger i = 0; i < fn;) {
-        if (f[i] != '%') { i++; continue; }
+    for (NSUInteger i = 0; i < tfn;) {
+        if (tf[i] != '%') { i++; continue; }
         i++;
         fspec_t sp;
-        if (!parse_spec(f, fn, &i, &sp, &seq)) break;
+        if (!parse_spec(tf, tfn, &i, &sp, &seq)) break;
         if (sp.conv == '%') continue;
         if (sp.starw >= 0 && sp.starw < MAXA) { types[sp.starw] = FA_INT; if (sp.starw + 1 > nargs) nargs = sp.starw + 1; }
         if (sp.starp >= 0 && sp.starp < MAXA) { types[sp.starp] = FA_INT; if (sp.starp + 1 > nargs) nargs = sp.starp + 1; }
@@ -167,6 +170,22 @@ NSString *isim_format(NSString *fmt, va_list ap) {
         }
     }
     va_end(args);
+    /* .stringsdict plural formats: substitute each %#@var@ with its rule text, then format that */
+    if (typed) {
+        BOOL expanded = NO;
+        int *tp = types; farg_t *vp = vals; int na = nargs;   /* blocks cannot capture arrays */
+        NSString *plain = isim_plural_expand(fmt, ^double(int p) {
+            if (p < 0 || p >= na) return 0;
+            switch (tp[p]) {
+            case FA_UINT: case FA_ULONG: case FA_ULLONG: return (double)vp[p].ull;
+            case FA_DOUBLE: return vp[p].d;
+            case FA_LDOUBLE: return (double)vp[p].ld;
+            case FA_ID: return [(id)vp[p].p respondsToSelector:@selector(doubleValue)] ? [(id)vp[p].p doubleValue] : 0;
+            default: return (double)vp[p].ll;
+            }
+        }, &expanded);
+        if (expanded) return isim_format(plain, ap);
+    }
     /* pass 2: format */
     buf_t out = {0}; buf_add(&out, "", 0);
     seq = 0;

@@ -57,6 +57,9 @@ final class _Keychain: @unchecked Sendable {
     static let primaryKeys: [String: [String]] = [
         "genp": ["agrp", "svce", "acct", "sync"],
         "inet": ["agrp", "srvr", "ptcl", "atyp", "port", "path", "acct", "sdmn", "sync"],
+        "keys": ["agrp", "kcls", "klbl", "atag", "type", "bsiz", "sync"],
+        "cert": ["agrp", "ctyp", "issr", "slnr", "sync"],
+        "idnt": ["agrp", "ctyp", "issr", "slnr", "sync"],
     ]
     let lock = NSLock()
     let defaultGroup = Bundle.main.bundleIdentifier ?? "isim.unknown"
@@ -103,8 +106,8 @@ final class _Keychain: @unchecked Sendable {
     func classOf(_ q: [String: Any]) -> (String?, OSStatus) {
         guard let c = q["class"] as? String else { return (nil, errSecParam) }
         switch c {
-        case "genp", "inet": return (c, errSecSuccess)
-        case "keys", "cert", "idnt": return (nil, errSecUnimplemented)
+        case "genp", "inet", "keys": return (c, errSecSuccess)
+        case "cert", "idnt": return _Keychain.certificateClassesEnabled ? (c, errSecSuccess) : (nil, errSecUnimplemented)
         default: return (nil, errSecParam)
         }
     }
@@ -113,6 +116,7 @@ final class _Keychain: @unchecked Sendable {
         guard item.cls == cls else { return false }
         let ci = (q["m_CaseInsensitive"] as? Bool) ?? false
         if let ref = q["v_PersistentRef"] as? Data, ref != persistentRef(group, item) { return false }
+        if let ref = q["v_Ref"], let want = _Keychain.refData(ref), want != (item.data ?? []) { return false }
         for (k, v) in q {
             if k == "class" || k.hasPrefix("r_") || k.hasPrefix("m_") || k.hasPrefix("u_") || k.hasPrefix("v_") || k == "nleg" || k == "accc" { continue }
             if k == "sync" {
@@ -141,16 +145,18 @@ final class _Keychain: @unchecked Sendable {
 
     func result(for found: [(String, _KCItem)], _ q: [String: Any], _ out: UnsafeMutablePointer<CFTypeRef?>?) {
         func flag(_ k: String) -> Bool { (q[k] as? Bool) ?? (q[k] as? NSNumber)?.boolValue ?? false }
-        let wantData = flag("r_Data"), wantAttrs = flag("r_Attributes"), wantPRef = flag("r_PersistentRef")
-        let kinds = [wantData, wantAttrs, wantPRef].filter { $0 }.count
+        let wantData = flag("r_Data"), wantAttrs = flag("r_Attributes"), wantPRef = flag("r_PersistentRef"), wantRef = flag("r_Ref")
+        let kinds = [wantData, wantAttrs, wantPRef, wantRef].filter { $0 }.count
         guard kinds > 0, let out else { return }
         func value(_ group: String, _ item: _KCItem) -> Any {
             if kinds == 1 && wantData { return Data(item.data ?? []) }
             if kinds == 1 && wantPRef { return persistentRef(group, item) }
+            if kinds == 1 && wantRef { return _Keychain.makeRef(item) ?? NSNull() }
             var d: [String: Any] = ["class": item.cls]
             if wantAttrs { for (k, v) in item.attrs { d[k] = v.any } }
             if wantData { d["v_Data"] = Data(item.data ?? []) }
             if wantPRef { d["v_PersistentRef"] = persistentRef(group, item) }
+            if wantRef, let r = _Keychain.makeRef(item) { d["v_Ref"] = r }
             return d
         }
         if isAll(q) { out.pointee = found.map { value($0.0, $0.1) } as AnyObject }
@@ -172,6 +178,12 @@ final class _Keychain: @unchecked Sendable {
             guard let d = v as? Data else { return errSecParam }
             item.data = Array(d)
         }
+        if let ref = a["v_Ref"] {
+            guard let attrs = _Keychain.refAttributes(ref, cls: cls) else { return errSecParam }
+            item.data = attrs.data
+            for (k, v) in attrs.attrs where a[k] == nil { item.attrs[k] = v }
+        }
+        if cls == "keys" || cls == "cert" || cls == "idnt", item.data == nil { return errSecParam }
         for (k, v) in a {
             if k == "class" || k.hasPrefix("r_") || k.hasPrefix("m_") || k.hasPrefix("u_") || k.hasPrefix("v_") || k == "nleg" { continue }
             if k == "accc" {
@@ -276,5 +288,47 @@ final class _Keychain: @unchecked Sendable {
             }
         }
         return removed > 0 ? errSecSuccess : errSecItemNotFound
+    }
+}
+
+// MARK: - keys, certificates and identities as keychain items
+
+extension _Keychain {
+    /// set by Certificates.swift once certificates are supported
+    nonisolated(unsafe) static var certificateClassesEnabled = false
+    nonisolated(unsafe) static var certificateRef: ((Any, String) -> (data: [UInt8], attrs: [String: _KCValue])?)? = nil
+    nonisolated(unsafe) static var makeCertificateRef: ((_KCItem) -> AnyObject?)? = nil
+
+    /// the stored bytes and attributes for a kSecValueRef
+    static func refAttributes(_ ref: Any, cls: String) -> (data: [UInt8], attrs: [String: _KCValue])? {
+        if cls == "keys", let key = ref as? SecKey {
+            var a: [String: _KCValue] = [
+                "kcls": .string(key.isPrivate ? "1" : "0"), "type": .string(key.typeString), "bsiz": .int(key.bits), "esiz": .int(key.bits),
+                "klbl": .data(key.applicationLabel), "perm": .bool(true),
+            ]
+            if let tag = key.attributes["atag"] {
+                if let d = tag as? Data { a["atag"] = .data(Array(d)) } else if let s = tag as? String { a["atag"] = .data(Array(s.utf8)) }
+            }
+            if let l = key.attributes["labl"] as? String { a["labl"] = .string(l) }
+            return (key.raw, a)
+        }
+        return certificateRef?(ref, cls)
+    }
+    static func refData(_ ref: Any) -> [UInt8]? {
+        if let key = ref as? SecKey { return key.raw }
+        return certificateRef?(ref, "cert")?.data
+    }
+    static func makeRef(_ item: _KCItem) -> AnyObject? {
+        if item.cls == "keys", let data = item.data {
+            var priv = false, type: Int32 = 0
+            if case .string(let c) = item.attrs["kcls"] ?? .string("1") { priv = c == "1" }
+            if case .string(let t) = item.attrs["type"] ?? .string("42") { type = t == "73" ? 1 : 0 }
+            guard let key = SecKey.load(type: type, isPrivate: priv, raw: data) else { return nil }
+            if case .data(let tag) = item.attrs["atag"] { key.attributes["atag"] = Data(tag) }
+            if case .string(let l) = item.attrs["labl"] { key.attributes["labl"] = l }
+            key.attributes["perm"] = true
+            return key
+        }
+        return makeCertificateRef?(item)
     }
 }

@@ -16,6 +16,8 @@ func check(_ ok: Bool, _ what: String) {
         cryptoKitTests()
         sqliteTests()
         keychainTests()
+        secKeyTests()
+        cryptoKitExtrasTests()
         logTests()
         cOSLogTest()
         print("security test: \(checks - failures)/\(checks) passed")

@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSNotificationName const NSUbiquityIdentityDidChangeNotification;
 
 @interface NSUbiquitousKeyValueStore : NSObject
-@property (class, readonly, strong) NSUbiquitousKeyValueStore *defaultStore;
+@property (class, readonly, strong) NSUbiquitousKeyValueStore *defaultStore NS_SWIFT_NAME(default);
 - (nullable id)objectForKey:(NSString *)aKey;
 - (void)setObject:(nullable id)anObject forKey:(NSString *)aKey NS_SWIFT_NAME(set(_:forKey:));
 - (void)removeObjectForKey:(NSString *)aKey;
@@ -63,7 +63,7 @@ typedef NS_OPTIONS(NSUInteger, NSNotificationCoalescing) {
 } NS_SWIFT_NAME(NotificationQueue.NotificationCoalescing);
 NS_SWIFT_NAME(NotificationQueue)
 @interface NSNotificationQueue : NSObject
-@property (class, readonly, strong) NSNotificationQueue *defaultQueue;
+@property (class, readonly, strong) NSNotificationQueue *defaultQueue NS_SWIFT_NAME(default);
 - (instancetype)initWithNotificationCenter:(NSNotificationCenter *)notificationCenter NS_DESIGNATED_INITIALIZER;
 - (void)enqueueNotification:(NSNotification *)notification postingStyle:(NSPostingStyle)postingStyle NS_SWIFT_NAME(enqueue(_:postingStyle:));
 - (void)enqueueNotification:(NSNotification *)notification postingStyle:(NSPostingStyle)postingStyle coalesceMask:(NSNotificationCoalescing)coalesceMask forModes:(nullable NSArray<NSRunLoopMode> *)modes NS_SWIFT_NAME(enqueue(_:postingStyle:coalesceMask:forModes:));

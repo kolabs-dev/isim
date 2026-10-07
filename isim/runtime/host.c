@@ -39,6 +39,18 @@
 
 #include "runtime.h"
 #include "host_crypto.h"
+/* host_pki.c */
+int isim_pki_available(void); const char *isim_pki_error(void);
+int isim_pki_generate(int, int, uint8_t *, size_t *); int isim_pki_public(int, const uint8_t *, size_t, uint8_t *, size_t *);
+int isim_pki_key_bits(int, const uint8_t *, size_t, int);
+int isim_pki_sign(int, const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
+int isim_pki_verify(int, const uint8_t *, size_t, int, const uint8_t *, size_t, const uint8_t *, size_t);
+int isim_pki_encrypt(const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
+int isim_pki_decrypt(const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
+int isim_pki_ecdh(const uint8_t *, size_t, const uint8_t *, size_t, uint8_t *, size_t *);
+int isim_pki_cert_parse(const uint8_t *, size_t, char *, size_t);
+int isim_pki_trust(const uint8_t *, const size_t *, int, const uint8_t *, const size_t *, int, int, int, const char *, double, char *, size_t, int *);
+int isim_pki_pkcs12(const uint8_t *, size_t, const char *, uint8_t *, size_t *, int *, uint8_t *, size_t, size_t *, int *);
 
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48];
                      double safe_left, safe_right; int orientation; };   /* orientation: UIInterfaceOrientation (0 = portrait) */
@@ -1062,6 +1074,8 @@ static const struct shim isim_table[] = {
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
+    H(isim_pki_available), H(isim_pki_error), H(isim_pki_generate), H(isim_pki_public), H(isim_pki_key_bits), H(isim_pki_sign), H(isim_pki_verify),
+    H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_trust), H(isim_pki_pkcs12),
     H(isim_set_orientation), H(isim_device_orientation),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_draw_markup),

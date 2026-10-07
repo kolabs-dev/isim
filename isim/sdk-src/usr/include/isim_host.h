@@ -153,6 +153,30 @@ int isim_crypto_25519_check_public(int kind, const uint8_t *pub);
 int isim_crypto_x25519(const uint8_t *priv, const uint8_t *pub, uint8_t *shared);
 int isim_crypto_ed25519_sign(const uint8_t *priv, const void *_Nullable msg, size_t len, uint8_t *sig);
 int isim_crypto_ed25519_verify(const uint8_t *pub, const void *_Nullable msg, size_t len, const uint8_t *sig);
+/* public-key infrastructure for isim's Security module (host_pki.c, host OpenSSL). Return 1 on success, 0 on failure
+   (isim_pki_error: why). Key type 0 RSA, 1 EC. Keys in Apple's external representation: RSA PKCS#1 DER; EC X9.63
+   04|X|Y (public) / 04|X|Y|D (private). Sizes are in/out: capacity in, length out.
+   sign/verify alg: digest (0 none, 1 SHA-1, 2 SHA-224, 3 SHA-256, 4 SHA-384, 5 SHA-512) | 16 if the data is a message
+   | scheme << 8 (0 RSA PKCS#1 v1.5, 1 RSA PSS, 2 ECDSA DER signature, 3 ECDSA r||s, 4 RSA raw).
+   encrypt/decrypt alg (RSA): 0 PKCS#1 v1.5, 1 raw, 2..6 OAEP SHA-1/224/256/384/512. */
+int isim_pki_available(void);
+const char *isim_pki_error(void);
+int isim_pki_generate(int type, int bits, uint8_t *_Nullable out, size_t *outlen);
+int isim_pki_public(int type, const uint8_t *priv, size_t len, uint8_t *_Nullable out, size_t *outlen);
+int isim_pki_key_bits(int type, const uint8_t *key, size_t len, int isPrivate);
+int isim_pki_sign(int type, const uint8_t *priv, size_t len, int alg, const uint8_t *_Nullable data, size_t dlen, uint8_t *sig, size_t *siglen);
+int isim_pki_verify(int type, const uint8_t *pub, size_t len, int alg, const uint8_t *_Nullable data, size_t dlen, const uint8_t *sig, size_t siglen);
+int isim_pki_encrypt(const uint8_t *pub, size_t len, int alg, const uint8_t *_Nullable in, size_t inlen, uint8_t *out, size_t *outlen);
+int isim_pki_decrypt(const uint8_t *priv, size_t len, int alg, const uint8_t *in, size_t inlen, uint8_t *out, size_t *outlen);
+int isim_pki_ecdh(const uint8_t *priv, size_t len, const uint8_t *pub, size_t publen, uint8_t *out, size_t *outlen);
+/* certificate description as JSON (see host_pki.c) */
+int isim_pki_cert_parse(const uint8_t *der, size_t len, char *json, size_t cap);
+/* chain verification: DER certificates (leaf first) and anchors, each concatenated with their sizes in lens */
+int isim_pki_trust(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *_Nullable anchors, const size_t *_Nullable alens, int nanchors,
+                   int useSystemAnchors, int sslServer, const char *_Nullable hostname, double when, char *err, size_t errcap, int *chainlen);
+/* PKCS#12: private key (+ type) and certificates (identity certificate first); ncerts -1 if not PKCS#12 */
+int isim_pki_pkcs12(const uint8_t *data, size_t len, const char *_Nullable password, uint8_t *key, size_t *keylen, int *keytype,
+                    uint8_t *certs, size_t certscap, size_t *certlens, int *ncerts);
 /* media (host_media.c): video/audio files and http(s) URLs through the host's ffprobe/ffmpeg */
 struct isim_media_info { double duration, width, height, fps; int has_video, has_audio; };
 int isim_media_probe(const char *url, struct isim_media_info *info);            /* 0: unreadable / no ffprobe */

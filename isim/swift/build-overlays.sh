@@ -46,7 +46,7 @@ build SpriteKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit
 build GameplayKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswiftSpriteKit -lswift_Concurrency -framework Foundation -framework UIKit
 build GameController -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 build CryptoKit -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
-build Security -lswiftObjectiveC -lswiftFoundation -framework Foundation
+build Security -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 build os -lswiftObjectiveC -lswiftFoundation -framework Foundation
 build OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation
 build LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host

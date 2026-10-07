@@ -1,0 +1,54 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld files" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld file" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld files" } }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld файл" } },
+              "few" : { "stringUnit" : { "state" : "translated", "value" : "%lld файла" } },
+              "many" : { "stringUnit" : { "state" : "translated", "value" : "%lld файлов" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld файла" } }
+            }
+          }
+        }
+      }
+    },
+    "%lld photos in %lld albums" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "%#@photos@ in %#@albums@" },
+          "substitutions" : {
+            "photos" : {
+              "argNum" : 1, "formatSpecifier" : "lld",
+              "variations" : { "plural" : {
+                "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg photo" } },
+                "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg photos" } } } }
+            },
+            "albums" : {
+              "argNum" : 2, "formatSpecifier" : "lld",
+              "variations" : { "plural" : {
+                "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg album" } },
+                "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg albums" } } } }
+            }
+          }
+        }
+      }
+    },
+    "Welcome" : {
+      "localizations" : {
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Добро пожаловать" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}
