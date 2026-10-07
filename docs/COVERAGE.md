@@ -348,8 +348,8 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `pngData()` / `jpegData()` | ✅ | ≤17 | `UIImagePNGRepresentation`/`UIImageJPEGRepresentation` (JPEG composites transparency over black, as iOS does); tested (HelloImages) |
 | `resizableImage(withCapInsets:resizingMode:)`, `withHorizontallyFlippedOrientation`, `imageOrientation` | ✅ | ≤17 | nine slices (caps fixed, edges/center stretched or tiled), orientations drawn rotated/mirrored with swapped sizes for left/right; tested (HelloImaging). Tile mode and `stretchableImage` unverified; `imageFlippedForRightToLeftLayoutDirection` returns the image (isim is LTR) |
 | `withTintColor`, rendering modes (template/original) | ✅ | ≤17 | |
-| SF Symbols (`UIImage(systemName:)`) | 🟡 | ≤17 | substitutes (procedural shapes / Adwaita symbolic icons), not Apple's glyphs |
-| `UIImage.SymbolConfiguration` (point size, weight, scale, text style) | ✅ | ≤17 | |
+| SF Symbols (`UIImage(systemName:)`) | 🟡 | ≤17 | stand-in drawings, not Apple's SF Symbols artwork (Apple licenses it for its own platforms only, so isim cannot ship or copy it): about 170 common names are isim's own procedural glyphs (`isim/runtime/host_symbols.inc`: heart, star, bell, envelope, person, arrows, chevrons, media controls, weather, ...) and about 220 more map to the host's Adwaita symbolic icons. Variants compose for any drawn glyph: `.fill` (solid shape), `.circle` / `.square` / `.triangle` / `.rectangle` (enclosure; with `.fill` the glyph is cut out), `.slash`. Shapes and proportions differ from iOS; names without a stand-in draw a dashed placeholder and are reported once on stderr; `UIImage(systemName:)` never returns nil. Tested (HelloSymbols: 170 names, none draws the placeholder, `.fill` differs from the outline) |
+| `UIImage.SymbolConfiguration` (point size, weight, scale, text style) | ✅ | ≤17 | weight thickens or thins the strokes of drawn glyphs (Adwaita icons keep their weight); `configurationWithFont:` takes the font's weight; tested (HelloSymbols) |
 | Symbol rendering modes (hierarchical, palette, multicolor), symbol effects | ❌ | ≤17 | |
 | `UIColor` (RGB/HSB/white, system & semantic colors, dynamic provider) | ✅ | ≤17 | Apple HIG light/dark values |
 | Named asset-catalog colors (light/dark) | ✅ | ≤17 | |
@@ -458,7 +458,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `lineLimit`, `multilineTextAlignment` | ✅ | ≤17 | |
 | `truncationMode`, `minimumScaleFactor`, `allowsTightening` | 🟡 | ≤17 | head/middle/tail truncation of one-line text (tested), `minimumScaleFactor` shrinks one-line labels to fit (screenshot only); `allowsTightening` is stored, no effect |
 | `Image` (asset/bundle name, `uiImage:`), `resizable`, `renderingMode`, `interpolation` | ✅ | ≤17 | |
-| `Image(systemName:)` | 🟡 | ≤17 | substitute glyphs, not SF Symbols |
+| `Image(systemName:)` | 🟡 | ≤17 | the same stand-in drawings as `UIImage(systemName:)` (not Apple's SF Symbols); `.font` / `.fontWeight` set size and stroke weight |
 | `imageScale`, `symbolRenderingMode`, `symbolVariant`, `symbolEffect` | 🟡 | ≤17 | `imageScale` sizes symbols (tested); `symbolVariant` appends `.fill`/`.circle`/... to the symbol name (unverified); `symbolRenderingMode` accepted, ignored; `symbolEffect` missing |
 | `AsyncImage` | ✅ | ≤17 | URLSession (http(s), file, data URLs); phases, `content:placeholder:`; decoded through a temporary file (isim's UIImage has no `init(data:)`); tested (HelloPickers) |
 | `Label` | ✅ | ≤17 | |
@@ -781,7 +781,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `NSNumber`, `NSValue` (CG geometry), `NSNull` | ✅ | ≤17 | |
 | `UUID` | ✅ | ≤17 | |
 | `Decimal` | 🟡 | ≤17 | 38 significant digits, exact arithmetic, `NSDecimalRound`/`NSDecimalAdd`..., `pow`; no `NSDecimalNumber`, does not bridge to an Objective-C object |
-| `NSError`, `LocalizedError`, `CustomNSError` | ✅ | ≤17 | |
+| `NSError`, `LocalizedError`, `CustomNSError`, `RecoverableError`, `CocoaError` | ✅ | ≤17 | Swift errors bridge through the Swift runtime's NSError box: `domain`/`code` from the error (raw values, `errorDomain`/`errorCode`), `userInfo` from `errorUserInfo` + `errorDescription`/`failureReason`/`recoverySuggestion`/`helpAnchor` + recovery options; `localizedDescription` matches iOS (default "The operation couldn’t be completed. (domain error n.)"); `as? MyError` works after a round trip through Objective-C; NSErrors of the Cocoa / URL domains bridge to `CocoaError` / `URLError` (`catch CocoaError.fileReadNoSuchFile`); `NSError.setUserInfoValueProvider(forDomain:)`, `localizedRecoverySuggestion`, `localizedRecoveryOptions`, `helpAnchor`, `underlyingErrors`. Tested (tests/swift-foundation, tests/foundation). `POSIXError`/`MachError` missing |
 | `NSPredicate`, `NSExpression` (format strings, `filtered(using:)`) | 🟡 | ≤17 | comparisons, string operators (`CONTAINS[cd]`, `LIKE`, `MATCHES`, ...), aggregates, `ANY`/`ALL`, key paths, block predicates; no subqueries or function expressions; the `#Predicate` macro is not available |
 | `NSSortDescriptor`, `SortDescriptor`, `KeyPathComparator`, `sorted(using:)` | ✅ | ≤17 | |
 | Key-value coding (`value(forKey:)`, key paths, collection operators) and observing (KVO, `observe(\.x)`, `publisher(for:)`) | ✅ | ≤17 | KVO wraps setters; `@objc dynamic` Swift properties observable |

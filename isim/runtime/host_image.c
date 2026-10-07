@@ -3,10 +3,11 @@
  * into the current cairo context, optionally as a template tinted with one color.
  *
  * SF Symbols are Apple's proprietary artwork and are not shipped. isim_image_symbol()
- * substitutes: a few common shapes are drawn procedurally (N.circle, checkmark.circle,
- * circle.grid.3x3), others map to the system's Adwaita symbolic icons. Unknown names
- * draw a visible placeholder and are reported once on stderr. Substitutes look different
- * from the real symbols; layout uses SF-like metrics so sizes match.
+ * substitutes: common symbols are drawn procedurally by isim's own simple path programs
+ * (host_symbols.inc: fill / circle / square / triangle / rectangle / slash variants compose),
+ * others map to the system's Adwaita symbolic icons. Unknown names draw a visible placeholder
+ * and are reported once on stderr. Substitutes look different from the real symbols; layout
+ * uses SF-like metrics so sizes match.
  */
 #define _GNU_SOURCE
 #include <cairo.h>
@@ -20,9 +21,13 @@
 
 cairo_t *isim_host_cairo(void);
 
+#include "host_symbols.inc"
+
 enum { IMG_RASTER = 1, IMG_SVG, IMG_PROC };
-enum { PROC_NUM_CIRCLE = 1, PROC_CHECK_CIRCLE, PROC_GRID, PROC_PLACEHOLDER, PROC_KB_DOWN, PROC_GLOBE, PROC_CIRCLE, PROC_MINUS_CIRCLE, PROC_UPDOWN, PROC_ELLIPSIS };
-struct img { int kind; cairo_surface_t *surf; RsvgHandle *svg; double w, h; int proc, fill; char text[8]; };
+enum { PROC_NUM_CIRCLE = 1, PROC_CHECK_CIRCLE, PROC_GRID, PROC_PLACEHOLDER, PROC_KB_DOWN, PROC_GLOBE, PROC_CIRCLE, PROC_MINUS_CIRCLE, PROC_UPDOWN, PROC_ELLIPSIS, PROC_GLYPH };
+struct img { int kind; cairo_surface_t *surf; RsvgHandle *svg; double w, h; int proc, fill; char text[8];
+             const struct glyph *g; int encl, slash; };      /* PROC_GLYPH: glyph, text or svg (Adwaita) + variants */
+static int symbol_weight;                                     /* UIImage.SymbolWeight of the symbol being drawn */
 static struct img *imgs; static int nimgs, capimgs;
 
 static int new_img(struct img v) {
@@ -143,6 +148,68 @@ static const struct { const char *sf, *adw; } symbol_map[] = {
     { "backward.end", "actions/media-skip-backward-symbolic" }, { "forward.end", "actions/media-skip-forward-symbolic" },
     { "square.grid.3x3", "actions/view-grid-symbolic" }, { "line.3.horizontal", "actions/open-menu-symbolic" }, { "video", "devices/camera-video-symbolic" },
     { "arrow.down.circle", "actions/go-down-symbolic" }, { "clock.arrow.circlepath", "actions/document-open-recent-symbolic" },
+    /* more stand-ins (drawn glyphs in host_symbols.inc take precedence over these) */
+    { "airplane", "status/airplane-mode-symbolic" }, { "bluetooth", "devices/bluetooth-symbolic" },
+    { "desktopcomputer", "devices/video-display-symbolic" }, { "display", "devices/video-display-symbolic" },
+    { "laptopcomputer", "devices/computer-symbolic" }, { "ipad", "devices/computer-apple-ipad-symbolic" }, { "tv", "devices/tv-symbolic" },
+    { "hifispeaker", "devices/audio-speakers-symbolic" }, { "scanner", "devices/scanner-symbolic" },
+    { "externaldrive", "devices/drive-harddisk-symbolic" }, { "internaldrive", "devices/drive-harddisk-solidstate-symbolic" },
+    { "opticaldisc", "devices/media-optical-symbolic" }, { "terminal", "legacy/utilities-terminal-symbolic" },
+    { "paintbrush", "categories/applications-graphics-symbolic" }, { "paintpalette", "legacy/preferences-color-symbolic" },
+    { "wrench.and.screwdriver", "categories/applications-engineering-symbolic" },
+    { "hammer", "categories/applications-engineering-symbolic" }, { "puzzlepiece", "mimetypes/application-x-addon-symbolic" },
+    { "puzzlepiece.extension", "mimetypes/application-x-addon-symbolic" }, { "shippingbox", "mimetypes/package-x-generic-symbolic" },
+    { "cube.box", "mimetypes/package-x-generic-symbolic" }, { "archivebox", "mimetypes/package-x-generic-symbolic" },
+    { "tray.and.arrow.down", "places/folder-download-symbolic" }, { "film", "mimetypes/video-x-generic-symbolic" },
+    { "music.note.list", "places/folder-music-symbolic" }, { "photo.on.rectangle", "places/folder-pictures-symbolic" },
+    { "photo.stack", "places/folder-pictures-symbolic" }, { "rectangle.portrait.and.arrow.right", "actions/system-log-out-symbolic" },
+    { "cloud.rain", "status/weather-showers-symbolic" }, { "cloud.drizzle", "status/weather-showers-scattered-symbolic" },
+    { "cloud.sun", "status/weather-few-clouds-symbolic" }, { "cloud.moon", "status/weather-few-clouds-night-symbolic" },
+    { "cloud.bolt", "status/weather-storm-symbolic" }, { "cloud.bolt.rain", "status/weather-storm-symbolic" },
+    { "snowflake", "status/weather-snow-symbolic" }, { "cloud.snow", "status/weather-snow-symbolic" },
+    { "wind", "status/weather-windy-symbolic" }, { "tornado", "status/weather-tornado-symbolic" },
+    { "cloud.fog", "status/weather-fog-symbolic" }, { "sunrise", "status/daytime-sunrise-symbolic" },
+    { "sunset", "status/daytime-sunset-symbolic" }, { "repeat", "status/media-playlist-repeat-symbolic" },
+    { "repeat.1", "status/media-playlist-repeat-song-symbolic" }, { "shuffle", "status/media-playlist-shuffle-symbolic" },
+    { "eject", "actions/media-eject-symbolic" }, { "faceid", "devices/auth-face-symbolic" },
+    { "touchid", "devices/auth-fingerprint-symbolic" }, { "simcard", "devices/auth-sim-symbolic" },
+    { "server.rack", "places/network-server-symbolic" }, { "camera.rotate", "actions/camera-switch-symbolic" },
+    { "rotate.left", "actions/object-rotate-left-symbolic" }, { "rotate.right", "actions/object-rotate-right-symbolic" },
+    { "bold", "actions/format-text-bold-symbolic" }, { "italic", "actions/format-text-italic-symbolic" },
+    { "underline", "actions/format-text-underline-symbolic" }, { "strikethrough", "actions/format-text-strikethrough-symbolic" },
+    { "text.alignleft", "actions/format-justify-left-symbolic" }, { "text.aligncenter", "actions/format-justify-center-symbolic" },
+    { "text.alignright", "actions/format-justify-right-symbolic" }, { "text.justify", "actions/format-justify-fill-symbolic" },
+    { "increase.indent", "actions/format-indent-more-symbolic" }, { "decrease.indent", "actions/format-indent-less-symbolic" },
+    { "paperclip", "status/mail-attachment-symbolic" }, { "arrowshape.turn.up.right", "actions/mail-forward-symbolic" },
+    { "arrowshape.turn.up.left.2", "actions/mail-reply-all-symbolic" }, { "folder.badge.plus", "actions/folder-new-symbolic" },
+    { "doc.badge.plus", "actions/document-new-symbolic" }, { "person.badge.plus", "actions/contact-new-symbolic" },
+    { "sidebar.left", "actions/sidebar-show-symbolic" }, { "sidebar.right", "actions/sidebar-show-right-symbolic" },
+    { "square.on.square", "actions/edit-copy-symbolic" }, { "arrow.up.left.and.arrow.down.right", "actions/view-fullscreen-symbolic" },
+    { "arrow.down.right.and.arrow.up.left", "actions/view-restore-symbolic" }, { "pin", "actions/view-pin-symbolic" },
+    { "calendar.badge.plus", "actions/appointment-new-symbolic" }, { "phone.down", "actions/call-stop-symbolic" },
+    { "phone.arrow.up.right", "status/call-outgoing-symbolic" }, { "phone.arrow.down.left", "status/call-incoming-symbolic" },
+    { "bubble.left.and.bubble.right", "actions/chat-message-new-symbolic" },
+    { "personalhotspot", "status/network-wireless-hotspot-symbolic" },
+    { "antenna.radiowaves.left.and.right", "status/network-wireless-hotspot-symbolic" },
+    { "star.leadinghalf.filled", "status/semi-starred-symbolic" }, { "lock.rotation", "status/rotation-locked-symbolic" },
+    { "hand.raised", "status/changes-prevent-symbolic" }, { "calculator", "legacy/accessories-calculator-symbolic" },
+    { "questionmark.app", "legacy/help-browser-symbolic" }, { "doc.richtext", "mimetypes/x-office-document-symbolic" },
+    { "newspaper", "mimetypes/x-office-document-symbolic" }, { "tray", "places/folder-symbolic" },
+    { "tray.full", "places/folder-documents-symbolic" }, { "cpu", "devices/media-flash-symbolic" },
+    { "memorychip", "devices/media-flash-symbolic" }, { "square.and.arrow.down.on.square", "places/folder-download-symbolic" },
+    { "figure.walk", "categories/emoji-people-symbolic" }, { "car", "categories/emoji-travel-symbolic" },
+    { "tram", "categories/emoji-travel-symbolic" }, { "bus", "categories/emoji-travel-symbolic" },
+    { "sportscourt", "categories/emoji-activities-symbolic" }, { "figure.run", "categories/emoji-activities-symbolic" },
+    { "tshirt", "categories/emoji-objects-symbolic" }, { "hare", "categories/emoji-nature-symbolic" },
+    { "tortoise", "categories/emoji-nature-symbolic" }, { "ant", "categories/emoji-nature-symbolic" },
+    { "ladybug", "categories/emoji-nature-symbolic" }, { "tree", "categories/emoji-nature-symbolic" },
+    { "cup.and.saucer", "categories/emoji-food-symbolic" }, { "takeoutbag.and.cup.and.straw", "categories/emoji-food-symbolic" },
+    { "flag.checkered", "categories/emoji-flags-symbolic" }, { "face.smiling.inverse", "emotes/face-smile-symbolic" },
+    { "hand.wave", "categories/emoji-body-symbolic" }, { "brain", "categories/emoji-body-symbolic" },
+    { "dice", "categories/applications-games-symbolic" }, { "graduationcap", "legacy/accessories-dictionary-symbolic" },
+    { "studentdesk", "legacy/accessories-dictionary-symbolic" }, { "building.columns", "places/network-workgroup-symbolic" },
+    { "building.2", "places/network-workgroup-symbolic" }, { "storefront", "places/network-workgroup-symbolic" },
+    { "qrcode", "actions/view-app-grid-symbolic" }, { "barcode", "actions/view-continuous-symbolic" },
 };
 
 static int proc_symbol(int proc, int fill, const char *text, double *w, double *h) {
@@ -173,13 +240,40 @@ int isim_image_symbol(const char *name, double *w, double *h) {
     if (!strcmp(base, "chevron.up.chevron.down")) return proc_symbol(PROC_UPDOWN, 0, NULL, w, h);    /* menu pickers */
     if (!strcmp(base, "ellipsis")) return proc_symbol(PROC_ELLIPSIS, 0, NULL, w, h);
     if (!strcmp(base, "ellipsis.circle")) return proc_symbol(PROC_ELLIPSIS, fill ? 3 : 2, NULL, w, h);
-    for (int pass = 0; pass < 2; pass++)
+    /* procedural glyphs: the whole name, then glyph + enclosure / slash */
+    const struct glyph *g = find_glyph(base);
+    const char *text = g ? NULL : find_text_glyph(base);
+    if (text && strlen(base) == 1) text = NULL;                  /* single letters only in enclosures */
+    int encl = 0, slash = 0;
+    char inner[128] = "";
+    if (!g && !text) {
+        parse_symbol_name(name, inner, sizeof inner, &fill, &encl, &slash);
+        if (encl || slash) { g = find_glyph(inner); text = g ? NULL : find_text_glyph(inner); }
+        if (text && strlen(inner) == 1 && !encl) text = NULL;
+    }
+    if (g || text) {
+        int hd = proc_symbol(PROC_GLYPH, fill, text, w, h);
+        struct img *im = get(hd); im->g = g; im->encl = encl; im->slash = slash;
+        return hd;
+    }
+    /* Adwaita: the whole name, the name without .fill, then the inner name in a drawn enclosure */
+    for (int pass = 0; pass < 3; pass++) {
+        const char *want = pass == 0 ? name : pass == 1 ? base : inner;
+        if (pass == 2 && !(*inner && (encl || slash))) break;
         for (size_t i = 0; i < sizeof symbol_map / sizeof *symbol_map; i++)
-            if (!strcmp(symbol_map[i].sf, pass ? base : name)) {
+            if (!strcmp(symbol_map[i].sf, want)) {
                 char path[256]; snprintf(path, sizeof path, "/usr/share/icons/Adwaita/symbolic/%s.svg", symbol_map[i].adw);
+                if (pass == 2) {
+                    RsvgHandle *svg = rsvg_handle_new_from_file(path, NULL);
+                    if (!svg) continue;
+                    int hd = proc_symbol(PROC_GLYPH, fill, NULL, w, h);
+                    struct img *im = get(hd); im->svg = svg; im->encl = encl; im->slash = slash;
+                    return hd;
+                }
                 double sw, sh; int hd = isim_image_load(path, &sw, &sh);
                 if (hd) { struct img *im = get(hd); im->w = 1.2; im->h = 1.2 * sh / sw; *w = im->w; *h = im->h; return hd; }
             }
+    }
     static char reported[64][64]; static int nrep;
     int seen = 0; for (int i = 0; i < nrep; i++) if (!strcmp(reported[i], name)) seen = 1;
     if (!seen) { fprintf(stderr, "isim: SF Symbol '%s' has no substitute; drawing a placeholder\n", name); if (nrep < 64) snprintf(reported[nrep++], 64, "%s", name); }
@@ -190,6 +284,9 @@ static void draw_proc(cairo_t *c, struct img *im, double w, double h) {
     double s = fmin(w, h), cx = w / 2, cy = h / 2, r = s / 2 - s * 0.06, lw = s * 0.085;
     cairo_set_line_width(c, lw); cairo_set_line_cap(c, CAIRO_LINE_CAP_ROUND); cairo_set_line_join(c, CAIRO_LINE_JOIN_ROUND);
     switch (im->proc) {
+    case PROC_GLYPH:
+        draw_symbol(c, im->g, im->text[0] ? im->text : NULL, im->svg, im->fill, im->encl, im->slash, w, h, symbol_weight_factor(symbol_weight));
+        break;
     case PROC_NUM_CIRCLE: case PROC_CHECK_CIRCLE:
         cairo_new_sub_path(c); cairo_arc(c, cx, cy, r, 0, 2 * M_PI);
         if (im->fill) cairo_fill(c); else cairo_stroke(c);
@@ -303,6 +400,15 @@ void isim_image_draw(int hd, double x, double y, double w, double h, const doubl
     else { cairo_set_source(c, pat); cairo_paint_with_alpha(c, alpha); }
     cairo_pattern_destroy(pat);
     cairo_restore(c);
+}
+
+/* isim_image_draw for symbol images with a UIImage.SymbolWeight (0 unspecified, 1 ultraLight ... 9 black):
+   procedural symbols draw their strokes at that weight */
+void isim_image_draw_symbol(int hd, double x, double y, double w, double h, const double *tint, double alpha, int weight) {
+    int saved = symbol_weight;
+    symbol_weight = weight;
+    isim_image_draw(hd, x, y, w, h, tint, alpha);
+    symbol_weight = saved;
 }
 
 /* Draws the source rectangle (sx, sy, sw, sh in image pixels) of a raster image into (x, y, w, h).

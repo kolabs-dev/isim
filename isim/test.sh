@@ -43,6 +43,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloDragDrop.app/HelloDragDrop ] && run "ui: HelloDragDrop (drag and drop interactions, table reordering, SwiftUI)" tests/ui/dragdrop.sh
   [ -x out/apps/HelloSwiftUIGestures.app/HelloSwiftUIGestures ] && run "ui: HelloSwiftUIGestures (magnify, rotate, sequenced, exclusive, @GestureState)" tests/ui/swiftui-gestures.sh
   [ -x out/apps/HelloImages.app/HelloImages ] && run "ui: HelloImages (image renderer, PNG/JPEG, attributed text)" tests/ui/images.sh
+  [ -x out/apps/HelloSymbols.app/HelloSymbols ] && run "ui: HelloSymbols (SF Symbol stand-ins: variants, weight, scale, tint)" tests/ui/symbols.sh
   [ -x out/apps/HelloQuartz.app/HelloQuartz ] && run "ui: HelloQuartz (bitmap/PDF contexts, gradients, shadows, Core Text)" tests/ui/quartz.sh
   [ -x out/apps/HelloImaging.app/HelloImaging ] && run "ui: HelloImaging (ImageIO, Core Image, animated/resizable images)" tests/ui/imaging.sh
   [ -x out/apps/HelloRotation.app/HelloRotation ] && run "ui: HelloRotation (device rotation, orientations, size classes)" tests/ui/rotation.sh
@@ -138,7 +139,7 @@ fi
 if [ "${OS_MATRIX:-0}" = 1 ]; then
   for v in ${OS_MATRIX_VERSIONS:-17 18 26 27}; do
     case $v in 17) dev=iphone15 ;; 18) dev=iphone16pro ;; *) dev=iphone17 ;; esac
-    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation objc-literals hellocounter swiftui controls boot"
+    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation objc-literals hellocounter swiftui controls symbols boot"
     # suites that assert the 402-pt iPhone 16 Pro/17 screen (frames, tap points) or iPads first sold with 17.5: no
     # iPhone that runs iOS 17.0 has that screen, so they run on 18, 26 and 27
     [ "$v" = 17 ] || suites="$suites forms navigation presentations transitions table"
