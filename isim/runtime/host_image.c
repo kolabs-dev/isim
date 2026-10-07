@@ -424,6 +424,34 @@ void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h) {
     for (int y = 0; y < h; y++) memcpy(dst + y * ds, px + (size_t)y * w * 4, (size_t)w * 4);
     cairo_surface_mark_dirty(im->surf);
 }
+/* Copies a w x h pixel rectangle at (x, y) of an image as premultiplied BGRA (cairo ARGB32 on little-endian) into
+ * out (w*h*4 bytes, rows packed); pixels outside the image are transparent. Vector and symbol images are rendered at
+ * their intrinsic size. Returns 1, or 0 for an unknown handle. Used by Vision, CVPixelBuffer and capture. */
+int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out) {
+    struct img *im = get(hd);
+    if (!im || w <= 0 || h <= 0 || !out) return 0;
+    cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+    cairo_t *c = cairo_create(s);
+    cairo_translate(c, -x, -y);
+    if (im->kind == IMG_RASTER && im->surf) {
+        cairo_surface_flush(im->surf);
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
+        cairo_set_source_surface(c, im->surf, 0, 0);
+        cairo_paint(c);
+    } else if (im->kind == IMG_SVG && im->svg) {
+        RsvgRectangle vp = { 0, 0, im->w, im->h };
+        rsvg_handle_render_document(im->svg, c, &vp, NULL);
+    } else {
+        cairo_set_source_rgba(c, 0, 0, 0, 1);
+        draw_proc(c, im, im->w, im->h);
+    }
+    cairo_destroy(c);
+    cairo_surface_flush(s);
+    int ss = cairo_image_surface_get_stride(s); const unsigned char *src = cairo_image_surface_get_data(s);
+    for (int r = 0; r < h; r++) memcpy(out + (size_t)r * w * 4, src + (size_t)r * ss, (size_t)w * 4);
+    cairo_surface_destroy(s);
+    return 1;
+}
 
 /* ---------------- surfaces for host_cg.c (Core Graphics pixel access, ImageIO, Core Image) ---------------- */
 /* the pixels of an image: raster images give their surface (*owned = 0); vector/procedural images are

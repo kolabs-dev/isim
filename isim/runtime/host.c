@@ -966,6 +966,10 @@ static int script_step(struct isim_event *ev) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "audio") && sscanf(args, " %63[^;]", arg) == 1) {     /* AVAudioSession: audio interrupt begin|end [resume], audio route NAME */
+        for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
+        void isim_audio_session_post(const char *ev);
+        isim_audio_session_post(arg);
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
                || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
@@ -1205,6 +1209,29 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 void isim_media_remote_post(const char *cmd);
 int isim_remote_command_poll(char *buf, int len);
+void isim_audio_set_pan(long h, double pan);
+int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out);
+/* host_capture.c */
+int isim_camera_source(char *desc, int len);
+int isim_camera_open(int max_side, double fps, int *w, int *h);
+long isim_camera_frame(int h, unsigned char *out, long seq, double timeout);
+int isim_camera_preview(int h);
+void isim_camera_close(int h);
+int isim_ffmpeg_run(const char *const *args, int nargs, double *progress, volatile int *cancel, char *err, long errlen);
+int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels);
+long isim_media_reader_read(int hd, void *buf, long n);
+void isim_media_reader_close(int hd);
+int isim_vision_available(int kind);
+char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
+char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs);
+char *isim_vision_text_languages(void);
+int isim_speech_available(void);
+char *isim_speech_transcribe(const float *pcm, long frames, const char *lang);
+int isim_audio_session_poll(char *buf, int len);
+int isim_audio_stream_open(double volume);
+long isim_audio_stream_write(int s, const float *pcm, long frames);
+void isim_audio_stream_control(int s, int paused, double volume);
+void isim_audio_stream_close(int s);
 int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
 void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
@@ -1264,6 +1291,12 @@ static const struct shim isim_table[] = {
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
+    H(isim_audio_set_pan), H(isim_image_read_bgra),
+    H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close),
+    H(isim_ffmpeg_run), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
+    H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages),
+    H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
+    H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close),
