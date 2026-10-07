@@ -64,7 +64,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | **Swift runtime, stdlib & concurrency** | 35 | 4 | 0 | 0 | 39 | 95% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 2 | 0 | 0 | 6 | 83% |
-| Objective-C runtime & C library | 13 | 3 | 0 | 0 | 16 | 91% |
+| Objective-C runtime & C library | 14 | 3 | 0 | 0 | 17 | 91% |
 | Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
 | Core Text | 4 | 3 | 0 | 0 | 7 | 79% |
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
@@ -85,7 +85,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 31 | 15 | 1 | 4 | 51 | 75% |
-| **All areas** | **611** | **268** | **50** | **59** | **988** | **75%** |
+| **All areas** | **612** | **268** | **50** | **59** | **989** | **75%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (81) | 84% (81) | 84% (81) | 84% (81) |
 | Swift runtime, stdlib & concurrency | 95% (39) | 95% (39) | 95% (39) | 95% (39) |
-| Objective-C runtime & C library | 91% (16) | 91% (16) | 91% (16) | 91% (16) |
+| Objective-C runtime & C library | 91% (17) | 91% (17) | 91% (17) | 91% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
 | Core Text | 79% (7) | 79% (7) | 79% (7) | 79% (7) |
 | QuartzCore / Core Animation | 83% (21) | 83% (21) | 83% (21) | 83% (21) |
@@ -119,7 +119,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 61% (9) | 61% (9) | 61% (9) | 61% (9) |
 | Platform & tooling | 77% (49) | 76% (50) | 75% (51) | 75% (51) |
-| **All areas** | **78%** (946) | **77%** (957) | **76%** (974) | **75%** (988) |
+| **All areas** | **78%** (947) | **77%** (958) | **76%** (975) | **75%** (989) |
 
 ---
 
@@ -934,6 +934,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | ARC, weak references, autorelease pools, blocks | ✅ | ≤17 | |
 | Associated objects, method swizzling (`method_exchangeImplementations`), introspection | ✅ | ≤17 | |
 | `@synchronized`, properties, fast enumeration | ✅ | ≤17 | |
+| Objective-C literals (`@[…]`, `@{…}`, `@42`, `@2.5`, `@YES`, boxed `@(…)`), including clang 23's constant literals: `NSConstantArray`, `NSConstantDictionary`, `NSConstantIntegerNumber`/`NSConstantDoubleNumber`/`NSConstantFloatNumber`, `__kCFBooleanTrue`/`__kCFBooleanFalse`, `__NSArray0__struct`/`__NSDictionary0__struct` | ✅ | ≤17 | static objects in the app's data segment; they are immortal (retain/release/autorelease do nothing, `copy` returns them) and are full NSArray/NSDictionary/NSNumber instances: equality and hashes match objects built at run time, fast enumeration, `mutableCopy`, KVC, keyed archives (archived as NSArray/NSDictionary/NSNumber), property lists, JSON, `description`, Swift bridging (`as! [Any]`, `as? [String: Any]`, `as? Int/Double/Float/Bool`). File-scope literals (`static NSArray *t = @[…]`) work. `+numberWithBool:` returns the kCFBoolean singletons, as on iOS. A key written twice in one constant dictionary literal (clang warns) is kept twice; lookups return the last value. Tested: tests/objc-literals (built with clang 23, or the committed prebuilt app with older clangs) |
 | Dynamic method resolution (`+resolveInstanceMethod:`, `+resolveClassMethod:`), property introspection (`class_getProperty`, `class_copyPropertyList`, `property_getAttributes`) | ✅ | ≤17 | also consulted by `respondsToSelector:` / `class_getMethodImplementation`. Tested: CoreDataTest (`@NSManaged` accessors) |
 | Message forwarding (`forwardingTargetForSelector:`, `methodSignatureForSelector:`/`forwardInvocation:`, `doesNotRecognizeSelector:`, `_objc_msgForward(_stret)`) | ✅ | ≤17 | lookup misses go to forwarding trampolines that capture the x86_64 argument registers + stack; int/char/short/BOOL/long, float/double, small structs (CGPoint, CGSize, NSRange, mixed int/float), stack-spilled args, `CGRect`/large-struct `stret` results; class methods too; unrecognized selectors raise `NSInvalidArgumentException` (iOS message). `respondsToSelector:` does not consult forwarding (like iOS). x87 `long double` results unsupported. Tested: tests/objc-runtime |
 | `NSMethodSignature`, `NSInvocation` (`invoke`, `invokeWithTarget:`, `invokeUsingIMP:`, get/set argument & return value, `retainArguments`), `NSGetSizeAndAlignment` | ✅ | ≤17 | SysV classification of ObjC type encodings; Swift-unavailable as on iOS. Tested: tests/objc-runtime |

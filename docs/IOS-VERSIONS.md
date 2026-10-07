@@ -137,7 +137,8 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
   versions, `#available`/`@available`, version-gated APIs, the look by pixels, the Lock Screen and Control Center,
   Settings ▸ About, device pairing and the remembered version. It is part of `test.sh`.
 - `OS_MATRIX=1 ./test.sh` also runs the version-sensitive suites under all four versions (iPhone 15 for 17,
-  iPhone 16 Pro for 18, iPhone 17 for 26/27): the Swift runtime/stdlib/concurrency/Foundation self-tests,
+  iPhone 16 Pro for 18, iPhone 17 for 26/27): the Swift runtime/stdlib/concurrency/Foundation self-tests, the
+  Objective-C constant literals test (tests/objc-literals),
   HelloCounter, HelloSwiftUI, HelloControls, the device shell (`boot.sh`) and, on 18/26/27, forms, navigation,
   presentations, transitions and table. Those five assert frames and tap points of the 402-pt screen (or use
   iPads first sold with iOS 17.5), which no iPhone that runs iOS 17.0 has, so the iOS 17 pass leaves them out.

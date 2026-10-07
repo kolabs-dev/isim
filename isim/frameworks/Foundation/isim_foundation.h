@@ -12,6 +12,19 @@ NSString *isim_format(NSString *fmt, va_list ap) NS_RETURNS_RETAINED;
 NSUInteger isim_utf16_length(const char *s, NSUInteger n);
 NSUInteger isim_utf16_to_byte(const char *s, NSUInteger n, NSUInteger idx);
 
+/* numbers (Collections.mrc.m): NSNumber reads its value through -_isim_getNumber:, which the constant-literal
+ * subclasses override (ConstantLiterals.mrc.m) */
+enum { ISIM_NUM_INT, ISIM_NUM_UINT, ISIM_NUM_DBL, ISIM_NUM_BOOL };
+typedef struct { int t; union { long long i; unsigned long long u; double d; }; } isim_numv;
+@interface NSNumber (IsimPrimitive)
+- (void)_isim_getNumber:(isim_numv *)v;
+@end
+NSNumber *isim_bool_number(BOOL v);   /* the kCFBooleanTrue/False singletons */
+
+/* static objects for @[] and @{} (ConstantLiterals.mrc.m) */
+extern struct isim_const_array __NSArray0__struct;
+extern struct isim_const_dict __NSDictionary0__struct;
+
 /* run loop services (NSRunLoop.m) */
 void isim_schedule_perform(id target, SEL sel, id arg, NSTimeInterval delay);
 void isim_cancel_performs(id target);

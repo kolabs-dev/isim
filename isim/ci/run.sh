@@ -12,7 +12,7 @@ echo "::group::build"
 echo "::endgroup::"
 # optional parts are skipped quietly by build.sh; in CI they must exist, or their suites would be skipped too
 for f in out/sdk/usr/lib/swift/libswiftCore.dylib out/sdk/usr/lib/swift/libswiftSwiftUI.dylib out/bin/isim-webkit \
-         out/apps/HelloSwiftUI.app/HelloSwiftUI out/apps/CoreDataTest.app/CoreDataTest; do
+         out/apps/HelloSwiftUI.app/HelloSwiftUI out/apps/CoreDataTest.app/CoreDataTest out/apps/ObjCLiteralsTest.app/ObjCLiteralsTest; do
   [ -e "$f" ] || { echo "CI: $f was not built"; exit 1; }
 done
 python3 tools/abi-check.py

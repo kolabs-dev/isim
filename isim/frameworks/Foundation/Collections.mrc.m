@@ -49,29 +49,38 @@ static NSValue *mkval(int kind) { NSValue *v = [[[NSValue alloc] init] autorelea
 }
 @end
 
-enum { N_INT, N_UINT, N_DBL, N_BOOL };
+/* NSNumber is a class cluster: every method reads the value through the -_isim_getNumber: primitive. NSNumber
+ * instances keep it in their ivars; the constant subclasses for clang's static literals (NSConstantIntegerNumber,
+ * NSConstantDoubleNumber, NSConstantFloatNumber) and the CFBoolean singletons (__NSCFBoolean) have their own layouts
+ * and override the primitive and -objCType (ConstantLiterals.mrc.m). */
 @implementation NSNumber { int _t; union { long long i; unsigned long long u; double d; } _n; }
 static NSNumber *mknum(int t) { NSNumber *n = class_createInstance([NSNumber class], 0); n->_t = t; return n; }
-#define NUMI(sel, type) + (NSNumber *)sel(type)v { NSNumber *n = mknum(N_INT); n->_n.i = v; return [n autorelease]; }
-#define NUMU(sel, type) + (NSNumber *)sel(type)v { NSNumber *n = mknum(N_UINT); n->_n.u = v; return [n autorelease]; }
+static inline isim_numv numv(NSNumber *n) { isim_numv v = { 0 }; [n _isim_getNumber:&v]; return v; }
+#define NUMI(sel, type) + (NSNumber *)sel(type)v { NSNumber *n = mknum(ISIM_NUM_INT); n->_n.i = v; return [n autorelease]; }
+#define NUMU(sel, type) + (NSNumber *)sel(type)v { NSNumber *n = mknum(ISIM_NUM_UINT); n->_n.u = v; return [n autorelease]; }
 NUMI(numberWithChar:, char) NUMU(numberWithUnsignedChar:, unsigned char) NUMI(numberWithShort:, short)
 NUMU(numberWithUnsignedShort:, unsigned short) NUMI(numberWithInt:, int) NUMU(numberWithUnsignedInt:, unsigned int)
 NUMI(numberWithLong:, long) NUMU(numberWithUnsignedLong:, unsigned long) NUMI(numberWithLongLong:, long long)
 NUMU(numberWithUnsignedLongLong:, unsigned long long) NUMI(numberWithInteger:, NSInteger) NUMU(numberWithUnsignedInteger:, NSUInteger)
-+ (NSNumber *)numberWithFloat:(float)v { NSNumber *n = mknum(N_DBL); n->_n.d = v; return [n autorelease]; }
-+ (NSNumber *)numberWithDouble:(double)v { NSNumber *n = mknum(N_DBL); n->_n.d = v; return [n autorelease]; }
-+ (NSNumber *)numberWithBool:(BOOL)v { NSNumber *n = mknum(N_BOOL); n->_n.i = v ? 1 : 0; return [n autorelease]; }
-- (instancetype)initWithInt:(int)v { _t = N_INT; _n.i = v; return self; }
-- (instancetype)initWithInteger:(NSInteger)v { _t = N_INT; _n.i = v; return self; }
-- (instancetype)initWithDouble:(double)v { _t = N_DBL; _n.d = v; return self; }
-- (instancetype)initWithBool:(BOOL)v { _t = N_BOOL; _n.i = v; return self; }
-- (instancetype)initWithLongLong:(long long)v { _t = N_INT; _n.i = v; return self; }
-- (instancetype)initWithUnsignedLongLong:(unsigned long long)v { _t = N_UINT; _n.u = v; return self; }
-- (instancetype)initWithUnsignedInteger:(NSUInteger)v { _t = N_UINT; _n.u = v; return self; }
-- (instancetype)initWithFloat:(float)v { _t = N_DBL; _n.d = v; return self; }
-- (long long)longLongValue { return _t == N_DBL ? (long long)_n.d : _n.i; }
-- (unsigned long long)unsignedLongLongValue { return _t == N_DBL ? (unsigned long long)_n.d : _n.u; }
-- (double)doubleValue { return _t == N_DBL ? _n.d : _t == N_UINT ? (double)_n.u : (double)_n.i; }
++ (NSNumber *)numberWithFloat:(float)v { NSNumber *n = mknum(ISIM_NUM_DBL); n->_n.d = v; return [n autorelease]; }
++ (NSNumber *)numberWithDouble:(double)v { NSNumber *n = mknum(ISIM_NUM_DBL); n->_n.d = v; return [n autorelease]; }
+/* booleans are the kCFBooleanTrue/False singletons, as on iOS (@YES == [NSNumber numberWithBool:YES]) */
++ (NSNumber *)numberWithBool:(BOOL)v { return isim_bool_number(v); }
+- (instancetype)initWithInt:(int)v { _t = ISIM_NUM_INT; _n.i = v; return self; }
+- (instancetype)initWithInteger:(NSInteger)v { _t = ISIM_NUM_INT; _n.i = v; return self; }
+- (instancetype)initWithDouble:(double)v { _t = ISIM_NUM_DBL; _n.d = v; return self; }
+- (instancetype)initWithBool:(BOOL)v {
+    if (object_getClass(self) != [NSNumber class]) { _t = ISIM_NUM_BOOL; _n.i = v ? 1 : 0; return self; }   /* a subclass */
+    [self release]; return isim_bool_number(v);
+}
+- (instancetype)initWithLongLong:(long long)v { _t = ISIM_NUM_INT; _n.i = v; return self; }
+- (instancetype)initWithUnsignedLongLong:(unsigned long long)v { _t = ISIM_NUM_UINT; _n.u = v; return self; }
+- (instancetype)initWithUnsignedInteger:(NSUInteger)v { _t = ISIM_NUM_UINT; _n.u = v; return self; }
+- (instancetype)initWithFloat:(float)v { _t = ISIM_NUM_DBL; _n.d = v; return self; }
+- (void)_isim_getNumber:(isim_numv *)v { v->t = _t; v->u = _n.u; }
+- (long long)longLongValue { isim_numv v = numv(self); return v.t == ISIM_NUM_DBL ? (long long)v.d : v.i; }
+- (unsigned long long)unsignedLongLongValue { isim_numv v = numv(self); return v.t == ISIM_NUM_DBL ? (unsigned long long)v.d : v.u; }
+- (double)doubleValue { isim_numv v = numv(self); return v.t == ISIM_NUM_DBL ? v.d : v.t == ISIM_NUM_UINT ? (double)v.u : (double)v.i; }
 - (char)charValue { return (char)[self longLongValue]; }
 - (unsigned char)unsignedCharValue { return (unsigned char)[self longLongValue]; }
 - (short)shortValue { return (short)[self longLongValue]; }
@@ -82,22 +91,43 @@ NUMU(numberWithUnsignedLongLong:, unsigned long long) NUMI(numberWithInteger:, N
 - (NSInteger)integerValue { return (NSInteger)[self longLongValue]; }
 - (NSUInteger)unsignedIntegerValue { return (NSUInteger)[self unsignedLongLongValue]; }
 - (float)floatValue { return (float)[self doubleValue]; }
-- (BOOL)boolValue { return _t == N_DBL ? _n.d != 0 : _n.i != 0; }
+- (BOOL)boolValue { isim_numv v = numv(self); return v.t == ISIM_NUM_DBL ? v.d != 0 : v.i != 0; }
 - (NSString *)stringValue { return [self description]; }
 - (NSString *)description {
-    if (_t == N_DBL) return [NSString stringWithFormat:@"%.17g", _n.d];
-    if (_t == N_UINT) return [NSString stringWithFormat:@"%llu", _n.u];
-    return [NSString stringWithFormat:@"%lld", _n.i];
+    isim_numv v = numv(self);
+    if (v.t == ISIM_NUM_DBL) {
+        if ([self objCType][0] == 'f') {   /* float: shortest text that reads back as the same float */
+            char b[40];
+            for (int prec = 6; prec <= 9; prec++) { snprintf(b, sizeof b, "%.*g", prec, v.d); if ((float)strtod(b, NULL) == (float)v.d) break; }
+            return [NSString stringWithUTF8String:b];
+        }
+        return [NSString stringWithFormat:@"%.17g", v.d];
+    }
+    if (v.t == ISIM_NUM_UINT) return [NSString stringWithFormat:@"%llu", v.u];
+    return [NSString stringWithFormat:@"%lld", v.i];
 }
-- (NSComparisonResult)compare:(NSNumber *)o {
-    if (_t == N_DBL || o->_t == N_DBL) { double a = [self doubleValue], b = [o doubleValue]; return a < b ? NSOrderedAscending : a > b ? NSOrderedDescending : NSOrderedSame; }
-    long long a = _n.i, b = o->_n.i; return a < b ? NSOrderedAscending : a > b ? NSOrderedDescending : NSOrderedSame;
+static NSComparisonResult cmp_numv(isim_numv a, isim_numv b) {
+    if (a.t == ISIM_NUM_DBL || b.t == ISIM_NUM_DBL) {
+        double x = a.t == ISIM_NUM_DBL ? a.d : a.t == ISIM_NUM_UINT ? (double)a.u : (double)a.i;
+        double y = b.t == ISIM_NUM_DBL ? b.d : b.t == ISIM_NUM_UINT ? (double)b.u : (double)b.i;
+        return x < y ? NSOrderedAscending : x > y ? NSOrderedDescending : NSOrderedSame;
+    }
+    BOOL an = a.t != ISIM_NUM_UINT && a.i < 0, bn = b.t != ISIM_NUM_UINT && b.i < 0;   /* negative signed values */
+    if (an != bn) return an ? NSOrderedAscending : NSOrderedDescending;
+    if (an) return a.i < b.i ? NSOrderedAscending : a.i > b.i ? NSOrderedDescending : NSOrderedSame;
+    return a.u < b.u ? NSOrderedAscending : a.u > b.u ? NSOrderedDescending : NSOrderedSame;
 }
-- (BOOL)isEqualToNumber:(NSNumber *)o { return [self compare:o] == NSOrderedSame; }
-- (BOOL)_isim_isBool { return _t == N_BOOL; }
-- (const char *)objCType { return _t == N_DBL ? "d" : _t == N_UINT ? "Q" : _t == N_BOOL ? "c" : "q"; }
-- (BOOL)isEqual:(id)o { return [o isKindOfClass:[NSNumber class]] && [self isEqualToNumber:o]; }
-- (NSUInteger)hash { return _t == N_DBL && _n.d != (double)(long long)_n.d ? (NSUInteger)(_n.d * 2654435761.0) : (NSUInteger)[self longLongValue]; }
+- (NSComparisonResult)compare:(NSNumber *)o { return cmp_numv(numv(self), numv(o)); }
+- (BOOL)isEqualToNumber:(NSNumber *)o { return o == self || (o && cmp_numv(numv(self), numv(o)) == NSOrderedSame); }
+- (BOOL)isEqualToValue:(NSValue *)o { return [o isKindOfClass:[NSNumber class]] && [self isEqualToNumber:(NSNumber *)o]; }
+- (BOOL)_isim_isBool { return numv(self).t == ISIM_NUM_BOOL; }
+- (const char *)objCType { int t = numv(self).t; return t == ISIM_NUM_DBL ? "d" : t == ISIM_NUM_UINT ? "Q" : t == ISIM_NUM_BOOL ? "c" : "q"; }
+- (BOOL)isEqual:(id)o { return o == self || ([o isKindOfClass:[NSNumber class]] && [self isEqualToNumber:o]); }
+- (NSUInteger)hash {
+    isim_numv v = numv(self);
+    if (v.t == ISIM_NUM_DBL) return v.d != (double)(long long)v.d ? (NSUInteger)(v.d * 2654435761.0) : (NSUInteger)(long long)v.d;
+    return (NSUInteger)v.i;
+}
 - (id)copyWithZone:(NSZone *)z { return [self retain]; }
 @end
 
@@ -128,7 +158,9 @@ static NSEnumerator *array_enum(NSArray *a, BOOL rev) {
     __NSArrayEnumerator *e = [[__NSArrayEnumerator alloc] init]; e->_a = [a copy]; e->_rev = rev; return [e autorelease];
 }
 
-@implementation NSArray { @public id *_items; NSUInteger _count, _cap; unsigned long _mutations; }
+/* _count and _items come first: clang's constant arrays (NSConstantArray: { isa, count, objects }) share this prefix,
+ * so every read-only method below works on them too (ConstantLiterals.mrc.m). Keep the order. */
+@implementation NSArray { @public NSUInteger _count; id *_items; NSUInteger _cap; unsigned long _mutations; }
 + (instancetype)array { return [[[self alloc] init] autorelease]; }
 + (instancetype)arrayWithObject:(id)o { return [[[self alloc] initWithObjects:&o count:1] autorelease]; }
 + (instancetype)arrayWithObjects:(const id *)objs count:(NSUInteger)n { return [[[self alloc] initWithObjects:objs count:n] autorelease]; }
@@ -276,7 +308,10 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 @end
 
 /* ================= NSDictionary / NSMutableDictionary (insertion-ordered, hashed linear probe) ================= */
-@implementation NSDictionary { @public id *_keys, *_vals; NSUInteger *_hashes; NSUInteger _count, _cap; unsigned long _mutations; }
+/* _options, _count, _keys and _vals come first: clang's constant dictionaries (NSConstantDictionary: { isa, options,
+ * count, keys, objects }) share this prefix; they have no _hashes and override -_indexOfKey: (ConstantLiterals.mrc.m).
+ * Keep the order. */
+@implementation NSDictionary { @public NSUInteger _options, _count; id *_keys, *_vals; NSUInteger *_hashes; NSUInteger _cap; unsigned long _mutations; }
 + (instancetype)dictionary { return [[[self alloc] init] autorelease]; }
 + (instancetype)dictionaryWithObject:(id)o forKey:(id)k { return [[[self alloc] initWithObjects:&o forKeys:&k count:1] autorelease]; }
 + (instancetype)dictionaryWithObjects:(const id *)o forKeys:(const id *)k count:(NSUInteger)n { return [[[self alloc] initWithObjects:o forKeys:k count:n] autorelease]; }
@@ -435,10 +470,7 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 - (NSString *)description { return @"<null>"; }
 @end
 
-/* Empty-collection singletons referenced by clang for @[] and @{} (iOS 14+ runtime ABI). */
-NSArray *__NSArray0__;
-NSDictionary *__NSDictionary0__;
-__attribute__((constructor)) static void isim_empty_collections(void) {
-    __NSArray0__ = [[NSArray alloc] init];
-    __NSDictionary0__ = [[NSDictionary alloc] init];
-}
+/* Empty-collection singletons referenced by clang for @[] and @{} (iOS 14+ runtime ABI): the static
+ * __NSArray0__struct / __NSDictionary0__struct objects (ConstantLiterals.mrc.m). */
+NSArray *__NSArray0__ = (NSArray *)&__NSArray0__struct;
+NSDictionary *__NSDictionary0__ = (NSDictionary *)&__NSDictionary0__struct;
