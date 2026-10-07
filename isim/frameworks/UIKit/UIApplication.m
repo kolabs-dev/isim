@@ -134,7 +134,23 @@ NSNotificationName const UIDeviceBatteryStateDidChangeNotification = @"UIDeviceB
 - (id<UICoordinateSpace>)coordinateSpace { return (id<UICoordinateSpace>)UIApplication.sharedApplication.keyWindow; }
 - (UITraitCollection *)traitCollection { return isim_ui_screen_traits(); }
 - (void)traitCollectionDidChange:(UITraitCollection *)p {}
+/* brightness: a device setting in the global domain (ISIMScreenBrightness), applied by dimming the apps' frames */
+- (CGFloat)brightness {
+    extern NSDictionary *isim_global_preferences(void);
+    id v = isim_global_preferences()[@"ISIMScreenBrightness"];
+    return [v respondsToSelector:@selector(doubleValue)] ? fmin(1, fmax(0, [v doubleValue])) : 1;
+}
+- (void)setBrightness:(CGFloat)b {
+    b = fmin(1, fmax(0, b));
+    if (fabs(b - self.brightness) < 1e-6) return;
+    NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
+    [g setDouble:b forKey:@"ISIMScreenBrightness"];
+    NSLog(@"isim: screen brightness %.2f", b);
+    [NSNotificationCenter.defaultCenter postNotificationName:UIScreenBrightnessDidChangeNotification object:self];
+    isim_ui_set_needs_display();
+}
 @end
+NSNotificationName const UIScreenBrightnessDidChangeNotification = @"UIScreenBrightnessDidChangeNotification";
 
 /* ================= UIViewController ================= */
 @interface UIViewController () {
@@ -642,6 +658,14 @@ static BOOL status_bar_hidden;
     return self;
 }
 - (void)_isim_addWindow:(UIWindow *)w { if ([_allWindows indexOfObjectIdenticalTo:w] == NSNotFound) [_allWindows addObject:w]; }
+/* the idle timer: the shell's auto-lock (ISIM_AUTOLOCK) leaves the device on while the foreground app disables it */
+static BOOL idle_timer_disabled;
+- (BOOL)isIdleTimerDisabled { return idle_timer_disabled; }
+- (void)setIdleTimerDisabled:(BOOL)d {
+    idle_timer_disabled = d;
+    NSLog(@"isim: idle timer %@", d ? @"disabled" : @"enabled");
+    if (isim_shell_present()) isim_shell_request(ISIM_SHELL_SYSTEM, "idle-timer", d ? "1" : "0", NULL);
+}
 - (void)_isim_windowBecameKey:(UIWindow *)w { UIWindow *old = _key; if (old == w) return; [old resignKeyWindow]; _key = w; [w becomeKeyWindow]; isim_ui_set_needs_display(); }
 - (UIWindow *)keyWindow { return _key; }
 - (NSArray *)windows { return [_allWindows copy]; }
@@ -949,6 +973,14 @@ static void render_frame(void) {
     UIViewController *vc = key.rootViewController;
     while (vc.presentedViewController) vc = vc.presentedViewController;
     UIStatusBarStyle st = vc ? vc.preferredStatusBarStyle : UIStatusBarStyleDefault;
+    /* view-controller-based status bar hiding (UIViewControllerBasedStatusBarAppearance, default YES) */
+    static int vc_based = -1;
+    if (vc_based < 0) { id k = NSBundle.mainBundle.infoDictionary[@"UIViewControllerBasedStatusBarAppearance"]; vc_based = k ? [k boolValue] : 1; }
+    if (vc_based && vc) {
+        BOOL hide = vc.prefersStatusBarHidden || status_bar_hidden;
+        static int shown_hidden = -1;
+        if (hide != shown_hidden) { shown_hidden = hide; isim_set_status_bar_hidden(hide); }
+    }
     UIView *styleSource = vc.viewIfLoaded ?: key;
     BOOL dark = (styleSource ? styleSource.traitCollection.userInterfaceStyle : isim_ui_style()) == UIUserInterfaceStyleDark;
     isim_set_status_bar_style(st == UIStatusBarStyleLightContent ? 0 : st == UIStatusBarStyleDarkContent ? 1 : !dark);
@@ -957,6 +989,8 @@ static void render_frame(void) {
         return a.windowLevel < b.windowLevel ? NSOrderedAscending : a.windowLevel > b.windowLevel ? NSOrderedDescending : NSOrderedSame; }];
     if (isim_ui_scenes_split()) { double black[4] = { 0, 0, 0, 1 }; CGRect sb = UIScreen.mainScreen.bounds; isim_gfx_fill_rounded(0, 0, sb.size.width, sb.size.height, 0, black); }   /* split view divider */
     for (UIWindow *w in ws) if (!w.hidden && isim_ui_window_on_screen(w)) [w _isim_renderFrame];
+    CGFloat brightness = UIScreen.mainScreen.brightness;     /* adapted: a lower screen brightness dims the frame */
+    if (brightness < 0.999) { double dim[4] = { 0, 0, 0, (1 - brightness) * 0.8 }; CGRect sb = UIScreen.mainScreen.bounds; isim_gfx_fill_rounded(0, 0, sb.size.width, sb.size.height, 0, dim); }
     isim_frame_end();
 }
 
@@ -1045,6 +1079,7 @@ static void enter_foreground(void) {
         ((BOOL (*)(id, SEL))objc_msgSend)(NSUserDefaults.standardUserDefaults, NSSelectorFromString(@"_isim_reloadFromDisk")))
         [nc postNotificationName:@"NSUserDefaultsDidChangeNotification" object:NSUserDefaults.standardUserDefaults];
     backgrounded = NO; app.applicationState = UIApplicationStateActive;
+    if (idle_timer_disabled && isim_shell_present()) isim_shell_request(ISIM_SHELL_SYSTEM, "idle-timer", "1", NULL);
     each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundActive; if ([sd respondsToSelector:@selector(sceneDidBecomeActive:)]) [sd sceneDidBecomeActive:s];
         [nc postNotificationName:UISceneDidActivateNotification object:s]; });
     if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];

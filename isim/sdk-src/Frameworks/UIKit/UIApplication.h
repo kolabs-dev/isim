@@ -82,6 +82,8 @@ NS_SWIFT_UI_ACTOR
 @property (class, nonatomic, readonly) NSString *openSettingsURLString;
 @property (nonatomic, readonly) NSSet<UISceneSession *> *openSessions;
 @property (nonatomic, readonly) BOOL supportsMultipleScenes;
+/* isim: under `isim boot` with ISIM_AUTOLOCK=SECONDS the device locks after that long without input, unless the
+   foreground app disabled the idle timer */
 @property (nonatomic, getter=isIdleTimerDisabled) BOOL idleTimerDisabled;
 /* isim: shown on the home-screen icon when the app may badge (UNAuthorizationOptionBadge) */
 @property (nonatomic) NSInteger applicationIconBadgeNumber API_DEPRECATED("Use -[UNUserNotificationCenter setBadgeCount:withCompletionHandler:] instead.", ios(2.0, 17.0));

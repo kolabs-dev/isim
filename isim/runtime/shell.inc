@@ -12,7 +12,8 @@
  *   go home, or terminate the other apps (language changes). */
 
 struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; int orient;
-                      int bg, bg_seen, suspended; double bg_t, wake_at; char reasons[128]; };   /* background execution (shell_system.inc) */
+                      int bg, bg_seen, suspended; double bg_t, wake_at; char reasons[128];   /* background execution (shell_system.inc) */
+                      int idle_disabled; };                                                    /* UIApplication.isIdleTimerDisabled (auto-lock) */
 static struct shell_client clients[32];
 static int nclients, active = -1;
 static const char *shell_self, *shell_root, *shell_springboard;
@@ -546,6 +547,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         sys_tick();
         struct isim_event ev;
         if (!isim_next_event(&ev, anim.kind != ANIM_NONE ? 0.004 : 0.008)) continue;
+        if (ev.type == EV_TOUCH_DOWN || ev.type == EV_TOUCH_MOVE || ev.type == EV_KEY || ev.type == EV_TEXT || ev.type == EV_ID_DOWN || ev.type == EV_TEXT_DOWN) sys_input_seen();
         if (ev.type == EV_QUIT) { shell_quit(); return 0; }
         if (ev.type == EV_HOME) { shell_home(); continue; }
         if (ev.type == EV_LAUNCH_ID) { shell_forward(0, &ev); continue; }        /* the home screen resolves bundle ids */

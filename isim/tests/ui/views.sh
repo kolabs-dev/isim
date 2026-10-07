@@ -3,7 +3,8 @@
 # destructive actions, the delegate's display/end callbacks; a preview controller committed by a tap; table view row
 # menus), button configurations (configurationUpdateHandler with changesSelectionAsPrimaryAction, activity
 # indicator, attributed title by pixels, image placement), tintAdjustmentMode dimmed behind an alert, contentMode
-# by pixels, a custom inputView with an inputAccessoryView.
+# by pixels, a custom inputView with an inputAccessoryView; status bar style and prefersStatusBarHidden, UIScreen
+# brightness (the frame dims), auto-lock under the device shell (ISIM_AUTOLOCK) and isIdleTimerDisabled.
 set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloViews; mkdir -p "$shots"; rm -f "$shots"/*.png
@@ -11,8 +12,13 @@ export ISIM_DATA=$PWD/out/test-data/views; rm -rf "$ISIM_DATA"; mkdir -p "$ISIM_
 script="wait 1.2; shot $shots/views.png; holdid card 0.8; wait 0.6; shot $shots/card-menu.png; dump; tapid menu-Copy; wait 0.6;
  holdid photo 0.8; wait 0.6; shot $shots/photo-preview.png; tapid isim-context-preview; wait 0.8;
  tapid toggle; wait 0.4; tapid alert; wait 0.5; taptext OK; wait 0.5;
- tapid field; wait 0.6; dump; shot $shots/input.png; tapid bar-Done; wait 0.5; holdid table 0.8; wait 0.6; tapid menu-Pin; wait 0.5; quit"
+ tapid field; wait 0.6; dump; shot $shots/input.png; tapid bar-Done; wait 0.5; holdid table 0.8; wait 0.6; tapid menu-Pin; wait 0.5;
+ tapid status; wait 0.4; shot $shots/status-light.png; tapid status; wait 0.4; shot $shots/status-hidden.png; tapid dim; wait 0.4; shot $shots/dim.png; quit"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 90 out/bin/isim run out/apps/HelloViews.app 2>&1); rc=$?
+# auto-lock under the device shell (ISIM_AUTOLOCK): it locks when idle, not while the app disables the idle timer
+export ISIM_DATA=$PWD/out/test-data/views-boot; rm -rf "$ISIM_DATA"; mkdir -p "$ISIM_DATA"
+out/bin/isim install out/apps/HelloViews.app >/dev/null
+boot=$(ISIM_AUTOLOCK=2 ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} timeout 90 out/bin/isim boot --headless --script "wait 1; launch dev.isim.samples.HelloViews; wait 3.5; unlock; wait 0.8; tapid awake; wait 3.5; quit" 2>&1); rc2=$?
 fail=0
 check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$shots/$1.png" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info: 2>/dev/null; }
@@ -42,6 +48,18 @@ check "contentMode center / topLeft / bottomRight by pixels" \
 check "contentMode scaleToFill / scaleAspectFit by pixels" 'is views 240 284 "$red" && is views 292 336 "$red" && is views 338 310 "$red" && is views 338 285 "$gray"'
 check "custom inputView with an inputAccessoryView" \
   'grep -q "isim: input view shown (UIInputView, with an accessory view)" <<<"$log" && grep -q "UIInputView (0 0; 402 x 234) id=customInput" <<<"$log" && grep -q "UIToolbar (0 0; 402 x 44) id=accessory" <<<"$log" && is input 200 774 "g>150 && r<100" && grep -q "isim: keyboard hidden" <<<"$log"'
-check "exits cleanly" '[ $rc = 0 ]'
+count_dark() { python3 - "$shots/$1.png" "$2" <<'EOF'
+import sys; sys.path.insert(0, "tests/ui")
+from pixels import Image
+im = Image(sys.argv[1]); want = sys.argv[2]
+print(sum(1 for y in range(18, 42) for x in range(30, 90) if (sum(im.rgb(x, y)) < 200 if want == "dark" else min(im.rgb(x, y)) > 200)))
+EOF
+}
+check "status bar: dark text by default, light content, then hidden (prefersStatusBarHidden)" \
+  '[ "$(count_dark views dark)" -gt 60 ] && [ "$(count_dark status-light white)" -gt 60 ] && [ "$(count_dark status-hidden white)" = 0 ] && grep -q "status bar step 2" <<<"$log"'
+check "UIScreen.brightness: notification, the frame dims" 'grep -q "brightness 0.5" <<<"$log" && is dim 200 600 "r>140 && r<165 && g>140 && g<165"'
+check "auto-lock when idle; isIdleTimerDisabled keeps the device on" \
+  '[ "$(grep -c "auto-lock after 2 s without input" <<<"$boot")" = 1 ] && grep -q "idle timer disabled true" <<<"$boot" && grep -q "isim shell: HelloViews.app idle timer disabled" <<<"$boot"'
+check "exits cleanly" '[ $rc = 0 ] && [ $rc2 = 0 ]'
 [ $fail = 0 ] || echo "$log" | grep -E "HelloViews:|isim: (context|input|keyboard)" | tail -30
 exit $fail

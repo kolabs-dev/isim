@@ -25,6 +25,10 @@ final class PreviewController: UIViewController {
 final class ViewsController: UIViewController, UIContextMenuInteractionDelegate, UITableViewDataSource, UITableViewDelegate {
     let card = UIView(), photo = UIView(), probe = TintProbe()
     let table = UITableView(frame: .zero, style: .plain)
+    let header = UIView()
+    var statusStep = 0
+    override var preferredStatusBarStyle: UIStatusBarStyle { statusStep >= 1 ? .lightContent : .default }
+    override var prefersStatusBarHidden: Bool { statusStep >= 2 }
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
@@ -81,7 +85,20 @@ final class ViewsController: UIViewController, UIContextMenuInteractionDelegate,
         table.frame = CGRect(x: 0, y: 420, width: view.bounds.width, height: 200); table.autoresizingMask = [.flexibleWidth]
         table.dataSource = self; table.delegate = self; table.accessibilityIdentifier = "table"
         table.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
-        for v in [card, photo, toggleButton, busyButton, fancyButton, stackedButton, probe, alertButton, field, table] as [UIView] { view.addSubview(v) }
+        // system: status bar style / hiding, screen brightness, the idle timer
+        header.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 60); header.autoresizingMask = [.flexibleWidth]
+        func small(_ t: String, _ id: String, _ x: CGFloat, _ a: @escaping () -> Void) -> UIButton {
+            let b = UIButton(type: .system); b.setTitle(t, for: .normal); b.accessibilityIdentifier = id
+            b.frame = CGRect(x: x, y: 640, width: 110, height: 36); b.addAction(UIAction { _ in a() }, for: .primaryActionTriggered); return b
+        }
+        let status = small("Status", "status", 20) { [unowned self] in
+            statusStep += 1; header.backgroundColor = .black
+            setNeedsStatusBarAppearanceUpdate(); log("status bar step \(statusStep)")
+        }
+        let dim = small("Dim", "dim", 140) { UIScreen.main.brightness = 0.5 }
+        let awake = small("Awake", "awake", 260) { UIApplication.shared.isIdleTimerDisabled = true; log("idle timer disabled \(UIApplication.shared.isIdleTimerDisabled)") }
+        NotificationCenter.default.addObserver(forName: UIScreen.brightnessDidChangeNotification, object: nil, queue: nil) { _ in log("brightness \(UIScreen.main.brightness)") }
+        for v in [header, card, photo, toggleButton, busyButton, fancyButton, stackedButton, probe, alertButton, field, table, status, dim, awake] as [UIView] { view.addSubview(v) }
     }
 
     // MARK: context menu interactions

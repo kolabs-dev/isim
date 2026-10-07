@@ -1124,8 +1124,23 @@ static int sys_input(const struct isim_event *ev) {
     return ov != OV_NONE;
 }
 /* per loop iteration: slide-in animation, lock clock, switcher bookkeeping */
+/* auto-lock (ISIM_AUTOLOCK=SECONDS, default off): no input for that long locks the device, unless the foreground app
+   disabled its idle timer (UIApplication.isIdleTimerDisabled) */
+static double last_input_t;
+static void sys_input_seen(void) { last_input_t = now(); }
+static void sys_autolock_tick(void) {
+    static double secs = -1;
+    if (secs < 0) { const char *e = getenv("ISIM_AUTOLOCK"); secs = e && *e ? atof(e) : 0; }
+    if (secs <= 0 || locked) { last_input_t = now(); return; }
+    if (!last_input_t) last_input_t = now();
+    if (active > 0 && clients[active].alive && clients[active].idle_disabled) { last_input_t = now(); return; }
+    if (now() - last_input_t < secs) return;
+    fprintf(stderr, "isim shell: auto-lock after %g s without input\n", secs);
+    sys_lock();
+}
 static void sys_tick(void) {
     if (active != seen_active) { seen_active = active; if (active > 0) last_active_t[active] = now(); }
+    sys_autolock_tick();
     bg_tick();
     if (ov == OV_NONE) return;
     static double last_draw;
@@ -1154,6 +1169,9 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
         if (pill_visible() || from == active) shell_show(active >= 0 ? active : 0);
     } else if (!strcmp(verb, "bg-wake")) {                 /* the app's next local notification (seconds since 1970) */
         clients[from].wake_at = atof(m->b);
+    } else if (!strcmp(verb, "idle-timer")) {              /* UIApplication.isIdleTimerDisabled */
+        clients[from].idle_disabled = atoi(m->b);
+        fprintf(stderr, "isim shell: %s idle timer %s\n", short_name(from), clients[from].idle_disabled ? "disabled" : "enabled");
     } else if (!strcmp(verb, "badge")) {                   /* an app's icon badge: the home screen draws it */
         sys_send_text(0, "badge %s %s", m->b, m->c);
     } else if (!strcmp(verb, "push-deliver")) {

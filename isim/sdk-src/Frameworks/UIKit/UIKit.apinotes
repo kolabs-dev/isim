@@ -794,6 +794,8 @@ Globals:
   SwiftName: UIApplication.willTerminateNotification
 - Name: UIApplicationDidReceiveMemoryWarningNotification
   SwiftName: UIApplication.didReceiveMemoryWarningNotification
+- Name: UIScreenBrightnessDidChangeNotification
+  SwiftName: UIScreen.brightnessDidChangeNotification
 - Name: kCAFilterNearest
   SwiftName: CALayerContentsFilter.nearest
 - Name: kCAFilterLinear
