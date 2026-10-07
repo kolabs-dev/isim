@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Status labels for every host-provided symbol (see docs/compatibility-matrix.md):
+/* Status labels for every host-provided symbol (see docs/COVERAGE.md):
  *   "passthrough" host glibc function; ABI-identical for its signature on x86_64
  *   "adapted"     wrapper translating Darwin layout/semantics/constants
  *   "isim"        isim-specific implementation (ObjC runtime, host graphics bridge)

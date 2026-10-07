@@ -30,9 +30,9 @@
 #     shipped with (iPhone 17 models: 26+): an explicit older --os is an error; otherwise the nearest valid one is used.
 set -euo pipefail
 BIN=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
-ISIM_HOME=${ISIM_HOME:-$HOME/.local/lib/isim}    # installed releases (install.sh / isim update)
+ISIM_INSTALL_DIR=${ISIM_INSTALL_DIR:-$HOME/.local/lib/isim}    # installed releases (install.sh / isim update)
 # a copy of this script outside a release (e.g. cp'd into ~/bin) uses the active installed release
-[ -d "$BIN/../sdk" ] || [ ! -x "$ISIM_HOME/current/bin/isim-runtime" ] || BIN=$(cd -- "$ISIM_HOME/current/bin" && pwd)
+[ -d "$BIN/../sdk" ] || [ ! -x "$ISIM_INSTALL_DIR/current/bin/isim-runtime" ] || BIN=$(cd -- "$ISIM_INSTALL_DIR/current/bin" && pwd)
 SDK=${ISIM_SDK:-$BIN/../sdk}
 DATA=${ISIM_DATA:-$HOME/.local/share/isim}
 cmd=${1:-help}; shift || true
@@ -76,17 +76,17 @@ case "$cmd" in
     if [ -f "$inst" ]; then exec bash "$inst" "$@"; fi
     exec bash -c "$(curl -fsSL "https://raw.githubusercontent.com/${ISIM_REPO:-kolabs-dev/isim}/main/install.sh")" isim-install "$@" ;;
   versions)             # installed releases, * = active
-    cur=$(readlink "$ISIM_HOME/current" 2>/dev/null || true)
+    cur=$(readlink "$ISIM_INSTALL_DIR/current" 2>/dev/null || true)
     found=0
-    for d in "$ISIM_HOME"/*/; do
+    for d in "$ISIM_INSTALL_DIR"/*/; do
       [ -x "$d/bin/isim" ] || continue; v=$(basename "$d"); [ "$v" = current ] && continue; found=1
       if [ "$v" = "$cur" ]; then echo "* $v"; else echo "  $v"; fi
     done
-    [ $found = 1 ] || echo "no releases installed in $ISIM_HOME (this is $(cat "$BIN/VERSION" 2>/dev/null || echo a development build) in $BIN)" ;;
+    [ $found = 1 ] || echo "no releases installed in $ISIM_INSTALL_DIR (this is $(cat "$BIN/VERSION" 2>/dev/null || echo a development build) in $BIN)" ;;
   use)                  # isim use VERSION: make an installed release the active one
     v=${1:?usage: isim use VERSION}; v=${v#v}
-    [ -x "$ISIM_HOME/$v/bin/isim" ] || { echo "isim: $v is not installed (isim versions; isim update $v)" >&2; exit 1; }
-    ln -sfn "$v" "$ISIM_HOME/current"; echo "isim $v is active" ;;
+    [ -x "$ISIM_INSTALL_DIR/$v/bin/isim" ] || { echo "isim: $v is not installed (isim versions; isim update $v)" >&2; exit 1; }
+    ln -sfn "$v" "$ISIM_INSTALL_DIR/current"; echo "isim $v is active" ;;
   boot)
     device_opts "$@"
     select_os

@@ -1,7 +1,7 @@
 // isim SwiftUI — an independent re-implementation of a SwiftUI subset on top of isim's UIKit.
 // Not Apple's SwiftUI: views are evaluated into a node tree, laid out with SwiftUI-like
 // proposal/response layout, and rendered as UIKit views. State is stored per structural
-// position (identity path). See docs/compatibility-matrix.md for the supported API.
+// position (identity path). See docs/COVERAGE.md for the supported API.
 @_exported import UIKit
 @_exported import Foundation
 @_exported import Combine

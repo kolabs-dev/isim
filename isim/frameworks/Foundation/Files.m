@@ -1,6 +1,6 @@
 /* isim Foundation (ARC): NSURL, NSFileManager, app container directories, property-list writing,
  * and persistent NSUserDefaults.
- * App data lives in ISIM_HOME (set by `isim run` to ~/.local/share/isim/containers/<bundle id>), the
+ * App data lives in ISIM_HOME when set (manual override), else in $ISIM_DATA/Containers/<bundle id>; the
  * equivalent of the simulator's per-app data container: Documents/, Library/Preferences/, tmp/. */
 #import <Foundation/Foundation.h>
 #include <ctype.h>

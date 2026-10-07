@@ -7,7 +7,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 command -v docker >/dev/null && docker image inspect swift:6.2 >/dev/null 2>&1 || { echo "swift: skipped (docker image swift:6.2 not available)"; exit 0; }
-[ -d ../../third_party/swift/stdlib ] || { echo "swift: skipped (third_party/swift missing; see docs/swift-plan.md)"; exit 0; }
+[ -d ../../third_party/swift/stdlib ] || { echo "swift: skipped (third_party/swift missing; run swift/fetch-sources.sh)"; exit 0; }
 mod=../out/swift/embedded/Swift.swiftmodule/x86_64-apple-ios-simulator.swiftmodule
 if [ ! -f "$mod" ] || [ build-stdlib.py -nt "$mod" ]; then
   SWIFTC="./swiftc-docker swiftc" python3 build-stdlib.py

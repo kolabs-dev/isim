@@ -1,6 +1,6 @@
 #pragma once
 /* isim SDK UIKit subset (self-authored; API-compatible names, not Apple's headers).
- * See docs/compatibility-matrix.md for what is implemented. */
+ * See docs/COVERAGE.md for what is implemented. */
 #import <Foundation/Foundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 #import <UIKit/UIKitDefines.h>
