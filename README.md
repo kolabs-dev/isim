@@ -96,7 +96,7 @@ isim/test.sh
 Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (the build runs in an Ubuntu 22.04 container):
 
 ```bash
-isim/release/package.sh 0.5.0
+isim/release/package.sh 0.6.0
 ```
 
 ## Status
