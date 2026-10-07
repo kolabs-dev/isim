@@ -514,6 +514,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     UIView *_hostedView;
     __weak id _target;
     BOOL _shown;
+    UIView *_inputOverride, *_accessory;   /* the responder's inputView (instead of the keys) and inputAccessoryView (above) */
 }
 + (instancetype)shared { static __IsimKeyboardController *c; if (!c) c = [self new]; return c; }
 + (void)load_isim {
@@ -524,7 +525,19 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
         [[__IsimKeyboardController shared] _settingsChanged];
     }];
 }
-- (BOOL)_barVisible { return isim_ui_device()->safe_bottom > 0; }
+- (BOOL)_barVisible { return isim_ui_device()->safe_bottom > 0 && !_inputOverride; }
+- (CGFloat)_accessoryHeight {
+    if (!_accessory) return 0;
+    CGFloat h = _accessory.frame.size.height;
+    if (h <= 0) h = _accessory.intrinsicContentSize.height;
+    return h > 0 ? h : 44;
+}
+- (void)_setAccessory:(UIView *)acc {
+    if (acc == _accessory) return;
+    [_accessory removeFromSuperview];
+    _accessory = acc;
+    if (acc) [_window addSubview:acc];
+}
 - (__IsimCustomKeyboard *)_customFor:(NSString *)ident { for (__IsimCustomKeyboard *k in _custom) if ([k.bundleID isEqualToString:ident]) return k; return nil; }
 - (NSString *)_ident { return _current >= 0 && _current < (NSInteger)_order.count ? _order[(NSUInteger)_current] : @"en_US"; }
 /* Keyboards: the built-in ones enabled in Settings > General > Keyboard > Keyboards (AppleKeyboards entries
@@ -635,6 +648,11 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     [self _switchTo:back];
 }
 - (CGFloat)_contentHeight {
+    if (_inputOverride) {                         /* a custom input view: its height, over the home indicator area */
+        CGFloat h = _inputOverride.frame.size.height;
+        if (h <= 0) h = _inputOverride.intrinsicContentSize.height;
+        return (h > 0 ? h : 216) + isim_ui_device()->safe_bottom;
+    }
     if (is_system([self _ident]) || !_hostedView) return 216 + ([_keys showsPredictions] ? 44 : 0);
     UIView *v = _hostedView;
     CGFloat W = isim_ui_device()->width;
@@ -643,13 +661,15 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
 }
 - (void)_relayout {
     const struct isim_device *d = isim_ui_device();
-    CGFloat contentH = [self _contentHeight], barH = [self _barVisible] ? 45 + d->safe_bottom : 0;
-    CGFloat H = contentH + barH;
+    CGFloat contentH = [self _contentHeight], barH = [self _barVisible] ? 45 + d->safe_bottom : 0, accH = [self _accessoryHeight];
+    CGFloat H = accH + contentH + barH;
     CGRect old = keyboard_frame;
     CGRect f = CGRectMake(0, d->height - H, d->width, H);
     _window.frame = f;
-    _content.frame = CGRectMake(0, 0, d->width, contentH);
-    _bar.frame = CGRectMake(0, contentH, d->width, barH);
+    _accessory.frame = CGRectMake(0, 0, d->width, accH);
+    _content.frame = CGRectMake(0, accH, d->width, contentH);
+    _inputOverride.frame = CGRectMake(0, 0, d->width, contentH);
+    _bar.frame = CGRectMake(0, accH + contentH, d->width, barH);
     _bar.hidden = barH == 0;
     for (UIView *b in _bar.subviews) if (b.tag == 77) b.frame = CGRectMake(d->width - 56, 2, 44, 40);
     if (_hostedView) _hostedView.frame = _content.bounds;
@@ -667,11 +687,40 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     const char *env = getenv("ISIM_SOFTWARE_KEYBOARD");
     if (env && !strcmp(env, "0")) return;
     BOOL wants = [responder isKindOfClass:[UIView class]] && [responder respondsToSelector:@selector(insertText:)] && [responder respondsToSelector:@selector(deleteBackward)];
-    if (wants && [responder respondsToSelector:@selector(inputView)] && [responder inputView]) wants = NO;   /* custom input views: not supported, no keyboard */
-    if (wants) [self _showFor:responder]; else [self _hide];
+    /* a responder's inputView replaces the keyboard (any responder may have one); inputAccessoryView sits above */
+    UIView *custom = [responder isKindOfClass:[UIResponder class]] && [responder respondsToSelector:@selector(inputView)] ? [responder inputView] : nil;
+    UIView *acc = [responder isKindOfClass:[UIResponder class]] && [responder respondsToSelector:@selector(inputAccessoryView)] ? [responder inputAccessoryView] : nil;
+    if (custom) { [self _showCustom:custom accessory:acc for:responder]; return; }
+    if (wants) { [self _build]; [self _setAccessory:acc]; [self _showFor:responder]; } else [self _hide];
+}
+- (void)_showCustom:(UIView *)custom accessory:(UIView *)acc for:(id)t {
+    [self _build];
+    _target = t;
+    if (_inputOverride != custom) {
+        [_inputOverride removeFromSuperview];
+        [_hostedView removeFromSuperview]; [_keys removeFromSuperview];
+        _inputOverride = custom;
+        custom.translatesAutoresizingMaskIntoConstraints = YES;
+        [_content addSubview:custom];
+    }
+    [self _setAccessory:acc];
+    if (_shown) { [self _relayout]; return; }
+    _shown = YES;
+    CGRect from = keyboard_frame;
+    [self _relayout];
+    CGRect to = _window.frame;
+    if (CGRectIsEmpty(from)) from = CGRectOffset(to, 0, to.size.height);
+    [self _post:UIKeyboardWillShowNotification from:from to:to];
+    [self _post:UIKeyboardWillChangeFrameNotification from:from to:to];
+    keyboard_frame = to;
+    _window.hidden = NO;
+    [self _post:UIKeyboardDidShowNotification from:from to:to];
+    [self _post:UIKeyboardDidChangeFrameNotification from:from to:to];
+    NSLog(@"isim: input view shown (%@%@)", NSStringFromClass([custom class]), _accessory ? @", with an accessory view" : @"");
 }
 - (void)_showFor:(id<UIKeyInput>)t {
     [self _build]; [self _discover]; [self _updateBarButton];
+    if (_inputOverride) { [_inputOverride removeFromSuperview]; _inputOverride = nil; }     /* back from a custom input view */
     id old = _target;
     _target = t;
     _keys.showGlobe = ![self _barVisible] && _order.count > 1;
@@ -714,6 +763,8 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     if (ck) [ck.controller viewWillDisappear:NO];
     _window.hidden = YES;
     keyboard_frame = CGRectZero;
+    if (_inputOverride) { [_inputOverride removeFromSuperview]; _inputOverride = nil; }
+    [self _setAccessory:nil];
     if (ck) { [ck.controller viewDidDisappear:NO]; [ck.controller _isim_setTextInput:nil]; }
     [self _post:UIKeyboardDidHideNotification from:from to:to];
     [self _post:UIKeyboardDidChangeFrameNotification from:from to:to];

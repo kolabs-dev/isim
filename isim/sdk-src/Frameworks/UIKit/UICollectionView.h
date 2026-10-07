@@ -160,9 +160,12 @@ NS_SWIFT_UI_ACTOR
 + (instancetype)spacingForLeading:(nullable NSCollectionLayoutSpacing *)leading top:(nullable NSCollectionLayoutSpacing *)top trailing:(nullable NSCollectionLayoutSpacing *)trailing bottom:(nullable NSCollectionLayoutSpacing *)bottom;
 @property (nullable, nonatomic, readonly) NSCollectionLayoutSpacing *leading, *top, *trailing, *bottom;
 @end
+#ifndef ISIM_NSDIRECTIONALRECTEDGE_DEFINED
+#define ISIM_NSDIRECTIONALRECTEDGE_DEFINED 1
 typedef NS_OPTIONS(NSUInteger, NSDirectionalRectEdge) {
     NSDirectionalRectEdgeNone = 0, NSDirectionalRectEdgeTop = 1 << 0, NSDirectionalRectEdgeLeading = 1 << 1, NSDirectionalRectEdgeBottom = 1 << 2,
     NSDirectionalRectEdgeTrailing = 1 << 3, NSDirectionalRectEdgeAll = 15 };
+#endif
 typedef NS_ENUM(NSInteger, NSRectAlignment) {
     NSRectAlignmentNone = 0, NSRectAlignmentTop, NSRectAlignmentTopLeading, NSRectAlignmentLeading, NSRectAlignmentBottomLeading,
     NSRectAlignmentBottom, NSRectAlignmentBottomTrailing, NSRectAlignmentTrailing, NSRectAlignmentTopTrailing };
@@ -269,6 +272,8 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)collectionView:(UICollectionView *)collectionView canMoveItemAtIndexPath:(NSIndexPath *)indexPath;
 - (void)collectionView:(UICollectionView *)collectionView moveItemAtIndexPath:(NSIndexPath *)sourceIndexPath toIndexPath:(NSIndexPath *)destinationIndexPath;
 @end
+@class UIContextMenuConfiguration;
+@protocol UIContextMenuInteractionAnimating, UIContextMenuInteractionCommitAnimating;
 @protocol UICollectionViewDelegate <UIScrollViewDelegate>
 @optional
 - (BOOL)collectionView:(UICollectionView *)collectionView shouldHighlightItemAtIndexPath:(NSIndexPath *)indexPath;
@@ -281,6 +286,12 @@ NS_SWIFT_UI_ACTOR
 - (void)collectionView:(UICollectionView *)collectionView willDisplayCell:(UICollectionViewCell *)cell forItemAtIndexPath:(NSIndexPath *)indexPath;
 - (void)collectionView:(UICollectionView *)collectionView didEndDisplayingCell:(UICollectionViewCell *)cell forItemAtIndexPath:(NSIndexPath *)indexPath;
 - (void)collectionView:(UICollectionView *)collectionView willDisplaySupplementaryView:(UICollectionReusableView *)view forElementKind:(NSString *)elementKind atIndexPath:(NSIndexPath *)indexPath;
+/* context menus (UIContextMenuInteraction.h): a long press on an item */
+- (nullable UIContextMenuConfiguration *)collectionView:(UICollectionView *)collectionView contextMenuConfigurationForItemsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths point:(CGPoint)point API_AVAILABLE(ios(16.0));
+- (nullable UIContextMenuConfiguration *)collectionView:(UICollectionView *)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point API_DEPRECATED("Use collectionView:contextMenuConfigurationForItemsAtIndexPaths:point:", ios(13.0, 16.0));
+- (void)collectionView:(UICollectionView *)collectionView willPerformPreviewActionForMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(id<UIContextMenuInteractionCommitAnimating>)animator;
+- (void)collectionView:(UICollectionView *)collectionView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
+- (void)collectionView:(UICollectionView *)collectionView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
 @end
 @protocol UICollectionViewDelegateFlowLayout <UICollectionViewDelegate>
 @optional

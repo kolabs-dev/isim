@@ -2,7 +2,17 @@
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIControl.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UILabel, UIImage, UIImageView, UIColor, UIFont, UIButtonConfiguration, UIImageSymbolConfiguration, UIMenu;
+@class UILabel, UIImage, UIImageView, UIColor, UIFont, UIButtonConfiguration, UIImageSymbolConfiguration, UIMenu, NSAttributedString;
+#ifndef ISIM_NSDIRECTIONALRECTEDGE_DEFINED
+#define ISIM_NSDIRECTIONALRECTEDGE_DEFINED 1
+typedef NS_OPTIONS(NSUInteger, NSDirectionalRectEdge) {
+    NSDirectionalRectEdgeNone = 0, NSDirectionalRectEdgeTop = 1 << 0, NSDirectionalRectEdgeLeading = 1 << 1, NSDirectionalRectEdgeBottom = 1 << 2,
+    NSDirectionalRectEdgeTrailing = 1 << 3, NSDirectionalRectEdgeAll = 15 };
+#endif
+@class UIButton;
+typedef void (^UIButtonConfigurationUpdateHandler)(__kindof UIButton *button);
+typedef NS_ENUM(NSInteger, UIButtonConfigurationTitleAlignment) { UIButtonConfigurationTitleAlignmentAutomatic = 0, UIButtonConfigurationTitleAlignmentLeading,
+    UIButtonConfigurationTitleAlignmentCenter, UIButtonConfigurationTitleAlignmentTrailing };
 typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeSystem = 1, UIButtonTypeDetailDisclosure, UIButtonTypeInfoLight, UIButtonTypeInfoDark, UIButtonTypeContactAdd, UIButtonTypeClose = 7, UIButtonTypeRoundedRect = UIButtonTypeSystem };
 @interface UIButton : UIControl
 + (instancetype)buttonWithType:(UIButtonType)buttonType;
@@ -15,6 +25,11 @@ typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeS
 @property (nonatomic) BOOL showsMenuAsPrimaryAction;
 @property (nonatomic) BOOL changesSelectionAsPrimaryAction;
 - (void)setNeedsUpdateConfiguration;
+/* called when the button's state changes (highlighted, selected, enabled), after setNeedsUpdateConfiguration and when it
+   first shows; the default calls configurationUpdateHandler */
+- (void)updateConfiguration;
+@property (nullable, nonatomic, copy) UIButtonConfigurationUpdateHandler configurationUpdateHandler;
+@property (nonatomic) BOOL automaticallyUpdatesConfiguration;
 @property (nonatomic) UIEdgeInsets contentEdgeInsets;
 - (void)setTitle:(nullable NSString *)title forState:(UIControlState)state;
 - (void)setTitleColor:(nullable UIColor *)color forState:(UIControlState)state;
@@ -61,5 +76,13 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UIButtonConfigurationSize buttonSize;
 @property (nonatomic) NSDirectionalEdgeInsets contentInsets;
 @property (nonatomic) CGFloat imagePadding;
+/* attributed titles (Swift: AttributedString, UIKit overlay) override title / subtitle */
+@property (nonatomic, copy, nullable) NSAttributedString *attributedTitle NS_REFINED_FOR_SWIFT;
+@property (nonatomic, copy, nullable) NSAttributedString *attributedSubtitle NS_REFINED_FOR_SWIFT;
+/* a spinning activity indicator in place of the image */
+@property (nonatomic) BOOL showsActivityIndicator;
+@property (nonatomic) NSDirectionalRectEdge imagePlacement;     /* leading (default), trailing, top or bottom */
+@property (nonatomic) CGFloat titlePadding;
+@property (nonatomic) UIButtonConfigurationTitleAlignment titleAlignment;
 @end
 NS_ASSUME_NONNULL_END

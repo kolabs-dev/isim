@@ -874,7 +874,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 - (instancetype)initWithFrame:(CGRect)f { return [self initWithFrame:f collectionViewLayout:[UICollectionViewFlowLayout new]]; }
 - (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (id<UICollectionViewDelegate>)delegate { return (id<UICollectionViewDelegate>)[super delegate]; }
-- (void)setDelegate:(id<UICollectionViewDelegate>)d { [super setDelegate:d]; [_collectionViewLayout invalidateLayout]; }
+- (void)setDelegate:(id<UICollectionViewDelegate>)d { [super setDelegate:d]; [_collectionViewLayout invalidateLayout]; extern void isim_ui_list_context_menus(UIScrollView *); isim_ui_list_context_menus(self); }
 - (void)setDataSource:(id<UICollectionViewDataSource>)d { _dataSource = d; _loaded = NO; [_collectionViewLayout invalidateLayout]; [self setNeedsLayout]; }
 - (void)setCollectionViewLayout:(UICollectionViewLayout *)l {
     if (_collectionViewLayout.collectionView == self) _collectionViewLayout.collectionView = nil;

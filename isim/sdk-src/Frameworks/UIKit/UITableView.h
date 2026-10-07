@@ -156,6 +156,8 @@ UIKIT_EXTERN const CGFloat UITableViewAutomaticDimension;
 - (nullable NSArray<NSString *> *)sectionIndexTitlesForTableView:(UITableView *)tableView;
 @end
 
+@class UIContextMenuConfiguration;
+@protocol UIContextMenuInteractionAnimating, UIContextMenuInteractionCommitAnimating;
 @protocol UITableViewDelegate <UIScrollViewDelegate>
 @optional
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath;
@@ -176,6 +178,11 @@ UIKIT_EXTERN const CGFloat UITableViewAutomaticDimension;
 - (nullable UISwipeActionsConfiguration *)tableView:(UITableView *)tableView leadingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath;
 - (nullable UISwipeActionsConfiguration *)tableView:(UITableView *)tableView trailingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath;
 - (NSInteger)tableView:(UITableView *)tableView indentationLevelForRowAtIndexPath:(NSIndexPath *)indexPath;
+/* context menus (UIContextMenuInteraction.h): a long press on a row */
+- (nullable UIContextMenuConfiguration *)tableView:(UITableView *)tableView contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point;
+- (void)tableView:(UITableView *)tableView willPerformPreviewActionForMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(id<UIContextMenuInteractionCommitAnimating>)animator;
+- (void)tableView:(UITableView *)tableView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
+- (void)tableView:(UITableView *)tableView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
 @end
 
 NS_SWIFT_UI_ACTOR

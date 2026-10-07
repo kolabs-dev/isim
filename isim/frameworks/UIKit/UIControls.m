@@ -200,7 +200,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 @property (nonatomic) IsimButtonStyle style;
 @end
 @implementation UIButtonConfiguration
-+ (instancetype)_style:(IsimButtonStyle)s { UIButtonConfiguration *c = [self new]; c.style = s; c.cornerStyle = UIButtonConfigurationCornerStyleDynamic; c.contentInsets = NSDirectionalEdgeInsetsMake(7, 12, 7, 12); c.imagePadding = 0; return c; }
++ (instancetype)_style:(IsimButtonStyle)s { UIButtonConfiguration *c = [self new]; c.style = s; c.cornerStyle = UIButtonConfigurationCornerStyleDynamic; c.contentInsets = NSDirectionalEdgeInsetsMake(7, 12, 7, 12); c.imagePadding = 0; c.imagePlacement = NSDirectionalRectEdgeLeading; return c; }
 + (instancetype)plainButtonConfiguration { return [self _style:IsimPlain]; }
 + (instancetype)tintedButtonConfiguration { return [self _style:IsimTinted]; }
 + (instancetype)grayButtonConfiguration { return [self _style:IsimGray]; }
@@ -217,6 +217,8 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     UIButtonConfiguration *c = [UIButtonConfiguration _style:_style];
     c.title = _title; c.subtitle = _subtitle; c.image = _image; c.baseForegroundColor = _baseForegroundColor; c.baseBackgroundColor = _baseBackgroundColor;
     c.cornerStyle = _cornerStyle; c.buttonSize = _buttonSize; c.contentInsets = _contentInsets; c.imagePadding = _imagePadding;
+    c.attributedTitle = _attributedTitle; c.attributedSubtitle = _attributedSubtitle; c.showsActivityIndicator = _showsActivityIndicator;
+    c.imagePlacement = _imagePlacement; c.titlePadding = _titlePadding; c.titleAlignment = _titleAlignment;
     return c;
 }
 @end
@@ -224,8 +226,32 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 /* ================= UIButton ================= */
 @implementation UIButton { NSMutableDictionary<NSNumber *, NSString *> *_titles; NSMutableDictionary<NSNumber *, UIColor *> *_colors; UILabel *_label;
     NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs;
-    NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors; }
+    NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors;
+    BOOL _needsConfigUpdate, _configShown; UIActivityIndicatorView *_spinner; }
+/* configuration updates: state changes, setNeedsUpdateConfiguration, and the first time the button shows */
+- (void)updateConfiguration { if (_configurationUpdateHandler) _configurationUpdateHandler(self); }
+- (void)setNeedsUpdateConfiguration {
+    if (!_configuration && !_configurationUpdateHandler) { isim_ui_set_needs_display(); return; }
+    _needsConfigUpdate = YES; [self setNeedsLayout]; isim_ui_set_needs_layout();
+}
+- (void)setConfigurationUpdateHandler:(UIButtonConfigurationUpdateHandler)h { _configurationUpdateHandler = [h copy]; [self setNeedsUpdateConfiguration]; }
+- (void)setHighlighted:(BOOL)h { BOOL was = self.highlighted; [super setHighlighted:h]; if (was != h && _automaticallyUpdatesConfiguration) [self setNeedsUpdateConfiguration]; }
+- (void)setSelected:(BOOL)s { BOOL was = self.selected; [super setSelected:s]; if (was != s && _automaticallyUpdatesConfiguration) [self setNeedsUpdateConfiguration]; }
+- (void)setEnabled:(BOOL)e { BOOL was = self.enabled; [super setEnabled:e]; if (was != e && _automaticallyUpdatesConfiguration) [self setNeedsUpdateConfiguration]; }
+- (void)didMoveToWindow { [super didMoveToWindow]; if (self.window && !_configShown) { _configShown = YES; if (_configuration || _configurationUpdateHandler) [self setNeedsUpdateConfiguration]; } }
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    if (_needsConfigUpdate) { _needsConfigUpdate = NO; [self updateConfiguration]; }
+    /* the configuration's activity indicator, where the image goes */
+    BOOL spin = _configuration.showsActivityIndicator;
+    if (spin && !_spinner) { _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium]; _spinner.userInteractionEnabled = NO; _spinner.accessibilityIdentifier = @"isim-button-activity"; [self addSubview:_spinner]; }
+    if (_spinner) {
+        _spinner.hidden = !spin;
+        if (spin) { _spinner.color = [self _fg]; CGRect r = [self _isim_imageRect]; _spinner.frame = r; [_spinner startAnimating]; } else [_spinner stopAnimating];
+    }
+}
 - (void)_isim_touchUpInside {
+    if (self.changesSelectionAsPrimaryAction) self.selected = !self.selected;      /* toggle buttons (iOS 15) */
     if (self.showsMenuAsPrimaryAction && self.menu) [self _isim_presentMenu:self.menu fromRect:self.bounds];
 }
 + (instancetype)buttonWithType:(UIButtonType)t { UIButton *b = [[self alloc] initWithFrame:CGRectZero]; b->_buttonType = t; [b _isim_applyType]; return b; }
@@ -250,6 +276,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
         _titles = [NSMutableDictionary dictionary]; _colors = [NSMutableDictionary dictionary]; _images = [NSMutableDictionary dictionary]; _symbolConfigs = [NSMutableDictionary dictionary];
+        _automaticallyUpdatesConfiguration = YES;
         _label = [[UILabel alloc] initWithFrame:CGRectZero];
         _label.textAlignment = NSTextAlignmentCenter;
         _label.font = [UIFont systemFontOfSize:15];
@@ -263,8 +290,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 }
 - (UILabel *)titleLabel { return _label; }
 - (UIImageView *)imageView { return nil; }
-- (void)setConfiguration:(UIButtonConfiguration *)c { _configuration = [c copy]; [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
-- (void)setNeedsUpdateConfiguration { isim_ui_set_needs_display(); }
+- (void)setConfiguration:(UIButtonConfiguration *)c { _configuration = [c copy]; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; isim_ui_set_needs_display(); }
 - (void)setContentEdgeInsets:(UIEdgeInsets)i { _contentEdgeInsets = i; [self invalidateIntrinsicContentSize]; }
 - (void)setTitle:(NSString *)t forState:(UIControlState)s {
     NSString *old = _titles[@(s)];
@@ -312,7 +338,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (_buttonType == UIButtonTypeSystem) return (s & UIControlStateDisabled) ? UIColor.tertiaryLabelColor : self.tintColor;
     return UIColor.whiteColor;
 }
-- (NSString *)currentTitle { return _configuration.title ?: [self titleForState:self.state]; }
+- (NSString *)currentTitle { return _configuration.attributedTitle.string ?: _configuration.title ?: [self titleForState:self.state]; }
 - (UIColor *)currentTitleColor { return [self titleColorForState:self.state]; }
 - (void)tintColorDidChange { isim_ui_set_needs_display(); }
 
@@ -352,11 +378,37 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     }
 }
 - (CGFloat)_imagePadding { return _configuration ? (_configuration.imagePadding ?: 6) : 0; }
+- (CGSize)_isim_titleSize {
+    NSString *t = self.currentTitle;
+    if (_configuration.attributedTitle) return isim_ui_measure_attributed(_configuration.attributedTitle, [self _font], [self _fg], 0, 1);
+    return t.length || !self.currentImage ? isim_ui_measure(t ?: @"", [self _font], 0, 1) : CGSizeZero;
+}
+- (CGSize)_isim_imageSize { return _configuration.showsActivityIndicator ? CGSizeMake(20, 20) : self.currentImage.size; }
+- (BOOL)_isim_vertical { return _configuration && (_configuration.imagePlacement == NSDirectionalRectEdgeTop || _configuration.imagePlacement == NSDirectionalRectEdgeBottom); }
+/* where the image (or activity indicator) goes, for the configuration's placement */
+- (CGRect)_isim_imageRect {
+    CGRect tr = UIEdgeInsetsInsetRect(self.bounds, [self _insets]);
+    CGSize is = [self _isim_imageSize], ts = [self _isim_titleSize];
+    BOOL hasTitle = self.currentTitle.length > 0; CGFloat pad = hasTitle ? [self _imagePadding] : 0;
+    if ([self _isim_vertical]) {
+        CGFloat total = is.height + pad + (hasTitle ? ts.height : 0), y = tr.origin.y + (tr.size.height - total) / 2;
+        if (_configuration.imagePlacement == NSDirectionalRectEdgeBottom) y += (hasTitle ? ts.height : 0) + pad;
+        return CGRectMake(round(CGRectGetMidX(tr) - is.width / 2), round(y), is.width, is.height);
+    }
+    CGFloat total = is.width + pad + (hasTitle ? ceil(ts.width) : 0), x = tr.origin.x + (tr.size.width - total) / 2;
+    if (_configuration.imagePlacement == NSDirectionalRectEdgeTrailing) x += (hasTitle ? ceil(ts.width) : 0) + pad;
+    return CGRectMake(round(x), round(tr.origin.y + (tr.size.height - is.height) / 2), is.width, is.height);
+}
 - (CGSize)intrinsicContentSize {
     NSString *t = self.currentTitle;
-    CGSize s = t.length || !self.currentImage ? isim_ui_measure(t ?: @"", [self _font], 0, 1) : CGSizeZero;
+    CGSize s = [self _isim_titleSize];
     UIImage *img = self.currentImage;
-    if (img) { s.width += img.size.width + (t.length ? [self _imagePadding] : 0); s.height = MAX(s.height, img.size.height); }
+    BOOL spin = _configuration.showsActivityIndicator;
+    if (img || spin) {
+        CGSize is = [self _isim_imageSize];
+        if ([self _isim_vertical]) { s.height += is.height + (t.length ? [self _imagePadding] : 0); s.width = MAX(s.width, is.width); }
+        else { s.width += is.width + (t.length ? [self _imagePadding] : 0); s.height = MAX(s.height, is.height); }
+    }
     UIEdgeInsets in = [self _insets];
     if (!_configuration && _buttonType == UIButtonTypeSystem && UIEdgeInsetsEqualToEdgeInsets(in, UIEdgeInsetsZero)) in = UIEdgeInsetsMake(6, 0, 6, 0);
     CGFloat h = ceil(s.height) + in.top + in.bottom;
@@ -383,12 +435,32 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
         isim_gfx_fill_rounded(0, 0, b.size.width, b.size.height, [self _radius:b.size], c);
     }
     NSString *t = self.currentTitle;
-    UIImage *img = self.currentImage;
+    UIImage *img = _configuration.showsActivityIndicator ? nil : self.currentImage;
     if (!t.length && !img) return;
     UIEdgeInsets in = [self _insets];
     CGRect tr = UIEdgeInsetsInsetRect(b, in);
     double fgAlpha = (bg && _configuration) ? 1 : hl;
     if (self.highlighted && _buttonType == UIButtonTypeCustom && !_configuration) fgAlpha = 1;
+    if (_configuration && (_configuration.attributedTitle || _configuration.showsActivityIndicator || [self _isim_vertical] || _configuration.imagePlacement == NSDirectionalRectEdgeTrailing)) {
+        /* configuration layout: image / activity indicator at its placement, then the (attributed) title */
+        CGRect ir = [self _isim_imageRect];
+        if (img) [img _isim_drawInRect:ir tint:[self _fg] alpha:fgAlpha];
+        if (!t.length) return;
+        CGSize ts = [self _isim_titleSize]; CGFloat pad = (img || _configuration.showsActivityIndicator) ? [self _imagePadding] : 0;
+        BOOL hasImage = img || _configuration.showsActivityIndicator;
+        CGRect title;
+        if ([self _isim_vertical]) {
+            CGFloat y = _configuration.imagePlacement == NSDirectionalRectEdgeTop && hasImage ? CGRectGetMaxY(ir) + pad : (hasImage ? ir.origin.y - pad - ts.height : tr.origin.y + (tr.size.height - ts.height) / 2);
+            title = CGRectMake(tr.origin.x, y, tr.size.width, ts.height);
+        } else {
+            CGFloat x = !hasImage ? tr.origin.x + (tr.size.width - ceil(ts.width)) / 2 : _configuration.imagePlacement == NSDirectionalRectEdgeTrailing ? ir.origin.x - pad - ceil(ts.width) : CGRectGetMaxX(ir) + pad;
+            title = CGRectMake(x, tr.origin.y + (tr.size.height - ts.height) / 2, ceil(ts.width) + 1, ts.height);
+        }
+        NSTextAlignment al = [self _isim_vertical] ? NSTextAlignmentCenter : NSTextAlignmentLeft;
+        if (_configuration.attributedTitle) isim_ui_draw_attributed(_configuration.attributedTitle, [self _font], [self _fg], title, al, 1, fgAlpha);
+        else isim_ui_draw_text(t, [self _font], [self _fg], title, al, 1, fgAlpha);
+        return;
+    }
     if (img) {
         CGSize is = img.size;
         CGFloat tw = t.length ? ceil(isim_ui_measure(t, [self _font], 0, 1).width) + [self _imagePadding] : 0;

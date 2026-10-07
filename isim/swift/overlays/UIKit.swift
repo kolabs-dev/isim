@@ -497,3 +497,40 @@ extension UIBarButtonItem.Badge {
     public static func string(_ string: String) -> UIBarButtonItem.Badge { _isim_string(string) }
     public static func indicator() -> UIBarButtonItem.Badge { _isim_indicator() }
 }
+
+// MARK: - Button configurations: attributed titles as AttributedString (Apple's Swift API)
+extension UIButton.Configuration {
+    public var attributedTitle: AttributedString? {
+        get { __attributedTitle.map { AttributedString($0) } }
+        set { __attributedTitle = newValue.map { NSAttributedString($0) } }
+    }
+    public var attributedSubtitle: AttributedString? {
+        get { __attributedSubtitle.map { AttributedString($0) } }
+        set { __attributedSubtitle = newValue.map { NSAttributedString($0) } }
+    }
+}
+
+// MARK: - The UIKit attribute scope for AttributedString (NSAttributedString keys: NSColor, NSFont, ...)
+extension AttributeScopes {
+    public var uiKit: UIKitAttributes.Type { UIKitAttributes.self }
+    public struct UIKitAttributes: AttributeScope {
+        public let foregroundColor: ForegroundColorAttribute
+        public let backgroundColor: BackgroundColorAttribute
+        public let font: FontAttribute
+        public let kern: KernAttribute
+        public let baselineOffset: BaselineOffsetAttribute
+        public let paragraphStyle: ParagraphStyleAttribute
+        public let foundation: AttributeScopes.FoundationAttributes
+        public enum ForegroundColorAttribute: AttributedStringKey { public typealias Value = UIColor; public static let name = "NSColor" }
+        public enum BackgroundColorAttribute: AttributedStringKey { public typealias Value = UIColor; public static let name = "NSBackgroundColor" }
+        public enum FontAttribute: AttributedStringKey { public typealias Value = UIFont; public static let name = "NSFont" }
+        public enum KernAttribute: AttributedStringKey { public typealias Value = CGFloat; public static let name = "NSKern" }
+        public enum BaselineOffsetAttribute: AttributedStringKey { public typealias Value = CGFloat; public static let name = "NSBaselineOffset" }
+        public enum ParagraphStyleAttribute: AttributedStringKey { public typealias Value = NSParagraphStyle; public static let name = "NSParagraphStyle" }
+    }
+}
+extension AttributeDynamicLookup {
+    /// disfavoured: in SwiftUI code `.foregroundColor` / `.font` mean SwiftUI's attributes
+    @_disfavoredOverload
+    public subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.UIKitAttributes, T>) -> T { self[T.self] }
+}

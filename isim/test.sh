@@ -62,6 +62,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloAppearance.app/HelloAppearance ] && run "ui: HelloAppearance (traits, custom traits, trait overrides, dynamic colors/images, appearance proxies, live dark mode)" tests/ui/appearance.sh
   [ -x out/apps/HelloWindows.app/HelloWindows ] && run "ui: HelloWindows (iPad multiple scenes: split view, activation/destruction requests, session restoration, UIDevice)" tests/ui/windows.sh
   [ -x out/apps/HelloTabs.app/HelloTabs ] && run "ui: HelloTabs (iOS 17/18/26: UITab, iPad sidebar, UIUpdateLink, bar badges, scroll edge effects, observation tracking)" tests/ui/tabs.sh
+  [ -x out/apps/HelloViews.app/HelloViews ] && run "ui: HelloViews (context menus, button configurations, tint adjustment, content modes, input views)" tests/ui/views.sh
   [ -x out/apps/HelloCoreAnimation.app/HelloCoreAnimation ] && run "ui: HelloCoreAnimation (CA layers/animations, 3D, masks, Dynamics, CoreHaptics)" tests/ui/coreanimation.sh
   [ -x out/apps/HelloAnimations.app/HelloAnimations ] && run "ui: HelloAnimations (property animator, keyframes, transitions)" tests/ui/animations.sh
   [ -x out/apps/HelloTransitions.app/HelloTransitions ] && run "ui: HelloTransitions (presentations, sheets, popovers, custom transitions, containers)" tests/ui/transitions.sh

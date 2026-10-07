@@ -463,7 +463,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
 - (void)dealloc { [self _freeModel]; }
 - (void)_freeModel { for (NSInteger s = 0; s < _nsecs; s++) { free(_secs[s].heights); free(_secs[s].measured); } free(_secs); _secs = NULL; _nsecs = 0; }
 - (id<UITableViewDelegate>)delegate { return (id<UITableViewDelegate>)[super delegate]; }
-- (void)setDelegate:(id<UITableViewDelegate>)d { [super setDelegate:d]; [self setNeedsLayout]; }
+- (void)setDelegate:(id<UITableViewDelegate>)d { [super setDelegate:d]; [self setNeedsLayout]; extern void isim_ui_list_context_menus(UIScrollView *); isim_ui_list_context_menus(self); }
 - (void)setDataSource:(id<UITableViewDataSource>)d { _dataSource = d; _loaded = NO; [self setNeedsLayout]; }
 - (BOOL)_grouped { return _style != UITableViewStylePlain; }
 - (CGFloat)_inset { return _style == UITableViewStyleInsetGrouped ? (self.bounds.size.width > 400 ? 20 : 16) : 0; }

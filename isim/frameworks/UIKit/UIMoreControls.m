@@ -366,11 +366,19 @@ BOOL isim_ui_display_links_active(void) { for (CADisplayLink *l in display_links
 @interface __IsimMenuOverlay : UIView
 @property (nonatomic, strong) UIVisualEffectView *card;
 @property (nonatomic, weak) UIView *source;
+@property (nonatomic) CGRect previewRect;                 /* context menus: the lifted preview (a tap commits it) */
+@property (nonatomic, copy) void (^onPreviewTap)(void), (^onDismiss)(void);
 @end
 @implementation __IsimMenuOverlay
 static __weak __IsimMenuOverlay *current_menu;
-- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)e { [self dismiss]; }   /* tap outside */
+- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)e {   /* tap outside (or on a context menu's preview) */
+    CGPoint p = [touches.anyObject locationInView:self];
+    if (self.onPreviewTap && CGRectContainsPoint(self.previewRect, p)) { void (^t)(void) = self.onPreviewTap; self.onPreviewTap = nil; self.onDismiss = nil; [self dismiss]; t(); return; }
+    [self dismiss];
+}
 - (void)dismiss {
+    void (^d)(void) = self.onDismiss; self.onDismiss = nil; self.onPreviewTap = nil;
+    if (d) d();
     UIView *card = self.card;
     [UIView animateWithDuration:0.18 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{ card.alpha = 0; card.transform = CGAffineTransformMakeScale(0.9, 0.9); }
                      completion:^(BOOL f) { [self removeFromSuperview]; }];
@@ -434,6 +442,12 @@ static void collect(UIMenu *m, NSMutableArray<NSMutableArray *> *sections) {
 @end
 
 @implementation UIView (IsimMenu)
+- (void)_isim_presentMenu:(UIMenu *)menu fromRect:(CGRect)rect previewRect:(CGRect)previewRect onPreviewTap:(void (^)(void))tap onDismiss:(void (^)(void))dismissed {
+    [self _isim_presentMenu:menu fromRect:rect];
+    __IsimMenuOverlay *o = current_menu;
+    if (!o) { if (dismissed) dismissed(); return; }
+    o.previewRect = previewRect; o.onPreviewTap = tap; o.onDismiss = dismissed;
+}
 - (void)_isim_presentMenu:(UIMenu *)menu fromRect:(CGRect)rect {
     UIWindow *w = self.window;
     if (!w || !menu) return;

@@ -40,6 +40,7 @@ UIKIT_EXTERN const CGFloat UIViewNoIntrinsicMetric;
 UIKIT_EXTERN const CGSize UILayoutFittingCompressedSize;
 UIKIT_EXTERN const CGSize UILayoutFittingExpandedSize;
 
+typedef NS_ENUM(NSInteger, UIViewTintAdjustmentMode) { UIViewTintAdjustmentModeAutomatic, UIViewTintAdjustmentModeNormal, UIViewTintAdjustmentModeDimmed };
 NS_SWIFT_UI_ACTOR
 @protocol UICoordinateSpace <NSObject>
 - (CGPoint)convertPoint:(CGPoint)point toCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
@@ -111,6 +112,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UIViewContentMode contentMode;
 @property (null_resettable, nonatomic, strong) UIColor *tintColor;
 - (void)tintColorDidChange;
+/* dimmed: tintColor reads as a desaturated gray (UIKit dims the views behind an alert); automatic follows the superview */
+@property (nonatomic) UIViewTintAdjustmentMode tintAdjustmentMode;
 @property (nonatomic) UIUserInterfaceStyle overrideUserInterfaceStyle;
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;

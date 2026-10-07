@@ -296,6 +296,10 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     _presented = vc; vc->_presenting = self;
     UIView *v = vc.view;
     if (!v.backgroundColor) v.backgroundColor = UIColor.systemBackgroundColor;
+    if ([vc isKindOfClass:NSClassFromString(@"UIAlertController")]) {       /* like UIKit: the tint behind an alert dims */
+        UIView *root = w.rootViewController.view;
+        if (root && root.tintAdjustmentMode != UIViewTintAdjustmentModeDimmed) { objc_setAssociatedObject(vc, "isim_dimmed", root, OBJC_ASSOCIATION_RETAIN_NONATOMIC); root.tintAdjustmentMode = UIViewTintAdjustmentModeDimmed; }
+    }
     [vc _isim_appear:YES];
     void (^finish)(BOOL) = ^(BOOL f) { [vc _isim_didAppear]; if (done) done(); };
     if (![vc _isim_presentsAsSheet]) {
@@ -351,6 +355,8 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     if (!_presented && !_presenting && self.parentViewController) { [self.parentViewController dismissViewControllerAnimated:a completion:done]; return; }
     UIViewController *target = _presented ?: self;
     UIViewController *presenter = _presented ? self : _presenting;
+    UIView *dimmed = objc_getAssociatedObject(target, "isim_dimmed");
+    if (dimmed) { dimmed.tintAdjustmentMode = UIViewTintAdjustmentModeAutomatic; objc_setAssociatedObject(target, "isim_dimmed", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
     if (target->_presented) { [target dismissViewControllerAnimated:NO completion:nil]; }      /* nested presentations go too */
     UIView *container = target->_sheetContainer, *dim = target->_sheetDim, *behind = target->_sheetBehind, *v = target.view;
     if (presenter) { presenter->_presented = nil; target->_presenting = nil; }

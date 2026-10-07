@@ -178,6 +178,7 @@ ANCHORS(UILayoutGuide)
     unsigned _alGen; int _alVars[4]; CGFloat _alUsedWidth;       /* Auto Layout engine */
     @public struct anim_state *_anim;                            /* running property animations (presentation values) */
     UITraitCollection *_traitCache, *_traitReported; unsigned _traitGen;   /* traits (UITraits.m) */
+    UIViewTintAdjustmentMode _tintMode;
     id<UITraitOverrides> _traitOverrides;
 }
 @end
@@ -417,9 +418,23 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
     if ([_superview isKindOfClass:[UIStackView class]]) { isim_ui_constraints_changed(); [_superview setNeedsLayout]; }
 }
 - (void)setClipsToBounds:(BOOL)c { _clipsToBounds = c; isim_ui_set_needs_display(); }
-- (UIColor *)tintColor { return _tint ?: (_superview ? _superview.tintColor : (isim_ui_accent_color() ?: UIColor.systemBlueColor)); }
+- (UIColor *)_isim_undimmedTint { return _tint ?: (_superview ? [_superview _isim_undimmedTint] : (isim_ui_accent_color() ?: UIColor.systemBlueColor)); }
+- (UIColor *)tintColor {
+    if (self.tintAdjustmentMode == UIViewTintAdjustmentModeDimmed) return [UIColor colorWithWhite:0.56 alpha:1];   /* dimmed: a desaturated gray */
+    return [self _isim_undimmedTint];
+}
 - (void)setTintColor:(UIColor *)c { _tint = c; [self _isim_tintChanged]; }
-- (void)_isim_tintChanged { [self tintColorDidChange]; for (UIView *s in _subs) if (!s->_tint) [s _isim_tintChanged]; isim_ui_set_needs_display(); }
+- (void)_isim_tintChanged { [self tintColorDidChange]; for (UIView *s in _subs) if (!s->_tint || s->_tintMode == UIViewTintAdjustmentModeAutomatic) [s _isim_tintChanged]; isim_ui_set_needs_display(); }
+- (UIViewTintAdjustmentMode)tintAdjustmentMode {
+    for (UIView *v = self; v; v = v->_superview) if (v->_tintMode != UIViewTintAdjustmentModeAutomatic) return v->_tintMode;
+    return UIViewTintAdjustmentModeNormal;
+}
+- (void)setTintAdjustmentMode:(UIViewTintAdjustmentMode)m {
+    if (m == _tintMode) return;
+    UIViewTintAdjustmentMode before = self.tintAdjustmentMode;
+    _tintMode = m;
+    if (self.tintAdjustmentMode != before) [self _isim_tintChanged];
+}
 - (void)tintColorDidChange {}
 /* traits: the parent's (a presented controller's view: the presenter's; a window: its scene's, sized by the window),
    then the view controller's overrides, then the view's own (UITraits.m) */

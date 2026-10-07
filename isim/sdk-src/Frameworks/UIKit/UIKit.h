@@ -73,3 +73,4 @@
 #import <UIKit/UIEditMenuInteraction.h>
 #import <UIKit/UIContentSizeCategory.h>
 #import <UIKit/UIUpdateLink.h>
+#import <UIKit/UIContextMenuInteraction.h>
