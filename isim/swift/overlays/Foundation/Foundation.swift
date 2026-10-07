@@ -372,12 +372,16 @@ extension String {
     let format = b.localizedString(forKey: keyAndValue.key, value: defaultValue.key, table: table)
     self = keyAndValue.resolve(keyAndValue.expandingPlurals(format))
   }
+  @_disfavoredOverload   // a string literal argument means String.LocalizationValue, as on Apple platforms
   public init(localized resource: LocalizedStringResource) {
-    self.init(localized: resource.key, defaultValue: resource.defaultValue, table: resource.table, bundle: resource.bundle._bundle, locale: resource.locale)
+    // the key looked up; the default value carries the interpolated arguments
+    let format = resource.bundle._bundle.localizedString(forKey: resource.key, value: resource.defaultValue.key, table: resource.table)
+    self = resource.defaultValue.resolve(resource.defaultValue.expandingPlurals(format))
   }
 }
 /// A reference to a localized string, resolved later (iOS 16). isim resolves it with the same lookup as
 /// String(localized:).
+@available(iOS 15.0, *) @_originallyDefinedIn(module: "AppIntents", iOS 15.0)   // isim 0.5.0 had it in AppIntents (no OS version moved it: 15.0 = isim's oldest target)
 public struct LocalizedStringResource: Equatable, Hashable, Sendable, ExpressibleByStringInterpolation, CustomStringConvertible {
   public enum BundleDescription: Equatable, Hashable, Sendable {
     case main
@@ -406,7 +410,7 @@ public struct LocalizedStringResource: Equatable, Hashable, Sendable, Expressibl
       }
     }
   }
-  public let key: String.LocalizationValue
+  public let key: String
   public var defaultValue: String.LocalizationValue
   public var table: String?
   public var locale: Locale
@@ -414,12 +418,12 @@ public struct LocalizedStringResource: Equatable, Hashable, Sendable, Expressibl
   public var comment: String?
   public init(_ key: StaticString, defaultValue: String.LocalizationValue, table: String? = nil, locale: Locale = .current,
               bundle: BundleDescription = .main, comment: StaticString? = nil) {
-    self.key = String.LocalizationValue("\(key)"); self.defaultValue = defaultValue; self.table = table
+    self.key = "\(key)"; self.defaultValue = defaultValue; self.table = table
     self.locale = locale; self.bundle = bundle; self.comment = comment.map { "\($0)" }
   }
   public init(_ keyAndValue: String.LocalizationValue, table: String? = nil, locale: Locale = .current,
               bundle: BundleDescription = .main, comment: StaticString? = nil) {
-    key = keyAndValue; defaultValue = keyAndValue; self.table = table; self.locale = locale; self.bundle = bundle
+    key = keyAndValue.key; defaultValue = keyAndValue; self.table = table; self.locale = locale; self.bundle = bundle
     self.comment = comment.map { "\($0)" }
   }
   public init(stringLiteral value: String) { self.init(String.LocalizationValue(value)) }
@@ -427,10 +431,18 @@ public struct LocalizedStringResource: Equatable, Hashable, Sendable, Expressibl
     self.init(String.LocalizationValue(stringInterpolation: stringInterpolation))
   }
   public var description: String { String(localized: self) }
+
+  // isim 0.5.0 declared this type in AppIntents (hence @_originallyDefinedIn): the members it had then, under
+  // their 0.5.0 names, for apps built with that release
+  public typealias StringInterpolation = String.LocalizationValue.StringInterpolation
+  @usableFromInline init(stringInterpolation: DefaultStringInterpolation) {
+    self.init(String.LocalizationValue(String(stringInterpolation: stringInterpolation)))
+  }
+  @usableFromInline init(_ key: String) { self.init(String.LocalizationValue(key)) }
   public static func == (a: LocalizedStringResource, b: LocalizedStringResource) -> Bool {
     a.key == b.key && a.table == b.table && a.bundle == b.bundle && a.locale == b.locale
   }
-  public func hash(into h: inout Hasher) { h.combine(key.key); h.combine(table) }
+  public func hash(into h: inout Hasher) { h.combine(key); h.combine(table) }
 }
 extension String.LocalizationValue: Hashable {
   public func hash(into h: inout Hasher) { h.combine(key); h.combine(arguments) }

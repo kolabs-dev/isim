@@ -8,7 +8,12 @@ import SwiftUI
 
 // MARK: - strings
 
-// LocalizedStringResource is Foundation's (as on Apple platforms).
+// LocalizedStringResource is Foundation's (as on Apple platforms). isim 0.5.0 declared it here; Foundation's keeps that
+// mangling (@_originallyDefinedIn) and this library re-exports Foundation, so apps built with 0.5.0 still link.
+extension String {
+    /// 0.5.0's String(localized:) for the AppIntents type (Foundation's public one is used by new code)
+    @usableFromInline init(localized r: LocalizedStringResource) { self = r.description }
+}
 
 public struct IntentDescription: ExpressibleByStringLiteral, Sendable {
     public let text: String
