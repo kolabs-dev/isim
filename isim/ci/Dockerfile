@@ -6,8 +6,11 @@ FROM archlinux:latest
 RUN pacman -Syu --noconfirm --needed \
       base-devel git clang lld llvm python rsync pkgconf docker \
       sdl3 cairo pango librsvg gdk-pixbuf2 fontconfig \
-      imagemagick adwaita-fonts adwaita-icon-theme noto-fonts \
+      imagemagick adwaita-fonts adwaita-icon-theme noto-fonts ttf-dejavu \
       ffmpeg espeak-ng zbar qrencode openssl curl pcre2 sqlite \
       webkitgtk-6.0 gtk4 poppler-glib \
     && pacman -Scc --noconfirm
 ENV SDL_AUDIO_DRIVER=dummy
+# WebKitGTK's web-process sandbox (bubblewrap) cannot create namespaces in an unprivileged container; CI only loads
+# the tests' own local pages
+ENV WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
