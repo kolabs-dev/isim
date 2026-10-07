@@ -146,14 +146,19 @@ final class MediaViewController: UIViewController {
             slow.scaleTimeRange(one, toDuration: sec(2, 1))
             let slowURL = fresh("slow.mov")
             let sem = DispatchSemaphore(value: 0)
-            Task.detached {
-                do {
-                    try await AVAssetExportSession(asset: slow, presetName: AVAssetExportPreset640x480)!.export(to: slowURL, as: .mov)
-                    log("scaled export duration=\(f2(AVURLAsset(url: slowURL).duration.seconds))")
-                } catch { log("scaled export error \(error)") }
-                sem.signal()
+            if #available(iOS 18.0, *) {
+                Task.detached {
+                    do {
+                        try await AVAssetExportSession(asset: slow, presetName: AVAssetExportPreset640x480)!.export(to: slowURL, as: .mov)
+                        log("scaled export duration=\(f2(AVURLAsset(url: slowURL).duration.seconds))")
+                    } catch { log("scaled export error \(error)") }
+                    sem.signal()
+                }
+                sem.wait()
+            } else {
+                _ = export(slow, preset: AVAssetExportPreset640x480, to: slowURL, type: .mov)
+                log("scaled export duration=\(f2(AVURLAsset(url: slowURL).duration.seconds))")
             }
-            sem.wait()
 
             // audio only (AppleM4A preset) and a failing export (missing output URL)
             let m4a = fresh("sound.m4a")

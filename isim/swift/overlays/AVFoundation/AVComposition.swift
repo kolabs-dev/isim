@@ -444,6 +444,7 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in exportAsynchronously { k.resume() } }
     }
     /// iOS 18 form: throws on failure.
+    @available(iOS 18.0, *)
     open func export(to url: URL, as fileType: AVFileType, isolation: isolated (any Actor)? = #isolation) async throws {
         outputURL = url; outputFileType = fileType
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in exportAsynchronously { k.resume() } }
