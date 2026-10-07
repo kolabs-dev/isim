@@ -105,7 +105,9 @@ case "$cmd" in
     fi
     exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
   cc)
-    exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc -L "$SDK/usr/lib/swift" "$@" ;;
+    # clang >= 23: keep Objective-C literals as runtime calls (isim's Foundation has no NSConstantArray & co. yet)
+    lit=(); echo | "${CLANG:-clang}" -x objective-c -fno-objc-constant-literals -fsyntax-only - 2>/dev/null && lit=(-fno-objc-constant-literals)
+    exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc "${lit[@]}" -L "$SDK/usr/lib/swift" "$@" ;;
   swiftc)
     ws=$(cd -- "$BIN/../../.." && pwd)
     mounts=(-v "$ws:$ws")
