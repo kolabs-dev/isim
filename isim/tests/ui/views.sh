@@ -13,6 +13,7 @@ script="wait 1.2; shot $shots/views.png; holdid card 0.8; wait 0.6; shot $shots/
  holdid photo 0.8; wait 0.6; shot $shots/photo-preview.png; tapid isim-context-preview; wait 0.8;
  tapid toggle; wait 0.4; tapid alert; wait 0.5; taptext OK; wait 0.5;
  tapid field; wait 0.6; dump; shot $shots/input.png; tapid bar-Done; wait 0.5; holdid table 0.8; wait 0.6; tapid menu-Pin; wait 0.5;
+ tapid zoom; wait 1; shot $shots/zoomed.png; tapid zoomClose; wait 1;
  tapid status; wait 0.4; shot $shots/status-light.png; tapid status; wait 0.4; shot $shots/status-hidden.png; tapid dim; wait 0.4; shot $shots/dim.png; quit"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 90 out/bin/isim run out/apps/HelloViews.app 2>&1); rc=$?
 # auto-lock under the device shell (ISIM_AUTOLOCK): it locks when idle, not while the app disables the idle timer
@@ -60,6 +61,8 @@ check "status bar: dark text by default, light content, then hidden (prefersStat
 check "UIScreen.brightness: notification, the frame dims" 'grep -q "brightness 0.5" <<<"$log" && is dim 200 600 "r>140 && r<165 && g>140 && g<165"'
 check "auto-lock when idle; isIdleTimerDisabled keeps the device on" \
   '[ "$(grep -c "auto-lock after 2 s without input" <<<"$boot")" = 1 ] && grep -q "idle timer disabled true" <<<"$boot" && grep -q "isim shell: HelloViews.app idle timer disabled" <<<"$boot"'
+check "iOS 18 zoom transition: from the source view, full screen, back on dismissal" \
+  'grep -q "isim: zoom transition to HelloViews.ZoomedController (source 20,70 160x60)" <<<"$log" && grep -q "zoomed shown full screen true" <<<"$log" && is zoomed 300 700 "b>150 && r<120" && grep -q "isim: zoom transition from HelloViews.ZoomedController" <<<"$log" && grep -q "zoom dismissed" <<<"$log"'
 check "exits cleanly" '[ $rc = 0 ] && [ $rc2 = 0 ]'
 [ $fail = 0 ] || echo "$log" | grep -E "HelloViews:|isim: (context|input|keyboard)" | tail -30
 exit $fail

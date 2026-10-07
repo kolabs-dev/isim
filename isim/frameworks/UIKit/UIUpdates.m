@@ -173,3 +173,61 @@ BOOL isim_ui_update_links_active(void) {
     for (UIUpdateLink *l in update_links.allObjects) if (l.requiresContinuousUpdates && [l _isim_live]) return YES;
     return NO;
 }
+
+/* ================= preferred transitions (iOS 18) ================= */
+@interface UIZoomTransitionSourceViewProviderContext ()
+@property (nonatomic, readwrite, strong) UIViewController *sourceViewController, *zoomedViewController;
+@end
+@implementation UIZoomTransitionSourceViewProviderContext @end
+@implementation UIZoomTransitionOptions
+- (id)copyWithZone:(NSZone *)z { UIZoomTransitionOptions *o = [UIZoomTransitionOptions new]; o.dimmingColor = _dimmingColor; o.dimmingVisualEffect = _dimmingVisualEffect; return o; }
+@end
+@implementation UIViewControllerTransition { int _kind; UIView *(^_provider)(UIZoomTransitionSourceViewProviderContext *); UIZoomTransitionOptions *_options; }
++ (instancetype)_kind:(int)k { UIViewControllerTransition *t = [self new]; t->_kind = k; return t; }
++ (instancetype)zoomWithOptions:(UIZoomTransitionOptions *)o sourceViewProvider:(UIView *(^)(UIZoomTransitionSourceViewProviderContext *))p {
+    UIViewControllerTransition *t = [self _kind:1]; t->_options = [o copy]; t->_provider = [p copy]; return t;
+}
++ (UIViewControllerTransition *)coverVerticalTransition { return [self _kind:2]; }
++ (UIViewControllerTransition *)flipHorizontalTransition { return [self _kind:3]; }
++ (UIViewControllerTransition *)crossDissolveTransition { return [self _kind:4]; }
++ (UIViewControllerTransition *)partialCurlTransition { return [self _kind:5]; }
+- (BOOL)_isim_isZoom { return _kind == 1; }
+- (UIModalTransitionStyle)_isim_modalStyle { return _kind == 3 ? UIModalTransitionStyleFlipHorizontal : _kind == 4 ? UIModalTransitionStyleCrossDissolve : _kind == 5 ? UIModalTransitionStylePartialCurl : UIModalTransitionStyleCoverVertical; }
+- (UIView *)_isim_sourceViewFrom:(UIViewController *)source zoomed:(UIViewController *)zoomed {
+    if (!_provider) return nil;
+    UIZoomTransitionSourceViewProviderContext *c = [UIZoomTransitionSourceViewProviderContext new];
+    c.sourceViewController = source; c.zoomedViewController = zoomed;
+    return _provider(c);
+}
+@end
+static char k_pref_transition;
+@implementation UIViewController (UIPreferredTransition)
+- (UIViewControllerTransition *)preferredTransition { return objc_getAssociatedObject(self, &k_pref_transition); }
+- (void)setPreferredTransition:(UIViewControllerTransition *)t {
+    objc_setAssociatedObject(self, &k_pref_transition, t, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (t && ![t _isim_isZoom]) self.modalTransitionStyle = [t _isim_modalStyle];
+}
+@end
+/* the zoom: view grows from (or shrinks to) the source view's frame; YES when it ran (UINavigation.m, UIApplication.m) */
+BOOL isim_ui_zoom_transition(UIViewController *zoomed, UIViewController *source, UIView *zv, UIView *host, BOOL appearing, void (^done)(void)) {
+    UIViewControllerTransition *t = zoomed.preferredTransition;
+    if (isim_ui_os_major() < 18 || ![t _isim_isZoom]) return NO;
+    UIView *src = [t _isim_sourceViewFrom:source zoomed:zoomed];
+    if (!src.window || !host) return NO;
+    CGRect sr = [src convertRect:src.bounds toView:host], full = zv.frame;
+    if (full.size.width <= 0 || full.size.height <= 0) return NO;
+    CGFloat sx = sr.size.width / full.size.width, sy = sr.size.height / full.size.height;
+    CGAffineTransform small = CGAffineTransformMake(sx, 0, 0, sy, CGRectGetMidX(sr) - CGRectGetMidX(full), CGRectGetMidY(sr) - CGRectGetMidY(full));
+    NSLog(@"isim: zoom transition %@ %@ (source %g,%g %gx%g)", appearing ? @"to" : @"from", NSStringFromClass([zoomed class]), sr.origin.x, sr.origin.y, sr.size.width, sr.size.height);
+    CGFloat radius = zv.layer.cornerRadius; BOOL clips = zv.clipsToBounds;
+    zv.clipsToBounds = YES;
+    if (appearing) [UIView performWithoutAnimation:^{ zv.transform = small; zv.alpha = 0.6; zv.layer.cornerRadius = 24; }];
+    [UIView animateWithDuration:0.45 delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0 options:0 animations:^{
+        zv.transform = appearing ? CGAffineTransformIdentity : small; zv.alpha = appearing ? 1 : 0;
+        zv.layer.cornerRadius = appearing ? radius : 24;
+    } completion:^(BOOL f) {
+        zv.transform = CGAffineTransformIdentity; zv.alpha = 1; zv.layer.cornerRadius = radius; zv.clipsToBounds = clips;
+        if (done) done();
+    }];
+    return YES;
+}

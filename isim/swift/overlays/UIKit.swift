@@ -534,3 +534,13 @@ extension AttributeDynamicLookup {
     @_disfavoredOverload
     public subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.UIKitAttributes, T>) -> T { self[T.self] }
 }
+
+// MARK: - iOS 18 preferred transitions (Apple's Swift spelling)
+@available(iOS 18.0, *)
+extension UIViewController.Transition {
+    public typealias ZoomOptions = UIZoomTransitionOptions
+    public typealias ZoomSourceViewProviderContext = UIZoomTransitionSourceViewProviderContext
+    public static func zoom(options: ZoomOptions? = nil, sourceViewProvider: @escaping (ZoomSourceViewProviderContext) -> UIView?) -> UIViewController.Transition {
+        __zoom(with: options, sourceViewProvider: sourceViewProvider)
+    }
+}

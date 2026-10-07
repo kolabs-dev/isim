@@ -7,6 +7,9 @@
 #import <objc/runtime.h>
 #include <math.h>
 
+@interface NSObject (IsimZoomCheck)
+- (BOOL)_isim_isZoom;
+@end
 @interface UIBarButtonItem (IsimNav)
 - (BOOL)_isim_isFlexible; - (BOOL)_isim_isFixed; - (NSString *)_isim_displayTitle; - (UIImage *)_isim_displayImage; - (void)_isim_performFrom:(UIView *)sender;
 @end
@@ -847,6 +850,17 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     if (!animated || !host.window || !from || from == to) { finish(YES); return; }
     _transitioning = YES;
     CGFloat W = host.bounds.size.width;
+    /* iOS 18 zoom (preferredTransition): the pushed view grows from its source view / shrinks back into it */
+    extern BOOL isim_ui_zoom_transition(UIViewController *zoomed, UIViewController *source, UIView *zv, UIView *host, BOOL appearing, void (^done)(void));
+    UIViewController *zoomed = push ? to : from;
+    if ([zoomed.preferredTransition respondsToSelector:@selector(_isim_isZoom)] && [(id)zoomed.preferredTransition _isim_isZoom]) {
+        to.view.frame = host.bounds;
+        if (push) [host bringSubviewToFront:to.view]; else [host insertSubview:to.view belowSubview:from.view];
+        if (isim_ui_zoom_transition(zoomed, push ? from : to, zoomed.view, host, push, ^{ finish(YES); })) {
+            [host bringSubviewToFront:_bar]; [host bringSubviewToFront:_toolbar];
+            return;
+        }
+    }
     UIView *fv = from.view, *tv = to.view;
     if (!push) [host insertSubview:tv belowSubview:fv];
     _dim = [[UIView alloc] initWithFrame:host.bounds]; _dim.backgroundColor = UIColor.blackColor; _dim.userInteractionEnabled = NO;

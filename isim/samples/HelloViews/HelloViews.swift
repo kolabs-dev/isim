@@ -18,6 +18,17 @@ func solid(_ c: UIColor, _ w: CGFloat, _ h: CGFloat) -> UIImage {
 final class TintProbe: UIView {
     override func tintColorDidChange() { super.tintColorDidChange(); log("tint \(tintAdjustmentMode == .dimmed ? "dimmed" : "normal") \(hex(tintColor))") }
 }
+final class ZoomedController: UIViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemIndigo
+        let close = UIButton(type: .system); close.setTitle("Close", for: .normal); close.setTitleColor(.white, for: .normal)
+        close.frame = CGRect(x: 20, y: 80, width: 120, height: 44); close.accessibilityIdentifier = "zoomClose"
+        close.addAction(UIAction { [unowned self] _ in dismiss(animated: true) { log("zoom dismissed") } }, for: .primaryActionTriggered)
+        view.addSubview(close)
+    }
+    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); log("zoomed shown full screen \(view.frame.width == view.window?.bounds.width)") }
+}
 final class PreviewController: UIViewController {
     override func viewDidLoad() { super.viewDidLoad(); view.backgroundColor = .systemPurple; preferredContentSize = CGSize(width: 200, height: 150) }
 }
@@ -96,6 +107,14 @@ final class ViewsController: UIViewController, UIContextMenuInteractionDelegate,
             setNeedsStatusBarAppearanceUpdate(); log("status bar step \(statusStep)")
         }
         let dim = small("Dim", "dim", 140) { UIScreen.main.brightness = 0.5 }
+        let zoom = UIButton(type: .system); zoom.setTitle("Zoom", for: .normal); zoom.accessibilityIdentifier = "zoom"
+        zoom.frame = CGRect(x: 260, y: 360, width: 110, height: 36)
+        zoom.addAction(UIAction { [unowned self] _ in
+            let z = ZoomedController()
+            if #available(iOS 18.0, *) { z.preferredTransition = .zoom { [unowned self] _ in card } }
+            present(z, animated: true)
+        }, for: .primaryActionTriggered)
+        view.addSubview(zoom)
         let awake = small("Awake", "awake", 260) { UIApplication.shared.isIdleTimerDisabled = true; log("idle timer disabled \(UIApplication.shared.isIdleTimerDisabled)") }
         NotificationCenter.default.addObserver(forName: UIScreen.brightnessDidChangeNotification, object: nil, queue: nil) { _ in log("brightness \(UIScreen.main.brightness)") }
         for v in [header, card, photo, toggleButton, busyButton, fancyButton, stackedButton, probe, alertButton, field, table, status, dim, awake] as [UIView] { view.addSubview(v) }

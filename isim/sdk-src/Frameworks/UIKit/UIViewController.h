@@ -52,4 +52,29 @@ typedef NS_ENUM(NSInteger, UIModalPresentationStyle) { UIModalPresentationFullSc
 @property (nonatomic) UIEdgeInsets additionalSafeAreaInsets;
 - (void)viewSafeAreaInsetsDidChange;
 @end
+/* iOS 18: preferred transitions. isim (adapted): zoom pushes and presentations grow the new controller's view from
+   the source view (and shrink it back on pop / dismissal); the classic ones map to the modal transition styles */
+@class UIBlurEffect;
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
+@interface UIZoomTransitionSourceViewProviderContext : NSObject
+@property (nonatomic, readonly) UIViewController *sourceViewController;
+@property (nonatomic, readonly) UIViewController *zoomedViewController;
+@end
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
+@interface UIZoomTransitionOptions : NSObject <NSCopying>
+@property (nonatomic, strong, nullable) UIColor *dimmingColor;
+@property (nonatomic, copy, nullable) UIBlurEffect *dimmingVisualEffect;
+@end
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_SWIFT_NAME(UIViewController.Transition)
+@interface UIViewControllerTransition : NSObject
++ (instancetype)zoomWithOptions:(nullable UIZoomTransitionOptions *)options sourceViewProvider:(UIView *_Nullable (^)(UIZoomTransitionSourceViewProviderContext *context))sourceViewProvider
+    NS_REFINED_FOR_SWIFT;
+@property (class, nonatomic, readonly) UIViewControllerTransition *coverVerticalTransition NS_SWIFT_NAME(coverVertical);
+@property (class, nonatomic, readonly) UIViewControllerTransition *flipHorizontalTransition NS_SWIFT_NAME(flipHorizontal);
+@property (class, nonatomic, readonly) UIViewControllerTransition *crossDissolveTransition NS_SWIFT_NAME(crossDissolve);
+@property (class, nonatomic, readonly) UIViewControllerTransition *partialCurlTransition NS_SWIFT_NAME(partialCurl);
+@end
+@interface UIViewController (UIPreferredTransition)
+@property (nonatomic, strong, nullable) UIViewControllerTransition *preferredTransition API_AVAILABLE(ios(18.0));
+@end
 NS_ASSUME_NONNULL_END

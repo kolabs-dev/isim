@@ -864,10 +864,21 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
 @end
 
 /* ================= entry points (UIApplication.m) ================= */
+@interface UIViewControllerTransition (IsimZoom)
+- (BOOL)_isim_isZoom;
+@end
 BOOL isim_ui_present(UIViewController *presenter, UIViewController *vc, BOOL animated, void (^done)(void)) {
     if ([vc isKindOfClass:[UIAlertController class]]) return NO;
     UIWindow *w = presenter.viewIfLoaded.window;
     if (!w) return NO;
+    /* iOS 18 zoom (preferredTransition): a full-screen presentation that grows from the source view */
+    extern BOOL isim_ui_zoom_transition(UIViewController *zoomed, UIViewController *source, UIView *zv, UIView *host, BOOL appearing, void (^done)(void));
+    if (animated && isim_ui_os_major() >= 18 && [vc.preferredTransition respondsToSelector:@selector(_isim_isZoom)] && [(id)vc.preferredTransition _isim_isZoom]) {
+        vc.modalPresentationStyle = UIModalPresentationFullScreen;
+        BOOL ok = isim_ui_present(presenter, vc, NO, nil);
+        if (ok) { UIView *v = vc.view; if (!isim_ui_zoom_transition(vc, presenter, v, w, YES, done) && done) dispatch_async(dispatch_get_main_queue(), done); }
+        return ok;
+    }
     BOOL compact = w.bounds.size.width < 700;
     UIModalPresentationStyle req = vc.modalPresentationStyle;
     if (req == UIModalPresentationAutomatic) req = UIModalPresentationPageSheet;
@@ -913,6 +924,9 @@ BOOL isim_ui_dismiss(UIViewController *caller, BOOL animated, void (^done)(void)
     if (!p) return NO;
     if (p.dismissing) return YES;
     if (target.presentedViewController) [target dismissViewControllerAnimated:NO completion:nil];     /* nested presentations go first */
+    extern BOOL isim_ui_zoom_transition(UIViewController *zoomed, UIViewController *source, UIView *zv, UIView *host, BOOL appearing, void (^done)(void));
+    if (animated && target.viewIfLoaded.window && p.presenter &&
+        isim_ui_zoom_transition(target, p.presenter, target.view, target.view.window, NO, ^{ [p dismiss:NO done:done]; })) return YES;   /* iOS 18 zoom back */
     [p dismiss:animated done:done];
     return YES;
 }
