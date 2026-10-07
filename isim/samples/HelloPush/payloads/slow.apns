@@ -1,0 +1,8 @@
+{
+  "apns-collapse-id": "slow-1",
+  "aps": {
+    "alert": { "title": "Slow", "body": "The service extension runs out of time" },
+    "mutable-content": 1
+  },
+  "slow": true
+}

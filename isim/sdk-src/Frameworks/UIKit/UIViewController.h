@@ -44,6 +44,8 @@ typedef NS_ENUM(NSInteger, UIModalPresentationStyle) { UIModalPresentationFullSc
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;
 @property (nonatomic, readonly, strong) UINavigationItem *navigationItem;
+/* app extensions: the request of a Share/Action extension's view controller (isim hosts them in the host app's process) */
+@property (nullable, nonatomic, readonly, strong) NSExtensionContext *extensionContext;
 @property (nonatomic) UIEdgeInsets additionalSafeAreaInsets;
 - (void)viewSafeAreaInsetsDidChange;
 @end

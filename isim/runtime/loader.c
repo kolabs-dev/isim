@@ -677,6 +677,11 @@ static void *d_dlopen(const char *path, int mode) {
     }
     for (size_t i = 0; i < sizeof host_libs / sizeof *host_libs; i++)
         if (!strcmp(host_libs[i]->install_name, path)) return (void *)-2;      /* host libraries: global lookup */
+    char rooted[1024];                    /* an SDK install name (/System/Library/Frameworks/...): under --root, like DYLD_ROOT_PATH */
+    if (path[0] == '/' && access(path, R_OK) != 0 && sysroot) {
+        snprintf(rooted, sizeof rooted, "%s%s", sysroot, path);
+        if (access(rooted, R_OK) == 0) path = rooted;
+    }
     if (access(path, R_OK) != 0) {
         snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s): image not found", path);
         dl_error = dl_error_buf;

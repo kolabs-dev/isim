@@ -5,11 +5,14 @@
  *   frame is ready; the shell shows the foreground client's surface.
  * - Input goes to the foreground client. Touches that start in the bottom 34 pt and swipe up
  *   (or Ctrl+Shift+H, or the script command "home") go to the home screen.
- * - Leaving an app sends it EV_BACKGROUND (it keeps running); opening it again resumes it.
+ * - Leaving an app sends it EV_BACKGROUND; a few seconds later the app is suspended (SIGSTOP) unless it reported
+ *   something that keeps it running (shell_system.inc: background tasks, audio, location); any event for it resumes
+ *   it (SIGCONT), so does a pending local notification coming due. ISIM_SUSPEND=0 never suspends.
  * - Clients ask to launch apps (SM_LAUNCH), report settings changes (broadcast as EV_SETTINGS),
  *   go home, or terminate the other apps (language changes). */
 
-struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; int orient; };
+struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; int orient;
+                      int bg, bg_seen, suspended; double bg_t, wake_at; char reasons[128]; };   /* background execution (shell_system.inc) */
 static struct shell_client clients[32];
 static int nclients, active = -1;
 static const char *shell_self, *shell_root, *shell_springboard;
@@ -31,22 +34,25 @@ static void shell_apply_orient(int o) {
     if (comp) { cairo_surface_destroy(comp); comp = NULL; }
     if (win) SDL_SetWindowSize(win, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom));
 }
+static void bg_track(int i, int type);           /* shell_system.inc: background state, suspension; resumes a suspended app */
 static void shell_send(int i, int type) {
     if (i < 0 || i >= nclients || !clients[i].alive) return;
+    bg_track(i, type);
     struct shell_msg m = { .type = SM_EVENT }; m.ev.type = type;
-    send(clients[i].sock, &m, sizeof m, MSG_NOSIGNAL);
+    send(clients[i].sock, &m, sizeof m, MSG_NOSIGNAL | (clients[i].suspended ? MSG_DONTWAIT : 0));
 }
 static void shell_forward(int i, const struct isim_event *ev) {
     if (i < 0 || i >= nclients || !clients[i].alive) return;
+    bg_track(i, ev->type);
     struct shell_msg m = { .type = SM_EVENT }; m.ev = *ev;
-    send(clients[i].sock, &m, sizeof m, MSG_NOSIGNAL);
+    send(clients[i].sock, &m, sizeof m, MSG_NOSIGNAL | (clients[i].suspended ? MSG_DONTWAIT : 0));
 }
 static int nb_visible(void); static void nb_draw(void);
 static int sys_visible(void); static void sys_draw(void); static int sys_hides_banners(void);   /* shell_system.inc */
-static int la_island_visible(void);
+static int la_island_visible(void); static int pill_visible(void);
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
-    if (sys_visible() || la_island_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island */
+    if (sys_visible() || la_island_visible() || pill_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island, location indicator */
     shell_apply_orient(clients[i].orient);
     if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
     /* the screenshot / blit source is the foreground client's surface */
@@ -168,19 +174,31 @@ static void start_anim(int kind, int client, struct rectf from, struct rectf to,
     anim.from = from; anim.to = to; anim.rfrom = rfrom; anim.rto = rto;
 }
 /* ---- notification banners posted by apps in the background (UserNotifications), drawn over the screen ---- */
-static struct { int on, client; char id[512], title[512], body[512], icon[512]; double t0, hide_t0; struct rectf r; } nb;
+/* client: the app's process, or -1 for an app that is not running (path: its bundle; a remote notification the system shows) */
+static struct { int on, client; char path[512], id[512], title[512], body[512], icon[512], thumb[512]; double t0, hide_t0, down_t; struct rectf r; } nb;
 #define NB_SHOW 5.0
 static int nb_visible(void) { return nb.on && anim.kind == ANIM_NONE && active >= 0 && !sys_hides_banners(); }
-static void nb_post(int i, const struct shell_msg *m) {
-    const char *sep = strchr(m->a, '\x1f');
-    if (sep) { snprintf(nb.id, sizeof nb.id, "%.*s", (int)(sep - m->a), m->a); snprintf(nb.icon, sizeof nb.icon, "%s", sep + 1); }
-    else { snprintf(nb.id, sizeof nb.id, "%s", m->a); nb.icon[0] = 0; }
-    snprintf(nb.title, sizeof nb.title, "%s", m->b); snprintf(nb.body, sizeof nb.body, "%s", m->c);
-    nb.on = 1; nb.client = i; nb.t0 = now(); nb.hide_t0 = 0;
+/* field k (0-based) of a "\x1f"-separated string */
+static void field(const char *s, int k, char *out, size_t n) {
+    for (; k > 0 && s; k--) { s = strchr(s, '\x1f'); if (s) s++; }
+    if (!s) { out[0] = 0; return; }
+    size_t l = strcspn(s, "\x1f"); if (l >= n) l = n - 1;
+    memcpy(out, s, l); out[l] = 0;
+}
+static void nb_show(int i, const char *path, const char *id, const char *icon, const char *title, const char *body, const char *thumb) {
+    snprintf(nb.path, sizeof nb.path, "%s", path); snprintf(nb.id, sizeof nb.id, "%s", id); snprintf(nb.icon, sizeof nb.icon, "%s", icon ? icon : "");
+    snprintf(nb.title, sizeof nb.title, "%s", title); snprintf(nb.body, sizeof nb.body, "%s", body); snprintf(nb.thumb, sizeof nb.thumb, "%s", thumb ? thumb : "");
+    nb.on = 1; nb.client = i; nb.t0 = now(); nb.hide_t0 = 0; nb.down_t = 0;
     double w = fmin(dev.width - 16, 400);
     nb.r = (struct rectf){ (dev.width - w) / 2, fmax(dev.safe_top, 20) + 2, w, 76 };
-    fprintf(stderr, "isim shell: notification banner from %s: %s\n", clients[i].bundle, nb.title);
+    fprintf(stderr, "isim shell: notification banner from %s: %s\n", path, nb.title);
 }
+static void nb_post(int i, const struct shell_msg *m) {
+    char id[512], icon[512], thumb[512];
+    field(m->a, 0, id, sizeof id); field(m->a, 1, icon, sizeof icon); field(m->a, 3, thumb, sizeof thumb);
+    nb_show(i, clients[i].bundle, id, icon, m->b, m->c, thumb);
+}
+static void nb_thumb(cairo_t *c, const char *path, double x, double y, double s);   /* shell_system.inc */
 static void nb_text(cairo_t *c, const char *utf8, double x, double y, double w, double size, int bold, int lines, double gray, int center) {
     PangoLayout *l = pango_cairo_create_layout(c);
     PangoFontDescription *fd = pango_font_description_new();
@@ -230,9 +248,11 @@ static void nb_draw(void) {
     }
     cairo_restore(c);
     if (icon) cairo_surface_destroy(icon);
+    int th = nb.thumb[0] != 0;
     nb_text(c, nb.title, r.x + 60, r.y + 12, r.w - 120, 15, 1, 1, 0.0, 0);
     nb_text(c, "now", r.x + r.w - 54, r.y + 13, 40, 13, 0, 1, 0.45, 0);
-    nb_text(c, nb.body, r.x + 60, r.y + 33, r.w - 74, 15, 0, 2, 0.0, 0);
+    nb_text(c, nb.body, r.x + 60, r.y + 33, r.w - 74 - (th ? 46 : 0), 15, 0, 2, 0.0, 0);
+    if (th) nb_thumb(c, nb.thumb, r.x + r.w - 14 - 38, r.y + r.h - 14 - 38, 38);
     cairo_destroy(c);
     present_comp();
 }
@@ -240,17 +260,20 @@ static void nb_hide(void) { if (nb.on && !nb.hide_t0) nb.hide_t0 = now(); }
 /* per loop iteration: animate, expire */
 static void nb_tick(void) {
     if (!nb.on) return;
-    if (nb.client < 0 || nb.client >= nclients || !clients[nb.client].alive) { nb.on = 0; shell_show(active); return; }
+    if (nb.client >= nclients || (nb.client >= 0 && !clients[nb.client].alive)) { nb.on = 0; shell_show(active); return; }
     double t = now() - nb.t0;
     if (!nb.hide_t0 && t > NB_SHOW) nb_hide();
     if (nb.hide_t0 && now() - nb.hide_t0 > 0.3) { nb.on = 0; if (anim.kind == ANIM_NONE) shell_show(active); return; }
     if (nb_visible() && (t < 0.8 || nb.hide_t0)) nb_draw();
 }
 /* tapping the banner opens the app and delivers the response */
+static int nc_find(const char *path, const char *id);
+static void nc_open(int idx); static void nx_open_item(int idx);
 static void nb_open(void) {
     int i = nb.client;
     nb.on = 0;
-    if (i < 0 || i >= nclients || !clients[i].alive) { shell_show(active); return; }
+    if (i < 0) { int k = nc_find(nb.path, nb.id); if (k >= 0) nc_open(k); else shell_show(active); return; }   /* the app is not running */
+    if (i >= nclients || !clients[i].alive) { shell_show(active); return; }
     fprintf(stderr, "isim shell: opened notification %s\n", nb.id);
     int from_home = active == 0;
     if (active != i) { if (active >= 0) shell_send(active, EV_BACKGROUND); active = i; shell_send(i, EV_FOREGROUND); }
@@ -264,11 +287,23 @@ static void nb_open(void) {
 static int nb_input(const struct isim_event *ev) {
     static int down; static double y0;
     if (!nb_visible() || nb.hide_t0) { down = 0; return 0; }
-    if ((ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) && !strcmp(ev->text, "isim-notification-banner")) { if (ev->type == EV_ID_UP) nb_open(); return 1; }
+    /* a long press expands the notification (its actions, a Content extension's view) */
+    if ((ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) && !strcmp(ev->text, "isim-notification-banner")) {
+        if (ev->type == EV_ID_DOWN) nb.down_t = now();
+        else if (nb.down_t && now() - nb.down_t >= 0.5) { nb.on = 0; int k = nc_find(nb.path, nb.id); if (k >= 0) nx_open_item(k); }
+        else nb_open();
+        return 1;
+    }
     int inside = ev->x >= nb.r.x && ev->x <= nb.r.x + nb.r.w && ev->y >= nb.r.y && ev->y <= nb.r.y + nb.r.h;
-    if (ev->type == EV_TOUCH_DOWN && inside) { down = 1; y0 = ev->y; return 1; }
+    if (ev->type == EV_TOUCH_DOWN && inside) { down = 1; y0 = ev->y; nb.down_t = now(); return 1; }
     if (down && ev->type == EV_TOUCH_MOVE) return 1;
-    if (down && ev->type == EV_TOUCH_UP) { down = 0; if (y0 - ev->y > 10) nb_hide(); else nb_open(); return 1; }
+    if (down && ev->type == EV_TOUCH_UP) {
+        down = 0;
+        if (y0 - ev->y > 10) nb_hide();
+        else if (now() - nb.down_t >= 0.5) { nb.on = 0; int k = nc_find(nb.path, nb.id); if (k >= 0) nx_open_item(k); }
+        else nb_open();
+        return 1;
+    }
     return 0;
 }
 /* one animation frame; returns 0 when the animation has finished */
@@ -355,7 +390,8 @@ static int shell_spawn_at(int slot, const char *bundle, const char *exe, const c
     int idx = slot >= 0 ? slot : nclients;
     struct shell_client *c = &clients[idx];
     if (slot >= 0 && c->pixels) munmap(c->pixels, surface_bytes);
-    *c = (struct shell_client){ pid, sv[0], px, "", 1, 0, "", 0, 0, 1 };
+    *c = (struct shell_client){ .pid = pid, .sock = sv[0], .pixels = px, .alive = 1, .orient = 1 };
+    if (spawn_background) { c->bg = 1; c->bg_t = now(); }       /* launched into the background: it can be suspended */
     snprintf(c->bundle, sizeof c->bundle, "%s", bundle);
     snprintf(c->exe, sizeof c->exe, "%s", exe);
     fprintf(stderr, "isim shell: launched %s (pid %d)\n", bundle, pid);
@@ -464,6 +500,9 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     surface_bytes = (size_t)surf_w * surf_h * 4;
     pctx = NULL;
 
+    { const char *d = getenv("ISIM_DATA"); char p[1024];        /* `isim push` checks that a device is running */
+      if (d && *d) { snprintf(p, sizeof p, "%s/Library/isim", d); mkdir(p, 0755); snprintf(p, sizeof p, "%s/Library/isim/shell.pid", d);
+                     FILE *f = fopen(p, "w"); if (f) { fprintf(f, "%d\n", (int)getpid()); fclose(f); } } }
     if (shell_spawn(springboard_bundle, springboard_exe, NULL) != 0) return 1;
     active = 0;
     if (open_args) {                       /* isim run: open the app over the home screen, like Xcode */

@@ -45,6 +45,7 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options;
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
 - (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;
+- (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken;
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error;
 - (void)application:(UIApplication *)application performActionForShortcutItem:(UIApplicationShortcutItem *)shortcutItem completionHandler:(void (^)(BOOL succeeded))completionHandler;
 - (BOOL)application:(UIApplication *)application willContinueUserActivityWithType:(NSString *)userActivityType;
@@ -55,8 +56,11 @@ NS_SWIFT_UI_ACTOR
 - (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler;
 - (BOOL)application:(UIApplication *)application shouldSaveSecureApplicationState:(NSCoder *)coder;
 - (BOOL)application:(UIApplication *)application shouldRestoreSecureApplicationState:(NSCoder *)coder;
-/* isim: there is no APNs; isim's CloudKit delivers subscription notifications here, in-process */
+/* isim: there is no APNs; payloads come from `isim push` (in the foreground for every push, in the background for
+   "content-available": 1 with UIBackgroundModes remote-notification, launching the app in the background if needed).
+   isim's CloudKit also delivers subscription notifications here, in-process */
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler;
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo API_DEPRECATED("Use UserNotifications Framework's -[UNUserNotificationCenterDelegate willPresentNotification:withCompletionHandler:] or -[UNUserNotificationCenterDelegate didReceiveNotificationResponse:withCompletionHandler:] for user visible notifications and -[UIApplicationDelegate application:didReceiveRemoteNotification:fetchCompletionHandler:] for silent remote notifications", ios(3.0, 10.0));
 @property (nullable, nonatomic, strong) UIWindow *window;
 @end
 
@@ -76,10 +80,12 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) NSSet<UISceneSession *> *openSessions;
 @property (nonatomic, readonly) BOOL supportsMultipleScenes;
 @property (nonatomic, getter=isIdleTimerDisabled) BOOL idleTimerDisabled;
-@property (nonatomic) NSInteger applicationIconBadgeNumber;
+/* isim: shown on the home-screen icon when the app may badge (UNAuthorizationOptionBadge) */
+@property (nonatomic) NSInteger applicationIconBadgeNumber API_DEPRECATED("Use -[UNUserNotificationCenter setBadgeCount:withCompletionHandler:] instead.", ios(2.0, 17.0));
 - (BOOL)sendAction:(SEL)action to:(nullable id)target from:(nullable id)sender forEvent:(nullable UIEvent *)event;
 - (void)sendEvent:(UIEvent *)event;
-/* isim: push notifications are not available; registration fails with NSCocoaErrorDomain 3010 */
+/* isim: like the Simulator (Xcode 14+), registration gives a device token (the app needs the aps-environment
+   entitlement); ISIM_PUSH_REGISTRATION=fail makes it fail with NSCocoaErrorDomain 3010 */
 - (void)registerForRemoteNotifications;
 - (void)unregisterForRemoteNotifications;
 @property (nonatomic, readonly, getter=isRegisteredForRemoteNotifications) BOOL registeredForRemoteNotifications;
@@ -97,8 +103,10 @@ NS_SWIFT_UI_ACTOR
 - (void)setAlternateIconName:(nullable NSString *)alternateIconName completionHandler:(nullable void (^)(NSError * _Nullable error))completionHandler;
 @property (nullable, nonatomic, readonly) NSString *alternateIconName;
 @end
-/* background execution. isim does not suspend apps; background tasks expire after backgroundTimeRemaining
-   (30 s, ISIM_BACKGROUND_TASK_SECONDS) like iOS */
+/* background execution. Under `isim boot` an app in the background is suspended a few seconds after it got there
+   (ISIM_SUSPEND_SECONDS, default 5; ISIM_SUSPEND=0 never) unless a background task, background audio or background
+   location updates keep it running; background tasks expire after backgroundTimeRemaining (30 s,
+   ISIM_BACKGROUND_TASK_SECONDS) like iOS */
 @interface UIApplication (UIBackgroundTasks)
 - (UIBackgroundTaskIdentifier)beginBackgroundTaskWithExpirationHandler:(void (^ _Nullable)(void))handler;
 - (UIBackgroundTaskIdentifier)beginBackgroundTaskWithName:(nullable NSString *)taskName expirationHandler:(void (^ _Nullable)(void))handler;

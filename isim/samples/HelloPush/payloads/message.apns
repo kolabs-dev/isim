@@ -1,0 +1,10 @@
+{
+  "apns-collapse-id": "msg-1",
+  "aps": {
+    "alert": { "title": "Hello", "body": "From isim push" },
+    "badge": 3,
+    "sound": "default",
+    "category": "MESSAGE"
+  },
+  "item": "m1"
+}

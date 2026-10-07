@@ -25,7 +25,15 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     open var distanceFilter: CLLocationDistance = kCLDistanceFilterNone
     open var activityType: CLActivityType = .other
     open var pausesLocationUpdatesAutomatically = true
-    open var allowsBackgroundLocationUpdates = false
+    /// isim: needs "location" in UIBackgroundModes (iOS raises NSInternalInconsistencyException); with it, updates
+    /// continue in the background and keep the app from being suspended (the blue indicator shows for When In Use)
+    open var allowsBackgroundLocationUpdates = false {
+        didSet {
+            if allowsBackgroundLocationUpdates && !_CLSim.backgroundMode {
+                NSLog("isim CoreLocation: allowsBackgroundLocationUpdates needs \"location\" in Info.plist UIBackgroundModes (iOS raises NSInternalInconsistencyException); ignored")
+            }
+        }
+    }
     open var showsBackgroundLocationIndicator = false
     open var headingFilter: CLLocationDegrees = 1
     open var headingOrientation: CLDeviceOrientation = .portrait
@@ -126,6 +134,8 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
 
     /// delivers `fix` (nil: no location available) — main thread
     func deliver(_ fix: CLLocation?) {
+        // in the background only managers allowed to update there get locations (iOS stops the others)
+        if _CLSim.inBackground && !(allowsBackgroundLocationUpdates && _CLSim.backgroundMode) && !significant && monitoredRegions.isEmpty { return }
         guard _CLAuth.authorized else {
             if _CLAuth.status == .denied || _CLAuth.status == .restricted, updating || once || significant {
                 once = false
@@ -256,8 +266,26 @@ final class _CLSim: @unchecked Sendable {
     static let defaultCoordinate = CLLocationCoordinate2D(latitude: 37.334900, longitude: -122.009020)   // Apple Park
     static var filePath: String { (_Privacy.dataDir as NSString).appendingPathComponent("Library/isim/SimulatedLocation") }
 
+    static var backgroundMode: Bool { (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("location") == true }
+    static var inBackground: Bool { MainActor.assumeIsolated { UIApplication.shared.applicationState == .background } }
+    nonisolated(unsafe) static var backgroundSessions = 0         // CLBackgroundActivitySession
+    /// UIKit asks what keeps the app running in the background (_IsimBackgroundQuery): background location updates
+    func answerBackgroundQuery(_ q: NSMutableDictionary) {
+        guard _CLSim.backgroundMode, _CLAuth.authorized else { return }
+        let ms = managers.compactMap(\.m).filter { $0.updating && $0.allowsBackgroundLocationUpdates }
+        let sessions = _CLSim.backgroundSessions > 0 && !listeners.isEmpty
+        guard !ms.isEmpty || sessions else { return }
+        q.setObject(NSNumber(value: true), forKey: "location" as NSString)
+        if _CLAuth.status == .authorizedWhenInUse || sessions || ms.contains(where: { $0.showsBackgroundLocationIndicator }) { q.setObject(NSNumber(value: true), forKey: "locationIndicator" as NSString) }
+    }
+
     private init() {
         initialFile = try? String(contentsOfFile: _CLSim.filePath, encoding: .utf8)
+        defer {
+            NotificationCenter.default.addObserver(forName: Notification.Name("_IsimBackgroundQuery"), object: nil, queue: nil) { n in
+                if let q = n.object as? NSMutableDictionary { _CLSim.shared.answerBackgroundQuery(q) }
+            }
+        }
         if let e = _Privacy.env("ISIM_LOCATION") {
             var spec = e, speed = 10.0
             if let at = spec.firstIndex(of: "@") { speed = Double(spec[spec.index(after: at)...]) ?? 10; spec = String(spec[..<at]) }
@@ -419,6 +447,19 @@ public struct CLLocationUpdate: Sendable {
         }
     }
     public static func liveUpdates(_ configuration: LiveConfiguration = .default) -> Updates { Updates(configuration: configuration) }
+}
+
+/// iOS 17: keeps live updates (CLLocationUpdate.liveUpdates) going in the background, with the blue indicator
+/// (isim: the app is not suspended while one is valid and it has "location" in UIBackgroundModes).
+open class CLBackgroundActivitySession: NSObject, @unchecked Sendable {
+    private var valid = true
+    public override init() {
+        super.init()
+        _CLSim.backgroundSessions += 1
+        NSLog("isim CoreLocation: background activity session started%@", _CLSim.backgroundMode ? "" : " (no \"location\" in UIBackgroundModes: it has no effect)")
+    }
+    open func invalidate() { if valid { valid = false; _CLSim.backgroundSessions -= 1 } }
+    deinit { invalidate() }
 }
 
 open class CLServiceSession: NSObject, @unchecked Sendable {

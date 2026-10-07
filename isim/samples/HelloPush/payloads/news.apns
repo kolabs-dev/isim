@@ -1,0 +1,10 @@
+{
+  "Simulator Target Bundle": "dev.isim.samples.HelloPush",
+  "apns-collapse-id": "news-1",
+  "aps": {
+    "alert": "Breaking: isim delivers pushes",
+    "badge": 7,
+    "category": "NEWS"
+  },
+  "item": "n1"
+}

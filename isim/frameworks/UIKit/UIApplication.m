@@ -525,19 +525,18 @@ BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BO
     if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion([self canOpenURL:url]); });
 }
 - (void)_isim_addScene:(UIScene *)s session:(UISceneSession *)ss { [_scenes addObject:s]; [_sessions addObject:ss]; }
-/* push notifications need APNs and an Apple developer identity: registration always fails, like the old Simulator */
-- (void)registerForRemoteNotifications {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSError *e = [NSError errorWithDomain:@"NSCocoaErrorDomain" code:3010
-                                     userInfo:@{ NSLocalizedDescriptionKey: @"remote notifications are not supported on isim" }];
-        NSLog(@"isim: registerForRemoteNotifications: %@", e.localizedDescription);
-        id<UIApplicationDelegate> d = self.delegate;
-        if ([d respondsToSelector:@selector(application:didFailToRegisterForRemoteNotificationsWithError:)])
-            [d application:self didFailToRegisterForRemoteNotificationsWithError:e];
-    });
-}
-- (void)unregisterForRemoteNotifications {}
-- (BOOL)isRegisteredForRemoteNotifications { return NO; }
+/* push notifications (UISystemIntegration.m): a device token, like the Simulator (Xcode 14+); payloads from `isim push` */
+void isim_sys_register_remote(void);
+void isim_sys_unregister_remote(void);
+BOOL isim_sys_remote_registered(void);
+NSInteger isim_sys_badge(void);
+void isim_sys_set_badge(NSInteger n);
+- (void)registerForRemoteNotifications { isim_sys_register_remote(); }
+- (void)unregisterForRemoteNotifications { isim_sys_unregister_remote(); }
+- (BOOL)isRegisteredForRemoteNotifications { return isim_sys_remote_registered(); }
+/* the home screen shows the badge when the app may badge (UNAuthorizationOptionBadge) */
+- (NSInteger)applicationIconBadgeNumber { return isim_sys_badge(); }
+- (void)setApplicationIconBadgeNumber:(NSInteger)n { isim_sys_set_badge(n); }
 @end
 
 /* ================= UIApplicationMain + run loop ================= */
@@ -824,8 +823,9 @@ static void connect_scene(UIApplication *app, NSDictionary *manifest);
 static void each_scene_delegate(void (^f)(UIScene *, id<UISceneDelegate>)) {
     for (UIScene *s in UIApplication.sharedApplication.connectedScenes) f(s, s.delegate);
 }
+BOOL isim_sys_background_audio(void);
 static void enter_background(void) {
-    isim_audio_suspend(1);          /* like an interrupted audio session */
+    if (!isim_sys_background_audio()) isim_audio_suspend(1);       /* like an interrupted audio session (UIBackgroundModes audio + a playback category keep playing) */
     if (backgrounded) return;
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;

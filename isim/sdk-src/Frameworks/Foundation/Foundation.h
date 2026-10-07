@@ -50,3 +50,5 @@
 #import <Foundation/NSValueTransformer.h>
 #import <Foundation/NSUbiquitousKeyValueStore.h>
 #import <Foundation/NSUserActivity.h>
+#import <Foundation/NSExtensionContext.h>
+#import <Foundation/NSJSONSerialization.h>

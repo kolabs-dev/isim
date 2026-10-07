@@ -68,14 +68,29 @@ open class AVAudioSession: NSObject {
     open var outputVolume: Float { 1 }
     open var isOtherAudioPlaying: Bool { false }
     open var secondaryAudioShouldBeSilencedHint: Bool { false }
-    open func setCategory(_ category: Category) throws { self.category = category }
-    open func setCategory(_ category: Category, options: CategoryOptions = []) throws { self.category = category; categoryOptions = options }
-    open func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws { self.category = category; self.mode = mode; categoryOptions = options }
+    open func setCategory(_ category: Category) throws { self.category = category; _IsimBackgroundAudio.publish(category) }
+    open func setCategory(_ category: Category, options: CategoryOptions = []) throws { self.category = category; categoryOptions = options; _IsimBackgroundAudio.publish(category) }
+    open func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws { self.category = category; self.mode = mode; categoryOptions = options; _IsimBackgroundAudio.publish(category) }
     open func setMode(_ mode: Mode) throws { self.mode = mode }
     open func setActive(_ active: Bool, options: SetActiveOptions = []) throws {}
     public static let interruptionNotification = Notification.Name("AVAudioSessionInterruptionNotification")
     public static let routeChangeNotification = Notification.Name("AVAudioSessionRouteChangeNotification")
     public static let silenceSecondaryAudioHintNotification = Notification.Name("AVAudioSessionSilenceSecondaryAudioHintNotification")
+}
+
+/// The session category for UIKit's background execution (UIBackgroundModes audio + a playback category keep the app
+/// playing in the background instead of being suspended): UIKit asks with the _IsimBackgroundQuery notification.
+enum _IsimBackgroundAudio {
+    nonisolated(unsafe) static var current = ""
+    nonisolated(unsafe) static var registered = false
+    static func publish(_ c: AVAudioSession.Category) {
+        current = c.rawValue
+        guard !registered else { return }
+        registered = true
+        NotificationCenter.default.addObserver(forName: Notification.Name("_IsimBackgroundQuery"), object: nil, queue: nil) { n in
+            (n.object as? NSMutableDictionary)?.setObject(_IsimBackgroundAudio.current as NSString, forKey: "audioCategory" as NSString)
+        }
+    }
 }
 
 // MARK: - Formats and buffers

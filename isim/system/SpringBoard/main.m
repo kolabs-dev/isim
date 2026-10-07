@@ -119,7 +119,20 @@ NSString *HSCategoryName(NSString *c) {
 }
 
 /* icon + label, tappable */
-@implementation HSIcon { UIImageView *_image; UILabel *_label, *_letter; }
+@implementation HSIcon { UIImageView *_image; UILabel *_label, *_letter, *_count; }
+- (void)setBadgeCount:(NSInteger)n {
+    if (n <= 0) { _count.hidden = YES; _count.text = nil; return; }
+    if (!_count) {
+        _count = [UILabel new];
+        _count.backgroundColor = UIColor.systemRedColor; _count.textColor = UIColor.whiteColor;
+        _count.font = [UIFont systemFontOfSize:15 weight:UIFontWeightRegular]; _count.textAlignment = NSTextAlignmentCenter;
+        _count.clipsToBounds = YES; _count.userInteractionEnabled = NO;
+        _count.accessibilityIdentifier = [@"badge-" stringByAppendingString:_app.bundleID ?: @""];
+        [self addSubview:_count];
+    }
+    _count.hidden = NO; _count.text = n > 99999 ? @"99999+" : [NSString stringWithFormat:@"%ld", (long)n];
+    [self setNeedsLayout];
+}
 @synthesize badge = _badge;
 - (void)setEditing:(BOOL)e { _editing = e; _badge.hidden = !e || _app.system; [self bringSubviewToFront:_badge]; }
 - (instancetype)initWithApp:(HSApp *)app size:(CGFloat)s label:(BOOL)label {
@@ -164,6 +177,7 @@ NSString *HSCategoryName(NSString *c) {
         _badge.hidden = YES;
         _badge.accessibilityIdentifier = [@"remove-" stringByAppendingString:app.bundleID];
         [self addSubview:_badge];
+        [self setBadgeCount:HSBadgeCount(app)];
     }
     return self;
 }
@@ -172,6 +186,11 @@ NSString *HSCategoryName(NSString *c) {
     CGFloat s = _image.bounds.size.width, w = self.bounds.size.width;
     _image.frame = CGRectMake((w - s) / 2, 0, s, s);
     _badge.frame = CGRectMake((w - s) / 2 - 8, -8, 22, 22);
+    if (_count && !_count.hidden) {                 /* the badge: a red capsule over the top-right corner */
+        CGFloat h = 24, bw = MAX(h, [_count sizeThatFits:CGSizeMake(200, h)].width + 14);
+        _count.frame = CGRectMake((w - s) / 2 + s - bw + 10, -8, bw, h); _count.layer.cornerRadius = h / 2;
+        [self bringSubviewToFront:_count];
+    }
     _label.frame = CGRectMake(-10, s + 5, w + 20, 16);
 }
 - (void)setHighlighted:(BOOL)h { [super setHighlighted:h]; _image.alpha = h ? 0.6 : 1; }
@@ -237,6 +256,7 @@ static NSString *icon_state_file(void) {
     }];
     [self installSystemObservers];
     [self installWidgetObservers];
+    [self installNotificationObservers];
     [self reload];
 }
 - (void)pagerPulledDown:(HSPager *)pager { if (!_editing) [self showSpotlight]; }

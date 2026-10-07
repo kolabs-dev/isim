@@ -28,7 +28,10 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal);
 @property (nonatomic, readonly) UIButton *badge;
 - (instancetype)initWithApp:(HSApp *)app size:(CGFloat)s label:(BOOL)label;
 - (UIImageView *)iconView;
+- (void)setBadgeCount:(NSInteger)count;          /* the red badge (0: none) */
 @end
+/* the app's icon badge (<container>/Library/isim/Badge.plist, written by UIKit or by the home screen for a push) */
+NSInteger HSBadgeCount(HSApp *app);
 /* a folder: its apps' icons in a 3x3 grid on a translucent square (SBFolders.m) */
 @interface HSFolderIcon : UIControl
 @property (nonatomic, strong) NSMutableDictionary *folder;      /* { folder = name; apps = (bundle ids) } */
@@ -104,6 +107,9 @@ NSString *HSCategoryName(NSString *category);
 - (NSMutableArray *)_layoutItems;
 - (void)_layoutChanged;
 - (BOOL)_isEditing;
+@end
+@interface HomeViewController (Notifications)
+- (void)installNotificationObservers;    /* remote notifications (push routing), badges, expanded notifications */
 @end
 @interface HomeViewController (Spotlight)
 - (void)showSpotlight;

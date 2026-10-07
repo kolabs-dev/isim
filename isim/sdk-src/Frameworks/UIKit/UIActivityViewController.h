@@ -1,6 +1,8 @@
 #pragma once
-/* isim: UIActivityViewController — a share sheet with a preview of the items, Copy (to UIPasteboard.general) and
-   the app's own UIActivity objects. There are no other apps to share to on isim (no AirDrop, Messages, Mail rows). */
+/* isim: UIActivityViewController — a share sheet with a preview of the items, a row of Share extensions (the app's own
+   and, under `isim boot`, those of installed apps), Copy (to UIPasteboard.general), Action extensions and the app's own
+   UIActivity objects. Extensions are filtered by their NSExtensionActivationRule and hosted in the app's process (their
+   view controller is presented as a sheet; completeRequest / cancelRequest come back here). No AirDrop, Messages, Mail. */
 #import <UIKit/UIViewController.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIImage, UIActivityViewController;

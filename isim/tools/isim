@@ -16,6 +16,8 @@
 #   isim storekit <app> list|refund|expire|cancel|resume|clear ...   local StoreKit Transaction Manager
 #   isim gamecenter <app> saved-games|conflict|reset ...              local Game Center data
 #   isim openurl <URL> [--control FIFO]   open a URL (custom scheme or universal link) in the running device's foreground app
+#   isim push [BUNDLE_ID] <payload.apns|->   send a remote notification payload (JSON with an "aps" dictionary; without
+#                                BUNDLE_ID its "Simulator Target Bundle" key names the app), like `xcrun simctl push`
 #   isim appleid <app> list|revoke|reset         local Sign in with Apple state (revoke = Stop Using Apple ID)
 #   isim metrickit               deliver sample MetricKit payloads to running apps (Debug > Simulate MetricKit Payloads)
 #   isim version                 print the isim version and the iOS versions it supports
@@ -181,6 +183,26 @@ case "$cmd" in
       $( [ -d "$SDK/usr/lib/swift/_StringProcessing.swiftmodule" ] || echo -Xfrontend -disable-implicit-string-processing-module-import ) "$@" ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
+  push)      # isim push [BUNDLE_ID] payload.apns|-: queue a payload for the device's home screen (like `xcrun simctl push booted`)
+    [ $# -ge 1 ] || { echo "usage: isim push [BUNDLE_ID] <payload.apns|->" >&2; exit 2; }
+    if [ $# -ge 2 ]; then bundle=$1; src=$2; else bundle=; src=$1; fi
+    q=$DATA/Library/isim/PushQueue; mkdir -p "$q"
+    tmp=$(mktemp "$q/.incoming.XXXXXX")
+    if [ "$src" = - ]; then cat > "$tmp"; else cp -- "$src" "$tmp" || { rm -f "$tmp"; exit 1; }; fi
+    target=$(python3 - "$tmp" "$bundle" <<'PY'
+import json, sys
+try: p = json.load(open(sys.argv[1]))
+except Exception as e: sys.exit("isim push: the payload is not JSON: %s" % e)
+if not isinstance(p, dict) or not isinstance(p.get("aps"), dict): sys.exit('isim push: the payload needs an "aps" dictionary')
+b = sys.argv[2] or p.get("Simulator Target Bundle") or ""
+if not b: sys.exit('isim push: give a bundle identifier, or add "Simulator Target Bundle" to the payload')
+print(b)
+PY
+) || { rm -f "$tmp"; exit 1; }
+    mv "$tmp" "$q/$(date +%s%N)-$target.apns"
+    if [ -f "$DATA/Library/isim/shell.pid" ] && kill -0 "$(cat "$DATA/Library/isim/shell.pid")" 2>/dev/null; then
+      echo "isim push: sent to $target"
+    else echo "isim push: queued for $target (no device is running; it is delivered when the device boots: isim boot)"; fi ;;
   openurl)   # isim openurl URL [--control FIFO]: open a URL in the foreground app of a device started with --control FIFO
     url=${1:?usage: isim openurl <URL> [--control FIFO]}; shift
     [ "${1:-}" = "--control" ] && ISIM_CONTROL=$2
@@ -198,5 +220,5 @@ case "$cmd" in
     [ -d "$f" ] && f=$f/$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$f/Info.plist")
     llvm-objdump --macho --private-headers "$f" | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos|sdk'
     llvm-otool -L "$f" | tail -n +2 ;;
-  *) sed -n '2,27p' "$0" ;;
+  *) sed -n '2,30p' "$0" ;;
 esac
