@@ -96,7 +96,8 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
 | Tab bar (iPhone) | material bar | material bar | floating Liquid Glass capsule, selected tab on a pill, search/prominent role tabs on their own glass circle (UIKit and SwiftUI) | adapted, verified (pixels) |
 | Tab bar (iPad) | bottom bar | floating capsule at the top, titles only | glass capsule at the top | adapted, proposed |
 | Navigation bar | material when scrolled | same | scroll-edge fade, glass back button (chevron only), glass bar items (Done items prominent) | adapted, verified (frames) |
-| Toolbars | material bar | same | items on glass capsules, edge fade | adapted, proposed |
+| Toolbars | material bar | same | item groups on glass capsules (split by `ToolbarSpacer`), edge fade (`scrollEdgeEffectStyle(.hard)`: opaque edge) | adapted, verified (frames) |
+| SwiftUI tab bar extras (`tabViewBottomAccessory`, `tabBarMinimizeBehavior`), `backgroundExtensionEffect`, `GlassEffectContainer` merging | not available (compile-time) | same | glass accessory above the bar, minimized bar on scroll, mirrored blurred background in the safe area, merged glass shapes | adapted, verified (`tests/ui/tabs.sh`) |
 | Alerts | 270 pt card | same | 300 pt glass card, corner 34, leading text, capsule buttons, preferred action filled | adapted, verified (pixels) |
 | Action sheets, menus, sheets, popovers | classic | same | glass cards / larger corners | adapted, proposed |
 | Switch | 51 × 31 | same | 63 × 28, pill thumb | adapted, verified |
@@ -119,11 +120,14 @@ the WWDC25 material; exact metrics (corner radii, insets) are isim's estimates.
 
 Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "UIKit updates", June 2026):
 
-- implemented (adapted or stub): `TabRole.prominent`, `ToolbarItemVisibilityPriority` + `visibilityPriority(_:)`,
-  `ToolbarOverflowMenu`, `ToolbarItemPlacement.topBarPinnedTrailing`, `toolbarMinimizationBehavior(_:for:)`,
-  `swipeActionsContainer()`, `asyncImageURLSession(_:)`, `NavigationTransition.crossFade`;
+- implemented (adapted; verified by `tests/ui/tabs.sh` and `effects.sh` under `--os 27` / the default):
+  `TabRole.prominent`, `ToolbarItemVisibilityPriority` + `visibilityPriority(_:)` (low-priority items move to an
+  overflow menu), `ToolbarOverflowMenu`, `ToolbarItemPlacement.topBarPinnedTrailing`,
+  `toolbarMinimizationBehavior(_:for:)` (the bottom bar slides away, the navigation bar fades while scrolling),
+  `swipeActions` on any view + `swipeActionsContainer()`, `asyncImageURLSession(_:)`, `AsyncImage(request:)`,
+  `NavigationTransition.crossFade` (proposed);
 - not done (listed as ❌ in [COVERAGE.md](COVERAGE.md)): `ReadableDocument`/`WritableDocument`, `reorderable()`,
-  `reorderContainer`, swipe actions on any view, `AsyncImage(request:)`, the `@State` macro / `ContentBuilder`
+  `reorderContainer`, the `@State` macro / `ContentBuilder`
   (Xcode 27 compiler features), gesture input kinds, UIKit `NSTextTable` family, attachment view reuse,
   `allowsPointerDragBeforeLiftDelay`; iOS 27.1 (beta) iPhone Duo APIs (arrangement views, reserved regions, hinge,
   vertical bars);
