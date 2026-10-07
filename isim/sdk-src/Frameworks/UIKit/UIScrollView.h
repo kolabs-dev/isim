@@ -52,6 +52,26 @@ NS_SWIFT_UI_ACTOR
 - (void)scrollRectToVisible:(CGRect)rect animated:(BOOL)animated;
 - (void)flashScrollIndicators;
 @end
+/* iOS 26: the effect at each edge where content scrolls under bars (Liquid Glass). isim (adapted): navigation bars and
+   toolbars of a navigation controller draw it for its scroll view — automatic / soft: a fade, hard: an opaque band with
+   a divider, hidden: none (the bar stays transparent); iOS 17/18 keep the material bars */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_SWIFT_NAME(UIScrollEdgeEffect.Style)
+@interface UIScrollEdgeEffectStyle : NSObject
+@property (class, nonatomic, readonly) UIScrollEdgeEffectStyle *automaticStyle NS_SWIFT_NAME(automatic);
+@property (class, nonatomic, readonly) UIScrollEdgeEffectStyle *softStyle NS_SWIFT_NAME(soft);
+@property (class, nonatomic, readonly) UIScrollEdgeEffectStyle *hardStyle NS_SWIFT_NAME(hard);
+@end
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0))
+@interface UIScrollEdgeEffect : NSObject
+@property (nonatomic, strong) UIScrollEdgeEffectStyle *style;
+@property (nonatomic, getter=isHidden) BOOL hidden;
+@end
+@interface UIScrollView (UIScrollEdgeEffect)
+@property (nonatomic, readonly, strong) UIScrollEdgeEffect *topEdgeEffect API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, strong) UIScrollEdgeEffect *leftEdgeEffect API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, strong) UIScrollEdgeEffect *bottomEdgeEffect API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, strong) UIScrollEdgeEffect *rightEdgeEffect API_AVAILABLE(ios(26.0));
+@end
 @interface UIScrollView (UIZooming)
 /* zooming: the delegate's viewForZoomingInScrollView: scales between the minimum and maximum zoom scales */
 @property (nonatomic) CGFloat minimumZoomScale, maximumZoomScale, zoomScale;

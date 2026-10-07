@@ -53,6 +53,20 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, strong) UIColor *tintColor;
 @property (nonatomic, getter=isHidden) BOOL hidden;
 @end
+/* iOS 26: a badge on a bar button item (a count, a short string, or an indicator dot), drawn at its top trailing corner */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_SWIFT_NAME(UIBarButtonItem.Badge)
+@interface UIBarButtonItemBadge : NSObject <NSCopying>
++ (instancetype)badgeWithCount:(NSUInteger)count NS_SWIFT_NAME(_isim_count(_:));
++ (instancetype)badgeWithString:(NSString *)string NS_SWIFT_NAME(_isim_string(_:));
++ (instancetype)indicatorBadge NS_SWIFT_NAME(_isim_indicator());
+@property (nullable, nonatomic, copy) UIColor *backgroundColor;
+@property (nullable, nonatomic, copy) UIColor *foregroundColor;
+@property (nullable, nonatomic, copy) UIFont *font;
+@property (nullable, nonatomic, readonly, copy) NSString *stringValue;
+@end
+@interface UIBarButtonItem (UIBarButtonItemBadge)
+@property (nullable, nonatomic, copy) UIBarButtonItemBadge *badge API_AVAILABLE(ios(26.0));
+@end
 
 typedef NS_ENUM(NSInteger, UINavigationItemLargeTitleDisplayMode) {
     UINavigationItemLargeTitleDisplayModeAutomatic, UINavigationItemLargeTitleDisplayModeAlways, UINavigationItemLargeTitleDisplayModeNever, UINavigationItemLargeTitleDisplayModeInline };

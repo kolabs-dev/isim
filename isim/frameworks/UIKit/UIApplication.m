@@ -84,7 +84,45 @@
 - (UIUserInterfaceIdiom)userInterfaceIdiom { return [self _pad] ? UIUserInterfaceIdiomPad : UIUserInterfaceIdiomPhone; }
 - (BOOL)isMultitaskingSupported { return YES; }
 - (NSString *)_isim_deviceName { return @(isim_ui_device()->name); }
+/* the simulated battery: ISIM_BATTERY="LEVEL [unplugged|charging|full]" (default "1 full"); -1 / unknown unless monitored */
+static BOOL battery_monitoring;
+- (BOOL)isBatteryMonitoringEnabled { return battery_monitoring; }
+- (void)setBatteryMonitoringEnabled:(BOOL)e { battery_monitoring = e; }
+- (float)batteryLevel {
+    if (!battery_monitoring) return -1;
+    const char *e = getenv("ISIM_BATTERY");
+    float l = e && *e ? (float)atof(e) : 1;
+    return l < 0 ? 0 : l > 1 ? 1 : l;
+}
+- (UIDeviceBatteryState)batteryState {
+    if (!battery_monitoring) return UIDeviceBatteryStateUnknown;
+    const char *e = getenv("ISIM_BATTERY"), *w = e ? strchr(e, ' ') : NULL;
+    if (!w) return self.batteryLevel >= 1 ? UIDeviceBatteryStateFull : UIDeviceBatteryStateUnplugged;
+    while (*w == ' ') w++;
+    return !strcmp(w, "charging") ? UIDeviceBatteryStateCharging : !strcmp(w, "full") ? UIDeviceBatteryStateFull : UIDeviceBatteryStateUnplugged;
+}
+/* one UUID per vendor (bundle identifier without its last component), in the device data like iOS keeps it per device */
+- (NSUUID *)identifierForVendor {
+    NSString *bid = NSBundle.mainBundle.bundleIdentifier ?: @"app";
+    NSRange dot = [bid rangeOfString:@"." options:NSBackwardsSearch];
+    NSString *vendor = dot.location != NSNotFound ? [bid substringToIndex:dot.location] : bid;
+    extern NSString *isim_data_dir(void);
+    NSString *dir = [isim_data_dir() stringByAppendingPathComponent:@"Library/isim"];
+    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSString *file = [dir stringByAppendingPathComponent:@"vendor-identifiers.plist"];
+    NSMutableDictionary *ids = [[NSDictionary dictionaryWithContentsOfFile:file] mutableCopy] ?: [NSMutableDictionary dictionary];
+    NSString *u = ids[vendor];
+    if (![u isKindOfClass:[NSString class]] || ![[NSUUID alloc] initWithUUIDString:u]) { u = NSUUID.UUID.UUIDString; ids[vendor] = u; [ids writeToFile:file atomically:YES]; }
+    return [[NSUUID alloc] initWithUUIDString:u];
+}
+- (BOOL)isProximityMonitoringEnabled { return NO; }          /* no proximity sensor (like an iPad / the Simulator) */
+- (void)setProximityMonitoringEnabled:(BOOL)e {}
+- (BOOL)proximityState { return NO; }
+- (void)playInputClick {}
 @end
+NSNotificationName const UIDeviceBatteryStateDidChangeNotification = @"UIDeviceBatteryStateDidChangeNotification",
+    UIDeviceBatteryLevelDidChangeNotification = @"UIDeviceBatteryLevelDidChangeNotification",
+    UIDeviceProximityStateDidChangeNotification = @"UIDeviceProximityStateDidChangeNotification";
 
 @implementation UIScreen
 + (UIScreen *)mainScreen { static UIScreen *s; if (!s) s = [UIScreen new]; return s; }
@@ -436,6 +474,12 @@ static UIWindowScene *implicit_scene(void);
 UISceneSessionRole const UIWindowSceneSessionRoleApplication = @"UIWindowSceneSessionRoleApplication";
 NSNotificationName const UISceneWillConnectNotification = @"UISceneWillConnectNotification";
 NSNotificationName const UISceneDidActivateNotification = @"UISceneDidActivateNotification";
+NSNotificationName const UISceneDidDisconnectNotification = @"UISceneDidDisconnectNotification";
+NSNotificationName const UISceneWillDeactivateNotification = @"UISceneWillDeactivateNotification";
+NSNotificationName const UISceneWillEnterForegroundNotification = @"UISceneWillEnterForegroundNotification";
+NSNotificationName const UISceneDidEnterBackgroundNotification = @"UISceneDidEnterBackgroundNotification";
+UISceneSessionRole const UIWindowSceneSessionRoleExternalDisplayNonInteractive = @"UIWindowSceneSessionRoleExternalDisplayNonInteractive";
+NSErrorDomain const UISceneErrorDomain = @"UISceneErrorDomain";
 
 @interface UISceneSession ()
 @property (nonatomic, readwrite, weak) UIScene *scene;
@@ -467,26 +511,98 @@ static UIWindowScene *implicit_scene(void) {
     }
     return scene;
 }
-@implementation UIScene
+@implementation UIScene { NSString *_subtitle; }
 - (instancetype)initWithSession:(UISceneSession *)s connectionOptions:(UISceneConnectionOptions *)o {
     if ((self = [super init])) { _session = s; _activationState = UISceneActivationStateUnattached; _title = @""; }
     return self;
 }
 - (UIResponder *)nextResponder { return UIApplication.sharedApplication; }
+- (void)setTitle:(NSString *)t { _title = [t copy] ?: @""; }
+- (NSString *)subtitle { return _subtitle ?: @""; }
+- (void)setSubtitle:(NSString *)t { _subtitle = [t copy]; }
+- (void)openURL:(NSURL *)url options:(UISceneOpenExternalURLOptions *)options completionHandler:(void (^)(BOOL))completion {
+    NSDictionary *o = options.universalLinksOnly ? @{ UIApplicationOpenURLOptionUniversalLinksOnly: @YES } : @{};
+    [UIApplication.sharedApplication openURL:url options:o completionHandler:completion];
+}
 @end
-@implementation UIWindowScene { NSMutableArray<UIWindow *> *_windows; id<UITraitOverrides> _traitOverrides; }
+@implementation UISceneOpenExternalURLOptions @end
+@implementation UISceneActivationRequestOptions @end
+@implementation UIWindowSceneActivationRequestOptions @end
+@implementation UISceneDestructionRequestOptions @end
+@implementation UIWindowSceneDestructionRequestOptions
+- (instancetype)init { if ((self = [super init])) _windowDismissalAnimation = UIWindowSceneDismissalAnimationStandard; return self; }
+@end
+@interface UISceneSessionActivationRequest ()
+@property (nonatomic, readwrite) UISceneSessionRole role;
+@property (nonatomic, readwrite, nullable) UISceneSession *session;
+@end
+@implementation UISceneSessionActivationRequest
++ (instancetype)request { return [self requestWithRole:UIWindowSceneSessionRoleApplication]; }
++ (instancetype)requestWithRole:(UISceneSessionRole)role { UISceneSessionActivationRequest *r = [self new]; r.role = role; return r; }
++ (instancetype)requestWithSession:(UISceneSession *)session {
+    if (!session) return nil;
+    UISceneSessionActivationRequest *r = [self new]; r.role = session.role ?: UIWindowSceneSessionRoleApplication; r.session = session; return r;
+}
+- (id)copyWithZone:(NSZone *)z { UISceneSessionActivationRequest *r = [UISceneSessionActivationRequest new]; r.role = _role; r.session = _session; r.userActivity = _userActivity; r.options = _options; return r; }
+@end
+@implementation UISceneSizeRestrictions
+- (instancetype)init { if ((self = [super init])) _allowsFullScreen = YES; return self; }
+@end
+@interface UIWindowSceneGeometry ()
+@property (nonatomic, readwrite) CGRect systemFrame;
+@property (nonatomic, readwrite) UIInterfaceOrientation interfaceOrientation;
+@end
+@implementation UIWindowSceneGeometry
+- (BOOL)isInteractivelyResizing { return NO; }
+- (id)copyWithZone:(NSZone *)z { return self; }
+@end
+/* a scene's coordinate space: its frame on the screen (split view) */
+@interface __IsimSceneSpace : NSObject <UICoordinateSpace>
+@property (nonatomic) CGRect frame;
+@end
+@implementation __IsimSceneSpace
+- (CGRect)bounds { return (CGRect){ CGPointZero, _frame.size }; }
+static CGPoint space_to_screen(id<UICoordinateSpace> s, CGPoint p) {
+    if ([(id)s isKindOfClass:[__IsimSceneSpace class]]) return CGPointMake(p.x + ((__IsimSceneSpace *)s).frame.origin.x, p.y + ((__IsimSceneSpace *)s).frame.origin.y);
+    if ([(id)s isKindOfClass:[UIView class]]) { UIView *v = (UIView *)s; CGPoint w = [v convertPoint:p toView:nil]; CGRect wf = v.window.frame; return CGPointMake(w.x + wf.origin.x, w.y + wf.origin.y); }
+    return p;
+}
+static CGPoint space_from_screen(id<UICoordinateSpace> s, CGPoint p) {
+    if ([(id)s isKindOfClass:[__IsimSceneSpace class]]) return CGPointMake(p.x - ((__IsimSceneSpace *)s).frame.origin.x, p.y - ((__IsimSceneSpace *)s).frame.origin.y);
+    if ([(id)s isKindOfClass:[UIView class]]) { UIView *v = (UIView *)s; CGRect wf = v.window.frame; return [v convertPoint:CGPointMake(p.x - wf.origin.x, p.y - wf.origin.y) fromView:nil]; }
+    return p;
+}
+- (CGPoint)convertPoint:(CGPoint)p toCoordinateSpace:(id<UICoordinateSpace>)s { return space_from_screen(s, space_to_screen(self, p)); }
+- (CGPoint)convertPoint:(CGPoint)p fromCoordinateSpace:(id<UICoordinateSpace>)s { return space_from_screen(self, space_to_screen(s, p)); }
+@end
+@implementation UIWindowScene { NSMutableArray<UIWindow *> *_windows; id<UITraitOverrides> _traitOverrides; CGRect _isimFrame; BOOL _isimHasFrame;
+    UISceneSizeRestrictions *_sizeRestrictions; __IsimSceneSpace *_space; }
 - (NSMutableArray *)valueForKey_isimWindows { if (!_windows) _windows = [NSMutableArray array]; return _windows; }
 - (UIScreen *)screen { return UIScreen.mainScreen; }
 - (NSArray *)windows { return [_windows copy] ?: @[]; }
 - (UIWindow *)keyWindow { for (UIWindow *w in _windows) if (w.isKeyWindow) return w; return nil; }
+/* the scene's frame on the screen: the whole screen, or its side of a split view */
+- (CGRect)_isim_frame { return _isimHasFrame ? _isimFrame : UIScreen.mainScreen.bounds; }
+- (void)_isim_setFrame:(CGRect)f { _isimFrame = f; _isimHasFrame = YES; }
+- (BOOL)_isim_hasFrame { return _isimHasFrame; }
 - (UITraitCollection *)_isim_traitsForWindowSize:(CGSize)size { return isim_ui_apply_overrides(isim_ui_traits_for_size(size), _traitOverrides, UIUserInterfaceStyleUnspecified); }
-- (UITraitCollection *)traitCollection { return [self _isim_traitsForWindowSize:[(id<UICoordinateSpace>)self.coordinateSpace bounds].size]; }
+- (UITraitCollection *)traitCollection { return [self _isim_traitsForWindowSize:[self _isim_frame].size]; }
 - (id<UITraitOverrides>)traitOverrides {
     if (!_traitOverrides) _traitOverrides = isim_ui_new_trait_overrides(^{ isim_ui_traits_invalidate(nil); isim_ui_set_needs_display(); });
     return _traitOverrides;
 }
 - (void)updateTraitsIfNeeded { isim_ui_traits_flush(); }
-- (id)coordinateSpace { return UIScreen.mainScreen.coordinateSpace; }
+- (id<UICoordinateSpace>)coordinateSpace { if (!_space) _space = [__IsimSceneSpace new]; _space.frame = [self _isim_frame]; return _space; }
+- (UISceneSizeRestrictions *)sizeRestrictions {
+    if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad) return nil;      /* iPhone scenes are not resizable */
+    if (!_sizeRestrictions) { _sizeRestrictions = [UISceneSizeRestrictions new]; _sizeRestrictions.maximumSize = UIScreen.mainScreen.bounds.size; }
+    return _sizeRestrictions;
+}
+- (UIWindowSceneGeometry *)effectiveGeometry {
+    UIWindowSceneGeometry *g = [UIWindowSceneGeometry new];
+    g.systemFrame = [self _isim_frame]; g.interfaceOrientation = self.interfaceOrientation;
+    return g;
+}
 @end
 
 /* ================= UIApplication ================= */
@@ -525,7 +641,12 @@ static BOOL status_bar_hidden;
 - (NSArray *)windows { return [_allWindows copy]; }
 - (NSSet *)connectedScenes { return [_scenes copy]; }
 - (NSSet *)openSessions { return [_sessions copy]; }
-- (BOOL)supportsMultipleScenes { return NO; }
+/* Info.plist UIApplicationSceneManifest > UIApplicationSupportsMultipleScenes, on iPad (iPhones show one scene) */
+- (BOOL)supportsMultipleScenes {
+    NSDictionary *m = NSBundle.mainBundle.infoDictionary[@"UIApplicationSceneManifest"];
+    return [m isKindOfClass:[NSDictionary class]] && [m[@"UIApplicationSupportsMultipleScenes"] boolValue] && UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+}
+- (void)_isim_removeScene:(UIScene *)s session:(UISceneSession *)ss { if (s) [_scenes removeObject:s]; if (ss) [_sessions removeObject:ss]; }
 - (UIResponder *)nextResponder { return [self.delegate isKindOfClass:[UIResponder class]] ? (UIResponder *)self.delegate : nil; }
 - (void)sendEvent:(UIEvent *)e {}
 - (void)beginIgnoringInteractionEvents {}
@@ -559,7 +680,7 @@ BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BO
     else NSLog(@"isim: open URL %@%@", url.absoluteString, hostOpen ? @" (opened on the host)" : @" (not opened; ISIM_OPEN_URLS=1 opens http/mailto on the host)");
     if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion([self canOpenURL:url]); });
 }
-- (void)_isim_addScene:(UIScene *)s session:(UISceneSession *)ss { [_scenes addObject:s]; [_sessions addObject:ss]; }
+- (void)_isim_addScene:(UIScene *)s session:(UISceneSession *)ss { if (s) [_scenes addObject:s]; if (ss) [_sessions addObject:ss]; }
 /* push notifications (UISystemIntegration.m): a device token, like the Simulator (Xcode 14+); payloads from `isim push` */
 void isim_sys_register_remote(void);
 void isim_sys_unregister_remote(void);
@@ -579,6 +700,8 @@ static UITouch *cur_touch;
 static NSMutableArray<UIGestureRecognizer *> *cur_gestures;
 static NSTimeInterval last_tap_time; static CGPoint last_tap_point; static NSUInteger last_tap_count;
 
+BOOL isim_ui_window_on_screen(UIWindow *w);
+BOOL isim_ui_scenes_split(void);
 static UIWindow *top_window(void) {
     UIWindow *best = UIApplication.sharedApplication.keyWindow;
     for (UIWindow *w in UIApplication.sharedApplication.windows)
@@ -646,11 +769,12 @@ static void handle_touch(const struct isim_event *ev) {
             return a.windowLevel > b.windowLevel ? NSOrderedAscending : a.windowLevel < b.windowLevel ? NSOrderedDescending : NSOrderedSame; }];
         UIWindow *w = nil; UIView *hit = nil;
         for (UIWindow *c in ws) {
-            if (c.hidden || !CGRectContainsPoint(c.frame, p)) continue;
+            if (c.hidden || !CGRectContainsPoint(c.frame, p) || !isim_ui_window_on_screen(c)) continue;
             hit = [c hitTest:CGPointMake(p.x - c.frame.origin.x, p.y - c.frame.origin.y) withEvent:nil];
             if (hit) { w = c; break; }
         }
         if (!hit) { cur_touch = nil; return; }
+        if (!w.isKeyWindow && isim_ui_scenes_split() && w.windowScene && w.windowLevel == UIWindowLevelNormal) [w makeKeyWindow];   /* the touched side of a split view */
         cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y) time:ev->timestamp];
         [cur_touch _isim_setFinger:finger];
         [active_touches removeAllObjects];
@@ -824,7 +948,8 @@ static void render_frame(void) {
     isim_frame_begin();
     NSArray *ws = [UIApplication.sharedApplication.windows sortedArrayUsingComparator:^NSComparisonResult(UIWindow *a, UIWindow *b) {
         return a.windowLevel < b.windowLevel ? NSOrderedAscending : a.windowLevel > b.windowLevel ? NSOrderedDescending : NSOrderedSame; }];
-    for (UIWindow *w in ws) if (!w.hidden) [w _isim_renderFrame];
+    if (isim_ui_scenes_split()) { double black[4] = { 0, 0, 0, 1 }; CGRect sb = UIScreen.mainScreen.bounds; isim_gfx_fill_rounded(0, 0, sb.size.width, sb.size.height, 0, black); }   /* split view divider */
+    for (UIWindow *w in ws) if (!w.hidden && isim_ui_window_on_screen(w)) [w _isim_renderFrame];
     isim_frame_end();
 }
 
@@ -873,9 +998,11 @@ void isim_sys_mark_background(void);
 void isim_sys_entered_foreground(void);
 void isim_sys_event(const char *text);
 static NSDictionary *pending_scene_manifest;     /* launched in the background: the UI scene connects on first foreground */
-static void connect_scene(UIApplication *app, NSDictionary *manifest);
+void isim_ui_scenes_launch(NSDictionary *manifest);
+/* the scenes on screen (UIScenes section below): the app's foreground/background moves only them */
+static NSArray<UIScene *> *on_screen_scenes(void);
 static void each_scene_delegate(void (^f)(UIScene *, id<UISceneDelegate>)) {
-    for (UIScene *s in UIApplication.sharedApplication.connectedScenes) f(s, s.delegate);
+    for (UIScene *s in on_screen_scenes()) f(s, s.delegate);
 }
 BOOL isim_sys_background_audio(void);
 static void enter_background(void) {
@@ -883,12 +1010,14 @@ static void enter_background(void) {
     if (backgrounded) return;
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
-    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { if ([sd respondsToSelector:@selector(sceneWillResignActive:)]) [sd sceneWillResignActive:s]; });
+    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { if ([sd respondsToSelector:@selector(sceneWillResignActive:)]) [sd sceneWillResignActive:s];
+        [nc postNotificationName:UISceneWillDeactivateNotification object:s]; });
     if ([d respondsToSelector:@selector(applicationWillResignActive:)]) [d applicationWillResignActive:app];
     [nc postNotificationName:UIApplicationWillResignActiveNotification object:app];
     backgrounded = YES; app.applicationState = UIApplicationStateBackground;
     isim_sys_mark_background();
-    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateBackground; if ([sd respondsToSelector:@selector(sceneDidEnterBackground:)]) [sd sceneDidEnterBackground:s]; });
+    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateBackground; if ([sd respondsToSelector:@selector(sceneDidEnterBackground:)]) [sd sceneDidEnterBackground:s];
+        [nc postNotificationName:UISceneDidEnterBackgroundNotification object:s]; });
     if ([d respondsToSelector:@selector(applicationDidEnterBackground:)]) [d applicationDidEnterBackground:app];
     [nc postNotificationName:UIApplicationDidEnterBackgroundNotification object:app];
     [isim_ui_first_responder() resignFirstResponder];
@@ -900,7 +1029,8 @@ static void enter_foreground(void) {
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
     isim_sys_entered_foreground();
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
-    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundInactive; if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:s]; });
+    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundInactive; if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:s];
+        [nc postNotificationName:UISceneWillEnterForegroundNotification object:s]; });
     if ([d respondsToSelector:@selector(applicationWillEnterForeground:)]) [d applicationWillEnterForeground:app];
     [nc postNotificationName:UIApplicationWillEnterForegroundNotification object:app];
     /* values changed in Settings (Settings.bundle) while the app was in the background */
@@ -908,10 +1038,11 @@ static void enter_foreground(void) {
         ((BOOL (*)(id, SEL))objc_msgSend)(NSUserDefaults.standardUserDefaults, NSSelectorFromString(@"_isim_reloadFromDisk")))
         [nc postNotificationName:@"NSUserDefaultsDidChangeNotification" object:NSUserDefaults.standardUserDefaults];
     backgrounded = NO; app.applicationState = UIApplicationStateActive;
-    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundActive; if ([sd respondsToSelector:@selector(sceneDidBecomeActive:)]) [sd sceneDidBecomeActive:s]; });
+    each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundActive; if ([sd respondsToSelector:@selector(sceneDidBecomeActive:)]) [sd sceneDidBecomeActive:s];
+        [nc postNotificationName:UISceneDidActivateNotification object:s]; });
     if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
     [nc postNotificationName:UIApplicationDidBecomeActiveNotification object:app];
-    if (pending_scene_manifest) { NSDictionary *m = pending_scene_manifest; pending_scene_manifest = nil; connect_scene(app, m); }
+    if (pending_scene_manifest) { NSDictionary *m = pending_scene_manifest; pending_scene_manifest = nil; isim_ui_scenes_launch(m); }
     isim_ui_set_needs_layout();
 }
 static void settings_changed(void) {
@@ -953,20 +1084,207 @@ static Class class_named(NSString *name) {
     return c;
 }
 
-static void connect_scene(UIApplication *app, NSDictionary *manifest) {
-    NSDictionary *configs = manifest[@"UISceneConfigurations"];
+/* ================= scenes: connection, multiple windows, sessions =================
+ * Scene-based apps connect a scene at launch (the scene manifest, or the app delegate's configuration). On iPad with
+ * UIApplicationSupportsMultipleScenes, requestSceneSessionActivation / activateSceneSession(for:) connect more
+ * scenes (or bring an existing session back): up to two are on screen side by side (split view: 1/2, 2/3 or 1/3 of
+ * the width after their sizeRestrictions.minimumSize, a 10 pt divider), a prominent request takes the whole screen,
+ * the others wait in the background (activationState background, their windows neither drawn nor touched).
+ * requestSceneSessionDestruction disconnects a scene and discards its session (application:didDiscardSceneSessions:).
+ * Open sessions are kept in the app container (Library/isim/SceneSessions.plist: identifier, configuration name,
+ * userInfo, state restoration activity) and reconnected on the next launch, like iPadOS restores an app's windows;
+ * closing the app in the app switcher discards them (reported by application:didDiscardSceneSessions: next launch). */
+static NSDictionary *scene_manifest;
+static NSMutableArray<UIWindowScene *> *shown_scenes;            /* on screen, left to right */
+static BOOL scenes_multi(void) { return UIApplication.sharedApplication.supportsMultipleScenes; }
+static NSArray<UIScene *> *on_screen_scenes(void) {
+    NSMutableArray *a = [NSMutableArray arrayWithArray:shown_scenes ?: @[]];
+    for (UIScene *s in UIApplication.sharedApplication.connectedScenes) if (![s isKindOfClass:[UIWindowScene class]] && ![a containsObject:s]) [a addObject:s];
+    return a;
+}
+BOOL isim_ui_scenes_split(void) { return shown_scenes.count > 1; }
+/* windows of a connected scene that is not on screen are not drawn (their scene waits in the background) */
+BOOL isim_ui_window_on_screen(UIWindow *w) {
+    UIWindowScene *s = w.windowScene;
+    if (!s || !shown_scenes || ![UIApplication.sharedApplication.connectedScenes containsObject:s]) return YES;
+    return [shown_scenes containsObject:s];
+}
+static NSString *sessions_file(void) {
+    NSString *d = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/isim"];
+    [NSFileManager.defaultManager createDirectoryAtPath:d withIntermediateDirectories:YES attributes:nil error:NULL];
+    return [d stringByAppendingPathComponent:@"SceneSessions.plist"];
+}
+@interface NSUserActivity (IsimPlist)
+- (NSDictionary *)_isim_plist;
++ (NSUserActivity *)_isim_activityWithPlist:(NSDictionary *)plist;
+@end
+/* the open sessions, in the order they were connected, the ones on screen marked */
+static NSMutableArray<UISceneSession *> *session_order;
+static void save_sessions(void) {
+    if (!scenes_multi()) return;
+    NSMutableArray *out = [NSMutableArray array];
+    for (UISceneSession *ss in session_order) {
+        NSMutableDictionary *e = [NSMutableDictionary dictionary];
+        e[@"id"] = ss.persistentIdentifier ?: @"";
+        if (ss.configuration.name) e[@"config"] = ss.configuration.name;
+        if (ss.userInfo && [NSPropertyListSerialization propertyList:ss.userInfo isValidForFormat:NSPropertyListBinaryFormat_v1_0]) e[@"userInfo"] = ss.userInfo;
+        if (ss.stateRestorationActivity) e[@"activity"] = [ss.stateRestorationActivity _isim_plist];
+        NSUInteger at = [shown_scenes indexOfObjectIdenticalTo:(UIWindowScene *)ss.scene];
+        if (at != NSNotFound) e[@"shown"] = @(at + 1);             /* position on screen, 1 = leading */
+        [out addObject:e];
+    }
+    [@{ @"sessions": out } writeToFile:sessions_file() atomically:YES];
+}
+static void scene_log(void) {
+    NSMutableArray *parts = [NSMutableArray array];
+    for (UISceneSession *ss in session_order) {
+        UIWindowScene *s = (UIWindowScene *)ss.scene;
+        if (!s) continue;
+        CGRect f = [s respondsToSelector:@selector(_isim_frame)] ? [s _isim_frame] : CGRectZero;
+        [parts addObject:[shown_scenes containsObject:s] ? [NSString stringWithFormat:@"%@ (%g..%g)", ss.persistentIdentifier, f.origin.x, CGRectGetMaxX(f)]
+                                                       : [NSString stringWithFormat:@"%@ (background)", ss.persistentIdentifier]];
+    }
+    NSLog(@"isim: scenes: %@", [parts componentsJoinedByString:@", "]);
+}
+
+/* ---- layout: the scenes on screen take the whole screen, or split it ---- */
+/* transition: the root controllers get viewWillTransitionToSize (a split-view resize; rotation does its own) */
+extern id isim_ui_immediate_coordinator(void);
+extern void isim_ui_coordinator_finish(id coordinator);
+static void apply_scene_frame(UIWindowScene *s, CGRect f, BOOL transition, UIInterfaceOrientation oldOrientation, CGRect old) {
+    __IsimSceneSpace *oldSpace = [__IsimSceneSpace new]; oldSpace.frame = old;
+    UITraitCollection *oldTraits = [s _isim_traitsForWindowSize:old.size];
+    BOOL placed = [s _isim_hasFrame];                   /* a scene's first placement is not an update */
+    [s _isim_setFrame:f];
+    id coord = transition && !CGSizeEqualToSize(old.size, f.size) ? isim_ui_immediate_coordinator() : nil;
+    if (coord) for (UIWindow *w in s.windows) [w.rootViewController viewWillTransitionToSize:f.size withTransitionCoordinator:coord];
+    for (UIWindow *w in s.windows) if (!CGRectEqualToRect(w.frame, f)) { w.frame = f; [w setNeedsLayout]; }
+    if (coord) isim_ui_coordinator_finish(coord);
+    if (placed && (!CGSizeEqualToSize(old.size, f.size) || oldOrientation != s.interfaceOrientation)) {
+        id<UIWindowSceneDelegate> d = (id<UIWindowSceneDelegate>)s.delegate;
+        if ([d respondsToSelector:@selector(windowScene:didUpdateCoordinateSpace:interfaceOrientation:traitCollection:)])
+            [d windowScene:s didUpdateCoordinateSpace:oldSpace interfaceOrientation:oldOrientation traitCollection:oldTraits];
+    }
+}
+static void layout_scenes(BOOL transition, UIInterfaceOrientation oldOrientation, CGSize oldScreen) {
+    CGRect screen = UIScreen.mainScreen.bounds;
+    CGRect (^was)(UIWindowScene *) = ^CGRect(UIWindowScene *s) { CGRect r = [s _isim_frame]; return oldScreen.width > 0 && CGRectEqualToRect(r, screen) ? CGRectMake(0, 0, oldScreen.width, oldScreen.height) : r; };
+    if (shown_scenes.count == 2) {
+        CGFloat gap = 10, avail = screen.size.width - gap;
+        CGFloat minA = shown_scenes[0].sizeRestrictions.minimumSize.width, minB = shown_scenes[1].sizeRestrictions.minimumSize.width;
+        const CGFloat ratios[] = { 0.5, 2.0 / 3, 1.0 / 3 };
+        CGFloat left = -1;
+        for (int i = 0; i < 3 && left < 0; i++) { CGFloat l = round(avail * ratios[i]); if (l >= minA && avail - l >= minB) left = l; }
+        if (left < 0) left = round(avail / 2);
+        apply_scene_frame(shown_scenes[0], CGRectMake(0, 0, left, screen.size.height), transition, oldOrientation, was(shown_scenes[0]));
+        apply_scene_frame(shown_scenes[1], CGRectMake(left + gap, 0, avail - left, screen.size.height), transition, oldOrientation, was(shown_scenes[1]));
+    } else if (shown_scenes.count == 1) apply_scene_frame(shown_scenes[0], screen, transition, oldOrientation, was(shown_scenes[0]));
+    isim_ui_traits_invalidate(nil);
+    isim_ui_set_needs_layout();
+}
+void isim_ui_layout_scenes(void) { layout_scenes(YES, shown_scenes.lastObject.interfaceOrientation, CGSizeZero); }
+/* after a rotation (UIOrientation.m): the scenes take the new screen; their delegates hear of the old orientation */
+void isim_ui_scenes_rotated(UIInterfaceOrientation oldOrientation, CGSize oldScreen) { if (shown_scenes.count) layout_scenes(NO, oldOrientation, oldScreen); }
+/* the scene leaves the screen (another took its place) / comes on screen */
+static void scene_to_background(UIWindowScene *s) {
+    if (![shown_scenes containsObject:s]) return;
+    [shown_scenes removeObject:s];
+    NSNotificationCenter *nc = NSNotificationCenter.defaultCenter; id<UISceneDelegate> d = s.delegate;
+    /* like iOS, the scene's state is asked for as it goes to the background (kept with its session) */
+    if ([d respondsToSelector:@selector(stateRestorationActivityForScene:)]) s.session.stateRestorationActivity = [d stateRestorationActivityForScene:s];
+    if (s.activationState == UISceneActivationStateForegroundActive) {
+        s.activationState = UISceneActivationStateForegroundInactive;
+        if ([d respondsToSelector:@selector(sceneWillResignActive:)]) [d sceneWillResignActive:s];
+        [nc postNotificationName:UISceneWillDeactivateNotification object:s];
+    }
+    s.activationState = UISceneActivationStateBackground;
+    if ([d respondsToSelector:@selector(sceneDidEnterBackground:)]) [d sceneDidEnterBackground:s];
+    [nc postNotificationName:UISceneDidEnterBackgroundNotification object:s];
+}
+static void scene_to_foreground(UIWindowScene *s) {
+    NSNotificationCenter *nc = NSNotificationCenter.defaultCenter; id<UISceneDelegate> d = s.delegate;
+    if (UIApplication.sharedApplication.applicationState == UIApplicationStateBackground && s.activationState != UISceneActivationStateUnattached) return;
+    if (s.activationState == UISceneActivationStateBackground || s.activationState == UISceneActivationStateUnattached) {
+        s.activationState = UISceneActivationStateForegroundInactive;
+        if ([d respondsToSelector:@selector(sceneWillEnterForeground:)]) [d sceneWillEnterForeground:s];
+        [nc postNotificationName:UISceneWillEnterForegroundNotification object:s];
+    }
+    if (s.activationState != UISceneActivationStateForegroundActive) {
+        s.activationState = UISceneActivationStateForegroundActive;
+        if ([d respondsToSelector:@selector(sceneDidBecomeActive:)]) [d sceneDidBecomeActive:s];
+        [nc postNotificationName:UISceneDidActivateNotification object:s];
+    }
+}
+/* put a scene on screen: next to the requesting / most recent one (split view), or alone (prominent, iPhone) */
+static void show_scene(UIWindowScene *s, UISceneActivationRequestOptions *options) {
+    if (!shown_scenes) shown_scenes = [NSMutableArray array];
+    BOOL prominent = [options isKindOfClass:[UIWindowSceneActivationRequestOptions class]] && ((UIWindowSceneActivationRequestOptions *)options).preferredPresentationStyle == UIWindowScenePresentationStyleProminent;
+    if (![shown_scenes containsObject:s]) {
+        if (!scenes_multi() || prominent || !s.sizeRestrictions.allowsFullScreen) {
+            for (UIWindowScene *o in [shown_scenes copy]) scene_to_background(o);
+        } else {
+            UIScene *keep = options.requestingScene;
+            while (shown_scenes.count >= 2) {               /* the oldest that is not the requesting scene makes room */
+                UIWindowScene *drop = shown_scenes.firstObject == keep ? shown_scenes[1] : shown_scenes.firstObject;
+                scene_to_background(drop);
+            }
+            /* scenes too wide to share the screen go alone */
+            CGFloat avail = UIScreen.mainScreen.bounds.size.width - 10;
+            for (UIWindowScene *o in [shown_scenes copy])
+                if (o.sizeRestrictions.minimumSize.width > avail * 2 / 3 || s.sizeRestrictions.minimumSize.width > avail * 2 / 3) scene_to_background(o);
+        }
+        [shown_scenes addObject:s];
+    }
+    isim_ui_layout_scenes();
+    scene_to_foreground(s);
+    UIWindow *w = s.keyWindow ?: s.windows.firstObject;
+    if (w && !w.hidden) [w makeKeyWindow];
+    save_sessions();
+    scene_log();
+}
+
+static Class class_named(NSString *name);
+/* connects a scene for a new session (session nil) or a stored one; activity: the user activity that asked for it */
+/* a session kept from the last run: identifier, configuration (by name), userInfo, state restoration activity */
+static UISceneSession *session_from_saved(NSDictionary *e) {
+    UISceneSession *ss = [UISceneSession new];
+    ss.role = UIWindowSceneSessionRoleApplication;
+    ss.persistentIdentifier = [e[@"id"] isKindOfClass:[NSString class]] ? e[@"id"] : [NSString stringWithFormat:@"isim-%08X", arc4random()];
+    if ([e[@"config"] isKindOfClass:[NSString class]]) ss.configuration = [UISceneConfiguration configurationWithName:e[@"config"] sessionRole:UIWindowSceneSessionRoleApplication];
+    if ([e[@"userInfo"] isKindOfClass:[NSDictionary class]]) ss.userInfo = e[@"userInfo"];
+    if ([e[@"activity"] isKindOfClass:[NSDictionary class]]) ss.stateRestorationActivity = [NSUserActivity _isim_activityWithPlist:e[@"activity"]];
+    return ss;
+}
+static UIScene *connect_session_shown(UISceneSession *reuse, NSUserActivity *activity, UISceneActivationRequestOptions *requestOptions, BOOL launch, NSDictionary *saved, BOOL show);
+static UIScene *connect_session(UISceneSession *reuse, NSUserActivity *activity, UISceneActivationRequestOptions *requestOptions, BOOL launch, NSDictionary *saved) {
+    return connect_session_shown(reuse, activity, requestOptions, launch, saved, YES);
+}
+static UIScene *connect_session_shown(UISceneSession *reuse, NSUserActivity *activity, UISceneActivationRequestOptions *requestOptions, BOOL launch, NSDictionary *saved, BOOL show) {
+    UIApplication *app = UIApplication.sharedApplication;
+    NSDictionary *configs = scene_manifest[@"UISceneConfigurations"];
     NSArray *roleConfigs = configs[UIWindowSceneSessionRoleApplication];
-    UISceneSession *session = [UISceneSession new];
-    session.role = UIWindowSceneSessionRoleApplication;
-    session.persistentIdentifier = [NSString stringWithFormat:@"isim-%08X", arc4random()];
+    UISceneSession *session = reuse;
+    if (!session) {
+        session = [UISceneSession new];
+        session.role = UIWindowSceneSessionRoleApplication;
+        session.persistentIdentifier = saved[@"id"] ?: [NSString stringWithFormat:@"isim-%08X", arc4random()];
+        if ([saved[@"userInfo"] isKindOfClass:[NSDictionary class]]) session.userInfo = saved[@"userInfo"];
+    }
     UISceneConnectionOptions *options = [UISceneConnectionOptions new];
-    isim_sys_configure_connection(options, session);
+    extern void isim_sys_configure_connection(UISceneConnectionOptions *options, UISceneSession *session);
+    extern void isim_sys_connection_activity(UISceneConnectionOptions *options, NSUserActivity *activity);
+    NSUserActivity *kept = session.stateRestorationActivity;        /* a restored session's own state wins */
+    if (launch) isim_sys_configure_connection(options, session);   /* launch payloads, saved state restoration */
+    if (kept) session.stateRestorationActivity = kept;
+    if ([saved[@"activity"] isKindOfClass:[NSDictionary class]]) session.stateRestorationActivity = [NSUserActivity _isim_activityWithPlist:saved[@"activity"]];
+    if (activity) isim_sys_connection_activity(options, activity);
     UISceneConfiguration *config = nil;
     id<UIApplicationDelegate> d = app.delegate;
     if ([d respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)])
         config = [d application:app configurationForConnectingSceneSession:session options:options];
+    NSString *wantName = config.name ?: saved[@"config"] ?: reuse.configuration.name;
     NSDictionary *plistConfig = roleConfigs.firstObject;
-    for (NSDictionary *pc in roleConfigs) if (config.name && [pc[@"UISceneConfigurationName"] isEqualToString:config.name]) plistConfig = pc;
+    for (NSDictionary *pc in roleConfigs) if (wantName && [pc[@"UISceneConfigurationName"] isEqualToString:wantName]) plistConfig = pc;
     if (!config) config = [UISceneConfiguration configurationWithName:plistConfig[@"UISceneConfigurationName"] sessionRole:UIWindowSceneSessionRoleApplication];
     if (!config.delegateClass) config.delegateClass = class_named(plistConfig[@"UISceneDelegateClassName"]);
     if (!config.sceneClass) config.sceneClass = class_named(plistConfig[@"UISceneClassName"]) ?: [UIWindowScene class];
@@ -976,6 +1294,8 @@ static void connect_scene(UIApplication *app, NSDictionary *manifest) {
     UIScene *scene = [[config.sceneClass alloc] initWithSession:session connectionOptions:options];
     session.scene = scene;
     [app _isim_addScene:scene session:session];
+    if (!session_order) session_order = [NSMutableArray array];
+    if (![session_order containsObject:session]) [session_order addObject:session];
     if (config.delegateClass) scene.delegate = [config.delegateClass new];
     id<UISceneDelegate> sd = scene.delegate;
     /* a storyboard scene: the window and its initial view controller exist before scene:willConnectToSession: */
@@ -984,13 +1304,142 @@ static void connect_scene(UIApplication *app, NSDictionary *manifest) {
     [NSNotificationCenter.defaultCenter postNotificationName:UISceneWillConnectNotification object:scene];
     if ([sd respondsToSelector:@selector(scene:willConnectToSession:options:)]) [sd scene:scene willConnectToSession:session options:options];
     if (storyboardWindow.hidden) [storyboardWindow makeKeyAndVisible];
-    isim_sys_scene_connected(scene);
-    scene.activationState = UISceneActivationStateForegroundInactive;
-    if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:scene];
-    scene.activationState = UISceneActivationStateForegroundActive;
-    if ([sd respondsToSelector:@selector(sceneDidBecomeActive:)]) [sd sceneDidBecomeActive:scene];
-    [NSNotificationCenter.defaultCenter postNotificationName:UISceneDidActivateNotification object:scene];
+    extern void isim_sys_scene_connected(UIScene *scene);
+    if (launch) isim_sys_scene_connected(scene);
+    else if (session.stateRestorationActivity && [sd respondsToSelector:@selector(scene:restoreInteractionStateWithUserActivity:)])
+        [sd scene:scene restoreInteractionStateWithUserActivity:session.stateRestorationActivity];
+    if (!show) return scene;
+    if ([scene isKindOfClass:[UIWindowScene class]]) show_scene((UIWindowScene *)scene, requestOptions);
+    else scene_to_foreground((UIWindowScene *)scene);
+    return scene;
 }
+
+/* launch: the app's first scene, or the sessions it had open (iPad, multiple scenes) */
+void isim_ui_scenes_launch(NSDictionary *manifest) {
+    scene_manifest = manifest ?: @{};
+    UIApplication *app = UIApplication.sharedApplication;
+    /* sessions discarded in the app switcher since the last launch */
+    NSString *discarded = [sessions_file() stringByAppendingString:@".discarded"];
+    NSArray *gone = [NSDictionary dictionaryWithContentsOfFile:discarded][@"sessions"];
+    if (gone.count) {
+        NSMutableSet *set = [NSMutableSet set];
+        for (NSDictionary *e in gone) {
+            UISceneSession *ss = [UISceneSession new]; ss.role = UIWindowSceneSessionRoleApplication; ss.persistentIdentifier = e[@"id"];
+            ss.configuration = [UISceneConfiguration configurationWithName:e[@"config"] sessionRole:UIWindowSceneSessionRoleApplication];
+            [set addObject:ss];
+        }
+        id<UIApplicationDelegate> d = app.delegate;
+        if ([d respondsToSelector:@selector(application:didDiscardSceneSessions:)]) [d application:app didDiscardSceneSessions:set];
+        NSLog(@"isim: %lu discarded scene session(s)", (unsigned long)set.count);
+    }
+    [NSFileManager.defaultManager removeItemAtPath:discarded error:NULL];
+    NSArray *saved = scenes_multi() ? [NSDictionary dictionaryWithContentsOfFile:sessions_file()][@"sessions"] : nil;
+    if (saved.count > 1) {
+        /* every session stays open; the ones that were on screen connect again, side by side as before (the others
+           connect when they are activated) */
+        NSLog(@"isim: restoring %lu scene sessions", (unsigned long)saved.count);
+        if (!session_order) session_order = [NSMutableArray array];
+        NSMutableArray *entries = [NSMutableArray array];
+        for (NSDictionary *e in saved) {
+            if (![e isKindOfClass:[NSDictionary class]]) continue;
+            UISceneSession *ss = session_from_saved(e);
+            [session_order addObject:ss]; [app _isim_addScene:nil session:ss];
+            if ([e[@"shown"] boolValue]) [entries addObject:@[ss, e]];
+        }
+        if (!entries.count) entries = [NSMutableArray arrayWithObject:@[session_order.lastObject, saved.lastObject]];
+        [entries sortUsingComparator:^NSComparisonResult(NSArray *a, NSArray *b) { return [a[1][@"shown"] compare:b[1][@"shown"] ?: @0]; }];
+        while (entries.count > 2) [entries removeObjectAtIndex:0];
+        if (!shown_scenes) shown_scenes = [NSMutableArray array];
+        BOOL first = YES;
+        for (NSArray *pair in entries) {
+            UIScene *s = connect_session_shown(pair[0], nil, nil, first, pair[1], NO);
+            first = NO;
+            if ([s isKindOfClass:[UIWindowScene class]]) [shown_scenes addObject:(UIWindowScene *)s];
+        }
+        layout_scenes(NO, UIInterfaceOrientationPortrait, CGSizeZero);
+        for (UIWindowScene *s in [shown_scenes copy]) scene_to_foreground(s);
+        UIWindow *key = shown_scenes.lastObject.keyWindow ?: shown_scenes.lastObject.windows.firstObject;
+        if (key) [key makeKeyWindow];
+        save_sessions(); scene_log();
+        return;
+    }
+    connect_session(nil, nil, nil, YES, saved.firstObject);
+}
+/* the app was closed in the app switcher: its sessions are discarded (told on the next launch) */
+void isim_ui_scenes_discarded(void) {
+    NSString *f = sessions_file();
+    [NSFileManager.defaultManager removeItemAtPath:[f stringByAppendingString:@".discarded"] error:NULL];
+    NSData *d = [NSData dataWithContentsOfFile:f];
+    if (d) { [d writeToFile:[f stringByAppendingString:@".discarded"] atomically:YES]; [NSFileManager.defaultManager removeItemAtPath:f error:NULL]; }
+}
+/* the app went to the background: keep each session's state (stateRestorationActivity is set by UISystemIntegration.m) */
+void isim_ui_scenes_save(void) { save_sessions(); }
+
+static void scene_error(void (^handler)(NSError *), UISceneErrorCode code, NSString *msg) {
+    NSLog(@"isim: scene request failed: %@", msg);
+    if (!handler) return;
+    NSError *e = [NSError errorWithDomain:UISceneErrorDomain code:code userInfo:@{ NSLocalizedDescriptionKey: msg }];
+    dispatch_async(dispatch_get_main_queue(), ^{ handler(e); });
+}
+@implementation UIApplication (UIMultipleScenes)
+- (void)requestSceneSessionActivation:(UISceneSession *)session userActivity:(NSUserActivity *)activity options:(UISceneActivationRequestOptions *)options errorHandler:(void (^)(NSError *))errorHandler {
+    if (session && ![self.openSessions containsObject:session]) { scene_error(errorHandler, UISceneErrorCodeRequestDenied, @"The scene session is not open."); return; }
+    UIScene *existing = session.scene;
+    if (existing && [existing isKindOfClass:[UIWindowScene class]]) {             /* an existing session: back on screen */
+        NSLog(@"isim: activating scene session %@", session.persistentIdentifier);
+        if (activity) {
+            id<UISceneDelegate> d = existing.delegate;
+            if ([d respondsToSelector:@selector(scene:continueUserActivity:)]) [d scene:existing continueUserActivity:activity];
+        }
+        show_scene((UIWindowScene *)existing, options);
+        return;
+    }
+    if (!self.supportsMultipleScenes && self.connectedScenes.count) {
+        scene_error(errorHandler, UISceneErrorCodeMultipleScenesNotSupported, @"The application does not support multiple scenes.");
+        return;
+    }
+    if (!scene_manifest) scene_manifest = NSBundle.mainBundle.infoDictionary[@"UIApplicationSceneManifest"] ?: @{};
+    NSLog(@"isim: activating a new scene%@%@", activity ? @" for " : @"", activity.activityType ?: @"");
+    connect_session(session, activity, options, NO, nil);
+}
+- (void)activateSceneSessionForRequest:(UISceneSessionActivationRequest *)request errorHandler:(void (^)(NSError *))errorHandler {
+    if (request.role && ![request.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
+        scene_error(errorHandler, UISceneErrorCodeRequestDenied, [NSString stringWithFormat:@"isim has no scenes for the role %@.", request.role]);
+        return;
+    }
+    [self requestSceneSessionActivation:request.session userActivity:request.userActivity options:request.options errorHandler:errorHandler];
+}
+- (void)requestSceneSessionDestruction:(UISceneSession *)session options:(UISceneDestructionRequestOptions *)options errorHandler:(void (^)(NSError *))errorHandler {
+    if (!session || ![self.openSessions containsObject:session]) { scene_error(errorHandler, UISceneErrorCodeRequestDenied, @"The scene session is not open."); return; }
+    UIScene *s = session.scene;
+    NSLog(@"isim: destroying scene session %@", session.persistentIdentifier);
+    if ([s isKindOfClass:[UIWindowScene class]]) {
+        BOOL wasShown = [shown_scenes containsObject:(UIWindowScene *)s];
+        scene_to_background((UIWindowScene *)s);
+        for (UIWindow *w in ((UIWindowScene *)s).windows) { [w.rootViewController _isim_appear:NO]; w.hidden = YES; }
+        /* the remaining scene takes the screen; with none left on screen, the most recent other one comes back */
+        if (wasShown && !shown_scenes.count) for (UISceneSession *o in session_order.reverseObjectEnumerator)
+            if (o != session && [o.scene isKindOfClass:[UIWindowScene class]]) { [shown_scenes addObject:(UIWindowScene *)o.scene]; scene_to_foreground((UIWindowScene *)o.scene); break; }
+        isim_ui_layout_scenes();
+    }
+    if (s) {
+        s.activationState = UISceneActivationStateUnattached;
+        if ([s.delegate respondsToSelector:@selector(sceneDidDisconnect:)]) [s.delegate sceneDidDisconnect:s];
+        [NSNotificationCenter.defaultCenter postNotificationName:UISceneDidDisconnectNotification object:s];
+    }
+    session.scene = nil;
+    [session_order removeObject:session];
+    [self _isim_removeScene:s session:session];
+    id<UIApplicationDelegate> d = self.delegate;
+    if ([d respondsToSelector:@selector(application:didDiscardSceneSessions:)]) [d application:self didDiscardSceneSessions:[NSSet setWithObject:session]];
+    UIWindow *key = ((UIWindowScene *)shown_scenes.lastObject).keyWindow ?: ((UIWindowScene *)shown_scenes.lastObject).windows.firstObject;
+    if (key) [key makeKeyWindow];
+    save_sessions();
+    scene_log();
+}
+/* the session's snapshot in the app switcher would be refreshed (isim keeps no snapshots) */
+- (void)requestSceneSessionRefresh:(UISceneSession *)session { NSLog(@"isim: scene session %@ refresh requested", session.persistentIdentifier); }
+@end
 
 int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName) {
     @autoreleasepool {
@@ -1029,7 +1478,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         /* scene-based apps: a scene manifest, or a delegate that configures scenes (SwiftUI apps) */
         BOOL scenes = manifest || [app.delegate respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)];
         if (scenes && background) pending_scene_manifest = manifest ?: @{};
-        else if (scenes) connect_scene(app, manifest ?: @{});
+        else if (scenes) isim_ui_scenes_launch(manifest ?: @{});
         else if ([d respondsToSelector:@selector(window)] && d.window && d.window.hidden) [d.window makeKeyAndVisible];
         else if (storyboardWindow.hidden) [storyboardWindow makeKeyAndVisible];
         if (!background) { isim_ib_hide_launch_screen(); app.applicationState = UIApplicationStateActive; }
@@ -1100,7 +1549,10 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
     @autoreleasepool {
         UIApplication *app = UIApplication.sharedApplication;
         id<UIApplicationDelegate> d = app.delegate;
-        for (UIScene *s in app.connectedScenes) if ([s.delegate respondsToSelector:@selector(sceneDidDisconnect:)]) [s.delegate sceneDidDisconnect:s];
+        for (UIScene *s in app.connectedScenes) {
+            if ([s.delegate respondsToSelector:@selector(sceneDidDisconnect:)]) [s.delegate sceneDidDisconnect:s];
+            [NSNotificationCenter.defaultCenter postNotificationName:UISceneDidDisconnectNotification object:s];
+        }
         if ([d respondsToSelector:@selector(applicationWillTerminate:)]) [d applicationWillTerminate:app];
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationWillTerminateNotification object:app];
         NSLog(@"isim: application terminated");

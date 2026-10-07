@@ -118,11 +118,16 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIBackgroundRefreshStatus backgroundRefreshStatus;
 - (void)setMinimumBackgroundFetchInterval:(NSTimeInterval)minimumBackgroundFetchInterval;
 @end
-/* scenes on demand (iPad multiple windows) */
+/* scenes on demand (iPad multiple windows, UIApplicationSupportsMultipleScenes). isim (adapted): up to two scenes are
+   shown side by side (split view, widths after their size restrictions), a prominent one takes the screen, the
+   others wait in the background; iPhone apps get UISceneErrorCodeMultipleScenesNotSupported for new scenes */
+@class UISceneActivationRequestOptions, UISceneDestructionRequestOptions, UISceneSessionActivationRequest;
 @interface UIApplication (UIMultipleScenes)
 - (void)requestSceneSessionActivation:(nullable UISceneSession *)sceneSession userActivity:(nullable NSUserActivity *)userActivity
-                              options:(nullable id)options errorHandler:(nullable void (^)(NSError *error))errorHandler;
-- (void)requestSceneSessionDestruction:(UISceneSession *)sceneSession options:(nullable id)options errorHandler:(nullable void (^)(NSError *error))errorHandler;
+                              options:(nullable UISceneActivationRequestOptions *)options errorHandler:(nullable void (^)(NSError *error))errorHandler;
+- (void)activateSceneSessionForRequest:(UISceneSessionActivationRequest *)request errorHandler:(nullable void (^)(NSError *error))errorHandler
+    NS_SWIFT_NAME(activateSceneSession(for:errorHandler:)) API_AVAILABLE(ios(17.0));
+- (void)requestSceneSessionDestruction:(UISceneSession *)sceneSession options:(nullable UISceneDestructionRequestOptions *)options errorHandler:(nullable void (^)(NSError *error))errorHandler;
 - (void)requestSceneSessionRefresh:(UISceneSession *)sceneSession;
 @end
 /* user activities on responders (state restoration, Handoff, Spotlight) */

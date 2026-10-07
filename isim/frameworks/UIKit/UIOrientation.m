@@ -108,6 +108,14 @@ static UIInterfaceOrientation choose(UIDeviceOrientation dev, UIInterfaceOrienta
 }
 @end
 
+/* a coordinator for an immediate size change (split view resizes, UIApplication.m) */
+id isim_ui_immediate_coordinator(void) { __IsimRotationCoordinator *c = [__IsimRotationCoordinator new]; c.duration = 0; return c; }
+void isim_ui_coordinator_finish(id coordinator) {
+    __IsimRotationCoordinator *c = coordinator;
+    for (void (^a)(id) in c.alongside) a(c);
+    for (void (^done)(id) in c.completions) done(c);
+}
+
 /* ---- view controllers: defaults and forwarding to children ---- */
 @implementation UIViewController (UIRotation)
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations { return is_pad() ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown; }
@@ -170,10 +178,12 @@ static void rotate_interface(UIInterfaceOrientation o, BOOL animated) {
         if (traitsChange) [root willTransitionToTraitCollection:newTraits withTransitionCoordinator:coord];
         [root viewWillTransitionToSize:newSize withTransitionCoordinator:coord];
     }
+    UIInterfaceOrientation oldOrientation = interface_orientation;
     interface_orientation = o;
     isim_set_orientation((int)o);
     isim_ui_device_refresh();
     isim_ui_traits_invalidate(nil);
+    extern void isim_ui_scenes_rotated(UIInterfaceOrientation oldOrientation, CGSize oldScreen);
     void (^apply)(void) = ^{
         for (UIWindow *w in windows) {
             CGRect f = w.frame;
@@ -181,6 +191,7 @@ static void rotate_interface(UIInterfaceOrientation o, BOOL animated) {
             [w setNeedsLayout];
             [w layoutIfNeeded];
         }
+        isim_ui_scenes_rotated(oldOrientation, oldSize);   /* split views take the new screen; scene delegates hear of it */
         for (void (^a)(id) in coord.alongside) a(coord);
     };
     void (^finish)(BOOL) = ^(BOOL f) {

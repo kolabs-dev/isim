@@ -472,19 +472,7 @@ static void reasons_start(void) {
 static void reasons_stop(void) { [reasons_timer invalidate]; reasons_timer = nil; last_reasons = nil; }
 
 /* ================= multiple scenes ================= */
-@implementation UIApplication (UIMultipleScenes)
-- (void)requestSceneSessionActivation:(UISceneSession *)session userActivity:(NSUserActivity *)activity options:(id)options errorHandler:(void (^)(NSError *))errorHandler {
-    NSLog(@"isim: requestSceneSessionActivation: isim shows one scene per app (activity %@)", activity.activityType ?: @"none");
-    if (errorHandler) {
-        NSError *e = [NSError errorWithDomain:@"UISceneErrorDomain" code:0 userInfo:@{ NSLocalizedDescriptionKey: @"The application does not support multiple scenes." }];
-        dispatch_async(dispatch_get_main_queue(), ^{ errorHandler(e); });
-    }
-}
-- (void)requestSceneSessionDestruction:(UISceneSession *)session options:(id)options errorHandler:(void (^)(NSError *))errorHandler {
-    NSLog(@"isim: requestSceneSessionDestruction: ignored (the app's only scene stays)");
-}
-- (void)requestSceneSessionRefresh:(UISceneSession *)session {}
-@end
+/* UIApplication (UIMultipleScenes): UIApplication.m */
 
 /* ================= user activities on responders ================= */
 static char kActivity;
@@ -568,6 +556,12 @@ void isim_sys_configure_connection(UISceneConnectionOptions *options, UISceneSes
     if (launch_url) { NSURL *url = [NSURL URLWithString:launch_url]; if (url) options.URLContexts = [NSSet setWithObject:url_context(url)]; }
     session.stateRestorationActivity = saved_scene_activity();
     if (session.stateRestorationActivity) NSLog(@"isim: restoring scene state (%@)", session.stateRestorationActivity.activityType);
+}
+/* a scene connected for a user activity (requestSceneSessionActivation, UIApplication.m) */
+void isim_sys_connection_activity(UISceneConnectionOptions *options, NSUserActivity *activity) {
+    if (!activity) return;
+    options.userActivities = [NSSet setWithObject:activity];
+    options.handoffUserActivityType = activity.activityType;
 }
 void isim_sys_scene_connected(UIScene *scene) {
     NSUserActivity *a = scene.session.stateRestorationActivity;
@@ -705,6 +699,8 @@ void isim_sys_entered_background(void) {
         if (a) { [@{ @"activity": [a _isim_plist] } writeToFile:scene_state_file() atomically:YES]; NSLog(@"isim: saved scene state (%@)", a.activityType); }
         else [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
     }
+    extern void isim_ui_scenes_save(void);
+    isim_ui_scenes_save();                              /* the open sessions (multiple scenes) with their state */
 }
 void isim_sys_entered_foreground(void) { [bg_timer invalidate]; bg_timer = nil; [bg_expired removeAllObjects]; reasons_stop(); }
 
@@ -737,6 +733,8 @@ void isim_sys_event(const char *text) {
     }
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */
         [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
+        extern void isim_ui_scenes_discarded(void);
+        isim_ui_scenes_discarded();
         NSLog(@"isim: scene sessions discarded");
     } else [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
 }

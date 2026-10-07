@@ -826,7 +826,17 @@ Globals:
   SwiftName: UITextField.textDidBeginEditingNotification
 - Name: UITextFieldTextDidEndEditingNotification
   SwiftName: UITextField.textDidEndEditingNotification
-- Name: UIWindowSceneSessionRoleApplication
-  SwiftName: UISceneSession.Role.windowApplication
+- Name: UISceneWillConnectNotification
+  SwiftName: UIScene.willConnectNotification
+- Name: UISceneDidActivateNotification
+  SwiftName: UIScene.didActivateNotification
+- Name: UISceneDidDisconnectNotification
+  SwiftName: UIScene.didDisconnectNotification
+- Name: UISceneWillDeactivateNotification
+  SwiftName: UIScene.willDeactivateNotification
+- Name: UISceneWillEnterForegroundNotification
+  SwiftName: UIScene.willEnterForegroundNotification
+- Name: UISceneDidEnterBackgroundNotification
+  SwiftName: UIScene.didEnterBackgroundNotification
 - Name: UIApplicationMain
   SwiftName: UIApplicationMain(_:_:_:_:)

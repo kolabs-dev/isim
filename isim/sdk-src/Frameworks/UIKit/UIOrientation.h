@@ -8,27 +8,7 @@
 #import <UIKit/UIScene.h>
 #import <UIKit/UIPresentationController.h>   /* the transition coordinator protocols */
 NS_ASSUME_NONNULL_BEGIN
-typedef NS_ENUM(NSInteger, UIInterfaceOrientation) {
-    UIInterfaceOrientationUnknown = UIDeviceOrientationUnknown,
-    UIInterfaceOrientationPortrait = UIDeviceOrientationPortrait,
-    UIInterfaceOrientationPortraitUpsideDown = UIDeviceOrientationPortraitUpsideDown,
-    UIInterfaceOrientationLandscapeLeft = UIDeviceOrientationLandscapeRight,
-    UIInterfaceOrientationLandscapeRight = UIDeviceOrientationLandscapeLeft };
-typedef NS_OPTIONS(NSUInteger, UIInterfaceOrientationMask) {
-    UIInterfaceOrientationMaskPortrait = (1 << UIInterfaceOrientationPortrait),
-    UIInterfaceOrientationMaskLandscapeLeft = (1 << UIInterfaceOrientationLandscapeLeft),
-    UIInterfaceOrientationMaskLandscapeRight = (1 << UIInterfaceOrientationLandscapeRight),
-    UIInterfaceOrientationMaskPortraitUpsideDown = (1 << UIInterfaceOrientationPortraitUpsideDown),
-    UIInterfaceOrientationMaskLandscape = (UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight),
-    UIInterfaceOrientationMaskAll = (UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight | UIInterfaceOrientationMaskPortraitUpsideDown),
-    UIInterfaceOrientationMaskAllButUpsideDown = (UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight) };
-static inline BOOL UIInterfaceOrientationIsPortrait(UIInterfaceOrientation o) { return o == UIInterfaceOrientationPortrait || o == UIInterfaceOrientationPortraitUpsideDown; }
-static inline BOOL UIInterfaceOrientationIsLandscape(UIInterfaceOrientation o) { return o == UIInterfaceOrientationLandscapeLeft || o == UIInterfaceOrientationLandscapeRight; }
-static inline BOOL UIDeviceOrientationIsPortrait(UIDeviceOrientation o) { return o == UIDeviceOrientationPortrait || o == UIDeviceOrientationPortraitUpsideDown; }
-static inline BOOL UIDeviceOrientationIsLandscape(UIDeviceOrientation o) { return o == UIDeviceOrientationLandscapeLeft || o == UIDeviceOrientationLandscapeRight; }
-static inline BOOL UIDeviceOrientationIsFlat(UIDeviceOrientation o) { return o == UIDeviceOrientationFaceUp || o == UIDeviceOrientationFaceDown; }
-static inline BOOL UIDeviceOrientationIsValidInterfaceOrientation(UIDeviceOrientation o) { return o >= UIDeviceOrientationPortrait && o <= UIDeviceOrientationLandscapeRight; }
-
+/* UIInterfaceOrientation, UIInterfaceOrientationMask and the orientation helpers are declared in UIDevice.h */
 UIKIT_EXTERN NSNotificationName const UIDeviceOrientationDidChangeNotification;
 @interface UIDevice (UIDeviceOrientationNotifications)
 @property (nonatomic, readonly, getter=isGeneratingDeviceOrientationNotifications) BOOL generatesDeviceOrientationNotifications;

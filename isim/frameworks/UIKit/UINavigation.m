@@ -32,6 +32,13 @@ static int tabbar_mode(void) {
 }
 /* the fade that replaces the bar material under Liquid Glass (scroll edge effect): from the background colour at
    the bar's outer edge to clear */
+int isim_ui_edge_effect_mode(UIScrollView *sv, BOOL bottom);   /* UIScrollView.m: 0 fade, 1 hard, 2 none */
+/* the hard style: an opaque band of the background with a divider on the content side */
+static void draw_edge_hard(CGSize s, BOOL fromBottom) {
+    double c[4], l[4]; isim_ui_rgba(UIColor.systemBackgroundColor, c); isim_ui_rgba(UIColor.separatorColor, l);
+    isim_gfx_fill_rounded(0, 0, s.width, s.height, 0, c);
+    isim_gfx_fill_rounded(0, fromBottom ? 0 : s.height - 0.5, s.width, 0.5, 0, l);
+}
 static void draw_edge_fade(CGSize s, BOOL fromBottom) {
     double c[4]; isim_ui_rgba(UIColor.systemBackgroundColor, c);
     int n = 16;
@@ -143,6 +150,35 @@ static char kTitleAttrs;
 }
 @end
 
+/* ---- iOS 26 bar button item badges ---- */
+@implementation UIBarButtonItemBadge { NSString *_string; BOOL _indicator; }
++ (instancetype)badgeWithCount:(NSUInteger)count { UIBarButtonItemBadge *b = [self new]; b->_string = [NSString stringWithFormat:@"%lu", (unsigned long)count]; return b; }
++ (instancetype)badgeWithString:(NSString *)string { UIBarButtonItemBadge *b = [self new]; b->_string = [string copy] ?: @""; return b; }
++ (instancetype)indicatorBadge { UIBarButtonItemBadge *b = [self new]; b->_indicator = YES; return b; }
+- (NSString *)stringValue { return _string; }
+- (BOOL)_isim_indicator { return _indicator; }
+- (id)copyWithZone:(NSZone *)z {
+    UIBarButtonItemBadge *b = [UIBarButtonItemBadge new]; b->_string = _string; b->_indicator = _indicator;
+    b.backgroundColor = self.backgroundColor; b.foregroundColor = self.foregroundColor; b.font = self.font; return b;
+}
+@end
+static char kBadge;
+@implementation UIBarButtonItem (UIBarButtonItemBadge)
+- (UIBarButtonItemBadge *)badge { return objc_getAssociatedObject(self, &kBadge); }
+- (void)setBadge:(UIBarButtonItemBadge *)b { objc_setAssociatedObject(self, &kBadge, [b copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC); bar_item_changed(self); }
+@end
+/* the badge at the button's top trailing corner: a red dot, or a capsule with the count / string */
+static void draw_badge(UIBarButtonItemBadge *b, CGSize s) {
+    if (!b) return;
+    double bg[4]; isim_ui_rgba(b.backgroundColor ?: UIColor.systemRedColor, bg);
+    if ([b _isim_indicator] || !b.stringValue.length) { isim_gfx_fill_rounded(s.width - 12, 4, 8, 8, 4, bg); return; }
+    UIFont *f = b.font ?: [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
+    CGSize ts = isim_ui_measure(b.stringValue, f, 100, 1);
+    double w = fmax(16, ceil(ts.width) + 8), x = s.width - w + 4;
+    isim_gfx_fill_rounded(x, 0, w, 16, 8, bg);
+    isim_ui_draw_text(b.stringValue, f, b.foregroundColor ?: UIColor.whiteColor, CGRectMake(x, (16 - ts.height) / 2, w, ts.height), NSTextAlignmentCenter, 1, 1);
+}
+
 /* a bar button: text (17pt; Done style semibold) or a symbol, tinted */
 @interface __IsimBarButton : UIControl
 @property (nonatomic, strong) UIBarButtonItem *item;
@@ -195,6 +231,7 @@ static char kTitleAttrs;
         CGSize ts = isim_ui_measure(self.text, [self font], s.width, 1);
         isim_ui_draw_text(self.text, [self font], [self _isim_attrColor] ?: c, CGRectMake(0, (s.height - ts.height) / 2, s.width, ts.height), NSTextAlignmentCenter, 1, a);
     }
+    if (isim_ui_os_major() >= 26) draw_badge(self.item.badge, s);      /* iOS 26 */
 }
 @end
 
@@ -264,6 +301,9 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 @implementation UIToolbarAppearance @end
 @implementation UITabBarAppearance @end
 
+@interface UIView (IsimEdgeScroll)
+- (UIScrollView *)_isim_edgeScrollView;     /* bars: the scroll view whose edge effect they draw */
+@end
 /* shared bar chrome: an appearance's background + hairline */
 @interface __IsimBarBackground : UIView
 - (void)apply:(UIBarAppearance *)a;
@@ -291,7 +331,16 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     CGRect b = self.bounds; _fx.frame = b; _color.frame = b;
     _line.frame = self.tag == 1 ? CGRectMake(0, 0, b.size.width, 1.0 / 3) : CGRectMake(0, b.size.height - 1.0 / 3, b.size.width, 1.0 / 3);   /* tag 1: top hairline */
 }
-- (void)_isim_drawContent { if (_fade) draw_edge_fade(self.bounds.size, self.tag == 1); }
+- (void)_isim_drawContent {
+    if (!_fade) return;
+    /* iOS 26 scroll edge effect of the scroll view under the bar (its navigation controller's) */
+    UIView *bar = self.superview;
+    UIScrollView *sv = [bar respondsToSelector:@selector(_isim_edgeScrollView)] ? [(id)bar _isim_edgeScrollView] : nil;
+    int mode = isim_ui_edge_effect_mode(sv, self.tag == 1);
+    if (mode == 2) return;
+    if (mode == 1) draw_edge_hard(self.bounds.size, self.tag == 1);
+    else draw_edge_fade(self.bounds.size, self.tag == 1);
+}
 @end
 
 /* ================= UINavigationBar ================= */
@@ -325,6 +374,10 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 @property (nonatomic) CGFloat _isim_safeTop, _isim_largeExtra, _isim_searchExtra;
 @property (nonatomic) BOOL _isim_scrolledEdge;
 @property (nonatomic, copy) void (^_isim_back)(void);
+@property (nonatomic, weak) UIScrollView *_isim_edgeScrollView;      /* iOS 26 scroll edge effect source */
+@end
+@interface UIToolbar (IsimEdge)
+@property (nonatomic, weak) UIScrollView *_isim_edgeScrollView;
 @end
 @implementation UINavigationBar { NSMutableArray<UINavigationItem *> *_stack; __IsimBarBackground *_bg; UILabel *_title, *_large; __IsimBackButton *_back; UIView *_largeClip;
                                   NSMutableArray<UIView *> *_itemViews; UIView *_titleViewHost; }
@@ -429,6 +482,11 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 @end
 
 /* ================= UIToolbar ================= */
+static char k_toolbar_edge;
+@implementation UIToolbar (IsimEdge)
+- (UIScrollView *)_isim_edgeScrollView { return objc_getAssociatedObject(self, &k_toolbar_edge); }
+- (void)set_isim_edgeScrollView:(UIScrollView *)sv { objc_setAssociatedObject(self, &k_toolbar_edge, sv, OBJC_ASSOCIATION_ASSIGN); }
+@end
 @implementation UIToolbar { __IsimBarBackground *_bg; NSMutableArray<UIView *> *_views; }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
@@ -748,6 +806,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     CGFloat extra = large ? fmin(52, fmax(0, 52 - y)) : 0;
     _bar._isim_safeTop = safeTop; _bar._isim_largeExtra = extra; _bar._isim_searchExtra = search;
     _bar._isim_scrolledEdge = large ? y > 52 - 0.5 : y > 0.5;
+    _bar._isim_edgeScrollView = sv; if (_toolbar) _toolbar._isim_edgeScrollView = sv;
     _bar.frame = CGRectMake(0, 0, W, safeTop + 44 + extra + search);
     [_bar setNeedsLayout]; [_bar layoutIfNeeded];
 }

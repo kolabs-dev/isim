@@ -296,3 +296,41 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
 }
 - (void)_isim_markContentFromLayout { _contentFromLayout = YES; }
 @end
+
+/* ================= scroll edge effects (iOS 26) ================= */
+@implementation UIScrollEdgeEffectStyle { int _kind; }
+static UIScrollEdgeEffectStyle *edge_style(int kind) {
+    static UIScrollEdgeEffectStyle *styles[3];
+    if (!styles[kind]) { styles[kind] = [UIScrollEdgeEffectStyle new]; styles[kind]->_kind = kind; }
+    return styles[kind];
+}
++ (UIScrollEdgeEffectStyle *)automaticStyle { return edge_style(0); }
++ (UIScrollEdgeEffectStyle *)softStyle { return edge_style(1); }
++ (UIScrollEdgeEffectStyle *)hardStyle { return edge_style(2); }
+- (int)_isim_kind { return _kind; }
+- (NSString *)description { return _kind == 2 ? @"hard" : _kind == 1 ? @"soft" : @"automatic"; }
+@end
+@implementation UIScrollEdgeEffect
+- (instancetype)init { if ((self = [super init])) _style = UIScrollEdgeEffectStyle.automaticStyle; return self; }
+- (void)setStyle:(UIScrollEdgeEffectStyle *)s { _style = s ?: UIScrollEdgeEffectStyle.automaticStyle; isim_ui_set_needs_display(); }
+- (void)setHidden:(BOOL)h { _hidden = h; isim_ui_set_needs_display(); }
+@end
+static char k_edges;
+@implementation UIScrollView (UIScrollEdgeEffect)
+- (UIScrollEdgeEffect *)_isim_edge:(NSUInteger)i {
+    NSMutableArray *a = objc_getAssociatedObject(self, &k_edges);
+    if (!a) { a = [NSMutableArray array]; for (int k = 0; k < 4; k++) [a addObject:[UIScrollEdgeEffect new]]; objc_setAssociatedObject(self, &k_edges, a, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    return a[i];
+}
+- (UIScrollEdgeEffect *)topEdgeEffect { return [self _isim_edge:0]; }
+- (UIScrollEdgeEffect *)leftEdgeEffect { return [self _isim_edge:1]; }
+- (UIScrollEdgeEffect *)bottomEdgeEffect { return [self _isim_edge:2]; }
+- (UIScrollEdgeEffect *)rightEdgeEffect { return [self _isim_edge:3]; }
+@end
+/* how a bar draws the edge it shares with the scroll view: 0 fade, 1 hard, 2 none */
+int isim_ui_edge_effect_mode(UIScrollView *sv, BOOL bottom) {
+    if (!sv || !objc_getAssociatedObject(sv, &k_edges)) return 0;
+    UIScrollEdgeEffect *e = bottom ? sv.bottomEdgeEffect : sv.topEdgeEffect;
+    if (e.hidden) return 2;
+    return [(id)e.style _isim_kind] == 2 ? 1 : 0;
+}

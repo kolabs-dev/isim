@@ -489,3 +489,11 @@ extension UIStoryboard {
         return typed
     }
 }
+
+// MARK: - iOS 26 bar button item badges (Apple's Swift spelling)
+@available(iOS 26.0, *)
+extension UIBarButtonItem.Badge {
+    public static func count(_ count: Int) -> UIBarButtonItem.Badge { _isim_count(count) }
+    public static func string(_ string: String) -> UIBarButtonItem.Badge { _isim_string(string) }
+    public static func indicator() -> UIBarButtonItem.Badge { _isim_indicator() }
+}
