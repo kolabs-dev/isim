@@ -134,7 +134,7 @@ fi
 if [ "${OS_MATRIX:-0}" = 1 ]; then
   for v in ${OS_MATRIX_VERSIONS:-17 18 26 27}; do
     case $v in 17) dev=iphone15 ;; 18) dev=iphone16pro ;; *) dev=iphone17 ;; esac
-    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation hellocounter swiftui controls boot"
+    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation hellocounter swiftui controls symbols boot"
     # suites that assert the 402-pt iPhone 16 Pro/17 screen (frames, tap points) or iPads first sold with 17.5: no
     # iPhone that runs iOS 17.0 has that screen, so they run on 18, 26 and 27
     [ "$v" = 17 ] || suites="$suites forms navigation presentations transitions table"
