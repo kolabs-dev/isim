@@ -156,14 +156,21 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
     struct Rep { let type: String; let load: (@escaping (Data?, Error?) -> Void) -> Void }
     var reps: [Rep] = []
     var fileURL: URL?
+    var items: [(type: String, item: NSSecureCoding)] = []      // init(item:typeIdentifier:): loadItem hands the object back
     open var suggestedName: String?
 
     public override init() { super.init() }
     public convenience init(item: NSSecureCoding?, typeIdentifier: String?) {
         self.init()
         if let t = typeIdentifier, let item {
+            items.append((t, item))
             if let d = item as? NSData { let data = Data(referencing: d); registerDataRepresentation(forTypeIdentifier: t, visibility: .all) { $0(data, nil); return nil } }
             else if let s = item as? NSString { let data = Data((s as String).utf8); registerDataRepresentation(forTypeIdentifier: t, visibility: .all) { $0(data, nil); return nil } }
+            else if let u = item as? NSURL {
+                let data = Data((u.absoluteString ?? "").utf8)
+                if u.isFileURL, let path = u.path { fileURL = URL(fileURLWithPath: path) }
+                registerDataRepresentation(forTypeIdentifier: t, visibility: .all) { $0(data, nil); return nil }
+            }
         }
     }
     public convenience init?(contentsOf fileURL: URL) {
@@ -195,6 +202,8 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
             registerDataRepresentation(forTypeIdentifier: t, visibility: visibility) { done in object.loadData(withTypeIdentifier: t) { d, e in done(d, e) } }
         }
     }
+    /// isim: the object loadItem(forTypeIdentifier:) hands back for this type (used by UIKit's extension hosting)
+    public func _isimSetItem(_ item: NSSecureCoding, forTypeIdentifier typeIdentifier: String) { items.append((typeIdentifier, item)) }
     open var registeredTypeIdentifiers: [String] { reps.map(\.type) }
     open func registeredTypeIdentifiers(fileOptions: Int) -> [String] { registeredTypeIdentifiers }
 
@@ -249,7 +258,13 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
     }
     @discardableResult
     open func loadItem(forTypeIdentifier typeIdentifier: String, options: [AnyHashable: Any]? = nil, completionHandler: (@Sendable (NSSecureCoding?, Error?) -> Void)? = nil) -> Progress {
-        loadDataRepresentation(forTypeIdentifier: typeIdentifier) { d, e in completionHandler?(d.map { $0 as NSData }, e) }
+        // the object given to init(item:typeIdentifier:) (a URL stays a URL, a string a string), like iOS
+        if let hit = items.first(where: { $0.type == typeIdentifier }) ?? items.first(where: { conforms($0.type, typeIdentifier) }) {
+            let obj = hit.item
+            DispatchQueue.global().async { completionHandler?(obj, nil) }
+            return Progress(totalUnitCount: 1)
+        }
+        return loadDataRepresentation(forTypeIdentifier: typeIdentifier) { d, e in completionHandler?(d.map { $0 as NSData }, e) }
     }
 }
 
@@ -267,5 +282,13 @@ extension NSItemProvider {
     public func registerDataRepresentation(for contentType: UTType, visibility: NSItemProviderRepresentationVisibility = .all,
                                            loadHandler: @escaping @Sendable (@escaping (Data?, Error?) -> Void) -> Progress?) {
         registerDataRepresentation(forTypeIdentifier: contentType.identifier, visibility: visibility, loadHandler: loadHandler)
+    }
+}
+
+// NSExtensionItem (Foundation) keeps its attachments untyped in Objective-C; Swift sees [NSItemProvider]? like on iOS.
+extension NSExtensionItem {
+    public var attachments: [NSItemProvider]? {
+        get { __attachments?.compactMap { $0 as? NSItemProvider } }
+        set { __attachments = newValue }
     }
 }

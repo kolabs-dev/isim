@@ -11,7 +11,8 @@
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
  *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
- *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "swipehome left|right"
+ *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "swipehome left|right",
+ *                  "push BUNDLE-ID FILE"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
  * installed apps) is a child process ("client") that renders into a shared-memory surface and
@@ -61,7 +62,7 @@ enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_T
        EV_DEVICE_ORIENTATION /* key = UIDeviceOrientation */,
        EV_SYSTEM = 50 /* text: a system message for the app (shell_system.inc) */, EV_SHELL_CMD = 51 /* shell-internal: script system command */ };
 /* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
-struct shell_msg { int type; struct isim_event ev; char a[512], b[512], c[512]; };
+struct shell_msg { int type; struct isim_event ev; char a[1536], b[1536], c[1536]; };
 enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM, SM_NOTIFY, SM_ORIENT /* a = UIInterfaceOrientation of the client's screen */,
        SM_SYSTEM = 40 /* a = verb, b/c = arguments (shell_system.inc) */ };
 static int client_sock = -1, client_wake[2] = { -1, -1 };
@@ -971,15 +972,21 @@ static int script_step(struct isim_event *ev) {
         void isim_audio_session_post(const char *ev);
         isim_audio_session_post(arg);
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
-               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")) {
+               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")
+               || (!strcmp(cmd, "push") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
-           "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand);
+           "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),
+           "push BUNDLE-ID FILE" (a remote notification payload, like `xcrun simctl push`);
            "openurl URL" under the shell: the home screen opens it in the app that handles it */
         for (char *e = args + strlen(args) - 1; e >= args && *e == ' '; e--) *e = 0;
         while (*args == ' ') args++;
         pending[npending++] = (struct isim_event){ .type = EV_SHELL_CMD };
         snprintf(pending[npending - 1].text, sizeof pending->text, "%s%s%s", cmd, *args ? " " : "", args);
         script_resume = now() + 0.4;
+    } else if (!strcmp(cmd, "push") && sscanf(args, " %*[^; ] %511[^;]", arg) == 1) {   /* the app alone (isim run): the payload goes straight to it */
+        for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "remote-notification %s", arg);
+        script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "openurl") && sscanf(args, " %511[^; ]", arg) == 1) {   /* the app alone (isim run): open the URL in it (custom schemes, universal links) */
         pending[npending++] = (struct isim_event){ .type = EV_OPEN_URL }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.3;
@@ -1076,6 +1083,11 @@ int isim_next_event(struct isim_event *ev, double timeout) {
             ev->type = EV_KEY_UP; ev->key = (int)e.key.key; ev->mods = e.key.mod; ev->pad = (int)e.key.scancode; return 1;
         case SDL_EVENT_TEXT_INPUT:
             ev->type = EV_TEXT; snprintf(ev->text, sizeof ev->text, "%s", e.text.text); return 1;
+        case SDL_EVENT_DROP_FILE:                 /* a .apns file dropped on the device: a remote notification (like the Simulator) */
+            if (!e.drop.data) break;
+            if (shell_mode) { ev->type = EV_SHELL_CMD; snprintf(ev->text, sizeof ev->text, "push-drop %s", e.drop.data); return 1; }
+            fprintf(stderr, "isim host: dropped %s (drop .apns files on a device started with `isim boot`)\n", e.drop.data);
+            break;
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: case SDL_EVENT_WINDOW_EXPOSED:
             if (e.type != SDL_EVENT_WINDOW_EXPOSED) { px_scale = SDL_GetWindowPixelDensity(win) * zoom; make_surface(); }
             ev->type = EV_REDRAW; return 1;
@@ -1169,7 +1181,7 @@ void isim_audio_set_volume(long h, double volume);
 int isim_audio_is_playing(long h);
 double isim_audio_position(long h);
 void isim_audio_seek(long h, double seconds);
-void isim_audio_suspend(int s);
+void isim_audio_suspend(int s); int isim_audio_active(void);
 void isim_path_set_line_style(int cap, int join, double miter, const double *dash, int ndash, double phase);
 void isim_path_set_fill_rule(int even_odd);
 void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *matrix);
@@ -1277,7 +1289,7 @@ static const struct shim isim_table[] = {
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free), H(isim_image_draw_part), H(isim_image_pixel_size), H(isim_image_draw_symbol),
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
-    H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free),
+    H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free), H(isim_audio_active),
     H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close), H(isim_http_metrics),
     H(isim_ws_open), H(isim_ws_send), H(isim_ws_recv), H(isim_ws_close), H(isim_net_path),
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),

@@ -1,0 +1,9 @@
+{
+  "apns-collapse-id": "svc-1",
+  "aps": {
+    "alert": { "title": "Photo", "body": "A picture for you" },
+    "mutable-content": 1,
+    "category": "MESSAGE"
+  },
+  "item": "s1"
+}

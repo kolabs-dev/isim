@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>PushContent</string>
+	<key>CFBundleExecutable</key>
+	<string>PushContent</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloPush.Content</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>UNNotificationExtensionCategory</key>
+			<string>MESSAGE</string>
+			<key>UNNotificationExtensionInitialContentSizeRatio</key>
+			<real>0.4</real>
+		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.usernotifications.content-extension</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>PushContent.NotificationViewController</string>
+	</dict>
+</dict>
+</plist>

@@ -20,7 +20,8 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `home` | go to the home screen |
 | `launch BUNDLE_ID` | open an installed app |
 | `openurl URL` | open a URL: under `isim boot` the home screen opens it in the app that handles it (its `CFBundleURLTypes` scheme, or an https universal link of its `applinks:` domains); with `isim run` the running app gets it (custom schemes, its own universal links, other web URLs "open in Safari"). `isim openurl URL --control FIFO` does the same from another terminal |
-| `bgtask BUNDLE_ID TASK_ID` | launch a submitted BackgroundTasks request (like Xcode's `_simulateLaunchForTaskWithIdentifier`); a closed app is started in the background. `TASK_ID` `--fetch` runs a background fetch |
+| `bgtask BUNDLE_ID TASK_ID` | launch a submitted BackgroundTasks request (like Xcode's `_simulateLaunchForTaskWithIdentifier`); a closed app is started in the background (a suspended one is resumed). `TASK_ID` `--fetch` runs a background fetch |
+| `push BUNDLE_ID FILE` | deliver a remote notification payload (JSON with an `aps` dictionary), like `xcrun simctl push`: the Notification Service extension runs for `mutable-content`, then the running app gets it, or the system shows it (app not running), or `content-available` launches the app in the background. With `isim run` (the app alone) the payload goes straight to the app. Outside scripts: `isim push [BUNDLE_ID] payload.apns\|-`, or drop a `.apns` file (with a `"Simulator Target Bundle"` key) on the device window. A top-level `"apns-collapse-id"` key becomes the notification's identifier |
 
 ## System UI (`isim boot`)
 
@@ -28,7 +29,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 |---|---|
 | `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock |
 | `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
-| `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `tapid nc-clear` clears) |
+| `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
 | `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes) |
 | `spotlight` | Spotlight on the home screen |
 | `island` | expand / collapse the Dynamic Island's Live Activity |
@@ -36,6 +37,15 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `swipehome left\|right` | swipe across the home screen (left: the next page) |
 
 While one of these is shown, `dump` lists its parts (ids and text) and `tapid` / `swipeid` act on them.
+
+**Expanded notifications** (a long press on a Notification Center / lock-screen item or a banner, `holdid … 0.8`):
+`dump` lists `nx-content` (tap: open the app), `nx-action-ID` for each action of the notification's category and
+`nx-background` (tap: close; categories with `.customDismissAction` send the dismiss action). A text input action
+opens `nx-reply-field`: `type TEXT` then `key return` (or `tapid nx-reply-send`) sends the reply. A Notification Content
+extension's view is drawn at the top of the card.
+
+**Location indicator**: while an app uses location in the background, the status bar's time sits on a blue capsule
+(`dump`: `IsimLocationIndicator … id=location-indicator`); `tapid location-indicator` opens that app.
 
 ## Touch
 

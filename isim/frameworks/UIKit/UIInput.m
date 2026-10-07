@@ -335,8 +335,23 @@ int NSExtensionMain(int argc, char *argv[]) {
         NSLog(@"isim: widget extension without a main entry point (@main Widget / WidgetBundle)");
         return 1;
     }
+    if ([point isEqualToString:@"com.apple.usernotifications.service"] || [point isEqualToString:@"com.apple.usernotifications.content-extension"]) {
+        /* Notification Service / Content extensions: helper processes the home screen starts (UserNotifications.m) */
+        extern void *dlsym(void *, const char *);
+        extern void *dlopen(const char *, int);
+        int (*un_main)(int, char **) = (int (*)(int, char **))dlsym((void *)-2, "isim_un_extension_main");
+        if (!un_main && dlopen("/System/Library/Frameworks/UserNotifications.framework/UserNotifications", 2))
+            un_main = (int (*)(int, char **))dlsym((void *)-2, "isim_un_extension_main");
+        if (un_main) return un_main(argc, argv);
+        NSLog(@"isim: notification extension: the UserNotifications framework is not available");
+        return 1;
+    }
+    if ([point isEqualToString:@"com.apple.share-services"] || [point isEqualToString:@"com.apple.ui-services"]) {
+        NSLog(@"isim: '%@' extensions run inside their host app (share them from an app's UIActivityViewController)", point);
+        return 1;
+    }
     if (![point isEqualToString:@"com.apple.keyboard-service"]) {
-        NSLog(@"isim: extension point '%@' is not supported (isim hosts custom keyboards only)", point);
+        NSLog(@"isim: extension point '%@' is not supported", point);
         return 1;
     }
     return UIApplicationMain(argc, argv, nil, @"__IsimKeyboardPreviewDelegate");

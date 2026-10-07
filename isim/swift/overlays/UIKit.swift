@@ -8,6 +8,24 @@ extension UIApplicationDelegate {
   }
 }
 
+// MARK: - Apple's member names for the launch and open-URL option keys (the importer keeps the constants' "Key" suffix: .urlKey)
+extension UIApplication.LaunchOptionsKey {
+    public static var url: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsURLKey") }
+    public static var sourceApplication: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsSourceApplicationKey") }
+    public static var shortcutItem: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsShortcutItemKey") }
+    public static var userActivityDictionary: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsUserActivityDictionaryKey") }
+    public static var userActivityType: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsUserActivityTypeKey") }
+    public static var remoteNotification: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsRemoteNotificationKey") }
+    public static var location: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsLocationKey") }
+}
+extension UIApplication.OpenURLOptionsKey {
+    public static var sourceApplication: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsSourceApplicationKey") }
+    public static var openInPlace: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsOpenInPlaceKey") }
+}
+extension UIApplication.OpenExternalURLOptionsKey {
+    public static var universalLinksOnly: UIApplication.OpenExternalURLOptionsKey { UIApplication.OpenExternalURLOptionsKey(rawValue: "UIApplicationOpenURLOptionUniversalLinksOnly") }
+}
+
 // MARK: - Geometry conveniences (UIKit Swift overlay API)
 extension UIEdgeInsets: Equatable {
     public static var zero: UIEdgeInsets { UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0) }

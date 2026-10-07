@@ -8,13 +8,17 @@
  * - State restoration: stateRestorationActivity(for:) is saved when the scene goes to the background
  *   (Library/isim/SceneState.plist) and handed back on the next launch (session.stateRestorationActivity).
  * - Background work: beginBackgroundTask (expires after ISIM_BACKGROUND_TASK_SECONDS, default 30), launches into the
- *   background (ISIM_LAUNCH_BACKGROUND) and BackgroundTasks launches ("bgtask ID" from the shell, for submitted requests).
+ *   background (ISIM_LAUNCH_BACKGROUND) and BackgroundTasks launches ("bgtask ID" from the shell, for submitted requests);
+ *   what keeps the app running in the background (reported to the shell, which suspends the app otherwise).
+ * - Remote notifications: registration (device token), payloads from the shell ("push FILE", or a launch for one),
+ *   responses chosen under expanded notifications ("nc-action ..."), the app icon badge.
  * - Alternate app icons (Library/isim/AlternateIcon.plist), with the system alert.
  * UIApplication.m calls the isim_sys_* hooks at launch, on URL/system events and on lifecycle changes. */
 #import "UIKitPrivate.h"
 #import <objc/runtime.h>
 #include <float.h>
 #include <stdlib.h>
+#include <dlfcn.h>
 
 NSString *isim_data_dir(void);
 
@@ -245,6 +249,9 @@ NSNotificationName const UIApplicationBackgroundRefreshStatusDidChangeNotificati
 const NSTimeInterval UIApplicationBackgroundFetchIntervalMinimum = 0, UIApplicationBackgroundFetchIntervalNever = DBL_MAX;
 
 static NSMutableDictionary<NSNumber *, NSArray *> *bg_tasks;     /* id -> @[name, handler] */
+static NSMutableSet<NSNumber *> *bg_expired;                     /* tasks whose expiration handler ran (they no longer keep the app running) */
+void isim_sys_report_background(void);
+static NSUInteger live_tasks(void) { NSUInteger n = 0; for (NSNumber *k in bg_tasks) if (![bg_expired containsObject:k]) n++; return n; }
 static NSUInteger next_task_id = 1;
 static double bg_entered;                                         /* isim_time() when the app went to the background */
 static NSTimer *bg_timer;
@@ -255,9 +262,12 @@ static void bg_expire(void) {
         NSArray *t = bg_tasks[k];
         if (!t) continue;
         NSLog(@"isim: background task %@ (%@) expired", k, [t[0] length] ? t[0] : @"unnamed");
+        if (!bg_expired) bg_expired = [NSMutableSet set];
+        [bg_expired addObject:k];
         if (t.count > 1) ((void (^)(void))t[1])();
     }
-    if (bg_tasks.count) NSLog(@"isim: %lu background task(s) still running after expiration (iOS would terminate the app; isim keeps it)", (unsigned long)bg_tasks.count);
+    if (bg_tasks.count) NSLog(@"isim: %lu background task(s) still running after expiration (iOS would terminate the app; isim suspends it)", (unsigned long)bg_tasks.count);
+    isim_sys_report_background();
 }
 static void bg_schedule(void) {
     [bg_timer invalidate]; bg_timer = nil;
@@ -273,13 +283,16 @@ static void bg_schedule(void) {
     bg_tasks[@(ident)] = h ? @[name ?: @"", [h copy]] : @[name ?: @""];
     NSLog(@"isim: background task %lu (%@) began", (unsigned long)ident, name.length ? name : @"unnamed");
     bg_schedule();
+    isim_sys_report_background();
     return ident;
 }
 - (void)endBackgroundTask:(UIBackgroundTaskIdentifier)ident {
     if (!bg_tasks[@(ident)]) return;
     [bg_tasks removeObjectForKey:@(ident)];
+    [bg_expired removeObject:@(ident)];
     NSLog(@"isim: background task %lu ended", (unsigned long)ident);
     if (!bg_tasks.count) { [bg_timer invalidate]; bg_timer = nil; }
+    isim_sys_report_background();
 }
 - (NSTimeInterval)backgroundTimeRemaining {
     if (self.applicationState != UIApplicationStateBackground) return DBL_MAX;
@@ -288,6 +301,175 @@ static void bg_schedule(void) {
 - (UIBackgroundRefreshStatus)backgroundRefreshStatus { return UIBackgroundRefreshStatusAvailable; }
 - (void)setMinimumBackgroundFetchInterval:(NSTimeInterval)i { NSLog(@"isim: minimum background fetch interval %g (fetches run on demand: script \"bgtask BUNDLE-ID --fetch\")", i); }
 @end
+
+
+/* ================= remote notifications, badges and background execution ================= */
+/* push registration (adapted): like the Simulator (Xcode 14+), registering gives a device token, provided the app has
+   the aps-environment entitlement; there is no APNs, so payloads come from `isim push`, the `push` script command or a
+   .apns file dropped on the device (the home screen routes them). ISIM_PUSH_REGISTRATION=fail fails it (3010). */
+static NSString *token_file(void) { return [isim_dir() stringByAppendingPathComponent:@"APNSDeviceToken"]; }
+static NSString *registered_file(void) { return [isim_dir() stringByAppendingPathComponent:@"RemoteNotificationsRegistered"]; }
+static BOOL has_aps_entitlement(void) {
+    NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
+    return [ent[@"aps-environment"] isKindOfClass:[NSString class]];
+}
+void isim_sys_register_remote(void) {
+    UIApplication *app = UIApplication.sharedApplication;
+    const char *mode = getenv("ISIM_PUSH_REGISTRATION");
+    NSError *e = nil;
+    if (mode && !strcmp(mode, "fail"))
+        e = [NSError errorWithDomain:NSCocoaErrorDomain code:3010 userInfo:@{ NSLocalizedDescriptionKey: @"remote notifications are not supported in the simulator" }];
+    else if (!has_aps_entitlement())
+        e = [NSError errorWithDomain:NSCocoaErrorDomain code:3000 userInfo:@{ NSLocalizedDescriptionKey: @"no valid “aps-environment” entitlement string found for application" }];
+    if (e) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSLog(@"isim: registerForRemoteNotifications failed: %@", e.localizedDescription);
+            id<UIApplicationDelegate> d = app.delegate;
+            if ([d respondsToSelector:@selector(application:didFailToRegisterForRemoteNotificationsWithError:)]) [d application:app didFailToRegisterForRemoteNotificationsWithError:e];
+        });
+        return;
+    }
+    NSData *token = [NSData dataWithContentsOfFile:token_file()];
+    if (token.length != 32) {                                    /* one token per app and device data, like a real device */
+        uint8_t b[32]; arc4random_buf(b, sizeof b);
+        token = [NSData dataWithBytes:b length:sizeof b];
+        [token writeToFile:token_file() atomically:YES];
+    }
+    [[NSData data] writeToFile:registered_file() atomically:YES];
+    NSMutableString *hex = [NSMutableString string];
+    for (NSUInteger i = 0; i < token.length; i++) [hex appendFormat:@"%02x", ((const uint8_t *)token.bytes)[i]];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSLog(@"isim: registered for remote notifications (device token %@); send one with: isim push %@ payload.apns", hex, NSBundle.mainBundle.bundleIdentifier ?: @"BUNDLE-ID");
+        id<UIApplicationDelegate> d = app.delegate;
+        if ([d respondsToSelector:@selector(application:didRegisterForRemoteNotificationsWithDeviceToken:)]) [d application:app didRegisterForRemoteNotificationsWithDeviceToken:token];
+    });
+}
+void isim_sys_unregister_remote(void) { [NSFileManager.defaultManager removeItemAtPath:registered_file() error:NULL]; NSLog(@"isim: unregistered for remote notifications"); }
+BOOL isim_sys_remote_registered(void) { return [NSFileManager.defaultManager fileExistsAtPath:registered_file()]; }
+
+/* the app icon badge: shown by the home screen when the app may badge (UNAuthorizationOptionBadge) */
+static NSString *badge_file(void) { return [isim_dir() stringByAppendingPathComponent:@"Badge.plist"]; }
+static BOOL badge_loaded; static NSInteger badge_value;
+NSInteger isim_sys_badge(void) {
+    if (!badge_loaded) { badge_loaded = YES; badge_value = [[NSDictionary dictionaryWithContentsOfFile:badge_file()][@"count"] integerValue]; }
+    return badge_value;
+}
+static BOOL may_badge(void) {
+    NSUserDefaults *u = NSUserDefaults.standardUserDefaults;
+    NSInteger status = [u integerForKey:@"_ISIMNotificationAuthorization"], opts = [u integerForKey:@"_ISIMNotificationOptions"];
+    return (status == 2 || status == 4) && (opts & 1);           /* authorized / ephemeral, with UNAuthorizationOptionBadge */
+}
+void isim_sys_set_badge(NSInteger n) {
+    badge_loaded = YES;
+    if (n == badge_value && [NSFileManager.defaultManager fileExistsAtPath:badge_file()]) return;
+    if (n != 0 && !may_badge()) { NSLog(@"isim: badge %ld not shown: the app may not badge its icon (request UNAuthorizationOptionBadge)", (long)n); return; }
+    badge_value = n;
+    [@{ @"count": @(n) } writeToFile:badge_file() atomically:YES];
+    NSLog(@"isim: app icon badge %ld", (long)n);
+    char c[32]; snprintf(c, sizeof c, "%ld", (long)n);
+    isim_shell_request(ISIM_SHELL_SYSTEM, "badge", NSBundle.mainBundle.bundlePath.UTF8String, c);
+}
+
+/* UserNotifications presents remote notifications and takes responses from the system UI; UIKit loads it on demand */
+static void *un_symbol(const char *name) {
+    void *f = dlsym(RTLD_DEFAULT, name);
+    if (!f && dlopen("/System/Library/Frameworks/UserNotifications.framework/UserNotifications", RTLD_NOW)) f = dlsym(RTLD_DEFAULT, name);
+    return f;
+}
+static BOOL has_background_mode(NSString *m) {
+    NSArray *modes = NSBundle.mainBundle.infoDictionary[@"UIBackgroundModes"];
+    return [modes isKindOfClass:[NSArray class]] && [modes containsObject:m];
+}
+/* a push payload file: { id, payload, attachments?, content? } from the home screen, or a bare payload */
+static NSDictionary *read_push(NSString *file) {
+    NSData *d = [NSData dataWithContentsOfFile:file];
+    id j = [file.pathExtension isEqualToString:@"plist"] ? [NSDictionary dictionaryWithContentsOfFile:file] : d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
+    if (![j isKindOfClass:[NSDictionary class]]) { NSLog(@"isim: cannot read the push payload %@", file); return nil; }
+    if (![j[@"payload"] isKindOfClass:[NSDictionary class]]) j = @{ @"id": NSUUID.UUID.UUIDString, @"payload": j };
+    return j;
+}
+static NSDictionary *launch_push;               /* ISIM_LAUNCH_URL isim-push:FILE / isim-push-open:FILE */
+static BOOL launch_push_open;
+/* mode 0: the running app got it, 1: launched in the background for it, 2: launched by tapping it */
+static void deliver_remote(NSDictionary *w, int mode) {
+    if (!w) return;
+    NSDictionary *payload = w[@"payload"];
+    NSDictionary *aps = [payload[@"aps"] isKindOfClass:[NSDictionary class]] ? payload[@"aps"] : @{};
+    UIApplication *app = UIApplication.sharedApplication;
+    BOOL bg = app.applicationState == UIApplicationStateBackground;
+    NSLog(@"isim: remote notification %@ (%@)", w[@"id"], mode == 2 ? @"opened" : bg ? @"app in the background" : @"app in the foreground");
+    void (*un)(NSDictionary *, int) = (void (*)(NSDictionary *, int))un_symbol("isim_un_remote_notification");
+    if (un) un(w, mode);
+    else NSLog(@"isim: remote notification: UserNotifications is not available");
+    if (mode == 2) return;
+    BOOL contentAvailable = [aps[@"content-available"] respondsToSelector:@selector(intValue)] && [aps[@"content-available"] intValue] == 1;
+    if (bg && !(contentAvailable && has_background_mode(@"remote-notification"))) return;
+    id<UIApplicationDelegate> d = app.delegate;
+    if ([d respondsToSelector:@selector(application:didReceiveRemoteNotification:fetchCompletionHandler:)]) {
+        __block UIBackgroundTaskIdentifier task = bg ? [app beginBackgroundTaskWithName:@"remote notification" expirationHandler:^{}] : UIBackgroundTaskInvalid;
+        __block BOOL called = NO;
+        [d application:app didReceiveRemoteNotification:payload fetchCompletionHandler:^(UIBackgroundFetchResult r) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (called) return;
+                called = YES;
+                NSLog(@"isim: didReceiveRemoteNotification finished (%@)", r == UIBackgroundFetchResultNewData ? @"newData" : r == UIBackgroundFetchResultNoData ? @"noData" : @"failed");
+                if (task != UIBackgroundTaskInvalid) { [app endBackgroundTask:task]; task = UIBackgroundTaskInvalid; }
+            });
+        }];
+    } else if (!bg && [d respondsToSelector:@selector(application:didReceiveRemoteNotification:)]) {
+        [(id)d application:app didReceiveRemoteNotification:payload];
+    } else if (contentAvailable) NSLog(@"isim: background notification: the app delegate does not implement application(_:didReceiveRemoteNotification:fetchCompletionHandler:)");
+}
+/* "RECORD\x1fID\x1fACTION\x1fTEXT": a response chosen under an expanded notification (TEXT only for text input actions) */
+static NSString *launch_action;
+static void notification_action(NSString *args) {
+    NSArray *p = [args componentsSeparatedByString:@"\x1f"];
+    if (p.count < 3) return;
+    void (*f)(NSString *, NSString *, NSString *, NSString *) = (void (*)(NSString *, NSString *, NSString *, NSString *))un_symbol("isim_un_notification_action");
+    if (f) f(p[0], p[1], p[2], p.count > 3 ? p[3] : nil);
+}
+
+/* ---- background execution (adapted): under the shell an app in the background is suspended (SIGSTOP) a few seconds
+   after it got there, unless something keeps it running: a background task (beginBackgroundTask, BackgroundTasks,
+   remote notification fetches), audio playing with UIBackgroundModes audio and a playback session category, location
+   updates with UIBackgroundModes location and allowsBackgroundLocationUpdates. The app reports these reasons to the
+   shell ("bg-assert"); frameworks answer the _IsimBackgroundQuery notification (AVFoundation: the session category,
+   CoreLocation: background updates and the blue indicator). */
+static NSString *last_reasons;
+static NSTimer *reasons_timer;
+static NSDictionary *query_frameworks(void) {
+    NSMutableDictionary *q = [NSMutableDictionary dictionary];
+    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimBackgroundQuery" object:q];
+    return q;
+}
+/* audio keeps playing in the background: UIBackgroundModes audio and a playback category (AVAudioSession) */
+BOOL isim_sys_background_audio(void) {
+    if (!has_background_mode(@"audio")) return NO;
+    NSString *cat = query_frameworks()[@"audioCategory"];
+    return [@[@"AVAudioSessionCategoryPlayback", @"AVAudioSessionCategoryPlayAndRecord", @"AVAudioSessionCategoryMultiRoute"] containsObject:cat ?: @""];
+}
+static NSUInteger live_tasks(void);
+void isim_sys_report_background(void) {
+    if (!isim_shell_present() || UIApplication.sharedApplication.applicationState != UIApplicationStateBackground) return;
+    if ([NSBundle.mainBundle.bundleIdentifier isEqualToString:@"dev.isim.springboard"]) return;      /* the home screen is never suspended */
+    NSMutableArray *r = [NSMutableArray array];
+    NSDictionary *q = query_frameworks();
+    if (live_tasks()) [r addObject:@"task"];
+    if (isim_sys_background_audio() && isim_audio_active() > 0) [r addObject:@"audio"];
+    if ([q[@"location"] boolValue]) [r addObject:[q[@"locationIndicator"] boolValue] ? @"location-indicator" : @"location"];
+    NSString *s = [r componentsJoinedByString:@","];
+    if ([s isEqualToString:last_reasons]) return;
+    last_reasons = s;
+    NSLog(@"isim: running in the background: %@", s.length ? s : @"nothing (the app can be suspended)");
+    isim_shell_request(ISIM_SHELL_SYSTEM, "bg-assert", s.UTF8String, NULL);
+}
+static void reasons_start(void) {
+    [reasons_timer invalidate];
+    last_reasons = nil;
+    isim_sys_report_background();
+    reasons_timer = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *t) { isim_sys_report_background(); }];
+}
+static void reasons_stop(void) { [reasons_timer invalidate]; reasons_timer = nil; last_reasons = nil; }
 
 /* ================= multiple scenes ================= */
 @implementation UIApplication (UIMultipleScenes)
@@ -354,6 +536,9 @@ static void parse_launch(void) {
     NSString *s = @(u);
     if ([s hasPrefix:@"isim-shortcut:"]) launch_shortcut = shortcut_item_of_type([s substringFromIndex:14]);
     else if ([s hasPrefix:@"isim-activity:"] || [s hasPrefix:@"isim-universal:"]) launch_activity = activity_from_marker(s);
+    else if ([s hasPrefix:@"isim-push:"]) launch_push = read_push([s substringFromIndex:10]);
+    else if ([s hasPrefix:@"isim-push-open:"]) { launch_push = read_push([s substringFromIndex:15]); launch_push_open = YES; }
+    else if ([s hasPrefix:@"isim-nc-action:"]) launch_action = [s substringFromIndex:15];
     else if ([s hasPrefix:@"isim-"]) {}                          /* isim-bgtask:... (background launch) */
     else launch_url = s;
 }
@@ -364,7 +549,8 @@ NSDictionary *isim_sys_launch_options(void) {
     if (launch_activity) o[UIApplicationLaunchOptionsUserActivityDictionaryKey] = @{ UIApplicationLaunchOptionsUserActivityTypeKey: launch_activity.activityType,
                                                                                      UIApplicationLaunchOptionsUserActivityKey: launch_activity };
     if (launch_url) { NSURL *url = [NSURL URLWithString:launch_url]; if (url) o[UIApplicationLaunchOptionsURLKey] = url; }
-    if (launch_shortcut || launch_activity || launch_url) NSLog(@"isim: launch options %@", [o.allKeys componentsJoinedByString:@", "]);
+    if (launch_push[@"payload"]) o[UIApplicationLaunchOptionsRemoteNotificationKey] = launch_push[@"payload"];
+    if (launch_shortcut || launch_activity || launch_url || launch_push) NSLog(@"isim: launch options %@", [o.allKeys componentsJoinedByString:@", "]);
     return o.count ? o : nil;
 }
 void isim_sys_did_finish_launching(BOOL result) { launch_finished_yes = result; }
@@ -441,6 +627,8 @@ BOOL isim_sys_deliver_launch(void) {
     parse_launch();
     if (launch_shortcut) { UIApplicationShortcutItem *i = launch_shortcut; dispatch_async(dispatch_get_main_queue(), ^{ perform_shortcut(i, YES); }); return YES; }
     if (launch_activity) { NSUserActivity *a = launch_activity; dispatch_async(dispatch_get_main_queue(), ^{ continue_activity(a, YES); }); return YES; }
+    if (launch_push) { NSDictionary *w = launch_push; int m = launch_push_open ? 2 : 0; dispatch_async(dispatch_get_main_queue(), ^{ deliver_remote(w, m); }); return YES; }
+    if (launch_action) { NSString *a = launch_action; dispatch_async(dispatch_get_main_queue(), ^{ notification_action(a); }); return YES; }
     if (launch_url && scene_based) {      /* scene apps get the URL in the connection options (scene(_:willConnectTo:options:)) */
         NSURL *url = [NSURL URLWithString:launch_url];
         dispatch_async(dispatch_get_main_queue(), ^{ NSLog(@"isim: opening URL %@ in the app", url); [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimOpenURL" object:url]; });
@@ -454,7 +642,7 @@ BOOL isim_sys_deliver_launch(void) {
 BOOL isim_sys_open_url(NSString *s) {
     if ([s hasPrefix:@"isim-shortcut:"]) { perform_shortcut(shortcut_item_of_type([s substringFromIndex:14]), NO); return YES; }
     if ([s hasPrefix:@"isim-activity:"] || [s hasPrefix:@"isim-universal:"]) { continue_activity(activity_from_marker(s), NO); return YES; }
-    if ([s hasPrefix:@"isim-bgtask:"]) return YES;
+    if ([s hasPrefix:@"isim-bgtask:"] || [s hasPrefix:@"isim-push"] || [s hasPrefix:@"isim-nc-action:"]) return YES;
     NSURL *url = [NSURL URLWithString:s];
     if (!url) return NO;
     NSString *scheme = url.scheme.lowercaseString;
@@ -474,7 +662,11 @@ static void run_background_task(NSString *ident) {
         id<UIApplicationDelegate> d = app.delegate;
         if ([d respondsToSelector:@selector(application:performFetchWithCompletionHandler:)]) {
             NSLog(@"isim: background fetch");
-            [d application:app performFetchWithCompletionHandler:^(UIBackgroundFetchResult r) { NSLog(@"isim: background fetch finished (%lu)", (unsigned long)r); }];
+            __block UIBackgroundTaskIdentifier task = [app beginBackgroundTaskWithName:@"background fetch" expirationHandler:^{}];
+            [d application:app performFetchWithCompletionHandler:^(UIBackgroundFetchResult r) {
+                NSLog(@"isim: background fetch finished (%lu)", (unsigned long)r);
+                dispatch_async(dispatch_get_main_queue(), ^{ if (task != UIBackgroundTaskInvalid) { [app endBackgroundTask:task]; task = UIBackgroundTaskInvalid; } });
+            }];
         } else NSLog(@"isim: background fetch: the app delegate does not implement application(_:performFetchWithCompletionHandler:)");
         return;
     }
@@ -491,14 +683,19 @@ static void run_background_task(NSString *ident) {
 BOOL isim_sys_background_launch(void) { const char *e = getenv("ISIM_LAUNCH_BACKGROUND"); return e && *e == '1'; }
 void isim_sys_after_background_launch(void) {
     bg_entered = isim_time();
+    parse_launch();
     const char *u = getenv("ISIM_LAUNCH_URL");
     if (u && !strncmp(u, "isim-bgtask:", 12)) { NSString *ident = @(u + 12); dispatch_async(dispatch_get_main_queue(), ^{ run_background_task(ident); }); }
+    if (launch_push) { NSDictionary *w = launch_push; dispatch_async(dispatch_get_main_queue(), ^{ deliver_remote(w, 1); }); }
+    if (launch_action) { NSString *a = launch_action; dispatch_async(dispatch_get_main_queue(), ^{ notification_action(a); }); }
+    dispatch_async(dispatch_get_main_queue(), ^{ reasons_start(); });
 }
 
 /* ---- lifecycle ---- */
 void isim_sys_mark_background(void) { bg_entered = isim_time(); }
 void isim_sys_entered_background(void) {
     bg_schedule();
+    reasons_start();
     /* state restoration: ask each scene for its activity */
     for (UIScene *s in UIApplication.sharedApplication.connectedScenes) {
         id<UISceneDelegate> sd = s.delegate;
@@ -509,7 +706,7 @@ void isim_sys_entered_background(void) {
         else [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
     }
 }
-void isim_sys_entered_foreground(void) { [bg_timer invalidate]; bg_timer = nil; }
+void isim_sys_entered_foreground(void) { [bg_timer invalidate]; bg_timer = nil; [bg_expired removeAllObjects]; reasons_stop(); }
 
 /* EV_SYSTEM: "<verb> <arguments>" from the shell */
 void isim_sys_event(const char *text) {
@@ -517,6 +714,8 @@ void isim_sys_event(const char *text) {
     NSRange sp = [t rangeOfString:@" "];
     if (sp.location != NSNotFound) { verb = [t substringToIndex:sp.location]; args = [t substringFromIndex:sp.location + 1]; }
     if ([verb isEqualToString:@"bgtask"]) run_background_task(args);
+    else if ([verb isEqualToString:@"remote-notification"]) deliver_remote(read_push(args), 0);
+    else if ([verb isEqualToString:@"nc-action"]) notification_action(args);
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */
         [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
         NSLog(@"isim: scene sessions discarded");

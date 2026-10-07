@@ -206,6 +206,17 @@ void isim_audio_suspend(int s) {
     SDL_LockMutex(mtx); suspended = s; SDL_UnlockMutex(mtx);
 }
 
+/* how many voices / streams are playing (UIKit: background audio keeps the app from being suspended) */
+int isim_audio_active(void) {
+    if (!mtx) return 0;
+    int n = 0;
+    SDL_LockMutex(mtx);
+    for (int v = 0; v < MAX_VOICES; v++) if (voices[v].playing && !voices[v].paused) n++;
+    for (int k = 0; k < MAX_STREAMS; k++) if (streams[k].used && !streams[k].paused && streams[k].wr > streams[k].rd) n++;
+    SDL_UnlockMutex(mtx);
+    return n;
+}
+
 /* ---------------- compressed audio files (AAC/ALAC m4a, MP3, FLAC, Ogg, ...) ----------------
  * Decoded by the host's ffmpeg, or GStreamer's gst-launch-1.0, in a child process (so the decoder's
  * threads and plugins stay out of the app process), to 48 kHz stereo float — the mixer's output format.

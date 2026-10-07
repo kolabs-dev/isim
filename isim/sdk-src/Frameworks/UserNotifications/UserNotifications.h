@@ -1,9 +1,11 @@
 #pragma once
-/* isim SDK (self-authored): UserNotifications — local notifications.
+/* isim SDK (self-authored): UserNotifications — local and remote (push) notifications.
  * isim: authorization asks with the iOS permission alert (remembered per app); time-interval and calendar
- * triggers fire while the app runs; in the foreground the delegate's willPresent decides whether a banner
- * shows (tapping it calls didReceive). Pending requests persist with the app's data. Push (APNs),
- * attachments, actions UI and notification extensions are not available. */
+ * triggers fire while the app runs (a suspended app is woken for them); in the foreground the delegate's
+ * willPresent decides whether a banner shows (tapping it calls didReceive). Pending requests persist with the
+ * app's data. Push payloads come from `isim push`, the script command `push` or a dropped .apns file (no APNs);
+ * Notification Service extensions run before display and Notification Content extensions render the expanded
+ * notification (long press), with the category's actions (text input included). */
 #import <Foundation/Foundation.h>
 #ifndef NS_SWIFT_UNAVAILABLE
 #define NS_SWIFT_UNAVAILABLE(_msg) __attribute__((availability(swift, unavailable, message=_msg)))
@@ -62,8 +64,16 @@ FOUNDATION_EXPORT NSString * const UNErrorDomain;
 typedef NS_ENUM(NSInteger, UNErrorCode) {
     UNErrorCodeNotificationsNotAllowed = 1,
     UNErrorCodeAttachmentInvalidURL = 100,
+    UNErrorCodeAttachmentUnrecognizedType = 101,
+    UNErrorCodeAttachmentInvalidFileSize = 102,
+    UNErrorCodeAttachmentNotInDataStore = 103,
+    UNErrorCodeAttachmentMoveIntoDataStoreFailed = 104,
+    UNErrorCodeAttachmentCorrupt = 105,
     UNErrorCodeNotificationInvalidNoDate = 1400,
     UNErrorCodeNotificationInvalidNoContent = 1401,
+    UNErrorCodeContentProvidingObjectNotAllowed = 1500,
+    UNErrorCodeContentProvidingInvalid = 1501,
+    UNErrorCodeBadgeInputInvalid API_AVAILABLE(ios(16.0)) = 1600,
 };
 FOUNDATION_EXPORT NSString * const UNNotificationDefaultActionIdentifier;
 FOUNDATION_EXPORT NSString * const UNNotificationDismissActionIdentifier;
@@ -77,11 +87,18 @@ typedef NSString *UNNotificationSoundName NS_SWIFT_NAME(UNNotificationSoundName)
 - (instancetype)init NS_UNAVAILABLE;
 @end
 
+/* isim: file URLs of images (png, jpg, gif, heic), audio (aiff, wav, mp3, m4a) and movies (mp4, mov, m4v); the file is
+ * copied into the notification attachment store (<isim data>/Library/UserNotifications/Attachments). */
+FOUNDATION_EXPORT NSString * const UNNotificationAttachmentOptionsTypeHintKey;
+FOUNDATION_EXPORT NSString * const UNNotificationAttachmentOptionsThumbnailHiddenKey;
+FOUNDATION_EXPORT NSString * const UNNotificationAttachmentOptionsThumbnailClippingRectKey;
+FOUNDATION_EXPORT NSString * const UNNotificationAttachmentOptionsThumbnailTimeKey;
 @interface UNNotificationAttachment : NSObject <NSCopying>
 @property (nonatomic, readonly, copy) NSString *identifier;
 @property (nonatomic, readonly, copy) NSURL *URL;
 @property (nonatomic, readonly, copy) NSString *type;
 + (nullable instancetype)attachmentWithIdentifier:(NSString *)identifier URL:(NSURL *)URL options:(nullable NSDictionary *)options error:(NSError *__autoreleasing _Nullable * _Nullable)error;
+- (instancetype)init NS_UNAVAILABLE;
 @end
 
 @interface UNNotificationContent : NSObject <NSCopying, NSMutableCopying>
@@ -169,11 +186,20 @@ typedef NSString *UNNotificationSoundName NS_SWIFT_NAME(UNNotificationSoundName)
 @property (nonatomic, readonly, copy) NSString *userText;
 @end
 
+API_AVAILABLE(ios(15.0))
+@interface UNNotificationActionIcon : NSObject <NSCopying>
++ (instancetype)iconWithTemplateImageName:(NSString *)templateImageName;
++ (instancetype)iconWithSystemImageName:(NSString *)systemImageName;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
 @interface UNNotificationAction : NSObject <NSCopying>
 @property (nonatomic, readonly, copy) NSString *identifier;
 @property (nonatomic, readonly, copy) NSString *title;
 @property (nonatomic, readonly) UNNotificationActionOptions options;
+@property (nonatomic, readonly, copy, nullable) UNNotificationActionIcon *icon API_AVAILABLE(ios(15.0));
 + (instancetype)actionWithIdentifier:(NSString *)identifier title:(NSString *)title options:(UNNotificationActionOptions)options;
++ (instancetype)actionWithIdentifier:(NSString *)identifier title:(NSString *)title options:(UNNotificationActionOptions)options icon:(nullable UNNotificationActionIcon *)icon API_AVAILABLE(ios(15.0));
 - (instancetype)init NS_UNAVAILABLE;
 @end
 
@@ -181,6 +207,7 @@ typedef NSString *UNNotificationSoundName NS_SWIFT_NAME(UNNotificationSoundName)
 @property (nonatomic, readonly, copy) NSString *textInputButtonTitle;
 @property (nonatomic, readonly, copy) NSString *textInputPlaceholder;
 + (instancetype)actionWithIdentifier:(NSString *)identifier title:(NSString *)title options:(UNNotificationActionOptions)options textInputButtonTitle:(NSString *)textInputButtonTitle textInputPlaceholder:(NSString *)textInputPlaceholder;
++ (instancetype)actionWithIdentifier:(NSString *)identifier title:(NSString *)title options:(UNNotificationActionOptions)options icon:(nullable UNNotificationActionIcon *)icon textInputButtonTitle:(NSString *)textInputButtonTitle textInputPlaceholder:(NSString *)textInputPlaceholder API_AVAILABLE(ios(15.0));
 @end
 
 @interface UNNotificationCategory : NSObject <NSCopying>
@@ -188,7 +215,11 @@ typedef NSString *UNNotificationSoundName NS_SWIFT_NAME(UNNotificationSoundName)
 @property (nonatomic, readonly, copy) NSArray<UNNotificationAction *> *actions;
 @property (nonatomic, readonly, copy) NSArray<NSString *> *intentIdentifiers;
 @property (nonatomic, readonly) UNNotificationCategoryOptions options;
+@property (nonatomic, readonly, copy) NSString *hiddenPreviewsBodyPlaceholder;
+@property (nonatomic, readonly, copy) NSString *categorySummaryFormat;
 + (instancetype)categoryWithIdentifier:(NSString *)identifier actions:(NSArray<UNNotificationAction *> *)actions intentIdentifiers:(NSArray<NSString *> *)intentIdentifiers options:(UNNotificationCategoryOptions)options;
++ (instancetype)categoryWithIdentifier:(NSString *)identifier actions:(NSArray<UNNotificationAction *> *)actions intentIdentifiers:(NSArray<NSString *> *)intentIdentifiers hiddenPreviewsBodyPlaceholder:(NSString *)hiddenPreviewsBodyPlaceholder options:(UNNotificationCategoryOptions)options;
++ (instancetype)categoryWithIdentifier:(NSString *)identifier actions:(NSArray<UNNotificationAction *> *)actions intentIdentifiers:(NSArray<NSString *> *)intentIdentifiers hiddenPreviewsBodyPlaceholder:(nullable NSString *)hiddenPreviewsBodyPlaceholder categorySummaryFormat:(nullable NSString *)categorySummaryFormat options:(UNNotificationCategoryOptions)options;
 - (instancetype)init NS_UNAVAILABLE;
 @end
 
@@ -235,7 +266,15 @@ typedef NSString *UNNotificationSoundName NS_SWIFT_NAME(UNNotificationSoundName)
 - (void)getDeliveredNotificationsWithCompletionHandler:(void (^)(NSArray<UNNotification *> *notifications))completionHandler;
 - (void)removeDeliveredNotificationsWithIdentifiers:(NSArray<NSString *> *)identifiers;
 - (void)removeAllDeliveredNotifications;
-- (void)setBadgeCount:(NSInteger)newBadgeCount withCompletionHandler:(nullable void (^)(NSError *_Nullable error))completionHandler;
+- (void)setBadgeCount:(NSInteger)newBadgeCount withCompletionHandler:(nullable void (^)(NSError *_Nullable error))completionHandler API_AVAILABLE(ios(16.0));
+@end
+
+/* Notification Service extension (NSExtensionPointIdentifier com.apple.usernotifications.service): isim runs it as a
+ * helper process for a push payload with "mutable-content": 1 and an alert, before the notification is shown.
+ * serviceExtensionTimeWillExpire is called after ISIM_NOTIFICATION_SERVICE_SECONDS (default 30, like iOS). */
+@interface UNNotificationServiceExtension : NSObject
+- (void)didReceiveNotificationRequest:(UNNotificationRequest *)request withContentHandler:(void (^)(UNNotificationContent *contentToDeliver))contentHandler;
+- (void)serviceExtensionTimeWillExpire;
 @end
 
 NS_ASSUME_NONNULL_END

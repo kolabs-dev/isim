@@ -47,6 +47,10 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_AUDIO=1` (headless) | open an audio device in headless runs too (tests pair it with `SDL_AUDIO_DRIVER=dummy` for a silent, real-time device) |
 | `ISIM_AUDIO_TAP=file.f32` | write a copy of the mixed audio output (raw 32-bit float, stereo, 48 kHz) for tests |
 | `ISIM_NETWORK=offline` | no network (`NWPathMonitor` unsatisfied, URLSession fails); Control Center's Wi-Fi off / Airplane Mode does the same while it is set |
+| `ISIM_SUSPEND=0` | never suspend apps in the background (default: under `isim boot` an app in the background is suspended — its process stopped — unless a background task, background audio or background location updates keep it running) |
+| `ISIM_SUSPEND_SECONDS=S` | how long an app runs in the background before it is suspended (default 5) |
+| `ISIM_PUSH_REGISTRATION=fail` | `registerForRemoteNotifications` fails (NSCocoaErrorDomain 3010) instead of giving a device token |
+| `ISIM_NOTIFICATION_SERVICE_SECONDS=S` | how long a Notification Service extension runs before `serviceExtensionTimeWillExpire` (default 30, like iOS) |
 | `ISIM_BACKGROUND_TASK_SECONDS=S` | how long `beginBackgroundTask` / BackgroundTasks tasks run in the background before their expiration handler (default 30; processing tasks 180) |
 | `ISIM_GAMEPADS=0` | ignore host game controllers |
 | `ISIM_MAIL=1`, `ISIM_MESSAGES=1` | make `MFMailComposeViewController` / `MFMessageComposeViewController` available; sent items are saved under `$ISIM_DATA/Library` |

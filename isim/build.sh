@@ -102,6 +102,8 @@ framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -
 framework ImageIO frameworks/ImageIO -framework Foundation -framework CoreGraphics -lisim_host
 framework CoreImage frameworks/CoreImage -framework Foundation -framework CoreGraphics -framework ImageIO -framework UIKit -lisim_host
 framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
+framework UserNotificationsUI frameworks/UserNotificationsUI -framework Foundation -framework UIKit -framework UserNotifications
+framework Social frameworks/Social -framework Foundation -framework UIKit -framework CoreGraphics
 framework CoreData frameworks/CoreData -framework Foundation -lsqlite3
 framework XCTest frameworks/XCTest -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 
