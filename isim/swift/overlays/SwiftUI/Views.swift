@@ -570,6 +570,7 @@ final class _SUIControl: UIControl {
     }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard !isHidden, alpha > 0.01, isUserInteractionEnabled, self.point(inside: point, with: event) else { return nil }
+        if _contentShapeRejects(self, point) { return nil }          // .contentShape (VisualEffects.swift)
         return self
     }
 }

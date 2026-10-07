@@ -211,6 +211,9 @@ void isim_image_draw_quad(int handle, const double *quad, double alpha);
 void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
 int isim_gfx_screen_snapshot(double x, double y, double w, double h);   /* what is on the target under the rect (the last frame) */
 void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group painted with its pixels multiplied by rgba */
+/* group painted through SwiftUI-style effects (colour matrix, blur, drop shadow of its alpha, blend mode; layout of
+   the 32 values in host_ca.c), limited to the rect (user space) and what blur/shadow need around it */
+void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h);
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
 /* AVAudioSession events queued by the `audio` script command ("interrupt begin", "interrupt end resume", "route headphones") */

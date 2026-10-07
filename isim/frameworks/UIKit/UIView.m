@@ -177,6 +177,7 @@ ANCHORS(UILayoutGuide)
     __weak UIViewController *_vc;
     unsigned _alGen; int _alVars[4]; CGFloat _alUsedWidth;       /* Auto Layout engine */
     @public struct anim_state *_anim;                            /* running property animations (presentation values) */
+    double *_vfx;                                                /* SwiftUI visual effects (_isim_setVisualEffect:), 32 values */
 }
 @end
 /* view animation engine (bottom of this file) */
@@ -257,8 +258,17 @@ static void cg_rgba(CGColorRef c, double out[4]) {
     }
     return self;
 }
-- (void)dealloc { free(_anim); }
+- (void)dealloc { free(_anim); free(_vfx); }
 - (void)_isim_removeAllAnimations { anim_remove_all(self); }
+/* colour matrix, blur, content drop shadow and blend mode applied to this view and its subviews as one group
+   (layout: isim_gfx_pop_group_filtered); NULL removes them */
+- (void)_isim_setVisualEffect:(const double *)values {
+    if (!values) { if (_vfx) { free(_vfx); _vfx = NULL; isim_ui_set_needs_display(); } return; }
+    if (_vfx && !memcmp(_vfx, values, 32 * sizeof(double))) return;
+    if (!_vfx) _vfx = malloc(32 * sizeof(double));
+    memcpy(_vfx, values, 32 * sizeof(double));
+    isim_ui_set_needs_display();
+}
 - (NSString *)description {
     return [NSString stringWithFormat:@"<%@: %p; frame = (%g %g; %g %g)%s>", [self class], self, _frame.origin.x, _frame.origin.y, _frame.size.width, _frame.size.height, _hidden ? "; hidden" : ""];
 }
@@ -887,8 +897,9 @@ static IMP base_drawRect;
     if (pushedStyle) isim_ui_push_style(_overrideUserInterfaceStyle);
     double a = alpha * caOpacity;
     CALayer *maskLayer = _layer.mask;
-    BOOL group = a < 0.999 || maskLayer;
-    if (group) isim_gfx_push_group();
+    BOOL group = a < 0.999 || maskLayer || _vfx;
+    if (_vfx) isim_gfx_push_group();                 /* the effects apply to the masked content */
+    if (group && (!_vfx || maskLayer)) isim_gfx_push_group();
     BOOL caTransition = isim_ca_view_transition_begin(_layer, sz);
     double bg[4];
     if (bgAnim) memcpy(bg, bgv, sizeof bg);
@@ -917,8 +928,9 @@ static IMP base_drawRect;
         isim_gfx_stroke_rounded(borderW / 2, borderW / 2, sz.width - borderW, sz.height - borderW, fmax(0, radius - borderW / 2), borderW, bc);
     }
     if (caTransition) isim_ca_view_transition_end(_layer, sz);
-    if (group && maskLayer) { isim_gfx_push_group(); isim_gfx_save(); isim_ca_render_mask(maskLayer); isim_gfx_restore(); isim_gfx_pop_group_masked(a); }
-    else if (group) isim_gfx_pop_group(a);
+    if (group && maskLayer) { isim_gfx_push_group(); isim_gfx_save(); isim_ca_render_mask(maskLayer); isim_gfx_restore(); isim_gfx_pop_group_masked(_vfx ? 1 : a); }
+    else if (group && !_vfx) isim_gfx_pop_group(a);
+    if (_vfx) isim_gfx_pop_group_filtered(_vfx, a, 0, 0, sz.width, sz.height);
     if (pushedStyle) isim_ui_pop_style();
     isim_gfx_restore();
 }

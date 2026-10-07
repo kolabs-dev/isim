@@ -206,3 +206,121 @@ void isim_gfx_pop_group_tinted(const double *rgba, double alpha) {
     if (alpha >= 0.999) cairo_paint(cr); else cairo_paint_with_alpha(cr, alpha);
     cairo_pattern_destroy(pat);
 }
+
+/* separable box blur of premultiplied ARGB pixels (transparent outside the buffer, or the edge pixel repeated
+   when `pad`) */
+static void blur_argb(uint32_t *px, int w, int h, int stride, int r, int horizontal, int pad) {
+    if (r < 1) return;
+    int n = horizontal ? w : h, lines = horizontal ? h : w;
+    uint32_t *tmp = malloc(sizeof *tmp * (size_t)n);
+    long win = 2 * r + 1;
+    for (int l = 0; l < lines; l++) {
+        #define AT(i) (*(horizontal ? &px[(size_t)l * stride + (i)] : &px[(size_t)(i) * stride + l]))
+        for (int i = 0; i < n; i++) tmp[i] = AT(i);
+        #define SRC(k) ((k) < 0 ? (pad ? tmp[0] : 0u) : (k) >= n ? (pad ? tmp[n - 1] : 0u) : tmp[k])
+        long sum[4] = { 0 };
+        for (int k = -r; k <= r; k++) { uint32_t v = SRC(k); for (int c = 0; c < 4; c++) sum[c] += (long)((v >> (8 * c)) & 255); }
+        for (int i = 0; i < n; i++) {
+            uint32_t o = 0; for (int c = 0; c < 4; c++) o |= (uint32_t)(sum[c] / win) << (8 * c);
+            AT(i) = o;
+            uint32_t add = SRC(i + r + 1), sub = SRC(i - r);
+            for (int c = 0; c < 4; c++) sum[c] += (long)((add >> (8 * c)) & 255) - (long)((sub >> (8 * c)) & 255);
+        }
+        #undef SRC
+        #undef AT
+    }
+    free(tmp);
+}
+
+/* SwiftUI-style visual effects on a group pushed with isim_gfx_push_group (the content of one view):
+   v[0..19]  4x5 colour matrix, rows R G B A, columns r g b a bias, on unpremultiplied 0..1 values (v[29] flag 1)
+   v[20]     blur radius in points (Gaussian-like: three box passes); v[29] flag 4 = opaque (edges repeat, no fade)
+   v[21]     blend mode: 0 normal, 1 multiply, 2 screen, 3 overlay, 4 darken, 5 lighten, 6 colour dodge, 7 colour
+             burn, 8 soft light, 9 hard light, 10 difference, 11 exclusion, 12 hue, 13 saturation, 14 colour,
+             15 luminosity, 16 source atop, 17 destination over, 18 destination out, 19 plus darker, 20 plus lighter
+   v[22..25] shadow colour (rgba; alpha 0 = no shadow), v[26] shadow radius, v[27] v[28] shadow offset (points)
+   The effects apply inside `rect` (the view's bounds, user space) widened by what the blur and shadow need, then
+   the group is painted with `alpha` and the blend mode. */
+void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h) {
+    cairo_t *cr = isim_host_cairo();
+    cairo_pattern_t *pat = cairo_pop_group(cr);
+    cairo_surface_t *s = NULL;
+    static const cairo_operator_t ops[] = { CAIRO_OPERATOR_OVER, CAIRO_OPERATOR_MULTIPLY, CAIRO_OPERATOR_SCREEN, CAIRO_OPERATOR_OVERLAY,
+        CAIRO_OPERATOR_DARKEN, CAIRO_OPERATOR_LIGHTEN, CAIRO_OPERATOR_COLOR_DODGE, CAIRO_OPERATOR_COLOR_BURN, CAIRO_OPERATOR_SOFT_LIGHT,
+        CAIRO_OPERATOR_HARD_LIGHT, CAIRO_OPERATOR_DIFFERENCE, CAIRO_OPERATOR_EXCLUSION, CAIRO_OPERATOR_HSL_HUE, CAIRO_OPERATOR_HSL_SATURATION,
+        CAIRO_OPERATOR_HSL_COLOR, CAIRO_OPERATOR_HSL_LUMINOSITY, CAIRO_OPERATOR_ATOP, CAIRO_OPERATOR_DEST_OVER, CAIRO_OPERATOR_DEST_OUT,
+        CAIRO_OPERATOR_MULTIPLY, CAIRO_OPERATOR_ADD };
+    int blend = v ? (int)v[21] : 0;
+    if (blend < 0 || blend > 20) blend = 0;
+    int flags = v ? (int)v[29] : 0;
+    double shadowA = v ? v[25] : 0;
+    if (v && cairo_pattern_get_surface(pat, &s) == CAIRO_STATUS_SUCCESS && cairo_surface_get_type(s) == CAIRO_SURFACE_TYPE_IMAGE) {
+        cairo_surface_flush(s);
+        double ox, oy; cairo_surface_get_device_offset(s, &ox, &oy);
+        int sw = cairo_image_surface_get_width(s), sh = cairo_image_surface_get_height(s), ss = cairo_image_surface_get_stride(s) / 4;
+        uint32_t *px = (uint32_t *)cairo_image_surface_get_data(s);
+        cairo_matrix_t m; cairo_get_matrix(cr, &m);
+        double scale = sqrt(fabs(m.xx * m.yy - m.xy * m.yx)); if (scale <= 0) scale = 1;
+        double blur = v[20] > 0 ? v[20] * scale : 0, srad = shadowA > 0 ? v[26] * scale : 0;
+        double margin = 3 * blur + 3 * srad + (shadowA > 0 ? (fabs(v[27]) + fabs(v[28])) * scale : 0) + 2;
+        /* the view's rect in surface pixels */
+        double xs[4] = { x, x + w, x, x + w }, ys[4] = { y, y, y + h, y + h }, bx0 = 1e18, by0 = 1e18, bx1 = -1e18, by1 = -1e18;
+        for (int i = 0; i < 4; i++) { cairo_user_to_device(cr, &xs[i], &ys[i]); bx0 = fmin(bx0, xs[i]); by0 = fmin(by0, ys[i]); bx1 = fmax(bx1, xs[i]); by1 = fmax(by1, ys[i]); }
+        int vx0 = (int)floor(bx0 + ox), vy0 = (int)floor(by0 + oy), vx1 = (int)ceil(bx1 + ox), vy1 = (int)ceil(by1 + oy);
+        int X0 = (int)floor(bx0 + ox - margin), Y0 = (int)floor(by0 + oy - margin), X1 = (int)ceil(bx1 + ox + margin), Y1 = (int)ceil(by1 + oy + margin);
+        if (X0 < 0) X0 = 0;
+        if (Y0 < 0) Y0 = 0;
+        if (X1 > sw) X1 = sw;
+        if (Y1 > sh) Y1 = sh;
+        if (X1 > X0 && Y1 > Y0) {
+            int W = X1 - X0, H = Y1 - Y0;
+            if (flags & 1) {                           /* colour matrix */
+                for (int yy = Y0; yy < Y1; yy++) for (int xx = X0; xx < X1; xx++) {
+                    uint32_t p = px[yy * ss + xx];
+                    double a = (p >> 24) / 255.0, r = 0, g = 0, b = 0;
+                    if (a > 0) { r = ((p >> 16) & 255) / 255.0 / a; g = ((p >> 8) & 255) / 255.0 / a; b = (p & 255) / 255.0 / a; }
+                    double o[4];
+                    for (int k = 0; k < 4; k++) {
+                        const double *row = v + 5 * k;
+                        double val = row[0] * r + row[1] * g + row[2] * b + row[3] * a + row[4];
+                        o[k] = val < 0 ? 0 : val > 1 ? 1 : val;
+                    }
+                    uint32_t A = (uint32_t)lround(o[3] * 255);
+                    px[yy * ss + xx] = A << 24 | (uint32_t)lround(o[0] * o[3] * 255) << 16 | (uint32_t)lround(o[1] * o[3] * 255) << 8 | (uint32_t)lround(o[2] * o[3] * 255);
+                }
+            }
+            if (blur > 0) {                            /* three box passes ~ a Gaussian with sigma = radius */
+                int r = (int)lround(blur * 0.9);
+                if (flags & 4) {                       /* opaque: inside the view only, edges repeated */
+                    int ax0 = vx0 < 0 ? 0 : vx0, ay0 = vy0 < 0 ? 0 : vy0, ax1 = vx1 > sw ? sw : vx1, ay1 = vy1 > sh ? sh : vy1;
+                    if (ax1 > ax0 && ay1 > ay0)
+                        for (int pass = 0; pass < 3; pass++) { blur_argb(px + ay0 * ss + ax0, ax1 - ax0, ay1 - ay0, ss, r, 1, 1); blur_argb(px + ay0 * ss + ax0, ax1 - ax0, ay1 - ay0, ss, r, 0, 1); }
+                } else
+                    for (int pass = 0; pass < 3; pass++) { blur_argb(px + Y0 * ss + X0, W, H, ss, r, 1, 0); blur_argb(px + Y0 * ss + X0, W, H, ss, r, 0, 0); }
+            }
+            cairo_surface_mark_dirty(s);
+            if (shadowA > 0) {                         /* drop shadow of the content's alpha, under it */
+                cairo_surface_t *a8 = cairo_image_surface_create(CAIRO_FORMAT_A8, W, H);
+                uint8_t *apx = cairo_image_surface_get_data(a8); int as = cairo_image_surface_get_stride(a8);
+                for (int yy = 0; yy < H; yy++) for (int xx = 0; xx < W; xx++) apx[yy * as + xx] = px[(yy + Y0) * ss + xx + X0] >> 24;
+                int r = (int)lround((sqrt(srad * srad + 1) - 1) / 2);
+                for (int pass = 0; pass < 3; pass++) { blur_a8(apx, W, H, as, r, 1); blur_a8(apx, W, H, as, r, 0); }
+                cairo_surface_mark_dirty(a8);
+                double ddx = v[27], ddy = v[28]; cairo_user_to_device_distance(cr, &ddx, &ddy);
+                cairo_save(cr);
+                cairo_identity_matrix(cr);
+                cairo_set_operator(cr, ops[blend]);
+                cairo_set_source_rgba(cr, v[22], v[23], v[24], v[25] * alpha);
+                cairo_mask_surface(cr, a8, X0 - ox + ddx, Y0 - oy + ddy);
+                cairo_restore(cr);
+                cairo_surface_destroy(a8);
+            }
+        }
+    }
+    cairo_save(cr);
+    cairo_set_operator(cr, ops[blend]);
+    cairo_set_source(cr, pat);
+    if (alpha >= 0.999) cairo_paint(cr); else cairo_paint_with_alpha(cr, alpha);
+    cairo_restore(cr);
+    cairo_pattern_destroy(pat);
+}

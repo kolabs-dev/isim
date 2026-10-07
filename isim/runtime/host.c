@@ -1262,6 +1262,7 @@ void isim_image_draw_quad(int handle, const double *quad, double alpha);        
 void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
 int isim_gfx_screen_snapshot(double x, double y, double w, double h);
 void isim_gfx_pop_group_tinted(const double *rgba, double alpha);
+void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -1316,5 +1317,6 @@ static const struct shim isim_table[] = {
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
+    H(isim_gfx_pop_group_filtered),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

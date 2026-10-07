@@ -78,6 +78,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloPhotos.app/HelloPhotos ] && run "ui: HelloPhotos (PhotosUI, Photos, image picker, camera)" tests/ui/photos.sh
   [ -x out/apps/HelloFormatting.app/HelloFormatting ] && run "ui: HelloFormatting (FormatStyle, region change, Regex)" tests/ui/formatting.sh
   [ -x out/apps/HelloDrawing.app/HelloDrawing ] && run "ui: HelloDrawing (shapes, paths, gradients, Canvas, animations)" tests/ui/drawing.sh
+  [ -x out/apps/HelloEffects.app/HelloEffects ] && run "ui: HelloEffects (colour filters, blend modes, blur, shadows, masks, contentShape, visualEffect, scrollTransition)" tests/ui/effects.sh
   [ -x out/apps/HelloCharts.app/HelloCharts ] && run "ui: HelloCharts (Swift Charts marks, axes, legend)" tests/ui/charts.sh
   [ -x out/apps/HelloVideo.app/HelloVideo ] && run "ui: HelloVideo (AVPlayer, AVPlayerLayer, AVKit, VideoPlayer)" tests/ui/video.sh
   [ -x out/apps/HelloAudio.app/HelloAudio ] && run "ui: HelloAudio (speech, effects, recording, MediaPlayer)" tests/ui/audio.sh

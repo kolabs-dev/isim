@@ -196,8 +196,6 @@ extension View {
     public func monospacedDigit() -> some View { self }
     public func sensoryFeedback<T: Equatable>(_ feedback: SensoryFeedback, trigger: T) -> some View { self }
     public func contentTransition(_ t: ContentTransition) -> some View { self }
-    public func drawingGroup(opaque: Bool = false) -> some View { self }
-    public func compositingGroup() -> some View { self }
 }
 public struct MatchedGeometryProperties: OptionSet, Sendable {
     public let rawValue: UInt32
@@ -278,13 +276,7 @@ extension View {
     public func zIndex(_ value: Double) -> some View {
         _modify { ctx, c in let e = _EffectNode(path: ctx.path, child: _resolve(c, ctx.child("z"))); e.zIndexValue = value; return e }
     }
-    public func shadow(color: Color = Color(.sRGBLinear, white: 0, opacity: 0.33), radius: CGFloat, x: CGFloat = 0, y: CGFloat = 0) -> some View {
-        _modify { ctx, c in
-            let e = _EffectNode(path: ctx.path, child: _resolve(c, ctx.child("sh")))
-            e.shadow = (color.uiColor, radius, x, y)
-            return e
-        }
-    }
+    // shadow, blur and colour filters: VisualEffects.swift
     public func flipsForRightToLeftLayoutDirection(_ enabled: Bool) -> some View {
         _modify { ctx, c in
             let e = _EffectNode(path: ctx.path, child: _resolve(c, ctx.child("flip")))
@@ -292,12 +284,6 @@ extension View {
             return e
         }
     }
-    public func blur(radius: CGFloat, opaque: Bool = false) -> some View { self }
-    public func brightness(_ amount: Double) -> some View { self }
-    public func saturation(_ amount: Double) -> some View { self }
-    public func grayscale(_ amount: Double) -> some View { self }
-    public func colorMultiply(_ c: Color) -> some View { self }
-    public func blendMode(_ m: BlendMode) -> some View { self }
 }
 public enum BlendMode: Sendable { case normal, multiply, screen, overlay, darken, lighten, colorDodge, colorBurn, softLight, hardLight, difference, exclusion, hue, saturation, color, luminosity, sourceAtop, destinationOver, destinationOut, plusDarker, plusLighter }
 
@@ -339,16 +325,7 @@ extension View {
         }
     }
     @_disfavoredOverload public func background<V: View>(_ v: V, alignment: Alignment = .center) -> some View { background(alignment: alignment) { v } }
-    /// Masks are applied as clipping to the mask's shape (rectangles, rounded rectangles, circles, capsules).
-    public func mask<M: View>(alignment: Alignment = .center, @ViewBuilder _ mask: () -> M) -> some View {
-        let m = mask()
-        let kind = (m as? _ShapeInfo)?._kind ?? (_innerShape(m) ?? .rect)
-        if _innerShape(m) == nil, let shape = _innerAnyShape(m) {      // other shapes: clip to their path
-            return AnyView(_modify { ctx, c in _PathClipNode(path: ctx.path, shape: shape, eoFill: false, child: _resolve(c, ctx.child("mask"))) })
-        }
-        return AnyView(_modify { ctx, c in _ClipNode(path: ctx.path, kind: kind, child: _resolve(c, ctx.child("mask"))) })
-    }
-    public func mask<M: View>(_ mask: M) -> some View { self.mask { mask } }
+    // mask: VisualEffects.swift
 }
 func _innerShape(_ v: Any) -> _ShapeKind? {
     if let s = v as? _ShapeInfo { return s._kind }
@@ -367,7 +344,10 @@ public struct GeometryProxy {
     public let size: CGSize
     public let safeAreaInsets: EdgeInsets
     let globalFrame: CGRect
+    /// live frames from the view (visualEffect / scrollTransition); nil: computed from `globalFrame`
+    var _space: ((CoordinateSpace) -> CGRect?)? = nil
     public func frame(in space: CoordinateSpace) -> CGRect {
+        if let f = _space, let r = f(space) { return r }
         switch space { case .local: return CGRect(origin: .zero, size: size); default: return globalFrame }
     }
 }
