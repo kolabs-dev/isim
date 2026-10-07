@@ -73,6 +73,8 @@ int isim_font_lookup(const char *name, char *family, int famlen, double *weight,
 int isim_font_has_char(const char *family, unsigned codepoint);
 void isim_set_status_bar_style(int dark_content);
 void isim_set_status_bar_hidden(int hidden);
+void isim_set_home_indicator_autohide(int hide);      /* the home indicator fades 2 s after the last touch */
+void isim_set_deferred_system_edges(int edges);       /* UIRectEdge bits: the system gesture from those edges needs a second swipe */
 int isim_next_event(struct isim_event *ev, double timeout);
 void isim_text_input(int on);
 const char *isim_bundle_path(void);

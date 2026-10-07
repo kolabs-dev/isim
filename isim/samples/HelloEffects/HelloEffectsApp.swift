@@ -6,7 +6,14 @@ import SwiftUI
 
 @main
 struct HelloEffectsApp: App {
-    var body: some Scene { WindowGroup { EffectsView() } }
+    var body: some Scene { WindowGroup { RootView() } }
+}
+
+struct RootView: View {
+    @State private var page = 0
+    var body: some View {
+        if page == 0 { EffectsView(next: { page = 1 }) } else { MoreView() }
+    }
 }
 
 let pureRed = Color(red: 1, green: 0, blue: 0)
@@ -19,6 +26,7 @@ struct Tile<Content: View>: View {
 }
 
 struct EffectsView: View {
+    let next: () -> Void
     @State private var shapeTaps = 0
     @State private var faded = false
     var body: some View {
@@ -56,6 +64,7 @@ struct EffectsView: View {
                 VStack(alignment: .leading) {
                     Text("Shape taps: \(shapeTaps)")
                     Button("Fade") { withAnimation(.linear(duration: 2)) { faded.toggle() } }.accessibilityIdentifier("fade")
+                    Button("More") { next() }.accessibilityIdentifier("next")
                 }
             }
             ScrollView {
@@ -78,5 +87,39 @@ struct EffectsView: View {
         }
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// Haptics (logged), privacy redaction, an auto-hidden home indicator, deferred edge gestures and a context menu preview.
+struct MoreView: View {
+    @State private var count = 0
+    @State private var redact = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("More effects").font(.headline)
+            Button("Haptic \(count)") { count += 1 }
+                .sensoryFeedback(.success, trigger: count)
+                .sensoryFeedback(.impact(weight: .heavy), trigger: count) { _, new in new > 1 }
+                .accessibilityIdentifier("haptic")
+            Toggle("Redact private", isOn: $redact).accessibilityIdentifier("redact")
+            HStack(spacing: 12) {
+                Image(systemName: "star.fill").font(.largeTitle).foregroundStyle(.yellow).privacySensitive().accessibilityIdentifier("private-image")
+                Text("Account 1234").privacySensitive().accessibilityIdentifier("private-text")
+                Text("Public").accessibilityIdentifier("public-text")
+            }
+            .redacted(reason: redact ? .privacy : [])
+            Text("Press and hold").padding().background(Color.yellow.opacity(0.4))
+                .contextMenu {
+                    Button("Copy") { print("menu: copy") }
+                    Button("Share") { print("menu: share") }
+                } preview: {
+                    Text("Preview card").font(.title).padding(30).background(Color.mint)
+                }
+                .accessibilityIdentifier("menu-source")
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .persistentSystemOverlays(.hidden)
+        .defersSystemGestures(on: .bottom)
     }
 }

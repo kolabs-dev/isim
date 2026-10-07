@@ -150,19 +150,21 @@ extension View {
 
 final class _ContextMenuNode: _WrapperNode {
     let build: () -> UIMenu
+    var preview: (() -> UIView)?
     init(path: String, build: @escaping () -> UIMenu, child: _Node) { self.build = build; super.init(path: path, child: child) }
     override var layoutPriority: Double { child.layoutPriority }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
     override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
     override func mountView(_ g: _Graph) -> UIView {
         let v = g.view(viewKey) { _SUIContextMenuHost(frame: .zero) }
-        v.build = build
+        v.build = build; v.preview = preview
         return v
     }
 }
 /// Long press shows the menu (anchored to the view).
 final class _SUIContextMenuHost: UIView {
     var build: (() -> UIMenu)?
+    var preview: (() -> UIView)?
     override init(frame: CGRect) {
         super.init(frame: frame)
         let lp = UILongPressGestureRecognizer(target: self, action: #selector(pressed(_:)))
@@ -176,7 +178,7 @@ final class _SUIContextMenuHost: UIView {
     }
     @objc func pressed(_ g: UILongPressGestureRecognizer) {
         guard g.state == .began, let menu = build?() else { return }
-        _isim_present(menu, from: bounds)
+        if let p = preview?() { _isim_present(menu, from: bounds, preview: p) } else { _isim_present(menu, from: bounds) }
     }
 }
 extension View {
@@ -187,7 +189,17 @@ extension View {
             return _ContextMenuNode(path: ctx.path, build: { UIMenu(title: "", children: _menuElements(content)) }, child: _resolve(c, ctx.child("ctxmenu")))
         }
     }
-    public func contextMenu<M: View, P: View>(@ViewBuilder menuItems: () -> M, @ViewBuilder preview: () -> P) -> some View { contextMenu(menuItems: menuItems) }
+    /// Long press: the preview (instead of the view) lifted over a dimmed screen, with the menu under it.
+    public func contextMenu<M: View, P: View>(@ViewBuilder menuItems: () -> M, @ViewBuilder preview: () -> P) -> some View {
+        let items = menuItems(), pv = AnyView(preview())
+        return _modify { ctx, c in
+            let content = _resolve(items, ctx.child("ctxmenu-items").with { $0._inList = false })
+            let n = _ContextMenuNode(path: ctx.path, build: { UIMenu(title: "", children: _menuElements(content)) }, child: _resolve(c, ctx.child("ctxmenu")))
+            let env = ctx.environment
+            n.preview = { _contextPreviewView(pv, env) }
+            return n
+        }
+    }
 }
 
 // MARK: - Row info for the List
@@ -198,6 +210,7 @@ struct _RowInfo {
     var leading: [_SwipeAction] = [], trailing: [_SwipeAction] = []
     var fullLeading = true, fullTrailing = true
     var contextMenu: (() -> UIMenu)?
+    var contextPreview: (() -> UIView)?
     var badge: String?
     var tag: AnyHashable?
 }
@@ -211,7 +224,7 @@ struct _RowInfo {
             if let l = e.leading { info.leading += l; info.fullLeading = e.fullLeading }
             if let t = e.trailing { info.trailing += t; info.fullTrailing = e.fullTrailing }
         }
-        if let c = n as? _ContextMenuNode, info.contextMenu == nil { info.contextMenu = c.build }
+        if let c = n as? _ContextMenuNode, info.contextMenu == nil { info.contextMenu = c.build; info.contextPreview = c.preview }
         if info.badge == nil { info.badge = n.badge }
         if info.tag == nil { info.tag = n.tag }
         x = n.children.count == 1 && !(n is _StackNode) ? n.children[0] : nil
@@ -370,6 +383,7 @@ struct _ListExtras {
     } else { g.views[badgeKey]?.removeFromSuperview(); g.views[badgeKey] = nil }
     // long press menu on rows that are buttons / links (other rows use the context host inside them)
     row.contextMenu = row.action != nil ? info.contextMenu : nil
+    row.contextPreview = row.action != nil ? info.contextPreview : nil
     row.contextIndex = index
 }
 
@@ -383,6 +397,7 @@ final class _SUIListRow: _SUIRowControl {
     var moveInfo: (index: Int, group: String, action: (IndexSet, Int) -> Void)?
     var selectionAction = false, persistentHighlight = false
     var contextMenu: (() -> UIMenu)? { didSet { updateLongPress() } }
+    var contextPreview: (() -> UIView)?
     var contextIndex = 0
     private var longPress: UILongPressGestureRecognizer?
     private let actionsView = UIView()
@@ -401,7 +416,7 @@ final class _SUIListRow: _SUIRowControl {
     @objc func pressed(_ g: UILongPressGestureRecognizer) {
         guard g.state == .began, let m = contextMenu?() else { return }
         isHighlighted = false
-        _isim_present(m, from: bounds)
+        if let p = contextPreview?() { _isim_present(m, from: bounds, preview: p) } else { _isim_present(m, from: bounds) }
     }
     var content: [UIView] { subviews.filter { $0 !== actionsView } }
     func setOffset(_ x: CGFloat) {
@@ -610,3 +625,17 @@ final class _RefreshDriver {
         }
     }
 }
+
+/// The context menu preview: the SwiftUI content hosted at its ideal size (at most the screen's width minus margins).
+@MainActor func _contextPreviewView(_ content: AnyView, _ env: EnvironmentValues) -> UIView {
+    let hc = UIHostingController(rootView: AnyView(_PresentedContent(environment: env, dismiss: {}, content: content)))
+    let w = UIScreen.main.bounds.width - 32
+    var s = hc.sizeThatFits(in: CGSize(width: w, height: UIScreen.main.bounds.height * 0.5))
+    s.width = min(max(s.width, 60), w); s.height = min(max(s.height, 40), UIScreen.main.bounds.height * 0.5)
+    hc.view.frame = CGRect(origin: .zero, size: s)
+    hc.view.backgroundColor = .systemBackground
+    _contextPreviewControllers.append(hc)                 // kept alive while the preview shows
+    if _contextPreviewControllers.count > 4 { _contextPreviewControllers.removeFirst() }
+    return hc.view
+}
+@MainActor var _contextPreviewControllers: [UIViewController] = []

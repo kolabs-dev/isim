@@ -375,6 +375,7 @@ public struct Image: View, _PrimitiveView {
         let color = (ctx.environment._foreground ?? .primary).uiColor
         let node = _ImageNode(path: ctx.path, image: img, tint: template ? color : nil, resizable: isResizable)
         node.nearest = interpolationMode == Interpolation.none
+        if ctx.environment._redactsContent { return _RedactedTextNode(path: ctx.path + "/redacted", child: node) }   // a grey box (Styles.swift)
         return node
     }
 }

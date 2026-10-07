@@ -1,6 +1,7 @@
 #pragma once
 #import <UIKit/UIResponder.h>
 #import <UIKit/UIView.h>
+#import <UIKit/UIGestureRecognizer.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UINavigationItem, UIStoryboard, NSBundle;
 typedef NS_ENUM(NSInteger, UIStatusBarStyle) { UIStatusBarStyleDefault = 0, UIStatusBarStyleLightContent = 1, UIStatusBarStyleDarkContent = 3 };
@@ -40,6 +41,12 @@ typedef NS_ENUM(NSInteger, UIModalPresentationStyle) { UIModalPresentationFullSc
 @property (nonatomic, readonly) UIStatusBarStyle preferredStatusBarStyle;
 @property (nonatomic, readonly) BOOL prefersStatusBarHidden;
 - (void)setNeedsStatusBarAppearanceUpdate;
+@property (nonatomic, readonly) BOOL prefersHomeIndicatorAutoHidden;            /* isim: the home indicator fades 2 s after the last touch */
+@property (nonatomic, readonly, nullable) UIViewController *childViewControllerForHomeIndicatorAutoHidden;
+- (void)setNeedsUpdateOfHomeIndicatorAutoHidden;
+@property (nonatomic, readonly) UIRectEdge preferredScreenEdgesDeferringSystemGestures;   /* isim: bottom: the home swipe needs a second swipe */
+@property (nonatomic, readonly, nullable) UIViewController *childViewControllerForScreenEdgesDeferringSystemGestures;
+- (void)setNeedsUpdateOfScreenEdgesDeferringSystemGestures;
 @property (nonatomic) UIUserInterfaceStyle overrideUserInterfaceStyle;
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;

@@ -73,4 +73,24 @@ if vals:
         check('scrollTransition: the row leaving the top fades with its hidden fraction', abs(p[0] - want) < 45 and p[2] > 230, f'{p} want r~{want:.0f} (offset {off})')
         solid = end.rgb(x0, top + (40 * (k + 1) - off) + 20)
         check('scrollTransition: fully visible rows stay at identity', solid[0] < 30 and solid[2] > 230, solid)
+
+# the second page: privacy redaction and the auto-hidden home indicator
+more, red = Image(os.path.join(shots, 'more.png')), Image(os.path.join(shots, 'redacted.png'))
+fr = frames(log, which=2)
+def centre(img, tid):
+    x, y, w, h = fr[tid]
+    return img.rgb(x + w / 2, y + h / 2)
+if all(t in fr for t in ('private-image', 'private-text', 'public-text')):
+    p = centre(red, 'private-image')
+    check('privacySensitive image redacted (grey box) under .redacted(reason: .privacy)', abs(p[0] - p[2]) < 20 and 150 < p[0] < 225, p)
+    p = centre(red, 'private-text')
+    check('privacySensitive text redacted (grey bar)', abs(p[0] - p[2]) < 20 and 150 < p[0] < 225, p)
+    x, y, w, h = fr['public-text']
+    dark = sum(1 for i in range(int(w)) if max(red.rgb(x + i, y + h / 2)) < 90)
+    check('other text stays readable', dark > 3, f'{dark} dark pixels')
+else:
+    check('dump lists the redaction views', False, list(fr)[:20])
+ind_on, ind_off = more.rgb(more.w / 2, more.h - 10.5), red.rgb(red.w / 2, red.h - 10.5)
+check('persistentSystemOverlays(.hidden): home indicator shown after a touch', max(ind_on) < 60, ind_on)
+check('persistentSystemOverlays(.hidden): home indicator fades 2 s after the last touch', min(ind_off) > 200, ind_off)
 sys.exit(fail)

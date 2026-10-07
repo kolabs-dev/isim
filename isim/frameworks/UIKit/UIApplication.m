@@ -176,6 +176,19 @@
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleDefault; }
 - (BOOL)prefersStatusBarHidden { return NO; }
 - (void)setNeedsStatusBarAppearanceUpdate { isim_ui_set_needs_display(); }
+- (BOOL)prefersHomeIndicatorAutoHidden { return NO; }
+- (UIViewController *)childViewControllerForHomeIndicatorAutoHidden { return nil; }
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures { return UIRectEdgeNone; }
+- (UIViewController *)childViewControllerForScreenEdgesDeferringSystemGestures { return nil; }
+/* the view controller that decides: the key window's root, its presented controllers, then the child it names */
+static UIViewController *system_gesture_owner(BOOL home) {
+    UIViewController *r = UIApplication.sharedApplication.keyWindow.rootViewController;
+    while (r.presentedViewController) r = r.presentedViewController;
+    for (UIViewController *c; r && (c = home ? r.childViewControllerForHomeIndicatorAutoHidden : r.childViewControllerForScreenEdgesDeferringSystemGestures); ) r = c;
+    return r;
+}
+- (void)setNeedsUpdateOfHomeIndicatorAutoHidden { UIViewController *o = system_gesture_owner(YES); if (o) isim_set_home_indicator_autohide(o.prefersHomeIndicatorAutoHidden); isim_ui_set_needs_display(); }
+- (void)setNeedsUpdateOfScreenEdgesDeferringSystemGestures { UIViewController *o = system_gesture_owner(NO); if (o) isim_set_deferred_system_edges((int)o.preferredScreenEdgesDeferringSystemGestures); }
 
 /* appearance callbacks, propagated to children */
 /* containers (navigation/tab controllers) forward appearance only to the children on screen */

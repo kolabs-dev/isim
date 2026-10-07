@@ -64,6 +64,7 @@ enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_T
 /* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
 struct shell_msg { int type; struct isim_event ev; char a[1536], b[1536], c[1536]; };
 enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM, SM_NOTIFY, SM_ORIENT /* a = UIInterfaceOrientation of the client's screen */,
+       SM_DEFER_EDGES /* a = screen edges (UIRectEdge bits) whose system gestures the app defers */,
        SM_SYSTEM = 40 /* a = verb, b/c = arguments (shell_system.inc) */ };
 static int client_sock = -1, client_wake[2] = { -1, -1 };
 static unsigned char *client_pixels;
@@ -649,6 +650,15 @@ int isim_font_has_char(const char *family, unsigned cp) {
 static int status_dark_content = 1, status_hidden;
 void isim_set_status_bar_style(int dark_content) { status_dark_content = dark_content; }
 void isim_set_status_bar_hidden(int hidden) { status_hidden = hidden; }
+/* persistentSystemOverlays(.hidden) / prefersHomeIndicatorAutoHidden: the home indicator fades out 2 s after the
+   last touch and comes back on the next one; defersSystemGestures / preferredScreenEdgesDeferringSystemGestures: the
+   shell asks for a second swipe from a deferred edge (the first goes to the app) */
+static int home_autohide, home_drawn, deferred_edges = -1;
+static double home_touch_t;
+static double now(void);
+void isim_set_home_indicator_autohide(int hide) { if (hide != home_autohide) { home_autohide = hide; home_touch_t = now(); } }
+static void send_deferred_edges(void);
+void isim_set_deferred_system_edges(int edges) { if (edges != deferred_edges) { deferred_edges = edges; send_deferred_edges(); } }
 
 /* Settings > General > Date & Time for the status bar clock: 24-hour time (forced, or the region's default,
  * as isim Foundation decides) and the time zone. Re-read when the global preferences file changes. */
@@ -743,7 +753,8 @@ hardware:                                                          /* island, no
             isim_gfx_fill_rounded(dev.width / 2 - 81, -20, 162, 52, 20, k);
         }
     }
-    if (dev.safe_bottom > 0) { double hw = landscape ? 208 : 134; isim_gfx_fill_rounded(dev.width / 2 - hw / 2, dev.height - 8 - 5, hw, 5, 2.5, fg); }
+    home_drawn = dev.safe_bottom > 0 && !(home_autohide && now() - home_touch_t > 2.0);
+    if (home_drawn) { double hw = landscape ? 208 : 134; isim_gfx_fill_rounded(dev.width / 2 - hw / 2, dev.height - 8 - 5, hw, 5, 2.5, fg); }
 }
 
 static void apply_corner_mask(void) {
@@ -1026,7 +1037,17 @@ void isim_post_wakeup(void) {
     if (win) { SDL_Event e; SDL_zero(e); e.type = SDL_EVENT_USER; SDL_PushEvent(&e); }
     else __atomic_store_n(&wakeup_pending, 1, __ATOMIC_RELEASE);
 }
+static int next_event(struct isim_event *ev, double timeout);
 int isim_next_event(struct isim_event *ev, double timeout) {
+    if (home_autohide && home_drawn && now() - home_touch_t > 2.05) {   /* the auto-hidden home indicator goes away */
+        memset(ev, 0, sizeof *ev); ev->type = EV_REDRAW; home_drawn = 0; return 1;
+    }
+    if (home_autohide && home_drawn && timeout > 0) timeout = fmin(timeout, fmax(0, home_touch_t + 2.06 - now()));
+    int r = next_event(ev, timeout);
+    if (r && (ev->type == EV_TOUCH_DOWN || ev->type == EV_ID_DOWN)) home_touch_t = now();
+    return r;
+}
+static int next_event(struct isim_event *ev, double timeout) {
     memset(ev, 0, sizeof *ev);
     double deadline = now() + timeout;
     if (client_sock >= 0) {
@@ -1273,6 +1294,12 @@ void isim_shell_request(int type, const char *a, const char *b, const char *c) {
     snprintf(m.a, sizeof m.a, "%s", a ? a : ""); snprintf(m.b, sizeof m.b, "%s", b ? b : ""); snprintf(m.c, sizeof m.c, "%s", c ? c : "");
     send(client_sock, &m, sizeof m, MSG_NOSIGNAL);
 }
+static void send_deferred_edges(void) {
+    if (client_sock < 0 || deferred_edges < 0) return;
+    struct shell_msg m = { .type = SM_DEFER_EDGES };
+    snprintf(m.a, sizeof m.a, "%d", deferred_edges);
+    send(client_sock, &m, sizeof m, MSG_NOSIGNAL);
+}
 
 #include "shell.inc"
 #include "host_cg_exports.h"
@@ -1317,6 +1344,6 @@ static const struct shim isim_table[] = {
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
-    H(isim_gfx_pop_group_filtered),
+    H(isim_gfx_pop_group_filtered), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
