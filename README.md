@@ -29,7 +29,7 @@ This opens the device on its home screen, with Settings in the dock. To add the 
 isim install ~/.local/lib/isim/current/apps/*.app
 ```
 
-**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.8.0` for a given one);
+**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.9.0` for a given one);
 `isim versions` lists the installed releases and `isim use VERSION` switches between them. Device data
 (`~/.local/share/isim`) is shared by all versions. You can also download a tarball from
 [Releases](https://github.com/kolabs-dev/isim/releases) and run `bin/isim` from it directly.
@@ -102,7 +102,7 @@ the version-sensitive suites under iOS 17, 18, 26 and 27.
 Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (the build runs in an Ubuntu 22.04 container):
 
 ```bash
-isim/release/package.sh 0.8.0
+isim/release/package.sh 0.9.0
 ```
 
 ## Status
