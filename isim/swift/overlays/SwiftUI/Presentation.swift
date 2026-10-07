@@ -16,6 +16,9 @@ final class _SUIPresentedHostingController: UIHostingController<AnyView> {
 
 @MainActor final class _PresentationState {
     var controller: UIViewController?
+    var popoverDelegate: _PopoverAdaptation?
+    var zoomSource: CGRect?
+    let transition = _PresentationTransition()
     let sheetConfig = _SheetConfig()          // presentationDetents & co (Navigation+More.swift)
     var lastContentID: AnyHashable?
 }
@@ -62,10 +65,19 @@ extension View {
         return _present(key: "cover", isPresented: it != nil, id: it.map { AnyHashable($0.id) }, fullScreen: true,
                         setPresented: { if !$0 { item.wrappedValue = nil } }, onDismiss: onDismiss, content: { it.map { AnyView(content($0)) } ?? AnyView(EmptyView()) })
     }
-    /// Popovers present as sheets on iPhone (like iOS in compact width).
+    /// A popover anchored to this view with an arrow (iPad); on iPhone a sheet, unless the content asks for
+    /// `presentationCompactAdaptation(.popover)` / `(.none)`.
     public func popover<Content: View>(isPresented: Binding<Bool>, attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds), arrowEdge: Edge = .top,
                                        @ViewBuilder content: @escaping () -> Content) -> some View {
-        sheet(isPresented: isPresented, content: content)
+        _present(key: "popover", isPresented: isPresented.wrappedValue, id: nil, fullScreen: false,
+                 setPresented: { isPresented.wrappedValue = $0 }, onDismiss: nil, content: { AnyView(content()) }, popover: _PopoverAnchor(anchor: attachmentAnchor, edge: arrowEdge))
+    }
+    public func popover<Item: Identifiable, Content: View>(item: Binding<Item?>, attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds), arrowEdge: Edge = .top,
+                                                          @ViewBuilder content: @escaping (Item) -> Content) -> some View {
+        let it = item.wrappedValue
+        return _present(key: "popover", isPresented: it != nil, id: it.map { AnyHashable($0.id) }, fullScreen: false,
+                        setPresented: { if !$0 { item.wrappedValue = nil } }, onDismiss: nil, content: { it.map { AnyView(content($0)) } ?? AnyView(EmptyView()) },
+                        popover: _PopoverAnchor(anchor: attachmentAnchor, edge: arrowEdge))
     }
     // presentationDetents, presentationDragIndicator, presentationCornerRadius, presentationBackground: Navigation+More.swift
     public func interactiveDismissDisabled(_ isDisabled: Bool = true) -> some View {
@@ -83,7 +95,7 @@ extension View {
     }
 
     func _present(key: String, isPresented: Bool, id: AnyHashable?, fullScreen: Bool, setPresented: @escaping (Bool) -> Void,
-                  onDismiss: (() -> Void)?, content: @escaping () -> AnyView) -> some View {
+                  onDismiss: (() -> Void)?, content: @escaping () -> AnyView, popover: _PopoverAnchor? = nil) -> some View {
         _modify { ctx, c in
             let skey = ctx.path + "#" + key
             let g = ctx.graph
@@ -92,7 +104,10 @@ extension View {
             g.storage[skey] = _PresentationStateBox(state)
             var env = ctx.environment
             env._sheetConfig = fullScreen ? nil : state.sheetConfig
-            let node = _resolve(c, ctx.child("pr"))
+            env._presentationTransition = state.transition
+            var node = _resolve(c, ctx.child("pr"))
+            if popover != nil { node = _PresentationAnchorNode(path: ctx.path + "/anchor", child: node) }   // the popover's source view
+            let anchorKey = node.viewKey
             g.postRender.append { [weak g] in
                 let wrapped = { AnyView(_PresentedContent(environment: env, dismiss: { setPresented(false) }, content: content())) }
                 if isPresented {
@@ -103,21 +118,31 @@ extension View {
                         if let old = state.controller { old.dismiss(animated: false, completion: nil) }
                         let hc = _SUIPresentedHostingController(rootView: wrapped())
                         hc.modalPresentationStyle = fullScreen ? .fullScreen : .pageSheet
-                        if !fullScreen {                // detents other than .large: isim's own card (Navigation+More.swift)
-                            _ = _prepareDetentSheet(hc, state.sheetConfig, from: g?.hostView, content: { wrapped() }, dismiss: { setPresented(false) })
-                        }
+                        state.transition.kind = .push
+                        if let pop = popover, let source = g?.views[anchorKey] {      // popover: anchored, sized to its content
+                            _preparePopover(hc, state, pop, source: source, from: g?.hostView)
+                        } else if !fullScreen {        // detents other than .large: isim's own card (Navigation+More.swift)
+                            if !_prepareDetentSheet(hc, state.sheetConfig, from: g?.hostView, content: { wrapped() }, dismiss: { setPresented(false) }) {
+                                _applySizing(hc, state.sheetConfig)          // presentationSizing (iPad)
+                            }
+                        } else { _prepareZoomCover(hc, state, from: g?.hostView) }
                         hc.onUIKitDismiss = { [weak state] in
                             guard let state, state.controller != nil else { return }
                             state.controller = nil
                             setPresented(false); onDismiss?()
                         }
                         state.controller = hc; state.lastContentID = id
-                        _topController(from: g?.hostView)?.present(hc, animated: true, completion: nil)
+                        let zoom = state.zoomSource
+                        _topController(from: g?.hostView)?.present(hc, animated: zoom == nil, completion: nil)
+                        if let src = zoom { _zoomIn(hc.view, from: src) }           // navigationTransition(.zoom) on a cover
                     }
                 } else if let hc = state.controller {
                     state.controller = nil
                     (hc as? _SUIPresentedHostingController)?.onUIKitDismiss = nil
-                    hc.dismiss(animated: true, completion: nil)
+                    if state.zoomSource != nil, case .zoom(let key) = state.transition.kind, let src = _ZoomSources.views[key]?.view, src.window != nil {
+                        _zoomOut(hc.view, to: src.convert(src.bounds, to: nil)) { hc.dismiss(animated: false, completion: nil) }
+                    } else { hc.dismiss(animated: true, completion: nil) }
+                    state.zoomSource = nil
                     onDismiss?()
                 }
             }
@@ -183,20 +208,31 @@ extension View {
             let want = isPresented.wrappedValue
             // buttons and message text, evaluated like any view content (localized, with the environment)
             var buttons: [(String, ButtonRole?, () -> Void)] = []
+            var fields: [_TextFieldNode] = []
             var messageText: String?
             if want {
-                if let actions { buttons = _collectButtons(_resolve(actions, ctx.child("alert-actions"))) }
+                if let actions {
+                    let an = _resolve(actions, ctx.child("alert-actions"))
+                    buttons = _collectButtons(an); fields = style == .alert ? _collectFields(an) : []
+                }
                 if let message { messageText = _collectText(_resolve(message, ctx.child("alert-message"))).joined(separator: "\n") }
             }
             let titleString = title.map { $0.string }
             g.postRender.append { [weak g] in
                 if want, state.controller == nil {
                     let ac = UIAlertController(title: titleString, message: messageText, preferredStyle: style)
+                    for f in fields {                  // TextField / SecureField in the actions: the alert's text fields
+                        ac.addTextField { tf in
+                            tf.placeholder = f.placeholder; tf.text = f.text.wrappedValue; tf.isSecureTextEntry = f.secure
+                            tf.keyboardType = f.traits.keyboardType
+                        }
+                    }
                     if buttons.isEmpty { buttons = [("OK", nil, {})] }
                     if style == .actionSheet, !buttons.contains(where: { $0.1 == .cancel }) { buttons.append(("Cancel", .cancel, {})) }
                     for (label, role, action) in buttons {
                         let st: UIAlertAction.Style = role == .destructive ? .destructive : role == .cancel ? .cancel : .default
-                        ac.addAction(UIAlertAction(title: label, style: st) { [weak state] _ in
+                        ac.addAction(UIAlertAction(title: label, style: st) { [weak state, weak ac] _ in
+                            for (f, tf) in zip(fields, ac?.textFields ?? []) { f.text.wrappedValue = tf.text ?? "" }    // typed text, before the action
                             state?.controller = nil
                             isPresented.wrappedValue = false
                             action()
@@ -219,6 +255,10 @@ final class _PresentationStateBox { let state: _PresentationState; init(_ s: _Pr
 @MainActor func _collectButtons(_ n: _Node) -> [(String, ButtonRole?, () -> Void)] {
     if let b = n as? _ButtonNode { return [(_collectText(b).joined(separator: " "), b.role, b.action)] }
     return n.children.flatMap { _collectButtons($0) }
+}
+@MainActor func _collectFields(_ n: _Node) -> [_TextFieldNode] {
+    if let f = n as? _TextFieldNode { return [f] }
+    return n.children.flatMap { _collectFields($0) }
 }
 @MainActor func _collectText(_ n: _Node) -> [String] {
     if let t = n as? _TextNode { return [t.text] }

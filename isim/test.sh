@@ -80,6 +80,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloDrawing.app/HelloDrawing ] && run "ui: HelloDrawing (shapes, paths, gradients, Canvas, animations)" tests/ui/drawing.sh
   [ -x out/apps/HelloEffects.app/HelloEffects ] && run "ui: HelloEffects (colour filters, blend modes, blur, shadows, masks, contentShape, visualEffect, scrollTransition)" tests/ui/effects.sh
   [ -x out/apps/HelloNavStack.app/HelloNavStack ] && run "ui: HelloNavStack (push/pop animations, edge swipe back, zoom transition, toolbar placements, title menu, bottom and keyboard bars)" tests/ui/navstack.sh
+  [ -x out/apps/HelloSheets.app/HelloSheets ] && run "ui: HelloSheets (alert text fields, popovers, background interaction, interactiveDismissDisabled, presentationSizing, inspector column, zoom cover)" tests/ui/sheets.sh
   [ -x out/apps/HelloCharts.app/HelloCharts ] && run "ui: HelloCharts (Swift Charts marks, axes, legend)" tests/ui/charts.sh
   [ -x out/apps/HelloVideo.app/HelloVideo ] && run "ui: HelloVideo (AVPlayer, AVPlayerLayer, AVKit, VideoPlayer)" tests/ui/video.sh
   [ -x out/apps/HelloAudio.app/HelloAudio ] && run "ui: HelloAudio (speech, effects, recording, MediaPlayer)" tests/ui/audio.sh

@@ -117,6 +117,13 @@ extension App {
 
 final class _SUIHostView: UIView {
     let graph: _Graph
+    /// a presented sheet whose background stays interactive: touches outside the content go to the presenter
+    var passthrough = false
+    @objc var _isim_passesTouchesOutsideContent: Bool { passthrough }
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let v = super.hitTest(point, with: event)
+        return passthrough && v === self ? nil : v
+    }
     init(graph: _Graph) {
         self.graph = graph
         super.init(frame: .zero)

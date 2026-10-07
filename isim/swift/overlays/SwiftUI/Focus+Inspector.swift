@@ -5,13 +5,7 @@
 import UIKit
 
 // MARK: - inspector
-extension View {
-    public func inspector<V: View>(isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> V) -> some View {
-        sheet(isPresented: isPresented, content: content)
-    }
-    public func inspectorColumnWidth(_ width: CGFloat) -> some View { self }
-    public func inspectorColumnWidth(min: CGFloat? = nil, ideal: CGFloat, max: CGFloat? = nil) -> some View { self }
-}
+// inspector, inspectorColumnWidth: Presentation+More.swift (iPad: a trailing column; iPhone: a sheet)
 
 // MARK: - focus helpers
 public struct FocusInteractions: OptionSet, Sendable {

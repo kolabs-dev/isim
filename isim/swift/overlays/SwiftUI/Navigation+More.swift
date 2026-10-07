@@ -157,6 +157,11 @@ public struct ToolbarRole: Sendable {
     var cornerRadius: CGFloat?
     var dismissDisabled = false
     var custom = false
+    // Presentation+More.swift: popover compact adaptation, presentationSizing, background interaction
+    var compactAdaptation = 0
+    var sizing = 0
+    var backgroundInteraction = false
+    var undimmedUpThrough: PresentationDetent?
 }
 struct _SheetConfigKey: EnvironmentKey { static var defaultValue: _SheetConfig? { nil } }
 extension EnvironmentValues { var _sheetConfig: _SheetConfig? { get { self[_SheetConfigKey.self] } set { self[_SheetConfigKey.self] = newValue } } }
@@ -180,14 +185,30 @@ extension View {
     public func presentationBackground<S: ShapeStyle>(_ style: S) -> some View {
         _modify { ctx, c in ctx.environment._sheetConfig?.background = _color(of: style, ctx.environment); return _resolve(c, ctx.child("pbg")) }
     }
-    public func presentationBackgroundInteraction(_ interaction: PresentationBackgroundInteraction) -> some View { self }
+    /// `.enabled`: no dimming; the views behind a detent sheet stay interactive (`.enabled(upThrough:)`: up to that detent).
+    public func presentationBackgroundInteraction(_ interaction: PresentationBackgroundInteraction) -> some View {
+        _modify { ctx, c in
+            ctx.environment._sheetConfig?.backgroundInteraction = interaction.id == 1
+            ctx.environment._sheetConfig?.undimmedUpThrough = interaction.upThrough
+            return _resolve(c, ctx.child("pbi"))
+        }
+    }
+    /// Stored (isim's sheets resize and scroll their content the same way).
     public func presentationContentInteraction(_ behavior: PresentationContentInteraction) -> some View { self }
-    public func presentationCompactAdaptation(_ adaptation: PresentationAdaptation) -> some View { self }
+    /// How a popover adapts on iPhone: `.popover` / `.none` keep the popover, `.sheet`, `.fullScreenCover`.
+    public func presentationCompactAdaptation(_ adaptation: PresentationAdaptation) -> some View {
+        _modify { ctx, c in ctx.environment._sheetConfig?.compactAdaptation = adaptation.id; return _resolve(c, ctx.child("pca")) }
+    }
+    public func presentationCompactAdaptation(horizontal: PresentationAdaptation, vertical: PresentationAdaptation) -> some View {
+        presentationCompactAdaptation(horizontal)
+    }
 }
 public struct PresentationBackgroundInteraction: Sendable {
     let id: Int
+    var upThrough: PresentationDetent? = nil
+    init(id: Int) { self.id = id }
     public static let automatic = Self(id: 0), enabled = Self(id: 1), disabled = Self(id: 2)
-    public static func enabled(upThrough detent: PresentationDetent) -> Self { Self(id: 1) }
+    public static func enabled(upThrough detent: PresentationDetent) -> Self { var i = Self(id: 1); i.upThrough = detent; return i }
 }
 public struct PresentationContentInteraction: Sendable { let id: Int; public static let automatic = Self(id: 0), resizes = Self(id: 1), scrolls = Self(id: 2) }
 public struct PresentationAdaptation: Sendable { let id: Int; public static let automatic = Self(id: 0), none = Self(id: 1), popover = Self(id: 2), sheet = Self(id: 3), fullScreenCover = Self(id: 4) }
@@ -263,9 +284,14 @@ struct _DetentSheet: View, _PrimitiveView {
         .frame(height: h)
         .background(config.background ?? Color("sheet-bg") { .systemBackground })
         .clipShape(RoundedRectangle(cornerRadius: config.cornerRadius ?? 10))
+        // .presentationBackgroundInteraction(.enabled): no dimming, touches outside the card reach the presenter
+        let limit = config.undimmedUpThrough.map { d in _detentHeight(d, full: full, safeTop: safeTop, safeBottom: safeBottom) }
+        let undimmed = config.backgroundInteraction && h <= (limit ?? .infinity) + 0.5
+        (g.hostView as? _SUIHostView)?.passthrough = undimmed
         let page = ZStack(alignment: .bottom) {
-            Color.black.opacity(0.25).onTapGesture { if !cfg.dismissDisabled { close() } }.accessibilityIdentifier("sheet-dim")
-            _ExactID(id: "sheet-card", content: card)
+            if undimmed { Color.clear }
+            else { Color.black.opacity(0.25).onTapGesture { if !cfg.dismissDisabled { close() } }.accessibilityIdentifier("sheet-dim") }
+            _ExactID(id: "sheet-card", content: card.contentShape(Rectangle()))
         }
         .ignoresSafeArea()
         return _resolve(page, ctx.child("detent"))
