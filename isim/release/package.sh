@@ -14,11 +14,13 @@ STAGE=$PWD/dist/$NAME
 [ -f out/sdk/Applications/Settings.app/Settings ] || { echo "build the tree first (./build.sh)"; exit 1; }
 rm -rf "$STAGE"; mkdir -p "$STAGE"/{bin,lib,apps,licenses}
 
+# the host runtime's sources: the same list build.sh compiles (helpers such as isim-webkit.c are built separately)
+HOST_SRCS=$(grep -o 'runtime/[a-z_]*\.c' build.sh | awk '!seen[$0]++' | tr '\n' ' ')
 docker build -q -t isim-release-build release/ >/dev/null
 docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/isim" -w /isim isim-release-build bash -c '
   set -e
   out=/isim/dist/'"$NAME"'
-  gcc-12 -O2 -g -std=gnu11 -o $out/bin/isim-runtime runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c \
+  gcc-12 -O2 -g -std=gnu11 -o $out/bin/isim-runtime '"$HOST_SRCS"' \
       $(pkg-config --cflags --libs sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0) -lm -lpthread -ldl
   # bundle shared libraries except the C runtime and GPU/display/audio drivers (must match the host)
   skip="linux-vdso|libstdc\+\+|libgcc_s|ld-linux|libc\.so|libm\.so|libpthread|libdl\.so|librt\.so|libGL|libEGL|libGLX|libGLdispatch|libdrm|libgbm|libvulkan|libasound|libpulse|libwayland|libxkbcommon|libdbus|libudev|libdecor"
@@ -34,10 +36,10 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/isim" -w /isim isim-release-bui
   for l in $out/lib/*.so*; do patchelf --set-rpath "\$ORIGIN" "$l"; done
 '
 cp tools/isim tools/isim-build.py tools/xcodeproj.py VERSION "$STAGE/bin/"
-for t in tools/isim-services.py tools/momc.py; do [ -f "$t" ] && cp "$t" "$STAGE/bin/"; done
+for t in tools/isim-services.py tools/momc.py tools/ibtool.py tools/isim-test.py; do [ -f "$t" ] && cp "$t" "$STAGE/bin/"; done
 cp -a out/sdk "$STAGE/sdk"
 mkdir -p "$STAGE/swift"; cp -a out/swift/resource "$STAGE/swift/resource"      # for `isim swiftc` (Docker swift:6.2)
-for a in HelloCounter HelloCounterSwift HelloSwiftUI HelloKeyboardApp HelloTable HelloCollection HelloNavigation HelloControls HelloDrawing HelloCharts; do [ -d "out/apps/$a.app" ] && cp -a "out/apps/$a.app" "$STAGE/apps/"; done
+for a in HelloCounter HelloCounterSwift HelloSwiftUI HelloKeyboardApp HelloTable HelloCollection HelloNavigation HelloControls HelloDrawing HelloCharts HelloStoryboards HelloCoreAnimation HelloQuartz HelloImaging HelloTextEditing HelloMultiTouch; do [ -d "out/apps/$a.app" ] && cp -a "out/apps/$a.app" "$STAGE/apps/"; done
 cp release/README-release.md "$STAGE/README.md"
 cp ../LICENSE ../NOTICE "$STAGE/"; cp release/licenses/* "$STAGE/licenses/"
 tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"

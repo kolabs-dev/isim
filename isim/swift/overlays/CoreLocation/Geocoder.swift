@@ -28,6 +28,15 @@ open class CLPlacemark: NSObject, NSCopying, @unchecked Sendable {
         return d
     }
 
+    /// an empty placemark (isim MapKit's MKPlacemark(coordinate:) fills in the location itself)
+    @_spi(isim) public override init() { super.init() }
+    /// a placemark with address fields (isim MapKit)
+    @_spi(isim) public init(_isimName name: String?, location: CLLocation?, thoroughfare: String? = nil, locality: String? = nil,
+                            administrativeArea: String? = nil, postalCode: String? = nil, country: String? = nil, isoCountryCode: String? = nil) {
+        self.name = name; self.location = location; self.thoroughfare = thoroughfare; self.locality = locality
+        self.administrativeArea = administrativeArea; self.postalCode = postalCode; self.country = country; self.isoCountryCode = isoCountryCode
+        super.init()
+    }
     public init(placemark: CLPlacemark) {
         location = placemark.location; region = placemark.region; timeZone = placemark.timeZone; name = placemark.name
         thoroughfare = placemark.thoroughfare; subThoroughfare = placemark.subThoroughfare; locality = placemark.locality

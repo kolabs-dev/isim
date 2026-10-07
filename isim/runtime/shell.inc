@@ -12,7 +12,7 @@
 struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; int orient; };
 static struct shell_client clients[32];
 static int nclients, active = -1;
-static const char *shell_self, *shell_root;
+static const char *shell_self, *shell_root, *shell_springboard;
 static size_t surface_bytes;
 
 /* the window takes the shape of the foreground client's interface orientation (the home screen is portrait) */
@@ -42,8 +42,11 @@ static void shell_forward(int i, const struct isim_event *ev) {
     send(clients[i].sock, &m, sizeof m, MSG_NOSIGNAL);
 }
 static int nb_visible(void); static void nb_draw(void);
+static int sys_visible(void); static void sys_draw(void); static int sys_hides_banners(void);   /* shell_system.inc */
+static int la_island_visible(void);
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
+    if (sys_visible() || la_island_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island */
     shell_apply_orient(clients[i].orient);
     if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
     /* the screenshot / blit source is the foreground client's surface */
@@ -68,7 +71,7 @@ struct icon_rect { char path[512]; struct rectf r; double radius; };
 static struct icon_rect icons[256]; static int nicons;
 enum { ANIM_NONE, ANIM_OPEN, ANIM_CLOSE, ANIM_BACK };
 static struct { int kind, client; double t0, dur; struct rectf from, to; double rfrom, rto; } anim;
-static int drag_active; static double drag_x0, drag_y0, drag_x, drag_y, drag_t, drag_vy;
+static int drag_active; static double drag_x0, drag_y0, drag_x, drag_y, drag_t, drag_vy, drag_moved_t;
 
 static const struct icon_rect *icon_for(const char *path) {
     for (int i = 0; i < nicons; i++) if (!strcmp(icons[i].path, path)) return &icons[i];
@@ -167,7 +170,7 @@ static void start_anim(int kind, int client, struct rectf from, struct rectf to,
 /* ---- notification banners posted by apps in the background (UserNotifications), drawn over the screen ---- */
 static struct { int on, client; char id[512], title[512], body[512], icon[512]; double t0, hide_t0; struct rectf r; } nb;
 #define NB_SHOW 5.0
-static int nb_visible(void) { return nb.on && anim.kind == ANIM_NONE && active >= 0; }
+static int nb_visible(void) { return nb.on && anim.kind == ANIM_NONE && active >= 0 && !sys_hides_banners(); }
 static void nb_post(int i, const struct shell_msg *m) {
     const char *sep = strchr(m->a, '\x1f');
     if (sep) { snprintf(nb.id, sizeof nb.id, "%.*s", (int)(sep - m->a), m->a); snprintf(nb.icon, sizeof nb.icon, "%s", sep + 1); }
@@ -316,6 +319,7 @@ static void shell_activate(int i) {
     shell_send(i, EV_FOREGROUND);
     shell_show(i);
 }
+static int spawn_background;  /* shell_system.inc: the next spawn starts the app in the background */
 static char **open_args;      /* launch arguments for the app opened at boot (isim run) */
 static int open_slot = -1;    /* that app: when it exits by itself, the run ends with its exit code */
 static int shell_spawn_at(int slot, const char *bundle, const char *exe, const char *url) {
@@ -337,6 +341,7 @@ static int shell_spawn_at(int slot, const char *bundle, const char *exe, const c
         setenv("ISIM_CLIENT_SOCK", b1, 1); setenv("ISIM_CLIENT_SURFACE", b2, 1); setenv("ISIM_CLIENT_SCALE", b3, 1);
         unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_HEADLESS"); unsetenv("ISIM_CONTROL");
         if (url && *url) setenv("ISIM_LAUNCH_URL", url, 1); else unsetenv("ISIM_LAUNCH_URL");
+        if (spawn_background) setenv("ISIM_LAUNCH_BACKGROUND", "1", 1); else unsetenv("ISIM_LAUNCH_BACKGROUND");
         char ob[8]; snprintf(ob, sizeof ob, "%d", device_orient); setenv("ISIM_DEVICE_ORIENTATION", ob, 1);
         char *av[64]; int n = 0;
         av[n++] = (char *)shell_self; av[n++] = "--root"; av[n++] = (char *)shell_root; av[n++] = (char *)exe;
@@ -400,6 +405,8 @@ static void shell_quit(void) {
     }
 }
 
+#include "shell_system.inc"
+
 /* one client message */
 static void shell_handle(int i, const struct shell_msg *m) {
     switch (m->type) {
@@ -412,7 +419,8 @@ static void shell_handle(int i, const struct shell_msg *m) {
         clients[i].orient = atoi(m->a);
         if (i == active && anim.kind == ANIM_NONE && !drag_active) shell_show(i);
         break;
-    case SM_NOTIFY: nb_post(i, m); break;
+    case SM_NOTIFY: sys_notify(i, m); break;
+    case SM_SYSTEM: sys_handle_msg(i, m); break;
     case SM_LAUNCH: shell_launch(m->a, m->b, m->c); break;
     case SM_HOME: shell_home(); break;
     case SM_SETTINGS:
@@ -437,7 +445,7 @@ static void shell_handle(int i, const struct shell_msg *m) {
 
 int isim_shell_main(const char *self, const char *root, const char *springboard_bundle, const char *springboard_exe, char **open) {
     open_args = open && open[0] && open[1] ? open : NULL;
-    shell_self = self; shell_root = root;
+    shell_self = self; shell_root = root; shell_springboard = springboard_bundle; shell_mode = 1;
     signal(SIGPIPE, SIG_IGN);
     if (!dev.width) device_from_env();
     t0 = now();
@@ -466,7 +474,8 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     for (;;) {
         /* children */
         int status; pid_t dead;
-        while ((dead = waitpid(-1, &status, WNOHANG)) > 0)
+        while ((dead = waitpid(-1, &status, WNOHANG)) > 0) {
+            sys_reaped(dead, status);                    /* widget extension helpers (shell_system.inc) */
             for (int i = 0; i < nclients; i++) if (clients[i].pid == dead && clients[i].alive) {
                 clients[i].alive = 0; close(clients[i].sock);
                 fprintf(stderr, "isim shell: %s exited\n", clients[i].bundle);
@@ -483,6 +492,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
                 if (i == 0) { fprintf(stderr, "isim shell: the home screen exited; shutting down\n"); shell_quit(); return 0; }
                 if (i == active) { active = -1; shell_activate(0); }
             }
+        }
         /* client messages */
         struct pollfd pf[32]; int map[32], np = 0;
         for (int i = 0; i < nclients; i++) if (clients[i].alive) { pf[np] = (struct pollfd){ clients[i].sock, POLLIN, 0 }; map[np++] = i; }
@@ -494,27 +504,32 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         /* input (script or window) */
         anim_frame();
         nb_tick();
+        sys_tick();
         struct isim_event ev;
         if (!isim_next_event(&ev, anim.kind != ANIM_NONE ? 0.004 : 0.008)) continue;
         if (ev.type == EV_QUIT) { shell_quit(); return 0; }
         if (ev.type == EV_HOME) { shell_home(); continue; }
         if (ev.type == EV_LAUNCH_ID) { shell_forward(0, &ev); continue; }        /* the home screen resolves bundle ids */
+        if (ev.type == EV_SHELL_CMD) { sys_command(ev.text); continue; }
         if (ev.type == EV_REDRAW) { shell_send(active, EV_REDRAW); continue; }
+        if ((ev.type == EV_DEVICE_ORIENTATION || ev.type == EV_KEY) && sys_input(&ev)) continue;   /* orientation lock, system keys */
         if (ev.type == EV_DEVICE_ORIENTATION) { for (int k = 0; k < nclients; k++) shell_forward(k, &ev); continue; }
         if (ev.type == EV_KEY && (ev.mods & SDL_KMOD_CTRL) && (ev.mods & SDL_KMOD_SHIFT) && (ev.key == 'h' || ev.key == 'H')) { shell_home(); continue; }
         /* home-indicator gesture: touches starting at the bottom edge belong to the system */
         /* home indicator: a swipe up starting at the bottom edge (iOS). The edge zone is generous for a mouse. */
         if (anim.kind != ANIM_NONE && (ev.type == EV_TOUCH_DOWN || ev.type == EV_TOUCH_MOVE || ev.type == EV_TOUCH_UP)) continue;
+        if (sys_input(&ev)) continue;
         if (nb_input(&ev)) continue;
         if (ev.type == EV_TOUCH_DOWN && ev.y > dev.height - 34 && active > 0) {
             gesture = 1; (void)gesture_y;
-            drag_active = 0; drag_x0 = drag_x = ev.x; drag_y0 = drag_y = ev.y; drag_t = now(); drag_vy = 0;
+            drag_active = 0; drag_x0 = drag_x = ev.x; drag_y0 = drag_y = ev.y; drag_t = drag_moved_t = now(); drag_vy = 0;
             continue;
         }
         if (gesture) {
             if (ev.type == EV_TOUCH_MOVE) {
                 double t = now(), dt = t - drag_t;
                 if (dt > 0.001) drag_vy = 0.6 * drag_vy + 0.4 * (ev.y - drag_y) / dt;     /* points per second */
+                if (fabs(ev.y - drag_y) > 3 || fabs(ev.x - drag_x) > 3) drag_moved_t = t;
                 drag_t = t; drag_x = ev.x; drag_y = ev.y;
                 if (!drag_active && drag_y0 - drag_y > 4) drag_active = 1;
                 if (drag_active) { double rad, ir; struct rectf r = drag_rect(&rad); compose(active, r, rad, 1, 0, 1.06, icon_target(active, &ir)); }
@@ -523,7 +538,8 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
                 if (drag_active) {
                     drag_active = 0;
                     double rad; struct rectf r = drag_rect(&rad);
-                    if (drag_y0 - drag_y > 110 || drag_vy < -700) shell_home_from(r, rad);
+                    if (drag_y0 - drag_y > 90 && now() - drag_moved_t > 0.3) sys_open(OV_SWITCHER);     /* swipe up and hold */
+                    else if (drag_y0 - drag_y > 110 || drag_vy < -700) shell_home_from(r, rad);
                     else start_anim(ANIM_BACK, active, r, full_rect(), rad, dev.corner_radius, 0.28);
                 }
             }

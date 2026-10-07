@@ -50,6 +50,30 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             })
         }
     }
+    /// onContinueUserActivity handlers (universal links: NSUserActivityTypeBrowsingWeb; with none, onOpenURL gets the URL)
+    var activityHandlers: [String: (type: String, h: (NSUserActivity) -> Void)] = [:]
+    var activityObserver: NSObjectProtocol?
+    func installActivityObserver() {
+        if activityObserver == nil {
+            activityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimContinueUserActivity"), object: nil, queue: nil, using: { [weak self] (n: NSNotification) in
+                guard let act = n.object as? NSUserActivity else { return }
+                MainActor.assumeIsolated {
+                    guard let self = self else { return }
+                    let hs = self.activityHandlers.values.filter { $0.type == act.activityType }
+                    if !hs.isEmpty { for e in hs { e.h(act) } }
+                    else if let u = act.webpageURL {
+                        if self.urlHandlers.isEmpty { self.pendingURLs.append(u) } else { for h in self.urlHandlers.values { h(u) } }
+                    } else { self.pendingActivities.append(act) }     /* e.g. a launch from Spotlight: the handler registers when the view renders */
+                }
+            })
+        }
+    }
+    var pendingActivities: [NSUserActivity] = []
+    func registerActivityHandler(_ path: String, _ type: String, _ h: @escaping (NSUserActivity) -> Void) {
+        activityHandlers[path] = (type, h)
+        let now = pendingActivities.filter { $0.activityType == type }
+        if !now.isEmpty { pendingActivities.removeAll { $0.activityType == type }; postRender.append { for a in now { h(a) } } }
+    }
     func registerURLHandler(_ path: String, _ h: @escaping (URL) -> Void) {
         urlHandlers[path] = h
         if !pendingURLs.isEmpty { let urls = pendingURLs; pendingURLs = []; postRender.append { for u in urls { h(u) } } }
@@ -87,7 +111,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         submitActions.filter { path.hasPrefix($0.key) }.max { $0.key.count < $1.key.count }?.value
     }
 
-    init(root: @escaping () -> any View) { self.root = root; installURLObserver(); installAppObservers() }
+    init(root: @escaping () -> any View) { self.root = root; installURLObserver(); installActivityObserver(); installAppObservers() }
 
     /// Callable from any context (bindings, UIKit callbacks); state changes happen on the main thread.
     nonisolated func invalidate() {

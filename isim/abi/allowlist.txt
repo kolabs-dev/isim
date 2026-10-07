@@ -1,0 +1,16 @@
+# Symbols deliberately dropped from a released ABI, with the reason. Format: <binary path in the SDK> <symbol>
+#
+# 0.2.0 SKSpriteNode.warpGeometry was an `AnyObject?` placeholder; 0.3.0 implemented warping with the real type
+# `SKWarpGeometry?`. Swift cannot declare both, and the placeholder did nothing, so no working app depended on it.
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit12SKSpriteNodeC12warpGeometryyXlSgvMTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit12SKSpriteNodeC12warpGeometryyXlSgvMTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit12SKSpriteNodeC12warpGeometryyXlSgvgTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit12SKSpriteNodeC12warpGeometryyXlSgvgTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit12SKSpriteNodeC12warpGeometryyXlSgvpMV
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit12SKSpriteNodeC12warpGeometryyXlSgvsTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit12SKSpriteNodeC12warpGeometryyXlSgvsTq
+# CGImage.width/height are now imported from the C header (CG_SWIFT_NAME); their getters are re-exported under the
+# 0.2.0 names (CoreGraphics.swift), but property descriptors (only used by key paths such as \CGImage.width) cannot
+# be declared next to the imported properties.
+usr/lib/swift/libswiftCoreGraphics.dylib _$sSo10CGImageRefa12CoreGraphicsE5widthSivpMV
+usr/lib/swift/libswiftCoreGraphics.dylib _$sSo10CGImageRefa12CoreGraphicsE6heightSivpMV

@@ -15,6 +15,8 @@ __BEGIN_DECLS
 #define CF_IMPLICIT_BRIDGING_DISABLED
 typedef unsigned char Boolean;
 typedef unsigned char UInt8;
+typedef unsigned short UInt16;
+typedef UInt16 UniChar;
 typedef signed long CFIndex;
 typedef unsigned long CFTypeID;
 typedef unsigned long CFOptionFlags;
@@ -29,11 +31,16 @@ typedef const struct __CFAllocator *CFAllocatorRef;
 typedef const struct __attribute__((objc_bridge(NSDictionary))) __CFDictionary *CFDictionaryRef;
 typedef const struct __attribute__((objc_bridge(NSArray))) __CFArray *CFArrayRef;
 typedef struct __attribute__((objc_bridge(NSError))) __CFError *CFErrorRef;
+typedef const struct __attribute__((objc_bridge(NSAttributedString))) __CFAttributedString *CFAttributedStringRef;
+typedef struct __attribute__((objc_bridge_mutable(NSMutableAttributedString))) __CFAttributedString *CFMutableAttributedStringRef;
 typedef uint32_t CFStringEncoding;
 typedef struct { CFIndex location; CFIndex length; } CFRange;
 CF_INLINE CFRange CFRangeMake(CFIndex loc, CFIndex len) { CFRange r = { loc, len }; return r; }
 typedef CF_ENUM(CFIndex, CFComparisonResult) { kCFCompareLessThan = -1L, kCFCompareEqualTo = 0, kCFCompareGreaterThan = 1 };
 #define kCFNotFound ((CFIndex)-1)
+#ifndef CFSTR
+#define CFSTR(cStr) ((CFStringRef)__builtin___CFStringMakeConstantString("" cStr ""))
+#endif
 CF_EXPORT CFTypeID CFGetTypeID(CFTypeRef cf);
 CF_EXPORT CFTypeRef CFRetain(CFTypeRef cf);
 CF_EXPORT void CFRelease(CFTypeRef cf);

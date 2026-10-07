@@ -26,6 +26,7 @@ OBJC_EXPORT Class _Nullable objc_getRequiredClass(const char * _Nonnull name);
 OBJC_EXPORT Class _Nonnull * _Nullable objc_copyClassList(unsigned int * _Nullable outCount);
 /* introspection used by the Swift runtime */
 OBJC_EXPORT Ivar _Nonnull * _Nullable class_copyIvarList(Class _Nullable cls, unsigned int * _Nullable outCount);
+OBJC_EXPORT Method _Nonnull * _Nullable class_copyMethodList(Class _Nullable cls, unsigned int * _Nullable outCount);
 OBJC_EXPORT ptrdiff_t ivar_getOffset(Ivar _Nonnull v);
 OBJC_EXPORT const char * _Nullable ivar_getName(Ivar _Nonnull v);
 OBJC_EXPORT const char * _Nullable ivar_getTypeEncoding(Ivar _Nonnull v);

@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <CoreFoundation/CFBase.h>
+#include <CoreFoundation/CFData.h>
 typedef double CGFloat;
 #define CGFLOAT_IS_DOUBLE 1
 #define CGFLOAT_MIN 2.2250738585072014e-308
@@ -14,4 +16,8 @@ typedef double CGFloat;
 #ifndef CF_ENUM
 #define CF_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type
 #define CF_OPTIONS(_type, _name) enum __attribute__((flag_enum, enum_extensibility(open))) _name : _type _name; enum _name : _type
+#endif
+#define CG_SWIFT_NAME(n) __attribute__((swift_name(#n)))
+#ifndef CF_RETURNS_RETAINED
+#define CF_RETURNS_RETAINED __attribute__((cf_returns_retained))
 #endif

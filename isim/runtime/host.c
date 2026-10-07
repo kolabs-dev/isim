@@ -10,7 +10,8 @@
  *   ISIM_HEADLESS  1 = no window (use with ISIM_SCRIPT)
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
- *                  shell only: "home", "launch BUNDLE-ID"
+ *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
+ *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "swipehome left|right"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
  * installed apps) is a child process ("client") that renders into a shared-memory surface and
@@ -57,10 +58,12 @@ struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
 enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP, EV_TEXT_DOWN, EV_TEXT_UP,
        EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */, EV_KEY_UP, EV_NOTIFICATION_RESPONSE,
-       EV_DEVICE_ORIENTATION /* key = UIDeviceOrientation */ };
+       EV_DEVICE_ORIENTATION /* key = UIDeviceOrientation */,
+       EV_SYSTEM = 50 /* text: a system message for the app (shell_system.inc) */, EV_SHELL_CMD = 51 /* shell-internal: script system command */ };
 /* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
 struct shell_msg { int type; struct isim_event ev; char a[512], b[512], c[512]; };
-enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM, SM_NOTIFY, SM_ORIENT /* a = UIInterfaceOrientation of the client's screen */ };
+enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM, SM_NOTIFY, SM_ORIENT /* a = UIInterfaceOrientation of the client's screen */,
+       SM_SYSTEM = 40 /* a = verb, b/c = arguments (shell_system.inc) */ };
 static int client_sock = -1, client_wake[2] = { -1, -1 };
 static unsigned char *client_pixels;
 
@@ -78,6 +81,7 @@ static double t0;
 
 /* ---------------- script ---------------- */
 static char *script, *script_pos;
+static int shell_mode;                  /* this process is the device shell (isim boot): system script commands go to it */
 static double script_resume;
 static struct isim_event pending[16]; static int npending;
 
@@ -701,7 +705,7 @@ static void simulate_metrickit(void) {
     fprintf(stderr, "isim host: simulate MetricKit payloads\n");
 }
 /* "drag x1 y1 x2 y2 seconds": a timed drag, one move per ~16 ms */
-static struct { int on; double a, b, c, d, t0, dur, last; } sdrag;
+static struct { int on; double a, b, c, d, t0, dur, last, hold, hold_end; } sdrag;   /* hold: seconds held at the end before lifting */
 static int script_step(struct isim_event *ev) {
     control_poll();
     if (ld.on && !npending) {                 /* scripted long-press drag (host_input.inc) */
@@ -719,8 +723,11 @@ static int script_step(struct isim_event *ev) {
         if (t - sdrag.last >= 0.016) {
             double p = fmin(1, (t - sdrag.t0) / sdrag.dur);
             sdrag.last = t;
+            int was_holding = sdrag.hold_end > 0;
             pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = sdrag.a + (sdrag.c - sdrag.a) * p, .y = sdrag.b + (sdrag.d - sdrag.b) * p };
-            if (p >= 1) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = sdrag.c, .y = sdrag.d }; sdrag.on = 0; }
+            if (p >= 1 && sdrag.hold > 0 && !sdrag.hold_end) sdrag.hold_end = t + sdrag.hold;     /* stay down at the end */
+            if (p >= 1 && (!sdrag.hold_end || t >= sdrag.hold_end)) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = sdrag.c, .y = sdrag.d }; sdrag.on = 0; }
+            else if (was_holding) npending--;                              /* holding: no repeated moves */
         }
         if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
         return 0;
@@ -746,9 +753,11 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = a, .y = b };
         script_resume = now() + 0.05;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &sdrag.dur) == 5 && sdrag.dur > 0) {
+        /* "drag x1 y1 x2 y2 secs [hold]": a timed drag, optionally held at the end for hold seconds before lifting */
+        double h = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf", &h);
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
-        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.t0 = sdrag.last = now();
-        script_resume = now() + sdrag.dur + 0.02;
+        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.t0 = sdrag.last = now(); sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
+        script_resume = now() + sdrag.dur + sdrag.hold + 0.02;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };
@@ -820,10 +829,33 @@ static int script_step(struct isim_event *ev) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
+               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")) {
+        /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
+           "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand);
+           "openurl URL" under the shell: the home screen opens it in the app that handles it */
+        for (char *e = args + strlen(args) - 1; e >= args && *e == ' '; e--) *e = 0;
+        while (*args == ' ') args++;
+        pending[npending++] = (struct isim_event){ .type = EV_SHELL_CMD };
+        snprintf(pending[npending - 1].text, sizeof pending->text, "%s%s%s", cmd, *args ? " " : "", args);
+        script_resume = now() + 0.4;
+    } else if (!strcmp(cmd, "openurl") && sscanf(args, " %511[^; ]", arg) == 1) {   /* the app alone (isim run): open the URL in it (custom schemes, universal links) */
+        pending[npending++] = (struct isim_event){ .type = EV_OPEN_URL }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "gamepad") && sscanf(args, " %511[^;]", arg) == 1) {    /* virtual SDL gamepad (host_gamepad.c) */
         void isim_gamepad_script(const char *args);
         isim_gamepad_script(arg);
-    } else if (!strcmp(cmd, "dump")) { pending[npending++] = (struct isim_event){ .type = EV_DUMP }; }
+    } else if (!strcmp(cmd, "swipehome") && sscanf(args, " %63[^; ]", arg) == 1) {
+        /* "swipehome left|right": a quick horizontal swipe across the home screen (left: the next page) */
+        int left = !strcmp(arg, "left");
+        double y = dev.height * 0.45, x0 = left ? dev.width * 0.8 : dev.width * 0.2, x1 = left ? dev.width * 0.2 : dev.width * 0.8;
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = x0, .y = y };
+        sdrag.on = 1; sdrag.a = x0; sdrag.b = y; sdrag.c = x1; sdrag.d = y; sdrag.dur = 0.18; sdrag.t0 = sdrag.last = now(); sdrag.hold = sdrag.hold_end = 0;
+        script_resume = now() + 0.25;
+    } else if (!strcmp(cmd, "dump")) {        /* "dump": view tree on stderr; "dump FILE": accessibility snapshot (XCUITest) */
+        pending[npending++] = (struct isim_event){ .type = EV_DUMP };
+        if (sscanf(args, " %511[^;]", arg) == 1) { for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg); }
+    }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else if (input_script_cmd(cmd, args)) {}
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
@@ -921,6 +953,8 @@ const char *isim_bundle_path(void) {
 }
 
 cairo_t *isim_host_cairo(void) { return cr; }
+/* host_cg.c: makes another cairo context the drawing target (bitmap/PDF contexts); returns the previous one */
+cairo_t *isim_host_swap_cairo(cairo_t *n) { cairo_t *o = cr; cr = n; return o; }
 
 /* ---- offscreen drawing (UIGraphicsBeginImageContext / UIGraphicsImageRenderer): a stack of image surfaces
    that temporarily replace the screen as the drawing target ---- */
@@ -1006,6 +1040,7 @@ long isim_http_read(struct isim_http *h, void *buf, long cap);
 const char *isim_http_error_message(struct isim_http *h);
 void isim_http_cancel(struct isim_http *h);
 void isim_http_close(struct isim_http *h);
+void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen);
 struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err);
 int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
 int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
@@ -1033,6 +1068,14 @@ long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
 void isim_media_remote_post(const char *cmd);
 int isim_remote_command_poll(char *buf, int len);
+int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
+void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
+struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
+long isim_tls_read(struct isim_tls *t, void *buf, long n); long isim_tls_write(struct isim_tls *t, const void *buf, long n);
+void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen); void isim_tls_close(struct isim_tls *t);
+/* XCUITest: the app under test as a child process (host_xctest.c) */
+int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp); int isim_xcui_running(int h);
+int isim_xcui_send(int h, const char *line); char *isim_xcui_snapshot(int h, double timeout); void isim_xcui_free(char *p); void isim_xcui_terminate(int h);
 struct isim_gamepad;
 int isim_gamepad_poll(struct isim_gamepad *out, int max);
 int isim_gamepad_rumble(int id, double low, double high, double seconds);
@@ -1054,6 +1097,7 @@ void isim_shell_request(int type, const char *a, const char *b, const char *c) {
 }
 
 #include "shell.inc"
+#include "host_cg_exports.h"
 
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
@@ -1069,7 +1113,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free),
-    H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close),
+    H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close), H(isim_http_metrics),
     H(isim_ws_open), H(isim_ws_send), H(isim_ws_recv), H(isim_ws_close), H(isim_net_path),
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
@@ -1083,6 +1127,10 @@ static const struct shim isim_table[] = {
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
+    ISIM_CG_EXPORTS(H),
+    H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
+    H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close),
+    H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
 };

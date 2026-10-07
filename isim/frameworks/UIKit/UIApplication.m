@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <dlfcn.h>
 
 /* ================= UITouch / UIEvent ================= */
 @interface UITouch ()
@@ -414,10 +415,7 @@ NSNotificationName const UISceneDidActivateNotification = @"UISceneDidActivateNo
 @property (nonatomic, readwrite) NSString *persistentIdentifier;
 @end
 @implementation UISceneSession @end
-@implementation UISceneConnectionOptions
-- (NSSet *)URLContexts { return [NSSet set]; }
-- (NSSet *)userActivities { return [NSSet set]; }
-@end
+/* UISceneConnectionOptions: UISystemIntegration.m */
 @implementation UISceneConfiguration
 + (instancetype)configurationWithName:(NSString *)n sessionRole:(UISceneSessionRole)r { return [[self alloc] initWithName:n sessionRole:r]; }
 - (instancetype)initWithName:(NSString *)n sessionRole:(UISceneSessionRole)r { if ((self = [super init])) { _name = [n copy]; _role = [r copy]; } return self; }
@@ -507,8 +505,11 @@ static BOOL status_bar_hidden;
     return YES;
 }
 + (NSString *)openSettingsURLString { return @"app-settings:"; }
-- (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""]; }
+BOOL isim_sys_can_open_url(NSURL *url);
+BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BOOL));
+- (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""] || isim_sys_can_open_url(url); }
 - (void)openURL:(NSURL *)url options:(NSDictionary *)options completionHandler:(void (^)(BOOL))completion {
+    if (isim_sys_route_url(url, options, completion)) return;     /* another app's URL scheme or universal link */
     NSString *scheme = url.scheme.lowercaseString ?: @"";
     if ([scheme isEqualToString:@"app-settings"] && isim_shell_present()) {
         NSString *settings = [isim_ui_system_apps_dir() stringByAppendingPathComponent:@"Settings.app"];
@@ -805,6 +806,21 @@ NSString *isim_ui_installed_apps_dir(void) {
     return e && *e ? @(e) : [isim_data_dir() stringByAppendingPathComponent:@"Applications"];
 }
 static BOOL backgrounded;
+/* UISystemIntegration.m: launch payloads (quick actions, user activities), state restoration, background work */
+NSDictionary *isim_sys_launch_options(void);
+void isim_sys_did_finish_launching(BOOL result);
+void isim_sys_configure_connection(UISceneConnectionOptions *options, UISceneSession *session);
+void isim_sys_scene_connected(UIScene *scene);
+BOOL isim_sys_deliver_launch(void);
+BOOL isim_sys_open_url(NSString *url);
+BOOL isim_sys_background_launch(void);
+void isim_sys_after_background_launch(void);
+void isim_sys_entered_background(void);
+void isim_sys_mark_background(void);
+void isim_sys_entered_foreground(void);
+void isim_sys_event(const char *text);
+static NSDictionary *pending_scene_manifest;     /* launched in the background: the UI scene connects on first foreground */
+static void connect_scene(UIApplication *app, NSDictionary *manifest);
 static void each_scene_delegate(void (^f)(UIScene *, id<UISceneDelegate>)) {
     for (UIScene *s in UIApplication.sharedApplication.connectedScenes) f(s, s.delegate);
 }
@@ -817,15 +833,18 @@ static void enter_background(void) {
     if ([d respondsToSelector:@selector(applicationWillResignActive:)]) [d applicationWillResignActive:app];
     [nc postNotificationName:UIApplicationWillResignActiveNotification object:app];
     backgrounded = YES; app.applicationState = UIApplicationStateBackground;
+    isim_sys_mark_background();
     each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateBackground; if ([sd respondsToSelector:@selector(sceneDidEnterBackground:)]) [sd sceneDidEnterBackground:s]; });
     if ([d respondsToSelector:@selector(applicationDidEnterBackground:)]) [d applicationDidEnterBackground:app];
     [nc postNotificationName:UIApplicationDidEnterBackgroundNotification object:app];
     [isim_ui_first_responder() resignFirstResponder];
+    isim_sys_entered_background();
 }
 static void enter_foreground(void) {
     isim_audio_suspend(0);
     if (!backgrounded) { isim_ui_set_needs_display(); return; }
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+    isim_sys_entered_foreground();
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
     each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundInactive; if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:s]; });
     if ([d respondsToSelector:@selector(applicationWillEnterForeground:)]) [d applicationWillEnterForeground:app];
@@ -838,6 +857,7 @@ static void enter_foreground(void) {
     each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundActive; if ([sd respondsToSelector:@selector(sceneDidBecomeActive:)]) [sd sceneDidBecomeActive:s]; });
     if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
     [nc postNotificationName:UIApplicationDidBecomeActiveNotification object:app];
+    if (pending_scene_manifest) { NSDictionary *m = pending_scene_manifest; pending_scene_manifest = nil; connect_scene(app, m); }
     isim_ui_set_needs_layout();
 }
 static void trait_changed(UIView *v) { [v traitCollectionDidChange:nil]; for (UIView *s in v.subviews) trait_changed(s); }
@@ -852,8 +872,11 @@ static void settings_changed(void) {
     isim_ui_set_needs_display();
 }
 static void deliver_url(NSString *s) {
+    if (isim_sys_open_url(s)) return;          /* quick actions, user activities, scene URL contexts */
     NSURL *url = [NSURL URLWithString:s];
     if (!url) return;
+    extern BOOL isim_ui_open_web_url(NSURL *url);
+    if (isim_ui_open_web_url(url)) return;            /* http(s): a universal link of this app, or Safari (UIUniversalLinks.m) */
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
     NSLog(@"isim: opening URL %@ in the app", s);
     if ([d respondsToSelector:@selector(application:openURL:options:)]) [(id)d application:app openURL:url options:@{}];
@@ -883,6 +906,7 @@ static void connect_scene(UIApplication *app, NSDictionary *manifest) {
     session.role = UIWindowSceneSessionRoleApplication;
     session.persistentIdentifier = [NSString stringWithFormat:@"isim-%08X", arc4random()];
     UISceneConnectionOptions *options = [UISceneConnectionOptions new];
+    isim_sys_configure_connection(options, session);
     UISceneConfiguration *config = nil;
     id<UIApplicationDelegate> d = app.delegate;
     if ([d respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)])
@@ -906,6 +930,7 @@ static void connect_scene(UIApplication *app, NSDictionary *manifest) {
     [NSNotificationCenter.defaultCenter postNotificationName:UISceneWillConnectNotification object:scene];
     if ([sd respondsToSelector:@selector(scene:willConnectToSession:options:)]) [sd scene:scene willConnectToSession:session options:options];
     if (storyboardWindow.hidden) [storyboardWindow makeKeyAndVisible];
+    isim_sys_scene_connected(scene);
     scene.activationState = UISceneActivationStateForegroundInactive;
     if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:scene];
     scene.activationState = UISceneActivationStateForegroundActive;
@@ -933,30 +958,49 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         NSLog(@"isim: launching %@ (%@) on %s", title, bundle.bundleIdentifier ?: @"no bundle id", isim_ui_device()->name);
 
         id<UIApplicationDelegate> d = app.delegate;
-        isim_ib_show_launch_screen();                 /* UILaunchScreen / UILaunchStoryboardName while launching */
+        NSDictionary *launchOptions = isim_sys_launch_options();
+        BOOL background = isim_sys_background_launch();
+        if (background) { backgrounded = YES; app.applicationState = UIApplicationStateBackground; NSLog(@"isim: launched in the background"); }
+        if (!background) isim_ib_show_launch_screen();  /* UILaunchScreen / UILaunchStoryboardName while launching */
         /* UIMainStoryboardFile (apps without a scene manifest): window + initial view controller before launch callbacks */
         UIWindow *storyboardWindow = nil;
         if (info[@"UIMainStoryboardFile"] && !info[@"UIApplicationSceneManifest"])
             storyboardWindow = isim_ib_storyboard_window([UIStoryboard storyboardWithName:info[@"UIMainStoryboardFile"] bundle:bundle], nil, d);
-        if ([d respondsToSelector:@selector(application:willFinishLaunchingWithOptions:)]) [d application:app willFinishLaunchingWithOptions:nil];
-        if ([d respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]) [d application:app didFinishLaunchingWithOptions:nil];
+        if ([d respondsToSelector:@selector(application:willFinishLaunchingWithOptions:)]) [d application:app willFinishLaunchingWithOptions:launchOptions];
+        if ([d respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]) isim_sys_did_finish_launching([d application:app didFinishLaunchingWithOptions:launchOptions]);
         else if ([d respondsToSelector:@selector(applicationDidFinishLaunching:)]) [d applicationDidFinishLaunching:app];
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidFinishLaunchingNotification object:app];
 
         NSDictionary *manifest = info[@"UIApplicationSceneManifest"];
         /* scene-based apps: a scene manifest, or a delegate that configures scenes (SwiftUI apps) */
-        if (manifest || [app.delegate respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)]) connect_scene(app, manifest ?: @{});
+        BOOL scenes = manifest || [app.delegate respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)];
+        if (scenes && background) pending_scene_manifest = manifest ?: @{};
+        else if (scenes) connect_scene(app, manifest ?: @{});
         else if ([d respondsToSelector:@selector(window)] && d.window && d.window.hidden) [d.window makeKeyAndVisible];
         else if (storyboardWindow.hidden) [storyboardWindow makeKeyAndVisible];
-        isim_ib_hide_launch_screen();
-        app.applicationState = UIApplicationStateActive;
+        if (!background) { isim_ib_hide_launch_screen(); app.applicationState = UIApplicationStateActive; }
         [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimGlobalPreferencesChanged" object:nil queue:nil usingBlock:^(NSNotification *n) {
             settings_changed();
             isim_shell_request(ISIM_SHELL_SETTINGS, NULL, NULL, NULL);      /* other apps re-read the settings too */
         }];
-        if (getenv("ISIM_LAUNCH_URL")) { NSString *u = @(getenv("ISIM_LAUNCH_URL")); dispatch_async(dispatch_get_main_queue(), ^{ deliver_url(u); }); }
-        if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
-        [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:app];
+        if (getenv("ISIM_XCTEST_BUNDLE")) {      /* isim test: hosted unit tests run in the app once it has launched */
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                NSString *path = @(getenv("ISIM_XCTEST_BUNDLE"));
+                NSBundle *tb = [NSBundle bundleWithPath:path];
+                NSString *exe = [path stringByAppendingPathComponent:tb.infoDictionary[@"CFBundleExecutable"] ?: path.lastPathComponent.stringByDeletingPathExtension];
+                if (!dlopen(exe.UTF8String, RTLD_NOW)) { fprintf(stderr, "isim: cannot load test bundle %s: %s\n", exe.UTF8String, dlerror()); exit(70); }
+                int (*runTests)(const char *) = (int (*)(const char *))dlsym(RTLD_DEFAULT, "XCTIsimRunTestBundle");
+                int rc = runTests ? runTests(path.UTF8String) : 70;
+                fflush(NULL);
+                _exit(rc);
+            });
+        }
+        if (background) isim_sys_after_background_launch();
+        else if (!isim_sys_deliver_launch() && getenv("ISIM_LAUNCH_URL")) { NSString *u = @(getenv("ISIM_LAUNCH_URL")); dispatch_async(dispatch_get_main_queue(), ^{ deliver_url(u); }); }
+        if (!background) {
+            if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
+            [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:app];
+        }
     }
 
     int lastMinute = -1;
@@ -985,11 +1029,14 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_LAUNCH_ID: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimShellLaunch" object:@(ev.text)]; break;
                 case ISIM_EV_OPEN_URL: deliver_url(@(ev.text)); break;
                 case ISIM_EV_DEVICE_ORIENTATION: isim_ui_device_orientation_changed(ev.key); break;
+                case ISIM_EV_SYSTEM: isim_sys_event(ev.text); break;
                 case ISIM_EV_NOTIFICATION_RESPONSE: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimNotificationResponse" object:@(ev.text)]; break;
                 case ISIM_EV_HOVER: isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
                 case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
                 case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
-                case ISIM_EV_DUMP: layout_all(); for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
+                case ISIM_EV_DUMP: layout_all();
+                    if (ev.text[0]) { extern void isim_ui_write_ax_snapshot(const char *); isim_ui_write_ax_snapshot(ev.text); break; }   /* XCUITest */
+                    for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;
                 }
                 if (quit) break;
