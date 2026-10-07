@@ -183,13 +183,18 @@ static int mutex_ready(struct d_mutex *m) {
     for (;;) {
         long s = __atomic_load_n(&m->sig, __ATOMIC_ACQUIRE);
         if (s == SIG_MUTEX) return 0;
-        if ((s == SIG_MUTEX_INIT || s == SIG_MUTEX_RECURSIVE_INIT) &&
-            __atomic_compare_exchange_n(&m->sig, &s, SIG_BUSY, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-            mutex_init_host(m, s == SIG_MUTEX_RECURSIVE_INIT ? PTHREAD_MUTEX_RECURSIVE : PTHREAD_MUTEX_NORMAL);
-            __atomic_store_n(&m->sig, SIG_MUTEX, __ATOMIC_RELEASE);
-            return 0;
+        if (s == SIG_MUTEX_INIT || s == SIG_MUTEX_RECURSIVE_INIT) {
+            /* first use of a statically initialised mutex: one thread converts it; a thread that loses the race
+               (its compare-exchange fails) loops and sees the finished mutex */
+            long expect = s;
+            if (__atomic_compare_exchange_n(&m->sig, &expect, SIG_BUSY, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+                mutex_init_host(m, s == SIG_MUTEX_RECURSIVE_INIT ? PTHREAD_MUTEX_RECURSIVE : PTHREAD_MUTEX_NORMAL);
+                __atomic_store_n(&m->sig, SIG_MUTEX, __ATOMIC_RELEASE);
+                return 0;
+            }
+            continue;
         }
-        if (s != SIG_BUSY && s != SIG_MUTEX_INIT && s != SIG_MUTEX_RECURSIVE_INIT) return 22;
+        if (s != SIG_BUSY) return 22;   /* not a mutex (never initialised, or destroyed) */
         sched_yield();
     }
 }
