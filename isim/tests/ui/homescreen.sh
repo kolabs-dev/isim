@@ -7,7 +7,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/homescreen; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/homescreen; rm -rf "$ISIM_DATA"
 out/bin/isim install out/apps/HelloSwiftUI.app out/apps/HelloCounter.app out/apps/HelloSecurity.app out/apps/HelloSystem.app >/dev/null
-boot() { ISIM_DEVICE=iphone17 ISIM_SHOT_SCALE=1 timeout 90 out/bin/isim boot --headless --script "$1" 2>&1; }
+boot() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 timeout 90 out/bin/isim boot --headless --script "$1" 2>&1; }
 # icons: 60 pt at x = 41, 128, 214, 301 (centres 71, 158, 244, 331), y 76..136 (centre 106)
 log=$(boot "wait 1; shot $shots/home.png; holdid app-dev.isim.samples.HelloSecurity 0.8; wait 0.4; tapid menu-edit; wait 0.4;
             drag 158 106 71 106 0.6; wait 0.5; drag 244 106 34 106 0.6; wait 0.5; tapid home-done; wait 0.4; shot $shots/arranged.png; dump; quit"); rc=$?

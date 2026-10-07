@@ -9,7 +9,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/homepages; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/homepages; rm -rf "$ISIM_DATA"
 python3 tests/ui/make-bulk-apps.py "$ISIM_DATA" out/apps/HelloCounter.app 52 >/dev/null
-boot() { ISIM_DEVICE=iphone17 ISIM_SHOT_SCALE=1 timeout 120 out/bin/isim boot --headless --script "$1" 2>&1; }
+boot() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 timeout 120 out/bin/isim boot --headless --script "$1" 2>&1; }
 # icons: centres x 71, 158, 244, 331; first row y 106. Page dots (3 pages): x 186, 201, 216; y 745
 log=$(boot "wait 1.5; shot $shots/page1.png; dump; swipehome left; wait 0.8; shot $shots/page2.png; swipehome left; wait 0.8; swipehome left; wait 0.8; dump;
             swipehome right; wait 0.8; tap 186 745; wait 0.8; drag 186 745 216 745 0.3; wait 0.8; homepage 1; wait 0.8;

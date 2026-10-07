@@ -8,7 +8,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloScenes; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/scenes; rm -rf "$ISIM_DATA"
 out/bin/isim install out/apps/HelloScenes.app >/dev/null
-boot() { ISIM_DEVICE=${DEV:-iphone17} ISIM_SHOT_SCALE=1 timeout 90 out/bin/isim boot --headless --script "$1" 2>&1; }
+boot() { ISIM_DEVICE=${DEV:-${ISIM_TEST_DEVICE:-iphone16pro}} ISIM_SHOT_SCALE=1 timeout 90 out/bin/isim boot --headless --script "$1" 2>&1; }
 log=$(boot "wait 1; launch dev.isim.samples.HelloScenes; wait 1.5; tapid bump; wait 0.2; tapid bump; wait 0.2; tapid schedule; wait 0.3; tapid openDetail; wait 0.4;
             home; wait 0.8; spotlight; wait 0.4; type scenes; wait 0.4; dump; tapid spotlight-item-activity_dev.isim.samples.HelloScenes.re; wait 1.2; dump;
             home; wait 0.6; holdid app-dev.isim.samples.HelloScenes 0.8; wait 0.4; tapid menu-shortcut:dev.isim.samples.HelloScenes.new; wait 1; quit"); rc=$?
