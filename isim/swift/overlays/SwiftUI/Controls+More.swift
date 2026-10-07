@@ -583,6 +583,7 @@ struct _AsyncImageError: Error, CustomStringConvertible { let description: Strin
 /// Loads with URLSession (http(s), file and data URLs) and decodes with UIImage(data:scale:).
 public struct AsyncImage<Content: View>: View, _PrimitiveView {
     let url: URL?, scale: CGFloat, make: @MainActor (AsyncImagePhase) -> AnyView
+    var request: URLRequest? = nil            // iOS 27 request initializers
     public var body: Never { fatalError() }
     public init(url: URL?, scale: CGFloat = 1) where Content == Image {
         self.url = url; self.scale = scale
@@ -601,13 +602,15 @@ public struct AsyncImage<Content: View>: View, _PrimitiveView {
         let key = ctx.path + "#asyncimage", g = ctx.graph
         let st = (g.storage[key] as? _AsyncImageState) ?? { let s = _AsyncImageState(); g.storage[key] = s; return s }()
         g.usedKeys.insert(key)
+        let session = ctx.environment._asyncImageSession ?? .shared, req = request
         if st.url != url {
             st.url = url; st.phase = .empty; st.task?.cancel()
             if let url {
                 st.task = Task { @MainActor [weak st, weak g] in
                     let phase: AsyncImagePhase
                     do {
-                        let (data, _) = try await URLSession.shared.data(from: url)
+                        // asyncImageURLSession (iOS 27): the given session; AsyncImage(request:): the request
+                        let (data, _) = try await session.data(for: req ?? URLRequest(url: url))
                         let img = UIImage(data: data, scale: scale)
                         phase = img.map { .success(Image(uiImage: $0)) } ?? .failure(_AsyncImageError(description: "isim: the data at \(url) is not an image"))
                     } catch { phase = .failure(error) }
@@ -621,6 +624,23 @@ public struct AsyncImage<Content: View>: View, _PrimitiveView {
         return _resolve(make(st.phase), ctx.child("phase"))
     }
 }
+
+@available(iOS 27.0, *)
+extension AsyncImage {
+    /// Loads `request` (headers, cache policy) with the view's URL session (asyncImageURLSession).
+    public init(request: URLRequest?, scale: CGFloat = 1) where Content == Image {
+        self.init(url: request?.url, scale: scale); self.request = request
+    }
+    public init<I: View, P: View>(request: URLRequest?, scale: CGFloat = 1, @ViewBuilder content: @escaping (Image) -> I, @ViewBuilder placeholder: @escaping () -> P)
+    where Content == _ConditionalContent<I, P> {
+        self.init(url: request?.url, scale: scale, content: content, placeholder: placeholder); self.request = request
+    }
+    public init(request: URLRequest?, scale: CGFloat = 1, transaction: Transaction = Transaction(), @ViewBuilder content: @escaping (AsyncImagePhase) -> Content) {
+        self.init(url: request?.url, scale: scale, transaction: transaction, content: content); self.request = request
+    }
+}
+struct _AsyncImageSessionKey: EnvironmentKey { static var defaultValue: URLSession? { nil } }
+extension EnvironmentValues { var _asyncImageSession: URLSession? { get { self[_AsyncImageSessionKey.self] } set { self[_AsyncImageSessionKey.self] = newValue } } }
 
 // MARK: - controlSize, buttonBorderShape, PrimitiveButtonStyle
 

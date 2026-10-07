@@ -395,6 +395,8 @@ public enum NavigationBarItem {
     var bottomBarHidden = false
     var bottomBarBackground: Color?
     var transition: _NavTransition = .push
+    var edgeTop = 0, edgeBottom = 0          // scrollEdgeEffectStyle: 0 automatic, 1 hard, 2 soft, 3 hidden
+    var minimizeBottom = 0                   // toolbarMinimizationBehavior for the bottom bar: 2 on scroll down, 3 on scroll up
     var hasBottomBar: Bool { !bottomBarHidden && toolbar.contains { $0.0.isBottom } }
     var hasPrincipal: Bool { toolbar.contains { $0.0.id == 1 } }
     let index: Int
@@ -623,18 +625,17 @@ final class _NavStackNode: _Node {
     /// the middle, bottom-bar items in a bar at the bottom, keyboard items above the keyboard.
     func mountToolbars(_ g: _Graph, _ view: UIView, _ bar: _SUINavBar) {
         let W = view.bounds.width, glass = _isimGlassLook
-        var leadX: CGFloat = levels.count > 1 && !top.backHidden ? (glass ? 72 : 110) : 16
-        var trailX: CGFloat = W - 16
+        let leadStart: CGFloat = levels.count > 1 && !top.backHidden ? (glass ? 72 : 110) : 16
         let entries = Array(top.toolbar.enumerated())
-        let trailing = entries.filter { $0.element.0.isTrailing }
         var bottomItems: [(Int, _Node, Bool)] = [], keyboardItems: [(Int, _Node)] = []
+        var leading: [(Int, _Node)] = [], trailing: [(Int, _Node)] = [], pinned: [(Int, _Node)] = [], overflowContent: [_Node] = []
         func host(_ i: Int, in parent: UIView) -> UIView {
             let h = g.view(path + "|tb\(i)") { _PassthroughView() }
             if h.superview !== parent { parent.addSubview(h) }
             return h
         }
-        func capsule(_ i: Int, _ frame: CGRect) {
-            let gl = g.view(path + "|tbglass\(i)") { _SUIGlassView(frame: .zero) }
+        func capsule(_ key: String, _ frame: CGRect) {
+            let gl = g.view(path + "|tbglass" + key) { _SUIGlassView(frame: .zero) }
             if gl.superview !== bar { bar.insertSubview(gl, at: 1) }
             gl.frame = frame; gl.radius = frame.height / 2
         }
@@ -652,41 +653,85 @@ final class _NavStackNode: _Node {
                 mountItem(item, h)
                 continue
             }
-            guard placement.isLeading else { continue }
-            let h = host(i, in: bar)
-            if glass {
-                let gw = max(44, s.width + 24)
-                capsule(i, CGRect(x: leadX, y: safeTop + (barHeight - 44) / 2, width: gw, height: 44))
-                h.frame = CGRect(x: leadX + (gw - s.width) / 2, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
-                leadX += gw + 8
-            } else {
-                h.frame = CGRect(x: leadX, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
-                leadX += s.width + 16
-            }
-            mountItem(item, h)
+            if placement.id == 11 { overflowContent.append(item); continue }     // ToolbarOverflowMenu content
+            if placement.isLeading { leading.append((i, item)) } else if placement.id == 10 { pinned.append((i, item)) } else if placement.isTrailing { trailing.append((i, item)) }
         }
-        for (i, (_, item)) in trailing.reversed() {                    // the last trailing item is at the edge
-            let s = item.frame.size
-            let h = host(i, in: bar)
-            if glass {
-                let gw = max(44, s.width + 24)
-                capsule(i, CGRect(x: trailX - gw, y: safeTop + (barHeight - 44) / 2, width: gw, height: 44))
-                h.frame = CGRect(x: trailX - gw + (gw - s.width) / 2, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
-                trailX -= gw + 8
-            } else {
-                h.frame = CGRect(x: trailX - s.width, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
-                trailX -= s.width + 16
+        // a run of items: groups split by ToolbarSpacer; from iOS 26 each group shares one glass capsule
+        func run(_ items: [(Int, _Node)], from x0: CGFloat, mount: Bool) -> CGFloat {
+            var groups: [[(Int, _Node)]] = [[]]
+            for it in items { if it.1.toolbarSpacer != nil { groups.append([]) } else { groups[groups.count - 1].append(it) } }
+            var x = x0
+            for group in groups where !group.isEmpty {
+                let widths = group.map { $0.1.frame.width }
+                let inner = widths.reduce(0, +) + (glass ? 12 : 16) * CGFloat(group.count - 1)
+                let cw = glass ? max(44, inner + 24) : inner
+                if mount {
+                    if glass { capsule("\(group[0].0)", CGRect(x: x, y: safeTop + (barHeight - 44) / 2, width: cw, height: 44)) }
+                    var ix = x + (cw - inner) / 2
+                    for (k, (i, item)) in group.enumerated() {
+                        let s = item.frame.size, h = host(i, in: bar)
+                        h.frame = CGRect(x: ix, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
+                        mountItem(item, h)
+                        ix += widths[k] + (glass ? 12 : 16)
+                    }
+                }
+                x += cw + (glass ? 8 : 16)
             }
-            mountItem(item, h)
+            return x > x0 ? x - x0 - (glass ? 8 : 16) : 0
         }
+        _ = run(leading, from: leadStart, mount: true)
+        // trailing: items, the overflow button, pinned items (at the edge). Items that do not fit move to the overflow
+        // menu, lowest visibilityPriority first (iOS 27)
+        let titleW: CGFloat = top.hasPrincipal ? 120 : top.title.map { t -> CGFloat in
+            let l = UILabel(); l.font = .systemFont(ofSize: 17, weight: .semibold); l.text = t
+            return min(l.sizeThatFits(CGSize(width: W, height: 44)).width, W / 2) } ?? 0
+        let room = (W - titleW) / 2 - 8
+        let ovW: CGFloat = glass ? 44 : 28, gap: CGFloat = glass ? 8 : 16
+        var kept = trailing, overflowed: [(Int, _Node)] = []
+        func needed() -> CGFloat {
+            let p = run(pinned, from: 0, mount: false), k = run(kept, from: 0, mount: false)
+            let ov = overflowed.isEmpty && overflowContent.isEmpty ? 0 : ovW
+            return 16 + p + k + ov + gap * CGFloat([p, k, ov].filter { $0 > 0 }.count - 1)
+        }
+        while needed() > room {
+            let real = kept.indices.filter { kept[$0].1.toolbarSpacer == nil }
+            guard real.count > (pinned.isEmpty && overflowContent.isEmpty ? 1 : 0),
+                  let low = real.min(by: { (kept[$0].1.toolbarPriority, $0) < (kept[$1].1.toolbarPriority, $1) }) else { break }
+            overflowed.append(kept.remove(at: low))
+        }
+        var x = W - 16
+        let pw = run(pinned, from: 0, mount: false)
+        if pw > 0 { _ = run(pinned, from: x - pw, mount: true); x -= pw + gap }
+        let menuNodes = overflowed.sorted { $0.0 < $1.0 }.map(\.1) + overflowContent
+        if !menuNodes.isEmpty {
+            let b = g.view(path + "|tboverflow") { _SUIControl(frame: .zero) }
+            if b.superview !== bar { bar.addSubview(b) }
+            let iv = g.view(path + "|tboverflowicon") { UIImageView() }
+            if iv.superview !== b { b.addSubview(iv) }
+            iv.image = UIImage(systemName: glass ? "ellipsis" : "ellipsis.circle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .medium))
+            iv.tintColor = glass ? .label : _accentUIColor()
+            b.frame = CGRect(x: x - ovW, y: safeTop + (barHeight - 44) / 2, width: ovW, height: 44)
+            let isz = iv.image?.size ?? CGSize(width: 22, height: 22)
+            iv.frame = CGRect(x: (ovW - isz.width) / 2, y: (44 - isz.height) / 2, width: isz.width, height: isz.height)
+            if glass { capsule("overflow", b.frame) }
+            b.accessibilityIdentifier = "toolbar-overflow"
+            b.action = { [weak b] in
+                guard let b else { return }
+                b._isim_present(UIMenu(title: "", children: menuNodes.flatMap { _menuElements($0) }), from: b.bounds)
+            }
+            x -= ovW + gap
+        }
+        let kw = run(kept, from: 0, mount: false)
+        if kw > 0 { _ = run(kept, from: x - kw, mount: true) }
         bar.principal = top.hasPrincipal
         // bottom bar: items spread from the leading to the trailing edge; .status items in the middle
         if top.hasBottomBar {
             let bb = g.view(path + "|bottombar") { _SUIBottomBar(frame: .zero) }
             if bb.superview !== view { view.addSubview(bb) } else { view.bringSubviewToFront(bb) }
             bb.frame = CGRect(x: 0, y: view.bounds.height - 49 - safeBottom, width: W, height: 49 + safeBottom)
-            bb.configure(background: top.bottomBarBackground?.uiColor)
-            let main = bottomItems.filter { !$0.2 }, status = bottomItems.filter { $0.2 }
+            bb.configure(background: top.bottomBarBackground?.uiColor, edge: top.edgeBottom)
+            (view as? _SUINavStackView)?.bottomBar = bb; (view as? _SUINavStackView)?.minimizeBottom = top.minimizeBottom
+            let main = bottomItems.filter { !$0.2 && $0.1.toolbarSpacer == nil }, status = bottomItems.filter { $0.2 }
             let widths = main.map { $0.1.frame.width }
             let gap = main.count > 1 ? max(8, (W - 32 - widths.reduce(0, +)) / CGFloat(main.count - 1)) : 0
             var x: CGFloat = 16
@@ -811,6 +856,10 @@ final class _SUINavBar: UIView {
             backgroundColor = solid ? .clear : backgroundColor        // iOS 26+: a scroll-edge fade instead of the bar background
             fade.isHidden = !solid; hairline.isHidden = true
             fade.setNeedsDisplay()
+            if solid && l.edgeTop == 1 {                                // scrollEdgeEffectStyle(.hard): an opaque edge with a divider
+                backgroundColor = UIColor.systemBackground.withAlphaComponent(0.97); fade.isHidden = true; hairline.isHidden = false
+            }
+            if l.edgeTop == 3 { fade.isHidden = true }                  // scrollEdgeEffectHidden
         }
     }
 }
@@ -882,7 +931,9 @@ extension View {
             if let lv = ctx.nav {
                 for (i, item) in items.enumerated() {
                     let ictx = _Context(graph: ctx.graph, path: ctx.path + "/toolbar\(i)", environment: ctx.environment, nav: nil)
-                    lv.toolbar.append((item.placement, _resolve(item.view, ictx)))
+                    let n = _resolve(item.view, ictx)
+                    n.toolbarPriority = item.priority; n.toolbarSpacer = item.spacer
+                    lv.toolbar.append((item.placement, n))
                 }
             }
             return _resolve(c, ctx.child("tb"))
@@ -912,9 +963,13 @@ public struct ToolbarItemPlacement: Equatable, Sendable {
     var isBottom: Bool { id == 5 || id == 7 }
     /// trailing items: .automatic, .primaryAction, .topBarTrailing, confirmation / destructive actions (and the menu
     /// collecting .secondaryAction items)
-    var isTrailing: Bool { id == 0 || id == 3 || id == 8 }
+    var isTrailing: Bool { id == 0 || id == 3 || id == 8 || id == 10 }
 }
-public struct _ToolbarEntry { let placement: ToolbarItemPlacement; let view: AnyView }
+public struct _ToolbarEntry {
+    let placement: ToolbarItemPlacement; let view: AnyView
+    var priority = 0                 // visibilityPriority (iOS 27)
+    var spacer: CGFloat? = nil       // ToolbarSpacer (iOS 26): 8 fixed, 0 flexible
+}
 public protocol ToolbarContent { var _items: [_ToolbarEntry] { get } }
 public struct ToolbarItem<ID, Content: View>: ToolbarContent {
     let placement: ToolbarItemPlacement, content: Content

@@ -19,6 +19,11 @@ final class _SUINavStackView: _PassthroughViewBase {
     var canPop = false
     var pop: (() -> Void)?
     weak var bar: _SUINavBar?
+    /// toolbarMinimizationBehavior (iOS 27): the bottom bar slides away while the content scrolls (2 down, 3 up)
+    weak var bottomBar: UIView?
+    var minimizeBottom = 0
+    private var lastScroll: [ObjectIdentifier: CGFloat] = [:]
+    private var scrollObserver: NSObjectProtocol?
     private var edge: UIScreenEdgePanGestureRecognizer?
     private var dragOffset: CGFloat?
     override init(frame: CGRect) {
@@ -26,6 +31,23 @@ final class _SUINavStackView: _PassthroughViewBase {
         let e = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(edgePanned(_:)))
         e.edges = .left
         addGestureRecognizer(e); edge = e
+        scrollObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimScrollViewDidScroll"), object: nil, queue: nil, using: { [weak self] (n: NSNotification) in
+            MainActor.assumeIsolated {
+                guard let self, let sv = n.object as? UIScrollView, sv.isDescendant(of: self) else { return }
+                self.scrolled(sv)
+            }
+        })
+    }
+    deinit { if let o = scrollObserver { NotificationCenter.default.removeObserver(o) } }
+    func scrolled(_ sv: UIScrollView) {
+        guard minimizeBottom == 2 || minimizeBottom == 3, let bb = bottomBar else { return }
+        let id = ObjectIdentifier(sv), y = sv.contentOffset.y
+        let dy = y - (lastScroll[id] ?? y)
+        lastScroll[id] = y
+        guard abs(dy) > 0.5, sv.isDragging || sv.isTracking else { return }
+        let hide = (minimizeBottom == 2) == (dy > 0) && y > 10
+        let target = hide ? CGAffineTransform(translationX: 0, y: bb.bounds.height) : .identity
+        if bb.transform != target { UIView.animate(withDuration: 0.25) { bb.transform = target } }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool { g === edge ? canPop && shownTop > 0 : true }
@@ -162,11 +184,12 @@ final class _SUIBottomBar: _PassthroughViewBase {
         accessibilityIdentifier = "isim-bottom-bar"
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-    func configure(background: UIColor?) {
+    /// edge: scrollEdgeEffectStyle for the bottom edge (1 hard: an opaque bar, 3 hidden)
+    func configure(background: UIColor?, edge: Int = 0) {
         backdrop.frame = bounds; fade.frame = bounds
         hairline.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 0.5)
-        let glass = _isimGlassLook && background == nil
-        backdrop.isHidden = glass || background != nil; hairline.isHidden = glass; fade.isHidden = !glass
+        let glass = _isimGlassLook && background == nil && edge != 1
+        backdrop.isHidden = glass || background != nil; hairline.isHidden = glass; fade.isHidden = !glass || edge == 3
         backgroundColor = background
         fade.setNeedsDisplay()
     }
