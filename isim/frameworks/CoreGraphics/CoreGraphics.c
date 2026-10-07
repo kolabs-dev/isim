@@ -1,10 +1,6 @@
-/* isim CoreGraphics subset: geometry, affine transforms, CGColor, and a CGContext that
- * draws into the simulator surface through libisim_host. */
-#include <CoreGraphics/CoreGraphics.h>
-#include <isim_host.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
+/* isim CoreGraphics: geometry, affine transforms and CGPath. Colors (CGColor.c), contexts (CGContext.c), images and
+ * bitmap/PDF contexts (CGImage.c, CGBitmap.c), gradients/shadings/patterns (CGGradient.c) are in their own files. */
+#include "cg_internal.h"
 
 const CGPoint CGPointZero = { 0, 0 };
 const CGSize CGSizeZero = { 0, 0 };
@@ -104,139 +100,9 @@ CGAffineTransform CGAffineTransformInvert(CGAffineTransform t) {
 }
 bool CGAffineTransformEqualToTransform(CGAffineTransform a, CGAffineTransform b) { return !memcmp(&a, &b, sizeof a); }
 
-/* ---- CGColor: RGBA in an Objective-C object ----
- * Swift (and ARC code) treat CGColorRef as a CF object and retain/release it with
- * objc_retain/objc_release, so CGColor is an instance of Foundation's __NSCGColor
- * (isa + 4 components). Without Foundation loaded, the same layout is malloc'd with
- * isa = NULL and refcounted here. */
-struct CGColor { void *isa; CGFloat c[4]; int refs; };
-typedef struct objc_class *Class;
-extern Class objc_getClass(const char *name);
-extern void *class_createInstance(Class cls, unsigned long extra);
-extern void *objc_retain(void *o);
-extern void objc_release(void *o);
-CGColorRef CGColorCreateSRGB(CGFloat r, CGFloat g, CGFloat b, CGFloat a) {
-    static Class k; static int looked;
-    if (!looked) { k = objc_getClass("__NSCGColor"); looked = k != NULL; }
-    CGColorRef col = k ? class_createInstance(k, 0) : calloc(1, sizeof *col);
-    col->refs = 1; col->c[0] = r; col->c[1] = g; col->c[2] = b; col->c[3] = a; return col;
-}
-CGColorRef CGColorCreateGenericRGB(CGFloat r, CGFloat g, CGFloat b, CGFloat a) { return CGColorCreateSRGB(r, g, b, a); }
-CGColorRef CGColorCreateGenericGray(CGFloat w, CGFloat a) { return CGColorCreateSRGB(w, w, w, a); }
-CGColorRef CGColorRetain(CGColorRef c) {
-    if (c && c->isa) objc_retain(c); else if (c) __atomic_add_fetch(&c->refs, 1, __ATOMIC_RELAXED);
-    return c;
-}
-void CGColorRelease(CGColorRef c) {
-    if (c && c->isa) objc_release(c);
-    else if (c && __atomic_sub_fetch(&c->refs, 1, __ATOMIC_ACQ_REL) == 0) free(c);
-}
-const CGFloat *CGColorGetComponents(CGColorRef c) { return c ? c->c : NULL; }
-size_t CGColorGetNumberOfComponents(CGColorRef c) { return 4; }
-bool CGColorEqualToColor(CGColorRef a, CGColorRef b) { return a == b || (a && b && !memcmp(a->c, b->c, sizeof a->c)); }
-CGColorRef CGColorCreateCopyWithAlpha(CGColorRef c, CGFloat alpha) { return CGColorCreateSRGB(c->c[0], c->c[1], c->c[2], alpha); }
-CGFloat CGColorGetAlpha(CGColorRef c) { return c ? c->c[3] : 0; }
-
-/* ---- CGContext: the single current host surface (one object); state stack of fill/stroke/line/alpha ---- */
-struct CGContext { void *isa; };
-struct gstate { CGFloat fill[4], stroke[4], lw, alpha; int interp; int cap, join; CGFloat miter, dash[16], phase; int ndash; };
-static struct gstate gstack[32]; static int gdepth;
-static struct gstate *cur(void) { return &gstack[gdepth]; }
-static Class objc_class_named(const char *n) { return objc_getClass(n); }
-CGContextRef isim_cg_current_context(void) {           /* isim: used by UIKit's UIGraphicsGetCurrentContext */
-    static struct CGContext *ctx;
-    if (!ctx) {
-        gstack[0] = (struct gstate){ { 0, 0, 0, 1 }, { 0, 0, 0, 1 }, 1, 1, 0, 0, 0, 10, { 0 }, 0, 0 };
-        Class k = objc_class_named("__NSCGContext");
-        ctx = k ? class_createInstance(k, 0) : calloc(1, sizeof *ctx);
-    }
-    return ctx;
-}
-static const double *with_alpha(const CGFloat *c, double out[4]) { out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; out[3] = c[3] * cur()->alpha; return out; }
-void CGContextSaveGState(CGContextRef c) { if (gdepth < 31) { gstack[gdepth + 1] = gstack[gdepth]; gdepth++; } isim_gfx_save(); }
-void CGContextRestoreGState(CGContextRef c) { if (gdepth > 0) gdepth--; isim_gfx_restore(); }
-void CGContextTranslateCTM(CGContextRef c, CGFloat tx, CGFloat ty) { isim_gfx_translate(tx, ty); }
-void CGContextScaleCTM(CGContextRef c, CGFloat sx, CGFloat sy) { isim_gfx_scale(sx, sy); }
-void CGContextSetRGBFillColor(CGContextRef c, CGFloat r, CGFloat g, CGFloat b, CGFloat a) { CGFloat v[4] = { r, g, b, a }; memcpy(cur()->fill, v, sizeof v); }
-void CGContextSetRGBStrokeColor(CGContextRef c, CGFloat r, CGFloat g, CGFloat b, CGFloat a) { CGFloat v[4] = { r, g, b, a }; memcpy(cur()->stroke, v, sizeof v); }
-void CGContextSetFillColorWithColor(CGContextRef c, CGColorRef col) { if (col) memcpy(cur()->fill, col->c, sizeof col->c); }
-void CGContextSetStrokeColorWithColor(CGContextRef c, CGColorRef col) { if (col) memcpy(cur()->stroke, col->c, sizeof col->c); }
-void CGContextSetLineWidth(CGContextRef c, CGFloat w) { cur()->lw = w; }
-void CGContextFillRect(CGContextRef c, CGRect r) { double a[4]; isim_gfx_fill_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 0, with_alpha(cur()->fill, a)); }
-void CGContextStrokeRect(CGContextRef c, CGRect r) { double a[4]; isim_path_begin(); isim_path_rect(r.origin.x, r.origin.y, r.size.width, r.size.height, 0); isim_path_stroke(cur()->lw, with_alpha(cur()->stroke, a)); isim_path_begin(); }
-void CGContextFillEllipseInRect(CGContextRef c, CGRect r) { double a[4]; isim_gfx_fill_ellipse(r.origin.x, r.origin.y, r.size.width, r.size.height, with_alpha(cur()->fill, a)); }
-void CGContextBeginPath(CGContextRef c) { isim_path_begin(); }
-void CGContextMoveToPoint(CGContextRef c, CGFloat x, CGFloat y) { isim_path_move(x, y); }
-void CGContextAddLineToPoint(CGContextRef c, CGFloat x, CGFloat y) { isim_path_line(x, y); }
-void CGContextAddRect(CGContextRef c, CGRect r) { isim_path_rect(r.origin.x, r.origin.y, r.size.width, r.size.height, 0); }
-/* CG uses a flipped-y "clockwise" flag; in UIKit's top-left coordinates clockwise=1 draws counter-clockwise visually */
-void CGContextAddArc(CGContextRef c, CGFloat x, CGFloat y, CGFloat r, CGFloat a0, CGFloat a1, int clockwise) { isim_path_arc(x, y, r, a0, a1, !clockwise); }
-void CGContextClosePath(CGContextRef c) { isim_path_close(); }
-void CGContextFillPath(CGContextRef c) { double a[4]; isim_path_fill(with_alpha(cur()->fill, a)); isim_path_begin(); }
-void CGContextStrokePath(CGContextRef c) { double a[4]; isim_path_stroke(cur()->lw, with_alpha(cur()->stroke, a)); isim_path_begin(); }
-
-void CGContextRotateCTM(CGContextRef c, CGFloat angle) { isim_gfx_rotate(angle); }
-void CGContextConcatCTM(CGContextRef c, CGAffineTransform t) { isim_gfx_concat(t.a, t.b, t.c, t.d, t.tx, t.ty); }
-void CGContextSetAlpha(CGContextRef c, CGFloat alpha) { cur()->alpha = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha; }
-void CGContextSetInterpolationQuality(CGContextRef c, CGInterpolationQuality q) { cur()->interp = q; }
-CGInterpolationQuality CGContextGetInterpolationQuality(CGContextRef c) { return cur()->interp; }
-/* line caps, joins, miter limit and dashes live in the host's graphics state (saved/restored with it) */
-static void line_style(void) { struct gstate *g = cur(); isim_path_set_line_style(g->cap, g->join, g->miter, g->ndash ? g->dash : NULL, g->ndash, g->phase); }
-void CGContextSetLineCap(CGContextRef c, CGLineCap cap) { cur()->cap = cap; line_style(); }
-void CGContextSetLineJoin(CGContextRef c, CGLineJoin join) { cur()->join = join; line_style(); }
-void CGContextSetMiterLimit(CGContextRef c, CGFloat limit) { cur()->miter = limit; line_style(); }
-void CGContextSetLineDash(CGContextRef c, CGFloat phase, const CGFloat *lengths, size_t count) {
-    struct gstate *g = cur();
-    g->ndash = lengths ? (int)(count < 16 ? count : 16) : 0;
-    for (int i = 0; i < g->ndash; i++) g->dash[i] = lengths[i];
-    g->phase = phase;
-    line_style();
-}
-void CGContextAddLines(CGContextRef c, const CGPoint *p, size_t n) {
-    for (size_t i = 0; i < n; i++) { if (i == 0) isim_path_move(p[i].x, p[i].y); else isim_path_line(p[i].x, p[i].y); }
-}
-void CGContextAddEllipseInRect(CGContextRef c, CGRect r) {
-    double k = 0.5522847498, cx = CGRectGetMidX(r), cy = CGRectGetMidY(r), rx = r.size.width / 2, ry = r.size.height / 2;
-    isim_path_move(cx + rx, cy);
-    isim_path_curve(cx + rx, cy + ry * k, cx + rx * k, cy + ry, cx, cy + ry);
-    isim_path_curve(cx - rx * k, cy + ry, cx - rx, cy + ry * k, cx - rx, cy);
-    isim_path_curve(cx - rx, cy - ry * k, cx - rx * k, cy - ry, cx, cy - ry);
-    isim_path_curve(cx + rx * k, cy - ry, cx + rx, cy - ry * k, cx + rx, cy);
-    isim_path_close();
-}
-void CGContextAddCurveToPoint(CGContextRef c, CGFloat a, CGFloat b, CGFloat d, CGFloat e, CGFloat x, CGFloat y) { isim_path_curve(a, b, d, e, x, y); }
-static CGPoint path_cur;   /* current point for quadratic curves */
-void CGContextAddQuadCurveToPoint(CGContextRef c, CGFloat cpx, CGFloat cpy, CGFloat x, CGFloat y) {
-    CGPoint p0 = path_cur;
-    isim_path_curve(p0.x + 2.0 / 3 * (cpx - p0.x), p0.y + 2.0 / 3 * (cpy - p0.y), x + 2.0 / 3 * (cpx - x), y + 2.0 / 3 * (cpy - y), x, y);
-    path_cur = CGPointMake(x, y);
-}
-void CGContextDrawPath(CGContextRef c, CGPathDrawingMode mode) {
-    double a[4];
-    int eo = mode == kCGPathEOFill || mode == kCGPathEOFillStroke;
-    if (eo) isim_path_set_fill_rule(1);
-    if (mode == kCGPathFill || mode == kCGPathEOFill || mode == kCGPathFillStroke || mode == kCGPathEOFillStroke) isim_path_fill(with_alpha(cur()->fill, a));
-    if (eo) isim_path_set_fill_rule(0);
-    if (mode == kCGPathStroke || mode == kCGPathFillStroke || mode == kCGPathEOFillStroke) isim_path_stroke(cur()->lw, with_alpha(cur()->stroke, a));
-    isim_path_begin();
-}
-void CGContextEOFillPath(CGContextRef c) { isim_path_set_fill_rule(1); CGContextFillPath(c); isim_path_set_fill_rule(0); }
-void CGContextStrokeEllipseInRect(CGContextRef c, CGRect r) { isim_path_begin(); CGContextAddEllipseInRect(c, r); CGContextStrokePath(c); }
-void CGContextClearRect(CGContextRef c, CGRect r) { double z[4] = { 0, 0, 0, 0 }; isim_gfx_fill_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 0, z); }
-void CGContextClip(CGContextRef c) { isim_gfx_clip_path(); }
-void CGContextEOClip(CGContextRef c) { isim_path_set_fill_rule(1); isim_gfx_clip_path(); isim_path_set_fill_rule(0); }
-void CGContextClipToRect(CGContextRef c, CGRect r) { isim_gfx_clip_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 0); }
-void CGContextStrokeLineSegments(CGContextRef c, const CGPoint *p, size_t n) {
-    isim_path_begin();
-    for (size_t i = 0; i + 1 < n; i += 2) { isim_path_move(p[i].x, p[i].y); isim_path_line(p[i + 1].x, p[i + 1].y); }
-    CGContextStrokePath(c);
-}
-
 /* ---- CGPath: an element list in an object of the Foundation class __NSCGPath (layout must match) ---- */
-struct pel { int type; CGPoint p[3]; };
-struct CGPath { void *isa; struct pel *els; long count, cap; };
 static CGMutablePathRef path_new(void) {
-    static Class k; if (!k) k = objc_class_named("__NSCGPath");
+    static Class k; if (!k) k = objc_getClass("__NSCGPath");
     struct CGPath *p = k ? class_createInstance(k, 0) : calloc(1, sizeof *p);
     return p;
 }
@@ -390,59 +256,4 @@ bool CGPathEqualToPath(CGPathRef a, CGPathRef b) {
 void CGPathApply(CGPathRef p, void *info, CGPathApplierFunction f) {
     if (!p || !f) return;
     for (long i = 0; i < p->count; i++) { CGPathElement e = { (CGPathElementType)p->els[i].type, p->els[i].p }; f(info, &e); }
-}
-void CGContextAddPath(CGContextRef c, CGPathRef p) {
-    if (!p) return;
-    CGPoint start = CGPointZero, last = CGPointZero;
-    for (long i = 0; i < p->count; i++) {
-        struct pel e = p->els[i];
-        switch (e.type) {
-        case kCGPathElementMoveToPoint: isim_path_move(e.p[0].x, e.p[0].y); start = last = e.p[0]; break;
-        case kCGPathElementAddLineToPoint: isim_path_line(e.p[0].x, e.p[0].y); last = e.p[0]; break;
-        case kCGPathElementAddQuadCurveToPoint:
-            isim_path_curve(last.x + 2.0 / 3 * (e.p[0].x - last.x), last.y + 2.0 / 3 * (e.p[0].y - last.y),
-                            e.p[1].x + 2.0 / 3 * (e.p[0].x - e.p[1].x), e.p[1].y + 2.0 / 3 * (e.p[0].y - e.p[1].y), e.p[1].x, e.p[1].y);
-            last = e.p[1]; break;
-        case kCGPathElementAddCurveToPoint: isim_path_curve(e.p[0].x, e.p[0].y, e.p[1].x, e.p[1].y, e.p[2].x, e.p[2].y); last = e.p[2]; break;
-        case kCGPathElementCloseSubpath: isim_path_close(); last = start; break;
-        }
-    }
-    path_cur = last;
-}
-
-/* ---- CGImage: host image handle + pixel rect, in an object of the Foundation class __NSCGImage ---- */
-struct CGImage { void *isa; int handle; double x, y, w, h; void *owner; };
-CGImageRef isim_cg_image_create(int handle, CGRect r, void *owner) {
-    static Class k; if (!k) k = objc_class_named("__NSCGImage");
-    if (!k || !handle) return NULL;
-    struct CGImage *im = class_createInstance(k, 0);
-    im->handle = handle; im->x = r.origin.x; im->y = r.origin.y; im->w = r.size.width; im->h = r.size.height;
-    im->owner = owner ? objc_retain(owner) : NULL;
-    return im;
-}
-int isim_cg_image_handle(CGImageRef im, CGRect *r) {
-    if (!im) return 0;
-    if (r) *r = CGRectMake(im->x, im->y, im->w, im->h);
-    return im->handle;
-}
-size_t CGImageGetWidth(CGImageRef im) { return im ? (size_t)im->w : 0; }
-size_t CGImageGetHeight(CGImageRef im) { return im ? (size_t)im->h : 0; }
-CGImageRef CGImageCreateWithImageInRect(CGImageRef im, CGRect r) {
-    if (!im) return NULL;
-    r = CGRectIntegral(CGRectIntersection(CGRectStandardize(r), CGRectMake(0, 0, im->w, im->h)));
-    if (CGRectIsNull(r) || CGRectIsEmpty(r)) return NULL;
-    r.origin.x += im->x; r.origin.y += im->y;
-    return isim_cg_image_create(im->handle, r, im->owner ? im->owner : (void *)im);
-}
-CGImageRef CGImageRetain(CGImageRef im) { if (im) objc_retain(im); return im; }
-void CGImageRelease(CGImageRef im) { if (im) objc_release(im); }
-void CGContextDrawImage(CGContextRef c, CGRect r, CGImageRef im) {
-    if (!im) return;
-    /* Core Graphics draws images y-up: flip within the rect */
-    isim_gfx_save();
-    isim_gfx_translate(0, r.origin.y * 2 + r.size.height);
-    isim_gfx_scale(1, -1);
-    isim_image_draw_part(im->handle, im->x, im->y, im->w, im->h, r.origin.x, r.origin.y, r.size.width, r.size.height,
-                         cur()->interp == kCGInterpolationNone, NULL, 0, cur()->alpha);
-    isim_gfx_restore();
 }

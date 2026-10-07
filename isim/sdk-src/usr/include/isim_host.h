@@ -12,7 +12,11 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        ISIM_EV_KEY_UP = 19 /* key released; for ISIM_EV_KEY / ISIM_EV_KEY_UP `pad` is the USB HID usage (0 if unknown) */
        , ISIM_EV_NOTIFICATION_RESPONSE = 20 /* text: request identifier (18 is shell-internal) */
        , ISIM_EV_DEVICE_ORIENTATION = 21 /* key: UIDeviceOrientation (the device was turned) */
-       , ISIM_EV_SYSTEM = 40 /* text: a system message ("shortcut TYPE", "bgtask ID", "activity PATH", ...) */ };
+       /* touch events: `pad` is the finger (0 first, 1 second: Option-drag / script pinch, rotate2, twofinger) */
+       , ISIM_EV_HOVER = 40 /* pointer moved without touching (x, y); pad 1: the pointer left */
+       , ISIM_EV_TEXT_EDITING = 41 /* IME composition: text = marked text, key = cursor (characters), mods = selected length */
+       , ISIM_EV_VOICEOVER = 42 /* text: on|off|next|prev|activate|read (script `voiceover`) */
+       , ISIM_EV_SYSTEM = 50 /* text: a system message from the shell ("bgtask ID", "discard-scenes", ...; shell_system.inc) */ };
 void isim_device_metrics(struct isim_device *out);
 int isim_set_orientation(int interfaceOrientation);   /* the screen takes this UIInterfaceOrientation; 1 if it changed */
 int isim_device_orientation(void);                    /* current UIDeviceOrientation */
@@ -120,12 +124,15 @@ void isim_audio_free(float *_Nullable pcm);
    Errors are NSURLError codes (< 0). isim_http_start returns NULL when the host has no libcurl. */
 struct isim_http;
 struct isim_http *_Nullable isim_http_start(const char *method, const char *url, const char *_Nullable headers, const void *_Nullable body, long body_len,
-                                            double timeout, double resource_timeout, int flags);   /* flags: 1 = do not follow redirects */
+                                            double timeout, double resource_timeout, int flags);   /* flags: 1 = do not follow redirects, 2 = accept any certificate */
 int isim_http_response(struct isim_http *h, long *status, char *_Nullable *_Nonnull url, char *_Nullable *_Nonnull headers);
 long isim_http_read(struct isim_http *h, void *buf, long cap);
 const char *isim_http_error_message(struct isim_http *h);
 void isim_http_cancel(struct isim_http *h);
 void isim_http_close(struct isim_http *_Nullable h);
+/* after the body: timings in seconds (t[7]: total, lookup, connect, TLS, request sent, first byte, redirects; -1 unknown),
+   ints[4]: HTTP version, new connections (0 = reused), remote port, local port; remote and local IP */
+void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen);
 struct isim_ws;
 struct isim_ws *_Nullable isim_ws_open(const char *url, const char *_Nullable headers, double timeout, int *err);
 int isim_ws_send(struct isim_ws *w, int kind, const void *_Nullable data, long len);    /* kind: 1 text, 2 binary, 8 close, 9 ping */
@@ -169,6 +176,40 @@ int isim_tts_synthesize(const char *text, const char *voice, double wpm, double 
 int isim_audio_input_start(void);
 long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
+/* Core Animation (host_ca.c): perspective warp of a raster image onto a quad (tl, tr, br, bl in user space);
+   pop a group as a blurred, tinted, offset drop shadow of its alpha */
+void isim_image_draw_quad(int handle, const double *quad, double alpha);
+void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+int isim_gfx_screen_snapshot(double x, double y, double w, double h);   /* what is on the target under the rect (the last frame) */
+void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group painted with its pixels multiplied by rgba */
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
+/* host game controllers (SDL3 gamepads; ISIM_GAMEPADS=0 disables). buttons: bit i = SDL_GamepadButton i (0 south/A,
+   1 east/B, 2 west/X, 3 north/Y, 4 back, 5 guide, 6 start, 7/8 stick clicks, 9/10 shoulders, 11-14 dpad up/down/left/right);
+   axes: left x, left y, right x, right y (-1...1, y down), left / right trigger (0...1) */
+struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24]; };
+int isim_gamepad_poll(struct isim_gamepad *out, int max);   /* connected pads (count), -1 when disabled */
+int isim_gamepad_rumble(int id, double low, double high, double seconds);
+/* raster image from 32-bit premultiplied BGRA pixels (rows top-down), updated in place */
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
+/* web engine for WKWebView (host_web.c + the isim-webkit helper, WebKitGTK): line protocol, TAB-separated escaped fields.
+   available: 1 if the engine can run (reason for 0 in why); next: next event line or NULL (wait up to timeout s; free it);
+   frame: image handle of a view's newest page frame (pixels in *w x *h; acknowledges it); release: forget a closed view */
+int isim_web_available(char *_Nullable why, int cap);
+void isim_web_send(const char *line);
+char *_Nullable isim_web_next(double timeout);
+void isim_web_free(char *_Nullable s);
+int isim_web_frame(int view, int *_Nullable w, int *_Nullable h);
+void isim_web_release(int view);
+/* TLS client sessions on a connected socket (host_tls.c, the host's OpenSSL libssl) for NWConnection.
+   verify 1: CA store + host name; 0: any certificate. alpn: comma-separated or NULL; min_version: 0 or 0x0303/0x0304.
+   connect returns NULL with a message (and an OSStatus-style code) on failure; read returns 0 at close, < 0 on error */
+struct isim_tls;
+struct isim_tls *_Nullable isim_tls_connect(int fd, const char *_Nullable host, int verify, const char *_Nullable alpn, int min_version,
+                                            char *err, int errlen, int *_Nullable code);
+long isim_tls_read(struct isim_tls *t, void *buf, long n);
+long isim_tls_write(struct isim_tls *t, const void *buf, long n);
+void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen);
+void isim_tls_close(struct isim_tls *_Nullable t);
 __END_DECLS

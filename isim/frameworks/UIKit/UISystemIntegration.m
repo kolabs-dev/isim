@@ -432,6 +432,9 @@ static void open_url_in_scenes(NSURL *url) {
     [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimOpenURL" object:url];        /* SwiftUI .onOpenURL */
 }
 
+/* the one continuation path (universal links from UIUniversalLinks.m, Spotlight, markers) */
+void isim_sys_continue_activity(NSUserActivity *a) { continue_activity(a, NO); }
+
 /* after didFinishLaunching (and the scene connection): deliver the launch payload. Returns YES if UIApplication.m
    should not deliver ISIM_LAUNCH_URL itself. */
 BOOL isim_sys_deliver_launch(void) {
@@ -454,6 +457,8 @@ BOOL isim_sys_open_url(NSString *s) {
     if ([s hasPrefix:@"isim-bgtask:"]) return YES;
     NSURL *url = [NSURL URLWithString:s];
     if (!url) return NO;
+    NSString *scheme = url.scheme.lowercaseString;
+    if ([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"]) return NO;   /* web URLs: UIUniversalLinks.m */
     BOOL sceneHandles = NO;
     for (UIScene *sc in UIApplication.sharedApplication.connectedScenes) if ([sc.delegate respondsToSelector:@selector(scene:openURLContexts:)]) sceneHandles = YES;
     if (!sceneHandles) return NO;                                /* the app delegate's application(_:open:options:) */
@@ -549,11 +554,11 @@ static BOOL installed_app_handles(NSURL *url, BOOL *universal) {
             NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"Info.plist"]];
             if ([scheme isEqualToString:@"https"]) {
                 if ([info[@"CFBundleIdentifier"] isEqual:me]) continue;       /* a universal link to the app itself opens in the browser */
-                NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"isim-entitlements.plist"]];
+                NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
                 for (NSString *d in ent[@"com.apple.developer.associated-domains"]) {
                     if (![d hasPrefix:@"applinks:"]) continue;
                     NSString *h = [[d substringFromIndex:9] componentsSeparatedByString:@"?"].firstObject.lowercaseString;
-                    if ([h hasPrefix:@"*."] ? [host hasSuffix:[h substringFromIndex:1]] : [h isEqualToString:host]) { *universal = YES; return YES; }
+                    if ([h hasPrefix:@"*."] ? ([host hasSuffix:[h substringFromIndex:1]] || [host isEqualToString:[h substringFromIndex:2]]) : [h isEqualToString:host]) { *universal = YES; return YES; }
                 }
                 continue;
             }

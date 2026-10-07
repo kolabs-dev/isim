@@ -30,18 +30,31 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloTable.app/HelloTable ] && run "ui: HelloTable (UITableView, diffable data source)" tests/ui/table.sh
   [ -x out/apps/HelloCollection.app/HelloCollection ] && run "ui: HelloCollection (UICollectionView flow/compositional/list)" tests/ui/collection.sh
   [ -x out/apps/HelloGestures.app/HelloGestures ] && run "ui: HelloGestures (recognizers, key commands, shake)" tests/ui/gestures.sh
+  [ -x out/apps/HelloMultiTouch.app/HelloMultiTouch ] && run "ui: HelloMultiTouch (pinch, rotation, two-finger pan, zooming, hover, pointer)" tests/ui/multitouch.sh
+  [ -x out/apps/HelloTextEditing.app/HelloTextEditing ] && run "ui: HelloTextEditing (selection, edit menu, marked text, keyboards, autocorrection)" tests/ui/textediting.sh
+  [ -x out/apps/HelloAccessibility.app/HelloAccessibility ] && run "ui: HelloAccessibility (VoiceOver, accessibility tree, Dynamic Type, settings)" tests/ui/accessibility.sh
+  [ -x out/apps/HelloDragDrop.app/HelloDragDrop ] && run "ui: HelloDragDrop (drag and drop interactions, table reordering, SwiftUI)" tests/ui/dragdrop.sh
+  [ -x out/apps/HelloSwiftUIGestures.app/HelloSwiftUIGestures ] && run "ui: HelloSwiftUIGestures (magnify, rotate, sequenced, exclusive, @GestureState)" tests/ui/swiftui-gestures.sh
   [ -x out/apps/HelloImages.app/HelloImages ] && run "ui: HelloImages (image renderer, PNG/JPEG, attributed text)" tests/ui/images.sh
+  [ -x out/apps/HelloQuartz.app/HelloQuartz ] && run "ui: HelloQuartz (bitmap/PDF contexts, gradients, shadows, Core Text)" tests/ui/quartz.sh
+  [ -x out/apps/HelloImaging.app/HelloImaging ] && run "ui: HelloImaging (ImageIO, Core Image, animated/resizable images)" tests/ui/imaging.sh
   [ -x out/apps/HelloRotation.app/HelloRotation ] && run "ui: HelloRotation (device rotation, orientations, size classes)" tests/ui/rotation.sh
   [ -x out/apps/HelloConstraints.app/HelloConstraints ] && run "ui: HelloConstraints (VFL, keyboard layout guide, trait registration)" tests/ui/constraints.sh
   [ -x out/apps/HelloKeys.app/HelloKeys ] && run "ui: HelloKeys (SwiftUI shortcuts, key presses, focus, inspector)" tests/ui/keys.sh
   [ -x out/apps/HelloInputs.app/HelloInputs ] && run "ui: HelloInputs (UITextView, pickers, search, refresh, color well, appearance)" tests/ui/inputs.sh
+  [ -x out/apps/HelloCoreAnimation.app/HelloCoreAnimation ] && run "ui: HelloCoreAnimation (CA layers/animations, 3D, masks, Dynamics, CoreHaptics)" tests/ui/coreanimation.sh
   [ -x out/apps/HelloAnimations.app/HelloAnimations ] && run "ui: HelloAnimations (property animator, keyframes, transitions)" tests/ui/animations.sh
   [ -x out/apps/HelloTransitions.app/HelloTransitions ] && run "ui: HelloTransitions (presentations, sheets, popovers, custom transitions, containers)" tests/ui/transitions.sh
   [ -x out/apps/HelloControls.app/HelloControls ] && run "ui: HelloControls (UIKit controls, menus)" tests/ui/controls.sh
   [ -x out/apps/HelloPresentations.app/HelloPresentations ] && run "ui: HelloPresentations (sheets, alerts, dialogs)" tests/ui/presentations.sh
+  [ -x out/apps/HelloWeb.app/HelloWeb ] && run "ui: HelloWeb (WKWebView on WebKitGTK: delegates, JS bridge, scheme handler, history; local server)" tests/ui/web.sh
+  [ -x out/apps/HelloSafari.app/HelloSafari ] && run "ui: HelloSafari (SFSafariViewController, ASWebAuthenticationSession, MessageUI, universal links)" tests/ui/safari.sh
+  [ -x out/apps/HelloConnections.app/HelloConnections ] && run "ui: HelloConnections (Network framework, Bonjour, Multipeer, URLSession auth/metrics/resume; local servers)" tests/ui/connections.sh
   [ -x out/apps/HelloNetwork.app/HelloNetwork ] && run "ui: HelloNetwork (URLSession, cookies, WebSocket, NWPathMonitor; local server)" tests/ui/network.sh
   [ -x out/apps/HelloSpriteKit.app/HelloSpriteKit ] && run "ui: HelloSpriteKit (SpriteKit physics/particles, GameplayKit, GameController)" tests/ui/spritekit.sh
+  [ -x out/apps/HelloSpriteKit2.app/HelloSpriteKit2 ] && run "ui: HelloSpriteKit2 (warp/transform/video nodes, reversed actions, GameplayKit AI and spatial trees, host gamepads)" tests/ui/spritekit2.sh
   [ -x out/apps/HelloSecurity.app/HelloSecurity ] && run "ui: HelloSecurity (CryptoKit, keychain, SQLite, Face ID, notifications)" tests/ui/security.sh
+  [ -x out/apps/HelloMaps.app/HelloMaps ] && run "ui: HelloMaps (MapKit: MKMapView, offline basemap, overlays, search, SwiftUI Map)" tests/ui/maps.sh
   [ -x out/apps/HelloLocation.app/HelloLocation ] && run "ui: HelloLocation (Core Location, simulated location, geocoding)" tests/ui/location.sh
   [ -x out/apps/HelloSensors.app/HelloSensors ] && run "ui: HelloSensors (Core Motion, Bluetooth, NFC, HealthKit)" tests/ui/sensors.sh
   [ -x out/apps/HelloPersonal.app/HelloPersonal ] && run "ui: HelloPersonal (Contacts, ContactsUI, EventKit, EventKitUI)" tests/ui/personal.sh
@@ -52,6 +65,8 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloVideo.app/HelloVideo ] && run "ui: HelloVideo (AVPlayer, AVPlayerLayer, AVKit, VideoPlayer)" tests/ui/video.sh
   [ -x out/apps/HelloAudio.app/HelloAudio ] && run "ui: HelloAudio (speech, effects, recording, MediaPlayer)" tests/ui/audio.sh
   [ -x out/apps/HelloStore.app/HelloStore ] && run "ui: HelloStore (StoreKit testing: subscriptions, offers, refunds, StoreKit 1)" tests/ui/store.sh
+  [ -x out/apps/HelloSignIn.app/HelloSignIn ] && run "ui: HelloSignIn (Sign in with Apple, passkeys, passwords, ATT + IDFA; local simulation)" tests/ui/signin.sh
+  [ -x out/apps/HelloCloudKit.app/HelloCloudKit ] && run "ui: HelloCloudKit (local CloudKit, NSPersistentCloudKitContainer, MetricKit)" tests/ui/cloudkit.sh
   [ -x out/apps/HelloGameCenter.app/HelloGameCenter ] && run "ui: HelloGameCenter (local Game Center: config, access point, saved games)" tests/ui/gamecenter.sh
 fi
 if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device shell: home screen + Settings
@@ -86,6 +101,9 @@ if [ -x out/apps/SecurityTest.app/SecurityTest ]; then          # known-answer v
 fi
 if [ -x out/apps/HelloCoreData.app/HelloCoreData ]; then         # Xcode project + .xcdatamodeld, @FetchRequest, relaunch persistence
   run "ui: HelloCoreData (Core Data + SwiftUI @FetchRequest, xcodeproj)" tests/ui/coredata.sh
+fi
+if [ -x out/apps/HelloStoryboards.app/HelloStoryboards ]; then     # Xcode project with storyboards, xibs, launch screen, Settings.bundle
+  run "ui: HelloStoryboards (storyboards, xibs, segues, launch screen, Settings.bundle)" tests/ui/storyboards.sh
 fi
 if [ -x out/apps/CoreDataTest.app/CoreDataTest ]; then       # models, SQLite/in-memory stores, contexts, fetches, FRC, migration
   run "Core Data (models, stores, contexts, fetching, FRC, migration)" bash -c 'tests/coredata/run.sh | tail -1; exit ${PIPESTATUS[0]}'

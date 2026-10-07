@@ -21,5 +21,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) CGRect bounds;
 - (void)fill;
 - (void)stroke;
+/* the path as a CGPath (shape layers, shadow paths) */
++ (instancetype)bezierPathWithCGPath:(CGPathRef)CGPath;
+@property (nonatomic) CGPathRef CGPath;
 @end
 NS_ASSUME_NONNULL_END

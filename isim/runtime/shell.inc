@@ -61,6 +61,7 @@ static void shell_show(int i) {
     if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
     else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
     SDL_DestroySurface(src);
+    present_overlay(ws);
     SDL_UpdateWindowSurface(win);
 }
 
@@ -111,6 +112,7 @@ static void present_comp(void) {
     if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
     else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
     SDL_DestroySurface(src);
+    present_overlay(ws);
     SDL_UpdateWindowSurface(win);
 }
 /* Home screen behind; the app as a rounded card in r (points). icon_alpha crossfades the icon in. */
@@ -443,7 +445,7 @@ static void shell_handle(int i, const struct shell_msg *m) {
 
 int isim_shell_main(const char *self, const char *root, const char *springboard_bundle, const char *springboard_exe, char **open) {
     open_args = open && open[0] && open[1] ? open : NULL;
-    shell_self = self; shell_root = root; shell_springboard = springboard_bundle;
+    shell_self = self; shell_root = root; shell_springboard = springboard_bundle; shell_mode = 1;
     signal(SIGPIPE, SIG_IGN);
     if (!dev.width) device_from_env();
     t0 = now();

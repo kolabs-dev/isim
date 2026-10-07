@@ -10,8 +10,7 @@ rm -rf "$out"; mkdir -p "$out" "$(dirname "$obj")"
 "$isim" swiftc -module-name HelloSystem -parse-as-library -wmo -c ./*.swift -o "$obj"
 "$isim" cc "$obj" -o "$out/HelloSystem"
 cp Info.plist "$out/"
-# isim has no code signature: the entitlements go next to the executable (associated domains for universal links)
-cp HelloSystem.entitlements "$out/isim-entitlements.plist"
+cp HelloSystem.entitlements "$out/archived-expanded-entitlements.xcent"   # like Xcode simulator builds (associated domains)
 magick -size 180x180 gradient:'#34c759'-'#0a7d32' -fill white -font DejaVu-Sans-Bold -pointsize 96 -gravity center -annotate 0 'S' "$out/AppIcon60x60@3x.png" 2>/dev/null || true
 magick -size 180x180 gradient:'#2c2c2e'-'#000000' -fill '#ffd60a' -font DejaVu-Sans-Bold -pointsize 96 -gravity center -annotate 0 'S' "$out/DarkIcon60x60@3x.png" 2>/dev/null || true
 echo "built $out"

@@ -14,6 +14,9 @@
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 #   isim storekit <app> list|refund|expire|cancel|resume|clear ...   local StoreKit Transaction Manager
 #   isim gamecenter <app> saved-games|conflict|reset ...              local Game Center data
+#   isim openurl <URL> [--control FIFO]   open a URL (custom scheme or universal link) in the running device's foreground app
+#   isim appleid <app> list|revoke|reset         local Sign in with Apple state (revoke = Stop Using Apple ID)
+#   isim metrickit               deliver sample MetricKit payloads to running apps (Debug > Simulate MetricKit Payloads)
 #   isim version                                                      print the isim version
 #   device options: --device NAME --zoom N --dark --headless --script "..." --control FIFO (live script commands, one per line); device data: ISIM_DATA (~/.local/share/isim)
 set -euo pipefail
@@ -130,12 +133,20 @@ case "$cmd" in
       $( [ -d "$SDK/usr/lib/swift/_StringProcessing.swiftmodule" ] || echo -Xfrontend -disable-implicit-string-processing-module-import ) "$@" ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
-  storekit|gamecenter)
+  openurl)   # isim openurl URL [--control FIFO]: open a URL in the foreground app of a device started with --control FIFO
+    url=${1:?usage: isim openurl <URL> [--control FIFO]}; shift
+    [ "${1:-}" = "--control" ] && ISIM_CONTROL=$2
+    [ -p "${ISIM_CONTROL:-}" ] || { echo "isim openurl: start the device with --control FIFO (or set ISIM_CONTROL) to send it URLs" >&2; exit 2; }
+    printf 'openurl %s\n' "$url" > "$ISIM_CONTROL" ;;
+  storekit|gamecenter|appleid)
     ISIM_DATA=$DATA exec python3 "$BIN/isim-services.py" "$cmd" "$@" ;;
+  metrickit)   # Debug > Simulate MetricKit Payloads: running apps' MXMetricManager subscribers get sample payloads
+    mkdir -p "$DATA/Library/isim"; date +%s.%N > "$DATA/Library/isim/MetricKitTrigger"
+    echo "isim: simulated MetricKit payloads requested (apps with a subscriber get them within 0.5 s)" ;;
   info)
     f=${1:?usage: isim info <App.app|binary>}
     [ -d "$f" ] && f=$f/$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$f/Info.plist")
     llvm-objdump --macho --private-headers "$f" | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos|sdk'
     llvm-otool -L "$f" | tail -n +2 ;;
-  *) sed -n '2,18p' "$0" ;;
+  *) sed -n '2,21p' "$0" ;;
 esac

@@ -5,11 +5,11 @@
 NS_ASSUME_NONNULL_BEGIN
 @class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent;
 typedef NS_ENUM(NSInteger, UIApplicationState) { UIApplicationStateActive, UIApplicationStateInactive, UIApplicationStateBackground };
+typedef NS_ENUM(NSUInteger, UIBackgroundFetchResult) { UIBackgroundFetchResultNewData, UIBackgroundFetchResultNoData, UIBackgroundFetchResultFailed };
 typedef NSString *UIApplicationLaunchOptionsKey NS_TYPED_ENUM;
 typedef NSString *UIApplicationOpenURLOptionsKey NS_TYPED_ENUM;
 typedef NSString *UIApplicationOpenExternalURLOptionsKey NS_TYPED_ENUM;
 /* system integration (isim UISystemIntegration.m): quick actions, user activities, background work, alternate icons */
-typedef NS_ENUM(NSUInteger, UIBackgroundFetchResult) { UIBackgroundFetchResultNewData, UIBackgroundFetchResultNoData, UIBackgroundFetchResultFailed };
 typedef NS_ENUM(NSInteger, UIBackgroundRefreshStatus) { UIBackgroundRefreshStatusRestricted, UIBackgroundRefreshStatusDenied, UIBackgroundRefreshStatusAvailable };
 typedef NSUInteger UIBackgroundTaskIdentifier NS_TYPED_ENUM;
 UIKIT_EXTERN const UIBackgroundTaskIdentifier UIBackgroundTaskInvalid;
@@ -21,13 +21,15 @@ UIKIT_EXTERN UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsSou
 UIKIT_EXTERN UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenURLOptionUniversalLinksOnly;
 UIKIT_EXTERN NSNotificationName const UIApplicationBackgroundRefreshStatusDidChangeNotification;
 UIKIT_EXTERN const NSTimeInterval UIApplicationBackgroundFetchIntervalMinimum, UIApplicationBackgroundFetchIntervalNever;
-@protocol UIUserActivityRestoring <NSObject>
-- (void)restoreUserActivityState:(NSUserActivity *)userActivity;
-@end
 UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotification, UIApplicationDidBecomeActiveNotification,
     UIApplicationWillResignActiveNotification, UIApplicationDidEnterBackgroundNotification,
     UIApplicationWillEnterForegroundNotification, UIApplicationWillTerminateNotification;
 
+@class NSUserActivity;
+NS_SWIFT_UI_ACTOR
+@protocol UIUserActivityRestoring <NSObject>
+- (void)restoreUserActivityState:(NSUserActivity *)userActivity;
+@end
 NS_SWIFT_UI_ACTOR
 @protocol UIApplicationDelegate <NSObject>
 @optional
@@ -53,6 +55,8 @@ NS_SWIFT_UI_ACTOR
 - (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler;
 - (BOOL)application:(UIApplication *)application shouldSaveSecureApplicationState:(NSCoder *)coder;
 - (BOOL)application:(UIApplication *)application shouldRestoreSecureApplicationState:(NSCoder *)coder;
+/* isim: there is no APNs; isim's CloudKit delivers subscription notifications here, in-process */
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler;
 @property (nullable, nonatomic, strong) UIWindow *window;
 @end
 

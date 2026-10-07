@@ -1,7 +1,7 @@
 // isim SwiftUI: scenes beyond one WindowGroup, and the app's integration with the system.
 //  - several scenes in App.body (WindowGroups by id; the first is shown at launch), scene modifiers
 //  - @UIApplicationDelegateAdaptor (the delegate gets every UIApplicationDelegate call SwiftUI does not handle)
-//  - .onContinueUserActivity / .userActivity / .handlesExternalEvents
+//  - (.onContinueUserActivity / .userActivity: UserActivity.swift)
 //  - .backgroundTask(.appRefresh(id)) (BackgroundTasks launches: script `bgtask BUNDLE ID`)
 //  - openWindow / dismissWindow: isim shows one scene per app; on iPad with UIApplicationSupportsMultipleScenes the
 //    requested WindowGroup replaces the window's content (dismissWindow goes back); on iPhone they do nothing, like iOS.
@@ -107,60 +107,6 @@ public struct UIApplicationDelegateAdaptor<DelegateType: NSObject & UIApplicatio
         wrappedValue = d
     }
     public var projectedValue: DelegateType { wrappedValue }
-}
-
-// MARK: - user activities
-
-@MainActor final class _SUIActivities {
-    static var handlers: [String: (type: String, run: (NSUserActivity) -> Void)] = [:]
-    static var pending: [NSUserActivity] = []
-    static var observer: NSObjectProtocol?
-    static func install() {
-        guard observer == nil else { return }
-        observer = NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimContinueUserActivity"), object: nil, queue: nil) { n in
-            guard let a = n.object as? NSUserActivity else { return }
-            MainActor.assumeIsolated { _SUIActivities.deliver(a) }
-        }
-    }
-    static func deliver(_ a: NSUserActivity) {
-        let matching = handlers.values.filter { $0.type == a.activityType }
-        if matching.isEmpty { pending.append(a); return }
-        for h in matching { h.run(a) }
-    }
-    static func register(_ path: String, _ type: String, _ run: @escaping (NSUserActivity) -> Void) {
-        handlers[path] = (type, run)
-        let now = pending.filter { $0.activityType == type }
-        if !now.isEmpty { pending.removeAll { $0.activityType == type }; DispatchQueue.main.async { for a in now { run(a) } } }
-    }
-    static var advertised: [String: NSUserActivity] = [:]
-}
-
-extension View {
-    /// Called when the app continues a user activity of this type (Spotlight, universal links, Handoff).
-    public func onContinueUserActivity(_ activityType: String, perform action: @escaping (NSUserActivity) -> Void) -> some View {
-        _modify { ctx, c in
-            _SUIActivities.install()
-            _SUIActivities.register(ctx.path, activityType, action)
-            return _resolve(c, ctx.child("activity"))
-        }
-    }
-    /// Advertises a user activity while the view is shown (made current; indexed for Spotlight when eligible).
-    public func userActivity(_ activityType: String, isActive: Bool = true, _ update: @escaping (NSUserActivity) -> Void) -> some View {
-        _modify { ctx, c in
-            if isActive {
-                let a = _SUIActivities.advertised[ctx.path] ?? NSUserActivity(activityType: activityType)
-                let first = _SUIActivities.advertised[ctx.path] == nil
-                _SUIActivities.advertised[ctx.path] = a
-                update(a)
-                if first { a.becomeCurrent() }
-            } else { _SUIActivities.advertised[ctx.path] = nil }
-            return _resolve(c, ctx.child("useractivity"))
-        }
-    }
-    public func userActivity<P>(_ activityType: String, element: P?, _ update: @escaping (P, NSUserActivity) -> Void) -> some View {
-        userActivity(activityType, isActive: element != nil) { a in if let e = element { update(e, a) } }
-    }
-    public func handlesExternalEvents(preferring: Set<String>, allowing: Set<String>) -> some View { self }
 }
 
 // MARK: - windows

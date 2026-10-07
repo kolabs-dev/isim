@@ -50,6 +50,30 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             })
         }
     }
+    /// onContinueUserActivity handlers (universal links: NSUserActivityTypeBrowsingWeb; with none, onOpenURL gets the URL)
+    var activityHandlers: [String: (type: String, h: (NSUserActivity) -> Void)] = [:]
+    var activityObserver: NSObjectProtocol?
+    func installActivityObserver() {
+        if activityObserver == nil {
+            activityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimContinueUserActivity"), object: nil, queue: nil, using: { [weak self] (n: NSNotification) in
+                guard let act = n.object as? NSUserActivity else { return }
+                MainActor.assumeIsolated {
+                    guard let self = self else { return }
+                    let hs = self.activityHandlers.values.filter { $0.type == act.activityType }
+                    if !hs.isEmpty { for e in hs { e.h(act) } }
+                    else if let u = act.webpageURL {
+                        if self.urlHandlers.isEmpty { self.pendingURLs.append(u) } else { for h in self.urlHandlers.values { h(u) } }
+                    } else { self.pendingActivities.append(act) }     /* e.g. a launch from Spotlight: the handler registers when the view renders */
+                }
+            })
+        }
+    }
+    var pendingActivities: [NSUserActivity] = []
+    func registerActivityHandler(_ path: String, _ type: String, _ h: @escaping (NSUserActivity) -> Void) {
+        activityHandlers[path] = (type, h)
+        let now = pendingActivities.filter { $0.activityType == type }
+        if !now.isEmpty { pendingActivities.removeAll { $0.activityType == type }; postRender.append { for a in now { h(a) } } }
+    }
     func registerURLHandler(_ path: String, _ h: @escaping (URL) -> Void) {
         urlHandlers[path] = h
         if !pendingURLs.isEmpty { let urls = pendingURLs; pendingURLs = []; postRender.append { for u in urls { h(u) } } }
@@ -87,7 +111,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         submitActions.filter { path.hasPrefix($0.key) }.max { $0.key.count < $1.key.count }?.value
     }
 
-    init(root: @escaping () -> any View) { self.root = root; installURLObserver(); installAppObservers() }
+    init(root: @escaping () -> any View) { self.root = root; installURLObserver(); installActivityObserver(); installAppObservers() }
 
     /// Callable from any context (bindings, UIKit callbacks); state changes happen on the main thread.
     nonisolated func invalidate() {
@@ -242,6 +266,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         }
         if let id = node.accessibilityIdentifier { v.accessibilityIdentifier = id }
         if let label = node.accessibilityLabel { v.accessibilityLabel = label }
+        for apply in node.accessibilityApply { apply(v) }          // accessibility modifiers (Accessibility.swift)
         node.mountChildren(self, in: v)
     }
 }
@@ -254,6 +279,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var frame: CGRect = .zero
     var accessibilityIdentifier: String?
     var accessibilityLabel: String?
+    var accessibilityApply: [(UIView) -> Void] = []
     /// .tag(_:) (or ForEach's id): the value Picker and TabView select by
     var tag: AnyHashable?
     /// .tabItem { } content and .badge
@@ -296,7 +322,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
 final class _PassthroughView: UIView {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
-        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self ? nil : v }
+        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self && interactions.isEmpty ? nil : v }   // (drag/drop interactions make it a target)
         // like SwiftUI, content outside a container's frame (offset, overflowing) still takes touches
         for s in subviews.reversed() { if let h = s.hitTest(s.convert(point, from: self), with: event) { return h } }
         return nil

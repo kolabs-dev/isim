@@ -9,7 +9,8 @@ What it does per target (dependencies first):
   * Info.plist: expands $(VARS) from build settings, applies INFOPLIST_KEY_*, sets MinimumOSVersion
   * resources: .xcstrings -> <lang>.lproj/<Table>.strings, .strings/.lproj copied,
     .xcassets -> <bundle>/isim-assets.json + images (isim's asset format; NOT Apple's Assets.car),
-    .xcprivacy and other files copied
+    .storyboard / .xib -> <Name>.storyboardc / <Name>.nib (isim's IB archive format, NOT Apple's compiled
+    nibs; see isim/tools/ibtool.py), Settings.bundle and other folders copied, .xcprivacy and other files copied
   * Core Data models: .xcdatamodeld/.xcdatamodel -> <Name>.momd (isim's own model format, NOT Apple's binary
     .mom; see isim/tools/momc.py) plus the Swift classes Xcode's Class Definition / Category codegen makes
   * embeds app extensions into <App>.app/PlugIns/
@@ -31,6 +32,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from xcodeproj import Project, expand  # noqa: E402
 import momc  # noqa: E402
+import ibtool  # noqa: E402
 
 BIN = os.path.dirname(os.path.realpath(__file__))
 ISIM = os.path.join(BIN, 'isim')
@@ -419,6 +421,18 @@ def build_target(project, name, configuration, outdir, built):
             localizations.update(compile_xcstrings(res, bundle))
         elif res.endswith('.xcassets'):
             compile_xcassets(res, bundle)
+        elif res.endswith(('.storyboard', '.xib')):
+            # Interface Builder documents -> isim's IB archive format (NOT Apple's compiled nibs; see ibtool.py)
+            parent = os.path.basename(os.path.dirname(res))
+            dst = os.path.join(bundle, parent) if parent.endswith('.lproj') else bundle
+            os.makedirs(dst, exist_ok=True)
+            try:
+                out = ibtool.compile_to(res, dst, warn=lambda m: log(f'{name}: ibtool: {m}'))
+            except ibtool.CompileError as e:
+                sys.exit(f'isim build: {e}')
+            log(f'{name}: {os.path.basename(res)} -> {os.path.relpath(out, bundle)} (isim IB format)')
+            if parent.endswith('.lproj') and parent != 'Base.lproj':
+                localizations.add(parent[:-6])
         elif res.endswith('.lproj'):
             copy_resource(res, bundle)
             localizations.add(os.path.basename(res)[:-6])
@@ -442,13 +456,13 @@ def build_target(project, name, configuration, outdir, built):
             with open(os.path.join(bundle, 'Info.plist'), 'wb') as f:
                 plistlib.dump(info, f)
             log(f'{name}: alternate app icons {", ".join(sorted(alt))}')
-    # isim has no code signature: the entitlements (associated domains, app groups) go next to the executable
+    # entitlements (associated domains, app groups) as Xcode's simulator builds have them: archived-expanded-entitlements.xcent
     if s.get('CODE_SIGN_ENTITLEMENTS'):
         ent = os.path.join(target.p.root, expand(s['CODE_SIGN_ENTITLEMENTS'], s))
         if os.path.exists(ent):
             with open(ent, 'rb') as f:
                 ent_plist = plistlib.load(f)
-            with open(os.path.join(bundle, 'isim-entitlements.plist'), 'wb') as f:
+            with open(os.path.join(bundle, 'archived-expanded-entitlements.xcent'), 'wb') as f:
                 plistlib.dump(ent_plist, f)
     if ext == '.app':
         sk = storekit_configuration(project, name)

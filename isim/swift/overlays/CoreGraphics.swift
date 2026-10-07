@@ -133,12 +133,6 @@ extension CGMutablePath {
     public func closeSubpath() { CGPathCloseSubpath(self) }
 }
 
-// MARK: - CGImage
-extension CGImage {
-    public var width: Int { CGImageGetWidth(self) }
-    public var height: Int { CGImageGetHeight(self) }
-    public func cropping(to rect: CGRect) -> CGImage? { CGImageCreateWithImageInRect(self, rect) }
-}
 
 // MARK: - CGContext (Apple's Swift API)
 extension CGContext {
@@ -186,5 +180,34 @@ extension CGContext {
     public func clip(using rule: CGPathFillRule = .winding) { rule == .evenOdd ? CGContextEOClip(self) : CGContextClip(self) }
     public func clip(to r: CGRect) { CGContextClipToRect(self, r) }
     public func strokeLineSegments(between points: [CGPoint]) { CGContextStrokeLineSegments(self, points, points.count) }
-    public func draw(_ image: CGImage, in rect: CGRect) { CGContextDrawImage(self, rect, image) }
+    public func draw(_ image: CGImage, in rect: CGRect, byTiling: Bool = false) {
+        if byTiling { __draw(in: rect, byTiling: image) } else { CGContextDrawImage(self, rect, image) }
+    }
+    public func fill(_ rects: [CGRect]) { CGContextFillRects(self, rects, rects.count) }
+    public func addRects(_ rects: [CGRect]) { CGContextAddRects(self, rects, rects.count) }
+    public func clip(to rects: [CGRect]) { CGContextClipToRects(self, rects, rects.count) }
+    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
+        __addArc(x1: tangent1End.x, y1: tangent1End.y, x2: tangent2End.x, y2: tangent2End.y, radius: radius)
+    }
+    public var textPosition: CGPoint {
+        get { CGContextGetTextPosition(self) }
+        set { CGContextSetTextPosition(self, newValue.x, newValue.y) }
+    }
+}
+
+// MARK: - CGColor
+extension CGColor {
+    /// The components in the color's color space (alpha last).
+    public var components: [CGFloat]? {
+        guard let p = CGColorGetComponents(self) else { return nil }
+        return Array(UnsafeBufferPointer(start: p, count: numberOfComponents))
+    }
+}
+
+// MARK: - CGImage
+extension CGImage {
+    public var decode: [CGFloat]? {
+        guard let p = CGImageGetDecode(self) else { return nil }
+        return Array(UnsafeBufferPointer(start: p, count: 2 * (colorSpace?.numberOfComponents ?? 1)))
+    }
 }

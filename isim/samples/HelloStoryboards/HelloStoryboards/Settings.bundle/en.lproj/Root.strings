@@ -1,0 +1,14 @@
+/* Settings.bundle strings: titles are looked up here (the StringsTable of each page) */
+"Group" = "Profile";
+"Footer" = "These settings are read by Hello Storyboards with UserDefaults.";
+"Name" = "Display Name";
+"Enabled" = "Notifications";
+"Theme" = "Theme";
+"Light" = "Light";
+"Dark" = "Dark";
+"System" = "Automatic";
+"Sound" = "Volume";
+"Version" = "Version";
+"Advanced" = "Advanced";
+"Developer" = "Developer";
+"Advanced Mode" = "Advanced Mode";

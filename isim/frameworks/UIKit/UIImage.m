@@ -2,6 +2,7 @@
  * (isim-assets.plist written by `isim build`), and UIColor colorNamed:. */
 #import "UIKitPrivate.h"
 #include <math.h>
+#include <isim_host_cg.h>
 
 /* ---------------- asset catalog index ---------------- */
 static NSDictionary *asset_index(NSBundle *bundle) {
@@ -59,6 +60,9 @@ static NSDictionary *asset_index(NSBundle *bundle) {
     UIColor *_tint;
     NSString *_name;
     CGRect _crop;                       /* pixel rectangle of the host image; CGRectNull = all */
+    UIImageOrientation _orient;         /* how the stored pixels are shown (Left/Right swap the size) */
+    UIEdgeInsets _caps; UIImageResizingMode _rmode; BOOL _resizable;
+    NSArray<UIImage *> *_frames; NSTimeInterval _duration;      /* animated images */
 }
 - (id)copyWithZone:(NSZone *)z { return self; }          /* images are immutable */
 
@@ -66,6 +70,7 @@ static NSDictionary *asset_index(NSBundle *bundle) {
     UIImage *i = [UIImage new];
     i->_data = _data; i->_size = _size; i->_scale = _scale; i->_mode = _mode; i->_symbol = _symbol;
     i->_unitW = _unitW; i->_unitH = _unitH; i->_config = _config; i->_tint = _tint; i->_name = _name; i->_crop = _crop;
+    i->_orient = _orient; i->_caps = _caps; i->_rmode = _rmode; i->_resizable = _resizable; i->_frames = _frames; i->_duration = _duration;
     return i;
 }
 
@@ -98,6 +103,9 @@ static UIImage *image_from_handle(int h, double w, double hgt, CGFloat scale) {
     _data = [__IsimImageData new]; _data.handle = h; _data.owner = (__bridge id)cg;
     _scale = scale > 0 ? scale : 1; _crop = r;
     _size = CGSizeMake(r.size.width / _scale, r.size.height / _scale);
+    _orient = o;
+    if (o == UIImageOrientationLeft || o == UIImageOrientationRight || o == UIImageOrientationLeftMirrored || o == UIImageOrientationRightMirrored)
+        _size = CGSizeMake(_size.height, _size.width);
     return self;
 }
 - (CGImageRef)CGImage {
@@ -107,7 +115,40 @@ static UIImage *image_from_handle(int h, double w, double hgt, CGFloat scale) {
     CGImageRef cg = isim_cg_image_create(_data.handle, r, (__bridge void *)(_data.owner ?: _data));
     return (CGImageRef)CFAutorelease(cg);
 }
-- (UIImageOrientation)imageOrientation { return UIImageOrientationUp; }
+- (UIImageOrientation)imageOrientation { return _orient; }
+static BOOL swaps(UIImageOrientation o) { return o == UIImageOrientationLeft || o == UIImageOrientationRight || o == UIImageOrientationLeftMirrored || o == UIImageOrientationRightMirrored; }
+- (UIImage *)imageWithHorizontallyFlippedOrientation {
+    static const UIImageOrientation flip[] = { UIImageOrientationUpMirrored, UIImageOrientationDownMirrored, UIImageOrientationLeftMirrored, UIImageOrientationRightMirrored,
+                                              UIImageOrientationUp, UIImageOrientationDown, UIImageOrientationLeft, UIImageOrientationRight };
+    UIImage *i = [self _copy]; i->_orient = flip[_orient & 7]; return i;
+}
+- (UIImage *)imageFlippedForRightToLeftLayoutDirection { return self; }      /* isim lays out left to right */
+- (BOOL)flipsForRightToLeftLayoutDirection { return NO; }
+- (UIImage *)resizableImageWithCapInsets:(UIEdgeInsets)c { return [self resizableImageWithCapInsets:c resizingMode:UIImageResizingModeTile]; }
+- (UIImage *)resizableImageWithCapInsets:(UIEdgeInsets)c resizingMode:(UIImageResizingMode)m { UIImage *i = [self _copy]; i->_caps = c; i->_rmode = m; i->_resizable = YES; return i; }
+- (UIImage *)stretchableImageWithLeftCapWidth:(NSInteger)l topCapHeight:(NSInteger)t {
+    UIEdgeInsets c = UIEdgeInsetsMake(t, l, t ? _size.height - t - 1 : 0, l ? _size.width - l - 1 : 0);
+    return [self resizableImageWithCapInsets:c resizingMode:UIImageResizingModeStretch];
+}
+- (UIEdgeInsets)capInsets { return _caps; }
+- (UIImageResizingMode)resizingMode { return _rmode; }
++ (UIImage *)animatedImageWithImages:(NSArray<UIImage *> *)images duration:(NSTimeInterval)d {
+    if (!images.count) return nil;
+    UIImage *i = [images.firstObject _copy];
+    i->_frames = [images copy]; i->_duration = d > 0 ? d : images.count / 30.0;
+    return i;
+}
++ (UIImage *)animatedImageNamed:(NSString *)name duration:(NSTimeInterval)d {
+    NSMutableArray *a = [NSMutableArray array];
+    for (int k = 0; k < 1024; k++) {
+        UIImage *f = [UIImage imageNamed:[NSString stringWithFormat:@"%@%d", name, k]];
+        if (!f) { if (k == 0) continue; break; }
+        [a addObject:f];
+    }
+    return [self animatedImageWithImages:a duration:d];
+}
+- (NSArray<UIImage *> *)images { return _frames; }
+- (NSTimeInterval)duration { return _duration; }
 
 static CGFloat scale_from_name(NSString *path) {
     NSString *base = path.lastPathComponent.stringByDeletingPathExtension;
@@ -200,6 +241,27 @@ static CGFloat scale_from_name(NSString *path) {
 
 - (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha { [self _isim_drawInRect:r tint:tint alpha:alpha nearest:NO]; }
 - (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha nearest:(BOOL)nearest {
+    if (_frames.count) { [_frames.firstObject _isim_drawInRect:r tint:tint alpha:alpha nearest:nearest]; return; }
+    if (_resizable && !_symbol && _data.handle && [self _isim_drawSlices:r alpha:alpha nearest:nearest]) return;
+    if (_orient != UIImageOrientationUp) {
+        /* the stored pixels go into the rect turned / mirrored */
+        BOOL mirrored = _orient >= UIImageOrientationUpMirrored;
+        UIImageOrientation base = mirrored ? _orient - UIImageOrientationUpMirrored : _orient;
+        isim_gfx_save();
+        if (mirrored) { isim_gfx_translate(r.origin.x * 2 + r.size.width, 0); isim_gfx_scale(-1, 1); }
+        CGRect d = CGRectMake(0, 0, r.size.width, r.size.height);
+        switch (base) {
+        case UIImageOrientationDown: isim_gfx_translate(r.origin.x + r.size.width, r.origin.y + r.size.height); isim_gfx_rotate(M_PI); break;
+        case UIImageOrientationLeft: isim_gfx_translate(r.origin.x, r.origin.y + r.size.height); isim_gfx_rotate(-M_PI / 2); d.size = CGSizeMake(r.size.height, r.size.width); break;
+        case UIImageOrientationRight: isim_gfx_translate(r.origin.x + r.size.width, r.origin.y); isim_gfx_rotate(M_PI / 2); d.size = CGSizeMake(r.size.height, r.size.width); break;
+        default: isim_gfx_translate(r.origin.x, r.origin.y); break;
+        }
+        UIImageOrientation saved = _orient; _orient = UIImageOrientationUp;
+        [self _isim_drawInRect:d tint:tint alpha:alpha nearest:nearest];
+        _orient = saved;
+        isim_gfx_restore();
+        return;
+    }
     double rgba[4]; const double *t = NULL;
     UIColor *c = _tint ?: (_mode == UIImageRenderingModeAlwaysTemplate ? (tint ?: UIColor.labelColor) : nil);
     if (c) { isim_ui_rgba(c, rgba); t = rgba; }
@@ -212,19 +274,95 @@ static CGFloat scale_from_name(NSString *path) {
     }
     isim_image_draw(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, t, alpha);
 }
+/* nine slices: corners at their size, edges and center stretched or tiled (in points of the image) */
+- (BOOL)_isim_drawSlices:(CGRect)r alpha:(CGFloat)alpha nearest:(BOOL)nearest {
+    UIEdgeInsets c = _caps; CGSize s = _size; CGFloat k = _scale ?: 1;
+    if (swaps(_orient)) return NO;
+    CGRect px = _crop;
+    if (CGRectIsNull(px)) { double w, h; isim_image_pixel_size(_data.handle, &w, &h); px = CGRectMake(0, 0, w, h); }
+    double sx[4] = { 0, c.left, s.width - c.right, s.width }, sy[4] = { 0, c.top, s.height - c.bottom, s.height };
+    double dx[4] = { r.origin.x, r.origin.x + c.left, r.origin.x + r.size.width - c.right, r.origin.x + r.size.width };
+    double dy[4] = { r.origin.y, r.origin.y + c.top, r.origin.y + r.size.height - c.bottom, r.origin.y + r.size.height };
+    if (sx[2] < sx[1] || sy[2] < sy[1]) return NO;
+    BOOL group = alpha < 0.999;
+    if (group) isim_gfx_push_group();
+    for (int j = 0; j < 3; j++) for (int i = 0; i < 3; i++) {
+        double sw = sx[i + 1] - sx[i], sh = sy[j + 1] - sy[j], w = dx[i + 1] - dx[i], h = dy[j + 1] - dy[j];
+        if (sw <= 0 || sh <= 0 || w <= 0 || h <= 0) continue;
+        double psx = px.origin.x + sx[i] * k, psy = px.origin.y + sy[j] * k;
+        BOOL stretch = _rmode == UIImageResizingModeStretch || (i != 1 && j != 1);
+        isim_cg_draw_image_tiled(_data.handle, psx, psy, sw * k, sh * k, dx[i], dy[j], w, h, stretch || i != 1 ? w : sw, stretch || j != 1 ? h : sh);
+    }
+    if (group) isim_gfx_pop_group(alpha);
+    return YES;
+}
 - (void)drawInRect:(CGRect)r { [self _isim_drawInRect:r tint:nil alpha:1]; }
+- (void)drawInRect:(CGRect)r blendMode:(CGBlendMode)m alpha:(CGFloat)a {
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    CGContextSaveGState(ctx); CGContextSetBlendMode(ctx, m);
+    [self _isim_drawInRect:r tint:nil alpha:a];
+    CGContextRestoreGState(ctx);
+}
 - (void)drawAtPoint:(CGPoint)p { [self drawInRect:(CGRect){ p, _size }]; }
 @end
 
 /* ---------------- UIImageView ---------------- */
-@implementation UIImageView
+@implementation UIImageView { CADisplayLink *_animLink; double _animStart; }
 - (instancetype)initWithImage:(UIImage *)image {
-    if ((self = [self initWithFrame:CGRectMake(0, 0, image.size.width, image.size.height)])) _image = image;
+    if ((self = [self initWithFrame:CGRectMake(0, 0, image.size.width, image.size.height)])) { _image = image; if (image.images.count) [self startAnimating]; }
     return self;
 }
-- (void)setImage:(UIImage *)image { _image = image; [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
+- (instancetype)initWithImage:(UIImage *)image highlightedImage:(UIImage *)hi {
+    if ((self = [self initWithImage:image])) _highlightedImage = hi;
+    return self;
+}
+- (void)setImage:(UIImage *)image {
+    BOOL wasAnimated = _image.images.count > 0;
+    _image = image; [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
+    if (image.images.count) [self startAnimating];            /* an animated image plays by itself, as on iOS */
+    else if (wasAnimated && !_animationImages.count) [self stopAnimating];
+}
+- (void)setHighlightedImage:(UIImage *)i { _highlightedImage = i; isim_ui_set_needs_display(); }
+- (void)setHighlighted:(BOOL)h { _highlighted = h; isim_ui_set_needs_display(); }
+- (NSArray<UIImage *> *)_isim_frames {
+    if (_highlighted && _highlightedAnimationImages.count) return _highlightedAnimationImages;
+    return _animationImages.count ? _animationImages : _image.images;
+}
+- (NSTimeInterval)_isim_frameDuration {
+    NSArray *f = [self _isim_frames];
+    if (_animationImages.count) return _animationDuration > 0 ? _animationDuration : f.count / 30.0;
+    return _image.duration > 0 ? _image.duration : f.count / 30.0;
+}
+- (void)startAnimating {
+    if (![self _isim_frames].count) return;
+    _animStart = isim_time();
+    if (!_animating) {
+        _animating = YES;
+        _animLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(_isim_animTick:)];
+        [_animLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+    }
+    isim_ui_set_needs_display();
+}
+- (void)stopAnimating { if (!_animating) return; _animating = NO; [_animLink invalidate]; _animLink = nil; isim_ui_set_needs_display(); }
+- (void)_isim_animTick:(CADisplayLink *)l {
+    NSInteger reps = _animationImages.count ? _animationRepeatCount : 0;
+    if (reps > 0 && isim_time() - _animStart >= [self _isim_frameDuration] * reps) { [self stopAnimating]; return; }
+    if (self.window) isim_ui_set_needs_display();
+}
+- (UIImage *)_isim_currentFrame {
+    NSArray<UIImage *> *f = [self _isim_frames];
+    if (!_animating || !f.count) return nil;
+    double d = [self _isim_frameDuration], t = isim_time() - _animStart;
+    NSUInteger i = d > 0 ? (NSUInteger)floor(fmod(t, d) / d * f.count) : 0;
+    return f[MIN(i, f.count - 1)];
+}
 - (void)setPreferredSymbolConfiguration:(UIImageSymbolConfiguration *)c { _preferredSymbolConfiguration = c; [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
-- (UIImage *)_shown { return _preferredSymbolConfiguration && _image.symbolImage ? [_image imageByApplyingSymbolConfiguration:_preferredSymbolConfiguration] : _image; }
+- (UIImage *)_shown {
+    UIImage *frame = [self _isim_currentFrame];
+    if (frame) return frame;
+    UIImage *i = _highlighted && _highlightedImage ? _highlightedImage : _image;
+    return _preferredSymbolConfiguration && i.symbolImage ? [i imageByApplyingSymbolConfiguration:_preferredSymbolConfiguration] : i;
+}
 - (CGSize)intrinsicContentSize { UIImage *i = [self _shown]; return i ? i.size : CGSizeMake(UIViewNoIntrinsicMetric, UIViewNoIntrinsicMetric); }
 - (void)tintColorDidChange { isim_ui_set_needs_display(); }
 - (void)_isim_drawContent {

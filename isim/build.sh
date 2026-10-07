@@ -16,8 +16,16 @@ step() { printf '\n== %s\n' "$*"; }
 step "host runtime"
 PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/objc_exc.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/objc_exc.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c runtime/host_gamepad.c runtime/host_ca.c runtime/host_cg.c runtime/host_web.c runtime/host_tls.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread -ldl
+
+# web engine helper for WKWebView (optional): the host's WebKitGTK 6.0 on a private broadway display
+if pkg-config --exists webkitgtk-6.0 gtk4 && command -v gtk4-broadwayd >/dev/null; then
+  step "web engine helper (WebKitGTK)"
+  $CC -O2 -g -Wall -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-webkit" runtime/isim-webkit.c $(pkg-config --cflags --libs webkitgtk-6.0 gtk4)
+else
+  step "web engine helper: skipped (needs webkitgtk-6.0 and gtk4-broadwayd; WKWebView shows a placeholder)"; rm -f "$OUT/bin/isim-webkit"
+fi
 
 step "SDK headers"
 rsync -a --delete sdk-src/usr/include/ "$SDK/usr/include/"
@@ -81,16 +89,20 @@ framework() { # Name srcdir [extra ld args...]
 }
 
 framework CoreFoundation frameworks/CoreFoundation
-framework CoreGraphics frameworks/CoreGraphics -lisim_host
+# CoreGraphics sits below Foundation: CF strings/data/collections it uses resolve at load time (flat lookup)
+framework CoreGraphics frameworks/CoreGraphics -lisim_host -U ___CFConstantStringClassReference -U _CFDataCreate -U _CFDataGetBytePtr \
+    -U _CFDataGetLength -U _CFDataAppendBytes -U _CFArrayGetCount -U _CFArrayGetValueAtIndex -U _CFDictionaryGetValue -U _CFRetain -U _CFRelease
 framework Foundation frameworks/Foundation -framework CoreGraphics -lisim_host
-framework CoreText frameworks/CoreText -framework Foundation -lisim_host
+framework CoreText frameworks/CoreText -framework Foundation -framework CoreGraphics -lisim_host
 framework UIKit frameworks/UIKit -framework Foundation -framework CoreGraphics -lisim_host
+framework ImageIO frameworks/ImageIO -framework Foundation -framework CoreGraphics -lisim_host
+framework CoreImage frameworks/CoreImage -framework Foundation -framework CoreGraphics -framework ImageIO -framework UIKit -lisim_host
 framework UserNotifications frameworks/UserNotifications -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 framework CoreData frameworks/CoreData -framework Foundation -lsqlite3
 
 # install the isim tool
 [ -f tools/isim ] && install -m 755 tools/isim "$OUT/bin/isim"; install -m 644 VERSION "$OUT/bin/VERSION"
-install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 755 tools/isim-services.py "$OUT/bin/isim-services.py"; install -m 644 tools/xcodeproj.py "$OUT/bin/xcodeproj.py"; install -m 755 tools/momc.py "$OUT/bin/momc.py"
+install -m 755 tools/isim-build.py "$OUT/bin/isim-build.py"; install -m 755 tools/isim-services.py "$OUT/bin/isim-services.py"; install -m 644 tools/xcodeproj.py "$OUT/bin/xcodeproj.py"; install -m 755 tools/momc.py "$OUT/bin/momc.py"; install -m 755 tools/ibtool.py "$OUT/bin/ibtool.py"
 
 step "swift"
 bash swift/build.sh

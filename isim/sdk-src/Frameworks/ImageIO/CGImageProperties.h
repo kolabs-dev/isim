@@ -1,0 +1,35 @@
+#pragma once
+#include <CoreFoundation/CoreFoundation.h>
+__BEGIN_DECLS
+#define IMAGEIO_EXTERN extern __attribute__((visibility("default")))
+typedef CF_ENUM(uint32_t, CGImagePropertyOrientation) {
+    kCGImagePropertyOrientationUp = 1, kCGImagePropertyOrientationUpMirrored, kCGImagePropertyOrientationDown, kCGImagePropertyOrientationDownMirrored,
+    kCGImagePropertyOrientationLeftMirrored, kCGImagePropertyOrientationRight, kCGImagePropertyOrientationRightMirrored, kCGImagePropertyOrientationLeft
+};
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyFileSize;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyPixelWidth;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyPixelHeight;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyDepth;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyOrientation;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHasAlpha;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyColorModel;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyColorModelRGB;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyColorModelGray;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyDPIWidth;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyDPIHeight;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyTIFFDictionary;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyTIFFOrientation;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyExifDictionary;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyJFIFDictionary;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyPNGDictionary;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFDictionary;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFDelayTime;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFUnclampedDelayTime;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFLoopCount;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFHasGlobalColorMap;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPDictionary;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPDelayTime;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPUnclampedDelayTime;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPLoopCount;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHEICSDictionary;
+__END_DECLS

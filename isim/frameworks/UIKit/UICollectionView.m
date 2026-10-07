@@ -6,6 +6,7 @@
 #import "UIKitPrivate.h"
 #include <math.h>
 #include <objc/runtime.h>
+#include <objc/message.h>
 
 NSString *const UICollectionElementKindSectionHeader = @"UICollectionElementKindSectionHeader";
 NSString *const UICollectionElementKindSectionFooter = @"UICollectionElementKindSectionFooter";
@@ -134,7 +135,7 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
     }
     return self;
 }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithFrame:CGRectZero]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (UIView *)contentView { return _content; }
 - (void)setBackgroundView:(UIView *)v { [_backgroundView removeFromSuperview]; _backgroundView = v; if (v) { [self insertSubview:v atIndex:0]; v.frame = self.bounds; } }
 - (void)setSelectedBackgroundView:(UIView *)v { [_selectedBackgroundView removeFromSuperview]; _selectedBackgroundView = v; if (v) { [self insertSubview:v atIndex:_backgroundView ? 1 : 0]; v.frame = self.bounds; } [self _isim_updateSelectionViews]; }
@@ -239,7 +240,7 @@ static BOOL acc_leading(UICellAccessory *a) {
         if (![self _isim_shown:a] || acc_leading(a)) continue;
         CGFloat w = acc_width(a);
         if ([a isKindOfClass:[UICellAccessoryCustomView class]]) { UIView *v = ((UICellAccessoryCustomView *)a).customView; CGSize s = v.bounds.size; v.frame = CGRectMake(right - w + 4, (b.size.height - s.height) / 2, s.width, s.height); }
-        void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? [(id)a actionHandler] : nil;
+        void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? (void (^)(void))((id (*)(id, SEL))objc_msgSend)(a, @selector(actionHandler)) : nil;
         if (h) [self _isim_button:CGRectMake(right - w, 0, w, b.size.height) handler:h name:a];
         right -= w;
     }
@@ -247,7 +248,7 @@ static BOOL acc_leading(UICellAccessory *a) {
         if (![self _isim_shown:a] || !acc_leading(a)) continue;
         CGFloat w = acc_width(a);
         if ([a isKindOfClass:[UICellAccessoryCustomView class]]) { UIView *v = ((UICellAccessoryCustomView *)a).customView; CGSize s = v.bounds.size; v.frame = CGRectMake(left + 12, (b.size.height - s.height) / 2, s.width, s.height); }
-        void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? [(id)a actionHandler] : nil;
+        void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? (void (^)(void))((id (*)(id, SEL))objc_msgSend)(a, @selector(actionHandler)) : nil;
         if (h) [self _isim_button:CGRectMake(left, 0, w, b.size.height) handler:h name:a];
         left += w;
     }
@@ -871,7 +872,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     return self;
 }
 - (instancetype)initWithFrame:(CGRect)f { return [self initWithFrame:f collectionViewLayout:[UICollectionViewFlowLayout new]]; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithFrame:CGRectZero collectionViewLayout:[UICollectionViewFlowLayout new]]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (id<UICollectionViewDelegate>)delegate { return (id<UICollectionViewDelegate>)[super delegate]; }
 - (void)setDelegate:(id<UICollectionViewDelegate>)d { [super setDelegate:d]; [_collectionViewLayout invalidateLayout]; }
 - (void)setDataSource:(id<UICollectionViewDataSource>)d { _dataSource = d; _loaded = NO; [_collectionViewLayout invalidateLayout]; [self setNeedsLayout]; }
@@ -916,7 +917,11 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     NSMutableArray *p = _pool[key];
     UICollectionReusableView *v = p.lastObject;
     if (v) { [p removeLastObject]; [v prepareForReuse]; return v; }
-    if (!cls) return nil;
+    if (!cls) {                                  /* registered nib / storyboard prototype */
+        v = (UICollectionReusableView *)isim_ib_dequeue_collection(self, key, rid);
+        if (v) v._isim_cv = self;
+        return v;
+    }
     v = [[cls alloc] initWithFrame:CGRectZero];
     v.reuseIdentifier = rid; v._isim_cv = self;
     return v;
@@ -1142,6 +1147,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     if (!_allowsMultipleSelection) for (NSIndexPath *o in [_selected allObjects]) if (![o isEqual:ip]) [self _deselect:o notify:YES];
     [_selected addObject:ip]; c.selected = YES;
     if ([d respondsToSelector:@selector(collectionView:didSelectItemAtIndexPath:)]) [d collectionView:self didSelectItemAtIndexPath:ip];
+    isim_ib_cell_selected(c);                    /* storyboard selection segue */
 }
 - (void)_deselect:(NSIndexPath *)ip notify:(BOOL)notify {
     [_selected removeObject:ip]; _cells[ip].selected = NO;
@@ -1297,8 +1303,9 @@ static NSArray *index_set_array(id set) {
     return self;
 }
 - (instancetype)initWithNibName:(NSString *)n bundle:(NSBundle *)b { if ((self = [super initWithNibName:n bundle:b])) { _initialLayout = [UICollectionViewFlowLayout new]; _clearsSelectionOnViewWillAppear = YES; } return self; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithCollectionViewLayout:[UICollectionViewFlowLayout new]]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (void)loadView {
+    if (isim_ib_vc_load_view(self)) return;      /* storyboard / nib */
     UICollectionView *cv = [[UICollectionView alloc] initWithFrame:UIScreen.mainScreen.bounds collectionViewLayout:_initialLayout];
     cv.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     cv.dataSource = self; cv.delegate = self;

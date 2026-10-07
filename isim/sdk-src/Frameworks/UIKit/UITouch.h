@@ -14,5 +14,13 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, readonly, strong) UIView *view;
 - (CGPoint)locationInView:(nullable UIView *)view;
 - (CGPoint)previousLocationInView:(nullable UIView *)view;
+- (CGPoint)preciseLocationInView:(nullable UIView *)view;
+- (CGPoint)precisePreviousLocationInView:(nullable UIView *)view;
+@property (nonatomic, readonly) CGFloat majorRadius;
+@property (nonatomic, readonly) CGFloat majorRadiusTolerance;
+@property (nonatomic, readonly) CGFloat force;
+@property (nonatomic, readonly) CGFloat maximumPossibleForce;
+@property (nonatomic, readonly) CGFloat altitudeAngle;
+@property (nullable, nonatomic, readonly, copy) NSArray *gestureRecognizers;
 @end
 NS_ASSUME_NONNULL_END

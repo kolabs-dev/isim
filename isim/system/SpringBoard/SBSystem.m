@@ -78,11 +78,11 @@ NSArray<NSDictionary *> *HSQuickActions(HSApp *app) {
     return out.count > 4 ? [out subarrayWithRange:NSMakeRange(0, 4)] : out;
 }
 
-/* associated domains: isim build copies the target's entitlements to <App>.app/isim-entitlements.plist (there is no
-   code signature on isim); "applinks:host" entries make https://host/... universal links for that app. isim does not
+/* associated domains: <App>.app/archived-expanded-entitlements.xcent (like Xcode simulator builds; isim build writes
+   it from CODE_SIGN_ENTITLEMENTS); "applinks:host" entries make https://host/... universal links for that app. isim does not
    fetch apple-app-site-association files (offline), so every path on the domain opens the app. */
 static BOOL app_claims_host(HSApp *a, NSString *host) {
-    NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[a.path stringByAppendingPathComponent:@"isim-entitlements.plist"]];
+    NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[a.path stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
     for (NSString *d in ent[@"com.apple.developer.associated-domains"]) {
         if (![d hasPrefix:@"applinks:"]) continue;
         NSString *h = [[d substringFromIndex:9] componentsSeparatedByString:@"?"].firstObject.lowercaseString;
