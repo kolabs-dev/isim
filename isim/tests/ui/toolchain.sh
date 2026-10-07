@@ -10,7 +10,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 root=$PWD
 shots=out/test-shots/HelloToolchain; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$root/out/test-data/toolchain; rm -rf "$ISIM_DATA"
-export ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1
+export ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1
 proj=samples/HelloToolchain
 work=$root/out/projects/HelloToolchain
 fail=0

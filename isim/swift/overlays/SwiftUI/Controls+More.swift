@@ -668,7 +668,8 @@ struct _BorderedButtonBody: View {
             case .capsule: label.background(fill, in: Capsule())
             case .circle: label.background(fill, in: Circle())
             case .rounded(let radius): label.background(fill, in: RoundedRectangle(cornerRadius: radius ?? r))
-            case .automatic: label.background(fill, in: RoundedRectangle(cornerRadius: r))
+            case .automatic:                                // iOS 26+: bordered buttons are capsules
+                if _isimGlassLook { label.background(fill, in: Capsule()) } else { label.background(fill, in: RoundedRectangle(cornerRadius: r)) }
             }
         }
         .opacity(configuration.isPressed ? (prominent ? 0.6 : 0.5) : 1)

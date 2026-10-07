@@ -8,7 +8,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloSecurity; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/security; rm -rf "$ISIM_DATA"
-run() { ISIM_DEVICE=${DEVICE:-iphone17} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloSecurity.app 2>&1; }
+run() { ISIM_DEVICE=${DEVICE:-${ISIM_TEST_DEVICE:-iphone16pro}} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloSecurity.app 2>&1; }
 log=$(run "wait 1; tapid runCrypto; wait 0.4; tapid save; wait 0.3; tapid load; wait 0.3; tapid addNote; wait 0.3; tapid addNote; wait 0.3;
           tapid unlock; wait 0.8; shot $shots/faceid-permission.png; taptext OK; wait 0.8; shot $shots/faceid-scan.png; taptext Matching Face; wait 0.8;
           tapid notify; wait 0.8; shot $shots/notification-permission.png; taptext Allow; wait 4; shot $shots/banner.png; dump; tapid isim-notification-banner; wait 0.8; dump; quit"); rc=$?
@@ -17,7 +17,7 @@ log3=$(DEVICE=iphonese ISIM_BIOMETRY=match run "wait 1; tapid unlock; wait 1.4; 
 # under the device shell: the app goes home, the shell shows its banner over the home screen, tapping it reopens the app
 boot=$PWD/out/test-data/security-boot; rm -rf "$boot"
 ISIM_DATA=$boot out/bin/isim install out/apps/HelloSecurity.app >/dev/null
-log4=$(ISIM_DATA=$boot ISIM_DEVICE=iphone17 ISIM_SHOT_SCALE=1 ISIM_NOTIFICATION_PERMISSION=allow timeout 60 out/bin/isim boot --headless --script \
+log4=$(ISIM_DATA=$boot ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 ISIM_NOTIFICATION_PERMISSION=allow timeout 60 out/bin/isim boot --headless --script \
        "wait 1; launch dev.isim.samples.HelloSecurity; wait 1.5; tapid notify; wait 0.5; home; wait 3.8; shot $shots/banner-home.png; tapid isim-notification-banner; wait 1.2; dump; quit" 2>&1); rc4=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }

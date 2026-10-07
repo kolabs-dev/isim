@@ -233,6 +233,18 @@ Classes:
   - Selector: borderedProminentButtonConfiguration
     MethodKind: Class
     SwiftName: borderedProminent()
+  - Selector: glassButtonConfiguration
+    MethodKind: Class
+    SwiftName: glass()
+  - Selector: prominentGlassButtonConfiguration
+    MethodKind: Class
+    SwiftName: prominentGlass()
+  - Selector: clearGlassButtonConfiguration
+    MethodKind: Class
+    SwiftName: clearGlass()
+  - Selector: prominentClearGlassButtonConfiguration
+    MethodKind: Class
+    SwiftName: prominentClearGlass()
 - Name: UISceneConnectionOptions
   SwiftName: UIScene.ConnectionOptions
 - Name: NSLayoutAnchor

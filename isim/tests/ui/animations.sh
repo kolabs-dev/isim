@@ -13,7 +13,7 @@ script="wait 1; tapid btn-Keyframes; wait 0.3; tapid btn-Report; wait 0.6; tapid
  tapid btn-Animator; wait 2.4; tapid btn-Animator; wait 0.8; tapid btn-Stop; wait 0.3;
  tapid btn-Flip; wait 0.2; tapid btn-Report; shot $shots/flip.png; wait 1; tapid btn-Swap; wait 0.3; shot $shots/swap.png; wait 0.6;
  tapid btn-Spring; tapid btn-Cubic; wait 1.5; quit"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 60 out/bin/isim run out/apps/HelloAnimations.app 2>&1); rc=$?
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 60 out/bin/isim run out/apps/HelloAnimations.app 2>&1); rc=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
 reports=$(grep "^presentation" <<<"$log")

@@ -9,7 +9,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloGameCenter; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/gamecenter; rm -rf "$ISIM_DATA"
-export ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1
+export ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1
 app=dev.isim.samples.HelloGameCenter
 s1="wait 2; shot $shots/access-point.png; dump; tapid scores; wait 0.5; tapid achievements; wait 1; shot $shots/banner.png; wait 2.5; tapid metadata; wait 1"
 s1="$s1; tapid gc-access-point; wait 1.2; shot $shots/dashboard.png; dump; tapid gc-achievements; wait 1; shot $shots/achievements.png; dump; tapid gc-done; wait 1"

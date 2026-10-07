@@ -5,7 +5,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloImages; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/images; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/images.png; dump; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/images.png; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloImages.app 2>&1); rc=$?
 # colour of the screenshot pixel (points at shot scale 1) as "r g b"
 px() { magick "$shots/images.png" -format "%[fx:int(255*u.p{$1,$2}.r)] %[fx:int(255*u.p{$1,$2}.g)] %[fx:int(255*u.p{$1,$2}.b)]" info: 2>/dev/null; }

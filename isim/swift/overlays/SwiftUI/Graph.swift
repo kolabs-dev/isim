@@ -280,6 +280,8 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     /// .tabItem { } content and .badge
     var tabItem: _Node?
     var badge: String?
+    /// Tab(role:): 0 none, 1 search, 2 prominent
+    var tabRole = 0
     /// action when this node is a whole list row (Button, NavigationLink, Link)
     var rowAction: (() -> Void)?
     var rowAccessory: String? { children.count == 1 ? children[0].rowAccessory : nil }

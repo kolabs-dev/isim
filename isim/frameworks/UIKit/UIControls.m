@@ -194,7 +194,8 @@
 @end
 
 /* ================= UIButtonConfiguration ================= */
-typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, IsimFilled, IsimBordered };
+typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, IsimFilled, IsimBordered,
+    IsimGlass, IsimProminentGlass, IsimClearGlass, IsimProminentClearGlass };   /* glass: iOS 26 */
 @interface UIButtonConfiguration ()
 @property (nonatomic) IsimButtonStyle style;
 @end
@@ -208,6 +209,10 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 + (instancetype)borderedButtonConfiguration { return [self _style:IsimGray]; }
 + (instancetype)borderedTintedButtonConfiguration { return [self _style:IsimTinted]; }
 + (instancetype)borderedProminentButtonConfiguration { return [self _style:IsimFilled]; }
++ (instancetype)glassButtonConfiguration { UIButtonConfiguration *c = [self _style:IsimGlass]; c.cornerStyle = UIButtonConfigurationCornerStyleCapsule; c.contentInsets = NSDirectionalEdgeInsetsMake(10, 16, 10, 16); return c; }
++ (instancetype)prominentGlassButtonConfiguration { UIButtonConfiguration *c = [self glassButtonConfiguration]; c.style = IsimProminentGlass; return c; }
++ (instancetype)clearGlassButtonConfiguration { UIButtonConfiguration *c = [self glassButtonConfiguration]; c.style = IsimClearGlass; return c; }
++ (instancetype)prominentClearGlassButtonConfiguration { UIButtonConfiguration *c = [self glassButtonConfiguration]; c.style = IsimProminentClearGlass; return c; }
 - (id)copyWithZone:(NSZone *)z {
     UIButtonConfiguration *c = [UIButtonConfiguration _style:_style];
     c.title = _title; c.subtitle = _subtitle; c.image = _image; c.baseForegroundColor = _baseForegroundColor; c.baseBackgroundColor = _baseBackgroundColor;
@@ -236,6 +241,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 }
 + (instancetype)buttonWithConfiguration:(UIButtonConfiguration *)c primaryAction:(UIAction *)a {
     UIButton *b = [self buttonWithType:UIButtonTypeSystem];
+    if (a && (a.title.length || a.image) && !c.title && !c.image) { c = [c copy]; c.title = a.title.length ? a.title : nil; c.image = a.image; }   /* like UIKit: the action's title/image */
     b.configuration = c;
     if (a) [b addAction:a forControlEvents:UIControlEventPrimaryActionTriggered];
     return b;
@@ -304,8 +310,10 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (!_configuration) return self.currentTitleColor;
     if (!self.enabled) return UIColor.tertiaryLabelColor;
     if (_configuration.baseForegroundColor) return _configuration.baseForegroundColor;
-    return _configuration.style == IsimFilled ? UIColor.whiteColor : self.tintColor;
+    if (_configuration.style == IsimGlass || _configuration.style == IsimClearGlass) return UIColor.labelColor;   /* glass glyphs are monochrome */
+    return _configuration.style == IsimFilled || _configuration.style == IsimProminentGlass || _configuration.style == IsimProminentClearGlass ? UIColor.whiteColor : self.tintColor;
 }
+- (BOOL)_isim_glassStyle { IsimButtonStyle s = _configuration.style; return _configuration && s >= IsimGlass; }
 - (UIColor *)_bg {
     if (!_configuration) return nil;
     UIColor *base = _configuration.baseBackgroundColor;
@@ -323,7 +331,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     case UIButtonConfigurationCornerStyleSmall: return 4;
     case UIButtonConfigurationCornerStyleLarge: return 12;
     case UIButtonConfigurationCornerStyleFixed: return self.layer.cornerRadius;
-    default: return 8;
+    default: return isim_ui_glass() && _configuration.style != IsimPlain ? sz.height / 2 : 8;   /* iOS 26: capsule controls */
     }
 }
 - (CGFloat)_imagePadding { return _configuration ? (_configuration.imagePadding ?: 6) : 0; }
@@ -343,6 +351,13 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     CGRect b = self.bounds;
     UIColor *bg = [self _bg];
     double hl = self.highlighted ? (_configuration ? 0.75 : 0.2) : 1;
+    if ([self _isim_glassStyle]) {          /* Liquid Glass button: glass body, tinted when prominent */
+        IsimButtonStyle st = _configuration.style;
+        UIColor *tint = st == IsimProminentGlass || st == IsimProminentClearGlass ? (_configuration.baseBackgroundColor ?: self.tintColor) : _configuration.baseBackgroundColor;
+        isim_ui_draw_glass(CGRectMake(0, 0, b.size.width, b.size.height), [self _radius:b.size], tint,
+                           (st == IsimClearGlass || st == IsimProminentClearGlass ? 2 : 0) | (self.highlighted ? 8 : 0));
+        bg = nil;
+    }
     if (bg) {
         double c[4]; isim_ui_rgba(bg, c);
         if (self.highlighted) c[3] *= 0.75;
@@ -375,9 +390,10 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 
 /* ================= UISwitch ================= */
 @implementation UISwitch
-- (instancetype)initWithFrame:(CGRect)f { if ((self = [super initWithFrame:CGRectMake(f.origin.x, f.origin.y, 51, 31)])) {} return self; }
-- (CGSize)intrinsicContentSize { return CGSizeMake(51, 31); }
-- (CGSize)sizeThatFits:(CGSize)s { return CGSizeMake(51, 31); }
+static CGSize switch_size(void) { return isim_ui_glass() ? CGSizeMake(63, 28) : CGSizeMake(51, 31); }   /* iOS 26: wider track */
+- (instancetype)initWithFrame:(CGRect)f { CGSize z = switch_size(); if ((self = [super initWithFrame:CGRectMake(f.origin.x, f.origin.y, z.width, z.height)])) {} return self; }
+- (CGSize)intrinsicContentSize { return switch_size(); }
+- (CGSize)sizeThatFits:(CGSize)s { return switch_size(); }
 - (void)setOn:(BOOL)on { _on = on; isim_ui_set_needs_display(); }
 - (void)setOn:(BOOL)on animated:(BOOL)a { self.on = on; }
 - (void)_isim_touchUpInside { self.on = !_on; [self _isim_sendEvents:UIControlEventValueChanged withEvent:nil]; }
@@ -387,6 +403,13 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     isim_ui_rgba(_thumbTintColor ?: UIColor.whiteColor, thumb);
     isim_ui_rgba([UIColor colorWithWhite:0 alpha:0.08], edge);
     if (!self.enabled) track[3] *= 0.5;
+    if (isim_ui_glass()) {                   /* iOS 26: 63 x 28 capsule, pill-shaped thumb (glass while pressed) */
+        isim_gfx_fill_rounded(0, 0, 63, 28, 14, track);
+        double w = self.highlighted ? 44 : 37, x = _on ? 63 - 2 - w : 2;
+        if (self.highlighted) isim_ui_draw_glass(CGRectMake(x, 0, w, 28), 14, nil, 0);
+        else { isim_gfx_fill_rounded(x - 0.5, 1.5, w + 1, 25, 12.5, edge); isim_gfx_fill_rounded(x, 2, w, 24, 12, thumb); }
+        return;
+    }
     isim_gfx_fill_rounded(0, 0, 51, 31, 15.5, track);
     double x = _on ? 51 - 2 - 27 : 2;
     if (self.highlighted) x = _on ? x - 6 : x;

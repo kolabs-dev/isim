@@ -20,6 +20,11 @@ void isim_ui_push_style(UIUserInterfaceStyle s);
 void isim_ui_pop_style(void);
 void isim_ui_rgba(UIColor *c, double out[4]);          /* resolve against the current style */
 
+/* iOS version isim emulates (--os): the look follows it. 17/18: the classic materials; 26+: Liquid Glass. */
+int isim_ui_os_major(void);
+BOOL isim_ui_glass(void);                               /* iOS 26 or later */
+void isim_ui_draw_glass(CGRect r, CGFloat radius, UIColor *_Nullable tint, int flags);   /* flags: 2 clear, 4 no shadow, 8 pressed; dark from the style */
+
 /* text */
 void isim_ui_register_app_fonts(void);
 CGSize isim_ui_measure(NSString *text, UIFont *font, CGFloat maxWidth, NSInteger lines);

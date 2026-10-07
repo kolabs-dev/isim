@@ -15,7 +15,7 @@ path, loc, langs, tz = sys.argv[1:]
 plistlib.dump({"AppleLocale": loc, "AppleLanguages": langs.split(","), "TimeZone": tz}, open(path, "wb"))
 PY
 }
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloFormatting.app 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloFormatting.app 2>&1; }
 
 prefs en_US en America/New_York
 us=$(run "wait 0.8; shot $shots/en_US.png; tapid pattern; wait 0.3; key backspace; key backspace; key backspace; type [0-9]{4}; wait 0.4; dump; shot $shots/regex.png; quit"); rc1=$?

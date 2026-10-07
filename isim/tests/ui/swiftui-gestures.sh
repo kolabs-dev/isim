@@ -7,7 +7,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloSwiftUIGestures; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/swiftui-gestures; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.5; pinch 201 314 1.6 0.5; wait 0.3; rotate2 201 314 30 0.5; wait 0.3; shot $shots/transformed.png;
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.5; pinch 201 314 1.6 0.5; wait 0.3; rotate2 201 314 30 0.5; wait 0.3; shot $shots/transformed.png;
  longdrag 201 518 261 548 0.6 0.4; wait 0.3; dump; tap 201 677; wait 0.6; tap 201 677; tap 201 677; wait 0.6; quit" \
       timeout 60 out/bin/isim run out/apps/HelloSwiftUIGestures.app 2>&1); rc=$?
 fail=0

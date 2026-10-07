@@ -10,9 +10,9 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloSpriteKit2; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/spritekit2; rm -rf "$ISIM_DATA"
 pad="gamepad connect isim Test Pad; wait 0.3; gamepad button a 1; wait 0.2; shot $shots/pressed.png; gamepad button a 0; gamepad axis leftx 1; wait 0.2; gamepad axis leftx 0; gamepad button dpup 1; wait 0.1; gamepad button dpup 0; gamepad axis righttrigger 1; wait 0.1; gamepad button start 1; wait 0.1; gamepad disconnect"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.0; shot $shots/a.png; $pad; wait 2; shot $shots/b.png; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.0; shot $shots/a.png; $pad; wait 2; shot $shots/b.png; quit" \
       timeout 120 out/bin/isim run out/apps/HelloSpriteKit2.app 2>&1); rc=$?
-log0=$(ISIM_GAMEPADS=0 ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.5; gamepad connect isim Test Pad; wait 0.5; quit" \
+log0=$(ISIM_GAMEPADS=0 ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.5; gamepad connect isim Test Pad; wait 0.5; quit" \
       timeout 60 out/bin/isim run out/apps/HelloSpriteKit2.app 2>&1); rc0=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }

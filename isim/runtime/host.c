@@ -10,7 +10,7 @@
  *   ISIM_HEADLESS  1 = no window (use with ISIM_SCRIPT)
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
- *                  shell only: "home", "launch BUNDLE-ID"
+ *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "controlcenter [off]"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
  * installed apps) is a child process ("client") that renders into a shared-memory surface and
@@ -45,7 +45,8 @@ struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_
 struct isim_event { int type, pad; double x, y, timestamp; int key, mods; char text[1024]; };
 enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_TEXT, EV_REDRAW, EV_ID_DOWN, EV_ID_UP, EV_DUMP, EV_TEXT_DOWN, EV_TEXT_UP,
        EV_BACKGROUND, EV_FOREGROUND, EV_SETTINGS, EV_LAUNCH_ID, EV_OPEN_URL, EV_HOME /* shell-internal */, EV_KEY_UP, EV_NOTIFICATION_RESPONSE,
-       EV_DEVICE_ORIENTATION /* key = UIDeviceOrientation */ };
+       EV_DEVICE_ORIENTATION /* key = UIDeviceOrientation */,
+       EV_SYSUI = 23 /* shell-internal: key 1 lock, 2 unlock, 3 Control Center on, 4 off */ };
 /* shell <-> client protocol (SOCK_SEQPACKET, fixed-size messages) */
 struct shell_msg { int type; struct isim_event ev; char a[512], b[512], c[512]; };
 enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM, SM_NOTIFY, SM_ORIENT /* a = UIInterfaceOrientation of the client's screen */ };
@@ -76,24 +77,26 @@ double isim_time(void) { return now() - t0; }
 /* device presets (points, scale, safe areas, display corner radius, cutout: 0 none, 1 Dynamic Island, 2 notch) */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"     /* orientation fields default to 0 */
-static const struct { const char *id; struct isim_device d; } devices[] = {
-    { "iphonese",       { 375, 667, 2, 20, 0, 0, 0, "iPhone SE (3rd generation)" } },
-    { "iphone13mini",   { 375, 812, 3, 50, 34, 44, 2, "iPhone 13 mini" } },
-    { "iphone14",       { 390, 844, 3, 47, 34, 47, 2, "iPhone 14" } },
-    { "iphone15",       { 393, 852, 3, 59, 34, 55, 1, "iPhone 15" } },
-    { "iphone15plus",   { 430, 932, 3, 59, 34, 55, 1, "iPhone 15 Plus" } },
-    { "iphone15promax", { 430, 932, 3, 59, 34, 55, 1, "iPhone 15 Pro Max" } },
-    { "iphone16pro",    { 402, 874, 3, 62, 34, 62, 1, "iPhone 16 Pro" } },
-    { "iphone16promax", { 440, 956, 3, 62, 34, 62, 1, "iPhone 16 Pro Max" } },
-    { "iphone17",       { 402, 874, 3, 62, 34, 62, 1, "iPhone 17" } },
-    { "iphoneair",      { 420, 912, 3, 62, 34, 62, 1, "iPhone Air" } },
-    { "iphone17pro",    { 402, 874, 3, 62, 34, 62, 1, "iPhone 17 Pro" } },
-    { "iphone17promax", { 440, 956, 3, 62, 34, 62, 1, "iPhone 17 Pro Max" } },
-    { "ipadmini",       { 744, 1133, 2, 24, 20, 21, 0, "iPad mini (6th generation)" } },
-    { "ipad",           { 820, 1180, 2, 24, 20, 18, 0, "iPad Air 11-inch" } },
-    { "ipadair11",      { 820, 1180, 2, 24, 20, 18, 0, "iPad Air 11-inch" } },
-    { "ipadpro11",      { 834, 1210, 2, 24, 20, 18, 0, "iPad Pro 11-inch" } },
-    { "ipadpro13",      { 1032, 1376, 2, 24, 20, 18, 0, "iPad Pro 13-inch" } },
+/* minos: the first iOS release the device runs (what it shipped with), like the device type's minimum runtime
+   in Xcode/CoreSimulator: a device is never paired with an older runtime. None of these presets is dropped by iOS 27. */
+static const struct { const char *id; struct isim_device d; int min_major, min_minor; } devices[] = {
+    { "iphonese",       { 375, 667, 2, 20, 0, 0, 0, "iPhone SE (3rd generation)" }, 15, 4 },
+    { "iphone13mini",   { 375, 812, 3, 50, 34, 44, 2, "iPhone 13 mini" }, 15, 0 },
+    { "iphone14",       { 390, 844, 3, 47, 34, 47, 2, "iPhone 14" }, 16, 0 },
+    { "iphone15",       { 393, 852, 3, 59, 34, 55, 1, "iPhone 15" }, 17, 0 },
+    { "iphone15plus",   { 430, 932, 3, 59, 34, 55, 1, "iPhone 15 Plus" }, 17, 0 },
+    { "iphone15promax", { 430, 932, 3, 59, 34, 55, 1, "iPhone 15 Pro Max" }, 17, 0 },
+    { "iphone16pro",    { 402, 874, 3, 62, 34, 62, 1, "iPhone 16 Pro" }, 18, 0 },
+    { "iphone16promax", { 440, 956, 3, 62, 34, 62, 1, "iPhone 16 Pro Max" }, 18, 0 },
+    { "iphone17",       { 402, 874, 3, 62, 34, 62, 1, "iPhone 17" }, 26, 0 },
+    { "iphoneair",      { 420, 912, 3, 62, 34, 62, 1, "iPhone Air" }, 26, 0 },
+    { "iphone17pro",    { 402, 874, 3, 62, 34, 62, 1, "iPhone 17 Pro" }, 26, 0 },
+    { "iphone17promax", { 440, 956, 3, 62, 34, 62, 1, "iPhone 17 Pro Max" }, 26, 0 },
+    { "ipadmini",       { 744, 1133, 2, 24, 20, 21, 0, "iPad mini (6th generation)" }, 15, 0 },
+    { "ipad",           { 820, 1180, 2, 24, 20, 18, 0, "iPad Air 11-inch (M2)" }, 17, 5 },
+    { "ipadair11",      { 820, 1180, 2, 24, 20, 18, 0, "iPad Air 11-inch (M2)" }, 17, 5 },
+    { "ipadpro11",      { 834, 1210, 2, 24, 20, 18, 0, "iPad Pro 11-inch (M4)" }, 17, 5 },
+    { "ipadpro13",      { 1032, 1376, 2, 24, 20, 18, 0, "iPad Pro 13-inch (M4)" }, 17, 5 },
 };
 #pragma GCC diagnostic pop
 static void device_from_env(void) {
@@ -111,6 +114,98 @@ static void device_from_env(void) {
     portrait_dev = dev;
     const char *o = getenv("ISIM_DEVICE_ORIENTATION");     /* set by the shell for apps launched while turned */
     if (o && atoi(o) >= 1 && atoi(o) <= 4) device_orient = atoi(o);
+}
+
+/* ---- iOS version (isim --os, ISIM_OS_VERSION). isim supports the API levels of iOS 17, 18, 26 and 27; the
+   selected version is what UIDevice/ProcessInfo report, what #available / @available answer (libSystem's
+   __isPlatformVersionAtLeast) and which look the system draws (Liquid Glass from 26). Pairing follows Xcode:
+   an explicitly requested version older than the device's first iOS is an error (like `simctl create` with
+   an incompatible runtime); without one (or with the device data's remembered version) the nearest valid
+   version is used and logged. ---- */
+static const int isim_os_majors[] = { 17, 18, 26, 27 };
+#define ISIM_OS_DEFAULT_MAJOR 18
+static int os_parse(const char *s, int v[3]) {
+    v[0] = v[1] = v[2] = 0;
+    if (!s || !*s) return 0;
+    char tail = 0; int n = sscanf(s, "%d.%d.%d%c", &v[0], &v[1], &v[2], &tail);
+    if (n < 1 || n > 3 || v[1] < 0 || v[1] > 9 || v[2] < 0 || v[2] > 9) return 0;
+    for (size_t i = 0; i < sizeof isim_os_majors / sizeof *isim_os_majors; i++) if (isim_os_majors[i] == v[0]) return 1;
+    return 0;
+}
+static int os_cmp(const int a[3], int maj, int min) { return a[0] != maj ? a[0] - maj : a[1] - min; }
+static int device_index(const char *id) {
+    for (size_t i = 0; i < sizeof devices / sizeof *devices; i++) if (!strcmp(devices[i].id, id)) return (int)i;
+    return -1;
+}
+/* versions a device can run: "17.0 18.0 26.0 27.0" (its first supported point release when newer than N.0) */
+static void device_versions(int di, char *out, size_t cap) {
+    out[0] = 0;
+    for (size_t i = 0; i < sizeof isim_os_majors / sizeof *isim_os_majors; i++) {
+        int m = isim_os_majors[i], mi = 0;
+        if (m < devices[di].min_major) continue;
+        if (m == devices[di].min_major) mi = devices[di].min_minor;
+        size_t l = strlen(out); snprintf(out + l, cap - l, "%s%d.%d", l ? " " : "", m, mi);
+    }
+}
+static void os_format(const int v[3], char *out, size_t cap) {
+    if (v[2]) snprintf(out, cap, "%d.%d.%d", v[0], v[1], v[2]); else snprintf(out, cap, "%d.%d", v[0], v[1]);
+}
+/* Resolves ISIM_OS_VERSION for this device (and exports it for the apps the process starts).
+   Returns 0, or 2 after printing why the requested combination is invalid. */
+int isim_os_select(void) {
+    if (getenv("ISIM_CLIENT_SOCK")) return 0;                         /* an app under the shell: chosen by the shell */
+    const char *did = getenv("ISIM_DEVICE"); if (!did || !*did) did = "iphone15";
+    int di = device_index(did); if (di < 0) di = device_index("iphone15");   /* device_from_env reports unknown names */
+    const char *dname = devices[di].d.name;
+    int v[3]; char buf[32], list[64]; device_versions(di, list, sizeof list);
+    const char *req = getenv("ISIM_OS_VERSION");
+    if (req && *req) {
+        if (!os_parse(req, v)) {
+            fprintf(stderr, "isim: iOS %s is not supported; choose --os 17, 18, 26 or 27 (or a point release such as 17.5)\n", req);
+            return 2;
+        }
+        if (os_cmp(v, devices[di].min_major, devices[di].min_minor) < 0) {
+            fprintf(stderr, "isim: %s requires iOS %d.%d or later; iOS %s is not available for it (like Xcode, isim does not pair a "
+                            "device with an older runtime). Available: %s. Choose a matching --os or another --device.\n",
+                    dname, devices[di].min_major, devices[di].min_minor, req, list);
+            return 2;
+        }
+    } else {
+        const char *soft = getenv("ISIM_OS_DEFAULT");                 /* the device data's remembered version */
+        int from_data = soft && *soft && os_parse(soft, v);
+        if (!from_data) { v[0] = ISIM_OS_DEFAULT_MAJOR; v[1] = v[2] = 0; }
+        if (os_cmp(v, devices[di].min_major, devices[di].min_minor) < 0) {
+            char was[32]; os_format(v, was, sizeof was);
+            /* nearest valid: the device's first supported release (or the next supported major) */
+            int nv[3] = { 0, 0, 0 };
+            for (size_t i = 0; i < sizeof isim_os_majors / sizeof *isim_os_majors && !nv[0]; i++) {
+                if (isim_os_majors[i] < devices[di].min_major) continue;
+                nv[0] = isim_os_majors[i]; nv[1] = isim_os_majors[i] == devices[di].min_major ? devices[di].min_minor : 0;
+            }
+            memcpy(v, nv, sizeof nv);
+            os_format(v, buf, sizeof buf);
+            fprintf(stderr, "isim: %s requires iOS %d.%d or later; using iOS %s instead of the %s iOS %s (pass --os to choose: %s)\n",
+                    dname, devices[di].min_major, devices[di].min_minor, buf, from_data ? "device data's" : "default", was, list);
+        }
+    }
+    os_format(v, buf, sizeof buf);
+    setenv("ISIM_OS_VERSION", buf, 1);
+    return 0;
+}
+/* isim-runtime --list-devices: id, name, supported iOS versions */
+void isim_list_devices(void) {
+    printf("%-16s %-28s %s\n", "DEVICE", "NAME", "iOS VERSIONS");
+    for (size_t i = 0; i < sizeof devices / sizeof *devices; i++) {
+        if (!strcmp(devices[i].id, "ipad")) continue;                 /* alias of ipadair11 */
+        char list[64]; device_versions((int)i, list, sizeof list);
+        printf("%-16s %-28s %s\n", devices[i].id, devices[i].d.name, list);
+    }
+}
+/* the selected version, parsed (guest frameworks: UIKit's look, SwiftUI): major*10000 + minor*100 + patch */
+int isim_os_version(void) {
+    int v[3]; const char *e = getenv("ISIM_OS_VERSION");
+    if (!os_parse(e, v)) { v[0] = ISIM_OS_DEFAULT_MAJOR; v[1] = v[2] = 0; }
+    return v[0] * 10000 + v[1] * 100 + v[2];
 }
 
 void isim_device_metrics(struct isim_device *out) { if (!dev.width) device_from_env(); *out = dev; }
@@ -315,6 +410,44 @@ void isim_gfx_backdrop_blur(double x, double y, double w, double h, double r, do
     cairo_restore(cr);
     cairo_pattern_destroy(p);
     cairo_surface_destroy(small);
+}
+/* Liquid Glass (iOS 26+ material, isim's approximation): a soft shadow, a light backdrop blur (glass bends and
+ * blurs a little; it is not a frosted material), a translucent body (tinted when `tint` is given), a brighter
+ * top-left specular rim and a faint inner glow along the top edge. flags: 1 dark appearance, 2 clear (more
+ * transparent, used over media), 4 no shadow, 8 interactive highlight (pressed). */
+void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags) {
+    if (w <= 0 || h <= 0) return;
+    int dark = flags & 1, clear = flags & 2;
+    r = fmin(r, fmin(w, h) / 2);
+    if (!(flags & 4)) {
+        cairo_push_group(cr);
+        rounded(x, y, w, h, r); cairo_set_source_rgba(cr, 0, 0, 0, 1); cairo_fill(cr);
+        double sh[4] = { 0, 0, 0, dark ? 0.32 : 0.14 };
+        isim_gfx_pop_group_shadow(sh, 12, 0, 4);
+    }
+    isim_gfx_backdrop_blur(x, y, w, h, r, clear ? 2 : 6);
+    cairo_save(cr);
+    rounded(x, y, w, h, r); cairo_clip(cr);
+    double a = clear ? (dark ? 0.12 : 0.10) : (dark ? 0.50 : 0.46);
+    if (dark) cairo_set_source_rgba(cr, 0.16, 0.16, 0.17, a); else cairo_set_source_rgba(cr, 1, 1, 1, a);
+    cairo_paint(cr);
+    if (tint && tint[3] > 0) { cairo_set_source_rgba(cr, tint[0], tint[1], tint[2], tint[3] * (clear ? 0.55 : 0.88)); cairo_paint(cr); }
+    if (flags & 8) { cairo_set_source_rgba(cr, 1, 1, 1, dark ? 0.12 : 0.25); cairo_paint(cr); }
+    /* inner glow along the top edge */
+    cairo_pattern_t *g = cairo_pattern_create_linear(0, y, 0, y + fmin(h, 18));
+    cairo_pattern_add_color_stop_rgba(g, 0, 1, 1, 1, dark ? 0.10 : 0.28);
+    cairo_pattern_add_color_stop_rgba(g, 1, 1, 1, 1, 0);
+    cairo_set_source(cr, g); cairo_paint(cr); cairo_pattern_destroy(g);
+    cairo_restore(cr);
+    /* specular rim: bright where the light hits (top-left), dimmer at the far edge */
+    double lw = 1;
+    rounded(x + lw / 2, y + lw / 2, w - lw, h - lw, fmax(0, r - lw / 2));
+    cairo_pattern_t *rim = cairo_pattern_create_linear(x, y, x + w * 0.6, y + h);
+    cairo_pattern_add_color_stop_rgba(rim, 0, 1, 1, 1, dark ? 0.45 : 0.95);
+    cairo_pattern_add_color_stop_rgba(rim, 0.5, 1, 1, 1, dark ? 0.12 : 0.35);
+    cairo_pattern_add_color_stop_rgba(rim, 1, 1, 1, 1, dark ? 0.28 : 0.70);
+    cairo_set_line_width(cr, lw); cairo_set_source(cr, rim); cairo_stroke(cr); cairo_pattern_destroy(rim);
 }
 double isim_gfx_get_alpha(void) { return 1; }
 void isim_gfx_push_group(void) { cairo_push_group(cr); }
@@ -801,6 +934,12 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.05;
     } else if (!strcmp(cmd, "home")) { pending[npending++] = (struct isim_event){ .type = EV_HOME }; script_resume = now() + 0.3; }
+    else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock")) {     /* shell: Lock Screen (sysui.inc) */
+        pending[npending++] = (struct isim_event){ .type = EV_SYSUI, .key = cmd[0] == 'l' ? 1 : 2 }; script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "controlcenter")) {                     /* shell: Control Center; "controlcenter off" closes it */
+        int off = sscanf(args, " %63[^; ]", arg) == 1 && !strcmp(arg, "off");
+        pending[npending++] = (struct isim_event){ .type = EV_SYSUI, .key = off ? 4 : 3 }; script_resume = now() + 0.3;
+    }
     else if (!strcmp(cmd, "launch") && sscanf(args, " %63[^; ]", arg) == 1) {
         pending[npending++] = (struct isim_event){ .type = EV_LAUNCH_ID }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.5;
@@ -1063,7 +1202,7 @@ void isim_shell_request(int type, const char *a, const char *b, const char *c) {
 
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
-    H(isim_device_metrics), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
+    H(isim_device_metrics), H(isim_os_version), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
     H(isim_gfx_save), H(isim_gfx_restore), H(isim_gfx_translate), H(isim_gfx_scale), H(isim_gfx_clip_rounded),
     H(isim_gfx_fill_rounded), H(isim_gfx_stroke_rounded), H(isim_gfx_fill_ellipse), H(isim_gfx_push_group), H(isim_gfx_pop_group),
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
@@ -1092,6 +1231,6 @@ static const struct shim isim_table[] = {
     H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close),
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
-    H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
+    H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

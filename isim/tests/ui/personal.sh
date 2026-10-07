@@ -9,7 +9,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloPersonal; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/personal; rm -rf "$ISIM_DATA"
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloPersonal.app 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloPersonal.app 2>&1; }
 log=$(run "wait 1; tapid contactsAccess; wait 0.8; shot $shots/contacts-permission.png; dump; taptext Allow Full Access; wait 0.8; tapid addContact; wait 0.5;
            tapid pickContact; wait 1; shot $shots/picker.png; dump; taptext John Appleseed; wait 1;
            tapid newContact; wait 1; tapid contact-field-givenName; wait 0.2; type Grace; tapid contact-field-familyName; wait 0.2; type Hopper; wait 0.2; tapid contact-done; wait 1;
@@ -20,7 +20,7 @@ log2=$(run "wait 1; tapid contactsAccess; wait 0.8; tapid calendarAccess; wait 0
 export ISIM_DATA=$PWD/out/test-data/personal-deny; rm -rf "$ISIM_DATA"
 log3=$(ISIM_CONTACTS_PERMISSION=deny ISIM_CALENDAR_PERMISSION=deny run "wait 1; tapid contactsAccess; wait 0.8; tapid calendarAccess; wait 0.6; tapid addEvent; wait 0.5; quit")
 export ISIM_DATA=$PWD/out/test-data/personal-ios17; rm -rf "$ISIM_DATA"
-log4=$(ISIM_OS_VERSION=17.5 run "wait 1; tapid contactsAccess; wait 0.8; dump; taptext OK; wait 0.8; quit")
+log4=$(ISIM_TEST_DEVICE=iphone15 ISIM_OS_VERSION=17.5 run "wait 1; tapid contactsAccess; wait 0.8; dump; taptext OK; wait 0.8; quit")
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
 check "contacts alert (iOS 18 buttons, purpose)"        'grep -q "text=“Personal” Would Like to Access Your Contacts" <<<"$log" && grep -q "text=Limit Access…" <<<"$log" && grep -q "text=Finds friends to invite." <<<"$log"'

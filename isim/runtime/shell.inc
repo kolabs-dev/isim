@@ -42,9 +42,11 @@ static void shell_forward(int i, const struct isim_event *ev) {
     send(clients[i].sock, &m, sizeof m, MSG_NOSIGNAL);
 }
 static int nb_visible(void); static void nb_draw(void);
+static int sysui_visible(void); static void sysui_draw(void);
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
     shell_apply_orient(clients[i].orient);
+    if (sysui_visible()) { sysui_draw(); return; }                /* Lock Screen / Control Center on top */
     if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
     /* the screenshot / blit source is the foreground client's surface */
     if (cr) { cairo_destroy(cr); cr = NULL; }
@@ -268,6 +270,8 @@ static int nb_input(const struct isim_event *ev) {
     if (down && ev->type == EV_TOUCH_UP) { down = 0; if (y0 - ev->y > 10) nb_hide(); else nb_open(); return 1; }
     return 0;
 }
+#include "sysui.inc"
+
 /* one animation frame; returns 0 when the animation has finished */
 static int anim_frame(void) {
     if (anim.kind == ANIM_NONE) return 0;
@@ -497,7 +501,9 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         struct isim_event ev;
         if (!isim_next_event(&ev, anim.kind != ANIM_NONE ? 0.004 : 0.008)) continue;
         if (ev.type == EV_QUIT) { shell_quit(); return 0; }
-        if (ev.type == EV_HOME) { shell_home(); continue; }
+        if (ev.type == EV_HOME) { if (sysui.cc || sysui.lock) sysui_set(0, 0); shell_home(); continue; }
+        if (ev.type == EV_SYSUI) { sysui_set(ev.key == 1 ? 1 : ev.key == 2 ? 0 : -1, ev.key == 3 ? 1 : ev.key == 4 ? 0 : -1); continue; }
+        if (ev.type == EV_KEY && (ev.mods & SDL_KMOD_CTRL) && !(ev.mods & SDL_KMOD_SHIFT) && (ev.key == 'l' || ev.key == 'L')) { sysui_set(!sysui.lock, 0); continue; }
         if (ev.type == EV_LAUNCH_ID) { shell_forward(0, &ev); continue; }        /* the home screen resolves bundle ids */
         if (ev.type == EV_REDRAW) { shell_send(active, EV_REDRAW); continue; }
         if (ev.type == EV_DEVICE_ORIENTATION) { for (int k = 0; k < nclients; k++) shell_forward(k, &ev); continue; }
@@ -505,6 +511,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         /* home-indicator gesture: touches starting at the bottom edge belong to the system */
         /* home indicator: a swipe up starting at the bottom edge (iOS). The edge zone is generous for a mouse. */
         if (anim.kind != ANIM_NONE && (ev.type == EV_TOUCH_DOWN || ev.type == EV_TOUCH_MOVE || ev.type == EV_TOUCH_UP)) continue;
+        if (sysui_input(&ev)) continue;
         if (nb_input(&ev)) continue;
         if (ev.type == EV_TOUCH_DOWN && ev.y > dev.height - 34 && active > 0) {
             gesture = 1; (void)gesture_y;

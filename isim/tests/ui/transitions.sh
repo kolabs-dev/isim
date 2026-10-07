@@ -22,7 +22,7 @@ script="wait 1; tapid demo-full; wait 0.8; tapid close-Full; wait 0.8;
  tapid demo-alert; wait 0.8; tapid alert-OK; wait 0.3; type Kevin; wait 0.3; shot $shots/alert.png; tapid alert-OK; wait 0.8;
  tapid demo-share; wait 0.8; shot $shots/share.png; tapid share-Copy; wait 1; tapid demo-share; wait 0.8; tapid share-Shout; wait 1;
  tapid demo-unavailable; wait 1; shot $shots/unavailable.png; dump; tapid unavailable-Load; wait 0.2; shot $shots/loading.png; wait 1; dump; quit"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 120 out/bin/isim run out/apps/HelloTransitions.app 2>&1); rc=$?
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 120 out/bin/isim run out/apps/HelloTransitions.app 2>&1); rc=$?
 # regular width (iPad): sheets are centered cards (swipe down dismisses), popovers stay popovers, split view columns
 padscript="wait 1; tapid demo-sheet; wait 0.8; shot $shots/ipad-sheet.png; dump; drag 400 70 400 700 0.3; wait 0.8;
  tapid demo-popsheet; wait 0.8; shot $shots/ipad-popover.png; tap 700 1100; wait 0.8;

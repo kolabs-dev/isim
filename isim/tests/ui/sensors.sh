@@ -8,7 +8,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloSensors; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/sensors; rm -rf "$ISIM_DATA"
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloSensors.app 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloSensors.app 2>&1; }
 log=$(run "wait 1; tapid motion; wait 1; tapid bluetooth; wait 0.5; tapid nfc; wait 0.5; tapid healthAuth; wait 1; shot $shots/health-access.png; dump;
            taptext Turn On All; wait 0.4; dump; tapid health-write-Weight; wait 0.3; taptext Allow; wait 1; tapid healthSave; wait 0.6; tapid healthQuery; wait 0.8; dump; quit"); rc=$?
 log2=$(ISIM_MOTION=unavailable run "wait 1; tapid motion; wait 0.5; tapid healthAuth; wait 0.6; tapid healthSave; wait 0.6; tapid healthQuery; wait 0.8; quit"); rc2=$?
