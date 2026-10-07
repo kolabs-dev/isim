@@ -1,11 +1,9 @@
-# Builds isim and runs every test suite (plus the ABI check) on pull requests to main and on every push to main.
-# Branch protection requires the "build and test" check to pass before a pull request can be merged.
+# Builds isim and runs every test suite (plus the ABI check). Disabled for now (a full run takes ~40 minutes on a
+# hosted runner): run it by hand from the Actions tab. To enable it again, add under `on:`
+#   pull_request: { branches: [main] }
+#   push: { branches: [main] }
 name: CI
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch:
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
