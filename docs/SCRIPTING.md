@@ -15,7 +15,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 
 | Command | What it does |
 |---|---|
-| `wait S` | wait S seconds (fractions allowed) |
+| `wait S` | wait S seconds (fractions allowed; `ISIM_WAIT_SCALE=2` doubles every wait, for slow machines) |
 | `quit` | stop the device |
 | `home` | go to the home screen |
 | `launch BUNDLE_ID` | open an installed app |

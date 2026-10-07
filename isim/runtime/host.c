@@ -735,7 +735,12 @@ static int script_step(struct isim_event *ev) {
     char *end = strpbrk(script_pos, ";\n");
     if (end) *end = 0;                      /* arguments end at the separator */
     script_pos = end ? end + 1 : script_pos + strlen(script_pos);
-    if (!strcmp(cmd, "wait") && sscanf(args, "%lf", &a) == 1) script_resume = now() + a;
+    if (!strcmp(cmd, "wait") && sscanf(args, "%lf", &a) == 1) {
+        /* ISIM_WAIT_SCALE=2 doubles every script wait (slow machines, e.g. CI runners) */
+        static double scale = -1;
+        if (scale < 0) { const char *e = getenv("ISIM_WAIT_SCALE"); scale = e && atof(e) > 0 ? atof(e) : 1; }
+        script_resume = now() + a * scale;
+    }
     else if (!strcmp(cmd, "tap") && sscanf(args, "%lf %lf", &a, &b) == 2) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = a, .y = b };

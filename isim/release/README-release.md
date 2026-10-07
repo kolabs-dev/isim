@@ -22,6 +22,23 @@ Xcode projects. It is a research prototype: an independent re-implementation, no
 The graphics, Wayland/X11 and audio libraries come from your system; everything else isim
 needs is in `lib/`.
 
+## Install
+
+The easiest way is the installer, which puts `isim` on your `PATH` and handles updates:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/install.sh | bash
+```
+
+To install this tarball by hand instead, link its CLI into a directory on your `PATH` (keep the extracted folder;
+`isim` finds the SDK next to it):
+
+```bash
+ln -s "$PWD/bin/isim" ~/.local/bin/isim
+```
+
+`isim update` / `isim versions` / `isim use VERSION` manage installed releases (`~/.local/lib/isim`).
+
 ## Try it without building anything
 
 ```bash

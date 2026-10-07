@@ -14,7 +14,7 @@ app=dev.isim.samples.HelloGameCenter
 s1="wait 2; shot $shots/access-point.png; dump; tapid scores; wait 0.5; tapid achievements; wait 1; shot $shots/banner.png; wait 2.5; tapid metadata; wait 1"
 s1="$s1; tapid gc-access-point; wait 1.2; shot $shots/dashboard.png; dump; tapid gc-achievements; wait 1; shot $shots/achievements.png; dump; tapid gc-done; wait 1"
 s1="$s1; tapid set; wait 1; shot $shots/set.png; dump; tapid gc-board-dev.isim.gc.fastest; wait 0.8; dump; tapid gc-done; wait 1"
-s1="$s1; tapid photo; wait 0.5; tapid friend-request; wait 1; shot $shots/friend-request.png; tapid gc-friend-to; type pat@example.com; tapid gc-friend-send; wait 1"
+s1="$s1; tapid photo; wait 0.5; tapid friend-request; wait 1; shot $shots/friend-request.png; tapid gc-friend-to; wait 0.3; type pat@example.com; wait 0.3; tapid gc-friend-send; wait 1"
 s1="$s1; tapid save; wait 0.5; tapid match; wait 1; tapid gc-match-find; wait 0.3; shot $shots/matchmaker.png; dump; tapid gc-match-cancel; wait 1; quit"
 log1=$(ISIM_SCRIPT="$s1" timeout 90 out/bin/isim run out/apps/HelloGameCenter.app 2>&1); rc1=$?
 conflict=$(out/bin/isim gamecenter $app conflict slot1 "from the iPad" 2>&1)

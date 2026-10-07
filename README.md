@@ -10,22 +10,29 @@ Goal: write → build → run in the simulator → device build → sign → upl
 
 ## Quick start (no build needed)
 
-Download `isim-VERSION-linux-x86_64.tar.gz` from [Releases](https://github.com/kolabs-dev/isim/releases).
-It needs Linux x86_64 with glibc 2.35+, plus `python3`, fontconfig and `adwaita-icon-theme`.
+Install the latest release (Linux x86_64, glibc 2.35+, with `python3`, `curl`, fontconfig and `adwaita-icon-theme`):
 
 ```bash
-tar xf isim-0.5.0-linux-x86_64.tar.gz
+curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/install.sh | bash
 ```
 
+This unpacks the release into `~/.local/lib/isim/<version>` and puts `isim` in `~/.local/bin` (add it to your `PATH`
+if the installer says so). Then:
+
 ```bash
-isim-0.5.0-linux-x86_64/bin/isim boot
+isim boot
 ```
 
 This opens the device on its home screen, with Settings in the dock. To add the demo apps:
 
 ```bash
-isim-0.5.0-linux-x86_64/bin/isim install isim-0.5.0-linux-x86_64/apps/*.app
+isim install ~/.local/lib/isim/current/apps/*.app
 ```
+
+**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.6.0` for a given one);
+`isim versions` lists the installed releases and `isim use VERSION` switches between them. Device data
+(`~/.local/share/isim`) is shared by all versions. You can also download a tarball from
+[Releases](https://github.com/kolabs-dev/isim/releases) and run `bin/isim` from it directly.
 
 ## Usage
 
