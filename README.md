@@ -14,17 +14,17 @@ Download `isim-VERSION-linux-x86_64.tar.gz` from [Releases](https://github.com/k
 It needs Linux x86_64 with glibc 2.35+, plus `python3`, fontconfig and `adwaita-icon-theme`.
 
 ```bash
-tar xf isim-0.2.0-linux-x86_64.tar.gz
+tar xf isim-0.3.0-linux-x86_64.tar.gz
 ```
 
 ```bash
-isim-0.2.0-linux-x86_64/bin/isim boot
+isim-0.3.0-linux-x86_64/bin/isim boot
 ```
 
 This opens the device on its home screen, with Settings in the dock. To add the demo apps:
 
 ```bash
-isim-0.2.0-linux-x86_64/bin/isim install isim-0.2.0-linux-x86_64/apps/*.app
+isim-0.3.0-linux-x86_64/bin/isim install isim-0.3.0-linux-x86_64/apps/*.app
 ```
 
 ## Usage
@@ -35,7 +35,8 @@ isim-0.2.0-linux-x86_64/bin/isim install isim-0.2.0-linux-x86_64/apps/*.app
 | `isim install App.app…` · `isim uninstall NAME` · `isim apps` | manage installed apps |
 | `isim run App.app [args…]` | install, boot and open the app over the home screen (headless or `ISIM_STANDALONE=1`: the app alone) |
 | `isim reset` | erase installed apps, app data and settings |
-| `isim build -project App.xcodeproj [-target T] [-o DIR]` | build an Xcode project |
+| `isim build (-project App.xcodeproj \| -workspace App.xcworkspace) [-scheme S \| -target T] [-configuration Release] [-o DIR]` | build an Xcode project or workspace: apps, extensions, frameworks, static libraries, local Swift packages, `.xcframework`s (x86_64 simulator slice), `.xcconfig` files |
+| `isim test -project App.xcodeproj -scheme S [-only-testing:Target/Class/test] [-resultBundlePath DIR]` | build and run the scheme's test targets like `xcodebuild test`: XCTest (hosted in the app or standalone), Swift Testing and XCUITest; exits 65 on failures |
 | `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
 | `isim info App.app` | show Mach-O platform and dependencies |
 
@@ -52,26 +53,18 @@ isim-0.2.0-linux-x86_64/bin/isim install isim-0.2.0-linux-x86_64/apps/*.app
 - F12 takes a screenshot.
 - Device data lives in `~/.local/share/isim` (override with `ISIM_DATA`).
 
-**Scripts** (for automation and tests) accept `wait S`, `tap X Y`, `tapid ID`, `taptext TEXT`, `holdid ID S`, `swipeid ID DX DY S`, `shake`,
-`type TEXT`, `key NAME`, `keydown NAME`, `keyup NAME` (hardware key press/release, e.g. for GCKeyboard), `home`, `launch BUNDLE_ID`, `remote NAME [ARG]` (MPRemoteCommandCenter: play, pause, toggle,
-next, previous, skipforward, skipback, seek S, rate R), `shot FILE.png`, `location LAT LON` / `location none` (simulated location), `dump` and `quit`. Microphone input for
-AVAudioRecorder/`inputNode` comes from `ISIM_AUDIO_INPUT=file.wav` (or `=mic` for the host microphone). Example:
-
-```bash
-isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.png; quit"
-```
-
-**System prompts and logs:** Face ID / Touch ID scans show an alert standing in for the Simulator's Features menu
-(Matching / Non-matching / Cancel); `ISIM_BIOMETRY=match|nomatch|cancel` answers scans automatically and
-`ISIM_BIOMETRY_ENROLLED=0` simulates no enrollment. `ISIM_NOTIFICATION_PERMISSION=allow|deny` answers the
-notification permission prompt. Privacy prompts work the same way: `ISIM_LOCATION_PERMISSION=once|wheninuse|always|deny`,
-`ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_PHOTOS_PERMISSION` (`allow|limited|deny`),
-`ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`. The simulated location (like the Simulator's
-Features ▸ Location) is Apple Park unless `ISIM_LOCATION=lat,lon` (or `lat,lon;lat,lon;...@speed` for a route, or `none`).
-The address book, calendars, photo library and Health data live in the device data (`ISIM_DATA`), seeded like the Simulator's. App `Logger`/`os_log` lines go to the terminal with private values shown as
-`<private>`, like iOS (`ISIM_LOG_PRIVATE=1` reveals them, `ISIM_LOG_LEVEL=info|default|error` filters).
+**Automation:** `--headless --script "wait 2; tapid login; shot s.png; quit"` drives the device from tests and CI;
+see [docs/SCRIPTING.md](docs/SCRIPTING.md) for every command. Permission prompts, Face ID, location, microphone
+and logs can be answered or configured with environment variables: see [docs/SYSTEM-PROMPTS.md](docs/SYSTEM-PROMPTS.md).
 
 **Compiling** needs clang/lld 17+. Swift needs Docker with the `swift:6.2` image.
+
+## Documentation
+
+- [Scripting and automation](docs/SCRIPTING.md): script commands, `--control` FIFO, interactive shortcuts
+- [System prompts, simulated hardware and logs](docs/SYSTEM-PROMPTS.md): environment variables for permissions, biometrics, location, network, logs
+- [API coverage](docs/COVERAGE.md): what is implemented, per framework
+- [Core Data](docs/COREDATA.md) · [Game Center](docs/GAMECENTER.md)
 
 ## Build from source
 
@@ -89,7 +82,7 @@ isim/test.sh
 Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (the build runs in an Ubuntu 22.04 container):
 
 ```bash
-isim/release/package.sh 0.2.0
+isim/release/package.sh 0.3.0
 ```
 
 ## Status
@@ -101,6 +94,7 @@ Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs
 | Area | Status | Notes |
 |---|---|---|
 | Compile for iOS on Linux | ✅ | clang/lld produce iOS-simulator (x86_64) and device (arm64) Mach-O |
+| Build and test Xcode projects | ✅ | `isim build` (workspaces, schemes, frameworks, static libraries, packages, xcconfig) and `isim test` (XCTest, Swift Testing, XCUITest). Remote packages are never downloaded; arm64-only binary SDKs cannot run |
 | Run simulator binaries | ✅ | own Mach-O loader, libSystem subset, Objective-C runtime, Foundation |
 | UIKit | 🟡 | views, controls (sliders, steppers, segmented, menus…), Auto Layout, scroll views, text fields, keyboards, alerts, page sheets, view animations, blur, navigation and tab bar controllers, table and collection views (flow, compositional and list layouts, diffable data sources). Not yet: storyboards |
 | Swift | ✅ | full runtime, Swift Concurrency, Regex / RegexBuilder, Foundation bridging |

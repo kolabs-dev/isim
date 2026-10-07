@@ -18,5 +18,9 @@ fi
 if [ ! -d swift-experimental-string-processing ]; then   # swift-6.2.4-RELEASE (Apache-2.0 with Runtime Library Exception): Regex, RegexBuilder
   git clone -q --depth 1 --branch swift-6.2.4-RELEASE https://github.com/swiftlang/swift-experimental-string-processing.git
 fi
+if [ ! -d swift-testing ]; then   # swift-6.2.4-RELEASE = 5ee435b15ad40ec1f644b5eb9d247f263ccd2170 (Apache-2.0 with Runtime Library Exception): Testing
+  git clone -q --depth 1 --branch swift-6.2.4-RELEASE https://github.com/swiftlang/swift-testing.git
+fi
 git -C swift log -1 --format='swift %H'; git -C llvm-project log -1 --format='llvm-project %H'
 git -C swift-experimental-string-processing log -1 --format='swift-experimental-string-processing %H'
+git -C swift-testing log -1 --format='swift-testing %H'
