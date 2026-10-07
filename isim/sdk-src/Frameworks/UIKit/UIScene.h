@@ -19,6 +19,8 @@ NS_SWIFT_UI_ACTOR
 - (void)sceneWillResignActive:(UIScene *)scene;
 - (void)sceneWillEnterForeground:(UIScene *)scene;
 - (void)sceneDidEnterBackground:(UIScene *)scene;
+- (void)scene:(UIScene *)scene willContinueUserActivityWithType:(NSString *)userActivityType;
+- (void)scene:(UIScene *)scene continueUserActivity:(NSUserActivity *)userActivity;
 @end
 
 @interface UIScene : UIResponder

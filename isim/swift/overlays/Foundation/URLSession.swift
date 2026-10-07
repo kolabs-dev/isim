@@ -14,6 +14,7 @@ open class URLSessionConfiguration: NSObject, @unchecked Sendable {
         let c = URLSessionConfiguration()
         c.httpCookieStorage = HTTPCookieStorage(file: nil)
         c.urlCache = URLCache(memoryCapacity: 4 * 1024 * 1024, diskCapacity: 0)
+        c.urlCredentialStorage = URLCredentialStorage()
         c._ephemeral = true
         return c
     }
@@ -42,6 +43,7 @@ open class URLSessionConfiguration: NSObject, @unchecked Sendable {
     public var httpMaximumConnectionsPerHost = 6
     public var httpCookieStorage: HTTPCookieStorage? = HTTPCookieStorage.shared
     public var urlCache: URLCache? = URLCache.shared
+    public var urlCredentialStorage: URLCredentialStorage? = URLCredentialStorage.shared
     public var protocolClasses: [AnyClass]? = []
     var _ephemeral = false
 
@@ -56,7 +58,7 @@ open class URLSessionConfiguration: NSObject, @unchecked Sendable {
         c.httpShouldUsePipelining = httpShouldUsePipelining; c.httpShouldSetCookies = httpShouldSetCookies
         c.httpCookieAcceptPolicy = httpCookieAcceptPolicy; c.httpAdditionalHeaders = httpAdditionalHeaders
         c.httpMaximumConnectionsPerHost = httpMaximumConnectionsPerHost; c.httpCookieStorage = httpCookieStorage
-        c.urlCache = urlCache; c.protocolClasses = protocolClasses; c._ephemeral = _ephemeral
+        c.urlCache = urlCache; c.protocolClasses = protocolClasses; c._ephemeral = _ephemeral; c.urlCredentialStorage = urlCredentialStorage
         return c
     }
 }
@@ -65,10 +67,22 @@ open class URLSessionConfiguration: NSObject, @unchecked Sendable {
 public protocol URLSessionDelegate: NSObjectProtocol {
     func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?)
     func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession)
+    /// session-wide challenges (server trust); the async form is used when the app implements that one instead
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)
 }
 extension URLSessionDelegate {
     public func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {}
     public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {}
+    public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                           completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let box = _URLBox<URLSessionDelegate>(self)
+        Task { let r = await box.value.urlSession(session, didReceive: challenge); completionHandler(r.0, r.1) }
+    }
+    public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        (.performDefaultHandling, nil)
+    }
 }
 public protocol URLSessionTaskDelegate: URLSessionDelegate {
     func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask)
@@ -77,8 +91,22 @@ public protocol URLSessionTaskDelegate: URLSessionDelegate {
                     completionHandler: @escaping @Sendable (URLRequest?) -> Void)
     func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64)
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?)
+    /// task challenges (HTTP Basic / Digest, and server trust when the session-level method does not decide)
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)
+    func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics)
 }
 extension URLSessionTaskDelegate {
+    public func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+                           completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let box = _URLBox<URLSessionTaskDelegate>(self)
+        Task { let r = await box.value.urlSession(session, task: task, didReceive: challenge); completionHandler(r.0, r.1) }
+    }
+    public func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        (.performDefaultHandling, nil)
+    }
+    public func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {}
     public func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {}
     public func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {}
     public func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
@@ -111,6 +139,7 @@ extension URLSessionDownloadDelegate {
 }
 
 public let NSURLSessionTransferSizeUnknown: Int64 = -1
+public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeData"
 
 // MARK: - session
 open class URLSession: NSObject, @unchecked Sendable {
@@ -169,6 +198,17 @@ open class URLSession: NSObject, @unchecked Sendable {
     open func downloadTask(with url: URL) -> URLSessionDownloadTask { downloadTask(with: URLRequest(url: url)) }
     open func downloadTask(with request: URLRequest, completionHandler: @escaping @Sendable (URL?, URLResponse?, Error?) -> Void) -> URLSessionDownloadTask {
         let t = URLSessionDownloadTask(self, request); t._downloadCompletion = completionHandler; return _add(t)
+    }
+    open func downloadTask(withResumeData resumeData: Data) -> URLSessionDownloadTask { _resumeTask(resumeData) }
+    open func downloadTask(withResumeData resumeData: Data, completionHandler: @escaping @Sendable (URL?, URLResponse?, Error?) -> Void) -> URLSessionDownloadTask {
+        let t = _resumeTask(resumeData); t._downloadCompletion = completionHandler; return t
+    }
+    func _resumeTask(_ resumeData: Data) -> URLSessionDownloadTask {
+        let plist = (try? PropertyListSerialization.propertyList(from: resumeData, options: [], format: nil)) as? [String: Any]
+        let url = (plist?["NSURLSessionDownloadURL"] as? String).flatMap(URL.init(string:)) ?? URL(string: "about:blank")!
+        let t = _add(URLSessionDownloadTask(self, URLRequest(url: url)))
+        t._resumeData = resumeData
+        return t
     }
     open func downloadTask(with url: URL, completionHandler: @escaping @Sendable (URL?, URLResponse?, Error?) -> Void) -> URLSessionDownloadTask {
         downloadTask(with: URLRequest(url: url), completionHandler: completionHandler)
@@ -270,6 +310,12 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
     public var priority: Float = URLSessionTask.defaultPriority
     public var earliestBeginDate: Date?
     public var prefersIncrementalDelivery = true
+    /// the transfer's progress (totalUnitCount = expected bytes, completedUnitCount = bytes received; uploads: bytes sent)
+    public lazy var progress: Progress = { let p = Progress(totalUnitCount: -1); p.cancellationHandler = { [weak self] in self?.cancel() }; return p }()
+    var _metrics = URLSessionTaskMetrics()
+    var _taskStart = Date()
+    var _authFailures: [String: Int] = [:]
+    var _trustAccepted = false
     /// iOS 15: a delegate for this task only (asked before the session's)
     public var delegate: URLSessionTaskDelegate? {
         get { _lock.lock(); defer { _lock.unlock() }; return _taskDelegate }
@@ -292,6 +338,7 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             Thread.detachNewThread { self._finish(URLError(.unknown, userInfo: [NSLocalizedDescriptionKey: "Task created in a session that has been invalidated"])) }
             return
         }
+        _taskStart = Date()
         let delay = earliestBeginDate.map { max(0, $0.timeIntervalSinceNow) } ?? 0
         Thread.detachNewThread {
             if delay > 0 { Thread.sleep(forTimeInterval: delay) }
@@ -336,6 +383,11 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
         let err: Error? = _cancelled ? URLError._make(NSURLErrorCancelled, url: originalRequest?.url) : error
         _error = err; _state = .completed; _http = nil
         _lock.unlock()
+        _metrics.taskInterval = DateInterval(start: _taskStart, end: max(_taskStart, Date()))
+        if !_metrics.transactionMetrics.isEmpty, let d = _sessionTaskDelegate {
+            let m = _metrics
+            _onQueue { d.urlSession(self._session, task: self, didFinishCollecting: m) }
+        }
         _deliverCompletion(err)
         _session._remove(self)
     }
@@ -355,6 +407,7 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
         if req.cachePolicy == .useProtocolCachePolicy { req.cachePolicy = config.requestCachePolicy }
         if req.timeoutInterval == 60 && config.timeoutIntervalForRequest != 60 { req.timeoutInterval = config.timeoutIntervalForRequest }
         var redirects = 0
+        var authHeader: (String, String)? = nil
         var body = body ?? req.httpBody
         while true {
             if _isCancelled { return (URLError._make(NSURLErrorCancelled, url: req.url), nil) }
@@ -405,6 +458,20 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
                 if let lm = h.value(forHTTPHeaderField: "Last-Modified"), req.value(forHTTPHeaderField: "If-Modified-Since") == nil { set("If-Modified-Since", lm) }
             }
             if req.cachePolicy == .reloadIgnoringLocalAndRemoteCacheData { set("Cache-Control", "no-cache"); set("Pragma", "no-cache") }
+            for (k, v) in _extraHeaders { set(k, v) }
+            if let a = authHeader { set(a.0, a.1) }
+            // HTTPS: offer the delegate a server-trust challenge first (iOS asks before using the connection)
+            var curlFlags: Int32 = 1
+            if scheme == "https" && !_trustAccepted, _session.delegate != nil {
+                let space = URLProtectionSpace(host: url.host ?? "", port: url.port ?? 443, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodServerTrust)
+                let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
+                switch _askChallenge(ch, sessionWide: true) {
+                case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
+                case (.useCredential, let c?) where c._trust != nil: _trustAccepted = true
+                default: break
+                }
+            }
+            if _trustAccepted { curlFlags |= 2 }
             let headerText = headers.map { "\($0.0): \($0.1)" }.joined(separator: "\n")
 
             let sendBody = method == "GET" || method == "HEAD" ? (body?.isEmpty == false ? body : nil) : body
@@ -412,8 +479,11 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             if let h = urlString.firstIndex(of: "#") { urlString = String(urlString[..<h]) }
             let h: OpaquePointer? = sendBody.map { b in
                 b.withUnsafeBytes { p in isim_http_start(method, urlString, headerText, p.baseAddress ?? UnsafeRawPointer(bitPattern: 1), b.count,
-                                                         req.timeoutInterval, config.timeoutIntervalForResource, 1) }
-            } ?? isim_http_start(method, urlString, headerText, nil, 0, req.timeoutInterval, config.timeoutIntervalForResource, 1)
+                                                         req.timeoutInterval, config.timeoutIntervalForResource, curlFlags) }
+            } ?? isim_http_start(method, urlString, headerText, nil, 0, req.timeoutInterval, config.timeoutIntervalForResource, curlFlags)
+            let tm = URLSessionTaskTransactionMetrics(request: req)
+            tm.fetchStartDate = Date(); tm.resourceFetchType = .networkLoad
+            _metrics.transactionMetrics.append(tm)
             guard let h else {
                 return (URLError._make(NSURLErrorNotConnectedToInternet, url: url, detail: "isim needs the host's libcurl (libcurl.so.4) for networking"), nil)
             }
@@ -427,7 +497,7 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
 
             var status = 0, cURL: UnsafeMutablePointer<CChar>? = nil, cHeaders: UnsafeMutablePointer<CChar>? = nil
             let rc = isim_http_response(h, &status, &cURL, &cHeaders)
-            if rc != 0 { return (URLError._make(Int(rc), url: url, detail: String(cString: isim_http_error_message(h))), nil) }
+            if rc != 0 { _fillMetrics(tm, h, response: nil, bodyBytes: 0); return (URLError._make(Int(rc), url: url, detail: String(cString: isim_http_error_message(h))), nil) }
             let finalURL = cURL.map { URL(string: String(cString: $0)) ?? url } ?? url
             let (version, fields) = URLSessionTask._parseHeaders(cHeaders.map { String(cString: $0) } ?? "")
             free(cURL); free(cHeaders)
@@ -452,6 +522,9 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             if [301, 302, 303, 307, 308].contains(status), let loc = resp.value(forHTTPHeaderField: "Location"),
                let next = URL(string: loc, relativeTo: finalURL) ?? URL(string: loc, encodingInvalidCharacters: true) {
                 redirects += 1
+                _metrics.redirectCount = redirects
+                _fillMetrics(tm, h, response: resp, bodyBytes: 0)
+                authHeader = nil
                 if redirects > 16 { return (URLError._make(NSURLErrorHTTPTooManyRedirects, url: url), nil) }
                 var newReq = req
                 newReq.url = next
@@ -472,6 +545,27 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
                 if let r = decided { req = r; continue }
                 // nil: the redirect response itself is the result
             }
+            // HTTP authentication (Basic / Digest): ask the delegate, or use the credential storage's default
+            if status == 401 || status == 407, let hdr = resp.value(forHTTPHeaderField: status == 401 ? "WWW-Authenticate" : "Proxy-Authenticate"),
+               let parsed = _URLAuthChallengeHeader.parse(hdr), let am = parsed.method {
+                _fillMetrics(tm, h, response: resp, bodyBytes: 0)
+                let space = URLProtectionSpace(host: url.host ?? "", port: url.port ?? (scheme == "https" ? 443 : 80), protocol: scheme,
+                                               realm: parsed.params["realm"], authenticationMethod: am)
+                let failures = _authFailures[space._key] ?? 0
+                _authFailures[space._key] = failures + 1
+                let stored = config.urlCredentialStorage?.defaultCredential(for: space)
+                let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: stored, previousFailureCount: failures,
+                                                    failureResponse: resp, error: nil, sender: nil)
+                var (disp, cred) = _askChallenge(ch, sessionWide: false)
+                if disp == .performDefaultHandling || disp == .rejectProtectionSpace { cred = failures == 0 ? stored : nil; disp = cred == nil ? .rejectProtectionSpace : .useCredential }
+                if disp == .cancelAuthenticationChallenge { return (URLError._make(NSURLErrorCancelled, url: url), nil) }
+                if disp == .useCredential, let c = cred, let value = parsed.authorization(c, method: method, url: url, nc: failures + 1) {
+                    if c.persistence == .forSession || c.persistence == .permanent { config.urlCredentialStorage?.set(c, for: space) }
+                    authHeader = (status == 401 ? "Authorization" : "Proxy-Authorization", value)
+                    continue
+                }
+                // no credential: the 401/407 response is the result
+            }
             if status == 304, let c = cached {
                 return _deliverCached(c, onResponse, onData)
             }
@@ -488,20 +582,77 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
                 _addReceived(Int64(n))
                 onData(Data(buf[0..<n]))
             }
+            _fillMetrics(tm, h, response: resp, bodyBytes: Int64(total))
             let cacheable = method == "GET" && [200, 203, 300, 301, 410].contains(status) && config.urlCache != nil &&
                 req.cachePolicy != .reloadIgnoringLocalAndRemoteCacheData &&
                 !_urlContains(resp.value(forHTTPHeaderField: "Cache-Control")?.lowercased() ?? "", "no-store")
             return (nil, cacheable ? (resp, req) : nil)
         }
     }
+    /// asks the task delegate (or for session-wide challenges the session delegate first) and waits for the answer
+    func _askChallenge(_ ch: URLAuthenticationChallenge, sessionWide: Bool) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        let sem = DispatchSemaphore(value: 0)
+        let box = _URLBox<(URLSession.AuthChallengeDisposition, URLCredential?)>((.performDefaultHandling, nil))
+        let taskDelegate = _sessionTaskDelegate
+        let sessionDelegate = _session.delegate
+        func askTask() {
+            guard let d = taskDelegate else { sem.signal(); return }
+            _session.delegateQueue.addOperation { d.urlSession(self._session, task: self, didReceive: ch) { r, c in box.value = (r, c); sem.signal() } }
+        }
+        if sessionWide, let sd = sessionDelegate {
+            _session.delegateQueue.addOperation {
+                sd.urlSession(self._session, didReceive: ch) { r, c in
+                    if r == .performDefaultHandling && taskDelegate != nil && taskDelegate !== sd { askTask() } else { box.value = (r, c); sem.signal() }
+                }
+            }
+        } else { askTask() }
+        sem.wait()
+        return box.value
+    }
+    func _fillMetrics(_ tm: URLSessionTaskTransactionMetrics, _ h: OpaquePointer, response: URLResponse?, bodyBytes: Int64) {
+        var t = [Double](repeating: -1, count: 7), ints = [Int](repeating: 0, count: 4)
+        var remote = [CChar](repeating: 0, count: 64), local = [CChar](repeating: 0, count: 64)
+        isim_http_metrics(h, &t, &ints, &remote, 64, &local, 64)
+        let start = tm.fetchStartDate ?? Date()
+        func at(_ i: Int) -> Date? { t[i] >= 0 ? start.addingTimeInterval(t[i]) : nil }
+        tm.response = response
+        tm.domainLookupStartDate = t[1] >= 0 ? start : nil; tm.domainLookupEndDate = at(1)
+        tm.connectStartDate = at(1); tm.connectEndDate = at(3).flatMap { t[3] > 0 ? $0 : nil } ?? at(2)
+        if t[3] > 0 { tm.secureConnectionStartDate = at(2); tm.secureConnectionEndDate = at(3) }
+        tm.requestStartDate = at(4); tm.requestEndDate = at(4)
+        tm.responseStartDate = at(5); tm.responseEndDate = t[0] >= 0 ? at(0) : Date()
+        tm.isReusedConnection = ints[1] == 0 && t[0] >= 0
+        if tm.isReusedConnection { tm.domainLookupStartDate = nil; tm.domainLookupEndDate = nil; tm.connectStartDate = nil; tm.connectEndDate = nil }
+        tm.networkProtocolName = ints[0] == 3 ? "h2" : ints[0] == 30 ? "h3" : ints[0] == 1 ? "http/1.0" : "http/1.1"
+        tm.remoteAddress = remote[0] != 0 ? String(cString: remote) : nil; tm.localAddress = local[0] != 0 ? String(cString: local) : nil
+        tm.remotePort = ints[2] > 0 ? ints[2] : nil; tm.localPort = ints[3] > 0 ? ints[3] : nil
+        tm.countOfResponseBodyBytesReceived = bodyBytes; tm.countOfResponseBodyBytesAfterDecoding = bodyBytes
+        tm.countOfRequestBodyBytesSent = Int64(tm.request.httpBody?.count ?? 0)
+    }
     func _deliverCached(_ c: CachedURLResponse, _ onResponse: (URLResponse) -> Bool, _ onData: (Data) -> Void) -> (Error?, cacheable: (HTTPURLResponse, URLRequest)?) {
+        if let r = _current {
+            let tm = URLSessionTaskTransactionMetrics(request: r)
+            tm.fetchStartDate = Date(); tm.response = c.response; tm.resourceFetchType = .localCache; tm.responseEndDate = Date()
+            _metrics.transactionMetrics.append(tm)
+        }
         _setResponse(c.response)
         guard onResponse(c.response) else { return (URLError._make(NSURLErrorCancelled, url: c.response.url), nil) }
         if !c.data.isEmpty { _addReceived(Int64(c.data.count)); onData(c.data) }
         return (nil, nil)
     }
-    func _setResponse(_ r: URLResponse) { _lock.lock(); _response = r; _expectedReceive = r.expectedContentLength; _lock.unlock() }
-    func _addReceived(_ n: Int64) { _lock.lock(); _received += n; _lock.unlock() }
+    func _setResponse(_ r: URLResponse) {
+        _lock.lock(); _response = r; _expectedReceive = r.expectedContentLength + _resumeOffset; _lock.unlock()
+        let total = r.expectedContentLength < 0 ? Int64(-1) : r.expectedContentLength + _resumeOffset
+        progress.totalUnitCount = total
+        progress.completedUnitCount = _resumeOffset
+    }
+    func _addReceived(_ n: Int64) {
+        _lock.lock(); _received += n; let r = _received; _lock.unlock()
+        progress.completedUnitCount = r + _resumeOffset
+    }
+    /// bytes a resumed download already had
+    var _resumeOffset: Int64 = 0
+    var _extraHeaders: [(String, String)] = []
     func _store(_ c: (HTTPURLResponse, URLRequest)?, data: Data, dataTask: URLSessionDataTask?) {
         guard let (resp, req) = c, let cache = _session.configuration.urlCache else { return }
         var proposed: CachedURLResponse? = CachedURLResponse(response: resp, data: data, userInfo: nil, storagePolicy: .allowed)
@@ -648,18 +799,60 @@ open class URLSessionDownloadTask: URLSessionTask, @unchecked Sendable {
     var _downloadCompletion: (@Sendable (URL?, URLResponse?, Error?) -> Void)?
     var _location: URL?
 
-    /// isim: no resume data is produced
+    /// resume data: a property list with the URL, the partial file and the validators (ETag / Last-Modified),
+    /// kept like CFNetwork does so downloadTask(withResumeData:) continues with an HTTP Range request
+    var _keepPartial = false
+    var _partialPath: String?
+    var _resumeData: Data?
     open func cancel(byProducingResumeData completionHandler: @escaping @Sendable (Data?) -> Void) {
-        cancel(); _session.delegateQueue.addOperation { completionHandler(nil) }
+        _lock.lock(); _keepPartial = true; _lock.unlock()
+        _resumeWaiter = completionHandler
+        cancel()
+    }
+    var _resumeWaiter: (@Sendable (Data?) -> Void)?
+    func _makeResumeData(_ path: String, written: Int64) -> Data? {
+        guard written > 0, let url = (_current ?? originalRequest)?.url, let r = response as? HTTPURLResponse else { return nil }
+        let etag = r.value(forHTTPHeaderField: "ETag"), lm = r.value(forHTTPHeaderField: "Last-Modified")
+        guard etag != nil || lm != nil, (r.value(forHTTPHeaderField: "Accept-Ranges") ?? "bytes") != "none" else { return nil }
+        var d: [String: Any] = ["NSURLSessionDownloadURL": url.absoluteString, "NSURLSessionResumeBytesReceived": NSNumber(value: written),
+                                "NSURLSessionResumeInfoTempFileName": (path as NSString).lastPathComponent, "NSURLSessionResumeInfoLocalPath": path,
+                                "NSURLSessionResumeInfoVersion": NSNumber(value: 2)]
+        if let etag { d["NSURLSessionResumeEntityTag"] = etag }
+        if let lm { d["NSURLSessionResumeServerDownloadDate"] = lm }
+        if let tot = Optional(countOfBytesExpectedToReceive), tot > 0 { d["NSURLSessionResumeExpectedLength"] = NSNumber(value: tot) }
+        return try? PropertyListSerialization.data(fromPropertyList: d, format: .xml, options: 0)
     }
 
     override func _main() {
-        let tmp = NSTemporaryDirectory() + "/CFNetworkDownload_\(UUID().uuidString.prefix(8)).tmp"
-        guard let f = fopen(tmp, "wb") else { _finish(URLError._make(NSURLErrorCannotWriteToFile, url: originalRequest?.url)); return }
+        var tmp = NSTemporaryDirectory() + "/CFNetworkDownload_\(UUID().uuidString.prefix(8)).tmp"
+        var mode = "wb"
+        if let rd = _resumeData, let plist = try? PropertyListSerialization.propertyList(from: rd, options: [], format: nil) as? [String: Any],
+           let path = plist["NSURLSessionResumeInfoLocalPath"] as? String, FileManager.default.fileExists(atPath: path) {
+            let have = (plist["NSURLSessionResumeBytesReceived"] as? NSNumber)?.int64Value ?? 0
+            tmp = path; mode = "ab"
+            _resumeOffset = have
+            _extraHeaders = [("Range", "bytes=\(have)-")]
+            if let e = plist["NSURLSessionResumeEntityTag"] as? String { _extraHeaders.append(("If-Range", e)) }
+            else if let lm = plist["NSURLSessionResumeServerDownloadDate"] as? String { _extraHeaders.append(("If-Range", lm)) }
+        }
+        _partialPath = tmp
+        guard let f = fopen(tmp, mode) else { _finish(URLError._make(NSURLErrorCannotWriteToFile, url: originalRequest?.url)); return }
         let dd = _downloadCompletion != nil || _onComplete != nil ? nil : _sessionTaskDelegate as? URLSessionDownloadDelegate
-        var written: Int64 = 0
+        var written: Int64 = _resumeOffset
         var writeFailed = false
-        let (err0, _) = _load(body: nil, response: { r in self._onResponse?(r); return true }, data: { chunk in
+        let (err0, _) = _load(body: nil, response: { r in
+            // a resumed download: 206 continues the file; a full 200 starts over
+            if self._resumeOffset > 0 {
+                if (r as? HTTPURLResponse)?.statusCode == 206 {
+                    let off = self._resumeOffset, exp = r.expectedContentLength < 0 ? Int64(-1) : r.expectedContentLength + off
+                    if let d = dd { self._onQueue { d.urlSession(self._session, downloadTask: self, didResumeAtOffset: off, expectedTotalBytes: exp) } }
+                } else {
+                    fclose(fopen(tmp, "wb")); fseek(f, 0, SEEK_SET); written = 0; self._resumeOffset = 0   /* the server sent the whole file: start over */
+                    if let d = dd { self._onQueue { d.urlSession(self._session, downloadTask: self, didResumeAtOffset: 0, expectedTotalBytes: r.expectedContentLength) } }
+                }
+            }
+            self._onResponse?(r); return true
+        }, data: { chunk in
             let n = chunk.withUnsafeBytes { fwrite($0.baseAddress, 1, $0.count, f) }
             if n != chunk.count { writeFailed = true }
             written += Int64(chunk.count)
@@ -669,8 +862,15 @@ open class URLSessionDownloadTask: URLSessionTask, @unchecked Sendable {
             }
         })
         fclose(f)
-        let err = err0 ?? (writeFailed ? URLError._make(NSURLErrorCannotWriteToFile, url: originalRequest?.url) : nil)
-        if err != nil || _isCancelled { unlink(tmp) } else { _location = URL(fileURLWithPath: tmp) }
+        var err = err0 ?? (writeFailed ? URLError._make(NSURLErrorCannotWriteToFile, url: originalRequest?.url) : nil)
+        _lock.lock(); let keep = _keepPartial; _lock.unlock()
+        let resume = (keep || (err != nil && !_isCancelled)) ? _makeResumeData(tmp, written: written) : nil
+        if let w = _resumeWaiter { _resumeWaiter = nil; let r = resume; _session.delegateQueue.addOperation { w(r) } }
+        if let resume, err != nil, !_isCancelled, var info = (err as? URLError)?.errorUserInfo {   /* a failed download carries resume data like iOS */
+            info[NSURLSessionDownloadTaskResumeData] = resume
+            err = URLError(URLError.Code(rawValue: (err as! URLError).errorCode), userInfo: info)
+        }
+        if err != nil || _isCancelled { if resume == nil { unlink(tmp) } } else { _location = URL(fileURLWithPath: tmp) }
         _downloadDelegate = dd
         _finish(err)
     }

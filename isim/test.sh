@@ -47,10 +47,14 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloTransitions.app/HelloTransitions ] && run "ui: HelloTransitions (presentations, sheets, popovers, custom transitions, containers)" tests/ui/transitions.sh
   [ -x out/apps/HelloControls.app/HelloControls ] && run "ui: HelloControls (UIKit controls, menus)" tests/ui/controls.sh
   [ -x out/apps/HelloPresentations.app/HelloPresentations ] && run "ui: HelloPresentations (sheets, alerts, dialogs)" tests/ui/presentations.sh
+  [ -x out/apps/HelloWeb.app/HelloWeb ] && run "ui: HelloWeb (WKWebView on WebKitGTK: delegates, JS bridge, scheme handler, history; local server)" tests/ui/web.sh
+  [ -x out/apps/HelloSafari.app/HelloSafari ] && run "ui: HelloSafari (SFSafariViewController, ASWebAuthenticationSession, MessageUI, universal links)" tests/ui/safari.sh
+  [ -x out/apps/HelloConnections.app/HelloConnections ] && run "ui: HelloConnections (Network framework, Bonjour, Multipeer, URLSession auth/metrics/resume; local servers)" tests/ui/connections.sh
   [ -x out/apps/HelloNetwork.app/HelloNetwork ] && run "ui: HelloNetwork (URLSession, cookies, WebSocket, NWPathMonitor; local server)" tests/ui/network.sh
   [ -x out/apps/HelloSpriteKit.app/HelloSpriteKit ] && run "ui: HelloSpriteKit (SpriteKit physics/particles, GameplayKit, GameController)" tests/ui/spritekit.sh
   [ -x out/apps/HelloSpriteKit2.app/HelloSpriteKit2 ] && run "ui: HelloSpriteKit2 (warp/transform/video nodes, reversed actions, GameplayKit AI and spatial trees, host gamepads)" tests/ui/spritekit2.sh
   [ -x out/apps/HelloSecurity.app/HelloSecurity ] && run "ui: HelloSecurity (CryptoKit, keychain, SQLite, Face ID, notifications)" tests/ui/security.sh
+  [ -x out/apps/HelloMaps.app/HelloMaps ] && run "ui: HelloMaps (MapKit: MKMapView, offline basemap, overlays, search, SwiftUI Map)" tests/ui/maps.sh
   [ -x out/apps/HelloLocation.app/HelloLocation ] && run "ui: HelloLocation (Core Location, simulated location, geocoding)" tests/ui/location.sh
   [ -x out/apps/HelloSensors.app/HelloSensors ] && run "ui: HelloSensors (Core Motion, Bluetooth, NFC, HealthKit)" tests/ui/sensors.sh
   [ -x out/apps/HelloPersonal.app/HelloPersonal ] && run "ui: HelloPersonal (Contacts, ContactsUI, EventKit, EventKitUI)" tests/ui/personal.sh
