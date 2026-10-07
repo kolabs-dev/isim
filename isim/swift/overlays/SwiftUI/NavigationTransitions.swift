@@ -21,7 +21,7 @@ final class _SUINavStackView: _PassthroughViewBase {
     weak var bar: _SUINavBar?
     /// toolbarMinimizationBehavior (iOS 27): the bottom bar slides away while the content scrolls (2 down, 3 up)
     weak var bottomBar: UIView?
-    var minimizeBottom = 0
+    var minimizeBottom = 0, minimizeTop = 0
     private var lastScroll: [ObjectIdentifier: CGFloat] = [:]
     private var scrollObserver: NSObjectProtocol?
     private var edge: UIScreenEdgePanGestureRecognizer?
@@ -40,14 +40,20 @@ final class _SUINavStackView: _PassthroughViewBase {
     }
     deinit { if let o = scrollObserver { NotificationCenter.default.removeObserver(o) } }
     func scrolled(_ sv: UIScrollView) {
-        guard minimizeBottom == 2 || minimizeBottom == 3, let bb = bottomBar else { return }
+        guard minimizeBottom >= 2 || minimizeTop >= 2 else { return }
         let id = ObjectIdentifier(sv), y = sv.contentOffset.y
         let dy = y - (lastScroll[id] ?? y)
         lastScroll[id] = y
         guard abs(dy) > 0.5, sv.isDragging || sv.isTracking else { return }
-        let hide = (minimizeBottom == 2) == (dy > 0) && y > 10
-        let target = hide ? CGAffineTransform(translationX: 0, y: bb.bounds.height) : .identity
-        if bb.transform != target { UIView.animate(withDuration: 0.25) { bb.transform = target } }
+        if minimizeBottom >= 2, let bb = bottomBar {
+            let hide = (minimizeBottom == 2) == (dy > 0) && y > 10
+            let target = hide ? CGAffineTransform(translationX: 0, y: bb.bounds.height) : .identity
+            if bb.transform != target { UIView.animate(withDuration: 0.25) { bb.transform = target } }
+        }
+        if minimizeTop >= 2, let b = bar {
+            let hide = (minimizeTop == 2) == (dy > 0) && y > 10
+            if (b.alpha < 0.5) != hide { UIView.animate(withDuration: 0.25) { b.alpha = hide ? 0 : 1 } }
+        }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool { g === edge ? canPop && shownTop > 0 : true }

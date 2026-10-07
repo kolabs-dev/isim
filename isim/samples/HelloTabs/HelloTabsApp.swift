@@ -99,7 +99,7 @@ struct Bars27: View {
                     ToolbarOverflowMenu { Button("Extra") { print("bars: extra") } }
                     ToolbarItem(placement: .bottomBar) { Button("Compose") { print("bars: compose") }.accessibilityIdentifier("bb-compose") }
                 }
-                .toolbarMinimizationBehavior(.onScrollDown, for: .bottomBar)
+                .toolbarMinimizationBehavior(.onScrollDown, for: .bottomBar, .navigationBar)
                 .scrollEdgeEffectStyle(.hard, for: .top)
                 .toolbar(.hidden, for: .tabBar)
         }

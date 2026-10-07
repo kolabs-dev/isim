@@ -47,6 +47,7 @@ def blue(img):
     x, y, w, h = bb
     return sum(1 for i in range(int(w)) for j in range(int(h)) if (lambda c: c[2] > 200 and c[0] < 90)(img.rgb(x + i, y + j)))
 check('toolbarMinimizationBehavior: the bottom bar slides away on scroll down', bool(bb) and blue(bars) > 5 and blue(barsmin) == 0, f'{bb} {blue(bars) if bb else None} {blue(barsmin) if bb else None}')
+check('toolbarMinimizationBehavior(for: .navigationBar): the navigation bar fades on scroll down', any('_SUINavBar' in m.group(0) and 'alpha<1' in m.group(0) for m in ds[6]))
 hair = [m.group(0) for m in ds[6] if re.search(r'UIView \(0 [\d.]+; \d+ x 0\.5\)', m.group(0)) and 'Nav' not in m.group(0)]
 check('scrollEdgeEffectStyle(.hard): an opaque edge with a divider once scrolled', any('hidden' not in h for h in hair), hair[:3])
 fp = frames(pad, 0)

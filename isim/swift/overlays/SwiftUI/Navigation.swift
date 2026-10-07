@@ -397,6 +397,7 @@ public enum NavigationBarItem {
     var transition: _NavTransition = .push
     var edgeTop = 0, edgeBottom = 0          // scrollEdgeEffectStyle: 0 automatic, 1 hard, 2 soft, 3 hidden
     var minimizeBottom = 0                   // toolbarMinimizationBehavior for the bottom bar: 2 on scroll down, 3 on scroll up
+    var minimizeTop = 0                      //   … and for the navigation bar
     var hasBottomBar: Bool { !bottomBarHidden && toolbar.contains { $0.0.isBottom } }
     var hasPrincipal: Bool { toolbar.contains { $0.0.id == 1 } }
     let index: Int
@@ -615,7 +616,8 @@ final class _NavStackNode: _Node {
         mountToolbars(g, view, bar)
         bar.update()
         guard let sv else { return }
-        sv.canPop = canPop; sv.pop = pop; sv.bar = bar
+        sv.canPop = canPop; sv.pop = pop; sv.bar = bar; sv.minimizeTop = top.minimizeTop
+        if top.minimizeTop == 0 { bar.alpha = 1 }
         // push / pop transitions (NavigationTransitions.swift)
         if newTop > oldTop, oldTop >= 0, view.window != nil { sv.transitions[newTop] = top.transition; sv.animatePush(from: oldTop, to: newTop, top.transition) }
         else if let (snap, kind) = leaving { sv.animatePop(snap, to: newTop, kind) }

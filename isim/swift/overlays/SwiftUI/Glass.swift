@@ -159,12 +159,14 @@ extension View {
     public func backgroundExtensionEffect(isEnabled: Bool) -> some View {
         _modify { ctx, c in isEnabled ? _BackgroundExtensionNode(path: ctx.path, child: _resolve(c, ctx.child("bee"))) : _resolve(c, ctx.child("bee")) }
     }
-    /// iOS 27: the bottom toolbar slides away while the content scrolls down (`.onScrollDown`) or up (`.onScrollUp`).
+    /// iOS 27: the bottom toolbar slides away (the navigation bar fades) while the content scrolls down (`.onScrollDown`)
+    /// or up (`.onScrollUp`).
     @available(iOS 27.0, *)
     public func toolbarMinimizationBehavior(_ behavior: ToolbarMinimizationBehavior, for bars: ToolbarPlacement...) -> some View {
         let id = behavior.id
         return _modify { ctx, c in
             if bars.isEmpty || bars.contains(where: { $0.id == 3 || $0.id == 0 }) { ctx.nav?.minimizeBottom = id }
+            if bars.contains(where: { $0.id == 1 }) { ctx.nav?.minimizeTop = id }
             return _resolve(c, ctx.child("tmb"))
         }
     }
