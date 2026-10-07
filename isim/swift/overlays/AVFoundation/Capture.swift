@@ -444,6 +444,11 @@ open class AVCapturePhotoOutput: AVCaptureOutput, @unchecked Sendable {
     public override init() { super.init() }
     open var isHighResolutionCaptureEnabled = false
     open var maxPhotoQualityPrioritization: QualityPrioritization = .balanced
+    // isim ABI: until 0.5 this property was typed Int; keep its getter/setter entry points for apps built then
+    @usableFromInline @_silgen_name("$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivgTj")
+    final func _abi_maxPhotoQualityPrioritizationInt() -> Int { maxPhotoQualityPrioritization.rawValue }
+    @usableFromInline @_silgen_name("$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivsTj")
+    final func _abi_setMaxPhotoQualityPrioritizationInt(_ v: Int) { maxPhotoQualityPrioritization = QualityPrioritization(rawValue: v) ?? .balanced }
     open var maxPhotoDimensions = CMVideoDimensions(width: 0, height: 0)
     open var availablePhotoCodecTypes: [AVVideoCodecType] { [.hevc, .jpeg] }
     open var availablePhotoPixelFormatTypes: [OSType] { [kCVPixelFormatType_32BGRA, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] }
@@ -529,6 +534,7 @@ open class AVMetadataObject: NSObject, @unchecked Sendable {
     public let time: CMTime
     public let duration: CMTime
     init(type: ObjectType, bounds: CGRect, time: CMTime) { _type = type; _bounds = bounds; self.time = time; duration = .invalid }
+    public override init() { _type = .qr; _bounds = .zero; time = .invalid; duration = .invalid; super.init() }
     open var type: ObjectType { _type }
     open var bounds: CGRect { _bounds }
 }
@@ -539,6 +545,7 @@ open class AVMetadataMachineReadableCodeObject: AVMetadataObject, @unchecked Sen
         _string = string; _corners = corners
         super.init(type: type, bounds: bounds, time: time)
     }
+    public override init() { _string = nil; _corners = []; super.init() }
     open var stringValue: String? { _string }
     open var corners: [CGPoint] { _corners }
 }
@@ -638,7 +645,7 @@ extension AVCaptureFileOutputRecordingDelegate {
 open class AVCaptureFileOutput: AVCaptureOutput, @unchecked Sendable {
     open var maxRecordedDuration: CMTime = .invalid
     open internal(set) var outputFileURL: URL?
-    open var isRecording: Bool { _sink != nil }
+    var _isRecording: Bool { _sink != nil }
     open var recordedDuration: CMTime { CMTime(seconds: Double(_frames) / 30, preferredTimescale: 600) }
     var _sink: _RawVideoSink?
     var _frames = 0
@@ -670,6 +677,8 @@ open class AVCaptureFileOutput: AVCaptureOutput, @unchecked Sendable {
 open class AVCaptureMovieFileOutput: AVCaptureFileOutput, @unchecked Sendable {
     public override init() { super.init() }
     open var availableVideoCodecTypes: [AVVideoCodecType] { [.h264, .hevc] }
+    /// isim ABI: declared here since isim 0.2.0 (on iOS it comes from AVCaptureFileOutput)
+    open var isRecording: Bool { _isRecording }
 }
 
 // MARK: - session
@@ -698,7 +707,7 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
     open var sessionPreset: Preset = .high
     open private(set) var inputs: [AVCaptureInput] = []
     open private(set) var outputs: [AVCaptureOutput] = []
-    @objc open private(set) dynamic var isRunning = false
+    open private(set) var isRunning = false
     open var isInterrupted: Bool { false }
     open var automaticallyConfiguresApplicationAudioSession = true
     open var isMultitaskingCameraAccessSupported: Bool { false }
@@ -763,9 +772,7 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
         _start = Date().timeIntervalSince1970
         if _camera > 0 {
             let gen = _generation
-            let t = Thread { [weak self] in self?._loop(gen) }
-            t.name = "isim.capture"
-            t.start()
+            Thread.detachNewThread { [weak self] in self?._loop(gen) }
         }
         NotificationCenter.default.post(name: AVCaptureSession.didStartRunningNotification, object: self)
     }
@@ -778,7 +785,7 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
         let cam = _camera
         _camera = 0
         if cam > 0 { DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { isim_camera_close(cam) } }   // after the loop's last read
-        for case let o as AVCaptureFileOutput in outputs where o.isRecording { o.stopRecording() }
+        for case let o as AVCaptureFileOutput in outputs where o._isRecording { o.stopRecording() }
         NotificationCenter.default.post(name: AVCaptureSession.didStopRunningNotification, object: self)
     }
     /// the newest frame, if the session has one (BGRA, width, height, time)
@@ -816,7 +823,7 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
                     }
                 } else if let m = o as? AVCaptureMetadataOutput, frames % 3 == 1 {          // ~10 scans a second
                     buf.withUnsafeBufferPointer { m._scan($0.baseAddress!, w, h, t) }
-                } else if let f = o as? AVCaptureFileOutput, f.isRecording {
+                } else if let f = o as? AVCaptureFileOutput, f._isRecording {
                     buf.withUnsafeBufferPointer { f._record($0.baseAddress!) }
                 }
             }
@@ -831,7 +838,6 @@ open class AVCaptureVideoPreviewLayer: CALayer {
     public override init() { super.init() }
     public convenience init(session: AVCaptureSession) { self.init(); self.session = session }
     public convenience init(sessionWithNoConnection session: AVCaptureSession) { self.init(session: session) }
-    public override init(layer: Any) { super.init(layer: layer) }
     open var session: AVCaptureSession? {
         didSet {
             session?._previewLayer = self

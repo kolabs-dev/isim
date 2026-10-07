@@ -42,7 +42,7 @@ build UserMessagingPlatform -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -ls
 build AudioToolbox -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation -lisim_host
 build CoreVideo -lswiftObjectiveC -lswiftFoundation -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 build CoreMedia -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftAudioToolbox -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
-build AVFoundation -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftAudioToolbox -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
+build AVFoundation -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 build simd
 build SpriteKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftCombine -lswiftSwiftUI -lswift_Concurrency -lswiftsimd -lswiftAVFoundation -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 build GameplayKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswiftSpriteKit -lswift_Concurrency -framework Foundation -framework UIKit

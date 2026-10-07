@@ -186,6 +186,12 @@ void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group
 int isim_remote_command_poll(char *buf, int len);
 /* AVAudioSession events queued by the `audio` script command ("interrupt begin", "interrupt end resume", "route headphones") */
 int isim_audio_session_poll(char *buf, int len);
+/* audio streams (AudioQueue output): 48 kHz interleaved stereo float drained by the mixer in real time. open returns 0
+   when there is no audio device (headless); write returns how many frames fit (0 = full, try later) */
+int isim_audio_stream_open(double volume);
+long isim_audio_stream_write(int stream, const float *pcm, long frames);
+void isim_audio_stream_control(int stream, int paused, double volume);
+void isim_audio_stream_close(int stream);
 /* stereo balance of a playing voice: -1 left .. 1 right */
 void isim_audio_set_pan(long voice, double pan);
 /* copies pixels of an image as premultiplied BGRA (rows packed, w*4 bytes) */

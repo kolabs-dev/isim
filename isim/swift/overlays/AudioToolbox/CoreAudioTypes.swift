@@ -1,7 +1,10 @@
 // isim CoreAudioTypes, part of the AudioToolbox overlay (self-authored, iOS API names): the plain audio data types
-// shared by AudioToolbox, CoreMedia and AVFoundation — AudioStreamBasicDescription, AudioBuffer/AudioBufferList (+ UnsafeMutableAudioBufferListPointer),
-// AudioStreamPacketDescription, AudioTimeStamp, format IDs and linear-PCM flags. Memory layouts match the C structs.
+// shared by AudioToolbox, CoreMedia and AVFoundation. The structs (AudioStreamBasicDescription, AudioBuffer,
+// AudioBufferList, AudioStreamPacketDescription, AudioTimeStamp, SMPTETime) are C declarations in the CoreAudioTypes
+// clang module (usr/include/CoreAudioTypes); this file adds linear-PCM flags, UnsafeMutableAudioBufferListPointer
+// and helpers.
 import Foundation
+@_exported import CoreAudioTypes
 
 public typealias AudioFormatFlags = UInt32
 public typealias AudioChannelLayoutTag = UInt32
@@ -21,25 +24,14 @@ public let kLinearPCMFormatFlagIsSignedInteger = kAudioFormatFlagIsSignedInteger
 public let kLinearPCMFormatFlagIsPacked = kAudioFormatFlagIsPacked
 public let kLinearPCMFormatFlagIsNonInterleaved = kAudioFormatFlagIsNonInterleaved
 
-public struct AudioStreamBasicDescription: Equatable, Sendable {
-    public var mSampleRate: Float64
-    public var mFormatID: AudioFormatID
-    public var mFormatFlags: AudioFormatFlags
-    public var mBytesPerPacket: UInt32
-    public var mFramesPerPacket: UInt32
-    public var mBytesPerFrame: UInt32
-    public var mChannelsPerFrame: UInt32
-    public var mBitsPerChannel: UInt32
-    public var mReserved: UInt32
-    public init() { mSampleRate = 0; mFormatID = 0; mFormatFlags = 0; mBytesPerPacket = 0; mFramesPerPacket = 0; mBytesPerFrame = 0; mChannelsPerFrame = 0; mBitsPerChannel = 0; mReserved = 0 }
-    public init(mSampleRate: Float64, mFormatID: AudioFormatID, mFormatFlags: AudioFormatFlags, mBytesPerPacket: UInt32, mFramesPerPacket: UInt32,
-                mBytesPerFrame: UInt32, mChannelsPerFrame: UInt32, mBitsPerChannel: UInt32, mReserved: UInt32) {
-        self.mSampleRate = mSampleRate; self.mFormatID = mFormatID; self.mFormatFlags = mFormatFlags; self.mBytesPerPacket = mBytesPerPacket
-        self.mFramesPerPacket = mFramesPerPacket; self.mBytesPerFrame = mBytesPerFrame; self.mChannelsPerFrame = mChannelsPerFrame
-        self.mBitsPerChannel = mBitsPerChannel; self.mReserved = mReserved
+extension AudioStreamBasicDescription: Equatable {
+    public static func == (a: AudioStreamBasicDescription, b: AudioStreamBasicDescription) -> Bool {
+        a.mSampleRate == b.mSampleRate && a.mFormatID == b.mFormatID && a.mFormatFlags == b.mFormatFlags && a.mBytesPerPacket == b.mBytesPerPacket
+            && a.mFramesPerPacket == b.mFramesPerPacket && a.mBytesPerFrame == b.mBytesPerFrame && a.mChannelsPerFrame == b.mChannelsPerFrame
+            && a.mBitsPerChannel == b.mBitsPerChannel
     }
     /// isim: linear PCM described by this format (interleaved unless the non-interleaved flag is set)
-    public var _isPCM: Bool { mFormatID == kAudioFormatLinearPCM }
+    public var _isPCM: Bool { mFormatID == 0x6C70_636D }
     public var _isFloat: Bool { mFormatFlags & kAudioFormatFlagIsFloat != 0 }
     public var _isNonInterleaved: Bool { mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0 }
     public var _isBigEndian: Bool { mFormatFlags & kAudioFormatFlagIsBigEndian != 0 }
@@ -47,42 +39,15 @@ public struct AudioStreamBasicDescription: Equatable, Sendable {
     /// isim: interleaved bytes per frame (all channels)
     public var _frameBytes: Int { mBytesPerFrame > 0 && !_isNonInterleaved ? Int(mBytesPerFrame) : _bytesPerSample * Int(max(1, mChannelsPerFrame)) }
 }
-
-public struct AudioStreamPacketDescription: Equatable, Sendable {
-    public var mStartOffset: Int64
-    public var mVariableFramesInPacket: UInt32
-    public var mDataByteSize: UInt32
-    public init() { mStartOffset = 0; mVariableFramesInPacket = 0; mDataByteSize = 0 }
-    public init(mStartOffset: Int64, mVariableFramesInPacket: UInt32, mDataByteSize: UInt32) {
-        self.mStartOffset = mStartOffset; self.mVariableFramesInPacket = mVariableFramesInPacket; self.mDataByteSize = mDataByteSize
-    }
-}
-
-public struct AudioBuffer: @unchecked Sendable {
-    public var mNumberChannels: UInt32
-    public var mDataByteSize: UInt32
-    public var mData: UnsafeMutableRawPointer?
-    public init() { mNumberChannels = 0; mDataByteSize = 0; mData = nil }
-    public init(mNumberChannels: UInt32, mDataByteSize: UInt32, mData: UnsafeMutableRawPointer?) {
-        self.mNumberChannels = mNumberChannels; self.mDataByteSize = mDataByteSize; self.mData = mData
-    }
-}
-/// Like C's AudioBufferList: `mBuffers` is the first of `mNumberBuffers` buffers laid out in memory
-/// (use UnsafeMutableAudioBufferListPointer to reach the others).
-public struct AudioBufferList: @unchecked Sendable {
-    public var mNumberBuffers: UInt32
-    public var mBuffers: AudioBuffer
-    public init() { mNumberBuffers = 0; mBuffers = AudioBuffer() }
-    public init(mNumberBuffers: UInt32, mBuffers: AudioBuffer) { self.mNumberBuffers = mNumberBuffers; self.mBuffers = mBuffers }
+extension AudioBufferList {
     public static func sizeInBytes(maximumBuffers: Int) -> Int { MemoryLayout<AudioBufferList>.size + max(0, maximumBuffers - 1) * MemoryLayout<AudioBuffer>.stride }
+    /// malloc'd (release with free(list.unsafeMutablePointer)), like the iOS overlay
     public static func allocate(maximumBuffers: Int) -> UnsafeMutableAudioBufferListPointer {
         let n = max(1, maximumBuffers)
-        let raw = UnsafeMutableRawPointer.allocate(byteCount: sizeInBytes(maximumBuffers: n), alignment: MemoryLayout<AudioBufferList>.alignment)
+        let raw = calloc(1, sizeInBytes(maximumBuffers: n))!
         let p = raw.bindMemory(to: AudioBufferList.self, capacity: 1)
         p.pointee.mNumberBuffers = UInt32(n)
-        let l = UnsafeMutableAudioBufferListPointer(p)
-        for i in 0..<n { l[i] = AudioBuffer() }
-        return l
+        return UnsafeMutableAudioBufferListPointer(p)
     }
 }
 public struct UnsafeMutableAudioBufferListPointer: RandomAccessCollection, MutableCollection {
@@ -97,7 +62,7 @@ public struct UnsafeMutableAudioBufferListPointer: RandomAccessCollection, Mutab
     public var startIndex: Int { 0 }
     public var endIndex: Int { count }
     var _first: UnsafeMutablePointer<AudioBuffer> {
-        (UnsafeMutableRawPointer(unsafeMutablePointer) + MemoryLayout<AudioBufferList>.offset(of: \AudioBufferList.mBuffers)!).assumingMemoryBound(to: AudioBuffer.self)
+        (UnsafeMutableRawPointer(unsafeMutablePointer) + (4 + MemoryLayout<AudioBuffer>.alignment - 1) / MemoryLayout<AudioBuffer>.alignment * MemoryLayout<AudioBuffer>.alignment).assumingMemoryBound(to: AudioBuffer.self)
     }
     public subscript(i: Int) -> AudioBuffer {
         get { _first[i] }
@@ -105,25 +70,3 @@ public struct UnsafeMutableAudioBufferListPointer: RandomAccessCollection, Mutab
     }
 }
 
-public struct SMPTETime: Sendable {
-    public var mSubframes: Int16 = 0, mSubframeDivisor: Int16 = 0, mCounter: UInt32 = 0, mType: UInt32 = 0, mFlags: UInt32 = 0
-    public var mHours: Int16 = 0, mMinutes: Int16 = 0, mSeconds: Int16 = 0, mFrames: Int16 = 0
-    public init() {}
-}
-public struct AudioTimeStampFlags: OptionSet, Sendable {
-    public let rawValue: UInt32
-    public init(rawValue: UInt32) { self.rawValue = rawValue }
-    public static let sampleTimeValid = AudioTimeStampFlags(rawValue: 1)
-    public static let hostTimeValid = AudioTimeStampFlags(rawValue: 2)
-    public static let rateScalarValid = AudioTimeStampFlags(rawValue: 4)
-}
-public struct AudioTimeStamp: Sendable {
-    public var mSampleTime: Float64 = 0
-    public var mHostTime: UInt64 = 0
-    public var mRateScalar: Float64 = 0
-    public var mWordClockTime: UInt64 = 0
-    public var mSMPTETime = SMPTETime()
-    public var mFlags: AudioTimeStampFlags = []
-    public var mReserved: UInt32 = 0
-    public init() {}
-}

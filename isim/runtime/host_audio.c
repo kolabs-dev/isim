@@ -22,6 +22,7 @@ static SDL_AudioStream *stream;
 static int audio_state;          /* 0 = not tried, 1 = open, -1 = unavailable */
 static int suspended;
 static float *mixbuf; static int mixcap;
+static FILE *tap;                /* ISIM_AUDIO_TAP=file: a copy of the mixed output (raw f32le stereo 48 kHz), for tests */
 
 static void unref(int b) {
     if (b <= 0 || b >= MAX_BUFS || !bufs[b].pcm) return;
@@ -87,6 +88,7 @@ static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total
         mixbuf[i] = x;
     }
     SDL_PutAudioStreamData(s, mixbuf, frames * 2 * (int)sizeof(float));
+    if (tap) fwrite(mixbuf, sizeof(float), (size_t)frames * 2, tap);
 }
 
 static int ensure_open(void) {
@@ -103,6 +105,9 @@ static int ensure_open(void) {
     stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, feed, NULL);
     if (!stream) { fprintf(stderr, "isim audio: cannot open playback device (%s); playing silently\n", SDL_GetError()); return 0; }
     SDL_ResumeAudioStreamDevice(stream);
+    const char *tp = getenv("ISIM_AUDIO_TAP");
+    if (tp && *tp && !(tap = fopen(tp, "wb"))) fprintf(stderr, "isim audio: cannot write ISIM_AUDIO_TAP=%s\n", tp);
+    if (tap) setvbuf(tap, NULL, _IONBF, 0);
     audio_state = 1;
     return 1;
 }

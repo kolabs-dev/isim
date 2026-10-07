@@ -1079,6 +1079,10 @@ char *isim_vision_text_languages(void);
 int isim_speech_available(void);
 char *isim_speech_transcribe(const float *pcm, long frames, const char *lang);
 int isim_audio_session_poll(char *buf, int len);
+int isim_audio_stream_open(double volume);
+long isim_audio_stream_write(int s, const float *pcm, long frames);
+void isim_audio_stream_control(int s, int paused, double volume);
+void isim_audio_stream_close(int s);
 int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
 void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
@@ -1141,6 +1145,7 @@ static const struct shim isim_table[] = {
     H(isim_ffmpeg_run), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
     H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages),
     H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
+    H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close),
