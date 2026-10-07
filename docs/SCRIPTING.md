@@ -22,6 +22,10 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `openurl URL` | open a URL: under `isim boot` the home screen opens it in the app that handles it (its `CFBundleURLTypes` scheme, or an https universal link of its `applinks:` domains); with `isim run` the running app gets it (custom schemes, its own universal links, other web URLs "open in Safari"). `isim openurl URL --control FIFO` does the same from another terminal |
 | `bgtask BUNDLE_ID TASK_ID` | launch a submitted BackgroundTasks request (like Xcode's `_simulateLaunchForTaskWithIdentifier`); a closed app is started in the background (a suspended one is resumed). `TASK_ID` `--fetch` runs a background fetch |
 | `push BUNDLE_ID FILE` | deliver a remote notification payload (JSON with an `aps` dictionary), like `xcrun simctl push`: the Notification Service extension runs for `mutable-content`, then the running app gets it, or the system shows it (app not running), or `content-available` launches the app in the background. With `isim run` (the app alone) the payload goes straight to the app. Outside scripts: `isim push [BUNDLE_ID] payload.apns\|-`, or drop a `.apns` file (with a `"Simulator Target Bundle"` key) on the device window. A top-level `"apns-collapse-id"` key becomes the notification's identifier |
+| `appearance light\|dark` | switch the device appearance (like Settings > Display & Brightness); running apps get a trait change (`traitCollectionDidChange`, `registerForTraitChanges`) |
+| `contrast on\|off` | Increase Contrast (`accessibilityContrast`): high-contrast system and asset colors |
+| `boldtext on\|off` | Bold Text (`legibilityWeight`) |
+| `memorywarning` | simulate a memory warning (like the Simulator's Debug menu): the app delegate, `didReceiveMemoryWarningNotification` and every loaded view controller |
 
 ## System UI (`isim boot`)
 

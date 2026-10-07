@@ -13,6 +13,8 @@ should always use their own `ISIM_DATA`.
 | `ISIM_DEVICE=iphone17` | the device preset, like `--device`; it must be able to run the version (see [IOS-VERSIONS.md](IOS-VERSIONS.md)) |
 | `ISIM_ICON_STYLE=light\|dark\|tinted\|clear` | Home Screen icon appearance (iOS 18+; `clear` iOS 26+); `ISIM_ICON_TINT=#RRGGBB` for tinted |
 | `ISIM_LOCK_TIME=H:MM` | a fixed Lock Screen clock (screenshots) |
+| `ISIM_BATTERY="LEVEL [unplugged\|charging\|full]"` | the simulated battery for `UIDevice.batteryLevel` / `batteryState` (default `"1 full"`) |
+| `ISIM_AUTOLOCK=SECONDS` | under `isim boot`, lock the device after that much idle time unless the foreground app sets `isIdleTimerDisabled` (default: never, like the Simulator) |
 
 ## Biometrics
 

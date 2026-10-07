@@ -106,6 +106,10 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
 | Lock Screen (`lock`) | bold clock | bold clock | tall glass numerals, glass buttons | adapted, verified (pixels) |
 | Control Center (`controlcenter`) | iOS 17 modules | iOS 18 redesign: edit/power buttons, page column, round toggles | glass modules | adapted, verified (pixels) |
 | Permission alert wording | iOS 17 (e.g. contacts: Don't Allow / OK) | iOS 18 (limited access) | as iOS 18 | adapted, verified (existing suites) |
+| UIKit tabs (`UITab`, `UITabGroup`, `UISearchTab`, iPad sidebar) | classic view-controller tabs (API unavailable) | tab bar from tabs; iPad sidebar (`.tabSidebar`) | glass sidebar, `UIBackgroundExtensionView` under it | adapted, verified (HelloTabs) |
+| `UIUpdateLink`, zoom transition (`preferredTransition`), symbol effects wiggle / breathe / rotate | unavailable | per-frame actions; zoom push/present from the source view; effects animate the image | same; + draw on / off effects | adapted, verified (HelloTabs, HelloViews, HelloSymbolEffects) |
+| Automatic observation tracking (`layoutSubviews`, `updateProperties`) | off | only with `UIObservationTrackingEnabled` | on | passthrough, verified (HelloTabs) |
+| `UIBarButtonItem.badge`, `UIScrollEdgeEffect` | unavailable | unavailable | badges drawn; hard / soft edge effects | adapted, verified (HelloTabs) |
 
 ### Liquid Glass
 
