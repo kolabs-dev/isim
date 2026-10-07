@@ -36,6 +36,7 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/isim" -w /isim isim-release-bui
   for l in $out/lib/*.so*; do patchelf --set-rpath "\$ORIGIN" "$l"; done
 '
 cp tools/isim tools/isim-build.py tools/xcodeproj.py VERSION "$STAGE/bin/"
+cp ../install.sh "$STAGE/bin/isim-install.sh"      # `isim update`
 for t in tools/isim-services.py tools/momc.py tools/ibtool.py tools/isim-test.py; do [ -f "$t" ] && cp "$t" "$STAGE/bin/"; done
 cp -a out/sdk "$STAGE/sdk"
 mkdir -p "$STAGE/swift"; cp -a out/swift/resource "$STAGE/swift/resource"      # for `isim swiftc` (Docker swift:6.2)
