@@ -626,18 +626,69 @@ NSErrorDomain const NSOSStatusErrorDomain = @"NSOSStatusErrorDomain";
 NSErrorUserInfoKey const NSLocalizedDescriptionKey = @"NSLocalizedDescription";
 NSErrorUserInfoKey const NSUnderlyingErrorKey = @"NSUnderlyingError";
 NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailureReason";
+NSErrorUserInfoKey const NSLocalizedRecoverySuggestionErrorKey = @"NSLocalizedRecoverySuggestion";
+NSErrorUserInfoKey const NSLocalizedRecoveryOptionsErrorKey = @"NSLocalizedRecoveryOptions";
+NSErrorUserInfoKey const NSRecoveryAttempterErrorKey = @"NSRecoveryAttempter";
+NSErrorUserInfoKey const NSHelpAnchorErrorKey = @"NSHelpAnchor";
+NSErrorUserInfoKey const NSDebugDescriptionErrorKey = @"NSDebugDescription";
+NSErrorUserInfoKey const NSLocalizedFailureErrorKey = @"NSLocalizedFailure";
+NSErrorUserInfoKey const NSStringEncodingErrorKey = @"NSStringEncodingErrorKey";
+NSErrorUserInfoKey const NSURLErrorKey = @"NSURL";
+NSErrorUserInfoKey const NSMultipleUnderlyingErrorsKey = @"NSMultipleUnderlyingErrorsKey";
+/* +setUserInfoValueProviderForDomain:provider: — consulted for keys missing from an error's userInfo */
+static NSMutableDictionary *error_providers;
 @implementation NSError
 + (instancetype)errorWithDomain:(NSErrorDomain)d code:(NSInteger)c userInfo:(NSDictionary *)u { return [[self alloc] initWithDomain:d code:c userInfo:u]; }
 - (instancetype)initWithDomain:(NSErrorDomain)d code:(NSInteger)c userInfo:(NSDictionary *)u {
     if ((self = [super init])) { _domain = [d copy]; _code = c; _userInfo = [u copy] ?: @{}; }
     return self;
 }
++ (void)setUserInfoValueProviderForDomain:(NSErrorDomain)domain provider:(id (^)(NSError *, NSErrorUserInfoKey))provider {
+    if (!domain) return;
+    @synchronized ([NSError class]) {
+        if (!error_providers) error_providers = [NSMutableDictionary new];
+        if (provider) error_providers[domain] = [provider copy]; else [error_providers removeObjectForKey:domain];
+    }
+}
++ (id (^)(NSError *, NSErrorUserInfoKey))userInfoValueProviderForDomain:(NSErrorDomain)domain {
+    if (!domain) return nil;
+    @synchronized ([NSError class]) { return error_providers[domain]; }
+}
+/* a userInfo value, else the domain's value provider's (Apple's lookup order) */
+- (id)_isim_infoValue:(NSErrorUserInfoKey)key {
+    id v = self.userInfo[key];
+    if (v) return v;
+    id (^p)(NSError *, NSErrorUserInfoKey) = [NSError userInfoValueProviderForDomain:self.domain];
+    return p ? p(self, key) : nil;
+}
 /* through the accessors: the Swift runtime's NSError subclass for bridged Swift errors overrides them */
 - (NSString *)localizedDescription {
-    NSString *s = self.userInfo[NSLocalizedDescriptionKey];
-    return s ?: [NSString stringWithFormat:@"The operation couldn’t be completed. (%@ error %ld.)", self.domain, (long)self.code];
+    NSString *s = [self _isim_infoValue:NSLocalizedDescriptionKey];
+    if ([s isKindOfClass:[NSString class]]) return s;
+    NSString *failure = [self _isim_infoValue:NSLocalizedFailureErrorKey], *reason = self.localizedFailureReason;
+    if (failure && reason) return [NSString stringWithFormat:@"%@ %@", failure, reason];
+    if (failure) return failure;
+    if (reason) return [NSString stringWithFormat:@"The operation couldn’t be completed. %@", reason];
+    return [NSString stringWithFormat:@"The operation couldn’t be completed. (%@ error %ld.)", self.domain, (long)self.code];
 }
-- (NSString *)localizedFailureReason { return self.userInfo[NSLocalizedFailureReasonErrorKey]; }
+- (NSString *)localizedFailureReason { return [self _isim_infoValue:NSLocalizedFailureReasonErrorKey]; }
+- (NSString *)localizedRecoverySuggestion { return [self _isim_infoValue:NSLocalizedRecoverySuggestionErrorKey]; }
+- (NSArray<NSString *> *)localizedRecoveryOptions { return [self _isim_infoValue:NSLocalizedRecoveryOptionsErrorKey]; }
+- (id)recoveryAttempter { return [self _isim_infoValue:NSRecoveryAttempterErrorKey]; }
+- (NSString *)helpAnchor { return [self _isim_infoValue:NSHelpAnchorErrorKey]; }
+- (NSArray<NSError *> *)underlyingErrors {
+    NSMutableArray *a = [NSMutableArray array];
+    id u = self.userInfo[NSUnderlyingErrorKey]; if ([u isKindOfClass:[NSError class]]) [a addObject:u];
+    id m = self.userInfo[NSMultipleUnderlyingErrorsKey]; if ([m isKindOfClass:[NSArray class]]) [a addObjectsFromArray:m];
+    return a;
+}
+- (BOOL)isEqual:(id)o {
+    if (o == self) return YES;
+    if (![o isKindOfClass:[NSError class]]) return NO;
+    NSError *e = o;
+    return e.code == self.code && [e.domain isEqual:self.domain] && [e.userInfo isEqual:self.userInfo];
+}
+- (NSUInteger)hash { return self.domain.hash ^ (NSUInteger)self.code; }
 - (id)copyWithZone:(NSZone *)z { return self; }
 - (NSString *)description { return [NSString stringWithFormat:@"Error Domain=%@ Code=%ld \"%@\"", self.domain, (long)self.code, self.localizedDescription]; }
 @end

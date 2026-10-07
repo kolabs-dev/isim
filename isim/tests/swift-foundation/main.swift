@@ -13,6 +13,78 @@ class Greeter: NSObject {
     @objc dynamic var count: Int = 0
 }
 
+enum PlainError: Error { case first, second }
+enum CodedError: Int, Error { case a = 3, b = 42 }
+enum ShopError: LocalizedError {
+    case outOfStock(String)
+    var errorDescription: String? { if case .outOfStock(let s) = self { return "\(s) is out of stock" }; return nil }
+    var failureReason: String? { "The shelf is empty." }
+    var recoverySuggestion: String? { "Try again tomorrow." }
+    var helpAnchor: String? { "stock-help" }
+}
+struct NetError: CustomNSError, LocalizedError {
+    var status: Int
+    static var errorDomain: String { "com.example.net" }
+    var errorCode: Int { status }
+    var errorUserInfo: [String: Any] { ["status": status, NSLocalizedDescriptionKey: "HTTP \(status)"] }
+}
+struct BareCustom: CustomNSError { static var errorDomain: String { "com.example.bare" }; var errorCode: Int { 9 } }
+
+struct RetryError: RecoverableError {
+    var recoveryOptions: [String] { ["Retry", "Cancel"] }
+    func attemptRecovery(optionIndex i: Int) -> Bool { i == 0 }
+}
+
+/// Swift errors bridged to NSError: domain/code/userInfo from Error, LocalizedError, CustomNSError and
+/// RecoverableError (the runtime's NSError box + Foundation._getErrorDefaultUserInfo), and back.
+func errorBridgingChecks() {
+    let p: Error = PlainError.second
+    let pn = p as NSError
+    check(pn.code == 1 && pn.domain.hasSuffix("PlainError"), "plain enum: domain/code")
+    check(p.localizedDescription == "The operation couldn’t be completed. (\(pn.domain) error 1.)", "plain enum: localizedDescription")
+    let c = CodedError.b as NSError
+    check(c.code == 42, "Int raw enum: code = rawValue")
+    let s: Error = ShopError.outOfStock("Milk")
+    let sn = s as NSError
+    check(s.localizedDescription == "Milk is out of stock", "LocalizedError: Error.localizedDescription")
+    check(sn.localizedDescription == "Milk is out of stock", "LocalizedError: (as NSError).localizedDescription")
+    check(sn.localizedFailureReason == "The shelf is empty.", "LocalizedError: localizedFailureReason")
+    check(sn.userInfo["NSLocalizedRecoverySuggestion"] as? String == "Try again tomorrow.", "LocalizedError: recovery suggestion key")
+    let n: Error = NetError(status: 404)
+    let nn = n as NSError
+    check(nn.domain == "com.example.net" && nn.code == 404, "CustomNSError: domain/code")
+    check(nn.userInfo["status"] as? Int == 404 && nn.localizedDescription == "HTTP 404", "CustomNSError: userInfo")
+    let b = BareCustom() as NSError
+    check(b.domain == "com.example.bare" && b.code == 9 && b.localizedDescription == "The operation couldn’t be completed. (com.example.bare error 9.)", "CustomNSError: default description")
+    // round trips
+    let arr = [s] as NSArray
+    check((arr[0] as? Error) as? ShopError != nil, "Swift error through NSArray -> as? ShopError")
+    let back: Error = sn
+    if case .outOfStock(let what)? = back as? ShopError { check(what == "Milk", "NSError box -> as? ShopError keeps payload") } else { check(false, "NSError box -> as? ShopError") }
+    let conv = _convertErrorToNSError(n)
+    check(_convertNSErrorToError(conv) as? NetError != nil, "_convertErrorToNSError -> back to NetError")
+    check(conv.domain == "com.example.net" && conv.code == 404, "_convertErrorToNSError domain/code")
+    let plainNS = NSError(domain: "x.y", code: 5, userInfo: [NSLocalizedDescriptionKey: "five"])
+    let asErr: Error = plainNS
+    check((asErr as NSError) === plainNS && asErr.localizedDescription == "five", "NSError -> Error -> NSError identity")
+    check(asErr as? ShopError == nil, "foreign NSError is not ShopError")
+    check((URLError(.timedOut) as NSError).domain == NSURLErrorDomain, "URLError as NSError")
+    let un = NSError(domain: NSURLErrorDomain, code: -1001, userInfo: nil)
+    check((un as Error as? URLError)?.code == .timedOut, "NSError -> URLError")
+    do { try { throw ShopError.outOfStock("Eggs") }() } catch let e as ShopError { check(e.localizedDescription == "Eggs is out of stock", "catch as ShopError") } catch { check(false, "catch as ShopError") }
+    check(sn.localizedRecoverySuggestion == "Try again tomorrow." && sn.helpAnchor == "stock-help", "LocalizedError: localizedRecoverySuggestion / helpAnchor")
+    let cocoa = NSError(domain: NSCocoaErrorDomain, code: 260, userInfo: [NSFilePathErrorKey: "/x"])
+    check((cocoa as Error as? CocoaError)?.code == .fileReadNoSuchFile && (cocoa as Error as? CocoaError)?.filePath == "/x", "NSError -> CocoaError")
+    do { throw cocoa as Error } catch CocoaError.fileReadNoSuchFile { check(true, "catch CocoaError.code") } catch { check(false, "catch CocoaError.code") }
+    check((CocoaError(.fileNoSuchFile) as NSError).code == 4 && (CocoaError(.fileNoSuchFile) as NSError).domain == NSCocoaErrorDomain, "CocoaError as NSError")
+    let r = RetryError() as NSError
+    check(r.localizedRecoveryOptions == ["Retry", "Cancel"] && r.recoveryAttempter != nil, "RecoverableError: recovery options + attempter")
+    let ns = NSError(domain: "x.y", code: 1, userInfo: [NSLocalizedFailureReasonErrorKey: "Disk full."])
+    check(ns.localizedDescription == "The operation couldn’t be completed. Disk full.", "NSError description from failure reason")
+    NSError.setUserInfoValueProvider(forDomain: "x.provided") { _, key in key == NSLocalizedDescriptionKey ? "from provider" : nil }
+    check(NSError(domain: "x.provided", code: 2, userInfo: nil).localizedDescription == "from provider", "NSError.setUserInfoValueProvider(forDomain:)")
+}
+
 @main struct Main {
     static func main() {
         let ns: NSString = "bridged" as NSString
@@ -146,6 +218,7 @@ class Greeter: NSObject {
         check(info.thermalState == .nominal && !info.isLowPowerModeEnabled, "ProcessInfo.thermalState / isLowPowerModeEnabled")
         check(info.processorCount > 0 && info.physicalMemory > 0 && info.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0)), "ProcessInfo device facts")
         check(!info.isiOSAppOnMac && !info.isMacCatalystApp && info.environment["HOME"] != nil, "ProcessInfo.isiOSAppOnMac / environment")
+        errorBridgingChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }

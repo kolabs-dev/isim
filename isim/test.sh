@@ -38,6 +38,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloDragDrop.app/HelloDragDrop ] && run "ui: HelloDragDrop (drag and drop interactions, table reordering, SwiftUI)" tests/ui/dragdrop.sh
   [ -x out/apps/HelloSwiftUIGestures.app/HelloSwiftUIGestures ] && run "ui: HelloSwiftUIGestures (magnify, rotate, sequenced, exclusive, @GestureState)" tests/ui/swiftui-gestures.sh
   [ -x out/apps/HelloImages.app/HelloImages ] && run "ui: HelloImages (image renderer, PNG/JPEG, attributed text)" tests/ui/images.sh
+  [ -x out/apps/HelloSymbols.app/HelloSymbols ] && run "ui: HelloSymbols (SF Symbol stand-ins: variants, weight, scale, tint)" tests/ui/symbols.sh
   [ -x out/apps/HelloQuartz.app/HelloQuartz ] && run "ui: HelloQuartz (bitmap/PDF contexts, gradients, shadows, Core Text)" tests/ui/quartz.sh
   [ -x out/apps/HelloImaging.app/HelloImaging ] && run "ui: HelloImaging (ImageIO, Core Image, animated/resizable images)" tests/ui/imaging.sh
   [ -x out/apps/HelloRotation.app/HelloRotation ] && run "ui: HelloRotation (device rotation, orientations, size classes)" tests/ui/rotation.sh

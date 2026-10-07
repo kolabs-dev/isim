@@ -411,22 +411,60 @@ extension CFError: Error {
 public func _convertNSErrorToError(_ error: NSError?) -> Error {
     error ?? NSError(domain: "Foundation._GenericObjCError", code: 0, userInfo: nil)
 }
+/// A Swift error as an NSError: the Swift runtime's NSError box (__SwiftNativeNSError), so the value can be cast
+/// back (`as? MyError`) after passing through Objective-C. Its domain, code and userInfo come from the Error
+/// witnesses; userInfo from `_getErrorDefaultUserInfo` below unless the type supplies `_userInfo`.
 public func _convertErrorToNSError(_ error: Error) -> NSError {
-    if let ns = error as AnyObject as? NSError { return ns }
-    var info: [String: Any] = [:]
-    var domain = error._domain, code = error._code
-    if let c = error as? CustomNSError {
-        domain = type(of: c).errorDomain; code = c.errorCode; info = c.errorUserInfo
-    }
+    error as AnyObject as! NSError
+}
+
+/// The userInfo of a bridged Swift error (the Swift runtime looks this function up by its mangled name):
+/// CustomNSError.errorUserInfo, then LocalizedError's strings, then RecoverableError's options and attempter.
+public func _getErrorDefaultUserInfo<T: Error>(_ error: T) -> AnyObject? {
+    var result: [String: Any] = [:]
+    if let custom = error as? CustomNSError { result = custom.errorUserInfo }
     if let l = error as? LocalizedError {
-        if let d = l.errorDescription { info[NSLocalizedDescriptionKey] = d }
-        if let r = l.failureReason { info["NSLocalizedFailureReason"] = r }
-        if let r = l.recoverySuggestion { info["NSLocalizedRecoverySuggestion"] = r }
+        if let v = l.errorDescription { result[NSLocalizedDescriptionKey] = v }
+        if let v = l.failureReason { result[NSLocalizedFailureReasonErrorKey] = v }
+        if let v = l.recoverySuggestion { result[NSLocalizedRecoverySuggestionErrorKey] = v }
+        if let v = l.helpAnchor { result[NSHelpAnchorErrorKey] = v }
     }
-    if info[NSLocalizedDescriptionKey] == nil {
-        info[NSLocalizedDescriptionKey] = "The operation couldn’t be completed. (\(domain) error \(code).)"
+    if let r = error as? RecoverableError {
+        result[NSLocalizedRecoveryOptionsErrorKey] = r.recoveryOptions
+        result[NSRecoveryAttempterErrorKey] = __NSErrorRecoveryAttempter()
     }
-    return NSError(domain: domain, code: code, userInfo: info)
+    return result as NSDictionary
+}
+
+/// Forwards NSError's informal recovery-attempter protocol to a RecoverableError.
+@objc(__NSErrorRecoveryAttempter) final class __NSErrorRecoveryAttempter: NSObject {
+    @objc(attemptRecoveryFromError:optionIndex:)
+    func attemptRecovery(fromError nsError: Error, optionIndex recoveryOptionIndex: Int) -> Bool {
+        (nsError as? RecoverableError)?.attemptRecovery(optionIndex: recoveryOptionIndex) ?? false
+    }
+}
+
+/// Errors that offer ways to recover (Foundation).
+public protocol RecoverableError: Error {
+    var recoveryOptions: [String] { get }
+    func attemptRecovery(optionIndex recoveryOptionIndex: Int, resultHandler handler: @escaping (_ recovered: Bool) -> Void)
+    func attemptRecovery(optionIndex recoveryOptionIndex: Int) -> Bool
+}
+extension RecoverableError {
+    public func attemptRecovery(optionIndex recoveryOptionIndex: Int, resultHandler handler: @escaping (_ recovered: Bool) -> Void) {
+        handler(attemptRecovery(optionIndex: recoveryOptionIndex))
+    }
+}
+
+/// Error types that an NSError of their domain bridges to (`nsError as? URLError`, `catch let e as CocoaError`).
+/// The Swift runtime finds the protocol and `_bridgeNSErrorToError` by their mangled names.
+public protocol _ObjectiveCBridgeableError: Error {
+    init?(_bridgedNSError: __shared NSError)
+}
+public func _bridgeNSErrorToError<T: _ObjectiveCBridgeableError>(_ error: NSError, out: UnsafeMutablePointer<T>) -> Bool {
+    guard let bridged = T(_bridgedNSError: error) else { return false }
+    out.initialize(to: bridged)
+    return true
 }
 
 /// Errors that describe themselves for the user (Foundation).
@@ -456,6 +494,10 @@ extension CustomNSError {
     }
     public var errorUserInfo: [String: Any] { [:] }
     public var _domain: String { Self.errorDomain }
+    public var _code: Int { errorCode }
+}
+extension CustomNSError where Self: RawRepresentable, Self.RawValue: FixedWidthInteger {
+    public var errorCode: Int { numericCast(rawValue) }
     public var _code: Int { errorCode }
 }
 extension Error {

@@ -88,6 +88,8 @@ int isim_image_load(const char *path, double *w, double *h);
 int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
 int isim_image_symbol(const char *name, double *w, double *h);
 void isim_image_draw(int handle, double x, double y, double w, double h, const double *tint_rgba, double alpha);
+/* symbols: draw with a UIImageSymbolWeight (0 unspecified, 1 ultraLight ... 9 black) */
+void isim_image_draw_symbol(int handle, double x, double y, double w, double h, const double *tint_rgba, double alpha, int weight);
 int isim_image_is_template(int handle);
 void isim_image_free(int handle);
 void isim_image_draw_part(int handle, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
