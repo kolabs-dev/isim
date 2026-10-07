@@ -24,7 +24,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 129 | 57 | 10 | 19 | 215 | 73% |
+| **UIKit** | 130 | 57 | 10 | 18 | 215 | 74% |
 | &nbsp;&nbsp;↳ Application & scenes | 10 | 8 | 5 | 1 | 24 | 58% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
 | &nbsp;&nbsp;↳ Views & controls | 33 | 17 | 2 | 8 | 60 | 69% |
@@ -33,7 +33,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 9 | 3 | 2 | 0 | 14 | 75% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 14 | 3 | 0 | 2 | 19 | 82% |
-| &nbsp;&nbsp;↳ Haptics & feedback | 1 | 0 | 1 | 1 | 3 | 33% |
+| &nbsp;&nbsp;↳ Haptics & feedback | 2 | 0 | 1 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 4 | 0 | 3 | 10 | 50% |
@@ -78,14 +78,14 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
 | Data & persistence | 14 | 6 | 0 | 3 | 23 | 74% |
 | Identity & security | 9 | 2 | 2 | 0 | 13 | 77% |
-| Notifications & background work | 2 | 3 | 1 | 1 | 7 | 50% |
-| App extensions & system integration | 2 | 3 | 0 | 4 | 9 | 39% |
+| Notifications & background work | 8 | 3 | 0 | 1 | 12 | 79% |
+| App extensions & system integration | 3 | 3 | 0 | 3 | 9 | 50% |
 | Location & maps | 2 | 5 | 0 | 0 | 7 | 64% |
 | Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 31 | 15 | 1 | 4 | 51 | 75% |
-| **All areas** | **603** | **268** | **51** | **61** | **983** | **75%** |
+| **All areas** | **611** | **268** | **50** | **59** | **988** | **75%** |
 
 ### Per iOS version
 
@@ -93,7 +93,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 77% (201) | 76% (204) | 75% (211) | 73% (215) |
+| UIKit | 78% (201) | 77% (204) | 75% (211) | 74% (215) |
 | SwiftUI | 82% (214) | 80% (220) | 79% (227) | 76% (237) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (81) | 84% (81) | 84% (81) | 84% (81) |
@@ -112,14 +112,14 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 33% (6) | 33% (6) | 33% (6) | 33% (6) |
 | Data & persistence | 74% (23) | 74% (23) | 74% (23) | 74% (23) |
 | Identity & security | 77% (13) | 77% (13) | 77% (13) | 77% (13) |
-| Notifications & background work | 50% (7) | 50% (7) | 50% (7) | 50% (7) |
-| App extensions & system integration | 39% (9) | 39% (9) | 39% (9) | 39% (9) |
+| Notifications & background work | 79% (12) | 79% (12) | 79% (12) | 79% (12) |
+| App extensions & system integration | 50% (9) | 50% (9) | 50% (9) | 50% (9) |
 | Location & maps | 64% (7) | 64% (7) | 64% (7) | 64% (7) |
 | Personal data & device sensors | 83% (6) | 83% (6) | 83% (6) | 83% (6) |
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 61% (9) | 61% (9) | 61% (9) | 61% (9) |
 | Platform & tooling | 77% (49) | 76% (50) | 75% (51) | 75% (51) |
-| **All areas** | **78%** (941) | **77%** (952) | **76%** (969) | **75%** (983) |
+| **All areas** | **78%** (946) | **77%** (957) | **76%** (974) | **75%** (988) |
 
 ---
 
@@ -361,9 +361,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `UIImpactFeedbackGenerator`, `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator` | 🧩 | ≤17 | no haptics, like Apple's Simulator |
+| `UIImpactFeedbackGenerator`, `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator` | 🧩 | ≤17 | no haptics, like Apple's Simulator; each feedback is logged (`isim: haptic impact (heavy)`). Tested (background) |
 | Core Haptics (`CHHapticEngine`) | ✅ | ≤17 | like Apple's Simulator there is no haptic hardware: `capabilitiesForHardware().supportsHaptics` is false. Engine, events, parameters, parameter curves, patterns (incl. AHAP dictionaries/files, `exportDictionary`), players and advanced players (pause/resume/seek/loop/rate, completion handlers, `notifyWhenPlayersFinished`) are modelled and timed; playback is logged on stderr, never felt or heard. Tested (HelloCoreAnimation) |
-| `AudioServicesPlaySystemSound` / vibration | ❌ | ≤17 | |
+| `AudioServicesPlaySystemSound` / vibration | ✅ | ≤17 | System Sound Services (AudioToolbox): sound files play through the host audio; `kSystemSoundID_Vibrate` is logged (no haptics, like the Simulator). Tested (background) |
 
 ### Accessibility
 
@@ -1324,12 +1324,17 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | UserNotifications: authorization request | ✅ | ≤17 | the iOS permission alert, answer remembered per app; provisional authorization; `notificationSettings()`; `ISIM_NOTIFICATION_PERMISSION=allow\|deny`. No per-app page in isim Settings |
-| Local notifications (`UNNotificationRequest`, time/calendar triggers) | 🟡 | ≤17 | time-interval and calendar (`DateComponents`) triggers, repeating, pending/delivered lists, persisted across launches; fire while the app runs (foreground, or background under `isim boot`). Not delivered while the app is not running (no system scheduler) |
-| Notification presentation (banners, Notification Center, actions, foreground delegate) | 🟡 | ≤17 | `willPresent`/`didReceive` (+ async); iOS-style banner in the app or, for a backgrounded app, drawn by the shell over the home screen; tap opens the app with the default action. Delivered notifications are listed in Notification Center and on the lock screen (open, clear; `removeDeliveredNotifications` removes them); Focus (Control Center) hides banners. Tested (systemui). No action buttons, grouping, sounds or attachments |
-| Push notifications (APNs registration, remote payloads) | 🧩 | ≤17 | registration fails with NSCocoaErrorDomain 3010 |
-| Notification Service/Content extensions | ❌ | ≤17 | |
-| BackgroundTasks (`BGAppRefreshTask`, `BGProcessingTask`) | ✅ | ≤17 | `register` (checks `BGTaskSchedulerPermittedIdentifiers`), `submit` (checks `UIBackgroundModes`, errors), pending/cancel; no scheduler decides when — like Xcode's `_simulateLaunchForTaskWithIdentifier`, the script/control command `bgtask BUNDLE-ID TASK-ID` launches a pending task, starting the app in the background if needed; expiration handler after `ISIM_BACKGROUND_TASK_SECONDS`. Tested (HelloSystem) |
-| Background audio, location, VoIP modes | 🟡 | ≤17 | honest passthrough: apps are never suspended on isim, so background audio/location keep running whether or not `UIBackgroundModes` declares them (unverified); VoIP/PushKit ❌ |
+| Local notifications (`UNNotificationRequest`, time/calendar triggers) | 🟡 | ≤17 | time-interval and calendar (`DateComponents`) triggers, repeating, pending/delivered lists, persisted across launches; fire while the app runs, and a suspended app is woken when one is due (adapted: the app delivers it, not a system scheduler). Tested (systemui, push). Not delivered while the app is not running |
+| Notification presentation (banners, Notification Center, foreground delegate, sounds, attachments) | 🟡 | ≤17 | `willPresent`/`didReceive` (+ async); iOS-style banner in the app or, for a backgrounded or not-running app, drawn by the shell over the screen; tap opens the app with the default action. Notification Center and the lock screen list them (open, clear; `removeDeliveredNotifications`); Focus hides banners. Image attachments (`UNNotificationAttachment`, copied to the attachment store) show as thumbnails. Sounds are logged, not played. Tested (systemui, push). No grouping by thread |
+| Notification actions and categories (`UNNotificationCategory`, `UNNotificationAction`, `UNTextInputNotificationAction`) | ✅ | ≤17 | long press (`holdid nc-item-ID`) expands a notification: the category's actions (destructive in red), text input with a reply field, `.foreground` actions open the app, background actions run as a background task (the app is launched in the background when needed), `.customDismissAction` sends the dismiss action; responses reach the delegate even after a relaunch (adapted: the shell draws the expanded view). Tested (push) |
+| Push notifications (registration, device token, payloads) | ✅ | ≤17 | adapted, like the Simulator (Xcode 14+): `registerForRemoteNotifications` gives a 32-byte device token (needs the `aps-environment` entitlement; `ISIM_PUSH_REGISTRATION=fail`); payloads from `isim push [BUNDLE] file\|-`, the `push` script command or a dropped `.apns` file (`Simulator Target Bundle`); no APNs. alert (title/subtitle/body, loc keys), badge, sound, category, thread-id, `content-available` (`didReceiveRemoteNotification:fetchCompletionHandler:` as a background task; a closed app is launched in the background with UIBackgroundModes remote-notification), `mutable-content`; launch options carry the payload; not-running apps' alerts are shown by the system. Tested (push) |
+| Notification Service extensions (`UNNotificationServiceExtension`) | ✅ | ≤17 | run as a helper process before display for `mutable-content` pushes with an alert; the modified content and attachments are shown; `serviceExtensionTimeWillExpire` after 30 s (`ISIM_NOTIFICATION_SERVICE_SECONDS`), then the best attempt or the original. Tested (push) |
+| Notification Content extensions (`UNNotificationContentExtension`, UserNotificationsUI) | 🟡 | ≤17 | for the categories in `UNNotificationExtensionCategory`: the view controller gets `didReceive(_:)` in a helper process and its view is rendered into the expanded notification (size from `UNNotificationExtensionInitialContentSizeRatio` / `preferredContentSize`, `UNNotificationExtensionDefaultContentHidden`). Adapted: a snapshot, not interactive; `didReceive(_:completionHandler:)` is not called (responses go to the app), media buttons not drawn. Tested (push) |
+| App icon badges (`setBadgeCount`, `applicationIconBadgeNumber`, aps.badge) | ✅ | ≤17 | red badge on the home-screen icon when the app may badge (`UNAuthorizationOptionBadge`); set by the app, by a push (system) or by a delivered notification; 0 clears it. Tested (push) |
+| BackgroundTasks (`BGAppRefreshTask`, `BGProcessingTask`) | ✅ | ≤17 | `register` (checks `BGTaskSchedulerPermittedIdentifiers`), `submit` (checks `UIBackgroundModes`, errors), pending/cancel; no scheduler decides when — like Xcode's `_simulateLaunchForTaskWithIdentifier`, the script/control command `bgtask BUNDLE-ID TASK-ID` launches a pending task, starting the app in the background (or resuming a suspended one); tasks keep the app running until completed or expired (`ISIM_BACKGROUND_TASK_SECONDS`). Tested (HelloSystem) |
+| App suspension in the background | ✅ | ≤17 | adapted: under `isim boot` an app is suspended (its process stopped: timers and run loop stop) a few seconds after going to the background (`ISIM_SUSPEND_SECONDS`, default 5; `ISIM_SUSPEND=0` never), unless a background task, background audio or location keeps it running; any system event (push, task, action, foreground) resumes it. iOS suspends right after the app's background work ends. Tested (background, push) |
+| Background audio, location modes | ✅ | ≤17 | audio: UIBackgroundModes `audio` + a playback/playAndRecord category keeps playing after going home (without it the session is interrupted); location: UIBackgroundModes `location` + `allowsBackgroundLocationUpdates` (or `CLBackgroundActivitySession`) keeps updates coming, with the blue status-bar indicator (When In Use, or `showsBackgroundLocationIndicator`; tap opens the app). Tested (background) |
+| VoIP (PushKit, CallKit) | ❌ | ≤17 | |
 
 ## App extensions & system integration
 
@@ -1340,7 +1345,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | ActivityKit (Live Activities, Dynamic Island) | 🟡 | ≤17 | `Activity.request/update/end`, `activities`, `ActivityAuthorizationInfo` (NSSupportsLiveActivities); the widget extension's `ActivityConfiguration` renders the lock-screen view (with `activityBackgroundTint`) and the Dynamic Island compact/minimal/expanded regions; the shell draws them on the lock screen and around the island (compact when the app is not in front; tap / script `island` expands). Tested (HelloWidgets). No push updates, alerts, stale dates shown, minimal multi-activity layout |
 | App Intents (Shortcuts, Siri, Spotlight, interactive widgets, `AppShortcutsProvider`) | 🟡 | ≤17 | `AppIntent` (perform, results, dialogs), `@Parameter`, `AppEnum`/`AppEntity`/`EntityQuery` types, `Button(intent:)` / `Toggle(isOn:intent:)` (in apps and interactive widgets — tested, HelloWidgets). Stubs: `AppShortcutsProvider`/`AppShortcut` compile but nothing lists them (no Shortcuts app, Siri or App Shortcuts in Spotlight) |
 | SiriKit (Intents) | ❌ | ≤17 | |
-| Share / Action extensions | ❌ | ≤17 | "extension point not supported" is logged |
+| Share / Action extensions (`NSExtensionContext`, `NSExtensionItem`, `SLComposeServiceViewController`) | ✅ | ≤17 | adapted: `UIActivityViewController` lists the app's own and installed apps' Share (app row) and Action (list) extensions whose `NSExtensionActivationRule` accepts the items (dictionary rules evaluated; predicate strings accepted); the extension is loaded into the host app's process (iOS: its own process) and its view controller presented as a sheet, with one `NSExtensionItem` (content text, `NSItemProvider` attachments for text, URLs, images, data); `completeRequest` / `cancelRequest` return to the host's completion handler with the returned items. Social's compose sheet (Post / Cancel, configuration items, characters remaining). `NSItemProvider` is Swift-only on isim; no Photos/Files share flows. Tested (share) |
 | Spotlight (`CSSearchableItem`), `NSUserActivity` indexing | ✅ | ≤17 | CoreSpotlight `CSSearchableIndex` index/delete (ids, domains, all), `CSSearchableItemAttributeSet` (title, description, keywords); activities with `isEligibleForSearch`; the home screen's Spotlight finds them and continues `CSSearchableItemActionType` / the activity in the app. Tested (homescreen, HelloScenes). `CSSearchQuery` is a stub (no results) |
 | App Clips | ❌ | ≤17 | |
 | Focus filters, Control Center controls | ❌ | ≤17 | Control Center exists (shell) but apps cannot add controls; Focus is one Do Not Disturb toggle (hides banners), no Focus filters |
@@ -1416,7 +1421,7 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | `.xcconfig` files (`#include`, `$(inherited)`, conditional settings) | ✅ | ≤17 | project/target base configurations; `KEY[sdk=iphonesimulator*]`/`[config=…]`/`[arch=…]`; tested (HelloToolchain: bundle id from a conditional setting, Info.plist key, compilation conditions) |
 | Mixed Swift / Objective-C targets (bridging header, `<Module>-Swift.h`) | ✅ | ≤17 | `SWIFT_OBJC_BRIDGING_HEADER`, generated header in `DerivedSources` (and a framework's `Headers/`), frameworks import their umbrella header into their own Swift (`-import-underlying-module`); tested (HelloToolchain app and Greeter framework) |
 | Shell script build phases | 🟡 | ≤17 | run only with `-run-script-phases` (they often call macOS tools; unverified); CocoaPods `[CP]` phases always skipped |
-| App extensions in projects (`.appex`, embedded in `PlugIns/`) | ✅ | ≤17 | keyboards run; widget extensions run as helper processes (WidgetKit); other extension types are built but not hosted |
+| App extensions in projects (`.appex`, embedded in `PlugIns/`) | ✅ | ≤17 | keyboards and Share/Action extensions run in their host app; widget and notification (service, content) extensions run as helper processes; other extension types are built but not hosted |
 | Static libraries / framework targets in projects | ✅ | ≤17 | static libraries (`.a`, headers via copy-files `include/$(PRODUCT_NAME)`, module map with `DEFINES_MODULE`), dynamic frameworks (`@rpath/Name.framework/Name`, Headers/Modules, Swift module, resources, embedded in `Frameworks/` without headers), static frameworks and dylibs (unverified), resource bundles (unverified); tested (HelloToolchain: MathKit, Greeter) |
 | Local Swift packages | ✅ | ≤17 | Swift and C/ObjC targets (module map from `include/` or the target's own), `swiftSettings`/`cSettings` (define, unsafeFlags, headerSearchPath), resources (`process`/`copy`) in `<Package>_<Target>.bundle` with a generated `Bundle.module`, local `binaryTarget` XCFrameworks (unverified); tested (HelloToolchain: Units -> Core -> CCore, units.json) |
 | Remote Swift packages (GitHub dependencies) | 🟡 | ≤17 | never downloaded: built from a local checkout in `-package-cache DIR` / `$ISIM_PACKAGE_CACHE` (`DIR/<name>` or `DIR/checkouts/<name>`, e.g. Xcode's SourcePackages; unverified), or an isim stand-in (Google Mobile Ads); remote `binaryTarget`s only from an extracted XCFramework in the cache |

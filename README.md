@@ -46,6 +46,7 @@ isim install ~/.local/lib/isim/current/apps/*.app
 | `isim test -project App.xcodeproj -scheme S [-only-testing:Target/Class/test] [-resultBundlePath DIR]` | build and run the scheme's test targets like `xcodebuild test`: XCTest (hosted in the app or standalone), Swift Testing and XCUITest; exits 65 on failures |
 | `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
 | `isim info App.app` | show Mach-O platform and dependencies |
+| `isim push [BUNDLE_ID] payload.apns\|-` | send a remote notification to the running device, like `xcrun simctl push` (or drop a `.apns` file on it) |
 | `isim devices` · `isim version` | device presets with the iOS versions each can run; the isim version and supported iOS versions |
 
 **Options** for `boot`, `run` (and `--os`/`--device` for `test`):
@@ -107,7 +108,7 @@ Coverage per iOS version (rows introduced at or before that version; see [docs/C
 
 | | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| All areas | 76% (914 rows) | 75% (926) | 74% (943) | 74% (957) |
+| All areas | 78% (946 rows) | 77% (957) | 76% (974) | 75% (988) |
 
 ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 
@@ -119,7 +120,7 @@ Coverage per iOS version (rows introduced at or before that version; see [docs/C
 | UIKit | 🟡 | views, controls (sliders, steppers, segmented, menus…), Auto Layout, scroll views, text fields, keyboards, alerts, page sheets, view animations, blur, navigation and tab bar controllers, table and collection views (flow, compositional and list layouts, diffable data sources). Not yet: storyboards |
 | Swift | ✅ | full runtime, Swift Concurrency, Regex / RegexBuilder, Foundation bridging |
 | SwiftUI | 🟡 | isim's own implementation (SwiftUI is closed source): views, state, `@Observable`, `@AppStorage`, Form/List, NavigationStack, TabView, pickers, sheets/alerts, animations and transitions, materials. Not yet: Grid, gradients/paths, searchable |
-| Home screen | ✅ | apps run as separate processes; home gesture; background/resume; delete apps. Not yet: App Library, app switcher |
+| Home screen | ✅ | apps run as separate processes; home gesture; background/resume (apps are suspended in the background unless background modes keep them running); icon badges; delete apps |
 | Settings app | 🟡 | General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, per-app pages |
 | Devices | 🟡 | 12 iPhones (SE to 17 Pro Max) and 4 iPads. rotation (Ctrl+Left/Right). Not yet: iPad multitasking |
 | Multiple iOS versions | 🟡 | `--os 17\|18\|26\|27`: reported version, `#available`, availability annotations and the look (iOS 26 Liquid Glass, iOS 18 Control Center and icon styles, Lock Screen); iOS 27 uses the iOS 26 look ([details](docs/IOS-VERSIONS.md)) |
