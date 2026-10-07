@@ -4,6 +4,8 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 status=0
 export ISIM_STANDALONE=1     # `isim run` runs each test app alone (no home screen, nothing installed on the device)
+# suites without their own device data never touch the user's device (~/.local/share/isim): a fresh scratch device
+if [ -z "${ISIM_DATA:-}" ]; then export ISIM_DATA=$PWD/out/test-data/default; rm -rf "$ISIM_DATA"; fi
 run() { echo "=== $1"; shift; "$@" || status=1; }
 run "loader" tests/loader/run.sh
 run "foundation self-test" bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -3; exit ${PIPESTATUS[0]}'
@@ -136,7 +138,7 @@ fi
 if [ "${OS_MATRIX:-0}" = 1 ]; then
   for v in ${OS_MATRIX_VERSIONS:-17 18 26 27}; do
     case $v in 17) dev=iphone15 ;; 18) dev=iphone16pro ;; *) dev=iphone17 ;; esac
-    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation hellocounter swiftui controls boot"
+    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation objc-literals hellocounter swiftui controls boot"
     # suites that assert the 402-pt iPhone 16 Pro/17 screen (frames, tap points) or iPads first sold with 17.5: no
     # iPhone that runs iOS 17.0 has that screen, so they run on 18, 26 and 27
     [ "$v" = 17 ] || suites="$suites forms navigation presentations transitions table"
@@ -147,6 +149,7 @@ if [ "${OS_MATRIX:-0}" = 1 ]; then
         swift-libraries) cmd=(bash -c 'timeout 60 out/bin/isim run out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest | tail -1; exit ${PIPESTATUS[0]}') ;;
         swift-foundation) cmd=(bash -c 'out/bin/isim run out/apps/SwiftFoundationTest.app/SwiftFoundationTest 2>/dev/null | tail -1; exit ${PIPESTATUS[0]}') ;;
         foundation) cmd=(bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -1; exit ${PIPESTATUS[0]}') ;;
+        objc-literals) cmd=(bash -c 'tests/objc-literals/run.sh | tail -1; exit ${PIPESTATUS[0]}') ;;
         hellocounter) cmd=(tests/ui/hellocounter.sh HelloCounter) ;;
         boot) cmd=(env ISIM_DEVICE=$dev tests/ui/boot.sh) ;;
         *) cmd=(tests/ui/$suite.sh) ;;
