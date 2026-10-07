@@ -395,7 +395,7 @@ extension Text {
     if let c = textCase { for i in runs.indices { runs[i].text = c == .uppercase ? runs[i].text.uppercased() : runs[i].text.lowercased() } }
     let lines = env._lineRange
     let style = env._textStyle
-    if env.redactionReasons.contains(.placeholder), let first = runs.first {       // .redacted(reason: .placeholder) (Styles.swift)
+    if env._redactsContent, let first = runs.first {       // .redacted(reason: .placeholder) (Styles.swift)
         let n = _TextNode(path: ctx.path + "/redacted", text: runs.map(\.text).joined(), font: first.font, color: first.color, minLines: lines.0, maxLines: lines.1,
                           alignment: env.multilineTextAlignment)
         return _RedactedTextNode(path: ctx.path, child: n)
@@ -404,6 +404,7 @@ extension Text {
         let n = _TextNode(path: ctx.path, text: runs.map(\.text).joined(), font: first.font, color: first.color, minLines: lines.0, maxLines: lines.1,
                           alignment: env.multilineTextAlignment)
         n.truncation = style.truncation; n.minimumScale = style.minimumScale
+        n.contentTransition = env._contentTransition
         return n
     }
     if runs.isEmpty { return _TextNode(path: ctx.path, text: "", font: (env.font ?? .body).uiFont, color: UIColor.label, minLines: lines.0, maxLines: lines.1, alignment: env.multilineTextAlignment) }

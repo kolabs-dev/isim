@@ -127,14 +127,19 @@ public struct RedactionReasons: OptionSet, Sendable {
     public static let placeholder = RedactionReasons(rawValue: 1), privacy = RedactionReasons(rawValue: 2), invalidated = RedactionReasons(rawValue: 4)
 }
 struct _RedactionKey: EnvironmentKey { static var defaultValue: RedactionReasons { [] } }
+struct _PrivacySensitiveKey: EnvironmentKey { static var defaultValue: Bool { false } }
 extension EnvironmentValues {
+    var _privacySensitive: Bool { get { self[_PrivacySensitiveKey.self] } set { self[_PrivacySensitiveKey.self] = newValue } }
+    /// content drawn as placeholders: `.redacted(reason: .placeholder)`, or `.privacy` on privacySensitive content
+    var _redactsContent: Bool { redactionReasons.contains(.placeholder) || (redactionReasons.contains(.privacy) && _privacySensitive) }
     public var redactionReasons: RedactionReasons { get { self[_RedactionKey.self] } set { self[_RedactionKey.self] = newValue } }
 }
 extension View {
     /// `.placeholder`: text inside is drawn as grey bars of the text's size.
     public func redacted(reason: RedactionReasons) -> some View { _env { $0.redactionReasons.formUnion(reason) } }
     public func unredacted() -> some View { _env { $0.redactionReasons = [] } }
-    public func privacySensitive(_ sensitive: Bool = true) -> some View { self }
+    /// Marks content as private: it is redacted (text as grey bars, images as grey boxes) under `.redacted(reason: .privacy)`.
+    public func privacySensitive(_ sensitive: Bool = true) -> some View { _env { $0._privacySensitive = sensitive } }
     /// Help text: iPhone shows no tooltips; kept for accessibility like iOS.
     public func help(_ text: Text) -> some View { accessibilityHint(text) }
     public func help(_ key: LocalizedStringKey) -> some View { accessibilityHint(Text(key)) }

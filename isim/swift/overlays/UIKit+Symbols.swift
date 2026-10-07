@@ -3,7 +3,7 @@
 // (scale, offset, rotation, opacity) on top of its own transform and alpha, frame by frame from a display link.
 // Indefinite effects run (or hold their state: scale, disappear) until removed; discrete ones run once (or the
 // options' repeat count) and call their completion.
-@_exported import Symbols
+import Symbols   // not re-exported: SwiftUI (which re-exports UIKit) has its own symbol effect types; name Symbols types with `import Symbols`
 
 @available(iOS 17.0, *)
 public struct UISymbolEffectCompletionContext {

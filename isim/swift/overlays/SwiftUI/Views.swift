@@ -314,6 +314,7 @@ public struct Text: View, Equatable, _PrimitiveView {
 final class _TextNode: _Node {
     let text: String, font: UIFont, color: UIColor, minLines: Int?, maxLines: Int?, alignment: TextAlignment
     var truncation = Text.TruncationMode.tail, minimumScale: CGFloat = 1
+    var contentTransition: ContentTransition?
     init(path: String, text: String, font: UIFont, color: UIColor, minLines: Int?, maxLines: Int?, alignment: TextAlignment) {
         self.text = text; self.font = font; self.color = color; self.minLines = minLines; self.maxLines = maxLines; self.alignment = alignment
         super.init(path: path, children: [])
@@ -338,7 +339,12 @@ final class _TextNode: _Node {
     }
     override func mountView(_ g: _Graph) -> UIView {
         let l = g.view(viewKey) { UILabel() }
-        l.text = maxLines == 1 && truncation != .tail ? _truncate(text, font: font, width: frame.width, mode: truncation) : text
+        let shown = maxLines == 1 && truncation != .tail ? _truncate(text, font: font, width: frame.width, mode: truncation) : text
+        if let t = contentTransition, let old = l.text, old != shown {        // .contentTransition (Extended.swift)
+            let down = t.countsDown || (Double(old.filter { $0.isNumber || $0 == "." || $0 == "-" }).flatMap { o in Double(shown.filter { $0.isNumber || $0 == "." || $0 == "-" }).map { $0 < o } } ?? false)
+            _playContentTransition(l, t, down: down)
+        }
+        l.text = shown
         l.font = font; l.textColor = color; l.numberOfLines = maxLines ?? 0
         l.adjustsFontSizeToFitWidth = minimumScale < 1; l.minimumScaleFactor = minimumScale
         l.textAlignment = alignment == .center ? .center : alignment == .trailing ? .right : .left
@@ -375,12 +381,19 @@ public struct Image: View, _PrimitiveView {
         let color = (ctx.environment._foreground ?? .primary).uiColor
         let node = _ImageNode(path: ctx.path, image: img, tint: template ? color : nil, resizable: isResizable)
         node.nearest = interpolationMode == Interpolation.none
+        node.contentTransition = ctx.environment._contentTransition
+        if case .system(let n) = source { node.symbolName = n }
+        if ctx.environment._redactsContent { return _RedactedTextNode(path: ctx.path + "/redacted", child: node) }   // a grey box (Styles.swift)
         return node
     }
 }
+/// An image view that remembers its SF Symbol (content transitions, symbol effects).
+final class _SUIImageView: UIImageView { var symbolName: String? }
 final class _ImageNode: _Node {
     let image: UIImage?, tint: UIColor?, resizable: Bool
     var nearest = false
+    var contentTransition: ContentTransition?
+    var symbolName: String?
     init(path: String, image: UIImage?, tint: UIColor?, resizable: Bool) {
         self.image = image; self.tint = tint; self.resizable = resizable; super.init(path: path, children: [])
     }
@@ -390,7 +403,9 @@ final class _ImageNode: _Node {
         return s
     }
     override func mountView(_ g: _Graph) -> UIView {
-        let v = g.view(viewKey) { UIImageView() }
+        let v = g.view(viewKey) { _SUIImageView() }
+        if let t = contentTransition, v.image != nil, symbolName != nil, symbolName != v.symbolName { _playContentTransition(v, t.id == 3 ? .symbolEffect : t, down: false) }
+        v.symbolName = symbolName
         v.image = tint != nil ? image?.withRenderingMode(.alwaysTemplate) : image?.withRenderingMode(.alwaysOriginal)
         if let t = tint { v.tintColor = t }
         v.contentMode = resizable ? .scaleToFill : .center
@@ -570,6 +585,7 @@ final class _SUIControl: UIControl {
     }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard !isHidden, alpha > 0.01, isUserInteractionEnabled, self.point(inside: point, with: event) else { return nil }
+        if _contentShapeRejects(self, point) { return nil }          // .contentShape (VisualEffects.swift)
         return self
     }
 }

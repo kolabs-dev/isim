@@ -171,6 +171,21 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         if pending { pending = false; hostView?.setNeedsLayout() }
     }
 
+    /// Lays out the root for a proposal without mounting it (UIHostingController.sizeThatFits(in:)).
+    func measure(_ size: CGSize, traits: UITraitCollection) -> CGSize {
+        guard !rendering else { return size }
+        var env = EnvironmentValues()
+        env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
+        _systemEnvironment(&env, traits: traits)
+        _rootEnvironment(&env, self)
+        let saved = (postRender, usedKeys)
+        defer { postRender = saved.0; usedKeys = saved.1 }
+        let node = _resolve(root(), _Context(graph: self, path: "root", environment: env, nav: nil))
+        func dim(_ v: CGFloat) -> CGFloat? { v.isFinite && v > 0 && v < 1e6 ? v : nil }
+        let s = node.sizeThatFits(_Proposal(width: dim(size.width), height: dim(size.height)))
+        return CGSize(width: min(s.width, 1e6), height: min(s.height, 1e6))
+    }
+
     /// .ignoresSafeArea(): a view that reaches a safe-area edge grows to the screen edge (like SwiftUI).
     func extendIntoSafeArea(_ n: _Node, offset: CGPoint, safe: CGRect, bounds: CGRect) {
         let abs = n.frame.offsetBy(dx: offset.x, dy: offset.y)
@@ -287,6 +302,10 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var badge: String?
     /// Tab(role:): 0 none, 1 search, 2 prominent
     var tabRole = 0
+    /// TabSection title (TabView sidebar), toolbar item priority (visibilityPriority) and spacer width (ToolbarSpacer)
+    var tabSection: String?
+    var toolbarPriority = 0
+    var toolbarSpacer: CGFloat?
     /// action when this node is a whole list row (Button, NavigationLink, Link)
     var rowAction: (() -> Void)?
     var rowAccessory: String? { children.count == 1 ? children[0].rowAccessory : nil }

@@ -108,6 +108,7 @@ NS_SWIFT_UI_ACTOR
 /* isim: shows a menu anchored to a rect of a view (as UIKit does for UIButton.menu) */
 @interface UIView (IsimMenu)
 - (void)_isim_presentMenu:(UIMenu *)menu fromRect:(CGRect)rect;
+- (void)_isim_presentMenu:(UIMenu *)menu fromRect:(CGRect)rect preview:(nullable UIView *)preview;   /* isim: with a preview view (sized) above the menu */
 @end
 
 /* CADisplayLink (QuartzCore): calls its target once per frame while added to a run loop */

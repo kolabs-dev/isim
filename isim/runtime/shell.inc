@@ -11,7 +11,7 @@
  * - Clients ask to launch apps (SM_LAUNCH), report settings changes (broadcast as EV_SETTINGS),
  *   go home, or terminate the other apps (language changes). */
 
-struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; int orient;
+struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; int orient; int defer_edges; double defer_armed;
                       int bg, bg_seen, suspended; double bg_t, wake_at; char reasons[128];   /* background execution (shell_system.inc) */
                       int idle_disabled; };                                                    /* UIApplication.isIdleTimerDisabled (auto-lock) */
 static struct shell_client clients[32];
@@ -457,6 +457,7 @@ static void shell_handle(int i, const struct shell_msg *m) {
         if (i == active && anim.kind == ANIM_NONE && !drag_active) shell_show(i);
         break;
     case SM_NOTIFY: sys_notify(i, m); break;
+    case SM_DEFER_EDGES: clients[i].defer_edges = atoi(m->a); clients[i].defer_armed = 0; break;
     case SM_SYSTEM: sys_handle_msg(i, m); break;
     case SM_LAUNCH: shell_launch(m->a, m->b, m->c); break;
     case SM_HOME: shell_home(); break;
@@ -561,7 +562,13 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         if (anim.kind != ANIM_NONE && (ev.type == EV_TOUCH_DOWN || ev.type == EV_TOUCH_MOVE || ev.type == EV_TOUCH_UP)) continue;
         if (sys_input(&ev)) continue;
         if (nb_input(&ev)) continue;
+        if (ev.type == EV_TOUCH_DOWN && ev.y > dev.height - 34 && active > 0 && (clients[active].defer_edges & 4) && now() - clients[active].defer_armed > 3) {
+            clients[active].defer_armed = now();           /* deferred edge: this swipe goes to the app; a second one within 3 s goes home */
+            shell_forward(active, &ev);
+            continue;
+        }
         if (ev.type == EV_TOUCH_DOWN && ev.y > dev.height - 34 && active > 0) {
+            clients[active].defer_armed = 0;
             gesture = 1; (void)gesture_y;
             drag_active = 0; drag_x0 = drag_x = ev.x; drag_y0 = drag_y = ev.y; drag_t = drag_moved_t = now(); drag_vy = 0;
             continue;

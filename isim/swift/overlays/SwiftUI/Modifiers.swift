@@ -152,7 +152,6 @@ extension View {
     public func tag<V: Hashable>(_ tag: V) -> some View {
         _modify { ctx, c in let n = _resolve(c, ctx); n.tag = AnyHashable(tag); return n }
     }
-    public func clipped() -> some View { self }
 }
 
 final class _PriorityNode: _WrapperNode {
@@ -292,7 +291,6 @@ extension View {
     }
     public func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> some View { self }
     // labelStyle, textFieldStyle, toggleStyle: Styles.swift
-    public func contentShape<S>(_ shape: S) -> some View { self }
 }
 public struct ScrollDismissesKeyboardMode: Sendable {
     public static let automatic = ScrollDismissesKeyboardMode(), immediately = ScrollDismissesKeyboardMode()

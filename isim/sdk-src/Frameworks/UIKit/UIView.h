@@ -156,6 +156,7 @@ NS_SWIFT_UI_ACTOR
 + (void)animateWithDuration:(NSTimeInterval)duration delay:(NSTimeInterval)delay usingSpringWithDamping:(CGFloat)dampingRatio initialSpringVelocity:(CGFloat)velocity options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
 + (void)performWithoutAnimation:(void (NS_NOESCAPE ^)(void))actionsWithoutAnimation;
 - (void)_isim_removeAllAnimations;      /* isim: stops this view's running animations (layer.removeAllAnimations) */
+- (void)_isim_setVisualEffect:(nullable const double *)values;   /* isim: SwiftUI visual effects on the view and its subviews (32 values: colour matrix, blur, shadow, blend; see isim_host.h); NULL removes them */
 + (void)animateWithSpringDuration:(NSTimeInterval)duration bounce:(CGFloat)bounce initialSpringVelocity:(CGFloat)velocity delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion
     NS_SWIFT_NAME(animate(springDuration:bounce:initialSpringVelocity:delay:options:animations:completion:)) API_AVAILABLE(ios(17.0));
 + (void)transitionWithView:(UIView *)view duration:(NSTimeInterval)duration options:(UIViewAnimationOptions)options animations:(void (^ _Nullable)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;

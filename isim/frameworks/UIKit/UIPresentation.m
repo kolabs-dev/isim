@@ -18,6 +18,7 @@
  *    large detent, dragging moves between detents or dismisses (isModalInPresentation rubber-bands),
  *    prefersScrollingExpandsWhenScrolledToEdge, animateChanges, selectedDetentIdentifier. */
 #import "UIKitPrivate.h"
+#include <objc/message.h>
 #import <UIKit/UIPresentationController.h>
 #import <UIKit/UISplitViewController.h>
 #include <math.h>
@@ -396,6 +397,11 @@ enum { P_FULL, P_SHEET, P_POPOVER, P_FORMCARD };          /* layout kinds */
 }
 - (BOOL)passesTouchesAt:(CGPoint)pt {
     if (_kind == P_SHEET) return _dim.alpha < 0.01;
+    if (_kind == P_FULL) {         /* an over-full-screen view that declines a point (isim SwiftUI sheets with background interaction) */
+        UIView *v = _presented.viewIfLoaded;
+        if ([v respondsToSelector:@selector(_isim_passesTouchesOutsideContent)] && ((BOOL (*)(id, SEL))objc_msgSend)(v, @selector(_isim_passesTouchesOutsideContent))
+            && ![v hitTest:[_container convertPoint:pt toView:v] withEvent:nil]) return YES;
+    }
     if (_kind == P_POPOVER)
         for (UIView *v in ((UIPopoverPresentationController *)_pc).passthroughViews) if (CGRectContainsPoint([v convertRect:v.bounds toView:_container], pt)) return YES;
     return NO;

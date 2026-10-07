@@ -2,6 +2,7 @@
 // ScrollView/ScrollViewReader, LazyVGrid, overlay/offset/zIndex, gestures, button styles,
 // UIViewRepresentable. Animations and transitions: see Animation.swift.
 import UIKit
+import isim_host
 import Combine
 
 // MARK: - Observable objects
@@ -185,8 +186,23 @@ public struct Namespace: DynamicProperty, Sendable {
 }
 
 extension View {
-    public func defersSystemGestures(on edges: Edge.Set) -> some View { self }
-    public func persistentSystemOverlays(_ visibility: Visibility) -> some View { self }
+    /// The system gestures from these edges (the home swipe from the bottom) need a second swipe while this view is
+    /// shown; the first goes to the app (adapted: isim's device shell).
+    public func defersSystemGestures(on edges: Edge.Set) -> some View {
+        let bits = Int32(edges.rawValue)          // Edge.Set bits match UIRectEdge (top 1, leading 2, bottom 4, trailing 8)
+        return _modify { ctx, c in
+            _systemOverlayToken(ctx, "#defer") { isim_set_deferred_system_edges(bits) } reset: { isim_set_deferred_system_edges(0) }
+            return _resolve(c, ctx.child("dsg"))
+        }
+    }
+    /// `.hidden`: the home indicator fades out 2 s after the last touch and comes back when the screen is touched.
+    public func persistentSystemOverlays(_ visibility: Visibility) -> some View {
+        let hide: Int32 = visibility == .hidden ? 1 : 0
+        return _modify { ctx, c in
+            _systemOverlayToken(ctx, "#overlays") { isim_set_home_indicator_autohide(hide) } reset: { isim_set_home_indicator_autohide(0) }
+            return _resolve(c, ctx.child("pso"))
+        }
+    }
     public func statusBarHidden(_ hidden: Bool = true) -> some View {
         _modify { ctx, c in
             ctx.graph.postRender.append { UIApplication.shared._isim_setStatusBarHidden(hidden) }
@@ -194,25 +210,98 @@ extension View {
         }
     }
     public func monospacedDigit() -> some View { self }
-    public func sensoryFeedback<T: Equatable>(_ feedback: SensoryFeedback, trigger: T) -> some View { self }
-    public func contentTransition(_ t: ContentTransition) -> some View { self }
-    public func drawingGroup(opaque: Bool = false) -> some View { self }
-    public func compositingGroup() -> some View { self }
+    /// Plays haptic feedback when `trigger` changes (adapted: like the iOS Simulator there are no haptics; UIKit's
+    /// feedback generators run and log "isim: haptic …").
+    public func sensoryFeedback<T: Equatable>(_ feedback: SensoryFeedback, trigger: T) -> some View {
+        onChange(of: trigger) { (_: T, _: T) in feedback._play() }
+    }
+    public func sensoryFeedback<T: Equatable>(_ feedback: SensoryFeedback, trigger: T, condition: @escaping (T, T) -> Bool) -> some View {
+        onChange(of: trigger) { (old: T, new: T) in if condition(old, new) { feedback._play() } }
+    }
+    public func sensoryFeedback<T: Equatable>(trigger: T, _ feedback: @escaping (T, T) -> SensoryFeedback?) -> some View {
+        onChange(of: trigger) { (old: T, new: T) in feedback(old, new)?._play() }
+    }
+    /// How changed text (and symbols) animate in an animated update: `.numericText()` rolls the text up (down when
+    /// counting down), `.opacity` / `.interpolate` cross-fade, `.symbolEffect` scales symbols in (adapted).
+    public func contentTransition(_ t: ContentTransition) -> some View { _env { $0._contentTransition = t } }
+}
+/// Applies a system setting while the view is shown; resets it when the view goes away (the token leaves the storage).
+final class _SystemSettingToken: _AnyStorage {
+    var reset: (() -> Void)?
+    deinit { reset?() }
+}
+@MainActor func _systemOverlayToken(_ ctx: _Context, _ suffix: String, apply: @escaping () -> Void, reset: @escaping () -> Void) {
+    let key = ctx.path + suffix
+    let t = ctx.graph.storage[key] as? _SystemSettingToken ?? _SystemSettingToken()
+    t.reset = reset
+    ctx.graph.storage[key] = t
+    ctx.graph.usedKeys.insert(key)
+    ctx.graph.postRender.append { apply() }
 }
 public struct MatchedGeometryProperties: OptionSet, Sendable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }
     public static let position = MatchedGeometryProperties(rawValue: 1), size = MatchedGeometryProperties(rawValue: 2), frame = MatchedGeometryProperties(rawValue: 3)
 }
-public struct SensoryFeedback: Sendable {
+public struct SensoryFeedback: Equatable, Sendable {
     let id: Int
+    var weight = 1, intensity = 1.0
+    init(id: Int) { self.id = id }
     public static let success = SensoryFeedback(id: 1), warning = SensoryFeedback(id: 2), error = SensoryFeedback(id: 3)
     public static let selection = SensoryFeedback(id: 4), impact = SensoryFeedback(id: 5)
+    public static let increase = SensoryFeedback(id: 6), decrease = SensoryFeedback(id: 7), start = SensoryFeedback(id: 8), stop = SensoryFeedback(id: 9)
+    public static let alignment = SensoryFeedback(id: 10), levelChange = SensoryFeedback(id: 11)
+    @available(iOS 17.5, *) public static let pathComplete = SensoryFeedback(id: 12)
+    public static func impact(weight: Weight = .medium, intensity: Double = 1.0) -> SensoryFeedback { var f = SensoryFeedback(id: 5); f.weight = weight.id; f.intensity = intensity; return f }
+    public static func impact(flexibility: Flexibility, intensity: Double = 1.0) -> SensoryFeedback { var f = SensoryFeedback(id: 5); f.weight = flexibility.id; f.intensity = intensity; return f }
+    public struct Weight: Equatable, Sendable { let id: Int; public static let light = Weight(id: 0), medium = Weight(id: 1), heavy = Weight(id: 2) }
+    public struct Flexibility: Equatable, Sendable { let id: Int; public static let rigid = Flexibility(id: 4), solid = Flexibility(id: 1), soft = Flexibility(id: 3) }
+    /// The matching UIKit feedback generator (logged by isim's UIKit).
+    @MainActor func _play() {
+        switch id {
+        case 1: UINotificationFeedbackGenerator().notificationOccurred(.success)
+        case 2: UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        case 3: UINotificationFeedbackGenerator().notificationOccurred(.error)
+        case 4, 6, 7, 10, 11: UISelectionFeedbackGenerator().selectionChanged()
+        default:
+            let style: UIImpactFeedbackGenerator.FeedbackStyle = weight == 0 ? .light : weight == 2 ? .heavy : weight == 3 ? .soft : weight == 4 ? .rigid : .medium
+            UIImpactFeedbackGenerator(style: style).impactOccurred(intensity: CGFloat(intensity))
+        }
+    }
 }
-public struct ContentTransition: Sendable {
+public struct ContentTransition: Equatable, Sendable {
     let id: Int
+    var countsDown = false
+    init(id: Int) { self.id = id }
     public static let identity = ContentTransition(id: 0), opacity = ContentTransition(id: 1), interpolate = ContentTransition(id: 2)
-    public static func numericText(countsDown: Bool = false) -> ContentTransition { ContentTransition(id: 3) }
+    public static func numericText(countsDown: Bool = false) -> ContentTransition { var t = ContentTransition(id: 3); t.countsDown = countsDown; return t }
+    /// iOS 17: the direction follows the value (up when it grows).
+    public static func numericText(value: Double) -> ContentTransition { var t = ContentTransition(id: 3); t.value = value; return t }
+    var value: Double?
+    public static var symbolEffect: ContentTransition { ContentTransition(id: 4) }
+}
+struct _ContentTransitionKey: EnvironmentKey { static var defaultValue: ContentTransition? { nil } }
+extension EnvironmentValues { var _contentTransition: ContentTransition? { get { self[_ContentTransitionKey.self] } set { self[_ContentTransitionKey.self] = newValue } } }
+/// Plays a content transition from the view's current look (a snapshot) to its new content; true if it did.
+@MainActor func _playContentTransition(_ v: UIView, _ t: ContentTransition, down: Bool) {
+    guard v.window != nil, UIView.inheritedAnimationDuration > 0, t.id != 0, let sup = v.superview,
+          let snap = v.snapshotView(afterScreenUpdates: false) else { return }
+    snap.frame = v.frame; snap.isUserInteractionEnabled = false
+    sup.insertSubview(snap, aboveSubview: v)
+    let h = v.bounds.height / 2
+    let alpha = v.alpha, transform = v.transform
+    UIView.performWithoutAnimation {
+        switch t.id {
+        case 3: v.transform = transform.translatedBy(x: 0, y: down ? -h : h); v.alpha = 0
+        case 4: v.transform = transform.scaledBy(x: 0.4, y: 0.4); v.alpha = 0
+        default: v.alpha = 0
+        }
+    }
+    v.transform = transform; v.alpha = alpha
+    snap.alpha = 0
+    if t.id == 3 { snap.transform = CGAffineTransform(translationX: 0, y: down ? h : -h) }
+    if t.id == 4 { snap.transform = CGAffineTransform(scaleX: 0.4, y: 0.4) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + UIView.inheritedAnimationDuration + 0.05) { snap.removeFromSuperview() }
 }
 
 // MARK: - Visual effects (transforms on the view)
@@ -278,13 +367,7 @@ extension View {
     public func zIndex(_ value: Double) -> some View {
         _modify { ctx, c in let e = _EffectNode(path: ctx.path, child: _resolve(c, ctx.child("z"))); e.zIndexValue = value; return e }
     }
-    public func shadow(color: Color = Color(.sRGBLinear, white: 0, opacity: 0.33), radius: CGFloat, x: CGFloat = 0, y: CGFloat = 0) -> some View {
-        _modify { ctx, c in
-            let e = _EffectNode(path: ctx.path, child: _resolve(c, ctx.child("sh")))
-            e.shadow = (color.uiColor, radius, x, y)
-            return e
-        }
-    }
+    // shadow, blur and colour filters: VisualEffects.swift
     public func flipsForRightToLeftLayoutDirection(_ enabled: Bool) -> some View {
         _modify { ctx, c in
             let e = _EffectNode(path: ctx.path, child: _resolve(c, ctx.child("flip")))
@@ -292,12 +375,6 @@ extension View {
             return e
         }
     }
-    public func blur(radius: CGFloat, opaque: Bool = false) -> some View { self }
-    public func brightness(_ amount: Double) -> some View { self }
-    public func saturation(_ amount: Double) -> some View { self }
-    public func grayscale(_ amount: Double) -> some View { self }
-    public func colorMultiply(_ c: Color) -> some View { self }
-    public func blendMode(_ m: BlendMode) -> some View { self }
 }
 public enum BlendMode: Sendable { case normal, multiply, screen, overlay, darken, lighten, colorDodge, colorBurn, softLight, hardLight, difference, exclusion, hue, saturation, color, luminosity, sourceAtop, destinationOver, destinationOut, plusDarker, plusLighter }
 
@@ -339,16 +416,7 @@ extension View {
         }
     }
     @_disfavoredOverload public func background<V: View>(_ v: V, alignment: Alignment = .center) -> some View { background(alignment: alignment) { v } }
-    /// Masks are applied as clipping to the mask's shape (rectangles, rounded rectangles, circles, capsules).
-    public func mask<M: View>(alignment: Alignment = .center, @ViewBuilder _ mask: () -> M) -> some View {
-        let m = mask()
-        let kind = (m as? _ShapeInfo)?._kind ?? (_innerShape(m) ?? .rect)
-        if _innerShape(m) == nil, let shape = _innerAnyShape(m) {      // other shapes: clip to their path
-            return AnyView(_modify { ctx, c in _PathClipNode(path: ctx.path, shape: shape, eoFill: false, child: _resolve(c, ctx.child("mask"))) })
-        }
-        return AnyView(_modify { ctx, c in _ClipNode(path: ctx.path, kind: kind, child: _resolve(c, ctx.child("mask"))) })
-    }
-    public func mask<M: View>(_ mask: M) -> some View { self.mask { mask } }
+    // mask: VisualEffects.swift
 }
 func _innerShape(_ v: Any) -> _ShapeKind? {
     if let s = v as? _ShapeInfo { return s._kind }
@@ -367,7 +435,10 @@ public struct GeometryProxy {
     public let size: CGSize
     public let safeAreaInsets: EdgeInsets
     let globalFrame: CGRect
+    /// live frames from the view (visualEffect / scrollTransition); nil: computed from `globalFrame`
+    var _space: ((CoordinateSpace) -> CGRect?)? = nil
     public func frame(in space: CoordinateSpace) -> CGRect {
+        if let f = _space, let r = f(space) { return r }
         switch space { case .local: return CGRect(origin: .zero, size: size); default: return globalFrame }
     }
 }

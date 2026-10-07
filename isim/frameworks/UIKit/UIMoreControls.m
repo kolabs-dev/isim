@@ -474,4 +474,24 @@ static void collect(UIMenu *m, NSMutableArray<NSMutableArray *> *sections) {
     [UIView performWithoutAnimation:^{ card.alpha = 0; card.transform = CGAffineTransformMakeScale(0.85, 0.85); }];
     [UIView animateWithDuration:0.35 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0 options:0 animations:^{ card.alpha = 1; card.transform = CGAffineTransformIdentity; } completion:nil];
 }
+/* a context menu with a preview (SwiftUI contextMenu(menuItems:preview:)): the preview (sized by the caller) is
+   lifted over a dimmed screen near the source and the menu sits under it */
+- (void)_isim_presentMenu:(UIMenu *)menu fromRect:(CGRect)rect preview:(UIView *)preview {
+    [self _isim_presentMenu:menu fromRect:rect];
+    __IsimMenuOverlay *o = current_menu;
+    if (!o || !preview) return;
+    o.backgroundColor = [UIColor colorWithWhite:0 alpha:0.2];
+    const struct isim_device *d = isim_ui_device();
+    CGRect b = o.bounds, anchor = [self convertRect:rect toView:o], card = o.card.frame;
+    CGSize ps = preview.bounds.size;
+    CGFloat px = fmin(fmax(16, CGRectGetMidX(anchor) - ps.width / 2), b.size.width - 16 - ps.width);
+    CGFloat py = fmin(fmax(d->safe_top + 8, anchor.origin.y), b.size.height - d->safe_bottom - 8 - card.size.height - 8 - ps.height);
+    preview.frame = CGRectMake(px, fmax(d->safe_top + 8, py), ps.width, ps.height);
+    preview.layer.cornerRadius = 13; preview.clipsToBounds = YES;
+    preview.accessibilityIdentifier = preview.accessibilityIdentifier ?: @"isim-menu-preview";
+    [o insertSubview:preview belowSubview:o.card];
+    card.origin.y = CGRectGetMaxY(preview.frame) + 8;
+    card.origin.x = fmin(fmax(16, CGRectGetMinX(preview.frame)), b.size.width - 16 - card.size.width);
+    o.card.frame = card;
+}
 @end

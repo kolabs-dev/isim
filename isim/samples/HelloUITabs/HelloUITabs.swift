@@ -5,7 +5,7 @@
 import UIKit
 import Observation
 
-func log(_ s: String) { print("HelloTabs: \(s)") }
+func log(_ s: String) { print("HelloUITabs: \(s)") }
 
 @Observable final class Model {
     var title = "Start"

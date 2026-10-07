@@ -117,6 +117,13 @@ extension App {
 
 final class _SUIHostView: UIView {
     let graph: _Graph
+    /// a presented sheet whose background stays interactive: touches outside the content go to the presenter
+    var passthrough = false
+    @objc var _isim_passesTouchesOutsideContent: Bool { passthrough }
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let v = super.hitTest(point, with: event)
+        return passthrough && v === self ? nil : v
+    }
     init(graph: _Graph) {
         self.graph = graph
         super.init(frame: .zero)
@@ -160,7 +167,8 @@ open class UIHostingController<Content: View>: UIViewController {
     }
     public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     open override func loadView() { view = _SUIHostView(graph: graph) }
-    public func sizeThatFits(in size: CGSize) -> CGSize { size }
+    /// The content's size for a proposal (its ideal size along infinite or zero dimensions).
+    public func sizeThatFits(in size: CGSize) -> CGSize { graph.measure(size, traits: traitCollection) }
     open override var keyCommands: [UIKeyCommand]? { _suiKeyCommands(graph, target: #selector(_isimSwiftUIShortcut(_:))) }
     @objc func _isimSwiftUIShortcut(_ c: UIKeyCommand) { _suiPerformShortcut(graph, c) }
     open override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) { if !_suiHandlePresses(graph, presses, up: false) { super.pressesBegan(presses, with: event) } }

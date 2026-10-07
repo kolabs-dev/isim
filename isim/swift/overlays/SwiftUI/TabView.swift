@@ -33,7 +33,8 @@ extension EnvironmentValues { var _tabStyle: _TabStyle { get { self[_TabStyleKey
 extension View {
     public func tabViewStyle<S: TabViewStyle>(_ style: S) -> some View {
         let k: _TabStyle = (style as? PageTabViewStyle).map { .page(showDots: $0.mode.show) } ?? .bar
-        return _env { $0._tabStyle = k }
+        let sidebar = "\(S.self)" == "SidebarAdaptableTabViewStyle"
+        return _env { $0._tabStyle = k; $0._tabSidebarAdaptable = sidebar }
     }
     public func tabItem<V: View>(@ViewBuilder _ label: () -> V) -> some View {
         let l = label()
@@ -117,14 +118,20 @@ public struct TabView<SelectionValue: Hashable, Content: View>: View, _Primitive
             else { stored.value = tags[i]; g?.invalidate() }
         }
         let items = children.map { c -> _TabItemInfo in
-            var x: _Node? = c, item: _Node?, badge: String?, role = 0
-            while let n = x { if item == nil { item = n.tabItem }; if badge == nil { badge = n.badge }; if role == 0 { role = n.tabRole }; x = n.children.count == 1 ? n.children[0] : nil }
-            return _TabItemInfo(title: item.map { _collectText($0).joined(separator: " ") } ?? "", image: item.flatMap { _firstImage($0) }, badge: badge, role: role)
+            var x: _Node? = c, item: _Node?, badge: String?, role = 0, section: String?
+            while let n = x {
+                if item == nil { item = n.tabItem }; if badge == nil { badge = n.badge }; if role == 0 { role = n.tabRole }; if section == nil { section = n.tabSection }
+                x = n.children.count == 1 ? n.children[0] : nil
+            }
+            var info = _TabItemInfo(title: item.map { _collectText($0).joined(separator: " ") } ?? "", image: item.flatMap { _firstImage($0) }, badge: badge, role: role)
+            info.section = section
+            return info
         }
         let node = _TabViewNode(path: ctx.path, tabs: children, items: items, selected: index, select: select, style: style,
                                 tint: (ctx.environment._tint ?? .accentColor).uiColor)
         node.safeTop = saved.top; node.safeBottom = saved.bottom
         if index < children.count { node.barHidden = _tabBarHidden(children[index]) }   // .toolbar(.hidden, for: .tabBar)
+        _tabExtras(node, ctx)                      // bottom accessory, minimizing, sidebar (TabView+More.swift)
         return node
     }
 }
@@ -132,7 +139,7 @@ extension TabView where SelectionValue == Int {
     public init(@ViewBuilder content: () -> Content) { selection = nil; self.content = content() }
 }
 
-struct _TabItemInfo { let title: String, image: UIImage?, badge: String?; var role = 0 }
+struct _TabItemInfo { let title: String, image: UIImage?, badge: String?; var role = 0; var section: String? = nil }
 /// 0 bottom material bar, 1 floating glass capsule (iPhone, iOS 26+), 2 top capsule (iPad, iOS 18), 3 top glass (iPad, iOS 26+)
 @MainActor func _tabBarMode() -> Int {
     let os = _isimOSMajor()
@@ -144,6 +151,13 @@ final class _TabViewNode: _Node {
     let tabs: [_Node], items: [_TabItemInfo], selected: Int, select: (Int) -> Void, style: _TabStyle, tint: UIColor
     var safeTop: CGFloat = 0, safeBottom: CGFloat = 0
     var barHidden = false
+    // TabView+More.swift: iOS 26 bottom accessory and minimizing, iPad sidebar (sidebarAdaptable)
+    var accessory: _Node?
+    var minimized = false, minimizeBehavior = 0
+    var setMinimized: ((Bool) -> Void)?
+    var sidebarAdaptable = false, sidebarShown = false
+    var toggleSidebar: (() -> Void)?
+    var sidebarWidth: CGFloat { sidebarAdaptable && sidebarShown && _tabBarMode() >= 2 ? 280 : 0 }
     init(path: String, tabs: [_Node], items: [_TabItemInfo], selected: Int, select: @escaping (Int) -> Void, style: _TabStyle, tint: UIColor) {
         self.tabs = tabs; self.items = items; self.selected = selected; self.select = select; self.style = style; self.tint = tint
         super.init(path: path, children: tabs)
@@ -153,13 +167,14 @@ final class _TabViewNode: _Node {
     var barHeight: CGFloat { barHidden || _tabBarMode() >= 2 ? 0 : 49 + safeBottom }
     override func place(_ rect: CGRect) {
         frame = rect
-        let area: CGRect
+        var area: CGRect
         if case .bar = style { area = CGRect(x: 0, y: 0, width: rect.width, height: rect.height - barHeight) }
         else { area = CGRect(origin: .zero, size: rect.size) }
+        if sidebarWidth > 0 { area.origin.x = sidebarWidth; area.size.width -= sidebarWidth }
         for (i, t) in tabs.enumerated() {
             var r = area
             if case .page = style { r.origin.x = CGFloat(i - selected) * area.width }
-            if case .bar = style, !t.ignoresSafeArea { r = CGRect(x: 0, y: safeTop, width: area.width, height: area.height - safeTop) }
+            if case .bar = style, !t.ignoresSafeArea { r = CGRect(x: area.minX, y: safeTop, width: area.width, height: area.height - safeTop) }
             if t.ignoresSafeArea { t.place(r) }
             else {
                 let s = t.sizeThatFits(_Proposal(width: r.width, height: r.height))
@@ -183,6 +198,7 @@ final class _TabViewNode: _Node {
             container.isHidden = !isPage && i != selected
             g.mount(t, in: container, order: 0)
         }
+        (view as? _SUIPager)?.selectedContainer = g.views[path + "|tab\(selected)"]
         if case .page(let dots) = style {
             let pc = g.view(path + "|dots") { UIPageControl() }
             if pc.superview !== view { view.addSubview(pc) } else { view.bringSubviewToFront(pc) }
@@ -201,8 +217,11 @@ final class _TabViewNode: _Node {
             } else {
                 bar.frame = CGRect(x: 0, y: view.bounds.height - (barHidden ? 0 : 49 + safeBottom), width: view.bounds.width, height: barHidden ? 0 : 49 + safeBottom)
             }
+            bar.minimized = minimized && _tabBarMode() == 1
+            let sm = setMinimized; bar.expand = { sm?(false) }
             bar.update(items: items, selected: selected, tint: tint, select: select)
-            bar.isHidden = barHidden
+            bar.isHidden = barHidden || sidebarWidth > 0
+            _mountTabExtras(self, g, view, bar)
         }
     }
 }
@@ -211,7 +230,25 @@ final class _TabViewNode: _Node {
 final class _SUIPager: UIView {
     var node: _TabViewNode?
     var pan: UIPanGestureRecognizer?
-    override init(frame: CGRect) { super.init(frame: frame) }
+    weak var selectedContainer: UIView?
+    private var scrollObserver: NSObjectProtocol?
+    private var lastScroll: [ObjectIdentifier: CGFloat] = [:]
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        // tabBarMinimizeBehavior (iOS 26): scrolling in the selected tab minimizes / expands the bar
+        scrollObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimScrollViewDidScroll"), object: nil, queue: nil, using: { [weak self] (n: NSNotification) in
+            MainActor.assumeIsolated {
+                guard let self, let sv = n.object as? UIScrollView, let c = self.selectedContainer, sv.isDescendant(of: c), let node = self.node else { return }
+                let id = ObjectIdentifier(sv), y = sv.contentOffset.y, dy = y - (self.lastScroll[id] ?? y)
+                self.lastScroll[id] = y
+                // the user's scrolling (a drag) minimizes or expands; momentum after an explicit expand does not
+                guard node.minimizeBehavior == 2 || node.minimizeBehavior == 3, abs(dy) > 0.5, sv.isDragging || sv.isTracking else { return }
+                let want = (node.minimizeBehavior == 2) == (dy > 0) && y > 10
+                if want != node.minimized { node.setMinimized?(want) }
+            }
+        })
+    }
+    deinit { if let o = scrollObserver { NotificationCenter.default.removeObserver(o) } }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -255,6 +292,9 @@ final class _SUITabBar: UIView {
     let hairline = UIView()
     let glass = _SUIGlassView(frame: .zero), roleGlass = _SUIGlassView(frame: .zero)
     var buttons: [_SUITabButton] = []
+    /// iOS 26 minimized bar (tabBarMinimizeBehavior): only the selected tab, on a glass circle at the leading edge
+    var minimized = false
+    var expand: (() -> Void)?
     override init(frame: CGRect) {
         super.init(frame: frame)
         addSubview(backdrop)
@@ -277,21 +317,26 @@ final class _SUITabBar: UIView {
         var area = bounds
         if mode == 1 { let inset: CGFloat = bounds.width > 600 ? (bounds.width - 560) / 2 : 21; area = CGRect(x: inset, y: 0, width: bounds.width - 2 * inset, height: 62) }
         if let _ = roleIndex { area.size.width -= 62 + 10 }
+        let full = area
+        if minimized { area.size.width = 62 }
         glass.isHidden = mode != 1 && mode != 3; roleGlass.isHidden = roleIndex == nil
         glass.frame = area; glass.radius = area.height / 2
-        if let _ = roleIndex { roleGlass.frame = CGRect(x: area.maxX + 10, y: area.minY, width: 62, height: 62); roleGlass.radius = 31 }
+        if let _ = roleIndex { roleGlass.frame = CGRect(x: full.maxX + 10, y: area.minY, width: 62, height: 62); roleGlass.radius = 31 }
         let inner = mode == 0 ? area : area.insetBy(dx: 4, dy: 4)
-        let count = CGFloat(max(1, items.count - (roleIndex == nil ? 0 : 1)))
+        let count = minimized ? 1 : CGFloat(max(1, items.count - (roleIndex == nil ? 0 : 1)))
         let w = inner.width / count
         var slot = 0
         for (i, it) in items.enumerated() {
             let b = buttons[i]
             b.mode = mode
+            b.isHidden = minimized && i != selected && i != roleIndex
+            b.compact = minimized && i == selected
             if i == roleIndex { b.frame = roleGlass.frame.insetBy(dx: 4, dy: 4) }
+            else if minimized { if i == selected { b.frame = inner } }
             else { b.frame = mode == 0 ? CGRect(x: CGFloat(slot) * w, y: 0, width: w, height: 49) : CGRect(x: inner.minX + CGFloat(slot) * w, y: inner.minY, width: w, height: inner.height); slot += 1 }
             bringSubviewToFront(b)
             b.configure(it, selected: i == selected, tint: tint)
-            b.action = { select(i) }
+            b.action = minimized && i == selected && expand != nil ? { [weak self] in self?.expand?() } : { select(i) }   // a minimized bar expands
             b.accessibilityIdentifier = "tab-" + (it.title.isEmpty ? "\(i)" : it.title)
         }
     }
@@ -300,6 +345,7 @@ final class _SUITabButton: UIControl {
     let icon = UIImageView(), title = UILabel(), badge = UILabel()
     let pill = UIView()
     var mode = 0
+    var compact = false
     var action: (() -> Void)?
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -334,10 +380,10 @@ final class _SUITabButton: UIControl {
         icon.image = it.image?.withRenderingMode(.alwaysTemplate)
         icon.tintColor = color
         let s = icon.image?.size ?? .zero, k = 24 / max(1, max(s.width, s.height))      // symbols scale cleanly
-        let iy: CGFloat = mode == 1 ? (it.role != 0 && bounds.height == bounds.width ? (bounds.height - 24) / 2 : 5) : 7
+        let iy: CGFloat = mode == 1 ? ((it.role != 0 || compact) && bounds.height == bounds.width ? (bounds.height - 24) / 2 : 5) : 7
         icon.frame = CGRect(x: (w - s.width * k) / 2, y: iy + (25 - s.height * k) / 2, width: s.width * k, height: s.height * k)
         title.text = it.title; title.textColor = color
-        title.isHidden = mode == 1 && it.role != 0 && bounds.height == bounds.width
+        title.isHidden = mode == 1 && (it.role != 0 || compact) && bounds.height == bounds.width
         title.frame = CGRect(x: 2, y: mode == 1 ? 31 : 33, width: w - 4, height: 13)
         badge.isHidden = it.badge == nil
         if let b = it.badge {
