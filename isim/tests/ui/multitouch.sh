@@ -16,7 +16,7 @@ px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$
 orange() { read -r r g b <<<"$(px "$1" "$2" "$3")"; [ "$r" -gt 230 ] && [ "$g" -gt 120 ] && [ "$g" -lt 175 ] && [ "$b" -lt 40 ]; }
 num() { grep -oE "$1" <<<"$log" | head -1 | grep -oE '[0-9.]+' | head -${2:-1} | tail -1; }
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "pinch recognizer sees two touches"      'grep -q "^pinch began with 2 touches" <<<"$log"'
 check "pinch scale 2.0 (fingers 100 -> 200 pt)" 's=$(num "pinch ended scale [0-9.]+"); awk "BEGIN{exit !($s > 1.9 && $s < 2.1)}"'
 check "card scaled in pixels"                  '! orange $shots/start.png 50 250 && orange $shots/pinch.png 50 250'

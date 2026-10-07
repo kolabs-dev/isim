@@ -18,7 +18,7 @@ log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 ISIM_NOTIFI
   shot $shots/control-center-on.png; tapid cc-background; wait 0.4; rotate left; wait 0.6;
   controlcenter; wait 0.4; tapid cc-wifi; wait 2.6; dump; tapid cc-background; wait 0.3; notifications; wait 0.3; dump; tapid nc-clear; wait 0.3; dump; quit" 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 after() { awk -v m="$1" 'index($0, m) { f = 1 } f' <<<"$log"; }
 check "lock: the foreground app goes to the background"        'grep -q "isim shell: locked" <<<"$log" && after "isim shell: locked" | grep -q "HelloSystem: scene background"'
 check "lock screen lists a notification delivered while locked"  'grep -q "listed on the lock screen: Security demo" <<<"$log" && grep -q "IsimLockScreen" <<<"$log" && grep -q "IsimNotification .* id=nc-item-backup text=Security demo" <<<"$log"'

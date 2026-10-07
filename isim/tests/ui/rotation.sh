@@ -16,7 +16,7 @@ log3=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SC
 size() { magick identify -format "%wx%h" "$1" 2>/dev/null; }
 px() { magick "$1" -format "%[fx:int(255*u.p{$2,$3}.r)] %[fx:int(255*u.p{$2,$3}.g)] %[fx:int(255*u.p{$2,$3}.b)]" info: 2>/dev/null; }
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "device orientation notification"     'grep -q "^device orientation 3" <<<"$log"'
 check "viewWillTransition to landscape"      'grep -q "^will transition to 874x402" <<<"$log"'
 check "compact height size class"            'grep -q "^traits h=1 v=1" <<<"$log"'

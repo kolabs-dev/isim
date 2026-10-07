@@ -9,7 +9,7 @@ app=out/apps/HelloSourceCompat.app
 [ -x "$app/HelloSourceCompat" ] || { echo "SKIP  HelloSourceCompat not built"; exit 0; }
 data=$PWD/out/test-data/sourcecompat; rm -rf "$data"; mkdir -p "$data"
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 red() { read -r r g b <<<"$(px "$@")"; [ "$r" -gt 180 ] && [ "$g" -lt 90 ] && [ "$b" -lt 90 ]; }
 log=$(ISIM_DATA=$data ISIM_STANDALONE=1 timeout 90 out/bin/isim run "$app" --device ${ISIM_TEST_DEVICE:-iphone16pro} --headless --script \

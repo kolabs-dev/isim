@@ -7,7 +7,7 @@ shots=out/test-shots/HelloKeyboardApp; mkdir -p "$shots"; rm -f "$shots"/*.png
 log=$(ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.3; tapid field; wait 0.1; tapid isim-kb-h; tapid isim-kb-i; shot $shots/abc.png; tapid isim-kb-globe; wait 0.1; tapid key-1; tapid key-2; shot $shots/custom.png; holdid isim-kb-globe 0.6; tapid isim-kb-menu-builtin; tapid isim-kb-return; wait 0.1; drag 200 700 200 250; wait 1.5; quit" \
       timeout 40 out/bin/isim run out/apps/HelloKeyboardApp.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "scroll content sized by Auto Layout" 'h=$(grep -o "contentSize 393 x [0-9.]*" <<<"$log" | tail -1 | cut -d" " -f4); [ -n "$h" ] && awk "BEGIN{exit !($h > 1180 && $h < 1215)}"'
 check "keyboard shows for the text field (with the predictive bar)"   'grep -q "keyboard did show, height 339" <<<"$log"'
 check "typing with auto-capitalization"     'grep -q "text = \"Hi\"" <<<"$log"'

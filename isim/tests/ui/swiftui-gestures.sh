@@ -11,7 +11,7 @@ log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCA
  longdrag 201 518 261 548 0.6 0.4; wait 0.3; dump; tap 201 677; wait 0.6; tap 201 677; tap 201 677; wait 0.6; quit" \
       timeout 60 out/bin/isim run out/apps/HelloSwiftUIGestures.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "MagnifyGesture from a pinch"                 'grep -q "^magnify ended 1.6" <<<"$log"'
 check "RotateGesture simultaneously"                'grep -q "^rotate ended 30" <<<"$log"'
 check "sequenced long press + drag"                 'grep -q "^moved by 60,30" <<<"$log"'

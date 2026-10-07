@@ -35,7 +35,7 @@ PY
 logt=$(ISIM_MAP_TILES=$tiles run "wait 1.5; shot $shots/tiles.png; quit")
 logs=$(run "wait 2; shot $shots/swiftui.png; dump; tapid select-park; wait 0.6; shot $shots/swiftui-selected.png; dump; tapid goto-gg; wait 0.8; dump; quit" -swiftui); rcs=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 count() { magick "$1" -crop "$2" -fx "$3" -format '%[fx:int(mean*w*h)]' info:; }   # pixels in a region matching an fx test
 red='(r>0.85&&g<0.35&&b<0.3)?1:0'; blue='(b>0.85&&r<0.2&&g<0.6)?1:0'; orange='(r>0.95&&g>0.6&&g<0.85&&b<0.6)?1:0'; green='(g>0.85&&r<0.85&&b<0.85&&g-r>0.1)?1:0'; omark='(r>0.95&&g>0.5&&g<0.66&&b<0.1)?1:0'
 land='(r>0.95&&g>0.93&&b>0.9&&b<0.95)?1:0'; magenta='(r>0.95&&g<0.05&&b>0.95)?1:0'; sat='(r<0.25&&g>0.22&&g<0.32&&b<0.25)?1:0'; yellow='(r>0.85&&g>0.65&&b<0.2)?1:0'

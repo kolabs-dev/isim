@@ -33,7 +33,7 @@ list2=$(out/bin/isim storekit $app list 2>&1)
 # seconds between consecutive renewals of Plus Monthly before the upgrade (accelerated clock: 4 s)
 gaps=$(sed "/immediate upgrade/q" <<<"$log1" | grep "subscription dev.isim.store.plus.monthly renewed" | awk '{ split($2, t, ":"); s = t[1]*3600 + t[2]*60 + t[3]; if (n++) printf "%.1f ", s - p; p = s }')
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "products + subscription info from .storekit"   'grep -q "product: dev.isim.store.plus.monthly Auto-Renewable Subscription \$2.99 group=21000001 level=2 period=1month intro=FreeTrial:1week promos=comeback winbacks=winback introEligible=true" <<<"$log1"'
 check "AppTransaction (local, from Info.plist)"       'grep -q "appTransaction: bundle=$app version=7 original=7 env=Xcode" <<<"$log1"'
 check "subscribe with the free trial"                 'grep -q "subscribed to dev.isim.store.plus.monthly .* with introductory offer 1 week free" <<<"$log1" && grep -q "entitlements: \[dev.isim.store.plus.monthly\]" <<<"$log1"'

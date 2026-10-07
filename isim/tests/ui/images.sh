@@ -11,7 +11,7 @@ log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCA
 px() { magick "$shots/images.png" -format "%[fx:int(255*u.p{$1,$2}.r)] %[fx:int(255*u.p{$1,$2}.g)] %[fx:int(255*u.p{$1,$2}.b)]" info: 2>/dev/null; }
 near() { read -r r g b <<<"$(px "$1" "$2")"; [ -n "$r" ] && [ $(( (r-$3)*(r-$3) + (g-$4)*(g-$4) + (b-$5)*(b-$5) )) -lt 2500 ]; }
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "renderer image at screen scale"       'grep -q "badge size 120x120 scale 3" <<<"$log"'
 check "renderer drew the red circle + bar"   'near 40 140 255 59 48 && near 80 140 255 255 255'
 check "PNG export + UIImage(data:)"          'grep -Eq "png [0-9]+ bytes sig 89504e47, decoded 120x120" <<<"$log" && near 180 140 255 59 48'

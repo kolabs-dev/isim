@@ -22,7 +22,7 @@ log3=$(ISIM_CONTACTS_PERMISSION=deny ISIM_CALENDAR_PERMISSION=deny run "wait 1; 
 export ISIM_DATA=$PWD/out/test-data/personal-ios17; rm -rf "$ISIM_DATA"
 log4=$(ISIM_TEST_DEVICE=iphone15 ISIM_OS_VERSION=17.5 run "wait 1; tapid contactsAccess; wait 0.8; dump; taptext OK; wait 0.8; quit")
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "contacts alert (iOS 18 buttons, purpose)"        'grep -q "text=“Personal” Would Like to Access Your Contacts" <<<"$log" && grep -q "text=Limit Access…" <<<"$log" && grep -q "text=Finds friends to invite." <<<"$log"'
 check "full access -> authorized"                       'grep -q "^contacts access true status 3 error 0" <<<"$log"'
 check "seeded sample contacts, sorted by given name"    'grep -q "^contacts 6: Anna Haro, Daniel Higgins, David Taylor, Hank Zakroff, John Appleseed, Kate Bell" <<<"$log"'

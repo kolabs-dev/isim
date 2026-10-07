@@ -20,7 +20,7 @@ ISIM_DATA=$boot out/bin/isim install out/apps/HelloSecurity.app >/dev/null
 log4=$(ISIM_DATA=$boot ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 ISIM_NOTIFICATION_PERMISSION=allow timeout 60 out/bin/isim boot --headless --script \
        "wait 1; launch dev.isim.samples.HelloSecurity; wait 1.5; tapid notify; wait 0.5; home; wait 3.8; shot $shots/banner-home.png; tapid isim-notification-banner; wait 1.2; dump; quit" 2>&1); rc4=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "CryptoKit: SHA-256, HMAC, AES-GCM round trip"      'grep -q "crypto 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824 hmac=true aes=secret message" <<<"$log"'
 check "keychain: SecItemAdd + SecItemCopyMatching"         'grep -q "keychain save 0" <<<"$log" && grep -q "keychain load 0 token" <<<"$log"'
 check "SQLite3: insert + query in the app container"       'grep -q "sqlite 2 notes" <<<"$log" && grep -q "text=2 notes: note 1, note 2" <<<"$log"'

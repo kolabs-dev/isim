@@ -15,7 +15,7 @@ log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCA
 log0=$(ISIM_GAMEPADS=0 ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.5; gamepad connect isim Test Pad; wait 0.5; quit" \
       timeout 60 out/bin/isim run out/apps/HelloSpriteKit2.app 2>&1); rc0=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 has() { grep -qF -- "$1" <<<"$log"; }
 check "attributed label: text from the attributed string"  'has "attributed label text=RED BLUE"'
 check "SKTransformNode: euler angles, quaternion / matrix round trip" 'has "transform: euler (0.00, 1.05, 0.00) frame width 100 quaternion round trip true angle 0.96 m00 0.67"'

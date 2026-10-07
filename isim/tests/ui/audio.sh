@@ -13,7 +13,7 @@ log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_AUDIO_IN
       ISIM_SCRIPT="wait 1.5; remote play; remote skipforward 15; remote seek 42; remote next; wait 0.5; tapid speak; wait 4; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloAudio.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "AVSpeechSynthesisVoice list + language lookup"  'grep -q "voices true fr=fr-FR" <<<"$log"'
 if command -v espeak-ng >/dev/null || command -v espeak >/dev/null; then
   check "AVSpeechSynthesizer.write renders speech"     'grep -q "speech rendered .* s, audible true" <<<"$log"'

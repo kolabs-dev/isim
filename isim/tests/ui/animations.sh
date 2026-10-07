@@ -15,7 +15,7 @@ script="wait 1; tapid btn-Keyframes; wait 0.3; tapid btn-Report; wait 0.6; tapid
  tapid btn-Spring; tapid btn-Cubic; wait 1.5; quit"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 60 out/bin/isim run out/apps/HelloAnimations.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 reports=$(grep "^presentation" <<<"$log")
 nth() { sed -n "${1}p" <<<"$reports" | grep -o "$2=[0-9-]*" | cut -d= -f2; }
 check "keyframe 1 (x) runs before keyframe 2 (y)"   'x=$(nth 1 x); y=$(nth 1 y); [ "$x" -gt 45 ] && [ "$x" -lt 135 ] && [ "$y" = 130 ]'

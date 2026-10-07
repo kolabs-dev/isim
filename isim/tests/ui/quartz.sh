@@ -12,7 +12,7 @@ px() { magick "$shots/quartz.png" -format "%[fx:int(255*u.p{$1,$2}.r)] %[fx:int(
 near() { read -r r g b <<<"$(px "$1" "$2")"; [ -n "$r" ] && [ $(( (r-$3)*(r-$3) + (g-$4)*(g-$4) + (b-$5)*(b-$5) )) -lt ${6:-2500} ]; }
 has() { grep -qF -- "$1" <<<"$log"; }
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "bitmap context: y-up fill lands in memory"   'has "bottom [255, 0, 0, 255] top [0, 0, 0, 0]"'
 check "bitmap context: app writes are drawn on"      'has "bitmap app write kept [0, 255, 0, 255] blended [0, 127, 128, 255]"'
 check "bitmap context: BGRA and gray layouts"        'has "bitmap bgra [0, 128, 255, 255]" && has "bitmap gray 128 ctm 1.0,1.0"'

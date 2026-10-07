@@ -13,7 +13,7 @@ base=$PWD/out/test-data/osversions; rm -rf "$base"; mkdir -p "$base"
 app=out/apps/HelloOSVersions.app
 versions=${OSV_VERSIONS:-17 18 26 27}
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 device_for() { case $1 in 17) echo iphone15 ;; 18) echo iphone16pro ;; *) echo iphone17 ;; esac; }
 tf() { [ "$1" -ge "$2" ] && echo true || echo false; }
 of() { [ "$1" -ge "$2" ] && echo 1 || echo 0; }

@@ -9,7 +9,7 @@ export ISIM_DATA=$PWD/out/test-data/symbols; rm -rf "$ISIM_DATA"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=2 ISIM_SCRIPT="wait 1; shot $shots/symbols.png; quit" \
       timeout 60 out/bin/isim run out/apps/HelloSymbols.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "app lays out the grid"                  'grep -q "symbols laid out: " <<<"$log" && [ -s $shots/symbols.png ]'
 missing=$(grep "has no substitute" <<<"$log" | grep -v "isim.no.such.symbol")
 check "no symbol name is reported missing"     '[ -z "$missing" ]'

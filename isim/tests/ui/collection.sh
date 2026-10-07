@@ -9,7 +9,7 @@ export ISIM_DATA=$PWD/out/test-data/collection; rm -rf "$ISIM_DATA"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/grid.png; dump; tapid tile-2; wait 0.3; tapid tile-5; wait 0.3; tapid bar-Remove; wait 0.6; tap 368 84; wait 0.6; dump; drag 200 700 200 150 0.15; wait 1.2; drag 200 700 200 150 0.15; wait 1.2; tapid tab-Shelf; wait 0.8; shot $shots/shelf.png; dump; swipeid featured-1 -250 0 0.3; wait 1; shot $shots/carousel.png; tapid featured-2; wait 0.4; tapid bar-Trim; wait 0.8; tapid tab-List; wait 0.8; shot $shots/list.png; dump; tapid row-Milk; wait 0.6; tapid row-Bread; wait 0.6; shot $shots/list-toggled.png; quit" \
       timeout 90 out/bin/isim run out/apps/HelloCollection.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "flow layout grid + header"           'grep -Eq "TileCell \(16 132; 110 x 80\) id=tile-4" <<<"$log" && grep -q "text=Favorites" <<<"$log"'
 check "multiple selection"                  'grep -q "grid selected 2, selected 1" <<<"$log" && grep -q "grid selected 5, selected 2" <<<"$log"'
 check "animated delete of selected items"   'grep -q "grid removed 2, items 10" <<<"$log"'

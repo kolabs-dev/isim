@@ -15,7 +15,7 @@ px() { pxs a "$@"; }
 near() { read -r r g b <<<"$(px "$1" "$2")"; [ -n "$r" ] && [ $(( (r-$3)*(r-$3) + (g-$4)*(g-$4) + (b-$5)*(b-$5) )) -lt ${6:-2500} ]; }
 has() { grep -qF -- "$1" <<<"$log"; }
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "GIF destination (3 frames)"                   'has "gif finalize true GIF89a"'
 check "GIF source: count, size, delay, loop"         'has "gif type com.compuserve.gif count 3 size 40x40 delay 0.25 loop 0"'
 check "GIF frames decoded"                           'has "gif frame colors [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]]"'

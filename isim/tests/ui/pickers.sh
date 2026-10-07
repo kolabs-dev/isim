@@ -13,7 +13,7 @@ other=$(run "wait 1; tapid tab-Inputs; wait 0.5; swipeid wheel-0 0 -64 1.5; wait
 views=$(run "wait 1; tapid tab-Views; wait 0.8; shot $shots/views.png; dump; tapid bold-toggle; wait 0.3; tapid advanced; wait 0.4; taptext Documents; wait 0.4; taptext Cut; wait 0.2; taptext Hold; wait 0.2; holdid hold 0.8; wait 0.3; taptext Share; wait 0.8; dump; tapid share-done; wait 0.6; quit"); rc3=$?
 other="$other$views"
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "DatePicker graphical: tap a day"               'grep -q "^day 2026-03-15" <<<"$dates"'
 check "DatePicker graphical: next month"              'grep -q "id=month-title text=April 2026" <<<"$dates" && grep -q "^day 2026-04-01" <<<"$dates"'
 check "DatePicker compact: date pill -> calendar"     'grep -q "^start 2026-03-20 09:30" <<<"$dates"'

@@ -11,7 +11,7 @@ log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCA
  longdrag 95 105 200 354 0.7 0.5; wait 0.5; longdrag 201 481 201 568 0.7 0.5; wait 0.8; shot $shots/dropped.png; dump; longdrag 95 105 95 700 0.7 0.3; wait 0.5; quit" \
       timeout 60 out/bin/isim run out/apps/HelloDragDrop.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "long press lifts the drag item"         'grep -q "^drag begins from source" <<<"$log" && grep -q "drag began with 1 item" <<<"$log"'
 check "drop interaction: enter + performDrop"  'grep -q "^zone entered" <<<"$log" && grep -q "^dropped: Swift at 86,50" <<<"$log" && grep -q "^drag ended with copy" <<<"$log"'
 check "table rows reorder by dragging"         'grep -q "^row drag begins: A" <<<"$log" && grep -q "^order: B C A D" <<<"$log"'

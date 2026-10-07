@@ -14,7 +14,7 @@ export ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SC
 proj=samples/HelloToolchain
 work=$root/out/projects/HelloToolchain
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 
 applog=$(ISIM_SCRIPT="wait 1; dump; shot $shots/app.png; quit" timeout 60 out/bin/isim run out/apps/HelloToolchain.app 2>&1); rc=$?
 check "app runs (framework, static lib, packages, XCFramework, ObjC<->Swift)" \

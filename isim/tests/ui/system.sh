@@ -19,7 +19,7 @@ log=$(boot "wait 1; holdid $app 0.8; wait 0.5; shot $shots/menu.png; dump; tapid
 log2=$(BGSECS=2 boot "wait 1; bgtask dev.isim.samples.HelloSystem dev.isim.samples.HelloSystem.refresh; wait 1.5; bgtask dev.isim.samples.HelloSystem dev.isim.samples.HelloSystem.refresh; wait 0.5;
             bgtask dev.isim.samples.HelloSystem dev.isim.samples.HelloSystem.cleanup; wait 3; launch dev.isim.samples.HelloSystem; wait 1.5; dump; tapid bgTask; wait 0.3; home; wait 3.5; quit"); rc2=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "icon menu lists the static quick actions above Edit Home Screen" 'grep -q "2 quick action(s) for System" <<<"$log" && grep -q "id=menu-shortcut:dev.isim.samples.HelloSystem.new" <<<"$log" && grep -q "text=Find anything" <<<"$log"'
 check "cold launch: launchOptions + connectionOptions.shortcutItem"     'grep -q "options=\[\"UIApplicationLaunchOptionsShortcutItemKey\"\]" <<<"$log" && grep -q "scene connected shortcut=dev.isim.samples.HelloSystem.new" <<<"$log" && grep -q "text=Launched by “New Note”" <<<"$log"'
 check "dynamic quick action saved and listed (3 items)"               'grep -q "1 dynamic quick action(s) saved" <<<"$log" && grep -q "3 quick action(s) for System" <<<"$log" && grep -q "text=Favorites" <<<"$log"'

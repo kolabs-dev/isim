@@ -10,7 +10,7 @@ export ISIM_DATA=$PWD/out/test-data/spritekit; rm -rf "$ISIM_DATA"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.5; shot $shots/menu.png; tap 201 477; wait 0.3; shot $shots/doorway.png; wait 1.3; shot $shots/game.png; keydown right; wait 0.2; keyup right; tap 310 794; wait 6; shot $shots/win.png; quit" \
       timeout 60 out/bin/isim run out/apps/HelloSpriteKit.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 near() { python3 -c 'import sys; a=list(map(int,sys.argv[1].split())); b=list(map(int,sys.argv[2].split())); sys.exit(0 if all(abs(x-y)<=6 for x,y in zip(a,b)) else 1)' "$1" "$2"; }
 check "scene decoded from Menu.sks (sceneDidLoad sees children)" 'grep -q "menu loaded from sks: title=Hello SpriteKit logo=true" <<<"$log"'

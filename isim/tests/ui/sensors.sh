@@ -15,7 +15,7 @@ log2=$(ISIM_MOTION=unavailable run "wait 1; tapid motion; wait 0.5; tapid health
 export ISIM_DATA=$PWD/out/test-data/sensors-deny; rm -rf "$ISIM_DATA"
 log3=$(ISIM_HEALTH_PERMISSION=deny run "wait 1; tapid healthAuth; wait 0.6; tapid healthSave; wait 0.6; tapid healthQuery; wait 0.8; quit")
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "motion sensors available (simulated)"            'grep -q "^motion available accel true gyro true deviceMotion true" <<<"$log"'
 check "accelerometer reads gravity (0,-1,0) g"          'grep -q "^accel 0.00 -1.00 0.00 after 3 updates" <<<"$log"'
 check "device motion: gravity, no user accel, upright"  'grep -q "^deviceMotion gravity 0.00 -1.00 0.00 user 0.00 pitch 1.57 roll 0.00" <<<"$log"'

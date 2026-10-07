@@ -9,7 +9,7 @@ export ISIM_DATA=$PWD/out/test-data/text; rm -rf "$ISIM_DATA"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.8; dump; shot $shots/text.png; wait 2.2; taptext link; wait 0.4; taptext site; wait 0.4; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloText.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 width() { grep -m1 "id=$1" <<<"$log" | sed -E 's/.*; ([0-9.]+) x .*/\1/'; }
 timers=$(grep -o "id=timer text=[0-9:]*" <<<"$log" | sort -u | wc -l)
 check "Text + Text keeps per-part styles on one line"  'grep -q "id=concat text=Hello, World!" <<<"$log" && grep -Eq "UILabel \([0-9.]+ 0; [0-9.]+ x 21\) text=World" <<<"$log"'

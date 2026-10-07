@@ -10,7 +10,7 @@ log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCA
       timeout 60 out/bin/isim boot 2>&1); rc=$?
 flat=$(tr -d '\n\t ' < "$prefs")
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "page reflects the preferences"      'grep -q "id=settings-24h text=on" <<<"$log" && grep -q "text=America/New_York" <<<"$log"'
 check "24-Hour Time switch writes the pref" 'grep -q "<key>AppleICUForce24HourTime</key><false/>" <<<"$flat"'
 check "Set Automatically clears the zone"   'grep -q "id=settings-auto-tz text=on" <<<"$log" && ! grep -q "<key>TimeZone</key>" <<<"$flat"'

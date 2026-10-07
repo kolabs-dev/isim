@@ -32,7 +32,7 @@ listed=$(out/bin/isim appleid $app list 2>&1)
 
 px() { magick "$1" -format "%[fx:int(255*u.p{$2,$3}.r)] %[fx:int(255*u.p{$2,$3}.g)] %[fx:int(255*u.p{$2,$3}.b)]" info:; }
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 user=$(grep -o "apple id credential: user=[^ ]*" <<<"$log1" | head -1 | cut -d= -f2)
 idfa=$(grep "idfa: .* zero=false" <<<"$log1" | grep -o "idfa: [^ ]*" | cut -d' ' -f2)
 check "no saved credentials: notInteractive, no sheet"   'grep -q "AuthorizationError 1005" <<<"$log1" && grep -q "no saved credentials for these requests" <<<"$log1"'

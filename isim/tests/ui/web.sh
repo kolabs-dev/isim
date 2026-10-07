@@ -22,7 +22,7 @@ log=$(run "wait 4; shot $shots/loaded.png; tap 100 164; wait 0.5; tap 100 212; w
 printf "%s\n" "$log" > "$ISIM_DATA/app.log"
 fail=0
 greens() { magick "$1" -crop "$2" -fx '(g>0.4&&r<0.2&&b<0.2)?1:0' -format '%[fx:int(mean*w*h)]' info:; }   # count of green pixels
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 is() { local c; read -r -a c <<<"$(px "$1" "$2" "$3")"; case $4 in
   red) [ "${c[0]}" -gt 220 ] && [ "${c[1]}" -lt 40 ] && [ "${c[2]}" -lt 40 ] ;; green) [ "${c[1]}" -gt 150 ] && [ "${c[0]}" -lt 40 ] && [ "${c[2]}" -lt 40 ] ;;

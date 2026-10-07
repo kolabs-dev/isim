@@ -23,7 +23,7 @@ prefs de_DE de America/New_York
 de=$(run "wait 0.8; shot $shots/de_DE.png; dump; quit"); rc2=$?
 
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 has() { sed "s/\xc2\xa0/ /g; s/\xe2\x80\xaf/ /g" <<<"$1" | grep -qF -- "$2"; }   # any no-break space matches a space
 check "en_US: default date + time"            'has "$us" "fmt date-default=10/5/2026, 11:04 AM"'
 check "en_US: complete date"                  'has "$us" "fmt date-complete=Monday, October 5, 2026"'

@@ -17,7 +17,7 @@ log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone17} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=
       ISIM_SCRIPT="wait 1.2; audio interrupt begin; wait 0.4; audio route headphones; wait 0.3; audio interrupt end resume; wait 0.5; audio route speaker; wait 1; audio bogus; wait 8; shot $shots/media.png; dump; quit" \
       timeout 90 out/bin/isim run $app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 is() { local c; read -r -a c <<<"$(px "$1" "$2" "$3")"; case $4 in
   red) [ "${c[0]}" -gt 200 ] && [ "${c[1]}" -lt 60 ] && [ "${c[2]}" -lt 60 ] ;; green) [ "${c[1]}" -gt 200 ] && [ "${c[0]}" -lt 60 ] && [ "${c[2]}" -lt 60 ] ;;

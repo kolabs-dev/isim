@@ -5,7 +5,7 @@
 set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 abi=$(python3 tools/abi-check.py 2>&1)
 check "released symbols still exported" 'grep -q "^abi check: OK" <<<"$abi"' || true
 [ $fail = 0 ] || grep MISSING <<<"$abi" | head -20

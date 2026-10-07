@@ -18,7 +18,7 @@ log=$(boot "wait 2.5; holdid app-dev.isim.samples.HelloWidgets 0.8; wait 0.4; ta
             launch dev.isim.samples.HelloWidgets; wait 1; tapid updateDelivery; wait 2; home; wait 0.6; island; wait 0.4; shot $shots/island-updated.png; island;
             launch dev.isim.samples.HelloWidgets; wait 1; tapid endDelivery; wait 1; home; wait 0.6; dump; quit"); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$1" -crop "$2" +repage -format "%[fx:mean.r] %[fx:mean.g] %[fx:mean.b]" info: 2>/dev/null; }
 check "the extension lists its widgets; the gallery offers them"   'grep -q "isim WidgetKit: 2 widget kind(s), 1 Live Activity configuration(s)" <<<"$log" && grep -q "id=widget-add-Counter-systemSmall" <<<"$log" && grep -q "id=widget-add-Ticker-systemMedium" <<<"$log"'
 check "widgets added and rendered by the extension"               'grep -q "added widget Counter (systemSmall)" <<<"$log" && grep -q "rendered Counter (systemSmall): 1 entry, policy never" <<<"$log" && grep -q "id=widget-Counter-systemSmall text=Counter-systemSmall-0.png" <<<"$log"'

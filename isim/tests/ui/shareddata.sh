@@ -21,7 +21,7 @@ log2=$(ISIM_LANGUAGES=ru ISIM_SCRIPT="wait 1.5; dump; quit" run); rc2=$?
 log3=$(ISIM_ICLOUD=noAccount ISIM_SCRIPT="wait 1.5; dump; quit" run); rc3=$?
 
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 has() { grep -qF -- "$2" <<<"$1"; }
 check "String Catalog plurals (en): 0/1/2/5/21 files" 'has "$log1" "plural files-0: 0 files" && has "$log1" "plural files-1: 1 file" && has "$log1" "plural files-2: 2 files" && has "$log1" "plural files-21: 21 files"'
 check "String Catalog substitutions (two plural variables)" 'has "$log1" "plural photos: 1 photo in 3 albums"'

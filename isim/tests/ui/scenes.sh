@@ -16,7 +16,7 @@ log2=$(boot "wait 1; launch dev.isim.samples.HelloScenes; wait 1.5; dump; quit")
 log3=$(boot "wait 1; bgtask dev.isim.samples.HelloScenes dev.isim.samples.HelloScenes.refresh; wait 2; quit"); rc3=$?
 log4=$(DEV=ipadpro11 boot "wait 1; launch dev.isim.samples.HelloScenes; wait 1.5; tapid openDetail; wait 0.8; shot $shots/ipad-detail.png; dump; tapid closeDetail; wait 0.8; dump; quit"); rc4=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "@UIApplicationDelegateAdaptor: didFinishLaunching"           'grep -q "HelloScenes: adaptor didFinishLaunching (foreground)" <<<"$log"'
 check "adaptor gets forwarded callbacks (didEnterBackground)"      'grep -q "HelloScenes: adaptor didEnterBackground" <<<"$log"'
 check "adaptor scene delegate class gets the quick action"         'grep -q "scene delegate quick action dev.isim.samples.HelloScenes.new" <<<"$log"'

@@ -11,8 +11,6 @@ RUN pacman -Syu --noconfirm --needed \
       webkitgtk-6.0 gtk4 poppler-glib \
     && pacman -Scc --noconfirm
 ENV SDL_AUDIO_DRIVER=dummy
-# CI runners are slower than development machines: stretch the UI test scripts' waits
-ENV ISIM_WAIT_SCALE=2
 # hosted runners have 4 CPUs; the suites mostly wait on the simulated apps, so run 4 at a time
 ENV ISIM_TEST_JOBS=4
 # WebKitGTK's web-process sandbox (bubblewrap) cannot create namespaces in an unprivileged container; CI only loads

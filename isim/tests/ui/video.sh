@@ -13,7 +13,7 @@ run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_S
 log=$(run "wait 1; shot $shots/paused.png; tapid play; wait 0.5; shot $shots/red.png; wait 1.0; shot $shots/green.png; wait 1.0; shot $shots/blue.png; wait 1; dump; quit"); rc=$?
 log2=$(run "wait 1; tapid seek; wait 0.3; shot $shots/seek.png; tapid rate; wait 0.8; tapid queue; wait 2.5; tapid loop; wait 2.2; tapid fullscreen; wait 0.8; dump; tapid avkit-play; wait 1.2; dump; shot $shots/avkit.png; tapid avkit-close; wait 0.6; tapid swiftui; wait 1.5; shot $shots/swiftui.png; dump; quit"); rc2=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }   # needs ImageMagick 7
 is() { local c; read -r -a c <<<"$(px "$1" "$2" "$3")"; case $4 in
   red) [ "${c[0]}" -gt 230 ] && [ "${c[1]}" -lt 30 ] && [ "${c[2]}" -lt 30 ] ;; green) [ "${c[1]}" -gt 230 ] && [ "${c[0]}" -lt 30 ] && [ "${c[2]}" -lt 30 ] ;;

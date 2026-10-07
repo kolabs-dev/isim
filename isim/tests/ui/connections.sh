@@ -20,7 +20,7 @@ for _ in $(seq 80); do port=$(awk '/^PORT/{print $2}' "$ISIM_DATA/port"); tport=
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 14; dump; quit" timeout 90 out/bin/isim run out/apps/HelloConnections.app -server "http://127.0.0.1:$port" -tls "$tport" 2>&1); rc=$?
 printf '%s\n' "$log" > "$ISIM_DATA/app.log"
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 has() { grep -qF "HelloConnections: $1" <<<"$log"; }
 check "NWListener + NWConnection TCP echo, currentPath"  'has "tcp echo: echo:hello tcp error=none remote=ok"'
 check "UDP echo (listener datagram connection)"           'has "udp echo: echo:datagram"'

@@ -10,7 +10,7 @@ run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_S
 log=$(run "wait 0.8; shot $shots/form.png; taptext Vanilla; wait 0.6; shot $shots/picker-menu.png; tapid menu-Chocolate; wait 0.4; tap 340 266; wait 0.3; tapid notif; wait 0.3; tap 315 637; wait 0.4; taptext Miles; wait 0.4; drag 201 452 300 452 0.3; wait 0.3; dump; taptext Theme; wait 0.8; taptext Dark; wait 0.8; tapid more; wait 0.6; dump; tapid menu-Reset; wait 0.4; tapid tab-Pages; wait 0.6; drag 350 400 50 400 0.25; wait 0.8; shot $shots/pages.png; tapid tab-Inbox; wait 0.5; dump; quit"); rc=$?
 log2=$(run "wait 0.8; dump; quit")
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "Picker (menu) pops up and selects"      'grep -q "flavor chocolate" <<<"$log"'
 check "Stepper increments a bound value"       'grep -q "count 3" <<<"$log"'
 check "Toggle bound to @AppStorage"            'grep -q "notifications false" <<<"$log"'

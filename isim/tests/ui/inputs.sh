@@ -19,7 +19,7 @@ script="wait 1; shot $shots/text.png; tapid bio; wait 0.4; type grows to two lin
  tapid search-field; wait 0.4; type Ar; wait 0.5; shot $shots/search.png; dump; tapid search-cancel; wait 0.6; dump; quit"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$script" timeout 120 out/bin/isim run out/apps/HelloInputs.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "UITextView edits through the keyboard"      'grep -q "begin bio" <<<"$log" && grep -q "changed bio: 52 chars" <<<"$log" && grep -q "isim: keyboard shown" <<<"$log"'
 check "non-scrolling text view sizes to its text"  'grep -Eq "UITextView \(0 0; 370 x 5[0-9]\) id=bio" <<<"$log"'
 check "shouldChangeTextIn can veto"                'grep -q "blocked #" <<<"$log" && ! grep -q "bio: 53 chars" <<<"$log"'

@@ -7,7 +7,7 @@ shots=out/test-shots/HelloObservation; mkdir -p "$shots"; rm -f "$shots"/*.png
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.8; dump; tapid task-Buy_milk; wait 0.3; tapid draft; wait 0.3; type Eggs; wait 0.2; tapid add; wait 0.5; tapid task-Eggs; wait 0.3; shot $shots/tasks.png; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloObservation.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "@Environment(Store.self) renders the store"   'grep -q "text=2 remaining" <<<"$log" && grep -q "text=Walk the dog" <<<"$log"'
 check "@Bindable Toggle updates an @Observable item" 'grep -q "^remaining 1" <<<"$log"'
 check "@Bindable TextField + method on the store"    'grep -q "added Eggs" <<<"$log" && grep -q "text=Eggs" <<<"$log"'

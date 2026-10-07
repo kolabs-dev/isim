@@ -20,7 +20,7 @@ log=$(ISIM_MAIL=1 ISIM_MESSAGES=1 run "wait 1.5; shot $shots/home.png; tapid saf
 printf '%s\n' "$log" > "$ISIM_DATA/app.log"
 log2=$(run "wait 1; tapid mail; wait 0.5; tapid message; wait 0.5; dump; quit")
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 isblue() { local c; read -r -a c <<<"$(px "$1" "$2" "$3")"; [ "${c[2]}" -gt 200 ] && [ "${c[0]}" -lt 60 ] && [ "${c[1]}" -lt 160 ]; }
 blues() { magick "$1" -crop "$2" -fx '(b>0.75&&r<0.3&&g<0.65)?1:0' -format '%[fx:int(mean*w*h)]' info:; }

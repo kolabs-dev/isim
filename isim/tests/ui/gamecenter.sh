@@ -22,7 +22,7 @@ log2=$(ISIM_SCRIPT="wait 2; tapid fetch; wait 1; tapid fetch; wait 1; quit" time
 saves=$(out/bin/isim gamecenter $app saved-games 2>&1)
 
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "signed in + access point top trailing"        'grep -q "authenticated: true" <<<"$log1" && grep -q "access point shown (top trailing)" <<<"$log1" && grep -q "^UIWindow (338 66; 48 x 48)$" <<<"$log1"'
 check "achievement descriptions from config"         'grep -q "achievement description: dev.isim.gc.first_win \"First Win\" 10 points hidden=false \"Win a game.\"" <<<"$log1" && grep -q "dev.isim.gc.secret \"Secret Door\" 50 points hidden=true" <<<"$log1"'
 check "leaderboard titles, types, best scores"       'grep -q "leaderboard: dev.isim.gc.high_score \"High Score\" type=classic best=1200 players=1" <<<"$log1" && grep -q "leaderboard: dev.isim.gc.fastest \"Fastest Clear\" type=classic best=42" <<<"$log1"'

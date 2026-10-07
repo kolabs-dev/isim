@@ -9,7 +9,7 @@ export ISIM_DATA=$PWD/out/test-data/gestures; rm -rf "$ISIM_DATA"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; tap 200 250; wait 0.7; tap 200 250; tap 200 250; wait 0.7; drag 330 250 80 250 0.15; wait 0.4; drag 80 250 330 250 0.15; wait 0.4; drag 200 450 210 455 0.3; wait 0.3; drag 200 450 330 460 0.3; wait 0.3; drag 200 600 260 600 0.3; wait 0.3; drag 2 600 250 600 0.4; wait 0.6; shot $shots/panel.png; dump; keydown cmd; keydown r; keyup r; keyup cmd; wait 0.2; keydown r; keyup r; keydown up; keyup up; keydown a; keyup a; wait 0.2; shake; wait 0.5; quit" \
       timeout 60 out/bin/isim run out/apps/HelloGestures.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "single tap fires once double tap fails" '[ $(grep -c "^single tap" <<<"$log") = 1 ]'
 check "double tap wins over single tap"        'grep -q "^double tap" <<<"$log"'
 check "swipe left and right"                   'grep -q "^swipe left" <<<"$log" && grep -q "^swipe right" <<<"$log"'

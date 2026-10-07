@@ -29,7 +29,7 @@ padscript="wait 1; tapid demo-sheet; wait 0.8; shot $shots/ipad-sheet.png; dump;
  tapid demo-split; wait 1; tapid item-3; wait 1; shot $shots/ipad-split.png; dump; quit"
 padlog=$(ISIM_DEVICE=ipad ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$padscript" timeout 60 out/bin/isim run out/apps/HelloTransitions.app 2>&1); padrc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 between() { sed -n "/$1/,/$2/p" <<<"$log"; }
 check "full screen: presenter disappears and comes back" 'between "^menu appeared" "dismissed Full" | grep -q "menu will disappear" && grep -q "Full appeared, presenting true" <<<"$log" && between "Full disappeared" "dismissed Full" | grep -q "menu appeared"'
 check "over full screen + cross dissolve keeps the presenter" 'grep -q "Dissolve appeared" <<<"$log" && ! between "dismissed Full" "dismissed Dissolve" | grep -q "menu will disappear"'

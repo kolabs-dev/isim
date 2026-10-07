@@ -7,7 +7,7 @@ shots=out/test-shots/HelloKeyboard; mkdir -p "$shots"; rm -f "$shots"/*.png
 log=$(ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.3; tapid key-1; tapid key-2; tapid key-3; tapid key-3; shot $shots/typed.png; holdid key-delete 0.75; tapid key-2; type 9; key backspace; tapid key-hide; wait 0.1; shot $shots/hidden.png; quit" \
       timeout 30 out/bin/isim run out/apps/HelloKeyboard.appex 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 texts=$(grep -o 'preview field text = "[^"]*"' <<<"$log" | sed 's/.*= //' | tr '\n' ' ')
 check "extension hosted"                 'grep -q "hosting keyboard extension HelloKeyboard.KeyboardViewController" <<<"$log"'
 check "keys insert through the proxy"    'grep -q "\"1233\"" <<<"$texts"'

@@ -20,7 +20,7 @@ printf '%s' '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><k
 pt=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; tapid field; wait 0.3; tapid isim-kb-globe; wait 0.3; shot $shots/portuguese.png; dump; holdid isim-kb-c 0.7; wait 0.2; tapid isim-kb-accent-ç; tapid isim-kb-a; wait 0.2; holdid isim-kb-globe 0.6; wait 0.2; tapid isim-kb-menu-emoji; wait 0.2; quit" \
       timeout 60 out/bin/isim run out/apps/HelloTextEditing.app 2>&1); rc2=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "UITextInput caretRect / positions"        'grep -q "^brown at 134 100" <<<"$log"'
 check "tap places the caret at a word boundary"  'grep -q "^caret at 10$" <<<"$log"'
 check "double tap selects the word"              'grep -q "^selected \"brown\" (10+5)" <<<"$log" && grep -q "edit menu shown: Cut, Copy, Select All" <<<"$log"'

@@ -13,7 +13,7 @@ grid=$(run "wait 1; shot $shots/grid.png; dump; tapid switch; wait 0.4; dump; qu
 align=$(run "wait 1; tapid tab-Align; wait 0.6; shot $shots/align.png; dump; tapid geo; wait 0.5; quit"); rc2=$?
 scroll=$(run "wait 1; tapid tab-Scroll; wait 0.5; shot $shots/scroll.png; swipeid pager 0 -100 0.6; wait 1.5; swipeid aligned 0 -95 0.6; wait 1.5; swipeid locked 0 -40 0.4; wait 1; dump; tapid go8; wait 0.6; dump; quit"); rc3=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 # frame of the first view with this id: "x y w h"
 frame() { grep -m1 "id=$2" <<<"$1" | sed -E 's/.*\(([-0-9.]+) ([-0-9.]+); ([0-9.]+) x ([0-9.]+)\).*/\1 \2 \3 \4/'; }
 right() { frame "$1" "$2" | awk '{print $1 + $3}'; }

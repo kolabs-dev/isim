@@ -28,7 +28,7 @@ log2=$(ISIM_CAMERA=$ISIM_DATA/camera.mp4 ISIM_CAMERA_PERMISSION=allow ISIM_SCRIP
 log3=$(ISIM_CAMERA=$pic ISIM_CAMERA_PERMISSION=deny ISIM_SCRIPT="wait 1; quit" run env); rc3=$?
 log4=$(ISIM_SCRIPT="wait 0.8; quit" run env -u ISIM_CAMERA); rc4=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 is() { local c; read -r -a c <<<"$(px "$1" "$2" "$3")"; case $4 in
   red) [ "${c[0]}" -gt 200 ] && [ "${c[1]}" -lt 60 ] && [ "${c[2]}" -lt 60 ] ;; green) [ "${c[1]}" -gt 200 ] && [ "${c[0]}" -lt 60 ] && [ "${c[2]}" -lt 60 ] ;;

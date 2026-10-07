@@ -24,7 +24,7 @@ log3=$(ISIM_ICLOUD=noAccount ISIM_SCRIPT="wait 2; tapid list; wait 1; tapid save
 store=$ISIM_DATA/Library/isim/CloudKit/iCloud.dev.isim.samples.HelloCloudKit
 
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "default container, account available"          'grep -q "container: iCloud.dev.isim.samples.HelloCloudKit account=available" <<<"$log1" && grep -q "user record: true" <<<"$log1" && grep -q "text=account: available" <<<"$log1"'
 check "save typed records (local store)"               'grep -q "saved 3 notes; changeTag=true changedKeys(before)=8" <<<"$log1" && [ -f "$store/private.json" ] && [ -n "$(ls "$store/Assets")" ]'
 check "query: predicate, sort, cursor paging"          'grep -q "query page 1: Third cursor=true" <<<"$log1" && grep -q "query page 2: Second more=false" <<<"$log1"'

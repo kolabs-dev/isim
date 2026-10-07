@@ -9,7 +9,7 @@ export ISIM_DATA=$PWD/out/test-data/table; rm -rf "$ISIM_DATA"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/list.png; dump; tapid row-Fruit3; wait 0.5; swipeid row-Fruit2 -150 0 0.3; wait 0.6; shot $shots/swiped.png; tapid swipe-Delete; wait 0.6; swipeid row-Fruit4 -360 0 0.25; wait 0.8; tapid bar-Edit; wait 0.6; shot $shots/editing.png; dump; tapid bar-Done; wait 0.5; tap 34 84; wait 0.8; drag 200 700 200 150 0.15; wait 1.5; drag 200 700 200 150 0.15; wait 1.5; drag 200 700 200 150 0.15; wait 1.5; dump; drag 200 700 200 150 0.15; wait 1.5; drag 200 700 200 150 0.15; wait 1.5; swipeid row-Vegetable20 -200 0 0.3; wait 0.6; shot $shots/actions.png; tapid swipe-Flag; wait 0.6; swipeid row-Vegetable19 -200 0 0.3; wait 0.6; tapid swipe-Remove; wait 0.6; tapid tab-Settings; wait 0.8; tapid sound-Glass; wait 0.4; shot $shots/settings.png; tapid set-name; wait 0.3; tap 355 262; wait 0.3; tapid tab-Diffable; wait 0.6; tapid bar-Odd; wait 0.8; shot $shots/diffable.png; quit" \
       timeout 90 out/bin/isim run out/apps/HelloTable.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 # a plain header pinned under the navigation bar: its y equals the content offset plus the 106 pt bar
 sticky() { awk '/UITableView \(/ { if (match($0, /offset -?[0-9.]+/)) off = substr($0, RSTART + 7, RLENGTH - 7) + 0 }
                 /UITableViewHeaderFooterView \(0 / { split($0, a, /[( ;]+/); for (i in a) if (a[i] == "0") { y = a[i+1] + 0; break }

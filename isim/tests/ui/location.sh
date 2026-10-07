@@ -28,7 +28,7 @@ nokey=$ISIM_DATA/HelloLocation.app; mkdir -p "$ISIM_DATA"; cp -a $app "$nokey"
 python3 -c 'import plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,"rb")); d.pop("NSLocationWhenInUseUsageDescription"); plistlib.dump(d,open(p,"wb"))' "$nokey/Info.plist"
 log7=$(run "wait 1; tapid requestWhenInUse; wait 0.8; dump; quit" "$nokey")
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "delegate hears notDetermined at launch"                 'grep -q "^auth notDetermined" <<<"$log"'
 check "permission alert (Allow Once / While Using / Don't Allow)" 'grep -q "text=Allow “Location” to use your location?" <<<"$log" && grep -q "text=Allow Once" <<<"$log" && grep -q "text=Don’t Allow" <<<"$log" && grep -q "text=Shows where you are and what is nearby." <<<"$log"'
 check "Allow While Using App -> authorizedWhenInUse"          'grep -q "^auth authorizedWhenInUse accuracy full" <<<"$log"'

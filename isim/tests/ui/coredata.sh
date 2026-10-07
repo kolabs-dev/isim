@@ -10,7 +10,7 @@ run() { ISIM_DEVICE=${DEVICE:-${ISIM_TEST_DEVICE:-iphone16pro}} ISIM_HEADLESS=1 
 log=$(run "wait 1; dump; tapid add; wait 0.4; tapid add; wait 0.4; tapid add; wait 0.6; shot $shots/three.png; dump; tapid delete-Item_2; wait 0.6; tapid star-Item_3; wait 0.6; dump; quit"); rc=$?
 log2=$(run "wait 1; dump; tapid addBackground; wait 1.2; dump; tapid starredOnly; wait 0.8; shot $shots/starred.png; dump; quit"); rc2=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 first=$(awk '/^dump/{n++} n==1' <<<"$log"); after=$(awk '/^dump/{n++} n==2' <<<"$log"); deleted=$(awk '/^dump/{n++} n==3' <<<"$log")
 check "model compiled from the .xcdatamodeld, SQLite store in the app container" 'grep -q "store loaded HelloCoreData.sqlite" <<<"$log" && grep -q "launch items 0" <<<"$log"'
 check "@FetchRequest: empty list on first launch"         'grep -q "text=No items" <<<"$log" && grep -q "text=count 0" <<<"$log"'

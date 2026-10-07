@@ -24,7 +24,7 @@ notes=$(LS=1.5 run HelloStoryboards "wait 0.2; shot $shots/launch.png; wait 2; s
 controls=$(run HelloStoryboards "wait 1; tapid tab-Controls; wait 0.8; shot $shots/controls.png; dump; tapid controls-switch; wait 0.3; tap 330 245; wait 0.3; tap 322 297; wait 0.3; drag 201 172 330 172 0.4; wait 0.3; tapid controls-name; type Ana; wait 0.3; key return; tapid apply-button; wait 0.3; tapid rounded-view; wait 0.3; dump; tapid open-profile; wait 1; shot $shots/profile.png; dump; tapid profile-close; wait 1; tapid open-default-nib; wait 1.2; dump; tapid profile-close; wait 1; tapid open-fonts; wait 1.2; shot $shots/fonts.png; tapid font-Georgia; wait 1.2; dump; quit"); rc3=$?
 
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 nth_dump() { awk -v n="$2" '/^(UIWindow|__IsimLaunchWindow)/{if (!inw) k++; inw=1} !/^(UIWindow|__IsimLaunchWindow)/ && !/^ /{inw=0} k==n' <<<"$1"; }
 # --- classic
 check "classic: UIMainStoryboardFile window before willFinishLaunching" 'grep -q "classic: willFinishLaunching window=set" <<<"$classic" && grep -q "classic: didFinishLaunching root=ClassicViewController storyboard=yes" <<<"$classic"'

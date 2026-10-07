@@ -9,7 +9,7 @@ export ISIM_DATA=$PWD/out/test-data/charts; rm -rf "$ISIM_DATA"
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/charts.png; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloCharts.app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "chart renders"                              'grep -q "charts shown" <<<"$log" && [ -s $shots/charts.png ]'
 ylabels() { for v in 0 10 20 30 40; do grep -q "text=$v$" <<<"$log" || return 1; done; }
 check "y axis value labels (0 ... 40)"             'ylabels'

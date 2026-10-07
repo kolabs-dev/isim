@@ -33,7 +33,7 @@ PY
 python3 tests/ui/make-bulk-apps.py "$ISIM_DATA" out/apps/HelloCounter.app 1 54 >/dev/null
 log4=$(boot "wait 1.5; homepage 2; wait 0.8; dump; quit"); rc4=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 lum() { magick "$1" -crop "3x3+$(($2 - 1))+$(($3 - 1))" +repage -format "%[fx:mean]" info: 2>/dev/null || echo 0; }
 dot_on() { python3 -c "import sys; sys.exit(0 if $(lum "$1" "$2" 745) > 0.9 else 1)"; }
 dot_off() { python3 -c "import sys; sys.exit(0 if $(lum "$1" "$2" 745) < 0.8 else 1)"; }

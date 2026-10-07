@@ -17,7 +17,7 @@ shots=out/test-shots/HelloVision; mkdir -p "$shots"; rm -f "$shots"/*.png
 log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone17} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 \
       ISIM_SCRIPT="wait 1; dump; taptext Allow; wait 1.5; shot $shots/vision.png; dump; quit" timeout 60 out/bin/isim run $app 2>&1); rc=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 has() { grep -Eq "$1" <<<"$log"; }
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 greenish() { local c; read -r -a c <<<"$(px "$1" "$2" "$3")"; [ "${c[1]}" -gt 150 ] && [ "${c[0]}" -lt 110 ] && [ "${c[2]}" -lt 130 ]; }

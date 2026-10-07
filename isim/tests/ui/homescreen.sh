@@ -17,7 +17,7 @@ log2=$(boot "wait 1; dump; tapid folder-Folder; wait 0.6; shot $shots/folder.png
             home; wait 0.6; spotlight; wait 0.4; type pancake; wait 0.4; tapid spotlight-item-activity_dev.isim.samples.HelloSystem.re; wait 1; home; wait 0.6;
             drag 200 300 200 520 0.4; wait 0.6; type count; wait 0.4; dump; tapid spotlight-app-dev.kolabs.isim.HelloCounter; wait 1; quit"); rc2=$?
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 x_of() { grep -E "^ +(HSIcon|HSFolderIcon) .* id=$2\$" <<<"$1" | head -1 | sed -E 's/.*\(([0-9.]+) .*/\1/'; }
 check "edit mode: dropping an icon on another makes a folder" 'grep -q "SpringBoard: folder “Folder” with Hello SwiftUI, HelloCounter" <<<"$log"'
 check "edit mode: dragging an icon rearranges"                'grep -q "SpringBoard: moved System to page 1 position 0" <<<"$log" && [ "$(x_of "$log" app-dev.isim.samples.HelloSystem)" = 41.25 ] && [ "$(x_of "$log" folder-Folder)" = 127.75 ]'

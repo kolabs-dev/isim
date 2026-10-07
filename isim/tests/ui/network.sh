@@ -16,7 +16,7 @@ run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_S
 log=$(run "wait 1.5; shot $shots/loaded.png; dump; tapid reload; wait 0.5; tapid signin; wait 1; drag 200 760 200 160 0.3; wait 0.8; tapid http503; wait 0.6; tapid unreachable; wait 0.6; tapid echo; wait 1.2; tapid combinefetch; wait 1; shot $shots/done.png; dump; quit"); rc=$?
 offline=$(ISIM_NETWORK=offline run "wait 1.2; dump; quit")
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "async/await data(from:) + JSONDecoder"            'grep -q "^todos 3 Write the network layer,Decode JSON,Ship it" <<<"$log" && grep -q "text=Decode JSON" <<<"$log" && grep -q "text=2 of 3 done" <<<"$log"'
 check "completion handler off the main thread"           'grep -q "^message Hello from a local server 👋 main=false" <<<"$log" && grep -q "text=Hello from a local server" <<<"$log"'
 check "POST JSON, Set-Cookie, cookie sent back"          'grep -q "^account signed in as ada" <<<"$log" && grep -q "text=signed in as ada" <<<"$log"'

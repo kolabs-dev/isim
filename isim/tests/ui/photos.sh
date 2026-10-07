@@ -22,7 +22,7 @@ log3=$(ISIM_PHOTOS_PERMISSION=limited run "wait 1; tapid library; wait 1; tapid 
 export ISIM_DATA=$PWD/out/test-data/photos-addonly; rm -rf "$ISIM_DATA"
 log4=$(run "wait 1; tapid writeAlbum; wait 0.8; dump; taptext Allow; wait 1; tapid library; wait 0.8; taptext Don’t Allow; wait 1; quit")
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "library seeded with 6 sample pictures"           'grep -q "created the photo library with 6 sample pictures" <<<"$log"'
 check "PhotosPicker grid"                                'grep -q "id=photo-5" <<<"$log" && grep -q "text=Photos" <<<"$log"'
 check "PhotosPicker -> loadTransferable(Data / Image)"   'grep -q "^photosPicker data [0-9]* bytes types \[\"public.png\"\] id nil" <<<"$log" && grep -q "^photosPicker image 800x600" <<<"$log" && grep -q "^photosPicker Image ok" <<<"$log"'

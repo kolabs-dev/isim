@@ -21,7 +21,7 @@ spoken=$(grep -o 'VoiceOver: "[^"]*"' <<<"$log" | head -14 | sed 's/VoiceOver: /
 expect='"Settings, Heading"|"Play, Button. Plays the song."|"Wi-Fi, Switch button, On"|"Volume, 50%, Adjustable. Swipe up or down with one finger to adjust the value."|"Message from Ana. Actions available."|"Tue, 5 thousand steps"|"Mon, 3 thousand steps"|"Announce, Button"|"Dynamic Type body"|"SwiftUI part, Heading"|"Favorites"|"Rating, 3 stars, Adjustable. Swipe up or down with one finger to adjust the value."|"Body text"|"Bigger text, Button"'
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 fail=0
-check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "VoiceOver reads the screen in order"       '[ "$spoken" = "$expect" ]'
 check "end of the list"                            'grep -q "VoiceOver: (end of list)" <<<"$log"'
 check "VoiceOver cursor drawn (black frame)"      'read -r r g b <<<"$(px $shots/cursor.png 17 740)"; [ "$r" -lt 40 ] && [ "$g" -lt 40 ] && [ "$b" -lt 40 ]'
