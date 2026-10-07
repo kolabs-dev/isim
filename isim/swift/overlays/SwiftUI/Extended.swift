@@ -221,7 +221,9 @@ extension View {
     public func sensoryFeedback<T: Equatable>(trigger: T, _ feedback: @escaping (T, T) -> SensoryFeedback?) -> some View {
         onChange(of: trigger) { (old: T, new: T) in feedback(old, new)?._play() }
     }
-    public func contentTransition(_ t: ContentTransition) -> some View { self }
+    /// How changed text (and symbols) animate in an animated update: `.numericText()` rolls the text up (down when
+    /// counting down), `.opacity` / `.interpolate` cross-fade, `.symbolEffect` scales symbols in (adapted).
+    public func contentTransition(_ t: ContentTransition) -> some View { _env { $0._contentTransition = t } }
 }
 /// Applies a system setting while the view is shown; resets it when the view goes away (the token leaves the storage).
 final class _SystemSettingToken: _AnyStorage {
@@ -267,10 +269,39 @@ public struct SensoryFeedback: Equatable, Sendable {
         }
     }
 }
-public struct ContentTransition: Sendable {
+public struct ContentTransition: Equatable, Sendable {
     let id: Int
+    var countsDown = false
+    init(id: Int) { self.id = id }
     public static let identity = ContentTransition(id: 0), opacity = ContentTransition(id: 1), interpolate = ContentTransition(id: 2)
-    public static func numericText(countsDown: Bool = false) -> ContentTransition { ContentTransition(id: 3) }
+    public static func numericText(countsDown: Bool = false) -> ContentTransition { var t = ContentTransition(id: 3); t.countsDown = countsDown; return t }
+    /// iOS 17: the direction follows the value (up when it grows).
+    public static func numericText(value: Double) -> ContentTransition { var t = ContentTransition(id: 3); t.value = value; return t }
+    var value: Double?
+    public static var symbolEffect: ContentTransition { ContentTransition(id: 4) }
+}
+struct _ContentTransitionKey: EnvironmentKey { static var defaultValue: ContentTransition? { nil } }
+extension EnvironmentValues { var _contentTransition: ContentTransition? { get { self[_ContentTransitionKey.self] } set { self[_ContentTransitionKey.self] = newValue } } }
+/// Plays a content transition from the view's current look (a snapshot) to its new content; true if it did.
+@MainActor func _playContentTransition(_ v: UIView, _ t: ContentTransition, down: Bool) {
+    guard v.window != nil, UIView.inheritedAnimationDuration > 0, t.id != 0, let sup = v.superview,
+          let snap = v.snapshotView(afterScreenUpdates: false) else { return }
+    snap.frame = v.frame; snap.isUserInteractionEnabled = false
+    sup.insertSubview(snap, aboveSubview: v)
+    let h = v.bounds.height / 2
+    let alpha = v.alpha, transform = v.transform
+    UIView.performWithoutAnimation {
+        switch t.id {
+        case 3: v.transform = transform.translatedBy(x: 0, y: down ? -h : h); v.alpha = 0
+        case 4: v.transform = transform.scaledBy(x: 0.4, y: 0.4); v.alpha = 0
+        default: v.alpha = 0
+        }
+    }
+    v.transform = transform; v.alpha = alpha
+    snap.alpha = 0
+    if t.id == 3 { snap.transform = CGAffineTransform(translationX: 0, y: down ? h : -h) }
+    if t.id == 4 { snap.transform = CGAffineTransform(scaleX: 0.4, y: 0.4) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + UIView.inheritedAnimationDuration + 0.05) { snap.removeFromSuperview() }
 }
 
 // MARK: - Visual effects (transforms on the view)

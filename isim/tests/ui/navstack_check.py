@@ -38,6 +38,10 @@ else:
 f1 = frames(log, 1)
 p = f1.get('principal')
 check('principal item centred in the bar', p is not None and abs(p[0] + p[2] / 2 - W / 2) < 2, p)
+det = Image(os.path.join(shots, 'detail.png'))
+bg = det.rgb(W * 0.8, 100)
+light = sum(1 for i in range(int(p[2])) for j in range(int(p[3])) if min(det.rgb(p[0] + i, p[1] + j)) > 215) if p else 0
+check('toolbarBackground(color / .visible) and toolbarColorScheme(.dark) on the navigation bar', bg[0] > 200 and bg[1] > 170 and bg[2] < 80 and light > 5, f'{bg} {light}')
 blue, grey = (217, 235, 255), (242, 242, 247)
 mid = Image(os.path.join(shots, 'pushmid.png'))
 r, l = mid.rgb(W - 30, 700), mid.rgb(30, 700)

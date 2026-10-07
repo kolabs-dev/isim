@@ -5,7 +5,7 @@ the scroll-transition list). Tile frames come from the first `dump` in the log."
 import os, re, sys
 sys.path.insert(0, os.path.dirname(__file__))
 from pixels import Image
-from dumpframes import frames
+from dumpframes import frames, dumps
 
 shots, logfile = sys.argv[1], sys.argv[2]
 log = open(logfile, errors='replace').read()
@@ -76,7 +76,7 @@ if vals:
 
 # the second page: privacy redaction and the auto-hidden home indicator
 more, red = Image(os.path.join(shots, 'more.png')), Image(os.path.join(shots, 'redacted.png'))
-fr = frames(log, which=2)
+fr = frames(log, which=4)
 def centre(img, tid):
     x, y, w, h = fr[tid]
     return img.rgb(x + w / 2, y + h / 2)
@@ -90,6 +90,28 @@ if all(t in fr for t in ('private-image', 'private-text', 'public-text')):
     check('other text stays readable', dark > 3, f'{dark} dark pixels')
 else:
     check('dump lists the redaction views', False, list(fr)[:20])
+# contentTransition(.numericText): right after the change the old text (a picture) leaves while the new one comes in
+d3 = dumps(log)[3] if len(dumps(log)) > 3 else []
+f3 = frames(log, which=3)
+ct = f3.get('count-text')
+snaps = [m for m in d3 if m.group(2) == 'UIImageView' and ct and abs(float(m.group(6)) - ct[3]) < 1 and 'alpha<1' in m.group(0)]   # the old text's picture, fading
+check('contentTransition(.numericText) animates the old text out', bool(ct) and len(snaps) >= 1, f'{ct} {len(snaps)}')
+# symbolEffect(.bounce, value:) grows the symbol for a moment; .pulse changes its opacity over time
+f2 = frames(log, which=2)
+bs = f2.get('bounce-star')
+def ink(img, r, pred):
+    x, y, w, h = r
+    return sum(1 for i in range(-8, int(w) + 8) for j in range(-8, int(h) + 8) if pred(img.rgb(x + i, y + j)))
+orange = lambda c: c[0] > 200 and 100 < c[1] < 190 and c[2] < 80
+bounce = Image(os.path.join(shots, 'bounce.png'))
+if bs:
+    a, b = ink(more, bs, orange), ink(bounce, bs, orange)
+    check('symbolEffect(.bounce, value:) scales the symbol when the value changes', b > a * 1.15, f'{a} -> {b}')
+ph = f2.get('pulse-heart')
+p1, p2 = Image(os.path.join(shots, 'pulse1.png')), Image(os.path.join(shots, 'pulse2.png'))
+if ph:
+    c1 = p1.rgb(ph[0] + ph[2] / 2, ph[1] + ph[3] / 2); c2 = p2.rgb(ph[0] + ph[2] / 2, ph[1] + ph[3] / 2)
+    check('symbolEffect(.pulse) changes the opacity over time', abs(c1[1] - c2[1]) > 20, f'{c1} {c2}')
 ind_on, ind_off = more.rgb(more.w / 2, more.h - 10.5), red.rgb(red.w / 2, red.h - 10.5)
 check('persistentSystemOverlays(.hidden): home indicator shown after a touch', max(ind_on) < 60, ind_on)
 check('persistentSystemOverlays(.hidden): home indicator fades 2 s after the last touch', min(ind_off) > 200, ind_off)

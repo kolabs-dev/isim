@@ -1,7 +1,8 @@
 // Sample: SwiftUI visual effects on isim — colour filters (grayscale, saturation, brightness, contrast, hueRotation,
 // colorMultiply, colorInvert, luminanceToAlpha), blendMode, blur, drop shadows of the content, alpha masks, clipped(),
 // compositingGroup, contentShape hit testing, an animated filter, and the iOS 17 geometry effects visualEffect and
-// scrollTransition inside a ScrollView.
+// scrollTransition inside a ScrollView, onScrollGeometryChange / onScrollVisibilityChange (iOS 18), contentTransition
+// (.numericText) and symbol effects.
 import SwiftUI
 
 @main
@@ -78,15 +79,32 @@ struct EffectsView: View {
                                 if i == 2 { print("ve row2 \(Int(proxy.frame(in: .scrollView).minY))") }
                                 return content.brightness(0)
                             }
+                            .modifier(RowVisibility(index: i))
                             .accessibilityIdentifier("row-\(i)")
                     }
                 }
             }
             .frame(width: 300, height: 160)
             .border(Color.gray)
+            .modifier(ScrollWatch())
         }
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// iOS 18 scroll geometry: the first visible row while scrolling, and row 0's visibility.
+struct ScrollWatch: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: Int.self, of: { Int($0.contentOffset.y / 40) }) { _, row in print("scroll row \(row)") }
+        } else { content }
+    }
+}
+struct RowVisibility: ViewModifier {
+    let index: Int
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *), index == 0 { content.onScrollVisibilityChange { v in print("row0 visible \(v)") } } else { content }
     }
 }
 
@@ -97,10 +115,15 @@ struct MoreView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("More effects").font(.headline)
-            Button("Haptic \(count)") { count += 1 }
+            Button("Haptic \(count)") { withAnimation(.easeInOut(duration: 0.4)) { count += 1 } }
                 .sensoryFeedback(.success, trigger: count)
                 .sensoryFeedback(.impact(weight: .heavy), trigger: count) { _, new in new > 1 }
                 .accessibilityIdentifier("haptic")
+            HStack(spacing: 24) {
+                Text("\(count)").font(.largeTitle).contentTransition(.numericText()).accessibilityIdentifier("count-text")
+                Image(systemName: "star.fill").font(.largeTitle).foregroundStyle(.orange).symbolEffect(.bounce, value: count).accessibilityIdentifier("bounce-star")
+                Image(systemName: "heart.fill").font(.largeTitle).foregroundStyle(.red).symbolEffect(.pulse).accessibilityIdentifier("pulse-heart")
+            }
             Toggle("Redact private", isOn: $redact).accessibilityIdentifier("redact")
             HStack(spacing: 12) {
                 Image(systemName: "star.fill").font(.largeTitle).foregroundStyle(.yellow).privacySensitive().accessibilityIdentifier("private-image")

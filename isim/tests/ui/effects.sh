@@ -8,11 +8,13 @@
 set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloEffects; mkdir -p "$shots"; rm -f "$shots"/*.png
-log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/start.png; dump; tapid t-shape-corner; wait 0.3; tapid t-shape; wait 0.3; tapid fade; wait 1; shot $shots/mid.png; swipeid row-2 0 -50 0.6; wait 1.6; shot $shots/scrolled.png; dump; tapid next; wait 0.5; shot $shots/more.png; tapid haptic; wait 0.3; tapid haptic; wait 0.3; tapid redact; wait 2.6; shot $shots/redacted.png; dump; holdid menu-source 0.8; wait 0.6; shot $shots/menu.png; dump; tapid menu-Copy; wait 0.5; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/start.png; dump; tapid t-shape-corner; wait 0.3; tapid t-shape; wait 0.3; tapid fade; wait 1; shot $shots/mid.png; swipeid row-2 0 -50 0.6; wait 1.6; shot $shots/scrolled.png; dump; tapid next; wait 0.5; shot $shots/more.png; dump; tapid haptic; wait 0.12; dump; shot $shots/bounce.png; wait 0.4; tapid haptic; wait 0.3; tapid redact; wait 2.6; shot $shots/redacted.png; dump; shot $shots/pulse1.png; wait 0.4; shot $shots/pulse2.png; holdid menu-source 0.8; wait 0.6; shot $shots/menu.png; dump; tapid menu-Copy; wait 0.5; quit" \
       timeout 60 out/bin/isim run out/apps/HelloEffects.app 2>&1); rc=$?
 fail=0
 check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }   # no pipefail: `... | grep -q` must not fail when grep stops reading early
 check "contentShape(Circle()): the corner does not take the tap, the centre does" 'grep -q "shape tapped 1" <<<"$log" && ! grep -q "shape tapped 2" <<<"$log"'
+check "onScrollGeometryChange reports the first visible row (iOS 18)" 'grep -q "^scroll row 1" <<<"$log"'
+check "onScrollVisibilityChange: row 0 scrolled out (iOS 18)"   'grep -q "^row0 visible false" <<<"$log"'
 check "sensoryFeedback plays on trigger changes (logged haptics)" '[ "$(grep -c "haptic notification (success)" <<<"$log")" = 2 ] && [ "$(grep -c "haptic impact (heavy" <<<"$log")" = 1 ]'
 check "contextMenu(menuItems:preview:) shows the preview with the menu" 'grep -q "id=isim-menu-preview" <<<"$log" && grep -q "id=menu-Copy" <<<"$log" && grep -q "menu: copy" <<<"$log"'
 printf '%s\n' "$log" > "$shots/log.txt"

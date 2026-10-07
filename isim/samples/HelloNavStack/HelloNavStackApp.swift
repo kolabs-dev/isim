@@ -92,6 +92,9 @@ struct DetailView: View {
         .background(Color(red: 0.85, green: 0.92, blue: 1))
         .navigationTitle("Detail \(n)")
         .toolbar { ToolbarItem(placement: .principal) { Text("Principal \(n)").font(.headline).accessibilityIdentifier("principal") } }
+        .toolbarBackground(Color.yellow, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
     }
 }
 

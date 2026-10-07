@@ -579,3 +579,92 @@ extension CoordinateSpaceProtocol where Self == LocalCoordinateSpace { public st
 extension GeometryProxy {
     public func frame(in space: some CoordinateSpaceProtocol) -> CGRect { frame(in: space.coordinateSpace) }
 }
+
+// MARK: - Scroll geometry (iOS 18)
+
+/// A scroll view's geometry, for onScrollGeometryChange.
+@available(iOS 18.0, *)
+public struct ScrollGeometry: Equatable, Sendable {
+    public var contentOffset: CGPoint
+    public var contentSize: CGSize
+    public var contentInsets: EdgeInsets
+    public var containerSize: CGSize
+    public var visibleRect: CGRect { CGRect(origin: contentOffset, size: containerSize) }
+    public var bounds: CGRect { CGRect(origin: contentOffset, size: containerSize) }
+    public init(contentOffset: CGPoint, contentSize: CGSize, contentInsets: EdgeInsets, containerSize: CGSize) {
+        self.contentOffset = contentOffset; self.contentSize = contentSize; self.contentInsets = contentInsets; self.containerSize = containerSize
+    }
+}
+@available(iOS 18.0, *)
+extension View {
+    /// Calls `action` when the value computed from the scroll view's geometry changes (while scrolling, after layout).
+    public func onScrollGeometryChange<T: Equatable>(for type: T.Type, of transform: @escaping (ScrollGeometry) -> T, action: @escaping (T, T) -> Void) -> some View {
+        _modify { ctx, c in
+            _ScrollWatchNode(path: ctx.path, child: _resolve(c, ctx.child("sgc"))) { v in
+                guard let sv = _firstScrollView(in: v) else { return nil }
+                let i = sv.adjustedContentInset
+                let geo = ScrollGeometry(contentOffset: sv.contentOffset, contentSize: sv.contentSize,
+                                         contentInsets: EdgeInsets(top: i.top, leading: i.left, bottom: i.bottom, trailing: i.right), containerSize: sv.bounds.size)
+                return transform(geo)
+            } changed: { old, new in if let o = old as? T, let n = new as? T, o != n { action(o, n) } }
+        }
+    }
+    /// Calls `action` when the view becomes visible (at least `threshold` of it) in its scroll view, or stops being.
+    public func onScrollVisibilityChange(threshold: Double = 0.5, _ action: @escaping (Bool) -> Void) -> some View {
+        _modify { ctx, c in
+            _ScrollWatchNode(path: ctx.path, child: _resolve(c, ctx.child("svc")), outer: true) { v in
+                var s: UIView? = v.superview
+                while let x = s, !(x is UIScrollView) { s = x.superview }
+                guard let sv = s, v.bounds.width > 0, v.bounds.height > 0 else { return nil }
+                let f = v.convert(v.bounds, to: sv).intersection(sv.bounds)
+                let frac = f.isNull ? 0 : (f.width * f.height) / (v.bounds.width * v.bounds.height)
+                return frac >= threshold - 1e-6
+            } changed: { old, new in if let o = old as? Bool, let n = new as? Bool, o != n { action(n) } }
+        }
+    }
+}
+@MainActor func _firstScrollView(in v: UIView) -> UIScrollView? {
+    if let s = v as? UIScrollView { return s }
+    for c in v.subviews { if let s = _firstScrollView(in: c) { return s } }
+    return nil
+}
+/// Re-evaluates a value from live scroll geometry after each render and while a scroll view (inside it, or around it
+/// with `outer`) scrolls; reports changes.
+final class _ScrollWatchNode: _WrapperNode {
+    let read: (UIView) -> Any?, changed: (Any?, Any?) -> Void, outer: Bool
+    init(path: String, child: _Node, outer: Bool = false, read: @escaping (UIView) -> Any?, changed: @escaping (Any?, Any?) -> Void) {
+        self.read = read; self.changed = changed; self.outer = outer; super.init(path: path, child: child)
+    }
+    override var layoutPriority: Double { child.layoutPriority }
+    override var ignoresSafeArea: Bool { child.ignoresSafeArea }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
+    override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
+    override func mountView(_ g: _Graph) -> UIView {
+        let v = g.view(viewKey) { _SUIScrollWatchView(frame: .zero) }
+        v.read = read; v.changed = changed; v.outer = outer
+        g.postRender.append { [weak v] in v?.evaluate() }
+        return v
+    }
+}
+final class _SUIScrollWatchView: _PassthroughViewBase {
+    var read: ((UIView) -> Any?)?, changed: ((Any?, Any?) -> Void)?, outer = false
+    private var last: Any?
+    private var observer: NSObjectProtocol?
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        observer = NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimScrollViewDidScroll"), object: nil, queue: nil, using: { [weak self] (n: NSNotification) in
+            MainActor.assumeIsolated {
+                guard let self, let sv = n.object as? UIView else { return }
+                if self.outer ? self.isDescendant(of: sv) : sv.isDescendant(of: self) { self.evaluate() }
+            }
+        })
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    deinit { if let o = observer { NotificationCenter.default.removeObserver(o) } }
+    func evaluate() {
+        guard window != nil, let v = read?(self) else { return }
+        let old = last
+        last = v
+        if old != nil { changed?(old, v) }
+    }
+}
