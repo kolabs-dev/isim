@@ -4,9 +4,18 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 status=0
 export ISIM_STANDALONE=1     # `isim run` runs each test app alone (no home screen, nothing installed on the device)
-# suites without their own device data never touch the user's device (~/.local/share/isim): a fresh scratch device
-if [ -z "${ISIM_DATA:-}" ]; then export ISIM_DATA=$PWD/out/test-data/default; rm -rf "$ISIM_DATA"; fi
-run() { echo "=== $1"; shift; "$@" || status=1; }
+# Suites run in parallel: `run NAME CMD...` queues a suite; run_queued (at the end) runs the queue in a pool of
+# ISIM_TEST_JOBS jobs (default: a third of the CPUs, at least 2 and at most 8; 1 = one after another) and prints each suite's output
+# in order. Every suite gets its own scratch ISIM_DATA (never the user's ~/.local/share/isim), runs of the same test
+# script hold a lock (they share out/test-data and out/test-shots folders), and a suite that fails is retried once
+# on its own after the pool (ISIM_TEST_RETRY=0 disables that); suites that only pass on the retry are listed as flaky.
+names=(); cmds=(); keys=()
+run() {
+  local name=$1; shift
+  local key="" a
+  for a in "$@"; do case $a in tests/*.sh) key=$(basename "$a" .sh); break ;; esac; done
+  names+=("$name"); cmds+=("$(printf '%q ' "$@")"); keys+=("$key")
+}
 run "loader" tests/loader/run.sh
 run "foundation self-test" bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -3; exit ${PIPESTATUS[0]}'
 run "objc runtime (exceptions, forwarding, NSInvocation, NSProxy, uncaught exceptions)" bash -c 'tests/objc-runtime/run.sh | tail -1; exit ${PIPESTATUS[0]}'
@@ -159,5 +168,47 @@ if [ "${OS_MATRIX:-0}" = 1 ]; then
     done
   done
 fi
+run_queued() {
+  local n=${#names[@]} jobs=${ISIM_TEST_JOBS:-$(( $(nproc) / 3 ))} logs=out/test-logs t0=$SECONDS i
+  [ "$jobs" -ge 1 ] 2>/dev/null || jobs=1
+  [ -n "${ISIM_TEST_JOBS:-}" ] || { [ "$jobs" -ge 2 ] || jobs=2; [ "$jobs" -le 8 ] || jobs=8; }
+  rm -rf "$logs"; mkdir -p "$logs" out/test-locks
+  one() {   # index -> runs suite i into its log; the exit code goes to i.rc
+    local i=$1 data=$PWD/out/test-data/suite-$1
+    rm -rf "$data"; mkdir -p "$data"
+    if [ -n "${keys[$i]}" ]; then
+      ( export ISIM_DATA=$data; exec flock "out/test-locks/${keys[$i]}.lock" bash -c "${cmds[$i]}" ) > "$logs/$i.log" 2>&1
+    else
+      ( export ISIM_DATA=$data; exec bash -c "${cmds[$i]}" ) > "$logs/$i.log" 2>&1
+    fi
+    echo $? > "$logs/$i.rc"
+  }
+  echo "running $n suites, $jobs at a time"
+  local running=0 next=0 shown=0 failed=() flaky=()
+  while [ $shown -lt $n ]; do
+    while [ $running -lt $jobs ] && [ $next -lt $n ]; do one $next & next=$((next + 1)); running=$((running + 1)); done
+    if [ -f "$logs/$shown.rc" ]; then        # print finished suites in order
+      echo "=== ${names[$shown]}"; cat "$logs/$shown.log"
+      [ "$(cat "$logs/$shown.rc")" = 0 ] || failed+=("$shown")
+      shown=$((shown + 1)); continue
+    fi
+    wait -n 2>/dev/null && true; running=$(jobs -rp | wc -l)
+  done
+  wait
+  if [ ${#failed[@]} -gt 0 ] && [ "${ISIM_TEST_RETRY:-1}" = 1 ]; then
+    echo; echo "retrying ${#failed[@]} failed suite(s) one at a time"
+    local still=()
+    for i in "${failed[@]}"; do
+      one "$i"
+      echo "=== (retry) ${names[$i]}"; cat "$logs/$i.log"
+      if [ "$(cat "$logs/$i.rc")" = 0 ]; then flaky+=("${names[$i]}"); else still+=("$i"); fi
+    done
+    failed=("${still[@]}")
+  fi
+  echo; echo "$n suites in $((SECONDS - t0)) s ($jobs at a time)"
+  for i in "${flaky[@]}"; do echo "FLAKY (passed on retry): $i"; done
+  for i in "${failed[@]}"; do echo "FAILED: ${names[$i]}"; status=1; done
+}
+run_queued
 echo; [ $status = 0 ] && echo "ALL SUITES PASSED" || echo "SOME SUITES FAILED"
 exit $status
