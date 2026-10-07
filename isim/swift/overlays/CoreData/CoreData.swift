@@ -43,13 +43,13 @@ extension NSPersistentContainer {
     /// Runs the block on a new background context (iOS 15 async variant).
     public func performBackgroundTask<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async rethrows -> T {
         let ctx = newBackgroundContext()
-        return try await withoutActuallyEscaping(block) { b in
-            var result: Result<T, Error>?
-            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-                ctx.perform { result = Result { try b(ctx) }; c.resume() }
-            }
-            return try result!.get()
+        // `block` is escaping: the background perform may release its closure after the continuation resumes,
+        // so it must not go through withoutActuallyEscaping (that traps when the closure outlives the call).
+        nonisolated(unsafe) var result: Result<T, Error>?
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            ctx.perform { result = Result { try block(ctx) }; c.resume() }
         }
+        return try withoutActuallyEscaping(block) { _ in try result!.get() }
     }
 }
 

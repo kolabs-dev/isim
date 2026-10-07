@@ -2,6 +2,11 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: UIView
+  Methods:
+  - Selector: 'drawViewHierarchyInRect:afterScreenUpdates:'
+    MethodKind: Instance
+    SwiftName: 'drawHierarchy(in:afterScreenUpdates:)'
 - Name: UIWindowScene
   Methods:
   - Selector: 'requestGeometryUpdateWithPreferences:errorHandler:'
@@ -402,6 +407,47 @@ Classes:
   - Selector: 'handleInputModeListFromView:withEvent:'
     MethodKind: Instance
     SwiftName: 'handleInputModeList(from:with:)'
+- Name: UIPointerEffect
+  SwiftName: __UIPointerEffect
+- Name: UIPointerHighlightEffect
+  SwiftName: __UIPointerHighlightEffect
+- Name: UIPointerLiftEffect
+  SwiftName: __UIPointerLiftEffect
+- Name: UIPointerHoverEffect
+  SwiftName: __UIPointerHoverEffect
+- Name: UIPointerShape
+  SwiftName: __UIPointerShape
+- Name: UIPointerStyle
+  Methods:
+  - Selector: 'styleWithEffect:shape:'
+    MethodKind: Class
+    SwiftName: 'init(__effect:shape:)'
+  - Selector: 'styleWithShape:constrainedAxes:'
+    MethodKind: Class
+    SwiftName: 'init(__shape:constrainedAxes:)'
+  - Selector: hiddenPointerStyle
+    MethodKind: Class
+    SwiftName: 'hidden()'
+  - Selector: systemPointerStyle
+    MethodKind: Class
+    SwiftName: 'system()'
+- Name: UIFontMetrics
+  Methods:
+  - Selector: 'scaledValueForValue:'
+    MethodKind: Instance
+    SwiftName: 'scaledValue(for:)'
+  - Selector: 'scaledValueForValue:compatibleWithTraitCollection:'
+    MethodKind: Instance
+    SwiftName: 'scaledValue(for:compatibleWith:)'
+  - Selector: 'scaledFontForFont:'
+    MethodKind: Instance
+    SwiftName: 'scaledFont(for:)'
+  - Selector: 'scaledFontForFont:maximumPointSize:'
+    MethodKind: Instance
+    SwiftName: 'scaledFont(for:maximumPointSize:)'
+  - Selector: 'scaledFontForFont:compatibleWithTraitCollection:'
+    MethodKind: Instance
+    SwiftName: 'scaledFont(for:compatibleWith:)'
 Typedefs:
 - Name: UICollectionViewCompositionalLayoutSectionProvider
   SwiftName: UICollectionViewCompositionalLayoutSectionProvider
@@ -430,6 +476,8 @@ Typedefs:
 - Name: CALayerCornerCurve
   SwiftName: CALayerCornerCurve
 Tags:
+- Name: UIPointerEffectTintMode
+  SwiftName: __UIPointerEffectTintMode
 - Name: UIInterfaceOrientationMask
   SwiftName: UIInterfaceOrientationMask
 - Name: NSUnderlineStyle
@@ -570,6 +618,10 @@ Tags:
   SwiftName: UIEvent.EventType
 - Name: UIApplicationState
   SwiftName: UIApplication.State
+- Name: UIBackgroundRefreshStatus
+  SwiftName: UIBackgroundRefreshStatus
+- Name: UIApplicationShortcutIconType
+  SwiftName: UIApplicationShortcutIcon.IconType
 - Name: UISceneActivationState
   SwiftName: UIScene.ActivationState
 - Name: UIModalPresentationStyle
@@ -580,6 +632,54 @@ Enumerators:
 - Name: UIViewAutoresizingNone
   SwiftName: none
 Globals:
+- Name: UIApplicationOpenURLOptionUniversalLinksOnly
+  SwiftName: UIApplication.OpenExternalURLOptionsKey.universalLinksOnly
+- Name: UIApplicationBackgroundFetchIntervalMinimum
+  SwiftName: UIApplication.backgroundFetchIntervalMinimum
+- Name: UIApplicationBackgroundFetchIntervalNever
+  SwiftName: UIApplication.backgroundFetchIntervalNever
+- Name: UIApplicationBackgroundRefreshStatusDidChangeNotification
+  SwiftName: UIApplication.backgroundRefreshStatusDidChangeNotification
+- Name: UIAccessibilityTraitNone
+  SwiftName: UIAccessibilityTraits.none
+- Name: UIAccessibilityTraitButton
+  SwiftName: UIAccessibilityTraits.button
+- Name: UIAccessibilityTraitLink
+  SwiftName: UIAccessibilityTraits.link
+- Name: UIAccessibilityTraitHeader
+  SwiftName: UIAccessibilityTraits.header
+- Name: UIAccessibilityTraitSearchField
+  SwiftName: UIAccessibilityTraits.searchField
+- Name: UIAccessibilityTraitImage
+  SwiftName: UIAccessibilityTraits.image
+- Name: UIAccessibilityTraitSelected
+  SwiftName: UIAccessibilityTraits.selected
+- Name: UIAccessibilityTraitPlaysSound
+  SwiftName: UIAccessibilityTraits.playsSound
+- Name: UIAccessibilityTraitKeyboardKey
+  SwiftName: UIAccessibilityTraits.keyboardKey
+- Name: UIAccessibilityTraitStaticText
+  SwiftName: UIAccessibilityTraits.staticText
+- Name: UIAccessibilityTraitSummaryElement
+  SwiftName: UIAccessibilityTraits.summaryElement
+- Name: UIAccessibilityTraitNotEnabled
+  SwiftName: UIAccessibilityTraits.notEnabled
+- Name: UIAccessibilityTraitUpdatesFrequently
+  SwiftName: UIAccessibilityTraits.updatesFrequently
+- Name: UIAccessibilityTraitAdjustable
+  SwiftName: UIAccessibilityTraits.adjustable
+- Name: UIAccessibilityTraitStartsMediaSession
+  SwiftName: UIAccessibilityTraits.startsMediaSession
+- Name: UIAccessibilityTraitAllowsDirectInteraction
+  SwiftName: UIAccessibilityTraits.allowsDirectInteraction
+- Name: UIAccessibilityTraitCausesPageTurn
+  SwiftName: UIAccessibilityTraits.causesPageTurn
+- Name: UIAccessibilityTraitTabBar
+  SwiftName: UIAccessibilityTraits.tabBar
+- Name: UIAccessibilityTraitToggleButton
+  SwiftName: UIAccessibilityTraits.toggleButton
+- Name: UIAccessibilityTraitSupportsZoom
+  SwiftName: UIAccessibilityTraits.supportsZoom
 - Name: UIDeviceOrientationDidChangeNotification
   SwiftName: UIDevice.orientationDidChangeNotification
 - Name: NSFontAttributeName

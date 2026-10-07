@@ -135,6 +135,11 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
 }
 - (void)_isim_pan:(UIPanGestureRecognizer *)g {
     if (!_scrollEnabled) return;
+    if ([self respondsToSelector:@selector(isZooming)] && self.zooming) {      /* the pinch moves the content (UIScrollViewZoom.m) */
+        BOOL ending = g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled;
+        [g setTranslation:CGPointZero inView:self]; _dragStart = self.contentOffset; _dragging = _tracking = !ending; _userScrolled = YES;
+        return;
+    }
     id<UIScrollViewDelegate> d = _delegate;
     switch (g.state) {
     case UIGestureRecognizerStateBegan:

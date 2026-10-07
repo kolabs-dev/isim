@@ -9,7 +9,7 @@ import UIKit
 import SwiftUI
 
 enum _GCText {
-    /// "dev.kolabs.mazefall.highest_level" -> "Highest Level"
+    /// "com.example.game.highest_level" -> "Highest Level"
     static func title(_ id: String) -> String {
         let last = id.split(separator: ".").last.map(String.init) ?? id
         var words: [String] = [], cur = ""

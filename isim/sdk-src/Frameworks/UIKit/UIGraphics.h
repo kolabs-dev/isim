@@ -59,4 +59,32 @@ NS_SWIFT_UI_ACTOR
 - (NSData *)PNGDataWithActions:(NS_NOESCAPE UIGraphicsImageDrawingActions)actions;
 - (NSData *)JPEGDataWithCompressionQuality:(CGFloat)compressionQuality actions:(NS_NOESCAPE UIGraphicsImageDrawingActions)actions;
 @end
+/* PDF (isim: cairo's PDF surface; UIKit drawing goes to the page while the renderer's actions run). Printing is not implemented. */
+UIKIT_EXTERN BOOL UIGraphicsBeginPDFContextToFile(NSString *path, CGRect bounds, NSDictionary *_Nullable documentInfo);
+UIKIT_EXTERN void UIGraphicsBeginPDFContextToData(NSMutableData *data, CGRect bounds, NSDictionary *_Nullable documentInfo);
+UIKIT_EXTERN void UIGraphicsEndPDFContext(void);
+UIKIT_EXTERN void UIGraphicsBeginPDFPage(void);
+UIKIT_EXTERN void UIGraphicsBeginPDFPageWithInfo(CGRect bounds, NSDictionary *_Nullable pageInfo);
+UIKIT_EXTERN CGRect UIGraphicsGetPDFContextBounds(void);
+UIKIT_EXTERN void UIGraphicsSetPDFContextURLForRect(NSURL *url, CGRect rect);
+NS_SWIFT_UI_ACTOR
+@interface UIGraphicsPDFRendererFormat : UIGraphicsRendererFormat
+@property (nonatomic, copy) NSDictionary<NSString *, id> *documentInfo;
+@end
+NS_SWIFT_UI_ACTOR
+@interface UIGraphicsPDFRendererContext : UIGraphicsRendererContext
+@property (nonatomic, readonly) CGRect pdfContextBounds;
+- (void)beginPage;
+- (void)beginPageWithBounds:(CGRect)bounds pageInfo:(NSDictionary<NSString *, id> *)pageInfo NS_SWIFT_NAME(beginPage(withBounds:pageInfo:));
+- (void)setURL:(NSURL *)url forRect:(CGRect)rect;
+- (void)addDestinationWithName:(NSString *)name atPoint:(CGPoint)point;
+- (void)setDestinationWithName:(NSString *)name forRect:(CGRect)rect;
+@end
+typedef void (^UIGraphicsPDFDrawingActions)(UIGraphicsPDFRendererContext *rendererContext);
+NS_SWIFT_UI_ACTOR
+@interface UIGraphicsPDFRenderer : UIGraphicsRenderer
+- (instancetype)initWithBounds:(CGRect)bounds format:(UIGraphicsPDFRendererFormat *)format;
+- (BOOL)writePDFToURL:(NSURL *)url withActions:(NS_NOESCAPE UIGraphicsPDFDrawingActions)actions error:(NSError **)error NS_SWIFT_NAME(writePDF(to:withActions:));
+- (NSData *)PDFDataWithActions:(NS_NOESCAPE UIGraphicsPDFDrawingActions)actions NS_SWIFT_NAME(pdfData(actions:));
+@end
 NS_ASSUME_NONNULL_END

@@ -58,7 +58,13 @@ public enum TextAlignment: Hashable, CaseIterable, Sendable { case leading, cent
 
 public protocol ShapeStyle {}
 
-public struct Color: View, ShapeStyle, Hashable, CustomStringConvertible, _PrimitiveView {
+/// Like Apple's, Color is Sendable and not main-actor isolated (its View conformance is in an extension), so apps can
+/// keep colours in nonisolated statics such as `static let accent = Color(...)`.
+extension Color: View, _PrimitiveView {
+    public var body: Never { fatalError() }
+    func _makeNode(_ ctx: _Context) -> _Node { _ColorNode(path: ctx.path, color: self) }
+}
+public struct Color: ShapeStyle, Hashable, CustomStringConvertible, @unchecked Sendable {
     let provider: _ColorProvider
     final class _ColorProvider: Hashable {
         let make: () -> UIColor; let name: String
@@ -86,8 +92,6 @@ public struct Color: View, ShapeStyle, Hashable, CustomStringConvertible, _Primi
     public var uiColor: UIColor { provider.make() }
     public var description: String { provider.name }
     public func opacity(_ o: Double) -> Color { let base = self; return Color("\(provider.name)@\(o)") { base.uiColor.withAlphaComponent(o) } }
-    public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node { _ColorNode(path: ctx.path, color: self) }
 
     public static let red = Color("red") { .systemRed }
     public static let orange = Color("orange") { .systemOrange }
@@ -107,7 +111,7 @@ public struct Color: View, ShapeStyle, Hashable, CustomStringConvertible, _Primi
     public static let clear = Color("clear") { .clear }
     public static let primary = Color("primary") { .label }
     public static let secondary = Color("secondary") { .secondaryLabel }
-    public static var accentColor: Color { Color("accent") { _accentUIColor() } }
+    public static var accentColor: Color { Color("accent") { MainActor.assumeIsolated { _accentUIColor() } } }
 }
 @MainActor func _accentUIColor() -> UIColor {
     if let name = Bundle.main.object(forInfoDictionaryKey: "ISIMGlobalAccentColorName") as? String, let c = UIColor(named: name) { return c }
@@ -180,7 +184,9 @@ public struct Font: Hashable, Sendable {
     var isItalic = false
     var customName: String?
     var weightSet = false
-    static func style(_ s: TextStyle) -> Font {
+    var textStyle: TextStyle?          /* text styles follow Dynamic Type (Settings > Accessibility > Larger Text) */
+    static func style(_ s: TextStyle) -> Font { var f = _style(s); f.textStyle = s; return f }
+    static func _style(_ s: TextStyle) -> Font {
         switch s {
         case .largeTitle: return Font(size: 34, weight: .regular)
         case .title: return Font(size: 28, weight: .regular)
@@ -220,6 +226,7 @@ public struct Font: Hashable, Sendable {
     static let weightNames: [(CGFloat, String)] = [(-0.8, "Thin"), (-0.6, "ExtraLight"), (-0.4, "Light"), (0, "Regular"), (0.23, "Medium"),
                                                    (0.3, "SemiBold"), (0.4, "Bold"), (0.56, "ExtraBold"), (0.62, "Black")]
     var uiFont: UIFont {
+        let size = textStyle == nil ? self.size : (UIFontMetrics.default.scaledValue(for: self.size)).rounded()
         if let name = customName {
             if weightSet, weight.value != 0, let wn = Font.weightNames.first(where: { $0.0 == weight.value })?.1 {
                 let base = name.split(separator: "-").first.map(String.init) ?? name

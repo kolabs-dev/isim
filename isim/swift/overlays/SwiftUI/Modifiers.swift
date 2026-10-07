@@ -174,8 +174,6 @@ extension View {
     }
     public func accessibilityLabel(_ key: LocalizedStringKey) -> some View { accessibilityLabel(Text(key)) }
     @_disfavoredOverload public func accessibilityLabel<S: StringProtocol>(_ label: S) -> some View { accessibilityLabel(Text(label)) }
-    public func accessibilityHint(_ hint: Text) -> some View { self }
-    public func accessibilityHidden(_ hidden: Bool) -> some View { self }
 }
 /// Accessibility attributes go to the interactive element (text field, control) when there is one.
 @MainActor func _tagDeepest(_ n: _Node, _ apply: (_Node) -> Void) {

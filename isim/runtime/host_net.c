@@ -75,7 +75,15 @@ static int curl_load(void) {
     return ok;
 }
 
-static int offline(void) { const char *e = getenv("ISIM_NETWORK"); return e && !strcmp(e, "offline"); }
+/* ISIM_NETWORK=offline, or Control Center's Wi-Fi off / Airplane Mode (the shell creates <isim data>/Library/isim/NetworkOffline) */
+static int offline(void) {
+    const char *e = getenv("ISIM_NETWORK");
+    if (e && !strcmp(e, "offline")) return 1;
+    const char *d = getenv("ISIM_DATA");
+    if (!d || !*d) return 0;
+    char p[1024]; snprintf(p, sizeof p, "%s/Library/isim/NetworkOffline", d);
+    return access(p, F_OK) == 0;
+}
 
 /* libcurl result -> NSURLError code */
 static int url_error(CURL *c, int rc) {
@@ -108,6 +116,7 @@ struct isim_http {
     char *url, *method; void *body; long body_len; double timeout, resource_timeout; int flags;
     char *hbuf; size_t hlen, hcap;           /* header block of the latest response */
     int have_response, done, error, refs; volatile int cancelled;
+    double timing[7]; long http_version, new_connections, local_port, remote_port; char remote_ip[64], local_ip[64];   /* URLSessionTaskMetrics */
     long status; char *final_url, *final_headers;
     unsigned char *buf; size_t blen, bcap, bpos;   /* received body not yet read by the guest */
     char errbuf[256];
@@ -178,6 +187,7 @@ static void *http_thread(void *arg) {
     curl.setopt(c, O_XFERINFOFUNCTION, on_progress); curl.setopt(c, O_XFERINFODATA, h);
     curl.setopt(c, O_ACCEPT_ENCODING, "");            /* like CFNetwork: advertise and transparently decode gzip etc. */
     if (!(h->flags & 1)) { curl.setopt(c, O_FOLLOWLOCATION, 1L); curl.setopt(c, O_MAXREDIRS, 16L); }
+    if (h->flags & 2) { curl.setopt(c, 64 /* CURLOPT_SSL_VERIFYPEER */, 0L); curl.setopt(c, 81 /* CURLOPT_SSL_VERIFYHOST */, 0L); }   /* the app trusted the server */
     /* timeoutIntervalForRequest is an idle timeout (no bytes for that long), as on iOS */
     if (h->timeout > 0) {
         curl.setopt(c, O_CONNECTTIMEOUT_MS, (long)(h->timeout * 1000));
@@ -194,6 +204,13 @@ static void *http_thread(void *arg) {
     }
     if (h->hdrs) curl.setopt(c, O_HTTPHEADER, h->hdrs);
     int rc = curl.perform(c);
+    /* timings for URLSessionTaskMetrics: total, name lookup, connect, TLS, pretransfer, first byte, redirect */
+    static const int tinfo[7] = { 0x300000 + 3, 0x300000 + 4, 0x300000 + 5, 0x300000 + 33, 0x300000 + 6, 0x300000 + 17, 0x300000 + 19 };
+    for (int i = 0; i < 7; i++) { double v = -1; if (curl.getinfo(c, tinfo[i], &v) != 0) v = -1; h->timing[i] = v; }
+    curl.getinfo(c, 0x200000 + 46, &h->http_version); curl.getinfo(c, 0x200000 + 26, &h->new_connections);
+    curl.getinfo(c, 0x200000 + 40, &h->remote_port); curl.getinfo(c, 0x200000 + 42, &h->local_port);
+    { char *ip = NULL; if (curl.getinfo(c, 0x100000 + 32, &ip) == 0 && ip) snprintf(h->remote_ip, sizeof h->remote_ip, "%s", ip);
+      ip = NULL; if (curl.getinfo(c, 0x100000 + 41, &ip) == 0 && ip) snprintf(h->local_ip, sizeof h->local_ip, "%s", ip); }
     pthread_mutex_lock(&h->mu);
     h->error = h->cancelled ? -999 : url_error(c, rc);
     if (!h->error) publish_response(h);
@@ -205,7 +222,7 @@ static void *http_thread(void *arg) {
     return NULL;
 }
 
-/* Starts a transfer. headers: "Name: value" lines separated by '\n'. flags: 1 = do not follow redirects.
+/* Starts a transfer. headers: "Name: value" lines separated by '\n'. flags: 1 = do not follow redirects, 2 = accept any server certificate.
  * timeout: idle timeout (s); resource_timeout: whole transfer (s, <= 0 none). NULL if libcurl is missing. */
 struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len,
                                   double timeout, double resource_timeout, int flags) {
@@ -262,6 +279,16 @@ long isim_http_read(struct isim_http *h, void *out, long cap) {
 }
 
 const char *isim_http_error_message(struct isim_http *h) { return h->errbuf; }
+/* after the body was read: seconds from the start for t[0] total, [1] name lookup, [2] connect, [3] TLS handshake,
+   [4] request sent, [5] first response byte, [6] redirects (-1 unknown); ints[0] HTTP version (CURL_HTTP_VERSION_*),
+   [1] new connections (0 = reused), [2] remote port, [3] local port; remote/local IP strings */
+void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen) {
+    pthread_mutex_lock(&h->mu);
+    for (int i = 0; i < 7; i++) t[i] = h->done ? h->timing[i] : -1;
+    ints[0] = h->http_version; ints[1] = h->new_connections; ints[2] = h->remote_port; ints[3] = h->local_port;
+    snprintf(remote, rlen, "%s", h->remote_ip); snprintf(local, llen, "%s", h->local_ip);
+    pthread_mutex_unlock(&h->mu);
+}
 void isim_http_cancel(struct isim_http *h) {
     pthread_mutex_lock(&h->mu); h->cancelled = 1; pthread_cond_broadcast(&h->cv); pthread_mutex_unlock(&h->mu);
 }

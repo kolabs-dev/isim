@@ -26,6 +26,7 @@ OBJC_EXPORT Class _Nullable objc_getRequiredClass(const char * _Nonnull name);
 OBJC_EXPORT Class _Nonnull * _Nullable objc_copyClassList(unsigned int * _Nullable outCount);
 /* introspection used by the Swift runtime */
 OBJC_EXPORT Ivar _Nonnull * _Nullable class_copyIvarList(Class _Nullable cls, unsigned int * _Nullable outCount);
+OBJC_EXPORT Method _Nonnull * _Nullable class_copyMethodList(Class _Nullable cls, unsigned int * _Nullable outCount);
 OBJC_EXPORT ptrdiff_t ivar_getOffset(Ivar _Nonnull v);
 OBJC_EXPORT const char * _Nullable ivar_getName(Ivar _Nonnull v);
 OBJC_EXPORT const char * _Nullable ivar_getTypeEncoding(Ivar _Nonnull v);
@@ -74,6 +75,9 @@ OBJC_EXPORT Class _Nullable object_getClass(id _Nullable obj);
 OBJC_EXPORT Class _Nullable object_setClass(id _Nullable obj, Class _Nonnull cls);
 OBJC_EXPORT BOOL class_respondsToSelector(Class _Nullable cls, SEL _Nonnull sel);
 OBJC_EXPORT IMP _Nullable class_getMethodImplementation(Class _Nullable cls, SEL _Nonnull name);
+OBJC_EXPORT IMP _Nullable class_getMethodImplementation_stret(Class _Nullable cls, SEL _Nonnull name);
+struct objc_method_description { SEL _Nullable name; char * _Nullable types; };
+OBJC_EXPORT struct objc_method_description protocol_getMethodDescription(Protocol * _Nonnull proto, SEL _Nonnull aSel, BOOL isRequiredMethod, BOOL isInstanceMethod);
 OBJC_EXPORT BOOL class_conformsToProtocol(Class _Nullable cls, Protocol * _Nullable protocol);
 OBJC_EXPORT Protocol * _Nullable objc_getProtocol(const char * _Nonnull name);
 OBJC_EXPORT const char * _Nonnull protocol_getName(Protocol * _Nonnull proto);

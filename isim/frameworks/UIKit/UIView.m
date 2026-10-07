@@ -3,6 +3,7 @@
  *
  * Auto Layout: a Cassowary solver (Cassowary.c) per window; see "Auto Layout engine" below. */
 #import "UIKitPrivate.h"
+#import "CAPrivate.h"
 #include "Cassowary.h"
 #include <math.h>
 
@@ -195,8 +196,7 @@ static void anim_layer_changed(UIView *v, int key, const double *old, const doub
 }
 static void cg_rgba(CGColorRef c, double out[4]) {
     if (!c) { out[0] = out[1] = out[2] = out[3] = 0; return; }
-    const CGFloat *k = CGColorGetComponents(c); size_t n = CGColorGetNumberOfComponents(c);
-    if (n >= 4) { for (int i = 0; i < 4; i++) out[i] = k[i]; } else if (n == 2) { out[0] = out[1] = out[2] = k[0]; out[3] = k[1]; } else { out[0] = out[1] = out[2] = 0; out[3] = 1; }
+    isim_cg_color_rgba(c, out);          /* sRGB, whatever the color's space */
 }
 @implementation __IsimViewLayer
 - (void)setCornerRadius:(CGFloat)r { double a = self.cornerRadius, b = r; anim_layer_changed(_isim_view, AK_RADIUS, &a, &b, 1); [super setCornerRadius:r]; }
@@ -210,7 +210,7 @@ static void cg_rgba(CGColorRef c, double out[4]) {
     anim_layer_changed(_isim_view, AK_BORDERCOLOR, a, b, 4);
     [super setBorderColor:c];
 }
-- (void)removeAllAnimations { UIView *v = _isim_view; if (v) anim_remove_all(v); }
+- (void)removeAllAnimations { UIView *v = _isim_view; if (v) anim_remove_all(v); [super removeAllAnimations]; }
 /* a snapshot with the in-flight values (frame is the transformed bounding box, like Core Animation) */
 - (instancetype)presentationLayer {
     UIView *v = _isim_view;
@@ -235,6 +235,7 @@ static void cg_rgba(CGColorRef c, double out[4]) {
     CGRect r = CGRectApplyAffineTransform(CGRectMake(-f.size.width / 2, -f.size.height / 2, f.size.width, f.size.height), t);
     p.frame = CGRectOffset(r, c.x, c.y);
     p.opacity = (float)(alpha * self.opacity);
+    if ([self _isim_hasAnimations]) [self _isim_applyAnimationsTo:p at:CACurrentMediaTime()];   /* Core Animation (CoreAnimation.m) */
     return (id)p;
 }
 @end
@@ -243,7 +244,7 @@ static void cg_rgba(CGColorRef c, double out[4]) {
 @synthesize layer = _layer;
 + (Class)layerClass { return [__IsimViewLayer class]; }
 - (instancetype)init { return [self initWithFrame:CGRectZero]; }
-- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithFrame:CGRectZero]; }
+- (instancetype)initWithCoder:(NSCoder *)c { extern id isim_ib_init_with_coder(id, NSCoder *); return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (void)encodeWithCoder:(NSCoder *)c {}   /* isim: archiving is not implemented */
 - (instancetype)initWithFrame:(CGRect)frame {
     if ((self = [super init])) {
@@ -431,15 +432,35 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
 - (void)_isim_didSolve {}
 
 /* ---- coordinates ---- */
-- (CGPoint)_isim_toWindow:(CGPoint)p {
-    for (UIView *v = self; v && ![v isKindOfClass:[UIWindow class]]; v = v->_superview) {
-        p.x += v->_frame.origin.x - v->_boundsOrigin.x; p.y += v->_frame.origin.y - v->_boundsOrigin.y;
+/* a point in a view's bounds -> its superview, and back: transforms apply about the view's center, as drawn */
+static inline CGPoint to_superview(UIView *v, CGPoint p, CGRect frame, CGPoint origin, CGAffineTransform t) {
+    p.x -= origin.x; p.y -= origin.y;
+    if (!CGAffineTransformIsIdentity(t)) {
+        double cx = frame.size.width / 2, cy = frame.size.height / 2, x = p.x - cx, y = p.y - cy;
+        p.x = t.a * x + t.c * y + t.tx + cx; p.y = t.b * x + t.d * y + t.ty + cy;
     }
+    p.x += frame.origin.x; p.y += frame.origin.y;
+    return p;
+}
+static inline CGPoint from_superview(UIView *v, CGPoint p, CGRect frame, CGPoint origin, CGAffineTransform t) {
+    p.x -= frame.origin.x; p.y -= frame.origin.y;
+    if (!CGAffineTransformIsIdentity(t)) {
+        CGAffineTransform inv = CGAffineTransformInvert(t);
+        double cx = frame.size.width / 2, cy = frame.size.height / 2, x = p.x - cx, y = p.y - cy;
+        p.x = inv.a * x + inv.c * y + inv.tx + cx; p.y = inv.b * x + inv.d * y + inv.ty + cy;
+    }
+    p.x += origin.x; p.y += origin.y;
+    return p;
+}
+- (CGPoint)_isim_toWindow:(CGPoint)p {
+    for (UIView *v = self; v && ![v isKindOfClass:[UIWindow class]]; v = v->_superview) p = to_superview(v, p, v->_frame, v->_boundsOrigin, v->_transform);
     return p;
 }
 - (CGPoint)_isim_fromWindow:(CGPoint)p {
-    CGPoint o = [self _isim_toWindow:CGPointZero];
-    return CGPointMake(p.x - o.x, p.y - o.y);
+    UIView *chain[64]; int n = 0;
+    for (UIView *v = self; v && ![v isKindOfClass:[UIWindow class]] && n < 64; v = v->_superview) chain[n++] = v;
+    while (n > 0) { UIView *v = chain[--n]; p = from_superview(v, p, v->_frame, v->_boundsOrigin, v->_transform); }
+    return p;
 }
 - (CGPoint)convertPoint:(CGPoint)p toView:(UIView *)v { CGPoint w = [self _isim_toWindow:p]; return v ? [v _isim_fromWindow:w] : w; }
 - (CGPoint)convertPoint:(CGPoint)p fromView:(UIView *)v { CGPoint w = v ? [v _isim_toWindow:p] : p; return [self _isim_fromWindow:w]; }
@@ -817,7 +838,7 @@ void isim_ui_layout_window(UIView *root) {
     if (_hidden || !_userInteractionEnabled || _alpha < 0.01 || ![self pointInside:p withEvent:e]) return nil;
     for (NSInteger i = (NSInteger)_subs.count - 1; i >= 0; i--) {
         UIView *s = _subs[(NSUInteger)i];
-        CGPoint q = CGPointMake(p.x - s->_frame.origin.x + s->_boundsOrigin.x, p.y - s->_frame.origin.y + s->_boundsOrigin.y);
+        CGPoint q = from_superview(s, p, s->_frame, s->_boundsOrigin, s->_transform);
         UIView *h = [s hitTest:q withEvent:e];
         if (h) return h;
     }
@@ -848,7 +869,12 @@ static IMP base_drawRect;
         if (anim_presentation(self, AK_TRANSFORM, pv)) xf = (CGAffineTransform){ pv[0], pv[1], pv[2], pv[3], pv[4], pv[5] };
         if (anim_presentation(self, AK_BG, bgv)) bgAnim = YES;
     }
+    /* Core Animation on the view's layer: CA animations, 3D transforms (CoreAnimation.m) */
+    double caOpacity = _layer.opacity; CATransform3D t3d; BOOL has3d = NO;
+    isim_ca_view_values(_layer, &frame, &xf, &caOpacity, &radius, &borderW, borderC, &borderAnim, bgv, &bgAnim, &shadowOp, &shadowRad, &shadowOff, &t3d, &has3d);
+    if (isim_ca_flat_view == self) { frame.origin = CGPointZero; xf = CGAffineTransformIdentity; has3d = NO; isim_ca_flat_view = nil; }
     if (_hidden || alpha <= 0.01 || _layer.hidden) return;
+    if (has3d) { isim_ca_render_view_3d(self, frame, t3d); return; }
     CGSize sz = frame.size;
     isim_gfx_save();
     isim_gfx_translate(frame.origin.x, frame.origin.y);
@@ -859,25 +885,18 @@ static IMP base_drawRect;
     }
     BOOL pushedStyle = _overrideUserInterfaceStyle != UIUserInterfaceStyleUnspecified;
     if (pushedStyle) isim_ui_push_style(_overrideUserInterfaceStyle);
-    double a = alpha * _layer.opacity;
-    BOOL group = a < 0.999;
+    double a = alpha * caOpacity;
+    CALayer *maskLayer = _layer.mask;
+    BOOL group = a < 0.999 || maskLayer;
     if (group) isim_gfx_push_group();
+    BOOL caTransition = isim_ca_view_transition_begin(_layer, sz);
     double bg[4];
     if (bgAnim) memcpy(bg, bgv, sizeof bg);
     else if (_backgroundColor) isim_ui_rgba(_backgroundColor, bg);
-    else if (_layer.backgroundColor) { const CGFloat *c = CGColorGetComponents(_layer.backgroundColor); for (int i = 0; i < 4; i++) bg[i] = c[i]; }
+    else if (_layer.backgroundColor) cg_rgba(_layer.backgroundColor, bg);
     else bg[3] = 0;
-    if (bg[3] > 0 && shadowOp > 0 && _layer.shadowColor) {
-        /* drop shadow under the background shape; blur approximated by stacked expanding fills */
-        const CGFloat *sc = CGColorGetComponents(_layer.shadowColor);
-        CGSize o = shadowOff; double blur = shadowRad;
-        int steps = blur > 0.5 ? 5 : 1;
-        for (int i = steps - 1; i >= 0; i--) {
-            double e = steps > 1 ? blur * (i + 1) / steps : 0;
-            double col[4] = { sc[0], sc[1], sc[2], sc[3] * shadowOp / steps };
-            isim_gfx_fill_rounded(o.width - e, o.height - e, sz.width + 2 * e, sz.height + 2 * e, radius + e, col);
-        }
-    }
+    /* drop shadow of the shadow path or the background shape, Gaussian-blurred (CoreAnimation.m) */
+    if ((bg[3] > 0 || _layer.shadowPath) && shadowOp > 0 && _layer.shadowColor) isim_ca_view_shadow(_layer, sz, radius, shadowOp, shadowRad, shadowOff);
     if (bg[3] > 0) isim_gfx_fill_rounded(0, 0, sz.width, sz.height, radius, bg);
     BOOL clip = _clipsToBounds || _layer.masksToBounds;
     if (clip) { isim_gfx_save(); isim_gfx_clip_rounded(0, 0, sz.width, sz.height, radius); }
@@ -897,7 +916,9 @@ static IMP base_drawRect;
         double bc[4]; if (borderAnim) memcpy(bc, borderC, sizeof bc); else cg_rgba(_layer.borderColor, bc);
         isim_gfx_stroke_rounded(borderW / 2, borderW / 2, sz.width - borderW, sz.height - borderW, fmax(0, radius - borderW / 2), borderW, bc);
     }
-    if (group) isim_gfx_pop_group(a);
+    if (caTransition) isim_ca_view_transition_end(_layer, sz);
+    if (group && maskLayer) { isim_gfx_push_group(); isim_gfx_save(); isim_ca_render_mask(maskLayer); isim_gfx_restore(); isim_gfx_pop_group_masked(a); }
+    else if (group) isim_gfx_pop_group(a);
     if (pushedStyle) isim_ui_pop_style();
     isim_gfx_restore();
 }

@@ -5,4 +5,7 @@ __BEGIN_DECLS
 OBJC_EXPORT void objc_msgSend(void);
 OBJC_EXPORT void objc_msgSendSuper(void);
 OBJC_EXPORT void objc_msgSend_stret(void);
+OBJC_EXPORT void objc_msgSendSuper2(void);
+OBJC_EXPORT void _objc_msgForward(void);
+OBJC_EXPORT void _objc_msgForward_stret(void);
 __END_DECLS

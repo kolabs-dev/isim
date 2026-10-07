@@ -13,14 +13,7 @@
 #import <UIKit/UIViewPropertyAnimator.h>
 #include <math.h>
 
-/* layers that do not belong to a view have no animations (CALayer itself lives in UIGraphicsBase.m) */
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
-@implementation CALayer (IsimPresentation)
-- (instancetype)presentationLayer { return self; }
-- (void)removeAllAnimations {}
-@end
-#pragma clang diagnostic pop
+/* CALayer, its presentation layers and Core Animation animations: CoreAnimation.m */
 
 /* ================= keyframes ================= */
 @implementation UIView (UIViewKeyframeAnimations)

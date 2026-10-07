@@ -326,7 +326,8 @@ extension View {
         let o = content()
         return _modify { ctx, c in _OverlayNode(path: ctx.path, child: _resolve(c, ctx.child("ov")), overlay: _resolve(o, ctx.child("ovc")), alignment: alignment) }
     }
-    public func overlay<V: View>(_ overlay: V, alignment: Alignment = .center) -> some View { self.overlay(alignment: alignment) { overlay } }
+    /// deprecated on Apple; disfavored so `overlay(Color.x)` picks the ShapeStyle variant, as on iOS
+    @_disfavoredOverload public func overlay<V: View>(_ overlay: V, alignment: Alignment = .center) -> some View { self.overlay(alignment: alignment) { overlay } }
     public func overlay<S: ShapeStyle>(_ style: S, ignoresSafeAreaEdges edges: Edge.Set = .all) -> some View { overlay { Rectangle().fill(style) } }
     public func background<S: ShapeStyle, T: Shape>(_ style: S, in shape: T, fillStyle: FillStyle = FillStyle()) -> some View {
         let kind = (shape as? _ShapeInfo)?._kind ?? .rect
@@ -337,7 +338,7 @@ extension View {
             return _BackgroundNode(path: ctx.path, color: nil, cornerRadius: 0, background: bg, child: _resolve(c, ctx.child("b")))
         }
     }
-    public func background<V: View>(_ v: V, alignment: Alignment = .center) -> some View { background(alignment: alignment) { v } }
+    @_disfavoredOverload public func background<V: View>(_ v: V, alignment: Alignment = .center) -> some View { background(alignment: alignment) { v } }
     /// Masks are applied as clipping to the mask's shape (rectangles, rounded rectangles, circles, capsules).
     public func mask<M: View>(alignment: Alignment = .center, @ViewBuilder _ mask: () -> M) -> some View {
         let m = mask()
@@ -619,147 +620,7 @@ final class _GridNode: _Node {
 
 // ProgressView: see Controls+More.swift
 
-// MARK: - Gestures
-
-public protocol Gesture {
-    associatedtype Value
-    var _isimGesture: _GestureSpec { get }
-}
-/// What a gesture does with touches (drag and tap recognition run in _SUIGestureView).
-public struct _GestureSpec {
-    var minimumDistance: CGFloat = 10
-    var drag = false
-    var tapCount = 0
-    var longPress: Double?
-    var onChanged: ((DragGesture.Value) -> Void)?
-    var onEnded: ((DragGesture.Value) -> Void)?
-    var onTap: (() -> Void)?
-}
-
-public struct DragGesture: Gesture {
-    public struct Value: Equatable, Sendable {
-        public var time: Date
-        public var location: CGPoint
-        public var startLocation: CGPoint
-        public var translation: CGSize { CGSize(width: location.x - startLocation.x, height: location.y - startLocation.y) }
-        public var velocity: CGSize
-        public var predictedEndLocation: CGPoint { CGPoint(x: location.x + velocity.width * 0.25, y: location.y + velocity.height * 0.25) }
-        public var predictedEndTranslation: CGSize { CGSize(width: predictedEndLocation.x - startLocation.x, height: predictedEndLocation.y - startLocation.y) }
-    }
-    public var minimumDistance: CGFloat
-    public var coordinateSpace: CoordinateSpace
-    var spec: _GestureSpec
-    public init(minimumDistance: CGFloat = 10, coordinateSpace: CoordinateSpace = .local) {
-        self.minimumDistance = minimumDistance; self.coordinateSpace = coordinateSpace
-        spec = _GestureSpec(minimumDistance: minimumDistance, drag: true)
-    }
-    public var _isimGesture: _GestureSpec { spec }
-    public func onChanged(_ action: @escaping (Value) -> Void) -> DragGesture { var g = self; g.spec.onChanged = action; return g }
-    public func onEnded(_ action: @escaping (Value) -> Void) -> DragGesture { var g = self; g.spec.onEnded = action; return g }
-}
-public struct TapGesture: Gesture {
-    public typealias Value = Void
-    var spec: _GestureSpec
-    public init(count: Int = 1) { spec = _GestureSpec(minimumDistance: 10, drag: false, tapCount: count) }
-    public var _isimGesture: _GestureSpec { spec }
-    public func onEnded(_ action: @escaping () -> Void) -> TapGesture { var g = self; g.spec.onTap = action; return g }
-}
-public struct LongPressGesture: Gesture {
-    public typealias Value = Bool
-    var spec: _GestureSpec
-    public init(minimumDuration: Double = 0.5, maximumDistance: CGFloat = 10) { spec = _GestureSpec(minimumDistance: maximumDistance, longPress: minimumDuration) }
-    public var _isimGesture: _GestureSpec { spec }
-    public func onEnded(_ action: @escaping (Bool) -> Void) -> LongPressGesture { var g = self; g.spec.onTap = { action(true) }; return g }
-}
-public struct GestureMask: OptionSet, Sendable {
-    public let rawValue: UInt8
-    public init(rawValue: UInt8) { self.rawValue = rawValue }
-    public static let none = GestureMask(rawValue: 0), gesture = GestureMask(rawValue: 1), subviews = GestureMask(rawValue: 2), all = GestureMask(rawValue: 3)
-}
-
-extension View {
-    public func gesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View {
-        let spec = g._isimGesture
-        return _modify { ctx, c in _GestureNode(path: ctx.path, spec: spec, child: _resolve(c, ctx.child("gst"))) }
-    }
-    public func simultaneousGesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { gesture(g, including: mask) }
-    public func highPriorityGesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { gesture(g, including: mask) }
-    public func onLongPressGesture(minimumDuration: Double = 0.5, maximumDistance: CGFloat = 10, perform action: @escaping () -> Void) -> some View {
-        var spec = LongPressGesture(minimumDuration: minimumDuration, maximumDistance: maximumDistance).spec
-        spec.onTap = action
-        return _modify { ctx, c in _GestureNode(path: ctx.path, spec: spec, child: _resolve(c, ctx.child("lp"))) }
-    }
-}
-
-final class _GestureNode: _WrapperNode {
-    let spec: _GestureSpec
-    init(path: String, spec: _GestureSpec, child: _Node) { self.spec = spec; super.init(path: path, child: child) }
-    override var layoutPriority: Double { child.layoutPriority }
-    override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
-    override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
-    override func mountView(_ g: _Graph) -> UIView {
-        let v = g.view(viewKey) { _SUIGestureView(frame: .zero) }
-        v.spec = spec
-        return v
-    }
-}
-/// Receives the touches that start on it (and not on an interactive subview) and drives the gesture.
-final class _SUIGestureView: UIView {
-    var spec = _GestureSpec()
-    var start: CGPoint?, startTime = Date(), active = false
-    var samples: [(CGPoint, TimeInterval)] = []
-    var tracked: UITouch?
-    var pressTimer: Timer?
-    override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear }
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-    func value(_ p: CGPoint) -> DragGesture.Value {
-        var v = CGSize.zero
-        if let a = samples.first, let b = samples.last, b.1 - a.1 > 0.005 {
-            v = CGSize(width: (b.0.x - a.0.x) / (b.1 - a.1), height: (b.0.y - a.0.y) / (b.1 - a.1))
-        }
-        return DragGesture.Value(time: Date(), location: p, startLocation: start ?? p, velocity: v)
-    }
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard tracked == nil, let t = touches.first else { return }
-        tracked = t
-        let p = t.location(in: self)
-        start = p; startTime = Date(); samples = [(p, t.timestamp)]; active = false
-        if spec.drag && spec.minimumDistance <= 0 { active = true; spec.onChanged?(value(p)) }
-        if let d = spec.longPress {
-            pressTimer = Timer.scheduledTimer(withTimeInterval: d, repeats: false) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self, self.tracked != nil else { return }
-                    self.spec.onTap?(); self.tracked = nil
-                }
-            }
-        }
-    }
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = tracked, touches.contains(t), let s = start else { return }
-        let p = t.location(in: self)
-        samples.append((p, t.timestamp)); if samples.count > 5 { samples.removeFirst() }
-        let moved = hypot(p.x - s.x, p.y - s.y)
-        if spec.longPress != nil && moved > spec.minimumDistance { pressTimer?.invalidate(); tracked = nil; return }
-        if spec.drag {
-            if !active && moved >= spec.minimumDistance { active = true }
-            if active { spec.onChanged?(value(p)) }
-        }
-    }
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = tracked, touches.contains(t), let s = start else { return }
-        tracked = nil; pressTimer?.invalidate()
-        let p = t.location(in: self)
-        if spec.drag && active { spec.onEnded?(value(p)) }
-        else if spec.tapCount > 0, hypot(p.x - s.x, p.y - s.y) < 10, bounds.contains(p) { spec.onTap?() }
-        active = false
-    }
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = tracked, touches.contains(t) else { return }
-        tracked = nil; pressTimer?.invalidate()
-        if spec.drag && active, let s = start { spec.onEnded?(value(s)) }
-        active = false
-    }
-}
+// MARK: - Gestures: Gestures.swift
 
 // MARK: - Button styles
 

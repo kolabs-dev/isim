@@ -39,6 +39,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) NSUInteger numberOfTouchesRequired;
 @end
 @interface UIPanGestureRecognizer : UIGestureRecognizer
+@property (nonatomic) NSUInteger minimumNumberOfTouches;
+@property (nonatomic) NSUInteger maximumNumberOfTouches;
 - (CGPoint)translationInView:(nullable UIView *)view;
 - (void)setTranslation:(CGPoint)translation inView:(nullable UIView *)view;
 - (CGPoint)velocityInView:(nullable UIView *)view;

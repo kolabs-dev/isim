@@ -29,6 +29,7 @@ typedef NS_ENUM(NSInteger, UIImageOrientation) {
     UIImageOrientationUp, UIImageOrientationDown, UIImageOrientationLeft, UIImageOrientationRight,
     UIImageOrientationUpMirrored, UIImageOrientationDownMirrored, UIImageOrientationLeftMirrored, UIImageOrientationRightMirrored
 };
+typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, UIImageResizingModeStretch = 1 };
 @interface UIImage : NSObject
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage;
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage scale:(CGFloat)scale orientation:(UIImageOrientation)orientation;
@@ -58,11 +59,38 @@ typedef NS_ENUM(NSInteger, UIImageOrientation) {
 - (UIImage *)imageWithConfiguration:(UIImageConfiguration *)configuration;
 - (void)drawInRect:(CGRect)rect;
 - (void)drawAtPoint:(CGPoint)point;
+- (void)drawInRect:(CGRect)rect blendMode:(CGBlendMode)blendMode alpha:(CGFloat)alpha;
+/* orientation: drawing and size honour it (Left/Right swap width and height) */
+- (UIImage *)imageWithHorizontallyFlippedOrientation NS_SWIFT_NAME(withHorizontallyFlippedOrientation());
+@property (nonatomic, readonly) UIImage *imageFlippedForRightToLeftLayoutDirection;
+@property (nonatomic, readonly) BOOL flipsForRightToLeftLayoutDirection;
+/* resizable images draw as nine slices (caps fixed, edges and center stretched or tiled) */
+- (UIImage *)resizableImageWithCapInsets:(UIEdgeInsets)capInsets;
+- (UIImage *)resizableImageWithCapInsets:(UIEdgeInsets)capInsets resizingMode:(UIImageResizingMode)resizingMode;
+- (UIImage *)stretchableImageWithLeftCapWidth:(NSInteger)leftCapWidth topCapHeight:(NSInteger)topCapHeight;
+@property (nonatomic, readonly) UIEdgeInsets capInsets;
+@property (nonatomic, readonly) UIImageResizingMode resizingMode;
+/* animated images: UIImageView plays them; drawing one draws its first frame */
++ (nullable UIImage *)animatedImageWithImages:(NSArray<UIImage *> *)images duration:(NSTimeInterval)duration;
++ (nullable UIImage *)animatedImageNamed:(NSString *)name duration:(NSTimeInterval)duration;
+@property (nullable, nonatomic, readonly) NSArray<UIImage *> *images;
+@property (nonatomic, readonly) NSTimeInterval duration;
 @end
 UIKIT_EXTERN NSData *_Nullable UIImagePNGRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.pngData(self:));
 UIKIT_EXTERN NSData *_Nullable UIImageJPEGRepresentation(UIImage *image, CGFloat compressionQuality) NS_SWIFT_NAME(UIImage.jpegData(self:compressionQuality:));
 @interface UIImageView : UIView
 - (instancetype)initWithImage:(nullable UIImage *)image;
+- (instancetype)initWithImage:(nullable UIImage *)image highlightedImage:(nullable UIImage *)highlightedImage;
+@property (nullable, nonatomic, strong) UIImage *highlightedImage;
+@property (nonatomic, getter=isHighlighted) BOOL highlighted;
+/* frame animation (also used for an animated UIImage set as `image`) */
+@property (nullable, nonatomic, copy) NSArray<UIImage *> *animationImages;
+@property (nullable, nonatomic, copy) NSArray<UIImage *> *highlightedAnimationImages;
+@property (nonatomic) NSTimeInterval animationDuration;
+@property (nonatomic) NSInteger animationRepeatCount;
+- (void)startAnimating;
+- (void)stopAnimating;
+@property (nonatomic, readonly, getter=isAnimating) BOOL animating;
 @property (nullable, nonatomic, strong) UIImage *image;
 @property (nullable, nonatomic, copy) UIImageSymbolConfiguration *preferredSymbolConfiguration;
 @end

@@ -5,7 +5,7 @@
  * not blink (stable screenshots). With isScrollEnabled = false the view sizes itself to its text
  * (Auto Layout self-sizing), like UIKit. Defaults follow UIKit: 12 pt system font, insets 8/0/8/0,
  * line fragment padding 5. */
-#import "UIKitPrivate.h"
+#import "UITextInputImpl.h"
 #import <UIKit/UITextView.h>
 #include <math.h>
 
@@ -15,6 +15,8 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 
 #define PAD 5.0     /* NSTextContainer.lineFragmentPadding */
 
+@interface UITextView () <IsimEditableText>
+@end
 @implementation UITextView {
     NSString *_storage;
     CGFloat _measuredWidth;
@@ -23,7 +25,9 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 @synthesize autocapitalizationType = _autocapitalizationType, autocorrectionType = _autocorrectionType, spellCheckingType = _spellCheckingType,
     keyboardType = _keyboardType, keyboardAppearance = _keyboardAppearance, returnKeyType = _returnKeyType,
     enablesReturnKeyAutomatically = _enablesReturnKeyAutomatically, secureTextEntry = _secureTextEntry, textContentType = _textContentType,
-    inputView = _inputView, inputAccessoryView = _inputAccessoryView;
+    inputView = _inputView, inputAccessoryView = _inputAccessoryView,
+    smartQuotesType = _smartQuotesType, smartDashesType = _smartDashesType, smartInsertDeleteType = _smartInsertDeleteType,
+    inlinePredictionType = _inlinePredictionType;
 
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
@@ -35,6 +39,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
         self.showsHorizontalScrollIndicator = NO;
         self.alwaysBounceHorizontal = NO;
         [self _isim_tvUpdateContent];
+        isim_ui_text_install(self);
     }
     return self;
 }
@@ -46,6 +51,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     if ([t isEqualToString:_storage]) return;
     _storage = [t copy];
     _selectedRange = NSMakeRange(_storage.length, 0);
+    isim_ui_set_marked_range(self, NSMakeRange(NSNotFound, 0));
     [self _isim_tvChanged];
 }
 - (void)setFont:(UIFont *)f { _font = f ?: [UIFont systemFontOfSize:12]; [self _isim_tvChanged]; }
@@ -64,7 +70,10 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 - (BOOL)hasText { return _storage.length > 0; }
 - (NSString *)_isim_dumpText {
     NSString *t = [_storage stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"];
-    return [NSString stringWithFormat:@"\"%@\"%@ offset %g, content %g", t, self.isFirstResponder ? @" (editing)" : @"", self.contentOffset.y, self.contentSize.height];
+    NSString *sel = _selectedRange.length ? [NSString stringWithFormat:@" selection %lu+%lu", (unsigned long)_selectedRange.location, (unsigned long)_selectedRange.length] : @"";
+    NSRange m = isim_ui_marked_range(self);
+    if (m.location != NSNotFound) sel = [sel stringByAppendingFormat:@" marked %lu+%lu", (unsigned long)m.location, (unsigned long)m.length];
+    return [NSString stringWithFormat:@"\"%@\"%@%@ offset %g, content %g", t, self.isFirstResponder ? @" (editing)" : @"", sel, self.contentOffset.y, self.contentSize.height];
 }
 
 /* ---- metrics ---- */
@@ -178,6 +187,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     id<UITextViewDelegate> d = self.delegate;
     if ([d respondsToSelector:@selector(textViewShouldEndEditing:)] && ![d textViewShouldEndEditing:self]) return NO;
     [super resignFirstResponder];
+    isim_ui_text_did_end_editing(self);
     if ([d respondsToSelector:@selector(textViewDidEndEditing:)]) [d textViewDidEndEditing:self];
     [NSNotificationCenter.defaultCenter postNotificationName:UITextViewTextDidEndEditingNotification object:self];
     isim_ui_set_needs_display();
@@ -185,7 +195,8 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 }
 - (void)_isim_tvReplace:(NSRange)r with:(NSString *)s {
     id<UITextViewDelegate> d = self.delegate;
-    if ([d respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementText:)] && ![d textView:self shouldChangeTextInRange:r replacementText:s]) return;
+    BOOL composing = isim_ui_marked_range(self).location != NSNotFound;
+    if (!composing && [d respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementText:)] && ![d textView:self shouldChangeTextInRange:r replacementText:s]) return;
     _storage = [_storage stringByReplacingCharactersInRange:r withString:s];
     _selectedRange = NSMakeRange(r.location + s.length, 0);
     [self _isim_tvChanged];
@@ -193,35 +204,42 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     [NSNotificationCenter.defaultCenter postNotificationName:UITextViewTextDidChangeNotification object:self];
     if ([d respondsToSelector:@selector(textViewDidChangeSelection:)]) [d textViewDidChangeSelection:self];
     [self _isim_tvScrollToCaret];
+    isim_ui_text_selection_changed(self);
 }
 - (void)insertText:(NSString *)t {
     if (!_editable || !t.length) return;
-    [self _isim_tvReplace:_selectedRange with:t];
+    isim_ti_insert(self, t);
 }
-- (void)deleteBackward {
-    if (!_editable) return;
-    NSRange r = _selectedRange;
-    if (r.length == 0) {
-        if (r.location == 0) return;
-        r = [_storage rangeOfComposedCharacterSequenceAtIndex:r.location - 1];
-    }
-    [self _isim_tvReplace:r with:@""];
+- (void)deleteBackward { if (_editable) isim_ti_delete_backward(self); }
+/* IsimEditableText (view coordinates = content coordinates) */
+- (NSString *)_isim_plainText { return _storage; }
+- (NSRange)_isim_selectedRange { return _selectedRange; }
+- (BOOL)_isim_isEditable { return _editable; }
+- (void)_isim_setSelectedRange:(NSRange)r {
+    _selectedRange = r;
+    id<UITextViewDelegate> d = self.delegate;
+    if ([d respondsToSelector:@selector(textViewDidChangeSelection:)]) [d textViewDidChangeSelection:self];
+    [self _isim_tvScrollToCaret];
+    isim_ui_set_needs_display();
 }
-- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)e {
-    [super touchesEnded:touches withEvent:e];
-    if (!_editable && !_selectable) return;
-    CGPoint p = [touches.anyObject locationInView:self];           /* content coordinates (bounds origin = offset) */
-    if (!CGRectContainsPoint(self.bounds, p)) return;
-    NSUInteger i = [self _isim_tvIndexAt:p];
-    if (_editable) {
-        _selectedRange = NSMakeRange(i, 0);
-        id<UITextViewDelegate> d = self.delegate;
-        if (self.isFirstResponder && [d respondsToSelector:@selector(textViewDidChangeSelection:)]) [d textViewDidChangeSelection:self];
-        [self becomeFirstResponder];
-        isim_ui_set_needs_display();
-    }
+- (void)_isim_replaceRange:(NSRange)r withText:(NSString *)t { if (_editable) [self _isim_tvReplace:r with:t ?: @""]; }
+- (CGRect)_isim_caretRectForIndex:(NSUInteger)i {
+    CGPoint o = [self _isim_tvTextOrigin], c = [self _isim_tvCaretFor:MIN(i, _storage.length)];
+    return CGRectMake(o.x + c.x - 1, o.y + c.y + 1, 2, ceil(_font.lineHeight) - 2);
 }
-
+- (NSUInteger)_isim_indexAtPoint:(CGPoint)p { return [self _isim_tvIndexAt:p]; }
+- (NSArray<NSValue *> *)_isim_selectionRectsForRange:(NSRange)r {
+    NSMutableArray *out = [NSMutableArray array];
+    if (NSMaxRange(r) > _storage.length) return out;
+    CGPoint o = [self _isim_tvTextOrigin], a = [self _isim_tvCaretFor:r.location], b = [self _isim_tvCaretFor:NSMaxRange(r)];
+    CGFloat lh = ceil(_font.lineHeight), w = [self _isim_tvTextWidthFor:self.bounds.size.width];
+    if (fabs(a.y - b.y) < 1) { [out addObject:[NSValue valueWithCGRect:CGRectMake(o.x + a.x, o.y + a.y, b.x - a.x, lh)]]; return out; }
+    [out addObject:[NSValue valueWithCGRect:CGRectMake(o.x + a.x, o.y + a.y, w - a.x, lh)]];
+    for (CGFloat y = a.y + lh; y < b.y - 0.5; y += lh) [out addObject:[NSValue valueWithCGRect:CGRectMake(o.x, o.y + y, w, lh)]];
+    [out addObject:[NSValue valueWithCGRect:CGRectMake(o.x, o.y + b.y, b.x, lh)]];
+    return out;
+}
+ISIM_TEXT_INPUT_METHODS
 /* ---- scrolling ---- */
 - (void)_isim_tvScrollToCaret {
     if (!self.scrollEnabled) return;
@@ -242,15 +260,17 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     CGFloat w = [self _isim_tvTextWidthFor:self.bounds.size.width];
     NSString *s = [self _isim_tvShown];
     CGFloat x = o.x - off.x, y = o.y - off.y;
+    isim_gfx_save(); isim_gfx_translate(-off.x, -off.y);
+    isim_ui_text_draw_selection_rects(self);
+    isim_gfx_restore();
     if (s.length) {
         CGFloat h = isim_ui_measure(s, _font, w, 0).height;
         isim_ui_draw_text(s, _font, _textColor, CGRectMake(x, y, w, h), _textAlignment, 0, 1);
     }
-    if (self.isFirstResponder) {
-        CGPoint c = [self _isim_tvCaretFor:NSMaxRange(_selectedRange)];
-        double tint[4]; isim_ui_rgba(self.tintColor, tint);
-        isim_gfx_fill_rounded(x + c.x - 1, y + c.y + 1, 2, ceil(_font.lineHeight) - 2, 1, tint);
-    }
+    isim_gfx_save(); isim_gfx_translate(-off.x, -off.y);
+    isim_ui_text_draw_spelling(self);
+    isim_ui_text_draw_selection(self);
+    isim_gfx_restore();
 }
 @end
 

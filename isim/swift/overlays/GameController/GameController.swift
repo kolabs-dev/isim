@@ -1,6 +1,6 @@
 // isim GameController, self-authored: GCController with the extended / micro gamepad profiles, GCKeyboard driven by
 // the host keyboard (key presses and releases reach the app as USB HID usages), and GCVirtualController drawn over
-// the app's window. Physical game controllers on the host are not forwarded (isim has no gamepad events yet).
+// the app's window. Physical game controllers on the host appear as GCControllers (GCHostGamepads.swift).
 @_exported import Foundation
 @_exported import UIKit
 import isim_host
@@ -59,6 +59,7 @@ public let GCProductCategoryMouse = "Mouse"
                     MainActor.assumeIsolated { kb.input.releaseAll() }
                 }
                 NotificationCenter.default.post(name: NSNotification.Name(GCKeyboardDidConnectNotification), object: kb)
+                _GCHostPads.start()
             }
         }
     }
@@ -287,6 +288,7 @@ open class GCController: NSObject, GCDevice {
     open internal(set) var isAttachedToDevice = false
     open internal(set) var isSnapshot = false
     open var playerIndex: GCControllerPlayerIndex = .indexUnset
+    var _hostPadID: Int32?
     open internal(set) var extendedGamepad: GCExtendedGamepad?
     open internal(set) var microGamepad: GCMicroGamepad?
     open var physicalInputProfile: GCPhysicalInputProfile { extendedGamepad ?? microGamepad ?? GCPhysicalInputProfile() }
@@ -306,8 +308,10 @@ open class GCController: NSObject, GCDevice {
         guard !connected.contains(where: { $0 === c }) else { return }
         connected.append(c)
         if c.playerIndex == .indexUnset { c.playerIndex = GCControllerPlayerIndex(rawValue: connected.count - 1) ?? .indexUnset }
+        let becomesCurrent = _current == nil
+        if becomesCurrent { _current = c }
         NotificationCenter.default.post(name: NSNotification.Name(GCControllerDidConnectNotification), object: c)
-        if _current == nil { _current = c; NotificationCenter.default.post(name: NSNotification.Name("GCControllerDidBecomeCurrentNotification"), object: c) }
+        if becomesCurrent { NotificationCenter.default.post(name: NSNotification.Name("GCControllerDidBecomeCurrentNotification"), object: c) }
     }
     static func disconnect(_ c: GCController) {
         guard connected.contains(where: { $0 === c }) else { return }

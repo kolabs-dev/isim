@@ -225,8 +225,9 @@ void UIGraphicsEndImageContext(void) {
     [ctx_scales removeLastObject];
     isim_gfx_offscreen_end();
 }
-void UIGraphicsPushContext(CGContextRef c) { CGContextSaveGState(c); }
-void UIGraphicsPopContext(void) { CGContextRestoreGState(UIGraphicsGetCurrentContext()); }
+/* a bitmap/PDF context pushed here becomes the target of UIKit drawing (UIImage/NSString/UIBezierPath) until popped */
+void UIGraphicsPushContext(CGContextRef c) { if (!c) return; isim_cg_push_current(c); CGContextSaveGState(c); }
+void UIGraphicsPopContext(void) { CGContextRestoreGState(UIGraphicsGetCurrentContext()); isim_cg_pop_current(); }
 
 NSData *UIImagePNGRepresentation(UIImage *img) {
     if (!img) return nil;

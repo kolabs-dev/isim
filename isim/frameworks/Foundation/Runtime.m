@@ -2,6 +2,7 @@
  * process info, user defaults, libdispatch subset. */
 #import <Foundation/Foundation.h>
 #include <objc/isim_internal.h>
+#include <objc/objc-exception.h>
 #include <dlfcn.h>
 #include <pthread.h>
 #include <sys/stat.h>
@@ -29,8 +30,54 @@ NSExceptionName const NSRangeException = @"NSRangeException";
 NSExceptionName const NSInvalidArgumentException = @"NSInvalidArgumentException";
 NSExceptionName const NSInternalInconsistencyException = @"NSInternalInconsistencyException";
 
+@interface NSException () { @public NSArray<NSNumber *> *_isimCallStack; } @end
+/* exception preprocessor (libobjc): records the throw site's return addresses (frame pointer chain) */
+static id isim_exception_preprocessor(id e) {
+    if ([e isKindOfClass:[NSException class]] && !((NSException *)e)->_isimCallStack) {
+        NSMutableArray *a = [NSMutableArray array];
+        void **fp = __builtin_frame_address(0);
+        for (int i = 0; i < 128 && fp && !((uintptr_t)fp & 7); i++) {
+            void **next = fp[0]; void *ret = fp[1];
+            if (!ret) break;
+            [a addObject:@((uintptr_t)ret)];
+            if (next <= fp) break;
+            fp = next;
+        }
+        ((NSException *)e)->_isimCallStack = [a copy];
+    }
+    return e;
+}
+static NSUncaughtExceptionHandler *uncaught_handler;
+NSUncaughtExceptionHandler *NSGetUncaughtExceptionHandler(void) { return uncaught_handler; }
+void NSSetUncaughtExceptionHandler(NSUncaughtExceptionHandler *h) {
+    uncaught_handler = h;
+    objc_setUncaughtExceptionHandler((objc_uncaught_exception_handler)h);
+}
+__attribute__((constructor)) static void isim_install_exception_preprocessor(void) { objc_setExceptionPreprocessor(isim_exception_preprocessor); }
+
 @implementation NSException
 + (NSException *)exceptionWithName:(NSExceptionName)n reason:(NSString *)r userInfo:(NSDictionary *)u { return [[self alloc] initWithName:n reason:r userInfo:u]; }
++ (void)raise:(NSExceptionName)name format:(NSString *)format arguments:(va_list)ap {
+    [[self exceptionWithName:name reason:[[NSString alloc] initWithFormat:format arguments:ap] userInfo:nil] raise];
+    __builtin_unreachable();
+}
+- (NSArray<NSNumber *> *)callStackReturnAddresses { return _isimCallStack ?: @[]; }
+- (NSArray<NSString *> *)callStackSymbols {
+    NSMutableArray *out = [NSMutableArray array];
+    NSUInteger i = 0;
+    for (NSNumber *n in self.callStackReturnAddresses) {
+        Dl_info di; void *pc = (void *)(uintptr_t)n.unsignedLongValue;
+        const char *img = "???", *sym = NULL; uintptr_t off = 0;
+        if (dladdr(pc, &di)) {
+            if (di.dli_fname) { const char *b = strrchr(di.dli_fname, '/'); img = b ? b + 1 : di.dli_fname; }
+            if (di.dli_sname) { sym = di.dli_sname; off = (uintptr_t)pc - (uintptr_t)di.dli_saddr; }
+        }
+        [out addObject:sym ? [NSString stringWithFormat:@"%-3lu %-35s 0x%016lx %s + %lu", (unsigned long)i, img, (unsigned long)(uintptr_t)pc, sym, (unsigned long)off]
+                           : [NSString stringWithFormat:@"%-3lu %-35s 0x%016lx", (unsigned long)i, img, (unsigned long)(uintptr_t)pc]];
+        i++;
+    }
+    return out;
+}
 - (instancetype)initWithName:(NSExceptionName)n reason:(NSString *)r userInfo:(NSDictionary *)u {
     if ((self = [super init])) { _name = [n copy]; _reason = [r copy]; _userInfo = [u copy]; }
     return self;
@@ -81,7 +128,8 @@ static NSMutableArray<NSBundle *> *extension_bundles;
     if (cls && dladdr((__bridge void *)cls, &di) && di.dli_fname) {
         NSString *dir = [@(di.dli_fname) stringByDeletingLastPathComponent];
         if ([dir isEqualToString:NSBundle.mainBundle.bundlePath]) return NSBundle.mainBundle;
-        if ([dir hasSuffix:@".appex"] || [dir hasSuffix:@".bundle"] || [dir hasSuffix:@".app"]) return [NSBundle bundleWithPath:dir] ?: NSBundle.mainBundle;
+        if ([dir hasSuffix:@".appex"] || [dir hasSuffix:@".bundle"] || [dir hasSuffix:@".app"] || [dir hasSuffix:@".xctest"] || [dir hasSuffix:@".framework"])
+            return [NSBundle bundleWithPath:dir] ?: NSBundle.mainBundle;
     }
     return NSBundle.mainBundle;
 }
@@ -519,6 +567,15 @@ static void mkdir_p(NSString *dir) {
     }
     return self;
 }
+/* re-read the domain from disk (the Settings app writes an app's Settings.bundle values there); YES if it changed */
+- (BOOL)_isim_reloadFromDisk {
+    NSDictionary *disk = [NSDictionary dictionaryWithContentsOfFile:_file] ?: @{};
+    @synchronized (self) {
+        if ([disk isEqualToDictionary:_d]) return NO;
+        _d = [disk mutableCopy];
+    }
+    return YES;
+}
 - (void)_save {
     [isim_plist_xml(_d) writeToFile:_file atomically:YES encoding:NSUTF8StringEncoding error:NULL];
     if (_global) dispatch_async(dispatch_get_main_queue(), ^{
@@ -591,9 +648,10 @@ NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailure
 
 /* CGColor objects (CoreGraphics allocates these so CGColorRef is retainable by ARC/Swift).
  * Layout must match struct CGColor in CoreGraphics.c: isa, 4 components, refs. */
-@interface __NSCGColor : NSObject { @public CGFloat _c[4]; int _refs; }
+@interface __NSCGColor : NSObject { @public CGFloat _c[4]; int _refs; int _space; CGFloat _comp[5]; void *_pattern; }
 @end
 @implementation __NSCGColor
+- (void)dealloc { if (_pattern) CFRelease(_pattern); }
 - (NSString *)description { return [NSString stringWithFormat:@"<CGColor %p> [%g %g %g %g]", self, _c[0], _c[1], _c[2], _c[3]]; }
 - (BOOL)isEqual:(id)o { return o == self || ([o isKindOfClass:[__NSCGColor class]] && !memcmp(_c, ((__NSCGColor *)o)->_c, sizeof _c)); }
 - (NSUInteger)hash { return (NSUInteger)(_c[0] * 255) << 24 ^ (NSUInteger)(_c[1] * 255) << 16 ^ (NSUInteger)(_c[2] * 255) << 8 ^ (NSUInteger)(_c[3] * 255); }
@@ -606,15 +664,23 @@ NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailure
 - (void)dealloc { free(_els); }
 - (NSString *)description { return [NSString stringWithFormat:@"<CGPath %p> %ld elements", self, _count]; }
 @end
-@interface __NSCGImage : NSObject { @public int _handle; double _x, _y, _w, _h; void *_owner; }
+@interface __NSCGImage : NSObject { @public int _handle; double _x, _y, _w, _h; void *_owner; void *_ext; }
 @end
 @implementation __NSCGImage
-- (void)dealloc { if (_owner) CFRelease(_owner); }
+- (void)dealloc { if (_owner) CFRelease(_owner); if (_ext) CFRelease(_ext); }
 - (NSString *)description { return [NSString stringWithFormat:@"<CGImage %p> (%g x %g)", self, _w, _h]; }
 @end
-@interface __NSCGContext : NSObject
+@interface __NSCGContext : NSObject { @public void (*_fin)(void *); }
 @end
 @implementation __NSCGContext
+- (void)dealloc { if (_fin) _fin((__bridge void *)self); }
+@end
+/* other Core Graphics / ImageIO objects (color spaces, data providers, gradients, ...): a finalizer + private storage */
+@interface __NSCGObject : NSObject { @public void (*_fin)(void *); const char *_kind; }
+@end
+@implementation __NSCGObject
+- (void)dealloc { if (_fin) _fin((__bridge void *)self); }
+- (NSString *)description { return [NSString stringWithFormat:@"<%s %p>", _kind ?: "CGObject", self]; }
 @end
 
 /* NSThread: identity objects for the calling pthread (one per thread, via a key) */
