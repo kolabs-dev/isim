@@ -32,13 +32,7 @@ public struct _OptionalScene<S: Scene>: Scene, _SceneNode {
     @MainActor func _collect(_ c: _SceneCollector) { if let s = scene { (s as? _SceneNode)?._collect(c) } }
 }
 
-/// A scene with a modifier applied (backgroundTask, handlesExternalEvents, commands, ...).
-public struct _ModifiedScene<Content: Scene>: Scene, _SceneNode {
-    let content: Content
-    let apply: @MainActor (_SceneCollector) -> Void
-    public var body: Never { fatalError() }
-    @MainActor func _collect(_ c: _SceneCollector) { apply(c); (content as? _SceneNode)?._collect(c) }
-}
+/* scene modifiers: _ModifiedScene (SceneModifiers.swift) */
 
 @MainActor func _collectScenes<A: App>(_ app: A) -> _SceneCollector {
     let c = _SceneCollector()
@@ -59,12 +53,12 @@ extension Scene {
     /// Runs `action` when the system launches the app for this background task (a BGAppRefreshTaskRequest submitted
     /// with the same identifier; isim: script `bgtask BUNDLE-ID ID`).
     public func backgroundTask(_ task: BackgroundTask<Void, Void>, action: @escaping @Sendable () async -> Void) -> some Scene {
-        _ModifiedScene(content: self) { c in c.backgroundTasks.append((task.identifier, action)) }
+        _ModifiedScene(base: self, transform: { $0 }, apply: { c in c.backgroundTasks.append((task.identifier, action)) })
     }
-    public func handlesExternalEvents(matching conditions: Set<String>) -> some Scene { _ModifiedScene(content: self) { _ in } }
-    public func commands<C>(@_SceneCommandsBuilder content: () -> C) -> some Scene { _ModifiedScene(content: self) { _ in } }
-    public func defaultSize(width: CGFloat, height: CGFloat) -> some Scene { _ModifiedScene(content: self) { _ in } }
-    public func defaultSize(_ size: CGSize) -> some Scene { _ModifiedScene(content: self) { _ in } }
+    public func handlesExternalEvents(matching conditions: Set<String>) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
+    public func commands<C>(@_SceneCommandsBuilder content: () -> C) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
+    public func defaultSize(width: CGFloat, height: CGFloat) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
+    public func defaultSize(_ size: CGSize) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
 }
 @resultBuilder public struct _SceneCommandsBuilder {
     public static func buildBlock<each C>(_ c: repeat each C) -> Int { 0 }

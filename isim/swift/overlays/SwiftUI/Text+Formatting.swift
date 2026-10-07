@@ -23,6 +23,7 @@ struct _TextExtras {
     var design: Font.Design? = nil
     var link: URL? = nil
     var markdown = true
+    var image: Image? = nil          // Text(Image(...)): an inline image (SF Symbols scale with the font)
 }
 struct _TextLine { let active: Bool; let color: Color? }
 
@@ -54,6 +55,12 @@ extension EnvironmentValues {
     public var truncationMode: Text.TruncationMode { get { _textStyle.truncation } set { _textStyle.truncation = newValue } }
     public var minimumScaleFactor: CGFloat { get { _textStyle.minimumScale } set { _textStyle.minimumScale = newValue } }
     public var allowsTightening: Bool { get { _textStyle.tightening } set { _textStyle.tightening = newValue } }
+}
+
+extension Text {
+    /// An image inside text (`Text(Image(systemName: "star")) + Text(" Favorites")`): symbols take the text's font
+    /// size, weight and colour.
+    public init(_ image: Image) { self.init(verbatim: ""); _x.image = image }
 }
 
 extension Text {
@@ -277,6 +284,7 @@ func _parseMarkdown(_ s: String) -> [(String, _MDStyle)]? {
 
 struct _TextRun {
     var text: String
+    var image: UIImage? = nil        // an inline image run (Text(Image)); laid out like a word
     var font: UIFont
     var color: UIColor
     var italic = false
@@ -288,9 +296,9 @@ struct _TextRun {
     var code = false
     func sameStyle(_ o: _TextRun) -> Bool {
         font == o.font && color == o.color && italic == o.italic && underline == o.underline && strike == o.strike
-            && kerning == o.kerning && baseline == o.baseline && link == o.link && code == o.code
+            && kerning == o.kerning && baseline == o.baseline && link == o.link && code == o.code && image === o.image
     }
-    var plain: Bool { !italic && underline == nil && strike == nil && kerning == 0 && baseline == 0 && link == nil && !code }
+    var plain: Bool { image == nil && !italic && underline == nil && strike == nil && kerning == 0 && baseline == 0 && link == nil && !code }
 }
 
 /// Inherited text attributes (outer Text, then the view environment).
@@ -316,6 +324,7 @@ extension Text {
     /// The text's content as plain characters (live text at the current time).
     var _plain: String {
         if let p = _x.parts { return p.map(\._plain).joined() }
+        if _x.image != nil { return "" }
         if let l = _x.live { return MainActor.assumeIsolated { l.make(Date()) } }
         switch storage {
         case .verbatim(let s): return s
@@ -330,6 +339,17 @@ extension Text {
 @MainActor func _textRuns(_ t: Text, _ inherit: _TextInherit, _ env: EnvironmentValues) -> [_TextRun] {
     let a = inherit.merged(with: t)
     if let parts = t._x.parts { return parts.flatMap { _textRuns($0, a, env) } }
+    if let img = t._x.image {
+        var f = a.font ?? env.font ?? .body
+        if let w = a.weight ?? env._textStyle.weight { f.weight = w }
+        var e = env; e.font = f
+        if let c = a.color { e._foreground = c }
+        let color = a.color ?? env._foreground ?? .primary
+        var run = _TextRun(text: "", font: f.uiFont, color: color.uiColor)
+        run.image = _uiImage(img, e)
+        run.baseline = a.baseline ?? env._textStyle.baseline ?? 0
+        return [run]
+    }
     var segments: [(String, _MDStyle)]
     if let l = t._x.live { segments = [(l.make(Date()), _MDStyle())] }
     else {
@@ -436,6 +456,7 @@ final class _RichTextNode: _Node {
         // words keep their trailing spaces (measured separately so a line can end without them)
         var out: [Piece] = []
         for (ri, r) in runs.enumerated() {
+            if let im = r.image { out.append(Piece(run: ri, text: "\u{FFFC}", width: ceil(im.size.width), hasBreak: false, trailingSpace: 0)); continue }
             var word = "", spaces = ""
             func flush(_ brk: Bool) {
                 if !word.isEmpty || !spaces.isEmpty || brk {
@@ -520,6 +541,12 @@ final class _SUIRichLabel: UILabel {
         let hair = 1 / max(1, UIScreen.main.scale)
         for p in placed where !p.text.isEmpty {
             let r = runs[p.run]
+            if let im = r.image {
+                let iv = UIImageView(frame: CGRect(x: p.frame.minX, y: p.frame.midY - im.size.height / 2, width: im.size.width, height: im.size.height))
+                iv.image = im
+                addSubview(iv)
+                continue
+            }
             var f = p.frame
             if r.code { f = f.insetBy(dx: -2, dy: 0) }
             if r.code {

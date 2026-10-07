@@ -325,7 +325,10 @@ class Target:
                     out.append({'kind': 'product', 'name': os.path.basename(obj.get('path', name)), 'target': owner, 'weak': weak})
                 elif obj.get('isa') == 'PBXReferenceProxy' or obj.get('sourceTree') == 'BUILT_PRODUCTS_DIR':
                     out.append({'kind': 'built', 'name': os.path.basename(obj.get('path', name)), 'weak': weak})
-                elif obj.get('sourceTree') == 'SDKROOT' or (obj.get('sourceTree') == '<group>' and obj.get('path', '').startswith('System/')):
+                elif (obj.get('sourceTree') == 'SDKROOT' or (obj.get('sourceTree') == '<group>' and obj.get('path', '').startswith('System/'))
+                      # Xcode also stores SDK frameworks relative to the developer dir:
+                      # Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/X.framework
+                      or (obj.get('sourceTree') == 'DEVELOPER_DIR' and '.sdk/' in obj.get('path', ''))):
                     out.append({'kind': 'sdk', 'name': os.path.basename(obj.get('path', name)), 'weak': weak})
                 else:
                     out.append({'kind': 'file', 'name': name, 'path': self.p.path_of(ref), 'weak': weak})

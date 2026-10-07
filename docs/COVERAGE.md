@@ -35,17 +35,17 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 3 | 2 | 0 | 0 | 5 | 80% |
-| **SwiftUI** | 149 | 48 | 10 | 4 | 211 | 82% |
+| **SwiftUI** | 152 | 48 | 10 | 4 | 214 | 82% |
 | &nbsp;&nbsp;↳ App & scenes | 6 | 4 | 0 | 1 | 11 | 73% |
 | &nbsp;&nbsp;↳ State & data flow | 15 | 2 | 0 | 0 | 17 | 94% |
-| &nbsp;&nbsp;↳ Views & controls | 30 | 8 | 0 | 0 | 38 | 89% |
+| &nbsp;&nbsp;↳ Views & controls | 31 | 8 | 0 | 0 | 39 | 90% |
 | &nbsp;&nbsp;↳ Containers & layout | 18 | 8 | 1 | 0 | 27 | 81% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 14 | 8 | 1 | 0 | 23 | 78% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 17 | 4 | 6 | 0 | 27 | 70% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 2 | 23 | 85% |
 | &nbsp;&nbsp;↳ Animation | 7 | 3 | 1 | 0 | 11 | 77% |
-| &nbsp;&nbsp;↳ Gestures | 5 | 1 | 0 | 1 | 7 | 79% |
-| &nbsp;&nbsp;↳ Lifecycle, async & events | 5 | 2 | 0 | 0 | 7 | 86% |
+| &nbsp;&nbsp;↳ Gestures | 6 | 1 | 0 | 1 | 8 | 81% |
+| &nbsp;&nbsp;↳ Lifecycle, async & events | 6 | 2 | 0 | 0 | 8 | 88% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 1 | 1 | 0 | 4 | 62% |
 | &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 29 | 11 | 1 | 4 | 45 | 77% |
-| **All areas** | **574** | **232** | **41** | **64** | **911** | **76%** |
+| **All areas** | **577** | **232** | **41** | **64** | **914** | **76%** |
 
 ---
 
@@ -403,6 +403,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `Text + Text` concatenation | ✅ | parts keep their own font/colour/weight; mixed styles laid out word by word (adapted); tested (HelloText) |
 | `Text(date, style:)`, `Text(_:format:)`, `Text(timerInterval:)` | ✅ | `.time/.date/.relative/.offset/.timer` styles (relative ones re-render every second), date ranges, `Text(_:format:)` with Foundation format styles, `\(value, format:)` / `\(date, style:)` interpolation, `Text(_:formatter:)`; tested (HelloText) |
 | Markdown in `Text`, `AttributedString` | ✅ | string literals parse `**bold**`, `*italic*`, `***both***`, `` `code` ``, `~~strike~~`, `[links](url)` (tap opens through `openURL`); `Text(AttributedString)` maps presentation intents, links and the SwiftUI attribute scope (`foregroundColor`, `font`, underline/strikethrough, kern, baselineOffset); tested (HelloText). Italic is a sheared glyph run (isim fonts have no italic faces) |
+| `Text(Image)` (inline images in text, `Text + Text`, Canvas `draw(Text)`) | ✅ | symbols take the text's font size, weight and colour; laid out as words in rich text; tested (HelloSourceCompat). SF Symbols without a stand-in icon draw as a placeholder |
 | `strikethrough`, `underline`, `kerning`, `tracking`, `textCase`, `baselineOffset` | ✅ | on `Text` and as view modifiers; lines are hairline views, kerning places glyphs one by one (`tracking` = `kerning`), line patterns drawn solid; tested (HelloText) |
 | `lineLimit`, `multilineTextAlignment` | ✅ | |
 | `truncationMode`, `minimumScaleFactor`, `allowsTightening` | 🟡 | head/middle/tail truncation of one-line text (tested), `minimumScaleFactor` shrinks one-line labels to fit (screenshot only); `allowsTightening` is stored, no effect |
@@ -588,6 +589,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `onTapGesture(count:)`, `TapGesture`, `onTapGesture(coordinateSpace:perform:)` | ✅ | |
 | `onLongPressGesture`, `LongPressGesture` | ✅ | |
 | `DragGesture` (`onChanged`/`onEnded`, translation, velocity, predicted end) | ✅ | UIKit recognizers on the wrapped view; `.local`/`.global` coordinate spaces; tested (HelloSwiftUIGestures, HelloDrawing) |
+| `Optional: Gesture` (`.gesture(enabled ? g : nil)`) | ✅ | nil installs no recognizer; tested (HelloSourceCompat) |
 | `simultaneousGesture`, `highPriorityGesture`, `simultaneously(with:)`, `sequenced(before:)`, `exclusively(before:)`, `map` | 🟡 | composition tested (HelloSwiftUIGestures: magnify+rotate together, long press before drag, double tap before single); `highPriorityGesture` and gesture masks behave like `.gesture` |
 | `MagnifyGesture`, `RotateGesture` (+ `MagnificationGesture`, `RotationGesture`) | ✅ | two fingers from isim's multi-touch (Option-drag, script `pinch`/`rotate2`); magnification/rotation, velocity, start anchor/location; tested (HelloSwiftUIGestures) |
 | `SpatialTapGesture` | ✅ | location in local/global space; tested (HelloSwiftUIGestures) |
@@ -600,6 +602,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `onAppear`, `onDisappear` | ✅ | |
 | `.task`, `.task(id:)` | ✅ | cancelled on disappear |
 | `onChange(of:)` (old/new, `initial:`) | ✅ | |
+| `Scene.onChange(of:initial:)` (e.g. `scenePhase`) | ✅ | adapted: wraps the scene's root view in `onChange`; tested (HelloSourceCompat) |
 | `onReceive` | ✅ | |
 | `onSubmit` | ✅ | |
 | `onKeyPress`, `keyboardShortcut` | 🟡 | shortcuts on buttons become UIKeyCommands (incl. `defaultAction`/`cancelAction`); `onKeyPress` key/characters/phases forms; tested (HelloKeys). No focus routing: every onKeyPress on screen sees presses, innermost first (adapted) |
