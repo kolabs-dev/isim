@@ -4,7 +4,7 @@ This tracks how much of the iOS 17/18 SDK isim covers, so you can follow progres
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-06
+Last updated: 2026-10-07
 
 **Legend**
 
@@ -62,7 +62,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | **Swift runtime, stdlib & concurrency** | 30 | 1 | 0 | 7 | 38 | 80% |
 | &nbsp;&nbsp;↳ Combine | 11 | 0 | 0 | 3 | 14 | 79% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 0 | 0 | 1 | 5 | 80% |
-| Objective-C runtime & C library | 12 | 3 | 0 | 0 | 15 | 90% |
+| Objective-C runtime & C library | 13 | 3 | 0 | 0 | 16 | 91% |
 | Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
 | Core Text | 4 | 3 | 0 | 0 | 7 | 79% |
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 29 | 11 | 1 | 4 | 45 | 77% |
-| **All areas** | **577** | **232** | **41** | **64** | **914** | **76%** |
+| **All areas** | **578** | **232** | **41** | **64** | **915** | **76%** |
 
 ---
 
@@ -859,6 +859,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | ARC, weak references, autorelease pools, blocks | ✅ | |
 | Associated objects, method swizzling (`method_exchangeImplementations`), introspection | ✅ | |
 | `@synchronized`, properties, fast enumeration | ✅ | |
+| Objective-C literals (`@[…]`, `@{…}`, `@42`, `@2.5`, `@YES`, boxed `@(…)`), including clang 23's constant literals: `NSConstantArray`, `NSConstantDictionary`, `NSConstantIntegerNumber`/`NSConstantDoubleNumber`/`NSConstantFloatNumber`, `__kCFBooleanTrue`/`__kCFBooleanFalse`, `__NSArray0__struct`/`__NSDictionary0__struct` | ✅ | static objects in the app's data segment; they are immortal (retain/release/autorelease do nothing, `copy` returns them) and are full NSArray/NSDictionary/NSNumber instances: equality and hashes match objects built at run time, fast enumeration, `mutableCopy`, KVC, keyed archives (archived as NSArray/NSDictionary/NSNumber), property lists, JSON, `description`, Swift bridging (`as! [Any]`, `as? [String: Any]`, `as? Int/Double/Float/Bool`). File-scope literals (`static NSArray *t = @[…]`) work. `+numberWithBool:` returns the kCFBoolean singletons, as on iOS. A key written twice in one constant dictionary literal (clang warns) is kept twice; lookups return the last value. Tested: tests/objc-literals (built with clang 23, or the committed prebuilt app with older clangs) |
 | Dynamic method resolution (`+resolveInstanceMethod:`, `+resolveClassMethod:`), property introspection (`class_getProperty`, `class_copyPropertyList`, `property_getAttributes`) | ✅ | also consulted by `respondsToSelector:` / `class_getMethodImplementation`. Tested: CoreDataTest (`@NSManaged` accessors) |
 | Message forwarding (`forwardingTargetForSelector:`, `methodSignatureForSelector:`/`forwardInvocation:`, `doesNotRecognizeSelector:`, `_objc_msgForward(_stret)`) | ✅ | lookup misses go to forwarding trampolines that capture the x86_64 argument registers + stack; int/char/short/BOOL/long, float/double, small structs (CGPoint, CGSize, NSRange, mixed int/float), stack-spilled args, `CGRect`/large-struct `stret` results; class methods too; unrecognized selectors raise `NSInvalidArgumentException` (iOS message). `respondsToSelector:` does not consult forwarding (like iOS). x87 `long double` results unsupported. Tested: tests/objc-runtime |
 | `NSMethodSignature`, `NSInvocation` (`invoke`, `invokeWithTarget:`, `invokeUsingIMP:`, get/set argument & return value, `retainArguments`), `NSGetSizeAndAlignment` | ✅ | SysV classification of ObjC type encodings; Swift-unavailable as on iOS. Tested: tests/objc-runtime |

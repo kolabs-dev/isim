@@ -8,6 +8,9 @@ run() { echo "=== $1"; shift; "$@" || status=1; }
 run "loader" tests/loader/run.sh
 run "foundation self-test" bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -3; exit ${PIPESTATUS[0]}'
 run "objc runtime (exceptions, forwarding, NSInvocation, NSProxy, uncaught exceptions)" bash -c 'tests/objc-runtime/run.sh | tail -1; exit ${PIPESTATUS[0]}'
+if [ -x out/apps/ObjCLiteralsTest.app/ObjCLiteralsTest ]; then   # built with clang >= 23, or the committed prebuilt app
+  run "objc constant literals (NSConstantArray & co., equality, serialization, Swift bridging)" bash -c 'tests/objc-literals/run.sh | tail -1; exit ${PIPESTATUS[0]}'
+fi
 run "ABI compatibility (released SDK symbols; an app built with isim 0.2.0)" tests/abi/run.sh
 run "ui: HelloCounter (Objective-C)" tests/ui/hellocounter.sh HelloCounter
 if [ -x out/apps/HelloCounterSwift.app/HelloCounterSwift ]; then   # Swift, systemOrange light/dark
