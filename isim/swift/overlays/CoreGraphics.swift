@@ -211,3 +211,20 @@ extension CGImage {
         return Array(UnsafeBufferPointer(start: p, count: 2 * (colorSpace?.numberOfComponents ?? 1)))
     }
 }
+
+// MARK: - ABI compatibility (apps built with isim 0.2.0)
+// These were Swift members in 0.2.0; they are now imported from the C headers (CG_SWIFT_NAME) or gained
+// parameters. The old entry points stay exported under their original symbol names so existing binaries keep
+// running. They are internal: new code uses the current API.
+extension CGImage {
+    @_silgen_name("$sSo10CGImageRefa12CoreGraphicsE5widthSivg")
+    @usableFromInline func _abi020_width() -> Int { width }
+    @_silgen_name("$sSo10CGImageRefa12CoreGraphicsE6heightSivg")
+    @usableFromInline func _abi020_height() -> Int { height }
+    @_silgen_name("$sSo10CGImageRefa12CoreGraphicsE8cropping2toABSgSo6CGRectV_tF")
+    @usableFromInline func _abi020_cropping(to rect: CGRect) -> CGImage? { cropping(to: rect) }
+}
+extension CGContext {
+    @_silgen_name("$sSo12CGContextRefa12CoreGraphicsE4draw_2inySo07CGImageB0a_So6CGRectVtF")
+    @usableFromInline func _abi020_draw(_ image: CGImage, in rect: CGRect) { draw(image, in: rect, byTiling: false) }
+}

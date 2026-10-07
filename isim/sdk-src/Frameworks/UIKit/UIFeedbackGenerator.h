@@ -14,7 +14,7 @@ NS_SWIFT_UI_ACTOR
 @interface UIImpactFeedbackGenerator : UIFeedbackGenerator
 - (instancetype)initWithStyle:(UIImpactFeedbackStyle)style;
 - (void)impactOccurred;
-- (void)impactOccurredWithIntensity:(CGFloat)intensity;
+- (void)impactOccurredWithIntensity:(CGFloat)intensity NS_SWIFT_NAME(impactOccurred(intensity:));
 @end
 NS_SWIFT_UI_ACTOR
 @interface UISelectionFeedbackGenerator : UIFeedbackGenerator

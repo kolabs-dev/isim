@@ -8,6 +8,7 @@ run() { echo "=== $1"; shift; "$@" || status=1; }
 run "loader" tests/loader/run.sh
 run "foundation self-test" bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -3; exit ${PIPESTATUS[0]}'
 run "objc runtime (exceptions, forwarding, NSInvocation, NSProxy, uncaught exceptions)" bash -c 'tests/objc-runtime/run.sh | tail -1; exit ${PIPESTATUS[0]}'
+run "ABI compatibility (released SDK symbols; an app built with isim 0.2.0)" tests/abi/run.sh
 run "ui: HelloCounter (Objective-C)" tests/ui/hellocounter.sh HelloCounter
 if [ -x out/apps/HelloCounterSwift.app/HelloCounterSwift ]; then   # Swift, systemOrange light/dark
   run "ui: HelloCounterSwift (Swift)" tests/ui/hellocounter.sh HelloCounterSwift "255 149 0" "255 159 10"
@@ -20,6 +21,7 @@ if [ -x out/apps/HelloKeyboardApp.app/HelloKeyboardApp ]; then   # UIScrollView,
 fi
 if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   run "ui: HelloSwiftUI (SwiftUI)" tests/ui/swiftui.sh
+  [ -x out/apps/HelloSourceCompat.app/HelloSourceCompat ] && run "ui: HelloSourceCompat (Text(Image), Scene.onChange, optional gestures, Sendable Color/Bundle)" tests/ui/sourcecompat.sh
   [ -x out/apps/HelloObservation.app/HelloObservation ] && run "ui: HelloObservation (@Observable, @Bindable, @Environment)" tests/ui/observation.sh
   [ -x out/apps/HelloForms.app/HelloForms ] && run "ui: HelloForms (SwiftUI controls, TabView, @AppStorage)" tests/ui/forms.sh
   [ -x out/apps/HelloText.app/HelloText ] && run "ui: HelloText (rich Text, Markdown, dates, timers)" tests/ui/text.sh

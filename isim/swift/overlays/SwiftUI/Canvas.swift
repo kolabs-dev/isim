@@ -204,8 +204,10 @@ public struct GraphicsContext {
     // MARK: text and images
     public struct ResolvedText {
         let string: String, size: CGFloat, weight: Double, mono: Bool, color: UIColor
+        var image: UIImage? = nil           // Text(Image(...))
         public var shading: Shading = .foreground
         public func measure(in size: CGSize) -> CGSize {
+            if let im = image { return CGSize(width: ceil(im.size.width), height: ceil(im.size.height)) }
             var w = 0.0, h = 0.0
             isim_text_measure(string, Double(self.size), weight, mono ? 1 : 0, size.width.isFinite ? Double(size.width) : 0, 0, &w, &h)
             return CGSize(width: ceil(w), height: ceil(h))
@@ -224,6 +226,12 @@ public struct GraphicsContext {
             var f = text.font ?? environment.font ?? .body
             if let w = text.weight { f.weight = w }
             let color = text.color ?? _styleColor(ForegroundStyle(), environment)
+            if let img = text._x.image {
+                var e = environment; e.font = f; e._foreground = color
+                var r = ResolvedText(string: "", size: f.size, weight: Double(f.weight.value), mono: false, color: color.uiColor)
+                r.image = _uiImage(img, e)
+                return r
+            }
             return ResolvedText(string: text.string, size: f.size, weight: Double(f.weight.value), mono: f.design == .monospaced, color: color.uiColor)
         }
     }
@@ -233,6 +241,7 @@ public struct GraphicsContext {
         draw(text, in: CGRect(x: point.x - anchor.x * s.width, y: point.y - anchor.y * s.height, width: s.width + 1, height: s.height))
     }
     public func draw(_ text: ResolvedText, in rect: CGRect) {
+        if let im = text.image { draw(ResolvedImage(image: im), in: CGRect(x: rect.minX, y: rect.minY, width: im.size.width, height: im.size.height)); return }
         var rgba = MainActor.assumeIsolated { _rgbaOf(text.color) }
         rgba[3] *= opacity
         _withState {

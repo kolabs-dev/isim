@@ -326,7 +326,8 @@ extension View {
         let o = content()
         return _modify { ctx, c in _OverlayNode(path: ctx.path, child: _resolve(c, ctx.child("ov")), overlay: _resolve(o, ctx.child("ovc")), alignment: alignment) }
     }
-    public func overlay<V: View>(_ overlay: V, alignment: Alignment = .center) -> some View { self.overlay(alignment: alignment) { overlay } }
+    /// deprecated on Apple; disfavored so `overlay(Color.x)` picks the ShapeStyle variant, as on iOS
+    @_disfavoredOverload public func overlay<V: View>(_ overlay: V, alignment: Alignment = .center) -> some View { self.overlay(alignment: alignment) { overlay } }
     public func overlay<S: ShapeStyle>(_ style: S, ignoresSafeAreaEdges edges: Edge.Set = .all) -> some View { overlay { Rectangle().fill(style) } }
     public func background<S: ShapeStyle, T: Shape>(_ style: S, in shape: T, fillStyle: FillStyle = FillStyle()) -> some View {
         let kind = (shape as? _ShapeInfo)?._kind ?? .rect
@@ -337,7 +338,7 @@ extension View {
             return _BackgroundNode(path: ctx.path, color: nil, cornerRadius: 0, background: bg, child: _resolve(c, ctx.child("b")))
         }
     }
-    public func background<V: View>(_ v: V, alignment: Alignment = .center) -> some View { background(alignment: alignment) { v } }
+    @_disfavoredOverload public func background<V: View>(_ v: V, alignment: Alignment = .center) -> some View { background(alignment: alignment) { v } }
     /// Masks are applied as clipping to the mask's shape (rectangles, rounded rectangles, circles, capsules).
     public func mask<M: View>(alignment: Alignment = .center, @ViewBuilder _ mask: () -> M) -> some View {
         let m = mask()
