@@ -80,7 +80,12 @@ struct BarsTab: View {
 struct Bars27: View {
     var body: some View {
         NavigationStack {
-            List(0..<40, id: \.self) { i in Text("Bar row \(i)").accessibilityIdentifier("bar-\(i)") }
+            List {
+                // iOS 27: AsyncImage from a URLRequest, loaded with the session set by asyncImageURLSession
+                AsyncImage(request: URLRequest(url: URL(string: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEUlEQVR4nGP4z8AARwgWXg4ArpMP8aaUSCMAAAAASUVORK5CYII=")!))
+                    .frame(width: 24, height: 24).accessibilityIdentifier("async-request")
+                ForEach(0..<40, id: \.self) { i in Text("Bar row \(i)").accessibilityIdentifier("bar-\(i)") }
+            }
                 .navigationTitle("Bars")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -98,6 +103,7 @@ struct Bars27: View {
                 .scrollEdgeEffectStyle(.hard, for: .top)
                 .toolbar(.hidden, for: .tabBar)
         }
+        .asyncImageURLSession(URLSession(configuration: .ephemeral))
     }
 }
 

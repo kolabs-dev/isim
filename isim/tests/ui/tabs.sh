@@ -21,6 +21,7 @@ check() { if (set +o pipefail; eval "$2"); then echo "PASS  $1"; else echo "FAIL
 check "iOS 18: TabSection tabs in the tab bar"                 'grep -q "id=tab-Home" <<<"$l18" && grep -q "id=tab-Bars" <<<"$l18" && grep -q "id=tab-Glass" <<<"$l18" && grep -q "^tab 2" <<<"$l18"'
 check "iOS 18: no bottom accessory"                             '! grep -q "id=isim-tab-accessory" <<<"$l18"'
 check "iOS 27: overflow menu items run (ToolbarOverflowMenu)"   'grep -q "bars: extra" <<<"$l27"'
+check "iOS 27: AsyncImage(request:) loads with the asyncImageURLSession session" 'grep -q "AsyncImage loaded" <<<"$l27"'
 check "iPad sidebar: choosing a tab"                            'grep -q "^tab 2" <<<"$lpad"'
 printf '%s\n' "$l27" > "$shots/ios27.txt"; printf '%s\n' "$lpad" > "$shots/ipad.txt"
 python3 tests/ui/tabs_check.py "$shots" || fail=1
