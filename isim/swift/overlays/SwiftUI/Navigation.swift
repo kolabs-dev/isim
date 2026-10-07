@@ -130,6 +130,11 @@ final class _ListNode: _Node {
         if level?.search != nil {                               // .searchable: the field under the title
             searchRect = CGRect(x: 16, y: largeTitleRect == nil ? 8 : y, width: W - 32, height: 36)
             y = searchRect!.maxY + 12
+            if let sc = level?.search?.scopeNode {                // searchScopes: the scope bar under it
+                let s = sc.sizeThatFits(_Proposal(width: W - 32, height: nil))
+                sc.place(CGRect(x: 16, y: y - 4, width: W - 32, height: s.height))
+                y += s.height + 8
+            }
         }
         for (si, sec) in sections.enumerated() {
             if si > 0 { y += sec.header == nil ? 35 : 22 } else if sec.header != nil { y += 4 }
@@ -217,6 +222,7 @@ final class _ListNode: _Node {
             }
             previous = r
         }
+        if let sc = level?.search?.scopeNode, searchRect != nil { g.mount(sc, in: sv, order: 0) }
         if let sr = searchRect, let cfg = level?.search {
             let b = g.view(path + "|search") { _SUISearchBar(frame: .zero) }
             if b.superview !== sv { sv.addSubview(b) }

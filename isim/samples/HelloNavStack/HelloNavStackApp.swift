@@ -9,7 +9,7 @@ struct HelloNavStackApp: App {
     var body: some Scene { WindowGroup { RootView() } }
 }
 
-enum Route: Hashable { case detail(Int), zoom, editor, custom, bottom, fade }
+enum Route: Hashable { case detail(Int), zoom, editor, custom, bottom, fade, search }
 
 struct RootView: View {
     @State private var path: [Route] = []
@@ -28,6 +28,7 @@ struct RootView: View {
                     NavigationLink("Custom back", value: Route.custom).accessibilityIdentifier("push-custom")
                     NavigationLink("Bottom bar", value: Route.bottom).accessibilityIdentifier("push-bottom")
                     NavigationLink("Cross-fade", value: Route.fade).accessibilityIdentifier("push-fade")
+                    NavigationLink("Search", value: Route.search).accessibilityIdentifier("push-search")
                 }
                 Section("State") { LabeledContent("Last", value: log) }
             }
@@ -52,6 +53,7 @@ struct RootView: View {
                 case .custom: CustomBackView()
                 case .bottom: BottomBarView()
                 case .fade: Text("Faded in").navigationTitle("Fade").modifier(FadeTransition()).accessibilityIdentifier("fade-page")
+                case .search: SearchPage()
                 }
             }
         }
@@ -126,5 +128,26 @@ struct BottomBarView: View {
             ToolbarItem(placement: .bottomBar) { Button { count += 1; print("bottom: plus \(count)") } label: { Image(systemName: "plus") }.accessibilityIdentifier("bb-plus") }
             ToolbarItem(placement: .keyboard) { Button("Done") { print("keyboard: done") }.accessibilityIdentifier("kb-done") }
         }
+    }
+}
+
+/// searchable with suggestions (searchCompletion fills the field) and a scope bar.
+struct SearchPage: View {
+    @State private var text = ""
+    @State private var scope = 0
+    let fruits = ["Apple", "Apricot", "Banana", "Cherry"]
+    var body: some View {
+        List(fruits.filter { text.isEmpty || $0.localizedCaseInsensitiveContains(text) }, id: \.self) { Text($0).accessibilityIdentifier("result-\($0)") }
+            .navigationTitle("Search")
+            .searchable(text: $text, prompt: "Fruit")
+            .searchSuggestions {
+                if text.isEmpty {
+                    Text("Apple").searchCompletion("Apple").accessibilityIdentifier("suggest-Apple")
+                    Text("Cherry").searchCompletion("Cherry").accessibilityIdentifier("suggest-Cherry")
+                }
+            }
+            .searchScopes($scope) { Text("All").tag(0); Text("Red").tag(1); Text("Yellow").tag(2) }
+            .onChange(of: text) { _, t in print("search text \(t)") }
+            .onChange(of: scope) { _, s in print("scope \(s)") }
     }
 }

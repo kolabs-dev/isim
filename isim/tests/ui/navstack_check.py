@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Frame and pixel checks for tests/ui/navstack.sh (HelloNavStack). Usage: navstack_check.py SHOTDIR LOGFILE
-Dumps in the log: 0 root, 1 detail, 2 bottom bar with the keyboard up, 3 editor role, 4 custom back."""
+Dumps in the log: 0 root, 1 detail, 2 bottom bar with the keyboard up, 3 editor role, 4 custom back, 5 search with
+suggestions, 6 search after a completion."""
 import os, re, sys
 sys.path.insert(0, os.path.dirname(__file__))
 from pixels import Image
@@ -66,4 +67,7 @@ d3 = '\n'.join(m.group(0) for m in dumps(log)[3])
 check('toolbarRole(.editor): the back button shows no title', 'id=editor-page' in d3 and 'text=Stack' not in d3)
 d4 = '\n'.join(m.group(0) for m in dumps(log)[4])
 check('navigationBarBackButtonHidden hides the back button', 'id=custom-page' in d4 and 'hidden id=isim-nav-back' in d4)
+d5, d6 = '\n'.join(m.group(0) for m in dumps(log)[5]) if n > 5 else '', '\n'.join(m.group(0) for m in dumps(log)[6]) if n > 6 else ''
+check('searchSuggestions replace the results while searching, with the scope bar', 'id=suggest-Apple' in d5 and 'id=result-Banana' not in d5 and 'id=search-scopes' in d5)
+check('after the completion the results are filtered', 'id=result-Cherry' in d6 and 'id=result-Apple' not in d6 and 'id=suggest-Apple' not in d6)
 sys.exit(fail)
