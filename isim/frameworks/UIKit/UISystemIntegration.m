@@ -742,17 +742,39 @@ void isim_sys_event(const char *text) {
 /* ---- snapshots (widgets and Live Activities are rendered this way by WidgetKit) ---- */
 @implementation UIView (UISnapshotting)
 - (BOOL)drawViewHierarchyInRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates {
-    if (afterUpdates) { [self setNeedsLayout]; [self layoutIfNeeded]; }
+    if (afterUpdates) { [self setNeedsLayout]; [self layoutIfNeeded]; }            /* pending layout first (offscreen trees too) */
     CGRect f = self.frame;
+    CGSize b = self.bounds.size;
     CGContextRef ctx = UIGraphicsGetCurrentContext();
-    if (!ctx) return NO;
+    if (!ctx || b.width <= 0 || b.height <= 0) return NO;
     CGContextSaveGState(ctx);
     CGContextTranslateCTM(ctx, rect.origin.x, rect.origin.y);
-    if (f.size.width > 0 && f.size.height > 0) CGContextScaleCTM(ctx, rect.size.width / f.size.width, rect.size.height / f.size.height);
-    CGContextTranslateCTM(ctx, -f.origin.x, -f.origin.y);
+    CGContextScaleCTM(ctx, rect.size.width / b.width, rect.size.height / b.height);
+    CGContextTranslateCTM(ctx, -f.origin.x, -f.origin.y);                         /* _isim_render draws at the view's frame origin */
     [self _isim_render];
     CGContextRestoreGState(ctx);
     return YES;
+}
+- (UIView *)snapshotViewAfterScreenUpdates:(BOOL)after {
+    CGSize b = self.bounds.size;
+    UIImageView *iv = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, b.width, b.height)];
+    if (b.width <= 0 || b.height <= 0) return iv;
+    UIGraphicsBeginImageContextWithOptions(b, NO, UIScreen.mainScreen.scale);
+    [self drawViewHierarchyInRect:CGRectMake(0, 0, b.width, b.height) afterScreenUpdates:after];
+    iv.image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return iv;
+}
+- (UIView *)resizableSnapshotViewFromRect:(CGRect)rect afterScreenUpdates:(BOOL)after withCapInsets:(UIEdgeInsets)caps {
+    UIImageView *iv = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, rect.size.width, rect.size.height)];
+    CGSize b = self.bounds.size;
+    if (rect.size.width <= 0 || rect.size.height <= 0 || b.width <= 0 || b.height <= 0) return iv;
+    UIGraphicsBeginImageContextWithOptions(rect.size, NO, UIScreen.mainScreen.scale);
+    [self drawViewHierarchyInRect:CGRectMake(-rect.origin.x, -rect.origin.y, b.width, b.height) afterScreenUpdates:after];
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    iv.image = UIEdgeInsetsEqualToEdgeInsets(caps, UIEdgeInsetsZero) ? img : [img resizableImageWithCapInsets:caps];
+    return iv;
 }
 @end
 

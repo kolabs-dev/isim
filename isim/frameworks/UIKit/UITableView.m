@@ -92,7 +92,8 @@ const CGFloat UITableViewAutomaticDimension = -1;
 @property (nonatomic, strong) NSIndexPath *_isim_indexPath;
 @property (nonatomic) BOOL _isim_separator;
 @property (nonatomic) CGFloat _isim_separatorLeft;
-@property (nonatomic) CGFloat _isim_swipe;              /* <0: trailing actions revealed */
+@property (nonatomic) CGFloat _isim_swipe;              /* <0: trailing actions revealed, >0: leading ones */
+@property (nonatomic) BOOL _isim_fullSwipe;             /* the configuration's performsFirstActionWithFullSwipe */
 @property (nonatomic, strong) NSArray<UIContextualAction *> *_isim_actions;
 @property (nonatomic, strong) UIView *_isim_actionsView;
 @end
@@ -100,6 +101,7 @@ const CGFloat UITableViewAutomaticDimension = -1;
 - (void)_isim_cellTapped:(UITableViewCell *)cell;
 - (void)_isim_highlight:(UITableViewCell *)cell on:(BOOL)on;
 - (NSArray<UIContextualAction *> *)_isim_trailingActionsFor:(UITableViewCell *)cell full:(BOOL *)full;
+- (NSArray<UIContextualAction *> *)_isim_leadingActionsFor:(UITableViewCell *)cell full:(BOOL *)full;
 - (void)_isim_closeSwipesExcept:(UITableViewCell *)cell;
 - (void)_isim_editingControlTapped:(UITableViewCell *)cell;
 - (void)_isim_accessoryTapped:(UITableViewCell *)cell;
@@ -108,7 +110,7 @@ const CGFloat UITableViewAutomaticDimension = -1;
 
 @implementation UITableViewCell {
     UITableViewCellStyle _cellStyle; UIView *_content; UILabel *_text, *_detail; UIImageView *_image; BOOL _usedText, _usedDetail, _usedImage;
-    UIPanGestureRecognizer *_swipePan; CGFloat _swipeStart; BOOL _swipeTracking; UIControl *_accessoryButton;
+    UIPanGestureRecognizer *_swipePan; CGFloat _swipeStart; BOOL _swipeTracking, _swipeLeading; UIControl *_accessoryButton;
 }
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)rid {
     if ((self = [super initWithFrame:CGRectMake(0, 0, 320, 44)])) {
@@ -304,7 +306,7 @@ const CGFloat UITableViewAutomaticDimension = -1;
 - (void)touchesBegan:(NSSet *)t withEvent:(UIEvent *)e {
     CGPoint p = [t.anyObject locationInView:self];
     if (_editing && p.x < [self _margin] + 30) { [self._isim_table _isim_editingControlTapped:self]; return; }
-    if (self._isim_swipe < 0) { _swipeTracking = NO; [self _isim_closeSwipe]; return; }
+    if (self._isim_swipe != 0) { _swipeTracking = NO; [self _isim_closeSwipe]; return; }
     [self._isim_table _isim_closeSwipesExcept:self];
     [self._isim_table _isim_highlight:self on:YES];
 }
@@ -321,31 +323,35 @@ const CGFloat UITableViewAutomaticDimension = -1;
     if (g != _swipePan) return [super gestureRecognizerShouldBegin:g];
     CGPoint tr = [_swipePan translationInView:self];
     if (fabs(tr.x) < fabs(tr.y) * 1.2) return NO;                   /* vertical: the table scrolls */
-    if (tr.x > 0 && self._isim_swipe >= 0) return NO;              /* no leading actions: back swipe etc. */
+    if (self._isim_swipe != 0) return YES;                           /* open: the swipe closes it (or opens it further) */
+    _swipeLeading = tr.x > 0;                                        /* the side to open (the translation restarts at Began) */
     BOOL full = NO;
-    return [self._isim_table _isim_trailingActionsFor:self full:&full].count > 0 || self._isim_swipe < 0;
+    if (tr.x > 0) return [self._isim_table _isim_leadingActionsFor:self full:&full].count > 0;   /* none: back swipe etc. */
+    return [self._isim_table _isim_trailingActionsFor:self full:&full].count > 0;
 }
 - (void)_isim_swiped:(UIPanGestureRecognizer *)g {
     CGPoint tr = [g translationInView:self];
     if (g.state == UIGestureRecognizerStateBegan) {
         BOOL full = NO;
-        NSArray *actions = [self._isim_table _isim_trailingActionsFor:self full:&full];
+        if (self._isim_swipe != 0) _swipeLeading = self._isim_swipe > 0;
+        NSArray *actions = _swipeLeading ? [self._isim_table _isim_leadingActionsFor:self full:&full] : [self._isim_table _isim_trailingActionsFor:self full:&full];
         _swipeTracking = actions.count > 0;
         if (!_swipeTracking) return;
-        self._isim_actions = actions; _swipeStart = self._isim_swipe;
+        self._isim_actions = actions; self._isim_fullSwipe = full; _swipeStart = self._isim_swipe;
         [self._isim_table _isim_highlight:self on:NO];
         [self _isim_buildActionsView];
     }
     if (!_swipeTracking) return;
     CGFloat W = self.bounds.size.width, open = [self _isim_actionsWidth];
-    CGFloat x = fmin(0, _swipeStart + tr.x);
+    CGFloat sign = _swipeLeading ? 1 : -1;                           /* leading actions open to the right */
+    CGFloat x = _swipeLeading ? fmax(0, _swipeStart + tr.x) : fmin(0, _swipeStart + tr.x);
     if (g.state == UIGestureRecognizerStateChanged || g.state == UIGestureRecognizerStateBegan) { [UIView performWithoutAnimation:^{ [self _isim_setSwipe:x]; }]; return; }
     _swipeTracking = NO;
     UIContextualAction *first = self._isim_actions.firstObject;
-    BOOL fullSwipe = -x > W * 0.6 && first;
+    BOOL fullSwipe = sign * x > W * 0.6 && first && self._isim_fullSwipe;
     if (fullSwipe) { [self _isim_perform:first]; return; }
-    BOOL stayOpen = -x > open / 2 || [g velocityInView:self].x < -500;
-    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{ [self _isim_setSwipe:stayOpen ? -open : 0]; } completion:^(BOOL f) {
+    BOOL stayOpen = sign * x > open / 2 || sign * [g velocityInView:self].x > 500;
+    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{ [self _isim_setSwipe:stayOpen ? sign * open : 0]; } completion:^(BOOL f) {
         if (!stayOpen) { [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; }
     }];
 }
@@ -372,21 +378,21 @@ const CGFloat UITableViewAutomaticDimension = -1;
 }
 - (void)_isim_setSwipe:(CGFloat)x {
     self._isim_swipe = x;
-    CGRect b = self.bounds; CGFloat w = -x;
-    self._isim_actionsView.frame = CGRectMake(b.size.width - w, 0, w, b.size.height);
-    CGFloat total = [self _isim_actionsWidth], right = w;      /* the first action sits at the trailing edge */
+    CGRect b = self.bounds; CGFloat w = fabs(x); BOOL leading = x > 0;
+    self._isim_actionsView.frame = leading ? CGRectMake(0, 0, w, b.size.height) : CGRectMake(b.size.width - w, 0, w, b.size.height);
+    CGFloat total = [self _isim_actionsWidth], left = w;       /* the first action sits at the edge the row moved away from */
     for (NSUInteger i = 0; i < self._isim_actions.count; i++) {
         UIView *bt = self._isim_actionsView.subviews[i];
         CGFloat aw = total > 0 ? [self _isim_widthFor:self._isim_actions[i]] * (w / total) : 0;
-        if (i + 1 == self._isim_actions.count) aw = right;
-        bt.frame = CGRectMake(right - aw, 0, aw, b.size.height);
-        right -= aw;
+        if (i + 1 == self._isim_actions.count) aw = left;
+        bt.frame = leading ? CGRectMake(w - left, 0, aw, b.size.height) : CGRectMake(left - aw, 0, aw, b.size.height);
+        left -= aw;
     }
     [self setNeedsLayout]; [self layoutIfNeeded];
     isim_ui_set_needs_display();
 }
 - (void)_isim_closeSwipe {
-    if (self._isim_swipe >= 0) return;
+    if (self._isim_swipe == 0) return;
     [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{ [self _isim_setSwipe:0]; }
                      completion:^(BOOL f) { [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; }];
 }
@@ -427,6 +433,62 @@ const CGFloat UITableViewAutomaticDimension = -1;
 }
 @end
 
+/* ================= section index ================= */
+NSString *const UITableViewIndexSearch = @"{search}";
+@interface _IsimTableIndexView : UIView
+@property (nonatomic, weak) UITableView *table;
+@property (nonatomic, copy) NSArray<NSString *> *titles;
+@property (nonatomic, strong) UIColor *color, *trackingColor, *idleColor;
+@end
+@interface UITableView (IsimIndex)
+- (void)_isim_indexSelected:(NSInteger)i title:(NSString *)t;
+@end
+@implementation _IsimTableIndexView { NSMutableArray<UIView *> *_items; }
+- (void)setTitles:(NSArray<NSString *> *)titles {
+    if ([titles isEqualToArray:_titles]) return;
+    _titles = [titles copy];
+    for (UIView *v in _items) [v removeFromSuperview];
+    _items = [NSMutableArray array];
+    for (NSString *t in _titles) {
+        UIView *item;
+        if ([t isEqualToString:UITableViewIndexSearch]) {
+            UIImageView *iv = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"magnifyingglass"]];
+            iv.contentMode = UIViewContentModeScaleAspectFit; item = iv;
+        } else {
+            UILabel *l = [UILabel new]; l.text = t; l.font = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
+            l.textAlignment = NSTextAlignmentCenter; item = l;
+        }
+        item.userInteractionEnabled = NO;
+        item.accessibilityIdentifier = [@"isim-index-" stringByAppendingString:[t isEqualToString:UITableViewIndexSearch] ? @"search" : t];
+        [self addSubview:item]; [_items addObject:item];
+    }
+    [self setNeedsLayout];
+}
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGSize b = self.bounds.size; CGFloat lh = 14, total = lh * _items.count, y = fmax(0, (b.height - total) / 2);
+    UIColor *c = _color ?: self.tintColor ?: UIColor.systemBlueColor;
+    for (UIView *v in _items) {
+        v.frame = [v isKindOfClass:[UIImageView class]] ? CGRectMake((b.width - 10) / 2, y + 2, 10, 10) : CGRectMake(0, y, b.width, lh);
+        if ([v isKindOfClass:[UILabel class]]) ((UILabel *)v).textColor = c; else v.tintColor = c;
+        y += lh;
+    }
+}
+- (NSInteger)_indexAt:(CGFloat)y {
+    if (!_items.count) return -1;
+    CGFloat lh = 14, top = fmax(0, (self.bounds.size.height - lh * _items.count) / 2);
+    return MIN((NSInteger)_items.count - 1, MAX(0, (NSInteger)floor((y - top) / lh)));
+}
+- (void)_track:(NSSet *)t {
+    NSInteger i = [self _indexAt:[t.anyObject locationInView:self].y];
+    if (i >= 0) [_table _isim_indexSelected:i title:_titles[i]];
+}
+- (void)touchesBegan:(NSSet *)t withEvent:(UIEvent *)e { self.backgroundColor = _trackingColor ?: _idleColor; [self _track:t]; }
+- (void)touchesMoved:(NSSet *)t withEvent:(UIEvent *)e { [self _track:t]; }
+- (void)touchesEnded:(NSSet *)t withEvent:(UIEvent *)e { self.backgroundColor = _idleColor; }
+- (void)touchesCancelled:(NSSet *)t withEvent:(UIEvent *)e { self.backgroundColor = _idleColor; }
+@end
+
 /* ================= UITableView ================= */
 typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights; BOOL *measured; } tv_section;
 
@@ -440,6 +502,8 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     NSMutableSet<NSIndexPath *> *_selected;
     BOOL _loaded, _batching; NSInteger _updateDepth;
     NSMutableArray *_pendingDeletes, *_pendingInserts;
+    _IsimTableIndexView *_index; NSArray<NSString *> *_indexTitles; BOOL _indexLoaded;
+    NSMutableSet<NSIndexPath *> *_prefetched; CGFloat _lastPrefetchY;
 }
 - (instancetype)initWithFrame:(CGRect)f style:(UITableViewStyle)style {
     if ((self = [super initWithFrame:f])) {
@@ -455,6 +519,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
         _separatorInset = UIEdgeInsetsMake(0, 20, 0, 0);
         self.backgroundColor = style == UITableViewStylePlain ? UIColor.systemBackgroundColor : UIColor.systemGroupedBackgroundColor;
         self.alwaysBounceVertical = YES;
+        _prefetchingEnabled = YES;
     }
     return self;
 }
@@ -601,7 +666,71 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     if (!_loaded) [self _rebuildModel];
     if (fabs(self.contentSize.width - self.bounds.size.width) > 0.5) { [self _invalidateHeights]; [self _positions]; }
     for (int pass = 0; pass < 3; pass++) if (![self _layoutVisible]) break;   /* self-sizing may move rows: redo */
+    [self _isim_layoutIndex];
+    [self _isim_prefetch];
 }
+/* ---- section index ---- */
+- (void)reloadSectionIndexTitles { _indexLoaded = NO; [self setNeedsLayout]; }
+- (void)_isim_layoutIndex {
+    if (!_indexLoaded) {
+        _indexTitles = [_dataSource respondsToSelector:@selector(sectionIndexTitlesForTableView:)] ? [_dataSource sectionIndexTitlesForTableView:self] : nil;
+        _indexLoaded = YES;
+    }
+    NSInteger rows = 0; for (NSInteger s = 0; s < _nsecs; s++) rows += _secs[s].rows;
+    BOOL show = _indexTitles.count > 0 && rows >= _sectionIndexMinimumDisplayRowCount;
+    if (!show) { [_index removeFromSuperview]; _index = nil; return; }
+    if (!_index) { _index = [_IsimTableIndexView new]; _index.table = self; _index.accessibilityIdentifier = @"isim-section-index"; }
+    _index.titles = _indexTitles;
+    _index.color = _sectionIndexColor; _index.trackingColor = _sectionIndexTrackingBackgroundColor; _index.idleColor = _sectionIndexBackgroundColor;
+    if (!_index.backgroundColor || _index.backgroundColor == _sectionIndexBackgroundColor) _index.backgroundColor = _sectionIndexBackgroundColor;
+    UIEdgeInsets in = self.adjustedContentInset;
+    CGRect b = self.bounds;
+    CGRect f = CGRectMake(CGRectGetMaxX(b) - 16 - self.safeAreaInsets.right, b.origin.y + in.top, 16, b.size.height - in.top - in.bottom);
+    if (!CGRectEqualToRect(_index.frame, f)) _index.frame = f;
+    if (_index.superview != self) [self addSubview:_index];
+    [self bringSubviewToFront:_index];
+}
+- (void)_isim_indexSelected:(NSInteger)i title:(NSString *)t {
+    UIEdgeInsets in = self.adjustedContentInset;
+    if ([t isEqualToString:UITableViewIndexSearch]) { self.contentOffset = CGPointMake(self.contentOffset.x, -in.top); return; }
+    NSInteger s = [_dataSource respondsToSelector:@selector(tableView:sectionForSectionIndexTitle:atIndex:)] ? [_dataSource tableView:self sectionForSectionIndexTitle:t atIndex:i] : i;
+    if (s < 0 || s >= _nsecs) return;
+    for (int pass = 0; pass < 4; pass++) {                           /* rows measured on the way in move the section: settle */
+        CGFloat maxY = fmax(-in.top, self.contentSize.height + in.bottom - self.bounds.size.height);
+        CGFloat y = fmin(maxY, fmax(-in.top, _secs[s].top - in.top));
+        if (pass && fabs(y - self.contentOffset.y) < 0.5) break;
+        self.contentOffset = CGPointMake(self.contentOffset.x, y);
+        [self layoutIfNeeded];
+    }
+}
+/* ---- prefetching: the rows within a screen ahead in the scrolling direction (behind too while still) ---- */
+- (void)_isim_prefetch {
+    id<UITableViewDataSourcePrefetching> pf = _prefetchDataSource;
+    if (!pf || !_prefetchingEnabled || !_nsecs) return;
+    if (!_prefetched) _prefetched = [NSMutableSet set];
+    CGRect b = self.bounds; CGFloat H = b.size.height, dy = b.origin.y - _lastPrefetchY; _lastPrefetchY = b.origin.y;
+    CGFloat top = b.origin.y - 100, bottom = CGRectGetMaxY(b) + 100;     /* the laid-out range (see _layoutVisible) */
+    CGFloat from = dy < 0 ? top - H : bottom, to = dy < 0 ? top : bottom + H;
+    NSMutableSet *window = [NSMutableSet set];
+    for (NSInteger s = 0; s < _nsecs; s++) {
+        CGFloat y = _secs[s].top + _secs[s].headerH;
+        for (NSInteger r = 0; r < _secs[s].rows; r++) {
+            CGFloat h = _secs[s].heights[r];
+            if (y + h > from && y < to) [window addObject:[NSIndexPath indexPathForRow:r inSection:s]];
+            y += h;
+            if (y > to) break;
+        }
+    }
+    for (NSIndexPath *ip in _visible) [window removeObject:ip];
+    NSMutableSet *fresh = [window mutableCopy]; [fresh minusSet:_prefetched];
+    NSMutableSet *gone = [_prefetched mutableCopy]; [gone minusSet:window];
+    for (NSIndexPath *ip in _visible) [gone removeObject:ip];           /* shown: no cancel */
+    _prefetched = window;
+    if (gone.count && [pf respondsToSelector:@selector(tableView:cancelPrefetchingForRowsAtIndexPaths:)])
+        [pf tableView:self cancelPrefetchingForRowsAtIndexPaths:[gone.allObjects sortedArrayUsingSelector:@selector(compare:)]];
+    if (fresh.count) [pf tableView:self prefetchRowsAtIndexPaths:[fresh.allObjects sortedArrayUsingSelector:@selector(compare:)]];
+}
+- (UITableViewHeaderFooterView *)footerViewForSection:(NSInteger)s { id v = _footers[@(s)]; return [v isKindOfClass:[UITableViewHeaderFooterView class]] ? v : nil; }
 /* returns YES if measured heights changed the geometry */
 - (BOOL)_layoutVisible {
     CGRect b = self.bounds; CGFloat W = b.size.width, in = [self _inset];
@@ -812,6 +941,13 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
         done(YES);
     }]];
 }
+- (NSArray<UIContextualAction *> *)_isim_leadingActionsFor:(UITableViewCell *)c full:(BOOL *)full {
+    NSIndexPath *ip = [self indexPathForCell:c];
+    if (!ip || self.editing || ![self.delegate respondsToSelector:@selector(tableView:leadingSwipeActionsConfigurationForRowAtIndexPath:)]) return nil;
+    UISwipeActionsConfiguration *cfg = [self.delegate tableView:self leadingSwipeActionsConfigurationForRowAtIndexPath:ip];
+    *full = cfg.performsFirstActionWithFullSwipe;
+    return cfg.actions;
+}
 - (void)_isim_closeSwipesExcept:(UITableViewCell *)cell { for (UITableViewCell *c in _visible.allValues) if (c != cell) [c _isim_closeSwipe]; }
 - (void)_isim_editingControlTapped:(UITableViewCell *)c {
     NSIndexPath *ip = [self indexPathForCell:c];
@@ -819,7 +955,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     /* reveal the Delete button, like a swipe */
     BOOL full = NO;
     _editing = NO; NSArray *acts = [self _isim_trailingActionsFor:c full:&full]; _editing = YES;
-    c._isim_actions = acts; [c _isim_buildActionsView];
+    c._isim_actions = acts; c._isim_fullSwipe = full; [c _isim_buildActionsView];
     [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{ [c _isim_setSwipe:-[c _isim_actionsWidth]]; } completion:nil];
 }
 
@@ -831,6 +967,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     for (UIView *v in _footers.allValues) [v removeFromSuperview];
     [_headers removeAllObjects]; [_footers removeAllObjects];
     [_selected removeAllObjects];
+    _indexLoaded = NO; [_prefetched removeAllObjects];
     [self _rebuildModel];
     [self setNeedsLayout];
 }

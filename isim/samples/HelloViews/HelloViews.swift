@@ -38,6 +38,34 @@ final class ViewsController: UIViewController, UIContextMenuInteractionDelegate,
     let table = UITableView(frame: .zero, style: .plain)
     let header = UIView()
     var statusStep = 0
+    var snapshotted = false
+    /// RGBA of an image's pixel (points), drawn into a bitmap
+    func rgba(_ img: UIImage, _ x: Int, _ y: Int) -> [UInt8] {
+        let w = Int(img.size.width), h = Int(img.size.height)
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        UIGraphicsPushContext(ctx); ctx.translateBy(x: 0, y: CGFloat(h)); ctx.scaleBy(x: 1, y: -1)
+        img.draw(in: CGRect(x: 0, y: 0, width: w, height: h)); UIGraphicsPopContext()
+        let p = ctx.data!.advanced(by: y * w * 4 + x * 4).assumingMemoryBound(to: UInt8.self)
+        return [p[0], p[1], p[2], p[3]]
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !snapshotted else { return }
+        snapshotted = true
+        // drawHierarchy(in:afterScreenUpdates:): an offscreen view tree and an on-screen view with rounded corners
+        let box = UIView(frame: CGRect(x: 0, y: 0, width: 100, height: 50)); box.backgroundColor = .white
+        let dot = UIView(frame: CGRect(x: 60, y: 10, width: 30, height: 30)); dot.backgroundColor = .red; box.addSubview(dot)
+        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
+        let offscreen = UIGraphicsImageRenderer(size: box.bounds.size, format: fmt).image { _ in _ = box.drawHierarchy(in: box.bounds, afterScreenUpdates: true) }
+        let a = rgba(offscreen, 20, 25), b = rgba(offscreen, 75, 25)
+        let shot = UIGraphicsImageRenderer(size: card.bounds.size, format: fmt).image { _ in _ = card.drawHierarchy(in: card.bounds, afterScreenUpdates: false) }
+        let c = rgba(shot, 80, 30), corner = rgba(shot, 1, 1)
+        let snap = card.snapshotView(afterScreenUpdates: false)
+        let part = card.resizableSnapshotView(from: CGRect(x: 40, y: 10, width: 40, height: 20), afterScreenUpdates: false, withCapInsets: .zero) as? UIImageView
+        let pc = part?.image.map { rgba($0, 20, 10) } ?? [0, 0, 0, 0]
+        log("drawHierarchy offscreen: white \(a[0] > 240 && a[1] > 240 && a[2] > 240), red subview \(b[0] > 240 && b[1] < 20); card teal \(c[2] > 150 && c[0] < 120 && c[3] == 255), corner clear \(corner[3] < 40); snapshot \(Int(snap?.bounds.width ?? 0))x\(Int(snap?.bounds.height ?? 0)), resizable \(Int(part?.bounds.width ?? 0))x\(Int(part?.bounds.height ?? 0)) teal \(pc[2] > 150 && pc[0] < 120)")
+    }
     override var preferredStatusBarStyle: UIStatusBarStyle { statusStep >= 1 ? .lightContent : .default }
     override var prefersStatusBarHidden: Bool { statusStep >= 2 }
     override func viewDidLoad() {

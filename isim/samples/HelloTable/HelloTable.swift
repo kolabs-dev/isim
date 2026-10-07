@@ -31,7 +31,7 @@ final class ProduceCell: UITableViewCell {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-final class ProduceViewController: UITableViewController {
+final class ProduceViewController: UITableViewController, UITableViewDataSourcePrefetching {
     var sections: [(String, [String])] = [
         ("Fruits", (1...30).map { "Fruit \($0)" }),
         ("Vegetables", (1...20).map { "Vegetable \($0)" }),
@@ -47,6 +47,29 @@ final class ProduceViewController: UITableViewController {
         navigationItem.rightBarButtonItem = editButtonItem
         navigationItem.leftBarButtonItem = UIBarButtonItem(systemItem: .add, primaryAction: UIAction { [weak self] _ in self?.addFruit() })
         sections[0].1.insert(note, at: 1)
+        tableView.prefetchDataSource = self
+        tableView.sectionIndexColor = .systemPurple
+    }
+    // section index and prefetching
+    override func sectionIndexTitles(for tableView: UITableView) -> [String]? { [UITableView.indexSearch, "F", "V"] }
+    override func tableView(_ tableView: UITableView, sectionForSectionIndexTitle title: String, at index: Int) -> Int {
+        let section = max(0, index - 1)
+        DispatchQueue.main.async {
+            let top = tableView.contentOffset.y + tableView.adjustedContentInset.top
+            print("index \(title): section \(section) at the top \(abs(top - tableView.rect(forSection: section).minY) < 1 || top >= tableView.contentSize.height + tableView.adjustedContentInset.bottom - tableView.bounds.height - 1)")
+        }
+        return section
+    }
+    func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
+        print("prefetch \(indexPaths.count) rows from \(indexPaths[0].section)/\(indexPaths[0].row)")
+    }
+    func tableView(_ tableView: UITableView, cancelPrefetchingForRowsAt indexPaths: [IndexPath]) { print("cancel prefetch \(indexPaths.count) rows") }
+    override func tableView(_ tableView: UITableView, leadingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        guard indexPath.section == 0 else { return nil }
+        let name = sections[0].1[indexPath.row]
+        let pin = UIContextualAction(style: .normal, title: "Pin") { _, _, done in print("pinned \(name)"); done(true) }
+        pin.backgroundColor = .systemOrange
+        return UISwipeActionsConfiguration(actions: [pin])
     }
     func addFruit() {
         added += 1

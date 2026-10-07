@@ -46,28 +46,4 @@
 - (id)copyWithZone:(NSZone *)z { return self; }
 @end
 
-/* ================= snapshots ================= */
-@implementation UIView (UISnapshotting)
-- (BOOL)drawViewHierarchyInRect:(CGRect)rect afterScreenUpdates:(BOOL)after {
-    CGSize b = self.bounds.size;
-    if (b.width <= 0 || b.height <= 0) return NO;
-    CGRect f = self.frame;
-    isim_gfx_save();
-    isim_gfx_translate(rect.origin.x, rect.origin.y);
-    isim_gfx_scale(rect.size.width / b.width, rect.size.height / b.height);
-    isim_gfx_translate(-f.origin.x, -f.origin.y);          /* _isim_render draws at the view's frame origin */
-    [self _isim_render];
-    isim_gfx_restore();
-    return YES;
-}
-- (UIView *)snapshotViewAfterScreenUpdates:(BOOL)after {
-    CGSize b = self.bounds.size;
-    UIImageView *iv = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, b.width, b.height)];
-    if (b.width <= 0 || b.height <= 0) return iv;
-    UIGraphicsBeginImageContextWithOptions(b, NO, UIScreen.mainScreen.scale);
-    [self drawViewHierarchyInRect:CGRectMake(0, 0, b.width, b.height) afterScreenUpdates:after];
-    iv.image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    return iv;
-}
-@end
+/* snapshots (drawViewHierarchyInRect:, snapshotViewAfterScreenUpdates:) are in UISystemIntegration.m */

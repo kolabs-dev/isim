@@ -24,10 +24,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 162 | 46 | 3 | 10 | 221 | 84% |
-| &nbsp;&nbsp;↳ Application & scenes | 19 | 6 | 0 | 0 | 25 | 88% |
+| **UIKit** | 164 | 44 | 3 | 10 | 221 | 84% |
+| &nbsp;&nbsp;↳ Application & scenes | 20 | 5 | 0 | 0 | 25 | 90% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
-| &nbsp;&nbsp;↳ Views & controls | 46 | 11 | 0 | 3 | 60 | 86% |
+| &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
 | &nbsp;&nbsp;↳ Layout | 16 | 2 | 0 | 1 | 19 | 89% |
 | &nbsp;&nbsp;↳ Animation | 8 | 4 | 0 | 0 | 12 | 83% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
@@ -85,7 +85,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 31 | 15 | 1 | 4 | 51 | 75% |
-| **All areas** | **644** | **257** | **43** | **51** | **995** | **78%** |
+| **All areas** | **646** | **255** | **43** | **51** | **995** | **78%** |
 
 ### Per iOS version
 
@@ -93,7 +93,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 85% (206) | 85% (210) | 85% (217) | 84% (221) |
+| UIKit | 86% (206) | 86% (210) | 86% (217) | 84% (221) |
 | SwiftUI | 82% (214) | 80% (220) | 79% (227) | 76% (237) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (81) | 84% (81) | 84% (81) | 84% (81) |
@@ -132,7 +132,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIApplicationMain`, `@main` app delegate | ✅ | ≤17 | Xcode App template lifecycle |
 | `UIApplicationDelegate` launch/active/background/terminate callbacks | ✅ | ≤17 | apps background and resume from the home screen |
 | Scene manifest, `UIWindowSceneDelegate`, `UIWindowScene` | ✅ | ≤17 | one scene on iPhone; several on iPad with `UIApplicationSupportsMultipleScenes` (next row) |
-| `UIView.drawHierarchy(in:afterScreenUpdates:)` | 🟡 | ≤17 | draws the view tree into the current image context (used for widget rendering; tested through HelloWidgets) |
+| `UIView.drawHierarchy(in:afterScreenUpdates:)`, `snapshotView`, `resizableSnapshotView` | ✅ | ≤17 | draws the view tree into the current context (offscreen trees too; `afterScreenUpdates` lays out first); tested (HelloViews, HelloWidgets) |
 | Multiple scenes / windows (iPad multi-window, `requestSceneSessionActivation`) | ✅ | ≤17 | adapted: on iPads with `UIApplicationSupportsMultipleScenes`, `requestSceneSessionActivation` / iOS 17 `activateSceneSession(for:)` (`UISceneSessionActivationRequest`, prominent scenes send the others to the background) create or bring back a session; two scenes share the screen as a split view (1/2, 2/3, 1/3 after `sizeRestrictions`, 10 pt divider) with per-scene size classes; `requestSceneSessionDestruction` (`didDiscardSceneSessions`), `requestSceneSessionRefresh`, `openSessions`, sessions and their state-restoration activities restored on the next launch; scene notifications; iPhones refuse with `UISceneError.multipleScenesNotSupported`. No drag-to-create windows or Stage Manager. Tested (HelloWindows) |
 | `UIWindowScene` geometry (`effectiveGeometry`, `coordinateSpace`, `sizeRestrictions`, `windowScene(_:didUpdate:interfaceOrientation:traitCollection:)`), `UIScene.open(_:options:)`, scene subtitle | ✅ | ≤17 | split-view widths and rotation update the geometry and call the delegate with the old values; tested (HelloWindows) |
 | `UIWindow` (`makeKeyAndVisible`, `rootViewController`, `windowLevel`) | ✅ | ≤17 | |
@@ -227,7 +227,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIPageControl` | ✅ | ≤17 | tap to page; tested |
 | `UIColorWell` | ✅ | ≤17 | rainbow ring + color, presents the color picker, `.valueChanged`; tested (HelloInputs) |
 | `UIScrollView` | 🟡 | ≤17 | pan (one finger, or the centroid of two), rubber-banding, deceleration, insets, delegate, `isPagingEnabled`, `scrollViewWillEndDragging(_:withVelocity:targetContentOffset:)`; pinch zooming (`viewForZooming`, min/max/`zoomScale`, `bouncesZoom` spring back, `setZoomScale(_:animated:)`, `zoom(to:animated:)`, zoom delegate calls); tested (HelloMultiTouch). The zoomed view's `frame` stays its untransformed frame (UIKit reports the scaled one); paging unverified outside collection-view carousels |
-| `UITableView` (cells, sections, editing, swipe actions) | 🟡 | ≤17 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing actions, edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`, drag to reorder / drop (see Drag & drop); tested (HelloTable, HelloDragDrop). Missing: leading swipe actions, section index, prefetching, nibs |
+| `UITableView` (cells, sections, editing, swipe actions) | ✅ | ≤17 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing and leading actions (full swipe per `performsFirstActionWithFullSwipe`), edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`, section index (`sectionIndexTitles`, `UITableView.indexSearch`, `sectionForSectionIndexTitle`, index colours), prefetching (`prefetchDataSource`: a screen ahead in the scrolling direction, cancelled when the direction turns), nib registration (see Storyboards), drag to reorder / drop (see Drag & drop); tested (HelloTable, HelloDragDrop, HelloStoryboards). Cell content is not inset for the index (adapted) |
 | `UITableViewDiffableDataSource` | ✅ | ≤17 | snapshots diffed into animated row inserts/deletes; reload/reconfigure; tested (HelloTable) |
 | `UICollectionView` + `UICollectionViewFlowLayout` | 🟡 | ≤17 | cell/supplementary reuse, flow layout (both directions, delegate sizes/insets/spacing, headers/footers, pinned headers, estimated sizes), multiple selection, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToItem`, `UICollectionViewController`; drag/drop delegates (unverified); tested (HelloCollection). Missing: prefetching, decoration views, custom layout transitions, nibs |
 | `UICollectionViewCompositionalLayout` | 🟡 | ≤17 | items, nested horizontal/vertical groups (repeating, `count:`), fractional/absolute/estimated sizes, fixed/flexible spacing, content insets, boundary headers/footers (pinning), section provider + environment, orthogonal scrolling (continuous, paging, group paging); tested (HelloCollection). Missing: horizontal scroll direction, decoration items, `visibleItemsInvalidationHandler`, custom group providers |

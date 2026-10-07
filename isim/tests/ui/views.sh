@@ -4,7 +4,8 @@
 # menus), button configurations (configurationUpdateHandler with changesSelectionAsPrimaryAction, activity
 # indicator, attributed title by pixels, image placement), tintAdjustmentMode dimmed behind an alert, contentMode
 # by pixels, a custom inputView with an inputAccessoryView; status bar style and prefersStatusBarHidden, UIScreen
-# brightness (the frame dims), auto-lock under the device shell (ISIM_AUTOLOCK) and isIdleTimerDisabled.
+# brightness (the frame dims), auto-lock under the device shell (ISIM_AUTOLOCK) and isIdleTimerDisabled; iOS 18 zoom
+# transition; drawHierarchy / snapshot views.
 set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloViews; mkdir -p "$shots"; rm -f "$shots"/*.png
@@ -63,6 +64,8 @@ check "auto-lock when idle; isIdleTimerDisabled keeps the device on" \
   '[ "$(grep -c "auto-lock after 2 s without input" <<<"$boot")" = 1 ] && grep -q "idle timer disabled true" <<<"$boot" && grep -q "isim shell: HelloViews.app idle timer disabled" <<<"$boot"'
 check "iOS 18 zoom transition: from the source view, full screen, back on dismissal" \
   'grep -q "isim: zoom transition to HelloViews.ZoomedController (source 20,70 160x60)" <<<"$log" && grep -q "zoomed shown full screen true" <<<"$log" && is zoomed 300 700 "b>150 && r<120" && grep -q "isim: zoom transition from HelloViews.ZoomedController" <<<"$log" && grep -q "zoom dismissed" <<<"$log"'
+check "drawHierarchy (offscreen tree, on-screen rounded view), snapshotView, resizableSnapshotView" \
+  'grep -q "drawHierarchy offscreen: white true, red subview true; card teal true, corner clear true; snapshot 160x60, resizable 40x20 teal true" <<<"$log"'
 check "exits cleanly" '[ $rc = 0 ] && [ $rc2 = 0 ]'
 [ $fail = 0 ] || echo "$log" | grep -E "HelloViews:|isim: (context|input|keyboard)" | tail -30
 exit $fail

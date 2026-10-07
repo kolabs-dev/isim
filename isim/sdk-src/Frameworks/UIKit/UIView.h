@@ -165,5 +165,6 @@ NS_SWIFT_UI_ACTOR
 /* snapshots: draws the view and its subviews into the current graphics context (UIGraphicsImageRenderer) */
 @interface UIView (UISnapshotting)
 - (BOOL)drawViewHierarchyInRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates;
+- (nullable UIView *)resizableSnapshotViewFromRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates withCapInsets:(UIEdgeInsets)capInsets;
 @end
 NS_ASSUME_NONNULL_END

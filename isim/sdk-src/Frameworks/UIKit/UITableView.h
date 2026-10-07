@@ -154,6 +154,17 @@ UIKIT_EXTERN const CGFloat UITableViewAutomaticDimension;
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath;
 - (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)sourceIndexPath toIndexPath:(NSIndexPath *)destinationIndexPath;
 - (nullable NSArray<NSString *> *)sectionIndexTitlesForTableView:(UITableView *)tableView;
+- (NSInteger)tableView:(UITableView *)tableView sectionForSectionIndexTitle:(NSString *)title atIndex:(NSInteger)index;
+@end
+/* the magnifying glass at the top of a section index (jumps to the top of the table) */
+UIKIT_EXTERN NSString *const UITableViewIndexSearch NS_SWIFT_NAME(UITableView.indexSearch);
+
+/* prefetching: rows about to come on screen in the scrolling direction (a screen ahead) */
+@protocol UITableViewDataSourcePrefetching <NSObject>
+@required
+- (void)tableView:(UITableView *)tableView prefetchRowsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths;
+@optional
+- (void)tableView:(UITableView *)tableView cancelPrefetchingForRowsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths;
 @end
 
 @class UIContextMenuConfiguration;
@@ -243,6 +254,15 @@ NS_SWIFT_UI_ACTOR
 - (void)selectRowAtIndexPath:(nullable NSIndexPath *)indexPath animated:(BOOL)animated scrollPosition:(UITableViewScrollPosition)scrollPosition;
 - (void)deselectRowAtIndexPath:(NSIndexPath *)indexPath animated:(BOOL)animated;
 - (void)scrollToRowAtIndexPath:(NSIndexPath *)indexPath atScrollPosition:(UITableViewScrollPosition)scrollPosition animated:(BOOL)animated;
+/* section index (the titles from sectionIndexTitlesForTableView: along the trailing edge; tap or drag to jump) */
+@property (nonatomic) NSInteger sectionIndexMinimumDisplayRowCount;
+@property (nullable, nonatomic, strong) UIColor *sectionIndexColor;
+@property (nullable, nonatomic, strong) UIColor *sectionIndexBackgroundColor;
+@property (nullable, nonatomic, strong) UIColor *sectionIndexTrackingBackgroundColor;
+- (void)reloadSectionIndexTitles;
+@property (nullable, nonatomic, weak) id<UITableViewDataSourcePrefetching> prefetchDataSource;
+@property (nonatomic, getter=isPrefetchingEnabled) BOOL prefetchingEnabled;
+- (nullable UITableViewHeaderFooterView *)footerViewForSection:(NSInteger)section;
 @end
 
 NS_SWIFT_UI_ACTOR
