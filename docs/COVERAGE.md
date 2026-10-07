@@ -4,7 +4,7 @@ This tracks how much of the iOS 17/18 SDK isim covers, so you can follow progres
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-06
+Last updated: 2026-10-07
 
 **Legend**
 
@@ -70,8 +70,8 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
 | GameKit (Game Center) | 10 | 4 | 3 | 1 | 18 | 67% |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 13 | 8 | 1 | 4 | 26 | 65% |
-| AVFoundation & audio | 10 | 11 | 3 | 4 | 28 | 55% |
-| Photos, Vision, Core ML & camera | 3 | 1 | 0 | 4 | 8 | 44% |
+| AVFoundation & audio | 19 | 19 | 3 | 3 | 44 | 65% |
+| Photos, Vision, Core ML & camera | 5 | 7 | 2 | 0 | 14 | 61% |
 | StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
 | Data & persistence | 13 | 6 | 0 | 4 | 23 | 70% |
@@ -83,7 +83,7 @@ Coverage % = (✅ + 0.5 × 🟡) / all rows in that area. Stubs count as zero.
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 1 | 2 | 1 | 9 | 61% |
 | Platform & tooling | 29 | 11 | 1 | 4 | 45 | 77% |
-| **All areas** | **577** | **232** | **41** | **64** | **914** | **76%** |
+| **All areas** | **588** | **246** | **43** | **59** | **936** | **76%** |
 
 ---
 
@@ -1069,13 +1069,20 @@ descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter
 ## AVFoundation & audio
 
 Media decoding, speech and recording use host tools in child processes: **ffmpeg/ffprobe** (video, compressed audio,
-thumbnails, AAC encoding; GStreamer's `gst-launch-1.0` also decodes audio files), **espeak-ng** or espeak (speech).
-Headless test runs are silent (no audio device); timing, frames and callbacks still run.
+thumbnails, AAC encoding, export, asset reader/writer, the simulated camera; GStreamer's `gst-launch-1.0` also decodes
+audio files), **espeak-ng** or espeak (speech). QR/barcode scanning loads the host's **libzbar** when present.
+Headless test runs are silent (no audio device); timing, frames and callbacks still run. HelloMedia's test plays through
+SDL's silent "dummy" device and checks the mixed output captured with `ISIM_AUDIO_TAP`.
+
+Labels in the notes: *passthrough* = a host tool does the real work; *adapted* = isim's own approximation;
+*stub* = API only. *Tested* = checked by a UI test (pixels or printed values); *unverified* = code exists, no test.
 
 | API / feature | Status | Notes |
 |---|---|---|
-| `AVAudioSession` (category, mode, `setActive`, record permission) | 🟡 | accepted; record permission always granted; no interruptions/route changes |
-| `AVAudioPlayer` (play, pause, stop, seek, loops, volume, delegate) | 🟡 | `rate`/`pan`/metering not applied; reports 1 channel |
+| `AVAudioSession` (category, mode, `setActive`, record permission) | 🟡 | accepted; record permission always granted; preferred sample rate / buffer duration ignored |
+| `AVAudioSession` interruptions, route changes (`currentRoute`, `interruptionNotification`, `routeChangeNotification`, `overrideOutputAudioPort`) | ✅ | adapted: events come from the `audio interrupt begin\|end [resume]` / `audio route NAME` script command (no phone calls or headsets on the host); interruptions pause `AVAudioPlayer`s like iOS; tested (HelloMedia): began/ended with shouldResume, headphones in (reason 1) and out (reason 2) |
+| `AVAudioPlayer` (play, pause, stop, seek, loops, volume, delegate) | ✅ | real channel count; `play(atTime:)`; tested |
+| `AVAudioPlayer` `rate`, `pan`, metering | 🟡 | adapted: `enableRate` + rate 0.5–2 time-stretches with isim's overlap-add (pitch kept; tested: position runs 2× at rate 2); pan is a stereo balance in the mixer (tested: pan −1 leaves the right channel silent in the output tap); `averagePower`/`peakPower` are dBFS of the last 50 ms of the file at the play position (tested: −9/−6 dB for a 0.5 sine), not of the device output |
 | `AVAudioEngine`, `AVAudioPlayerNode`, `AVAudioMixerNode` | 🟡 | buffer/file scheduling and mixing; connections build effect chains; offline manual rendering (`enableManualRenderingMode`, `renderOffline`) tested; no 3D audio |
 | `AVAudioFile`, `AVAudioPCMBuffer`, `AVAudioFormat` | ✅ | reads PCM CAF/WAV itself and compressed formats via the host decoder; writes WAV/CAF, and m4a/AAC (and other extensions) via host ffmpeg (HelloAudio) |
 | Compressed audio decoding (AAC/M4A, MP3, ALAC) | ✅ | decoded by the host's ffmpeg or gst-launch-1.0 (48 kHz stereo); needs one of them installed; mono sources come out ~3 dB quieter (ffmpeg upmix) |
@@ -1088,16 +1095,30 @@ Headless test runs are silent (no audio device); timing, frames and callbacks st
 | `AVPlayerLayer` (`player`, `videoGravity`, `isReadyForDisplay`, `videoRect`) | ✅ | a CALayer drawn by UIKit's renderer: as a sublayer or a view's `layerClass` |
 | `AVAsset`/`AVURLAsset` (duration, tracks, `naturalSize`, `nominalFrameRate`, `load(_:)`, `loadTracks`) | ✅ | probed with ffprobe; no metadata, no preferred transform |
 | `AVAssetImageGenerator` (thumbnails) | ✅ | one frame via host ffmpeg; tolerances ignored |
-| `CMTime`, `CMTimeRange` (CoreMedia) | ✅ | arithmetic, comparison, conversion, `NSValue(time:)`; no sample buffers or clocks |
+| `CMTime`, `CMTimeRange` (CoreMedia) | ✅ | arithmetic, comparison, conversion, `NSValue(time:)` |
+| `CMSampleBuffer`, `CMFormatDescription`, `CMBlockBuffer`, CoreVideo `CVPixelBuffer` (+ pools) | 🟡 | adapted: a sample buffer holds one decoded frame (CVPixelBuffer in main memory: BGRA/ARGB/RGBA/24RGB/L008/420v/420f) or interleaved PCM; accessor functions, `CMSampleBufferCopyPCMDataIntoAudioBufferList`; tested through capture, reader and writer; no compressed samples, no IOSurface/Metal texture caches, no CMClock |
 | AVKit `AVPlayerViewController` | 🟡 | iOS 17-style controls (play/pause, ±10 s, scrubber, elapsed/remaining, mute, close when presented, auto-hide); no picture in picture, AirPlay, speed menu UI or info panels |
 | SwiftUI `VideoPlayer` (with `videoOverlay`) | ✅ | the overlay does not take touches |
 | Picture in picture (`AVPictureInPictureController`), `AVRoutePickerView` | 🧩 | PiP reports unsupported; route picker is an empty view |
-| Capture (`AVCaptureSession`, camera, QR scanning) | ❌ | |
+| Capture: `AVCaptureDevice` (discovery, formats, `lockForConfiguration`), `AVCaptureSession`, `AVCaptureDeviceInput`, camera permission | ✅ | adapted: no camera unless `ISIM_CAMERA` is set (like the Simulator); then a back and a front camera show the picture, video (looped) or host webcam (`ISIM_CAMERA=webcam`, ffmpeg v4l2, unverified) decoded by ffmpeg at ≤1280 px, 30 fps; access goes through the privacy alert (tested: alert, allow, deny → −11852); device settings are stored but do not change the feed |
+| `AVCaptureVideoPreviewLayer` (gravity, mirroring, coordinate conversion, `transformedMetadataObject`) | ✅ | tested: preview pixels, black until access is granted |
+| `AVCapturePhotoOutput` | 🟡 | captures the newest frame: JPEG `fileDataRepresentation` (also when HEVC is asked for: no HEIF encoder), `cgImageRepresentation`, pixel buffer for pixel-format settings; tested; no flash, RAW, Live Photos or depth |
+| `AVCaptureVideoDataOutput` (sample buffers, late-frame dropping) | ✅ | 420v (default), 420f or BGRA buffers (BT.601); tested (BGRA frames, colour of an image and a video source) |
+| `AVCaptureMetadataOutput` (QR codes, barcodes) | 🟡 | passthrough: the host's libzbar decodes QR, EAN/UPC, Code 39/93/128, I2of5, Codabar, DataBar, PDF417 (no Aztec / Data Matrix / Micro QR); tested: a real QR code decoded with corners and preview coordinates; without zbar no types are available (logged); no faces/bodies |
+| `AVCaptureMovieFileOutput` | 🟡 | records the camera frames to H.264 .mov/.mp4 through ffmpeg (no sound); `maxRecordedDuration`; tested (1 s recording) |
+| Microphone capture device (`AVCaptureDevice` for `.audio`), `AVCaptureAudioDataOutput`, multi-cam, depth | ❌ | the microphone is `ISIM_AUDIO_INPUT` for AVAudioRecorder/AVAudioEngine/AudioQueue instead |
 | `AVSpeechSynthesizer`, `AVSpeechUtterance`, `AVSpeechSynthesisVoice` | 🟡 | adapted: host espeak-ng voices (rate/pitch/volume/voice mapped); delegate start/finish/pause/continue/cancel; `willSpeakRangeOfSpeechString` approximated by word length; `write(_:toBufferCallback:)` renders PCM; without a TTS engine utterances run silently with a logged message |
-| Composition and export (`AVMutableComposition`, `AVAssetExportSession`, `AVAssetReader`/`Writer`) | ❌ | |
+| `AVMutableComposition` / `AVMutableCompositionTrack` (insert, insert empty, remove, scale, segments) | ✅ | adapted: an edit list of (file, source range, destination time) rendered by one ffmpeg filter graph on export; tested: insert in the middle, remove, scale (speed); no layer instructions or opacity ramps (`AVMutableVideoComposition` only sets render size / frame rate) |
+| `AVAssetExportSession` (presets, `exportAsynchronously`, `export()`, iOS 18 `export(to:as:)`, progress, cancel, time range) | ✅ | passthrough: ffmpeg (x264/AAC; libx265 for HEVC presets when available; Passthrough stream-copies plain assets); tested: composition export with pixels of 3 frames, AppleM4A, missing output URL; `AVMutableAudioMix` applies a constant volume only |
+| `AVAssetReader`, `AVAssetReaderTrackOutput` | 🟡 | passthrough: decoded video frames (BGRA or 420) and linear PCM (16/24/32-bit int or float) of local AVURLAssets; tested; compositions must be exported first (throws); no audio-mix / video-composition outputs |
+| `AVAssetWriter`, `AVAssetWriterInput`, `AVAssetWriterInputPixelBufferAdaptor` | 🟡 | passthrough: frames and PCM are spooled and encoded by ffmpeg at `finishWriting` (H.264/HEVC/JPEG, AAC/ALAC/FLAC/LPCM); tested (30 frames + AAC → .mov); frame timing is reduced to a constant frame rate; no metadata or passthrough of compressed samples |
 | AudioToolbox System Sound Services (`AudioServicesCreateSystemSoundID`, `PlaySystemSound`, completions) | 🟡 | sounds from files play; built-in IDs (e.g. 1104) play a synthesized click/chime instead of Apple's recordings |
 | `kSystemSoundID_Vibrate`, `AudioServicesPlayAlertSound` vibration | 🧩 | logged only (no haptics on the host) |
-| Audio Queues, Audio Units, Audio File/Converter services | ❌ | |
+| Audio File Services (`AudioFileOpenURL`, `AudioFileCreateWithURL`, properties, read/write bytes and packets) | ✅ | PCM WAV/AIFF/CAF read and written directly; compressed files are decoded by the host (then presented as 48 kHz float, adapted); tested |
+| Extended Audio File Services (`ExtAudioFile*`: client format, read, write, seek) | ✅ | client-format conversion (sample type, channels, rate); compressed file types are written as PCM and encoded by ffmpeg on dispose (unverified); tested: WAV → 48 kHz mono float, CAF write |
+| Audio Converter Services (`AudioConverterNew`, `ConvertBuffer`, `FillComplexBuffer`) | 🟡 | linear PCM ↔ linear PCM (format, channels, linear-interpolation resampling); tested; converters to/from AAC and other compressed formats return `kAudioConverterErr_FormatNotSupported` (tested) |
+| Audio Queue Services (output and input queues, buffers, start/pause/stop, volume, current time, level metering, `IsRunning` listener) | 🟡 | adapted: output through the host mixer, paced in real time (silently when headless); input from `ISIM_AUDIO_INPUT`; tested (callbacks, time, input peak); play rate / pitch / pan parameters are accepted but not applied; no processing taps |
+| Audio Units (`AudioComponent`, `AUGraph`, `AudioUnitRender`) | ❌ | |
 | MediaPlayer `MPNowPlayingInfoCenter` | 🟡 | stored and logged; Control Center's Now Playing module shows "Not Playing" (the info is not passed to the shell) |
 | MediaPlayer `MPRemoteCommandCenter` | 🟡 | handlers and selector targets; commands come from the `remote NAME [ARG]` script/control command (tested: play, skip, seek, disabled command) |
 | `MPVolumeView` | 🧩 | a slider that does not change the host volume |
@@ -1111,10 +1132,16 @@ Headless test runs are silent (no audio device); timing, frames and callbacks st
 | Photos (`PHPhotoLibrary`, `PHAsset`, saving images) | ✅ | device library in `$ISIM_DATA/Media` seeded with 6 generated sample pictures (stand-ins for the Simulator's); permission alert (full / limited with selection / add-only) remembered per app; fetch with sort/limit, smart albums (Recents, Favorites), `PHImageManager` scaling, `PHAssetChangeRequest` create/favorite/delete (with confirmation), change observers; images only |
 | `UIImageWriteToSavedPhotosAlbum` | ✅ | add-only permission alert, completion selector called with nil/error |
 | UniformTypeIdentifiers (`UTType`), CoreTransferable (`Transferable`, `DataRepresentation`, `FileRepresentation`, `ProxyRepresentation`) | 🟡 | fixed table of common system types with conformance, extensions and MIME types; Transferable import/export through data; `Data`, `String`, `URL`, SwiftUI `Image` conform; no drag & drop / ShareLink / pasteboard integration |
-| Vision (text recognition, barcode, face detection) | ❌ | |
-| Core ML (`MLModel`, compiled models) | ❌ | |
-| Natural Language, Speech | ❌ | |
-| VisionKit (document camera, Live Text, `DataScannerViewController`) | ❌ | |
+| Vision: `VNImageRequestHandler` (CGImage, CIImage, CVPixelBuffer, CMSampleBuffer, URL, Data; orientation), `VNSequenceRequestHandler`, requests/observations, `regionOfInterest`, geometry helpers | ✅ | tested: orientation and region of interest; coordinates normalized with a lower-left origin like iOS |
+| Vision `VNDetectBarcodesRequest` | 🟡 | passthrough: host libzbar (QR, EAN/UPC, Code 39/93/128, I2of5, Codabar, DataBar, PDF417; no Aztec / Data Matrix / Micro QR); tested: payloads and boxes of two real QR codes; without zbar the request fails with a clear error |
+| Vision `VNRecognizeTextRequest` | 🟡 | passthrough: the host's `tesseract` (line observations, word boxes, confidence); `.fast` and `.accurate` run the same engine; unverified with tesseract (not on the test host); without it the request fails with a clear error (tested) |
+| Vision face/body/rectangle detection, classification, feature prints, `VNCoreMLRequest` | 🧩 | stub: no host detector or Apple models; requests fail with `VNErrorCode.unsupportedRequest` and a message (tested for faces) |
+| Core ML data API (`MLMultiArray`, `MLFeatureValue`, `MLDictionaryFeatureProvider`, `MLArrayBatchProvider`, `MLModelConfiguration`, `MLModelDescription`) | ✅ | tested (shapes, strides, subscripts, feature values) |
+| Core ML `MLModel` loading and prediction | 🟡 | adapted: Apple's compiled `.mlmodelc` format is undocumented and needs Apple's runtime, so Xcode-compiled models fail to load with a clear error (tested); `MLModel.compileModel(at:)` turns a `.mlmodel` spec into an isim `.mlmodelc`; descriptions are read for every model type; predictions run for GLM regressors/classifiers only (tested); neural networks, ML programs, trees and pipelines fail with a clear error (tested) |
+| NaturalLanguage `NLTokenizer`, `NLLanguageRecognizer` | 🟡 | adapted: rule-based (Unicode classes, abbreviations; scripts + stop words for 14 Latin-script languages); tested on 6 languages; no Apple statistical models |
+| NaturalLanguage `NLTagger` | 🟡 | adapted: tokenType, language, script; lexicalClass from a small English lexicon and suffix rules; sentimentScore from a word list; tested; nameType and lemma give no tags; `NLEmbedding`/`NLModel` unavailable |
+| Speech `SFSpeechRecognizer` (authorization, URL and buffer requests, tasks, transcriptions) | 🟡 | permission alert tested; recognition passthrough to whisper.cpp (`ISIM_WHISPER_MODEL`) or Vosk (`ISIM_VOSK_MODEL`) when installed, one final result (unverified: neither on the test host); otherwise `isAvailable` is false and tasks fail with a clear error (tested) |
+| VisionKit (`DataScannerViewController`, `VNDocumentCameraViewController`, `ImageAnalyzer`) | 🧩 | stub: `isSupported` is false (like the Simulator); `startScanning` throws `.unsupported` (tested) |
 
 ---
 

@@ -70,6 +70,7 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 
 Requirements (Arch/CachyOS): `clang`, `lld`, `llvm`, `sdl3`, `cairo`, `pango`, `librsvg`, `python`, `rsync`, `imagemagick`, Docker.
 Optional at run time: `webkitgtk-6.0` + `gtk4` (`gtk4-broadwayd`) for WKWebView / SFSafariViewController / ASWebAuthenticationSession (real WebKit, rendered off screen), `openssl` 3 (`libssl.so.3`) for TLS NWConnections, `libcurl` for URLSession.
+Media and ML (each used only when an app needs it): `ffmpeg` (video, export, asset reader/writer, the simulated camera `ISIM_CAMERA`), `zbar` (QR/barcodes in capture and Vision), `tesseract` (Vision text recognition), whisper.cpp or Vosk (Speech recognition). Tests that need a missing tool skip it.
 
 ```bash
 isim/build.sh
