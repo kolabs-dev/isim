@@ -10,7 +10,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloCloudKit; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/cloudkit; rm -rf "$ISIM_DATA"
-export ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1
+export ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1
 s1="wait 2; shot $shots/home.png; dump; tapid save; wait 1; tapid query; wait 1; tapid fetch; wait 1; tapid conflict; wait 1; tapid subscribe; wait 1.5"
 s1="$s1; tapid zone; wait 1.5; tapid coredata; wait 1; metrickit; wait 1.5; tapid delete; wait 1; tapid list; wait 1; quit"
 log1=$(ISIM_SCRIPT="$s1" timeout 90 out/bin/isim run out/apps/HelloCloudKit.app 2>&1); rc1=$?

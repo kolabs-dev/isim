@@ -28,3 +28,8 @@ int open(const char *, int, ...);
 #define F_WRLCK 3
 struct flock { off_t l_start; off_t l_len; pid_t l_pid; short l_type; short l_whence; };
 int fcntl(int, int, ...);
+/* isim: non-variadic forms for Swift (Foundation's open(_:_:_:) / fcntl(_:_:_:)) */
+static inline int _isim_open(const char *path, int oflag, int mode) { return open(path, oflag, mode); }
+static inline int _isim_fcntl(int fd, int cmd, int value) { return fcntl(fd, cmd, value); }
+int ioctl(int, unsigned long, ...);
+static inline int _isim_ioctl(int fd, unsigned long request, void *value) { return ioctl(fd, request, value); }

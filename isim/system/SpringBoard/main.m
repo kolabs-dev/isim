@@ -1,8 +1,88 @@
 // isim home screen ("SpringBoard"): installed apps as icons on pages (with folders), the dock, the App Library
 // page and Spotlight. Tapping an icon asks the isim shell to launch (or resume) the app. Runs as an isim system app
 // under `isim boot`. The arrangement is saved in <isim data>/Library/SpringBoard/IconState.plist.
+// The look follows the emulated iOS version (isim --os):
+//   iOS 17     translucent dock, light icons.
+//   iOS 18+    icon appearance (Home Screen > Customize): ISIM_ICON_STYLE=light|dark|tinted (and, iOS 26+, clear),
+//              ISIM_ICON_TINT=#RRGGBB for tinted. An app's own dark/tinted icon variants are used when it has them;
+//              otherwise isim derives them (adapted: darkened / luminance-tinted / see-through copies of the icon).
+//   iOS 26+    Liquid Glass: a glass dock with larger corners, a specular glass rim on every icon.
+#import <UIKit/UIKit.h>
 #import "SpringBoard.h"
 #import <objc/runtime.h>
+
+static int os_major(void) { return isim_os_version() / 10000; }
+/* Home Screen icon appearance (iOS 18+): 0 light, 1 dark, 2 tinted, 3 clear (iOS 26+) */
+static int icon_style(void) {
+    static int s = -1;
+    if (s >= 0) return s;
+    const char *e = getenv("ISIM_ICON_STYLE"); s = 0;
+    if (e && !strcmp(e, "dark")) s = 1; else if (e && !strcmp(e, "tinted")) s = 2; else if (e && !strcmp(e, "clear")) s = 3;
+    if (s && os_major() < 18) { NSLog(@"SpringBoard: icon appearance '%s' needs iOS 18 or later (running iOS %d): light icons", e, os_major()); s = 0; }
+    if (s == 3 && os_major() < 26) { NSLog(@"SpringBoard: clear icons need iOS 26 or later: light icons"); s = 0; }
+    return s;
+}
+/* the app's own dark/tinted icon (asset catalog appearance variant), if it has one */
+static NSString *icon_variant(NSString *app, NSDictionary *info, NSString *appearance) {
+    NSDictionary *assets = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"isim-assets.plist"]];
+    NSDictionary *icons = assets[@"appIcons"];
+    NSString *name = info[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] ?: @"AppIcon";
+    NSArray *files = icons[name] ?: icons.allValues.firstObject;
+    for (NSDictionary *f in files) if ([f[@"appearance"] isEqualToString:appearance]) return [app stringByAppendingPathComponent:f[@"file"]];
+    return nil;
+}
+/* derived icon appearances (no variant in the app): dark = the artwork darkened toward black; tinted = the
+   artwork's luminance in the tint colour on black; clear = a faint see-through copy */
+static UIImage *restyle_icon(UIImage *img, int style, BOOL ownVariant) {
+    if (!img || style == 0 || (ownVariant && style != 3)) return img;
+    CGImageRef src = img.CGImage; if (!src) return img;
+    size_t w = CGImageGetWidth(src), h = CGImageGetHeight(src);
+    if (w == 0 || h == 0 || w > 2048 || h > 2048) return img;
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(NULL, w, h, 8, w * 4, cs, kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(cs);
+    if (!ctx) return img;
+    CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), src);
+    uint8_t *px = CGBitmapContextGetData(ctx);
+    double tr = 0.35, tg = 0.6, tb = 1.0;
+    const char *t = getenv("ISIM_ICON_TINT"); unsigned rgb;
+    if (t && sscanf(t[0] == '#' ? t + 1 : t, "%6x", &rgb) == 1) { tr = (rgb >> 16 & 255) / 255.0; tg = (rgb >> 8 & 255) / 255.0; tb = (rgb & 255) / 255.0; }
+    for (size_t i = 0; px && i < w * h; i++) {
+        uint8_t *p = px + i * 4; double r = p[0], g = p[1], b = p[2], a = p[3];
+        double lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        if (style == 1) { double k = 0.42; p[0] = (uint8_t)(r * k + 14 * (a / 255)); p[1] = (uint8_t)(g * k + 14 * (a / 255)); p[2] = (uint8_t)(b * k + 16 * (a / 255)); }
+        else if (style == 2) { double l = lum / 255; l = l * l; p[0] = (uint8_t)(tr * l * a); p[1] = (uint8_t)(tg * l * a); p[2] = (uint8_t)(tb * l * a); }
+        else { double k = 0.35; p[0] = (uint8_t)(r * k); p[1] = (uint8_t)(g * k); p[2] = (uint8_t)(b * k); p[3] = (uint8_t)(a * k); }
+    }
+    CGImageRef out = CGBitmapContextCreateImage(ctx);
+    CGContextRelease(ctx);
+    UIImage *res = out ? [UIImage imageWithCGImage:out scale:img.scale orientation:UIImageOrientationUp] : img;
+    if (out) CGImageRelease(out);
+    return res;
+}
+/* iOS 26: the dock is a clear glass platter */
+@interface HSDock : UIView
+@end
+@implementation HSDock
+- (void)drawRect:(CGRect)r {
+    if (os_major() < 26) return;
+    CGSize s = self.bounds.size;
+    isim_gfx_glass(0, 0, s.width, s.height, self.layer.cornerRadius, NULL, 2);
+}
+@end
+/* iOS 26: icons get a glass edge — a specular rim, brighter at the top left */
+@interface HSIconRim : UIView
+@end
+@implementation HSIconRim
+- (void)drawRect:(CGRect)r {
+    CGSize s = self.bounds.size; double rad = self.layer.cornerRadius;
+    double hi[4] = { 1, 1, 1, 0.75 }, lo[4] = { 1, 1, 1, 0.22 };
+    isim_gfx_stroke_rounded(0, 0, s.width, s.height, rad, 1.2, lo);
+    isim_gfx_save(); isim_gfx_clip_rounded(0, 0, s.width * 0.6, s.height * 0.6, 0);
+    isim_gfx_stroke_rounded(0, 0, s.width, s.height, rad, 1.2, hi);
+    isim_gfx_restore();
+}
+@end
 
 static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     NSMutableArray *out = [NSMutableArray array];
@@ -49,7 +129,10 @@ NSString *HSCategoryName(NSString *c) {
         _image.layer.cornerRadius = s * 0.225; _image.clipsToBounds = YES;
         _image.contentMode = UIViewContentModeScaleToFill;
         _image.userInteractionEnabled = NO;
-        UIImage *img = app.iconPath ? [UIImage imageWithContentsOfFile:app.iconPath] : nil;
+        NSString *variant = icon_style() == 1 || icon_style() == 2 ? icon_variant(app.path, app.info, icon_style() == 1 ? @"dark" : @"tinted") : nil;
+        UIImage *img = (variant ?: app.iconPath) ? [UIImage imageWithContentsOfFile:variant ?: app.iconPath] : nil;
+        BOOL ownVariant = variant != nil;
+        if (img && icon_style()) img = restyle_icon(img, icon_style(), ownVariant);
         if (img) _image.image = img;
         else {  /* placeholder: initial on a color derived from the bundle id */
             NSUInteger h = app.bundleID.hash;
@@ -61,6 +144,11 @@ NSString *HSCategoryName(NSString *c) {
             [_image addSubview:_letter];
         }
         [self addSubview:_image];
+        if (os_major() >= 26) {
+            HSIconRim *rim = [[HSIconRim alloc] initWithFrame:_image.bounds];
+            rim.layer.cornerRadius = _image.layer.cornerRadius; rim.userInteractionEnabled = NO; rim.backgroundColor = nil;
+            [_image addSubview:rim];
+        }
         if (label) {
             _label = [[UILabel alloc] initWithFrame:CGRectZero];
             _label.text = app.name; _label.font = [UIFont systemFontOfSize:12]; _label.textColor = UIColor.whiteColor;
@@ -123,9 +211,12 @@ static NSString *icon_state_file(void) {
     _pager = [HSPager new]; _pager.delegate = self; _pager.scrollEnabled = YES;
     _pager.accessibilityIdentifier = @"home-pages";
     [self.view addSubview:_pager];
-    _dock = [UIView new];
-    _dock.backgroundColor = [UIColor colorWithWhite:1 alpha:0.28];
-    _dock.layer.cornerRadius = 32;
+    _dock = [HSDock new];
+    BOOL glass = os_major() >= 26;
+    _dock.backgroundColor = glass ? nil : [UIColor colorWithWhite:1 alpha:0.28];
+    _dock.layer.cornerRadius = glass ? 38 : 32;
+    _dock.accessibilityIdentifier = @"home-dock";
+    NSLog(@"SpringBoard: iOS %d look%s", os_major(), glass ? " (Liquid Glass)" : "");
     [self.view addSubview:_dock];
     _searchPill = [UIButton buttonWithType:UIButtonTypeCustom];             /* one page: the Search button (iOS 16+) */
     _searchPill.backgroundColor = [UIColor colorWithWhite:1 alpha:0.25]; _searchPill.layer.cornerRadius = 14;

@@ -81,6 +81,24 @@ static void app_short_id(int i, char *out, size_t n) {          /* "HelloSystem"
     snprintf(out, n, "%.*s", (int)(strcspn(b, ".")), b);
 }
 
+static void sys_round(cairo_t *c, double x, double y, double w, double h, double r);
+/* ---- the look of the emulated iOS version (isim --os) ----
+   iOS 17: Control Center modules are translucent platters with rounded-square buttons; the Lock Screen clock is bold.
+   iOS 18: the Control Center redesign — round toggles, rounder modules, the "+" (edit) and power buttons at the top and
+           the page column on the right (favorites, music, home, connectivity).
+   iOS 26/27: Liquid Glass — glass modules, buttons and sliders (isim_gfx_glass), lighter dimming; the Lock Screen
+           clock is tall glass numerals. Adapted: isim's own drawing, not Apple artwork. */
+static int sys_os(void) { return isim_os_version() / 10000; }
+static void sys_glass(cairo_t *c, double x, double y, double w, double h, double r, const double *tint, int flags) {
+    cairo_t *saved = cr; cr = c; isim_gfx_glass(x, y, w, h, r, tint, flags); cr = saved;
+}
+/* a module / button background in the version's style */
+static void sys_platter(cairo_t *c, double x, double y, double w, double h, double r, double alpha) {
+    if (sys_os() >= 26) { sys_glass(c, x, y, w, h, r, NULL, 1 | 2 | 4); return; }
+    cairo_new_path(c);
+    sys_round(c, x, y, w, h, r); cairo_set_source_rgba(c, 1, 1, 1, alpha); cairo_fill(c);
+}
+
 /* ---- drawing helpers ---- */
 static void sys_round(cairo_t *c, double x, double y, double w, double h, double r) {
     r = fmin(r, fmin(w, h) / 2);
@@ -258,10 +276,17 @@ static void cc_button(cairo_t *c, int k, struct rectf r, int circle) {
     if (k == CC_CELLULAR) { bg_on[0] = 0.2; bg_on[1] = 0.78; bg_on[2] = 0.35; }
     if (k == CC_FOCUS) { bg_on[0] = 0.37; bg_on[1] = 0.36; bg_on[2] = 0.9; }
     if (k == CC_ORIENT || k == CC_FLASHLIGHT || k == CC_DARK) { bg_on[0] = bg_on[1] = bg_on[2] = 1; }
-    if (circle) cairo_arc(c, r.x + r.w / 2, r.y + r.h / 2, r.w / 2, 0, 2 * M_PI);
-    else sys_round(c, r.x, r.y, r.w, r.h, 18);
-    if (on) cairo_set_source_rgb(c, bg_on[0], bg_on[1], bg_on[2]); else cairo_set_source_rgba(c, 1, 1, 1, 0.18);
-    cairo_fill(c);
+    int os = sys_os();
+    if (os >= 18 && fabs(r.w - r.h) < 1) circle = 1;               /* iOS 18: round toggles */
+    double rad = circle ? r.w / 2 : os >= 26 ? r.h / 2 : os >= 18 ? r.h * 0.42 : 18;
+    if (!on && os >= 26) sys_glass(c, r.x, r.y, r.w, r.h, rad, NULL, 1 | 2 | 4);
+    else {
+        cairo_new_path(c);
+        if (circle) cairo_arc(c, r.x + r.w / 2, r.y + r.h / 2, r.w / 2, 0, 2 * M_PI);
+        else sys_round(c, r.x, r.y, r.w, r.h, rad);
+        if (on) cairo_set_source_rgb(c, bg_on[0], bg_on[1], bg_on[2]); else cairo_set_source_rgba(c, 1, 1, 1, 0.18);
+        cairo_fill(c);
+    }
     int dark_glyph = on && bg_on[0] == 1 && bg_on[1] == 1;
     double fg = dark_glyph ? 0.1 : 1;
     if (k == CC_FOCUS) {
@@ -271,8 +296,9 @@ static void cc_button(cairo_t *c, int k, struct rectf r, int circle) {
     el_add(cc_ids[k], on ? "on" : "off", r, EL_CC_TOGGLE, k);
 }
 static void cc_slider(cairo_t *c, const char *id, const char *sym, double v, struct rectf r, int arg) {
-    sys_round(c, r.x, r.y, r.w, r.h, 22); cairo_set_source_rgba(c, 1, 1, 1, 0.18); cairo_fill(c);
-    cairo_save(c); sys_round(c, r.x, r.y, r.w, r.h, 22); cairo_clip(c);
+    double rad = sys_os() >= 18 ? r.w * 0.46 : 22;
+    sys_platter(c, r.x, r.y, r.w, r.h, rad, 0.18);
+    cairo_save(c); cairo_new_path(c); sys_round(c, r.x, r.y, r.w, r.h, rad); cairo_clip(c);
     cairo_rectangle(c, r.x, r.y + r.h * (1 - v), r.w, r.h * v); cairo_set_source_rgb(c, 1, 1, 1); cairo_fill(c);
     cairo_restore(c);
     sys_symbol(c, sym, r.x + r.w / 2, r.y + r.h - 26, 22, 0.45, 0.45, 0.47);
@@ -281,17 +307,37 @@ static void cc_slider(cairo_t *c, const char *id, const char *sym, double v, str
 }
 static void cc_draw(cairo_t *c) {
     double m = dev.width >= 700 ? (dev.width - 420) / 2 : 30, gap = 14;
-    double u = (dev.width - 2 * m - 3 * gap) / 4, top = fmax(dev.safe_top, 20) + 36;
-    double big = 2 * u + gap;
+    int os = sys_os();
+    double u = (dev.width - 2 * m - 3 * gap) / 4, top = fmax(dev.safe_top, 20) + (os >= 18 ? 64 : 36);
+    double big = 2 * u + gap, prad = os >= 26 ? 34 : os >= 18 ? 30 : 24;
+    if (os >= 18) {                                   /* iOS 18: edit (+) and power at the top, the page column */
+        double by = fmax(dev.safe_top, 20) + 10, d = 34;
+        struct rectf edit = { m, by, d, d }, power = { dev.width - m - d, by, d, d };
+        for (int i = 0; i < 2; i++) {
+            struct rectf b = i ? power : edit;
+            if (os >= 26) sys_glass(c, b.x, b.y, d, d, d / 2, NULL, 1 | 2 | 4);
+            else { cairo_new_path(c); cairo_arc(c, b.x + d / 2, b.y + d / 2, d / 2, 0, 2 * M_PI); cairo_set_source_rgba(c, 1, 1, 1, 0.22); cairo_fill(c); }
+        }
+        cairo_save(c); cairo_set_source_rgb(c, 1, 1, 1); cairo_set_line_width(c, 2); cairo_set_line_cap(c, CAIRO_LINE_CAP_ROUND);
+        double ex = edit.x + d / 2, ey = edit.y + d / 2;
+        cairo_new_path(c); cairo_move_to(c, ex - 7, ey); cairo_line_to(c, ex + 7, ey); cairo_move_to(c, ex, ey - 7); cairo_line_to(c, ex, ey + 7); cairo_stroke(c);
+        double px = power.x + d / 2, py = power.y + d / 2;
+        cairo_new_path(c); cairo_arc(c, px, py + 1, 6.5, -M_PI / 2 + 0.75, 1.5 * M_PI - 0.75);
+        cairo_move_to(c, px, py - 7.5); cairo_line_to(c, px, py); cairo_stroke(c);
+        cairo_restore(c);
+        el_add("cc-edit", "Edit", edit, EL_NONE, 0); el_add("cc-power", "Power", power, EL_NONE, 0);
+        const char *pages[4] = { "star.fill", "play.fill", "house", "wifi" };
+        for (int i = 0; i < 4; i++) sys_symbol(c, pages[i], dev.width - m / 2, top + big * 0.55 + i * 28, 13, 1, 1, 1);
+    }
     /* connectivity */
     struct rectf conn = { m, top, big, big };
-    sys_round(c, conn.x, conn.y, conn.w, conn.h, 24); cairo_set_source_rgba(c, 1, 1, 1, 0.14); cairo_fill(c);
+    sys_platter(c, conn.x, conn.y, conn.w, conn.h, prad, 0.14);
     double d = u * 0.78, pad = (big - 2 * d) / 3;
     int ks[4] = { CC_AIRPLANE, CC_CELLULAR, CC_WIFI, CC_BLUETOOTH };
     for (int i = 0; i < 4; i++) cc_button(c, ks[i], (struct rectf){ conn.x + pad + (i % 2) * (d + pad), conn.y + pad + (i / 2) * (d + pad), d, d }, 1);
     /* now playing */
     struct rectf np = { m + big + gap, top, big, big };
-    sys_round(c, np.x, np.y, np.w, np.h, 24); cairo_set_source_rgba(c, 1, 1, 1, 0.14); cairo_fill(c);
+    sys_platter(c, np.x, np.y, np.w, np.h, prad, 0.14);
     sys_text(c, "Not Playing", np.x + 16, np.y + 16, np.w - 32, 15, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 0.85);
     sys_symbol(c, "backward.fill", np.x + np.w * 0.22, np.y + np.h - 34, 20, 1, 1, 1);
     sys_symbol(c, "play.fill", np.x + np.w * 0.5, np.y + np.h - 34, 24, 1, 1, 1);
@@ -331,7 +377,30 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     double top = fmax(dev.safe_top, 20);
     sys_symbol(c, "lock.fill", dev.width / 2, top + 12, 18, 1, 1, 1);
     sys_text(c, dstr, 0, top + 30, dev.width, 19, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 0.9);
-    sys_text(c, t, 0, top + 50, dev.width, 92, PANGO_WEIGHT_BOLD, 1, 1, 1, 1, 1, 0.95);
+    const char *fixed = getenv("ISIM_LOCK_TIME");                 /* tests: a fixed "H:MM" */
+    if (fixed && *fixed) snprintf(t, sizeof t, "%s", fixed);
+    if (sys_os() >= 26) {                                          /* iOS 26: tall glass numerals */
+        double size = dev.width * 0.40;
+        PangoLayout *l = pango_cairo_create_layout(c);
+        PangoFontDescription *fd = pango_font_description_new();
+        pango_font_description_set_family(fd, SYSTEM_SANS); pango_font_description_set_absolute_size(fd, size * PANGO_SCALE);
+        pango_font_description_set_weight(fd, PANGO_WEIGHT_HEAVY);
+        pango_layout_set_font_description(l, fd); pango_font_description_free(fd);
+        pango_layout_set_text(l, t, -1); pango_layout_set_width(l, (int)(dev.width * PANGO_SCALE)); pango_layout_set_alignment(l, PANGO_ALIGN_CENTER);
+        cairo_save(c); cairo_new_path(c); cairo_move_to(c, 0, top + 40); pango_cairo_layout_path(c, l); g_object_unref(l);
+        cairo_path_t *glyphs = cairo_copy_path(c); cairo_new_path(c);
+        cairo_save(c); cairo_translate(c, 0, 3); cairo_append_path(c, glyphs); cairo_set_source_rgba(c, 0, 0, 0, 0.18); cairo_fill(c); cairo_restore(c);
+        cairo_append_path(c, glyphs); cairo_clip(c);
+        cairo_pattern_t *g = cairo_pattern_create_linear(0, top + 40, 0, top + 40 + size * 1.1);
+        cairo_pattern_add_color_stop_rgba(g, 0, 1, 1, 1, 0.62); cairo_pattern_add_color_stop_rgba(g, 1, 1, 1, 1, 0.30);
+        cairo_set_source(c, g); cairo_paint(c); cairo_pattern_destroy(g);
+        cairo_reset_clip(c);
+        cairo_push_group(c);                                       /* the rim: outside the glyphs only */
+        cairo_new_path(c); cairo_append_path(c, glyphs); cairo_set_line_width(c, 3.2); cairo_set_source_rgba(c, 1, 1, 1, 0.9); cairo_stroke(c);
+        cairo_set_operator(c, CAIRO_OPERATOR_DEST_OUT); cairo_append_path(c, glyphs); cairo_set_source_rgba(c, 0, 0, 0, 1); cairo_fill(c);
+        cairo_pop_group_to_source(c); cairo_paint(c);
+        cairo_path_destroy(glyphs); cairo_restore(c);
+    } else sys_text(c, t, 0, top + 50, dev.width, 92, PANGO_WEIGHT_BOLD, 1, 1, 1, 1, 1, 0.95);
     el_add("lock-clock", t, (struct rectf){ 0, top + 50, dev.width, 100 }, EL_NONE, 0);
     double lt = dev.height * 0.30;
     lt += la_draw_lock(c, lt);
@@ -339,8 +408,12 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     cairo_set_source_rgba(c, 1, 1, 1, 0.9);
     sys_text(c, "Swipe up to open", 0, dev.height - 62, dev.width, 15, PANGO_WEIGHT_NORMAL, 1, 1, 1, 1, 1, 0.85);
     struct rectf bl = { 46, dev.height - 108, 50, 50 }, br = { dev.width - 96, dev.height - 108, 50, 50 };
-    cairo_set_source_rgba(c, 0, 0, 0, 0.32); cairo_arc(c, bl.x + 25, bl.y + 25, 25, 0, 2 * M_PI); cairo_fill(c);
-    cairo_arc(c, br.x + 25, br.y + 25, 25, 0, 2 * M_PI); cairo_fill(c);
+    if (sys_os() >= 26) { sys_glass(c, bl.x, bl.y, 50, 50, 25, NULL, 1 | 2); sys_glass(c, br.x, br.y, 50, 50, 25, NULL, 1 | 2); }
+    else {
+        cairo_new_path(c);
+        cairo_set_source_rgba(c, 0, 0, 0, 0.32); cairo_arc(c, bl.x + 25, bl.y + 25, 25, 0, 2 * M_PI); cairo_fill(c);
+        cairo_arc(c, br.x + 25, br.y + 25, 25, 0, 2 * M_PI); cairo_fill(c);
+    }
     sys_symbol(c, "flashlight.off.fill", bl.x + 25, bl.y + 25, 20, 1, 1, 1);
     sys_symbol(c, "camera.fill", br.x + 25, br.y + 25, 20, 1, 1, 1);
 }
@@ -485,7 +558,7 @@ static void sys_draw(void) {
         cairo_set_source_surface(c, bs, 0, 0); cairo_paint(c);
         cairo_restore(c);
         cairo_push_group(c);
-        if (ov == OV_CC) sys_paint_blurred(c, bs, bw, bh, 0.4);
+        if (ov == OV_CC) sys_paint_blurred(c, bs, bw, bh, sys_os() >= 26 ? 0.22 : 0.4);   /* iOS 26: lighter dimming */
         cairo_scale(c, px_scale, px_scale);
         if (ov == OV_NC) { wallpaper_draw(c, home, hw, hh); cairo_set_source_rgba(c, 0, 0, 0, 0.15); cairo_paint(c); }
         cairo_translate(c, 0, -dev.height * (1 - e) * (ov == OV_NC ? 1 : 0.15));
@@ -516,7 +589,7 @@ static void sys_open(int which) {
         if (active > 0) shell_send(active, EV_BACKGROUND);
         fprintf(stderr, "isim shell: app switcher (%d app%s)\n", sw_n, sw_n == 1 ? "" : "s");
     } else if (which == OV_NC) fprintf(stderr, "isim shell: Notification Center (%d notification%s)\n", nnc, nnc == 1 ? "" : "s");
-    else if (which == OV_CC) fprintf(stderr, "isim shell: Control Center\n");
+    else if (which == OV_CC) fprintf(stderr, "isim shell: Control Center (iOS %d look)\n", sys_os());
     sys_draw();
 }
 static void sys_close(void) {
@@ -532,7 +605,7 @@ static void sys_lock(void) {
     if (locked) return;
     locked = 1; ov = OV_LOCK; ov_t0 = now(); nb.on = 0;
     if (active >= 0) shell_send(active, EV_BACKGROUND);       /* like iOS: the foreground app resigns and goes to the background */
-    fprintf(stderr, "isim shell: locked\n");
+    fprintf(stderr, "isim shell: locked (iOS %d look)\n", sys_os());
     if (win_orient != 1) shell_apply_orient(1);
     sys_draw();
 }

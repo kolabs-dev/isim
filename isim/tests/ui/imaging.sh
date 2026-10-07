@@ -7,7 +7,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloImaging; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/imaging; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 \
       ISIM_SCRIPT="wait 1; shot $shots/a.png; wait 0.25; shot $shots/b.png; wait 0.25; shot $shots/c.png; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloImaging.app 2>&1); rc=$?
 pxs() { magick "$shots/$1.png" -format "%[fx:int(255*u.p{$2,$3}.r)] %[fx:int(255*u.p{$2,$3}.g)] %[fx:int(255*u.p{$2,$3}.b)]" info: 2>/dev/null; }

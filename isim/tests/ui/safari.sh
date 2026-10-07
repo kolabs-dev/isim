@@ -15,7 +15,7 @@ srv=$!; trap 'kill $srv 2>/dev/null' EXIT
 port=
 for _ in $(seq 50); do port=$(awk '/^PORT/{print $2}' "$ISIM_DATA/port"); [ -n "$port" ] && break; sleep 0.1; done
 [ -n "$port" ] || { echo "FAIL  local server did not start"; exit 1; }
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 120 out/bin/isim run out/apps/HelloSafari.app -server "http://127.0.0.1:$port" 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 120 out/bin/isim run out/apps/HelloSafari.app -server "http://127.0.0.1:$port" 2>&1; }
 log=$(ISIM_MAIL=1 ISIM_MESSAGES=1 run "wait 1.5; shot $shots/home.png; tapid safari; wait 4; shot $shots/safari.png; dump; tapid safari-done; wait 1.2; tapid signin; wait 1; shot $shots/consent.png; dump; taptext Continue; wait 4; shot $shots/signin.png; tap 170 301; wait 2; tapid signin-eph; wait 3; dump; tapid safari-done; wait 1.5; tapid signin-swiftui; wait 4; tap 170 301; wait 2; tapid mail; wait 1.5; shot $shots/mail.png; tapid mail-send; wait 1.5; tapid message; wait 1.5; shot $shots/message.png; tapid message-cancel; wait 1; tapid message; wait 1.5; tapid message-send; wait 1; tapid mail; wait 1.5; tapid mail-cancel; wait 1; taptext Save Draft; wait 1; openurl https://links.isim.example/items/42; wait 0.8; openurl hellosafari://open/x; wait 0.8; openurl https://www.apple.com/; wait 0.8; openurl https://a.shop.isim.example/cart; wait 0.8; dump; quit"); rc=$?
 printf '%s\n' "$log" > "$ISIM_DATA/app.log"
 log2=$(run "wait 1; tapid mail; wait 0.5; tapid message; wait 0.5; dump; quit")

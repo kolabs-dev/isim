@@ -16,7 +16,7 @@ srv=$!; trap 'kill $srv 2>/dev/null' EXIT
 port=
 for _ in $(seq 50); do port=$(awk '/^PORT/{print $2}' "$ISIM_DATA/port"); [ -n "$port" ] && break; sleep 0.1; done
 [ -n "$port" ] || { echo "FAIL  local server did not start"; exit 1; }
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 90 out/bin/isim run out/apps/HelloWeb.app -server "http://127.0.0.1:$port" 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 90 out/bin/isim run out/apps/HelloWeb.app -server "http://127.0.0.1:$port" 2>&1; }
 # page coordinates + 108 (the web view's top below the navigation bar)
 log=$(run "wait 4; shot $shots/loaded.png; tap 100 164; wait 0.5; tap 100 212; wait 1; shot $shots/alert.png; taptext OK; wait 0.6; tap 100 260; wait 1; taptext OK; wait 0.6; tap 100 308; wait 1; shot $shots/prompt.png; taptext OK; wait 0.6; tap 100 356; wait 0.8; tap 140 425; wait 0.6; type hello; wait 0.8; shot $shots/typed.png; tap 330 560; wait 0.8; tapid eval; wait 1.5; tapid snapshot; wait 0.8; tap 60 504; wait 1; tap 100 469; wait 3; shot $shots/scheme.png; dump; tapid back; wait 2; tap 80 539; wait 2; shot $shots/server.png; tapid cookies; wait 1; tapid back; wait 2; drag 200 600 200 400 0.3; wait 1.5; shot $shots/scrolled.png; dump; quit"); rc=$?
 printf "%s\n" "$log" > "$ISIM_DATA/app.log"

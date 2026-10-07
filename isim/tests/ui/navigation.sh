@@ -6,7 +6,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloNavigation; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/navigation; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.8; shot $shots/list.png; dump; drag 200 600 200 300 0.4; wait 0.8; shot $shots/collapsed.png; dump; drag 200 300 200 700 0.4; wait 0.8; tapid book-3; wait 0.8; shot $shots/detail.png; dump; tapid bar-Favorite; wait 0.3; tapid read; wait 0.8; dump; tapid nav-back; wait 0.8; tapid nav-back; wait 0.8; tapid book-5; wait 0.8; drag 3 400 330 400 0.4; wait 0.8; dump; tapid bar-Sort; wait 0.6; tapid menu-Date; wait 0.4; tapid tab-Inbox; wait 0.8; shot $shots/inbox.png; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 0.8; shot $shots/list.png; dump; drag 200 600 200 300 0.4; wait 0.8; shot $shots/collapsed.png; dump; drag 200 300 200 700 0.4; wait 0.8; tapid book-3; wait 0.8; shot $shots/detail.png; dump; tapid bar-Favorite; wait 0.3; tapid read; wait 0.8; dump; tapid nav-back; wait 0.8; tapid nav-back; wait 0.8; tapid book-5; wait 0.8; drag 3 400 330 400 0.4; wait 0.8; dump; tapid bar-Sort; wait 0.6; tapid menu-Date; wait 0.4; tapid tab-Inbox; wait 0.8; shot $shots/inbox.png; quit" \
       timeout 60 out/bin/isim run out/apps/HelloNavigation.app 2>&1); rc=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }

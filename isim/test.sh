@@ -67,9 +67,13 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloCharts.app/HelloCharts ] && run "ui: HelloCharts (Swift Charts marks, axes, legend)" tests/ui/charts.sh
   [ -x out/apps/HelloVideo.app/HelloVideo ] && run "ui: HelloVideo (AVPlayer, AVPlayerLayer, AVKit, VideoPlayer)" tests/ui/video.sh
   [ -x out/apps/HelloAudio.app/HelloAudio ] && run "ui: HelloAudio (speech, effects, recording, MediaPlayer)" tests/ui/audio.sh
+  [ -x out/apps/HelloMedia.app/HelloMedia ] && run "ui: HelloMedia (composition, export, reader/writer, player rate/pan/meters, session events, AudioToolbox)" tests/ui/media.sh
+  [ -x out/apps/HelloCamera.app/HelloCamera ] && run "ui: HelloCamera (simulated camera: capture session, preview, photo, video frames, QR metadata)" tests/ui/camera.sh
+  [ -x out/apps/HelloVision.app/HelloVision ] && run "ui: HelloVision (Vision, Core ML, NaturalLanguage, Speech, VisionKit)" tests/ui/vision.sh
   [ -x out/apps/HelloStore.app/HelloStore ] && run "ui: HelloStore (StoreKit testing: subscriptions, offers, refunds, StoreKit 1)" tests/ui/store.sh
   [ -x out/apps/HelloSignIn.app/HelloSignIn ] && run "ui: HelloSignIn (Sign in with Apple, passkeys, passwords, ATT + IDFA; local simulation)" tests/ui/signin.sh
   [ -x out/apps/HelloCloudKit.app/HelloCloudKit ] && run "ui: HelloCloudKit (local CloudKit, NSPersistentCloudKitContainer, MetricKit)" tests/ui/cloudkit.sh
+  [ -x out/apps/HelloSharedData.app/HelloSharedData ] && run "ui: HelloSharedData (plurals, LocalizedStringResource, app groups, iCloud key-value store, NotificationQueue)" tests/ui/shareddata.sh
   [ -x out/apps/HelloGameCenter.app/HelloGameCenter ] && run "ui: HelloGameCenter (local Game Center: config, access point, saved games)" tests/ui/gamecenter.sh
 fi
 if [ -x out/sdk/Applications/Settings.app/Settings ]; then          # device shell: home screen + Settings
@@ -97,6 +101,12 @@ fi
 if [ -x out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest ]; then
   run "swift libraries (Dispatch, Combine, JSON/Codable, Calendar, ...)" bash -c 'timeout 60 out/bin/isim run out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest | tail -1; exit ${PIPESTATUS[0]}'
 fi
+if [ -x out/apps/SwiftExtrasTest.app/SwiftExtrasTest ]; then      # Combine operators, Dispatch sources/IO/Data, Synchronization, Distributed
+  run "swift extras (Combine operators, Dispatch sources/IO, Synchronization, Distributed)" bash -c 'timeout 90 out/bin/isim run out/apps/SwiftExtrasTest.app | tail -1; exit ${PIPESTATUS[0]}'
+fi
+if [ -x out/apps/SwiftCxxTest.app/SwiftCxxTest ]; then            # Swift <-> C++ interoperability
+  run "swift C++ interop" bash -c 'timeout 30 out/bin/isim run out/apps/SwiftCxxTest.app | tail -1; exit ${PIPESTATUS[0]}'
+fi
 if [ -x out/apps/SwiftNetworkTest.app/SwiftNetworkTest ]; then   # sockets + URLSession against an in-process server (no Internet)
   run "swift networking (sockets, URLSession, cookies, cache, NWPathMonitor)" bash -c 'export ISIM_DATA=$PWD/out/test-data/swift-network; rm -rf "$ISIM_DATA"; timeout 90 out/bin/isim run out/apps/SwiftNetworkTest.app/SwiftNetworkTest | tail -1; exit ${PIPESTATUS[0]}'
 fi
@@ -114,6 +124,34 @@ if [ -x out/apps/HelloStoryboards.app/HelloStoryboards ]; then     # Xcode proje
 fi
 if [ -x out/apps/CoreDataTest.app/CoreDataTest ]; then       # models, SQLite/in-memory stores, contexts, fetches, FRC, migration
   run "Core Data (models, stores, contexts, fetching, FRC, migration)" bash -c 'tests/coredata/run.sh | tail -1; exit ${PIPESTATUS[0]}'
+fi
+if [ -x out/apps/HelloOSVersions.app/HelloOSVersions ]; then     # --os 17/18/26/27: versions, #available, version-gated APIs, look by pixels, pairing
+  run "ui: HelloOSVersions (iOS 17, 18, 26, 27: #available, Liquid Glass, Lock Screen, Control Center, device pairing)" tests/ui/osversions.sh
+fi
+# OS_MATRIX=1: the version-sensitive suites (Swift runtime/stdlib self-tests, UIKit/SwiftUI UI suites, the device
+# shell) again under every iOS version isim emulates (iPhone 15 for iOS 17, iPhone 16 Pro for 18, iPhone 17 for 26
+# and 27). OS_MATRIX_VERSIONS / OS_MATRIX_SUITES narrow it down.
+if [ "${OS_MATRIX:-0}" = 1 ]; then
+  for v in ${OS_MATRIX_VERSIONS:-17 18 26 27}; do
+    case $v in 17) dev=iphone15 ;; 18) dev=iphone16pro ;; *) dev=iphone17 ;; esac
+    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation hellocounter swiftui controls boot"
+    # suites that assert the 402-pt iPhone 16 Pro/17 screen (frames, tap points) or iPads first sold with 17.5: no
+    # iPhone that runs iOS 17.0 has that screen, so they run on 18, 26 and 27
+    [ "$v" = 17 ] || suites="$suites forms navigation presentations transitions table"
+    for suite in ${OS_MATRIX_SUITES:-$suites}; do
+      case $suite in
+        swift-full) cmd=(bash -c 'out/bin/isim run out/apps/SwiftFullTest.app/SwiftFullTest | tail -1; exit ${PIPESTATUS[0]}') ;;
+        swift-concurrency) cmd=(bash -c 'timeout 60 out/bin/isim run out/apps/SwiftConcurrencyTest.app/SwiftConcurrencyTest | tail -1; exit ${PIPESTATUS[0]}') ;;
+        swift-libraries) cmd=(bash -c 'timeout 60 out/bin/isim run out/apps/SwiftLibrariesTest.app/SwiftLibrariesTest | tail -1; exit ${PIPESTATUS[0]}') ;;
+        swift-foundation) cmd=(bash -c 'out/bin/isim run out/apps/SwiftFoundationTest.app/SwiftFoundationTest 2>/dev/null | tail -1; exit ${PIPESTATUS[0]}') ;;
+        foundation) cmd=(bash -c 'out/bin/isim run out/apps/FoundationTest.app | tail -1; exit ${PIPESTATUS[0]}') ;;
+        hellocounter) cmd=(tests/ui/hellocounter.sh HelloCounter) ;;
+        boot) cmd=(env ISIM_DEVICE=$dev tests/ui/boot.sh) ;;
+        *) cmd=(tests/ui/$suite.sh) ;;
+      esac
+      run "os matrix: iOS $v ($dev): $suite" env ISIM_OS_VERSION=$v ISIM_DEVICE=$dev ISIM_TEST_DEVICE=$dev "${cmd[@]}"
+    done
+  done
 fi
 echo; [ $status = 0 ] && echo "ALL SUITES PASSED" || echo "SOME SUITES FAILED"
 exit $status

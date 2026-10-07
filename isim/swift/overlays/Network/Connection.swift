@@ -307,6 +307,9 @@ enum _NWSock {
         case .hostPort(let host, let port):
             let name: String
             switch host { case .name(let n, _): name = n; case .ipv4(let a): name = a.debugDescription; case .ipv6(let a): name = a.debugDescription }
+            // RFC 6761 §6.4: names under .invalid always fail at once (no resolver round trip)
+            let lower = name.lowercased()
+            if lower == "invalid" || lower.hasSuffix(".invalid") || lower.hasSuffix(".invalid.") { return .failure(.dns(-65554)) }
             var hints = addrinfo()
             hints.ai_socktype = udp ? SOCK_DGRAM : SOCK_STREAM
             hints.ai_family = AF_UNSPEC

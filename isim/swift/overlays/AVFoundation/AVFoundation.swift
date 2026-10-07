@@ -3,7 +3,7 @@
 // (AVSpeech.swift); effects, offline rendering, input and recording (AVAudioExtras.swift). Self-authored; sound goes
 // to the host's mixer (libisim_host, SDL3 audio). Decodes linear-PCM CAF and WAV files itself; compressed formats
 // and video are decoded by the host's ffmpeg (or GStreamer's gst-launch-1.0 for audio files); without them those
-// fail to open like an unreadable file. No capture devices (camera), composition/export or 3D audio.
+// fail to open like an unreadable file. Capture: Capture.swift; composition/export: AVComposition.swift. No 3D audio.
 @_exported import Foundation
 @_exported import CoreMedia
 @_exported import AudioToolbox
@@ -59,7 +59,8 @@ open class AVAudioSession: NSObject {
         public static let notifyOthersOnDeactivation = SetActiveOptions(rawValue: 1)
     }
     nonisolated(unsafe) static let shared = AVAudioSession()
-    open class func sharedInstance() -> AVAudioSession { shared }
+    /// isim: also starts listening for the `audio` script command (interruptions, route changes)
+    open class func sharedInstance() -> AVAudioSession { _AudioSessionEvents.start(); return shared }
     open private(set) var category: Category = .soloAmbient
     open private(set) var mode: Mode = .default
     open private(set) var categoryOptions: CategoryOptions = []
@@ -450,24 +451,37 @@ open class AVAudioPlayer: NSObject {
     let buffer: Int32
     let sampleRate: Double
     let frames: Int
+    let _pcm: [[Float]]              // decoded samples (metering, rate changes)
+    var _rateBuffer: Int32 = 0       // time-stretched copy for the current rate
+    var _rateOf: Float = 1
     var voice = 0
     var pausedAt: Double?
     var startOffset = 0.0
     var generation = 0
+    var _voiceRate: Float = 1        // rate of the buffer the voice plays (positions scale by it)
     weak open var delegate: AVAudioPlayerDelegate?
     open var numberOfLoops = 0
     open var volume: Float = 1 { didSet { if voice != 0 { isim_audio_set_volume(voice, Double(volume)) } } }
+    open func setVolume(_ volume: Float, fadeDuration duration: TimeInterval) { self.volume = volume }
+    /// set before prepareToPlay()/play() to allow rate changes (like iOS)
     open var enableRate = false
-    open var rate: Float = 1
-    open var pan: Float = 0
+    /// 0.5...2.0; with enableRate, playback speed changes and pitch is kept (adapted: overlap-add time stretch)
+    open var rate: Float = 1 { didSet { rate = min(2, max(0.5, rate)); _rateChanged() } }
+    /// -1 (left) ... 1 (right)
+    open var pan: Float = 0 { didSet { pan = min(1, max(-1, pan)); if voice != 0 { isim_audio_set_pan(voice, Double(pan)) } } }
     open var isMeteringEnabled = false
+    var _avg: [Float] = [], _peak: [Float] = []
+    open var settings: [String: Any] { [AVSampleRateKey: sampleRate, AVNumberOfChannelsKey: _pcm.count, AVFormatIDKey: kAudioFormatLinearPCM] }
+    open var format: AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: AVAudioChannelCount(max(1, _pcm.count)))! }
+    open var deviceCurrentTime: TimeInterval { isim_time() }
 
     public init(contentsOf url: URL) throws {
         let d = try _AudioDecoder.decode(url)
         self.url = url; data = nil
-        sampleRate = d.rate; frames = d.channels.first?.count ?? 0
+        sampleRate = d.rate; frames = d.channels.first?.count ?? 0; _pcm = d.channels
         buffer = _AVPlayerUpload.upload(d)
         super.init()
+        _AudioSessionEvents.register(self)
     }
     public convenience init(contentsOf url: URL, fileTypeHint: String?) throws { try self.init(contentsOf: url) }
     public init(data: Data) throws {
@@ -476,20 +490,56 @@ open class AVAudioPlayer: NSObject {
         defer { try? FileManager.default.removeItem(at: tmp) }
         let d = try _AudioDecoder.decode(tmp)
         url = nil; self.data = data
-        sampleRate = d.rate; frames = d.channels.first?.count ?? 0
+        sampleRate = d.rate; frames = d.channels.first?.count ?? 0; _pcm = d.channels
         buffer = _AVPlayerUpload.upload(d)
         super.init()
+        _AudioSessionEvents.register(self)
     }
-    deinit { if voice != 0 { isim_audio_stop(voice) }; if buffer > 0 { isim_audio_buffer_release(buffer) } }
+    public convenience init(data: Data, fileTypeHint: String?) throws { try self.init(data: data) }
+    deinit {
+        if voice != 0 { isim_audio_stop(voice) }
+        if buffer > 0 { isim_audio_buffer_release(buffer) }
+        if _rateBuffer > 0 { isim_audio_buffer_release(_rateBuffer) }
+    }
 
     open var duration: TimeInterval { sampleRate > 0 ? Double(frames) / sampleRate : 0 }
     open var isPlaying: Bool { voice != 0 && isim_audio_is_playing(voice) != 0 }
-    open var numberOfChannels: Int { 1 }
+    open var numberOfChannels: Int { _pcm.count }
+    /// position in the file (seconds), whatever the rate
     open var currentTime: TimeInterval {
-        get { if let p = pausedAt { return p }; return voice != 0 ? isim_audio_position(voice) : startOffset }
+        get { if let p = pausedAt { return p }; return voice != 0 ? isim_audio_position(voice) * Double(_voiceRate) : startOffset }
         set {
-            if voice != 0 { isim_audio_seek(voice, newValue) }
+            if voice != 0 { isim_audio_seek(voice, newValue / Double(_voiceRate)) }
             if pausedAt != nil { pausedAt = newValue } else if voice == 0 { startOffset = newValue }
+        }
+    }
+    var _effectiveRate: Float { enableRate ? rate : 1 }
+    /// the host buffer for a rate (time-stretched once per rate)
+    func _buffer(for r: Float) -> Int32 {
+        if r == 1 { return buffer }
+        if _rateBuffer > 0 && _rateOf == r { return _rateBuffer }
+        if _rateBuffer > 0 { isim_audio_buffer_release(_rateBuffer); _rateBuffer = 0 }
+        let win = max(256, Int(sampleRate * 0.046))
+        let stretched = _pcm.map { _stretch($0, by: 1 / Double(r), window: win) }
+        _rateBuffer = _AVPlayerUpload.upload(_DecodedAudio(rate: sampleRate, channels: stretched))
+        _rateOf = r
+        return _rateBuffer
+    }
+    func _rateChanged() {
+        guard enableRate, voice != 0, _effectiveRate != _voiceRate else { return }
+        let pos = currentTime, wasPaused = pausedAt != nil
+        isim_audio_stop(voice); voice = 0
+        _startVoice(at: pos)
+        if wasPaused, voice != 0 { isim_audio_pause(voice, 1) } else { watch() }
+    }
+    func _startVoice(at pos: Double) {
+        let r = _effectiveRate
+        let b = _buffer(for: r)
+        voice = b > 0 ? isim_audio_play(b, Double(volume), Int32(numberOfLoops)) : 0
+        _voiceRate = r
+        if voice != 0 {
+            if pan != 0 { isim_audio_set_pan(voice, Double(pan)) }
+            if pos > 0 { isim_audio_seek(voice, pos / Double(r)) }
         }
     }
     @discardableResult open func prepareToPlay() -> Bool { buffer > 0 }
@@ -497,21 +547,41 @@ open class AVAudioPlayer: NSObject {
         guard buffer > 0 else { return false }
         if voice != 0, pausedAt != nil { isim_audio_pause(voice, 0); pausedAt = nil; watch(); return true }
         if isPlaying { return true }
-        voice = isim_audio_play(buffer, Double(volume), Int32(numberOfLoops))
-        if startOffset > 0 { isim_audio_seek(voice, startOffset); startOffset = 0 }
+        _startVoice(at: startOffset)
+        startOffset = 0
         watch()
         return voice != 0
     }
-    @discardableResult open func play(atTime time: TimeInterval) -> Bool { play() }
-    open func pause() { guard voice != 0 else { return }; pausedAt = isim_audio_position(voice); isim_audio_pause(voice, 1); generation += 1 }
+    @discardableResult open func play(atTime time: TimeInterval) -> Bool {
+        let delay = time - deviceCurrentTime
+        guard delay > 0.001 else { return play() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in _ = self?.play() }
+        return buffer > 0
+    }
+    open func pause() { guard voice != 0 else { return }; pausedAt = currentTime; isim_audio_pause(voice, 1); generation += 1 }
     open func stop() {
         // like AVAudioPlayer: stop keeps the position; play() resumes from currentTime
-        if voice != 0 { startOffset = isim_audio_position(voice); isim_audio_stop(voice); voice = 0 }
+        if voice != 0 { startOffset = currentTime; isim_audio_stop(voice); voice = 0 }
         pausedAt = nil; generation += 1
     }
-    open func updateMeters() {}
-    open func averagePower(forChannel c: Int) -> Float { -160 }
-    open func peakPower(forChannel c: Int) -> Float { -160 }
+    /// Metering: RMS and peak (dBFS, after volume) of the ~50 ms of audio at the playback position.
+    open func updateMeters() {
+        guard isMeteringEnabled else { return }
+        let n = max(1, Int(sampleRate * 0.05))
+        let end = isPlaying ? Int(currentTime * sampleRate) : 0
+        let start = max(0, end - n)
+        _avg = []; _peak = []
+        for ch in _pcm {
+            var sum: Float = 0, pk: Float = 0
+            let hi = min(ch.count, max(start, end))
+            if hi > start { for i in start..<hi { let x = ch[i] * volume; sum += x * x; pk = max(pk, abs(x)) } }
+            let rms = hi > start ? (sum / Float(hi - start)).squareRoot() : 0
+            func db(_ x: Float) -> Float { x > 1e-8 ? max(-160, 20 * Float(log10(Double(x)))) : -160 }
+            _avg.append(db(rms)); _peak.append(db(pk))
+        }
+    }
+    open func averagePower(forChannel c: Int) -> Float { c >= 0 && c < _avg.count ? _avg[c] : -160 }
+    open func peakPower(forChannel c: Int) -> Float { c >= 0 && c < _peak.count ? _peak[c] : -160 }
 
     /// Reports the end of playback to the delegate.
     func watch() {

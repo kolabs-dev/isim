@@ -15,12 +15,34 @@ Xcode projects. It is a research prototype: an independent re-implementation, no
 - For apps that use them: SQLite (`libsqlite3.so.0`, for `import SQLite3`) and OpenSSL 3 (`libcrypto.so.3`, for
   CryptoKit's AES/ChaChaPoly/public-key operations and `CCCrypt`); both are preinstalled on most distributions
 - For apps that use them: libcurl (URLSession networking), PCRE2 (`libpcre2-8.so.0`, NSRegularExpression),
-  `ffmpeg`/`ffprobe` (video playback, compressed audio, thumbnails), `espeak-ng` (AVSpeechSynthesizer, simulated VoiceOver), `poppler-glib` (`CGPDFDocument` reading); each is
+  `ffmpeg`/`ffprobe` (video playback, compressed audio, thumbnails, export, AVAssetReader/Writer, the simulated camera),
+  `espeak-ng` (AVSpeechSynthesizer, simulated VoiceOver), `poppler-glib` (`CGPDFDocument` reading), `zbar`
+  (`libzbar.so.0`: QR codes and barcodes for AVCaptureMetadataOutput and Vision), `tesseract` (Vision text recognition),
+  whisper.cpp (`whisper-cli` + `ISIM_WHISPER_MODEL`) or Vosk (`vosk-transcriber` + `ISIM_VOSK_MODEL`) for Speech; each is
   loaded or run only when an app needs it
+- The simulated camera shows `ISIM_CAMERA=<picture or video file>` (or `=webcam` for the host webcam via ffmpeg);
+  without it there is no camera, like the Simulator
 - Optional, to compile apps: `clang` + `lld` 17 or newer, Docker with the `swift:6.2` image (for Swift)
 
 The graphics, Wayland/X11 and audio libraries come from your system; everything else isim
 needs is in `lib/`.
+
+## Install
+
+The easiest way is the installer, which puts `isim` on your `PATH` and handles updates:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/install.sh | bash
+```
+
+To install this tarball by hand instead, link its CLI into a directory on your `PATH` (keep the extracted folder;
+`isim` finds the SDK next to it):
+
+```bash
+ln -s "$PWD/bin/isim" ~/.local/bin/isim
+```
+
+`isim update` / `isim versions` / `isim use VERSION` manage installed releases (`~/.local/lib/isim`).
 
 ## Try it without building anything
 
@@ -53,6 +75,11 @@ Other devices: `bin/isim boot --device iphonese` (also `iphone13mini`, `iphone14
 `ipadpro11`, `ipadpro13`). `--zoom 0.8` makes the window smaller.
 
 Run a single app without the home screen: `bin/isim run apps/HelloSwiftUI.app`.
+
+iOS versions: `bin/isim boot --os 26 --device iphone17` (also `17`, `18` (default), `27`; `bin/isim devices` lists
+which versions each device can run). The version changes what apps see (`UIDevice.systemVersion`, `#available`) and
+the look: iOS 26 and 27 use Liquid Glass (floating tab bar, glass buttons, alerts and dock). Ctrl+L shows the Lock
+Screen; a swipe down from the top-right corner opens Control Center.
 
 ## Build your own app
 

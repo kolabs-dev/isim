@@ -10,13 +10,13 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloAccessibility; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/accessibility; rm -rf "$ISIM_DATA"
 N="voiceover next; "
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_DUMP_ACCESSIBILITY=1 ISIM_SCRIPT="wait 1; voiceover on; wait 0.3; $N$N$N$N$N$N$N$N$N$N$N$N$N$N shot $shots/cursor.png;
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_DUMP_ACCESSIBILITY=1 ISIM_SCRIPT="wait 1; voiceover on; wait 0.3; $N$N$N$N$N$N$N$N$N$N$N$N$N$N shot $shots/cursor.png;
  voiceover off; voiceover on; wait 0.3; voiceover next; voiceover activate; wait 0.3; voiceover next; voiceover activate; wait 0.3; voiceover next; voiceover increment;
  voiceover next; voiceover action; voiceover next; voiceover next; voiceover next; voiceover activate; wait 0.3; voiceover off; wait 0.2; dump; tapid bigger; wait 0.5; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloAccessibility.app 2>&1); rc=$?
 export ISIM_DATA=$PWD/out/test-data/accessibility-prefs; rm -rf "$ISIM_DATA"; mkdir -p "$ISIM_DATA/Library/Preferences"
 printf '%s' '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>ISIMContentSizeCategory</key><string>UICTContentSizeCategoryXXXL</string><key>ISIMBoldText</key><true/><key>ISIMReduceMotion</key><true/><key>ISIMIncreaseContrast</key><true/><key>ISIMReduceTransparency</key><true/><key>ISIMVoiceOver</key><true/></dict></plist>' > "$ISIM_DATA/Library/Preferences/.GlobalPreferences.plist"
-prefs=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.5; dump; quit" timeout 60 out/bin/isim run out/apps/HelloAccessibility.app 2>&1); rc2=$?
+prefs=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1.5; dump; quit" timeout 60 out/bin/isim run out/apps/HelloAccessibility.app 2>&1); rc2=$?
 spoken=$(grep -o 'VoiceOver: "[^"]*"' <<<"$log" | head -14 | sed 's/VoiceOver: //' | paste -sd'|')
 expect='"Settings, Heading"|"Play, Button. Plays the song."|"Wi-Fi, Switch button, On"|"Volume, 50%, Adjustable. Swipe up or down with one finger to adjust the value."|"Message from Ana. Actions available."|"Tue, 5 thousand steps"|"Mon, 3 thousand steps"|"Announce, Button"|"Dynamic Type body"|"SwiftUI part, Heading"|"Favorites"|"Rating, 3 stars, Adjustable. Swipe up or down with one finger to adjust the value."|"Body text"|"Bigger text, Button"'
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }

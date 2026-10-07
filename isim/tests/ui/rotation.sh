@@ -7,11 +7,11 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloRotation; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/rotation; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; rotate left; wait 0.8; shot $shots/landscape.png; dump; tapid lock; wait 0.8; shot $shots/locked.png; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; rotate left; wait 0.8; shot $shots/landscape.png; dump; tapid lock; wait 0.8; shot $shots/locked.png; quit" \
       timeout 60 out/bin/isim run out/apps/HelloRotation.app 2>&1); rc=$?
-log2=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; tapid force; wait 0.8; shot $shots/forced.png; quit" \
+log2=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; tapid force; wait 0.8; shot $shots/forced.png; quit" \
       timeout 60 out/bin/isim run out/apps/HelloRotation.app 2>&1); rc2=$?
-log3=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; rotate left; wait 0.8; shot $shots/portrait-only.png; quit" \
+log3=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; rotate left; wait 0.8; shot $shots/portrait-only.png; quit" \
       timeout 60 out/bin/isim run out/apps/HelloTable.app 2>&1); rc3=$?
 size() { magick identify -format "%wx%h" "$1" 2>/dev/null; }
 px() { magick "$1" -format "%[fx:int(255*u.p{$2,$3}.r)] %[fx:int(255*u.p{$2,$3}.g)] %[fx:int(255*u.p{$2,$3}.b)]" info: 2>/dev/null; }

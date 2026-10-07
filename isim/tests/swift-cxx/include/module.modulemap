@@ -1,0 +1,5 @@
+module Geometry {
+  header "Geometry.h"
+  requires cplusplus
+  export *
+}

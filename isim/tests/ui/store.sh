@@ -10,7 +10,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloStore; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/store; rm -rf "$ISIM_DATA"
-export ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_STOREKIT_TIME_RATE=month=4
+export ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_STOREKIT_TIME_RATE=month=4
 app=dev.isim.samples.HelloStore
 s1="wait 1.5; tapid open-subs; wait 1; tapid sk-plan-dev.isim.store.plus.monthly; wait 0.3; tapid sk-subscribe; wait 0.8; shot $shots/confirm.png; taptext Subscribe; wait 9.5"
 s1="$s1; shot $shots/subscribed.png; tapid sk-plan-dev.isim.store.premium.monthly; wait 0.3; tapid sk-subscribe; wait 0.8; taptext Subscribe; wait 1.5; shot $shots/upgraded.png; tapid close-subs; wait 1"

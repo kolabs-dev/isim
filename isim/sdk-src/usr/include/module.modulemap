@@ -62,3 +62,11 @@ module isim_host [system] [extern_c] {
   header "isim_host.h"
   export *
 }
+module CoreAudioTypes [system] [extern_c] {
+  header "CoreAudioTypes/CoreAudioTypes.h"
+  export *
+}
+module _AudioToolboxTypes [system] [extern_c] {
+  header "_AudioToolboxTypes/AudioToolboxTypes.h"
+  export *
+}

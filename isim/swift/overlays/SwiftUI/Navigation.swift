@@ -583,7 +583,14 @@ final class _NavStackNode: _Node {
             if host.superview !== bar { bar.addSubview(host) }
             let s = item.frame.size
             let leading = placement == .topBarLeading || placement == .navigationBarLeading || placement == .cancellationAction
-            host.frame = CGRect(x: leading ? (levels.count > 1 ? 110 : 16) : bar.bounds.width - 16 - s.width, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
+            host.frame = CGRect(x: leading ? (levels.count > 1 ? (_isimGlassLook ? 72 : 110) : 16) : bar.bounds.width - 16 - s.width, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
+            if _isimGlassLook {                             // iOS 26+: toolbar items on glass capsules
+                let gl = g.view(path + "|tbglass\(i)") { _SUIGlassView(frame: .zero) }
+                if gl.superview !== bar { bar.insertSubview(gl, belowSubview: host) }
+                let gw = max(44, s.width + 24)
+                gl.frame = CGRect(x: host.frame.midX - gw / 2, y: safeTop + (barHeight - 44) / 2, width: gw, height: 44); gl.radius = 22
+                if leading == false && gl.frame.maxX > bar.bounds.width - 16 { gl.frame.origin.x = bar.bounds.width - 16 - gw; host.frame.origin.x = gl.frame.midX - s.width / 2 }
+            }
             g.mount(item, in: host, order: 0)
             if let v = g.views[item.viewKey] { v.frame = CGRect(origin: .zero, size: s) }
         }
@@ -598,6 +605,7 @@ final class _SUINavBar: UIView {
     let backLabel = UILabel()
     let backChevron = UIImageView()
     let hairline = UIView()
+    let backGlass = _SUIGlassView(frame: .zero), fade = _SUIEdgeFadeView(frame: .zero)
     var level: _NavLevel?
     var scrolled = false
     var levelIndex = -1
@@ -608,7 +616,8 @@ final class _SUINavBar: UIView {
         addSubview(titleLabel)
         hairline.backgroundColor = .separator
         addSubview(hairline)
-        back.addSubview(backChevron); back.addSubview(backLabel)
+        insertSubview(fade, at: 0)
+        back.addSubview(backGlass); back.addSubview(backChevron); back.addSubview(backLabel)
         back.accessibilityIdentifier = "isim-nav-back"
         addSubview(back)
     }
@@ -631,6 +640,14 @@ final class _SUINavBar: UIView {
         back.frame = CGRect(x: 8, y: safeTop, width: min(cs.width + 6 + ls.width, 140), height: 44)
         backChevron.frame = CGRect(x: 0, y: (44 - cs.height) / 2, width: cs.width, height: cs.height)
         backLabel.frame = CGRect(x: cs.width + 6, y: (44 - ls.height) / 2, width: min(ls.width, 140 - cs.width - 6), height: ls.height)
+        backGlass.isHidden = !_isimGlassLook; backLabel.isHidden = _isimGlassLook
+        fade.frame = bounds
+        if _isimGlassLook {                                 // iOS 26+: a glass circle with the chevron, no title
+            back.frame = CGRect(x: 16, y: safeTop, width: 44, height: 44)
+            backGlass.frame = back.bounds; backGlass.radius = 22
+            backChevron.tintColor = .label
+            backChevron.frame = CGRect(x: (44 - cs.width) / 2 - 1, y: (44 - cs.height) / 2, width: cs.width, height: cs.height)
+        }
     }
     func update() {
         guard let l = level else { return }
@@ -643,6 +660,12 @@ final class _SUINavBar: UIView {
         if l.barBackgroundVisibility == .hidden { backgroundColor = .clear; hairline.isHidden = true }
         overrideUserInterfaceStyle = l.barScheme == .dark ? .dark : l.barScheme == .light ? .light : .unspecified
         hairline.isHidden = !solid
+        fade.isHidden = true
+        if _isimGlassLook && l.barBackgroundVisibility != .visible && l.barBackground == nil {
+            backgroundColor = solid ? .clear : backgroundColor        // iOS 26+: a scroll-edge fade instead of the bar background
+            fade.isHidden = !solid; hairline.isHidden = true
+            fade.setNeedsDisplay()
+        }
     }
 }
 

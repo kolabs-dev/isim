@@ -230,6 +230,17 @@ void isim_bundle_register_extension(NSString *path) {
         if (!_tables) _tables = [NSMutableDictionary dictionary];
         for (NSString *loc in [self.preferredLocalizations arrayByAddingObject:self.developmentLocalization]) {
             NSString *cacheKey = [NSString stringWithFormat:@"%@/%@", loc, table];
+            /* .stringsdict (plural rules) wins over .strings, like Apple's */
+            NSString *dictKey = [cacheKey stringByAppendingString:@".stringsdict"];
+            NSDictionary *plurals = _tables[dictKey];
+            if (!plurals) {
+                NSString *path = [self pathForResource:table ofType:@"stringsdict" inDirectory:nil forLocalization:loc];
+                plurals = (path ? [NSDictionary dictionaryWithContentsOfFile:path] : nil) ?: @{};
+                _tables[dictKey] = plurals;
+            }
+            NSDictionary *entry = plurals[key];
+            if ([entry isKindOfClass:[NSDictionary class]] && [entry[@"NSStringLocalizedFormatKey"] isKindOfClass:[NSString class]])
+                return isim_plural_format(entry, loc);
             NSDictionary *strings = _tables[cacheKey];
             if (!strings) {
                 NSString *path = [self pathForResource:table ofType:@"strings" inDirectory:nil forLocalization:loc];

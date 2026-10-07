@@ -6,7 +6,7 @@
 #   isim apps                    list installed apps
 #   isim reset                   erase the device: installed apps, app data and settings
 #   isim run <App.app> [args...]: install, boot and open the app (headless or ISIM_STANDALONE=1: the app alone)
-#     options: [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
+#     options: [--os 17|18|26|27] [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
@@ -18,10 +18,19 @@
 #   isim openurl <URL> [--control FIFO]   open a URL (custom scheme or universal link) in the running device's foreground app
 #   isim appleid <app> list|revoke|reset         local Sign in with Apple state (revoke = Stop Using Apple ID)
 #   isim metrickit               deliver sample MetricKit payloads to running apps (Debug > Simulate MetricKit Payloads)
-#   isim version                                                      print the isim version
-#   device options: --device NAME --zoom N --dark --headless --script "..." --control FIFO (live script commands, one per line); device data: ISIM_DATA (~/.local/share/isim)
+#   isim version                 print the isim version and the iOS versions it supports
+#   isim devices                 list device presets with the iOS versions each can run
+#   isim update [VERSION]        install the latest (or given) release and make it active (keeps the others)
+#   isim versions · isim use VERSION   list installed releases · switch the active one
+#   device options: --os N --device NAME --zoom N --dark --headless --script "..." --control FIFO (live script commands, one per line); device data: ISIM_DATA (~/.local/share/isim)
+#   --os 17|18|26|27 (or a point release, e.g. 17.5; env ISIM_OS_VERSION): the iOS version the device runs (default 18).
+#     The device data remembers it for later boots/runs. Like Xcode, a device needs an iOS at least as new as the one it
+#     shipped with (iPhone 17 models: 26+): an explicit older --os is an error; otherwise the nearest valid one is used.
 set -euo pipefail
 BIN=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
+ISIM_HOME=${ISIM_HOME:-$HOME/.local/lib/isim}    # installed releases (install.sh / isim update)
+# a copy of this script outside a release (e.g. cp'd into ~/bin) uses the active installed release
+[ -d "$BIN/../sdk" ] || [ ! -x "$ISIM_HOME/current/bin/isim-runtime" ] || BIN=$(cd -- "$ISIM_HOME/current/bin" && pwd)
 SDK=${ISIM_SDK:-$BIN/../sdk}
 DATA=${ISIM_DATA:-$HOME/.local/share/isim}
 cmd=${1:-help}; shift || true
@@ -30,6 +39,7 @@ device_opts() {   # sets env from device options; leaves the rest in REST
   while [ $# -gt 0 ]; do
     case "$1" in
       --device) export ISIM_DEVICE=$2; shift 2 ;;
+      --os) export ISIM_OS_VERSION=$2; shift 2 ;;
       --zoom) export ISIM_ZOOM=$2; shift 2 ;;
       --control) export ISIM_CONTROL=$2; [ -p "$2" ] || mkfifo "$2"; shift 2 ;;
       --dark) export ISIM_APPEARANCE=dark; shift ;;
@@ -39,12 +49,45 @@ device_opts() {   # sets env from device options; leaves the rest in REST
     esac
   done
 }
+OSFILE=$DATA/Library/isim/os-version   # the device data's iOS version (written by --os / ISIM_OS_VERSION)
+select_os() {   # validates the device + iOS version pairing; remembers an explicit choice in the device data
+  if [ -n "${ISIM_OS_VERSION:-}" ]; then
+    local v; v=$(ISIM_OS_DEFAULT= "$BIN/isim-runtime" --os-check) || exit 2
+    export ISIM_OS_VERSION=$v
+    mkdir -p "$(dirname "$OSFILE")"; printf '%s\n' "$v" > "$OSFILE"
+  elif [ -f "$OSFILE" ]; then
+    export ISIM_OS_DEFAULT; ISIM_OS_DEFAULT=$(cat "$OSFILE")
+  fi
+}
 plist_get() { python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb")).get(sys.argv[2],""))' "$1" "$2"; }
 case "$cmd" in
   version|--version|-v)
-    echo "isim $(cat "$BIN/VERSION" 2>/dev/null || echo unknown)" ;;
+    echo "isim $(cat "$BIN/VERSION" 2>/dev/null || echo unknown)"
+    echo "iOS versions: 17, 18 (default), 26, 27 (--os N; API level emulated by isim, not Apple's iOS)"
+    [ -f "$OSFILE" ] && echo "device data $DATA: iOS $(cat "$OSFILE")"
+    true ;;
+  devices)
+    "$BIN/isim-runtime" --list-devices
+    if [ -f "$OSFILE" ]; then echo "device data $DATA: iOS $(cat "$OSFILE") (remembered from --os)"; else echo "device data $DATA: iOS 18.0 (default)"; fi ;;
+  update|self-update)   # isim update [VERSION]: download and activate a release (install.sh)
+    inst=$BIN/isim-install.sh
+    if [ -f "$inst" ]; then exec bash "$inst" "$@"; fi
+    exec bash -c "$(curl -fsSL "https://raw.githubusercontent.com/${ISIM_REPO:-kolabs-dev/isim}/main/install.sh")" isim-install "$@" ;;
+  versions)             # installed releases, * = active
+    cur=$(readlink "$ISIM_HOME/current" 2>/dev/null || true)
+    found=0
+    for d in "$ISIM_HOME"/*/; do
+      [ -x "$d/bin/isim" ] || continue; v=$(basename "$d"); [ "$v" = current ] && continue; found=1
+      if [ "$v" = "$cur" ]; then echo "* $v"; else echo "  $v"; fi
+    done
+    [ $found = 1 ] || echo "no releases installed in $ISIM_HOME (this is $(cat "$BIN/VERSION" 2>/dev/null || echo a development build) in $BIN)" ;;
+  use)                  # isim use VERSION: make an installed release the active one
+    v=${1:?usage: isim use VERSION}; v=${v#v}
+    [ -x "$ISIM_HOME/$v/bin/isim" ] || { echo "isim: $v is not installed (isim versions; isim update $v)" >&2; exit 1; }
+    ln -sfn "$v" "$ISIM_HOME/current"; echo "isim $v is active" ;;
   boot)
     device_opts "$@"
+    select_os
     mkdir -p "$DATA/Applications"
     export ISIM_DATA=$DATA ISIM_SYSTEM_APPS=$SDK/Applications ISIM_APPS=$DATA/Applications
     exec "$BIN/isim-runtime" --root "$SDK" --shell "$SDK/Applications/SpringBoard.app" "$SDK/Applications/SpringBoard.app/SpringBoard" ;;
@@ -80,6 +123,7 @@ case "$cmd" in
     while [ $# -gt 0 ]; do
       case "$1" in
         --device) export ISIM_DEVICE=$2; shift 2 ;;
+        --os) export ISIM_OS_VERSION=$2; shift 2 ;;
         --zoom) export ISIM_ZOOM=$2; shift 2 ;;
       --control) export ISIM_CONTROL=$2; [ -p "$2" ] || mkfifo "$2"; shift 2 ;;
         --dark) export ISIM_APPEARANCE=dark; shift ;;
@@ -88,6 +132,7 @@ case "$cmd" in
         *) break ;;
       esac
     done
+    select_os
     exe=$app
     if [ -d "$app" ]; then
       name=$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$app/Info.plist")
@@ -105,7 +150,9 @@ case "$cmd" in
     fi
     exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
   cc)
-    exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc -L "$SDK/usr/lib/swift" "$@" ;;
+    # clang >= 23: keep Objective-C literals as runtime calls (isim's Foundation has no NSConstantArray & co. yet)
+    lit=(); echo | "${CLANG:-clang}" -x objective-c -fno-objc-constant-literals -fsyntax-only - 2>/dev/null && lit=(-fno-objc-constant-literals)
+    exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc "${lit[@]}" -L "$SDK/usr/lib/swift" "$@" ;;
   swiftc)
     ws=$(cd -- "$BIN/../../.." && pwd)
     mounts=(-v "$ws:$ws")
@@ -151,5 +198,5 @@ case "$cmd" in
     [ -d "$f" ] && f=$f/$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$f/Info.plist")
     llvm-objdump --macho --private-headers "$f" | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos|sdk'
     llvm-otool -L "$f" | tail -n +2 ;;
-  *) sed -n '2,21p' "$0" ;;
+  *) sed -n '2,27p' "$0" ;;
 esac

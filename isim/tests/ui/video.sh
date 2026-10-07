@@ -9,7 +9,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 [ -f out/apps/HelloVideo.app/clip.mp4 ] || { echo "SKIP  HelloVideo not built (needs ffmpeg)"; exit 0; }
 shots=out/test-shots/HelloVideo; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/video; rm -rf "$ISIM_DATA"
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloVideo.app 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloVideo.app 2>&1; }
 log=$(run "wait 1; shot $shots/paused.png; tapid play; wait 0.5; shot $shots/red.png; wait 1.0; shot $shots/green.png; wait 1.0; shot $shots/blue.png; wait 1; dump; quit"); rc=$?
 log2=$(run "wait 1; tapid seek; wait 0.3; shot $shots/seek.png; tapid rate; wait 0.8; tapid queue; wait 2.5; tapid loop; wait 2.2; tapid fullscreen; wait 0.8; dump; tapid avkit-play; wait 1.2; dump; shot $shots/avkit.png; tapid avkit-close; wait 0.6; tapid swiftui; wait 1.5; shot $shots/swiftui.png; dump; quit"); rc2=$?
 fail=0

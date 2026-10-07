@@ -12,7 +12,7 @@ srv=$!; trap 'kill $srv 2>/dev/null' EXIT
 port=
 for _ in $(seq 50); do port=$(awk '/^PORT/{print $2}' "$ISIM_DATA/port"); [ -n "$port" ] && break; sleep 0.1; done
 [ -n "$port" ] || { echo "FAIL  local server did not start"; cat "$ISIM_DATA/server.log"; exit 1; }
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloNetwork.app -server "http://127.0.0.1:$port" 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run out/apps/HelloNetwork.app -server "http://127.0.0.1:$port" 2>&1; }
 log=$(run "wait 1.5; shot $shots/loaded.png; dump; tapid reload; wait 0.5; tapid signin; wait 1; drag 200 760 200 160 0.3; wait 0.8; tapid http503; wait 0.6; tapid unreachable; wait 0.6; tapid echo; wait 1.2; tapid combinefetch; wait 1; shot $shots/done.png; dump; quit"); rc=$?
 offline=$(ISIM_NETWORK=offline run "wait 1.2; dump; quit")
 fail=0

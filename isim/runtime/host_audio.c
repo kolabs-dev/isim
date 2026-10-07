@@ -12,7 +12,7 @@
 #define MAX_VOICES 64
 
 struct abuf { float *pcm; long frames; int channels; double rate; int refs; };
-struct voice { int buf, playing, paused, loops; double pos, volume; unsigned gen; };
+struct voice { int buf, playing, paused, loops; double pos, volume, pan; unsigned gen; };
 
 static struct abuf bufs[MAX_BUFS];
 static struct voice voices[MAX_VOICES];
@@ -22,6 +22,7 @@ static SDL_AudioStream *stream;
 static int audio_state;          /* 0 = not tried, 1 = open, -1 = unavailable */
 static int suspended;
 static float *mixbuf; static int mixcap;
+static FILE *tap;                /* ISIM_AUDIO_TAP=file: a copy of the mixed output (raw f32le stereo 48 kHz), for tests */
 
 static void unref(int b) {
     if (b <= 0 || b >= MAX_BUFS || !bufs[b].pcm) return;
@@ -57,6 +58,7 @@ static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total
             if (!b->pcm || b->frames <= 0) { vo->playing = 0; continue; }
             double step = b->rate / OUT_RATE;
             float vol = (float)vo->volume;
+            float gl = vo->pan > 0 ? (float)(1 - vo->pan) : 1.f, gr = vo->pan < 0 ? (float)(1 + vo->pan) : 1.f;   /* balance */
             for (int i = 0; i < frames; i++) {
                 if (vo->pos >= b->frames) {
                     if (vo->loops != 0) { vo->pos -= b->frames; if (vo->loops > 0) vo->loops--; }
@@ -73,8 +75,8 @@ static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total
                     l = a[0] + (c[0] - a[0]) * t;
                     r = a[1] + (c[1] - a[1]) * t;
                 }
-                mixbuf[2 * i] += l * vol;
-                mixbuf[2 * i + 1] += r * vol;
+                mixbuf[2 * i] += l * vol * gl;
+                mixbuf[2 * i + 1] += r * vol * gr;
                 vo->pos += step;
             }
         }
@@ -86,6 +88,7 @@ static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total
         mixbuf[i] = x;
     }
     SDL_PutAudioStreamData(s, mixbuf, frames * 2 * (int)sizeof(float));
+    if (tap) fwrite(mixbuf, sizeof(float), (size_t)frames * 2, tap);
 }
 
 static int ensure_open(void) {
@@ -102,6 +105,9 @@ static int ensure_open(void) {
     stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, feed, NULL);
     if (!stream) { fprintf(stderr, "isim audio: cannot open playback device (%s); playing silently\n", SDL_GetError()); return 0; }
     SDL_ResumeAudioStreamDevice(stream);
+    const char *tp = getenv("ISIM_AUDIO_TAP");
+    if (tp && *tp && !(tap = fopen(tp, "wb"))) fprintf(stderr, "isim audio: cannot write ISIM_AUDIO_TAP=%s\n", tp);
+    if (tap) setvbuf(tap, NULL, _IONBF, 0);
     audio_state = 1;
     return 1;
 }
@@ -170,6 +176,11 @@ void isim_audio_pause(long h, int paused) {
 void isim_audio_set_volume(long h, double volume) {
     if (!mtx) return;
     SDL_LockMutex(mtx); struct voice *vo = lookup(h); if (vo) vo->volume = volume; SDL_UnlockMutex(mtx);
+}
+/* stereo balance of a voice: -1 left only, 0 centre, 1 right only (AVAudioPlayer.pan) */
+void isim_audio_set_pan(long h, double pan) {
+    if (!mtx) return;
+    SDL_LockMutex(mtx); struct voice *vo = lookup(h); if (vo) vo->pan = pan < -1 ? -1 : pan > 1 ? 1 : pan; SDL_UnlockMutex(mtx);
 }
 int isim_audio_is_playing(long h) {
     if (!mtx) return 0;

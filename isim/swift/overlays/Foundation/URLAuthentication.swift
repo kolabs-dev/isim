@@ -8,11 +8,16 @@
 // accepts the server's certificate without checking it. Client certificates are not supported.
 import Foundation
 
-/// The server-trust object of an HTTPS challenge. isim: it names the host; certificates are not exposed.
+/// Security's trust object (the one SecTrust type: defined here because URLProtectionSpace hands it out, extended by
+/// the Security module with certificates, policies and evaluation). An HTTPS challenge's trust names the host only;
+/// certificates are not exposed for it.
 public final class SecTrust: @unchecked Sendable, CustomStringConvertible {
     public let _host: String
     init(host: String) { _host = host }
     public var description: String { "<SecTrust \(_host)>" }
+    /// Security's state for trusts made with SecTrustCreateWithCertificates (certificates, policies, anchors, result)
+    public var _isimState: AnyObject?
+    public init(_isimHost host: String, state: AnyObject?) { _host = host; _isimState = state }
 }
 
 public let NSURLAuthenticationMethodDefault = "NSURLAuthenticationMethodDefault"

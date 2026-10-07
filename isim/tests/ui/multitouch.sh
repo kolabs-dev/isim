@@ -8,7 +8,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloMultiTouch; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/multitouch; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/start.png; pinch 201 250 2 0.5; wait 0.3; shot $shots/pinch.png; rotate2 201 250 45 0.5; wait 0.3; twofinger 201 250 80 0 0.5; wait 0.3; pinch 201 450 1.5 0.3; wait 0.3; pinch 201 620 2.5 0.6; wait 0.5; shot $shots/zoom.png; tap 150 600; tap 150 600; wait 0.8; tap 150 600; tap 150 600; wait 0.8; hover 100 770; hover 120 775; hover 100 300; wait 0.2; dump; quit" \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; shot $shots/start.png; pinch 201 250 2 0.5; wait 0.3; shot $shots/pinch.png; rotate2 201 250 45 0.5; wait 0.3; twofinger 201 250 80 0 0.5; wait 0.3; pinch 201 450 1.5 0.3; wait 0.3; pinch 201 620 2.5 0.6; wait 0.5; shot $shots/zoom.png; tap 150 600; tap 150 600; wait 0.8; tap 150 600; tap 150 600; wait 0.8; hover 100 770; hover 120 775; hover 100 300; wait 0.2; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloMultiTouch.app 2>&1); rc=$?
 pad=$(ISIM_DEVICE=ipad ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; hover 300 300; wait 0.2; hover 600 770; wait 0.3; shot $shots/pointer.png; dump; hover 300 300; wait 0.3; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloMultiTouch.app 2>&1); rc2=$?

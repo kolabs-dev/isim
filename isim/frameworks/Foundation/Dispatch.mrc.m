@@ -16,6 +16,12 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
 
 void isim_main_enqueue_f(double delay, dispatch_function_t f, void *ctx);   /* Runtime.m */
 double isim_main_fire_due(void);                                            /* Runtime.m: runs due items, returns next delay */
@@ -41,17 +47,36 @@ struct dispatch_source_s {
     dobj h;
     dispatch_queue_t queue;
     pthread_mutex_t lock;
-    uint64_t next, interval;           /* next fire (uptime ns), 0 = not armed */
-    dispatch_function_t handler_f, cancel_f; void *handler_b, *cancel_b;
+    uint64_t next, interval;           /* timers: next fire (uptime ns), 0 = not armed */
+    dispatch_function_t handler_f, cancel_f, reg_f; void *handler_b, *cancel_b, *reg_b;
     int activated, suspended, cancelled, scheduled;
-    unsigned long fired;
+    unsigned long fired;               /* timers: fires since the last handler run */
+    /* other source types */
+    int type;
+    uintptr_t handle, mask;
+    unsigned long pending, data;       /* merged events waiting for the handler / value seen by the running handler */
+    int handler_queued, monitored;
+    struct stat_snapshot { long long size, mtime_ns, ctime_ns, nlink, ino; int mode; char path[1024]; } vn;
+    struct dispatch_source_s *next_monitored;
 };
 struct dispatch_semaphore_s { dobj h; long value; pthread_mutex_t lock; pthread_cond_t cond; };
 struct dispatch_group_s { dobj h; long count; pthread_mutex_t lock; pthread_cond_t cond; job *notify; dispatch_queue_t *notify_q; int nnotify; };
 
 struct dispatch_queue_s _dispatch_main_q = { { K_QUEUE, 1 << 30, NULL, NULL }, 0, "com.apple.main-thread", PTHREAD_MUTEX_INITIALIZER, NULL, NULL, 0, NULL, NULL };
 struct dispatch_queue_attr_s _dispatch_queue_attr_concurrent = { { K_ATTR, 1 << 30, NULL, NULL }, 1 };
-const struct dispatch_source_type_s _dispatch_source_type_timer = { 1 };
+enum { ST_TIMER = 1, ST_DATA_ADD, ST_DATA_OR, ST_DATA_REPLACE, ST_READ, ST_WRITE, ST_SIGNAL, ST_PROC, ST_VNODE, ST_MEMORYPRESSURE, ST_MACH_SEND, ST_MACH_RECV };
+const struct dispatch_source_type_s _dispatch_source_type_timer = { ST_TIMER };
+const struct dispatch_source_type_s _dispatch_source_type_data_add = { ST_DATA_ADD };
+const struct dispatch_source_type_s _dispatch_source_type_data_or = { ST_DATA_OR };
+const struct dispatch_source_type_s _dispatch_source_type_data_replace = { ST_DATA_REPLACE };
+const struct dispatch_source_type_s _dispatch_source_type_read = { ST_READ };
+const struct dispatch_source_type_s _dispatch_source_type_write = { ST_WRITE };
+const struct dispatch_source_type_s _dispatch_source_type_signal = { ST_SIGNAL };
+const struct dispatch_source_type_s _dispatch_source_type_proc = { ST_PROC };
+const struct dispatch_source_type_s _dispatch_source_type_vnode = { ST_VNODE };
+const struct dispatch_source_type_s _dispatch_source_type_memorypressure = { ST_MEMORYPRESSURE };
+const struct dispatch_source_type_s _dispatch_source_type_mach_send = { ST_MACH_SEND };
+const struct dispatch_source_type_s _dispatch_source_type_mach_recv = { ST_MACH_RECV };
 static struct dispatch_queue_s global_q[6];
 static pthread_once_t global_once = PTHREAD_ONCE_INIT;
 static __thread dispatch_queue_t current_queue;
@@ -333,12 +358,29 @@ void dispatch_after_f(dispatch_time_t when, dispatch_queue_t q, void *ctx, dispa
     timer_add(at, q, f, ctx, NULL);
 }
 
-/* ---------------- timer sources ---------------- */
+/* ---------------- sources ----------------
+ * Timers ride on the timer thread. Data sources (add/or/replace) coalesce dispatch_source_merge_data values
+ * until the handler runs. Read/write/signal/process/vnode sources are watched by one monitor thread:
+ * poll() for fd readiness (level-triggered: a source is re-armed after its handler returns), a signal
+ * counter fed by a signal handler, and a 50 ms check for process exit (kill(pid, 0)) and file changes (fstat;
+ * renames through /proc/self/fd). Memory-pressure and Mach sources never fire (no such events on isim). */
+static pthread_mutex_t mon_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct dispatch_source_s *monitored;
+static int mon_pipe[2] = { -1, -1 };
+static int mon_started;
+static volatile unsigned long sig_counts[32];
+static int sig_installed[32];
+static void mon_wake(void) { if (mon_pipe[1] >= 0) { char c = 1; (void)write(mon_pipe[1], &c, 1); } }
+static void sig_handler(int sig) { if (sig > 0 && sig < 32) __atomic_add_fetch(&sig_counts[sig], 1, __ATOMIC_RELAXED); mon_wake(); }
+
 dispatch_source_t dispatch_source_create(dispatch_source_type_t type, uintptr_t handle, uintptr_t mask, dispatch_queue_t q) {
-    if (type != DISPATCH_SOURCE_TYPE_TIMER) { fprintf(stderr, "isim: dispatch_source_create: only timer sources are supported\n"); return NULL; }
+    if (!type || type->type < ST_TIMER || type->type > ST_MACH_RECV) { fprintf(stderr, "isim: dispatch_source_create: unknown source type\n"); return NULL; }
+    if ((type->type == ST_READ || type->type == ST_WRITE || type->type == ST_VNODE) && (int)handle < 0) return NULL;
+    if (type->type == ST_SIGNAL && (handle == 0 || handle >= 32)) return NULL;
     struct dispatch_source_s *s = calloc(1, sizeof *s);
     s->h = (dobj){ K_SOURCE, 1, NULL, NULL };
     s->queue = q ?: dispatch_get_global_queue(0, 0);
+    s->type = type->type; s->handle = handle; s->mask = mask;
     pthread_mutex_init(&s->lock, NULL);
     s->suspended = 1;   /* sources start inactive */
     return s;
@@ -346,11 +388,13 @@ dispatch_source_t dispatch_source_create(dispatch_source_type_t type, uintptr_t 
 static void source_free(struct dispatch_source_s *s) {
     if (s->handler_b) Block_release(s->handler_b);
     if (s->cancel_b) Block_release(s->cancel_b);
+    if (s->reg_b) Block_release(s->reg_b);
     pthread_mutex_destroy(&s->lock);
     free(s);
 }
 static void source_arm(struct dispatch_source_s *s) {
     /* caller holds s->lock */
+    if (s->type != ST_TIMER) return;
     if (!s->activated || s->suspended || s->cancelled || !s->next || s->scheduled) return;
     s->scheduled = 1;
     dispatch_retain(s);
@@ -360,12 +404,33 @@ static void source_handler(void *p) {
     struct dispatch_source_s *s = p;
     pthread_mutex_lock(&s->lock);
     int cancelled = s->cancelled;
+    if (s->type != ST_TIMER) { s->data = s->pending; s->pending = 0; s->handler_queued = 0; }
     pthread_mutex_unlock(&s->lock);
     if (!cancelled) {
         if (s->handler_f) s->handler_f(s->h.ctx);
         else if (s->handler_b) ((dispatch_block_t)s->handler_b)();
     }
+    if (s->type == ST_TIMER) { pthread_mutex_lock(&s->lock); s->fired = 0; pthread_mutex_unlock(&s->lock); }
+    if (s->type == ST_READ || s->type == ST_WRITE) mon_wake();   /* level-triggered: poll the fd again */
     dispatch_release(s);
+}
+/* caller holds s->lock: queue the event handler unless one is already queued or the source is held */
+static void source_queue_handler(struct dispatch_source_s *s) {
+    if (!s->activated || s->suspended || s->cancelled || s->handler_queued || !s->pending) return;
+    s->handler_queued = 1;
+    dispatch_retain(s);
+    dispatch_async_f(s->queue, s, source_handler);
+}
+static void source_merge(struct dispatch_source_s *s, unsigned long value, int replace_only) {
+    pthread_mutex_lock(&s->lock);
+    switch (s->type) {
+    case ST_DATA_ADD: s->pending += value; break;
+    case ST_DATA_REPLACE: s->pending = value; break;
+    case ST_READ: case ST_WRITE: s->pending = value ? value : 1; break;
+    default: s->pending |= value; break;
+    }
+    source_queue_handler(s);
+    pthread_mutex_unlock(&s->lock);
 }
 void source_fire(struct dispatch_source_s *s) {
     pthread_mutex_lock(&s->lock);
@@ -382,6 +447,11 @@ void source_fire(struct dispatch_source_s *s) {
     if (run) dispatch_async_f(s->queue, s, source_handler);
     dispatch_release(s);
 }
+void dispatch_source_merge_data(dispatch_source_t s, uintptr_t value) {
+    if (!s || (s->type != ST_DATA_ADD && s->type != ST_DATA_OR && s->type != ST_DATA_REPLACE)) return;
+    if (value == 0 && s->type != ST_DATA_REPLACE) return;
+    source_merge(s, value, 0);
+}
 void dispatch_source_set_timer(dispatch_source_t s, dispatch_time_t start, uint64_t interval, uint64_t leeway) {
     pthread_mutex_lock(&s->lock);
     s->next = start == DISPATCH_TIME_FOREVER ? 0 : to_uptime(start);
@@ -392,26 +462,159 @@ void dispatch_source_set_timer(dispatch_source_t s, dispatch_time_t start, uint6
 }
 void dispatch_source_set_event_handler_f(dispatch_source_t s, dispatch_function_t f) { s->handler_f = f; }
 void dispatch_source_set_cancel_handler_f(dispatch_source_t s, dispatch_function_t f) { s->cancel_f = f; }
+void dispatch_source_set_registration_handler_f(dispatch_source_t s, dispatch_function_t f) { s->reg_f = f; }
 static void cancel_handler(void *p) {
     struct dispatch_source_s *s = p;
     if (s->cancel_f) s->cancel_f(s->h.ctx); else if (s->cancel_b) ((dispatch_block_t)s->cancel_b)();
     dispatch_release(s);
 }
+static void reg_handler(void *p) {
+    struct dispatch_source_s *s = p;
+    if (!s->cancelled) { if (s->reg_f) s->reg_f(s->h.ctx); else if (s->reg_b) ((dispatch_block_t)s->reg_b)(); }
+    dispatch_release(s);
+}
+
+/* ---- monitor thread ---- */
+static void vn_snapshot(struct dispatch_source_s *s, struct stat_snapshot *v) {
+    struct stat st;
+    memset(v, 0, sizeof *v);
+    if (fstat((int)s->handle, &st) == 0) {
+        v->size = st.st_size; v->nlink = st.st_nlink; v->ino = (long long)st.st_ino; v->mode = st.st_mode;
+        v->mtime_ns = (long long)st.st_mtimespec.tv_sec * 1000000000LL + st.st_mtimespec.tv_nsec;
+        v->ctime_ns = (long long)st.st_ctimespec.tv_sec * 1000000000LL + st.st_ctimespec.tv_nsec;
+    } else v->nlink = -1;
+    char link[64]; snprintf(link, sizeof link, "/proc/self/fd/%d", (int)s->handle);
+    ssize_t n = readlink(link, v->path, sizeof v->path - 1);
+    v->path[n > 0 ? n : 0] = 0;
+}
+#define VN_DELETE 0x1
+#define VN_WRITE 0x2
+#define VN_EXTEND 0x4
+#define VN_ATTRIB 0x8
+#define VN_LINK 0x10
+#define VN_RENAME 0x20
+#define VN_REVOKE 0x40
+#define PROC_EXIT 0x80000000UL
+static unsigned long vn_changes(struct dispatch_source_s *s) {
+    struct stat_snapshot now; vn_snapshot(s, &now);
+    struct stat_snapshot *was = &s->vn;
+    unsigned long ev = 0;
+    if (now.nlink == -1) ev |= VN_REVOKE;
+    else {
+        if (now.nlink == 0 && was->nlink > 0) ev |= VN_DELETE;
+        else if (now.nlink != was->nlink) ev |= VN_LINK;
+        if (now.mtime_ns != was->mtime_ns || now.size != was->size) ev |= VN_WRITE;
+        if (now.size > was->size) ev |= VN_EXTEND;
+        if (now.mode != was->mode || (now.ctime_ns != was->ctime_ns && now.mtime_ns == was->mtime_ns)) ev |= VN_ATTRIB;
+        /* a deleted file's /proc link gains " (deleted)"; anything else is a rename */
+        if (was->path[0] && strcmp(now.path, was->path) != 0 && !strstr(now.path, " (deleted)")) ev |= VN_RENAME;
+        if (strstr(now.path, " (deleted)") && !strstr(was->path, " (deleted)")) ev |= VN_DELETE;
+    }
+    *was = now;
+    return ev & s->mask;
+}
+static void *monitor_thread(void *arg) {
+    unsigned long seen_sig[32] = { 0 };
+    for (;;) {
+        struct pollfd fds[256]; struct dispatch_source_s *who[256]; int n = 0;
+        fds[n].fd = mon_pipe[0]; fds[n].events = POLLIN; fds[n].revents = 0; who[n++] = NULL;
+        pthread_mutex_lock(&mon_lock);
+        int timed = 0;
+        for (struct dispatch_source_s *s = monitored; s; s = s->next_monitored) {
+            if (s->type == ST_PROC || s->type == ST_VNODE) timed = 1;
+            if ((s->type == ST_READ || s->type == ST_WRITE) && n < 256) {
+                pthread_mutex_lock(&s->lock);
+                int idle = !s->handler_queued && !s->suspended && !s->cancelled;
+                pthread_mutex_unlock(&s->lock);
+                if (!idle) continue;
+                dispatch_retain(s);
+                fds[n].fd = (int)s->handle; fds[n].events = s->type == ST_READ ? POLLIN : POLLOUT; fds[n].revents = 0; who[n++] = s;
+            }
+        }
+        pthread_mutex_unlock(&mon_lock);
+        int r = poll(fds, (nfds_t)n, timed ? 50 : 1000);
+        if (r > 0 && (fds[0].revents & POLLIN)) { char buf[64]; (void)read(mon_pipe[0], buf, sizeof buf); }
+        for (int i = 1; i < n; i++) {
+            struct dispatch_source_s *s = who[i];
+            if (r > 0 && fds[i].revents && !(fds[i].revents & POLLNVAL)) {
+                unsigned long data = 1;
+                if (s->type == ST_READ) { int avail = 0; if (ioctl((int)s->handle, FIONREAD, &avail) == 0) data = avail > 0 ? (unsigned long)avail : 0; }
+                else data = 1;   /* Apple reports the free buffer space; isim reports 1 */
+                /* readable with 0 bytes = end of file / hang-up: still an event (data 0 like Apple's) */
+                pthread_mutex_lock(&s->lock);
+                s->pending = data ? data : 0;
+                if (!s->handler_queued && s->activated && !s->suspended && !s->cancelled) {
+                    s->handler_queued = 1; dispatch_retain(s);
+                    pthread_mutex_unlock(&s->lock);
+                    dispatch_async_f(s->queue, s, source_handler);
+                } else pthread_mutex_unlock(&s->lock);
+            }
+            dispatch_release(s);
+        }
+        /* signals, processes, files */
+        pthread_mutex_lock(&mon_lock);
+        unsigned long counts[32];
+        for (int i = 0; i < 32; i++) { unsigned long c = __atomic_load_n(&sig_counts[i], __ATOMIC_RELAXED); counts[i] = c - seen_sig[i]; seen_sig[i] = c; }
+        for (struct dispatch_source_s *s = monitored; s; s = s->next_monitored) {
+            if (s->type == ST_SIGNAL && counts[s->handle]) source_merge(s, counts[s->handle], 0);
+            else if (s->type == ST_PROC && (s->mask & PROC_EXIT)) {
+                if (kill((pid_t)s->handle, 0) != 0 && errno == ESRCH) { source_merge(s, PROC_EXIT, 0); s->mask &= ~PROC_EXIT; }
+            } else if (s->type == ST_VNODE) {
+                unsigned long ev = vn_changes(s);
+                if (ev) source_merge(s, ev, 0);
+            }
+        }
+        pthread_mutex_unlock(&mon_lock);
+    }
+    return NULL;
+}
+static void monitor_add(struct dispatch_source_s *s) {
+    pthread_mutex_lock(&mon_lock);
+    if (!mon_started) {
+        mon_started = 1;
+        if (pipe(mon_pipe) == 0) { fcntl(mon_pipe[0], F_SETFL, O_NONBLOCK); fcntl(mon_pipe[1], F_SETFL, O_NONBLOCK); }
+        pthread_t th; pthread_create(&th, NULL, monitor_thread, NULL); pthread_detach(th);
+    }
+    if (s->type == ST_SIGNAL && !sig_installed[s->handle]) { sig_installed[s->handle] = 1; signal((int)s->handle, sig_handler); }
+    if (s->type == ST_VNODE) vn_snapshot(s, &s->vn);
+    dispatch_retain(s);
+    s->monitored = 1;
+    s->next_monitored = monitored; monitored = s;
+    pthread_mutex_unlock(&mon_lock);
+    mon_wake();
+}
+static void monitor_remove(struct dispatch_source_s *s) {
+    pthread_mutex_lock(&mon_lock);
+    int found = 0;
+    for (struct dispatch_source_s **pp = &monitored; *pp; pp = &(*pp)->next_monitored)
+        if (*pp == s) { *pp = s->next_monitored; found = 1; break; }
+    s->monitored = 0;
+    pthread_mutex_unlock(&mon_lock);
+    if (found) { mon_wake(); dispatch_release(s); }
+}
+static int is_monitored_type(int t) { return t == ST_READ || t == ST_WRITE || t == ST_SIGNAL || t == ST_PROC || t == ST_VNODE; }
+
 void dispatch_source_cancel(dispatch_source_t s) {
     pthread_mutex_lock(&s->lock);
     int first = !s->cancelled; s->cancelled = 1;
     pthread_mutex_unlock(&s->lock);
+    if (first && is_monitored_type(s->type)) monitor_remove(s);
     if (first && (s->cancel_f || s->cancel_b)) { dispatch_retain(s); dispatch_async_f(s->queue, s, cancel_handler); }
 }
 long dispatch_source_testcancel(dispatch_source_t s) { return s->cancelled; }
-uintptr_t dispatch_source_get_data(dispatch_source_t s) { return s->fired; }
+uintptr_t dispatch_source_get_data(dispatch_source_t s) { return s->type == ST_TIMER ? s->fired : s->data; }
+uintptr_t dispatch_source_get_handle(dispatch_source_t s) { return s->handle; }
+uintptr_t dispatch_source_get_mask(dispatch_source_t s) { return s->mask; }
 void dispatch_activate(dispatch_object_t o) {
     dobj *d = o;
     if (!d || d->kind != K_SOURCE) return;
     struct dispatch_source_s *s = o;
     pthread_mutex_lock(&s->lock);
-    if (!s->activated) { s->activated = 1; s->suspended = 0; source_arm(s); }
+    int first = !s->activated;
+    if (first) { s->activated = 1; s->suspended = 0; source_arm(s); source_queue_handler(s); }
     pthread_mutex_unlock(&s->lock);
+    if (first && (s->reg_f || s->reg_b)) { dispatch_retain(s); dispatch_async_f(s->queue, s, reg_handler); }
+    if (first && is_monitored_type(s->type) && !s->cancelled) monitor_add(s);
 }
 void dispatch_resume(dispatch_object_t o) {
     dobj *d = o;
@@ -421,7 +624,9 @@ void dispatch_resume(dispatch_object_t o) {
     pthread_mutex_lock(&s->lock);
     if (s->suspended > 0) s->suspended--;
     source_arm(s);
+    source_queue_handler(s);
     pthread_mutex_unlock(&s->lock);
+    if (s->type == ST_READ || s->type == ST_WRITE) mon_wake();
 }
 void dispatch_suspend(dispatch_object_t o) {
     dobj *d = o;
@@ -514,6 +719,7 @@ void dispatch_apply(size_t n, dispatch_queue_t q, void (^b)(size_t)) { for (size
 void dispatch_once(dispatch_once_t *pred, dispatch_block_t b) { dispatch_once_f(pred, (void *)b, block_sync); }
 void dispatch_source_set_event_handler(dispatch_source_t s, dispatch_block_t h) { if (s->handler_b) Block_release(s->handler_b); s->handler_b = h ? Block_copy(h) : NULL; s->handler_f = NULL; }
 void dispatch_source_set_cancel_handler(dispatch_source_t s, dispatch_block_t h) { if (s->cancel_b) Block_release(s->cancel_b); s->cancel_b = h ? Block_copy(h) : NULL; s->cancel_f = NULL; }
+void dispatch_source_set_registration_handler(dispatch_source_t s, dispatch_block_t h) { if (s->reg_b) Block_release(s->reg_b); s->reg_b = h ? Block_copy(h) : NULL; s->reg_f = NULL; }
 void dispatch_group_async(dispatch_group_t g, dispatch_queue_t q, dispatch_block_t b) { dispatch_group_async_f(g, q, Block_copy(b), block_trampoline); }
 void dispatch_group_notify(dispatch_group_t g, dispatch_queue_t q, dispatch_block_t b) { dispatch_group_notify_f(g, q, Block_copy(b), block_trampoline); }
 

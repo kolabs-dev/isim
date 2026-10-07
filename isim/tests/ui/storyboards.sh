@@ -16,7 +16,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=$PWD/out/test-shots/HelloStoryboards; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/storyboards; rm -rf "$ISIM_DATA"
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_LAUNCH_SCREEN_SECS=${LS:-0.25} ISIM_SCRIPT="$2" timeout 90 out/bin/isim run "out/apps/$1.app" 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_LAUNCH_SCREEN_SECS=${LS:-0.25} ISIM_SCRIPT="$2" timeout 90 out/bin/isim run "out/apps/$1.app" 2>&1; }
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 
 classic=$(LS=1.5 run HelloStoryboardsClassic "wait 0.2; shot $shots/classic-launch.png; dump; wait 2; tapid classic-increment; wait 0.2; tapid classic-increment; wait 0.2; tapid classic-increment; wait 0.2; tapid classic-reset; wait 0.2; tapid classic-increment; wait 0.3; shot $shots/classic.png; dump; quit"); rc1=$?
@@ -68,7 +68,7 @@ check "apps exit cleanly" '[ $rc1 = 0 ] && [ $rc2 = 0 ] && [ $rc3 = 0 ]'
 if [ -x out/sdk/Applications/Settings.app/Settings ]; then
   export ISIM_DATA=$PWD/out/test-data/storyboards-settings; rm -rf "$ISIM_DATA"
   out/bin/isim install out/apps/HelloStoryboards.app >/dev/null
-  settings=$(ISIM_DEVICE=iphone17 ISIM_SHOT_SCALE=1 timeout 90 out/bin/isim boot --headless --script "wait 1; launch dev.isim.settings; wait 1.5; tapid settings-app-dev.isim.samples.HelloStoryboards; wait 1; shot $shots/settings-page.png; dump; tapid pref-enabled_preference; wait 0.4; tapid pref-name_preference; wait 0.3; key backspace; key backspace; key backspace; key backspace; key backspace; type Zoe; wait 0.3; key return; wait 0.3; tapid pref-theme_preference; wait 0.8; tapid pref-theme_preference-dark; wait 0.4; tapid isim-nav-back; wait 0.8; tapid pref-pane-Advanced; wait 0.8; tapid pref-advanced_preference; wait 0.4; dump; launch dev.isim.samples.HelloStoryboards; wait 2; quit" 2>&1); rc4=$?
+  settings=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 timeout 90 out/bin/isim boot --headless --script "wait 1; launch dev.isim.settings; wait 1.5; tapid settings-app-dev.isim.samples.HelloStoryboards; wait 1; shot $shots/settings-page.png; dump; tapid pref-enabled_preference; wait 0.4; tapid pref-name_preference; wait 0.3; key backspace; key backspace; key backspace; key backspace; key backspace; type Zoe; wait 0.3; key return; wait 0.3; tapid pref-theme_preference; wait 0.8; tapid pref-theme_preference-dark; wait 0.4; tapid isim-nav-back; wait 0.8; tapid pref-pane-Advanced; wait 0.8; tapid pref-advanced_preference; wait 0.4; dump; launch dev.isim.samples.HelloStoryboards; wait 2; quit" 2>&1); rc4=$?
   prefs=$ISIM_DATA/Containers/dev.isim.samples.HelloStoryboards/Library/Preferences/dev.isim.samples.HelloStoryboards.plist
   check "Settings: app page from Settings.bundle (localized)" 'grep -q "text=Display Name" <<<"$settings" && grep -q "text=Notifications" <<<"$settings" && grep -q "text=Automatic" <<<"$settings" && grep -q "text=1.0 (7)" <<<"$settings"'
   check "Settings: writes the app domain" '[ -f "$prefs" ] && grep -q "<string>dark</string>" "$prefs" && grep -q "<string>Zoe</string>" "$prefs"'

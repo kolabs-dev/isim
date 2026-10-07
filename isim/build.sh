@@ -16,7 +16,7 @@ step() { printf '\n== %s\n' "$*"; }
 step "host runtime"
 PKGS="sdl3 cairo pangocairo pangoft2 fontconfig librsvg-2.0 gdk-pixbuf-2.0"
 $CC -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -o "$OUT/bin/isim-runtime" \
-    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/objc_exc.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c runtime/host_gamepad.c runtime/host_ca.c runtime/host_cg.c runtime/host_web.c runtime/host_tls.c runtime/host_xctest.c \
+    runtime/loader.c runtime/libsystem.c runtime/objc_rt.c runtime/objc_exc.c runtime/host.c runtime/host_image.c runtime/host_audio.c runtime/host_net.c runtime/host_crypto.c runtime/host_pki.c runtime/host_sqlite.c runtime/host_os.c runtime/host_regex.c runtime/host_paint.c runtime/host_media.c runtime/host_gamepad.c runtime/host_ca.c runtime/host_cg.c runtime/host_web.c runtime/host_tls.c runtime/host_xctest.c runtime/host_capture.c \
     $(pkg-config --cflags --libs $PKGS) -lm -lpthread -ldl
 
 # web engine helper for WKWebView (optional): the host's WebKitGTK 6.0 on a private broadway display
@@ -65,6 +65,10 @@ gen_tbd /usr/lib/libsqlite3.dylib "$SDK/usr/lib/libsqlite3.tbd"
 GUEST_CFLAGS=(-target x86_64-apple-ios$MINOS-simulator -nostdlibinc -isystem "$SDK/usr/include"
               -iframework "$SDK/System/Library/Frameworks" -O1 -g -fobjc-runtime=ios-$MINOS
               -Wall -Wno-unused-parameter -Wno-objc-designated-initializers -Wno-missing-noescape -Wno-mismatched-parameter-types -fno-stack-protector)
+# clang >= 23 emits Objective-C literals (@[], @{}, @42, @YES) as constant objects (NSConstantArray, ...) that isim's
+# Foundation does not provide yet: keep them as runtime calls, in every clang this build and its scripts run
+# ('#' keeps clang quiet about the added option)
+echo | $CC -x objective-c -fno-objc-constant-literals -fsyntax-only - 2>/dev/null && export CCC_OVERRIDE_OPTIONS="#+-fno-objc-constant-literals"
 export GUEST_LDFLAGS="-arch x86_64 -platform_version ios-simulator $MINOS 0"
 
 framework() { # Name srcdir [extra ld args...]

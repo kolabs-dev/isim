@@ -41,6 +41,11 @@ NS_SWIFT_UI_ACTOR
 + (instancetype)borderedButtonConfiguration;
 + (instancetype)borderedTintedButtonConfiguration;
 + (instancetype)borderedProminentButtonConfiguration;
+/* iOS 26 Liquid Glass buttons (isim: glass capsule; prominent = tinted with the tint color) */
++ (instancetype)glassButtonConfiguration API_AVAILABLE(ios(26.0));
++ (instancetype)prominentGlassButtonConfiguration API_AVAILABLE(ios(26.0));
++ (instancetype)clearGlassButtonConfiguration API_AVAILABLE(ios(26.0));
++ (instancetype)prominentClearGlassButtonConfiguration API_AVAILABLE(ios(26.0));
 @property (nonatomic, copy, nullable) NSString *title;
 @property (nonatomic, copy, nullable) NSString *subtitle;
 @property (nonatomic, strong, nullable) UIImage *image;

@@ -17,7 +17,7 @@ trap 'kill $srv $tls 2>/dev/null' EXIT
 port= tport=
 for _ in $(seq 80); do port=$(awk '/^PORT/{print $2}' "$ISIM_DATA/port"); tport=$(awk '/^PORT/{print $2}' "$ISIM_DATA/tlsport"); [ -n "$port" ] && [ -n "$tport" ] && break; sleep 0.1; done
 [ -n "$port" ] && [ -n "$tport" ] || { echo "FAIL  local servers did not start"; cat "$ISIM_DATA"/*.log; exit 1; }
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 14; dump; quit" timeout 90 out/bin/isim run out/apps/HelloConnections.app -server "http://127.0.0.1:$port" -tls "$tport" 2>&1); rc=$?
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 14; dump; quit" timeout 90 out/bin/isim run out/apps/HelloConnections.app -server "http://127.0.0.1:$port" -tls "$tport" 2>&1); rc=$?
 printf '%s\n' "$log" > "$ISIM_DATA/app.log"
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }

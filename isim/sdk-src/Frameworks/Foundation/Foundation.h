@@ -48,4 +48,5 @@
 #import <Foundation/NSFileHandle.h>
 #import <Foundation/NSAttributedString.h>
 #import <Foundation/NSValueTransformer.h>
+#import <Foundation/NSUbiquitousKeyValueStore.h>
 #import <Foundation/NSUserActivity.h>

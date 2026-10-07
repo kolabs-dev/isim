@@ -15,7 +15,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 
 | Command | What it does |
 |---|---|
-| `wait S` | wait S seconds (fractions allowed) |
+| `wait S` | wait S seconds (fractions allowed; `ISIM_WAIT_SCALE=2` doubles every wait, for slow machines) |
 | `quit` | stop the device |
 | `home` | go to the home screen |
 | `launch BUNDLE_ID` | open an installed app |
@@ -70,6 +70,7 @@ While one of these is shown, `dump` lists its parts (ids and text) and `tapid` /
 | `shake` | Device ▸ Shake |
 | `location LAT LON` / `location none` | Features ▸ Location |
 | `remote NAME [ARG]` | `MPRemoteCommandCenter` command: `play`, `pause`, `toggle`, `next`, `previous`, `skipforward`, `skipback`, `seek S`, `rate R` |
+| `audio interrupt begin` · `audio interrupt end [resume]` · `audio route NAME` · `audio silence begin\|end` · `audio reset` | `AVAudioSession` events: an interruption (like a phone call; it pauses `AVAudioPlayer`s, `resume` sets `.shouldResume`), a route change to `headphones`, `headset`, `bluetooth`, `carplay`, `airplay`, `usb`, `hdmi`, `receiver` or `speaker`, the secondary-audio hint, media services reset |
 | `gamepad connect [NAME]` · `gamepad button NAME 0\|1` · `gamepad axis NAME VALUE` · `gamepad disconnect` | a virtual game controller |
 | `metrickit` | Debug ▸ Simulate MetricKit Payloads |
 | `voiceover on\|off\|next\|prev\|activate\|increment\|decrement\|action\|escape\|read` | drive the simulated VoiceOver |
@@ -89,3 +90,8 @@ to move two fingers together. Swipe up from the bottom edge or press Ctrl+Shift+
 rotates; F12 saves a screenshot. Under `isim boot`: Ctrl+Shift+H twice opens the app switcher (or swipe up from the
 bottom edge and hold), Ctrl+L locks/unlocks, pulling down from the top edge opens Notification Center (Control
 Center from the top-right corner).
+
+The iOS version (`--os 17|18|26|27`, see [IOS-VERSIONS.md](IOS-VERSIONS.md)) changes what scripts see: frames of
+system controls (e.g. the iOS 26 switch is 63 × 28, bar buttons are 44 pt glass circles), Control Center's parts
+(iOS 18+ adds `cc-edit` and `cc-power`) and the look in screenshots. `ISIM_LOCK_TIME=H:MM` fixes the Lock Screen
+clock for screenshots.

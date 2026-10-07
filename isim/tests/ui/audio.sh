@@ -9,7 +9,7 @@ command -v ffmpeg >/dev/null || { echo "SKIP  HelloAudio needs ffmpeg on the hos
 export ISIM_DATA=$PWD/out/test-data/audio; rm -rf "$ISIM_DATA"; mkdir -p "$ISIM_DATA"
 input=$ISIM_DATA/mic-input.wav
 ffmpeg -nostdin -v error -y -f lavfi -i "aevalsrc=0.8*sin(2*PI*1000*t):s=48000:d=3" "$input"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_AUDIO_INPUT=$input \
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_AUDIO_INPUT=$input \
       ISIM_SCRIPT="wait 1.5; remote play; remote skipforward 15; remote seek 42; remote next; wait 0.5; tapid speak; wait 4; dump; quit" \
       timeout 60 out/bin/isim run out/apps/HelloAudio.app 2>&1); rc=$?
 fail=0

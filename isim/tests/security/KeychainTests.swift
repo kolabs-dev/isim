@@ -103,7 +103,7 @@ func keychainTests() {
     check(SecItemCopyMatching(all as CFDictionary, &item) == errSecItemNotFound, "items are gone after delete")
     _ = SecItemDelete(gq as CFDictionary)
     check(SecItemAdd([kSecValueData as String: Data()] as CFDictionary, nil) == errSecParam, "missing kSecClass -> errSecParam")
-    check(SecItemAdd([kSecClass as String: kSecClassKey] as CFDictionary, nil) == errSecUnimplemented, "keys are not supported (errSecUnimplemented)")
+    check(SecItemAdd([kSecClass as String: kSecClassKey] as CFDictionary, nil) == errSecParam, "a key item without kSecValueRef or kSecValueData -> errSecParam")
     check((SecCopyErrorMessageString(errSecItemNotFound, nil) as String?) == "The specified item could not be found in the keychain.", "SecCopyErrorMessageString")
     var bytes = [UInt8](repeating: 0, count: 16)
     check(SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess && bytes != [UInt8](repeating: 0, count: 16), "SecRandomCopyBytes")
