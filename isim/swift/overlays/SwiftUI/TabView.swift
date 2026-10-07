@@ -12,14 +12,18 @@ public struct PageTabViewStyle: TabViewStyle {
     let mode: IndexDisplayMode
     public init(indexDisplayMode: IndexDisplayMode = .automatic) { mode = indexDisplayMode }
 }
+@available(iOS 18.0, *)
 public struct SidebarAdaptableTabViewStyle: TabViewStyle { public init() {} }
+@available(iOS 18.0, *)
 public struct TabBarOnlyTabViewStyle: TabViewStyle { public init() {} }
 extension TabViewStyle where Self == DefaultTabViewStyle { public static var automatic: DefaultTabViewStyle { .init() } }
 extension TabViewStyle where Self == PageTabViewStyle {
     public static var page: PageTabViewStyle { .init() }
     public static func page(indexDisplayMode: PageTabViewStyle.IndexDisplayMode) -> PageTabViewStyle { .init(indexDisplayMode: indexDisplayMode) }
 }
+@available(iOS 18.0, *)
 extension TabViewStyle where Self == SidebarAdaptableTabViewStyle { public static var sidebarAdaptable: SidebarAdaptableTabViewStyle { .init() } }
+@available(iOS 18.0, *)
 extension TabViewStyle where Self == TabBarOnlyTabViewStyle { public static var tabBarOnly: TabBarOnlyTabViewStyle { .init() } }
 
 enum _TabStyle { case bar, page(showDots: Bool) }
@@ -56,6 +60,7 @@ public struct ToolbarPlacement: Sendable {
 }
 
 /// iOS 18 tabs: `Tab("Title", systemImage: "house", value: .home) { ... }`
+@available(iOS 18.0, *)
 public struct Tab<Value: Hashable, Content: View, Label: View>: View, _PrimitiveView {
     let value: Value?, content: Content, label: Label
     var _role = 0                                   // TabRole id (Glass.swift)
@@ -68,6 +73,7 @@ public struct Tab<Value: Hashable, Content: View, Label: View>: View, _Primitive
         return n
     }
 }
+@available(iOS 18.0, *)
 extension Tab where Label == SwiftUI.Label<Text, Image> {
     public init(_ titleKey: LocalizedStringKey, systemImage: String, value: Value, @ViewBuilder content: () -> Content) {
         self.value = value; self.content = content(); label = SwiftUI.Label(titleKey, systemImage: systemImage)
@@ -76,6 +82,7 @@ extension Tab where Label == SwiftUI.Label<Text, Image> {
         self.value = value; self.content = content(); label = SwiftUI.Label(title, systemImage: systemImage)
     }
 }
+@available(iOS 18.0, *)
 extension Tab where Value == Never, Label == SwiftUI.Label<Text, Image> {
     public init(_ titleKey: LocalizedStringKey, systemImage: String, @ViewBuilder content: () -> Content) {
         value = nil; self.content = content(); label = SwiftUI.Label(titleKey, systemImage: systemImage)

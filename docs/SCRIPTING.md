@@ -19,6 +19,8 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `quit` | stop the device |
 | `home` | go to the home screen |
 | `launch BUNDLE_ID` | open an installed app |
+| `lock` / `unlock` | show / dismiss the Lock Screen (`isim boot`; the look of the `--os` version) |
+| `controlcenter` / `controlcenter off` | open / close Control Center (`isim boot`; iOS 17, the iOS 18 redesign, or iOS 26+ glass) |
 | `openurl URL` | open a URL in the foreground app: custom schemes and universal links (`isim openurl URL --control FIFO` does the same from another terminal) |
 
 ## Touch
@@ -70,4 +72,9 @@ Coordinates are in points of the device screen, with the origin at the top left.
 
 In a window: click to touch, drag to swipe, Option-drag for a second finger (pinch/rotate), Option+Shift-drag
 to move two fingers together. Swipe up from the bottom edge or press Ctrl+Shift+H to go home; Ctrl+Left/Right
-rotates; F12 saves a screenshot.
+rotates; F12 saves a screenshot. Ctrl+L locks/unlocks; a swipe down from the top-right corner opens Control Center
+(tap to close it).
+
+The iOS version (`--os 17|18|26|27`, see [IOS-VERSIONS.md](IOS-VERSIONS.md)) changes what scripts see: frames of
+system controls (e.g. the iOS 26 switch is 63 × 28, bar buttons are 44 pt glass circles) and the look in screenshots.
+Set `ISIM_LOCK_TIME=H:MM` for a fixed Lock Screen clock in screenshots.

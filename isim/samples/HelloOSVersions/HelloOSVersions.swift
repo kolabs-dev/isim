@@ -108,7 +108,9 @@ final class HomeViewController: UIViewController {
         super.viewDidAppear(animated)
         let s = (view.viewWithTag(0)?.subviews.compactMap { $0 as? UIStackView }.first?.arrangedSubviews.last as? UISwitch)?.bounds.size ?? .zero
         print("hov switch size \(Int(s.width))x\(Int(s.height))")
-        if let tb = tabBarController?.tabBar { print("hov tabbar frame \(Int(tb.frame.minX)) \(Int(tb.frame.minY)) \(Int(tb.frame.width)) \(Int(tb.frame.height))") }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            if let tb = self?.tabBarController?.tabBar { print("hov tabbar frame \(Int(tb.frame.minX)) \(Int(tb.frame.minY)) \(Int(tb.frame.width)) \(Int(tb.frame.height))") }
+        }
     }
     func alert() {
         let a = UIAlertController(title: "Liquid Glass?", message: "This alert follows the emulated iOS version.", preferredStyle: .alert)
