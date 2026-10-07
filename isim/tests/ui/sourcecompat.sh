@@ -12,7 +12,7 @@ fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
 px() { magick "$1" -format '%[fx:int(255*p{'"$2"','"$3"'}.r)] %[fx:int(255*p{'"$2"','"$3"'}.g)] %[fx:int(255*p{'"$2"','"$3"'}.b)]' info:; }
 red() { read -r r g b <<<"$(px "$@")"; [ "$r" -gt 180 ] && [ "$g" -lt 90 ] && [ "$b" -lt 90 ]; }
-log=$(ISIM_DATA=$data ISIM_STANDALONE=1 timeout 90 out/bin/isim run "$app" --device iphone17 --headless --script \
+log=$(ISIM_DATA=$data ISIM_STANDALONE=1 timeout 90 out/bin/isim run "$app" --device ${ISIM_TEST_DEVICE:-iphone16pro} --headless --script \
   "wait 2; dump; shot $data/s.png; drag 120 528 280 528 0.3; wait 0.5; tapid disable; wait 0.5; drag 120 528 280 528 0.3; wait 0.5; tapid haptic; wait 0.5; quit" 2>&1)
 check "Scene.onChange(of: scenePhase, initial: true)" 'grep -q "^compat scene phase active" <<<"$log"'
 check "Color and Bundle in nonisolated statics"       'grep -q "^compat statics true bundle=dev.isim.samples.HelloSourceCompat" <<<"$log"'

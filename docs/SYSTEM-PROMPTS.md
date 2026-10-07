@@ -5,6 +5,15 @@ them up front, like toggling options in the Simulator's menus. Device data (apps
 book, calendars, photo library, Health data) lives in `~/.local/share/isim`, or in `ISIM_DATA` when set; tests
 should always use their own `ISIM_DATA`.
 
+## iOS version and device
+
+| Variable | Effect |
+|---|---|
+| `ISIM_OS_VERSION=17\|18\|26\|27` (or `17.5`, …) | the iOS version, like `--os` (default 18.0; remembered in the device data). Permission alerts follow it (e.g. iOS 17's two-button contacts alert, iOS 18's limited access) |
+| `ISIM_DEVICE=iphone17` | the device preset, like `--device`; it must be able to run the version (see [IOS-VERSIONS.md](IOS-VERSIONS.md)) |
+| `ISIM_ICON_STYLE=light\|dark\|tinted\|clear` | Home Screen icon appearance (iOS 18+; `clear` iOS 26+); `ISIM_ICON_TINT=#RRGGBB` for tinted |
+| `ISIM_LOCK_TIME=H:MM` | a fixed Lock Screen clock (screenshots) |
+
 ## Biometrics
 
 Face ID / Touch ID scans show an alert standing in for the Simulator's Features menu (Matching / Non-matching /

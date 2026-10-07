@@ -8,7 +8,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloTextEditing; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/textediting; rm -rf "$ISIM_DATA"
-log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; tap 134 100; wait 0.6; tap 134 100; tap 134 100; wait 0.3; shot $shots/selection.png; tapid isim-menu-Copy; wait 0.2;
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; tap 134 100; wait 0.6; tap 134 100; tap 134 100; wait 0.3; shot $shots/selection.png; tapid isim-menu-Copy; wait 0.2;
  keydown right; keyup right; keydown ctrl; keydown v; keyup v; keyup ctrl; wait 0.2; keydown shift; keydown left; keyup left; keydown left; keyup left; keydown left; keyup left; keyup shift; wait 0.2; type X; wait 0.2;
  compose にほ; compose にほん; wait 0.2; dump; shot $shots/marked.png; type 日本; wait 0.2; holdid notes 0.8; wait 0.3;
  tapid field; wait 0.3; tapid isim-kb-t; tapid isim-kb-e; tapid isim-kb-h; wait 0.2; dump; tapid isim-kb-space; wait 0.2; holdid isim-kb-e 0.7; wait 0.2; shot $shots/accents.png; tapid isim-kb-accent-é;
@@ -17,7 +17,7 @@ log=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1
 # Portuguese (Brazil) keyboard enabled in Settings > General > Keyboard > Keyboards
 export ISIM_DATA=$PWD/out/test-data/textediting-pt; rm -rf "$ISIM_DATA"; mkdir -p "$ISIM_DATA/Library/Preferences"
 printf '%s' '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>AppleKeyboards</key><array><string>en_US@sw=QWERTY;hw=Automatic</string><string>pt_BR@sw=QWERTY;hw=Automatic</string><string>emoji@sw=Emoji</string></array></dict></plist>' > "$ISIM_DATA/Library/Preferences/.GlobalPreferences.plist"
-pt=$(ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; tapid field; wait 0.3; tapid isim-kb-globe; wait 0.3; shot $shots/portuguese.png; dump; holdid isim-kb-c 0.7; wait 0.2; tapid isim-kb-accent-ç; tapid isim-kb-a; wait 0.2; holdid isim-kb-globe 0.6; wait 0.2; tapid isim-kb-menu-emoji; wait 0.2; quit" \
+pt=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="wait 1; tapid field; wait 0.3; tapid isim-kb-globe; wait 0.3; shot $shots/portuguese.png; dump; holdid isim-kb-c 0.7; wait 0.2; tapid isim-kb-accent-ç; tapid isim-kb-a; wait 0.2; holdid isim-kb-globe 0.6; wait 0.2; tapid isim-kb-menu-emoji; wait 0.2; quit" \
       timeout 60 out/bin/isim run out/apps/HelloTextEditing.app 2>&1); rc2=$?
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }

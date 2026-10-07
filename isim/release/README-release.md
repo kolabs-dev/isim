@@ -71,6 +71,11 @@ Other devices: `bin/isim boot --device iphonese` (also `iphone13mini`, `iphone14
 
 Run a single app without the home screen: `bin/isim run apps/HelloSwiftUI.app`.
 
+iOS versions: `bin/isim boot --os 26 --device iphone17` (also `17`, `18` (default), `27`; `bin/isim devices` lists
+which versions each device can run). The version changes what apps see (`UIDevice.systemVersion`, `#available`) and
+the look: iOS 26 and 27 use Liquid Glass (floating tab bar, glass buttons, alerts and dock). Ctrl+L shows the Lock
+Screen; a swipe down from the top-right corner opens Control Center.
+
 ## Build your own app
 
 ```bash

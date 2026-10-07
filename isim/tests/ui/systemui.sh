@@ -8,7 +8,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/systemui; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/systemui; rm -rf "$ISIM_DATA"
 out/bin/isim install out/apps/HelloSystem.app out/apps/HelloSecurity.app >/dev/null
-log=$(ISIM_DEVICE=iphone17 ISIM_SHOT_SCALE=1 ISIM_NOTIFICATION_PERMISSION=allow timeout 120 out/bin/isim boot --headless --script "wait 1;
+log=$(ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 ISIM_NOTIFICATION_PERMISSION=allow timeout 120 out/bin/isim boot --headless --script "wait 1;
   launch dev.isim.samples.HelloSecurity; wait 1.2; tapid notify; wait 0.4; launch dev.isim.samples.HelloSystem; wait 1;
   lock; wait 4; shot $shots/lock.png; dump; drag 200 860 200 600 0.3; wait 0.6;
   drag 120 4 120 320 0.3; wait 0.6; shot $shots/notification-center.png; dump; tapid nc-item-backup; wait 1.2; dump;
@@ -37,9 +37,9 @@ check "pull down from the top-right: Control Center"            'grep -q "IsimCo
 check "Wi-Fi off: NWPathMonitor unsatisfied; on: satisfied"      'grep -q "network offline (Control Center)" <<<"$log" && after "network offline" | grep -q "HelloSystem: network unsatisfied" && after "network online" | grep -q "HelloSystem: network satisfied"'
 check "Dark Mode: apps switch appearance"                       'grep -q "SpringBoard: appearance dark" <<<"$log" && after "Dark Mode on" | grep -q "HelloSystem: appearance dark"'
 check "orientation lock ignores rotation"                       'grep -q "rotation ignored (orientation lock)" <<<"$log"'
-check "Control Center drawn (pixels: blue Wi-Fi button)"        'python3 - "$shots/control-center.png" <<PY
+check "Control Center drawn (pixels: blue Wi-Fi button; iOS 18 layout, modules below the edit/power row)" 'python3 - "$shots/control-center.png" <<PY
 import subprocess, sys
-out = subprocess.run(["magick", sys.argv[1], "-crop", "6x6+52+214", "+repage", "-format", "%[fx:mean.b] %[fx:mean.r]", "info:"], capture_output=True, text=True).stdout.split()
+out = subprocess.run(["magick", sys.argv[1], "-crop", "6x6+52+242", "+repage", "-format", "%[fx:mean.b] %[fx:mean.r]", "info:"], capture_output=True, text=True).stdout.split()
 sys.exit(0 if out and float(out[0]) > 0.8 and float(out[1]) < 0.3 else 1)
 PY'
 check "Notification Center: a second notification listed, cleared" 'grep -q "Notification Center (1 notification)" <<<"$log" && grep -q "cleared 1 notification(s)" <<<"$log"'

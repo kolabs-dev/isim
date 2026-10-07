@@ -89,3 +89,8 @@ to move two fingers together. Swipe up from the bottom edge or press Ctrl+Shift+
 rotates; F12 saves a screenshot. Under `isim boot`: Ctrl+Shift+H twice opens the app switcher (or swipe up from the
 bottom edge and hold), Ctrl+L locks/unlocks, pulling down from the top edge opens Notification Center (Control
 Center from the top-right corner).
+
+The iOS version (`--os 17|18|26|27`, see [IOS-VERSIONS.md](IOS-VERSIONS.md)) changes what scripts see: frames of
+system controls (e.g. the iOS 26 switch is 63 × 28, bar buttons are 44 pt glass circles), Control Center's parts
+(iOS 18+ adds `cc-edit` and `cc-power`) and the look in screenshots. `ISIM_LOCK_TIME=H:MM` fixes the Lock Screen
+clock for screenshots.

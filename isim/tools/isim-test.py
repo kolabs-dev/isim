@@ -3,7 +3,7 @@
 
   isim test (-project App.xcodeproj | -workspace App.xcworkspace) [-scheme NAME | -target TESTTARGET ...]
             [-configuration Debug] [-only-testing:Target[/Class[/test]]] [-skip-testing:...] [-o OUTDIR]
-            [-resultBundlePath DIR] [-package-cache DIR] [--device NAME] [--windowed] [SETTING=VALUE ...]
+            [-resultBundlePath DIR] [-package-cache DIR] [--device NAME] [--os 17|18|26|27] [--windowed] [SETTING=VALUE ...]
 
 * unit-test bundles with a TEST_HOST run inside the host app (the app launches, then the tests run in it);
   bundles without one, and UI-test bundles, run in isim's `xctest` runner process. UI tests drive the
@@ -34,7 +34,7 @@ def main():
     argv = sys.argv[1:]
     only, skip, rest = [], [], []
     opts = {'project': None, 'workspace': None, 'scheme': None, 'configuration': None, 'output': None,
-            'result': None, 'device': None, 'windowed': False, 'targets': [], 'package_cache': []}
+            'result': None, 'device': None, 'os': None, 'windowed': False, 'targets': [], 'package_cache': []}
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -57,9 +57,17 @@ def main():
             opts['package_cache'].append(nxt); i += 1
         elif a == '--device':
             opts['device'] = nxt; i += 1
+        elif a == '--os':
+            opts['os'] = nxt; i += 1
         elif a == '--windowed':
             opts['windowed'] = True
-        elif a in ('-sdk', '-destination'):
+        elif a == '-destination':                     # always the isim simulator; its OS= picks the iOS version
+            for kv in (nxt or '').split(','):
+                k, _, v = kv.partition('=')
+                if k.strip() == 'OS' and v.strip() not in ('', 'latest'):
+                    opts['os'] = v.strip()
+            i += 1
+        elif a == '-sdk':
             i += 1                                   # always the isim simulator
         else:
             rest.append(a)
@@ -117,6 +125,13 @@ def main():
             renv.pop('ISIM_HEADLESS')
         if opts['device']:
             renv['ISIM_DEVICE'] = opts['device']
+        if opts['os']:
+            renv['ISIM_OS_VERSION'] = opts['os']
+        if renv.get('ISIM_OS_VERSION'):              # validate the device + iOS pairing once, like Xcode's destination check
+            chk = subprocess.run([RUNTIME, '--os-check'], env=renv, capture_output=True, text=True)
+            if chk.returncode:
+                sys.stderr.write(chk.stderr); sys.exit(2)
+            renv['ISIM_OS_VERSION'] = chk.stdout.strip()
         bundle_base = os.path.splitext(os.path.basename(product['path']))[0]
         # identifiers as Bundle[/Class[/test]] (Xcode's Target/... form, with the bundle's name)
         def ids(lst):

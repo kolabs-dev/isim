@@ -287,6 +287,7 @@ void isim_image_draw(int hd, double x, double y, double w, double h, const doubl
     cairo_push_group(c);
     if (im->kind == IMG_PROC) {
         cairo_set_source_rgba(c, 0, 0, 0, 1);
+        cairo_new_path(c);                      /* no stray segment from a current point left by earlier text drawing */
         draw_proc(c, im, w, h);
     } else if (im->kind == IMG_SVG) {
         RsvgRectangle vp = { 0, 0, w, h };

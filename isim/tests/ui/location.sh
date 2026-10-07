@@ -9,7 +9,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloLocation; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/location; rm -rf "$ISIM_DATA"
 app=out/apps/HelloLocation.app
-run() { ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run "${2:-$app}" 2>&1; }
+run() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 60 out/bin/isim run "${2:-$app}" 2>&1; }
 log=$(run "wait 1; tapid start; wait 0.5; tapid requestWhenInUse; wait 0.8; shot $shots/permission.png; dump; taptext Allow While Using App; wait 1;
            location 37.787994 -122.407437; wait 1.2; tapid geocode; wait 0.6; tapid forward; wait 0.8; tapid region; wait 0.6;
            location 37.3349 -122.00902; wait 1.2; tapid requestAlways; wait 0.8; shot $shots/always.png; dump; taptext Change to Always Allow; wait 0.5; dump; quit"); rc=$?

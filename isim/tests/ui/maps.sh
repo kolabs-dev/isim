@@ -11,7 +11,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloMaps; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/maps
 export ISIM_LOCATION_PERMISSION=wheninuse
-run() { rm -rf "$ISIM_DATA"; mkdir -p "$ISIM_DATA"; ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 90 out/bin/isim run out/apps/HelloMaps.app "${@:2}" 2>&1; }
+run() { rm -rf "$ISIM_DATA"; mkdir -p "$ISIM_DATA"; ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1 ISIM_SCRIPT="$1" timeout 90 out/bin/isim run out/apps/HelloMaps.app "${@:2}" 2>&1; }
 log=$(run "wait 1.5; shot $shots/map.png; dump; tap 83 380; wait 0.5; shot $shots/selected.png; tap 312 395; wait 0.6; shot $shots/callout.png; dump; tapid callout-info; wait 0.5; tap 200 650; wait 0.4; tapid route; wait 0.6; tapid snapshot; wait 0.5; tapid search; wait 1; shot $shots/search.png; tapid zoom; wait 0.5; drag 200 400 300 500 0.4; wait 0.5; tapid maptype; wait 0.5; shot $shots/satellite.png; dump; quit"); rc=$?
 printf '%s\n' "$log" > "$ISIM_DATA.log"
 # a local tile cache (magenta tiles around Cupertino, zooms 10-16)

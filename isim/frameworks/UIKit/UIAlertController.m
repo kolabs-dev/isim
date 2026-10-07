@@ -1,5 +1,7 @@
 /* UIAlertController: iOS 17/18-style alerts (centered 270 pt card) and action sheets (bottom cards,
- * separate Cancel). Presented over the presenter with a dimming layer. */
+ * separate Cancel). Presented over the presenter with a dimming layer. With --os 26/27: the Liquid Glass alert
+ * (wider glass card with large corners, leading-aligned text, capsule buttons; the preferred action filled with
+ * the tint) and glass action sheet cards. */
 #import "UIKitPrivate.h"
 
 @class __IsimAlertButton;
@@ -14,9 +16,29 @@
 @property (nonatomic, strong) UIAlertAction *action;
 @property (nonatomic, strong) UILabel *label;
 @property (nonatomic, strong) UIColor *onColor;
+@property (nonatomic) BOOL capsule;                         /* iOS 26 capsule button */
+@property (nonatomic, strong) UIColor *capsuleFill;
+@end
+/* the iOS 26 alert card: glass under a mostly opaque body (alerts stay readable over any content) */
+@interface __IsimGlassCard : UIView
+@end
+@implementation __IsimGlassCard
+- (void)_isim_drawContent {
+    CGSize s = self.bounds.size;
+    UIColor *body = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) {
+        return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.14 alpha:0.62] : [UIColor colorWithWhite:0.98 alpha:0.62]; }];
+    isim_ui_draw_glass(CGRectMake(0, 0, s.width, s.height), self.layer.cornerRadius, body, 4);
+}
 @end
 @implementation __IsimAlertButton
-- (void)setHighlighted:(BOOL)h { [super setHighlighted:h]; self.backgroundColor = h ? [UIColor colorWithWhite:0.5 alpha:0.18] : nil; }
+- (void)setHighlighted:(BOOL)h { [super setHighlighted:h]; if (self.capsule) { isim_ui_set_needs_display(); return; } self.backgroundColor = h ? [UIColor colorWithWhite:0.5 alpha:0.18] : nil; }
+- (void)_isim_drawContent {
+    if (!self.capsule) return;
+    CGSize s = self.bounds.size; double c[4];
+    isim_ui_rgba(self.capsuleFill ?: UIColor.tertiarySystemFillColor, c);
+    if (self.highlighted) c[3] *= 0.7;
+    isim_gfx_fill_rounded(0, 0, s.width, s.height, s.height / 2, c);
+}
 - (void)setEnabled:(BOOL)e { [super setEnabled:e]; self.label.textColor = e ? self.onColor : UIColor.tertiaryLabelColor; }
 @end
 
@@ -86,12 +108,66 @@ static UIColor *card_color(void) {
     return b;
 }
 - (UIView *)_hairline { UIView *h = [UIView new]; h.backgroundColor = UIColor.separatorColor; return h; }
+/* iOS 26+ alert: 300 pt glass card, corner 34, leading text, capsule buttons (two side by side, more stacked) */
+- (void)_isim_buildGlassAlert {
+    UIView *card = [__IsimGlassCard new];
+    card.layer.cornerRadius = 34; card.clipsToBounds = YES;
+    [self.view addSubview:card]; [_cards addObject:card];
+    CGFloat W = 300, pad = 22, y = 22;
+    if (self.title.length) {
+        UILabel *t = [UILabel new]; t.text = self.title; t.numberOfLines = 0; t.textAlignment = NSTextAlignmentLeft;
+        t.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold]; t.textColor = UIColor.labelColor;
+        CGSize s = [t sizeThatFits:CGSizeMake(W - 2 * pad, 1000)];
+        t.frame = CGRectMake(pad, y, W - 2 * pad, ceil(s.height)); [card addSubview:t]; y += ceil(s.height) + 6;
+    }
+    if (self.message.length) {
+        UILabel *m = [UILabel new]; m.text = self.message; m.numberOfLines = 0; m.textAlignment = NSTextAlignmentLeft;
+        m.font = [UIFont systemFontOfSize:15]; m.textColor = UIColor.labelColor;
+        CGSize s = [m sizeThatFits:CGSizeMake(W - 2 * pad, 1000)];
+        m.frame = CGRectMake(pad, y, W - 2 * pad, ceil(s.height)); [card addSubview:m]; y += ceil(s.height) + 6;
+    }
+    y += 10;
+    if (_fields.count) {
+        CGFloat fh = 36;
+        for (UITextField *f in _fields) {
+            UIView *box = [UIView new]; box.backgroundColor = UIColor.tertiarySystemFillColor; box.layer.cornerRadius = fh / 2; box.clipsToBounds = YES;
+            box.frame = CGRectMake(pad - 6, y, W - 2 * pad + 12, fh);
+            f.frame = CGRectMake(14, 0, box.frame.size.width - 28, fh);
+            [box addSubview:f]; [card addSubview:box]; y += fh + 8;
+        }
+        y += 6;
+    }
+    NSMutableArray *order = [NSMutableArray array]; UIAlertAction *cancel = nil;
+    for (UIAlertAction *a in _actions) { if (a.style == UIAlertActionStyleCancel && !cancel) cancel = a; else [order addObject:a]; }
+    if (cancel) { if (order.count == 1) [order insertObject:cancel atIndex:0]; else [order addObject:cancel]; }
+    CGFloat bh = 48, gap = 8, inner = W - 2 * (pad - 6);
+    BOOL row = order.count == 2;
+    for (NSUInteger i = 0; i < order.count; i++) {
+        UIAlertAction *a = order[i];
+        BOOL prominent = a == _preferredAction && a.style != UIAlertActionStyleDestructive;
+        __IsimAlertButton *b = [self _button:a bold:a == _preferredAction sheet:NO];
+        b.capsule = YES; b.backgroundColor = nil;
+        b.capsuleFill = prominent ? self.view.tintColor : UIColor.tertiarySystemFillColor;
+        b.onColor = a.style == UIAlertActionStyleDestructive ? UIColor.systemRedColor : prominent ? UIColor.whiteColor : UIColor.labelColor;
+        b.label.textColor = a.enabled ? b.onColor : UIColor.tertiaryLabelColor;
+        b.label.font = [UIFont systemFontOfSize:17 weight:prominent ? UIFontWeightSemibold : UIFontWeightMedium];
+        if (row) b.frame = CGRectMake(pad - 6 + i * (inner + gap) / 2, y, (inner - gap) / 2, bh);
+        else { b.frame = CGRectMake(pad - 6, y, inner, bh); y += bh + gap; }
+        b.label.frame = CGRectInset(b.bounds, 10, 0);
+        [card addSubview:b];
+    }
+    if (row) y += bh + gap;
+    y += 16 - gap;
+    card.frame = CGRectMake(0, 0, W, y);
+}
 - (void)viewDidLoad {
     [super viewDidLoad];
     _cards = [NSMutableArray array];
     BOOL sheet = _preferredStyle == UIAlertControllerStyleActionSheet;
-    UIView *card = [UIView new];
-    card.backgroundColor = card_color(); card.layer.cornerRadius = sheet ? 13 : 14; card.clipsToBounds = YES;
+    if (!sheet && isim_ui_glass()) { [self _isim_buildGlassAlert]; return; }
+    UIView *card = sheet && isim_ui_glass() ? [__IsimGlassCard new] : [UIView new];
+    if (![card isKindOfClass:[__IsimGlassCard class]]) card.backgroundColor = card_color();
+    card.layer.cornerRadius = isim_ui_glass() ? 28 : sheet ? 13 : 14; card.clipsToBounds = YES;
     [self.view addSubview:card]; [_cards addObject:card];
     CGFloat W = sheet ? MIN(UIScreen.mainScreen.bounds.size.width - 16, 400) : 270, y = 0;
     if (self.title.length || self.message.length) {
@@ -162,7 +238,7 @@ static UIColor *card_color(void) {
         if (cancel) {
             UIView *c = [UIView new];
             c.backgroundColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.17 alpha:1] : UIColor.whiteColor; }];
-            c.layer.cornerRadius = 13; c.clipsToBounds = YES;
+            c.layer.cornerRadius = isim_ui_glass() ? 28 : 13; c.clipsToBounds = YES;
             __IsimAlertButton *b = [self _button:cancel bold:YES sheet:YES];
             b.frame = CGRectMake(0, 0, W, rowH); b.label.frame = b.bounds;
             [c addSubview:b];

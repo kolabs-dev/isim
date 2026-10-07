@@ -46,8 +46,13 @@ isim install ~/.local/lib/isim/current/apps/*.app
 | `isim test -project App.xcodeproj -scheme S [-only-testing:Target/Class/test] [-resultBundlePath DIR]` | build and run the scheme's test targets like `xcodebuild test`: XCTest (hosted in the app or standalone), Swift Testing and XCUITest; exits 65 on failures |
 | `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
 | `isim info App.app` | show Mach-O platform and dependencies |
+| `isim devices` · `isim version` | device presets with the iOS versions each can run; the isim version and supported iOS versions |
 
-**Options** for `boot` and `run`:
+**Options** for `boot`, `run` (and `--os`/`--device` for `test`):
+- `--os 17|18|26|27` (or a point release such as `17.5`; env `ISIM_OS_VERSION`): the iOS version the device runs, default 18.
+  It sets the reported version, what `#available` answers and the look (Liquid Glass from 26). The device data
+  remembers it. Like Xcode, a device needs at least the iOS it shipped with (iPhone 17 models: 26): an explicit older
+  version is rejected, otherwise the nearest valid one is used. See [docs/IOS-VERSIONS.md](docs/IOS-VERSIONS.md).
 - `--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13`
 - `--zoom 0.8`
 - `--dark`
@@ -70,7 +75,8 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 
 - [Scripting and automation](docs/SCRIPTING.md): script commands, `--control` FIFO, interactive shortcuts
 - [System prompts, simulated hardware and logs](docs/SYSTEM-PROMPTS.md): environment variables for permissions, biometrics, location, network, logs
-- [API coverage](docs/COVERAGE.md): what is implemented, per framework
+- [iOS versions](docs/IOS-VERSIONS.md): `--os 17|18|26|27`, device pairing, `#available`, what changes per version (Liquid Glass)
+- [API coverage](docs/COVERAGE.md): what is implemented, per framework and per iOS version
 - [Core Data](docs/COREDATA.md) · [Game Center](docs/GAMECENTER.md)
 
 ## Build from source
@@ -96,6 +102,12 @@ isim/release/package.sh 0.5.0
 
 Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs/COVERAGE.md](docs/COVERAGE.md) — after editing its rows, run `isim/tools/coverage-summary.py` to refresh the summary.
 
+Coverage per iOS version (rows introduced at or before that version; see [docs/COVERAGE.md](docs/COVERAGE.md)):
+
+| | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
+|---|---:|---:|---:|---:|
+| All areas | 76% (914 rows) | 75% (926) | 74% (943) | 74% (957) |
+
 ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 
 | Area | Status | Notes |
@@ -109,7 +121,7 @@ Per-API progress (UIKit, SwiftUI, Foundation, StoreKit, Game Center, ...): [docs
 | Home screen | ✅ | apps run as separate processes; home gesture; background/resume; delete apps. Not yet: App Library, app switcher |
 | Settings app | 🟡 | General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, per-app pages |
 | Devices | 🟡 | 12 iPhones (SE to 17 Pro Max) and 4 iPads. rotation (Ctrl+Left/Right). Not yet: iPad multitasking |
-| Multiple iOS versions | ⬜ | planned: `--os` picks the reported version and the look (today: iOS 17/18) |
+| Multiple iOS versions | 🟡 | `--os 17\|18\|26\|27`: reported version, `#available`, availability annotations and the look (iOS 26 Liquid Glass, iOS 18 Control Center and icon styles, Lock Screen); iOS 27 uses the iOS 26 look ([details](docs/IOS-VERSIONS.md)) |
 | Xcode-like project view | ⬜ | planned; the CLI covers it today |
 | Linux releases | ✅ | self-contained tarballs on GitHub Releases |
 | Device build (arm64 .app) | 🟡 | executables link; bundle and signature not done |

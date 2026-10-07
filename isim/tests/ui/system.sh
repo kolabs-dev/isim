@@ -8,7 +8,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloSystem; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/system; rm -rf "$ISIM_DATA"
 out/bin/isim install out/apps/HelloSystem.app >/dev/null
-boot() { ISIM_DEVICE=iphone17 ISIM_SHOT_SCALE=1 ISIM_BACKGROUND_TASK_SECONDS=${BGSECS:-30} timeout 90 out/bin/isim boot --headless --script "$1" 2>&1; }
+boot() { ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_SHOT_SCALE=1 ISIM_BACKGROUND_TASK_SECONDS=${BGSECS:-30} timeout 90 out/bin/isim boot --headless --script "$1" 2>&1; }
 app=app-dev.isim.samples.HelloSystem
 log=$(boot "wait 1; holdid $app 0.8; wait 0.5; shot $shots/menu.png; dump; tapid menu-shortcut:dev.isim.samples.HelloSystem.new; wait 1.5; shot $shots/cold-shortcut.png; dump;
             tapid addShortcut; wait 0.3; tapid bump; tapid bump; tapid bump; wait 0.2; home; wait 0.8; holdid $app 0.8; wait 0.5; dump; tapid menu-shortcut:dev.isim.samples.HelloSystem.favorites; wait 1;

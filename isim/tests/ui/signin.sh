@@ -10,7 +10,7 @@ set -uo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 shots=out/test-shots/HelloSignIn; mkdir -p "$shots"; rm -f "$shots"/*.png
 export ISIM_DATA=$PWD/out/test-data/signin; rm -rf "$ISIM_DATA"
-export ISIM_DEVICE=iphone17 ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1
+export ISIM_DEVICE=${ISIM_TEST_DEVICE:-iphone16pro} ISIM_HEADLESS=1 ISIM_SHOT_SCALE=1
 app=dev.isim.samples.HelloSignIn
 s1="wait 2; shot $shots/home.png; tapid quick-signin; wait 0.5; tapid passkey-signin; wait 0.5"
 s1="$s1; tapid swiftui-siwa; wait 1.2; shot $shots/siwa.png; dump; tapid siwa-hide-email; wait 0.3; shot $shots/siwa-hide.png; tapid siwa-continue; wait 1.2"
@@ -22,7 +22,7 @@ log1=$(ISIM_SCRIPT="$s1" timeout 120 out/bin/isim run out/apps/HelloSignIn.app 2
 
 # run 2: revoke while the app runs (like Settings > Apple Account > Sign in with Apple > Stop Using)
 s2="wait 2; tapid state; wait 4; tapid state; wait 0.5; tapid idfa; tapid uikit-siwa; wait 1.2; shot $shots/siwa-again.png; dump; tapid siwa-cancel; wait 1.2; quit"
-ISIM_OS_VERSION=17.0 ISIM_SCRIPT="$s2" timeout 90 out/bin/isim run out/apps/HelloSignIn.app > "$ISIM_DATA/run2.log" 2>&1 &
+ISIM_DEVICE=iphone15 ISIM_OS_VERSION=17.0 ISIM_SCRIPT="$s2" timeout 90 out/bin/isim run out/apps/HelloSignIn.app > "$ISIM_DATA/run2.log" 2>&1 &
 pid=$!
 sleep 3.5
 revoke=$(out/bin/isim appleid $app revoke 2>&1)

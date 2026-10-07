@@ -18,6 +18,8 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        , ISIM_EV_VOICEOVER = 42 /* text: on|off|next|prev|activate|read (script `voiceover`) */
        , ISIM_EV_SYSTEM = 50 /* text: a system message from the shell ("bgtask ID", "discard-scenes", ...; shell_system.inc) */ };
 void isim_device_metrics(struct isim_device *out);
+int isim_os_version(void);                            /* the iOS version isim emulates (--os): major*10000 + minor*100 + patch */
+void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags);   /* Liquid Glass; flags 1 dark, 2 clear, 4 no shadow, 8 pressed */
 int isim_set_orientation(int interfaceOrientation);   /* the screen takes this UIInterfaceOrientation; 1 if it changed */
 int isim_device_orientation(void);                    /* current UIDeviceOrientation */
 int isim_display_open(const char *title);
