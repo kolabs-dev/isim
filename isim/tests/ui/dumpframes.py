@@ -12,12 +12,12 @@ LINE = re.compile(r'^( *)(\S+) \((-?[\d.e+-]+) (-?[\d.e+-]+); (-?[\d.e+-]+) x (-
 
 
 def dumps(text):
-    """the dumps in a log: lists of lines, each dump starting at a 'UIWindow' line without indentation"""
+    """the dumps in a log: lists of line matches, each dump starting at an unindented 'UIWindow' line"""
     out, cur = [], None
     for line in text.splitlines():
         m = LINE.match(line)
-        if m and not m.group(1) and m.group(2).endswith('Window'):
-            cur = []; out.append(cur)
+        if m and not m.group(1) and m.group(2) == 'UIWindow':      # the app's window starts a dump (other windows,
+            cur = []; out.append(cur)                               # e.g. the keyboard's, belong to it)
         if cur is not None and m:
             cur.append(m)
     return out

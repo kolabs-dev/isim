@@ -287,26 +287,24 @@ extension Tab where Value == Never, Label == SwiftUI.Label<Text, Image> {
 
 // MARK: - Navigation transitions (iOS 18; crossFade iOS 27)
 
-/// How a pushed or presented view transitions (isim: adapted — the default push/sheet animation is used).
+/// How a pushed or presented view transitions (isim: adapted — slide, zoom from a matchedTransitionSource, cross-fade;
+/// NavigationTransitions.swift).
 @available(iOS 18.0, *)
 public protocol NavigationTransition {}
 @available(iOS 18.0, *)
 public struct AutomaticNavigationTransition: NavigationTransition { }
 @available(iOS 18.0, *)
-public struct ZoomNavigationTransition: NavigationTransition { }
+public struct ZoomNavigationTransition: NavigationTransition { var key: AnyHashable? }
 @available(iOS 27.0, *)
 public struct CrossFadeNavigationTransition: NavigationTransition { }
 @available(iOS 18.0, *)
 extension NavigationTransition where Self == AutomaticNavigationTransition { public static var automatic: AutomaticNavigationTransition { AutomaticNavigationTransition() } }
 @available(iOS 18.0, *)
 extension NavigationTransition where Self == ZoomNavigationTransition {
-    public static func zoom<ID: Hashable>(sourceID: ID, in namespace: Namespace.ID) -> ZoomNavigationTransition { ZoomNavigationTransition() }
+    public static func zoom<ID: Hashable>(sourceID: ID, in namespace: Namespace.ID) -> ZoomNavigationTransition {
+        ZoomNavigationTransition(key: MainActor.assumeIsolated { _ZoomSources.key(AnyHashable(sourceID), namespace) })
+    }
 }
 @available(iOS 27.0, *)
 extension NavigationTransition where Self == CrossFadeNavigationTransition { public static var crossFade: CrossFadeNavigationTransition { CrossFadeNavigationTransition() } }
-extension View {
-    @available(iOS 18.0, *)
-    public func navigationTransition<T: NavigationTransition>(_ style: T) -> some View { self }
-    @available(iOS 18.0, *)
-    public func matchedTransitionSource<ID: Hashable>(id: ID, in namespace: Namespace.ID) -> some View { self }
-}
+// navigationTransition(_:) and matchedTransitionSource(id:in:): NavigationTransitions.swift

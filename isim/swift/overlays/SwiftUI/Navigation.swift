@@ -382,6 +382,15 @@ public enum NavigationBarItem {
     var barBackgroundVisibility: Visibility = .automatic
     var barScheme: ColorScheme?
     var search: _SearchConfig?
+    // NavigationTransitions.swift: back button, title menu, toolbar role, bottom bar, push transition
+    var backHidden = false
+    var titleMenu: (() -> UIMenu)?
+    var role = 0
+    var bottomBarHidden = false
+    var bottomBarBackground: Color?
+    var transition: _NavTransition = .push
+    var hasBottomBar: Bool { !bottomBarHidden && toolbar.contains { $0.0.isBottom } }
+    var hasPrincipal: Bool { toolbar.contains { $0.0.id == 1 } }
     let index: Int
     weak var bar: _SUINavBar?
     var registry: _NavRegistry?
@@ -530,19 +539,21 @@ final class _NavStackNode: _Node {
     override func place(_ rect: CGRect) {
         frame = rect
         for (i, content) in nodes.enumerated() { placeLevel(content, levels[i], rect) }
-        for (_, item) in self.top.toolbar {
-            let s = item.sizeThatFits(_Proposal(width: 200, height: barHeight))
-            item.place(CGRect(origin: .zero, size: s))
+        for (placement, item) in self.top.toolbar {
+            let wide = placement.isBottom || placement.id == 6
+            let s = item.sizeThatFits(_Proposal(width: wide ? rect.width - 32 : 200, height: barHeight))
+            item.place(CGRect(origin: .zero, size: CGSize(width: min(s.width, wide ? rect.width - 32 : 1e6), height: s.height)))
         }
     }
     func placeLevel(_ content: _Node, _ level: _NavLevel, _ rect: CGRect) {
         let top = safeTop + (level.barHidden ? 0 : barHeight)
+        let bottomBar: CGFloat = level.hasBottomBar ? 49 + safeBottom : 0         // .toolbar { ToolbarItem(placement: .bottomBar) }
         if content.ignoresSafeArea {
-            content.place(CGRect(x: 0, y: top, width: rect.width, height: rect.height - top))
+            content.place(CGRect(x: 0, y: top, width: rect.width, height: rect.height - top - bottomBar))
         } else {
             // non-list content: large title above it, the rest inside the safe area
             let titleH: CGFloat = level.showsLargeTitle ? 52 : 0
-            let area = CGRect(x: 0, y: top + titleH, width: rect.width, height: rect.height - top - titleH - safeBottom)
+            let area = CGRect(x: 0, y: top + titleH, width: rect.width, height: rect.height - top - titleH - max(safeBottom, bottomBar))
             let s = content.sizeThatFits(_Proposal(width: area.width, height: area.height))
             // like SwiftUI: the content is centered in the space below the bar (and large title)
             content.place(CGRect(x: (area.width - min(s.width, area.width)) / 2, y: area.minY + max(0, area.height - s.height) / 2,
@@ -550,20 +561,34 @@ final class _NavStackNode: _Node {
         }
     }
     override func mountView(_ g: _Graph) -> UIView {
-        let v = g.view(viewKey) { _PassthroughView() }
+        let v = g.view(viewKey) { _SUINavStackView(frame: .zero) }
         v.backgroundColor = .systemBackground
         return v
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {
+        let sv = view as? _SUINavStackView
+        let newTop = nodes.count - 1, oldTop = sv?.shownTop ?? -1
+        // a pop: a picture of the leaving level slides out (its views go away with this render)
+        var leaving: (UIView, _NavTransition)?
+        if let sv, oldTop > newTop, view.window != nil, let old = sv.levelViews[oldTop], old.superview === view, !old.isHidden,
+           let snap = old.snapshotView(afterScreenUpdates: false) {
+            snap.frame = old.frame.offsetBy(dx: old.transform.tx, dy: old.transform.ty)
+            leaving = (snap, sv.transitions[oldTop] ?? .push)
+        }
         // every level stays mounted (scroll positions, text fields keep their state); only the top one shows
         for (i, node) in nodes.enumerated() {
             let container = g.view(path + "|level\(i)") { _PassthroughView() }
             if container.superview !== view { view.addSubview(container) } else { view.bringSubviewToFront(container) }
-            container.frame = view.bounds
-            container.isHidden = i != nodes.count - 1
+            if !(sv?.animating.contains(i) ?? false) {
+                container.transform = .identity; container.alpha = 1; container.layer.cornerRadius = 0; container.clipsToBounds = false
+                container.frame = view.bounds
+                container.isHidden = i != nodes.count - 1
+            }
             container.backgroundColor = levels[i].contentIsList ? .systemGroupedBackground : .systemBackground
+            sv?.levelViews[i] = container
             g.mount(node, in: container, order: 0)
         }
+        if let sv { for k in Array(sv.levelViews.keys) where k > newTop { sv.levelViews[k] = nil; sv.transitions[k] = nil } }
         let content = nodes.last!
         if !content.ignoresSafeArea, top.showsLargeTitle, let title = top.title {
             let l = g.view(path + "|largeTitle") { UILabel() }
@@ -574,29 +599,124 @@ final class _NavStackNode: _Node {
         let bar = g.view(path + "|bar") { _SUINavBar(frame: .zero) }
         if bar.superview !== view { view.addSubview(bar) } else { view.bringSubviewToFront(bar) }
         bar.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: safeTop + barHeight)
-        bar.configure(level: top, previousTitle: levels.count > 1 ? levels[levels.count - 2].title : nil, safeTop: safeTop, pop: levels.count > 1 ? pop : nil)
+        let canPop = levels.count > 1 && !top.backHidden
+        bar.configure(level: top, previousTitle: levels.count > 1 ? levels[levels.count - 2].title : nil, safeTop: safeTop, pop: canPop ? pop : nil)
         bar.isHidden = top.barHidden                                 // .toolbar(.hidden, for: .navigationBar)
         top.bar = bar
         if bar.levelIndex != top.index { bar.scrolled = false; bar.levelIndex = top.index }
-        for (i, (placement, item)) in top.toolbar.enumerated() {
-            let host = g.view(path + "|tb\(i)") { _PassthroughView() }
-            if host.superview !== bar { bar.addSubview(host) }
-            let s = item.frame.size
-            let leading = placement == .topBarLeading || placement == .navigationBarLeading || placement == .cancellationAction
-            host.frame = CGRect(x: leading ? (levels.count > 1 ? (_isimGlassLook ? 72 : 110) : 16) : bar.bounds.width - 16 - s.width, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
-            if _isimGlassLook {                             // iOS 26+: toolbar items on glass capsules
-                let gl = g.view(path + "|tbglass\(i)") { _SUIGlassView(frame: .zero) }
-                if gl.superview !== bar { bar.insertSubview(gl, belowSubview: host) }
-                let gw = max(44, s.width + 24)
-                gl.frame = CGRect(x: host.frame.midX - gw / 2, y: safeTop + (barHeight - 44) / 2, width: gw, height: 44); gl.radius = 22
-                if leading == false && gl.frame.maxX > bar.bounds.width - 16 { gl.frame.origin.x = bar.bounds.width - 16 - gw; host.frame.origin.x = gl.frame.midX - s.width / 2 }
-            }
-            g.mount(item, in: host, order: 0)
-            if let v = g.views[item.viewKey] { v.frame = CGRect(origin: .zero, size: s) }
-        }
+        mountToolbars(g, view, bar)
         bar.update()
+        guard let sv else { return }
+        sv.canPop = canPop; sv.pop = pop; sv.bar = bar
+        // push / pop transitions (NavigationTransitions.swift)
+        if newTop > oldTop, oldTop >= 0, view.window != nil { sv.transitions[newTop] = top.transition; sv.animatePush(from: oldTop, to: newTop, top.transition) }
+        else if let (snap, kind) = leaving { sv.animatePop(snap, to: newTop, kind) }
+        sv.shownTop = newTop
+    }
+    /// Toolbar items: leading / trailing groups in the bar (one glass capsule each from iOS 26), the principal item in
+    /// the middle, bottom-bar items in a bar at the bottom, keyboard items above the keyboard.
+    func mountToolbars(_ g: _Graph, _ view: UIView, _ bar: _SUINavBar) {
+        let W = view.bounds.width, glass = _isimGlassLook
+        var leadX: CGFloat = levels.count > 1 && !top.backHidden ? (glass ? 72 : 110) : 16
+        var trailX: CGFloat = W - 16
+        let entries = Array(top.toolbar.enumerated())
+        let trailing = entries.filter { $0.element.0.isTrailing }
+        var bottomItems: [(Int, _Node, Bool)] = [], keyboardItems: [(Int, _Node)] = []
+        func host(_ i: Int, in parent: UIView) -> UIView {
+            let h = g.view(path + "|tb\(i)") { _PassthroughView() }
+            if h.superview !== parent { parent.addSubview(h) }
+            return h
+        }
+        func capsule(_ i: Int, _ frame: CGRect) {
+            let gl = g.view(path + "|tbglass\(i)") { _SUIGlassView(frame: .zero) }
+            if gl.superview !== bar { bar.insertSubview(gl, at: 1) }
+            gl.frame = frame; gl.radius = frame.height / 2
+        }
+        func mountItem(_ item: _Node, _ h: UIView) {
+            g.mount(item, in: h, order: 0)
+            if let v = g.views[item.viewKey] { v.frame = CGRect(origin: .zero, size: item.frame.size) }
+        }
+        for (i, (placement, item)) in entries {
+            let s = item.frame.size
+            if placement.isBottom { bottomItems.append((i, item, placement.id == 7)); continue }
+            if placement.id == 6 { keyboardItems.append((i, item)); continue }
+            if placement.id == 1 {                                     // .principal: in the middle of the bar
+                let h = host(i, in: bar)
+                h.frame = CGRect(x: (W - s.width) / 2, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
+                mountItem(item, h)
+                continue
+            }
+            guard placement.isLeading else { continue }
+            let h = host(i, in: bar)
+            if glass {
+                let gw = max(44, s.width + 24)
+                capsule(i, CGRect(x: leadX, y: safeTop + (barHeight - 44) / 2, width: gw, height: 44))
+                h.frame = CGRect(x: leadX + (gw - s.width) / 2, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
+                leadX += gw + 8
+            } else {
+                h.frame = CGRect(x: leadX, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
+                leadX += s.width + 16
+            }
+            mountItem(item, h)
+        }
+        for (i, (_, item)) in trailing.reversed() {                    // the last trailing item is at the edge
+            let s = item.frame.size
+            let h = host(i, in: bar)
+            if glass {
+                let gw = max(44, s.width + 24)
+                capsule(i, CGRect(x: trailX - gw, y: safeTop + (barHeight - 44) / 2, width: gw, height: 44))
+                h.frame = CGRect(x: trailX - gw + (gw - s.width) / 2, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
+                trailX -= gw + 8
+            } else {
+                h.frame = CGRect(x: trailX - s.width, y: safeTop + (barHeight - s.height) / 2, width: s.width, height: s.height)
+                trailX -= s.width + 16
+            }
+            mountItem(item, h)
+        }
+        bar.principal = top.hasPrincipal
+        // bottom bar: items spread from the leading to the trailing edge; .status items in the middle
+        if top.hasBottomBar {
+            let bb = g.view(path + "|bottombar") { _SUIBottomBar(frame: .zero) }
+            if bb.superview !== view { view.addSubview(bb) } else { view.bringSubviewToFront(bb) }
+            bb.frame = CGRect(x: 0, y: view.bounds.height - 49 - safeBottom, width: W, height: 49 + safeBottom)
+            bb.configure(background: top.bottomBarBackground?.uiColor)
+            let main = bottomItems.filter { !$0.2 }, status = bottomItems.filter { $0.2 }
+            let widths = main.map { $0.1.frame.width }
+            let gap = main.count > 1 ? max(8, (W - 32 - widths.reduce(0, +)) / CGFloat(main.count - 1)) : 0
+            var x: CGFloat = 16
+            for (k, (i, item, _)) in main.enumerated() {
+                let s = item.frame.size
+                let h = host(i, in: bb)
+                h.frame = CGRect(x: x, y: (49 - s.height) / 2, width: s.width, height: s.height)
+                x += widths[k] + gap
+                mountItem(item, h)
+            }
+            for (i, item, _) in status {
+                let s = item.frame.size
+                let h = host(i, in: bb)
+                h.frame = CGRect(x: (W - s.width) / 2, y: (49 - s.height) / 2, width: s.width, height: s.height)
+                mountItem(item, h)
+            }
+        }
+        // keyboard items: a bar above the keyboard while it is up
+        if !keyboardItems.isEmpty {
+            let kb = g.view(path + "|keyboardbar") { _SUIKeyboardBar(frame: .zero) }
+            if kb.superview !== view { view.addSubview(kb) } else { view.bringSubviewToFront(kb) }
+            kb.place()
+            var x: CGFloat = 16
+            let widths = keyboardItems.map { $0.1.frame.width }
+            let gap = keyboardItems.count > 1 ? max(8, (W - 32 - widths.reduce(0, +)) / CGFloat(keyboardItems.count - 1)) : 0
+            for (k, (i, item)) in keyboardItems.enumerated() {
+                let s = item.frame.size
+                let h = host(i, in: kb)
+                h.frame = CGRect(x: keyboardItems.count == 1 ? W - 16 - s.width : x, y: (44 - s.height) / 2, width: s.width, height: s.height)
+                x += widths[k] + gap
+                mountItem(item, h)
+            }
+        }
     }
 }
+
 
 /// Navigation bar: back button, title (inline, or shown when the large title scrolls away), toolbar items.
 final class _SUINavBar: UIView {
@@ -609,6 +729,8 @@ final class _SUINavBar: UIView {
     var level: _NavLevel?
     var scrolled = false
     var levelIndex = -1
+    var principal = false
+    let titleMenuButton = _SUIControl(frame: .zero), titleChevron = UIImageView()
     override init(frame: CGRect) {
         super.init(frame: frame)
         titleLabel.font = .systemFont(ofSize: 17, weight: .semibold)
@@ -620,6 +742,8 @@ final class _SUINavBar: UIView {
         back.addSubview(backGlass); back.addSubview(backChevron); back.addSubview(backLabel)
         back.accessibilityIdentifier = "isim-nav-back"
         addSubview(back)
+        titleMenuButton.addSubview(titleChevron); titleMenuButton.accessibilityIdentifier = "isim-nav-title-menu"
+        addSubview(titleMenuButton)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     func configure(level: _NavLevel, previousTitle: String?, safeTop: CGFloat, pop: (() -> Void)?) {
@@ -633,6 +757,7 @@ final class _SUINavBar: UIView {
         backChevron.image = UIImage(systemName: "chevron.left", withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold))
         backChevron.tintColor = tint
         backLabel.text = previousTitle ?? "Back"
+        if level.role == 3 || level.role == 2 { backLabel.text = "" }              // .toolbarRole(.editor): the back button shows no title
         backLabel.textColor = tint
         backLabel.font = .systemFont(ofSize: 17)
         let cs = backChevron.image?.size ?? CGSize(width: 12, height: 20)
@@ -653,6 +778,21 @@ final class _SUINavBar: UIView {
         guard let l = level else { return }
         let inline = !l.isLarge || scrolled || !l.contentIsList && !l.showsLargeTitle
         titleLabel.alpha = inline ? 1 : 0
+        titleLabel.isHidden = principal                          // a .principal toolbar item replaces the title
+        // .toolbarTitleMenu: the title opens a menu (a chevron after it)
+        titleMenuButton.isHidden = l.titleMenu == nil || principal || !inline
+        if let build = l.titleMenu, !titleMenuButton.isHidden {
+            titleLabel.frame = CGRect(x: 100, y: titleLabel.frame.minY, width: bounds.width - 200, height: 44)
+            let ts = titleLabel.sizeThatFits(CGSize(width: bounds.width - 200, height: 44))
+            titleChevron.image = UIImage(systemName: "chevron.down.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold))
+            titleChevron.tintColor = .secondaryLabel
+            let cs = titleChevron.image?.size ?? CGSize(width: 14, height: 14)
+            let total = ts.width + 4 + cs.width, x0 = (bounds.width - total) / 2
+            titleLabel.frame = CGRect(x: x0, y: titleLabel.frame.minY, width: ts.width, height: 44)
+            titleMenuButton.frame = CGRect(x: x0, y: titleLabel.frame.minY, width: total, height: 44)
+            titleChevron.frame = CGRect(x: ts.width + 4, y: (44 - cs.height) / 2, width: cs.width, height: cs.height)
+            titleMenuButton.action = { [weak self] in guard let self else { return }; self.titleMenuButton._isim_present(build(), from: self.titleMenuButton.bounds) }
+        }
         let solid = scrolled
         backgroundColor = solid ? UIColor.systemBackground.withAlphaComponent(0.94) : (l.contentIsList ? .systemGroupedBackground : .systemBackground)
         // .toolbarBackground / .toolbarColorScheme (Navigation+More.swift)
@@ -714,10 +854,25 @@ extension View {
     public func navigationBarTitleDisplayMode(_ mode: NavigationBarItem.TitleDisplayMode) -> some View {
         _modify { ctx, c in ctx.nav?.displayMode = mode; return _resolve(c, ctx.child("nm")) }
     }
-    public func navigationBarBackButtonHidden(_ hidden: Bool = true) -> some View { self }
     public func toolbar<Content: ToolbarContent>(@ToolbarContentBuilder content: () -> Content) -> some View {
-        let items = content()._items
+        var items = content()._items
+        // .secondaryAction items go into a trailing "More" menu, like iOS on iPhone
+        let secondary = items.filter { $0.placement.id == 8 }
+        if !secondary.isEmpty {
+            let views = secondary.map(\.view)
+            items.removeAll { $0.placement.id == 8 }
+            items.append(_ToolbarEntry(placement: .secondaryAction, view: AnyView(Menu {
+                ForEach(0..<views.count, id: \.self) { views[$0] }
+            } label: { Image(systemName: "ellipsis.circle") }.accessibilityIdentifier("toolbar-more"))))
+        }
+        // ToolbarTitleMenu content: the navigation title's menu
+        let titleMenus = items.filter { $0.placement.id == 9 }.map(\.view)
+        items.removeAll { $0.placement.id == 9 }
         return _modify { ctx, c in
+            if let lv = ctx.nav, !titleMenus.isEmpty {
+                let node = _resolve(AnyView(ForEach(0..<titleMenus.count, id: \.self) { titleMenus[$0] }), ctx.child("titlemenu").with { $0._inList = false })
+                lv.titleMenu = { UIMenu(title: "", children: _menuElements(node)) }
+            }
             if let lv = ctx.nav {
                 for (i, item) in items.enumerated() {
                     let ictx = _Context(graph: ctx.graph, path: ctx.path + "/toolbar\(i)", environment: ctx.environment, nav: nil)
@@ -743,7 +898,15 @@ public struct ToolbarItemPlacement: Equatable, Sendable {
     public static let navigationBarLeading = ToolbarItemPlacement(id: 2), navigationBarTrailing = ToolbarItemPlacement(id: 3)
     public static let primaryAction = ToolbarItemPlacement(id: 3), confirmationAction = ToolbarItemPlacement(id: 3)
     public static let cancellationAction = ToolbarItemPlacement(id: 2), destructiveAction = ToolbarItemPlacement(id: 3)
-    public static let bottomBar = ToolbarItemPlacement(id: 5), keyboard = ToolbarItemPlacement(id: 6), status = ToolbarItemPlacement(id: 5)
+    public static let bottomBar = ToolbarItemPlacement(id: 5), keyboard = ToolbarItemPlacement(id: 6), status = ToolbarItemPlacement(id: 7)
+    /// iOS 16: actions in the bar's trailing "More" menu
+    public static let secondaryAction = ToolbarItemPlacement(id: 8)
+    public static let navigation = ToolbarItemPlacement(id: 2)
+    var isLeading: Bool { id == 2 }
+    var isBottom: Bool { id == 5 || id == 7 }
+    /// trailing items: .automatic, .primaryAction, .topBarTrailing, confirmation / destructive actions (and the menu
+    /// collecting .secondaryAction items)
+    var isTrailing: Bool { id == 0 || id == 3 || id == 8 }
 }
 public struct _ToolbarEntry { let placement: ToolbarItemPlacement; let view: AnyView }
 public protocol ToolbarContent { var _items: [_ToolbarEntry] { get } }
@@ -754,12 +917,22 @@ public struct ToolbarItem<ID, Content: View>: ToolbarContent {
 extension ToolbarItem where ID == () {
     public init(placement: ToolbarItemPlacement = .automatic, @ViewBuilder content: () -> Content) { self.placement = placement; self.content = content() }
 }
+extension ToolbarItem where ID == String {
+    /// A customizable item (its identifier is kept; isim's bars are not customizable).
+    public init(id: String, placement: ToolbarItemPlacement = .automatic, @ViewBuilder content: () -> Content) { self.placement = placement; self.content = content() }
+}
 public struct ToolbarItemGroup<Content: View>: ToolbarContent {
     let placement: ToolbarItemPlacement, content: Content
     public init(placement: ToolbarItemPlacement = .automatic, @ViewBuilder content: () -> Content) { self.placement = placement; self.content = content() }
     public var _items: [_ToolbarEntry] { [_ToolbarEntry(placement: placement, view: AnyView(HStack(spacing: 16) { content }))] }
 }
 public struct _ToolbarList: ToolbarContent { public let _items: [_ToolbarEntry] }
+/// A menu from the navigation title (iOS 16), as toolbar content.
+public struct ToolbarTitleMenu<Content: View>: ToolbarContent {
+    let content: Content
+    public init(@ViewBuilder content: () -> Content) { self.content = content() }
+    public var _items: [_ToolbarEntry] { [_ToolbarEntry(placement: ToolbarItemPlacement(id: 9), view: AnyView(content))] }
+}
 @resultBuilder
 public struct ToolbarContentBuilder {
     public static func buildExpression<C: ToolbarContent>(_ c: C) -> _ToolbarList { _ToolbarList(_items: c._items) }

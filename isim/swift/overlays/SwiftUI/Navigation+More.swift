@@ -108,6 +108,7 @@ extension View {
         _modify { ctx, c in
             let nav = bars.isEmpty || bars.contains { $0.id == 0 || $0.id == 1 }
             if nav { ctx.nav?.barHidden = visibility == .hidden }
+            if bars.contains(where: { $0.id == 3 }) { ctx.nav?.bottomBarHidden = visibility == .hidden }
             let node = _resolve(c, ctx.child("tbv"))
             if bars.contains(where: { $0.id == 2 }) { return _TabBarVisibilityNode(path: ctx.path, hidden: visibility == .hidden, child: node) }
             return node
@@ -122,6 +123,7 @@ extension View {
     public func toolbarBackground<S: ShapeStyle>(_ style: S, for bars: ToolbarPlacement...) -> some View {
         _modify { ctx, c in
             if bars.isEmpty || bars.contains(where: { $0.id <= 1 }) { ctx.nav?.barBackground = _color(of: style, ctx.environment) }
+            if bars.contains(where: { $0.id == 3 }) { ctx.nav?.bottomBarBackground = _color(of: style, ctx.environment) }
             return _resolve(c, ctx.child("tbs"))
         }
     }
@@ -134,7 +136,6 @@ extension View {
     public func toolbarTitleDisplayMode(_ mode: ToolbarTitleDisplayMode) -> some View {
         navigationBarTitleDisplayMode(mode.id == 1 ? .inline : mode.id == 2 ? .large : .automatic)
     }
-    public func toolbarRole(_ role: ToolbarRole) -> some View { self }
     public func navigationBarHidden(_ hidden: Bool) -> some View { toolbar(hidden ? .hidden : .automatic, for: .navigationBar) }
 }
 public struct ToolbarTitleDisplayMode: Sendable {

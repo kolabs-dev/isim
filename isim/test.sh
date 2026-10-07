@@ -79,6 +79,7 @@ if [ -x out/apps/HelloSwiftUI.app/HelloSwiftUI ]; then           # isim SwiftUI
   [ -x out/apps/HelloFormatting.app/HelloFormatting ] && run "ui: HelloFormatting (FormatStyle, region change, Regex)" tests/ui/formatting.sh
   [ -x out/apps/HelloDrawing.app/HelloDrawing ] && run "ui: HelloDrawing (shapes, paths, gradients, Canvas, animations)" tests/ui/drawing.sh
   [ -x out/apps/HelloEffects.app/HelloEffects ] && run "ui: HelloEffects (colour filters, blend modes, blur, shadows, masks, contentShape, visualEffect, scrollTransition)" tests/ui/effects.sh
+  [ -x out/apps/HelloNavStack.app/HelloNavStack ] && run "ui: HelloNavStack (push/pop animations, edge swipe back, zoom transition, toolbar placements, title menu, bottom and keyboard bars)" tests/ui/navstack.sh
   [ -x out/apps/HelloCharts.app/HelloCharts ] && run "ui: HelloCharts (Swift Charts marks, axes, legend)" tests/ui/charts.sh
   [ -x out/apps/HelloVideo.app/HelloVideo ] && run "ui: HelloVideo (AVPlayer, AVPlayerLayer, AVKit, VideoPlayer)" tests/ui/video.sh
   [ -x out/apps/HelloAudio.app/HelloAudio ] && run "ui: HelloAudio (speech, effects, recording, MediaPlayer)" tests/ui/audio.sh
@@ -152,7 +153,7 @@ fi
 if [ "${OS_MATRIX:-0}" = 1 ]; then
   for v in ${OS_MATRIX_VERSIONS:-17 18 26 27}; do
     case $v in 17) dev=iphone15 ;; 18) dev=iphone16pro ;; *) dev=iphone17 ;; esac
-    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation objc-literals hellocounter swiftui controls symbols boot"
+    suites="swift-full swift-concurrency swift-libraries swift-foundation foundation objc-literals hellocounter swiftui controls symbols boot navstack"
     # suites that assert the 402-pt iPhone 16 Pro/17 screen (frames, tap points) or iPads first sold with 17.5: no
     # iPhone that runs iOS 17.0 has that screen, so they run on 18, 26 and 27
     [ "$v" = 17 ] || suites="$suites forms navigation presentations transitions table"
