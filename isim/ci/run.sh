@@ -16,5 +16,5 @@ for f in out/sdk/usr/lib/swift/libswiftCore.dylib out/sdk/usr/lib/swift/libswift
   [ -e "$f" ] || { echo "CI: $f was not built"; exit 1; }
 done
 python3 tools/abi-check.py
-./test.sh 2>&1 | tee out/test.log; rc=${PIPESTATUS[0]}
-grep -q "^ALL SUITES PASSED" out/test.log && exit $rc; exit 1
+./test.sh --junitxml=../out/test-results.xml 2>&1 | tee out/test.log
+exit "${PIPESTATUS[0]}"

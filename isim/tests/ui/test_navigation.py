@@ -3,12 +3,18 @@ back swipe, toolbar items, hidesBottomBarWhenPushed, bar button menus, tab switc
 with condition waits instead of fixed sleeps."""
 
 
+import pytest
+
+
 def nav_bar_height(app):
     bars = [e for e in app.snapshot() if e.type == "navigationBar"]
     return round(bars[0].h) if bars else None
 
 
-def test_navigation(launch):
+@pytest.mark.os_matrix
+def test_navigation(launch, ios):
+    if ios[0] == "17":
+        pytest.skip("asserts the 402-pt screen, which no iOS 17.0 iPhone has")
     app = launch("HelloNavigation")
     app.wait_for(id="tab-Library")
     assert app.find(id="tab-Inbox"), "tab bar with items"

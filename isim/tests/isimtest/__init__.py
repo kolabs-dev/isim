@@ -12,16 +12,18 @@ XCUITest uses), a line in the app's log, or the process exiting.
 """
 from __future__ import annotations
 
+import fcntl
 import os
 import re
 import subprocess
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]          # isim/
+ROOT = Path(__file__).resolve().parents[2]          # isim/ (this file: isim/tests/isimtest/__init__.py)
 ISIM = ROOT / "out" / "bin" / "isim"
 APPS = ROOT / "out" / "apps"
 DEFAULT_DEVICE = os.environ.get("ISIM_TEST_DEVICE", "iphone16pro")
@@ -73,6 +75,39 @@ def parse_snapshot(text: str) -> list[Element]:
                                *(_unescape(x) for x in f[6:10]), f[10]))
         except ValueError:
             continue
+    return out
+
+
+@dataclass
+class View:
+    """One line of the view-tree dump (`dump views FILE`): class, frame in its superview, id and text."""
+    depth: int
+    cls: str
+    x: float
+    y: float
+    w: float
+    h: float
+    hidden: bool
+    id: str
+    text: str
+    line: str
+
+
+_VIEW_RX = re.compile(r"^( *)(\S+) \(([-\d.e]+) ([-\d.e]+); ([-\d.e]+) x ([-\d.e]+)\)(.*)$")
+
+
+def parse_views(text: str) -> list[View]:
+    out = []
+    for line in text.splitlines():
+        m = _VIEW_RX.match(line)
+        if not m:
+            continue
+        rest = m.group(7)
+        ident = re.search(r" id=(\S+)", rest)
+        txt = re.search(r" text=(.*?)(?: ax=\"|$)", rest)
+        out.append(View(len(m.group(1)) // 2, m.group(2), *(float(m.group(i)) for i in range(3, 7)),
+                        " hidden" in rest.split(" id=")[0], ident.group(1) if ident else "",
+                        txt.group(1) if txt else "", line))
     return out
 
 
@@ -181,6 +216,20 @@ class App:
             time.sleep(0.02)
         raise WaitTimeout(f"no snapshot after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
 
+    def views(self, timeout: float = TIMEOUT) -> list[View]:
+        """The app's view tree (`dump views FILE`): every view with its class, frame, id and text."""
+        self._n += 1
+        path = self.tmp / f"views{self._n}.txt"
+        self.send(f"dump views {path}")
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if path.exists():
+                return parse_views(path.read_text(errors="replace"))
+            if self.proc.poll() is not None:
+                break
+            time.sleep(0.02)
+        raise WaitTimeout(f"no view dump after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
+
     def find(self, *, id: str | None = None, label: str | None = None, type: str | None = None,
              snapshot: list[Element] | None = None) -> Element | None:
         for el in snapshot if snapshot is not None else self.snapshot():
@@ -240,3 +289,88 @@ class App:
 
     def __exit__(self, *exc):
         self.quit()
+
+
+# ---- whole-run helpers ----
+@dataclass
+class Run:
+    """Result of running an app to completion (scripted, or a self-test)."""
+    returncode: int
+    output: str
+
+    def lines(self, pattern: str) -> list[str]:
+        rx = re.compile(pattern)
+        return [l for l in self.output.splitlines() if rx.search(l)]
+
+
+def run_app(name: str, *, script: str | None = None, timeout: float = 120, data: Path | None = None,
+            env: dict | None = None, args: list[str] | None = None, device: str | None = None,
+            os_version: str | None = None, standalone: bool = True, executable: bool = False) -> Run:
+    """Run an app (or a test binary in out/apps) until it exits; with `script`, headless with that script.
+    executable=True runs the bundle's executable directly (test binaries without an Info.plist)."""
+    bundle = APPS / f"{name}.app"
+    assert bundle.is_dir(), f"{bundle} is not built"
+    target = bundle / name if executable else bundle
+    e = dict(os.environ)
+    if data is not None:
+        e["ISIM_DATA"] = str(data)
+    if standalone:
+        e["ISIM_STANDALONE"] = "1"
+    if script is not None:
+        e.update(ISIM_HEADLESS="1", ISIM_SHOT_SCALE="1", ISIM_SCRIPT=script, ISIM_DEVICE=device or DEFAULT_DEVICE)
+    if os_version:
+        e["ISIM_OS_VERSION"] = str(os_version)
+    e.update(env or {})
+    p = subprocess.run([str(ISIM), "run", str(target), *(args or [])], env=e, stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT, text=True, errors="replace", timeout=timeout)
+    return Run(p.returncode, p.stdout)
+
+
+def selftest(name: str, *, timeout: float = 120, **kw) -> Run:
+    """Run an in-app self-test that ends with '<what>: N/M passed'; fail with its output unless all passed."""
+    r = run_app(name, timeout=timeout, **kw)
+    m = list(re.finditer(r"(\d+)/(\d+) passed", r.output))
+    tail = "\n".join(r.output.splitlines()[-40:])
+    assert m, f"{name}: no 'N/M passed' line (exit {r.returncode})\n{tail}"
+    passed, total = int(m[-1].group(1)), int(m[-1].group(2))
+    assert passed == total and r.returncode == 0, f"{name}: {passed}/{total} passed (exit {r.returncode})\n{tail}"
+    return r
+
+
+# ---- pixels ----
+def rgb(img, x: float, y: float) -> tuple[int, int, int]:
+    """The colour at (x, y) in points (screenshots are taken at 1 px per point)."""
+    return img.getpixel((int(x), int(y)))[:3]
+
+
+def near(c, target, tolerance: int = 24) -> bool:
+    return all(abs(a - b) <= tolerance for a, b in zip(c, target))
+
+
+def is_red(c) -> bool:
+    r, g, b = c[:3]
+    return r > 180 and g < 90 and b < 90
+
+
+# ---- test helpers ----
+def need_apps(*names):
+    """Skip unless these apps (out/apps/NAME.app) are built."""
+    missing = [n for n in names if not (APPS / f"{n}.app").is_dir()]
+    if missing:
+        import pytest
+        pytest.skip(f"not built: {', '.join(missing)}")
+
+
+@contextmanager
+def exclusive(key: str):
+    """Serialize tests that share files (out/test-data/<key>, out/test-shots/<key>) across xdist workers."""
+    d = ROOT / "out" / "test-locks"
+    d.mkdir(parents=True, exist_ok=True)
+    with open(d / f"{key}.lock", "w") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+
