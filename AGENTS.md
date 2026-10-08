@@ -15,6 +15,10 @@ Code lives in `isim/`; see the [README](README.md) for what isim is and how it i
 - **ABI stability.** Apps built with older isim releases must keep running.
   - Never remove an exported symbol.
   - `python3 isim/tools/abi-check.py` compares the SDK with every recorded release (`isim/abi/`).
+  - Swift overlays are built with library evolution (`EVOLUTION` in `isim/buildlib/swift.py`), so their types can
+    change layout without breaking apps.
+  - A deliberate break needs an entry, with the reason, in `isim/abi/epochs.txt` (a whole library) or
+    `isim/abi/allowlist.txt` (single symbols).
 - **Never touch the user's device data.** Tests and experiments use a scratch `ISIM_DATA`, never
   `~/.local/share/isim`.
 

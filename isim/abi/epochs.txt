@@ -1,0 +1,11 @@
+# Binaries whose ABI broke on purpose: "<binary path in the SDK> <version>". Baselines older than <version> are not
+# checked for that binary; apps built with an older isim that use it must be rebuilt.
+#
+# 0.12.0 (issue #38): the base Swift overlays are built with library evolution, like Apple's. Before, about 50 resilient
+# overlays (SwiftUI, AVFoundation, ...) depended on these fragile ones, so a layout change in them could silently break
+# apps. Their symbols changed shape (resilient accessors instead of addressors, field offsets and witness tables).
+usr/lib/swift/libswiftObjectiveC.dylib 0.12.0
+usr/lib/swift/libswiftDispatch.dylib 0.12.0
+usr/lib/swift/libswiftFoundation.dylib 0.12.0
+usr/lib/swift/libswiftUIKit.dylib 0.12.0
+usr/lib/swift/libswiftCoreGraphics.dylib 0.12.0
