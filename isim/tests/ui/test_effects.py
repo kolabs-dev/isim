@@ -177,3 +177,27 @@ def test_defers_system_gestures(launch):
     dev.drag(x, y, x, 600)
     dev.wait_log(r"isim shell: home")                                    # a second swipe goes home
     assert dev.quit() == 0
+
+
+def test_animation_survives_a_stalled_main_thread(launch):
+    """A SwiftUI animation keeps running when the app is not scheduled for a moment (a busy machine): the process is
+    stopped for 0.3 s right after withAnimation starts, so its frame timer fires late. The ticker used to take the
+    late tick for "no render asked for a frame for 0.1 s" and stop, freezing the animation part-way."""
+    import os
+    import signal
+    from isimtest import _descendants
+    app = launch("HelloEffects")
+    app.wait_view(r"id=t-fade\b")
+    f = screen_frames(app.view_dump())
+    x, y, w, h = f["t-fade"]
+    app.wait_tap_id("fade")
+    app.wait_log(r"^fade tapped faded=true")                            # the 2 s withAnimation has started
+    pids = [p for p in _descendants(app.proc.pid) if os.path.exists(f"/proc/{p}/exe")
+            and os.readlink(f"/proc/{p}/exe").endswith("/isim-runtime")]
+    for p in pids:
+        os.kill(p, signal.SIGSTOP)
+    time.sleep(0.3)
+    for p in pids:
+        os.kill(p, signal.SIGCONT)
+    app.wait_shot(lambda s: near(px(s, x + w / 2, y + h / 2), (54, 54, 54)),
+                  "the grayscale animation finishes after the stall (fully grey)")
