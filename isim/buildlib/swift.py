@@ -130,7 +130,7 @@ class Swift:
                     "SE427NoInferenceOnExtension", "NonescapableTypes", "LifetimeDependence", "InoutLifetimeDependence",
                     "LifetimeDependenceMutableAccessors"] + ([] if full else ["Embedded"])
         modpath = mod("Swift") if full else f"{SW}/embedded/Swift.swiftmodule/{MT}.swiftmodule"
-        args = ["-emit-module", "-target", TRIPLE, "-O", "-wmo", "-nostdimport", "-parse-stdlib", "-module-name", "Swift",
+        args = ["-suppress-warnings", "-emit-module", "-target", TRIPLE, "-O", "-wmo", "-nostdimport", "-parse-stdlib", "-module-name", "Swift",
                 "-swift-version", "5", "-parse-as-library", "-Xfrontend", "-group-info-path", "-Xfrontend", f"{core}/GroupInfo.json",
                 "-Xfrontend", "-empty-abi-descriptor", "-runtime-compatibility-version", "none",
                 "-disable-autolinking-runtime-compatibility-dynamic-replacements",
@@ -273,14 +273,16 @@ class Swift:
                                *onone, *regex])
 
     def isim_module(self, name, srcs, flags, link_args=(), extra_objs=(), implicit=(), link_name=None, objdir=None,
-                    concurrency=True, minos="15.0", extra_outs=()):
-        """compile a library module with `isim swiftc` into the SDK and link lib<link_name>.dylib"""
+                    concurrency=True, minos="17.0", extra_outs=()):
+        """compile a library module from upstream Swift sources with `isim swiftc` (iOS 17 target; their warnings
+        are not ours to fix) into the SDK and link lib<link_name>.dylib"""
         link_name = link_name or f"swift{name}"
         obj = f"{objdir or SW + '/obj/' + name.lower()}/{name}.o"
         os.makedirs(os.path.join(self.c.root, LIB, f"{name}.swiftmodule"), exist_ok=True)
         os.makedirs(os.path.join(self.c.root, os.path.dirname(obj)), exist_ok=True)
         base = [mod("Swift")] + ([mod("_Concurrency")] if concurrency and name != "_Concurrency" else [])
-        self.swiftc([obj, mod(name), *extra_outs], ["-parse-as-library", "-module-name", name, "-module-link-name", link_name, *flags,
+        self.swiftc([obj, mod(name), *extra_outs], ["-suppress-warnings", "-parse-as-library", "-module-name", name,
+                                                    "-module-link-name", link_name, *flags,
                                        "-emit-module", "-emit-module-path", mod(name), "-c", "-o", obj],
                     srcs, implicit=base + list(implicit), keep=[obj, mod(name)], desc=f"SWIFT {name}")
         lib = self.link(link_name, [obj, *extra_objs], link_args, minos=minos)
@@ -442,7 +444,7 @@ class Swift:
                         srcs, implicit=base + implicit, keep=[obj, mod(m)], desc=f"SWIFT {m}")
             objs = [obj] + [a for a in args if a.endswith(".o")]
             link_args = ["-lSystem", "-lobjc", "-lswiftCore"] + [a for a in args if not a.endswith(".o")]
-            outs += [mod(m), self.link(f"swift{m}", objs, link_args)]
+            outs += [mod(m), self.link(f"swift{m}", objs, link_args, minos="17.0")]
         # stand-ins for remote Swift packages that isim cannot fetch or run (isim build reads this)
         act.write_if_changed(os.path.join(c.root, SDK, "usr/share/isim/package-standins.json"), STANDINS)
         n.phony("overlays", outs)
@@ -484,7 +486,7 @@ class Swift:
         # upstream's flags (cmake/modules/shared/CompilerSettings.cmake) minus InternalImportsByDefault/AccessLevelOnImport:
         # with those, Testing's `public import ObjectiveC` is an error because isim's ObjectiveC overlay is not built with
         # library evolution; without them Testing stays resilient and its clients never load its private dependencies
-        common = ["-parse-as-library", "-swift-version", "6", "-O", "-wmo", "-enable-library-evolution", "-package-name", "org.swift.testing",
+        common = ["-suppress-warnings", "-parse-as-library", "-swift-version", "6", "-O", "-wmo", "-enable-library-evolution", "-package-name", "org.swift.testing",
                   "-Xfrontend", "-require-explicit-sendable", "-enable-upcoming-feature", "ExistentialAny",
                   "-enable-upcoming-feature", "MemberImportVisibility", "-enable-upcoming-feature", "InferIsolatedConformances",
                   "-enable-experimental-feature", "AllowUnsafeAttribute", *sdefs, *avail, "-I", INC, "-I", f"{OBJ}/mod"]

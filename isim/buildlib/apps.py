@@ -438,7 +438,8 @@ def _(a):
 
 @app("tests/swift-extras", products=["SwiftExtrasTest.app"])
 def _(a):   # deployment target iOS 18 (Synchronization is iOS 18+)
-    a.swift_app("SwiftExtrasTest", swift_flags=["-target", "x86_64-apple-ios18.0-simulator"], link=["-framework", "Foundation"])
+    a.swift_app("SwiftExtrasTest", swift_flags=["-target", "x86_64-apple-ios18.0-simulator"],
+                link=["-target", "x86_64-apple-ios18.0-simulator", "-framework", "Foundation"])
 
 
 @app("tests/swift-network", products=["SwiftNetworkTest.app"])
