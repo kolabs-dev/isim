@@ -663,3 +663,8 @@ int isim_crypto_ed25519_verify(const uint8_t *pub, const void *msg, size_t len, 
     if (k) ossl.EVP_PKEY_free(k);
     return ok;
 }
+
+/* SHA-1 for other host code (the WebSocket handshake's Sec-WebSocket-Accept); not exported to apps */
+void isim_sha1(const void *data, size_t n, uint8_t out[20]) {
+    struct sha1_st s; sha1_init(&s); sha1_update(&s, data, n); sha1_final(&s, out);
+}

@@ -3,16 +3,8 @@ JSONDecoder, completion handler on a background queue, POST + Set-Cookie + authe
 an unreachable host, WebSocket echo, Combine dataTaskPublisher, NWPathMonitor, and ISIM_NETWORK=offline.
 Port of tests/ui/network.sh."""
 import re
-import subprocess
 
-import pytest
 from isimtest import ROOT, local_server
-
-
-def curl_has_ws():
-    """The host libcurl speaks WebSocket (Ubuntu 24.04's does not: issue #5)."""
-    out = subprocess.run(["curl", "--version"], capture_output=True, text=True).stdout
-    return "Protocols:" in out and "ws" in out.split("Protocols:")[1].split("\n")[0].split()
 
 
 def test_network(launch, device_data):
@@ -65,7 +57,6 @@ def test_network(launch, device_data):
     assert "POST /login" in requests and "GET /me" in requests, "server saw the requests"
 
 
-@pytest.mark.skipif(not curl_has_ws(), reason="the host libcurl has no WebSocket support (issue #5)")
 def test_websocket(launch, device_data):
     with local_server(ROOT / "samples/HelloNetwork/server.py", device_data / "server.log") as port:
         app = launch("HelloNetwork", args=["-server", f"http://127.0.0.1:{port}"])
