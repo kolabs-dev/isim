@@ -273,14 +273,14 @@ class Swift:
                                *onone, *regex])
 
     def isim_module(self, name, srcs, flags, link_args=(), extra_objs=(), implicit=(), link_name=None, objdir=None,
-                    concurrency=True, minos="15.0"):
+                    concurrency=True, minos="15.0", extra_outs=()):
         """compile a library module with `isim swiftc` into the SDK and link lib<link_name>.dylib"""
         link_name = link_name or f"swift{name}"
         obj = f"{objdir or SW + '/obj/' + name.lower()}/{name}.o"
         os.makedirs(os.path.join(self.c.root, LIB, f"{name}.swiftmodule"), exist_ok=True)
         os.makedirs(os.path.join(self.c.root, os.path.dirname(obj)), exist_ok=True)
         base = [mod("Swift")] + ([mod("_Concurrency")] if concurrency and name != "_Concurrency" else [])
-        self.swiftc([obj, mod(name)], ["-parse-as-library", "-module-name", name, "-module-link-name", link_name, *flags,
+        self.swiftc([obj, mod(name), *extra_outs], ["-parse-as-library", "-module-name", name, "-module-link-name", link_name, *flags,
                                        "-emit-module", "-emit-module-path", mod(name), "-c", "-o", obj],
                     srcs, implicit=base + list(implicit), keep=[obj, mod(name)], desc=f"SWIFT {name}")
         lib = self.link(link_name, [obj, *extra_objs], link_args, minos=minos)
@@ -323,6 +323,7 @@ class Swift:
         cxx = [f"{C}/{s}" for s in c_sources] + [f"{S}/lib/Threading/{t}.cpp" for t in ("C11", "Linux", "Pthreads", "Win32", "ThreadSanitizer")]
         objs = self.cxx_objs(cxx, f"{SW}/obj/concurrency", flags=cflags, name_of=lambda f: os.path.relpath(f, S).replace("/", "_"))
         out = self.isim_module("_Concurrency", files, flags, link_name="swift_Concurrency", objdir=f"{SW}/obj/concurrency",
+                               extra_outs=[mod("_Concurrency", "swiftinterface")],
                                extra_objs=objs, link_args=["-lSystem", "-lobjc", "-lc++", "-lswiftCore", "-framework", "Foundation"])
         return out + [mod("_Concurrency", "swiftinterface")]
 
