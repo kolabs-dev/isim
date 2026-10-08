@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Image Picker</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloImagePicker</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloImagePicker</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Takes photos and videos for the sample.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Saves the recorded video to your library.</string>
+</dict>
+</plist>

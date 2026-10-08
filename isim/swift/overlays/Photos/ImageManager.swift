@@ -25,7 +25,7 @@ open class PHImageManager: NSObject, @unchecked Sendable {
     static func newID() -> PHImageRequestID { let i = nextID; nextID += 1; return i }
 
     static func image(_ asset: PHAsset, _ target: CGSize, _ mode: PHImageContentMode) -> UIImage? {
-        guard let img = UIImage(contentsOfFile: _PHStore.path(asset.rec)) else { return nil }
+        guard let img = UIImage(contentsOfFile: _PHStore.imagePath(asset.rec)) else { return nil }
         if target.width <= 0 || target.height <= 0 { return img }
         let w = CGFloat(asset.pixelWidth > 0 ? asset.pixelWidth : Int(img.size.width)), h = CGFloat(asset.pixelHeight > 0 ? asset.pixelHeight : Int(img.size.height))
         let s = mode == .aspectFill ? max(target.width / w, target.height / h) : min(target.width / w, target.height / h)
@@ -180,5 +180,6 @@ enum _PHSelection {
 extension PHAsset {
     /// isim: the file holding the asset's image (used by PhotosUI's item providers)
     @_spi(isim) public var _isimFilePath: String { _PHStore.path(rec) }
-    @_spi(isim) public static func _isimAll() -> [PHAsset] { PHAsset.fetch(_PHStore.records(), nil).items }
+    /// the photos PHPickerViewController offers (videos are not offered yet)
+    @_spi(isim) public static func _isimAll() -> [PHAsset] { PHAsset.fetch(_PHStore.records().filter { !$0.isVideo }, nil).items }
 }
