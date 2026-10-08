@@ -568,6 +568,18 @@ static double uifont_weight(int ot) {
     for (unsigned i = 0; i < sizeof t / sizeof *t; i++) { int d = abs(t[i].ot - ot); if (d < bd) { bd = d; best = t[i].w; } }
     return best;
 }
+/* isim's own UI fonts (fonts/: Adwaita Sans and Mono, OFL), installed next to the runtime in ../share/fonts, so text
+   looks and measures the same on every distribution; host fonts stay the fallback (emoji, other scripts). */
+__attribute__((constructor)) static void bundled_fonts(void) {
+    char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);
+    if (n <= 0) return;
+    self[n] = 0;
+    char *slash = strrchr(self, '/'); if (!slash) return;
+    *slash = 0;
+    char dir[PATH_MAX + 32]; snprintf(dir, sizeof dir, "%s/../share/fonts", self);
+    struct stat st; if (stat(dir, &st) || !S_ISDIR(st.st_mode)) return;
+    FcConfigAppFontAddDir(FcConfigGetCurrent(), (const FcChar8 *)dir);
+}
 /* Adds a font file for this process (UIAppFonts / CTFontManagerRegisterFontsForURL). */
 int isim_font_register(const char *path) {
     if (!FcConfigAppFontAddFile(FcConfigGetCurrent(), (const FcChar8 *)path)) return 0;
