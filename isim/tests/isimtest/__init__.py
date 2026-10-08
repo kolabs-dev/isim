@@ -12,6 +12,7 @@ XCUITest uses), a line in the app's log, or the process exiting.
 """
 from __future__ import annotations
 
+import errno
 import fcntl
 import os
 import re
@@ -224,8 +225,32 @@ class App:
                                      errors="replace")
         self._reader = threading.Thread(target=self._read, daemon=True)
         self._reader.start()
-        self._ctl = open(self.fifo, "w")
+        self._ctl = self._open_control()
         self._n = 0
+
+    def _open_control(self, timeout: float = 60):
+        """The write end of the control FIFO. A plain open() blocks until the app opens the read end, forever if the app
+        dies first (a crash while loading, an unresolved symbol): open without blocking and retry while the app runs."""
+        end = time.monotonic() + timeout * float(os.environ.get("ISIM_WAIT_SCALE", "1"))
+        while True:
+            try:
+                fd = os.open(self.fifo, os.O_WRONLY | os.O_NONBLOCK)
+            except OSError as e:                                   # ENXIO: no reader yet
+                if e.errno != errno.ENXIO:
+                    raise
+                status = self.proc.poll()
+                if status is not None or time.monotonic() > end:
+                    self._reader.join(2)
+                    with self._cv:
+                        tail = "\n".join(self._lines[-30:])
+                    if status is None:
+                        self.proc.kill()
+                    what = f"exited with status {status}" if status is not None else f"did not open it within {timeout:g} s"
+                    raise WaitTimeout(f"the app {what} before opening its control channel\n{tail}") from None
+                time.sleep(0.02)
+                continue
+            fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) & ~os.O_NONBLOCK)   # writes block as before
+            return os.fdopen(fd, "w")
 
     # ---- process output ----
     def _read(self):
