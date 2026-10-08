@@ -3,7 +3,7 @@
  *  - built-in keyboards enabled in Settings (English (US), Português (Brasil), Español, Français, Deutsch, Emoji):
  *    letters / numbers / symbols layers, shift + auto-capitalization, accent popups, predictive bar, autocorrection,
  *    delete with auto-repeat, return key titled by returnKeyType; dictation (mic) is not available;
- *  - custom keyboards: the app's embedded keyboard extensions (PlugIns/*.appex,
+ *  - custom keyboards: the app's embedded keyboard extensions (PlugIns/<name>.appex,
  *    com.apple.keyboard-service). isim loads the extension executable into the app process
  *    (iOS runs it out of process) and hosts its UIInputViewController. All embedded keyboards
  *    count as enabled (iOS needs Settings > Keyboards); ISIM_KEYBOARDS=none disables them;

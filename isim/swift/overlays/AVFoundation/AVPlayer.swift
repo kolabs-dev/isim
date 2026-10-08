@@ -14,7 +14,7 @@ open class AVPlayerItem: NSObject, @unchecked Sendable {
     @objc public enum Status: Int, Sendable { case unknown = 0, readyToPlay, failed }
     public let asset: AVAsset
     public let automaticallyLoadedAssetKeys: [String]
-    @objc open private(set) var status: Status = .unknown
+    @objc open private(set) dynamic var status: Status = .unknown
     open private(set) var error: Error?
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { false }
     open var forwardPlaybackEndTime: CMTime = .invalid
@@ -162,10 +162,10 @@ open class AVPlayer: NSObject, @unchecked Sendable {
         public static let noItemToPlay = WaitingReason(rawValue: "AVPlayerWaitingWithNoItemToPlayReason")
     }
 
-    @objc open private(set) var currentItem: AVPlayerItem?
-    @objc open private(set) var status: Status = .readyToPlay
+    @objc open private(set) dynamic var currentItem: AVPlayerItem?
+    @objc open private(set) dynamic var status: Status = .readyToPlay
     open private(set) var error: Error?
-    @objc open private(set) var timeControlStatus: TimeControlStatus = .paused
+    @objc open private(set) dynamic var timeControlStatus: TimeControlStatus = .paused
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { false }
     open private(set) var reasonForWaitingToPlay: WaitingReason?
     open var actionAtItemEnd: ActionAtItemEnd = .pause

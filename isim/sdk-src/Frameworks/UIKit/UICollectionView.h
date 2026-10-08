@@ -101,7 +101,7 @@ NS_SWIFT_UI_ACTOR
 @interface UICollectionViewLayout : NSObject
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
-@property (nullable, nonatomic, readonly) UICollectionView *collectionView;
+@property (nullable, nonatomic, readonly, weak) UICollectionView *collectionView;
 - (void)invalidateLayout;
 - (void)prepareLayout;
 @property (nonatomic, readonly) CGSize collectionViewContentSize;

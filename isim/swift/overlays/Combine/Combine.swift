@@ -189,7 +189,7 @@ extension Publisher where Failure == Never {
     }
     public func assign(to published: inout Published<Output>.Publisher) {
         let subject = published.subject
-        _ = subscribe(_ClosureSubscriber<Output, Never>(value: { subject.send($0) }, completion: { _ in }))
+        subscribe(_ClosureSubscriber<Output, Never>(value: { subject.send($0) }, completion: { _ in }))
     }
 }
 

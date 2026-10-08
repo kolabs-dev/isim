@@ -6,7 +6,6 @@
 // delegate is set. Adapted: the TLS handshake happens in the host's libcurl after that challenge, so
 // `serverTrust` describes the host only (no certificate chain); `.useCredential` with URLCredential(trust:)
 // accepts the server's certificate without checking it. Client certificates are not supported.
-import Foundation
 
 /// Security's trust object (the one SecTrust type: defined here because URLProtectionSpace hands it out, extended by
 /// the Security module with certificates, policies and evaluation). An HTTPS challenge's trust names the host only;
@@ -105,7 +104,7 @@ extension URLSession {
 /// Credentials by protection space. `.permanent` credentials of the shared storage are kept for this run only
 /// (isim has no keychain-backed credential store).
 open class URLCredentialStorage: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) static let _shared = URLCredentialStorage()
+    static let _shared = URLCredentialStorage()
     open class var shared: URLCredentialStorage { _shared }
     let lock = NSLock()
     var store: [String: (space: URLProtectionSpace, creds: [String: URLCredential], def: String?)] = [:]

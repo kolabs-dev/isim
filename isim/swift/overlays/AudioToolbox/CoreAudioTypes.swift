@@ -24,7 +24,7 @@ public let kLinearPCMFormatFlagIsSignedInteger = kAudioFormatFlagIsSignedInteger
 public let kLinearPCMFormatFlagIsPacked = kAudioFormatFlagIsPacked
 public let kLinearPCMFormatFlagIsNonInterleaved = kAudioFormatFlagIsNonInterleaved
 
-extension AudioStreamBasicDescription: Equatable {
+extension AudioStreamBasicDescription: @retroactive Equatable {
     public static func == (a: AudioStreamBasicDescription, b: AudioStreamBasicDescription) -> Bool {
         a.mSampleRate == b.mSampleRate && a.mFormatID == b.mFormatID && a.mFormatFlags == b.mFormatFlags && a.mBytesPerPacket == b.mBytesPerPacket
             && a.mFramesPerPacket == b.mFramesPerPacket && a.mBytesPerFrame == b.mBytesPerFrame && a.mChannelsPerFrame == b.mChannelsPerFrame

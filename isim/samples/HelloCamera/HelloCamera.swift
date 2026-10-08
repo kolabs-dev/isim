@@ -27,6 +27,7 @@ func color(_ p: UnsafePointer<UInt8>) -> String {      // BGRA
 
 final class CameraViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureMetadataOutputObjectsDelegate,
                                   AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
+    // the capture session and its outputs are configured on sessionQueue (configure), like Apple's AVCam
     let session = AVCaptureSession()
     let preview = UIView()
     let previewLayer = AVCaptureVideoPreviewLayer()
@@ -87,7 +88,7 @@ final class CameraViewController: UIViewController, AVCaptureVideoDataOutputSamp
         }
     }
 
-    func configure(_ device: AVCaptureDevice?) {
+    nonisolated func configure(_ device: AVCaptureDevice?) {
         guard let device else { log("no camera"); return }
         session.beginConfiguration()
         session.sessionPreset = .photo
@@ -116,12 +117,12 @@ final class CameraViewController: UIViewController, AVCaptureVideoDataOutputSamp
         frames += 1
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         if frames == 1 || frames % 15 == 0 {
-            CVPixelBufferLockBaseAddress(pb, .readOnly)
+            _ = CVPixelBufferLockBaseAddress(pb, .readOnly)
             let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self)
             let c = color(base + 4 * 4 + 4 * CVPixelBufferGetBytesPerRow(pb))
             if frames == 1 { log("first frame \(CVPixelBufferGetWidth(pb))x\(CVPixelBufferGetHeight(pb)) format=\(CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA ? "BGRA" : "other") corner=\(c)") }
             if colors.last != c { colors.append(c); log("frame colors \(colors.joined(separator: ","))") }
-            CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+            _ = CVPixelBufferUnlockBaseAddress(pb, .readOnly)
         }
         if frames % 30 == 0 { let n = frames; DispatchQueue.main.async { self.frameLabel.text = "\(n) frames" } }
     }

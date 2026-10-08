@@ -428,7 +428,6 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
         if let v = dequeueReusableAnnotationView(withIdentifier: identifier) { v.annotation = annotation; return v }
         guard let cls = _registered[identifier] else {
             NSException(name: "NSInternalInconsistencyException", reason: "unable to dequeue an annotation view with identifier \(identifier) - must register a class", userInfo: nil).raise()
-            fatalError()
         }
         return cls.init(annotation: annotation, reuseIdentifier: identifier)
     }

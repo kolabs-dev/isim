@@ -55,10 +55,10 @@ func slowSquare(_ x: Int) async -> Int {
         check(await counter.value == 200, "actor serializes 200 concurrent increments")
 
         // MainActor hop
-        let model = await Model()
-        await model.record("a")
+        let model = Model()
+        model.record("a")
         await MainActor.run { model.record("b") }
-        check(await model.log == ["a", "b"], "MainActor isolation + MainActor.run")
+        check(model.log == ["a", "b"], "MainActor isolation + MainActor.run")
         let onMain = await MainActor.run { Thread.isMainThread }
         check(onMain, "MainActor runs on the main thread")
 

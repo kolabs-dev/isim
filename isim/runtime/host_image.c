@@ -54,7 +54,7 @@ static cairo_surface_t *surface_from_pixbuf(GdkPixbuf *pb) {
 static int load_svg(RsvgHandle *svg, double *w, double *h) {
     gdouble sw = 16, sh = 16;
     if (!rsvg_handle_get_intrinsic_size_in_pixels(svg, &sw, &sh)) { sw = 16; sh = 16; }
-    struct img v = { IMG_SVG, NULL, svg, sw, sh };
+    struct img v = { .kind = IMG_SVG, .svg = svg, .w = sw, .h = sh };
     *w = sw; *h = sh;
     return new_img(v);
 }
@@ -76,7 +76,7 @@ int isim_image_load_data(const void *data, unsigned long len, double *w, double 
         struct { const unsigned char *p; unsigned long left; } rd = { data, len };
         cairo_surface_t *png = cairo_image_surface_create_from_png_stream(png_read, &rd);
         if (cairo_surface_status(png) == CAIRO_STATUS_SUCCESS) {
-            struct img v = { IMG_RASTER, png, NULL, cairo_image_surface_get_width(png), cairo_image_surface_get_height(png) };
+            struct img v = { .kind = IMG_RASTER, .surf = png, .w = cairo_image_surface_get_width(png), .h = cairo_image_surface_get_height(png) };
             *w = v.w; *h = v.h;
             return new_img(v);
         }
@@ -88,7 +88,7 @@ int isim_image_load_data(const void *data, unsigned long len, double *w, double 
     GdkPixbuf *pb = ok ? gdk_pixbuf_loader_get_pixbuf(l) : NULL;
     int handle = 0;
     if (pb) {
-        struct img v = { IMG_RASTER, surface_from_pixbuf(pb), NULL, gdk_pixbuf_get_width(pb), gdk_pixbuf_get_height(pb) };
+        struct img v = { .kind = IMG_RASTER, .surf = surface_from_pixbuf(pb), .w = gdk_pixbuf_get_width(pb), .h = gdk_pixbuf_get_height(pb) };
         *w = v.w; *h = v.h; handle = new_img(v);
     }
     g_object_unref(l);
@@ -213,7 +213,7 @@ static const struct { const char *sf, *adw; } symbol_map[] = {
 };
 
 static int proc_symbol(int proc, int fill, const char *text, double *w, double *h) {
-    struct img v = { IMG_PROC, NULL, NULL, 1.2, 1.2, proc, fill };
+    struct img v = { .kind = IMG_PROC, .w = 1.2, .h = 1.2, .proc = proc, .fill = fill };
     if (proc == PROC_KB_DOWN) { v.w = 1.45; v.h = 1.2; }
     if (proc == PROC_UPDOWN) { v.w = 0.62; v.h = 1.0; }
     if (proc == PROC_ELLIPSIS && fill < 2) { v.w = 1.2; v.h = 0.3; }
@@ -476,7 +476,7 @@ int isim_image_from_surface(cairo_surface_t *src) {
     cairo_t *c = cairo_create(s);
     cairo_set_source_surface(c, src, 0, 0); cairo_set_operator(c, CAIRO_OPERATOR_SOURCE); cairo_paint(c);
     cairo_destroy(c);
-    struct img v = { IMG_RASTER, s, NULL, w, h };
+    struct img v = { .kind = IMG_RASTER, .surf = s, .w = w, .h = h };
     return new_img(v);
 }
 static cairo_status_t png_write(void *closure, const unsigned char *data, unsigned int n) {
@@ -519,7 +519,7 @@ void isim_image_bytes_free(unsigned char *p) { free(p); }
  * Used by host_media.c for video frames: created once, then updated in place on the UI thread. */
 int isim_image_create_bgra(int w, int h) {
     if (w <= 0 || h <= 0) return 0;
-    struct img v = { IMG_RASTER, cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h), NULL, w, h };
+    struct img v = { .kind = IMG_RASTER, .surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h), .w = w, .h = h };
     return new_img(v);
 }
 void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h) {
@@ -581,7 +581,7 @@ cairo_surface_t *isim_image_get_surface(int hd, int *owned) {
 }
 /* a new raster image that takes over an ARGB32 surface */
 int isim_image_adopt_surface(cairo_surface_t *s) {
-    struct img v = { IMG_RASTER, s, NULL, cairo_image_surface_get_width(s), cairo_image_surface_get_height(s) };
+    struct img v = { .kind = IMG_RASTER, .surf = s, .w = cairo_image_surface_get_width(s), .h = cairo_image_surface_get_height(s) };
     return new_img(v);
 }
 /* the raster surface behind a handle (NULL for vector/procedural images); used by host_ca.c */

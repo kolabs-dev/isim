@@ -364,7 +364,7 @@ public struct Image: View, _PrimitiveView {
     public enum Scale: Sendable { case small, medium, large }
     public init(systemName: String) { source = .system(systemName) }
     public init(_ name: String, bundle: Bundle? = nil) { source = .named(name, bundle) }
-    public init(uiImage: UIImage) { source = .ui(uiImage) }
+    nonisolated public init(uiImage: UIImage) { source = .ui(uiImage) }
     public func resizable() -> Image { var i = self; i.isResizable = true; return i }
     public func renderingMode(_ m: TemplateRenderingMode?) -> Image { var i = self; i.renderingMode = m; return i }
     public var body: Never { fatalError() }

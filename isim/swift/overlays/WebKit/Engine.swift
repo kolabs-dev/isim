@@ -39,7 +39,7 @@ enum _WKProto {
 }
 
 final class _WKEngine: @unchecked Sendable {
-    nonisolated(unsafe) static let shared = _WKEngine()
+    static let shared = _WKEngine()
     private var started = false
     private(set) var available = false
     private(set) var unavailableReason = ""

@@ -28,8 +28,9 @@ class ActionViewController: UIViewController {
         // the text comes as a plain-text item provider (and as the item's content text)
         let item = extensionContext?.inputItems.first as? NSExtensionItem
         let provider = item?.attachments?.first { $0.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) }
+        let contentText = item?.attributedContentText?.string ?? ""
         provider?.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { value, _ in
-            let s = (value as? String) ?? (value as? NSString).map { $0 as String } ?? item?.attributedContentText?.string ?? ""
+            let s = (value as? String) ?? (value as? NSString).map { $0 as String } ?? contentText
             DispatchQueue.main.async {
                 self.text = s.uppercased()
                 self.label.text = self.text

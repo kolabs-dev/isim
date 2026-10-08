@@ -13,6 +13,9 @@ const UIAccessibilityTraits UIAccessibilityTraitNone = 0, UIAccessibilityTraitBu
 
 static char k_label, k_hint, k_value, k_traits, k_element, k_ident, k_hidden, k_modal;
 @implementation NSObject (UIAccessibility)
+/* implemented by NSObject (UIAccessibilityExtras) in UIAccessibilityRuntime.m */
+@dynamic accessibilityFrame, accessibilityActivationPoint, accessibilityLanguage, accessibilityNavigationStyle, accessibilityPath,
+         accessibilityRespondsToUserInteraction, accessibilityUserInputLabels, shouldGroupAccessibilityChildren;
 - (NSString *)accessibilityLabel {
     NSString *l = objc_getAssociatedObject(self, &k_label);
     if (l || ![self isKindOfClass:[UIView class]]) return l;

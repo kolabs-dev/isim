@@ -173,7 +173,7 @@ public struct PhotosPickerItem: Equatable, Hashable, Sendable {
 }
 
 @MainActor enum _PUPresenter {
-    @MainActor final class Relay: NSObject, PHPickerViewControllerDelegate {
+    @MainActor final class Relay: NSObject, @preconcurrency PHPickerViewControllerDelegate {
         let done: ([PhotosPickerItem]) -> Void
         let expose: Bool
         init(expose: Bool, done: @escaping ([PhotosPickerItem]) -> Void) { self.expose = expose; self.done = done }

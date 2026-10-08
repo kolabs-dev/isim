@@ -395,7 +395,7 @@ public struct MXMetricManagerError: Error, CustomNSError, Sendable {
 }
 
 open class MXMetricManager: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) public static let shared = MXMetricManager()
+    public static let shared = MXMetricManager()
     private struct Weak { weak var s: MXMetricManagerSubscriber? }
     private var subscribers: [Weak] = []
     private var timer: Timer?

@@ -259,7 +259,7 @@ final class CoreAnimationViewController: UIViewController, UIDynamicAnimatorDele
         let caps = CHHapticEngine.capabilitiesForHardware()
         print("haptics supportsHaptics=\(caps.supportsHaptics)")
         do {
-            let e = try CHHapticEngine()
+            let e = try CHHapticEngine(audioSession: nil)      /* (isim's CHHapticEngine() cannot throw: NSObject's init() is not) */
             try e.start()
             let tap = CHHapticEvent(eventType: .hapticTransient, parameters: [CHHapticEventParameter(parameterID: .hapticIntensity, value: 1)], relativeTime: 0)
             let buzz = CHHapticEvent(eventType: .hapticContinuous, parameters: [CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5)], relativeTime: 0.1, duration: 0.3)

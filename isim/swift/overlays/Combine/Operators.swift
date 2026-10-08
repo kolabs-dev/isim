@@ -318,7 +318,7 @@ extension Publishers {
                 if case .finished = c, !rest.isEmpty { o.send(rest) }
                 o.finish(c)
             })
-            weak var weakOut = out
+            weak let weakOut = out
             timer.value = sch.schedule(after: sch.now.advanced(by: stride), interval: stride, tolerance: sch.minimumTolerance, options: opts) {
                 guard let o = weakOut else { return }
                 lock.lock(); let c = chunk.value; chunk.value = []; lock.unlock()

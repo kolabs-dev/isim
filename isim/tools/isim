@@ -153,7 +153,10 @@ case "$cmd" in
     fi
     exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
   cc)
-    exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fuse-ld=lld -fobjc-arc -L "$SDK/usr/lib/swift" "$@" ;;
+    # the linker flags only when clang links (not with -c, -S, -E, ...), so compiles do not warn about unused arguments
+    link=(-fuse-ld=lld -L "$SDK/usr/lib/swift")
+    for a in "$@"; do case "$a" in -c|-S|-E|-M|-MM|-fsyntax-only|--precompile) link=() ;; esac; done
+    exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fobjc-arc "${link[@]}" "$@" ;;
   swiftc)
     ws=$(cd -- "$BIN/../../.." && pwd)
     mounts=(-v "$ws:$ws")

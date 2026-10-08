@@ -19,7 +19,7 @@ NS_SWIFT_UI_ACTOR
 - (void)removeTarget:(nullable id)target action:(nullable SEL)action;
 @property (nonatomic, readonly) UIGestureRecognizerState state;
 @property (nonatomic, getter=isEnabled) BOOL enabled;
-@property (nullable, nonatomic, readonly) UIView *view;
+@property (nullable, nonatomic, readonly, weak) UIView *view;
 @property (nonatomic) BOOL cancelsTouchesInView;
 @property (nullable, nonatomic, weak) id<UIGestureRecognizerDelegate> delegate;
 @property (nullable, nonatomic, copy) NSString *name;

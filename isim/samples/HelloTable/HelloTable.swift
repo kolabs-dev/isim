@@ -89,7 +89,7 @@ final class ProduceViewController: UITableViewController, UITableViewDataSourceP
         let name = sections[indexPath.section].1[indexPath.row]
         if name == note {
             let cell = tableView.dequeueReusableCell(withIdentifier: "note", for: indexPath)
-            var content = cell.defaultContentConfiguration()
+            let content = cell.defaultContentConfiguration()
             content.text = name
             content.textProperties.numberOfLines = 0
             cell.contentConfiguration = content
@@ -147,7 +147,7 @@ final class SettingsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
         if indexPath.section == 0 {
-            var content = UIListContentConfiguration.valueCell()
+            let content = UIListContentConfiguration.valueCell()
             content.text = indexPath.row == 0 ? "Name" : "Plan"
             content.secondaryText = indexPath.row == 0 ? "Ada" : "Pro"
             content.image = UIImage(systemName: indexPath.row == 0 ? "person.crop.circle" : "star")
@@ -187,7 +187,7 @@ final class DiffableViewController: UIViewController {
         view.addSubview(tableView)
         dataSource = UITableViewDiffableDataSource(tableView: tableView) { tv, ip, n in
             let cell = tv.dequeueReusableCell(withIdentifier: "n", for: ip)
-            var content = cell.defaultContentConfiguration()
+            let content = cell.defaultContentConfiguration()
             content.text = "Number \(n)"
             cell.contentConfiguration = content
             cell.accessibilityIdentifier = "num-\(n)"

@@ -13,6 +13,9 @@ OUT = "out"
 SDK = "out/sdk"
 FW = f"{SDK}/System/Library/Frameworks"
 MINOS = "15.0"
+# warnings are errors (issue #40); deprecations stay warnings. ISIM_WERROR=0 builds with a compiler that warns more
+WERROR = os.environ.get("ISIM_WERROR", "1") != "0"
+C_WERROR = ["-Werror", "-Wno-error=deprecated-declarations"] if WERROR else []
 
 
 class Ctx:
@@ -64,7 +67,7 @@ def host_runtime(c):
     if cflags is None or libs is None:
         raise SystemExit(f"build.py: pkg-config cannot find {mods} (see the README for the packages)")
     objs = [c.compile(s, f"{OUT}/obj/host/{os.path.basename(s)}.o",
-                      [c.cc, "-O2", "-g", "-Wall", "-Wextra", "-Wno-unused-parameter", "-std=gnu11", *cflags])
+                      [c.cc, "-O2", "-g", "-Wall", "-Wextra", "-Wno-unused-parameter", *C_WERROR, "-std=gnu11", *cflags])
             for s in host_sources(c)]
     n.build(f"{OUT}/bin/isim-runtime", [c.cc, "-o", f"{OUT}/bin/isim-runtime", *objs, *libs, "-lm", "-lpthread", "-ldl"],
             inputs=objs, desc="LINK isim-runtime")
@@ -72,7 +75,7 @@ def host_runtime(c):
     web = pkg("webkitgtk-6.0", "gtk4")
     if web is not None and shutil.which("gtk4-broadwayd"):
         o = c.compile("runtime/isim-webkit.c", f"{OUT}/obj/host/isim-webkit.o",
-                      [c.cc, "-O2", "-g", "-Wall", "-Wno-unused-parameter", "-std=gnu11", *pkg("webkitgtk-6.0", "gtk4", flags="--cflags")])
+                      [c.cc, "-O2", "-g", "-Wall", "-Wno-unused-parameter", *C_WERROR, "-std=gnu11", *pkg("webkitgtk-6.0", "gtk4", flags="--cflags")])
         targets += n.build(f"{OUT}/bin/isim-webkit", [c.cc, "-o", f"{OUT}/bin/isim-webkit", o, *pkg("webkitgtk-6.0", "gtk4", flags="--libs")],
                            inputs=[o], desc="LINK isim-webkit")
     else:
@@ -139,7 +142,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",
                 "-iframework", FW, "-O1", "-g", f"-fobjc-runtime=ios-{MINOS}", "-Wall", "-Wno-unused-parameter",
                 "-Wno-objc-designated-initializers", "-Wno-missing-noescape", "-Wno-mismatched-parameter-types",
-                "-fno-stack-protector"]
+                "-fno-stack-protector", *C_WERROR]
 
 
 def link_deps(args):

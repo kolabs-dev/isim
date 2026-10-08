@@ -47,7 +47,7 @@ final class ResultsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { rows.count }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let c = tableView.dequeueReusableCell(withIdentifier: "c", for: indexPath)
-        var cfg = c.defaultContentConfiguration()
+        let cfg = c.defaultContentConfiguration()
         cfg.text = rows[indexPath.row].0; cfg.secondaryText = rows[indexPath.row].1
         c.contentConfiguration = cfg
         return c
@@ -106,7 +106,7 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
         let l = try NWListener(using: params)
         l.newConnectionHandler = { c in
             c.start(queue: .global())
-            func pump() {
+            @Sendable func pump() {
                 c.receive(minimumIncompleteLength: 1, maximumLength: 65536) { d, _, done, err in
                     if let d, !d.isEmpty { c.send(content: Data("echo:".utf8) + d, completion: .contentProcessed { _ in }) }
                     if done || err != nil { c.cancel() } else { pump() }

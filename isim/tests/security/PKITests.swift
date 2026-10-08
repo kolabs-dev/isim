@@ -88,7 +88,7 @@ func secKeyTests() {
 
     // keys in the keychain
     let tag = Data("dev.isim.test.signing".utf8)
-    SecItemDelete([kSecClass: kSecClassKey, kSecAttrApplicationTag: tag] as CFDictionary)
+    _ = SecItemDelete([kSecClass: kSecClassKey, kSecAttrApplicationTag: tag] as CFDictionary)
     let stored = SecKeyCreateRandomKey([kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom, kSecAttrKeySizeInBits: 256,
                                         kSecPrivateKeyAttrs: [kSecAttrIsPermanent: true, kSecAttrApplicationTag: tag]] as CFDictionary, &error)
     var found: CFTypeRef?
@@ -99,7 +99,7 @@ func secKeyTests() {
     check(foundKey.map { verify(SecKeyCopyPublicKey(stored!)!, .ecdsaSignatureMessageX962SHA256, message, sign($0, .ecdsaSignatureMessageX962SHA256, message)) } == true,
           "the key read back from the keychain signs")
     let pubTag = Data("dev.isim.test.rsa-public".utf8)
-    SecItemDelete([kSecClass: kSecClassKey, kSecAttrApplicationTag: pubTag] as CFDictionary)
+    _ = SecItemDelete([kSecClass: kSecClassKey, kSecAttrApplicationTag: pubTag] as CFDictionary)
     let addSt = SecItemAdd([kSecClass: kSecClassKey, kSecValueRef: rsaPub, kSecAttrApplicationTag: pubTag] as CFDictionary, nil)
     let dup = SecItemAdd([kSecClass: kSecClassKey, kSecValueRef: rsaPub, kSecAttrApplicationTag: pubTag] as CFDictionary, nil)
     var attrsOut: CFTypeRef?
@@ -194,8 +194,8 @@ func certificateTests() {
           "SecIdentityCopyCertificate / CopyPrivateKey (the key matches the certificate)")
 
     // certificates and identities in the keychain
-    SecItemDelete([kSecClass: kSecClassCertificate] as CFDictionary)
-    SecItemDelete([kSecClass: kSecClassIdentity] as CFDictionary)
+    _ = SecItemDelete([kSecClass: kSecClassCertificate] as CFDictionary)
+    _ = SecItemDelete([kSecClass: kSecClassIdentity] as CFDictionary)
     let addCert = SecItemAdd([kSecClass: kSecClassCertificate, kSecValueRef: ca, kSecAttrLabel: "isim root"] as CFDictionary, nil)
     let dupCert = SecItemAdd([kSecClass: kSecClassCertificate, kSecValueRef: ca] as CFDictionary, nil)
     var certOut: CFTypeRef?

@@ -191,8 +191,7 @@ static IMP lookup_nofail(Class cls, SEL sel) {
 
 /* ================= +initialize ================= */
 static SEL s_initialize, s_load, s_alloc, s_init, s_new, s_retain, s_release, s_autorelease, s_dealloc,
-           s_class, s_isKindOfClass, s_respondsToSelector, s_copy, s_mutableCopy, s_cxx_destruct, s_description,
-           s_retainCount;
+           s_class, s_isKindOfClass, s_respondsToSelector, s_copy, s_mutableCopy, s_cxx_destruct;
 static void ensure_initialized(Class c) {
     if (!c || !c->rt || __atomic_load_n(&c->rt->init_state, __ATOMIC_ACQUIRE) == 2) return;
     pthread_mutex_lock(&init_lock);
@@ -462,7 +461,6 @@ static void rt_init_once(void) {
     s_class = sel_intern("class"); s_isKindOfClass = sel_intern("isKindOfClass:");
     s_respondsToSelector = sel_intern("respondsToSelector:"); s_copy = sel_intern("copy");
     s_mutableCopy = sel_intern("mutableCopy"); s_cxx_destruct = sel_intern(".cxx_destruct");
-    s_description = sel_intern("description"); s_retainCount = sel_intern("retainCount");
     protocol_class_init();
 }
 

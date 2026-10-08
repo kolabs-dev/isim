@@ -16,7 +16,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 func button(_ title: String, _ id: String, _ action: @escaping () -> Void) -> UIButton {
-    var config = UIButton.Configuration.gray()
+    let config = UIButton.Configuration.gray()
     config.title = title
     let b = UIButton(configuration: config, primaryAction: UIAction { _ in action() })
     b.accessibilityIdentifier = id
@@ -349,11 +349,11 @@ final class EmptyStateViewController: UIViewController {
     }
     override func updateContentUnavailableConfiguration(using state: UIContentUnavailableConfigurationState) {
         if !items.isEmpty { contentUnavailableConfiguration = nil; label.text = items.joined(separator: ", "); print("inbox shows \(items.count) items"); return }
-        var config = UIContentUnavailableConfiguration.empty()
+        let config = UIContentUnavailableConfiguration.empty()
         config.image = UIImage(systemName: "envelope")
         config.text = "No Mail"
         config.secondaryText = "New messages appear here."
-        var b = UIButton.Configuration.filled()
+        let b = UIButton.Configuration.filled()
         b.title = "Load"
         config.button = b
         config.buttonProperties.primaryAction = UIAction { [weak self] _ in self?.load() }

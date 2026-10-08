@@ -187,7 +187,7 @@ open class WKContentRuleList: NSObject, @unchecked Sendable {
 }
 /// Content blockers are compiled and stored but not applied on isim.
 open class WKContentRuleListStore: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) static let _default = WKContentRuleListStore()
+    static let _default = WKContentRuleListStore()
     var lists: [String: WKContentRuleList] = [:]
     open class func `default`() -> WKContentRuleListStore { _default }
     public convenience init(url: URL) { self.init() }

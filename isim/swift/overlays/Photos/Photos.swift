@@ -175,7 +175,7 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
 }
 
 open class PHPhotoLibrary: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) static let sharedLibrary = PHPhotoLibrary()
+    static let sharedLibrary = PHPhotoLibrary()
     var observers: [() -> PHPhotoLibraryChangeObserver?] = []
     open class func shared() -> PHPhotoLibrary { sharedLibrary }
     open var unavailabilityReason: Error? { nil }

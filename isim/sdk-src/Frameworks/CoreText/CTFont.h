@@ -4,6 +4,7 @@
 #include <CoreText/CTFontDescriptor.h>
 __BEGIN_DECLS
 #pragma clang arc_cf_code_audited begin
+#pragma clang assume_nonnull begin      /* like Apple's CF_ASSUME_NONNULL_BEGIN: unannotated pointers are nonnull */
 typedef const struct __attribute__((objc_bridge(id))) __CTFont *CTFontRef;
 #ifndef CT_EXPORT
 #define CT_EXPORT extern __attribute__((visibility("default")))
@@ -51,5 +52,6 @@ CT_EXPORT CGFontRef CTFontCopyGraphicsFont(CTFontRef font, CTFontDescriptorRef _
 CT_EXPORT CTFontRef CTFontCreateWithGraphicsFont(CGFontRef graphicsFont, CGFloat size, const CGAffineTransform *_Nullable matrix, CTFontDescriptorRef _Nullable attributes);
 CT_EXPORT CFArrayRef _Nullable CTFontCopyFeatures(CTFontRef font);
 CT_EXPORT CFArrayRef _Nullable CTFontCopyFeatureSettings(CTFontRef font);
+#pragma clang assume_nonnull end
 #pragma clang arc_cf_code_audited end
 __END_DECLS

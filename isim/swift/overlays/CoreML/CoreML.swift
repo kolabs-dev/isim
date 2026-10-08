@@ -453,7 +453,7 @@ struct _MLSpec {
             case 2: offsets += _PB.doubles(w, d)
             case 3: transform = Int(v)
             case 4: encoding = Int(v)
-            case 100, 101 where classifier:
+            case 100 where classifier, 101 where classifier:
                 var q = _PB(d)
                 while !q.atEnd {
                     let (g, w2, v2, x) = try q.next()

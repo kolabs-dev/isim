@@ -76,7 +76,7 @@ final class _IsimDragSession: NSObject, UIDragSession, UIDropSession, @unchecked
     func canLoadObjects(ofClass c: NSItemProviderReading.Type) -> Bool { items.contains { $0.itemProvider.canLoadObject(ofClass: c) } }
     func loadObjects(ofClass c: NSItemProviderReading.Type, completion: @escaping ([NSItemProviderReading]) -> Void) -> Progress {
         let group = DispatchGroup(), lock = NSLock()
-        var out: [(Int, NSItemProviderReading)] = []
+        nonisolated(unsafe) var out: [(Int, NSItemProviderReading)] = []     /* appended under lock */
         for (i, item) in items.enumerated() where item.itemProvider.canLoadObject(ofClass: c) {
             group.enter()
             item.itemProvider.loadObject(ofClass: c) { obj, _ in
@@ -93,7 +93,7 @@ final class _IsimDragSession: NSObject, UIDragSession, UIDropSession, @unchecked
 struct _UncheckedBox<T>: @unchecked Sendable { let value: T; init(_ v: T) { value = v } }
 
 // strings and URLs travel as items (NSItemProvider(object: "text" as NSString))
-extension NSString: NSItemProviderReading, NSItemProviderWriting {
+extension NSString: @retroactive NSItemProviderReading, @retroactive NSItemProviderWriting {
     public static var readableTypeIdentifiersForItemProvider: [String] { [UTType.utf8PlainText.identifier, UTType.plainText.identifier, UTType.text.identifier] }
     public static var writableTypeIdentifiersForItemProvider: [String] { [UTType.utf8PlainText.identifier] }
     public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {

@@ -60,7 +60,7 @@ NS_SWIFT_UI_ACTOR
            discoverabilityTitle:(nullable NSString *)discoverabilityTitle attributes:(UIMenuElementAttributes)attributes
                           state:(UIMenuElementState)state handler:(UIActionHandler)handler
     NS_SWIFT_NAME(init(__title:image:identifier:discoverabilityTitle:attributes:state:handler:));
-@property (nonatomic, readonly, nullable) id sender;
+@property (nonatomic, readonly, nullable, weak) id sender;
 @property (nonatomic) UIMenuElementAttributes attributes;
 @property (nonatomic) UIMenuElementState state;
 @property (nonatomic, copy) NSString *identifier;

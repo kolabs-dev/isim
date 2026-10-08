@@ -156,7 +156,7 @@ func _zoomTransform(from a: CGRect, to b: CGRect) -> CGAffineTransform {
 @MainActor enum _ZoomSources {
     final class Ref { weak var view: UIView? }
     static var views: [AnyHashable: Ref] = [:]
-    static func key(_ id: AnyHashable, _ ns: Namespace.ID) -> AnyHashable { AnyHashable("\(ns.value)|\(id)") }
+    nonisolated static func key(_ id: AnyHashable, _ ns: Namespace.ID) -> AnyHashable { AnyHashable("\(ns.value)|\(id)") }
     static func frame(_ key: AnyHashable, in v: UIView) -> CGRect? {
         guard let s = views[key]?.view, s.window != nil, s.window === v.window else { return nil }
         return s.convert(s.bounds, to: v)

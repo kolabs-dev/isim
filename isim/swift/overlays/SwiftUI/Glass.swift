@@ -402,7 +402,7 @@ extension NavigationTransition where Self == AutomaticNavigationTransition { pub
 @available(iOS 18.0, *)
 extension NavigationTransition where Self == ZoomNavigationTransition {
     public static func zoom<ID: Hashable>(sourceID: ID, in namespace: Namespace.ID) -> ZoomNavigationTransition {
-        ZoomNavigationTransition(key: MainActor.assumeIsolated { _ZoomSources.key(AnyHashable(sourceID), namespace) })
+        ZoomNavigationTransition(key: _ZoomSources.key(AnyHashable(sourceID), namespace))
     }
 }
 @available(iOS 27.0, *)

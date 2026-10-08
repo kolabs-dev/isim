@@ -17,6 +17,10 @@ OUT = os.path.join(ROOT, "out")
 SDK = os.path.join(OUT, "sdk")
 ISIM = os.path.join(OUT, "bin", "isim")
 OBJ = os.path.join(OUT, "swift", "obj")
+# warnings are errors in the samples and test apps (issue #40); deprecations stay warnings. ISIM_WERROR=0 turns it off
+WERROR = os.environ.get("ISIM_WERROR", "1") != "0"
+SWIFT_WERROR = ["-warnings-as-errors", "-Wwarning", "DeprecatedDeclaration"] if WERROR else []
+C_WERROR = ["-Werror", "-Wno-error=deprecated-declarations"] if WERROR else []
 
 SPECS = {}   # directory (relative to ROOT) -> Spec
 
@@ -63,10 +67,10 @@ class A:
 
     def swiftc(self, module, srcs, obj, *flags):
         os.makedirs(os.path.dirname(obj), exist_ok=True)
-        self.run(ISIM, "swiftc", "-module-name", module, "-parse-as-library", "-wmo", *flags, "-c", *srcs, "-o", obj)
+        self.run(ISIM, "swiftc", "-module-name", module, "-parse-as-library", "-wmo", *SWIFT_WERROR, *flags, "-c", *srcs, "-o", obj)
 
     def cc(self, *args):
-        self.run(ISIM, "cc", *args)
+        self.run(ISIM, "cc", *C_WERROR, *args)
 
     def swift_app(self, name=None, srcs=None, plist="Info.plist", swift_flags=(), link=(), objc=(), ext=".app", into=None,
                   extension=False):
@@ -97,7 +101,7 @@ class A:
         name = name or self.name
         b = self.bundle(name)
         clang = os.environ.get("CLANG", "clang")
-        self.run(clang, f"-target", f"x86_64-apple-ios{minos}-simulator", "-isysroot", SDK, "-fuse-ld=lld", "-fobjc-arc", *flags,
+        self.run(clang, f"-target", f"x86_64-apple-ios{minos}-simulator", "-isysroot", SDK, "-fuse-ld=lld", "-fobjc-arc", *C_WERROR, *flags,
                  *[os.path.join(self.d, s) for s in srcs], *link, "-o", os.path.join(b, name))
         shutil.copy(os.path.join(self.d, plist), b)
         return b
@@ -386,7 +390,7 @@ def _(a):
         else:                                                  # uncaught exceptions crossing a Swift caller
             b = a.bundle(name)
             obj = os.path.join(OUT, "swift", "swift-uncaught.o")
-            a.run(ISIM, "swiftc", "-parse-as-library", "-c", "uncaught.swift", "-o", obj)
+            a.run(ISIM, "swiftc", *SWIFT_WERROR, "-parse-as-library", "-c", "uncaught.swift", "-o", obj)
             a.cc(obj, "-o", os.path.join(b, name))
         with open(os.path.join(b, "Info.plist"), "w") as f:
             f.write(plist.replace("objc-runtime-test", ident).replace(">ObjCRuntimeTest<", f">{name}<"))
@@ -408,9 +412,9 @@ def _(a):
     b = a.bundle("ObjCLiteralsTest")
     obj = os.path.join(OUT, "swift", "objc-literals")
     os.makedirs(obj, exist_ok=True)
-    a.run(ISIM, "cc", "-fobjc-constant-literals", "-fobjc-arc-exceptions", "-O1", "-Wall", "-c", "Literals.m", "-o", f"{obj}/Literals.o",
+    a.run(ISIM, "cc", *C_WERROR, "-fobjc-constant-literals", "-fobjc-arc-exceptions", "-O1", "-Wall", "-c", "Literals.m", "-o", f"{obj}/Literals.o",
           env=dict(os.environ, CLANG=clang))
-    a.run(ISIM, "swiftc", "-parse-as-library", "-import-objc-header", "Literals.h", "-c", "main.swift", "-o", f"{obj}/main.o")
+    a.run(ISIM, "swiftc", *SWIFT_WERROR, "-parse-as-library", "-import-objc-header", "Literals.h", "-c", "main.swift", "-o", f"{obj}/main.o")
     a.run(ISIM, "cc", f"{obj}/Literals.o", f"{obj}/main.o", "-framework", "Foundation", "-o", f"{b}/ObjCLiteralsTest",
           env=dict(os.environ, CLANG=clang))
     a.copy("Info.plist", b)
@@ -440,7 +444,7 @@ def _(a):
     b = a.bundle("SwiftCxxTest")
     obj = os.path.join(OBJ, "SwiftCxxTest")
     os.makedirs(obj, exist_ok=True)
-    a.run(ISIM, "swiftc", "-cxx-interoperability-mode=default", "-I", "include", "-module-name", "SwiftCxxTest", "-c", "main.swift",
+    a.run(ISIM, "swiftc", *SWIFT_WERROR, "-cxx-interoperability-mode=default", "-I", "include", "-module-name", "SwiftCxxTest", "-c", "main.swift",
           "-o", f"{obj}/main.o")
     a.cc("-x", "c++", "-std=c++17", "-c", "Geometry.cpp", "-o", f"{obj}/Geometry.o")
     a.cc(f"{obj}/main.o", f"{obj}/Geometry.o", "-lc++", "-o", f"{b}/SwiftCxxTest")
@@ -463,7 +467,7 @@ def selftest(d, name, *flags):
     def _(a):
         b = a.bundle(name)
         obj = os.path.join(OUT, "swift", f"{os.path.basename(d)}-test.o")
-        a.run(ISIM, "swiftc", "-parse-as-library", *flags, "-c", "main.swift", "-o", obj)
+        a.run(ISIM, "swiftc", *SWIFT_WERROR, "-parse-as-library", *flags, "-c", "main.swift", "-o", obj)
         a.cc(obj, "-o", f"{b}/{name}")
 
 
@@ -478,7 +482,7 @@ selftest("tests/swift-libraries", "SwiftLibrariesTest", "-enable-bare-slash-rege
 def _(a):
     b = a.bundle("SwiftEmbeddedTest")
     obj = os.path.join(OUT, "swift", "emb-test.o")
-    a.run(ISIM, "swiftc", "-embedded", "-c", "main.swift", "-o", obj)
+    a.run(ISIM, "swiftc", "-embedded", *SWIFT_WERROR, "-c", "main.swift", "-o", obj)
     a.cc(obj, os.path.join(OUT, "swift", "libswiftEmbeddedSupport.a"), "-o", f"{b}/SwiftEmbeddedTest")
 
 

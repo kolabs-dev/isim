@@ -161,7 +161,7 @@ public final class DispatchQueue: DispatchObject, @unchecked Sendable {
     var queue: dispatch_queue_t { OpaquePointer(object) }
     init(queue: dispatch_queue_t) { super.init(UnsafeMutableRawPointer(queue)) }
 
-    nonisolated(unsafe) public static let main = DispatchQueue(queue: _isim_dispatch_main_queue())
+    public static let main = DispatchQueue(queue: _isim_dispatch_main_queue())
     nonisolated(unsafe) private static var globals: [UInt32: DispatchQueue] = [:]
     private static let globalsLock: UnsafeMutablePointer<pthread_mutex_t> = {
         let m = UnsafeMutablePointer<pthread_mutex_t>.allocate(capacity: 1); pthread_mutex_init(m, nil); return m

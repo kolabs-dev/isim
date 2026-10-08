@@ -239,8 +239,9 @@ static BOOL spin_until(double deadline, BOOL (^done)(void)) {
 
 @implementation XCTestCase { SEL _sel; }
 + (instancetype)testCaseWithSelector:(SEL)selector { return [[self alloc] initWithSelector:selector]; }
-- (instancetype)init { return [self initWithSelector:NULL]; }
-- (instancetype)initWithSelector:(SEL)selector {
+- (instancetype)init { return [self initWithIsimSelector:NULL]; }
+- (instancetype)initWithSelector:(SEL)selector { return [self initWithIsimSelector:selector]; }
+- (instancetype)initWithIsimSelector:(SEL _Nullable)selector {
     if ((self = [super init])) { _sel = selector; _continueAfterFailure = YES; _executionTimeAllowance = 600; }
     return self;
 }
@@ -440,7 +441,7 @@ void _XCTIsimRecordSkip(NSString *message, NSString *filePath, NSUInteger line) 
     say(@"%@:%lu: %@ : Test skipped%@%@", filePath ?: @"<unknown>", (unsigned long)line, tc.name, message.length ? @" - " : @"", message ?: @"");
     maybe_interrupt();
 }
-void _XCTIsimRecordMeasurement(NSArray<NSNumber *> *values, NSString *filePath, NSUInteger line) {
+void _XCTIsimRecordMeasurement(NSArray<NSNumber *> *values, NSString * _Nullable filePath, NSUInteger line) {
     double sum = 0, sq = 0;
     for (NSNumber *v in values) sum += v.doubleValue;
     double avg = values.count ? sum / values.count : 0;

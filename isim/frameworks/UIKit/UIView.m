@@ -66,6 +66,10 @@ static void relayout_item(id item) {
 }
 
 @implementation NSLayoutConstraint
+@synthesize active = _active, priority = _priority, constant = _constant;
+- (BOOL)isActive { return _active; }
+- (UILayoutPriority)priority { return _priority; }
+- (CGFloat)constant { return _constant; }
 + (instancetype)constraintWithItem:(id)v1 attribute:(NSLayoutAttribute)a1 relatedBy:(NSLayoutRelation)rel toItem:(id)v2 attribute:(NSLayoutAttribute)a2 multiplier:(CGFloat)m constant:(CGFloat)c {
     NSLayoutConstraint *k = [self new];
     k.firstItem = v1; k.firstAttribute = a1; k.relation = rel; k.secondItem = v2; k.secondAttribute = v2 ? a2 : NSLayoutAttributeNotAnAttribute;

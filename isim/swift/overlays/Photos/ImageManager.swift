@@ -16,7 +16,7 @@ open class PHImageRequestOptions: NSObject, NSCopying, @unchecked Sendable {
 }
 
 open class PHImageManager: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) static let shared = PHImageManager()
+    static let shared = PHImageManager()
     nonisolated(unsafe) static var nextID: PHImageRequestID = 1
     nonisolated(unsafe) static var cancelled = Set<PHImageRequestID>()
     open class func `default`() -> PHImageManager { shared }

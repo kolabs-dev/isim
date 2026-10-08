@@ -152,7 +152,7 @@ func dispatchTests() {
     timer.cancel()
 
     // DispatchData
-    var dd = DispatchData(bytes: UnsafeRawBufferPointer(start: "abc", count: 3))
+    var dd = Array("abc".utf8).withUnsafeBytes { DispatchData(bytes: $0) }
     "defg".utf8CString.withUnsafeBufferPointer { b in b.withMemoryRebound(to: UInt8.self) { dd.append($0.baseAddress!, count: 4) } }
     check(dd.count == 7 && Array(dd) == Array("abcdefg".utf8), "DispatchData append + iteration")
     check(dd.regions.count == 2 && dd.regions.map(\.count) == [3, 4], "DispatchData keeps regions")
@@ -178,7 +178,7 @@ func dispatchTests() {
         check(false, "DispatchIO(path:) opens the file"); return
     }
     var payload = DispatchData.empty
-    payload.append(UnsafeRawBufferPointer(start: "0123456789", count: 10))
+    Array("0123456789".utf8).withUnsafeBytes { payload.append($0) }
     let writeResult = Box<(Bool, Int, Int32)>((false, -1, -1))
     wio.write(offset: 4, data: payload, queue: q) { finished, rest, err in
         if finished { writeResult.value = (true, rest?.count ?? 0, err); done.signal() }

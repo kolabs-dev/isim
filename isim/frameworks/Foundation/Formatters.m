@@ -493,6 +493,8 @@ NSCalendarIdentifier const NSCalendarIdentifierGregorian = @"gregorian", NSCalen
 
 /* ================= NSISO8601DateFormatter ================= */
 @implementation NSISO8601DateFormatter
+@synthesize timeZone = _timeZone;
+- (NSTimeZone *)timeZone { return _timeZone; }
 - (instancetype)init {
     if ((self = [super init])) { _formatOptions = NSISO8601DateFormatWithInternetDateTime; _timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0]; }
     return self;
@@ -599,6 +601,10 @@ static NSString *count_unit(NSString *lang, double n, int unit, int width, BOOL 
 
 /* ================= NSRelativeDateTimeFormatter ================= */
 @implementation NSRelativeDateTimeFormatter
+@synthesize locale = _locale, calendar = _calendar;
+- (NSLocale *)locale { return _locale; }
+- (NSCalendar *)calendar { return _calendar; }
+- (void)setCalendar:(NSCalendar *)c { _calendar = [c copy] ?: NSCalendar.currentCalendar; }
 - (instancetype)init { if ((self = [super init])) { _locale = NSLocale.currentLocale; _calendar = NSCalendar.currentCalendar; } return self; }
 - (void)setLocale:(NSLocale *)l { _locale = l ?: NSLocale.currentLocale; }
 - (NSString *)_phrase:(double)value unit:(int)unit {
@@ -815,6 +821,16 @@ static const double UNIT_SECONDS[7] = { 31556952, 2629746, 604800, 86400, 3600, 
 
 /* ================= NSDateIntervalFormatter ================= */
 @implementation NSDateIntervalFormatter
+/* null_resettable: nil restores the default */
+@synthesize locale = _locale, timeZone = _timeZone, calendar = _calendar, dateTemplate = _dateTemplate;
+- (NSLocale *)locale { return _locale; }
+- (void)setLocale:(NSLocale *)l { _locale = [l copy] ?: NSLocale.currentLocale; }
+- (NSTimeZone *)timeZone { return _timeZone; }
+- (void)setTimeZone:(NSTimeZone *)tz { _timeZone = [tz copy] ?: NSTimeZone.defaultTimeZone; }
+- (NSCalendar *)calendar { return _calendar; }
+- (void)setCalendar:(NSCalendar *)c { _calendar = [c copy] ?: NSCalendar.currentCalendar; }
+- (NSString *)dateTemplate { return _dateTemplate ?: @""; }
+- (void)setDateTemplate:(NSString *)t { _dateTemplate = [t copy]; }
 - (instancetype)init {
     if ((self = [super init])) { _locale = NSLocale.currentLocale; _timeZone = NSTimeZone.defaultTimeZone; _calendar = NSCalendar.currentCalendar; _dateStyle = NSDateIntervalFormatterShortStyle; _timeStyle = NSDateIntervalFormatterShortStyle; }
     return self;
@@ -946,6 +962,9 @@ NSString *isim_join_list(NSArray<NSString *> *items, NSLocale *locale, BOOL orLi
     return [NSString stringWithFormat:@"%@%@ %@ %@", head, serial ? @"," : @"", conj, items.lastObject];
 }
 @implementation NSListFormatter
+@synthesize locale = _locale;
+- (NSLocale *)locale { return _locale; }
+- (void)setLocale:(NSLocale *)l { _locale = [l copy] ?: NSLocale.currentLocale; }    /* null_resettable */
 - (instancetype)init { if ((self = [super init])) _locale = NSLocale.currentLocale; return self; }
 + (NSString *)localizedStringByJoiningStrings:(NSArray<NSString *> *)strings { return isim_join_list(strings, NSLocale.currentLocale, NO, 0); }
 + (NSString *)_isim_joinStrings:(NSArray<NSString *> *)strings locale:(NSLocale *)locale orList:(BOOL)orList width:(NSInteger)width {
@@ -983,6 +1002,9 @@ NSString *isim_join_list(NSArray<NSString *> *items, NSLocale *locale, BOOL orLi
 - (NSUInteger)hash { return _givenName.hash ^ _familyName.hash; }
 @end
 @implementation NSPersonNameComponentsFormatter
+@synthesize locale = _locale;
+- (NSLocale *)locale { return _locale; }
+- (void)setLocale:(NSLocale *)l { _locale = [l copy] ?: NSLocale.currentLocale; }    /* null_resettable */
 - (instancetype)init { if ((self = [super init])) { _style = NSPersonNameComponentsFormatterStyleDefault; _locale = NSLocale.currentLocale; } return self; }
 + (NSString *)localizedStringFromPersonNameComponents:(NSPersonNameComponents *)c style:(NSPersonNameComponentsFormatterStyle)style options:(NSPersonNameComponentsFormatterOptions)opts {
     NSPersonNameComponentsFormatter *f = [NSPersonNameComponentsFormatter new]; f.style = style; return [f stringFromPersonNameComponents:c];

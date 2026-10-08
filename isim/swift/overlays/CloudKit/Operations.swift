@@ -61,8 +61,10 @@ open class CKQueryOperation: CKDatabaseOperation, @unchecked Sendable {
     open var desiredKeys: [CKRecord.FieldKey]?
     open var recordMatchedBlock: ((CKRecord.ID, Result<CKRecord, Error>) -> Void)?
     open var queryResultBlock: ((Result<Cursor?, Error>) -> Void)?
-    @available(iOS, deprecated: 15.0) open var recordFetchedBlock: ((CKRecord) -> Void)?
-    @available(iOS, deprecated: 15.0) open var queryCompletionBlock: ((Cursor?, Error?) -> Void)?
+    @available(iOS, deprecated: 15.0) open var recordFetchedBlock: ((CKRecord) -> Void)? { get { _isim_recordFetchedBlock } set { _isim_recordFetchedBlock = newValue } }
+    var _isim_recordFetchedBlock: ((CKRecord) -> Void)?     // the operation calls the deprecated block through this, without a warning
+    @available(iOS, deprecated: 15.0) open var queryCompletionBlock: ((Cursor?, Error?) -> Void)? { get { _isim_queryCompletionBlock } set { _isim_queryCompletionBlock = newValue } }
+    var _isim_queryCompletionBlock: ((Cursor?, Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
     public override init() { super.init() }
     public convenience init(query: CKQuery) { self.init(); self.query = query }
     public convenience init(cursor: Cursor) { self.init(); self.cursor = cursor }
@@ -74,7 +76,7 @@ open class CKQueryOperation: CKDatabaseOperation, @unchecked Sendable {
         case .success(let page):
             for (id, r) in page.matchResults {
                 recordMatchedBlock?(id, r)
-                if case .success(let rec) = r { recordFetchedBlock?(rec) }
+                if case .success(let rec) = r { _isim_recordFetchedBlock?(rec) }
             }
             finish(.success(page.queryCursor))
         case .failure(let e): finish(.failure(e))
@@ -82,7 +84,7 @@ open class CKQueryOperation: CKDatabaseOperation, @unchecked Sendable {
     }
     func finish(_ r: Result<Cursor?, Error>) {
         queryResultBlock?(r)
-        switch r { case .success(let c): queryCompletionBlock?(c, nil); case .failure(let e): queryCompletionBlock?(nil, e) }
+        switch r { case .success(let c): _isim_queryCompletionBlock?(c, nil); case .failure(let e): _isim_queryCompletionBlock?(nil, e) }
     }
 }
 
@@ -99,8 +101,10 @@ open class CKModifyRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
     open var perRecordSaveBlock: ((CKRecord.ID, Result<CKRecord, Error>) -> Void)?
     open var perRecordDeleteBlock: ((CKRecord.ID, Result<Void, Error>) -> Void)?
     open var modifyRecordsResultBlock: ((Result<Void, Error>) -> Void)?
-    @available(iOS, deprecated: 15.0) open var perRecordCompletionBlock: ((CKRecord, Error?) -> Void)?
-    @available(iOS, deprecated: 15.0) open var modifyRecordsCompletionBlock: (([CKRecord]?, [CKRecord.ID]?, Error?) -> Void)?
+    @available(iOS, deprecated: 15.0) open var perRecordCompletionBlock: ((CKRecord, Error?) -> Void)? { get { _isim_perRecordCompletionBlock } set { _isim_perRecordCompletionBlock = newValue } }
+    var _isim_perRecordCompletionBlock: ((CKRecord, Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
+    @available(iOS, deprecated: 15.0) open var modifyRecordsCompletionBlock: (([CKRecord]?, [CKRecord.ID]?, Error?) -> Void)? { get { _isim_modifyRecordsCompletionBlock } set { _isim_modifyRecordsCompletionBlock = newValue } }
+    var _isim_modifyRecordsCompletionBlock: (([CKRecord]?, [CKRecord.ID]?, Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
     public override init() { super.init() }
     public convenience init(recordsToSave: [CKRecord]?, recordIDsToDelete: [CKRecord.ID]?) {
         self.init(); self.recordsToSave = recordsToSave; self.recordIDsToDelete = recordIDsToDelete
@@ -119,8 +123,8 @@ open class CKModifyRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
         for (id, r) in saves {
             perRecordSaveBlock?(id, r)
             switch r {
-            case .success(let rec): saved.append(rec); perRecordProgressBlock?(rec, 1); perRecordCompletionBlock?(rec, nil)
-            case .failure(let e): partial[id] = e; if let c = toSave.first(where: { $0.recordID == id }) { perRecordCompletionBlock?(c, e) }
+            case .success(let rec): saved.append(rec); perRecordProgressBlock?(rec, 1); _isim_perRecordCompletionBlock?(rec, nil)
+            case .failure(let e): partial[id] = e; if let c = toSave.first(where: { $0.recordID == id }) { _isim_perRecordCompletionBlock?(c, e) }
             }
         }
         for (id, r) in deletes {
@@ -131,7 +135,7 @@ open class CKModifyRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
     }
     func done(_ r: Result<Void, Error>, _ saved: [CKRecord], _ deleted: [CKRecord.ID]) {
         modifyRecordsResultBlock?(r)
-        if case .failure(let e) = r { modifyRecordsCompletionBlock?(saved, deleted, e) } else { modifyRecordsCompletionBlock?(saved, deleted, nil) }
+        if case .failure(let e) = r { _isim_modifyRecordsCompletionBlock?(saved, deleted, e) } else { _isim_modifyRecordsCompletionBlock?(saved, deleted, nil) }
     }
 }
 
@@ -140,8 +144,10 @@ open class CKFetchRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
     open var desiredKeys: [CKRecord.FieldKey]?
     open var perRecordResultBlock: ((CKRecord.ID, Result<CKRecord, Error>) -> Void)?
     open var fetchRecordsResultBlock: ((Result<Void, Error>) -> Void)?
-    @available(iOS, deprecated: 15.0) open var perRecordCompletionBlock: ((CKRecord?, CKRecord.ID?, Error?) -> Void)?
-    @available(iOS, deprecated: 15.0) open var fetchRecordsCompletionBlock: (([CKRecord.ID: CKRecord]?, Error?) -> Void)?
+    @available(iOS, deprecated: 15.0) open var perRecordCompletionBlock: ((CKRecord?, CKRecord.ID?, Error?) -> Void)? { get { _isim_perRecordCompletionBlock } set { _isim_perRecordCompletionBlock = newValue } }
+    var _isim_perRecordCompletionBlock: ((CKRecord?, CKRecord.ID?, Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
+    @available(iOS, deprecated: 15.0) open var fetchRecordsCompletionBlock: (([CKRecord.ID: CKRecord]?, Error?) -> Void)? { get { _isim_fetchRecordsCompletionBlock } set { _isim_fetchRecordsCompletionBlock = newValue } }
+    var _isim_fetchRecordsCompletionBlock: (([CKRecord.ID: CKRecord]?, Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
     public override init() { super.init() }
     public convenience init(recordIDs: [CKRecord.ID]) { self.init(); self.recordIDs = recordIDs }
     open class func fetchCurrentUserRecordOperation() -> CKFetchRecordsOperation {
@@ -151,19 +157,19 @@ open class CKFetchRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
     }
 
     open override func main() {
-        guard !isCancelled else { fetchRecordsResultBlock?(.failure(cancelledError)); fetchRecordsCompletionBlock?(nil, cancelledError); return }
-        if let e = db.check(write: false) { fetchRecordsResultBlock?(.failure(e)); fetchRecordsCompletionBlock?(nil, e); return }
+        guard !isCancelled else { fetchRecordsResultBlock?(.failure(cancelledError)); _isim_fetchRecordsCompletionBlock?(nil, cancelledError); return }
+        if let e = db.check(write: false) { fetchRecordsResultBlock?(.failure(e)); _isim_fetchRecordsCompletionBlock?(nil, e); return }
         var found: [CKRecord.ID: CKRecord] = [:], partial: [AnyHashable: Error] = [:]
         for (id, r) in db._fetch(recordIDs ?? [], desiredKeys: desiredKeys) {
             perRecordResultBlock?(id, r)
             switch r {
-            case .success(let rec): found[id] = rec; perRecordCompletionBlock?(rec, id, nil)
-            case .failure(let e): partial[id] = e; perRecordCompletionBlock?(nil, id, e)
+            case .success(let rec): found[id] = rec; _isim_perRecordCompletionBlock?(rec, id, nil)
+            case .failure(let e): partial[id] = e; _isim_perRecordCompletionBlock?(nil, id, e)
             }
         }
         let err: Error? = partial.isEmpty ? nil : CKError(.partialFailure, userInfo: [CKPartialErrorsByItemIDKey: partial])
         fetchRecordsResultBlock?(err.map { .failure($0) } ?? .success(()))
-        fetchRecordsCompletionBlock?(found, err)
+        _isim_fetchRecordsCompletionBlock?(found, err)
     }
 }
 
@@ -175,7 +181,8 @@ open class CKModifyRecordZonesOperation: CKDatabaseOperation, @unchecked Sendabl
     open var perRecordZoneSaveBlock: ((CKRecordZone.ID, Result<CKRecordZone, Error>) -> Void)?
     open var perRecordZoneDeleteBlock: ((CKRecordZone.ID, Result<Void, Error>) -> Void)?
     open var modifyRecordZonesResultBlock: ((Result<Void, Error>) -> Void)?
-    @available(iOS, deprecated: 15.0) open var modifyRecordZonesCompletionBlock: (([CKRecordZone]?, [CKRecordZone.ID]?, Error?) -> Void)?
+    @available(iOS, deprecated: 15.0) open var modifyRecordZonesCompletionBlock: (([CKRecordZone]?, [CKRecordZone.ID]?, Error?) -> Void)? { get { _isim_modifyRecordZonesCompletionBlock } set { _isim_modifyRecordZonesCompletionBlock = newValue } }
+    var _isim_modifyRecordZonesCompletionBlock: (([CKRecordZone]?, [CKRecordZone.ID]?, Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
     public override init() { super.init() }
     public convenience init(recordZonesToSave: [CKRecordZone]?, recordZoneIDsToDelete: [CKRecordZone.ID]?) {
         self.init(); self.recordZonesToSave = recordZonesToSave; self.recordZoneIDsToDelete = recordZoneIDsToDelete
@@ -192,7 +199,7 @@ open class CKModifyRecordZonesOperation: CKDatabaseOperation, @unchecked Sendabl
         }
         let err: Error? = partial.isEmpty ? nil : CKError(.partialFailure, userInfo: [CKPartialErrorsByItemIDKey: partial])
         modifyRecordZonesResultBlock?(err.map { .failure($0) } ?? .success(()))
-        modifyRecordZonesCompletionBlock?(saved, deleted, err)
+        _isim_modifyRecordZonesCompletionBlock?(saved, deleted, err)
     }
 }
 
@@ -202,7 +209,8 @@ open class CKModifySubscriptionsOperation: CKDatabaseOperation, @unchecked Senda
     open var perSubscriptionSaveBlock: ((CKSubscription.ID, Result<CKSubscription, Error>) -> Void)?
     open var perSubscriptionDeleteBlock: ((CKSubscription.ID, Result<Void, Error>) -> Void)?
     open var modifySubscriptionsResultBlock: ((Result<Void, Error>) -> Void)?
-    @available(iOS, deprecated: 15.0) open var modifySubscriptionsCompletionBlock: (([CKSubscription]?, [CKSubscription.ID]?, Error?) -> Void)?
+    @available(iOS, deprecated: 15.0) open var modifySubscriptionsCompletionBlock: (([CKSubscription]?, [CKSubscription.ID]?, Error?) -> Void)? { get { _isim_modifySubscriptionsCompletionBlock } set { _isim_modifySubscriptionsCompletionBlock = newValue } }
+    var _isim_modifySubscriptionsCompletionBlock: (([CKSubscription]?, [CKSubscription.ID]?, Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
     public override init() { super.init() }
     public convenience init(subscriptionsToSave: [CKSubscription]?, subscriptionIDsToDelete: [CKSubscription.ID]?) {
         self.init(); self.subscriptionsToSave = subscriptionsToSave; self.subscriptionIDsToDelete = subscriptionIDsToDelete
@@ -219,7 +227,7 @@ open class CKModifySubscriptionsOperation: CKDatabaseOperation, @unchecked Senda
         }
         let err: Error? = partial.isEmpty ? nil : CKError(.partialFailure, userInfo: [CKPartialErrorsByItemIDKey: partial])
         modifySubscriptionsResultBlock?(err.map { .failure($0) } ?? .success(()))
-        modifySubscriptionsCompletionBlock?(saved, deleted, err)
+        _isim_modifySubscriptionsCompletionBlock?(saved, deleted, err)
     }
 }
 
@@ -246,11 +254,12 @@ open class CKFetchDatabaseChangesOperation: CKDatabaseOperation, @unchecked Send
     open var recordZoneWithIDWasPurgedBlock: ((CKRecordZone.ID) -> Void)?
     open var changeTokenUpdatedBlock: ((CKServerChangeToken) -> Void)?
     open var fetchDatabaseChangesResultBlock: ((Result<(serverChangeToken: CKServerChangeToken, moreComing: Bool), Error>) -> Void)?
-    @available(iOS, deprecated: 15.0) open var fetchDatabaseChangesCompletionBlock: ((CKServerChangeToken?, Bool, Error?) -> Void)?
+    @available(iOS, deprecated: 15.0) open var fetchDatabaseChangesCompletionBlock: ((CKServerChangeToken?, Bool, Error?) -> Void)? { get { _isim_fetchDatabaseChangesCompletionBlock } set { _isim_fetchDatabaseChangesCompletionBlock = newValue } }
+    var _isim_fetchDatabaseChangesCompletionBlock: ((CKServerChangeToken?, Bool, Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
     public override init() { super.init() }
     public convenience init(previousServerChangeToken: CKServerChangeToken?) { self.init(); self.previousServerChangeToken = previousServerChangeToken }
     open override func main() {
-        if let e = db.check(write: false) { fetchDatabaseChangesResultBlock?(.failure(e)); fetchDatabaseChangesCompletionBlock?(nil, false, e); return }
+        if let e = db.check(write: false) { fetchDatabaseChangesResultBlock?(.failure(e)); _isim_fetchDatabaseChangesCompletionBlock?(nil, false, e); return }
         let since = previousServerChangeToken?.seq ?? 0
         let (changed, deleted, now): ([CKRecordZone.ID], [CKRecordZone.ID], Int) = db.store.access { d in
             var ch = d.zones.values.filter { $0.seq > since }.map { CKRecordZone.ID(zoneName: $0.name, ownerName: $0.owner) }
@@ -264,7 +273,7 @@ open class CKFetchDatabaseChangesOperation: CKDatabaseOperation, @unchecked Send
         let token = CKServerChangeToken(now)
         changeTokenUpdatedBlock?(token)
         fetchDatabaseChangesResultBlock?(.success((token, false)))
-        fetchDatabaseChangesCompletionBlock?(token, false, nil)
+        _isim_fetchDatabaseChangesCompletionBlock?(token, false, nil)
     }
 }
 
@@ -286,14 +295,16 @@ open class CKFetchRecordZoneChangesOperation: CKDatabaseOperation, @unchecked Se
     open var recordZoneChangeTokensUpdatedBlock: ((CKRecordZone.ID, CKServerChangeToken?, Data?) -> Void)?
     open var recordZoneFetchResultBlock: ((CKRecordZone.ID, Result<(serverChangeToken: CKServerChangeToken, clientChangeTokenData: Data?, moreComing: Bool), Error>) -> Void)?
     open var fetchRecordZoneChangesResultBlock: ((Result<Void, Error>) -> Void)?
-    @available(iOS, deprecated: 15.0) open var recordChangedBlock: ((CKRecord) -> Void)?
-    @available(iOS, deprecated: 15.0) open var fetchRecordZoneChangesCompletionBlock: ((Error?) -> Void)?
+    @available(iOS, deprecated: 15.0) open var recordChangedBlock: ((CKRecord) -> Void)? { get { _isim_recordChangedBlock } set { _isim_recordChangedBlock = newValue } }
+    var _isim_recordChangedBlock: ((CKRecord) -> Void)?     // the operation calls the deprecated block through this, without a warning
+    @available(iOS, deprecated: 15.0) open var fetchRecordZoneChangesCompletionBlock: ((Error?) -> Void)? { get { _isim_fetchRecordZoneChangesCompletionBlock } set { _isim_fetchRecordZoneChangesCompletionBlock = newValue } }
+    var _isim_fetchRecordZoneChangesCompletionBlock: ((Error?) -> Void)?     // the operation calls the deprecated block through this, without a warning
     public override init() { super.init() }
     public convenience init(recordZoneIDs: [CKRecordZone.ID], configurationsByRecordZoneID: [CKRecordZone.ID: ZoneConfiguration]? = nil) {
         self.init(); self.recordZoneIDs = recordZoneIDs; self.configurationsByRecordZoneID = configurationsByRecordZoneID
     }
     open override func main() {
-        if let e = db.check(write: false) { fetchRecordZoneChangesResultBlock?(.failure(e)); fetchRecordZoneChangesCompletionBlock?(e); return }
+        if let e = db.check(write: false) { fetchRecordZoneChangesResultBlock?(.failure(e)); _isim_fetchRecordZoneChangesCompletionBlock?(e); return }
         for z in recordZoneIDs ?? [] {
             let cfg = configurationsByRecordZoneID?[z]
             let since = cfg?.previousServerChangeToken?.seq ?? 0
@@ -306,7 +317,7 @@ open class CKFetchRecordZoneChangesOperation: CKDatabaseOperation, @unchecked Se
             }
             switch r {
             case .success(let (recs, dels, now)):
-                for rec in recs { recordWasChangedBlock?(rec.recordID, .success(rec)); recordChangedBlock?(rec) }
+                for rec in recs { recordWasChangedBlock?(rec.recordID, .success(rec)); _isim_recordChangedBlock?(rec) }
                 for (id, t) in dels { recordWithIDWasDeletedBlock?(id, t) }
                 let token = CKServerChangeToken(now)
                 recordZoneChangeTokensUpdatedBlock?(z, token, nil)
@@ -316,6 +327,6 @@ open class CKFetchRecordZoneChangesOperation: CKDatabaseOperation, @unchecked Se
             }
         }
         fetchRecordZoneChangesResultBlock?(.success(()))
-        fetchRecordZoneChangesCompletionBlock?(nil)
+        _isim_fetchRecordZoneChangesCompletionBlock?(nil)
     }
 }
