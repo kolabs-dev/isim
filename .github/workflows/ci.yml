@@ -73,6 +73,9 @@ jobs:
       - name: File ownership (tests)
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" isim/out
+      - name: Test summary
+        if: always()
+        run: cat isim/out/test-summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
       - name: Test results
         if: always()
         uses: actions/upload-artifact@v4

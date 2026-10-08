@@ -89,11 +89,11 @@ def build(args, ci=False):
     return rc
 
 
-def test(args):
+def test(args, verbose=False):
     py = os.path.join(venv(), "bin", "python")
     jobs = os.environ.get("ISIM_TEST_JOBS")
     jobs = int(jobs) if jobs else max(2, min(16, (os.cpu_count() or 4) // 2))
-    cmd = [py, "-m", "pytest", f"--basetemp={ROOT}/out/pytest", "-q"]
+    cmd = [py, "-m", "pytest", f"--basetemp={ROOT}/out/pytest", "-v" if verbose else "-q"]
     if jobs > 1:
         cmd += ["-n", str(jobs), "--dist", "loadgroup", "--maxschedchunk", "1"]
     if os.environ.get("ISIM_TEST_RETRY", "1") != "0":
@@ -137,13 +137,20 @@ def ci_build(args):
 
 
 def ci_test():
+    """every test, one line per test as it finishes (progress in the CI log), then out/test-summary.md (the workflow
+    adds it to the run's summary page) and an error annotation per failed test"""
+    xml = os.path.join(ROOT, "out", "test-results.xml")
     with open(os.path.join(ROOT, "out", "test.log"), "w") as log:
-        p = subprocess.Popen([sys.executable, __file__, "test", f"--junitxml={ROOT}/out/test-results.xml"],
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        p = subprocess.Popen([sys.executable, __file__, "test", "--ci-verbose", f"--junitxml={xml}", "-o", "junit_family=xunit1"],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=dict(os.environ, PYTHONUNBUFFERED="1"))
         for line in p.stdout:
             sys.stdout.write(line)
+            sys.stdout.flush()
             log.write(line)
-        return p.wait()
+        rc = p.wait()
+    from buildlib import report
+    report.summarize(xml, os.path.join(ROOT, "out", "test.log"), os.path.join(ROOT, "out", "test-summary.md"), REPO)
+    return rc
 
 
 def fetch(args):
@@ -160,7 +167,7 @@ def package(args):
 
 
 def main(argv):
-    cmds = {"build": build, "test": test, "ci": ci, "fetch": fetch, "package": package,
+    cmds = {"build": build, "test": lambda a: test([x for x in a if x != "--ci-verbose"], "--ci-verbose" in a), "ci": ci, "fetch": fetch, "package": package,
             "graph": lambda a: (graph(), 0)[1]}
     if argv and argv[0] in ("-h", "--help", "help"):
         print(__doc__)
