@@ -13,9 +13,11 @@ on:
 permissions:
   contents: read
   statuses: write
+# a newer run cancels an older one on the same PR branch; on main every commit gets its own group, so no run there is
+# cancelled (a cancelled run would show as failing on the README badge) and each merge gets its own result
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   test:
     name: build and test
