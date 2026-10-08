@@ -322,17 +322,6 @@ class App:
             last = frame
             time.sleep(interval)
 
-    def wait_until(self, condition, timeout: float = TIMEOUT, what: str = "condition"):
-        """Poll `condition()` until it returns something truthy; return that."""
-        end = time.monotonic() + timeout
-        while True:
-            v = condition()
-            if v:
-                return v
-            if time.monotonic() > end:
-                raise WaitTimeout(f"{what} not met after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
-            time.sleep(0.05)
-
     def find(self, *, id: str | None = None, label: str | None = None, type: str | None = None,
              snapshot: list[Element] | None = None) -> Element | None:
         for el in snapshot if snapshot is not None else self.snapshot():
