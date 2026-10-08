@@ -215,20 +215,20 @@ void isim_ui_register_app_fonts(void) {
     });
 }
 
-@implementation UIFont { CGFloat _size, _weight; BOOL _mono; NSString *_name, *_family; }
+@implementation UIFont { CGFloat _size, _weight; BOOL _mono, _italic, _tabular; NSString *_name, *_family, *_design; }
 + (UIFont *)_size:(CGFloat)s weight:(CGFloat)w mono:(BOOL)m name:(NSString *)n {
     UIFont *f = [UIFont new]; f->_size = s; f->_weight = w; f->_mono = m; f->_name = n; return f;
 }
 + (UIFont *)systemFontOfSize:(CGFloat)s { return [self systemFontOfSize:s weight:UIFontWeightRegular]; }
 + (UIFont *)boldSystemFontOfSize:(CGFloat)s { return [self systemFontOfSize:s weight:UIFontWeightBold]; }
-+ (UIFont *)italicSystemFontOfSize:(CGFloat)s { return [self systemFontOfSize:s weight:UIFontWeightRegular]; }
++ (UIFont *)italicSystemFontOfSize:(CGFloat)s { UIFont *f = [self systemFontOfSize:s weight:UIFontWeightRegular]; f->_italic = YES; f->_name = @".SFUI-RegularItalic"; return f; }
 + (UIFont *)systemFontOfSize:(CGFloat)s weight:(UIFontWeight)w {
     extern CGFloat isim_ui_bold_text_weight(CGFloat w);     /* Settings > Accessibility > Bold Text (UIAccessibilityRuntime.m) */
     w = isim_ui_bold_text_weight(w);
     NSString *n = w >= UIFontWeightBold ? @".SFUI-Bold" : w >= UIFontWeightSemibold ? @".SFUI-Semibold" : w >= UIFontWeightMedium ? @".SFUI-Medium" : @".SFUI-Regular";
     return [self _size:s weight:w mono:NO name:n];
 }
-+ (UIFont *)monospacedDigitSystemFontOfSize:(CGFloat)s weight:(UIFontWeight)w { return [self systemFontOfSize:s weight:w]; }
++ (UIFont *)monospacedDigitSystemFontOfSize:(CGFloat)s weight:(UIFontWeight)w { UIFont *f = [self systemFontOfSize:s weight:w]; f->_tabular = YES; return f; }
 + (UIFont *)monospacedSystemFontOfSize:(CGFloat)s weight:(UIFontWeight)w { return [self _size:s weight:w mono:YES name:@".SFMono-Regular"]; }
 /* Fonts that ship with iOS: available by name even when the host lacks them (drawn with a similar host font). */
 static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
@@ -252,7 +252,7 @@ static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
     char fam[256]; double w = 0; int italic = 0;
     if (isim_font_lookup(name.UTF8String, fam, sizeof fam, &w, &italic)) {
         UIFont *f = [self _size:s weight:w mono:NO name:name];
-        f->_family = [NSString stringWithUTF8String:fam];
+        f->_family = [NSString stringWithUTF8String:fam]; f->_italic = italic != 0;
         return f;
     }
     BOOL mono = NO;
@@ -261,7 +261,9 @@ static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
         CGFloat weight = [l containsString:@"black"] || [l containsString:@"heavy"] ? UIFontWeightHeavy : [l containsString:@"bold"] ? UIFontWeightBold
                        : [l containsString:@"semibold"] ? UIFontWeightSemibold : [l containsString:@"medium"] ? UIFontWeightMedium
                        : [l containsString:@"light"] ? UIFontWeightLight : UIFontWeightRegular;
-        return [self _size:s weight:weight mono:mono name:name];
+        UIFont *f = [self _size:s weight:weight mono:mono name:name];
+        f->_italic = [l containsString:@"italic"] || [l containsString:@"oblique"];
+        return f;
     }
     return nil;                 /* like iOS: no font with that name is available */
 }
@@ -281,9 +283,34 @@ static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
 + (CGFloat)buttonFontSize { return 18; }
 + (CGFloat)smallSystemFontSize { return 12; }
 + (CGFloat)systemFontSize { return 14; }
-- (UIFont *)fontWithSize:(CGFloat)s { UIFont *f = [UIFont _size:s weight:_weight mono:_mono name:_name]; f->_family = _family; return f; }
-- (NSString *)familyName { return _family ?: (_mono ? @".SF Mono" : @".SF UI Text"); }
-- (NSString *)_isim_family { return _family; }
+- (UIFont *)fontWithSize:(CGFloat)s { UIFont *f = [self _isim_copy]; f->_size = s; return f; }
+- (UIFont *)_isim_copy {
+    UIFont *f = [UIFont _size:_size weight:_weight mono:_mono name:_name];
+    f->_family = _family; f->_italic = _italic; f->_tabular = _tabular; f->_design = _design;
+    return f;
+}
+/* a variant of this font (UIFontDescriptor): weight, italic, monospaced, tabular digits, design */
+- (UIFont *)_isim_variantWeight:(CGFloat)w italic:(BOOL)it mono:(BOOL)mono tabular:(BOOL)tab design:(NSString *)design {
+    UIFont *f = [self _isim_copy];
+    extern NSString *isim_ui_font_text_style(UIFont *f); extern void isim_ui_font_set_text_style(UIFont *f, NSString *style);
+    NSString *ts = isim_ui_font_text_style(self); if (ts) isim_ui_font_set_text_style(f, ts);    /* keeps following Dynamic Type */
+    f->_weight = w; f->_italic = it; f->_mono = mono; f->_tabular = tab; f->_design = design;
+    if (!_family) f->_name = mono ? @".SFMono-Regular" : w >= UIFontWeightBold ? @".SFUI-Bold" : w >= UIFontWeightSemibold ? @".SFUI-Semibold" : w >= UIFontWeightMedium ? @".SFUI-Medium" : @".SFUI-Regular";
+    if (!_family && it) f->_name = [f->_name stringByAppendingString:@"Italic"];
+    return f;
+}
+- (NSString *)familyName {
+    if (_family) return _family;
+    if ([_design isEqualToString:@"NSCTFontUIFontDesignSerif"]) return @".New York";
+    if ([_design isEqualToString:@"NSCTFontUIFontDesignRounded"]) return @".SF UI Rounded";
+    return _mono ? @".SF Mono" : @".SF UI Text";
+}
+/* the family text is drawn with (nil: the system font); the serif design uses a serif face of the host (adapted).
+   Named, not the "serif" alias: fontconfig binds aliases weakly, so the system font after it would win */
+- (NSString *)_isim_family {
+    if (_family) return _family;
+    return [_design isEqualToString:@"NSCTFontUIFontDesignSerif"] ? @"New York,Noto Serif,DejaVu Serif,Liberation Serif,Tinos,Times New Roman,serif" : nil;
+}
 - (NSString *)fontName { return _name; }
 - (CGFloat)pointSize { return _size; }
 - (CGFloat)ascender { return _size * 0.952; }
@@ -294,8 +321,12 @@ static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
 - (CGFloat)leading { return 0; }
 - (CGFloat)_isim_weight { return _weight; }
 - (BOOL)_isim_mono { return _mono; }
+- (int)_isim_style { return (_mono ? 1 : 0) | (_italic ? 2 : 0) | (_tabular ? 4 : 0); }
+- (BOOL)_isim_italic { return _italic; }
+- (BOOL)_isim_tabular { return _tabular; }
+- (NSString *)_isim_design { return _design; }
 - (id)copyWithZone:(NSZone *)z { return self; }
-- (BOOL)isEqual:(UIFont *)o { return [o isKindOfClass:[UIFont class]] && o->_size == _size && o->_weight == _weight && o->_mono == _mono && (o->_family == _family || [o->_family isEqualToString:_family]); }
+- (BOOL)isEqual:(UIFont *)o { return [o isKindOfClass:[UIFont class]] && o->_size == _size && o->_weight == _weight && o->_mono == _mono && o->_italic == _italic && o->_tabular == _tabular && (o->_family == _family || [o->_family isEqualToString:_family]); }
 - (NSUInteger)hash { return (NSUInteger)(_size * 100) ^ (NSUInteger)(_weight * 1000); }
 - (NSString *)description { return [NSString stringWithFormat:@"<UICTFont: %p> font-family: \"%@\"; font-weight: %g; font-size: %.2fpt", self, self.familyName, _weight, _size]; }
 @end
@@ -305,13 +336,13 @@ CGSize isim_ui_measure(NSString *text, UIFont *font, CGFloat maxWidth, NSInteger
     if (!text.length) return CGSizeZero;
     if (!font) font = [UIFont systemFontOfSize:17];
     double w, h;
-    isim_text_measure_f(text.UTF8String, font._isim_family.UTF8String, font.pointSize, font._isim_weight, font._isim_mono, maxWidth, (int)lines, &w, &h);
+    isim_text_measure_f(text.UTF8String, font._isim_family.UTF8String, font.pointSize, font._isim_weight, font._isim_style, maxWidth, (int)lines, &w, &h);
     return CGSizeMake(w, h);
 }
 CGPoint isim_ui_text_end_point(NSString *text, UIFont *font, CGFloat maxWidth) {
     if (!font) font = [UIFont systemFontOfSize:17];
     double x = 0, y = 0;
-    if (text.length) isim_text_end_point_f(text.UTF8String, font._isim_family.UTF8String, font.pointSize, font._isim_weight, font._isim_mono, maxWidth, &x, &y);
+    if (text.length) isim_text_end_point_f(text.UTF8String, font._isim_family.UTF8String, font.pointSize, font._isim_weight, font._isim_style, maxWidth, &x, &y);
     return CGPointMake(x, y);
 }
 void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect r, NSTextAlignment align, NSInteger lines, CGFloat alpha) {
@@ -321,7 +352,7 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect r, N
     CGSize sz = isim_ui_measure(text, font, lines == 1 ? 0 : r.size.width, lines);
     double y = r.origin.y + (r.size.height - MIN(sz.height, r.size.height)) / 2;
     int a = align == NSTextAlignmentCenter ? 1 : align == NSTextAlignmentRight ? 2 : 0;
-    isim_text_draw_f(text.UTF8String, font._isim_family.UTF8String, r.origin.x, y, r.size.width, font.pointSize, font._isim_weight, font._isim_mono, a, (int)(lines == 1 ? 1 : lines), c);
+    isim_text_draw_f(text.UTF8String, font._isim_family.UTF8String, r.origin.x, y, r.size.width, font.pointSize, font._isim_weight, font._isim_style, a, (int)(lines == 1 ? 1 : lines), c);
 }
 
 /* CALayer: CoreAnimation.m */
@@ -331,97 +362,170 @@ CGContextRef UIGraphicsGetCurrentContext(void) { return isim_cg_current_context(
 void UIRectFill(CGRect r) { CGContextFillRect(isim_cg_current_context(), r); }
 void UIRectFrame(CGRect r) { CGContextStrokeRect(isim_cg_current_context(), r); }
 
-enum { P_MOVE, P_LINE, P_CURVE, P_CLOSE, P_ARC, P_RECT };
-typedef struct { int op; double v[6]; } path_el;
-@implementation UIBezierPath { path_el *_e; NSUInteger _n, _cap; CGRect _bounds; BOOL _hasBounds; }
-- (instancetype)init { if ((self = [super init])) _lineWidth = 1; return self; }
-- (void)dealloc { free(_e); }
-+ (instancetype)bezierPath { return [self new]; }
-- (void)_add:(int)op :(double)a :(double)b :(double)c :(double)d :(double)e :(double)f {
-    if (_n == _cap) { _cap = _cap ? _cap * 2 : 16; _e = realloc(_e, _cap * sizeof *_e); }
-    _e[_n++] = (path_el){ op, { a, b, c, d, e, f } };
+/* backed by a CGMutablePath, like UIKit's: drawing replays it into the current context with the path's line and fill
+   settings (saved and restored around fill / stroke, as UIKit does) */
+@implementation UIBezierPath { CGMutablePathRef _path; CGFloat *_dash; NSInteger _ndash; CGFloat _phase; }
+- (instancetype)init {
+    if ((self = [super init])) { _path = CGPathCreateMutable(); _lineWidth = 1; _miterLimit = 10; _flatness = 0.6; _lineCapStyle = kCGLineCapButt; _lineJoinStyle = kCGLineJoinMiter; }
+    return self;
 }
-- (void)_grow:(CGPoint)p { CGRect r = CGRectMake(p.x, p.y, 0, 0); _bounds = _hasBounds ? CGRectUnion(_bounds, r) : r; _hasBounds = YES; }
-+ (instancetype)bezierPathWithRect:(CGRect)r { UIBezierPath *p = [self new]; [p _add:P_RECT :r.origin.x :r.origin.y :r.size.width :r.size.height :0 :0]; p->_bounds = r; p->_hasBounds = YES; return p; }
-+ (instancetype)bezierPathWithRoundedRect:(CGRect)r cornerRadius:(CGFloat)cr { UIBezierPath *p = [self new]; [p _add:P_RECT :r.origin.x :r.origin.y :r.size.width :r.size.height :cr :0]; p->_bounds = r; p->_hasBounds = YES; return p; }
-+ (instancetype)bezierPathWithOvalInRect:(CGRect)r {
+- (void)dealloc { CGPathRelease(_path); free(_dash); }
++ (instancetype)bezierPath { return [self new]; }
++ (instancetype)bezierPathWithRect:(CGRect)r { UIBezierPath *p = [self new]; CGPathAddRect(p->_path, NULL, r); return p; }
++ (instancetype)bezierPathWithRoundedRect:(CGRect)r cornerRadius:(CGFloat)cr { UIBezierPath *p = [self new]; CGPathAddRoundedRect(p->_path, NULL, r, cr, cr); return p; }
++ (instancetype)bezierPathWithRoundedRect:(CGRect)r byRoundingCorners:(UIRectCorner)corners cornerRadii:(CGSize)radii {
     UIBezierPath *p = [self new];
-    double k = 0.5522847498, cx = CGRectGetMidX(r), cy = CGRectGetMidY(r), rx = r.size.width / 2, ry = r.size.height / 2;
-    [p moveToPoint:CGPointMake(cx + rx, cy)];
-    [p addCurveToPoint:CGPointMake(cx, cy + ry) controlPoint1:CGPointMake(cx + rx, cy + k * ry) controlPoint2:CGPointMake(cx + k * rx, cy + ry)];
-    [p addCurveToPoint:CGPointMake(cx - rx, cy) controlPoint1:CGPointMake(cx - k * rx, cy + ry) controlPoint2:CGPointMake(cx - rx, cy + k * ry)];
-    [p addCurveToPoint:CGPointMake(cx, cy - ry) controlPoint1:CGPointMake(cx - rx, cy - k * ry) controlPoint2:CGPointMake(cx - k * rx, cy - ry)];
-    [p addCurveToPoint:CGPointMake(cx + rx, cy) controlPoint1:CGPointMake(cx + k * rx, cy - ry) controlPoint2:CGPointMake(cx + rx, cy - k * ry)];
-    [p closePath];
+    r = CGRectStandardize(r);
+    double rx = fmin(fmax(radii.width, 0), r.size.width / 2), ry = fmin(fmax(radii.height, 0), r.size.height / 2), k = 0.5522847498;
+    double x0 = CGRectGetMinX(r), y0 = CGRectGetMinY(r), x1 = CGRectGetMaxX(r), y1 = CGRectGetMaxY(r);
+    double tl = corners & UIRectCornerTopLeft ? 1 : 0, tr = corners & UIRectCornerTopRight ? 1 : 0;
+    double br = corners & UIRectCornerBottomRight ? 1 : 0, bl = corners & UIRectCornerBottomLeft ? 1 : 0;
+    CGMutablePathRef q = p->_path;
+    CGPathMoveToPoint(q, NULL, x0 + rx * tl, y0);
+    CGPathAddLineToPoint(q, NULL, x1 - rx * tr, y0);
+    if (tr) CGPathAddCurveToPoint(q, NULL, x1 - rx + rx * k, y0, x1, y0 + ry - ry * k, x1, y0 + ry);
+    CGPathAddLineToPoint(q, NULL, x1, y1 - ry * br);
+    if (br) CGPathAddCurveToPoint(q, NULL, x1, y1 - ry + ry * k, x1 - rx + rx * k, y1, x1 - rx, y1);
+    CGPathAddLineToPoint(q, NULL, x0 + rx * bl, y1);
+    if (bl) CGPathAddCurveToPoint(q, NULL, x0 + rx - rx * k, y1, x0, y1 - ry + ry * k, x0, y1 - ry);
+    CGPathAddLineToPoint(q, NULL, x0, y0 + ry * tl);
+    if (tl) CGPathAddCurveToPoint(q, NULL, x0, y0 + ry - ry * k, x0 + rx - rx * k, y0, x0 + rx, y0);
+    CGPathCloseSubpath(q);
     return p;
 }
++ (instancetype)bezierPathWithOvalInRect:(CGRect)r { UIBezierPath *p = [self new]; CGPathAddEllipseInRect(p->_path, NULL, r); return p; }
 + (instancetype)bezierPathWithArcCenter:(CGPoint)c radius:(CGFloat)r startAngle:(CGFloat)a0 endAngle:(CGFloat)a1 clockwise:(BOOL)cw {
     UIBezierPath *p = [self new]; [p addArcWithCenter:c radius:r startAngle:a0 endAngle:a1 clockwise:cw]; return p;
 }
-- (void)moveToPoint:(CGPoint)pt { [self _add:P_MOVE :pt.x :pt.y :0 :0 :0 :0]; [self _grow:pt]; }
-- (void)addLineToPoint:(CGPoint)pt { [self _add:P_LINE :pt.x :pt.y :0 :0 :0 :0]; [self _grow:pt]; }
-- (void)addCurveToPoint:(CGPoint)e controlPoint1:(CGPoint)c1 controlPoint2:(CGPoint)c2 { [self _add:P_CURVE :c1.x :c1.y :c2.x :c2.y :e.x :e.y]; [self _grow:e]; }
-- (void)addQuadCurveToPoint:(CGPoint)e controlPoint:(CGPoint)c {
-    path_el *last = _n ? &_e[_n - 1] : NULL;
-    CGPoint s = last ? CGPointMake(last->v[last->op == P_CURVE ? 4 : 0], last->v[last->op == P_CURVE ? 5 : 1]) : e;
-    [self addCurveToPoint:e controlPoint1:CGPointMake(s.x + 2.0 / 3 * (c.x - s.x), s.y + 2.0 / 3 * (c.y - s.y))
-                           controlPoint2:CGPointMake(e.x + 2.0 / 3 * (c.x - e.x), e.y + 2.0 / 3 * (c.y - e.y))];
++ (instancetype)bezierPathWithCGPath:(CGPathRef)path { UIBezierPath *b = [self new]; b.CGPath = path; return b; }
+- (void)moveToPoint:(CGPoint)pt { CGPathMoveToPoint(_path, NULL, pt.x, pt.y); }
+- (void)addLineToPoint:(CGPoint)pt { CGPathAddLineToPoint(_path, NULL, pt.x, pt.y); }
+- (void)addCurveToPoint:(CGPoint)e controlPoint1:(CGPoint)c1 controlPoint2:(CGPoint)c2 { CGPathAddCurveToPoint(_path, NULL, c1.x, c1.y, c2.x, c2.y, e.x, e.y); }
+- (void)addQuadCurveToPoint:(CGPoint)e controlPoint:(CGPoint)c { CGPathAddQuadCurveToPoint(_path, NULL, c.x, c.y, e.x, e.y); }
+/* UIKit's clockwise is in its flipped (y-down) coordinates: Core Graphics' counterclockwise */
+- (void)addArcWithCenter:(CGPoint)c radius:(CGFloat)r startAngle:(CGFloat)a0 endAngle:(CGFloat)a1 clockwise:(BOOL)cw { CGPathAddArc(_path, NULL, c.x, c.y, r, a0, a1, !cw); }
+- (void)closePath { CGPathCloseSubpath(_path); }
+- (void)removeAllPoints { CGPathRelease(_path); _path = CGPathCreateMutable(); }
+- (void)appendPath:(UIBezierPath *)o { if (o) CGPathAddPath(_path, NULL, o->_path); }
+- (void)applyTransform:(CGAffineTransform)t { CGMutablePathRef p = CGPathCreateMutable(); CGPathAddPath(p, &t, _path); CGPathRelease(_path); _path = p; }
+static void bezier_collect(void *info, const CGPathElement *e) {
+    NSMutableArray *a = (__bridge NSMutableArray *)info;
+    int n = e->type == kCGPathElementAddCurveToPoint ? 3 : e->type == kCGPathElementAddQuadCurveToPoint ? 2 : e->type == kCGPathElementCloseSubpath ? 0 : 1;
+    NSMutableArray *el = [NSMutableArray arrayWithObject:@(e->type)];
+    for (int k = 0; k < n; k++) { [el addObject:@(e->points[k].x)]; [el addObject:@(e->points[k].y)]; }
+    [a addObject:el];
 }
-- (void)addArcWithCenter:(CGPoint)c radius:(CGFloat)r startAngle:(CGFloat)a0 endAngle:(CGFloat)a1 clockwise:(BOOL)cw {
-    [self _add:P_ARC :c.x :c.y :r :a0 :a1 :cw];
-    [self _grow:CGPointMake(c.x - r, c.y - r)]; [self _grow:CGPointMake(c.x + r, c.y + r)];
-}
-- (void)closePath { [self _add:P_CLOSE :0 :0 :0 :0 :0 :0]; }
-- (void)removeAllPoints { _n = 0; _hasBounds = NO; }
-- (void)appendPath:(UIBezierPath *)o { for (NSUInteger i = 0; i < o->_n; i++) { path_el *x = &o->_e[i]; [self _add:x->op :x->v[0] :x->v[1] :x->v[2] :x->v[3] :x->v[4] :x->v[5]]; } if (o->_hasBounds) { [self _grow:o->_bounds.origin]; [self _grow:CGPointMake(CGRectGetMaxX(o->_bounds), CGRectGetMaxY(o->_bounds))]; } }
-- (BOOL)isEmpty { return _n == 0; }
-- (CGRect)bounds { return _hasBounds ? _bounds : CGRectNull; }
-- (id)copyWithZone:(NSZone *)z { UIBezierPath *p = [UIBezierPath new]; [p appendPath:self]; p.lineWidth = _lineWidth; return p; }
-- (void)_replay {
-    isim_path_begin();
-    const path_el *e = _e; NSUInteger n = _n;
-    for (NSUInteger i = 0; i < n; i++) {
-        switch (e[i].op) {
-        case P_MOVE: isim_path_move(e[i].v[0], e[i].v[1]); break;
-        case P_LINE: isim_path_line(e[i].v[0], e[i].v[1]); break;
-        case P_CURVE: isim_path_curve(e[i].v[0], e[i].v[1], e[i].v[2], e[i].v[3], e[i].v[4], e[i].v[5]); break;
-        case P_CLOSE: isim_path_close(); break;
-        case P_ARC: isim_path_arc(e[i].v[0], e[i].v[1], e[i].v[2], e[i].v[3], e[i].v[4], e[i].v[5] != 0); break;
-        case P_RECT: isim_path_rect(e[i].v[0], e[i].v[1], e[i].v[2], e[i].v[3], e[i].v[4]); break;
+- (NSArray *)_elements { NSMutableArray *a = [NSMutableArray array]; CGPathApply(_path, (__bridge void *)a, bezier_collect); return a; }
+static CGPoint el_pt(NSArray *el, int k) { return CGPointMake([el[1 + 2 * k] doubleValue], [el[2 + 2 * k] doubleValue]); }
+/* each subpath drawn from its end to its start (closed subpaths stay closed) */
+- (UIBezierPath *)bezierPathByReversingPath {
+    UIBezierPath *out = [UIBezierPath new];
+    out.lineWidth = _lineWidth; out.lineCapStyle = _lineCapStyle; out.lineJoinStyle = _lineJoinStyle; out.miterLimit = _miterLimit;
+    out.flatness = _flatness; out.usesEvenOddFillRule = _usesEvenOddFillRule; [out setLineDash:_dash count:_ndash phase:_phase];
+    NSArray *els = [self _elements];
+    NSUInteger i = 0;
+    while (i < els.count) {
+        NSUInteger j = i + 1;                                  /* [i, j): one subpath starting with a move */
+        while (j < els.count && [els[j][0] intValue] != kCGPathElementMoveToPoint) j++;
+        if ([els[i][0] intValue] != kCGPathElementMoveToPoint) { i = j; continue; }
+        BOOL closed = [els[j - 1][0] intValue] == kCGPathElementCloseSubpath;
+        NSUInteger last = closed ? j - 2 : j - 1;
+        NSArray *le = els[last]; int lt = [le[0] intValue];
+        CGPoint end = lt == kCGPathElementMoveToPoint || lt == kCGPathElementAddLineToPoint ? el_pt(le, 0) : el_pt(le, lt == kCGPathElementAddCurveToPoint ? 2 : 1);
+        [out moveToPoint:end];
+        for (NSUInteger k = last; k > i; k--) {
+            NSArray *e = els[k], *pe = els[k - 1]; int t = [e[0] intValue], pt = [pe[0] intValue];
+            CGPoint prev = pt == kCGPathElementAddCurveToPoint ? el_pt(pe, 2) : pt == kCGPathElementAddQuadCurveToPoint ? el_pt(pe, 1) : el_pt(pe, 0);
+            if (t == kCGPathElementAddCurveToPoint) [out addCurveToPoint:prev controlPoint1:el_pt(e, 1) controlPoint2:el_pt(e, 0)];
+            else if (t == kCGPathElementAddQuadCurveToPoint) [out addQuadCurveToPoint:prev controlPoint:el_pt(e, 0)];
+            else [out addLineToPoint:prev];
         }
+        if (closed) [out closePath];
+        i = j;
     }
+    return out;
 }
-/* CGPath bridging (Core Animation shape layers, shadow paths) */
-- (CGPathRef)CGPath {
-    CGMutablePathRef p = CGPathCreateMutable();
-    for (NSUInteger i = 0; i < _n; i++) {
-        const double *v = _e[i].v;
-        switch (_e[i].op) {
-        case P_MOVE: CGPathMoveToPoint(p, NULL, v[0], v[1]); break;
-        case P_LINE: CGPathAddLineToPoint(p, NULL, v[0], v[1]); break;
-        case P_CURVE: CGPathAddCurveToPoint(p, NULL, v[0], v[1], v[2], v[3], v[4], v[5]); break;
-        case P_CLOSE: CGPathCloseSubpath(p); break;
-        case P_ARC: CGPathAddArc(p, NULL, v[0], v[1], v[2], v[3], v[4], v[5] == 0); break;    /* UIKit clockwise = CG counterclockwise (y down) */
-        case P_RECT: if (v[4] > 0) CGPathAddRoundedRect(p, NULL, CGRectMake(v[0], v[1], v[2], v[3]), v[4], v[4]); else CGPathAddRect(p, NULL, CGRectMake(v[0], v[1], v[2], v[3])); break;
-        }
-    }
-    CFAutorelease(p);
+- (BOOL)isEmpty { return CGPathIsEmpty(_path); }
+- (CGRect)bounds { return CGPathGetBoundingBox(_path); }
+- (CGPoint)currentPoint { return CGPathGetCurrentPoint(_path); }
+- (BOOL)containsPoint:(CGPoint)pt { return CGPathContainsPoint(_path, NULL, pt, _usesEvenOddFillRule); }
+- (CGPathRef)CGPath { CGPathRef p = CGPathCreateCopy(_path); CFAutorelease(p); return p; }
+- (void)setCGPath:(CGPathRef)path { CGPathRelease(_path); _path = path ? CGPathCreateMutableCopy(path) : CGPathCreateMutable(); }
+- (void)setLineDash:(const CGFloat *)pattern count:(NSInteger)count phase:(CGFloat)phase {
+    free(_dash); _dash = NULL; _ndash = 0; _phase = phase;
+    if (pattern && count > 0) { _dash = malloc(count * sizeof *_dash); memcpy(_dash, pattern, count * sizeof *_dash); _ndash = count; }
+}
+- (void)getLineDash:(CGFloat *)pattern count:(NSInteger *)count phase:(CGFloat *)phase {
+    if (pattern && _dash) memcpy(pattern, _dash, _ndash * sizeof *_dash);
+    if (count) *count = _ndash;
+    if (phase) *phase = _phase;
+}
+- (id)copyWithZone:(NSZone *)z {
+    UIBezierPath *p = [[self class] new];
+    p.CGPath = _path; p.lineWidth = _lineWidth; p.lineCapStyle = _lineCapStyle; p.lineJoinStyle = _lineJoinStyle; p.miterLimit = _miterLimit;
+    p.flatness = _flatness; p.usesEvenOddFillRule = _usesEvenOddFillRule; [p setLineDash:_dash count:_ndash phase:_phase];
     return p;
 }
-static void bezier_from_cg(void *info, const CGPathElement *e) {
-    UIBezierPath *b = (__bridge UIBezierPath *)info;
-    switch (e->type) {
-    case kCGPathElementMoveToPoint: [b moveToPoint:e->points[0]]; break;
-    case kCGPathElementAddLineToPoint: [b addLineToPoint:e->points[0]]; break;
-    case kCGPathElementAddQuadCurveToPoint: [b addQuadCurveToPoint:e->points[1] controlPoint:e->points[0]]; break;
-    case kCGPathElementAddCurveToPoint: [b addCurveToPoint:e->points[2] controlPoint1:e->points[0] controlPoint2:e->points[1]]; break;
-    case kCGPathElementCloseSubpath: [b closePath]; break;
-    }
+/* NSSecureCoding (adapted: isim's keys; the elements as numbers) */
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c {
+    [c encodeObject:[self _elements] forKey:@"UIBezierPathElements"];
+    [c encodeDouble:_lineWidth forKey:@"UIBezierPathLineWidth"]; [c encodeInt:_lineCapStyle forKey:@"UIBezierPathLineCapStyle"];
+    [c encodeInt:_lineJoinStyle forKey:@"UIBezierPathLineJoinStyle"]; [c encodeDouble:_miterLimit forKey:@"UIBezierPathMiterLimit"];
+    [c encodeDouble:_flatness forKey:@"UIBezierPathFlatness"]; [c encodeBool:_usesEvenOddFillRule forKey:@"UIBezierPathUsesEvenOddFillRule"];
+    NSMutableArray *d = [NSMutableArray array]; for (NSInteger i = 0; i < _ndash; i++) [d addObject:@(_dash[i])];
+    [c encodeObject:d forKey:@"UIBezierPathLineDashPattern"]; [c encodeDouble:_phase forKey:@"UIBezierPathLineDashPhase"];
 }
-- (void)setCGPath:(CGPathRef)path { [self removeAllPoints]; CGPathApply(path, (__bridge void *)self, bezier_from_cg); }
-+ (instancetype)bezierPathWithCGPath:(CGPathRef)path { UIBezierPath *b = [self new]; b.CGPath = path; return b; }
-- (void)fill { [self _replay]; CGContextFillPath(isim_cg_current_context()); }
-- (void)stroke { [self _replay]; CGContextSetLineWidth(isim_cg_current_context(), _lineWidth); CGContextStrokePath(isim_cg_current_context()); }
+- (instancetype)initWithCoder:(NSCoder *)c {
+    if (!(self = [self init])) return nil;
+    NSArray *els = [c decodeObjectOfClasses:[NSSet setWithObjects:NSArray.class, NSNumber.class, nil] forKey:@"UIBezierPathElements"];
+    for (NSArray *e in els) {
+        if (![e isKindOfClass:NSArray.class] || !e.count) continue;
+        int t = [e[0] intValue]; NSUInteger need = t == kCGPathElementAddCurveToPoint ? 7 : t == kCGPathElementAddQuadCurveToPoint ? 5 : t == kCGPathElementCloseSubpath ? 1 : 3;
+        if (e.count < need) continue;
+        if (t == kCGPathElementMoveToPoint) [self moveToPoint:el_pt(e, 0)];
+        else if (t == kCGPathElementAddLineToPoint) [self addLineToPoint:el_pt(e, 0)];
+        else if (t == kCGPathElementAddQuadCurveToPoint) [self addQuadCurveToPoint:el_pt(e, 1) controlPoint:el_pt(e, 0)];
+        else if (t == kCGPathElementAddCurveToPoint) [self addCurveToPoint:el_pt(e, 2) controlPoint1:el_pt(e, 0) controlPoint2:el_pt(e, 1)];
+        else if (t == kCGPathElementCloseSubpath) [self closePath];
+    }
+    if ([c containsValueForKey:@"UIBezierPathLineWidth"]) _lineWidth = [c decodeDoubleForKey:@"UIBezierPathLineWidth"];
+    _lineCapStyle = [c decodeIntForKey:@"UIBezierPathLineCapStyle"]; _lineJoinStyle = [c decodeIntForKey:@"UIBezierPathLineJoinStyle"];
+    if ([c containsValueForKey:@"UIBezierPathMiterLimit"]) _miterLimit = [c decodeDoubleForKey:@"UIBezierPathMiterLimit"];
+    if ([c containsValueForKey:@"UIBezierPathFlatness"]) _flatness = [c decodeDoubleForKey:@"UIBezierPathFlatness"];
+    _usesEvenOddFillRule = [c decodeBoolForKey:@"UIBezierPathUsesEvenOddFillRule"];
+    NSArray *d = [c decodeObjectOfClasses:[NSSet setWithObjects:NSArray.class, NSNumber.class, nil] forKey:@"UIBezierPathLineDashPattern"];
+    if (d.count) { CGFloat v[d.count]; for (NSUInteger i = 0; i < d.count; i++) v[i] = [d[i] doubleValue]; [self setLineDash:v count:d.count phase:[c decodeDoubleForKey:@"UIBezierPathLineDashPhase"]]; }
+    return self;
+}
+- (void)_applyLineStyle:(CGContextRef)c {
+    CGContextSetLineWidth(c, _lineWidth); CGContextSetLineCap(c, _lineCapStyle); CGContextSetLineJoin(c, _lineJoinStyle);
+    CGContextSetMiterLimit(c, _miterLimit); CGContextSetFlatness(c, _flatness); CGContextSetLineDash(c, _phase, _dash, _ndash);
+}
+- (void)fillWithBlendMode:(CGBlendMode)mode alpha:(CGFloat)alpha {
+    CGContextRef c = isim_cg_current_context(); if (!c) return;
+    CGContextSaveGState(c);
+    CGContextSetBlendMode(c, mode); CGContextSetAlpha(c, alpha);
+    CGContextBeginPath(c); CGContextAddPath(c, _path);
+    if (_usesEvenOddFillRule) CGContextEOFillPath(c); else CGContextFillPath(c);
+    CGContextRestoreGState(c);
+}
+- (void)strokeWithBlendMode:(CGBlendMode)mode alpha:(CGFloat)alpha {
+    CGContextRef c = isim_cg_current_context(); if (!c) return;
+    CGContextSaveGState(c);
+    CGContextSetBlendMode(c, mode); CGContextSetAlpha(c, alpha); [self _applyLineStyle:c];
+    CGContextBeginPath(c); CGContextAddPath(c, _path); CGContextStrokePath(c);
+    CGContextRestoreGState(c);
+}
+- (void)fill { [self fillWithBlendMode:kCGBlendModeNormal alpha:1]; }
+- (void)stroke { [self strokeWithBlendMode:kCGBlendModeNormal alpha:1]; }
+/* intersects the context's clip with the path (not saved: like UIKit, callers save / restore the gstate) */
+- (void)addClip {
+    CGContextRef c = isim_cg_current_context(); if (!c) return;
+    CGContextBeginPath(c); CGContextAddPath(c, _path);
+    if (_usesEvenOddFillRule) CGContextEOClip(c); else CGContextClip(c);
+}
+- (NSString *)description { return [NSString stringWithFormat:@"<UIBezierPath: %p; %@>", self, CGPathIsEmpty(_path) ? @"empty" : NSStringFromCGRect(self.bounds)]; }
 @end
 
 

@@ -77,6 +77,14 @@ static NSString *settings_category(void) {
 }
 NSString *isim_ui_content_size_category(void) { return settings_category(); }
 CGFloat isim_ui_content_size_multiplier(void) { return body_sizes[category_index(settings_category())] / 17.0; }
+/* readableContentGuide's maximum width per category: iOS's widths for the standard categories; the accessibility
+   categories scale the Large width with the body text size (adapted) */
+CGFloat isim_ui_readable_width(NSString *category) {
+    static const double widths[] = { 560, 600, 632, 672, 728, 792, 856 };
+    if ([category isEqualToString:UIContentSizeCategoryUnspecified] || !category.length) category = settings_category();
+    NSInteger i = category_index(category);
+    return i < 7 ? widths[i] : round(672 * body_sizes[i] / 17.0);
+}
 BOOL UIAccessibilityIsVoiceOverRunning(void) { return vo_script_override ? vo_script_on : pref(@"ISIMVoiceOver", NULL); }
 BOOL UIAccessibilityIsReduceMotionEnabled(void) { return pref(@"ISIMReduceMotion", "ISIM_REDUCE_MOTION"); }
 BOOL UIAccessibilityIsBoldTextEnabled(void) { return pref(@"ISIMBoldText", "ISIM_BOLD_TEXT"); }
@@ -100,6 +108,7 @@ CGFloat isim_ui_bold_text_weight(CGFloat w) {
 static char k_style, k_base;
 void isim_ui_font_set_text_style(UIFont *f, NSString *style) { if (f) objc_setAssociatedObject(f, &k_style, style, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 static NSString *font_style(UIFont *f) { return f ? objc_getAssociatedObject(f, &k_style) : nil; }
+NSString *isim_ui_font_text_style(UIFont *f) { return font_style(f); }
 
 /* UITraitCollection's preferredContentSizeCategory, accessibilityContrast, legibilityWeight: UITraits.m */
 @implementation UIApplication (UIContentSizeCategory)

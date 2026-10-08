@@ -73,6 +73,11 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UICo
 @interface UIFont (IsimPrivate)
 @property (nonatomic, readonly) CGFloat _isim_weight;
 @property (nonatomic, readonly) BOOL _isim_mono;
+@property (nonatomic, readonly) int _isim_style;          /* host text style mask: 1 mono, 2 italic, 4 tabular digits */
+@property (nonatomic, readonly) BOOL _isim_italic;
+@property (nonatomic, readonly) BOOL _isim_tabular;
+@property (nonatomic, readonly, nullable) NSString *_isim_design;
+- (UIFont *)_isim_variantWeight:(CGFloat)w italic:(BOOL)italic mono:(BOOL)mono tabular:(BOOL)tabular design:(nullable NSString *)design;
 @property (nonatomic, readonly, nullable) NSString *_isim_family;   /* nil = system font */
 @end
 

@@ -46,7 +46,7 @@ bool CTParagraphStyleGetValueForSpecifier(CTParagraphStyleRef style, CTParagraph
 
 /* ---------------- attributed string -> markup ---------------- */
 @interface NSObject (IsimCTFontDuck)
-- (NSString *)_isim_family; - (CGFloat)_isim_weight; - (BOOL)_isim_mono; - (CGFloat)pointSize; - (CGColorRef)CGColor; - (NSInteger)alignment; - (CGFloat)lineSpacing;
+- (NSString *)_isim_family; - (CGFloat)_isim_weight; - (BOOL)_isim_mono; - (BOOL)_isim_italic; - (CGFloat)pointSize; - (CGColorRef)CGColor; - (NSInteger)alignment; - (CGFloat)lineSpacing;
 @end
 static void escape_into(NSMutableString *m, NSString *s) {
     NSString *e = [[[s stringByReplacingOccurrencesOfString:@"&" withString:@"&amp;"] stringByReplacingOccurrencesOfString:@"<" withString:@"&lt;"]
@@ -83,6 +83,7 @@ static void font_attrs(NSMutableString *m, id f) {
         if ([f respondsToSelector:@selector(_isim_weight)]) weight = [f _isim_weight];
         if ([f respondsToSelector:@selector(_isim_family)]) family = [f _isim_family];
         if ([f respondsToSelector:@selector(_isim_mono)]) mono = [f _isim_mono];
+        if ([f respondsToSelector:@selector(_isim_italic)]) italic = [f _isim_italic];
     } else return;
     [m appendFormat:@" size=\"%ld\" weight=\"%d\"", lround(size * 1024), css_weight(weight)];
     if (family.length) { [m appendString:@" font_family=\""]; escape_into(m, family); [m appendString:@"\""]; }

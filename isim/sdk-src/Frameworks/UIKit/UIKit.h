@@ -7,6 +7,7 @@
 #import <UIKit/UIGeometry.h>
 #import <UIKit/UIColor.h>
 #import <UIKit/UIFont.h>
+#import <UIKit/UIFontDescriptor.h>
 #import <UIKit/CALayer.h>
 #import <UIKit/UIResponder.h>
 #import <UIKit/UIEvent.h>
