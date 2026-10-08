@@ -239,6 +239,16 @@ NSString *isim_format(NSString *fmt, va_list ap) {
 
 /* ---------------- NSString (abstract) ---------------- */
 @implementation NSString
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSString class]); }    /* NS.string */
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSString *s = [c decodeObjectOfClass:[NSString class] forKey:@"NS.string"];
+    if (!s) {                                                    /* NS.bytes (UTF-8), as some archives store it */
+        NSUInteger n = 0; const uint8_t *b = [c decodeBytesForKey:@"NS.bytes" returnedLength:&n];
+        s = b ? [[[NSString alloc] initWithBytes:b length:n encoding:NSUTF8StringEncoding] autorelease] : @"";
+    }
+    return [self initWithString:s ?: @""];
+}
 + (instancetype)allocWithZone:(NSZone *)zone {
     if (self == [NSString class]) return class_createInstance([__NSImmString class], 0);
     return class_createInstance(self, 0);

@@ -30,6 +30,14 @@ static NSString *encode_path(NSString *path, BOOL keepSlash) {
     return out;
 }
 @implementation NSURL { NSString *_string; NSString *_scheme, *_host, *_path, *_query, *_fragment, *_user; NSNumber *_port; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSURL class]); }    /* NS.base, NS.relative */
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSURL *base = [c decodeObjectOfClass:[NSURL class] forKey:@"NS.base"];
+    NSString *rel = [c decodeObjectOfClass:[NSString class] forKey:@"NS.relative"];
+    NSURL *u = rel ? [NSURL URLWithString:rel relativeToURL:base] : nil;     /* isim keeps URLs absolute */
+    return u ? [self initWithString:u.absoluteString] : nil;
+}
 + (instancetype)URLWithString:(NSString *)s { return [[self alloc] initWithString:s]; }
 /* removes "." and ".." segments (RFC 3986 5.2.4) */
 static NSString *remove_dot_segments(NSString *path) {

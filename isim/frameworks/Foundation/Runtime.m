@@ -257,10 +257,14 @@ void isim_bundle_register_extension(NSString *path) {
 
 /* ================= NSDate ================= */
 @implementation NSDate { NSTimeInterval _t; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSDate class]); }    /* NS.time */
+- (instancetype)initWithCoder:(NSCoder *)c { if ((self = [super init])) _t = [c decodeDoubleForKey:@"NS.time"]; return self; }   /* not via the designated initializer (Swift subclasses) */
 + (NSTimeInterval)timeIntervalSinceReferenceDate_isim { return wall_now() - REF_EPOCH; }
 + (instancetype)date { return [[self alloc] initWithTimeIntervalSinceReferenceDate:wall_now() - REF_EPOCH]; }
 + (instancetype)dateWithTimeIntervalSinceNow:(NSTimeInterval)s { return [[self alloc] initWithTimeIntervalSinceReferenceDate:wall_now() - REF_EPOCH + s]; }
 + (instancetype)dateWithTimeIntervalSince1970:(NSTimeInterval)s { return [[self alloc] initWithTimeIntervalSinceReferenceDate:s - REF_EPOCH]; }
++ (instancetype)dateWithTimeIntervalSinceReferenceDate:(NSTimeInterval)t { return [[self alloc] initWithTimeIntervalSinceReferenceDate:t]; }
 + (NSDate *)distantFuture { return [[self alloc] initWithTimeIntervalSinceReferenceDate:63113904000.0]; }
 + (NSDate *)distantPast { return [[self alloc] initWithTimeIntervalSinceReferenceDate:-63114076800.0]; }
 - (instancetype)init { return [self initWithTimeIntervalSinceReferenceDate:wall_now() - REF_EPOCH]; }
@@ -649,6 +653,28 @@ NSErrorUserInfoKey const NSMultipleUnderlyingErrorsKey = @"NSMultipleUnderlyingE
 /* +setUserInfoValueProviderForDomain:provider: — consulted for keys missing from an error's userInfo */
 static NSMutableDictionary *error_providers;
 @implementation NSError
+/* keyed coding with Apple's keys (NSDomain, NSCode, NSUserInfo); userInfo values that cannot be archived are left out */
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c {
+    [c encodeObject:_domain forKey:@"NSDomain"];
+    [c encodeInteger:_code forKey:@"NSCode"];
+    NSMutableDictionary *info = [NSMutableDictionary dictionary];
+    [_userInfo enumerateKeysAndObjectsUsingBlock:^(id k, id v, BOOL *stop) {
+        if ([k isKindOfClass:[NSString class]] && [v respondsToSelector:@selector(encodeWithCoder:)]) info[k] = v;
+    }];
+    if (info.count) [c encodeObject:info forKey:@"NSUserInfo"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSSet *classes = [NSSet setWithObjects:[NSDictionary class], [NSArray class], [NSString class], [NSNumber class], [NSDate class],
+                                           [NSData class], [NSURL class], [NSError class], nil];
+    /* state set directly, not through -initWithDomain:code:userInfo: (a Swift subclass that does not override it traps) */
+    if ((self = [super init])) {
+        _domain = [[c decodeObjectOfClass:[NSString class] forKey:@"NSDomain"] ?: @"" copy];
+        _code = [c decodeIntegerForKey:@"NSCode"];
+        _userInfo = [[c decodeObjectOfClasses:classes forKey:@"NSUserInfo"] copy] ?: @{};
+    }
+    return self;
+}
 + (instancetype)errorWithDomain:(NSErrorDomain)d code:(NSInteger)c userInfo:(NSDictionary *)u { return [[self alloc] initWithDomain:d code:c userInfo:u]; }
 - (instancetype)initWithDomain:(NSErrorDomain)d code:(NSInteger)c userInfo:(NSDictionary *)u {
     if ((self = [super init])) { _domain = [d copy]; _code = c; _userInfo = [u copy] ?: @{}; }

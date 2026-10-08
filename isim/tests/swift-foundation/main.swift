@@ -1,10 +1,52 @@
-// Swift <-> Foundation interop self-test on isim (overlays: ObjectiveC, Foundation).
+// Swift <-> Foundation interop self-test on isim (overlays: ObjectiveC, Foundation; UIKit for UIColor's coding).
 import Foundation
+import UIKit
 
 var failures = 0, checks = 0
 func check(_ ok: @autoclosure () -> Bool, _ what: String) {
     checks += 1
     if ok() { print("PASS  \(what)") } else { failures += 1; print("FAIL  \(what)") }
+}
+
+/// an NSError subclass with its own state, archived through super (issue #39)
+final class AppError: NSError, @unchecked Sendable {
+    var screen = ""
+    override class var supportsSecureCoding: Bool { true }
+    init(screen: String) { self.screen = screen; super.init(domain: "app", code: 9, userInfo: [NSLocalizedDescriptionKey: "failed"]) }
+    required init?(coder: NSCoder) {
+        screen = coder.decodeObject(of: NSString.self, forKey: "screen") as String? ?? ""
+        super.init(coder: coder)
+    }
+    override func encode(with coder: NSCoder) { super.encode(with: coder); coder.encode(screen, forKey: "screen") }
+}
+
+/// NSCoding of Foundation's and UIKit's own classes (issue #39)
+func codingChecks() {
+    func rgba(_ c: UIColor?) -> [CGFloat] { var r: CGFloat = -1, g: CGFloat = -1, b: CGFloat = -1, a: CGFloat = -1; _ = c?.getRed(&r, green: &g, blue: &b, alpha: &a); return [r, g, b, a] }
+    func near(_ x: [CGFloat], _ y: [CGFloat]) -> Bool { zip(x, y).allSatisfy { abs($0 - $1) < 1e-6 } }
+    let color = UIColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 0.8)
+    let colorData = try? NSKeyedArchiver.archivedData(withRootObject: color, requiringSecureCoding: true)
+    let color2 = colorData.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: UIColor.self, from: $0) }
+    check(UIColor.supportsSecureCoding && near(rgba(color2), [0.2, 0.4, 0.6, 0.8]), "UIColor archives and unarchives with secure coding (\(rgba(color2)))")
+    let dynamic = (try? NSKeyedArchiver.archivedData(withRootObject: UIColor.systemBackground, requiringSecureCoding: true))
+        .flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: UIColor.self, from: $0) }
+    check(dynamic != nil && rgba(dynamic)[3] == 1, "a dynamic color archives as its current color")
+    let appError = AppError(screen: "settings")
+    let errorData = try? NSKeyedArchiver.archivedData(withRootObject: appError, requiringSecureCoding: true)
+    let appError2 = errorData.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: AppError.self, from: $0) }
+    check(appError2?.screen == "settings" && appError2?.code == 9 && appError2?.localizedDescription == "failed",
+          "an NSError subclass archives through super.encode(with:) / super.init(coder:)")
+    // Core Data's transformable attributes: the default transformer only allows Foundation's types, a subclass adds UIColor
+    let packed = try? NSKeyedArchiver.archivedData(withRootObject: [UIColor.red, color] as NSArray, requiringSecureCoding: true)
+    let refused = packed.flatMap { ValueTransformer(forName: .secureUnarchiveFromDataTransformerName)?.transformedValue($0) }
+    let colors = packed.flatMap { ColorsTransformer().transformedValue($0) } as? [UIColor]
+    check(refused == nil && colors?.count == 2 && near(rgba(colors?.last), [0.2, 0.4, 0.6, 0.8]),
+          "NSSecureUnarchiveFromDataTransformer: UIColor only through a subclass's allowedTopLevelClasses (\(colors?.count ?? -1))")
+}
+
+final class ColorsTransformer: NSSecureUnarchiveFromDataTransformer {
+    // (super.allowedTopLevelClasses + [UIColor.self] crashes: bridging an NSArray of classes to [AnyClass], issue #49)
+    override class var allowedTopLevelClasses: [AnyClass] { [NSArray.self, UIColor.self] }
 }
 
 class Greeter: NSObject {
@@ -219,6 +261,7 @@ func errorBridgingChecks() {
         check(info.processorCount > 0 && info.physicalMemory > 0 && info.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0)), "ProcessInfo device facts")
         check(!info.isiOSAppOnMac && !info.isMacCatalystApp && info.environment["HOME"] != nil, "ProcessInfo.isiOSAppOnMac / environment")
         errorBridgingChecks()
+        codingChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }
