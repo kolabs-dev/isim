@@ -23,9 +23,9 @@ usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutput
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivgTq
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivpMV
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCapturePhotoOutputC03maxC21QualityPrioritizationSivsTq
-# 0.11.0 (issue #38): Foundation is built with library evolution, so conformances of other overlays' types to Foundation's
+# 0.12.0 (issue #38): Foundation is built with library evolution, so conformances of other overlays' types to Foundation's
 # protocols (CustomNSError, LocalizedError, ContiguousBytes, AttributedStringKey, ...) are reached through resilient
-# witness-table accessors; their static witness tables are no longer exported. Swift apps built before 0.11 must be
+# witness-table accessors; their static witness tables are no longer exported. Swift apps built before 0.12 must be
 # rebuilt in any case: libswiftFoundation's ABI broke in the same release (abi/epochs.txt).
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation7AVErrorV10Foundation13CustomNSErrorAAWP
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation7AVErrorV10Foundation14LocalizedErrorAAWP

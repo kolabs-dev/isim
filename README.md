@@ -125,7 +125,7 @@ rows). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 | Area | Status | Notes |
 |---|---|---|
 | Build for iOS on Linux | ✅ | clang/lld and Swift 6.2 produce iOS-simulator (x86_64) and device (arm64) Mach-O; `isim build` / `isim test` handle Xcode projects, workspaces, packages and XCTest / Swift Testing / XCUITest |
-| Run simulator binaries | ✅ | own Mach-O loader, libSystem, Objective-C and Swift runtimes, Foundation; apps keep running across isim updates (ABI checked); Swift apps built before 0.11 need one rebuild (the base Swift overlays became resilient) |
+| Run simulator binaries | ✅ | own Mach-O loader, libSystem, Objective-C and Swift runtimes, Foundation; apps keep running across isim updates (ABI checked); Swift apps built before 0.12 need one rebuild (the base Swift overlays became resilient) |
 | UIKit · SwiftUI | 🟡 | broad coverage, including storyboards and SwiftUI navigation, presentation and effects; SwiftUI is isim's own implementation |
 | Device | ✅ | home screen (pages, folders, App Library, Spotlight, widgets), lock screen, Notification Center, Control Center, app switcher, Settings; 12 iPhones and 4 iPads; iOS 17, 18, 26 and 27 |
 | Linux releases | ✅ | `install.sh`, `isim update` |

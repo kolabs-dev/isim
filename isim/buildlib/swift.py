@@ -484,7 +484,7 @@ class Swift:
                   "_distantFuture:macOS 99.0, iOS 99.0, watchOS 99.0, tvOS 99.0, visionOS 99.0"):
             avail += ["-Xfrontend", "-define-availability", "-Xfrontend", m]
         # upstream's flags (cmake/modules/shared/CompilerSettings.cmake); Testing's `public import ObjectiveC` needs the
-        # ObjectiveC overlay built with library evolution (it is since 0.11)
+        # ObjectiveC overlay built with library evolution (it is since 0.12)
         common = ["-suppress-warnings", "-parse-as-library", "-swift-version", "6", "-O", "-wmo", "-enable-library-evolution", "-package-name", "org.swift.testing",
                   "-Xfrontend", "-require-explicit-sendable", "-enable-upcoming-feature", "ExistentialAny",
                   "-enable-upcoming-feature", "MemberImportVisibility", "-enable-upcoming-feature", "InferIsolatedConformances",
@@ -596,7 +596,7 @@ WidgetKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswif
 CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -framework Foundation
 """
 
-# app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.11 also the base
+# app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
 EVOLUTION = set("""ObjectiveC Dispatch Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
