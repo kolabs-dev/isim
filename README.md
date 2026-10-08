@@ -1,5 +1,7 @@
 # isim — iOS development on Linux
 
+[![CI](https://github.com/kolabs-dev/isim/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/kolabs-dev/isim/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+
 An iOS-compatible simulator and toolchain that runs on Linux, with no macOS, VM or remote Mac.
 It builds Objective-C and Swift apps (UIKit and SwiftUI) from their Xcode projects and runs them
 on a simulated iPhone or iPad with a home screen and a Settings app.
