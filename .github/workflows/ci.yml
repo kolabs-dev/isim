@@ -1,5 +1,7 @@
 # Builds isim and runs every test (pytest) plus the ABI check on a stock Ubuntu 24.04 image.
-# Pull requests: manual only (Actions -> CI -> Run workflow, on the PR's branch; the result attaches to that commit).
+# Pull requests: manual only (Actions -> CI -> Run workflow, on the PR's branch). The run posts its result as the
+# commit status "ci / build and test" on the branch's head commit: the check main's ruleset requires (runs started
+# from the Actions tab are not counted as a pull request's checks; commit statuses are).
 # Pushes to main run automatically, so main always has a fresh build cache: a branch's first run starts from it.
 # The build is cached: build.py ci gives unchanged sources their cached timestamps back, so Ninja rebuilds only what
 # the pull request touched since the branch's (or main's) last cached build.
@@ -8,6 +10,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+permissions:
+  contents: read
+  statuses: write
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -16,7 +21,13 @@ jobs:
     name: build and test
     runs-on: ubuntu-24.04
     timeout-minutes: 90          # a cold build (no cache yet) takes much longer than the usual cached run
+    env:
+      GH_TOKEN: ${{ github.token }}
+      STATUS: repos/${{ github.repository }}/statuses/${{ github.sha }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
+      - name: Status (pending)
+        run: gh api "$STATUS" -f state=pending -f context="ci / build and test" -f description="running" -f target_url="$RUN_URL" >/dev/null
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - name: CI image (Ubuntu 24.04)
@@ -96,3 +107,9 @@ jobs:
             isim/out/pytest/**/*.txt
           if-no-files-found: ignore
           retention-days: 7
+      - name: Status (result)
+        if: always()
+        run: |
+          case "${{ job.status }}" in success) state=success ;; cancelled) state=error ;; *) state=failure ;; esac
+          gh api "$STATUS" -f state="$state" -f context="ci / build and test" -f description="${{ job.status }}" \
+            -f target_url="$RUN_URL" >/dev/null
