@@ -293,3 +293,13 @@ extension NSExtensionItem {
         set { __attachments = newValue }
     }
 }
+
+/// For UIKit's document picker and browser (Objective-C, which looks this up at run time): whether a file, by its
+/// filename extension (or a directory), conforms to any of the comma-separated type identifiers.
+@_cdecl("isim_uti_file_conforms")
+public func _isimUTIFileConforms(_ ext: UnsafePointer<CChar>, _ isDirectory: Int32, _ types: UnsafePointer<CChar>) -> Int32 {
+    let e = String(cString: ext)
+    let t: UTType = isDirectory != 0 ? .folder : (e.isEmpty ? .data : UTType(filenameExtension: e) ?? .data)
+    for id in String(cString: types).split(separator: ",") where UTType(String(id)).map(t.conforms(to:)) == true { return 1 }
+    return 0
+}
