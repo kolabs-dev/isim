@@ -156,6 +156,7 @@ extension Animation {
     }
     /// Progress (0 -> 1, springs may overshoot) `t` seconds after the animation started, and whether it ended.
     func _progress(at t: Double) -> (Double, Bool) {
+        if _animationsOff && repeats == 0 { return (1, true) }          // ISIM_ANIMATIONS=0 (tests)
         let el = t * speedFactor - delayTime
         if el < 0 { return (0, false) }
         let cycle = max(0.0001, duration)
@@ -265,3 +266,6 @@ func _sameShape<D: VectorArithmetic>(_ a: D, _ b: D) -> Bool {
     }
     return lengths(a) == lengths(b)
 }
+
+/// ISIM_ANIMATIONS=0 makes animations finish at once (UI tests).
+let _animationsOff: Bool = ProcessInfo.processInfo.environment["ISIM_ANIMATIONS"] == "0"
