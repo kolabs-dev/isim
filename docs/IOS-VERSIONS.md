@@ -50,7 +50,7 @@ iPhone 13 mini), so there is no maximum version.
 ## `#available` and the Swift standard library
 
 `#available` / `if #available` / `#unavailable` (Swift) and `@available` / `__builtin_available` (Objective-C)
-follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by `tests/ui/osversions.sh`).
+follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by `tests/ui/test_osversions.py`).
 
 - isim's libswiftCore is now built with `SWIFT_RUNTIME_OS_VERSIONING` (CMake's `SWIFT_STDLIB_OS_VERSIONING`,
   on by default for Apple platforms). Swift's availability checks inline `_stdlib_isOSVersionAtLeast_AEIC`, which
@@ -141,7 +141,7 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
 
 ## Tests
 
-- `tests/ui/osversions.sh` runs `samples/HelloOSVersions` (UIKit and SwiftUI) under each `--os` and checks the
+- `tests/ui/test_osversions.py` runs `samples/HelloOSVersions` (UIKit and SwiftUI) under each `--os` and checks the
   versions, `#available`/`@available`, version-gated APIs, the look by pixels, the Lock Screen and Control Center,
   Settings ▸ About, device pairing and the remembered version. It is part of `test.sh`.
 - `OS_MATRIX=1 ./test.sh` also runs the version-sensitive suites under all four versions (iPhone 15 for 17,

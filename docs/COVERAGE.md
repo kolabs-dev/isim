@@ -1049,7 +1049,7 @@ their presentation copies (model + running animations); there is no separate ren
 
 ## SpriteKit
 
-isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit) and `tests/ui/spritekit2.sh` (HelloSpriteKit2).
+isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/test_spritekit.py` (HelloSpriteKit) and `tests/ui/spritekit2.sh` (HelloSpriteKit2).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -1476,9 +1476,9 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Upload to App Store Connect / TestFlight | ❌ | ≤17 | blocked: requires builds from current Xcode/SDK |
 | Linux release tarballs (GitHub Releases) | ✅ | ≤17 | self-contained, glibc 2.35+ |
 | Xcode-like project view / IDE | ❌ | ≤17 | planned; the CLI covers it today |
-| `--os 17`, `18`, `26`, `27` (`ISIM_OS_VERSION`), remembered per device data | ✅ | ≤17 | `UIDevice.systemVersion`, `ProcessInfo` (`operatingSystemVersion`, `isOperatingSystemAtLeast`), Settings > About, `isim version`/`isim devices`; Xcode-like pairing: an explicit version older than the device's first iOS is rejected, otherwise the nearest valid one is used; tested (osversions.sh) |
+| `--os 17`, `18`, `26`, `27` (`ISIM_OS_VERSION`), remembered per device data | ✅ | ≤17 | `UIDevice.systemVersion`, `ProcessInfo` (`operatingSystemVersion`, `isOperatingSystemAtLeast`), Settings > About, `isim version`/`isim devices`; Xcode-like pairing: an explicit version older than the device's first iOS is rejected, otherwise the nearest valid one is used; tested (test_osversions.py) |
 | `#available` / `if #available` / `@available` follow the selected version | ✅ | ≤17 | libswiftCore built with OS versioning: Swift checks and Objective-C `@available` call isim's `__isPlatformVersionAtLeast`; tested for 18/26/27 under each `--os` |
 | SDK availability annotations (`API_AVAILABLE(ios(N))`, `@available(iOS N, *)`) | 🟡 | ≤17 | real clang availability attributes in isim's headers; iOS 18/26/27 APIs isim implements are annotated (others carry none) |
-| Lock Screen and Control Center look per version | 🟡 | ≤17 | adapted: iOS 17/18 bold Lock Screen clock, iOS 26/27 tall glass numerals and glass buttons; Control Center: iOS 17 modules, iOS 18 redesign (round toggles, rounder modules, edit/power buttons, page column), iOS 26/27 glass modules and lighter dimming; tested by pixels (osversions.sh) |
+| Lock Screen and Control Center look per version | 🟡 | ≤17 | adapted: iOS 17/18 bold Lock Screen clock, iOS 26/27 tall glass numerals and glass buttons; Control Center: iOS 17 modules, iOS 18 redesign (round toggles, rounder modules, edit/power buttons, page column), iOS 26/27 glass modules and lighter dimming; tested by pixels (test_osversions.py) |
 | Home Screen icon appearance (dark, tinted) | 🟡 | 18.0 | `ISIM_ICON_STYLE=dark` or `tinted` (`ISIM_ICON_TINT`); the app's own variants when present, else derived; no Customize sheet |
 | Home Screen clear icons, glass dock and icon rims | 🟡 | 26.0 | `ISIM_ICON_STYLE=clear`; glass dock and specular icon edges with `--os 26`/`27` |

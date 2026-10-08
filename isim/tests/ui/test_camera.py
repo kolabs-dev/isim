@@ -40,7 +40,7 @@ def media(tmp_path_factory):
     qr = has_zbar()
     if qr:
         subprocess.run(["qrencode", "-o", str(d / "qr.png"), "-s", "6", "-m", "3", "isim camera QR test"], check=True)
-        code = Image.open(d / "qr.png").convert("RGB")
+        code = Image.open(d / "qr.png").convert("RGBA").convert("RGB")
         img.paste(code, ((640 - code.width) // 2, (480 - code.height) // 2))
     img.save(pic)
     video = d / "camera.mp4"
