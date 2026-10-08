@@ -511,7 +511,9 @@ static int pango_weight(double w) {
  * A missing glyph falls back to the system fonts, like iOS's font cascade. */
 #define SYSTEM_SANS "Adwaita Sans,Inter,Noto Sans,sans-serif"
 #define SYSTEM_MONO "Adwaita Mono,Noto Sans Mono,monospace"
-static PangoLayout *layout_for_family(const char *utf8, const char *family, double size, double weight, int mono, double maxw, int lines, int align) {
+/* style: 1 monospaced, 2 italic, 4 tabular (monospaced) digits */
+static PangoLayout *layout_for_family(const char *utf8, const char *family, double size, double weight, int style, double maxw, int lines, int align) {
+    int mono = style & 1;
     PangoLayout *l = pango_layout_new(pctx);
     PangoFontDescription *fd = pango_font_description_new();
     char fam[512];
@@ -520,7 +522,14 @@ static PangoLayout *layout_for_family(const char *utf8, const char *family, doub
     pango_font_description_set_family(fd, fam);
     pango_font_description_set_absolute_size(fd, size * PANGO_SCALE);
     pango_font_description_set_weight(fd, pango_weight(weight));
+    if (style & 2) pango_font_description_set_style(fd, PANGO_STYLE_ITALIC);
     pango_layout_set_font_description(l, fd);
+    if (style & 4) {
+        PangoAttrList *al = pango_attr_list_new();
+        pango_attr_list_insert(al, pango_attr_font_features_new("tnum"));
+        pango_layout_set_attributes(l, al);
+        pango_attr_list_unref(al);
+    }
     pango_font_description_free(fd);
     pango_layout_set_text(l, utf8 ? utf8 : "", -1);
     if (maxw > 0) { pango_layout_set_width(l, (int)(maxw * PANGO_SCALE)); pango_layout_set_wrap(l, PANGO_WRAP_WORD_CHAR); }

@@ -1,36 +1,11 @@
 #pragma once
 /* isim: UIFontPickerViewController — the font families iOS ships (and the app's UIAppFonts), each shown in its own
- * typeface, with search; picking one sets selectedFontDescriptor and tells the delegate. Plus a minimal
- * UIFontDescriptor (family / name / size attributes) for it. */
+ * typeface, with search; picking one sets selectedFontDescriptor and tells the delegate. */
 #import <UIKit/UIViewController.h>
 #import <UIKit/UIFont.h>
+#import <UIKit/UIFontDescriptor.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIFontPickerViewController;
-
-typedef NSString *UIFontDescriptorAttributeName NS_TYPED_ENUM NS_SWIFT_NAME(UIFontDescriptor.AttributeName);
-UIKIT_EXTERN UIFontDescriptorAttributeName const UIFontDescriptorFamilyAttribute NS_SWIFT_NAME(family);
-UIKIT_EXTERN UIFontDescriptorAttributeName const UIFontDescriptorNameAttribute NS_SWIFT_NAME(name);
-UIKIT_EXTERN UIFontDescriptorAttributeName const UIFontDescriptorSizeAttribute NS_SWIFT_NAME(size);
-UIKIT_EXTERN UIFontDescriptorAttributeName const UIFontDescriptorFaceAttribute NS_SWIFT_NAME(face);
-
-NS_SWIFT_UI_ACTOR
-@interface UIFontDescriptor : NSObject <NSCopying>
-- (instancetype)initWithFontAttributes:(NSDictionary<UIFontDescriptorAttributeName, id> *)attributes NS_DESIGNATED_INITIALIZER;
-+ (UIFontDescriptor *)fontDescriptorWithFontAttributes:(NSDictionary<UIFontDescriptorAttributeName, id> *)attributes;
-+ (UIFontDescriptor *)fontDescriptorWithName:(NSString *)fontName size:(CGFloat)size;
-- (UIFontDescriptor *)fontDescriptorWithFamily:(NSString *)newFamily;
-- (UIFontDescriptor *)fontDescriptorWithSize:(CGFloat)newPointSize;
-- (nullable id)objectForKey:(UIFontDescriptorAttributeName)anAttribute;
-@property (nonatomic, readonly) NSString *postscriptName;
-@property (nonatomic, readonly) CGFloat pointSize;
-@property (nonatomic, readonly) NSDictionary<UIFontDescriptorAttributeName, id> *fontAttributes;
-@end
-
-@interface UIFont (UIFontDescriptorSupport)
-+ (UIFont *)fontWithDescriptor:(UIFontDescriptor *)descriptor size:(CGFloat)pointSize;
-@property (nonatomic, readonly) UIFontDescriptor *fontDescriptor;
-+ (NSArray<NSString *> *)fontNamesForFamilyName:(NSString *)familyName;
-@end
 
 NS_SWIFT_UI_ACTOR
 @interface UIFontPickerViewControllerConfiguration : NSObject <NSCopying>

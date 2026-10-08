@@ -1,59 +1,12 @@
-/* isim UIKit (ARC): UIFontPickerViewController and a minimal UIFontDescriptor.
+/* isim UIKit (ARC): UIFontPickerViewController (UIFontDescriptor: UIFontDescriptor.m).
  * The list holds the font families iOS ships (drawn with the host's closest font when it lacks one) plus the
  * app's registered fonts (UIAppFonts), searchable; rows show each family in its own typeface. */
 #import "UIKitPrivate.h"
 #import <UIKit/UIFontPickerViewController.h>
 
-UIFontDescriptorAttributeName const UIFontDescriptorFamilyAttribute = @"NSFontFamilyAttribute";
-UIFontDescriptorAttributeName const UIFontDescriptorNameAttribute = @"NSFontNameAttribute";
-UIFontDescriptorAttributeName const UIFontDescriptorSizeAttribute = @"NSFontSizeAttribute";
-UIFontDescriptorAttributeName const UIFontDescriptorFaceAttribute = @"NSFontFaceAttribute";
-
-@implementation UIFontDescriptor { NSDictionary *_attrs; }
-- (instancetype)init { return [self initWithFontAttributes:@{}]; }
-- (instancetype)initWithFontAttributes:(NSDictionary *)a { if ((self = [super init])) _attrs = [a copy] ?: @{}; return self; }
-+ (UIFontDescriptor *)fontDescriptorWithFontAttributes:(NSDictionary *)a { return [[self alloc] initWithFontAttributes:a]; }
-+ (UIFontDescriptor *)fontDescriptorWithName:(NSString *)name size:(CGFloat)size {
-    return [[self alloc] initWithFontAttributes:@{UIFontDescriptorNameAttribute: name ?: @"", UIFontDescriptorSizeAttribute: @(size)}];
-}
-- (UIFontDescriptor *)_with:(NSString *)k value:(id)v { NSMutableDictionary *d = [_attrs mutableCopy]; d[k] = v; return [[UIFontDescriptor alloc] initWithFontAttributes:d]; }
-- (UIFontDescriptor *)fontDescriptorWithFamily:(NSString *)f { return [self _with:UIFontDescriptorFamilyAttribute value:f]; }
-- (UIFontDescriptor *)fontDescriptorWithSize:(CGFloat)s { return [self _with:UIFontDescriptorSizeAttribute value:@(s)]; }
-- (id)objectForKey:(NSString *)k { return _attrs[k]; }
-- (NSDictionary *)fontAttributes { return _attrs; }
-- (CGFloat)pointSize { return [_attrs[UIFontDescriptorSizeAttribute] doubleValue]; }
-- (NSString *)postscriptName {
-    NSString *n = _attrs[UIFontDescriptorNameAttribute];
-    if (n.length) return n;
-    return [_attrs[UIFontDescriptorFamilyAttribute] stringByReplacingOccurrencesOfString:@" " withString:@""] ?: @"";
-}
-- (id)copyWithZone:(NSZone *)z { return self; }
-- (BOOL)isEqual:(id)o { return [o isKindOfClass:[UIFontDescriptor class]] && [((UIFontDescriptor *)o)->_attrs isEqual:_attrs]; }
-- (NSUInteger)hash { return _attrs.hash; }
-- (NSString *)description { return [NSString stringWithFormat:@"UICTFontDescriptor <%p> = %@", self, _attrs]; }
-@end
-
 static UIFont *font_for_family(NSString *family, CGFloat size) {
     return [UIFont fontWithName:family size:size] ?: [UIFont fontWithName:[family stringByReplacingOccurrencesOfString:@" " withString:@""] size:size];
 }
-
-@implementation UIFont (UIFontDescriptorSupport)
-+ (UIFont *)fontWithDescriptor:(UIFontDescriptor *)d size:(CGFloat)size {
-    CGFloat s = size > 0 ? size : (d.pointSize > 0 ? d.pointSize : 17);
-    NSString *name = [d objectForKey:UIFontDescriptorNameAttribute], *family = [d objectForKey:UIFontDescriptorFamilyAttribute];
-    UIFont *f = name.length ? [UIFont fontWithName:name size:s] : nil;
-    if (!f && family.length) f = font_for_family(family, s);
-    return f ?: [UIFont systemFontOfSize:s];
-}
-- (UIFontDescriptor *)fontDescriptor {
-    return [UIFontDescriptor fontDescriptorWithFontAttributes:@{UIFontDescriptorNameAttribute: self.fontName ?: @"", UIFontDescriptorFamilyAttribute: self.familyName ?: @"",
-                                                                UIFontDescriptorSizeAttribute: @(self.pointSize)}];
-}
-+ (NSArray<NSString *> *)fontNamesForFamilyName:(NSString *)family {
-    NSString *base = [family stringByReplacingOccurrencesOfString:@" " withString:@""];
-    return @[base, [base stringByAppendingString:@"-Bold"]];
-}
-@end
 
 @implementation UIFontPickerViewControllerConfiguration
 - (id)copyWithZone:(NSZone *)z { UIFontPickerViewControllerConfiguration *c = [UIFontPickerViewControllerConfiguration new]; c.includeFaces = _includeFaces; c.displayUsingSystemFont = _displayUsingSystemFont; return c; }

@@ -10,5 +10,11 @@
 	<string>dev.isim.samples.HelloConstraints</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
 </dict>
 </plist>

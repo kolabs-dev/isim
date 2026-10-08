@@ -17,13 +17,19 @@ const CGSize UILayoutFittingExpandedSize = { 10000, 10000 };
 - (BOOL)canBecomeFirstResponder { return NO; }
 - (BOOL)canResignFirstResponder { return YES; }
 static __weak UIResponder *first_responder;
+static BOOL handing_over;      /* the old responder resigns for a new one: the keyboard hears only about the new one */
 UIResponder *isim_ui_first_responder(void) { return first_responder; }
 - (BOOL)isFirstResponder { return first_responder == self; }
 - (BOOL)becomeFirstResponder {
     if (first_responder == self) return YES;
     if (!self.canBecomeFirstResponder) return NO;
     UIResponder *old = first_responder;
-    if (old && ![old resignFirstResponder]) return NO;
+    if (old) {                 /* moving between text inputs keeps the keyboard up (no hide / show), as on iOS */
+        BOOL was = handing_over; handing_over = YES;
+        BOOL ok = [old resignFirstResponder];
+        handing_over = was;
+        if (!ok) return NO;
+    }
     first_responder = self;
     [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimFirstResponderDidChange" object:self];
     return YES;
@@ -31,7 +37,7 @@ UIResponder *isim_ui_first_responder(void) { return first_responder; }
 - (BOOL)resignFirstResponder {
     if (first_responder == self) {
         first_responder = nil;
-        [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimFirstResponderDidChange" object:nil];
+        if (!handing_over) [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimFirstResponderDidChange" object:nil];
     }
     return YES;
 }
@@ -175,7 +181,7 @@ ANCHORS(UILayoutGuide)
     __weak UIWindow *_window;
     BOOL _needsLayout;
     NSMutableArray *_installed, *_guides, *_gestures;
-    UILayoutGuide *_safeGuide, *_marginsGuide;
+    UILayoutGuide *_safeGuide, *_marginsGuide, *_readableGuide;
     UIColor *_tint;
     UILayoutPriority _hug[2], _resist[2];
     __weak UIViewController *_vc;
@@ -588,7 +594,23 @@ UIEdgeInsets isim_ui_safe_insets_for_rect(UIView *v, CGRect inWin) {
     }
     return _marginsGuide;
 }
-- (UILayoutGuide *)readableContentGuide { return self.layoutMarginsGuide; }
+/* the margins, at most the readable width for the content size category, centred (as on iOS: on an iPhone in
+   portrait it equals the margins; on wider screens it narrows) */
+- (UILayoutGuide *)readableContentGuide {
+    if (!_readableGuide) {
+        _readableGuide = [UILayoutGuide new]; _readableGuide.owningView = self; _readableGuide.identifier = @"UIViewReadableContentGuide";
+        __weak UIView *w = self;
+        [_readableGuide _isim_setFrameProvider:^CGRect {
+            UIView *s = w;
+            extern CGFloat isim_ui_readable_width(NSString *category);
+            CGRect m = UIEdgeInsetsInsetRect(UIEdgeInsetsInsetRect(s.bounds, s.safeAreaInsets), s.layoutMargins);
+            CGFloat max = isim_ui_readable_width(s.traitCollection.preferredContentSizeCategory);
+            if (m.size.width > max) { m.origin.x += floor((m.size.width - max) / 2); m.size.width = max; }
+            return m;
+        }];
+    }
+    return _readableGuide;
+}
 - (void)addLayoutGuide:(UILayoutGuide *)g { if (!_guides) _guides = [NSMutableArray array]; g.owningView = self; [_guides addObject:g]; isim_ui_constraints_changed(); }
 - (void)removeLayoutGuide:(UILayoutGuide *)g { [_guides removeObjectIdenticalTo:g]; }
 - (NSArray *)layoutGuides { return [_guides copy] ?: @[]; }
@@ -758,6 +780,7 @@ static void al_collect(UIView *v, NSMutableArray *out) { [out addObject:v]; for 
     NSMutableArray *g = [NSMutableArray array];
     if (_safeGuide) [g addObject:_safeGuide];
     if (_marginsGuide) [g addObject:_marginsGuide];
+    if (_readableGuide) [g addObject:_readableGuide];
     if (_guides) [g addObjectsFromArray:_guides];
     return g;
 }

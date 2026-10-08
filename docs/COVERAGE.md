@@ -26,15 +26,15 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 164 | 44 | 3 | 10 | 221 | 84% |
+| **UIKit** | 169 | 39 | 3 | 10 | 221 | 85% |
 | &nbsp;&nbsp;↳ Application & scenes | 20 | 5 | 0 | 0 | 25 | 90% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 19 | 9 | 0 | 3 | 31 | 76% |
 | &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
-| &nbsp;&nbsp;↳ Layout | 16 | 2 | 0 | 1 | 19 | 89% |
-| &nbsp;&nbsp;↳ Animation | 8 | 4 | 0 | 0 | 12 | 83% |
+| &nbsp;&nbsp;↳ Layout | 17 | 1 | 0 | 1 | 19 | 92% |
+| &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
-| &nbsp;&nbsp;↳ Text input & keyboard | 9 | 3 | 2 | 0 | 14 | 75% |
-| &nbsp;&nbsp;↳ Drawing, images & symbols | 14 | 3 | 0 | 2 | 19 | 82% |
+| &nbsp;&nbsp;↳ Text input & keyboard | 10 | 2 | 2 | 0 | 14 | 79% |
+| &nbsp;&nbsp;↳ Drawing, images & symbols | 16 | 1 | 0 | 2 | 19 | 87% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 2 | 0 | 1 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **682** | **241** | **29** | **45** | **997** | **80%** |
+| **All areas** | **687** | **236** | **29** | **45** | **997** | **81%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 86% (206) | 86% (210) | 86% (217) | 84% (221) |
+| UIKit | 87% (206) | 87% (210) | 87% (217) | 85% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **81%** (954) | **81%** (966) | **81%** (983) | **80%** (997) |
+| **All areas** | **82%** (954) | **82%** (966) | **81%** (983) | **81%** (997) |
 
 ---
 
@@ -269,7 +269,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `systemLayoutSizeFitting` | ✅ | ≤17 | |
 | `UILayoutGuide`, `safeAreaLayoutGuide`, `layoutMarginsGuide` | ✅ | ≤17 | per-device safe areas |
 | `additionalSafeAreaInsets` (container insets propagate to children) | ✅ | ≤17 | navigation/tab bars; scroll views adjust |
-| `readableContentGuide` | 🟡 | ≤17 | exists; width rules unverified |
+| `readableContentGuide` | ✅ | ≤17 | the layout margins, at most the readable width for the content size category and centred: the margins on an iPhone in portrait, 672 pt (Large text) in landscape / iPad; iOS's widths for the standard categories (560–856 pt), the accessibility categories scale with the body size (adapted). Tested (HelloConstraints, portrait and landscape) |
 | `keyboardLayoutGuide` | ✅ | ≤17 | follows keyboard show/hide/frame changes (animated), bottom safe area when hidden (`usesBottomSafeArea`); tested (HelloConstraints). Undocked/floating keyboards do not exist on isim |
 | Layout margins, `directionalLayoutMargins` | ✅ | ≤17 | |
 | `UIScrollView` `contentLayoutGuide` / `frameLayoutGuide` | ✅ | ≤17 | |
@@ -291,7 +291,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Spring animations (damping/velocity; iOS 17 `springDuration`/`bounce`) | ✅ | ≤17 | |
 | Delay, repeat, autoreverse, begin-from-current-state | ✅ | ≤17 | retargets from the current value |
 | `performWithoutAnimation`, `areAnimationsEnabled` | ✅ | ≤17 | |
-| Constraint animations (`layoutIfNeeded` in an animation block) | 🟡 | ≤17 | frames set inside the block animate; unverified end to end |
+| Constraint animations (`layoutIfNeeded` in an animation block) | ✅ | ≤17 | a constant changed before `UIView.animate { layoutIfNeeded() }` animates the frames (drawn between the old and new sizes mid-animation; `frame` reports the end value, as on iOS), completion runs at the end. Tested (HelloConstraints) |
 | `UIView.transition(with:)` | 🟡 | ≤17 | adapted: flips and curls squash the view to its axis and unfold it (2D, no perspective) with the changes applied at the midpoint; cross dissolve fades out and back in (no snapshot cross-fade); tested (HelloAnimations) |
 | `transition(from:to:)` | ✅ | ≤17 | cross dissolve between the views, flips/curls as above (2D), `.showHideTransitionViews` or replacement in the superview; tested (HelloAnimations) |
 | `animateKeyframes` / `addKeyframe` | ✅ | ≤17 | keyframe segments per property on one timeline, overall curve from the options, discrete mode; cubic/paced modes interpolate linearly; tested (HelloAnimations) |
@@ -329,7 +329,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UITextFieldDelegate` | ✅ | ≤17 | |
 | Secure text entry | ✅ | ≤17 | bullets |
 | Keyboard notifications (`keyboardWillShow…`, frame/duration user info) | ✅ | ≤17 | |
-| `keyboardDismissMode` (on drag / interactive) | 🟡 | ≤17 | unverified |
+| `keyboardDismissMode` (on drag / interactive) | ✅ | ≤17 | `.onDrag` (and `.onDragWithAccessory`) dismisses when a drag begins; `.interactive` (and `.interactiveWithAccessory`) when the finger drags down into the keyboard (adapted: the keyboard does not follow the finger). Moving focus between text inputs keeps the keyboard up (no hide / show notifications), as on iOS. Tested (HelloConstraints) |
 | Typing from the host keyboard | ✅ | ≤17 | `ISIM_SOFTWARE_KEYBOARD=0` hides the on-screen one |
 | Custom keyboard extensions (globe key, keyboard list) | ✅ | ≤17 | |
 | `UITextInput` positions/ranges, marked text (IME) | ✅ | ≤17 | positions, ranges, `selectedTextRange`, `text(in:)`, `replace(_:withText:)`, caret/first/selection rects, `closestPosition`, `UITextInputStringTokenizer`, `inputDelegate`; marked text from the host IME (SDL text editing) or script `compose TEXT`, underlined, committed by `insertText`; custom keyboards' document proxy sees the selection; tested (HelloTextEditing) |
@@ -340,7 +340,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `UIBezierPath` (rect, oval, rounded rect, arcs, curves, fill, stroke) | 🟡 | ≤17 | no dashes, line caps/joins, `addClip`, `contains` |
+| `UIBezierPath` (rect, oval, rounded rect, arcs, curves, fill, stroke) | ✅ | ≤17 | a `CGMutablePath` with line settings, like UIKit: per-corner rounding, dashes (`setLineDash` / `getLineDash`), line caps, joins, miter limit, `addClip`, `contains` (nonzero / even-odd), `usesEvenOddFillRule`, `fill`/`stroke(with:alpha:)`, `reversing()`, `apply(_:)`, `currentPoint`, `bounds` (control points included, as on iOS), `cgPath`, copying, `NSSecureCoding` (adapted: isim's archive keys). Rounded rects use circular corners, not iOS's continuous curve (adapted). Tested (HelloBezierPaths) |
 | `UIRectFill`, `UIRectFrame` | ✅ | ≤17 | |
 | `UIGraphicsImageRenderer` / `UIGraphicsBeginImageContext` (offscreen drawing) | ✅ | ≤17 | image/pngData/jpegData renderers, formats (scale, opaque), renderer context helpers, nested contexts; tested (HelloImages). Backdrop blur inside an offscreen context reads the screen |
 | `UIGraphicsPDFRenderer`, `UIGraphicsBeginPDFContextToData/File` | ✅ | ≤17 | cairo PDF surface; UIKit drawing (fills, text, images) goes to the page; `pdfData`, multiple pages, `beginPage(withBounds:)`; tested (HelloQuartz, read back with CGPDFDocument). `writePDF(to:)` unverified; links/destinations ignored |
@@ -356,7 +356,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Symbol rendering modes (hierarchical, palette, multicolor) | ❌ | ≤17 | isim's symbols are single-layer stand-ins (symbol effects: see below) |
 | `UIColor` (RGB/HSB/white, system & semantic colors, dynamic provider) | ✅ | ≤17 | Apple HIG light/dark values |
 | Named asset-catalog colors (light/dark) | ✅ | ≤17 | |
-| `UIFont` (system weights, italic, monospaced, monospaced digits, metrics) | 🟡 | ≤17 | Adwaita Sans substitutes SF Pro; `fontDescriptor` missing |
+| `UIFont` (system weights, italic, monospaced, monospaced digits, metrics) | ✅ | ≤17 | adapted: Adwaita Sans / Mono (bundled) stand in for SF Pro / SF Mono, which Apple licenses for its own platforms only, so glyph shapes and advances differ; metrics follow SF Pro's ratios. Weights, italic (Adwaita Sans Italic), monospaced, tabular digits (`tnum`). `UIFontDescriptor`: Apple's attribute / trait / feature keys, `symbolicTraits`, `withSymbolicTraits`, `withDesign` (serif drawn with a serif face of the host; rounded uses the default face; nil for named fonts, like iOS), `addingAttributes` (`.traits` weight, `.featureSettings` monospaced numbers), `preferredFontDescriptor(withTextStyle:)` (keeps Dynamic Type), `withSize`/`withFamily`/`withFace`/`withMatrix`, `NSSecureCoding`. `systemFont(ofSize:weight:width:)` ignores the width (adapted). Tested (HelloFonts) |
 | Custom fonts (`UIAppFonts`) | ✅ | ≤17 | registered at launch |
 | `NSString.draw(in:withAttributes:)`, `boundingRect(with:)` | ✅ | ≤17 | NSString and NSAttributedString drawing/measuring, `NSParagraphStyle`, `NSStringDrawingOptions`; tested (HelloImages). `NSShadow` is accepted, not drawn |
 

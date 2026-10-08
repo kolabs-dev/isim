@@ -19,6 +19,7 @@ UIKIT_EXTERN const UIFontTextStyle UIFontTextStyleLargeTitle, UIFontTextStyleTit
 + (UIFont *)monospacedSystemFontOfSize:(CGFloat)fontSize weight:(UIFontWeight)weight;
 @property (class, nonatomic, readonly) CGFloat labelFontSize, buttonFontSize, smallSystemFontSize, systemFontSize;
 - (UIFont *)fontWithSize:(CGFloat)fontSize;
+@property (class, nonatomic, readonly) NSArray<NSString *> *familyNames;
 @property (nonatomic, readonly, strong) NSString *familyName;
 @property (nonatomic, readonly, strong) NSString *fontName;
 @property (nonatomic, readonly) CGFloat pointSize;

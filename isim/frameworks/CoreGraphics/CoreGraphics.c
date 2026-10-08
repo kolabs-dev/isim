@@ -200,6 +200,10 @@ static int npoints(int type) { return type == kCGPathElementAddCurveToPoint ? 3 
 CGPoint CGPathGetCurrentPoint(CGPathRef p) {
     if (!p || !p->count) return CGPointZero;
     struct pel e = p->els[p->count - 1];
+    if (e.type == kCGPathElementCloseSubpath) {             /* after a close: the subpath's start */
+        for (long i = p->count - 1; i >= 0; i--) if (p->els[i].type == kCGPathElementMoveToPoint) return p->els[i].p[0];
+        return CGPointZero;
+    }
     int n = npoints(e.type);
     return n ? e.p[n - 1] : CGPointZero;
 }

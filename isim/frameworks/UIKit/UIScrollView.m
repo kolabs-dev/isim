@@ -146,10 +146,17 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
         [self _stopAnimation];
         _dragging = _tracking = YES; _userScrolled = YES;
         _dragStart = self.contentOffset;
-        if (_keyboardDismissMode != UIScrollViewKeyboardDismissModeNone) [isim_ui_first_responder() resignFirstResponder];
+        if (_keyboardDismissMode == UIScrollViewKeyboardDismissModeOnDrag || _keyboardDismissMode == UIScrollViewKeyboardDismissModeOnDragWithAccessory)
+            [isim_ui_first_responder() resignFirstResponder];
         if ([d respondsToSelector:@selector(scrollViewWillBeginDragging:)]) [d scrollViewWillBeginDragging:self];
         /* fall through */
     case UIGestureRecognizerStateChanged: {
+        /* interactive: the keyboard goes away when the finger drags down into it (adapted: it does not follow the finger) */
+        if ((_keyboardDismissMode == UIScrollViewKeyboardDismissModeInteractive || _keyboardDismissMode == UIScrollViewKeyboardDismissModeInteractiveWithAccessory) &&
+            [g velocityInView:self].y > 0) {
+            CGRect kb = isim_ui_keyboard_frame();
+            if (!CGRectIsEmpty(kb) && [g locationInView:nil].y >= CGRectGetMinY(kb)) [isim_ui_first_responder() resignFirstResponder];
+        }
         CGPoint t = [g translationInView:self];
         CGPoint o = CGPointMake(_dragStart.x - ([self _canScrollX] ? t.x : 0), _dragStart.y - ([self _canScrollY] ? t.y : 0));
         self.contentOffset = [self _rubberBanded:o];

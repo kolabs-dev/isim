@@ -7,7 +7,8 @@ typedef NS_ENUM(NSInteger, UIScrollViewContentInsetAdjustmentBehavior) {
     UIScrollViewContentInsetAdjustmentAutomatic, UIScrollViewContentInsetAdjustmentScrollableAxes,
     UIScrollViewContentInsetAdjustmentNever, UIScrollViewContentInsetAdjustmentAlways
 };
-typedef NS_ENUM(NSInteger, UIScrollViewKeyboardDismissMode) { UIScrollViewKeyboardDismissModeNone, UIScrollViewKeyboardDismissModeOnDrag, UIScrollViewKeyboardDismissModeInteractive };
+typedef NS_ENUM(NSInteger, UIScrollViewKeyboardDismissMode) { UIScrollViewKeyboardDismissModeNone, UIScrollViewKeyboardDismissModeOnDrag, UIScrollViewKeyboardDismissModeInteractive,
+    UIScrollViewKeyboardDismissModeOnDragWithAccessory API_AVAILABLE(ios(16.0)), UIScrollViewKeyboardDismissModeInteractiveWithAccessory API_AVAILABLE(ios(16.0)) };
 typedef CGFloat UIScrollViewDecelerationRate NS_TYPED_EXTENSIBLE_ENUM;
 UIKIT_EXTERN const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal, UIScrollViewDecelerationRateFast;
 NS_SWIFT_UI_ACTOR

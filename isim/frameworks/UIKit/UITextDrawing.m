@@ -105,6 +105,8 @@ static void font_attrs(NSMutableString *m, UIFont *f) {
     [m appendFormat:@" size=\"%ld\" weight=\"%d\"", lround(f.pointSize * 1024), css_weight(f._isim_weight)];   /* 1024ths of a point; the host lays out at 72 dpi (1 pt = 1 px) */
     if (f._isim_family.length) { [m appendString:@" font_family=\""]; escape_into(m, f._isim_family); [m appendString:@"\""]; }
     else if (f._isim_mono) [m appendString:@" font_family=\"monospace\""];
+    if (f._isim_italic) [m appendString:@" style=\"italic\""];
+    if (f._isim_tabular) [m appendString:@" font_features=\"tnum\""];
 }
 /* markup for the whole string; default font/colour apply where the string has none. Reports the first paragraph's
    alignment and line spacing (Pango lays out a paragraph style per layout) */

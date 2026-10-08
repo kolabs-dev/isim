@@ -64,7 +64,9 @@ void isim_path_gradient(int mode, int kind, const double *geom, int n, const dou
 void isim_text_measure(const char *utf8, double size, double weight, int mono, double maxw, int lines, double *w, double *h);
 void isim_text_end_point(const char *utf8, double size, double weight, int mono, double maxw, double *x, double *y);
 void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba);
-/* text with a font family (NULL = system font); fonts registered by the app or installed on the host */
+/* text with a font family (NULL = system font); fonts registered by the app or installed on the host.
+   mono is a style mask: ISIM_TEXT_MONO, ISIM_TEXT_ITALIC, ISIM_TEXT_TABULAR (monospaced digits); 0 / 1 as before */
+enum { ISIM_TEXT_MONO = 1, ISIM_TEXT_ITALIC = 2, ISIM_TEXT_TABULAR = 4 };
 void isim_text_measure_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, int lines, double *w, double *h);
 void isim_text_end_point_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, double *x, double *y);
 void isim_text_draw_f(const char *utf8, const char *family, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba);
