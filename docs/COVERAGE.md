@@ -4,7 +4,7 @@ This tracks how much of the iOS SDK isim covers (iOS 17, 18, 26 and 27, selected
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-07
+Last updated: 2026-10-08
 
 **Legend**
 
@@ -55,9 +55,9 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
-| **Foundation** | 57 | 22 | 1 | 1 | 81 | 84% |
+| **Foundation** | 58 | 22 | 1 | 1 | 82 | 84% |
 | &nbsp;&nbsp;↳ Strings & text | 10 | 5 | 0 | 0 | 15 | 83% |
-| &nbsp;&nbsp;↳ Collections & values | 9 | 3 | 0 | 0 | 12 | 88% |
+| &nbsp;&nbsp;↳ Collections & values | 10 | 3 | 0 | 0 | 13 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 6 | 3 | 0 | 0 | 9 | 83% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **681** | **241** | **29** | **45** | **996** | **80%** |
+| **All areas** | **682** | **241** | **29** | **45** | **997** | **80%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 86% (206) | 86% (210) | 86% (217) | 84% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
-| Foundation | 84% (81) | 84% (81) | 84% (81) | 84% (81) |
+| Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
 | Swift runtime, stdlib & concurrency | 95% (39) | 95% (39) | 95% (39) | 95% (39) |
 | Objective-C runtime & C library | 91% (17) | 91% (17) | 91% (17) | 91% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **81%** (953) | **81%** (965) | **81%** (982) | **80%** (996) |
+| **All areas** | **81%** (954) | **81%** (966) | **81%** (983) | **80%** (997) |
 
 ---
 
@@ -793,6 +793,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `NSArray`, `NSDictionary`, `NSSet` (+ mutable), literals, fast enumeration, sorting | ✅ | ≤17 | |
+| `Array` ⇄ `NSArray`, `Dictionary` ⇄ `NSDictionary`, `Set` ⇄ `NSSet` bridging | ✅ | ≤17 | copies (not lazy); elements bridge one by one, including classes to metatypes (`NSArray` of classes `as! [AnyClass]`, `as? [UIColor.Type]`, `super.allowedTopLevelClasses`). Tested: SwiftFoundationTest |
 | `NSOrderedSet`, `NSCountedSet`, `NSIndexSet` / `IndexSet`, `NSCache`, `NSHashTable`, `NSMapTable`, `NSPointerArray` | ✅ | ≤17 | `NSCache` evicts by count/cost limits only (no memory-pressure purging); weak tables use ObjC weak references |
 | `IndexPath` / `NSIndexPath` (+ UIKit `row`/`section`/`item`) | ✅ | ≤17 | value type bridged to NSIndexPath; tested (HelloTable) |
 | `NSNumber`, `NSValue` (CG geometry), `NSNull` | ✅ | ≤17 | |

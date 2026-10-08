@@ -55,6 +55,21 @@ extension Bool: _ObjectiveCBridgeable {
 }
 
 // MARK: Array <-> NSArray, Dictionary <-> NSDictionary
+
+/// whether T is a metatype (`AnyClass`, `UIColor.Type`, `any NSCoding.Type`, ...): the runtime's non-verbatim bridging
+/// cannot resolve the stand-in conformance it uses for metatypes (issue #49), so collection elements of these types are
+/// cast dynamically instead (class objects cast to metatypes), like Apple's overlay (`_arrayForceCast`)
+@inline(__always) func _isMetatype<T>(_: T.Type) -> Bool {
+  let kind = unsafeBitCast(T.self as Any.Type, to: UnsafePointer<UInt>.self).pointee
+  return kind == 0x304 || kind == 0x306     // MetadataKind::Metatype, MetadataKind::ExistentialMetatype
+}
+/// an element from an Objective-C collection as T (crashes, like Swift's bridging, when it is not one)
+func _forceBridgeElement<T>(_ x: AnyObject, _: T.Type) -> T {
+  _isMetatype(T.self) ? x as! T : Swift._forceBridgeFromObjectiveC(x, T.self)
+}
+func _conditionallyBridgeElement<T>(_ x: AnyObject, _: T.Type) -> T? {
+  _isMetatype(T.self) ? x as? T : Swift._conditionallyBridgeFromObjectiveC(x, T.self)
+}
 // (inside this module the importer does not apply our own bridging, so ObjC signatures appear as NSArray etc.)
 extension Array: _ObjectiveCBridgeable {
   public typealias _ObjectiveCType = NSArray
@@ -65,13 +80,13 @@ extension Array: _ObjectiveCBridgeable {
   public static func _forceBridgeFromObjectiveC(_ x: NSArray, result: inout Array?) {
     var out: [Element] = []
     out.reserveCapacity(x.count)
-    for i in 0..<x.count { out.append(Swift._forceBridgeFromObjectiveC(x.object(at: i) as AnyObject, Element.self)) }
+    for i in 0..<x.count { out.append(_forceBridgeElement(x.object(at: i) as AnyObject, Element.self)) }
     result = out
   }
   public static func _conditionallyBridgeFromObjectiveC(_ x: NSArray, result: inout Array?) -> Bool {
     var out: [Element] = []
     for i in 0..<x.count {
-      guard let e = Swift._conditionallyBridgeFromObjectiveC(x.object(at: i) as AnyObject, Element.self) else { result = nil; return false }
+      guard let e = _conditionallyBridgeElement(x.object(at: i) as AnyObject, Element.self) else { result = nil; return false }
       out.append(e)
     }
     result = out; return true
@@ -94,7 +109,7 @@ extension Dictionary: _ObjectiveCBridgeable {
     for i in 0..<keys.count {
       let k = keys[i] as AnyObject
       let key = Swift._forceBridgeFromObjectiveC(k, Key.self)
-      if let v = x.object(forKey: k) { out[key] = Swift._forceBridgeFromObjectiveC(v as AnyObject, Value.self) }
+      if let v = x.object(forKey: k) { out[key] = _forceBridgeElement(v as AnyObject, Value.self) }
     }
     result = out
   }

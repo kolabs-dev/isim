@@ -44,9 +44,25 @@ func codingChecks() {
           "NSSecureUnarchiveFromDataTransformer: UIColor only through a subclass's allowedTopLevelClasses (\(colors?.count ?? -1))")
 }
 
+/// Objective-C collections of classes bridged to Swift collections of metatypes (issue #49)
+func classBridgingChecks() {
+    let classes = [NSString.self, UIColor.self] as [AnyClass] as NSArray
+    let any = classes as! [AnyClass]
+    check(any.map(ObjectIdentifier.init) == [ObjectIdentifier(NSString.self), ObjectIdentifier(UIColor.self)], "NSArray of classes as! [AnyClass]")
+    let objects = (classes as? [NSObject.Type])?.map { NSStringFromClass($0) }
+    check(objects == ["NSString", "UIColor"], "NSArray of classes as? [NSObject.Type] (\(objects ?? []))")
+    check((([NSString.self, "text"] as [Any] as NSArray) as? [AnyClass]) == nil, "an NSArray with a non-class as? [AnyClass] is nil")
+    check((([NSString.self] as [AnyClass] as NSArray) as? [UIColor.Type]) == nil, "NSArray of classes as? [UIColor.Type] with another class is nil")
+    let byName = (["color": UIColor.self] as [String: AnyClass] as NSDictionary) as? [String: AnyClass]
+    check(byName?["color"].map(ObjectIdentifier.init) == ObjectIdentifier(UIColor.self), "NSDictionary of classes as? [String: AnyClass]")
+    let inherited = NSSecureUnarchiveFromDataTransformer.allowedTopLevelClasses.map { NSStringFromClass($0) }
+    check(inherited.contains("NSArray") && ColorsTransformer.allowedTopLevelClasses.count == inherited.count + 1,
+          "super.allowedTopLevelClasses bridges to [AnyClass] (\(inherited))")
+}
+
 final class ColorsTransformer: NSSecureUnarchiveFromDataTransformer {
-    // (super.allowedTopLevelClasses + [UIColor.self] crashes: bridging an NSArray of classes to [AnyClass], issue #49)
-    override class var allowedTopLevelClasses: [AnyClass] { [NSArray.self, UIColor.self] }
+    // the documented way: super's classes (an NSArray of classes bridged to [AnyClass], issue #49) plus UIColor
+    override class var allowedTopLevelClasses: [AnyClass] { super.allowedTopLevelClasses + [UIColor.self] }
 }
 
 class Greeter: NSObject {
@@ -262,6 +278,7 @@ func errorBridgingChecks() {
         check(!info.isiOSAppOnMac && !info.isMacCatalystApp && info.environment["HOME"] != nil, "ProcessInfo.isiOSAppOnMac / environment")
         errorBridgingChecks()
         codingChecks()
+        classBridgingChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }
