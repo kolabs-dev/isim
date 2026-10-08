@@ -8,6 +8,8 @@
                                                    tests (test); both phases when none is given
   build.py fetch                                   fetch the pinned third-party sources (third_party/)
   build.py package VERSION                         package a release into dist/isim-VERSION-linux-x86_64.tar.gz
+  build.py version patch|minor|major               set the next version after the latest release tag (isim/VERSION and
+                                                   the README's examples); prints it
   build.py graph                                   only write out/build.ninja
 
 The build is a Ninja graph (written to out/build.ninja by buildlib/): every step reruns only when its inputs changed,
@@ -171,8 +173,16 @@ def package(args):
     return p.package(ROOT, args[0], graph())
 
 
+def version(args):
+    from buildlib import package as p
+    if len(args) != 1:
+        raise SystemExit("usage: build.py version patch|minor|major")
+    print(p.bump(ROOT, args[0]))
+    return 0
+
+
 def main(argv):
-    cmds = {"build": build, "test": lambda a: test([x for x in a if x != "--ci-verbose"], "--ci-verbose" in a), "ci": ci, "fetch": fetch, "package": package,
+    cmds = {"build": build, "test": lambda a: test([x for x in a if x != "--ci-verbose"], "--ci-verbose" in a), "ci": ci, "fetch": fetch, "package": package, "version": version,
             "graph": lambda a: (graph(), 0)[1]}
     if argv and argv[0] in ("-h", "--help", "help"):
         print(__doc__)
