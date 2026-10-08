@@ -45,8 +45,9 @@ Tests run with `ISIM_SKIP_LAUNCH_SCREEN=1` and, where a test asks for it, `ISIM_
 ## CI
 
 `.github/workflows/ci.yml` builds isim and runs every test plus the ABI check in a stock Ubuntu 24.04 image
-(`isim/ci/Dockerfile`), so CI also proves isim works on an ordinary Linux. It runs only on demand: Actions → CI → Run
-workflow on a pull request's branch. The build directory is cached; `build.py ci` gives sources whose content is unchanged
+(`isim/ci/Dockerfile`), so CI also proves isim works on an ordinary Linux. For pull requests it runs only on demand: Actions → CI → Run
+workflow on the PR's branch. Pushes to `main` run it automatically, which keeps `main`'s build cache fresh: a
+branch's first run starts from it. The build directory is cached; `build.py ci` gives sources whose content is unchanged
 their cached timestamps back (a checkout gives every file a new one), so Ninja rebuilds only what the branch changed; JUnit results and failure screenshots are uploaded as artifacts.
 
 To reproduce CI locally:

@@ -1,10 +1,13 @@
 # Builds isim and runs every test (pytest) plus the ABI check on a stock Ubuntu 24.04 image.
-# Manual only: Actions -> CI -> Run workflow, on a pull request's branch (the result attaches to that commit).
+# Pull requests: manual only (Actions -> CI -> Run workflow, on the PR's branch; the result attaches to that commit).
+# Pushes to main run automatically, so main always has a fresh build cache: a branch's first run starts from it.
 # The build is cached: build.py ci gives unchanged sources their cached timestamps back, so Ninja rebuilds only what
 # the pull request touched since the branch's (or main's) last cached build.
 name: CI
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -29,8 +32,9 @@ jobs:
         with:
           path: third_party
           key: third-party-${{ hashFiles('isim/buildlib/fetch.py') }}
-      - name: Build cache
-        uses: actions/cache@v4
+      - name: Build cache (restore)
+        id: build-cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             isim/out
@@ -46,6 +50,16 @@ jobs:
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
             -e CI=1 isim-ci python3 isim/build.py ci
+      # saved even when a test fails, so the next run (and every new branch, from main's) starts from this build
+      - name: Build cache (save)
+        if: always() && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            isim/out
+            !isim/out/pytest
+            !isim/out/test-*
+          key: build-${{ github.ref_name }}-${{ github.sha }}
       - name: Test results
         if: always()
         uses: actions/upload-artifact@v4
