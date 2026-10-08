@@ -40,7 +40,7 @@ jobs:
             isim/out
             !isim/out/pytest
             !isim/out/test-*
-          key: build-${{ github.ref_name }}-${{ github.sha }}
+          key: build-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
           restore-keys: |
             build-${{ github.ref_name }}-
             build-main-
@@ -54,17 +54,18 @@ jobs:
       - name: File ownership
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" isim/out
-      # saved even when the build fails or a test fails later, so the next run (and every new branch, from main's)
-      # starts from it
+      # saved even when the build fails (Ninja resumes a partial build), but not when the run was cancelled; the run id
+      # in the key lets every run save (cache keys cannot be overwritten). The next run on the branch, and a new
+      # branch's first run (from main's), restores the newest.
       - name: Build cache (save)
-        if: always() && steps.build-cache.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() }}
         uses: actions/cache/save@v4
         with:
           path: |
             isim/out
             !isim/out/pytest
             !isim/out/test-*
-          key: build-${{ github.ref_name }}-${{ github.sha }}
+          key: build-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
       - name: Test
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
