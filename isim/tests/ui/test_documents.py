@@ -29,7 +29,7 @@ def test_documents(launch, device_data):
 
     picker("open-multi", "Documents-Demo", "Notes.txt", "Swatch.png")  # in place, two files
     app.wait_tap_id("docs-open")
-    app.wait_log(r"picked Swatch.png in documents mode=1 \(119 bytes\)")
+    app.wait_log(r"picked Swatch.png in documents mode=1 \([1-9][0-9]* bytes\)")       # (the PNG size depends on the host zlib)
     closed()
 
     picker("open-folder", "Documents-Demo", "Reports")                  # a folder
