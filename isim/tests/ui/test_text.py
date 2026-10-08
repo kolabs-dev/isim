@@ -25,7 +25,7 @@ def timer(text):
 
 def test_text(launch):
     app = launch("HelloText")
-    first = app.wait_tree(r"id=timer text=")
+    first = app.wait_view(r"id=timer text=")
     assert "id=concat text=Hello, World!" in first and re.search(r"UILabel \([0-9.]+ 0; [0-9.]+ x 21\) text=World", first), \
         "Text + Text keeps per-part styles on one line"
     assert "id=markdown text=Bold, italic, code, gone and a link" in first and "id=verbatim text=**not markdown**" in first, \
@@ -49,11 +49,11 @@ def test_text(launch):
         re.search(r"id=format-interp text=Total .19.99", first), "Text(_:format:) and format interpolation"
     assert "id=attributed text=Plain, strong and a site red" in first, "Text(AttributedString)"
 
-    app.wait_until(lambda: timer(app.tree()) not in (None, timer(first)), timeout=5,
+    app.wait_until(lambda: timer(app.view_dump()) not in (None, timer(first)), timeout=5,
                    what="Text(timerInterval:) counts down live")
     app.tap_text("link")
     app.wait_log(r"^open https://example\.com/docs")                 # Markdown link opens through openURL
     app.tap_text("site")
     app.wait_log(r"^open https://isim\.dev")
-    app.wait_tree(r"id=opened text=opened isim\.dev")                # AttributedString link
+    app.wait_view(r"id=opened text=opened isim\.dev")                # AttributedString link
     assert app.quit() == 0

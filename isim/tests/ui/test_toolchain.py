@@ -9,6 +9,7 @@ import plistlib
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from isimtest import APPS, DEFAULT_DEVICE, ISIM, ROOT, exclusive, need_apps
@@ -105,7 +106,7 @@ def test_release_configuration(launch, device_data):
         rc, log = isim(device_data, "build", "-project", "HelloToolchain.xcodeproj", "-target", "HelloToolchain",
                        "-configuration", "Release", "-o", f"{WORK}-release")
     assert rc == 0, log[-3000:]
-    app = launch("HelloToolchain", bundle=f"{WORK}-release/HelloToolchain.app")
+    app = launch(Path(f"{WORK}-release/HelloToolchain.app"))
     app.wait_log(r"release\+xcconfig")                                  # Release configuration build (no DEBUG)
     app.quit()
 

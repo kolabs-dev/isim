@@ -6,10 +6,9 @@ self-signed certificate, useCredential(trust:) accepts, cancel), task metrics + 
 cancelled with resume data and resumed with a Range request. Local servers only: samples/HelloWeb/server.py and
 samples/HelloConnections/tls_echo.py. Port of tests/ui/connections.sh."""
 import re
-import sys
 
 import pytest
-from isimtest import ROOT, server
+from isimtest import ROOT, local_server
 
 EXPECTED = {   # check: the line HelloConnections logs
     "NWListener + NWConnection TCP echo, currentPath": "tcp echo: echo:hello tcp error=none remote=ok",
@@ -37,15 +36,15 @@ EXPECTED = {   # check: the line HelloConnections logs
 
 @pytest.fixture
 def servers(tmp_path):
-    with server(sys.executable, ROOT / "samples/HelloWeb/server.py", 0, log=tmp_path / "server.log") as web, \
-         server(sys.executable, ROOT / "samples/HelloConnections/tls_echo.py", tmp_path / "tls",
-                log=tmp_path / "tls.log") as tls:
-        yield web, tls
+    log = tmp_path / "server.log"
+    with local_server(ROOT / "samples/HelloWeb/server.py", log) as web, \
+         local_server(ROOT / "samples/HelloConnections/tls_echo.py", tmp_path / "tls.log", args=[tmp_path / "tls"]) as tls:
+        yield web, tls, log
 
 
 def test_connections(launch, servers):
-    web, tls = servers
-    app = launch("HelloConnections", args=["-server", web.url, "-tls", str(tls.port)])
+    web, tls, server_log = servers
+    app = launch("HelloConnections", args=["-server", f"http://127.0.0.1:{web}", "-tls", str(tls)])
     app.wait_log(r"HelloConnections: done: all scenarios ran", timeout=60)
     log = app.log
     missing = [what for what, line in EXPECTED.items() if f"HelloConnections: {line}" not in log]
@@ -55,5 +54,5 @@ def test_connections(launch, servers):
     assert re.search(r"HelloConnections: metrics: transactions=2 redirects=1 protocol=http/1\.1 remote=127\.0\.0\.1 "
                      r"fetch=true ordered=true progress=([0-9]+)/\1 fraction=1\.0", log), \
         "URLSessionTaskMetrics over a redirect + task progress"
-    assert "GET /slowbytes/800000" in web.log, "the resumed download asked the server again"
+    assert "GET /slowbytes/800000" in server_log.read_text(), "the resumed download asked the server again"
     assert app.quit() == 0

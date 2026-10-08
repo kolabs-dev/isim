@@ -6,8 +6,8 @@ destination row; SwiftUI .draggable / .dropDestination(for: String.self). Port o
 
 def test_dragdrop(launch):
     app = launch("HelloDragDrop")
-    app.wait_tree(r"id=source\b")
-    app.wait_tree(r"id=swiftui-target\b")
+    app.wait_view(r"id=source\b")
+    app.wait_view(r"id=swiftui-target\b")
     app.send("longdrag 95 105 296 130 0.7 0.5")
     app.wait_log(r"^drag begins from source")
     app.wait_log(r"drag began with 1 item")                          # long press lifts the drag item
@@ -24,7 +24,7 @@ def test_dragdrop(launch):
 
     app.send("longdrag 201 481 201 568 0.7 0.5")
     app.wait_log(r'^swiftui dropped \["SwiftUI tag"\]')              # SwiftUI draggable -> dropDestination
-    app.wait_tree(r"id=row-Swift\b")
+    app.wait_view(r"id=row-Swift\b")
 
     app.send("longdrag 95 105 95 700 0.7 0.3")
     app.wait_log(r"isim: drag cancelled")

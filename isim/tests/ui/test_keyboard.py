@@ -14,9 +14,9 @@ def test_keyboard(launch):
     appex = APPS / "HelloKeyboard.appex"
     if not appex.is_dir():
         pytest.skip("HelloKeyboard.appex is not built")
-    app = launch("HelloKeyboard", bundle=appex, device="iphone15")     # the pixel positions are iPhone 15's
+    app = launch(appex, device="iphone15")     # the pixel positions are iPhone 15's
     app.wait_log(r"hosting keyboard extension HelloKeyboard\.KeyboardViewController")   # extension hosted
-    app.wait_tree(r"id=key-1\b")
+    app.wait_view(r"id=key-1\b")
     for k in "1233":
         app.tap_id(f"key-{k}")
     app.wait_log(r'preview field text = "1233"')                     # keys insert through the proxy

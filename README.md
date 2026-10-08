@@ -70,7 +70,7 @@ isim install ~/.local/lib/isim/current/apps/*.app
 see [docs/SCRIPTING.md](docs/SCRIPTING.md) for every command. Permission prompts, Face ID, location, microphone
 and logs can be answered or configured with environment variables: see [docs/SYSTEM-PROMPTS.md](docs/SYSTEM-PROMPTS.md).
 
-**Compiling** needs clang/lld 17+ (clang 23's constant Objective-C literals are supported). Swift needs Docker with the `swift:6.2` image.
+**Compiling** needs clang/lld 21 or newer (isim's SDK ships libc++ 22; on Ubuntu/Debian get it from [apt.llvm.org](https://apt.llvm.org)). Constant Objective-C literals (clang 23) are supported. Swift needs Docker with the `swift:6.2` image.
 
 ## Documentation
 
@@ -95,10 +95,10 @@ isim/build.sh
 isim/test.sh
 ```
 
-`test.sh` runs the suites in parallel (`ISIM_TEST_JOBS`, default a third of the CPUs, 2–8; `ISIM_TEST_JOBS=1` runs
-them one after another), each with its own scratch device data, retries a failed suite once on its own
-(`ISIM_TEST_RETRY=0` turns that off) and lists suites that only passed on the retry as flaky. `OS_MATRIX=1` also runs
-the version-sensitive suites under iOS 17, 18, 26 and 27.
+`test.sh` runs the pytest suites in `isim/tests` in parallel (`ISIM_TEST_JOBS`, default half the CPUs, 2–16), each
+test on its own scratch device data, retries a failed test once (`ISIM_TEST_RETRY=0` turns that off) and lists tests
+that only passed on the retry as flaky. Arguments go to pytest (`isim/test.sh -k navigation`). `OS_MATRIX=1` also runs
+the version-sensitive tests under iOS 17, 18, 26 and 27. See [docs/TESTING.md](docs/TESTING.md).
 
 Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (the build runs in an Ubuntu 22.04 container):
 

@@ -111,6 +111,53 @@ def parse_views(text: str) -> list[View]:
     return out
 
 
+def screen_frames(text: str) -> dict[str, tuple[float, float, float, float]]:
+    """{accessibility id: (x, y, w, h)} in screen points from a view-tree dump (App.view_dump()): frames are summed up
+    the superview chain, and scroll views' "text=offset Y" moves their subviews (transforms are not applied). The
+    first view with an id wins."""
+    res, stack = {}, []                                # (depth, abs x, abs y, scroll offset)
+    for v in parse_views(text):
+        while stack and stack[-1][0] >= v.depth:
+            stack.pop()
+        px, py, sy = stack[-1][1:] if stack else (0, 0, 0)
+        ax, ay = px + v.x, py + v.y - sy
+        off = re.search(r"text=offset (-?[\d.e+-]+),", v.line)
+        stack.append((v.depth, ax, ay, float(off.group(1)) if off else 0))
+        if v.id and v.id not in res:
+            res[v.id] = (ax, ay, v.w, v.h)
+    return res
+
+
+def visible_ids(text: str) -> set[str]:
+    """The accessibility identifiers in a view-tree dump of views that are neither hidden themselves nor inside a
+    hidden view (what `tapid` can reach)."""
+    out, stack = set(), []                             # (depth, hidden)
+    for v in parse_views(text):
+        while stack and stack[-1][0] >= v.depth:
+            stack.pop()
+        hidden = v.hidden or bool(stack and stack[-1][1])
+        stack.append((v.depth, hidden))
+        if v.id and not hidden:
+            out.add(v.id)
+    return out
+
+
+def visible(ident: str):
+    """A wait_view condition: a visible view with accessibilityIdentifier `ident` (see visible_ids), e.g.
+    app.wait_view(visible("sheet-grabber"), gone=True) waits until a dismissed sheet's views are gone or hidden."""
+    return lambda text: ident in visible_ids(text)
+
+
+def grep(text: str, pattern: str, before: int = 0, after: int = 0) -> str:
+    """The lines of `text` matching the regex `pattern`, each with `before` / `after` lines of context (like
+    grep -B / -A), joined with newlines: e.g. what a view-tree dump shows right below a view."""
+    lines, out = text.splitlines(), []
+    for i, line in enumerate(lines):
+        if re.search(pattern, line):
+            out += lines[max(0, i - before):i + after + 1]
+    return "\n".join(out)
+
+
 class WaitTimeout(AssertionError):
     pass
 
@@ -118,20 +165,22 @@ class WaitTimeout(AssertionError):
 class App:
     """One headless app run on its own device data. Use as a context manager (quits and reaps the process)."""
 
-    def __init__(self, name: str, *, device: str | None = None, os_version: str | None = None,
+    def __init__(self, name: str | Path | None, *, device: str | None = None, os_version: str | None = None,
                  data: Path | None = None, env: dict | None = None, args: list[str] | None = None,
-                 bundle: Path | str | None = None, animations: bool = True, launch_screen: bool = False):
-        """animations=False: ISIM_ANIMATIONS=0, animations finish at once (faster, for tests that only check end
-        states). launch_screen=True: show the app's launch screen (skipped by default: ISIM_SKIP_LAUNCH_SCREEN).
-        `bundle` runs another bundle than out/apps/NAME.app (an .appex, a modified copy, a test fixture)."""
-        self.bundle = Path(bundle) if bundle else APPS / f"{name}.app"
-        assert self.bundle.exists(), f"{self.bundle} is not built"
-        self._start(name, [str(ISIM), "run", str(self.bundle)], device, os_version, data, env, args, animations,
-                    launch_screen)
-
-    def _start(self, name, command, device, os_version, data, env, args, animations=True, launch_screen=False):
-        self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{name}-", dir=ROOT / "out"))
-        self.data = Path(data or os.environ.get("ISIM_DATA") or self.tmp / "data")
+                 install: list[str] = (), animations: bool = True, launch_screen: bool | str = False):
+        """name: an app in out/apps, or the Path of an .app bundle. name=None boots the device (`isim boot`: the home
+        screen, system UI and `launch BUNDLE_ID`) with the `install` apps (names in out/apps) installed first.
+        animations=False: ISIM_ANIMATIONS=0, animations finish at once (faster, for tests that only check end
+        states). launch_screen=True: show the app's launch screen (skipped by default: ISIM_SKIP_LAUNCH_SCREEN) and
+        start once it has faded out; launch_screen="visible": start while it is still shown (to check it)."""
+        self.launch_screen = launch_screen
+        self.bundle = None if name is None else name if isinstance(name, Path) else APPS / f"{name}.app"
+        assert self.bundle is None or self.bundle.is_dir(), f"{self.bundle} is not built"
+        label = self.bundle.stem if self.bundle else "boot"
+        self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{label}-", dir=ROOT / "out"))
+        self.data = data or Path(os.environ.get("ISIM_DATA") or self.tmp / "data")
+        if install:
+            install_apps(self.data, *install)
         self.fifo = self.tmp / "control"
         os.mkfifo(self.fifo)
         e = dict(os.environ, ISIM_DATA=str(self.data), ISIM_HEADLESS="1", ISIM_SHOT_SCALE="1",
@@ -145,7 +194,8 @@ class App:
         e.update(env or {})
         self._lines: list[str] = []
         self._cv = threading.Condition()
-        self.proc = subprocess.Popen([*command, "--control", str(self.fifo), *(args or [])],
+        what = ["run", str(self.bundle)] if self.bundle else ["boot"]
+        self.proc = subprocess.Popen([str(ISIM), *what, "--control", str(self.fifo), *(args or [])],
                                      env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                      errors="replace")
         self._reader = threading.Thread(target=self._read, daemon=True)
@@ -181,34 +231,6 @@ class App:
                     raise WaitTimeout(f"no {pattern!r} (x{count}) in the app log after {timeout:g} s\n"
                                       + "\n".join(self._lines[-30:]))
                 self._cv.wait(min(left, 0.2))
-
-    def count(self, pattern: str) -> int:
-        """How many times `pattern` (a regex, multiline) occurs in the app's output so far."""
-        return len(re.findall(pattern, self.log, re.M))
-
-    def has(self, pattern: str) -> bool:
-        return re.search(pattern, self.log, re.M) is not None
-
-    def between(self, start: str, end: str) -> str:
-        """The output from the first line matching `start` through the next line matching `end` (like sed -n /a/,/b/p)."""
-        out, on = [], False
-        for line in self.log.splitlines():
-            if not on and re.search(start, line):
-                on = True
-            if on:
-                out.append(line)
-                if len(out) > 1 and re.search(end, line):
-                    break
-        return "\n".join(out)
-
-    def wait_exit(self, timeout: float = TIMEOUT) -> int:
-        """Wait for the process to end by itself (an app that quits, a scripted run); return its exit code."""
-        try:
-            self.proc.wait(timeout)
-        except subprocess.TimeoutExpired:
-            raise WaitTimeout(f"still running after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
-        self._reader.join(5)
-        return self.proc.returncode
 
     # ---- commands ----
     def send(self, command: str) -> "App":
@@ -257,9 +279,12 @@ class App:
             time.sleep(0.02)
         raise WaitTimeout(f"no snapshot after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
 
-    def tree(self, timeout: float = TIMEOUT) -> str:
-        """The app's view tree as text (`dump views FILE`, the format the `dump` script command prints): one line per
-        view, `Class (x y; w x h) [hidden] [alpha<1] [id=ID] [text=TEXT]`, indented two spaces per level."""
+    def views(self, timeout: float = TIMEOUT) -> list[View]:
+        """The app's view tree (`dump views FILE`): every view with its class, frame, id and text."""
+        return parse_views(self.view_dump(timeout))
+
+    def view_dump(self, timeout: float = TIMEOUT) -> str:
+        """The view tree as text, as the `dump` script command prints it (one view per line, indented)."""
         self._n += 1
         path = self.tmp / f"views{self._n}.txt"
         self.send(f"dump views {path}")
@@ -272,56 +297,118 @@ class App:
             time.sleep(0.02)
         raise WaitTimeout(f"no view dump after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
 
-    def views(self, timeout: float = TIMEOUT) -> list[View]:
-        """The app's view tree (`dump views FILE`): every view with its class, frame, id and text."""
-        return parse_views(self.tree(timeout))
+    def wait_view(self, pattern, gone: bool = False, timeout: float = TIMEOUT, what: str | None = None) -> str:
+        """Poll the view tree until the regex `pattern` matches a line of it (gone=True: until none does); return
+        that view dump. For checks on `dump` output, e.g. wait_view(r"id=total text=3 items"). `pattern` can also be
+        a function of the dump text (e.g. lambda d: "id=a" in d and "id=b" not in d), `what` names it in errors."""
+        test = pattern if callable(pattern) else re.compile(pattern, re.M).search
+        end = time.monotonic() + timeout
+        while True:
+            text = self.view_dump()
+            if bool(test(text)) != gone:
+                return text
+            if time.monotonic() > end:
+                raise WaitTimeout(f"{what or ('still' if gone else 'no') + ' ' + repr(pattern) + ' in the view tree'}"
+                                  f" after {timeout:g} s\n"
+                                  + "\n".join(l for l in text.splitlines() if " id=" in l or " text=" in l)[-4000:])
+            time.sleep(0.05)
 
-    def wait_tree(self, pattern: str, *, gone: bool = False, timeout: float = TIMEOUT) -> str:
-        """Poll the view tree until a line matches `pattern` (a regex; or, with gone=True, none does); return the
-        tree text."""
+    def wait_dump(self, pattern: str, timeout: float = TIMEOUT) -> re.Match:
+        """Send `dump` (the view tree printed into the app's output, as shell scripts used it) until the regex
+        `pattern` matches output printed since this call; return the match. Under `isim boot` this form also lists the
+        system UI the shell draws (lock screen, Notification and Control Center, app switcher, Dynamic Island), which
+        `dump views FILE` (view_dump) leaves out."""
         rx = re.compile(pattern, re.M)
+        with self._cv:
+            start = len(self._lines)
         end = time.monotonic() + timeout
         while True:
-            text = self.tree()
-            if (rx.search(text) is None) == gone:
+            self.send("dump")
+            settle = min(end, time.monotonic() + 0.5)
+            with self._cv:
+                while True:
+                    m = rx.search("\n".join(self._lines[start:]))
+                    if m:
+                        return m
+                    left = settle - time.monotonic()
+                    if left <= 0:
+                        break
+                    self._cv.wait(left)
+            if time.monotonic() > end:
+                raise WaitTimeout(f"no {pattern!r} in a dump after {timeout:g} s\n" + "\n".join(self._lines[-40:]))
+
+    def wait_still(self, quiet: float = 0.4, timeout: float = TIMEOUT) -> str:
+        """Wait until the view tree has not changed for `quiet` seconds (scrolling decelerated, a transition ended:
+        UIKit transitions move layers, not frames, so their end shows only as their temporary views going away).
+        Returns that dump."""
+        end = time.monotonic() + timeout
+        last, since = self.view_dump(), time.monotonic()
+        while True:
+            time.sleep(0.1)
+            text = self.view_dump()
+            if text != last:
+                last, since = text, time.monotonic()
+            elif time.monotonic() - since >= quiet:
                 return text
             if time.monotonic() > end:
-                raise WaitTimeout(f"{'still' if gone else 'no'} view matching {pattern!r} after {timeout:g} s\n{text}")
-            time.sleep(0.05)
+                raise WaitTimeout(f"the view tree still changes after {timeout:g} s")
 
-    def wait_view(self, ident: str, *, gone: bool = False, timeout: float = TIMEOUT) -> str:
-        """Wait until the view tree has a visible view with accessibilityIdentifier `ident` (neither it nor an
-        ancestor hidden; or, with gone=True, until there is none). Unlike wait_for, this finds views the accessibility
-        snapshot folds into a larger element (e.g. SwiftUI controls inside list rows). Returns the tree text."""
+    def wait_tap_id(self, ident: str, timeout: float = TIMEOUT) -> "App":
+        """Wait until a visible view with accessibilityIdentifier `ident` is in the view tree, then `tapid` it (for
+        views the accessibility snapshot does not list, e.g. some SwiftUI controls). If the app reports the view not
+        tappable yet ("no visible view", e.g. while a hidden ancestor or a transition covers it), tap again."""
         end = time.monotonic() + timeout
+        self.wait_view(rf"^(?!.* hidden id=).* id={re.escape(ident)}( text=.*| ax=.*)?$", timeout=timeout)
+        miss = rf"no visible view with accessibilityIdentifier '{re.escape(ident)}'"
         while True:
-            text = self.tree()
-            if (ident in visible_ids(text)) != gone:
-                return text
+            before = self.count(miss)
+            self.tap_id(ident)
+            self.view_dump()                        # handled after the tap: a miss is logged by then
+            time.sleep(0.03)
+            if self.count(miss) == before:
+                return self
             if time.monotonic() > end:
-                raise WaitTimeout(f"{'still' if gone else 'no'} visible view id={ident!r} after {timeout:g} s\n{text}")
-            time.sleep(0.05)
+                raise WaitTimeout(f"{ident!r} is not tappable after {timeout:g} s")
+            time.sleep(0.1)
 
-    def wait_tap(self, ident: str, timeout: float = TIMEOUT) -> "App":
-        """Wait for the view with accessibilityIdentifier `ident` (wait_view), then tap it (`tapid`)."""
-        self.wait_view(ident, timeout=timeout)
-        return self.tap_id(ident)
+    def count(self, pattern: str) -> int:
+        """How many lines of the app's output so far match the regex `pattern`."""
+        rx = re.compile(pattern)
+        with self._cv:
+            return sum(1 for line in self._lines if rx.search(line))
 
-    def wait_settled(self, *, id: str | None = None, label: str | None = None, interval: float = 0.15,
-                     timeout: float = TIMEOUT) -> Element:
-        """Wait until a matching element is present and its frame stays the same across two snapshots `interval`
-        seconds apart (scrolling has decelerated, an animation has ended); return it."""
-        end = time.monotonic() + timeout
-        last = None
-        while True:
-            el = self.find(id=id, label=label)
-            frame = el and (el.x, el.y, el.w, el.h)
-            if el and frame == last:
-                return el
-            if time.monotonic() > end:
-                raise WaitTimeout(f"element id={id!r} label={label!r} not settled after {timeout:g} s ({frame})")
-            last = frame
-            time.sleep(interval)
+    def has(self, pattern: str) -> bool:
+        """Whether the regex `pattern` (multiline: ^ and $ match at line ends) occurs in the output so far."""
+        return re.search(pattern, self.log, re.M) is not None
+
+    def between(self, start: str, end: str) -> str:
+        """The output from the first line matching `start` through the next line matching `end` (sed -n /a/,/b/p)."""
+        out, on = [], False
+        for line in self.log.splitlines():
+            if not on and re.search(start, line):
+                on = True
+            if on:
+                out.append(line)
+                if len(out) > 1 and re.search(end, line):
+                    break
+        return "\n".join(out)
+
+    def wait_exit(self, timeout: float = TIMEOUT) -> int:
+        """Wait for the process to end by itself (an app that quits); return its exit code."""
+        try:
+            self.proc.wait(timeout)
+        except subprocess.TimeoutExpired:
+            raise WaitTimeout(f"still running after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
+        self._reader.join(5)
+        return self.proc.returncode
+
+    OPEN_ANIMATION = 0.5                       # runtime/shell.inc: an app opens in 0.5 s; touches are dropped meanwhile
+
+    def wait_opened(self, app: str, count: int = 1) -> "App":
+        """Under `isim boot`: wait until the shell has launched (or resumed) APP.app and its 0.5 s open animation is
+        over, so touches reach the app (and the swipe-up-to-go-home gesture works)."""
+        self.wait_log(rf"isim shell: (launched .*/|resumed ){re.escape(app)}\.app", count=count)
+        return self.sleep(self.OPEN_ANIMATION + 0.05)
 
     def find(self, *, id: str | None = None, label: str | None = None, type: str | None = None,
              snapshot: list[Element] | None = None) -> Element | None:
@@ -364,6 +451,23 @@ class App:
         self.wait_log(re.escape(f"screenshot {path}"), timeout=TIMEOUT)
         return Image.open(path).convert("RGB")
 
+    def wait_shot_still(self, timeout: float = TIMEOUT):
+        """Take screenshots until two in a row are the same (an animation of what the shell draws, which the view
+        tree does not show, has ended) and return the last."""
+        last = self.screenshot()
+        end = time.monotonic() + timeout
+        while True:
+            img = self.screenshot()
+            if img.tobytes() == last.tobytes():
+                return img
+            if time.monotonic() > end:
+                raise WaitTimeout(f"the screen still changes after {timeout:g} s")
+            last = img
+
+    def wait_shot(self, pred, what: str = "screenshot condition", timeout: float = TIMEOUT):
+        """Take screenshots until pred(image) holds and return that image (pixels that change after an action)."""
+        return self.wait_until(lambda: img if pred(img := self.screenshot()) else None, timeout, what)
+
     # ---- lifetime ----
     def quit(self, timeout: float = 20) -> int:
         if self.proc.poll() is None:
@@ -377,14 +481,17 @@ class App:
                 self.proc.kill()
                 self.proc.wait()
         self._reader.join(5)
-        try:
-            self._ctl.close()
-        except OSError:
-            pass
+        for f in (self._ctl, self.proc.stdout):
+            try:
+                f.close()
+            except (OSError, ValueError):
+                pass
         return self.proc.returncode
 
     def __enter__(self) -> "App":
         self.wait_log(r"isim: launching ", timeout=TIMEOUT * 3)
+        if self.launch_screen == "visible":
+            return self
         self.wait_for(type="window", timeout=TIMEOUT * 3)          # the app has a window on screen
         if self.find(id="launch-screen"):                          # launch_screen=True: wait until it fades out
             self.wait_log(r"isim: launch screen hidden", timeout=TIMEOUT)
@@ -392,52 +499,6 @@ class App:
 
     def __exit__(self, *exc):
         self.quit()
-
-
-class Device(App):
-    """The device shell (`isim boot --headless --control FIFO`): home screen, Settings, system UI and installed apps,
-    with the same API as App. `apps` (names in out/apps or bundle paths) are installed into the device data first.
-    Snapshots, view trees and screenshots are of the foreground app (the home screen when no app is open).
-
-        with Device(apps=["HelloSystem"]) as dev:
-            dev.launch("dev.isim.samples.HelloSystem").wait_for(id="bump").tap()
-            dev.home()
-    """
-
-    def __init__(self, *, apps=(), device: str | None = None, os_version: str | None = None,
-                 data: Path | None = None, env: dict | None = None, args: list[str] | None = None,
-                 animations: bool = True, launch_screen: bool = False):
-        data = Path(data or os.environ.get("ISIM_DATA") or tempfile.mkdtemp(prefix="isimtest-device-", dir=ROOT / "out"))
-        if apps:
-            install(data, *apps)
-        self.bundle = None
-        self._start("device", [str(ISIM), "boot"], device, os_version, data, env, args, animations, launch_screen)
-
-    def launch(self, bundle_id: str) -> "Device":
-        """Open an installed app (the `launch` script command)."""
-        return self.send(f"launch {bundle_id}")
-
-    def home(self) -> "Device":
-        return self.send("home")
-
-    OPEN_ANIMATION = 0.5                       # runtime/shell.inc: an app opens in 0.5 s; touches are dropped meanwhile
-
-    def wait_opened(self, app: str, count: int = 1) -> "Device":
-        """Wait until the shell has launched (or resumed) APP.app and its 0.5 s open animation is over, so touches reach
-        it (and the swipe-up gesture works)."""
-        self.wait_log(rf"isim shell: (launched .*/|resumed ){re.escape(app)}\.app", count=count)
-        return self.sleep(self.OPEN_ANIMATION + 0.05)
-
-    def __enter__(self) -> "Device":
-        self.wait_log(r"SpringBoard: \d+ app\(s\)", timeout=TIMEOUT * 3)
-        return self
-
-
-def install(data: Path, *apps) -> None:
-    """Install apps (names in out/apps, or bundle paths) into device data, like `isim install`."""
-    bundles = [str(a if "/" in str(a) else APPS / f"{a}.app") for a in apps]
-    subprocess.run([str(ISIM), "install", *bundles], env=dict(os.environ, ISIM_DATA=str(data)), check=True,
-                   stdout=subprocess.DEVNULL)
 
 
 # ---- whole-run helpers ----
@@ -505,15 +566,20 @@ def is_red(c) -> bool:
     return r > 180 and g < 90 and b < 90
 
 
+def close(img, x: float, y: float, target, d2: float = 2500) -> bool:
+    """The colour at (x, y) is within a squared RGB distance d2 of target."""
+    return sum((a - b) ** 2 for a, b in zip(rgb(img, x, y), target)) < d2
+
+
+def count_px(img, box, pred) -> int:
+    """How many pixels in box = (x, y, w, h) satisfy pred((r, g, b))."""
+    x, y, w, h = map(int, box)
+    px = img.load()
+    return sum(1 for j in range(y, y + h) for i in range(x, x + w) if pred(px[i, j][:3]))
+
+
 def white(c) -> bool:
     return all(v > 235 for v in c[:3])
-
-
-def count(img, box, pred) -> int:
-    """How many pixels in box (x0, y0, x1, y1; end exclusive, in points) satisfy pred((r, g, b))."""
-    x0, y0, x1, y1 = (int(v) for v in box)
-    px = img.load()
-    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if pred(px[x, y][:3]))
 
 
 def _runs(values, start, pred):
@@ -531,12 +597,13 @@ def _runs(values, start, pred):
 
 
 def runs_x(img, y, x0, x1, pred) -> list[tuple[int, int]]:
-    """[(start, end)] (end exclusive) of horizontal runs on row y where pred((r, g, b)) holds."""
+    """[(start, end)] (end exclusive) of horizontal runs on row y, x0 <= x < x1, where pred((r, g, b)) holds."""
     px = img.load()
     return _runs([px[x, int(y)][:3] for x in range(int(x0), int(x1))], int(x0), pred)
 
 
 def runs_y(img, x, y0, y1, pred) -> list[tuple[int, int]]:
+    """[(start, end)] of vertical runs in column x, y0 <= y < y1, where pred((r, g, b)) holds."""
     px = img.load()
     return _runs([px[int(x), y][:3] for y in range(int(y0), int(y1))], int(y0), pred)
 
@@ -550,38 +617,11 @@ def first_y(img, x, y0, y1, pred) -> int | None:
     return None
 
 
-# ---- view-tree helpers ----
-def visible_ids(tree) -> set[str]:
-    """The accessibility identifiers of the views in a view tree that are not hidden themselves or by an ancestor
-    (what `tapid` can reach)."""
-    views = parse_views(tree) if isinstance(tree, str) else tree
-    out, stack = set(), []                             # (depth, hidden)
-    for v in views:
-        while stack and stack[-1][0] >= v.depth:
-            stack.pop()
-        hidden = v.hidden or bool(stack and stack[-1][1])
-        stack.append((v.depth, hidden))
-        if v.id and not hidden:
-            out.add(v.id)
-    return out
-
-
-def frames(tree) -> dict[str, tuple[float, float, float, float]]:
-    """Screen frames {id: (x, y, w, h)} of the identified views in a view tree (App.tree() text or App.views()).
-    Tree frames are relative to the superview; scroll views ('text=offset Y, ...') move their subviews. View
-    transforms are not applied. The first view with an id wins."""
-    views = parse_views(tree) if isinstance(tree, str) else tree
-    res, stack = {}, []                                # (depth, abs x, abs y, scroll offset y)
-    for v in views:
-        while stack and stack[-1][0] >= v.depth:
-            stack.pop()
-        px, py, sy = stack[-1][1:] if stack else (0, 0, 0)
-        ax, ay = px + v.x, py + v.y - sy
-        off = re.match(r"offset (-?[\d.e+-]+),", v.text)
-        stack.append((v.depth, ax, ay, float(off.group(1)) if off else 0))
-        if v.id and v.id not in res:
-            res[v.id] = (ax, ay, v.w, v.h)
-    return res
+def mean_rgb(img, box) -> tuple[float, float, float]:
+    """The mean colour (0-255 per channel) of box = (x, y, w, h)."""
+    from PIL import ImageStat
+    x, y, w, h = map(int, box)
+    return tuple(ImageStat.Stat(img.crop((x, y, x + w, y + h)).convert("RGB")).mean)
 
 
 # ---- test helpers ----
@@ -591,44 +631,6 @@ def need_apps(*names):
     if missing:
         import pytest
         pytest.skip(f"not built: {', '.join(missing)}")
-
-
-@dataclass
-class Server:
-    """A local helper server started by `server()`: its port, process and log file (its stderr)."""
-    port: int
-    proc: subprocess.Popen
-    log_path: Path
-
-    @property
-    def log(self) -> str:
-        return self.log_path.read_text(errors="replace") if self.log_path.exists() else ""
-
-    @property
-    def url(self) -> str:
-        return f"http://127.0.0.1:{self.port}"
-
-
-@contextmanager
-def server(*command, log: Path, timeout: float = 10):
-    """Run a local server (e.g. samples/HelloWeb/server.py 0) that prints "PORT <n>" on stdout once it listens;
-    yield a Server; stop it at the end. Its stderr goes to `log`."""
-    with open(log, "w") as err:
-        proc = subprocess.Popen([str(c) for c in command], stdout=subprocess.PIPE, stderr=err, text=True, cwd=ROOT)
-    try:
-        port = None
-        end = time.monotonic() + timeout
-        while port is None and time.monotonic() < end:
-            line = proc.stdout.readline()
-            if not line:
-                break
-            m = re.match(r"PORT (\d+)", line)
-            port = m and int(m.group(1))
-        assert port, f"{command} did not start: {log.read_text(errors='replace')[-2000:]}"
-        yield Server(port, proc, log)
-    finally:
-        proc.kill()
-        proc.wait()
 
 
 @contextmanager
@@ -642,5 +644,31 @@ def exclusive(key: str):
             yield
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def install_apps(data: Path, *names: str):
+    """`isim install` apps (names in out/apps) on the device data `data` (for App(None, ...): `isim boot`)."""
+    p = subprocess.run([str(ISIM), "install", *(str(APPS / f"{n}.app") for n in names)],
+                       env=dict(os.environ, ISIM_DATA=str(data)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       text=True)
+    assert p.returncode == 0, f"isim install {' '.join(names)}: {p.stdout}"
+
+
+@contextmanager
+def local_server(script: Path, log: Path, args=("0",)):
+    """Run a sample's local server (`python3 server.py 0` prints "PORT <n>" when ready) and yield its port; its
+    stderr (the request log) goes to `log`. `args` replace the "0" (e.g. tls_echo.py DIR). Stopped at the end."""
+    import sys
+    with open(log, "w") as err:
+        p = subprocess.Popen([sys.executable, str(script), *map(str, args)], stdout=subprocess.PIPE, stderr=err,
+                             text=True)
+        try:
+            line = p.stdout.readline()
+            assert line.startswith("PORT "), f"{script} did not start: {line!r} {Path(log).read_text()}"
+            yield int(line.split()[1])
+        finally:
+            p.kill()
+            p.wait()
+            p.stdout.close()
 
 

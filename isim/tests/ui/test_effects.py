@@ -7,7 +7,7 @@ the mid-animation screenshots keep their timing."""
 import re
 import time
 
-from isimtest import frames, parse_views, rgb
+from isimtest import parse_views, rgb, screen_frames, visible
 
 
 def near(p, q, tol=14):
@@ -20,9 +20,9 @@ def px(img, x, y):                                       # nearest pixel, as eff
 
 def test_effects(launch):
     app = launch("HelloEffects")
-    t0 = app.wait_tree(r"id=t-fade\b")
+    t0 = app.wait_view(r"id=t-fade\b")
     start = app.screenshot("start")
-    f = frames(t0)
+    f = screen_frames(t0)
     missing = [t for t in ("t-gray", "t-hue", "t-shadow", "t-fade", "row-2") if t not in f]
     assert not missing, f"the tree lists the effect tiles: missing {missing}"
 
@@ -72,7 +72,7 @@ def test_effects(launch):
     app.wait_log(r"^scroll row 1")                                       # onScrollGeometryChange (iOS 18)
     app.sleep(0.6)                                                       # the scroll has settled
     end = app.screenshot("scrolled")
-    t1 = app.tree()
+    t1 = app.view_dump()
     assert near(at(end, "t-fade"), (54, 54, 54)), f"the animation ends fully grey: {at(end, 't-fade')}"
     assert not app.has(r"shape tapped 2"), "contentShape(Circle()): the corner does not take the tap, the centre does"
 
@@ -80,7 +80,7 @@ def test_effects(launch):
     assert vals and vals[0] == 80, f"visualEffect reads frame(in: .scrollView) (80 before scrolling): {vals[:3]}"
     off = 80 - vals[-1]
     assert off > 20, f"visualEffect follows scrolling: offset {off}"
-    f1 = frames(t1)
+    f1 = screen_frames(t1)
     top, x0 = f1["row-2"][1] + off - 80, f1["row-2"][0] + 10
     k = int(off // 40)
     want = 255 * (off - 40 * k) / 40
@@ -91,14 +91,14 @@ def test_effects(launch):
     assert solid[0] < 30 and solid[2] > 230, f"scrollTransition: fully visible rows stay at identity: {solid}"
 
     # the second page
-    app.wait_tap("next")
-    t2 = app.wait_tree(r"id=bounce-star\b")
+    app.wait_tap_id("next")
+    t2 = app.wait_view(r"id=bounce-star\b")
     app.sleep(0.5)                                                       # pushed
     more = app.screenshot("more")
-    t2 = app.tree()
+    t2 = app.view_dump()
     app.tap_id("haptic")
     app.sleep(0.12)                                                      # mid-transition
-    t3 = app.tree()
+    t3 = app.view_dump()
     bounce = app.screenshot("bounce")
     app.sleep(0.4)
     app.tap_id("haptic")
@@ -107,12 +107,12 @@ def test_effects(launch):
     t_redact = time.monotonic()
     time.sleep(max(0.0, t_redact + 2.6 - time.monotonic()))              # the home indicator fades 2 s after the touch
     red = app.screenshot("redacted")
-    t4 = app.tree()
+    t4 = app.view_dump()
     pulse1 = app.screenshot("pulse1")
     app.sleep(0.4)
     pulse2 = app.screenshot("pulse2")
 
-    fr = frames(t4)
+    fr = screen_frames(t4)
     assert all(t in fr for t in ("private-image", "private-text", "public-text")), f"the redaction views: {list(fr)[:20]}"
     centre = lambda img, tid: px(img, fr[tid][0] + fr[tid][2] / 2, fr[tid][1] + fr[tid][3] / 2)
     p = centre(red, "private-image")
@@ -123,10 +123,10 @@ def test_effects(launch):
     dark = sum(1 for i in range(int(w)) if max(px(red, x + i, y + h / 2)) < 90)
     assert dark > 3, f"other text stays readable: {dark} dark pixels"
 
-    ct = frames(t3).get("count-text")
+    ct = screen_frames(t3).get("count-text")
     snaps = [v for v in parse_views(t3) if v.cls == "UIImageView" and ct and abs(v.h - ct[3]) < 1 and "alpha<1" in v.line]
     assert ct and snaps, f"contentTransition(.numericText) animates the old text out: {ct} {len(snaps)}"
-    f2 = frames(t2)
+    f2 = screen_frames(t2)
     bs = f2.get("bounce-star")
     orange = lambda c: c[0] > 200 and 100 < c[1] < 190 and c[2] < 80
 
@@ -144,29 +144,29 @@ def test_effects(launch):
     assert min(off_) > 200, f"persistentSystemOverlays(.hidden): the home indicator fades 2 s after the last touch: {off_}"
 
     app.send("swipeid swipe-row-A -120 0 0.3")
-    app.wait_tap("swipe-Flag")
+    app.wait_tap_id("swipe-Flag")
     app.wait_log(r"swipe: flag A")                                       # swipeActions outside a List (iOS 27 form)
     app.send("holdid menu-source 0.8")
-    tree = app.wait_tree(r"id=isim-menu-preview\b")
+    tree = app.wait_view(r"id=isim-menu-preview\b")
     assert "id=menu-Copy" in tree, "contextMenu(menuItems:preview:) shows the preview with the menu"
-    app.wait_tap("menu-Copy")
+    app.wait_tap_id("menu-Copy")
     app.wait_log(r"menu: copy")
     assert app.count(r"haptic notification \(success\)") == 2 and app.count(r"haptic impact \(heavy") == 1, \
         "sensoryFeedback plays on trigger changes (logged haptics)"
     assert app.quit() == 0
 
 
-def test_defers_system_gestures(boot):
-    dev = boot(apps=["HelloEffects"])
-    dev.launch("dev.isim.samples.HelloEffects")
+def test_defers_system_gestures(launch):
+    dev = launch(None, install=["HelloEffects"])
+    dev.send("launch dev.isim.samples.HelloEffects")
     dev.wait_opened("HelloEffects")
-    dev.wait_tap("next")
-    dev.wait_view("menu-source")
+    dev.wait_tap_id("next")
+    dev.wait_view(visible("menu-source"))
     root = dev.snapshot()[0]
     x, y = root.w / 2, root.h - 6
     dev.drag(x, y, x, 600)
     dev.sleep(0.8)                                                       # a swipe home would be over by now
-    assert "id=menu-source" in dev.tree(), "defersSystemGestures: the first swipe from the bottom stays in the app"
+    assert "id=menu-source" in dev.view_dump(), "defersSystemGestures: the first swipe from the bottom stays in the app"
     dev.drag(x, y, x, 600)
     dev.wait_log(r"isim shell: home")                                    # a second swipe goes home
     assert dev.quit() == 0

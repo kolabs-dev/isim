@@ -8,7 +8,7 @@ import plistlib
 import re
 import shutil
 
-from isimtest import APPS
+from isimtest import APPS, visible
 
 
 def bulk_apps(data, n, first=1):
@@ -51,11 +51,11 @@ def page_log(dev, text, n):
     dev.wait_log(rf"SpringBoard: {re.escape(text)}", count=n)
 
 
-def test_home_pages(boot, device_data):
+def test_home_pages(launch, device_data):
     bulk_apps(device_data, 52)
-    dev = boot()
+    dev = launch(None)
     page_log(dev, "page 1 of 3", 1)
-    first = dev.wait_tree(r"id=home-page-dots text=page 1 of 3")
+    first = dev.wait_view(r"id=home-page-dots text=page 1 of 3")
     page1 = first[first.index("id=home-page-1\n"):first.index("id=home-page-2\n")] if "id=home-page-2\n" in first else ""
     assert page1.count("id=app-dev.isim.bulk") >= 24, "52 apps fill 3 pages of 4x6 (24 + 24 + 4)"
     dev.wait_until(lambda: dots(dev.screenshot("page1"), 186, (201, 216)), what="page dots: page 1 highlighted")
@@ -80,8 +80,8 @@ def test_home_pages(boot, device_data):
     dev.sleep(0.5)
 
     dev.send("holdid app-dev.isim.bulk.app01 0.8")
-    dev.wait_tap("menu-edit")
-    dev.wait_view("home-done")
+    dev.wait_tap_id("menu-edit")
+    dev.wait_view(visible("home-done"))
     dev.sleep(0.4)
     dev.drag(71, 106, 396, 300, 0.4, 1.2)                                # to the right edge: turns the page
     dev.wait_log(r"dragging to page 2")
@@ -97,21 +97,21 @@ def test_home_pages(boot, device_data):
     dev.drag(71, 106, 6, 300, 0.4, 1.2)
     dev.wait_log(r"moved App 48 to page 3")
 
-    dev.wait_tap("home-page-dots")
+    dev.wait_tap_id("home-page-dots")
     dev.wait_log(r"SpringBoard: Edit Pages \(4 pages\)")
-    dev.wait_tree(r"id=editpages-thumb-4\b")                             # Edit Pages: thumbnails
-    dev.wait_tap("editpages-page-2")
+    dev.wait_view(r"id=editpages-thumb-4\b")                             # Edit Pages: thumbnails
+    dev.wait_tap_id("editpages-page-2")
     dev.wait_log(r"SpringBoard: page 2 hidden")                          # hide a page
-    dev.wait_tap("editpages-done")
+    dev.wait_tap_id("editpages-done")
     dev.wait_log(r"Edit Pages done \(3 visible\)")
-    dev.wait_tap("home-done")
+    dev.wait_tap_id("home-done")
     dev.wait_log(r"SpringBoard: removed 1 empty page\(s\)")              # Done removes empty pages
     dev.send("homepage 1")
-    dev.wait_tree(r"id=home-page-dots text=page 1 of 2")
+    dev.wait_view(r"id=home-page-dots text=page 1 of 2")
     assert dev.quit() == 0
 
-    dev = boot()                                                         # a restart keeps the layout and the hidden page
-    tree = dev.wait_tree(r"id=home-page-dots text=page 1 of 2")
+    dev = launch(None)                                                         # a restart keeps the layout and the hidden page
+    tree = dev.wait_view(r"id=home-page-dots text=page 1 of 2")
     assert not re.search(r"id=app-dev\.isim\.bulk\.app01$", tree, re.M), "the hidden page's app stays hidden"
     state = (device_data / "Library/SpringBoard/IconState.plist").read_text(errors="replace")
     assert "<key>hidden</key>" in state and "<true/>" in state, "the hidden page is saved"
@@ -120,21 +120,21 @@ def test_home_pages(boot, device_data):
     # App Library Only (Settings > Home Screen & App Library), then Add to Home Screen again
     set_new_apps_to_home_screen(device_data, False)
     bulk_apps(device_data, 1, 53)
-    dev = boot()
+    dev = launch(None)
     dev.wait_log(r"App 53 added to the App Library only")
-    tree = dev.wait_tree(r"id=home-page-dots")
+    tree = dev.wait_view(r"id=home-page-dots")
     assert not re.search(r"id=app-dev\.isim\.bulk\.app53$", tree, re.M), "App Library Only: a new app stays off the pages"
     dev.send("homepage library")
-    dev.wait_tap("applibrary-search")
+    dev.wait_tap_id("applibrary-search")
     dev.type("53")
     dev.wait_log(r"App Library search “53”: 1 app\(s\)")
     assert dev.quit() == 0
 
     set_new_apps_to_home_screen(device_data, None)
     bulk_apps(device_data, 1, 54)
-    dev = boot()
-    dev.wait_tree(r"id=home-page-dots")
+    dev = launch(None)
+    dev.wait_view(r"id=home-page-dots")
     dev.send("homepage 2")
-    tree = dev.wait_tree(r"id=app-dev\.isim\.bulk\.app54$")              # a new app goes to a page with space
+    tree = dev.wait_view(r"id=app-dev\.isim\.bulk\.app54$")              # a new app goes to a page with space
     assert not re.search(r"id=app-dev\.isim\.bulk\.app53$", tree, re.M)
     assert dev.quit() == 0

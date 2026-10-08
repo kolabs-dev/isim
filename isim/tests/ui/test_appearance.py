@@ -77,7 +77,7 @@ def test_appearance(launch, ios):
     contrast = shot_when(app, "contrast", 60, 140, near(255, 238, 136))
     assert is_(contrast, 150, 140, near(255, 238, 136)), "contrast on: high-contrast variants"
 
-    app.wait_tap("theme")
+    app.wait_tap_id("theme")
     app.wait_log(r"theme -> forest \(overrides contain theme: true\)")
     app.wait_log(r"registration: theme ocean -> forest")
     shot_when(app, "theme", 240, 140, near(0, 153, 51))                  # custom trait change: color
@@ -90,7 +90,7 @@ def test_appearance(launch, ios):
     back = shot_when(app, "back", 60, 140, near(51, 102, 204))
     assert is_(back, 40, 260, red), "back to light"
 
-    app.wait_tap("present")
+    app.wait_tap_id("present")
     app.wait_log(r"presented traits: dark")
     shot_when(app, "presented", 200, 600, black)                         # a controller presented by a dark child is dark
     assert app.quit() == 0

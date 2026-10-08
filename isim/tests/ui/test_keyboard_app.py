@@ -10,22 +10,22 @@ def last_number(app, pattern):
 
 def test_keyboard_app(launch):
     app = launch("HelloKeyboardApp", device="iphone15")              # the content width checked is iPhone 15's
-    app.wait_tap("field")
+    app.wait_tap_id("field")
     app.wait_log(r"keyboard did show, height 339")                   # the keyboard with the predictive bar
-    app.wait_tree(r"id=isim-kb-h\b")
+    app.wait_view(r"id=isim-kb-h\b")
     app.tap_id("isim-kb-h").tap_id("isim-kb-i")
     app.wait_log(r'text = "Hi"')                                     # typing with auto-capitalization
     app.tap_id("isim-kb-globe")
     app.wait_log(r"loaded keyboard extension Hello Keyboard")
     app.wait_log(r"keyboard frame height 139")                       # globe loads the embedded keyboard
-    app.wait_tree(r"id=key-1\b")
+    app.wait_view(r"id=key-1\b")
     app.tap_id("key-1").tap_id("key-2")
     app.wait_log(r'text = "Hi12"')                                   # custom keyboard types via the proxy
     app.send("holdid isim-kb-globe 0.6")
-    app.wait_tree(r"id=isim-kb-menu-builtin\b")
+    app.wait_view(r"id=isim-kb-menu-builtin\b")
     app.tap_id("isim-kb-menu-builtin")
     app.wait_log(r"keyboard switched to English \(US\)")             # globe list switches back
-    app.wait_tree(r"id=isim-kb-return\b")
+    app.wait_view(r"id=isim-kb-return\b")
     app.tap_id("isim-kb-return")
     app.wait_log(r"return pressed")                                  # return -> textFieldShouldReturn
     app.wait_log(r"keyboard hidden")

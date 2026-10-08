@@ -17,10 +17,10 @@ def test_rotate(launch):
     assert app.has(r"^device orientation 3"), "device orientation notification"
     assert app.has(r"^will transition to 874x402"), "viewWillTransition to landscape"
     assert app.has(r"^traits h=1 v=1"), "compact height size class"
-    assert "UIView (62 351; 750 x 30) id=bar" in app.tree(), "safe-area layout follows"
+    assert "UIView (62 351; 750 x 30) id=bar" in app.view_dump(), "safe-area layout follows"
     landscape = shot_of_size(app, (874, 402))                         # landscape screen (through the shell)
     assert rgb(landscape, 28, 200) == (0, 0, 0), "the landscape screen shape (black sensor housing)"
-    app.wait_tap("lock")
+    app.wait_tap_id("lock")
     app.wait_log(r"^will transition to 402x874")                     # locking to portrait turns back
     shot_of_size(app, (402, 874))
     assert app.quit() == 0
@@ -28,7 +28,7 @@ def test_rotate(launch):
 
 def test_request_geometry_update(launch):
     app = launch("HelloRotation")
-    app.wait_tap("force")
+    app.wait_tap_id("force")
     app.wait_log(r"^will transition to 874x402")                     # requestGeometryUpdate forces landscape
     shot_of_size(app, (874, 402))
     assert app.quit() == 0

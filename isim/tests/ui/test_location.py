@@ -12,9 +12,9 @@ from isimtest import APPS
 def test_permission_updates_geocoding_regions(launch):
     app = launch("HelloLocation")
     app.wait_log(r"^auth notDetermined")                                 # the delegate hears notDetermined at launch
-    app.wait_tap("start")
+    app.wait_tap_id("start")
     app.tap_id("requestWhenInUse")
-    alert = app.wait_tree(r"text=Allow “Location” to use your location\?")
+    alert = app.wait_view(r"text=Allow “Location” to use your location\?")
     for t in ("Allow Once", "Don’t Allow", "Shows where you are and what is nearby."):
         assert f"text={t}" in alert, f"permission alert shows {t!r}"
     app.tap_text("Allow While Using App")
@@ -33,23 +33,23 @@ def test_permission_updates_geocoding_regions(launch):
     app.send("location 37.3349 -122.00902")
     app.wait_log(r"^region enter ApplePark")                             # region monitoring: start, state, enter
     app.tap_id("requestAlways")
-    app.wait_tree(r"text=Allow “Location” to also use your location even when you are not using the app\?")
+    app.wait_view(r"text=Allow “Location” to also use your location even when you are not using the app\?")
     app.tap_text("Change to Always Allow")
     app.wait_log(r"^auth authorizedAlways")
     assert app.quit() == 0
 
     app = launch("HelloLocation")                                       # the same device data
     app.wait_log(r"^auth authorizedAlways")                              # the answer is remembered
-    app.wait_tap("once")
+    app.wait_tap_id("once")
     app.wait_log(r"^location 37\.3349 -122\.0090")                       # the persisted location
-    assert "text=Allow Once" not in app.tree(), "no permission alert after the answer"
+    assert "text=Allow Once" not in app.view_dump(), "no permission alert after the answer"
     assert app.quit() == 0
 
 
 def test_route_live_updates_allow_once(launch):
     app = launch("HelloLocation", env={"ISIM_LOCATION": "38.707751,-9.136592;38.7100,-9.1366@40"})
-    app.wait_tap("live")
-    app.wait_tree(r"text=Allow Once")
+    app.wait_tap_id("live")
+    app.wait_view(r"text=Allow Once")
     app.tap_text("Allow Once")
     app.wait_log(r"^live 1 38\.70[78][0-9] -9\.1366 speed 40")           # ISIM_LOCATION route + liveUpdates
     app.wait_log(r"^live 3 38\.7")
@@ -59,7 +59,7 @@ def test_route_live_updates_allow_once(launch):
 
     app = launch("HelloLocation")                                       # the same device data, a new launch
     app.wait_log(r"^auth notDetermined")                                 # Allow Once lasts one launch
-    app.wait_tap("start")
+    app.wait_tap_id("start")
     app.sleep(0.8)                                                       # no update may arrive
     assert not app.has(r"^location"), "no location without a new answer"
     app.quit()
@@ -67,7 +67,7 @@ def test_route_live_updates_allow_once(launch):
 
 def test_denied(launch):
     app = launch("HelloLocation", env={"ISIM_LOCATION_PERMISSION": "deny"})
-    app.wait_tap("requestWhenInUse")
+    app.wait_tap_id("requestWhenInUse")
     app.wait_log(r"^auth denied")
     app.tap_id("start")
     app.wait_log(r"^error 1 kCLErrorDomain")                             # ISIM_LOCATION_PERMISSION=deny -> denied + error
@@ -77,7 +77,7 @@ def test_denied(launch):
 def test_location_none_and_offline_geocoder(launch):
     app = launch("HelloLocation", env={"ISIM_LOCATION": "none", "ISIM_LOCATION_PERMISSION": "wheninuse",
                                        "ISIM_GEOCODER": "offline"})
-    app.wait_tap("requestWhenInUse")
+    app.wait_tap_id("requestWhenInUse")
     app.tap_id("start")
     app.sleep(0.8)
     app.send("location 51.508039 -0.128069")
@@ -98,9 +98,9 @@ def test_missing_usage_description(launch, tmp_path):
     d = plistlib.loads(info.read_bytes())
     d.pop("NSLocationWhenInUseUsageDescription")
     info.write_bytes(plistlib.dumps(d))
-    app = launch("HelloLocation", bundle=nokey)
-    app.wait_tap("requestWhenInUse")
+    app = launch(nokey)
+    app.wait_tap_id("requestWhenInUse")
     app.wait_log(r"NSLocationWhenInUseUsageDescription key")             # iOS ignores the request and logs
     app.sleep(0.8)                                                       # no alert may come
-    assert "text=Allow Once" not in app.tree(), "missing usage description: no alert"
+    assert "text=Allow Once" not in app.view_dump(), "missing usage description: no alert"
     app.quit()

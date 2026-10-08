@@ -33,10 +33,10 @@ def test_cloudkit(launch, device_data):
     app = launch("HelloCloudKit")
     app.wait_log(r"container: iCloud\.dev\.isim\.samples\.HelloCloudKit account=available")
     app.wait_log(r"user record: true")
-    app.wait_tree(r"text=account: available")                            # default container, account available
+    app.wait_view(r"text=account: available")                            # default container, account available
     app.wait_log(r"metrickit: subscribed, past payloads 0")              # MetricKit: nothing by itself
     for button, lines in STEPS:
-        app.wait_tap(button)
+        app.wait_tap_id(button)
         for line in lines:
             app.wait_log(line)
     store = device_data / "Library/isim/CloudKit/iCloud.dev.isim.samples.HelloCloudKit"
@@ -53,7 +53,7 @@ def test_cloudkit(launch, device_data):
     assert app.quit() == 0
 
     app = launch("HelloCloudKit")                                        # relaunch: the records persist
-    app.wait_tap("list")
+    app.wait_tap_id("list")
     app.wait_log(r"records: n3,p1,u1")
     mk = subprocess.run([str(ISIM), "metrickit"], env=dict(os.environ, ISIM_DATA=str(device_data)),
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout
@@ -66,7 +66,7 @@ def test_no_account(launch):
     app = launch("HelloCloudKit", env={"ISIM_ICLOUD": "noAccount"})
     app.wait_log(r"account=noAccount")
     app.wait_log(r"user record error: CKError 9")
-    app.wait_tap("list")
+    app.wait_tap_id("list")
     app.wait_log(r"list error: CKError 9")
     app.tap_id("save")
     app.wait_log(r"save error: CKError 9")                               # notAuthenticated

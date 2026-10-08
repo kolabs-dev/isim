@@ -67,7 +67,7 @@ def test_pointer_ipad(launch):
     app.send("hover 600 770")
     app.wait_log(r"^pointer entered button")
     assert app.has(r"^pointer region requested"), "iPad pointer: region + enter"
-    app.wait_tree(r"id=isim-pointer-effect\b")                        # highlight platter
+    app.wait_view(r"id=isim-pointer-effect\b")                        # highlight platter
     app.send("hover 300 300")
-    app.wait_tree(r"id=isim-pointer-effect\b", gone=True)             # then gone
+    app.wait_view(r"id=isim-pointer-effect\b", gone=True)             # then gone
     assert app.quit() == 0

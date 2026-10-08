@@ -18,7 +18,7 @@ def test_released_symbols():
 
 
 def test_probe_app(launch):
-    app = launch("ABIProbe", bundle=Path(__file__).parent / "ABIProbe.app")
+    app = launch(Path(__file__).parent / "ABIProbe.app")
     app.wait_log(r"^abi cg: width=60 height=30 crop=4x3 drawn=true")   # CGImage width/height/cropping, CGContext.draw
     app.drag(150, 291, 250, 291, 0.4)
     app.wait_log(r"^abi drag ended dx=100")                              # DragGesture().onChanged/onEnded

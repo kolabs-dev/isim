@@ -8,7 +8,7 @@ import os
 import re
 import subprocess
 
-from isimtest import ISIM
+from isimtest import ISIM, visible
 
 APP = "dev.isim.samples.HelloGameCenter"
 
@@ -23,8 +23,8 @@ def test_gamecenter(launch, device_data):
     app = launch("HelloGameCenter", animations=False)
     app.wait_log(r"authenticated: true")
     app.wait_log(r"access point shown \(top trailing\)")
-    trees = [app.wait_tree(r"^UIWindow \(338 66; 48 x 48\)$")]          # the access point, top trailing
-    app.wait_tap("scores")
+    trees = [app.wait_view(r"^UIWindow \(338 66; 48 x 48\)$")]          # the access point, top trailing
+    app.wait_tap_id("scores")
     app.wait_log(r"scores posted")
     app.tap_id("achievements")
     app.wait_log(r"achievements reported true")
@@ -45,43 +45,43 @@ def test_gamecenter(launch, device_data):
     assert 'set: dev.isim.gc.set.season1 "Season 1" boards=dev.isim.gc.high_score,dev.isim.gc.fastest' in log
     assert app.count(r"leaderboard image .*: true") == 3, "leaderboard set + images"
 
-    app.wait_tap("gc-access-point")
+    app.wait_tap_id("gc-access-point")
     app.wait_log(r"access point opens Game Center")
-    trees.append(app.wait_tree(r"id=gc-achievements-summary text=1 of 2 Completed · 10 points"))
-    app.wait_tap("gc-achievements")
-    trees.append(app.wait_tree(r"text=40% complete · 25 points"))
+    trees.append(app.wait_view(r"id=gc-achievements-summary text=1 of 2 Completed · 10 points"))
+    app.wait_tap_id("gc-achievements")
+    trees.append(app.wait_view(r"text=40% complete · 25 points"))
     assert "text=You won your first game." in trees[-1] and "text=Collect 100 gems." in trees[-1], \
         "dashboard achievements: titles, descriptions"
     app.tap_id("gc-done")
-    app.wait_view("gc-done", gone=True)
+    app.wait_view(visible("gc-done"), gone=True)
 
-    app.wait_tap("set")
-    trees.append(app.wait_tree(r"id=gc-board-dev\.isim\.gc\.high_score\b"))
+    app.wait_tap_id("set")
+    trees.append(app.wait_view(r"id=gc-board-dev\.isim\.gc\.high_score\b"))
     assert "text=Season 1" in trees[-1] and "text=Fastest Clear" in trees[-1], "leaderboard set page"
-    app.wait_tap("gc-board-dev.isim.gc.fastest")
+    app.wait_tap_id("gc-board-dev.isim.gc.fastest")
     app.sleep(0.3)
-    trees.append(app.tree())
+    trees.append(app.view_dump())
     app.tap_id("gc-done")
     app.wait_log(r"dashboard closed")                                    # the dashboard closes via its delegate
 
-    app.wait_tap("photo")
+    app.wait_tap_id("photo")
     app.wait_log(r"photo: 128x128 true")
     app.wait_log(r"friends: 0")                                          # player photo + empty friends list
-    app.wait_tap("friend-request")
-    app.wait_tap("gc-friend-to")
+    app.wait_tap_id("friend-request")
+    app.wait_tap_id("gc-friend-to")
     app.type("pat@example.com")
-    app.wait_tree(r"pat@example\.com")
+    app.wait_view(r"pat@example\.com")
     app.tap_id("gc-friend-send")
     app.wait_log(r"friend request to pat@example\.com not sent")        # the composer (not sent)
 
-    app.wait_tap("save")
+    app.wait_tap_id("save")
     app.wait_log(r"saved: slot1 on iPhone true")
     assert (device_data / f"Library/GameCenter/{APP}/SavedGames/slot1/versions.json").is_file(), \
         "saved game stored in device data"
-    app.wait_tap("match")
-    app.wait_tap("gc-match-find")
+    app.wait_tap_id("match")
+    app.wait_tap_id("gc-match-find")
     app.wait_log(r"findMatch: match=false error=true")
-    trees.append(app.wait_tree(r"id=gc-match-note text=No players found"))   # the matchmaker finds nobody
+    trees.append(app.wait_view(r"id=gc-match-note text=No players found"))   # the matchmaker finds nobody
     app.tap_id("gc-match-cancel")
     app.wait_log(r"matchmaker cancelled")
     assert not any("text=Secret Door" in t for t in trees), "the hidden achievement stays hidden"
@@ -91,7 +91,7 @@ def test_gamecenter(launch, device_data):
     assert "now has 2 versions" in conflict, conflict
     app = launch("HelloGameCenter", animations=False)
     app.wait_log(r"authenticated: true")                                 # signed in before fetching
-    app.wait_tap("fetch")
+    app.wait_tap_id("fetch")
     app.wait_log(r"saved games conflict: 2 versions of slot1 from Other Device,iPhone")   # conflict detected
     app.wait_log(r"resolved: 1 saved game")
     app.wait_log(r"resolved data: merged")

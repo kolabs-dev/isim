@@ -57,7 +57,7 @@ def test_vision(launch):
     if not (APP / "HelloVision").exists():
         pytest.skip("HelloVision not built")
     app = launch("HelloVision", device="iphone17")
-    app.wait_tree(r"text=“Vision Demo” Would Like to Access Speech Recognition")   # the Speech authorization alert
+    app.wait_view(r"text=“Vision Demo” Would Like to Access Speech Recognition")   # the Speech authorization alert
     app.tap_text("Allow")
     app.wait_log(r"speech authorization 3")
     for what, rx in COMMON:
@@ -67,7 +67,7 @@ def test_vision(launch):
     else:
         app.wait_log(r"speech recognizer en-US available=false xx=nil")
         app.wait_log(r"speech error: speech recognition is not available on this host")
-        app.wait_tree(r"id=speech text=unavailable")                                   # unavailable without an engine
+        app.wait_view(r"id=speech text=unavailable")                                   # unavailable without an engine
     if shutil.which("tesseract"):
         app.wait_log(r'text recognized \["HELLO ISIM"\]')
     else:

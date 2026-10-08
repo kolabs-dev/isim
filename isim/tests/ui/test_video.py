@@ -6,7 +6,7 @@ Needs ffmpeg/ffprobe on the host (the sample is not built without them). Port of
 import time
 
 import pytest
-from isimtest import APPS, rgb
+from isimtest import APPS, rgb, visible
 
 
 def red(c): return c[0] > 230 and c[1] < 30 and c[2] < 30
@@ -32,7 +32,7 @@ def test_playback(launch):
     paused = app.wait_until(lambda: (lambda s: s if red(rgb(s, 201, 210)) else None)(app.screenshot("paused")),
                             what="first frame shown while paused (sublayer)")
     assert red(rgb(paused, 329, 647)), "first frame in the layerClass view"
-    app.wait_tap("play")
+    app.wait_tap_id("play")
     t0 = time.monotonic()
     at(t0, 0.5)
     assert red(rgb(app.screenshot("red"), 201, 210)), "frame at ~0.5 s is red"
@@ -42,7 +42,7 @@ def test_playback(launch):
     at(t0, 2.5)
     assert blue(rgb(app.screenshot("blue"), 201, 210)), "frame at ~2.5 s is blue"
     app.wait_log(r"did play to end t=3\.00")                             # AVPlayerItemDidPlayToEndTime at 3 s
-    app.wait_tree(r"id=time text=3\.0 s")                                # periodic time observer updates a label
+    app.wait_view(r"id=time text=3\.0 s")                                # periodic time observer updates a label
     log = app.log
     assert "cmtime sum=0.75 compare=1 contains=true end=3.0 invalid=false" in log, "CMTime / CMTimeRange arithmetic"
     assert "asset duration=3.00 tracks=2 size=320x180 fps=25 audio=1" in log, "AVURLAsset.load(.duration, .tracks)"
@@ -56,7 +56,7 @@ def test_playback(launch):
 def test_seek_rate_queue_looper_avkit_swiftui(launch):
     app = launch("HelloVideo")
     app.wait_log(r"item status readyToPlay")
-    app.wait_tap("seek")
+    app.wait_tap_id("seek")
     app.wait_log(r"seek finished true t=2\.00")
     app.wait_until(lambda: blue(rgb(app.screenshot("seek"), 201, 210)), what="seek(to: 2 s) shows the blue frame")
     app.tap_id("rate")
@@ -68,22 +68,22 @@ def test_seek_rate_queue_looper_avkit_swiftui(launch):
     app.tap_id("loop")
     app.wait_log(r"looper loopCount=[2-4] status=ready")                 # AVPlayerLooper loops a time range
     app.tap_id("fullscreen")
-    tree = app.wait_tree(r"id=avkit-play\b")
+    tree = app.wait_view(r"id=avkit-play\b")
     assert "id=avkit-scrubber" in tree and "id=avkit-close" in tree, "AVPlayerViewController controls"
     app.sleep(0.3)                                                       # presented
     app.tap_id("avkit-play")
     t0 = time.monotonic()
     at(t0, 1.2)
-    tree = app.tree()
+    tree = app.view_dump()
     assert "id=avkit-elapsed text=0:01" in tree and "id=avkit-remaining text=-0:02" in tree, "AVPlayerViewController time"
     assert green(rgb(app.screenshot("avkit"), 201, 380)), "AVPlayerViewController plays (green at ~1.2 s)"
     app.tap_id("avkit-close")
-    app.wait_view("avkit-close", gone=True)
+    app.wait_view(visible("avkit-close"), gone=True)
     app.sleep(0.3)
-    app.wait_tap("swiftui")
+    app.wait_tap_id("swiftui")
     app.wait_log(r"SwiftUI VideoPlayer appeared")
     t0 = time.monotonic()
-    app.wait_tree(r"text=SwiftUI VideoPlayer")                           # VideoPlayer with its overlay
+    app.wait_view(r"text=SwiftUI VideoPlayer")                           # VideoPlayer with its overlay
     at(t0, 1.4)
     assert green(rgb(app.screenshot("swiftui"), 201, 380)), "SwiftUI VideoPlayer plays (green at ~1.4 s)"
     assert app.quit() == 0

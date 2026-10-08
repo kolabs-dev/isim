@@ -7,7 +7,7 @@ its timing."""
 import re
 import time
 
-from isimtest import count, rgb
+from isimtest import count_px, rgb
 
 
 def white(c): return c[0] > 235 and c[1] > 235 and c[2] > 235
@@ -63,8 +63,8 @@ def test_drawing(launch):
     assert not failed, f"shape pixels: {failed}"
     assert rgb(shapes, 70, 482)[0] > rgb(shapes, 70, 518)[0], "Color.gradient (lighter at the top)"
     n = 160 * 40
-    reds = count(shapes, (220, 750, 380, 790), lambda c: c[0] > 0.8 * 255 and c[1] < 0.3 * 255 and c[2] < 0.3 * 255)
-    blues = count(shapes, (220, 750, 380, 790), lambda c: c[2] > 0.8 * 255 and c[0] < 0.3 * 255)
+    reds = count_px(shapes, (220, 750, 160, 40), lambda c: c[0] > 0.8 * 255 and c[1] < 0.3 * 255 and c[2] < 0.3 * 255)
+    blues = count_px(shapes, (220, 750, 160, 40), lambda c: c[2] > 0.8 * 255 and c[0] < 0.3 * 255)
     assert reds / n > 0.04 and blues == 0, f"Text with a gradient style uses its first color ({reds} red, {blues} blue)"
     log = app.log
     for line in ("path description: 0 0 m 100 0 l 100 50 l h", "path bounds: (0.0, 0.0, 100.0, 50.0)",
@@ -74,8 +74,8 @@ def test_drawing(launch):
     assert "timeline duration 2.0 at 0.5: 5.0 at 1.5: true end: 0.0" in log and "unit curve easeIn 0.5: true" in log, \
         "KeyframeTimeline values, UnitCurve"
 
-    app.wait_tap("next")
-    trees = [app.wait_tree(r"text=tick [0-9]")]
+    app.wait_tap_id("next")
+    trees = [app.wait_view(r"text=tick [0-9]")]
     app.sleep(0.3)                                                        # the page transition ends
     m0 = app.screenshot("motion0")
     assert white(rgb(m0, 70, 220)), "animated trim starts empty"
@@ -97,7 +97,7 @@ def test_drawing(launch):
         rgb(mid, 140, 520)[1] > 150 and rgb(mid, 140, 520)[0] < 120, "AnimatableModifier interpolates (half-way)"
     time.sleep(max(0.0, t1 + 1.6 - time.monotonic()))
     end = app.screenshot("motion-end")
-    trees.append(app.tree())
+    trees.append(app.view_dump())
     assert purple(rgb(end, 70, 121)) and rgb(end, 356, 140)[2] > 200 and rgb(end, 356, 140)[0] < 60 and \
         rgb(end, 170, 215)[2] > 200 and rgb(end, 170, 215)[0] < 60, "animations end at the new values"
     assert rgb(end, 240, 520)[1] > 150 and rgb(end, 240, 520)[0] < 120 and white(rgb(end, 140, 520)), \

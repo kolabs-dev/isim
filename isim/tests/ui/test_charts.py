@@ -28,7 +28,7 @@ def colored(c): return not white(c)
 def charts(launch_module):
     app = launch_module("HelloCharts")
     app.wait_log(r"charts shown")
-    tree = app.wait_tree(r"x 200\) id=ideal")
+    tree = app.wait_view(r"x 200\) id=ideal")
     shot = app.screenshot("charts")
     return tree, shot, app.quit()
 
