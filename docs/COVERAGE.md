@@ -579,7 +579,7 @@ checks it (verified), "unverified" means proposed (implemented, no test).
 
 Colour filters, blur, blend modes, compositing groups and content shadows render through
 `isim_gfx_pop_group_filtered` (a 4×5 colour matrix, a three-pass box blur ≈ Gaussian, a shadow of the content's alpha
-and cairo blend operators) on the view's group; HelloEffects (`tests/ui/effects.sh`) checks them by pixels.
+and cairo blend operators) on the view's group; HelloEffects (`tests/ui/test_effects.py`) checks them by pixels.
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|

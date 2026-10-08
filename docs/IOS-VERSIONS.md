@@ -124,7 +124,7 @@ the WWDC25 material; exact metrics (corner radii, insets) are isim's estimates.
 
 Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "UIKit updates", June 2026):
 
-- implemented (adapted; verified by `tests/ui/test_tabs.py` and `effects.sh` under `--os 27` / the default):
+- implemented (adapted; verified by `tests/ui/test_tabs.py` and `test_effects.py` under `--os 27` / the default):
   `TabRole.prominent`, `ToolbarItemVisibilityPriority` + `visibilityPriority(_:)` (low-priority items move to an
   overflow menu), `ToolbarOverflowMenu`, `ToolbarItemPlacement.topBarPinnedTrailing`,
   `toolbarMinimizationBehavior(_:for:)` (the bottom bar slides away, the navigation bar fades while scrolling),

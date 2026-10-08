@@ -225,8 +225,9 @@ class App:
     def tap_text(self, text: str) -> "App":
         return self.send(f"taptext {text}")
 
-    def drag(self, x1, y1, x2, y2, seconds: float = 0.3) -> "App":
-        return self.send(f"drag {x1} {y1} {x2} {y2} {seconds}")
+    def drag(self, x1, y1, x2, y2, seconds: float = 0.3, hold: float | None = None) -> "App":
+        """drag over `seconds`; `hold` keeps the finger down that long at the end (e.g. at a home-screen edge)"""
+        return self.send(f"drag {x1} {y1} {x2} {y2} {seconds}" + (f" {hold}" if hold is not None else ""))
 
     def type(self, text: str) -> "App":
         return self.send(f"type {text}")
