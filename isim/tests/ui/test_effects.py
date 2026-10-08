@@ -63,6 +63,8 @@ def test_effects(launch):
     app.tap_id("t-shape")
     app.wait_log(r"shape tapped 1")
     app.wait_tap_id("fade")
+    app.wait_log(r"^fade tapped faded=true")                            # the 2 s withAnimation has started
+    assert app.count(r"^fade tapped") == 1, "one Fade tap (a second would toggle the grayscale back)"
     halfway = lambda s: (lambda p: 100 < p[0] < 220 and 12 < p[1] < 50)(at(s, "t-fade"))
     grey = lambda s: near(at(s, "t-fade"), (54, 54, 54))
     app.shot_during(halfway, grey, "withAnimation interpolates grayscale (half-way)")   # during the 2 s animation

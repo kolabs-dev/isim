@@ -125,7 +125,10 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         }
     }
 
+    var renderCount = 0                                           // renders so far (the animation ticker waits for one)
+
     func render(bounds: CGRect, safeArea: UIEdgeInsets, traits: UITraitCollection) {
+        renderCount += 1
         rendering = true
         defer { rendering = false }
         self.safeArea = safeArea
