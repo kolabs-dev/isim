@@ -44,8 +44,8 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
 - **Local checks first.** Before opening a PR, run the full local build, `isim/build.py test`, `OS_MATRIX=1` when the
   change is version-sensitive, and the ABI check. Put the results in the PR description.
 - **Screenshots.** When a change is visible (UI, drawing, system UI), attach screenshots of isim's own samples to the
-  PR: push the PNGs to the `pr-screenshots` branch (never merged; one folder per PR number) and embed them with
-  `https://raw.githubusercontent.com/kolabs-dev/isim/pr-screenshots/<PR>/<name>.png`.
+  PR: reference them in the body as `![what it shows](./name.png)` and upload them with
+  `gh pr edit <PR> --body-file body.md --attach ./name.png` (run where the files are; `gh` rewrites the references).
 - **CI.** CI runs a stock Ubuntu 24.04 image: build, ABI check, all tests.
   - On a PR, start it by hand: Actions → CI → Run workflow, on the PR's branch.
   - Its commit status `ci / build and test` is required to merge.
