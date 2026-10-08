@@ -258,6 +258,17 @@ class App:
                 raise WaitTimeout(f"{'still' if gone else 'no'} element {what} after {timeout:g} s")
             time.sleep(0.05)
 
+    def wait_until(self, condition, timeout: float = TIMEOUT, what: str = "condition", poll: float = 0.05):
+        """Poll `condition()` (e.g. a lambda reading snapshot() or views()) until it returns a truthy value."""
+        end = time.monotonic() + timeout
+        while True:
+            v = condition()
+            if v:
+                return v
+            if time.monotonic() > end:
+                raise WaitTimeout(f"{what} not met after {timeout:g} s\n" + "\n".join(self._lines[-20:]))
+            time.sleep(poll)
+
     def screenshot(self, name: str = "shot"):
         """A screenshot as a PIL image (points = pixels: ISIM_SHOT_SCALE=1)."""
         from PIL import Image
