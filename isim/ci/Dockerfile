@@ -36,4 +36,3 @@ ENV SDL_AUDIO_DRIVER=dummy
 # WebKitGTK's web-process sandbox (bubblewrap) cannot create namespaces in an unprivileged container; CI only loads
 # the tests' own local pages
 ENV WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
-ENV ISIM_TEST_JOBS=8
