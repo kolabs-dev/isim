@@ -64,7 +64,7 @@ struct EffectsView: View {
                     .overlay(alignment: .topLeading) { Color.clear.frame(width: 8, height: 8).accessibilityIdentifier("t-shape-corner") }
                 VStack(alignment: .leading) {
                     Text("Shape taps: \(shapeTaps)")
-                    Button("Fade") { withAnimation(.linear(duration: 2)) { faded.toggle() } }.accessibilityIdentifier("fade")
+                    Button("Fade") { withAnimation(.linear(duration: 2)) { faded.toggle() }; print("fade tapped faded=\(faded)") }.accessibilityIdentifier("fade")
                     Button("More") { next() }.accessibilityIdentifier("next")
                 }
             }

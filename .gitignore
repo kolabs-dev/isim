@@ -15,5 +15,8 @@ isim/**/out/
 third_party/
 __pycache__/
 
+# Claude Code agent worktrees
+.claude/worktrees/
+
 # release packages (published on GitHub Releases)
 isim/dist/

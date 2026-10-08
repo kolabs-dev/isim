@@ -182,24 +182,28 @@ extension Animation {
     static var tickers: [ObjectIdentifier: _FrameTicker] = [:]
     weak var graph: _Graph?
     var timer: Timer?
-    var lastActive = Date.distantPast
+    var requested = false               // a render since the last tick still animates
+    var awaitedRender: Int?             // the graph's render count when the ticker asked for a frame
     static func request(_ g: _Graph) {
         let id = ObjectIdentifier(g)
         let t = tickers[id] ?? { let t = _FrameTicker(); t.graph = g; tickers[id] = t; return t }()
-        t.lastActive = Date()
+        t.requested = true
         if t.timer == nil {
             t.timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak t] _ in MainActor.assumeIsolated { t?.tick() } }
         }
     }
     func tick() {
-        // a render that still animates requests the ticker again; stop after a quiet frame
-        guard let g = graph, Date().timeIntervalSince(lastActive) < 0.1 else {
-            timer?.invalidate(); timer = nil
-            if graph == nil { _FrameTicker.tickers = _FrameTicker.tickers.filter { $0.value.graph != nil } }
-            return
-        }
+        guard let g = graph else { stop(); _FrameTicker.tickers = _FrameTicker.tickers.filter { $0.value.graph != nil }; return }
+        // the frame asked for has not rendered yet (a busy main thread): wait for it rather than judge by time, or
+        // a late timer would end an animation that is still running
+        if let n = awaitedRender, g.renderCount == n { return }
+        // a render ran without requesting another frame: every animation has ended
+        guard requested else { stop(); return }
+        requested = false
+        awaitedRender = g.renderCount
         g.invalidate()
     }
+    func stop() { timer?.invalidate(); timer = nil; requested = false; awaitedRender = nil }
 }
 
 // MARK: - Interpolation of animatable data during evaluation
