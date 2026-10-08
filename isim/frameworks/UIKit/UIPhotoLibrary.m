@@ -1,12 +1,14 @@
 /* The device photo library as UIKit sees it: UIImageWriteToSavedPhotosAlbum and UIImagePickerController.
  *
  * The library lives in the device data like the Simulator's: $ISIM_DATA/Media/DCIM/100APPLE/IMG_nnnn.PNG plus an index,
- * $ISIM_DATA/Media/PhotoData/Photos.plist ({seeded, assets: [{id, file, created, width, height, favorite, app}]}),
+ * $ISIM_DATA/Media/PhotoData/Photos.plist ({seeded, assets: [{id, file, created, width, height, favorite, app}]}; videos
+ * add kind = video, duration and poster, a PNG of their first frame in PhotoData/Thumbnails),
  * shared with isim's Photos framework (Swift). On first use it is seeded with six generated landscape pictures,
  * standing in for the Simulator's sample photos (Apple's sample photos are not shipped).
  * Permission answers are stored in the app's defaults under _ISIMPrivacy.photos / _ISIMPrivacy.photosAdd (the same keys
  * the Photos framework uses). ISIM_PHOTOS_PERMISSION=allow|limited|deny answers the prompt without showing it. */
 #import "UIKitPrivate.h"
+#import "UIImagePickerCamera.h"
 #include <objc/message.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -20,6 +22,7 @@ UIImagePickerControllerInfoKey const UIImagePickerControllerReferenceURL = @"UII
 UIImagePickerControllerInfoKey const UIImagePickerControllerMediaMetadata = @"UIImagePickerControllerMediaMetadata";
 UIImagePickerControllerInfoKey const UIImagePickerControllerImageURL = @"UIImagePickerControllerImageURL";
 UIImagePickerControllerInfoKey const UIImagePickerControllerPHAsset = @"UIImagePickerControllerPHAsset";
+UIImagePickerControllerInfoKey const UIImagePickerControllerLivePhoto = @"UIImagePickerControllerLivePhoto";
 
 /* ---------------- library store ---------------- */
 static NSString *media_dir(void) {
@@ -169,12 +172,60 @@ void UIImageWriteToSavedPhotosAlbum(UIImage *image, id target, SEL sel, void *ct
         });
     });
 }
-BOOL UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(NSString *videoPath) { return NO; }
+/* a movie ffprobe can read with a video stream */
+BOOL UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(NSString *videoPath) {
+    struct isim_media_info i = {0};
+    return videoPath.length && [NSFileManager.defaultManager fileExistsAtPath:videoPath] && isim_media_probe(videoPath.UTF8String, &i) && i.has_video;
+}
+/* copies the movie into the library (IMG_nnnn.MOV / .MP4) with a poster frame */
+static NSDictionary *add_video_asset(NSMutableDictionary *idx, NSString *src, NSString *app) {
+    struct isim_media_info info = {0};
+    if (!isim_media_probe(src.UTF8String, &info) || !info.has_video) return nil;
+    NSString *dcim = [media_dir() stringByAppendingPathComponent:@"DCIM/100APPLE"], *thumbs = [media_dir() stringByAppendingPathComponent:@"PhotoData/Thumbnails"];
+    for (NSString *d in @[dcim, thumbs]) [NSFileManager.defaultManager createDirectoryAtPath:d withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSInteger n = [idx[@"next"] integerValue] ?: 1;
+    NSString *ext = [src.pathExtension.uppercaseString isEqualToString:@"MP4"] ? @"MP4" : @"MOV";
+    NSString *name = [NSString stringWithFormat:@"IMG_%04ld.%@", (long)n, ext], *poster = [NSString stringWithFormat:@"IMG_%04ld.PNG", (long)n];
+    if (![[NSData dataWithContentsOfFile:src] writeToFile:[dcim stringByAppendingPathComponent:name] atomically:YES]) return nil;
+    idx[@"next"] = @(n + 1);
+    void *png = NULL; long len = 0;
+    if (isim_media_thumbnail_png([dcim stringByAppendingPathComponent:name].UTF8String, 0, 640, &png, &len) && png && len > 0)
+        [[NSData dataWithBytes:png length:(NSUInteger)len] writeToFile:[thumbs stringByAppendingPathComponent:poster] atomically:YES];
+    if (png) isim_media_free(png);
+    NSDictionary *a = @{ @"id": [NSString stringWithFormat:@"%@/L0/001", NSUUID.UUID.UUIDString], @"file": [@"DCIM/100APPLE" stringByAppendingPathComponent:name],
+                         @"created": @(NSDate.date.timeIntervalSince1970), @"width": @(info.width), @"height": @(info.height), @"favorite": @NO, @"app": app ?: @"",
+                         @"kind": @"video", @"duration": @(info.duration), @"poster": [@"PhotoData/Thumbnails" stringByAppendingPathComponent:poster] };
+    [idx[@"assets"] addObject:a];
+    return a;
+}
+void UISaveVideoAtPathToSavedPhotosAlbum(NSString *videoPath, id target, SEL sel, void *ctx) {
+    NSString *path = [videoPath copy];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        request_add_access(^(BOOL ok) {
+            NSError *err = nil;
+            if (ok) {
+                _isim_photos_seed();
+                NSMutableDictionary *idx = load_index();
+                NSDictionary *a = add_video_asset(idx, path, NSBundle.mainBundle.bundleIdentifier);
+                if (a) { save_index(idx); NSLog(@"isim Photos: saved video %@ to the photo library", [a[@"file"] lastPathComponent]); }
+                else err = [NSError errorWithDomain:@"ALAssetsLibraryErrorDomain" code:-3302 userInfo:@{ NSLocalizedDescriptionKey: @"Invalid data" }];
+            } else err = [NSError errorWithDomain:@"ALAssetsLibraryErrorDomain" code:-3310 userInfo:@{ NSLocalizedDescriptionKey: @"Data unavailable" }];
+            if (target && sel) ((void (*)(id, SEL, NSString *, NSError *, void *))objc_msgSend)(target, sel, path, err, ctx);
+        });
+    });
+}
+static BOOL is_video(NSDictionary *asset) { return [asset[@"kind"] isEqualToString:@"video"]; }
+static UIImage *asset_thumbnail(NSDictionary *asset) {
+    NSString *p = is_video(asset) ? [media_dir() stringByAppendingPathComponent:asset[@"poster"] ?: @""] : _isim_photos_path(asset);
+    return [UIImage imageWithContentsOfFile:p];
+}
+
 
 /* ---------------- the picker grid ---------------- */
 @interface __IsimPhotoGrid : UIViewController <UICollectionViewDataSource, UICollectionViewDelegate>
 @property (nonatomic, copy) void (^onPick)(NSDictionary *asset);
 @property (nonatomic, copy) void (^onCancel)(void);
+@property (nonatomic) BOOL images, videos;          /* the picker's mediaTypes */
 @end
 @implementation __IsimPhotoGrid { NSArray<NSDictionary *> *_assets; UICollectionView *_grid; }
 - (void)viewDidLoad {
@@ -187,7 +238,9 @@ BOOL UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(NSString *videoPath) { return
     [cancel addTarget:self action:@selector(isimPhotoGridCancel) forControlEvents:UIControlEventTouchUpInside];
     [cancel sizeToFit];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:cancel];
-    _assets = _isim_photos_assets();
+    NSMutableArray *shown = [NSMutableArray array];
+    for (NSDictionary *a in _isim_photos_assets()) if (is_video(a) ? self.videos : self.images) [shown addObject:a];
+    _assets = shown;
     UICollectionViewFlowLayout *l = [UICollectionViewFlowLayout new];
     CGFloat side = floor((UIScreen.mainScreen.bounds.size.width - 6) / 4);
     l.itemSize = CGSizeMake(side, side); l.minimumLineSpacing = 2; l.minimumInteritemSpacing = 2;
@@ -209,8 +262,19 @@ BOOL UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(NSString *videoPath) { return
         iv.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         [cell.contentView addSubview:iv];
     }
-    iv.image = [UIImage imageWithContentsOfFile:_isim_photos_path(_assets[ip.item])];
-    cell.accessibilityIdentifier = [NSString stringWithFormat:@"photo-%ld", (long)ip.item];
+    NSDictionary *asset = _assets[ip.item];
+    iv.image = asset_thumbnail(asset);
+    UILabel *dur = (UILabel *)[cell.contentView viewWithTag:78];
+    if (!dur) {
+        dur = [[UILabel alloc] initWithFrame:CGRectMake(4, cell.contentView.bounds.size.height - 20, cell.contentView.bounds.size.width - 8, 18)];
+        dur.tag = 78; dur.textAlignment = NSTextAlignmentRight; dur.textColor = UIColor.whiteColor;
+        dur.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
+        dur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
+        [cell.contentView addSubview:dur];
+    }
+    long secs = lround([asset[@"duration"] doubleValue]);
+    dur.text = is_video(asset) ? [NSString stringWithFormat:@"%ld:%02ld", secs / 60, secs % 60] : nil;
+    cell.accessibilityIdentifier = [NSString stringWithFormat:@"%@-%ld", is_video(asset) ? @"video" : @"photo", (long)ip.item];
     return cell;
 }
 - (void)collectionView:(UICollectionView *)cv didSelectItemAtIndexPath:(NSIndexPath *)ip { if (self.onPick) self.onPick(_assets[ip.item]); }
@@ -219,16 +283,32 @@ BOOL UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(NSString *videoPath) { return
 /* ---------------- UIImagePickerController ---------------- */
 @implementation UIImagePickerController {
     UIImagePickerControllerSourceType _source;
+    __IsimCameraController *_camera;
+    UIImagePickerControllerCameraDevice _cameraDevice;
+    UIImagePickerControllerCameraCaptureMode _captureMode;
+    UIView *_overlay;
+    BOOL _showsControls;
+    CGAffineTransform _viewTransform;
 }
 @dynamic delegate;
-+ (BOOL)isSourceTypeAvailable:(UIImagePickerControllerSourceType)t { return t != UIImagePickerControllerSourceTypeCamera; }
-+ (NSArray<NSString *> *)availableMediaTypesForSourceType:(UIImagePickerControllerSourceType)t {
-    return t == UIImagePickerControllerSourceTypeCamera ? nil : @[@"public.image", @"public.movie"];
++ (BOOL)isSourceTypeAvailable:(UIImagePickerControllerSourceType)t {
+    return t == UIImagePickerControllerSourceTypeCamera ? isim_ui_camera_available() : t == UIImagePickerControllerSourceTypePhotoLibrary || t == UIImagePickerControllerSourceTypeSavedPhotosAlbum;
 }
-+ (BOOL)isCameraDeviceAvailable:(UIImagePickerControllerCameraDevice)d { return NO; }
++ (NSArray<NSString *> *)availableMediaTypesForSourceType:(UIImagePickerControllerSourceType)t {
+    return [self isSourceTypeAvailable:t] ? @[@"public.image", @"public.movie"] : nil;
+}
+/* the simulated camera stands in for both (front shows it mirrored) */
++ (BOOL)isCameraDeviceAvailable:(UIImagePickerControllerCameraDevice)d { return isim_ui_camera_available(); }
 + (BOOL)isFlashAvailableForCameraDevice:(UIImagePickerControllerCameraDevice)d { return NO; }
++ (NSArray<NSNumber *> *)availableCaptureModesForCameraDevice:(UIImagePickerControllerCameraDevice)d {
+    return isim_ui_camera_available() ? @[@(UIImagePickerControllerCameraCaptureModePhoto), @(UIImagePickerControllerCameraCaptureModeVideo)] : nil;
+}
 - (instancetype)initWithNibName:(NSString *)n bundle:(NSBundle *)b {
-    if ((self = [super initWithNibName:n bundle:b])) { self.mediaTypes = @[@"public.image"]; self.videoMaximumDuration = 600; self.showsCameraControls = YES; }
+    if ((self = [super initWithNibName:n bundle:b])) {
+        self.mediaTypes = @[@"public.image"]; self.videoMaximumDuration = 600; _showsControls = YES; _viewTransform = CGAffineTransformIdentity;
+        self.videoQuality = UIImagePickerControllerQualityTypeMedium; self.cameraFlashMode = UIImagePickerControllerCameraFlashModeAuto;
+        self.videoExportPreset = @"AVAssetExportPresetPassthrough";
+    }
     return self;
 }
 - (UIImagePickerControllerSourceType)sourceType { return _source; }
@@ -236,38 +316,112 @@ BOOL UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(NSString *videoPath) { return
     if (![UIImagePickerController isSourceTypeAvailable:t])
         [NSException raise:NSInvalidArgumentException format:@"Source type %ld not available", (long)t];   /* like iOS (the Simulator has no camera) */
     _source = t;
+    if (t == UIImagePickerControllerSourceTypeCamera) self.modalPresentationStyle = UIModalPresentationFullScreen;
 }
-- (void)takePicture { NSLog(@"isim: -[UIImagePickerController takePicture] without a camera"); }
+- (void)_requireCamera:(const char *)what {
+    if (_source != UIImagePickerControllerSourceTypeCamera)
+        [NSException raise:NSInvalidArgumentException format:@"%s is only available for the camera source", what];
+}
+- (BOOL)showsCameraControls { return _showsControls; }
+- (void)setShowsCameraControls:(BOOL)v { [self _requireCamera:"showsCameraControls"]; _showsControls = v; _camera.showsControls = v; }
+- (UIView *)cameraOverlayView { return _overlay; }
+- (void)setCameraOverlayView:(UIView *)v { [self _requireCamera:"cameraOverlayView"]; _overlay = v; _camera.overlay = v; }
+- (CGAffineTransform)cameraViewTransform { return _viewTransform; }
+- (void)setCameraViewTransform:(CGAffineTransform)t { [self _requireCamera:"cameraViewTransform"]; _viewTransform = t; _camera.previewTransform = t; }
+- (UIImagePickerControllerCameraDevice)cameraDevice { return _camera ? _camera.cameraDevice : _cameraDevice; }
+- (void)setCameraDevice:(UIImagePickerControllerCameraDevice)d { [self _requireCamera:"cameraDevice"]; _cameraDevice = d; _camera.cameraDevice = d; }
+- (UIImagePickerControllerCameraCaptureMode)cameraCaptureMode { return _captureMode; }
+- (void)setCameraCaptureMode:(UIImagePickerControllerCameraCaptureMode)m {
+    [self _requireCamera:"cameraCaptureMode"];
+    BOOL movie = [self.mediaTypes containsObject:@"public.movie"], image = [self.mediaTypes containsObject:@"public.image"];
+    if ((m == UIImagePickerControllerCameraCaptureModeVideo && !movie) || (m == UIImagePickerControllerCameraCaptureModePhoto && !image))
+        [NSException raise:NSInvalidArgumentException format:@"cameraCaptureMode %ld is not allowed by mediaTypes %@", (long)m, self.mediaTypes];
+    _captureMode = m; _camera.captureMode = m;
+}
+- (void)setMediaTypes:(NSArray<NSString *> *)t {
+    _mediaTypes = [t copy];
+    if (_source == UIImagePickerControllerSourceTypeCamera && ![t containsObject:@"public.image"] && [t containsObject:@"public.movie"]) _captureMode = UIImagePickerControllerCameraCaptureModeVideo;
+}
+- (void)takePicture { if (_camera) [_camera takePicture]; else NSLog(@"isim: -[UIImagePickerController takePicture] without the camera source"); }
+- (BOOL)startVideoCapture { return _camera ? [_camera startVideoCapture] : NO; }
+- (void)stopVideoCapture { [_camera stopVideoCapture]; }
+- (id<UIImagePickerControllerDelegate>)_pickerDelegate { return (id)self.delegate; }
+- (void)_finish:(NSDictionary *)info {
+    id<UIImagePickerControllerDelegate> d = [self _pickerDelegate];
+    if ([d respondsToSelector:@selector(imagePickerController:didFinishPickingMediaWithInfo:)]) [d imagePickerController:self didFinishPickingMediaWithInfo:info];
+    else [self.presentingViewController dismissViewControllerAnimated:YES completion:nil];
+}
+- (void)_cancel {
+    id<UIImagePickerControllerDelegate> d = [self _pickerDelegate];
+    if ([d respondsToSelector:@selector(imagePickerControllerDidCancel:)]) [d imagePickerControllerDidCancel:self];
+    else [self.presentingViewController dismissViewControllerAnimated:YES completion:nil];
+}
+/* allowsEditing: the "Move and Scale" square, then the info with the edited image and its crop rect */
+- (void)_editImage:(UIImage *)img info:(NSMutableDictionary *)info cancelTitle:(NSString *)cancel onCancel:(void (^)(void))back {
+    __IsimCropController *c = [__IsimCropController new];
+    c.image = img; c.cancelTitle = cancel;
+    __weak UIImagePickerController *w = self;
+    c.onCancel = back;
+    c.onChoose = ^(UIImage *edited, CGRect r) {
+        CGFloat sc = img.scale;
+        info[UIImagePickerControllerEditedImage] = edited;
+        info[UIImagePickerControllerCropRect] = [NSValue valueWithCGRect:CGRectMake(r.origin.x * sc, r.origin.y * sc, r.size.width * sc, r.size.height * sc)];
+        [w _finish:info];
+    };
+    [self pushViewController:c animated:YES];
+}
+/* a copy of a library movie in tmp, like iOS's picker (the app owns it) */
+static NSURL *movie_copy(NSString *src) {
+    NSString *dst = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"trim.%@.%@", NSUUID.UUID.UUIDString, src.pathExtension.uppercaseString ?: @"MOV"]];
+    return [[NSData dataWithContentsOfFile:src] writeToFile:dst atomically:YES] ? [NSURL fileURLWithPath:dst] : nil;
+}
 - (void)viewDidLoad {
     [super viewDidLoad];
     if (self.viewControllers.count) return;
-    __IsimPhotoGrid *g = [__IsimPhotoGrid new];
-    if (_source == UIImagePickerControllerSourceTypeSavedPhotosAlbum) g.title = @"Moments";
     __weak UIImagePickerController *weakSelf = self;
-    g.onCancel = ^{
-        UIImagePickerController *s = weakSelf; if (!s) return;
-        id<UIImagePickerControllerDelegate> d = (id)s.delegate;
-        if ([d respondsToSelector:@selector(imagePickerControllerDidCancel:)]) [d imagePickerControllerDidCancel:s];
-        else [s.presentingViewController dismissViewControllerAnimated:YES completion:nil];
-    };
+    BOOL images = [self.mediaTypes containsObject:@"public.image"], videos = [self.mediaTypes containsObject:@"public.movie"];
+    if (_source == UIImagePickerControllerSourceTypeCamera) {
+        self.navigationBarHidden = YES;
+        _camera = [__IsimCameraController new];
+        _camera.cameraDevice = _cameraDevice; _camera.captureMode = images ? _captureMode : UIImagePickerControllerCameraCaptureModeVideo;
+        _camera.allowsPhoto = images; _camera.allowsVideo = videos; _camera.showsControls = _showsControls;
+        _camera.quality = self.videoQuality; _camera.maxDuration = self.videoMaximumDuration;
+        _camera.previewTransform = _viewTransform; _camera.overlay = _overlay;
+        _camera.onCancel = ^{ [weakSelf _cancel]; };
+        _camera.onModeChange = ^(UIImagePickerControllerCameraCaptureMode m) { UIImagePickerController *s = weakSelf; if (s) s->_captureMode = m; };
+        _camera.onPhoto = ^(UIImage *img, NSDictionary *meta) {
+            UIImagePickerController *s = weakSelf; if (!s) return;
+            NSMutableDictionary *info = [@{ UIImagePickerControllerMediaType: @"public.image", UIImagePickerControllerOriginalImage: img,
+                                            UIImagePickerControllerMediaMetadata: meta } mutableCopy];
+            if (s.allowsEditing && s->_showsControls)
+                [s _editImage:img info:info cancelTitle:@"Retake" onCancel:^{ [weakSelf popViewControllerAnimated:YES]; }];
+            else [s _finish:info];
+        };
+        _camera.onMovie = ^(NSURL *url) {
+            [weakSelf _finish:@{ UIImagePickerControllerMediaType: @"public.movie", UIImagePickerControllerMediaURL: url }];
+        };
+        self.viewControllers = @[_camera];
+        return;
+    }
+    __IsimPhotoGrid *g = [__IsimPhotoGrid new];
+    g.images = images; g.videos = videos;
+    if (_source == UIImagePickerControllerSourceTypeSavedPhotosAlbum) g.title = @"Moments";
+    g.onCancel = ^{ [weakSelf _cancel]; };
     g.onPick = ^(NSDictionary *asset) {
         UIImagePickerController *s = weakSelf; if (!s) return;
         NSString *path = _isim_photos_path(asset);
+        NSLog(@"isim: UIImagePickerController picked %@", [asset[@"file"] lastPathComponent]);
+        if (is_video(asset)) {                         /* adapted: allowsEditing does not offer trimming */
+            NSURL *u = movie_copy(path);
+            if (u) [s _finish:@{ UIImagePickerControllerMediaType: @"public.movie", UIImagePickerControllerMediaURL: u }];
+            return;
+        }
         UIImage *img = [UIImage imageWithContentsOfFile:path];
         NSMutableDictionary *info = [@{ UIImagePickerControllerMediaType: @"public.image",
                                         UIImagePickerControllerImageURL: [NSURL fileURLWithPath:path] } mutableCopy];
         if (img) info[UIImagePickerControllerOriginalImage] = img;
-        if (img && s.allowsEditing) {                 /* adapted: no crop UI; the edited image is the original, square-cropped */
-            CGFloat side = MIN(img.size.width, img.size.height);
-            CGRect crop = CGRectMake((img.size.width - side) / 2, (img.size.height - side) / 2, side, side);
-            info[UIImagePickerControllerCropRect] = [NSValue valueWithCGRect:crop];
-            CGImageRef cg = CGImageCreateWithImageInRect(img.CGImage, crop);
-            if (cg) { info[UIImagePickerControllerEditedImage] = [UIImage imageWithCGImage:cg]; CGImageRelease(cg); }
-        }
-        NSLog(@"isim: UIImagePickerController picked %@", [asset[@"file"] lastPathComponent]);
-        id<UIImagePickerControllerDelegate> d = (id)s.delegate;
-        if ([d respondsToSelector:@selector(imagePickerController:didFinishPickingMediaWithInfo:)]) [d imagePickerController:s didFinishPickingMediaWithInfo:info];
-        else [s.presentingViewController dismissViewControllerAnimated:YES completion:nil];
+        if (img && s.allowsEditing) [s _editImage:img info:info cancelTitle:@"Cancel" onCancel:^{ [weakSelf popViewControllerAnimated:YES]; }];
+        else [s _finish:info];
     };
     self.viewControllers = @[g];
 }
