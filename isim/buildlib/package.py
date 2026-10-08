@@ -44,9 +44,12 @@ def package(root, version, ctx):
     shutil.rmtree(stage, ignore_errors=True)
     for d in ("bin", "lib", "apps", "licenses"):
         os.makedirs(os.path.join(stage, d))
-    subprocess.run(["docker", "build", "-q", "-t", "isim-release-build", "release/"], check=True, cwd=root, stdout=subprocess.DEVNULL)
+    image = os.environ.get("ISIM_RELEASE_IMAGE")             # an image built beforehand (CI builds it with its layer cache)
+    if not image:
+        image = "isim-release-build"
+        subprocess.run(["docker", "build", "-q", "-t", image, "release/"], check=True, cwd=root, stdout=subprocess.DEVNULL)
     subprocess.run(["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}", "-v", f"{root}:/isim", "-w", "/isim",
-                    "isim-release-build", "bash", "-c", BUNDLE.format(name=name, srcs=" ".join(host_sources(ctx)))], check=True)
+                    image, "bash", "-c", BUNDLE.format(name=name, srcs=" ".join(host_sources(ctx)))], check=True)
     for t in ("tools/isim", "tools/isim-build.py", "tools/xcodeproj.py", "VERSION", "tools/isim-services.py", "tools/momc.py",
               "tools/ibtool.py", "tools/isim-test.py"):
         shutil.copy(os.path.join(root, t), os.path.join(stage, "bin"))
@@ -71,3 +74,27 @@ def package(root, version, ctx):
         f.write(f"{h}  {name}.tar.gz\n")
     print(f"{tar} ({os.path.getsize(tar) // 2**20} MB)")
     return 0
+
+
+def bump(root, kind):
+    """the next version after the latest release tag (vX.Y.Z; isim/VERSION when there is none): patch, minor or major.
+    Writes isim/VERSION and the version examples in the README; returns the new version."""
+    import re
+    if kind not in ("patch", "minor", "major"):
+        raise SystemExit("usage: build.py version patch|minor|major")
+    tags = subprocess.run(["git", "tag", "-l", "v*"], capture_output=True, text=True, cwd=root).stdout.split()
+    versions = sorted(tuple(map(int, t[1:].split("."))) for t in tags if re.fullmatch(r"v\d+\.\d+\.\d+", t))
+    with open(os.path.join(root, "VERSION")) as f:
+        current = f.read().strip()
+    major, minor, patch = versions[-1] if versions else tuple(map(int, current.split(".")))
+    new = {"major": f"{major + 1}.0.0", "minor": f"{major}.{minor + 1}.0", "patch": f"{major}.{minor}.{patch + 1}"}[kind]
+    with open(os.path.join(root, "VERSION"), "w") as f:
+        f.write(new + "\n")
+    readme = os.path.join(root, "..", "README.md")
+    with open(readme) as f:
+        text = f.read()
+    text = re.sub(r"(isim update )\d+\.\d+\.\d+", rf"\g<1>{new}", text)
+    text = re.sub(r"(build\.py package )\d+\.\d+\.\d+", rf"\g<1>{new}", text)
+    with open(readme, "w") as f:
+        f.write(text)
+    return new
