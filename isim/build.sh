@@ -27,6 +27,9 @@ else
   step "web engine helper: skipped (needs webkitgtk-6.0 and gtk4-broadwayd; WKWebView shows a placeholder)"; rm -f "$OUT/bin/isim-webkit"
 fi
 
+# isim's UI fonts (fonts/, OFL): the runtime registers ../share/fonts, so text renders the same on every distribution
+mkdir -p "$OUT/share/fonts" && rsync -a --delete --include='*.ttf' --include='LICENSE*' --exclude='*' fonts/ "$OUT/share/fonts/"
+
 step "SDK headers"
 rsync -a --delete sdk-src/usr/include/ "$SDK/usr/include/"
 cp sdk-src/SDKSettings.json "$SDK/"
@@ -73,19 +76,31 @@ framework() { # Name srcdir [extra ld args...]
   mkdir -p "$fw/Headers" "$objdir"
   rsync -a --delete "sdk-src/Frameworks/$name/" "$fw/Headers/"
   mkdir -p "$fw/Modules"
-  printf 'framework module %s [system] [extern_c] {\n  umbrella header "%s.h"\n  export *\n  module * { export * }\n}\n' "$name" "$name" > "$fw/Modules/module.modulemap"
+  local mm; mm=$(printf 'framework module %s [system] [extern_c] {\n  umbrella header "%s.h"\n  export *\n  module * { export * }\n}\n' "$name" "$name")
+  [ "$(cat "$fw/Modules/module.modulemap" 2>/dev/null)" = "$mm" ] || printf '%s\n' "$mm" > "$fw/Modules/module.modulemap"
   compgen -G "$src/*.[mc]" >/dev/null || { step "framework $name: headers only"; return 0; }
   step "framework $name"
-  local objs=()
-  for f in "$src"/*.m "$src"/*.c; do
-    [ -e "$f" ] || continue
-    local o="$objdir/$(basename "$f").o" arc=
-    case "$f" in *.mrc.m) arc=-fno-objc-arc ;; *.m) arc=-fobjc-arc ;; esac
-    $CC "${GUEST_CFLAGS[@]}" $arc -I"$src" -c "$f" -o "$o"
-    objs+=("$o")
-  done
+  # incremental: only sources whose object, or anything the object was built from (clang dependency file), changed
+  local srcs=() objs=() stale=()
+  for f in "$src"/*.m "$src"/*.c; do [ -e "$f" ] && srcs+=("$f") && objs+=("$objdir/$(basename "$f").o"); done
+  mapfile -t stale < <(FRESH_FLAGS="${GUEST_CFLAGS[*]} ${CCC_OVERRIDE_OPTIONS:-}" python3 tools/fresh.py objects "$objdir" "${srcs[@]}")
+  if [ ${#stale[@]} -gt 0 ] && [ -n "${stale[0]}" ]; then
+    local f pids=() failed=0
+    for f in "${stale[@]}"; do
+      local o="$objdir/$(basename "$f").o" arc=
+      case "$f" in *.mrc.m) arc=-fno-objc-arc ;; *.m) arc=-fobjc-arc ;; esac
+      $CC "${GUEST_CFLAGS[@]}" $arc -I"$src" -MMD -MF "$o.d" -c "$f" -o "$o" & pids+=($!)
+      if [ ${#pids[@]} -ge "$(nproc)" ]; then wait "${pids[0]}" || failed=1; pids=("${pids[@]:1}"); fi
+    done
+    for f in "${pids[@]}"; do wait "$f" || failed=1; done
+    [ $failed = 0 ] || { echo "framework $name: compile failed"; exit 1; }
+    FRESH_FLAGS="${GUEST_CFLAGS[*]} ${CCC_OVERRIDE_OPTIONS:-}" python3 tools/fresh.py objects-done "$objdir" "${stale[@]}"
+  elif [ -f "$fw/$name" ] && python3 tools/fresh.py check "fw-link-$name" --in "${objs[@]}" --key "$*"; then
+    return 0
+  fi
   $LD $GUEST_LDFLAGS -dylib -install_name "/System/Library/Frameworks/$name.framework/$name" \
       -o "$fw/$name" "${objs[@]}" -L"$SDK/usr/lib" -F"$SDK/System/Library/Frameworks" -lSystem -lobjc "$@"
+  python3 tools/fresh.py record "fw-link-$name" --in "${objs[@]}" --key "$*"
 }
 
 framework CoreFoundation frameworks/CoreFoundation
@@ -117,9 +132,15 @@ bash swift/build.sh
 step "system apps (home screen, Settings)"
 ISIM_SDK=$SDK ISIM_CC=$CC bash system/build.sh
 
+# samples and test apps: rebuilt when their own files or the SDK's interface (headers, Swift module interfaces,
+# .tbd stubs) changed; framework implementations are not inputs (apps link to them at run time, ABI-stable)
+SDK_IFACE=$(python3 tools/fresh.py hash "$SDK/usr/include" "$SDK"/System/Library/Frameworks/*/Headers \
+  "$SDK"/usr/lib/swift/*.swiftmodule "$SDK"/usr/lib/*.tbd tools/isim tools/isim-build.py tools/xcodeproj.py)
 for app in samples/*/ tests/*/; do
   [ -f "$app/build.sh" ] || continue
   step "sample $(basename "$app")"
-  ISIM_SDK=$SDK ISIM_CC=$CC ISIM_LD=$LD bash "$app/build.sh" "$OUT/apps"
+  outs=(); for a in $(grep -oE '[A-Za-z0-9]+\.app\b' "$app/build.sh" | sort -u); do outs+=("$OUT/apps/$a"); done
+  python3 tools/fresh.py run "sample-$(basename "$app")" --in "$app" --key "$SDK_IFACE" --out "${outs[@]}" -- \
+    env ISIM_SDK="$SDK" ISIM_CC="$CC" ISIM_LD="$LD" bash "$app/build.sh" "$OUT/apps"
 done
 step "done: $OUT"

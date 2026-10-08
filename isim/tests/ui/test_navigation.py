@@ -22,10 +22,9 @@ def test_navigation(launch, ios):
     assert nav_bar_height(app) == 158, "large title"
 
     app.drag(200, 600, 200, 300, 0.4)
-    app.sleep(0.6)                                     # the collapse animates
-    assert nav_bar_height(app) == 106, "large title collapses on scroll"
+    app.wait_until(lambda: nav_bar_height(app) == 106, what="large title collapses on scroll")
     app.drag(200, 300, 200, 700, 0.4)
-    app.sleep(0.6)
+    app.wait_until(lambda: nav_bar_height(app) == 158, what="large title expands again")
 
     app.wait_for(id="book-3").tap()
     app.wait_log("detail 3 appears")
@@ -42,7 +41,7 @@ def test_navigation(launch, ios):
 
     app.wait_for(id="book-5").tap()
     app.wait_log("detail 5 appears")
-    app.sleep(0.4)                                     # push animation done before the edge swipe
+    app.wait_until(lambda: app.find(id="book-5") is None, what="push finished")   # before the edge swipe
     app.drag(3, 400, 330, 400, 0.4)
     app.wait_log("list appears", count=3)              # back swipe pops
 
