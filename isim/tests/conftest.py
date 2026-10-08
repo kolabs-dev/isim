@@ -62,8 +62,10 @@ def launch(device_data, ios):
     os_version, device = ios
 
     def _launch(name, **kw):
-        if not (APPS / f"{name}.app").is_dir():
-            pytest.skip(f"{name}.app is not built")
+        """name: an app in out/apps (or an .app Path); None boots the device (with install=[apps])."""
+        for n in ([name] if isinstance(name, str) else []) + list(kw.get("install", ())):
+            if not (APPS / f"{n}.app").is_dir():
+                pytest.skip(f"{n}.app is not built")
         kw.setdefault("os_version", os_version)
         kw.setdefault("device", device)
         kw.setdefault("data", device_data)

@@ -118,12 +118,18 @@ class WaitTimeout(AssertionError):
 class App:
     """One headless app run on its own device data. Use as a context manager (quits and reaps the process)."""
 
-    def __init__(self, name: str, *, device: str | None = None, os_version: str | None = None,
-                 data: Path | None = None, env: dict | None = None, args: list[str] | None = None):
-        self.bundle = APPS / f"{name}.app"
-        assert self.bundle.is_dir(), f"{self.bundle} is not built"
-        self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{name}-", dir=ROOT / "out"))
+    def __init__(self, name: str | Path | None, *, device: str | None = None, os_version: str | None = None,
+                 data: Path | None = None, env: dict | None = None, args: list[str] | None = None,
+                 install: list[str] = ()):
+        """name: an app in out/apps, or the Path of an .app bundle. name=None boots the device (`isim boot`: the home
+        screen, system UI and `launch BUNDLE_ID`) with the `install` apps (names in out/apps) installed first."""
+        self.bundle = None if name is None else name if isinstance(name, Path) else APPS / f"{name}.app"
+        assert self.bundle is None or self.bundle.is_dir(), f"{self.bundle} is not built"
+        label = self.bundle.stem if self.bundle else "boot"
+        self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{label}-", dir=ROOT / "out"))
         self.data = data or Path(os.environ.get("ISIM_DATA") or self.tmp / "data")
+        if install:
+            install_apps(self.data, *install)
         self.fifo = self.tmp / "control"
         os.mkfifo(self.fifo)
         e = dict(os.environ, ISIM_DATA=str(self.data), ISIM_HEADLESS="1", ISIM_SHOT_SCALE="1",
@@ -133,7 +139,8 @@ class App:
         e.update(env or {})
         self._lines: list[str] = []
         self._cv = threading.Condition()
-        self.proc = subprocess.Popen([str(ISIM), "run", str(self.bundle), "--control", str(self.fifo), *(args or [])],
+        what = ["run", str(self.bundle)] if self.bundle else ["boot"]
+        self.proc = subprocess.Popen([str(ISIM), *what, "--control", str(self.fifo), *(args or [])],
                                      env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                      errors="replace")
         self._reader = threading.Thread(target=self._read, daemon=True)
@@ -218,17 +225,47 @@ class App:
 
     def views(self, timeout: float = TIMEOUT) -> list[View]:
         """The app's view tree (`dump views FILE`): every view with its class, frame, id and text."""
+        return parse_views(self.view_dump(timeout))
+
+    def view_dump(self, timeout: float = TIMEOUT) -> str:
+        """The view tree as text, as the `dump` script command prints it (one view per line, indented)."""
         self._n += 1
         path = self.tmp / f"views{self._n}.txt"
         self.send(f"dump views {path}")
         end = time.monotonic() + timeout
         while time.monotonic() < end:
             if path.exists():
-                return parse_views(path.read_text(errors="replace"))
+                return path.read_text(errors="replace")
             if self.proc.poll() is not None:
                 break
             time.sleep(0.02)
         raise WaitTimeout(f"no view dump after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
+
+    def wait_view(self, pattern: str, gone: bool = False, timeout: float = TIMEOUT) -> str:
+        """Poll the view tree until the regex `pattern` matches a line of it (gone=True: until none does); return
+        that view dump. For checks on `dump` output, e.g. wait_view(r"id=total text=3 items")."""
+        rx = re.compile(pattern, re.M)
+        end = time.monotonic() + timeout
+        while True:
+            text = self.view_dump()
+            if bool(rx.search(text)) != gone:
+                return text
+            if time.monotonic() > end:
+                raise WaitTimeout(f"{'still' if gone else 'no'} {pattern!r} in the view tree after {timeout:g} s\n"
+                                  + "\n".join(l for l in text.splitlines() if " id=" in l or " text=" in l)[-4000:])
+            time.sleep(0.05)
+
+    def wait_tap_id(self, ident: str, timeout: float = TIMEOUT) -> "App":
+        """Wait until a visible view with accessibilityIdentifier `ident` is in the view tree, then `tapid` it (for
+        views the accessibility snapshot does not list, e.g. some SwiftUI controls)."""
+        self.wait_view(rf"^(?!.* hidden id=).* id={re.escape(ident)}( text=.*| ax=.*)?$", timeout=timeout)
+        return self.tap_id(ident)
+
+    def count(self, pattern: str) -> int:
+        """How many lines of the app's output so far match the regex `pattern`."""
+        rx = re.compile(pattern)
+        with self._cv:
+            return sum(1 for line in self._lines if rx.search(line))
 
     def find(self, *, id: str | None = None, label: str | None = None, type: str | None = None,
              snapshot: list[Element] | None = None) -> Element | None:
@@ -259,6 +296,10 @@ class App:
         self.send(f"shot {path}")
         self.wait_log(re.escape(f"screenshot {path}"), timeout=TIMEOUT)
         return Image.open(path).convert("RGB")
+
+    def wait_shot(self, pred, what: str = "screenshot condition", timeout: float = TIMEOUT):
+        """Take screenshots until pred(image) holds and return that image (pixels that change after an action)."""
+        return poll(lambda: img if pred(img := self.screenshot()) else None, what, timeout)
 
     # ---- lifetime ----
     def quit(self, timeout: float = 20) -> int:
@@ -352,6 +393,19 @@ def is_red(c) -> bool:
     return r > 180 and g < 90 and b < 90
 
 
+def count_px(img, box, pred) -> int:
+    """How many pixels in box = (x, y, w, h) satisfy pred((r, g, b))."""
+    x, y, w, h = map(int, box)
+    return sum(1 for p in img.crop((x, y, x + w, y + h)).getdata() if pred(p[:3]))
+
+
+def mean_rgb(img, box) -> tuple[float, float, float]:
+    """The mean colour (0-255 per channel) of box = (x, y, w, h)."""
+    from PIL import ImageStat
+    x, y, w, h = map(int, box)
+    return tuple(ImageStat.Stat(img.crop((x, y, x + w, y + h)).convert("RGB")).mean)
+
+
 # ---- test helpers ----
 def need_apps(*names):
     """Skip unless these apps (out/apps/NAME.app) are built."""
@@ -372,5 +426,41 @@ def exclusive(key: str):
             yield
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def poll(fn, what: str, timeout: float = TIMEOUT, interval: float = 0.05):
+    """Call fn() until it returns something truthy and return that (e.g. a screenshot once a pixel changed)."""
+    end = time.monotonic() + timeout
+    while True:
+        v = fn()
+        if v:
+            return v
+        if time.monotonic() > end:
+            raise WaitTimeout(f"{what}: not after {timeout:g} s")
+        time.sleep(interval)
+
+
+def install_apps(data: Path, *names: str):
+    """`isim install` apps (names in out/apps) on the device data `data` (for App(None, ...): `isim boot`)."""
+    p = subprocess.run([str(ISIM), "install", *(str(APPS / f"{n}.app") for n in names)],
+                       env=dict(os.environ, ISIM_DATA=str(data)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       text=True)
+    assert p.returncode == 0, f"isim install {' '.join(names)}: {p.stdout}"
+
+
+@contextmanager
+def local_server(script: Path, log: Path):
+    """Run a sample's local server (`python3 server.py 0` prints "PORT <n>" when ready) and yield its port; its
+    stderr (the request log) goes to `log`. Stopped at the end."""
+    import sys
+    with open(log, "w") as err:
+        p = subprocess.Popen([sys.executable, str(script), "0"], stdout=subprocess.PIPE, stderr=err, text=True)
+        try:
+            line = p.stdout.readline()
+            assert line.startswith("PORT "), f"{script} did not start: {line!r} {Path(log).read_text()}"
+            yield int(line.split()[1])
+        finally:
+            p.kill()
+            p.wait()
 
 
