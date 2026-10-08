@@ -78,6 +78,28 @@ def launch(device_data, ios):
         app.quit()
 
 
+@pytest.fixture(scope="module")
+def launch_module(request, tmp_path_factory):
+    """launch for module-scoped fixtures (one app run shared by a module's tests): --os / --device apply, and each
+    call gets its own scratch device data unless data= is given. Apps quit at the end of the module."""
+    apps = []
+
+    def _launch(name, **kw):
+        for n in ([name] if isinstance(name, str) else []) + list(kw.get("install", ())):
+            if not (APPS / f"{n}.app").is_dir():
+                pytest.skip(f"{n}.app is not built")
+        kw.setdefault("os_version", request.config.getoption("--os"))
+        kw.setdefault("device", request.config.getoption("--device"))
+        kw.setdefault("data", tmp_path_factory.mktemp("data"))
+        app = App(name, **kw).__enter__()
+        apps.append(app)
+        return app
+
+    yield _launch
+    for app in apps:
+        app.quit()
+
+
 # ---- longest first ----
 def pytest_collection_modifyitems(config, items):
     try:

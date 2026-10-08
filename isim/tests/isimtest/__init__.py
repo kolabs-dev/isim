@@ -314,10 +314,11 @@ class App:
                 self.proc.kill()
                 self.proc.wait()
         self._reader.join(5)
-        try:
-            self._ctl.close()
-        except OSError:
-            pass
+        for f in (self._ctl, self.proc.stdout):
+            try:
+                f.close()
+            except (OSError, ValueError):
+                pass
         return self.proc.returncode
 
     def __enter__(self) -> "App":
@@ -393,10 +394,16 @@ def is_red(c) -> bool:
     return r > 180 and g < 90 and b < 90
 
 
+def close(img, x: float, y: float, target, d2: float = 2500) -> bool:
+    """The colour at (x, y) is within a squared RGB distance d2 of target."""
+    return sum((a - b) ** 2 for a, b in zip(rgb(img, x, y), target)) < d2
+
+
 def count_px(img, box, pred) -> int:
     """How many pixels in box = (x, y, w, h) satisfy pred((r, g, b))."""
     x, y, w, h = map(int, box)
-    return sum(1 for p in img.crop((x, y, x + w, y + h)).getdata() if pred(p[:3]))
+    px = img.load()
+    return sum(1 for j in range(y, y + h) for i in range(x, x + w) if pred(px[i, j][:3]))
 
 
 def mean_rgb(img, box) -> tuple[float, float, float]:
@@ -462,5 +469,6 @@ def local_server(script: Path, log: Path):
         finally:
             p.kill()
             p.wait()
+            p.stdout.close()
 
 
