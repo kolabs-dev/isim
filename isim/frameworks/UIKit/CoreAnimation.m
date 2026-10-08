@@ -845,6 +845,9 @@ static BOOL transform_set(CATransform3D *t, NSString *sub, const ca_val *v) {
     CAAnimation *a = [anim copy];
     if (a.beginTime == 0) a.beginTime = [self _isim_localTime:CACurrentMediaTime()];
     if (a.duration <= 0) a.duration = [a isKindOfClass:[CASpringAnimation class]] ? ((CASpringAnimation *)a).settlingDuration : 0.25;
+    static int off = -1;
+    if (off < 0) { const char *e = getenv("ISIM_ANIMATIONS"); off = e && !strcmp(e, "0"); }
+    if (off && a.repeatCount == 0 && a.repeatDuration == 0) a.duration = 1e-3;   /* ISIM_ANIMATIONS=0: finish at once */
     if ([a isKindOfClass:[CATransition class]]) {           /* the old appearance, from the last frame on screen */
         CGRect r = [self convertRect:self.bounds toLayer:nil];
         ca_transition_set_snapshot((CATransition *)a, isim_gfx_screen_snapshot(r.origin.x, r.origin.y, r.size.width, r.size.height));

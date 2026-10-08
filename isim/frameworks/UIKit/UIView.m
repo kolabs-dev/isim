@@ -1077,6 +1077,9 @@ typedef struct anim_ctx {
 static anim_ctx *cur_ctx;
 static int suppress_depth;
 static BOOL animations_enabled = YES;
+/* ISIM_ANIMATIONS=0 (tests): UIView animations apply at once, like +setAnimationsEnabled:NO; Core Animation and
+   SwiftUI animations finish immediately too (CoreAnimation.m, SwiftUI Animatable.swift) */
+__attribute__((constructor)) static void isim_animations_env(void) { const char *e = getenv("ISIM_ANIMATIONS"); if (e && !strcmp(e, "0")) animations_enabled = NO; }
 static NSMutableArray<UIView *> *animating;          /* views with active tracks (kept alive while animating, like CA) */
 static NSMutableSet *live_groups;
 

@@ -92,6 +92,8 @@ These override the Settings app for one run (the device's settings stay as they 
 | `ISIM_INSTALL_DIR=DIR` | where `install.sh` / `isim update` keep releases (default `~/.local/lib/isim`) |
 | `ISIM_OBJC_EXCEPTION_LOG=1` | log every Objective-C exception when it is thrown |
 | `ISIM_NO_CRASH_HANDLER=1` | no crash report / backtrace on a guest crash (for debuggers) |
+| `ISIM_SKIP_LAUNCH_SCREEN=1` | apps start without their launch screen (the Python tests set it) |
+| `ISIM_ANIMATIONS=0` | animations finish at once (UIView, Core Animation, SwiftUI): for tests that only check end states |
 | `ISIM_WEBKIT_DEBUG=1`, `ISIM_XCUI_DEBUG=1` | WebKit helper output; XCUITest accessibility snapshots |
 
 ## Logs

@@ -120,13 +120,16 @@ class App:
 
     def __init__(self, name: str, *, device: str | None = None, os_version: str | None = None,
                  data: Path | None = None, env: dict | None = None, args: list[str] | None = None,
-                 bundle: Path | str | None = None):
-        """`bundle` runs another bundle than out/apps/NAME.app (an .appex, a modified copy, a test fixture)."""
+                 bundle: Path | str | None = None, animations: bool = True, launch_screen: bool = False):
+        """animations=False: ISIM_ANIMATIONS=0, animations finish at once (faster, for tests that only check end
+        states). launch_screen=True: show the app's launch screen (skipped by default: ISIM_SKIP_LAUNCH_SCREEN).
+        `bundle` runs another bundle than out/apps/NAME.app (an .appex, a modified copy, a test fixture)."""
         self.bundle = Path(bundle) if bundle else APPS / f"{name}.app"
         assert self.bundle.exists(), f"{self.bundle} is not built"
-        self._start(name, [str(ISIM), "run", str(self.bundle)], device, os_version, data, env, args)
+        self._start(name, [str(ISIM), "run", str(self.bundle)], device, os_version, data, env, args, animations,
+                    launch_screen)
 
-    def _start(self, name, command, device, os_version, data, env, args):
+    def _start(self, name, command, device, os_version, data, env, args, animations=True, launch_screen=False):
         self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{name}-", dir=ROOT / "out"))
         self.data = Path(data or os.environ.get("ISIM_DATA") or self.tmp / "data")
         self.fifo = self.tmp / "control"
@@ -135,6 +138,10 @@ class App:
                  ISIM_DEVICE=device or DEFAULT_DEVICE, ISIM_SCRIPT="wait 0")
         if os_version:
             e["ISIM_OS_VERSION"] = str(os_version)
+        if not launch_screen:
+            e["ISIM_SKIP_LAUNCH_SCREEN"] = "1"
+        if not animations:
+            e["ISIM_ANIMATIONS"] = "0"
         e.update(env or {})
         self._lines: list[str] = []
         self._cv = threading.Condition()
@@ -371,10 +378,9 @@ class App:
 
     def __enter__(self) -> "App":
         self.wait_log(r"isim: launching ", timeout=TIMEOUT * 3)
-        try:                                   # the launch screen covers the app until it fades out
-            self.wait_log(r"isim: launch screen hidden", timeout=5)
-        except WaitTimeout:
-            pass
+        self.wait_for(type="window", timeout=TIMEOUT * 3)          # the app has a window on screen
+        if self.find(id="launch-screen"):                          # launch_screen=True: wait until it fades out
+            self.wait_log(r"isim: launch screen hidden", timeout=TIMEOUT)
         return self
 
     def __exit__(self, *exc):
@@ -392,12 +398,13 @@ class Device(App):
     """
 
     def __init__(self, *, apps=(), device: str | None = None, os_version: str | None = None,
-                 data: Path | None = None, env: dict | None = None, args: list[str] | None = None):
+                 data: Path | None = None, env: dict | None = None, args: list[str] | None = None,
+                 animations: bool = True, launch_screen: bool = False):
         data = Path(data or os.environ.get("ISIM_DATA") or tempfile.mkdtemp(prefix="isimtest-device-", dir=ROOT / "out"))
         if apps:
             install(data, *apps)
         self.bundle = None
-        self._start("device", [str(ISIM), "boot"], device, os_version, data, env, args)
+        self._start("device", [str(ISIM), "boot"], device, os_version, data, env, args, animations, launch_screen)
 
     def launch(self, bundle_id: str) -> "Device":
         """Open an installed app (the `launch` script command)."""
