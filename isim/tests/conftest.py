@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
-from isimtest import APPS, App, ROOT  # noqa: E402
+from isimtest import APPS, App, Device, ROOT  # noqa: E402
 
 DURATIONS = ROOT / "out" / "test-durations.json"
 MATRIX = {"17": "iphone15", "18": "iphone16pro", "26": "iphone17", "27": "iphone17"}
@@ -35,10 +35,10 @@ def pytest_generate_tests(metafunc):
         return                                       # one run, with --os / --device
     versions = [None, *MATRIX]
     metafunc.parametrize("ios", versions, ids=["default" if v is None else f"ios{v}" for v in versions],
-                         indirect=True)
+                         indirect=True, scope="module")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def ios(request):
     """(os_version, device) for this test: the matrix version, else --os / --device."""
     v = getattr(request, "param", None)
@@ -62,7 +62,7 @@ def launch(device_data, ios):
     os_version, device = ios
 
     def _launch(name, **kw):
-        if not (APPS / f"{name}.app").is_dir():
+        if not kw.get("bundle") and not (APPS / f"{name}.app").is_dir():
             pytest.skip(f"{name}.app is not built")
         kw.setdefault("os_version", os_version)
         kw.setdefault("device", device)
@@ -76,8 +76,57 @@ def launch(device_data, ios):
         app.quit()
 
 
+@pytest.fixture(scope="module")
+def launch_module(ios, tmp_path_factory):
+    """Like `launch`, for a module-scoped fixture that shares one app run between several test functions (each launch
+    gets its own scratch device data unless `data=` is given). The tests that use it run on one xdist worker
+    (an xdist_group per module), so the app runs once per module (and per iOS version under the OS matrix)."""
+    apps = []
+    os_version, device = ios
+
+    def _launch(name, **kw):
+        if not kw.get("bundle") and not (APPS / f"{name}.app").is_dir():
+            pytest.skip(f"{name}.app is not built")
+        kw.setdefault("os_version", os_version)
+        kw.setdefault("device", device)
+        kw.setdefault("data", tmp_path_factory.mktemp("data"))
+        app = App(name, **kw).__enter__()
+        apps.append(app)
+        return app
+
+    yield _launch
+    for app in apps:
+        app.quit()
+
+
+@pytest.fixture
+def boot(device_data, ios):
+    """boot(apps=["HelloSystem"], **options) -> isimtest.Device: `isim boot` (home screen, Settings, system UI) on
+    scratch device data with those apps installed; quit automatically at the end of the test."""
+    devices = []
+    os_version, device = ios
+
+    def _boot(apps=(), **kw):
+        missing = [a for a in apps if "/" not in str(a) and not (APPS / f"{a}.app").is_dir()]
+        if missing:
+            pytest.skip(f"not built: {', '.join(missing)}")
+        kw.setdefault("os_version", os_version)
+        kw.setdefault("device", device)
+        kw.setdefault("data", device_data)
+        dev = Device(apps=apps, **kw).__enter__()
+        devices.append(dev)
+        return dev
+
+    yield _boot
+    for dev in devices:
+        dev.quit()
+
+
 # ---- longest first ----
 def pytest_collection_modifyitems(config, items):
+    for it in items:                                 # one worker per module-shared app run (test.sh: --dist loadgroup)
+        if "launch_module" in getattr(it, "fixturenames", ()):
+            it.add_marker(pytest.mark.xdist_group(it.module.__name__))
     try:
         known = json.loads(DURATIONS.read_text())
     except (OSError, ValueError):

@@ -15,7 +15,7 @@ fi
 if [ -n "${ISIM_TEST_JOBS:-}" ]; then jobs=$ISIM_TEST_JOBS
 else jobs=$(( $(nproc) / 2 )); [ "$jobs" -ge 2 ] || jobs=2; [ "$jobs" -le 16 ] || jobs=16; fi
 args=(--basetemp="$PWD/out/pytest" -q)
-[ "$jobs" -gt 1 ] && args+=(-n "$jobs" --dist load --maxschedchunk 1)
+[ "$jobs" -gt 1 ] && args+=(-n "$jobs" --dist loadgroup --maxschedchunk 1)
 [ "${ISIM_TEST_RETRY:-1}" = 0 ] || args+=(--reruns 1)
 [ "${OS_MATRIX:-0}" = 1 ] && args+=(--os-matrix)
 cd tests && exec "$venv/bin/python" -m pytest "${args[@]}" "$@"
