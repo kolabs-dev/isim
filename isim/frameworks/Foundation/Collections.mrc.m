@@ -15,6 +15,24 @@ static void throw_nil(const char *where) {
 /* ================= NSValue / NSNumber ================= */
 enum { V_PTR, V_NONRET, V_RANGE, V_POINT, V_SIZE, V_RECT };
 @implementation NSValue { @public int _kind; union { const void *p; NSRange r; CGPoint pt; CGSize sz; CGRect rect; } _v; }
+/* keyed coding (Apple's NS.special keys); values written by reference or inline are both read */
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSValue class]); }
+- (instancetype)initWithCoder:(NSCoder *)c {
+    if (!(self = [self init])) return nil;
+    const char *str = NULL;
+    switch ([c decodeIntForKey:@"NS.special"]) {
+    case 1: _kind = V_POINT; str = [[c decodeObjectOfClass:[NSString class] forKey:@"NS.pointval"] UTF8String];
+            sscanf(str ?: "", "{%lf, %lf}", &_v.pt.x, &_v.pt.y); break;
+    case 2: _kind = V_SIZE; str = [[c decodeObjectOfClass:[NSString class] forKey:@"NS.sizeval"] UTF8String];
+            sscanf(str ?: "", "{%lf, %lf}", &_v.sz.width, &_v.sz.height); break;
+    case 3: _kind = V_RECT; str = [[c decodeObjectOfClass:[NSString class] forKey:@"NS.rectval"] UTF8String];
+            sscanf(str ?: "", "{{%lf, %lf}, {%lf, %lf}}", &_v.rect.origin.x, &_v.rect.origin.y, &_v.rect.size.width, &_v.rect.size.height); break;
+    case 4: _kind = V_RANGE; _v.r = NSMakeRange((NSUInteger)[c decodeInt64ForKey:@"NS.rangeval.location"], (NSUInteger)[c decodeInt64ForKey:@"NS.rangeval.length"]); break;
+    default: [self release]; return nil;                     /* pointers and other types are not archivable */
+    }
+    return self;
+}
 static NSValue *mkval(int kind) { NSValue *v = [[[NSValue alloc] init] autorelease]; v->_kind = kind; return v; }
 + (NSValue *)valueWithPointer:(const void *)p { NSValue *v = mkval(V_PTR); v->_v.p = p; return v; }
 + (NSValue *)valueWithNonretainedObject:(id)o { NSValue *v = mkval(V_NONRET); v->_v.p = o; return v; }
@@ -161,6 +179,9 @@ static NSEnumerator *array_enum(NSArray *a, BOOL rev) {
 /* _count and _items come first: clang's constant arrays (NSConstantArray: { isa, count, objects }) share this prefix,
  * so every read-only method below works on them too (ConstantLiterals.mrc.m). Keep the order. */
 @implementation NSArray { @public NSUInteger _count; id *_items; NSUInteger _cap; unsigned long _mutations; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSArray class]); }    /* NS.objects */
+- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithArray:isim_decode_objects(c, @"NS.objects")]; }
 + (instancetype)array { return [[[self alloc] init] autorelease]; }
 + (instancetype)arrayWithObject:(id)o { return [[[self alloc] initWithObjects:&o count:1] autorelease]; }
 + (instancetype)arrayWithObjects:(const id *)objs count:(NSUInteger)n { return [[[self alloc] initWithObjects:objs count:n] autorelease]; }
@@ -312,6 +333,14 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
  * count, keys, objects }) share this prefix; they have no _hashes and override -_indexOfKey: (ConstantLiterals.mrc.m).
  * Keep the order. */
 @implementation NSDictionary { @public NSUInteger _options, _count; id *_keys, *_vals; NSUInteger *_hashes; NSUInteger _cap; unsigned long _mutations; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSDictionary class]); }    /* NS.keys, NS.objects */
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSArray *keys = isim_decode_objects(c, @"NS.keys"), *vals = isim_decode_objects(c, @"NS.objects");
+    NSMutableDictionary *d = [NSMutableDictionary dictionaryWithCapacity:keys.count];
+    for (NSUInteger i = 0; i < keys.count && i < vals.count; i++) [d setObject:[vals objectAtIndex:i] forKey:[keys objectAtIndex:i]];
+    return [self initWithDictionary:d];
+}
 + (instancetype)dictionary { return [[[self alloc] init] autorelease]; }
 + (instancetype)dictionaryWithObject:(id)o forKey:(id)k { return [[[self alloc] initWithObjects:&o forKeys:&k count:1] autorelease]; }
 + (instancetype)dictionaryWithObjects:(const id *)o forKeys:(const id *)k count:(NSUInteger)n { return [[[self alloc] initWithObjects:o forKeys:k count:n] autorelease]; }
@@ -414,6 +443,9 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 
 /* ================= NSSet / NSMutableSet (array-backed) ================= */
 @implementation NSSet { @public NSMutableArray *_a; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSSet class]); }    /* NS.objects */
+- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithArray:isim_decode_objects(c, @"NS.objects")]; }
 + (instancetype)set { return [[[self alloc] init] autorelease]; }
 + (instancetype)setWithObject:(id)o { return [[[self alloc] initWithObjects:&o count:1] autorelease]; }
 + (instancetype)setWithObjects:(const id *)o count:(NSUInteger)n { return [[[self alloc] initWithObjects:o count:n] autorelease]; }
@@ -465,6 +497,9 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 @end
 
 @implementation NSNull
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSNull class]); }
+- (instancetype)initWithCoder:(NSCoder *)c { [self release]; return [[NSNull null] retain]; }
 + (NSNull *)null { static NSNull *n; if (!n) n = [[NSNull alloc] init]; return n; }
 - (id)copyWithZone:(NSZone *)z { return self; }
 - (NSString *)description { return @"<null>"; }

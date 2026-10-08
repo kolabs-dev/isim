@@ -14,6 +14,16 @@ static int deallocs;
 - (void)dealloc { deallocs++; }
 @end
 
+/* an NSError subclass with its own state, archived through super (issue #39) */
+@interface TaggedError : NSError
+@property (nonatomic, copy) NSString *tag;
+@end
+@implementation TaggedError
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { [super encodeWithCoder:c]; [c encodeObject:self.tag forKey:@"tag"]; }
+- (instancetype)initWithCoder:(NSCoder *)c { if ((self = [super initWithCoder:c])) _tag = [c decodeObjectOfClass:[NSString class] forKey:@"tag"]; return self; }
+@end
+
 static int initialized;
 @interface Lazy : NSObject @end
 @implementation Lazy
@@ -345,6 +355,43 @@ int main(int argc, char *argv[]) {
         }];
         CHECK([[NSError errorWithDomain:@"test.provided" code:7 userInfo:nil].localizedDescription isEqualToString:@"provided 7"]);
         CHECK([NSError userInfoValueProviderForDomain:@"test.provided"] != nil && [NSError userInfoValueProviderForDomain:@"other"] == nil);
+
+        // NSCoding / NSSecureCoding of Foundation's own classes (issue #39)
+        CHECK([NSArray supportsSecureCoding] && [NSDictionary supportsSecureCoding] && [NSSet supportsSecureCoding] && [NSNull supportsSecureCoding] &&
+              [NSValue supportsSecureCoding] && [NSString supportsSecureCoding] && [NSLocale supportsSecureCoding] && [NSTimeZone supportsSecureCoding] &&
+              [NSURL supportsSecureCoding] && [NSDate supportsSecureCoding] && [NSError supportsSecureCoding]);
+        CHECK([@[] respondsToSelector:@selector(encodeWithCoder:)] && [NSError instancesRespondToSelector:@selector(initWithCoder:)] &&
+              [NSURL instancesRespondToSelector:@selector(encodeWithCoder:)] && [NSDate instancesRespondToSelector:@selector(initWithCoder:)]);
+        NSError *posix = [NSError errorWithDomain:NSPOSIXErrorDomain code:2 userInfo:nil];
+        NSError *err = [NSError errorWithDomain:@"isim.test" code:42 userInfo:@{ NSLocalizedDescriptionKey: @"boom", NSUnderlyingErrorKey: posix,
+                                                                                @"url": [NSURL URLWithString:@"https://example.com/a"], @"block": ^{} }];
+        NSData *errData = [NSKeyedArchiver archivedDataWithRootObject:err requiringSecureCoding:YES error:NULL];
+        NSError *err2 = errData ? [NSKeyedUnarchiver unarchivedObjectOfClass:[NSError class] fromData:errData error:NULL] : nil;
+        CHECK([err2.domain isEqualToString:@"isim.test"] && err2.code == 42 && [err2.localizedDescription isEqualToString:@"boom"]);
+        CHECK([err2.userInfo[NSUnderlyingErrorKey] code] == 2 && [[err2.userInfo[@"url"] absoluteString] isEqualToString:@"https://example.com/a"] &&
+              err2.userInfo[@"block"] == nil);                  // values that cannot be archived are left out
+        TaggedError *tagged = [TaggedError errorWithDomain:@"isim.tag" code:7 userInfo:nil]; tagged.tag = @"t1";
+        id tagged2 = [NSKeyedUnarchiver unarchivedObjectOfClass:[TaggedError class]
+                                                       fromData:[NSKeyedArchiver archivedDataWithRootObject:tagged requiringSecureCoding:YES error:NULL] error:NULL];
+        CHECK([tagged2 isKindOfClass:[TaggedError class]] && [[tagged2 tag] isEqualToString:@"t1"] && [tagged2 code] == 7);   // subclass + super
+        // encodeWithCoder: / initWithCoder: called directly (what a subclass's super call reaches)
+        NSKeyedArchiver *direct = [[NSKeyedArchiver alloc] initRequiringSecureCoding:YES];
+        [@[@"a", @2] encodeWithCoder:direct];
+        [[NSDate dateWithTimeIntervalSinceReferenceDate:123.5] encodeWithCoder:direct];
+        [direct finishEncoding];
+        NSKeyedUnarchiver *rd = [[NSKeyedUnarchiver alloc] initForReadingFromData:direct.encodedData error:NULL];
+        NSArray *arr2 = [[NSArray alloc] initWithCoder:rd];
+        NSDate *date2 = [[NSDate alloc] initWithCoder:rd];
+        CHECK([arr2 isEqual:(@[@"a", @2])] && date2.timeIntervalSinceReferenceDate == 123.5);
+        NSValue *pt = [NSValue valueWithCGPoint:CGPointMake(1.5, -2)];
+        NSValue *pt2 = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSValue class] fromData:[NSKeyedArchiver archivedDataWithRootObject:pt requiringSecureCoding:YES error:NULL] error:NULL];
+        CHECK(pt2.CGPointValue.x == 1.5 && pt2.CGPointValue.y == -2);
+        NSDictionary *mixed = @{ @"locale": [NSLocale localeWithLocaleIdentifier:@"pt_BR"], @"tz": [NSTimeZone timeZoneWithName:@"America/Sao_Paulo"],
+                                 @"null": [NSNull null], @"set": [NSSet setWithObject:@"x"] };
+        NSDictionary *mixed2 = [NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithObjects:[NSDictionary class], [NSLocale class], [NSTimeZone class], [NSNull class], [NSSet class], nil]
+                                                                  fromData:[NSKeyedArchiver archivedDataWithRootObject:mixed requiringSecureCoding:YES error:NULL] error:NULL];
+        CHECK([[mixed2[@"locale"] localeIdentifier] isEqualToString:@"pt_BR"] && [[mixed2[@"tz"] name] isEqualToString:@"America/Sao_Paulo"] &&
+              mixed2[@"null"] == [NSNull null] && [mixed2[@"set"] containsObject:@"x"]);
 
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }

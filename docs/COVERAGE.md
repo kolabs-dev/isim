@@ -815,7 +815,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `PropertyListSerialization` | ✅ | ≤17 | XML, binary, OpenStep (read) |
 | Reading XML plists (`NSDictionary(contentsOfFile:)`, Info.plist) | ✅ | ≤17 | |
 | Binary plists | ✅ | ≤17 | read and written (Info.plist, user defaults, serialization) |
-| `NSKeyedArchiver` / `NSKeyedUnarchiver`, `NSCoding`, `NSSecureCoding` | ✅ | ≤17 | Apple's keyed-archive format (bplist `$objects`/`$top`), shared references and cycles, allowed classes, class name mapping |
+| `NSKeyedArchiver` / `NSKeyedUnarchiver`, `NSCoding`, `NSSecureCoding` | ✅ | ≤17 | Apple's keyed-archive format (bplist `$objects`/`$top`), shared references and cycles, allowed classes, class name mapping. Foundation's classes (NSArray, NSDictionary, NSSet, NSString, NSValue, NSNull, NSDate, NSURL, NSLocale, NSTimeZone, NSError) and UIColor implement `encodeWithCoder:` / `initWithCoder:` / `supportsSecureCoding` with Apple's keys, so subclasses archive through `super`; non-keyed coders are not supported (keyed only, as on iOS); a dynamic UIColor archives as its current color (adapted). Tested: FoundationTest, SwiftFoundationTest |
 | `ValueTransformer` (`NSValueTransformer`), `NSSecureUnarchiveFromDataTransformer` | ✅ | ≤17 | named registry (class names register on first use), negate/is-nil built-ins, keyed-archive transformers. Tested: CoreDataTest |
 
 ### Dates, calendars & formatters

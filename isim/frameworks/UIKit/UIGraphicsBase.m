@@ -50,6 +50,30 @@ NSString *NSStringFromUIEdgeInsets(UIEdgeInsets i) { return [NSString stringWith
     return self;
 }
 - (instancetype)initWithWhite:(CGFloat)w alpha:(CGFloat)a { return [self initWithRed:w green:w blue:w alpha:a]; }
+/* keyed coding with Apple's keys (UIColorComponentCount, UIRed, UIGreen, UIBlue, UIAlpha; UIWhite and NSRGB are read too);
+   a dynamic color is archived as its color for the current traits (adapted) */
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c {
+    UIColor *r = [self _resolved];
+    [c encodeInteger:4 forKey:@"UIColorComponentCount"];
+    [c encodeDouble:r->_c[0] forKey:@"UIRed"]; [c encodeDouble:r->_c[1] forKey:@"UIGreen"];
+    [c encodeDouble:r->_c[2] forKey:@"UIBlue"]; [c encodeDouble:r->_c[3] forKey:@"UIAlpha"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    /* components set directly, not through -initWithRed:... (a Swift subclass that does not override it traps) */
+    if (!(self = [super init])) return nil;
+    double a = [c containsValueForKey:@"UIAlpha"] ? [c decodeDoubleForKey:@"UIAlpha"] : 1;
+    if ([c containsValueForKey:@"UIRed"]) {
+        _c[0] = [c decodeDoubleForKey:@"UIRed"]; _c[1] = [c decodeDoubleForKey:@"UIGreen"]; _c[2] = [c decodeDoubleForKey:@"UIBlue"]; _c[3] = a;
+    } else if ([c containsValueForKey:@"UIWhite"]) {
+        _c[0] = _c[1] = _c[2] = [c decodeDoubleForKey:@"UIWhite"]; _c[3] = a;
+    } else {                                                 /* NSRGB: "r g b [a]" (NSColor-style archives) */
+        NSUInteger n = 0; const uint8_t *b = [c decodeBytesForKey:@"NSRGB" returnedLength:&n];
+        _c[0] = _c[1] = _c[2] = 0; _c[3] = 1;
+        if (b) { NSString *s = [[NSString alloc] initWithBytes:b length:n encoding:NSASCIIStringEncoding]; sscanf(s.UTF8String ?: "", "%lf %lf %lf %lf", &_c[0], &_c[1], &_c[2], &_c[3]); }
+    }
+    return self;
+}
 - (instancetype)initWithHue:(CGFloat)h saturation:(CGFloat)s brightness:(CGFloat)v alpha:(CGFloat)a {
     h = fmod(h, 1.0) * 6; int i = (int)floor(h); double f = h - i, p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
     double rgb[6][3] = { { v, t, p }, { q, v, p }, { p, v, t }, { p, q, v }, { t, p, v }, { v, p, q } };
