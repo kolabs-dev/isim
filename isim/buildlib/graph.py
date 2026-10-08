@@ -135,6 +135,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("UserNotifications", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("UserNotificationsUI", "-framework Foundation -framework UIKit -framework UserNotifications"),
     ("Social", "-framework Foundation -framework UIKit -framework CoreGraphics"),
+    ("QuickLook", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("CoreData", "-framework Foundation -lsqlite3"),
     ("XCTest", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
 ]
