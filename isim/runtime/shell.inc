@@ -288,6 +288,15 @@ static void nb_open(void) {
 static int nb_input(const struct isim_event *ev) {
     static int down; static double y0;
     if (!nb_visible() || nb.hide_t0) { down = 0; return 0; }
+    if (ev->type == EV_DUMP) {          /* "dump" lists the banner too (the app's view tree follows); one line each */
+        char title[512], body[512];
+        snprintf(title, sizeof title, "%s", nb.title); snprintf(body, sizeof body, "%s", nb.body);
+        for (char *q = title; *q; q++) if (*q == '\n') *q = ' ';
+        for (char *q = body; *q; q++) if (*q == '\n') *q = ' ';
+        fprintf(stderr, "IsimNotificationBanner (%g %g; %g x %g) id=isim-notification-banner notification=%s text=%s body=%s\n",
+                nb.r.x, nb.r.y, nb.r.w, nb.r.h, nb.id, title, body);
+        return 0;
+    }
     /* a long press expands the notification (its actions, a Content extension's view) */
     if ((ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) && !strcmp(ev->text, "isim-notification-banner")) {
         if (ev->type == EV_ID_DOWN) nb.down_t = now();

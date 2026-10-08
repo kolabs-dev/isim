@@ -127,6 +127,7 @@ def test_push_not_running(launch, device_data):
     push(dev, "message.apns")
     dev.wait_log(r"push msg-1 for Push")
     dev.wait_log(r"notification banner from")
+    dev.wait_dump(r"IsimNotificationBanner .*id=isim-notification-banner notification=msg-1 text=Hello body=From isim push$")
     dev.screenshot("system-banner")
     dev.send("notifications")
     dev.wait_dump(r"id=nc-item-msg-1")
