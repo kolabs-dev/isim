@@ -1,5 +1,5 @@
 """ABI compatibility: (1) every symbol exported by a released SDK (abi/v*.txt.gz) is still exported;
-(2) ABIProbe.app, built with the isim 0.2.0 release (build-probe.sh) and committed as a binary, still runs: CoreGraphics
+(2) ABIProbe.app, built with the isim 0.2.0 release (build_probe.py) and committed as a binary, still runs: CoreGraphics
 members and SwiftUI gesture modifiers whose signatures changed after 0.2.0. Port of tests/abi/run.sh."""
 import subprocess
 import sys

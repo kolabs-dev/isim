@@ -1,7 +1,7 @@
 # CI environment for isim: a stock Ubuntu 24.04 with distribution packages (plus clang from LLVM's apt repository),
 # so CI proves isim builds and runs on an ordinary Linux. SDL3 is built from source (Ubuntu 24.04 does not package it). isim renders with its bundled fonts
 # (isim/fonts), so layout does not depend on the distribution's fonts. Swift compiles in the swift:6.2 image through
-# the host's Docker socket (see ci/run.sh).
+# the host's Docker socket (see `build.py ci`).
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \

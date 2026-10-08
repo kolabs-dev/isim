@@ -1,5 +1,0 @@
-# Python packages for isim's tests (test.sh installs them into isim/out/pyenv)
-pytest>=8
-pytest-xdist>=3.5
-pytest-rerunfailures>=14
-pillow>=10
