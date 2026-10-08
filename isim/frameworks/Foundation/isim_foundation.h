@@ -67,3 +67,13 @@ NSString *isim_plural_format(NSDictionary *entry, NSString *language);
 NSString *isim_plural_expand(NSString *fmt, double (^value)(int position), BOOL *expanded);
 NSString *isim_plural_category(NSString *language, double n);
 NSString *isim_plural_typed(NSString *fmt);   /* %#@var@ -> %<value type>, or nil when fmt is no known plural format */
+
+/* keyed coding of Foundation's own classes (Archiver.m): their encodeWithCoder: / initWithCoder: use Apple's keys */
+@interface NSKeyedArchiver (IsimBuiltin)
+- (void)_isim_encodeBuiltin:(id)object asClass:(Class)cls;
+@end
+@interface NSKeyedUnarchiver (IsimBuiltin)
+- (NSArray *)_isim_decodeObjectsForKey:(NSString *)key;
+@end
+void isim_encode_builtin(id object, NSCoder *coder, Class base);    /* raises for coders that are not keyed */
+NSArray *isim_decode_objects(NSCoder *coder, NSString *key);       /* NS.objects-style reference lists */

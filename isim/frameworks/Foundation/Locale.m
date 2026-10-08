@@ -421,6 +421,9 @@ BOOL isim_uses_12h(NSLocale *locale) {
 
 /* ---------------- NSLocale ---------------- */
 @implementation NSLocale { NSString *_ident; NSString *_lang, *_region, *_script; BOOL _current; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSLocale class]); }    /* NS.identifier */
+- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithLocaleIdentifier:[c decodeObjectOfClass:[NSString class] forKey:@"NS.identifier"] ?: @""]; }
 + (NSLocale *)currentLocale { NSLocale *l = [self localeWithLocaleIdentifier:default_locale_identifier()]; l->_current = YES; return l; }
 - (BOOL)_isim_isCurrent { return _current; }
 + (NSLocale *)autoupdatingCurrentLocale { return [self currentLocale]; }
@@ -519,6 +522,9 @@ static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int
     return tm.tm_gmtoff;
 }
 @implementation NSTimeZone { NSString *_name; NSInteger _fixed; BOOL _isFixed; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSTimeZone class]); }    /* NS.name */
+- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithName:[c decodeObjectOfClass:[NSString class] forKey:@"NS.name"] ?: @"GMT"]; }
 + (NSTimeZone *)systemTimeZone {
     const char *tz = getenv("TZ");
     if (tz && *tz) return [[NSTimeZone alloc] initWithName:@(tz[0] == ':' ? tz + 1 : tz)];

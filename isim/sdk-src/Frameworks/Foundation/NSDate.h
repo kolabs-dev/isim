@@ -8,6 +8,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)date;
 + (instancetype)dateWithTimeIntervalSinceNow:(NSTimeInterval)secs;
 + (instancetype)dateWithTimeIntervalSince1970:(NSTimeInterval)secs;
++ (instancetype)dateWithTimeIntervalSinceReferenceDate:(NSTimeInterval)ti;
 + (NSDate *)distantFuture;
 + (NSDate *)distantPast;
 - (instancetype)initWithTimeIntervalSinceReferenceDate:(NSTimeInterval)ti NS_DESIGNATED_INITIALIZER;

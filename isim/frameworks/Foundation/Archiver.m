@@ -143,6 +143,18 @@ static Class archive_class(id o) {
     }
     return c;
 }
+/* the Foundation class whose coding a class inherits (custom subclasses that override encodeWithCoder: / initWithCoder:
+   are coded through their own methods, which call super) */
+static Class builtin_base(Class c) {
+    static NSArray *bases;
+    if (!bases) bases = @[[NSArray class], [NSDictionary class], [NSSet class], [NSString class], [NSDate class], [NSURL class],
+                          [NSNull class], [NSValue class], [NSLocale class], [NSTimeZone class]];
+    for (Class b in bases) if ([c isSubclassOfClass:b]) return b;
+    return Nil;
+}
+static BOOL overrides(Class c, Class base, SEL s) {
+    return base && c != base && class_getMethodImplementation(c, s) != class_getMethodImplementation(base, s);
+}
 - (_IsimPlistUID *)_encode:(id)object {
     if (!object) return [_IsimPlistUID uidWithValue:0];
     id<NSKeyedArchiverDelegate> d = self.delegate;
@@ -173,6 +185,11 @@ static Class archive_class(id o) {
 }
 - (NSArray *)_uidsFor:(id<NSFastEnumeration>)items { NSMutableArray *a = [NSMutableArray array]; for (id o in items) [a addObject:[self _encode:o]]; return a; }
 - (void)_encodeContentsOf:(id)o asClass:(Class)cls {
+    if (overrides([o class], builtin_base([o class]), @selector(encodeWithCoder:))) { [o encodeWithCoder:self]; return; }
+    [self _isim_encodeBuiltin:o asClass:cls];
+}
+/* the keys of Foundation's own classes (Apple's), into the object being encoded; their encodeWithCoder: calls this */
+- (void)_isim_encodeBuiltin:(id)o asClass:(Class)cls {
     NSMutableDictionary *cur = self._current;
     if ([cls isSubclassOfClass:[NSArray class]] && [o isKindOfClass:[NSArray class]]) cur[@"NS.objects"] = [self _uidsFor:o];
     else if ([cls isSubclassOfClass:[NSOrderedSet class]] && [o isKindOfClass:[NSOrderedSet class]]) cur[@"NS.objects"] = [self _uidsFor:[o array]];
@@ -185,14 +202,14 @@ static Class archive_class(id o) {
         NSMutableArray *vals = [NSMutableArray array]; for (id k in keys) [vals addObject:o[k]];
         cur[@"NS.keys"] = [self _uidsFor:keys]; cur[@"NS.objects"] = [self _uidsFor:vals];
     }
-    else if (cls == [NSMutableString class]) cur[@"NS.string"] = [o copy];
+    else if ([cls isSubclassOfClass:[NSString class]] && [o isKindOfClass:[NSString class]]) cur[@"NS.string"] = [NSString stringWithString:o];
     else if (cls == [NSMutableData class]) cur[@"NS.data"] = [NSData dataWithData:o];
-    else if (cls == [NSDate class]) cur[@"NS.time"] = @([o timeIntervalSinceReferenceDate]);
-    else if (cls == [NSURL class]) { cur[@"NS.base"] = [self _encode:nil]; cur[@"NS.relative"] = [self _encode:[o absoluteString]]; }
-    else if (cls == [NSNull class]) {}
+    else if ([cls isSubclassOfClass:[NSDate class]]) cur[@"NS.time"] = @([o timeIntervalSinceReferenceDate]);
+    else if ([cls isSubclassOfClass:[NSURL class]]) { cur[@"NS.base"] = [self _encode:nil]; cur[@"NS.relative"] = [self _encode:[o absoluteString]]; }
+    else if ([cls isSubclassOfClass:[NSNull class]]) {}
     else if (cls == [NSUUID class]) { uuid_t b; [o getUUIDBytes:b]; cur[@"NS.uuidbytes"] = [NSData dataWithBytes:b length:16]; }
-    else if (cls == [NSLocale class]) cur[@"NS.identifier"] = [self _encode:[o localeIdentifier]];
-    else if (cls == [NSTimeZone class]) cur[@"NS.name"] = [self _encode:[o name]];
+    else if ([cls isSubclassOfClass:[NSLocale class]]) cur[@"NS.identifier"] = [self _encode:[o localeIdentifier]];
+    else if ([cls isSubclassOfClass:[NSTimeZone class]]) cur[@"NS.name"] = [self _encode:[o name]];
     else if ([cls isSubclassOfClass:[NSIndexSet class]] && [o isKindOfClass:[NSIndexSet class]]) {
         NSIndexSet *s = o; NSUInteger rc = [s _rangeCount];
         cur[@"NSRangeCount"] = @(rc);
@@ -203,7 +220,7 @@ static Class archive_class(id o) {
             cur[@"NSRangeData"] = d;
         }
     }
-    else if (cls == [NSValue class]) {
+    else if ([cls isSubclassOfClass:[NSValue class]] && ![o isKindOfClass:[NSNumber class]]) {
         const char *t = [o objCType];
         if (!strncmp(t, "{CGPoint", 8)) { cur[@"NS.special"] = @1; cur[@"NS.pointval"] = NSStringFromCGPoint([o CGPointValue]); }
         else if (!strncmp(t, "{CGSize", 7)) { cur[@"NS.special"] = @2; cur[@"NS.sizeval"] = NSStringFromCGSize([o CGSizeValue]); }
@@ -371,13 +388,17 @@ static Class archive_class(id o) {
         if ([c isSubclassOfClass:f]) return YES;
     return NO;
 }
+- (id)_isim_value:(id)v { return [v isKindOfClass:[_IsimPlistUID class]] ? [self _decodeUID:v classes:nil] : v; }
 - (NSDictionary *)_decodeRawClass:(_IsimPlistUID *)u { return [u isKindOfClass:[_IsimPlistUID class]] && u.value < _objects.count ? _objects[u.value] : @{}; }
 - (NSArray *)_objectsFrom:(NSArray *)uids {
     NSMutableArray *out = [NSMutableArray arrayWithCapacity:uids.count];
     for (_IsimPlistUID *u in uids) { id o = [self _decodeUID:u classes:_allowed]; [out addObject:o ?: [NSNull null]]; }
     return out;
 }
+/* NS.objects-style lists of references (NSArray, NSSet, NSDictionary's keys and objects); missing objects are NSNull */
+- (NSArray *)_isim_decodeObjectsForKey:(NSString *)key { id l = self._current[key]; return [self _objectsFrom:[l isKindOfClass:[NSArray class]] ? l : @[]]; }
 - (id)_decodeObjectOfClass:(Class)c dict:(NSDictionary *)raw index:(uint64_t)idx {
+    if (overrides(c, builtin_base(c), @selector(initWithCoder:))) return [self _decodeGeneric:c index:idx];
     if ([c isSubclassOfClass:[NSArray class]]) {
         NSArray *items = [self _objectsFrom:raw[@"NS.objects"] ?: @[]];
         return [c isSubclassOfClass:[NSMutableArray class]] ? [items mutableCopy] : [c isEqual:[NSArray class]] ? [items copy] : [[c alloc] initWithArray:items];
@@ -429,13 +450,16 @@ static Class archive_class(id o) {
     }
     if ([c isSubclassOfClass:[NSValue class]] && ![c isSubclassOfClass:[NSNumber class]]) {
         switch ([raw[@"NS.special"] intValue]) {
-        case 1: { CGPoint p = {0, 0}; sscanf([raw[@"NS.pointval"] UTF8String] ?: "", "{%lf, %lf}", &p.x, &p.y); return [NSValue valueWithCGPoint:p]; }
-        case 2: { CGSize s = {0, 0}; sscanf([raw[@"NS.sizeval"] UTF8String] ?: "", "{%lf, %lf}", &s.width, &s.height); return [NSValue valueWithCGSize:s]; }
-        case 3: { CGRect r = {{0, 0}, {0, 0}}; sscanf([raw[@"NS.rectval"] UTF8String] ?: "", "{{%lf, %lf}, {%lf, %lf}}", &r.origin.x, &r.origin.y, &r.size.width, &r.size.height); return [NSValue valueWithCGRect:r]; }
+        case 1: { CGPoint p = {0, 0}; sscanf([[self _isim_value:raw[@"NS.pointval"]] UTF8String] ?: "", "{%lf, %lf}", &p.x, &p.y); return [NSValue valueWithCGPoint:p]; }
+        case 2: { CGSize s = {0, 0}; sscanf([[self _isim_value:raw[@"NS.sizeval"]] UTF8String] ?: "", "{%lf, %lf}", &s.width, &s.height); return [NSValue valueWithCGSize:s]; }
+        case 3: { CGRect r = {{0, 0}, {0, 0}}; sscanf([[self _isim_value:raw[@"NS.rectval"]] UTF8String] ?: "", "{{%lf, %lf}, {%lf, %lf}}", &r.origin.x, &r.origin.y, &r.size.width, &r.size.height); return [NSValue valueWithCGRect:r]; }
         case 4: return [NSValue valueWithRange:NSMakeRange([raw[@"NS.rangeval.location"] unsignedIntegerValue], [raw[@"NS.rangeval.length"] unsignedIntegerValue])];
         default: return nil;
         }
     }
+    return [self _decodeGeneric:c index:idx];
+}
+- (id)_decodeGeneric:(Class)c index:(uint64_t)idx {
     id obj = [c alloc];
     if (![obj respondsToSelector:@selector(initWithCoder:)]) { [self _fail:[NSString stringWithFormat:@"class %@ does not implement initWithCoder:", c] code:4864]; return nil; }
     /* register before decoding so cyclic references resolve to the same object */
@@ -477,7 +501,19 @@ static Class archive_class(id o) {
 - (id)awakeAfterUsingCoder:(NSCoder *)coder { return self; }
 @end
 
-/* Foundation's value and collection classes support secure coding */
+/* For Foundation's own classes' encodeWithCoder: / initWithCoder: (also reached by a subclass's super call). Keyed coding
+   only, like Apple's for these classes on iOS. */
+void isim_encode_builtin(id object, NSCoder *coder, Class base) {
+    if (![coder isKindOfClass:[NSKeyedArchiver class]])
+        [NSException raise:NSInvalidArgumentException format:@"*** -[%@ encodeWithCoder:]: only supports keyed coders", base];
+    [(NSKeyedArchiver *)coder _isim_encodeBuiltin:object asClass:base];
+}
+NSArray *isim_decode_objects(NSCoder *coder, NSString *key) {
+    if ([coder isKindOfClass:[NSKeyedUnarchiver class]]) return [(NSKeyedUnarchiver *)coder _isim_decodeObjectsForKey:key];
+    id v = [coder decodeObjectForKey:key];
+    return [v isKindOfClass:[NSArray class]] ? v : @[];
+}
+
+/* NSNumber and NSCharacterSet support secure coding (the other classes declare it in their own implementation) */
 #define SECURE(cls) @implementation cls (IsimSecureCoding) + (BOOL)supportsSecureCoding { return YES; } @end
-SECURE(NSString) SECURE(NSArray) SECURE(NSDictionary) SECURE(NSSet) SECURE(NSNumber) SECURE(NSValue) SECURE(NSDate)
-SECURE(NSURL) SECURE(NSNull) SECURE(NSLocale) SECURE(NSTimeZone) SECURE(NSError) SECURE(NSCharacterSet)
+SECURE(NSNumber) SECURE(NSCharacterSet)
