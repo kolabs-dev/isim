@@ -66,7 +66,6 @@ def test_notes(launch):
     app.screenshot("detail")
     app.tap_id("detail-more")
     more = app.wait_view(r"id=more-label")
-    app.wait_still()
     app.tap_id("nav-back")
     app.wait_view(r"id=more-label", gone=True)
     app.wait_still()

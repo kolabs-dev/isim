@@ -732,7 +732,8 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 @end
 
 @implementation UINavigationController { NSMutableArray<UIViewController *> *_stack; UINavigationBar *_bar; UIToolbar *_toolbar;
-    UIPanGestureRecognizer *_popPan; BOOL _transitioning, _swiping; __weak UIScrollView *_tracked; UIView *_dim; }
+    UIPanGestureRecognizer *_popPan; BOOL _transitioning, _swiping; __weak UIScrollView *_tracked; UIView *_dim;
+    NSUInteger _transitionGen; __weak UIViewController *_transitionFrom; }
 - (instancetype)initWithNibName:(NSString *)n bundle:(NSBundle *)b {
     if ((self = [super initWithNibName:n bundle:b])) {
         _stack = [NSMutableArray array];
@@ -837,14 +838,21 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     [self.view setNeedsLayout]; [self.view layoutIfNeeded];
     [self.tabBarController _isim_updateTabBar];
     if (visible) { [to _isim_appear:YES]; }
+    /* a push/pop that starts before this one has finished retargets its frames, which ends this one's animation
+       (finished NO) while the newer transition runs: its completion must leave the views that one shows alone */
+    NSUInteger gen = ++_transitionGen;
+    _transitionFrom = from;
+    __block UIView *dim = nil;
     void (^finish)(BOOL) = ^(BOOL f) {
-        _transitioning = NO;
-        if (from && from != to) { [from.viewIfLoaded removeFromSuperview]; if (visible) [from _isim_appear:NO]; }
-        [_dim removeFromSuperview]; _dim = nil;
-        if (to) to.viewIfLoaded.frame = host.bounds;
-        if (visible) [to _isim_didAppear];
+        BOOL latest = gen == _transitionGen;
+        BOOL shown = from == self.topViewController || (!latest && _transitioning && from == _transitionFrom);
+        if (latest) _transitioning = NO;
+        if (from && from != to && !shown) { [from.viewIfLoaded removeFromSuperview]; if (visible) [from _isim_appear:NO]; }
+        [dim removeFromSuperview]; if (_dim == dim) _dim = nil;
+        if (latest && to) to.viewIfLoaded.frame = host.bounds;
+        if (visible && to == self.topViewController) [to _isim_didAppear];
         if (done) done();
-        if ([self.delegate respondsToSelector:@selector(navigationController:didShowViewController:animated:)]) [self.delegate navigationController:self didShowViewController:to animated:animated];
+        if (latest && [self.delegate respondsToSelector:@selector(navigationController:didShowViewController:animated:)]) [self.delegate navigationController:self didShowViewController:to animated:animated];
         [self.view setNeedsLayout];
     };
     if (!animated || !host.window || !from || from == to) { finish(YES); return; }
@@ -863,7 +871,8 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     }
     UIView *fv = from.view, *tv = to.view;
     if (!push) [host insertSubview:tv belowSubview:fv];
-    _dim = [[UIView alloc] initWithFrame:host.bounds]; _dim.backgroundColor = UIColor.blackColor; _dim.userInteractionEnabled = NO;
+    [_dim removeFromSuperview];
+    dim = _dim = [[UIView alloc] initWithFrame:host.bounds]; _dim.backgroundColor = UIColor.blackColor; _dim.userInteractionEnabled = NO;
     [host insertSubview:_dim belowSubview:push ? tv : fv];
     [host bringSubviewToFront:_bar]; [host bringSubviewToFront:_toolbar];
     [UIView performWithoutAnimation:^{
