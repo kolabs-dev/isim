@@ -22,8 +22,6 @@ func _isimPredicateArgument(_ v: CVarArg) -> Any {
     case let d as Double: return NSNumber(value: d)
     case let f as Float: return NSNumber(value: f)
     case let b as Bool: return NSNumber(value: b)
-    case let d as Date: return d as NSDate
-    case let a as [Any]: return a as NSArray
     default: return v
     }
 }

@@ -18,6 +18,9 @@ SDK = "out/sdk"
 LIB = f"{SDK}/usr/lib/swift"
 SW = "out/swift"
 ISIM = "out/bin/isim"
+# isim's own Swift (overlays, apps): warnings are errors, deprecations stay warnings (issue #40); upstream modules build
+# with -suppress-warnings. ISIM_WERROR=0 turns it off
+WERROR = ["-warnings-as-errors", "-Wwarning", "DeprecatedDeclaration"] if os.environ.get("ISIM_WERROR", "1") != "0" else []
 
 
 def mod(name, ext="swiftmodule"):
@@ -434,7 +437,7 @@ class Swift:
                 if prev == "-framework":
                     fws.append(a)
                 prev = a
-            flags = ["-Xfrontend", "-disable-objc-attr-requires-foundation-module"] + (["-enable-library-evolution"] if m in EVOLUTION else [])
+            flags = ["-Xfrontend", "-disable-objc-attr-requires-foundation-module", *WERROR] + (["-enable-library-evolution"] if m in EVOLUTION else [])
             implicit = [mod(d) for d in deps if not d.startswith("_")] + [mod(d) for d in deps if d.startswith("_")]
             implicit += [c.fw_header_stamp[f] for f in fws if f in c.fw_header_stamp] + [c.header_stamps[0]]
             obj = f"{objdir}/{m}.o"

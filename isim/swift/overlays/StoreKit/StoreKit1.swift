@@ -262,7 +262,7 @@ open class SKStorefront: NSObject, @unchecked Sendable {
 }
 
 open class SKPaymentQueue: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) static let shared = SKPaymentQueue()
+    static let shared = SKPaymentQueue()
     open class func `default`() -> SKPaymentQueue { shared }
     open class func canMakePayments() -> Bool { true }
     weak open var delegate: SKPaymentQueueDelegate?

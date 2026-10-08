@@ -60,7 +60,7 @@ final class AnimationsViewController: UIViewController {
             h.distribution = .fillEqually
             h.spacing = 8
             for (title, sel) in buttons[row..<min(row + 3, buttons.count)] {
-                var config = UIButton.Configuration.gray()
+                let config = UIButton.Configuration.gray()
                 config.title = title
                 let b = UIButton(configuration: config)
                 b.accessibilityIdentifier = "btn-\(title)"

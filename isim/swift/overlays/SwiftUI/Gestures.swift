@@ -410,7 +410,7 @@ extension Angle {
 public struct GestureMask: OptionSet, Sendable {
     public let rawValue: UInt8
     public init(rawValue: UInt8) { self.rawValue = rawValue }
-    public static let none = GestureMask(rawValue: 0), gesture = GestureMask(rawValue: 1), subviews = GestureMask(rawValue: 2), all = GestureMask(rawValue: 3)
+    public static let none: GestureMask = [], gesture = GestureMask(rawValue: 1), subviews = GestureMask(rawValue: 2), all = GestureMask(rawValue: 3)
 }
 
 // MARK: - attaching gestures to views

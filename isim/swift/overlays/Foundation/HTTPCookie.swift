@@ -209,7 +209,7 @@ open class HTTPCookieStorage: NSObject, @unchecked Sendable {
     var _loaded = false
     public var cookieAcceptPolicy: HTTPCookie.AcceptPolicy = .always
 
-    nonisolated(unsafe) static let _shared = HTTPCookieStorage(file: NSHomeDirectory() + "/Library/Cookies/Cookies.json")
+    static let _shared = HTTPCookieStorage(file: NSHomeDirectory() + "/Library/Cookies/Cookies.json")
     open class var shared: HTTPCookieStorage { _shared }
     open class func sharedCookieStorage(forGroupContainerIdentifier identifier: String) -> HTTPCookieStorage { _shared }
     init(file: String?) { _file = file; super.init() }

@@ -86,7 +86,6 @@ open class ASWebAuthenticationSession: NSObject {
         guard state == .idle else { return false }
         guard ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
             NSException(name: "NSInvalidArgumentException", reason: "The provided scheme is not valid. A scheme should not include special characters such as \":\" or \"/\".", userInfo: nil).raise()
-            return false
         }
         guard let provider = presentationContextProvider else {
             finish(nil, ASWebAuthenticationSessionError(.presentationContextNotProvided)); return false

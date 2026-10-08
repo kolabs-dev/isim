@@ -152,7 +152,9 @@ NSNotificationName const NSUndoManagerCheckpointNotification = @"NSUndoManagerCh
 - (NSString *)redoMenuItemTitle { NSString *n = self.redoActionName; return n.length ? [@"Redo " stringByAppendingString:n] : @"Redo"; }
 - (NSString *)undoMenuTitleForUndoActionName:(NSString *)n { return n.length ? [@"Undo " stringByAppendingString:n] : @"Undo"; }
 - (NSString *)redoMenuTitleForUndoActionName:(NSString *)n { return n.length ? [@"Redo " stringByAppendingString:n] : @"Redo"; }
-- (NSArray *)runLoopModes { return @[NSDefaultRunLoopMode]; }
+@synthesize runLoopModes = _runLoopModes;
+- (NSArray *)runLoopModes { return _runLoopModes ?: @[NSDefaultRunLoopMode]; }
+- (void)setRunLoopModes:(NSArray *)modes { _runLoopModes = [modes copy]; }
 @end
 
 /* ================= NSProgress ================= */

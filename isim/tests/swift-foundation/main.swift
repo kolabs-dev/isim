@@ -10,7 +10,7 @@ func check(_ ok: @autoclosure () -> Bool, _ what: String) {
 
 /// an NSError subclass with its own state, archived through super (issue #39)
 final class AppError: NSError, @unchecked Sendable {
-    var screen = ""
+    let screen: String
     override class var supportsSecureCoding: Bool { true }
     init(screen: String) { self.screen = screen; super.init(domain: "app", code: 9, userInfo: [NSLocalizedDescriptionKey: "failed"]) }
     required init?(coder: NSCoder) {
@@ -145,7 +145,7 @@ func errorBridgingChecks() {
         check(String(format: "%@ has %d items, pi=%.2f", "list", 3, 3.14159) == "list has 3 items, pi=3.14", "String(format:) with %@")
         let g = Greeter()
         check(g.greet("isim") == "Hello, isim!", "Swift subclass of NSObject")
-        check(g.responds(to: #selector(Greeter.greet(_:))) && !g.responds(to: Selector("nope")), "#selector + respondsToSelector")
+        check(g.responds(to: #selector(Greeter.greet(_:))) && !g.responds(to: NSSelectorFromString("nope")), "#selector + respondsToSelector")
         let r = g.perform(#selector(Greeter.greet(_:)), with: "ObjC").takeUnretainedValue() as? String
         check(r == "Hello, ObjC!", "dynamic dispatch via performSelector into Swift")
         check(NSStringFromClass(Greeter.self).hasSuffix("Greeter"), "NSStringFromClass on a Swift class")

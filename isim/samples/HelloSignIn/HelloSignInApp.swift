@@ -184,7 +184,7 @@ struct RootView: View {
                     row("Save a password", "save-password") {
                         let q: [String: Any] = [kSecClass as String: kSecClassInternetPassword, kSecAttrServer as String: Server.rp,
                                                 kSecAttrAccount as String: "pat@example.com", kSecValueData as String: Data("correct horse".utf8)]
-                        SecItemDelete(q as CFDictionary)
+                        _ = SecItemDelete(q as CFDictionary)
                         print("password saved: \(SecItemAdd(q as CFDictionary, nil) == errSecSuccess)")
                     }
                     row("Sign in with password", "password-signin") { auth.run([ASAuthorizationPasswordProvider().createRequest()]) }
@@ -219,7 +219,13 @@ struct RootView: View {
     }
 }
 
+// isAdvertisingTrackingEnabled is deprecated (always false since iOS 14); the sample still checks it, through a protocol
+// so the call does not warn
+private protocol LegacyTracking { var isAdvertisingTrackingEnabled: Bool { get } }
+extension ASIdentifierManager: LegacyTracking {}
+
 func printIDFA() {
     let m = ASIdentifierManager.shared()
-    print("idfa: \(m.advertisingIdentifier.uuidString) zero=\(m.advertisingIdentifier.uuidString == "00000000-0000-0000-0000-000000000000") enabled=\(m.isAdvertisingTrackingEnabled)")
+    let legacy: LegacyTracking = m
+    print("idfa: \(m.advertisingIdentifier.uuidString) zero=\(m.advertisingIdentifier.uuidString == "00000000-0000-0000-0000-000000000000") enabled=\(legacy.isAdvertisingTrackingEnabled)")
 }

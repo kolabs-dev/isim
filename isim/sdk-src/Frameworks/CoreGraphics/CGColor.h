@@ -26,7 +26,7 @@ CG_EXTERN CGColorSpaceRef _Nullable CGColorGetColorSpace(CGColorRef _Nullable c)
 CG_EXTERN CGPatternRef _Nullable CGColorGetPattern(CGColorRef _Nullable c) CG_SWIFT_NAME(getter:CGColor.pattern(self:));
 CG_EXTERN bool CGColorEqualToColor(CGColorRef _Nullable a, CGColorRef _Nullable b);
 CG_EXTERN CGColorRef _Nullable CGColorCreateCopy(CGColorRef _Nullable c) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGColor.copy(self:));
-CG_EXTERN CGColorRef CGColorCreateCopyWithAlpha(CGColorRef c, CGFloat alpha) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGColor.copy(self:alpha:));
+CG_EXTERN CGColorRef _Nullable CGColorCreateCopyWithAlpha(CGColorRef _Nullable c, CGFloat alpha) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGColor.copy(self:alpha:));
 CG_EXTERN CGColorRef _Nullable CGColorCreateCopyByMatchingToColorSpace(CGColorSpaceRef _Nullable space, CGColorRenderingIntent intent, CGColorRef _Nullable color, CFDictionaryRef _Nullable options)
     CF_RETURNS_RETAINED CG_SWIFT_NAME(CGColor.converted(to:intent:self:options:));
 /* isim-private: the color as sRGB RGBA (what is drawn), whatever its color space */

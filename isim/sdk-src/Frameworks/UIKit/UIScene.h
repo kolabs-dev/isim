@@ -138,7 +138,7 @@ NS_SWIFT_UI_ACTOR
 
 NS_SWIFT_UI_ACTOR
 @interface UISceneSession : NSObject
-@property (nonatomic, readonly, nullable) UIScene *scene;
+@property (nonatomic, readonly, nullable, weak) UIScene *scene;
 @property (nonatomic, readonly) UISceneSessionRole role;
 @property (nonatomic, readonly, copy) UISceneConfiguration *configuration;
 @property (nonatomic, readonly) NSString *persistentIdentifier;

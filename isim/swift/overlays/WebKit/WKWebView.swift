@@ -135,14 +135,15 @@ open class WKWebView: UIView, UIKeyInput {
     public var scrollView: UIScrollView { _scroll }
     let _scroll = _WKScrollView(frame: .zero)
 
-    @objc open private(set) var title: String?
-    @objc(URL) open private(set) var url: URL?
-    @objc open private(set) var isLoading = false
-    @objc open private(set) var estimatedProgress: Double = 0
-    @objc open private(set) var canGoBack = false
-    @objc open private(set) var canGoForward = false
-    @objc open private(set) var hasOnlySecureContent = false
-    @objc open private(set) var themeColor: UIColor?
+    // KVO-observable like WebKit's (key paths work without warnings); the class posts the change notifications itself
+    @objc open private(set) dynamic var title: String?
+    @objc(URL) open private(set) dynamic var url: URL?
+    @objc open private(set) dynamic var isLoading = false
+    @objc open private(set) dynamic var estimatedProgress: Double = 0
+    @objc open private(set) dynamic var canGoBack = false
+    @objc open private(set) dynamic var canGoForward = false
+    @objc open private(set) dynamic var hasOnlySecureContent = false
+    @objc open private(set) dynamic var themeColor: UIColor?
     @objc open var underPageBackgroundColor: UIColor! = .systemBackground
     open var customUserAgent: String? { didSet { _send(["ua", _userAgent]) } }
     open var allowsBackForwardNavigationGestures = false
@@ -735,7 +736,7 @@ open class WKWebView: UIView, UIKeyInput {
                 if !_editing { _editing = true; becomeFirstResponder() }
             } else if _editing {
                 _editing = false
-                if isFirstResponder { resignFirstResponder() }
+                if isFirstResponder { _ = resignFirstResponder() }
             }
         default: break
         }

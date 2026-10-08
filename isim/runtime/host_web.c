@@ -178,7 +178,7 @@ char *isim_web_next(double timeout) {
 }
 void isim_web_free(char *s) { free(s); }
 
-/* UI thread: image handle with the view's newest frame (0 before the first), pixel size in *w/*h */
+/* UI thread: image handle with the view's newest frame (0 before the first), pixel size in *w and *h */
 int isim_web_frame(int view, int *w, int *h) {
     pthread_mutex_lock(&mtx);
     struct webframe *f = frame_slot(view, 0);

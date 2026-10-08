@@ -251,9 +251,10 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
             DispatchQueue.global().async { completionHandler(nil, _NSItemProviderError(errorCode: -1000)) }
             return Progress(totalUnitCount: 1)
         }
+        nonisolated(unsafe) let cls = aClass
         return loadDataRepresentation(forTypeIdentifier: t) { d, e in
             guard let d else { completionHandler(nil, e); return }
-            do { completionHandler(try aClass.object(withItemProviderData: d, typeIdentifier: t), nil) } catch { completionHandler(nil, error) }
+            do { completionHandler(try cls.object(withItemProviderData: d, typeIdentifier: t), nil) } catch { completionHandler(nil, error) }
         }
     }
     @discardableResult

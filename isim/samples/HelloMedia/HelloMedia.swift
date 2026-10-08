@@ -181,11 +181,11 @@ final class MediaViewController: UIViewController {
             var frames = 0, colors: [String] = []
             while let sb = vout.copyNextSampleBuffer() {
                 if frames % 25 == 12, let pb = CMSampleBufferGetImageBuffer(sb) {
-                    CVPixelBufferLockBaseAddress(pb, .readOnly)
+                    _ = CVPixelBufferLockBaseAddress(pb, .readOnly)
                     let p = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self)
                     let o = (CVPixelBufferGetHeight(pb) / 2) * CVPixelBufferGetBytesPerRow(pb) + (CVPixelBufferGetWidth(pb) / 2) * 4
                     colors.append(colorName(b: p[o], g: p[o + 1], r: p[o + 2]))
-                    CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+                    _ = CVPixelBufferUnlockBaseAddress(pb, .readOnly)
                 }
                 frames += 1
             }
@@ -223,10 +223,10 @@ final class MediaViewController: UIViewController {
             for i in 0..<30 {
                 var pb: CVPixelBuffer?
                 guard let pool = adaptor.pixelBufferPool, CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb) == kCVReturnSuccess, let pb else { break }
-                CVPixelBufferLockBaseAddress(pb, [])
+                _ = CVPixelBufferLockBaseAddress(pb, [])
                 let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self), bpr = CVPixelBufferGetBytesPerRow(pb)
                 for y in 0..<64 { for x in 0..<64 { let o = y * bpr + x * 4; base[o] = 0; base[o + 1] = 255; base[o + 2] = 0; base[o + 3] = 255 } }
-                CVPixelBufferUnlockBaseAddress(pb, [])
+                _ = CVPixelBufferUnlockBaseAddress(pb, [])
                 if adaptor.append(pb, withPresentationTime: CMTime(value: Int64(i), timescale: 30)) { appended += 1 }
             }
             for sb in audioBuffers { ain.append(sb) }
@@ -248,21 +248,21 @@ final class MediaViewController: UIViewController {
         var ext: ExtAudioFileRef?
         guard ExtAudioFileOpenURL(wav, &ext) == noErr, let ext else { log("ExtAudioFileOpenURL failed"); return }
         var fileFormat = AudioStreamBasicDescription(), size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
-        ExtAudioFileGetProperty(ext, kExtAudioFileProperty_FileDataFormat, &size, &fileFormat)
+        _ = ExtAudioFileGetProperty(ext, kExtAudioFileProperty_FileDataFormat, &size, &fileFormat)
         var length: Int64 = 0; size = 8
-        ExtAudioFileGetProperty(ext, kExtAudioFileProperty_FileLengthFrames, &size, &length)
+        _ = ExtAudioFileGetProperty(ext, kExtAudioFileProperty_FileLengthFrames, &size, &length)
         log("extaudiofile \(Int(fileFormat.mSampleRate)) Hz \(fileFormat.mChannelsPerFrame) ch \(fileFormat.mBitsPerChannel)-bit frames=\(length)")
         // client format: 48 kHz mono float
         var client = AudioStreamBasicDescription(mSampleRate: 48000, mFormatID: kAudioFormatLinearPCM, mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
                                                  mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 1, mBitsPerChannel: 32, mReserved: 0)
-        ExtAudioFileSetProperty(ext, kExtAudioFileProperty_ClientDataFormat, UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &client)
+        _ = ExtAudioFileSetProperty(ext, kExtAudioFileProperty_ClientDataFormat, UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &client)
         var all: [Float] = []
         var chunk = [Float](repeating: 0, count: 4096)
         while true {
             var n: UInt32 = 4096
             let got: UInt32 = chunk.withUnsafeMutableBytes { raw in
                 var list = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(raw.count), mData: raw.baseAddress))
-                ExtAudioFileRead(ext, &n, &list)
+                _ = ExtAudioFileRead(ext, &n, &list)
                 return n
             }
             if got == 0 { break }
@@ -277,7 +277,7 @@ final class MediaViewController: UIViewController {
                                                 mBytesPerPacket: 2, mFramesPerPacket: 1, mBytesPerFrame: 2, mChannelsPerFrame: 1, mBitsPerChannel: 16, mReserved: 0)
         var wext: ExtAudioFileRef?
         if ExtAudioFileCreateWithURL(caf as CFURL, kAudioFileCAFType, &fmt16, nil, AudioFileFlags.eraseFile.rawValue, &wext) == noErr, let wext {
-            ExtAudioFileSetProperty(wext, kExtAudioFileProperty_ClientDataFormat, UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &client)
+            _ = ExtAudioFileSetProperty(wext, kExtAudioFileProperty_ClientDataFormat, UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &client)
             var copy = all
             let count = UInt32(copy.count)
             copy.withUnsafeMutableBytes { raw in
@@ -290,9 +290,9 @@ final class MediaViewController: UIViewController {
         if AudioFileOpenURL(caf as CFURL, .readPermission, kAudioFileCAFType, &af) == noErr, let af {
             var packets: UInt64 = 0, desc = AudioStreamBasicDescription(), dur = 0.0
             var s1 = UInt32(8), s2 = UInt32(MemoryLayout<AudioStreamBasicDescription>.size), s3 = UInt32(8)
-            AudioFileGetProperty(af, kAudioFilePropertyAudioDataPacketCount, &s1, &packets)
-            AudioFileGetProperty(af, kAudioFilePropertyDataFormat, &s2, &desc)
-            AudioFileGetProperty(af, kAudioFilePropertyEstimatedDuration, &s3, &dur)
+            _ = AudioFileGetProperty(af, kAudioFilePropertyAudioDataPacketCount, &s1, &packets)
+            _ = AudioFileGetProperty(af, kAudioFilePropertyDataFormat, &s2, &desc)
+            _ = AudioFileGetProperty(af, kAudioFilePropertyEstimatedDuration, &s3, &dur)
             var bytes = UInt32(8), first = [Int16](repeating: 0, count: 4)
             _ = first.withUnsafeMutableBytes { AudioFileReadBytes(af, false, 24, &bytes, $0.baseAddress!) }
             log("audiofile caf packets=\(packets) \(desc.mBitsPerChannel)-bit \(Int(desc.mSampleRate)) Hz duration=\(f2(dur)) firstBytes=\(bytes)")
@@ -353,25 +353,25 @@ final class MediaViewController: UIViewController {
             let p = buf.pointee.mAudioData.assumingMemoryBound(to: Float.self)
             for i in 0..<n { p[i] = Float(0.3 * sin(s.phase)); s.phase += 2 * Double.pi * 440 / 48000 }
             buf.pointee.mAudioDataByteSize = UInt32(n * 4)
-            AudioQueueEnqueueBuffer(q, buf, 0, nil)
+            _ = AudioQueueEnqueueBuffer(q, buf, 0, nil)
         }
         if AudioQueueNewOutput(&qfmt, fill, Unmanaged.passUnretained(qs).toOpaque(), nil, nil, 0, &queue) == noErr, let queue {
-            AudioQueueSetParameter(queue, kAudioQueueParam_Volume, 0)
+            _ = AudioQueueSetParameter(queue, kAudioQueueParam_Volume, 0)
             for _ in 0..<3 {
                 var b: AudioQueueBufferRef?
-                AudioQueueAllocateBuffer(queue, 4800 * 4, &b)
+                _ = AudioQueueAllocateBuffer(queue, 4800 * 4, &b)
                 if let b { fill(Unmanaged.passUnretained(qs).toOpaque(), queue, b); qs.callbacks -= 1 }
             }
             let t0 = Date()
-            AudioQueueStart(queue, nil)
+            _ = AudioQueueStart(queue, nil)
             Thread.sleep(forTimeInterval: 0.65)
             var ts = AudioTimeStamp()
-            AudioQueueGetCurrentTime(queue, nil, &ts, nil)
+            _ = AudioQueueGetCurrentTime(queue, nil, &ts, nil)
             var running: UInt32 = 0, rs = UInt32(4)
-            AudioQueueGetProperty(queue, kAudioQueueProperty_IsRunning, &running, &rs)
-            AudioQueueStop(queue, true)
+            _ = AudioQueueGetProperty(queue, kAudioQueueProperty_IsRunning, &running, &rs)
+            _ = AudioQueueStop(queue, true)
             log("queue output callbacks=\(qs.callbacks) played=\(f2(ts.mSampleTime / 48000)) s in \(f2(Date().timeIntervalSince(t0))) s running=\(running)")
-            AudioQueueDispose(queue, true)
+            _ = AudioQueueDispose(queue, true)
         }
 
         // queue input: 16 kHz mono 16-bit from the simulated microphone (ISIM_AUDIO_INPUT)
@@ -385,15 +385,15 @@ final class MediaViewController: UIViewController {
             let p = buf.pointee.mAudioData.assumingMemoryBound(to: Int16.self)
             for i in 0..<Int(packets) { s.peak = max(s.peak, p[i] == .min ? .max : abs(p[i])) }
             s.frames += Int(packets)
-            AudioQueueEnqueueBuffer(q, buf, 0, nil)
+            _ = AudioQueueEnqueueBuffer(q, buf, 0, nil)
         }
         if AudioQueueNewInput(&ifmt, got, Unmanaged.passUnretained(ist).toOpaque(), nil, nil, 0, &iq) == noErr, let iq {
-            for _ in 0..<3 { var b: AudioQueueBufferRef?; AudioQueueAllocateBuffer(iq, 1600 * 2, &b); if let b { AudioQueueEnqueueBuffer(iq, b, 0, nil) } }
-            AudioQueueStart(iq, nil)
+            for _ in 0..<3 { var b: AudioQueueBufferRef?; _ = AudioQueueAllocateBuffer(iq, 1600 * 2, &b); if let b { _ = AudioQueueEnqueueBuffer(iq, b, 0, nil) } }
+            _ = AudioQueueStart(iq, nil)
             Thread.sleep(forTimeInterval: 0.6)
-            AudioQueueStop(iq, true)
+            _ = AudioQueueStop(iq, true)
             log("queue input frames=\(ist.frames) peak=\(f2(Double(ist.peak) / 32768))")
-            AudioQueueDispose(iq, true)
+            _ = AudioQueueDispose(iq, true)
         }
     }
 }

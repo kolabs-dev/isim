@@ -84,8 +84,8 @@ public struct ProxyRepresentation<Item: Transferable, ProxyRepresentation: Trans
     public init(exporting: @escaping @Sendable (Item) async throws -> ProxyRepresentation, importing: @escaping @Sendable (ProxyRepresentation) async throws -> Item) {
         entries = ProxyRepresentation._isimEntries.map { e in
             _TransferEntry(contentType: e.contentType,
-                           importing: e.importing.map { im in { data in try await importing(try await im(data)) } },
-                           exporting: e.exporting.map { ex in { item in try await ex(try await exporting(item)) } })
+                           importing: e.importing.map { im in { @Sendable data in try await importing(try await im(data)) } },
+                           exporting: e.exporting.map { ex in { @Sendable item in try await ex(try await exporting(item)) } })
         }
     }
     public init(importing: @escaping @Sendable (ProxyRepresentation) async throws -> Item) {

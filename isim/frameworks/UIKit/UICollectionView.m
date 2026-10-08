@@ -391,7 +391,6 @@ static BOOL acc_leading(UICellAccessory *a) {
             NSUInteger k = lineItems.count; CGFloat total = 0;
             for (UICollectionViewLayoutAttributes *a in lineItems) total += vertical ? a.size.width : a.size.height;
             CGFloat gap = k > 1 ? (avail - total) / (k - 1) : 0, x = k == 1 ? lead + (avail - total) / 2 : lead;
-            if (k > 1 && gap > inter * 4 && lineItems == lineItems) gap = fmax(inter, gap);     /* justified, like UIKit */
             for (UICollectionViewLayoutAttributes *a in lineItems) {
                 CGSize sz = a.size;
                 a.frame = vertical ? CGRectMake(x, pos + (thick - sz.height) / 2, sz.width, sz.height) : CGRectMake(pos + (thick - sz.width) / 2, x, sz.width, sz.height);

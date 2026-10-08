@@ -124,10 +124,10 @@ final class VideoViewController: UIViewController {
         }.store(in: &cancellables)
         observations.append(playerLayer.observe(\.isReadyForDisplay, options: [.new]) { l, _ in log("layer readyForDisplay \(l.isReadyForDisplay)") })
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 2), queue: .main) { [weak self] t in
-            self?.timeLabel.text = String(format: "%.1f s", t.seconds)
+            MainActor.assumeIsolated { self?.timeLabel.text = String(format: "%.1f s", t.seconds) }
         }
         _ = player.addBoundaryTimeObserver(forTimes: [NSValue(time: CMTime(value: 1, timescale: 1))], queue: .main) { [weak self] in
-            log("boundary 1s at \(String(format: "%.2f", self?.player.currentTime().seconds ?? -1))")
+            MainActor.assumeIsolated { log("boundary 1s at \(String(format: "%.2f", self?.player.currentTime().seconds ?? -1))") }
         }
         NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: nil, queue: .main) { [weak self] n in
             guard let self, let item = n.object as? AVPlayerItem else { return }

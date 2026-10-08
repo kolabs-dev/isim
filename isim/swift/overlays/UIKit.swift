@@ -172,7 +172,7 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
 
 /// A UITableView data source driven by snapshots; changes animate as row inserts and deletes.
 @MainActor
-open class UITableViewDiffableDataSource<SectionIdentifierType: Hashable, ItemIdentifierType: Hashable>: NSObject, UITableViewDataSource {
+open class UITableViewDiffableDataSource<SectionIdentifierType: Hashable, ItemIdentifierType: Hashable>: NSObject, @preconcurrency UITableViewDataSource {
     public typealias CellProvider = (UITableView, IndexPath, ItemIdentifierType) -> UITableViewCell?
     weak var _tableView: UITableView?
     let _cellProvider: CellProvider
@@ -340,7 +340,7 @@ extension UICollectionViewListCell {
 
 // MARK: - Collection view diffable data source
 @MainActor
-open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, ItemIdentifierType: Hashable>: NSObject, UICollectionViewDataSource {
+open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, ItemIdentifierType: Hashable>: NSObject, @preconcurrency UICollectionViewDataSource {
     public typealias CellProvider = (UICollectionView, IndexPath, ItemIdentifierType) -> UICollectionViewCell?
     public typealias SupplementaryViewProvider = (UICollectionView, String, IndexPath) -> UICollectionReusableView?
     weak var _collectionView: UICollectionView?
@@ -436,7 +436,7 @@ extension CATransform3D: _ObjectiveCBridgeable {
     }
     public static func _unconditionallyBridgeFromObjectiveC(_ s: NSValue?) -> CATransform3D { s?.caTransform3DValue ?? CATransform3DIdentity }
 }
-extension CGAffineTransform: _ObjectiveCBridgeable {
+extension CGAffineTransform: @retroactive _ObjectiveCBridgeable {
     public func _bridgeToObjectiveC() -> NSValue { NSValue(cgAffineTransform: self) }
     public static func _forceBridgeFromObjectiveC(_ x: NSValue, result: inout CGAffineTransform?) { result = x.cgAffineTransformValue }
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSValue, result: inout CGAffineTransform?) -> Bool {
@@ -445,7 +445,7 @@ extension CGAffineTransform: _ObjectiveCBridgeable {
     }
     public static func _unconditionallyBridgeFromObjectiveC(_ s: NSValue?) -> CGAffineTransform { s?.cgAffineTransformValue ?? .identity }
 }
-extension CGVector: _ObjectiveCBridgeable {
+extension CGVector: @retroactive _ObjectiveCBridgeable {
     public func _bridgeToObjectiveC() -> NSValue { NSValue(cgVector: self) }
     public static func _forceBridgeFromObjectiveC(_ x: NSValue, result: inout CGVector?) { result = x.cgVectorValue }
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSValue, result: inout CGVector?) -> Bool {
@@ -465,13 +465,13 @@ extension CAMediaTimingFunction {
 extension UIView {
     @usableFromInline @discardableResult
     internal func registerForTraitChanges<T: UITraitEnvironment>(_ traits: [any _UITraitDefinitionObjC.Type], handler: @escaping (T, UITraitCollection) -> Void) -> any UITraitChangeRegistration {
-        __register(forTraitChanges: traits.map { $0 as! AnyClass }, withHandler: { env, previous in handler(env as! T, previous) })
+        __register(forTraitChanges: traits.map { $0 as AnyClass }, withHandler: { env, previous in handler(env as! T, previous) })
     }
 }
 extension UIViewController {
     @usableFromInline @discardableResult
     internal func registerForTraitChanges<T: UITraitEnvironment>(_ traits: [any _UITraitDefinitionObjC.Type], handler: @escaping (T, UITraitCollection) -> Void) -> any UITraitChangeRegistration {
-        __register(forTraitChanges: traits.map { $0 as! AnyClass }, withHandler: { env, previous in handler(env as! T, previous) })
+        __register(forTraitChanges: traits.map { $0 as AnyClass }, withHandler: { env, previous in handler(env as! T, previous) })
     }
 }
 

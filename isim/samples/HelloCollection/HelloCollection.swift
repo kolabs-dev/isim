@@ -129,7 +129,7 @@ final class ShelfViewController: UIViewController {
         view.addSubview(collectionView)
 
         let card = UICollectionView.CellRegistration<UICollectionViewCell, Book> { cell, _, book in
-            var content = UIListContentConfiguration.cell()
+            let content = UIListContentConfiguration.cell()
             content.text = book.title
             content.textProperties.color = .white
             content.textProperties.font = .systemFont(ofSize: 20, weight: .bold)
@@ -139,7 +139,7 @@ final class ShelfViewController: UIViewController {
             cell.accessibilityIdentifier = "featured-\(book.id)"
         }
         let cover = UICollectionView.CellRegistration<UICollectionViewCell, Book> { cell, _, book in
-            var content = UIListContentConfiguration.subtitleCell()
+            let content = UIListContentConfiguration.subtitleCell()
             content.text = book.title
             content.secondaryText = "Book \(book.id)"
             cell.contentConfiguration = content
@@ -148,7 +148,7 @@ final class ShelfViewController: UIViewController {
             cell.accessibilityIdentifier = "book-\(book.id)"
         }
         let header = UICollectionView.SupplementaryRegistration<UICollectionViewListCell>(elementKind: UICollectionView.elementKindSectionHeader) { view, _, indexPath in
-            var content = UIListContentConfiguration.plainHeader()
+            let content = UIListContentConfiguration.plainHeader()
             content.text = indexPath.section == 0 ? "Featured" : "All books"
             view.contentConfiguration = content
         }
@@ -215,7 +215,7 @@ final class ListViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "List"
-        var config = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
+        let config = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
         config.headerMode = .supplementary
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: config))
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -227,7 +227,7 @@ final class ListViewController: UIViewController {
         }
         let cellReg = UICollectionView.CellRegistration<UICollectionViewListCell, String> { [weak self] cell, _, name in
             guard let row = self?.rows[name] else { return }
-            var content = cell.defaultContentConfiguration()
+            let content = cell.defaultContentConfiguration()
             content.text = row.name
             content.secondaryText = row.detail
             content.secondaryTextProperties.numberOfLines = 0
@@ -236,7 +236,7 @@ final class ListViewController: UIViewController {
             cell.accessibilityIdentifier = "row-\(name)"
         }
         let headerReg = UICollectionView.SupplementaryRegistration<UICollectionViewListCell>(elementKind: UICollectionView.elementKindSectionHeader) { view, _, indexPath in
-            var content = UIListContentConfiguration.groupedHeader()
+            let content = UIListContentConfiguration.groupedHeader()
             content.text = indexPath.section == 0 ? "GROCERIES" : "PANTRY"
             view.contentConfiguration = content
         }

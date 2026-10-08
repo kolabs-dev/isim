@@ -715,6 +715,11 @@ NSString *isim_format_date(NSDate *date, NSString *fmt, NSLocale *locale, NSTime
 }
 
 @implementation NSDateFormatter { NSString *_fmt; NSLocale *_locale; NSTimeZone *_tz; NSMutableDictionary *_symbols; }
+@synthesize calendar = _calendar, dateStyle = _dateStyle, timeStyle = _timeStyle;
+- (NSCalendar *)calendar { return _calendar ?: NSCalendar.currentCalendar; }
+- (void)setCalendar:(NSCalendar *)c { _calendar = [c copy]; }        /* null_resettable: nil is the current calendar */
+- (NSDateFormatterStyle)dateStyle { return _dateStyle; }
+- (NSDateFormatterStyle)timeStyle { return _timeStyle; }
 - (instancetype)init {
     if ((self = [super init])) { _locale = NSLocale.currentLocale; _tz = NSTimeZone.defaultTimeZone; _symbols = [NSMutableDictionary dictionary]; _lenient = NO; }
     return self;

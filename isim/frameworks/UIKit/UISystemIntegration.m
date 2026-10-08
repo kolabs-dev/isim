@@ -417,7 +417,10 @@ static void deliver_remote(NSDictionary *w, int mode) {
             });
         }];
     } else if (!bg && [d respondsToSelector:@selector(application:didReceiveRemoteNotification:)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"    /* apps that only implement the iOS 3 method still get it */
         [(id)d application:app didReceiveRemoteNotification:payload];
+#pragma clang diagnostic pop
     } else if (contentAvailable) NSLog(@"isim: background notification: the app delegate does not implement application(_:didReceiveRemoteNotification:fetchCompletionHandler:)");
 }
 /* "RECORD\x1fID\x1fACTION\x1fTEXT": a response chosen under an expanded notification (TEXT only for text input actions) */

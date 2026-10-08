@@ -431,7 +431,7 @@ static void speak(NSString *text) {
 @end
 static __IsimVoiceOverWindow *vo_window;
 static __weak id vo_focus;
-static __strong id vo_focus_strong;      /* non-view elements (UIAccessibilityElement) are owned by their containers */
+static __strong id vo_focus_strong __attribute__((unused));      /* non-view elements (UIAccessibilityElement) are owned by their containers */
 static BOOL vo_was_running;
 
 @implementation NSObject (UIAccessibilityFocusState)

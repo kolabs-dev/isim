@@ -27,6 +27,6 @@ XCT_EXPORT int XCTIsimRunTestBundle(const char *bundlePath) NS_SWIFT_UNAVAILABLE
 XCT_EXPORT XCTestCase *_Nullable _XCTCurrentTestCase(void) NS_SWIFT_NAME(_XCTCurrentTestCase());
 XCT_EXPORT void _XCTIsimRecordFailure(NSString *description, NSString *_Nullable filePath, NSUInteger line, BOOL expected);
 XCT_EXPORT void _XCTIsimRecordSkip(NSString *_Nullable message, NSString *_Nullable filePath, NSUInteger line);
-XCT_EXPORT void _XCTIsimRecordMeasurement(NSArray<NSNumber *> *values, NSString *filePath, NSUInteger line);
+XCT_EXPORT void _XCTIsimRecordMeasurement(NSArray<NSNumber *> *values, NSString * _Nullable filePath, NSUInteger line);
 
 NS_ASSUME_NONNULL_END

@@ -146,7 +146,7 @@ open class URLSession: NSObject, @unchecked Sendable {
     public enum ResponseDisposition: Int, Sendable { case cancel = 0, allow = 1, becomeDownload = 2, becomeStream = 3 }
     public enum DelayedRequestDisposition: Int, Sendable { case continueLoading = 0, useNewRequest = 1, cancel = 2 }
 
-    nonisolated(unsafe) static let _shared = URLSession(configuration: .default)
+    static let _shared = URLSession(configuration: .default)
     /// no delegate; completion handlers run on a background serial queue
     open class var shared: URLSession { _shared }
 
@@ -532,12 +532,13 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
                     newReq.httpMethod = "GET"; newReq.httpBody = nil; body = nil
                     newReq.setValue(nil, forHTTPHeaderField: "Content-Type"); newReq.setValue(nil, forHTTPHeaderField: "Content-Length")
                 }
-                var decided: URLRequest? = newReq
+                let proposed = newReq
+                var decided: URLRequest? = proposed
                 if let d = _sessionTaskDelegate {
                     let sem = DispatchSemaphore(value: 0)
                     let box = _URLBox<URLRequest?>(nil)
                     _session.delegateQueue.addOperation {
-                        d.urlSession(self._session, task: self, willPerformHTTPRedirection: resp, newRequest: newReq) { r in box.value = r; sem.signal() }
+                        d.urlSession(self._session, task: self, willPerformHTTPRedirection: resp, newRequest: proposed) { r in box.value = r; sem.signal() }
                     }
                     sem.wait()
                     decided = box.value
@@ -593,13 +594,15 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
     func _askChallenge(_ ch: URLAuthenticationChallenge, sessionWide: Bool) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
         let sem = DispatchSemaphore(value: 0)
         let box = _URLBox<(URLSession.AuthChallengeDisposition, URLCredential?)>((.performDefaultHandling, nil))
-        let taskDelegate = _sessionTaskDelegate
-        let sessionDelegate = _session.delegate
-        func askTask() {
-            guard let d = taskDelegate else { sem.signal(); return }
+        nonisolated(unsafe) let taskDelegate = _sessionTaskDelegate     /* called on the session's delegate queue */
+        nonisolated(unsafe) let sessionDelegate = _session.delegate
+        @Sendable func askTask() {
+            guard let td = taskDelegate else { sem.signal(); return }
+            nonisolated(unsafe) let d = td
             _session.delegateQueue.addOperation { d.urlSession(self._session, task: self, didReceive: ch) { r, c in box.value = (r, c); sem.signal() } }
         }
-        if sessionWide, let sd = sessionDelegate {
+        if sessionWide, let sessionDelegate {
+            nonisolated(unsafe) let sd = sessionDelegate
             _session.delegateQueue.addOperation {
                 sd.urlSession(self._session, didReceive: ch) { r, c in
                     if r == .performDefaultHandling && taskDelegate != nil && taskDelegate !== sd { askTask() } else { box.value = (r, c); sem.signal() }

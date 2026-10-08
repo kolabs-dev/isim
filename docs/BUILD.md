@@ -29,6 +29,14 @@ Changes do not cascade needlessly: steps that rewrite an output with the same co
 `restat`), so a comment-only change in an overlay recompiles that overlay and nothing else. Apps depend on the SDK's
 interface (headers, Swift module files, `.tbd` stubs), not on framework implementations.
 
+## Warnings are errors
+
+isim's own code builds without warnings, and a new warning fails the build: the host runtime, the Objective-C
+frameworks, the Swift overlays, the samples and the test apps compile with `-Werror` (C, Objective-C) or
+`-warnings-as-errors` (Swift). Deprecations stay warnings (`-Wno-error=deprecated-declarations`,
+`-Wwarning DeprecatedDeclaration`). Upstream code (the Swift stdlib, Swift Testing) builds with `-suppress-warnings`.
+A compiler newer than CI's may warn about more; `ISIM_WERROR=0 isim/build.py` builds with warnings left as warnings.
+
 ## Adding things
 
 - **A sample**: a directory in `isim/samples` with Swift files and an `Info.plist` builds as `<Dir>.app` with no

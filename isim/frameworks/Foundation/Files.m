@@ -253,33 +253,6 @@ static BOOL remove_tree(const char *path) {
 }
 @end
 
-/* ---------------- property list writer (XML) ---------------- */
-static void xml_escape(NSMutableString *out, NSString *s) {
-    NSString *e = [[[s stringByReplacingOccurrencesOfString:@"&" withString:@"&amp;"] stringByReplacingOccurrencesOfString:@"<" withString:@"&lt;"] stringByReplacingOccurrencesOfString:@">" withString:@"&gt;"];
-    [out appendString:e];
-}
-static void plist_write(NSMutableString *out, id v, int depth) {
-    NSString *ind = [@"" stringByPaddingToLength_isim:(NSUInteger)depth];
-    if ([v isKindOfClass:[NSString class]]) { [out appendFormat:@"%@<string>", ind]; xml_escape(out, v); [out appendString:@"</string>\n"]; }
-    else if ([v isKindOfClass:[NSNumber class]]) {
-        NSNumber *n = v; double d = n.doubleValue;
-        const char *desc = [[n description] UTF8String];
-        BOOL isBool = [n respondsToSelector:@selector(_isim_isBool)] && ((BOOL (*)(id, SEL))[n methodForSelector:@selector(_isim_isBool)])(n, @selector(_isim_isBool));
-        if (isBool) [out appendFormat:@"%@<%@/>\n", ind, n.boolValue ? @"true" : @"false"];
-        else if (strchr(desc, '.') || strchr(desc, 'e')) [out appendFormat:@"%@<real>%.17g</real>\n", ind, d];
-        else [out appendFormat:@"%@<integer>%lld</integer>\n", ind, n.longLongValue];
-    } else if ([v isKindOfClass:[NSDate class]]) [out appendFormat:@"%@<date>%@</date>\n", ind, [v description]];
-    else if ([v isKindOfClass:[NSArray class]]) {
-        [out appendFormat:@"%@<array>\n", ind];
-        for (id x in v) plist_write(out, x, depth + 1);
-        [out appendFormat:@"%@</array>\n", ind];
-    } else if ([v isKindOfClass:[NSDictionary class]]) {
-        [out appendFormat:@"%@<dict>\n", ind];
-        NSArray *keys = [[v allKeys] sortedArrayUsingSelector:@selector(compare:)];
-        for (NSString *k in keys) { [out appendFormat:@"%@\t<key>", ind]; xml_escape(out, k); [out appendString:@"</key>\n"]; plist_write(out, v[k], depth + 1); }
-        [out appendFormat:@"%@</dict>\n", ind];
-    }
-}
 NSString *isim_plist_xml(id root) { return isim_plist_write_xml(root); }
 
 @implementation NSString (IsimPad)

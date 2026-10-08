@@ -467,7 +467,7 @@ static CGFloat scale_from_name(NSString *path) {
 @end
 
 /* ---------------- named colors from the asset catalog ---------------- */
-@implementation UIColor (IsimNamed)
+@implementation UIColor (UIColorNamedColors)
 + (UIColor *)colorNamed:(NSString *)name { return [self colorNamed:name inBundle:nil compatibleWithTraitCollection:nil]; }
 + (UIColor *)colorNamed:(NSString *)name inBundle:(NSBundle *)bundle compatibleWithTraitCollection:(UITraitCollection *)traits {
     NSDictionary *variants = asset_index(bundle ?: NSBundle.mainBundle)[@"colors"][name];

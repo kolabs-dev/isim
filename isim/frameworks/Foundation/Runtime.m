@@ -358,8 +358,11 @@ void isim_main_wait(double seconds) {
 @end
 @implementation NSTimer
 + (NSTimer *)timerWithTimeInterval:(NSTimeInterval)i repeats:(BOOL)r block:(void (^)(NSTimer *))block {
+    NSTimer *t = [self _isim_timerWithTimeInterval:i repeats:r]; t.timerBlock = block; return t;
+}
++ (NSTimer *)_isim_timerWithTimeInterval:(NSTimeInterval)i repeats:(BOOL)r {     /* without a block (target/selector timers) */
     NSTimer *t = [NSTimer new];
-    t->_timeInterval = i; t.timerBlock = block;
+    t->_timeInterval = i;
     __IsimRunLoopItem *it = [__IsimRunLoopItem new];
     it.interval = i > 0.0001 ? i : 0.0001; it.repeats = r; it.timer = t;
     t.item = it;
@@ -371,7 +374,7 @@ void isim_main_wait(double seconds) {
     return t;
 }
 + (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)i target:(id)target selector:(SEL)sel userInfo:(id)info repeats:(BOOL)r {
-    NSTimer *t = [self timerWithTimeInterval:i repeats:r block:nil];
+    NSTimer *t = [self _isim_timerWithTimeInterval:i repeats:r];
     t.target = target; t.selector = sel; t->_userInfo = info;
     [[NSRunLoop mainRunLoop] addTimer:t forMode:NSDefaultRunLoopMode];
     return t;
@@ -809,6 +812,8 @@ static char opq_key;
     }
     return self;
 }
+@synthesize maxConcurrentOperationCount = _maxConcurrentOperationCount;
+- (NSInteger)maxConcurrentOperationCount { return _maxConcurrentOperationCount; }
 - (void)setMaxConcurrentOperationCount:(NSInteger)n {
     _maxConcurrentOperationCount = n;
     if (n == 1 && _q != dispatch_get_main_queue()) { _q = dispatch_queue_create("NSOperationQueue (serial)", NULL); dispatch_queue_set_specific(_q, &opq_key, (__bridge void *)self, NULL); }

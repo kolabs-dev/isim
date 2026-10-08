@@ -12,13 +12,13 @@ extension URLSessionWebSocketDelegate {
 }
 
 extension URLSession {
-    open func webSocketTask(with url: URL) -> URLSessionWebSocketTask { webSocketTask(with: URLRequest(url: url)) }
-    open func webSocketTask(with url: URL, protocols: [String]) -> URLSessionWebSocketTask {
+    public func webSocketTask(with url: URL) -> URLSessionWebSocketTask { webSocketTask(with: URLRequest(url: url)) }
+    public func webSocketTask(with url: URL, protocols: [String]) -> URLSessionWebSocketTask {
         var r = URLRequest(url: url)
         if !protocols.isEmpty { r.setValue(protocols.joined(separator: ", "), forHTTPHeaderField: "Sec-WebSocket-Protocol") }
         return webSocketTask(with: r)
     }
-    open func webSocketTask(with request: URLRequest) -> URLSessionWebSocketTask { _add(URLSessionWebSocketTask(self, request)) }
+    public func webSocketTask(with request: URLRequest) -> URLSessionWebSocketTask { _add(URLSessionWebSocketTask(self, request)) }
 }
 
 open class URLSessionWebSocketTask: URLSessionTask, @unchecked Sendable {

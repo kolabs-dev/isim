@@ -32,6 +32,13 @@ typedef void *pp_jmp[5];   /* __builtin_setjmp buffer (no setjmp in isim's libSy
     @public NSExpressionType _type; id _constant; NSString *_keyPath, *_variable, *_function; NSArray *_args, *_collection;
     NSExpression *_operand; id (^_block)(id, NSArray *, NSMutableDictionary *);
 }
++ (NSExpression *)expressionWithFormat:(NSString *)fmt arguments:(va_list)ap {
+    va_list copy; va_copy(copy, ap);
+    NSExpression *e = [NSPredicate _isim_expressionWithFormat:fmt arguments:&copy array:nil];
+    va_end(copy);
+    return e;
+}
++ (NSExpression *)expressionWithFormat:(NSString *)fmt argumentArray:(NSArray *)args { return [NSPredicate _isim_expressionWithFormat:fmt arguments:NULL array:args ?: @[]]; }
 + (NSExpression *)expressionForConstantValue:(id)obj { NSExpression *e = [[self alloc] initWithExpressionType:NSConstantValueExpressionType]; e->_constant = obj; return e; }
 + (NSExpression *)expressionForEvaluatedObject { return [[self alloc] initWithExpressionType:NSEvaluatedObjectExpressionType]; }
 + (NSExpression *)expressionForVariable:(NSString *)v { NSExpression *e = [[self alloc] initWithExpressionType:NSVariableExpressionType]; e->_variable = [v copy]; return e; }
@@ -133,7 +140,15 @@ static id arith(NSString *op, id a, id b) {
 @end
 
 /* ================= predicates ================= */
+static NSPredicate *parse_predicate(NSString *format, va_list *ap, NSArray *args);
 @implementation NSPredicate
++ (NSPredicate *)predicateWithFormat:(NSString *)format arguments:(va_list)ap {
+    va_list copy; va_copy(copy, ap);
+    NSPredicate *p = parse_predicate(format, &copy, nil);
+    va_end(copy);
+    return p;
+}
++ (NSPredicate *)predicateWithFormat:(NSString *)format argumentArray:(NSArray *)args { return parse_predicate(format, NULL, args ?: @[]); }
 + (NSPredicate *)predicateWithValue:(BOOL)value { return [[_IsimValuePredicate_isim alloc] initWithIsimValue:value]; }
 + (NSPredicate *)predicateWithBlock:(BOOL (^)(id, NSDictionary *))block { return [[_IsimBlockPredicate_isim alloc] initWithIsimBlock:block]; }
 + (NSPredicate *)predicateWithFormat:(NSString *)format, ... {
@@ -523,28 +538,12 @@ static NSPredicate *parse_predicate(NSString *format, va_list *ap, NSArray *args
     return pred;
 }
 @implementation NSPredicate (IsimFormat)
-+ (NSPredicate *)predicateWithFormat:(NSString *)format arguments:(va_list)ap {
-    va_list copy; va_copy(copy, ap);
-    NSPredicate *p = parse_predicate(format, &copy, nil);
-    va_end(copy);
-    return p;
-}
-+ (NSPredicate *)predicateWithFormat:(NSString *)format argumentArray:(NSArray *)args { return parse_predicate(format, NULL, args ?: @[]); }
 + (NSExpression *)_isim_expressionWithFormat:(NSString *)format arguments:(va_list *)ap array:(NSArray *)args {
     pp_jmp top;
     pparser p = { format, 0, format.length, ap, args, 0, &top, "" };
     if (__builtin_setjmp(top)) { raise_parse_error(&p); return nil; }
     return pp_expr(&p);
 }
-@end
-@implementation NSExpression (IsimFormat)
-+ (NSExpression *)expressionWithFormat:(NSString *)fmt arguments:(va_list)ap {
-    va_list copy; va_copy(copy, ap);
-    NSExpression *e = [NSPredicate _isim_expressionWithFormat:fmt arguments:&copy array:nil];
-    va_end(copy);
-    return e;
-}
-+ (NSExpression *)expressionWithFormat:(NSString *)fmt argumentArray:(NSArray *)args { return [NSPredicate _isim_expressionWithFormat:fmt arguments:NULL array:args ?: @[]]; }
 @end
 
 /* ================= filtering ================= */

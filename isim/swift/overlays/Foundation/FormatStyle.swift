@@ -614,7 +614,7 @@ public struct ByteCountFormatStyle: FormatStyle, Sendable {
         public static let tb = Units(rawValue: 1 << 4), pb = Units(rawValue: 1 << 5), eb = Units(rawValue: 1 << 6), zb = Units(rawValue: 1 << 7)
         public static let ybOrHigher = Units(rawValue: 0xFF << 8)
         public static let all = Units(rawValue: 0xFFFF)
-        public static let `default` = Units(rawValue: 0)
+        public static let `default`: Units = []
     }
     public var style: Style
     public var allowedUnits: Units

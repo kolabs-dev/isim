@@ -25,7 +25,7 @@ public struct WindowGroup<Content: View>: Scene, _SceneRoot, _SceneNode {
     public init(id: String, @ViewBuilder content: @escaping () -> Content) { self.content = content; self.id = id }
     public init(_ title: LocalizedStringKey, id: String, @ViewBuilder content: @escaping () -> Content) { self.content = content; self.id = id }
     /// a window for a value (openWindow(value:)); isim shows it with a nil value
-    public init<D: Codable & Hashable, C: View>(for type: D.Type, @ViewBuilder content: @escaping (Binding<D?>) -> C) where Content == C {
+    public init<D: Codable & Hashable>(for type: D.Type, @ViewBuilder content: @escaping (Binding<D?>) -> Content) {
         self.content = { content(.constant(nil)) }
     }
     public var body: Never { fatalError() }
@@ -80,8 +80,8 @@ extension App {
         return c
     }
     /// every other UIApplicationDelegate method goes to the @UIApplicationDelegateAdaptor delegate
-    override func responds(to sel: Selector!) -> Bool { super.responds(to: sel) || (_SUIAppRoot.adaptor?.responds(to: sel) ?? false) }
-    override func forwardingTarget(for sel: Selector!) -> Any? {
+    override func responds(to sel: Selector) -> Bool { super.responds(to: sel) || (_SUIAppRoot.adaptor?.responds(to: sel) ?? false) }
+    override func forwardingTarget(for sel: Selector) -> Any? {
         if let a = _SUIAppRoot.adaptor, a.responds(to: sel) { return a }
         return super.forwardingTarget(for: sel)
     }
@@ -91,8 +91,8 @@ extension App {
     var window: UIWindow?
     nonisolated(unsafe) static var forwardClass: NSObject.Type?
     var forward: NSObject?
-    override func responds(to sel: Selector!) -> Bool { super.responds(to: sel) || (forward?.responds(to: sel) ?? false) }
-    override func forwardingTarget(for sel: Selector!) -> Any? {
+    override func responds(to sel: Selector) -> Bool { super.responds(to: sel) || (forward?.responds(to: sel) ?? false) }
+    override func forwardingTarget(for sel: Selector) -> Any? {
         if let f = forward, f.responds(to: sel) { return f }
         return super.forwardingTarget(for: sel)
     }

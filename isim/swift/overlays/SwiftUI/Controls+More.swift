@@ -341,7 +341,7 @@ extension GroupBox where Label == Text {
 public struct ControlGroup<Content: View>: View, _PrimitiveView {
     let content: Content
     public init(@ViewBuilder content: () -> Content) { self.content = content() }
-    public init<C: View, L: View>(@ViewBuilder content: () -> C, @ViewBuilder label: () -> L) where Content == C { self.content = content() }
+    public init<L: View>(@ViewBuilder content: () -> Content, @ViewBuilder label: () -> L) { self.content = content() }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
         // each control gets an equal share of the row

@@ -59,6 +59,7 @@
     return NO;
 }
 - (IMP)methodForSelector:(SEL)sel { return class_getMethodImplementation(object_getClass(self), sel); }
++ (IMP)instanceMethodForSelector:(SEL)sel { return class_getMethodImplementation(self, sel); }
 - (void)doesNotRecognizeSelector:(SEL)sel {
     [NSException raise:NSInvalidArgumentException format:@"-[%s %s]: unrecognized selector sent to instance %p",
         object_getClassName(self), sel_getName(sel), self];
@@ -100,7 +101,10 @@
 - (oneway void)release { _Block_release(self); }
 - (instancetype)autorelease { return _objc_rootAutorelease(self); }
 - (NSUInteger)retainCount { return 1; }
-- (void)dealloc { }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wobjc-missing-super-calls"
+- (void)dealloc { }                         /* blocks are freed by _Block_release; NSObject's dealloc would free them again */
+#pragma clang diagnostic pop
 @end
 @interface __NSStackBlock__ : __NSBlockBase @end
 @implementation __NSStackBlock__
@@ -155,12 +159,15 @@ static NSString *demangle_swift_class(const char *n) {
     }
     return *p == 0 && parts.count >= 2 ? [parts componentsJoinedByString:@"."] : nil;
 }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnonnull"                /* nil for Nil, like Apple's (the header stays nonnull for Swift) */
 NSString *NSStringFromClass(Class c) {
     if (!c) return nil;
     const char *n = class_getName(c);
     NSString *d = demangle_swift_class(n);
     return d ?: [NSString stringWithUTF8String:n];
 }
+#pragma clang diagnostic pop
 Class NSClassFromString(NSString *s) {
     if (!s) return Nil;
     const char *n = [s UTF8String];

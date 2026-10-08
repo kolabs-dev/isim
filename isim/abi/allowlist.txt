@@ -91,3 +91,36 @@ usr/lib/swift/libswiftWebKit.dylib _$s6WebKit7WKErrorV10Foundation13CustomNSErro
 usr/lib/swift/libswiftWebKit.dylib _$s6WebKit7WKErrorV10Foundation14LocalizedErrorAAWP
 usr/lib/swift/libswiftXCTest.dylib _$s6XCTest19_XCTRecordedFailureV10Foundation13CustomNSErrorAAWP
 usr/lib/swift/libswiftXCTest.dylib _$s6XCTest7XCTSkipV10Foundation13CustomNSErrorAAWP
+# 0.12.0 (issue #40): WindowGroup(for:content:) and ControlGroup(content:label:) had a redundant generic parameter for the
+# content (`<C: View> ... where Content == C`, a warning in Swift 6). They now take `Content` directly, which changes their
+# symbols; source is unchanged, and Swift apps built before 0.12 must be rebuilt in any case (abi/epochs.txt).
+usr/lib/swift/libswiftSwiftUI.dylib _$s7SwiftUI11WindowGroupV3for7contentACyxGqd__m_xAA7BindingVyqd__SgGctcqd_0_RszSeRd__SERd__SHRd__r0_lufC
+usr/lib/swift/libswiftSwiftUI.dylib _$s7SwiftUI12ControlGroupV7content5labelACyxGxyXE_qd_0_yXEtcqd__RszAA4ViewRd_0_r0_lufC
+# 0.12.0 (issue #40): WKWebView's and AVPlayer/AVPlayerItem's KVO-observable properties are `@objc dynamic`, like Apple's, so
+# key-path KVO (`observe(\.title)`) compiles without warnings. Dynamic members leave the Swift vtable, which drops their
+# getters' dispatch thunks (Tj) and method descriptors (Tq). Only Swift code uses those, and Swift apps built before 0.12
+# must be rebuilt in any case (abi/epochs.txt).
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation12AVPlayerItemC6statusAC6StatusOvgTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation12AVPlayerItemC6statusAC6StatusOvgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation8AVPlayerC11currentItemAA0bD0CSgvgTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation8AVPlayerC11currentItemAA0bD0CSgvgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation8AVPlayerC17timeControlStatusAC04TimedE0OvgTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation8AVPlayerC17timeControlStatusAC04TimedE0OvgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation8AVPlayerC6statusAC6StatusOvgTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation8AVPlayerC6statusAC6StatusOvgTq
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC10themeColorSo7UIColorCSgvgTj
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC10themeColorSo7UIColorCSgvgTq
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC12canGoForwardSbvgTj
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC12canGoForwardSbvgTq
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC17estimatedProgressSdvgTj
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC17estimatedProgressSdvgTq
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC20hasOnlySecureContentSbvgTj
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC20hasOnlySecureContentSbvgTq
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC3url10Foundation3URLVSgvgTj
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC3url10Foundation3URLVSgvgTq
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC5titleSSSgvgTj
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC5titleSSSgvgTq
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC9canGoBackSbvgTj
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC9canGoBackSbvgTq
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC9isLoadingSbvgTj
+usr/lib/swift/libswiftWebKit.dylib _$s6WebKit9WKWebViewC9isLoadingSbvgTq

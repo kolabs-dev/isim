@@ -131,7 +131,7 @@ public func NSLog(_ format: String, _ args: CVarArg...) {
 // MARK: NSString API on String (subset of Apple's NSStringAPI.swift)
 extension StringProtocol {
   public func components<T: StringProtocol>(separatedBy separator: T) -> [String] {
-    String(self)._bridgeToObjectiveC().components(separatedBy: String(separator)) as! [String]
+    String(self)._bridgeToObjectiveC().components(separatedBy: String(separator))
   }
   public func replacingOccurrences<T: StringProtocol, R: StringProtocol>(of target: T, with replacement: R) -> String {
     String(self)._bridgeToObjectiveC().replacingOccurrences(of: String(target), with: String(replacement))
@@ -246,7 +246,7 @@ extension NSLocale {
   /// the current locale object (carries the user's preferences, e.g. 24-hour time); currentLocale is bridged to Locale in Swift
   static func __isim_current() -> NSLocale {
     let cls: AnyObject = NSLocale.self
-    return cls.perform(Selector("currentLocale")).takeUnretainedValue() as! NSLocale
+    return cls.perform(NSSelectorFromString("currentLocale")).takeUnretainedValue() as! NSLocale
   }
 }
 extension Locale: _ObjectiveCBridgeable {
@@ -264,7 +264,7 @@ public struct TimeZone: Hashable, @unchecked Sendable, CustomStringConvertible {
   public init?(secondsFromGMT s: Int) { _ns = NSTimeZone(forSecondsFromGMT: s) }
   public static var current: TimeZone {
     let cls: AnyObject = NSTimeZone.self
-    return TimeZone(_ns: cls.perform(Selector("localTimeZone")).takeUnretainedValue() as! NSTimeZone)
+    return TimeZone(_ns: cls.perform(NSSelectorFromString("localTimeZone")).takeUnretainedValue() as! NSTimeZone)
   }
   public static var autoupdatingCurrent: TimeZone { current }
   public static var gmt: TimeZone { TimeZone(secondsFromGMT: 0)! }
@@ -599,3 +599,7 @@ func _localeCase(_ s: String, _ locale: Locale?, upper: Bool) -> String {
   return upper ? s.uppercased() : s.lowercased()
 }
 
+/// Locks are made for sharing between threads (Apple's SDK marks them Sendable).
+extension NSLock: @unchecked @retroactive Sendable {}
+extension NSRecursiveLock: @unchecked @retroactive Sendable {}
+extension NSCondition: @unchecked @retroactive Sendable {}

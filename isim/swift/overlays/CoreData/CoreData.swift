@@ -67,7 +67,7 @@ extension NSManagedObject: ObservableObject {
 }
 
 /// NSDiffableDataSourceSnapshotReference <-> NSDiffableDataSourceSnapshot (`snapshot as NSDiffableDataSourceSnapshot<String, NSManagedObjectID>`).
-extension NSDiffableDataSourceSnapshot: _ObjectiveCBridgeable {
+extension NSDiffableDataSourceSnapshot: @retroactive _ObjectiveCBridgeable {
     public func _bridgeToObjectiveC() -> NSDiffableDataSourceSnapshotReference {
         let r = NSDiffableDataSourceSnapshotReference()
         for s in sectionIdentifiers {

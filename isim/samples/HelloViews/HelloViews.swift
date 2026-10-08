@@ -77,23 +77,23 @@ final class ViewsController: UIViewController, UIContextMenuInteractionDelegate,
         photo.frame = CGRect(x: 200, y: 70, width: 160, height: 60); photo.backgroundColor = .systemOrange
         photo.accessibilityIdentifier = "photo"; photo.addInteraction(UIContextMenuInteraction(delegate: self))
         // buttons with configurations
-        var toggle = UIButton.Configuration.filled(); toggle.title = "Off"
+        let toggle = UIButton.Configuration.filled(); toggle.title = "Off"
         let toggleButton = UIButton(configuration: toggle)
         toggleButton.changesSelectionAsPrimaryAction = true
         toggleButton.configurationUpdateHandler = { b in
-            var c = b.configuration; c?.title = b.isSelected ? "On" : "Off"; b.configuration = c
+            let c = b.configuration; c?.title = b.isSelected ? "On" : "Off"; b.configuration = c
             log("update handler: selected \(b.isSelected)")
         }
         toggleButton.frame = CGRect(x: 20, y: 150, width: 100, height: 40); toggleButton.accessibilityIdentifier = "toggle"
-        var busy = UIButton.Configuration.gray(); busy.title = "Saving"; busy.showsActivityIndicator = true; busy.imagePadding = 8
+        let busy = UIButton.Configuration.gray(); busy.title = "Saving"; busy.showsActivityIndicator = true; busy.imagePadding = 8
         let busyButton = UIButton(configuration: busy); busyButton.frame = CGRect(x: 130, y: 150, width: 130, height: 40); busyButton.accessibilityIdentifier = "busy"
-        var fancy = UIButton.Configuration.plain()
+        let fancy = UIButton.Configuration.plain()
         var title = AttributedString("Fancy"); title.foregroundColor = .systemRed; title.font = .boldSystemFont(ofSize: 22)
         fancy.attributedTitle = title
         let fancyButton = UIButton(configuration: fancy); fancyButton.frame = CGRect(x: 270, y: 150, width: 110, height: 40); fancyButton.accessibilityIdentifier = "fancy"
-        var stacked = UIButton.Configuration.tinted(); stacked.title = "Top"; stacked.image = UIImage(systemName: "star.fill"); stacked.imagePlacement = .top; stacked.imagePadding = 4
+        let stacked = UIButton.Configuration.tinted(); stacked.title = "Top"; stacked.image = UIImage(systemName: "star.fill"); stacked.imagePlacement = .top; stacked.imagePadding = 4
         let stackedButton = UIButton(configuration: stacked); stackedButton.accessibilityIdentifier = "stacked"
-        let ss = stackedButton.intrinsicContentSize, plainSize = UIButton(configuration: { var c = UIButton.Configuration.tinted(); c.title = "Top"; c.image = UIImage(systemName: "star.fill"); return c }()).intrinsicContentSize
+        let ss = stackedButton.intrinsicContentSize, plainSize = UIButton(configuration: { let c = UIButton.Configuration.tinted(); c.title = "Top"; c.image = UIImage(systemName: "star.fill"); return c }()).intrinsicContentSize
         log("image placement top: taller \(ss.height > plainSize.height), narrower \(ss.width < plainSize.width)")
         stackedButton.frame = CGRect(x: 20, y: 200, width: ss.width, height: ss.height)
         // tint adjustment

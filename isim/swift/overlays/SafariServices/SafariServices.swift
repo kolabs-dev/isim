@@ -273,7 +273,6 @@ open class SFSafariViewController: UIViewController {
         guard scheme == "http" || scheme == "https" else {
             NSException(name: "NSInvalidArgumentException",
                         reason: "The specified URL has an unsupported scheme. Only HTTP and HTTPS URLs are supported.", userInfo: nil).raise()
-            fatalError()
         }
         _url = URL
         self.configuration = configuration
@@ -315,7 +314,7 @@ open class SFSafariViewController: UIViewController {
 // MARK: - SFSafariApplication / Reading List
 
 open class SSReadingList: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) static let _default = SSReadingList()
+    static let _default = SSReadingList()
     public static func `default`() -> SSReadingList? { _default }
     public static func supportsURL(_ URL: URL) -> Bool { ["http", "https"].contains(URL.scheme?.lowercased() ?? "") }
     var items: [(URL, String?, String?)] = []

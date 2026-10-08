@@ -27,7 +27,7 @@ public struct DCError: CustomNSError, LocalizedError, Hashable, Sendable {
 public func ~= (code: DCError.Code, error: Error) -> Bool { (error as? DCError)?.code == code }
 
 open class DCDevice: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) public static let current = DCDevice()
+    public static let current = DCDevice()
     open var isSupported: Bool { false }
     open func generateToken(completionHandler: @escaping @Sendable (Data?, Error?) -> Void) {
         DispatchQueue.global().async { completionHandler(nil, DCError(.featureUnsupported)) }
@@ -36,7 +36,7 @@ open class DCDevice: NSObject, @unchecked Sendable {
 }
 
 open class DCAppAttestService: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) public static let shared = DCAppAttestService()
+    public static let shared = DCAppAttestService()
     open var isSupported: Bool { false }
     open func generateKey(completionHandler: @escaping @Sendable (String?, Error?) -> Void) {
         DispatchQueue.global().async { completionHandler(nil, DCError(.featureUnsupported)) }

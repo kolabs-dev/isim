@@ -442,7 +442,7 @@ public struct GeometryProxy {
         switch space { case .local: return CGRect(origin: .zero, size: size); default: return globalFrame }
     }
 }
-public enum CoordinateSpace: Hashable, Sendable {
+public enum CoordinateSpace: Hashable, @unchecked Sendable {     /* (AnyHashable is not Sendable) */
     case global, local
     case named(AnyHashable)
 }

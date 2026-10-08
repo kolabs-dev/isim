@@ -33,7 +33,7 @@ class ViewController: UIViewController {
         hintLabel.textAlignment = .center
         hintLabel.numberOfLines = 0
 
-        var config = UIButton.Configuration.filled()
+        let config = UIButton.Configuration.filled()
         config.title = "Tap me"
         config.cornerStyle = .capsule
         config.buttonSize = .large

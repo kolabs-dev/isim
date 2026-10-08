@@ -634,6 +634,7 @@ func _area(_ top: [CGPoint], _ base: [CGPoint], _ m: InterpolationMethod) -> Pat
         case .quadCurve(let q, let c): p.addQuadCurve(to: q, control: c)
         case .curve(let q, let c1, let c2): p.addCurve(to: q, control1: c1, control2: c2)
         case .closeSubpath: break
+        @unknown default: break
         }
     }
     p.closeSubpath()

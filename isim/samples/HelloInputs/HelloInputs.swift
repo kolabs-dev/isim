@@ -225,7 +225,7 @@ final class ListViewController: UITableViewController, UISearchResultsUpdating, 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { shown.count }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-        var c = cell.defaultContentConfiguration()
+        let c = cell.defaultContentConfiguration()
         c.text = shown[indexPath.row]
         cell.contentConfiguration = c
         cell.accessibilityIdentifier = "state-\(shown[indexPath.row])"

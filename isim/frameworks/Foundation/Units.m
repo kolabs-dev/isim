@@ -468,6 +468,12 @@ NSString *isim_format_measurement(NSString *number, double value, NSUnit *unit, 
     return self;
 }
 - (void)setLocale:(NSLocale *)l { _locale = l ?: NSLocale.currentLocale; _numberFormatter.locale = _locale; }
+@synthesize numberFormatter = _numberFormatter;
+- (NSNumberFormatter *)numberFormatter { return _numberFormatter; }
+- (void)setNumberFormatter:(NSNumberFormatter *)f {          /* null_resettable: nil restores a decimal formatter */
+    if (!f) { f = [NSNumberFormatter new]; f.numberStyle = NSNumberFormatterDecimalStyle; f.locale = _locale; }
+    _numberFormatter = [f copy];
+}
 - (NSLocale *)locale { return _locale; }
 - (NSString *)stringFromMeasurement:(NSMeasurement *)measurement {
     NSMeasurement *m = measurement;
