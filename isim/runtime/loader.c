@@ -767,7 +767,120 @@ static void crash_handler(int sig, siginfo_t *si, void *ctx) {
     signal(sig, SIG_DFL);
     raise(sig);
 }
+/* ---- hang diagnostics: every thread's stack on stderr. isim_dump_all_threads() (the control-FIFO watchdog in
+ * host.c), or from outside `kill -s RTMIN+5 PID` (isimtest sends it when a wait times out). A helper thread signals
+ * each thread in turn; each prints its own frame-pointer backtrace from its signal handler. Memory is read through a
+ * pipe (write(2) fails with EFAULT instead of faulting), so a broken frame chain ends the walk instead of crashing. ---- */
+#include <semaphore.h>
+#include <dirent.h>
+#include <errno.h>
+#include <sys/syscall.h>
+#include <unwind.h>
+extern _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn, void *);   /* objc_exc.c: guest images registered */
+struct dump_pcs { uintptr_t pc[48]; int n; };
+static _Unwind_Reason_Code dump_collect(struct _Unwind_Context *c, void *arg) {
+    struct dump_pcs *d = arg;
+    if (d->n >= 48) return _URC_END_OF_STACK;
+    d->pc[d->n++] = _Unwind_GetIP(c);
+    return _URC_NO_REASON;
+}
+static int dump_sig, dump_pipe[2] = { -1, -1 };
+static sem_t dump_sem;
+static volatile int dump_ack;
+static int safe_word(uintptr_t addr, uintptr_t *out) {
+    if (!addr || (addr & 7) || dump_pipe[0] < 0) return 0;
+    if (write(dump_pipe[1], (void *)addr, sizeof *out) != (ssize_t)sizeof *out) return 0;
+    return read(dump_pipe[0], out, sizeof *out) == (ssize_t)sizeof *out;
+}
+static void dump_frame(char *buf, size_t cap, int i, uintptr_t pc) {
+    d_dl_info di; Dl_info hi;
+    if (d_dladdr((void *)pc, &di)) {
+        const char *base = strrchr(di.dli_fname, '/');
+        snprintf(buf, cap, "  #%-2d 0x%012lx %s`%s + %lu\n", i, (unsigned long)pc, base ? base + 1 : di.dli_fname,
+                 di.dli_sname ? di.dli_sname : "?", di.dli_saddr ? (unsigned long)(pc - (uintptr_t)di.dli_saddr) : 0UL);
+    } else if (dladdr((void *)pc, &hi) && hi.dli_sname)
+        snprintf(buf, cap, "  #%-2d 0x%012lx [host] %s + %lu\n", i, (unsigned long)pc, hi.dli_sname, (unsigned long)(pc - (uintptr_t)hi.dli_saddr));
+    else if (hi.dli_fname) {                               /* static function: module + offset (for addr2line) */
+        const char *base = strrchr(hi.dli_fname, '/');
+        snprintf(buf, cap, "  #%-2d 0x%012lx [host] %s+0x%lx\n", i, (unsigned long)pc, base ? base + 1 : hi.dli_fname, (unsigned long)(pc - (uintptr_t)hi.dli_fbase));
+    } else snprintf(buf, cap, "  #%-2d 0x%012lx ?\n", i, (unsigned long)pc);
+}
+static void dump_handler(int sig, siginfo_t *si, void *ctx) {
+    int saved = errno;
+    if (si->si_pid != getpid()) { sem_post(&dump_sem); errno = saved; return; }     /* from outside: dump everything */
+    ucontext_t *uc = ctx;
+    int tid = (int)syscall(SYS_gettid);
+    char out[16384], name[32] = "?", path[64]; size_t len = 0;
+    snprintf(path, sizeof path, "/proc/self/task/%d/comm", tid);
+    int fd = open(path, O_RDONLY);
+    if (fd >= 0) { ssize_t n = read(fd, name, sizeof name - 1); name[n > 0 ? n : 0] = 0; if (n > 0 && name[n - 1] == '\n') name[n - 1] = 0; close(fd); }
+    len += snprintf(out + len, sizeof out - len, "isim: thread %d (%s)%s\n", tid, name, tid == getpid() ? " [main]" : "");
+    uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP], fp = uc->uc_mcontext.gregs[REG_RBP], sp = uc->uc_mcontext.gregs[REG_RSP], w;
+    /* DWARF unwind through the signal frame (host libraries have no frame pointers; guest images are registered);
+       the frames up to and including the signal trampoline are this handler's own */
+    struct dump_pcs d = { .n = 0 };
+    isim_unwind_backtrace(dump_collect, &d);
+    int first = -1;
+    for (int i = 0; i < d.n; i++) if (d.pc[i] == pc || d.pc[i] == pc + 1) { first = i; break; }
+    if (first >= 0 && d.n - first > 2) {
+        for (int i = first; i < d.n && len < sizeof out - 256; i++) {
+            dump_frame(out + len, sizeof out - len, i - first, i == first ? pc : d.pc[i] - 1); len += strlen(out + len);
+        }
+        goto done;
+    }
+    dump_frame(out + len, sizeof out - len, 0, pc); len += strlen(out + len);
+    if (safe_word(sp, &w) && image_for_address((void *)w)) { dump_frame(out + len, sizeof out - len, 1, w); len += strlen(out + len); }
+    for (int i = 2; i < 48 && len < sizeof out - 256; i++) {
+        uintptr_t next, ret;
+        if (!safe_word(fp, &next) || !safe_word(fp + 8, &ret) || !ret) break;
+        dump_frame(out + len, sizeof out - len, i, ret); len += strlen(out + len);
+        if (next <= fp) break;
+        fp = next;
+    }
+done:
+    for (size_t o = 0; o < len;) { ssize_t n = write(2, out + o, len - o); if (n <= 0) break; o += n; }
+    __atomic_store_n(&dump_ack, tid, __ATOMIC_RELEASE);
+    errno = saved;
+}
+static void *dump_thread(void *arg) {
+    (void)arg;
+    pthread_setname_np(pthread_self(), "isim-stackdump");
+    int self = (int)syscall(SYS_gettid);
+    for (;;) {
+        while (sem_wait(&dump_sem) && errno == EINTR) {}
+        DIR *d = opendir("/proc/self/task");
+        if (!d) continue;
+        fprintf(stderr, "isim: ---- thread stacks (pid %d) ----\n", getpid());
+        void isim_control_state(void); isim_control_state(); fflush(stderr);
+        for (struct dirent *e; (e = readdir(d));) {
+            int tid = atoi(e->d_name);
+            if (tid <= 0 || tid == self) continue;
+            __atomic_store_n(&dump_ack, 0, __ATOMIC_RELEASE);
+            if (syscall(SYS_tgkill, getpid(), tid, dump_sig)) continue;
+            for (int k = 0; k < 200 && __atomic_load_n(&dump_ack, __ATOMIC_ACQUIRE) != tid; k++) usleep(1000);
+            if (__atomic_load_n(&dump_ack, __ATOMIC_ACQUIRE) != tid) fprintf(stderr, "isim: thread %d did not answer (signal blocked?)\n", tid);
+        }
+        closedir(d);
+        fprintf(stderr, "isim: ---- end of thread stacks ----\n"); fflush(stderr);
+    }
+    return NULL;
+}
+void isim_dump_all_threads(void) { if (dump_sig) sem_post(&dump_sem); }
+static void install_stack_dumper(void) {
+    if (getenv("ISIM_NO_STACK_DUMP") || pipe2(dump_pipe, O_CLOEXEC | O_NONBLOCK)) return;
+    fcntl(dump_pipe[1], F_SETPIPE_SZ, 4096);
+    sem_init(&dump_sem, 0, 0);
+    dump_sig = SIGRTMIN + 5;
+    struct sigaction sa = { .sa_sigaction = dump_handler, .sa_flags = SA_SIGINFO | SA_RESTART };
+    sigemptyset(&sa.sa_mask);
+    sigaction(dump_sig, &sa, NULL);
+    pthread_t t;
+    if (pthread_create(&t, NULL, dump_thread, NULL)) { dump_sig = 0; return; }
+    pthread_detach(t);
+}
+
 static void install_crash_handler(void) {
+    install_stack_dumper();
     if (getenv("ISIM_NO_CRASH_HANDLER")) return;
     static char altstack[64 * 1024];
     stack_t ss = { .ss_sp = altstack, .ss_size = sizeof altstack };

@@ -1,5 +1,5 @@
 """Loader tests against isim's runtime: minimal Mach-O executables linked with LLVM and a self-authored libSystem
-stub (no Apple SDK); `isim run` exit codes. Port of tests/loader/run.sh."""
+stub (no Apple SDK); `isim run` exit codes."""
 import os
 import subprocess
 from pathlib import Path

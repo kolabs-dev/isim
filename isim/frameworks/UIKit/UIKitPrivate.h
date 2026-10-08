@@ -1,6 +1,7 @@
 /* isim UIKit private interfaces (not part of the SDK). */
 #pragma once
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"   /* isim implements newer APIs inside the framework */
+#pragma clang diagnostic ignored "-Wnullability-completeness"     /* internal declarations are not annotated */
 #import <UIKit/UIKit.h>
 #include <isim_host.h>
 #include "Cassowary.h"

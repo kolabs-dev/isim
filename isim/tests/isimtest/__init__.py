@@ -15,6 +15,8 @@ from __future__ import annotations
 import fcntl
 import os
 import re
+import shutil
+import signal
 import subprocess
 import tempfile
 import threading
@@ -162,6 +164,24 @@ class WaitTimeout(AssertionError):
     pass
 
 
+def _descendants(pid: int) -> list[int]:
+    """pid and all its descendant processes (isim boot: the shell and the apps it launched)."""
+    children: dict[int, list[int]] = {}
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                stat = Path(f"/proc/{d}/stat").read_text()
+                children.setdefault(int(stat.rsplit(")", 1)[1].split()[1]), []).append(int(d))
+            except (OSError, IndexError, ValueError):
+                pass
+    out, todo = [], [pid]
+    while todo:
+        p = todo.pop()
+        out.append(p)
+        todo += children.get(p, [])
+    return out
+
+
 class App:
     """One headless app run on its own device data. Use as a context manager (quits and reaps the process)."""
 
@@ -177,7 +197,11 @@ class App:
         self.bundle = None if name is None else name if isinstance(name, Path) else APPS / f"{name}.app"
         assert self.bundle is None or self.bundle.is_dir(), f"{self.bundle} is not built"
         label = self.bundle.stem if self.bundle else "boot"
-        self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{label}-", dir=ROOT / "out"))
+        # working files (control FIFO, snapshots, screenshots): next to the test's scratch device data (pytest's tmp_path,
+        # kept for a failed run), else a directory of our own, removed by quit()
+        self._own_tmp = data is None
+        base = Path(data).parent if data else ROOT / "out"
+        self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{label}-", dir=base))
         self.data = data or Path(os.environ.get("ISIM_DATA") or self.tmp / "data")
         if install:
             install_apps(self.data, *install)
@@ -228,9 +252,37 @@ class App:
                     return found[count - 1]
                 left = end - time.monotonic()
                 if left <= 0 or (self.proc.poll() is not None and not self._reader.is_alive()):
-                    raise WaitTimeout(f"no {pattern!r} (x{count}) in the app log after {timeout:g} s\n"
+                    raise self._timeout(f"no {pattern!r} (x{count}) in the app log after {timeout:g} s\n"
                                       + "\n".join(self._lines[-30:]))
                 self._cv.wait(min(left, 0.2))
+
+    def _timeout(self, message: str) -> WaitTimeout:
+        """A WaitTimeout that also carries every thread's stack of the still-running app processes (the runtime prints
+        them on SIGRTMIN+5): shows whether the app hung (deadlock, busy loop) or was only slow."""
+        if self.proc.poll() is not None or os.environ.get("ISIM_NO_STACK_DUMP"):
+            return WaitTimeout(message)
+        pids = []
+        for pid in _descendants(self.proc.pid):             # only isim-runtime handles the signal (it kills others)
+            try:
+                if os.readlink(f"/proc/{pid}/exe").endswith("/isim-runtime"):
+                    pids.append(pid)
+            except OSError:
+                pass
+        with self._cv:
+            start = len(self._lines)
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGRTMIN + 5)
+            except OSError:
+                pass
+        end = time.monotonic() + 3
+        with self._cv:
+            while self._lines[start:].count("isim: ---- end of thread stacks ----") < len(pids) and time.monotonic() < end:
+                self._cv.wait(0.1)
+            stacks = self._lines[start:]
+        if stacks:
+            message += "\n---- app thread stacks at the timeout ----\n" + "\n".join(stacks[-400:])
+        return WaitTimeout(message)
 
     # ---- commands ----
     def send(self, command: str) -> "App":
@@ -277,7 +329,7 @@ class App:
             if self.proc.poll() is not None:
                 break
             time.sleep(0.02)
-        raise WaitTimeout(f"no snapshot after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
+        raise self._timeout(f"no snapshot after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
 
     def views(self, timeout: float = TIMEOUT) -> list[View]:
         """The app's view tree (`dump views FILE`): every view with its class, frame, id and text."""
@@ -295,7 +347,7 @@ class App:
             if self.proc.poll() is not None:
                 break
             time.sleep(0.02)
-        raise WaitTimeout(f"no view dump after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
+        raise self._timeout(f"no view dump after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
 
     def wait_view(self, pattern, gone: bool = False, timeout: float = TIMEOUT, what: str | None = None) -> str:
         """Poll the view tree until the regex `pattern` matches a line of it (gone=True: until none does); return
@@ -308,7 +360,7 @@ class App:
             if bool(test(text)) != gone:
                 return text
             if time.monotonic() > end:
-                raise WaitTimeout(f"{what or ('still' if gone else 'no') + ' ' + repr(pattern) + ' in the view tree'}"
+                raise self._timeout(f"{what or ('still' if gone else 'no') + ' ' + repr(pattern) + ' in the view tree'}"
                                   f" after {timeout:g} s\n"
                                   + "\n".join(l for l in text.splitlines() if " id=" in l or " text=" in l)[-4000:])
             time.sleep(0.05)
@@ -335,7 +387,7 @@ class App:
                         break
                     self._cv.wait(left)
             if time.monotonic() > end:
-                raise WaitTimeout(f"no {pattern!r} in a dump after {timeout:g} s\n" + "\n".join(self._lines[-40:]))
+                raise self._timeout(f"no {pattern!r} in a dump after {timeout:g} s\n" + "\n".join(self._lines[-40:]))
 
     def wait_still(self, quiet: float = 0.4, timeout: float = TIMEOUT) -> str:
         """Wait until the view tree has not changed for `quiet` seconds (scrolling decelerated, a transition ended:
@@ -351,7 +403,7 @@ class App:
             elif time.monotonic() - since >= quiet:
                 return text
             if time.monotonic() > end:
-                raise WaitTimeout(f"the view tree still changes after {timeout:g} s")
+                raise self._timeout(f"the view tree still changes after {timeout:g} s")
 
     def wait_tap_id(self, ident: str, timeout: float = TIMEOUT) -> "App":
         """Wait until a visible view with accessibilityIdentifier `ident` is in the view tree, then `tapid` it (for
@@ -368,7 +420,7 @@ class App:
             if self.count(miss) == before:
                 return self
             if time.monotonic() > end:
-                raise WaitTimeout(f"{ident!r} is not tappable after {timeout:g} s")
+                raise self._timeout(f"{ident!r} is not tappable after {timeout:g} s")
             time.sleep(0.1)
 
     def count(self, pattern: str) -> int:
@@ -398,7 +450,7 @@ class App:
         try:
             self.proc.wait(timeout)
         except subprocess.TimeoutExpired:
-            raise WaitTimeout(f"still running after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
+            raise self._timeout(f"still running after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
         self._reader.join(5)
         return self.proc.returncode
 
@@ -428,7 +480,7 @@ class App:
                 return el
             if time.monotonic() > end:
                 what = ", ".join(f"{k}={v!r}" for k, v in (("id", id), ("label", label), ("type", type)) if v)
-                raise WaitTimeout(f"{'still' if gone else 'no'} element {what} after {timeout:g} s")
+                raise self._timeout(f"{'still' if gone else 'no'} element {what} after {timeout:g} s")
             time.sleep(0.05)
 
     def wait_until(self, condition, timeout: float = TIMEOUT, what: str = "condition", poll: float = 0.05):
@@ -439,7 +491,7 @@ class App:
             if v:
                 return v
             if time.monotonic() > end:
-                raise WaitTimeout(f"{what} not met after {timeout:g} s\n" + "\n".join(self._lines[-20:]))
+                raise self._timeout(f"{what} not met after {timeout:g} s\n" + "\n".join(self._lines[-20:]))
             time.sleep(poll)
 
     def screenshot(self, name: str = "shot"):
@@ -461,12 +513,26 @@ class App:
             if img.tobytes() == last.tobytes():
                 return img
             if time.monotonic() > end:
-                raise WaitTimeout(f"the screen still changes after {timeout:g} s")
+                raise self._timeout(f"the screen still changes after {timeout:g} s")
             last = img
 
     def wait_shot(self, pred, what: str = "screenshot condition", timeout: float = TIMEOUT):
         """Take screenshots until pred(image) holds and return that image (pixels that change after an action)."""
         return self.wait_until(lambda: img if pred(img := self.screenshot()) else None, timeout, what)
+
+    def shot_during(self, mid, done, what: str = "a frame part-way through the animation", timeout: float = TIMEOUT):
+        """Take screenshots right after starting an animation until one shows it part-way (mid(image)) and return
+        that image; fail if the end state (done(image)) shows first. Mid-animation checks poll rather than sleep a
+        fixed time: on a loaded machine the app renders few frames and a fixed-time sample can land past the end."""
+        end = time.monotonic() + timeout
+        while True:
+            img = self.screenshot()
+            if mid(img):
+                return img
+            if done is not None and done(img):
+                raise WaitTimeout(f"{what}: the animation ended before a part-way frame was captured")
+            if time.monotonic() > end:
+                raise WaitTimeout(f"{what}: not seen after {timeout:g} s\n" + "\n".join(self._lines[-20:]))
 
     # ---- lifetime ----
     def quit(self, timeout: float = 20) -> int:
@@ -486,6 +552,8 @@ class App:
                 f.close()
             except (OSError, ValueError):
                 pass
+        if self._own_tmp:
+            shutil.rmtree(self.tmp, ignore_errors=True)
         return self.proc.returncode
 
     def __enter__(self) -> "App":

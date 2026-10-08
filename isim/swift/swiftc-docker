@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-# Run a command from the swift:6.2 toolchain image with the workspace mounted at the same path.
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-exec docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$root:$root" -w "$PWD" swift:6.2 "$@"

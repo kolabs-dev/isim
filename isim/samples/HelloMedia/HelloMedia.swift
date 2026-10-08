@@ -2,7 +2,7 @@
 // (completion handler and iOS 18 export(to:as:)), AVAssetReader (BGRA frames, 16-bit PCM), AVAssetWriter with a pixel
 // buffer adaptor and an audio input, AVAudioPlayer rate/pan/metering, AVAudioSession interruptions and route changes
 // (driven by the `audio` script command), and AudioToolbox: ExtAudioFile, AudioFile, AudioConverter, AudioQueue output
-// and input. Media (made by build.sh with ffmpeg): red.mp4 (1 s red, 440 Hz), blue.mp4 (1 s blue, 880 Hz), tone.wav
+// and input. Media (made by the build with ffmpeg, buildlib/apps.py): red.mp4 (1 s red, 440 Hz), blue.mp4 (1 s blue, 880 Hz), tone.wav
 // (1 s 1 kHz stereo, 44.1 kHz 16-bit).
 import UIKit
 import AVFoundation

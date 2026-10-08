@@ -1,4 +1,4 @@
-# Build products (reproducible via the build.sh scripts)
+# Build products (isim/build.py)
 isim/out/
 isim/**/out/
 *.o
@@ -11,7 +11,7 @@ isim/**/out/
 *.key
 .env
 
-# Pinned third-party source checkouts (see isim/swift/fetch-sources.sh)
+# Pinned third-party source checkouts (isim/build.py fetch)
 third_party/
 __pycache__/
 

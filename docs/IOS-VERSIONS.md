@@ -67,7 +67,7 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
   that are `@available(SwiftStdlib 6.x)` stay compile-time gated, like on a device: code using them (e.g.
   `Int128`) needs `if #available(iOS 18, *)`, and on `--os 17` the `else` branch runs
   (verified with `Int128`). The Swift runtime, stdlib, concurrency, libraries and Foundation self-tests pass
-  unchanged under `--os 17`, `18`, `26` and `27` (`OS_MATRIX=1 ./test.sh`), and the full `test.sh` passes on the
+  unchanged under `--os 17`, `18`, `26` and `27` (`OS_MATRIX=1 isim/build.py test`), and the full test suite passes on the
   default iOS 18.
 - The Objective-C runtime and C++ runtime parts (`Bincompat.cpp`) keep their non-Apple rules: they need
   `dyld_priv.h`, which isim does not have; app SDK-version checks are therefore not version-dependent.
@@ -143,8 +143,8 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
 
 - `tests/ui/test_osversions.py` runs `samples/HelloOSVersions` (UIKit and SwiftUI) under each `--os` and checks the
   versions, `#available`/`@available`, version-gated APIs, the look by pixels, the Lock Screen and Control Center,
-  Settings ▸ About, device pairing and the remembered version. It is part of `test.sh`.
-- `OS_MATRIX=1 ./test.sh` also runs the version-sensitive suites under all four versions (iPhone 15 for 17,
+  Settings ▸ About, device pairing and the remembered version. It is part of the test suite.
+- `OS_MATRIX=1 isim/build.py test` also runs the version-sensitive suites under all four versions (iPhone 15 for 17,
   iPhone 16 Pro for 18, iPhone 17 for 26/27): the Swift runtime/stdlib/concurrency/Foundation self-tests, the
   Objective-C constant literals test (tests/objc-literals),
   HelloCounter, HelloSwiftUI, HelloControls, the device shell (`boot.sh`) and, on 18/26/27, forms, navigation,

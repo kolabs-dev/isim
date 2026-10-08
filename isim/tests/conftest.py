@@ -1,4 +1,4 @@
-"""pytest setup for isim's tests (run them with isim/test.sh).
+"""pytest setup for isim's tests (run them with `isim/build.py test`).
 
 - `launch` fixture: start an app headless on scratch device data and drive it (isimtest.App); quit at the end.
 - `ios` fixture: the iOS version / device for the test. Tests marked `os_matrix` run once per version with
@@ -82,7 +82,7 @@ def launch(device_data, ios):
 def launch_module(ios, tmp_path_factory):
     """launch for module-scoped fixtures (one app run shared by a module's tests): --os / --device apply (and the OS
     matrix, for modules marked os_matrix), and each call gets its own scratch device data unless data= is given. Apps
-    quit at the end of the module. The module's tests run on one xdist worker (an xdist_group per module, test.sh
+    quit at the end of the module. The module's tests run on one xdist worker (an xdist_group per module, build.py test
     --dist loadgroup), so the app runs once."""
     apps = []
     os_version, device = ios
@@ -105,7 +105,7 @@ def launch_module(ios, tmp_path_factory):
 
 # ---- longest first ----
 def pytest_collection_modifyitems(config, items):
-    for it in items:                                 # one worker per module-shared app run (test.sh: --dist loadgroup)
+    for it in items:                                 # one worker per module-shared app run (build.py test: --dist loadgroup)
         if "launch_module" in getattr(it, "fixturenames", ()):
             it.add_marker(pytest.mark.xdist_group(it.module.__name__))
     try:

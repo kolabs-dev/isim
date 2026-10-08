@@ -1,5 +1,5 @@
 """Objective-C constant literals (NSConstantArray & co., equality, serialization, Swift bridging):
-ObjCLiteralsTest.app. Port of tests/objc-literals/run.sh."""
+ObjCLiteralsTest.app."""
 import re
 
 import pytest

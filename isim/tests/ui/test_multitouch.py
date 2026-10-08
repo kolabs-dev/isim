@@ -55,7 +55,8 @@ def test_multitouch(launch):
     app.send("hover 100 770").send("hover 120 775").send("hover 100 300")
     app.wait_log(r"^hover ended")
     assert app.has(r"^hover began") and app.has(r"^hover at 100,35"), "hover began / moved / ended"
-    assert app.count(r"^pinch ended") == 1 and app.count(r"^rotation ended") == 1, "pinch/rotate don't fire on a pan"
+    pinches, rotations = app.count(r"^pinch ended"), app.count(r"^rotation ended")
+    assert pinches == 1 and rotations == 1, f"pinch/rotate don't fire on a pan: {pinches} pinches, {rotations} rotations (issue #35)"
     assert not app.has(r"pointer region requested"), "no pointer effects on iPhone"
     assert app.quit() == 0
 

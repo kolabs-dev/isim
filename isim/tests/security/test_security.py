@@ -1,5 +1,5 @@
 """Security self-test (SecurityTest.app: CommonCrypto, CryptoKit, SQLite3, Keychain known-answer tests) on scratch
-device data, and the os.Logger / os_log lines it writes to stderr. Port of tests/security/run.sh."""
+device data, and the os.Logger / os_log lines it writes to stderr."""
 import re
 
 from isimtest import need_apps, selftest

@@ -1,4 +1,4 @@
-// Built with the isim 0.2.0 release toolchain (see build-probe.sh); run by tests/abi/test_abi.py on the current
+// Built with the isim 0.2.0 release toolchain (see build_probe.py); run by tests/abi/test_abi.py on the current
 // runtime to prove that apps built with an older isim keep working.
 import SwiftUI
 import UIKit

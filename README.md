@@ -80,30 +80,39 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 - [API coverage](docs/COVERAGE.md): what is implemented, per framework and per iOS version
 - [Core Data](docs/COREDATA.md) · [Game Center](docs/GAMECENTER.md): isim's model and configuration formats
 - [App Store distribution](docs/DISTRIBUTION.md): why upload from Linux is blocked
+- [Building](docs/BUILD.md) · [Testing](docs/TESTING.md): build.py, the Ninja graph, adding samples/frameworks/overlays; pytest and CI
 
 ## Build from source
 
-Requirements (Arch/CachyOS): `clang`, `lld`, `llvm`, `sdl3`, `cairo`, `pango`, `librsvg`, `python`, `rsync`, `imagemagick`, Docker.
+Requirements: clang/lld/llvm 21 or newer, `python3` (with `venv`), `pkg-config`, SDL3, cairo, pango, librsvg,
+gdk-pixbuf, fontconfig, ImageMagick and Docker (Swift compiles in the `swift:6.2` image). Package names for Ubuntu are
+in [isim/ci/Dockerfile](isim/ci/Dockerfile), which CI builds on; on Arch/CachyOS: `clang lld llvm sdl3 cairo pango
+librsvg python imagemagick docker`.
 Optional at run time: `webkitgtk-6.0` + `gtk4` (`gtk4-broadwayd`) for WKWebView / SFSafariViewController / ASWebAuthenticationSession (real WebKit, rendered off screen), `openssl` 3 (`libssl.so.3`) for TLS NWConnections, `libcurl` for URLSession.
 Media and ML (each used only when an app needs it): `ffmpeg` (video, export, asset reader/writer, the simulated camera `ISIM_CAMERA`), `zbar` (QR/barcodes in capture and Vision), `tesseract` (Vision text recognition), whisper.cpp or Vosk (Speech recognition). Tests that need a missing tool skip it.
 
 ```bash
-isim/build.sh
+isim/build.py fetch
 ```
 
 ```bash
-isim/test.sh
+isim/build.py
 ```
 
-`test.sh` runs the pytest suites in `isim/tests` in parallel (`ISIM_TEST_JOBS`, default half the CPUs, 2–16), each
-test on its own scratch device data, retries a failed test once (`ISIM_TEST_RETRY=0` turns that off) and lists tests
-that only passed on the retry as flaky. Arguments go to pytest (`isim/test.sh -k navigation`). `OS_MATRIX=1` also runs
-the version-sensitive tests under iOS 17, 18, 26 and 27. See [docs/TESTING.md](docs/TESTING.md).
+```bash
+isim/build.py test
+```
 
-Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (the build runs in an Ubuntu 22.04 container):
+`fetch` clones the pinned Swift and LLVM sources into `third_party/` (once). `build.py` builds everything with Ninja
+(from `PATH`, or installed into `isim/out/pyenv`): only steps whose inputs changed run, independent steps run in
+parallel, and a build with nothing to do takes well under a second. `build.py test` runs the pytest suites in
+`isim/tests` (arguments go to pytest: `isim/build.py test -k navigation`); see [docs/BUILD.md](docs/BUILD.md) and [docs/TESTING.md](docs/TESTING.md).
+
+Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (the host runtime is built in an Ubuntu
+22.04 container):
 
 ```bash
-isim/release/package.sh 0.9.0
+isim/build.py package 0.9.0
 ```
 
 ## Status

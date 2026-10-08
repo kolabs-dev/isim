@@ -1,5 +1,5 @@
 // Shared by isim's privacy-gated frameworks (Core Location, Contacts, EventKit, Photos, HealthKit, camera, ...):
-// compiled into each of those modules (build-overlays.sh PRIVACY list), so everything here is internal.
+// compiled into each of those modules (PRIVACY in buildlib/swift.py), so everything here is internal.
 //
 // Permission answers are remembered per app in the app's container (UserDefaults), like iOS keeps them until the
 // app is deleted. Shared device data (address book, calendars, photo library, health samples, the simulated

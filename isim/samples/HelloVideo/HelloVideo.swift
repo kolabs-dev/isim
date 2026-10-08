@@ -2,7 +2,7 @@
 // KVO / Combine on status and timeControlStatus, periodic and boundary time observers, seeking, rate,
 // AVPlayerItemDidPlayToEndTime, AVQueuePlayer, AVPlayerLooper, AVAssetImageGenerator, CMTime, and AVKit's
 // AVPlayerViewController (full screen) and SwiftUI VideoPlayer.
-// clip.mp4 (made by build.sh with ffmpeg): 3 s, 320x180 — red for 1 s, then green, then blue — with a 440 Hz tone.
+// clip.mp4 (made by the build with ffmpeg, buildlib/apps.py): 3 s, 320x180 — red for 1 s, then green, then blue — with a 440 Hz tone.
 import UIKit
 import AVFoundation
 import AVKit

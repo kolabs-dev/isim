@@ -970,11 +970,23 @@ static void handle_id_touch(const struct isim_event *ev) {
     if (ev->type == ISIM_EV_ID_DOWN && ev->mods == 1) {          /* script "swipeid ID dx dy seconds" */
         double x0 = t.x, y0 = t.y, dx = ev->x, dy = ev->y, dur = fmax(0.05, ev->key / 1000.0), start = isim_time();
         handle_touch(&t);
+        __block double kPrev = 0, tPrev = start;
         [NSTimer scheduledTimerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) {
-            double k = fmin(1, (isim_time() - start) / dur);
-            struct isim_event m = { .type = k >= 1 ? ISIM_EV_TOUCH_UP : ISIM_EV_TOUCH_MOVE, .x = x0 + dx * k, .y = y0 + dy * k, .timestamp = isim_time() };
-            if (k >= 1) { struct isim_event last = m; last.type = ISIM_EV_TOUCH_MOVE; handle_touch(&last); [timer invalidate]; }
-            handle_touch(&m);
+            double now = isim_time(), k = fmin(1, (now - start) / dur);
+            /* at most a tenth of the swipe per move: on a starved CPU the timer fires late, and one big jump would only
+               get a pan recognised (its translation starts there), so the content would not move at all */
+            int steps = (int)fmax(1, ceil((k - kPrev) * 10 - 1e-9));
+            for (int j = 1; j <= steps; j++) {
+                double kj = kPrev + (k - kPrev) * j / steps;
+                struct isim_event m = { .type = ISIM_EV_TOUCH_MOVE, .x = x0 + dx * kj, .y = y0 + dy * kj, .timestamp = tPrev + (now - tPrev) * j / steps };
+                handle_touch(&m);
+            }
+            kPrev = k; tPrev = now;
+            if (k >= 1) {
+                struct isim_event up = { .type = ISIM_EV_TOUCH_UP, .x = x0 + dx, .y = y0 + dy, .timestamp = now };
+                [timer invalidate];
+                handle_touch(&up);
+            }
         }];
         return;
     }

@@ -1,0 +1,6 @@
+# Python packages for building (ninja) and testing isim; build.py installs them into isim/out/pyenv
+pytest>=8
+pytest-xdist>=3.5
+pytest-rerunfailures>=14
+pillow>=10
+ninja>=1.11
