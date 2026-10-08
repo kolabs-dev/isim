@@ -27,9 +27,11 @@ def test_navigation(launch):
     assert is_red(app.screenshot().getpixel((20, 120)))   # a Pillow image, pixels in points
 ```
 
-- **Fixtures.** `launch` (per test) and `launch_module` (one app shared by a module's tests) start apps;
-  `launch(None, install=[...])` boots the device with apps installed. `ios` gives the test's iOS version and device.
-- **Waits.** `wait_for(id=/label=/type=, gone=)`, `wait_log(regex, count=)`, `wait_view` (view tree),
+- **Fixtures.** `launch` (per test) and `launch_module` (one app shared by a module's tests; those tests run on one
+  xdist worker, `--dist loadgroup`) start apps; `launch(None, install=[...])` boots the device with apps installed.
+  `ios` gives the test's iOS version and device.
+- **Waits.** `wait_for(id=/label=/type=, gone=)`, `wait_log(regex, count=)`, `wait_view` (view tree; `wait_view(visible("id"), gone=True)`
+  for a view that is gone or hidden),
   `wait_dump` (system UI under `isim boot`), `wait_still` (no change for a moment, e.g. after a transition),
   `wait_shot` / `wait_shot_still` (screenshots) and `wait_until(condition)`.
 - **Self-tests.** Apps that test themselves (FoundationTest, SwiftConcurrencyTest, …) print `N/M passed`;
