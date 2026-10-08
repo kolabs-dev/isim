@@ -70,15 +70,21 @@ public struct PHPhotosError: CustomNSError, LocalizedError, Sendable {
 
 struct _PHRecord {
     var id: String, file: String, created: Double, width: Int, height: Int, favorite: Bool, app: String
+    /// videos (UISaveVideoAtPathToSavedPhotosAlbum): kind "video", their duration and a poster frame (PNG)
+    var kind = "", duration = 0.0, poster = ""
+    var isVideo: Bool { kind == "video" }
     init(_ d: [String: Any]) {
+        kind = d["kind"] as? String ?? ""; duration = (d["duration"] as? NSNumber)?.doubleValue ?? 0; poster = d["poster"] as? String ?? ""
         id = d["id"] as? String ?? ""; file = d["file"] as? String ?? ""
         created = (d["created"] as? NSNumber)?.doubleValue ?? 0
         width = (d["width"] as? NSNumber)?.integerValue ?? 0; height = (d["height"] as? NSNumber)?.integerValue ?? 0
         favorite = (d["favorite"] as? NSNumber)?.boolValue ?? false; app = d["app"] as? String ?? ""
     }
     var dict: [String: Any] {
-        ["id": id, "file": file, "created": NSNumber(value: created), "width": NSNumber(value: width), "height": NSNumber(value: height),
-         "favorite": NSNumber(value: favorite), "app": app]
+        var d: [String: Any] = ["id": id, "file": file, "created": NSNumber(value: created), "width": NSNumber(value: width), "height": NSNumber(value: height),
+                                "favorite": NSNumber(value: favorite), "app": app]
+        if isVideo { d["kind"] = kind; d["duration"] = NSNumber(value: duration); d["poster"] = poster }
+        return d
     }
 }
 
@@ -97,6 +103,8 @@ enum _PHStore {
         FileManager.default.createFile(atPath: indexPath, contents: d, attributes: nil)
     }
     static func path(_ r: _PHRecord) -> String { (media as NSString).appendingPathComponent(r.file) }
+    /// the picture an image request shows: the photo, or a video's poster frame
+    static func imagePath(_ r: _PHRecord) -> String { r.isVideo ? (media as NSString).appendingPathComponent(r.poster) : path(r) }
     static func update(_ body: (inout [_PHRecord]) -> Void) {
         var idx = index()
         var recs = ((idx["assets"] as? [[String: Any]]) ?? []).map(_PHRecord.init)
@@ -350,7 +358,7 @@ open class PHObjectPlaceholder: PHObject, @unchecked Sendable {}
 open class PHAsset: PHObject, @unchecked Sendable {
     let rec: _PHRecord
     init(_ r: _PHRecord) { rec = r; super.init(id: r.id) }
-    open var mediaType: PHAssetMediaType { .image }
+    open var mediaType: PHAssetMediaType { rec.isVideo ? .video : .image }
     open var mediaSubtypes: PHAssetMediaSubtype { [] }
     open var sourceType: PHAssetSourceType { .typeUserLibrary }
     open var pixelWidth: Int { rec.width }
@@ -358,13 +366,13 @@ open class PHAsset: PHObject, @unchecked Sendable {
     open var creationDate: Date? { Date(timeIntervalSince1970: rec.created) }
     open var modificationDate: Date? { creationDate }
     open var location: AnyObject? { nil }
-    open var duration: TimeInterval { 0 }
+    open var duration: TimeInterval { rec.duration }
     open var isHidden: Bool { false }
     open var isFavorite: Bool { rec.favorite }
     open var burstIdentifier: String? { nil }
     open var representsBurst: Bool { false }
     open func canPerform(_ editOperation: Int) -> Bool { true }
-    open override var description: String { "<PHAsset: \(localIdentifier)> mediaType=1/0, sourceType=1, (\(rec.width)x\(rec.height)), creationDate=\(creationDate!), favorite=\(isFavorite ? "YES" : "NO")" }
+    open override var description: String { "<PHAsset: \(localIdentifier)> mediaType=\(mediaType.rawValue)/0, sourceType=1, (\(rec.width)x\(rec.height)), creationDate=\(creationDate!), favorite=\(isFavorite ? "YES" : "NO")" }
 
     static func fetch(_ recs: [_PHRecord], _ options: PHFetchOptions?) -> PHFetchResult<PHAsset> {
         var assets = recs.map(PHAsset.init)
@@ -380,7 +388,9 @@ open class PHAsset: PHObject, @unchecked Sendable {
     }
     open class func fetchAssets(with options: PHFetchOptions?) -> PHFetchResult<PHAsset> { fetch(_PHAuth.visible(), options) }
     open class func fetchAssets(with mediaType: PHAssetMediaType, options: PHFetchOptions?) -> PHFetchResult<PHAsset> {
-        mediaType == .image ? fetch(_PHAuth.visible(), options) : PHFetchResult([]) { [] }
+        let opts = options
+        let r = fetch(_PHAuth.visible().filter { $0.isVideo == (mediaType == .video) && (mediaType == .image || mediaType == .video) }, options)
+        return PHFetchResult(r.items) { PHAsset.fetchAssets(with: mediaType, options: opts) }
     }
     open class func fetchAssets(withLocalIdentifiers identifiers: [String], options: PHFetchOptions?) -> PHFetchResult<PHAsset> {
         let ids = Set(identifiers)
@@ -392,7 +402,7 @@ open class PHAsset: PHObject, @unchecked Sendable {
     open class func fetchAssets(in assetCollection: PHAssetCollection, options: PHFetchOptions?) -> PHFetchResult<PHAsset> {
         var recs = _PHAuth.visible()
         if assetCollection.assetCollectionSubtype == .smartAlbumFavorites { recs = recs.filter(\.favorite) }
-        else if assetCollection.assetCollectionSubtype == .smartAlbumVideos { recs = [] }
+        else if assetCollection.assetCollectionSubtype == .smartAlbumVideos { recs = recs.filter(\.isVideo) }
         return fetch(recs, options)
     }
     open class func fetchKeyAssets(in assetCollection: PHAssetCollection, options: PHFetchOptions?) -> PHFetchResult<PHAsset>? {
@@ -459,7 +469,7 @@ open class PHFetchResult<ObjectType: AnyObject>: NSObject, NSCopying, @unchecked
     open func contains(_ anObject: ObjectType) -> Bool { items.contains { $0 === anObject || ($0 as? NSObject)?.isEqual(anObject) == true } }
     open func index(of anObject: ObjectType) -> Int { items.firstIndex { $0 === anObject || ($0 as? NSObject)?.isEqual(anObject) == true } ?? NSNotFound }
     open func objects(at indexes: IndexSet) -> [ObjectType] { indexes.map { items[$0] } }
-    open func countOfAssets(with mediaType: PHAssetMediaType) -> Int { mediaType == .image ? items.count : 0 }
+    open func countOfAssets(with mediaType: PHAssetMediaType) -> Int { items.filter { ($0 as? PHAsset)?.mediaType == mediaType }.count }
     open func enumerateObjects(_ block: (ObjectType, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {
         var stop = ObjCBool(false)
         for (i, o) in items.enumerated() { block(o, i, &stop); if stop.boolValue { break } }
