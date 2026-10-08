@@ -112,7 +112,9 @@ jobs:
       - name: ABI baseline and release commit
         run: |
           v=${{ steps.version.outputs.version }}
-          python3 isim/tools/abi-check.py --record "$v" "isim/dist/isim-$v-linux-x86_64/sdk"
+          # in the CI image: the runner has no llvm-nm / llvm-objdump; as the runner's user, so git can add the file
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" -u "$(id -u):$(id -g)" isim-ci \
+            python3 isim/tools/abi-check.py --record "$v" "isim/dist/isim-$v-linux-x86_64/sdk"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "release-$v"

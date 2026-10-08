@@ -28,6 +28,8 @@ def binaries(sdk):
 
 def defined(sdk, rel):
     r = subprocess.run(['llvm-nm', '-gU', '--defined-only', '-j', os.path.join(sdk, rel)], capture_output=True, text=True)
+    if r.returncode:
+        sys.exit(f'abi: llvm-nm failed on {rel}: {r.stderr.strip()}')     # never record or compare an empty symbol set
     return set(r.stdout.split())
 
 
@@ -50,6 +52,8 @@ def exports(sdk, follow_reexports=False):
     libraries it re-exports (isim's loader resolves them there, like dyld)"""
     out = set()
     rels = sorted(binaries(sdk))
+    if not rels:
+        sys.exit(f'abi: no SDK binaries under {sdk}')
     cache = {rel: defined(sdk, rel) for rel in rels}
     for rel in rels:
         syms = set(cache[rel])
