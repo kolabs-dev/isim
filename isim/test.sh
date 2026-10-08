@@ -189,12 +189,15 @@ run_queued() {
   one() {   # index -> runs suite i into its log; the exit code goes to i.rc
     local i=$1 data=$PWD/out/test-data/suite-$1
     rm -rf "$data"; mkdir -p "$data"
+    local t0=$EPOCHREALTIME
     if [ -n "${keys[$i]}" ]; then
       ( export ISIM_DATA=$data; exec flock "out/test-locks/${keys[$i]}.lock" bash -c "${cmds[$i]}" ) > "$logs/$i.log" 2>&1
     else
       ( export ISIM_DATA=$data; exec bash -c "${cmds[$i]}" ) > "$logs/$i.log" 2>&1
     fi
-    echo $? > "$logs/$i.rc"
+    local rc=$?
+    printf '%s\t%s\t%s\n' "$(awk -v a="$t0" -v b="$EPOCHREALTIME" 'BEGIN{printf "%.1f", b-a}')" "$rc" "${names[$i]}" >> "$logs/times.tsv"
+    echo $rc > "$logs/$i.rc"
   }
   echo "running $n suites, $jobs at a time"
   local running=0 next=0 shown=0 failed=() flaky=()
@@ -218,7 +221,8 @@ run_queued() {
     done
     failed=("${still[@]}")
   fi
-  echo; echo "$n suites in $((SECONDS - t0)) s ($jobs at a time)"
+  echo; echo "$n suites in $((SECONDS - t0)) s ($jobs at a time); slowest:"
+  sort -rn "$logs/times.tsv" | head -5 | awk -F'\t' '{printf "  %6.1f s  %s\n", $1, $3}'
   for i in "${flaky[@]}"; do echo "FLAKY (passed on retry): $i"; done
   for i in "${failed[@]}"; do echo "FAILED: ${names[$i]}"; status=1; done
 }
