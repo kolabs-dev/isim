@@ -145,6 +145,25 @@ long isim_tls_write(struct isim_tls *t, const void *buf, long n) {
     nopipe_end(&om);
     return done ? done : -1;
 }
+/* For a non-blocking socket (one session shared by a reading and a writing thread, each call under the caller's
+   lock): bytes read or written, 0 = closed by the peer (read), -1 error, -2 would block (poll the socket and retry;
+   SSL_pending data is returned by the next call without waiting). */
+long isim_tls_read_nb(struct isim_tls *t, void *buf, long n) {
+    sigset_t om; nopipe_begin(&om);
+    int r = L.SSL_read(t->ssl, buf, (int)(n > 1 << 30 ? 1 << 30 : n));
+    int e = r > 0 ? 0 : L.SSL_get_error(t->ssl, r);
+    nopipe_end(&om);
+    if (r > 0) return r;
+    return e == 2 || e == 3 /* SSL_ERROR_WANT_READ / WRITE */ ? -2 : e == 6 /* ZERO_RETURN */ ? 0 : -1;
+}
+long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n) {
+    sigset_t om; nopipe_begin(&om);
+    int r = L.SSL_write(t->ssl, buf, (int)(n > 1 << 30 ? 1 << 30 : n));
+    int e = r > 0 ? 0 : L.SSL_get_error(t->ssl, r);
+    nopipe_end(&om);
+    if (r > 0) return r;
+    return e == 2 || e == 3 ? -2 : -1;
+}
 /* negotiated protocol version ("TLSv1.3") and ALPN protocol into the buffers */
 void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen) {
     if (version && vlen > 0) snprintf(version, vlen, "%s", L.SSL_get_version ? L.SSL_get_version(t->ssl) : "");

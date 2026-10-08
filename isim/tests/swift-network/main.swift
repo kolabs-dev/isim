@@ -160,6 +160,47 @@ struct Info: Decodable, Equatable { let name: String; let version: Int; let tags
 func has(_ s: String, _ sub: String) -> Bool { s.components(separatedBy: sub).count > 1 }
 func code(_ e: Error?) -> Int { (e as? URLError)?.code.rawValue ?? (e.map { ($0 as NSError).code } ?? 0) }
 
+/// URLSessionWebSocketTask against ws_server.py (see its docstring for the scenarios)
+func webSocketChecks(base: String, what: String) async {
+    func text(_ m: URLSessionWebSocketTask.Message?) -> String? { if case .string(let s)? = m { return s }; return nil }
+    func bytes(_ m: URLSessionWebSocketTask.Message?) -> Data? { if case .data(let d)? = m { return d }; return nil }
+    var req = URLRequest(url: URL(string: "\(base)/ws?client=isim")!)
+    req.setValue("hello", forHTTPHeaderField: "X-Isim")
+    req.setValue("chat, superchat", forHTTPHeaderField: "Sec-WebSocket-Protocol")
+    let task = URLSession.shared.webSocketTask(with: req)
+    task.resume()
+    do {
+        try await task.send(.string("hello isim"))
+        check(text(try await task.receive()) == "echo: hello isim", "\(what): text message echo")
+        try await task.send(.string("headers?"))
+        let h = text(try await task.receive())
+        check(h == "x-isim=hello proto=chat query=client=isim", "\(what): request headers, Sec-WebSocket-Protocol and the query reach the server (\(h ?? "nil"))")
+        try await task.send(.data(Data([0, 1, 2, 254, 255])))
+        check(bytes(try await task.receive()) == Data([0, 1, 2, 254, 255]), "\(what): binary message echo")
+        try await task.send(.string("fragment"))
+        let f = text(try await task.receive())
+        check(f == "frag-1 frag-2 frag-3", "\(what): a message in three fragments, with pings between them, is joined (\(f ?? "nil"))")
+        try await task.send(.string("pongs?"))
+        check(text(try await task.receive()) == "pongs: 2", "\(what): the server's pings are answered with pongs carrying their payload")
+        try await task.send(.string("big"))
+        let big = bytes(try await task.receive())
+        check(big?.count == 70000 && big?.enumerated().allSatisfy { $0.element == UInt8($0.offset % 251) } == true,
+              "\(what): a 70000-byte message (64-bit length) arrives intact (\(big?.count ?? -1))")
+        let pong = await withCheckedContinuation { (c: CheckedContinuation<Error?, Never>) in task.sendPing { c.resume(returning: $0) } }
+        check(pong == nil, "\(what): sendPing gets the server's pong (\(String(describing: pong)))")
+        try await task.send(.string("close"))
+        do { _ = try await task.receive(); check(false, "\(what): receive after the server's close throws") }
+        catch { check(task.closeReason == Data("bye".utf8), "\(what): the server's close frame ends the task with its reason (\(task.closeCode.rawValue))") }
+    } catch { check(false, "\(what): WebSocket exchange threw \(error)") }
+    task.cancel(with: .normalClosure, reason: nil)
+
+    // a server that refuses the upgrade (HTTP 403): the task fails with badServerResponse
+    let refused = URLSession.shared.webSocketTask(with: URL(string: "\(base)/refuse")!)
+    refused.resume()
+    do { _ = try await refused.receive(); check(false, "\(what): a refused upgrade fails") }
+    catch { check(code(error) == NSURLErrorBadServerResponse, "\(what): a refused upgrade fails with badServerResponse (\(code(error)))") }
+}
+
 @main struct Main {
     static func main() async {
         // MARK: URLComponents / URLQueryItem
@@ -463,6 +504,15 @@ func code(_ e: Error?) -> Int { (e as? URLError)?.code.rawValue ?? (e.map { ($0 
         let expected = ProcessInfo.processInfo.environment["ISIM_NETWORK"] == "offline" ? NWPath.Status.unsatisfied : .satisfied
         check(got && firstPath?.status == expected && monitor.currentPath.status == expected, "NWPathMonitor reports the host's connectivity (\(firstPath?.debugDescription ?? "none"))")
         monitor.cancel()
+
+        // MARK: URLSessionWebSocketTask (isim's own RFC 6455 client; ws_server.py, started by test_swift_network.py)
+        let env = ProcessInfo.processInfo.environment
+        if let port = env["ISIM_TEST_WS_PORT"] {
+            await webSocketChecks(base: "ws://127.0.0.1:\(port)", what: "ws")
+        } else { check(false, "WebSocket server port (ISIM_TEST_WS_PORT; run through test_swift_network.py)") }
+        if let port = env["ISIM_TEST_WSS_PORT"] {                  // TLS: a throwaway certificate for localhost (SSL_CERT_FILE)
+            await webSocketChecks(base: "wss://localhost:\(port)", what: "wss")
+        }
 
         print("network test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
