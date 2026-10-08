@@ -520,6 +520,20 @@ class App:
         """Take screenshots until pred(image) holds and return that image (pixels that change after an action)."""
         return self.wait_until(lambda: img if pred(img := self.screenshot()) else None, timeout, what)
 
+    def shot_during(self, mid, done, what: str = "a frame part-way through the animation", timeout: float = TIMEOUT):
+        """Take screenshots right after starting an animation until one shows it part-way (mid(image)) and return
+        that image; fail if the end state (done(image)) shows first. Mid-animation checks poll rather than sleep a
+        fixed time: on a loaded machine the app renders few frames and a fixed-time sample can land past the end."""
+        end = time.monotonic() + timeout
+        while True:
+            img = self.screenshot()
+            if mid(img):
+                return img
+            if done is not None and done(img):
+                raise WaitTimeout(f"{what}: the animation ended before a part-way frame was captured")
+            if time.monotonic() > end:
+                raise WaitTimeout(f"{what}: not seen after {timeout:g} s\n" + "\n".join(self._lines[-20:]))
+
     # ---- lifetime ----
     def quit(self, timeout: float = 20) -> int:
         if self.proc.poll() is None:

@@ -43,8 +43,8 @@ def test_navstack(launch, ios):
     app.wait_view(r"id=isim-menu", gone=True)
 
     app.tap_id("push-detail")
-    app.sleep(0.12)                                           # part-way through the push animation
-    pushmid = app.screenshot("pushmid")
+    pushmid = app.shot_during(lambda s: near(px(s, W - 30, 700), BLUE) and not near(px(s, 30, 700), BLUE),
+                              lambda s: near(px(s, 30, 700), BLUE), "push slides the new level in from the trailing edge")
     app.wait_log(r"^path 1")
 
     def detail_done(s):
@@ -58,8 +58,8 @@ def test_navstack(launch, ios):
     back = app.wait_shot(lambda s: near(px(s, 30, 700), GREY), "after the edge swipe the root shows again")
 
     app.wait_tap_id("push-zoom")
-    app.sleep(0.12)                                           # part-way through the zoom transition
-    zoommid = app.screenshot("zoommid")
+    zoommid = app.shot_during(lambda s: orange(px(s, W / 2, 400)) and not orange(px(s, 4, 800)),
+                              lambda s: orange(px(s, 4, 800)), "zoom transition grows out of the source (part-way)")
     zoom = app.wait_shot(lambda s: orange(px(s, 4, 800)), "zoom transition ends full screen")
     app.tap_id("isim-nav-back")
     app.wait_log(r"^path 0", count=2)

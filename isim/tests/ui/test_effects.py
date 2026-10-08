@@ -3,11 +3,12 @@ compositingGroup, contentShape hit testing, an animated grayscale, visualEffect 
 then sensoryFeedback (logged haptics), privacy redaction, a context menu with a preview, persistentSystemOverlays(.hidden)
 (the home indicator fades) and, on the device shell, defersSystemGestures (the first swipe up from the bottom stays in
 the app). Checked by pixels (frames from the view tree) and the logs. Port of tests/ui/effects.sh and effects_check.py;
-the mid-animation screenshots keep their timing."""
+mid-animation states are polled for (screenshots until one shows the animation part-way), not sampled at a fixed
+time, so a loaded machine that renders few frames still sees them."""
 import re
 import time
 
-from isimtest import parse_views, rgb, screen_frames, visible
+from isimtest import TIMEOUT, parse_views, rgb, screen_frames, visible
 
 
 def near(p, q, tol=14):
@@ -61,19 +62,16 @@ def test_effects(launch):
     app.sleep(0.3)                                                       # a tap that must not count
     app.tap_id("t-shape")
     app.wait_log(r"shape tapped 1")
-    app.tap_id("fade")
-    t_fade = time.monotonic()
-    time.sleep(max(0.0, t_fade + 1.0 - time.monotonic()))               # 1 s into the 2 s grayscale animation
-    p = at(app.screenshot("mid"), "t-fade")
-    assert 100 < p[0] < 220 and 12 < p[1] < 50, f"withAnimation interpolates grayscale (half-way): {p}"
+    app.wait_tap_id("fade")
+    halfway = lambda s: (lambda p: 100 < p[0] < 220 and 12 < p[1] < 50)(at(s, "t-fade"))
+    grey = lambda s: near(at(s, "t-fade"), (54, 54, 54))
+    app.shot_during(halfway, grey, "withAnimation interpolates grayscale (half-way)")   # during the 2 s animation
     app.send("swipeid row-2 0 -50 0.6")
-    time.sleep(max(0.0, t_fade + 2.1 - time.monotonic()))
     app.wait_log(r"^row0 visible false")                                 # onScrollVisibilityChange (iOS 18)
     app.wait_log(r"^scroll row 1")                                       # onScrollGeometryChange (iOS 18)
     app.sleep(0.6)                                                       # the scroll has settled
-    end = app.screenshot("scrolled")
+    end = app.wait_shot(grey, "the animation ends fully grey")
     t1 = app.view_dump()
-    assert near(at(end, "t-fade"), (54, 54, 54)), f"the animation ends fully grey: {at(end, 't-fade')}"
     assert not app.has(r"shape tapped 2"), "contentShape(Circle()): the corner does not take the tap, the centre does"
 
     vals = [int(v) for v in re.findall(r"ve row2 (-?\d+)", app.log)]
@@ -96,21 +94,40 @@ def test_effects(launch):
     app.sleep(0.5)                                                       # pushed
     more = app.screenshot("more")
     t2 = app.view_dump()
+    f2 = screen_frames(t2)
+    bs, ct = f2.get("bounce-star"), f2.get("count-text")
+    assert bs and ct, f"the symbol and the count in the tree: {bs} {ct}"
+    orange = lambda c: c[0] > 200 and 100 < c[1] < 190 and c[2] < 80
+
+    def ink(img, r):
+        x, y, w, h = r
+        return sum(1 for i in range(-8, int(w) + 8) for j in range(-8, int(h) + 8) if orange(px(img, x + i, y + j)))
+
+    def numeric(d):                                                      # the old count text fading out
+        return [v for v in parse_views(d) if v.cls == "UIImageView" and abs(v.h - ct[3]) < 1 and "alpha<1" in v.line]
     app.tap_id("haptic")
-    app.sleep(0.12)                                                      # mid-transition
-    t3 = app.view_dump()
-    bounce = app.screenshot("bounce")
+    t3 = bounce = None                                                   # mid-transition: polled until both are seen
+    end_ = time.monotonic() + TIMEOUT
+    while (t3 is None or bounce is None) and time.monotonic() < end_:
+        if t3 is None and numeric(d := app.view_dump()):
+            t3 = d
+        if bounce is None and ink(s := app.screenshot("bounce"), bs) > ink(more, bs) * 1.15:
+            bounce = s
+    app.wait_log(r"haptic notification \(success\)")
     app.sleep(0.4)
     app.tap_id("haptic")
     app.sleep(0.3)
     app.tap_id("redact")
-    t_redact = time.monotonic()
-    time.sleep(max(0.0, t_redact + 2.6 - time.monotonic()))              # the home indicator fades 2 s after the touch
-    red = app.screenshot("redacted")
+    indicator = lambda s: px(s, s.width / 2, s.height - 10.5)
+    # the home indicator fades 2 s after the last touch
+    red = app.wait_shot(lambda s: min(indicator(s)) > 200,
+                        "persistentSystemOverlays(.hidden): the home indicator fades 2 s after the last touch")
     t4 = app.view_dump()
+    ph = f2.get("pulse-heart")
+    heart = lambda s: px(s, ph[0] + ph[2] / 2, ph[1] + ph[3] / 2)
     pulse1 = app.screenshot("pulse1")
-    app.sleep(0.4)
-    pulse2 = app.screenshot("pulse2")
+    pulse2 = app.wait_shot(lambda s: abs(heart(s)[1] - heart(pulse1)[1]) > 20,
+                           "symbolEffect(.pulse) changes the opacity over time")
 
     fr = screen_frames(t4)
     assert all(t in fr for t in ("private-image", "private-text", "public-text")), f"the redaction views: {list(fr)[:20]}"
@@ -123,21 +140,9 @@ def test_effects(launch):
     dark = sum(1 for i in range(int(w)) if max(px(red, x + i, y + h / 2)) < 90)
     assert dark > 3, f"other text stays readable: {dark} dark pixels"
 
-    ct = screen_frames(t3).get("count-text")
-    snaps = [v for v in parse_views(t3) if v.cls == "UIImageView" and ct and abs(v.h - ct[3]) < 1 and "alpha<1" in v.line]
-    assert ct and snaps, f"contentTransition(.numericText) animates the old text out: {ct} {len(snaps)}"
-    f2 = screen_frames(t2)
-    bs = f2.get("bounce-star")
-    orange = lambda c: c[0] > 200 and 100 < c[1] < 190 and c[2] < 80
-
-    def ink(img, r):
-        x, y, w, h = r
-        return sum(1 for i in range(-8, int(w) + 8) for j in range(-8, int(h) + 8) if orange(px(img, x + i, y + j)))
-    assert bs and ink(bounce, bs) > ink(more, bs) * 1.15, \
-        f"symbolEffect(.bounce, value:) scales the symbol: {ink(more, bs) if bs else None} -> {ink(bounce, bs) if bs else None}"
-    ph = f2.get("pulse-heart")
-    c1 = px(pulse1, ph[0] + ph[2] / 2, ph[1] + ph[3] / 2)
-    c2 = px(pulse2, ph[0] + ph[2] / 2, ph[1] + ph[3] / 2)
+    assert t3, "contentTransition(.numericText) animates the old text out"
+    assert bounce, f"symbolEffect(.bounce, value:) scales the symbol: {ink(more, bs)} -> no larger frame"
+    c1, c2 = heart(pulse1), heart(pulse2)
     assert abs(c1[1] - c2[1]) > 20, f"symbolEffect(.pulse) changes the opacity over time: {c1} {c2}"
     on, off_ = px(more, more.width / 2, more.height - 10.5), px(red, red.width / 2, red.height - 10.5)
     assert max(on) < 60, f"persistentSystemOverlays(.hidden): the home indicator shows after a touch: {on}"
