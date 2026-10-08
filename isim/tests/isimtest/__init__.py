@@ -111,6 +111,33 @@ def parse_views(text: str) -> list[View]:
     return out
 
 
+def screen_frames(text: str) -> dict[str, tuple[float, float, float, float]]:
+    """{accessibility id: (x, y, w, h)} in screen points from a view-tree dump (App.view_dump()): frames are summed up
+    the superview chain, and scroll views' "text=offset Y" moves their subviews (transforms are not applied). The
+    first view with an id wins."""
+    res, stack = {}, []                                # (depth, abs x, abs y, scroll offset)
+    for v in parse_views(text):
+        while stack and stack[-1][0] >= v.depth:
+            stack.pop()
+        px, py, sy = stack[-1][1:] if stack else (0, 0, 0)
+        ax, ay = px + v.x, py + v.y - sy
+        off = re.search(r"text=offset (-?[\d.e+-]+),", v.line)
+        stack.append((v.depth, ax, ay, float(off.group(1)) if off else 0))
+        if v.id and v.id not in res:
+            res[v.id] = (ax, ay, v.w, v.h)
+    return res
+
+
+def grep(text: str, pattern: str, before: int = 0, after: int = 0) -> str:
+    """The lines of `text` matching the regex `pattern`, each with `before` / `after` lines of context (like
+    grep -B / -A), joined with newlines: e.g. what a view-tree dump shows right below a view."""
+    lines, out = text.splitlines(), []
+    for i, line in enumerate(lines):
+        if re.search(pattern, line):
+            out += lines[max(0, i - before):i + after + 1]
+    return "\n".join(out)
+
+
 class WaitTimeout(AssertionError):
     pass
 
@@ -247,19 +274,35 @@ class App:
             time.sleep(0.02)
         raise WaitTimeout(f"no view dump after {timeout:g} s\n" + "\n".join(self._lines[-30:]))
 
-    def wait_view(self, pattern: str, gone: bool = False, timeout: float = TIMEOUT) -> str:
+    def wait_view(self, pattern, gone: bool = False, timeout: float = TIMEOUT, what: str | None = None) -> str:
         """Poll the view tree until the regex `pattern` matches a line of it (gone=True: until none does); return
-        that view dump. For checks on `dump` output, e.g. wait_view(r"id=total text=3 items")."""
-        rx = re.compile(pattern, re.M)
+        that view dump. For checks on `dump` output, e.g. wait_view(r"id=total text=3 items"). `pattern` can also be
+        a function of the dump text (e.g. lambda d: "id=a" in d and "id=b" not in d), `what` names it in errors."""
+        test = pattern if callable(pattern) else re.compile(pattern, re.M).search
         end = time.monotonic() + timeout
         while True:
             text = self.view_dump()
-            if bool(rx.search(text)) != gone:
+            if bool(test(text)) != gone:
                 return text
             if time.monotonic() > end:
-                raise WaitTimeout(f"{'still' if gone else 'no'} {pattern!r} in the view tree after {timeout:g} s\n"
+                raise WaitTimeout(f"{what or ('still' if gone else 'no') + ' ' + repr(pattern) + ' in the view tree'}"
+                                  f" after {timeout:g} s\n"
                                   + "\n".join(l for l in text.splitlines() if " id=" in l or " text=" in l)[-4000:])
             time.sleep(0.05)
+
+    def wait_still(self, interval: float = 0.15, timeout: float = TIMEOUT) -> str:
+        """Wait until the view tree stops changing (scrolling decelerated, animations of frames ended): two dumps
+        `interval` seconds apart are the same. Returns that dump."""
+        end = time.monotonic() + timeout
+        last = self.view_dump()
+        while True:
+            time.sleep(interval)
+            text = self.view_dump()
+            if text == last:
+                return text
+            if time.monotonic() > end:
+                raise WaitTimeout(f"the view tree still changes after {timeout:g} s")
+            last = text
 
     def wait_tap_id(self, ident: str, timeout: float = TIMEOUT) -> "App":
         """Wait until a visible view with accessibilityIdentifier `ident` is in the view tree, then `tapid` it (for
