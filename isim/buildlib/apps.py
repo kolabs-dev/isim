@@ -337,11 +337,18 @@ XCFRAMEWORK_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-@app("samples/HelloToolchain")
-def _(a):
-    # the vendor XCFramework is packaged from Vendor/Sum, like a binary SDK a project would download
-    work = os.path.join(OUT, "projects", a.name)
-    xcf = os.path.join(a.d, "Vendor", "Sum.xcframework")
+XCF = "samples/HelloToolchain/Vendor/Sum.xcframework"
+XCF_FILES = ["Info.plist", "ios-x86_64-simulator/libSum.a", "ios-x86_64-simulator/Headers/sum.h",
+             "ios-x86_64-simulator/Headers/module.modulemap"]
+
+
+def sum_xcframework():
+    """HelloToolchain's vendor XCFramework, packaged from Vendor/Sum like a binary SDK a project would download. It
+    lives in the sample's directory (the Xcode project refers to it there), so it is a build step of its own with
+    declared outputs: a checkout without it (CI with a restored build cache) gets it rebuilt."""
+    a = A("samples/HelloToolchain", "apps")
+    work = os.path.join(OUT, "projects", "HelloToolchain")
+    xcf = os.path.join(ROOT, XCF)
     sl = os.path.join(xcf, "ios-x86_64-simulator")
     os.makedirs(os.path.join(sl, "Headers"), exist_ok=True)
     os.makedirs(os.path.join(work, "vendor"), exist_ok=True)
@@ -353,6 +360,10 @@ def _(a):
         shutil.copy(os.path.join(a.d, "Vendor", "Sum", f), os.path.join(sl, "Headers"))
     with open(os.path.join(xcf, "Info.plist"), "w") as f:
         f.write(XCFRAMEWORK_PLIST)
+
+
+@app("samples/HelloToolchain", extra_inputs=[f"{XCF}/{f}" for f in XCF_FILES])
+def _(a):
     a.xcode_project("-workspace", "HelloToolchain.xcworkspace", "-scheme", "HelloToolchain", targets=["HelloToolchain"])
 
 
@@ -536,6 +547,9 @@ def generate(c, have_swift):
         # the compiled module files only: .swiftdoc / .swiftsourceinfo change with comments and line numbers
         paths += [f"{S}/usr/lib/swift/*.swiftmodule/*.swiftmodule", f"{S}/usr/lib/swift/*.swiftmodule/*.swiftinterface"]
     n.build(iface, c.act("stamp", iface, *paths), implicit=["sdk-c"] + (["swift"] if have_swift else []), desc="SDK interface")
+    srcs = [f"samples/HelloToolchain/Vendor/Sum/{f}" for f in ("sum.c", "sum.h", "module.modulemap")]
+    n.build([f"{XCF}/{f}" for f in XCF_FILES], ["python3", "-m", "buildlib.apps", "--xcframework"], inputs=srcs,
+            implicit=["out/bin/isim", "buildlib/apps.py"], order_only=["sdk-c"], desc="XCFRAMEWORK Sum")
     products, by_dir = [], {}
     for d, spec in sorted(directories(c).items()):
         missing = [t for t in spec.needs if not shutil.which(t)]
@@ -576,4 +590,4 @@ def main(d):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    sum_xcframework() if sys.argv[1] == "--xcframework" else main(sys.argv[1])

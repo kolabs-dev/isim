@@ -84,11 +84,18 @@ def find_ninja(venv):
 # the next one, give files whose content is unchanged their recorded mtime back.
 
 def _tracked(repo):
-    try:
-        out = subprocess.run(["git", "-C", repo, "ls-files", "-z"], capture_output=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        return []
-    return [os.path.join(repo, p) for p in out.decode().split("\0") if p]
+    """the checkout's files and those of the pinned third-party checkouts (third_party/*: a fresh clone gives them
+    new timestamps too)"""
+    files = []
+    tp = os.path.join(repo, "third_party")
+    for d in [repo] + sorted(os.path.join(tp, x) for x in (os.listdir(tp) if os.path.isdir(tp) else ())
+                             if os.path.isdir(os.path.join(tp, x, ".git"))):
+        try:
+            out = subprocess.run(["git", "-C", d, "ls-files", "-z"], capture_output=True, check=True).stdout
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        files += [os.path.join(d, p) for p in out.decode().split("\0") if p]
+    return files
 
 
 def restore_mtimes(repo, state_path):

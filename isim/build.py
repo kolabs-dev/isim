@@ -123,6 +123,7 @@ def ci_build(args):
         fetch([])
     if subprocess.run(["docker", "image", "inspect", "swift:6.2"], capture_output=True).returncode:
         subprocess.run(["docker", "pull", "-q", "swift:6.2"], check=True)
+    venv()                         # the test packages too, so the build cache carries them to the test step
     rc = build(args, ci=True)
     if rc:
         return rc

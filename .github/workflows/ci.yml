@@ -27,8 +27,10 @@ jobs:
           tags: isim-ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Pinned third-party sources
-        uses: actions/cache@v4
+      # restore and save as separate steps: the combined action saves only when the whole job succeeds
+      - name: Pinned third-party sources (restore)
+        id: third-party
+        uses: actions/cache/restore@v4
         with:
           path: third_party
           key: third-party-${{ hashFiles('isim/buildlib/fetch.py') }}
@@ -53,7 +55,13 @@ jobs:
       # the container runs as root; give the runner its files back (tar for the cache, the artifact upload)
       - name: File ownership
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" isim/out
+        run: sudo chown -R "$(id -u):$(id -g)" isim/out third_party
+      - name: Pinned third-party sources (save)
+        if: ${{ !cancelled() && steps.third-party.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: third_party
+          key: third-party-${{ hashFiles('isim/buildlib/fetch.py') }}
       # saved even when the build fails (Ninja resumes a partial build), but not when the run was cancelled; the run id
       # in the key lets every run save (cache keys cannot be overwritten). The next run on the branch, and a new
       # branch's first run (from main's), restores the newest.
