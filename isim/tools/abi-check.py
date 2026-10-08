@@ -8,7 +8,9 @@ built with an older isim keep running.
 Baselines list "<binary path inside the SDK> <symbol>" for the dylibs under usr/lib and the framework binaries
 under System/Library/Frameworks. A symbol a binary re-exports from another library (LC_REEXPORT_DYLIB) counts as
 exported by it, as the loader resolves it there. abi/allowlist.txt names symbols that were deliberately dropped (one
-"<binary path> <symbol>" per line, '#' comments say why); keep it short."""
+"<binary path> <symbol>" per line, '#' comments say why); keep it short. abi/epochs.txt names binaries whose ABI broke
+on purpose ("<binary path> <version>": baselines older than that version are not checked for that binary; apps built
+with them must be rebuilt)."""
 import gzip, os, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -64,6 +66,10 @@ def exports(sdk, follow_reexports=False):
     return out
 
 
+def version(v):
+    return tuple(int(x) for x in v.split('.'))
+
+
 def main(argv):
     if argv[:1] == ['--record']:
         ver, sdk = argv[1], (argv[2] if len(argv) > 2 else os.path.join(ROOT, 'out', 'sdk'))
@@ -78,13 +84,21 @@ def main(argv):
     ap = os.path.join(ABI, 'allowlist.txt')
     if os.path.exists(ap):
         allow = {l.split('#')[0].strip() for l in open(ap) if l.split('#')[0].strip()}
+    epochs = {}
+    ep = os.path.join(ABI, 'epochs.txt')
+    if os.path.exists(ep):
+        for l in open(ep):
+            l = l.split('#')[0].split()
+            if len(l) == 2:
+                epochs[l[0]] = version(l[1])
     now = exports(sdk, follow_reexports=True)
     bad = 0
     for name in sorted(os.listdir(ABI)):
         if not name.endswith('.txt.gz'):
             continue
+        ver = version(name[1:-7])
         with gzip.open(os.path.join(ABI, name), 'rt') as f:
-            base = {l.rstrip('\n') for l in f if l.strip()}
+            base = {l.rstrip('\n') for l in f if l.strip() and not ver < epochs.get(l.split(' ', 1)[0], ver)}
         missing = sorted(base - now - allow)
         print(f'abi {name[:-7]}: {len(base)} symbols, {len(missing)} missing')
         for m in missing[:40]:
