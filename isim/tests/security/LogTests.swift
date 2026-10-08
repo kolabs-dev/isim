@@ -6,7 +6,7 @@ import OSLog
 func logTests() {
     let user = "alice@example.com", count = 3
     let logger = Logger(subsystem: "dev.isim.test", category: "security")
-    // the messages go to stderr; tests/security/run.sh checks the lines (format, levels, privacy)
+    // the messages go to stderr; tests/security/test_security.py checks the lines (format, levels, privacy)
     logger.notice("Loaded \(count) items for \(user)")
     logger.info("public \(user, privacy: .public) hex \(255, format: .hex, privacy: .public) pad [\(7, format: .decimal(minDigits: 3))]")
     logger.error("failed: \(true) \(2.5, format: .fixed(precision: 2))")

@@ -622,7 +622,7 @@ and cairo blend operators) on the view's group; HelloEffects (`tests/ui/effects.
 
 ### Shapes, paths, gradients & materials
 
-Shapes, paths, gradients and Canvas draw through libisim_host (cairo); tested by HelloDrawing (`tests/ui/drawing.sh`, pixel checks).
+Shapes, paths, gradients and Canvas draw through libisim_host (cairo); tested by HelloDrawing (`tests/ui/test_drawing.py`, pixel checks).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -744,7 +744,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `Chart` view (`Chart { }`, `Chart(data) { }`, `ForEach` of marks, `if`/`else` content), `import Charts` | ✅ | ≤17 | isim's own implementation on its SwiftUI (`swift/overlays/Charts`; `if`/`else` content unverified); tested by HelloCharts (`tests/ui/charts.sh`, measured in the screenshot) |
+| `Chart` view (`Chart { }`, `Chart(data) { }`, `ForEach` of marks, `if`/`else` content), `import Charts` | ✅ | ≤17 | isim's own implementation on its SwiftUI (`swift/overlays/Charts`; `if`/`else` content unverified); tested by HelloCharts (`tests/ui/test_charts.py`, measured in the screenshot) |
 | `BarMark` (vertical, horizontal, ranges, date bins with `unit:`, `width`/`height`) | ✅ | ≤17 | |
 | Bar stacking (`.standard`), grouping (`position(by:)`) | ✅ | ≤17 | `.normalized`/`.center` stacking unverified |
 | `LineMark` (`series:`, `interpolationMethod`), `PointMark` | ✅ | ≤17 | linear and catmullRom drawn in the test; step/cardinal/monotone unverified |
@@ -1049,7 +1049,7 @@ their presentation copies (model + running animations); there is no separate ren
 
 ## SpriteKit
 
-isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit) and `tests/ui/spritekit2.sh` (HelloSpriteKit2).
+isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit) and `tests/ui/test_spritekit2.py` (HelloSpriteKit2).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -1104,7 +1104,7 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 
 isim's Game Center is local: one player per device, no Apple servers. App Store Connect metadata (titles,
 descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter.json` next to the `.xcodeproj`
-(see [GAMECENTER.md](GAMECENTER.md)); without it titles are derived from identifiers. Tested by `tests/ui/gamecenter.sh`.
+(see [GAMECENTER.md](GAMECENTER.md)); without it titles are derived from identifiers. Tested by `tests/ui/test_gamecenter.py`.
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -1244,7 +1244,7 @@ Labels in the notes: *passthrough* = a host tool does the real work; *adapted* =
 Local StoreKit testing, like Xcode's: products come from the project's `.storekit` configuration; nothing is
 charged, nothing reaches Apple, transactions are `.verified` and JWS/receipts are local and **unsigned**.
 The ledger lives in the app container (`Library/isim/StoreKit/ledger.json`); `isim storekit <app> ...` is the
-Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
+Transaction Manager. Tested by `tests/ui/test_store.py` (HelloStore sample).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|

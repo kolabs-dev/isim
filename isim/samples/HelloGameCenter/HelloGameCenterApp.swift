@@ -1,7 +1,7 @@
 // Sample: isim's local Game Center — sign-in, the access point, leaderboards (classic, low-is-best,
 // recurring with a 6-second period) and a leaderboard set, achievements with descriptions and points from
 // isim-GameCenter.json, the dashboard, player photo, friends + friend request composer, saved games with a
-// conflict, and the matchmaker (which finds nobody). Results are printed for tests/ui/gamecenter.sh.
+// conflict, and the matchmaker (which finds nobody). Results are printed for tests/ui/test_gamecenter.py.
 import SwiftUI
 import GameKit
 

@@ -289,11 +289,17 @@ class App:
             time.sleep(0.05)
 
     def wait_view(self, ident: str, *, gone: bool = False, timeout: float = TIMEOUT) -> str:
-        """Wait until the view tree has a view with accessibilityIdentifier `ident` that is not itself hidden (or,
-        with gone=True, has none). Unlike wait_for, this finds views the accessibility snapshot folds into a larger
-        element (e.g. SwiftUI controls inside list rows). Returns the tree text."""
-        return self.wait_tree(rf"^ *\S+ \([^)]*\)(?! hidden)(?: alpha<1)? id={re.escape(ident)}(?: |$)", gone=gone,
-                              timeout=timeout)
+        """Wait until the view tree has a visible view with accessibilityIdentifier `ident` (neither it nor an
+        ancestor hidden; or, with gone=True, until there is none). Unlike wait_for, this finds views the accessibility
+        snapshot folds into a larger element (e.g. SwiftUI controls inside list rows). Returns the tree text."""
+        end = time.monotonic() + timeout
+        while True:
+            text = self.tree()
+            if (ident in visible_ids(text)) != gone:
+                return text
+            if time.monotonic() > end:
+                raise WaitTimeout(f"{'still' if gone else 'no'} visible view id={ident!r} after {timeout:g} s\n{text}")
+            time.sleep(0.05)
 
     def wait_tap(self, ident: str, timeout: float = TIMEOUT) -> "App":
         """Wait for the view with accessibilityIdentifier `ident` (wait_view), then tap it (`tapid`)."""
@@ -439,6 +445,7 @@ class Run:
     """Result of running an app to completion (scripted, or a self-test)."""
     returncode: int
     output: str
+    stderr: str = ""                                   # with run_app(split_stderr=True); otherwise in output
 
     def lines(self, pattern: str) -> list[str]:
         rx = re.compile(pattern)
@@ -447,9 +454,11 @@ class Run:
 
 def run_app(name: str, *, script: str | None = None, timeout: float = 120, data: Path | None = None,
             env: dict | None = None, args: list[str] | None = None, device: str | None = None,
-            os_version: str | None = None, standalone: bool = True, executable: bool = False) -> Run:
+            os_version: str | None = None, standalone: bool = True, executable: bool = False,
+            split_stderr: bool = False) -> Run:
     """Run an app (or a test binary in out/apps) until it exits; with `script`, headless with that script.
-    executable=True runs the bundle's executable directly (test binaries without an Info.plist)."""
+    executable=True runs the bundle's executable directly (test binaries without an Info.plist).
+    split_stderr=True keeps stderr (NSLog, os_log) apart from stdout: Run.stderr."""
     bundle = APPS / f"{name}.app"
     assert bundle.is_dir(), f"{bundle} is not built"
     target = bundle / name if executable else bundle
@@ -464,8 +473,9 @@ def run_app(name: str, *, script: str | None = None, timeout: float = 120, data:
         e["ISIM_OS_VERSION"] = str(os_version)
     e.update(env or {})
     p = subprocess.run([str(ISIM), "run", str(target), *(args or [])], env=e, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, text=True, errors="replace", timeout=timeout)
-    return Run(p.returncode, p.stdout)
+                       stderr=subprocess.PIPE if split_stderr else subprocess.STDOUT, text=True, errors="replace",
+                       timeout=timeout)
+    return Run(p.returncode, p.stdout, p.stderr or "")
 
 
 def selftest(name: str, *, timeout: float = 120, **kw) -> Run:
@@ -540,6 +550,21 @@ def first_y(img, x, y0, y1, pred) -> int | None:
 
 
 # ---- view-tree helpers ----
+def visible_ids(tree) -> set[str]:
+    """The accessibility identifiers of the views in a view tree that are not hidden themselves or by an ancestor
+    (what `tapid` can reach)."""
+    views = parse_views(tree) if isinstance(tree, str) else tree
+    out, stack = set(), []                             # (depth, hidden)
+    for v in views:
+        while stack and stack[-1][0] >= v.depth:
+            stack.pop()
+        hidden = v.hidden or bool(stack and stack[-1][1])
+        stack.append((v.depth, hidden))
+        if v.id and not hidden:
+            out.add(v.id)
+    return out
+
+
 def frames(tree) -> dict[str, tuple[float, float, float, float]]:
     """Screen frames {id: (x, y, w, h)} of the identified views in a view tree (App.tree() text or App.views()).
     Tree frames are relative to the superview; scroll views ('text=offset Y, ...') move their subviews. View
@@ -565,6 +590,44 @@ def need_apps(*names):
     if missing:
         import pytest
         pytest.skip(f"not built: {', '.join(missing)}")
+
+
+@dataclass
+class Server:
+    """A local helper server started by `server()`: its port, process and log file (its stderr)."""
+    port: int
+    proc: subprocess.Popen
+    log_path: Path
+
+    @property
+    def log(self) -> str:
+        return self.log_path.read_text(errors="replace") if self.log_path.exists() else ""
+
+    @property
+    def url(self) -> str:
+        return f"http://127.0.0.1:{self.port}"
+
+
+@contextmanager
+def server(*command, log: Path, timeout: float = 10):
+    """Run a local server (e.g. samples/HelloWeb/server.py 0) that prints "PORT <n>" on stdout once it listens;
+    yield a Server; stop it at the end. Its stderr goes to `log`."""
+    with open(log, "w") as err:
+        proc = subprocess.Popen([str(c) for c in command], stdout=subprocess.PIPE, stderr=err, text=True, cwd=ROOT)
+    try:
+        port = None
+        end = time.monotonic() + timeout
+        while port is None and time.monotonic() < end:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            m = re.match(r"PORT (\d+)", line)
+            port = m and int(m.group(1))
+        assert port, f"{command} did not start: {log.read_text(errors='replace')[-2000:]}"
+        yield Server(port, proc, log)
+    finally:
+        proc.kill()
+        proc.wait()
 
 
 @contextmanager

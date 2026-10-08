@@ -2,7 +2,7 @@
 // sort descriptors and cursors, fetches, a serverRecordChanged conflict and its resolution, an atomic batch in a
 // custom zone, change tokens, cascading deletes, subscriptions with in-process push delivery to the app delegate,
 // NSPersistentCloudKitContainer, and MetricKit payloads (delivered by the `metrickit` script command / `isim metrickit`).
-// Results are printed for tests/ui/cloudkit.sh.
+// Results are printed for tests/ui/test_cloudkit.py.
 import UIKit
 import CloudKit
 import CoreData
