@@ -3,8 +3,16 @@ JSONDecoder, completion handler on a background queue, POST + Set-Cookie + authe
 an unreachable host, WebSocket echo, Combine dataTaskPublisher, NWPathMonitor, and ISIM_NETWORK=offline.
 Port of tests/ui/network.sh."""
 import re
+import subprocess
 
+import pytest
 from isimtest import ROOT, local_server
+
+
+def curl_has_ws():
+    """The host libcurl speaks WebSocket (Ubuntu 24.04's does not: issue #5)."""
+    out = subprocess.run(["curl", "--version"], capture_output=True, text=True).stdout
+    return "Protocols:" in out and "ws" in out.split("Protocols:")[1].split("\n")[0].split()
 
 
 def test_network(launch, device_data):
@@ -31,9 +39,6 @@ def test_network(launch, device_data):
         app.wait_tap_id("unreachable")
         app.wait_log(r"^error cannot connect")
         app.wait_view(r"text=cannot connect \(-1004\)", what="unreachable host -> URLError.cannotConnectToHost")
-        app.wait_tap_id("echo")
-        app.wait_log(r"^ws echo")
-        app.wait_view(r"text=echo: hello isim", what="URLSessionWebSocketTask echo")
         app.wait_tap_id("combinefetch")
         app.wait_log(r"^combine ")
         app.wait_view(r"text=3 todos via Combine", what="Combine dataTaskPublisher + tryMap + receive(on:)")
@@ -54,8 +59,23 @@ def test_network(launch, device_data):
     assert has(r"^account signed in as ada"), "POST JSON, Set-Cookie, cookie sent back"
     assert has(r"^error HTTP 503 service unavailable"), "HTTP 503 is a response with a status code"
     assert has(r"^error cannot connect \(-1004\)"), "unreachable host -> URLError.cannotConnectToHost"
-    assert has(r"^ws echo: hello isim"), "URLSessionWebSocketTask echo"
     assert has(r"^combine 3"), "Combine dataTaskPublisher + tryMap + receive(on:)"
     assert has(r"^path satisfied"), "NWPathMonitor reports the host connection"
     requests = log.read_text()
     assert "POST /login" in requests and "GET /me" in requests, "server saw the requests"
+
+
+@pytest.mark.skipif(not curl_has_ws(), reason="the host libcurl has no WebSocket support (issue #5)")
+def test_websocket(launch, device_data):
+    with local_server(ROOT / "samples/HelloNetwork/server.py", device_data / "server.log") as port:
+        app = launch("HelloNetwork", args=["-server", f"http://127.0.0.1:{port}"])
+        app.wait_log(r"^todos 3 ")
+        app.wait_view(r"id=echo")
+        app.wait_still()
+        app.drag(200, 760, 200, 160, 0.3)
+        app.wait_still()
+        app.wait_tap_id("echo")
+        app.wait_log(r"^ws echo")
+        app.wait_view(r"text=echo: hello isim", what="URLSessionWebSocketTask echo")
+        assert app.quit() == 0, "exits cleanly"
+        assert re.search(r"^ws echo: hello isim", app.log, re.M), "URLSessionWebSocketTask echo"

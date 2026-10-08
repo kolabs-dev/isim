@@ -3,8 +3,6 @@ alignment options), keyboardLayoutGuide following the keyboard, registerForTrait
 Port of tests/ui/constraints.sh."""
 import re
 
-from isimtest import poll
-
 
 def test_constraints(launch):
     app = launch("HelloConstraints")
@@ -17,7 +15,8 @@ def test_constraints(launch):
     bar = re.search(r".*id=bar.*", before).group(0)
 
     app.tap_id("field")
-    poll(lambda: re.search(r".*id=bar.*", app.view_dump()).group(0) != bar, "keyboard guide: bar rides the keyboard")
+    app.wait_until(lambda: re.search(r".*id=bar.*", app.view_dump()).group(0) != bar,
+                   what="keyboard guide: bar rides the keyboard")
 
     app.tap_id("dark")
     app.wait_log(r"^style changed 1 -> 2")                             # registerForTraitChanges

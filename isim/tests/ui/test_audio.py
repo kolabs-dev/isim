@@ -49,7 +49,7 @@ def test_audio(launch, device_data):
     assert has("effects reverb tail true"), "AVAudioUnitReverb tail"
     assert rx(r"effects timepitch rate2 end 0\.4[0-9]"), "AVAudioUnitTimePitch rate 2 halves the length"
     assert has("effects delay tail true distortion true"), "AVAudioUnitDelay echo, AVAudioUnitDistortion"
-    assert has("file wav 0.50 s; m4a 0.50 s"), "AVAudioFile writes WAV and AAC (m4a)"
+    assert rx(r"file wav 0\.50 s; m4a 0\.5[0-2] s"), "AVAudioFile writes WAV and AAC (m4a; AAC padding varies by ffmpeg)"
     assert has("record permission true"), "record permission"
     assert has("recorder metering true recording=true"), "AVAudioRecorder metering while recording"
     assert rx(r"recorded true 1\.0[0-9] s rms 0\.[2-6]") and has("recording plays back: duration 1.0"), \

@@ -96,7 +96,7 @@ def test_security_boot(launch, tmp_path):
     dev.send("home")
     dev.wait_log(r"isim shell: notification banner from .*HelloSecurity.app: Security demo")
     dev.screenshot("banner-home")
-    dev.wait_tap_id("isim-notification-banner")
+    dev.tap_id("isim-notification-banner")                              # the shell's banner (not in view dumps)
     dev.wait_log(r"isim shell: opened notification backup")
     dev.wait_log(r"opened backup action default")
     dev.wait_view(r"text=Opened backup", what="tapping the shell banner reopens the app (didReceive)")

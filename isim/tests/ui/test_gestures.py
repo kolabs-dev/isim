@@ -5,6 +5,7 @@ UIKeyCommand (Cmd+R, arrow), pressesBegan with UIKey, shake motion events. Port 
 
 def test_gestures(launch):
     app = launch("HelloGestures")
+    app.wait_still()                                                   # laid out: the recognizers are in place
     app.tap(200, 250)
     app.wait_log(r"^single tap")                                       # fires once the double tap fails
     app.tap(200, 250)

@@ -147,11 +147,13 @@ class App:
 
     def __init__(self, name: str | Path | None, *, device: str | None = None, os_version: str | None = None,
                  data: Path | None = None, env: dict | None = None, args: list[str] | None = None,
-                 install: list[str] = (), animations: bool = True, launch_screen: bool = False):
+                 install: list[str] = (), animations: bool = True, launch_screen: bool | str = False):
         """name: an app in out/apps, or the Path of an .app bundle. name=None boots the device (`isim boot`: the home
         screen, system UI and `launch BUNDLE_ID`) with the `install` apps (names in out/apps) installed first.
         animations=False: ISIM_ANIMATIONS=0, animations finish at once (faster, for tests that only check end
-        states). launch_screen=True: show the app's launch screen (skipped by default: ISIM_SKIP_LAUNCH_SCREEN)."""
+        states). launch_screen=True: show the app's launch screen (skipped by default: ISIM_SKIP_LAUNCH_SCREEN) and
+        start once it has faded out; launch_screen="visible": start while it is still shown (to check it)."""
+        self.launch_screen = launch_screen
         self.bundle = None if name is None else name if isinstance(name, Path) else APPS / f"{name}.app"
         assert self.bundle is None or self.bundle.is_dir(), f"{self.bundle} is not built"
         label = self.bundle.stem if self.bundle else "boot"
@@ -290,25 +292,63 @@ class App:
                                   + "\n".join(l for l in text.splitlines() if " id=" in l or " text=" in l)[-4000:])
             time.sleep(0.05)
 
-    def wait_still(self, interval: float = 0.15, timeout: float = TIMEOUT) -> str:
-        """Wait until the view tree stops changing (scrolling decelerated, animations of frames ended): two dumps
-        `interval` seconds apart are the same. Returns that dump."""
+    def wait_dump(self, pattern: str, timeout: float = TIMEOUT) -> re.Match:
+        """Send `dump` (the view tree printed into the app's output, as shell scripts used it) until the regex
+        `pattern` matches output printed since this call; return the match. Under `isim boot` this form also lists the
+        system UI the shell draws (lock screen, Notification and Control Center, app switcher, Dynamic Island), which
+        `dump views FILE` (view_dump) leaves out."""
+        rx = re.compile(pattern, re.M)
+        with self._cv:
+            start = len(self._lines)
         end = time.monotonic() + timeout
-        last = self.view_dump()
         while True:
-            time.sleep(interval)
+            self.send("dump")
+            settle = min(end, time.monotonic() + 0.5)
+            with self._cv:
+                while True:
+                    m = rx.search("\n".join(self._lines[start:]))
+                    if m:
+                        return m
+                    left = settle - time.monotonic()
+                    if left <= 0:
+                        break
+                    self._cv.wait(left)
+            if time.monotonic() > end:
+                raise WaitTimeout(f"no {pattern!r} in a dump after {timeout:g} s\n" + "\n".join(self._lines[-40:]))
+
+    def wait_still(self, quiet: float = 0.4, timeout: float = TIMEOUT) -> str:
+        """Wait until the view tree has not changed for `quiet` seconds (scrolling decelerated, a transition ended:
+        UIKit transitions move layers, not frames, so their end shows only as their temporary views going away).
+        Returns that dump."""
+        end = time.monotonic() + timeout
+        last, since = self.view_dump(), time.monotonic()
+        while True:
+            time.sleep(0.1)
             text = self.view_dump()
-            if text == last:
+            if text != last:
+                last, since = text, time.monotonic()
+            elif time.monotonic() - since >= quiet:
                 return text
             if time.monotonic() > end:
                 raise WaitTimeout(f"the view tree still changes after {timeout:g} s")
-            last = text
 
     def wait_tap_id(self, ident: str, timeout: float = TIMEOUT) -> "App":
         """Wait until a visible view with accessibilityIdentifier `ident` is in the view tree, then `tapid` it (for
-        views the accessibility snapshot does not list, e.g. some SwiftUI controls)."""
+        views the accessibility snapshot does not list, e.g. some SwiftUI controls). If the app reports the view not
+        tappable yet ("no visible view", e.g. while a hidden ancestor or a transition covers it), tap again."""
+        end = time.monotonic() + timeout
         self.wait_view(rf"^(?!.* hidden id=).* id={re.escape(ident)}( text=.*| ax=.*)?$", timeout=timeout)
-        return self.tap_id(ident)
+        miss = rf"no visible view with accessibilityIdentifier '{re.escape(ident)}'"
+        while True:
+            before = self.count(miss)
+            self.tap_id(ident)
+            self.view_dump()                        # handled after the tap: a miss is logged by then
+            time.sleep(0.03)
+            if self.count(miss) == before:
+                return self
+            if time.monotonic() > end:
+                raise WaitTimeout(f"{ident!r} is not tappable after {timeout:g} s")
+            time.sleep(0.1)
 
     def count(self, pattern: str) -> int:
         """How many lines of the app's output so far match the regex `pattern`."""
@@ -357,9 +397,22 @@ class App:
         self.wait_log(re.escape(f"screenshot {path}"), timeout=TIMEOUT)
         return Image.open(path).convert("RGB")
 
+    def wait_shot_still(self, timeout: float = TIMEOUT):
+        """Take screenshots until two in a row are the same (an animation of what the shell draws, which the view
+        tree does not show, has ended) and return the last."""
+        last = self.screenshot()
+        end = time.monotonic() + timeout
+        while True:
+            img = self.screenshot()
+            if img.tobytes() == last.tobytes():
+                return img
+            if time.monotonic() > end:
+                raise WaitTimeout(f"the screen still changes after {timeout:g} s")
+            last = img
+
     def wait_shot(self, pred, what: str = "screenshot condition", timeout: float = TIMEOUT):
         """Take screenshots until pred(image) holds and return that image (pixels that change after an action)."""
-        return poll(lambda: img if pred(img := self.screenshot()) else None, what, timeout)
+        return self.wait_until(lambda: img if pred(img := self.screenshot()) else None, timeout, what)
 
     # ---- lifetime ----
     def quit(self, timeout: float = 20) -> int:
@@ -383,6 +436,8 @@ class App:
 
     def __enter__(self) -> "App":
         self.wait_log(r"isim: launching ", timeout=TIMEOUT * 3)
+        if self.launch_screen == "visible":
+            return self
         self.wait_for(type="window", timeout=TIMEOUT * 3)          # the app has a window on screen
         if self.find(id="launch-screen"):                          # launch_screen=True: wait until it fades out
             self.wait_log(r"isim: launch screen hidden", timeout=TIMEOUT)
@@ -492,18 +547,6 @@ def exclusive(key: str):
             yield
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
-
-
-def poll(fn, what: str, timeout: float = TIMEOUT, interval: float = 0.05):
-    """Call fn() until it returns something truthy and return that (e.g. a screenshot once a pixel changed)."""
-    end = time.monotonic() + timeout
-    while True:
-        v = fn()
-        if v:
-            return v
-        if time.monotonic() > end:
-            raise WaitTimeout(f"{what}: not after {timeout:g} s")
-        time.sleep(interval)
 
 
 def install_apps(data: Path, *names: str):

@@ -18,7 +18,7 @@ ALLOW = (170, 301)                                                              
 
 def allow_shown(s):
     """The web sign-in page is up: its Allow button where the app's own (also blue) buttons were covered."""
-    return near(rgb(s, *ALLOW), (0, 122, 255), 40) and not near(rgb(s, 200, 102), (0, 122, 255), 40)
+    return near(rgb(s, 60, 301), (0, 122, 255), 40) and not near(rgb(s, 200, 102), (0, 122, 255), 40)
 
 
 def sign_in_page(app, requests, n):
