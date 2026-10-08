@@ -532,7 +532,8 @@ def generate(c, have_swift):
     paths = [f"{S}/usr/include", f"{S}/System/Library/Frameworks/*.framework/Headers", f"{S}/usr/lib/*.tbd",
              "tools/isim", "tools/isim-build.py", "tools/xcodeproj.py", "tools/ibtool.py"]
     if have_swift:
-        paths.append(f"{S}/usr/lib/swift/*.swiftmodule")
+        # the compiled module files only: .swiftdoc / .swiftsourceinfo change with comments and line numbers
+        paths += [f"{S}/usr/lib/swift/*.swiftmodule/*.swiftmodule", f"{S}/usr/lib/swift/*.swiftmodule/*.swiftinterface"]
     n.build(iface, c.act("stamp", iface, *paths), implicit=["sdk-c"] + (["swift"] if have_swift else []), desc="SDK interface")
     products, by_dir = [], {}
     for d, spec in sorted(directories(c).items()):
