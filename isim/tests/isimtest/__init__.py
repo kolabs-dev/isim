@@ -15,6 +15,7 @@ from __future__ import annotations
 import fcntl
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -177,7 +178,11 @@ class App:
         self.bundle = None if name is None else name if isinstance(name, Path) else APPS / f"{name}.app"
         assert self.bundle is None or self.bundle.is_dir(), f"{self.bundle} is not built"
         label = self.bundle.stem if self.bundle else "boot"
-        self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{label}-", dir=ROOT / "out"))
+        # working files (control FIFO, snapshots, screenshots): next to the test's scratch device data (pytest's tmp_path,
+        # kept for a failed run), else a directory of our own, removed by quit()
+        self._own_tmp = data is None
+        base = Path(data).parent if data else ROOT / "out"
+        self.tmp = Path(tempfile.mkdtemp(prefix=f"isimtest-{label}-", dir=base))
         self.data = data or Path(os.environ.get("ISIM_DATA") or self.tmp / "data")
         if install:
             install_apps(self.data, *install)
@@ -486,6 +491,8 @@ class App:
                 f.close()
             except (OSError, ValueError):
                 pass
+        if self._own_tmp:
+            shutil.rmtree(self.tmp, ignore_errors=True)
         return self.proc.returncode
 
     def __enter__(self) -> "App":
