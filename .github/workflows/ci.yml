@@ -46,11 +46,16 @@ jobs:
             build-main-
       - name: Swift compiler image
         run: docker pull -q swift:6.2
-      - name: Build and test
+      - name: Build
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
-            -e CI=1 isim-ci python3 isim/build.py ci
-      # saved even when a test fails, so the next run (and every new branch, from main's) starts from this build
+            -e CI=1 isim-ci python3 isim/build.py ci build
+      # the container runs as root; give the runner its files back (tar for the cache, the artifact upload)
+      - name: File ownership
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" isim/out
+      # saved even when the build fails or a test fails later, so the next run (and every new branch, from main's)
+      # starts from it
       - name: Build cache (save)
         if: always() && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -60,6 +65,13 @@ jobs:
             !isim/out/pytest
             !isim/out/test-*
           key: build-${{ github.ref_name }}-${{ github.sha }}
+      - name: Test
+        run: |
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
+            -e CI=1 -e ISIM_TEST_JOBS="$(nproc)" -e ISIM_WAIT_SCALE=3 isim-ci python3 isim/build.py ci test
+      - name: File ownership (tests)
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" isim/out
       - name: Test results
         if: always()
         uses: actions/upload-artifact@v4

@@ -4,7 +4,8 @@
   build.py [build] [TARGET...] [-j N] [-v] [-k]   build (default: everything); targets: runtime, sdk-c, swift,
                                                    overlays, apps, or any output path (e.g. out/apps/HelloTable.app/HelloTable)
   build.py test [PYTEST ARGS...]                   run the tests (pytest over tests/), e.g. test -k navigation
-  build.py ci                                      what CI runs: fetch, build, check, ABI check, all tests
+  build.py ci [build|test]                         what CI runs: fetch, build, check, ABI check (build), then all
+                                                   tests (test); both phases when none is given
   build.py fetch                                   fetch the pinned third-party sources (third_party/)
   build.py package VERSION                         package a release into dist/isim-VERSION-linux-x86_64.tar.gz
   build.py graph                                   only write out/build.ninja
@@ -103,15 +104,26 @@ def test(args):
 
 
 def ci(args):
-    """build and run every test plus the ABI check, as CI does (in the isim/ci image, with the host's Docker socket)"""
+    """CI, in two phases (separate workflow steps, so each shows its own time): `build` fetches, builds, checks that
+    the optional parts exist and runs the ABI check; `test` runs every test. Runs in the isim/ci image with the
+    host's Docker socket."""
+    phases = [a for a in args if a in ("build", "test")] or ["build", "test"]
+    if "build" in phases:
+        rc = ci_build([a for a in args if a not in ("build", "test")])
+        if rc:
+            return rc
+    if "test" in phases:
+        return ci_test()
+    return 0
+
+
+def ci_build(args):
     subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"])
     if not os.path.isdir(os.path.join(REPO, "third_party", "swift", "stdlib")):
         fetch([])
     if subprocess.run(["docker", "image", "inspect", "swift:6.2"], capture_output=True).returncode:
         subprocess.run(["docker", "pull", "-q", "swift:6.2"], check=True)
-    print("::group::build", flush=True)
     rc = build(args, ci=True)
-    print("::endgroup::", flush=True)
     if rc:
         return rc
     # optional parts are left out quietly when a tool is missing; in CI they must exist, or their tests would be skipped
@@ -121,8 +133,10 @@ def ci(args):
         if not os.path.exists(os.path.join(ROOT, f)):
             print(f"CI: {f} was not built")
             return 1
-    if subprocess.call([sys.executable, "tools/abi-check.py"], cwd=ROOT):
-        return 1
+    return subprocess.call([sys.executable, "tools/abi-check.py"], cwd=ROOT)
+
+
+def ci_test():
     with open(os.path.join(ROOT, "out", "test.log"), "w") as log:
         p = subprocess.Popen([sys.executable, __file__, "test", f"--junitxml={ROOT}/out/test-results.xml"],
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
