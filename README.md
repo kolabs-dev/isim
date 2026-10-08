@@ -70,7 +70,7 @@ isim install ~/.local/lib/isim/current/apps/*.app
 see [docs/SCRIPTING.md](docs/SCRIPTING.md) for every command. Permission prompts, Face ID, location, microphone
 and logs can be answered or configured with environment variables: see [docs/SYSTEM-PROMPTS.md](docs/SYSTEM-PROMPTS.md).
 
-**Compiling** needs clang/lld 17+ (clang 23's constant Objective-C literals are supported). Swift needs Docker with the `swift:6.2` image.
+**Compiling** needs clang/lld 21 or newer (isim's SDK ships libc++ 22; on Ubuntu/Debian get it from [apt.llvm.org](https://apt.llvm.org)). Constant Objective-C literals (clang 23) are supported. Swift needs Docker with the `swift:6.2` image.
 
 ## Documentation
 
