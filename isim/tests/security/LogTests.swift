@@ -1,4 +1,4 @@
-// os.Logger / os_log on isim (output checked by run.sh); os_unfair_lock and OSAllocatedUnfairLock.
+// os.Logger / os_log on isim (output checked by test_security.py); os_unfair_lock and OSAllocatedUnfairLock.
 import Foundation
 import os.log
 import OSLog

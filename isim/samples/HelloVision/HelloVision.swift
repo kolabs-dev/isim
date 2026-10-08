@@ -2,7 +2,7 @@
 // orientation, VNRecognizeTextRequest, VNDetectFaceRectanglesRequest), Core ML (MLModel.compileModel, model
 // descriptions, MLMultiArray, GLM regressor/classifier predictions, models isim cannot run), NaturalLanguage
 // (NLTokenizer, NLLanguageRecognizer, NLTagger), Speech (authorization alert, recognition) and VisionKit
-// (DataScannerViewController support check). Pictures and model specs are made by build.sh.
+// (DataScannerViewController support check). Pictures and model specs are made by the build (buildlib/apps.py).
 import UIKit
 import Vision
 import CoreML

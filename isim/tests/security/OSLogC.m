@@ -1,5 +1,5 @@
 // os_log from Objective-C: the os_log macros (clang's __builtin_os_log_format) with privacy specifiers.
-// Called from main.swift; run.sh checks the stderr lines.
+// Called from main.swift; test_security.py checks the stderr lines.
 #import <Foundation/Foundation.h>
 #include <os/log.h>
 

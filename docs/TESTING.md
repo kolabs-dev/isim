@@ -3,13 +3,13 @@
 isim's tests are pytest suites under `isim/tests` (one `test_*.py` per sample or area). Run them with:
 
 ```bash
-isim/test.sh                          # every test, in parallel
-isim/test.sh -k navigation            # pytest arguments pass through
-OS_MATRIX=1 isim/test.sh              # also run os_matrix tests under iOS 17, 18, 26 and 27
+isim/build.py test                    # every test, in parallel (build first: isim/build.py)
+isim/build.py test -k navigation      # pytest arguments pass through
+OS_MATRIX=1 isim/build.py test        # also run os_matrix tests under iOS 17, 18, 26 and 27
 ```
 
-`test.sh` creates a virtualenv in `isim/out/pyenv` from `isim/tests/requirements.txt` (pytest, pytest-xdist,
-pytest-rerunfailures, Pillow) and runs pytest with `ISIM_TEST_JOBS` workers (default half the CPUs, 2–16). A failed
+`build.py test` uses the virtualenv `isim/out/pyenv` (created from `isim/requirements.txt`: pytest, pytest-xdist,
+pytest-rerunfailures, Pillow, ninja) and runs pytest with `ISIM_TEST_JOBS` workers (default half the CPUs, 2–16). A failed
 test is retried once (`ISIM_TEST_RETRY=0` turns that off); tests that only passed on the retry are listed as flaky.
 The longest tests start first (times of the last run are kept in `out/test-durations.json`).
 
@@ -46,12 +46,12 @@ Tests run with `ISIM_SKIP_LAUNCH_SCREEN=1` and, where a test asks for it, `ISIM_
 
 `.github/workflows/ci.yml` builds isim and runs every test plus the ABI check in a stock Ubuntu 24.04 image
 (`isim/ci/Dockerfile`), so CI also proves isim works on an ordinary Linux. It runs only on demand: Actions → CI → Run
-workflow on a pull request's branch. The build is cached by content (`isim/tools/fresh.py`), so a run rebuilds only
-what the branch changed; JUnit results and failure screenshots are uploaded as artifacts.
+workflow on a pull request's branch. The build directory is cached; `build.py ci` gives sources whose content is unchanged
+their cached timestamps back (a checkout gives every file a new one), so Ninja rebuilds only what the branch changed; JUnit results and failure screenshots are uploaded as artifacts.
 
 To reproduce CI locally:
 
 ```bash
 docker build -t isim-ci isim/ci
-docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock isim-ci isim/ci/run.sh
+docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock isim-ci python3 isim/build.py ci
 ```

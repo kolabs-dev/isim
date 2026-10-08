@@ -9,7 +9,7 @@ On a real device, leaderboard titles, achievement descriptions, points and leade
 App Store Connect. isim reads them from a JSON file instead. The format is isim's own; Apple does not define it.
 
 - Put `isim-GameCenter.json` next to the `.xcodeproj` (or up to two folders below it). `isim build` copies it into
-  the app bundle. Samples built by hand copy it themselves (see `isim/samples/HelloGameCenter/build.sh`).
+  the app bundle. Samples built by hand copy it themselves (see HelloGameCenter in `isim/buildlib/apps.py`).
 - The Info.plist key `ISIMGameCenterConfiguration` can name another file in the bundle.
 - Without the file, everything still works: titles come from the identifiers
   (`dev.example.highest_level` becomes "Highest Level"), there are no points, descriptions or sets.

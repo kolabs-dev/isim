@@ -1,5 +1,5 @@
 // isim additions to swift-testing's _TestingInternals C module (self-authored).
-// build-testing.sh copies this header into the build copy of _TestingInternals/include; the module map there is an
+// The build (buildlib/swift.py) copies this header into the build copy of _TestingInternals/include; the module map there is an
 // umbrella directory, so Swift sees these macros/declarations next to upstream's own headers.
 // It supplies the few Darwin SDK definitions swift-testing uses that isim's self-authored SDK does not have.
 #if !defined(SWT_ISIM_ADDITIONS_H)

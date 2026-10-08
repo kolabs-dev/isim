@@ -1,6 +1,5 @@
 """Objective-C runtime self-test (ObjCRuntimeTest.app: exceptions, forwarding, NSInvocation, NSProxy), and uncaught
-exceptions from Objective-C and Swift callers terminating with iOS's report (SIGABRT). Port of
-tests/objc-runtime/run.sh."""
+exceptions from Objective-C and Swift callers terminating with iOS's report (SIGABRT)."""
 import re
 
 import pytest
