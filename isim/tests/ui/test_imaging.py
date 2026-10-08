@@ -7,7 +7,7 @@ import shutil
 import subprocess
 
 import pytest
-from isimtest import close, rgb
+from isimtest import TIMEOUT, WaitTimeout, close, rgb
 
 
 @pytest.fixture(scope="module")
@@ -17,10 +17,17 @@ def imaging(launch_module, tmp_path_factory):
     app.wait_log(r"animationImages \d+ animating")
     app.wait_log(r"rotated orientation")
     a = app.wait_shot(lambda s: close(s, 20, 344, (255, 0, 0)) and close(s, 88, 80, (0, 0, 255), 5000), "drawn")
-    app.sleep(0.25)                                       # the GIF and animationImages advance a frame (0.25 s)
-    b = app.screenshot()
-    app.sleep(0.25)
-    c = app.screenshot()
+    # the GIF (0.25 s a frame) and animationImages (0.2 s) advance: the next screenshots where both changed, polled
+    # rather than slept so that a loaded machine rendering few frames does not land on the same frame again
+    # (if one of them does not, the last screenshot is kept and its own check below fails)
+    def advanced(prev):
+        moved = lambda s: rgb(s, 41, 99) != rgb(prev, 41, 99) and rgb(s, 290, 360) != rgb(prev, 290, 360)
+        try:
+            return app.wait_shot(moved, "the GIF and animationImages advance a frame", timeout=TIMEOUT / 2)
+        except WaitTimeout:
+            return app.screenshot()
+    b = advanced(a)
+    c = advanced(b)
     app.view_dump()
     rc = app.quit()
     return app.log, rc, a, b, c, data

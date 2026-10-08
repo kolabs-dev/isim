@@ -84,11 +84,13 @@ def test_ipad(launch):
 
 def test_ipad_zoom_cover(launch):
     app = launch("HelloSheets", device="ipadpro11")
+    corner = lambda s: purple(rgb(s, s.width - 8, s.height - 40))
+    grid = lambda s: sum(1 for x in range(4, s.width, 8) for y in range(4, s.height, 8) if purple(rgb(s, x, y)))
+    app.wait_view(r"id=open-zoom\b")
+    source = grid(app.wait_shot(lambda s: grid(s) > 20, "the purple zoom source tile"))   # 60 pt: it zooms out of it
     app.wait_tap_id("open-zoom")
-    app.sleep(0.12)                                                  # mid-animation
-    mid = app.screenshot("zoommid")
-    assert not purple(rgb(mid, mid.width - 8, mid.height - 40)), "zoom cover grows out of its source (not yet full)"
-    app.wait_until(lambda: purple((lambda s: rgb(s, s.width - 8, s.height - 40))(app.screenshot("zoom"))),
-                   what="zoom cover grows to full screen")
+    app.shot_during(lambda s: grid(s) > 2 * source and not corner(s), corner,
+                    "zoom cover grows out of its source (not yet full)")
+    app.wait_shot(corner, "zoom cover grows to full screen")
     app.tap_id("zoom-close")
     assert app.quit() == 0
