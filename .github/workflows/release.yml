@@ -23,7 +23,9 @@ on:
         default: false
   push:
     branches: [main]
-    paths: [isim/VERSION]
+    # every release pull request adds its ABI baseline; isim/VERSION alone misses a re-release of the same version
+    # (a publish that failed leaves isim/VERSION at X.Y.Z on main, so the next release PR does not change it)
+    paths: [isim/VERSION, 'isim/abi/v*.txt.gz']
 concurrency:
   group: release
   cancel-in-progress: false
