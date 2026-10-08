@@ -368,7 +368,8 @@ class App:
     def wait_dump(self, pattern: str, timeout: float = TIMEOUT) -> re.Match:
         """Send `dump` (the view tree printed into the app's output, as shell scripts used it) until the regex
         `pattern` matches output printed since this call; return the match. Under `isim boot` this form also lists the
-        system UI the shell draws (lock screen, Notification and Control Center, app switcher, Dynamic Island), which
+        system UI the shell draws (lock screen, Notification and Control Center, app switcher, Dynamic Island,
+        notification banners), which
         `dump views FILE` (view_dump) leaves out."""
         rx = re.compile(pattern, re.M)
         with self._cv:

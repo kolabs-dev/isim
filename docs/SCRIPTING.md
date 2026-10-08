@@ -48,6 +48,11 @@ While one of these is shown, `dump` lists its parts (ids and text) and `tapid` /
 opens `nx-reply-field`: `type TEXT` then `key return` (or `tapid nx-reply-send`) sends the reply. A Notification Content
 extension's view is drawn at the top of the card.
 
+**Notification banners**: while the shell shows a banner (a notification for an app in the background or not running),
+`dump` lists it before the app's view tree:
+`IsimNotificationBanner … id=isim-notification-banner notification=ID text=TITLE body=BODY` (line breaks become spaces).
+`tapid isim-notification-banner` opens it and `holdid isim-notification-banner 0.8` expands it.
+
 **Location indicator**: while an app uses location in the background, the status bar's time sits on a blue capsule
 (`dump`: `IsimLocationIndicator … id=location-indicator`); `tapid location-indicator` opens that app.
 
