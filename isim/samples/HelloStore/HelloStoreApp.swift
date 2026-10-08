@@ -2,7 +2,7 @@
 // an accelerated clock, offers, Transaction.updates, finish(), refunds, AppTransaction), the StoreKit views
 // (StoreView, ProductView, SubscriptionStoreView), system sheets (manage subscriptions, offer codes, refund),
 // the review prompt, and StoreKit 1 (SKProductsRequest, SKPaymentQueue, receipt, SKOverlay, product page).
-// Every state change is printed, so tests/ui/store.sh can check it.
+// Every state change is printed, so tests/ui/test_store.py can check it.
 import SwiftUI
 import StoreKit
 

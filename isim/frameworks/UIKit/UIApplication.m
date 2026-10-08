@@ -910,7 +910,7 @@ static void handle_key(const struct isim_event *ev) {
     isim_ui_set_needs_display();
 }
 
-static void dump_view(UIView *v, int depth) {
+static void dump_view_to(FILE *out, UIView *v, int depth) {
     CGRect f = v.frame;
     NSString *ident = v.accessibilityIdentifier, *label = [v respondsToSelector:@selector(_isim_dumpText)] ? [(id)v _isim_dumpText]
         : [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
@@ -923,10 +923,20 @@ static void dump_view(UIView *v, int depth) {
     static int ax = -1;
     if (ax < 0) { const char *e = getenv("ISIM_DUMP_ACCESSIBILITY"); ax = e && *e && strcmp(e, "0"); }   /* ax="label, value, traits" */
     NSString *axs = ax ? isim_ui_accessibility_dump(v) : nil;
-    fprintf(stderr, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
+    fprintf(out, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
             v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "",
             axs ? " ax=\"" : "", axs ? axs.UTF8String : "", axs ? "\"" : "");
-    for (UIView *s in v.subviews) dump_view(s, depth + 1);
+    for (UIView *s in v.subviews) dump_view_to(out, s, depth + 1);
+}
+static void dump_view(UIView *v, int depth) { dump_view_to(stderr, v, depth); }
+/* "dump views FILE": the view tree into FILE, written whole (temporary file + rename) for tests that poll it */
+static void dump_views_file(const char *path) {
+    char tmp[1100]; snprintf(tmp, sizeof tmp, "%s.tmp", path);
+    FILE *f = fopen(tmp, "w");
+    if (!f) { fprintf(stderr, "isim: cannot write %s\n", tmp); return; }
+    for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view_to(f, w, 0);
+    fclose(f);
+    rename(tmp, path);
 }
 
 /* scripted touches addressed by accessibilityIdentifier (ISIM_SCRIPT tapid/holdid) */
@@ -1593,6 +1603,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
                 case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
                 case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
                 case ISIM_EV_DUMP: layout_all();
+                    if (!strncmp(ev.text, "views ", 6)) { dump_views_file(ev.text + 6); break; }                                /* tests */
                     if (ev.text[0]) { extern void isim_ui_write_ax_snapshot(const char *); isim_ui_write_ax_snapshot(ev.text); break; }   /* XCUITest */
                     for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
                 default: break;

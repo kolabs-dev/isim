@@ -34,7 +34,8 @@ ISIM_INSTALL_DIR=${ISIM_INSTALL_DIR:-$HOME/.local/lib/isim}    # installed relea
 # a copy of this script outside a release (e.g. cp'd into ~/bin) uses the active installed release
 [ -d "$BIN/../sdk" ] || [ ! -x "$ISIM_INSTALL_DIR/current/bin/isim-runtime" ] || BIN=$(cd -- "$ISIM_INSTALL_DIR/current/bin" && pwd)
 SDK=${ISIM_SDK:-$BIN/../sdk}
-DATA=${ISIM_DATA:-$HOME/.local/share/isim}
+DATA=$(realpath -m -- "${ISIM_DATA:-$HOME/.local/share/isim}")   # absolute: apps resolve paths under it
+[ -z "${ISIM_DATA:-}" ] || export ISIM_DATA=$DATA
 cmd=${1:-help}; shift || true
 device_opts() {   # sets env from device options; leaves the rest in REST
   REST=()

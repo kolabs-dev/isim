@@ -16,6 +16,17 @@ build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays
   local srcs=("overlays/$m.swift"); [ -d "overlays/$m" ] && srcs=(overlays/"$m"/*.swift)
   for x in overlays/"$m"+*.swift; do if [ -e "$x" ]; then srcs+=("$x"); fi; done      # overlays/<Module>+Part.swift
   case " $PRIVACY " in *" $m "*) srcs+=(overlays/_Privacy/*.swift) ;; esac
+  # incremental: skip the module when its sources, the interfaces it builds against and its flags are unchanged
+  local ins=("${srcs[@]}" "$SDK/usr/include" "$SDK/usr/lib/swift/Swift.swiftmodule" "$SDK/usr/lib/swift/_Concurrency.swiftmodule") a prev=
+  for a in "$@"; do
+    case "$a" in *-lswift*) ins+=("$SDK/usr/lib/swift/${a##*-lswift}.swiftmodule") ;; *.o) ins+=("$a") ;; esac
+    [ "$prev" = -framework ] && ins+=("$SDK/System/Library/Frameworks/$a.framework/Headers"); prev=$a
+  done
+  local evo=; case " $EVOLUTION " in *" $m "*) evo=evolution ;; esac
+  local mod="$SDK/usr/lib/swift/$m.swiftmodule/x86_64-apple-ios-simulator.swiftmodule" lib="$SDK/usr/lib/swift/libswift$m.dylib"
+  if python3 ../tools/fresh.py check "overlay-$m" --in "${ins[@]}" --key "$*" "$evo" "$IMG" --out "$mod" "$lib"; then
+    echo "up to date: libswift$m.dylib"; return 0
+  fi
   mkdir -p "$SDK/usr/lib/swift/$m.swiftmodule"
   ../out/bin/isim swiftc -parse-as-library -module-name "$m" -module-link-name "swift$m" \
     -Xfrontend -disable-objc-attr-requires-foundation-module $( case " $EVOLUTION " in *" $m "*) echo -enable-library-evolution ;; esac ) \
@@ -24,8 +35,10 @@ build() { # Module  [ld deps...]   (sources: overlays/<Module>.swift or overlays
   ld64.lld -arch x86_64 -platform_version ios-simulator 15.0 0 -dylib -install_name "/usr/lib/swift/libswift$m.dylib" \
     -o "$SDK/usr/lib/swift/libswift$m.dylib" "$OBJ/$m.o" -L "$SDK/usr/lib" -L "$SDK/usr/lib/swift" \
     -F "$SDK/System/Library/Frameworks" -lSystem -lobjc -lswiftCore "$@"
+  python3 ../tools/fresh.py record "overlay-$m" --in "${ins[@]}" --key "$*" "$evo" "$IMG" --out "$mod" "$lib"
   echo "built libswift$m.dylib"
 }
+IMG=$(docker image inspect -f '{{.Id}}' swift:6.2 2>/dev/null || echo none)
 build CoreGraphics -framework CoreGraphics
 build ObjectiveC -framework Foundation   # NSObject lives in isim Foundation, not libobjc
 ../out/bin/isim cc -c overlays/Combine/compat.c -o "$OBJ/Combine-compat.o"   # enum case symbols for apps built before Completion was @frozen

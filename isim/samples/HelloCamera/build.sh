@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build HelloCamera.app (Swift: AVCaptureSession, preview layer, photo/video data/metadata/movie outputs) for isim.
-# Needs the swift:6.2 image. The camera picture comes from ISIM_CAMERA at run time (tests/ui/camera.sh makes one).
+# Needs the swift:6.2 image. The camera picture comes from ISIM_CAMERA at run time (tests/ui/test_camera.py makes one).
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 isim=$(realpath ../../out/bin/isim)

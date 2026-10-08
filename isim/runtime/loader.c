@@ -821,6 +821,8 @@ static void link_new_images(int first, int gargc, char **gargv) {
 }
 
 int main(int argc, char **argv, char **envp) {
+    /* apps' output reaches log readers (tests, `isim run | ...`) line by line, not only when the buffer fills or at exit */
+    if (!isatty(1)) setvbuf(stdout, NULL, _IOLBF, 0);
     int ai = 1;
     sysroot = getenv("ISIM_ROOT");
     while (ai < argc && argv[ai][0] == '-') {

@@ -50,7 +50,7 @@ iPhone 13 mini), so there is no maximum version.
 ## `#available` and the Swift standard library
 
 `#available` / `if #available` / `#unavailable` (Swift) and `@available` / `__builtin_available` (Objective-C)
-follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by `tests/ui/osversions.sh`).
+follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by `tests/ui/test_osversions.py`).
 
 - isim's libswiftCore is now built with `SWIFT_RUNTIME_OS_VERSIONING` (CMake's `SWIFT_STDLIB_OS_VERSIONING`,
   on by default for Apple platforms). Swift's availability checks inline `_stdlib_isOSVersionAtLeast_AEIC`, which
@@ -97,7 +97,7 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
 | Tab bar (iPad) | bottom bar | floating capsule at the top, titles only | glass capsule at the top | adapted, proposed |
 | Navigation bar | material when scrolled | same | scroll-edge fade, glass back button (chevron only), glass bar items (Done items prominent) | adapted, verified (frames) |
 | Toolbars | material bar | same | item groups on glass capsules (split by `ToolbarSpacer`), edge fade (`scrollEdgeEffectStyle(.hard)`: opaque edge) | adapted, verified (frames) |
-| SwiftUI tab bar extras (`tabViewBottomAccessory`, `tabBarMinimizeBehavior`), `backgroundExtensionEffect`, `GlassEffectContainer` merging | not available (compile-time) | same | glass accessory above the bar, minimized bar on scroll, mirrored blurred background in the safe area, merged glass shapes | adapted, verified (`tests/ui/tabs.sh`) |
+| SwiftUI tab bar extras (`tabViewBottomAccessory`, `tabBarMinimizeBehavior`), `backgroundExtensionEffect`, `GlassEffectContainer` merging | not available (compile-time) | same | glass accessory above the bar, minimized bar on scroll, mirrored blurred background in the safe area, merged glass shapes | adapted, verified (`tests/ui/test_tabs.py`) |
 | Alerts | 270 pt card | same | 300 pt glass card, corner 34, leading text, capsule buttons, preferred action filled | adapted, verified (pixels) |
 | Action sheets, menus, sheets, popovers | classic | same | glass cards / larger corners | adapted, proposed |
 | Switch | 51 × 31 | same | 63 × 28, pill thumb | adapted, verified |
@@ -124,7 +124,7 @@ the WWDC25 material; exact metrics (corner radii, insets) are isim's estimates.
 
 Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "UIKit updates", June 2026):
 
-- implemented (adapted; verified by `tests/ui/tabs.sh` and `effects.sh` under `--os 27` / the default):
+- implemented (adapted; verified by `tests/ui/test_tabs.py` and `test_effects.py` under `--os 27` / the default):
   `TabRole.prominent`, `ToolbarItemVisibilityPriority` + `visibilityPriority(_:)` (low-priority items move to an
   overflow menu), `ToolbarOverflowMenu`, `ToolbarItemPlacement.topBarPinnedTrailing`,
   `toolbarMinimizationBehavior(_:for:)` (the bottom bar slides away, the navigation bar fades while scrolling),
@@ -141,7 +141,7 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
 
 ## Tests
 
-- `tests/ui/osversions.sh` runs `samples/HelloOSVersions` (UIKit and SwiftUI) under each `--os` and checks the
+- `tests/ui/test_osversions.py` runs `samples/HelloOSVersions` (UIKit and SwiftUI) under each `--os` and checks the
   versions, `#available`/`@available`, version-gated APIs, the look by pixels, the Lock Screen and Control Center,
   Settings ▸ About, device pairing and the remembered version. It is part of `test.sh`.
 - `OS_MATRIX=1 ./test.sh` also runs the version-sensitive suites under all four versions (iPhone 15 for 17,

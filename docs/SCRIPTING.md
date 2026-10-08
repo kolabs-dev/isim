@@ -95,7 +95,8 @@ extension's view is drawn at the top of the card.
 |---|---|
 | `shot FILE.png` | screenshot (the full screen at the device's pixel scale) |
 | `dump` | print the foreground app's view tree (frames, text, identifiers; `ISIM_DUMP_ACCESSIBILITY=1` adds accessibility descriptions) |
-| `dump FILE` | write an accessibility snapshot to FILE (used by XCUITest) |
+| `dump FILE` | write an accessibility snapshot to FILE (used by XCUITest and the Python tests) |
+| `dump views FILE` | write the view tree (as `dump` prints it) to FILE |
 
 ## Interactive shortcuts
 

@@ -2,7 +2,7 @@
 # Build HelloToolchain.app from its workspace with `isim build`: an app (Swift + ObjC, bridging header,
 # -Swift.h), a static library, a dynamic framework (Swift + ObjC, resource), a local package that depends on
 # another local package (with a C target and resources), a prebuilt XCFramework and .xcconfig files.
-# Its test targets (unit, UI, Swift Testing) run with `isim test` (tests/ui/toolchain.sh). Needs the swift:6.2 image.
+# Its test targets (unit, UI, Swift Testing) run with `isim test` (tests/ui/test_toolchain.py). Needs the swift:6.2 image.
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 [ -f ../../out/sdk/usr/lib/swift/libswiftXCTest.dylib ] || { echo "HelloToolchain: skipped (Swift overlays not built)"; exit 0; }

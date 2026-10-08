@@ -1,7 +1,7 @@
 // Sample: SF Symbol stand-ins on isim. UIImage(systemName:) draws isim's own substitutes (procedural glyphs and
 // Adwaita icons; Apple's symbol artwork is not shipped). This app lays out a grid of common symbol names and their
 // .fill / .circle / .square / .slash variants, plus SymbolConfiguration weight, scale and tint, and logs where each
-// cell is so tests/ui/symbols.sh can check the pixels.
+// cell is so tests/ui/test_symbols.py can check the pixels.
 import UIKit
 
 /// The grid, in order. The first cell is a name no substitute exists for: the reference placeholder.

@@ -10,7 +10,7 @@ home screen and a Settings app, and builds Xcode projects. It is an independent 
   and `adwaita-icon-theme` (stand-ins for some SF Symbols).
 - Loaded only when an app needs them: SQLite, OpenSSL 3, libcurl, PCRE2, `ffmpeg`, `espeak-ng`, `poppler-glib`,
   `zbar`, `tesseract`, whisper.cpp or Vosk. Most distributions ship the first four.
-- To compile apps: `clang` + `lld` 17+, and Docker with the `swift:6.2` image for Swift.
+- To compile apps: `clang` + `lld` 21 or newer (from [apt.llvm.org](https://apt.llvm.org) on Ubuntu/Debian), and Docker with the `swift:6.2` image for Swift.
 
 Graphics, display and audio libraries come from the system; everything else is in `lib/`.
 

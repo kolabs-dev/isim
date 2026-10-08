@@ -82,6 +82,8 @@ void isim_ib_show_launch_screen(void) {
         NSLog(@"isim: launch screen: UILaunchScreen%@", dict.count ? [@" " stringByAppendingString:[[dict.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@","]] : @" (empty)");
     }
     if (!vc) return;
+    const char *skip = getenv("ISIM_SKIP_LAUNCH_SCREEN");
+    if (skip && *skip && strcmp(skip, "0")) { NSLog(@"isim: launch screen skipped"); return; }   /* tests */
     launch_window = [[__IsimLaunchWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     launch_window.windowLevel = UIWindowLevelStatusBar - 1;
     launch_window.accessibilityIdentifier = @"launch-screen";

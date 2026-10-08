@@ -1,5 +1,5 @@
 // Source-compatibility patterns that compile with Apple's SDK and must compile and work on isim too
-// (each was found building real apps; tests/ui/sourcecompat.sh checks them).
+// (each was found building real apps; tests/ui/test_sourcecompat.py checks them).
 import SwiftUI
 import UIKit
 

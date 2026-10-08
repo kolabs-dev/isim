@@ -579,7 +579,7 @@ checks it (verified), "unverified" means proposed (implemented, no test).
 
 Colour filters, blur, blend modes, compositing groups and content shadows render through
 `isim_gfx_pop_group_filtered` (a 4×5 colour matrix, a three-pass box blur ≈ Gaussian, a shadow of the content's alpha
-and cairo blend operators) on the view's group; HelloEffects (`tests/ui/effects.sh`) checks them by pixels.
+and cairo blend operators) on the view's group; HelloEffects (`tests/ui/test_effects.py`) checks them by pixels.
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -622,7 +622,7 @@ and cairo blend operators) on the view's group; HelloEffects (`tests/ui/effects.
 
 ### Shapes, paths, gradients & materials
 
-Shapes, paths, gradients and Canvas draw through libisim_host (cairo); tested by HelloDrawing (`tests/ui/drawing.sh`, pixel checks).
+Shapes, paths, gradients and Canvas draw through libisim_host (cairo); tested by HelloDrawing (`tests/ui/test_drawing.py`, pixel checks).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -744,7 +744,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `Chart` view (`Chart { }`, `Chart(data) { }`, `ForEach` of marks, `if`/`else` content), `import Charts` | ✅ | ≤17 | isim's own implementation on its SwiftUI (`swift/overlays/Charts`; `if`/`else` content unverified); tested by HelloCharts (`tests/ui/charts.sh`, measured in the screenshot) |
+| `Chart` view (`Chart { }`, `Chart(data) { }`, `ForEach` of marks, `if`/`else` content), `import Charts` | ✅ | ≤17 | isim's own implementation on its SwiftUI (`swift/overlays/Charts`; `if`/`else` content unverified); tested by HelloCharts (`tests/ui/test_charts.py`, measured in the screenshot) |
 | `BarMark` (vertical, horizontal, ranges, date bins with `unit:`, `width`/`height`) | ✅ | ≤17 | |
 | Bar stacking (`.standard`), grouping (`position(by:)`) | ✅ | ≤17 | `.normalized`/`.center` stacking unverified |
 | `LineMark` (`series:`, `interpolationMethod`), `PointMark` | ✅ | ≤17 | linear and catmullRom drawn in the test; step/cardinal/monotone unverified |
@@ -1049,7 +1049,7 @@ their presentation copies (model + running animations); there is no separate ren
 
 ## SpriteKit
 
-isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/spritekit.sh` (HelloSpriteKit) and `tests/ui/spritekit2.sh` (HelloSpriteKit2).
+isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (no Metal). Tested by `tests/ui/test_spritekit.py` (HelloSpriteKit) and `tests/ui/test_spritekit2.py` (HelloSpriteKit2).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -1104,7 +1104,7 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 
 isim's Game Center is local: one player per device, no Apple servers. App Store Connect metadata (titles,
 descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter.json` next to the `.xcodeproj`
-(see [GAMECENTER.md](GAMECENTER.md)); without it titles are derived from identifiers. Tested by `tests/ui/gamecenter.sh`.
+(see [GAMECENTER.md](GAMECENTER.md)); without it titles are derived from identifiers. Tested by `tests/ui/test_gamecenter.py`.
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -1244,7 +1244,7 @@ Labels in the notes: *passthrough* = a host tool does the real work; *adapted* =
 Local StoreKit testing, like Xcode's: products come from the project's `.storekit` configuration; nothing is
 charged, nothing reaches Apple, transactions are `.verified` and JWS/receipts are local and **unsigned**.
 The ledger lives in the app container (`Library/isim/StoreKit/ledger.json`); `isim storekit <app> ...` is the
-Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
+Transaction Manager. Tested by `tests/ui/test_store.py` (HelloStore sample).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -1476,9 +1476,9 @@ Transaction Manager. Tested by `tests/ui/store.sh` (HelloStore sample).
 | Upload to App Store Connect / TestFlight | ❌ | ≤17 | blocked: requires builds from current Xcode/SDK |
 | Linux release tarballs (GitHub Releases) | ✅ | ≤17 | self-contained, glibc 2.35+ |
 | Xcode-like project view / IDE | ❌ | ≤17 | planned; the CLI covers it today |
-| `--os 17`, `18`, `26`, `27` (`ISIM_OS_VERSION`), remembered per device data | ✅ | ≤17 | `UIDevice.systemVersion`, `ProcessInfo` (`operatingSystemVersion`, `isOperatingSystemAtLeast`), Settings > About, `isim version`/`isim devices`; Xcode-like pairing: an explicit version older than the device's first iOS is rejected, otherwise the nearest valid one is used; tested (osversions.sh) |
+| `--os 17`, `18`, `26`, `27` (`ISIM_OS_VERSION`), remembered per device data | ✅ | ≤17 | `UIDevice.systemVersion`, `ProcessInfo` (`operatingSystemVersion`, `isOperatingSystemAtLeast`), Settings > About, `isim version`/`isim devices`; Xcode-like pairing: an explicit version older than the device's first iOS is rejected, otherwise the nearest valid one is used; tested (test_osversions.py) |
 | `#available` / `if #available` / `@available` follow the selected version | ✅ | ≤17 | libswiftCore built with OS versioning: Swift checks and Objective-C `@available` call isim's `__isPlatformVersionAtLeast`; tested for 18/26/27 under each `--os` |
 | SDK availability annotations (`API_AVAILABLE(ios(N))`, `@available(iOS N, *)`) | 🟡 | ≤17 | real clang availability attributes in isim's headers; iOS 18/26/27 APIs isim implements are annotated (others carry none) |
-| Lock Screen and Control Center look per version | 🟡 | ≤17 | adapted: iOS 17/18 bold Lock Screen clock, iOS 26/27 tall glass numerals and glass buttons; Control Center: iOS 17 modules, iOS 18 redesign (round toggles, rounder modules, edit/power buttons, page column), iOS 26/27 glass modules and lighter dimming; tested by pixels (osversions.sh) |
+| Lock Screen and Control Center look per version | 🟡 | ≤17 | adapted: iOS 17/18 bold Lock Screen clock, iOS 26/27 tall glass numerals and glass buttons; Control Center: iOS 17 modules, iOS 18 redesign (round toggles, rounder modules, edit/power buttons, page column), iOS 26/27 glass modules and lighter dimming; tested by pixels (test_osversions.py) |
 | Home Screen icon appearance (dark, tinted) | 🟡 | 18.0 | `ISIM_ICON_STYLE=dark` or `tinted` (`ISIM_ICON_TINT`); the app's own variants when present, else derived; no Customize sheet |
 | Home Screen clear icons, glass dock and icon rims | 🟡 | 26.0 | `ISIM_ICON_STYLE=clear`; glass dock and specular icon edges with `--os 26`/`27` |

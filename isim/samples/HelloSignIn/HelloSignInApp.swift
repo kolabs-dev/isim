@@ -2,7 +2,7 @@
 // ASAuthorizationAppleIDButton), credential state + revocation, passkey registration and sign-in (the app plays
 // the relying-party server too: it parses the attestation object, keeps the COSE public key and verifies the
 // assertion signature with CryptoKit), saved-password sign-in from the keychain, and AppTrackingTransparency +
-// the advertising identifier (AdSupport). Results are printed for tests/ui/signin.sh.
+// the advertising identifier (AdSupport). Results are printed for tests/ui/test_signin.py.
 import SwiftUI
 import UIKit
 import AuthenticationServices
