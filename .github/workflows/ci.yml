@@ -28,7 +28,10 @@ jobs:
       STATUS: repos/${{ github.repository }}/statuses/${{ github.sha }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
+      # the commit status is for pull requests (a manual run's job does not count as a PR's check); on main the job's own
+      # check is enough, and the status would only show the same run twice
       - name: Status (pending)
+        if: github.event_name == 'workflow_dispatch'
         run: gh api "$STATUS" -f state=pending -f context="ci / build and test" -f description="running" -f target_url="$RUN_URL" >/dev/null
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -110,7 +113,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - name: Status (result)
-        if: always()
+        if: always() && github.event_name == 'workflow_dispatch'
         run: |
           case "${{ job.status }}" in success) state=success ;; cancelled) state=error ;; *) state=failure ;; esac
           gh api "$STATUS" -f state="$state" -f context="ci / build and test" -f description="${{ job.status }}" \
