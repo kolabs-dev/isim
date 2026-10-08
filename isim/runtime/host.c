@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -812,21 +813,50 @@ static char held_id[64]; static double held_until;
 /* live control: ISIM_CONTROL names a FIFO; lines written to it are appended to the script while isim runs */
 static int ctl_fd = -2;
 static size_t script_len;
+/* hang diagnostics: a watchdog thread notices commands waiting in the control FIFO that the main thread has not read
+   for ISIM_HANG_DUMP seconds (default 8 x ISIM_WAIT_SCALE; 0: off) and prints every thread's stack once per stall */
+static long long ctl_last_poll_ms;                 /* monotonic ms of the main thread's last control_poll */
+static void *ctl_watchdog(void *arg) {
+    double limit = *(double *)arg; int reported = 0; long long seen = 0;
+    pthread_setname_np(pthread_self(), "isim-watchdog");
+    for (;;) {
+        sleep(1);
+        long long last = __atomic_load_n(&ctl_last_poll_ms, __ATOMIC_ACQUIRE);
+        if (last != seen) { seen = last; reported = 0; }
+        double idle = now() - last / 1e3;
+        struct pollfd p = { ctl_fd, POLLIN, 0 };
+        if (reported || idle < limit || poll(&p, 1, 0) != 1) continue;
+        reported = 1;
+        fprintf(stderr, "isim: the main thread has not read the control FIFO for %.0f s (commands are waiting): hung or starved\n", idle);
+        void isim_dump_all_threads(void);
+        isim_dump_all_threads();
+    }
+    return NULL;
+}
 static void control_poll(void) {
     if (ctl_fd == -2) {
         const char *p = getenv("ISIM_CONTROL");
         ctl_fd = p && *p ? open(p, O_RDWR | O_NONBLOCK) : -1;     /* O_RDWR: no EOF when writers come and go */
         script_len = script ? strlen(script) : 0;                  /* (first call: nothing consumed yet) */
         if (p && *p && ctl_fd < 0) fprintf(stderr, "isim: cannot open control FIFO %s\n", p);
+        static double limit = 8;
+        const char *h = getenv("ISIM_HANG_DUMP"), *ws = getenv("ISIM_WAIT_SCALE");
+        if (h && *h) limit = atof(h); else if (ws && atof(ws) > 0) limit *= atof(ws);
+        pthread_t t;
+        if (ctl_fd >= 0 && limit > 0 && !pthread_create(&t, NULL, ctl_watchdog, &limit)) pthread_detach(t);
     }
     if (ctl_fd < 0) return;
+    __atomic_store_n(&ctl_last_poll_ms, (long long)(now() * 1e3), __ATOMIC_RELEASE);
     char buf[4096]; ssize_t n;
     while ((n = read(ctl_fd, buf, sizeof buf)) > 0) {
         size_t off = script_pos ? (size_t)(script_pos - script) : script_len;
-        script = realloc(script, script_len + n + 2);
+        script = realloc(script, script_len + n + 3);
+        /* a separator first: the ISIM_SCRIPT text has none at its end, and commands that arrive before its last
+           command ran (a test sending `dump FILE` while a starved app is still launching) would otherwise be glued
+           to it ("wait 0dump FILE": the dump was lost and the test waited forever) */
+        script[script_len++] = ';';
         memcpy(script + script_len, buf, n); script_len += n;
-        script[script_len] = ';'; script[script_len + 1] = 0;  /* a line always ends a command */
-        script_len++;
+        script[script_len++] = ';'; script[script_len] = 0;     /* a line always ends a command */
         script_pos = script + off;
     }
 }
@@ -861,7 +891,15 @@ static void simulate_metrickit(void) {
     fprintf(stderr, "isim host: simulate MetricKit payloads\n");
 }
 /* "drag x1 y1 x2 y2 seconds": a timed drag, one move per ~16 ms */
-static struct { int on; double a, b, c, d, t0, dur, last, hold, hold_end; } sdrag;   /* hold: seconds held at the end before lifting */
+static struct { int on; double a, b, c, d, t0, dur, last, hold, hold_end, p; } sdrag;   /* hold: seconds held at the end before lifting */
+/* hang diagnostics (printed with the thread stacks, loader.c): where the script / control commands stand */
+void isim_control_state(void) {
+    char next[81] = ""; size_t pos = script && script_pos ? (size_t)(script_pos - script) : 0;
+    if (script_pos) for (int i = 0; i < 80 && script_pos[i]; i++) next[i] = script_pos[i] == '\n' ? '|' : script_pos[i];
+    fprintf(stderr, "isim: control state: fifo %d, script %zu bytes, at %zu (%s), next \"%s\", resume in %.2f s, %d pending, drag %d, "
+            "last FIFO read %.2f s ago, client %d\n", ctl_fd, script_len, pos, script_pos ? "set" : "null", next,
+            script_resume - now(), npending, sdrag.on, now() - __atomic_load_n(&ctl_last_poll_ms, __ATOMIC_ACQUIRE) / 1e3, client_sock >= 0);
+}
 static int script_step(struct isim_event *ev) {
     control_poll();
     if (ld.on && !npending) {                 /* scripted long-press drag (host_input.inc) */
@@ -880,6 +918,13 @@ static int script_step(struct isim_event *ev) {
             double p = fmin(1, (t - sdrag.t0) / sdrag.dur);
             sdrag.last = t;
             int was_holding = sdrag.hold_end > 0;
+            /* at most an eighth of the drag per move: when the CPU is starved this runs late, and one big jump would
+               only get a pan recognised (its translation starts there), so the content would not follow the drag */
+            for (int n = (int)ceil((p - sdrag.p) * 8 - 1e-9), j = 1; j < n && npending < 12; j++) {
+                double q = sdrag.p + (p - sdrag.p) * j / n;
+                pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = sdrag.a + (sdrag.c - sdrag.a) * q, .y = sdrag.b + (sdrag.d - sdrag.b) * q };
+            }
+            sdrag.p = p;
             pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = sdrag.a + (sdrag.c - sdrag.a) * p, .y = sdrag.b + (sdrag.d - sdrag.b) * p };
             if (p >= 1 && sdrag.hold > 0 && !sdrag.hold_end) sdrag.hold_end = t + sdrag.hold;     /* stay down at the end */
             if (p >= 1 && (!sdrag.hold_end || t >= sdrag.hold_end)) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = sdrag.c, .y = sdrag.d }; sdrag.on = 0; }
@@ -917,7 +962,7 @@ static int script_step(struct isim_event *ev) {
         /* "drag x1 y1 x2 y2 secs [hold]": a timed drag, optionally held at the end for hold seconds before lifting */
         double h = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf", &h);
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
-        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.t0 = sdrag.last = now(); sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
+        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.p = 0; sdrag.t0 = sdrag.last = now(); sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
         script_resume = now() + sdrag.dur + sdrag.hold + 0.02;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
@@ -1029,7 +1074,7 @@ static int script_step(struct isim_event *ev) {
         int left = !strcmp(arg, "left");
         double y = dev.height * 0.45, x0 = left ? dev.width * 0.8 : dev.width * 0.2, x1 = left ? dev.width * 0.2 : dev.width * 0.8;
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = x0, .y = y };
-        sdrag.on = 1; sdrag.a = x0; sdrag.b = y; sdrag.c = x1; sdrag.d = y; sdrag.dur = 0.18; sdrag.t0 = sdrag.last = now(); sdrag.hold = sdrag.hold_end = 0;
+        sdrag.on = 1; sdrag.a = x0; sdrag.b = y; sdrag.c = x1; sdrag.d = y; sdrag.p = 0; sdrag.dur = 0.18; sdrag.t0 = sdrag.last = now(); sdrag.hold = sdrag.hold_end = 0;
         script_resume = now() + 0.25;
     } else if (!strcmp(cmd, "dump")) {        /* "dump": view tree on stderr; "dump FILE": accessibility snapshot (XCUITest) */
         pending[npending++] = (struct isim_event){ .type = EV_DUMP };
