@@ -45,6 +45,7 @@
 #import <UIKit/UITableView.h>
 #import <UIKit/UICollectionView.h>
 #import <UIKit/UIImagePickerController.h>
+#import <UIKit/UIPrinting.h>
 #import <UIKit/UIReferenceLibraryViewController.h>
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>
