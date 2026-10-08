@@ -1,6 +1,6 @@
 # Releasing isim, in two steps; main only accepts pull requests:
 # 1. Actions -> Release -> Run workflow on main, choosing patch, minor or major (job "prepare"). It runs only when CI
-#    ("build and test") passed on main's head. It sets the next version after the latest release tag, builds and
+#    ("build and test" and "os matrix") passed on main's head. It sets the next version after the latest release tag, builds and
 #    packages it (the host runtime in the release container, Ubuntu 22.04), smoke-tests the tarball on Ubuntu 24.04,
 #    records the ABI baseline, keeps the tarball as an artifact, pushes a release-X.Y.Z branch (isim/VERSION, the
 #    README's examples, isim/abi/vX.Y.Z.txt.gz), opens its "Release X.Y.Z" pull request (or links to it when the
@@ -45,12 +45,14 @@ jobs:
       - name: Preconditions (main, CI passed on its head)
         run: |
           if [ "$GITHUB_REF" != refs/heads/main ]; then echo "::error::run the release on main"; exit 1; fi
-          ci=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=build%20and%20test" \
-                 --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.started_at) | last | .conclusion // "none"')
-          if [ "$ci" != success ]; then
-            echo "::error::CI has not passed on main's head ${GITHUB_SHA::7} (build and test: $ci); wait for it, or run CI on main"
-            exit 1
-          fi
+          for check in "build and test" "os matrix"; do
+            ci=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=${check// /%20}" \
+                   --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.started_at) | last | .conclusion // "none"')
+            if [ "$ci" != success ]; then
+              echo "::error::CI has not passed on main's head ${GITHUB_SHA::7} ($check: $ci); wait for it, or run CI on main"
+              exit 1
+            fi
+          done
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0                        # the release tags (the next version follows the latest one)
