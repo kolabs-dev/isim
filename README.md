@@ -95,10 +95,10 @@ isim/build.sh
 isim/test.sh
 ```
 
-`test.sh` runs the suites in parallel (`ISIM_TEST_JOBS`, default a third of the CPUs, 2–8; `ISIM_TEST_JOBS=1` runs
-them one after another), each with its own scratch device data, retries a failed suite once on its own
-(`ISIM_TEST_RETRY=0` turns that off) and lists suites that only passed on the retry as flaky. `OS_MATRIX=1` also runs
-the version-sensitive suites under iOS 17, 18, 26 and 27.
+`test.sh` runs the pytest suites in `isim/tests` in parallel (`ISIM_TEST_JOBS`, default half the CPUs, 2–16), each
+test on its own scratch device data, retries a failed test once (`ISIM_TEST_RETRY=0` turns that off) and lists tests
+that only passed on the retry as flaky. Arguments go to pytest (`isim/test.sh -k navigation`). `OS_MATRIX=1` also runs
+the version-sensitive tests under iOS 17, 18, 26 and 27. See [docs/TESTING.md](docs/TESTING.md).
 
 Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (the build runs in an Ubuntu 22.04 container):
 
