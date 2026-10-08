@@ -139,11 +139,15 @@ def ci_build(args):
 def ci_test():
     """every test, one line per test as it finishes (progress in the CI log), then out/test-summary.md (the workflow
     adds it to the run's summary page) and an error annotation per failed test"""
+    import re
+    started = re.compile(r"^[\w./-]+\.py::\S+\s*$")
     xml = os.path.join(ROOT, "out", "test-results.xml")
     with open(os.path.join(ROOT, "out", "test.log"), "w") as log:
         p = subprocess.Popen([sys.executable, __file__, "test", "--ci-verbose", f"--junitxml={xml}", "-o", "junit_family=xunit1"],
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=dict(os.environ, PYTHONUNBUFFERED="1"))
         for line in p.stdout:
+            if started.match(line):     # pytest -v with workers prints a test's id when it starts and again with
+                continue                # its result: keep only the result line
             sys.stdout.write(line)
             sys.stdout.flush()
             log.write(line)
