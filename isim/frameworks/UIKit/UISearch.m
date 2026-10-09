@@ -12,6 +12,7 @@
  * about activation and every text change. Cancel clears the text and restores everything. */
 #import "UIKitPrivate.h"
 #import <UIKit/UISearchBar.h>
+#import <objc/runtime.h>
 #include <math.h>
 
 static UIColor *field_bg(void) {
@@ -35,15 +36,20 @@ static UIColor *field_bg(void) {
     }
     return self;
 }
-- (UIEdgeInsets)_insets { return UIEdgeInsetsMake(7, 34, 7, 8); }
 - (CGSize)intrinsicContentSize { return CGSizeMake(UIViewNoIntrinsicMetric, 36); }
+- (BOOL)_isim_glassCapsule {       /* iOS 26 integrated search (toolbar, bar row): a glass capsule */
+    UIView *b = self.superview;
+    return isim_ui_glass() && [b isKindOfClass:[UISearchBar class]] && ((UISearchBar *)b)._isim_integrated;
+}
+- (UIEdgeInsets)_insets { return [self _isim_glassCapsule] ? UIEdgeInsetsMake(7, 40, 7, 12) : UIEdgeInsetsMake(7, 34, 7, 8); }
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size;
-    double bg[4]; isim_ui_rgba(field_bg(), bg);
-    isim_gfx_fill_rounded(0, 0, s.width, s.height, 10, bg);
+    BOOL glass = [self _isim_glassCapsule];
+    if (glass) isim_ui_draw_glass(CGRectMake(0, 0, s.width, s.height), s.height / 2, nil, 0);
+    else { double bg[4]; isim_ui_rgba(field_bg(), bg); isim_gfx_fill_rounded(0, 0, s.width, s.height, 10, bg); }
     /* magnifying glass */
-    double c[4]; isim_ui_rgba(UIColor.secondaryLabelColor, c);
-    double cx = 16.5, cy = s.height / 2 - 1, r = 6;
+    double c[4]; isim_ui_rgba(glass ? UIColor.labelColor : UIColor.secondaryLabelColor, c);
+    double cx = glass ? 21 : 16.5, cy = s.height / 2 - 1, r = 6;
     isim_gfx_stroke_rounded(cx - r, cy - r, 2 * r, 2 * r, r, 2, c);
     isim_path_begin(); isim_path_move(cx + r * 0.75, cy + r * 0.75); isim_path_line(cx + r * 1.5, cy + r * 1.5); isim_path_stroke(2.4, c);
     [super _isim_drawContent];
@@ -59,7 +65,6 @@ static UIColor *field_bg(void) {
 
 @interface UISearchBar () <UITextFieldDelegate>
 @property (nonatomic, weak) UISearchController *_isim_controller;
-@property (nonatomic) BOOL _isim_inNavigationBar;
 @property (nonatomic) BOOL _isim_moving;             /* being re-parented: keep editing */
 @end
 @implementation UISearchBar {
@@ -158,6 +163,19 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
 - (void)layoutSubviews { [super layoutSubviews]; [self _isim_layoutBar]; }
 - (void)_isim_layoutBar {
     CGSize b = self.bounds.size;
+    if (self._isim_integrated) {            /* a compact field filling the bar; Cancel (iOS 26: a glass close button) beside it */
+        BOOL glass = isim_ui_glass();
+        CGFloat right = b.width;
+        if (_showsCancelButton) {
+            CGFloat cw = glass ? b.height : ceil([_cancel sizeThatFits:CGSizeMake(200, b.height)].width);
+            _cancel.frame = CGRectMake(b.width - cw, 0, cw, b.height);
+            right = b.width - cw - 8;
+        } else _cancel.frame = CGRectMake(b.width, 0, glass ? b.height : _cancel.frame.size.width, b.height);
+        [self _isim_styleCancel:glass];
+        _field.frame = CGRectMake(0, 0, fmax(0, right), b.height);
+        return;
+    }
+    [self _isim_styleCancel:NO];
     CGFloat margin = self._isim_inNavigationBar ? 16 : 8, top = self._isim_inNavigationBar ? 1 : 10;
     CGFloat right = b.width - margin;
     if (_showsCancelButton) {
@@ -169,8 +187,20 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     _field.frame = CGRectMake(margin, top, fmax(0, right - margin), 36);
     if (_scope) _scope.frame = CGRectMake(margin, top + 36 + 8, b.width - 2 * margin, 32);
 }
+/* the Cancel button: "Cancel", or for an integrated iOS 26 search a glass circle with an xmark */
+- (void)_isim_styleCancel:(BOOL)glassClose {
+    BOOL isClose = _cancel.configuration != nil;
+    if (glassClose == isClose) return;
+    if (glassClose) {
+        UIButtonConfiguration *c = [UIButtonConfiguration glassButtonConfiguration];
+        c.image = [UIImage systemImageNamed:@"xmark"]; c.contentInsets = NSDirectionalEdgeInsetsMake(0, 0, 0, 0);
+        c.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
+        _cancel.configuration = c;
+        _cancel.accessibilityLabel = @"Cancel";
+    } else _cancel.configuration = nil;
+}
 - (void)_isim_drawContent {
-    if (_searchBarStyle == UISearchBarStyleMinimal || self._isim_inNavigationBar) return;
+    if (_searchBarStyle == UISearchBarStyleMinimal || self._isim_inNavigationBar || self._isim_integrated) return;
     if (_barTintColor) { double c[4]; isim_ui_rgba(_barTintColor, c); CGSize s = self.bounds.size; isim_gfx_fill_rounded(0, 0, s.width, s.height, 0, c); }
 }
 - (NSString *)_isim_dumpText { return [NSString stringWithFormat:@"\"%@\"%@%@", _field.text ?: @"", _field.isFirstResponder ? @" (editing)" : @"", _showsCancelButton ? @" cancel" : @""]; }
@@ -248,6 +278,7 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     BOOL _hidNavBar, _changing;
     __weak UIScrollView *_content; CGFloat _contentY;          /* the host's scroll position, restored on dismissal */
     UIView *_suggestionsView; __weak UIView *_stage; CGFloat _barTop;
+    BOOL _bottom;                     /* iOS 26 toolbar search: active above the keyboard at the bottom */
 }
 - (instancetype)initWithSearchResultsController:(UIViewController *)rc {
     if ((self = [super initWithNibName:nil bundle:nil])) {
@@ -341,14 +372,36 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     CGRect sb = stage.bounds;
     CGFloat safeTop = stage.window ? isim_ui_safe_insets_for_rect(stage, [stage convertRect:stage.bounds toView:nil]).top : isim_ui_device()->safe_top;
     BOOL inNav = nav && host.navigationItem.searchController == self;
+    int spot = inNav ? search_spot(host.navigationItem, nav, nav.navigationBar) : 0;
     CGFloat barTop;
-    if (inNav && _hidesNavigationBarDuringPresentation) {
+    if (spot == SEARCH_TOOLBAR) {
+        /* iOS 26 iPhone: the field leaves the toolbar and rises with the keyboard; the navigation bar stays */
+        _bottom = YES;
+        CGFloat safeBottom = stage.window ? isim_ui_safe_insets_for_rect(stage, [stage convertRect:stage.bounds toView:nil]).bottom : isim_ui_device()->safe_bottom;
+        _chrome = [[UIView alloc] initWithFrame:CGRectMake(0, sb.size.height - safeBottom - 60, sb.size.width, 60)];
+        _chrome.accessibilityIdentifier = @"search-bottom";
+        _barFrame = CGRectMake(16, 8, sb.size.width - 32, 44);
+        CGRect from = _bar.window ? [_bar convertRect:_bar.bounds toView:stage] : CGRectOffset(_barFrame, 0, _chrome.frame.origin.y);
+        from.origin.y -= _chrome.frame.origin.y;
+        [stage addSubview:_chrome];
+        _bar._isim_moving = YES;
+        [_chrome addSubview:_bar];
+        _bar._isim_moving = NO;
+        _bar._isim_integrated = YES;
+        [UIView performWithoutAnimation:^{ self->_bar.frame = from; }];
+        [UIView animateWithDuration:0.3 animations:^{ self->_bar.frame = self->_barFrame; }];
+        [nav.view setNeedsLayout];                                  /* the toolbar hides while the field is up */
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(_isim_keyboardMoved:) name:UIKeyboardWillChangeFrameNotification object:nil];
+        barTop = CGRectGetMaxY(nav.navigationBar.frame);
+    } else if (spot == SEARCH_FIELD_TRAILING || spot == SEARCH_FIELD_CENTERED) {
+        barTop = CGRectGetMaxY([nav.navigationBar convertRect:nav.navigationBar.bounds toView:stage]);   /* stays in the bar row */
+    } else if (inNav && _hidesNavigationBarDuringPresentation) {
         /* the navigation bar goes away; the search bar moves to the top in its own chrome */
         _hidNavBar = !nav.navigationBarHidden;
         _chrome = [[UIView alloc] initWithFrame:CGRectMake(0, 0, sb.size.width, safeTop + 52)];
         _chrome.backgroundColor = UIColor.systemBackgroundColor;
         _chrome.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-        _bar._isim_inNavigationBar = YES;
+        _bar._isim_inNavigationBar = YES; _bar._isim_integrated = NO;
         _barFrame = CGRectMake(0, safeTop, sb.size.width, 52);
         CGRect from = _bar.window ? [_bar convertRect:_bar.bounds toView:stage] : _barFrame;
         [stage addSubview:_chrome];
@@ -372,7 +425,9 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     _dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _dim.backgroundColor = _obscuresBackgroundDuringPresentation ? [UIColor colorWithWhite:0 alpha:0.2] : UIColor.clearColor;
     _dim.userInteractionEnabled = _obscuresBackgroundDuringPresentation;
-    if (_chrome) [stage insertSubview:_dim belowSubview:_chrome]; else [stage addSubview:_dim];
+    if (_chrome) [stage insertSubview:_dim belowSubview:_chrome];
+    else if (spot == SEARCH_FIELD_TRAILING || spot == SEARCH_FIELD_CENTERED) [stage insertSubview:_dim belowSubview:nav.navigationBar];
+    else [stage addSubview:_dim];
     [UIView performWithoutAnimation:^{ self->_dim.alpha = 0; }];
     [UIView animateWithDuration:0.25 animations:^{ self->_dim.alpha = 1; }];
     /* the results controller (child of the host while searching) */
@@ -393,6 +448,18 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     [self _isim_notify];
     if ([d respondsToSelector:@selector(didPresentSearchController:)]) [d didPresentSearchController:self];
 }
+/* the bottom field rides on top of the keyboard */
+- (void)_isim_keyboardMoved:(NSNotification *)n {
+    UIView *stage = _chrome.superview;
+    if (!_bottom || !stage) return;
+    CGRect kb = [stage convertRect:[n.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue] fromView:nil];
+    CGFloat H = stage.bounds.size.height;
+    CGFloat safeBottom = stage.window ? isim_ui_safe_insets_for_rect(stage, [stage convertRect:stage.bounds toView:nil]).bottom : isim_ui_device()->safe_bottom;
+    CGFloat bottom = CGRectIsEmpty(kb) || kb.origin.y >= H ? H - safeBottom : kb.origin.y;
+    CGRect f = _chrome.frame; f.origin.y = bottom - 60;
+    [UIView animateWithDuration:0.25 animations:^{ self->_chrome.frame = f; }];
+}
+- (BOOL)_isim_activeAtBottom { return _active && _bottom; }
 - (void)_isim_updateResults {
     UIView *rv = _searchResultsController.viewIfLoaded;
     if (!rv || !_active) return;
@@ -420,8 +487,9 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     __IsimSearchDim *dim = _dim; _dim = nil;
     [UIView animateWithDuration:0.2 animations:^{ dim.alpha = 0; } completion:^(BOOL f) { [dim removeFromSuperview]; }];
     UIViewController *host = [self _isim_findHost];
+    if (_bottom) { [NSNotificationCenter.defaultCenter removeObserver:self name:UIKeyboardWillChangeFrameNotification object:nil]; _bottom = NO; }
     if (_chrome) {
-        /* a snapshot of the bar slides back down below the title */
+        /* a snapshot of the bar slides back (below the title, or into the toolbar) */
         UIView *stage = _chrome.superview, *snap = [_bar snapshotViewAfterScreenUpdates:NO];
         snap.frame = _bar.frame;
         if (snap && stage) [stage addSubview:snap];
@@ -456,7 +524,8 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     for (UIView *v in self.subviews) if ([v isKindOfClass:[UISearchBar class]] && ((UISearchBar *)v)._isim_controller != sc) [v removeFromSuperview];
     if (!sc || sc.active) return;
     UISearchBar *bar = sc.searchBar;
-    bar._isim_inNavigationBar = YES;
+    if (search_spot(self.topItem, [self _isim_navigationController], self) != SEARCH_STACKED) return;   /* integrated: UINavigation.m */
+    bar._isim_inNavigationBar = YES; bar._isim_integrated = NO;
     if (bar.superview != self) [self insertSubview:bar atIndex:MIN(1, (NSInteger)self.subviews.count)];
     [UIView performWithoutAnimation:^{
         bar.frame = CGRectMake(0, y + visible - 52, self.bounds.size.width, 52);
@@ -471,6 +540,29 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     UISearchController *sc = top.navigationItem.searchController;
     if (!sc) return 0;
     sc._isim_host = top;
+    int spot = search_spot(top.navigationItem, self, self.navigationBar);
+    if (spot == SEARCH_BUTTON) return sc.active ? 52 : 0;      /* a search button: the bar shows only while searching */
+    if (spot != SEARCH_STACKED) return 0;                       /* in the bar row or the toolbar */
     return !self.navigationBarHidden || sc.active ? 52 : 0;     /* active: the bar sits at the top while the navigation bar hides */
+}
+/* iOS 26 iPhone: the toolbar items with the search field (at searchBarPlacementBarButtonItem, else trailing), or the
+   search button for integratedButton; the placement item itself never draws */
+- (NSArray<UIBarButtonItem *> *)_isim_toolbarItemsWithSearch:(NSArray<UIBarButtonItem *> *)items {
+    UINavigationItem *ni = self.topViewController.navigationItem;
+    UISearchController *sc = ni.searchController;
+    UIBarButtonItem *marker = [ni _isim_searchPlacementItemIfAny];
+    NSMutableArray *a = [items mutableCopy] ?: [NSMutableArray array];
+    NSUInteger i = marker ? [a indexOfObjectIdenticalTo:marker] : NSNotFound;
+    if (search_spot(ni, self, self.navigationBar) != SEARCH_TOOLBAR || sc.active) { if (i != NSNotFound) [a removeObjectAtIndex:i]; return a; }
+    UIBarButtonItem *slot;
+    if (ni.searchBarPlacement == UINavigationItemSearchBarPlacementIntegratedButton) slot = [ni _isim_searchButtonItem];
+    else {
+        static char kSlot;
+        slot = objc_getAssociatedObject(sc, &kSlot);
+        if (!slot) { slot = [[UIBarButtonItem alloc] initWithCustomView:sc.searchBar]; slot._isim_fillsWidth = YES; objc_setAssociatedObject(sc, &kSlot, slot, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+        sc.searchBar._isim_integrated = YES; sc.searchBar._isim_inNavigationBar = NO;
+    }
+    if (i != NSNotFound) a[i] = slot; else [a addObject:slot];
+    return a;
 }
 @end

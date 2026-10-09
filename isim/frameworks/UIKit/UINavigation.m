@@ -169,6 +169,11 @@ static char kTitleAttrs;
     b.backgroundColor = self.backgroundColor; b.foregroundColor = self.foregroundColor; b.font = self.font; return b;
 }
 @end
+static char kFills;
+@implementation UIBarButtonItem (IsimSearch)
+- (BOOL)_isim_fillsWidth { return [objc_getAssociatedObject(self, &kFills) boolValue]; }
+- (void)set_isim_fillsWidth:(BOOL)f { objc_setAssociatedObject(self, &kFills, @(f), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+@end
 static char kBadge;
 @implementation UIBarButtonItem (UIBarButtonItemBadge)
 - (UIBarButtonItemBadge *)badge { return objc_getAssociatedObject(self, &kBadge); }
@@ -328,8 +333,38 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 }
 
 /* ================= navigation items & appearances ================= */
-@implementation UINavigationItem
-- (instancetype)init { if ((self = [super init])) _hidesSearchBarWhenScrolling = YES; return self; }
+@implementation UINavigationItem { UIBarButtonItem *_searchPlacementItem, *_searchButtonItem; }
+- (instancetype)init { if ((self = [super init])) { _hidesSearchBarWhenScrolling = YES; _searchBarPlacementAllowsToolbarIntegration = YES; } return self; }
+- (void)setPreferredSearchBarPlacement:(UINavigationItemSearchBarPlacement)p { _preferredSearchBarPlacement = p; bar_item_changed(self); }
+- (void)setSearchBarPlacementAllowsToolbarIntegration:(BOOL)b { _searchBarPlacementAllowsToolbarIntegration = b; bar_item_changed(self); }
+/* the placement in effect: automatic is stacked; before iOS 26 inline works on iPad only (stacked on iPhone) */
+- (UINavigationItemSearchBarPlacement)searchBarPlacement {
+    UINavigationItemSearchBarPlacement p = _preferredSearchBarPlacement;
+    if (p == UINavigationItemSearchBarPlacementAutomatic || p == UINavigationItemSearchBarPlacementStacked) return UINavigationItemSearchBarPlacementStacked;
+    if (!isim_ui_glass()) return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? UINavigationItemSearchBarPlacementInline : UINavigationItemSearchBarPlacementStacked;
+    return p;
+}
+/* the item marking where an integrated search bar goes among the toolbar items (iPhone, iOS 26) */
+- (UIBarButtonItem *)searchBarPlacementBarButtonItem {
+    if (!_searchPlacementItem) _searchPlacementItem = [UIBarButtonItem new];
+    return _searchPlacementItem;
+}
+- (UIBarButtonItem *)_isim_searchPlacementItemIfAny { return _searchPlacementItem; }
+/* the search button of the integratedButton placement (and of integrated in a narrow bar row) */
+- (UIBarButtonItem *)_isim_searchButtonItem {
+    if (!_searchButtonItem) {
+        __weak UINavigationItem *ws = self;
+        _searchButtonItem = [[UIBarButtonItem alloc] initWithPrimaryAction:[UIAction actionWithTitle:@"" image:[UIImage systemImageNamed:@"magnifyingglass"] identifier:nil
+                                                                                               handler:^(UIAction *a) { ws.searchController.active = YES; }]];
+        _searchButtonItem.accessibilityIdentifier = @"search-button";
+        _searchButtonItem.accessibilityLabel = @"Search";
+    }
+    return _searchButtonItem;
+}
+static void check_bar_items(UINavigationItem *n, NSArray *a) {      /* like UIKit: the placement item is for toolbars only */
+    UIBarButtonItem *p = [n _isim_searchPlacementItemIfAny];
+    if (p && [a containsObject:p]) [NSException raise:NSInvalidArgumentException format:@"searchBarPlacementBarButtonItem cannot be used in leftBarButtonItems or rightBarButtonItems"];
+}
 - (instancetype)initWithTitle:(NSString *)t { if ((self = [self init])) _title = [t copy]; return self; }
 - (void)setSearchController:(UISearchController *)s { _searchController = s; bar_item_changed(self); }
 - (void)setTitle:(NSString *)t { _title = [t copy]; bar_item_changed(self); }
@@ -346,8 +381,8 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 - (UIBarButtonItem *)rightBarButtonItem { return _rightBarButtonItems.firstObject; }
 - (void)setLeftBarButtonItem:(UIBarButtonItem *)i { self.leftBarButtonItems = i ? @[i] : nil; }
 - (void)setRightBarButtonItem:(UIBarButtonItem *)i { self.rightBarButtonItems = i ? @[i] : nil; }
-- (void)setLeftBarButtonItems:(NSArray *)a { _leftBarButtonItems = [a copy]; bar_item_changed(self); }
-- (void)setRightBarButtonItems:(NSArray *)a { _rightBarButtonItems = [a copy]; bar_item_changed(self); }
+- (void)setLeftBarButtonItems:(NSArray *)a { check_bar_items(self, a); _leftBarButtonItems = [a copy]; bar_item_changed(self); }
+- (void)setRightBarButtonItems:(NSArray *)a { check_bar_items(self, a); _rightBarButtonItems = [a copy]; bar_item_changed(self); }
 - (void)setLeftBarButtonItem:(UIBarButtonItem *)i animated:(BOOL)a { self.leftBarButtonItem = i; }
 - (void)setRightBarButtonItem:(UIBarButtonItem *)i animated:(BOOL)a { self.rightBarButtonItem = i; }
 - (void)setLeftBarButtonItems:(NSArray *)i animated:(BOOL)a { self.leftBarButtonItems = i; }
@@ -527,6 +562,15 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 @interface UIToolbar (IsimEdge)
 @property (nonatomic, weak) UIScrollView *_isim_edgeScrollView;
 @end
+int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
+    if (!it.searchController) return SEARCH_STACKED;
+    UINavigationItemSearchBarPlacement p = it.searchBarPlacement;
+    if (p == UINavigationItemSearchBarPlacementStacked) return SEARCH_STACKED;
+    BOOL regular = v.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular;
+    if (!regular) return isim_ui_glass() && nav && it.searchBarPlacementAllowsToolbarIntegration ? SEARCH_TOOLBAR : SEARCH_BUTTON;
+    if (p == UINavigationItemSearchBarPlacementIntegratedButton) return SEARCH_BUTTON;
+    return p == UINavigationItemSearchBarPlacementIntegratedCentered ? SEARCH_FIELD_CENTERED : SEARCH_FIELD_TRAILING;
+}
 @implementation UINavigationBar { NSMutableArray<UINavigationItem *> *_stack; __IsimBarBackground *_bg; UILabel *_title, *_large; __IsimBackButton *_back; UIView *_largeClip;
                                   NSMutableArray<UIView *> *_itemViews; UIView *_titleViewHost; }
 - (instancetype)initWithFrame:(CGRect)f {
@@ -546,6 +590,11 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     return self;
 }
 - (void)_isim_itemChanged:(NSNotification *)n { [self setNeedsLayout]; }
+- (UINavigationController *)_isim_navigationController {
+    if (!self._isim_back) return nil;                           /* a standalone bar */
+    UIResponder *r = self.superview.nextResponder;
+    return [r isKindOfClass:[UINavigationController class]] ? (UINavigationController *)r : nil;
+}
 - (void)_isim_backTapped { if (self._isim_back) self._isim_back(); else [self popNavigationItemAnimated:YES]; }
 - (UINavigationItem *)topItem { return _stack.lastObject; }
 - (UINavigationItem *)backItem { return _stack.count > 1 ? _stack[_stack.count - 2] : nil; }
@@ -632,10 +681,23 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     }
     NSArray *lv = place_items(self, item.leftBarButtonItems ?: @[], showBack ? leftEnd : margin, y, 44, NO, W / 2);
     for (UIView *v in lv) { leftEnd = fmax(leftEnd, CGRectGetMaxX(v.frame) + 8); }
-    NSArray *rv = place_items(self, item.rightBarButtonItems ?: @[], W - margin, y, 44, YES, W / 2);
+    /* an integrated search (inline / iOS 26 integrated placements) in the bar row: a search button, or a field */
+    int spot = search_spot(item, [self _isim_navigationController], self);
+    NSArray *right = item.rightBarButtonItems ?: @[];
+    if (spot == SEARCH_BUTTON) right = [right arrayByAddingObject:[item _isim_searchButtonItem]];      /* trailingmost */
+    NSArray *rv = place_items(self, right, W - margin, y, 44, YES, W / 2);
     CGFloat rightStart = W - margin;
     for (UIView *v in rv) rightStart = fmin(rightStart, v.frame.origin.x - 8);
     [_itemViews addObjectsFromArray:lv]; [_itemViews addObjectsFromArray:rv];
+    UISearchBar *field = spot == SEARCH_FIELD_TRAILING || spot == SEARCH_FIELD_CENTERED ? item.searchController.searchBar : nil;
+    if (field && !item.searchController.active) {
+        CGFloat fw = spot == SEARCH_FIELD_CENTERED ? fmin(360, W / 3) : fmin(260, (rightStart - leftEnd) / 2);
+        CGFloat fx = spot == SEARCH_FIELD_CENTERED ? round((W - fw) / 2) : rightStart - fw;
+        field._isim_integrated = YES; field._isim_inNavigationBar = YES;
+        if (field.superview != self) [self addSubview:field];
+        [UIView performWithoutAnimation:^{ field.frame = CGRectMake(fx, y + 4, fw, 36); field.alpha = 1; }];
+        if (spot == SEARCH_FIELD_TRAILING) rightStart = fx - 8;
+    }
     /* inline title (centered), or the large title below the bar row */
     [_titleViewHost removeFromSuperview]; _titleViewHost = nil;
     CGFloat side = fmax(leftEnd, W - rightStart);
@@ -648,8 +710,11 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     } else {
         _title.hidden = NO;
         _title.text = item.title; _title.textColor = [self _isim_titleColor:NO]; _title.font = [self _isim_titleFont:NO];
-        /* centred in the bar when it fits between the items; otherwise in the space between them (like UIKit) */
+        /* centred in the bar when it fits between the items; otherwise in the space between them (like UIKit); with a
+           centred search field the title is leading aligned */
         CGFloat tw = ceil(isim_ui_measure(item.title ?: @"", _title.font, W, 1).width), x0 = side, x1 = W - side;
+        _title.textAlignment = spot == SEARCH_FIELD_CENTERED ? NSTextAlignmentLeft : NSTextAlignmentCenter;
+        if (spot == SEARCH_FIELD_CENTERED) { x0 = leftEnd; x1 = fmax(leftEnd, CGRectGetMinX(field.frame) - 8); }
         if (tw > x1 - x0) { CGFloat l = leftEnd, r = rightStart; x0 = fmax(l, fmin((W - tw) / 2, r - tw)); x1 = fmin(r, x0 + tw); }
         _title.frame = CGRectMake(x0 + ap.titlePositionAdjustment.horizontal, y + ap.titlePositionAdjustment.vertical, fmax(0, x1 - x0), 44);
         _title.alpha = large ? (extra < 6 ? 1 : 0) : 1;
@@ -695,13 +760,14 @@ static char k_toolbar_edge;
     [super layoutSubviews];
     _bg.frame = self.bounds; [_bg apply:_standardAppearance];
     if (_barTintColor) { UIToolbarAppearance *o = [_standardAppearance copy]; o.backgroundColor = _barTintColor; [_bg apply:o]; }
-    for (UIView *v in _views) [v removeFromSuperview];
+    for (UIView *v in _views) if (v.superview == self) [v removeFromSuperview];   /* (a search bar may have moved on) */
     [_views removeAllObjects];
     /* fixed widths and buttons first, then flexible spaces share what is left */
-    CGFloat W = self.bounds.size.width, margin = W > 400 ? 20 : 16, used = 0; NSUInteger flex = 0, n = 0;
+    CGFloat W = self.bounds.size.width, margin = W > 400 ? 20 : 16, used = 0; NSUInteger flex = 0, n = 0, fills = 0;
     NSMutableArray *sizes = [NSMutableArray array];
     for (UIBarButtonItem *it in _items) {
         if (it.hidden) { [sizes addObject:@0]; continue; }
+        if (it._isim_fillsWidth && it.customView) { fills++; n++; [_views addObject:it.customView]; [sizes addObject:@(-2)]; continue; }   /* a search field */
         if ([it _isim_isFlexible]) { flex++; [sizes addObject:@(-1)]; continue; }
         if ([it _isim_isFixed]) { used += it.width; [sizes addObject:@(it.width)]; continue; }
         UIView *v = it.customView ?: [__IsimBarButton buttonFor:it host:self];
@@ -710,17 +776,20 @@ static char k_toolbar_edge;
         v.bounds = CGRectMake(0, 0, s.width, s.height);
         [_views addObject:v]; [sizes addObject:@(s.width)]; used += s.width; n++;
     }
-    CGFloat gap = isim_ui_glass() ? 8 : 16, gaps = n > 1 && !flex ? gap * (n - 1) : 0, free = fmax(0, W - 2 * margin - used - gaps);
+    /* a filling item (an integrated search field) takes the free width instead of the flexible spaces */
+    BOOL spaced = !flex || fills;
+    CGFloat gap = isim_ui_glass() ? 8 : 16, gaps = n > 1 && spaced ? gap * (n - 1) : 0, free = fmax(0, W - 2 * margin - used - gaps);
     CGFloat x = margin; NSUInteger vi = 0;
     for (NSUInteger i = 0; i < _items.count; i++) {
         UIBarButtonItem *it = _items[i]; double w = [sizes[i] doubleValue];
         if (it.hidden) continue;
-        if (w < 0) { x += free / flex; continue; }
+        if (w == -1) { if (!fills) x += free / flex; continue; }
         if ([it _isim_isFixed]) { x += w; continue; }
         UIView *v = _views[vi++];
-        v.frame = CGRectMake(x, (44 - v.bounds.size.height) / 2, w, v.bounds.size.height);
+        if (w == -2) { w = free / fills; v.frame = CGRectMake(x, 0, w, 44); }
+        else v.frame = CGRectMake(x, (44 - v.bounds.size.height) / 2, w, v.bounds.size.height);
         [self addSubview:v];
-        x += w + (flex ? 0 : gap);
+        x += w + (spaced ? gap : 0);
     }
 }
 @end
@@ -968,7 +1037,14 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 
 /* the bar's height below the status bar: 44, plus 52 for a large title */
 - (CGFloat)_isim_barContent { return (_navigationBarHidden ? 0 : 44 + ([_bar _isim_topIsLarge] ? 52 : 0)) + [self _isim_searchBarHeight]; }
-- (CGFloat)_isim_toolbarContent { return _toolbarHidden ? 0 : 44; }
+/* the toolbar shows when not hidden, and on iPhone under iOS 26 for an integrated search (not while it is active:
+   the field is then above the keyboard) */
+- (BOOL)_isim_toolbarShown {
+    if (!_toolbarHidden) return YES;
+    UINavigationItem *ni = self.topViewController.navigationItem;
+    return search_spot(ni, self, _bar) == SEARCH_TOOLBAR && !ni.searchController.active;
+}
+- (CGFloat)_isim_toolbarContent { return [self _isim_toolbarShown] ? 44 : 0; }
 - (void)_isim_updateInsets {
     for (UIViewController *vc in _stack) vc.additionalSafeAreaInsets = UIEdgeInsetsMake([self _isim_barContent], 0, [self _isim_toolbarContent], 0);
 }
@@ -1011,7 +1087,9 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     [self _isim_layoutBar];
     CGFloat H = host.bounds.size.height, W = host.bounds.size.width;
     CGFloat safeBottom = isim_ui_safe_insets_for_rect(host, [host convertRect:host.bounds toView:nil]).bottom;
-    _toolbar.items = self.topViewController.toolbarItems;
+    _toolbar.items = [self _isim_toolbarItemsWithSearch:self.topViewController.toolbarItems];    /* UISearch.m */
+    BOOL searching = search_spot(self.topViewController.navigationItem, self, _bar) == SEARCH_TOOLBAR && self.topViewController.navigationItem.searchController.active;
+    _toolbar.hidden = ![self _isim_toolbarShown] || searching;
     _toolbar.frame = CGRectMake(0, H - 44 - safeBottom, W, 44 + safeBottom);
     [host bringSubviewToFront:_bar]; [host bringSubviewToFront:_toolbar];
     if (!_transitioning && !_swiping) for (UIViewController *vc in _stack) if (vc == self.topViewController) vc.viewIfLoaded.frame = host.bounds;
