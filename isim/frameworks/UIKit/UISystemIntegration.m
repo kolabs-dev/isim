@@ -118,9 +118,11 @@ static UIOpenURLContext *url_context(NSURL *url) {
 @property (nonatomic, readwrite, copy) NSSet *userActivities;
 @property (nonatomic, readwrite) NSString *sourceApplication, *handoffUserActivityType;
 @property (nonatomic, readwrite) UIApplicationShortcutItem *shortcutItem;
+@property (nonatomic, readwrite) id sceneAccessoryUserInfo;
 @end
 @implementation UISceneConnectionOptions
 - (instancetype)init { if ((self = [super init])) { _URLContexts = [NSSet set]; _userActivities = [NSSet set]; } return self; }
+- (void)_isim_setSceneAccessoryUserInfo:(id)userInfo { _sceneAccessoryUserInfo = userInfo; }
 @end
 
 /* ================= paths and Info.plist ================= */
@@ -770,6 +772,8 @@ void isim_sys_event(const char *text) {
         isim_dispatch_memory_pressure(level);
         if (level != 1) isim_ui_memory_warning();
     }
+    else if ([verb isEqualToString:@"display"]) { extern void isim_ui_display_event(NSString *args); isim_ui_display_event(args); }   /* UISceneAccessories.m */
+    else if ([verb isEqualToString:@"closescene"]) { extern void isim_ui_close_scene(NSString *ident); isim_ui_close_scene(args); }
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */
         [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
         extern void isim_ui_discard_restoration_state(void);

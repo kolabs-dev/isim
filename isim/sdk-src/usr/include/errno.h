@@ -12,6 +12,7 @@ __END_DECLS
 #define EACCES 13
 #define EBUSY 16
 #define EEXIST 17
+#define EXDEV 18
 #define EINVAL 22
 #define EAGAIN 35
 #define ETIMEDOUT 60

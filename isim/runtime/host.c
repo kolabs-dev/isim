@@ -1212,6 +1212,19 @@ static int script_step(struct isim_event *ev) {
         if (sscanf(args, " %63[^; ]", arg) != 1) strcpy(arg, "warn");
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "memory-warning %s", arg);
         script_resume = now() + 0.2;
+    } else if (!strcmp(cmd, "display") && sscanf(args, " %511[^;]", arg) == 1) {
+        /* a simulated external display (UISceneAccessories.m): "display connect [WxH]", "display disconnect",
+           "display shot PATH" (a PNG of what it shows; a relative PATH is resolved here) */
+        for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
+        char cwd[512];
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM };
+        if (!strncmp(arg, "shot ", 5) && arg[5] != '/' && getcwd(cwd, sizeof cwd)) snprintf(pending[npending - 1].text, sizeof pending->text, "display shot %s/%s", cwd, arg + 5);
+        else snprintf(pending[npending - 1].text, sizeof pending->text, "display %s", arg);
+        script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "closescene")) {     /* the user closes a window (iPad, multiple scenes): "closescene [SESSION-ID]" */
+        if (sscanf(args, " %63[^; ]", arg) != 1) arg[0] = 0;
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "closescene %s", arg);
+        script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);

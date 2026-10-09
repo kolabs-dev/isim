@@ -104,6 +104,7 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
 | SwiftUI tab bar extras (`tabViewBottomAccessory`, `tabBarMinimizeBehavior`), `backgroundExtensionEffect`, `GlassEffectContainer` merging | not available (compile-time) | same | glass accessory above the bar, minimized bar on scroll, mirrored blurred background in the safe area, merged glass shapes | adapted, verified (`tests/ui/test_tabs.py`) |
 | UIKit tab bar extras (`bottomAccessory`, `tabBarMinimizeBehavior`), navigation subtitles, `symbolContentTransition` | unavailable (compile-time) | same | glass accessory above the bar (inline beside the minimized one), minimized bar on scroll, title + subtitle stack, symbol replace on configuration buttons | adapted, verified (`tests/ui/test_modern_bars.py`) |
 | UIKit search bar placement (`preferredSearchBarPlacement`) | `.inline`: stacked on iPhone, bar row on iPad | same | `.integrated*`: iPhone field in the toolbar (rises with the keyboard), iPad field or button in the bar row | adapted, verified (`tests/ui/test_search_bars.py`) |
+| UIKit bar minimization, visibility priority, prominent tab | unavailable (compile-time) | same | iOS 26: the search tab on its own circle; iOS 27: the navigation bar fades on scroll, low-priority items move to an overflow menu, `prominentTabIdentifier` | adapted, verified (`tests/ui/test_bars27.py`) |
 | Alerts | 270 pt card | same | 300 pt glass card, corner 34, leading text, capsule buttons, preferred action filled | adapted, verified (pixels) |
 | Action sheets, menus, sheets, popovers | classic | same | glass cards / larger corners | adapted, proposed |
 | Switch | 51 × 31 | same | 63 × 28, pill thumb | adapted, verified |
@@ -140,11 +141,17 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
   `NavigationTransition.crossFade` (proposed);
   UIKit (`tests/ui/test_kit27.py`): `UIMenuElement.preferredImageVisibility` / `highlightStateUpdateHandler`,
   `UIContextMenuConfiguration.allowsTypeSelect`, `UIWindowScene.displayLink`, `UIDragInteraction.liftBehavior` /
-  `allowsPointerDragBeforeLiftDelay`;
+  `allowsPointerDragBeforeLiftDelay`; scene accessories on a simulated external display, `UISceneClosureConfirmation`
+  (`tests/ui/test_scenes27.py`, under every version: before 27 the manifest's external display scene and closing
+  without confirmation); UIKit text tables and blocks (`NSTextTable`, `NSTextTableBlock`, `NSTextBlock`, per-edge
+  widths and border colours from 27.0; `tests/ui/test_text_tables.py`);
+- iOS 27.1 (beta), the APIs for foldable iPhones (`tests/ui/test_arrangements.py`, under `--os 27.1`): arrangement
+  view controllers, reserved regions, the hinge interaction and the vertical bar, as they behave on a device that
+  does not fold (isim has no foldable preset: Apple has published no specifications);
 - not done (listed as ❌ in [COVERAGE.md](COVERAGE.md)): `ReadableDocument`/`WritableDocument`, `reorderable()`,
   `reorderContainer`, the `@State` macro / `ContentBuilder`
-  (Xcode 27 compiler features), gesture input kinds, UIKit `NSTextTable` family, attachment view reuse; iOS 27.1
-  (beta) iPhone Duo APIs (arrangement views, reserved regions, hinge, vertical bars);
+  (Xcode 27 compiler features), gesture input kinds, attachment view reuse and viewport rendering surfaces (TextKit
+  2, which isim does not have);
 - **not done: iOS 27 visuals.** Apple describes an updated Liquid Glass appearance and a tint slider without
   specifications isim could reproduce faithfully, so `--os 27` uses the iOS 26 look. iOS 27 also requires apps
   built with the iOS 27 SDK to adopt the scene-based life cycle; isim does not enforce that.

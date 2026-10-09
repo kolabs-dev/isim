@@ -99,6 +99,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
 - (void)_isim_removeTraitIdentifier:(NSString *)identifier;
 @end
 
+typedef NS_ENUM(NSInteger, UIVerticalBarEdge) { UIVerticalBarEdgeUnspecified = 0, UIVerticalBarEdgeLeading = 1, UIVerticalBarEdgeTrailing = 2 } API_AVAILABLE(ios(27.1));
 @interface UITraitCollection : NSObject <NSCopying, NSSecureCoding>
 /* the traits used to resolve dynamic colors and images right now (set while UIKit lays out and draws a view, or by
    performAsCurrentTraitCollection:) */
@@ -148,5 +149,10 @@ NS_SWIFT_UI_ACTOR
 @protocol UITraitEnvironment <NSObject>
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;
+@end
+/* iOS 27.1: the edge where the system puts the vertical bar; isim's devices have none (unspecified) */
+@interface UITraitCollection (UIVerticalBar)
+@property (nonatomic, readonly) UIVerticalBarEdge verticalBarEdge API_AVAILABLE(ios(27.1));
+@property (class, nonatomic, readonly) NSArray<Class> *systemTraitsAffectingVerticalBarEdge NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(27.1));
 @end
 NS_ASSUME_NONNULL_END

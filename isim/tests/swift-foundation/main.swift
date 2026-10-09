@@ -74,6 +74,63 @@ func fileAttributeChecks() {
     try? fm.removeItem(atPath: dir)
 }
 
+/// FileManager: enumerators, links, copy / move / replace, URL resource values (issue #12)
+func fileManagerChecks() {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory.appendingPathComponent("swift-fm")
+    try? fm.removeItem(at: root)
+    let tree = root.appendingPathComponent("tree")
+    check((try? fm.createDirectory(at: tree.appendingPathComponent("sub"), withIntermediateDirectories: true)) != nil, "createDirectory(at:)")
+    fm.createFile(atPath: tree.appendingPathComponent("a.txt").path, contents: Data("alpha".utf8))
+    fm.createFile(atPath: tree.appendingPathComponent("sub/b.txt").path, contents: Data("beta".utf8))
+    fm.createFile(atPath: tree.appendingPathComponent(".hidden").path, contents: nil)
+    let link = tree.appendingPathComponent("link")
+    check((try? fm.createSymbolicLink(at: link, withDestinationURL: tree.appendingPathComponent("a.txt"))) != nil, "createSymbolicLink(at:withDestinationURL:)")
+    check((try? fm.destinationOfSymbolicLink(atPath: link.path)) == tree.appendingPathComponent("a.txt").path, "destinationOfSymbolicLink(atPath:)")
+    check(link.resolvingSymlinksInPath().lastPathComponent == "a.txt", "URL.resolvingSymlinksInPath()")
+    // for-in over a path enumerator (NSEnumerator: Sequence), skipDescendants, level
+    var paths: [String] = []
+    if let e = fm.enumerator(atPath: tree.path) {
+        for case let p as String in e { paths.append("\(p):\(e.level)") }
+    }
+    check(paths == [".hidden:1", "a.txt:1", "link:1", "sub:1", "sub/b.txt:2"], "enumerator(atPath:) in for-in (\(paths))")
+    var urls: [String] = []
+    let e = fm.enumerator(at: tree, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey], options: [.skipsHiddenFiles])
+    while let u = e?.nextObject() as? URL {
+        let v = try? u.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .isSymbolicLinkKey])
+        urls.append(u.lastPathComponent + (v?.isDirectory == true ? "/" : v?.isSymbolicLink == true ? "@" : "=\(v?.fileSize ?? -1)"))
+        if u.lastPathComponent == "sub" { e?.skipDescendants() }
+    }
+    check(urls == ["a.txt=5", "link@", "sub/"], "enumerator(at:includingPropertiesForKeys:options:) with resourceValues (\(urls))")
+    let shallow = (try? fm.contentsOfDirectory(at: tree, includingPropertiesForKeys: nil, options: .skipsHiddenFiles))?.map(\.lastPathComponent)
+    check(shallow == ["a.txt", "link", "sub"], "contentsOfDirectory(at:includingPropertiesForKeys:options:) (\(shallow ?? []))")
+    check((try? fm.subpathsOfDirectory(atPath: tree.path))?.count == 5, "subpathsOfDirectory(atPath:)")
+    let values = try? tree.appendingPathComponent("a.txt").resourceValues(forKeys: [.nameKey, .isRegularFileKey, .contentModificationDateKey, .fileResourceTypeKey, .parentDirectoryURLKey])
+    check(values?.name == "a.txt" && values?.isRegularFile == true && values?.contentModificationDate != nil && values?.fileResourceType == .regular &&
+          values?.parentDirectory?.lastPathComponent == "tree", "URL.resourceValues(forKeys:)")
+    do { _ = try root.appendingPathComponent("missing").resourceValues(forKeys: [.nameKey]); check(false, "resourceValues of a missing file throws") }
+    catch { check((error as? CocoaError)?.code == .fileReadNoSuchFile, "resourceValues of a missing file throws .fileReadNoSuchFile") }
+    var renamed = tree.appendingPathComponent(".hidden")
+    var newValues = URLResourceValues(); newValues.name = "visible"; newValues.isExcludedFromBackup = true
+    check((try? renamed.setResourceValues(newValues)) != nil && renamed.lastPathComponent == "visible" && fm.fileExists(atPath: renamed.path),
+          "URL.setResourceValues renames, accepts isExcludedFromBackup")
+    // copy a tree, move it, replace a file
+    let copy = root.appendingPathComponent("copy")
+    check((try? fm.copyItem(at: tree, to: copy)) != nil && fm.contentsEqual(atPath: tree.path, andPath: copy.path), "copyItem(at:to:) copies a directory tree")
+    do { try fm.copyItem(at: tree, to: copy); check(false, "copy onto an existing item throws") }
+    catch { check((error as? CocoaError)?.code == .fileWriteFileExists, "copy onto an existing item throws .fileWriteFileExists (\(error))") }
+    let moved = root.appendingPathComponent("moved")
+    check((try? fm.moveItem(at: copy, to: moved)) != nil && !fm.fileExists(atPath: copy.path) && fm.fileExists(atPath: moved.appendingPathComponent("sub/b.txt").path), "moveItem(at:to:)")
+    let doc = root.appendingPathComponent("doc.txt"), new = root.appendingPathComponent("doc.new")
+    try? Data("old".utf8).write(to: doc); try? Data("new".utf8).write(to: new)
+    let result = try? fm.replaceItemAt(doc, withItemAt: new, backupItemName: "doc.bak", options: .withoutDeletingBackupItem)
+    check(result == doc && fm.contents(atPath: doc.path) == Data("new".utf8) && fm.contents(atPath: root.appendingPathComponent("doc.bak").path) == Data("old".utf8) &&
+          !fm.fileExists(atPath: new.path), "replaceItemAt(_:withItemAt:backupItemName:options:)")
+    check((try? fm.linkItem(at: doc, to: root.appendingPathComponent("hard.txt"))) != nil && fm.isDeletableFile(atPath: doc.path) && !fm.isExecutableFile(atPath: doc.path), "linkItem(at:to:), isDeletableFile, isExecutableFile")
+    let rep = fm.withFileSystemRepresentation(for: doc.path) { $0.map { String(cString: $0) } }
+    check(rep == doc.path && doc.withUnsafeFileSystemRepresentation { $0.map { String(cString: $0) } } == doc.path && !fm.currentDirectoryPath.isEmpty, "file system representation, currentDirectoryPath")
+    check(NSFileNoSuchFileError == 4 && NSFileWriteFileExistsError == CocoaError.fileWriteFileExists.rawValue, "NSFile*Error constants")
+    try? fm.removeItem(at: root)
 /// Operation subclasses, OperationQueue, Thread and RunLoop modes (issue #12)
 final class Locked<T>: @unchecked Sendable {
     private let lock = NSLock(); private var v: T
@@ -436,6 +493,7 @@ func errorBridgingChecks() {
         codingChecks()
         classBridgingChecks()
         fileAttributeChecks()
+        fileManagerChecks()
         operationChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
