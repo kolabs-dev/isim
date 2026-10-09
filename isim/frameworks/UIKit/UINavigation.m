@@ -71,7 +71,11 @@ static char kTitleAttrs;
 - (void)setImage:(UIImage *)i { _image = i; bar_item_changed(self); }
 @end
 
-@implementation UIBarButtonItem { BOOL _isSystem; UIBarButtonSystemItem _system; }
+@implementation UIBarButtonItem { BOOL _isSystem; UIBarButtonSystemItem _system; BOOL _isim_notSharing, _isim_hidesShared; }
+- (BOOL)sharesBackground { return !_isim_notSharing; }
+- (void)setSharesBackground:(BOOL)b { _isim_notSharing = !b; bar_item_changed(self); }
+- (BOOL)hidesSharedBackground { return _isim_hidesShared; }
+- (void)setHidesSharedBackground:(BOOL)b { _isim_hidesShared = b; bar_item_changed(self); }
 - (instancetype)init { return [super init]; }
 - (instancetype)initWithImage:(UIImage *)image style:(UIBarButtonItemStyle)style target:(id)target action:(SEL)action {
     if ((self = [self init])) { self.image = image; _style = style; _target = target; _action = action; } return self;
@@ -189,6 +193,14 @@ static void draw_badge(UIBarButtonItemBadge *b, CGSize s) {
 @property (nonatomic, strong) UIImage *icon;
 @property (nonatomic) BOOL bold;
 @property (nonatomic, strong) UIBarButtonItemAppearance *appearance;   /* the bar's buttonAppearance / doneButtonAppearance */
+@property (nonatomic) BOOL noGlass;                 /* iOS 26: on a shared glass capsule, or hidesSharedBackground */
+@end
+/* iOS 26: the glass capsule neighbouring bar items share */
+@interface __IsimBarGlass : UIView
+@end
+@implementation __IsimBarGlass
+- (UIView *)hitTest:(CGPoint)p withEvent:(UIEvent *)e { return nil; }
+- (void)_isim_drawContent { CGSize s = self.bounds.size; isim_ui_draw_glass(CGRectMake(0, 0, s.width, s.height), s.height / 2, nil, 0); }
 @end
 @implementation __IsimBarButton
 + (instancetype)buttonFor:(UIBarButtonItem *)item host:(UIView *)host {
@@ -197,7 +209,8 @@ static void draw_badge(UIBarButtonItemBadge *b, CGSize s) {
 }
 + (instancetype)buttonFor:(UIBarButtonItem *)item {
     __IsimBarButton *b = [[self alloc] initWithFrame:CGRectZero];
-    b.item = item; b.text = [item _isim_displayTitle]; b.icon = [item _isim_displayImage]; b.bold = item.style == UIBarButtonItemStyleDone;
+    b.item = item; b.text = [item _isim_displayTitle]; b.icon = [item _isim_displayImage];
+    b.bold = item.style == UIBarButtonItemStyleDone || item.style == UIBarButtonItemStyleProminent;
     b.accessibilityIdentifier = item.accessibilityIdentifier ?: (b.text ? [@"bar-" stringByAppendingString:b.text] : nil);
     [b addTarget:b action:@selector(fire) forControlEvents:UIControlEventTouchUpInside];
     return b;
@@ -235,8 +248,9 @@ static void draw_badge(UIBarButtonItemBadge *b, CGSize s) {
     double a = self.highlighted ? 0.3 : 1;
     if (isim_ui_glass()) {
         /* Done-style items are prominent (tinted glass, white glyph); the rest monochrome on clear glass */
-        BOOL prominent = self.bold && self.item.enabled;
-        isim_ui_draw_glass(CGRectMake(0, (s.height - 44) / 2, s.width, 44), 22, prominent ? tint_for(self, self.item.tintColor) : nil, self.highlighted ? 8 : 0);
+        BOOL prominent = self.bold && self.item.enabled && !self.noGlass;
+        if (!self.noGlass) isim_ui_draw_glass(CGRectMake(0, (s.height - 44) / 2, s.width, 44), 22, prominent ? tint_for(self, self.item.tintColor) : nil, self.highlighted ? 8 : 0);
+        else if (self.highlighted) { double hl[4] = { 0.5, 0.5, 0.5, 0.18 }; isim_gfx_fill_rounded(0, (s.height - 44) / 2, s.width, 44, 22, hl); }
         c = !self.item.enabled ? UIColor.tertiaryLabelColor : prominent ? UIColor.whiteColor : (self.item.tintColor ?: UIColor.labelColor);
         a = 1;
     }
@@ -257,13 +271,39 @@ static void draw_badge(UIBarButtonItemBadge *b, CGSize s) {
 - (UINavigationBarAppearance *)_isim_appearance;
 @end
 /* lays out bar items left to right from x; returns the views */
+/* iOS 26: consecutive items that share their background sit on one glass capsule (a group); prominent items, items that
+   do not share, fixed spaces and the end of the list close a group */
+static UIView *rightmost_first(NSArray<UIView *> *group);
+static void close_glass_group(UIView *host, NSMutableArray *group, NSMutableArray *views) {
+    BOOL custom = group.count == 1 && ![group[0] isKindOfClass:[__IsimBarButton class]];
+    if (group.count > 1 || custom) {
+        CGRect u = CGRectNull;
+        for (UIView *v in group) { u = CGRectUnion(u, v.frame); if ([v isKindOfClass:[__IsimBarButton class]]) ((__IsimBarButton *)v).noGlass = YES; }
+        u = CGRectMake(u.origin.x, CGRectGetMidY(u) - 22, u.size.width, 44);
+        if (custom) u = CGRectInset(u, -8, 0);
+        __IsimBarGlass *g = [[__IsimBarGlass alloc] initWithFrame:u];
+        [host insertSubview:g belowSubview:rightmost_first(group)];
+        [views addObject:g];
+    }
+    [group removeAllObjects];
+}
+static UIView *rightmost_first(NSArray<UIView *> *group) {   /* the member lowest in the host's subviews */
+    UIView *low = group.firstObject;
+    for (UIView *v in group) if ([v.superview.subviews indexOfObjectIdenticalTo:v] < [low.superview.subviews indexOfObjectIdenticalTo:low]) low = v;
+    return low;
+}
 static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *items, CGFloat x0, CGFloat y, CGFloat h, BOOL rightAligned, CGFloat limit) {
-    NSMutableArray *views = [NSMutableArray array];
+    NSMutableArray *views = [NSMutableArray array], *group = [NSMutableArray array];
+    BOOL glass = isim_ui_glass();
     CGFloat x = x0;
     for (UIBarButtonItem *it in rightAligned ? items.reverseObjectEnumerator.allObjects : items) {
         if (it.hidden || [it _isim_isFlexible]) continue;
         UIView *v = it.customView;
-        if ([it _isim_isFixed]) { x += rightAligned ? -it.width : it.width; continue; }
+        if ([it _isim_isFixed]) { if (glass) close_glass_group(host, group, views); x += rightAligned ? -it.width : it.width; continue; }
+        BOOL prominent = it.style == UIBarButtonItemStyleDone || it.style == UIBarButtonItemStyleProminent;
+        BOOL shares = glass && !prominent && it.sharesBackground && !it.hidesSharedBackground;
+        if (glass && (!shares || it.hidesSharedBackground)) close_glass_group(host, group, views);
+        if (glass && group.count) x += rightAligned ? 8 : -8;             /* grouped: no gap between the items */
         if (!v) {
             v = [__IsimBarButton buttonFor:it host:host];
             if ([host isKindOfClass:[UINavigationBar class]]) {
@@ -277,9 +317,13 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         if (rightAligned ? vx < limit : vx + s.width > limit) break;
         v.frame = CGRectMake(vx, y + (h - s.height) / 2, s.width, s.height);
         [host addSubview:v]; [views addObject:v];
-        CGFloat gap = isim_ui_glass() ? 8 : 16;
+        if ([v isKindOfClass:[__IsimBarButton class]]) ((__IsimBarButton *)v).noGlass = glass && it.hidesSharedBackground;
+        if (shares) [group addObject:v];
+        else if (glass) close_glass_group(host, group, views);
+        CGFloat gap = glass ? 8 : 16;
         x = rightAligned ? vx - gap : vx + s.width + gap;
     }
+    if (glass) close_glass_group(host, group, views);
     return views;
 }
 
@@ -604,7 +648,10 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     } else {
         _title.hidden = NO;
         _title.text = item.title; _title.textColor = [self _isim_titleColor:NO]; _title.font = [self _isim_titleFont:NO];
-        _title.frame = CGRectMake(side + ap.titlePositionAdjustment.horizontal, y + ap.titlePositionAdjustment.vertical, fmax(0, W - 2 * side), 44);
+        /* centred in the bar when it fits between the items; otherwise in the space between them (like UIKit) */
+        CGFloat tw = ceil(isim_ui_measure(item.title ?: @"", _title.font, W, 1).width), x0 = side, x1 = W - side;
+        if (tw > x1 - x0) { CGFloat l = leftEnd, r = rightStart; x0 = fmax(l, fmin((W - tw) / 2, r - tw)); x1 = fmin(r, x0 + tw); }
+        _title.frame = CGRectMake(x0 + ap.titlePositionAdjustment.horizontal, y + ap.titlePositionAdjustment.vertical, fmax(0, x1 - x0), 44);
         _title.alpha = large ? (extra < 6 ? 1 : 0) : 1;
     }
     /* the large title sits in the band below the bar row and slides up under it as content scrolls */

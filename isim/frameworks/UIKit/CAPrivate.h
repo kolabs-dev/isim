@@ -43,6 +43,8 @@ void ca_render_sublayer_list(CALayer *model, CALayer *presentation);
 void ca_draw_contents(CALayer *p, CGRect bounds);
 void ca_emit_path(CGPathRef path);
 void ca_rounded_path(CGRect r, double radius, CACornerMask corners);
+void ca_corners_path(CGRect r, const double *corners);   /* top-left, top-right, bottom-left, bottom-right radii */
+void isim_ca_view_shadow_corners(CALayer *layer, CGSize sz, const double *corners, double opacity, double blur, CGSize off);
 extern double ca_time_shift;                                    /* replicator instance delay while rendering */
 void ca_driver_wake(void);                                      /* keeps frames coming while layers animate */
 void ca_driver_add_ticker(id obj);                              /* objects with -_isim_tick:(double)now (emitters) */

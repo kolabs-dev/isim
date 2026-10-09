@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 213 | 4 | 0 | 4 | 221 | 97% |
+| **UIKit** | 218 | 2 | 0 | 15 | 235 | 93% |
 | &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 55 | 2 | 0 | 3 | 60 | 93% |
+| &nbsp;&nbsp;↳ Views & controls | 60 | 0 | 0 | 14 | 74 | 81% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **743** | **192** | **26** | **36** | **997** | **84%** |
+| **All areas** | **748** | **190** | **26** | **47** | **1011** | **83%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (206) | 100% (210) | 99% (217) | 97% (221) |
+| UIKit | 100% (206) | 100% (210) | 98% (224) | 93% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (82) | 85% (82) | 85% (82) | 85% (82) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **85%** (954) | **85%** (966) | **85%** (983) | **84%** (997) |
+| **All areas** | **85%** (954) | **85%** (966) | **84%** (990) | **83%** (1011) |
 
 ---
 
@@ -219,7 +219,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UITextField` | ✅ | ≤17 | UITextInput shared with UITextView: selection (double tap, handles, Shift+arrows), edit menu, marked text, cursor movement, Cut/Copy/Paste, autocorrection; tested (HelloTextEditing, HelloInputs) |
 | `UITextView` | ✅ | ≤17 | editable/scrollable, self-sizing when `isScrollEnabled = false`, delegate (should/did begin/end, `shouldChangeTextIn`, did change, selection change), notifications, keyboard traits, selection with handles and the edit menu, `selectedRange`, `scrollRangeToVisible`; data detectors when not editable (`dataDetectorTypes`: links, phone numbers, street addresses, dates, flight numbers, UPS/USPS tracking numbers) drawn as underlined links in the tint colour: a tap runs the delegate's `primaryActionFor` (iOS 17, `UITextItem.content`) or `shouldInteractWith`, else opens the item (`tel:`, Maps, `calshow:`, the carrier's page; a flight shows its menu, adapted: no flight preview), a long press shows the item's menu (`menuConfigurationFor`, `UITextItem.MenuConfiguration`). `.lookupSuggestion` finds nothing (stub: no Look Up service). Tested (HelloInputs, HelloTextEditing, HelloTextServices) |
 | `UISwitch` | ✅ | ≤17 | |
-| `UISlider` | ✅ | ≤17 | thumb drag, continuous/non-continuous, track tints; tested (HelloControls) |
+| `UISlider` | ✅ | ≤17 | thumb drag, continuous/non-continuous, track tints; value images, thumb and track images per state (`currentThumbImage`, …; tints and images replace each other like UIKit), `trackRect(forBounds:)` / `thumbRect(forBounds:trackRect:value:)` / value-image rects used for layout, hit testing and drawing (subclass overrides apply); iOS 26: 6 pt track and a 38×24 capsule thumb that turns into clear glass while dragged. Tested (HelloControls, HelloGlass) |
 | `UIStepper` | ✅ | ≤17 | min/max/step/wraps; tested |
 | `UISegmentedControl` | ✅ | ≤17 | titles/images, sliding selection, momentary, per-segment enable; tested |
 | `UIPickerView` | ✅ | ≤17 | wheels drawn on a cylinder behind the selection band, drag/fling/tap a row, `selectRow`, reload, title rows, row widths/heights; tested (HelloInputs). `viewForRow` views unverified |
@@ -248,14 +248,28 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIAppearance` proxies (`UINavigationBar.appearance()`) | ✅ | ≤17 | adapted (no message forwarding): proxies are offscreen instances; changed appearance properties (colors, bar appearances, title attributes, fonts, translucency, per-state setters like `setTitleTextAttributes(_:for:)` / `setBackgroundImage(_:for:)`, `UIBarItem` / `UIBarButtonItem` proxies) apply when a view first enters a window unless it set them itself; `whenContainedInInstancesOf:` and trait style. Tested (HelloInputs, HelloAppearance) |
 | `UIInputView`, `inputView` / `inputAccessoryView` | ✅ | ≤17 | a responder's custom `inputView` replaces the keyboard (its height), `inputAccessoryView` sits above it (also above the system keyboard); keyboard notifications carry the combined frame. `reloadInputViews` is not needed (input views are read on focus). Tested (HelloViews) |
 | `UIPointerInteraction`, `UIPencilInteraction`, Apple Pencil | ✅ | ≤17 | see Gestures & touches: the iPad pointer (effects, shapes, accessories, the I-beam over text) and a simulated Apple Pencil (script `pencil`: strokes, double-tap, squeeze, hover); tested (HelloMultiTouch, HelloPencil) |
-| `UIGlassEffect` (`.regular`/`.clear`, `tintColor`, `isInteractive`), `UIGlassContainerEffect` | 🟡 | 26.0 | adapted: isim's glass drawing (light backdrop blur, translucent body, specular rim) in the effect view's bounds and `cornerRadius`; interactive glass brightens while touched; containers do not merge or morph shapes |
-| `UIButton.Configuration` `.glass()`, `.prominentGlass()`, `.clearGlass()`, `.prominentClearGlass()` | 🟡 | 26.0 | adapted: glass capsule (prominent: tinted with the tint colour, white label); tested (HelloOSVersions) |
+| `UIGlassEffect` (`.regular`/`.clear`, `tintColor`, `isInteractive`), `UIGlassContainerEffect` | ✅ | 26.0 | adapted: isim's glass, drawn from a signed distance field: soft shadow, the backdrop lightly blurred and refracted toward the inside near the rim (lensing), translucent body, tint, top glow, a rim lit from the top left; interactive glass brightens and grows while touched. Containers draw their glass elements as one shape: elements closer than `spacing` merge (smooth union) and morph as their frames animate; glass inside a container is not drawn twice. Tested by pixels (HelloGlass, HelloOSVersions) |
+| `UIButton.Configuration` `.glass()`, `.prominentGlass()`, `.clearGlass()`, `.prominentClearGlass()` | ✅ | 26.0 | adapted: glass capsule (prominent: tinted with the tint colour, white label); tested (HelloOSVersions) |
 | `UIBackgroundExtensionView` | ✅ | 26.0 | adapted: the content view extends under the iPad tab sidebar (and the leading safe area); tested by pixels (HelloUITabs) |
 | `UIScrollEdgeEffect` (scroll view edge effects) | ✅ | 26.0 | adapted: `topEdgeEffect`/… `style` (automatic/soft/hard), `isHidden`; bars draw the scroll view's effect (hard: opaque band, soft: fade) under `--os 26`/`27`. Tested (HelloUITabs) |
 | `UIBarButtonItem.badge` | ✅ | 26.0 | count, string and indicator badges drawn on bar button items (iOS 26 only, like iOS); tested (HelloUITabs) |
+| `UIBarButtonItem.sharesBackground`, `hidesSharedBackground`, `.prominent` style | ✅ | 26.0 | adapted: neighbouring navigation bar items sit on one glass capsule; prominent (and Done) items, items that do not share and fixed spaces start a new one; `hidesSharedBackground` draws the item without glass; prominent items are tinted glass. Tested (HelloGlass) |
+| `UISlider.sliderStyle` (`.thumbless`), `trackConfiguration` (`UISlider.TrackConfiguration`, ticks, `allowsTickValuesOnly`, `neutralValue`, `enabledRange`) | ✅ | 26.0 | adapted: tick dots on the track, values snap to ticks, the fill runs from the neutral value, the track outside the enabled range is dimmed and the value clamped to it; thumbless: a 10 pt track the finger drags anywhere. Tick titles and images are kept, not drawn. Tested (HelloGlass) |
+| `UIView.cornerConfiguration` (`UICornerConfiguration`, `UICornerRadius` fixed / `containerConcentric(minimum:)`, capsule), `effectiveRadius(corner:)` | ✅ | 26.0 | adapted: per-corner radii for the background, clipping, border, shadow and glass; concentric radii come from the superview's corner (or the screen's for a top-level view) minus the inset; "uniform" corners share the smallest computed radius; circular arcs (no continuous curve). `layer.maskedCorners` now also applies to views. Tested (HelloGlass) |
+| `UIButton.Configuration.symbolContentTransition` | ❌ | 26.0 | |
+| `UITabBarController.tabBarMinimizeBehavior`, `bottomAccessory` / `UITabAccessory`, `contentLayoutGuide` | ❌ | 26.0 | the SwiftUI equivalents are implemented |
+| `UINavigationItem` subtitles (`subtitle`, `largeSubtitle`, attributed and view variants) | ❌ | 26.0 | |
+| Search in toolbars (`searchBarPlacementAllowsToolbarIntegration`, `searchBarPlacementAllowsExternalIntegration`, `searchBarPlacementBarButtonItem`, `.integrated*` placements) | ❌ | 26.0 | |
 | `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloUITabs, per version: classic tabs on iOS 17) |
-| `UIDragInteraction.allowsPointerDragBeforeLiftDelay` | ❌ | 27.0 | |
+| `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ❌ | 27.0 | |
 | `NSTextTable`/`NSTextBlock` in UIKit, `UITextAttachmentViewProviderReusePolicy`, viewport rendering surfaces | ❌ | 27.0 | |
+| Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ❌ | 27.0 | |
+| `UIWindowScene.displayLink(target:selector:)` | ❌ | 27.0 | |
+| `UINavigationItem.barMinimizeBehavior`, `barMinimizationSafeAreaAdjustment`, `UIBarButtonItem.visibilityPriority` | ❌ | 27.0 | the SwiftUI toolbar equivalents are implemented |
+| `UIMenuElement.subtitle`, `preferredImageVisibility`, `highlightStateUpdateHandler`; `UIContextMenuConfiguration.allowsTypeSelect` | ❌ | 27.0 | |
+| `UITabBarController.prominentTabIdentifier`, `performBatchUpdates(_:)`, sidebar `preferredPlacement` / `isAvailable` / visibility callback | ❌ | 27.0 | |
+| `UILookToScrollInteraction` | ❌ | 27.0 | |
+| `UIImage.symbolWeight()`, `UIDocumentViewControllerLaunchOptions.subtitle` | ❌ | 27.0 | |
 | `UIArrangementViewController`, `UIView.ReservedRegion`, `UIHingeInteraction`, vertical bar placement | ❌ | 27.1 | iPhone Duo APIs (iOS 27.1 beta) |
 
 ### Layout
@@ -400,7 +414,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Increase Contrast (`accessibilityContrast`, high-contrast colors) | ✅ | ≤17 | script `contrast on|off` / Settings; high-contrast variants of system colors and asset-catalog colors/images. Tested (HelloAppearance) |
 | Dynamic images (`UIImageAsset`, asset appearance variants, `UIImage.withConfiguration`) | ✅ | ≤17 | any/dark/high-contrast variants from the asset catalog and registered images resolve per trait collection when drawn. Tested by pixels (HelloAppearance) |
 | Accent color from the asset catalog (`AccentColor`) | ✅ | ≤17 | `UIColor.tintColor` and the default tint of every window; SwiftUI `accentColor`. Tested (HelloAppearance) |
-| Liquid Glass system look (`--os 26`/`27`) | 🟡 | 26.0 | adapted: floating glass tab bar (iPhone), glass back button and bar button items (Done items prominent), scroll-edge fade instead of the bar material, glass alerts (300 pt, corner 34, leading text, capsule buttons, preferred action filled), glass menus and action sheets, rounder sheets/popovers, 63×28 switch with a pill thumb, capsule configuration buttons; tested by pixels (HelloOSVersions) |
+| Liquid Glass system look (`--os 26`/`27`) | 🟡 | 26.0 | adapted: floating glass tab bar (iPhone), glass back button and bar button items (Done items prominent), scroll-edge fade instead of the bar material, glass alerts (300 pt, corner 34, leading text, capsule buttons, preferred action filled), glass menus and action sheets, rounder sheets/popovers, 63×28 switch with a pill thumb, capsule configuration buttons, capsule segmented controls (no separators; the held selection turns to glass) and steppers, capsule slider thumbs, navigation bar items on shared glass capsules; glass refracts what is behind it; tested by pixels (HelloOSVersions) |
 | iPadOS 18 tab bar (floating capsule at the top, titles only) | ✅ | 18.0 | adapted: drawn by `UITabBarController` and SwiftUI `TabView` on iPads with `--os 18` (glass with `--os 26`/`27`); the sidebar is under Views & controls (`UITab`) |
 | iOS 27 appearance refresh (Liquid Glass updates, tint slider) | ❌ | 27.0 | not specified in detail by Apple's documentation; `--os 27` uses the iOS 26 look |
 | Observable objects tracked in `layoutSubviews` (automatic invalidation) | ✅ | 26.0 | Observation reads in `layoutSubviews`, `viewWillLayoutSubviews`, `updateProperties()` and friends invalidate the view on change (iOS 26 default; on iOS 18 with `UIObservationTrackingEnabled`). Tested (HelloUITabs) |
