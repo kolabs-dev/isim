@@ -2,7 +2,8 @@
 modifyingTraits, containsTraits, hasDifferentColorAppearance), a custom Swift trait through traitOverrides on a
 controller (read by a dynamic color and while laying out), registerForTraitChanges for the appearance and the custom
 trait, traitCollectionDidChange with the previous traits; overrideUserInterfaceStyle on a parent controller (its
-child), on a view (traitOverrides) and the presented controller of a dark controller; asset-catalog colors and images
+child), on a view (traitOverrides) and the presented controller of a dark controller; a presentation controller's
+traitOverrides (inherited by the presented controller) and registerForTraitChanges; asset-catalog colors and images
 with Any/Dark/High Contrast variants (UIImageAsset, the variant per traits); the accent color as the default tint; live
 `appearance dark` / `contrast on`; materials per appearance and vibrancy; UIAppearance proxies (plain, per-state,
 contained, bar items) and own values winning; Debug > Simulate Memory Warning. Colours by pixels.
@@ -91,6 +92,10 @@ def test_appearance(launch, ios):
     assert is_(back, 40, 260, red), "back to light"
 
     app.wait_tap_id("present")
-    app.wait_log(r"presented traits: dark")
+    app.wait_log(r"presented traits: dark, theme ocean, swatch ocean, presentation controller ocean")
     shot_when(app, "presented", 200, 600, black)                         # a controller presented by a dark child is dark
+    shot_when(app, "presented-ocean", 60, 140, near(0, 51, 153))         # the presentation controller's theme override
+    app.wait_tap_id("plain")
+    app.wait_log(r"presentation registration: theme ocean -> plain, presented plain")
+    shot_when(app, "presented-plain", 60, 140, near(142, 142, 147))      # systemGray: the override changed live
     assert app.quit() == 0

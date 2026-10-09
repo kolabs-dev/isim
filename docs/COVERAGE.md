@@ -26,11 +26,11 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 173 | 39 | 3 | 6 | 221 | 87% |
+| **UIKit** | 175 | 38 | 3 | 5 | 221 | 88% |
 | &nbsp;&nbsp;↳ Application & scenes | 20 | 5 | 0 | 0 | 25 | 90% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 22 | 9 | 0 | 0 | 31 | 85% |
 | &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
-| &nbsp;&nbsp;↳ Layout | 18 | 1 | 0 | 0 | 19 | 97% |
+| &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 10 | 2 | 2 | 0 | 14 | 79% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **691** | **236** | **29** | **41** | **997** | **81%** |
+| **All areas** | **693** | **235** | **29** | **40** | **997** | **81%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 89% (206) | 89% (210) | 89% (217) | 87% (221) |
+| UIKit | 90% (206) | 90% (210) | 89% (217) | 88% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -275,7 +275,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIScrollView` `contentLayoutGuide` / `frameLayoutGuide` | ✅ | ≤17 | |
 | Trait collections (style, idiom, size classes, display scale) | ✅ | ≤17 | |
 | `traitCollectionDidChange` | ✅ | ≤17 | |
-| `registerForTraitChanges` (iOS 17), custom traits | 🟡 | 17.0 | handler, target/action and Swift generic forms for style, size classes, idiom, display scale (checked every frame); tested (HelloConstraints). No custom traits / `traitOverrides` |
+| `registerForTraitChanges` (iOS 17), custom traits | ✅ | 17.0 | handler, target/action and Swift generic forms on views, controllers, window scenes and presentation controllers, for system and custom traits (checked every frame); `traitOverrides` on views, controllers, window scenes and presentation controllers (the presented controller inherits the presentation controller's). Tested (HelloConstraints, HelloAppearance) |
 | Size classes | ✅ | ≤17 | fixed per device (portrait) |
 | Dynamic Type: `preferredFont(forTextStyle:)` | ✅ | ≤17 | sized for the content size category (Settings > Accessibility > Display & Text Size, 12 sizes); Bold Text makes system fonts heavier; tested (HelloAccessibility) |
 | Dynamic Type size changes, `UIFontMetrics`, `adjustsFontForContentSizeCategory` | ✅ | ≤17 | category changes repost `UIContentSizeCategory.didChangeNotification`, refit labels/text views/fields that adjust (text-style and `UIFontMetrics` fonts), `preferredContentSizeCategory` on the app and trait collections, `isAccessibilityCategory`; tested (HelloAccessibility). `traitCollectionDidChange` gets no previous collection |
@@ -396,7 +396,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Dynamic colors resolve per trait collection | ✅ | ≤17 | |
 | Live appearance switch while the app runs | ✅ | ≤17 | script `appearance light|dark` / Settings / the shell: trait change pass with `traitCollectionDidChange(_:)` (previous traits) and `registerForTraitChanges` handlers, then redraw. Tested (HelloAppearance) |
 | `overrideUserInterfaceStyle` (view, controller) | ✅ | ≤17 | |
-| iOS 17 trait system (`UITraitDefinition` custom traits, `traitOverrides`, `registerForTraitChanges`, `UITraitCollection(mutations:)`) | ✅ | ≤17 | per-view trait collections from the window scene (size classes, idiom, display scale, style, contrast, legibility, content size, layout direction, …), overrides on views, controllers and scenes, custom traits with default values, `UITraitCollection.current` during layout/drawing; old `UITraitDefinition` ObjC protocol kept for ABI. Tested (HelloAppearance) |
+| iOS 17 trait system (`UITraitDefinition` custom traits, `traitOverrides`, `registerForTraitChanges`, `UITraitCollection(mutations:)`) | ✅ | ≤17 | per-view trait collections from the window scene (size classes, idiom, display scale, style, contrast, legibility, content size, layout direction, …), overrides on views, controllers, scenes and presentation controllers, custom traits with default values, `UITraitCollection.current` during layout/drawing; old `UITraitDefinition` ObjC protocol kept for ABI. Tested (HelloAppearance) |
 | Increase Contrast (`accessibilityContrast`, high-contrast colors) | ✅ | ≤17 | script `contrast on|off` / Settings; high-contrast variants of system colors and asset-catalog colors/images. Tested (HelloAppearance) |
 | Dynamic images (`UIImageAsset`, asset appearance variants, `UIImage.withConfiguration`) | ✅ | ≤17 | any/dark/high-contrast variants from the asset catalog and registered images resolve per trait collection when drawn. Tested by pixels (HelloAppearance) |
 | Accent color from the asset catalog (`AccentColor`) | ✅ | ≤17 | `UIColor.tintColor` and the default tint of every window; SwiftUI `accentColor`. Tested (HelloAppearance) |

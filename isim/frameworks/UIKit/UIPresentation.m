@@ -117,7 +117,7 @@ static BOOL compact_width(UIView *v) { CGFloat w = v.window ? v.window.bounds.si
 @property (nonatomic) UIModalPresentationStyle _isim_style;
 - (void)_isim_setPresentingVC:(UIViewController *)p;
 @end
-@implementation UIPresentationController
+@implementation UIPresentationController { id<UITraitOverrides> _traitOverrides; }
 - (instancetype)initWithPresentedViewController:(UIViewController *)presented presentingViewController:(UIViewController *)presenting {
     if ((self = [super init])) { _presentedViewController = presented; _presentingViewController = presenting; self._isim_style = UIModalPresentationCustom; }
     return self;
@@ -138,8 +138,16 @@ static BOOL compact_width(UIView *v) { CGFloat w = v.window ? v.window.bounds.si
 - (void)dismissalTransitionDidEnd:(BOOL)c {}
 - (CGSize)sizeForChildContentContainer:(id)c withParentContainerSize:(CGSize)s { return s; }
 - (void)preferredContentSizeDidChangeForChildContentContainer:(id)c {}
-- (UITraitCollection *)traitCollection { return _containerView ? _containerView.traitCollection : _presentingViewController.traitCollection; }
+/* traits: the container's (or the presenter's), then traitOverrides; the presented controller inherits them */
+- (UITraitCollection *)traitCollection {
+    return isim_ui_apply_overrides(_containerView ? _containerView.traitCollection : _presentingViewController.traitCollection, _traitOverrides, UIUserInterfaceStyleUnspecified);
+}
 - (void)traitCollectionDidChange:(UITraitCollection *)p {}
+- (id<UITraitOverrides>)traitOverrides {
+    if (!_traitOverrides) _traitOverrides = isim_ui_new_trait_overrides(^{ isim_ui_traits_invalidate(nil); isim_ui_set_needs_display(); });
+    return _traitOverrides;
+}
+- (UITraitCollection *)_isim_applyTraitOverrides:(UITraitCollection *)base { return isim_ui_apply_overrides(base, _traitOverrides, UIUserInterfaceStyleUnspecified); }
 @end
 
 /* ---- sheets ---- */
@@ -292,6 +300,12 @@ enum { P_FULL, P_SHEET, P_POPOVER, P_FORMCARD };          /* layout kinds */
 - (BOOL)dragAcceptsTouch:(UITouch *)t heldScroll:(UIScrollView * __strong *)held;
 - (void)sheetDragged:(__IsimSheetDrag *)g;
 @end
+/* the traits a presented controller inherits: its presenter's, with its presentation controller's overrides */
+UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewController *presenter) {
+    __IsimPresentation *p = objc_getAssociatedObject(vc, &kPresentation);
+    UIPresentationController *pc = p.pc ?: objc_getAssociatedObject(vc, &kPC);
+    return pc ? [pc _isim_applyTraitOverrides:presenter.traitCollection] : presenter.traitCollection;
+}
 
 @implementation __IsimTransitionView
 - (void)layoutSubviews {

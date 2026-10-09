@@ -460,7 +460,7 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
    then the view controller's overrides, then the view's own (UITraits.m) */
 - (UITraitCollection *)_isim_inheritedTraits {
     UIViewController *vc = _vc, *presenter = vc.presentingViewController;
-    if (presenter && presenter.presentedViewController == vc && presenter != vc) return presenter.traitCollection;
+    if (presenter && presenter.presentedViewController == vc && presenter != vc) return isim_ui_presented_traits(vc, presenter);
     if (_superview) return _superview.traitCollection;
     if ([self isKindOfClass:[UIWindow class]]) return [((UIWindow *)self).windowScene _isim_traitsForWindowSize:_frame.size];
     return isim_ui_screen_traits();

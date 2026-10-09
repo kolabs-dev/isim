@@ -42,6 +42,7 @@ void isim_ui_traits_flush(void);                       /* traitCollectionDidChan
 id<UITraitOverrides> isim_ui_new_trait_overrides(void (^changed)(void));
 BOOL isim_ui_trait_overrides_empty(id<UITraitOverrides> o);
 UITraitCollection *isim_ui_apply_overrides(UITraitCollection *base, id<UITraitOverrides> o, UIUserInterfaceStyle style);
+UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewController *presenter);   /* UIPresentation.m */
 NSString *isim_ui_trait_key(id trait);      /* trait class or Swift identifier -> storage key */
 @interface UIView (IsimTraits)
 - (UITraitCollection *)_isim_inheritedTraits;          /* before this view's controller and own overrides */

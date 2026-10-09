@@ -145,6 +145,8 @@ NS_SWIFT_UI_ACTOR
 - (void)preferredContentSizeDidChangeForChildContentContainer:(id)container;
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;
+/* iOS 17: overrides for the presented view controller's traits (it inherits the presentation controller's) */
+@property (nonatomic, readonly) id<UITraitOverrides> traitOverrides API_AVAILABLE(ios(17.0));
 @end
 
 /* sheets */
