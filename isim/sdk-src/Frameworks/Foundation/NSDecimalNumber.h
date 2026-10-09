@@ -14,9 +14,10 @@ typedef struct {
 } NSDecimal;
 #define NSDecimalMaxSize (8)
 #define NSDecimalNoScale 32767
-typedef NS_ENUM(NSUInteger, NSRoundingMode) { NSRoundPlain, NSRoundDown, NSRoundUp, NSRoundBankers } NS_SWIFT_NAME(NSDecimalNumber.RoundingMode);
+typedef NS_ENUM(NSUInteger, NSRoundingMode) { NSRoundPlain NS_SWIFT_NAME(plain), NSRoundDown NS_SWIFT_NAME(down), NSRoundUp NS_SWIFT_NAME(up), NSRoundBankers NS_SWIFT_NAME(bankers) } NS_SWIFT_NAME(NSDecimalNumber.RoundingMode);
 typedef NS_ENUM(NSUInteger, NSCalculationError) {
-    NSCalculationNoError = 0, NSCalculationLossOfPrecision, NSCalculationUnderflow, NSCalculationOverflow, NSCalculationDivideByZero
+    NSCalculationNoError NS_SWIFT_NAME(noError) = 0, NSCalculationLossOfPrecision NS_SWIFT_NAME(lossOfPrecision), NSCalculationUnderflow NS_SWIFT_NAME(underflow),
+    NSCalculationOverflow NS_SWIFT_NAME(overflow), NSCalculationDivideByZero NS_SWIFT_NAME(divideByZero)
 } NS_SWIFT_NAME(NSDecimalNumber.CalculationError);
 /* the C API (Swift has these for Decimal in the overlay) */
 FOUNDATION_EXPORT BOOL NSDecimalIsNotANumber(const NSDecimal *dcm) NS_REFINED_FOR_SWIFT;

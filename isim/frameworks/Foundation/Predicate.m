@@ -62,6 +62,9 @@ typedef void *pp_jmp[5];   /* __builtin_setjmp buffer (no setjmp in isim's libSy
 + (NSExpression *)expressionForKeyPath:(NSString *)kp { NSExpression *e = [[self alloc] initWithExpressionType:NSKeyPathExpressionType]; e->_keyPath = [kp copy]; return e; }
 + (NSExpression *)expressionForAggregate:(NSArray<NSExpression *> *)subs { NSExpression *e = [[self alloc] initWithExpressionType:NSAggregateExpressionType]; e->_collection = [subs copy]; return e; }
 + (NSExpression *)expressionForAnyKey { return [[self alloc] initWithExpressionType:NSAnyKeyExpressionType]; }
++ (NSExpression *)expressionForSymbolicString:(NSString *)s {
+    return [@[@"FIRST", @"LAST", @"SIZE"] containsObject:s] ? [self expressionForConstantValue:[_IsimIndexSymbol_isim symbol:s]] : nil;
+}
 + (NSExpression *)expressionForFunction:(NSString *)name arguments:(NSArray *)args {
     NSExpression *e = [[self alloc] initWithExpressionType:NSFunctionExpressionType]; e->_function = [name copy]; e->_args = [args copy]; return e;
 }
@@ -312,6 +315,8 @@ static NSString *quoted(NSString *s) {
     case NSFunctionExpressionType: {
         NSDictionary *ops = @{ @"add:to:": @"+", @"from:subtract:": @"-", @"multiply:by:": @"*", @"divide:by:": @"/", @"raise:toPower:": @"**" };
         NSArray *args = [_args valueForKey:@"predicateFormat_isim"];
+        if (_operand && [_function isEqualToString:@"valueForKeyPath:"] && _args.count == 1 && [_args[0] expressionType] == NSConstantValueExpressionType)
+            return [NSString stringWithFormat:@"%@.%@", [_operand predicateFormat_isim], [_args[0] constantValue]];     /* $x.name */
         if (_operand) return [NSString stringWithFormat:@"FUNCTION(%@, %@%@%@)", [_operand predicateFormat_isim], quoted(_function), args.count ? @", " : @"", [args componentsJoinedByString:@", "]];
         if (ops[_function] && _args.count == 2) return [NSString stringWithFormat:@"%@ %@ %@", args[0], ops[_function], args[1]];
         if ([_function isEqualToString:@"objectFrom:withIndex:"] && _args.count == 2) return [NSString stringWithFormat:@"%@[%@]", args[0], args[1]];
@@ -739,9 +744,26 @@ static NSExpression *pp_primary(pparser *p) {
     pp_fail(p, "unexpected character");
 }
 /* postfix: array[index], with FIRST / LAST / SIZE */
+/* "$x.name", "SUBQUERY(...).@count": a key path applied to the value of an expression that is not one */
+static NSExpression *pp_keypath_suffix(pparser *p, NSExpression *e) {
+    NSUInteger s = p->i;
+    while (p->i < p->n) {
+        unichar d = [p->s characterAtIndex:p->i];
+        if (isalnum(d) || d == '_' || d == '@' || (d == '.' && p->i + 1 < p->n && (isalpha([p->s characterAtIndex:p->i + 1]) || [p->s characterAtIndex:p->i + 1] == '@'))) p->i++;
+        else break;
+    }
+    NSString *kp = [p->s substringWithRange:NSMakeRange(s, p->i - s)];
+    return [NSExpression expressionForFunction:e selectorName:@"valueForKeyPath:" arguments:@[[NSExpression expressionForConstantValue:kp]]];
+}
 static NSExpression *pp_postfix(pparser *p) {
     NSExpression *e = pp_primary(p);
     for (;;) {
+        if (p->i + 1 < p->n && [p->s characterAtIndex:p->i] == '.' && e.expressionType != NSKeyPathExpressionType &&
+            (isalpha([p->s characterAtIndex:p->i + 1]) || [p->s characterAtIndex:p->i + 1] == '@' || [p->s characterAtIndex:p->i + 1] == '_')) {
+            p->i++;
+            e = pp_keypath_suffix(p, e);
+            continue;
+        }
         pp_ws(p);
         if (p->i < p->n && [p->s characterAtIndex:p->i] == '[') {
             p->i++;
@@ -752,12 +774,6 @@ static NSExpression *pp_postfix(pparser *p) {
             else idx = pp_expr(p);
             if (!pp_sym(p, @"]")) pp_fail(p, "expected ]");
             e = [NSExpression expressionForFunction:@"objectFrom:withIndex:" arguments:@[e, idx]];
-            if (pp_sym(p, @".")) {                       /* array[0].name */
-                NSExpression *rest = pp_primary(p);
-                if (rest.expressionType != NSKeyPathExpressionType) pp_fail(p, "expected a key path after ].");
-                e = [NSExpression expressionForFunction:[NSExpression expressionForFunction:@"objectFrom:withIndex:" arguments:e.arguments] selectorName:@"valueForKeyPath:"
-                                              arguments:@[[NSExpression expressionForConstantValue:rest.keyPath]]];
-            }
         } else return e;
     }
 }

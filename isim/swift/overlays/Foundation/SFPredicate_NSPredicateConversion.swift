@@ -142,8 +142,6 @@ private func _expressionCompatibleValue(for value: Any) throws -> Any? {
         return value
     case let result as ComparisonResult:
         return result.rawValue
-    case let regex as PredicateExpressions.PredicateRegex:
-        return regex.stringRepresentation
     case let c as Character:
         return String(c)
     case let sequence as any Sequence:
@@ -151,6 +149,10 @@ private func _expressionCompatibleValue(for value: Any) throws -> Any? {
     case let range as any AnyClosedRange:
         return [try _expressionCompatibleValue(for: range._bounds.0), try _expressionCompatibleValue(for: range._bounds.1)]
     default:
+        // isim: PredicateRegex is iOS 18 (upstream builds without availability limits)
+        if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, *), let regex = value as? PredicateExpressions.PredicateRegex {
+            return regex.stringRepresentation
+        }
         throw NSPredicateConversionError.unsupportedConstant
     }
 }
@@ -191,6 +193,7 @@ extension PredicateExpressions.KeyPath : ConvertibleExpression {
     }
 }
 
+@available(macOS 14.4, iOS 17.4, tvOS 17.4, watchOS 10.4, *)   // isim: as the type
 extension PredicateExpressions.PredicateEvaluate : ConvertibleExpression {
     fileprivate func convert(state: inout NSPredicateConversionState) throws -> ExpressionOrPredicate {
         // Evaluate the subtree that provides the Predicate. We can only nest a predicate if the predicate is provided as a constant value
@@ -203,6 +206,7 @@ extension PredicateExpressions.PredicateEvaluate : ConvertibleExpression {
     }
 }
 
+@available(macOS 15, iOS 18, tvOS 18, watchOS 11, *)   // isim: as the type
 extension PredicateExpressions.ExpressionEvaluate : ConvertibleExpression {
     fileprivate func convert(state: inout NSPredicateConversionState) throws -> ExpressionOrPredicate {
         // Evaluate the subtree that provides the Predicate. We can only nest a predicate if the predicate is provided as a constant value
@@ -492,6 +496,7 @@ extension PredicateExpressions.NilLiteral : ConvertibleExpression {
     }
 }
 
+@available(macOS 15, iOS 18, tvOS 18, watchOS 11, *)   // isim: as the type
 extension PredicateExpressions.StringContainsRegex : ConvertibleExpression {
     fileprivate func convert(state: inout NSPredicateConversionState) throws -> ExpressionOrPredicate {
         .predicate(NSComparisonPredicate(leftExpression: try subject.convertToExpression(state: &state), rightExpression: try regex.convertToExpression(state: &state).mapRegexForContains(), modifier: .direct, type: .matches))
@@ -515,6 +520,7 @@ extension ComparisonResult {
     }
 }
 
+private let NSLocaleSensitivePredicateOption: UInt = 0x08   // isim: Foundation_Private upstream
 extension NSComparisonPredicate.Options {
     fileprivate static var localized: Self {
         Self(rawValue: UInt(NSLocaleSensitivePredicateOption))

@@ -7,23 +7,25 @@ NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSDictionary<KeyType, ObjectType>, NSMutableDictionary<KeyType, ObjectType>, NSPredicate;
 
 typedef NS_ENUM(NSUInteger, NSExpressionType) {
-    NSConstantValueExpressionType = 0, NSEvaluatedObjectExpressionType, NSVariableExpressionType, NSKeyPathExpressionType,
-    NSFunctionExpressionType, NSUnionSetExpressionType, NSIntersectSetExpressionType, NSMinusSetExpressionType,
-    NSSubqueryExpressionType = 13, NSAggregateExpressionType, NSAnyKeyExpressionType = 15, NSBlockExpressionType = 19, NSConditionalExpressionType = 20
+    NSConstantValueExpressionType NS_SWIFT_NAME(constantValue) = 0, NSEvaluatedObjectExpressionType NS_SWIFT_NAME(evaluatedObject), NSVariableExpressionType NS_SWIFT_NAME(variable), NSKeyPathExpressionType NS_SWIFT_NAME(keyPath),
+    NSFunctionExpressionType NS_SWIFT_NAME(function), NSUnionSetExpressionType NS_SWIFT_NAME(unionSet), NSIntersectSetExpressionType NS_SWIFT_NAME(intersectSet), NSMinusSetExpressionType NS_SWIFT_NAME(minusSet),
+    NSSubqueryExpressionType NS_SWIFT_NAME(subquery) = 13, NSAggregateExpressionType NS_SWIFT_NAME(aggregate), NSAnyKeyExpressionType NS_SWIFT_NAME(anyKey) = 15, NSBlockExpressionType NS_SWIFT_NAME(block) = 19, NSConditionalExpressionType NS_SWIFT_NAME(conditional) = 20
 };
 @interface NSExpression : NSObject <NSSecureCoding, NSCopying>
 + (NSExpression *)expressionWithFormat:(NSString *)expressionFormat argumentArray:(NSArray *)arguments;
 + (NSExpression *)expressionWithFormat:(NSString *)expressionFormat, ...;
 + (NSExpression *)expressionWithFormat:(NSString *)expressionFormat arguments:(va_list)argList;
 + (NSExpression *)expressionForConstantValue:(nullable id)obj;
-+ (NSExpression *)expressionForEvaluatedObject;
++ (NSExpression *)expressionForEvaluatedObject NS_SWIFT_NAME(expressionForEvaluatedObject());
 + (NSExpression *)expressionForVariable:(NSString *)string;
 + (NSExpression *)expressionForKeyPath:(NSString *)keyPath;
 + (NSExpression *)expressionForFunction:(NSString *)name arguments:(NSArray *)parameters;
 + (NSExpression *)expressionForAggregate:(NSArray<NSExpression *> *)subexpressions;
 + (NSExpression *)expressionForBlock:(id (^)(id _Nullable evaluatedObject, NSArray<NSExpression *> *expressions, NSMutableDictionary * _Nullable context))block arguments:(nullable NSArray<NSExpression *> *)arguments;
 + (NSExpression *)expressionForFunction:(NSExpression *)target selectorName:(NSString *)name arguments:(nullable NSArray *)parameters;
-+ (NSExpression *)expressionForAnyKey;
++ (NSExpression *)expressionForAnyKey NS_SWIFT_NAME(expressionForAnyKey());
+/* FIRST, LAST or SIZE (the index of "array[FIRST]"); nil for anything else (Apple: private, used by Foundation's Swift code) */
++ (nullable NSExpression *)expressionForSymbolicString:(NSString *)string NS_SWIFT_NAME(init(forSymbolicString:));
 + (NSExpression *)expressionForSubquery:(NSExpression *)expression usingIteratorVariable:(NSString *)variable predicate:(NSPredicate *)predicate;
 + (NSExpression *)expressionForUnionSet:(NSExpression *)left with:(NSExpression *)right;
 + (NSExpression *)expressionForIntersectSet:(NSExpression *)left with:(NSExpression *)right;
