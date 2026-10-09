@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 226 | 2 | 0 | 7 | 235 | 97% |
+| **UIKit** | 227 | 2 | 0 | 8 | 237 | 96% |
 | &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 68 | 0 | 0 | 6 | 74 | 92% |
+| &nbsp;&nbsp;↳ Views & controls | 69 | 0 | 0 | 7 | 76 | 91% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **765** | **186** | **23** | **38** | **1012** | **85%** |
+| **All areas** | **766** | **186** | **23** | **39** | **1014** | **85%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (207) | 100% (211) | 100% (225) | 97% (235) |
+| UIKit | 99% (209) | 99% (213) | 99% (227) | 96% (237) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (956) | **86%** (968) | **85%** (992) | **85%** (1012) |
+| **All areas** | **86%** (958) | **86%** (970) | **85%** (994) | **85%** (1014) |
 
 ---
 
@@ -262,7 +262,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Search in toolbars (`searchBarPlacementAllowsToolbarIntegration`, `searchBarPlacementAllowsExternalIntegration`, `searchBarPlacementBarButtonItem`, `.integrated*` placements); `preferredSearchBarPlacement` / `searchBarPlacement` (iOS 16) | ✅ | 26.0 | adapted: iPhone under iOS 26: `.integrated` puts the field (a glass capsule) in the navigation controller's toolbar at `searchBarPlacementBarButtonItem` (else trailing; the toolbar shows for it), activating it lifts the field above the keyboard with a glass close button while the navigation bar stays; `.integratedButton` is a toolbar search button. iPad (regular width): a field in the navigation bar row, trailing or centred (`.integratedCentered`, leading title), or a search button whose activation moves the bar to the top. Before iOS 26 `.inline` is stacked on iPhone and in the bar row on iPad; `.automatic` is stacked. `searchBarPlacementAllowsExternalIntegration` is stored (no split-view relocation). Tested (HelloSearchBars) |
 | `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloUITabs, per version: classic tabs on iOS 17) |
 | `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ✅ | 27.0 | adapted: the lift delay is 0.5 s, `.extended` 0.75 s (isim's estimate) and a second finger cancels the lift; a pointer drag (iPad pointer touches, script `pointerdrag`) starts once the pointer moves unless `allowsPointerDragBeforeLiftDelay` is false (then it waits for the lift delay like a finger). Tested (HelloKit27) |
-| `NSTextTable`/`NSTextBlock` in UIKit, `UITextAttachmentViewProviderReusePolicy`, viewport rendering surfaces | ❌ | 27.0 | |
+| `NSTextTable` / `NSTextTableBlock` / `NSTextBlock` in UIKit, `NSParagraphStyle.textBlocks` | ✅ | ≤17 | public in UIKit with iOS 27 (Apple's documentation lists iOS 6; the per-edge `setWidth(_:type:for:rectEdge:)` / `setBorderColor(_:rectEdge:)` are 27.0). Adapted: UILabel, CATextLayer and `NSAttributedString` drawing / `boundingRect` lay the blocks out with isim's own box model (no TextKit): margin / border / padding per edge (absolute or percentage), widths and heights, backgrounds and per-edge border colours; table cells in a grid with row and column spans, cell widths, automatic (content width) or fixed columns, vertical alignment, `collapsesBorders`, `hidesEmptyCells`. Line limits do not apply to block layouts; UITextView does not draw attributed text yet. Tested (HelloTextTables, pixels) |
+| `UITextAttachmentViewProviderReusePolicy`, `NSTextViewportRenderingSurface` / `NSTextViewportRenderingSurfaceKey` | ❌ | 27.0 | TextKit 2 APIs (`NSTextAttachmentViewProvider`, `NSTextViewportLayoutController`): they need TextKit, which isim does not have (next row) |
+| TextKit (`NSTextStorage`, `NSLayoutManager`, `NSTextContainer`, `NSTextLayoutManager`, `NSTextContentStorage`, `UITextView.textLayoutManager`) | ❌ | ≤17 | isim lays text out with Pango directly; text views have no TextKit objects |
 | Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ❌ | 27.0 | |
 | `UIWindowScene.displayLink(target:selector:)`, `displayLink(action:)` | ✅ | 27.0 | passthrough: isim has one display per device, so it is an ordinary `CADisplayLink` (add it to a run loop to start it); the closure form keeps its closure alive with the link. Tested (HelloKit27) |
 | `UINavigationItem.barMinimizeBehavior`, `barMinimizationSafeAreaAdjustment`, `UIBarButtonItem.visibilityPriority` | ❌ | 27.0 | the SwiftUI toolbar equivalents are implemented |
