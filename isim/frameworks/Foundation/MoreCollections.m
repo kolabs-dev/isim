@@ -500,22 +500,58 @@ static _IsimRef *ref(id o, BOOL weak) { _IsimRef *r = [_IsimRef new]; r->_isWeak
 @end
 static BOOL is_weak(NSPointerFunctionsOptions o) { return (o & 0xFF) == NSPointerFunctionsWeakMemory; }
 static BOOL is_identity(NSPointerFunctionsOptions o) { return (o & 0xFF00) == NSPointerFunctionsObjectPointerPersonality; }
-static BOOL same(id a, id b, BOOL identity) { return a == b || (!identity && [a isEqual:b]); }
 
-@implementation NSHashTable { NSMutableArray<_IsimRef *> *_refs; NSPointerFunctionsOptions _opts; }
+/* NSHashTable / NSMapTable key: the object (weak or strong) and the hash it had when it went in, so the entry stays in
+ * its bucket after a weak object is gone; a gone object equals nothing. The tables keep these in an NSMutableDictionary
+ * (hash-indexed, insertion-ordered), which takes a key's -copy: a key is its own copy. Lookups wrap the probe in a
+ * strong key. Pointer personality hashes and compares the pointer instead of -hash / -isEqual:. */
+@interface _IsimKey : _IsimRef <NSCopying> { @public NSUInteger _hash; BOOL _identity; }
+@end
+@implementation _IsimKey
+static _IsimKey *key(id o, BOOL weak, BOOL identity) {
+    _IsimKey *k = [_IsimKey new];
+    k->_isWeak = weak; if (weak) k->_weak = o; else k->_strong = o;
+    k->_identity = identity; k->_hash = identity ? (NSUInteger)(__bridge void *)o : [o hash];
+    return k;
+}
+- (NSUInteger)hash { return _hash; }
+- (BOOL)isEqual:(id)other {
+    if (other == self) return YES;
+    _IsimKey *k = other;   /* the tables hold only _IsimKeys */
+    id a = self.object, b = k.object;
+    return a && b && (a == b || (!_identity && [a isEqual:b]));
+}
+- (id)copyWithZone:(NSZone *)z { return self; }
+@end
+
+/* Entries whose weak object is gone are swept out by -count, -allObjects and enumeration, and when the table has grown
+ * to twice its size after the previous sweep, so that dead entries never outnumber the live ones for long. */
+@implementation NSHashTable { NSMutableDictionary<_IsimKey *, _IsimKey *> *_map; NSPointerFunctionsOptions _opts; NSUInteger _sweepAt; }
 + (instancetype)hashTableWithOptions:(NSPointerFunctionsOptions)o { return [[self alloc] initWithOptions:o capacity:0]; }
 + (NSHashTable *)weakObjectsHashTable { return [self hashTableWithOptions:NSPointerFunctionsWeakMemory]; }
 - (instancetype)init { return [self initWithOptions:NSPointerFunctionsStrongMemory capacity:0]; }
-- (instancetype)initWithOptions:(NSPointerFunctionsOptions)o capacity:(NSUInteger)c { if ((self = [super init])) { _opts = o; _refs = [NSMutableArray array]; } return self; }
-- (void)_compact { for (NSUInteger i = _refs.count; i-- > 0;) if (!_refs[i].object) [_refs removeObjectAtIndex:i]; }
-- (id)member:(id)o { [self _compact]; for (_IsimRef *r in _refs) if (same(r.object, o, is_identity(_opts))) return r.object; return nil; }
-- (BOOL)containsObject:(id)o { return o && [self member:o] != nil; }
-- (void)addObject:(id)o { if (!o || [self containsObject:o]) return; [_refs addObject:ref((_opts & NSPointerFunctionsCopyIn) ? [o copy] : o, is_weak(_opts))]; }
-- (void)removeObject:(id)o { for (NSUInteger i = _refs.count; i-- > 0;) if (same(_refs[i].object, o, is_identity(_opts))) [_refs removeObjectAtIndex:i]; }
-- (void)removeAllObjects { [_refs removeAllObjects]; }
-- (NSUInteger)count { [self _compact]; return _refs.count; }
-- (NSArray *)allObjects { [self _compact]; NSMutableArray *a = [NSMutableArray array]; for (_IsimRef *r in _refs) { id o = r.object; if (o) [a addObject:o]; } return a; }
-- (id)anyObject { return self.allObjects.firstObject; }
+- (instancetype)initWithOptions:(NSPointerFunctionsOptions)o capacity:(NSUInteger)c { if ((self = [super init])) { _opts = o; _map = [NSMutableDictionary dictionary]; _sweepAt = 64; } return self; }
+- (void)_compact {
+    if (!is_weak(_opts)) return;
+    NSMutableArray *dead = [NSMutableArray array];
+    for (_IsimKey *k in _map) if (!k.object) [dead addObject:k];
+    [_map removeObjectsForKeys:dead];
+    _sweepAt = MAX(_map.count * 2, (NSUInteger)64);
+}
+- (_IsimKey *)_probe:(id)o { return key(o, NO, is_identity(_opts)); }
+- (id)member:(id)o { return o ? [_map objectForKey:[self _probe:o]].object : nil; }
+- (BOOL)containsObject:(id)o { return [self member:o] != nil; }
+- (void)addObject:(id)o {
+    if (!o || [self containsObject:o]) return;
+    if (_map.count >= _sweepAt) [self _compact];
+    _IsimKey *k = key((_opts & NSPointerFunctionsCopyIn) ? [o copy] : o, is_weak(_opts), is_identity(_opts));
+    _map[k] = k;
+}
+- (void)removeObject:(id)o { if (o) [_map removeObjectForKey:[self _probe:o]]; }
+- (void)removeAllObjects { [_map removeAllObjects]; }
+- (NSUInteger)count { [self _compact]; return _map.count; }
+- (NSArray *)allObjects { NSMutableArray *a = [NSMutableArray array]; for (_IsimKey *k in _map) { id o = k.object; if (o) [a addObject:o]; } return a; }
+- (id)anyObject { for (_IsimKey *k in _map) { id o = k.object; if (o) return o; } return nil; }
 - (NSSet *)setRepresentation { return [NSSet setWithArray:self.allObjects]; }
 - (NSEnumerator *)objectEnumerator { return [self.allObjects objectEnumerator]; }
 - (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(__unsafe_unretained id *)buf count:(NSUInteger)len {
@@ -529,7 +565,9 @@ static BOOL same(id a, id b, BOOL identity) { return a == b || (!identity && [a 
 - (id)copyWithZone:(NSZone *)z { NSHashTable *h = [[NSHashTable alloc] initWithOptions:_opts capacity:0]; for (id o in self.allObjects) [h addObject:o]; return h; }
 @end
 
-@implementation NSMapTable { NSMutableArray<_IsimRef *> *_keys, *_vals; NSPointerFunctionsOptions _ko, _vo; }
+/* Keys in an NSMutableDictionary as in NSHashTable, mapping to _IsimRef values; an entry is dead once its weak key or
+ * weak value is gone, and swept the same way. */
+@implementation NSMapTable { NSMutableDictionary<_IsimKey *, _IsimRef *> *_map; NSPointerFunctionsOptions _ko, _vo; NSUInteger _sweepAt; }
 + (instancetype)mapTableWithKeyOptions:(NSPointerFunctionsOptions)k valueOptions:(NSPointerFunctionsOptions)v { return [[self alloc] initWithKeyOptions:k valueOptions:v capacity:0]; }
 + (NSMapTable *)strongToStrongObjectsMapTable { return [self mapTableWithKeyOptions:NSPointerFunctionsStrongMemory valueOptions:NSPointerFunctionsStrongMemory]; }
 + (NSMapTable *)weakToStrongObjectsMapTable { return [self mapTableWithKeyOptions:NSPointerFunctionsWeakMemory valueOptions:NSPointerFunctionsStrongMemory]; }
@@ -537,32 +575,57 @@ static BOOL same(id a, id b, BOOL identity) { return a == b || (!identity && [a 
 + (NSMapTable *)weakToWeakObjectsMapTable { return [self mapTableWithKeyOptions:NSPointerFunctionsWeakMemory valueOptions:NSPointerFunctionsWeakMemory]; }
 - (instancetype)init { return [self initWithKeyOptions:NSPointerFunctionsStrongMemory valueOptions:NSPointerFunctionsStrongMemory capacity:0]; }
 - (instancetype)initWithKeyOptions:(NSPointerFunctionsOptions)k valueOptions:(NSPointerFunctionsOptions)v capacity:(NSUInteger)c {
-    if ((self = [super init])) { _ko = k; _vo = v; _keys = [NSMutableArray array]; _vals = [NSMutableArray array]; }
+    if ((self = [super init])) { _ko = k; _vo = v; _map = [NSMutableDictionary dictionary]; _sweepAt = 64; }
     return self;
 }
-- (void)_compact { for (NSUInteger i = _keys.count; i-- > 0;) if (!_keys[i].object || !_vals[i].object) { [_keys removeObjectAtIndex:i]; [_vals removeObjectAtIndex:i]; } }
-- (NSUInteger)_indexOfKey:(id)k { for (NSUInteger i = 0; i < _keys.count; i++) if (same(_keys[i].object, k, is_identity(_ko))) return i; return NSNotFound; }
-- (id)objectForKey:(id)k { if (!k) return nil; [self _compact]; NSUInteger i = [self _indexOfKey:k]; return i == NSNotFound ? nil : _vals[i].object; }
+- (void)_compact {
+    if (!is_weak(_ko) && !is_weak(_vo)) return;
+    NSMutableArray *dead = [NSMutableArray array];
+    [_map enumerateKeysAndObjectsUsingBlock:^(_IsimKey *k, _IsimRef *v, BOOL *stop) { if (!k.object || !v.object) [dead addObject:k]; }];
+    [_map removeObjectsForKeys:dead];
+    _sweepAt = MAX(_map.count * 2, (NSUInteger)64);
+}
+- (_IsimKey *)_probe:(id)k { return key(k, NO, is_identity(_ko)); }
+- (id)objectForKey:(id)k { return k ? [_map objectForKey:[self _probe:k]].object : nil; }
 - (void)setObject:(id)o forKey:(id)k {
     if (!k) return;
     if (!o) { [self removeObjectForKey:k]; return; }
-    NSUInteger i = [self _indexOfKey:k];
     _IsimRef *vr = ref(o, is_weak(_vo));
-    if (i == NSNotFound) { [_keys addObject:ref((_ko & NSPointerFunctionsCopyIn) ? [k copy] : k, is_weak(_ko))]; [_vals addObject:vr]; }
-    else _vals[i] = vr;
+    _IsimKey *probe = [self _probe:k];
+    if (_map[probe]) { _map[probe] = vr; return; }   /* the table keeps the key it already has */
+    if (_map.count >= _sweepAt) [self _compact];
+    _map[key((_ko & NSPointerFunctionsCopyIn) ? [k copy] : k, is_weak(_ko), is_identity(_ko))] = vr;
 }
-- (void)removeObjectForKey:(id)k { NSUInteger i = [self _indexOfKey:k]; if (i != NSNotFound) { [_keys removeObjectAtIndex:i]; [_vals removeObjectAtIndex:i]; } }
-- (void)removeAllObjects { [_keys removeAllObjects]; [_vals removeAllObjects]; }
-- (NSUInteger)count { [self _compact]; return _keys.count; }
-- (NSEnumerator *)keyEnumerator { [self _compact]; return [[_keys valueForKey:@"object"] objectEnumerator]; }
-- (NSEnumerator *)objectEnumerator { [self _compact]; return [[_vals valueForKey:@"object"] objectEnumerator]; }
-- (NSDictionary *)dictionaryRepresentation { [self _compact]; NSMutableDictionary *d = [NSMutableDictionary dictionary]; for (NSUInteger i = 0; i < _keys.count; i++) d[_keys[i].object] = _vals[i].object; return d; }
+- (void)removeObjectForKey:(id)k { if (k) [_map removeObjectForKey:[self _probe:k]]; }
+- (void)removeAllObjects { [_map removeAllObjects]; }
+- (NSUInteger)count { [self _compact]; return _map.count; }
+- (NSArray *)_liveKeys:(NSMutableArray *)vals {
+    NSMutableArray *keys = [NSMutableArray array];
+    [_map enumerateKeysAndObjectsUsingBlock:^(_IsimKey *k, _IsimRef *v, BOOL *stop) {
+        id ko = k.object, vo = v.object;
+        if (ko && vo) { [keys addObject:ko]; [vals addObject:vo]; }
+    }];
+    return keys;
+}
+- (NSEnumerator *)keyEnumerator { return [[self _liveKeys:[NSMutableArray array]] objectEnumerator]; }
+- (NSEnumerator *)objectEnumerator { NSMutableArray *vals = [NSMutableArray array]; [self _liveKeys:vals]; return [vals objectEnumerator]; }
+- (NSDictionary *)dictionaryRepresentation {
+    NSMutableArray *vals = [NSMutableArray array]; NSArray *keys = [self _liveKeys:vals];
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    for (NSUInteger i = 0; i < keys.count; i++) d[keys[i]] = vals[i];
+    return d;
+}
 - (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(__unsafe_unretained id *)buf count:(NSUInteger)len {
-    if (st->state == 0) { [self _compact]; objc_setAssociatedObject(self, @selector(countByEnumeratingWithState:objects:count:), [_keys valueForKey:@"object"], OBJC_ASSOCIATION_RETAIN); }
+    if (st->state == 0) objc_setAssociatedObject(self, @selector(countByEnumeratingWithState:objects:count:), [self _liveKeys:[NSMutableArray array]], OBJC_ASSOCIATION_RETAIN);
     NSArray *snap = objc_getAssociatedObject(self, @selector(countByEnumeratingWithState:objects:count:));
     return [snap countByEnumeratingWithState:st objects:buf count:len];
 }
-- (id)copyWithZone:(NSZone *)z { NSMapTable *m = [[NSMapTable alloc] initWithKeyOptions:_ko valueOptions:_vo capacity:0]; [self _compact]; for (NSUInteger i = 0; i < _keys.count; i++) [m setObject:_vals[i].object forKey:_keys[i].object]; return m; }
+- (id)copyWithZone:(NSZone *)z {
+    NSMapTable *m = [[NSMapTable alloc] initWithKeyOptions:_ko valueOptions:_vo capacity:0];
+    NSMutableArray *vals = [NSMutableArray array]; NSArray *keys = [self _liveKeys:vals];
+    for (NSUInteger i = 0; i < keys.count; i++) [m setObject:vals[i] forKey:keys[i]];
+    return m;
+}
 @end
 
 @implementation NSPointerArray { NSMutableArray<_IsimRef *> *_refs; NSPointerFunctionsOptions _opts; }
