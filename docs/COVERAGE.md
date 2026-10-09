@@ -26,13 +26,13 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 206 | 11 | 0 | 4 | 221 | 96% |
+| **UIKit** | 209 | 8 | 0 | 4 | 221 | 96% |
 | &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 54 | 3 | 0 | 3 | 60 | 92% |
+| &nbsp;&nbsp;↳ Views & controls | 55 | 2 | 0 | 3 | 60 | 93% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
-| &nbsp;&nbsp;↳ Animation | 11 | 1 | 0 | 0 | 12 | 96% |
-| &nbsp;&nbsp;↳ Gestures & touches | 12 | 1 | 0 | 0 | 13 | 96% |
+| &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
+| &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **736** | **199** | **26** | **36** | **997** | **84%** |
+| **All areas** | **739** | **196** | **26** | **36** | **997** | **84%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 98% (206) | 98% (210) | 97% (217) | 96% (221) |
+| UIKit | 99% (206) | 99% (210) | 98% (217) | 96% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (82) | 85% (82) | 85% (82) | 85% (82) |
@@ -247,7 +247,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIEditMenuInteraction` (copy/paste menu) | ✅ | ≤17 | the system edit menu of text views/fields and app interactions (`presentEditMenu(with:)`, delegate `menuFor:suggestedActions:`). Tested (HelloTextEditing) |
 | `UIAppearance` proxies (`UINavigationBar.appearance()`) | ✅ | ≤17 | adapted (no message forwarding): proxies are offscreen instances; changed appearance properties (colors, bar appearances, title attributes, fonts, translucency, per-state setters like `setTitleTextAttributes(_:for:)` / `setBackgroundImage(_:for:)`, `UIBarItem` / `UIBarButtonItem` proxies) apply when a view first enters a window unless it set them itself; `whenContainedInInstancesOf:` and trait style. Tested (HelloInputs, HelloAppearance) |
 | `UIInputView`, `inputView` / `inputAccessoryView` | ✅ | ≤17 | a responder's custom `inputView` replaces the keyboard (its height), `inputAccessoryView` sits above it (also above the system keyboard); keyboard notifications carry the combined frame. `reloadInputViews` is not needed (input views are read on focus). Tested (HelloViews) |
-| `UIPointerInteraction`, `UIPencilInteraction`, Apple Pencil | 🟡 | ≤17 | see Gestures & touches: iPad pointer works; Pencil is a stub |
+| `UIPointerInteraction`, `UIPencilInteraction`, Apple Pencil | ✅ | ≤17 | see Gestures & touches: the iPad pointer (effects, shapes, accessories, the I-beam over text) and a simulated Apple Pencil (script `pencil`: strokes, double-tap, squeeze, hover); tested (HelloMultiTouch, HelloPencil) |
 | `UIGlassEffect` (`.regular`/`.clear`, `tintColor`, `isInteractive`), `UIGlassContainerEffect` | 🟡 | 26.0 | adapted: isim's glass drawing (light backdrop blur, translucent body, specular rim) in the effect view's bounds and `cornerRadius`; interactive glass brightens while touched; containers do not merge or morph shapes |
 | `UIButton.Configuration` `.glass()`, `.prominentGlass()`, `.clearGlass()`, `.prominentClearGlass()` | 🟡 | 26.0 | adapted: glass capsule (prominent: tinted with the tint colour, white label); tested (HelloOSVersions) |
 | `UIBackgroundExtensionView` | ✅ | 26.0 | adapted: the content view extends under the iPad tab sidebar (and the leading safe area); tested by pixels (HelloUITabs) |
@@ -297,7 +297,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `animateKeyframes` / `addKeyframe` | ✅ | ≤17 | keyframe segments per property on one timeline, overall curve from the options, discrete mode; cubic/paced modes interpolate linearly; tested (HelloAnimations) |
 | `UIViewPropertyAnimator` (interruptible, scrubbable) | ✅ | ≤17 | start/pause/stop/finish(at:), `fractionComplete` scrubbing, `isReversed`, add animations/completions, `pausesOnCompletion`, cubic/spring timing parameters, `runningPropertyAnimator`; `layer.presentation()` reports in-flight values; tested (HelloAnimations). `continueAnimation` ignores new timing parameters (duration factor only) |
 | Layer property animations (cornerRadius, shadow, …) | ✅ | ≤17 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (presentation layer values part-way); Core Animation objects (`CABasicAnimation`, keyframes, springs, groups, transitions) also animate a view's layer (position, bounds, transform incl. `transform.rotation.x/y/z` with perspective, opacity, colours, corner radius, border, shadow); animations added from `animationDidStop:` run. Tested (HelloAnimations radius / border, HelloMotion shadow / border colour, QuartzCore) |
-| UIKit Dynamics (`UIDynamicAnimator`, behaviors) | 🟡 | ≤17 | gravity, collision (reference bounds + insets, segment and path boundaries, item–item, contact delegate), snap, push (continuous / instantaneous), attachment (spring or rigid, item or anchor), `UIDynamicItemBehavior` (elasticity, friction, density, resistance, anchored, linear/angular velocity), actions, pause/resume delegate. Adapted: items collide as axis-aligned rectangles and collisions never spin them; ellipse/path collision bounds use the rectangle. Tested: gravity + collision (falls, rests on the boundary); others unverified |
+| UIKit Dynamics (`UIDynamicAnimator`, behaviors) | ✅ | ≤17 | gravity, collision (reference bounds + insets, segment and path boundaries, item–item, contact delegate), snap, push (continuous / instantaneous), attachment (spring or rigid, item or anchor), `UIDynamicItemBehavior` (elasticity, friction, density, resistance, anchored, `allowsRotation`, linear/angular velocity), actions, pause/resume delegate. Items collide as turned rectangles (or ellipses for `.ellipse`) with impulses that include rotation: an off-centre hit spins an item, which then lands on its corners or flat; Coulomb friction. Adapted: `.path` bounds use the path's bounding rectangle. Tested: gravity + collision (falls, rests on the boundary; HelloAnimations), a box landing on a ledge with one corner spins (HelloPencil) |
 
 ### Gestures & touches
 
@@ -311,7 +311,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UISwipeGestureRecognizer` | ✅ | ≤17 | directions, delegate, failure requirements; tested (HelloGestures) |
 | `UIPinchGestureRecognizer`, `UIRotationGestureRecognizer` | ✅ | ≤17 | scale/rotation (settable, relative from then on), velocity, centroid location; 2-touch `UIPanGestureRecognizer` (`minimumNumberOfTouches`/`maximumNumberOfTouches`); tested (HelloMultiTouch) |
 | `UIScreenEdgePanGestureRecognizer` | ✅ | ≤17 | starts only within 20 pt of `edges`; tested (HelloGestures) |
-| `UIHoverGestureRecognizer`, `UIPointerInteraction`, `UIPencilInteraction` | 🟡 | ≤17 | hover from host mouse motion without a button (script `hover X Y`) on every device; iPad pointer (dot, highlight / lift / hover effects, region request/enter/exit, `UIButton.isPointerInteractionEnabled`); tested (HelloMultiTouch). Pencil: honest stub, never gets taps; pointer shapes/beam not drawn |
+| `UIHoverGestureRecognizer`, `UIPointerInteraction`, `UIPencilInteraction` | ✅ | ≤17 | hover from host mouse motion without a button (script `hover X Y`) on every device; iPad pointer: dot, highlight / lift / hover effects, shapes (`roundedRect`, `path` (drawn as its bounding rounded rect, adapted), vertical / horizontal beams), `constrainedAxes`, accessories (`UIPointerAccessory.arrow`, drawn as chevrons), the I-beam over editable text, region request/enter/exit, `UIButton.isPointerInteractionEnabled`. Apple Pencil (adapted: script `pencil`): strokes are `UITouchTypePencil` touches with `force` / `maximumPossibleForce`, `altitudeAngle`, `azimuthAngle(in:)`; double-tap and squeeze reach `UIPencilInteraction` (`pencilInteraction(_:didReceiveTap:)` / `didReceiveSqueeze:` with phases and the hover pose, or the older `pencilInteractionDidTap`); `preferredTapAction` and `prefersPencilOnlyDrawing` from Settings › Apple Pencil; hovering sets `UIHoverGestureRecognizer.zOffset`. Tested (HelloMultiTouch, HelloPencil, OS matrix) |
 | `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | ✅ | ≤17 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`; failure requirements: `require(toFail:)`, the delegate's `shouldRequireFailureOf` / `shouldBeRequiredToFailBy` and the subclass overrides `shouldRequireFailure(of:)` / `shouldBeRequiredToFail(by:)` (among the recognizers on the touched view and its ancestors), for discrete recognizers (fire once the others fail) and pans (hold Began until they fail, fail if one recognizes). Tested (HelloGestures single vs double tap, HelloMotion, OS matrix) |
 | Custom `UIGestureRecognizer` subclasses | ✅ | ≤17 | `UIGestureRecognizerSubclass`: touches callbacks, settable `state` sends actions, `reset`; tested (HelloGestures) |
 | Shake / motion events | ✅ | ≤17 | `motionBegan/Ended` (shake) via Ctrl+Shift+Z or the script command `shake`; tested (HelloGestures) |

@@ -71,6 +71,9 @@ extension's view is drawn at the top of the card.
 | `rotate2 X Y DEGREES S` | two-finger rotation around (X, Y) |
 | `twofinger X Y DX DY S` | two fingers moving together by (DX, DY) |
 | `hover X Y` / `hover` | move the pointer without pressing (iPad pointer, `UIHoverGestureRecognizer`); no arguments ends hovering |
+| `pencil X1 Y1 X2 Y2 SECS [FORCE] [ALTITUDE]` | an Apple Pencil stroke: `UITouch.type` `.pencil`, `force` (0…4.17, default 1), `altitudeAngle` (radians, default 1.1), azimuth along the stroke |
+| `pencil tap` · `pencil squeeze` | the Pencil's double-tap / squeeze (`UIPencilInteraction`; the preferred actions come from Settings › Apple Pencil) |
+| `pencil hover X Y [Z]` | the Pencil hovering Z (0…1, default 0.5) above (X, Y): `UIHoverGestureRecognizer.zOffset`, the hover pose of taps and squeezes |
 
 ## Keyboard and text
 

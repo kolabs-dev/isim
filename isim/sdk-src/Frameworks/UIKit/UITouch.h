@@ -3,7 +3,11 @@
 NS_ASSUME_NONNULL_BEGIN
 @class UIView, UIWindow;
 typedef NS_ENUM(NSInteger, UITouchPhase) { UITouchPhaseBegan, UITouchPhaseMoved, UITouchPhaseStationary, UITouchPhaseEnded, UITouchPhaseCancelled };
-typedef NS_ENUM(NSInteger, UITouchType) { UITouchTypeDirect, UITouchTypeIndirect, UITouchTypePencil };
+typedef NS_ENUM(NSInteger, UITouchType) { UITouchTypeDirect, UITouchTypeIndirect, UITouchTypePencil, UITouchTypeIndirectPointer };
+typedef NS_OPTIONS(NSInteger, UITouchProperties) {
+    UITouchPropertyForce = 1UL << 0, UITouchPropertyAzimuth = 1UL << 1, UITouchPropertyAltitude = 1UL << 2,
+    UITouchPropertyLocation = 1UL << 3, UITouchPropertyRoll = 1UL << 4
+};
 NS_SWIFT_UI_ACTOR
 @interface UITouch : NSObject
 @property (nonatomic, readonly) NSTimeInterval timestamp;
@@ -21,6 +25,12 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) CGFloat force;
 @property (nonatomic, readonly) CGFloat maximumPossibleForce;
 @property (nonatomic, readonly) CGFloat altitudeAngle;
+- (CGFloat)azimuthAngleInView:(nullable UIView *)view;
+- (CGVector)azimuthUnitVectorInView:(nullable UIView *)view;
+@property (nonatomic, readonly) CGFloat rollAngle;
+@property (nonatomic, readonly) UITouchProperties estimatedProperties;
+@property (nonatomic, readonly) UITouchProperties estimatedPropertiesExpectingUpdates;
+@property (nonatomic, readonly, nullable) NSNumber *estimationUpdateIndex;
 @property (nullable, nonatomic, readonly, copy) NSArray *gestureRecognizers;
 @end
 NS_ASSUME_NONNULL_END

@@ -1,7 +1,8 @@
 /* isim UIKit Dynamics: UIDynamicAnimator and its behaviors on a small 2D physics step (see UIDynamicAnimator.h).
  * Each frame the animator integrates item velocities (semi-implicit Euler, 1/240 s substeps) under gravity,
- * pushes, snaps and attachments, resolves collisions of axis-aligned item frames against boundaries and each
- * other (restitution = elasticity, tangential friction), writes the items' centers and runs behavior actions. */
+ * pushes, snaps and attachments, resolves collisions of turned rectangles (or ellipses) against boundaries and each
+ * other with impulses that include rotation (an off-centre hit spins an item; restitution = elasticity, Coulomb
+ * friction), writes the items' centers and transforms and runs behavior actions. */
 #import "CAPrivate.h"
 #import <UIKit/UIDynamicAnimator.h>
 #include <math.h>
@@ -255,7 +256,6 @@ static void flatten(NSArray *bs, NSMutableArray *out) { for (UIDynamicBehavior *
 - (void)_isim_addAngular:(NSNumber *)w item:(id)i { [self _body:i]->w += w.doubleValue; [self _isim_wake]; }
 - (NSNumber *)_isim_angularOf:(id)i { return @([_bodies objectForKey:i] ? [_bodies objectForKey:i]->w : 0); }
 
-static CGRect item_rect(id<UIDynamicItem> i) { CGPoint c = i.center; CGSize s = i.bounds.size; return CGRectMake(c.x - s.width / 2, c.y - s.height / 2, s.width, s.height); }
 static void report_contact(UICollisionBehavior *cb, NSMutableSet *now, id a, id b, id boundary, CGPoint at) {
     id key = boundary ? @[ @1, [NSValue valueWithNonretainedObject:a], boundary ] : @[ @0, [NSValue valueWithNonretainedObject:a], [NSValue valueWithNonretainedObject:b] ];
     [now addObject:key];
@@ -266,32 +266,108 @@ static void report_contact(UICollisionBehavior *cb, NSMutableSet *now, id a, id 
     else if (!boundary && [d respondsToSelector:@selector(collisionBehavior:beganContactForItem:withItem:atPoint:)])
         [d collisionBehavior:cb beganContactForItem:a withItem:b atPoint:at];
 }
-/* pushes the body out along n (unit, pointing out of the obstacle) by depth and reflects its velocity */
-static void resolve(id<UIDynamicItem> item, __IsimBody *b, double nx, double ny, double depth, double e) {
+/* ---- shapes and contacts ----
+   An item is a rectangle (its bounds) turned by its angle, or an ellipse inscribed in it (collisionBoundsType
+   .ellipse); .path uses the path's bounding rectangle (adapted). Contacts against a boundary line use the
+   deepest corner (corners within half a point of it are averaged, so a box lying flat gets no torque) or the
+   ellipse's support point; item pairs use the separating axis of the two rectangles. */
+typedef struct { CGPoint c; double hx, hy, ang; BOOL ellipse; } Shape;
+static Shape shape_of(id<UIDynamicItem> i, __IsimBody *b) {
+    CGSize s = i.bounds.size;
+    BOOL ell = [(id)i respondsToSelector:@selector(collisionBoundsType)] && i.collisionBoundsType == UIDynamicItemCollisionBoundsTypeEllipse;
+    if ([(id)i respondsToSelector:@selector(collisionBoundsType)] && i.collisionBoundsType == UIDynamicItemCollisionBoundsTypePath &&
+        [(id)i respondsToSelector:@selector(collisionBoundingPath)]) s = i.collisionBoundingPath.bounds.size;
+    return (Shape){ i.center, s.width / 2, s.height / 2, b->angle, ell };
+}
+static void shape_corners(Shape o, CGPoint out[4]) {
+    double c = cos(o.ang), s = sin(o.ang);
+    double xs[4] = { -o.hx, o.hx, o.hx, -o.hx }, ys[4] = { -o.hy, -o.hy, o.hy, o.hy };
+    for (int k = 0; k < 4; k++) out[k] = CGPointMake(o.c.x + xs[k] * c - ys[k] * s, o.c.y + xs[k] * s + ys[k] * c);
+}
+/* the shape against the half-plane through P whose normal n points into free space; for a segment (len >= 0, along
+   (ux, uy) from P) only the points over the segment count */
+static BOOL shape_plane_seg(Shape o, CGPoint P, double nx, double ny, double ux, double uy, double len, CGPoint *contact, double *depth);
+static BOOL shape_plane(Shape o, CGPoint P, double nx, double ny, CGPoint *contact, double *depth) { return shape_plane_seg(o, P, nx, ny, 0, 0, -1, contact, depth); }
+static BOOL over_segment(CGPoint x, CGPoint P, double ux, double uy, double len) {
+    if (len < 0) return YES;
+    double a = (x.x - P.x) * ux + (x.y - P.y) * uy;
+    return a >= -0.5 && a <= len + 0.5;
+}
+static BOOL shape_plane_seg(Shape o, CGPoint P, double nx, double ny, double ux, double uy, double len, CGPoint *contact, double *depth) {
+    if (o.ellipse) {                                           /* support point of the ellipse in -n */
+        double c = cos(o.ang), s = sin(o.ang);
+        double lx = -nx * c - ny * s, ly = nx * s - ny * c;    /* -n in the ellipse's frame */
+        double ax = o.hx * o.hx * lx, ay = o.hy * o.hy * ly, len = sqrt(o.hx * o.hx * lx * lx + o.hy * o.hy * ly * ly);
+        if (len < 1e-9) return NO;
+        ax /= len; ay /= len;
+        CGPoint sp = CGPointMake(o.c.x + ax * c - ay * s, o.c.y + ax * s + ay * c);
+        double d = -((sp.x - P.x) * nx + (sp.y - P.y) * ny);
+        if (d <= 0 || !over_segment(sp, P, ux, uy, len)) return NO;
+        *contact = sp; *depth = d;
+        return YES;
+    }
+    CGPoint k[4]; shape_corners(o, k);
+    double ds[4], maxd = 0;
+    for (int i = 0; i < 4; i++) { ds[i] = over_segment(k[i], P, ux, uy, len) ? -((k[i].x - P.x) * nx + (k[i].y - P.y) * ny) : -1; maxd = fmax(maxd, ds[i]); }
+    if (maxd <= 0) return NO;
+    double sx = 0, sy = 0; int n = 0;
+    for (int i = 0; i < 4; i++) if (ds[i] >= maxd - 0.5) { sx += k[i].x; sy += k[i].y; n++; }
+    *contact = CGPointMake(sx / n, sy / n); *depth = maxd;
+    return YES;
+}
+static double inv_mass(__IsimBody *b) { return b->anchored ? 0 : 1 / fmax(b->mass, 1e-3); }
+static double inv_inertia(__IsimBody *b, Shape o) {
+    if (b->anchored || !b->rotates) return 0;
+    double I = fmax(b->mass, 1e-3) * (4 * o.hx * o.hx + 4 * o.hy * o.hy) / 12;   /* a uniform rectangle */
+    return 1 / fmax(I, 1e-6);
+}
+/* a contact of one body with something immovable: position correction, normal impulse (restitution) with the
+   angular term, then Coulomb friction */
+static void resolve_contact(id<UIDynamicItem> item, __IsimBody *b, Shape o, CGPoint at, double nx, double ny, double depth, double e) {
     if (b->anchored) return;
     CGPoint c = item.center; item.center = CGPointMake(c.x + nx * depth, c.y + ny * depth);
-    double vn = b->vx * nx + b->vy * ny;
-    if (vn < 0) {
-        double tx = -ny, ty = nx, vt = b->vx * tx + b->vy * ty;
-        double bounce = vn * -e; if (fabs(bounce) < 15) bounce = 0;         /* settle instead of micro-bouncing */
-        vt *= fmax(0, 1 - b->friction * 0.25);
-        b->vx = tx * vt + nx * bounce; b->vy = ty * vt + ny * bounce;
+    double im = inv_mass(b), ii = inv_inertia(b, o);
+    double rx = at.x - o.c.x, ry = at.y - o.c.y;
+    double vx = b->vx - b->w * ry, vy = b->vy + b->w * rx, vn = vx * nx + vy * ny;
+    if (vn >= 0) return;
+    double rn = rx * ny - ry * nx, k = im + rn * rn * ii;
+    double eff = -vn > 15 ? e : 0;                             /* settle instead of micro-bouncing */
+    double j = -(1 + eff) * vn / k;
+    b->vx += j * nx * im; b->vy += j * ny * im; b->w += rn * j * ii;
+    if (b->friction > 0) {
+        double tx = -ny, ty = nx;
+        vx = b->vx - b->w * ry; vy = b->vy + b->w * rx;
+        double vt = vx * tx + vy * ty, rt = rx * ty - ry * tx, kt = im + rt * rt * ii;
+        double jt = -vt / kt, lim = b->friction * j;
+        jt = fmax(-lim, fmin(lim, jt));
+        b->vx += jt * tx * im; b->vy += jt * ty * im; b->w += rt * jt * ii;
     }
 }
-/* AABB r against segment p-q: penetration along the segment's normal (only if the rect's center projects onto it) */
-static BOOL rect_segment(CGRect r, CGPoint p, CGPoint q, double *nx, double *ny, double *depth) {
-    double dx = q.x - p.x, dy = q.y - p.y, len = hypot(dx, dy);
-    if (len < 1e-9) return NO;
-    double ux = dx / len, uy = dy / len, mx = -uy, my = ux;
-    CGPoint c = CGPointMake(CGRectGetMidX(r), CGRectGetMidY(r));
-    double along = (c.x - p.x) * ux + (c.y - p.y) * uy;
-    double halfAlong = fabs(ux) * r.size.width / 2 + fabs(uy) * r.size.height / 2;
-    if (along < -halfAlong || along > len + halfAlong) return NO;
-    double dist = (c.x - p.x) * mx + (c.y - p.y) * my;
-    double half = fabs(mx) * r.size.width / 2 + fabs(my) * r.size.height / 2;
-    if (fabs(dist) >= half) return NO;
-    double s = dist >= 0 ? 1 : -1;
-    *nx = mx * s; *ny = my * s; *depth = half - fabs(dist);
+/* two rotated rectangles: separating axis (n points from q to p), the contact is the average of the corners of each
+   inside the other */
+static BOOL shape_pair(Shape p, Shape q, double *nx, double *ny, double *depth, CGPoint *contact) {
+    double axes[4][2] = { { cos(p.ang), sin(p.ang) }, { -sin(p.ang), cos(p.ang) }, { cos(q.ang), sin(q.ang) }, { -sin(q.ang), cos(q.ang) } };
+    double best = INFINITY, bx = 0, by = 0;
+    for (int k = 0; k < 4; k++) {
+        double ax = axes[k][0], ay = axes[k][1];
+        double rp = p.hx * fabs(cos(p.ang) * ax + sin(p.ang) * ay) + p.hy * fabs(-sin(p.ang) * ax + cos(p.ang) * ay);
+        double rq = q.hx * fabs(cos(q.ang) * ax + sin(q.ang) * ay) + q.hy * fabs(-sin(q.ang) * ax + cos(q.ang) * ay);
+        double d = (p.c.x - q.c.x) * ax + (p.c.y - q.c.y) * ay, overlap = rp + rq - fabs(d);
+        if (overlap <= 0) return NO;
+        if (overlap < best) { best = overlap; bx = d >= 0 ? ax : -ax; by = d >= 0 ? ay : -ay; }
+    }
+    CGPoint kp[4], kq[4]; shape_corners(p, kp); shape_corners(q, kq);
+    double sx = 0, sy = 0; int n = 0;
+    for (int pass = 0; pass < 2; pass++) {
+        Shape in = pass ? p : q; CGPoint *ks = pass ? kq : kp;
+        double c = cos(in.ang), s = sin(in.ang);
+        for (int k = 0; k < 4; k++) {
+            double dx = ks[k].x - in.c.x, dy = ks[k].y - in.c.y, lx = dx * c + dy * s, ly = -dx * s + dy * c;
+            if (fabs(lx) <= in.hx + 0.01 && fabs(ly) <= in.hy + 0.01) { sx += ks[k].x; sy += ks[k].y; n++; }
+        }
+    }
+    *contact = n ? CGPointMake(sx / n, sy / n) : CGPointMake((p.c.x + q.c.x) / 2, (p.c.y + q.c.y) / 2);
+    *nx = bx; *ny = by; *depth = best;
     return YES;
 }
 - (void)_step:(double)dt items:(NSArray *)items behaviors:(NSArray *)bs {
@@ -366,42 +442,55 @@ static BOOL rect_segment(CGRect r, CGPoint p, CGPoint q, double *nx, double *ny,
             __IsimBody *b = [self _body:i];
             if (!bounds) break;
             if (cb.translatesReferenceBoundsIntoBoundary && _referenceView) {
-                CGRect R = UIEdgeInsetsInsetRect(_referenceView.bounds, cb->_insets), r = item_rect(i);
-                if (CGRectGetMinX(r) < CGRectGetMinX(R)) { resolve(i, b, 1, 0, CGRectGetMinX(R) - CGRectGetMinX(r), b->e); report_contact(cb, now, i, nil, [NSNull null], CGPointMake(CGRectGetMinX(R), CGRectGetMidY(r))); }
-                if (CGRectGetMaxX(r) > CGRectGetMaxX(R)) { resolve(i, b, -1, 0, CGRectGetMaxX(r) - CGRectGetMaxX(R), b->e); report_contact(cb, now, i, nil, [NSNull null], CGPointMake(CGRectGetMaxX(R), CGRectGetMidY(r))); }
-                r = item_rect(i);
-                if (CGRectGetMinY(r) < CGRectGetMinY(R)) { resolve(i, b, 0, 1, CGRectGetMinY(R) - CGRectGetMinY(r), b->e); report_contact(cb, now, i, nil, [NSNull null], CGPointMake(CGRectGetMidX(r), CGRectGetMinY(R))); }
-                if (CGRectGetMaxY(r) > CGRectGetMaxY(R)) { resolve(i, b, 0, -1, CGRectGetMaxY(r) - CGRectGetMaxY(R), b->e); report_contact(cb, now, i, nil, [NSNull null], CGPointMake(CGRectGetMidX(r), CGRectGetMaxY(R))); }
+                CGRect R = UIEdgeInsetsInsetRect(_referenceView.bounds, cb->_insets);
+                CGPoint planes[4] = { CGPointMake(CGRectGetMinX(R), 0), CGPointMake(CGRectGetMaxX(R), 0), CGPointMake(0, CGRectGetMinY(R)), CGPointMake(0, CGRectGetMaxY(R)) };
+                double ns[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+                for (int k = 0; k < 4; k++) {
+                    CGPoint at; double depth;
+                    Shape o = shape_of(i, b);
+                    if (!shape_plane(o, planes[k], ns[k][0], ns[k][1], &at, &depth)) continue;
+                    resolve_contact(i, b, o, at, ns[k][0], ns[k][1], depth, b->e);
+                    report_contact(cb, now, i, nil, [NSNull null], at);
+                }
             }
             for (__IsimBoundary *bd in [cb _isim_boundaries]) {
                 for (int k = 0; k + 1 < bd->n; k++) {
-                    double nx, ny, depth;
-                    CGRect r = item_rect(i);
-                    if (!rect_segment(r, bd->pts[k], bd->pts[k + 1], &nx, &ny, &depth)) continue;
-                    resolve(i, b, nx, ny, depth, b->e);
-                    report_contact(cb, now, i, nil, bd->identifier, CGPointMake(CGRectGetMidX(r) - nx * r.size.width / 2, CGRectGetMidY(r) - ny * r.size.height / 2));
+                    CGPoint P = bd->pts[k], Q = bd->pts[k + 1];
+                    double dx = Q.x - P.x, dy = Q.y - P.y, len = hypot(dx, dy);
+                    if (len < 1e-9) continue;
+                    double ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+                    Shape o = shape_of(i, b);
+                    if ((o.c.x - P.x) * nx + (o.c.y - P.y) * ny < 0) { nx = -nx; ny = -ny; }   /* the item's side of the line */
+                    CGPoint at; double depth;
+                    if (!shape_plane_seg(o, P, nx, ny, ux, uy, len, &at, &depth)) continue;   /* corners over the segment */
+                    resolve_contact(i, b, o, at, nx, ny, depth, b->e);
+                    report_contact(cb, now, i, nil, bd->identifier, at);
                 }
             }
         }
         if (mutual) for (NSUInteger x = 0; x < its.count; x++) for (NSUInteger y = x + 1; y < its.count; y++) {
             id<UIDynamicItem> p = its[x], q = its[y];
-            CGRect a = item_rect(p), c = item_rect(q), in = CGRectIntersection(a, c);
-            if (CGRectIsNull(in) || in.size.width <= 0 || in.size.height <= 0) continue;
             __IsimBody *bp = [self _body:p], *bq = [self _body:q];
-            double nx = 0, ny = 0, depth;
-            if (in.size.width < in.size.height) { nx = CGRectGetMidX(a) < CGRectGetMidX(c) ? -1 : 1; depth = in.size.width; }
-            else { ny = CGRectGetMidY(a) < CGRectGetMidY(c) ? -1 : 1; depth = in.size.height; }
-            double ip = bp->anchored ? 0 : 1 / fmax(bp->mass, 1e-3), iq = bq->anchored ? 0 : 1 / fmax(bq->mass, 1e-3), sum = ip + iq;
+            Shape sp = shape_of(p, bp), sq = shape_of(q, bq);
+            double nx, ny, depth; CGPoint at;
+            if (!shape_pair(sp, sq, &nx, &ny, &depth, &at)) continue;
+            double ip = inv_mass(bp), iq = inv_mass(bq), sum = ip + iq;
             if (sum <= 0) continue;
             CGPoint pc = p.center, qc = q.center;
             p.center = CGPointMake(pc.x + nx * depth * ip / sum, pc.y + ny * depth * ip / sum);
             q.center = CGPointMake(qc.x - nx * depth * iq / sum, qc.y - ny * depth * iq / sum);
-            double rv = (bp->vx - bq->vx) * nx + (bp->vy - bq->vy) * ny;
-            if (rv < 0) {
-                double e = (bp->e + bq->e) / 2, j = -(1 + e) * rv / sum;
-                bp->vx += j * ip * nx; bp->vy += j * ip * ny; bq->vx -= j * iq * nx; bq->vy -= j * iq * ny;
+            double Ip = inv_inertia(bp, sp), Iq = inv_inertia(bq, sq);
+            double rpx = at.x - sp.c.x, rpy = at.y - sp.c.y, rqx = at.x - sq.c.x, rqy = at.y - sq.c.y;
+            double vx = (bp->vx - bp->w * rpy) - (bq->vx - bq->w * rqy), vy = (bp->vy + bp->w * rpx) - (bq->vy + bq->w * rqx);
+            double vn = vx * nx + vy * ny;
+            if (vn < 0) {
+                double rnp = rpx * ny - rpy * nx, rnq = rqx * ny - rqy * nx;
+                double e = (bp->e + bq->e) / 2, k = sum + rnp * rnp * Ip + rnq * rnq * Iq;
+                double j = -(1 + (-vn > 15 ? e : 0)) * vn / k;
+                bp->vx += j * ip * nx; bp->vy += j * ip * ny; bp->w += rnp * j * Ip;
+                bq->vx -= j * iq * nx; bq->vy -= j * iq * ny; bq->w -= rnq * j * Iq;
             }
-            report_contact(cb, now, p, q, nil, CGPointMake(CGRectGetMidX(in), CGRectGetMidY(in)));
+            report_contact(cb, now, p, q, nil, at);
         }
         /* ended contacts (reported once per frame step set) */
         for (NSArray *key in [cb->_contacts copy]) {
