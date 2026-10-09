@@ -576,8 +576,15 @@ UIEdgeInsets isim_ui_safe_insets_for_rect(UIView *v, CGRect inWin) {
 }
 - (void)safeAreaInsetsDidChange {}
 - (void)setLayoutMargins:(UIEdgeInsets)m { if (UIEdgeInsetsEqualToEdgeInsets(m, _layoutMargins)) return; _layoutMargins = m; isim_ui_constraints_changed(); [self setNeedsLayout]; }
-- (NSDirectionalEdgeInsets)directionalLayoutMargins { return NSDirectionalEdgeInsetsMake(_layoutMargins.top, _layoutMargins.left, _layoutMargins.bottom, _layoutMargins.right); }
-- (void)setDirectionalLayoutMargins:(NSDirectionalEdgeInsets)m { self.layoutMargins = UIEdgeInsetsMake(m.top, m.leading, m.bottom, m.trailing); }
+/* leading / trailing are the right / left margins right to left */
+- (NSDirectionalEdgeInsets)directionalLayoutMargins {
+    BOOL rtl = [self _isim_isRTL];
+    return NSDirectionalEdgeInsetsMake(_layoutMargins.top, rtl ? _layoutMargins.right : _layoutMargins.left, _layoutMargins.bottom, rtl ? _layoutMargins.left : _layoutMargins.right);
+}
+- (void)setDirectionalLayoutMargins:(NSDirectionalEdgeInsets)m {
+    BOOL rtl = [self _isim_isRTL];
+    self.layoutMargins = UIEdgeInsetsMake(m.top, rtl ? m.trailing : m.leading, m.bottom, rtl ? m.leading : m.trailing);
+}
 - (UILayoutGuide *)safeAreaLayoutGuide {
     if (!_safeGuide) {
         _safeGuide = [UILayoutGuide new]; _safeGuide.owningView = self; _safeGuide.identifier = @"UIViewSafeAreaLayoutGuide";
@@ -693,7 +700,13 @@ void isim_ui_constraints_changed(void) { al_dirty = YES; isim_ui_set_needs_layou
 static double al_strength(UILayoutPriority p) { return p >= 1000 ? 1e12 : p <= 0 ? 0 : pow(10, p / 125.0); }
 
 static int *al_vars(id item, unsigned gen);
-static int al_attr_terms(id item, NSLayoutAttribute a, unsigned gen, int vars[2], double coeffs[2], double *offset) {
+/* the terms (and offset) of an attribute, negated: a position measured from the right */
+static int al_negate(int n, double coeffs[2], double *offset) {
+    for (int i = 0; i < n; i++) coeffs[i] = -coeffs[i];
+    *offset = -*offset;
+    return n;
+}
+static int al_attr_terms(id item, NSLayoutAttribute a, unsigned gen, BOOL rtl, int vars[2], double coeffs[2], double *offset) {
     int *v = al_vars(item, gen);
     if (!v) return 0;
     *offset = 0;
@@ -702,19 +715,30 @@ static int al_attr_terms(id item, NSLayoutAttribute a, unsigned gen, int vars[2]
     #define ONE(x) (vars[0] = (x), coeffs[0] = 1, 1)
     #define TWO(x, y, k) (vars[0] = (x), coeffs[0] = 1, vars[1] = (y), coeffs[1] = (k), 2)
     switch (a) {
-    case NSLayoutAttributeLeft: case NSLayoutAttributeLeading: return ONE(L);
-    case NSLayoutAttributeRight: case NSLayoutAttributeTrailing: return TWO(L, W, 1);
-    case NSLayoutAttributeCenterX: return TWO(L, W, 0.5);
+    /* right to left, the constraint's x positions are measured from the right (negated): leading is the right edge,
+       trailing the left one, and constants move towards the trailing side, as on iOS */
+    #define NEG(expr) al_negate((expr), coeffs, offset)
+    case NSLayoutAttributeLeading: return rtl ? NEG(TWO(L, W, 1)) : ONE(L);
+    case NSLayoutAttributeTrailing: return rtl ? NEG(ONE(L)) : TWO(L, W, 1);
+    case NSLayoutAttributeLeadingMargin:
+        if (rtl) { *offset = -m.right; return NEG(TWO(L, W, 1)); }
+        *offset = m.left; return ONE(L);
+    case NSLayoutAttributeTrailingMargin:
+        if (rtl) { *offset = m.left; return NEG(ONE(L)); }
+        *offset = -m.right; return TWO(L, W, 1);
+    case NSLayoutAttributeLeft: return ONE(L);
+    case NSLayoutAttributeRight: return TWO(L, W, 1);
+    case NSLayoutAttributeCenterX: return rtl ? NEG(TWO(L, W, 0.5)) : TWO(L, W, 0.5);
     case NSLayoutAttributeWidth: return ONE(W);
     case NSLayoutAttributeTop: return ONE(T);
     case NSLayoutAttributeBottom: return TWO(T, H, 1);
     case NSLayoutAttributeCenterY: return TWO(T, H, 0.5);
     case NSLayoutAttributeHeight: return ONE(H);
-    case NSLayoutAttributeLeftMargin: case NSLayoutAttributeLeadingMargin: *offset = m.left; return ONE(L);
-    case NSLayoutAttributeRightMargin: case NSLayoutAttributeTrailingMargin: *offset = -m.right; return TWO(L, W, 1);
+    case NSLayoutAttributeLeftMargin: *offset = m.left; return ONE(L);
+    case NSLayoutAttributeRightMargin: *offset = -m.right; return TWO(L, W, 1);
     case NSLayoutAttributeTopMargin: *offset = m.top; return ONE(T);
     case NSLayoutAttributeBottomMargin: *offset = -m.bottom; return TWO(T, H, 1);
-    case NSLayoutAttributeCenterXWithinMargins: *offset = (m.left - m.right) / 2; return TWO(L, W, 0.5);
+    case NSLayoutAttributeCenterXWithinMargins: *offset = (m.left - m.right) / 2; return rtl ? NEG(TWO(L, W, 0.5)) : TWO(L, W, 0.5);
     case NSLayoutAttributeCenterYWithinMargins: *offset = (m.top - m.bottom) / 2; return TWO(T, H, 0.5);
     case NSLayoutAttributeFirstBaseline: case NSLayoutAttributeLastBaseline: {
         UIFont *f = [item isKindOfClass:[UILabel class]] ? ((UILabel *)item).font : [item isKindOfClass:[UIButton class]] ? ((UIButton *)item).titleLabel.font : nil;
@@ -729,15 +753,21 @@ static int al_attr_terms(id item, NSLayoutAttribute a, unsigned gen, int vars[2]
     }
     #undef ONE
     #undef TWO
+    #undef NEG
 }
 
 /* sum(coeffs[i] * attr(items[i])) + constant  REL  0 */
 BOOL isim_al_add_expr(isim_al *al, NSUInteger n, __unsafe_unretained id const *items, const NSLayoutAttribute *attrs, const CGFloat *coeffs,
                       CGFloat constant, NSLayoutRelation rel, UILayoutPriority priority) {
     int vars[16]; double cs[16]; int k = 0; double c = constant;
+    BOOL rtl = NO;                                   /* leading / trailing: the direction of the items' container */
+    for (NSUInteger i = 0; i < n; i++)
+        if (attrs[i] == NSLayoutAttributeLeading || attrs[i] == NSLayoutAttributeTrailing || attrs[i] == NSLayoutAttributeLeadingMargin || attrs[i] == NSLayoutAttributeTrailingMargin) {
+            rtl = isim_ui_items_rtl(n, items); break;
+        }
     for (NSUInteger i = 0; i < n && k < 14; i++) {
         int tv[2]; double tc[2], off;
-        int m = al_attr_terms(items[i], attrs[i], al->gen, tv, tc, &off);
+        int m = al_attr_terms(items[i], attrs[i], al->gen, rtl, tv, tc, &off);
         if (!m) return NO;
         for (int j = 0; j < m; j++) { vars[k] = tv[j]; cs[k++] = tc[j] * coeffs[i]; }
         c += off * coeffs[i];
@@ -983,6 +1013,8 @@ static IMP base_drawRect;
     }
     /* a window, a view controller's view and a view with trait overrides draw with their own traits (dynamic colors) */
     BOOL pushedStyle = _vc || [self _isim_hasTraitOverrides] || !_superview;
+    BOOL wasRTL = isim_ui_drawing_rtl;
+    isim_ui_drawing_rtl = [self _isim_isRTL];
     if (pushedStyle) isim_ui_push_traits(self.traitCollection);
     double a = alpha * caOpacity;
     CALayer *maskLayer = _layer.mask;
@@ -1021,6 +1053,7 @@ static IMP base_drawRect;
     else if (group && !_vfx) isim_gfx_pop_group(a);
     if (_vfx) isim_gfx_pop_group_filtered(_vfx, a, 0, 0, sz.width, sz.height);
     if (pushedStyle) isim_ui_pop_traits();
+    isim_ui_drawing_rtl = wasRTL;
     isim_gfx_restore();
 }
 

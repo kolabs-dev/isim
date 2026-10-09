@@ -59,7 +59,7 @@ NS_SWIFT_UI_ACTOR
 - (NSData *)PNGDataWithActions:(NS_NOESCAPE UIGraphicsImageDrawingActions)actions;
 - (NSData *)JPEGDataWithCompressionQuality:(CGFloat)compressionQuality actions:(NS_NOESCAPE UIGraphicsImageDrawingActions)actions;
 @end
-/* PDF (isim: cairo's PDF surface; UIKit drawing goes to the page while the renderer's actions run). Printing is not implemented. */
+/* PDF (isim: cairo's PDF surface; UIKit drawing goes to the page while the renderer's actions run). Printing: UIPrinting.h. */
 UIKIT_EXTERN BOOL UIGraphicsBeginPDFContextToFile(NSString *path, CGRect bounds, NSDictionary *_Nullable documentInfo);
 UIKIT_EXTERN void UIGraphicsBeginPDFContextToData(NSMutableData *data, CGRect bounds, NSDictionary *_Nullable documentInfo);
 UIKIT_EXTERN void UIGraphicsEndPDFContext(void);

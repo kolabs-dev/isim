@@ -286,7 +286,7 @@ UITraitCollection *isim_ui_screen_traits(void) {
     t[K_HSIZE] = @(hsize_for(screen, pad, screen));
     t[K_VSIZE] = @(pad || !landscape ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact);
     t[K_SCALE] = @(d->scale);
-    t[K_DIR] = @(UITraitEnvironmentLayoutDirectionLeftToRight);
+    t[K_DIR] = @(isim_ui_app_layout_direction() == UIUserInterfaceLayoutDirectionRightToLeft ? UITraitEnvironmentLayoutDirectionRightToLeft : UITraitEnvironmentLayoutDirectionLeftToRight);
     t[K_FORCE] = @(UIForceTouchCapabilityUnavailable);
     t[K_CATEGORY] = isim_ui_content_size_category() ?: UIContentSizeCategoryLarge;
     t[K_GAMUT] = @(UIDisplayGamutP3);

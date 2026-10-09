@@ -361,15 +361,20 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     if (isim_ui_glass()) {
         isim_ui_draw_glass(CGRectMake(0, (s.height - 44) / 2, 44, 44), 22, nil, self.highlighted ? 8 : 0);
         UIImage *chev = [UIImage systemImageNamed:@"chevron.left"];
+        if ([self _isim_isRTL]) chev = [chev imageWithHorizontallyFlippedOrientation];
         CGSize i = chev.size; double k = 20 / fmax(1, i.height);
         [chev _isim_drawInRect:CGRectMake((44 - i.width * k) / 2 - 1, (s.height - i.height * k) / 2, i.width * k, i.height * k) tint:UIColor.labelColor alpha:1];
         return;
     }
+    BOOL rtl = [self _isim_isRTL];                     /* right to left: the chevron points right, after the title */
     UIImage *chev = [UIImage systemImageNamed:@"chevron.left"];
+    if (rtl) chev = [chev imageWithHorizontallyFlippedOrientation];
     CGSize i = chev.size; double k = 22 / fmax(1, i.height);
-    [chev _isim_drawInRect:CGRectMake(8, (s.height - i.height * k) / 2, i.width * k, i.height * k) tint:c alpha:a];
+    CGRect cr = CGRectMake(8, (s.height - i.height * k) / 2, i.width * k, i.height * k);
+    [chev _isim_drawInRect:rtl ? isim_ui_mirror_rect(cr, s.width) : cr tint:c alpha:a];
     UIFont *f = [UIFont systemFontOfSize:17]; CGSize ts = isim_ui_measure(self.text ?: @"", f, s.width, 1);
-    isim_ui_draw_text(self.text ?: @"", f, c, CGRectMake(8 + i.width * k + 6, (s.height - ts.height) / 2, s.width - 8 - i.width * k - 6, ts.height), NSTextAlignmentLeft, 1, a);
+    CGRect tr = CGRectMake(8 + i.width * k + 6, (s.height - ts.height) / 2, s.width - 8 - i.width * k - 6, ts.height);
+    isim_ui_draw_text(self.text ?: @"", f, c, rtl ? isim_ui_mirror_rect(tr, s.width) : tr, rtl ? NSTextAlignmentRight : NSTextAlignmentLeft, 1, a);
 }
 @end
 
@@ -478,6 +483,12 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         _largeClip.frame = CGRectMake(0, y + 44, W, extra);
         _large.text = item.title; _large.textColor = [self _isim_titleColor:YES];
         _large.frame = CGRectMake(margin, extra - 52, W - 2 * margin, 50);
+    }
+    if ([self _isim_isRTL]) {                          /* right to left: back and leading items on the right */
+        if (showBack) _back.frame = isim_ui_mirror_rect(_back.frame, W);
+        for (UIView *v in _itemViews) v.frame = isim_ui_mirror_rect(v.frame, W);
+        if (_titleViewHost) _titleViewHost.frame = isim_ui_mirror_rect(_titleViewHost.frame, W);
+        _title.frame = isim_ui_mirror_rect(_title.frame, W);
     }
     [self bringSubviewToFront:_back];
     [self _isim_placeSearchBarAtY:y + 44 + (large ? extra : 0) visible:self._isim_searchExtra];   /* UISearch.m */
