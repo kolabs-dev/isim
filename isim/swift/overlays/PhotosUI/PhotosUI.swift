@@ -79,7 +79,7 @@ enum _PUAssets {
         let type = path.lowercased().hasSuffix(".png") ? "public.png" : "public.jpeg"
         p.suggestedName = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
         p.registerDataRepresentation(forTypeIdentifier: type, visibility: .all) { done in
-            if let d = FileManager.default.contents(atPath: path) { done(d, nil) } else { done(nil, PHPhotosError(.missingResource) as NSError) }
+            if let d = FileManager.default.contents(atPath: path) { done(d, nil) } else { done(nil, PHPhotosError(.missingResource)) }
             return nil
         }
         return p

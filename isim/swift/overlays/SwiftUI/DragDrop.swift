@@ -50,7 +50,7 @@ func _provider<T: Transferable>(_ payload: T) -> NSItemProvider {
             nonisolated(unsafe) var data: Data?, err: Error?
             Task.detached { do { data = try await box.value.exported(as: t) } catch { err = error }; sem.signal() }
             sem.wait()
-            done(data, err.map { $0 as NSError })
+            done(data, err)
             return nil
         }
     }

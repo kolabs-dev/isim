@@ -25,13 +25,13 @@ extension NSItemProvider {
     /// an Objective-C object of a class, made on request
     public func registerObject(ofClass aClass: NSItemProviderWriting.Type, visibility: NSItemProviderRepresentationVisibility,
                                loadHandler: @escaping @Sendable (@escaping @Sendable (NSItemProviderWriting?, Error?) -> Void) -> Progress?) {
-        __registerObject(ofClass: aClass, visibility: visibility) { done in loadHandler { o, e in done(o, e.map { $0 as NSError }) } }
+        __registerObject(ofClass: aClass, visibility: visibility) { done in loadHandler { o, e in done(o, e) } }
     }
     public func registerObject<T: _ObjectiveCBridgeable>(ofClass aClass: T.Type, visibility: NSItemProviderRepresentationVisibility,
                                                          loadHandler: @escaping @Sendable (@escaping @Sendable (T?, Error?) -> Void) -> Progress?)
         where T._ObjectiveCType: NSItemProviderWriting {
         __registerObject(ofClass: T._ObjectiveCType.self as NSItemProviderWriting.Type, visibility: visibility) { done in
-            loadHandler { value, error in done(value.map { $0._bridgeToObjectiveC() as NSItemProviderWriting }, error.map { $0 as NSError }) }
+            loadHandler { value, error in done(value.map { $0._bridgeToObjectiveC() as NSItemProviderWriting }, error) }
         }
     }
 }
