@@ -55,12 +55,12 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 59 | 21 | 1 | 1 | 82 | 85% |
+| **Foundation** | 60 | 21 | 1 | 1 | 83 | 85% |
 | &nbsp;&nbsp;↳ Strings & text | 11 | 4 | 0 | 0 | 15 | 87% |
 | &nbsp;&nbsp;↳ Collections & values | 10 | 3 | 0 | 0 | 13 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
-| &nbsp;&nbsp;↳ Files, bundles & preferences | 6 | 3 | 0 | 0 | 9 | 83% |
+| &nbsp;&nbsp;↳ Files, bundles & preferences | 7 | 3 | 0 | 0 | 10 | 85% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 7 | 2 | 0 | 0 | 9 | 89% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **739** | **196** | **26** | **36** | **997** | **84%** |
+| **All areas** | **740** | **196** | **26** | **36** | **998** | **84%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 99% (206) | 99% (210) | 98% (217) | 96% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 85% (82) | 85% (82) | 85% (82) | 85% (82) |
+| Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (17) | 100% (17) | 100% (17) | 100% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **85%** (954) | **85%** (966) | **84%** (983) | **84%** (997) |
+| **All areas** | **85%** (955) | **85%** (967) | **84%** (984) | **84%** (998) |
 
 ---
 
@@ -840,7 +840,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | App sandbox container (Documents, Library, Caches, tmp) | ✅ | ≤17 | per app, under `ISIM_DATA` |
-| `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | 🟡 | ≤17 | no attributes, enumerators, symlinks, `replaceItem` |
+| `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | 🟡 | ≤17 | no enumerators, symlinks, `replaceItem` |
+| `FileManager` attributes (`attributesOfItem(atPath:)`, `setAttributes(_:ofItemAtPath:)`, `attributesOfFileSystem(forPath:)`, `FileAttributeKey` / `FileAttributeType` / `FileProtectionType`, `NSDictionary` file accessors) | ✅ | ≤17 | adapted: from `lstat` (birth time from `statx`), `statvfs`; sets permissions, owner / group, modification date; creation date, data protection, immutable / append-only and HFS codes are accepted and ignored. `createFile` / `createDirectory` apply their attributes. Tested: FoundationTest, SwiftFoundationTest |
 | `Data(contentsOf:)`, `Data.write(to:)` | ✅ | ≤17 | |
 | `FileHandle`, `InputStream` / `OutputStream` | 🟡 | ≤17 | files, memory and standard I/O; `readabilityHandler` on a thread; no sockets / bound stream pairs |
 | App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ✅ | ≤17 | `<isim data>/Shared/AppGroup/<id>`, shared by apps and their extensions; `UserDefaults(suiteName:)` uses it. Tested (HelloWidgets: the widget extension and the app share a counter) |

@@ -44,6 +44,36 @@ func codingChecks() {
           "NSSecureUnarchiveFromDataTransformer: UIColor only through a subclass's allowedTopLevelClasses (\(colors?.count ?? -1))")
 }
 
+/// FileManager attributes (issue #102)
+func fileAttributeChecks() {
+    let fm = FileManager.default
+    let dir = (NSTemporaryDirectory() as NSString).appendingPathComponent("swift-attrs")
+    try? fm.removeItem(atPath: dir)
+    check((try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])) != nil,
+          "createDirectory(atPath:withIntermediateDirectories:attributes:) with FileAttributeKey")
+    let path = (dir as NSString).appendingPathComponent("f.bin")
+    check(fm.createFile(atPath: path, contents: Data(count: 1000), attributes: [.posixPermissions: 0o600]), "createFile(atPath:contents:attributes:)")
+    let attrs = try? fm.attributesOfItem(atPath: path)
+    let size = try? fm.attributesOfItem(atPath: path)[.size] as? Int
+    check(size == 1000 && (attrs?[.size] as? UInt64) == 1000 && (attrs as NSDictionary?)?.fileSize() == 1000, "attributesOfItem(atPath:)[.size] (\(size ?? -1))")
+    check(attrs?[.type] as? FileAttributeType == .typeRegular && (attrs?[.posixPermissions] as? Int) == 0o600, "attributes: .type, .posixPermissions")
+    let modified = attrs?[.modificationDate] as? Date, created = attrs?[.creationDate] as? Date
+    check(modified.map { abs($0.timeIntervalSinceNow) < 60 } == true && created != nil && created! <= modified!, "attributes: .modificationDate, .creationDate")
+    check(attrs?[.ownerAccountName] as? String != nil && attrs?[.referenceCount] as? Int == 1 && attrs?[.systemFileNumber] != nil, "attributes: owner, reference count, inode")
+    let past = Date(timeIntervalSince1970: 1_500_000_000)
+    check((try? fm.setAttributes([.modificationDate: past, .posixPermissions: 0o644, .protectionKey: FileProtectionType.complete], ofItemAtPath: path)) != nil,
+          "setAttributes(_:ofItemAtPath:)")
+    let after = try? fm.attributesOfItem(atPath: path)
+    check(after?[.modificationDate] as? Date == past && (after?[.posixPermissions] as? NSNumber)?.intValue == 0o644, "setAttributes applies the date and permissions")
+    check((try? fm.attributesOfItem(atPath: dir))?[.type] as? FileAttributeType == .typeDirectory, "a directory's .type")
+    do { _ = try fm.attributesOfItem(atPath: (dir as NSString).appendingPathComponent("missing")); check(false, "missing file throws") }
+    catch { check((error as? CocoaError)?.code == .fileReadNoSuchFile, "a missing file throws CocoaError.fileReadNoSuchFile (\(error))") }
+    let fs = try? fm.attributesOfFileSystem(forPath: dir)
+    let total = (fs?[.systemSize] as? NSNumber)?.int64Value ?? 0, free = (fs?[.systemFreeSize] as? NSNumber)?.int64Value ?? -1
+    check(total > 0 && free >= 0 && free <= total && fs?[.systemNodes] != nil, "attributesOfFileSystem(forPath:) (\(total), \(free))")
+    try? fm.removeItem(atPath: dir)
+}
+
 /// Objective-C collections of classes bridged to Swift collections of metatypes (issue #49)
 func classBridgingChecks() {
     let classes = [NSString.self, UIColor.self] as [AnyClass] as NSArray
@@ -279,6 +309,7 @@ func errorBridgingChecks() {
         errorBridgingChecks()
         codingChecks()
         classBridgingChecks()
+        fileAttributeChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }

@@ -1,5 +1,7 @@
 // Foundation self-test for the isim runtime. Prints PASS/FAIL per check; exit code = failures.
 #import <Foundation/Foundation.h>
+#include <errno.h>
+#include <math.h>
 #include <time.h>
 
 static int failures, checks;
@@ -490,6 +492,42 @@ int main(int argc, char *argv[]) {
                                                                   fromData:[NSKeyedArchiver archivedDataWithRootObject:mixed requiringSecureCoding:YES error:NULL] error:NULL];
         CHECK([[mixed2[@"locale"] localeIdentifier] isEqualToString:@"pt_BR"] && [[mixed2[@"tz"] name] isEqualToString:@"America/Sao_Paulo"] &&
               mixed2[@"null"] == [NSNull null] && [mixed2[@"set"] containsObject:@"x"]);
+
+        // NSFileManager attributes (#102)
+        NSFileManager *fm = NSFileManager.defaultManager;
+        NSString *attrDir = [NSTemporaryDirectory() stringByAppendingPathComponent:@"attrs"];
+        [fm removeItemAtPath:attrDir error:NULL];
+        CHECK([fm createDirectoryAtPath:attrDir withIntermediateDirectories:YES attributes:@{ NSFilePosixPermissions: @0700 } error:NULL]);
+        NSString *attrFile = [attrDir stringByAppendingPathComponent:@"f.txt"];
+        [@"twelve bytes" writeToFile:attrFile atomically:NO encoding:NSUTF8StringEncoding error:NULL];
+        NSError *attrErr = nil;
+        NSDictionary *fa = [fm attributesOfItemAtPath:attrFile error:&attrErr];
+        CHECK(fa && !attrErr && [fa[NSFileSize] unsignedLongLongValue] == 12 && fa.fileSize == 12 && [fa.fileType isEqualToString:NSFileTypeRegular]);
+        CHECK(fabs(fa.fileModificationDate.timeIntervalSinceNow) < 60 && fa.fileCreationDate &&
+              [fa.fileCreationDate compare:fa.fileModificationDate] != NSOrderedDescending);
+        CHECK([fa[NSFileReferenceCount] integerValue] == 1 && fa.fileSystemFileNumber > 0 && fa.fileOwnerAccountID && fa.fileGroupOwnerAccountID &&
+              fa.fileOwnerAccountName.length > 0 && [fa[NSFileExtensionHidden] isEqual:@NO]);
+        NSDictionary *da = [fm attributesOfItemAtPath:attrDir error:NULL];
+        CHECK([da.fileType isEqualToString:NSFileTypeDirectory] && da.filePosixPermissions == 0700 && da.fileSystemNumber == fa.fileSystemNumber);
+        NSDate *past = [NSDate dateWithTimeIntervalSince1970:1000000000.5];
+        NSDate *created = fa.fileCreationDate;
+        NSDictionary *newAttrs = @{ NSFilePosixPermissions: @0640, NSFileModificationDate: past, NSFileProtectionKey: NSFileProtectionComplete };
+        CHECK([fm setAttributes:newAttrs ofItemAtPath:attrFile error:NULL]);
+        fa = [fm attributesOfItemAtPath:attrFile error:NULL];
+        CHECK(fa.filePosixPermissions == 0640 && fabs(fa.fileModificationDate.timeIntervalSince1970 - 1000000000.5) < 1e-3);
+        CHECK([fa.fileCreationDate isEqual:created]);       // chmod / utimes leave the creation date alone
+        NSDictionary *owner = @{ NSFileOwnerAccountID: fa.fileOwnerAccountID, NSFileGroupOwnerAccountName: fa.fileGroupOwnerAccountName };
+        CHECK([fm setAttributes:owner ofItemAtPath:attrFile error:NULL]);   // to the same owner: allowed without privileges
+        NSString *missing = [attrDir stringByAppendingPathComponent:@"missing"];
+        attrErr = nil;
+        CHECK([fm attributesOfItemAtPath:missing error:&attrErr] == nil && [attrErr.domain isEqualToString:NSCocoaErrorDomain] && attrErr.code == 260 &&
+              [attrErr.userInfo[NSUnderlyingErrorKey] code] == ENOENT);
+        attrErr = nil;
+        CHECK(![fm setAttributes:@{ NSFilePosixPermissions: @0600 } ofItemAtPath:missing error:&attrErr] && attrErr.code == 4);
+        NSDictionary *fsa = [fm attributesOfFileSystemForPath:attrDir error:NULL];
+        CHECK([fsa[NSFileSystemSize] unsignedLongLongValue] > 0 && [fsa[NSFileSystemFreeSize] unsignedLongLongValue] <= [fsa[NSFileSystemSize] unsignedLongLongValue] &&
+              fsa[NSFileSystemNodes] && fsa[NSFileSystemFreeNodes] && [fsa[NSFileSystemNumber] isEqual:fa[NSFileSystemNumber]]);
+        CHECK([fm removeItemAtPath:attrDir error:NULL]);
 
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }

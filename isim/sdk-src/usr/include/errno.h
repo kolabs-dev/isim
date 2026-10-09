@@ -26,6 +26,7 @@ __END_DECLS
 #define ENFILE 23
 #define EMFILE 24
 #define ENOSPC 28
+#define EROFS 30
 #define ERANGE 34
 #define EDOM 33
 #define EWOULDBLOCK EAGAIN

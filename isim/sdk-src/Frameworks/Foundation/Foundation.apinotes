@@ -96,6 +96,15 @@ Classes:
   - Selector: 'URLsForDirectory:inDomains:'
     MethodKind: Instance
     SwiftName: 'urls(for:in:)'
+  - Selector: 'attributesOfItemAtPath:error:'
+    MethodKind: Instance
+    SwiftName: 'attributesOfItem(atPath:)'
+  - Selector: 'setAttributes:ofItemAtPath:error:'
+    MethodKind: Instance
+    SwiftName: 'setAttributes(_:ofItemAtPath:)'
+  - Selector: 'attributesOfFileSystemForPath:error:'
+    MethodKind: Instance
+    SwiftName: 'attributesOfFileSystem(forPath:)'
 - Name: NSThread
   SwiftName: Thread
 - Name: NSOperationQueue

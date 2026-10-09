@@ -1405,6 +1405,34 @@ static void send_deferred_edges(void) {
 #include "shell.inc"
 #include "host_cg_exports.h"
 
+/* file attributes the Darwin libSystem subset does not cover (NSFileManager): account names and file-system sizes */
+#include <errno.h>
+#include <grp.h>
+#include <pwd.h>
+#include <sys/statvfs.h>
+int isim_account_name(int group, unsigned id, char *buf, int n) {
+    char tmp[4096]; const char *name = NULL;
+    struct passwd pw, *pr = NULL; struct group gr, *gp = NULL;
+    if (group) { if (!getgrgid_r(id, &gr, tmp, sizeof tmp, &gp) && gp) name = gp->gr_name; }
+    else if (!getpwuid_r(id, &pw, tmp, sizeof tmp, &pr) && pr) name = pr->pw_name;
+    if (!name || n <= 0) return 0;
+    snprintf(buf, (size_t)n, "%s", name);
+    return 1;
+}
+long isim_account_id(int group, const char *name) {
+    char tmp[4096];
+    struct passwd pw, *pr = NULL; struct group gr, *gp = NULL;
+    if (group) return !getgrnam_r(name, &gr, tmp, sizeof tmp, &gp) && gp ? (long)gp->gr_gid : -1;
+    return !getpwnam_r(name, &pw, tmp, sizeof tmp, &pr) && pr ? (long)pr->pw_uid : -1;
+}
+int isim_fs_stats(const char *path, unsigned long long out[4]) {
+    struct statvfs v;
+    if (statvfs(path, &v)) return -errno;
+    out[0] = (unsigned long long)v.f_blocks * v.f_frsize; out[1] = (unsigned long long)v.f_bavail * v.f_frsize;
+    out[2] = v.f_files; out[3] = v.f_ffree;
+    return 0;
+}
+
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
     H(isim_device_metrics), H(isim_os_version), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
@@ -1420,7 +1448,7 @@ static const struct shim isim_table[] = {
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free), H(isim_audio_active),
     H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close), H(isim_http_metrics),
-    H(isim_ws_open), H(isim_ws_send), H(isim_ws_recv), H(isim_ws_close), H(isim_net_path),
+    H(isim_ws_open), H(isim_ws_send), H(isim_ws_recv), H(isim_ws_close), H(isim_net_path), H(isim_account_name), H(isim_account_id), H(isim_fs_stats),
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),

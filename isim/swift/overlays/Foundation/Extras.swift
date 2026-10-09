@@ -400,11 +400,24 @@ extension URL {
 extension FileManager {
     public func contents(atPath path: String) -> Data? { _readFile(path) }
     @discardableResult
-    public func createFile(atPath path: String, contents: Data?, attributes: [String: Any]? = nil) -> Bool {
-        (try? (contents ?? Data()).write(to: URL(fileURLWithPath: path))) != nil
+    public func createFile(atPath path: String, contents: Data?, attributes: [FileAttributeKey: Any]? = nil) -> Bool {
+        guard (try? (contents ?? Data()).write(to: URL(fileURLWithPath: path))) != nil else { return false }
+        if let attributes, !attributes.isEmpty { return (try? setAttributes(attributes, ofItemAtPath: path)) != nil }
+        return true
     }
-    public func createDirectory(at url: URL, withIntermediateDirectories: Bool, attributes: [String: Any]? = nil) throws {
+    public func createDirectory(at url: URL, withIntermediateDirectories: Bool, attributes: [FileAttributeKey: Any]? = nil) throws {
         try createDirectory(atPath: url.path, withIntermediateDirectories: withIntermediateDirectories, attributes: attributes)
+    }
+    // the String-keyed forms earlier isim releases had, kept for apps built against them
+    @_disfavoredOverload @discardableResult
+    public func createFile(atPath path: String, contents: Data?, attributes: [String: Any]? = nil) -> Bool {
+        let typed: [FileAttributeKey: Any]? = attributes.map { _fileAttributes($0) }
+        return createFile(atPath: path, contents: contents, attributes: typed)
+    }
+    @_disfavoredOverload
+    public func createDirectory(at url: URL, withIntermediateDirectories: Bool, attributes: [String: Any]? = nil) throws {
+        let typed: [FileAttributeKey: Any]? = attributes.map { _fileAttributes($0) }
+        try createDirectory(at: url, withIntermediateDirectories: withIntermediateDirectories, attributes: typed)
     }
     public func removeItem(at url: URL) throws { try removeItem(atPath: url.path) }
     public func contentsOfDirectory(at url: URL, includingPropertiesForKeys keys: [String]? = nil, options: Int = 0) throws -> [URL] {
@@ -423,6 +436,10 @@ extension FileManager {
     public func isReadableFile(atPath path: String) -> Bool { access(path, R_OK) == 0 }
     public func isWritableFile(atPath path: String) -> Bool { access(path, W_OK) == 0 }
     public var temporaryDirectory: URL { URL(fileURLWithPath: NSTemporaryDirectory()) }
+}
+
+private func _fileAttributes(_ a: [String: Any]) -> [FileAttributeKey: Any] {
+    Dictionary(uniqueKeysWithValues: a.map { (FileAttributeKey(rawValue: $0.key), $0.value) })
 }
 
 // MARK: - Bundle resources
