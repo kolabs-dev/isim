@@ -10,10 +10,10 @@ from isimtest import screen_frames
 @pytest.mark.os_matrix
 def test_modern_bars(launch, ios):
     app = launch("HelloModernBars")
-    if int(ios[0]) < 26:
+    if str(ios[0] or "").split(".")[0] not in ("26", "27"):            # the default device runs iOS 18
         app.wait_log(r"^hmb ios26 no$")
         tree = app.wait_view(r"id=tab-Player\b")
-        assert "id=tab-accessory" not in tree, f"iOS {ios[0]}: no bottom accessory"
+        assert "id=tab-accessory" not in tree, f"iOS {ios[0] or 18}: no bottom accessory"
         assert app.quit() == 0
         return
 
