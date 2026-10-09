@@ -4,7 +4,7 @@ This tracks how much of the iOS SDK isim covers (iOS 17, 18, 26 and 27, selected
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-08
+Last updated: 2026-10-09
 
 **Legend**
 
@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 183 | 31 | 3 | 4 | 221 | 90% |
+| **UIKit** | 186 | 28 | 3 | 4 | 221 | 90% |
 | &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 26 | 5 | 0 | 0 | 31 | 92% |
-| &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
+| &nbsp;&nbsp;↳ Views & controls | 50 | 7 | 0 | 3 | 60 | 89% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **704** | **225** | **29** | **39** | **997** | **82%** |
+| **All areas** | **707** | **222** | **29** | **39** | **997** | **82%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 92% (206) | 92% (210) | 91% (217) | 90% (221) |
+| UIKit | 92% (206) | 93% (210) | 92% (217) | 90% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **83%** (954) | **83%** (966) | **82%** (983) | **82%** (997) |
+| **All areas** | **83%** (954) | **83%** (966) | **83%** (983) | **82%** (997) |
 
 ---
 
@@ -231,10 +231,10 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIScrollView` | 🟡 | ≤17 | pan (one finger, or the centroid of two), rubber-banding, deceleration, insets, delegate, `isPagingEnabled`, `scrollViewWillEndDragging(_:withVelocity:targetContentOffset:)`; pinch zooming (`viewForZooming`, min/max/`zoomScale`, `bouncesZoom` spring back, `setZoomScale(_:animated:)`, `zoom(to:animated:)`, zoom delegate calls); tested (HelloMultiTouch). The zoomed view's `frame` stays its untransformed frame (UIKit reports the scaled one); paging unverified outside collection-view carousels. Dragging a control that tracks drags (a slider, a color spectrum, a custom control overriding `continueTracking`) does not scroll its scroll view (like `touchesShouldCancel(in:)`); buttons still scroll lists |
 | `UITableView` (cells, sections, editing, swipe actions) | ✅ | ≤17 | plain/grouped/inset grouped, cell reuse, self-sizing rows, sticky headers, header/footer titles and views, selection, swipe to delete + custom trailing and leading actions (full swipe per `performsFirstActionWithFullSwipe`), edit mode delete, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToRow`, `UITableViewController`, section index (`sectionIndexTitles`, `UITableView.indexSearch`, `sectionForSectionIndexTitle`, index colours), prefetching (`prefetchDataSource`: a screen ahead in the scrolling direction, cancelled when the direction turns), nib registration (see Storyboards), drag to reorder / drop (see Drag & drop); tested (HelloTable, HelloDragDrop, HelloStoryboards). Cell content is not inset for the index (adapted) |
 | `UITableViewDiffableDataSource` | ✅ | ≤17 | snapshots diffed into animated row inserts/deletes; reload/reconfigure; tested (HelloTable) |
-| `UICollectionView` + `UICollectionViewFlowLayout` | 🟡 | ≤17 | cell/supplementary reuse, flow layout (both directions, delegate sizes/insets/spacing, headers/footers, pinned headers, estimated sizes), multiple selection, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToItem`, `UICollectionViewController`; drag/drop delegates (unverified); tested (HelloCollection). Missing: prefetching, decoration views, custom layout transitions, nibs |
-| `UICollectionViewCompositionalLayout` | 🟡 | ≤17 | items, nested horizontal/vertical groups (repeating, `count:`), fractional/absolute/estimated sizes, fixed/flexible spacing, content insets, boundary headers/footers (pinning), section provider + environment, orthogonal scrolling (continuous, paging, group paging); tested (HelloCollection). Missing: horizontal scroll direction, decoration items, `visibleItemsInvalidationHandler`, custom group providers |
-| `UICollectionViewDiffableDataSource`, `NSDiffableDataSourceSnapshot` | 🟡 | ≤17 | snapshots diffed into animated item inserts/deletes, reconfigure, supplementary provider, `CellRegistration`/`SupplementaryRegistration`; tested (HelloCollection). Missing: `NSDiffableDataSourceSectionSnapshot` (outlines), reordering handlers, async apply |
-| List cells (`UICollectionLayoutListConfiguration`, `UIListContentConfiguration`, cell accessories) | 🟡 | ≤17 | list layouts (plain, grouped, inset grouped, sidebar colours), supplementary headers/footers, separators, self-sizing rows, `UICollectionViewListCell` accessories (disclosure, checkmark, detail, delete, reorder, outline, label, custom view); tested (HelloCollection). `UIListContentConfiguration` is a class here, not a struct (adapted). Missing: list swipe actions, outline expansion, custom `UIContentConfiguration` views |
+| `UICollectionView` + `UICollectionViewFlowLayout` | 🟡 | ≤17 | cell/supplementary reuse, flow layout (both directions, delegate sizes/insets/spacing, headers/footers, pinned headers, estimated sizes), multiple selection, animated inserts/deletes/moves, `performBatchUpdates`, `scrollToItem`, `UICollectionViewController`; decoration views from any layout (`register(_:forDecorationViewOfKind:)`, decoration attributes), prefetching (`prefetchDataSource`: the items a screen ahead in the scrolling direction, cancelled when they leave it), layout attributes' `transform` applied to cells; storyboard prototype cells and `register(_:forCellWithReuseIdentifier:)` with a UINib (both unverified); drag/drop delegates (unverified); tested (HelloCollection, HelloCollectionLayouts). Missing: `UICollectionViewTransitionLayout` / interactive layout transitions (`setCollectionViewLayout(_:animated:)` animates) |
+| `UICollectionViewCompositionalLayout` | ✅ | ≤17 | items, nested horizontal/vertical groups (repeating, `count:`), custom groups (`NSCollectionLayoutGroup.custom` item frames), fractional/absolute/estimated sizes, fixed/flexible spacing, content insets, boundary headers/footers (pinning), decoration items (`NSCollectionLayoutDecorationItem.background`, registered decoration views), section provider + environment, orthogonal scrolling (continuous, paging, group paging), `visibleItemsInvalidationHandler` (alpha / transform / center / zIndex of the visible items, while the section or the list scrolls), `configuration.scrollDirection` `.horizontal` (adapted: sections side by side; leading/trailing boundary items widen a section, top/bottom ones sit above/below its items; no pinning). Tested (HelloCollection, HelloCollectionLayouts) |
+| `UICollectionViewDiffableDataSource`, `NSDiffableDataSourceSnapshot` | ✅ | ≤17 | snapshots diffed into animated item inserts/deletes, reconfigure, supplementary provider, `CellRegistration`/`SupplementaryRegistration`; `NSDiffableDataSourceSectionSnapshot` (outlines: append to parents, insert, delete with descendants, expand/collapse, visible items, levels, `snapshot(of:)`, `replace(childrenOf:)`) applied per section, `sectionSnapshotHandlers` (should/will expand and collapse, `snapshotForExpandingParent`), `reorderingHandlers` (can reorder, will/did reorder with `NSDiffableDataSourceTransaction`), async `apply` / `applySnapshotUsingReloadData` (also for tables). Tested (HelloCollection, HelloCollectionLayouts) |
+| List cells (`UICollectionLayoutListConfiguration`, `UIListContentConfiguration`, cell accessories) | ✅ | ≤17 | list layouts (plain, grouped, inset grouped, sidebar colours), supplementary headers/footers, separators, self-sizing rows, `UICollectionViewListCell` accessories (disclosure, checkmark, detail, delete, reorder — drag the grip in editing mode, outline — expands/collapses the row's section snapshot, label, custom view), outline indentation by level, swipe actions (`leading/trailingSwipeActionsConfigurationProvider`: partial swipe reveals, full swipe performs the first action), custom content configurations (Swift `UIContentConfiguration` / `UIContentView`: the content view fills the cell, is reused when it `supports` the new configuration, `updated(for:)` follows selection / highlight / editing / swipe / expansion; also in table cells and header/footer views), `UIListContentView`, `configurationUpdateHandler` / `setNeedsUpdateConfiguration()`, `configurationState`. Tested (HelloCollection, HelloCollectionLayouts). `UIListContentConfiguration` is a class here, not a struct (adapted); overriding `updateConfiguration(using:)` is not called (the handler is) |
 | `UIStackView` (axis, spacing, custom spacing, alignment, distribution) | ✅ | ≤17 | arranged as Auto Layout constraints |
 | `UIVisualEffectView` + `UIBlurEffect` (system materials) | ✅ | ≤17 | real backdrop blur + light/dark tint; no saturation boost |
 | `UIVibrancyEffect` | ✅ | ≤17 | adapted: content in the vibrancy view is drawn in the vibrant colour of the blur style and `UIVibrancyEffectStyle` (label / secondary / fill / separator) through its own alpha. Tested by pixels (HelloAppearance) |
