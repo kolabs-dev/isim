@@ -76,6 +76,7 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 
 ## Documentation
 
+- [Developing with AI agents](docs/AI-AGENTS.md): the build → run → look → fix loop for coding agents, answering prompts headless
 - [Scripting and automation](docs/SCRIPTING.md): script commands, `--control` FIFO, interactive shortcuts
 - [System prompts, simulated hardware and logs](docs/SYSTEM-PROMPTS.md): environment variables for permissions, biometrics, location, network, logs
 - [iOS versions](docs/IOS-VERSIONS.md): `--os 17|18|26|27`, device pairing, `#available`, what changes per version (Liquid Glass)

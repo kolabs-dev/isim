@@ -68,6 +68,7 @@ extension's view is drawn at the top of the card.
 | `drag X1 Y1 X2 Y2 [S [HOLD]]` | drag between two points, optionally over S seconds, then held HOLD seconds before lifting (e.g. at the screen edge to turn a home-screen page in edit mode) |
 | `swipeid ID DX DY S` | drag from a view's centre by (DX, DY) over S seconds |
 | `longdrag X1 Y1 X2 Y2 HOLD S` | press, hold HOLD seconds (to start drag and drop), then move over S seconds |
+| `pointerdrag X1 Y1 X2 Y2 HOLD S` | the same with the iPad pointer: the touches are `UITouch.TouchType.indirectPointer` (a trackpad or mouse click) |
 | `pinch X Y SCALE S` | two-finger pinch around (X, Y) to SCALE over S seconds |
 | `rotate2 X Y DEGREES S` | two-finger rotation around (X, Y) |
 | `twofinger X Y DX DY S` | two fingers moving together by (DX, DY) |

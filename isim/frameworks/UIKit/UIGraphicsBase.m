@@ -193,6 +193,17 @@ void isim_ui_rgba(UIColor *c, double out[4]) {
 /* ================= UIFont ================= */
 const UIFontWeight UIFontWeightUltraLight = -0.8, UIFontWeightThin = -0.6, UIFontWeightLight = -0.4, UIFontWeightRegular = 0,
     UIFontWeightMedium = 0.23, UIFontWeightSemibold = 0.3, UIFontWeightBold = 0.4, UIFontWeightHeavy = 0.56, UIFontWeightBlack = 0.62;
+static const UIFontWeight *font_weights[] = { &UIFontWeightUltraLight, &UIFontWeightThin, &UIFontWeightLight, &UIFontWeightRegular,
+    &UIFontWeightMedium, &UIFontWeightSemibold, &UIFontWeightBold, &UIFontWeightHeavy, &UIFontWeightBlack };
+UIImageSymbolWeight UIImageSymbolWeightForFontWeight(UIFontWeight w) {         /* the nearest of the nine weights */
+    int best = 3;
+    for (int i = 0; i < 9; i++) if (fabs(*font_weights[i] - w) < fabs(*font_weights[best] - w)) best = i;
+    return (UIImageSymbolWeight)(UIImageSymbolWeightUltraLight + best);
+}
+UIFontWeight UIFontWeightForImageSymbolWeight(UIImageSymbolWeight s) {
+    if (s < UIImageSymbolWeightUltraLight || s > UIImageSymbolWeightBlack) return UIFontWeightRegular;   /* unspecified */
+    return *font_weights[s - UIImageSymbolWeightUltraLight];
+}
 const UIFontTextStyle UIFontTextStyleLargeTitle = @"UICTFontTextStyleTitle0", UIFontTextStyleTitle1 = @"UICTFontTextStyleTitle1",
     UIFontTextStyleTitle2 = @"UICTFontTextStyleTitle2", UIFontTextStyleTitle3 = @"UICTFontTextStyleTitle3",
     UIFontTextStyleHeadline = @"UICTFontTextStyleHeadline", UIFontTextStyleSubheadline = @"UICTFontTextStyleSubhead",

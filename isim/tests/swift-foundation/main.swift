@@ -123,10 +123,11 @@ struct RetryError: RecoverableError {
     func attemptRecovery(optionIndex i: Int) -> Bool { i == 0 }
 }
 
-/// adopts NSItemProviderWriting with Apple's Swift signature: the block's NSError * comes in as Error? (issue #99)
+/// adopts NSItemProviderWriting with Apple's Swift signature: the block's NSError * comes in as Error? (issue #99) and
+/// the handler is @Sendable (NS_SWIFT_SENDABLE, issue #119); this app builds with -warnings-as-errors, so a mismatch fails
 final class FailingWriter: NSObject, NSItemProviderWriting {
     static var writableTypeIdentifiersForItemProvider: [String] { ["public.data"] }
-    func loadData(withTypeIdentifier typeIdentifier: String, forItemProviderCompletionHandler completionHandler: @escaping (Data?, Error?) -> Void) -> Progress? {
+    func loadData(withTypeIdentifier typeIdentifier: String, forItemProviderCompletionHandler completionHandler: @escaping @Sendable (Data?, Error?) -> Void) -> Progress? {
         completionHandler(nil, ShopError.outOfStock("Tea"))
         return nil
     }

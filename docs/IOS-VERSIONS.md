@@ -103,6 +103,7 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
 | Toolbars | material bar | same | item groups on glass capsules (split by `ToolbarSpacer`), edge fade (`scrollEdgeEffectStyle(.hard)`: opaque edge) | adapted, verified (frames) |
 | SwiftUI tab bar extras (`tabViewBottomAccessory`, `tabBarMinimizeBehavior`), `backgroundExtensionEffect`, `GlassEffectContainer` merging | not available (compile-time) | same | glass accessory above the bar, minimized bar on scroll, mirrored blurred background in the safe area, merged glass shapes | adapted, verified (`tests/ui/test_tabs.py`) |
 | UIKit tab bar extras (`bottomAccessory`, `tabBarMinimizeBehavior`), navigation subtitles, `symbolContentTransition` | unavailable (compile-time) | same | glass accessory above the bar (inline beside the minimized one), minimized bar on scroll, title + subtitle stack, symbol replace on configuration buttons | adapted, verified (`tests/ui/test_modern_bars.py`) |
+| UIKit search bar placement (`preferredSearchBarPlacement`) | `.inline`: stacked on iPhone, bar row on iPad | same | `.integrated*`: iPhone field in the toolbar (rises with the keyboard), iPad field or button in the bar row | adapted, verified (`tests/ui/test_search_bars.py`) |
 | UIKit bar minimization, visibility priority, prominent tab | unavailable (compile-time) | same | iOS 26: the search tab on its own circle; iOS 27: the navigation bar fades on scroll, low-priority items move to an overflow menu, `prominentTabIdentifier` | adapted, verified (`tests/ui/test_bars27.py`) |
 | Alerts | 270 pt card | same | 300 pt glass card, corner 34, leading text, capsule buttons, preferred action filled | adapted, verified (pixels) |
 | Action sheets, menus, sheets, popovers | classic | same | glass cards / larger corners | adapted, proposed |
@@ -111,6 +112,7 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
 | `UIGlassEffect`, glass button configurations, `glassEffect`, `.glass` | unavailable (compile-time) | unavailable | drawn as glass | adapted, verified |
 | Home screen | translucent dock | + icon appearance (`ISIM_ICON_STYLE=dark\|tinted`) | glass dock, icon rims, + `clear` icons | adapted, verified (dock pixels) |
 | Lock Screen (`lock`) | bold clock | bold clock | tall glass numerals, glass buttons | adapted, verified (pixels) |
+| Safari (iPhone) | opaque bottom bar: address pill above back / forward / share / reload | same | floating glass bar over the page: back button, address capsule with reload, “…” menu (share, forward) | adapted, verified (`tests/ui/test_handoff.py::test_safari`) |
 | Control Center (`controlcenter`) | iOS 17 modules | iOS 18 redesign: edit/power buttons, page column, round toggles | glass modules | adapted, verified (pixels) |
 | Permission alert wording | iOS 17 (e.g. contacts: Don't Allow / OK) | iOS 18 (limited access) | as iOS 18 | adapted, verified (existing suites) |
 | UIKit tabs (`UITab`, `UITabGroup`, `UISearchTab`, iPad sidebar) | classic view-controller tabs (API unavailable) | tab bar from tabs; iPad sidebar (`.tabSidebar`) | glass sidebar, `UIBackgroundExtensionView` under it | adapted, verified (HelloUITabs) |
@@ -137,11 +139,13 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
   `toolbarMinimizationBehavior(_:for:)` (the bottom bar slides away, the navigation bar fades while scrolling),
   `swipeActions` on any view + `swipeActionsContainer()`, `asyncImageURLSession(_:)`, `AsyncImage(request:)`,
   `NavigationTransition.crossFade` (proposed);
+  UIKit (`tests/ui/test_kit27.py`): `UIMenuElement.preferredImageVisibility` / `highlightStateUpdateHandler`,
+  `UIContextMenuConfiguration.allowsTypeSelect`, `UIWindowScene.displayLink`, `UIDragInteraction.liftBehavior` /
+  `allowsPointerDragBeforeLiftDelay`;
 - not done (listed as ❌ in [COVERAGE.md](COVERAGE.md)): `ReadableDocument`/`WritableDocument`, `reorderable()`,
   `reorderContainer`, the `@State` macro / `ContentBuilder`
-  (Xcode 27 compiler features), gesture input kinds, UIKit `NSTextTable` family, attachment view reuse,
-  `allowsPointerDragBeforeLiftDelay`; iOS 27.1 (beta) iPhone Duo APIs (arrangement views, reserved regions, hinge,
-  vertical bars);
+  (Xcode 27 compiler features), gesture input kinds, UIKit `NSTextTable` family, attachment view reuse; iOS 27.1
+  (beta) iPhone Duo APIs (arrangement views, reserved regions, hinge, vertical bars);
 - **not done: iOS 27 visuals.** Apple describes an updated Liquid Glass appearance and a tint slider without
   specifications isim could reproduce faithfully, so `--os 27` uses the iOS 26 look. iOS 27 also requires apps
   built with the iOS 27 SDK to adopt the scene-based life cycle; isim does not enforce that.

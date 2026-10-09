@@ -92,6 +92,17 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(27.0)) NS_SWIFT_NAME(_UIBarMinimizationObjC)
 @property (nonatomic) UIBarMinimizationRestorationBehavior restorationBehavior;
 @property (nonatomic) UIBarMinimizationSafeAreaAdjustment safeAreaAdjustment;
 @end
+/* where a navigation item's search controller shows its bar (iOS 16; integrated placements iOS 26). isim: stacked
+   below the title; inline / integrated: on iPad (and before iOS 26) in the bar row, on iPhone under iOS 26 in the
+   navigation controller's toolbar (searchBarPlacementAllowsToolbarIntegration) at searchBarPlacementBarButtonItem */
+typedef NS_ENUM(NSInteger, UINavigationItemSearchBarPlacement) {
+    UINavigationItemSearchBarPlacementAutomatic = 0,
+    UINavigationItemSearchBarPlacementIntegrated API_AVAILABLE(ios(26.0)) = 1,
+    UINavigationItemSearchBarPlacementInline = 1,
+    UINavigationItemSearchBarPlacementStacked = 2,
+    UINavigationItemSearchBarPlacementIntegratedButton API_AVAILABLE(ios(26.0)) = 3,
+    UINavigationItemSearchBarPlacementIntegratedCentered API_AVAILABLE(ios(26.0)) = 4,
+} NS_SWIFT_NAME(UINavigationItem.SearchBarPlacement) API_AVAILABLE(ios(16.0));
 typedef NS_ENUM(NSInteger, UINavigationItemLargeTitleDisplayMode) {
     UINavigationItemLargeTitleDisplayModeAutomatic, UINavigationItemLargeTitleDisplayModeAlways, UINavigationItemLargeTitleDisplayModeNever, UINavigationItemLargeTitleDisplayModeInline };
 NS_SWIFT_UI_ACTOR
@@ -116,6 +127,11 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, strong) UISearchController *searchController;
 @property (nonatomic) BOOL hidesSearchBarWhenScrolling;
 @property (nonatomic, copy) UIBarMinimization *navigationBarMinimization NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(27.0));
+@property (nonatomic) UINavigationItemSearchBarPlacement preferredSearchBarPlacement API_AVAILABLE(ios(16.0));
+@property (nonatomic, readonly) UINavigationItemSearchBarPlacement searchBarPlacement API_AVAILABLE(ios(16.0));
+@property (nonatomic) BOOL searchBarPlacementAllowsToolbarIntegration API_AVAILABLE(ios(26.0));    /* default YES */
+@property (nonatomic) BOOL searchBarPlacementAllowsExternalIntegration API_AVAILABLE(ios(26.0));   /* default NO; isim: stored */
+@property (nonatomic, readonly, strong) UIBarButtonItem *searchBarPlacementBarButtonItem API_AVAILABLE(ios(26.0));
 /* per-item appearances override the bar's while the item is on top */
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *standardAppearance;
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *scrollEdgeAppearance;
@@ -189,6 +205,25 @@ NS_SWIFT_UI_ACTOR
 @interface UITabBarAppearance : UIBarAppearance
 @end
 
+/* bar metrics and positions (UIBarCommon.h) */
+typedef NS_ENUM(NSInteger, UIBarMetrics) { UIBarMetricsDefault, UIBarMetricsCompact, UIBarMetricsDefaultPrompt = 101, UIBarMetricsCompactPrompt };
+typedef NS_ENUM(NSInteger, UIBarPosition) { UIBarPositionAny = 0, UIBarPositionBottom = 1, UIBarPositionTop = 2, UIBarPositionTopAttached = 3 };
+#define UIBarPositionOverlap UIBarPositionTopAttached
+/* iOS 5-6 names */
+#define UIToolbarPosition UIBarPosition
+#define UIToolbarPositionAny UIBarPositionAny
+#define UIToolbarPositionBottom UIBarPositionBottom
+#define UIToolbarPositionTop UIBarPositionTop
+NS_SWIFT_UI_ACTOR
+@protocol UIBarPositioning <NSObject>
+@property (nonatomic, readonly) UIBarPosition barPosition;
+@end
+NS_SWIFT_UI_ACTOR
+@protocol UIBarPositioningDelegate <NSObject>
+@optional
+- (UIBarPosition)positionForBar:(id<UIBarPositioning>)bar NS_SWIFT_NAME(position(for:));
+@end
+
 @class UINavigationBar;
 /* a standalone bar's delegate (a navigation controller's bar answers these itself) */
 NS_SWIFT_UI_ACTOR
@@ -221,13 +256,26 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *largeTitleTextAttributes;
 @end
 
+@class UIToolbar;
 NS_SWIFT_UI_ACTOR
-@interface UIToolbar : UIView
+@protocol UIToolbarDelegate <UIBarPositioningDelegate>
+@end
+NS_SWIFT_UI_ACTOR
+@interface UIToolbar : UIView <UIBarPositioning>
 @property (nullable, nonatomic, copy) NSArray<UIBarButtonItem *> *items;
 - (void)setItems:(nullable NSArray<UIBarButtonItem *> *)items animated:(BOOL)animated;
 @property (nullable, nonatomic, strong) UIColor *barTintColor;
 @property (nonatomic, getter=isTranslucent) BOOL translucent;
 @property (nonatomic, copy) UIToolbarAppearance *standardAppearance;
+/* the delegate's positionForBar: (default: bottom) */
+@property (nullable, nonatomic, weak) id<UIToolbarDelegate> delegate;
+@property (nonatomic, readonly) UIBarPosition barPosition;
+/* legacy bar images: a background image replaces the appearance's background (an empty image: transparent); a shadow
+   image replaces the hairline when a background image is set too */
+- (void)setBackgroundImage:(nullable UIImage *)backgroundImage forToolbarPosition:(UIBarPosition)topOrBottom barMetrics:(UIBarMetrics)barMetrics;
+- (nullable UIImage *)backgroundImageForToolbarPosition:(UIBarPosition)topOrBottom barMetrics:(UIBarMetrics)barMetrics;
+- (void)setShadowImage:(nullable UIImage *)shadowImage forToolbarPosition:(UIBarPosition)topOrBottom;
+- (nullable UIImage *)shadowImageForToolbarPosition:(UIBarPosition)topOrBottom;
 @end
 
 typedef NS_ENUM(NSInteger, UITabBarSystemItem) {

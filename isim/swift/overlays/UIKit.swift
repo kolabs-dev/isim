@@ -729,3 +729,19 @@ extension UITabBarController.Sidebar {
     public typealias Delegate = UITabBarControllerSidebarDelegate
     public typealias Animating = UITabBarControllerSidebarAnimating
 }
+// MARK: - iOS 27 scene display links with a closure (Apple's Swift API)
+private final class _IsimDisplayLinkAction: NSObject {
+    let action: @Sendable (CADisplayLink) -> Void
+    init(_ action: @escaping @Sendable (CADisplayLink) -> Void) { self.action = action }
+    @objc func fire(_ link: CADisplayLink) { action(link) }
+}
+private var _isimDisplayLinkActionKey: UInt8 = 0
+@available(iOS 27.0, *)
+extension UIWindowScene {
+    public func displayLink(action: @escaping @Sendable (CADisplayLink) -> Void) -> CADisplayLink? {
+        let target = _IsimDisplayLinkAction(action)
+        guard let link = displayLink(target: target, selector: #selector(_IsimDisplayLinkAction.fire(_:))) else { return nil }
+        objc_setAssociatedObject(link, &_isimDisplayLinkActionKey, target, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))   // the link keeps its target
+        return link
+    }
+}
