@@ -149,25 +149,75 @@ final class _IsimDragAnimator: UIDragAnimating {
 
 // MARK: - interactions
 @MainActor open class UIDragInteraction: NSObject, UIInteraction {
+    /// iOS 27: how a touch lifts the item (`extended`: a longer delay, and a second finger cancels, for gesture-rich views)
+    @available(iOS 27.0, *)
+    public enum LiftBehavior: UInt, @unchecked Sendable { case `default` = 0, extended = 1 }
     public private(set) weak var delegate: UIDragInteractionDelegate?
     open private(set) weak var view: UIView?
     open var isEnabled = true
     open var allowsSimultaneousRecognitionDuringLift = false
+    /// iOS 27 (isim: 0.5 s lift delay by default, 0.75 s extended)
+    @available(iOS 27.0, *)
+    open var liftBehavior: LiftBehavior {
+        get { LiftBehavior(rawValue: _liftBehavior) ?? .default }
+        set { _liftBehavior = newValue.rawValue; press?.minimumPressDuration = _liftDelay }
+    }
+    /// iOS 27: a pointer (trackpad / mouse) drag starts as soon as the pointer moves, without the lift delay (default true)
+    @available(iOS 27.0, *)
+    open var allowsPointerDragBeforeLiftDelay: Bool {
+        get { _pointerEarly }
+        set { _pointerEarly = newValue }
+    }
+    var _liftBehavior: UInt = 0, _pointerEarly = true
+    var _liftDelay: TimeInterval { _liftBehavior == 1 ? 0.75 : 0.5 }
     open class var isEnabledByDefault: Bool { true }
     var press: UILongPressGestureRecognizer?
+    var pointerPan: UIPanGestureRecognizer?
+    let gate = _IsimDragGate()
     public init(delegate: UIDragInteractionDelegate) { self.delegate = delegate }
-    open func willMove(to view: UIView?) { if let p = press { self.view?.removeGestureRecognizer(p) } }
+    open func willMove(to view: UIView?) {
+        if let p = press { self.view?.removeGestureRecognizer(p) }
+        if let p = pointerPan { self.view?.removeGestureRecognizer(p) }
+    }
     open func didMove(to view: UIView?) {
         self.view = view
         guard let view else { return }
+        gate.interaction = self
         let p = UILongPressGestureRecognizer(target: self, action: #selector(_pressed(_:)))
-        p.minimumPressDuration = 0.5
+        p.minimumPressDuration = _liftDelay
+        p.delegate = gate
         view.addGestureRecognizer(p)
         press = p
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(_pointerPanned(_:)))   // pointer drags before the delay
+        pan.delegate = gate
+        view.addGestureRecognizer(pan)
+        pointerPan = pan
     }
     @objc func _pressed(_ g: UILongPressGestureRecognizer) {
         guard isEnabled, let view else { return }
+        if _liftBehavior == 1 && g.numberOfTouches > 1 {          // extended: a second finger cancels the lift
+            if g.state == .began || g.state == .changed { _IsimDragController.current?.end(at: g.location(in: view.window), cancelled: true) }
+            return
+        }
+        if g.state == .began && _IsimDragController.current != nil { return }   // a pointer drag started already
         _IsimDragController.handle(g, source: .interaction(self), view: view)
+    }
+    @objc func _pointerPanned(_ g: UIPanGestureRecognizer) {
+        guard isEnabled, let view else { return }
+        _IsimDragController.handlePan(g, source: .interaction(self), view: view)
+    }
+}
+/// which touches the drag recognizers take: the pointer pan only pointer touches, and only when it may start early
+final class _IsimDragGate: NSObject, UIGestureRecognizerDelegate {
+    weak var interaction: UIDragInteraction?
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let i = interaction else { return false }
+        if g === i.pointerPan { return touch.type == .indirectPointer && i._pointerEarly }
+        return true
+    }
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        guard let i = interaction else { return false }
+        return (g === i.press && other === i.pointerPan) || (g === i.pointerPan && other === i.press)
     }
 }
 @MainActor open class UIDropInteraction: NSObject, UIInteraction {
@@ -343,6 +393,17 @@ final class _IsimDragController {
         let p = g.location(in: w)
         switch g.state {
         case .began: begin(at: p, in: w, source: source, view: view)
+        case .changed: current?.move(to: p)
+        case .ended: current?.end(at: p, cancelled: false)
+        case .cancelled, .failed: current?.end(at: p, cancelled: true)
+        default: break
+        }
+    }
+    @MainActor static func handlePan(_ g: UIPanGestureRecognizer, source: _IsimSourceKind, view: UIView) {
+        guard let w = view.window else { return }
+        let p = g.location(in: w)
+        switch g.state {
+        case .began: if current == nil { begin(at: p, in: w, source: source, view: view) }
         case .changed: current?.move(to: p)
         case .ended: current?.end(at: p, cancelled: false)
         case .cancelled, .failed: current?.end(at: p, cancelled: true)

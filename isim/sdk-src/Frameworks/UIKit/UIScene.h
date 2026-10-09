@@ -111,7 +111,10 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(16.0)) NS_SWIFT_NAME(UIWindowScene.Geometry)
 @property (nonatomic, readonly) UIInterfaceOrientation interfaceOrientation;
 @property (nonatomic, readonly, getter=isInteractivelyResizing) BOOL interactivelyResizing API_AVAILABLE(ios(17.0));
 @end
+@class CADisplayLink;
 @interface UIWindowScene : UIScene
+/* iOS 27: a display link for the scene's display (add it to a run loop to start it); Swift also has displayLink(action:) */
+- (nullable CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel NS_SWIFT_NAME(displayLink(target:selector:)) API_AVAILABLE(ios(27.0));
 @property (nonatomic, readonly) UIScreen *screen;
 @property (nonatomic, readonly) NSArray<UIWindow *> *windows;
 @property (nullable, nonatomic, readonly, strong) UIWindow *keyWindow;

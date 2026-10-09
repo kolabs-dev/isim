@@ -139,7 +139,7 @@ final class _AVTicker: NSObject {
         players[ObjectIdentifier(p)] = p
         if link == nil {
             let l = CADisplayLink(target: self, selector: #selector(tick))
-            l.add(to: RunLoop.main, forMode: RunLoop.Mode.common.rawValue)
+            l.add(to: RunLoop.main, forMode: .common)
             link = l
         }
     }
