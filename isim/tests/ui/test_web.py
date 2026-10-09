@@ -90,7 +90,9 @@ def test_web(launch, web):
     app.wait_log(r"^HelloWeb: cookies: visited=yes@127\.0\.0\.1")        # WKHTTPCookieStore.getAllCookies
     app.tap_id("back")
     app.wait_log(home, count=3)
-    app.sleep(0.5)
+    # the scroll view only scrolls once it mirrors the page's full height: a drag that came first (after a fixed
+    # pause) did not scroll on a slow run (issue #45)
+    app.wait_view(r"_WKScrollView .* content 402 x 15[0-9][0-9]")
     app.drag(200, 600, 200, 400, 0.3)
 
     def scrolled():
