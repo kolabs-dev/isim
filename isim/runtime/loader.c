@@ -7,12 +7,13 @@
  * legacy rebase/bind opcodes (lazy binds resolved eagerly), chained fixups
  * (DYLD_CHAINED_PTR_64 / _64_OFFSET), export tries (LC_DYLD_EXPORTS_TRIE or
  * dyld_info), two-level namespace + flat lookup, re-exports of symbols,
- * @rpath/@executable_path/@loader_path, __mod_init_func and __init_offsets.
- * Host pseudo-libraries (libSystem, libobjc, libisim_host) are tables of
- * Linux-native functions (runtime.h).
+ * @rpath/@executable_path/@loader_path, __mod_init_func and __init_offsets,
+ * thread-local variables, dlopen of dylibs, bundles and frameworks (never
+ * unloaded). Host pseudo-libraries (libSystem, libobjc, libisim_host) are
+ * tables of Linux-native functions (runtime.h).
  *
- * Not supported: fat files, thread-local variables, weak-def coalescing,
- * dlopen, code signature validation, dyld interposing, DYLD_* env vars.
+ * Not supported: fat files, weak-def coalescing, code signature validation,
+ * dyld interposing, DYLD_* env vars.
  */
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -22,6 +23,7 @@
 #include <libgen.h>
 #include <limits.h>
 #include <pthread.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,8 +67,20 @@ int isim_verbose;
 
 static const struct host_lib *const host_libs[] = { &host_libsystem, &host_libobjc, &host_isim, &host_sqlite };
 
+/* while dlopen maps images, a fatal loading error fails that dlopen (dlerror) instead of ending the process */
+static __thread jmp_buf *dl_fail;
+static __thread const char *dl_error;
+static __thread char dl_error_buf[1024];
+static __thread const char *dl_fail_prefix;
 void isim_fatal(const char *fmt, ...) {
     va_list ap; va_start(ap, fmt);
+    if (dl_fail) {
+        int n = snprintf(dl_error_buf, sizeof dl_error_buf, "%s", dl_fail_prefix);
+        vsnprintf(dl_error_buf + n, sizeof dl_error_buf - n, fmt, ap);
+        va_end(ap);
+        dl_error = dl_error_buf;
+        longjmp(*dl_fail, 1);
+    }
     fflush(NULL);
     fputs("isim: ", stderr); vfprintf(stderr, fmt, ap); fputc('\n', stderr);
     va_end(ap);
@@ -662,14 +676,53 @@ static uint8_t *d_getsectiondata(const void *mh, const char *segname, const char
     return NULL;
 }
 
-static __thread const char *dl_error;
-static __thread char dl_error_buf[512];
+#define D_RTLD_NOLOAD 0x10
+#define D_RTLD_FIRST 0x100
+static int is_handle(void *h) { for (int i = 0; i < nimages; i++) if (images[i] == h) return 1; return 0; }
+/* dlsym(handle): the image, then (unless it was opened RTLD_FIRST) its dependencies breadth-first, like dyld */
+static void *handle_lookup(struct image *im, const char *sym, int first_only) {
+    struct image *queue[MAX_IMAGES]; int head = 0, tail = 0;
+    queue[tail++] = im;
+    while (head < tail) {
+        struct image *cur = queue[head++];
+        uint64_t a;
+        if (image_export(cur, sym, &a, 0)) return (void *)(uintptr_t)a;
+        if (first_only) return NULL;
+        for (int d = 0; d < cur->ndeps; d++) {
+            if (!cur->deps[d]) {
+                const struct shim *sh = cur->host_deps[d] ? host_lib_lookup(cur->host_deps[d], sym) : NULL;
+                if (sh) return sh->addr;
+                continue;
+            }
+            int seen = 0;
+            for (int k = 0; k < tail; k++) if (queue[k] == cur->deps[d]) seen = 1;
+            if (!seen && tail < MAX_IMAGES) queue[tail++] = cur->deps[d];
+        }
+    }
+    return NULL;
+}
+static struct image *first_handles[MAX_IMAGES]; static int nfirst_handles;   /* images dlopen'd with RTLD_FIRST */
 static void *d_dlsym(void *handle, const char *name) {
     char mangled[512]; snprintf(mangled, sizeof mangled, "_%s", name);
     void *p = NULL;
     intptr_t h = (intptr_t)handle;
-    if (h == -2 || h == -1 || h == -3 || h == -5 || !handle) p = isim_lookup_symbol(mangled);
-    else { uint64_t a; if (image_export(handle, mangled, &a, 0)) p = (void *)(uintptr_t)a; }
+    if (h == -5) {                                                   /* RTLD_MAIN_ONLY */
+        uint64_t a; if (image_export(main_image, mangled, &a, 0)) p = (void *)(uintptr_t)a;
+    } else if (h == -1 || h == -3) {                                 /* RTLD_NEXT / RTLD_SELF: images after (or from) the caller */
+        struct image *caller = image_for_address(__builtin_return_address(0));
+        int from = 0;
+        for (int i = 0; caller && i < nimages; i++) if (images[i] == caller) from = h == -1 ? i + 1 : i;
+        for (int i = from; i < nimages && !p; i++) { uint64_t a; if (image_export(images[i], mangled, &a, 0)) p = (void *)(uintptr_t)a; }
+        for (size_t i = 0; !p && i < sizeof host_libs / sizeof *host_libs; i++) { const struct shim *s = host_lib_lookup(host_libs[i], mangled); if (s) p = s->addr; }
+    } else if (h == -2 || !handle) p = isim_lookup_symbol(mangled); /* RTLD_DEFAULT, host libraries */
+    else if (is_handle(handle)) {
+        int first_only = 0;
+        for (int i = 0; i < nfirst_handles; i++) if (first_handles[i] == handle) first_only = 1;
+        p = handle_lookup(handle, mangled, first_only);
+    } else {
+        snprintf(dl_error_buf, sizeof dl_error_buf, "dlsym(%p, %s): invalid handle", handle, name); dl_error = dl_error_buf;
+        return NULL;
+    }
     if (!p) { snprintf(dl_error_buf, sizeof dl_error_buf, "dlsym(%p, %s): symbol not found", handle, name); dl_error = dl_error_buf; }
     return p;
 }
@@ -678,35 +731,92 @@ static void *d_dlsym(void *handle, const char *name) {
  * callbacks (Swift metadata) and initializers, dependencies first. Images are never unloaded. */
 static void link_new_images(int first, int gargc, char **gargv);
 static pthread_mutex_t dlopen_lock = PTHREAD_MUTEX_INITIALIZER;
+/* the file dlopen(path) names: @executable_path/, @loader_path/ (the image calling dlopen) and @rpath/ (its LC_RPATHs,
+   then the main executable's) as dyld expands them; an SDK install name (/System/Library/...) under --root, like
+   DYLD_ROOT_PATH. NULL when nothing matches (dl_error_buf says what was tried). */
+static char *dlopen_file(const char *path, struct image *caller, int mode) {
+    char *full = path[0] == '@' ? expand_path(caller ? caller : main_image, path) : strdup(path);
+    if (full && path[0] == '/' && access(full, R_OK) != 0 && sysroot) {
+        char rooted[PATH_MAX]; snprintf(rooted, sizeof rooted, "%s%s", sysroot, full);
+        if (access(rooted, R_OK) == 0) { free(full); full = strdup(rooted); }
+    }
+    if (full && access(full, R_OK) == 0) return full;
+    snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s, 0x%04X): tried: '%s' (no such file)", path, mode, full ? full : path);
+    free(full);
+    return NULL;
+}
 static void *d_dlopen(const char *path, int mode) {
     if (!path) return main_image;
-    for (int i = 0; i < nimages; i++) {
-        const char *n = images[i]->install_name;
-        if (!strcmp(images[i]->path, path) || (n && !strcmp(n, path))) return images[i];
-    }
     for (size_t i = 0; i < sizeof host_libs / sizeof *host_libs; i++)
         if (!strcmp(host_libs[i]->install_name, path)) return (void *)-2;      /* host libraries: global lookup */
-    char rooted[1024];                    /* an SDK install name (/System/Library/Frameworks/...): under --root, like DYLD_ROOT_PATH */
-    if (path[0] == '/' && access(path, R_OK) != 0 && sysroot) {
-        snprintf(rooted, sizeof rooted, "%s%s", sysroot, path);
-        if (access(rooted, R_OK) == 0) path = rooted;
-    }
-    if (access(path, R_OK) != 0) {
-        snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s): image not found", path);
-        dl_error = dl_error_buf;
-        return NULL;
-    }
+    struct image *caller = image_for_address(__builtin_return_address(0));
     pthread_mutex_lock(&dlopen_lock);
-    int first = nimages;
-    struct image *saved_main = main_image;
-    struct image *im = load_image(path, 0);
-    main_image = saved_main;
-    if (im) link_new_images(first, 0, NULL);
+    struct image *im = NULL;
+    for (int i = 0; i < nimages && !im; i++) {
+        const char *n = images[i]->install_name;
+        if (!strcmp(images[i]->path, path) || (n && !strcmp(n, path))) im = images[i];
+    }
+    char *full = im ? NULL : dlopen_file(path, caller, mode);
+    if (full) {
+        char *real = realpath(full, NULL);
+        for (int i = 0; i < nimages && !im; i++) if (real && !strcmp(images[i]->path, real)) im = images[i];
+        free(real);
+        if (!im && (mode & D_RTLD_NOLOAD))
+            snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s, 0x%04X): not already loaded (RTLD_NOLOAD)", path, mode);
+        else if (!im) {
+            int first = nimages;
+            struct image *saved_main = main_image;
+            char prefix[PATH_MAX + 32]; snprintf(prefix, sizeof prefix, "dlopen(%s, 0x%04X): ", path, mode);
+            jmp_buf fail; dl_fail_prefix = prefix;
+            if (setjmp(fail) == 0) {
+                dl_fail = &fail;
+                im = load_image(full, 0);
+                dl_fail = NULL;
+                main_image = saved_main;
+                if (im) link_new_images(first, 0, NULL);
+            } else {                                                    /* not loadable: forget what it mapped */
+                dl_fail = NULL;
+                main_image = saved_main;
+                nimages = first;
+                im = NULL;
+            }
+        }
+    }
+    if (im && (mode & D_RTLD_FIRST) && nfirst_handles < MAX_IMAGES) first_handles[nfirst_handles++] = im;
     pthread_mutex_unlock(&dlopen_lock);
-    if (!im) { snprintf(dl_error_buf, sizeof dl_error_buf, "dlopen(%s): cannot load", path); dl_error = dl_error_buf; }
+    free(full);
+    if (!im) dl_error = dl_error_buf;
     return im;
 }
-static int d_dlclose(void *h) { return 0; }
+/* dlopen_preflight: whether dlopen would load the file (mapped, then forgotten) */
+static int d_dlopen_preflight(const char *path) {
+    struct image *caller = image_for_address(__builtin_return_address(0));
+    pthread_mutex_lock(&dlopen_lock);
+    int ok = 0;
+    char *full = dlopen_file(path, caller, 0);
+    if (full) {
+        char *real = realpath(full, NULL);
+        for (int i = 0; i < nimages && !ok; i++) if (real && !strcmp(images[i]->path, real)) ok = 1;
+        free(real);
+        int first = nimages;
+        struct image *saved_main = main_image;
+        char prefix[PATH_MAX + 32]; snprintf(prefix, sizeof prefix, "dlopen_preflight(%s): ", path);
+        jmp_buf fail; dl_fail_prefix = prefix;
+        if (!ok) {
+            if (setjmp(fail) == 0) { dl_fail = &fail; ok = load_image(full, 0) != NULL; }
+            dl_fail = NULL; main_image = saved_main; nimages = first;
+        }
+    }
+    pthread_mutex_unlock(&dlopen_lock);
+    free(full);
+    if (!ok) dl_error = dl_error_buf;
+    return ok;
+}
+static int d_dlclose(void *h) {                                         /* images stay loaded (as on iOS for ObjC/Swift code) */
+    if (h == (void *)-2 || is_handle(h)) return 0;
+    snprintf(dl_error_buf, sizeof dl_error_buf, "dlclose(%p): invalid handle", h); dl_error = dl_error_buf;
+    return -1;
+}
 static char *d_dlerror(void) { const char *e = dl_error; dl_error = NULL; return (char *)e; }
 
 struct nlist_64 { uint32_t n_strx; uint8_t n_type, n_sect; uint16_t n_desc; uint64_t n_value; };
@@ -909,6 +1019,7 @@ static const struct shim dyld_table[] = {
     D("__dyld_is_objc_constant", d_dyld_is_objc_constant), D("_dyld_image_path_containing_address", d_dyld_image_path_containing_address),
     D("__dyld_is_memory_immutable", d_dyld_is_memory_immutable), D("_getsectiondata", d_getsectiondata),
     D("_dlsym", d_dlsym), D("_dlopen", d_dlopen), D("_dlclose", d_dlclose), D("_dlerror", d_dlerror), D("_dladdr", d_dladdr),
+    D("_dlopen_preflight", d_dlopen_preflight),
 };
 static const size_t dyld_table_count = sizeof dyld_table / sizeof *dyld_table;
 
