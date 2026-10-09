@@ -41,7 +41,7 @@ static NSUInteger cursor_u16(u16cursor *c, NSUInteger byte) {
 /* ================= NSTextCheckingResult ================= */
 @implementation NSTextCheckingResult {
     @public NSTextCheckingType _type; NSRange *_ranges; NSUInteger _count;
-    NSRegularExpression *_regex; NSURL *_url; NSString *_phone, *_replacement; NSDate *_date; NSTimeZone *_tz; NSTimeInterval _duration;
+    NSRegularExpression *_regex; NSURL *_url; NSString *_phone, *_replacement; NSDictionary *_components; NSDate *_date; NSTimeZone *_tz; NSTimeInterval _duration;
 }
 static NSTextCheckingResult *make_result(NSTextCheckingType type, const NSRange *ranges, NSUInteger count) {
     NSTextCheckingResult *r = [NSTextCheckingResult new];
@@ -74,7 +74,7 @@ static NSTextCheckingResult *make_result(NSTextCheckingType type, const NSRange 
 - (NSTextCheckingResult *)resultByAdjustingRangesWithOffset:(NSInteger)offset {
     NSTextCheckingResult *r = make_result(_type, _ranges, _count);
     for (NSUInteger i = 0; i < _count; i++) if (r->_ranges[i].location != NSNotFound) r->_ranges[i].location += offset;
-    r->_regex = _regex; r->_url = _url; r->_phone = _phone; r->_date = _date; r->_tz = _tz; r->_duration = _duration; r->_replacement = _replacement;
+    r->_regex = _regex; r->_url = _url; r->_phone = _phone; r->_date = _date; r->_tz = _tz; r->_duration = _duration; r->_replacement = _replacement; r->_components = _components;
     return r;
 }
 - (NSRegularExpression *)regularExpression { return _regex; }
@@ -84,9 +84,12 @@ static NSTextCheckingResult *make_result(NSTextCheckingType type, const NSRange 
 - (NSTimeZone *)timeZone { return _tz; }
 - (NSTimeInterval)duration { return _duration; }
 - (NSString *)replacementString { return _replacement; }
-- (NSDictionary *)addressComponents { return nil; }
++ (NSTextCheckingResult *)addressCheckingResultWithRange:(NSRange)range components:(NSDictionary *)c { NSTextCheckingResult *r = make_result(NSTextCheckingTypeAddress, &range, 1); r->_components = [c copy]; return r; }
++ (NSTextCheckingResult *)transitInformationCheckingResultWithRange:(NSRange)range components:(NSDictionary *)c { NSTextCheckingResult *r = make_result(NSTextCheckingTypeTransitInformation, &range, 1); r->_components = [c copy]; return r; }
+- (NSDictionary *)addressComponents { return _type == NSTextCheckingTypeAddress ? _components : nil; }
+- (NSDictionary *)components { return _type == NSTextCheckingTypeAddress ? nil : _components; }   /* transit information */
 - (NSString *)description {
-    NSString *kind = _type == NSTextCheckingTypeLink ? @"Link" : _type == NSTextCheckingTypePhoneNumber ? @"PhoneNumber" : _type == NSTextCheckingTypeDate ? @"Date" : @"RegularExpression";
+    NSString *kind = _type == NSTextCheckingTypeLink ? @"Link" : _type == NSTextCheckingTypePhoneNumber ? @"PhoneNumber" : _type == NSTextCheckingTypeDate ? @"Date" : _type == NSTextCheckingTypeAddress ? @"Address" : _type == NSTextCheckingTypeTransitInformation ? @"TransitInformation" : @"RegularExpression";
     return [NSString stringWithFormat:@"<NSTextCheckingResult: %p>{%lu, %lu}%@", self, (unsigned long)_ranges[0].location, (unsigned long)_ranges[0].length, kind];
 }
 - (void)encodeWithCoder:(NSCoder *)c {}
@@ -311,8 +314,28 @@ static NSString *const kLinkPattern =
     @"|(?<![@\\w.-])(?:[A-Za-z0-9-]+\\.)+(?:com|org|net|edu|gov|io|dev|app|co|me|info|biz|us|uk|br|pt|de|fr|es|it|nl|jp|cn|in|au|ca|mx|ru|ch|se|no|eu|tv|ai|ly|gg)\\b(?:/[^\\s<>\"]*)?)";
 static NSString *const kPhonePattern =
     @"(?<![\\w+])(?:\\+\\d{1,3}[\\s.-]?)?(?:\\(\\d{1,4}\\)[\\s.-]?)?\\d{2,5}(?:[\\s.-]?\\d{2,5}){1,3}(?![\\w])";
+/* street addresses (US / UK style): number, street name and kind, then optional city, state and ZIP */
+static NSString *const kAddressPattern =
+    @"\\b(\\d{1,5}(?:\\s+[A-Z][A-Za-z.'-]*){1,4}\\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Way|Court|Ct|Place|Pl|"
+    @"Parkway|Pkwy|Square|Sq|Terrace|Ter|Highway|Hwy|Circle|Cir|Loop|Alley|Plaza)\\.?)"
+    @"(?:,?\\s+((?:[A-Z][A-Za-z.'-]+\\s?){1,3}?)(?:,\\s*([A-Z]{2}))?(?:\\s+(\\d{5}(?:-\\d{4})?))?)?(?![\\w])";
+/* flights: an airline's IATA code and a number ("UA 123", "BA2490") */
+static NSDictionary<NSString *, NSString *> *airlines(void) {
+    static NSDictionary *d;
+    if (!d) d = @{ @"AA": @"American Airlines", @"AC": @"Air Canada", @"AF": @"Air France", @"AM": @"Aeroméxico", @"AS": @"Alaska Airlines",
+                   @"AZ": @"ITA Airways", @"BA": @"British Airways", @"B6": @"JetBlue", @"CX": @"Cathay Pacific", @"DL": @"Delta Air Lines",
+                   @"EK": @"Emirates", @"EY": @"Etihad Airways", @"F9": @"Frontier Airlines", @"IB": @"Iberia", @"JL": @"Japan Airlines",
+                   @"KL": @"KLM", @"LA": @"LATAM", @"LH": @"Lufthansa", @"LX": @"SWISS", @"NH": @"ANA", @"NK": @"Spirit Airlines",
+                   @"QF": @"Qantas", @"QR": @"Qatar Airways", @"SQ": @"Singapore Airlines", @"SK": @"SAS", @"TK": @"Turkish Airlines",
+                   @"TP": @"TAP Air Portugal", @"UA": @"United Airlines", @"VS": @"Virgin Atlantic", @"WN": @"Southwest Airlines",
+                   @"G3": @"GOL", @"AD": @"Azul", @"FR": @"Ryanair", @"U2": @"easyJet" };
+    return d;
+}
+NSTextCheckingKey const NSTextCheckingNameKey = @"Name", NSTextCheckingJobTitleKey = @"JobTitle", NSTextCheckingOrganizationKey = @"Organization",
+    NSTextCheckingStreetKey = @"Street", NSTextCheckingCityKey = @"City", NSTextCheckingStateKey = @"State", NSTextCheckingZIPKey = @"ZIP",
+    NSTextCheckingCountryKey = @"Country", NSTextCheckingPhoneKey = @"Phone", NSTextCheckingAirlineKey = @"Airline", NSTextCheckingFlightKey = @"Flight";
 static NSString *const kMonths = @"(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)\\.?";
-@implementation NSDataDetector { NSTextCheckingTypes _types; NSRegularExpression *_link, *_phone, *_dateISO, *_dateNum, *_dateText1, *_dateText2, *_dateRel; }
+@implementation NSDataDetector { NSTextCheckingTypes _types; NSRegularExpression *_link, *_phone, *_address, *_flight, *_dateISO, *_dateNum, *_dateText1, *_dateText2, *_dateRel; }
 + (NSDataDetector *)dataDetectorWithTypes:(NSTextCheckingTypes)t error:(NSError **)e { return [[self alloc] initWithTypes:t error:e]; }
 - (instancetype)initWithPattern:(NSString *)p options:(NSRegularExpressionOptions)o error:(NSError **)e { return [self initWithTypes:0 error:e]; }
 - (instancetype)initWithTypes:(NSTextCheckingTypes)types error:(NSError **)error {
@@ -326,6 +349,9 @@ static NSString *const kMonths = @"(January|February|March|April|May|June|July|A
     NSRegularExpressionOptions ci = NSRegularExpressionCaseInsensitive;
     _link = [NSRegularExpression regularExpressionWithPattern:kLinkPattern options:ci error:NULL];
     _phone = [NSRegularExpression regularExpressionWithPattern:kPhonePattern options:0 error:NULL];
+    _address = [NSRegularExpression regularExpressionWithPattern:kAddressPattern options:0 error:NULL];
+    _flight = [NSRegularExpression regularExpressionWithPattern:[NSString stringWithFormat:@"\\b(%@)\\s?(\\d{1,4})\\b",
+               [airlines().allKeys componentsJoinedByString:@"|"]] options:0 error:NULL];
     _dateISO = [NSRegularExpression regularExpressionWithPattern:@"\\b(\\d{4})-(\\d{2})-(\\d{2})(?:[T ](\\d{2}):(\\d{2})(?::(\\d{2}))?)?\\b" options:0 error:NULL];
     _dateNum = [NSRegularExpression regularExpressionWithPattern:@"\\b(\\d{1,2})[/.](\\d{1,2})[/.](\\d{2,4})\\b" options:0 error:NULL];
     _dateText1 = [NSRegularExpression regularExpressionWithPattern:[NSString stringWithFormat:@"\\b%@ (\\d{1,2})(?:st|nd|rd|th)?(?:,? (\\d{4}))?\\b", kMonths] options:ci error:NULL];
@@ -381,6 +407,26 @@ static NSInteger current_year(void) { time_t t = time(NULL); struct tm tm; local
             if ([_dateISO firstMatchInString:s options:NSMatchingAnchored range:NSMakeRange(0, s.length)]) continue;
             [found addObject:[NSTextCheckingResult phoneNumberCheckingResultWithRange:m.range phoneNumber:s]];
         }
+    }
+    if (_types & NSTextCheckingTypeAddress) {
+        for (NSTextCheckingResult *m in [_address matchesInString:string options:0 range:range]) {
+            NSMutableDictionary *c = [NSMutableDictionary dictionary];
+            NSString *street = sub(m, 1), *city = [sub(m, 2) stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet], *state = sub(m, 3), *zip = sub(m, 4);
+            NSRange r = m.range;
+            if (city.length && !state && !zip) {           /* a capitalised word after the street is a city only with a state or ZIP */
+                city = nil; r = [m rangeAtIndex:1];
+            }
+            if (street) c[NSTextCheckingStreetKey] = street;
+            if (city.length) c[NSTextCheckingCityKey] = city;
+            if (state) c[NSTextCheckingStateKey] = state;
+            if (zip) c[NSTextCheckingZIPKey] = zip;
+            [found addObject:[NSTextCheckingResult addressCheckingResultWithRange:r components:c]];
+        }
+    }
+    if (_types & NSTextCheckingTypeTransitInformation) {
+        for (NSTextCheckingResult *m in [_flight matchesInString:string options:0 range:range])
+            [found addObject:[NSTextCheckingResult transitInformationCheckingResultWithRange:m.range
+                components:@{ NSTextCheckingAirlineKey: airlines()[sub(m, 1)], NSTextCheckingFlightKey: sub(m, 2) }]];
     }
     if (_types & NSTextCheckingTypeDate) {
         BOOL dayFirst = ![NSLocale.currentLocale.countryCode isEqualToString:@"US"];

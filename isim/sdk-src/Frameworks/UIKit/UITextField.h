@@ -46,6 +46,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL enablesReturnKeyAutomatically;
 @property (nonatomic, getter=isSecureTextEntry) BOOL secureTextEntry;
 @property (null_unspecified, nonatomic, copy) UITextContentType textContentType;
+@property (nullable, nonatomic, copy) UITextInputPasswordRules *passwordRules;
+@property (nonatomic) UITextInlinePredictionType inlinePredictionType;
 /* isim private: multi-line editing (wraps; height between min and max lines, max 0 = unlimited); used by SwiftUI */
 - (void)_isim_setLineLimitMin:(NSInteger)minLines max:(NSInteger)maxLines;
 @end

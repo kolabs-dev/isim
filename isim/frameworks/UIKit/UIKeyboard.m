@@ -2,7 +2,9 @@
  * responder (UITextField, ...) is first responder.
  *  - built-in keyboards enabled in Settings (English (US), Português (Brasil), Español, Français, Deutsch, Emoji):
  *    letters / numbers / symbols layers, shift + auto-capitalization, accent popups, predictive bar, autocorrection,
- *    delete with auto-repeat, return key titled by returnKeyType; dictation (mic) is not available;
+ *    delete with auto-repeat, return key titled by returnKeyType; inline predictions (the completion in grey after the
+ *    caret, accepted with space); the QuickType bar's AutoFill (passwords, one-time codes) and dictation (mic key;
+ *    the speech comes from the script command `dictate`): UITextServices.m;
  *  - the responder's keyboardType: number / decimal / phone pads (3 x 4 keys, letters under the digits, no return
  *    key), the email (@ .), URL (. / .com, no space), Twitter (@ #) and web search (.) bottom rows, numbers and
  *    punctuation starting (and staying) on the numbers layer;
@@ -88,6 +90,9 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     ];
 }
 
+@interface UITextChecker (IsimKnown)
+- (BOOL)_isim_known:(NSString *)w language:(NSString *)language;
+@end
 @interface __IsimKeyboardKeys : UIView
 @property (nonatomic, weak) id<UIKeyInput> target;
 - (BOOL)_pad;                                         /* a number / decimal / phone pad */
@@ -97,6 +102,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 @property (nonatomic, copy) void (^onLeaveEmoji)(void);
 @property (nonatomic, readonly) BOOL showsPredictions;
 - (void)_updateSuggestions;
+- (void)_clearInline;
 @end
 @implementation __IsimKeyboardKeys {
     int _layer; BOOL _shift, _caps; NSUInteger _emojiPage;
@@ -104,6 +110,8 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     NSTimer *_repeat;
     UIView *_bar, *_popup; NSArray<UIButton *> *_popupKeys; BOOL _suppressTap;
     NSArray<NSString *> *_suggestions;
+    NSArray<__IsimAutoFillSuggestion *> *_autofill;
+    NSString *_inline; UILabel *_ghost;          /* inline prediction: the rest of the word, drawn after the caret */
 }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) { _keys = [NSMutableArray array]; _language = @"en_US"; [self _rebuild]; }
@@ -115,8 +123,10 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     UIKeyboardType k = [self _kbType];
     return ![self _emoji] && (k == UIKeyboardTypeNumberPad || k == UIKeyboardTypeDecimalPad || k == UIKeyboardTypePhonePad || k == UIKeyboardTypeASCIICapableNumberPad);
 }
+- (NSArray<__IsimAutoFillSuggestion *> *)_autofillSuggestions { id t = _target; return t && ![self _emoji] ? isim_ui_autofill_suggestions(t) : @[]; }
 - (BOOL)showsPredictions {
     id t = _target;
+    if (t && [self _autofillSuggestions].count) return YES;
     if ([self _emoji] || [self _pad] || !pref_on(@"KeyboardPrediction") || !t) return NO;
     if ([t respondsToSelector:@selector(autocorrectionType)] && [(id<UITextInputTraits>)t autocorrectionType] == UITextAutocorrectionTypeNo) return NO;
     if ([t respondsToSelector:@selector(isSecureTextEntry)] && [(id<UITextInputTraits>)t isSecureTextEntry]) return NO;
@@ -247,7 +257,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 }
 - (void)_padSymbols { _layer = _layer == L_SYMBOLS ? L_NUMBERS : L_SYMBOLS; [self _rebuild]; }
 - (void)_layoutPad {
-    CGFloat W = self.bounds.size.width, side = 6, gap = 6, top = 6, keyH = 46;
+    CGFloat W = self.bounds.size.width, side = 6, gap = 6, top = 6 + [self _top], keyH = 46;
     CGFloat kw = floor((W - 2 * side - 2 * gap) / 3);
     NSUInteger i = 0;
     for (UIButton *b in _keys) {
@@ -409,9 +419,12 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     return NSMakeRange(i, before.length - i);
 }
 - (void)_updateSuggestions {
+    [self _clearInline];
+    _autofill = [self _autofillSuggestions];
     BOOL show = self.showsPredictions;
     _bar.hidden = !show;
     if (!show) { _suggestions = @[]; return; }
+    if (_autofill.count) { _suggestions = @[]; [self _layoutBar]; return; }
     NSString *word = nil; [self _currentWord:&word];
     NSMutableArray *s = [NSMutableArray array];
     UITextChecker *chk = [UITextChecker new];
@@ -427,14 +440,74 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
             BOOL cap = [NSCharacterSet.uppercaseLetterCharacterSet characterIsMember:[word characterAtIndex:0]];
             [s addObject:cap ? [[c substringToIndex:1].uppercaseString stringByAppendingString:[c substringFromIndex:1]] : c];
         }
+        if (!guesses.count && comps.count && ![chk _isim_known:word language:_language]) [self _showInline:comps[0] after:word];   /* a partial word */
     }
     _suggestions = s;
     [self _layoutBar];
+}
+/* ---- inline predictions (iOS 17): the likeliest completion in grey after the caret; space accepts it ---- */
+- (BOOL)_inlineEnabled {
+    id t = _target;
+    if (!pref_on(@"KeyboardInlinePrediction") || ![t isKindOfClass:[UIView class]] || ![t conformsToProtocol:@protocol(IsimEditableText)]) return NO;
+    if ([t respondsToSelector:@selector(inlinePredictionType)] && [(id<UITextInputTraits>)t inlinePredictionType] == UITextInlinePredictionTypeNo) return NO;
+    if ([t respondsToSelector:@selector(autocorrectionType)] && [(id<UITextInputTraits>)t autocorrectionType] == UITextAutocorrectionTypeNo &&
+        !([t respondsToSelector:@selector(inlinePredictionType)] && [(id<UITextInputTraits>)t inlinePredictionType] == UITextInlinePredictionTypeYes)) return NO;
+    return isim_os_version() >= 170000;
+}
+- (void)_showInline:(NSString *)completion after:(NSString *)word {
+    if (word.length < 2 || completion.length <= word.length || ![self _inlineEnabled]) return;
+    UIView<IsimEditableText> *t = (UIView<IsimEditableText> *)_target;
+    NSString *text = [t _isim_plainText];
+    NSRange sel = [t _isim_selectedRange];
+    if (sel.length || isim_ui_marked_range(t).location != NSNotFound) return;
+    if (NSMaxRange(sel) < text.length && [NSCharacterSet.letterCharacterSet characterIsMember:[text characterAtIndex:NSMaxRange(sel)]]) return;
+    _inline = [completion substringFromIndex:word.length];
+    CGRect c = [t _isim_caretRectForIndex:sel.location];
+    UIFont *font = [t respondsToSelector:@selector(font)] ? [(id)t font] : nil;
+    _ghost = [UILabel new];
+    _ghost.text = _inline;
+    _ghost.font = font ?: [UIFont systemFontOfSize:17];
+    _ghost.textColor = UIColor.tertiaryLabelColor;
+    _ghost.accessibilityIdentifier = @"isim-inline-prediction";
+    [_ghost sizeToFit];
+    _ghost.frame = CGRectMake(CGRectGetMaxX(c) - 1, CGRectGetMidY(c) - _ghost.bounds.size.height / 2, _ghost.bounds.size.width, _ghost.bounds.size.height);
+    [t addSubview:_ghost];
+}
+- (void)_clearInline { [_ghost removeFromSuperview]; _ghost = nil; _inline = nil; }
+- (BOOL)_acceptInline {
+    if (!_inline.length) return NO;
+    NSString *rest = _inline, *word = nil;
+    [self _currentWord:&word];
+    [self _clearInline];
+    [_target insertText:rest];
+    NSLog(@"isim: inline prediction accepted \"%@%@\"", word ?: @"", rest);
+    return YES;
 }
 - (void)_layoutBar {
     for (UIView *v in _bar.subviews) [v removeFromSuperview];
     if (_bar.hidden) return;
     CGFloat W = self.bounds.size.width, w = W / 3;
+    if (_autofill.count) {                          /* AutoFill: passwords, a strong password, a one-time code */
+        CGFloat aw = W / _autofill.count;
+        for (NSUInteger i = 0; i < _autofill.count; i++) {
+            __IsimAutoFillSuggestion *a = _autofill[i];
+            UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
+            [b setTitle:a.subtitle.length ? [NSString stringWithFormat:@"%@\n%@", a.title, a.subtitle] : a.title forState:UIControlStateNormal];
+            [b setTitleColor:UIColor.labelColor forState:UIControlStateNormal];
+            b.titleLabel.numberOfLines = 2;
+            b.titleLabel.textAlignment = NSTextAlignmentCenter;
+            b.titleLabel.font = [UIFont systemFontOfSize:a.subtitle.length ? 14 : 16];
+            if (a.symbol) { [b setImage:[UIImage systemImageNamed:a.symbol withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:14]] forState:UIControlStateNormal]; b.tintColor = UIColor.secondaryLabelColor; }
+            b.frame = CGRectMake(i * aw, 2, aw, 40);
+            b.tag = (NSInteger)i;
+            b.accessibilityIdentifier = [NSString stringWithFormat:@"isim-kb-autofill-%lu", (unsigned long)i];
+            b.accessibilityLabel = a.title;
+            [b addTarget:self action:@selector(_pickAutoFill:) forControlEvents:UIControlEventTouchUpInside];
+            [_bar addSubview:b];
+            if (i) { UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(i * aw, 12, 1, 20)]; sep.backgroundColor = UIColor.separatorColor; [_bar addSubview:sep]; }
+        }
+        return;
+    }
     for (NSUInteger i = 0; i < 3; i++) {
         NSString *t = i < _suggestions.count ? _suggestions[i] : @"";
         UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -449,18 +522,30 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
         if (i) { UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(i * w, 12, 1, 20)]; sep.backgroundColor = UIColor.separatorColor; [_bar addSubview:sep]; }
     }
 }
+- (void)_pickAutoFill:(UIButton *)b {
+    if ((NSUInteger)b.tag >= _autofill.count) return;
+    __IsimAutoFillSuggestion *a = _autofill[(NSUInteger)b.tag];
+    NSLog(@"isim: AutoFill suggestion \"%@\" picked", a.title);
+    a.action();
+    [self _updateSuggestions];
+    isim_ui_keyboard_suggestions_changed();
+}
 - (void)_pickSuggestion:(UIButton *)b {
     if ((NSUInteger)b.tag >= _suggestions.count) return;
     NSString *s = _suggestions[(NSUInteger)b.tag], *word = nil;
     NSRange r = [self _currentWord:&word];
     id t = _target;
-    if ([s hasPrefix:@"“"]) s = word;
+    if ([s hasPrefix:@"“"]) {                       /* keeping what was typed: the keyboard learns the word */
+        s = word;
+        if (word.length > 1 && ![UITextChecker hasLearnedWord:word]) { [UITextChecker learnWord:word]; NSLog(@"isim: learned the word \"%@\"", word); }
+    }
     NSLog(@"isim: suggestion \"%@\" picked", s);
     if (word.length && [t conformsToProtocol:@protocol(UITextInput)]) {
         id<UITextInput> ti = t;
         UITextPosition *a = [ti positionFromPosition:ti.beginningOfDocument offset:(NSInteger)r.location], *e = [ti positionFromPosition:a offset:(NSInteger)r.length];
         if (a && e) [ti replaceRange:[ti textRangeFromPosition:a toPosition:e] withText:s];
     } else [t insertText:s];
+    [self _clearInline];
     [self _type:@" " autocorrect:NO];
 }
 /* space / punctuation after a misspelled word typed on this keyboard: replace it with the best guess */
@@ -484,6 +569,12 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 }
 - (void)_type:(NSString *)s { [self _type:s autocorrect:YES]; }
 - (void)_type:(NSString *)s autocorrect:(BOOL)ac {
+    if ([s isEqualToString:@" "] && [self _acceptInline]) ac = NO;
+    if (ac && [@" .,!?;:\n" containsString:s]) {
+        extern void isim_text_checker_note_word(NSString *);
+        NSString *word = nil; [self _currentWord:&word];
+        if (word.length > 1) isim_text_checker_note_word(word);
+    }
     if (ac) [self _autocorrectBefore:s];
     [_target insertText:s];
     BOOL was = _shift;
@@ -612,6 +703,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     __weak id _target;
     BOOL _shown;
     UIView *_inputOverride, *_accessory;   /* the responder's inputView (instead of the keys) and inputAccessoryView (above) */
+    BOOL _dictating; UIView *_listening;
 }
 + (instancetype)shared { static __IsimKeyboardController *c; if (!c) c = [self new]; return c; }
 + (void)load_isim {
@@ -740,7 +832,37 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     _barGlobe.hidden = [_keys _pad];                   /* number / phone pads: no keyboard switching, as on iOS */
 }
 - (void)_barTapped { [self _next]; }
-- (void)_dictation { NSLog(@"isim: dictation is not available on isim (no speech recognition)"); }
+/* dictation (adapted): the mic key starts and stops listening; what is "said" comes from `dictate TEXT` (UITextServices.m) */
+- (void)_dictation {
+    if (!pref_on(@"KeyboardDictation")) { NSLog(@"isim: dictation is off (Settings > General > Keyboard > Enable Dictation)"); return; }
+    [self _setDictating:!_dictating];
+}
+- (BOOL)_dictating { return _dictating; }
+- (void)_setDictating:(BOOL)on {
+    if (on == _dictating || (on && !_shown)) return;
+    _dictating = on;
+    UIButton *mic = nil;
+    for (UIView *b in _bar.subviews) if (b.tag == 77) mic = (UIButton *)b;
+    [mic setImage:[UIImage systemImageNamed:on ? @"mic.fill" : @"mic" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:22]] forState:UIControlStateNormal];
+    mic.tintColor = on ? UIColor.systemBlueColor : UIColor.secondaryLabelColor;
+    mic.accessibilityLabel = on ? @"Stop Dictation" : @"Dictate";
+    [_listening removeFromSuperview]; _listening = nil;
+    if (on) {
+        UILabel *l = [UILabel new];
+        l.text = @"Listening…";
+        l.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
+        l.textColor = UIColor.systemBlueColor;
+        l.textAlignment = NSTextAlignmentCenter;
+        l.accessibilityIdentifier = @"isim-dictation-listening";
+        _listening = l;
+        [_bar addSubview:l];
+    }
+    [self _relayout];
+    [NSNotificationCenter.defaultCenter postNotificationName:UITextInputCurrentInputModeDidChangeNotification object:nil];
+    NSLog(@"isim: dictation %@", on ? @"started (listening)" : @"stopped");
+}
+- (id)_shownTarget { return _shown ? _target : nil; }
+- (void)_responderCheck { id fr = isim_ui_first_responder(); if (fr && (!_shown || _target != fr)) [self _responderChanged:fr]; }
 - (void)_leaveEmoji {
     NSInteger back = _lastLetters >= 0 && _lastLetters < (NSInteger)_order.count && ![_order[(NSUInteger)_lastLetters] isEqualToString:@"emoji"] ? _lastLetters : 0;
     [self _switchTo:back];
@@ -769,7 +891,8 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     _inputOverride.frame = CGRectMake(0, 0, d->width, contentH);
     _bar.frame = CGRectMake(0, accH + contentH, d->width, barH);
     _bar.hidden = barH == 0;
-    for (UIView *b in _bar.subviews) if (b.tag == 77) b.frame = CGRectMake(d->width - 56, 2, 44, 40);
+    for (UIView *b in _bar.subviews) if (b.tag == 77) { b.frame = CGRectMake(d->width - 56, 2, 44, 40); b.hidden = !pref_on(@"KeyboardDictation"); }
+    _listening.frame = CGRectMake(70, 2, d->width - 140, 40);
     if (_hostedView) _hostedView.frame = _content.bounds;
     _keys.frame = _content.bounds;
     if (_shown && !CGRectEqualToRect(old, f)) [self _post:UIKeyboardWillChangeFrameNotification from:old to:f], keyboard_frame = f, [self _post:UIKeyboardDidChangeFrameNotification from:old to:f];
@@ -789,6 +912,12 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     UIView *custom = [responder isKindOfClass:[UIResponder class]] && [responder respondsToSelector:@selector(inputView)] ? [responder inputView] : nil;
     UIView *acc = [responder isKindOfClass:[UIResponder class]] && [responder respondsToSelector:@selector(inputAccessoryView)] ? [responder inputAccessoryView] : nil;
     if (custom) { [self _showCustom:custom accessory:acc for:responder]; return; }
+    if (wants && isim_ui_scribble_focusing) {          /* writing with the Pencil: no on-screen keyboard */
+        [self _hide];
+        _target = responder;
+        NSLog(@"isim: Scribble: editing without the on-screen keyboard");
+        return;
+    }
     if (wants) { [self _build]; [self _setAccessory:acc]; [self _showFor:responder]; } else [self _hide];
 }
 - (void)_showCustom:(UIView *)custom accessory:(UIView *)acc for:(id)t {
@@ -820,6 +949,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     [self _build]; [self _discover]; [self _updateBarButton];
     if (_inputOverride) { [_inputOverride removeFromSuperview]; _inputOverride = nil; }     /* back from a custom input view */
     id old = _target;
+    if (old != t) { [self _setDictating:NO]; [_keys _clearInline]; }
     _target = t;
     _keys.showGlobe = ![self _barVisible] && _order.count > 1;
     _keys.target = t;
@@ -852,6 +982,8 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
 }
 - (void)_hide {
     if (!_shown) return;
+    [self _setDictating:NO];
+    [_keys _clearInline];
     _shown = NO;
     _target = nil;
     [_menu removeFromSuperview]; _menu = nil;
@@ -969,3 +1101,7 @@ void isim_ui_keyboard_install(void) { [__IsimKeyboardController load_isim]; }
 NSString *isim_ui_keyboard_current_language(void) { return [[__IsimKeyboardController shared] _language]; }
 void isim_ui_keyboard_suggestions_changed(void) { [[__IsimKeyboardController shared] _suggestionsChanged]; }
 NSArray<NSString *> *isim_ui_keyboard_enabled(void) { return [[__IsimKeyboardController shared] _activeLanguages]; }
+id isim_ui_keyboard_target(void) { return [[__IsimKeyboardController shared] _shownTarget]; }
+BOOL isim_ui_keyboard_dictating(void) { return [[__IsimKeyboardController shared] _dictating]; }
+void isim_ui_keyboard_set_dictating(BOOL on) { [[__IsimKeyboardController shared] _setDictating:on]; }
+void isim_ui_keyboard_responder_check(void) { [[__IsimKeyboardController shared] _responderCheck]; }

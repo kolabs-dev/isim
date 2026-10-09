@@ -20,6 +20,61 @@ typedef NS_ENUM(NSInteger, UIKeyboardType) {
 typedef NS_ENUM(NSInteger, UIKeyboardAppearance) { UIKeyboardAppearanceDefault, UIKeyboardAppearanceDark, UIKeyboardAppearanceLight };
 typedef NS_ENUM(NSInteger, UIReturnKeyType) { UIReturnKeyDefault, UIReturnKeyGo, UIReturnKeyGoogle, UIReturnKeyJoin, UIReturnKeyNext, UIReturnKeyRoute, UIReturnKeySearch, UIReturnKeySend, UIReturnKeyYahoo, UIReturnKeyDone, UIReturnKeyEmergencyCall, UIReturnKeyContinue };
 typedef NSString *UITextContentType NS_TYPED_ENUM;
+/* textContentType values. isim's AutoFill (UITextServices.m) acts on Username, EmailAddress, Password, NewPassword and
+   OneTimeCode; the others are stored. */
+UIKIT_EXTERN UITextContentType const UITextContentTypeName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeNamePrefix;
+UIKIT_EXTERN UITextContentType const UITextContentTypeGivenName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeMiddleName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeFamilyName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeNameSuffix;
+UIKIT_EXTERN UITextContentType const UITextContentTypeNickname;
+UIKIT_EXTERN UITextContentType const UITextContentTypeJobTitle;
+UIKIT_EXTERN UITextContentType const UITextContentTypeOrganizationName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeLocation;
+UIKIT_EXTERN UITextContentType const UITextContentTypeFullStreetAddress;
+UIKIT_EXTERN UITextContentType const UITextContentTypeStreetAddressLine1;
+UIKIT_EXTERN UITextContentType const UITextContentTypeStreetAddressLine2;
+UIKIT_EXTERN UITextContentType const UITextContentTypeAddressCity;
+UIKIT_EXTERN UITextContentType const UITextContentTypeAddressState;
+UIKIT_EXTERN UITextContentType const UITextContentTypeAddressCityAndState;
+UIKIT_EXTERN UITextContentType const UITextContentTypeSublocality;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCountryName;
+UIKIT_EXTERN UITextContentType const UITextContentTypePostalCode;
+UIKIT_EXTERN UITextContentType const UITextContentTypeTelephoneNumber;
+UIKIT_EXTERN UITextContentType const UITextContentTypeEmailAddress;
+UIKIT_EXTERN UITextContentType const UITextContentTypeURL;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardNumber;
+UIKIT_EXTERN UITextContentType const UITextContentTypeUsername;
+UIKIT_EXTERN UITextContentType const UITextContentTypePassword;
+UIKIT_EXTERN UITextContentType const UITextContentTypeNewPassword;
+UIKIT_EXTERN UITextContentType const UITextContentTypeOneTimeCode;
+UIKIT_EXTERN UITextContentType const UITextContentTypeShipmentTrackingNumber;
+UIKIT_EXTERN UITextContentType const UITextContentTypeFlightNumber;
+UIKIT_EXTERN UITextContentType const UITextContentTypeDateTime;
+UIKIT_EXTERN UITextContentType const UITextContentTypeBirthdate;
+UIKIT_EXTERN UITextContentType const UITextContentTypeBirthdateDay;
+UIKIT_EXTERN UITextContentType const UITextContentTypeBirthdateMonth;
+UIKIT_EXTERN UITextContentType const UITextContentTypeBirthdateYear;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardSecurityCode;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardGivenName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardMiddleName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardFamilyName;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardExpiration;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardExpirationMonth;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardExpirationYear;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardType;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCellularEID;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCellularIMEI;
+/* Password rules for strong-password suggestions ("required: lower; required: digit; minlength: 20; ...") */
+NS_SWIFT_UI_ACTOR
+@interface UITextInputPasswordRules : NSObject <NSSecureCoding, NSCopying>
+@property (nonatomic, readonly) NSString *passwordRulesDescriptor;
++ (instancetype)passwordRulesWithDescriptor:(NSString *)passwordRulesDescriptor;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+@end
 
 NS_SWIFT_UI_ACTOR
 @protocol UITextInputTraits <NSObject>
@@ -37,6 +92,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL enablesReturnKeyAutomatically;
 @property (nonatomic, getter=isSecureTextEntry) BOOL secureTextEntry;
 @property (null_unspecified, nonatomic, copy) UITextContentType textContentType;
+@property (nullable, nonatomic, copy) UITextInputPasswordRules *passwordRules;
 @end
 NS_SWIFT_UI_ACTOR
 @protocol UIKeyInput <UITextInputTraits>
@@ -70,6 +126,12 @@ NS_SWIFT_UI_ACTOR
 @end
 
 @protocol UITextInput, UITextInputTokenizer;
+/* Dictation (isim: the text comes from the script command `dictate TEXT`; there is no speech recognition) */
+NS_SWIFT_UI_ACTOR
+@interface UIDictationPhrase : NSObject
+@property (nonatomic, readonly) NSString *text;
+@property (nullable, nonatomic, readonly) NSArray<NSString *> *alternativeInterpretations;
+@end
 NS_SWIFT_UI_ACTOR
 @protocol UITextInputDelegate <NSObject>
 - (void)selectionWillChange:(nullable id <UITextInput>)textInput;
@@ -120,6 +182,12 @@ NS_SWIFT_UI_ACTOR
 - (void)beginFloatingCursorAtPoint:(CGPoint)point;
 - (void)updateFloatingCursorAtPoint:(CGPoint)point;
 - (void)endFloatingCursor;
+- (void)insertDictationResult:(NSArray<UIDictationPhrase *> *)dictationResult;
+- (void)dictationRecordingDidEnd;
+- (void)dictationRecognitionFailed;
+@property (nonatomic, readonly) id insertDictationResultPlaceholder;
+- (CGRect)frameForDictationResultPlaceholder:(id)placeholder;
+- (void)removeDictationResultPlaceholder:(id)placeholder willInsertResult:(BOOL)willInsertResult;
 @end
 
 /* ---- tokenizers ---- */

@@ -20,6 +20,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 @implementation UITextView {
     NSString *_storage;
     CGFloat _measuredWidth;
+    NSArray<NSTextCheckingResult *> *_items; NSString *_itemsText; UIDataDetectorTypes _itemsTypes;
 }
 @dynamic delegate;
 @synthesize autocapitalizationType = _autocapitalizationType, autocorrectionType = _autocorrectionType, spellCheckingType = _spellCheckingType,
@@ -27,7 +28,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     enablesReturnKeyAutomatically = _enablesReturnKeyAutomatically, secureTextEntry = _secureTextEntry, textContentType = _textContentType,
     inputView = _inputView, inputAccessoryView = _inputAccessoryView,
     smartQuotesType = _smartQuotesType, smartDashesType = _smartDashesType, smartInsertDeleteType = _smartInsertDeleteType,
-    inlinePredictionType = _inlinePredictionType;
+    inlinePredictionType = _inlinePredictionType, passwordRules = _passwordRules;
 
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
@@ -162,8 +163,10 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
         CGFloat bl = floor((b.y + lh / 2) / lh);
         if (bl != line || fabs(a.x - x) < fabs(b.x - x)) lo = lo - 1;
     }
-    NSRange r = [_storage rangeOfComposedCharacterSequenceAtIndex:MIN(lo, _storage.length ? _storage.length - 1 : 0)];
-    if (lo < _storage.length && lo != r.location) lo = r.location;
+    if (lo < _storage.length) {                          /* (an empty text has no character to snap to) */
+        NSRange r = [_storage rangeOfComposedCharacterSequenceAtIndex:lo];
+        if (lo != r.location) lo = r.location;
+    }
     return lo;
 }
 
@@ -254,6 +257,74 @@ ISIM_TEXT_INPUT_METHODS
     [self scrollRectToVisible:CGRectMake(0, o.y + a.y, self.bounds.size.width, b.y - a.y + lh) animated:NO];
 }
 
+/* ---- detected items (dataDetectorTypes; not editable, selectable): UITextServices.m ---- */
+- (void)setDataDetectorTypes:(UIDataDetectorTypes)t { _dataDetectorTypes = t; isim_ui_set_needs_display(); }
+- (NSArray<NSTextCheckingResult *> *)_isim_items {
+    if (_editable || !_selectable || !_dataDetectorTypes || _secureTextEntry) return @[];
+    if (!_items || _itemsTypes != _dataDetectorTypes || ![_itemsText isEqualToString:_storage]) {
+        _items = isim_ui_detect_items(_storage, _dataDetectorTypes);
+        _itemsText = _storage; _itemsTypes = _dataDetectorTypes;
+    }
+    return _items;
+}
+/* an item's pieces, one per line: (character range, rect in content coordinates) */
+- (void)_isim_itemPieces:(NSRange)r each:(void (^)(NSRange piece, CGRect rect))each {
+    CGPoint o = [self _isim_tvTextOrigin];
+    CGFloat lh = ceil(_font.lineHeight);
+    NSUInteger start = r.location;
+    CGPoint a = [self _isim_tvCaretFor:start];
+    for (NSUInteger i = r.location + 1; i <= NSMaxRange(r); i++) {
+        CGPoint c = [self _isim_tvCaretFor:i];
+        BOOL wrapped = c.y > a.y + 0.5 && i < NSMaxRange(r);
+        if (wrapped || i == NSMaxRange(r)) {
+            NSUInteger end = wrapped ? i - 1 : i;
+            CGPoint e = wrapped ? [self _isim_tvCaretFor:end] : c;
+            if (e.y > a.y + 0.5) e = CGPointMake([self _isim_tvTextWidthFor:self.bounds.size.width], a.y);
+            if (end > start) each(NSMakeRange(start, end - start), CGRectMake(o.x + a.x, o.y + a.y, e.x - a.x, lh));
+            if (wrapped) { start = end; a = [self _isim_tvCaretFor:start]; if (a.y < c.y - 0.5) a = CGPointMake(0, c.y); }
+        }
+    }
+}
+- (NSTextCheckingResult *)_isim_itemAt:(CGPoint)p {
+    __block NSTextCheckingResult *hit = nil;
+    for (NSTextCheckingResult *r in [self _isim_items]) {
+        [self _isim_itemPieces:r.range each:^(NSRange piece, CGRect rect) { if (CGRectContainsPoint(CGRectInset(rect, -2, -4), p)) hit = r; }];
+        if (hit) break;
+    }
+    return hit;
+}
+- (BOOL)_isim_tapItemAt:(CGPoint)p {
+    NSTextCheckingResult *r = [self _isim_itemAt:p];
+    return r && isim_ui_text_item_tap(self, r);
+}
+- (BOOL)_isim_longPressItemAt:(CGPoint)p {
+    NSTextCheckingResult *r = [self _isim_itemAt:p];
+    if (!r) return NO;
+    __block CGRect box = CGRectNull;
+    [self _isim_itemPieces:r.range each:^(NSRange piece, CGRect rect) { box = CGRectUnion(box, rect); }];
+    return isim_ui_text_item_menu(self, r, [self convertRect:box toView:nil]);
+}
+/* items are drawn over the text in the tint colour, underlined (the text under them is covered first) */
+- (void)_isim_drawItems {
+    NSArray *items = [self _isim_items];
+    if (!items.count) return;
+    UIColor *bg = nil;
+    for (UIView *v = self; v && !bg; v = v.superview) { double c[4]; if (v.backgroundColor) { isim_ui_rgba(v.backgroundColor, c); if (c[3] > 0.99) bg = v.backgroundColor; } }
+    double back4[4], tint4[4];
+    isim_ui_rgba(bg ?: UIColor.systemBackgroundColor, back4);
+    isim_ui_rgba(self.tintColor, tint4);
+    double *back = back4, *tint = tint4;
+    UIColor *tc = self.tintColor;
+    CGPoint off = self.contentOffset;
+    for (NSTextCheckingResult *r in items)
+        [self _isim_itemPieces:r.range each:^(NSRange piece, CGRect rect) {
+            CGRect d = CGRectOffset(rect, -off.x, -off.y);
+            isim_gfx_fill_rounded(d.origin.x, d.origin.y, d.size.width + 1, d.size.height, 0, back);
+            isim_ui_draw_text([_storage substringWithRange:piece], _font, tc, CGRectMake(d.origin.x, d.origin.y, d.size.width + 20, d.size.height), NSTextAlignmentLeft, 1, 1);
+            isim_gfx_fill_rounded(d.origin.x, d.origin.y + ceil(_font.ascender) + 2, d.size.width, 1, 0, tint);
+        }];
+}
+
 /* ---- drawing (content coordinates are shifted by the scroll offset) ---- */
 - (void)_isim_drawContent {
     CGPoint off = self.contentOffset, o = [self _isim_tvTextOrigin];
@@ -267,6 +338,7 @@ ISIM_TEXT_INPUT_METHODS
         CGFloat h = isim_ui_measure(s, _font, w, 0).height;
         isim_ui_draw_text(s, _font, _textColor, CGRectMake(x, y, w, h), _textAlignment, 0, 1);
     }
+    [self _isim_drawItems];
     isim_gfx_save(); isim_gfx_translate(-off.x, -off.y);
     isim_ui_text_draw_spelling(self);
     isim_ui_text_draw_selection(self);

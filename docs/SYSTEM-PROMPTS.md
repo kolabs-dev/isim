@@ -75,6 +75,7 @@ These override the Settings app for one run (the device's settings stay as they 
 | `ISIM_HOUR_CYCLE=12\|24` | 12- or 24-hour time (default: the locale's) |
 | `ISIM_KEEP_TZ=1` | keep the process's `TZ` instead of applying Settings > Date & Time |
 | `ISIM_KEYBOARDS=all\|none` | enable all, or none, of the installed keyboard extensions |
+| `ISIM_DICTIONARIES=DIR[:DIR…]\|none` | where `UITextChecker` looks for Hunspell dictionaries (`en_US.dic`, `pt_BR.dic`, …) to add to its built-in word lists (default `/usr/share/hunspell:/usr/share/myspell`; the tests use `none`) |
 
 ## Window, screenshots and sound
 

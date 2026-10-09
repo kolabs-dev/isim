@@ -80,6 +80,9 @@ extension's view is drawn at the top of the card.
 | `key NAME` | press a key: `backspace`, `return`, `tab`, `escape`, arrows, letters, digits, … |
 | `keydown NAME` / `keyup NAME` | press or release a hardware key (for `pressesBegan`, `GCKeyboard`) |
 | `compose TEXT` | marked (composing) text, as from an input method |
+| `dictate TEXT` · `dictate fail` | dictation: TEXT is what was said into the keyboard's mic (it starts listening if needed; "comma", "period", "new line", … become punctuation); `fail` reports a recognition failure |
+| `scribble X Y TEXT` | Scribble (iPad): handwrite TEXT with Apple Pencil at (X, Y), into the text input there |
+| `sms TEXT` | a text message arrives; AutoFill offers a one-time code in it to `oneTimeCode` fields for three minutes |
 
 ## Device
 

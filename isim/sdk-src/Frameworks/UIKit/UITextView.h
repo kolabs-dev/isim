@@ -1,9 +1,10 @@
 #pragma once
-/* isim: UITextView — editable, scrollable multi-line text (plain text; no attributed text, no selection UI). */
+/* isim: UITextView — editable, scrollable multi-line plain text. Not editable and selectable, it shows the
+   dataDetectorTypes it finds (links, phone numbers, addresses, dates) as tappable links (UITextServices.m). */
 #import <UIKit/UIScrollView.h>
 #import <UIKit/UITextInput.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UITextView, UIFont, UIColor;
+@class UITextView, UIFont, UIColor, UIAction, UIMenu, UIMenuElement;
 
 typedef NS_OPTIONS(NSUInteger, UIDataDetectorTypes) {
     UIDataDetectorTypePhoneNumber = 1 << 0, UIDataDetectorTypeLink = 1 << 1, UIDataDetectorTypeAddress = 1 << 2,
@@ -11,6 +12,27 @@ typedef NS_OPTIONS(NSUInteger, UIDataDetectorTypes) {
     UIDataDetectorTypeFlightNumber = 1 << 5, UIDataDetectorTypeLookupSuggestion = 1 << 6,
     UIDataDetectorTypeNone = 0, UIDataDetectorTypeAll = NSUIntegerMax
 };
+
+typedef NS_ENUM(NSInteger, UITextItemInteraction) {
+    UITextItemInteractionInvokeDefaultAction = 0, UITextItemInteractionPresentActions = 1, UITextItemInteractionPreview = 2
+};
+typedef NS_ENUM(NSInteger, UITextItemContentType) { UITextItemContentTypeLink = 0, UITextItemContentTypeTextAttachment = 1, UITextItemContentTypeTag = 2 };
+/* a detected item (or link) the user acted on (iOS 17) */
+NS_SWIFT_UI_ACTOR
+@interface UITextItem : NSObject
+@property (nonatomic, readonly) UITextItemContentType contentType NS_REFINED_FOR_SWIFT;     /* Swift: content */
+@property (nonatomic, readonly) NSRange range;
+@property (nullable, nonatomic, readonly) NSURL *link NS_REFINED_FOR_SWIFT;
+@property (nullable, nonatomic, readonly) NSString *tagIdentifier NS_REFINED_FOR_SWIFT;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+@end
+NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(UITextItem.MenuConfiguration)
+@interface UITextItemMenuConfiguration : NSObject
++ (instancetype)configurationWithMenu:(UIMenu *)menu;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+@end
 
 NS_SWIFT_UI_ACTOR
 @protocol UITextViewDelegate <NSObject, UIScrollViewDelegate>
@@ -22,9 +44,13 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)textView:(UITextView *)textView shouldChangeTextInRange:(NSRange)range replacementText:(NSString *)text;
 - (void)textViewDidChange:(UITextView *)textView;
 - (void)textViewDidChangeSelection:(UITextView *)textView;
+/* detected items: a tap runs the primary action, a long press shows the menu */
+- (nullable UIAction *)textView:(UITextView *)textView primaryActionForTextItem:(UITextItem *)textItem defaultAction:(UIAction *)defaultAction;
+- (nullable UITextItemMenuConfiguration *)textView:(UITextView *)textView menuConfigurationForTextItem:(UITextItem *)textItem defaultMenu:(UIMenu *)defaultMenu;
+- (BOOL)textView:(UITextView *)textView shouldInteractWithURL:(NSURL *)URL inRange:(NSRange)characterRange interaction:(UITextItemInteraction)interaction;
+- (BOOL)textView:(UITextView *)textView shouldInteractWithURL:(NSURL *)URL inRange:(NSRange)characterRange;
 @end
 
-/* isim: plain text only; the caret goes where you tap (or to selectedRange); no selection handles, loupe or edit menu. */
 NS_SWIFT_UI_ACTOR
 @interface UITextView : UIScrollView <UITextInput>
 - (instancetype)initWithFrame:(CGRect)frame;
@@ -36,7 +62,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) NSRange selectedRange;
 @property (nonatomic, getter=isEditable) BOOL editable;
 @property (nonatomic, getter=isSelectable) BOOL selectable;
-@property (nonatomic) UIDataDetectorTypes dataDetectorTypes;      /* isim: stored only */
+@property (nonatomic) UIDataDetectorTypes dataDetectorTypes;
 @property (nonatomic) BOOL allowsEditingTextAttributes;
 @property (nonatomic) BOOL clearsOnInsertion;
 @property (nonatomic) UIEdgeInsets textContainerInset;
@@ -52,6 +78,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL enablesReturnKeyAutomatically;
 @property (nonatomic, getter=isSecureTextEntry) BOOL secureTextEntry;
 @property (null_unspecified, nonatomic, copy) UITextContentType textContentType;
+@property (nullable, nonatomic, copy) UITextInputPasswordRules *passwordRules;
+@property (nonatomic) UITextInlinePredictionType inlinePredictionType;
 - (void)scrollRangeToVisible:(NSRange)range;
 @end
 

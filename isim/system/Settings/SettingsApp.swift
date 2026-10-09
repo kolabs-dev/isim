@@ -70,6 +70,7 @@ enum Route: Hashable {
     case accessibility, textSize, voiceOver
     case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter, homeScreen
     case app(String), appKeyboards(String), appPaste(String)
+    case passwords, pencil
     case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
 }
 
@@ -118,6 +119,14 @@ struct RootView: View {
                     NavigationLink(value: Route.gameCenter) { Label { Text("Game Center") } icon: { SettingsIcon(symbol: "gamecontroller", color: .pink) } }
                         .accessibilityIdentifier("settings-gamecenter")
                 }
+                Section {
+                    NavigationLink(value: Route.passwords) { Label { Text("Passwords") } icon: { SettingsIcon(symbol: "key.fill", color: .gray) } }
+                        .accessibilityIdentifier("settings-passwords")
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        NavigationLink(value: Route.pencil) { Label { Text("Apple Pencil") } icon: { SettingsIcon(symbol: "pencil.tip", color: .gray) } }
+                            .accessibilityIdentifier("settings-pencil")
+                    }
+                }
                 let apps = installedApps()
                 if !apps.isEmpty {
                     Section("Apps") {
@@ -163,6 +172,8 @@ struct RootView: View {
         case .app(let id): AppSettingsView(id: id)
         case .appKeyboards(let id): AppKeyboardsView(id: id)
         case .appPaste(let id): PasteAccessView(id: id)
+        case .passwords: PasswordsView()
+        case .pencil: PencilView()
         case .appPane(let bundle, let file, let id): ChildPaneView(bundlePath: bundle, file: file, appID: id)
         case .appMultiValue(let bundle, let file, let key): MultiValueRouteView(bundlePath: bundle, file: file, key: key)
         }
@@ -233,8 +244,9 @@ struct KeyboardView: View {
                 Toggle("Predictive", isOn: pref("KeyboardPrediction")).accessibilityIdentifier("settings-predictive")
             }
             Section {
-                Toggle("Enable Dictation", isOn: .constant(false)).disabled(true)
-            } footer: { Text("Dictation is not available on isim.") }
+                Toggle("Show Predictions Inline", isOn: pref("KeyboardInlinePrediction")).accessibilityIdentifier("settings-inline-predictions")
+                Toggle("Enable Dictation", isOn: pref("KeyboardDictation")).accessibilityIdentifier("settings-dictation")
+            } footer: { Text("isim has no speech recognition: while the keyboard's mic is listening, the script command dictate TEXT is what you say.") }
         }
         .navigationTitle("Keyboard").navigationBarTitleDisplayMode(.inline)
     }
@@ -693,4 +705,63 @@ struct TextSizeView: View {
         .navigationTitle("Display & Text Size").navigationBarTitleDisplayMode(.inline)
     }
     func set(_ i: Int) { Store.set("ISIMContentSizeCategory", contentSizeCategories[i]); bump += 1 }
+}
+
+// MARK: - Passwords
+
+/// The device's saved passwords (UIKit AutoFill: $ISIM_DATA/Library/Passwords/passwords.plist)
+struct PasswordsView: View {
+    @State private var bump = 0
+    var path: String { (isimDataDir() as NSString).appendingPathComponent("Library/Passwords/passwords.plist") }
+    func load() -> [[String: Any]] {
+        guard let d = FileManager.default.contents(atPath: path),
+              let a = try? PropertyListSerialization.propertyList(from: d, format: nil) as? [[String: Any]] else { return [] }
+        return a
+    }
+    func delete(_ i: Int) {
+        var a = load()
+        guard i < a.count else { return }
+        a.remove(at: i)
+        if let d = try? PropertyListSerialization.data(fromPropertyList: a, format: .xml, options: 0) { FileManager.default.createFile(atPath: path, contents: d) }
+        bump += 1
+    }
+    var body: some View {
+        let _ = bump
+        let items = load()
+        List {
+            Section {
+                Toggle("AutoFill Passwords", isOn: Binding(get: { Store.global.object(forKey: "AutoFillPasswords") as? Bool ?? true },
+                                                           set: { Store.set("AutoFillPasswords", $0); bump += 1 }))
+                    .accessibilityIdentifier("settings-autofill")
+            } footer: { Text("Apps offer these passwords above the keyboard and ask to save new ones. They are stored on this isim device only.") }
+            Section("Saved Passwords") {
+                if items.isEmpty { Text("No Saved Passwords").foregroundStyle(.secondary) }
+                ForEach(Array(items.enumerated()), id: \.offset) { i, e in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(e["site"] as? String ?? "")
+                        Text(e["user"] as? String ?? "").font(.footnote).foregroundStyle(.secondary)
+                    }
+                    .accessibilityIdentifier("settings-password-\(i)")
+                    .swipeActions { Button("Delete", role: .destructive) { delete(i) } }
+                }
+            }
+        }
+        .navigationTitle("Passwords").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Apple Pencil (iPad): Scribble
+struct PencilView: View {
+    @State private var bump = 0
+    var body: some View {
+        let _ = bump
+        List {
+            Section {
+                Toggle("Scribble", isOn: Binding(get: { Store.global.object(forKey: "PencilScribble") as? Bool ?? true },
+                                                 set: { Store.set("PencilScribble", $0); bump += 1 }))
+                    .accessibilityIdentifier("settings-scribble")
+            } footer: { Text("Write in any text field with Apple Pencil. isim has no Pencil: the script command scribble X Y TEXT writes TEXT at (X, Y).") }
+        }
+        .navigationTitle("Apple Pencil").navigationBarTitleDisplayMode(.inline)
+    }
 }
