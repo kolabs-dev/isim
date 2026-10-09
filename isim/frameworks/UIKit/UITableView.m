@@ -154,12 +154,24 @@ const CGFloat UITableViewAutomaticDimension = -1;
     default: return [UIListContentConfiguration cellConfiguration];
     }
 }
-- (void)setContentConfiguration:(id<UIContentConfiguration>)c { _contentConfiguration = [(id)c copy]; [self setNeedsLayout]; isim_ui_set_needs_display(); }
+- (void)setContentConfiguration:(id<UIContentConfiguration>)c {
+    extern UIView *isim_ui_install_content_configuration(UIView *contentView, id cfg);      /* UICollectionView.m */
+    _contentConfiguration = [(id)c copy];
+    isim_ui_install_content_configuration(self.contentView, _contentConfiguration);
+    [self setNeedsLayout]; isim_ui_set_needs_display();
+}
+- (void)_isim_stateChanged {                          /* a Swift content configuration's updated(for:) */
+    extern id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, BOOL highlighted, BOOL editing, BOOL swiped, BOOL expanded);
+    extern UIView *isim_ui_install_content_configuration(UIView *contentView, id cfg);
+    if (!_contentConfiguration) return;
+    id next = isim_ui_content_configuration_for_state(_contentConfiguration, self, _selected, _highlighted, _editing, self._isim_swipe != 0, NO);
+    if (next != _contentConfiguration) { _contentConfiguration = next; isim_ui_install_content_configuration(self.contentView, next); }
+}
 - (void)prepareForReuse { self._isim_swipe = 0; [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; self.highlighted = NO; self.selected = NO; }
 - (void)setSelected:(BOOL)s { [self setSelected:s animated:NO]; }
-- (void)setSelected:(BOOL)s animated:(BOOL)a { _selected = s; isim_ui_set_needs_display(); }
+- (void)setSelected:(BOOL)s animated:(BOOL)a { BOOL changed = _selected != s; _selected = s; isim_ui_set_needs_display(); if (changed) [self _isim_stateChanged]; }
 - (void)setHighlighted:(BOOL)h { [self setHighlighted:h animated:NO]; }
-- (void)setHighlighted:(BOOL)h animated:(BOOL)a { _highlighted = h; isim_ui_set_needs_display(); }
+- (void)setHighlighted:(BOOL)h animated:(BOOL)a { BOOL changed = _highlighted != h; _highlighted = h; isim_ui_set_needs_display(); if (changed) [self _isim_stateChanged]; }
 - (void)setEditing:(BOOL)e { [self setEditing:e animated:NO]; }
 - (void)setEditing:(BOOL)e animated:(BOOL)a {
     _editing = e;
@@ -184,7 +196,10 @@ const CGFloat UITableViewAutomaticDimension = -1;
 /* the content configuration (or the cell style's labels) laid out in contentView; returns the needed height */
 - (CGFloat)_layoutContentForWidth:(CGFloat)W apply:(BOOL)apply {
     UIListContentConfiguration *cfg = [(id)_contentConfiguration isKindOfClass:[UIListContentConfiguration class]] ? (UIListContentConfiguration *)_contentConfiguration : nil;
-    if (_contentConfiguration && !cfg) return 44;          /* custom configurations: not drawn by isim */
+    if (_contentConfiguration && !cfg) {                  /* a custom configuration's content view: its fitting height */
+        CGSize fit = [self.contentView systemLayoutSizeFittingSize:CGSizeMake(W, 0) withHorizontalFittingPriority:UILayoutPriorityRequired verticalFittingPriority:UILayoutPriorityFittingSizeLevel];
+        return fmax(44, ceil(fit.height));
+    }
     NSString *text = cfg ? cfg.text : (_usedText ? _text.text : nil), *detail = cfg ? cfg.secondaryText : (_usedDetail ? _detail.text : nil);
     UIImage *img = cfg ? cfg.image : (_usedImage ? _image.image : nil);
     UIFont *tf = cfg ? cfg.textProperties.font : (_text.font ?: [UIFont systemFontOfSize:17]);

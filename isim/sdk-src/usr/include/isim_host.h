@@ -71,6 +71,7 @@ void isim_text_measure_f(const char *utf8, const char *family, double size, doub
 void isim_text_end_point_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, double *x, double *y);
 void isim_text_draw_f(const char *utf8, const char *family, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba);
 int isim_font_register(const char *path);
+int isim_font_app_face(int i, char *family, int famlen, char *ps, int pslen);   /* registered app fonts, in order */
 int isim_font_lookup(const char *name, char *family, int famlen, double *weight, int *italic);
 int isim_font_has_char(const char *family, unsigned codepoint);
 void isim_set_status_bar_style(int dark_content);

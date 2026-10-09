@@ -30,6 +30,10 @@ static NSString *supp_key(NSString *kind, NSIndexPath *ip) { return [NSString st
     UICollectionViewLayoutAttributes *a = [self new]; a.indexPath = ip; a.representedElementKind = kind;
     a.representedElementCategory = UICollectionElementCategorySupplementaryView; a.zIndex = 10; return a;
 }
++ (instancetype)layoutAttributesForDecorationViewOfKind:(NSString *)kind withIndexPath:(NSIndexPath *)ip {
+    UICollectionViewLayoutAttributes *a = [self new]; a.indexPath = ip; a.representedElementKind = kind;
+    a.representedElementCategory = UICollectionElementCategoryDecorationView; a.zIndex = -1; return a;
+}
 - (CGPoint)center { return CGPointMake(CGRectGetMidX(_frame), CGRectGetMidY(_frame)); }
 - (void)setCenter:(CGPoint)c { _frame.origin = CGPointMake(c.x - _frame.size.width / 2, c.y - _frame.size.height / 2); }
 - (CGSize)size { return _frame.size; }
@@ -80,6 +84,58 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
     return cfg._isim_kind >= 3 ? ceil(h + m.top + m.bottom) : fmax(44, h + m.top + m.bottom);
 }
 
+/* ================= content views ================= */
+/* UIListContentView: a list content configuration laid out on its own (like a list cell's content) */
+@implementation UIListContentView { UIListContentConfiguration *_cfg; NSMutableDictionary *_views; }
+- (instancetype)initWithConfiguration:(UIListContentConfiguration *)c { if ((self = [super initWithFrame:CGRectZero])) { _cfg = [c copy]; _views = [NSMutableDictionary dictionary]; } return self; }
+- (UIListContentConfiguration *)configuration { return [_cfg copy]; }
+- (void)setConfiguration:(UIListContentConfiguration *)c { _cfg = [c copy]; [self setNeedsLayout]; [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
+- (void)layoutSubviews { [super layoutSubviews]; if (_cfg) list_content(self, _cfg, _views, self.bounds.size.width, YES, _cfg.directionalLayoutMargins.leading, _cfg.directionalLayoutMargins.trailing, NULL); }
+- (CGSize)sizeThatFits:(CGSize)size {
+    CGFloat W = size.width > 0 ? size.width : 320;
+    return CGSizeMake(W, _cfg ? list_content(self, _cfg, [NSMutableDictionary dictionary], W, NO, _cfg.directionalLayoutMargins.leading, _cfg.directionalLayoutMargins.trailing, NULL) : 44);
+}
+- (CGSize)intrinsicContentSize { return CGSizeMake(UIViewNoIntrinsicMetric, [self sizeThatFits:CGSizeMake(self.bounds.size.width, 0)].height); }
+@end
+@implementation UIListContentConfiguration (IsimContentView)
+- (UIView *)makeContentView { return [[UIListContentView alloc] initWithConfiguration:self]; }
+@end
+/* a custom content configuration (an ObjC one, or a Swift one boxed by the UIKit overlay): its content view fills the
+   cell's contentView (pinned with constraints, so the cell sizes to it); an installed view that supports the new
+   configuration takes it, else a new view replaces it */
+static char kContentView;
+UIView *isim_ui_install_content_configuration(UIView *contentView, id cfg) {
+    UIView *cur = objc_getAssociatedObject(contentView, &kContentView);
+    if (!cfg || [cfg isKindOfClass:[UIListContentConfiguration class]] || ![cfg respondsToSelector:@selector(makeContentView)]) {
+        [cur removeFromSuperview]; objc_setAssociatedObject(contentView, &kContentView, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return nil;
+    }
+    BOOL applied = NO;
+    if (cur) {
+        if ([cfg respondsToSelector:@selector(_isimApplyTo:)]) applied = ((BOOL (*)(id, SEL, UIView *))objc_msgSend)(cfg, @selector(_isimApplyTo:), cur);
+        else if ([cur respondsToSelector:@selector(setConfiguration:)] && [cur isKindOfClass:[[cfg makeContentView] class]]) { [(id)cur setConfiguration:cfg]; applied = YES; }
+    }
+    if (!applied) {
+        [cur removeFromSuperview];
+        cur = [cfg makeContentView];
+        if (!cur) return nil;
+        cur.translatesAutoresizingMaskIntoConstraints = NO;
+        [contentView addSubview:cur];
+        [NSLayoutConstraint activateConstraints:@[[cur.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor], [cur.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor],
+                                                  [cur.topAnchor constraintEqualToAnchor:contentView.topAnchor], [cur.bottomAnchor constraintEqualToAnchor:contentView.bottomAnchor]]];
+        objc_setAssociatedObject(contentView, &kContentView, cur, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    [cur setNeedsLayout];
+    return cur;
+}
+/* the configuration for the cell's state (automaticallyUpdatesContentConfiguration; Swift configurations' updated(for:)) */
+id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, BOOL highlighted, BOOL editing, BOOL swiped, BOOL expanded) {
+    if (![cfg respondsToSelector:@selector(_isimUpdatedWithState:)]) return cfg;
+    NSDictionary *state = @{ @"selected": @(selected), @"highlighted": @(highlighted), @"editing": @(editing), @"swiped": @(swiped), @"expanded": @(expanded),
+                             @"disabled": @(!cell.userInteractionEnabled), @"traits": cell.traitCollection };
+    return ((id (*)(id, SEL, NSDictionary *))objc_msgSend)(cfg, @selector(_isimUpdatedWithState:), state) ?: cfg;
+}
+
 /* ================= reusable views and cells ================= */
 @interface UICollectionReusableView ()
 @property (nullable, nonatomic, readwrite, copy) NSString *reuseIdentifier;
@@ -88,6 +144,7 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
 @end
 @interface UICollectionView (IsimCells)
 - (void)_isim_cellTouched:(UICollectionViewCell *)c phase:(int)phase;   /* 0 began, 1 ended inside, 2 cancelled */
+- (void)_isim_interactiveMoveFrom:(NSIndexPath *)from to:(NSIndexPath *)to;
 - (UICollectionLayoutListConfiguration *)_isim_listConfigForSection:(NSInteger)s;
 @end
 @interface UICollectionReusableView (IsimMetrics)
@@ -125,9 +182,10 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
 }
 @end
 
-@implementation UICollectionViewCell { UIView *_content; }
+@implementation UICollectionViewCell { UIView *_content; BOOL _isimNeedsConfig; }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
+        _isimNeedsConfig = YES;
         _content = [[UIView alloc] initWithFrame:self.bounds];
         _content.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         [self addSubview:_content];
@@ -139,14 +197,36 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
 - (UIView *)contentView { return _content; }
 - (void)setBackgroundView:(UIView *)v { [_backgroundView removeFromSuperview]; _backgroundView = v; if (v) { [self insertSubview:v atIndex:0]; v.frame = self.bounds; } }
 - (void)setSelectedBackgroundView:(UIView *)v { [_selectedBackgroundView removeFromSuperview]; _selectedBackgroundView = v; if (v) { [self insertSubview:v atIndex:_backgroundView ? 1 : 0]; v.frame = self.bounds; } [self _isim_updateSelectionViews]; }
-- (void)_isim_updateSelectionViews { _selectedBackgroundView.hidden = !(_selected || _highlighted); isim_ui_set_needs_display(); }
-- (void)setSelected:(BOOL)s { _selected = s; [self _isim_updateSelectionViews]; }
-- (void)setHighlighted:(BOOL)h { _highlighted = h; [self _isim_updateSelectionViews]; }
-- (void)setContentConfiguration:(id<UIContentConfiguration>)c { _contentConfiguration = [(id)c copy]; [self setNeedsLayout]; isim_ui_set_needs_display(); }
-- (void)prepareForReuse { [super prepareForReuse]; self.selected = NO; self.highlighted = NO; }
+- (void)_isim_updateSelectionViews { _selectedBackgroundView.hidden = !(_selected || _highlighted); isim_ui_set_needs_display(); [self _isim_stateChanged]; }
+- (void)setSelected:(BOOL)s { if (_selected == s) return; _selected = s; [self _isim_updateSelectionViews]; }
+- (void)setHighlighted:(BOOL)h { if (_highlighted == h) return; _highlighted = h; [self _isim_updateSelectionViews]; }
+- (void)setContentConfiguration:(id<UIContentConfiguration>)c {
+    _contentConfiguration = [(id)c copy];
+    if (![(id)_contentConfiguration isKindOfClass:[UIListContentConfiguration class]]) {     /* a reused list row's labels go */
+        for (UIView *v in self._isim_listViews.allValues) [v removeFromSuperview];
+        self._isim_listViews = nil;
+    }
+    isim_ui_install_content_configuration(_content, _contentConfiguration);
+    [self setNeedsLayout]; isim_ui_set_needs_display();
+}
+- (BOOL)_isim_expandedState { return NO; }
+- (BOOL)_isim_swipedState { return NO; }
+/* a state change re-derives a Swift content configuration (updated(for:)) */
+- (void)_isim_stateChanged {
+    [self setNeedsUpdateConfiguration];
+    if (!_automaticallyUpdatesContentConfiguration || !_contentConfiguration) return;
+    id next = isim_ui_content_configuration_for_state(_contentConfiguration, self, _selected, _highlighted, self._isim_cv.isEditing, [self _isim_swipedState], [self _isim_expandedState]);
+    if (next != _contentConfiguration) { _contentConfiguration = next; isim_ui_install_content_configuration(_content, next); }
+}
+- (void)prepareForReuse { [super prepareForReuse]; self.selected = NO; self.highlighted = NO; [self setNeedsUpdateConfiguration]; }
+- (void)setNeedsUpdateConfiguration { _isimNeedsConfig = YES; [self setNeedsLayout]; }
 - (CGFloat)_isim_leading { UIListContentConfiguration *c = (id)_contentConfiguration; return [c isKindOfClass:[UIListContentConfiguration class]] ? c.directionalLayoutMargins.leading : 0; }
 - (CGFloat)_isim_accessoryWidth { return 0; }
 - (void)layoutSubviews {
+    if (_isimNeedsConfig) {                              /* the Swift configurationUpdateHandler (UIKit overlay) */
+        _isimNeedsConfig = NO;
+        if ([self respondsToSelector:@selector(_isimRunConfigurationUpdate)]) ((void (*)(id, SEL))objc_msgSend)(self, @selector(_isimRunConfigurationUpdate));
+    }
     [super layoutSubviews];
     _backgroundView.frame = self.bounds; _selectedBackgroundView.frame = self.bounds;
     UIListContentConfiguration *cfg = [(id)_contentConfiguration isKindOfClass:[UIListContentConfiguration class]] ? (id)_contentConfiguration : nil;
@@ -191,8 +271,140 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
 @property (nonatomic) BOOL _isim_separator;
 @property (nonatomic) int _isim_style;           /* 0 plain, 1 grouped, 2 inside an inset-grouped card, 3 supplementary */
 @end
-@implementation UICollectionViewListCell { NSMutableArray<UIControl *> *_accButtons; }
-- (instancetype)initWithFrame:(CGRect)f { if ((self = [super initWithFrame:f])) { _indentationWidth = 10; } return self; }
+@implementation UICollectionViewListCell { NSMutableArray<UIControl *> *_accButtons;
+    UIPanGestureRecognizer *_swipePan; CGFloat _swipe, _swipeStart; BOOL _swipeLeading, _swipeTracking, _fullSwipe;
+    NSArray<UIContextualAction *> *_swipeActions; UIView *_actionsView; }
+- (instancetype)initWithFrame:(CGRect)f {
+    if ((self = [super initWithFrame:f])) {
+        _indentationWidth = 10;
+        _swipePan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_swiped:)];
+        [_swipePan _isim_setExclusive:YES];          /* a row swipe locks out the list's scrolling */
+        [self addGestureRecognizer:_swipePan];
+    }
+    return self;
+}
+/* ---- swipe actions (UICollectionLayoutListConfiguration leading/trailing providers), like table rows ---- */
+- (NSArray<UIContextualAction *> *)_isim_swipeActionsLeading:(BOOL)leading full:(BOOL *)full {
+    UICollectionView *cv = self._isim_cv;
+    NSIndexPath *ip = [cv indexPathForCell:self];
+    UICollectionLayoutListConfiguration *lc = ip ? [cv _isim_listConfigForSection:ip.section] : nil;
+    UICollectionLayoutListSwipeActionsConfigurationProvider p = leading ? lc.leadingSwipeActionsConfigurationProvider : lc.trailingSwipeActionsConfigurationProvider;
+    UISwipeActionsConfiguration *c = p ? p(ip) : nil;
+    if (full) *full = c.performsFirstActionWithFullSwipe;
+    return c.actions ?: @[];
+}
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g {
+    if (g != _swipePan) return [super gestureRecognizerShouldBegin:g];
+    CGPoint tr = [_swipePan translationInView:self];
+    if (fabs(tr.x) < fabs(tr.y) * 1.2) return NO;                   /* vertical: the list scrolls */
+    if (_swipe != 0) return YES;
+    _swipeLeading = tr.x > 0;
+    return [self _isim_swipeActionsLeading:_swipeLeading full:NULL].count > 0;
+}
+- (CGFloat)_isim_actionWidth:(UIContextualAction *)a { return fmax(74, isim_ui_measure(a.title ?: @"", [UIFont systemFontOfSize:15], 300, 1).width + 30); }
+- (CGFloat)_isim_actionsWidth { CGFloat w = 0; for (UIContextualAction *a in _swipeActions) w += [self _isim_actionWidth:a]; return w; }
+- (void)_isim_swiped:(UIPanGestureRecognizer *)g {
+    CGPoint tr = [g translationInView:self];
+    if (g.state == UIGestureRecognizerStateBegan) {
+        if (_swipe != 0) _swipeLeading = _swipe > 0;
+        BOOL full = NO;
+        _swipeActions = [self _isim_swipeActionsLeading:_swipeLeading full:&full];
+        _swipeTracking = _swipeActions.count > 0;
+        if (!_swipeTracking) return;
+        _fullSwipe = full; _swipeStart = _swipe;
+        for (UICollectionViewCell *c in self._isim_cv.visibleCells) if (c != self && [c isKindOfClass:[UICollectionViewListCell class]]) [(UICollectionViewListCell *)c _isim_closeSwipe];
+        self.highlighted = NO;
+        [self _isim_buildActionsView];
+    }
+    if (!_swipeTracking) return;
+    CGFloat W = self.bounds.size.width, open = [self _isim_actionsWidth], sign = _swipeLeading ? 1 : -1;
+    CGFloat x = _swipeLeading ? fmax(0, _swipeStart + tr.x) : fmin(0, _swipeStart + tr.x);
+    if (g.state == UIGestureRecognizerStateChanged || g.state == UIGestureRecognizerStateBegan) { [UIView performWithoutAnimation:^{ [self _isim_setSwipe:x]; }]; return; }
+    _swipeTracking = NO;
+    UIContextualAction *first = _swipeActions.firstObject;
+    if (sign * x > W * 0.6 && first && _fullSwipe) { [self _isim_perform:first]; return; }
+    BOOL stay = sign * x > open / 2 || sign * [g velocityInView:self].x > 500;
+    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{ [self _isim_setSwipe:stay ? sign * open : 0]; }
+                     completion:^(BOOL f) { if (!stay) { [self->_actionsView removeFromSuperview]; self->_actionsView = nil; } }];
+}
+- (void)_isim_buildActionsView {
+    [_actionsView removeFromSuperview];
+    UIView *v = [UIView new]; v.clipsToBounds = YES;
+    for (UIContextualAction *a in _swipeActions) {
+        UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
+        [b setTitle:a.title forState:UIControlStateNormal];
+        [b setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
+        b.titleLabel.font = [UIFont systemFontOfSize:15];
+        if (a.image && !a.title.length) [b setImage:a.image forState:UIControlStateNormal];
+        b.backgroundColor = a.backgroundColor ?: (a.style == UIContextualActionStyleDestructive ? UIColor.systemRedColor : UIColor.systemGrayColor);
+        b.accessibilityIdentifier = [@"swipe-" stringByAppendingString:a.title ?: @"action"];
+        __weak UICollectionViewListCell *ws = self; __weak UIContextualAction *wa = a;
+        [b addAction:[UIAction actionWithHandler:^(UIAction *x) { [ws _isim_perform:wa]; }] forControlEvents:UIControlEventTouchUpInside];
+        [v addSubview:b];
+    }
+    _actionsView = v;
+    [self addSubview:v];
+}
+- (void)_isim_setSwipe:(CGFloat)x {
+    _swipe = x;
+    CGRect b = self.bounds; CGFloat w = fabs(x); BOOL leading = x > 0;
+    _actionsView.frame = leading ? CGRectMake(0, 0, w, b.size.height) : CGRectMake(b.size.width - w, 0, w, b.size.height);
+    CGFloat total = [self _isim_actionsWidth], left = w;
+    for (NSUInteger i = 0; i < _swipeActions.count && i < _actionsView.subviews.count; i++) {
+        CGFloat aw = total > 0 ? [self _isim_actionWidth:_swipeActions[i]] * (w / total) : 0;
+        if (i + 1 == _swipeActions.count) aw = left;
+        _actionsView.subviews[i].frame = leading ? CGRectMake(w - left, 0, aw, b.size.height) : CGRectMake(left - aw, 0, aw, b.size.height);
+        left -= aw;
+    }
+    [self setNeedsLayout]; [self layoutIfNeeded];
+    isim_ui_set_needs_display();
+}
+- (void)_isim_closeSwipe {
+    if (_swipe == 0) return;
+    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{ [self _isim_setSwipe:0]; }
+                     completion:^(BOOL f) { [self->_actionsView removeFromSuperview]; self->_actionsView = nil; }];
+}
+- (void)_isim_perform:(UIContextualAction *)a {
+    if (!a) return;
+    NSLog(@"isim: list swipe action %@", a.title ?: @"(image)");
+    __weak UICollectionViewListCell *ws = self;
+    a.handler(a, _actionsView ?: self, ^(BOOL performed) { [ws _isim_closeSwipe]; });
+}
+- (void)prepareForReuse { [super prepareForReuse]; _swipe = 0; [_actionsView removeFromSuperview]; _actionsView = nil; }
+- (BOOL)_isim_expandedState { return [self _isim_outlineState] == 2; }
+/* reordering: the row follows the finger; on release it moves where its center is (the data source decides) */
+- (void)_isim_reorderPan:(UIPanGestureRecognizer *)g {
+    UICollectionView *cv = self._isim_cv;
+    CGFloat dy = [g translationInView:cv].y;
+    if (g.state == UIGestureRecognizerStateBegan) { [self.superview bringSubviewToFront:self]; self.alpha = 0.9; }
+    if (g.state == UIGestureRecognizerStateBegan || g.state == UIGestureRecognizerStateChanged) { self.transform = CGAffineTransformMakeTranslation(0, dy); return; }
+    NSIndexPath *from = [cv indexPathForCell:self];
+    CGPoint c = [self.superview convertPoint:self.center toView:cv];
+    c.y += dy;                                                         /* the transform moved it; center did not */
+    self.transform = CGAffineTransformIdentity; self.alpha = 1;
+    NSIndexPath *to = [cv indexPathForItemAtPoint:c];
+    if (!to) {                                                         /* past the last row of a section: its end */
+        NSInteger s = from.section, n = [cv numberOfItemsInSection:s];
+        UICollectionViewLayoutAttributes *last = n ? [cv layoutAttributesForItemAtIndexPath:[NSIndexPath indexPathForItem:n - 1 inSection:s]] : nil;
+        if (last && c.y > CGRectGetMaxY(last.frame)) to = last.indexPath; else if (n) to = [NSIndexPath indexPathForItem:0 inSection:s];
+    }
+    if (g.state == UIGestureRecognizerStateEnded && from && to && ![from isEqual:to]) [cv _isim_interactiveMoveFrom:from to:to];
+}
+- (BOOL)_isim_swipedState { return _swipe != 0; }
+/* outlines (diffable section snapshots in the Swift overlay): 0 none, 1 collapsed, 2 expanded */
+- (NSInteger)_isim_outlineState {
+    UICollectionView *cv = self._isim_cv; id ds = cv.dataSource; NSIndexPath *ip = [cv indexPathForCell:self];
+    return ip && [ds respondsToSelector:@selector(_isim_outlineStateAt:)] ? ((NSInteger (*)(id, SEL, NSIndexPath *))objc_msgSend)(ds, @selector(_isim_outlineStateAt:), ip) : 0;
+}
+- (void)_isim_toggleOutline {
+    UICollectionView *cv = self._isim_cv; id ds = cv.dataSource; NSIndexPath *ip = [cv indexPathForCell:self];
+    if (ip && [ds respondsToSelector:@selector(_isim_toggleOutlineAt:)]) ((void (*)(id, SEL, NSIndexPath *))objc_msgSend)(ds, @selector(_isim_toggleOutlineAt:), ip);
+    else NSLog(@"isim: outline disclosure: the data source has no section snapshot for this row");
+}
+- (void)touchesBegan:(NSSet *)t withEvent:(UIEvent *)e {
+    if (_swipe != 0) { [self _isim_closeSwipe]; return; }                /* a tap on an open row closes it */
+    [super touchesBegan:t withEvent:e];
+}
 - (UIListContentConfiguration *)defaultContentConfiguration { return [UIListContentConfiguration cellConfiguration]; }
 - (void)setAccessories:(NSArray<UICellAccessory *> *)a {
     for (UICellAccessory *o in _accessories) if ([o isKindOfClass:[UICellAccessoryCustomView class]]) [((UICellAccessoryCustomView *)o).customView removeFromSuperview];
@@ -230,18 +442,31 @@ static BOOL acc_leading(UICellAccessory *a) {
 - (void)layoutSubviews {
     CGRect b = self.bounds; CGFloat lead = [self _isim_leadingAccessoryWidth], trail = [self _isim_accessoryWidth];
     self.contentView.autoresizingMask = UIViewAutoresizingNone;
-    self.contentView.frame = CGRectMake(lead, 0, b.size.width - lead - trail, b.size.height);
+    self.contentView.frame = CGRectMake(lead + _swipe, 0, b.size.width - lead - trail, b.size.height);
     [super layoutSubviews];
+    if (_actionsView) [self bringSubviewToFront:_actionsView];
     /* tappable accessories and custom views */
     for (UIControl *c in _accButtons) [c removeFromSuperview];
     _accButtons = [NSMutableArray array];
-    CGFloat right = b.size.width - 4, left = 4;
+    CGFloat right = b.size.width - 4 + _swipe, left = 4 + _swipe;
     for (UICellAccessory *a in _accessories.reverseObjectEnumerator) {
         if (![self _isim_shown:a] || acc_leading(a)) continue;
         CGFloat w = acc_width(a);
         if ([a isKindOfClass:[UICellAccessoryCustomView class]]) { UIView *v = ((UICellAccessoryCustomView *)a).customView; CGSize s = v.bounds.size; v.frame = CGRectMake(right - w + 4, (b.size.height - s.height) / 2, s.width, s.height); }
         void (^h)(void) = [a respondsToSelector:@selector(actionHandler)] ? (void (^)(void))((id (*)(id, SEL))objc_msgSend)(a, @selector(actionHandler)) : nil;
+        if (!h && [a isKindOfClass:[UICellAccessoryOutlineDisclosure class]]) {   /* no handler: the data source expands / collapses the row */
+            __weak UICollectionViewListCell *ws = self;
+            h = ^{ [ws _isim_toggleOutline]; };
+        }
         if (h) [self _isim_button:CGRectMake(right - w, 0, w, b.size.height) handler:h name:a];
+        if ([a isKindOfClass:[UICellAccessoryReorder class]]) {                 /* the grip: drag the row to reorder */
+            UIControl *grip = [[UIControl alloc] initWithFrame:CGRectMake(right - w, 0, w, b.size.height)];
+            grip.accessibilityIdentifier = @"accessory-reorder";
+            UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_reorderPan:)];
+            [pan _isim_setExclusive:YES];
+            [grip addGestureRecognizer:pan];
+            [self addSubview:grip]; [_accButtons addObject:grip];
+        }
         right -= w;
     }
     for (UICellAccessory *a in _accessories) {
@@ -270,7 +495,7 @@ static BOOL acc_leading(UICellAccessory *a) {
 }
 - (void)_isim_drawOverlay {
     CGSize s = self.bounds.size;
-    CGFloat right = s.width, left = 0;
+    CGFloat right = s.width + _swipe, left = _swipe;                 /* accessories move with a swiped row */
     for (UICellAccessory *a in _accessories.reverseObjectEnumerator) {
         if (![self _isim_shown:a] || acc_leading(a)) continue;
         CGFloat w = acc_width(a); UIColor *tint = a.tintColor;
@@ -279,7 +504,7 @@ static BOOL acc_leading(UICellAccessory *a) {
         else if ([a isKindOfClass:[UICellAccessoryCheckmark class]]) { sym = @"checkmark"; h = 15; def = self.tintColor ?: UIColor.systemBlueColor; }
         else if ([a isKindOfClass:[UICellAccessoryDetail class]]) { sym = @"info.circle"; h = 22; def = self.tintColor ?: UIColor.systemBlueColor; }
         else if ([a isKindOfClass:[UICellAccessoryReorder class]]) { sym = @"line.3.horizontal"; h = 14; }
-        else if ([a isKindOfClass:[UICellAccessoryOutlineDisclosure class]]) { sym = @"chevron.right"; h = 13; def = self.tintColor ?: UIColor.systemBlueColor; }
+        else if ([a isKindOfClass:[UICellAccessoryOutlineDisclosure class]]) { sym = [self _isim_outlineState] == 2 ? @"chevron.down" : @"chevron.right"; h = 13; def = self.tintColor ?: UIColor.systemBlueColor; }
         if (sym) {
             UIImage *im = [UIImage systemImageNamed:sym]; CGSize i = im.size; double k = h / fmax(1, i.height);
             [im _isim_drawInRect:CGRectMake(right - 12 - i.width * k + 4, (s.height - h) / 2, i.width * k, h) tint:tint ?: def alpha:1];
@@ -311,10 +536,12 @@ static BOOL acc_leading(UICellAccessory *a) {
 @interface UICollectionViewLayout ()
 @property (nullable, nonatomic, readwrite, weak) UICollectionView *collectionView;
 @property (nonatomic) BOOL _isim_valid;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, Class> *_isim_decorationClasses;
 @end
 @implementation UICollectionViewLayout
 - (instancetype)init { return [super init]; }
 - (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
+- (void)encodeWithCoder:(NSCoder *)c {}
 - (void)invalidateLayout { self._isim_valid = NO; [self.collectionView setNeedsLayout]; }
 - (void)prepareLayout {}
 - (CGSize)collectionViewContentSize { return CGSizeZero; }
@@ -323,12 +550,19 @@ static BOOL acc_leading(UICellAccessory *a) {
 - (UICollectionViewLayoutAttributes *)layoutAttributesForSupplementaryViewOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip { return nil; }
 - (BOOL)shouldInvalidateLayoutForBoundsChange:(CGRect)b { CGRect o = self.collectionView.bounds; return !CGSizeEqualToSize(o.size, b.size); }
 - (CGPoint)targetContentOffsetForProposedContentOffset:(CGPoint)p withScrollingVelocity:(CGPoint)v { return p; }
+- (void)registerClass:(Class)c forDecorationViewOfKind:(NSString *)kind {
+    if (!self._isim_decorationClasses) self._isim_decorationClasses = [NSMutableDictionary dictionary];
+    if (c) self._isim_decorationClasses[kind] = c; else [self._isim_decorationClasses removeObjectForKey:kind];
+}
+- (UICollectionViewLayoutAttributes *)layoutAttributesForDecorationViewOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip { return nil; }
 /* isim private hooks for the collection view */
 - (BOOL)_isim_setPreferredSize:(CGSize)s forAttributes:(UICollectionViewLayoutAttributes *)a { return NO; }
 - (BOOL)_isim_orthogonalSection:(NSInteger)s band:(CGRect *)band contentWidth:(CGFloat *)w { return NO; }
 - (UICollectionLayoutListConfiguration *)_isim_listConfigForSection:(NSInteger)s { return nil; }
 - (CGRect)_isim_itemsRectForSection:(NSInteger)s { return CGRectNull; }
 - (UIColor *)_isim_backgroundColor { return nil; }
+- (NSArray *)_isim_adjustVisible:(NSArray *)cells section:(NSInteger)s offset:(CGPoint)o { return cells; }
+- (BOOL)_isim_hasVisibleItemsHandler:(NSInteger)s { return NO; }
 @end
 
 /* ================= flow layout ================= */
@@ -523,13 +757,56 @@ static BOOL acc_leading(UICellAccessory *a) {
 - (NSInteger)_isim_count { return _count; }
 - (id)copyWithZone:(NSZone *)z { return self; }
 @end
+@implementation NSCollectionLayoutGroupCustomItem
++ (instancetype)customItemWithFrame:(CGRect)f { return [self customItemWithFrame:f zIndex:0]; }
++ (instancetype)customItemWithFrame:(CGRect)f zIndex:(NSInteger)z { NSCollectionLayoutGroupCustomItem *i = [self new]; i->_frame = f; i->_zIndex = z; return i; }
+- (id)copyWithZone:(NSZone *)z { return self; }
+@end
+static char kCustomProvider;
+@interface NSCollectionLayoutGroup (IsimCustomPrivate)
+- (NSCollectionLayoutGroupCustomItemProvider)_isim_customProvider;
+@end
+@implementation NSCollectionLayoutGroup (IsimCustom)
++ (instancetype)customGroupWithLayoutSize:(NSCollectionLayoutSize *)s itemProvider:(NSCollectionLayoutGroupCustomItemProvider)provider {
+    NSCollectionLayoutGroup *g = [self horizontalGroupWithLayoutSize:s subitems:@[]];
+    objc_setAssociatedObject(g, &kCustomProvider, provider, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    return g;
+}
+- (NSCollectionLayoutGroupCustomItemProvider)_isim_customProvider { return objc_getAssociatedObject(self, &kCustomProvider); }
+@end
+@implementation NSCollectionLayoutDecorationItem
++ (instancetype)backgroundDecorationItemWithElementKind:(NSString *)kind {
+    NSCollectionLayoutDecorationItem *d = [self itemWithLayoutSize:[NSCollectionLayoutSize sizeWithWidthDimension:[NSCollectionLayoutDimension fractionalWidthDimension:1]
+                                                                                                    heightDimension:[NSCollectionLayoutDimension fractionalHeightDimension:1]]];
+    d->_elementKind = [kind copy]; d->_zIndex = -1;
+    return d;
+}
+- (id)copyWithZone:(NSZone *)z { return self; }
+@end
+/* a visible item handed to visibleItemsInvalidationHandler: edits go to (a copy of) its layout attributes */
+@interface __IsimVisibleItem : NSObject <NSCollectionLayoutVisibleItem>
+@property (nonatomic, strong) UICollectionViewLayoutAttributes *attrs;
+@end
+@implementation __IsimVisibleItem
+- (CGFloat)alpha { return _attrs.alpha; } - (void)setAlpha:(CGFloat)a { _attrs.alpha = a; }
+- (NSInteger)zIndex { return _attrs.zIndex; } - (void)setZIndex:(NSInteger)z { _attrs.zIndex = z; }
+- (BOOL)isHidden { return _attrs.hidden; } - (void)setHidden:(BOOL)h { _attrs.hidden = h; }
+- (CGPoint)center { return _attrs.center; } - (void)setCenter:(CGPoint)c { _attrs.center = c; }
+- (CGAffineTransform)transform { return _attrs.transform; } - (void)setTransform:(CGAffineTransform)t { _attrs.transform = t; }
+- (NSString *)name { return [NSString stringWithFormat:@"%@-%ld-%ld", _attrs.representedElementKind ?: @"cell", (long)_attrs.indexPath.section, (long)_attrs.indexPath.item]; }
+- (NSIndexPath *)indexPath { return _attrs.indexPath; }
+- (CGRect)frame { return _attrs.frame; }
+- (CGRect)bounds { return _attrs.bounds; }
+- (UICollectionElementCategory)representedElementCategory { return _attrs.representedElementCategory; }
+- (NSString *)representedElementKind { return _attrs.representedElementKind; }
+@end
 
 @interface NSCollectionLayoutSection ()
 @property (nonatomic, strong) NSCollectionLayoutGroup *_isim_group;
 @property (nonatomic, strong) UICollectionLayoutListConfiguration *_isim_list;
 @end
 @implementation NSCollectionLayoutSection
-+ (instancetype)sectionWithGroup:(NSCollectionLayoutGroup *)g { NSCollectionLayoutSection *s = [self new]; s._isim_group = g; s.boundarySupplementaryItems = @[]; s.supplementariesFollowContentInsets = YES; return s; }
++ (instancetype)sectionWithGroup:(NSCollectionLayoutGroup *)g { NSCollectionLayoutSection *s = [self new]; s._isim_group = g; s.boundarySupplementaryItems = @[]; s.decorationItems = @[]; s.supplementariesFollowContentInsets = YES; return s; }
 + (instancetype)sectionWithListConfiguration:(UICollectionLayoutListConfiguration *)cfg layoutEnvironment:(id<NSCollectionLayoutEnvironment>)env {
     NSCollectionLayoutSize *rowSize = [NSCollectionLayoutSize sizeWithWidthDimension:[NSCollectionLayoutDimension fractionalWidthDimension:1] heightDimension:[NSCollectionLayoutDimension estimatedDimension:44]];
     NSCollectionLayoutItem *row = [NSCollectionLayoutItem itemWithLayoutSize:rowSize];
@@ -556,6 +833,7 @@ static BOOL acc_leading(UICellAccessory *a) {
     NSCollectionLayoutSection *s = [[self class] sectionWithGroup:__isim_group];
     s.contentInsets = _contentInsets; s.interGroupSpacing = _interGroupSpacing; s.orthogonalScrollingBehavior = _orthogonalScrollingBehavior;
     s.boundarySupplementaryItems = _boundarySupplementaryItems; s.supplementariesFollowContentInsets = _supplementariesFollowContentInsets; s._isim_list = __isim_list;
+    s.decorationItems = _decorationItems; s.visibleItemsInvalidationHandler = _visibleItemsInvalidationHandler;
     return s;
 }
 @end
@@ -596,6 +874,8 @@ typedef struct { CGRect band; CGFloat contentW; BOOL ortho; CGRect items; CGFloa
     NSMutableDictionary<NSString *, NSValue *> *_preferred;    /* "kind|s|i" -> size */
     comp_sec *_cs; NSInteger _ncs;
     CGSize _content;
+    NSMutableArray<NSMutableArray<UICollectionViewLayoutAttributes *> *> *_decos;
+    id<NSCollectionLayoutEnvironment> _env;
 }
 - (instancetype)_init { if ((self = [super init])) { _preferred = [NSMutableDictionary dictionary]; _configuration = [UICollectionViewCompositionalLayoutConfiguration new]; } return self; }
 - (instancetype)initWithSection:(NSCollectionLayoutSection *)s { if ((self = [self _init])) _section = s; return self; }
@@ -614,6 +894,20 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 - (CGSize)_group:(NSCollectionLayoutGroup *)g origin:(CGPoint)o container:(CGSize)c section:(NSInteger)s next:(NSInteger *)next count:(NSInteger)n out:(NSMutableArray *)out {
     NSCollectionLayoutSize *ls = g.layoutSize;
     CGFloat gw = [(id)ls.widthDimension _isim_resolveW:c.width H:c.height], gh = [(id)ls.heightDimension _isim_resolveW:c.width H:c.height];
+    NSCollectionLayoutGroupCustomItemProvider custom = [g _isim_customProvider];
+    if (custom) {                                   /* custom group: the provider gives each item's frame (group coordinates) */
+        __IsimLayoutEnvironment *genv = [__IsimLayoutEnvironment new];
+        __IsimLayoutContainer *box = [__IsimLayoutContainer new];
+        box.contentSize = box.effectiveContentSize = CGSizeMake(gw, gh);
+        genv.container = box; genv.traitCollection = _env.traitCollection;
+        for (NSCollectionLayoutGroupCustomItem *ci in custom(genv)) {
+            if (*next >= n) break;
+            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForCellWithIndexPath:[NSIndexPath indexPathForItem:(*next)++ inSection:s]];
+            a.frame = CGRectOffset(ci.frame, o.x, o.y); a.zIndex = ci.zIndex;
+            [out addObject:a];
+        }
+        return CGSizeMake(gw, gh);
+    }
     BOOL vertical = [g _isim_vertical], estH = ls.heightDimension.isEstimated, estW = ls.widthDimension.isEstimated;
     NSArray *subs = g.subitems; NSInteger count = [g _isim_count];
     NSMutableArray *list = [NSMutableArray array];
@@ -686,9 +980,11 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     box.contentSize = B; box.effectiveContentSize = CGSizeMake(B.width - ai.left - ai.right, B.height - ai.top - ai.bottom);
     box.effectiveContentInsets = NSDirectionalEdgeInsetsMake(0, ai.left, 0, ai.right);
     env.container = box; env.traitCollection = cv.traitCollection;
+    _env = env;
+    if (_configuration.scrollDirection == UICollectionViewScrollDirectionHorizontal) { [self _isim_prepareHorizontal:env]; return; }
     NSInteger ns = cv.numberOfSections;
     free(_cs); _cs = calloc((size_t)MAX(ns, 1), sizeof *_cs); _ncs = ns;
-    _cells = [NSMutableArray array]; _supps = [NSMutableArray array]; _sections = [NSMutableArray array];
+    _cells = [NSMutableArray array]; _supps = [NSMutableArray array]; _sections = [NSMutableArray array]; _decos = [NSMutableArray array];
     CGFloat W = B.width - ai.left - ai.right, Hc = B.height - ai.top - ai.bottom, y = 0;
     for (NSInteger s = 0; s < ns; s++) {
         NSCollectionLayoutSection *sec = [self _sectionAt:s env:env];
@@ -713,6 +1009,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
             [supps addObject:a];
             if (b.extendsBoundary) y += h;
         }
+        CGFloat contentTop = y;                    /* the section's content area (decoration items) starts here */
         y += in.top;
         NSInteger n = [cv numberOfItemsInSection:s], next = 0;
         CGSize container = CGSizeMake(W - in.leading - in.trailing, Hc);
@@ -733,6 +1030,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         }
         _cs[s].items = CGRectMake(in.leading, itemsTop, W - in.leading - in.trailing, y - itemsTop);
         y += in.bottom;
+        [_decos addObject:[self _isim_decorations:sec section:s rect:CGRectMake(0, contentTop, W, y - contentTop)]];
         /* bottom boundary supplementaries */
         for (NSCollectionLayoutBoundarySupplementaryItem *b in sec.boundarySupplementaryItems) {
             if (b.alignment != NSRectAlignmentBottom && b.alignment != NSRectAlignmentBottomLeading && b.alignment != NSRectAlignmentBottomTrailing) continue;
@@ -751,6 +1049,71 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     _content = CGSizeMake(W, y);
     self._isim_valid = YES;
 }
+/* a section's decoration items (backgrounds): its content area, inset by each item's contentInsets */
+- (NSMutableArray *)_isim_decorations:(NSCollectionLayoutSection *)sec section:(NSInteger)s rect:(CGRect)r {
+    NSMutableArray *a = [NSMutableArray array];
+    for (NSCollectionLayoutDecorationItem *d in sec.decorationItems) {
+        NSDirectionalEdgeInsets ci = d.contentInsets;
+        UICollectionViewLayoutAttributes *x = [UICollectionViewLayoutAttributes layoutAttributesForDecorationViewOfKind:d.elementKind withIndexPath:[NSIndexPath indexPathForItem:0 inSection:s]];
+        x.frame = CGRectMake(r.origin.x + ci.leading, r.origin.y + ci.top, fmax(0, r.size.width - ci.leading - ci.trailing), fmax(0, r.size.height - ci.top - ci.bottom));
+        x.zIndex = d.zIndex;
+        [a addObject:x];
+    }
+    return a;
+}
+/* horizontal scrolling (configuration.scrollDirection): sections side by side, each section's groups along x;
+   leading/trailing boundary supplementaries widen the section, top/bottom ones sit above/below its items */
+- (void)_isim_prepareHorizontal:(id<NSCollectionLayoutEnvironment>)env {
+    UICollectionView *cv = self.collectionView;
+    CGSize B = cv.bounds.size; UIEdgeInsets ai = cv.adjustedContentInset;
+    NSInteger ns = cv.numberOfSections;
+    free(_cs); _cs = calloc((size_t)MAX(ns, 1), sizeof *_cs); _ncs = ns;
+    _cells = [NSMutableArray array]; _supps = [NSMutableArray array]; _sections = [NSMutableArray array]; _decos = [NSMutableArray array];
+    CGFloat W = B.width - ai.left - ai.right, H = B.height - ai.top - ai.bottom, x = 0;
+    for (NSInteger s = 0; s < ns; s++) {
+        NSCollectionLayoutSection *sec = [self _sectionAt:s env:env];
+        if (!sec) [NSException raise:NSInternalInconsistencyException format:@"UICollectionViewCompositionalLayout: the section provider returned nil for section %ld", (long)s];
+        [_sections addObject:sec];
+        if (s > 0) x += _configuration.interSectionSpacing;
+        NSDirectionalEdgeInsets in = sec.contentInsets;
+        NSMutableArray *cells = [NSMutableArray array], *supps = [NSMutableArray array];
+        NSIndexPath *sip = [NSIndexPath indexPathForItem:0 inSection:s];
+        CGFloat top = 0, bottom = 0;
+        NSMutableArray *topBottom = [NSMutableArray array];
+        for (NSCollectionLayoutBoundarySupplementaryItem *b in sec.boundarySupplementaryItems) {
+            NSRectAlignment al = b.alignment;
+            CGFloat w = [(id)b.layoutSize.widthDimension _isim_resolveW:W H:H], h = [(id)b.layoutSize.heightDimension _isim_resolveW:W H:H];
+            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
+            a.zIndex = b.zIndex;
+            if (al == NSRectAlignmentLeading) { a.frame = CGRectMake(x, 0, w, H); x += w; [supps addObject:a]; }
+            else if (al == NSRectAlignmentTop || al == NSRectAlignmentTopLeading || al == NSRectAlignmentTopTrailing) { a.frame = CGRectMake(0, top, w, h); top += h; [topBottom addObject:a]; [supps addObject:a]; }
+            else if (al == NSRectAlignmentBottom || al == NSRectAlignmentBottomLeading || al == NSRectAlignmentBottomTrailing) { a.frame = CGRectMake(0, H - bottom - h, w, h); bottom += h; [topBottom addObject:a]; [supps addObject:a]; }
+        }
+        CGFloat start = x;
+        x += in.leading;
+        CGSize container = CGSizeMake(W, H - top - bottom - in.top - in.bottom);
+        NSInteger n = [cv numberOfItemsInSection:s], next = 0;
+        while (next < n) {
+            NSInteger before = next;
+            CGSize g = [self _group:sec._isim_group origin:CGPointMake(x, top + in.top) container:container section:s next:&next count:n out:cells];
+            if (next == before) break;
+            x += g.width + (next < n ? sec.interGroupSpacing : 0);
+        }
+        x += in.trailing;
+        for (UICollectionViewLayoutAttributes *a in topBottom) { CGRect f = a.frame; f.origin.x = start; f.size.width = fmax(f.size.width > 0 && f.size.width < W ? f.size.width : 0, x - start); a.frame = f; }
+        for (NSCollectionLayoutBoundarySupplementaryItem *b in sec.boundarySupplementaryItems) {
+            if (b.alignment != NSRectAlignmentTrailing) continue;
+            CGFloat w = [(id)b.layoutSize.widthDimension _isim_resolveW:W H:H];
+            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
+            a.frame = CGRectMake(x, 0, w, H); a.zIndex = b.zIndex; x += w; [supps addObject:a];
+        }
+        _cs[s].items = CGRectMake(start + in.leading, top + in.top, x - start - in.leading - in.trailing, container.height);
+        [_decos addObject:[self _isim_decorations:sec section:s rect:CGRectMake(start, top, x - start, H - top - bottom)]];
+        [_cells addObject:cells]; [_supps addObject:supps];
+    }
+    _content = CGSizeMake(x, H);
+    self._isim_valid = YES;
+}
 - (CGSize)collectionViewContentSize { return _content; }
 - (UICollectionViewLayoutAttributes *)_pinned:(UICollectionViewLayoutAttributes *)a section:(NSInteger)s {
     if (![objc_getAssociatedObject(a, "pin") boolValue]) return a;
@@ -766,7 +1129,22 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         if (_cs[s].ortho) { if (CGRectIntersectsRect(CGRectMake(r.origin.x, _cs[s].band.origin.y, r.size.width, _cs[s].band.size.height), r)) [out addObjectsFromArray:_cells[s]]; }
         else for (UICollectionViewLayoutAttributes *a in _cells[s]) if (CGRectIntersectsRect(a.frame, r)) [out addObject:a];
         for (UICollectionViewLayoutAttributes *a in _supps[s]) { UICollectionViewLayoutAttributes *p = [self _pinned:a section:s]; if (CGRectIntersectsRect(p.frame, r)) [out addObject:p]; }
+        if (s < _decos.count) for (UICollectionViewLayoutAttributes *a in _decos[s]) if (CGRectIntersectsRect(a.frame, r)) [out addObject:a];
     }
+    return out;
+}
+- (UICollectionViewLayoutAttributes *)layoutAttributesForDecorationViewOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip {
+    if (ip.section >= (NSInteger)_decos.count) return nil;
+    for (UICollectionViewLayoutAttributes *a in _decos[ip.section]) if ([a.representedElementKind isEqualToString:k]) return a;
+    return nil;
+}
+/* visibleItemsInvalidationHandler: the section's on-screen cells, as visible items it may adjust */
+- (BOOL)_isim_hasVisibleItemsHandler:(NSInteger)s { return s < (NSInteger)_sections.count && _sections[s].visibleItemsInvalidationHandler != nil; }
+- (NSArray *)_isim_adjustVisible:(NSArray *)cells section:(NSInteger)s offset:(CGPoint)o {
+    if (![self _isim_hasVisibleItemsHandler:s] || !cells.count) return cells;
+    NSMutableArray *items = [NSMutableArray array], *out = [NSMutableArray array];
+    for (UICollectionViewLayoutAttributes *a in cells) { __IsimVisibleItem *v = [__IsimVisibleItem new]; v.attrs = [a copy]; [items addObject:v]; [out addObject:v.attrs]; }
+    _sections[s].visibleItemsInvalidationHandler(items, o, _env);
     return out;
 }
 - (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)ip {
@@ -831,6 +1209,9 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 @end
 @implementation __IsimOrthoPager
 - (void)scrollViewWillBeginDragging:(UIScrollView *)sv { _dragStart = sv.contentOffset.x; }
+- (void)scrollViewDidScroll:(UIScrollView *)sv {                  /* visibleItemsInvalidationHandler follows the section's scrolling */
+    if ([_cv.collectionViewLayout _isim_hasVisibleItemsHandler:_section]) [_cv setNeedsLayout];
+}
 - (void)scrollViewWillEndDragging:(UIScrollView *)sv withVelocity:(CGPoint)v targetContentOffset:(inout CGPoint *)t {
     id layout = _cv.collectionViewLayout;
     if ([layout respondsToSelector:@selector(_isim_orthoTarget:from:proposed:velocity:width:)])
@@ -845,6 +1226,8 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 - (UICollectionLayoutListConfiguration *)_isim_listConfigForSection:(NSInteger)s;
 - (CGRect)_isim_itemsRectForSection:(NSInteger)s;
 - (UIColor *)_isim_backgroundColor;
+- (BOOL)_isim_hasVisibleItemsHandler:(NSInteger)s;
+- (NSArray *)_isim_adjustVisible:(NSArray *)cells section:(NSInteger)s offset:(CGPoint)o;
 @end
 
 @implementation UICollectionView {
@@ -858,13 +1241,15 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     NSMutableSet<NSIndexPath *> *_selected;
     NSInteger _updateDepth; NSMutableArray *_pendingOps;
     CGSize _lastSize;
+    NSMutableDictionary<NSString *, UICollectionReusableView *> *_decos;
+    NSMutableSet<NSIndexPath *> *_prefetched; CGPoint _lastPrefetch; BOOL _prefetchStarted;
 }
 - (instancetype)initWithFrame:(CGRect)f collectionViewLayout:(UICollectionViewLayout *)layout {
     if ((self = [super initWithFrame:f])) {
         _cells = [NSMutableDictionary dictionary]; _supps = [NSMutableDictionary dictionary]; _pool = [NSMutableDictionary dictionary];
         _cellClasses = [NSMutableDictionary dictionary]; _suppClasses = [NSMutableDictionary dictionary];
         _orthos = [NSMutableDictionary dictionary]; _cards = [NSMutableDictionary dictionary]; _selected = [NSMutableSet set];
-        _allowsSelection = YES;
+        _allowsSelection = YES; _prefetchingEnabled = YES; _decos = [NSMutableDictionary dictionary];
         self.collectionViewLayout = layout;
         self.alwaysBounceVertical = YES;
     }
@@ -995,9 +1380,47 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
             card.frame = CGRectOffset(items, ai.left, 0);
         } else { [card removeFromSuperview]; [_cards removeObjectForKey:@(s)]; }
     }
+    /* visibleItemsInvalidationHandler: the section's cells, as the handler adjusted them */
+    NSMutableDictionary<NSNumber *, NSMutableArray *> *bySection = [NSMutableDictionary dictionary];
+    for (UICollectionViewLayoutAttributes *a in attrs)
+        if (a.representedElementCategory == UICollectionElementCategoryCell && [_collectionViewLayout _isim_hasVisibleItemsHandler:a.indexPath.section])
+            [bySection[@(a.indexPath.section)] ?: (bySection[@(a.indexPath.section)] = [NSMutableArray array]) addObject:a];
+    if (bySection.count) {
+        NSMutableArray *all = [attrs mutableCopy];
+        for (NSNumber *sec in bySection) {
+            UIScrollView *ortho = _orthos[sec];
+            NSArray *in = bySection[sec], *adj = [_collectionViewLayout _isim_adjustVisible:in section:sec.integerValue offset:ortho ? ortho.contentOffset : self.contentOffset];
+            for (NSUInteger k = 0; k < in.count && k < adj.count; k++) [all replaceObjectAtIndex:[all indexOfObjectIdenticalTo:in[k]] withObject:adj[k]];
+        }
+        attrs = all;
+    }
+    NSMutableSet *keepDecos = [NSMutableSet set];
     for (UICollectionViewLayoutAttributes *a in attrs) {
         NSIndexPath *ip = a.indexPath;
         CGRect f = CGRectOffset(a.frame, ai.left, 0);
+        if (a.representedElementCategory == UICollectionElementCategoryDecorationView) {   /* layout-owned views (section backgrounds) */
+            NSString *kind = a.representedElementKind ?: @"", *key = [@"deco|" stringByAppendingString:supp_key(kind, ip)];
+            UICollectionReusableView *v = _decos[key];
+            if (!v) {
+                Class cls = _collectionViewLayout._isim_decorationClasses[kind];
+                if (!cls) continue;
+                NSMutableArray *pool = _pool[[@"deco/" stringByAppendingString:kind]];
+                v = pool.lastObject;
+                if (v) { [pool removeLastObject]; [v prepareForReuse]; }
+                else { v = [[cls alloc] initWithFrame:CGRectZero]; v.reuseIdentifier = kind; v._isim_cv = self; }
+                _decos[key] = v;
+                [UIView performWithoutAnimation:^{ v.frame = f; }];
+            } else if (!CGRectEqualToRect(v.frame, f)) v.frame = f;
+            if (v.superview != self) {
+                [self insertSubview:v atIndex:0];
+                for (UIView *card in _cards.allValues) if (card.superview == self) [self sendSubviewToBack:card];
+                if (_backgroundView) [self sendSubviewToBack:_backgroundView];
+            }
+            v.hidden = a.hidden; v.alpha = a.alpha;
+            [v applyLayoutAttributes:a];
+            [keepDecos addObject:key];
+            continue;
+        }
         if (a.representedElementCategory == UICollectionElementCategoryCell) {
             if (ip.section >= ns || ip.item >= [self numberOfItemsInSection:ip.section]) continue;
             UICollectionViewCell *c = _cells[ip];
@@ -1030,8 +1453,15 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
                 host = sv; f = CGRectOffset(a.frame, 0, -band.origin.y);
             }
             if (c.superview != host) [host addSubview:c];
-            if (fresh) [UIView performWithoutAnimation:^{ c.frame = f; c.alpha = a.alpha; }];
-            else { if (!CGRectEqualToRect(c.frame, f)) c.frame = f; c.alpha = a.alpha; }
+            /* bounds + center + transform (a transformed cell's frame is its transformed box) */
+            CGRect bnd = CGRectMake(0, 0, f.size.width, f.size.height); CGPoint ctr = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
+            void (^place)(void) = ^{
+                if (!CGRectEqualToRect(c.bounds, bnd)) c.bounds = bnd;
+                if (!CGPointEqualToPoint(c.center, ctr)) c.center = ctr;
+                if (!CGAffineTransformEqualToTransform(c.transform, a.transform)) c.transform = a.transform;
+                c.alpha = a.alpha;
+            };
+            if (fresh) [UIView performWithoutAnimation:place]; else place();
             c.hidden = a.hidden;
             [c applyLayoutAttributes:a];
             if (fresh && [self.delegate respondsToSelector:@selector(collectionView:willDisplayCell:forItemAtIndexPath:)]) [self.delegate collectionView:self willDisplayCell:c forItemAtIndexPath:ip];
@@ -1066,7 +1496,36 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     for (NSIndexPath *ip in _cells.allKeys) if (![keepCells containsObject:ip]) { [self _recycleCell:_cells[ip] at:ip]; [_cells removeObjectForKey:ip]; }
     for (NSString *k in _supps.allKeys) if (![keepSupps containsObject:k]) { [self _recycleSupp:_supps[k]]; [_supps removeObjectForKey:k]; }
     for (NSNumber *s in _orthos.allKeys) if (![orthoSecs containsObject:s]) { [_orthos[s] removeFromSuperview]; [_orthos removeObjectForKey:s]; }
+    for (NSString *k in _decos.allKeys) if (![keepDecos containsObject:k]) {
+        UICollectionReusableView *v = _decos[k];
+        [_decos removeObjectForKey:k];
+        [self _recycle:v key:[@"deco/" stringByAppendingString:v.reuseIdentifier ?: @""]];
+    }
+    [self _isim_prefetchAround:rect visible:keepCells];
     return changed;
+}
+/* prefetching: the items within a screen ahead in the scrolling direction (forward before any scrolling) */
+- (void)_isim_prefetchAround:(CGRect)rect visible:(NSSet<NSIndexPath *> *)visible {
+    id<UICollectionViewDataSourcePrefetching> pf = _prefetchDataSource;
+    if (!pf || !_prefetchingEnabled) return;
+    if (!_prefetched) _prefetched = [NSMutableSet set];
+    CGPoint o = self.contentOffset; CGFloat dx = o.x - _lastPrefetch.x, dy = o.y - _lastPrefetch.y;
+    if (!_prefetchStarted) { _prefetchStarted = YES; dx = dy = 0; }
+    if (dx == 0 && dy == 0 && _prefetched.count) return;              /* no scrolling since: the same window */
+    _lastPrefetch = o;
+    CGSize B = self.bounds.size;
+    BOOL horizontal = fabs(dx) > fabs(dy) || (dx == 0 && dy == 0 && self.contentSize.width > B.width + 1 && self.contentSize.height <= B.height + 1);
+    CGRect ahead = horizontal ? (dx < 0 ? CGRectMake(rect.origin.x - B.width, rect.origin.y, B.width, rect.size.height) : CGRectMake(CGRectGetMaxX(rect), rect.origin.y, B.width, rect.size.height))
+                              : (dy < 0 ? CGRectMake(rect.origin.x, rect.origin.y - B.height, rect.size.width, B.height) : CGRectMake(rect.origin.x, CGRectGetMaxY(rect), rect.size.width, B.height));
+    NSMutableSet *window = [NSMutableSet set];
+    for (UICollectionViewLayoutAttributes *a in [_collectionViewLayout layoutAttributesForElementsInRect:ahead])
+        if (a.representedElementCategory == UICollectionElementCategoryCell && ![visible containsObject:a.indexPath]) [window addObject:a.indexPath];
+    NSMutableSet *fresh = [window mutableCopy]; [fresh minusSet:_prefetched];
+    NSMutableSet *gone = [_prefetched mutableCopy]; [gone minusSet:window]; [gone minusSet:visible];
+    _prefetched = window;
+    if (gone.count && [pf respondsToSelector:@selector(collectionView:cancelPrefetchingForItemsAtIndexPaths:)])
+        [pf collectionView:self cancelPrefetchingForItemsAtIndexPaths:[gone.allObjects sortedArrayUsingSelector:@selector(compare:)]];
+    if (fresh.count) [pf collectionView:self prefetchItemsAtIndexPaths:[fresh.allObjects sortedArrayUsingSelector:@selector(compare:)]];
 }
 - (UIScrollView *)_orthoFor:(NSInteger)s band:(CGRect)band width:(CGFloat)w {
     UIScrollView *sv = _orthos[@(s)];
@@ -1120,6 +1579,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     return a;
 }
 - (NSArray *)indexPathsForSelectedItems { return [[_selected allObjects] sortedArrayUsingSelector:@selector(compare:)]; }
+- (UICollectionLayoutListConfiguration *)_isim_listConfigForSection:(NSInteger)s { return [_collectionViewLayout _isim_listConfigForSection:s]; }
 
 /* ---- selection ---- */
 - (void)_isim_cellTouched:(UICollectionViewCell *)c phase:(int)phase {
@@ -1193,6 +1653,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     for (NSIndexPath *ip in _cells.allKeys) [self _recycleCell:_cells[ip] at:ip];
     for (NSString *k in _supps.allKeys) [self _recycleSupp:_supps[k]];
     [_cells removeAllObjects]; [_supps removeAllObjects]; [_selected removeAllObjects];
+    [_prefetched removeAllObjects]; _prefetchStarted = NO;
     _loaded = NO;
     if ([_collectionViewLayout respondsToSelector:@selector(_isim_forgetPreferredSizes)]) [(id)_collectionViewLayout _isim_forgetPreferredSizes];
     [_collectionViewLayout invalidateLayout];
@@ -1280,6 +1741,15 @@ static NSArray *index_set_array(id set) {
     [self setNeedsLayout];
 }
 - (void)moveItemAtIndexPath:(NSIndexPath *)from toIndexPath:(NSIndexPath *)to { [self _op:@"mv" items:@[from, to]]; }
+/* a reorder made by the user: the data source moves the item (if it allows it), then the list shows the move */
+- (void)_isim_interactiveMoveFrom:(NSIndexPath *)from to:(NSIndexPath *)to {
+    id<UICollectionViewDataSource> ds = _dataSource;
+    if ([ds respondsToSelector:@selector(collectionView:canMoveItemAtIndexPath:)] && ![ds collectionView:self canMoveItemAtIndexPath:from]) { NSLog(@"isim: reorder of %@ not allowed", from); return; }
+    if (![ds respondsToSelector:@selector(collectionView:moveItemAtIndexPath:toIndexPath:)]) return;
+    [ds collectionView:self moveItemAtIndexPath:from toIndexPath:to];
+    NSLog(@"isim: reordered item %ld-%ld to %ld-%ld", (long)from.section, (long)from.item, (long)to.section, (long)to.item);
+    [self moveItemAtIndexPath:from toIndexPath:to];
+}
 - (void)insertSections:(id)sections { [self _op:@"isec" items:index_set_array(sections)]; }
 - (void)deleteSections:(id)sections { [self _op:@"dsec" items:index_set_array(sections)]; }
 - (void)reloadSections:(id)sections {

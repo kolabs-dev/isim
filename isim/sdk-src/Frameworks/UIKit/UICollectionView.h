@@ -1,7 +1,9 @@
 #pragma once
 /* isim: UICollectionView, UICollectionViewCell / UICollectionViewListCell / UICollectionReusableView,
    UICollectionViewLayout + UICollectionViewFlowLayout, UICollectionViewCompositionalLayout (NSCollectionLayout*),
-   UICollectionLayoutListConfiguration, cell accessories, UICollectionViewController. */
+   UICollectionLayoutListConfiguration, cell accessories, UICollectionViewController. Compositional layouts scroll
+   vertically or horizontally (configuration.scrollDirection), with custom groups, decoration items (section
+   backgrounds) and visibleItemsInvalidationHandler; any layout can place decoration views. */
 #import <UIKit/UIScrollView.h>
 #import <UIKit/UIViewController.h>
 #import <UIKit/UITableView.h>
@@ -24,6 +26,7 @@ NS_SWIFT_UI_ACTOR
 @interface UICollectionViewLayoutAttributes : NSObject <NSCopying>
 + (instancetype)layoutAttributesForCellWithIndexPath:(NSIndexPath *)indexPath;
 + (instancetype)layoutAttributesForSupplementaryViewOfKind:(NSString *)elementKind withIndexPath:(NSIndexPath *)indexPath;
++ (instancetype)layoutAttributesForDecorationViewOfKind:(NSString *)decorationViewKind withIndexPath:(NSIndexPath *)indexPath NS_SWIFT_NAME(init(forDecorationViewOfKind:with:));
 @property (nonatomic) CGRect frame;
 @property (nonatomic) CGPoint center;
 @property (nonatomic) CGSize size;
@@ -56,6 +59,8 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) UIBackgroundConfiguration *backgroundConfiguration;
 @property (nonatomic) BOOL automaticallyUpdatesContentConfiguration;
 @property (nonatomic) BOOL automaticallyUpdatesBackgroundConfiguration;
+/* configuration updates (iOS 14): the Swift configurationUpdateHandler runs before the next layout */
+- (void)setNeedsUpdateConfiguration;
 @end
 
 /* list cell accessories (Swift: the UICellAccessory struct in the UIKit overlay) */
@@ -98,7 +103,7 @@ NS_SWIFT_UI_ACTOR
 
 /* ---- layouts ---- */
 NS_SWIFT_UI_ACTOR
-@interface UICollectionViewLayout : NSObject
+@interface UICollectionViewLayout : NSObject <NSCoding>
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 @property (nullable, nonatomic, readonly, weak) UICollectionView *collectionView;
@@ -110,6 +115,10 @@ NS_SWIFT_UI_ACTOR
 - (nullable UICollectionViewLayoutAttributes *)layoutAttributesForSupplementaryViewOfKind:(NSString *)elementKind atIndexPath:(NSIndexPath *)indexPath;
 - (BOOL)shouldInvalidateLayoutForBoundsChange:(CGRect)newBounds;
 - (CGPoint)targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset withScrollingVelocity:(CGPoint)velocity;
+/* decoration views: views the layout places (no data source); registered by kind, positioned by
+   layoutAttributesForElementsInRect: (UICollectionElementCategoryDecorationView attributes) */
+- (void)registerClass:(nullable Class)viewClass forDecorationViewOfKind:(NSString *)elementKind NS_SWIFT_NAME(register(_:forDecorationViewOfKind:));
+- (nullable UICollectionViewLayoutAttributes *)layoutAttributesForDecorationViewOfKind:(NSString *)elementKind atIndexPath:(NSIndexPath *)indexPath;
 @end
 
 @protocol UICollectionViewDelegateFlowLayout;
@@ -199,6 +208,41 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) NSCollectionLayoutSpacing *interItemSpacing;
 @property (nonatomic, readonly) NSArray<NSCollectionLayoutItem *> *subitems;
 @end
+/* custom groups (iOS 13): the provider returns each item's frame in the group */
+NS_SWIFT_UI_ACTOR
+@interface NSCollectionLayoutGroupCustomItem : NSObject <NSCopying>
++ (instancetype)customItemWithFrame:(CGRect)frame NS_SWIFT_NAME(init(frame:));
++ (instancetype)customItemWithFrame:(CGRect)frame zIndex:(NSInteger)zIndex NS_SWIFT_NAME(init(frame:zIndex:));
+@property (nonatomic, readonly) CGRect frame;
+@property (nonatomic, readonly) NSInteger zIndex;
+@end
+@protocol NSCollectionLayoutEnvironment;
+typedef NSArray<NSCollectionLayoutGroupCustomItem *> * _Nonnull (^NSCollectionLayoutGroupCustomItemProvider)(id<NSCollectionLayoutEnvironment> layoutEnvironment);
+@interface NSCollectionLayoutGroup (IsimCustom)
++ (instancetype)customGroupWithLayoutSize:(NSCollectionLayoutSize *)layoutSize itemProvider:(NSCollectionLayoutGroupCustomItemProvider)itemProvider NS_SWIFT_NAME(custom(layoutSize:itemProvider:));
+@end
+/* decoration items (iOS 13): a section background view of a registered decoration kind */
+NS_SWIFT_UI_ACTOR
+@interface NSCollectionLayoutDecorationItem : NSCollectionLayoutItem
++ (instancetype)backgroundDecorationItemWithElementKind:(NSString *)elementKind NS_SWIFT_NAME(background(elementKind:));
+@property (nonatomic) NSInteger zIndex;
+@property (nonatomic, readonly) NSString *elementKind;
+@end
+/* the items of a section on screen, adjustable while it scrolls (visibleItemsInvalidationHandler) */
+NS_SWIFT_UI_ACTOR
+@protocol NSCollectionLayoutVisibleItem <NSObject>
+@property (nonatomic) CGFloat alpha;
+@property (nonatomic) NSInteger zIndex;
+@property (nonatomic, getter=isHidden) BOOL hidden;
+@property (nonatomic) CGPoint center;
+@property (nonatomic) CGAffineTransform transform;
+@property (nonatomic, readonly) NSString *name;
+@property (nonatomic, readonly) NSIndexPath *indexPath;
+@property (nonatomic, readonly) CGRect frame;
+@property (nonatomic, readonly) CGRect bounds;
+@property (nonatomic, readonly) UICollectionElementCategory representedElementCategory;
+@property (nullable, nonatomic, readonly) NSString *representedElementKind;
+@end
 typedef NS_ENUM(NSInteger, UICollectionLayoutSectionOrthogonalScrollingBehavior) {
     UICollectionLayoutSectionOrthogonalScrollingBehaviorNone, UICollectionLayoutSectionOrthogonalScrollingBehaviorContinuous,
     UICollectionLayoutSectionOrthogonalScrollingBehaviorContinuousGroupLeadingBoundary, UICollectionLayoutSectionOrthogonalScrollingBehaviorPaging,
@@ -223,6 +267,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UICollectionLayoutSectionOrthogonalScrollingBehavior orthogonalScrollingBehavior;
 @property (nonatomic, copy) NSArray<NSCollectionLayoutBoundarySupplementaryItem *> *boundarySupplementaryItems;
 @property (nonatomic) BOOL supplementariesFollowContentInsets;
+@property (nonatomic, copy) NSArray<NSCollectionLayoutDecorationItem *> *decorationItems;
+@property (nullable, nonatomic, copy) void (^visibleItemsInvalidationHandler)(NSArray<id<NSCollectionLayoutVisibleItem>> *visibleItems, CGPoint contentOffset, id<NSCollectionLayoutEnvironment> layoutEnvironment);
 @end
 NS_SWIFT_UI_ACTOR
 @interface UICollectionViewCompositionalLayoutConfiguration : NSObject <NSCopying>
@@ -293,6 +339,13 @@ NS_SWIFT_UI_ACTOR
 - (void)collectionView:(UICollectionView *)collectionView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
 - (void)collectionView:(UICollectionView *)collectionView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
 @end
+/* prefetching (iOS 10): the items about to scroll into view, before their cells are asked for */
+@protocol UICollectionViewDataSourcePrefetching <NSObject>
+@required
+- (void)collectionView:(UICollectionView *)collectionView prefetchItemsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths;
+@optional
+- (void)collectionView:(UICollectionView *)collectionView cancelPrefetchingForItemsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths;
+@end
 @protocol UICollectionViewDelegateFlowLayout <UICollectionViewDelegate>
 @optional
 - (CGSize)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)collectionViewLayout sizeForItemAtIndexPath:(NSIndexPath *)indexPath;
@@ -311,6 +364,8 @@ NS_SWIFT_UI_ACTOR
 - (void)setCollectionViewLayout:(UICollectionViewLayout *)layout animated:(BOOL)animated;
 @property (nullable, nonatomic, weak) id<UICollectionViewDelegate> delegate;
 @property (nullable, nonatomic, weak) id<UICollectionViewDataSource> dataSource;
+@property (nullable, nonatomic, weak) id<UICollectionViewDataSourcePrefetching> prefetchDataSource;
+@property (nonatomic, getter=isPrefetchingEnabled) BOOL prefetchingEnabled;
 @property (nullable, nonatomic, strong) UIView *backgroundView;
 @property (nonatomic) BOOL allowsSelection;
 @property (nonatomic) BOOL allowsMultipleSelection;
