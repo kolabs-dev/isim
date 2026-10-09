@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 221 | 2 | 0 | 12 | 235 | 94% |
+| **UIKit** | 223 | 2 | 0 | 10 | 235 | 95% |
 | &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 63 | 0 | 0 | 11 | 74 | 85% |
+| &nbsp;&nbsp;↳ Views & controls | 65 | 0 | 0 | 9 | 74 | 88% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **760** | **186** | **23** | **43** | **1012** | **84%** |
+| **All areas** | **762** | **186** | **23** | **41** | **1012** | **84%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (206) | 100% (210) | 99% (224) | 94% (235) |
+| UIKit | 100% (206) | 100% (210) | 99% (224) | 95% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
@@ -265,9 +265,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `NSTextTable`/`NSTextBlock` in UIKit, `UITextAttachmentViewProviderReusePolicy`, viewport rendering surfaces | ❌ | 27.0 | |
 | Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ❌ | 27.0 | |
 | `UIWindowScene.displayLink(target:selector:)` | ❌ | 27.0 | |
-| `UINavigationItem.barMinimizeBehavior`, `barMinimizationSafeAreaAdjustment`, `UIBarButtonItem.visibilityPriority` | ❌ | 27.0 | the SwiftUI toolbar equivalents are implemented |
+| `UINavigationItem.navigationBarMinimization` (`UIBarMinimization`: minimization, restoration, safe area adjustment), `UIBarButtonItem.visibilityPriority` (`UIBarButtonItemVisibilityPriority`) | ✅ | 27.0 | adapted, like the SwiftUI toolbar equivalents: `.onScrollDown` / `.onScrollUp` fade the navigation bar away while the content is dragged (`.automatic` / `.never` keep it), the reverse drag brings it back (`.atScrollEdge`: only at the top), `.enabled` gives the content the bar's safe area meanwhile; trailing items that do not fit move to an overflow (ellipsis) menu, lowest priority first (then the leading-most), the overflow button at the trailing edge. Tested (HelloBars27) |
 | `UIMenuElement.subtitle`, `preferredImageVisibility`, `highlightStateUpdateHandler`; `UIContextMenuConfiguration.allowsTypeSelect` | ❌ | 27.0 | |
-| `UITabBarController.prominentTabIdentifier`, `performBatchUpdates(_:)`, sidebar `preferredPlacement` / `isAvailable` / visibility callback | ❌ | 27.0 | |
+| `UITabBarController.prominentTabIdentifier`, `performBatchUpdates(_:)`, sidebar `preferredPlacement` / `isAvailable` / visibility callback | ✅ | 27.0 | adapted: the prominent tab sits on its own glass circle at the trailing end of the floating tab bar (iOS 26+: the search tab, like SwiftUI's search role) and stays while the bar is minimized; batch updates lay the tabs out once, animated; the sidebar is available on iPad in `.tabSidebar` mode (`tabBarController(_:sidebarAvailabilityDidChange:)`), `preferredPlacement` is kept (isim shows no sidebar on iPhone), `tabBarController(_:sidebarVisibilityWillChange:animator:)` runs the animator's animations with the change and its completions after; `UISearchTab.automaticallyActivatesSearch` activates the tab's search controller. Tested (HelloBars27) |
 | `UILookToScrollInteraction` | ❌ | 27.0 | |
 | `UIImage.symbolWeight()`, `UIDocumentViewControllerLaunchOptions.subtitle` | ❌ | 27.0 | |
 | `UIArrangementViewController`, `UIView.ReservedRegion`, `UIHingeInteraction`, vertical bar placement | ❌ | 27.1 | iPhone Duo APIs (iOS 27.1 beta) |

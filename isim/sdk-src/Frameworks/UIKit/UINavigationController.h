@@ -64,6 +64,14 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_SWIFT_NAME(UIBarButtonItem.Badge)
 @property (nullable, nonatomic, copy) UIFont *font;
 @property (nullable, nonatomic, readonly, copy) NSString *stringValue;
 @end
+/* iOS 27: when a bar runs out of room, the lowest-priority items move to an overflow ("More") menu */
+typedef NSInteger UIBarButtonItemVisibilityPriority NS_TYPED_EXTENSIBLE_ENUM API_AVAILABLE(ios(27.0));
+UIKIT_EXTERN const UIBarButtonItemVisibilityPriority UIBarButtonItemVisibilityPriorityLow API_AVAILABLE(ios(27.0));
+UIKIT_EXTERN const UIBarButtonItemVisibilityPriority UIBarButtonItemVisibilityPriorityStandard API_AVAILABLE(ios(27.0));
+UIKIT_EXTERN const UIBarButtonItemVisibilityPriority UIBarButtonItemVisibilityPriorityHigh API_AVAILABLE(ios(27.0));
+@interface UIBarButtonItem (UIBarButtonItemVisibilityPriority)
+@property (nonatomic) UIBarButtonItemVisibilityPriority visibilityPriority API_AVAILABLE(ios(27.0));
+@end
 @interface UIBarButtonItem (UIBarButtonItemBadge)
 @property (nullable, nonatomic, copy) UIBarButtonItemBadge *badge API_AVAILABLE(ios(26.0));
 /* iOS 26: neighbouring items share one glass capsule (default YES); hidesSharedBackground draws the item without glass */
@@ -71,6 +79,19 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_SWIFT_NAME(UIBarButtonItem.Badge)
 @property (nonatomic) BOOL hidesSharedBackground API_AVAILABLE(ios(26.0));
 @end
 
+/* iOS 27: how a navigation bar minimizes while its content scrolls (Swift: the UIBarMinimization struct, UIKit overlay) */
+typedef NS_ENUM(NSInteger, UIBarMinimizationBehavior) { UIBarMinimizationBehaviorAutomatic = 0, UIBarMinimizationBehaviorNever = 1,
+    UIBarMinimizationBehaviorOnScrollDown = 2, UIBarMinimizationBehaviorOnScrollUp = 3 } API_AVAILABLE(ios(27.0));
+typedef NS_ENUM(NSInteger, UIBarMinimizationRestorationBehavior) { UIBarMinimizationRestorationBehaviorAutomatic = 0,
+    UIBarMinimizationRestorationBehaviorAtScrollEdge = 1 } API_AVAILABLE(ios(27.0));
+typedef NS_ENUM(NSInteger, UIBarMinimizationSafeAreaAdjustment) { UIBarMinimizationSafeAreaAdjustmentAutomatic = 0,
+    UIBarMinimizationSafeAreaAdjustmentEnabled = 1, UIBarMinimizationSafeAreaAdjustmentDisabled = 2 } API_AVAILABLE(ios(27.0));
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(27.0)) NS_SWIFT_NAME(_UIBarMinimizationObjC)
+@interface UIBarMinimization : NSObject <NSCopying>
+@property (nonatomic) UIBarMinimizationBehavior minimizationBehavior;
+@property (nonatomic) UIBarMinimizationRestorationBehavior restorationBehavior;
+@property (nonatomic) UIBarMinimizationSafeAreaAdjustment safeAreaAdjustment;
+@end
 typedef NS_ENUM(NSInteger, UINavigationItemLargeTitleDisplayMode) {
     UINavigationItemLargeTitleDisplayModeAutomatic, UINavigationItemLargeTitleDisplayModeAlways, UINavigationItemLargeTitleDisplayModeNever, UINavigationItemLargeTitleDisplayModeInline };
 NS_SWIFT_UI_ACTOR
@@ -94,6 +115,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UINavigationItemLargeTitleDisplayMode largeTitleDisplayMode;
 @property (nullable, nonatomic, strong) UISearchController *searchController;
 @property (nonatomic) BOOL hidesSearchBarWhenScrolling;
+@property (nonatomic, copy) UIBarMinimization *navigationBarMinimization NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(27.0));
 /* per-item appearances override the bar's while the item is on top */
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *standardAppearance;
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *scrollEdgeAppearance;
@@ -300,6 +322,9 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @interface UISearchTab : UITab
 - (instancetype)initWithViewControllerProvider:(nullable UIViewController * (^)(__kindof UITab *tab))viewControllerProvider;
+/* selecting the tab activates the search controller of its (top) view controller. isim (iOS 26+): the search tab sits
+   on its own glass circle unless the tab bar controller's prominentTabIdentifier names another tab */
+@property (nonatomic) BOOL automaticallyActivatesSearch;
 @end
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @interface UITabGroup : UITab
@@ -312,11 +337,30 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @property (nullable, nonatomic, readonly, strong) UINavigationController *managingNavigationController;
 - (nullable UITab *)tabForIdentifier:(NSString *)identifier;
 @end
+@class UITabBarControllerSidebar;
+@protocol UITabBarControllerSidebarDelegate;
 typedef NS_ENUM(NSInteger, UITabBarControllerMode) { UITabBarControllerModeAutomatic = 0, UITabBarControllerModeTabBar = 1,
     UITabBarControllerModeTabSidebar = 2 } NS_SWIFT_NAME(UITabBarController.Mode) API_AVAILABLE(ios(18.0));
+typedef NS_ENUM(NSInteger, UITabBarControllerSidebarPlacement) { UITabBarControllerSidebarPlacementAutomatic = 0, UITabBarControllerSidebarPlacementTabBar = 1,
+    UITabBarControllerSidebarPlacementSidebar = 2 } NS_SWIFT_NAME(UITabBarController.Sidebar.Placement) API_AVAILABLE(ios(27.0));
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_SWIFT_NAME(UITabBarController.Sidebar)
 @interface UITabBarControllerSidebar : NSObject
+/* iOS 18 (the hidden value; tabBarController:sidebarVisibilityWillChange:animator:) and iOS 27 */
 @property (nonatomic, getter=isHidden) BOOL hidden;
+@property (nullable, nonatomic, weak) id<UITabBarControllerSidebarDelegate> delegate;
+@property (nonatomic, readonly, getter=isAvailable) BOOL available API_AVAILABLE(ios(27.0));   /* isim: iPad, tabSidebar mode, regular width */
+@property (nonatomic) UITabBarControllerSidebarPlacement preferredPlacement API_AVAILABLE(ios(27.0));
+@end
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))   /* Swift: UITabBarController.Sidebar.Animating (UIKit overlay) */
+@protocol UITabBarControllerSidebarAnimating <NSObject>
+- (void)addAnimations:(void (^)(void))animations;
+- (void)addCompletion:(void (^)(void))completion;
+@end
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))   /* Swift: UITabBarController.Sidebar.Delegate (UIKit overlay) */
+@protocol UITabBarControllerSidebarDelegate <NSObject>
+@optional
+- (void)tabBarController:(UITabBarController *)tabBarController sidebarVisibilityWillChange:(UITabBarControllerSidebar *)sidebar animator:(id<UITabBarControllerSidebarAnimating>)animator;
+- (void)tabBarController:(UITabBarController *)tabBarController sidebarAvailabilityDidChange:(UITabBarControllerSidebar *)sidebar API_AVAILABLE(ios(27.0));
 @end
 
 @protocol UITabBarControllerDelegate <NSObject>
@@ -360,6 +404,11 @@ NS_SWIFT_UI_ACTOR
 - (void)setBottomAccessory:(nullable UITabAccessory *)bottomAccessory animated:(BOOL)animated API_AVAILABLE(ios(26.0));
 /* the area of the selected tab's content not covered by the tab bar or the iPad sidebar */
 @property (nonatomic, readonly, strong) UILayoutGuide *contentLayoutGuide API_AVAILABLE(ios(26.0));
+/* iOS 27: the tab drawn on its own (tinted) glass circle at the trailing end of the floating tab bar */
+@property (nullable, nonatomic, copy) NSString *prominentTabIdentifier API_AVAILABLE(ios(27.0));
+- (void)setProminentTabIdentifier:(nullable NSString *)identifier animated:(BOOL)animated API_AVAILABLE(ios(27.0));
+/* iOS 27: tab changes made in the block are laid out once, animated */
+- (void)performBatchUpdates:(void (NS_NOESCAPE ^)(void))updates API_AVAILABLE(ios(27.0));
 @end
 
 @interface UIViewController (UIContainers)
