@@ -35,7 +35,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
     var back: UIBarButtonItem!, forward: UIBarButtonItem!
     var pending: URL?
     // iPhone, iOS 26+: the floating glass bar (nil on iOS 17/18 and iPad)
-    var glass: (back: UIButton, capsule: UIView, more: UIButton)?
+    var glass: (back: UIButton, capsule: UIVisualEffectView, more: UIButton)?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -84,7 +84,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
     func makeGlassBar() {
         bar.isHidden = true
         let circle = { (symbol: String, id: String) -> UIButton in
-            var c = UIButton.Configuration.glass()
+            let c = UIButton.Configuration.glass()
             c.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold))
             c.baseForegroundColor = .label
             let b = UIButton(configuration: c)
@@ -98,12 +98,11 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
         more.showsMenuAsPrimaryAction = true
         let capsule = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
         capsule.cornerConfiguration = .capsule()
-        capsule.clipsToBounds = true
         capsule.accessibilityIdentifier = "safari-capsule"
         view.addSubview(capsule)
         address.font = .systemFont(ofSize: 15, weight: .medium)
         capsule.contentView.addSubview(address)
-        var r = UIButton.Configuration.plain()
+        let r = UIButton.Configuration.plain()
         r.image = UIImage(systemName: "arrow.clockwise", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .medium))
         r.baseForegroundColor = .label
         let reload = UIButton(configuration: r, primaryAction: UIAction { [unowned self] _ in web.reload() })
@@ -126,7 +125,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
             let cw = glass.capsule.bounds.width
             glass.capsule.contentView.viewWithTag(1)?.frame = CGRect(x: cw - 44, y: 0, width: 40, height: h)
             address.frame = CGRect(x: 44, y: 0, width: cw - 88, height: h)   // centred, clear of reload
-            progress.frame = CGRect(x: 0, y: h - 2, width: cw, height: 2)
+            progress.frame = CGRect(x: h / 2, y: h - 3, width: cw - h, height: 2)   // inside the capsule (not clipped: clipping drops the glass shadow)
             for v in [glass.back, glass.capsule, glass.more] { view.bringSubviewToFront(v) }
             return
         }
