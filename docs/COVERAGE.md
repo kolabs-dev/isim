@@ -26,13 +26,13 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 186 | 28 | 3 | 4 | 221 | 90% |
+| **UIKit** | 190 | 24 | 3 | 4 | 221 | 91% |
 | &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 26 | 5 | 0 | 0 | 31 | 92% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 27 | 4 | 0 | 0 | 31 | 94% |
 | &nbsp;&nbsp;↳ Views & controls | 50 | 7 | 0 | 3 | 60 | 89% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
-| &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
-| &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
+| &nbsp;&nbsp;↳ Animation | 11 | 1 | 0 | 0 | 12 | 96% |
+| &nbsp;&nbsp;↳ Gestures & touches | 12 | 1 | 0 | 0 | 13 | 96% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 11 | 1 | 2 | 0 | 14 | 82% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 2 | 0 | 1 | 0 | 3 | 67% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **711** | **220** | **29** | **37** | **997** | **82%** |
+| **All areas** | **715** | **216** | **29** | **37** | **997** | **83%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 92% (206) | 93% (210) | 92% (217) | 90% (221) |
+| UIKit | 93% (206) | 94% (210) | 93% (217) | 91% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **83%** (954) | **83%** (966) | **83%** (983) | **82%** (997) |
+| **All areas** | **84%** (954) | **83%** (966) | **83%** (983) | **83%** (997) |
 
 ---
 
@@ -170,7 +170,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `isModalInPresentation` | ✅ | ≤17 | rubber-bands instead of dismissing |
 | `UISheetPresentationController` (detents, grabber, largest undimmed detent) | ✅ | ≤17 | `.medium()`, `.large()`, `.custom(identifier:resolver:)`, grabber, dimming above `largestUndimmedDetentIdentifier` (touches pass through below it), `selectedDetentIdentifier` + `animateChanges`, dragging between detents with the delegate callback, `prefersScrollingExpandsWhenScrolledToEdge`; tested (HelloTransitions). iPad keeps centered cards (no detents) |
 | Popover presentation (`UIPopoverPresentationController`) | ✅ | ≤17 | iPhone adapts to a sheet unless the adaptive delegate returns `.none`; real popovers: card with an arrow towards `sourceView`/`sourceRect` or `barButtonItem`, `permittedArrowDirections`, `preferredContentSize`, tap outside to dismiss (delegate), `passthroughViews`; tested (HelloTransitions; bar button anchoring unverified) |
-| `modalTransitionStyle` (cross dissolve, flip, partial curl) | 🟡 | ≤17 | cross dissolve fades; flip horizontal is adapted (2D fold/unfold, no perspective); partial curl is shown as cover vertical (adapted); tested (HelloTransitions) |
+| `modalTransitionStyle` (cross dissolve, flip, partial curl) | ✅ | ≤17 | cover vertical slides; cross dissolve fades; flip horizontal turns the presenter away and the presented view in, in 3D with perspective (and back on dismissal); partial curl (adapted: the presenter's page lifts off its top edge, rigid, and stays up; the presented view below it is usable; a tap on the page dismisses, the page comes back down). Tested (HelloTransitions, HelloMotion, OS matrix) |
 | Custom transitions (`UIViewControllerTransitioningDelegate`, interactive) | ✅ | ≤17 | animators with a transition context (container, from/to views and controllers, final frames, `completeTransition`), custom `UIPresentationController` subclasses (frame, will/did begin/end, container layout), `transitionCoordinator.animate(alongsideTransition:)`, `UIPercentDrivenInteractiveTransition` (update/finish/cancel; scrubs the animator's UIView animations or its interruptible animator); tested (HelloTransitions) |
 | `UINavigationController` (push/pop, back swipe) | ✅ | ≤17 | push/pop/popTo, parallax animation, back button, left-edge back swipe, delegate; tested (HelloNavigation) |
 | `UINavigationItem` (title, bar button items, search controller, large titles) | ✅ | ≤17 | title, titleView, left/right bar button items, back title, large title display mode |
@@ -292,11 +292,11 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Delay, repeat, autoreverse, begin-from-current-state | ✅ | ≤17 | retargets from the current value |
 | `performWithoutAnimation`, `areAnimationsEnabled` | ✅ | ≤17 | |
 | Constraint animations (`layoutIfNeeded` in an animation block) | ✅ | ≤17 | a constant changed before `UIView.animate { layoutIfNeeded() }` animates the frames (drawn between the old and new sizes mid-animation; `frame` reports the end value, as on iOS), completion runs at the end. Tested (HelloConstraints) |
-| `UIView.transition(with:)` | 🟡 | ≤17 | adapted: flips and curls squash the view to its axis and unfold it (2D, no perspective) with the changes applied at the midpoint; cross dissolve fades out and back in (no snapshot cross-fade); tested (HelloAnimations) |
+| `UIView.transition(with:)` | ✅ | ≤17 | adapted: flips turn the view in 3D with perspective (about the vertical or horizontal axis; the changes applied edge-on), curl up lifts a snapshot of the old content off its top edge revealing the new, curl down lowers the new content over a snapshot of the old (a rigid page, not a curved one), cross dissolve fades a snapshot of the old content out over the new; `transition(from:to:)` likewise. Tested (HelloAnimations, HelloMotion, OS matrix) |
 | `transition(from:to:)` | ✅ | ≤17 | cross dissolve between the views, flips/curls as above (2D), `.showHideTransitionViews` or replacement in the superview; tested (HelloAnimations) |
 | `animateKeyframes` / `addKeyframe` | ✅ | ≤17 | keyframe segments per property on one timeline, overall curve from the options, discrete mode; cubic/paced modes interpolate linearly; tested (HelloAnimations) |
 | `UIViewPropertyAnimator` (interruptible, scrubbable) | ✅ | ≤17 | start/pause/stop/finish(at:), `fractionComplete` scrubbing, `isReversed`, add animations/completions, `pausesOnCompletion`, cubic/spring timing parameters, `runningPropertyAnimator`; `layer.presentation()` reports in-flight values; tested (HelloAnimations). `continueAnimation` ignores new timing parameters (duration factor only) |
-| Layer property animations (cornerRadius, shadow, …) | 🟡 | ≤17 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (tested: radius, border); Core Animation objects (`CABasicAnimation`, keyframes, springs, groups, transitions) also animate a view's layer (position, bounds, transform incl. `transform.rotation.z`, opacity, colours, corner radius, border, shadow); see QuartzCore |
+| Layer property animations (cornerRadius, shadow, …) | ✅ | ≤17 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (presentation layer values part-way); Core Animation objects (`CABasicAnimation`, keyframes, springs, groups, transitions) also animate a view's layer (position, bounds, transform incl. `transform.rotation.x/y/z` with perspective, opacity, colours, corner radius, border, shadow); animations added from `animationDidStop:` run. Tested (HelloAnimations radius / border, HelloMotion shadow / border colour, QuartzCore) |
 | UIKit Dynamics (`UIDynamicAnimator`, behaviors) | 🟡 | ≤17 | gravity, collision (reference bounds + insets, segment and path boundaries, item–item, contact delegate), snap, push (continuous / instantaneous), attachment (spring or rigid, item or anchor), `UIDynamicItemBehavior` (elasticity, friction, density, resistance, anchored, linear/angular velocity), actions, pause/resume delegate. Adapted: items collide as axis-aligned rectangles and collisions never spin them; ellipse/path collision bounds use the rectangle. Tested: gravity + collision (falls, rests on the boundary); others unverified |
 
 ### Gestures & touches
@@ -312,7 +312,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIPinchGestureRecognizer`, `UIRotationGestureRecognizer` | ✅ | ≤17 | scale/rotation (settable, relative from then on), velocity, centroid location; 2-touch `UIPanGestureRecognizer` (`minimumNumberOfTouches`/`maximumNumberOfTouches`); tested (HelloMultiTouch) |
 | `UIScreenEdgePanGestureRecognizer` | ✅ | ≤17 | starts only within 20 pt of `edges`; tested (HelloGestures) |
 | `UIHoverGestureRecognizer`, `UIPointerInteraction`, `UIPencilInteraction` | 🟡 | ≤17 | hover from host mouse motion without a button (script `hover X Y`) on every device; iPad pointer (dot, highlight / lift / hover effects, region request/enter/exit, `UIButton.isPointerInteractionEnabled`); tested (HelloMultiTouch). Pencil: honest stub, never gets taps; pointer shapes/beam not drawn |
-| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | 🟡 | ≤17 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`, `require(toFail:)` for discrete recognizers (tested: single vs double tap); `shouldRequireFailure(of:)` overrides are not consulted |
+| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | ✅ | ≤17 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`; failure requirements: `require(toFail:)`, the delegate's `shouldRequireFailureOf` / `shouldBeRequiredToFailBy` and the subclass overrides `shouldRequireFailure(of:)` / `shouldBeRequiredToFail(by:)` (among the recognizers on the touched view and its ancestors), for discrete recognizers (fire once the others fail) and pans (hold Began until they fail, fail if one recognizes). Tested (HelloGestures single vs double tap, HelloMotion, OS matrix) |
 | Custom `UIGestureRecognizer` subclasses | ✅ | ≤17 | `UIGestureRecognizerSubclass`: touches callbacks, settable `state` sends actions, `reset`; tested (HelloGestures) |
 | Shake / motion events | ✅ | ≤17 | `motionBegan/Ended` (shake) via Ctrl+Shift+Z or the script command `shake`; tested (HelloGestures) |
 | Hardware keys (`UIKeyCommand`, `pressesBegan`) | ✅ | ≤17 | host keyboard → `UIPress`/`UIKey` (HID usage, modifiers) on the responder chain; `keyCommands`/`addKeyCommand` matched before typing; tested (HelloGestures). No discoverability HUD |
