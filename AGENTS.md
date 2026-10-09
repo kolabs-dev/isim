@@ -46,7 +46,8 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
 - **Screenshots.** When a change is visible (UI, drawing, system UI), attach screenshots of isim's own samples to the
   PR: reference them in the body as `![what it shows](./name.png)` and upload them with
   `gh pr edit <PR> --body-file body.md --attach ./name.png` (run where the files are; `gh` rewrites the references).
-- **CI.** CI runs a stock Ubuntu 24.04 image: build, ABI check, all tests.
+- **CI.** CI runs a stock Ubuntu 24.04 image: one build job (build, ABI check), then four test jobs in parallel, one
+  per iOS version (iOS 18 runs every test; 17, 26 and 27 the `os_matrix` tests), then the status.
   - On a PR, start it by hand: Actions → CI → Run workflow, on the PR's branch.
   - Its commit status `ci / build and test` is required to merge.
   - Pushes to `main` run it automatically.
@@ -54,7 +55,9 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
   - update its row in [docs/COVERAGE.md](docs/COVERAGE.md) (status, notes, the test that verifies it) and the summary
     tables (`isim/tools/coverage-summary.py`);
   - add or extend a sample app (`isim/samples/`) and a pytest test (`isim/tests/`);
-  - check each supported iOS version: 17, 18, 26 and 27 ([docs/IOS-VERSIONS.md](docs/IOS-VERSIONS.md)).
+  - check each supported iOS version: 17, 18, 26 and 27 ([docs/IOS-VERSIONS.md](docs/IOS-VERSIONS.md)): mark tests of
+    version-dependent behaviour (system UI, chrome frames / pixels, `@available` APIs) `@pytest.mark.os_matrix` and run
+    `OS_MATRIX=1` locally (CI's test job of each iOS version runs them too). The rules: [docs/TESTING.md](docs/TESTING.md#which-tests-run-under-every-ios-version-os_matrix).
 - **Issues.** A bug that is not fixed right away gets a GitHub issue with enough context to fix it later: symptom,
   reproduction, where to look. Missing API coverage is tracked by one issue per COVERAGE.md area (label `coverage`).
 

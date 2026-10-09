@@ -108,14 +108,16 @@ def test(args, verbose=False):
 def ci(args):
     """CI, in two phases (separate workflow steps, so each shows its own time): `build` fetches, builds, checks that
     the optional parts exist and runs the ABI check; `test` runs every test. Runs in the isim/ci image with the
-    host's Docker socket."""
+    host's Docker socket. Arguments after `--` go to pytest (e.g. `ci test -- -m os_matrix`)."""
+    pytest_args = args[args.index("--") + 1:] if "--" in args else []
+    args = args[:args.index("--")] if "--" in args else args
     phases = [a for a in args if a in ("build", "test")] or ["build", "test"]
     if "build" in phases:
         rc = ci_build([a for a in args if a not in ("build", "test")])
         if rc:
             return rc
     if "test" in phases:
-        return ci_test()
+        return ci_test(pytest_args)
     return 0
 
 
@@ -139,14 +141,14 @@ def ci_build(args):
     return subprocess.call([sys.executable, "tools/abi-check.py"], cwd=ROOT)
 
 
-def ci_test():
+def ci_test(pytest_args=()):
     """every test, one line per test as it finishes (progress in the CI log), then out/test-summary.md (the workflow
     adds it to the run's summary page) and an error annotation per failed test"""
     import re
     started = re.compile(r"^[\w./-]+\.py::\S+\s*$")
     xml = os.path.join(ROOT, "out", "test-results.xml")
     with open(os.path.join(ROOT, "out", "test.log"), "w") as log:
-        p = subprocess.Popen([sys.executable, __file__, "test", "--ci-verbose", f"--junitxml={xml}", "-o", "junit_family=xunit1"],
+        p = subprocess.Popen([sys.executable, __file__, "test", "--ci-verbose", f"--junitxml={xml}", "-o", "junit_family=xunit1", *pytest_args],
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=dict(os.environ, PYTHONUNBUFFERED="1"))
         for line in p.stdout:
             if started.match(line):     # pytest -v with workers prints a test's id when it starts and again with

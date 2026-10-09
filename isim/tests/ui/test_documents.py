@@ -2,8 +2,10 @@
 with a file another app left there) and the sample's shared Documents folder; opening a copy into the Inbox, opening in
 place with multiple selection, picking a folder, exporting a copy and moving, the legacy Import mode with type
 identifiers, starting in directoryURL, cancelling, and a document browser creating and opening a document."""
+import pytest
 
 
+@pytest.mark.os_matrix
 def test_documents(launch, device_data):
     files = device_data / "Files"
     files.mkdir(parents=True, exist_ok=True)
