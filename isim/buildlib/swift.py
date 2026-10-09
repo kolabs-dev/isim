@@ -278,8 +278,9 @@ class Swift:
         onone = self.onone()
         regex = self.string_processing()
         cxx = self.cxx_interop()
+        plugins = self.host_plugins()
         n.phony("swift-core", [*emb, *full, support, res, libcxx, core, *concurrency, *observation, *sync, *distributed,
-                               *onone, *regex, *cxx])
+                               *onone, *regex, *cxx, *plugins])
 
     def isim_module(self, name, srcs, flags, link_args=(), extra_objs=(), implicit=(), link_name=None, objdir=None,
                     concurrency=True, minos="17.0", extra_outs=()):
@@ -411,6 +412,26 @@ class Swift:
                                          "MemberImportVisibility"],
                                 implicit=[mod("Cxx")], link_args=["-lSystem", "-lc++", "-lswiftCore", "-lswiftCxx"])
         return out
+
+    def host_plugins(self):
+        """Swift macros on the compiler's side (Linux, the swift:6.2 toolchain's host, against its swift-syntax
+        libraries in /usr/lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
+        compiles their macro targets against it) and isim's PreviewsMacros plugin (`#Preview`), in out/swift/host
+        (`isim swiftc` passes -plugin-path out/swift/host/plugins)"""
+        H = f"{SW}/host"
+        os.makedirs(os.path.join(self.c.root, H, "plugins"), exist_ok=True)
+        host = ["-I", "/usr/lib/swift/host", "-L", "/usr/lib/swift/host", "-Xlinker", "-rpath", "-Xlinker", "/usr/lib/swift/host"]
+        cp = self.swiftc([f"{H}/libSwiftCompilerPlugin.so", f"{H}/SwiftCompilerPlugin.swiftmodule"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "SwiftCompilerPlugin", *WERROR, *host,
+                          "-lSwiftSyntaxMacros", "-lSwiftSyntax", "-emit-module", "-emit-module-path", f"{H}/SwiftCompilerPlugin.swiftmodule",
+                          "-o", f"{H}/libSwiftCompilerPlugin.so"],
+                         ["swift/macro-support/SwiftCompilerPlugin.swift"], docker=True, desc="SWIFT SwiftCompilerPlugin (host)")
+        pm = self.swiftc([f"{H}/plugins/libPreviewsMacros.so"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "PreviewsMacros", *WERROR, *host, "-I", H, "-L", H,
+                          "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
+                          "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libPreviewsMacros.so"],
+                         ["swift/macro-support/PreviewsMacros.swift"], implicit=cp, docker=True, desc="SWIFT PreviewsMacros (host)")
+        return cp + pm
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"
@@ -573,8 +594,9 @@ Foundation -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency 
 UniformTypeIdentifiers -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 CoreTransferable -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswift_Concurrency -framework Foundation
 Symbols
-UIKit -lswiftSymbols -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswift_Concurrency -lswiftObservation -framework Foundation -framework UIKit
-SwiftUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
+DeveloperToolsSupport -lswiftCoreGraphics
+UIKit -lswiftDeveloperToolsSupport -lswiftSymbols -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswift_Concurrency -lswiftObservation -framework Foundation -framework UIKit
+SwiftUI -lswiftDeveloperToolsSupport -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 Charts -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 GameKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift_Concurrency -framework Foundation -framework UIKit
 AppTrackingTransparency -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
@@ -637,7 +659,7 @@ CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concur
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
-EVOLUTION = set("""ObjectiveC Dispatch Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
+EVOLUTION = set("""ObjectiveC Dispatch DeveloperToolsSupport Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices

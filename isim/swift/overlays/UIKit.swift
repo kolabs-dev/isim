@@ -1,5 +1,22 @@
 // isim UIKit overlay (self-authored): what Swift apps need beyond the imported ObjC API.
 @_exported import UIKit
+@_exported import DeveloperToolsSupport
+
+// MARK: - #Preview of UIKit views and view controllers (isim: compiles and type-checks; no preview canvas)
+@freestanding(declaration)
+public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTraits>..., body: @escaping @MainActor () -> UIView) =
+    #externalMacro(module: "PreviewsMacros", type: "UIKitView")
+@freestanding(declaration)
+public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTraits>..., body: @escaping @MainActor () -> UIViewController) =
+    #externalMacro(module: "PreviewsMacros", type: "UIKitViewController")
+extension Preview {
+    public init(_isimUIView name: String?, traits: [PreviewTrait<ViewTraits>], body: @escaping @MainActor () -> UIView) {
+        self.init(_isimName: name, traits: traits, content: body)
+    }
+    public init(_isimViewController name: String?, traits: [PreviewTrait<ViewTraits>], body: @escaping @MainActor () -> UIViewController) {
+        self.init(_isimName: name, traits: traits, content: body)
+    }
+}
 
 extension UIApplicationDelegate {
   /// Entry point for `@main` app delegates (same contract as Apple's UIKit overlay).

@@ -1,3 +1,4 @@
+import Core           // macros from the local package's macro target (CoreMacros)
 import UIKit
 
 final class ViewController: UIViewController, UITextFieldDelegate {
@@ -49,6 +50,8 @@ final class ViewController: UIViewController, UITextFieldDelegate {
         ])
         refresh()
         print("HelloToolchain: \(greeting.text!) | \(sums.text!) | \(flavor.text!)")
+        let (value, code) = #stringify(Model.mathKitSum() * 2)
+        print("HelloToolchain macros: \(code) = \(value), \(Flavor.caseCount) flavors")
     }
 
     @objc private func add() { model.increment(); refresh() }
@@ -60,3 +63,16 @@ final class ViewController: UIViewController, UITextFieldDelegate {
         return true
     }
 }
+
+/// The package macros at work: @CaseCount adds `caseCount`.
+@CaseCount
+enum Flavor { case vanilla, chocolate, strawberry }
+
+// Previews (Xcode's canvas; on isim they compile and type-check)
+#Preview("Toolchain") { ViewController() }
+#Preview(traits: .landscapeLeft) {
+    let label = UILabel()
+    label.text = "landscape"
+    return label
+}
+
