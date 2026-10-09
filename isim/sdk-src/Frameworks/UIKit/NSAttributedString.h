@@ -6,7 +6,7 @@
 #import <UIKit/UILabel.h>
 #include <CoreGraphics/CGGeometry.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIFont, UIColor;
+@class UIFont, UIColor, NSTextBlock;
 UIKIT_EXTERN NSAttributedStringKey const NSFontAttributeName;
 UIKIT_EXTERN NSAttributedStringKey const NSParagraphStyleAttributeName;
 UIKIT_EXTERN NSAttributedStringKey const NSForegroundColorAttributeName;
@@ -49,6 +49,8 @@ NS_SWIFT_UI_ACTOR
 @property (readonly) CGFloat lineHeightMultiple;
 @property (readonly) CGFloat paragraphSpacingBefore;
 @property (readonly) float hyphenationFactor;
+/* the blocks (NSTextTable.h) holding the paragraph, outermost first */
+@property (readonly, copy) NSArray<NSTextBlock *> *textBlocks;
 @end
 NS_SWIFT_UI_ACTOR
 @interface NSMutableParagraphStyle : NSParagraphStyle
@@ -65,6 +67,7 @@ NS_SWIFT_UI_ACTOR
 @property CGFloat lineHeightMultiple;
 @property CGFloat paragraphSpacingBefore;
 @property float hyphenationFactor;
+@property (copy) NSArray<NSTextBlock *> *textBlocks;
 @end
 NS_SWIFT_UI_ACTOR
 @interface NSShadow : NSObject <NSCopying>
