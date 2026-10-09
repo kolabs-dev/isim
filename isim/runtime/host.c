@@ -1262,6 +1262,8 @@ int isim_image_load_data(const void *data, unsigned long len, double *w, double 
 int isim_image_symbol(const char *name, double *w, double *h);
 void isim_image_draw(int hd, double x, double y, double w, double h, const double *tint, double alpha);
 void isim_image_draw_symbol(int hd, double x, double y, double w, double h, const double *tint, double alpha, int weight);
+int isim_image_symbol_layers(int hd);
+void isim_image_draw_symbol_layered(int hd, double x, double y, double w, double h, const double *rgba2, double alpha, int weight);
 int isim_image_is_template(int hd);
 void isim_image_free(int hd);
 void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, double x, double y, double w, double h, int nearest, const double *blend, double factor, double alpha);
@@ -1388,7 +1390,7 @@ static const struct shim isim_table[] = {
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_text_measure_f), H(isim_text_end_point_f), H(isim_text_draw_f),
     H(isim_font_register), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
-    H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free), H(isim_image_draw_part), H(isim_image_pixel_size), H(isim_image_draw_symbol),
+    H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free), H(isim_image_draw_part), H(isim_image_pixel_size), H(isim_image_draw_symbol), H(isim_image_symbol_layers), H(isim_image_draw_symbol_layered),
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free), H(isim_audio_active),

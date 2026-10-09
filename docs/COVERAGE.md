@@ -26,7 +26,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 175 | 38 | 3 | 5 | 221 | 88% |
+| **UIKit** | 176 | 38 | 3 | 4 | 221 | 88% |
 | &nbsp;&nbsp;↳ Application & scenes | 20 | 5 | 0 | 0 | 25 | 90% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 22 | 9 | 0 | 0 | 31 | 85% |
 | &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
@@ -34,7 +34,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 11 | 1 | 2 | 0 | 14 | 82% |
-| &nbsp;&nbsp;↳ Drawing, images & symbols | 17 | 1 | 0 | 1 | 19 | 92% |
+| &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 2 | 0 | 1 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **693** | **235** | **29** | **40** | **997** | **81%** |
+| **All areas** | **694** | **235** | **29** | **39** | **997** | **81%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 90% (206) | 90% (210) | 89% (217) | 88% (221) |
+| UIKit | 90% (206) | 90% (210) | 90% (217) | 88% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -353,7 +353,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `withTintColor`, rendering modes (template/original) | ✅ | ≤17 | |
 | SF Symbols (`UIImage(systemName:)`) | 🟡 | ≤17 | stand-in drawings, not Apple's SF Symbols artwork (Apple licenses it for its own platforms only, so isim cannot ship or copy it): about 170 common names are isim's own procedural glyphs (`isim/runtime/host_symbols.inc`: heart, star, bell, envelope, person, arrows, chevrons, media controls, weather, ...) and about 220 more map to the host's Adwaita symbolic icons. Variants compose for any drawn glyph: `.fill` (solid shape), `.circle` / `.square` / `.triangle` / `.rectangle` (enclosure; with `.fill` the glyph is cut out), `.slash`. Shapes and proportions differ from iOS; names without a stand-in draw a dashed placeholder and are reported once on stderr; `UIImage(systemName:)` never returns nil. Tested (HelloSymbols: 170 names, none draws the placeholder, `.fill` differs from the outline) |
 | `UIImage.SymbolConfiguration` (point size, weight, scale, text style) | ✅ | ≤17 | weight thickens or thins the strokes of drawn glyphs (Adwaita icons keep their weight); `configurationWithFont:` takes the font's weight; tested (HelloSymbols) |
-| Symbol rendering modes (hierarchical, palette, multicolor) | ❌ | ≤17 | isim's symbols are single-layer stand-ins (symbol effects: see below) |
+| Symbol rendering modes (hierarchical, palette, multicolor) | ✅ | ≤17 | adapted to isim's stand-in symbols: a glyph in an enclosure (`.circle`, `.square`, `.triangle`, `.rectangle`, with or without `.fill`) has two layers — primary the glyph (and slash), secondary the enclosure; other symbols have one. `SymbolConfiguration(hierarchicalColor:)` (secondary at half opacity), `(paletteColors:)`, `.preferringMulticolor()` (isim's colours for common symbols — heart, star, bolt, flame, leaf, drop, check / plus / minus / xmark / info / exclamationmark circles and the warning triangle — modelled on iOS's; others draw monochrome, as iOS does for symbols without a multicolor variant), `.preferringMonochrome()`, merged by `applying(_:)` and `UIImageView.preferredSymbolConfiguration`. Layer opacities and multicolor colours approximate Apple's artwork, which isim cannot ship. Tested (HelloSymbols, OS matrix) |
 | `UIColor` (RGB/HSB/white, system & semantic colors, dynamic provider) | ✅ | ≤17 | Apple HIG light/dark values |
 | Named asset-catalog colors (light/dark) | ✅ | ≤17 | |
 | `UIFont` (system weights, italic, monospaced, monospaced digits, metrics) | ✅ | ≤17 | adapted: Adwaita Sans / Mono (bundled) stand in for SF Pro / SF Mono, which Apple licenses for its own platforms only, so glyph shapes and advances differ; metrics follow SF Pro's ratios. Weights, italic (Adwaita Sans Italic), monospaced, tabular digits (`tnum`). `UIFontDescriptor`: Apple's attribute / trait / feature keys, `symbolicTraits`, `withSymbolicTraits`, `withDesign` (serif drawn with a serif face of the host; rounded uses the default face; nil for named fonts, like iOS), `addingAttributes` (`.traits` weight, `.featureSettings` monospaced numbers), `preferredFontDescriptor(withTextStyle:)` (keeps Dynamic Type), `withSize`/`withFamily`/`withFace`/`withMatrix`, `NSSecureCoding`. `systemFont(ofSize:weight:width:)` ignores the width (adapted). Tested (HelloFonts) |
