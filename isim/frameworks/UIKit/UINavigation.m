@@ -188,6 +188,7 @@ static void draw_badge(UIBarButtonItemBadge *b, CGSize s) {
 @property (nonatomic, strong) NSString *text;
 @property (nonatomic, strong) UIImage *icon;
 @property (nonatomic) BOOL bold;
+@property (nonatomic, strong) UIBarButtonItemAppearance *appearance;   /* the bar's buttonAppearance / doneButtonAppearance */
 @end
 @implementation __IsimBarButton
 + (instancetype)buttonFor:(UIBarButtonItem *)item host:(UIView *)host {
@@ -202,11 +203,24 @@ static void draw_badge(UIBarButtonItemBadge *b, CGSize s) {
     return b;
 }
 - (void)fire { [self.item _isim_performFrom:self]; }
+/* the item's own title attributes win over the bar appearance's */
+- (UIBarButtonItemStateAppearance *)_isim_state {
+    UIBarButtonItemAppearance *a = self.appearance;
+    return !self.item.enabled ? a.disabled : self.highlighted ? a.highlighted : a.normal;
+}
+- (id)_isim_attr:(NSString *)key {
+    UIControlState st = self.highlighted ? UIControlStateHighlighted : self.item.enabled ? UIControlStateNormal : UIControlStateDisabled;
+    id v = [self.item _isim_attrs:st][key];
+    if (!v && st == UIControlStateHighlighted) v = [self.item _isim_attrs:UIControlStateNormal][key];
+    if (!v) v = [self _isim_state].titleTextAttributes[key];
+    if (!v && self.highlighted) v = self.appearance.normal.titleTextAttributes[key];
+    return v;
+}
 - (UIFont *)font {
-    UIFont *f = [self.item _isim_attrs:self.highlighted ? UIControlStateHighlighted : self.item.enabled ? UIControlStateNormal : UIControlStateDisabled][NSFontAttributeName];
+    UIFont *f = [self _isim_attr:NSFontAttributeName];
     return [f isKindOfClass:[UIFont class]] ? f : [UIFont systemFontOfSize:17 weight:self.bold ? UIFontWeightSemibold : UIFontWeightRegular];
 }
-- (UIColor *)_isim_attrColor { UIColor *c = [self.item _isim_attrs:self.item.enabled ? UIControlStateNormal : UIControlStateDisabled][NSForegroundColorAttributeName]; return [c isKindOfClass:[UIColor class]] ? c : nil; }
+- (UIColor *)_isim_attrColor { UIColor *c = [self _isim_attr:NSForegroundColorAttributeName]; return [c isKindOfClass:[UIColor class]] ? c : nil; }
 - (CGSize)sizeThatFits:(CGSize)s {
     if (isim_ui_glass()) {                                   /* iOS 26: glass circles (symbols) and capsules (text) */
         if (self.icon) return CGSizeMake(44, 44);
@@ -232,12 +246,16 @@ static void draw_badge(UIBarButtonItemBadge *b, CGSize s) {
         [self.icon _isim_drawInRect:r tint:c alpha:a];
     } else if (self.text) {
         CGSize ts = isim_ui_measure(self.text, [self font], s.width, 1);
-        isim_ui_draw_text(self.text, [self font], [self _isim_attrColor] ?: c, CGRectMake(0, (s.height - ts.height) / 2, s.width, ts.height), NSTextAlignmentCenter, 1, a);
+        UIOffset o = [self _isim_state].titlePositionAdjustment;
+        isim_ui_draw_text(self.text, [self font], [self _isim_attrColor] ?: c, CGRectMake(o.horizontal, (s.height - ts.height) / 2 + o.vertical, s.width, ts.height), NSTextAlignmentCenter, 1, [self _isim_attrColor] && self.highlighted ? 1 : a);
     }
     if (isim_ui_os_major() >= 26) draw_badge(self.item.badge, s);      /* iOS 26 */
 }
 @end
 
+@interface UINavigationBar (IsimAppearance)
+- (UINavigationBarAppearance *)_isim_appearance;
+@end
 /* lays out bar items left to right from x; returns the views */
 static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *items, CGFloat x0, CGFloat y, CGFloat h, BOOL rightAligned, CGFloat limit) {
     NSMutableArray *views = [NSMutableArray array];
@@ -246,7 +264,13 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         if (it.hidden || [it _isim_isFlexible]) continue;
         UIView *v = it.customView;
         if ([it _isim_isFixed]) { x += rightAligned ? -it.width : it.width; continue; }
-        if (!v) v = [__IsimBarButton buttonFor:it host:host];
+        if (!v) {
+            v = [__IsimBarButton buttonFor:it host:host];
+            if ([host isKindOfClass:[UINavigationBar class]]) {
+                UINavigationBarAppearance *ap = [(UINavigationBar *)host _isim_appearance];
+                ((__IsimBarButton *)v).appearance = it.style == UIBarButtonItemStyleDone ? ap.doneButtonAppearance : ap.buttonAppearance;
+            }
+        }
         CGSize s = it.customView ? (CGSizeEqualToSize(v.bounds.size, CGSizeZero) ? [v sizeThatFits:CGSizeMake(200, h)] : v.bounds.size) : [v sizeThatFits:CGSizeMake(200, h)];
         if (it.width > 0) s.width = it.width;
         CGFloat vx = rightAligned ? x - s.width : x;
@@ -270,6 +294,10 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 - (void)setBackButtonTitle:(NSString *)t { _backButtonTitle = [t copy]; bar_item_changed(self); }
 - (void)setHidesBackButton:(BOOL)h { _hidesBackButton = h; bar_item_changed(self); }
 - (void)setLargeTitleDisplayMode:(UINavigationItemLargeTitleDisplayMode)m { _largeTitleDisplayMode = m; bar_item_changed(self); }
+- (void)setStandardAppearance:(UINavigationBarAppearance *)a { _standardAppearance = [a copy]; bar_item_changed(self); }
+- (void)setScrollEdgeAppearance:(UINavigationBarAppearance *)a { _scrollEdgeAppearance = [a copy]; bar_item_changed(self); }
+- (void)setCompactAppearance:(UINavigationBarAppearance *)a { _compactAppearance = [a copy]; bar_item_changed(self); }
+- (void)setCompactScrollEdgeAppearance:(UINavigationBarAppearance *)a { _compactScrollEdgeAppearance = [a copy]; bar_item_changed(self); }
 - (UIBarButtonItem *)leftBarButtonItem { return _leftBarButtonItems.firstObject; }
 - (UIBarButtonItem *)rightBarButtonItem { return _rightBarButtonItems.firstObject; }
 - (void)setLeftBarButtonItem:(UIBarButtonItem *)i { self.leftBarButtonItems = i ? @[i] : nil; }
@@ -282,16 +310,56 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 - (void)setRightBarButtonItems:(NSArray *)i animated:(BOOL)a { self.rightBarButtonItems = i; }
 @end
 
-@implementation UIBarAppearance { int _kind; }   /* 0 default (material), 1 opaque, 2 transparent */
-- (instancetype)init { if ((self = [super init])) [self configureWithDefaultBackground]; return self; }
-- (id)copyWithZone:(NSZone *)z {
-    UIBarAppearance *c = [[[self class] alloc] init];
-    c->_kind = _kind; c.backgroundEffect = self.backgroundEffect; c.backgroundColor = self.backgroundColor;
-    c.backgroundImage = self.backgroundImage; c.shadowColor = self.shadowColor;
-    if ([self isKindOfClass:[UINavigationBarAppearance class]]) {
-        ((UINavigationBarAppearance *)c).titleTextAttributes = ((UINavigationBarAppearance *)self).titleTextAttributes;
-        ((UINavigationBarAppearance *)c).largeTitleTextAttributes = ((UINavigationBarAppearance *)self).largeTitleTextAttributes;
+@implementation UIBarButtonItemStateAppearance
+- (instancetype)init { if ((self = [super init])) _titleTextAttributes = @{}; return self; }
+- (void)_isim_copyFrom:(UIBarButtonItemStateAppearance *)o {
+    _titleTextAttributes = [o.titleTextAttributes copy] ?: @{}; _titlePositionAdjustment = o.titlePositionAdjustment;
+    _backgroundImage = o.backgroundImage; _backgroundImagePositionAdjustment = o.backgroundImagePositionAdjustment;
+}
+@end
+@implementation UIBarButtonItemAppearance
+- (instancetype)init { return [self initWithStyle:UIBarButtonItemStylePlain]; }
+- (instancetype)initWithStyle:(UIBarButtonItemStyle)style {
+    if ((self = [super init])) {
+        _normal = [UIBarButtonItemStateAppearance new]; _highlighted = [UIBarButtonItemStateAppearance new];
+        _disabled = [UIBarButtonItemStateAppearance new]; _focused = [UIBarButtonItemStateAppearance new];
+        [self configureWithDefaultForStyle:style];
     }
+    return self;
+}
+- (void)configureWithDefaultForStyle:(UIBarButtonItemStyle)style {
+    for (UIBarButtonItemStateAppearance *s in @[_normal, _highlighted, _disabled, _focused]) [s _isim_copyFrom:[UIBarButtonItemStateAppearance new]];
+    if (style == UIBarButtonItemStyleDone) _normal.titleTextAttributes = @{ NSFontAttributeName: [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold] };
+}
+- (id)copyWithZone:(NSZone *)z {
+    UIBarButtonItemAppearance *c = [UIBarButtonItemAppearance new];
+    [c.normal _isim_copyFrom:_normal]; [c.highlighted _isim_copyFrom:_highlighted]; [c.disabled _isim_copyFrom:_disabled]; [c.focused _isim_copyFrom:_focused];
+    return c;
+}
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c {}
+- (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
+@end
+
+@implementation UIBarAppearance { int _kind; }   /* 0 default (material), 1 opaque, 2 transparent */
+- (instancetype)init { return [self initWithIdiom:UIDevice.currentDevice.userInterfaceIdiom]; }
+- (instancetype)initWithIdiom:(UIUserInterfaceIdiom)idiom {
+    if ((self = [super init])) { _idiom = idiom; _backgroundImageContentMode = UIViewContentModeScaleToFill; [self _isim_initSubclass]; [self configureWithDefaultBackground]; }
+    return self;
+}
+- (instancetype)initWithBarAppearance:(UIBarAppearance *)a {
+    if ((self = [self initWithIdiom:a.idiom])) [self _isim_copyFrom:a];
+    return self;
+}
+- (void)_isim_initSubclass {}
+- (void)_isim_copyFrom:(UIBarAppearance *)a {
+    _kind = a->_kind; self.backgroundEffect = a.backgroundEffect; self.backgroundColor = a.backgroundColor;
+    self.backgroundImage = a.backgroundImage; self.backgroundImageContentMode = a.backgroundImageContentMode;
+    self.shadowColor = a.shadowColor; self.shadowImage = a.shadowImage;
+}
+- (id)copyWithZone:(NSZone *)z {
+    UIBarAppearance *c = [[[self class] alloc] initWithIdiom:_idiom];
+    [c _isim_copyFrom:self];
     return c;
 }
 - (void)configureWithDefaultBackground { _kind = 0; self.backgroundEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterial]; self.backgroundColor = nil; self.shadowColor = UIColor.separatorColor; }
@@ -299,7 +367,22 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 - (void)configureWithTransparentBackground { _kind = 2; self.backgroundEffect = nil; self.backgroundColor = nil; self.shadowColor = nil; }
 @end
 @implementation UINavigationBarAppearance
-- (instancetype)init { if ((self = [super init])) { _titleTextAttributes = @{}; _largeTitleTextAttributes = @{}; } return self; }
+- (void)_isim_initSubclass {
+    _titleTextAttributes = @{}; _largeTitleTextAttributes = @{};
+    _buttonAppearance = [[UIBarButtonItemAppearance alloc] initWithStyle:UIBarButtonItemStylePlain];
+    _doneButtonAppearance = [[UIBarButtonItemAppearance alloc] initWithStyle:UIBarButtonItemStyleDone];
+    _backButtonAppearance = [[UIBarButtonItemAppearance alloc] initWithStyle:UIBarButtonItemStylePlain];
+}
+- (void)_isim_copyFrom:(UIBarAppearance *)a {
+    [super _isim_copyFrom:a];
+    if (![a isKindOfClass:[UINavigationBarAppearance class]]) return;
+    UINavigationBarAppearance *n = (UINavigationBarAppearance *)a;
+    _titleTextAttributes = [n.titleTextAttributes copy]; _largeTitleTextAttributes = [n.largeTitleTextAttributes copy];
+    _titlePositionAdjustment = n.titlePositionAdjustment;
+    _buttonAppearance = [n.buttonAppearance copy]; _doneButtonAppearance = [n.doneButtonAppearance copy]; _backButtonAppearance = [n.backButtonAppearance copy];
+    _backIndicatorImage = n.backIndicatorImage; _backIndicatorTransitionMaskImage = n.backIndicatorTransitionMaskImage;
+}
+- (void)setBackIndicatorImage:(UIImage *)i transitionMaskImage:(UIImage *)m { _backIndicatorImage = i; _backIndicatorTransitionMaskImage = m; }
 @end
 @implementation UIToolbarAppearance @end
 @implementation UITabBarAppearance @end
@@ -311,12 +394,13 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 @interface __IsimBarBackground : UIView
 - (void)apply:(UIBarAppearance *)a;
 @end
-@implementation __IsimBarBackground { UIVisualEffectView *_fx; UIView *_color, *_line; BOOL _fade; }
+@implementation __IsimBarBackground { UIVisualEffectView *_fx; UIView *_color, *_line; UIImageView *_image, *_shadowImage; BOOL _fade; }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
         self.userInteractionEnabled = NO;
         _fx = [[UIVisualEffectView alloc] initWithEffect:nil]; _color = [UIView new]; _line = [UIView new];
-        for (UIView *v in @[_fx, _color, _line]) [self addSubview:v];
+        _image = [UIImageView new]; _image.clipsToBounds = YES; _shadowImage = [UIImageView new];
+        for (UIView *v in @[_fx, _color, _image, _line, _shadowImage]) [self addSubview:v];
     }
     return self;
 }
@@ -327,11 +411,17 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     if (fade) { _fx.hidden = YES; _color.hidden = YES; _line.hidden = YES; return; }
     _fx.effect = a.backgroundEffect; _fx.hidden = !a.backgroundEffect;
     _color.backgroundColor = a.backgroundColor; _color.hidden = !a.backgroundColor;
-    _line.backgroundColor = a.shadowColor; _line.hidden = !a.shadowColor;
+    _image.image = a.backgroundImage; _image.contentMode = a.backgroundImageContentMode; _image.hidden = !a.backgroundImage;
+    /* a shadow image replaces the hairline (tinted with the shadow colour when it is a template) */
+    _shadowImage.image = a.shadowImage; _shadowImage.hidden = !a.shadowImage || !a.shadowColor;
+    _shadowImage.tintColor = a.shadowColor;
+    _line.backgroundColor = a.shadowColor; _line.hidden = !a.shadowColor || a.shadowImage;
 }
 - (void)layoutSubviews {
     [super layoutSubviews];
-    CGRect b = self.bounds; _fx.frame = b; _color.frame = b;
+    CGRect b = self.bounds; _fx.frame = b; _color.frame = b; _image.frame = b;
+    CGFloat sh = _shadowImage.image ? fmax(1.0 / 3, _shadowImage.image.size.height) : 0;
+    _shadowImage.frame = self.tag == 1 ? CGRectMake(0, -sh, b.size.width, sh) : CGRectMake(0, b.size.height, b.size.width, sh);
     _line.frame = self.tag == 1 ? CGRectMake(0, 0, b.size.width, 1.0 / 3) : CGRectMake(0, b.size.height - 1.0 / 3, b.size.width, 1.0 / 3);   /* tag 1: top hairline */
 }
 - (void)_isim_drawContent {
@@ -349,6 +439,8 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 /* ================= UINavigationBar ================= */
 @interface __IsimBackButton : UIControl
 @property (nonatomic, copy) NSString *text;
+@property (nonatomic, strong) UIBarButtonItemAppearance *appearance;     /* backButtonAppearance */
+@property (nonatomic, strong) UIImage *indicator;                        /* backIndicatorImage (else the chevron) */
 @end
 @implementation __IsimBackButton
 - (CGFloat)_chevronWidth { UIImage *c = [UIImage systemImageNamed:@"chevron.left"]; return c.size.width * 22 / fmax(1, c.size.height); }
@@ -367,12 +459,16 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         return;
     }
     BOOL rtl = [self _isim_isRTL];                     /* right to left: the chevron points right, after the title */
-    UIImage *chev = [UIImage systemImageNamed:@"chevron.left"];
+    UIImage *chev = self.indicator ?: [UIImage systemImageNamed:@"chevron.left"];
     if (rtl) chev = [chev imageWithHorizontallyFlippedOrientation];
-    CGSize i = chev.size; double k = 22 / fmax(1, i.height);
+    CGSize i = chev.size; double k = self.indicator ? fmin(1, 22 / fmax(1, i.height)) : 22 / fmax(1, i.height);
     CGRect cr = CGRectMake(8, (s.height - i.height * k) / 2, i.width * k, i.height * k);
     [chev _isim_drawInRect:rtl ? isim_ui_mirror_rect(cr, s.width) : cr tint:c alpha:a];
-    UIFont *f = [UIFont systemFontOfSize:17]; CGSize ts = isim_ui_measure(self.text ?: @"", f, s.width, 1);
+    UIBarButtonItemStateAppearance *st = self.highlighted ? self.appearance.highlighted : self.appearance.normal;
+    UIFont *f = [st.titleTextAttributes[NSFontAttributeName] isKindOfClass:[UIFont class]] ? st.titleTextAttributes[NSFontAttributeName] : [UIFont systemFontOfSize:17];
+    UIColor *tc = [st.titleTextAttributes[NSForegroundColorAttributeName] isKindOfClass:[UIColor class]] ? st.titleTextAttributes[NSForegroundColorAttributeName] : nil;
+    if (tc) c = tc;
+    CGSize ts = isim_ui_measure(self.text ?: @"", f, s.width, 1);
     CGRect tr = CGRectMake(8 + i.width * k + 6, (s.height - ts.height) / 2, s.width - 8 - i.width * k - 6, ts.height);
     isim_ui_draw_text(self.text ?: @"", f, c, rtl ? isim_ui_mirror_rect(tr, s.width) : tr, rtl ? NSTextAlignmentRight : NSTextAlignmentLeft, 1, a);
 }
@@ -412,8 +508,35 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 - (NSArray *)items { return [_stack copy]; }
 - (void)setItems:(NSArray *)items { _stack = [items mutableCopy] ?: [NSMutableArray array]; [self setNeedsLayout]; }
 - (void)setItems:(NSArray *)items animated:(BOOL)a { self.items = items; }
-- (void)pushNavigationItem:(UINavigationItem *)item animated:(BOOL)a { [_stack addObject:item]; [self setNeedsLayout]; }
-- (UINavigationItem *)popNavigationItemAnimated:(BOOL)a { UINavigationItem *i = _stack.lastObject; if (i) [_stack removeLastObject]; [self setNeedsLayout]; return i; }
+- (void)pushNavigationItem:(UINavigationItem *)item animated:(BOOL)a {
+    id<UINavigationBarDelegate> d = _delegate;
+    if ([d respondsToSelector:@selector(navigationBar:shouldPushItem:)] && ![d navigationBar:self shouldPushItem:item]) return;
+    [_stack addObject:item]; [self setNeedsLayout];
+    if ([d respondsToSelector:@selector(navigationBar:didPushItem:)]) [d navigationBar:self didPushItem:item];
+}
+- (UINavigationItem *)popNavigationItemAnimated:(BOOL)a {
+    UINavigationItem *i = _stack.lastObject;
+    id<UINavigationBarDelegate> d = _delegate;
+    if (i && [d respondsToSelector:@selector(navigationBar:shouldPopItem:)] && ![d navigationBar:self shouldPopItem:i]) return nil;
+    if (i) [_stack removeLastObject];
+    [self setNeedsLayout];
+    if (i && [d respondsToSelector:@selector(navigationBar:didPopItem:)]) [d navigationBar:self didPopItem:i];
+    return i;
+}
+/* the appearance in effect: the top item's, else the bar's; at the scroll edge the scroll-edge one (else the standard
+   one made transparent); in compact height (iPhone landscape) the compact ones first */
+- (UINavigationBarAppearance *)_isim_appearance {
+    UINavigationItem *it = self.topItem;
+    BOOL compact = self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact;
+    BOOL edge = !self._isim_scrolledEdge && self._isim_back != nil;      /* (a standalone bar has no scroll edge: standard) */
+    UINavigationBarAppearance *standard = (compact ? (it.compactAppearance ?: _compactAppearance) : nil) ?: it.standardAppearance ?: _standardAppearance;
+    if (!edge) return standard;
+    UINavigationBarAppearance *e = (compact ? (it.compactScrollEdgeAppearance ?: _compactScrollEdgeAppearance) : nil) ?: it.scrollEdgeAppearance ?: _scrollEdgeAppearance;
+    if (e) return e;
+    UINavigationBarAppearance *t = [standard copy];
+    [t configureWithTransparentBackground];
+    return t;
+}
 - (void)setPrefersLargeTitles:(BOOL)p { _prefersLargeTitles = p; [self setNeedsLayout]; [self.superview setNeedsLayout]; }
 /* large titles: Always/Never on the item, Automatic inherits from the item below (the root follows prefersLargeTitles) */
 - (BOOL)_isim_topIsLarge {
@@ -426,11 +549,17 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     return large;
 }
 - (CGSize)sizeThatFits:(CGSize)s { return CGSizeMake(s.width, 44); }
+- (NSDictionary *)_isim_titleAttrs:(BOOL)large {
+    UINavigationBarAppearance *ap = [self _isim_appearance];
+    return large ? (ap.largeTitleTextAttributes.count ? ap.largeTitleTextAttributes : _largeTitleTextAttributes) : (ap.titleTextAttributes.count ? ap.titleTextAttributes : _titleTextAttributes);
+}
 - (UIColor *)_isim_titleColor:(BOOL)large {
-    UINavigationBarAppearance *ap = _standardAppearance;
-    NSDictionary *attrs = large ? (ap.largeTitleTextAttributes.count ? ap.largeTitleTextAttributes : _largeTitleTextAttributes) : (ap.titleTextAttributes.count ? ap.titleTextAttributes : _titleTextAttributes);
-    UIColor *c = attrs[@"NSColor"];
+    UIColor *c = [self _isim_titleAttrs:large][NSForegroundColorAttributeName];
     return [c isKindOfClass:[UIColor class]] ? c : UIColor.labelColor;
+}
+- (UIFont *)_isim_titleFont:(BOOL)large {
+    UIFont *f = [self _isim_titleAttrs:large][NSFontAttributeName];
+    return [f isKindOfClass:[UIFont class]] ? f : large ? [UIFont systemFontOfSize:34 weight:UIFontWeightBold] : [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
 }
 - (void)layoutSubviews {
     [super layoutSubviews];
@@ -438,8 +567,8 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     BOOL large = [self _isim_topIsLarge];
     UINavigationItem *item = self.topItem, *prev = self.backItem;
     /* background: transparent at the scroll edge (iOS 15+), the standard appearance once content is under the bar */
-    UINavigationBarAppearance *ap = (!self._isim_scrolledEdge && (self.scrollEdgeAppearance || YES)) ? (self.scrollEdgeAppearance ?: ({ UINavigationBarAppearance *t = [UINavigationBarAppearance new]; [t configureWithTransparentBackground]; t; })) : _standardAppearance;
-    if (_barTintColor && ap == _standardAppearance) { UINavigationBarAppearance *o = [_standardAppearance copy]; o.backgroundColor = _barTintColor; ap = o; }
+    UINavigationBarAppearance *ap = [self _isim_appearance];
+    if (_barTintColor && self._isim_scrolledEdge && !self.topItem.standardAppearance) { UINavigationBarAppearance *o = [ap copy]; o.backgroundColor = _barTintColor; ap = o; }
     _bg.frame = self.bounds; [_bg apply:ap]; [_bg setNeedsLayout];
     for (UIView *v in _itemViews) [v removeFromSuperview];
     [_itemViews removeAllObjects];
@@ -452,6 +581,7 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         NSString *t = item.backButtonTitle ?: prev.backButtonTitle ?: prev.backBarButtonItem.title ?: prev.title ?: @"Back";
         if (isim_ui_measure(t, [UIFont systemFontOfSize:17], 1000, 1).width > W / 3) t = @"Back";
         _back.text = t; _back.tintColor = self.tintColor;
+        _back.appearance = ap.backButtonAppearance; _back.indicator = ap.backIndicatorImage;
         CGSize bs = [_back sizeThatFits:CGSizeZero];
         _back.frame = CGRectMake(isim_ui_glass() ? margin : margin - 8 - 4, y, bs.width, 44); [_back setNeedsDisplay];
         leftEnd = CGRectGetMaxX(_back.frame) + 8;
@@ -473,15 +603,15 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         _title.hidden = YES;
     } else {
         _title.hidden = NO;
-        _title.text = item.title; _title.textColor = [self _isim_titleColor:NO];
-        _title.frame = CGRectMake(side, y, fmax(0, W - 2 * side), 44);
+        _title.text = item.title; _title.textColor = [self _isim_titleColor:NO]; _title.font = [self _isim_titleFont:NO];
+        _title.frame = CGRectMake(side + ap.titlePositionAdjustment.horizontal, y + ap.titlePositionAdjustment.vertical, fmax(0, W - 2 * side), 44);
         _title.alpha = large ? (extra < 6 ? 1 : 0) : 1;
     }
     /* the large title sits in the band below the bar row and slides up under it as content scrolls */
     _largeClip.hidden = !large || extra <= 0;
     if (large) {
         _largeClip.frame = CGRectMake(0, y + 44, W, extra);
-        _large.text = item.title; _large.textColor = [self _isim_titleColor:YES];
+        _large.text = item.title; _large.textColor = [self _isim_titleColor:YES]; _large.font = [self _isim_titleFont:YES];
         _large.frame = CGRectMake(margin, extra - 52, W - 2 * margin, 50);
     }
     if ([self _isim_isRTL]) {                          /* right to left: back and leading items on the right */

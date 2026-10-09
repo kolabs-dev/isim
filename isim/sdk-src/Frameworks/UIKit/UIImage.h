@@ -50,7 +50,7 @@ typedef NS_ENUM(NSInteger, UIImageOrientation) {
     UIImageOrientationUpMirrored, UIImageOrientationDownMirrored, UIImageOrientationLeftMirrored, UIImageOrientationRightMirrored
 };
 typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, UIImageResizingModeStretch = 1 };
-@interface UIImage : NSObject
+@interface UIImage : NSObject <NSSecureCoding>
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage;
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage scale:(CGFloat)scale orientation:(UIImageOrientation)orientation;
 - (instancetype)initWithCGImage:(CGImageRef)cgImage;
