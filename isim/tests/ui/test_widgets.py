@@ -1,13 +1,23 @@
 """WidgetKit and ActivityKit under `isim boot` (HelloWidgets): the widget extension lists its widgets, the gallery
 adds them (Edit Home Screen > +), timelines render and switch entries by date and reload at the end, tapping the
 interactive widget's Button(intent:) runs the AppIntent in the extension and re-renders, the app's
-WidgetCenter.reloadTimelines reloads it; a Live Activity in the Dynamic Island (compact, expanded) and on the lock
-screen, updated and ended by the app. Port of tests/ui/widgets.sh."""
+WidgetCenter.reloadTimelines reloads it; a Live Activity in the Dynamic Island (compact, expanded with
+contentMargins) and on the lock screen, updated and ended by the app. Port of tests/ui/widgets.sh."""
 import re
 
 from isimtest import mean_rgb
 
 APP = "dev.isim.samples.HelloWidgets"
+
+
+def margins(shot):
+    """The expanded island spans x 16-386; contentMargins(.horizontal, 16, for: .expanded) puts the full-width bar of
+    the bottom region at 32-370 (the default 22 pt margins would start it at 38)."""
+    def green(box):
+        c = mean_rgb(shot, box)
+        return c[1] > 0.6 * 255 and c[0] < 0.5 * 255
+    return green((33, 122, 3, 4)) and not green((28, 122, 3, 4)) and green((366, 122, 3, 4)) \
+        and not green((371, 122, 3, 4))
 
 
 def test_widgets(launch):
@@ -69,6 +79,7 @@ def test_widgets(launch):
     dev.wait_dump(r"IsimDynamicIsland")
     dev.send("island")
     dev.wait_log(r"Dynamic Island expanded", count=2)
+    island = dev.wait_shot(margins, "Dynamic Island: contentMargins for the expanded presentation")
     dev.screenshot("island-updated")
     dev.send("island")
     dev.wait_log(r"Dynamic Island compact", count=2)
@@ -105,6 +116,7 @@ def test_widgets(launch):
     assert has(r"IsimDynamicIsland \(74.5 11; 253 x 37\) id=dynamic-island text=compact") and \
         has(r"Dynamic Island expanded") and sum(mean_rgb(expanded, (20, 130, 30, 20))) < 0.1 * 255, \
         "Dynamic Island: compact outside the app, expanded"
+    assert margins(island), "Dynamic Island: contentMargins for the expanded presentation"
     assert has(r"id=live-activity") and mean_rgb(lock, (30, 280, 30, 20))[0] > 0.9 * 255, \
         "lock screen shows the Live Activity"
     ended = log[log.index("Live Activity ended"):]

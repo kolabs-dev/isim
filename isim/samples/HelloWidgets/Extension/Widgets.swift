@@ -85,7 +85,12 @@ struct DeliveryLiveActivity: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) { Text("Order \(context.attributes.orderNumber)").font(.headline) }
                 DynamicIslandExpandedRegion(.trailing) { Text("\(context.state.minutes) min").font(.headline).foregroundColor(.green) }
-                DynamicIslandExpandedRegion(.bottom) { Text(context.state.status).font(.subheadline) }
+                DynamicIslandExpandedRegion(.bottom) {
+                    VStack(spacing: 6) {
+                        Text(context.state.status).font(.subheadline)
+                        Rectangle().fill(Color.green).frame(height: 6)    /* full width: shows the horizontal margins */
+                    }
+                }
             } compactLeading: {
                 Image(systemName: "clock.fill").foregroundColor(.green)
             } compactTrailing: {
@@ -93,6 +98,7 @@ struct DeliveryLiveActivity: Widget {
             } minimal: {
                 Text("\(context.state.minutes)").foregroundColor(.green)
             }
+            .contentMargins(.horizontal, 16, for: .expanded)
         }
     }
 }
