@@ -113,15 +113,24 @@ final class ChildViewController: UIViewController {
     }
     override func didReceiveMemoryWarning() { print("memory warning: child controller") }
 }
+/// presented by the dark child; its presentation controller overrides the custom trait (iOS 17 traitOverrides)
 final class SheetViewController: UIViewController {
+    let swatch = UIView(frame: CGRect(x: 20, y: 120, width: 80, height: 40))
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         view.accessibilityIdentifier = "sheet"
+        swatch.backgroundColor = themeColor
+        let plain = UIButton(type: .system)
+        plain.setTitle("Plain", for: .normal); plain.frame = CGRect(x: 120, y: 120, width: 100, height: 40)
+        plain.accessibilityIdentifier = "plain"
+        plain.addAction(UIAction { [unowned self] _ in presentationController?.traitOverrides[ThemeTrait.self] = .plain }, for: .primaryActionTriggered)
+        view.addSubview(swatch); view.addSubview(plain)
     }
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        print("presented traits: \(styleName(traitCollection.userInterfaceStyle))")
+        let pc = presentationController
+        print("presented traits: \(styleName(traitCollection.userInterfaceStyle)), theme \(traitCollection.theme), swatch \(swatch.traitCollection.theme), presentation controller \(pc?.traitCollection.theme ?? .plain)")
     }
 }
 final class DarkContainerViewController: UIViewController {
@@ -210,6 +219,12 @@ final class AppearanceViewController: UIViewController {
         present.addAction(UIAction { [unowned self] _ in
             let sheet = SheetViewController()
             sheet.modalPresentationStyle = .fullScreen
+            if let pc = sheet.presentationController {
+                pc.traitOverrides[ThemeTrait.self] = .ocean          // the root is forest by now
+                pc.registerForTraitChanges([ThemeTrait.self]) { (pc: UIPresentationController, previous: UITraitCollection) in
+                    print("presentation registration: theme \(previous.theme) -> \(pc.traitCollection.theme), presented \(pc.presentedViewController.traitCollection.theme)")
+                }
+            }
             container.child.present(sheet, animated: false)
         }, for: .primaryActionTriggered)
         for v in [autoSwatch, darkHost, themeSwatch, badgeAuto, badgeDark, stripe, lightBlur, darkBlur, accentButton, themeButton, present, controls] as [UIView] { view.addSubview(v) }
