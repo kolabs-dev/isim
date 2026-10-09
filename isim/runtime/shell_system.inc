@@ -1253,6 +1253,7 @@ static int sys_command(const char *text) {
     const char *args = text + n; while (*args == ' ') args++;
     if (!strcmp(verb, "bgtask")) { sys_send_text(0, "launchtask %s", args); return 1; }  /* the home screen resolves the bundle id */
     if (!strcmp(verb, "openurl")) { sys_send_text(0, "openurl %s", args); return 1; }
+    if (!strcmp(verb, "handoff")) { sys_send_text(0, "handoff %s", args); return 1; }   /* an activity from another device */
     if (!strcmp(verb, "push") || !strcmp(verb, "push-drop")) {   /* remote notifications: the home screen routes them */
         char a[1000]; snprintf(a, sizeof a, "%s", args);
         if (!strcmp(verb, "push")) {                             /* make the file path absolute: the home screen's cwd differs */

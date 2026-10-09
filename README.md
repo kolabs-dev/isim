@@ -4,7 +4,7 @@
 
 An iOS-compatible simulator and toolchain that runs on Linux, with no macOS, VM or remote Mac.
 It builds Objective-C and Swift apps (UIKit and SwiftUI) from their Xcode projects and runs them
-on a simulated iPhone or iPad with a home screen and a Settings app.
+on a simulated iPhone or iPad with a home screen, a Settings app and a web browser (Safari).
 
 Goal: write → build → run in the simulator → device build → sign → upload → TestFlight, all on Linux.
 
@@ -145,7 +145,7 @@ rows). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 |---|---|
 | `isim/runtime` | Linux host: loader, libSystem, ObjC runtime, window, rendering, device shell |
 | `isim/sdk-src`, `isim/frameworks`, `isim/swift` | SDK headers; Foundation, UIKit, …; Swift runtime and overlays (including SwiftUI) |
-| `isim/system` | home screen (SpringBoard) and Settings apps |
+| `isim/system` | home screen (SpringBoard), Settings and Safari apps |
 | `isim/tools` | `isim` CLI and Xcode project builder |
 | `isim/samples`, `isim/tests` | demo apps and test suites |
 | `isim/release` | release packaging |

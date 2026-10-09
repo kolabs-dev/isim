@@ -40,7 +40,8 @@ FOUNDATION_EXPORT NSString * const NSUserActivityTypeBrowsingWeb;
 @property (getter=isEligibleForPublicIndexing) BOOL eligibleForPublicIndexing;
 @property (getter=isEligibleForPrediction) BOOL eligibleForPrediction;
 @property (copy, nullable) NSUserActivityPersistentIdentifier persistentIdentifier;
-/* isim: becomeCurrent indexes the activity for Spotlight when isEligibleForSearch; there is no Handoff (one device) */
+/* isim: becomeCurrent indexes the activity for Spotlight when isEligibleForSearch and advertises it for Handoff (logged:
+   no nearby devices); the script command `handoff TYPE [URL] [TITLE]` hands one off from "another device" */
 - (void)becomeCurrent;
 - (void)resignCurrent;
 - (void)invalidate;

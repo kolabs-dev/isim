@@ -589,6 +589,28 @@ def _(a):   # the home screen (ObjC)
         print("system apps: ImageMagick missing; the home screen uses a plain color")
 
 
+ENTITLEMENTS_BROWSER = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.web-browser</key>
+	<true/>
+</dict>
+</plist>
+"""
+
+
+@app("system/Safari", products=["Safari.app"], dest="out/sdk/Applications")
+def _(a):   # the web browser (WKWebView)
+    b = a.swift_app("Safari")
+    with open(f"{b}/archived-expanded-entitlements.xcent", "w") as f:   # gets web URLs to open (not as universal links)
+        f.write(ENTITLEMENTS_BROWSER)
+    if shutil.which("magick"):   # a compass: white dial, red and white needle on blue
+        a.run("magick", "-size", "180x180", "gradient:#5ac8fa-#0a6cff", "-fill", "none", "-stroke", "white", "-strokewidth", "6",
+              "-draw", "circle 90,90 90,28", "-stroke", "none", "-fill", "#ff3b30", "-draw", "polygon 112,68 98,98 82,82",
+              "-fill", "white", "-draw", "polygon 68,112 82,82 98,98", f"{b}/icon.png", check=False, quiet=True)
+
+
 @app("system/Settings", products=["Settings.app"], dest="out/sdk/Applications")
 def _(a):
     b = a.swift_app("Settings", link=["-lisim_host"])

@@ -112,6 +112,7 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
         if ([verb isEqualToString:@"reload"]) [self reload];
         else if ([verb isEqualToString:@"openurl"]) [self openURLString:args];
         else if ([verb isEqualToString:@"launchtask"]) [self backgroundTask:args];
+        else if ([verb isEqualToString:@"handoff"]) [self handoff:args];
         else if ([verb isEqualToString:@"set-appearance"]) {          /* Control Center's Dark Mode: the same setting as Settings */
             NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
             if ([args isEqualToString:@"dark"]) [g setObject:@"Dark" forKey:@"AppleInterfaceStyle"]; else [g removeObjectForKey:@"AppleInterfaceStyle"];
@@ -125,6 +126,7 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
     if (!url) { NSLog(@"SpringBoard: not a URL: %@", s); return; }
     BOOL universal = NO;
     HSApp *a = HSAppForURL(self.apps, url, &universal);
+    if (!a && [@[@"http", @"https"] containsObject:url.scheme.lowercaseString ?: @""]) a = [self appWithIdentifier:@"dev.isim.safari"];   /* web pages: Safari */
     if (!a) {
         BOOL host = isim_open_url(s.UTF8String);
         NSLog(@"SpringBoard: no app handles %@%@", s, host ? @" (opened on the host)" : @" (no browser on isim)");
@@ -133,6 +135,38 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
     NSLog(@"SpringBoard: %@ opens %@%@", a.name, s, universal ? @" (universal link)" : @"");
     [self launch:a url:universal ? [@"isim-universal:" stringByAppendingString:s] : s];
 }
+/* "handoff TYPE [URL] [TITLE]": an activity handed off from another device (adapted: isim is one device, the script
+   plays the other one). The app that declares TYPE in NSUserActivityTypes continues it; web browsing
+   (NSUserActivityTypeBrowsingWeb) goes to the app that claims the URL as a universal link, else to Safari. */
+- (void)handoff:(NSString *)args {
+    NSMutableArray *parts = [[args componentsSeparatedByString:@" "] mutableCopy];
+    [parts removeObject:@""];
+    if (!parts.count) { NSLog(@"SpringBoard: handoff TYPE [URL] [TITLE]"); return; }
+    NSString *type = parts[0]; [parts removeObjectAtIndex:0];
+    NSURL *url = parts.count && [parts[0] containsString:@"://"] ? [NSURL URLWithString:parts[0]] : nil;
+    if (url) [parts removeObjectAtIndex:0];
+    NSString *title = parts.count ? [parts componentsJoinedByString:@" "] : nil;
+    HSApp *target = nil;
+    if ([type isEqualToString:@"NSUserActivityTypeBrowsingWeb"] && url) {
+        BOOL universal = NO;
+        target = HSAppForURL(self.apps, url, &universal);
+        if (!target || !universal) {                          /* no app claims it: Safari opens the page */
+            HSApp *safari = [self appWithIdentifier:@"dev.isim.safari"];
+            if (safari) { NSLog(@"SpringBoard: Handoff of %@ to Safari", url.absoluteString); [self launch:safari url:url.absoluteString]; return; }
+        }
+    } else for (HSApp *a in self.apps) if ([a.info[@"NSUserActivityTypes"] containsObject:type]) { target = a; break; }
+    if (!target) { NSLog(@"SpringBoard: Handoff: no app continues %@", type); return; }
+    NSMutableDictionary *activity = [@{ @"activityType": type, @"eligibleForHandoff": @YES } mutableCopy];
+    if (url) activity[@"webpageURL"] = url.absoluteString;
+    if (title) activity[@"title"] = title;
+    NSString *dir = [isim_data_dir() stringByAppendingPathComponent:@"Library/isim/Activities"];
+    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSString *path = [dir stringByAppendingPathComponent:[NSUUID.UUID.UUIDString stringByAppendingPathExtension:@"plist"]];
+    [activity writeToFile:path atomically:YES];
+    NSLog(@"SpringBoard: Handoff continues %@ in %@", type, target.name);
+    [self launch:target url:[@"isim-activity:" stringByAppendingString:path]];
+}
+
 /* "bgtask BUNDLE-ID TASK-ID": start the app in the background if needed and launch the task */
 - (void)backgroundTask:(NSString *)args {
     NSArray *parts = [args componentsSeparatedByString:@" "];
