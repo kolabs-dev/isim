@@ -143,10 +143,11 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
   `UIContextMenuConfiguration.allowsTypeSelect`, `UIWindowScene.displayLink`, `UIDragInteraction.liftBehavior` /
   `allowsPointerDragBeforeLiftDelay`; scene accessories on a simulated external display, `UISceneClosureConfirmation`
   (`tests/ui/test_scenes27.py`, under every version: before 27 the manifest's external display scene and closing
-  without confirmation);
+  without confirmation); UIKit text tables and blocks (`NSTextTable`, `NSTextTableBlock`, `NSTextBlock`, per-edge
+  widths and border colours from 27.0; `tests/ui/test_text_tables.py`);
 - not done (listed as ❌ in [COVERAGE.md](COVERAGE.md)): `ReadableDocument`/`WritableDocument`, `reorderable()`,
   `reorderContainer`, the `@State` macro / `ContentBuilder`
-  (Xcode 27 compiler features), gesture input kinds, UIKit `NSTextTable` family, attachment view reuse; iOS 27.1
+  (Xcode 27 compiler features), gesture input kinds, attachment view reuse and viewport rendering surfaces (TextKit 2, which isim does not have); iOS 27.1
   (beta) iPhone Duo APIs (arrangement views, reserved regions, hinge, vertical bars);
 - **not done: iOS 27 visuals.** Apple describes an updated Liquid Glass appearance and a tint slider without
   specifications isim could reproduce faithfully, so `--os 27` uses the iOS 26 look. iOS 27 also requires apps

@@ -50,6 +50,7 @@
 #import <UIKit/UIReferenceLibraryViewController.h>
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>
+#import <UIKit/NSTextTable.h>
 #import <UIKit/UIOrientation.h>
 #import <UIKit/UILayoutExtras.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>
