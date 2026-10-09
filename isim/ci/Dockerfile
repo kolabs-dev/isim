@@ -2,7 +2,8 @@
 # so CI proves isim builds and runs on an ordinary Linux. SDL3 is built from source (Ubuntu 24.04 does not package it). isim renders with its bundled fonts
 # (isim/fonts), so layout does not depend on the distribution's fonts. Swift compiles in the swift:6.2 image through
 # the host's Docker socket (see `build.py ci`).
-FROM ubuntu:24.04
+# Docker Hub rate-limits the shared runners (429), so the same official image comes from Google's mirror of it
+FROM mirror.gcr.io/library/ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake ninja-build git ca-certificates gnupg pkg-config python3 python3-venv rsync curl \
