@@ -68,9 +68,13 @@ def test_effects(launch):
     halfway = lambda s: (lambda p: 100 < p[0] < 220 and 12 < p[1] < 50)(at(s, "t-fade"))
     grey = lambda s: near(at(s, "t-fade"), (54, 54, 54))
     app.shot_during(halfway, grey, "withAnimation interpolates grayscale (half-way)")   # during the 2 s animation
-    app.send("swipeid row-2 0 -50 0.6")
+    # 100 pt up from row 2's centre, held still before lifting so there is no fling (#112): the list scrolls by the
+    # drag less the part before the pan began (its 10-pt slop, more when a busy runner sees the first move late), so a
+    # 50-pt swipe could stop short of row 1. Any row past 0 will do; a stalled frame may skip straight past row 1.
+    x, y, w, h = f["row-2"]
+    app.drag(x + w / 2, y + h / 2, x + w / 2, y + h / 2 - 100, 0.6, hold=0.3)
     app.wait_log(r"^row0 visible false")                                 # onScrollVisibilityChange (iOS 18)
-    app.wait_log(r"^scroll row 1")                                       # onScrollGeometryChange (iOS 18)
+    app.wait_log(r"^scroll row [1-9]")                                   # onScrollGeometryChange (iOS 18)
     app.sleep(0.6)                                                       # the scroll has settled
     end = app.wait_shot(grey, "the animation ends fully grey")
     t1 = app.view_dump()
@@ -81,8 +85,9 @@ def test_effects(launch):
     off = 80 - vals[-1]
     assert off > 20, f"visualEffect follows scrolling: offset {off}"
     f1 = screen_frames(t1)
-    top, x0 = f1["row-2"][1] + off - 80, f1["row-2"][0] + 10
-    k = int(off // 40)
+    off = f["row-2"][1] - f1["row-2"][1]                                 # exact: the log rounds, a held drag stops mid-pixel
+    top, x0 = f["row-2"][1] - 80, f1["row-2"][0] + 10                    # the scroll view's top (row 2 started at 80)
+    k = int((off + 1) // 40)                                             # the row at top + 1 (under 1 pt left: the next)
     want = 255 * (off - 40 * k) / 40
     p = px(end, x0, top + 1)
     assert abs(p[0] - want) < 45 and p[2] > 230, \
