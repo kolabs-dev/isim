@@ -403,6 +403,71 @@ def _(a):
             f.write(plist.replace("objc-runtime-test", ident).replace(">ObjCRuntimeTest<", f">{name}<"))
 
 
+@app("tests/cxx-exceptions", products=["CxxExceptionsTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.mm"], "Info.plist", ["-framework", "Foundation", "-lc++"], name="CxxExceptionsTest",
+               flags=("-std=c++20", "-fobjc-arc-exceptions", "-O1", "-Wall"))
+
+
+@app("tests/dlopen", products=["DlopenTest.app"])
+def _(a):
+    """DlopenTest.app embeds frameworks, a dylib and a bundle it does not link: it loads them at run time"""
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-Wl,-rpath,@executable_path/Frameworks"],
+                   name="DlopenTest", flags=("-O1", "-Wall"))
+    fw, obj = os.path.join(b, "Frameworks"), os.path.join(OBJ, "DlopenTest")
+    os.makedirs(obj, exist_ok=True)
+
+    def dylib(srcs, out, install_name, *link, kind="-dynamiclib"):
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        a.cc(kind, *([] if kind == "-bundle" else ["-install_name", install_name]), "-O1", "-Wall", *srcs, *link, "-o", out)
+
+    def framework(name, plist, *extra):
+        d = os.path.join(fw, f"{name}.framework")
+        os.makedirs(d, exist_ok=True)
+        shutil.copy(os.path.join(a.d, plist), os.path.join(d, "Info.plist"))
+        for f in extra:
+            shutil.copy(os.path.join(a.d, f), d)
+        return d
+
+    dylib(["Helper.c"], os.path.join(fw, "libPluginHelper.dylib"), "@rpath/libPluginHelper.dylib")
+    d = framework("ObjCPlugin", "ObjCPlugin-Info.plist", "greeting.txt")
+    dylib(["ObjCPlugin.m"], os.path.join(d, "ObjCPlugin"), "@rpath/ObjCPlugin.framework/ObjCPlugin", "-framework", "Foundation",
+          "-L", fw, "-lPluginHelper", "-Wl,-rpath,@loader_path/..")
+    # Broken.framework links libMissing.dylib, which the app does not embed
+    missing = os.path.join(obj, "libMissing.dylib")
+    dylib(["Missing.c"], missing, "@rpath/libMissing.dylib")
+    d = framework("Broken", "ObjCPlugin-Info.plist")
+    dylib(["Broken.c"], os.path.join(d, "Broken"), "@rpath/Broken.framework/Broken", missing)
+    with open(os.path.join(d, "Info.plist")) as f:
+        info = f.read().replace("ObjCPlugin", "Broken").replace("objc-plugin", "broken")
+    with open(os.path.join(d, "Info.plist"), "w") as f:
+        f.write(info.replace("<key>NSPrincipalClass</key>\n\t<string>BrokenPrincipal</string>\n", ""))
+    d = framework("NoExecutable", "ObjCPlugin-Info.plist")                 # an Info.plist, no executable
+    with open(os.path.join(d, "Info.plist"), "w") as f:
+        f.write(info.replace("Broken", "NoExecutable").replace("broken", "no-executable"))
+    # PlugIns/Extra.bundle: an MH_BUNDLE
+    extra = os.path.join(b, "PlugIns", "Extra.bundle")
+    dylib(["Extra.m"], os.path.join(extra, "Extra"), None, "-framework", "Foundation", kind="-bundle")
+    shutil.copy(os.path.join(a.d, "Extra-Info.plist"), os.path.join(extra, "Info.plist"))
+    # SwiftPlugin.framework (Swift)
+    d = framework("SwiftPlugin", "SwiftPlugin-Info.plist")
+    so = os.path.join(obj, "SwiftPlugin.o")
+    a.swiftc("SwiftPlugin", [os.path.join(a.d, "SwiftPlugin.swift")], so)
+    a.cc("-dynamiclib", "-install_name", "@rpath/SwiftPlugin.framework/SwiftPlugin", so, "-o", os.path.join(d, "SwiftPlugin"))
+
+
+@app("tests/mach", products=["MachTest.app"])
+def _(a):
+    """MachTest.app: Objective-C checks (main.m) and Swift ones (mach.swift) in one executable"""
+    b = a.bundle("MachTest")
+    obj = os.path.join(OBJ, "MachTest")
+    os.makedirs(obj, exist_ok=True)
+    a.swiftc("MachSwift", [os.path.join(a.d, "mach.swift")], f"{obj}/mach.o")
+    a.cc("-O1", "-Wall", "-c", os.path.join(a.d, "main.m"), "-o", f"{obj}/main.o")
+    a.cc(f"{obj}/main.o", f"{obj}/mach.o", "-framework", "Foundation", "-o", os.path.join(b, "MachTest"))
+    a.copy("Info.plist", b)
+
+
 @app("tests/objc-literals", products=["ObjCLiteralsTest.app"])
 def _(a):
     """Literals.m with -fobjc-constant-literals (clang 23+) bridged into Swift; with an older clang the committed

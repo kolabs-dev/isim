@@ -66,7 +66,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | **Swift runtime, stdlib & concurrency** | 35 | 4 | 0 | 0 | 39 | 95% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Dispatch | 4 | 2 | 0 | 0 | 6 | 83% |
-| Objective-C runtime & C library | 14 | 3 | 0 | 0 | 17 | 91% |
+| Objective-C runtime & C library | 17 | 0 | 0 | 0 | 17 | 100% |
 | Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
 | Core Text | 4 | 3 | 0 | 0 | 7 | 79% |
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **701** | **228** | **29** | **39** | **997** | **82%** |
+| **All areas** | **704** | **225** | **29** | **39** | **997** | **82%** |
 
 ### Per iOS version
 
@@ -100,7 +100,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
 | Swift runtime, stdlib & concurrency | 95% (39) | 95% (39) | 95% (39) | 95% (39) |
-| Objective-C runtime & C library | 91% (17) | 91% (17) | 91% (17) | 91% (17) |
+| Objective-C runtime & C library | 100% (17) | 100% (17) | 100% (17) | 100% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
 | Core Text | 79% (7) | 79% (7) | 79% (7) | 79% (7) |
 | QuartzCore / Core Animation | 83% (21) | 83% (21) | 83% (21) | 83% (21) |
@@ -845,7 +845,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `FileHandle`, `InputStream` / `OutputStream` | 🟡 | ≤17 | files, memory and standard I/O; `readabilityHandler` on a thread; no sockets / bound stream pairs |
 | App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ✅ | ≤17 | `<isim data>/Shared/AppGroup/<id>`, shared by apps and their extensions; `UserDefaults(suiteName:)` uses it. Tested (HelloWidgets: the widget extension and the app share a counter) |
 | iCloud Drive / ubiquity containers (`url(forUbiquityContainerIdentifier:)`, `ubiquityIdentityToken`) | 🟡 | ≤17 | **local, no iCloud sync**: `<isim data>/Mobile Documents/<container>/Documents`; nil when `ISIM_ICLOUD=noAccount`. No `NSMetadataQuery`, file coordination or download states. Tested: HelloSharedData |
-| `Bundle` (main, by path/id, resources, Info.plist, localizations) | ✅ | ≤17 | |
+| `Bundle` (main, by path/id, resources, Info.plist, localizations) | ✅ | ≤17 | code loading (`load`, `principalClass`, `allFrameworks`, ...): see Objective-C runtime & C library (`dlopen`) |
 | `UserDefaults` (standard, suites, register defaults, argument domain) | ✅ | ≤17 | persisted as an XML plist in the container |
 | `NSUbiquitousKeyValueStore` | ✅ | ≤17 | **local, no iCloud sync**: a plist per store under `<isim data>/Mobile Documents/KeyValueStore`; another process (or the host) writing it posts `didChangeExternallyNotification` (server change, changed keys) within 0.5 s. Tested: HelloSharedData |
 
@@ -959,12 +959,12 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `NSProxy` | ✅ | ≤17 | root class; `isKindOfClass:`/`isMemberOfClass:`/`respondsToSelector:`/`conformsToProtocol:` forwarded as invocations. Tested: tests/objc-runtime (proxies to a custom class and to `NSMutableString`) |
 | `@try`/`@catch`/`@finally`/`@throw`, `@throw;` rethrow, `NSException` `raise`, `@synchronized` unlock on throw, ARC cleanups (`-fobjc-arc-exceptions`) | ✅ | ≤17 | host libgcc two-phase unwinder over FDEs synthesized from each image's compact unwind info (`__unwind_info`; DWARF-mode entries re-encoded from `__eh_frame`), `__objc_personality_v0` LSDA parser, `OBJC_EHTYPE` class matching; nested, rethrown and other-thread exceptions, exceptions passing through forwarding/`NSInvocation` frames. Swift async frames are not unwound. Tested: tests/objc-runtime |
 | Uncaught exceptions (`*** Terminating app due to uncaught exception …`, first throw call stack, `NSSetUncaughtExceptionHandler`, `callStackReturnAddresses`/`callStackSymbols`) | ✅ | ≤17 | SIGABRT like iOS; an NSException raised by ObjC code called from Swift is not catchable by Swift `do/catch` (same as iOS) and terminates with the report. Tested: tests/objc-runtime (ObjCUncaught, SwiftUncaught) |
-| C++ exceptions (`throw`/`try`/`catch`) | 🟡 | ≤17 | C++ frames (`__gxx_personality_v0`) run cleanups and `catch (...)` for Objective-C exceptions passing through (unverified); throwing C++ exceptions needs a libc++abi built with exceptions/RTTI (isim's libc++ is `-fno-exceptions`); the `_Unwind_*` entry points are already exported for it |
+| C++ exceptions (`throw`/`try`/`catch`), RTTI (`typeid`, `dynamic_cast`), `std::exception_ptr`, nested exceptions | ✅ | ≤17 | adapted: libc++abi in the SDK's `libc++.1.dylib` (built with exceptions and RTTI), unwound by the host unwinder like Objective-C exceptions; exceptions thrown by libc++ itself (`at`, `stoi`, `substr`, `bad_cast`, `bad_variant_access`, `bad_optional_access`, `bad_alloc`, `system_error`); on other threads; an uncaught one ends in `libc++abi: terminating due to uncaught exception of type T: what` and SIGABRT. With Objective-C, as on iOS: `__objc_personality_v0` (every Objective-C++ function) defers C++ exceptions to libc++abi, `@catch (...)`, `@finally` and `@throw;` handle them, C++ frames run destructors for Objective-C exceptions, and C++ `catch (NSException *e)` / `catch (...)` catch them (apps' `__cxa_begin_catch` / `__cxa_end_catch` / `__cxa_rethrow` go through isim). Difference: `std::uncaught_exceptions()` / `std::current_exception()` do not see Objective-C exceptions (foreign to libc++abi; on iOS they are C++ exceptions). Tested: tests/cxx-exceptions |
 | libc / POSIX (stdio, malloc, string, pthreads, time, files) | ✅ | ≤17 | host glibc with Darwin layouts |
 | `pipe`, `pread`/`pwrite`, `dup`/`dup2`, `kill`, `signal`/`raise` with Darwin signal numbers (`SIGUSR1` = 30, ...); Swift `open`/`fcntl`/`ioctl` and `SIG_IGN`/`SIG_DFL` | ✅ | ≤17 | numbers translated to the host's and back for handlers. Tested: SwiftExtrasTest (pipe sources, `raise(SIGUSR1)`) |
 | `errno` from Swift | ✅ | ≤17 | provided by the Foundation overlay (no Swift Darwin overlay) |
-| `dlopen` of app-bundled dylibs/frameworks | 🟡 | ≤17 | used for keyboard extensions; embedded frameworks unverified |
-| Mach APIs (`mach_absolute_time` ✅; ports, tasks) | 🟡 | ≤17 | timing only |
+| `dlopen` of app-bundled dylibs/frameworks, `dlsym`, `dladdr`, `dlopen_preflight`, `NSBundle` code loading | ✅ | ≤17 | adapted: isim's loader maps dylibs, `MH_BUNDLE`s and frameworks (Objective-C and Swift) with their own dependencies, TLV, initializers, `+load`, categories; paths with `@rpath` / `@executable_path` / `@loader_path` (from the calling image), `RTLD_NOLOAD`, `RTLD_FIRST`; `dlsym` on a handle searches its dependencies, `RTLD_DEFAULT` / `RTLD_MAIN_ONLY` / `RTLD_NEXT` / `RTLD_SELF`; an image or dependency that cannot load fails with a dyld-style `dlerror` (the app keeps running). `NSBundle` `load`, `loadAndReturnError:`, `preflightAndReturnError:`, `isLoaded`, `principalClass` (`NSPrincipalClass`, else the first class), `classNamed:`, `allFrameworks`, `allBundles`. Images are never unloaded (`dlclose` / `unload`, as on iOS for Objective-C and Swift code). Embedded frameworks linked at build time: HelloToolchain. Tested: tests/dlopen |
+| Mach APIs (`<mach/mach.h>`, `<mach/mach_time.h>`): time, `task_info`, `task_threads` / `thread_info`, `host_info` / `host_statistics(64)` / `host_processor_info`, `vm_allocate` & co., ports and `mach_msg`, semaphores, clocks | ✅ | ≤17 | adapted on Linux, the calling task only (other task ports are invalid destinations). `mach_absolute_time` (CLOCK_UPTIME_RAW, timebase 1/1), `mach_continuous_time`, `mach_wait_until`; `task_info` `MACH_TASK_BASIC_INFO`, `TASK_BASIC_INFO`, `TASK_THREAD_TIMES_INFO`, `TASK_EVENTS_INFO`, `TASK_VM_INFO` (`phys_footprint` = dirty anonymous memory; revisions by count) from /proc; `thread_info` basic / identifier / extended (`cpu_usage` averaged over about a second), `pthread_mach_thread_np` / `pthread_from_mach_thread_np` / `pthread_threadid_np` agree with thread ports (Linux tids); `host_info` reports the simulated device's memory (as `ProcessInfo.physicalMemory`) and the host's CPUs, VM page counts scaled to that memory; `vm_read_overwrite` reads without faulting; ports are in-process queues: simple messages (no port or memory descriptors), queue limits, send / receive timeouts, `MACH_RCV_LARGE`, reply and send-once rights, dead names; no port sets, exception ports or `thread_get_state` / `thread_suspend`. `thread_policy_set` is accepted, not applied (stub). Tested: tests/mach (Objective-C and Swift) |
 
 ---
 

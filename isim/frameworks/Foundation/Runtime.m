@@ -4,6 +4,8 @@
 #include <objc/isim_internal.h>
 #include <objc/objc-exception.h>
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
+#include <mach-o/getsect.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <stdio.h>
@@ -136,9 +138,95 @@ static NSMutableArray<NSBundle *> *extension_bundles;
 + (NSBundle *)bundleWithIdentifier:(NSString *)ident {
     if ([NSBundle.mainBundle.bundleIdentifier isEqualToString:ident]) return NSBundle.mainBundle;
     for (NSBundle *b in extension_bundles) if ([b.bundleIdentifier isEqualToString:ident]) return b;
+    for (NSBundle *b in [self.allFrameworks arrayByAddingObjectsFromArray:self.allBundles])
+        if ([b.bundleIdentifier isEqualToString:ident]) return b;
     return nil;
 }
+/* bundles whose executables are loaded: the image list, each image's enclosing .framework / .bundle / .app */
+static NSArray<NSBundle *> *loaded_bundles(BOOL frameworks) {
+    NSMutableArray *out = [NSMutableArray array];
+    NSMutableSet *seen = [NSMutableSet set];
+    if (!frameworks) { [out addObject:NSBundle.mainBundle]; [seen addObject:NSBundle.mainBundle.bundlePath]; }
+    for (uint32_t i = 0, n = _dyld_image_count(); i < n; i++) {
+        const char *name = _dyld_get_image_name(i);
+        if (!name) continue;
+        NSString *dir = [@(name) stringByDeletingLastPathComponent];
+        BOOL fw = [dir.pathExtension isEqualToString:@"framework"];
+        if (fw != frameworks || (!fw && ![dir.pathExtension isEqualToString:@"bundle"]) || [seen containsObject:dir]) continue;
+        [seen addObject:dir];
+        NSBundle *b = [NSBundle bundleWithPath:dir];
+        if (b) [out addObject:b];
+    }
+    return out;
+}
++ (NSArray<NSBundle *> *)allFrameworks { return loaded_bundles(YES); }
++ (NSArray<NSBundle *> *)allBundles { return loaded_bundles(NO); }
 - (NSString *)builtInPlugInsPath { return [_path stringByAppendingPathComponent:@"PlugIns"]; }
+- (NSString *)privateFrameworksPath { return [_path stringByAppendingPathComponent:@"Frameworks"]; }
+- (NSString *)sharedFrameworksPath { return [_path stringByAppendingPathComponent:@"SharedFrameworks"]; }
+
+/* code loading: dlopen of the executable (images are never unloaded, as on iOS for Objective-C and Swift code) */
+- (BOOL)isLoaded {
+    if (self == NSBundle.mainBundle || [_path isEqualToString:NSBundle.mainBundle.bundlePath]) return YES;
+    NSString *exe = self.executablePath;
+    return exe && dlopen(exe.UTF8String, RTLD_NOLOAD | RTLD_LAZY) != NULL;
+}
+static NSError *bundle_error(NSBundle *b, NSInteger code, NSString *why, NSString *debug) {
+    NSString *name = [b objectForInfoDictionaryKey:@"CFBundleName"] ?: b.bundlePath.lastPathComponent.stringByDeletingPathExtension;
+    NSMutableDictionary *info = [@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"The bundle “%@” couldn’t be loaded%@.", name, why],
+                                    @"NSFilePath": b.executablePath ?: b.bundlePath, @"NSBundlePath": b.bundlePath } mutableCopy];
+    if (debug) info[NSDebugDescriptionErrorKey] = debug;
+    return [NSError errorWithDomain:NSCocoaErrorDomain code:code userInfo:info];
+}
+- (BOOL)preflightAndReturnError:(NSError **)error {
+    NSString *exe = self.executablePath;
+    if (!exe || access(exe.UTF8String, R_OK) != 0) {
+        if (error) *error = bundle_error(self, 4 /* NSFileNoSuchFileError */, @" because its executable couldn’t be located", nil);
+        return NO;
+    }
+    if (self.isLoaded || dlopen_preflight(exe.UTF8String)) return YES;
+    const char *why = dlerror();
+    if (error) *error = bundle_error(self, 3587 /* NSExecutableLoadError */, @" because it is damaged or missing necessary resources", why ? @(why) : nil);
+    return NO;
+}
+- (BOOL)loadAndReturnError:(NSError **)error {
+    if (self.isLoaded) return YES;
+    NSString *exe = self.executablePath;
+    if (!exe || access(exe.UTF8String, R_OK) != 0) {
+        if (error) *error = bundle_error(self, 4 /* NSFileNoSuchFileError */, @" because its executable couldn’t be located", nil);
+        return NO;
+    }
+    if (dlopen(exe.UTF8String, RTLD_LAZY | RTLD_LOCAL)) return YES;
+    const char *why = dlerror();
+    if (error) *error = bundle_error(self, 3587 /* NSExecutableLoadError */, @" because it is damaged or missing necessary resources", why ? @(why) : nil);
+    return NO;
+}
+- (BOOL)load { return [self loadAndReturnError:NULL]; }
+- (BOOL)unload { return NO; }
+/* the class named NSPrincipalClass in Info.plist, else the first class the executable defines; loads the bundle */
+- (Class)principalClass {
+    if (![self load]) return Nil;
+    NSString *name = self.infoDictionary[@"NSPrincipalClass"];
+    if (name.length) return NSClassFromString(name);
+    char *real = realpath(self.executablePath.UTF8String, NULL);
+    Class first = Nil;
+    for (uint32_t i = 0, n = _dyld_image_count(); real && i < n && !first; i++) {
+        const char *img = _dyld_get_image_name(i);
+        if (!img || strcmp(img, real)) continue;
+        const struct mach_header_64 *mh = (const void *)_dyld_get_image_header(i);
+        unsigned long size = 0;
+        Class *list = (Class *)(void *)getsectiondata(mh, "__DATA_CONST", "__objc_classlist", &size);
+        if (!list) list = (Class *)(void *)getsectiondata(mh, "__DATA", "__objc_classlist", &size);
+        if (list && size >= sizeof(Class)) first = list[0];
+    }
+    free(real);
+    return first;
+}
+- (Class)classNamed:(NSString *)name {
+    if (![self load]) return Nil;
+    Class c = NSClassFromString(name);
+    return c && [[NSBundle bundleForClass:c].bundlePath isEqualToString:_path] ? c : Nil;
+}
 - (NSString *)bundlePath { return _path; }
 - (NSString *)resourcePath { return _path; }
 - (NSString *)executablePath {
