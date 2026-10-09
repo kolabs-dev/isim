@@ -1,6 +1,7 @@
 // Foundation self-test for the isim runtime. Prints PASS/FAIL per check; exit code = failures.
 #import <Foundation/Foundation.h>
 #include <errno.h>
+#include <string.h>
 #include <math.h>
 #include <time.h>
 
@@ -528,6 +529,115 @@ int main(int argc, char *argv[]) {
         CHECK([fsa[NSFileSystemSize] unsignedLongLongValue] > 0 && [fsa[NSFileSystemFreeSize] unsignedLongLongValue] <= [fsa[NSFileSystemSize] unsignedLongLongValue] &&
               fsa[NSFileSystemNodes] && fsa[NSFileSystemFreeNodes] && [fsa[NSFileSystemNumber] isEqual:fa[NSFileSystemNumber]]);
         CHECK([fm removeItemAtPath:attrDir error:NULL]);
+
+        // NSFileManager: copy / move / links / enumerators / replace (#12)
+        NSString *fmDir = [NSTemporaryDirectory() stringByAppendingPathComponent:@"fm"];
+        [fm removeItemAtPath:fmDir error:NULL];
+        NSString *tree = [fmDir stringByAppendingPathComponent:@"tree"];
+        CHECK([fm createDirectoryAtPath:[tree stringByAppendingPathComponent:@"sub/deep"] withIntermediateDirectories:YES attributes:nil error:NULL]);
+        NSError *fmErr = nil;
+        CHECK(![fm createDirectoryAtPath:tree withIntermediateDirectories:NO attributes:nil error:&fmErr] && fmErr.code == NSFileWriteFileExistsError);
+        CHECK([fm createDirectoryAtPath:tree withIntermediateDirectories:YES attributes:nil error:NULL]);   // already there: fine
+        CHECK([fm createFileAtPath:[tree stringByAppendingPathComponent:@"a.txt"] contents:[@"alpha" dataUsingEncoding:NSUTF8StringEncoding] attributes:nil]);
+        CHECK([fm createFileAtPath:[tree stringByAppendingPathComponent:@"sub/b.txt"] contents:[@"beta" dataUsingEncoding:NSUTF8StringEncoding] attributes:@{ NSFilePosixPermissions: @0640 }]);
+        CHECK([fm createFileAtPath:[tree stringByAppendingPathComponent:@"sub/deep/c.txt"] contents:nil attributes:nil]);
+        CHECK([fm createFileAtPath:[tree stringByAppendingPathComponent:@".hidden"] contents:nil attributes:nil]);
+        CHECK([[[NSString alloc] initWithData:[fm contentsAtPath:[tree stringByAppendingPathComponent:@"a.txt"]] encoding:NSUTF8StringEncoding] isEqualToString:@"alpha"]);
+        // symbolic and hard links
+        NSString *link = [tree stringByAppendingPathComponent:@"link"];
+        CHECK([fm createSymbolicLinkAtPath:link withDestinationPath:@"sub" error:NULL]);
+        CHECK([[fm destinationOfSymbolicLinkAtPath:link error:NULL] isEqualToString:@"sub"]);
+        CHECK([[fm attributesOfItemAtPath:link error:NULL].fileType isEqualToString:NSFileTypeSymbolicLink]);
+        BOOL linkIsDir = NO;
+        CHECK([fm fileExistsAtPath:link isDirectory:&linkIsDir] && linkIsDir);       // follows the link
+        fmErr = nil;
+        CHECK(![fm createSymbolicLinkAtPath:link withDestinationPath:@"x" error:&fmErr] && fmErr.code == NSFileWriteFileExistsError);
+        fmErr = nil;
+        CHECK(![fm destinationOfSymbolicLinkAtPath:[tree stringByAppendingPathComponent:@"a.txt"] error:&fmErr] && fmErr.code == NSFileReadUnknownError);
+        CHECK([fm linkItemAtPath:[tree stringByAppendingPathComponent:@"a.txt"] toPath:[fmDir stringByAppendingPathComponent:@"hard.txt"] error:NULL]);
+        CHECK([[fm attributesOfItemAtPath:[fmDir stringByAppendingPathComponent:@"hard.txt"] error:NULL][NSFileReferenceCount] integerValue] == 2);
+        CHECK([fm contentsEqualAtPath:[tree stringByAppendingPathComponent:@"a.txt"] andPath:[fmDir stringByAppendingPathComponent:@"hard.txt"]]);
+        CHECK([[@"~/x/../y" stringByResolvingSymlinksInPath] isEqualToString:[NSHomeDirectory() stringByAppendingPathComponent:@"y"]]);
+        CHECK([[[link stringByAppendingPathComponent:@"b.txt"] stringByResolvingSymlinksInPath] hasSuffix:@"/tree/sub/b.txt"]);
+        // the path enumerator: pre-order, sorted, links not followed, skipDescendants, level, attributes
+        NSDirectoryEnumerator *en = [fm enumeratorAtPath:tree];
+        NSMutableArray *seen = [NSMutableArray array];
+        for (NSString *rel; (rel = [en nextObject]);) {
+            [seen addObject:[NSString stringWithFormat:@"%@:%lu", rel, (unsigned long)en.level]];
+            if ([rel isEqualToString:@"a.txt"]) CHECK(en.fileAttributes.fileSize == 5 && [en.directoryAttributes.fileType isEqualToString:NSFileTypeDirectory]);
+        }
+        CHECK([seen isEqual:(@[@".hidden:1", @"a.txt:1", @"link:1", @"sub:1", @"sub/b.txt:2", @"sub/deep:2", @"sub/deep/c.txt:3"])]);
+        if (![seen isEqual:(@[@".hidden:1", @"a.txt:1", @"link:1", @"sub:1", @"sub/b.txt:2", @"sub/deep:2", @"sub/deep/c.txt:3"])]) NSLog(@"enumerator: %@", seen);
+        en = [fm enumeratorAtPath:tree]; [seen removeAllObjects];
+        for (NSString *rel in en) { [seen addObject:rel]; if ([rel isEqualToString:@"sub"]) [en skipDescendants]; }   // fast enumeration
+        CHECK([seen isEqual:(@[@".hidden", @"a.txt", @"link", @"sub"])]);
+        CHECK([[fm subpathsOfDirectoryAtPath:tree error:NULL] count] == 7 && [fm subpathsAtPath:[fmDir stringByAppendingPathComponent:@"missing"]] == nil);
+        // the URL enumerator: options, post-order, error handler
+        NSURL *treeURL = [NSURL fileURLWithPath:tree isDirectory:YES];
+        en = [fm enumeratorAtURL:treeURL includingPropertiesForKeys:@[NSURLIsDirectoryKey] options:NSDirectoryEnumerationSkipsHiddenFiles | NSDirectoryEnumerationIncludesDirectoriesPostOrder errorHandler:nil];
+        [seen removeAllObjects];
+        for (NSURL *u in en) [seen addObject:[NSString stringWithFormat:@"%@%@", [u.path substringFromIndex:tree.length + 1], en.isEnumeratingDirectoryPostOrder ? @"/post" : ([u.absoluteString hasSuffix:@"/"] ? @"/" : @"")]];
+        CHECK([seen isEqual:(@[@"a.txt", @"link", @"sub/", @"sub/b.txt", @"sub/deep/", @"sub/deep/c.txt", @"sub/deep/post", @"sub/post"])]);
+        if (![seen isEqual:(@[@"a.txt", @"link", @"sub/", @"sub/b.txt", @"sub/deep/", @"sub/deep/c.txt", @"sub/deep/post", @"sub/post"])]) NSLog(@"URL enumerator: %@", seen);
+        CHECK([[fm enumeratorAtURL:treeURL includingPropertiesForKeys:nil options:NSDirectoryEnumerationSkipsSubdirectoryDescendants errorHandler:nil] allObjects].count == 4);
+        __block NSInteger handled = 0;
+        NSArray *none = [[fm enumeratorAtURL:[NSURL fileURLWithPath:[fmDir stringByAppendingPathComponent:@"missing"]] includingPropertiesForKeys:nil options:0
+                                errorHandler:^BOOL(NSURL *u, NSError *e) { handled = e.code; return YES; }] allObjects];
+        CHECK(none.count == 0 && handled == NSFileReadNoSuchFileError);
+        NSArray<NSURL *> *shallow = [fm contentsOfDirectoryAtURL:treeURL includingPropertiesForKeys:nil options:NSDirectoryEnumerationSkipsHiddenFiles error:NULL];
+        CHECK(shallow.count == 3 && [shallow[2].absoluteString hasSuffix:@"/sub/"]);
+        // resource values
+        NSDictionary *rv = [[NSURL fileURLWithPath:link] resourceValuesForKeys:@[NSURLIsSymbolicLinkKey, NSURLIsDirectoryKey, NSURLNameKey, NSURLFileResourceTypeKey] error:NULL];
+        CHECK([rv[NSURLIsSymbolicLinkKey] boolValue] && ![rv[NSURLIsDirectoryKey] boolValue] && [rv[NSURLNameKey] isEqualToString:@"link"] &&
+              [rv[NSURLFileResourceTypeKey] isEqualToString:NSURLFileResourceTypeSymbolicLink]);
+        id sizeValue = nil;
+        CHECK([[NSURL fileURLWithPath:[tree stringByAppendingPathComponent:@"a.txt"]] getResourceValue:&sizeValue forKey:NSURLFileSizeKey error:NULL] && [sizeValue integerValue] == 5);
+        fmErr = nil;
+        CHECK(![[NSURL fileURLWithPath:@"/no/such/file"] resourceValuesForKeys:@[NSURLNameKey] error:&fmErr] && fmErr.code == NSFileReadNoSuchFileError);
+        // copy (a whole tree, links kept as links, permissions kept), move, remove by URL
+        NSString *copy = [fmDir stringByAppendingPathComponent:@"copy"];
+        CHECK([fm copyItemAtPath:tree toPath:copy error:NULL]);
+        CHECK([[fm destinationOfSymbolicLinkAtPath:[copy stringByAppendingPathComponent:@"link"] error:NULL] isEqualToString:@"sub"] &&
+              [fm attributesOfItemAtPath:[copy stringByAppendingPathComponent:@"sub/b.txt"] error:NULL].filePosixPermissions == 0640 &&
+              [fm contentsEqualAtPath:tree andPath:copy]);
+        fmErr = nil;
+        CHECK(![fm copyItemAtPath:tree toPath:copy error:&fmErr] && fmErr.code == NSFileWriteFileExistsError);
+        fmErr = nil;
+        CHECK(![fm copyItemAtPath:tree toPath:[tree stringByAppendingPathComponent:@"sub/inside"] error:&fmErr] && fmErr.code == NSFileWriteUnknownError &&
+              ![fm fileExistsAtPath:[tree stringByAppendingPathComponent:@"sub/inside"]]);     // not into itself
+        fmErr = nil;
+        CHECK(![fm copyItemAtPath:[fmDir stringByAppendingPathComponent:@"missing"] toPath:[fmDir stringByAppendingPathComponent:@"x"] error:&fmErr] && fmErr.code == NSFileReadNoSuchFileError);
+        NSURL *moved = [NSURL fileURLWithPath:[fmDir stringByAppendingPathComponent:@"moved"]];
+        CHECK([fm moveItemAtURL:[NSURL fileURLWithPath:copy] toURL:moved error:NULL] && ![fm fileExistsAtPath:copy] && [fm fileExistsAtPath:[moved.path stringByAppendingPathComponent:@"sub/deep/c.txt"]]);
+        fmErr = nil;
+        CHECK(![fm moveItemAtPath:copy toPath:moved.path error:&fmErr] && fmErr.code == NSFileNoSuchFileError);
+        CHECK([fm removeItemAtURL:moved error:NULL] && ![fm fileExistsAtPath:moved.path]);
+        // replace, with and without a backup
+        NSString *orig = [fmDir stringByAppendingPathComponent:@"doc.txt"], *repl = [fmDir stringByAppendingPathComponent:@"doc.new"];
+        [@"old" writeToFile:orig atomically:NO encoding:NSUTF8StringEncoding error:NULL];
+        [fm setAttributes:@{ NSFilePosixPermissions: @0604 } ofItemAtPath:orig error:NULL];
+        [@"new" writeToFile:repl atomically:NO encoding:NSUTF8StringEncoding error:NULL];
+        NSURL *resulting = nil;
+        CHECK([fm replaceItemAtURL:[NSURL fileURLWithPath:orig] withItemAtURL:[NSURL fileURLWithPath:repl] backupItemName:@"doc.bak"
+                           options:NSFileManagerItemReplacementWithoutDeletingBackupItem resultingItemURL:&resulting error:NULL]);
+        CHECK([[NSString stringWithContentsOfFile:orig encoding:NSUTF8StringEncoding error:NULL] isEqualToString:@"new"] && ![fm fileExistsAtPath:repl] &&
+              [[NSString stringWithContentsOfFile:[fmDir stringByAppendingPathComponent:@"doc.bak"] encoding:NSUTF8StringEncoding error:NULL] isEqualToString:@"old"] &&
+              [resulting.path isEqualToString:orig] && [fm attributesOfItemAtPath:orig error:NULL].filePosixPermissions == 0604);
+        [@"newer" writeToFile:repl atomically:NO encoding:NSUTF8StringEncoding error:NULL];
+        CHECK([fm replaceItemAtURL:[NSURL fileURLWithPath:orig] withItemAtURL:[NSURL fileURLWithPath:repl] backupItemName:@"doc.bak2" options:0 resultingItemURL:NULL error:NULL] &&
+              ![fm fileExistsAtPath:[fmDir stringByAppendingPathComponent:@"doc.bak2"]]);
+        // access checks, working directory, file system representation, error codes
+        CHECK([fm isReadableFileAtPath:orig] && [fm isWritableFileAtPath:orig] && ![fm isExecutableFileAtPath:orig] && [fm isDeletableFileAtPath:orig] &&
+              ![fm isDeletableFileAtPath:[fmDir stringByAppendingPathComponent:@"missing"]]);
+        NSString *cwd = fm.currentDirectoryPath;
+        CHECK([fm changeCurrentDirectoryPath:fmDir] && [fm.currentDirectoryPath.stringByResolvingSymlinksInPath isEqualToString:fmDir.stringByResolvingSymlinksInPath] &&
+              [fm changeCurrentDirectoryPath:cwd] && ![fm changeCurrentDirectoryPath:@"/no/such/dir"]);
+        CHECK(strcmp(orig.fileSystemRepresentation, [fm fileSystemRepresentationWithPath:orig]) == 0 &&
+              [[fm stringWithFileSystemRepresentation:"caf\xc3\xa9/x" length:7] isEqualToString:@"café/x"] && [[fm displayNameAtPath:orig] isEqualToString:@"doc.txt"]);
+        char fsbuf[8];
+        CHECK([@"short" getFileSystemRepresentation:fsbuf maxLength:sizeof fsbuf] && !strcmp(fsbuf, "short") && ![@"much too long" getFileSystemRepresentation:fsbuf maxLength:sizeof fsbuf]);
+        CHECK(NSFileNoSuchFileError == 4 && NSFileReadNoSuchFileError == 260 && NSFileWriteFileExistsError == 516 && NSPropertyListReadCorruptError == 3840);
+        CHECK([fm removeItemAtPath:fmDir error:NULL]);
 
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }

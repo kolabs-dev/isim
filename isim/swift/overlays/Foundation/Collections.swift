@@ -306,6 +306,31 @@ extension NSIndexSet: Sequence {
 extension NSPointerArray: Sequence {
     public func makeIterator() -> IndexingIterator<[Any]> { allObjects.makeIterator() }
 }
+/// Iterates any NSFastEnumeration (`for case let path as String in FileManager.default.enumerator(atPath: dir)!`).
+public struct NSFastEnumerationIterator: IteratorProtocol {
+    let enumerable: NSFastEnumeration
+    var state = [NSFastEnumerationState(state: 0, itemsPtr: nil, mutationsPtr: nil, extra: (0, 0, 0, 0, 0))]
+    var buffer = [AnyObject?](repeating: nil, count: 16)
+    var index = 0, count = 0
+    public init(_ enumerable: NSFastEnumeration) { self.enumerable = enumerable }
+    public mutating func next() -> Any? {
+        if index >= count {
+            index = 0
+            let e = enumerable
+            count = state.withUnsafeMutableBufferPointer { s in
+                buffer.withUnsafeMutableBufferPointer { b in
+                    Int(e.countByEnumerating(with: s.baseAddress!, objects: AutoreleasingUnsafeMutablePointer(b.baseAddress!), count: 16))
+                }
+            }
+            if count == 0 { return nil }
+        }
+        defer { index += 1 }
+        return state[0].itemsPtr![index]
+    }
+}
+extension NSEnumerator: Sequence {
+    public func makeIterator() -> NSFastEnumerationIterator { NSFastEnumerationIterator(self) }
+}
 
 // MARK: - key-value observing in Swift
 public struct NSKeyValueObservedChange<Value> {

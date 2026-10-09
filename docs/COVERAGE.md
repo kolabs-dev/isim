@@ -55,12 +55,12 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 60 | 21 | 1 | 1 | 83 | 85% |
+| **Foundation** | 61 | 21 | 1 | 1 | 84 | 85% |
 | &nbsp;&nbsp;↳ Strings & text | 11 | 4 | 0 | 0 | 15 | 87% |
 | &nbsp;&nbsp;↳ Collections & values | 10 | 3 | 0 | 0 | 13 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
-| &nbsp;&nbsp;↳ Files, bundles & preferences | 7 | 3 | 0 | 0 | 10 | 85% |
+| &nbsp;&nbsp;↳ Files, bundles & preferences | 8 | 3 | 0 | 0 | 11 | 86% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 7 | 2 | 0 | 0 | 9 | 89% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 100% (207) | 100% (211) | 100% (225) | 97% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
+| Foundation | 85% (84) | 85% (84) | 85% (84) | 85% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -854,7 +854,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | App sandbox container (Documents, Library, Caches, tmp) | ✅ | ≤17 | per app, under `ISIM_DATA` |
-| `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | 🟡 | ≤17 | no enumerators, symlinks, `replaceItem` |
+| `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | ✅ | ≤17 | Swift and Objective-C (path and URL forms). `copyItem` copies whole trees (symbolic links as links, permissions and modification dates kept); `moveItem` renames, or copies and removes across file systems; neither replaces an existing item (`NSFileWriteFileExistsError`). Directory enumerators (`enumerator(atPath:)`, `enumerator(at:includingPropertiesForKeys:options:errorHandler:)`, `subpathsOfDirectory(atPath:)`, `contentsOfDirectory(at:includingPropertiesForKeys:options:)`): pre-order, entries sorted by name, links not followed, `skipDescendants`, `level`, `fileAttributes`, the hidden-file / shallow / package / post-order options and the error handler; `NSEnumerator` is a Swift `Sequence`. Symbolic and hard links (`createSymbolicLink`, `destinationOfSymbolicLink`, `linkItem`), `replaceItemAt` / `replaceItem(at:…)` (rename(2), backup item, keeps the original's permissions), `contentsEqual`, `isExecutableFile` / `isDeletableFile`, `currentDirectoryPath` / `changeCurrentDirectoryPath`, file system representation (`NSString.fileSystemRepresentation`, `withFileSystemRepresentation`), `stringByResolvingSymlinksInPath`, the `NSFile*Error` codes (`FoundationErrors.h`). Adapted: packages are directories with a known package extension (`.app`, `.bundle`, `.framework`, …; no Uniform Type lookup); `producesRelativePathURLs` gives absolute URLs; `displayName(atPath:)` is the file name. Tested: FoundationTest, SwiftFoundationTest |
+| URL resource values (`URL.resourceValues(forKeys:)`, `URLResourceKey` / `URLResourceValues`, `setResourceValues`, `-[NSURL resourceValuesForKeys:error:]` / `getResourceValue:forKey:error:`) | 🟡 | ≤17 | adapted: from lstat / access(2): name, path, parent directory, regular file / directory / symbolic link / package / hidden, readable / writable / executable, resource type, (allocated) sizes, link count, creation / modification / access / attribute-change dates. `setResourceValues` renames (`name`) and sets the modification date; `creationDate`, `isHidden` and `isExcludedFromBackup` are accepted and ignored (stub: no backups). No volume, ubiquity, content-type, tag or thumbnail keys; no prefetching. Tested: FoundationTest, SwiftFoundationTest |
 | `FileManager` attributes (`attributesOfItem(atPath:)`, `setAttributes(_:ofItemAtPath:)`, `attributesOfFileSystem(forPath:)`, `FileAttributeKey` / `FileAttributeType` / `FileProtectionType`, `NSDictionary` file accessors) | ✅ | ≤17 | adapted: from `lstat` (birth time from `statx`), `statvfs`; sets permissions, owner / group, modification date; creation date, data protection, immutable / append-only and HFS codes are accepted and ignored. `createFile` / `createDirectory` apply their attributes. Tested: FoundationTest, SwiftFoundationTest |
 | `Data(contentsOf:)`, `Data.write(to:)` | ✅ | ≤17 | |
 | `FileHandle`, `InputStream` / `OutputStream` | 🟡 | ≤17 | files, memory and standard I/O; `readabilityHandler` on a thread; no sockets / bound stream pairs |
