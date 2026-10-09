@@ -282,7 +282,33 @@
                                 <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="20"/>
                                 <nil key="textColor"/>
                                 <nil key="highlightedColor"/>
+                                <variation key="heightClass=compact">
+                                    <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="30"/>
+                                </variation>
                             </label>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="mob-00-001">
+                                <rect key="frame" x="160" y="460" width="73" height="35"/>
+                                <accessibility key="accessibilityConfiguration" identifier="more-make"/>
+                                <state key="normal" title="Make"/>
+                                <connections>
+                                    <segue destination="mde-00-001" kind="show" identifier="made" destinationCreationSelector="makeMade:sender:segueIdentifier:" id="seg-00-008"/>
+                                </connections>
+                            </button>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="mot-00-001">
+                                <rect key="frame" x="160" y="505" width="73" height="35"/>
+                                <accessibility key="accessibilityConfiguration" identifier="more-tip"/>
+                                <state key="normal" title="Tip"/>
+                                <connections>
+                                    <segue destination="tip-00-001" kind="popoverPresentation" identifier="tip" popoverAnchorView="mol-00-001" id="seg-00-009">
+                                        <popoverArrowDirection key="popoverArrowDirection" up="YES" down="YES"/>
+                                    </segue>
+                                </connections>
+                            </button>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="mcb-00-001">
+                                <rect key="frame" x="20" y="70" width="120" height="30"/>
+                                <accessibility key="accessibilityConfiguration" identifier="more-compact-badge"/>
+                                <color key="backgroundColor" systemColor="systemOrangeColor"/>
+                            </view>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="msa-00-001"/>
                         <color key="backgroundColor" systemColor="systemGroupedBackgroundColor"/>
@@ -290,7 +316,33 @@
                             <constraint firstItem="mol-00-001" firstAttribute="centerY" secondItem="msa-00-001" secondAttribute="centerY" id="c04-00-001"/>
                             <constraint firstItem="mol-00-001" firstAttribute="leading" secondItem="msa-00-001" secondAttribute="leading" constant="20" id="c04-00-002"/>
                             <constraint firstItem="msa-00-001" firstAttribute="trailing" secondItem="mol-00-001" secondAttribute="trailing" constant="20" id="c04-00-003"/>
+                            <constraint firstItem="mob-00-001" firstAttribute="top" secondItem="mol-00-001" secondAttribute="bottom" constant="20" id="c04-00-004"/>
+                            <constraint firstItem="mob-00-001" firstAttribute="centerX" secondItem="mov-00-001" secondAttribute="centerX" id="c04-00-005"/>
+                            <constraint firstItem="mot-00-001" firstAttribute="top" secondItem="mob-00-001" secondAttribute="bottom" constant="10" id="c04-00-006"/>
+                            <constraint firstItem="mot-00-001" firstAttribute="centerX" secondItem="mov-00-001" secondAttribute="centerX" id="c04-00-007"/>
+                            <constraint firstItem="mcb-00-001" firstAttribute="top" secondItem="msa-00-001" secondAttribute="top" constant="10" id="c04-00-008"/>
+                            <constraint firstItem="mcb-00-001" firstAttribute="leading" secondItem="msa-00-001" secondAttribute="leading" constant="20" id="c04-00-009"/>
+                            <constraint firstItem="mcb-00-001" firstAttribute="width" constant="120" id="c04-00-010"/>
+                            <constraint firstItem="mcb-00-001" firstAttribute="height" constant="30" id="c04-00-011"/>
                         </constraints>
+                        <variation key="default">
+                            <mask key="subviews">
+                                <exclude reference="mcb-00-001"/>
+                            </mask>
+                            <mask key="constraints">
+                                <exclude reference="c04-00-008"/>
+                                <exclude reference="c04-00-009"/>
+                            </mask>
+                        </variation>
+                        <variation key="heightClass=compact">
+                            <mask key="subviews">
+                                <include reference="mcb-00-001"/>
+                            </mask>
+                            <mask key="constraints">
+                                <include reference="c04-00-008"/>
+                                <include reference="c04-00-009"/>
+                            </mask>
+                        </variation>
                     </view>
                     <connections>
                         <outlet property="messageLabel" destination="mol-00-001" id="o05-00-001"/>
@@ -299,6 +351,66 @@
                 <placeholder placeholderIdentifier="IBFirstResponder" id="fr6-00-001" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="2000" y="-400"/>
+        </scene>
+        <!--Made-->
+        <scene sceneID="scb-md-001">
+            <objects>
+                <viewController title="Made" id="mde-00-001" customClass="MadeViewController" customModule="HelloStoryboards" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="mdv-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Made" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mdl-00-001">
+                                <rect key="frame" x="20" y="415" width="353" height="21"/>
+                                <accessibility key="accessibilityConfiguration" identifier="made-label"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                <nil key="textColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="mds-00-001"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                        <constraints>
+                            <constraint firstItem="mdl-00-001" firstAttribute="centerY" secondItem="mds-00-001" secondAttribute="centerY" id="c05-00-001"/>
+                            <constraint firstItem="mdl-00-001" firstAttribute="leading" secondItem="mds-00-001" secondAttribute="leading" constant="20" id="c05-00-002"/>
+                            <constraint firstItem="mds-00-001" firstAttribute="trailing" secondItem="mdl-00-001" secondAttribute="trailing" constant="20" id="c05-00-003"/>
+                        </constraints>
+                    </view>
+                    <connections>
+                        <outlet property="madeLabel" destination="mdl-00-001" id="o06-00-001"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="frb-00-001" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="2400" y="-400"/>
+        </scene>
+        <!--Tip-->
+        <scene sceneID="scc-tp-001">
+            <objects>
+                <viewController id="tip-00-001" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="tpv-00-001">
+                        <rect key="frame" x="0.0" y="0.0" width="240" height="120"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="A tip from the storyboard" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="tpl-00-001">
+                                <rect key="frame" x="10" y="50" width="220" height="21"/>
+                                <accessibility key="accessibilityConfiguration" identifier="tip-label"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="15"/>
+                                <nil key="textColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                        <constraints>
+                            <constraint firstItem="tpl-00-001" firstAttribute="centerY" secondItem="tpv-00-001" secondAttribute="centerY" id="c06-00-001"/>
+                            <constraint firstItem="tpl-00-001" firstAttribute="centerX" secondItem="tpv-00-001" secondAttribute="centerX" id="c06-00-002"/>
+                        </constraints>
+                    </view>
+                    <size key="freeformSize" width="240" height="120"/>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="frc-00-001" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="2400" y="0"/>
         </scene>
         <!--Compose Navigation-->
         <scene sceneID="sc7-nv-003">

@@ -225,6 +225,18 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
 - (void)touchesEnded:(NSSet *)t withEvent:(UIEvent *)e { self.controller.active = NO; }
 @end
 
+@implementation UISearchSuggestionItem
++ (instancetype)suggestionWithLocalizedSuggestion:(NSString *)s { return [[self alloc] initWithLocalizedSuggestion:s]; }
++ (instancetype)suggestionWithLocalizedSuggestion:(NSString *)s localizedDescription:(NSString *)d { return [[self alloc] initWithLocalizedSuggestion:s localizedDescription:d]; }
++ (instancetype)suggestionWithLocalizedSuggestion:(NSString *)s localizedDescription:(NSString *)d iconImage:(UIImage *)i { return [[self alloc] initWithLocalizedSuggestion:s localizedDescription:d iconImage:i]; }
+- (instancetype)initWithLocalizedSuggestion:(NSString *)s { return [self initWithLocalizedSuggestion:s localizedDescription:nil iconImage:nil]; }
+- (instancetype)initWithLocalizedSuggestion:(NSString *)s localizedDescription:(NSString *)d { return [self initWithLocalizedSuggestion:s localizedDescription:d iconImage:nil]; }
+- (instancetype)initWithLocalizedSuggestion:(NSString *)s localizedDescription:(NSString *)d iconImage:(UIImage *)i {
+    if ((self = [super init])) { _localizedSuggestion = [s copy]; _localizedDescription = [d copy]; _iconImage = i; }
+    return self;
+}
+@end
+
 @interface UISearchController ()
 @property (nonatomic, weak) UIViewController *_isim_host;          /* the controller showing the bar */
 @end
@@ -235,6 +247,7 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     UIView *_barHome; NSInteger _barIndex; CGRect _barFrame;   /* where the bar was before activation (outside navigation bars) */
     BOOL _hidNavBar, _changing;
     __weak UIScrollView *_content; CGFloat _contentY;          /* the host's scroll position, restored on dismissal */
+    UIView *_suggestionsView; __weak UIView *_stage; CGFloat _barTop;
 }
 - (instancetype)initWithSearchResultsController:(UIViewController *)rc {
     if ((self = [super initWithNibName:nil bundle:nil])) {
@@ -251,6 +264,46 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
 - (BOOL)dimsBackgroundDuringPresentation { return _obscuresBackgroundDuringPresentation; }
 - (void)setDimsBackgroundDuringPresentation:(BOOL)d { _obscuresBackgroundDuringPresentation = d; }
 - (void)setShowsSearchResultsController:(BOOL)s { _showsSearchResultsController = s; [self _isim_updateResults]; }
+- (void)setSearchSuggestions:(NSArray *)s { _searchSuggestions = [s copy]; [self _isim_updateSuggestions]; }
+/* the suggestions list below the bar (above the dimming and the results) */
+- (void)_isim_updateSuggestions {
+    [_suggestionsView removeFromSuperview]; _suggestionsView = nil;
+    UIView *stage = _stage;
+    if (!_active || !_searchSuggestions.count || !stage) return;
+    CGFloat W = stage.bounds.size.width, rowH = 48;
+    UIView *list = [[UIView alloc] initWithFrame:CGRectMake(0, _barTop, W, rowH * _searchSuggestions.count)];
+    list.backgroundColor = UIColor.systemBackgroundColor;
+    list.accessibilityIdentifier = @"isim-search-suggestions";
+    for (NSUInteger i = 0; i < _searchSuggestions.count; i++) {
+        id<UISearchSuggestion> sg = _searchSuggestions[i];
+        UIControl *b = [[UIControl alloc] initWithFrame:CGRectMake(0, i * rowH, W, rowH)];
+        NSString *title = sg.localizedSuggestion ?: @"";
+        if ([sg respondsToSelector:@selector(localizedDescription)] && sg.localizedDescription.length) title = [title stringByAppendingFormat:@" — %@", sg.localizedDescription];
+        UIImage *icon = [sg respondsToSelector:@selector(iconImage)] ? sg.iconImage : nil;
+        UIImageView *iv = [[UIImageView alloc] initWithImage:icon ?: [UIImage systemImageNamed:@"magnifyingglass"]];
+        iv.tintColor = UIColor.secondaryLabelColor; iv.contentMode = UIViewContentModeScaleAspectFit;
+        iv.frame = CGRectMake(20, (rowH - 20) / 2, 20, 20);
+        UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(52, 0, W - 72, rowH)];
+        l.text = title; l.font = [UIFont systemFontOfSize:17];
+        for (UIView *sub in @[iv, l]) { sub.userInteractionEnabled = NO; [b addSubview:sub]; }
+        b.accessibilityLabel = title;
+        b.tag = (NSInteger)i;
+        b.accessibilityIdentifier = [NSString stringWithFormat:@"isim-search-suggestion-%lu", (unsigned long)i];
+        [b addTarget:self action:@selector(_isim_pickSuggestion:) forControlEvents:UIControlEventTouchUpInside];
+        [list addSubview:b];
+        if (i) { UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(20, i * rowH, W - 20, 0.5)]; sep.backgroundColor = UIColor.separatorColor; [list addSubview:sep]; }
+    }
+    _suggestionsView = list;
+    [stage addSubview:list];
+}
+- (void)_isim_pickSuggestion:(UIControl *)b {
+    if ((NSUInteger)b.tag >= _searchSuggestions.count) return;
+    id<UISearchSuggestion> sg = _searchSuggestions[(NSUInteger)b.tag];
+    id<UISearchResultsUpdating> u = _searchResultsUpdater;
+    NSLog(@"isim: search suggestion \"%@\" picked", sg.localizedSuggestion);
+    if ([u respondsToSelector:@selector(updateSearchResultsForSearchController:selectingSearchSuggestion:)]) [u updateSearchResultsForSearchController:self selectingSearchSuggestion:sg];
+    else { _bar.text = sg.localizedSuggestion ?: @""; [self _isim_updateResults]; [self _isim_notify]; }
+}
 
 /* the view controller presenting the search: the one whose navigation item holds us, else the bar's controller */
 - (UIViewController *)_isim_findHost {
@@ -297,12 +350,15 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
         _chrome.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         _bar._isim_inNavigationBar = YES;
         _barFrame = CGRectMake(0, safeTop, sb.size.width, 52);
+        CGRect from = _bar.window ? [_bar convertRect:_bar.bounds toView:stage] : _barFrame;
         [stage addSubview:_chrome];
         _bar._isim_moving = YES;
         [_chrome addSubview:_bar];
         _bar._isim_moving = NO;
-        [UIView performWithoutAnimation:^{ self->_bar.frame = self->_barFrame; self->_bar.alpha = 1; }];
+        [UIView performWithoutAnimation:^{ self->_bar.frame = from; self->_bar.alpha = 1; self->_chrome.backgroundColor = UIColor.clearColor; }];
         if (_hidNavBar) [nav setNavigationBarHidden:YES animated:NO];
+        /* the bar slides up into place as the navigation bar goes away */
+        [UIView animateWithDuration:0.3 animations:^{ self->_bar.frame = self->_barFrame; self->_chrome.backgroundColor = UIColor.systemBackgroundColor; }];
         barTop = CGRectGetMaxY(_chrome.frame);
     } else {
         barTop = CGRectGetMaxY([_bar convertRect:_bar.bounds toView:stage]);
@@ -330,7 +386,9 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
         [stage insertSubview:rc.view aboveSubview:_dim];
         [rc didMoveToParentViewController:host];
     }
+    _stage = stage; _barTop = barTop;
     [self _isim_updateResults];
+    [self _isim_updateSuggestions];
     if (!_bar.isFirstResponder) [_bar becomeFirstResponder];
     [self _isim_notify];
     if ([d respondsToSelector:@selector(didPresentSearchController:)]) [d didPresentSearchController:self];
@@ -358,10 +416,15 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
         if (!rc.view.hidden) [rc _isim_appear:NO];
         [rc willMoveToParentViewController:nil]; [rc.view removeFromSuperview]; [rc removeFromParentViewController];
     }
+    [_suggestionsView removeFromSuperview]; _suggestionsView = nil;
     __IsimSearchDim *dim = _dim; _dim = nil;
     [UIView animateWithDuration:0.2 animations:^{ dim.alpha = 0; } completion:^(BOOL f) { [dim removeFromSuperview]; }];
     UIViewController *host = [self _isim_findHost];
     if (_chrome) {
+        /* a snapshot of the bar slides back down below the title */
+        UIView *stage = _chrome.superview, *snap = [_bar snapshotViewAfterScreenUpdates:NO];
+        snap.frame = _bar.frame;
+        if (snap && stage) [stage addSubview:snap];
         [_bar removeFromSuperview];
         [_chrome removeFromSuperview]; _chrome = nil;
         if (_hidNavBar) [host.navigationController setNavigationBarHidden:NO animated:NO];
@@ -372,6 +435,13 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
         if (sv) {
             [host.navigationController.view layoutIfNeeded];
             sv.contentOffset = CGPointMake(sv.contentOffset.x, _contentY - sv.adjustedContentInset.top);
+        }
+        if (snap) {
+            [host.navigationController.view layoutIfNeeded];
+            CGRect to = _bar.window && stage ? [_bar convertRect:_bar.bounds toView:stage] : snap.frame;
+            _bar.alpha = 0;
+            UISearchBar *bar = _bar;
+            [UIView animateWithDuration:0.3 animations:^{ snap.frame = to; } completion:^(BOOL f) { [snap removeFromSuperview]; bar.alpha = 1; }];
         }
     }
     [self _isim_notify];

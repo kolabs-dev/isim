@@ -18,7 +18,8 @@ isim IB archive format, version 1 (all property-list types):
             contentLayout|frameLayout|readableContent}}}
   node: {id, class (UIKit class of the element), customClass?, customModule?, props: {key: value},
          subviews?: [node], keyed?: {key: node | [node]}, constraints?: [constraint], userDefined?: [attr],
-         prototypes?: [archive] (table/collection prototype cells, each with root), staticSections?: [section]}
+         prototypes?: [archive] (table/collection prototype cells, each with root), staticSections?: [section],
+         variations?: [{key, w?, h?, include?: {constraints|subviews: [id]}, exclude?: {...}, props?}]}
   value: a plain string/number/bool, or a typed dict {"$t": color|font|image|rect|size|point|insets|
          dinsets|date|nil|locale|symbolConfig, ...}
   constraint: {first?, firstAttr, second?, secondAttr?, relation, multiplier, constant, priority, identifier?}
@@ -461,9 +462,14 @@ class Compiler:
                     conn['events'] = CONTROL_EVENTS.get(c.get('eventType'), 1 << 6)
             elif c.tag == 'segue':
                 conn.update(type='segue', kind=c.get('kind', 'show'))
-                for k in ('identifier', 'relationship', 'unwindAction', 'customClass', 'customModule', 'trigger'):
+                for k in ('identifier', 'relationship', 'unwindAction', 'customClass', 'customModule', 'trigger',
+                          'destinationCreationSelector', 'popoverAnchorView', 'popoverAnchorBarButtonItem'):
                     if c.get(k):
                         conn[k] = c.get(k)
+                for sub in c:                               # <popoverArrowDirection key="popoverArrowDirection" up="YES" .../>
+                    if sub.tag == 'popoverArrowDirection':
+                        conn['popoverArrowDirection'] = sum(bit for side, bit in (('up', 1), ('down', 2), ('left', 4), ('right', 8))
+                                                            if sub.get(side) == 'YES')
                 if c.get('modalPresentationStyle'):
                     conn['modalPresentationStyle'] = E['modalPresentationStyle'][c.get('modalPresentationStyle')]
                 if c.get('modalTransitionStyle'):
@@ -596,15 +602,43 @@ class Compiler:
                        'size') and key in ('canvasLocation', 'freeformSize', None, 'customSize'):
             pass
         elif c.tag == 'variation':
-            pass                                            # size-class variations: the base values are used
+            pass                                            # (views: view_children compiles them)
         else:
             return False
         return True
+
+    def variation(self, v, tag, arc):
+        """<variation key="heightClass=compact-widthClass=regular">: constraint / subview masks and property overrides
+        for a size-class combination ("default": the masks of the base layout)."""
+        key = v.get('key', 'default')
+        d = {'key': key}
+        if key != 'default':
+            for part in key.split('-'):
+                k, _, val = part.partition('=')
+                if k in ('widthClass', 'heightClass') and val in ('compact', 'regular'):
+                    d['w' if k == 'widthClass' else 'h'] = val
+        rest = ET.Element(tag)
+        for c in v:
+            if c.tag == 'mask':
+                for r in c:
+                    if r.tag in ('include', 'exclude') and r.get('reference'):
+                        d.setdefault(r.tag, {}).setdefault(c.get('key'), []).append(r.get('reference'))
+            else:
+                rest.append(c)
+        if len(rest):
+            tmp = {'id': '', 'props': {}}
+            self.view_children(rest, tmp, arc)
+            if tmp['props']:
+                d['props'] = tmp['props']
+        return d
 
     def view_children(self, el, node, arc):
         tag = el.tag
         for c in el:
             key = c.get('key')
+            if c.tag == 'variation':
+                node.setdefault('variations', []).append(self.variation(c, tag, arc))
+                continue
             if self.common_child(c, node, arc):
                 continue
             if c.tag == 'rect' and key == 'frame':
