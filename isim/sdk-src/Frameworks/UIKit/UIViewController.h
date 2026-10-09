@@ -84,4 +84,10 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_SWIFT_NAME(UIViewController.Transi
 @interface UIViewController (UIPreferredTransition)
 @property (nonatomic, strong, nullable) UIViewControllerTransition *preferredTransition API_AVAILABLE(ios(18.0));
 @end
+/* iOS 27: scene accessories (UIScene.h): supplementary content the system presents while the controller is registered */
+@class UISceneAccessory, UISceneAccessoryRegistration;
+@interface UIViewController (UISceneAccessory)
+- (UISceneAccessoryRegistration *)registerSceneAccessory:(UISceneAccessory *)accessory NS_SWIFT_NAME(registerSceneAccessory(_:)) API_AVAILABLE(ios(27.0));
+- (void)unregisterSceneAccessory:(UISceneAccessoryRegistration *)registration NS_SWIFT_NAME(unregisterSceneAccessory(_:)) API_AVAILABLE(ios(27.0));
+@end
 NS_ASSUME_NONNULL_END
