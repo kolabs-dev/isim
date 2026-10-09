@@ -71,7 +71,8 @@ jobs:
             build-${{ github.ref_name }}-
             build-main-
       - name: Swift compiler image
-        run: docker pull -q swift:6.2
+        # the official image from Google's mirror of Docker Hub (which rate-limits shared runners), under the name the build uses
+        run: docker pull -q mirror.gcr.io/library/swift:6.2 && docker tag mirror.gcr.io/library/swift:6.2 swift:6.2
       - name: Build
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
