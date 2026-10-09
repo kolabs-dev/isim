@@ -348,11 +348,11 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 - (void)setLargeTitle:(NSString *)t { _largeTitle = [t copy]; bar_item_changed(self); }
 - (void)setAttributedTitle:(NSAttributedString *)t { _attributedTitle = [t copy]; bar_item_changed(self); }
 - (void)setLargeSubtitle:(NSString *)t { _largeSubtitle = [t copy]; bar_item_changed(self); }
-- (void)setAttributedLargeSubtitle:(NSAttributedString *)t { _attributedLargeSubtitle = [t copy]; bar_item_changed(self); }
+- (void)setLargeAttributedSubtitle:(NSAttributedString *)t { _largeAttributedSubtitle = [t copy]; bar_item_changed(self); }
 - (void)setLargeSubtitleView:(UIView *)v { _largeSubtitleView = v; bar_item_changed(self); }
 /* iOS 26 subtitles: the inline one (attributed, else plain), the large one (falls back to the inline one) */
 - (BOOL)_isim_hasSubtitle { return _subtitleView || _attributedSubtitle.length || _subtitle.length; }
-- (BOOL)_isim_hasLargeSubtitle { return _largeSubtitleView || _attributedLargeSubtitle.length || _largeSubtitle.length || [self _isim_hasSubtitle]; }
+- (BOOL)_isim_hasLargeSubtitle { return _largeSubtitleView || _largeAttributedSubtitle.length || _largeSubtitle.length || [self _isim_hasSubtitle]; }
 - (UIBarButtonItem *)leftBarButtonItem { return _leftBarButtonItems.firstObject; }
 - (UIBarButtonItem *)rightBarButtonItem { return _rightBarButtonItems.firstObject; }
 - (void)setLeftBarButtonItem:(UIBarButtonItem *)i { self.leftBarButtonItems = i ? @[i] : nil; }
@@ -732,7 +732,7 @@ static void set_label_text(UILabel *l, NSString *plain, NSAttributedString *attr
         if ([item _isim_hasLargeSubtitle]) {
             CGRect r = CGRectMake(margin, extra - L + 48, W - 2 * margin, 20);
             /* a subtitle view is shown in one place: under the large title while that shows, else in the bar row */
-            BOOL ownLarge = item.largeSubtitle.length || item.attributedLargeSubtitle.length;
+            BOOL ownLarge = item.largeSubtitle.length || item.largeAttributedSubtitle.length;
             UIView *lv = item.largeSubtitleView ?: (ownLarge || extra < 6 ? nil : item.subtitleView);
             if (lv) {
                 CGSize ls = CGSizeEqualToSize(lv.bounds.size, CGSizeZero) ? [lv sizeThatFits:r.size] : lv.bounds.size;
@@ -743,7 +743,7 @@ static void set_label_text(UILabel *l, NSString *plain, NSAttributedString *attr
             } else if (ownLarge || !item.subtitleView) {
                 _largeSub.hidden = NO;
                 _largeSub.font = [self _isim_subtitleFont:YES]; _largeSub.textColor = [self _isim_subtitleColor:YES];
-                if (item.attributedLargeSubtitle.length || item.largeSubtitle.length) set_label_text(_largeSub, item.largeSubtitle, item.attributedLargeSubtitle);
+                if (item.largeAttributedSubtitle.length || item.largeSubtitle.length) set_label_text(_largeSub, item.largeSubtitle, item.largeAttributedSubtitle);
                 else set_label_text(_largeSub, item.subtitle, item.attributedSubtitle);
                 _largeSub.frame = r;
             }
@@ -1489,6 +1489,18 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     _bottomAccessory.contentView.frame = CGRectMake(16, 0, f.size.width - 32, 48);
     [_accessoryView setNeedsDisplay];
 }
+/* the content area not covered by the tab bar or the sidebar (contentLayoutGuide) */
+- (CGRect)_isim_contentArea {
+    UIView *v = self.viewIfLoaded;
+    if (!v) return CGRectZero;
+    CGFloat side = [self _isim_sidebarWidth], top = 0, bottom = v.bounds.size.height;
+    if (!_barHidden && _bar.superview == v) {
+        if (CGRectIsEmpty(_bar.frame)) [v layoutIfNeeded];           /* not laid out yet (asked right after launch) */
+        if (tabbar_mode() >= 2) top = CGRectGetMaxY(_bar.frame);      /* iPad: the bar at the top */
+        else bottom = _bar.frame.origin.y;
+    }
+    return CGRectMake(side, top, v.bounds.size.width - side, fmax(0, bottom - top));
+}
 - (UILayoutGuide *)contentLayoutGuide {
     if (!_contentLayoutGuide) {
         _contentLayoutGuide = [UILayoutGuide new]; _contentLayoutGuide.identifier = @"UITabBarController-contentLayoutGuide";
@@ -1497,8 +1509,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
         [_contentLayoutGuide _isim_setFrameProvider:^CGRect {
             UITabBarController *c = ws; UIView *v = c.viewIfLoaded;
             if (!v) return CGRectZero;
-            CGFloat side = [c _isim_sidebarWidth];
-            return CGRectMake(side, 0, v.bounds.size.width - side, v.bounds.size.height);
+            return [c _isim_contentArea];
         }];
     }
     return _contentLayoutGuide;

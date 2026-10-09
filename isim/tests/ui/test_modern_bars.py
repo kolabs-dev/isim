@@ -29,7 +29,8 @@ def test_modern_bars(launch, ios):
         f"bottom accessory: a capsule above the floating tab bar: {acc} {bar}"
     assert "text=Now Playing" in t0 and "text=Track 1" in t0, "the accessory's content view"
     m = app.wait_log(r"^hmb content guide (\d+) (\d+) (\d+) (\d+)$")
-    assert (int(m[1]), int(m[2]), int(m[3])) == (0, 0, int(W)), f"contentLayoutGuide: the whole content area: {m[0]}"
+    assert (int(m[1]), int(m[2]), int(m[3])) == (0, 0, int(W)) and abs(int(m[4]) - bar[1]) <= 1, \
+        f"contentLayoutGuide: the content area above the tab bar: {m[0]} {bar}"
 
     nav = screen_frames(t0)
     large, sub = nav.get("nav-large-title"), nav.get("nav-large-subtitle")

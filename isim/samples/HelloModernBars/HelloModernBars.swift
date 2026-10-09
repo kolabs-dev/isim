@@ -101,7 +101,8 @@ final class DetailViewController: UIViewController {
         title = "Message \(row + 1)"
         navigationItem.largeTitleDisplayMode = .never
         if #available(iOS 26, *) {
-            navigationItem.attributedSubtitle = NSAttributedString(string: "From Alice", attributes: [.foregroundColor: UIColor.systemBlue])
+            var from = AttributedString("From Alice"); from.foregroundColor = UIColor.systemBlue
+            navigationItem.attributedSubtitle = from
         }
         print("hmb detail \(row + 1)")
     }

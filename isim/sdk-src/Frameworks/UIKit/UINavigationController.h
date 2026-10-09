@@ -100,14 +100,15 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *compactAppearance;
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *compactScrollEdgeAppearance;
 /* iOS 26: a subtitle under the title (inline: a second line in the bar row; large: under the large title, else the
-   subtitle); attributed and view variants win over the plain strings; largeTitle replaces the title while it is large */
+   subtitle); attributed and view variants win over the plain strings; largeTitle replaces the title while it is large.
+   The attributed ones are AttributedString in Swift (UIKit overlay) */
 @property (nullable, nonatomic, copy) NSString *subtitle API_AVAILABLE(ios(26.0));
-@property (nullable, nonatomic, copy) NSAttributedString *attributedSubtitle API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSAttributedString *attributedSubtitle NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(26.0));
 @property (nullable, nonatomic, strong) UIView *subtitleView API_AVAILABLE(ios(26.0));
 @property (nullable, nonatomic, copy) NSString *largeTitle API_AVAILABLE(ios(26.0));
-@property (nullable, nonatomic, copy) NSAttributedString *attributedTitle API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSAttributedString *attributedTitle NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(26.0));
 @property (nullable, nonatomic, copy) NSString *largeSubtitle API_AVAILABLE(ios(26.0));
-@property (nullable, nonatomic, copy) NSAttributedString *attributedLargeSubtitle API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSAttributedString *largeAttributedSubtitle NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(26.0));
 @property (nullable, nonatomic, strong) UIView *largeSubtitleView API_AVAILABLE(ios(26.0));
 @end
 
@@ -357,7 +358,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UITabBarMinimizeBehavior tabBarMinimizeBehavior API_AVAILABLE(ios(26.0));
 @property (nullable, nonatomic, strong) UITabAccessory *bottomAccessory API_AVAILABLE(ios(26.0));
 - (void)setBottomAccessory:(nullable UITabAccessory *)bottomAccessory animated:(BOOL)animated API_AVAILABLE(ios(26.0));
-/* the area of the selected tab's content (beside the iPad sidebar) */
+/* the area of the selected tab's content not covered by the tab bar or the iPad sidebar */
 @property (nonatomic, readonly, strong) UILayoutGuide *contentLayoutGuide API_AVAILABLE(ios(26.0));
 @end
 
