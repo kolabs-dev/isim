@@ -223,6 +223,7 @@ def test_settings_bundle(launch, device_data):
     dev.wait_log(r"theme_preference = dark")
     dev.tap_id("isim-nav-back")
     dev.wait_view(r"id=pref-pane-Advanced")
+    dev.drag(200, 450, 200, 250, 0.3)                                   # above the keyboard (the access section is first)
     dev.wait_still()
     dev.tap_id("pref-pane-Advanced")
     dev.wait_tap_id("pref-advanced_preference")

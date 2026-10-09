@@ -508,9 +508,11 @@ static void sys_run_helper_kind(const char *exe, const char *req, int ext) {
     int slot = -1;
     for (int i = 0; i < 16; i++) if (!helpers[i].pid) { slot = i; break; }
     if (slot < 0) { fprintf(stderr, "isim shell: too many widget extension processes\n"); return; }
-    pid_t pid = fork();
+    pid_t shell_pid = getpid(), pid = fork();
     if (pid < 0) return;
     if (pid == 0) {
+        prctl(PR_SET_PDEATHSIG, SIGKILL);                   /* dies with the shell */
+        if (getppid() != shell_pid) _exit(1);
         for (int fd = 3; fd < 256; fd++) close(fd);
         unsetenv("ISIM_CLIENT_SOCK"); unsetenv("ISIM_CLIENT_SURFACE"); unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_CONTROL");
         unsetenv("ISIM_LAUNCH_URL"); unsetenv("ISIM_LAUNCH_BACKGROUND");

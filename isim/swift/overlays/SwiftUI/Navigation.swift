@@ -814,6 +814,11 @@ final class _SUINavBar: UIView {
         backLabel.textColor = tint
         backLabel.font = .systemFont(ofSize: 17)
         let cs = backChevron.image?.size ?? CGSize(width: 12, height: 20)
+        // like iOS: a back title that would run into the centered title becomes "Back", then just the chevron
+        let titleStart = (bounds.width - titleLabel.sizeThatFits(CGSize(width: bounds.width, height: 44)).width) / 2
+        for fallback in ["Back", ""] where 8 + cs.width + 6 + backLabel.sizeThatFits(CGSize(width: 120, height: 44)).width + 8 > titleStart {
+            backLabel.text = fallback
+        }
         let ls = backLabel.sizeThatFits(CGSize(width: 120, height: 44))
         back.frame = CGRect(x: 8, y: safeTop, width: min(cs.width + 6 + ls.width, 140), height: 44)
         backChevron.frame = CGRect(x: 0, y: (44 - cs.height) / 2, width: cs.width, height: cs.height)
