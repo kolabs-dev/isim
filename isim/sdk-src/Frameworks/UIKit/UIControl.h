@@ -47,10 +47,16 @@ typedef void (^UIActionHandler)(UIAction *action);
 typedef NS_OPTIONS(NSUInteger, UIMenuElementAttributes) { UIMenuElementAttributesDisabled = 1 << 0, UIMenuElementAttributesDestructive = 1 << 1, UIMenuElementAttributesHidden = 1 << 2 };
 typedef NS_ENUM(NSInteger, UIMenuElementState) { UIMenuElementStateOff, UIMenuElementStateOn, UIMenuElementStateMixed };
 NS_SWIFT_UI_ACTOR
+/* iOS 27: whether a menu shows an element's image (automatic: shown when it has one) */
+typedef NS_ENUM(NSInteger, UIMenuElementImageVisibility) { UIMenuElementImageVisibilityAutomatic = 0, UIMenuElementImageVisibilityVisible = 1,
+    UIMenuElementImageVisibilityHidden = 2 } NS_SWIFT_NAME(UIMenuElement.ImageVisibility) API_AVAILABLE(ios(27.0));
 @interface UIMenuElement : NSObject <NSCopying>
 @property (nonatomic, copy) NSString *title;
 @property (nullable, nonatomic, copy) UIImage *image;
-@property (nullable, nonatomic, copy) NSString *subtitle;
+@property (nullable, nonatomic, copy) NSString *subtitle;      /* a second line under the title in menus */
+@property (nonatomic) UIMenuElementImageVisibility preferredImageVisibility API_AVAILABLE(ios(27.0));
+/* iOS 27: called when the element's row in a menu is highlighted or unhighlighted (touch down, keyboard navigation) */
+@property (nullable, nonatomic, copy) void (^highlightStateUpdateHandler)(UIMenuElement *element, BOOL isHighlighted) API_AVAILABLE(ios(27.0));
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIAction : UIMenuElement

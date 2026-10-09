@@ -12,6 +12,7 @@
  *   rotate2 X Y DEGREES SECS      two fingers 120 pt apart around (X, Y), turned by DEGREES (clockwise > 0)
  *   twofinger X Y DX DY SECS      two fingers 60 pt apart, moved together by (DX, DY)
  *   longdrag X1 Y1 X2 Y2 HOLD SECS  one finger down, held HOLD s (a long press), then moved over SECS and lifted
+ *   pointerdrag X1 Y1 X2 Y2 HOLD SECS  the same with the iPad pointer (a trackpad / mouse click: UITouchTypeIndirectPointer)
  *   hover X Y | hover off         pointer at (X, Y) without touching / pointer leaves
  *   pencil X1 Y1 X2 Y2 SECS [FORCE] [ALTITUDE]  an Apple Pencil stroke (force 0...4.17, default 1; altitude radians)
  *   pencil tap | pencil squeeze   the Pencil's double-tap / squeeze (UIPencilInteraction)
@@ -77,9 +78,11 @@ static int input_script_cmd(const char *cmd, const char *args) {
     if (!strcmp(cmd, "rotate2") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) { mt_start(a, b, 0, 0, 60, 60, 0, c * M_PI / 180, d); return 1; }
     if (!strcmp(cmd, "twofinger") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &e) == 5) { mt_start(a, b, c, d, 30, 30, 0, 0, e); return 1; }
     double f;
-    if (!strcmp(cmd, "longdrag") && sscanf(args, "%lf %lf %lf %lf %lf %lf", &a, &b, &c, &d, &e, &f) == 6) {
-        ld.on = 1; ld.x1 = a; ld.y1 = b; ld.x2 = c; ld.y2 = d; ld.hold_until = now() + e; ld.t0 = 0; ld.dur = f > 0.02 ? f : 0.02; ld.last = 0; ld.tag[0] = 0;
+    if ((!strcmp(cmd, "longdrag") || !strcmp(cmd, "pointerdrag")) && sscanf(args, "%lf %lf %lf %lf %lf %lf", &a, &b, &c, &d, &e, &f) == 6) {
+        ld.on = 1; ld.x1 = a; ld.y1 = b; ld.x2 = c; ld.y2 = d; ld.hold_until = now() + e; ld.t0 = 0; ld.dur = f > 0.02 ? f : 0.02; ld.last = 0;
+        snprintf(ld.tag, sizeof ld.tag, "%s", cmd[0] == 'p' ? "pointer" : "");
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
+        snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag);
         script_resume = now() + e + ld.dur + 0.1;
         return 1;
     }

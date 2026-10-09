@@ -164,8 +164,8 @@ typedef struct { float minimum, maximum, preferred; } CAFrameRateRange;
 NS_SWIFT_UI_ACTOR
 @interface CADisplayLink : NSObject
 + (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel;
-- (void)addToRunLoop:(NSRunLoop *)runloop forMode:(NSString *)mode;
-- (void)removeFromRunLoop:(NSRunLoop *)runloop forMode:(NSString *)mode;
+- (void)addToRunLoop:(NSRunLoop *)runloop forMode:(NSRunLoopMode)mode;
+- (void)removeFromRunLoop:(NSRunLoop *)runloop forMode:(NSRunLoopMode)mode;
 - (void)invalidate;
 @property (readonly, nonatomic) double timestamp;
 @property (readonly, nonatomic) double duration;

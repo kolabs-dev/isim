@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 221 | 2 | 0 | 12 | 235 | 94% |
+| **UIKit** | 225 | 2 | 0 | 8 | 235 | 96% |
 | &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 63 | 0 | 0 | 11 | 74 | 85% |
+| &nbsp;&nbsp;↳ Views & controls | 67 | 0 | 0 | 7 | 74 | 91% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **760** | **186** | **23** | **43** | **1012** | **84%** |
+| **All areas** | **764** | **186** | **23** | **39** | **1012** | **85%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (206) | 100% (210) | 99% (224) | 94% (235) |
+| UIKit | 100% (207) | 100% (211) | 99% (225) | 96% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (955) | **86%** (967) | **85%** (991) | **84%** (1012) |
+| **All areas** | **86%** (956) | **86%** (968) | **85%** (992) | **85%** (1012) |
 
 ---
 
@@ -261,15 +261,15 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UINavigationItem` subtitles (`subtitle`, `largeSubtitle`, `attributedSubtitle`, `largeAttributedSubtitle`, `subtitleView`, `largeSubtitleView`), `largeTitle`, `attributedTitle` (`AttributedString` in Swift); `UINavigationBarAppearance.subtitleTextAttributes` / `largeSubtitleTextAttributes` | ✅ | 26.0 | adapted: inline, a 17 pt title over a 13 pt secondary subtitle centred in the bar row; under a large title a 15 pt subtitle (`largeSubtitle`, else the subtitle) and a 72 pt large title band; subtitle views sit where the text would. Font sizes and spacing are isim's estimate (not yet compared with a device). Tested (HelloModernBars) |
 | Search in toolbars (`searchBarPlacementAllowsToolbarIntegration`, `searchBarPlacementAllowsExternalIntegration`, `searchBarPlacementBarButtonItem`, `.integrated*` placements) | ❌ | 26.0 | |
 | `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloUITabs, per version: classic tabs on iOS 17) |
-| `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ❌ | 27.0 | |
+| `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ✅ | 27.0 | adapted: the lift delay is 0.5 s, `.extended` 0.75 s (isim's estimate) and a second finger cancels the lift; a pointer drag (iPad pointer touches, script `pointerdrag`) starts once the pointer moves unless `allowsPointerDragBeforeLiftDelay` is false (then it waits for the lift delay like a finger). Tested (HelloKit27) |
 | `NSTextTable`/`NSTextBlock` in UIKit, `UITextAttachmentViewProviderReusePolicy`, viewport rendering surfaces | ❌ | 27.0 | |
 | Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ❌ | 27.0 | |
-| `UIWindowScene.displayLink(target:selector:)` | ❌ | 27.0 | |
+| `UIWindowScene.displayLink(target:selector:)`, `displayLink(action:)` | ✅ | 27.0 | passthrough: isim has one display per device, so it is an ordinary `CADisplayLink` (add it to a run loop to start it); the closure form keeps its closure alive with the link. Tested (HelloKit27) |
 | `UINavigationItem.barMinimizeBehavior`, `barMinimizationSafeAreaAdjustment`, `UIBarButtonItem.visibilityPriority` | ❌ | 27.0 | the SwiftUI toolbar equivalents are implemented |
-| `UIMenuElement.subtitle`, `preferredImageVisibility`, `highlightStateUpdateHandler`; `UIContextMenuConfiguration.allowsTypeSelect` | ❌ | 27.0 | |
+| `UIMenuElement.subtitle`, `preferredImageVisibility`, `highlightStateUpdateHandler`; `UIContextMenuConfiguration.allowsTypeSelect` | ✅ | 27.0 | adapted: a subtitle is a second line (15 pt, secondary) and makes the row 58 pt; `.hidden` drops the image; the handler is told when a row is highlighted by touch or keyboard. Menus take a hardware keyboard: arrows move the highlight, Return chooses, Escape closes, letters type-select (unless `allowsTypeSelect` is false: then they reach the focused text field). `subtitle` itself is iOS 15. Tested (HelloKit27) |
 | `UITabBarController.prominentTabIdentifier`, `performBatchUpdates(_:)`, sidebar `preferredPlacement` / `isAvailable` / visibility callback | ❌ | 27.0 | |
-| `UILookToScrollInteraction` | ❌ | 27.0 | |
-| `UIImage.symbolWeight()`, `UIDocumentViewControllerLaunchOptions.subtitle` | ❌ | 27.0 | |
+| `UIFont.Weight.symbolWeight()`, `UIImage.SymbolWeight.fontWeight()` | ✅ | ≤17 | the nearest of the nine weights; `.unspecified` is regular. (iOS 13; listed under iOS 27 before.) Tested (HelloKit27) |
+| `UIDocumentViewController.LaunchOptions.subtitle` | ❌ | 27.0 | needs `UIDocument` / `UIDocumentViewController`, which isim does not have yet |
 | `UIArrangementViewController`, `UIView.ReservedRegion`, `UIHingeInteraction`, vertical bar placement | ❌ | 27.1 | iPhone Duo APIs (iOS 27.1 beta) |
 
 ### Layout
