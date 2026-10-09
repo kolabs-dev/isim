@@ -42,8 +42,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         log("device token \(hex) (\(deviceToken.count) bytes) registered=\(application.isRegisteredForRemoteNotifications)")
         vc.token.text = "Token \(hex.prefix(12))…"
     }
-    // isim's Swift importer keeps NSError parameters of Objective-C protocols as NSError (Apple bridges them to Error)
-    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: NSError) {
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         log("registration failed: \(error.localizedDescription)")
     }
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any],

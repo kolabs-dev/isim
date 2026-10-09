@@ -123,6 +123,31 @@ struct RetryError: RecoverableError {
     func attemptRecovery(optionIndex i: Int) -> Bool { i == 0 }
 }
 
+/// adopts NSItemProviderWriting with Apple's Swift signature: the block's NSError * comes in as Error? (issue #99)
+final class FailingWriter: NSObject, NSItemProviderWriting {
+    static var writableTypeIdentifiersForItemProvider: [String] { ["public.data"] }
+    func loadData(withTypeIdentifier typeIdentifier: String, forItemProviderCompletionHandler completionHandler: @escaping (Data?, Error?) -> Void) -> Progress? {
+        completionHandler(nil, ShopError.outOfStock("Tea"))
+        return nil
+    }
+}
+
+/// Objective-C NSError * parameters import as Error, as on iOS (issue #99)
+func nsErrorParameterChecks() {
+    let done = DispatchSemaphore(value: 0)
+    nonisolated(unsafe) var got: Error?
+    NSItemProvider(object: FailingWriter()).loadDataRepresentation(forTypeIdentifier: "public.data") { _, e in got = e; done.signal() }
+    done.wait()
+    if case .outOfStock(let what)? = got as? ShopError { check(what == "Tea", "Swift error through an Objective-C NSError * block keeps its type") }
+    else { check(false, "Swift error through an Objective-C NSError * block keeps its type (\(String(describing: got)))") }
+    let p = NSItemProvider()
+    p.registerDataRepresentation(forTypeIdentifier: "public.text", visibility: .all) { completion in completion(nil, NetError(status: 500)); return nil }
+    nonisolated(unsafe) var net: Error?
+    p.loadDataRepresentation(forTypeIdentifier: "public.text") { _, e in net = e; done.signal() }
+    done.wait()
+    check((net as? NetError)?.status == 500 && (net as NSError?)?.domain == "com.example.net", "Swift error passed to an NSError * argument (no as NSError)")
+}
+
 /// Swift errors bridged to NSError: domain/code/userInfo from Error, LocalizedError, CustomNSError and
 /// RecoverableError (the runtime's NSError box + Foundation._getErrorDefaultUserInfo), and back.
 func errorBridgingChecks() {
@@ -307,6 +332,7 @@ func errorBridgingChecks() {
         check(info.processorCount > 0 && info.physicalMemory > 0 && info.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0)), "ProcessInfo device facts")
         check(!info.isiOSAppOnMac && !info.isMacCatalystApp && info.environment["HOME"] != nil, "ProcessInfo.isiOSAppOnMac / environment")
         errorBridgingChecks()
+        nsErrorParameterChecks()
         codingChecks()
         classBridgingChecks()
         fileAttributeChecks()

@@ -9,6 +9,8 @@ Classes:
   SwiftBridge: Swift.Array
 - Name: NSDictionary
   SwiftBridge: Swift.Dictionary
+- Name: NSError
+  SwiftBridge: Swift.Error
 - Name: NSBundle
   SwiftName: Bundle
 - Name: NSProcessInfo
