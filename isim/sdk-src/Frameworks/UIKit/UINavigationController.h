@@ -74,6 +74,14 @@ NS_SWIFT_UI_ACTOR
 @interface UINavigationItem : NSObject
 - (instancetype)initWithTitle:(NSString *)title;
 @property (nullable, nonatomic, copy) NSString *title;
+/* iOS 26: a subtitle under the inline title, and under the large title (largeSubtitle, else subtitle); the view
+   variants replace the text */
+@property (nullable, nonatomic, copy) NSString *subtitle API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSAttributedString *attributedSubtitle API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT;
+@property (nullable, nonatomic, strong) UIView *subtitleView API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSString *largeSubtitle API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSAttributedString *largeAttributedSubtitle API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT;
+@property (nullable, nonatomic, strong) UIView *largeSubtitleView API_AVAILABLE(ios(26.0));
 @property (nullable, nonatomic, copy) NSString *prompt;
 @property (nullable, nonatomic, strong) UIView *titleView;
 @property (nullable, nonatomic, strong) UIBarButtonItem *backBarButtonItem;
@@ -310,6 +318,21 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_SWIFT_NAME(UITabBarController.Side
 - (BOOL)tabBarController:(UITabBarController *)tabBarController shouldSelectTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:shouldSelectTab:)) API_AVAILABLE(ios(18.0));
 - (void)tabBarController:(UITabBarController *)tabBarController didSelectTab:(UITab *)selectedTab previousTab:(nullable UITab *)previousTab NS_SWIFT_NAME(tabBarController(_:didSelectTab:previousTab:)) API_AVAILABLE(ios(18.0));
 @end
+/* iOS 26: the floating tab bar can minimize to the selected tab while the content scrolls, and carry an accessory (a
+   glass capsule above it, or beside it when minimized). isim (adapted): .automatic behaves like .never on iPhone. */
+typedef NS_ENUM(NSInteger, UITabBarMinimizeBehavior) {
+    UITabBarMinimizeBehaviorAutomatic = 0,
+    UITabBarMinimizeBehaviorNever,
+    UITabBarMinimizeBehaviorOnScrollDown,
+    UITabBarMinimizeBehaviorOnScrollUp,
+} NS_SWIFT_NAME(UITabBarController.MinimizeBehavior) API_AVAILABLE(ios(26.0));
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0))
+@interface UITabAccessory : NSObject
+- (instancetype)initWithContentView:(UIView *)contentView NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+@property (nonatomic, readonly, strong) UIView *contentView;
+@end
 NS_SWIFT_UI_ACTOR
 @interface UITabBarController : UIViewController <UITabBarDelegate>
 @property (nullable, nonatomic, copy) NSArray<__kindof UIViewController *> *viewControllers;
@@ -327,6 +350,12 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UITabBarControllerSidebar *sidebar API_AVAILABLE(ios(18.0));
 @property (nonatomic, getter=isTabBarHidden) BOOL tabBarHidden API_AVAILABLE(ios(18.0));
 - (void)setTabBarHidden:(BOOL)hidden animated:(BOOL)animated API_AVAILABLE(ios(18.0));
+/* iOS 26 */
+@property (nonatomic) UITabBarMinimizeBehavior tabBarMinimizeBehavior API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, strong) UITabAccessory *bottomAccessory API_AVAILABLE(ios(26.0));
+- (void)setBottomAccessory:(nullable UITabAccessory *)bottomAccessory animated:(BOOL)animated API_AVAILABLE(ios(26.0));
+/* the area of the view beside the sidebar (iPad); the whole view otherwise */
+@property (nonatomic, readonly, strong) UILayoutGuide *contentLayoutGuide API_AVAILABLE(ios(26.0));
 @end
 
 @interface UIViewController (UIContainers)

@@ -677,3 +677,16 @@ extension UIViewController.Transition {
         __zoom(with: options, sourceViewProvider: sourceViewProvider)
     }
 }
+
+// iOS 26 navigation subtitles: attributed variants as AttributedString (Apple's Swift API)
+@available(iOS 26.0, *)
+extension UINavigationItem {
+    public var attributedSubtitle: AttributedString? {
+        get { __attributedSubtitle.map { AttributedString($0) } }
+        set { __attributedSubtitle = newValue.map { NSAttributedString($0) } }
+    }
+    public var largeAttributedSubtitle: AttributedString? {
+        get { __largeAttributedSubtitle.map { AttributedString($0) } }
+        set { __largeAttributedSubtitle = newValue.map { NSAttributedString($0) } }
+    }
+}

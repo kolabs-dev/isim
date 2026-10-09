@@ -61,6 +61,10 @@ API_AVAILABLE(ios(17.0)) @interface UITraitUserInterfaceLevel : NSObject <UITrai
 API_AVAILABLE(ios(17.0)) @interface UITraitLegibilityWeight : NSObject <UITraitDefinition> @end
 API_AVAILABLE(ios(17.0)) @interface UITraitActiveAppearance : NSObject <UITraitDefinition> @end
 API_AVAILABLE(ios(18.0)) @interface UITraitListEnvironment : NSObject <UITraitDefinition> @end
+/* iOS 26: where a tab bar accessory's content is shown (regular: above the tab bar; inline: beside a minimized one) */
+typedef NS_ENUM(NSInteger, UITabAccessoryEnvironment) { UITabAccessoryEnvironmentUnspecified = 0, UITabAccessoryEnvironmentNone,
+    UITabAccessoryEnvironmentRegular, UITabAccessoryEnvironmentInline } NS_SWIFT_NAME(UITabAccessory.Environment) API_AVAILABLE(ios(26.0));
+API_AVAILABLE(ios(26.0)) @interface UITraitTabAccessoryEnvironment : NSObject <UITraitDefinition> @end
 
 /* writable traits: the block of +traitCollectionWithTraits: and traitOverrides */
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
@@ -108,6 +112,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
 @property (nonatomic, readonly) UIUserInterfaceLevel userInterfaceLevel;
 @property (nonatomic, readonly) UIUserInterfaceActiveAppearance activeAppearance API_AVAILABLE(ios(14.0));
 @property (nonatomic, readonly) UIListEnvironment listEnvironment API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly) UITabAccessoryEnvironment tabAccessoryEnvironment API_AVAILABLE(ios(26.0));
 + (UITraitCollection *)traitCollectionWithUserInterfaceStyle:(UIUserInterfaceStyle)style;
 + (UITraitCollection *)traitCollectionWithUserInterfaceIdiom:(UIUserInterfaceIdiom)idiom;
 + (UITraitCollection *)traitCollectionWithHorizontalSizeClass:(UIUserInterfaceSizeClass)horizontalSizeClass;

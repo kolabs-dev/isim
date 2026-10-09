@@ -15,6 +15,7 @@
 @end
 @interface UINavigationBar (IsimNav)
 - (BOOL)_isim_topIsLarge;
+- (CGFloat)_isim_largeHeight;
 @end
 @interface UITabBarController (IsimNav)
 - (void)_isim_updateTabBar; - (void)_isim_layoutContainer;
@@ -289,6 +290,14 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 - (instancetype)initWithTitle:(NSString *)t { if ((self = [self init])) _title = [t copy]; return self; }
 - (void)setSearchController:(UISearchController *)s { _searchController = s; bar_item_changed(self); }
 - (void)setTitle:(NSString *)t { _title = [t copy]; bar_item_changed(self); }
+- (void)setSubtitle:(NSString *)t { _subtitle = [t copy]; bar_item_changed(self); }
+- (void)setAttributedSubtitle:(NSAttributedString *)t { _attributedSubtitle = [t copy]; bar_item_changed(self); }
+- (void)setSubtitleView:(UIView *)v { _subtitleView = v; bar_item_changed(self); }
+- (void)setLargeSubtitle:(NSString *)t { _largeSubtitle = [t copy]; bar_item_changed(self); }
+- (void)setLargeAttributedSubtitle:(NSAttributedString *)t { _largeAttributedSubtitle = [t copy]; bar_item_changed(self); }
+- (void)setLargeSubtitleView:(UIView *)v { _largeSubtitleView = v; bar_item_changed(self); }
+- (BOOL)_isim_hasSubtitle { return _subtitle.length || _attributedSubtitle.length || _subtitleView; }
+- (BOOL)_isim_hasLargeSubtitle { return _largeSubtitle.length || _largeAttributedSubtitle.length || _largeSubtitleView || [self _isim_hasSubtitle]; }
 - (void)setTitleView:(UIView *)v { _titleView = v; bar_item_changed(self); }
 - (void)setPrompt:(NSString *)p { _prompt = [p copy]; bar_item_changed(self); }
 - (void)setBackButtonTitle:(NSString *)t { _backButtonTitle = [t copy]; bar_item_changed(self); }
@@ -483,7 +492,12 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
 @interface UIToolbar (IsimEdge)
 @property (nonatomic, weak) UIScrollView *_isim_edgeScrollView;
 @end
+@interface UINavigationItem (IsimSubtitle)
+- (BOOL)_isim_hasSubtitle;
+- (BOOL)_isim_hasLargeSubtitle;
+@end
 @implementation UINavigationBar { NSMutableArray<UINavigationItem *> *_stack; __IsimBarBackground *_bg; UILabel *_title, *_large; __IsimBackButton *_back; UIView *_largeClip;
+                                  UILabel *_subtitle, *_largeSub; UIView *_subtitleHost, *_largeSubHost;   /* iOS 26 subtitles */
                                   NSMutableArray<UIView *> *_itemViews; UIView *_titleViewHost; }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
@@ -492,6 +506,8 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         _largeClip = [UIView new]; _largeClip.clipsToBounds = YES; _largeClip.userInteractionEnabled = NO; [self addSubview:_largeClip];
         _large = [UILabel new]; _large.font = [UIFont systemFontOfSize:34 weight:UIFontWeightBold]; [_largeClip addSubview:_large];
         _title = [UILabel new]; _title.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold]; _title.textAlignment = NSTextAlignmentCenter; [self addSubview:_title];
+        _subtitle = [UILabel new]; _subtitle.font = [UIFont systemFontOfSize:13]; _subtitle.textAlignment = NSTextAlignmentCenter; _subtitle.hidden = YES; [self addSubview:_subtitle];
+        _largeSub = [UILabel new]; _largeSub.font = [UIFont systemFontOfSize:17]; _largeSub.hidden = YES; [_largeClip addSubview:_largeSub];
         _back = [__IsimBackButton new]; _back.accessibilityIdentifier = @"nav-back";
         [_back addTarget:self action:@selector(_isim_backTapped) forControlEvents:UIControlEventTouchUpInside]; [self addSubview:_back];
         _standardAppearance = [UINavigationBarAppearance new];
@@ -537,6 +553,8 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
     [t configureWithTransparentBackground];
     return t;
 }
+/* the large title's band: 52, plus 22 for a large subtitle (iOS 26) */
+- (CGFloat)_isim_largeHeight { return 52 + ([self.topItem _isim_hasLargeSubtitle] ? 22 : 0); }
 - (void)setPrefersLargeTitles:(BOOL)p { _prefersLargeTitles = p; [self setNeedsLayout]; [self.superview setNeedsLayout]; }
 /* large titles: Always/Never on the item, Automatic inherits from the item below (the root follows prefersLargeTitles) */
 - (BOOL)_isim_topIsLarge {
@@ -606,13 +624,46 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
         _title.text = item.title; _title.textColor = [self _isim_titleColor:NO]; _title.font = [self _isim_titleFont:NO];
         _title.frame = CGRectMake(side + ap.titlePositionAdjustment.horizontal, y + ap.titlePositionAdjustment.vertical, fmax(0, W - 2 * side), 44);
         _title.alpha = large ? (extra < 6 ? 1 : 0) : 1;
+        BOOL sub = [item _isim_hasSubtitle];                    /* iOS 26: the subtitle under the inline title */
+        [_subtitleHost removeFromSuperview]; _subtitleHost = nil;
+        _subtitle.hidden = !sub || item.subtitleView;
+        if (sub) {
+            CGRect t = _title.frame;
+            _title.frame = CGRectMake(t.origin.x, t.origin.y + 3, t.size.width, 22);
+            CGRect sr = CGRectMake(t.origin.x, t.origin.y + 24, t.size.width, 16);
+            if (item.subtitleView) {
+                UIView *sv = item.subtitleView; CGSize ss = CGSizeEqualToSize(sv.bounds.size, CGSizeZero) ? [sv sizeThatFits:sr.size] : sv.bounds.size;
+                sv.frame = CGRectMake(CGRectGetMidX(sr) - fmin(ss.width, sr.size.width) / 2, sr.origin.y, fmin(ss.width, sr.size.width), fmin(ss.height, 18));
+                sv.alpha = _title.alpha; [self addSubview:sv]; _subtitleHost = sv;
+            } else {
+                if (item.attributedSubtitle.length) _subtitle.attributedText = item.attributedSubtitle;
+                else { _subtitle.attributedText = nil; _subtitle.text = item.subtitle; _subtitle.textColor = UIColor.secondaryLabelColor; }
+                _subtitle.frame = sr; _subtitle.alpha = _title.alpha;
+            }
+        }
     }
     /* the large title sits in the band below the bar row and slides up under it as content scrolls */
     _largeClip.hidden = !large || extra <= 0;
     if (large) {
         _largeClip.frame = CGRectMake(0, y + 44, W, extra);
         _large.text = item.title; _large.textColor = [self _isim_titleColor:YES]; _large.font = [self _isim_titleFont:YES];
-        _large.frame = CGRectMake(margin, extra - 52, W - 2 * margin, 50);
+        CGFloat LH = [self _isim_largeHeight];
+        _large.frame = CGRectMake(margin, extra - LH, W - 2 * margin, 50);
+        [_largeSubHost removeFromSuperview]; _largeSubHost = nil;
+        BOOL lsub = [item _isim_hasLargeSubtitle];              /* iOS 26: the subtitle under the large title, leading */
+        UIView *lv = item.largeSubtitleView ?: (item.largeSubtitle.length || item.largeAttributedSubtitle.length ? nil : item.subtitleView);
+        _largeSub.hidden = !lsub || lv;
+        CGRect lr = CGRectMake(margin, extra - LH + 48, W - 2 * margin, 20);
+        if (lsub && lv) {
+            CGSize ls = CGSizeEqualToSize(lv.bounds.size, CGSizeZero) ? [lv sizeThatFits:lr.size] : lv.bounds.size;
+            lv.frame = CGRectMake(lr.origin.x, lr.origin.y, fmin(ls.width, lr.size.width), fmin(ls.height, 20));
+            [_largeClip addSubview:lv]; _largeSubHost = lv;
+        } else if (lsub) {
+            NSAttributedString *la = item.largeAttributedSubtitle.length ? item.largeAttributedSubtitle : item.largeSubtitle.length ? nil : item.attributedSubtitle;
+            if (la.length) _largeSub.attributedText = la;
+            else { _largeSub.attributedText = nil; _largeSub.text = item.largeSubtitle.length ? item.largeSubtitle : item.subtitle; _largeSub.textColor = UIColor.secondaryLabelColor; }
+            _largeSub.frame = lr;
+        }
     }
     if ([self _isim_isRTL]) {                          /* right to left: back and leading items on the right */
         if (showBack) _back.frame = isim_ui_mirror_rect(_back.frame, W);
@@ -701,6 +752,7 @@ static char k_toolbar_edge;
 @property (nonatomic, strong) UITabBarItem *item;
 @property (nonatomic) BOOL on;
 @property (nonatomic) int mode;                /* tabbar_mode() */
+@property (nonatomic) BOOL iconOnly;           /* iOS 26: the minimized tab bar's selected tab */
 @property (nonatomic, strong) UIColor *onColor, *offColor;
 @end
 @interface UIBarItem (IsimAttrs)
@@ -720,6 +772,13 @@ static char k_toolbar_edge;
         UIFont *f = [self _f:[UIFont systemFontOfSize:15 weight:self.on ? UIFontWeightSemibold : UIFontWeightMedium]];
         CGSize ts = isim_ui_measure(self.item.title ?: @"", f, s.width - 8, 1);
         isim_ui_draw_text(self.item.title ?: @"", f, [self _c:self.on ? self.onColor : UIColor.labelColor], CGRectMake(4, (s.height - ts.height) / 2, s.width - 8, ts.height), NSTextAlignmentCenter, 1, a);
+        return;
+    }
+    if (self.mode == 1 && self.iconOnly) {     /* the minimized bar: the selected tab's symbol in the circle */
+        if (img) {
+            CGSize i = img.size; double k = 26 / fmax(1, fmax(i.width, i.height));
+            [img _isim_drawInRect:CGRectMake((s.width - i.width * k) / 2, (s.height - i.height * k) / 2, i.width * k, i.height * k) tint:c alpha:a];
+        }
         return;
     }
     if (self.mode == 1) {                     /* iOS 26 floating tab bar: the selected tab sits on a lighter pill */
@@ -757,7 +816,15 @@ static char k_toolbar_edge;
 }
 @end
 
-@implementation UITabBar { __IsimBarBackground *_bg; NSMutableArray<__IsimTabButton *> *_buttons; }
+@interface UITabBar (IsimMinimized)
+@property (nonatomic, setter=_isim_setMinimized:) BOOL _isim_minimized;
+@end
+@protocol __IsimTabBarExpanding
+- (void)_isim_expandTabBar;
+@end
+@implementation UITabBar { __IsimBarBackground *_bg; NSMutableArray<__IsimTabButton *> *_buttons; BOOL _minimized; }
+- (BOOL)_isim_minimized { return _minimized; }
+- (void)_isim_setMinimized:(BOOL)m { if (m != _minimized) { _minimized = m; [self setNeedsLayout]; isim_ui_set_needs_display(); } }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
         _buttons = [NSMutableArray array]; _translucent = YES;
@@ -788,10 +855,18 @@ static char k_toolbar_edge;
     CGRect area = mode == 1 ? [self _isim_capsule] : self.bounds;
     if (mode) area = CGRectInset(area, 4, 4);
     CGFloat w = area.size.width / fmax(1, items.count);
+    BOOL mini = mode == 1 && _minimized;
     for (NSUInteger i = 0; i < items.count; i++) {
         __IsimTabButton *b = _buttons[i];
         isim_ui_apply_bar_item_appearance(items[i], self);    /* UITabBarItem.appearance() */
         b.item = items[i]; b.on = items[i] == _selectedItem; b.mode = mode;
+        b.iconOnly = mini && b.on; b.hidden = mini && !b.on;
+        if (mini) {                                         /* minimized: only the selected tab, in a circle */
+            b.onColor = self.tintColor ?: UIColor.systemBlueColor;
+            b.frame = area; b.accessibilityIdentifier = [@"tab-" stringByAppendingString:((UITabBarItem *)items[i]).title ?: [@(i) stringValue]];
+            [b setNeedsDisplay];
+            continue;
+        }
         b.onColor = self.tintColor ?: UIColor.systemBlueColor; b.offColor = _unselectedItemTintColor ?: UIColor.systemGrayColor;
         b.frame = mode ? CGRectMake(area.origin.x + i * w, area.origin.y, w, area.size.height) : CGRectMake(i * w, 0, w, 49);
         b.accessibilityIdentifier = [@"tab-" stringByAppendingString:((UITabBarItem *)items[i]).title ?: [@(i) stringValue]];
@@ -799,7 +874,11 @@ static char k_toolbar_edge;
     }
 }
 /* iOS 26 iPhone: the bar floats as a capsule inset from the screen edges, above the home indicator */
-- (CGRect)_isim_capsule { CGSize s = self.bounds.size; CGFloat inset = s.width > 600 ? (s.width - 560) / 2 : 21; return CGRectMake(inset, 0, s.width - 2 * inset, 62); }
+- (CGRect)_isim_capsule {
+    CGSize s = self.bounds.size; CGFloat inset = s.width > 600 ? (s.width - 560) / 2 : 21;
+    if (_minimized) return CGRectMake(inset, 0, 62, 62);      /* minimized: a circle at the leading edge */
+    return CGRectMake(inset, 0, s.width - 2 * inset, 62);
+}
 - (void)_isim_drawContent {
     int mode = tabbar_mode();
     if (mode == 1) { CGRect c = [self _isim_capsule]; isim_ui_draw_glass(c, c.size.height / 2, nil, 0); }
@@ -814,6 +893,10 @@ static char k_toolbar_edge;
     }
 }
 - (void)_isim_tapped:(__IsimTabButton *)b {
+    if (_minimized && tabbar_mode() == 1 && [self.delegate respondsToSelector:@selector(_isim_expandTabBar)]) {   /* a tap expands it */
+        [(id<__IsimTabBarExpanding>)self.delegate _isim_expandTabBar];
+        return;
+    }
     self.selectedItem = b.item;
     if ([self.delegate respondsToSelector:@selector(tabBar:didSelectItem:)]) [self.delegate tabBar:self didSelectItem:b.item];
 }
@@ -920,7 +1003,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 - (void)setToolbarHidden:(BOOL)h animated:(BOOL)a { _toolbarHidden = h; _toolbar.hidden = h; [self.viewIfLoaded setNeedsLayout]; [self _isim_updateInsets]; }
 
 /* the bar's height below the status bar: 44, plus 52 for a large title */
-- (CGFloat)_isim_barContent { return (_navigationBarHidden ? 0 : 44 + ([_bar _isim_topIsLarge] ? 52 : 0)) + [self _isim_searchBarHeight]; }
+- (CGFloat)_isim_barContent { return (_navigationBarHidden ? 0 : 44 + ([_bar _isim_topIsLarge] ? [_bar _isim_largeHeight] : 0)) + [self _isim_searchBarHeight]; }
 - (CGFloat)_isim_toolbarContent { return _toolbarHidden ? 0 : 44; }
 - (void)_isim_updateInsets {
     for (UIViewController *vc in _stack) vc.additionalSafeAreaInsets = UIEdgeInsetsMake([self _isim_barContent], 0, [self _isim_toolbarContent], 0);
@@ -948,9 +1031,9 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     /* a search bar below the title collapses first (hidesSearchBarWhenScrolling), then the large title */
     CGFloat searchH = [self _isim_searchBarHeight], search = searchH;
     if (searchH > 0 && self.topViewController.navigationItem.hidesSearchBarWhenScrolling) { search = fmin(searchH, fmax(0, searchH - y)); y = fmax(0, y - searchH); }
-    CGFloat extra = large ? fmin(52, fmax(0, 52 - y)) : 0;
+    CGFloat LH = [_bar _isim_largeHeight], extra = large ? fmin(LH, fmax(0, LH - y)) : 0;
     _bar._isim_safeTop = safeTop; _bar._isim_largeExtra = extra; _bar._isim_searchExtra = search;
-    _bar._isim_scrolledEdge = large ? y > 52 - 0.5 : y > 0.5;
+    _bar._isim_scrolledEdge = large ? y > LH - 0.5 : y > 0.5;
     _bar._isim_edgeScrollView = sv; if (_toolbar) _toolbar._isim_edgeScrollView = sv;
     _bar.frame = CGRectMake(0, 0, W, safeTop + 44 + extra + search);
     [_bar setNeedsLayout]; [_bar layoutIfNeeded];
@@ -1246,12 +1329,106 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 /* iOS 18 tabs: tabs / UITabGroup build the bar (top-level tabs; a group shows its selected child in a managing
    navigation controller). On iPad with mode .tabSidebar the sidebar lists the tabs and the groups' children (iOS 26:
    a floating glass panel) and the tab bar hides; UIBackgroundExtensionView content reaches under it. */
+/* ================= iOS 26 tab bar accessory ================= */
+@implementation UITabAccessory
+- (instancetype)initWithContentView:(UIView *)v { if ((self = [super init])) _contentView = v; return self; }
+@end
+/* the glass capsule that holds the accessory's content view */
+@interface __IsimTabAccessoryView : UIView
+@property (nonatomic, strong) UIView *content;
+@end
+@implementation __IsimTabAccessoryView
+- (void)layoutSubviews { [super layoutSubviews]; self.content.frame = CGRectInset(self.bounds, 16, 0); }
+- (void)_isim_drawContent { CGSize s = self.bounds.size; isim_ui_draw_glass(CGRectMake(0, 0, s.width, s.height), s.height / 2, nil, 0); }
+@end
+
 @implementation UITabBarController { UITabBar *_bar; NSArray *_vcs; NSUInteger _sel; BOOL _barHidden;
+    UITabBarMinimizeBehavior _minimizeBehavior; UITabAccessory *_accessory; __IsimTabAccessoryView *_accessoryView; BOOL _minimized;
+    UILayoutGuide *_contentGuide; id _scrollObserver; NSMapTable *_lastScroll;
     NSArray<UITab *> *_tabs, *_barTabs; UITab *_selectedTab; UITabBarControllerSidebar *_sidebar; __IsimSidebar *_sidebarView;
     BOOL _tabBarHiddenFlag, _settingTabs; UITabBarControllerMode _mode; }
 - (instancetype)initWithNibName:(NSString *)n bundle:(NSBundle *)b {
-    if ((self = [super initWithNibName:n bundle:b])) { _bar = [[UITabBar alloc] initWithFrame:CGRectZero]; _bar.delegate = self; _vcs = @[]; }
+    if ((self = [super initWithNibName:n bundle:b])) {
+        _bar = [[UITabBar alloc] initWithFrame:CGRectZero]; _bar.delegate = self; _vcs = @[];
+        _lastScroll = [NSMapTable weakToStrongObjectsMapTable];
+        __weak UITabBarController *weakSelf = self;    /* iOS 26 minimizing: the selected tab's content scrolled by the user */
+        _scrollObserver = [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimScrollViewDidScroll" object:nil queue:nil usingBlock:^(NSNotification *note) {
+            [weakSelf _isim_contentScrolled:note.object];
+        }];
+    }
     return self;
+}
+- (void)dealloc { if (_scrollObserver) [NSNotificationCenter.defaultCenter removeObserver:_scrollObserver]; }
+/* ---- iOS 26: minimizing and the bottom accessory ---- */
+- (UITabBarMinimizeBehavior)tabBarMinimizeBehavior { return _minimizeBehavior; }
+- (void)setTabBarMinimizeBehavior:(UITabBarMinimizeBehavior)b {
+    _minimizeBehavior = b;
+    if (b != UITabBarMinimizeBehaviorOnScrollDown && b != UITabBarMinimizeBehaviorOnScrollUp) [self _isim_setMinimized:NO];
+}
+- (void)_isim_contentScrolled:(UIScrollView *)sv {
+    UIView *content = self.selectedViewController.viewIfLoaded;
+    if (![sv isKindOfClass:[UIScrollView class]] || !content || ![sv isDescendantOfView:content]) return;
+    CGFloat y = sv.contentOffset.y; NSNumber *last = [_lastScroll objectForKey:sv];
+    [_lastScroll setObject:@(y) forKey:sv];
+    BOOL down = _minimizeBehavior == UITabBarMinimizeBehaviorOnScrollDown;
+    if ((!down && _minimizeBehavior != UITabBarMinimizeBehaviorOnScrollUp) || tabbar_mode() != 1 || !last) return;
+    CGFloat dy = y - last.doubleValue;
+    if (fabs(dy) <= 0.5 || !(sv.isDragging || sv.isTracking)) return;   /* the user's scrolling, not momentum after an expand */
+    [self _isim_setMinimized:down == (dy > 0) && y + sv.adjustedContentInset.top > 10];
+}
+- (void)_isim_setMinimized:(BOOL)m {
+    if (m == _minimized) return;
+    _minimized = m;
+    NSLog(@"isim: tab bar %@", m ? @"minimized" : @"expanded");
+    [self _isim_updateTabBar];                                     /* the accessory's safe-area inset */
+    [UIView animateWithDuration:0.35 delay:0 usingSpringWithDamping:0.86 initialSpringVelocity:0 options:0 animations:^{
+        self->_bar._isim_minimized = m;
+        [self->_bar layoutIfNeeded];
+        [self _isim_layoutContainer];
+    } completion:nil];
+}
+- (void)_isim_expandTabBar { [self _isim_setMinimized:NO]; }
+- (UITabAccessory *)bottomAccessory { return _accessory; }
+- (void)setBottomAccessory:(UITabAccessory *)a { [self setBottomAccessory:a animated:NO]; }
+- (void)setBottomAccessory:(UITabAccessory *)a animated:(BOOL)animated {
+    if (a == _accessory) return;
+    [_accessory.contentView removeFromSuperview];
+    _accessory = a;
+    if (a && !_accessoryView) { _accessoryView = [__IsimTabAccessoryView new]; _accessoryView.accessibilityIdentifier = @"isim-tab-accessory"; }
+    _accessoryView.content = a.contentView;
+    if (a.contentView) [_accessoryView addSubview:a.contentView];
+    [self _isim_updateTabBar];
+    if (animated && self.viewIfLoaded.window) {
+        _accessoryView.alpha = 0;
+        [UIView animateWithDuration:0.3 animations:^{ self->_accessoryView.alpha = 1; }];
+    }
+}
+- (UILayoutGuide *)contentLayoutGuide {
+    if (!_contentGuide) {
+        _contentGuide = [UILayoutGuide new];
+        __weak UITabBarController *weakSelf = self;
+        [_contentGuide _isim_setFrameProvider:^CGRect {
+            UITabBarController *c = weakSelf; UIView *v = c.viewIfLoaded;
+            if (!v) return CGRectZero;
+            CGFloat side = [c _isim_sidebarWidth];
+            return CGRectMake(side, 0, v.bounds.size.width - side, v.bounds.size.height);
+        }];
+        [self.view addLayoutGuide:_contentGuide];
+    }
+    return _contentGuide;
+}
+/* the accessory's frame (expanded: a capsule above the bar; minimized: beside the bar's circle), or CGRectNull */
+- (CGRect)_isim_accessoryFrame {
+    UIView *host = self.viewIfLoaded;
+    if (!_accessory || _barHidden || !host) return CGRectNull;
+    CGFloat W = host.bounds.size.width, inset = W > 600 ? (W - 560) / 2 : 21;
+    int mode = tabbar_mode();
+    if (mode == 1) {
+        CGFloat top = _bar.frame.origin.y;
+        return _minimized ? CGRectMake(inset + 62 + 10, top + 7, W - 2 * inset - 62 - 10, 48) : CGRectMake(inset, top - 8 - 48, W - 2 * inset, 48);
+    }
+    CGFloat bottom = host.window ? isim_ui_safe_insets_for_rect(host, [host convertRect:host.bounds toView:nil]).bottom : isim_ui_device()->safe_bottom;
+    return CGRectMake(inset, host.bounds.size.height - bottom - (mode >= 2 ? 56 : 49 + 56), W - 2 * inset, 48);
 }
 - (void)loadView {
     __IsimContainerView *v = [[__IsimContainerView alloc] initWithFrame:UIScreen.mainScreen.bounds];
@@ -1442,7 +1619,8 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
     _barHidden = hide;
     _bar.hidden = hide;
     int mode = tabbar_mode();                 /* iPad top bar (iOS 18+): sits in the navigation bar row, no bottom inset */
-    for (UIViewController *c in _vcs) c.additionalSafeAreaInsets = UIEdgeInsetsMake(0, 0, hide || mode >= 2 ? 0 : 49, 0);
+    CGFloat acc = _accessory && !hide && !_minimized ? 56 : 0;          /* iOS 26: content stays clear of the accessory */
+    for (UIViewController *c in _vcs) c.additionalSafeAreaInsets = UIEdgeInsetsMake(0, 0, (hide || mode >= 2 ? 0 : 49) + acc, 0);
     [self.viewIfLoaded setNeedsLayout];
 }
 - (void)_isim_layoutContainer {
@@ -1457,6 +1635,16 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
         _bar.frame = CGRectMake(round((W - bw) / 2), safeTop + 3, bw, 44);
     } else _bar.frame = CGRectMake(0, H - 49 - safeBottom, W, 49 + safeBottom);
     [host bringSubviewToFront:_bar];
+    CGRect af = [self _isim_accessoryFrame];
+    if (CGRectIsNull(af)) [_accessoryView removeFromSuperview];
+    else {
+        if (_accessoryView.superview != host) [host addSubview:_accessoryView];
+        [host bringSubviewToFront:_accessoryView];
+        _accessoryView.frame = af;
+        UITabAccessoryEnvironment env = _minimized && tabbar_mode() == 1 ? UITabAccessoryEnvironmentInline : UITabAccessoryEnvironmentRegular;
+        if (_accessory.contentView.traitCollection.tabAccessoryEnvironment != env)
+            [_accessory.contentView.traitOverrides setNSIntegerValue:env forTrait:[UITraitTabAccessoryEnvironment class]];
+    }
     CGFloat side = [self _isim_sidebarWidth];
     self.selectedViewController.viewIfLoaded.frame = CGRectMake(side, 0, W - side, H);
     [self _isim_layoutSidebar];
