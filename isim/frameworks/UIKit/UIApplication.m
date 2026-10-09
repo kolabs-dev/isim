@@ -790,6 +790,25 @@ static BOOL view_gets_touch(UITouch *t) {
     return t == cur_touch || t.view != cur_touch.view || t.view.multipleTouchEnabled;
 }
 static BOOL synthesizing;
+/* Both fingers' moves of one frame (a scripted two-finger gesture, an Option-drag) arrive as two events, finger 0's
+ * first, and under the shell not always in the same batch of events. On iOS they come in one UIEvent: the run loop holds
+ * finger 0's move until the next event and, when that is finger 1's move, moves finger 1 first (premove_second_finger),
+ * so recognizers never see one finger moved and the other not (with the distance and angle between them off by a whole
+ * step: a stray pinch or rotation when a late frame makes the step big, issue #35). */
+static UITouch *premoved;                        /* finger 1, already at its new location for finger 0's move */
+static struct isim_event held_move;              /* finger 0's move, until the next event (run_loop_once) */
+static BOOL holding;
+static double held_at;
+static BOOL holds_first_finger_move(const struct isim_event *ev) {
+    return ev->type == ISIM_EV_TOUCH_MOVE && ev->pad != 1 && active_touches[@0] && active_touches[@1];
+}
+static void premove_second_finger(const struct isim_event *ev) {
+    UITouch *t = active_touches[@1];
+    if (ev->type != ISIM_EV_TOUCH_MOVE || ev->pad != 1 || !t) return;
+    CGRect wf = t.window.frame;
+    [t _isim_setPhase:UITouchPhaseMoved location:CGPointMake(ev->x - wf.origin.x, ev->y - wf.origin.y) time:ev->timestamp];
+    premoved = t;
+}
 static void handle_touch(const struct isim_event *ev) {
     if (!synthesizing && isim_ui_touch_filtered(ev)) return;              /* VoiceOver, drag sessions (UIKitInputPrivate.h) */
     CGPoint p = CGPointMake(ev->x, ev->y);
@@ -849,8 +868,9 @@ static void handle_touch(const struct isim_event *ev) {
     if (!t) return;
     UITouchPhase phase = ev->type == ISIM_EV_TOUCH_DOWN ? UITouchPhaseBegan : ev->type == ISIM_EV_TOUCH_MOVE ? UITouchPhaseMoved : UITouchPhaseEnded;
     CGRect wf = t.window.frame;
-    [t _isim_setPhase:phase location:CGPointMake(p.x - wf.origin.x, p.y - wf.origin.y) time:ev->timestamp];
-    for (UITouch *o in active_touches.allValues) if (o != t) [o _isim_setStationary];
+    if (t == premoved && phase == UITouchPhaseMoved) premoved = nil;     /* moved already (with finger 0's move) */
+    else [t _isim_setPhase:phase location:CGPointMake(p.x - wf.origin.x, p.y - wf.origin.y) time:ev->timestamp];
+    for (UITouch *o in active_touches.allValues) if (o != t && o != premoved) [o _isim_setStationary];
     UIEvent *e = [[UIEvent alloc] initWithIsimTouches:all_touches()];
     cur_event = e;
     NSSet *set = [NSSet setWithObject:t];
@@ -1533,8 +1553,11 @@ static void run_loop_once(void) {
         double timeout = next < 0.5 ? next : 0.5;
         if ((isim_ui_animations_running() || isim_ui_display_links_active() || isim_ui_update_links_active()) && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
         { extern double isim_main_next_due(void); double due = isim_main_next_due(); if (due < timeout) timeout = due; }   /* blocks queued while rendering run right away */
+        if (holding && timeout > 0.05) timeout = 0.05;
         struct isim_event ev;
         for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {
+            if (holding) { holding = NO; premove_second_finger(&ev); handle_touch(&held_move); }
+            if (holds_first_finger_move(&ev)) { held_move = ev; holding = YES; held_at = isim_time(); continue; }
             switch (ev.type) {
             case ISIM_EV_QUIT: quit_requested = YES; break;
             case ISIM_EV_TOUCH_DOWN: case ISIM_EV_TOUCH_MOVE: case ISIM_EV_TOUCH_UP: handle_touch(&ev); break;
@@ -1560,8 +1583,10 @@ static void run_loop_once(void) {
                 for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
             default: break;
             }
+            premoved = nil;                      /* (finger 1's move did not reach its touch: a touch filter took it) */
             if (quit_requested) break;
         }
+        if (holding && isim_time() - held_at > 0.25) { holding = NO; handle_touch(&held_move); }   /* no event followed */
     }
 }
 /* a nested main loop until done() (or quit): the paste permission prompt waits for its answer like iOS's blocking one */
