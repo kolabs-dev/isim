@@ -141,10 +141,12 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
   UIKit (`tests/ui/test_kit27.py`): `UIMenuElement.preferredImageVisibility` / `highlightStateUpdateHandler`,
   `UIContextMenuConfiguration.allowsTypeSelect`, `UIWindowScene.displayLink`, `UIDragInteraction.liftBehavior` /
   `allowsPointerDragBeforeLiftDelay`;
+- iOS 27.1 (beta), the APIs for foldable iPhones (`tests/ui/test_arrangements.py`, under `--os 27.1`): arrangement
+  view controllers, reserved regions, the hinge interaction and the vertical bar, as they behave on a device that
+  does not fold (isim has no foldable preset: Apple has published no specifications);
 - not done (listed as ❌ in [COVERAGE.md](COVERAGE.md)): `ReadableDocument`/`WritableDocument`, `reorderable()`,
   `reorderContainer`, the `@State` macro / `ContentBuilder`
-  (Xcode 27 compiler features), gesture input kinds, UIKit `NSTextTable` family, attachment view reuse; iOS 27.1
-  (beta) iPhone Duo APIs (arrangement views, reserved regions, hinge, vertical bars);
+  (Xcode 27 compiler features), gesture input kinds, UIKit `NSTextTable` family, attachment view reuse;
 - **not done: iOS 27 visuals.** Apple describes an updated Liquid Glass appearance and a tint slider without
   specifications isim could reproduce faithfully, so `--os 27` uses the iOS 26 look. iOS 27 also requires apps
   built with the iOS 27 SDK to adopt the scene-based life cycle; isim does not enforce that.

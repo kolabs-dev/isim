@@ -26,11 +26,11 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 226 | 2 | 0 | 7 | 235 | 97% |
+| **UIKit** | 228 | 2 | 0 | 6 | 236 | 97% |
 | &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 68 | 0 | 0 | 6 | 74 | 92% |
-| &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
+| &nbsp;&nbsp;↳ Views & controls | 69 | 0 | 0 | 5 | 74 | 93% |
+| &nbsp;&nbsp;↳ Layout | 20 | 0 | 0 | 0 | 20 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 14 | 0 | 0 | 0 | 14 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **765** | **186** | **23** | **38** | **1012** | **85%** |
+| **All areas** | **767** | **186** | **23** | **37** | **1013** | **85%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (207) | 100% (211) | 100% (225) | 97% (235) |
+| UIKit | 100% (207) | 100% (211) | 100% (226) | 97% (236) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (956) | **86%** (968) | **85%** (992) | **85%** (1012) |
+| **All areas** | **86%** (956) | **86%** (968) | **85%** (993) | **85%** (1013) |
 
 ---
 
@@ -270,7 +270,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UITabBarController.prominentTabIdentifier`, `performBatchUpdates(_:)`, sidebar `preferredPlacement` / `isAvailable` / visibility callback | ❌ | 27.0 | |
 | `UIFont.Weight.symbolWeight()`, `UIImage.SymbolWeight.fontWeight()` | ✅ | ≤17 | the nearest of the nine weights; `.unspecified` is regular. (iOS 13; listed under iOS 27 before.) Tested (HelloKit27) |
 | `UIDocumentViewController.LaunchOptions.subtitle` | ❌ | 27.0 | needs `UIDocument` / `UIDocumentViewController`, which isim does not have yet |
-| `UIArrangementViewController`, `UIView.ReservedRegion`, `UIHingeInteraction`, vertical bar placement | ❌ | 27.1 | iPhone Duo APIs (iOS 27.1 beta) |
+| `UIArrangementViewController` (split / overlay arrangements, dimension ranges, view states), `UIView.ReservedRegion`, `UIHingeInteraction` / `UIHinge`, vertical bar (`preferredVerticalBarBehavior`, `verticalBarEdge`, `UIBarButtonItem.axisBehavior`, `verticalBarCompressionBehavior`), `LayoutRegion.bar(onEdge:extent:)` | ✅ | 27.1 | iOS 27.1 (beta) APIs for foldable iPhones, as they behave on isim's devices, none of which folds (isim has no foldable preset: Apple has published no specifications). Adapted: a split arrangement stacks its views in compact width portrait and puts them side by side otherwise (within `axes(_:)`), sized by the dimension ranges (absolute, fractional, intrinsic, automatic; the lower `layoutPriority` takes the difference); an overlay layers the primary over the secondary and never turns side by side; the hinge handler gets a nil hinge when the interaction joins or leaves a window; occlusion regions are the Dynamic Island / notch, active, without margins; no division regions; `verticalBarEdge` is unspecified and the vertical bar preferences are resolved (through containers) and kept; a bar region is a strip along an edge of the safe area. Tested (HelloArrangements, iPhone 17 and iPad Pro under iOS 27.1) |
 
 ### Layout
 
@@ -284,6 +284,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UILayoutGuide`, `safeAreaLayoutGuide`, `layoutMarginsGuide` | ✅ | ≤17 | per-device safe areas |
 | `additionalSafeAreaInsets` (container insets propagate to children) | ✅ | ≤17 | navigation/tab bars; scroll views adjust |
 | `readableContentGuide` | ✅ | ≤17 | the layout margins, at most the readable width for the content size category and centred: the margins on an iPhone in portrait, 672 pt (Large text) in landscape / iPad; iOS's widths for the standard categories (560–856 pt), the accessibility categories scale with the body size (adapted). Tested (HelloConstraints, portrait and landscape) |
+| Layout regions (`UIView.LayoutRegion`: `safeArea` / `margins` / `readableContent(cornerAdaptation:)`, `layoutGuide(for:)`, `edgeInsets(for:)`, `directionalEdgeInsets(for:)`) | ✅ | 26.0 | adapted: isim has no window controls, so corner adaptation changes nothing: the regions are the safe area, the layout margins and the readable content guide. Tested (HelloArrangements) |
 | `keyboardLayoutGuide` | ✅ | ≤17 | follows keyboard show/hide/frame changes (animated), bottom safe area when hidden (`usesBottomSafeArea`); tested (HelloConstraints). Undocked/floating keyboards do not exist on isim |
 | Layout margins, `directionalLayoutMargins` | ✅ | ≤17 | |
 | `UIScrollView` `contentLayoutGuide` / `frameLayoutGuide` | ✅ | ≤17 | |
