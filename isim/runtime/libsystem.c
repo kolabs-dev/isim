@@ -12,6 +12,7 @@
 #include <strings.h>
 #include <sys/random.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
@@ -90,16 +91,32 @@ struct d_stat {
     struct timespec st_atim, st_mtim, st_ctim, st_birthtim;
     int64_t st_size, st_blocks; int32_t st_blksize; uint32_t st_flags, st_gen; int32_t st_lspare; int64_t st_qspare[2];
 };
-static void to_darwin_stat(const struct stat *h, struct d_stat *d) {
+static struct timespec ts_of(struct statx_timestamp t) { return (struct timespec){ t.tv_sec, t.tv_nsec }; }
+static int ts_before(struct timespec a, struct timespec b) { return a.tv_sec < b.tv_sec || (a.tv_sec == b.tv_sec && a.tv_nsec < b.tv_nsec); }
+/* statx, for the birth time; where the file system does not record one, the earlier of mtime and ctime stands in */
+static int d_statx(int dirfd, const char *p, int flags, struct d_stat *d) {
+    struct statx h;
     memset(d, 0, sizeof *d);
-    d->st_dev = (int32_t)h->st_dev; d->st_mode = (uint16_t)h->st_mode; d->st_nlink = (uint16_t)h->st_nlink; d->st_ino = h->st_ino;
-    d->st_uid = h->st_uid; d->st_gid = h->st_gid; d->st_rdev = (int32_t)h->st_rdev;
-    d->st_atim = h->st_atim; d->st_mtim = h->st_mtim; d->st_ctim = h->st_ctim; d->st_birthtim = h->st_ctim;
-    d->st_size = h->st_size; d->st_blocks = h->st_blocks; d->st_blksize = (int32_t)h->st_blksize;
+    if (statx(dirfd, p, flags | AT_STATX_SYNC_AS_STAT, STATX_BASIC_STATS | STATX_BTIME, &h)) {
+        struct stat o;                                  /* no statx (old kernel, seccomp filter) */
+        if (errno != ENOSYS || fstatat(dirfd, p, &o, flags)) return -1;
+        d->st_dev = (int32_t)o.st_dev; d->st_mode = (uint16_t)o.st_mode; d->st_nlink = (uint16_t)o.st_nlink; d->st_ino = o.st_ino;
+        d->st_uid = o.st_uid; d->st_gid = o.st_gid; d->st_rdev = (int32_t)o.st_rdev;
+        d->st_atim = o.st_atim; d->st_mtim = o.st_mtim; d->st_ctim = o.st_ctim;
+        d->st_birthtim = ts_before(o.st_mtim, o.st_ctim) ? o.st_mtim : o.st_ctim;
+        d->st_size = o.st_size; d->st_blocks = o.st_blocks; d->st_blksize = (int32_t)o.st_blksize;
+        return 0;
+    }
+    d->st_dev = (int32_t)makedev(h.stx_dev_major, h.stx_dev_minor); d->st_mode = (uint16_t)h.stx_mode; d->st_nlink = (uint16_t)h.stx_nlink;
+    d->st_ino = h.stx_ino; d->st_uid = h.stx_uid; d->st_gid = h.stx_gid; d->st_rdev = (int32_t)makedev(h.stx_rdev_major, h.stx_rdev_minor);
+    d->st_atim = ts_of(h.stx_atime); d->st_mtim = ts_of(h.stx_mtime); d->st_ctim = ts_of(h.stx_ctime);
+    d->st_birthtim = (h.stx_mask & STATX_BTIME) ? ts_of(h.stx_btime) : ts_before(d->st_mtim, d->st_ctim) ? d->st_mtim : d->st_ctim;
+    d->st_size = (int64_t)h.stx_size; d->st_blocks = (int64_t)h.stx_blocks; d->st_blksize = (int32_t)h.stx_blksize;
+    return 0;
 }
-static int d_stat(const char *p, struct d_stat *d) { struct stat h; int r = stat(p, &h); if (!r) to_darwin_stat(&h, d); return r; }
-static int d_lstat(const char *p, struct d_stat *d) { struct stat h; int r = lstat(p, &h); if (!r) to_darwin_stat(&h, d); return r; }
-static int d_fstat(int fd, struct d_stat *d) { struct stat h; int r = fstat(fd, &h); if (!r) to_darwin_stat(&h, d); return r; }
+static int d_stat(const char *p, struct d_stat *d) { return d_statx(AT_FDCWD, p, 0, d); }
+static int d_lstat(const char *p, struct d_stat *d) { return d_statx(AT_FDCWD, p, AT_SYMLINK_NOFOLLOW, d); }
+static int d_fstat(int fd, struct d_stat *d) { return d_statx(fd, "", AT_EMPTY_PATH, d); }
 /* directories: Darwin struct dirent (64-bit, 1024-byte name) from the host's */
 #include <dirent.h>
 struct d_dirent { uint64_t d_ino, d_seekoff; uint16_t d_reclen, d_namlen; uint8_t d_type; char d_name[1024]; };
@@ -374,6 +391,12 @@ static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
 }
 
 #include "sockets.inc"     /* BSD sockets, name resolution, poll/select, fcntl/ioctl, getifaddrs */
+/* utimes: Darwin's struct timeval has a 32-bit tv_usec (then padding) */
+static int d_utimes(const char *p, const struct d_timeval *t) {
+    if (!t) return utimes(p, NULL);
+    struct timeval h[2] = { { t[0].tv_sec, t[0].tv_usec }, { t[1].tv_sec, t[1].tv_usec } };
+    return utimes(p, h);
+}
 #include "posix_extras.inc"   /* pipe, pread/pwrite, dup, kill, signal numbers */
 
 void libsystem_init(int argc, char **argv) {
@@ -408,7 +431,7 @@ static const struct shim libsystem_table[] = {
     /* time */
     P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),
     A("_clock_gettime", d_clock_gettime),
-    A("_stat", d_stat), A("_lstat", d_lstat), A("_fstat", d_fstat), A("_stat$INODE64", d_stat), A("_lstat$INODE64", d_lstat), A("_fstat$INODE64", d_fstat),
+    A("_stat", d_stat), A("_lstat", d_lstat), A("_fstat", d_fstat), A("_stat$INODE64", d_stat), A("_lstat$INODE64", d_lstat), A("_fstat$INODE64", d_fstat), P(chown), P(lchown), A("_utimes", d_utimes),
     A("_opendir", d_opendir), A("_readdir", d_readdir), A("_closedir", d_closedir), A("_rewinddir", d_rewinddir), A("_dirfd", d_dirfd),
     A("_opendir$INODE64", d_opendir), A("_readdir$INODE64", d_readdir),
     A("_iswalpha", d_iswalpha), A("_iswdigit", d_iswdigit), A("_iswalnum", d_iswalnum), A("_iswspace", d_iswspace), A("_iswpunct", d_iswpunct),

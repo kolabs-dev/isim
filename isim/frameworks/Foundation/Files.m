@@ -8,12 +8,14 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
+#include <isim_host.h>
 #include "isim_foundation.h"
 
 
@@ -210,7 +212,8 @@ NSArray<NSString *> *NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory d
 }
 - (BOOL)createDirectoryAtPath:(NSString *)p withIntermediateDirectories:(BOOL)inter attributes:(id)a error:(id *)err {
     if (inter) mkdirs(p); else mkdir(p.UTF8String, 0755);
-    return access(p.UTF8String, F_OK) == 0;
+    if (access(p.UTF8String, F_OK) != 0) return NO;
+    return [a isKindOfClass:[NSDictionary class]] ? [self setAttributes:a ofItemAtPath:p error:err] : YES;
 }
 static BOOL remove_tree(const char *path) {
     struct stat st;
@@ -251,6 +254,121 @@ static BOOL remove_tree(const char *path) {
     for (NSString *p in NSSearchPathForDirectoriesInDomains(d, m, YES)) [out addObject:[NSURL fileURLWithPath:p isDirectory:YES]];
     return out;
 }
+/* file attributes from lstat (a symbolic link's own, like iOS) */
+static NSError *file_error(NSInteger code, NSString *path, int e) {
+    return [NSError errorWithDomain:NSCocoaErrorDomain code:code
+                           userInfo:@{ @"NSFilePath": path ?: @"", NSUnderlyingErrorKey: [NSError errorWithDomain:NSPOSIXErrorDomain code:e userInfo:nil] }];
+}
+static NSDate *date_of(struct timespec t) { return [NSDate dateWithTimeIntervalSince1970:(double)t.tv_sec + t.tv_nsec / 1e9]; }
+- (NSDictionary<NSFileAttributeKey, id> *)attributesOfItemAtPath:(NSString *)p error:(NSError **)err {
+    struct stat st;
+    if (!p || lstat(p.UTF8String, &st) != 0) {          /* NSFileReadNoSuchFileError / NSFileReadNoPermissionError / NSFileReadUnknownError */
+        int e = p ? errno : ENOENT;
+        if (err) *err = file_error(e == ENOENT || e == ENOTDIR ? 260 : e == EACCES || e == EPERM ? 257 : 256, p, e);
+        return nil;
+    }
+    NSFileAttributeType type = NSFileTypeUnknown;
+    switch (st.st_mode & S_IFMT) {
+    case S_IFREG: type = NSFileTypeRegular; break;
+    case S_IFDIR: type = NSFileTypeDirectory; break;
+    case S_IFLNK: type = NSFileTypeSymbolicLink; break;
+    case S_IFSOCK: type = NSFileTypeSocket; break;
+    case S_IFCHR: type = NSFileTypeCharacterSpecial; break;
+    case S_IFBLK: type = NSFileTypeBlockSpecial; break;
+    }
+    NSMutableDictionary *a = [NSMutableDictionary dictionary];
+    a[NSFileType] = type;
+    a[NSFileSize] = @((unsigned long long)st.st_size);
+    a[NSFileModificationDate] = date_of(st.st_mtimespec);
+    a[NSFileCreationDate] = date_of(st.st_birthtimespec);
+    a[NSFileReferenceCount] = @((unsigned long)st.st_nlink);
+    a[NSFileSystemNumber] = @((int)st.st_dev);
+    a[NSFileSystemFileNumber] = @((unsigned long long)st.st_ino);
+    a[NSFilePosixPermissions] = @((unsigned short)(st.st_mode & 07777));
+    a[NSFileOwnerAccountID] = @((unsigned int)st.st_uid);
+    a[NSFileGroupOwnerAccountID] = @((unsigned int)st.st_gid);
+    char name[256];
+    if (isim_account_name(0, st.st_uid, name, sizeof name)) a[NSFileOwnerAccountName] = @(name);
+    if (isim_account_name(1, st.st_gid, name, sizeof name)) a[NSFileGroupOwnerAccountName] = @(name);
+    if ((st.st_mode & S_IFMT) == S_IFCHR || (st.st_mode & S_IFMT) == S_IFBLK) a[NSFileDeviceIdentifier] = @((int)st.st_rdev);
+    a[NSFileExtensionHidden] = @NO;
+    return [a copy];
+}
+/* applies what Linux can: permissions, owner and group (by id or name), modification date. The creation date, data
+ * protection, the immutable / append-only flags, HFS codes and the hidden extension have no Linux equivalent an app
+ * may set, and are accepted and ignored (adapted). */
+- (BOOL)setAttributes:(NSDictionary<NSFileAttributeKey, id> *)attrs ofItemAtPath:(NSString *)p error:(NSError **)err {
+    const char *path = p.UTF8String;
+    if (!path || access(path, F_OK) != 0) { if (err) *err = file_error(4, p, ENOENT); return NO; }   /* NSFileNoSuchFileError */
+    int rc = 0;
+    long uid = -1, gid = -1;
+    if ([attrs[NSFileOwnerAccountID] isKindOfClass:[NSNumber class]]) uid = [attrs[NSFileOwnerAccountID] longValue];
+    else if ([attrs[NSFileOwnerAccountName] isKindOfClass:[NSString class]] && (uid = isim_account_id(0, [attrs[NSFileOwnerAccountName] UTF8String])) < 0) { errno = EINVAL; rc = -1; }
+    if ([attrs[NSFileGroupOwnerAccountID] isKindOfClass:[NSNumber class]]) gid = [attrs[NSFileGroupOwnerAccountID] longValue];
+    else if ([attrs[NSFileGroupOwnerAccountName] isKindOfClass:[NSString class]] && (gid = isim_account_id(1, [attrs[NSFileGroupOwnerAccountName] UTF8String])) < 0) { errno = EINVAL; rc = -1; }
+    if (!rc && (uid >= 0 || gid >= 0)) rc = chown(path, (uid_t)uid, (gid_t)gid);
+    if (!rc && [attrs[NSFilePosixPermissions] isKindOfClass:[NSNumber class]]) rc = chmod(path, (mode_t)([attrs[NSFilePosixPermissions] unsignedLongValue] & 07777));
+    NSDate *m = attrs[NSFileModificationDate];
+    if (!rc && [m isKindOfClass:[NSDate class]]) {
+        struct stat st; rc = stat(path, &st);           /* keeps the access time */
+        if (!rc) {
+            double t = m.timeIntervalSince1970, sec = floor(t);
+            struct timeval tv[2] = { { st.st_atimespec.tv_sec, (int)(st.st_atimespec.tv_nsec / 1000) }, { (time_t)sec, (int)((t - sec) * 1e6) } };
+            rc = utimes(path, tv);
+        }
+    }
+    if (rc) {                                           /* NSFileWriteNoPermissionError / NSFileWriteUnknownError */
+        int e = errno;
+        if (err) *err = file_error(e == EPERM || e == EACCES ? 513 : e == EROFS ? 642 : 512, p, e);
+        return NO;
+    }
+    return YES;
+}
+- (NSDictionary<NSFileAttributeKey, id> *)attributesOfFileSystemForPath:(NSString *)p error:(NSError **)err {
+    unsigned long long v[4];
+    struct stat st;
+    int rc = p ? isim_fs_stats(p.UTF8String, v) : -ENOENT;
+    if (!rc && stat(p.UTF8String, &st) != 0) rc = -errno;
+    if (rc) { if (err) *err = file_error(-rc == ENOENT || -rc == ENOTDIR ? 260 : 256, p, -rc); return nil; }
+    return @{ NSFileSystemSize: @(v[0]), NSFileSystemFreeSize: @(v[1]), NSFileSystemNodes: @(v[2]), NSFileSystemFreeNodes: @(v[3]),
+              NSFileSystemNumber: @((int)st.st_dev) };
+}
+@end
+
+/* ---------------- file attribute keys and NSDictionary (NSFileAttributes) ---------------- */
+NSFileAttributeKey const NSFileType = @"NSFileType", NSFileSize = @"NSFileSize", NSFileModificationDate = @"NSFileModificationDate",
+    NSFileReferenceCount = @"NSFileReferenceCount", NSFileDeviceIdentifier = @"NSFileDeviceIdentifier",
+    NSFileOwnerAccountName = @"NSFileOwnerAccountName", NSFileGroupOwnerAccountName = @"NSFileGroupOwnerAccountName",
+    NSFilePosixPermissions = @"NSFilePosixPermissions", NSFileSystemNumber = @"NSFileSystemNumber",
+    NSFileSystemFileNumber = @"NSFileSystemFileNumber", NSFileExtensionHidden = @"NSFileExtensionHidden",
+    NSFileHFSCreatorCode = @"NSFileHFSCreatorCode", NSFileHFSTypeCode = @"NSFileHFSTypeCode", NSFileImmutable = @"NSFileImmutable",
+    NSFileAppendOnly = @"NSFileAppendOnly", NSFileCreationDate = @"NSFileCreationDate", NSFileOwnerAccountID = @"NSFileOwnerAccountID",
+    NSFileGroupOwnerAccountID = @"NSFileGroupOwnerAccountID", NSFileBusy = @"NSFileBusy", NSFileProtectionKey = @"NSFileProtectionKey",
+    NSFileSystemSize = @"NSFileSystemSize", NSFileSystemFreeSize = @"NSFileSystemFreeSize", NSFileSystemNodes = @"NSFileSystemNodes",
+    NSFileSystemFreeNodes = @"NSFileSystemFreeNodes";
+NSFileAttributeType const NSFileTypeDirectory = @"NSFileTypeDirectory", NSFileTypeRegular = @"NSFileTypeRegular",
+    NSFileTypeSymbolicLink = @"NSFileTypeSymbolicLink", NSFileTypeSocket = @"NSFileTypeSocket",
+    NSFileTypeCharacterSpecial = @"NSFileTypeCharacterSpecial", NSFileTypeBlockSpecial = @"NSFileTypeBlockSpecial",
+    NSFileTypeUnknown = @"NSFileTypeUnknown";
+NSFileProtectionType const NSFileProtectionNone = @"NSFileProtectionNone", NSFileProtectionComplete = @"NSFileProtectionComplete",
+    NSFileProtectionCompleteUnlessOpen = @"NSFileProtectionCompleteUnlessOpen",
+    NSFileProtectionCompleteUntilFirstUserAuthentication = @"NSFileProtectionCompleteUntilFirstUserAuthentication";
+
+@implementation NSDictionary (NSFileAttributes)
+- (unsigned long long)fileSize { return [self[NSFileSize] unsignedLongLongValue]; }
+- (NSDate *)fileModificationDate { return self[NSFileModificationDate]; }
+- (NSString *)fileType { return self[NSFileType]; }
+- (NSUInteger)filePosixPermissions { return [self[NSFilePosixPermissions] unsignedIntegerValue]; }
+- (NSString *)fileOwnerAccountName { return self[NSFileOwnerAccountName]; }
+- (NSString *)fileGroupOwnerAccountName { return self[NSFileGroupOwnerAccountName]; }
+- (NSInteger)fileSystemNumber { return [self[NSFileSystemNumber] integerValue]; }
+- (NSUInteger)fileSystemFileNumber { return [self[NSFileSystemFileNumber] unsignedIntegerValue]; }
+- (BOOL)fileExtensionHidden { return [self[NSFileExtensionHidden] boolValue]; }
+- (BOOL)fileIsImmutable { return [self[NSFileImmutable] boolValue]; }
+- (BOOL)fileIsAppendOnly { return [self[NSFileAppendOnly] boolValue]; }
+- (NSDate *)fileCreationDate { return self[NSFileCreationDate]; }
+- (NSNumber *)fileOwnerAccountID { return self[NSFileOwnerAccountID]; }
+- (NSNumber *)fileGroupOwnerAccountID { return self[NSFileGroupOwnerAccountID]; }
 @end
 
 NSString *isim_plist_xml(id root) { return isim_plist_write_xml(root); }

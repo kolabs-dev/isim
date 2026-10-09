@@ -156,6 +156,11 @@ int isim_ws_send(struct isim_ws *w, int kind, const void *_Nullable data, long l
 int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char *_Nullable *_Nonnull data, long *len);
 void isim_ws_close(struct isim_ws *_Nullable w);
 int isim_net_path(int *_Nullable flags);   /* 1 = connected; flags: 1 Wi-Fi, 2 wired, 4 IPv4, 8 IPv6, 16 other (VPN) */
+/* file attributes (NSFileManager): account names (group 0 user, 1 group; 1 if found), ids by name (-1 if none),
+   and a file system's size, free size (available to the user), nodes and free nodes in out[0..3] (0 or -errno) */
+int isim_account_name(int group, unsigned id, char *buf, int n);
+long isim_account_id(int group, const char *name);
+int isim_fs_stats(const char *path, unsigned long long *out);
 /* crypto for isim's CryptoKit (host OpenSSL libcrypto). Return 1 on success, 0 on failure.
    aead alg: 0 AES-GCM, 1 ChaCha20-Poly1305 (16-byte tag; -1 if libcrypto is missing). EC curve: 256, 384 or 521
    (n = 32, 48, 66 bytes: private scalar n, public X9.63 1+2n uncompressed or 1+n compressed, ECDSA signature r||s 2n).
