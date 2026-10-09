@@ -12,6 +12,11 @@ typedef NS_OPTIONS(NSUInteger, UIViewAutoresizing) {
     UIViewAutoresizingFlexibleRightMargin = 1 << 2, UIViewAutoresizingFlexibleTopMargin = 1 << 3,
     UIViewAutoresizingFlexibleHeight = 1 << 4, UIViewAutoresizingFlexibleBottomMargin = 1 << 5
 };
+typedef NS_ENUM(NSInteger, UIUserInterfaceLayoutDirection) { UIUserInterfaceLayoutDirectionLeftToRight, UIUserInterfaceLayoutDirectionRightToLeft };
+typedef NS_ENUM(NSInteger, UISemanticContentAttribute) {
+    UISemanticContentAttributeUnspecified = 0, UISemanticContentAttributePlayback, UISemanticContentAttributeSpatial,
+    UISemanticContentAttributeForceLeftToRight, UISemanticContentAttributeForceRightToLeft
+};
 typedef NS_ENUM(NSInteger, UIViewContentMode) {
     UIViewContentModeScaleToFill, UIViewContentModeScaleAspectFit, UIViewContentModeScaleAspectFill, UIViewContentModeRedraw,
     UIViewContentModeCenter, UIViewContentModeTop, UIViewContentModeBottom, UIViewContentModeLeft, UIViewContentModeRight,
@@ -164,6 +169,13 @@ NS_SWIFT_UI_ACTOR
 @property (class, nonatomic, readonly) NSTimeInterval inheritedAnimationDuration;
 @end
 /* snapshots: draws the view and its subviews into the current graphics context (UIGraphicsImageRenderer) */
+@interface UIView (UIRightToLeft)
+@property (nonatomic) UISemanticContentAttribute semanticContentAttribute;
+@property (nonatomic, readonly) UIUserInterfaceLayoutDirection effectiveUserInterfaceLayoutDirection;
++ (UIUserInterfaceLayoutDirection)userInterfaceLayoutDirectionForSemanticContentAttribute:(UISemanticContentAttribute)attribute;
++ (UIUserInterfaceLayoutDirection)userInterfaceLayoutDirectionForSemanticContentAttribute:(UISemanticContentAttribute)semanticContentAttribute
+                                                               relativeToLayoutDirection:(UIUserInterfaceLayoutDirection)layoutDirection;
+@end
 @interface UIView (UISnapshotting)
 - (BOOL)drawViewHierarchyInRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates;
 - (nullable UIView *)resizableSnapshotViewFromRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates withCapInsets:(UIEdgeInsets)capInsets;

@@ -19,6 +19,8 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
     CGFloat _scrollX;                       /* single line: horizontal scroll that keeps the caret visible */
     NSInteger _isim_minLines, _isim_maxLines; BOOL _isim_multi;
 }
+/* the alignment text is laid out with: natural is right aligned right to left */
+- (NSTextAlignment)_isim_alignment { return _textAlignment == NSTextAlignmentNatural ? ([self _isim_isRTL] ? NSTextAlignmentRight : NSTextAlignmentLeft) : _textAlignment; }
 - (void)_isim_setLineLimitMin:(NSInteger)minLines max:(NSInteger)maxLines { _isim_minLines = minLines; _isim_maxLines = maxLines; _isim_multi = YES; [self _changed]; }
 @synthesize autocapitalizationType = _autocapitalizationType, autocorrectionType = _autocorrectionType, spellCheckingType = _spellCheckingType,
     keyboardType = _keyboardType, keyboardAppearance = _keyboardAppearance, returnKeyType = _returnKeyType,
@@ -197,7 +199,8 @@ ISIM_TEXT_INPUT_METHODS
 }
 - (CGFloat)_alignOffset:(CGFloat)textW area:(CGFloat)w {
     if (textW >= w) return 0;
-    return _textAlignment == NSTextAlignmentCenter ? (w - textW) / 2 : _textAlignment == NSTextAlignmentRight ? w - textW : 0;
+    NSTextAlignment al = [self _isim_alignment];
+    return al == NSTextAlignmentCenter ? (w - textW) / 2 : al == NSTextAlignmentRight ? w - textW : 0;
 }
 - (CGPoint)_caretPointFor:(NSUInteger)i {
     NSString *s = [self _shown];
@@ -295,12 +298,12 @@ ISIM_TEXT_INPUT_METHODS
             dr = CGRectMake(x, [self _lineTop], MAX(ts.width, r.size.width) + 4, ts.height);
         }
         UIColor *c = placeholder ? UIColor.placeholderTextColor : _textColor;
-        isim_ui_draw_text(text, _font, c, dr, multi ? _textAlignment : NSTextAlignmentLeft, multi ? _isim_maxLines : 1, self.enabled ? 1 : 0.5);
+        isim_ui_draw_text(text, _font, c, dr, multi ? [self _isim_alignment] : NSTextAlignmentLeft, multi ? _isim_maxLines : 1, self.enabled ? 1 : 0.5);
     }
     if (_editing) {
         if (placeholder) {
             CGSize ts = isim_ui_measure(text.length ? text : @" ", _font, 0, 1);
-            CGFloat cx = multi ? r.origin.x : r.origin.x + (_textAlignment == NSTextAlignmentCenter ? (r.size.width - (text.length ? ts.width : 0)) / 2 : _textAlignment == NSTextAlignmentRight ? r.size.width - 2 : 0);
+            CGFloat cx = multi ? r.origin.x : r.origin.x + ([self _isim_alignment] == NSTextAlignmentCenter ? (r.size.width - (text.length ? ts.width : 0)) / 2 : [self _isim_alignment] == NSTextAlignmentRight ? r.size.width - 2 : 0);
             double tint[4]; isim_ui_rgba(self.tintColor, tint);
             isim_gfx_fill_rounded(cx, (multi ? r.origin.y : [self _lineTop]) + 1, 2, [self _lineHeight] - 2, 1, tint);
         } else {

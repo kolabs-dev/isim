@@ -351,6 +351,7 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect r, N
     double c[4]; isim_ui_rgba(color ?: UIColor.labelColor, c); c[3] *= alpha;
     CGSize sz = isim_ui_measure(text, font, lines == 1 ? 0 : r.size.width, lines);
     double y = r.origin.y + (r.size.height - MIN(sz.height, r.size.height)) / 2;
+    if (align == NSTextAlignmentNatural) align = isim_ui_drawing_rtl ? NSTextAlignmentRight : NSTextAlignmentLeft;   /* natural follows the layout direction */
     int a = align == NSTextAlignmentCenter ? 1 : align == NSTextAlignmentRight ? 2 : 0;
     isim_text_draw_f(text.UTF8String, font._isim_family.UTF8String, r.origin.x, y, r.size.width, font.pointSize, font._isim_weight, font._isim_style, a, (int)(lines == 1 ? 1 : lines), c);
 }

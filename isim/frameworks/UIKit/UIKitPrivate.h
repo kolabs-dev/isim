@@ -26,6 +26,14 @@ UIUserInterfaceStyle isim_ui_base_style(void);         /* the device appearance 
 UITraitCollection *isim_ui_screen_traits(void);        /* device + settings */
 UITraitCollection *isim_ui_traits_for_size(CGSize size);   /* screen traits with the size classes of a window of that size */
 UITraitCollection *isim_ui_current_traits(void);       /* UITraitCollection.current */
+/* right to left (UIRightToLeft.m) */
+extern BOOL isim_ui_drawing_rtl;
+UIUserInterfaceLayoutDirection isim_ui_app_layout_direction(void);
+BOOL isim_ui_items_rtl(NSUInteger n, __unsafe_unretained id const *items);
+CGRect isim_ui_mirror_rect(CGRect r, CGFloat width);
+@interface UIView (UIRightToLeftPrivate)
+- (BOOL)_isim_isRTL;
+@end
 void isim_ui_push_traits(UITraitCollection *t);
 void isim_ui_pop_traits(void);
 unsigned isim_ui_trait_generation(void);               /* moves whenever any view's traits may have changed */

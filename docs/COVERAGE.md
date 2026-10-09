@@ -30,7 +30,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Application & scenes | 20 | 5 | 0 | 0 | 25 | 90% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 22 | 9 | 0 | 0 | 31 | 85% |
 | &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
-| &nbsp;&nbsp;↳ Layout | 17 | 1 | 0 | 1 | 19 | 92% |
+| &nbsp;&nbsp;↳ Layout | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 10 | 2 | 2 | 0 | 14 | 79% |
@@ -279,7 +279,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Size classes | ✅ | ≤17 | fixed per device (portrait) |
 | Dynamic Type: `preferredFont(forTextStyle:)` | ✅ | ≤17 | sized for the content size category (Settings > Accessibility > Display & Text Size, 12 sizes); Bold Text makes system fonts heavier; tested (HelloAccessibility) |
 | Dynamic Type size changes, `UIFontMetrics`, `adjustsFontForContentSizeCategory` | ✅ | ≤17 | category changes repost `UIContentSizeCategory.didChangeNotification`, refit labels/text views/fields that adjust (text-style and `UIFontMetrics` fonts), `preferredContentSizeCategory` on the app and trait collections, `isAccessibilityCategory`; tested (HelloAccessibility). `traitCollectionDidChange` gets no previous collection |
-| Right-to-left layout, `semanticContentAttribute` | ❌ | ≤17 | |
+| Right-to-left layout, `semanticContentAttribute` | ✅ | ≤17 | the app is right to left when its preferred localization is a right-to-left language (Arabic, Hebrew, Persian, Urdu, …; only languages the app is localized in, as on iOS), with Xcode's right-to-left pseudolanguage (`-AppleTextDirection YES`, `-NSForceRightToLeftWritingDirection YES`) or `ISIM_LAYOUT_DIRECTION=rtl`. `UIApplication.userInterfaceLayoutDirection`, `semanticContentAttribute` (playback / spatial stay left to right), `effectiveUserInterfaceLayoutDirection`, the class methods, `traitCollection.layoutDirection`. Auto Layout: leading / trailing (and margins, centerX in the same constraint) follow the direction of the constraint's container, with constants mirrored; stack views, directional margins; `NSTextAlignmentNatural` right aligned; navigation bars (back button and chevron on the right, items swapped); table view cells (labels, accessories, delete / reorder controls, separators); `imageFlippedForRightToLeftLayoutDirection`. Not mirrored yet (adapted): sliders, segmented controls, page controls, collection view flow layouts, scroll views' initial offset, the interactive back-swipe edge, SwiftUI. Tested (HelloRightToLeft, OS matrix) |
 | Rotation layout (`viewWillTransition(to:with:)`) | ✅ | ≤17 | coordinator alongside/completion, size classes, side safe areas; tested (HelloRotation). Landscape nav bars keep portrait height |
 
 ### Animation

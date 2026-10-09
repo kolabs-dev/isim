@@ -1,6 +1,7 @@
 #pragma once
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIResponder.h>
+#import <UIKit/UIView.h>
 #import <UIKit/UIApplicationShortcutItem.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent;
@@ -99,6 +100,9 @@ NS_SWIFT_UI_ACTOR
 @end
 
 /* quick actions: dynamic items, shown after the Info.plist UIApplicationShortcutItems (at most 4 in all) */
+@interface UIApplication (UIRightToLeft)
+@property (nonatomic, readonly) UIUserInterfaceLayoutDirection userInterfaceLayoutDirection;
+@end
 @interface UIApplication (UIApplicationShortcutItems)
 @property (nullable, nonatomic, copy) NSArray<UIApplicationShortcutItem *> *shortcutItems;
 @end
