@@ -89,6 +89,15 @@ jobs:
       # saved even when the build fails (Ninja resumes a partial build), but not when the run was cancelled; the run id
       # in the key lets every run save (cache keys cannot be overwritten). The test jobs restore exactly this key; the
       # next run on the branch, and a new branch's first run (from main's), restores the newest.
+      # built into the source tree (the sample's Xcode project references it there), so not in isim/out: the test jobs
+      # get it as an artifact
+      - name: Build outputs outside isim/out
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-extras
+          path: isim/samples/HelloToolchain/Vendor/Sum.xcframework
+          if-no-files-found: error
+          retention-days: 1
       - name: Build cache (save)
         if: ${{ !cancelled() }}
         uses: actions/cache/save@v4
@@ -131,6 +140,11 @@ jobs:
             !isim/out/test-*
           key: ${{ env.BUILD_KEY }}
           fail-on-cache-miss: true
+      - name: Build outputs outside isim/out
+        uses: actions/download-artifact@v4
+        with:
+          name: build-extras
+          path: isim/samples/HelloToolchain/Vendor/Sum.xcframework
       - name: Test
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
