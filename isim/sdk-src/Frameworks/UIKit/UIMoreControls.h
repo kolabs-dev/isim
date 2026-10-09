@@ -17,6 +17,53 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, strong) UIImage *minimumValueImage;
 @property (nullable, nonatomic, strong) UIImage *maximumValueImage;
 - (void)setValue:(float)value animated:(BOOL)animated;
+/* custom track and thumb images per control state (track images stretch by their cap insets) */
+- (void)setThumbImage:(nullable UIImage *)image forState:(UIControlState)state;
+- (void)setMinimumTrackImage:(nullable UIImage *)image forState:(UIControlState)state;
+- (void)setMaximumTrackImage:(nullable UIImage *)image forState:(UIControlState)state;
+- (nullable UIImage *)thumbImageForState:(UIControlState)state;
+- (nullable UIImage *)minimumTrackImageForState:(UIControlState)state;
+- (nullable UIImage *)maximumTrackImageForState:(UIControlState)state;
+@property (nullable, nonatomic, readonly) UIImage *currentThumbImage;
+@property (nullable, nonatomic, readonly) UIImage *currentMinimumTrackImage;
+@property (nullable, nonatomic, readonly) UIImage *currentMaximumTrackImage;
+/* overrides for subclasses: the slider lays out and draws with these */
+- (CGRect)minimumValueImageRectForBounds:(CGRect)bounds;
+- (CGRect)maximumValueImageRectForBounds:(CGRect)bounds;
+- (CGRect)trackRectForBounds:(CGRect)bounds;
+- (CGRect)thumbRectForBounds:(CGRect)bounds trackRect:(CGRect)rect value:(float)value;
+@end
+
+/* iOS 26: slider style and track configuration (ticks, a neutral value the fill starts from, an enabled range; all
+   values are fractions of the track, 0...1). isim (adapted): ticks are dots on the track; tick titles and images are
+   kept for accessibility, not drawn. */
+typedef NS_ENUM(NSInteger, UISliderStyle) {
+    UISliderStyleDefault = 0,
+    UISliderStyleThumbless = 1,
+} NS_SWIFT_NAME(UISlider.Style) API_AVAILABLE(ios(26.0));
+
+API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
+@interface UISliderTick : NSObject <NSCopying, NSSecureCoding>
++ (instancetype)tickWithPosition:(float)position title:(nullable NSString *)title image:(nullable UIImage *)image;
+@property (nonatomic, readonly) float position;
+@property (nonatomic, copy, nullable) NSString *title;
+@property (nonatomic, copy, nullable) UIImage *image;
+@end
+
+API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
+@interface UISliderTrackConfiguration : NSObject <NSCopying, NSSecureCoding>
++ (instancetype)configurationWithNumberOfTicks:(NSInteger)ticks;
++ (instancetype)configurationWithTicks:(NSArray<UISliderTick *> *)ticks;
+@property (nonatomic) BOOL allowsTickValuesOnly;
+@property (nonatomic) float neutralValue;
+@property (nonatomic) float minimumEnabledValue;
+@property (nonatomic) float maximumEnabledValue;
+@property (nonatomic, copy, readonly) NSArray<UISliderTick *> *ticks;
+@end
+
+@interface UISlider (TrackConfiguration)
+@property (nonatomic) UISliderStyle sliderStyle API_AVAILABLE(ios(26.0));
+@property (nonatomic, copy, nullable) UISliderTrackConfiguration *trackConfiguration API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT;
 @end
 
 NS_SWIFT_UI_ACTOR

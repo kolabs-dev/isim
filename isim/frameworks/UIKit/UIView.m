@@ -191,6 +191,7 @@ ANCHORS(UILayoutGuide)
     UIViewTintAdjustmentMode _tintMode;
     id<UITraitOverrides> _traitOverrides;
     double *_vfx;                                                /* SwiftUI visual effects (_isim_setVisualEffect:), 32 values */
+    UICornerConfiguration *_cornerConfig;                        /* iOS 26 corner configuration (nil: the layer's corner radius) */
 }
 @end
 /* view animation engine (bottom of this file) */
@@ -987,7 +988,73 @@ void isim_ui_layout_window(UIView *root) {
 - (void)addGestureRecognizer:(UIGestureRecognizer *)g { if (!_gestures) _gestures = [NSMutableArray array]; [_gestures addObject:g]; [g _isim_setView:self]; }
 - (void)removeGestureRecognizer:(UIGestureRecognizer *)g { [_gestures removeObjectIdenticalTo:g]; [g _isim_setView:nil]; }
 
+/* ---- corners ---- */
+/* The radius of each corner (top-left, top-right, bottom-left, bottom-right) for a view of size sz: its corner
+   configuration (iOS 26) if set, else the layer's corner radius on its masked corners. YES when they differ. */
+static double concentric_radius(UIView *v, int corner, double minimum) {
+    UIView *sup = v.superview;
+    CGRect f = v.frame; double R = 0, W, H;
+    if (sup && ![sup isKindOfClass:[UIWindow class]]) {
+        double sr[4]; CGSize ss = sup.bounds.size;
+        [sup _isim_cornerRadii:sr size:ss radius:sup.layer.cornerRadius];
+        R = sr[corner]; W = ss.width; H = ss.height;
+        f = CGRectOffset(f, -sup.bounds.origin.x, -sup.bounds.origin.y);
+    } else {                                                   /* a top-level view: concentric with the screen */
+        const struct isim_device *d = isim_ui_device();
+        R = d ? d->corner_radius : 0; W = d ? d->width : 0; H = d ? d->height : 0;
+        if (sup) f = [v convertRect:v.bounds toView:nil];
+    }
+    double dx = (corner & 1) ? W - CGRectGetMaxX(f) : CGRectGetMinX(f), dy = (corner & 2) ? H - CGRectGetMaxY(f) : CGRectGetMinY(f);
+    double r = R > 0 ? R - fmax(0, fmax(dx, dy)) : 0;
+    return fmax(isnan(minimum) ? 0 : minimum, r);
+}
+- (BOOL)_isim_cornerRadii:(double *)out size:(CGSize)sz radius:(double)radius {
+    double lim = fmin(sz.width, sz.height) / 2;
+    if (_cornerConfig) {
+        [_cornerConfig _isim_radii:out size:sz concentric:^double(int corner, double minimum) { return concentric_radius(self, corner, minimum); }];
+        for (int i = 0; i < 4; i++) out[i] = fmax(0, fmin(out[i], lim));
+    } else {
+        CACornerMask m = _layer.maskedCorners; double r = fmax(0, fmin(radius, lim));
+        out[0] = m & kCALayerMinXMinYCorner ? r : 0; out[1] = m & kCALayerMaxXMinYCorner ? r : 0;
+        out[2] = m & kCALayerMinXMaxYCorner ? r : 0; out[3] = m & kCALayerMaxXMaxYCorner ? r : 0;
+    }
+    return !(out[0] == out[1] && out[1] == out[2] && out[2] == out[3]);
+}
+- (UICornerConfiguration *)cornerConfiguration { return _cornerConfig ?: [UICornerConfiguration configurationWithRadius:[UICornerRadius fixedRadius:_layer.cornerRadius]]; }
+- (void)setCornerConfiguration:(UICornerConfiguration *)c { _cornerConfig = [c copy]; isim_ui_set_needs_display(); }
+- (CGFloat)effectiveRadiusForCorner:(UIRectCorner)corner {
+    double r[4]; [self _isim_cornerRadii:r size:self.bounds.size radius:_layer.cornerRadius];
+    return corner & UIRectCornerTopLeft ? r[0] : corner & UIRectCornerTopRight ? r[1] : corner & UIRectCornerBottomLeft ? r[2] : r[3];
+}
+/* one radius for shapes drawn with a single corner radius (glass): the largest corner */
+- (CGFloat)_isim_uniformRadius {
+    if (!_cornerConfig) return _layer.cornerRadius;
+    double r[4]; [self _isim_cornerRadii:r size:self.bounds.size radius:_layer.cornerRadius];
+    return fmax(fmax(r[0], r[1]), fmax(r[2], r[3]));
+}
+
 /* ---- rendering ---- */
+/* the frame being drawn (in-flight animation values, the transform's bounding box) and alpha: glass containers
+   (UIVisualEffect.m) draw their elements' glass where the elements are this frame */
+- (CGRect)_isim_presentedFrame:(CGFloat *)alphaOut radius:(CGFloat *)radiusOut {
+    CGRect f = _frame; CGAffineTransform t = _transform; double x[6], alpha = _alpha, radius = _layer.cornerRadius;
+    if (_anim) {
+        if (anim_presentation(self, AK_FRAME, x)) f = CGRectMake(x[0], x[1], fmax(0, x[2]), fmax(0, x[3]));
+        if (anim_presentation(self, AK_TRANSFORM, x)) t = (CGAffineTransform){ x[0], x[1], x[2], x[3], x[4], x[5] };
+        if (anim_presentation(self, AK_ALPHA, x)) alpha = x[0];
+        if (anim_presentation(self, AK_RADIUS, x)) radius = fmax(0, x[0]);
+    }
+    if (alphaOut) *alphaOut = _hidden ? 0 : alpha * _layer.opacity;
+    if (!CGAffineTransformIsIdentity(t)) {
+        CGPoint c = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
+        CGRect r = CGRectApplyAffineTransform(CGRectMake(-f.size.width / 2, -f.size.height / 2, f.size.width, f.size.height), t);
+        radius *= sqrt(fabs(t.a * t.d - t.b * t.c));
+        f = CGRectOffset(r, c.x, c.y);
+    }
+    if (_cornerConfig) radius = [self _isim_uniformRadius] * (f.size.height > 0 && _frame.size.height > 0 ? f.size.height / _frame.size.height : 1);
+    if (radiusOut) *radiusOut = radius;
+    return f;
+}
 static IMP base_drawRect;
 - (void)_isim_render {
     /* presentation values: model values, or the in-flight value of a running animation */
@@ -1038,10 +1105,22 @@ static IMP base_drawRect;
     else if (_layer.backgroundColor) cg_rgba(_layer.backgroundColor, bg);
     else bg[3] = 0;
     /* drop shadow of the shadow path or the background shape, Gaussian-blurred (CoreAnimation.m) */
-    if ((bg[3] > 0 || _layer.shadowPath) && shadowOp > 0 && _layer.shadowColor) isim_ca_view_shadow(_layer, sz, radius, shadowOp, shadowRad, shadowOff);
-    if (bg[3] > 0) isim_gfx_fill_rounded(0, 0, sz.width, sz.height, radius, bg);
+    double cr[4]; BOOL corners = [self _isim_cornerRadii:cr size:sz radius:radius];   /* per-corner radii */
+    if (!corners && _cornerConfig) radius = cr[0];                /* a uniform corner configuration */
+    if ((bg[3] > 0 || _layer.shadowPath) && shadowOp > 0 && _layer.shadowColor) {
+        if (corners) isim_ca_view_shadow_corners(_layer, sz, cr, shadowOp, shadowRad, shadowOff);
+        else isim_ca_view_shadow(_layer, sz, radius, shadowOp, shadowRad, shadowOff);
+    }
+    if (bg[3] > 0) {
+        if (corners) { ca_corners_path(CGRectMake(0, 0, sz.width, sz.height), cr); isim_path_fill(bg); }
+        else isim_gfx_fill_rounded(0, 0, sz.width, sz.height, radius, bg);
+    }
     BOOL clip = _clipsToBounds || _layer.masksToBounds;
-    if (clip) { isim_gfx_save(); isim_gfx_clip_rounded(0, 0, sz.width, sz.height, radius); }
+    if (clip) {
+        isim_gfx_save();
+        if (corners) { ca_corners_path(CGRectMake(0, 0, sz.width, sz.height), cr); isim_gfx_clip_path(); }
+        else isim_gfx_clip_rounded(0, 0, sz.width, sz.height, radius);
+    }
     [self _isim_drawContent];
     [_layer _isim_renderLayerContents];      /* drawInContext: overrides (AVPlayerLayer) and sublayers */
     if (!base_drawRect) base_drawRect = class_getMethodImplementation([UIView class], @selector(drawRect:));
@@ -1056,7 +1135,10 @@ static IMP base_drawRect;
     if (clip) isim_gfx_restore();
     if (borderW > 0 && (_layer.borderColor || borderAnim)) {
         double bc[4]; if (borderAnim) memcpy(bc, borderC, sizeof bc); else cg_rgba(_layer.borderColor, bc);
-        isim_gfx_stroke_rounded(borderW / 2, borderW / 2, sz.width - borderW, sz.height - borderW, fmax(0, radius - borderW / 2), borderW, bc);
+        if (corners) {
+            double in[4]; for (int i = 0; i < 4; i++) in[i] = fmax(0, cr[i] - borderW / 2);
+            ca_corners_path(CGRectMake(borderW / 2, borderW / 2, sz.width - borderW, sz.height - borderW), in); isim_path_stroke(borderW, bc);
+        } else isim_gfx_stroke_rounded(borderW / 2, borderW / 2, sz.width - borderW, sz.height - borderW, fmax(0, radius - borderW / 2), borderW, bc);
     }
     if (caTransition) isim_ca_view_transition_end(_layer, sz);
     if (group && maskLayer) { isim_gfx_push_group(); isim_gfx_save(); isim_ca_render_mask(maskLayer); isim_gfx_restore(); isim_gfx_pop_group_masked(_vfx ? 1 : a); }
@@ -1493,3 +1575,71 @@ static void anim_remove_all(UIView *v) {
     [animating removeObjectIdenticalTo:v];
     isim_ui_set_needs_display();
 }
+
+/* ================= UICornerRadius / UICornerConfiguration (iOS 26) ================= */
+@implementation UICornerRadius { int _kind; CGFloat _value; }
++ (instancetype)fixedRadius:(CGFloat)r { UICornerRadius *c = [self new]; c->_kind = 0; c->_value = r; return c; }
++ (instancetype)containerConcentricRadius { UICornerRadius *c = [self new]; c->_kind = 1; c->_value = NAN; return c; }
++ (instancetype)containerConcentricRadiusWithMinimum:(CGFloat)m { UICornerRadius *c = [self new]; c->_kind = 1; c->_value = m; return c; }
+- (int)_isim_kind { return _kind; }
+- (CGFloat)_isim_value { return _value; }
+- (id)copyWithZone:(NSZone *)z { return self; }
+- (BOOL)isEqual:(id)o {
+    if (![o isKindOfClass:[UICornerRadius class]]) return NO;
+    UICornerRadius *c = o;
+    return c->_kind == _kind && (c->_value == _value || (isnan(c->_value) && isnan(_value)));
+}
+- (NSUInteger)hash { return (NSUInteger)_kind * 31 + (isnan(_value) ? 0 : (NSUInteger)(_value * 100)); }
+- (NSString *)description {
+    if (_kind == 0) return [NSString stringWithFormat:@"%g", _value];
+    return isnan(_value) ? @"containerConcentric" : [NSString stringWithFormat:@"containerConcentric(minimum: %g)", _value];
+}
+@end
+
+@implementation UICornerConfiguration { UICornerRadius *_r[4]; int _group[4]; BOOL _capsule; CGFloat _max; }
+static UICornerConfiguration *corner_config(UICornerRadius *tl, UICornerRadius *tr, UICornerRadius *bl, UICornerRadius *br, int g0, int g1, int g2, int g3) {
+    UICornerConfiguration *c = [UICornerConfiguration new];
+    c->_r[0] = tl; c->_r[1] = tr; c->_r[2] = bl; c->_r[3] = br;
+    c->_group[0] = g0; c->_group[1] = g1; c->_group[2] = g2; c->_group[3] = g3; c->_max = NAN;
+    return c;
+}
++ (instancetype)configurationWithRadius:(UICornerRadius *)r { return corner_config(r, r, r, r, 0, 1, 2, 3); }
++ (instancetype)configurationWithTopLeftRadius:(UICornerRadius *)tl topRightRadius:(UICornerRadius *)tr bottomLeftRadius:(UICornerRadius *)bl bottomRightRadius:(UICornerRadius *)br {
+    return corner_config(tl, tr, bl, br, 0, 1, 2, 3);
+}
++ (instancetype)capsuleConfiguration { UICornerConfiguration *c = corner_config(nil, nil, nil, nil, 0, 0, 0, 0); c->_capsule = YES; return c; }
++ (instancetype)capsuleConfigurationWithMaximumRadius:(CGFloat)m { UICornerConfiguration *c = [self capsuleConfiguration]; c->_max = m; return c; }
++ (instancetype)configurationWithUniformRadius:(UICornerRadius *)r { return corner_config(r, r, r, r, 0, 0, 0, 0); }
++ (instancetype)configurationWithUniformLeftRadius:(UICornerRadius *)l uniformRightRadius:(UICornerRadius *)r { return corner_config(l, r, l, r, 0, 1, 0, 1); }
++ (instancetype)configurationWithUniformTopRadius:(UICornerRadius *)t uniformBottomRadius:(UICornerRadius *)b { return corner_config(t, t, b, b, 0, 0, 1, 1); }
++ (instancetype)configurationWithUniformBottomRadius:(UICornerRadius *)b topLeftRadius:(UICornerRadius *)tl topRightRadius:(UICornerRadius *)tr { return corner_config(tl, tr, b, b, 0, 1, 2, 2); }
++ (instancetype)configurationWithUniformLeftRadius:(UICornerRadius *)l topRightRadius:(UICornerRadius *)tr bottomRightRadius:(UICornerRadius *)br { return corner_config(l, tr, l, br, 0, 1, 0, 3); }
++ (instancetype)configurationWithUniformRightRadius:(UICornerRadius *)r topLeftRadius:(UICornerRadius *)tl bottomLeftRadius:(UICornerRadius *)bl { return corner_config(tl, r, bl, r, 0, 1, 2, 1); }
++ (instancetype)configurationWithUniformTopRadius:(UICornerRadius *)t bottomLeftRadius:(UICornerRadius *)bl bottomRightRadius:(UICornerRadius *)br { return corner_config(t, t, bl, br, 0, 0, 2, 3); }
+- (BOOL)_isim_capsule { return _capsule; }
+- (CGFloat)_isim_maximumRadius { return _max; }
+- (UICornerRadius *)_isim_radiusAt:(int)i { return i >= 0 && i < 4 ? _r[i] : nil; }
+- (int)_isim_groupAt:(int)i { return i >= 0 && i < 4 ? _group[i] : i; }
+- (void)_isim_radii:(double *)out size:(CGSize)sz concentric:(double (^)(int, double))concentric {
+    double lim = fmin(sz.width, sz.height) / 2;
+    for (int i = 0; i < 4; i++) {
+        if (_capsule) { out[i] = isnan(_max) ? lim : fmin(lim, _max); continue; }
+        UICornerRadius *r = _r[i];
+        out[i] = !r ? 0 : r._isim_kind == 0 ? r._isim_value : (concentric ? concentric(i, r._isim_value) : (isnan(r._isim_value) ? 0 : r._isim_value));
+    }
+    for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) if (_group[i] == _group[j]) out[i] = fmin(out[i], out[j]);   /* uniform corners */
+}
+- (id)copyWithZone:(NSZone *)z { return self; }
+- (BOOL)isEqual:(id)o {
+    if (![o isKindOfClass:[UICornerConfiguration class]]) return NO;
+    UICornerConfiguration *c = o;
+    if (c->_capsule != _capsule || !(c->_max == _max || (isnan(c->_max) && isnan(_max)))) return NO;
+    for (int i = 0; i < 4; i++) if (c->_group[i] != _group[i] || !((!c->_r[i] && !_r[i]) || [c->_r[i] isEqual:_r[i]])) return NO;
+    return YES;
+}
+- (NSUInteger)hash { return (_capsule ? 7 : 0) ^ _r[0].hash ^ (_r[3].hash << 1); }
+- (NSString *)description {
+    if (_capsule) return isnan(_max) ? @"capsule" : [NSString stringWithFormat:@"capsule(maximumRadius: %g)", _max];
+    return [NSString stringWithFormat:@"corners(topLeft: %@, topRight: %@, bottomLeft: %@, bottomRight: %@)", _r[0] ?: @"0", _r[1] ?: @"0", _r[2] ?: @"0", _r[3] ?: @"0"];
+}
+@end
