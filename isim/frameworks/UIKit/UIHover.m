@@ -45,8 +45,8 @@ static char k_interactions;
 
 /* ================= UIHoverGestureRecognizer ================= */
 @implementation UIHoverGestureRecognizer
-- (CGFloat)zOffset { return 0; }
-- (CGFloat)altitudeAngle { return M_PI / 2; }
+- (CGFloat)zOffset { extern double isim_ui_pencil_hover_z; return fmax(0, isim_ui_pencil_hover_z); }
+- (CGFloat)altitudeAngle { extern double isim_ui_pencil_hover_z; return isim_ui_pencil_hover_z >= 0 ? 1.1 : M_PI / 2; }
 - (CGFloat)azimuthAngleInView:(UIView *)v { return 0; }
 - (CGPoint)locationInView:(UIView *)v { return [self.view.window convertPoint:self.lastPoint toView:v]; }
 /* hover phases (the pointer entered, moved over, left the view) */
@@ -85,20 +85,37 @@ static char k_interactions;
 @implementation UIPointerHighlightEffect @end
 @implementation UIPointerLiftEffect @end
 @implementation UIPointerHoverEffect @end
-@implementation UIPointerShape { CGRect _rect; CGFloat _radius; int _kind; }
-+ (instancetype)shapeWithPath:(UIBezierPath *)path { UIPointerShape *s = [self new]; s->_kind = 2; s->_rect = path.bounds; return s; }
+@implementation UIPointerShape { @public CGRect _rect; CGFloat _radius; int _kind; UIAxis _axis; }   /* kind 0 rounded rect, 1 beam, 2 path */
++ (instancetype)shapeWithPath:(UIBezierPath *)path { UIPointerShape *s = [self new]; s->_kind = 2; s->_rect = path.bounds; s->_radius = 4; return s; }
 + (instancetype)shapeWithRoundedRect:(CGRect)r { return [self shapeWithRoundedRect:r cornerRadius:8]; }
 + (instancetype)shapeWithRoundedRect:(CGRect)r cornerRadius:(CGFloat)c { UIPointerShape *s = [self new]; s->_rect = r; s->_radius = c; return s; }
-+ (instancetype)beamWithPreferredLength:(CGFloat)l axis:(UIAxis)a { UIPointerShape *s = [self new]; s->_kind = 1; s->_rect = a == UIAxisHorizontal ? CGRectMake(0, 0, l, 2) : CGRectMake(0, 0, 2, l); return s; }
++ (instancetype)beamWithPreferredLength:(CGFloat)l axis:(UIAxis)a { UIPointerShape *s = [self new]; s->_kind = 1; s->_axis = a; s->_rect = a == UIAxisHorizontal ? CGRectMake(0, 0, l, 2) : CGRectMake(0, 0, 2, l); return s; }
+- (id)copyWithZone:(NSZone *)z { return self; }
+@end
+const UIPointerAccessoryPosition UIPointerAccessoryPositionTop = { 8, 0 }, UIPointerAccessoryPositionTopRight = { 8, M_PI / 4 },
+    UIPointerAccessoryPositionRight = { 8, M_PI / 2 }, UIPointerAccessoryPositionBottomRight = { 8, 3 * M_PI / 4 }, UIPointerAccessoryPositionBottom = { 8, M_PI },
+    UIPointerAccessoryPositionBottomLeft = { 8, 5 * M_PI / 4 }, UIPointerAccessoryPositionLeft = { 8, 3 * M_PI / 2 }, UIPointerAccessoryPositionTopLeft = { 8, 7 * M_PI / 4 };
+@implementation UIPointerAccessory
++ (instancetype)accessoryWithShape:(UIPointerShape *)shape position:(UIPointerAccessoryPosition)p {
+    UIPointerAccessory *a = [super new]; a->_shape = shape; a->_position = p; a->_orientationMatchesAngle = YES; return a;
+}
++ (instancetype)arrowAccessoryWithPosition:(UIPointerAccessoryPosition)p {
+    UIBezierPath *tri = [UIBezierPath bezierPath];
+    [tri moveToPoint:CGPointMake(0, -4)]; [tri addLineToPoint:CGPointMake(5, 3)]; [tri addLineToPoint:CGPointMake(-5, 3)]; [tri closePath];
+    return [self accessoryWithShape:[UIPointerShape shapeWithPath:tri] position:p];
+}
 - (id)copyWithZone:(NSZone *)z { return self; }
 @end
 @interface UIPointerStyle ()
 @property (nonatomic, strong) UIPointerEffect *isimEffect;
+@property (nonatomic, strong) UIPointerShape *isimShape;
+@property (nonatomic) UIAxis isimAxes;
 @property (nonatomic) BOOL isimHidden;
 @end
 @implementation UIPointerStyle
-+ (instancetype)styleWithEffect:(UIPointerEffect *)e shape:(UIPointerShape *)s { UIPointerStyle *x = [self new]; x.isimEffect = e; return x; }
-+ (instancetype)styleWithShape:(UIPointerShape *)s constrainedAxes:(UIAxis)a { return [self new]; }
+- (instancetype)init { if ((self = [super init])) _accessories = @[]; return self; }
++ (instancetype)styleWithEffect:(UIPointerEffect *)e shape:(UIPointerShape *)s { UIPointerStyle *x = [self new]; x.isimEffect = e; x.isimShape = s; return x; }
++ (instancetype)styleWithShape:(UIPointerShape *)s constrainedAxes:(UIAxis)a { UIPointerStyle *x = [self new]; x.isimShape = s; x.isimAxes = a; return x; }
 + (instancetype)hiddenPointerStyle { UIPointerStyle *x = [self new]; x.isimHidden = YES; return x; }
 + (instancetype)systemPointerStyle { return [self new]; }
 - (id)copyWithZone:(NSZone *)z { return self; }
@@ -133,18 +150,79 @@ static char k_button_pointer;
 - (void)setPointerInteractionEnabled:(BOOL)e { objc_setAssociatedObject(self, &k_button_pointer, @(e), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end
 
-/* ================= UIPencilInteraction (no pencil) ================= */
+/* ================= UIPencilInteraction (simulated Apple Pencil) ================= */
+double isim_ui_pencil_hover_z = -1;
+static double pencil_hover_x, pencil_hover_y;
+@interface UIPencilHoverPose () - (instancetype)initWithIsimLocation:(CGPoint)p z:(double)z; @end
+@interface UIPencilInteractionTap () - (instancetype)initWithIsimPose:(UIPencilHoverPose *)p; @end
+@interface UIPencilInteractionSqueeze () - (instancetype)initWithIsimPhase:(UIPencilInteractionPhase)ph pose:(UIPencilHoverPose *)p; @end
+@implementation UIPencilHoverPose
+- (instancetype)initWithIsimLocation:(CGPoint)p z:(double)z {
+    if ((self = [super init])) { _location = p; _zOffset = z; _altitudeAngle = 1.1; _azimuthAngle = 0; _azimuthUnitVector = CGVectorMake(1, 0); }
+    return self;
+}
+@end
+@implementation UIPencilInteractionTap
+- (instancetype)initWithIsimPose:(UIPencilHoverPose *)p { if ((self = [super init])) { _timestamp = isim_time(); _hoverPose = p; } return self; }
+@end
+@implementation UIPencilInteractionSqueeze
+- (instancetype)initWithIsimPhase:(UIPencilInteractionPhase)ph pose:(UIPencilHoverPose *)p { if ((self = [super init])) { _timestamp = isim_time(); _phase = ph; _hoverPose = p; } return self; }
+@end
+
+static NSHashTable<UIPencilInteraction *> *pencil_interactions;
+static NSInteger pencil_pref(NSString *key, NSInteger def) {
+    extern NSDictionary *isim_global_preferences(void);
+    NSNumber *n = isim_global_preferences()[key];
+    return [n isKindOfClass:[NSNumber class]] ? n.integerValue : def;
+}
 @implementation UIPencilInteraction { __weak UIView *_view; }
-+ (UIPencilPreferredAction)preferredTapAction { return UIPencilPreferredActionSwitchEraser; }
-+ (UIPencilPreferredAction)preferredSqueezeAction { return UIPencilPreferredActionShowContextualPalette; }
-+ (BOOL)prefersPencilOnlyDrawing { return NO; }
-+ (BOOL)prefersHoverToolPreview { return NO; }
+/* Settings > Apple Pencil (the actions the user picked) */
++ (UIPencilPreferredAction)preferredTapAction { return (UIPencilPreferredAction)pencil_pref(@"PencilTapAction", UIPencilPreferredActionSwitchEraser); }
++ (UIPencilPreferredAction)preferredSqueezeAction { return (UIPencilPreferredAction)pencil_pref(@"PencilSqueezeAction", UIPencilPreferredActionShowContextualPalette); }
++ (BOOL)prefersPencilOnlyDrawing { return pencil_pref(@"PencilOnlyDrawing", 0) != 0; }
++ (BOOL)prefersHoverToolPreview { return pencil_pref(@"PencilHoverPreview", 1) != 0; }
 - (instancetype)init { if ((self = [super init])) _enabled = YES; return self; }
 - (instancetype)initWithDelegate:(id<UIPencilInteractionDelegate>)d { if ((self = [self init])) _delegate = d; return self; }
 - (UIView *)view { return _view; }
 - (void)willMoveToView:(UIView *)v {}
-- (void)didMoveToView:(UIView *)v { _view = v; }
+- (void)didMoveToView:(UIView *)v {
+    _view = v;
+    if (!pencil_interactions) pencil_interactions = [NSHashTable weakObjectsHashTable];
+    if (v) [pencil_interactions addObject:self]; else [pencil_interactions removeObject:self];
+}
 @end
+static NSString *pencil_action_name(UIPencilPreferredAction a) {
+    switch (a) {
+    case UIPencilPreferredActionSwitchEraser: return @"switchEraser";
+    case UIPencilPreferredActionSwitchPrevious: return @"switchPrevious";
+    case UIPencilPreferredActionShowColorPalette: return @"showColorPalette";
+    case UIPencilPreferredActionShowInkAttributes: return @"showInkAttributes";
+    case UIPencilPreferredActionShowContextualPalette: return @"showContextualPalette";
+    case UIPencilPreferredActionRunSystemShortcut: return @"runSystemShortcut";
+    default: return @"ignore";
+    }
+}
+/* script `pencil tap` / `pencil squeeze`: the enabled interactions on screen hear it, like iOS */
+void isim_ui_pencil_command(NSString *what) {
+    BOOL tap = [what isEqualToString:@"tap"];
+    UIPencilHoverPose *pose = isim_ui_pencil_hover_z >= 0 ? [[UIPencilHoverPose alloc] initWithIsimLocation:CGPointMake(pencil_hover_x, pencil_hover_y) z:isim_ui_pencil_hover_z] : nil;
+    NSUInteger n = 0;
+    for (UIPencilInteraction *i in pencil_interactions.allObjects) {
+        UIView *v = i.view;
+        if (!i.enabled || !v.window || v.window.hidden) continue;
+        id<UIPencilInteractionDelegate> d = i.delegate;
+        n++;
+        if (tap) {
+            if ([d respondsToSelector:@selector(pencilInteraction:didReceiveTap:)]) [d pencilInteraction:i didReceiveTap:[[UIPencilInteractionTap alloc] initWithIsimPose:pose]];
+            else if ([d respondsToSelector:@selector(pencilInteractionDidTap:)]) [d pencilInteractionDidTap:i];
+        } else if ([d respondsToSelector:@selector(pencilInteraction:didReceiveSqueeze:)]) {
+            [d pencilInteraction:i didReceiveSqueeze:[[UIPencilInteractionSqueeze alloc] initWithIsimPhase:UIPencilInteractionPhaseBegan pose:pose]];
+            [d pencilInteraction:i didReceiveSqueeze:[[UIPencilInteractionSqueeze alloc] initWithIsimPhase:UIPencilInteractionPhaseEnded pose:pose]];
+        }
+    }
+    NSLog(@"isim: Apple Pencil %@ (preferred action %@) to %lu interaction(s)", tap ? @"double-tap" : @"squeeze",
+          pencil_action_name(tap ? UIPencilInteraction.preferredTapAction : UIPencilInteraction.preferredSqueezeAction), (unsigned long)n);
+}
 
 /* ================= the pointer (iPad) ================= */
 static BOOL pointer_device(void) { return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad; }
@@ -153,6 +231,10 @@ static BOOL pointer_device(void) { return UIDevice.currentDevice.userInterfaceId
 @interface __IsimPointerWindow : UIWindow
 @property (nonatomic) CGPoint at;
 @property (nonatomic) CGRect morph;          /* the pointer became this rounded rect (highlight effect); empty: a dot */
+@property (nonatomic) CGRect shapeRect;      /* a custom shape (window coordinates; a beam is centred on the pointer) */
+@property (nonatomic) CGFloat shapeRadius;
+@property (nonatomic) int shapeKind;         /* -1 none (the dot), 0 rounded rect, 1 beam, 2 path */
+@property (nonatomic, copy) NSArray<UIPointerAccessory *> *accessories;
 @end
 @implementation __IsimPointerWindow
 - (BOOL)_isim_isSystemWindow { return YES; }
@@ -162,7 +244,28 @@ static BOOL pointer_device(void) { return UIDevice.currentDevice.userInterfaceId
     double c[4] = { 0.45, 0.45, 0.45, 0.45 };
     if (isim_ui_style() == UIUserInterfaceStyleDark) c[0] = c[1] = c[2] = 0.75;
     if (!CGRectIsEmpty(_morph)) return;          /* the highlight is drawn by the effect */
-    isim_gfx_fill_ellipse(_at.x - 9.5, _at.y - 9.5, 19, 19, c);
+    if (_shapeKind == 1) {                       /* a beam: the I-beam over text */
+        CGRect r = _shapeRect;
+        isim_gfx_fill_rounded(_at.x - r.size.width / 2, _at.y - r.size.height / 2, r.size.width, r.size.height, 1, c);
+    } else if (_shapeKind == 0 || _shapeKind == 2) {
+        isim_gfx_fill_rounded(_shapeRect.origin.x, _shapeRect.origin.y, _shapeRect.size.width, _shapeRect.size.height, _shapeRadius, c);
+    } else isim_gfx_fill_ellipse(_at.x - 9.5, _at.y - 9.5, 19, 19, c);
+    /* accessories: small arrows just outside the pointer's shape, pointing away from it (drawn as chevrons: adapted) */
+    double hw = 9.5, hh = 9.5;
+    if (_shapeKind == 1) { hw = _shapeRect.size.width / 2; hh = _shapeRect.size.height / 2; }
+    else if (_shapeKind == 0 || _shapeKind == 2) { hw = _shapeRect.size.width / 2; hh = _shapeRect.size.height / 2; }
+    for (UIPointerAccessory *a in _accessories) {
+        double ang = a.position.angle, dx = sin(ang), dy = -cos(ang);
+        double ext = fabs(dx) * hw + fabs(dy) * hh, off = ext + a.position.offset;
+        double ax = _at.x + dx * off, ay = _at.y + dy * off;
+        isim_gfx_save(); isim_gfx_translate(ax, ay); isim_gfx_rotate(ang);
+        for (int side = -1; side <= 1; side += 2) {               /* the two strokes of a chevron pointing "up" (away) */
+            isim_gfx_save(); isim_gfx_rotate(side * M_PI / 4);
+            isim_gfx_fill_rounded(-1.5, -1.5, 3, 7.5, 1.5, c);
+            isim_gfx_restore();
+        }
+        isim_gfx_restore();
+    }
 }
 @end
 
@@ -171,6 +274,7 @@ static NSMutableSet<UIHoverGestureRecognizer *> *hovering;
 static __weak UIPointerInteraction *cur_interaction;
 static __weak UIView *cur_pointer_view;
 static UIPointerRegion *cur_region;
+static UIPointerStyle *cur_style;
 static UIView *highlight_view;            /* highlight effect: a platter behind the target */
 static CGAffineTransform lifted_from;
 static __weak UIView *lifted_view;
@@ -230,6 +334,12 @@ static void update_pointer(CGPoint p, UIView *hit, BOOL exited) {
     pointer_window.frame = UIScreen.mainScreen.bounds;
     pointer_window.hidden = exited;
     pointer_window.at = p;
+    UIPointerStyle *cs = cur_style; UIView *cv = cur_pointer_view;
+    if (cs.isimAxes && cv && cur_region) {                      /* constrainedAxes: the pointer stays on the region's centre line */
+        CGRect rr = [cv convertRect:cur_region.rect toView:nil];
+        if (cs.isimAxes & UIAxisHorizontal) pointer_window.at = CGPointMake(CGRectGetMidX(rr), p.y);
+        if (cs.isimAxes & UIAxisVertical) pointer_window.at = CGPointMake(pointer_window.at.x, CGRectGetMidY(rr));
+    }
     /* the deepest view with a pointer interaction (or a pointer-enabled button) */
     UIPointerInteraction *found = nil; UIView *target = nil;
     for (UIView *v = exited ? nil : hit; v && !target; v = v.superview) {
@@ -238,7 +348,18 @@ static void update_pointer(CGPoint p, UIView *hit, BOOL exited) {
     }
     UIPointerRegion *region = nil;
     UIPointerStyle *style = nil;
-    if (target) {
+    if (!target && !exited) {                                   /* editable text: the I-beam, as tall as a line of its font */
+        for (UIView *v = hit; v; v = v.superview) {
+            BOOL editable = ([v isKindOfClass:[UITextField class]] && ((UITextField *)v).enabled) || ([v isKindOfClass:[UITextView class]] && ((UITextView *)v).editable);
+            if (!editable) continue;
+            UIFont *f = [v respondsToSelector:@selector(font)] ? [(id)v font] : nil;
+            target = v;
+            region = [UIPointerRegion regionWithRect:v.bounds identifier:@"isim.text"];
+            style = [UIPointerStyle styleWithShape:[UIPointerShape beamWithPreferredLength:ceil((f ?: [UIFont systemFontOfSize:17]).lineHeight) axis:UIAxisVertical] constrainedAxes:0];
+            break;
+        }
+    }
+    if (target && !style) {
         CGPoint local = [target convertPoint:p fromView:nil];
         UIPointerRegion *def = [UIPointerRegion regionWithRect:target.bounds identifier:nil];
         id<UIPointerInteractionDelegate> d = found.delegate;
@@ -257,7 +378,8 @@ static void update_pointer(CGPoint p, UIView *hit, BOOL exited) {
             [od pointerInteraction:oldI willExitRegion:cur_region animator:a]; [a _run];
         }
         clear_effect();
-        cur_interaction = found; cur_pointer_view = target; cur_region = region;
+        pointer_window.shapeKind = -1; pointer_window.accessories = @[];
+        cur_interaction = found; cur_pointer_view = target; cur_region = region; cur_style = style;
         if (region) {
             id<UIPointerInteractionDelegate> d = found.delegate;
             if ([d respondsToSelector:@selector(pointerInteraction:willEnterRegion:animator:)]) {
@@ -265,7 +387,15 @@ static void update_pointer(CGPoint p, UIView *hit, BOOL exited) {
                 [d pointerInteraction:found willEnterRegion:region animator:a]; [a _run];
             }
             if (style.isimHidden) pointer_window.hidden = YES;
-            else if (style.isimEffect) apply_effect(target, style);
+            else if (style.isimEffect && !style.isimShape) apply_effect(target, style);
+            else if (style.isimEffect) apply_effect(target, style), pointer_window.morph = CGRectZero;   /* the effect, drawn with the given shape */
+            if (style.isimShape) {
+                UIPointerShape *sh = style.isimShape;
+                pointer_window.shapeKind = sh->_kind; pointer_window.shapeRadius = sh->_radius;
+                pointer_window.shapeRect = sh->_kind == 1 ? sh->_rect : [target convertRect:sh->_rect toView:nil];
+                NSLog(@"isim: pointer shape %@", sh->_kind == 1 ? @"beam" : sh->_kind == 2 ? @"path" : @"rounded rect");
+            }
+            pointer_window.accessories = style.accessories ?: @[];
             NSLog(@"isim: pointer entered %@ region %@", NSStringFromClass([target class]), NSStringFromCGRect(region.rect));
         }
     }
@@ -274,6 +404,7 @@ static void update_pointer(CGPoint p, UIView *hit, BOOL exited) {
 
 void isim_ui_hover(double x, double y, BOOL exited) {
     CGPoint p = CGPointMake(x, y);
+    if (isim_ui_pencil_hover_z >= 0) { pencil_hover_x = x; pencil_hover_y = y; }
     UIView *hit = nil;
     UIWindow *w = exited ? nil : hover_window(p, &hit);
     NSMutableSet *now = [NSMutableSet set];

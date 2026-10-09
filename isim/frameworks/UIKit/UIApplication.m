@@ -18,6 +18,8 @@
 @property (nonatomic, readwrite, strong) UIView *view;
 @property (nonatomic) CGPoint loc, prev;
 @property (nonatomic) int isimFinger;
+@property (nonatomic) BOOL isimPencil;
+@property (nonatomic) double isimForce, isimAltitude, isimAzimuth;
 @end
 @implementation UITouch
 - (instancetype)initWithIsimView:(UIView *)v window:(UIWindow *)w location:(CGPoint)p time:(NSTimeInterval)t {
@@ -29,12 +31,20 @@
 - (void)_isim_setFinger:(int)f { _isimFinger = f; }
 - (int)_isim_finger { return _isimFinger; }
 - (void)_isim_setStationary { if (_phase != UITouchPhaseEnded && _phase != UITouchPhaseCancelled) { _phase = UITouchPhaseStationary; _prev = _loc; } }
-- (UITouchType)type { return UITouchTypeDirect; }
-- (CGFloat)majorRadius { return 20; }
-- (CGFloat)majorRadiusTolerance { return 5; }
-- (CGFloat)force { return _phase == UITouchPhaseEnded || _phase == UITouchPhaseCancelled ? 0 : 1; }
-- (CGFloat)maximumPossibleForce { return 0; }        /* no 3D Touch */
-- (CGFloat)altitudeAngle { return M_PI / 2; }
+/* a simulated Apple Pencil touch (script `pencil`): force 0...4.17, altitude above the screen, azimuth (radians) */
+- (void)_isim_setPencilForce:(double)f altitude:(double)alt azimuth:(double)az { _isimPencil = YES; _isimForce = f; _isimAltitude = alt; _isimAzimuth = az; }
+- (UITouchType)type { return _isimPencil ? UITouchTypePencil : UITouchTypeDirect; }
+- (CGFloat)majorRadius { return _isimPencil ? 0.25 : 20; }
+- (CGFloat)majorRadiusTolerance { return _isimPencil ? 0 : 5; }
+- (CGFloat)force { return _phase == UITouchPhaseEnded || _phase == UITouchPhaseCancelled ? 0 : _isimPencil ? _isimForce : 1; }
+- (CGFloat)maximumPossibleForce { return _isimPencil ? 4.1666 : 0; }        /* fingers: no 3D Touch */
+- (CGFloat)altitudeAngle { return _isimPencil ? _isimAltitude : M_PI / 2; }
+- (CGFloat)azimuthAngleInView:(UIView *)v { return _isimPencil ? _isimAzimuth : 0; }
+- (CGVector)azimuthUnitVectorInView:(UIView *)v { double a = [self azimuthAngleInView:v]; return CGVectorMake(cos(a), sin(a)); }
+- (CGFloat)rollAngle { return 0; }
+- (UITouchProperties)estimatedProperties { return 0; }
+- (UITouchProperties)estimatedPropertiesExpectingUpdates { return 0; }
+- (NSNumber *)estimationUpdateIndex { return nil; }
 - (CGPoint)preciseLocationInView:(UIView *)v { return [self locationInView:v]; }
 - (CGPoint)precisePreviousLocationInView:(UIView *)v { return [self previousLocationInView:v]; }
 - (NSArray *)gestureRecognizers {
@@ -866,6 +876,8 @@ static void handle_touch(const struct isim_event *ev) {
     }
     UITouch *t = active_touches[@(finger)];
     if (!t) return;
+    double pf, pa, pz;                                       /* a Pencil touch (script `pencil`) */
+    if (!strncmp(ev->text, "pencil ", 7) && sscanf(ev->text + 7, "%lf %lf %lf", &pf, &pa, &pz) == 3) [t _isim_setPencilForce:pf altitude:pa azimuth:pz];
     UITouchPhase phase = ev->type == ISIM_EV_TOUCH_DOWN ? UITouchPhaseBegan : ev->type == ISIM_EV_TOUCH_MOVE ? UITouchPhaseMoved : UITouchPhaseEnded;
     CGRect wf = t.window.frame;
     if (t == premoved && phase == UITouchPhaseMoved) premoved = nil;     /* moved already (with finger 0's move) */
@@ -1573,7 +1585,11 @@ static void run_loop_once(void) {
             case ISIM_EV_DEVICE_ORIENTATION: isim_ui_device_orientation_changed(ev.key); break;
             case ISIM_EV_SYSTEM: isim_sys_event(ev.text); break;
             case ISIM_EV_NOTIFICATION_RESPONSE: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimNotificationResponse" object:@(ev.text)]; break;
-            case ISIM_EV_HOVER: isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
+            case ISIM_EV_HOVER: {
+                extern double isim_ui_pencil_hover_z;            /* a hovering Pencil (script `pencil hover`), else -1 */
+                isim_ui_pencil_hover_z = !strncmp(ev.text, "pencil ", 7) ? atof(ev.text + 7) : -1;
+                isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
+            }
             case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
             case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
             case ISIM_EV_TEXT_SERVICE: isim_ui_text_service(@(ev.text)); break;
