@@ -14,7 +14,7 @@ def major(ios):
 @pytest.mark.os_matrix
 def test_text_tables(launch, ios):
     app = launch("HelloTextTables")
-    app.wait_log(r"^htt cell row 0 column 0 columns 3 width 40% padding 6$")
+    app.wait_log(r"^htt cell row 0 column 0 columns 3 width 40% percentage true$")
     app.wait_log(r"^htt copy keeps blocks true$")
     m = app.wait_log(r"^htt bounding (\d+)x(\d+)$")
     w, h = int(m[1]), int(m[2])

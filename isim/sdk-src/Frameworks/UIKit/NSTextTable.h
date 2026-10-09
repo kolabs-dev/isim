@@ -10,31 +10,31 @@
 NS_ASSUME_NONNULL_BEGIN
 @class UIColor;
 typedef NS_ENUM(NSUInteger, NSTextBlockValueType) {
-    NSTextBlockAbsoluteValueType NS_SWIFT_NAME(absolute) = 0,
-    NSTextBlockPercentageValueType NS_SWIFT_NAME(percentage) = 1,
+    NSTextBlockValueTypeAbsolute = 0,
+    NSTextBlockValueTypePercentage = 1,
 } NS_SWIFT_NAME(NSTextBlock.ValueType);
 typedef NS_ENUM(NSUInteger, NSTextBlockDimension) {
-    NSTextBlockWidth NS_SWIFT_NAME(width) = 0,
-    NSTextBlockMinimumWidth NS_SWIFT_NAME(minimumWidth) = 1,
-    NSTextBlockMaximumWidth NS_SWIFT_NAME(maximumWidth) = 2,
-    NSTextBlockHeight NS_SWIFT_NAME(height) = 4,
-    NSTextBlockMinimumHeight NS_SWIFT_NAME(minimumHeight) = 5,
-    NSTextBlockMaximumHeight NS_SWIFT_NAME(maximumHeight) = 6,
+    NSTextBlockDimensionWidth = 0,
+    NSTextBlockDimensionMinimumWidth = 1,
+    NSTextBlockDimensionMaximumWidth = 2,
+    NSTextBlockDimensionHeight = 4,
+    NSTextBlockDimensionMinimumHeight = 5,
+    NSTextBlockDimensionMaximumHeight = 6,
 } NS_SWIFT_NAME(NSTextBlock.Dimension);
 typedef NS_ENUM(NSInteger, NSTextBlockLayer) {
-    NSTextBlockPadding NS_SWIFT_NAME(padding) = -1,
-    NSTextBlockBorder NS_SWIFT_NAME(border) = 0,
-    NSTextBlockMargin NS_SWIFT_NAME(margin) = 1,
+    NSTextBlockLayerPadding = -1,
+    NSTextBlockLayerBorder = 0,
+    NSTextBlockLayerMargin = 1,
 } NS_SWIFT_NAME(NSTextBlock.Layer);
 typedef NS_ENUM(NSUInteger, NSTextBlockVerticalAlignment) {
-    NSTextBlockTopAlignment NS_SWIFT_NAME(top) = 0,
-    NSTextBlockMiddleAlignment NS_SWIFT_NAME(middle) = 1,
-    NSTextBlockBottomAlignment NS_SWIFT_NAME(bottom) = 2,
-    NSTextBlockBaselineAlignment NS_SWIFT_NAME(baseline) = 3,
+    NSTextBlockVerticalAlignmentTop = 0,
+    NSTextBlockVerticalAlignmentMiddle = 1,
+    NSTextBlockVerticalAlignmentBottom = 2,
+    NSTextBlockVerticalAlignmentBaseline = 3,
 } NS_SWIFT_NAME(NSTextBlock.VerticalAlignment);
 typedef NS_ENUM(NSUInteger, NSTextTableLayoutAlgorithm) {
-    NSTextTableAutomaticLayoutAlgorithm NS_SWIFT_NAME(automatic) = 0,
-    NSTextTableFixedLayoutAlgorithm NS_SWIFT_NAME(fixed) = 1,
+    NSTextTableLayoutAlgorithmAutomatic = 0,
+    NSTextTableLayoutAlgorithmFixed = 1,
 } NS_SWIFT_NAME(NSTextTable.LayoutAlgorithm);
 
 NS_SWIFT_UI_ACTOR
@@ -48,14 +48,14 @@ NS_SWIFT_UI_ACTOR
 @property (readonly) CGFloat contentWidth;
 @property (readonly) NSTextBlockValueType contentWidthValueType;
 - (void)setWidth:(CGFloat)val type:(NSTextBlockValueType)type forLayer:(NSTextBlockLayer)layer;
-- (void)setWidth:(CGFloat)val type:(NSTextBlockValueType)type forLayer:(NSTextBlockLayer)layer edge:(CGRectEdge)edge NS_SWIFT_NAME(setWidth(_:type:for:rectEdge:)) API_AVAILABLE(ios(27.0));
-- (CGFloat)widthForLayer:(NSTextBlockLayer)layer edge:(CGRectEdge)edge NS_SWIFT_NAME(width(for:rectEdge:));
-- (NSTextBlockValueType)widthValueTypeForLayer:(NSTextBlockLayer)layer edge:(CGRectEdge)edge NS_SWIFT_NAME(widthValueType(for:rectEdge:));
+- (void)setWidth:(CGFloat)val type:(NSTextBlockValueType)type forLayer:(NSTextBlockLayer)layer rectEdge:(CGRectEdge)edge API_AVAILABLE(ios(27.0));
+- (CGFloat)widthForLayer:(NSTextBlockLayer)layer rectEdge:(CGRectEdge)edge API_AVAILABLE(ios(27.0));
+- (NSTextBlockValueType)widthValueTypeForLayer:(NSTextBlockLayer)layer rectEdge:(CGRectEdge)edge API_AVAILABLE(ios(27.0));
 @property NSTextBlockVerticalAlignment verticalAlignment;
 @property (nullable, copy) UIColor *backgroundColor;
 - (void)setBorderColor:(nullable UIColor *)color;
-- (void)setBorderColor:(nullable UIColor *)color forEdge:(CGRectEdge)edge NS_SWIFT_NAME(setBorderColor(_:rectEdge:)) API_AVAILABLE(ios(27.0));
-- (nullable UIColor *)borderColorForEdge:(CGRectEdge)edge NS_SWIFT_NAME(borderColor(for:));
+- (void)setBorderColor:(nullable UIColor *)color rectEdge:(CGRectEdge)edge API_AVAILABLE(ios(27.0));
+- (nullable UIColor *)borderColorForRectEdge:(CGRectEdge)edge NS_SWIFT_NAME(borderColor(for:)) API_AVAILABLE(ios(27.0));
 @end
 
 NS_SWIFT_UI_ACTOR

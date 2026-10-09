@@ -65,17 +65,17 @@ static int dim_index(NSTextBlockDimension d) { return d <= 6 ? (int)d : 0; }
 - (void)setValue:(CGFloat)v type:(NSTextBlockValueType)t forDimension:(NSTextBlockDimension)d { int i = dim_index(d); _dim[i] = v; _dimType[i] = t; _dimSet[i] = YES; }
 - (CGFloat)valueForDimension:(NSTextBlockDimension)d { return _dim[dim_index(d)]; }
 - (NSTextBlockValueType)valueTypeForDimension:(NSTextBlockDimension)d { return _dimType[dim_index(d)]; }
-- (void)setContentWidth:(CGFloat)v type:(NSTextBlockValueType)t { [self setValue:v type:t forDimension:NSTextBlockWidth]; }
-- (CGFloat)contentWidth { return _dim[NSTextBlockWidth]; }
-- (NSTextBlockValueType)contentWidthValueType { return _dimType[NSTextBlockWidth]; }
-static int layer_index(NSTextBlockLayer l) { return l == NSTextBlockPadding ? 0 : l == NSTextBlockBorder ? 1 : 2; }
+- (void)setContentWidth:(CGFloat)v type:(NSTextBlockValueType)t { [self setValue:v type:t forDimension:NSTextBlockDimensionWidth]; }
+- (CGFloat)contentWidth { return _dim[NSTextBlockDimensionWidth]; }
+- (NSTextBlockValueType)contentWidthValueType { return _dimType[NSTextBlockDimensionWidth]; }
+static int layer_index(NSTextBlockLayer l) { return l == NSTextBlockLayerPadding ? 0 : l == NSTextBlockLayerBorder ? 1 : 2; }
 - (void)setWidth:(CGFloat)v type:(NSTextBlockValueType)t forLayer:(NSTextBlockLayer)l { for (int e = 0; e < 4; e++) { _width[layer_index(l)][e] = v; _widthType[layer_index(l)][e] = t; } }
-- (void)setWidth:(CGFloat)v type:(NSTextBlockValueType)t forLayer:(NSTextBlockLayer)l edge:(CGRectEdge)e { if (e > 3) return; _width[layer_index(l)][e] = v; _widthType[layer_index(l)][e] = t; }
-- (CGFloat)widthForLayer:(NSTextBlockLayer)l edge:(CGRectEdge)e { return e > 3 ? 0 : _width[layer_index(l)][e]; }
-- (NSTextBlockValueType)widthValueTypeForLayer:(NSTextBlockLayer)l edge:(CGRectEdge)e { return e > 3 ? NSTextBlockAbsoluteValueType : _widthType[layer_index(l)][e]; }
+- (void)setWidth:(CGFloat)v type:(NSTextBlockValueType)t forLayer:(NSTextBlockLayer)l rectEdge:(CGRectEdge)e { if (e > 3) return; _width[layer_index(l)][e] = v; _widthType[layer_index(l)][e] = t; }
+- (CGFloat)widthForLayer:(NSTextBlockLayer)l rectEdge:(CGRectEdge)e { return e > 3 ? 0 : _width[layer_index(l)][e]; }
+- (NSTextBlockValueType)widthValueTypeForLayer:(NSTextBlockLayer)l rectEdge:(CGRectEdge)e { return e > 3 ? NSTextBlockValueTypeAbsolute : _widthType[layer_index(l)][e]; }
 - (void)setBorderColor:(UIColor *)c { for (int e = 0; e < 4; e++) _border[e] = c; }
-- (void)setBorderColor:(UIColor *)c forEdge:(CGRectEdge)e { if (e <= 3) _border[e] = c; }
-- (UIColor *)borderColorForEdge:(CGRectEdge)e { return e <= 3 ? _border[e] : nil; }
+- (void)setBorderColor:(UIColor *)c rectEdge:(CGRectEdge)e { if (e <= 3) _border[e] = c; }
+- (UIColor *)borderColorForRectEdge:(CGRectEdge)e { return e <= 3 ? _border[e] : nil; }
 @end
 
 @implementation NSTextTable
@@ -146,7 +146,7 @@ static BOOL has_blocks(NSAttributedString *s) {
 }
 BOOL isim_ui_has_text_blocks(NSAttributedString *s) { return s.length && has_blocks(s); }
 
-static CGFloat value_of(CGFloat v, NSTextBlockValueType t, CGFloat W) { return t == NSTextBlockPercentageValueType ? W * v / 100 : v; }
+static CGFloat value_of(CGFloat v, NSTextBlockValueType t, CGFloat W) { return t == NSTextBlockValueTypePercentage ? W * v / 100 : v; }
 /* margin + border + padding on one edge */
 static CGFloat inset(NSTextBlock *b, CGRectEdge e, CGFloat W) {
     CGFloat sum = 0;
@@ -200,15 +200,15 @@ static void draw_frame(Ctx *c, NSTextBlock *b, CGRect box, CGFloat W) {
 /* the content width a block offers its paragraphs, out of the width W it is given */
 static CGFloat block_content_width(NSTextBlock *b, CGFloat W, CGFloat natural) {
     CGFloat ins = inset(b, CGRectMinXEdge, W) + inset(b, CGRectMaxXEdge, W);
-    CGFloat cw = dim(b, NSTextBlockWidth, W, W > 0 ? W - ins : natural);
-    cw = fmax(cw, dim(b, NSTextBlockMinimumWidth, W, 0));
-    CGFloat mx = dim(b, NSTextBlockMaximumWidth, W, 0); if (mx > 0) cw = fmin(cw, mx);
+    CGFloat cw = dim(b, NSTextBlockDimensionWidth, W, W > 0 ? W - ins : natural);
+    cw = fmax(cw, dim(b, NSTextBlockDimensionMinimumWidth, W, 0));
+    CGFloat mx = dim(b, NSTextBlockDimensionMaximumWidth, W, 0); if (mx > 0) cw = fmin(cw, mx);
     return fmax(cw, 1);
 }
 static CGFloat block_height(NSTextBlock *b, CGFloat W, CGFloat content) {
-    CGFloat h = dim(b, NSTextBlockHeight, W, content);
-    h = fmax(h, dim(b, NSTextBlockMinimumHeight, W, 0));
-    CGFloat mx = dim(b, NSTextBlockMaximumHeight, W, 0); if (mx > 0) h = fmin(h, mx);
+    CGFloat h = dim(b, NSTextBlockDimensionHeight, W, content);
+    h = fmax(h, dim(b, NSTextBlockDimensionMinimumHeight, W, 0));
+    CGFloat mx = dim(b, NSTextBlockDimensionMaximumHeight, W, 0); if (mx > 0) h = fmin(h, mx);
     return h;
 }
 
@@ -224,7 +224,7 @@ static CGSize layout_block(Ctx *c, NSTextBlock *b, NSUInteger from, NSUInteger t
     CGRect box = CGRectMake(x, y, l + cw + r, t + ch + bo);
     if (c->draw) {
         draw_frame(c, b, box, W);
-        CGFloat dy = b.verticalAlignment == NSTextBlockMiddleAlignment ? (ch - content.height) / 2 : b.verticalAlignment == NSTextBlockBottomAlignment ? ch - content.height : 0;
+        CGFloat dy = b.verticalAlignment == NSTextBlockVerticalAlignmentMiddle ? (ch - content.height) / 2 : b.verticalAlignment == NSTextBlockVerticalAlignmentBottom ? ch - content.height : 0;
         layout_range(c, from, to, depth + 1, x + l, y + t + fmax(0, dy), cw);
     }
     return box.size;
@@ -252,21 +252,21 @@ static CGSize layout_table(Ctx *c, NSTextTable *t, Cell *cells, NSUInteger n, NS
     /* the table's content width */
     CGFloat tl = inset(t, CGRectMinXEdge, W), tr = inset(t, CGRectMaxXEdge, W), tt = inset(t, CGRectMinYEdge, W), tb = inset(t, CGRectMaxYEdge, W);
     CGFloat natSum = 0; for (NSInteger k = 0; k < cols; k++) natSum += nat[k];
-    BOOL explicitWidth = t->_dimSet[NSTextBlockWidth];
-    CGFloat TW = explicitWidth ? dim(t, NSTextBlockWidth, W, 0) : W > 0 ? W - tl - tr : natSum;
+    BOOL explicitWidth = t->_dimSet[NSTextBlockDimensionWidth];
+    CGFloat TW = explicitWidth ? dim(t, NSTextBlockDimensionWidth, W, 0) : W > 0 ? W - tl - tr : natSum;
     TW = fmax(TW, 1);
     /* columns asked for by span-1 cells with a width */
     CGFloat fixed = 0; NSInteger open = 0;
     for (NSUInteger i = 0; i < n; i++) {
         Cell *e = &cells[i];
-        if (e->cs == 1 && e->b->_dimSet[NSTextBlockWidth])
-            want[e->col] = fmax(want[e->col], dim(e->b, NSTextBlockWidth, TW, 0) + inset(e->b, CGRectMinXEdge, TW) + inset(e->b, CGRectMaxXEdge, TW));
+        if (e->cs == 1 && e->b->_dimSet[NSTextBlockDimensionWidth])
+            want[e->col] = fmax(want[e->col], dim(e->b, NSTextBlockDimensionWidth, TW, 0) + inset(e->b, CGRectMinXEdge, TW) + inset(e->b, CGRectMaxXEdge, TW));
     }
     for (NSInteger k = 0; k < cols; k++) { if (want[k] > 0) { colw[k] = want[k]; fixed += want[k]; } else open++; }
     CGFloat rest = fmax(0, TW - fixed);
     if (open) {
         CGFloat openNat = 0; for (NSInteger k = 0; k < cols; k++) if (want[k] <= 0) openNat += nat[k];
-        if (t.layoutAlgorithm == NSTextTableFixedLayoutAlgorithm || openNat <= 0) {
+        if (t.layoutAlgorithm == NSTextTableLayoutAlgorithmFixed || openNat <= 0) {
             for (NSInteger k = 0; k < cols; k++) if (want[k] <= 0) colw[k] = rest / open;
         } else if (openNat <= rest && !explicitWidth) {           /* automatic: as wide as the content */
             for (NSInteger k = 0; k < cols; k++) if (want[k] <= 0) colw[k] = nat[k];
@@ -310,7 +310,7 @@ static CGSize layout_table(Ctx *c, NSTextTable *t, Cell *cells, NSUInteger n, NS
             if (!(t.hidesEmptyCells && e->empty)) draw_frame(c, e->b, CGRectMake(cx, cy, cw, chh), TW);
             CGFloat l = inset(e->b, CGRectMinXEdge, TW), tp = inset(e->b, CGRectMinYEdge, TW), r = inset(e->b, CGRectMaxXEdge, TW), bo = inset(e->b, CGRectMaxYEdge, TW);
             CGFloat room = chh - tp - bo;
-            CGFloat dy = e->b.verticalAlignment == NSTextBlockMiddleAlignment ? (room - e->h) / 2 : e->b.verticalAlignment == NSTextBlockBottomAlignment ? room - e->h : 0;
+            CGFloat dy = e->b.verticalAlignment == NSTextBlockVerticalAlignmentMiddle ? (room - e->h) / 2 : e->b.verticalAlignment == NSTextBlockVerticalAlignmentBottom ? room - e->h : 0;
             layout_range(c, e->from, e->to, depth + 1, cx + l, cy + tp + fmax(0, dy), fmax(1, cw - l - r));
         }
     }

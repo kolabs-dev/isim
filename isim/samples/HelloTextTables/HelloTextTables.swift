@@ -93,7 +93,7 @@ final class ViewController: UIViewController {
         ])
         let ps = text.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
         let cell = ps?.textBlocks.first as? NSTextTableBlock
-        log("cell row \(cell?.startingRow ?? -1) column \(cell?.startingColumn ?? -1) columns \(cell?.table.numberOfColumns ?? 0) width \(Int(cell?.contentWidth ?? 0))% padding \(Int(cell?.width(for: .padding, rectEdge: .minXEdge) ?? 0))")
+        log("cell row \(cell?.startingRow ?? -1) column \(cell?.startingColumn ?? -1) columns \(cell?.table.numberOfColumns ?? 0) width \(Int(cell?.contentWidth ?? 0))% percentage \(cell?.contentWidthValueType == .percentage)")
         log("bounding \(Int(bound.width))x\(Int(bound.height))")
         let copy = ps?.copy() as? NSParagraphStyle
         log("copy keeps blocks \(copy?.textBlocks.first === cell)")
