@@ -646,6 +646,8 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 @property (nonatomic) double isimRecognizedAt;
 @property (nonatomic) BOOL isimTracking;
 @property (nonatomic, strong) NSMutableArray<UITouch *> *isimTouches;   /* touches down on it (multi-touch aware recognizers) */
+@property (nonatomic) BOOL isimHeldBegan;                               /* a continuous recognizer waiting for failures */
+@property (nonatomic) double isimHeldSince;
 @end
 @implementation UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g { return YES; }
@@ -696,10 +698,36 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 - (BOOL)shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)o { return NO; }
 - (BOOL)canPreventGestureRecognizer:(UIGestureRecognizer *)o { return YES; }
 - (BOOL)canBePreventedByGestureRecognizer:(UIGestureRecognizer *)o { return YES; }
+/* the recognizers this one must wait for: require(toFail:), plus — among the recognizers on the touched view and its
+   ancestors — those it (shouldRequireFailureOf / its delegate) or they (shouldBeRequiredToFailBy / their delegate)
+   say must fail first */
+- (NSArray<UIGestureRecognizer *> *)_isim_failureRequirements {
+    NSMutableArray *out = [NSMutableArray array];
+    for (__IsimWeakRecognizer *w in self.isimFailureRequirements) { UIGestureRecognizer *o = w.recognizer; if (o.enabled && o.view.window) [out addObject:o]; }
+    UIView *hit = self.isimTouches.firstObject.view ?: self.view;
+    id<UIGestureRecognizerDelegate> d = _delegate;
+    for (UIView *v = hit; v; v = v.superview) for (UIGestureRecognizer *o in v.gestureRecognizers) {
+        if (o == self || !o.enabled || [out containsObject:o]) continue;
+        id<UIGestureRecognizerDelegate> od = o.delegate;
+        if ([self shouldRequireFailureOfGestureRecognizer:o] || [o shouldBeRequiredToFailByGestureRecognizer:self]
+            || ([d respondsToSelector:@selector(gestureRecognizer:shouldRequireFailureOfGestureRecognizer:)] && [d gestureRecognizer:self shouldRequireFailureOfGestureRecognizer:o])
+            || ([od respondsToSelector:@selector(gestureRecognizer:shouldBeRequiredToFailByGestureRecognizer:)] && [od gestureRecognizer:o shouldBeRequiredToFailByGestureRecognizer:self]))
+            [out addObject:o];
+    }
+    return out;
+}
+/* 0: nothing to wait for (or they failed), 1: still deciding, 2: one of them recognized (this one fails) */
+- (int)_isim_failureStatusSince:(double)start {
+    BOOL pending = NO, down = self.isimTouches.count > 0 || self.isimTracking;      /* while the touch is down, the others still see it */
+    for (UIGestureRecognizer *o in [self _isim_failureRequirements]) {
+        if (o.isimRecognizedAt >= start - 0.1 || o.state == UIGestureRecognizerStateBegan || o.state == UIGestureRecognizerStateChanged) return 2;
+        if (o.state == UIGestureRecognizerStatePossible && (o.isimTracking || down)) pending = YES;
+    }
+    return pending ? 1 : 0;
+}
 /* a discrete recognizer that requires others to fail waits until they fail (or time out) before firing */
 - (BOOL)_isim_deferUntilFailures:(void (^)(void))fire {
-    NSMutableArray *waiting = [NSMutableArray array];
-    for (__IsimWeakRecognizer *w in self.isimFailureRequirements) { UIGestureRecognizer *o = w.recognizer; if (o.enabled && o.view.window) [waiting addObject:o]; }
+    NSArray *waiting = [self _isim_failureRequirements];
     if (!waiting.count) return NO;
     double start = isim_time();
     for (UIGestureRecognizer *o in waiting) if (o.isimRecognizedAt >= start - 0.1) return YES;      /* it just won: we fail */
@@ -750,6 +778,18 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     if ((after == UIGestureRecognizerStateBegan && before != UIGestureRecognizerStateBegan) || after == UIGestureRecognizerStateChanged ||
         (after == UIGestureRecognizerStateEnded && before != UIGestureRecognizerStateEnded) || (after == UIGestureRecognizerStateCancelled && before != UIGestureRecognizerStateCancelled)) {
         if (after == UIGestureRecognizerStateBegan && ![self _isim_shouldBegin]) { _state = UIGestureRecognizerStateFailed; }
+        else if ((after == UIGestureRecognizerStateBegan && before == UIGestureRecognizerStatePossible) || self.isimHeldBegan) {
+            /* a continuous recognizer that requires others to fail: hold Began until they fail; fail if one wins */
+            if (!self.isimHeldBegan) { self.isimHeldBegan = YES; self.isimHeldSince = isim_time(); }
+            int st = [self _isim_failureStatusSince:self.isimHeldSince];
+            if (st == 2) { self.isimHeldBegan = NO; _state = UIGestureRecognizerStateFailed; }
+            else if (st == 0) {
+                self.isimHeldBegan = NO;
+                UIGestureRecognizerState now = _state;
+                _state = UIGestureRecognizerStateBegan; [self _fire];
+                if (now != UIGestureRecognizerStateBegan) { _state = now; [self _fire]; }
+            } else _state = UIGestureRecognizerStatePossible;            /* still waiting: the next touch event decides */
+        }
         else if (after == UIGestureRecognizerStateEnded && before == UIGestureRecognizerStatePossible) {
             __weak UIGestureRecognizer *ws = self;
             if (![self _isim_deferUntilFailures:^{ UIGestureRecognizer *s = ws; s->_state = UIGestureRecognizerStateEnded; [s _fire]; s->_state = UIGestureRecognizerStatePossible; }]) [self _fire];
@@ -801,7 +841,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     NSMutableArray *ts = self.isimTouches;
     BOOL active = self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged;
     if (phase == UITouchPhaseBegan) {
-        if (!ts.count) { _waitAllUp = NO; self.state = UIGestureRecognizerStatePossible; _ns = 0; }
+        if (!ts.count) { _waitAllUp = NO; self.state = UIGestureRecognizerStatePossible; _ns = 0; self.isimHeldBegan = NO; }
         if (ts.count >= _maximumNumberOfTouches || [ts containsObject:touch]) return;
         BOOL had = ts.count > 0;
         CGPoint before = [self _centroid];
@@ -822,6 +862,12 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
             if (ts.count >= _minimumNumberOfTouches && hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) {
                 self.lastPoint = p;                     /* translation/velocity are readable from gestureRecognizerShouldBegin: */
                 if (![self _isim_shouldBegin]) { self.state = UIGestureRecognizerStateFailed; _waitAllUp = YES; return; }
+                /* failure requirements: wait while they decide; fail if one of them recognizes */
+                if (!self.isimHeldBegan) self.isimHeldSince = isim_time();
+                int st = [self _isim_failureStatusSince:self.isimHeldSince];
+                if (st == 2) { self.isimHeldBegan = NO; self.state = UIGestureRecognizerStateFailed; _waitAllUp = YES; return; }
+                if (st == 1) { self.isimHeldBegan = YES; return; }
+                self.isimHeldBegan = NO;
                 self.startPoint = p; self.state = UIGestureRecognizerStateBegan; [self _fire];
             }
         } else if (active) { self.state = UIGestureRecognizerStateChanged; self.lastPoint = p; [self _fire]; }

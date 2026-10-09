@@ -7,8 +7,8 @@
  *    controller's view, else the root's), .pageSheet / .formSheet / .automatic (iPhone sheets, iPad centered
  *    cards), .popover (iPad, or iPhone when the adaptive delegate returns .none; otherwise a sheet), .custom
  *    (the transitioning delegate's UIPresentationController).
- *  - Transition styles: cover vertical (slide), cross dissolve (fade), flip horizontal (2D squash/unfold,
- *    adapted), partial curl (adapted: presented as cover vertical).
+ *  - Transition styles: cover vertical (slide), cross dissolve (fade), flip horizontal (3D, with
+ *    perspective), partial curl (adapted: the presenter's page lifts off its top edge and stays up; a tap on it dismisses).
  *  - Custom transitions: UIViewControllerTransitioningDelegate animators get a transition context (container,
  *    from/to controllers and views, final frames, completeTransition); interaction controllers
  *    (UIPercentDrivenInteractiveTransition) scrub the animator's UIView animations through an engine timeline,
@@ -274,12 +274,31 @@ static BOOL _isim_animating;
 - (void)_isim_drawContent { double c[4]; isim_ui_rgba(UIColor.tertiaryLabelColor, c); CGSize s = self.bounds.size; isim_gfx_fill_rounded(0, 0, s.width, s.height, s.height / 2, c); }
 @end
 
+/* .partialCurl: a snapshot of the presenter lifted off its top edge; only the lifted page takes touches (a tap
+   dismisses), the presented content below it stays usable */
+extern CATransform3D isim_ui_rotation3d(double angle, int axis, CGSize s);
+extern void isim_ui_animate_rotation(UIView *v, int axis, double from, double to, double duration, int easing, void (^done)(void));
+static const double kCurlAngle = -1.15;
+@interface __IsimCurlView : UIView
+@property (nonatomic) CGFloat visibleHeight;
+@end
+@implementation __IsimCurlView
+- (BOOL)pointInside:(CGPoint)p withEvent:(UIEvent *)e { return p.y >= 0 && p.y < _visibleHeight && p.x >= 0 && p.x < self.bounds.size.width; }
+/* where the page's bottom edge appears with the transform (perspective included) */
+- (void)_isim_updateVisible {
+    CGSize s = self.bounds.size; CATransform3D t = self.layer.transform;
+    double y = s.height / 2, w = y * t.m24 + t.m44, yy = (y * t.m22 + t.m42) / (w != 0 ? w : 1);
+    _visibleHeight = s.height / 2 + yy;
+}
+@end
+
 /* ================= a presentation ================= */
 enum { P_FULL, P_SHEET, P_POPOVER, P_FORMCARD };          /* layout kinds */
 @interface __IsimPresentation () <UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIViewController *presenter;
 @property (nonatomic, strong) UIViewController *presented;
 @property (nonatomic, strong) UIPresentationController *pc;
+@property (nonatomic, strong) UIView *curl;                     /* .partialCurl: the presenter's lifted page */
 @property (nonatomic) UIModalPresentationStyle style;            /* after adaptation */
 @property (nonatomic) int kind;
 @property (nonatomic, strong) __IsimTransitionView *container;
@@ -637,7 +656,7 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
     default: [self presentFull:animated]; break;
     }
 }
-/* full screen / over context: slide up, fade or flip */
+/* full screen / over context: slide up, fade, flip (3D) or partial curl */
 - (void)presentFull:(BOOL)animated {
     UIView *c = _container, *v = _pc.presentedView ?: _presented.view;
     CGRect end = [self presentedFrame];
@@ -654,17 +673,41 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
         [UIView performWithoutAnimation:^{ v.alpha = 0; }];
         isim_ui_animate(0.35, 0, 0, 0, 0, 0, ^{ v.alpha = 1; }, complete);
     } else if (ts == UIModalTransitionStyleFlipHorizontal) {
-        /* adapted (2D): the presenter folds to its vertical axis, then the presented view unfolds */
-        ctx.duration = 0.5;
+        /* the presenter turns away about its vertical axis (perspective), then the presented view turns in */
+        ctx.duration = 0.6;
         UIView *behind = top_view(_presenter);
         if (behind == c) behind = nil;
         v.hidden = YES;
-        isim_ui_animate(0.25, 0, UIViewAnimationOptionCurveEaseIn, 0, 0, 0, ^{ behind.transform = CGAffineTransformMakeScale(0.02, 1); }, ^(BOOL f) {
-            [UIView performWithoutAnimation:^{ behind.transform = CGAffineTransformIdentity; v.hidden = NO; v.transform = CGAffineTransformMakeScale(0.02, 1); }];
-            isim_ui_animate(0.25, 0, UIViewAnimationOptionCurveEaseOut, 0, 0, 0, ^{ v.transform = CGAffineTransformIdentity; }, complete);
+        void (^turnIn)(void) = ^{
+            behind.hidden = YES;
+            v.hidden = NO;
+            isim_ui_animate_rotation(v, 0, M_PI_2, 0, 0.3, 1, ^{ [v.layer removeAnimationForKey:@"isim.rotation"]; behind.hidden = NO; complete(YES); });
+        };
+        if (behind) isim_ui_animate_rotation(behind, 0, 0, -M_PI_2, 0.3, 0, ^{ [behind.layer removeAnimationForKey:@"isim.rotation"]; turnIn(); });
+        else turnIn();
+    } else if (ts == UIModalTransitionStylePartialCurl && top_view(_presenter) != c && top_view(_presenter)) {
+        /* adapted: the presenter's page lifts off its top edge (rigid, not curved) and stays up over the presented view */
+        ctx.duration = 0.5;
+        UIView *behind = top_view(_presenter);
+        __IsimCurlView *curl = [[__IsimCurlView alloc] initWithFrame:c.bounds];
+        curl.accessibilityIdentifier = @"isim-partial-curl";
+        UIView *snap = [behind snapshotViewAfterScreenUpdates:NO];
+        snap.frame = curl.bounds; snap.userInteractionEnabled = NO;
+        [curl addSubview:snap];
+        curl.visibleHeight = c.bounds.size.height;
+        __weak UIViewController *presented = _presented;
+        [curl addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_curlTapped)]];
+        [c addSubview:curl];
+        self.curl = curl;
+        (void)presented;
+        isim_ui_animate_rotation(curl, 1, 0, kCurlAngle, 0.5, 2, ^{
+            curl.layer.transform = isim_ui_rotation3d(kCurlAngle, 1, curl.bounds.size);
+            [curl.layer removeAnimationForKey:@"isim.rotation"];
+            [curl _isim_updateVisible];
+            NSLog(@"isim: partial curl up (%.0f pt of the page left)", curl.visibleHeight);
+            complete(YES);
         });
     } else {
-        if (ts == UIModalTransitionStylePartialCurl) NSLog(@"isim: partial curl shown as cover vertical (adapted)");
         ctx.duration = 0.5;
         [UIView performWithoutAnimation:^{ v.frame = CGRectOffset(end, 0, c.bounds.size.height); }];
         isim_ui_animate(0.5, 0, 0, 1, 1.0, 0, ^{ v.frame = end; }, complete);
@@ -672,6 +715,7 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
     [ctx _isim_runAlongside];
 }
 /* iPad form/page sheet: a centered card over a dimming view */
+- (void)_isim_curlTapped { NSLog(@"isim: partial curl tapped: dismissing"); [_presented dismissViewControllerAnimated:YES completion:nil]; }
 - (void)presentCard:(BOOL)animated {
     UIView *c = _container, *v = _presented.view;
     _dim = [[UIView alloc] initWithFrame:c.bounds];
@@ -826,12 +870,21 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
             ctx.duration = 0.35;
             isim_ui_animate(0.35, 0, 0, 0, 0, 0, ^{ v.alpha = 0; }, complete);
         } else if (ts == UIModalTransitionStyleFlipHorizontal) {
-            ctx.duration = 0.5;
+            ctx.duration = 0.6;
             UIView *behind = top_view(presenter);
-            isim_ui_animate(0.25, 0, UIViewAnimationOptionCurveEaseIn, 0, 0, 0, ^{ v.transform = CGAffineTransformMakeScale(0.02, 1); }, ^(BOOL f) {
-                [UIView performWithoutAnimation:^{ v.hidden = YES; behind.transform = CGAffineTransformMakeScale(0.02, 1); }];
-                isim_ui_animate(0.25, 0, UIViewAnimationOptionCurveEaseOut, 0, 0, 0, ^{ behind.transform = CGAffineTransformIdentity; }, complete);
+            if (behind == self.container) behind = nil;
+            behind.hidden = YES;
+            isim_ui_animate_rotation(v, 0, 0, M_PI_2, 0.3, 0, ^{
+                [v.layer removeAnimationForKey:@"isim.rotation"];
+                v.hidden = YES; behind.hidden = NO;
+                if (!behind) { complete(YES); return; }
+                isim_ui_animate_rotation(behind, 0, -M_PI_2, 0, 0.3, 1, ^{ [behind.layer removeAnimationForKey:@"isim.rotation"]; complete(YES); });
             });
+        } else if (self.curl) {                                    /* the lifted page comes back down */
+            ctx.duration = 0.45;
+            __IsimCurlView *curl = (__IsimCurlView *)self.curl;
+            curl.layer.transform = CATransform3DIdentity;
+            isim_ui_animate_rotation(curl, 1, kCurlAngle, 0, 0.45, 2, ^{ [curl.layer removeAnimationForKey:@"isim.rotation"]; [curl removeFromSuperview]; self.curl = nil; complete(YES); });
         } else {
             ctx.duration = 0.38;
             isim_ui_animate(0.38, 0, UIViewAnimationOptionCurveEaseIn, 0, 0, 0, ^{ v.frame = CGRectOffset(v.frame, 0, H); }, complete);

@@ -2,10 +2,9 @@
  *
  *  - animateKeyframes / addKeyframe: each keyframe's changes become a segment of one keyframe timeline per
  *    property; the options' curve (default ease in-out) warps the whole timeline; .calculationModeDiscrete jumps.
- *  - transition(with:): flips and curls are drawn as a 2D squash to the axis and back (adapted: no 3D
- *    perspective), with the animations block applied at the midpoint; cross dissolve fades out, applies the
- *    changes and fades back in.
- *  - transition(from:to:): cross dissolve fades between the two views; flips squash one and stretch the other.
+ *  - transition(with:) / transition(from:to:): 3D flips with perspective (the changes applied edge-on), curls as
+ *    a page lifting off / coming down over its top edge (adapted: a rigid page, not a curved one), cross dissolve as
+ *    a snapshot of the old content fading out over the new.
  *  - UIViewPropertyAnimator: animations are captured on an engine timeline, so they can be paused, scrubbed
  *    (fractionComplete), reversed, stopped and finished at the start, end or current position. Timing:
  *    built-in and custom cubic curves, springs (damping ratio, mass/stiffness/damping, duration/bounce). */
@@ -14,6 +13,14 @@
 #include <math.h>
 
 /* CALayer, its presentation layers and Core Animation animations: CoreAnimation.m */
+
+/* a block run when a Core Animation animation stops (transitions) */
+@interface __IsimAnimDone : NSObject <CAAnimationDelegate>
+@property (nonatomic, copy) void (^done)(BOOL finished);
+@end
+@implementation __IsimAnimDone
+- (void)animationDidStop:(CAAnimation *)a finished:(BOOL)f { void (^d)(BOOL) = _done; _done = nil; if (d) d(f); }
+@end
 
 /* ================= keyframes ================= */
 @implementation UIView (UIViewKeyframeAnimations)
@@ -25,28 +32,74 @@
 + (void)addKeyframeWithRelativeStartTime:(double)s relativeDuration:(double)d animations:(void (^)(void))a { isim_ui_add_keyframe(s, d, a); }
 
 /* ================= transitions ================= */
-static int transition_kind(UIViewAnimationOptions o) { return (int)((o >> 20) & 7); }   /* 1/2 flip left/right, 3/4 curl up/down, 5 dissolve, 6/7 flip top/bottom */
-static CGAffineTransform squashed(CGAffineTransform base, int kind) {
-    BOOL vertical = kind == 3 || kind == 4 || kind == 6 || kind == 7;
-    return CGAffineTransformScale(base, vertical ? 1 : 0.02, vertical ? 0.02 : 1);
+/* 3D rotations for transitions: a keyframe animation of the layer's transform (exact rotations with perspective at
+   each step, eased), axis 0 = vertical through the center (flips left/right), 1 = horizontal along the top edge
+   (curls), 2 = horizontal through the center (flips top/bottom) */
+CATransform3D isim_ui_rotation3d(double angle, int axis, CGSize s) {
+    CATransform3D t = CATransform3DIdentity;
+    t.m34 = -1.0 / (1.8 * fmax(s.width, s.height));                       /* perspective */
+    if (axis == 0) return CATransform3DRotate(t, angle, 0, 1, 0);
+    if (axis == 2) return CATransform3DRotate(t, angle, 1, 0, 0);
+    double dy = -s.height / 2;                                             /* about the top edge */
+    t = CATransform3DTranslate(t, 0, dy, 0);
+    t = CATransform3DRotate(t, angle, 1, 0, 0);
+    return CATransform3DTranslate(t, 0, -dy, 0);
 }
+/* ease 0 in, 1 out, 2 in-out */
+static double ease(double x, int e) { return e == 0 ? x * x * x : e == 1 ? 1 - pow(1 - x, 3) : (x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2); }
+void isim_ui_animate_rotation(UIView *v, int axis, double from, double to, double duration, int easing, void (^done)(void)) {
+    CAKeyframeAnimation *a = [CAKeyframeAnimation animationWithKeyPath:@"transform"];
+    NSMutableArray *vals = [NSMutableArray array], *times = [NSMutableArray array];
+    CGSize s = v.bounds.size; int n = 24;
+    for (int i = 0; i <= n; i++) {
+        double x = (double)i / n;
+        [vals addObject:[NSValue valueWithCATransform3D:isim_ui_rotation3d(from + (to - from) * ease(x, easing), axis, s)]];
+        [times addObject:@(x)];
+    }
+    a.values = vals; a.keyTimes = times; a.duration = duration;
+    a.fillMode = kCAFillModeForwards; a.removedOnCompletion = NO;
+    __IsimAnimDone *d = [__IsimAnimDone new];
+    __weak UIView *wv = v;
+    d.done = ^(BOOL f) { if (done) done(); else [wv.layer removeAnimationForKey:@"isim.rotation"]; };
+    a.delegate = d;
+    [v.layer addAnimation:a forKey:@"isim.rotation"];
+}
+static int transition_kind(UIViewAnimationOptions o) { return (int)((o >> 20) & 7); }   /* 1/2 flip left/right, 3/4 curl up/down, 5 dissolve, 6/7 flip top/bottom */
+static double flip_sign(int kind) { return kind == 1 || kind == 7 ? 1 : -1; }          /* which way the first half turns */
+static int flip_axis(int kind) { return kind == 6 || kind == 7 ? 2 : 0; }
+/* a view's own snapshot, placed over (or under) it in its superview */
+static UIView *snapshot_beside(UIView *view, BOOL above) {
+    UIView *snap = [view snapshotViewAfterScreenUpdates:NO];
+    if (!snap || !view.superview) return nil;
+    snap.frame = view.frame;
+    if (above) [view.superview insertSubview:snap aboveSubview:view]; else [view.superview insertSubview:snap belowSubview:view];
+    return snap;
+}
+/* adapted from iOS: flips turn the view in 3D (perspective) with the changes applied edge-on; curl up lifts a snapshot
+   of the old content off the top edge, revealing the new; curl down lowers the new content over a snapshot of the
+   old; cross dissolve fades a snapshot of the old content out over the new */
 void isim_ui_transition_with_view(UIView *view, double d, UIViewAnimationOptions o, void (^animations)(void), void (^completion)(BOOL)) {
     int kind = transition_kind(o);
     if (!view || kind == 0 || d <= 0 || !isim_ui_animations_enabled()) { isim_ui_animate(d, 0, o, 0, 0, 0, animations, completion); return; }
-    UIViewAnimationOptions half = o & ~(UIViewAnimationOptions)(7 << 20);
-    if (kind == 5) {                                         /* cross dissolve: fade out, swap the content, fade in */
-        CGFloat alpha = view.alpha;
-        isim_ui_animate(d / 2, 0, (half & ~(3 << 16)) | UIViewAnimationOptionCurveEaseIn, 0, 0, 0, ^{ view.alpha = alpha * 0.15; }, ^(BOOL f) {
-            [UIView performWithoutAnimation:^{ if (animations) animations(); }];
-            isim_ui_animate(d / 2, 0, (half & ~(3 << 16)) | UIViewAnimationOptionCurveEaseOut, 0, 0, 0, ^{ view.alpha = alpha; }, completion);
-        });
+    void (^apply)(void) = ^{ [UIView performWithoutAnimation:^{ if (animations) animations(); }]; [view layoutIfNeeded]; };
+    void (^finish)(void) = ^{ if (completion) completion(YES); };
+    if (kind == 5 || kind == 3 || kind == 4) {
+        UIView *snap = snapshot_beside(view, kind != 4);
+        if (!snap) { apply(); dispatch_async(dispatch_get_main_queue(), finish); return; }
+        apply();
+        if (kind == 5) {                                                   /* cross-fade from the old content */
+            isim_ui_animate(d, 0, 0, 0, 0, 0, ^{ snap.alpha = 0; }, ^(BOOL f) { [snap removeFromSuperview]; finish(); });
+        } else if (kind == 3) {                                            /* curl up: the old page lifts away */
+            isim_ui_animate_rotation(snap, 1, 0, -M_PI_2, d, 0, ^{ [snap removeFromSuperview]; finish(); });
+        } else {                                                           /* curl down: the new page comes down */
+            isim_ui_animate_rotation(view, 1, -M_PI_2, 0, d, 1, ^{ [view.layer removeAnimationForKey:@"isim.rotation"]; [snap removeFromSuperview]; finish(); });
+        }
         return;
     }
-    /* flips and curls: squash to the axis, apply the changes, unfold */
-    CGAffineTransform base = view.transform;
-    isim_ui_animate(d / 2, 0, (half & ~(3 << 16)) | UIViewAnimationOptionCurveEaseIn, 0, 0, 0, ^{ view.transform = squashed(base, kind); }, ^(BOOL f) {
-        [UIView performWithoutAnimation:^{ if (animations) animations(); }];
-        isim_ui_animate(d / 2, 0, (half & ~(3 << 16)) | UIViewAnimationOptionCurveEaseOut, 0, 0, 0, ^{ view.transform = base; }, completion);
+    int axis = flip_axis(kind); double sign = flip_sign(kind);
+    isim_ui_animate_rotation(view, axis, 0, sign * M_PI_2, d / 2, 0, ^{
+        apply();
+        isim_ui_animate_rotation(view, axis, -sign * M_PI_2, 0, d / 2, 1, ^{ [view.layer removeAnimationForKey:@"isim.rotation"]; finish(); });
     });
 }
 + (void)transitionFromView:(UIView *)from toView:(UIView *)to duration:(NSTimeInterval)d options:(UIViewAnimationOptions)o completion:(void (^)(BOOL))c {
@@ -73,10 +126,17 @@ void isim_ui_transition_with_view(UIView *view, double d, UIViewAnimationOptions
         });
         return;
     }
-    CGAffineTransform fromBase = from.transform, toBase = to.transform;
-    isim_ui_animate(d / 2, 0, half | UIViewAnimationOptionCurveEaseIn, 0, 0, 0, ^{ from.transform = squashed(fromBase, kind); }, ^(BOOL f) {
-        [UIView performWithoutAnimation:^{ show(); hideFrom(); from.transform = fromBase; to.transform = squashed(toBase, kind); }];
-        isim_ui_animate(d / 2, 0, half | UIViewAnimationOptionCurveEaseOut, 0, 0, 0, ^{ to.transform = toBase; }, c);
+    if (kind == 3 || kind == 4) {                                          /* curls: the old view lifts off / the new comes down */
+        [UIView performWithoutAnimation:^{ show(); }];
+        if (kind == 3) { [sup bringSubviewToFront:from]; isim_ui_animate_rotation(from, 1, 0, -M_PI_2, d, 0, ^{ [from.layer removeAnimationForKey:@"isim.rotation"]; hideFrom(); if (c) c(YES); }); }
+        else { [sup bringSubviewToFront:to]; isim_ui_animate_rotation(to, 1, -M_PI_2, 0, d, 1, ^{ [to.layer removeAnimationForKey:@"isim.rotation"]; hideFrom(); if (c) c(YES); }); }
+        return;
+    }
+    int axis = flip_axis(kind); double sign = flip_sign(kind);
+    isim_ui_animate_rotation(from, axis, 0, sign * M_PI_2, d / 2, 0, ^{
+        [from.layer removeAnimationForKey:@"isim.rotation"];
+        [UIView performWithoutAnimation:^{ show(); hideFrom(); }];
+        isim_ui_animate_rotation(to, axis, -sign * M_PI_2, 0, d / 2, 1, ^{ [to.layer removeAnimationForKey:@"isim.rotation"]; if (c) c(YES); });
     });
 }
 @end
