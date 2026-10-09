@@ -103,6 +103,7 @@ static void unresolved_called(const char *name) {
     fprintf(stderr, "isim: FATAL: guest called unimplemented function %s\n", name);
     abort();
 }
+static struct image *image_for_address(const void *addr);
 static void *make_trap(const char *name) {
     static uint8_t *page; static size_t used;
     if (!page || used + 32 > 4096) {
@@ -205,6 +206,14 @@ void *isim_lookup_symbol(const char *sym) {
         const struct shim *s = host_lib_lookup(host_libs[i], sym);
         if (s) return s->addr;
     }
+    return NULL;
+}
+
+/* a symbol defined by a loaded guest image itself, never a host table (objc_exc.c: libc++abi's entry points) */
+void *isim_lookup_image_symbol(const char *sym) {
+    uint64_t a;
+    for (int i = 0; i < nimages; i++)
+        if (image_export(images[i], sym, &a, 0) && image_for_address((void *)(uintptr_t)a)) return (void *)(uintptr_t)a;
     return NULL;
 }
 

@@ -347,6 +347,7 @@ static void d_tlv_bootstrap(void) { fputs("isim: thread-local variables are not 
 /* Exceptions: the host libgcc unwinder walks guest frames (objc_exc.c registers their unwind info) */
 #include <unwind.h>
 extern _Unwind_Reason_Code isim_objc_personality(int, _Unwind_Action, uint64_t, struct _Unwind_Exception *, struct _Unwind_Context *);
+extern _Unwind_Reason_Code isim_gxx_personality(int, _Unwind_Action, uint64_t, struct _Unwind_Exception *, struct _Unwind_Context *);
 extern _Unwind_Reason_Code isim_unwind_raise(struct _Unwind_Exception *);
 extern _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn, void *);
 static uint32_t d_arc4random(void) { uint32_t v; if (getrandom(&v, sizeof v, 0) != sizeof v) v = (uint32_t)random(); return v; }
@@ -628,6 +629,6 @@ static const struct shim libsystem_table[] = {
     A("__Unwind_GetIP", _Unwind_GetIP), A("__Unwind_GetIPInfo", _Unwind_GetIPInfo), A("__Unwind_GetGR", _Unwind_GetGR),
     A("__Unwind_SetGR", _Unwind_SetGR), A("__Unwind_SetIP", _Unwind_SetIP), A("__Unwind_GetCFA", _Unwind_GetCFA),
     A("__Unwind_Backtrace", isim_unwind_backtrace),
-    A("___objc_personality_v0", isim_objc_personality), A("___gxx_personality_v0", isim_objc_personality), S("__tlv_bootstrap", d_tlv_bootstrap),
+    A("___objc_personality_v0", isim_objc_personality), A("___gxx_personality_v0", isim_gxx_personality), S("__tlv_bootstrap", d_tlv_bootstrap),
 };
 const struct host_lib host_libsystem = { "/usr/lib/libSystem.B.dylib", libsystem_table, sizeof libsystem_table / sizeof *libsystem_table };

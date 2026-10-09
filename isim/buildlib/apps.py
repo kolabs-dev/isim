@@ -403,6 +403,12 @@ def _(a):
             f.write(plist.replace("objc-runtime-test", ident).replace(">ObjCRuntimeTest<", f">{name}<"))
 
 
+@app("tests/cxx-exceptions", products=["CxxExceptionsTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.mm"], "Info.plist", ["-framework", "Foundation", "-lc++"], name="CxxExceptionsTest",
+               flags=("-std=c++20", "-fobjc-arc-exceptions", "-O1", "-Wall"))
+
+
 @app("tests/objc-literals", products=["ObjCLiteralsTest.app"])
 def _(a):
     """Literals.m with -fobjc-constant-literals (clang 23+) bridged into Swift; with an older clang the committed

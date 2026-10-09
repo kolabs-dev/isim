@@ -13,10 +13,14 @@
  * next throw. The personality routine below parses the guest's LSDA (__gcc_except_tab, the
  * Itanium format) and matches @catch clauses through the OBJC_EHTYPE_$_Class records clang emits.
  *
+ * C++ exceptions are libc++abi's (in the guest's libc++.1.dylib, over these same _Unwind_* entry
+ * points). As on iOS, __objc_personality_v0 (which clang uses for every Objective-C++ function)
+ * defers to __gxx_personality_v0 for them, and @catch (...) catches them through __cxa_begin_catch.
+ * Objective-C exceptions are foreign to libc++abi: C++ frames run their cleanups for them and
+ * catch (...) catches them; a C++ catch of an Objective-C pointer type does not (on iOS it does).
+ *
  * Limits: compact encodings describe the frame at call sites only (enough for synchronous
- * exceptions); Swift async frames (extended frame pointer bit) are not unwound; C++ exceptions are
- * not thrown by isim's libc++ (built -fno-exceptions), but C++ frames using __gxx_personality_v0
- * run their cleanups and catch(...) blocks for Objective-C exceptions passing through.
+ * exceptions); Swift async frames (extended frame pointer bit) are not unwound.
  */
 #define _GNU_SOURCE
 #include <pthread.h>
@@ -334,10 +338,35 @@ static int scan_lsda(struct _Unwind_Context *ctx, struct _Unwind_Exception *ue, 
     return SCAN_NONE;
 }
 
-/* __objc_personality_v0 (also used for __gxx_personality_v0 frames) */
+/* libc++abi's entry points in the guest's libc++.1.dylib (NULL while it is not loaded) */
+typedef _Unwind_Reason_Code (*personality_fn)(int, _Unwind_Action, uint64_t, struct _Unwind_Exception *, struct _Unwind_Context *);
+void *isim_lookup_image_symbol(const char *sym);
+static void *cxxabi(const char *sym, void **cache) {
+    void *f = __atomic_load_n(cache, __ATOMIC_ACQUIRE);
+    if (!f && (f = isim_lookup_image_symbol(sym))) __atomic_store_n(cache, f, __ATOMIC_RELEASE);
+    return f;
+}
+static void *__gxx_personality_v0_p, *__cxa_begin_catch_p, *__cxa_end_catch_p, *__cxa_rethrow_p;
+#define CXXABI(name) cxxabi("_" #name, &name##_p)
+
+_Unwind_Reason_Code isim_objc_personality(int version, _Unwind_Action actions, uint64_t cls,
+                                          struct _Unwind_Exception *ue, struct _Unwind_Context *ctx);
+/* libSystem's __gxx_personality_v0 (apps built before isim had libc++abi bound it there): libc++abi's */
+_Unwind_Reason_Code isim_gxx_personality(int version, _Unwind_Action actions, uint64_t cls,
+                                         struct _Unwind_Exception *ue, struct _Unwind_Context *ctx) {
+    personality_fn gxx = CXXABI(__gxx_personality_v0);
+    return gxx ? gxx(version, actions, cls, ue, ctx) : isim_objc_personality(version, actions, cls, ue, ctx);
+}
+
+/* __objc_personality_v0: Objective-C exceptions here; C++ exceptions go to libc++abi's personality, which
+   skips @catch clauses (their typeinfo's can_catch slot answers false) */
 _Unwind_Reason_Code isim_objc_personality(int version, _Unwind_Action actions, uint64_t cls,
                                           struct _Unwind_Exception *ue, struct _Unwind_Context *ctx) {
     if (version != 1 || !ue || !ctx) return _URC_FATAL_PHASE1_ERROR;
+    if (!is_objc(ue)) {
+        personality_fn gxx = CXXABI(__gxx_personality_v0);
+        if (gxx) return gxx(version, actions, cls, ue, ctx);
+    }
     uintptr_t lp = 0; int64_t sel = 0;
     int r = scan_lsda(ctx, ue, &lp, &sel);
     if (actions & _UA_SEARCH_PHASE) return r == SCAN_HANDLER ? _URC_HANDLER_FOUND : _URC_CONTINUE_UNWIND;
@@ -392,13 +421,21 @@ void objc_exception_throw(id obj) {
     terminate_uncaught(obj);                                  /* no handler: the stack is intact (phase 1 failed) */
 }
 
-/* currently caught exceptions of this thread (innermost first) */
-struct caught { struct _Unwind_Exception *ue; int count, rethrown; struct caught *next; };
+/* currently caught exceptions of this thread (innermost first); a C++ exception caught by @catch (...) is libc++abi's
+   to track (__cxa_begin_catch / __cxa_end_catch / __cxa_rethrow), as on iOS */
+struct caught { struct _Unwind_Exception *ue; int count, rethrown, cxx; struct caught *next; };
 static __thread struct caught *caught_stack;
 
 id objc_begin_catch(void *exc) {
     struct _Unwind_Exception *ue = exc;
-    if (caught_stack && caught_stack->ue == ue) { caught_stack->count++; caught_stack->rethrown = 0; }
+    void *(*begin)(void *) = is_objc(ue) ? NULL : CXXABI(__cxa_begin_catch);
+    if (begin) {
+        begin(ue);
+        struct caught *c = calloc(1, sizeof *c);
+        c->ue = ue; c->count = 1; c->cxx = 1; c->next = caught_stack; caught_stack = c;
+        return NULL;
+    }
+    if (caught_stack && caught_stack->ue == ue && !caught_stack->cxx) { caught_stack->count++; caught_stack->rethrown = 0; }
     else {
         struct caught *c = calloc(1, sizeof *c);
         c->ue = ue; c->count = 1; c->next = caught_stack; caught_stack = c;
@@ -409,12 +446,14 @@ void objc_end_catch(void) {
     struct caught *c = caught_stack;
     if (!c || --c->count > 0) return;
     caught_stack = c->next;
-    if (!c->rethrown) _Unwind_DeleteException(c->ue);
+    if (c->cxx) ((void (*)(void))CXXABI(__cxa_end_catch))();
+    else if (!c->rethrown) _Unwind_DeleteException(c->ue);
     free(c);
 }
 void objc_exception_rethrow(void) {
     struct caught *c = caught_stack;
     if (!c) { fflush(NULL); fputs("isim objc: objc_exception_rethrow with no exception being handled\n", stderr); signal(SIGABRT, SIG_DFL); abort(); }
+    if (c->cxx) ((void (*)(void))CXXABI(__cxa_rethrow))();  /* does not return; the landing pad ends the catch */
     c->rethrown = 1;
     _Unwind_RaiseException(c->ue);
     terminate_uncaught(is_objc(c->ue) ? EXC_OF(c->ue)->obj : NULL);
