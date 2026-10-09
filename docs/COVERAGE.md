@@ -26,7 +26,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 186 | 28 | 3 | 4 | 221 | 90% |
+| **UIKit** | 190 | 25 | 2 | 4 | 221 | 92% |
 | &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 26 | 5 | 0 | 0 | 31 | 92% |
 | &nbsp;&nbsp;↳ Views & controls | 50 | 7 | 0 | 3 | 60 | 89% |
@@ -35,8 +35,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 11 | 1 | 2 | 0 | 14 | 82% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
-| &nbsp;&nbsp;↳ Haptics & feedback | 2 | 0 | 1 | 0 | 3 | 67% |
-| &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
+| &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
+| &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 13 | 1 | 0 | 1 | 15 | 90% |
 | **SwiftUI** | 187 | 42 | 2 | 8 | 239 | 87% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **707** | **222** | **29** | **39** | **997** | **82%** |
+| **All areas** | **711** | **219** | **28** | **39** | **997** | **82%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 92% (206) | 93% (210) | 92% (217) | 90% (221) |
+| UIKit | 94% (206) | 94% (210) | 93% (217) | 92% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -364,7 +364,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `UIImpactFeedbackGenerator`, `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator` | 🧩 | ≤17 | no haptics, like Apple's Simulator; each feedback is logged (`isim: haptic impact (heavy)`). Tested (background) |
+| `UIImpactFeedbackGenerator`, `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator` | ✅ | ≤17 | adapted (no haptic hardware, like Apple's Simulator): each feedback is shown as a brief ring at its location — the point given, the generator's view or mid-screen — sized by the impact style and intensity, coloured for notifications, and logged (`isim: haptic impact (heavy) at x,y`); `ISIM_HAPTIC_INDICATOR=0` turns the ring off. iOS 17.5 view-attached generators (`init(view:)`, `init(style:view:)`) and located feedback (`impactOccurred(at:)`, `selectionChanged(at:)`, `notificationOccurred(_:at:)`), `UICanvasFeedbackGenerator`. Tested (background, effects, HelloAssistive) |
 | Core Haptics (`CHHapticEngine`) | ✅ | ≤17 | like Apple's Simulator there is no haptic hardware: `capabilitiesForHardware().supportsHaptics` is false. Engine, events, parameters, parameter curves, patterns (incl. AHAP dictionaries/files, `exportDictionary`), players and advanced players (pause/resume/seek/loop/rate, completion handlers, `notifyWhenPlayersFinished`) are modelled and timed; playback is logged on stderr, never felt or heard. Tested (HelloCoreAnimation) |
 | `AudioServicesPlaySystemSound` / vibration | ✅ | ≤17 | System Sound Services (AudioToolbox): sound files play through the host audio; `kSystemSoundID_Vibrate` is logged (no haptics, like the Simulator). Tested (background) |
 
@@ -374,11 +374,11 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 |---|---|---|---|
 | `accessibilityIdentifier` | ✅ | ≤17 | drives isim's scripted tests (`tapid`) |
 | `accessibilityLabel/Hint/Value/Traits`, `isAccessibilityElement`, containers | ✅ | ≤17 | the accessibility tree: elements in reading order (top-to-bottom, left-to-right), `accessibilityElements` order, `UIAccessibilityElement`, `accessibilityViewIsModal`, `shouldGroupAccessibilityChildren`, frames/activation points, UIKit defaults for controls (switch, slider, text fields); `dump` shows `ax=` descriptions with `ISIM_DUMP_ACCESSIBILITY=1`; tested (HelloAccessibility) |
-| VoiceOver (simulated), Switch Control, Voice Control | 🟡 | ≤17 | isim VoiceOver: Settings > Accessibility > VoiceOver or script `voiceover on/off/next/prev/activate/increment/decrement/action/escape/read`; black focus cursor, description logged and spoken with the host espeak-ng, tap / double tap / swipe gestures, activation by tap, adjustable values, custom actions; tested (HelloAccessibility). No rotor gestures, no Switch/Voice Control |
+| VoiceOver (simulated), Switch Control, Voice Control | ✅ | ≤17 | adapted (assistive technologies simulated in the app; no switch hardware or speech recognition): VoiceOver — Settings > Accessibility > VoiceOver or script `voiceover …`; black focus cursor, descriptions logged and spoken with the host espeak-ng, tap / double tap / swipe left-right gestures, swipe up/down and `voiceover rotor` / `up` / `down` for the rotor, activation, adjustable values, custom actions; Switch Control — Settings toggle or `switchcontrol on`, item scanning highlight (`next`, `auto…` timer), `select` activates, `isSwitchControlRunning` + status notification; Voice Control — `voicecontrol PHRASE`: tap by label or `accessibilityUserInputLabels`, show numbers / names overlays and tap by number, scroll, go back. Tested (HelloAccessibility, HelloAssistive, OS matrix) |
 | `UIAccessibility.isVoiceOverRunning`, `isReduceMotionEnabled`, `isBoldTextEnabled` & co. | ✅ | ≤17 | follow Settings > Accessibility (VoiceOver, Reduce Motion, Bold Text, Increase Contrast → `isDarkerSystemColorsEnabled`/`accessibilityContrast`, Reduce Transparency, Differentiate Without Color) with their change notifications; tested (HelloAccessibility). Invert colors / grayscale always off |
-| `UIAccessibility.post(notification:)`, custom actions, rotors | 🟡 | ≤17 | announcement / screenChanged / layoutChanged / pageScrolled logged and handled by VoiceOver (spoken, refocus), `announcementDidFinishNotification`; `UIAccessibilityCustomAction` (handler and target/selector); tested (HelloAccessibility). `UIAccessibilityCustomRotor` stored only (unverified) |
+| `UIAccessibility.post(notification:)`, custom actions, rotors | ✅ | ≤17 | announcement / screenChanged / layoutChanged / pageScrolled logged and handled by VoiceOver (spoken, refocus), `announcementDidFinishNotification`; `UIAccessibilityCustomAction` (handler and target/selector; the rotor's Actions item picks one, double tap performs it); `UIAccessibilityCustomRotor` on the focused element, its containers and the screen's view controllers (item search block, next / previous), built-in Headings and Adjust Value rotors. Tested (HelloAccessibility, HelloAssistive, OS matrix) |
 | Larger Text sizes, Bold Text, Increase Contrast, Reduce Transparency settings | ✅ | ≤17 | Settings > Accessibility pages write the device preferences every app reads; tested (HelloAccessibility via preferences). Colors don't change for Increase Contrast; materials don't turn opaque |
-| Large Content Viewer | 🟡 | ≤17 | `UILargeContentViewerInteraction` + `showsLargeContentViewer`/`largeContentTitle`/`largeContentImage`: HUD on long press at accessibility sizes (unverified) |
+| Large Content Viewer | ✅ | ≤17 | `UILargeContentViewerInteraction` (+ delegate: item at point, did end on item) and `showsLargeContentViewer` / `largeContentTitle` / `largeContentImage`: at accessibility text sizes a long press shows the item big in a HUD, following the finger across items. Tested (HelloAssistive) |
 
 ### Drag & drop
 

@@ -647,6 +647,11 @@ struct AccessibilitySettingsView: View {
             Section("Motion") {
                 Toggle("Reduce Motion", isOn: boolPref("ISIMReduceMotion", $bump)).accessibilityIdentifier("settings-reduce-motion")
             }
+            Section {
+                Toggle("Switch Control", isOn: boolPref("ISIMSwitchControl", $bump)).accessibilityIdentifier("settings-switch-control")
+            } header: { Text("Physical and Motor") } footer: {
+                Text("Switch Control highlights items in turn; the script commands switchcontrol next / select / auto move and select (isim has no switch hardware).")
+            }
         }
         .navigationTitle("Accessibility").navigationBarTitleDisplayMode(.inline)
     }
