@@ -145,7 +145,10 @@ NSString *isim_ui_markup(NSAttributedString *s, UIFont *defFont, UIColor *defCol
     [m appendString:@"</span>"];
     return m;
 }
-static int pango_align(NSTextAlignment a) { return a == NSTextAlignmentCenter ? 1 : a == NSTextAlignmentRight ? 2 : 0; }
+static int pango_align(NSTextAlignment a) {
+    if (a == NSTextAlignmentNatural) a = isim_ui_drawing_rtl ? NSTextAlignmentRight : NSTextAlignmentLeft;   /* natural follows the layout direction */
+    return a == NSTextAlignmentCenter ? 1 : a == NSTextAlignmentRight ? 2 : 0;
+}
 CGSize isim_ui_measure_attributed(NSAttributedString *s, UIFont *f, UIColor *c, CGFloat maxw, NSInteger lines) {
     if (!s.length) return CGSizeZero;
     NSTextAlignment al = NSTextAlignmentNatural; CGFloat sp = 0;

@@ -11,6 +11,7 @@ import pytest
 APP = "dev.isim.samples.HelloQuickLook"
 
 
+@pytest.mark.os_matrix
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="the video needs ffmpeg")
 def test_quicklook(launch, device_data):
     docs = device_data / "Containers" / APP / "Documents"

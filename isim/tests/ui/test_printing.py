@@ -2,7 +2,10 @@
 three-page text with two copies, markup, a view, a custom page renderer (header, footer), an image, a PDF (cancelled),
 the printer picker and printing straight to the picked printer."""
 
+import pytest
 
+
+@pytest.mark.os_matrix
 def test_printing(launch, device_data):
     app = launch("HelloPrinting")
     app.wait_log(r"^printing available=true utis=true")

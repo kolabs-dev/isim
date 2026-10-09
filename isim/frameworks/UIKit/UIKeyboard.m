@@ -3,6 +3,9 @@
  *  - built-in keyboards enabled in Settings (English (US), Português (Brasil), Español, Français, Deutsch, Emoji):
  *    letters / numbers / symbols layers, shift + auto-capitalization, accent popups, predictive bar, autocorrection,
  *    delete with auto-repeat, return key titled by returnKeyType; dictation (mic) is not available;
+ *  - the responder's keyboardType: number / decimal / phone pads (3 x 4 keys, letters under the digits, no return
+ *    key), the email (@ .), URL (. / .com, no space), Twitter (@ #) and web search (.) bottom rows, numbers and
+ *    punctuation starting (and staying) on the numbers layer;
  *  - custom keyboards: the app's embedded keyboard extensions (PlugIns/<name>.appex,
  *    com.apple.keyboard-service). isim loads the extension executable into the app process
  *    (iOS runs it out of process) and hosts its UIInputViewController. All embedded keyboards
@@ -87,6 +90,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 
 @interface __IsimKeyboardKeys : UIView
 @property (nonatomic, weak) id<UIKeyInput> target;
+- (BOOL)_pad;                                         /* a number / decimal / phone pad */
 @property (nonatomic) BOOL showGlobe;                 /* devices without the bottom bar */
 @property (nonatomic, copy) NSString *language;       /* en_US, pt_BR, es_ES, fr_FR, de_DE, emoji */
 @property (nonatomic, copy) void (^onGlobe)(void);
@@ -106,9 +110,14 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     return self;
 }
 - (BOOL)_emoji { return [_language isEqualToString:@"emoji"]; }
+- (UIKeyboardType)_kbType { id t = _target; return [t respondsToSelector:@selector(keyboardType)] ? [(id<UITextInputTraits>)t keyboardType] : UIKeyboardTypeDefault; }
+- (BOOL)_pad {
+    UIKeyboardType k = [self _kbType];
+    return ![self _emoji] && (k == UIKeyboardTypeNumberPad || k == UIKeyboardTypeDecimalPad || k == UIKeyboardTypePhonePad || k == UIKeyboardTypeASCIICapableNumberPad);
+}
 - (BOOL)showsPredictions {
     id t = _target;
-    if ([self _emoji] || !pref_on(@"KeyboardPrediction") || !t) return NO;
+    if ([self _emoji] || [self _pad] || !pref_on(@"KeyboardPrediction") || !t) return NO;
     if ([t respondsToSelector:@selector(autocorrectionType)] && [(id<UITextInputTraits>)t autocorrectionType] == UITextAutocorrectionTypeNo) return NO;
     if ([t respondsToSelector:@selector(isSecureTextEntry)] && [(id<UITextInputTraits>)t isSecureTextEntry]) return NO;
     return [t conformsToProtocol:@protocol(UITextInput)];
@@ -146,6 +155,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     }
     _bar.hidden = !self.showsPredictions;
     if ([self _emoji]) { [self _rebuildEmoji]; return; }
+    if ([self _pad]) { [self _rebuildPad]; return; }
     NSArray *rows = rows_for(_layer, _language);
     for (NSUInteger r = 0; r < rows.count; r++)
         for (NSString *k in rows[r]) {
@@ -177,6 +187,16 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     UIButton *space = [self _key:[self _spaceTitle] ident:@"isim-kb-space" special:NO action:@selector(_space)];
     space.titleLabel.font = [UIFont systemFontOfSize:16];
     space.tag = 104;
+    /* the keyboard type's bottom-row keys (between space and return); URL keyboards have no space bar */
+    UIKeyboardType kt = [self _kbType];
+    NSArray *extras = _layer != L_LETTERS ? nil : kt == UIKeyboardTypeEmailAddress ? @[@"@", @"."] : kt == UIKeyboardTypeURL ? @[@".", @"/", @".com"]
+                    : kt == UIKeyboardTypeTwitter ? @[@"@", @"#"] : kt == UIKeyboardTypeWebSearch ? @[@"."] : nil;
+    if (kt == UIKeyboardTypeURL && _layer == L_LETTERS) [space removeFromSuperview], [_keys removeObject:space];
+    for (NSString *e in extras) {
+        UIButton *b = [self _key:e ident:[@"isim-kb-" stringByAppendingString:[e isEqualToString:@".com"] ? @"dotcom" : e] special:NO action:@selector(_char:)];
+        b.titleLabel.font = [UIFont systemFontOfSize:[e isEqualToString:@".com"] ? 16 : 20];
+        b.tag = 106;
+    }
     UIButton *ret = [self _key:[self _returnTitle] ident:@"isim-kb-return" special:YES action:@selector(_return)];
     if ([self _returnIsBlue]) { ret.backgroundColor = UIColor.systemBlueColor; [ret setTitleColor:UIColor.whiteColor forState:UIControlStateNormal]; }
     ret.tag = 105;
@@ -184,6 +204,65 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     [self setNeedsLayout];
     if (self.bounds.size.width > 0) [self layoutSubviews];     /* keys are tappable right away (fast scripted typing) */
     isim_ui_set_needs_display();
+}
+/* number / decimal / phone pads: three columns of big keys, the digits with their letters, no return key */
+- (void)_rebuildPad {
+    UIKeyboardType kt = [self _kbType];
+    BOOL phone = kt == UIKeyboardTypePhonePad;
+    if (phone && _layer == L_SYMBOLS) {                 /* "+*#": the phone pad's symbols (adapted) */
+        for (NSString *k in @[@"+", @"*", @"#", @",", @";", @"(", @")", @"/", @"-"]) [self _key:k ident:[@"isim-kb-" stringByAppendingString:k] special:NO action:@selector(_char:)].tag = 400;
+        UIButton *back = [self _key:@"123" ident:@"isim-kb-123" special:YES action:@selector(_padSymbols)];
+        back.tag = 401;
+    } else {
+        NSArray *letters = @[@"", @"ABC", @"DEF", @"GHI", @"JKL", @"MNO", @"PQRS", @"TUV", @"WXYZ"];
+        for (int d = 1; d <= 9; d++) {
+            UIButton *b = [self _key:[NSString stringWithFormat:@"%d", d] ident:[NSString stringWithFormat:@"isim-kb-%d", d] special:NO action:@selector(_char:)];
+            b.titleLabel.font = [UIFont systemFontOfSize:26]; b.tag = 400;
+            if (kt != UIKeyboardTypeASCIICapableNumberPad && [letters[d - 1] length]) {
+                UILabel *l = [UILabel new]; l.text = letters[d - 1]; l.font = [UIFont systemFontOfSize:10 weight:UIFontWeightSemibold];
+                l.textAlignment = NSTextAlignmentCenter; l.tag = 99; l.textColor = UIColor.labelColor;
+                [b addSubview:l];
+            }
+        }
+        if (kt == UIKeyboardTypeDecimalPad) {
+            NSString *sep = [NSLocale.currentLocale objectForKey:NSLocaleDecimalSeparator] ?: @".";
+            UIButton *dot = [self _key:sep ident:@"isim-kb-decimal" special:NO action:@selector(_char:)];
+            dot.titleLabel.font = [UIFont systemFontOfSize:26]; dot.tag = 401;
+            dot.backgroundColor = UIColor.clearColor; dot.layer.shadowOpacity = 0;
+        } else if (phone) {
+            UIButton *sym = [self _key:@"+*#" ident:@"isim-kb-phone-symbols" special:YES action:@selector(_padSymbols)];
+            sym.tag = 401; sym.backgroundColor = UIColor.clearColor; sym.layer.shadowOpacity = 0;
+        }
+    }
+    UIButton *zero = [self _key:@"0" ident:@"isim-kb-0" special:NO action:@selector(_char:)];
+    zero.titleLabel.font = [UIFont systemFontOfSize:26]; zero.tag = 402;
+    UIButton *del = [self _key:@"⌫" ident:@"isim-kb-delete" special:YES action:@selector(_noop)];
+    del.titleLabel.font = [UIFont systemFontOfSize:22]; del.backgroundColor = UIColor.clearColor; del.layer.shadowOpacity = 0;
+    [del addTarget:self action:@selector(_deleteDown) forControlEvents:UIControlEventTouchDown];
+    [del addTarget:self action:@selector(_deleteUp) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+    del.tag = 403;
+    [self setNeedsLayout];
+    if (self.bounds.size.width > 0) [self layoutSubviews];
+    isim_ui_set_needs_display();
+}
+- (void)_padSymbols { _layer = _layer == L_SYMBOLS ? L_NUMBERS : L_SYMBOLS; [self _rebuild]; }
+- (void)_layoutPad {
+    CGFloat W = self.bounds.size.width, side = 6, gap = 6, top = 6, keyH = 46;
+    CGFloat kw = floor((W - 2 * side - 2 * gap) / 3);
+    NSUInteger i = 0;
+    for (UIButton *b in _keys) {
+        if (b.tag != 400) continue;
+        b.frame = CGRectMake(side + (i % 3) * (kw + gap), top + (i / 3) * (keyH + gap), kw, keyH);
+        UILabel *l = (UILabel *)[b viewWithTag:99];
+        if (l) { b.contentEdgeInsets = UIEdgeInsetsMake(0, 0, 12, 0); l.frame = CGRectMake(0, keyH - 17, kw, 12); }
+        i++;
+    }
+    CGFloat y = top + 3 * (keyH + gap);
+    for (UIButton *b in _keys) {
+        if (b.tag == 401) b.frame = CGRectMake(side, y, kw, keyH);
+        if (b.tag == 402) b.frame = CGRectMake(side + kw + gap, y, kw, keyH);
+        if (b.tag == 403) b.frame = CGRectMake(side + 2 * (kw + gap), y, kw, keyH);
+    }
 }
 - (void)_rebuildEmoji {
     NSArray *pages = emoji_pages();
@@ -231,6 +310,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     CGFloat W = self.bounds.size.width, gap = 6, side = 3, keyH = 42, rowH = 54, top = 8 + [self _top];
     _bar.frame = CGRectMake(0, 0, W, 44);
     [self _layoutBar];
+    if ([self _pad]) { [self _layoutPad]; return; }
     if ([self _emoji]) {
         CGFloat cw = (W - 2 * side) / 8, ch = 40;
         NSUInteger i = 0;
@@ -272,10 +352,26 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     CGFloat modeW = _showGlobe ? round(base * 1.25) : round(base * 2.5 + gap), retW = round(base * 2.5 + gap), x = side;
     for (UIButton *b in _keys) if (b.tag == 102) { b.frame = CGRectMake(x, y4, modeW, keyH); x += modeW + gap; }
     for (UIButton *b in _keys) if (b.tag == 103) { b.frame = CGRectMake(x, y4, modeW, keyH); x += modeW + gap; }
-    for (UIButton *b in _keys) if (b.tag == 104) b.frame = CGRectMake(x, y4, W - side - retW - gap - x, keyH);
+    /* space, then the keyboard type's keys (".com" wider), between the left keys and return */
+    NSMutableArray *ex = [NSMutableArray array]; UIButton *spaceKey = nil;
+    for (UIButton *b in _keys) { if (b.tag == 106) [ex addObject:b]; if (b.tag == 104) spaceKey = b; }
+    CGFloat avail = W - side - retW - gap - x, exW = 0;
+    for (UIButton *b in ex) exW += ([b.currentTitle isEqualToString:@".com"] ? round(base * 1.6) : round(base)) + gap;
+    if (!spaceKey && ex.count) {                       /* URL: the keys share the row */
+        CGFloat each = (avail - (ex.count - 1) * gap) / ex.count;
+        for (UIButton *b in ex) { b.frame = CGRectMake(x, y4, each, keyH); x += each + gap; }
+    } else {
+        spaceKey.frame = CGRectMake(x, y4, avail - exW, keyH); x += avail - exW + gap;
+        for (UIButton *b in ex) { CGFloat w = [b.currentTitle isEqualToString:@".com"] ? round(base * 1.6) : round(base); b.frame = CGRectMake(x, y4, w, keyH); x += w + gap; }
+    }
     for (UIButton *b in _keys) if (b.tag == 105) b.frame = CGRectMake(W - side - retW, y4, retW, keyH);
 }
-- (void)setTarget:(id<UIKeyInput>)t { _target = t; _layer = L_LETTERS; _caps = NO; [self _updateAutoShift]; [self _rebuild]; }
+- (void)setTarget:(id<UIKeyInput>)t {
+    _target = t; _caps = NO;
+    UIKeyboardType k = [self _kbType];
+    _layer = k == UIKeyboardTypeNumbersAndPunctuation || k == UIKeyboardTypePhonePad || [self _pad] ? L_NUMBERS : L_LETTERS;
+    [self _updateAutoShift]; [self _rebuild];
+}
 - (void)setShowGlobe:(BOOL)g { if (g == _showGlobe) return; _showGlobe = g; [self _rebuild]; }
 - (void)setLanguage:(NSString *)l { if ([l isEqualToString:_language]) return; _language = [l copy]; _layer = L_LETTERS; [self _updateAutoShift]; [self _rebuild]; }
 /* text before the caret (UITextInput), or the whole text */
@@ -454,7 +550,8 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 - (void)_space {
     [_popup removeFromSuperview]; _popup = nil;
     [self _type:@" "];
-    if (_layer != L_LETTERS) { _layer = L_LETTERS; [self _updateAutoShift]; [self _rebuild]; }
+    /* back to letters after a space, except on the numbers and punctuation keyboard */
+    if (_layer != L_LETTERS && [self _kbType] != UIKeyboardTypeNumbersAndPunctuation) { _layer = L_LETTERS; [self _updateAutoShift]; [self _rebuild]; }
 }
 - (void)_return { [self _type:@"\n"]; }
 - (void)_shift:(UIButton *)b {
@@ -640,6 +737,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     [_barGlobe setImage:[UIImage systemImageNamed:emojiKey ? @"face.smiling" : @"globe" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:24]] forState:UIControlStateNormal];
     _barGlobe.accessibilityIdentifier = emojiKey ? @"isim-kb-emoji" : @"isim-kb-globe";
     _barGlobe.accessibilityLabel = emojiKey ? @"Emoji" : @"Next keyboard";
+    _barGlobe.hidden = [_keys _pad];                   /* number / phone pads: no keyboard switching, as on iOS */
 }
 - (void)_barTapped { [self _next]; }
 - (void)_dictation { NSLog(@"isim: dictation is not available on isim (no speech recognition)"); }
@@ -725,6 +823,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     _target = t;
     _keys.showGlobe = ![self _barVisible] && _order.count > 1;
     _keys.target = t;
+    [self _updateBarButton];                          /* (after the target: pads hide the globe) */
     [self _activate:_current];
     __IsimCustomKeyboard *ck = [self _customFor:[self _ident]];
     if (ck && old != t) [ck.controller _isim_setTextInput:t];

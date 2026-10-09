@@ -105,6 +105,7 @@ enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MOD
 
 /* ---------------- UIImage ---------------- */
 @implementation UIImage {
+    BOOL _flipsRTL;                     /* imageFlippedForRightToLeftLayoutDirection */
     __IsimImageData *_data;
     CGSize _size; CGFloat _scale;
     UIImageRenderingMode _mode;
@@ -125,6 +126,7 @@ enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MOD
     UIImage *i = [UIImage new];
     i->_data = _data; i->_size = _size; i->_scale = _scale; i->_mode = _mode; i->_symbol = _symbol;
     i->_unitW = _unitW; i->_unitH = _unitH; i->_config = _config; i->_tint = _tint; i->_name = _name; i->_crop = _crop;
+    i->_flipsRTL = _flipsRTL;
     i->_orient = _orient; i->_caps = _caps; i->_rmode = _rmode; i->_resizable = _resizable; i->_frames = _frames; i->_duration = _duration;
     i->_asset = _asset;
     return i;
@@ -189,8 +191,9 @@ static BOOL swaps(UIImageOrientation o) { return o == UIImageOrientationLeft || 
                                               UIImageOrientationUp, UIImageOrientationDown, UIImageOrientationLeft, UIImageOrientationRight };
     UIImage *i = [self _copy]; i->_orient = flip[_orient & 7]; return i;
 }
-- (UIImage *)imageFlippedForRightToLeftLayoutDirection { return self; }      /* isim lays out left to right */
-- (BOOL)flipsForRightToLeftLayoutDirection { return NO; }
+/* drawn mirrored where the layout is right to left */
+- (UIImage *)imageFlippedForRightToLeftLayoutDirection { UIImage *i = [self _copy]; i->_flipsRTL = YES; return i; }
+- (BOOL)flipsForRightToLeftLayoutDirection { return _flipsRTL; }
 - (UIImage *)resizableImageWithCapInsets:(UIEdgeInsets)c { return [self resizableImageWithCapInsets:c resizingMode:UIImageResizingModeTile]; }
 - (UIImage *)resizableImageWithCapInsets:(UIEdgeInsets)c resizingMode:(UIImageResizingMode)m { UIImage *i = [self _copy]; i->_caps = c; i->_rmode = m; i->_resizable = YES; return i; }
 - (UIImage *)stretchableImageWithLeftCapWidth:(NSInteger)l topCapHeight:(NSInteger)t {
@@ -357,6 +360,11 @@ static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
     }
 }
 - (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha nearest:(BOOL)nearest {
+    if (_flipsRTL && isim_ui_drawing_rtl) {
+        UIImage *m = [self imageWithHorizontallyFlippedOrientation]; m->_flipsRTL = NO;
+        [m _isim_drawInRect:r tint:tint alpha:alpha nearest:nearest];
+        return;
+    }
     if (_asset) {                                       /* dynamic image: the variant for the traits it is drawn with */
         UIImage *v = [self _isim_resolvedForTraits:isim_ui_current_traits()];
         if (v != self) { [v _isim_drawInRect:r tint:tint alpha:alpha nearest:nearest]; return; }

@@ -21,6 +21,7 @@ def camera_picture(tmp_path):
     return pic
 
 
+@pytest.mark.os_matrix
 def test_image_picker(launch, camera_picture):
     app = launch("HelloImagePicker", env={"ISIM_CAMERA": str(camera_picture), "ISIM_CAMERA_PERMISSION": "allow",
                                           "ISIM_PHOTOS_PERMISSION": "allow"})
@@ -32,7 +33,7 @@ def test_image_picker(launch, camera_picture):
     red = lambda c: c[0] > 200 and c[1] < 90 and c[2] < 70                  # the camera picture
     app.tap_id("camera-photo")                                         # photo, review, use
     app.wait_log(r"camera picker preview 640x480 \(back\)")
-    app.wait_shot(lambda s: count_px(s, (0, 300, 402, 200), red) > 20000, "the live preview shows the camera picture")
+    app.wait_shot(lambda s: count_px(s, (0, 300, s.size[0], 200), red) > 20000, "the live preview shows the camera picture")
     app.wait_tap_id("camera-shutter")
     app.wait_log(r"camera picker took a 640x480 photo")
     app.wait_tap_id("camera-use")

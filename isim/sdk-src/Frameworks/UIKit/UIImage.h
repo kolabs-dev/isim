@@ -83,7 +83,7 @@ typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, U
 - (void)drawInRect:(CGRect)rect blendMode:(CGBlendMode)blendMode alpha:(CGFloat)alpha;
 /* orientation: drawing and size honour it (Left/Right swap width and height) */
 - (UIImage *)imageWithHorizontallyFlippedOrientation NS_SWIFT_NAME(withHorizontallyFlippedOrientation());
-@property (nonatomic, readonly) UIImage *imageFlippedForRightToLeftLayoutDirection;
+- (UIImage *)imageFlippedForRightToLeftLayoutDirection;
 @property (nonatomic, readonly) BOOL flipsForRightToLeftLayoutDirection;
 /* resizable images draw as nine slices (caps fixed, edges and center stretched or tiled) */
 - (UIImage *)resizableImageWithCapInsets:(UIEdgeInsets)capInsets;

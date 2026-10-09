@@ -257,6 +257,13 @@ const CGFloat UITableViewAutomaticDimension = -1;
     }
     _accessoryButton.hidden = !detailButton;
     _accessoryButton.frame = CGRectMake(b.size.width - [self _margin] - acc + 4 + self._isim_swipe, 0, 30, b.size.height);
+    if ([self _isim_isRTL]) {                          /* right to left: content from the right, accessories on the left */
+        BOOL styled = _contentConfiguration || [self _usesStyleLabelsOnly];
+        _content.frame = isim_ui_mirror_rect(_content.frame, b.size.width);
+        if (styled) for (UIView *v in _content.subviews) v.frame = isim_ui_mirror_rect(v.frame, _content.bounds.size.width);
+        if (_accessoryView) _accessoryView.frame = isim_ui_mirror_rect(_accessoryView.frame, b.size.width);
+        _accessoryButton.frame = isim_ui_mirror_rect(_accessoryButton.frame, b.size.width);
+    }
     [self bringSubviewToFront:self._isim_actionsView];
 }
 - (void)_isim_accessory { [self._isim_table _isim_accessoryTapped:self]; }
@@ -274,38 +281,44 @@ const CGFloat UITableViewAutomaticDimension = -1;
     CGSize s = self.bounds.size; double off = self._isim_swipe;
     UITableViewCellAccessoryType at = _editing ? _editingAccessoryType : _accessoryType;
     CGFloat m = [self _margin];
+    BOOL rtl = [self _isim_isRTL];
+    #define MX(r) (rtl ? isim_ui_mirror_rect((r), s.width) : (r))         /* right to left: drawn mirrored */
     if (!_accessoryView && at != UITableViewCellAccessoryNone) {
         if (at == UITableViewCellAccessoryDisclosureIndicator || at == UITableViewCellAccessoryDetailDisclosureButton) {
             UIImage *chev = [UIImage systemImageNamed:@"chevron.right"]; CGSize i = chev.size; double k = 13 / fmax(1, i.height);
-            [chev _isim_drawInRect:CGRectMake(s.width - m - i.width * k + off, (s.height - 13) / 2, i.width * k, 13) tint:UIColor.tertiaryLabelColor alpha:1];
+            if (rtl) chev = [chev imageWithHorizontallyFlippedOrientation];
+            [chev _isim_drawInRect:MX(CGRectMake(s.width - m - i.width * k + off, (s.height - 13) / 2, i.width * k, 13)) tint:UIColor.tertiaryLabelColor alpha:1];
         }
         if (at == UITableViewCellAccessoryCheckmark) {
             UIImage *ck = [UIImage systemImageNamed:@"checkmark"]; CGSize i = ck.size; double k = 15 / fmax(1, i.height);
-            [ck _isim_drawInRect:CGRectMake(s.width - m - i.width * k + off, (s.height - 15) / 2, i.width * k, 15) tint:self.tintColor ?: UIColor.systemBlueColor alpha:1];
+            [ck _isim_drawInRect:MX(CGRectMake(s.width - m - i.width * k + off, (s.height - 15) / 2, i.width * k, 15)) tint:self.tintColor ?: UIColor.systemBlueColor alpha:1];
         }
         if (at == UITableViewCellAccessoryDetailButton || at == UITableViewCellAccessoryDetailDisclosureButton) {
             UIImage *info = [UIImage systemImageNamed:@"info.circle"]; double x = s.width - m - (at == UITableViewCellAccessoryDetailButton ? 22 : 44) + off;
-            [info _isim_drawInRect:CGRectMake(x, (s.height - 22) / 2, 22, 22) tint:self.tintColor ?: UIColor.systemBlueColor alpha:1];
+            [info _isim_drawInRect:MX(CGRectMake(x, (s.height - 22) / 2, 22, 22)) tint:self.tintColor ?: UIColor.systemBlueColor alpha:1];
         }
     }
     if (_editing) {                                    /* delete control */
         UIImage *minus = [UIImage systemImageNamed:@"minus.circle.fill"];
-        [minus _isim_drawInRect:CGRectMake(m - 4 + off, (s.height - 22) / 2, 22, 22) tint:UIColor.systemRedColor alpha:1];
+        [minus _isim_drawInRect:MX(CGRectMake(m - 4 + off, (s.height - 22) / 2, 22, 22)) tint:UIColor.systemRedColor alpha:1];
         if (_showsReorderControl) {
             UIImage *grip = [UIImage systemImageNamed:@"line.3.horizontal"];
-            [grip _isim_drawInRect:CGRectMake(s.width - m - 20 + off, (s.height - 14) / 2, 20, 14) tint:UIColor.tertiaryLabelColor alpha:1];
+            [grip _isim_drawInRect:MX(CGRectMake(s.width - m - 20 + off, (s.height - 14) / 2, 20, 14)) tint:UIColor.tertiaryLabelColor alpha:1];
         }
     }
     if (self._isim_separator) {
         double sep[4]; isim_ui_rgba(self._isim_table.separatorColor ?: UIColor.separatorColor, sep);
         CGFloat left = self._isim_separatorLeft + [self _editInset];
-        isim_gfx_fill_rounded(left, s.height - 1.0 / 3, s.width - left, 1.0 / 3, 0, sep);
+        CGRect line = MX(CGRectMake(left, s.height - 1.0 / 3, s.width - left, 1.0 / 3));
+        isim_gfx_fill_rounded(line.origin.x, line.origin.y, line.size.width, line.size.height, 0, sep);
     }
+    #undef MX
 }
 /* touches: highlight, then select on touch up (a scroll pan cancels them) */
 - (void)touchesBegan:(NSSet *)t withEvent:(UIEvent *)e {
     CGPoint p = [t.anyObject locationInView:self];
-    if (_editing && p.x < [self _margin] + 30) { [self._isim_table _isim_editingControlTapped:self]; return; }
+    CGFloat cx = [self _isim_isRTL] ? self.bounds.size.width - p.x : p.x;      /* the delete control is on the leading side */
+    if (_editing && cx < [self _margin] + 30) { [self._isim_table _isim_editingControlTapped:self]; return; }
     if (self._isim_swipe != 0) { _swipeTracking = NO; [self _isim_closeSwipe]; return; }
     [self._isim_table _isim_closeSwipesExcept:self];
     [self._isim_table _isim_highlight:self on:YES];

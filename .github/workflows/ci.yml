@@ -1,10 +1,18 @@
-# Builds isim and runs every test (pytest) plus the ABI check on a stock Ubuntu 24.04 image.
-# Pull requests: manual only (Actions -> CI -> Run workflow, on the PR's branch). The run posts its result as the
-# commit status "ci / build and test" on the branch's head commit: the check main's ruleset requires (runs started
-# from the Actions tab are not counted as a pull request's checks; commit statuses are).
-# Pushes to main run automatically, so main always has a fresh build cache: a branch's first run starts from it.
-# The build is cached: build.py ci gives unchanged sources their cached timestamps back, so Ninja rebuilds only what
-# the pull request touched since the branch's (or main's) last cached build.
+# Builds isim on a stock Ubuntu 24.04 image, then tests it under every iOS version it emulates, then reports:
+#
+#   build  ->  test (iOS 17) | test (iOS 18) | test (iOS 26) | test (iOS 27)  ->  status
+#
+# - build: builds isim and runs the ABI check, then saves the build (isim/out) to the cache under this run's key.
+# - test (iOS N), in parallel, each from that exact build: iOS 18 (iPhone 16 Pro, the default) runs every test; iOS 17
+#   (iPhone 15), 26 and 27 (iPhone 17) run the os_matrix tests, the ones whose behaviour depends on the version
+#   (docs/TESTING.md, "Which tests run under every iOS version").
+# - status: posts the commit status "ci / build and test" once the four test jobs are done (success only if the build
+#   and all four passed): the check main's ruleset requires (runs started from the Actions tab are not counted as a
+#   pull request's checks; commit statuses are).
+# Pull requests: manual only (Actions -> CI -> Run workflow, on the PR's branch). Pushes to main run automatically, so
+# main always has a fresh build cache: a branch's first run starts from it. The build is cached: build.py ci gives
+# unchanged sources their cached timestamps back, so Ninja rebuilds only what the pull request touched since the
+# branch's (or main's) last cached build.
 name: CI
 on:
   workflow_dispatch:
@@ -18,18 +26,19 @@ permissions:
 concurrency:
   group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+env:
+  GH_TOKEN: ${{ github.token }}
+  STATUS: repos/${{ github.repository }}/statuses/${{ github.sha }}
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  BUILD_KEY: build-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
 jobs:
-  test:
-    name: build and test
+  build:
+    name: build
     runs-on: ubuntu-24.04
     timeout-minutes: 90          # a cold build (no cache yet) takes much longer than the usual cached run
-    env:
-      GH_TOKEN: ${{ github.token }}
-      STATUS: repos/${{ github.repository }}/statuses/${{ github.sha }}
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      # the commit status is for pull requests (a manual run's job does not count as a PR's check); on main the job's own
-      # check is enough, and the status would only show the same run twice
+      # the commit status is for pull requests (a manual run's job does not count as a PR's check); on main the jobs'
+      # own checks are enough
       - name: Status (pending)
         if: github.event_name == 'workflow_dispatch'
         run: gh api "$STATUS" -f state=pending -f context="ci / build and test" -f description="running" -f target_url="$RUN_URL" >/dev/null
@@ -51,14 +60,13 @@ jobs:
           path: third_party
           key: third-party-${{ hashFiles('isim/buildlib/fetch.py') }}
       - name: Build cache (restore)
-        id: build-cache
         uses: actions/cache/restore@v4
         with:
           path: |
             isim/out
             !isim/out/pytest
             !isim/out/test-*
-          key: build-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
+          key: ${{ env.BUILD_KEY }}
           restore-keys: |
             build-${{ github.ref_name }}-
             build-main-
@@ -68,7 +76,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
             -e CI=1 isim-ci python3 isim/build.py ci build
-      # the container runs as root; give the runner its files back (tar for the cache, the artifact upload)
+      # the container runs as root; give the runner its files back (tar for the cache)
       - name: File ownership
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" isim/out third_party
@@ -79,8 +87,17 @@ jobs:
           path: third_party
           key: third-party-${{ hashFiles('isim/buildlib/fetch.py') }}
       # saved even when the build fails (Ninja resumes a partial build), but not when the run was cancelled; the run id
-      # in the key lets every run save (cache keys cannot be overwritten). The next run on the branch, and a new
-      # branch's first run (from main's), restores the newest.
+      # in the key lets every run save (cache keys cannot be overwritten). The test jobs restore exactly this key; the
+      # next run on the branch, and a new branch's first run (from main's), restores the newest.
+      # built into the source tree (the sample's Xcode project references it there), so not in isim/out: the test jobs
+      # get it as an artifact
+      - name: Build outputs outside isim/out
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-extras
+          path: isim/samples/HelloToolchain/Vendor/Sum.xcframework
+          if-no-files-found: error
+          retention-days: 1
       - name: Build cache (save)
         if: ${{ !cancelled() }}
         uses: actions/cache/save@v4
@@ -89,22 +106,62 @@ jobs:
             isim/out
             !isim/out/pytest
             !isim/out/test-*
-          key: build-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
+          key: ${{ env.BUILD_KEY }}
+
+  test:
+    name: test (iOS ${{ matrix.ios }})
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false             # every version reports, even when another fails
+      matrix:
+        include:
+          - { ios: "17", args: "-m os_matrix --os 17 --device iphone15" }
+          - { ios: "18", args: "" }                                         # the default version: every test
+          - { ios: "26", args: "-m os_matrix --os 26 --device iphone17" }
+          - { ios: "27", args: "-m os_matrix --os 27 --device iphone17" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: CI image (Ubuntu 24.04)
+        uses: docker/build-push-action@v6
+        with:
+          context: isim/ci
+          load: true
+          tags: isim-ci
+          cache-from: type=gha
+      - name: Build (from the build job)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            isim/out
+            !isim/out/pytest
+            !isim/out/test-*
+          key: ${{ env.BUILD_KEY }}
+          fail-on-cache-miss: true
+      - name: Build outputs outside isim/out
+        uses: actions/download-artifact@v4
+        with:
+          name: build-extras
+          path: isim/samples/HelloToolchain/Vendor/Sum.xcframework
       - name: Test
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
-            -e CI=1 -e ISIM_TEST_JOBS="$(nproc)" -e ISIM_WAIT_SCALE=3 isim-ci python3 isim/build.py ci test
+            -e CI=1 -e ISIM_TEST_JOBS="$(nproc)" -e ISIM_WAIT_SCALE=3 isim-ci python3 isim/build.py ci test -- ${{ matrix.args }}
       - name: File ownership (tests)
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" isim/out
       - name: Test summary
         if: always()
-        run: cat isim/out/test-summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: |
+          echo "### iOS ${{ matrix.ios }}" >> "$GITHUB_STEP_SUMMARY"
+          cat isim/out/test-summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
       - name: Test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-ios${{ matrix.ios }}
           path: |
             isim/out/test-results.xml
             isim/out/test.log
@@ -112,9 +169,33 @@ jobs:
             isim/out/pytest/**/*.txt
           if-no-files-found: ignore
           retention-days: 7
-      - name: Status (result)
-        if: always() && github.event_name == 'workflow_dispatch'
+
+  status:
+    name: status
+    if: always()
+    needs: [build, test]
+    runs-on: ubuntu-24.04
+    steps:
+      # one summary for the four test jobs: totals and failures per iOS version, the os_matrix tests side by side
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: isim/buildlib
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-ios*
+          path: results
+      - name: Test results by iOS version
         run: |
-          case "${{ job.status }}" in success) state=success ;; cancelled) state=error ;; *) state=failure ;; esac
-          gh api "$STATUS" -f state="$state" -f context="ci / build and test" -f description="${{ job.status }}" \
+          args=""
+          for v in 17 18 26 27; do args="$args $v=results/test-results-ios$v/test-results.xml"; done
+          python3 isim/buildlib/report.py matrix matrix.md $args
+          cat matrix.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Status (result)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          b="${{ needs.build.result }}" t="${{ needs.test.result }}"
+          if [ "$b" = success ] && [ "$t" = success ]; then state=success
+          elif [ "$b" = cancelled ] || [ "$t" = cancelled ]; then state=error
+          else state=failure; fi
+          gh api "$STATUS" -f state="$state" -f context="ci / build and test" -f description="build $b, tests (iOS 17, 18, 26, 27) $t" \
             -f target_url="$RUN_URL" >/dev/null
