@@ -21,9 +21,13 @@ def test_navigation(launch, ios):
     assert app.find(id="bar-Sort"), "large title bar items"
     assert nav_bar_height(app) == 158, "large title"
 
-    app.drag(200, 600, 200, 300, 0.4)
+    # Each drag ends with the finger held still, so it lifts with no velocity and the list moves by exactly the drag:
+    # a fling's length depends on when the last touch moves are handled, and on a busy runner the first drag could
+    # fling farther than the second, leaving the list short of the top (#100). 300 pt up collapses the title; 400 pt
+    # down overshoots the top and springs back to rest exactly there.
+    app.drag(200, 600, 200, 300, 0.4, hold=0.3)
     app.wait_until(lambda: nav_bar_height(app) == 106, what="large title collapses on scroll")
-    app.drag(200, 300, 200, 700, 0.4)
+    app.drag(200, 300, 200, 700, 0.4, hold=0.3)
     app.wait_until(lambda: nav_bar_height(app) == 158, what="large title expands again")
 
     app.wait_for(id="book-3").tap()

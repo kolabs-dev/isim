@@ -819,7 +819,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     self.lastPoint = p;
 }
 @end
-@implementation UIPanGestureRecognizer { CGPoint _samples[8]; double _times[8]; int _ns; BOOL _waitAllUp; }
+@implementation UIPanGestureRecognizer { CGPoint _samples[8], _down; double _times[8]; int _ns; BOOL _waitAllUp; }
 - (instancetype)initWithTarget:(id)t action:(SEL)a {
     if ((self = [super initWithTarget:t action:a])) { _minimumNumberOfTouches = 1; _maximumNumberOfTouches = NSUIntegerMax; }
     return self;
@@ -848,7 +848,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
         [ts addObject:touch];
         CGPoint c = [self _centroid];
         if (had) { self.startPoint = CGPointMake(self.startPoint.x + c.x - before.x, self.startPoint.y + c.y - before.y); _ns = 0; }
-        else self.startPoint = c;
+        else self.startPoint = _down = c;
         self.lastPoint = c;
         [self _sample:c time:touch.timestamp];
         return;
@@ -898,6 +898,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     _waitAllUp = NO;
 }
 - (CGPoint)locationInView:(UIView *)v { return [self.view.window convertPoint:self.lastPoint toView:v]; }
+- (CGPoint)_isim_downLocationInView:(UIView *)v { return [self.view.window convertPoint:_down toView:v]; }
 - (CGPoint)translationInView:(UIView *)v { return CGPointMake(self.lastPoint.x - self.startPoint.x, self.lastPoint.y - self.startPoint.y); }
 - (void)setTranslation:(CGPoint)t inView:(UIView *)v { self.startPoint = CGPointMake(self.lastPoint.x - t.x, self.lastPoint.y - t.y); }
 /* points per second over the last ~100 ms of movement */
