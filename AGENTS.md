@@ -32,7 +32,10 @@ Code lives in `isim/`; see the [README](README.md) for what isim is and how it i
 - **Look and feel like real iOS.** isim's system UI (bars, controls, keyboards, sheets, alerts, menus, Liquid Glass,
   the home screen and Settings) mimics the real iOS of the version being emulated (`--os 17|18|26|27`): sizes,
   spacing, fonts, colours, materials and motion. Work from Apple's Human Interface Guidelines and from screenshots of
-  real devices or Apple's Simulator, and compare isim's own samples against them. Where isim looks or behaves
+  real devices or Apple's Simulator, and compare isim's own samples against them. The look also follows the
+  **device** (`--device`): iPhones with the Dynamic Island versus those with a notch or a Home button (status bar
+  height and content, safe areas, corner radii, the home indicator), Plus / Pro Max sizes, and iPad (sidebars,
+  popovers instead of sheets, the pointer, multitasking). Test system UI on the devices it differs on. Where isim looks or behaves
   differently from iOS, that is a bug: fix it, or open an issue labelled `look-and-feel` (see Issues) with a
   screenshot of isim, a reference screenshot or description of iOS, and where the drawing lives.
 - **Never touch the user's device data.** Tests and experiments use a scratch `ISIM_DATA`, never
