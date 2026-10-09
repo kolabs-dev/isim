@@ -257,6 +257,7 @@ NSString *isim_ui_installed_apps_dir(void);
 - (void)_isim_drawInRect:(CGRect)r tint:(nullable UIColor *)tint alpha:(CGFloat)alpha;
 - (void)_isim_drawInRect:(CGRect)r tint:(nullable UIColor *)tint alpha:(CGFloat)alpha nearest:(BOOL)nearest;
 @property (nonatomic, readonly) BOOL _isim_isTemplate;
+@property (nonatomic, readonly, nullable) NSString *_isim_symbolName;     /* a system symbol's name */
 @end
 @interface UIImageSymbolConfiguration (IsimPrivate)
 @property (nonatomic, readonly) CGFloat _isim_pointSize;

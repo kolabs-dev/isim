@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 218 | 2 | 0 | 15 | 235 | 93% |
+| **UIKit** | 221 | 2 | 0 | 12 | 235 | 94% |
 | &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 60 | 0 | 0 | 14 | 74 | 81% |
+| &nbsp;&nbsp;↳ Views & controls | 63 | 0 | 0 | 11 | 74 | 85% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **757** | **186** | **23** | **46** | **1012** | **84%** |
+| **All areas** | **760** | **186** | **23** | **43** | **1012** | **84%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (206) | 100% (210) | 98% (224) | 93% (235) |
+| UIKit | 100% (206) | 100% (210) | 99% (224) | 94% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
@@ -256,9 +256,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIBarButtonItem.sharesBackground`, `hidesSharedBackground`, `.prominent` style | ✅ | 26.0 | adapted: neighbouring navigation bar items sit on one glass capsule; prominent (and Done) items, items that do not share and fixed spaces start a new one; `hidesSharedBackground` draws the item without glass; prominent items are tinted glass. Tested (HelloGlass) |
 | `UISlider.sliderStyle` (`.thumbless`), `trackConfiguration` (`UISlider.TrackConfiguration`, ticks, `allowsTickValuesOnly`, `neutralValue`, `enabledRange`) | ✅ | 26.0 | adapted: tick dots on the track, values snap to ticks, the fill runs from the neutral value, the track outside the enabled range is dimmed and the value clamped to it; thumbless: a 10 pt track the finger drags anywhere. Tick titles and images are kept, not drawn. Tested (HelloGlass) |
 | `UIView.cornerConfiguration` (`UICornerConfiguration`, `UICornerRadius` fixed / `containerConcentric(minimum:)`, capsule), `effectiveRadius(corner:)` | ✅ | 26.0 | adapted: per-corner radii for the background, clipping, border, shadow and glass; concentric radii come from the superview's corner (or the screen's for a top-level view) minus the inset; "uniform" corners share the smallest computed radius; circular arcs (no continuous curve). `layer.maskedCorners` now also applies to views. Tested (HelloGlass) |
-| `UIButton.Configuration.symbolContentTransition` | ❌ | 26.0 | |
-| `UITabBarController.tabBarMinimizeBehavior`, `bottomAccessory` / `UITabAccessory`, `contentLayoutGuide` | ❌ | 26.0 | the SwiftUI equivalents are implemented |
-| `UINavigationItem` subtitles (`subtitle`, `largeSubtitle`, attributed and view variants) | ❌ | 26.0 | |
+| `UIButton.Configuration.symbolContentTransition` (`UISymbolContentTransition`) | ✅ | 26.0 | adapted: when the configuration's image changes to another symbol, the old one shrinks and fades out and the new one grows in (0.4 s, the replace effect of image views; `.downUp`/`.upUp` nudge it, the options' speed applies), only while the button is on screen. Tested (HelloModernBars) |
+| `UITabBarController.tabBarMinimizeBehavior`, `bottomAccessory` / `UITabAccessory`, `contentLayoutGuide`, `tabAccessoryEnvironment` trait | ✅ | 26.0 | adapted, like the SwiftUI equivalents: `.onScrollDown` / `.onScrollUp` shrink the floating tab bar (iPhone) to the selected tab's 62 pt glass circle while the selected tab's content is dragged (`.automatic` never minimizes), tapping the circle expands it; the accessory is a 48 pt glass capsule above the bar (iPad: at the bottom), inline beside the minimized bar, and adds 56 pt to the tabs' bottom safe area; its content view gets `tabAccessoryEnvironment` `.regular` / `.inline`. `contentLayoutGuide`: the content area beside the iPad sidebar. Tested (HelloModernBars) |
+| `UINavigationItem` subtitles (`subtitle`, `largeSubtitle`, attributed and view variants), `largeTitle`, `attributedTitle`; `UINavigationBarAppearance.subtitleTextAttributes` / `largeSubtitleTextAttributes` | ✅ | 26.0 | adapted: inline, a 17 pt title over a 13 pt secondary subtitle centred in the bar row; under a large title a 15 pt subtitle (`largeSubtitle`, else the subtitle) and a 72 pt large title band; subtitle views sit where the text would. Font sizes and spacing are isim's estimate (not yet compared with a device). Tested (HelloModernBars) |
 | Search in toolbars (`searchBarPlacementAllowsToolbarIntegration`, `searchBarPlacementAllowsExternalIntegration`, `searchBarPlacementBarButtonItem`, `.integrated*` placements) | ❌ | 26.0 | |
 | `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloUITabs, per version: classic tabs on iOS 17) |
 | `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ❌ | 27.0 | |
