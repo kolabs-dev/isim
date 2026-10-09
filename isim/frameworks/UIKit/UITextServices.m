@@ -292,6 +292,11 @@ void isim_ui_autofill_field_leaving(UIView<IsimEditableText> *field) {
     NSDictionary *existing = nil;
     for (NSDictionary *e in passwords_all()) if ([e[@"site"] isEqualToString:site] && [e[@"user"] isEqualToString:user]) existing = e;
     if ([existing[@"password"] isEqualToString:pw]) return;
+    static NSMutableSet *offered;                        /* each password is offered once (the form may leave the screen twice) */
+    if (!offered) offered = [NSMutableSet set];
+    NSString *key = [NSString stringWithFormat:@"%@\n%@\n%@", site, user, pw];
+    if ([offered containsObject:key]) return;
+    [offered addObject:key];
     save_pending = YES;
     BOOL update = existing != nil;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{

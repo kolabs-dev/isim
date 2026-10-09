@@ -69,6 +69,7 @@ def test_strong_password_and_code(launch, ios):
     app.wait_tap_id("nav-back")
     app.wait_tap_id("nav-back")
     app.wait_tap_id("verify")                                           # one-time code from Messages
+    assert app.count(r"AutoFill: save password prompt") == 1, "a declined password is not offered again"
     app.wait_tap_id("code")
     app.wait_log(r"keyboard shown")
     app.send("sms Your Shop code is 482913. Don't share it.")
@@ -78,6 +79,7 @@ def test_strong_password_and_code(launch, ios):
     app.screenshot("one-time-code")
     app.wait_tap_id("isim-kb-autofill-0")
     app.wait_log(r"code changed: 482913$")
+    assert app.count(r"AutoFill: save password prompt") == 1, "a declined password is not offered again"
     assert app.quit() == 0
 
 
