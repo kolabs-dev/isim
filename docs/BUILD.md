@@ -52,3 +52,25 @@ A compiler newer than CI's may warn about more; `ISIM_WERROR=0 isim/build.py` bu
 CI restores `isim/out` from a cache. A checkout gives every file a new modification time, so `build.py ci` first gives
 files whose content matches the last cached build their recorded timestamps back (`out/srcstate.json`); Ninja then
 rebuilds only what changed.
+
+## Claude Code cloud environments
+
+A [Claude Code cloud environment](https://code.claude.com/docs/en/claude-code-on-the-web) (claude.ai/code) can build
+and test isim like CI. In the environment's settings (Edit environment):
+
+- **Setup script:** paste [`isim/ci/cloud-setup.sh`](../isim/ci/cloud-setup.sh). It installs CI's packages
+  (`isim/ci/Dockerfile`; keep the two in step), clang 22, SDL3, Docker and the `swift:6.2` image (from Google's mirror
+  of Docker Hub, which rate-limits shared egress).
+- **Environment variables:**
+
+  | Variable | Why |
+  |---|---|
+  | `SDL_AUDIO_DRIVER=dummy` | required: the container has no sound device (CI's image sets it too) |
+  | `WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1` | required for the web tests: WebKitGTK's sandbox cannot create namespaces in the container (CI's image sets it too) |
+  | `ISIM_TEST_JOBS=4` | optional: test workers, as many as the container's CPUs (the default is half), like CI |
+  | `ISIM_WAIT_SCALE=3` | optional, with `ISIM_TEST_JOBS`: longer test waits on a busy machine, like CI |
+
+In a session, run `isim/build.py fetch` once before the first build. If `docker info` fails (the daemon did not keep
+running after the setup script), start it with `nohup dockerd > /tmp/dockerd.log 2>&1 &`. Each session builds
+`isim/out` from scratch (the first `build.py` takes a while; later builds are incremental). Tests use a scratch
+`ISIM_DATA`.
