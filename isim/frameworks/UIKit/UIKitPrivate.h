@@ -140,6 +140,9 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UICo
 - (BOOL)_isim_shouldBegin;                    /* delegate + view gestureRecognizerShouldBegin: */
 - (BOOL)_isim_exclusive; - (void)_isim_setExclusive:(BOOL)e;   /* on begin, other pending recognizers drop out */
 @end
+@interface UIPanGestureRecognizer (IsimPrivate)
+- (CGPoint)_isim_downLocationInView:(UIView *)v;   /* where the first finger went down (before the pan's 10-pt slop) */
+@end
 
 @interface NSLayoutConstraint (IsimPrivate)
 + (NSArray<NSLayoutConstraint *> *)_isim_active;

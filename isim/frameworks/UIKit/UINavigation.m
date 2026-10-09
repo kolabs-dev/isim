@@ -1072,7 +1072,8 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     UIView *host = self.view;
     CGFloat W = host.bounds.size.width, dx = [g translationInView:host].x;
     if (g.state == UIGestureRecognizerStateBegan) {
-        CGFloat startX = [g locationInView:host].x - dx;
+        /* from the edge where the finger went down: on a busy frame the pan can begin well inside the screen */
+        CGFloat startX = [g _isim_downLocationInView:host].x;
         _swiping = startX < 30 && _stack.count > 1 && !_transitioning;
         if (!_swiping) return;
         UIViewController *below = _stack[_stack.count - 2];
