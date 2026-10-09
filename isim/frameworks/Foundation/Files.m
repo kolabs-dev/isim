@@ -791,7 +791,7 @@ NSURLFileResourceType const NSURLFileResourceTypeNamedPipe = @"NSURLFileResource
 }
 @end
 
-@implementation NSString (IsimFileSystemRepresentation)
+@implementation NSString (NSStringPathExtensions)
 - (const char *)fileSystemRepresentation { return self.UTF8String; }
 - (BOOL)getFileSystemRepresentation:(char *)buf maxLength:(NSUInteger)max {
     NSUInteger n; const char *b = [self _isim_bytes:&n];
