@@ -193,17 +193,18 @@ class Swift:
         return stamp
 
     def libcxx(self):
-        """libc++.1.dylib (libc++ + the libc++abi parts the Swift runtime needs), no exceptions/RTTI"""
+        """libc++.1.dylib: libc++ and libc++abi with C++ exceptions and RTTI (__cxa_throw, __gxx_personality_v0, typeinfo,
+        __cxa_demangle); unwinding is the host's (isim's libSystem exports _Unwind_*)"""
         L = f"{self.c.tp}/llvm-project"
         srcs = [f"libcxx/src/{s}.cpp" for s in (
-            "algorithm atomic bind call_once chrono condition_variable condition_variable_destructor error_category exception "
-            "functional future hash memory mutex mutex_destructor new_helpers optional stdexcept string system_error thread "
-            "vector verbose_abort").split()]
+            "algorithm any atomic bind call_once chrono condition_variable condition_variable_destructor error_category exception "
+            "expected functional future hash memory mutex mutex_destructor new_helpers optional stdexcept string system_error "
+            "thread variant vector verbose_abort").split()]
         srcs += [f"libcxxabi/src/{s}.cpp" for s in (
-            "abort_message cxa_aux_runtime cxa_default_handlers cxa_guard cxa_handlers cxa_noexception cxa_virtual "
-            "stdlib_exception stdlib_new_delete stdlib_stdexcept").split()]
-        flags = ["-target", TRIPLE, "-isysroot", SDK, "-std=c++23", "-O2", "-fno-exceptions", "-fno-rtti", "-D_LIBCXXABI_HAS_NO_EXCEPTIONS",
-                 "-fvisibility-inlines-hidden", "-D_LIBCPP_BUILDING_LIBRARY", "-D_LIBCXXABI_BUILDING_LIBRARY", "-DLIBCXX_BUILDING_LIBCXXABI",
+            "abort_message cxa_aux_runtime cxa_default_handlers cxa_demangle cxa_exception cxa_exception_storage cxa_guard "
+            "cxa_handlers cxa_personality cxa_vector cxa_virtual fallback_malloc private_typeinfo stdlib_exception "
+            "stdlib_new_delete stdlib_stdexcept stdlib_typeinfo").split()]
+        flags = ["-target", TRIPLE, "-isysroot", SDK, "-std=c++23", "-O2", "-fvisibility-inlines-hidden", "-D_LIBCPP_BUILDING_LIBRARY", "-D_LIBCXXABI_BUILDING_LIBRARY", "-DLIBCXX_BUILDING_LIBCXXABI",
                  "-DNDEBUG", "-I", f"{L}/libcxx/src", "-I", f"{L}/libcxxabi/include", "-Wno-everything"]
         objs = [self.c.compile(f"{L}/{s}", f"out/obj/libcxx/{os.path.basename(s)}.o", [self.c.cxx, *flags], order_only=self.c.header_stamps)
                 for s in srcs]

@@ -1,13 +1,24 @@
 #pragma once
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
-@class NSString, NSArray<ObjectType>, NSDictionary<KeyType, ObjectType>;
+@class NSString, NSArray<ObjectType>, NSDictionary<KeyType, ObjectType>, NSError;
 @interface NSBundle : NSObject
 @property (class, readonly, strong) NSBundle *mainBundle;
 + (nullable instancetype)bundleWithPath:(NSString *)path;
 - (nullable instancetype)initWithPath:(NSString *)path;
 + (NSBundle *)bundleForClass:(Class)aClass;
 + (nullable NSBundle *)bundleWithIdentifier:(NSString *)identifier;
+@property (class, readonly, copy) NSArray<NSBundle *> *allBundles;
+@property (class, readonly, copy) NSArray<NSBundle *> *allFrameworks;
+- (BOOL)load;
+@property (readonly, getter=isLoaded) BOOL loaded;
+- (BOOL)unload;
+- (BOOL)preflightAndReturnError:(NSError **)error;
+- (BOOL)loadAndReturnError:(NSError **)error;
+@property (nullable, readonly) Class principalClass;
+- (nullable Class)classNamed:(NSString *)className;
+@property (nullable, readonly, copy) NSString *privateFrameworksPath;
+@property (nullable, readonly, copy) NSString *sharedFrameworksPath;
 @property (readonly, copy) NSString *builtInPlugInsPath;
 @property (readonly, copy) NSString *bundlePath;
 @property (nullable, readonly, copy) NSString *resourcePath;

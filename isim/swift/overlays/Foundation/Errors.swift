@@ -37,6 +37,10 @@ public struct CocoaError: Error, CustomNSError, LocalizedError, Hashable, _Objec
         public static let coderValueNotFound = Code(rawValue: 4865)
         public static let coderInvalidValue = Code(rawValue: 4866)
         public static let executableNotLoadable = Code(rawValue: 3584)
+        public static let executableArchitectureMismatch = Code(rawValue: 3585)
+        public static let executableRuntimeMismatch = Code(rawValue: 3586)
+        public static let executableLoad = Code(rawValue: 3587)
+        public static let executableLink = Code(rawValue: 3588)
         public static let ubiquitousFileUnavailable = Code(rawValue: 4353)
     }
     public let code: Code

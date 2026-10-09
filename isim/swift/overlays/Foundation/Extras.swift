@@ -449,4 +449,8 @@ extension Bundle {
     public var resourceURL: URL? { resourcePath.map { URL(fileURLWithPath: $0) } }
     public var bundleURL: URL { URL(fileURLWithPath: bundlePath) }
     public var executableURL: URL? { executablePath.map { URL(fileURLWithPath: $0) } }
+    public var privateFrameworksURL: URL? { privateFrameworksPath.map { URL(fileURLWithPath: $0) } }
+    public var sharedFrameworksURL: URL? { sharedFrameworksPath.map { URL(fileURLWithPath: $0) } }
+    public var builtInPlugInsURL: URL? { URL(fileURLWithPath: builtInPlugInsPath) }
+    public convenience init?(url: URL) { self.init(path: url.path) }
 }
