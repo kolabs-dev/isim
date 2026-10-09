@@ -1,6 +1,8 @@
 #pragma once
-/* isim: UISplitViewController (collapsed into one navigation stack in compact width — every iPhone; side-by-side
-   columns in regular width) and UIPageViewController (scroll style with paging; page curl is shown as scroll). */
+/* isim: UISplitViewController (collapsed into one navigation stack in compact width; in regular width the columns
+   tile, overlay or displace the secondary per the display mode, with the sidebar button and the edge swipe; it
+   collapses and expands when the size class changes) and UIPageViewController (scroll style with paging; page curl
+   is shown as scroll). */
 #import <UIKit/UIViewController.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UISplitViewController, UIPageViewController, UIBarButtonItem, UIGestureRecognizer;
@@ -20,6 +22,10 @@ typedef NS_ENUM(NSInteger, UISplitViewControllerSplitBehavior) {
     UISplitViewControllerSplitBehaviorAutomatic, UISplitViewControllerSplitBehaviorTile, UISplitViewControllerSplitBehaviorOverlay, UISplitViewControllerSplitBehaviorDisplace
 } NS_SWIFT_NAME(UISplitViewController.SplitBehavior);
 
+typedef NS_ENUM(NSInteger, UISplitViewControllerDisplayModeButtonVisibility) {
+    UISplitViewControllerDisplayModeButtonVisibilityAutomatic, UISplitViewControllerDisplayModeButtonVisibilityNever, UISplitViewControllerDisplayModeButtonVisibilityAlways
+} NS_SWIFT_NAME(UISplitViewController.DisplayModeButtonVisibility);
+
 NS_SWIFT_UI_ACTOR
 @protocol UISplitViewControllerDelegate <NSObject>
 @optional
@@ -31,6 +37,12 @@ NS_SWIFT_UI_ACTOR
 - (void)splitViewControllerDidCollapse:(UISplitViewController *)svc;
 - (void)splitViewController:(UISplitViewController *)svc willShowColumn:(UISplitViewControllerColumn)column;
 - (void)splitViewController:(UISplitViewController *)svc willHideColumn:(UISplitViewControllerColumn)column;
+- (void)splitViewController:(UISplitViewController *)svc willChangeToDisplayMode:(UISplitViewControllerDisplayMode)displayMode;
+- (UISplitViewControllerDisplayMode)splitViewController:(UISplitViewController *)svc displayModeForExpandingToProposedDisplayMode:(UISplitViewControllerDisplayMode)proposedDisplayMode;
+- (void)splitViewControllerDidExpand:(UISplitViewController *)svc;
+- (nullable UIViewController *)splitViewController:(UISplitViewController *)splitViewController separateSecondaryViewControllerFromPrimaryViewController:(UIViewController *)primaryViewController
+    NS_SWIFT_NAME(splitViewController(_:separateSecondaryFrom:));
+- (UISplitViewControllerDisplayMode)targetDisplayModeForActionInSplitViewController:(UISplitViewController *)svc;
 @end
 
 NS_SWIFT_UI_ACTOR
@@ -55,6 +67,11 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) CGFloat minimumPrimaryColumnWidth;
 @property (nonatomic) CGFloat maximumPrimaryColumnWidth;
 @property (nonatomic, readonly) CGFloat primaryColumnWidth;
+@property (nonatomic) CGFloat preferredSupplementaryColumnWidthFraction;
+@property (nonatomic) CGFloat preferredSupplementaryColumnWidth;
+@property (nonatomic, readonly) CGFloat supplementaryColumnWidth;
+@property (nonatomic, readonly) UISplitViewControllerSplitBehavior splitBehavior;
+@property (nonatomic) UISplitViewControllerDisplayModeButtonVisibility displayModeButtonVisibility;
 @property (nonatomic, readonly) UIBarButtonItem *displayModeButtonItem;
 @end
 

@@ -77,6 +77,15 @@ static Class ib_kit_class(Class c) {
 - (void)fire:(id)sender;
 @end
 
+/* the size-class variations of one view (applyVariations) */
+@interface __IsimIBVariations : NSObject
+@property (nonatomic, weak) UIView *view;
+@property (nonatomic, weak) __IsimIBLoader *loader;
+@property (nonatomic, strong) NSDictionary *node, *constraints, *subviews, *indices;
+@property (nonatomic, copy) NSString *applied;
+- (void)apply;
+@end
+
 /* ================= the loader: one instantiation of an archive ================= */
 @interface __IsimIBLoader : NSObject
 @property (nonatomic, strong) NSDictionary *archive;
@@ -85,7 +94,8 @@ static Class ib_kit_class(Class c) {
 @property (nonatomic, strong) NSMutableDictionary<NSString *, id> *objects;
 @property (nonatomic, strong) NSMapTable<NSString *, id> *weakObjects;       /* objects owned elsewhere (owner, scene controller) */
 @property (nonatomic, strong) NSMutableIndexSet *applied;
-@property (nonatomic, strong) NSMutableArray *awake, *pendingConstraints, *pendingUserDefined;
+@property (nonatomic, strong) NSMutableArray *awake, *pendingConstraints, *pendingUserDefined, *pendingVariations;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSLayoutConstraint *> *constraintsByID;
 @property (nonatomic, weak) UIViewController *sceneController;
 @property (nonatomic, strong) __IsimIBLoader *parent;                       /* scene loader of a prototype cell */
 @property (nonatomic, strong) NSString *ownerID;
@@ -106,6 +116,62 @@ static Class ib_kit_class(Class c) {
 @property (nonatomic, strong) NSBundle *bundle;
 @property (nonatomic, strong) NSDictionary *data;
 - (UIViewController *)_isim_instantiateScene:(NSString *)sceneID creator:(UIStoryboardViewControllerCreator)creator;
+@end
+
+@implementation __IsimIBVariations
+- (void)apply {
+    UIView *view = _view;
+    if (!view) return;
+    UITraitCollection *t = view.window ? view.traitCollection : isim_ui_screen_traits();
+    NSString *w = t.horizontalSizeClass == UIUserInterfaceSizeClassCompact ? @"compact" : @"regular";
+    NSString *h = t.verticalSizeClass == UIUserInterfaceSizeClassCompact ? @"compact" : @"regular";
+    NSString *key = [NSString stringWithFormat:@"%@/%@", w, h];
+    if ([_applied isEqualToString:key]) return;
+    _applied = key;
+    /* the base ("default") masks, then matching variations, the more specific last */
+    NSMutableArray *matching = [NSMutableArray array];
+    for (NSDictionary *v in _node[@"variations"]) {
+        if ([v[@"key"] isEqualToString:@"default"]) { [matching insertObject:v atIndex:0]; continue; }
+        if ((v[@"w"] && ![v[@"w"] isEqualToString:w]) || (v[@"h"] && ![v[@"h"] isEqualToString:h])) continue;
+        [matching addObject:v];
+    }
+    [matching sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        NSInteger sa = [a[@"key"] isEqualToString:@"default"] ? -1 : (a[@"w"] ? 1 : 0) + (a[@"h"] ? 1 : 0);
+        NSInteger sb = [b[@"key"] isEqualToString:@"default"] ? -1 : (b[@"w"] ? 1 : 0) + (b[@"h"] ? 1 : 0);
+        return sa < sb ? NSOrderedAscending : sa > sb ? NSOrderedDescending : NSOrderedSame; }];
+    NSMutableDictionary *on = [NSMutableDictionary dictionary], *props = [NSMutableDictionary dictionary];
+    for (NSString *ident in _constraints) on[ident] = @YES;
+    for (NSString *ident in _subviews) on[ident] = @YES;
+    for (NSDictionary *v in matching) {
+        for (NSString *kind in @[@"constraints", @"subviews"]) {
+            for (NSString *ident in v[@"include"][kind]) on[ident] = @YES;
+            for (NSString *ident in v[@"exclude"][kind]) on[ident] = @NO;
+        }
+        [props addEntriesFromDictionary:v[@"props"] ?: @{}];
+    }
+    /* overridden properties not overridden now go back to their base values */
+    for (NSDictionary *v in _node[@"variations"]) for (NSString *k in v[@"props"]) if (!props[k] && _node[@"props"][k]) props[k] = _node[@"props"][k];
+    for (NSString *ident in _subviews) {
+        UIView *sv = _subviews[ident];
+        BOOL want = [on[ident] boolValue];
+        if (want && sv.superview != view) [view insertSubview:sv atIndex:MIN([_indices[ident] unsignedIntegerValue], view.subviews.count)];
+        else if (!want && sv.superview == view) [sv removeFromSuperview];
+    }
+    NSMutableArray *activate = [NSMutableArray array], *deactivate = [NSMutableArray array];
+    for (NSString *ident in _constraints) [([on[ident] boolValue] ? activate : deactivate) addObject:_constraints[ident]];
+    [NSLayoutConstraint deactivateConstraints:deactivate];
+    NSMutableArray *ok = [NSMutableArray array];
+    for (NSLayoutConstraint *c in activate) {
+        UIView *a = [c.firstItem isKindOfClass:[UIView class]] ? c.firstItem : nil, *b = [c.secondItem isKindOfClass:[UIView class]] ? c.secondItem : nil;
+        if ((a && !a.superview && a != view) || (b && !b.superview && b != view)) continue;        /* an item that is not installed */
+        [ok addObject:c];
+    }
+    [NSLayoutConstraint activateConstraints:ok];
+    if (props.count) ib_apply_props(view, props, _loader);
+    NSLog(@"isim: IB size-class variation %@ for %@ (%lu constraints, %lu subviews installed)", key, view.accessibilityIdentifier ?: NSStringFromClass([view class]),
+          (unsigned long)ok.count, (unsigned long)[[_subviews allKeys] filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSString *k, NSDictionary *b0) { return [on[k] boolValue]; }]].count);
+    [view setNeedsLayout];
+}
 @end
 
 static char kLoaderKey, kStoryboardKey, kTemplatesKey, kTriggerKey, kNibNameKey, kNibBundleKey, kCellNibsKey, kCellSegueKey;
@@ -512,6 +578,7 @@ static void ib_configure_existing(id obj, NSDictionary *node, __IsimIBLoader *lo
     ib_keyed(obj, node, loader);
     if (node[@"constraints"]) [loader.pendingConstraints addObject:@{@"owner": node[@"id"] ?: @"", @"list": node[@"constraints"]}];
     if (node[@"userDefined"]) [loader.pendingUserDefined addObject:@[obj, node[@"userDefined"]]];
+    if (node[@"variations"] && [obj isKindOfClass:[UIView class]]) [loader.pendingVariations addObject:@[obj, node]];
 }
 
 /* everything a node describes, applied to a freshly initialized object */
@@ -539,6 +606,7 @@ id isim_ib_decode_object(id obj, __IsimIBCoder *coder) {
     if (node[@"prototypes"]) ib_prototypes(obj, node, loader);
     if (node[@"constraints"]) [loader.pendingConstraints addObject:@{@"owner": node[@"id"] ?: @"", @"list": node[@"constraints"]}];
     if (node[@"userDefined"]) [loader.pendingUserDefined addObject:@[obj, node[@"userDefined"]]];
+    if (node[@"variations"] && [obj isKindOfClass:[UIView class]]) [loader.pendingVariations addObject:@[obj, node]];
     return obj;
 }
 
@@ -550,6 +618,7 @@ id isim_ib_decode_object(id obj, __IsimIBCoder *coder) {
         _objects = [NSMutableDictionary dictionary]; _weakObjects = [NSMapTable strongToWeakObjectsMapTable];
         _applied = [NSMutableIndexSet indexSet];
         _awake = [NSMutableArray array]; _pendingConstraints = [NSMutableArray array]; _pendingUserDefined = [NSMutableArray array];
+        _pendingVariations = [NSMutableArray array]; _constraintsByID = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -627,10 +696,36 @@ id isim_ib_decode_object(id obj, __IsimIBCoder *coder) {
                                                                 multiplier:[c[@"multiplier"] doubleValue] constant:[c[@"constant"] doubleValue]];
             k.priority = [c[@"priority"] floatValue];
             if (c[@"identifier"]) k.identifier = c[@"identifier"];
+            if ([c[@"id"] length]) _constraintsByID[c[@"id"]] = k;
             [all addObject:k];
         }
     }
     if (all.count) [NSLayoutConstraint activateConstraints:all];
+}
+/* size-class variations: which constraints and subviews are installed, and property overrides, for the view's current
+   size classes; applied again whenever its size classes change (rotation, iPad multitasking) */
+- (void)applyVariations {
+    NSArray *pending = [_pendingVariations copy];
+    [_pendingVariations removeAllObjects];
+    for (NSArray *pair in pending) {
+        UIView *view = pair[0];
+        __IsimIBVariations *rec = [__IsimIBVariations new];
+        rec.view = view; rec.node = pair[1]; rec.loader = self;
+        NSMutableDictionary *cons = [NSMutableDictionary dictionary], *subs = [NSMutableDictionary dictionary];
+        for (NSDictionary *v in rec.node[@"variations"])
+            for (NSString *mode in @[@"include", @"exclude"]) {
+                for (NSString *ident in v[mode][@"constraints"]) if (_constraintsByID[ident]) cons[ident] = _constraintsByID[ident];
+                for (NSString *ident in v[mode][@"subviews"]) { BOOL f = NO; id o = [self objectForID:ident found:&f]; if ([o isKindOfClass:[UIView class]]) subs[ident] = o; }
+            }
+        rec.constraints = cons; rec.subviews = subs;
+        NSMutableDictionary *indices = [NSMutableDictionary dictionary];
+        for (NSString *ident in subs) { UIView *sv = subs[ident]; NSUInteger i = [view.subviews indexOfObjectIdenticalTo:sv]; if (i != NSNotFound) indices[ident] = @(i); }
+        rec.indices = indices;
+        objc_setAssociatedObject(view, "isim.ib.variations", rec, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [rec apply];
+        __weak __IsimIBVariations *wr = rec;
+        [view registerForTraitChanges:@[UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class] withHandler:^(id env, UITraitCollection *prev) { [wr apply]; }];
+    }
 }
 - (void)applyConnections {
     NSArray *conns = _archive[@"connections"];
@@ -764,6 +859,7 @@ id isim_ib_decode_object(id obj, __IsimIBCoder *coder) {
 }
 - (void)finish {
     [self applyConstraints];
+    [self applyVariations];
     [self applyConnections];
     [self applyUserDefined];
     NSArray *aw = [_awake copy];
@@ -936,6 +1032,7 @@ void isim_ib_cell_selected(UIView *cell) {
         vc = creator(coder);
         if (vc && ![vc isKindOfClass:ib_resolve_class(root)])
             [NSException raise:NSInternalInconsistencyException format:@"Custom instantiated %@ must be a kind of class %@", vc, NSStringFromClass(ib_resolve_class(root))];
+        if (!vc) vc = [[ib_resolve_class(root) alloc] initWithCoder:coder];      /* nil: the storyboard's own class */
     } else {
         vc = [[ib_resolve_class(root) alloc] initWithCoder:coder];
     }
@@ -1085,8 +1182,39 @@ static UIViewController *unwind_destination(UIViewController *src, SEL action, i
         return;
     }
     (void)f;
-    UIViewController *dst = [_storyboard _isim_instantiateScene:_conn[@"destination"] creator:nil];
+    /* @IBSegueAction: the source creates the destination from the coder (destinationCreationSelector) */
+    UIStoryboardViewControllerCreator creator = nil;
+    NSString *csel = _conn[@"destinationCreationSelector"];
+    if (csel.length) {
+        SEL cs = NSSelectorFromString(csel);
+        NSUInteger args = [csel componentsSeparatedByString:@":"].count - 1;
+        if ([src respondsToSelector:cs]) {
+            __weak UIViewController *wsrc = src;
+            creator = ^UIViewController *(NSCoder *coder) {
+                UIViewController *s0 = wsrc;
+                NSLog(@"isim: segue action %@ creates the destination", csel);
+                if (args >= 3) return ((id (*)(id, SEL, id, id, id))objc_msgSend)(s0, cs, coder, sender, ident);
+                if (args == 2) return ((id (*)(id, SEL, id, id))objc_msgSend)(s0, cs, coder, sender);
+                return ((id (*)(id, SEL, id))objc_msgSend)(s0, cs, coder);
+            };
+        } else NSLog(@"isim: %@ does not implement the segue action %@", NSStringFromClass([src class]), csel);
+    }
+    UIViewController *dst = [_storyboard _isim_instantiateScene:_conn[@"destination"] creator:creator];
     if (!dst) return;
+    if ([_conn[@"kind"] isEqualToString:@"popoverPresentation"]) {
+        /* the popover's anchor: the segue's anchor view or bar button item, else the control that triggered it */
+        dst.modalPresentationStyle = UIModalPresentationPopover;
+        UIPopoverPresentationController *pp = dst.popoverPresentationController;
+        BOOL found = NO;
+        id anchor = _conn[@"popoverAnchorView"] ? [_loader objectForID:_conn[@"popoverAnchorView"] found:&found]
+                  : _conn[@"popoverAnchorBarButtonItem"] ? [_loader objectForID:_conn[@"popoverAnchorBarButtonItem"] found:&found] : sender;
+        if ([anchor isKindOfClass:[UIBarButtonItem class]]) pp.barButtonItem = anchor;
+        else if ([anchor isKindOfClass:[UIView class]]) { pp.sourceView = anchor; pp.sourceRect = ((UIView *)anchor).bounds; }
+        else if ([anchor isKindOfClass:[UIGestureRecognizer class]]) { UIView *v = ((UIGestureRecognizer *)anchor).view; pp.sourceView = v; pp.sourceRect = v.bounds; }
+        if (_conn[@"popoverArrowDirection"]) pp.permittedArrowDirections = [_conn[@"popoverArrowDirection"] unsignedIntegerValue];
+        if (_conn[@"popoverAnchorView"] || _conn[@"popoverAnchorBarButtonItem"])
+            NSLog(@"isim: popover segue anchored to %@", [anchor respondsToSelector:@selector(accessibilityIdentifier)] && [anchor accessibilityIdentifier] ? [anchor accessibilityIdentifier] : NSStringFromClass([anchor class]));
+    }
     if (_conn[@"modalPresentationStyle"]) dst.modalPresentationStyle = [_conn[@"modalPresentationStyle"] integerValue];
     if (_conn[@"modalTransitionStyle"]) [dst setValue:_conn[@"modalTransitionStyle"] forKey:@"modalTransitionStyle"];
     Class cls = [UIStoryboardSegue class];

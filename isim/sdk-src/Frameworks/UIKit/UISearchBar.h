@@ -59,10 +59,37 @@ NS_SWIFT_UI_ACTOR
 @property (null_unspecified, nonatomic, copy) UITextContentType textContentType;
 @end
 
+@class UIImage;
+/* a search suggestion shown below the search bar while searching (iOS 16) */
+NS_SWIFT_UI_ACTOR
+@protocol UISearchSuggestion <NSObject>
+@property (nullable, nonatomic, readonly) NSString *localizedSuggestion;
+@optional
+@property (nullable, nonatomic, readonly) NSString *localizedDescription;
+@property (nullable, nonatomic, readonly) UIImage *iconImage;
+@property (nullable, nonatomic, strong) id representedObject;
+@end
+NS_SWIFT_UI_ACTOR
+@interface UISearchSuggestionItem : NSObject <UISearchSuggestion>
++ (instancetype)suggestionWithLocalizedSuggestion:(NSString *)suggestion;
++ (instancetype)suggestionWithLocalizedSuggestion:(NSString *)suggestion localizedDescription:(nullable NSString *)description;
++ (instancetype)suggestionWithLocalizedSuggestion:(NSString *)suggestion localizedDescription:(nullable NSString *)description iconImage:(nullable UIImage *)iconImage;
+- (instancetype)initWithLocalizedSuggestion:(NSString *)suggestion;
+- (instancetype)initWithLocalizedSuggestion:(NSString *)suggestion localizedDescription:(nullable NSString *)description;
+- (instancetype)initWithLocalizedSuggestion:(NSString *)suggestion localizedDescription:(nullable NSString *)description iconImage:(nullable UIImage *)iconImage;
+@property (nullable, nonatomic, readonly) NSString *localizedSuggestion;
+@property (nullable, nonatomic, readonly) NSString *localizedDescription;
+@property (nullable, nonatomic, readonly) UIImage *iconImage;
+@property (nullable, nonatomic, strong) id representedObject;
+@end
+
 NS_SWIFT_UI_ACTOR
 @protocol UISearchResultsUpdating <NSObject>
 @required
 - (void)updateSearchResultsForSearchController:(UISearchController *)searchController;
+@optional
+- (void)updateSearchResultsForSearchController:(UISearchController *)searchController selectingSearchSuggestion:(id<UISearchSuggestion>)searchSuggestion
+    NS_SWIFT_NAME(updateSearchResults(for:selecting:));
 @end
 
 NS_SWIFT_UI_ACTOR
@@ -76,8 +103,9 @@ NS_SWIFT_UI_ACTOR
 @end
 
 /* isim: in a navigation item the search bar sits below the title (collapsing on scroll when
-   hidesSearchBarWhenScrolling); when active it moves to the top (the navigation bar hides), shows Cancel,
-   dims the content (obscuresBackgroundDuringPresentation) and shows the results controller once text is typed. */
+   hidesSearchBarWhenScrolling); when active it slides to the top (the navigation bar hides), shows Cancel,
+   dims the content (obscuresBackgroundDuringPresentation), shows the results controller once text is typed and
+   lists searchSuggestions below the bar. Outside a navigation item (a table header, any view) it stays in place. */
 NS_SWIFT_UI_ACTOR
 @interface UISearchController : UIViewController
 - (instancetype)initWithSearchResultsController:(nullable UIViewController *)searchResultsController;
@@ -93,5 +121,6 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL automaticallyShowsSearchResultsController;
 @property (nonatomic) BOOL showsSearchResultsController;
 @property (nonatomic) BOOL automaticallyShowsScopeBar;
+@property (nullable, nonatomic, copy) NSArray<id<UISearchSuggestion>> *searchSuggestions;
 @end
 NS_ASSUME_NONNULL_END

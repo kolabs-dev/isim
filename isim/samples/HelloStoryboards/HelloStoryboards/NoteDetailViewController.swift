@@ -45,4 +45,25 @@ final class MoreViewController: UIViewController {
         messageLabel.text = message
         print("more: viewDidLoad id-instantiable=\(storyboard?.instantiateViewController(withIdentifier: "MoreVC") is MoreViewController)")
     }
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        print("more: label font \(Int(messageLabel.font.pointSize)), badge \(view.subviews.contains { $0.accessibilityIdentifier == "more-compact-badge" } ? "installed" : "not installed")")
+    }
+    /// @IBSegueAction: the "Make" segue's destination is created here, with an initializer of our own
+    @IBSegueAction func makeMade(_ coder: NSCoder, sender: Any?, segueIdentifier: String?) -> MadeViewController? {
+        print("more: segue action \(segueIdentifier ?? "nil") from \(sender.map { String(describing: type(of: $0)) } ?? "nil")")
+        return MadeViewController(coder: coder, note: message)
+    }
+}
+
+final class MadeViewController: UIViewController {
+    @IBOutlet weak var madeLabel: UILabel!
+    let note: String
+    init?(coder: NSCoder, note: String) { self.note = note; super.init(coder: coder) }
+    required init?(coder: NSCoder) { note = "(storyboard default)"; super.init(coder: coder) }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        madeLabel.text = "Made for \(note)"
+        print("made: \(note)")
+    }
 }

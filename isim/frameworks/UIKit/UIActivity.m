@@ -2,7 +2,10 @@
  *
  * The share sheet is a sheet (medium and large detents) with a preview of the first item (text, link or image),
  * a close button, a row of Share extensions, and a list of actions: Copy — strings, URLs and images go to
- * UIPasteboard.general — Action extensions and the app's applicationActivities that can perform with the items.
+ * UIPasteboard.general —, Save Image (images, to the device's photo library: UIImageWriteToSavedPhotosAlbum), Print
+ * (images and file URLs: UIPrintInteractionController), Action extensions and the app's applicationActivities that
+ * can perform with the items. Like Apple's Simulator there are no Mail, Messages or AirDrop rows (no such apps or
+ * nearby devices).
  * Excluded types are left out. completionWithItemsHandler reports the activity (an extension's bundle identifier),
  * or nil and false when closed.
  *
@@ -275,6 +278,11 @@ static BOOL rule_accepts(id rule, NSArray *items) {
     BOOL copyable = NO;
     for (id i in [self _isim_itemsFor:UIActivityTypeCopyToPasteboard]) if ([i isKindOfClass:[NSString class]] || [i isKindOfClass:[NSURL class]] || [i isKindOfClass:[UIImage class]]) copyable = YES;
     if (copyable && ![self _isim_excluded:UIActivityTypeCopyToPasteboard]) [self _isim_row:@"Copy" icon:[UIImage systemImageNamed:@"doc.on.doc"] tag:-1];
+    BOOL images = NO, printable = NO;
+    for (id i in [self _isim_itemsFor:UIActivityTypeSaveToCameraRoll]) if ([i isKindOfClass:[UIImage class]]) images = YES;
+    for (id i in [self _isim_itemsFor:UIActivityTypePrint]) if ([i isKindOfClass:[UIImage class]] || ([i isKindOfClass:[NSURL class]] && [(NSURL *)i isFileURL])) printable = YES;
+    if (images && ![self _isim_excluded:UIActivityTypeSaveToCameraRoll]) [self _isim_row:@"Save Image" icon:[UIImage systemImageNamed:@"square.and.arrow.down"] tag:-2];
+    if (printable && ![self _isim_excluded:UIActivityTypePrint]) [self _isim_row:@"Print" icon:[UIImage systemImageNamed:@"printer"] tag:-3];
     /* app extensions that accept the items: Share extensions in the app row, Action extensions in the list */
     NSArray *raw = [self _isim_itemsFor:nil];
     NSMutableArray *actions = [NSMutableArray array];
@@ -385,6 +393,23 @@ static BOOL rule_accepts(id rule, NSArray *items) {
 - (void)_isim_closeTapped { NSLog(@"isim: share sheet closed"); [self _isim_finish:nil completed:NO]; }
 - (void)_isim_rowTapped:(__IsimShareRow *)r {
     if (r.tag <= -1000) { [self _isim_runExtension:_actionExtensions[(NSUInteger)(-1000 - r.tag)]]; return; }   /* an Action extension */
+    if (r.tag == -2) {                                     /* Save Image */
+        NSUInteger n = 0;
+        for (id i in [self _isim_itemsFor:UIActivityTypeSaveToCameraRoll]) if ([i isKindOfClass:[UIImage class]]) { UIImageWriteToSavedPhotosAlbum(i, nil, NULL, NULL); n++; }
+        NSLog(@"isim: share sheet saved %lu image(s) to the photo library", (unsigned long)n);
+        [self _isim_finish:UIActivityTypeSaveToCameraRoll completed:YES];
+        return;
+    }
+    if (r.tag == -3) {                                     /* Print: the print options over the app once the sheet is gone */
+        NSMutableArray *items = [NSMutableArray array];
+        for (id i in [self _isim_itemsFor:UIActivityTypePrint]) if ([i isKindOfClass:[UIImage class]] || ([i isKindOfClass:[NSURL class]] && [(NSURL *)i isFileURL])) [items addObject:i];
+        [self _isim_finish:UIActivityTypePrint completed:YES];
+        UIPrintInteractionController *pc = UIPrintInteractionController.sharedPrintController;
+        if (items.count == 1) pc.printingItem = items[0]; else pc.printingItems = items;
+        NSLog(@"isim: share sheet prints %lu item(s)", (unsigned long)items.count);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [pc presentAnimated:YES completionHandler:nil]; });
+        return;
+    }
     if (r.tag < 0) {                                       /* Copy */
         NSMutableArray *items = [NSMutableArray array];
         for (id i in [self _isim_itemsFor:UIActivityTypeCopyToPasteboard]) {

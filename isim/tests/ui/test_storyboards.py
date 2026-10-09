@@ -238,3 +238,38 @@ def test_settings_bundle(launch, device_data):
     assert "<string>dark</string>" in prefs and "<string>Zoe</string>" in prefs, "Settings: writes the app domain"
     assert "settings(launch): name=Zoe enabled=false theme=dark volume=0.0 advanced=true" in dev.log, \
         "app reads the Settings values"
+
+
+def test_segue_actions_and_variations(launch):
+    """@IBSegueAction (destinationCreationSelector) builds the destination with the app's own initializer; a popover
+    segue anchors to its popoverAnchorView; size-class variations change a label's font and install a view only in
+    compact height (the iPhone turned to landscape)."""
+    app = launch("HelloStoryboards")
+    app.wait_tap_id("note-1")
+    app.wait_tap_id("detail-more")
+    app.wait_view(r"id=more-label")
+    app.wait_log(r"more: label font 20, badge not installed")
+    app.wait_tap_id("more-make")
+    app.wait_log(r"isim: segue action makeMade:sender:segueIdentifier: creates the destination")
+    app.wait_log(r"more: segue action made from UIButton")
+    app.wait_log(r"made: More about Ideas")
+    app.wait_view(r"id=made-label text=Made for More about Ideas")
+    app.wait_tap_id("nav-back")
+    app.wait_view(r"id=made-label", gone=True)
+
+    app.wait_tap_id("more-tip")                                         # anchored to the label, not the button
+    app.wait_log(r"isim: popover segue anchored to more-label")
+    app.wait_for(id="tip-label")                                        # (compact width: the popover adapts to a sheet)
+    app.wait_still()
+    app.drag(200, 200, 200, 820, 0.3)
+    app.wait_view(r"id=tip-label", gone=True)
+
+    app.send("rotate landscapeleft")                                    # compact height: the variation applies
+    app.wait_log(r"IB size-class variation regular/compact|IB size-class variation compact/compact")
+    app.wait_log(r"more: label font 30, badge installed")
+    app.wait_view(r"id=more-compact-badge")
+    app.screenshot("variation-landscape")
+    app.send("rotate portrait")
+    app.wait_log(r"more: label font 20, badge not installed", count=2)
+    app.wait_view(r"id=more-compact-badge", gone=True)
+    assert app.quit() == 0
