@@ -269,19 +269,24 @@ static void send_orient_to_shell(int o) {
     struct shell_msg m = { .type = SM_ORIENT }; snprintf(m.a, sizeof m.a, "%d", o);
     send(client_sock, &m, sizeof m, MSG_NOSIGNAL);
 }
-static void make_surface(void) {
-    if (cr) { cairo_destroy(cr); cairo_surface_destroy(surf); }
-    surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
-    /* under the shell the app draws privately and publishes whole frames (no tearing while the shell reads) */
-    surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
-    cr = cairo_create(surf);
-    if (!pctx) { pctx = pango_cairo_create_context(cr); pango_cairo_context_set_resolution(pctx, 72); }
+/* the Pango context the isim_text_* functions lay text out with (the shell, which has no app surface, makes it for
+   the status bar it draws over its overlays) */
+static void text_context(cairo_t *c) {
+    if (!pctx) { pctx = pango_cairo_create_context(c); pango_cairo_context_set_resolution(pctx, 72); }
     cairo_font_options_t *fo = cairo_font_options_create();
     cairo_font_options_set_antialias(fo, CAIRO_ANTIALIAS_GRAY);
     cairo_font_options_set_hint_style(fo, CAIRO_HINT_STYLE_SLIGHT);
     cairo_font_options_set_hint_metrics(fo, CAIRO_HINT_METRICS_OFF);   /* advances independent of the pixel scale: measure == draw */
     pango_cairo_context_set_font_options(pctx, fo);
     cairo_font_options_destroy(fo);
+}
+static void make_surface(void) {
+    if (cr) { cairo_destroy(cr); cairo_surface_destroy(surf); }
+    surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
+    /* under the shell the app draws privately and publishes whole frames (no tearing while the shell reads) */
+    surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
+    cr = cairo_create(surf);
+    text_context(cr);
 }
 
 int isim_display_open(const char *title) {
@@ -872,30 +877,47 @@ static void load_clock_prefs(void) {
     g_free(xml);
 }
 
-static void draw_chrome(void) {
-    double c = status_dark_content ? 0 : 1;
-    double fg[4] = { c, c, c, 1 };
-    int landscape = dev.orientation == 3 || dev.orientation == 4;
-    if (landscape && portrait_dev.width < 700) goto hardware;       /* iPhones hide the status bar in landscape */
-    if (status_hidden) goto hardware;
-    load_clock_prefs();
-    time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
-    char clock[16];
-    if (clock_prefs.hour24) snprintf(clock, sizeof clock, "%02d:%02d", tm.tm_hour, tm.tm_min);
-    else snprintf(clock, sizeof clock, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
+/* The status bar's content. SB_APP: over apps and in the app switcher (the clock in the left ear). SB_LOCK: the lock
+ * screen and Notification Center (no clock, the big lock-screen clock replaces it; the carrier name up to iOS 18).
+ * SB_CC: Control Center (the carrier name and the battery percentage; on iPhones with the Dynamic Island or a notch
+ * the row moves below the cutout, where there is room for both). */
+enum { SB_APP, SB_LOCK, SB_CC };
+#define SB_CARRIER "Carrier"                                    /* the carrier name Apple's Simulator shows */
+static const double sb_battery = 0.8;                           /* the charge the battery icon shows */
+static void draw_status_bar(int style, const double *fg) {
+    double c = fg[0];
+    if ((dev.orientation == 3 || dev.orientation == 4) && portrait_dev.width < 700) return;  /* iPhones hide it in landscape */
     double sb = dev.safe_top >= 44 ? 54 : dev.safe_top;   /* status bar band height */
     double cy = dev.has_island ? 18 + 11 : sb / 2;          /* text baseline centre */
-    double tw, th; isim_text_measure(clock, 17, 0.3, 0, 0, 1, &tw, &th);
-    isim_text_draw(clock, dev.has_island ? 51 - tw / 2 + 26 : 8, cy - th / 2, 0, 17, 0.3, 0, 0, 1, fg);
-    double rx = dev.width - (dev.has_island ? 34 : 10);
+    double lx = dev.has_island ? 51 + 26 : -1;               /* centre of the left ear (-1: left-aligned) */
+    double rx = dev.width - (dev.has_island ? 34 : 10), left0 = 8;
+    if (style == SB_CC && dev.has_island) { cy = dev.safe_top - 4; lx = -1; left0 = 30; rx = dev.width - 30; }
+    char left[16] = ""; double lsize = 17;
+    if (style == SB_APP) {
+        load_clock_prefs();
+        time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
+        if (clock_prefs.hour24) snprintf(left, sizeof left, "%02d:%02d", tm.tm_hour, tm.tm_min);
+        else snprintf(left, sizeof left, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
+    } else if (style == SB_CC || isim_os_version() / 10000 <= 18) { snprintf(left, sizeof left, SB_CARRIER); lsize = 15; }
+    if (*left) {
+        double tw, th; isim_text_measure(left, lsize, 0.3, 0, 0, 1, &tw, &th);
+        isim_text_draw(left, lx >= 0 ? lx - tw / 2 : left0, cy - th / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+    }
     /* battery */
     double bw = 25, bh = 12, bx = rx - bw, by = cy - bh / 2;
     double dim[4] = { c, c, c, 0.4 };
     isim_gfx_stroke_rounded(bx, by, bw, bh, 3.5, 1, dim);
-    isim_gfx_fill_rounded(bx + 2, by + 2, (bw - 4) * 0.8, bh - 4, 2, fg);
+    isim_gfx_fill_rounded(bx + 2, by + 2, (bw - 4) * sb_battery, bh - 4, 2, fg);
     isim_gfx_fill_rounded(bx + bw + 1, by + 4, 1.5, 4, 0.75, dim);
+    double ax = bx;                                         /* the next icon's right anchor */
+    if (style == SB_CC) {                                   /* the percentage, left of the battery */
+        char pct[8]; snprintf(pct, sizeof pct, "%d%%", (int)lround(sb_battery * 100));
+        double pw, ph; isim_text_measure(pct, 13, 0.3, 0, 0, 1, &pw, &ph);
+        isim_text_draw(pct, bx - 4 - pw, cy - ph / 2, 0, 13, 0.3, 0, 0, 1, fg);
+        ax = bx - 4 - pw - 3;
+    }
     /* wifi (three arcs) */
-    double wx = bx - 16, wy = cy + 4.5;
+    double wx = ax - 16, wy = cy + 4.5;
     cairo_set_source_rgba(cr, c, c, c, 1);
     for (int i = 0; i < 3; i++) {
         cairo_new_path(cr);
@@ -905,7 +927,11 @@ static void draw_chrome(void) {
     /* cellular bars */
     double cx0 = wx - 30;
     for (int i = 0; i < 4; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
-hardware:                                                          /* island, notch and home indicator stay */
+}
+
+/* the hardware: the Dynamic Island or the notch, and (home) the home indicator */
+static void draw_hardware(int home, const double *fg) {
+    int landscape = dev.orientation == 3 || dev.orientation == 4;
     if (landscape) {                   /* the sensor housing is on the side the device's top edge points to */
         double k[4] = { 0, 0, 0, 1 }; int left = dev.orientation == 3;
         if (dev.has_island == 1) isim_gfx_fill_rounded(left ? 11 : dev.width - 11 - 37, dev.height / 2 - 62.5, 37, 125, 18.5, k);
@@ -917,8 +943,15 @@ hardware:                                                          /* island, no
             isim_gfx_fill_rounded(dev.width / 2 - 81, -20, 162, 52, 20, k);
         }
     }
+    if (home && dev.safe_bottom > 0) { double hw = landscape ? 208 : 134; isim_gfx_fill_rounded(dev.width / 2 - hw / 2, dev.height - 8 - 5, hw, 5, 2.5, fg); }
+}
+
+static void draw_chrome(void) {
+    double c = status_dark_content ? 0 : 1;
+    double fg[4] = { c, c, c, 1 };
+    if (!status_hidden) draw_status_bar(SB_APP, fg);
     home_drawn = dev.safe_bottom > 0 && !(home_autohide && now() - home_touch_t > 2.0);
-    if (home_drawn) { double hw = landscape ? 208 : 134; isim_gfx_fill_rounded(dev.width / 2 - hw / 2, dev.height - 8 - 5, hw, 5, 2.5, fg); }
+    draw_hardware(home_drawn, fg);                                 /* island, notch and home indicator stay */
 }
 
 static void apply_corner_mask(void) {
