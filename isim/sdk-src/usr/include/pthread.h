@@ -36,6 +36,7 @@ mach_port_t pthread_mach_thread_np(pthread_t);
 pthread_t pthread_from_mach_thread_np(mach_port_t);
 int pthread_key_delete(pthread_key_t);
 int pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
+void pthread_exit(void *) __attribute__((noreturn));
 int pthread_join(pthread_t, void **);
 int pthread_detach(pthread_t);
 pthread_t pthread_self(void);

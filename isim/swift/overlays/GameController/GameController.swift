@@ -474,7 +474,7 @@ final class _GCVirtualControllerView: UIView {
         isMultipleTouchEnabled = true
         autoresizingMask = [.flexibleWidth, .flexibleHeight]
         accessibilityIdentifier = "GCVirtualController"
-        keepOnTop = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        keepOnTop = Timer._isimScheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, let s = self.superview else { return }
                 if s.subviews.last !== self { s.bringSubviewToFront(self) }

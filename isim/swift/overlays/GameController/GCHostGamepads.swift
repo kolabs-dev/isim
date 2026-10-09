@@ -22,7 +22,7 @@ public let GCProductCategoryHID = "HID"
         guard timer == nil, !disabled else { return }
         poll()
         guard !disabled else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { _ in MainActor.assumeIsolated { poll() } }
+        timer = Timer._isimScheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { _ in MainActor.assumeIsolated { poll() } }
     }
 
     static func text<T>(_ tuple: T) -> String {

@@ -1046,7 +1046,7 @@ static void handle_id_touch(const struct isim_event *ev) {
         double x0 = t.x, y0 = t.y, dx = ev->x, dy = ev->y, dur = fmax(0.05, ev->key / 1000.0), start = isim_time();
         handle_touch(&t);
         __block double kPrev = 0, tPrev = start;
-        [NSTimer scheduledTimerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) {
+        isim_scheduled_common_timer(1.0 / 60, YES, ^(NSTimer *timer) {
             double now = isim_time(), k = fmin(1, (now - start) / dur);
             /* at most a tenth of the swipe per move: on a starved CPU the timer fires late, and one big jump would only
                get a pan recognised (its translation starts there), so the content would not move at all */
@@ -1062,7 +1062,7 @@ static void handle_id_touch(const struct isim_event *ev) {
                 [timer invalidate];
                 handle_touch(&up);
             }
-        }];
+        });
         return;
     }
     handle_touch(&t);
@@ -1744,6 +1744,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         { extern void isim_ui_accessibility_install(void); isim_ui_accessibility_install(); }
         extern void (*isim_main_wakeup_hook)(void);
         isim_main_wakeup_hook = isim_post_wakeup;
+        isim_runloop_add_common_mode(NSRunLoop.mainRunLoop, UITrackingRunLoopMode);
         NSLog(@"isim: launching %@ (%@) on %s", title, bundle.bundleIdentifier ?: @"no bundle id", isim_ui_device()->name);
 
         id<UIApplicationDelegate> d = app.delegate;

@@ -67,6 +67,10 @@ typedef double NSTimeInterval NS_SWIFT_NAME(TimeInterval);
 typedef struct _NSZone NSZone;
 
 typedef NS_ENUM(NSInteger, NSComparisonResult) { NSOrderedAscending = -1L, NSOrderedSame, NSOrderedDescending };
+typedef NS_ENUM(NSInteger, NSQualityOfService) {
+    NSQualityOfServiceUserInteractive = 0x21, NSQualityOfServiceUserInitiated = 0x19, NSQualityOfServiceUtility = 0x11,
+    NSQualityOfServiceBackground = 0x09, NSQualityOfServiceDefault = -1
+};
 typedef struct _NSRange { NSUInteger location; NSUInteger length; } NSRange;
 typedef NSRange *NSRangePointer;
 NS_INLINE NSRange NSMakeRange(NSUInteger loc, NSUInteger len) { NSRange r = { loc, len }; return r; }
