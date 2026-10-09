@@ -112,7 +112,7 @@ class ViewController: UIViewController {
                              ("Use dark icon", "altIcon", #selector(darkIcon)), ("Use default icon", "primaryIcon", #selector(primaryIcon)),
                              ("Begin background task", "bgTask", #selector(beginTask)), ("Schedule refresh + processing", "schedule", #selector(schedule)),
                              ("Index activity for Spotlight", "indexActivity", #selector(indexActivity)), ("Open hellosystem://self", "openURL", #selector(openSelf)),
-                             ("Index items (CoreSpotlight)", "indexItems", #selector(indexItems))] {
+                             ("Index items (CoreSpotlight)", "indexItems", #selector(indexItems)), ("Open a web page", "openWeb", #selector(openWeb))] {
             let b = UIButton(type: .system)
             b.setTitle(t, for: .normal); b.accessibilityIdentifier = id
             b.titleLabel?.font = .systemFont(ofSize: 17)
@@ -191,6 +191,9 @@ class ViewController: UIViewController {
         a.isEligibleForSearch = true
         userActivity = a
         log("indexing activity")
+    }
+    @objc func openWeb() {      // no app claims it: Safari (.invalid never resolves, nothing leaves the machine)
+        UIApplication.shared.open(URL(string: "https://web.isim.invalid/page")!) { ok in log("open web page -> \(ok)") }
     }
     @objc func openSelf() {
         let url = URL(string: "hellosystem://self?from=app")!

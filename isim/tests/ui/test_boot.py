@@ -12,7 +12,7 @@ def screen_size(app):
 @pytest.mark.os_matrix
 def test_boot(launch, ios, device_data):
     dev = launch(None, install=["HelloSwiftUI", "HelloCounter"])
-    assert dev.has(r"SpringBoard: 3 app\(s\): Settings, Hello SwiftUI, HelloCounter"), "home screen lists installed apps"
+    assert dev.has(r"SpringBoard: 4 app\(s\): Safari, Settings, Hello SwiftUI, HelloCounter"), "home screen lists installed apps"
 
     dev.wait_tap_id("app-dev.isim.settings")
     dev.wait_log(r"launching Settings \(dev\.isim\.settings\)")             # Settings launches from its icon
