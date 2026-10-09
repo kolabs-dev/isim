@@ -13,6 +13,11 @@ int dup2(int, int);
 int fsync(int);
 int ftruncate(int, off_t);
 off_t lseek(int, off_t, int);
+#ifndef SEEK_SET
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+#endif
 int access(const char *, int);
 int unlink(const char *);
 int rmdir(const char *);

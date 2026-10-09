@@ -342,6 +342,8 @@ public protocol DispatchSourceSignal: DispatchSourceProtocol {}
 public protocol DispatchSourceProcess: DispatchSourceProtocol {}
 public protocol DispatchSourceFileSystemObject: DispatchSourceProtocol {}
 public protocol DispatchSourceMemoryPressure: DispatchSourceProtocol {}
+public protocol DispatchSourceMachSend: DispatchSourceProtocol {}
+public protocol DispatchSourceMachReceive: DispatchSourceProtocol {}
 // typed views, like Apple's overlay (overloads of the UInt requirements)
 extension DispatchSourceProcess {
     public var handle: pid_t { pid_t(truncatingIfNeeded: (self as DispatchSourceProtocol).handle) }
@@ -352,6 +354,14 @@ extension DispatchSourceFileSystemObject {
     public var handle: Int32 { Int32(truncatingIfNeeded: (self as DispatchSourceProtocol).handle) }
     public var data: DispatchSource.FileSystemEvent { DispatchSource.FileSystemEvent(rawValue: (self as DispatchSourceProtocol).data) }
     public var mask: DispatchSource.FileSystemEvent { DispatchSource.FileSystemEvent(rawValue: (self as DispatchSourceProtocol).mask) }
+}
+extension DispatchSourceMachSend {
+    public var handle: mach_port_t { mach_port_t(truncatingIfNeeded: (self as DispatchSourceProtocol).handle) }
+    public var data: DispatchSource.MachSendEvent { DispatchSource.MachSendEvent(rawValue: (self as DispatchSourceProtocol).data) }
+    public var mask: DispatchSource.MachSendEvent { DispatchSource.MachSendEvent(rawValue: (self as DispatchSourceProtocol).mask) }
+}
+extension DispatchSourceMachReceive {
+    public var handle: mach_port_t { mach_port_t(truncatingIfNeeded: (self as DispatchSourceProtocol).handle) }
 }
 extension DispatchSourceMemoryPressure {
     public var data: DispatchSource.MemoryPressureEvent { DispatchSource.MemoryPressureEvent(rawValue: (self as DispatchSourceProtocol).data) }
@@ -386,6 +396,12 @@ public enum DispatchSource {
         public static let funlock = FileSystemEvent(rawValue: 0x100)
         public static let all: FileSystemEvent = [.delete, .write, .extend, .attrib, .link, .rename, .revoke]
     }
+    public struct MachSendEvent: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let dead = MachSendEvent(rawValue: 0x1)
+        public static let possible = MachSendEvent(rawValue: 0x2)
+    }
     public struct MemoryPressureEvent: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -415,9 +431,17 @@ public enum DispatchSource {
     public static func makeFileSystemObjectSource(fileDescriptor: Int32, eventMask: FileSystemEvent, queue: DispatchQueue? = nil) -> DispatchSourceFileSystemObject {
         _FileSystemSource(kind: 8, handle: UInt(bitPattern: Int(fileDescriptor)), mask: eventMask.rawValue, queue: queue)
     }
-    /// isim never reports memory pressure (no such events), like the Simulator unless you simulate a warning.
+    /// Fires on the Simulator's memory warning (script `memorywarning [warn|critical|normal]`).
     public static func makeMemoryPressureSource(eventMask: MemoryPressureEvent, queue: DispatchQueue? = nil) -> DispatchSourceMemoryPressure {
         _MemoryPressureSource(kind: 9, handle: 0, mask: eventMask.rawValue, queue: queue)
+    }
+    /// `.dead` when the port's receive right is destroyed (isim's in-process ports); `.possible` never fires.
+    public static func makeMachSendSource(port: mach_port_t, eventMask: MachSendEvent, queue: DispatchQueue? = nil) -> DispatchSourceMachSend {
+        _MachSource(kind: 10, handle: UInt(port), mask: eventMask.rawValue, queue: queue)
+    }
+    /// Fires while messages are queued on the port (receive them with `mach_msg` in the handler).
+    public static func makeMachReceiveSource(port: mach_port_t, queue: DispatchQueue? = nil) -> DispatchSourceMachReceive {
+        _MachSource(kind: 11, handle: UInt(port), mask: 0, queue: queue)
     }
 }
 
@@ -502,6 +526,13 @@ final class _FileSystemSource: _SourceBase, DispatchSourceFileSystemObject, @unc
 }
 
 final class _MemoryPressureSource: _SourceBase, DispatchSourceMemoryPressure, @unchecked Sendable {
+    var handle: UInt { rawHandle }
+    var mask: UInt { rawMask }
+    var data: UInt { rawData }
+    init(kind: Int32, handle: UInt, mask: UInt, queue: DispatchQueue?) { super.init(type: _isim_dispatch_source_type(kind), handle: handle, mask: mask, queue: queue) }
+}
+
+final class _MachSource: _SourceBase, DispatchSourceMachSend, DispatchSourceMachReceive, @unchecked Sendable {
     var handle: UInt { rawHandle }
     var mask: UInt { rawMask }
     var data: UInt { rawData }
