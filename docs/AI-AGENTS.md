@@ -33,7 +33,8 @@ This page is for people building **their own apps** with an agent. Working on is
      then read the dump and the screenshot. Script commands: docs/SCRIPTING.md in the isim repository.
    - Give every control you need to tap an `accessibilityIdentifier`, and use `tapid` rather than coordinates.
    - isim is not Apple's simulator. If an iOS API is missing or wrong in isim, do not change the app to avoid it:
-     say so (it is a gap in isim, see its docs/COVERAGE.md).
+     say so (it is a gap in isim, see its docs/COVERAGE.md) and draft an issue for
+     https://github.com/kolabs-dev/isim/issues; show it to me before posting it.
    ```
 
 ## The loop
@@ -131,9 +132,32 @@ and opens it.
 
 - isim runs real iOS-simulator binaries on its own implementation of the iOS frameworks. It is not Apple's
   simulator, and it does not cover every API: check [COVERAGE.md](COVERAGE.md). When an API is missing, the fix
-  belongs in isim, not in the app. Do not work around it, and never fake SDK or Xcode metadata.
+  belongs in isim, not in the app. Do not work around it: report it (below), and never fake SDK or Xcode metadata.
 - The look follows the chosen iOS version and device, but screenshots from isim are not Apple's. Check important
   screens on Apple's simulator or a device before release.
 - Uploading to the App Store from Linux is blocked on purpose: see [DISTRIBUTION.md](DISTRIBUTION.md).
 - Signing keys, certificates and API credentials stay on your machine. Do not paste them into prompts, scripts or
   logs.
+
+## Reporting bugs and missing features
+
+Agents run into isim's gaps quickly: an API that is missing or behaves differently from iOS, a crash inside isim, a
+script command that does not do what SCRIPTING.md says, system UI that does not look like iOS. We want to hear about
+them: open an issue at [github.com/kolabs-dev/isim/issues](https://github.com/kolabs-dev/isim/issues).
+
+An agent can draft the issue while the details are fresh. Have it show you the draft before it is posted, and check
+the existing issues first (the API may already be tracked in its framework's `coverage` issue; add to that one).
+A good issue has:
+
+- **what happened and what iOS does**: the API or command, the result in isim and the expected result (Apple's
+  documentation, or the behaviour on Apple's simulator or a device);
+- **how to reproduce it**: the smallest code that shows it, and the command that runs it (`isim run …
+  --headless --script "…"`);
+- **the setup**: `isim version`, `--device` and `--os`;
+- **evidence**: the error or log lines, a backtrace, the `dump` output or a screenshot (`shot`).
+
+Leave out anything private: your app's source beyond the snippet, credentials, signing material, personal data in
+screenshots or logs.
+
+Maintainers label each issue (`bug`, `enhancement` with `coverage` for a missing API, `look-and-feel` for system UI
+that differs from iOS); add a label yourself if you can.
