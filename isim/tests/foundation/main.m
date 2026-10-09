@@ -288,6 +288,55 @@ int main(int argc, char *argv[]) {
             printf("hashed collections: %d entries in %.2f s\n", N, secs);
             CHECK(secs < 20);   // linear; the array-backed set took minutes
         }
+
+        // large NSHashTable / NSMapTable (issues #92, #93): hashed like NSSet / NSDictionary, weak entries swept
+        {
+            enum { N = 50000 };
+            clock_t t0 = clock();
+            NSHashTable *ht = [NSHashTable hashTableWithOptions:NSPointerFunctionsStrongMemory];
+            NSMapTable *mt = [NSMapTable strongToStrongObjectsMapTable];
+            for (int i = 0; i < N; i++) @autoreleasepool {
+                NSString *w = [NSString stringWithFormat:@"w%d", i];
+                [ht addObject:w]; [ht addObject:[w mutableCopy]];   // equal: not added again
+                [mt setObject:@(i) forKey:w]; [mt setObject:@(i + 1) forKey:[w mutableCopy]];   // equal key: value replaced
+            }
+            BOOL allIn = YES;
+            for (int i = 0; i < N; i++) @autoreleasepool {
+                NSString *w = [NSString stringWithFormat:@"w%d", i];
+                allIn = allIn && [ht containsObject:w] && [[mt objectForKey:w] intValue] == i + 1;
+            }
+            CHECK(ht.count == N && mt.count == N && allIn && ![ht containsObject:@"w-1"] && [mt objectForKey:@"w-1"] == nil);
+            for (int i = 0; i < N; i += 2) @autoreleasepool { NSString *w = [NSString stringWithFormat:@"w%d", i]; [ht removeObject:w]; [mt removeObjectForKey:w]; }
+            CHECK(ht.count == N / 2 && mt.count == N / 2 && ![ht containsObject:@"w0"] && [ht member:@"w1"] != nil && [mt objectForKey:@"w2"] == nil &&
+                  [[mt objectForKey:@"w3"] intValue] == 4 && [[[mt keyEnumerator] nextObject] isEqualToString:@"w1"]);
+
+            NSHashTable *wht = [NSHashTable weakObjectsHashTable];
+            NSMapTable *wmt = [NSMapTable weakToStrongObjectsMapTable], *swm = [NSMapTable strongToWeakObjectsMapTable];
+            NSMutableArray *keep = [NSMutableArray array];
+            for (int i = 0; i < N; i++) @autoreleasepool {   // only every tenth object outlives its iteration
+                NSObject *o = [NSObject new];
+                if (i % 10 == 0) [keep addObject:o];
+                [wht addObject:o]; [wmt setObject:@(i) forKey:o]; [swm setObject:o forKey:@(i)];
+            }
+            @autoreleasepool {   // reading a weak reference autoreleases the object: drain before the objects go
+                BOOL kept = YES;
+                for (NSUInteger i = 0; i < keep.count; i++)
+                    kept = kept && [wht containsObject:keep[i]] && [[wmt objectForKey:keep[i]] intValue] == (int)i * 10 && [swm objectForKey:@(i * 10)] == keep[i];
+                CHECK(kept && wht.count == N / 10 && wmt.count == N / 10 && swm.count == N / 10 && [swm objectForKey:@1] == nil);
+            }
+            [keep removeAllObjects];
+            CHECK(wht.count == 0 && wmt.count == 0 && wht.allObjects.count == 0 && [[wmt dictionaryRepresentation] count] == 0);
+
+            NSString *a = [NSString stringWithFormat:@"same"], *b = [a mutableCopy];
+            NSHashTable *pt = [NSHashTable hashTableWithOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality];
+            NSMapTable *pm = [NSMapTable mapTableWithKeyOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality
+                                                   valueOptions:NSPointerFunctionsStrongMemory];
+            [pt addObject:a]; [pt addObject:b]; [pm setObject:@1 forKey:a]; [pm setObject:@2 forKey:b];
+            CHECK(pt.count == 2 && [pt member:b] == b && [pt member:@"same"] == nil && [[pm objectForKey:a] intValue] == 1 && [[pm objectForKey:b] intValue] == 2);
+            double secs = (double)(clock() - t0) / CLOCKS_PER_SEC;
+            printf("hash/map tables: %d entries in %.2f s\n", N, secs);
+            CHECK(secs < 20);   // linear; the array-backed tables took minutes
+        }
         CHECK([@(3.5) doubleValue] == 3.5 && [@YES boolValue]);
 
         // ARC lifetimes, weak references, dealloc
