@@ -231,6 +231,24 @@ void *isim_lookup_image_symbol(const char *sym) {
     return NULL;
 }
 
+/* libc++abi's catch entry points, as other images call them, go through objc_exc.c (Objective-C exceptions caught by C++
+   handlers); libc++ itself keeps calling its own */
+extern void *isim_cxa_begin_catch(void *);
+extern void isim_cxa_end_catch(void);
+extern void isim_cxa_rethrow(void);
+static const struct { const char *sym; void *fn; } interposed[] = {
+    { "___cxa_begin_catch", (void *)isim_cxa_begin_catch }, { "___cxa_end_catch", (void *)isim_cxa_end_catch },
+    { "___cxa_rethrow", (void *)isim_cxa_rethrow },
+};
+static uint64_t interpose(struct image *im, const char *sym, uint64_t a) {
+    if (sym[0] != '_' || sym[1] != '_' || sym[2] != '_') return a;
+    struct image *def = image_for_address((void *)(uintptr_t)a);
+    if (!def || def == im) return a;
+    for (size_t i = 0; i < sizeof interposed / sizeof *interposed; i++)
+        if (!strcmp(sym, interposed[i].sym)) return (uint64_t)(uintptr_t)interposed[i].fn;
+    return a;
+}
+
 static uint64_t resolve(struct image *im, int ordinal, const char *sym, int weak) {
     for (size_t i = 0; i < sizeof aliases / sizeof *aliases; i++)
         if (!strcmp(sym, aliases[i][0])) { void *p = isim_lookup_symbol(sym); if (p) return (uint64_t)(uintptr_t)p; }
@@ -253,7 +271,7 @@ static uint64_t resolve(struct image *im, int ordinal, const char *sym, int weak
     } else {                                                        /* -2 flat, -3 weak lookup */
         void *p = isim_lookup_symbol(sym); if (p) { a = (uint64_t)(uintptr_t)p; found = 1; }
     }
-    if (found) return a;
+    if (found) return interpose(im, sym, a);
     if (weak) return 0;
     unresolved_count++;
     fprintf(stderr, "isim: warning: unresolved symbol %s (expected in %s, referenced from %s)\n", sym, from, im->path);

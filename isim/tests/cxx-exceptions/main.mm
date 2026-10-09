@@ -1,7 +1,8 @@
 // C++ exceptions self-test for isim (Objective-C++, -fexceptions, libc++/libc++abi): throw / try / catch by type,
 // base class, pointer and catch (...), rethrow, destructors while unwinding, exceptions thrown by libc++ itself
 // (vector::at, stoi, bad_cast, bad_variant_access, bad_alloc), exception_ptr, nested exceptions, other threads,
-// and mixing with Objective-C exceptions in both directions. Prints PASS/FAIL per check; exit code = failures.
+// and mixing with Objective-C exceptions in both directions (a C++ catch of NSException * too). Prints PASS/FAIL
+// per check; exit code = failures.
 // `CxxExceptionsTest uncaught` throws a C++ exception nothing catches (std::terminate's report, SIGABRT).
 #import <Foundation/Foundation.h>
 #include <cstdio>
@@ -219,6 +220,22 @@ static void testMixed() {
     NSString *name = nil;
     @try { [t throwObjC]; } @catch (NSException *e) { name = e.name; }
     CHECK([name isEqualToString:@"ObjCError"]);
+
+    // a C++ catch of an Objective-C type gets the object (as on iOS); throw; rethrows it to @catch
+    name = nil;
+    try { [t throwObjC]; } catch (NSException *e) { name = e.reason; }
+    CHECK([name isEqualToString:@"from objc"]);
+    name = nil;
+    @try {
+        try { [t throwObjC]; } catch (NSException *e) { throw; }
+    } @catch (NSException *e) { name = [@"again " stringByAppendingString:e.name]; }
+    CHECK([name isEqualToString:@"again ObjCError"]);
+    // nested: an Objective-C exception caught while a C++ one is being handled
+    name = nil;
+    try { thrower(1); } catch (int) {
+        try { [t throwObjC]; } catch (NSException *e) { name = e.name; }
+    }
+    CHECK([name isEqualToString:@"ObjCError"] && std::uncaught_exceptions() == 0);
 
     // a C++ exception passes @catch (NSException *) and @catch (id), runs @finally, reaches the C++ handler
     NSMutableArray *log = [NSMutableArray array];

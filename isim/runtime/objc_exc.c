@@ -17,7 +17,8 @@
  * points). As on iOS, __objc_personality_v0 (which clang uses for every Objective-C++ function)
  * defers to __gxx_personality_v0 for them, and @catch (...) catches them through __cxa_begin_catch.
  * Objective-C exceptions are foreign to libc++abi: C++ frames run their cleanups for them and
- * catch (...) catches them; a C++ catch of an Objective-C pointer type does not (on iOS it does).
+ * catch (...) catches them. Apps' __cxa_begin_catch / __cxa_end_catch / __cxa_rethrow come here (the
+ * loader interposes them), so a C++ catch of an Objective-C pointer type gets the object, as on iOS.
  *
  * Limits: compact encodings describe the frame at call sites only (enough for synchronous
  * exceptions); Swift async frames (extended frame pointer bit) are not unwound.
@@ -426,14 +427,15 @@ void objc_exception_throw(id obj) {
 struct caught { struct _Unwind_Exception *ue; int count, rethrown, cxx; struct caught *next; };
 static __thread struct caught *caught_stack;
 
-id objc_begin_catch(void *exc) {
+/* a handler begins: C++ exceptions are libc++abi's (its adjusted pointer), Objective-C ones are tracked here (their object) */
+static void *begin_catch(void *exc) {
     struct _Unwind_Exception *ue = exc;
     void *(*begin)(void *) = is_objc(ue) ? NULL : CXXABI(__cxa_begin_catch);
     if (begin) {
-        begin(ue);
+        void *adjusted = begin(ue);
         struct caught *c = calloc(1, sizeof *c);
         c->ue = ue; c->count = 1; c->cxx = 1; c->next = caught_stack; caught_stack = c;
-        return NULL;
+        return adjusted;
     }
     if (caught_stack && caught_stack->ue == ue && !caught_stack->cxx) { caught_stack->count++; caught_stack->rethrown = 0; }
     else {
@@ -442,6 +444,7 @@ id objc_begin_catch(void *exc) {
     }
     return is_objc(ue) ? EXC_OF(ue)->obj : NULL;
 }
+id objc_begin_catch(void *exc) { return is_objc(exc) ? begin_catch(exc) : (begin_catch(exc), NULL); }
 void objc_end_catch(void) {
     struct caught *c = caught_stack;
     if (!c || --c->count > 0) return;
@@ -466,5 +469,15 @@ void objc_terminate(void) {
 }
 
 /* _Unwind_* entry points for guest code that raise directly: register the guest images first */
+/* C++ handlers in guest code (the loader binds their __cxa_begin_catch / __cxa_end_catch / __cxa_rethrow here, not to
+   libc++abi): an Objective-C exception caught by a C++ catch (catch (NSException *e), catch (...)) gets its object and
+   is ended or rethrown here, as on iOS, where Objective-C exceptions are C++ ones; C++ exceptions go to libc++abi */
+void *isim_cxa_begin_catch(void *exc) { return begin_catch(exc); }
+void isim_cxa_end_catch(void) { objc_end_catch(); }
+void isim_cxa_rethrow(void) {
+    if (caught_stack) objc_exception_rethrow();
+    ((void (*)(void))CXXABI(__cxa_rethrow))();                  /* nothing caught: libc++abi terminates */
+}
+
 _Unwind_Reason_Code isim_unwind_raise(struct _Unwind_Exception *ue) { isim_unwind_register_images(); return _Unwind_RaiseException(ue); }
 _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn fn, void *arg) { isim_unwind_register_images(); return _Unwind_Backtrace(fn, arg); }
