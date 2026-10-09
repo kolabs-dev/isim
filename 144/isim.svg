@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>isim</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a3a63"/>
+      <stop offset="1" stop-color="#151d33"/>
+    </linearGradient>
+  </defs>
+  <!-- tile -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bg)"/>
+  <!-- phone: body, screen, Dynamic Island -->
+  <rect x="150" y="72" width="212" height="368" rx="52" fill="#e9eef8"/>
+  <rect x="168" y="90" width="176" height="332" rx="36" fill="#0d1322"/>
+  <rect x="226" y="106" width="60" height="18" rx="9" fill="#e9eef8"/>
+  <!-- terminal prompt on the screen -->
+  <path d="M206 222 L254 258 L206 294" fill="none" stroke="#8ab4ff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="266" y="286" width="54" height="22" rx="6" fill="#8ab4ff"/>
+</svg>
