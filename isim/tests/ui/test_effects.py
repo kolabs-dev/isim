@@ -85,8 +85,9 @@ def test_effects(launch):
     off = 80 - vals[-1]
     assert off > 20, f"visualEffect follows scrolling: offset {off}"
     f1 = screen_frames(t1)
-    top, x0 = f1["row-2"][1] + off - 80, f1["row-2"][0] + 10
-    k = int(off // 40)
+    off = f["row-2"][1] - f1["row-2"][1]                                 # exact: the log rounds, a held drag stops mid-pixel
+    top, x0 = f["row-2"][1] - 80, f1["row-2"][0] + 10                    # the scroll view's top (row 2 started at 80)
+    k = int((off + 1) // 40)                                             # the row at top + 1 (under 1 pt left: the next)
     want = 255 * (off - 40 * k) / 40
     p = px(end, x0, top + 1)
     assert abs(p[0] - want) < 45 and p[2] > 230, \
