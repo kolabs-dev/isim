@@ -597,7 +597,8 @@ Symbols
 DeveloperToolsSupport -lswiftCoreGraphics
 UIKit -lswiftDeveloperToolsSupport -lswiftSymbols -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswift_Concurrency -lswiftObservation -framework Foundation -framework UIKit
 SwiftUI -lswiftDeveloperToolsSupport -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
-Charts -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
+Spatial
+Charts -lswiftSpatial -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 GameKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift_Concurrency -framework Foundation -framework UIKit
 AppTrackingTransparency -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
 GoogleMobileAds -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
@@ -659,7 +660,7 @@ CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concur
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
-EVOLUTION = set("""ObjectiveC Dispatch DeveloperToolsSupport Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
+EVOLUTION = set("""ObjectiveC Dispatch Spatial DeveloperToolsSupport Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
