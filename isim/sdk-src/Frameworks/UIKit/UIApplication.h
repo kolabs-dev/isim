@@ -4,7 +4,7 @@
 #import <UIKit/UIView.h>
 #import <UIKit/UIApplicationShortcutItem.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent;
+@class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent, UIViewController;
 typedef NS_ENUM(NSInteger, UIApplicationState) { UIApplicationStateActive, UIApplicationStateInactive, UIApplicationStateBackground };
 typedef NS_ENUM(NSUInteger, UIBackgroundFetchResult) { UIBackgroundFetchResultNewData, UIBackgroundFetchResultNoData, UIBackgroundFetchResultFailed };
 typedef NSString *UIApplicationLaunchOptionsKey NS_TYPED_ENUM;
@@ -60,6 +60,11 @@ NS_SWIFT_UI_ACTOR
 - (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler;
 - (BOOL)application:(UIApplication *)application shouldSaveSecureApplicationState:(NSCoder *)coder;
 - (BOOL)application:(UIApplication *)application shouldRestoreSecureApplicationState:(NSCoder *)coder;
+- (BOOL)application:(UIApplication *)application shouldSaveApplicationState:(NSCoder *)coder API_DEPRECATED_WITH_REPLACEMENT("application:shouldSaveSecureApplicationState:", ios(6.0, 13.2));
+- (BOOL)application:(UIApplication *)application shouldRestoreApplicationState:(NSCoder *)coder API_DEPRECATED_WITH_REPLACEMENT("application:shouldRestoreSecureApplicationState:", ios(6.0, 13.2));
+- (nullable UIViewController *)application:(UIApplication *)application viewControllerWithRestorationIdentifierPath:(NSArray<NSString *> *)identifierComponents coder:(NSCoder *)coder;
+- (void)application:(UIApplication *)application willEncodeRestorableStateWithCoder:(NSCoder *)coder;
+- (void)application:(UIApplication *)application didDecodeRestorableStateWithCoder:(NSCoder *)coder;
 /* isim: there is no APNs; payloads come from `isim push` (in the foreground for every push, in the background for
    "content-available": 1 with UIBackgroundModes remote-notification, launching the app in the background if needed).
    isim's CloudKit also delivers subscription notifications here, in-process */

@@ -299,7 +299,12 @@ static void bg_schedule(void) {
     return MAX(0, bg_limit() - (isim_time() - bg_entered));
 }
 - (UIBackgroundRefreshStatus)backgroundRefreshStatus { return UIBackgroundRefreshStatusAvailable; }
-- (void)setMinimumBackgroundFetchInterval:(NSTimeInterval)i { NSLog(@"isim: minimum background fetch interval %g (fetches run on demand: script \"bgtask BUNDLE-ID --fetch\")", i); }
+/* kept in the app's defaults so a background launch knows it (iOS's default is Never: no fetches) */
+- (void)setMinimumBackgroundFetchInterval:(NSTimeInterval)i {
+    [NSUserDefaults.standardUserDefaults setDouble:i forKey:@"_ISIMBackgroundFetchInterval"];
+    [NSUserDefaults.standardUserDefaults synchronize];
+    NSLog(@"isim: minimum background fetch interval %@ (fetches run on demand: script \"bgtask BUNDLE-ID --fetch\")", i >= UIApplicationBackgroundFetchIntervalNever ? @"never" : [NSString stringWithFormat:@"%g s", i]);
+}
 @end
 
 
@@ -657,6 +662,10 @@ static void run_background_task(NSString *ident) {
     UIApplication *app = UIApplication.sharedApplication;
     if ([ident isEqualToString:@"--fetch"]) {                    /* UIKit background fetch */
         id<UIApplicationDelegate> d = app.delegate;
+        /* like iOS: only with UIBackgroundModes fetch and a minimum interval other than Never (the default) */
+        if (![NSBundle.mainBundle.infoDictionary[@"UIBackgroundModes"] containsObject:@"fetch"]) { NSLog(@"isim: background fetch: no UIBackgroundModes fetch in Info.plist"); return; }
+        NSNumber *interval = [NSUserDefaults.standardUserDefaults objectForKey:@"_ISIMBackgroundFetchInterval"];
+        if (!interval || interval.doubleValue >= UIApplicationBackgroundFetchIntervalNever) { NSLog(@"isim: background fetch: the minimum interval is never (setMinimumBackgroundFetchInterval)"); return; }
         if ([d respondsToSelector:@selector(application:performFetchWithCompletionHandler:)]) {
             NSLog(@"isim: background fetch");
             __block UIBackgroundTaskIdentifier task = [app beginBackgroundTaskWithName:@"background fetch" expirationHandler:^{}];
@@ -703,7 +712,9 @@ void isim_sys_entered_background(void) {
         else [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
     }
     extern void isim_ui_scenes_save(void);
-    isim_ui_scenes_save();                              /* the open sessions (multiple scenes) with their state */
+    isim_ui_scenes_save();
+    extern void isim_ui_save_restoration_state(void);
+    isim_ui_save_restoration_state();                   /* view controller state restoration (apps without scenes) */                              /* the open sessions (multiple scenes) with their state */
 }
 void isim_sys_entered_foreground(void) { [bg_timer invalidate]; bg_timer = nil; [bg_expired removeAllObjects]; reasons_stop(); }
 
@@ -736,6 +747,8 @@ void isim_sys_event(const char *text) {
     }
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */
         [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
+        extern void isim_ui_discard_restoration_state(void);
+        isim_ui_discard_restoration_state();
         extern void isim_ui_scenes_discarded(void);
         isim_ui_scenes_discarded();
         NSLog(@"isim: scene sessions discarded");

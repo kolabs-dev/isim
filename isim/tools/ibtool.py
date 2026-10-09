@@ -538,6 +538,8 @@ class Compiler:
             self.view_children(el, node, arc)
         elif tag in CONTROLLER_CLASSES:
             self.attrs(el, node, [CONTROLLER_ATTRS])
+            if el.get('useStoryboardIdentifierAsRestorationIdentifier') == 'YES' and el.get('storyboardIdentifier'):
+                node['props']['restorationIdentifier'] = el.get('storyboardIdentifier')   # "Use Storyboard ID"
             self.controller_children(el, node, arc)
         else:
             tables = [OBJECT_ATTRS.get(tag, {})]

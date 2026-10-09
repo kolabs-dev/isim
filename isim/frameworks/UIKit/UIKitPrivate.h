@@ -42,6 +42,9 @@ void isim_ui_traits_flush(void);                       /* traitCollectionDidChan
 id<UITraitOverrides> isim_ui_new_trait_overrides(void (^changed)(void));
 BOOL isim_ui_trait_overrides_empty(id<UITraitOverrides> o);
 UITraitCollection *isim_ui_apply_overrides(UITraitCollection *base, id<UITraitOverrides> o, UIUserInterfaceStyle style);
+void isim_ui_run_until(BOOL (^done)(void));   /* a nested main loop until done() (UIApplication.m) */
+void isim_ui_user_paste(void (^b)(void));       /* b runs as a user-initiated paste: no paste prompt (UIPasteboard.m) */
+void isim_ui_perform_edit_action(id target, SEL s, id sender);   /* an edit action from system UI (menu, shortcut) */
 UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewController *presenter);   /* UIPresentation.m */
 NSString *isim_ui_trait_key(id trait);      /* trait class or Swift identifier -> storage key */
 @interface UIView (IsimTraits)

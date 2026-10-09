@@ -542,7 +542,7 @@ static NSString *loc(NSString *s) { return [[NSBundle bundleForClass:[UIView cla
 static UIAction *edit_action(id<IsimEditableText> v, NSString *title, SEL sel) {
     __weak id wv = v;
     UIAction *a = [UIAction actionWithTitle:loc(title) image:nil identifier:NSStringFromSelector(sel) handler:^(UIAction *x) {
-        id t = wv; if (t) ((void (*)(id, SEL, id))[t methodForSelector:sel])(t, sel, nil);
+        id t = wv; if (t) isim_ui_perform_edit_action(t, sel, nil);
     }];
     return a;
 }
@@ -647,7 +647,7 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
         if (!t) continue;
         __weak UIView *wv = v;
         [suggested addObject:[UIAction actionWithTitle:loc(std[i].t) image:nil identifier:NSStringFromSelector(s) handler:^(UIAction *a) {
-            id tt = [wv targetForAction:s withSender:nil]; if (tt) ((void (*)(id, SEL, id))[tt methodForSelector:s])(tt, s, nil);
+            id tt = [wv targetForAction:s withSender:nil]; if (tt) isim_ui_perform_edit_action(tt, s, nil);
         }]];
     }
     NSArray *items = suggested;
@@ -701,7 +701,7 @@ NSNotificationName const UIMenuControllerDidHideMenuNotification = @"UIMenuContr
         if (![fr targetForAction:s withSender:self]) continue;
         __weak UIResponder *wr = fr;
         [items addObject:[UIAction actionWithTitle:loc(std[i].t) image:nil identifier:nil handler:^(UIAction *a) {
-            id t = [wr targetForAction:s withSender:nil]; if (t) ((void (*)(id, SEL, id))[t methodForSelector:s])(t, s, nil);
+            id t = [wr targetForAction:s withSender:nil]; if (t) isim_ui_perform_edit_action(t, s, nil);
         }]];
     }
     for (UIMenuItem *mi in _menuItems) {
@@ -938,7 +938,7 @@ BOOL isim_ui_text_handle_key(id<IsimEditableText> v, int hid, int hostmods) {
     /* Cmd/Ctrl shortcuts */
     if (cmd && !alt) {
         SEL a = hid == 0x04 ? @selector(selectAll:) : hid == 0x06 ? @selector(copy:) : hid == 0x1B ? @selector(cut:) : hid == 0x19 ? @selector(paste:) : NULL;
-        if (a) { if ([r canPerformAction:a withSender:nil]) ((void (*)(id, SEL, id))[r methodForSelector:a])(r, a, nil); return YES; }
+        if (a) { if ([r canPerformAction:a withSender:nil]) isim_ui_perform_edit_action(r, a, nil); return YES; }
     }
     if (hid == 0x4C && [v _isim_isEditable]) {                 /* forward delete */
         isim_ti_unmark(v);
