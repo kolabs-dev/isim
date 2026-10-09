@@ -1,8 +1,7 @@
 #pragma once
 /* isim Foundation: app extension requests (self-authored). Share and Action extensions get an NSExtensionContext with
  * the host's items (NSExtensionItem with NSItemProvider attachments); isim hosts them in the host app's process
- * (UIActivityViewController) and completeRequest / cancelRequest return to it. NSItemProvider is a Swift class on isim
- * (UniformTypeIdentifiers), so `attachments` is typed [NSItemProvider]? in Swift and NSArray in Objective-C. */
+ * (UIActivityViewController) and completeRequest / cancelRequest return to it. */
 #import <Foundation/NSObject.h>
 #import <Foundation/NSString.h>
 #import <Foundation/NSArray.h>
@@ -10,6 +9,7 @@
 #import <Foundation/NSError.h>
 #import <Foundation/NSURL.h>
 #import <Foundation/NSAttributedString.h>
+#import <Foundation/NSItemProvider.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSExtensionContext;
 
@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface NSExtensionItem : NSObject <NSCopying>
 @property (nonatomic, copy, nullable) NSAttributedString *attributedTitle;
 @property (nonatomic, copy, nullable) NSAttributedString *attributedContentText;
-@property (nonatomic, copy, nullable) NSArray *attachments NS_REFINED_FOR_SWIFT;
+@property (nonatomic, copy, nullable) NSArray<NSItemProvider *> *attachments;
 @property (nonatomic, copy, nullable) NSDictionary *userInfo;
 @end
 

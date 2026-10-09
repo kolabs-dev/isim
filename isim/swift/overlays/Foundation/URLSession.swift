@@ -2,8 +2,15 @@
 // file: and data: URLs are loaded directly. Each running task has its own transfer thread that blocks on the
 // host; delegate callbacks and completion handlers run on the session's delegateQueue (a serial background
 // OperationQueue unless one is given), like on iOS. Redirects, cookies and the cache are handled here so the
-// delegate sees them. Not implemented: authentication challenges, background sessions (they run as default
-// sessions while the app runs), HTTP pipelining/metrics, Progress.
+// delegate sees them. Not implemented: authentication challenges, HTTP pipelining, Progress.
+//
+// Background sessions (adapted: isim has no transfer daemon): the transfers run in the app, which tells the shell it
+// is busy ("transfer") so it is not suspended while they run. While the app is in the background their delegate events
+// are held; when the session has nothing left to do, UIKit wakes the app with
+// application(_:handleEventsForBackgroundURLSession:completionHandler:), then the held events are delivered and
+// urlSessionDidFinishEvents(forBackgroundURLSession:) is called. Completion-handler tasks are refused, as on iOS.
+// Unfinished download and file-upload tasks are saved (Library/Caches/isim-nsurlsessiond/IDENTIFIER.plist); if the
+// app was terminated, creating the session with the same identifier starts them again.
 import isim_host
 
 // MARK: - configuration
@@ -18,9 +25,9 @@ open class URLSessionConfiguration: NSObject, @unchecked Sendable {
         c._ephemeral = true
         return c
     }
-    /// isim: background transfers are not handed to a system daemon; tasks run while the app runs
+    /// a background session: see the top of this file (adapted)
     open class func background(withIdentifier identifier: String) -> URLSessionConfiguration {
-        let c = URLSessionConfiguration(); c.identifier = identifier; return c
+        let c = URLSessionConfiguration(); c.identifier = identifier; c.isDiscretionary = false; return c
     }
     public internal(set) var identifier: String?
     public var requestCachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
@@ -158,6 +165,10 @@ open class URLSession: NSObject, @unchecked Sendable {
     var _tasks: [Int: URLSessionTask] = [:]
     var _nextID = 1
     var _invalidated = false, _finishing = false
+    /// background sessions: delegate events held while the app is in the background, and whether the app was woken
+    var _held: [() -> Void] = []
+    var _waking = false
+    var _isBackground: Bool { configuration.identifier != nil }
 
     open var delegate: URLSessionDelegate? { _lock.lock(); defer { _lock.unlock() }; return _delegate }
 
@@ -171,12 +182,14 @@ open class URLSession: NSObject, @unchecked Sendable {
             delegateQueue = q
         }
         super.init()
+        if _isBackground { _IsimBackgroundSessions.register(self) }
     }
 
     // MARK: task factories
     open func dataTask(with request: URLRequest) -> URLSessionDataTask { _add(URLSessionDataTask(self, request)) }
     open func dataTask(with url: URL) -> URLSessionDataTask { dataTask(with: URLRequest(url: url)) }
     open func dataTask(with request: URLRequest, completionHandler: @escaping @Sendable (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
+        _refuseCompletionHandler()
         let t = URLSessionDataTask(self, request); t._dataCompletion = completionHandler; return _add(t)
     }
     open func dataTask(with url: URL, completionHandler: @escaping @Sendable (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
@@ -186,17 +199,20 @@ open class URLSession: NSObject, @unchecked Sendable {
         let t = URLSessionUploadTask(self, request); t._uploadBody = bodyData; return _add(t)
     }
     open func uploadTask(with request: URLRequest, from bodyData: Data?, completionHandler: @escaping @Sendable (Data?, URLResponse?, Error?) -> Void) -> URLSessionUploadTask {
+        _refuseCompletionHandler()
         let t = URLSessionUploadTask(self, request); t._uploadBody = bodyData ?? Data(); t._dataCompletion = completionHandler; return _add(t)
     }
     open func uploadTask(with request: URLRequest, fromFile fileURL: URL) -> URLSessionUploadTask {
         let t = URLSessionUploadTask(self, request); t._uploadFile = fileURL; return _add(t)
     }
     open func uploadTask(with request: URLRequest, fromFile fileURL: URL, completionHandler: @escaping @Sendable (Data?, URLResponse?, Error?) -> Void) -> URLSessionUploadTask {
+        _refuseCompletionHandler()
         let t = URLSessionUploadTask(self, request); t._uploadFile = fileURL; t._dataCompletion = completionHandler; return _add(t)
     }
     open func downloadTask(with request: URLRequest) -> URLSessionDownloadTask { _add(URLSessionDownloadTask(self, request)) }
     open func downloadTask(with url: URL) -> URLSessionDownloadTask { downloadTask(with: URLRequest(url: url)) }
     open func downloadTask(with request: URLRequest, completionHandler: @escaping @Sendable (URL?, URLResponse?, Error?) -> Void) -> URLSessionDownloadTask {
+        _refuseCompletionHandler()
         let t = URLSessionDownloadTask(self, request); t._downloadCompletion = completionHandler; return _add(t)
     }
     open func downloadTask(withResumeData resumeData: Data) -> URLSessionDownloadTask { _resumeTask(resumeData) }
@@ -214,6 +230,10 @@ open class URLSession: NSObject, @unchecked Sendable {
         downloadTask(with: URLRequest(url: url), completionHandler: completionHandler)
     }
 
+    /// iOS raises: background sessions deliver results through their delegate only
+    func _refuseCompletionHandler() {
+        if _isBackground { fatalError("Completion handler blocks are not supported in background sessions. Use a delegate instead.") }
+    }
     func _add<T: URLSessionTask>(_ t: T) -> T {
         _lock.lock()
         t._id = _nextID; _nextID += 1
@@ -223,6 +243,7 @@ open class URLSession: NSObject, @unchecked Sendable {
         _lock.unlock()
         if dead { t._invalidSession = true }
         if let d { delegateQueue.addOperation { d.urlSession(self, didCreateTask: t) } }
+        if _isBackground, !dead { _IsimBackgroundSessions.save(self) }
         return t
     }
     func _remove(_ t: URLSessionTask) {
@@ -232,6 +253,7 @@ open class URLSession: NSObject, @unchecked Sendable {
         if invalidateNow { _invalidated = true }
         _lock.unlock()
         if invalidateNow { _sendInvalidated() }
+        if _isBackground { _IsimBackgroundSessions.save(self); _IsimBackgroundSessions.idleCheck(self) }
     }
     func _sendInvalidated() {
         let d = delegate
@@ -370,6 +392,10 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
     var _sessionTaskDelegate: URLSessionTaskDelegate? { delegate ?? (_session.delegate as? URLSessionTaskDelegate) }
     /// runs `body` on the delegate queue and waits for it (keeps callbacks ordered and applies back-pressure)
     func _onQueue(_ body: @escaping () -> Void) {
+        if _session._isBackground && _IsimBackgroundSessions.appInBackground {      // held until the app is woken
+            _session._lock.lock(); _session._held.append(body); _session._lock.unlock()
+            return
+        }
         if OperationQueue.current === _session.delegateQueue { body(); return }
         let sem = DispatchSemaphore(value: 0)
         _session.delegateQueue.addOperation { body(); sem.signal() }
@@ -1060,5 +1086,107 @@ final class _DataTaskSubscription<S: Subscriber>: Subscription, @unchecked Senda
     func cancel() {
         lock.lock(); downstream = nil; let t = task; lock.unlock()
         t?.cancel()
+    }
+}
+
+
+// MARK: - background sessions (see the top of this file)
+enum _IsimBackgroundSessions {
+    nonisolated(unsafe) static var appInBackground = false
+    nonisolated(unsafe) static var sessions: [String: WeakSession] = [:]
+    nonisolated(unsafe) static var pendingWakes = 0          /* completion handlers not called yet (keeps the app busy) */
+    static let lock = NSLock()
+    final class WeakSession { weak var session: URLSession?; init(_ s: URLSession) { session = s } }
+    nonisolated(unsafe) static var observing = false
+
+    static func register(_ s: URLSession) {
+        guard let id = s.configuration.identifier else { return }
+        lock.lock(); sessions[id] = WeakSession(s); lock.unlock()
+        observe()
+        restore(s, id)
+    }
+    /// the app's state (UIKit's notifications, by name: Foundation cannot import UIKit)
+    static func observe() {
+        lock.lock(); let first = !observing; observing = true; lock.unlock()
+        guard first else { return }
+        let nc = NotificationCenter.default
+        _ = nc.addObserver(forName: Notification.Name("UIApplicationDidEnterBackgroundNotification"), object: nil, queue: nil) { _ in appInBackground = true }
+        _ = nc.addObserver(forName: Notification.Name("UIApplicationWillEnterForegroundNotification"), object: nil, queue: nil) { _ in
+            appInBackground = false
+            for s in live() { flush(s, finish: false) }                         // back in front: everything held, now
+        }
+        _ = nc.addObserver(forName: Notification.Name("_IsimBackgroundQuery"), object: nil, queue: nil) { n in
+            guard let q = n.object as? NSMutableDictionary else { return }
+            if busy() { q.setObject(NSNumber(value: true), forKey: "transfer" as NSString) }                                    // keeps the app from being suspended
+        }
+    }
+    static func live() -> [URLSession] { lock.lock(); defer { lock.unlock() }; return sessions.values.compactMap(\.session) }
+    static func busy() -> Bool {
+        lock.lock(); let w = pendingWakes; lock.unlock()
+        return w > 0 || live().contains { s in s._lock.lock(); defer { s._lock.unlock() }; return !s._tasks.isEmpty || s._waking }
+    }
+    /// a background session with nothing left to run while the app is in the background: wake the app (UIKit)
+    static func idleCheck(_ s: URLSession) {
+        guard appInBackground, let id = s.configuration.identifier else { return }
+        s._lock.lock()
+        let idle = s._tasks.isEmpty && !s._held.isEmpty && !s._waking
+        if idle { s._waking = true }
+        s._lock.unlock()
+        guard idle else { return }
+        lock.lock(); pendingWakes += 1; lock.unlock()
+        NSLog("isim: background URL session %@ finished: waking the app", id)
+        let done: @convention(block) () -> Void = {
+            lock.lock(); pendingWakes = max(0, pendingWakes - 1); lock.unlock()
+            NSLog("isim: background URL session %@ events handled", id)
+        }
+        let deliver: @convention(block) () -> Void = { flush(s, finish: true) }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: Notification.Name("_IsimBackgroundURLSessionEvents"), object: id as NSString,
+                                            userInfo: ["completion": done as AnyObject, "deliver": deliver as AnyObject])
+        }
+    }
+    /// the held events, in order, then (when woken) urlSessionDidFinishEvents
+    static func flush(_ s: URLSession, finish: Bool) {
+        s._lock.lock(); let held = s._held; s._held = []; s._waking = false; let d = s._delegate; s._lock.unlock()
+        guard !held.isEmpty || finish else { return }
+        s.delegateQueue.addOperation {
+            for body in held { body() }
+            if finish { d?.urlSessionDidFinishEvents(forBackgroundURLSession: s) }
+        }
+    }
+    // MARK: persistence (an app terminated during transfers starts them again when it recreates the session)
+    static func file(_ id: String) -> String {
+        let caches = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true).first ?? NSTemporaryDirectory()
+        return (caches as NSString).appendingPathComponent("isim-nsurlsessiond/\(id.replacingOccurrences(of: "/", with: "_")).plist")
+    }
+    static func save(_ s: URLSession) {
+        guard let id = s.configuration.identifier else { return }
+        s._lock.lock()
+        let entries: [[String: String]] = s._tasks.values.sorted { $0._id < $1._id }.compactMap { t in
+            guard let url = t.originalRequest?.url?.absoluteString else { return nil }
+            if let u = t as? URLSessionUploadTask, let f = u._uploadFile { return ["kind": "upload", "url": url, "file": f.path, "method": t.originalRequest?.httpMethod ?? "POST"] }
+            if t is URLSessionDownloadTask { return ["kind": "download", "url": url] }
+            return nil
+        }
+        s._lock.unlock()
+        let path = file(id)
+        if entries.isEmpty { unlink(path); return }
+        try? FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true, attributes: nil)
+        if let d = try? PropertyListSerialization.data(fromPropertyList: entries, format: .xml, options: 0) { FileManager.default.createFile(atPath: path, contents: d, attributes: nil) }
+    }
+    static func restore(_ s: URLSession, _ id: String) {
+        guard let d = FileManager.default.contents(atPath: file(id)),
+              let saved = (try? PropertyListSerialization.propertyList(from: d, options: [], format: nil)) as? [[String: String]], !saved.isEmpty else { return }
+        unlink(file(id))
+        NSLog("isim: background URL session %@: starting %d unfinished transfer(s) again", id, saved.count)
+        for e in saved {
+            guard let url = e["url"].flatMap(URL.init(string:)) else { continue }
+            if e["kind"] == "upload", let f = e["file"] {
+                var r = URLRequest(url: url); r.httpMethod = e["method"] ?? "POST"
+                s.uploadTask(with: r, fromFile: URL(fileURLWithPath: f)).resume()
+            } else {
+                s.downloadTask(with: url).resume()
+            }
+        }
     }
 }

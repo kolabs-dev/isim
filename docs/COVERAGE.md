@@ -26,8 +26,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 209 | 8 | 0 | 4 | 221 | 96% |
-| &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
+| **UIKit** | 211 | 6 | 0 | 4 | 221 | 97% |
+| &nbsp;&nbsp;↳ Application & scenes | 23 | 2 | 0 | 0 | 25 | 96% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
 | &nbsp;&nbsp;↳ Views & controls | 55 | 2 | 0 | 3 | 60 | 93% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
@@ -37,7 +37,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
-| &nbsp;&nbsp;↳ Drag & drop | 2 | 1 | 0 | 0 | 3 | 83% |
+| &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 13 | 1 | 0 | 1 | 15 | 90% |
 | **SwiftUI** | 187 | 43 | 2 | 7 | 239 | 87% |
 | &nbsp;&nbsp;↳ App & scenes | 6 | 5 | 0 | 0 | 11 | 77% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **739** | **196** | **26** | **36** | **997** | **84%** |
+| **All areas** | **741** | **194** | **26** | **36** | **997** | **84%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 99% (206) | 99% (210) | 98% (217) | 96% (221) |
+| UIKit | 99% (206) | 99% (210) | 99% (217) | 97% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (82) | 85% (82) | 85% (82) | 85% (82) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **85%** (954) | **85%** (966) | **84%** (983) | **84%** (997) |
+| **All areas** | **85%** (954) | **85%** (966) | **85%** (983) | **84%** (997) |
 
 ---
 
@@ -149,7 +149,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `applicationIconBadgeNumber` | ✅ | ≤17 | the home-screen icon shows the badge when notifications may badge; same store as `UNUserNotificationCenter.setBadgeCount`. Tested (HelloPush) |
 | `isIdleTimerDisabled` | ✅ | ≤17 | adapted: under `isim boot` with `ISIM_AUTOLOCK=SECONDS` the device locks after that much idle time unless the foreground app disables the idle timer (default: never locks, like the Simulator; lock: Ctrl+L / script `lock`). Tested (HelloViews) |
 | Status bar (`prefersStatusBarHidden`, `preferredStatusBarStyle`), home indicator, deferred edge gestures | ✅ | ≤17 | view-controller-based (`childForStatusBarHidden/Style`, presented full-screen controllers, `setNeedsStatusBarAppearanceUpdate`) and the Info.plist keys; default/light/dark content; SwiftUI `statusBarHidden`; tested by pixels (HelloViews). `prefersHomeIndicatorAutoHidden` / `preferredScreenEdgesDeferringSystemGestures` with their `setNeedsUpdateOf…` calls (the indicator fades after 2 s; the bottom edge needs a second swipe) (unverified in UIKit; tested through SwiftUI, HelloEffects) |
-| `beginBackgroundTask`, background fetch/modes | 🟡 | ≤17 | adapted: like iOS, an app in the background is suspended a few seconds later unless it has a reason to run (a background task, audio, location); `beginBackgroundTask(withName:expirationHandler:)` / `endBackgroundTask` / `backgroundTimeRemaining` with expiration after `ISIM_BACKGROUND_TASK_SECONDS` (30) in the background; apps launched into the background (BackgroundTasks) get `.background` state and connect their scene on first foreground. Background fetch: script `bgtask BUNDLE --fetch` calls `performFetchWithCompletionHandler` (launching the app in the background if needed) only with `UIBackgroundModes` `fetch` and a `setMinimumBackgroundFetchInterval` other than never (the default), like iOS. Tested (HelloSystem, HelloRestoration). Background `URLSession` (`handleEventsForBackgroundURLSession`) ❌ |
+| `beginBackgroundTask`, background fetch/modes | ✅ | ≤17 | adapted: like iOS, an app in the background is suspended a few seconds later unless it has a reason to run (a background task, audio, location); `beginBackgroundTask(withName:expirationHandler:)` / `endBackgroundTask` / `backgroundTimeRemaining` with expiration after `ISIM_BACKGROUND_TASK_SECONDS` (30) in the background; apps launched into the background (BackgroundTasks) get `.background` state and connect their scene on first foreground. Background fetch: script `bgtask BUNDLE --fetch` calls `performFetchWithCompletionHandler` (launching the app in the background if needed) only with `UIBackgroundModes` `fetch` and a `setMinimumBackgroundFetchInterval` other than never (the default), like iOS. Tested (HelloSystem, HelloRestoration). Background `URLSession` (adapted, no transfer daemon): transfers keep the app running in the background ("transfer"); when they finish there the app delegate's `handleEventsForBackgroundURLSession` runs, the held delegate events follow and `urlSessionDidFinishEvents(forBackgroundURLSession:)`; completion-handler tasks are refused as on iOS; unfinished downloads / file uploads start again when a terminated app recreates the session. Tested (HelloTransfers) |
 | State restoration (`stateRestorationActivity`, restoration IDs) | ✅ | ≤17 | scene-based: `stateRestorationActivity(for:)` saved when the scene goes to the background (app container), `session.stateRestorationActivity` + `scene(_:restoreInteractionStateWith:)` on the next launch. View controller-based (apps without scenes, as on iOS; adapted): `restorationIdentifier` on controllers and views, `encodeRestorableState(with:)` / `decodeRestorableState(with:)` / `applicationFinishedRestoringState()`, `restorationClass` (`UIViewControllerRestoration`), the app delegate's `shouldSave/shouldRestoreSecureApplicationState` (and the pre-13.2 ones), `viewControllerWithRestorationIdentifierPath`, `willEncode/didDecodeRestorableStateWith`, existing controllers found by path, storyboard controllers (also "Use Storyboard ID"), navigation stacks, the selected tab and presented controllers rebuilt, scroll view offsets, table/collection view selection (`UIDataSourceModelAssociation`), `UIApplication.registerObject(forStateRestoration:restorationIdentifier:)` (`UIStateRestoring`, `UIObjectRestoration`), the `UIApplication.stateRestoration…Key`s. Both are discarded when the app is closed in the app switcher (like iOS). Tested (HelloSystem, HelloRestoration, OS matrix). No launch snapshots |
 | Home-screen quick actions (`UIApplicationShortcutItem`) | ✅ | ≤17 | static (Info.plist `UIApplicationShortcutItems`, localized titles, icon types/symbols) + dynamic `UIApplication.shortcutItems` (saved in the container); listed in the icon's long-press menu (max 4); cold launch: `launchOptions[.shortcutItem]` / `connectionOptions.shortcutItem`; warm: `windowScene(_:performActionFor:)` / `application(_:performActionFor:)`. Tested (HelloSystem, HelloScenes) |
 | Alternate app icons (`setAlternateIconName`) | ✅ | ≤17 | Info.plist `CFBundleAlternateIcons` (icon files or asset-catalog sets; `isim build` adds them for `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` / include-all, unverified), `supportsAlternateIcons`, `alternateIconName`, the system alert, errors for unknown names / background; the home screen shows the chosen icon. Tested (HelloSystem) |
@@ -386,7 +386,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 |---|---|---|---|
 | `UIDragInteraction`, `UIDropInteraction` | ✅ | ≤17 | within the app: long press lifts (script `longdrag X1 Y1 X2 Y2 HOLD SECS`), the snapshot preview follows the finger, drop targets get canHandle/enter/update/exit/performDrop/conclude, sessions (`items`, `location(in:)`, `localDragSession`, `loadObjects(ofClass:)` incl. `String`), drag delegate lift/move/end callbacks; tested (HelloDragDrop). No drags between apps; lift previews are snapshots (`UIView.snapshotView(afterScreenUpdates:)`) |
 | Table/collection view drag & drop | ✅ | ≤17 | `dragDelegate`/`dropDelegate`/`dragInteractionEnabled`/`hasActiveDrag`: local moves go to the data source's `moveRowAt`/`moveItemAt`, other drops to `performDropWith` (coordinator with destination and items); while dragging over a list its cells move aside to open the insertion gap (a local move closes the source's place); tested (HelloDragDrop tables, HelloScrollAndLists collection views) |
-| `NSItemProvider` | 🟡 | ≤17 | data, file (`registerFileRepresentation`, in place) and object representations (`registerObject`, `registerObject(ofClass:)`), `registerItem(forTypeIdentifier:loadHandler:)` / `loadItem`, `loadObject(ofClass:)` / `canLoadObject`, `loadDataRepresentation`, `loadFileRepresentation`, `loadInPlaceFileRepresentation`, `suggestedName`, `preferredPresentationSize`, `previewImageHandler` / `loadPreviewImage`, `init(contentsOf:)`, UTType overloads, Transferable (`loadTransferable(type:)`, `register(_:)`); tested (HelloScrollAndLists, PHPicker, drag and drop). It lives in isim's UniformTypeIdentifiers module (re-exported by UIKit), not Foundation: Swift code that imports only Foundation does not see it (moving it would break apps built with earlier isim releases) |
+| `NSItemProvider` | ✅ | ≤17 | Objective-C in Foundation, as on iOS (Apple's API and Swift names): data, file (in place) and object representations (`registerObject`, `registerObject(ofClass:)`), `registerItem(forTypeIdentifier:loadHandler:)` / `loadItem`, `loadObject(ofClass:)` / `canLoadObject` (also for `String` / `URL`), `loadDataRepresentation`, `loadFileRepresentation`, `loadInPlaceFileRepresentation`, `suggestedName`, `preferredPresentationSize`, `previewImageHandler` / `loadPreviewImage`, `init(contentsOf:)`, error codes; `NSString` / `NSURL` (Foundation) and `UIImage` (UIKit) adopt `NSItemProviderReading` / `Writing`; type conformance from UniformTypeIdentifiers (declared types too), else a built-in table of the common types; the UTType conveniences (`loadDataRepresentation(for:)`, `registeredContentTypes`, …) are in UniformTypeIdentifiers and Transferable (`loadTransferable`, `register(_:)`) in CoreTransferable, as on iOS. Completion handlers' errors are `NSError?` in Swift (isim-wide, #99). Tested (HelloScrollAndLists, PHPicker, drag and drop, share sheet) |
 
 ### Appearance & dark mode
 
