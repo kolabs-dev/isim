@@ -107,6 +107,8 @@ Classes:
   - Selector: 'attributesOfFileSystemForPath:error:'
     MethodKind: Instance
     SwiftName: 'attributesOfFileSystem(forPath:)'
+- Name: NSDirectoryEnumerator
+  SwiftName: FileManager.DirectoryEnumerator
 - Name: NSThread
   SwiftName: Thread
 - Name: NSOperationQueue
@@ -139,3 +141,7 @@ Tags:
   SwiftName: FileManager.SearchPathDirectory
 - Name: NSSearchPathDomainMask
   SwiftName: FileManager.SearchPathDomainMask
+- Name: NSDirectoryEnumerationOptions
+  SwiftName: FileManager.DirectoryEnumerationOptions
+- Name: NSFileManagerItemReplacementOptions
+  SwiftName: FileManager.ItemReplacementOptions

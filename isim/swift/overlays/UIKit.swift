@@ -695,6 +695,40 @@ extension UIViewController.Transition {
     }
 }
 
+// MARK: - iOS 27 bars: bar minimization as a value type, visibility priorities relative to others (Apple's Swift API)
+@available(iOS 27.0, *)
+public struct UIBarMinimization: Hashable, Sendable {
+    public var minimizationBehavior: UIBarMinimizationBehavior = .automatic
+    public var restorationBehavior: UIBarMinimizationRestorationBehavior = .automatic
+    public var safeAreaAdjustment: UIBarMinimizationSafeAreaAdjustment = .automatic
+    public init() {}
+}
+@available(iOS 27.0, *)
+extension UINavigationItem {
+    public var navigationBarMinimization: UIBarMinimization {
+        get {
+            let o = __navigationBarMinimization
+            var m = UIBarMinimization()
+            m.minimizationBehavior = o.minimizationBehavior; m.restorationBehavior = o.restorationBehavior; m.safeAreaAdjustment = o.safeAreaAdjustment
+            return m
+        }
+        set {
+            let o = _UIBarMinimizationObjC()
+            o.minimizationBehavior = newValue.minimizationBehavior; o.restorationBehavior = newValue.restorationBehavior; o.safeAreaAdjustment = newValue.safeAreaAdjustment
+            __navigationBarMinimization = o
+        }
+    }
+}
+@available(iOS 27.0, *)
+extension UIBarButtonItemVisibilityPriority {
+    public init(higherThan other: UIBarButtonItemVisibilityPriority) { self.init(rawValue: other.rawValue + 1) }
+    public init(lowerThan other: UIBarButtonItemVisibilityPriority) { self.init(rawValue: other.rawValue - 1) }
+}
+@available(iOS 18.0, *)
+extension UITabBarController.Sidebar {
+    public typealias Delegate = UITabBarControllerSidebarDelegate
+    public typealias Animating = UITabBarControllerSidebarAnimating
+}
 // MARK: - iOS 27 scene display links with a closure (Apple's Swift API)
 private final class _IsimDisplayLinkAction: NSObject {
     let action: @Sendable (CADisplayLink) -> Void

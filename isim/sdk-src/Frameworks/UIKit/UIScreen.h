@@ -5,6 +5,8 @@ NS_ASSUME_NONNULL_BEGIN
 NS_SWIFT_UI_ACTOR
 @interface UIScreen : NSObject <UITraitEnvironment>
 @property (class, nonatomic, readonly) UIScreen *mainScreen;
+/* the device's screen and, while one is connected (isim: script `display connect`), the external display */
+@property (class, nonatomic, readonly) NSArray<UIScreen *> *screens;
 @property (nonatomic, readonly) CGRect bounds;
 @property (nonatomic, readonly) CGRect nativeBounds;
 @property (nonatomic, readonly) CGFloat scale;
@@ -15,4 +17,5 @@ NS_SWIFT_UI_ACTOR
 @property (readonly) id<UICoordinateSpace> coordinateSpace;
 @end
 UIKIT_EXTERN NSNotificationName const UIScreenBrightnessDidChangeNotification;
+UIKIT_EXTERN NSNotificationName const UIScreenDidConnectNotification, UIScreenDidDisconnectNotification;
 NS_ASSUME_NONNULL_END

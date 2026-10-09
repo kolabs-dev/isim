@@ -28,6 +28,7 @@ NSAttributedStringKey const NSExpansionAttributeName = @"NSExpansion";
 @interface NSParagraphStyle () {
 @public
     CGFloat _ls, _ps, _hi, _ti, _fhi, _minLH, _maxLH, _lhm, _psb; NSTextAlignment _al; NSLineBreakMode _lbm; NSWritingDirection _wd; float _hy;
+    NSArray<NSTextBlock *> *_tb;
 }
 @end
 @implementation NSParagraphStyle
@@ -46,22 +47,24 @@ NSAttributedStringKey const NSExpansionAttributeName = @"NSExpansion";
 - (CGFloat)lineHeightMultiple { return _lhm; }
 - (CGFloat)paragraphSpacingBefore { return _psb; }
 - (float)hyphenationFactor { return _hy; }
+- (NSArray<NSTextBlock *> *)textBlocks { return _tb ?: @[]; }
 - (id)_isim_copyAs:(Class)c {
     NSParagraphStyle *p = [c new];
     p->_ls = _ls; p->_ps = _ps; p->_hi = _hi; p->_ti = _ti; p->_fhi = _fhi; p->_minLH = _minLH; p->_maxLH = _maxLH; p->_lhm = _lhm; p->_psb = _psb;
-    p->_al = _al; p->_lbm = _lbm; p->_wd = _wd; p->_hy = _hy;
+    p->_al = _al; p->_lbm = _lbm; p->_wd = _wd; p->_hy = _hy; p->_tb = _tb;
     return p;
 }
 - (id)copyWithZone:(NSZone *)z { return [self _isim_copyAs:[NSParagraphStyle class]]; }
 - (id)mutableCopyWithZone:(NSZone *)z { return [self _isim_copyAs:[NSMutableParagraphStyle class]]; }
 - (BOOL)isEqual:(NSParagraphStyle *)o {
-    return [o isKindOfClass:[NSParagraphStyle class]] && o->_ls == _ls && o->_ps == _ps && o->_al == _al && o->_lbm == _lbm && o->_hi == _hi && o->_fhi == _fhi && o->_ti == _ti;
+    return [o isKindOfClass:[NSParagraphStyle class]] && o->_ls == _ls && o->_ps == _ps && o->_al == _al && o->_lbm == _lbm && o->_hi == _hi && o->_fhi == _fhi && o->_ti == _ti
+        && (o->_tb == _tb || [o.textBlocks isEqualToArray:self.textBlocks]);     /* blocks compare by identity (a cell is not another cell) */
 }
 - (NSUInteger)hash { return (NSUInteger)_al * 31 + (NSUInteger)_lbm + (NSUInteger)(_ls * 7); }
 @end
 @implementation NSMutableParagraphStyle
 @dynamic lineSpacing, paragraphSpacing, alignment, firstLineHeadIndent, headIndent, tailIndent, lineBreakMode, minimumLineHeight, maximumLineHeight,
-         baseWritingDirection, lineHeightMultiple, paragraphSpacingBefore, hyphenationFactor;
+         baseWritingDirection, lineHeightMultiple, paragraphSpacingBefore, hyphenationFactor, textBlocks;
 - (void)setLineSpacing:(CGFloat)v { _ls = v; }
 - (void)setParagraphSpacing:(CGFloat)v { _ps = v; }
 - (void)setAlignment:(NSTextAlignment)v { _al = v; }
@@ -75,6 +78,7 @@ NSAttributedStringKey const NSExpansionAttributeName = @"NSExpansion";
 - (void)setLineHeightMultiple:(CGFloat)v { _lhm = v; }
 - (void)setParagraphSpacingBefore:(CGFloat)v { _psb = v; }
 - (void)setHyphenationFactor:(float)v { _hy = v; }
+- (void)setTextBlocks:(NSArray<NSTextBlock *> *)v { _tb = v.count ? [v copy] : nil; }
 @end
 @implementation NSShadow
 - (instancetype)init { if ((self = [super init])) { _shadowOffset = CGSizeMake(0, -3); } return self; }
@@ -149,8 +153,11 @@ static int pango_align(NSTextAlignment a) {
     if (a == NSTextAlignmentNatural) a = isim_ui_drawing_rtl ? NSTextAlignmentRight : NSTextAlignmentLeft;   /* natural follows the layout direction */
     return a == NSTextAlignmentCenter ? 1 : a == NSTextAlignmentRight ? 2 : 0;
 }
+BOOL isim_ui_has_text_blocks(NSAttributedString *s);
+CGSize isim_ui_text_blocks_layout(NSAttributedString *s, UIFont *font, UIColor *color, CGFloat maxw, CGPoint origin, BOOL draw, CGFloat alpha);
 CGSize isim_ui_measure_attributed(NSAttributedString *s, UIFont *f, UIColor *c, CGFloat maxw, NSInteger lines) {
     if (!s.length) return CGSizeZero;
+    if (isim_ui_has_text_blocks(s)) return isim_ui_text_blocks_layout(s, f, c, maxw, CGPointZero, NO, 1);   /* UITextBlocks.m */
     NSTextAlignment al = NSTextAlignmentNatural; CGFloat sp = 0;
     NSString *mk = isim_ui_markup(s, f, c, &al, &sp);
     double w, h; isim_text_measure_markup(mk.UTF8String, maxw, (int)lines, pango_align(al), sp, &w, &h);
@@ -158,6 +165,11 @@ CGSize isim_ui_measure_attributed(NSAttributedString *s, UIFont *f, UIColor *c, 
 }
 void isim_ui_draw_attributed(NSAttributedString *s, UIFont *f, UIColor *c, CGRect r, NSTextAlignment align, NSInteger lines, CGFloat alpha) {
     if (!s.length) return;
+    if (isim_ui_has_text_blocks(s)) {
+        CGSize sz = isim_ui_text_blocks_layout(s, f, c, r.size.width, CGPointZero, NO, 1);
+        isim_ui_text_blocks_layout(s, f, c, r.size.width, CGPointMake(r.origin.x, r.origin.y + fmax(0, (r.size.height - sz.height) / 2)), YES, alpha);
+        return;
+    }
     NSTextAlignment al = align; CGFloat sp = 0;
     NSString *mk = isim_ui_markup(s, f, c, &al, &sp);
     double rgba[4] = { 0, 0, 0, alpha };
@@ -185,6 +197,13 @@ static NSAttributedString *attributed(NSString *s, NSDictionary *attrs) { return
 - (CGSize)size { return isim_ui_measure_attributed(self, nil, nil, 0, 0); }
 - (void)_isim_drawTop:(CGRect)r lines:(NSInteger)lines {
     if (!self.length) return;
+    if (isim_ui_has_text_blocks(self)) {
+        isim_gfx_save();
+        if (r.size.width > 0 && r.size.height > 0) isim_gfx_clip_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 0);
+        isim_ui_text_blocks_layout(self, nil, nil, r.size.width, r.origin, YES, 1);
+        isim_gfx_restore();
+        return;
+    }
     NSTextAlignment al = NSTextAlignmentNatural; CGFloat sp = 0;
     NSString *mk = isim_ui_markup(self, nil, nil, &al, &sp);
     double rgba[4] = { 0, 0, 0, 1 };

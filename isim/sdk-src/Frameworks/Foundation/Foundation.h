@@ -15,6 +15,7 @@
 #import <Foundation/NSInvocation.h>
 #import <Foundation/NSProxy.h>
 #import <Foundation/NSError.h>
+#import <Foundation/FoundationErrors.h>
 #import <Foundation/NSAutoreleasePool.h>
 #import <Foundation/NSBundle.h>
 #import <Foundation/NSDate.h>
