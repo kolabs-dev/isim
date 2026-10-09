@@ -226,13 +226,18 @@ struct _Mark {
     var style: AnyShapeStyle?
     var symbolKey: String?
     var symbol: BasicChartSymbolShape?
+    var symbolPath: ((CGRect) -> Path)?        // a custom ChartSymbolShape
+    var symbolView: AnyView?                   // symbol { view }
     var symbolSize: CGFloat?
+    var symbolSizeValue: Double?               // symbolSize(by:): mapped through the symbol size scale
     var interpolation = InterpolationMethod.linear
     var lineStyle: StrokeStyle?
     var opacity = 1.0
     var cornerRadius: CGFloat = 0
     var positionKey: String?
     var annotations: [_Annotation] = []
+    var function: _FunctionPlot?               // LinePlot / AreaPlot of a function: sampled once the x domain is known
+    var v3: [_V3]?                             // a 3D mark's x, y, z (values or ranges)
     init(_ kind: _MarkKind) { self.kind = kind }
 }
 
@@ -422,10 +427,21 @@ extension ChartContent {
     public func foregroundStyle<D: Plottable>(by value: PlottableValue<D>) -> _ChartModified<Self> { let k = value._pv.category; return _modify { $0.styleKey = k } }
     public func symbol<D: Plottable>(by value: PlottableValue<D>) -> _ChartModified<Self> { let k = value._pv.category; return _modify { $0.symbolKey = k } }
     public func symbol<S: ChartSymbolShape>(_ symbol: S) -> _ChartModified<Self> {
-        let b = symbol as? BasicChartSymbolShape ?? .circle
-        return _modify { $0.symbol = b }
+        if let b = symbol as? BasicChartSymbolShape { return _modify { $0.symbol = b; $0.symbolPath = nil; $0.symbolView = nil } }
+        let path: (CGRect) -> Path = { symbol.path(in: $0) }
+        return _modify { $0.symbolPath = path; $0.symbolView = nil }
+    }
+    /// A view as the symbol of each point (centered on it).
+    public func symbol<V: View>(@ViewBuilder symbol: () -> V) -> _ChartModified<Self> {
+        let v = AnyView(symbol())
+        return _modify { $0.symbolView = v }
     }
     public func symbolSize(_ size: CGFloat) -> _ChartModified<Self> { _modify { $0.symbolSize = size } }
+    /// Sizes symbols by a value through the symbol size scale (chartSymbolSizeScale; default areas 20...200).
+    public func symbolSize<D: Plottable>(by value: PlottableValue<D>) -> _ChartModified<Self> {
+        let v = value._pv.number ?? 0
+        return _modify { $0.symbolSizeValue = v }
+    }
     public func symbolSize(_ size: CGSize) -> _ChartModified<Self> { _modify { $0.symbolSize = (size.width * size.height).squareRoot() } }
     public func interpolationMethod(_ method: InterpolationMethod) -> _ChartModified<Self> { _modify { $0.interpolation = method } }
     public func lineStyle(_ style: StrokeStyle) -> _ChartModified<Self> { _modify { $0.lineStyle = style } }

@@ -39,3 +39,20 @@ typedef integer_t *mach_port_info_t;
 #define MACH_PORT_LIMITS_INFO 1
 #define MACH_PORT_RECEIVE_STATUS 2
 #define MACH_PORT_LIMITS_INFO_COUNT ((mach_msg_type_number_t)(sizeof(mach_port_limits_t) / sizeof(natural_t)))
+typedef natural_t mach_port_rights_t;
+typedef natural_t mach_port_mscount_t;
+typedef natural_t mach_port_msgcount_t;
+/* MACH_PORT_RECEIVE_STATUS (mach_port_get_attributes); isim fills mps_qlimit, mps_msgcount, mps_sorights, mps_srights */
+typedef struct mach_port_status {
+    mach_port_rights_t mps_pset;
+    natural_t mps_seqno;
+    mach_port_mscount_t mps_mscount;
+    mach_port_msgcount_t mps_qlimit;
+    mach_port_msgcount_t mps_msgcount;
+    mach_port_rights_t mps_sorights;
+    boolean_t mps_srights;
+    boolean_t mps_pdrequest;
+    boolean_t mps_nsrequest;
+    natural_t mps_flags;
+} mach_port_status_t;
+#define MACH_PORT_RECEIVE_STATUS_COUNT ((mach_msg_type_number_t)(sizeof(mach_port_status_t) / sizeof(natural_t)))

@@ -26,4 +26,8 @@
 #define _LIBCPP_ASSERTION_SEMANTIC_DEFAULT _LIBCPP_ASSERTION_SEMANTIC_HARDENING_DEPENDENT
 #define _LIBCPP_LIBC_PICOLIBC 0
 #define _LIBCPP_LIBC_NEWLIB 0
+// No ABI tag on the hidden inline functions (_LIBCPP_HIDE_FROM_ABI; never exported by libc++.dylib): Swift 6.2's
+// C++ interop cannot deserialize references to tagged functions from the CxxStdlib overlay (CxxStdlib's inlinable
+// code calling std::string members crashed the compiler).
+#define _LIBCPP_NO_ABI_TAG
 #endif

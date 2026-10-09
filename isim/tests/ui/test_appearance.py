@@ -84,8 +84,13 @@ def test_appearance(launch, ios):
     shot_when(app, "theme", 240, 140, near(0, 153, 51))                  # custom trait change: color
 
     app.send("memorywarning")
+    app.wait_log(r"memory pressure: warning")                            # the dispatch source hears it too
     for who in ("app delegate", "notification", "root controller", "child controller"):
         app.wait_log(rf"memory warning: {who}")
+    app.send("memorywarning critical")
+    app.wait_log(r"memory pressure: critical")
+    app.send("memorywarning normal")
+    app.wait_log(r"memory pressure: normal")
     app.send("contrast off").send("appearance light")
     app.wait_log(r"registration: style dark -> light")
     back = shot_when(app, "back", 60, 140, near(51, 102, 204))

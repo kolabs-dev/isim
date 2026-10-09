@@ -59,6 +59,7 @@ def package(root, version, ctx):
     for f in glob.glob(os.path.join(root, "fonts/*.ttf")) + [os.path.join(root, "fonts/LICENSE-OFL.txt")]:
         shutil.copy(f, os.path.join(stage, "share/fonts"))
     shutil.copytree(os.path.join(root, "out/swift/resource"), os.path.join(stage, "swift/resource"), symlinks=True)   # isim swiftc
+    shutil.copytree(os.path.join(root, "out/swift/host"), os.path.join(stage, "swift/host"), symlinks=True)   # macro plugins
     for a in DEMOS:
         if os.path.isdir(os.path.join(root, f"out/apps/{a}.app")):
             shutil.copytree(os.path.join(root, f"out/apps/{a}.app"), os.path.join(stage, f"apps/{a}.app"), symlinks=True)

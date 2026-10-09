@@ -474,6 +474,11 @@ def _(a):
     a.copy("Info.plist", b)
 
 
+@app("tests/dispatch", products=["DispatchTest.app"])
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="DispatchTest")
+
+
 @app("tests/objc-literals", products=["ObjCLiteralsTest.app"])
 def _(a):
     """Literals.m with -fobjc-constant-literals (clang 23+) bridged into Swift; with an older clang the committed

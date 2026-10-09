@@ -181,7 +181,17 @@ final class _AxisConfigBox { let specs: [_AxisMarksSpec]; init(_ s: [_AxisMarksS
 final class _StyleScaleBox { let keys: [String]?; let styles: [AnyShapeStyle]; init(_ k: [String]?, _ s: [AnyShapeStyle]) { keys = k; styles = s } }
 final class _LegendBox { let visibility: Visibility; let position: AnnotationPosition; let content: AnyView?
     init(_ v: Visibility, _ p: AnnotationPosition, _ c: AnyView?) { visibility = v; position = p; content = c } }
-final class _ViewBox { let view: AnyView; init(_ v: AnyView) { view = v } }
+/// chartXAxisLabel / chartYAxisLabel: the view and where it goes (position, alignment, spacing).
+final class _ViewBox {
+    let view: AnyView, position: AnnotationPosition, alignment: Alignment?, spacing: CGFloat?
+    init(_ v: AnyView, _ p: AnnotationPosition = .automatic, _ a: Alignment? = nil, _ s: CGFloat? = nil) { view = v; position = p; alignment = a; spacing = s }
+}
+/// chartSymbolScale (symbols per series value) and chartSymbolSizeScale (symbol areas for symbolSize(by:)).
+final class _SymbolScaleBox {
+    let keys: [String]?, shapes: [(CGRect) -> Path]
+    init(_ k: [String]?, _ s: [(CGRect) -> Path]) { keys = k; shapes = s }
+}
+final class _SymbolSizeScaleBox { let domain: (Double, Double)?, range: (Double, Double); init(_ d: (Double, Double)?, _ r: (Double, Double)) { domain = d; range = r } }
 
 struct _ChartXAxisVisKey: EnvironmentKey { static var defaultValue: Visibility { .automatic } }
 struct _ChartYAxisVisKey: EnvironmentKey { static var defaultValue: Visibility { .automatic } }
@@ -193,6 +203,8 @@ struct _ChartStyleScaleKey: EnvironmentKey { static var defaultValue: _StyleScal
 struct _ChartLegendKey: EnvironmentKey { static var defaultValue: _LegendBox? { nil } }
 struct _ChartXLabelKey: EnvironmentKey { static var defaultValue: _ViewBox? { nil } }
 struct _ChartYLabelKey: EnvironmentKey { static var defaultValue: _ViewBox? { nil } }
+struct _ChartSymbolScaleKey: EnvironmentKey { static var defaultValue: _SymbolScaleBox? { nil } }
+struct _ChartSymbolSizeScaleKey: EnvironmentKey { static var defaultValue: _SymbolSizeScaleBox? { nil } }
 extension EnvironmentValues {
     var _chartXAxisVisibility: Visibility { get { self[_ChartXAxisVisKey.self] } set { self[_ChartXAxisVisKey.self] = newValue } }
     var _chartYAxisVisibility: Visibility { get { self[_ChartYAxisVisKey.self] } set { self[_ChartYAxisVisKey.self] = newValue } }
@@ -204,6 +216,8 @@ extension EnvironmentValues {
     var _chartLegend: _LegendBox? { get { self[_ChartLegendKey.self] } set { self[_ChartLegendKey.self] = newValue } }
     var _chartXLabel: _ViewBox? { get { self[_ChartXLabelKey.self] } set { self[_ChartXLabelKey.self] = newValue } }
     var _chartYLabel: _ViewBox? { get { self[_ChartYLabelKey.self] } set { self[_ChartYLabelKey.self] = newValue } }
+    var _chartSymbolScale: _SymbolScaleBox? { get { self[_ChartSymbolScaleKey.self] } set { self[_ChartSymbolScaleKey.self] = newValue } }
+    var _chartSymbolSizeScale: _SymbolSizeScaleBox? { get { self[_ChartSymbolSizeScaleKey.self] } set { self[_ChartSymbolSizeScaleKey.self] = newValue } }
 }
 
 extension View {
@@ -231,16 +245,47 @@ extension View {
     public func chartForegroundStyleScale<S: ShapeStyle>(range: [S], type: ScaleType? = nil) -> some View {
         environment(\._chartStyleScale, _StyleScaleBox(nil, range.map { AnyShapeStyle($0) }))
     }
+    /// The x axis title: below the plot by default (centered), or `.top`; `alignment` places it along the axis.
     public func chartXAxisLabel<S: StringProtocol>(_ label: S, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
-        environment(\._chartXLabel, _ViewBox(AnyView(Text(String(label)))))
+        environment(\._chartXLabel, _ViewBox(AnyView(Text(String(label))), position, alignment, spacing))
     }
     public func chartXAxisLabel(_ label: LocalizedStringKey, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
-        environment(\._chartXLabel, _ViewBox(AnyView(Text(label))))
+        environment(\._chartXLabel, _ViewBox(AnyView(Text(label)), position, alignment, spacing))
     }
+    public func chartXAxisLabel(_ label: Text, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
+        environment(\._chartXLabel, _ViewBox(AnyView(label), position, alignment, spacing))
+    }
+    public func chartXAxisLabel<C: View>(position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil, @ViewBuilder content: () -> C) -> some View {
+        environment(\._chartXLabel, _ViewBox(AnyView(content()), position, alignment, spacing))
+    }
+    /// The y axis title: above the plot by default (on the axis' side), or `.leading` / `.trailing` (vertical text).
     public func chartYAxisLabel<S: StringProtocol>(_ label: S, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
-        environment(\._chartYLabel, _ViewBox(AnyView(Text(String(label)))))
+        environment(\._chartYLabel, _ViewBox(AnyView(Text(String(label))), position, alignment, spacing))
     }
     public func chartYAxisLabel(_ label: LocalizedStringKey, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
-        environment(\._chartYLabel, _ViewBox(AnyView(Text(label))))
+        environment(\._chartYLabel, _ViewBox(AnyView(Text(label)), position, alignment, spacing))
+    }
+    public func chartYAxisLabel(_ label: Text, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
+        environment(\._chartYLabel, _ViewBox(AnyView(label), position, alignment, spacing))
+    }
+    public func chartYAxisLabel<C: View>(position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil, @ViewBuilder content: () -> C) -> some View {
+        environment(\._chartYLabel, _ViewBox(AnyView(content()), position, alignment, spacing))
+    }
+    /// Symbols per `symbol(by:)` value.
+    public func chartSymbolScale<D: Plottable, S: ChartSymbolShape>(_ mapping: KeyValuePairs<D, S>) -> some View {
+        environment(\._chartSymbolScale, _SymbolScaleBox(mapping.map { _PV.of($0.key).category }, mapping.map { s in { s.value.path(in: $0) } }))
+    }
+    public func chartSymbolScale<D: Plottable, S: ChartSymbolShape>(domain: [D], range: [S]) -> some View {
+        environment(\._chartSymbolScale, _SymbolScaleBox(domain.map { _PV.of($0).category }, range.map { s in { s.path(in: $0) } }))
+    }
+    public func chartSymbolScale<S: ChartSymbolShape>(range: [S]) -> some View {
+        environment(\._chartSymbolScale, _SymbolScaleBox(nil, range.map { s in { s.path(in: $0) } }))
+    }
+    /// Symbol areas (square points) for `symbolSize(by:)` values: the data's extent maps onto `range`.
+    public func chartSymbolSizeScale<D: Plottable>(domain: ClosedRange<D>, range: ClosedRange<Double>) -> some View {
+        environment(\._chartSymbolSizeScale, _SymbolSizeScaleBox((_PV.of(domain.lowerBound).number ?? 0, _PV.of(domain.upperBound).number ?? 1), (range.lowerBound, range.upperBound)))
+    }
+    public func chartSymbolSizeScale(range: ClosedRange<Double>) -> some View {
+        environment(\._chartSymbolSizeScale, _SymbolSizeScaleBox(nil, (range.lowerBound, range.upperBound)))
     }
 }

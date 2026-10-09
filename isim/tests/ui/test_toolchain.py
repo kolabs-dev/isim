@@ -36,6 +36,8 @@ def test_app(launch):
     app = launch("HelloToolchain")
     app.wait_log(r"HelloToolchain: «Hello, isim» \| MathKit 5 · XCFramework 7 · Units 20000 \| debug\+xcconfig · Howdy · "
                  r"objc score 42")                         # framework, static lib, packages, XCFramework, ObjC<->Swift
+    app.wait_log(r"HelloToolchain macros: Model\.mathKitSum\(\) \* 2 = 10, 3 flavors")   # package macro target (expression +
+                                                                                    # attached member macro); #Preview compiles
     assert app.quit() == 0
     fw = APP / "Frameworks/Greeter.framework"
     assert os.access(fw / "Greeter", os.X_OK) and not (fw / "Headers").exists(), \
