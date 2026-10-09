@@ -33,6 +33,58 @@ static NSArray<NSString *> *word_list(NSString *language) {
     if (!cache[k]) cache[k] = [word_set(language).allObjects sortedArrayUsingSelector:@selector(compare:)];
     return cache[k];
 }
+/* the host's Hunspell dictionary for the language: "word/FLAGS" lines after a count line (sorted, lower-cased) */
+static NSArray<NSString *> *host_list(NSString *language) {
+    static NSMutableDictionary<NSString *, NSArray *> *cache;
+    if (!cache) cache = [NSMutableDictionary dictionary];
+    NSString *k = lang_key(language);
+    if (cache[k]) return cache[k];
+    NSDictionary *files = @{ @"en": @[@"en_US", @"en_GB", @"en"], @"pt": @[@"pt_BR", @"pt_PT", @"pt"], @"es": @[@"es_ES", @"es_MX", @"es"],
+                             @"fr": @[@"fr_FR", @"fr"], @"de": @[@"de_DE", @"de"] };
+    const char *env = getenv("ISIM_DICTIONARIES");
+    NSString *dirs = env ? @(env) : @"/usr/share/hunspell:/usr/share/myspell:/usr/share/myspell/dicts";
+    NSMutableArray *words = [NSMutableArray array];          /* (sorted, then deduplicated: no hashing of 50k+ words) */
+    if (![dirs isEqualToString:@"none"])
+        for (NSString *dir in [dirs componentsSeparatedByString:@":"]) {
+            NSString *text = nil;
+            for (NSString *f in files[k]) {
+                text = [NSString stringWithContentsOfFile:[dir stringByAppendingFormat:@"/%@.dic", f] encoding:NSUTF8StringEncoding error:NULL];
+                if (text) break;
+            }
+            if (!text) continue;
+            NSUInteger n = 0;
+            for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+                if (n++ == 0 || !line.length) continue;
+                NSString *w = [line componentsSeparatedByString:@"/"][0];
+                w = [w stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+                if (w.length < 2 || [w rangeOfCharacterFromSet:NSCharacterSet.letterCharacterSet.invertedSet].location != NSNotFound) continue;
+                [words addObject:w.lowercaseString];
+            }
+            break;
+        }
+    [words sortUsingSelector:@selector(compare:)];
+    NSMutableArray *unique = [NSMutableArray arrayWithCapacity:words.count];
+    for (NSString *w in words) if (![unique.lastObject isEqualToString:w]) [unique addObject:w];
+    return cache[k] = unique;
+}
+static BOOL host_known(NSString *w, NSString *language) {
+    NSArray *list = host_list(language);
+    if (!list.count) return NO;
+    NSUInteger i = [list indexOfObject:w inSortedRange:NSMakeRange(0, list.count) options:NSBinarySearchingFirstEqual usingComparator:^NSComparisonResult(NSString *a, NSString *b) { return [a compare:b]; }];
+    return i != NSNotFound;
+}
+/* how often each word was typed (keyboard), for ranking completions */
+static NSMutableDictionary<NSString *, NSNumber *> *usage(void) {
+    static NSMutableDictionary *d;
+    if (!d) d = [[NSUserDefaults.standardUserDefaults dictionaryForKey:@"_ISIMWordUsage"] mutableCopy] ?: [NSMutableDictionary dictionary];
+    return d;
+}
+void isim_text_checker_note_word(NSString *w) {
+    if (w.length < 2) return;
+    NSString *f = w.lowercaseString;
+    usage()[f] = @(usage()[f].integerValue + 1);
+    [NSUserDefaults.standardUserDefaults setObject:usage() forKey:@"_ISIMWordUsage"];
+}
 static NSMutableArray<NSString *> *learned(void) {
     static NSMutableArray *a;
     if (!a) a = [[NSUserDefaults.standardUserDefaults arrayForKey:@"_ISIMLearnedWords"] mutableCopy] ?: [NSMutableArray array];
@@ -75,7 +127,7 @@ static NSString *fold(NSString *w) { return [w lowercaseString]; }
     if ([_ignoredWords containsObject:w] || [learned() containsObject:w]) return YES;
     NSSet *set = word_set(language);
     NSString *f = fold(w);
-    if ([set containsObject:f] || [set containsObject:w]) return YES;
+    if ([set containsObject:f] || [set containsObject:w] || host_known(f, language)) return YES;
     /* plurals and simple English inflections of listed words */
     if ([lang_key(language) isEqualToString:@"en"]) for (NSString *suf in @[@"s", @"es", @"ed", @"ing", @"'s", @"ly"])
         if ([f hasSuffix:suf] && f.length > suf.length + 1 && [set containsObject:[f substringToIndex:f.length - suf.length]]) return YES;
@@ -85,6 +137,7 @@ static NSString *fold(NSString *w) { return [w lowercaseString]; }
     NSString *f = fold(w);
     NSMutableArray *out = [NSMutableArray array];
     for (NSString *c in word_list(language)) if (one_edit(f, c)) [out addObject:c];
+    if (!out.count) for (NSString *c in host_list(language)) if (one_edit(f, c)) { [out addObject:c]; if (out.count == 8) break; }
     /* keep the word's capitalization */
     BOOL cap = w.length && [NSCharacterSet.uppercaseLetterCharacterSet characterIsMember:[w characterAtIndex:0]];
     NSMutableArray *r = [NSMutableArray array];
@@ -144,8 +197,21 @@ static NSString *fold(NSString *w) { return [w lowercaseString]; }
         if (![w hasPrefix:p]) break;
         if (![w isEqualToString:p] && ![out containsObject:w]) [out addObject:w];
     }
-    /* shorter (more common in a small list) first */
+    NSArray *host = host_list(language);
+    if (out.count < 10 && host.count) {
+        lo = 0; hi = host.count;
+        while (lo < hi) { NSUInteger mid = (lo + hi) / 2; if ([host[mid] compare:p] == NSOrderedAscending) lo = mid + 1; else hi = mid; }
+        for (NSUInteger i = lo; i < host.count && out.count < 10; i++) {
+            NSString *w = host[i];
+            if (![w hasPrefix:p]) break;
+            if (![w isEqualToString:p] && ![out containsObject:w]) [out addObject:w];
+        }
+    }
+    /* the most typed first, then shorter (more common in a small list) */
+    NSDictionary *used = usage();
     [out sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        NSInteger ua = [used[fold(a)] integerValue], ub = [used[fold(b)] integerValue];
+        if (ua != ub) return ua > ub ? NSOrderedAscending : NSOrderedDescending;
         return a.length < b.length ? NSOrderedAscending : a.length > b.length ? NSOrderedDescending : NSOrderedSame; }];
     return out;
 }

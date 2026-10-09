@@ -208,6 +208,12 @@ def _(a):
     a.icon(f"{b}/DarkIcon60x60@3x.png", "#2c2c2e", "#000000", "S", fill="#ffd60a")
 
 
+@app("samples/HelloTextServices")
+def _(a):
+    b = a.swift_app()
+    a.copy("HelloTextServices.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # webcredentials domain
+
+
 @app("samples/HelloPush")
 def _(a):
     b = a.swift_app(srcs=["HelloPush.swift"])

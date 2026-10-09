@@ -1553,6 +1553,7 @@ static void run_loop_once(void) {
             case ISIM_EV_HOVER: isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
             case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
             case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
+            case ISIM_EV_TEXT_SERVICE: isim_ui_text_service(@(ev.text)); break;
             case ISIM_EV_DUMP: layout_all();
                 if (!strncmp(ev.text, "views ", 6)) { dump_views_file(ev.text + 6); break; }                                /* tests */
                 if (ev.text[0]) { extern void isim_ui_write_ax_snapshot(const char *); isim_ui_write_ax_snapshot(ev.text); break; }   /* XCUITest */

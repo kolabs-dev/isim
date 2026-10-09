@@ -210,6 +210,7 @@ class App:
         os.mkfifo(self.fifo)
         e = dict(os.environ, ISIM_DATA=str(self.data), ISIM_HEADLESS="1", ISIM_SHOT_SCALE="1",
                  ISIM_DEVICE=device or DEFAULT_DEVICE, ISIM_SCRIPT="wait 0")
+        e.setdefault("ISIM_DICTIONARIES", "none")           # the built-in word lists only, whatever the host has installed
         if os_version:
             e["ISIM_OS_VERSION"] = str(os_version)
         if not launch_screen:

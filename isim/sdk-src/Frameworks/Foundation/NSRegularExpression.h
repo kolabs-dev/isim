@@ -29,6 +29,10 @@ typedef NS_OPTIONS(NSUInteger, NSMatchingFlags) {
     NSMatchingInternalError = 1 << 4
 } NS_SWIFT_NAME(NSRegularExpression.MatchingFlags);
 
+typedef NSString *NSTextCheckingKey NS_TYPED_EXTENSIBLE_ENUM;
+FOUNDATION_EXPORT NSTextCheckingKey const NSTextCheckingNameKey, NSTextCheckingJobTitleKey, NSTextCheckingOrganizationKey,
+    NSTextCheckingStreetKey, NSTextCheckingCityKey, NSTextCheckingStateKey, NSTextCheckingZIPKey, NSTextCheckingCountryKey,
+    NSTextCheckingPhoneKey, NSTextCheckingAirlineKey, NSTextCheckingFlightKey;
 @class NSRegularExpression;
 @interface NSTextCheckingResult : NSObject <NSCopying, NSSecureCoding>
 @property (readonly) NSTextCheckingType resultType;
@@ -44,12 +48,15 @@ typedef NS_OPTIONS(NSUInteger, NSMatchingFlags) {
 @property (nullable, readonly, copy) NSTimeZone *timeZone;
 @property (readonly) NSTimeInterval duration;
 @property (nullable, readonly, copy) NSString *replacementString;
-@property (nullable, readonly, copy) NSDictionary<NSString *, NSString *> *addressComponents;
+@property (nullable, readonly, copy) NSDictionary<NSTextCheckingKey, NSString *> *addressComponents;
+@property (nullable, readonly, copy) NSDictionary<NSTextCheckingKey, NSString *> *components;
 + (NSTextCheckingResult *)regularExpressionCheckingResultWithRanges:(NSRangePointer)ranges count:(NSUInteger)count regularExpression:(NSRegularExpression *)regularExpression;
 + (NSTextCheckingResult *)linkCheckingResultWithRange:(NSRange)range URL:(NSURL *)url;
 + (NSTextCheckingResult *)phoneNumberCheckingResultWithRange:(NSRange)range phoneNumber:(NSString *)phoneNumber;
 + (NSTextCheckingResult *)dateCheckingResultWithRange:(NSRange)range date:(NSDate *)date;
 + (NSTextCheckingResult *)replacementCheckingResultWithRange:(NSRange)range replacementString:(NSString *)replacementString;
++ (NSTextCheckingResult *)addressCheckingResultWithRange:(NSRange)range components:(NSDictionary<NSTextCheckingKey, NSString *> *)components;
++ (NSTextCheckingResult *)transitInformationCheckingResultWithRange:(NSRange)range components:(NSDictionary<NSTextCheckingKey, NSString *> *)components;
 @end
 
 @interface NSRegularExpression : NSObject <NSCopying, NSSecureCoding>

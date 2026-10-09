@@ -775,6 +775,10 @@ static void hide_loupe(void) { if (loupe && !loupe.hidden) { loupe.hidden = YES;
 
 /* ================= selection interaction ================= */
 enum { TI_NONE, TI_PENDING, TI_LOUPE, TI_HANDLE_START, TI_HANDLE_END };
+@interface UIView (IsimTextItems)                   /* UITextView: detected items */
+- (BOOL)_isim_tapItemAt:(CGPoint)p;
+- (BOOL)_isim_longPressItemAt:(CGPoint)p;
+@end
 @interface __IsimTextInteraction : UIGestureRecognizer
 @property (nonatomic) int mode;
 @property (nonatomic) CGPoint downAt;          /* in the view */
@@ -806,6 +810,9 @@ enum { TI_NONE, TI_PENDING, TI_LOUPE, TI_HANDLE_START, TI_HANDLE_END };
             id<IsimEditableText> t = [s _text];
             UIView *tv = s.view;
             if (![t _isim_isEditable] && !(([tv respondsToSelector:@selector(isSelectable)] && [(id)tv isSelectable]))) return;
+            if (![t _isim_isEditable] && [tv respondsToSelector:@selector(_isim_longPressItemAt:)] && [(id)tv _isim_longPressItemAt:s.downAt]) {
+                s.mode = TI_NONE; return;                   /* a detected item's menu (UITextView) */
+            }
             s.mode = TI_LOUPE;
             [s _begin];
             if ([t _isim_isEditable] && !tv.isFirstResponder) [tv becomeFirstResponder];
@@ -852,8 +859,10 @@ enum { TI_NONE, TI_PENDING, TI_LOUPE, TI_HANDLE_START, TI_HANDLE_END };
     UIView *view = self.view;
     BOOL editable = [v _isim_isEditable], selectable = editable || ([view respondsToSelector:@selector(isSelectable)] && [(id)view isSelectable]);
     if (!selectable) return;
+    if (count == 1 && !editable && [view respondsToSelector:@selector(_isim_tapItemAt:)] && [(id)view _isim_tapItemAt:p]) return;   /* detected items */
     NSString *s = text_of(v);
     BOOL wasEditing = view.isFirstResponder;
+    if (editable && wasEditing) isim_ui_keyboard_responder_check();      /* (a finger tap after Scribble brings the keyboard back) */
     if (editable && !wasEditing && ![view becomeFirstResponder]) return;
     NSUInteger i = [v _isim_indexAtPoint:p];
     isim_ti_unmark(v);
