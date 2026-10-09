@@ -639,7 +639,12 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
             let auto: CGFloat
             if base.isBand { auto = base.bandWidth * (m.kind == .rectangle ? 1 : 0.6) }
             else if let u = unit, let n = bv?.number { center = (base.pos(n) + base.pos(n + u)) / 2; auto = abs(base.pos(n + u) - base.pos(n)) * 0.8 }
-            else { auto = m.kind == .rectangle ? 20 : max(4, abs(base.end - base.start) / CGFloat(max(1, marks.count)) * 0.6) }
+            else {
+                // numbers along the base: 60% of the closest spacing between the marks' values on screen
+                let ps = Set(marks.compactMap { n -> CGFloat? in n.kind == m.kind ? base.pos((h ? n.y : n.x)?.number ?? .nan) : nil }.filter { $0.isFinite }).sorted()
+                let gap = zip(ps, ps.dropFirst()).map { $1 - $0 }.filter { $0 > 0.5 }.min()
+                auto = m.kind == .rectangle ? 20 : max(4, (gap ?? abs(base.end - base.start) / CGFloat(max(1, marks.count))) * 0.6)
+            }
             thickness = (h ? m.height : m.width).resolve(base.isBand ? base.bandWidth : auto / 0.6, auto: auto)
             if let pk = m.positionKey, let g = groups[bv?.category ?? ""], let gi = g.firstIndex(of: pk), g.count > 1 {
                 let slot = thickness / CGFloat(g.count)

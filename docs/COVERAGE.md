@@ -54,7 +54,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
-| Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
+| Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
 | **Foundation** | 58 | 22 | 1 | 1 | 82 | 84% |
 | &nbsp;&nbsp;↳ Strings & text | 10 | 5 | 0 | 0 | 15 | 83% |
 | &nbsp;&nbsp;↳ Collections & values | 10 | 3 | 0 | 0 | 13 | 88% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **707** | **222** | **29** | **39** | **997** | **82%** |
+| **All areas** | **711** | **220** | **29** | **37** | **997** | **82%** |
 
 ### Per iOS version
 
@@ -97,7 +97,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 |---|---:|---:|---:|---:|
 | UIKit | 92% (206) | 93% (210) | 92% (217) | 90% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
-| Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
+| Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
 | Swift runtime, stdlib & concurrency | 95% (39) | 95% (39) | 95% (39) | 95% (39) |
 | Objective-C runtime & C library | 100% (17) | 100% (17) | 100% (17) | 100% (17) |
@@ -748,7 +748,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `BarMark` (vertical, horizontal, ranges, date bins with `unit:`, `width`/`height`) | ✅ | ≤17 | |
 | Bar stacking (`.standard`), grouping (`position(by:)`) | ✅ | ≤17 | `.normalized`/`.center` stacking unverified |
 | `LineMark` (`series:`, `interpolationMethod`), `PointMark` | ✅ | ≤17 | linear and catmullRom drawn in the test; step/cardinal/monotone unverified |
-| `symbol(_:)`, `symbol(by:)`, `symbolSize` | 🟡 | ≤17 | basic symbol shapes (circle, square, triangle, diamond, pentagon, plus, cross); unverified; `symbol { view }` missing |
+| `symbol(_:)`, `symbol(by:)`, `symbolSize`, `symbolSize(by:)`, `chartSymbolScale`, `chartSymbolSizeScale` | ✅ | ≤17 | basic shapes (circle, square, triangle, diamond, pentagon, plus, cross, asterisk), custom `ChartSymbolShape`s, `symbol { view }` (centered on the point), `symbol(by:)` (default shape sequence or the symbol scale), sizes as areas in square points, `symbolSize(by:)` mapped onto the size scale's range (default 20...200). Tested: HelloChartsMore (test_charts_more) |
 | `AreaMark` (stacked series, `yStart`/`yEnd`) | ✅ | ≤17 | stacking of several series unverified |
 | `RuleMark`, `RectangleMark` | ✅ | ≤17 | |
 | `SectorMark` (pie, donut `innerRadius`, `outerRadius`, `angularInset`) | ✅ | ≤17 | `angularInset` unverified; corner radius ignored |
@@ -757,9 +757,9 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | Axes: `chartXAxis`/`chartYAxis` (`.hidden`, `AxisMarks` position and values, `AxisGridLine`, `AxisTick`, `AxisValueLabel` with custom content), date axes | ✅ | ≤17 | `AxisTick` unverified; `AxisValueLabel(format:)` missing (no `FormatStyle` on isim) |
 | Scales: `chartXScale`/`chartYScale(domain:)` (ranges, category lists, `.automatic(includesZero:reversed:)`) | ✅ | ≤17 | log/sqrt/power scale types are drawn linear |
 | `annotation(position:alignment:spacing:)` | ✅ | ≤17 | |
-| `chartXAxisLabel`, `chartYAxisLabel` | 🟡 | ≤17 | simple placement (unverified) |
-| `chartOverlay`/`chartBackground` (`ChartProxy`), selection (`chartXSelection`), scrolling (`chartScrollableAxes`) | ❌ | ≤17 | |
-| `chartPlotStyle`, vectorized plots (`BarPlot`, `LinePlot`, iOS 18), `Chart3D` | ❌ | 18.0 | |
+| `chartXAxisLabel`, `chartYAxisLabel` (text or view content, `position`, `alignment`, `spacing`) | ✅ | ≤17 | x title below the plot (or `.top`), aligned along the axis; y title above the plot on the axis' side, or vertical beside it with `.leading` / `.trailing`. Tested: HelloChartsMore (bottom-trailing x, leading y) |
+| `chartOverlay`/`chartBackground` (`ChartProxy`), selection (`chartXSelection`), scrolling (`chartScrollableAxes`) | ✅ | ≤17 | `ChartProxy`: `plotFrame` (an anchor for the overlay's `GeometryReader`), `plotSize`, `position(forX:/forY:/for:)`, `positionRange`, `value(atX:/atY:/at:)`, `xDomain`/`yDomain`, `selectXValue`/`selectXRange`/`selectAngleValue`; `chartGesture`. Selection: `chartXSelection` / `chartYSelection` (value: set while a finger is on the plot, cleared when it lifts; range: by dragging, kept), `chartAngleSelection` (pies). Scrolling: `chartScrollableAxes` with `chartX/YVisibleDomain(length:)` (numbers, dates, category counts), `chartScrollPosition(x:/y:/initialX:/initialY:)`, `chartScrollTargetBehavior(.valueAligned(unit:/matching:) / .paging)`; marks outside the window are clipped. Tested: HelloChartsMore (overlay + background placed with the proxy, value lookups, held selection, drag scroll snapped to 5); range, y and angle selection, date scrolling unverified |
+| `chartPlotStyle`, vectorized plots (`BarPlot`, `LinePlot`, iOS 18), `Chart3D` | ✅ | 18.0 | `chartPlotStyle`: the plot area as a view (background, border, overlay; adapted: size modifiers do not resize the plot). iOS 18: `BarPlot`, `LinePlot` (data, series, y = f(x), parametric (x, y) = f(t)), `AreaPlot` (data, ranges, functions), `PointPlot`, `RulePlot`, `RectanglePlot`, `SectorPlot` with `PlottableProjection` key paths and the key-path modifiers (`foregroundStyle(by:)`, `symbol(by:)`, `symbolSize(by:)`, `opacity(by:)`); functions sampled over their domain or the x scale. iOS 26: `Chart3D` with `PointMark`/`RuleMark`/`RectangleMark(x:y:z:)` and `SurfacePlot` (`.heightBased`, `.normalBased`, shape styles), `chart3DPose` (a binding follows drags), `chart3DCameraProjection`, `chartZScale`; adapted: drawn in a Canvas (projected cube, painted back to front, simple shading, low/middle/high tick labels); `Angle2D` from isim's Spatial overlay. Tested: HelloChartsMore (plot style, BarPlot/PointPlot, sin LinePlot, band AreaPlot, SectorPlot; Chart3D on iOS 26) |
 
 ---
 

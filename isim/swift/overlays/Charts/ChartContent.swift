@@ -237,6 +237,7 @@ struct _Mark {
     var positionKey: String?
     var annotations: [_Annotation] = []
     var function: _FunctionPlot?               // LinePlot / AreaPlot of a function: sampled once the x domain is known
+    var v3: [_V3]?                             // a 3D mark's x, y, z (values or ranges)
     init(_ kind: _MarkKind) { self.kind = kind }
 }
 
