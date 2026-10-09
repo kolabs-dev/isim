@@ -71,6 +71,17 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_SWIFT_NAME(UIBarButtonItem.Badge)
 @property (nonatomic) BOOL hidesSharedBackground API_AVAILABLE(ios(26.0));
 @end
 
+/* where a navigation item's search controller shows its bar (iOS 16; integrated placements iOS 26). isim: stacked
+   below the title; inline / integrated: on iPad (and before iOS 26) in the bar row, on iPhone under iOS 26 in the
+   navigation controller's toolbar (searchBarPlacementAllowsToolbarIntegration) at searchBarPlacementBarButtonItem */
+typedef NS_ENUM(NSInteger, UINavigationItemSearchBarPlacement) {
+    UINavigationItemSearchBarPlacementAutomatic = 0,
+    UINavigationItemSearchBarPlacementIntegrated API_AVAILABLE(ios(26.0)) = 1,
+    UINavigationItemSearchBarPlacementInline = 1,
+    UINavigationItemSearchBarPlacementStacked = 2,
+    UINavigationItemSearchBarPlacementIntegratedButton API_AVAILABLE(ios(26.0)) = 3,
+    UINavigationItemSearchBarPlacementIntegratedCentered API_AVAILABLE(ios(26.0)) = 4,
+} NS_SWIFT_NAME(UINavigationItem.SearchBarPlacement) API_AVAILABLE(ios(16.0));
 typedef NS_ENUM(NSInteger, UINavigationItemLargeTitleDisplayMode) {
     UINavigationItemLargeTitleDisplayModeAutomatic, UINavigationItemLargeTitleDisplayModeAlways, UINavigationItemLargeTitleDisplayModeNever, UINavigationItemLargeTitleDisplayModeInline };
 NS_SWIFT_UI_ACTOR
@@ -94,6 +105,11 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UINavigationItemLargeTitleDisplayMode largeTitleDisplayMode;
 @property (nullable, nonatomic, strong) UISearchController *searchController;
 @property (nonatomic) BOOL hidesSearchBarWhenScrolling;
+@property (nonatomic) UINavigationItemSearchBarPlacement preferredSearchBarPlacement API_AVAILABLE(ios(16.0));
+@property (nonatomic, readonly) UINavigationItemSearchBarPlacement searchBarPlacement API_AVAILABLE(ios(16.0));
+@property (nonatomic) BOOL searchBarPlacementAllowsToolbarIntegration API_AVAILABLE(ios(26.0));    /* default YES */
+@property (nonatomic) BOOL searchBarPlacementAllowsExternalIntegration API_AVAILABLE(ios(26.0));   /* default NO; isim: stored */
+@property (nonatomic, readonly, strong) UIBarButtonItem *searchBarPlacementBarButtonItem API_AVAILABLE(ios(26.0));
 /* per-item appearances override the bar's while the item is on top */
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *standardAppearance;
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *scrollEdgeAppearance;
