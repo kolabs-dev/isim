@@ -8,21 +8,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - UIImage as an item provider object (UIKit on iOS)
-
-extension UIImage: @retroactive NSItemProviderReading, @retroactive NSItemProviderWriting {
-    public static var readableTypeIdentifiersForItemProvider: [String] { ["public.png", "public.jpeg", "public.heic", "public.image"] }
-    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
-        guard let img = UIImage(data: data) as? Self else { throw NSError(domain: NSItemProviderErrorDomain, code: -1000, userInfo: nil) }
-        return img
-    }
-    public static var writableTypeIdentifiersForItemProvider: [String] { ["public.png"] }
-    public func loadData(withTypeIdentifier typeIdentifier: String, forItemProviderCompletionHandler completionHandler: @escaping @Sendable (Data?, Error?) -> Void) -> Progress? {
-        completionHandler(pngData(), nil)
-        return nil
-    }
-}
-
 // MARK: - SwiftUI Image is Transferable (SwiftUI on iOS)
 
 extension Image: @retroactive Transferable {
@@ -94,7 +79,7 @@ enum _PUAssets {
         let type = path.lowercased().hasSuffix(".png") ? "public.png" : "public.jpeg"
         p.suggestedName = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
         p.registerDataRepresentation(forTypeIdentifier: type, visibility: .all) { done in
-            if let d = FileManager.default.contents(atPath: path) { done(d, nil) } else { done(nil, PHPhotosError(.missingResource)) }
+            if let d = FileManager.default.contents(atPath: path) { done(d, nil) } else { done(nil, PHPhotosError(.missingResource) as NSError) }
             return nil
         }
         return p

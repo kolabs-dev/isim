@@ -92,17 +92,7 @@ final class _IsimDragSession: NSObject, UIDragSession, UIDropSession, @unchecked
 }
 struct _UncheckedBox<T>: @unchecked Sendable { let value: T; init(_ v: T) { value = v } }
 
-// strings and URLs travel as items (NSItemProvider(object: "text" as NSString))
-extension NSString: @retroactive NSItemProviderReading, @retroactive NSItemProviderWriting {
-    public static var readableTypeIdentifiersForItemProvider: [String] { [UTType.utf8PlainText.identifier, UTType.plainText.identifier, UTType.text.identifier] }
-    public static var writableTypeIdentifiersForItemProvider: [String] { [UTType.utf8PlainText.identifier] }
-    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
-        NSString(string: String(decoding: data, as: UTF8.self)) as! Self
-    }
-    public func loadData(withTypeIdentifier typeIdentifier: String, forItemProviderCompletionHandler completion: @escaping @Sendable (Data?, Error?) -> Void) -> Progress? {
-        completion(Data((self as String).utf8), nil); return nil
-    }
-}
+// (NSString and NSURL are item provider objects in Foundation, UIImage in UIKit)
 
 // MARK: - delegates (optional methods have default implementations)
 public protocol UIDragInteractionDelegate: AnyObject {
