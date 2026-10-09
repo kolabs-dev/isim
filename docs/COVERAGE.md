@@ -792,7 +792,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `NSArray`, `NSDictionary`, `NSSet` (+ mutable), literals, fast enumeration, sorting | ✅ | ≤17 | |
+| `NSArray`, `NSDictionary`, `NSSet` (+ mutable), literals, fast enumeration, sorting | ✅ | ≤17 | dictionaries and sets keep insertion order and are hash-indexed (`-hash` / `-isEqual:`): lookup, insertion and removal take constant expected time. Tested: FoundationTest (100k-entry set, dictionary and counted set) |
 | `Array` ⇄ `NSArray`, `Dictionary` ⇄ `NSDictionary`, `Set` ⇄ `NSSet` bridging | ✅ | ≤17 | copies (not lazy); elements bridge one by one, including classes to metatypes (`NSArray` of classes `as! [AnyClass]`, `as? [UIColor.Type]`, `super.allowedTopLevelClasses`). Tested: SwiftFoundationTest |
 | `NSOrderedSet`, `NSCountedSet`, `NSIndexSet` / `IndexSet`, `NSCache`, `NSHashTable`, `NSMapTable`, `NSPointerArray` | ✅ | ≤17 | `NSCache` evicts by count/cost limits only (no memory-pressure purging); weak tables use ObjC weak references |
 | `IndexPath` / `NSIndexPath` (+ UIKit `row`/`section`/`item`) | ✅ | ≤17 | value type bridged to NSIndexPath; tested (HelloTable) |

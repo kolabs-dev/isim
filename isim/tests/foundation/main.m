@@ -1,5 +1,6 @@
 // Foundation self-test for the isim runtime. Prints PASS/FAIL per check; exit code = failures.
 #import <Foundation/Foundation.h>
+#include <time.h>
 
 static int failures, checks;
 #define CHECK(cond) do { checks++; if (cond) printf("PASS  %s\n", #cond); else { failures++; printf("FAIL  %s  (%s:%d)\n", #cond, __FILE__, __LINE__); } } while (0)
@@ -247,6 +248,46 @@ int main(int argc, char *argv[]) {
         CHECK(@[].count == 0 && @{}.count == 0);
         NSSet *set = [NSSet setWithArray:@[@1, @1, @2]];
         CHECK(set.count == 2 && [set containsObject:@2]);
+
+        // large hashed collections (issue #86): building them is linear, removal leaves order intact
+        {
+            enum { N = 100000 };
+            clock_t t0 = clock();
+            NSMutableSet *big = [NSMutableSet set];
+            NSMutableDictionary *bigd = [NSMutableDictionary dictionary];
+            NSCountedSet *bigc = [NSCountedSet new];
+            for (int i = 0; i < N; i++) {
+                NSString *w = [NSString stringWithFormat:@"w%d", i];
+                [big addObject:w]; [big addObject:[w mutableCopy]];   // the equal copy is not added again
+                bigd[w] = @(i);
+                [bigc addObject:w]; if (i % 2) [bigc addObject:w];
+            }
+            BOOL allIn = YES;
+            for (int i = 0; i < N; i++) {
+                NSString *w = [NSString stringWithFormat:@"w%d", i];
+                allIn = allIn && [big containsObject:w] && [bigd[w] intValue] == i && [bigc countForObject:w] == (NSUInteger)(1 + i % 2);
+            }
+            CHECK(big.count == N && bigd.count == N && bigc.count == N && allIn && ![big containsObject:@"w-1"] && bigd[@"w-1"] == nil);
+            for (int i = 0; i < N; i += 2) {
+                NSString *w = [NSString stringWithFormat:@"w%d", i];
+                [big removeObject:w]; [bigd removeObjectForKey:w]; [bigc removeObject:w];
+            }
+            CHECK(big.count == N / 2 && bigd.count == N / 2 && bigc.count == N / 2 && ![big containsObject:@"w0"] && [big containsObject:@"w1"] &&
+                  bigd[@"w2"] == nil && [bigd[@"w3"] intValue] == 3 && [bigc countForObject:@"w0"] == 0 && [bigc countForObject:@"w3"] == 2);
+            int expect = 1; BOOL ordered = YES;
+            for (NSString *k in bigd) { ordered = ordered && [k isEqualToString:[NSString stringWithFormat:@"w%d", expect]]; expect += 2; }
+            CHECK(ordered && expect == N + 1 && [[bigd.allKeys firstObject] isEqualToString:@"w1"]);
+            for (int i = 0; i < N; i += 2) { bigd[[NSString stringWithFormat:@"w%d", i]] = @(-i); [big addObject:[NSString stringWithFormat:@"w%d", i]]; }
+            CHECK(bigd.count == N && big.count == N && [bigd[@"w4"] intValue] == -4 && [[bigd.allKeys lastObject] isEqualToString:([NSString stringWithFormat:@"w%d", N - 2])]);
+            NSSet *frozen = [big copy];
+            CHECK([frozen isEqual:big] && [frozen member:@"w7"] != nil && [[bigc copy] countForObject:@"w3"] == 2);
+            [big removeAllObjects]; [bigd removeAllObjects];
+            [big addObject:@"again"]; bigd[@"again"] = @1;
+            CHECK(big.count == 1 && bigd.count == 1 && [big containsObject:@"again"] && [bigd[@"again"] intValue] == 1 && ![big containsObject:@"w1"]);
+            double secs = (double)(clock() - t0) / CLOCKS_PER_SEC;
+            printf("hashed collections: %d entries in %.2f s\n", N, secs);
+            CHECK(secs < 20);   // linear; the array-backed set took minutes
+        }
         CHECK([@(3.5) doubleValue] == 3.5 && [@YES boolValue]);
 
         // ARC lifetimes, weak references, dealloc

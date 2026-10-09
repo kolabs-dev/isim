@@ -69,6 +69,7 @@ IMMORTAL
     for (NSUInteger i = d->count; i-- > 0;) if ([d->keys[i] isEqual:k]) return i;
     return NSNotFound;
 }
+- (void)_isim_compact {}   /* no holes (and no _end ivar) */
 - (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(id *)buf count:(NSUInteger)len {
     struct isim_const_dict *d = (struct isim_const_dict *)self;
     if (st->state >= d->count) return 0;

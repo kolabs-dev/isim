@@ -1,4 +1,4 @@
-/* isim Foundation: NSValue/NSNumber, NSArray, NSDictionary, NSSet, NSNull (MRC). */
+/* isim Foundation: NSValue/NSNumber, NSArray, NSDictionary, NSSet, NSCountedSet, NSNull (MRC). */
 #import <Foundation/Foundation.h>
 #include <objc/isim_internal.h>
 #include <stdlib.h>
@@ -328,11 +328,72 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 }
 @end
 
-/* ================= NSDictionary / NSMutableDictionary (insertion-ordered, hashed linear probe) ================= */
+/* ================= hash index (NSDictionary, NSSet) =================
+ * Entries live in insertion-ordered arrays (keys, their hashes, values or counts). Removing one leaves a nil hole, so
+ * nothing shifts; the holes are squeezed out before the next ordered walk (enumeration, allKeys, description, ...) or
+ * when the arrays fill up. The index is an open-addressing table (linear probing, at most half full) whose slots hold
+ * entry position + 1 (0 = empty), so lookup, insertion and removal take O(1) expected time, comparing with -hash
+ * first and -isEqual: only on a hash match. */
+typedef struct { NSUInteger *slots, mask; } isim_hidx;
+
+static inline NSUInteger hidx_mix(NSUInteger h) { h ^= h >> 33; h *= 0xff51afd7ed558ccdull; h ^= h >> 33; return h; }
+static void hidx_put(isim_hidx *x, const NSUInteger *hashes, NSUInteger pos) {
+    NSUInteger s = hidx_mix(hashes[pos]) & x->mask;
+    while (x->slots[s]) s = (s + 1) & x->mask;
+    x->slots[s] = pos + 1;
+}
+/* index the entries [0, end) (nil keys are holes) in a table with room for `want` of them */
+static void hidx_build(isim_hidx *x, id *keys, const NSUInteger *hashes, NSUInteger end, NSUInteger want) {
+    NSUInteger size = 8;
+    while (size < want * 2) size *= 2;
+    free(x->slots); x->slots = calloc(size, sizeof(NSUInteger)); x->mask = size - 1;
+    for (NSUInteger i = 0; i < end; i++) if (keys[i]) hidx_put(x, hashes, i);
+}
+/* make room for one more entry */
+static void hidx_reserve(isim_hidx *x, id *keys, const NSUInteger *hashes, NSUInteger end, NSUInteger count) {
+    if (!x->slots || (count + 1) * 2 > x->mask + 1) hidx_build(x, keys, hashes, end, (count + 1) * 2);
+}
+/* the slot of the entry equal to k (whose hash is h), or NSNotFound */
+static NSUInteger hidx_find(const isim_hidx *x, id *keys, const NSUInteger *hashes, id k, NSUInteger h) {
+    if (!x->slots) return NSNotFound;
+    for (NSUInteger s = hidx_mix(h) & x->mask; x->slots[s]; s = (s + 1) & x->mask) {
+        NSUInteger p = x->slots[s] - 1;
+        if (hashes[p] == h && (keys[p] == k || [keys[p] isEqual:k])) return s;
+    }
+    return NSNotFound;
+}
+/* empty slot s, moving later members of its probe run back into the gap (deletion without tombstones) */
+static void hidx_del(isim_hidx *x, const NSUInteger *hashes, NSUInteger s) {
+    for (NSUInteger j = (s + 1) & x->mask; x->slots[j]; j = (j + 1) & x->mask) {
+        NSUInteger home = hidx_mix(hashes[x->slots[j] - 1]) & x->mask;
+        if (((j - home) & x->mask) >= ((j - s) & x->mask)) { x->slots[s] = x->slots[j]; s = j; }
+    }
+    x->slots[s] = 0;
+}
+static void hidx_clear(isim_hidx *x) { if (x->slots) memset(x->slots, 0, (x->mask + 1) * sizeof(NSUInteger)); }
+/* squeeze the holes out of [0, *end), keeping the order (vals and aux may be NULL), and re-index. The vacated tail is
+ * nil, so a walk that the caller mutates sees holes rather than stale objects. */
+static void hidx_compact(isim_hidx *x, id *keys, id *vals, NSUInteger *aux, NSUInteger *hashes, NSUInteger *end, NSUInteger count) {
+    NSUInteger j = 0;
+    for (NSUInteger i = 0; i < *end; i++) {
+        if (!keys[i]) continue;
+        keys[j] = keys[i]; hashes[j] = hashes[i];
+        if (vals) vals[j] = vals[i];
+        if (aux) aux[j] = aux[i];
+        j++;
+    }
+    for (NSUInteger i = j; i < *end; i++) { keys[i] = nil; if (vals) vals[i] = nil; }
+    *end = j;
+    hidx_build(x, keys, hashes, j, count * 2);
+}
+
+/* ================= NSDictionary / NSMutableDictionary (insertion-ordered, hash-indexed) ================= */
 /* _options, _count, _keys and _vals come first: clang's constant dictionaries (NSConstantDictionary: { isa, options,
- * count, keys, objects }) share this prefix; they have no _hashes and override -_indexOfKey: (ConstantLiterals.mrc.m).
- * Keep the order. */
-@implementation NSDictionary { @public NSUInteger _options, _count; id *_keys, *_vals; NSUInteger *_hashes; NSUInteger _cap; unsigned long _mutations; }
+ * count, keys, objects }) share this prefix; they have none of the later ivars, override -_indexOfKey: and
+ * -_isim_compact (ConstantLiterals.mrc.m) and never reach the mutating paths. Keep the order.
+ * _count is the number of entries, _end the used length of the arrays (entries and holes); methods that walk the
+ * arrays call -_isim_compact first, after which they are the same. */
+@implementation NSDictionary { @public NSUInteger _options, _count; id *_keys, *_vals; NSUInteger *_hashes; NSUInteger _cap; unsigned long _mutations; NSUInteger _end; isim_hidx _idx; }
 + (BOOL)supportsSecureCoding { return YES; }
 - (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSDictionary class]); }    /* NS.keys, NS.objects */
 - (instancetype)initWithCoder:(NSCoder *)c {
@@ -365,44 +426,53 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
     for (NSUInteger i = 0; i < n; i++) [self _set:objs[i] forKey:keys[i]];
     return self;
 }
-- (instancetype)initWithDictionary:(NSDictionary *)d { return [self initWithObjects:d->_vals forKeys:d->_keys count:d->_count]; }
+- (instancetype)initWithDictionary:(NSDictionary *)d { [d _isim_compact]; return [self initWithObjects:d->_vals forKeys:d->_keys count:d->_count]; }
 - (void)dealloc {
-    for (NSUInteger i = 0; i < _count; i++) { [_keys[i] release]; [_vals[i] release]; }
-    free(_keys); free(_vals); free(_hashes); [super dealloc];
+    for (NSUInteger i = 0; i < _end; i++) if (_keys[i]) { [_keys[i] release]; [_vals[i] release]; }
+    free(_keys); free(_vals); free(_hashes); free(_idx.slots); [super dealloc];
 }
+- (void)_isim_compact { if (_end != _count) hidx_compact(&_idx, _keys, _vals, NULL, _hashes, &_end, _count); }
 - (NSUInteger)_indexOfKey:(id)k {
     if (!k) return NSNotFound;
-    NSUInteger h = [k hash];
-    for (NSUInteger i = 0; i < _count; i++) if (_hashes[i] == h && (_keys[i] == k || [_keys[i] isEqual:k])) return i;
-    return NSNotFound;
+    NSUInteger s = hidx_find(&_idx, _keys, _hashes, k, [k hash]);
+    return s == NSNotFound ? NSNotFound : _idx.slots[s] - 1;
 }
 - (void)_set:(id)o forKey:(id)k {
     if (!o || !k) [NSException raise:NSInvalidArgumentException format:@"*** -[NSDictionary setObject:forKey:]: %s cannot be nil", o ? "key" : "object"];
-    NSUInteger i = [self _indexOfKey:k];
-    if (i != NSNotFound) { id old = _vals[i]; _vals[i] = [o retain]; [old release]; _mutations++; return; }
-    if (_count == _cap) {
-        _cap *= 2;
-        _keys = realloc(_keys, _cap * sizeof(id)); _vals = realloc(_vals, _cap * sizeof(id)); _hashes = realloc(_hashes, _cap * sizeof(NSUInteger));
+    NSUInteger h = [k hash], s = hidx_find(&_idx, _keys, _hashes, k, h);
+    if (s != NSNotFound) { NSUInteger i = _idx.slots[s] - 1; id old = _vals[i]; _vals[i] = [o retain]; [old release]; _mutations++; return; }
+    if (_end == _cap) {
+        if (_end - _count > _cap / 4) [self _isim_compact];
+        else {
+            _cap *= 2;
+            _keys = realloc(_keys, _cap * sizeof(id)); _vals = realloc(_vals, _cap * sizeof(id)); _hashes = realloc(_hashes, _cap * sizeof(NSUInteger));
+        }
     }
-    _keys[_count] = [k copy]; _vals[_count] = [o retain]; _hashes[_count] = [k hash]; _count++; _mutations++;
+    hidx_reserve(&_idx, _keys, _hashes, _end, _count);
+    _keys[_end] = [k copy]; _vals[_end] = [o retain]; _hashes[_end] = h;
+    hidx_put(&_idx, _hashes, _end);
+    _end++; _count++; _mutations++;
 }
 - (NSUInteger)count { return _count; }
 - (id)objectForKey:(id)k { NSUInteger i = [self _indexOfKey:k]; return i == NSNotFound ? nil : _vals[i]; }
 - (id)objectForKeyedSubscript:(id)k { return [self objectForKey:k]; }
-- (NSArray *)allKeys { return [NSArray arrayWithObjects:_keys count:_count]; }
-- (NSArray *)allValues { return [NSArray arrayWithObjects:_vals count:_count]; }
+- (NSArray *)allKeys { [self _isim_compact]; return [NSArray arrayWithObjects:_keys count:_count]; }
+- (NSArray *)allValues { [self _isim_compact]; return [NSArray arrayWithObjects:_vals count:_count]; }
 - (void)enumerateKeysAndObjectsUsingBlock:(void (^)(id, id, BOOL *))block {
+    [self _isim_compact];
     BOOL stop = NO;
-    for (NSUInteger i = 0; i < _count && !stop; i++) block(_keys[i], _vals[i], &stop);
+    for (NSUInteger i = 0, n = _count; i < n && !stop; i++) if (_keys[i]) block(_keys[i], _vals[i], &stop);
 }
 - (BOOL)isEqualToDictionary:(NSDictionary *)o {
     if (o->_count != _count) return NO;
+    [self _isim_compact];
     for (NSUInteger i = 0; i < _count; i++) if (![[o objectForKey:_keys[i]] isEqual:_vals[i]]) return NO;
     return YES;
 }
 - (BOOL)isEqual:(id)o { return [o isKindOfClass:[NSDictionary class]] && [self isEqualToDictionary:o]; }
 - (NSUInteger)hash { return _count; }
 - (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(id *)buf count:(NSUInteger)len {
+    if (!st->state) [self _isim_compact];
     if (st->state >= _count) return 0;
     st->mutationsPtr = &_mutations;
     st->itemsPtr = _keys + st->state;
@@ -415,6 +485,7 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 - (NSEnumerator *)objectEnumerator { return array_enum([self allValues], NO); }
 - (id)mutableCopyWithZone:(NSZone *)z { return [[NSMutableDictionary alloc] initWithDictionary:self]; }
 - (NSString *)description {
+    [self _isim_compact];
     NSMutableString *s = [NSMutableString stringWithString:@"{\n"];
     for (NSUInteger i = 0; i < _count; i++) [s appendFormat:@"    %@ = %@;\n", _keys[i], _vals[i]];
     [s appendString:@"}"];
@@ -428,21 +499,62 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 - (void)setObject:(id)o forKey:(id)k { [self _set:o forKey:k]; }
 - (void)setObject:(id)o forKeyedSubscript:(id)k { if (o) [self _set:o forKey:k]; else [self removeObjectForKey:k]; }
 - (void)removeObjectForKey:(id)k {
-    NSUInteger i = [self _indexOfKey:k];
-    if (i == NSNotFound) return;
+    if (!k) return;
+    NSUInteger s = hidx_find(&_idx, _keys, _hashes, k, [k hash]);
+    if (s == NSNotFound) return;
+    NSUInteger i = _idx.slots[s] - 1;
     id ok = _keys[i], ov = _vals[i];
-    memmove(_keys + i, _keys + i + 1, (_count - i - 1) * sizeof(id));
-    memmove(_vals + i, _vals + i + 1, (_count - i - 1) * sizeof(id));
-    memmove(_hashes + i, _hashes + i + 1, (_count - i - 1) * sizeof(NSUInteger));
-    _count--; _mutations++;
+    hidx_del(&_idx, _hashes, s);
+    _keys[i] = _vals[i] = nil; _count--; _mutations++;
+    if (i + 1 == _end) _end--;
     [ok release]; [ov release];
 }
-- (void)removeAllObjects { while (_count) [self removeObjectForKey:_keys[_count - 1]]; }
+- (void)removeAllObjects {
+    NSUInteger end = _end;
+    id *keys = malloc((end + 1) * sizeof(id)), *vals = malloc((end + 1) * sizeof(id));
+    memcpy(keys, _keys, end * sizeof(id)); memcpy(vals, _vals, end * sizeof(id));
+    memset(_keys, 0, end * sizeof(id)); memset(_vals, 0, end * sizeof(id));
+    _count = _end = 0; _mutations++; hidx_clear(&_idx);
+    for (NSUInteger i = 0; i < end; i++) if (keys[i]) { [keys[i] release]; [vals[i] release]; }
+    free(keys); free(vals);
+}
 - (void)addEntriesFromDictionary:(NSDictionary *)d { for (id k in d) [self _set:[d objectForKey:k] forKey:k]; }
 @end
 
-/* ================= NSSet / NSMutableSet (array-backed) ================= */
-@implementation NSSet { @public NSMutableArray *_a; }
+/* ================= NSSet / NSMutableSet / NSCountedSet (insertion-ordered, hash-indexed) ================= */
+/* The objects are stored like NSDictionary's keys (hash index above), without copying. _counts is NSCountedSet's
+ * per-object count (NULL in other sets). _a is unused: its ivar offset symbol is exported (isim/abi). */
+@implementation NSSet { @public NSMutableArray *_a; id *_objs; NSUInteger *_hashes, *_counts; NSUInteger _count, _end, _cap; unsigned long _mutations; isim_hidx _idx; }
+static void set_compact(NSSet *s) { if (s->_end != s->_count) hidx_compact(&s->_idx, s->_objs, NULL, s->_counts, s->_hashes, &s->_end, s->_count); }
+static NSUInteger set_find(NSSet *s, id o) { return o ? hidx_find(&s->_idx, s->_objs, s->_hashes, o, [o hash]) : NSNotFound; }
+/* the position of o, inserted (retained) if no equal object is there yet */
+static NSUInteger set_insert(NSSet *s, id o) {
+    NSUInteger h = [o hash], slot = hidx_find(&s->_idx, s->_objs, s->_hashes, o, h);
+    if (slot != NSNotFound) return s->_idx.slots[slot] - 1;
+    if (s->_end == s->_cap) {
+        if (s->_end - s->_count > s->_cap / 4) set_compact(s);
+        else {
+            s->_cap *= 2;
+            s->_objs = realloc(s->_objs, s->_cap * sizeof(id)); s->_hashes = realloc(s->_hashes, s->_cap * sizeof(NSUInteger));
+            if (s->_counts) s->_counts = realloc(s->_counts, s->_cap * sizeof(NSUInteger));
+        }
+    }
+    hidx_reserve(&s->_idx, s->_objs, s->_hashes, s->_end, s->_count);
+    NSUInteger p = s->_end++;
+    s->_objs[p] = [o retain]; s->_hashes[p] = h;
+    if (s->_counts) s->_counts[p] = 0;
+    hidx_put(&s->_idx, s->_hashes, p);
+    s->_count++; s->_mutations++;
+    return p;
+}
+static void set_remove_slot(NSSet *s, NSUInteger slot) {
+    NSUInteger p = s->_idx.slots[slot] - 1;
+    id o = s->_objs[p];
+    hidx_del(&s->_idx, s->_hashes, slot);
+    s->_objs[p] = nil; s->_count--; s->_mutations++;
+    if (p + 1 == s->_end) s->_end--;
+    [o release];
+}
 + (BOOL)supportsSecureCoding { return YES; }
 - (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSSet class]); }    /* NS.objects */
 - (instancetype)initWithCoder:(NSCoder *)c { return [self initWithArray:isim_decode_objects(c, @"NS.objects")]; }
@@ -459,41 +571,100 @@ static void merge_sort(id *a, id *tmp, NSUInteger n, NSComparisonResult (^cmp)(i
 }
 - (instancetype)init { return [self initWithObjects:NULL count:0]; }
 - (instancetype)initWithObjects:(const id *)o count:(NSUInteger)n {
-    _a = [[NSMutableArray alloc] init];
-    for (NSUInteger i = 0; i < n; i++) if (![_a containsObject:o[i]]) [_a addObject:o[i]];
+    _cap = n ? n : 4;
+    _objs = malloc(_cap * sizeof(id)); _hashes = malloc(_cap * sizeof(NSUInteger));
+    for (NSUInteger i = 0; i < n; i++) { if (!o[i]) throw_nil("-[NSSet initWithObjects:count:]"); set_insert(self, o[i]); }
     return self;
 }
 - (instancetype)initWithArray:(NSArray *)arr {
-    _a = [[NSMutableArray alloc] init];
-    for (id o in arr) if (![_a containsObject:o]) [_a addObject:o];
+    NSUInteger n = [arr count];
+    id *tmp = malloc((n + 1) * sizeof(id));
+    NSUInteger i = 0;
+    for (id o in arr) if (i < n) tmp[i++] = o;
+    self = [self initWithObjects:tmp count:i];
+    free(tmp);
     return self;
 }
-- (void)dealloc { [_a release]; [super dealloc]; }
-- (NSUInteger)count { return [_a count]; }
-- (id)member:(id)o { NSUInteger i = [_a indexOfObject:o]; return i == NSNotFound ? nil : [_a objectAtIndex:i]; }
-- (BOOL)containsObject:(id)o { return [_a containsObject:o]; }
-- (id)anyObject { return [_a firstObject]; }
-- (NSArray *)allObjects { return [[_a copy] autorelease]; }
-- (void)enumerateObjectsUsingBlock:(void (^)(id, BOOL *))block { BOOL stop = NO; for (id o in _a) { block(o, &stop); if (stop) break; } }
-- (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(id *)buf count:(NSUInteger)len { return [_a countByEnumeratingWithState:st objects:buf count:len]; }
-- (id)copyWithZone:(NSZone *)z { return [[NSSet alloc] initWithArray:_a]; }
-- (NSEnumerator *)objectEnumerator { return array_enum(_a, NO); }
-- (id)mutableCopyWithZone:(NSZone *)z { return [[NSMutableSet alloc] initWithArray:_a]; }
+- (void)dealloc {
+    for (NSUInteger i = 0; i < _end; i++) [_objs[i] release];
+    free(_objs); free(_hashes); free(_counts); free(_idx.slots); [_a release]; [super dealloc];
+}
+- (NSUInteger)count { return _count; }
+- (id)member:(id)o { NSUInteger s = set_find(self, o); return s == NSNotFound ? nil : _objs[_idx.slots[s] - 1]; }
+- (BOOL)containsObject:(id)o { return set_find(self, o) != NSNotFound; }
+- (id)anyObject { set_compact(self); return _count ? _objs[0] : nil; }
+- (NSArray *)allObjects { set_compact(self); return [NSArray arrayWithObjects:_objs count:_count]; }
+- (void)enumerateObjectsUsingBlock:(void (^)(id, BOOL *))block {
+    set_compact(self);
+    BOOL stop = NO;
+    for (NSUInteger i = 0, n = _count; i < n && !stop; i++) if (_objs[i]) block(_objs[i], &stop);
+}
+- (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(id *)buf count:(NSUInteger)len {
+    if (!st->state) set_compact(self);
+    if (st->state >= _count) return 0;
+    st->mutationsPtr = &_mutations;
+    st->itemsPtr = _objs + st->state;
+    NSUInteger n = _count - st->state;
+    st->state = _count;
+    return n;
+}
+- (id)copyWithZone:(NSZone *)z { set_compact(self); return [[NSSet alloc] initWithObjects:_objs count:_count]; }
+- (NSEnumerator *)objectEnumerator { return array_enum([self allObjects], NO); }
+- (id)mutableCopyWithZone:(NSZone *)z { set_compact(self); return [[NSMutableSet alloc] initWithObjects:_objs count:_count]; }
 - (BOOL)isEqual:(id)o {
     if (![o isKindOfClass:[NSSet class]] || [o count] != [self count]) return NO;
-    for (id x in _a) if (![o containsObject:x]) return NO;
+    for (id x in self) if (![o containsObject:x]) return NO;
     return YES;
 }
-- (NSUInteger)hash { return [_a count]; }
-- (NSString *)description { return [NSString stringWithFormat:@"{(%@)}", [_a componentsJoinedByString:@", "]]; }
+- (NSUInteger)hash { return _count; }
+- (NSString *)description { return [NSString stringWithFormat:@"{(%@)}", [[self allObjects] componentsJoinedByString:@", "]]; }
 @end
 
 @implementation NSMutableSet
 + (instancetype)setWithCapacity:(NSUInteger)n { return [[[self alloc] init] autorelease]; }
-- (void)addObject:(id)o { if (!o) throw_nil("-[NSMutableSet addObject:]"); if (![_a containsObject:o]) [_a addObject:o]; }
-- (void)removeObject:(id)o { [_a removeObject:o]; }
-- (void)removeAllObjects { [_a removeAllObjects]; }
+- (void)addObject:(id)o { if (!o) throw_nil("-[NSMutableSet addObject:]"); set_insert(self, o); }
+- (void)removeObject:(id)o { NSUInteger s = set_find(self, o); if (s != NSNotFound) set_remove_slot(self, s); }
+- (void)removeAllObjects {
+    NSUInteger end = _end;
+    id *objs = malloc((end + 1) * sizeof(id));
+    memcpy(objs, _objs, end * sizeof(id)); memset(_objs, 0, end * sizeof(id));
+    _count = _end = 0; _mutations++; hidx_clear(&_idx);
+    for (NSUInteger i = 0; i < end; i++) [objs[i] release];
+    free(objs);
+}
 - (void)addObjectsFromArray:(NSArray *)arr { for (id o in arr) [self addObject:o]; }
+@end
+
+@implementation NSCountedSet
+/* NSSet's initializers funnel into -initWithObjects:count:, so the counts are set up there */
+- (instancetype)initWithObjects:(const id *)objs count:(NSUInteger)n {
+    if ((self = [super initWithObjects:NULL count:0])) {
+        _counts = calloc(_cap, sizeof(NSUInteger));
+        for (NSUInteger i = 0; i < n; i++) [self addObject:objs[i]];
+    }
+    return self;
+}
+- (instancetype)initWithCapacity:(NSUInteger)n { return [self initWithObjects:NULL count:0]; }
+- (instancetype)initWithArray:(NSArray *)a { if ((self = [self initWithObjects:NULL count:0])) for (id o in a) [self addObject:o]; return self; }
+- (instancetype)initWithSet:(NSSet *)s { return [self initWithArray:[s allObjects]]; }
+- (void)addObject:(id)o {
+    if (!o) throw_nil("-[NSCountedSet addObject:]");
+    NSUInteger p = set_insert(self, o);   /* may reallocate _counts */
+    _counts[p]++;
+}
+- (void)removeObject:(id)o {
+    NSUInteger s = set_find(self, o);
+    if (s == NSNotFound) return;
+    if (--_counts[_idx.slots[s] - 1] == 0) set_remove_slot(self, s);
+}
+- (NSUInteger)countForObject:(id)o { NSUInteger s = set_find(self, o); return s == NSNotFound ? 0 : _counts[_idx.slots[s] - 1]; }
+- (id)copyWithZone:(NSZone *)z {
+    set_compact(self);
+    NSCountedSet *c = [[NSCountedSet alloc] initWithObjects:_objs count:_count];
+    for (NSUInteger i = 0; i < _count; i++) c->_counts[i] = _counts[i];
+    return c;
+}
+- (id)mutableCopyWithZone:(NSZone *)z { return [self copyWithZone:z]; }
 @end
 
 @implementation NSNull
