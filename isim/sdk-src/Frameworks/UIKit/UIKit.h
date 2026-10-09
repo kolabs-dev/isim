@@ -74,6 +74,7 @@
 #import <UIKit/UITargetedPreview.h>
 #import <UIKit/UIMultiTouch.h>
 #import <UIKit/UITextChecker.h>
+#import <UIKit/UIScribbleInteraction.h>
 #import <UIKit/UIEditMenuInteraction.h>
 #import <UIKit/UIContentSizeCategory.h>
 #import <UIKit/UIUpdateLink.h>

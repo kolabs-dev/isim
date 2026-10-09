@@ -2,7 +2,10 @@
 /* isim: UITextChecker over small built-in word lists (en, pt, es, fr, de). A word counts as misspelled when it is not
    in the list (nor learned) and is one edit (insertion, deletion, substitution, transposition) away from a listed
    word: unknown words with no close match are left alone. Guesses are those close matches; completions are listed
-   words with the given prefix. Learned and ignored words persist in the device data like on iOS (per app). */
+   words with the given prefix, the ones typed most often first. Learned and ignored words persist in the device data
+   like on iOS (per app). The host's Hunspell dictionaries (<lang>.dic in /usr/share/hunspell or /usr/share/myspell,
+   or the directories in ISIM_DICTIONARIES; "none" turns them off) add their words: known words, completions, and
+   guesses when the built-in list has none. */
 #import <UIKit/UIKitDefines.h>
 #import <Foundation/Foundation.h>
 NS_ASSUME_NONNULL_BEGIN

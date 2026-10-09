@@ -16,6 +16,7 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        , ISIM_EV_HOVER = 40 /* pointer moved without touching (x, y); pad 1: the pointer left */
        , ISIM_EV_TEXT_EDITING = 41 /* IME composition: text = marked text, key = cursor (characters), mods = selected length */
        , ISIM_EV_VOICEOVER = 42 /* text: on|off|next|prev|activate|read (script `voiceover`) */
+       , ISIM_EV_TEXT_SERVICE = 43 /* text: dictate:TEXT | dictate-fail | scribble:X Y TEXT | sms:TEXT (script `dictate`, `scribble`, `sms`) */
        , ISIM_EV_SYSTEM = 50 /* text: a system message from the shell ("bgtask ID", "discard-scenes", ...; shell_system.inc) */ };
 void isim_device_metrics(struct isim_device *out);
 int isim_os_version(void);                            /* the iOS version isim emulates (--os): major*10000 + minor*100 + patch */

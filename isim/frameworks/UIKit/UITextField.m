@@ -26,7 +26,7 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
     keyboardType = _keyboardType, keyboardAppearance = _keyboardAppearance, returnKeyType = _returnKeyType,
     enablesReturnKeyAutomatically = _enablesReturnKeyAutomatically, secureTextEntry = _secureTextEntry, textContentType = _textContentType,
     smartQuotesType = _smartQuotesType, smartDashesType = _smartDashesType, smartInsertDeleteType = _smartInsertDeleteType,
-    inlinePredictionType = _inlinePredictionType;
+    inlinePredictionType = _inlinePredictionType, passwordRules = _passwordRules;
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
         _storage = @""; _font = [UIFont systemFontOfSize:17]; _textColor = UIColor.labelColor;
@@ -128,6 +128,11 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
 }
 - (void)deleteBackward { isim_ti_delete_backward(self); }
 ISIM_TEXT_INPUT_METHODS
+/* a password form leaving the screen (submitted): AutoFill may offer to save the password (UITextServices.m) */
+- (void)willMoveToWindow:(UIWindow *)w {
+    [super willMoveToWindow:w];
+    if (!w && self.window) isim_ui_autofill_field_leaving(self);
+}
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)e {
     [super touchesEnded:touches withEvent:e];
     UITouch *t = touches.anyObject;
@@ -279,6 +284,11 @@ ISIM_TEXT_INPUT_METHODS
     } else if (_borderStyle == UITextBorderStyleLine || _borderStyle == UITextBorderStyleBezel) {
         double line[4]; isim_ui_rgba(UIColor.labelColor, line);
         isim_gfx_stroke_rounded(0.5, 0.5, b.size.width - 1, b.size.height - 1, 0, 1, line);
+    }
+    if (isim_ui_autofill_strong(self)) {                 /* an AutoFill strong password: the field turns yellow */
+        double y[4]; isim_ui_rgba([UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) {
+            return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithRed:0.36 green:0.33 blue:0.08 alpha:1] : [UIColor colorWithRed:1 green:0.96 blue:0.66 alpha:1]; }], y);
+        isim_gfx_fill_rounded(0, 0, b.size.width, b.size.height, _borderStyle == UITextBorderStyleRoundedRect ? 5 : 0, y);
     }
     [self _keepCaretVisible];
     CGRect r = [self _textArea];

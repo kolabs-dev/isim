@@ -130,6 +130,14 @@ int main(int argc, char *argv[]) {
         CHECK(found.count == 4 && found[0].resultType == NSTextCheckingTypeLink && [found[0].URL.absoluteString isEqualToString:@"https://isim.dev/docs"]);
         CHECK(found.count == 4 && [found[1].URL.absoluteString isEqualToString:@"mailto:me@kolabs.dev"] && [found[2].phoneNumber isEqualToString:@"+1 (555) 123-4567"]);
         CHECK(found.count == 4 && found[3].resultType == NSTextCheckingTypeDate && found[3].date != nil);
+        NSDataDetector *places = [NSDataDetector dataDetectorWithTypes:NSTextCheckingTypeAddress | NSTextCheckingTypeTransitInformation error:NULL];
+        NSString *trip = @"Meet at 1 Infinite Loop, Cupertino, CA 95014 then fly BA 2490 home.";
+        NSArray<NSTextCheckingResult *> *stops = [places matchesInString:trip options:0 range:NSMakeRange(0, trip.length)];
+        CHECK(stops.count == 2 && stops[0].resultType == NSTextCheckingTypeAddress && [[trip substringWithRange:stops[0].range] isEqualToString:@"1 Infinite Loop, Cupertino, CA 95014"]);
+        CHECK(stops.count == 2 && [stops[0].addressComponents[NSTextCheckingStreetKey] isEqualToString:@"1 Infinite Loop"] &&
+              [stops[0].addressComponents[NSTextCheckingCityKey] isEqualToString:@"Cupertino"] && [stops[0].addressComponents[NSTextCheckingZIPKey] isEqualToString:@"95014"]);
+        CHECK(stops.count == 2 && stops[1].resultType == NSTextCheckingTypeTransitInformation &&
+              [stops[1].components[NSTextCheckingAirlineKey] isEqualToString:@"British Airways"] && [stops[1].components[NSTextCheckingFlightKey] isEqualToString:@"2490"]);
 
         // formatters (explicit locales; the device region drives the defaults)
         NSLocale *enUS = [NSLocale localeWithLocaleIdentifier:@"en_US"], *ptBR = [NSLocale localeWithLocaleIdentifier:@"pt_BR"];

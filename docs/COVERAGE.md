@@ -26,14 +26,14 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 198 | 17 | 2 | 4 | 221 | 93% |
+| **UIKit** | 202 | 15 | 0 | 4 | 221 | 95% |
 | &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 27 | 4 | 0 | 0 | 31 | 94% |
-| &nbsp;&nbsp;↳ Views & controls | 53 | 4 | 0 | 3 | 60 | 92% |
+| &nbsp;&nbsp;↳ Views & controls | 54 | 3 | 0 | 3 | 60 | 92% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 11 | 1 | 0 | 0 | 12 | 96% |
 | &nbsp;&nbsp;↳ Gestures & touches | 12 | 1 | 0 | 0 | 13 | 96% |
-| &nbsp;&nbsp;↳ Text input & keyboard | 11 | 1 | 2 | 0 | 14 | 82% |
+| &nbsp;&nbsp;↳ Text input & keyboard | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
@@ -55,8 +55,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 58 | 22 | 1 | 1 | 82 | 84% |
-| &nbsp;&nbsp;↳ Strings & text | 10 | 5 | 0 | 0 | 15 | 83% |
+| **Foundation** | 59 | 21 | 1 | 1 | 82 | 85% |
+| &nbsp;&nbsp;↳ Strings & text | 11 | 4 | 0 | 0 | 15 | 87% |
 | &nbsp;&nbsp;↳ Collections & values | 10 | 3 | 0 | 0 | 13 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **727** | **206** | **28** | **36** | **997** | **83%** |
+| **All areas** | **732** | **203** | **26** | **36** | **997** | **84%** |
 
 ### Per iOS version
 
@@ -95,10 +95,10 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 96% (206) | 96% (210) | 95% (217) | 93% (221) |
+| UIKit | 97% (206) | 97% (210) | 97% (217) | 95% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
+| Foundation | 85% (82) | 85% (82) | 85% (82) | 85% (82) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (17) | 100% (17) | 100% (17) | 100% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **84%** (954) | **84%** (966) | **84%** (983) | **83%** (997) |
+| **All areas** | **85%** (954) | **84%** (966) | **84%** (983) | **84%** (997) |
 
 ---
 
@@ -217,7 +217,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIImageView` | ✅ | ≤17 | PNG/JPEG/… via gdk-pixbuf, SVG via librsvg |
 | Animated images (`animationImages`, `UIImage.animatedImage`) | ✅ | ≤17 | `UIImage.animatedImage(with:duration:)` / `animatedImageNamed`, `UIImageView.animationImages` / duration / repeat count / `startAnimating`; an animated `image` plays by itself; frames advanced per display frame; tested (HelloImaging). `highlightedAnimationImages` unverified |
 | `UITextField` | ✅ | ≤17 | UITextInput shared with UITextView: selection (double tap, handles, Shift+arrows), edit menu, marked text, cursor movement, Cut/Copy/Paste, autocorrection; tested (HelloTextEditing, HelloInputs) |
-| `UITextView` | 🟡 | ≤17 | editable/scrollable, self-sizing when `isScrollEnabled = false`, delegate (should/did begin/end, `shouldChangeTextIn`, did change, selection change), notifications, keyboard traits, selection with handles and the edit menu, `selectedRange`, `scrollRangeToVisible`; tested (HelloInputs, HelloTextEditing). Data detectors are stored only |
+| `UITextView` | ✅ | ≤17 | editable/scrollable, self-sizing when `isScrollEnabled = false`, delegate (should/did begin/end, `shouldChangeTextIn`, did change, selection change), notifications, keyboard traits, selection with handles and the edit menu, `selectedRange`, `scrollRangeToVisible`; data detectors when not editable (`dataDetectorTypes`: links, phone numbers, street addresses, dates, flight numbers, UPS/USPS tracking numbers) drawn as underlined links in the tint colour: a tap runs the delegate's `primaryActionFor` (iOS 17, `UITextItem.content`) or `shouldInteractWith`, else opens the item (`tel:`, Maps, `calshow:`, the carrier's page; a flight shows its menu, adapted: no flight preview), a long press shows the item's menu (`menuConfigurationFor`, `UITextItem.MenuConfiguration`). `.lookupSuggestion` finds nothing (stub: no Look Up service). Tested (HelloInputs, HelloTextEditing, HelloTextServices) |
 | `UISwitch` | ✅ | ≤17 | |
 | `UISlider` | ✅ | ≤17 | thumb drag, continuous/non-continuous, track tints; tested (HelloControls) |
 | `UIStepper` | ✅ | ≤17 | min/max/step/wraps; tested |
@@ -324,7 +324,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | System keyboard (English US: letters/numbers/symbols, shift, auto-capitalization, return-key titles) | ✅ | ≤17 | |
 | Keyboard types (number pad, decimal, email, URL, phone) | ✅ | ≤17 | the responder's `keyboardType` picks the layout: number / ASCII number, decimal (the locale's separator) and phone pads (3 × 4 keys with the letters under the digits, the phone pad's `+*#` page, no return key or keyboard switching), email (`@` `.` next to space), URL (`.` `/` `.com`, no space bar), Twitter (`@` `#`), web search (`.`), numbers and punctuation (starts and stays on the numbers layer). The phone pad's `+*#` page is adapted (iOS also offers pause / wait). Name-phone pad uses the letters keyboard. Tested (HelloKeyboardTypes, OS matrix) |
 | Other languages, emoji keyboard | ✅ | ≤17 | built-in English (US), Portuguese (Brazil), Spanish (ñ), French (AZERTY), German (QWERTZ + üöä) and Emoji keyboards enabled in Settings > General > Keyboard > Keyboards (AppleKeyboards, default English + Emoji), globe / emoji key and list, localized space/return keys, accent popups on long press, `UITextInputMode.activeInputModes`; tested (HelloTextEditing) |
-| Autocorrection, predictive bar, spell checking, `UITextChecker` | 🟡 | ≤17 | `UITextChecker` over small built-in word lists (en/pt/es/fr/de): misspelled = unknown and one edit from a listed word; guesses, completions, learn/ignore; predictive bar (typed word, corrections, completions) and autocorrection on space/punctuation from the on-screen keyboard; red dotted underline while editing; Settings toggles; tested (HelloTextEditing). Small dictionaries, no learning from typing, no inline predictions |
+| Autocorrection, predictive bar, spell checking, `UITextChecker` | ✅ | ≤17 | `UITextChecker` over isim's built-in word lists (en/pt/es/fr/de) plus the host's Hunspell dictionaries when installed (passthrough; `ISIM_DICTIONARIES`): misspelled = unknown and one edit from a known word; guesses, completions, learn/ignore; predictive bar (typed word, corrections, completions) and autocorrection on space/punctuation from the on-screen keyboard; red dotted underline while editing; learning (keeping the typed word learns it, completions rank the words typed most); inline predictions (iOS 17: the completion in grey after the caret, space accepts it; `inlinePredictionType`, Settings > Show Predictions Inline); Settings toggles; tested (HelloTextEditing, HelloTextServices). Without Hunspell the built-in lists are small (a few hundred words per language) |
 | Selection, caret movement, loupe, copy/paste/edit menu | ✅ | ≤17 | tap places the caret at a word boundary, double tap selects a word, triple tap a paragraph, long press shows the loupe and moves the caret, selection handles drag; edit menu (Cut, Copy, Paste, Select, Select All, Replace… with guesses; delegate `editMenuForTextIn`), `UIEditMenuInteraction`, `UIMenuController`; arrows, Shift-select, Option/Cmd jumps, Cmd/Ctrl+A/C/X/V, forward delete; UITextField, UITextView and SwiftUI TextField/TextEditor; tested (HelloTextEditing). No floating cursor, no undo |
 | `UITextFieldDelegate` | ✅ | ≤17 | |
 | Secure text entry | ✅ | ≤17 | bullets |
@@ -333,8 +333,8 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Typing from the host keyboard | ✅ | ≤17 | `ISIM_SOFTWARE_KEYBOARD=0` hides the on-screen one |
 | Custom keyboard extensions (globe key, keyboard list) | ✅ | ≤17 | |
 | `UITextInput` positions/ranges, marked text (IME) | ✅ | ≤17 | positions, ranges, `selectedTextRange`, `text(in:)`, `replace(_:withText:)`, caret/first/selection rects, `closestPosition`, `UITextInputStringTokenizer`, `inputDelegate`; marked text from the host IME (SDL text editing) or script `compose TEXT`, underlined, committed by `insertText`; custom keyboards' document proxy sees the selection; tested (HelloTextEditing) |
-| Password AutoFill, `textContentType`, one-time codes | 🧩 | ≤17 | trait stored; no AutoFill |
-| Dictation, Scribble | 🧩 | ≤17 | the keyboard's mic key logs that dictation is unavailable; Settings shows dictation off; no Scribble |
+| Password AutoFill, `textContentType`, one-time codes | ✅ | ≤17 | adapted (no iCloud Keychain): the device's Passwords store (`$ISIM_DATA/Library/Passwords`, Settings > Passwords) keyed by the app's `webcredentials:` domain (else its bundle id), plus the app's keychain internet passwords; the QuickType bar offers them for `username` / `emailAddress` / `password` fields and fills the form; "Save Password?" / "Update Password?" when a typed password leaves the screen; `newPassword` fields get "Use Strong Password" (Apple's format, `passwordRules` min/max length, yellow fields); `oneTimeCode` fields offer the code of a text message (script `sms`); all `UITextContentType` values, `UITextInputPasswordRules`; `ASAuthorizationPasswordProvider` sees the saved passwords too. Tested (HelloTextServices, OS matrix) |
+| Dictation, Scribble | ✅ | ≤17 | adapted (no microphone speech recognition, no Apple Pencil): the keyboard's mic key starts listening (blue mic, "Listening…"); script `dictate TEXT` is the speech: spoken punctuation, sentence capitals, `insertDictationResult` (`UIDictationPhrase`) or `insertText`, `dictationRecordingDidEnd`, `dictate fail` → `dictationRecognitionFailed`; Settings > Keyboard > Enable Dictation. Scribble on iPad: script `scribble X Y TEXT` draws the ink and writes into the field there without the on-screen keyboard (a finger tap brings it back); `UIScribbleInteraction` (`shouldBeginAt`, will begin / did finish, `isPencilInputExpected`), `UIIndirectScribbleInteraction` (elements, frames, `focusElementIfNeeded`; Swift `ElementIdentifier: Hashable`); Settings > Apple Pencil > Scribble. Tested (HelloTextServices, OS matrix) |
 
 ### Drawing, images & symbols
 
@@ -781,7 +781,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `AttributedString`, `AttributeContainer`, attribute scopes, runs | 🟡 | ≤17 | Foundation scope (link, inline/presentation intents, imageURL, ...); no Codable, no iOS 17 invalidation/inheritance rules |
 | `AttributedString(markdown:)` | 🟡 | ≤17 | CommonMark + GFM blocks/inlines as presentation intents; no reference links, extended attributes or source positions |
 | `NSRegularExpression`, `NSTextCheckingResult` | ✅ | ≤17 | host PCRE2 (close to ICU syntax); templates, named groups, options |
-| `NSDataDetector` | 🟡 | ≤17 | links, phone numbers, dates; addresses and transit info are not detected |
+| `NSDataDetector` | ✅ | ≤17 | links, phone numbers, dates, street addresses (US style: street, city, state, ZIP in `addressComponents`), transit information (flight numbers of common airlines: `components` airline and flight); tested (foundation self-test). Addresses outside the US format are not recognised |
 | `Scanner` | ✅ | ≤17 | ObjC and Swift (`scanString`, `scanInt`, `scanDouble`, `scanDecimal`, `currentIndex`) APIs |
 | `String(localized:)`, `NSLocalizedString`, `Bundle.localizedString` | ✅ | ≤17 | |
 | `LocalizedStringResource` | ✅ | ≤17 | Foundation's (also used by AppIntents); `String(localized:)` resolves it with the bundle/table/locale lookup, plurals included. Tested: HelloSharedData (en, ru) |

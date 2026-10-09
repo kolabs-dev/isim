@@ -13,6 +13,9 @@
  *   twofinger X Y DX DY SECS      two fingers 60 pt apart, moved together by (DX, DY)
  *   longdrag X1 Y1 X2 Y2 HOLD SECS  one finger down, held HOLD s (a long press), then moved over SECS and lifted
  *   hover X Y | hover off         pointer at (X, Y) without touching / pointer leaves
+ *   dictate TEXT | dictate fail   speech for dictation (the app's keyboard mic): TEXT is what was "said"
+ *   scribble X Y TEXT             handwriting TEXT with Apple Pencil at (X, Y) (Scribble, iPad)
+ *   sms TEXT                      a text message arrives (Messages); one-time codes in it are offered by AutoFill
  *   compose TEXT                  IME marked text (an empty TEXT ends composing); `type` commits
  *   voiceover on|off|next|prev|activate|read|rotor [prev]|up|down   VoiceOver (the app's UIKit runs it)
  *   switchcontrol on|off|next|select|auto   Switch Control: item scanning (auto: a timer moves the highlight)
@@ -80,6 +83,17 @@ static int input_script_cmd(const char *cmd, const char *args) {
         if (sscanf(args, "%lf %lf", &a, &b) == 2) pending[npending++] = (struct isim_event){ .type = EV_HOVER, .x = a, .y = b };
         else pending[npending++] = (struct isim_event){ .type = EV_HOVER, .pad = 1 };
         script_resume = now() + 0.02;
+        return 1;
+    }
+    /* text services run in the app's UIKit (UITextServices.m) */
+    if (!strcmp(cmd, "dictate") || !strcmp(cmd, "scribble") || !strcmp(cmd, "sms")) {
+        enum { EV_TEXT_SERVICE = 43 };
+        sscanf(args, " %511[^\n]", arg);
+        for (size_t n = strlen(arg); n && arg[n - 1] == ' '; n--) arg[n - 1] = 0;
+        pending[npending++] = (struct isim_event){ .type = EV_TEXT_SERVICE };
+        if (!strcmp(cmd, "dictate") && !strcmp(arg, "fail")) snprintf(pending[npending - 1].text, sizeof pending->text, "dictate-fail");
+        else snprintf(pending[npending - 1].text, sizeof pending->text, "%s:%s", cmd, arg);
+        script_resume = now() + 0.1;
         return 1;
     }
     if (!strcmp(cmd, "compose")) {
