@@ -22,13 +22,20 @@
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <mach/mach.h>
 
 void isim_main_enqueue_f(double delay, dispatch_function_t f, void *ctx);   /* Runtime.m */
 double isim_main_fire_due(void);                                            /* Runtime.m: runs due items, returns next delay */
 void isim_main_wait(double seconds);                                        /* Runtime.m: sleeps until new main work or timeout */
+/* isim libSystem (private): the Linux facilities behind the sources' events */
+long isim_fd_write_space(int fd);                     /* free space of a pipe / socket, -1 for other descriptors */
+long isim_fd_read_available(int fd);                  /* readable bytes, or pending connections of a listening socket */
+int isim_fs_watch_fd(int fd);                         /* inotify descriptor: readable when the file of fd changes */
+int isim_proc_watch_fd(pid_t pid);                    /* pidfd: readable once the process exited (-1, errno ESRCH: none) */
+int isim_proc_snapshot(pid_t pid, pid_t *children, int max, uint64_t *exec_sig);   /* children count, -1 if gone */
+int isim_mach_port_notify_fd(mach_port_name_t name);  /* eventfd: readable when a message is queued or the port dies */
 
-enum { K_QUEUE = 1, K_SOURCE, K_GROUP, K_SEMA, K_ATTR };
-typedef struct { int kind; int refs; void *ctx; dispatch_function_t finalizer; } dobj;
+#include "DispatchInternal.h"
 typedef struct job { dispatch_function_t f; void *ctx; struct job *next; } job;
 typedef struct specific { const void *key; void *ctx; dispatch_function_t dtor; struct specific *next; } specific;
 
@@ -57,6 +64,8 @@ struct dispatch_source_s {
     unsigned long pending, data;       /* merged events waiting for the handler / value seen by the running handler */
     int handler_queued, monitored;
     struct stat_snapshot { long long size, mtime_ns, ctime_ns, nlink, ino; int mode; char path[1024]; } vn;
+    int wfd;                           /* event descriptor: inotify (vnode), pidfd (process), eventfd (Mach); -1 none */
+    int nkids; pid_t kids[64]; uint64_t exec_sig;   /* process sources watching fork / exec */
     struct dispatch_source_s *next_monitored;
 };
 struct dispatch_semaphore_s { dobj h; long value; pthread_mutex_t lock; pthread_cond_t cond; };
@@ -127,6 +136,8 @@ void dispatch_release(dispatch_object_t o) {
     if (d->finalizer) d->finalizer(d->ctx);
     if (d->kind == K_SOURCE) source_free(o);
     else if (d->kind == K_QUEUE) { /* queues are kept: jobs may still reference them */ }
+    else if (d->kind == K_DATA) isim_dispatch_data_dispose(o);
+    else if (d->kind == K_IO) isim_dispatch_io_dispose(o);
     else free(o);
 }
 void *dispatch_get_context(dispatch_object_t o) { return o ? ((dobj *)o)->ctx : NULL; }
@@ -360,10 +371,13 @@ void dispatch_after_f(dispatch_time_t when, dispatch_queue_t q, void *ctx, dispa
 
 /* ---------------- sources ----------------
  * Timers ride on the timer thread. Data sources (add/or/replace) coalesce dispatch_source_merge_data values
- * until the handler runs. Read/write/signal/process/vnode sources are watched by one monitor thread:
- * poll() for fd readiness (level-triggered: a source is re-armed after its handler returns), a signal
- * counter fed by a signal handler, and a 50 ms check for process exit (kill(pid, 0)) and file changes (fstat;
- * renames through /proc/self/fd). Memory-pressure and Mach sources never fire (no such events on isim). */
+ * until the handler runs. The other kinds are watched by one monitor thread blocked in poll() (adapted from kqueue):
+ * read / write sources on their descriptor (level-triggered: re-armed after the handler returns; data = readable bytes
+ * or pending connections, the pipe's / socket's free space), file-system-object sources on an inotify descriptor
+ * (each event re-checks the file with fstat for the DISPATCH_VNODE_* bits), process exit on a pidfd, Mach ports on
+ * an eventfd signalled by isim's port queues, signals through a counter fed by a signal handler. Process fork / exec
+ * are checked every 50 ms (/proc children and executable). Memory pressure comes from the Simulator's memory warning
+ * (UIKit calls isim_dispatch_memory_pressure). */
 static pthread_mutex_t mon_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct dispatch_source_s *monitored;
 static int mon_pipe[2] = { -1, -1 };
@@ -377,7 +391,9 @@ dispatch_source_t dispatch_source_create(dispatch_source_type_t type, uintptr_t 
     if (!type || type->type < ST_TIMER || type->type > ST_MACH_RECV) { fprintf(stderr, "isim: dispatch_source_create: unknown source type\n"); return NULL; }
     if ((type->type == ST_READ || type->type == ST_WRITE || type->type == ST_VNODE) && (int)handle < 0) return NULL;
     if (type->type == ST_SIGNAL && (handle == 0 || handle >= 32)) return NULL;
+    if ((type->type == ST_MACH_SEND || type->type == ST_MACH_RECV) && (handle == MACH_PORT_NULL || handle == MACH_PORT_DEAD)) return NULL;
     struct dispatch_source_s *s = calloc(1, sizeof *s);
+    s->wfd = -1;
     s->h = (dobj){ K_SOURCE, 1, NULL, NULL };
     s->queue = q ?: dispatch_get_global_queue(0, 0);
     s->type = type->type; s->handle = handle; s->mask = mask;
@@ -389,6 +405,7 @@ static void source_free(struct dispatch_source_s *s) {
     if (s->handler_b) Block_release(s->handler_b);
     if (s->cancel_b) Block_release(s->cancel_b);
     if (s->reg_b) Block_release(s->reg_b);
+    if (s->wfd >= 0) close(s->wfd);    /* here, not on cancel: the monitor thread may still be polling it */
     pthread_mutex_destroy(&s->lock);
     free(s);
 }
@@ -411,7 +428,7 @@ static void source_handler(void *p) {
         else if (s->handler_b) ((dispatch_block_t)s->handler_b)();
     }
     if (s->type == ST_TIMER) { pthread_mutex_lock(&s->lock); s->fired = 0; pthread_mutex_unlock(&s->lock); }
-    if (s->type == ST_READ || s->type == ST_WRITE) mon_wake();   /* level-triggered: poll the fd again */
+    if (s->type == ST_READ || s->type == ST_WRITE || s->type == ST_MACH_RECV) mon_wake();   /* level-triggered: check again */
     dispatch_release(s);
 }
 /* caller holds s->lock: queue the event handler unless one is already queued or the source is held */
@@ -424,9 +441,10 @@ static void source_queue_handler(struct dispatch_source_s *s) {
 static void source_merge(struct dispatch_source_s *s, unsigned long value, int replace_only) {
     pthread_mutex_lock(&s->lock);
     switch (s->type) {
-    case ST_DATA_ADD: s->pending += value; break;
+    case ST_DATA_ADD: case ST_SIGNAL: s->pending += value; break;
     case ST_DATA_REPLACE: s->pending = value; break;
-    case ST_READ: case ST_WRITE: s->pending = value ? value : 1; break;
+    case ST_READ: case ST_WRITE: case ST_MACH_RECV: s->pending = value ? value : 1; break;
+    case ST_MEMORYPRESSURE: s->pending = value; break;   /* the current level */
     default: s->pending |= value; break;
     }
     source_queue_handler(s);
@@ -495,6 +513,8 @@ static void vn_snapshot(struct dispatch_source_s *s, struct stat_snapshot *v) {
 #define VN_RENAME 0x20
 #define VN_REVOKE 0x40
 #define PROC_EXIT 0x80000000UL
+#define PROC_FORK 0x40000000UL
+#define PROC_EXEC 0x20000000UL
 static unsigned long vn_changes(struct dispatch_source_s *s) {
     struct stat_snapshot now; vn_snapshot(s, &now);
     struct stat_snapshot *was = &s->vn;
@@ -505,7 +525,7 @@ static unsigned long vn_changes(struct dispatch_source_s *s) {
         else if (now.nlink != was->nlink) ev |= VN_LINK;
         if (now.mtime_ns != was->mtime_ns || now.size != was->size) ev |= VN_WRITE;
         if (now.size > was->size) ev |= VN_EXTEND;
-        if (now.mode != was->mode || (now.ctime_ns != was->ctime_ns && now.mtime_ns == was->mtime_ns)) ev |= VN_ATTRIB;
+        if (now.mode != was->mode || (now.ctime_ns != was->ctime_ns && now.mtime_ns == was->mtime_ns && now.nlink == was->nlink)) ev |= VN_ATTRIB;
         /* a deleted file's /proc link gains " (deleted)"; anything else is a rename */
         if (was->path[0] && strcmp(now.path, was->path) != 0 && !strstr(now.path, " (deleted)")) ev |= VN_RENAME;
         if (strstr(now.path, " (deleted)") && !strstr(was->path, " (deleted)")) ev |= VN_DELETE;
@@ -513,6 +533,37 @@ static unsigned long vn_changes(struct dispatch_source_s *s) {
     *was = now;
     return ev & s->mask;
 }
+/* fork / exec of a watched process: new children since the last check, a changed executable or command line */
+static unsigned long proc_changes(struct dispatch_source_s *s) {
+    pid_t kids[64]; uint64_t sig = 0;
+    int n = isim_proc_snapshot((pid_t)s->handle, kids, 64, &sig);
+    if (n < 0) return 0;
+    if (n > 64) n = 64;
+    unsigned long ev = 0;
+    for (int i = 0; i < n && !(ev & PROC_FORK); i++) {
+        int known = 0;
+        for (int j = 0; j < s->nkids; j++) if (s->kids[j] == kids[i]) { known = 1; break; }
+        if (!known) ev |= PROC_FORK;
+    }
+    if (sig != s->exec_sig) ev |= PROC_EXEC;
+    memcpy(s->kids, kids, n * sizeof *kids); s->nkids = n; s->exec_sig = sig;
+    return ev & s->mask;
+}
+static int mach_queued(mach_port_name_t name) {
+    mach_port_status_t st; mach_msg_type_number_t n = MACH_PORT_RECEIVE_STATUS_COUNT;
+    return mach_port_get_attributes(mach_task_self(), name, MACH_PORT_RECEIVE_STATUS, (mach_port_info_t)&st, &n) == KERN_SUCCESS ? (int)st.mps_msgcount : 0;
+}
+static int mach_dead(mach_port_name_t name) {
+    mach_port_type_t t = 0;
+    return mach_port_type(mach_task_self(), name, &t) != KERN_SUCCESS || (t & MACH_PORT_TYPE_DEAD_NAME);
+}
+static int source_idle(struct dispatch_source_s *s) {
+    pthread_mutex_lock(&s->lock);
+    int idle = !s->handler_queued && !s->suspended && !s->cancelled;
+    pthread_mutex_unlock(&s->lock);
+    return idle;
+}
+static void drain(int fd) { char buf[4096]; while (read(fd, buf, sizeof buf) > 0) {} }
 static void *monitor_thread(void *arg) {
     unsigned long seen_sig[32] = { 0 };
     for (;;) {
@@ -520,46 +571,83 @@ static void *monitor_thread(void *arg) {
         fds[n].fd = mon_pipe[0]; fds[n].events = POLLIN; fds[n].revents = 0; who[n++] = NULL;
         pthread_mutex_lock(&mon_lock);
         int timed = 0;
-        for (struct dispatch_source_s *s = monitored; s; s = s->next_monitored) {
-            if (s->type == ST_PROC || s->type == ST_VNODE) timed = 1;
-            if ((s->type == ST_READ || s->type == ST_WRITE) && n < 256) {
-                pthread_mutex_lock(&s->lock);
-                int idle = !s->handler_queued && !s->suspended && !s->cancelled;
-                pthread_mutex_unlock(&s->lock);
-                if (!idle) continue;
-                dispatch_retain(s);
-                fds[n].fd = (int)s->handle; fds[n].events = s->type == ST_READ ? POLLIN : POLLOUT; fds[n].revents = 0; who[n++] = s;
+        for (struct dispatch_source_s *s = monitored; s && n < 256; s = s->next_monitored) {
+            int fd = -1, ev = POLLIN;
+            switch (s->type) {
+            case ST_READ: case ST_WRITE:              /* level-triggered: only while no handler is pending */
+                if (source_idle(s)) { fd = (int)s->handle; ev = s->type == ST_READ ? POLLIN : POLLOUT; }
+                break;
+            case ST_VNODE: if (s->wfd >= 0) fd = s->wfd; else timed = 1; break;
+            case ST_PROC:
+                if (s->mask & (PROC_FORK | PROC_EXEC)) timed = 1;
+                if (s->mask & PROC_EXIT) { if (s->wfd >= 0) fd = s->wfd; else timed = 1; }
+                break;
+            case ST_MACH_RECV: case ST_MACH_SEND: fd = s->wfd; break;
             }
+            if (fd < 0) continue;
+            dispatch_retain(s);
+            fds[n].fd = fd; fds[n].events = (short)ev; fds[n].revents = 0; who[n++] = s;
         }
         pthread_mutex_unlock(&mon_lock);
         int r = poll(fds, (nfds_t)n, timed ? 50 : 1000);
-        if (r > 0 && (fds[0].revents & POLLIN)) { char buf[64]; (void)read(mon_pipe[0], buf, sizeof buf); }
+        if (r > 0 && (fds[0].revents & POLLIN)) drain(mon_pipe[0]);
         for (int i = 1; i < n; i++) {
             struct dispatch_source_s *s = who[i];
             if (r > 0 && fds[i].revents && !(fds[i].revents & POLLNVAL)) {
-                unsigned long data = 1;
-                if (s->type == ST_READ) { int avail = 0; if (ioctl((int)s->handle, FIONREAD, &avail) == 0) data = avail > 0 ? (unsigned long)avail : 0; }
-                else data = 1;   /* Apple reports the free buffer space; isim reports 1 */
-                /* readable with 0 bytes = end of file / hang-up: still an event (data 0 like Apple's) */
-                pthread_mutex_lock(&s->lock);
-                s->pending = data ? data : 0;
-                if (!s->handler_queued && s->activated && !s->suspended && !s->cancelled) {
-                    s->handler_queued = 1; dispatch_retain(s);
-                    pthread_mutex_unlock(&s->lock);
-                    dispatch_async_f(s->queue, s, source_handler);
-                } else pthread_mutex_unlock(&s->lock);
+                if (s->type == ST_READ || s->type == ST_WRITE) {
+                    long data = s->type == ST_READ ? isim_fd_read_available((int)s->handle) : isim_fd_write_space((int)s->handle);
+                    /* readable with 0 bytes = end of file / hang-up: still an event (data 0 like Apple's); a write
+                       source on a file or terminal (no measurable buffer) reports 1 */
+                    if (data < 0) data = s->type == ST_READ ? 0 : 1;
+                    pthread_mutex_lock(&s->lock);
+                    s->pending = (unsigned long)data;
+                    if (!s->handler_queued && s->activated && !s->suspended && !s->cancelled) {
+                        s->handler_queued = 1; dispatch_retain(s);
+                        pthread_mutex_unlock(&s->lock);
+                        dispatch_async_f(s->queue, s, source_handler);
+                    } else pthread_mutex_unlock(&s->lock);
+                } else if (s->type == ST_VNODE) {
+                    /* inotify events: IN_UNMOUNT (0x2000) revokes; everything else is re-checked with fstat */
+                    char buf[4096] __attribute__((aligned(8))); ssize_t len; unsigned long ev = 0;
+                    while ((len = read(s->wfd, buf, sizeof buf)) > 0)
+                        for (ssize_t off = 0; off + 16 <= len;) {
+                            uint32_t mask, namelen; memcpy(&mask, buf + off + 4, 4); memcpy(&namelen, buf + off + 12, 4);
+                            if (mask & 0x2000) ev |= VN_REVOKE;
+                            off += 16 + namelen;
+                        }
+                    pthread_mutex_lock(&mon_lock);
+                    ev = (ev & s->mask) | (s->monitored ? vn_changes(s) : 0);
+                    pthread_mutex_unlock(&mon_lock);
+                    if (ev) source_merge(s, ev, 0);
+                } else if (s->type == ST_PROC) {        /* the pidfd: the process exited */
+                    pthread_mutex_lock(&mon_lock);
+                    if (s->monitored && (s->mask & PROC_EXIT)) { s->mask &= ~PROC_EXIT; pthread_mutex_unlock(&mon_lock); source_merge(s, PROC_EXIT, 0); }
+                    else pthread_mutex_unlock(&mon_lock);
+                } else {                                 /* Mach: drain the eventfd; the checks below look at the port */
+                    uint64_t c; (void)!read(s->wfd, &c, sizeof c);
+                }
             }
             dispatch_release(s);
         }
-        /* signals, processes, files */
+        /* signals, Mach ports, timed checks (process fork / exec, fallbacks without an event descriptor) */
         pthread_mutex_lock(&mon_lock);
         unsigned long counts[32];
         for (int i = 0; i < 32; i++) { unsigned long c = __atomic_load_n(&sig_counts[i], __ATOMIC_RELAXED); counts[i] = c - seen_sig[i]; seen_sig[i] = c; }
         for (struct dispatch_source_s *s = monitored; s; s = s->next_monitored) {
             if (s->type == ST_SIGNAL && counts[s->handle]) source_merge(s, counts[s->handle], 0);
-            else if (s->type == ST_PROC && (s->mask & PROC_EXIT)) {
-                if (kill((pid_t)s->handle, 0) != 0 && errno == ESRCH) { source_merge(s, PROC_EXIT, 0); s->mask &= ~PROC_EXIT; }
-            } else if (s->type == ST_VNODE) {
+            else if (s->type == ST_MACH_RECV) {
+                if (source_idle(s) && mach_queued((mach_port_name_t)s->handle) > 0) source_merge(s, 1, 0);
+            } else if (s->type == ST_MACH_SEND) {
+                if ((s->mask & DISPATCH_MACH_SEND_DEAD) && mach_dead((mach_port_name_t)s->handle)) {
+                    s->mask &= ~DISPATCH_MACH_SEND_DEAD;      /* a dead name stays dead: report it once */
+                    if (s->wfd >= 0) { close(s->wfd); s->wfd = -1; }
+                    source_merge(s, DISPATCH_MACH_SEND_DEAD, 0);
+                }
+            } else if (s->type == ST_PROC) {
+                unsigned long ev = (s->mask & (PROC_FORK | PROC_EXEC)) ? proc_changes(s) : 0;
+                if ((s->mask & PROC_EXIT) && s->wfd < 0 && kill((pid_t)s->handle, 0) != 0 && errno == ESRCH) { ev |= PROC_EXIT; s->mask &= ~PROC_EXIT; }
+                if (ev) source_merge(s, ev, 0);
+            } else if (s->type == ST_VNODE && s->wfd < 0) {
                 unsigned long ev = vn_changes(s);
                 if (ev) source_merge(s, ev, 0);
             }
@@ -576,7 +664,15 @@ static void monitor_add(struct dispatch_source_s *s) {
         pthread_t th; pthread_create(&th, NULL, monitor_thread, NULL); pthread_detach(th);
     }
     if (s->type == ST_SIGNAL && !sig_installed[s->handle]) { sig_installed[s->handle] = 1; signal((int)s->handle, sig_handler); }
-    if (s->type == ST_VNODE) vn_snapshot(s, &s->vn);
+    if (s->type == ST_VNODE) { vn_snapshot(s, &s->vn); s->wfd = isim_fs_watch_fd((int)s->handle); }
+    if (s->type == ST_PROC) {
+        if (s->mask & (PROC_FORK | PROC_EXEC)) {
+            int n = isim_proc_snapshot((pid_t)s->handle, s->kids, 64, &s->exec_sig);
+            s->nkids = n < 0 ? 0 : n > 64 ? 64 : n;
+        }
+        if (s->mask & PROC_EXIT) s->wfd = isim_proc_watch_fd((pid_t)s->handle);   /* -1 for a process that is gone */
+    }
+    if (s->type == ST_MACH_RECV || s->type == ST_MACH_SEND) s->wfd = isim_mach_port_notify_fd((mach_port_name_t)s->handle);
     dispatch_retain(s);
     s->monitored = 1;
     s->next_monitored = monitored; monitored = s;
@@ -592,7 +688,18 @@ static void monitor_remove(struct dispatch_source_s *s) {
     pthread_mutex_unlock(&mon_lock);
     if (found) { mon_wake(); dispatch_release(s); }
 }
-static int is_monitored_type(int t) { return t == ST_READ || t == ST_WRITE || t == ST_SIGNAL || t == ST_PROC || t == ST_VNODE; }
+static int is_monitored_type(int t) {
+    return t == ST_READ || t == ST_WRITE || t == ST_SIGNAL || t == ST_PROC || t == ST_VNODE || t == ST_MACH_SEND ||
+           t == ST_MACH_RECV || t == ST_MEMORYPRESSURE;
+}
+/* Debug > Simulate Memory Warning (UIKit, script `memorywarning [warn|critical|normal]`): memory-pressure sources
+   whose mask has the level fire with it as their data */
+void isim_dispatch_memory_pressure(unsigned long level) {
+    pthread_mutex_lock(&mon_lock);
+    for (struct dispatch_source_s *s = monitored; s; s = s->next_monitored)
+        if (s->type == ST_MEMORYPRESSURE && (s->mask & level)) source_merge(s, level, 0);
+    pthread_mutex_unlock(&mon_lock);
+}
 
 void dispatch_source_cancel(dispatch_source_t s) {
     pthread_mutex_lock(&s->lock);
@@ -602,7 +709,7 @@ void dispatch_source_cancel(dispatch_source_t s) {
     if (first && (s->cancel_f || s->cancel_b)) { dispatch_retain(s); dispatch_async_f(s->queue, s, cancel_handler); }
 }
 long dispatch_source_testcancel(dispatch_source_t s) { return s->cancelled; }
-uintptr_t dispatch_source_get_data(dispatch_source_t s) { return s->type == ST_TIMER ? s->fired : s->data; }
+uintptr_t dispatch_source_get_data(dispatch_source_t s) { return s->type == ST_TIMER ? s->fired : s->type == ST_MACH_RECV ? 0 : s->data; }
 uintptr_t dispatch_source_get_handle(dispatch_source_t s) { return s->handle; }
 uintptr_t dispatch_source_get_mask(dispatch_source_t s) { return s->mask; }
 void dispatch_activate(dispatch_object_t o) {

@@ -1,6 +1,6 @@
-// isim Dispatch: DispatchData (immutable byte regions with value semantics) and DispatchIO channels (stream and
-// random-access I/O on a file descriptor, run on a private serial queue with POSIX read/write/pread/pwrite).
-// Self-authored Swift; the C dispatch_data_t / dispatch_io_t API is not provided.
+// isim Dispatch: DispatchData (immutable byte regions with value semantics) and DispatchIO channels, a Swift face for
+// the C dispatch_io_t (Foundation, DispatchIO.mrc.m: stream and random-access I/O on a file descriptor, run on the
+// channel's serial queue). DispatchData converts to and from dispatch_data_t without copying. Self-authored Swift.
 import Darwin
 
 // MARK: - DispatchData
@@ -53,7 +53,7 @@ public struct DispatchData: RandomAccessCollection, Sendable {
         let release: () -> Void
         switch deallocator {
         case .free: release = { Darwin.free(UnsafeMutableRawPointer(mutating: p)) }
-        case .unmap: release = { Darwin.free(UnsafeMutableRawPointer(mutating: p)) }   // isim: no mmap'd data
+        case .unmap: let n = bytes.count; release = { _ = vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: p)), vm_size_t(n)) }   // isim: munmap
         case .custom(let q, let block): release = { if let q { q.async(execute: block) } else { block() } }
         }
         self.init(parts: [(_DispatchRegion(noCopy: p, count: bytes.count, release: release), 0, bytes.count)])
@@ -180,6 +180,38 @@ public struct DispatchDataIterator: IteratorProtocol, Sequence {
     }
 }
 
+// MARK: - dispatch_data_t
+
+func _dispatchRelease(_ o: OpaquePointer) { dispatch_release(UnsafeMutableRawPointer(o)) }
+
+extension DispatchData {
+    /// A dispatch_data_t (+1) sharing this data's regions; each C region keeps its Swift region alive.
+    func _cData() -> dispatch_data_t {
+        var out = _isim_dispatch_data_empty()!
+        for (r, off, len) in parts {
+            let piece = dispatch_data_create(r.base + off, len, nil, { withExtendedLifetime(r) {} })!
+            let joined = dispatch_data_create_concat(out, piece)!
+            _dispatchRelease(piece); _dispatchRelease(out)
+            out = joined
+        }
+        return out
+    }
+    /// The regions of a dispatch_data_t, shared (each keeps its C region alive).
+    init(_cData d: dispatch_data_t?) {
+        var parts: [(_DispatchRegion, Int, Int)] = []
+        if let d {
+            _ = dispatch_data_apply(d) { region, _, buffer, size in
+                if let region, let buffer, size > 0 {
+                    dispatch_retain(UnsafeMutableRawPointer(region))
+                    parts.append((_DispatchRegion(noCopy: buffer, count: size, release: { _dispatchRelease(region) }), 0, size))
+                }
+                return true
+            }
+        }
+        self.init(parts: parts)
+    }
+}
+
 // MARK: - DispatchIO
 
 public class DispatchIO: DispatchObject, @unchecked Sendable {
@@ -198,157 +230,62 @@ public class DispatchIO: DispatchObject, @unchecked Sendable {
         public static let strictInterval = IntervalFlags(rawValue: 1)
     }
 
-    static let ECANCELED: Int32 = 89   // Darwin
+    var channel: dispatch_io_t { OpaquePointer(object) }
+    init(channel: dispatch_io_t) { super.init(UnsafeMutableRawPointer(channel)) }
+    deinit { dispatch_release(object) }
 
-    let type: StreamType
-    public private(set) var fileDescriptor: Int32
-    let ownsDescriptor: Bool
-    let channelQueue: DispatchQueue
-    let cleanupQueue: DispatchQueue
-    let cleanup: (Int32) -> Void
-    private let lock = UnsafeMutablePointer<pthread_mutex_t>.allocate(capacity: 1)
-    private var closed = false, stopped = false, pending = 0, cleanedUp = false
-    private var highWater = Int.max, lowWater = Int.max
-    private var streamOffset: off_t = 0
-    private var openError: Int32 = 0
-
-    init(type: StreamType, fd: Int32, owns: Bool, queue: DispatchQueue, cleanup: @escaping (Int32) -> Void) {
-        self.type = type; fileDescriptor = fd; ownsDescriptor = owns; cleanupQueue = queue; self.cleanup = cleanup
-        channelQueue = DispatchQueue(label: "dev.isim.dispatch-io")
-        pthread_mutex_init(lock, nil)
-        super.init(UnsafeMutableRawPointer(dispatch_semaphore_create(0)!))
-        if type == .random { streamOffset = 0 } else { streamOffset = lseek(fd, 0, 1 /* SEEK_CUR */) }
-        if streamOffset < 0 { streamOffset = 0 }
-    }
-    deinit { pthread_mutex_destroy(lock); lock.deallocate() }
+    /// The channel's descriptor; -1 once it is closed (or when a path could not be opened).
+    public var fileDescriptor: Int32 { dispatch_io_get_descriptor(channel) }
 
     public convenience init(type: StreamType, fileDescriptor: Int32, queue: DispatchQueue, cleanupHandler: @escaping (_ error: Int32) -> Void) {
-        self.init(type: type, fd: fileDescriptor, owns: false, queue: queue, cleanup: cleanupHandler)
+        self.init(channel: dispatch_io_create(type.rawValue, fileDescriptor, queue.queue, { cleanupHandler($0) })!)
     }
+    /// nil only for a relative path (like Apple); an open error goes to the handlers and the cleanup handler.
     public convenience init?(type: StreamType, path: UnsafePointer<Int8>, oflag: Int32, mode: mode_t, queue: DispatchQueue,
                              cleanupHandler: @escaping (_ error: Int32) -> Void) {
-        let fd = _isim_dispatch_open(path, oflag, mode)
-        guard fd >= 0 else { return nil }
-        self.init(type: type, fd: fd, owns: true, queue: queue, cleanup: cleanupHandler)
+        guard let c = dispatch_io_create_with_path(type.rawValue, path, oflag, mode, queue.queue, { cleanupHandler($0) }) else { return nil }
+        self.init(channel: c)
     }
     public convenience init(type: StreamType, io: DispatchIO, queue: DispatchQueue, cleanupHandler: @escaping (_ error: Int32) -> Void) {
-        self.init(type: type, fd: io.fileDescriptor, owns: false, queue: queue, cleanup: cleanupHandler)
+        self.init(channel: dispatch_io_create_with_io(type.rawValue, io.channel, queue.queue, { cleanupHandler($0) })!)
     }
 
-    private func begin() -> Bool {
-        pthread_mutex_lock(lock); defer { pthread_mutex_unlock(lock) }
-        if closed { return false }
-        pending += 1
-        return true
+    public func setLimit(highWater: Int) { dispatch_io_set_high_water(channel, Swift.max(1, highWater)) }
+    public func setLimit(lowWater: Int) { dispatch_io_set_low_water(channel, Swift.max(0, lowWater)) }
+    /// Partial results at least every `interval` (`.strictInterval`: even below the low-water mark).
+    public func setInterval(interval: DispatchTimeInterval, flags: IntervalFlags = []) {
+        dispatch_io_set_interval(channel, interval == .never ? 0 : UInt64(Swift.max(0, interval.nanos)), flags.rawValue)
     }
-    private func end() {
-        pthread_mutex_lock(lock)
-        pending -= 1
-        let finish = closed && pending == 0 && !cleanedUp
-        if finish { cleanedUp = true }
-        pthread_mutex_unlock(lock)
-        if finish { runCleanup() }
-    }
-    private var isStopped: Bool { pthread_mutex_lock(lock); defer { pthread_mutex_unlock(lock) }; return stopped }
-    private func runCleanup() {
-        if ownsDescriptor { _ = Darwin.close(fileDescriptor) }
-        let c = cleanup
-        cleanupQueue.async { c(0) }
-    }
-
-    public func setLimit(highWater: Int) { pthread_mutex_lock(lock); self.highWater = Swift.max(1, highWater); pthread_mutex_unlock(lock) }
-    public func setLimit(lowWater: Int) { pthread_mutex_lock(lock); self.lowWater = Swift.max(1, lowWater); pthread_mutex_unlock(lock) }
-    /// Accepted; isim delivers partial results by size (high/low water), not on a timer.
-    public func setInterval(interval: DispatchTimeInterval, flags: IntervalFlags = []) {}
 
     public func read(offset: off_t, length: Int, queue: DispatchQueue, ioHandler: @escaping (_ done: Bool, _ data: DispatchData?, _ error: Int32) -> Void) {
-        guard begin() else { queue.async { ioHandler(true, nil, DispatchIO.ECANCELED) }; return }
-        channelQueue.async { [self] in
-            pthread_mutex_lock(lock); let hw = highWater, lw = lowWater; pthread_mutex_unlock(lock)
-            var remaining = length
-            var pos: off_t = type == .random ? offset : streamOffset
-            var chunk = DispatchData.empty
-            let bufSize = 64 * 1024
-            let buf = UnsafeMutableRawPointer.allocate(byteCount: bufSize, alignment: 16)
-            defer { buf.deallocate() }
-            var err: Int32 = 0
-            while remaining > 0 {
-                if isStopped { err = DispatchIO.ECANCELED; break }
-                let want = Swift.min(bufSize, remaining)
-                let n = type == .random ? pread(fileDescriptor, buf, want, pos) : Darwin.read(fileDescriptor, buf, want)
-                if n < 0 { if __error().pointee == EINTR { continue }; err = __error().pointee; break }
-                if n == 0 { break }   // end of file
-                chunk.append(UnsafeRawBufferPointer(start: buf, count: n))
-                remaining -= n; pos += off_t(n)
-                // deliver partial results once the low-water mark (or the high-water mark) is reached
-                let threshold = lw == Int.max ? (hw == Int.max ? Int.max : hw) : lw
-                if chunk.count >= threshold && remaining > 0 {
-                    let part = chunk; chunk = .empty
-                    queue.async { ioHandler(false, part, 0) }
-                }
-            }
-            if type == .stream { streamOffset = pos }
-            let last = chunk
-            queue.async { ioHandler(true, last, err) }
-            end()
+        dispatch_io_read(channel, offset, length, queue.queue) { done, data, error in
+            ioHandler(done, data.map { DispatchData(_cData: $0) }, error)
         }
     }
 
     public func write(offset: off_t, data: DispatchData, queue: DispatchQueue, ioHandler: @escaping (_ done: Bool, _ data: DispatchData?, _ error: Int32) -> Void) {
-        guard begin() else { queue.async { ioHandler(true, data, DispatchIO.ECANCELED) }; return }
-        channelQueue.async { [self] in
-            var written = 0
-            var pos: off_t = type == .random ? offset : streamOffset
-            var err: Int32 = 0
-            outer: for region in data.regions {
-                var done = 0
-                while done < region.count {
-                    if isStopped { err = DispatchIO.ECANCELED; break outer }
-                    let n: Int = region.withUnsafeBytes { (p: UnsafePointer<UInt8>) -> Int in
-                        type == .random ? pwrite(fileDescriptor, p + done, region.count - done, pos)
-                                        : Darwin.write(fileDescriptor, p + done, region.count - done)
-                    }
-                    if n < 0 { if __error().pointee == EINTR { continue }; err = __error().pointee; break outer }
-                    done += n; written += n; pos += off_t(n)
-                }
-            }
-            if type == .stream { streamOffset = pos }
-            let rest: DispatchData? = written < data.count ? data.subdata(in: written..<data.count) : nil
-            queue.async { ioHandler(true, rest, err) }
-            end()
+        let c = data._cData()
+        dispatch_io_write(channel, offset, c, queue.queue) { done, rest, error in
+            ioHandler(done, rest.map { DispatchData(_cData: $0) }, error)
         }
+        _dispatchRelease(c)
     }
 
     /// Runs after the operations submitted before it (the channel's queue is serial).
-    public func barrier(execute: @escaping () -> Void) { channelQueue.async(execute: execute) }
+    public func barrier(execute: @escaping () -> Void) { dispatch_io_barrier(channel, execute) }
 
-    public func close(flags: CloseFlags = []) {
-        pthread_mutex_lock(lock)
-        if closed { pthread_mutex_unlock(lock); return }
-        closed = true
-        if flags.contains(.stop) { stopped = true }
-        let finish = pending == 0 && !cleanedUp
-        if finish { cleanedUp = true }
-        pthread_mutex_unlock(lock)
-        if finish { channelQueue.async { [self] in runCleanup() } }
-    }
+    public func close(flags: CloseFlags = []) { dispatch_io_close(channel, flags.rawValue) }
 
     /// Reads until end of file or `maxLength` bytes; one handler call.
     public class func read(fromFileDescriptor fd: Int32, maxLength: Int, runningHandlerOn queue: DispatchQueue,
                            handler: @escaping (_ data: DispatchData, _ error: Int32) -> Void) {
-        let io = DispatchIO(type: .stream, fd: fd, owns: false, queue: queue, cleanup: { _ in })
-        var all = DispatchData.empty
-        io.read(offset: 0, length: maxLength, queue: io.channelQueue) { done, data, error in
-            if let data { all.append(data) }
-            if done { let result = all; queue.async { handler(result, error) }; io.close() }
-        }
+        dispatch_read(fd, maxLength, queue.queue) { data, error in handler(DispatchData(_cData: data), error) }
     }
     /// Writes all of `data`; the handler gets the unwritten rest (nil when everything was written).
     public class func write(toFileDescriptor fd: Int32, data: DispatchData, runningHandlerOn queue: DispatchQueue,
                             handler: @escaping (_ data: DispatchData?, _ error: Int32) -> Void) {
-        let io = DispatchIO(type: .stream, fd: fd, owns: false, queue: queue, cleanup: { _ in })
-        io.write(offset: 0, data: data, queue: queue) { done, rest, error in
-            if done { handler(rest, error); io.close() }
-        }
+        let c = data._cData()
+        dispatch_write(fd, c, queue.queue) { rest, error in handler(rest.map { DispatchData(_cData: $0) }, error) }
+        _dispatchRelease(c)
     }
 }
