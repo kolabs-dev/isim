@@ -26,7 +26,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 209 | 8 | 0 | 4 | 221 | 96% |
+| **UIKit** | 210 | 7 | 0 | 4 | 221 | 97% |
 | &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
 | &nbsp;&nbsp;↳ Views & controls | 55 | 2 | 0 | 3 | 60 | 93% |
@@ -37,7 +37,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
-| &nbsp;&nbsp;↳ Drag & drop | 2 | 1 | 0 | 0 | 3 | 83% |
+| &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 13 | 1 | 0 | 1 | 15 | 90% |
 | **SwiftUI** | 187 | 43 | 2 | 7 | 239 | 87% |
 | &nbsp;&nbsp;↳ App & scenes | 6 | 5 | 0 | 0 | 11 | 77% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **739** | **196** | **26** | **36** | **997** | **84%** |
+| **All areas** | **740** | **195** | **26** | **36** | **997** | **84%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 99% (206) | 99% (210) | 98% (217) | 96% (221) |
+| UIKit | 99% (206) | 99% (210) | 98% (217) | 97% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (82) | 85% (82) | 85% (82) | 85% (82) |
@@ -386,7 +386,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 |---|---|---|---|
 | `UIDragInteraction`, `UIDropInteraction` | ✅ | ≤17 | within the app: long press lifts (script `longdrag X1 Y1 X2 Y2 HOLD SECS`), the snapshot preview follows the finger, drop targets get canHandle/enter/update/exit/performDrop/conclude, sessions (`items`, `location(in:)`, `localDragSession`, `loadObjects(ofClass:)` incl. `String`), drag delegate lift/move/end callbacks; tested (HelloDragDrop). No drags between apps; lift previews are snapshots (`UIView.snapshotView(afterScreenUpdates:)`) |
 | Table/collection view drag & drop | ✅ | ≤17 | `dragDelegate`/`dropDelegate`/`dragInteractionEnabled`/`hasActiveDrag`: local moves go to the data source's `moveRowAt`/`moveItemAt`, other drops to `performDropWith` (coordinator with destination and items); while dragging over a list its cells move aside to open the insertion gap (a local move closes the source's place); tested (HelloDragDrop tables, HelloScrollAndLists collection views) |
-| `NSItemProvider` | 🟡 | ≤17 | data, file (`registerFileRepresentation`, in place) and object representations (`registerObject`, `registerObject(ofClass:)`), `registerItem(forTypeIdentifier:loadHandler:)` / `loadItem`, `loadObject(ofClass:)` / `canLoadObject`, `loadDataRepresentation`, `loadFileRepresentation`, `loadInPlaceFileRepresentation`, `suggestedName`, `preferredPresentationSize`, `previewImageHandler` / `loadPreviewImage`, `init(contentsOf:)`, UTType overloads, Transferable (`loadTransferable(type:)`, `register(_:)`); tested (HelloScrollAndLists, PHPicker, drag and drop). It lives in isim's UniformTypeIdentifiers module (re-exported by UIKit), not Foundation: Swift code that imports only Foundation does not see it (moving it would break apps built with earlier isim releases) |
+| `NSItemProvider` | ✅ | ≤17 | Objective-C in Foundation, as on iOS (Apple's API and Swift names): data, file (in place) and object representations (`registerObject`, `registerObject(ofClass:)`), `registerItem(forTypeIdentifier:loadHandler:)` / `loadItem`, `loadObject(ofClass:)` / `canLoadObject` (also for `String` / `URL`), `loadDataRepresentation`, `loadFileRepresentation`, `loadInPlaceFileRepresentation`, `suggestedName`, `preferredPresentationSize`, `previewImageHandler` / `loadPreviewImage`, `init(contentsOf:)`, error codes; `NSString` / `NSURL` (Foundation) and `UIImage` (UIKit) adopt `NSItemProviderReading` / `Writing`; type conformance from UniformTypeIdentifiers (declared types too), else a built-in table of the common types; the UTType conveniences (`loadDataRepresentation(for:)`, `registeredContentTypes`, …) are in UniformTypeIdentifiers and Transferable (`loadTransferable`, `register(_:)`) in CoreTransferable, as on iOS. Completion handlers' errors are `NSError?` in Swift (isim-wide, #99). Tested (HelloScrollAndLists, PHPicker, drag and drop, share sheet) |
 
 ### Appearance & dark mode
 

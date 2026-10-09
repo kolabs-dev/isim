@@ -120,6 +120,19 @@ enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MOD
     NSArray<UIImage *> *_frames; NSTimeInterval _duration;      /* animated images */
     UIImageAsset *_asset;               /* appearance variants (asset catalog light/dark/high contrast, registered images) */
 }
+/* NSItemProviderReading / Writing: PNG, JPEG and HEIC data read; PNG written (like iOS, which also offers JPEG) */
++ (NSArray<NSString *> *)readableTypeIdentifiersForItemProvider { return @[@"public.png", @"public.jpeg", @"public.heic", @"public.image"]; }
++ (NSArray<NSString *> *)writableTypeIdentifiersForItemProvider { return @[@"public.png", @"public.jpeg"]; }
++ (instancetype)objectWithItemProviderData:(NSData *)data typeIdentifier:(NSString *)t error:(NSError **)e {
+    UIImage *img = [[self alloc] initWithData:data];
+    if (!img && e) *e = [NSError errorWithDomain:NSItemProviderErrorDomain code:NSItemProviderUnavailableCoercionError userInfo:nil];
+    return img;
+}
+- (NSProgress *)loadDataWithTypeIdentifier:(NSString *)t forItemProviderCompletionHandler:(void (^)(NSData *, NSError *))done {
+    NSData *d = [t isEqualToString:@"public.jpeg"] ? UIImageJPEGRepresentation(self, 0.9) : UIImagePNGRepresentation(self);
+    done(d, d ? nil : [NSError errorWithDomain:NSItemProviderErrorDomain code:NSItemProviderItemUnavailableError userInfo:nil]);
+    return nil;
+}
 /* NSSecureCoding: the image as PNG data and its scale (symbol and template details are not kept) */
 + (BOOL)supportsSecureCoding { return YES; }
 - (void)encodeWithCoder:(NSCoder *)c {
@@ -565,6 +578,7 @@ static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
     return c;
 }
 @end
+
 
 
 /* ---------------- UIImageAsset ---------------- */
