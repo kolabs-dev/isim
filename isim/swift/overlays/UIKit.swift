@@ -205,6 +205,13 @@ open class UITableViewDiffableDataSource<SectionIdentifierType: Hashable, ItemId
     open func applySnapshotUsingReloadData(_ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>, completion: (() -> Void)? = nil) {
         apply(snapshot, animatingDifferences: false, completion: completion)
     }
+    /// iOS 15: the async forms finish when the changes have been applied
+    open func apply(_ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>, animatingDifferences: Bool = true) async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in apply(snapshot, animatingDifferences: animatingDifferences) { c.resume() } }
+    }
+    open func applySnapshotUsingReloadData(_ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>) async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in applySnapshotUsingReloadData(snapshot) { c.resume() } }
+    }
     open func itemIdentifier(for indexPath: IndexPath) -> ItemIdentifierType? { _snapshot._item(at: indexPath) }
     open func indexPath(for itemIdentifier: ItemIdentifierType) -> IndexPath? { _snapshot._indexPath(of: itemIdentifier) }
     open func sectionIdentifier(for index: Int) -> SectionIdentifierType? { index < _snapshot._sections.count ? _snapshot._sections[index] : nil }
@@ -346,7 +353,27 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
     weak var _collectionView: UICollectionView?
     let _cellProvider: CellProvider
     var _snapshot = NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>()
+    var _sectionSnapshots: [SectionIdentifierType: NSDiffableDataSourceSectionSnapshot<ItemIdentifierType>] = [:]
     open var supplementaryViewProvider: SupplementaryViewProvider?
+
+    /// outline expansion: asked and told when the user expands or collapses a row (its outline disclosure)
+    public struct SectionSnapshotHandlers<ItemType: Hashable> {
+        public var shouldExpandItem: ((ItemType) -> Bool)?
+        public var willExpandItem: ((ItemType) -> Void)?
+        public var shouldCollapseItem: ((ItemType) -> Bool)?
+        public var willCollapseItem: ((ItemType) -> Void)?
+        public var snapshotForExpandingParent: ((ItemType, NSDiffableDataSourceSectionSnapshot<ItemType>) -> NSDiffableDataSourceSectionSnapshot<ItemType>)?
+        public init() {}
+    }
+    open var sectionSnapshotHandlers = SectionSnapshotHandlers<ItemIdentifierType>()
+    /// interactive reordering (the list's reorder accessory): allowed per item, then reported with the transaction
+    public struct ReorderingHandlers {
+        public var canReorderItem: ((ItemIdentifierType) -> Bool)?
+        public var willReorder: ((NSDiffableDataSourceTransaction<SectionIdentifierType, ItemIdentifierType>) -> Void)?
+        public var didReorder: ((NSDiffableDataSourceTransaction<SectionIdentifierType, ItemIdentifierType>) -> Void)?
+        public init() {}
+    }
+    open var reorderingHandlers = ReorderingHandlers()
 
     public init(collectionView: UICollectionView, cellProvider: @escaping CellProvider) {
         _collectionView = collectionView; _cellProvider = cellProvider
@@ -356,6 +383,12 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
     open func snapshot() -> NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType> { var s = _snapshot; s._reloaded = []; return s }
     open func apply(_ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>, animatingDifferences: Bool = true,
                     completion: (() -> Void)? = nil) {
+        // a full snapshot replaces the outlines whose sections now show other items
+        for (sec, ss) in _sectionSnapshots where snapshot._items[sec] != ss.visibleItems { _sectionSnapshots[sec] = nil }
+        _applyFull(snapshot, animatingDifferences: animatingDifferences, completion: completion)
+    }
+    func _applyFull(_ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>, animatingDifferences: Bool,
+                    completion: (() -> Void)?) {
         let old = _snapshot
         _snapshot = snapshot; _snapshot._reloaded = []
         guard let cv = _collectionView else { completion?(); return }
@@ -372,10 +405,90 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
     open func applySnapshotUsingReloadData(_ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>, completion: (() -> Void)? = nil) {
         apply(snapshot, animatingDifferences: false, completion: completion)
     }
+    /// iOS 15: the async forms finish when the changes have been applied
+    open func apply(_ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>, animatingDifferences: Bool = true) async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in apply(snapshot, animatingDifferences: animatingDifferences) { c.resume() } }
+    }
+    open func applySnapshotUsingReloadData(_ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>) async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in applySnapshotUsingReloadData(snapshot) { c.resume() } }
+    }
     open func itemIdentifier(for indexPath: IndexPath) -> ItemIdentifierType? { _snapshot._item(at: indexPath) }
     open func indexPath(for itemIdentifier: ItemIdentifierType) -> IndexPath? { _snapshot._indexPath(of: itemIdentifier) }
     open func sectionIdentifier(for index: Int) -> SectionIdentifierType? { index < _snapshot._sections.count ? _snapshot._sections[index] : nil }
     open func index(for sectionIdentifier: SectionIdentifierType) -> Int? { _snapshot._sections.firstIndex(of: sectionIdentifier) }
+
+    // MARK: section snapshots (outlines)
+    /// shows the section's visible items (the roots and the children of expanded parents)
+    open func apply(_ snapshot: NSDiffableDataSourceSectionSnapshot<ItemIdentifierType>, to section: SectionIdentifierType,
+                    animatingDifferences: Bool = true, completion: (() -> Void)? = nil) {
+        var full = _snapshot
+        if full._items[section] == nil { full.appendSections([section]) }
+        full._items[section] = snapshot.visibleItems
+        _applyKeeping(full, outline: (section, snapshot), animating: animatingDifferences, completion: completion)
+    }
+    open func apply(_ snapshot: NSDiffableDataSourceSectionSnapshot<ItemIdentifierType>, to section: SectionIdentifierType, animatingDifferences: Bool = true) async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in apply(snapshot, to: section, animatingDifferences: animatingDifferences) { c.resume() } }
+    }
+    open func snapshot(for section: SectionIdentifierType) -> NSDiffableDataSourceSectionSnapshot<ItemIdentifierType> {
+        if let s = _sectionSnapshots[section] { return s }
+        var s = NSDiffableDataSourceSectionSnapshot<ItemIdentifierType>(); s.append(_snapshot.itemIdentifiers(inSection: section)); return s
+    }
+    func _applyKeeping(_ full: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>, outline: (SectionIdentifierType, NSDiffableDataSourceSectionSnapshot<ItemIdentifierType>)?,
+                       animating: Bool, completion: (() -> Void)?) {
+        if let (sec, ss) = outline { _sectionSnapshots[sec] = ss }
+        _applyFull(full, animatingDifferences: animating, completion: completion)
+    }
+    /// where the row is in its section's outline: 0 a leaf (or no outline), 1 collapsed, 2 expanded
+    @objc(_isim_outlineStateAt:) func _isimOutlineState(at ip: IndexPath) -> Int {
+        guard let item = itemIdentifier(for: ip), let sec = sectionIdentifier(for: ip.section), let ss = _sectionSnapshots[sec],
+              !(ss._children[item] ?? []).isEmpty else { return 0 }
+        return ss.isExpanded(item) ? 2 : 1
+    }
+    /// the outline disclosure: expand or collapse the row (sectionSnapshotHandlers decide and hear about it)
+    @objc(_isim_toggleOutlineAt:) func _isimToggleOutline(at ip: IndexPath) {
+        guard let item = itemIdentifier(for: ip), let sec = sectionIdentifier(for: ip.section), var ss = _sectionSnapshots[sec] else { return }
+        let h = sectionSnapshotHandlers
+        if ss.isExpanded(item) {
+            if h.shouldCollapseItem?(item) == false { return }
+            h.willCollapseItem?(item)
+            ss.collapse([item])
+        } else {
+            if h.shouldExpandItem?(item) == false { return }
+            h.willExpandItem?(item)
+            if let make = h.snapshotForExpandingParent { ss.replace(childrenOf: item, using: make(item, ss.snapshot(of: item))) }
+            ss.expand([item])
+        }
+        apply(ss, to: sec, animatingDifferences: true)
+    }
+
+    // MARK: reordering (the reorder accessory)
+    open func collectionView(_ collectionView: UICollectionView, canMoveItemAt indexPath: IndexPath) -> Bool {
+        guard let can = reorderingHandlers.canReorderItem, let item = itemIdentifier(for: indexPath) else { return false }
+        return can(item)
+    }
+    open func collectionView(_ collectionView: UICollectionView, moveItemAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
+        guard let item = itemIdentifier(for: sourceIndexPath), destinationIndexPath.section < _snapshot._sections.count else { return }
+        let initial = _snapshot
+        var final = _snapshot
+        let fromSec = final._sections[sourceIndexPath.section], toSec = final._sections[destinationIndexPath.section]
+        final._items[fromSec]!.remove(at: sourceIndexPath.item)
+        final._items[toSec]!.insert(item, at: min(destinationIndexPath.item, final._items[toSec]!.count))
+        var sections: [NSDiffableDataSourceSectionTransaction<SectionIdentifierType, ItemIdentifierType>] = []
+        for sec in Set([fromSec, toSec]) {
+            var a = NSDiffableDataSourceSectionSnapshot<ItemIdentifierType>(), b = a
+            a.append(initial.itemIdentifiers(inSection: sec)); b.append(final.itemIdentifiers(inSection: sec))
+            sections.append(.init(sectionIdentifier: sec, initialSnapshot: a, finalSnapshot: b,
+                                  difference: final.itemIdentifiers(inSection: sec).difference(from: initial.itemIdentifiers(inSection: sec))))
+        }
+        let t = NSDiffableDataSourceTransaction(initialSnapshot: initial, finalSnapshot: final,
+                                                difference: final.itemIdentifiers.difference(from: initial.itemIdentifiers), sectionTransactions: sections)
+        reorderingHandlers.willReorder?(t)
+        _snapshot = final                                  // the list already shows the move
+        for sec in Set([fromSec, toSec]) where _sectionSnapshots[sec] != nil {
+            var ss = NSDiffableDataSourceSectionSnapshot<ItemIdentifierType>(); ss.append(final.itemIdentifiers(inSection: sec)); _sectionSnapshots[sec] = ss
+        }
+        reorderingHandlers.didReorder?(t)
+    }
 
     open func numberOfSections(in collectionView: UICollectionView) -> Int { _snapshot.numberOfSections }
     open func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
@@ -384,6 +497,9 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
     open func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         guard let item = _snapshot._item(at: indexPath), let cell = _cellProvider(collectionView, indexPath, item) else {
             fatalError("UICollectionViewDiffableDataSource cell provider returned nil for index path \(indexPath)")
+        }
+        if let list = cell as? UICollectionViewListCell, let sec = sectionIdentifier(for: indexPath.section), let ss = _sectionSnapshots[sec] {
+            list.indentationLevel = ss.level(of: item)         // outline rows indent by their level
         }
         return cell
     }

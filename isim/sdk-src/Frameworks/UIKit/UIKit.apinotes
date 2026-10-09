@@ -2,6 +2,22 @@
 # isim UIKit API notes (self-authored): Swift names Apple gives these UIKit declarations.
 Name: UIKit
 Classes:
+- Name: UICollectionViewCell
+  Properties:
+  - Name: contentConfiguration
+    SwiftName: __contentConfiguration
+- Name: UITableViewCell
+  Properties:
+  - Name: contentConfiguration
+    SwiftName: __contentConfiguration
+- Name: UITableViewHeaderFooterView
+  Properties:
+  - Name: contentConfiguration
+    SwiftName: __contentConfiguration
+- Name: UIListContentView
+  Properties:
+  - Name: configuration
+    SwiftName: __configuration
 - Name: UIView
   Methods:
   - Selector: 'drawViewHierarchyInRect:afterScreenUpdates:'
@@ -478,6 +494,9 @@ Classes:
   - Selector: 'scaledFontForFont:compatibleWithTraitCollection:'
     MethodKind: Instance
     SwiftName: 'scaledFont(for:compatibleWith:)'
+Protocols:
+- Name: UIContentConfiguration
+  SwiftName: __UIContentConfiguration
 Typedefs:
 - Name: UICollectionViewCompositionalLayoutSectionProvider
   SwiftName: UICollectionViewCompositionalLayoutSectionProvider

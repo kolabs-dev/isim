@@ -31,7 +31,11 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) CGSize maximumSize;
 @property (nonatomic) CGFloat cornerRadius;
 @end
+/* Swift: the UIContentConfiguration / UIContentView protocols of the UIKit overlay (custom configurations are Swift
+   values there); ObjC configurations make their content view */
 @protocol UIContentConfiguration <NSObject, NSCopying>
+@optional
+- (__kindof UIView *)makeContentView;
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIListContentConfiguration : NSObject <UIContentConfiguration>
@@ -54,6 +58,11 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL prefersSideBySideTextAndSecondaryText;
 @property (nonatomic) CGFloat textToSecondaryTextVerticalPadding;
 @property (nonatomic) NSDirectionalEdgeInsets directionalLayoutMargins;
+@end
+NS_SWIFT_UI_ACTOR
+@interface UIListContentView : UIView
+- (instancetype)initWithConfiguration:(UIListContentConfiguration *)configuration;
+@property (nonatomic, copy) UIListContentConfiguration *configuration;
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIBackgroundConfiguration : NSObject <NSCopying>
