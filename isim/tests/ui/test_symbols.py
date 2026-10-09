@@ -86,3 +86,24 @@ def test_configuration(symbols):
     small, large = int(extras["small"][3].split("x")[0]), int(extras["large"][3].split("x")[0])
     assert small < large and len(mask(px, *extras["small"][:3])) < len(mask(px, *extras["large"][:3])), \
         f"scale: small < large {small} {large}"
+
+
+def test_rendering_modes(symbols):
+    """plus.circle.fill: the glyph (primary layer) on its circle (secondary layer) in each rendering mode"""
+    log, px, _ = symbols
+    boxes = {m[1]: tuple(map(int, m.groups()[1:])) for m in re.finditer(r"mode (\S+) (\d+) (\d+) (\d+)", log)}
+    assert len(boxes) == 5, boxes
+
+    def count(tag, pred):
+        x, y, s = boxes[tag]
+        return sum(1 for j in range(s * K) for i in range(s * K) if pred(*px[x * K + i, y * K + j][:3]))
+    near = lambda c: (lambda r, g, b: abs(r - c[0]) + abs(g - c[1]) + abs(b - c[2]) < 60)
+    blue, light_blue, red, green, white = (0, 122, 255), (127, 188, 255), (255, 59, 48), (52, 199, 89), (255, 255, 255)
+    black = lambda r, g, b: r + g + b < 60
+    assert count("monochrome", black) > 1500 and count("monochrome", near(blue)) == 0, "monochrome: one colour, the glyph cut out"
+    assert count("hierarchical", near(blue)) > 150 and count("hierarchical", near(light_blue)) > 1000, \
+        "hierarchical: the glyph in the colour, the circle lighter"
+    assert count("palette", near(red)) > 150 and count("palette", near(blue)) > 1000, "palette: red glyph on a blue circle"
+    assert count("multicolor", near(green)) > 1000 and count("multicolor", black) == 0, "multicolor: plus.circle.fill is green"
+    assert count("multicolor-heart", near(red)) > 1000 and count("multicolor-heart", black) == 0, \
+        "multicolor: heart.fill is red whatever the tint"

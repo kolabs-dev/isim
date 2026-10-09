@@ -56,6 +56,19 @@ final class SymbolsViewController: UIViewController {
         place(UIImage(systemName: "star.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .regular, scale: .large)), 260, .black, "large")
         let bold = UIImage.SymbolConfiguration(font: .systemFont(ofSize: 30, weight: .bold))
         place(UIImage(systemName: "xmark", withConfiguration: bold), 320, .black, "fontbold")
+        // rendering modes: the glyph (primary layer) on its enclosure (secondary layer)
+        let y2 = y + 52                                                     // (fits the iPhone 15's 852 pt)
+        func mode(_ name: String, _ config: UIImage.SymbolConfiguration, _ x: CGFloat, _ tag: String) {
+            let iv = UIImageView(image: UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(pointSize: 32).applying(config)))
+            iv.frame = CGRect(x: x, y: y2, width: 44, height: 44); iv.contentMode = .center; iv.tintColor = .black
+            view.addSubview(iv)
+            report += "mode \(tag) \(Int(x)) \(Int(y2)) 44\n"
+        }
+        mode("plus.circle.fill", .preferringMonochrome(), 20, "monochrome")
+        mode("plus.circle.fill", UIImage.SymbolConfiguration(hierarchicalColor: .systemBlue), 72, "hierarchical")
+        mode("plus.circle.fill", UIImage.SymbolConfiguration(paletteColors: [.systemRed, .systemBlue]), 124, "palette")
+        mode("plus.circle.fill", .preferringMulticolor(), 176, "multicolor")
+        mode("heart.fill", .preferringMulticolor(), 228, "multicolor-heart")
         report += "symbols laid out: \(symbolNames.count)\n"
         FileHandle.standardError.write(Data(report.utf8))   // one write: the test reads it mixed with the host's log
     }

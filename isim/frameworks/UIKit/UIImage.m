@@ -59,7 +59,9 @@ static int appearance_score(NSString *key, UITraitCollection *t) {
     return s;
 }
 
-@implementation UIImageSymbolConfiguration { CGFloat _pointSize; UIImageSymbolWeight _weight; UIImageSymbolScale _scale; }
+/* rendering modes */
+enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MODE_PALETTE, SYM_MODE_MULTICOLOR };
+@implementation UIImageSymbolConfiguration { CGFloat _pointSize; UIImageSymbolWeight _weight; UIImageSymbolScale _scale; int _symMode; NSArray<UIColor *> *_symColors; }
 + (UIImageSymbolConfiguration *)unspecifiedConfiguration { return [self new]; }
 + (instancetype)configurationWithPointSize:(CGFloat)p weight:(UIImageSymbolWeight)w scale:(UIImageSymbolScale)s {
     UIImageSymbolConfiguration *c = [self new]; c->_pointSize = p; c->_weight = w; c->_scale = s; return c;
@@ -77,11 +79,25 @@ static int appearance_score(NSString *key, UITraitCollection *t) {
         : fw < 0.5 ? UIImageSymbolWeightBold : fw < 0.6 ? UIImageSymbolWeightHeavy : UIImageSymbolWeightBlack;
     return [self configurationWithPointSize:font.pointSize weight:w];
 }
-- (instancetype)_isim_clone { UIImageSymbolConfiguration *c = [UIImageSymbolConfiguration new]; c->_pointSize = _pointSize; c->_weight = _weight; c->_scale = _scale; return c; }
++ (instancetype)_isimMode:(int)mode colors:(NSArray<UIColor *> *)colors { UIImageSymbolConfiguration *c = [self new]; c->_symMode = mode; c->_symColors = [colors copy]; return c; }
++ (instancetype)configurationWithHierarchicalColor:(UIColor *)color { return [self _isimMode:SYM_MODE_HIERARCHICAL colors:color ? @[color] : @[]]; }
++ (instancetype)configurationWithPaletteColors:(NSArray<UIColor *> *)colors { return [self _isimMode:SYM_MODE_PALETTE colors:colors ?: @[]]; }
++ (instancetype)configurationPreferringMulticolor { return [self _isimMode:SYM_MODE_MULTICOLOR colors:nil]; }
++ (instancetype)configurationPreferringMonochrome { return [self _isimMode:SYM_MODE_MONOCHROME colors:nil]; }
+- (instancetype)_isim_clone {
+    UIImageSymbolConfiguration *c = [UIImageSymbolConfiguration new];
+    c->_pointSize = _pointSize; c->_weight = _weight; c->_scale = _scale; c->_symMode = _symMode; c->_symColors = _symColors;
+    return c;
+}
+/* the other configuration's values win where it has them (size, weight, scale, rendering mode and colours) */
 - (instancetype)configurationByApplyingConfiguration:(UIImageSymbolConfiguration *)o {
     if (!o) return self;
-    return [UIImageSymbolConfiguration configurationWithPointSize:o->_pointSize ?: _pointSize weight:o->_weight ?: _weight scale:o->_scale ?: _scale];
+    UIImageSymbolConfiguration *c = [UIImageSymbolConfiguration configurationWithPointSize:o->_pointSize ?: _pointSize weight:o->_weight ?: _weight scale:o->_scale ?: _scale];
+    c->_symMode = o->_symMode ?: _symMode; c->_symColors = o->_symMode ? o->_symColors : _symColors;
+    return c;
 }
+- (int)_isim_renderingMode { return _symMode; }
+- (NSArray<UIColor *> *)_isim_renderingColors { return _symColors; }
 - (CGFloat)_isim_pointSize { return _pointSize; }
 - (UIImageSymbolWeight)_isim_weight { return _weight; }
 - (UIImageSymbolScale)_isim_scale { return _scale; }
@@ -306,6 +322,40 @@ static CGFloat scale_from_name(NSString *path) {
 - (NSString *)description { return [NSString stringWithFormat:@"<UIImage:%p %@%@ {%g, %g}>", self, _symbol ? @"symbol(substitute) " : @"", _name ?: @"", _size.width, _size.height]; }
 
 - (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha { [self _isim_drawInRect:r tint:tint alpha:alpha nearest:NO]; }
+/* multicolor: isim's colours for some common symbols, modelled on iOS's multicolor variants (primary, secondary);
+   other symbols draw in monochrome, as iOS draws symbols without a multicolor variant (adapted) */
+static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
+    static NSDictionary *t;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        UIColor *w = UIColor.whiteColor;
+        t = @{ @"heart.fill": @[UIColor.systemRedColor], @"heart": @[UIColor.systemRedColor], @"star.fill": @[UIColor.systemYellowColor],
+               @"bolt.fill": @[UIColor.systemYellowColor], @"flame.fill": @[UIColor.systemOrangeColor], @"flame": @[UIColor.systemOrangeColor],
+               @"leaf.fill": @[UIColor.systemGreenColor], @"leaf": @[UIColor.systemGreenColor], @"drop.fill": @[UIColor.systemCyanColor],
+               @"checkmark.circle.fill": @[w, UIColor.systemGreenColor], @"plus.circle.fill": @[w, UIColor.systemGreenColor],
+               @"minus.circle.fill": @[w, UIColor.systemRedColor], @"xmark.circle.fill": @[w, UIColor.systemGrayColor],
+               @"exclamationmark.triangle.fill": @[UIColor.blackColor, UIColor.systemYellowColor],
+               @"exclamationmark.circle.fill": @[w, UIColor.systemRedColor], @"info.circle.fill": @[w, UIColor.systemBlueColor] };
+    });
+    return t;
+}
+/* the colours of a symbol's layers (primary, secondary) in its configuration's rendering mode; nil: monochrome */
+- (NSArray<UIColor *> *)_isim_layerColors:(UIColor *)tint {
+    int mode = [_config _isim_renderingMode];
+    NSArray<UIColor *> *colors = [_config _isim_renderingColors];
+    switch (mode) {
+    case SYM_MODE_HIERARCHICAL: {                       /* adapted: the secondary layer at half opacity */
+        UIColor *base = colors.firstObject ?: tint;
+        return @[base, [base colorWithAlphaComponent:CGColorGetAlpha(base.CGColor) * 0.5]];
+    }
+    case SYM_MODE_PALETTE:
+        if (!colors.count) return nil;
+        return colors.count > 1 ? @[colors[0], colors[1]] : @[colors[0], colors[0]];
+    case SYM_MODE_MULTICOLOR:
+        return multicolor_table()[_name ?: @""];
+    default: return nil;
+    }
+}
 - (void)_isim_drawInRect:(CGRect)r tint:(UIColor *)tint alpha:(CGFloat)alpha nearest:(BOOL)nearest {
     if (_asset) {                                       /* dynamic image: the variant for the traits it is drawn with */
         UIImage *v = [self _isim_resolvedForTraits:isim_ui_current_traits()];
@@ -342,7 +392,14 @@ static CGFloat scale_from_name(NSString *path) {
                              r.origin.x, r.origin.y, r.size.width, r.size.height, nearest, NULL, 0, alpha);
         return;
     }
-    if (_symbol) isim_image_draw_symbol(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, t, alpha, (int)_config._isim_weight);
+    if (_symbol) {
+        NSArray<UIColor *> *layers = [self _isim_layerColors:c ?: tint ?: UIColor.labelColor];
+        if (layers) {                                   /* hierarchical, palette, multicolor: a colour per layer */
+            double two[8];
+            isim_ui_rgba(layers[0], two); isim_ui_rgba(layers.count > 1 ? layers[1] : layers[0], two + 4);
+            isim_image_draw_symbol_layered(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, two, alpha, (int)_config._isim_weight);
+        } else isim_image_draw_symbol(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, t, alpha, (int)_config._isim_weight);
+    }
     else isim_image_draw(_data.handle, r.origin.x, r.origin.y, r.size.width, r.size.height, t, alpha);
 }
 /* nine slices: corners at their size, edges and center stretched or tiled (in points of the image) */
