@@ -143,6 +143,11 @@ public protocol NSItemProviderWriting: AnyObject {
 }
 
 @objc public enum NSItemProviderRepresentationVisibility: Int, Sendable { case all = 0, teamOnly = 1, group = 2, ownProcess = 3 }
+public struct NSItemProviderFileOptions: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let openInPlace = NSItemProviderFileOptions(rawValue: 1)
+}
 
 public let NSItemProviderErrorDomain = "NSItemProviderErrorDomain"
 public struct _NSItemProviderError: CustomNSError, LocalizedError {
@@ -157,7 +162,15 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
     var reps: [Rep] = []
     var fileURL: URL?
     var items: [(type: String, item: NSSecureCoding)] = []      // init(item:typeIdentifier:): loadItem hands the object back
+    var itemLoaders: [(type: String, load: LoadHandler)] = []     // registerItem(forTypeIdentifier:loadHandler:)
+    var files: [String: @Sendable (@escaping @Sendable (URL?, Bool, Error?) -> Void) -> Progress?] = [:]   // file representations
     open var suggestedName: String?
+    /// the size a receiver should show the item at (drag previews, Messages); zero if unknown
+    open var preferredPresentationSize: CGSize = .zero
+    public typealias CompletionHandler = @Sendable (NSSecureCoding?, Error?) -> Void
+    public typealias LoadHandler = @Sendable (@escaping CompletionHandler, AnyClass?, [AnyHashable: Any]?) -> Void
+    /// makes a preview image on request (loadPreviewImage)
+    open var previewImageHandler: LoadHandler?
 
     public override init() { super.init() }
     public convenience init(item: NSSecureCoding?, typeIdentifier: String?) {
@@ -202,10 +215,55 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
             registerDataRepresentation(forTypeIdentifier: t, visibility: visibility) { done in object.loadData(withTypeIdentifier: t) { d, e in done(d, e) } }
         }
     }
+    /// a representation backed by a file the handler provides (coordinated: the file may be read in place)
+    open func registerFileRepresentation(forTypeIdentifier typeIdentifier: String, fileOptions: NSItemProviderFileOptions = [],
+                                         visibility: NSItemProviderRepresentationVisibility,
+                                         loadHandler: @escaping @Sendable (@escaping @Sendable (URL?, Bool, Error?) -> Void) -> Progress?) {
+        files[typeIdentifier] = loadHandler
+        reps.append(Rep(type: typeIdentifier, load: { done in
+            _ = loadHandler { url, _, error in
+                guard let url else { done(nil, error); return }
+                done(FileManager.default.contents(atPath: url.path), nil)
+            }
+        }))
+    }
+    /// a representation produced lazily for the class the receiver asks for (the oldest registration API)
+    open func registerItem(forTypeIdentifier typeIdentifier: String, loadHandler: @escaping LoadHandler) {
+        itemLoaders.append((typeIdentifier, loadHandler))
+        reps.append(Rep(type: typeIdentifier, load: { done in
+            loadHandler({ item, error in
+                if let d = item as? NSData { done(Data(referencing: d), nil) }
+                else if let s = item as? NSString { done(Data((s as String).utf8), nil) }
+                else if let u = item as? NSURL, u.isFileURL, let path = u.path { done(FileManager.default.contents(atPath: path), nil) }
+                else if let u = item as? NSURL { done(Data((u.absoluteString ?? "").utf8), nil) }
+                else { done(nil, error ?? _NSItemProviderError(errorCode: -1000)) }
+            }, nil, nil)
+        }))
+    }
+    /// an object of a class, made on request
+    open func registerObject(ofClass aClass: NSItemProviderWriting.Type, visibility: NSItemProviderRepresentationVisibility,
+                             loadHandler: @escaping @Sendable (@escaping @Sendable (NSItemProviderWriting?, Error?) -> Void) -> Progress?) {
+        for t in aClass.writableTypeIdentifiersForItemProvider {
+            registerDataRepresentation(forTypeIdentifier: t, visibility: visibility) { done in
+                loadHandler { obj, error in
+                    guard let obj else { done(nil, error); return }
+                    _ = obj.loadData(withTypeIdentifier: t) { d, e in done(d, e) }
+                }
+            }
+        }
+    }
+    /// the preview image from previewImageHandler (nil handler: an error, like iOS)
+    open func loadPreviewImage(options: [AnyHashable: Any]? = nil, completionHandler: @escaping CompletionHandler) {
+        guard let h = previewImageHandler else { DispatchQueue.global().async { completionHandler(nil, _NSItemProviderError(errorCode: -1000)) }; return }
+        h(completionHandler, nil, options)
+    }
     /// isim: the object loadItem(forTypeIdentifier:) hands back for this type (used by UIKit's extension hosting)
     public func _isimSetItem(_ item: NSSecureCoding, forTypeIdentifier typeIdentifier: String) { items.append((typeIdentifier, item)) }
     open var registeredTypeIdentifiers: [String] { reps.map(\.type) }
     open func registeredTypeIdentifiers(fileOptions: Int) -> [String] { registeredTypeIdentifiers }
+    open func registeredTypeIdentifiers(fileOptions: NSItemProviderFileOptions) -> [String] {
+        fileOptions.contains(.openInPlace) ? reps.map(\.type).filter { files[$0] != nil || fileURL != nil } : registeredTypeIdentifiers
+    }
 
     func conforms(_ have: String, _ want: String) -> Bool {
         if have == want { return true }
@@ -215,6 +273,9 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
     func rep(_ want: String) -> Rep? { reps.first { $0.type == want } ?? reps.first { conforms($0.type, want) } }
     open func hasItemConformingToTypeIdentifier(_ typeIdentifier: String) -> Bool { rep(typeIdentifier) != nil }
     open func hasRepresentationConforming(toTypeIdentifier typeIdentifier: String, fileOptions: Int) -> Bool { hasItemConformingToTypeIdentifier(typeIdentifier) }
+    open func hasRepresentationConforming(toTypeIdentifier typeIdentifier: String, fileOptions: NSItemProviderFileOptions) -> Bool {
+        registeredTypeIdentifiers(fileOptions: fileOptions).contains { conforms($0, typeIdentifier) }
+    }
 
     @discardableResult
     open func loadDataRepresentation(forTypeIdentifier typeIdentifier: String, completionHandler: @escaping @Sendable (Data?, Error?) -> Void) -> Progress {
@@ -240,6 +301,10 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
     @discardableResult
     open func loadInPlaceFileRepresentation(forTypeIdentifier typeIdentifier: String, completionHandler: @escaping @Sendable (URL?, Bool, Error?) -> Void) -> Progress {
         if let fileURL { DispatchQueue.global().async { completionHandler(fileURL, true, nil) }; return Progress(totalUnitCount: 1) }
+        if let f = files[typeIdentifier] {                     // a registered file: handed over as is
+            DispatchQueue.global().async { _ = f { url, coordinated, error in completionHandler(url, coordinated, error) } }
+            return Progress(totalUnitCount: 1)
+        }
         return loadFileRepresentation(forTypeIdentifier: typeIdentifier) { u, e in completionHandler(u, false, e) }
     }
     open func canLoadObject(ofClass aClass: NSItemProviderReading.Type) -> Bool {
@@ -265,6 +330,11 @@ open class NSItemProvider: NSObject, @unchecked Sendable {
             DispatchQueue.global().async { completionHandler?(obj, nil) }
             return Progress(totalUnitCount: 1)
         }
+        if let l = itemLoaders.first(where: { $0.type == typeIdentifier }) ?? itemLoaders.first(where: { conforms($0.type, typeIdentifier) }) {
+            let load = l.load
+            DispatchQueue.global().async { load({ item, error in completionHandler?(item, error) }, nil, options) }
+            return Progress(totalUnitCount: 1)
+        }
         return loadDataRepresentation(forTypeIdentifier: typeIdentifier) { d, e in completionHandler?(d.map { $0 as NSData }, e) }
     }
 }
@@ -283,6 +353,21 @@ extension NSItemProvider {
     public func registerDataRepresentation(for contentType: UTType, visibility: NSItemProviderRepresentationVisibility = .all,
                                            loadHandler: @escaping @Sendable (@escaping (Data?, Error?) -> Void) -> Progress?) {
         registerDataRepresentation(forTypeIdentifier: contentType.identifier, visibility: visibility, loadHandler: loadHandler)
+    }
+    public func registerFileRepresentation(for contentType: UTType, visibility: NSItemProviderRepresentationVisibility = .all, openInPlace: Bool = false,
+                                           loadHandler: @escaping @Sendable (@escaping @Sendable (URL?, Bool, Error?) -> Void) -> Progress?) {
+        registerFileRepresentation(forTypeIdentifier: contentType.identifier, fileOptions: openInPlace ? .openInPlace : [], visibility: visibility, loadHandler: loadHandler)
+    }
+    public func registeredContentTypes(conformingTo contentType: UTType) -> [UTType] { registeredContentTypes.filter { $0.conforms(to: contentType) } }
+    public convenience init(contentsOf fileURL: URL?, contentType: UTType?, openInPlace: Bool = false, coordinated: Bool = false, visibility: NSItemProviderRepresentationVisibility = .all) {
+        self.init()
+        guard let fileURL else { return }
+        self.fileURL = fileURL
+        suggestedName = fileURL.deletingPathExtension().lastPathComponent
+        let type = (contentType ?? UTType(filenameExtension: fileURL.pathExtension) ?? .data).identifier
+        registerFileRepresentation(forTypeIdentifier: type, fileOptions: openInPlace ? .openInPlace : [], visibility: visibility) { done in
+            done(fileURL, coordinated, nil); return nil
+        }
     }
 }
 

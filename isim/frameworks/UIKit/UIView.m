@@ -287,7 +287,17 @@ static void cg_rgba(CGColorRef c, double out[4]) {
 }
 
 /* ---- geometry ---- */
-- (CGRect)frame { return _frame; }
+- (CGRect)_isim_layoutFrame { return _frame; }
+/* like UIKit: with a non-identity transform the frame is the transformed bounds' bounding box around the center
+   (isim keeps the untransformed rectangle in _frame; layout and drawing use it) */
+- (CGRect)frame {
+    if (CGAffineTransformIsIdentity(_transform)) return _frame;
+    CGPoint c = CGPointMake(CGRectGetMidX(_frame), CGRectGetMidY(_frame));
+    CGRect b = CGRectMake(-_frame.size.width / 2, -_frame.size.height / 2, _frame.size.width, _frame.size.height);
+    CGAffineTransform t = _transform; t.tx = t.ty = 0;
+    CGRect r = CGRectApplyAffineTransform(b, t);
+    return CGRectOffset(r, c.x + _transform.tx, c.y + _transform.ty);
+}
 - (void)setFrame:(CGRect)f {
     if (isnan(f.origin.x) || isnan(f.origin.y) || isnan(f.size.width) || isnan(f.size.height)) return;
     CGSize old = _frame.size;

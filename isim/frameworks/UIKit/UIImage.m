@@ -120,6 +120,18 @@ enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MOD
     NSArray<UIImage *> *_frames; NSTimeInterval _duration;      /* animated images */
     UIImageAsset *_asset;               /* appearance variants (asset catalog light/dark/high contrast, registered images) */
 }
+/* NSSecureCoding: the image as PNG data and its scale (symbol and template details are not kept) */
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c {
+    NSData *png = UIImagePNGRepresentation(self);
+    if (png) [c encodeObject:png forKey:@"UIImagePNG"];
+    [c encodeDouble:self.scale forKey:@"UIImageScale"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSData *png = [c decodeObjectOfClass:[NSData class] forKey:@"UIImagePNG"];
+    double scale = [c decodeDoubleForKey:@"UIImageScale"];
+    return png ? [UIImage imageWithData:png scale:scale > 0 ? scale : 1] : nil;
+}
 - (id)copyWithZone:(NSZone *)z { return self; }          /* images are immutable */
 
 - (UIImage *)_copy {
@@ -553,6 +565,7 @@ static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
     return c;
 }
 @end
+
 
 /* ---------------- UIImageAsset ---------------- */
 @implementation UIImageAsset { NSMutableArray<NSArray *> *_registered; NSString *_name; NSBundle *_bundle; NSArray *_variants; NSMutableDictionary *_cache; }

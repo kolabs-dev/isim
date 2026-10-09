@@ -913,7 +913,7 @@ static void handle_key(const struct isim_event *ev) {
 }
 
 static void dump_view_to(FILE *out, UIView *v, int depth) {
-    CGRect f = v.frame;
+    CGRect f = [v _isim_layoutFrame];                         /* (untransformed: tests compare layouts) */
     NSString *ident = v.accessibilityIdentifier, *label = [v respondsToSelector:@selector(_isim_dumpText)] ? [(id)v _isim_dumpText]
         : [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
         : [v isKindOfClass:[UITextField class]] ? [NSString stringWithFormat:@"\"%@\"%@", ((UITextField *)v).text, v.isFirstResponder ? @" (editing)" : @""]

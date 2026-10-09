@@ -119,7 +119,25 @@ NS_SWIFT_UI_ACTOR
    layoutAttributesForElementsInRect: (UICollectionElementCategoryDecorationView attributes) */
 - (void)registerClass:(nullable Class)viewClass forDecorationViewOfKind:(NSString *)elementKind NS_SWIFT_NAME(register(_:forDecorationViewOfKind:));
 - (nullable UICollectionViewLayoutAttributes *)layoutAttributesForDecorationViewOfKind:(NSString *)elementKind atIndexPath:(NSIndexPath *)indexPath;
+/* layout transitions */
+- (void)prepareForTransitionToLayout:(UICollectionViewLayout *)newLayout;
+- (void)prepareForTransitionFromLayout:(UICollectionViewLayout *)oldLayout;
+- (void)finalizeLayoutTransition;
 @end
+
+/* the layout between two layouts during an (interactive) transition: attributes interpolated by transitionProgress */
+NS_SWIFT_UI_ACTOR
+@interface UICollectionViewTransitionLayout : UICollectionViewLayout
+- (instancetype)initWithCurrentLayout:(UICollectionViewLayout *)currentLayout nextLayout:(UICollectionViewLayout *)newLayout NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
+@property (nonatomic) CGFloat transitionProgress;
+@property (nonatomic, readonly) UICollectionViewLayout *currentLayout;
+@property (nonatomic, readonly) UICollectionViewLayout *nextLayout;
+- (void)updateValue:(CGFloat)value forAnimatedKey:(NSString *)key;
+- (CGFloat)valueForAnimatedKey:(NSString *)key;
+@end
+typedef void (^UICollectionViewLayoutInteractiveTransitionCompletion)(BOOL completed, BOOL finished);
 
 @protocol UICollectionViewDelegateFlowLayout;
 NS_SWIFT_UI_ACTOR
@@ -322,6 +340,8 @@ NS_SWIFT_UI_ACTOR
 @protocol UIContextMenuInteractionAnimating, UIContextMenuInteractionCommitAnimating;
 @protocol UICollectionViewDelegate <UIScrollViewDelegate>
 @optional
+- (UICollectionViewTransitionLayout *)collectionView:(UICollectionView *)collectionView transitionLayoutForOldLayout:(UICollectionViewLayout *)fromLayout
+                                           newLayout:(UICollectionViewLayout *)toLayout;
 - (BOOL)collectionView:(UICollectionView *)collectionView shouldHighlightItemAtIndexPath:(NSIndexPath *)indexPath;
 - (void)collectionView:(UICollectionView *)collectionView didHighlightItemAtIndexPath:(NSIndexPath *)indexPath;
 - (void)collectionView:(UICollectionView *)collectionView didUnhighlightItemAtIndexPath:(NSIndexPath *)indexPath;
@@ -362,6 +382,12 @@ NS_SWIFT_UI_ACTOR
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 @property (nonatomic, strong) UICollectionViewLayout *collectionViewLayout;
 - (void)setCollectionViewLayout:(UICollectionViewLayout *)layout animated:(BOOL)animated;
+- (void)setCollectionViewLayout:(UICollectionViewLayout *)layout animated:(BOOL)animated completion:(void (^ _Nullable)(BOOL finished))completion;
+/* an interactive layout transition: update the returned layout's transitionProgress, then finish or cancel */
+- (UICollectionViewTransitionLayout *)startInteractiveTransitionToCollectionViewLayout:(UICollectionViewLayout *)layout
+                                                                            completion:(nullable UICollectionViewLayoutInteractiveTransitionCompletion)completion;
+- (void)finishInteractiveTransition;
+- (void)cancelInteractiveTransition;
 @property (nullable, nonatomic, weak) id<UICollectionViewDelegate> delegate;
 @property (nullable, nonatomic, weak) id<UICollectionViewDataSource> dataSource;
 @property (nullable, nonatomic, weak) id<UICollectionViewDataSourcePrefetching> prefetchDataSource;

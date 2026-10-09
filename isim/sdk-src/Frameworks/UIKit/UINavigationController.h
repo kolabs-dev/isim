@@ -4,7 +4,7 @@
 #import <UIKit/UIViewController.h>
 #import <UIKit/UIControl.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIImage, UIColor, UIMenu, UIGestureRecognizer, UIFont, UIBlurEffect, UISearchController;
+@class UIImage, UIColor, UIMenu, UIGestureRecognizer, UIFont, UIBlurEffect, UISearchController, UINavigationBarAppearance;
 
 typedef NS_ENUM(NSInteger, UIBarButtonItemStyle) { UIBarButtonItemStylePlain, UIBarButtonItemStyleBordered, UIBarButtonItemStyleDone, UIBarButtonItemStyleProminent = 3 };
 typedef NS_ENUM(NSInteger, UIBarButtonSystemItem) {
@@ -91,15 +91,39 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UINavigationItemLargeTitleDisplayMode largeTitleDisplayMode;
 @property (nullable, nonatomic, strong) UISearchController *searchController;
 @property (nonatomic) BOOL hidesSearchBarWhenScrolling;
-@property (nullable, nonatomic, copy) id standardAppearance;
-@property (nullable, nonatomic, copy) id scrollEdgeAppearance;
-@property (nullable, nonatomic, copy) id compactAppearance;
+/* per-item appearances override the bar's while the item is on top */
+@property (nullable, nonatomic, copy) UINavigationBarAppearance *standardAppearance;
+@property (nullable, nonatomic, copy) UINavigationBarAppearance *scrollEdgeAppearance;
+@property (nullable, nonatomic, copy) UINavigationBarAppearance *compactAppearance;
+@property (nullable, nonatomic, copy) UINavigationBarAppearance *compactScrollEdgeAppearance;
 @end
 
 /* appearances (iOS 13+) */
 NS_SWIFT_UI_ACTOR
+@interface UIBarButtonItemStateAppearance : NSObject
+@property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *titleTextAttributes;
+@property (nonatomic) UIOffset titlePositionAdjustment;
+@property (nullable, nonatomic, strong) UIImage *backgroundImage;
+@property (nonatomic) UIOffset backgroundImagePositionAdjustment;
+@end
+NS_SWIFT_UI_ACTOR
+@interface UIBarButtonItemAppearance : NSObject <NSCopying, NSSecureCoding>
+- (instancetype)init;
+- (instancetype)initWithStyle:(UIBarButtonItemStyle)style;
+- (void)configureWithDefaultForStyle:(UIBarButtonItemStyle)style;
+@property (nonatomic, readonly, strong) UIBarButtonItemStateAppearance *normal;
+@property (nonatomic, readonly, strong) UIBarButtonItemStateAppearance *highlighted;
+@property (nonatomic, readonly, strong) UIBarButtonItemStateAppearance *disabled;
+@property (nonatomic, readonly, strong) UIBarButtonItemStateAppearance *focused;
+@end
+NS_SWIFT_UI_ACTOR
 @interface UIBarAppearance : NSObject <NSCopying>
 - (instancetype)init;
+- (instancetype)initWithIdiom:(UIUserInterfaceIdiom)idiom;
+- (instancetype)initWithBarAppearance:(UIBarAppearance *)barAppearance;
+@property (nonatomic, readonly) UIUserInterfaceIdiom idiom;
+@property (nonatomic) UIViewContentMode backgroundImageContentMode;
+@property (nullable, nonatomic, strong) UIImage *shadowImage;
 - (void)configureWithDefaultBackground;
 - (void)configureWithOpaqueBackground;
 - (void)configureWithTransparentBackground;
@@ -110,8 +134,15 @@ NS_SWIFT_UI_ACTOR
 @end
 NS_SWIFT_UI_ACTOR
 @interface UINavigationBarAppearance : UIBarAppearance
-@property (nonatomic, copy) NSDictionary<NSString *, id> *titleTextAttributes;
-@property (nonatomic, copy) NSDictionary<NSString *, id> *largeTitleTextAttributes;
+@property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *titleTextAttributes;
+@property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *largeTitleTextAttributes;
+@property (nonatomic) UIOffset titlePositionAdjustment;
+@property (nonatomic, copy) UIBarButtonItemAppearance *buttonAppearance;
+@property (nonatomic, copy) UIBarButtonItemAppearance *doneButtonAppearance;
+@property (nonatomic, copy) UIBarButtonItemAppearance *backButtonAppearance;
+@property (nonatomic, readonly, strong) UIImage *backIndicatorImage;
+@property (nonatomic, readonly, strong) UIImage *backIndicatorTransitionMaskImage;
+- (void)setBackIndicatorImage:(nullable UIImage *)backIndicatorImage transitionMaskImage:(nullable UIImage *)backIndicatorTransitionMaskImage;
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIToolbarAppearance : UIBarAppearance
@@ -120,8 +151,20 @@ NS_SWIFT_UI_ACTOR
 @interface UITabBarAppearance : UIBarAppearance
 @end
 
+@class UINavigationBar;
+/* a standalone bar's delegate (a navigation controller's bar answers these itself) */
+NS_SWIFT_UI_ACTOR
+@protocol UINavigationBarDelegate <NSObject>
+@optional
+- (BOOL)navigationBar:(UINavigationBar *)navigationBar shouldPushItem:(UINavigationItem *)item;
+- (void)navigationBar:(UINavigationBar *)navigationBar didPushItem:(UINavigationItem *)item;
+- (BOOL)navigationBar:(UINavigationBar *)navigationBar shouldPopItem:(UINavigationItem *)item;
+- (void)navigationBar:(UINavigationBar *)navigationBar didPopItem:(UINavigationItem *)item;
+@end
+
 NS_SWIFT_UI_ACTOR
 @interface UINavigationBar : UIView
+@property (nullable, nonatomic, weak) id<UINavigationBarDelegate> delegate;
 @property (nonatomic) BOOL prefersLargeTitles;
 @property (nonatomic, getter=isTranslucent) BOOL translucent;
 @property (nullable, nonatomic, strong) UIColor *barTintColor;
@@ -130,13 +173,14 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, readonly, strong) UINavigationItem *backItem;
 @property (nullable, nonatomic, copy) NSArray<UINavigationItem *> *items;
 - (void)setItems:(nullable NSArray<UINavigationItem *> *)items animated:(BOOL)animated;
-- (void)pushNavigationItem:(UINavigationItem *)item animated:(BOOL)animated;
-- (nullable UINavigationItem *)popNavigationItemAnimated:(BOOL)animated;
+- (void)pushNavigationItem:(UINavigationItem *)item animated:(BOOL)animated NS_SWIFT_NAME(pushItem(_:animated:));
+- (nullable UINavigationItem *)popNavigationItemAnimated:(BOOL)animated NS_SWIFT_NAME(popItem(animated:));
 @property (nonatomic, copy) UINavigationBarAppearance *standardAppearance;
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *scrollEdgeAppearance;
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *compactAppearance;
-@property (nullable, nonatomic, copy) NSDictionary<NSString *, id> *titleTextAttributes;
-@property (nullable, nonatomic, copy) NSDictionary<NSString *, id> *largeTitleTextAttributes;
+@property (nullable, nonatomic, copy) UINavigationBarAppearance *compactScrollEdgeAppearance;
+@property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *titleTextAttributes;
+@property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *largeTitleTextAttributes;
 @end
 
 NS_SWIFT_UI_ACTOR
