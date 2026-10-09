@@ -12,13 +12,23 @@ Code lives in `isim/`; see the [README](README.md) for what isim is and how it i
   (isim's translation of Apple's behaviour) or a *stub*. Results are *verified* (a test checks it) or *proposed*.
 - **No secrets in the repo.** Signing keys, certificates, provisioning profiles and API credentials stay local: never in
   source, logs, commits or issues.
-- **ABI stability.** Apps built with older isim releases must keep running.
-  - Never remove an exported symbol.
+- **ABI stability.** Apps built with older isim releases should keep running.
+  - By default, never remove an exported symbol.
   - `python3 isim/tools/abi-check.py` compares the SDK with every recorded release (`isim/abi/`).
   - Swift overlays are built with library evolution (`EVOLUTION` in `isim/buildlib/swift.py`), so their types can
     change layout without breaking apps.
-  - A deliberate break needs an entry, with the reason, in `isim/abi/epochs.txt` (a whole library) or
-    `isim/abi/allowlist.txt` (single symbols).
+  - **Breaking on purpose is allowed** when keeping an old ABI would cost more than a rebuild: a large workaround,
+    a lot of code kept only for old binaries, or an API that has to stay wrong (a placeholder type, a signature that
+    differs from Apple's) to stay compatible. Prefer clean, honest code and ask users to rebuild over carrying shims.
+    Cheap compatibility (a re-exported getter under the old name, one alias) is still worth keeping.
+  - A deliberate break needs:
+    - an entry, with the reason, in `isim/abi/epochs.txt` (a whole library) or `isim/abi/allowlist.txt` (single
+      symbols); the comment says what must be rebuilt, from which version;
+    - a minor (or major) release, never a patch release;
+    - a line in the PR title or description saying which apps must be rebuilt (the release notes are generated from
+      the PRs), and a note in the README's compatibility row when the break hits most apps (e.g. every Swift app).
+  - Batch breaks: when one release already breaks a library, fold other pending breaks of it into the same release
+    so users rebuild once.
 - **Never touch the user's device data.** Tests and experiments use a scratch `ISIM_DATA`, never
   `~/.local/share/isim`.
 

@@ -91,12 +91,18 @@ final class MediaViewController: UIViewController {
             p.isMeteringEnabled = true
             p.numberOfLoops = -1
             let ok = p.play()
-            let t0 = Date()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // the rate is measured against a silent rate-1 player of the same file: both positions advance with the audio
+            // mixer's clock, so their ratio is the rate however late the main thread or the mixer runs (the wall clock is not)
+            let ref = try AVAudioPlayer(contentsOf: res.appendingPathComponent("tone.wav"))
+            ref.volume = 0
+            ref.numberOfLoops = -1
+            ref.play()
+            RateProbe(p, ref) { measured in
+                ref.stop()
                 p.updateMeters()
-                log("player played=\(ok) t=\(f2(Date().timeIntervalSince(t0))) currentTime=\(f2(p.currentTime)) rate=\(p.rate) pan=\(p.pan)")
+                log("player played=\(ok) rate=\(p.rate) pan=\(p.pan) position rate=\(measured.map(f2) ?? "none")")
                 log("meter avg \(String(format: "%.1f", p.averagePower(forChannel: 0))) peak \(String(format: "%.1f", p.peakPower(forChannel: 0)))")
-            }
+            }.schedule()
         } catch { log("player error \(error)") }
     }
 
@@ -170,7 +176,7 @@ final class MediaViewController: UIViewController {
                 let sem2 = DispatchSemaphore(value: 0)
                 bad.exportAsynchronously { sem2.signal() }
                 sem2.wait()
-                log("export without outputURL status=\(bad.status == .failed ? "failed" : "\(bad.status.rawValue)")")
+                log("export without outputURL status=\(bad.status == .failed ? "failed" : "\(bad.status.rawValue)") error=\(bad.error.map { "\($0)" } ?? "nil")")
             }
 
             // reader: BGRA frames of the edit, 16-bit PCM of the tone
@@ -364,9 +370,13 @@ final class MediaViewController: UIViewController {
             }
             let t0 = Date()
             _ = AudioQueueStart(queue, nil)
-            Thread.sleep(forTimeInterval: 0.65)
+            // until 0.5 s have played (by the queue's own clock, which a loaded machine runs late): the test compares
+            // the callbacks with the time played, and the time played with the time taken
             var ts = AudioTimeStamp()
-            _ = AudioQueueGetCurrentTime(queue, nil, &ts, nil)
+            repeat {
+                Thread.sleep(forTimeInterval: 0.05)
+                _ = AudioQueueGetCurrentTime(queue, nil, &ts, nil)
+            } while ts.mSampleTime < 0.5 * 48000 && Date().timeIntervalSince(t0) < 10
             var running: UInt32 = 0, rs = UInt32(4)
             _ = AudioQueueGetProperty(queue, kAudioQueueProperty_IsRunning, &running, &rs)
             _ = AudioQueueStop(queue, true)
@@ -390,10 +400,39 @@ final class MediaViewController: UIViewController {
         if AudioQueueNewInput(&ifmt, got, Unmanaged.passUnretained(ist).toOpaque(), nil, nil, 0, &iq) == noErr, let iq {
             for _ in 0..<3 { var b: AudioQueueBufferRef?; _ = AudioQueueAllocateBuffer(iq, 1600 * 2, &b); if let b { _ = AudioQueueEnqueueBuffer(iq, b, 0, nil) } }
             _ = AudioQueueStart(iq, nil)
-            Thread.sleep(forTimeInterval: 0.6)
+            let t0 = Date()                              // until 5 buffers (0.5 s) came in, not a fixed time
+            repeat { Thread.sleep(forTimeInterval: 0.05) } while ist.frames < 8000 && Date().timeIntervalSince(t0) < 10
             _ = AudioQueueStop(iq, true)
             log("queue input frames=\(ist.frames) peak=\(f2(Double(ist.peak) / 32768))")
             _ = AudioQueueDispose(iq, true)
         }
+    }
+}
+
+/// How fast a player's position runs relative to a rate-1 player's, over 0.1-0.45 s of the reference's playback. Both
+/// positions wrap at the file's duration; over less than half of it the two differences are unambiguous at rate 2.
+final class RateProbe {
+    let p: AVAudioPlayer, ref: AVAudioPlayer, done: (Double?) -> Void
+    var start: (ref: Double, p: Double)?
+    var left = 250                                   // samples (every 20 ms) before giving up
+    init(_ p: AVAudioPlayer, _ ref: AVAudioPlayer, _ done: @escaping (Double?) -> Void) { self.p = p; self.ref = ref; self.done = done }
+    func schedule() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { self.sample() } }
+    /// both positions, read with no mixing step in between
+    func positions() -> (ref: Double, p: Double)? {
+        for _ in 0..<20 {
+            let r = ref.currentTime, q = p.currentTime
+            if ref.currentTime == r { return (r, q) }
+        }
+        return nil
+    }
+    func wrapped(_ x: Double) -> Double { let d = ref.duration; return x - (x / d).rounded(.down) * d }
+    func sample() {
+        left -= 1
+        guard left > 0 else { done(nil); return }
+        guard let a = start, let b = positions() else { start = positions(); schedule(); return }
+        let dr = wrapped(b.ref - a.ref)
+        if dr < 0.1 { schedule(); return }
+        if dr > 0.45 { start = b; schedule(); return }   // sampled too late to tell the wraps apart: again from here
+        done(wrapped(b.p - a.p) / dr)
     }
 }

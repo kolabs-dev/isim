@@ -15,7 +15,7 @@ func run<P: Publisher>(_ p: P) -> ([P.Output], String) {
 }
 
 /// Like `run` for chains that complete on other queues.
-func runAsync<P: Publisher>(_ p: P, timeout: Double = 3) -> ([P.Output], String) {
+func runAsync<P: Publisher>(_ p: P, timeout: Double = 10) -> ([P.Output], String) {
     let lock = NSLock()
     var values: [P.Output] = []
     var end = "none"
@@ -222,9 +222,9 @@ func combineTests() {
     let tl = NSLock()
     let tc = thr.throttle(for: .milliseconds(200), scheduler: q, latest: true).sink { v in tl.lock(); throttled.append(v); tl.unlock() }
     thr.send(1); thr.send(2); thr.send(3)
-    pause(0.35)
+    _ = waitFor { tl.lock(); defer { tl.unlock() }; return throttled.count >= 2 }   // 1 at once, 3 at the window's end
     thr.send(4)
-    pause(0.3)
+    _ = waitFor { tl.lock(); defer { tl.unlock() }; return throttled.count >= 3 }
     tl.lock(); let thrV = throttled; tl.unlock()
     check(thrV == [1, 3, 4], "throttle(latest: true) emits the first value, then the latest per interval (\(thrV))")
     tc.cancel()
@@ -232,7 +232,8 @@ func combineTests() {
     var throttled2: [Int] = []
     let tc2 = thr2.throttle(for: .milliseconds(200), scheduler: q, latest: false).sink { v in tl.lock(); throttled2.append(v); tl.unlock() }
     thr2.send(1); thr2.send(2); thr2.send(3)
-    pause(0.35)
+    _ = waitFor { tl.lock(); defer { tl.unlock() }; return throttled2.count >= 2 }
+    pause(0.25)                                       // a window later: 3 is not emitted
     tl.lock(); let thrV2 = throttled2; tl.unlock()
     check(thrV2 == [1, 2], "throttle(latest: false) keeps the first value of the window (\(thrV2))")
     tc2.cancel()
@@ -240,19 +241,24 @@ func combineTests() {
     let deb = PassthroughSubject<Int, Never>()
     var debounced: [Int] = []
     let dc = deb.debounce(for: .milliseconds(120), scheduler: q).sink { v in tl.lock(); debounced.append(v); tl.unlock() }
-    deb.send(1); pause(0.03); deb.send(2); pause(0.03); deb.send(3)
-    pause(0.3)
+    // 1 and 2 are followed by another value within 30 ms, so they are dropped; on a loaded machine the sending thread
+    // can stall past the debounce interval, which lets one through as it should: the measured gaps decide
+    var sent: [Date] = []
+    deb.send(1); sent.append(Date()); pause(0.03); deb.send(2); sent.append(Date()); pause(0.03); deb.send(3); sent.append(Date())
+    let mustDrop = [1, 2].filter { sent[$0].timeIntervalSince(sent[$0 - 1]) < 0.1 }
+    _ = waitFor { tl.lock(); defer { tl.unlock() }; return debounced.contains(3) }
     deb.send(4)
-    pause(0.3)
+    _ = waitFor { tl.lock(); defer { tl.unlock() }; return debounced.contains(4) }
     tl.lock(); let debV = debounced; tl.unlock()
-    check(debV == [3, 4], "debounce keeps the last value after a quiet period (\(debV))")
+    check(debV.suffix(2) == [3, 4] && debV == debV.sorted() && mustDrop.allSatisfy { !debV.contains($0) },
+          "debounce keeps the last value after a quiet period (\(debV))")
     dc.cancel()
 
     let ticks = PassthroughSubject<Int, Never>()
     var groups: [[Int]] = []
     let gc = ticks.collect(.byTimeOrCount(q, .milliseconds(150), 3)).sink { v in tl.lock(); groups.append(v); tl.unlock() }
     for i in 1...4 { ticks.send(i) }
-    pause(0.25)
+    _ = waitFor { tl.lock(); defer { tl.unlock() }; return groups.count >= 2 }
     tl.lock(); let grp = groups; tl.unlock()
     check(grp == [[1, 2, 3], [4]], "collect(.byTimeOrCount) flushes when full and on the timer (\(grp))")
     gc.cancel()
@@ -272,18 +278,26 @@ func combineAsyncTests() async {
     var got: [Int] = []
     for await v in [1, 2, 3].publisher.values { got.append(v) }
     check(got == [1, 2, 3], ".values (AsyncPublisher) over a Sequence publisher")
+    // the senders wait until the iterator exists (making it subscribes): a value sent before that is not delivered, and a
+    // fixed delay raced the loop's start on a loaded machine
     let subject = PassthroughSubject<String, Boom>()
-    Task.detached { pause(0.05); subject.send("a"); subject.send("b"); subject.send(completion: .failure(Boom(code: 5))) }
+    let subscribed = DispatchSemaphore(value: 0)
+    Task.detached { subscribed.wait(); subject.send("a"); subject.send("b"); subject.send(completion: .failure(Boom(code: 5))) }
     var strings: [String] = []
     do {
-        for try await s in subject.values { strings.append(s) }
+        var it = subject.values.makeAsyncIterator()
+        subscribed.signal()
+        while let s = try await it.next() { strings.append(s) }
         check(false, ".values (AsyncThrowingPublisher) should throw")
     } catch {
         check(strings == ["a", "b"] && (error as? Boom)?.code == 5, ".values (AsyncThrowingPublisher) yields values then throws the failure")
     }
     let model = CurrentValueSubject<Int, Never>(10)
     var firstTwo: [Int] = []
-    Task.detached { pause(0.05); model.send(11) }
-    for await v in model.values { firstTwo.append(v); if firstTwo.count == 2 { break } }
+    let modelSubscribed = DispatchSemaphore(value: 0)
+    Task.detached { modelSubscribed.wait(); model.send(11) }
+    var modelValues = model.values.makeAsyncIterator()
+    modelSubscribed.signal()
+    while let v = await modelValues.next() { firstTwo.append(v); if firstTwo.count == 2 { break } }
     check(firstTwo == [10, 11], ".values over CurrentValueSubject, break ends the iteration")
 }

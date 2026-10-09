@@ -1,4 +1,6 @@
 # Symbols deliberately dropped from a released ABI, with the reason. Format: <binary path in the SDK> <symbol>
+# Dropping is fine when keeping a symbol would need a large workaround or keep an API wrong; when a whole library
+# breaks, use epochs.txt instead (AGENTS.md, "ABI stability").
 #
 # 0.2.0 SKSpriteNode.warpGeometry was an `AnyObject?` placeholder; 0.3.0 implemented warping with the real type
 # `SKWarpGeometry?`. Swift cannot declare both, and the placeholder did nothing, so no working app depended on it.

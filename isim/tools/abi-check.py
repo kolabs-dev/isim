@@ -106,7 +106,7 @@ def main(argv):
         if len(missing) > 40:
             print(f'  ... and {len(missing) - 40} more')
         bad += len(missing)
-    print('abi check: ' + ('OK' if not bad else f'FAILED ({bad} missing; restore them or justify in abi/allowlist.txt)'))
+    print('abi check: ' + ('OK' if not bad else f'FAILED ({bad} missing; restore them, or break on purpose: abi/allowlist.txt or abi/epochs.txt, see AGENTS.md)'))
     return 1 if bad else 0
 
 

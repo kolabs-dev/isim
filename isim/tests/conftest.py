@@ -5,7 +5,8 @@
   --os-matrix (iPhone 15 for iOS 17, iPhone 16 Pro for 18, iPhone 17 for 26 and 27).
 - Longest tests first: durations of the last run (out/test-durations.json) order the collection, so a parallel run
   ends close to max(longest test, total / workers).
-- The summary lists tests that only passed on a rerun (flaky) and the slowest tests.
+- The summary lists tests that only passed on a rerun (flaky), with their first attempt's failure (in full in
+  out/pytest/flaky.txt), and the slowest tests.
 """
 import json
 import os
@@ -18,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from isimtest import APPS, App, ROOT  # noqa: E402
 
 DURATIONS = ROOT / "out" / "test-durations.json"
+FLAKY_LOG = ROOT / "out" / "pytest" / "flaky.txt"
 MATRIX = {"17": "iphone15", "18": "iphone16pro", "26": "iphone17", "27": "iphone17"}
 
 
@@ -136,12 +138,36 @@ def pytest_sessionfinish(session, exitstatus):
     DURATIONS.write_text(json.dumps(known, indent=0, sort_keys=True))
 
 
+def _failure_line(report):
+    """the assertion / exception line of a failed report"""
+    crash = getattr(report.longrepr, "reprcrash", None)
+    if crash is not None and crash.message:
+        return crash.message.splitlines()[0]
+    text = str(report.longrepr or "").strip().splitlines()
+    return text[-1] if text else "(no message)"
+
+
+def _failure_text(report):
+    """a failed report's traceback and captured output, under a header"""
+    out = [f"===== {report.nodeid} ({report.when}) =====", str(report.longrepr or "").rstrip()]
+    out += [f"----- {name} -----\n{content.rstrip()}" for name, content in report.sections]
+    return "\n".join(out) + "\n\n"
+
+
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     tr = terminalreporter
-    reruns = {r.nodeid for r in tr.stats.get("rerun", [])}
+    first = {}                                       # a rerun test's first (failed) attempt
+    for r in tr.stats.get("rerun", []):
+        first.setdefault(r.nodeid, r)
     failed = {r.nodeid for r in tr.stats.get("failed", [])}
-    for nodeid in sorted(reruns - failed):
+    flaky = sorted(set(first) - failed)
+    for nodeid in flaky:
         tr.write_line(f"FLAKY (passed on rerun): {nodeid}")
+        tr.write_line(f"  first attempt: {_failure_line(first[nodeid])}")
+    if flaky:                                        # the first attempts' full output (CI keeps out/pytest/*.txt)
+        FLAKY_LOG.parent.mkdir(parents=True, exist_ok=True)
+        FLAKY_LOG.write_text("".join(_failure_text(first[n]) for n in flaky))
+        tr.write_line(f"first attempts of the flaky tests: {FLAKY_LOG}")
     slow = sorted(_durations.items(), key=lambda kv: -kv[1])[:5]
     if slow:
         tr.write_line("slowest: " + ", ".join(f"{n.split('::')[-1]} {d:.0f} s" for n, d in slow))
