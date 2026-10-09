@@ -850,6 +850,13 @@ BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BO
     if (!isim_shell_present() || !url) return NO;
     BOOL universal = NO, handled = installed_app_handles(url, &universal);
     BOOL onlyUniversal = [options[UIApplicationOpenURLOptionUniversalLinksOnly] boolValue];
+    BOOL web = [@[@"http", @"https"] containsObject:url.scheme.lowercaseString ?: @""];
+    if (!handled && !onlyUniversal && web && [NSFileManager.defaultManager fileExistsAtPath:[isim_ui_system_apps_dir() stringByAppendingPathComponent:@"Safari.app"]]) {
+        NSLog(@"isim: open URL %@ in Safari", url.absoluteString);     /* web pages no app claims: the home screen opens Safari */
+        isim_shell_request(ISIM_SHELL_SYSTEM, "openurl", NULL, url.absoluteString.UTF8String);
+        if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(YES); });
+        return YES;
+    }
     if (!handled && !onlyUniversal) return NO;
     if (handled) {
         NSLog(@"isim: open URL %@ in another app%@", url.absoluteString, universal ? @" (universal link)" : @"");

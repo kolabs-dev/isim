@@ -53,6 +53,10 @@
 			<string>magnifyingglass</string>
 		</dict>
 	</array>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>dev.isim.samples.HelloSystem.recipe</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

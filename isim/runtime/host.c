@@ -12,7 +12,7 @@
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
  *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
  *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "swipehome left|right",
- *                  "push BUNDLE-ID FILE"
+ *                  "push BUNDLE-ID FILE", "handoff TYPE [URL] [TITLE]"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
  * installed apps) is a child process ("client") that renders into a shared-memory surface and
@@ -1082,12 +1082,13 @@ static int script_step(struct isim_event *ev) {
         void isim_audio_session_post(const char *ev);
         isim_audio_session_post(arg);
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
-               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")
+               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")
                || (!strcmp(cmd, "push") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),
            "push BUNDLE-ID FILE" (a remote notification payload, like `xcrun simctl push`);
-           "openurl URL" under the shell: the home screen opens it in the app that handles it */
+           "openurl URL" under the shell: the home screen opens it in the app that handles it;
+           "handoff TYPE [URL] [TITLE]" under the shell: an activity handed off from another device */
         for (char *e = args + strlen(args) - 1; e >= args && *e == ' '; e--) *e = 0;
         while (*args == ' ') args++;
         pending[npending++] = (struct isim_event){ .type = EV_SHELL_CMD };
