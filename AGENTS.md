@@ -79,6 +79,9 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
   - update its row in [docs/COVERAGE.md](docs/COVERAGE.md) (status, notes, the test that verifies it) and the summary
     tables (`isim/tools/coverage-summary.py`);
   - add or extend a sample app (`isim/samples/`) and a pytest test (`isim/tests/`);
+  - keep it usable by AI agents: anything a person can do in the device window (a button, a gesture, a menu item) is
+    also a script command in [docs/SCRIPTING.md](docs/SCRIPTING.md) or an `isim` subcommand, with text or file
+    output; update [docs/AI-AGENTS.md](docs/AI-AGENTS.md) when it changes the agent workflow;
   - check each supported iOS version: 17, 18, 26 and 27 ([docs/IOS-VERSIONS.md](docs/IOS-VERSIONS.md)): mark tests of
     version-dependent behaviour (system UI, chrome frames / pixels, `@available` APIs) `@pytest.mark.os_matrix` and run
     `OS_MATRIX=1` locally (CI's test job of each iOS version runs them too). The rules: [docs/TESTING.md](docs/TESTING.md#which-tests-run-under-every-ios-version-os_matrix).
@@ -127,5 +130,6 @@ Releases are made by the Release workflow (`.github/workflows/release.yml`):
 | [docs/COVERAGE.md](docs/COVERAGE.md) | API coverage per framework and per iOS version |
 | [docs/IOS-VERSIONS.md](docs/IOS-VERSIONS.md) | `--os 17\|18\|26\|27` and what changes per version |
 | [docs/SCRIPTING.md](docs/SCRIPTING.md) | script commands and the `--control` channel |
+| [docs/AI-AGENTS.md](docs/AI-AGENTS.md) | developing apps with AI coding agents |
 | [docs/SYSTEM-PROMPTS.md](docs/SYSTEM-PROMPTS.md) | environment variables, simulated hardware |
 | [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) | why App Store upload from Linux is blocked |

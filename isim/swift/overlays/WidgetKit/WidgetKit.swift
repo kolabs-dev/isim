@@ -164,21 +164,48 @@ public struct _DIRegion { let position: DynamicIslandExpandedRegionPosition; let
     public static func buildExpression<C: View>(_ r: DynamicIslandExpandedRegion<C>) -> [_DIRegion] { [_DIRegion(position: r.position, view: AnyView(r.content))] }
     public static func buildBlock(_ parts: [_DIRegion]...) -> [_DIRegion] { parts.flatMap { $0 } }
 }
+/// The presentation `DynamicIsland.contentMargins(_:_:for:)` applies to.
+public struct DynamicIslandMode: Hashable, Sendable {
+    let rawValue: Int
+    public static let compact = DynamicIslandMode(rawValue: 0)
+    public static let minimal = DynamicIslandMode(rawValue: 1)
+    public static let expanded = DynamicIslandMode(rawValue: 2)
+}
 public struct DynamicIsland {
     let regions: [_DIRegion]; let leading: AnyView, trailing: AnyView, minimal: AnyView
+    /* the system's margins per presentation (adapted): expanded 22 horizontal / 14 vertical; compact and minimal none,
+       their views are centred in their slot */
+    var margins: [DynamicIslandMode: EdgeInsets] = [.expanded: DynamicIsland.defaultExpandedMargins]
+    static let defaultExpandedMargins = EdgeInsets(top: 14, leading: 22, bottom: 14, trailing: 22)
     public init<L: View, T: View, M: View>(@DynamicIslandExpandedContentBuilder expanded: () -> [_DIRegion], @ViewBuilder compactLeading: () -> L,
                                             @ViewBuilder compactTrailing: () -> T, @ViewBuilder minimal: () -> M) {
         regions = expanded(); leading = AnyView(compactLeading()); trailing = AnyView(compactTrailing()); self.minimal = AnyView(minimal())
     }
     public func keylineTint(_ color: Color?) -> DynamicIsland { self }
     public func widgetURL(_ url: URL?) -> DynamicIsland { self }
+    /// Sets the margins of `edges` in the `mode` presentation; `nil` restores the system's margin.
+    public func contentMargins(_ edges: Edge.Set = .all, _ length: CGFloat?, for mode: DynamicIslandMode) -> DynamicIsland {
+        var d = self, m = margins[mode] ?? EdgeInsets()
+        let system = mode == .expanded ? DynamicIsland.defaultExpandedMargins : EdgeInsets()
+        if edges.contains(.top) { m.top = length ?? system.top }
+        if edges.contains(.leading) { m.leading = length ?? system.leading }
+        if edges.contains(.bottom) { m.bottom = length ?? system.bottom }
+        if edges.contains(.trailing) { m.trailing = length ?? system.trailing }
+        d.margins[mode] = m
+        return d
+    }
+    @available(*, unavailable, message: "use contentMargins(_:_:for:) with a DynamicIslandMode")
     public func contentMargins(_ edges: Edge.Set = .all, _ length: CGFloat? = nil, for mode: Any? = nil) -> DynamicIsland { self }
+    @MainActor func view(_ v: AnyView, _ mode: DynamicIslandMode) -> AnyView {
+        guard let m = margins[mode], m != EdgeInsets() else { return v }
+        return AnyView(v.padding(m))
+    }
     @MainActor var expandedView: AnyView {
         func r(_ p: DynamicIslandExpandedRegionPosition) -> AnyView { regions.first { $0.position == p }?.view ?? AnyView(EmptyView()) }
         return AnyView(VStack(spacing: 6) {
             HStack(alignment: .top) { r(.leading); Spacer(minLength: 4); r(.center); Spacer(minLength: 4); r(.trailing) }
             r(.bottom)
-        }.padding(.horizontal, 22).padding(.vertical, 14).foregroundColor(.white))
+        }.padding(margins[.expanded] ?? EdgeInsets()).foregroundColor(.white))
     }
 }
 public struct ActivityConfiguration<Attributes: ActivityAttributes>: WidgetConfiguration, _WKConfig {
@@ -190,7 +217,7 @@ public struct ActivityConfiguration<Attributes: ActivityAttributes>: WidgetConfi
             guard let attrs = try? dec.decode(Attributes.self, from: a), let state = try? dec.decode(Attributes.ContentState.self, from: s) else { return nil }
             let ctx = ActivityViewContext(attributes: attrs, state: state, isStale: false, activityID: "")
             let di = dynamicIsland(ctx)
-            return (AnyView(content(ctx)), di.leading, di.trailing, di.minimal, di.expandedView)
+            return (AnyView(content(ctx)), di.view(di.leading, .compact), di.view(di.trailing, .compact), di.view(di.minimal, .minimal), di.expandedView)
         }
     }
     var _activities: [_WKActivitySpec] { [spec] }

@@ -290,6 +290,25 @@ void isim_ui_timeline_capture_end(void);
 @end
 @interface UINavigationController (IsimSearch)
 - (CGFloat)_isim_searchBarHeight;
+- (NSArray<UIBarButtonItem *> *)_isim_toolbarItemsWithSearch:(NSArray<UIBarButtonItem *> *)items;   /* iOS 26 toolbar search */
+@end
+@interface UISearchBar ()
+@property (nonatomic) BOOL _isim_inNavigationBar;
+@property (nonatomic) BOOL _isim_integrated;          /* an integrated placement: a compact field (glass capsule on iOS 26) */
+@end
+@interface UIBarButtonItem (IsimSearch)
+@property (nonatomic) BOOL _isim_fillsWidth;          /* toolbar: takes the width flexible spaces would */
+@end
+/* where a navigation item's search goes (UINavigation.m): below the title, a search button or a field (trailing /
+   centred) in the bar row, or the navigation controller's toolbar (iPhone, iOS 26) */
+enum { SEARCH_STACKED = 0, SEARCH_BUTTON, SEARCH_FIELD_TRAILING, SEARCH_FIELD_CENTERED, SEARCH_TOOLBAR };
+int search_spot(UINavigationItem *item, UINavigationController *nav, UIView *view);   /* nav may be nil */
+@interface UINavigationItem (IsimSearchSpot)
+- (UIBarButtonItem *)_isim_searchButtonItem;
+- (nullable UIBarButtonItem *)_isim_searchPlacementItemIfAny;
+@end
+@interface UINavigationBar (IsimSearchSpot)
+- (nullable UINavigationController *)_isim_navigationController;
 @end
 
 /* optional per-view hooks (UITextView, pickers, ...) */
