@@ -245,7 +245,7 @@ final class ProvidersViewController: UIViewController {
         }
         a.loadDataRepresentation(forTypeIdentifier: UTType.plainText.identifier) { d, _ in print("file data: \(d.map { String(decoding: $0, as: UTF8.self) } ?? "nil")") }
         let b = NSItemProvider()
-        b.registerItem(forTypeIdentifier: UTType.url.identifier) { completion, _, _ in completion(URL(string: "https://isim.dev")! as NSURL, nil) }
+        b.registerItem(forTypeIdentifier: UTType.url.identifier) { completion, _, _ in completion?(URL(string: "https://isim.dev")! as NSURL, nil) }
         b.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { item, _ in print("item: \((item as? URL)?.absoluteString ?? "nil")") }
         let c = NSItemProvider()
         c.registerObject(ofClass: NSString.self, visibility: .all) { done in done("lazy string" as NSString, nil); return nil }
@@ -256,7 +256,7 @@ final class ProvidersViewController: UIViewController {
             if case .success(let n) = result { print("transferable: \(n.text)") } else { print("transferable failed") }
         }
         d.preferredPresentationSize = CGSize(width: 120, height: 80)
-        d.previewImageHandler = { completion, _, _ in completion(UIImage(systemName: "star"), nil) }
+        d.previewImageHandler = { completion, _, _ in completion?(UIImage(systemName: "star"), nil) }
         d.loadPreviewImage(options: nil) { image, _ in print("preview: \(image is UIImage) size \(Int(d.preferredPresentationSize.width))") }
     }
 }
