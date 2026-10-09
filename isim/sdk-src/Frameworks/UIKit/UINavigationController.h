@@ -106,6 +106,10 @@ typedef NS_ENUM(NSInteger, UINavigationItemSearchBarPlacement) {
 typedef NS_ENUM(NSInteger, UINavigationItemLargeTitleDisplayMode) {
     UINavigationItemLargeTitleDisplayModeAutomatic, UINavigationItemLargeTitleDisplayModeAlways, UINavigationItemLargeTitleDisplayModeNever, UINavigationItemLargeTitleDisplayModeInline };
 NS_SWIFT_UI_ACTOR
+/* iOS 27.1: which bar content keeps its space when the tab bar and bar items share the vertical bar (isim's devices
+   have no vertical bar: stored) */
+typedef NS_ENUM(NSInteger, UIVerticalBarCompressionBehavior) { UIVerticalBarCompressionBehaviorAutomatic = 0,
+    UIVerticalBarCompressionBehaviorPrefersBarItems = 1, UIVerticalBarCompressionBehaviorPrefersTabBar = 2 } API_AVAILABLE(ios(27.1));
 @interface UINavigationItem : NSObject
 - (instancetype)initWithTitle:(NSString *)title;
 @property (nullable, nonatomic, copy) NSString *title;
@@ -471,5 +475,22 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIBarButtonItem *editButtonItem;
 @property (nonatomic, readonly, getter=isMovingToParentViewController) BOOL movingToParentViewController;
 @property (nonatomic, readonly, getter=isMovingFromParentViewController) BOOL movingFromParentViewController;
+@end
+@interface UINavigationItem (UIVerticalBar)
+@property (nonatomic, assign, readwrite) UIVerticalBarCompressionBehavior verticalBarCompressionBehavior API_AVAILABLE(ios(27.1));
+@end
+/* iOS 27.1: the axes a bar item may appear on; isim's devices have only horizontal bars, where every item shows */
+typedef NS_ENUM(NSInteger, UIBarButtonItemAxisBehavior) { UIBarButtonItemAxisBehaviorAutomatic = 0, UIBarButtonItemAxisBehaviorHorizontalOnly = 1,
+    UIBarButtonItemAxisBehaviorVerticalPreferred = 2 } NS_SWIFT_NAME(UIBarButtonItem.AxisBehavior) API_AVAILABLE(ios(27.1));
+@interface UIBarButtonItem (UIBarButtonItemAxisBehavior)
+@property (nonatomic, assign, readwrite) UIBarButtonItemAxisBehavior axisBehavior API_AVAILABLE(ios(27.1));
+@end
+/* iOS 27.1: whether bar content may move to a vertical bar along the leading or trailing edge (foldable devices).
+   isim's devices have no vertical bar: the preference is resolved (childForPreferredVerticalBarBehavior) and kept */
+typedef NS_ENUM(NSInteger, UIVerticalBarBehavior) { UIVerticalBarBehaviorAutomatic = 0, UIVerticalBarBehaviorDisabled = 1 } API_AVAILABLE(ios(27.1));
+@interface UIViewController (UIVerticalBar)
+@property (nonatomic, readonly) UIVerticalBarBehavior preferredVerticalBarBehavior API_AVAILABLE(ios(27.1));
+@property (nonatomic, readonly, nullable) UIViewController *childViewControllerForPreferredVerticalBarBehavior NS_SWIFT_NAME(childForPreferredVerticalBarBehavior) API_AVAILABLE(ios(27.1));
+- (void)setNeedsUpdateOfVerticalBarConfiguration API_AVAILABLE(ios(27.1));
 @end
 NS_ASSUME_NONNULL_END

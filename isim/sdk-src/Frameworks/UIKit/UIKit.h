@@ -51,6 +51,9 @@
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>
 #import <UIKit/NSTextTable.h>
+#import <UIKit/UIArrangementViewController.h>
+#import <UIKit/UIHingeInteraction.h>
+#import <UIKit/UIViewLayoutRegion.h>
 #import <UIKit/UIOrientation.h>
 #import <UIKit/UILayoutExtras.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>
