@@ -271,6 +271,13 @@ def _(a):
     print("localizations:", a.isim_build().compile_xcstrings("Localizable.xcstrings", b))
 
 
+@app("samples/HelloRightToLeft")
+def _(a):
+    b = a.swift_app()
+    for d in ("en.lproj", "ar.lproj"):
+        shutil.copytree(os.path.join(a.d, d), os.path.join(b, d), dirs_exist_ok=True)
+
+
 @app("samples/HelloAppearance")
 def _(a):
     import struct

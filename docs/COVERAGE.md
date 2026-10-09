@@ -26,11 +26,11 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 172 | 39 | 3 | 7 | 221 | 87% |
+| **UIKit** | 173 | 39 | 3 | 6 | 221 | 87% |
 | &nbsp;&nbsp;↳ Application & scenes | 20 | 5 | 0 | 0 | 25 | 90% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 22 | 9 | 0 | 0 | 31 | 85% |
 | &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
-| &nbsp;&nbsp;↳ Layout | 17 | 1 | 0 | 1 | 19 | 92% |
+| &nbsp;&nbsp;↳ Layout | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 10 | 2 | 2 | 0 | 14 | 79% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **690** | **236** | **29** | **42** | **997** | **81%** |
+| **All areas** | **691** | **236** | **29** | **41** | **997** | **81%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 88% (206) | 89% (210) | 88% (217) | 87% (221) |
+| UIKit | 89% (206) | 89% (210) | 89% (217) | 87% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **82%** (954) | **82%** (966) | **81%** (983) | **81%** (997) |
+| **All areas** | **82%** (954) | **82%** (966) | **82%** (983) | **81%** (997) |
 
 ---
 
@@ -279,7 +279,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Size classes | ✅ | ≤17 | fixed per device (portrait) |
 | Dynamic Type: `preferredFont(forTextStyle:)` | ✅ | ≤17 | sized for the content size category (Settings > Accessibility > Display & Text Size, 12 sizes); Bold Text makes system fonts heavier; tested (HelloAccessibility) |
 | Dynamic Type size changes, `UIFontMetrics`, `adjustsFontForContentSizeCategory` | ✅ | ≤17 | category changes repost `UIContentSizeCategory.didChangeNotification`, refit labels/text views/fields that adjust (text-style and `UIFontMetrics` fonts), `preferredContentSizeCategory` on the app and trait collections, `isAccessibilityCategory`; tested (HelloAccessibility). `traitCollectionDidChange` gets no previous collection |
-| Right-to-left layout, `semanticContentAttribute` | ❌ | ≤17 | |
+| Right-to-left layout, `semanticContentAttribute` | ✅ | ≤17 | the app is right to left when its preferred localization is a right-to-left language (Arabic, Hebrew, Persian, Urdu, …; only languages the app is localized in, as on iOS), with Xcode's right-to-left pseudolanguage (`-AppleTextDirection YES`, `-NSForceRightToLeftWritingDirection YES`) or `ISIM_LAYOUT_DIRECTION=rtl`. `UIApplication.userInterfaceLayoutDirection`, `semanticContentAttribute` (playback / spatial stay left to right), `effectiveUserInterfaceLayoutDirection`, the class methods, `traitCollection.layoutDirection`. Auto Layout: leading / trailing (and margins, centerX in the same constraint) follow the direction of the constraint's container, with constants mirrored; stack views, directional margins; `NSTextAlignmentNatural` right aligned; navigation bars (back button and chevron on the right, items swapped); table view cells (labels, accessories, delete / reorder controls, separators); `imageFlippedForRightToLeftLayoutDirection`. Not mirrored yet (adapted): sliders, segmented controls, page controls, collection view flow layouts, scroll views' initial offset, the interactive back-swipe edge, SwiftUI. Tested (HelloRightToLeft, OS matrix) |
 | Rotation layout (`viewWillTransition(to:with:)`) | ✅ | ≤17 | coordinator alongside/completion, size classes, side safe areas; tested (HelloRotation). Landscape nav bars keep portrait height |
 
 ### Animation
