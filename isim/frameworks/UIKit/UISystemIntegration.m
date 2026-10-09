@@ -440,7 +440,8 @@ static void notification_action(NSString *args) {
 /* ---- background execution (adapted): under the shell an app in the background is suspended (SIGSTOP) a few seconds
    after it got there, unless something keeps it running: a background task (beginBackgroundTask, BackgroundTasks,
    remote notification fetches), audio playing with UIBackgroundModes audio and a playback session category, location
-   updates with UIBackgroundModes location and allowsBackgroundLocationUpdates. The app reports these reasons to the
+   updates with UIBackgroundModes location and allowsBackgroundLocationUpdates, transfers of a background URLSession
+   (Foundation: running tasks, or events not handled yet). The app reports these reasons to the
    shell ("bg-assert"); frameworks answer the _IsimBackgroundQuery notification (AVFoundation: the session category,
    CoreLocation: background updates and the blue indicator). */
 static NSString *last_reasons;
@@ -465,11 +466,29 @@ void isim_sys_report_background(void) {
     if (live_tasks()) [r addObject:@"task"];
     if (isim_sys_background_audio() && isim_audio_active() > 0) [r addObject:@"audio"];
     if ([q[@"location"] boolValue]) [r addObject:[q[@"locationIndicator"] boolValue] ? @"location-indicator" : @"location"];
+    if ([q[@"transfer"] boolValue]) [r addObject:@"transfer"];
     NSString *s = [r componentsJoinedByString:@","];
     if ([s isEqualToString:last_reasons]) return;
     last_reasons = s;
     NSLog(@"isim: running in the background: %@", s.length ? s : @"nothing (the app can be suspended)");
     isim_shell_request(ISIM_SHELL_SYSTEM, "bg-assert", s.UTF8String, NULL);
+}
+/* a background URLSession finished while the app was in the background (Foundation): the app delegate's
+   handleEventsForBackgroundURLSession, then the session delivers its held events */
+static void background_session_events(NSNotification *n) {
+    NSString *ident = n.object;
+    void (^done)(void) = n.userInfo[@"completion"], (^deliver)(void) = n.userInfo[@"deliver"];
+    id<UIApplicationDelegate> d = UIApplication.sharedApplication.delegate;
+    if ([d respondsToSelector:@selector(application:handleEventsForBackgroundURLSession:completionHandler:)]) {
+        NSLog(@"isim: application:handleEventsForBackgroundURLSession: %@", ident);
+        [d application:UIApplication.sharedApplication handleEventsForBackgroundURLSession:ident completionHandler:^{ if (done) done(); }];
+    } else if (done) done();
+    if (deliver) deliver();
+}
+__attribute__((constructor)) static void background_session_observer(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimBackgroundURLSessionEvents" object:nil queue:nil usingBlock:^(NSNotification *n) { background_session_events(n); }];
+    });
 }
 static void reasons_start(void) {
     [reasons_timer invalidate];
