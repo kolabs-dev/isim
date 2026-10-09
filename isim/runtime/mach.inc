@@ -16,6 +16,7 @@
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/uio.h>
+#include <sys/eventfd.h>
 
 #define M_KERN_SUCCESS 0
 #define M_KERN_INVALID_ADDRESS 1
@@ -606,6 +607,7 @@ struct mport {
     uint32_t qlimit, count; struct mmsg *head, *tail;
     int waiters;                        /* threads blocked on cv: the port is freed by the last one to leave */
     int value, destroyed;               /* semaphores */
+    int notify_fd;                      /* eventfd + 1 (0: none) signalled on each queued message and on death (dispatch) */
     pthread_cond_t cv;
     struct mport *next;
 };
@@ -626,7 +628,9 @@ static struct mport *mport_new(int kind) {
     p->next = *b; *b = p;
     return p;
 }
+static void mport_notify(struct mport *p) { if (p->notify_fd) { uint64_t one = 1; (void)!write(p->notify_fd - 1, &one, sizeof one); } }
 static void mport_free(struct mport *p) {
+    if (p->notify_fd) close(p->notify_fd - 1);
     struct mport **b = &mports[(p->name >> 8) & 255];
     while (*b && *b != p) b = &(*b)->next;
     if (*b) *b = p->next;
@@ -639,6 +643,7 @@ static void mport_destroy_receive(struct mport *p) {         /* queued messages 
     for (struct mmsg *m = p->head, *n; m; m = n) { n = m->next; free(m); }
     p->head = p->tail = NULL; p->count = 0;
     pthread_cond_broadcast(&p->cv);
+    mport_notify(p);
     mport_drop_if_unused(p);
 }
 static int special_name(mach_port_name_t n) {
@@ -780,6 +785,44 @@ static kern_return_t d_mach_port_set_attributes(mach_port_name_t task, mach_port
     return r;
 }
 
+static kern_return_t d_mach_port_get_attributes(mach_port_name_t task, mach_port_name_t name, int flavor, integer_t *info, natural_t *count) {
+    if (!is_task(task)) return M_SEND_INVALID_DEST;
+    if (!info || !count) return M_KERN_INVALID_ARGUMENT;
+    pthread_mutex_lock(&mport_lock);
+    struct mport *p = mport_find(name);
+    kern_return_t r = M_KERN_SUCCESS;
+    if (!p || p->kind != K_PORT) r = M_KERN_INVALID_NAME;
+    else if (!p->receive) r = M_KERN_INVALID_RIGHT;
+    else if (flavor == 1) {                                          /* MACH_PORT_LIMITS_INFO */
+        if (*count < 1) r = M_KERN_FAILURE; else { info[0] = (integer_t)p->qlimit; *count = 1; }
+    } else if (flavor == 2) {                                        /* MACH_PORT_RECEIVE_STATUS (mach_port_status_t) */
+        if (*count < 10) r = M_KERN_FAILURE;
+        else {
+            memset(info, 0, 10 * sizeof *info);
+            info[3] = (integer_t)p->qlimit; info[4] = (integer_t)p->count;           /* mps_qlimit, mps_msgcount */
+            info[5] = p->sorefs; info[6] = p->srefs > 0;                            /* mps_sorights, mps_srights */
+            *count = 10;
+        }
+    } else r = M_KERN_INVALID_ARGUMENT;
+    pthread_mutex_unlock(&mport_lock);
+    return r;
+}
+/* isim (private, for Dispatch's Mach sources): a descriptor that becomes readable (eventfd counter) when a message is
+   queued on the port or its receive right dies; the caller owns (closes) it. -1 for an unknown name. */
+static int d_isim_mach_port_notify_fd(mach_port_name_t name) {
+    pthread_mutex_lock(&mport_lock);
+    struct mport *p = mport_find(name);
+    int fd = -1;
+    if (p && p->kind == K_PORT) {
+        if (!p->notify_fd) { int e = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC); if (e >= 0) p->notify_fd = e + 1; }
+        if (p->notify_fd) fd = fcntl(p->notify_fd - 1, F_DUPFD_CLOEXEC, 0);
+        if (fd >= 0 && (p->count || p->dead)) mport_notify(p);       /* already pending */
+    }
+    pthread_mutex_unlock(&mport_lock);
+    if (fd < 0) errno = 22;                                          /* EINVAL */
+    return fd;
+}
+
 /* mach_msg: simple messages between ports of this process */
 struct m_header { uint32_t bits, size, remote, local, voucher; int32_t id; };
 static int right_type(uint32_t disp) {                 /* what the receiver gets for a disposition (0: invalid) */
@@ -829,6 +872,7 @@ static kern_return_t msg_send(struct m_header *h, uint32_t size, int options, ui
         p->tail = m; p->count++;
         mach_msgs_sent++;
         pthread_cond_broadcast(&p->cv);
+        mport_notify(p);
     }
     pthread_mutex_unlock(&mport_lock);
     return r;
@@ -995,6 +1039,7 @@ static void mach_init(void) {
     A("_mach_port_get_refs", d_mach_port_get_refs), A("_mach_port_insert_right", d_mach_port_insert_right), \
     A("_mach_port_type", d_mach_port_type), A("_mach_port_construct", d_mach_port_construct), \
     A("_mach_port_destruct", d_mach_port_destruct), A("_mach_port_set_attributes", d_mach_port_set_attributes), \
+    A("_mach_port_get_attributes", d_mach_port_get_attributes), I("_isim_mach_port_notify_fd", d_isim_mach_port_notify_fd), \
     A("_mach_reply_port", d_mach_reply_port), A("_mach_msg", d_mach_msg), A("_mach_msg_send", d_mach_msg_send), \
     A("_mach_msg_receive", d_mach_msg_receive), A("_semaphore_create", d_semaphore_create), \
     A("_semaphore_destroy", d_semaphore_destroy), A("_semaphore_signal", d_semaphore_signal), \

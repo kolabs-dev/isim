@@ -33,6 +33,7 @@ __END_DECLS
 #define ENOTSUP 45
 #define ENOSYS 78
 #define EOVERFLOW 84
+#define ECANCELED 89
 #define EILSEQ 92
 #define EPIPE 32
 #define EALREADY 37

@@ -26,21 +26,21 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 190 | 25 | 2 | 4 | 221 | 92% |
+| **UIKit** | 194 | 21 | 2 | 4 | 221 | 93% |
 | &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 26 | 5 | 0 | 0 | 31 | 92% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 27 | 4 | 0 | 0 | 31 | 94% |
 | &nbsp;&nbsp;↳ Views & controls | 50 | 7 | 0 | 3 | 60 | 89% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
-| &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
-| &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
+| &nbsp;&nbsp;↳ Animation | 11 | 1 | 0 | 0 | 12 | 96% |
+| &nbsp;&nbsp;↳ Gestures & touches | 12 | 1 | 0 | 0 | 13 | 96% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 11 | 1 | 2 | 0 | 14 | 82% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 13 | 1 | 0 | 1 | 15 | 90% |
-| **SwiftUI** | 187 | 42 | 2 | 8 | 239 | 87% |
-| &nbsp;&nbsp;↳ App & scenes | 6 | 4 | 0 | 1 | 11 | 73% |
+| **SwiftUI** | 187 | 43 | 2 | 7 | 239 | 87% |
+| &nbsp;&nbsp;↳ App & scenes | 6 | 5 | 0 | 0 | 11 | 77% |
 | &nbsp;&nbsp;↳ State & data flow | 15 | 2 | 0 | 0 | 17 | 94% |
 | &nbsp;&nbsp;↳ Views & controls | 31 | 8 | 0 | 0 | 39 | 90% |
 | &nbsp;&nbsp;↳ Containers & layout | 19 | 7 | 1 | 1 | 28 | 80% |
@@ -54,7 +54,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
-| Swift Charts | 12 | 2 | 0 | 2 | 16 | 81% |
+| Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
 | **Foundation** | 58 | 22 | 1 | 1 | 82 | 84% |
 | &nbsp;&nbsp;↳ Strings & text | 10 | 5 | 0 | 0 | 15 | 83% |
 | &nbsp;&nbsp;↳ Collections & values | 10 | 3 | 0 | 0 | 13 | 88% |
@@ -63,9 +63,9 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 6 | 3 | 0 | 0 | 9 | 83% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 7 | 2 | 0 | 0 | 9 | 89% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
-| **Swift runtime, stdlib & concurrency** | 35 | 4 | 0 | 0 | 39 | 95% |
+| **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
-| &nbsp;&nbsp;↳ Dispatch | 4 | 2 | 0 | 0 | 6 | 83% |
+| &nbsp;&nbsp;↳ Dispatch | 6 | 0 | 0 | 0 | 6 | 100% |
 | Objective-C runtime & C library | 17 | 0 | 0 | 0 | 17 | 100% |
 | Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
 | Core Text | 4 | 3 | 0 | 0 | 7 | 79% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **711** | **219** | **28** | **39** | **997** | **82%** |
+| **All areas** | **723** | **210** | **28** | **36** | **997** | **83%** |
 
 ### Per iOS version
 
@@ -95,11 +95,11 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 94% (206) | 94% (210) | 93% (217) | 92% (221) |
+| UIKit | 95% (206) | 95% (210) | 94% (217) | 93% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
-| Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
+| Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
-| Swift runtime, stdlib & concurrency | 95% (39) | 95% (39) | 95% (39) | 95% (39) |
+| Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (17) | 100% (17) | 100% (17) | 100% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
 | Core Text | 79% (7) | 79% (7) | 79% (7) | 79% (7) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **83%** (954) | **83%** (966) | **83%** (983) | **82%** (997) |
+| **All areas** | **84%** (954) | **84%** (966) | **84%** (983) | **83%** (997) |
 
 ---
 
@@ -170,7 +170,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `isModalInPresentation` | ✅ | ≤17 | rubber-bands instead of dismissing |
 | `UISheetPresentationController` (detents, grabber, largest undimmed detent) | ✅ | ≤17 | `.medium()`, `.large()`, `.custom(identifier:resolver:)`, grabber, dimming above `largestUndimmedDetentIdentifier` (touches pass through below it), `selectedDetentIdentifier` + `animateChanges`, dragging between detents with the delegate callback, `prefersScrollingExpandsWhenScrolledToEdge`; tested (HelloTransitions). iPad keeps centered cards (no detents) |
 | Popover presentation (`UIPopoverPresentationController`) | ✅ | ≤17 | iPhone adapts to a sheet unless the adaptive delegate returns `.none`; real popovers: card with an arrow towards `sourceView`/`sourceRect` or `barButtonItem`, `permittedArrowDirections`, `preferredContentSize`, tap outside to dismiss (delegate), `passthroughViews`; tested (HelloTransitions; bar button anchoring unverified) |
-| `modalTransitionStyle` (cross dissolve, flip, partial curl) | 🟡 | ≤17 | cross dissolve fades; flip horizontal is adapted (2D fold/unfold, no perspective); partial curl is shown as cover vertical (adapted); tested (HelloTransitions) |
+| `modalTransitionStyle` (cross dissolve, flip, partial curl) | ✅ | ≤17 | cover vertical slides; cross dissolve fades; flip horizontal turns the presenter away and the presented view in, in 3D with perspective (and back on dismissal); partial curl (adapted: the presenter's page lifts off its top edge, rigid, and stays up; the presented view below it is usable; a tap on the page dismisses, the page comes back down). Tested (HelloTransitions, HelloMotion, OS matrix) |
 | Custom transitions (`UIViewControllerTransitioningDelegate`, interactive) | ✅ | ≤17 | animators with a transition context (container, from/to views and controllers, final frames, `completeTransition`), custom `UIPresentationController` subclasses (frame, will/did begin/end, container layout), `transitionCoordinator.animate(alongsideTransition:)`, `UIPercentDrivenInteractiveTransition` (update/finish/cancel; scrubs the animator's UIView animations or its interruptible animator); tested (HelloTransitions) |
 | `UINavigationController` (push/pop, back swipe) | ✅ | ≤17 | push/pop/popTo, parallax animation, back button, left-edge back swipe, delegate; tested (HelloNavigation) |
 | `UINavigationItem` (title, bar button items, search controller, large titles) | ✅ | ≤17 | title, titleView, left/right bar button items, back title, large title display mode |
@@ -292,11 +292,11 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Delay, repeat, autoreverse, begin-from-current-state | ✅ | ≤17 | retargets from the current value |
 | `performWithoutAnimation`, `areAnimationsEnabled` | ✅ | ≤17 | |
 | Constraint animations (`layoutIfNeeded` in an animation block) | ✅ | ≤17 | a constant changed before `UIView.animate { layoutIfNeeded() }` animates the frames (drawn between the old and new sizes mid-animation; `frame` reports the end value, as on iOS), completion runs at the end. Tested (HelloConstraints) |
-| `UIView.transition(with:)` | 🟡 | ≤17 | adapted: flips and curls squash the view to its axis and unfold it (2D, no perspective) with the changes applied at the midpoint; cross dissolve fades out and back in (no snapshot cross-fade); tested (HelloAnimations) |
+| `UIView.transition(with:)` | ✅ | ≤17 | adapted: flips turn the view in 3D with perspective (about the vertical or horizontal axis; the changes applied edge-on), curl up lifts a snapshot of the old content off its top edge revealing the new, curl down lowers the new content over a snapshot of the old (a rigid page, not a curved one), cross dissolve fades a snapshot of the old content out over the new; `transition(from:to:)` likewise. Tested (HelloAnimations, HelloMotion, OS matrix) |
 | `transition(from:to:)` | ✅ | ≤17 | cross dissolve between the views, flips/curls as above (2D), `.showHideTransitionViews` or replacement in the superview; tested (HelloAnimations) |
 | `animateKeyframes` / `addKeyframe` | ✅ | ≤17 | keyframe segments per property on one timeline, overall curve from the options, discrete mode; cubic/paced modes interpolate linearly; tested (HelloAnimations) |
 | `UIViewPropertyAnimator` (interruptible, scrubbable) | ✅ | ≤17 | start/pause/stop/finish(at:), `fractionComplete` scrubbing, `isReversed`, add animations/completions, `pausesOnCompletion`, cubic/spring timing parameters, `runningPropertyAnimator`; `layer.presentation()` reports in-flight values; tested (HelloAnimations). `continueAnimation` ignores new timing parameters (duration factor only) |
-| Layer property animations (cornerRadius, shadow, …) | 🟡 | ≤17 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (tested: radius, border); Core Animation objects (`CABasicAnimation`, keyframes, springs, groups, transitions) also animate a view's layer (position, bounds, transform incl. `transform.rotation.z`, opacity, colours, corner radius, border, shadow); see QuartzCore |
+| Layer property animations (cornerRadius, shadow, …) | ✅ | ≤17 | a view's layer animates corner radius, border width/color and shadow opacity/radius/offset in UIView/property-animator blocks (presentation layer values part-way); Core Animation objects (`CABasicAnimation`, keyframes, springs, groups, transitions) also animate a view's layer (position, bounds, transform incl. `transform.rotation.x/y/z` with perspective, opacity, colours, corner radius, border, shadow); animations added from `animationDidStop:` run. Tested (HelloAnimations radius / border, HelloMotion shadow / border colour, QuartzCore) |
 | UIKit Dynamics (`UIDynamicAnimator`, behaviors) | 🟡 | ≤17 | gravity, collision (reference bounds + insets, segment and path boundaries, item–item, contact delegate), snap, push (continuous / instantaneous), attachment (spring or rigid, item or anchor), `UIDynamicItemBehavior` (elasticity, friction, density, resistance, anchored, linear/angular velocity), actions, pause/resume delegate. Adapted: items collide as axis-aligned rectangles and collisions never spin them; ellipse/path collision bounds use the rectangle. Tested: gravity + collision (falls, rests on the boundary); others unverified |
 
 ### Gestures & touches
@@ -312,7 +312,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIPinchGestureRecognizer`, `UIRotationGestureRecognizer` | ✅ | ≤17 | scale/rotation (settable, relative from then on), velocity, centroid location; 2-touch `UIPanGestureRecognizer` (`minimumNumberOfTouches`/`maximumNumberOfTouches`); tested (HelloMultiTouch) |
 | `UIScreenEdgePanGestureRecognizer` | ✅ | ≤17 | starts only within 20 pt of `edges`; tested (HelloGestures) |
 | `UIHoverGestureRecognizer`, `UIPointerInteraction`, `UIPencilInteraction` | 🟡 | ≤17 | hover from host mouse motion without a button (script `hover X Y`) on every device; iPad pointer (dot, highlight / lift / hover effects, region request/enter/exit, `UIButton.isPointerInteractionEnabled`); tested (HelloMultiTouch). Pencil: honest stub, never gets taps; pointer shapes/beam not drawn |
-| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | 🟡 | ≤17 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`, `require(toFail:)` for discrete recognizers (tested: single vs double tap); `shouldRequireFailure(of:)` overrides are not consulted |
+| `UIGestureRecognizerDelegate` (simultaneous recognition, `require(toFail:)`) | ✅ | ≤17 | `gestureRecognizerShouldBegin`, `shouldReceive(_ touch:)`, `shouldRecognizeSimultaneouslyWith` (with exclusive recognizers), `UIView.gestureRecognizerShouldBegin`; failure requirements: `require(toFail:)`, the delegate's `shouldRequireFailureOf` / `shouldBeRequiredToFailBy` and the subclass overrides `shouldRequireFailure(of:)` / `shouldBeRequiredToFail(by:)` (among the recognizers on the touched view and its ancestors), for discrete recognizers (fire once the others fail) and pans (hold Began until they fail, fail if one recognizes). Tested (HelloGestures single vs double tap, HelloMotion, OS matrix) |
 | Custom `UIGestureRecognizer` subclasses | ✅ | ≤17 | `UIGestureRecognizerSubclass`: touches callbacks, settable `state` sends actions, `reset`; tested (HelloGestures) |
 | Shake / motion events | ✅ | ≤17 | `motionBegan/Ended` (shake) via Ctrl+Shift+Z or the script command `shake`; tested (HelloGestures) |
 | Hardware keys (`UIKeyCommand`, `pressesBegan`) | ✅ | ≤17 | host keyboard → `UIPress`/`UIKey` (HID usage, modifiers) on the responder chain; `keyCommands`/`addKeyCommand` matched before typing; tested (HelloGestures). No discoverability HUD |
@@ -429,7 +429,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `.onContinueUserActivity`, `.handlesExternalEvents` | ✅ | ≤17 | `.onContinueUserActivity` (Spotlight, universal links; queued until a handler registers), `.userActivity(_:isActive:_:)` advertises/indexes; `.handlesExternalEvents` accepted (one scene). Tested (HelloScenes) |
 | `.backgroundTask` | 🟡 | ≤17 | `.appRefresh(id)` runs when the request is launched (script `bgtask BUNDLE ID`), also in a background launch; `.urlSession` accepted, not delivered. Tested (HelloScenes) |
 | `openWindow` / `dismissWindow` | 🟡 | ≤17 | adapted: iPad + `UIApplicationSupportsMultipleScenes`: the requested `WindowGroup` replaces the window's content, `dismissWindow` goes back (isim shows one window per app); iPhone: ignored like iOS; `supportsMultipleWindows`. Tested (HelloScenes) |
-| `#Preview` / `PreviewProvider` | ❌ | ≤17 | no preview canvas; `#Preview` does not compile |
+| `#Preview` / `PreviewProvider` | 🟡 | ≤17 | adapted: `#Preview` (SwiftUI views, UIViews, UIViewControllers; names, traits) and `PreviewProvider` (+ `previewDisplayName` / `previewLayout` / `previewDevice` / `previewInterfaceOrientation`) compile and type-check: isim's PreviewsMacros plugin expands each `#Preview` into a `DeveloperToolsSupport.PreviewRegistry` type like Xcode's. No preview canvas; the modifiers change nothing. Tested: HelloToolchain (UIKit) and HelloSwiftUI (SwiftUI, PreviewProvider) build with previews |
 
 ### State & data flow
 
@@ -748,7 +748,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `BarMark` (vertical, horizontal, ranges, date bins with `unit:`, `width`/`height`) | ✅ | ≤17 | |
 | Bar stacking (`.standard`), grouping (`position(by:)`) | ✅ | ≤17 | `.normalized`/`.center` stacking unverified |
 | `LineMark` (`series:`, `interpolationMethod`), `PointMark` | ✅ | ≤17 | linear and catmullRom drawn in the test; step/cardinal/monotone unverified |
-| `symbol(_:)`, `symbol(by:)`, `symbolSize` | 🟡 | ≤17 | basic symbol shapes (circle, square, triangle, diamond, pentagon, plus, cross); unverified; `symbol { view }` missing |
+| `symbol(_:)`, `symbol(by:)`, `symbolSize`, `symbolSize(by:)`, `chartSymbolScale`, `chartSymbolSizeScale` | ✅ | ≤17 | basic shapes (circle, square, triangle, diamond, pentagon, plus, cross, asterisk), custom `ChartSymbolShape`s, `symbol { view }` (centered on the point), `symbol(by:)` (default shape sequence or the symbol scale), sizes as areas in square points, `symbolSize(by:)` mapped onto the size scale's range (default 20...200). Tested: HelloChartsMore (test_charts_more) |
 | `AreaMark` (stacked series, `yStart`/`yEnd`) | ✅ | ≤17 | stacking of several series unverified |
 | `RuleMark`, `RectangleMark` | ✅ | ≤17 | |
 | `SectorMark` (pie, donut `innerRadius`, `outerRadius`, `angularInset`) | ✅ | ≤17 | `angularInset` unverified; corner radius ignored |
@@ -757,9 +757,9 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | Axes: `chartXAxis`/`chartYAxis` (`.hidden`, `AxisMarks` position and values, `AxisGridLine`, `AxisTick`, `AxisValueLabel` with custom content), date axes | ✅ | ≤17 | `AxisTick` unverified; `AxisValueLabel(format:)` missing (no `FormatStyle` on isim) |
 | Scales: `chartXScale`/`chartYScale(domain:)` (ranges, category lists, `.automatic(includesZero:reversed:)`) | ✅ | ≤17 | log/sqrt/power scale types are drawn linear |
 | `annotation(position:alignment:spacing:)` | ✅ | ≤17 | |
-| `chartXAxisLabel`, `chartYAxisLabel` | 🟡 | ≤17 | simple placement (unverified) |
-| `chartOverlay`/`chartBackground` (`ChartProxy`), selection (`chartXSelection`), scrolling (`chartScrollableAxes`) | ❌ | ≤17 | |
-| `chartPlotStyle`, vectorized plots (`BarPlot`, `LinePlot`, iOS 18), `Chart3D` | ❌ | 18.0 | |
+| `chartXAxisLabel`, `chartYAxisLabel` (text or view content, `position`, `alignment`, `spacing`) | ✅ | ≤17 | x title below the plot (or `.top`), aligned along the axis; y title above the plot on the axis' side, or vertical beside it with `.leading` / `.trailing`. Tested: HelloChartsMore (bottom-trailing x, leading y) |
+| `chartOverlay`/`chartBackground` (`ChartProxy`), selection (`chartXSelection`), scrolling (`chartScrollableAxes`) | ✅ | ≤17 | `ChartProxy`: `plotFrame` (an anchor for the overlay's `GeometryReader`), `plotSize`, `position(forX:/forY:/for:)`, `positionRange`, `value(atX:/atY:/at:)`, `xDomain`/`yDomain`, `selectXValue`/`selectXRange`/`selectAngleValue`; `chartGesture`. Selection: `chartXSelection` / `chartYSelection` (value: set while a finger is on the plot, cleared when it lifts; range: by dragging, kept), `chartAngleSelection` (pies). Scrolling: `chartScrollableAxes` with `chartX/YVisibleDomain(length:)` (numbers, dates, category counts), `chartScrollPosition(x:/y:/initialX:/initialY:)`, `chartScrollTargetBehavior(.valueAligned(unit:/matching:) / .paging)`; marks outside the window are clipped. Tested: HelloChartsMore (overlay + background placed with the proxy, value lookups, held selection, drag scroll snapped to 5); range, y and angle selection, date scrolling unverified |
+| `chartPlotStyle`, vectorized plots (`BarPlot`, `LinePlot`, iOS 18), `Chart3D` | ✅ | 18.0 | `chartPlotStyle`: the plot area as a view (background, border, overlay; adapted: size modifiers do not resize the plot). iOS 18: `BarPlot`, `LinePlot` (data, series, y = f(x), parametric (x, y) = f(t)), `AreaPlot` (data, ranges, functions), `PointPlot`, `RulePlot`, `RectanglePlot`, `SectorPlot` with `PlottableProjection` key paths and the key-path modifiers (`foregroundStyle(by:)`, `symbol(by:)`, `symbolSize(by:)`, `opacity(by:)`); functions sampled over their domain or the x scale. iOS 26: `Chart3D` with `PointMark`/`RuleMark`/`RectangleMark(x:y:z:)` and `SurfacePlot` (`.heightBased`, `.normalBased`, shape styles), `chart3DPose` (a binding follows drags), `chart3DCameraProjection`, `chartZScale`; adapted: drawn in a Canvas (projected cube, painted back to front, simple shading, low/middle/high tick labels); `Angle2D` from isim's Spatial overlay. Tested: HelloChartsMore (plot style, BarPlot/PointPlot, sin LinePlot, band AreaPlot, SectorPlot; Chart3D on iOS 26) |
 
 ---
 
@@ -909,8 +909,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `Regex`, regex literals, `RegexBuilder` (`_StringProcessing`) | ✅ | ≤17 | built from swift-experimental-string-processing (swift-6.2.4); bare `/.../` literals need `-enable-bare-slash-regex` or Swift 6 mode like Xcode |
 | `Synchronization` (`Mutex`, `Atomic`, `WordPair`, `AtomicLazyReference`) | ✅ | ≤17 | built from the Swift 6.2.4 sources (iOS 18+ like Apple); `Mutex` on isim's `os_unfair_lock`; 128-bit atomics. Tested: SwiftExtrasTest |
 | Distributed actors (`Distributed`, `LocalTestingDistributedActorSystem`) | ✅ | ≤17 | built from the Swift 6.2.4 sources; distributed calls, `resolve(id:using:)`, thrown errors. Tested: SwiftExtrasTest |
-| C++ interop (`-cxx-interoperability-mode=default`) | 🟡 | ≤17 | user C++ (structs, classes, operators, static members, `enum class`, templates through inline functions, `.cpp` code) works; the C++ standard library is not importable (`import CxxStdlib`, `std::string`/`std::vector`: libc++'s headers do not build as a Clang module against isim's C headers). Tested: tests/swift-cxx |
-| Swift macros from packages | 🟡 | ≤17 | `@Observable` works (toolchain plugin); `#Preview` and package macro targets unverified |
+| C++ interop (`-cxx-interoperability-mode=default`) | ✅ | ≤17 | user C++ (structs, classes, operators, static members, `enum class`, templates through typedefs and inline functions, `.cpp` code) and the C++ standard library: `import CxxStdlib` (libc++ as Clang modules), `std.string` ↔ `String`, `Hashable`, `std.vector` / `std.map` as Swift collections (`Cxx`), `std.optional`, `std.chrono` ↔ `Duration`. Adapted: `Cxx` and `CxxStdlib` are built from the Swift 6.2.4 sources as dylibs, the overlay without inlinable bodies (Swift 6.2 cannot deserialize its references to libc++ 22 members), libc++'s hidden inline functions without ABI tags; headers isim's libc++ leaves out (iostreams, locales, wide characters, filesystem) are not available. Tested: tests/swift-cxx |
+| Swift macros from packages | ✅ | ≤17 | adapted: `isim build` builds a package's macro targets as compiler plugins for the toolchain's host (`lib<Target>.so`, loaded in process with `-load-plugin-library`) against the Swift 6.2 toolchain's swift-syntax (the package's swift-syntax dependency is not fetched; targets needing other swift-syntax modules, e.g. its test support, are refused) and isim's `SwiftCompilerPlugin`; freestanding and attached macros. Toolchain macros (`@Observable`, Swift Testing) as before; `#Preview` expands with isim's PreviewsMacros plugin. Tested: HelloToolchain (test_toolchain: `#stringify`, `@CaseCount`, `#Preview`) |
 
 ### Combine
 
@@ -939,8 +939,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Barriers, `DispatchWorkItem`, `dispatchPrecondition`, queue-specific values | ✅ | ≤17 | |
 | `DispatchGroup`, `DispatchSemaphore`, `concurrentPerform` / `dispatch_apply` | ✅ | ≤17 | |
 | Timer sources (`DispatchSource.makeTimerSource`) | ✅ | ≤17 | |
-| User-data (add/or/replace), read/write, signal, process, file-system-object and memory-pressure sources; registration handlers | 🟡 | ≤17 | a monitor thread polls fds; process exit via `kill(pid, 0)` and file events via `fstat` every 50 ms (renames via /proc); write sources report 1, not the free space; memory pressure and Mach sources never fire. Tested: SwiftExtrasTest |
-| `DispatchData`, `DispatchIO` (stream / random, `read`/`write`, high/low water, `close`, class `read`/`write`) | 🟡 | ≤17 | Swift API only (no C `dispatch_data_t`/`dispatch_io_t`); `setInterval` ignored. Tested: SwiftExtrasTest |
+| User-data (add/or/replace), read/write, signal, process, file-system-object, memory-pressure and Mach send/receive sources; registration handlers | ✅ | ≤17 | adapted from kqueue onto Linux, one monitor thread in `poll()`: read sources report readable bytes (a listening socket: pending connections), write sources the pipe's / socket's free space (files and terminals: 1); file-system-object sources wake on inotify and compare `fstat` (write, extend, attrib, link, rename, delete, revoke); process exit on a pidfd (zombies included), fork / exec checked every 50 ms (`/proc` children, executable); Mach receive sources fire while messages are queued on isim's in-process ports, send sources report `.dead`; memory pressure comes from the Simulator's memory warning (`memorywarning [warn\|critical\|normal]`). Not reported: process `.signal`, `.funlock`, Mach `.possible`. Typed `data`/`mask`/`handle` requirements like Apple's overlay. Tested: tests/dispatch, SwiftExtrasTest, HelloAppearance (test_appearance) |
+| `DispatchData`, `DispatchIO` (stream / random, `read`/`write`, high/low water, interval, `close`, `barrier`, class `read`/`write`); C `dispatch_data_t` / `dispatch_io_t` (`dispatch_data_create` with each destructor, concat, subrange, map, apply, copy_region; `dispatch_io_create*`, read/write/barrier/close, `dispatch_read`/`dispatch_write`, `_f` variants) | ✅ | ≤17 | isim's own implementation (Foundation, DispatchIO.mrc.m) with the Swift API on top (no copies between them): each channel's operations run in order on its queue; random-access offsets are relative to the descriptor's position at creation; Apple's default water marks (low 512 KiB, high unlimited), strict and non-strict intervals; path channels need an absolute path, open errors go to the handlers and the cleanup handler. `dispatch_data_t` is a plain C object, not toll-free bridged to `NSData` (as for all isim dispatch objects). Tested: tests/dispatch, SwiftExtrasTest |
 
 ---
 

@@ -75,3 +75,15 @@ struct DetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+// Previews (Xcode's canvas; on isim they compile and type-check)
+#Preview { ContentView() }
+#Preview("Detail", traits: .sizeThatFitsLayout) {
+    let n = 3
+    return DetailView(count: n)
+}
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView().previewDisplayName("Content").previewInterfaceOrientation(.portrait)
+    }
+}

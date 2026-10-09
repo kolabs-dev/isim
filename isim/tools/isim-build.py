@@ -316,6 +316,12 @@ def load_standins():
         return {k.lower().rstrip('/').removesuffix('.git'): v for k, v in json.load(f).items()}
 
 
+# swift-syntax's libraries in the Swift toolchain (/usr/lib/swift/host of swift:6.2): what macro targets build against
+SWIFT_SYNTAX_HOST = set('''SwiftBasicFormat SwiftCompilerPluginMessageHandling SwiftDiagnostics SwiftIDEUtils SwiftIfConfig
+SwiftOperators SwiftParser SwiftParserDiagnostics SwiftRefactor SwiftSyntax SwiftSyntaxBuilder SwiftSyntaxMacroExpansion
+SwiftSyntaxMacros'''.split())
+
+
 def norm_url(url):
     return (url or '').lower().rstrip('/').removesuffix('.git')
 
@@ -418,7 +424,7 @@ class Packages:
         def chunks(flags):                      # a flag with its argument is one unit ("-I dir", "-Xcc -Idir")
             out, i = [], 0
             while i < len(flags):
-                if flags[i] in ('-I', '-F', '-L', '-framework', '-Xcc', '-Xlinker') and i + 1 < len(flags):
+                if flags[i] in ('-I', '-F', '-L', '-framework', '-Xcc', '-Xlinker', '-load-plugin-library') and i + 1 < len(flags):
                     out.append(tuple(flags[i:i + 2])); i += 2
                 else:
                     out.append((flags[i],)); i += 1
@@ -458,6 +464,10 @@ class Packages:
             fail(f'package {m.get("name")}: no target {tname!r}')
         t = targets[tname]
         self.targets_built[key] = None             # cycle guard
+        if t.get('type') == 'macro':
+            res = self.macro_target(pkg_dir, m, t)
+            self.targets_built[key] = res
+            return res
         deps = self.empty()
         dep_dirs = None
         for d in t.get('dependencies', []):
@@ -485,9 +495,50 @@ class Packages:
             res['swift_flags'] += ['-I', mm]
             res['cc_flags'] += ['-I', mm]
         else:
-            fail(f'{tname}: package target type {kind!r} (macros/plugins) is not supported by isim build')
+            fail(f'{tname}: package target type {kind!r} (build tool / command plugins) is not supported by isim build')
         self.merge(res, deps)
         self.targets_built[key] = res
+        return res
+
+    def macro_target(self, pkg_dir, m, t):
+        """A macro target: a compiler plugin for the toolchain's host (Linux), built in the swift:6.2 container against
+        the toolchain's swift-syntax libraries (/usr/lib/swift/host; the package's swift-syntax dependency is not
+        fetched) and isim's SwiftCompilerPlugin module, as lib<Target>.so that the compiler loads in process
+        (-load-plugin-library) when it compiles the targets using the macros."""
+        tname = t['name']
+        host_dir = os.path.normpath(os.path.join(BIN, '..', 'swift', 'host'))
+        if not os.path.exists(os.path.join(host_dir, 'SwiftCompilerPlugin.swiftmodule')):
+            fail(f'{tname}: macro target needs isim\'s SwiftCompilerPlugin ({host_dir} is missing; build isim)')
+        for d in t.get('dependencies', []):
+            name = (d.get('byName') or d.get('target') or d.get('product') or [''])[0]
+            if name not in SWIFT_SYNTAX_HOST and name != 'SwiftCompilerPlugin':
+                fail(f'{tname}: macro target dependency {name!r} is not available: isim builds macros against the '
+                     f'Swift toolchain\'s swift-syntax ({", ".join(sorted(SWIFT_SYNTAX_HOST))}) and SwiftCompilerPlugin')
+        src = os.path.join(pkg_dir, t.get('path') or os.path.join('Sources', tname))
+        excluded = [os.path.normpath(os.path.join(src, e)) for e in t.get('exclude', [])]
+        srcs = sorted(os.path.join(d, f) for d, _, fs in os.walk(src) for f in fs if f.endswith('.swift')
+                      and not any(os.path.join(d, f).startswith(e) for e in excluded))
+        if not srcs:
+            fail(f'{tname}: macro target without Swift sources in {src}')
+        outdir = os.path.join(self.b.outdir, 'obj', 'packages', 'plugins')
+        os.makedirs(outdir, exist_ok=True)
+        lib = os.path.join(outdir, f'lib{tname}.so')
+        if not os.path.exists(lib) or os.path.getmtime(lib) < max(os.path.getmtime(f) for f in srcs):
+            log(f'{tname}: macro target, built as a compiler plugin (lib{tname}.so, the toolchain\'s swift-syntax)')
+            _, flags, _ = self.settings_of(t, 'swift')
+            libs = [f'-l{n}' for n in sorted(SWIFT_SYNTAX_HOST)]
+            r = subprocess.run(['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
+                                '--mount', f'type=bind,src={src},dst={src},readonly',
+                                '--mount', f'type=bind,src={host_dir},dst={host_dir},readonly',
+                                '--mount', f'type=bind,src={outdir},dst={outdir}', '-w', '/tmp', 'swift:6.2',
+                                'swiftc', '-O', '-emit-library', '-parse-as-library', '-module-name', tname, *flags,
+                                '-I', host_dir, '-L', host_dir, '-I', '/usr/lib/swift/host', '-L', '/usr/lib/swift/host',
+                                '-lSwiftCompilerPlugin', *libs, '-Xlinker', '-rpath', '-Xlinker', '/usr/lib/swift/host',
+                                '-Xlinker', '-rpath', '-Xlinker', host_dir, '-o', lib, *srcs], capture_output=True, text=True)
+            if r.returncode:
+                fail(f'{tname}: building the macro plugin failed:\n{r.stdout}{r.stderr}')
+        res = self.empty()
+        res['swift_flags'] += ['-load-plugin-library', lib]
         return res
 
     def product_of_dependency(self, pkg_dir, dep_dirs, pname, ident):

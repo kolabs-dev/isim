@@ -742,8 +742,13 @@ void isim_sys_event(const char *text) {
         NSLog(@"isim: %@ %@", verb, args);
     }
     else if ([verb isEqualToString:@"memory-warning"]) {           /* Debug > Simulate Memory Warning */
+        /* like iOS, memory-pressure dispatch sources hear it first (level: warn, critical or normal); warn and
+           critical then reach the app delegate, the notification and the view controllers */
         extern void isim_ui_memory_warning(void);
-        isim_ui_memory_warning();
+        extern void isim_dispatch_memory_pressure(unsigned long level);
+        unsigned long level = [args isEqualToString:@"critical"] ? 4 : [args isEqualToString:@"normal"] ? 1 : 2;
+        isim_dispatch_memory_pressure(level);
+        if (level != 1) isim_ui_memory_warning();
     }
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */
         [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];

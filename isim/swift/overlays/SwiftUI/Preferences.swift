@@ -136,6 +136,10 @@ public struct Anchor<Value> {
         let make: (CGRect) -> Value
     }
 }
+extension Anchor {
+    /// isim: an anchor whose value is fixed (in the reader's coordinate space): Charts' ChartProxy.plotFrame.
+    public init(_isimValue value: Value) { node = nil; make = { _ in value } }
+}
 extension Anchor: @unchecked Sendable {}
 extension Anchor.Source: @unchecked Sendable {}
 extension Anchor.Source where Value == CGRect {
