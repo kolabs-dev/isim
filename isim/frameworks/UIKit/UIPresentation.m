@@ -736,6 +736,8 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
     UIPopoverPresentationController *pop = (UIPopoverPresentationController *)_pc;
     id<UIPopoverPresentationControllerDelegate> d = pop.delegate;
     if ([d respondsToSelector:@selector(prepareForPopoverPresentation:)]) [d prepareForPopoverPresentation:pop];
+    if ([_presented isKindOfClass:[UIAlertController class]] && !pop.sourceView && !pop.barButtonItem)       /* like iOS */
+        [NSException raise:NSGenericException format:@"Your application has presented a UIAlertController (%@) of style UIAlertControllerStyleActionSheet from %@ (%@). The modalPresentationStyle of a UIAlertController with this style is UIModalPresentationPopover. You must provide location information for this popover through the alert controller's popoverPresentationController. You must provide either a sourceView and sourceRect or a barButtonItem. If this information is not known when you present the alert controller, you may provide it in the UIPopoverPresentationControllerDelegate method -prepareForPopoverPresentation.", _presented, _presenter.class, _presenter];
     _popoverCard = [__IsimPopoverView new];
     _popoverCard.fill = pop.backgroundColor ?: v.backgroundColor ?: UIColor.systemBackgroundColor;
     _popoverCard.userInteractionEnabled = NO;
@@ -888,7 +890,7 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
 - (BOOL)_isim_isZoom;
 @end
 BOOL isim_ui_present(UIViewController *presenter, UIViewController *vc, BOOL animated, void (^done)(void)) {
-    if ([vc isKindOfClass:[UIAlertController class]]) return NO;
+    if ([vc isKindOfClass:[UIAlertController class]] && vc.modalPresentationStyle != UIModalPresentationPopover) return NO;   /* iPad action sheets: popovers */
     UIWindow *w = presenter.viewIfLoaded.window;
     if (!w) return NO;
     /* iOS 18 zoom (preferredTransition): a full-screen presentation that grows from the source view */
