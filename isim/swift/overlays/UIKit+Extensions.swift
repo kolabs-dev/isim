@@ -16,20 +16,16 @@ public func _isimItemProviders(_ raw: NSArray) -> NSArray {
         } else if let u = item as? NSURL {
             if u.isFileURL, let path = u.path {
                 let url = URL(fileURLWithPath: path)
-                let p = NSItemProvider(contentsOf: url) ?? NSItemProvider(item: u, typeIdentifier: UTType.fileURL.identifier)
-                p._isimSetItem(u, forTypeIdentifier: UTType.fileURL.identifier)
+                let p = NSItemProvider(item: u, typeIdentifier: UTType.fileURL.identifier)       // loadItem gives the URL back
+                let type = UTType(filenameExtension: url.pathExtension) ?? .data
+                p.registerFileRepresentation(forTypeIdentifier: type.identifier, fileOptions: [], visibility: .all) { done in done(url, false, nil); return nil }
+                p.suggestedName = url.deletingPathExtension().lastPathComponent
                 out.append(p)
             } else {
                 out.append(NSItemProvider(item: u, typeIdentifier: UTType.url.identifier))
             }
         } else if let image = item as? UIImage {
-            let p = NSItemProvider()
-            let png = image.pngData()
-            p.registerDataRepresentation(forTypeIdentifier: UTType.png.identifier, visibility: .all) { done in
-                done(png, png == nil ? NSError(domain: NSItemProviderErrorDomain, code: -1000) : nil); return nil
-            }
-            if let png { p._isimSetItem(png as NSData, forTypeIdentifier: UTType.png.identifier) }
-            out.append(p)
+            out.append(image.pngData().map { NSItemProvider(item: $0 as NSData, typeIdentifier: UTType.png.identifier) } ?? NSItemProvider(object: image))
         } else if let d = item as? NSData {
             out.append(NSItemProvider(item: d, typeIdentifier: UTType.data.identifier))
         }
