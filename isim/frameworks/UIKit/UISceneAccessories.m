@@ -41,10 +41,10 @@ typedef NS_ENUM(NSInteger, IsimAccessoryKind) { IsimAccessoryExternal, IsimAcces
     return a;
 }
 - (instancetype)initForIsim { return [super init]; }
-+ (instancetype)externalNonInteractiveWithSceneConfiguration:(UISceneConfiguration *)c { return [self _isim_kind:IsimAccessoryExternal configuration:c userInfo:nil]; }
-+ (instancetype)externalNonInteractiveWithSceneConfiguration:(UISceneConfiguration *)c userInfo:(id)u { return [self _isim_kind:IsimAccessoryExternal configuration:c userInfo:u]; }
-+ (instancetype)cameraCaptureWithSceneConfiguration:(UISceneConfiguration *)c { return [self _isim_kind:IsimAccessoryCamera configuration:c userInfo:nil]; }
-+ (instancetype)cameraCaptureWithSceneConfiguration:(UISceneConfiguration *)c userInfo:(id)u { return [self _isim_kind:IsimAccessoryCamera configuration:c userInfo:u]; }
++ (instancetype)externalNonInteractiveSceneAccessoryWithConfiguration:(UISceneConfiguration *)c { return [self _isim_kind:IsimAccessoryExternal configuration:c userInfo:nil]; }
++ (instancetype)externalNonInteractiveSceneAccessoryWithConfiguration:(UISceneConfiguration *)c userInfo:(id)u { return [self _isim_kind:IsimAccessoryExternal configuration:c userInfo:u]; }
++ (instancetype)cameraCaptureSceneAccessoryWithConfiguration:(UISceneConfiguration *)c { return [self _isim_kind:IsimAccessoryCamera configuration:c userInfo:nil]; }
++ (instancetype)cameraCaptureSceneAccessoryWithConfiguration:(UISceneConfiguration *)c userInfo:(id)u { return [self _isim_kind:IsimAccessoryCamera configuration:c userInfo:u]; }
 @end
 
 static UIScreen *external_screen;
@@ -185,10 +185,12 @@ void isim_ui_display_event(NSString *args) {
 
 /* ================= closure confirmation ================= */
 @implementation UISceneClosureConfirmation { NSString *_title, *_message; NSArray<UIAlertAction *> *_actions; }
-- (instancetype)initWithTitle:(NSString *)title message:(NSString *)message actions:(NSArray<UIAlertAction *> *)actions {
-    if ((self = [super init])) { _title = [title copy]; _message = [message copy]; _actions = [actions copy] ?: @[]; }
-    return self;
++ (instancetype)confirmationWithTitle:(NSString *)title message:(NSString *)message actions:(NSArray<UIAlertAction *> *)actions {
+    UISceneClosureConfirmation *c = [[self alloc] initForIsim];
+    c->_title = [title copy]; c->_message = [message copy]; c->_actions = [actions copy] ?: @[];
+    return c;
 }
+- (instancetype)initForIsim { return [super init]; }
 - (instancetype)initWithCoder:(NSCoder *)coder {
     if ((self = [super init])) {
         _title = [coder decodeObjectOfClass:[NSString class] forKey:@"title"];
@@ -199,7 +201,7 @@ void isim_ui_display_event(NSString *args) {
 }
 + (BOOL)supportsSecureCoding { return YES; }
 - (void)encodeWithCoder:(NSCoder *)coder { [coder encodeObject:_title forKey:@"title"]; [coder encodeObject:_message forKey:@"message"]; }
-- (id)copyWithZone:(NSZone *)z { return [[UISceneClosureConfirmation alloc] initWithTitle:_title message:_message actions:_actions]; }
+- (id)copyWithZone:(NSZone *)z { return [UISceneClosureConfirmation confirmationWithTitle:_title message:_message actions:_actions]; }
 - (NSString *)_isim_title { return _title; }
 - (NSString *)_isim_message { return _message; }
 - (NSArray<UIAlertAction *> *)_isim_actions { return _actions; }

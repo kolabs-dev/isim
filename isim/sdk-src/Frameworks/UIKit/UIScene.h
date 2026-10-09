@@ -122,7 +122,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(16.0)) NS_SWIFT_NAME(UIWindowScene.Geometry)
 @class UIAlertAction;
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(27.0))
 @interface UISceneClosureConfirmation : NSObject <NSCopying, NSSecureCoding>
-- (instancetype)initWithTitle:(nullable NSString *)title message:(nullable NSString *)message actions:(NSArray<UIAlertAction *> *)actions;
++ (instancetype)confirmationWithTitle:(nullable NSString *)title message:(nullable NSString *)message actions:(NSArray<UIAlertAction *> *)actions;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 @end
 @class CADisplayLink;
@@ -183,10 +183,10 @@ NS_SWIFT_UI_ACTOR
    are never available (no capture accessory surface) */
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(27.0))
 @interface UISceneAccessory : NSObject
-+ (instancetype)externalNonInteractiveWithSceneConfiguration:(UISceneConfiguration *)sceneConfiguration NS_SWIFT_NAME(externalNonInteractive(sceneConfiguration:));
-+ (instancetype)externalNonInteractiveWithSceneConfiguration:(UISceneConfiguration *)sceneConfiguration userInfo:(id)userInfo NS_SWIFT_NAME(externalNonInteractive(sceneConfiguration:userInfo:));
-+ (instancetype)cameraCaptureWithSceneConfiguration:(UISceneConfiguration *)sceneConfiguration NS_SWIFT_NAME(cameraCapture(sceneConfiguration:)) API_AVAILABLE(ios(27.1));
-+ (instancetype)cameraCaptureWithSceneConfiguration:(UISceneConfiguration *)sceneConfiguration userInfo:(id)userInfo NS_SWIFT_NAME(cameraCapture(sceneConfiguration:userInfo:)) API_AVAILABLE(ios(27.1));
++ (instancetype)externalNonInteractiveSceneAccessoryWithConfiguration:(UISceneConfiguration *)sceneConfiguration NS_SWIFT_NAME(externalNonInteractive(sceneConfiguration:));
++ (instancetype)externalNonInteractiveSceneAccessoryWithConfiguration:(UISceneConfiguration *)sceneConfiguration userInfo:(id)userInfo NS_SWIFT_NAME(externalNonInteractive(sceneConfiguration:userInfo:));
++ (instancetype)cameraCaptureSceneAccessoryWithConfiguration:(UISceneConfiguration *)sceneConfiguration NS_SWIFT_NAME(cameraCapture(sceneConfiguration:)) API_AVAILABLE(ios(27.1));
++ (instancetype)cameraCaptureSceneAccessoryWithConfiguration:(UISceneConfiguration *)sceneConfiguration userInfo:(id)userInfo NS_SWIFT_NAME(cameraCapture(sceneConfiguration:userInfo:)) API_AVAILABLE(ios(27.1));
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 @end
