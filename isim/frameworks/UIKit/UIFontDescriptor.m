@@ -177,9 +177,11 @@ static UIFont *font_for_family(NSString *family, CGFloat size) {
     if (self._isim_tabular) a[UIFontDescriptorFeatureSettingsAttribute] = @[@{UIFontFeatureTypeIdentifierKey: @6, UIFontFeatureSelectorIdentifierKey: @0}];
     return [UIFontDescriptor fontDescriptorWithFontAttributes:a];
 }
+/* the faces of an iOS family (UIGraphicsBase.m), or of an app font family (UIAppFonts); none for unknown names */
 + (NSArray<NSString *> *)fontNamesForFamilyName:(NSString *)family {
-    NSString *base = [family stringByReplacingOccurrencesOfString:@" " withString:@""];
-    return @[base, [base stringByAppendingString:@"-Bold"]];
+    extern NSDictionary<NSString *, NSArray<NSString *> *> *isim_ui_ios_font_families(void);
+    extern NSArray<NSString *> *isim_ui_app_font_faces(NSString *family);
+    return isim_ui_ios_font_families()[family] ?: isim_ui_app_font_faces(family);
 }
 /* widths: the default width (adapted; no condensed / expanded face) */
 + (UIFont *)systemFontOfSize:(CGFloat)s weight:(UIFontWeight)w width:(UIFontWidth)width { return [self systemFontOfSize:s weight:w]; }

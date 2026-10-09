@@ -159,7 +159,7 @@ static const struct glyph glyphs[] = {
     { "cross", "B:M 38 8 L 62 8 L 62 38 L 92 38 L 92 62 L 62 62 L 62 92 L 38 92 L 38 62 L 8 62 L 8 38 L 38 38 Z" },
     { "bubble.left", G_BUBBLE }, { "message", G_BUBBLE }, { "bubble.right", G_BUBBLE, 0, 1 },
     { "text.bubble", G_BUBBLE "|D:M 28 38 L 72 38|D:M 28 54 L 60 54" },
-    { "doc", G_DOC }, { "clipboard", "B:R 18 14 64 80 7|F:R 36 6 28 15 4" }, { "doc.on.clipboard", "B:R 10 14 58 76 7|F:R 26 6 26 14 4|B:M 44 40 L 70 40 L 88 58 L 88 94 L 44 94 Z|D:M 70 40 L 70 58 L 88 58" }, { "doc.text", G_DOC "|D:M 34 50 L 68 50|D:M 34 64 L 68 64|D:M 34 78 L 56 78" },
+    { "doc", G_DOC }, { "eyedropper", "B:M 60 14 C 66 8 76 8 82 14 L 86 18 C 92 24 92 34 86 40 L 78 48 L 52 22 Z|S:M 70 40 L 26 84 L 14 88 L 18 76 L 62 32" }, { "clipboard", "B:R 18 14 64 80 7|F:R 36 6 28 15 4" }, { "doc.on.clipboard", "B:R 10 14 58 76 7|F:R 26 6 26 14 4|B:M 44 40 L 70 40 L 88 58 L 88 94 L 44 94 Z|D:M 70 40 L 70 58 L 88 58" }, { "doc.text", G_DOC "|D:M 34 50 L 68 50|D:M 34 64 L 68 64|D:M 34 78 L 56 78" },
     { "folder", "B:M 6 20 C 6 16 8 14 12 14 L 36 14 L 44 24 L 88 24 C 92 24 94 26 94 30 L 94 82 C 94 86 92 88 88 88 L 12 88 C 8 88 6 86 6 82 Z|D:M 6 36 L 94 36" },
     { "book", "B:M 50 22 C 38 12 22 12 8 16 L 8 84 C 22 80 38 80 50 90 C 62 80 78 80 92 84 L 92 16 C 78 12 62 12 50 22 Z|D:M 50 22 L 50 90" },
     { "video", "B:R 6 24 62 52 10|B:M 74 44 L 94 30 L 94 70 L 74 56 Z" },

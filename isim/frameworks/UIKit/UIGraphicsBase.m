@@ -231,7 +231,64 @@ void isim_ui_register_app_fonts(void) {
 + (UIFont *)monospacedDigitSystemFontOfSize:(CGFloat)s weight:(UIFontWeight)w { UIFont *f = [self systemFontOfSize:s weight:w]; f->_tabular = YES; return f; }
 + (UIFont *)monospacedSystemFontOfSize:(CGFloat)s weight:(UIFontWeight)w { return [self _size:s weight:w mono:YES name:@".SFMono-Regular"]; }
 /* Fonts that ship with iOS: available by name even when the host lacks them (drawn with a similar host font). */
+/* the app's registered fonts (UIAppFonts): families and their faces */
+NSArray<NSString *> *isim_ui_app_font_faces(NSString *family) {
+    isim_ui_register_app_fonts();
+    NSMutableArray *a = [NSMutableArray array];
+    char fam[128], ps[128];
+    for (int i = 0; isim_font_app_face(i, fam, sizeof fam, ps, sizeof ps); i++) if (!family || [@(fam) isEqualToString:family]) [a addObject:family ? @(ps) : @(fam)];
+    return family ? a : [NSOrderedSet orderedSetWithArray:a].array;
+}
+NSArray<NSString *> *isim_ui_app_font_families(void) { return isim_ui_app_font_faces(nil); }
+/* the font families iOS ships and their faces (PostScript names), as UIFont.familyNames / fontNames(forFamilyName:)
+   list them; drawn with the host's closest font (adapted: isim cannot ship Apple's fonts) */
+NSDictionary<NSString *, NSArray<NSString *> *> *isim_ui_ios_font_families(void) {
+    static NSDictionary *d;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        d = @{
+            @"American Typewriter": @[@"AmericanTypewriter-Light", @"AmericanTypewriter", @"AmericanTypewriter-Semibold", @"AmericanTypewriter-Bold",
+                                      @"AmericanTypewriter-CondensedLight", @"AmericanTypewriter-Condensed", @"AmericanTypewriter-CondensedBold"],
+            @"Arial": @[@"ArialMT", @"Arial-ItalicMT", @"Arial-BoldMT", @"Arial-BoldItalicMT"],
+            @"Avenir": @[@"Avenir-Light", @"Avenir-LightOblique", @"Avenir-Book", @"Avenir-BookOblique", @"Avenir-Roman", @"Avenir-Oblique",
+                         @"Avenir-Medium", @"Avenir-MediumOblique", @"Avenir-Heavy", @"Avenir-HeavyOblique", @"Avenir-Black", @"Avenir-BlackOblique"],
+            @"Avenir Next": @[@"AvenirNext-UltraLight", @"AvenirNext-UltraLightItalic", @"AvenirNext-Regular", @"AvenirNext-Italic", @"AvenirNext-Medium",
+                              @"AvenirNext-MediumItalic", @"AvenirNext-DemiBold", @"AvenirNext-DemiBoldItalic", @"AvenirNext-Bold", @"AvenirNext-BoldItalic",
+                              @"AvenirNext-Heavy", @"AvenirNext-HeavyItalic"],
+            @"Baskerville": @[@"Baskerville", @"Baskerville-Italic", @"Baskerville-SemiBold", @"Baskerville-SemiBoldItalic", @"Baskerville-Bold", @"Baskerville-BoldItalic"],
+            @"Chalkboard SE": @[@"ChalkboardSE-Light", @"ChalkboardSE-Regular", @"ChalkboardSE-Bold"],
+            @"Courier": @[@"Courier", @"Courier-Oblique", @"Courier-Bold", @"Courier-BoldOblique"],
+            @"Courier New": @[@"CourierNewPSMT", @"CourierNewPS-ItalicMT", @"CourierNewPS-BoldMT", @"CourierNewPS-BoldItalicMT"],
+            @"Didot": @[@"Didot", @"Didot-Italic", @"Didot-Bold"],
+            @"Futura": @[@"Futura-Medium", @"Futura-MediumItalic", @"Futura-Bold", @"Futura-CondensedMedium", @"Futura-CondensedExtraBold"],
+            @"Georgia": @[@"Georgia", @"Georgia-Italic", @"Georgia-Bold", @"Georgia-BoldItalic"],
+            @"Gill Sans": @[@"GillSans-Light", @"GillSans-LightItalic", @"GillSans", @"GillSans-Italic", @"GillSans-SemiBold", @"GillSans-SemiBoldItalic",
+                            @"GillSans-Bold", @"GillSans-BoldItalic", @"GillSans-UltraBold"],
+            @"Helvetica": @[@"Helvetica-Light", @"Helvetica-LightOblique", @"Helvetica", @"Helvetica-Oblique", @"Helvetica-Bold", @"Helvetica-BoldOblique"],
+            @"Helvetica Neue": @[@"HelveticaNeue-UltraLight", @"HelveticaNeue-UltraLightItalic", @"HelveticaNeue-Thin", @"HelveticaNeue-ThinItalic",
+                                 @"HelveticaNeue-Light", @"HelveticaNeue-LightItalic", @"HelveticaNeue", @"HelveticaNeue-Italic", @"HelveticaNeue-Medium",
+                                 @"HelveticaNeue-MediumItalic", @"HelveticaNeue-Bold", @"HelveticaNeue-BoldItalic", @"HelveticaNeue-CondensedBold",
+                                 @"HelveticaNeue-CondensedBlack"],
+            @"Marker Felt": @[@"MarkerFelt-Thin", @"MarkerFelt-Wide"],
+            @"Menlo": @[@"Menlo-Regular", @"Menlo-Italic", @"Menlo-Bold", @"Menlo-BoldItalic"],
+            @"Noteworthy": @[@"Noteworthy-Light", @"Noteworthy-Bold"],
+            @"Optima": @[@"Optima-Regular", @"Optima-Italic", @"Optima-Bold", @"Optima-BoldItalic", @"Optima-ExtraBlack"],
+            @"Palatino": @[@"Palatino-Roman", @"Palatino-Italic", @"Palatino-Bold", @"Palatino-BoldItalic"],
+            @"Rockwell": @[@"Rockwell-Regular", @"Rockwell-Italic", @"Rockwell-Bold", @"Rockwell-BoldItalic"],
+            @"Times New Roman": @[@"TimesNewRomanPSMT", @"TimesNewRomanPS-ItalicMT", @"TimesNewRomanPS-BoldMT", @"TimesNewRomanPS-BoldItalicMT"],
+            @"Trebuchet MS": @[@"TrebuchetMS", @"TrebuchetMS-Italic", @"TrebuchetMS-Bold", @"Trebuchet-BoldItalic"],
+            @"Verdana": @[@"Verdana", @"Verdana-Italic", @"Verdana-Bold", @"Verdana-BoldItalic"],
+        };
+    });
+    return d;
+}
+static NSString *ios_family_of_face(NSString *name) {
+    for (NSString *fam in isim_ui_ios_font_families()) if ([isim_ui_ios_font_families()[fam] containsObject:name]) return fam;
+    return nil;
+}
 static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
+    NSString *listed = ios_family_of_face(name);
+    if (listed) { *mono = [@[@"Courier", @"Courier New", @"Menlo"] containsObject:listed]; return YES; }
     static NSArray *mono_fams, *fams;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -258,16 +315,23 @@ static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
     BOOL mono = NO;
     if (ios_builtin_family(name, &mono)) {
         NSString *l = name.lowercaseString;
-        CGFloat weight = [l containsString:@"black"] || [l containsString:@"heavy"] ? UIFontWeightHeavy : [l containsString:@"bold"] ? UIFontWeightBold
-                       : [l containsString:@"semibold"] ? UIFontWeightSemibold : [l containsString:@"medium"] ? UIFontWeightMedium
-                       : [l containsString:@"light"] ? UIFontWeightLight : UIFontWeightRegular;
+        CGFloat weight = [l containsString:@"black"] || [l containsString:@"heavy"] || [l containsString:@"ultrabold"] ? UIFontWeightHeavy
+                       : [l containsString:@"semibold"] || [l containsString:@"demibold"] ? UIFontWeightSemibold : [l containsString:@"bold"] ? UIFontWeightBold
+                       : [l containsString:@"medium"] ? UIFontWeightMedium : [l containsString:@"ultralight"] ? UIFontWeightUltraLight
+                       : [l containsString:@"thin"] ? UIFontWeightThin : [l containsString:@"light"] ? UIFontWeightLight : UIFontWeightRegular;
         UIFont *f = [self _size:s weight:weight mono:mono name:name];
         f->_italic = [l containsString:@"italic"] || [l containsString:@"oblique"];
         return f;
     }
     return nil;                 /* like iOS: no font with that name is available */
 }
-+ (NSArray<NSString *> *)familyNames { return @[@"Helvetica", @"Menlo"]; }
+/* the iOS families, then the app's own (UIAppFonts) */
++ (NSArray<NSString *> *)familyNames {
+    isim_ui_register_app_fonts();
+    NSMutableOrderedSet *s = [NSMutableOrderedSet orderedSetWithArray:isim_ui_ios_font_families().allKeys];
+    for (NSString *f in isim_ui_app_font_families()) [s addObject:f];
+    return [s.array sortedArrayUsingSelector:@selector(caseInsensitiveCompare:)];
+}
 + (UIFont *)preferredFontForTextStyle:(UIFontTextStyle)style {
     NSDictionary *sizes = @{ UIFontTextStyleLargeTitle: @34, UIFontTextStyleTitle1: @28, UIFontTextStyleTitle2: @22, UIFontTextStyleTitle3: @20,
                              UIFontTextStyleHeadline: @17, UIFontTextStyleBody: @17, UIFontTextStyleCallout: @16, UIFontTextStyleSubheadline: @15,
@@ -301,6 +365,8 @@ static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
 }
 - (NSString *)familyName {
     if (_family) return _family;
+    NSString *ios = _name ? ios_family_of_face(_name) : nil;      /* an iOS face, drawn by the system font */
+    if (ios) return ios;
     if ([_design isEqualToString:@"NSCTFontUIFontDesignSerif"]) return @".New York";
     if ([_design isEqualToString:@"NSCTFontUIFontDesignRounded"]) return @".SF UI Rounded";
     return _mono ? @".SF Mono" : @".SF UI Text";
