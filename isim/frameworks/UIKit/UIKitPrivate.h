@@ -99,6 +99,7 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UICo
 - (void)_isim_renderAsSublayer;
 @end
 @interface UIView (IsimPrivate)
+- (CGRect)_isim_layoutFrame;                         /* the frame without the transform (isim layout) */
 - (UIViewController *)_isim_viewController;
 - (void)_isim_setViewController:(UIViewController *)vc;
 - (void)_isim_render;

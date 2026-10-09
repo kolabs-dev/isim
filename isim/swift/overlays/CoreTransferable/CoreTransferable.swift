@@ -150,3 +150,38 @@ extension URL: Transferable {
         }, exporting: { Data($0.absoluteString.utf8) })])
     }
 }
+
+// MARK: - NSItemProvider and Transferable
+
+struct _IsimUnsafe<T>: @unchecked Sendable { let value: T }
+
+extension NSItemProvider {
+    /// loads the first content type the type can import (its transfer representations, in order)
+    @discardableResult
+    public func loadTransferable<T: Transferable>(type transferableType: T.Type, completionHandler: @escaping @Sendable (Result<T, Error>) -> Void) -> Progress {
+        guard let e = T._isimEntries.first(where: { $0.importing != nil && hasItemConforming(to: $0.contentType) }), let importing = e.importing else {
+            DispatchQueue.global().async { completionHandler(.failure(CocoaError(.fileReadUnknown))) }
+            return Progress(totalUnitCount: 1)
+        }
+        return loadDataRepresentation(for: e.contentType) { data, error in
+            guard let data else { completionHandler(.failure(error ?? CocoaError(.fileReadUnknown))); return }
+            Task {
+                do { let item = try await importing(data); completionHandler(.success(_IsimUnsafe(value: item).value)) }
+                catch { completionHandler(.failure(error)) }
+            }
+        }
+    }
+    /// registers the item's exported representations (made when a receiver loads one)
+    public func register<T: Transferable>(_ transferable: @autoclosure @escaping @Sendable () -> T) {
+        for e in T._isimEntries {
+            guard let exporting = e.exporting else { continue }
+            registerDataRepresentation(for: e.contentType) { done in
+                let box = _IsimUnsafe(value: done)
+                Task {
+                    do { box.value(try await exporting(transferable()), nil) } catch { box.value(nil, error) }
+                }
+                return nil
+            }
+        }
+    }
+}

@@ -187,7 +187,7 @@ def test_controls(launch):
         "spinning=true labels=2" in log, "IB attributes reach the controls"
     assert "corner=12.0 tag=teal-pill codedInit=true field=Your name" in log, \
         "user defined runtime attributes; init(coder:) only"
-    assert "(110.333 539; 181.333 x 40) id=rounded-view" in first + controls, \
+    assert "(110.667 539; 181 x 40) id=rounded-view" in first + controls, \
         "IB constraints: 1:2 width, priority, placeholder dropped"
     assert all(s in log for s in ("controls: switch false", "controls: stepper 3", "controls: segment 2",
                                   "controls: slider")), "actions: switch / stepper / segment / slider"

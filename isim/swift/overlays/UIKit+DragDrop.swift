@@ -342,6 +342,8 @@ final class _IsimDragController {
     var target: _IsimDropTarget?
     var operation: UIDropOperation = .cancel
     var listDestination: IndexPath?
+    weak var gapList: UIScrollView?                 // the list whose cells make room for the drop
+    var gapDestination: IndexPath?
     weak var pinnedScroll: UIScrollView?
     var pinnedOffset = CGPoint.zero
     init(session: _IsimDragSession, source: Source, sourceIndexPath: IndexPath?) { self.session = session; self.source = source; self.sourceIndexPath = sourceIndexPath }
@@ -441,6 +443,49 @@ final class _IsimDragController {
                 operation = d.collectionView(cv, dropSessionDidUpdate: session, withDestinationIndexPath: dest).operation
             }
         }
+        let gapTarget: UIScrollView? = { if case .list(let lv) = t, operation == .move || operation == .copy { return lv }; return nil }()
+        if gapTarget !== gapList || listDestination != gapDestination {
+            if let old = gapList, old !== gapTarget { applyGap(old, dest: nil) }
+            gapList = gapTarget; gapDestination = listDestination
+            if let lv = gapTarget { applyGap(lv, dest: listDestination) }
+        }
+    }
+    /// the insertion gap: the cells move to where they will be once the item lands at dest (a local move takes the
+    /// source's place out; a drop from elsewhere pushes the later cells on); dest nil puts them back
+    @MainActor func applyGap(_ lv: UIScrollView, dest: IndexPath?) {
+        let local = sourceList === lv ? sourceIndexPath : nil
+        func target(_ ip: IndexPath) -> IndexPath {
+            guard let dest, ip.section == dest.section else { return ip }
+            var t = ip
+            if let s = local, s.section == dest.section {
+                if s.item < dest.item, ip.item > s.item, ip.item <= dest.item { t.item -= 1 }
+                else if s.item > dest.item, ip.item >= dest.item, ip.item < s.item { t.item += 1 }
+            } else if ip.item >= dest.item { t.item += 1 }
+            return t
+        }
+        var moves: [(UIView, CGAffineTransform, CGFloat)] = []
+        if let cv = lv as? UICollectionView {
+            for cell in cv.visibleCells {
+                guard let ip = cv.indexPath(for: cell) else { continue }
+                let t = target(ip)
+                var shift = CGAffineTransform.identity
+                if t != ip, t.item < cv.numberOfItems(inSection: t.section), let a = cv.layoutAttributesForItem(at: t) {
+                    shift = CGAffineTransform(translationX: a.center.x - cell.center.x, y: a.center.y - cell.center.y)
+                } else if t != ip, let a = cv.layoutAttributesForItem(at: ip), let prev = ip.item > 0 ? cv.layoutAttributesForItem(at: IndexPath(item: ip.item - 1, section: ip.section)) : nil {
+                    shift = CGAffineTransform(translationX: a.center.x - prev.center.x, y: a.center.y - prev.center.y)   // past the end: one more step
+                }
+                moves.append((cell, shift, dest != nil && ip == local ? 0.3 : 1))
+            }
+        } else if let tv = lv as? UITableView {
+            for cell in tv.visibleCells {
+                guard let ip = tv.indexPath(for: cell) else { continue }
+                let t = target(ip)
+                let dy = t == ip ? 0 : (t.row > ip.row ? 1 : -1) * tv.rectForRow(at: ip).height
+                moves.append((cell, CGAffineTransform(translationX: 0, y: dy), dest != nil && ip == local ? 0.3 : 1))
+            }
+        }
+        UIView.animate(withDuration: 0.2) { for (v, t, a) in moves { v.transform = t; v.alpha = a } }
+        if let dest { print("isim: drop gap at \(dest.section)/\(dest.item) (\(moves.filter { $0.1 != .identity }.count) cells moved)") }
     }
     @MainActor func findTarget(at p: CGPoint) -> _IsimDropTarget? {
         guard let w = session.window else { return nil }
@@ -459,6 +504,10 @@ final class _IsimDragController {
     }
     @MainActor func end(at p: CGPoint, cancelled: Bool) {
         if !cancelled { move(to: p) }
+        if let g = gapList {                                  // the cells go back before the data source changes
+            UIView.performWithoutAnimation { for v in ((g as? UICollectionView)?.visibleCells ?? []) as [UIView] + ((g as? UITableView)?.visibleCells ?? []) { v.transform = .identity; v.alpha = 1 } }
+            gapList = nil; gapDestination = nil
+        }
         let op: UIDropOperation = cancelled ? .cancel : operation
         let dropping = op == .copy || op == .move
         if case .interaction(let i) = source { i.delegate?.dragInteraction(i, session: session, willEndWith: op) }
