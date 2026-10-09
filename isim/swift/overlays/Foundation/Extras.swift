@@ -420,22 +420,97 @@ extension FileManager {
         try createDirectory(at: url, withIntermediateDirectories: withIntermediateDirectories, attributes: typed)
     }
     public func removeItem(at url: URL) throws { try removeItem(atPath: url.path) }
+    // the form earlier isim releases had (String keys, Int options), kept for apps built against it; the Objective-C
+    // contentsOfDirectory(at:includingPropertiesForKeys:options:) with URLResourceKey and DirectoryEnumerationOptions wins
+    @_disfavoredOverload
     public func contentsOfDirectory(at url: URL, includingPropertiesForKeys keys: [String]? = nil, options: Int = 0) throws -> [URL] {
-        try contentsOfDirectory(atPath: url.path).map { url.appendingPathComponent($0) }
+        try contentsOfDirectory(at: url, includingPropertiesForKeys: keys?.map { URLResourceKey(rawValue: $0) }, options: [])
     }
-    public func moveItem(atPath src: String, toPath dst: String) throws {
-        guard rename(src, dst) == 0 else { throw _fileError(512, src, "The file couldn’t be moved.") }
-    }
+    /// rename(2), or a copy and a removal across file systems; an existing destination is an error
+    public func moveItem(atPath src: String, toPath dst: String) throws { try __moveItem(atPath: src, toPath: dst) }
     public func moveItem(at src: URL, to dst: URL) throws { try moveItem(atPath: src.path, toPath: dst.path) }
-    public func copyItem(atPath src: String, toPath dst: String) throws {
-        guard let d = _readFile(src) else { throw _fileError(260, src, "The file doesn’t exist.") }
-        guard !fileExists(atPath: dst) else { throw _fileError(516, dst, "The file already exists.") }
-        try d.write(to: URL(fileURLWithPath: dst))
-    }
+    /// files, symbolic links (as links) and whole directory trees, with their permissions and modification dates
+    public func copyItem(atPath src: String, toPath dst: String) throws { try __copyItem(atPath: src, toPath: dst) }
     public func copyItem(at src: URL, to dst: URL) throws { try copyItem(atPath: src.path, toPath: dst.path) }
     public func isReadableFile(atPath path: String) -> Bool { access(path, R_OK) == 0 }
     public func isWritableFile(atPath path: String) -> Bool { access(path, W_OK) == 0 }
     public var temporaryDirectory: URL { URL(fileURLWithPath: NSTemporaryDirectory()) }
+    /// Replaces the original item with the new one (which is moved), keeping a backup when `backupItemName` is given;
+    /// returns the resulting item's URL.
+    public func replaceItemAt(_ originalItemURL: URL, withItemAt newItemURL: URL, backupItemName: String? = nil,
+                              options: FileManager.ItemReplacementOptions = []) throws -> URL? {
+        var result: NSURL?
+        try replaceItem(at: originalItemURL, withItemAt: newItemURL, backupItemName: backupItemName, options: options, resultingItemURL: &result)
+        return result.map { $0 as URL }
+    }
+    public func withFileSystemRepresentation<ResultType>(for path: String, _ body: (UnsafePointer<Int8>?) throws -> ResultType) rethrows -> ResultType {
+        try path.withCString { try body($0) }
+    }
+}
+
+// MARK: - URL resource values
+
+/// The resource values of a file URL (`URL.resourceValues(forKeys:)`). Adapted: read from lstat / access(2).
+public struct URLResourceValues: @unchecked Sendable {
+    fileprivate var _values: [URLResourceKey: Any]
+    fileprivate var _keysToSet: Set<URLResourceKey> = []
+    public init() { _values = [:] }
+    init(_values: [URLResourceKey: Any]) { self._values = _values }
+    /// the values fetched (or set), by key
+    public var allValues: [URLResourceKey: Any] { _values }
+    private func _get<T>(_ key: URLResourceKey) -> T? { _values[key] as? T }
+    private mutating func _set(_ key: URLResourceKey, _ value: Any?) { _values[key] = value; _keysToSet.insert(key) }
+    public var name: String? { get { _get(.nameKey) } set { _set(.nameKey, newValue) } }
+    public var localizedName: String? { _get(.localizedNameKey) }
+    public var path: String? { _get(.pathKey) }
+    public var parentDirectory: URL? { _get(.parentDirectoryURLKey) }
+    public var isRegularFile: Bool? { _get(.isRegularFileKey) }
+    public var isDirectory: Bool? { _get(.isDirectoryKey) }
+    public var isSymbolicLink: Bool? { _get(.isSymbolicLinkKey) }
+    public var isPackage: Bool? { _get(.isPackageKey) }
+    public var isHidden: Bool? { get { _get(.isHiddenKey) } set { _set(.isHiddenKey, newValue) } }
+    public var isReadable: Bool? { _get(.isReadableKey) }
+    public var isWritable: Bool? { _get(.isWritableKey) }
+    public var isExecutable: Bool? { _get(.isExecutableKey) }
+    public var fileResourceType: URLFileResourceType? { _get(.fileResourceTypeKey) }
+    public var fileSize: Int? { _get(.fileSizeKey) }
+    public var totalFileSize: Int? { _get(.totalFileSizeKey) }
+    public var fileAllocatedSize: Int? { _get(.fileAllocatedSizeKey) }
+    public var totalFileAllocatedSize: Int? { _get(.totalFileAllocatedSizeKey) }
+    public var linkCount: Int? { _get(.linkCountKey) }
+    public var creationDate: Date? { get { _get(.creationDateKey) } set { _set(.creationDateKey, newValue) } }
+    public var contentModificationDate: Date? { get { _get(.contentModificationDateKey) } set { _set(.contentModificationDateKey, newValue) } }
+    public var contentAccessDate: Date? { _get(.contentAccessDateKey) }
+    public var attributeModificationDate: Date? { _get(.attributeModificationDateKey) }
+    /// stub: isim keeps no backups, so this is accepted by setResourceValues and not stored (it reads back nil)
+    public var isExcludedFromBackup: Bool? { get { _get(.isExcludedFromBackupKey) } set { _set(.isExcludedFromBackupKey, newValue) } }
+}
+extension URLResourceKey {
+    public static let isExcludedFromBackupKey = URLResourceKey(rawValue: "NSURLIsExcludedFromBackupKey")
+}
+
+extension URL {
+    public func resourceValues(forKeys keys: Set<URLResourceKey>) throws -> URLResourceValues {
+        URLResourceValues(_values: try _ns.__resourceValues(forKeys: Array(keys)))
+    }
+    /// Sets the values that were set on `values`: `name` renames the file (and this URL follows it),
+    /// `contentModificationDate` is applied; `creationDate`, `isHidden` and `isExcludedFromBackup` are accepted and
+    /// ignored (adapted: Linux cannot set them).
+    public mutating func setResourceValues(_ values: URLResourceValues) throws {
+        if values._keysToSet.contains(.contentModificationDateKey), let date = values.contentModificationDate {
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path)
+        }
+        if values._keysToSet.contains(.nameKey), let name = values.name, name != lastPathComponent {
+            let renamed = deletingLastPathComponent().appendingPathComponent(name)
+            try FileManager.default.moveItem(at: self, to: renamed)
+            self = renamed
+        }
+    }
+    public func resolvingSymlinksInPath() -> URL { _ns.__resolvingSymlinksInPath ?? self }
+    public mutating func resolveSymlinksInPath() { self = resolvingSymlinksInPath() }
+    public func withUnsafeFileSystemRepresentation<ResultType>(_ block: (UnsafePointer<Int8>?) throws -> ResultType) rethrows -> ResultType {
+        try path.withCString { try block($0) }
+    }
 }
 
 private func _fileAttributes(_ a: [String: Any]) -> [FileAttributeKey: Any] {
