@@ -8,6 +8,7 @@ NS_ASSUME_NONNULL_BEGIN
 /* ---- touches (UIApplication.m) ---- */
 @interface UITouch (IsimInput)
 - (void)_isim_setFinger:(int)finger;          /* 0 first finger, 1 second finger */
+- (void)_isim_setPencilForce:(double)force altitude:(double)altitude azimuth:(double)azimuth;   /* an Apple Pencil touch */
 - (int)_isim_finger;
 - (void)_isim_setStationary;
 @end

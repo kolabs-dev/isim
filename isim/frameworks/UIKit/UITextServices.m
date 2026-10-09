@@ -511,6 +511,7 @@ void isim_ui_text_service(NSString *command) {
         return;
     }
     if ([command hasPrefix:@"dictate:"]) { dictation_text([command substringFromIndex:8]); return; }
+    if ([command hasPrefix:@"pencil:"]) { extern void isim_ui_pencil_command(NSString *); isim_ui_pencil_command([command substringFromIndex:7]); return; }
     if ([command hasPrefix:@"sms:"]) {
         NSString *msg = [command substringFromIndex:4];
         NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"(?<![\\d-])(\\d{4,8})(?![\\d-])" options:0 error:NULL];

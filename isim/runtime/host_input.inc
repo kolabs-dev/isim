@@ -13,6 +13,9 @@
  *   twofinger X Y DX DY SECS      two fingers 60 pt apart, moved together by (DX, DY)
  *   longdrag X1 Y1 X2 Y2 HOLD SECS  one finger down, held HOLD s (a long press), then moved over SECS and lifted
  *   hover X Y | hover off         pointer at (X, Y) without touching / pointer leaves
+ *   pencil X1 Y1 X2 Y2 SECS [FORCE] [ALTITUDE]  an Apple Pencil stroke (force 0...4.17, default 1; altitude radians)
+ *   pencil tap | pencil squeeze   the Pencil's double-tap / squeeze (UIPencilInteraction)
+ *   pencil hover X Y [Z]          the Pencil hovering Z (0...1, default 0.5) above (X, Y)
  *   dictate TEXT | dictate fail   speech for dictation (the app's keyboard mic): TEXT is what was "said"
  *   scribble X Y TEXT             handwriting TEXT with Apple Pencil at (X, Y) (Scribble, iPad)
  *   sms TEXT                      a text message arrives (Messages); one-time codes in it are offered by AutoFill
@@ -56,7 +59,7 @@ static void mt_tick(void) {
     if (p >= 1) { mt_push(EV_TOUCH_UP, pt); mt.on = 0; }
 }
 /* longdrag: press, hold, then a timed move */
-static struct { int on; double x1, y1, x2, y2, hold_until, t0, dur, last; } ld;
+static struct { int on; double x1, y1, x2, y2, hold_until, t0, dur, last; char tag[64]; } ld;   /* tag: the events' text (a Pencil) */
 static void ld_tick(void) {
     double t = now();
     if (t < ld.hold_until || t - ld.last < 0.016) return;
@@ -64,7 +67,8 @@ static void ld_tick(void) {
     ld.last = t;
     double p = fmin(1, (t - ld.t0) / ld.dur);
     pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = ld.x1 + (ld.x2 - ld.x1) * p, .y = ld.y1 + (ld.y2 - ld.y1) * p };
-    if (p >= 1) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = ld.x2, .y = ld.y2 }; ld.on = 0; }
+    snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag);
+    if (p >= 1) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = ld.x2, .y = ld.y2 }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag); ld.on = 0; }
 }
 /* script commands of this file; returns 1 if `cmd` was one */
 static int input_script_cmd(const char *cmd, const char *args) {
@@ -74,9 +78,35 @@ static int input_script_cmd(const char *cmd, const char *args) {
     if (!strcmp(cmd, "twofinger") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &e) == 5) { mt_start(a, b, c, d, 30, 30, 0, 0, e); return 1; }
     double f;
     if (!strcmp(cmd, "longdrag") && sscanf(args, "%lf %lf %lf %lf %lf %lf", &a, &b, &c, &d, &e, &f) == 6) {
-        ld.on = 1; ld.x1 = a; ld.y1 = b; ld.x2 = c; ld.y2 = d; ld.hold_until = now() + e; ld.t0 = 0; ld.dur = f > 0.02 ? f : 0.02; ld.last = 0;
+        ld.on = 1; ld.x1 = a; ld.y1 = b; ld.x2 = c; ld.y2 = d; ld.hold_until = now() + e; ld.t0 = 0; ld.dur = f > 0.02 ? f : 0.02; ld.last = 0; ld.tag[0] = 0;
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         script_resume = now() + e + ld.dur + 0.1;
+        return 1;
+    }
+    if (!strcmp(cmd, "pencil")) {
+        enum { EV_TEXT_SERVICE = 43 };
+        double g = 1, h = 1.1; char sub[16] = {0};
+        sscanf(args, " %15s", sub);
+        if (!strcmp(sub, "tap") || !strcmp(sub, "squeeze")) {
+            pending[npending++] = (struct isim_event){ .type = EV_TEXT_SERVICE };
+            snprintf(pending[npending - 1].text, sizeof pending->text, "pencil:%s", sub);
+            script_resume = now() + 0.1;
+            return 1;
+        }
+        if (!strcmp(sub, "hover") && sscanf(args, " hover %lf %lf", &a, &b) == 2) {
+            double z = 0.5; sscanf(args, " hover %*f %*f %lf", &z);
+            pending[npending++] = (struct isim_event){ .type = EV_HOVER, .x = a, .y = b };
+            snprintf(pending[npending - 1].text, sizeof pending->text, "pencil %g", z);
+            script_resume = now() + 0.02;
+            return 1;
+        }
+        int n = sscanf(args, "%lf %lf %lf %lf %lf %lf %lf", &a, &b, &c, &d, &e, &g, &h);
+        if (n < 5) return 0;
+        ld.on = 1; ld.x1 = a; ld.y1 = b; ld.x2 = c; ld.y2 = d; ld.hold_until = now(); ld.t0 = 0; ld.dur = e > 0.02 ? e : 0.02; ld.last = 0;
+        snprintf(ld.tag, sizeof ld.tag, "pencil %g %g %g", g, h, atan2(d - b, c - a));
+        pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
+        snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag);
+        script_resume = now() + ld.dur + 0.1;
         return 1;
     }
     if (!strcmp(cmd, "hover")) {

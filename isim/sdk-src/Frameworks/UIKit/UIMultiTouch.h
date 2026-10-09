@@ -3,7 +3,9 @@
  * The second finger comes from the host like the Simulator's: Option-drag pinches/rotates around the screen centre,
  * Option+Shift-drag moves two fingers together; scripts use `pinch`, `rotate2`, `twofinger`.
  * Hover: host mouse motion without a button (script `hover X Y`). Pointer effects are drawn on iPad only (iPhone has
- * no pointer). UIPencilInteraction never receives pencil taps (no Apple Pencil). */
+ * no pointer). Apple Pencil is simulated (adapted): script `pencil tap` / `pencil squeeze` reach UIPencilInteraction,
+ * `pencil X1 Y1 X2 Y2 SECS [FORCE] [ALTITUDE]` draws a stroke of Pencil touches (UITouchTypePencil with force and
+ * angles) and `pencil hover X Y [Z]` hovers it (UIHoverGestureRecognizer.zOffset). */
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIGestureRecognizer.h>
 #import <UIKit/UIInteraction.h>
@@ -86,23 +88,66 @@ NS_SWIFT_UI_ACTOR
 + (instancetype)beamWithPreferredLength:(CGFloat)length axis:(UIAxis)axis;
 @end
 NS_SWIFT_UI_ACTOR
+/* small shapes around the pointer (iOS 15): arrows hinting at the directions it can move */
+typedef struct UIPointerAccessoryPosition { CGFloat offset; CGFloat angle; } UIPointerAccessoryPosition;
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionTop, UIPointerAccessoryPositionTopRight, UIPointerAccessoryPositionRight,
+    UIPointerAccessoryPositionBottomRight, UIPointerAccessoryPositionBottom, UIPointerAccessoryPositionBottomLeft, UIPointerAccessoryPositionLeft,
+    UIPointerAccessoryPositionTopLeft;
+NS_SWIFT_UI_ACTOR
+@interface UIPointerAccessory : NSObject <NSCopying>
+@property (nonatomic, readonly, copy) UIPointerShape *shape;
+@property (nonatomic, readonly) UIPointerAccessoryPosition position;
+@property (nonatomic, getter=isOrientationMatchingAngle) BOOL orientationMatchesAngle;
++ (instancetype)accessoryWithShape:(UIPointerShape *)shape position:(UIPointerAccessoryPosition)position;
++ (instancetype)arrowAccessoryWithPosition:(UIPointerAccessoryPosition)position;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+@end
+NS_SWIFT_UI_ACTOR
 @interface UIPointerStyle : NSObject <NSCopying>
 + (instancetype)styleWithEffect:(UIPointerEffect *)effect shape:(nullable UIPointerShape *)shape;
 + (instancetype)styleWithShape:(UIPointerShape *)shape constrainedAxes:(UIAxis)axes;
 + (instancetype)hiddenPointerStyle;
 + (instancetype)systemPointerStyle;
+@property (nonatomic, copy) NSArray<UIPointerAccessory *> *accessories;
 @end
 @interface UIButton (UIPointer)
 @property (nonatomic, getter=isPointerInteractionEnabled) BOOL pointerInteractionEnabled;
 @end
 
-/* ---- pencil (no Apple Pencil on isim: the delegate is never called) ---- */
+/* ---- pencil (simulated: see the top of this header) ---- */
 typedef NS_ENUM(NSInteger, UIPencilPreferredAction) { UIPencilPreferredActionIgnore = 0, UIPencilPreferredActionSwitchEraser, UIPencilPreferredActionSwitchPrevious, UIPencilPreferredActionShowColorPalette, UIPencilPreferredActionShowInkAttributes, UIPencilPreferredActionShowContextualPalette, UIPencilPreferredActionRunSystemShortcut };
 @class UIPencilInteraction;
+typedef NS_ENUM(NSInteger, UIPencilInteractionPhase) {
+    UIPencilInteractionPhaseBegan, UIPencilInteractionPhaseChanged, UIPencilInteractionPhaseEnded, UIPencilInteractionPhaseCancelled
+} NS_SWIFT_NAME(UIPencilInteraction.Phase);
+/* where the Pencil hovers above the screen when it is tapped or squeezed (nil when not hovering) */
+NS_SWIFT_UI_ACTOR
+@interface UIPencilHoverPose : NSObject
+@property (nonatomic, readonly) CGPoint location;
+@property (nonatomic, readonly) CGFloat zOffset;
+@property (nonatomic, readonly) CGFloat azimuthAngle;
+@property (nonatomic, readonly) CGVector azimuthUnitVector;
+@property (nonatomic, readonly) CGFloat altitudeAngle;
+@property (nonatomic, readonly) CGFloat rollAngle;
+@end
+NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(UIPencilInteraction.Tap)
+@interface UIPencilInteractionTap : NSObject
+@property (nonatomic, readonly) NSTimeInterval timestamp;
+@property (nonatomic, nullable, readonly, strong) UIPencilHoverPose *hoverPose;
+@end
+NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(UIPencilInteraction.Squeeze)
+@interface UIPencilInteractionSqueeze : NSObject
+@property (nonatomic, readonly) NSTimeInterval timestamp;
+@property (nonatomic, readonly) UIPencilInteractionPhase phase;
+@property (nonatomic, nullable, readonly, strong) UIPencilHoverPose *hoverPose;
+@end
 NS_SWIFT_UI_ACTOR
 @protocol UIPencilInteractionDelegate <NSObject>
 @optional
 - (void)pencilInteractionDidTap:(UIPencilInteraction *)interaction;
+- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveTap:(UIPencilInteractionTap *)tap;
+- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveSqueeze:(UIPencilInteractionSqueeze *)squeeze;
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIPencilInteraction : NSObject <UIInteraction>
