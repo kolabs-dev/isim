@@ -28,6 +28,7 @@ NSString *const UIAccessibilityAnnouncementKeyStringValue = @"UIAccessibilityAnn
 NSString *const UIAccessibilityAnnouncementKeyWasSuccessful = @"UIAccessibilityAnnouncementKeyWasSuccessful";
 NSString *const UIAccessibilityFocusedElementKey = @"UIAccessibilityFocusedElementKey";
 NSNotificationName const UIAccessibilityVoiceOverStatusDidChangeNotification = @"UIAccessibilityVoiceOverStatusDidChangeNotification";
+NSNotificationName const UIAccessibilitySwitchControlStatusDidChangeNotification = @"UIAccessibilitySwitchControlStatusDidChangeNotification";
 NSNotificationName const UIAccessibilityReduceMotionStatusDidChangeNotification = @"UIAccessibilityReduceMotionStatusDidChangeNotification";
 NSNotificationName const UIAccessibilityBoldTextStatusDidChangeNotification = @"UIAccessibilityBoldTextStatusDidChangeNotification";
 NSNotificationName const UIAccessibilityReduceTransparencyStatusDidChangeNotification = @"UIAccessibilityReduceTransparencyStatusDidChangeNotification";
@@ -93,7 +94,8 @@ BOOL UIAccessibilityIsDarkerSystemColorsEnabled(void) { return pref(@"ISIMIncrea
 BOOL UIAccessibilityShouldDifferentiateWithoutColor(void) { return pref(@"ISIMDifferentiateWithoutColor", NULL); }
 BOOL UIAccessibilityIsInvertColorsEnabled(void) { return NO; }
 BOOL UIAccessibilityIsGrayscaleEnabled(void) { return NO; }
-BOOL UIAccessibilityIsSwitchControlRunning(void) { return NO; }
+static BOOL sc_script_override, sc_script_on;               /* `switchcontrol on|off` in this app */
+BOOL UIAccessibilityIsSwitchControlRunning(void) { return sc_script_override ? sc_script_on : pref(@"ISIMSwitchControl", NULL); }
 BOOL UIAccessibilityIsClosedCaptioningEnabled(void) { return NO; }
 BOOL UIAccessibilityIsOnOffSwitchLabelsEnabled(void) { return pref(@"ISIMOnOffLabels", NULL); }
 BOOL UIAccessibilityButtonShapesEnabled(void) { return pref(@"ISIMButtonShapes", NULL); }
@@ -504,7 +506,239 @@ static void activate(void) {
         else draw_cursor();
     });
 }
+void isim_ui_voiceover_command(NSString *c);
+/* ---- the rotor: custom rotors (the focused element and its containers), Headings, Actions, Adjust Value ---- */
+static NSInteger rotor_index = -1;                  /* among rotor_entries(); the first turn selects the first */
+static NSUInteger rotor_action;                     /* Actions: the selected custom action */
+static NSArray *rotor_customs(void) {
+    NSMutableArray *a = [NSMutableArray array];
+    for (id r = vo_focus; r; r = [r isKindOfClass:[UIView class]] ? [(UIView *)r superview] : [r respondsToSelector:@selector(accessibilityContainer)] ? [r accessibilityContainer] : nil)
+        for (UIAccessibilityCustomRotor *c in [r accessibilityCustomRotors] ?: @[]) if (![a containsObject:c]) [a addObject:c];
+    for (UIWindow *w in UIApplication.sharedApplication.windows) for (UIViewController *vc = w.rootViewController; vc; vc = vc.presentedViewController)
+        for (UIAccessibilityCustomRotor *c in [vc accessibilityCustomRotors] ?: @[]) if (![a containsObject:c]) [a addObject:c];
+    return a;
+}
+static NSArray *rotor_entries(void) {              /* UIAccessibilityCustomRotor or a built-in name */
+    NSMutableArray *a = [NSMutableArray arrayWithArray:rotor_customs()];
+    [a addObject:@"Headings"];
+    if ([[vo_focus accessibilityCustomActions] count]) [a addObject:@"Actions"];
+    if (effective_traits(vo_focus) & UIAccessibilityTraitAdjustable) [a addObject:@"Adjust Value"];
+    return a;
+}
+static NSString *rotor_name(id entry) { return [entry isKindOfClass:[UIAccessibilityCustomRotor class]] ? [(UIAccessibilityCustomRotor *)entry name] : entry; }
+static id rotor_current(void) { NSArray *a = rotor_entries(); return a.count ? a[(NSUInteger)(((rotor_index % (NSInteger)a.count) + (NSInteger)a.count) % (NSInteger)a.count)] : nil; }
+static void rotor_turn(int dir) {
+    rotor_index += dir; rotor_action = 0;
+    NSString *n = rotor_name(rotor_current());
+    NSLog(@"isim: VoiceOver rotor: %@", n);
+    speak(n);
+}
+/* swipe down (dir 1) / up (-1): the rotor's next / previous item */
+static void rotor_move(int dir) {
+    id entry = rotor_current();
+    if ([entry isKindOfClass:[UIAccessibilityCustomRotor class]]) {
+        UIAccessibilityCustomRotor *r = entry;
+        UIAccessibilityCustomRotorSearchPredicate *p = [UIAccessibilityCustomRotorSearchPredicate new];
+        p.currentItem = [[UIAccessibilityCustomRotorItemResult alloc] initWithTargetElement:vo_focus targetRange:nil];
+        p.searchDirection = dir > 0 ? UIAccessibilityCustomRotorDirectionNext : UIAccessibilityCustomRotorDirectionPrevious;
+        UIAccessibilityCustomRotorItemResult *res = r.itemSearchBlock ? r.itemSearchBlock(p) : nil;
+        if (!res.targetElement) { NSLog(@"isim: VoiceOver rotor %@: no more items", r.name); speak(@"No more items"); return; }
+        focus(res.targetElement, YES);
+    } else if ([entry isEqual:@"Headings"]) {
+        NSArray *els = isim_ui_accessibility_elements();
+        NSInteger i = vo_focus ? (NSInteger)[els indexOfObjectIdenticalTo:vo_focus] : -1;
+        for (NSInteger k = i + dir; k >= 0 && k < (NSInteger)els.count; k += dir)
+            if (effective_traits(els[(NSUInteger)k]) & UIAccessibilityTraitHeader) { focus(els[(NSUInteger)k], YES); return; }
+        speak(@"No more headings");
+    } else if ([entry isEqual:@"Actions"]) {
+        NSArray *acts = [vo_focus accessibilityCustomActions];
+        if (!acts.count) return;
+        rotor_action = (rotor_action + (dir > 0 ? 1 : acts.count - 1)) % acts.count;
+        speak([acts[rotor_action] name]);
+    } else if ([entry isEqual:@"Adjust Value"]) {
+        isim_ui_voiceover_command(dir > 0 ? @"decrement" : @"increment");
+    }
+}
+
+/* ================= Switch Control (simulated: item scanning) ================= */
+@interface __IsimSwitchWindow : UIWindow
+@property (nonatomic) CGRect highlight;
+@end
+@implementation __IsimSwitchWindow
+- (BOOL)_isim_isSystemWindow { return YES; }
+- (BOOL)canBecomeKeyWindow { return NO; }
+- (UIView *)hitTest:(CGPoint)p withEvent:(UIEvent *)e { return nil; }
+- (void)_isim_drawContent {
+    if (CGRectIsEmpty(_highlight)) return;
+    CGRect r = CGRectInset(_highlight, -3, -3);
+    double blue[4] = { 0.0, 0.48, 1.0, 1 };
+    isim_gfx_stroke_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 8, 5, blue);
+}
+@end
+static __IsimSwitchWindow *sc_window;
+static __weak id sc_item;
+static NSTimer *sc_timer;
+static void sc_draw(void) {
+    if (!UIAccessibilityIsSwitchControlRunning()) { sc_window.hidden = YES; return; }
+    if (!sc_window) { sc_window = [[__IsimSwitchWindow alloc] initWithFrame:UIScreen.mainScreen.bounds]; sc_window.windowLevel = 16900000; sc_window.backgroundColor = UIColor.clearColor; sc_window.accessibilityIdentifier = @"isim-switch-control"; }
+    id it = sc_item;
+    sc_window.highlight = it ? [it accessibilityFrame] : CGRectZero;
+    sc_window.hidden = !it;
+    isim_ui_set_needs_display();
+}
+static void sc_next(void) {
+    NSArray *els = isim_ui_accessibility_elements();
+    if (!els.count) return;
+    NSUInteger i = sc_item ? [els indexOfObjectIdenticalTo:sc_item] : NSNotFound;
+    sc_item = els[i == NSNotFound || i + 1 >= els.count ? 0 : i + 1];
+    NSLog(@"isim: Switch Control: %@", label_of(sc_item) ?: NSStringFromClass([sc_item class]));
+    sc_draw();
+}
+static void sc_select(void) {
+    id e = sc_item;
+    if (!e) { sc_next(); return; }
+    BOOL (^handler)(void) = objc_getAssociatedObject(e, &k_act_handler);
+    NSLog(@"isim: Switch Control selected %@", label_of(e) ?: NSStringFromClass([e class]));
+    if (handler && handler()) return;
+    if ([e accessibilityActivate]) return;
+    isim_ui_synthesize_tap([e accessibilityActivationPoint]);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (sc_item && [isim_ui_accessibility_elements() indexOfObjectIdenticalTo:sc_item] == NSNotFound) sc_item = nil;   /* the screen changed */
+        sc_draw();
+    });
+}
+static void sc_set_running(BOOL on) {
+    [NSNotificationCenter.defaultCenter postNotificationName:UIAccessibilitySwitchControlStatusDidChangeNotification object:nil];
+    NSLog(@"isim: Switch Control %@", on ? @"on" : @"off");
+    [sc_timer invalidate]; sc_timer = nil;
+    sc_item = nil;
+    if (on) sc_next(); else sc_draw();
+}
+static void switch_command(NSString *c) {
+    if ([c isEqualToString:@"on"] || [c isEqualToString:@"off"]) { sc_script_override = YES; sc_script_on = [c isEqualToString:@"on"]; sc_set_running(sc_script_on); return; }
+    if (!UIAccessibilityIsSwitchControlRunning()) { NSLog(@"isim: switchcontrol %@: Switch Control is off", c); return; }
+    if ([c isEqualToString:@"next"]) sc_next();
+    else if ([c isEqualToString:@"select"]) sc_select();
+    else if ([c hasPrefix:@"auto"]) {                 /* auto scanning: the highlight moves every interval (default 1 s) */
+        double t = [[c substringFromIndex:4] doubleValue]; if (t <= 0) t = 1;
+        [sc_timer invalidate];
+        sc_timer = [NSTimer scheduledTimerWithTimeInterval:t repeats:YES block:^(NSTimer *x) { sc_next(); }];
+        NSLog(@"isim: Switch Control auto scanning every %g s", t);
+    } else if ([c isEqualToString:@"stop"]) { [sc_timer invalidate]; sc_timer = nil; }
+    else NSLog(@"isim: unknown switchcontrol command '%@'", c);
+}
+
+/* ================= Voice Control (simulated: spoken commands as script text) ================= */
+@interface __IsimVoiceWindow : UIWindow
+@property (nonatomic, copy) NSArray *badges;          /* @[frame, label] */
+@end
+@implementation __IsimVoiceWindow
+- (BOOL)_isim_isSystemWindow { return YES; }
+- (BOOL)canBecomeKeyWindow { return NO; }
+- (UIView *)hitTest:(CGPoint)p withEvent:(UIEvent *)e { return nil; }
+- (void)_isim_drawContent {
+    double bg[4] = { 0.0, 0.48, 1.0, 0.95 };
+    UIFont *f = [UIFont boldSystemFontOfSize:12];
+    for (NSArray *b in _badges) {
+        CGRect r = [b[0] CGRectValue]; NSString *t = b[1];
+        CGSize ts = isim_ui_measure(t, f, 200, 1);
+        CGRect box = CGRectMake(r.origin.x, r.origin.y, ts.width + 8, ts.height + 2);
+        isim_gfx_fill_rounded(box.origin.x, box.origin.y, box.size.width, box.size.height, 4, bg);
+        isim_ui_draw_text(t, f, UIColor.whiteColor, CGRectInset(box, 4, 1), NSTextAlignmentLeft, 1, 1);
+    }
+}
+@end
+static __IsimVoiceWindow *vc_window;
+static NSString *vc_overlay;                          /* nil, @"numbers" or @"names" */
+static NSArray *vc_targets(void) {                    /* what can be tapped: interactive elements on the screen */
+    NSMutableArray *a = [NSMutableArray array];
+    CGRect screen = UIScreen.mainScreen.bounds;
+    for (id e in isim_ui_accessibility_elements()) {
+        if (!CGRectIntersectsRect([e accessibilityFrame], screen)) continue;
+        UIAccessibilityTraits t = effective_traits(e);
+        if ((t & (UIAccessibilityTraitButton | UIAccessibilityTraitLink | UIAccessibilityTraitAdjustable | UIAccessibilityTraitSearchField | UIAccessibilityTraitKeyboardKey))
+            || [e isKindOfClass:[UIControl class]] || [[e accessibilityUserInputLabels] count]) [a addObject:e];
+    }
+    return a;
+}
+static NSArray<NSString *> *vc_names(id e) {
+    NSArray *labels = [e accessibilityUserInputLabels];
+    if (labels.count) return labels;
+    NSString *l = label_of(e);
+    return l.length ? @[l] : @[];
+}
+static void vc_draw(void) {
+    if (!vc_overlay) { vc_window.hidden = YES; isim_ui_set_needs_display(); return; }
+    if (!vc_window) { vc_window = [[__IsimVoiceWindow alloc] initWithFrame:UIScreen.mainScreen.bounds]; vc_window.windowLevel = 16800000; vc_window.backgroundColor = UIColor.clearColor; vc_window.accessibilityIdentifier = @"isim-voice-control"; }
+    NSMutableArray *b = [NSMutableArray array];
+    NSUInteger i = 0;
+    for (id e in vc_targets()) {
+        i++;
+        NSString *t = [vc_overlay isEqualToString:@"numbers"] ? [NSString stringWithFormat:@"%lu", (unsigned long)i] : vc_names(e).firstObject;
+        if (t.length) [b addObject:@[[NSValue valueWithCGRect:[e accessibilityFrame]], t]];
+    }
+    vc_window.badges = b; vc_window.hidden = NO;
+    isim_ui_set_needs_display();
+}
+static void vc_activate(id e) {
+    BOOL (^handler)(void) = objc_getAssociatedObject(e, &k_act_handler);
+    NSLog(@"isim: Voice Control tapped %@", vc_names(e).firstObject ?: NSStringFromClass([e class]));
+    if (handler && handler()) return;
+    if ([e accessibilityActivate]) return;
+    isim_ui_synthesize_tap([e accessibilityActivationPoint]);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ vc_draw(); });
+}
+static void voice_command(NSString *phrase) {
+    NSString *p = [[phrase stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\"'"]];
+    NSString *l = p.lowercaseString;
+    NSLog(@"isim: Voice Control heard \"%@\"", p);
+    if ([l isEqualToString:@"show numbers"] || [l isEqualToString:@"show names"]) { vc_overlay = [l hasSuffix:@"numbers"] ? @"numbers" : @"names"; vc_draw(); return; }
+    if ([l isEqualToString:@"hide numbers"] || [l isEqualToString:@"hide names"]) { vc_overlay = nil; vc_draw(); return; }
+    if ([l hasPrefix:@"scroll "]) {
+        NSString *dir = [l substringFromIndex:7];
+        UIScrollView *sv = nil;
+        for (UIWindow *w in UIApplication.sharedApplication.windows) {
+            NSMutableArray *q = [NSMutableArray arrayWithObject:w];
+            while (q.count && !sv) { UIView *v = q.firstObject; [q removeObjectAtIndex:0]; if ([v isKindOfClass:[UIScrollView class]] && !v.hidden && ((UIScrollView *)v).scrollEnabled) sv = (UIScrollView *)v; [q addObjectsFromArray:v.subviews]; }
+        }
+        if (!sv) { NSLog(@"isim: Voice Control: nothing to scroll"); return; }
+        CGPoint o = sv.contentOffset; CGFloat h = sv.bounds.size.height * 0.8, w = sv.bounds.size.width * 0.8;
+        UIEdgeInsets in = sv.adjustedContentInset;
+        if ([dir hasPrefix:@"down"]) o.y = fmin(o.y + h, fmax(-in.top, sv.contentSize.height + in.bottom - sv.bounds.size.height));
+        else if ([dir hasPrefix:@"up"]) o.y = fmax(-in.top, o.y - h);
+        else if ([dir hasPrefix:@"right"]) o.x = fmin(o.x + w, fmax(-in.left, sv.contentSize.width + in.right - sv.bounds.size.width));
+        else if ([dir hasPrefix:@"left"]) o.x = fmax(-in.left, o.x - w);
+        [sv setContentOffset:o animated:YES];
+        NSLog(@"isim: Voice Control scrolled %@", dir);
+        return;
+    }
+    if ([l isEqualToString:@"go back"]) {
+        for (UIWindow *w in UIApplication.sharedApplication.windows) {
+            UIViewController *vc = w.rootViewController; while (vc.presentedViewController) vc = vc.presentedViewController;
+            UINavigationController *nav = [vc isKindOfClass:[UINavigationController class]] ? (id)vc : vc.navigationController;
+            if (nav.viewControllers.count > 1) { [nav popViewControllerAnimated:YES]; NSLog(@"isim: Voice Control went back"); return; }
+        }
+        NSLog(@"isim: Voice Control: nothing to go back from");
+        return;
+    }
+    if ([l hasPrefix:@"tap "] || [l hasPrefix:@"press "]) {
+        NSString *what = [p substringFromIndex:[l hasPrefix:@"tap "] ? 4 : 6];
+        NSArray *targets = vc_targets();
+        NSInteger n = what.integerValue;
+        if (n > 0 && [what isEqualToString:[NSString stringWithFormat:@"%ld", (long)n]]) {
+            if (n <= (NSInteger)targets.count) vc_activate(targets[(NSUInteger)n - 1]); else NSLog(@"isim: Voice Control: no item %ld", (long)n);
+            return;
+        }
+        for (id e in targets) for (NSString *name in vc_names(e)) if ([name caseInsensitiveCompare:what] == NSOrderedSame) { vc_activate(e); return; }
+        NSLog(@"isim: Voice Control: no item named \"%@\"", what);
+        return;
+    }
+    NSLog(@"isim: Voice Control: not a command");
+}
+
 void isim_ui_voiceover_command(NSString *c) {
+    if ([c hasPrefix:@"switch:"]) { switch_command([c substringFromIndex:7]); return; }
+    if ([c hasPrefix:@"voice:"]) { voice_command([c substringFromIndex:6]); return; }
     if ([c isEqualToString:@"on"] || [c isEqualToString:@"off"]) {
         vo_script_override = YES; vo_script_on = [c isEqualToString:@"on"];
         set_running(vo_script_on);
@@ -513,6 +747,15 @@ void isim_ui_voiceover_command(NSString *c) {
     if (!UIAccessibilityIsVoiceOverRunning()) { NSLog(@"isim: voiceover %@: VoiceOver is off", c); return; }
     if ([c isEqualToString:@"next"]) move(1);
     else if ([c isEqualToString:@"prev"] || [c isEqualToString:@"previous"]) move(-1);
+    else if ([c isEqualToString:@"rotor"] || [c isEqualToString:@"rotor next"]) rotor_turn(1);
+    else if ([c isEqualToString:@"rotor prev"] || [c isEqualToString:@"rotor previous"]) rotor_turn(-1);
+    else if ([c isEqualToString:@"down"]) rotor_move(1);
+    else if ([c isEqualToString:@"up"]) rotor_move(-1);
+    else if ([c isEqualToString:@"activate"] && [rotor_current() isEqual:@"Actions"] && [[vo_focus accessibilityCustomActions] count]) {
+        UIAccessibilityCustomAction *a = [vo_focus accessibilityCustomActions][rotor_action % [[vo_focus accessibilityCustomActions] count]];
+        NSLog(@"isim: VoiceOver performed action %@", a.name);
+        [a _isim_perform];
+    }
     else if ([c isEqualToString:@"activate"]) activate();
     else if ([c isEqualToString:@"increment"] || [c isEqualToString:@"decrement"]) {
         id e = vo_focus;
@@ -551,6 +794,7 @@ static BOOL vo_touch(const struct isim_event *ev) {
     tracking = NO;
     double dx = p.x - down.x, dy = p.y - down.y;
     if (fabs(dx) > 40 && fabs(dx) > fabs(dy) * 1.5) { move(dx > 0 ? 1 : -1); return YES; }
+    if (fabs(dy) > 40 && fabs(dy) > fabs(dx) * 1.5) { rotor_move(dy > 0 ? 1 : -1); return YES; }   /* swipe down / up: the rotor */
     if (hypot(dx, dy) > 12) return YES;
     if (ev->timestamp - lastTap < 0.35) { lastTap = 0; activate(); return YES; }
     lastTap = ev->timestamp;
@@ -589,7 +833,7 @@ void UIAccessibilityPostNotification(UIAccessibilityNotifications n, id arg) {
 /* ================= settings changes ================= */
 static NSDictionary *last_settings;
 static NSDictionary *snapshot(void) {
-    return @{ @"vo": @(UIAccessibilityIsVoiceOverRunning()), @"cat": settings_category(), @"bold": @(UIAccessibilityIsBoldTextEnabled()),
+    return @{ @"vo": @(UIAccessibilityIsVoiceOverRunning()), @"sc": @(UIAccessibilityIsSwitchControlRunning()), @"cat": settings_category(), @"bold": @(UIAccessibilityIsBoldTextEnabled()),
               @"motion": @(UIAccessibilityIsReduceMotionEnabled()), @"transp": @(UIAccessibilityIsReduceTransparencyEnabled()),
               @"contrast": @(UIAccessibilityIsDarkerSystemColorsEnabled()), @"color": @(UIAccessibilityShouldDifferentiateWithoutColor()) };
 }
@@ -611,6 +855,7 @@ void isim_ui_accessibility_reload_settings(void) {
     if (![now[@"contrast"] isEqual:old[@"contrast"]]) [nc postNotificationName:UIAccessibilityDarkerSystemColorsStatusDidChangeNotification object:nil];
     if (![now[@"color"] isEqual:old[@"color"]]) [nc postNotificationName:UIAccessibilityDifferentiateWithoutColorDidChangeNotification object:nil];
     if ([now[@"vo"] boolValue] != vo_was_running) set_running([now[@"vo"] boolValue]);
+    if (![now[@"sc"] isEqual:old[@"sc"]]) sc_set_running([now[@"sc"] boolValue]);
 }
 /* launch: settings baseline, VoiceOver if it is on, touch filter */
 void isim_ui_accessibility_install(void) {
@@ -618,8 +863,14 @@ void isim_ui_accessibility_install(void) {
     isim_ui_add_touch_filter(^BOOL(const struct isim_event *ev) { return vo_touch(ev); });
     if (UIAccessibilityIsVoiceOverRunning())
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ set_running(YES); });
+    if (UIAccessibilityIsSwitchControlRunning())
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ sc_set_running(YES); });
 }
-void isim_ui_accessibility_frame_tick(void) { if (vo_was_running && vo_focus) draw_cursor(); }
+void isim_ui_accessibility_frame_tick(void) {
+    if (vo_was_running && vo_focus) draw_cursor();
+    if (sc_item) sc_draw();
+    if (vc_overlay) vc_draw();
+}
 
 /* ================= Large Content Viewer ================= */
 static char k_lcv_shows, k_lcv_title, k_lcv_image;
