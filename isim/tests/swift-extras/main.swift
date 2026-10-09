@@ -1,4 +1,4 @@
-// SwiftExtrasTest: Combine operators, Dispatch sources / DispatchIO / DispatchData, Synchronization,
+// SwiftExtrasTest: Combine operators, Dispatch sources / DispatchIO / DispatchData, POSIX (flock, mode bits), Synchronization,
 // Distributed actors. Last line: "swift extras test: N/M passed".
 import Foundation
 
@@ -15,6 +15,7 @@ func pause(_ seconds: Double) { Thread.sleep(forTimeInterval: seconds) }
     static func main() async {
         print("--- Combine"); combineTests(); await combineAsyncTests()
         print("--- Dispatch"); dispatchTests()
+        print("--- POSIX"); posixTests()
         print("--- Synchronization")
         if #available(iOS 18.0, *) { synchronizationTests() } else { check(false, "Synchronization needs iOS 18 (isim device OS too old)") }
         print("--- Distributed"); await distributedTests()
