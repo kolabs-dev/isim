@@ -1,14 +1,15 @@
 #pragma once
-/* isim libdispatch subset (implemented in Foundation, Dispatch.mrc.m; self-authored header).
+/* isim libdispatch subset (implemented in Foundation, Dispatch.mrc.m and DispatchIO.mrc.m; self-authored header).
  * Queues: main (serviced by the main run loop / dispatch_main), global concurrent (a worker
- * pool), serial (drained on the pool). Timers, timer sources, semaphores, groups, queue-specific
- * data. Dispatch objects are plain C objects here (not Objective-C objects as on Apple). */
+ * pool), serial (drained on the pool). Timers and other sources, semaphores, groups, queue-specific
+ * data, dispatch_data and dispatch_io. Dispatch objects are plain C objects here (not Objective-C objects as on Apple). */
 #include <_isim_cdefs.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
 #include <fcntl.h>
+#include <sys/types.h>
 #ifndef FOUNDATION_EXPORT
 #define FOUNDATION_EXPORT extern __attribute__((visibility("default")))
 #endif
@@ -27,6 +28,8 @@ typedef struct dispatch_source_s *dispatch_source_t;
 typedef struct dispatch_group_s *dispatch_group_t;
 typedef struct dispatch_semaphore_s *dispatch_semaphore_t;
 typedef const struct dispatch_source_type_s *dispatch_source_type_t;
+typedef struct dispatch_data_s *dispatch_data_t;
+typedef struct dispatch_io_s *dispatch_io_t;
 typedef void *dispatch_object_t;
 typedef uint64_t dispatch_time_t;
 typedef long dispatch_once_t;
@@ -89,8 +92,9 @@ FOUNDATION_EXPORT void dispatch_activate(dispatch_object_t object);
 FOUNDATION_EXPORT void dispatch_suspend(dispatch_object_t object);
 FOUNDATION_EXPORT void dispatch_resume(dispatch_object_t object);
 
-/* sources: timers, user data (add/or/replace), read/write (fd readiness), signals, processes (exit),
- * vnodes (file changes); memory pressure and Mach sources are accepted but never fire on isim */
+/* sources: timers, user data (add/or/replace), read/write (fd readiness), signals, processes (exit, fork, exec),
+ * vnodes (file changes), memory pressure (the Simulator's memory warning), Mach send (dead name) and receive (isim's
+ * in-process ports) */
 FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_timer;
 FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_data_add;
 FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_data_or;
@@ -132,6 +136,7 @@ FOUNDATION_EXPORT const struct dispatch_source_type_s _dispatch_source_type_mach
 #define DISPATCH_MEMORYPRESSURE_WARN 0x02
 #define DISPATCH_MEMORYPRESSURE_CRITICAL 0x04
 #define DISPATCH_MACH_SEND_DEAD 0x1
+#define DISPATCH_MACH_SEND_POSSIBLE 0x2
 FOUNDATION_EXPORT void dispatch_source_merge_data(dispatch_source_t source, uintptr_t value);
 FOUNDATION_EXPORT uintptr_t dispatch_source_get_handle(dispatch_source_t source);
 FOUNDATION_EXPORT uintptr_t dispatch_source_get_mask(dispatch_source_t source);
@@ -169,10 +174,77 @@ FOUNDATION_EXPORT void dispatch_source_set_registration_handler(dispatch_source_
 FOUNDATION_EXPORT void dispatch_group_async(dispatch_group_t group, dispatch_queue_t queue, dispatch_block_t block);
 FOUNDATION_EXPORT void dispatch_group_notify(dispatch_group_t group, dispatch_queue_t queue, dispatch_block_t block);
 #endif
+
+/* data: immutable byte regions (dispatch_data_t), retained / released like other dispatch objects */
+FOUNDATION_EXPORT struct dispatch_data_s _dispatch_data_empty;
+#define dispatch_data_empty (&_dispatch_data_empty)
+#ifdef __BLOCKS__
+FOUNDATION_EXPORT const dispatch_block_t _dispatch_data_destructor_free;
+FOUNDATION_EXPORT const dispatch_block_t _dispatch_data_destructor_munmap;
+#define DISPATCH_DATA_DESTRUCTOR_DEFAULT NULL
+#define DISPATCH_DATA_DESTRUCTOR_FREE (_dispatch_data_destructor_free)
+#define DISPATCH_DATA_DESTRUCTOR_MUNMAP (_dispatch_data_destructor_munmap)
+FOUNDATION_EXPORT dispatch_data_t dispatch_data_create(const void *buffer, size_t size, dispatch_queue_t queue, dispatch_block_t destructor);
+typedef bool (^dispatch_data_applier_t)(dispatch_data_t region, size_t offset, const void *buffer, size_t size);
+FOUNDATION_EXPORT bool dispatch_data_apply(dispatch_data_t data, NS_NOESCAPE dispatch_data_applier_t applier);
+#endif
+typedef bool (*dispatch_data_applier_function_t)(void *context, dispatch_data_t region, size_t offset, const void *buffer, size_t size);
+FOUNDATION_EXPORT bool dispatch_data_apply_f(dispatch_data_t data, void *context, dispatch_data_applier_function_t applier);
+FOUNDATION_EXPORT size_t dispatch_data_get_size(dispatch_data_t data);
+FOUNDATION_EXPORT dispatch_data_t dispatch_data_create_map(dispatch_data_t data, const void **buffer_ptr, size_t *size_ptr);
+FOUNDATION_EXPORT dispatch_data_t dispatch_data_create_concat(dispatch_data_t data1, dispatch_data_t data2);
+FOUNDATION_EXPORT dispatch_data_t dispatch_data_create_subrange(dispatch_data_t data, size_t offset, size_t length);
+FOUNDATION_EXPORT dispatch_data_t dispatch_data_copy_region(dispatch_data_t data, size_t location, size_t *offset_ptr);
+
+/* I/O channels: stream or random-access reads and writes on a file descriptor, run on the channel's own queue */
+typedef int dispatch_fd_t;
+typedef unsigned long dispatch_io_type_t;
+typedef unsigned long dispatch_io_close_flags_t;
+typedef unsigned long dispatch_io_interval_flags_t;
+#define DISPATCH_IO_STREAM 0
+#define DISPATCH_IO_RANDOM 1
+#define DISPATCH_IO_STOP 0x1
+#define DISPATCH_IO_STRICT_INTERVAL 0x1
+#ifdef __BLOCKS__
+typedef void (^dispatch_io_handler_t)(bool done, dispatch_data_t data, int error);
+FOUNDATION_EXPORT dispatch_io_t dispatch_io_create(dispatch_io_type_t type, dispatch_fd_t fd, dispatch_queue_t queue, void (^cleanup_handler)(int error));
+FOUNDATION_EXPORT dispatch_io_t dispatch_io_create_with_path(dispatch_io_type_t type, const char *path, int oflag, mode_t mode,
+                                                             dispatch_queue_t queue, void (^cleanup_handler)(int error));
+FOUNDATION_EXPORT dispatch_io_t dispatch_io_create_with_io(dispatch_io_type_t type, dispatch_io_t io, dispatch_queue_t queue,
+                                                           void (^cleanup_handler)(int error));
+FOUNDATION_EXPORT void dispatch_io_read(dispatch_io_t channel, off_t offset, size_t length, dispatch_queue_t queue, dispatch_io_handler_t io_handler);
+FOUNDATION_EXPORT void dispatch_io_write(dispatch_io_t channel, off_t offset, dispatch_data_t data, dispatch_queue_t queue, dispatch_io_handler_t io_handler);
+FOUNDATION_EXPORT void dispatch_io_barrier(dispatch_io_t channel, dispatch_block_t barrier);
+FOUNDATION_EXPORT void dispatch_read(dispatch_fd_t fd, size_t length, dispatch_queue_t queue, void (^handler)(dispatch_data_t data, int error));
+FOUNDATION_EXPORT void dispatch_write(dispatch_fd_t fd, dispatch_data_t data, dispatch_queue_t queue, void (^handler)(dispatch_data_t data, int error));
+#endif
+typedef void (*dispatch_io_handler_function_t)(void *context, bool done, dispatch_data_t data, int error);
+FOUNDATION_EXPORT dispatch_io_t dispatch_io_create_f(dispatch_io_type_t type, dispatch_fd_t fd, dispatch_queue_t queue, void *context,
+                                                     void (*cleanup_handler)(void *context, int error));
+FOUNDATION_EXPORT dispatch_io_t dispatch_io_create_with_path_f(dispatch_io_type_t type, const char *path, int oflag, mode_t mode,
+                                                               dispatch_queue_t queue, void *context, void (*cleanup_handler)(void *context, int error));
+FOUNDATION_EXPORT dispatch_io_t dispatch_io_create_with_io_f(dispatch_io_type_t type, dispatch_io_t io, dispatch_queue_t queue, void *context,
+                                                             void (*cleanup_handler)(void *context, int error));
+FOUNDATION_EXPORT void dispatch_io_read_f(dispatch_io_t channel, off_t offset, size_t length, dispatch_queue_t queue, void *context,
+                                          dispatch_io_handler_function_t io_handler);
+FOUNDATION_EXPORT void dispatch_io_write_f(dispatch_io_t channel, off_t offset, dispatch_data_t data, dispatch_queue_t queue, void *context,
+                                           dispatch_io_handler_function_t io_handler);
+FOUNDATION_EXPORT void dispatch_io_barrier_f(dispatch_io_t channel, void *context, dispatch_function_t barrier);
+FOUNDATION_EXPORT void dispatch_read_f(dispatch_fd_t fd, size_t length, dispatch_queue_t queue, void *context,
+                                       void (*handler)(void *context, dispatch_data_t data, int error));
+FOUNDATION_EXPORT void dispatch_write_f(dispatch_fd_t fd, dispatch_data_t data, dispatch_queue_t queue, void *context,
+                                        void (*handler)(void *context, dispatch_data_t data, int error));
+FOUNDATION_EXPORT void dispatch_io_close(dispatch_io_t channel, dispatch_io_close_flags_t flags);
+FOUNDATION_EXPORT dispatch_fd_t dispatch_io_get_descriptor(dispatch_io_t channel);
+FOUNDATION_EXPORT void dispatch_io_set_high_water(dispatch_io_t channel, size_t high_water);
+FOUNDATION_EXPORT void dispatch_io_set_low_water(dispatch_io_t channel, size_t low_water);
+FOUNDATION_EXPORT void dispatch_io_set_interval(dispatch_io_t channel, uint64_t interval, dispatch_io_interval_flags_t flags);
+
 /* isim: accessors for macro-only values, used by the Swift Dispatch overlay */
 static inline dispatch_queue_t _isim_dispatch_main_queue(void) { return &_dispatch_main_q; }
 static inline dispatch_queue_attr_t _isim_dispatch_concurrent_attr(void) { return DISPATCH_QUEUE_CONCURRENT; }
 static inline dispatch_source_type_t _isim_dispatch_timer_type(void) { return DISPATCH_SOURCE_TYPE_TIMER; }
+static inline dispatch_data_t _isim_dispatch_data_empty(void) { return dispatch_data_empty; }
 static inline int _isim_dispatch_open(const char *path, int oflag, unsigned short mode) { return open(path, oflag, (int)mode); }
 static inline dispatch_source_type_t _isim_dispatch_source_type(int kind) {
     switch (kind) {
@@ -185,6 +257,8 @@ static inline dispatch_source_type_t _isim_dispatch_source_type(int kind) {
     case 7: return DISPATCH_SOURCE_TYPE_PROC;
     case 8: return DISPATCH_SOURCE_TYPE_VNODE;
     case 9: return DISPATCH_SOURCE_TYPE_MEMORYPRESSURE;
+    case 10: return DISPATCH_SOURCE_TYPE_MACH_SEND;
+    case 11: return DISPATCH_SOURCE_TYPE_MACH_RECV;
     default: return DISPATCH_SOURCE_TYPE_TIMER;
     }
 }

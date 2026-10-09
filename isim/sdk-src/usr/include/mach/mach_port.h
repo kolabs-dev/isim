@@ -14,5 +14,7 @@ kern_return_t mach_port_construct(ipc_space_t task, mach_port_options_ptr_t opti
 kern_return_t mach_port_destruct(ipc_space_t task, mach_port_name_t name, mach_port_delta_t srdelta, mach_port_context_t guard);
 kern_return_t mach_port_set_attributes(ipc_space_t task, mach_port_name_t name, mach_port_flavor_t flavor,
                                        mach_port_info_t info, mach_msg_type_number_t count);
+kern_return_t mach_port_get_attributes(ipc_space_t task, mach_port_name_t name, mach_port_flavor_t flavor,
+                                       mach_port_info_t info, mach_msg_type_number_t *count);
 mach_port_t mach_reply_port(void);
 __END_DECLS
