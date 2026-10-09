@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 225 | 2 | 0 | 8 | 235 | 96% |
-| &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
+| **UIKit** | 227 | 2 | 0 | 7 | 236 | 97% |
+| &nbsp;&nbsp;↳ Application & scenes | 26 | 0 | 0 | 0 | 26 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 67 | 0 | 0 | 7 | 74 | 91% |
+| &nbsp;&nbsp;↳ Views & controls | 68 | 0 | 0 | 6 | 74 | 92% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **764** | **186** | **23** | **39** | **1012** | **85%** |
+| **All areas** | **766** | **186** | **23** | **38** | **1013** | **85%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (207) | 100% (211) | 99% (225) | 96% (235) |
+| UIKit | 100% (208) | 100% (212) | 99% (226) | 97% (236) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (956) | **86%** (968) | **85%** (992) | **85%** (1012) |
+| **All areas** | **86%** (957) | **86%** (969) | **85%** (993) | **85%** (1013) |
 
 ---
 
@@ -139,6 +139,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIWindowScene` geometry (`effectiveGeometry`, `coordinateSpace`, `sizeRestrictions`, `windowScene(_:didUpdate:interfaceOrientation:traitCollection:)`), `UIScene.open(_:options:)`, scene subtitle | ✅ | ≤17 | split-view widths and rotation update the geometry and call the delegate with the old values; tested (HelloWindows) |
 | `UIWindow` (`makeKeyAndVisible`, `rootViewController`, `windowLevel`) | ✅ | ≤17 | |
 | `UIScreen.main` (bounds, scale, nativeBounds, maximumFramesPerSecond) | ✅ | ≤17 | per-device presets |
+| External displays (`UIScreen.screens`, `didConnectNotification` / `didDisconnectNotification`, `UIWindowSceneSessionRoleExternalDisplayNonInteractive` scenes) | ✅ | ≤17 | adapted: one simulated display (script `display connect [WxH]`, scale 1); the manifest's external display configuration gets a scene on it (its windows are laid out and drawn there, never touched), else it mirrors the device (`display shot PATH`). Tested (HelloScenes27) |
 | `UIScreen.brightness` | ✅ | ≤17 | adapted: a device setting (shared by the apps of the device, like iOS), `UIScreen.brightnessDidChangeNotification`; isim dims the drawn frame by `(1 - brightness) × 0.8`. Tested (HelloViews) |
 | `UIDevice` (name, model, systemVersion, userInterfaceIdiom) | ✅ | ≤17 | systemVersion is the emulated version (`--os` / `ISIM_OS_VERSION`); battery level/state and notifications from `ISIM_BATTERY` (`"LEVEL [unplugged|charging|full]"`, default `"1 full"`); `identifierForVendor` stable per device data and vendor; proximity monitoring (never near). Tested (HelloWindows) |
 | Device orientation, rotation, `supportedInterfaceOrientations` | ✅ | ≤17 | Ctrl+Left/Right or script `rotate`; Info.plist/delegate/VC masks (containers use their visible child; no plist key = portrait, adapted), `requestGeometryUpdate`, device notifications, landscape screen through the shell; tested (HelloRotation) |
@@ -263,7 +264,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloUITabs, per version: classic tabs on iOS 17) |
 | `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ✅ | 27.0 | adapted: the lift delay is 0.5 s, `.extended` 0.75 s (isim's estimate) and a second finger cancels the lift; a pointer drag (iPad pointer touches, script `pointerdrag`) starts once the pointer moves unless `allowsPointerDragBeforeLiftDelay` is false (then it waits for the lift delay like a finger). Tested (HelloKit27) |
 | `NSTextTable`/`NSTextBlock` in UIKit, `UITextAttachmentViewProviderReusePolicy`, viewport rendering surfaces | ❌ | 27.0 | |
-| Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ❌ | 27.0 | |
+| Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ✅ | 27.0 | adapted: an external display is simulated (script `display connect [WxH]` / `display disconnect`; `display shot PATH` saves what it shows, isim opens no second window): while it is connected, the most recent enabled `externalNonInteractive` registration gets a `windowExternalDisplayNonInteractive` scene from its configuration, with `sceneAccessoryUserInfo`; `isAvailable` changes call the controller's `updateProperties` and layout; a disabled accessory leaves the display to the manifest's external display configuration, else it mirrors the device. `cameraCapture` (27.1) registrations are never available (stub: no capture accessory surface). Script `closescene [SESSION-ID]` closes a window (iPad, multiple scenes) after the `closureConfirmation` alert (Close / Cancel, replaced by `.destructive` / `.cancel` actions; adapted: an alert in the scene, not the system's window chrome). `extendStateRestoration` keeps the launch screen up until every extension completes (iOS 15). Tested (HelloScenes27, iOS 17–27) |
 | `UIWindowScene.displayLink(target:selector:)`, `displayLink(action:)` | ✅ | 27.0 | passthrough: isim has one display per device, so it is an ordinary `CADisplayLink` (add it to a run loop to start it); the closure form keeps its closure alive with the link. Tested (HelloKit27) |
 | `UINavigationItem.barMinimizeBehavior`, `barMinimizationSafeAreaAdjustment`, `UIBarButtonItem.visibilityPriority` | ❌ | 27.0 | the SwiftUI toolbar equivalents are implemented |
 | `UIMenuElement.subtitle`, `preferredImageVisibility`, `highlightStateUpdateHandler`; `UIContextMenuConfiguration.allowsTypeSelect` | ✅ | 27.0 | adapted: a subtitle is a second line (15 pt, secondary) and makes the row 58 pt; `.hidden` drops the image; the handler is told when a row is highlighted by touch or keyboard. Menus take a hardware keyboard: arrows move the highlight, Return chooses, Escape closes, letters type-select (unless `allowsTypeSelect` is false: then they reach the focused text field). `subtitle` itself is iOS 15. Tested (HelloKit27) |

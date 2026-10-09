@@ -13,6 +13,8 @@ typedef NS_ENUM(NSInteger, UISceneActivationState) { UISceneActivationStateUnatt
 UIKIT_EXTERN NSNotificationName const UISceneWillConnectNotification, UISceneDidActivateNotification, UISceneDidDisconnectNotification,
     UISceneWillDeactivateNotification, UISceneWillEnterForegroundNotification, UISceneDidEnterBackgroundNotification;
 UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleExternalDisplayNonInteractive NS_SWIFT_NAME(windowExternalDisplayNonInteractive);
+/* iOS 27.1: the role of scenes made for a camera capture scene accessory (set by the system) */
+UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleCameraCaptureAccessory NS_SWIFT_NAME(windowCameraCaptureAccessory) API_AVAILABLE(ios(27.1));
 UIKIT_EXTERN NSErrorDomain const UISceneErrorDomain;
 typedef NS_ERROR_ENUM(UISceneErrorDomain, UISceneErrorCode) {
     UISceneErrorCodeMultipleScenesNotSupported = 0, UISceneErrorCodeRequestDenied = 1,
@@ -46,6 +48,10 @@ NS_SWIFT_UI_ACTOR
 @property (null_resettable, nonatomic, copy) NSString *subtitle API_AVAILABLE(ios(15.0));
 /* opens a URL like UIApplication's openURL:options:completionHandler: (another app's scheme or universal link, Settings) */
 - (void)openURL:(NSURL *)url options:(nullable UISceneOpenExternalURLOptions *)options completionHandler:(void (^ _Nullable)(BOOL success))completion;
+/* restoring takes longer than the scene's connection (data loaded asynchronously): the launch screen stays up until
+   completeStateRestoration (isim: every extend is matched by a complete; outside a launch they only log) */
+- (void)extendStateRestoration API_AVAILABLE(ios(15.0));
+- (void)completeStateRestoration API_AVAILABLE(ios(15.0));
 @end
 NS_SWIFT_NAME(UIScene.OpenExternalURLOptions)
 @interface UISceneOpenExternalURLOptions : NSObject
@@ -111,8 +117,17 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(16.0)) NS_SWIFT_NAME(UIWindowScene.Geometry)
 @property (nonatomic, readonly) UIInterfaceOrientation interfaceOrientation;
 @property (nonatomic, readonly, getter=isInteractivelyResizing) BOOL interactivelyResizing API_AVAILABLE(ios(17.0));
 @end
+/* iOS 27: a confirmation shown before a user action closes the scene (isim: script closescene). The default buttons
+   are Close and Cancel; a .destructive action replaces Close (it closes the scene), a .cancel action replaces Cancel */
+@class UIAlertAction;
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(27.0))
+@interface UISceneClosureConfirmation : NSObject <NSCopying, NSSecureCoding>
+- (instancetype)initWithTitle:(nullable NSString *)title message:(nullable NSString *)message actions:(NSArray<UIAlertAction *> *)actions;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
+@end
 @class CADisplayLink;
 @interface UIWindowScene : UIScene
+@property (nullable, nonatomic, copy) UISceneClosureConfirmation *closureConfirmation API_AVAILABLE(ios(27.0));
 /* iOS 27: a display link for the scene's display (add it to a run loop to start it); Swift also has displayLink(action:) */
 - (nullable CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel NS_SWIFT_NAME(displayLink(target:selector:)) API_AVAILABLE(ios(27.0));
 @property (nonatomic, readonly) UIScreen *screen;
@@ -158,5 +173,29 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, readonly) NSString *sourceApplication;
 @property (nullable, nonatomic, readonly) NSString *handoffUserActivityType;
 @property (nullable, nonatomic, readonly) UIApplicationShortcutItem *shortcutItem;
+/* iOS 27: the userInfo of the scene accessory this scene was made for */
+@property (nullable, nonatomic, readonly) id sceneAccessoryUserInfo API_AVAILABLE(ios(27.0));
+@end
+
+/* iOS 27: scene accessories, registered by a view controller (registerSceneAccessory:). isim (adapted): an external
+   display is simulated (script `display connect`): while it is connected, the most recent enabled registration of
+   an external accessory gets a scene of role windowExternalDisplayNonInteractive on it; camera capture accessories
+   are never available (no capture accessory surface) */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(27.0))
+@interface UISceneAccessory : NSObject
++ (instancetype)externalNonInteractiveWithSceneConfiguration:(UISceneConfiguration *)sceneConfiguration NS_SWIFT_NAME(externalNonInteractive(sceneConfiguration:));
++ (instancetype)externalNonInteractiveWithSceneConfiguration:(UISceneConfiguration *)sceneConfiguration userInfo:(id)userInfo NS_SWIFT_NAME(externalNonInteractive(sceneConfiguration:userInfo:));
++ (instancetype)cameraCaptureWithSceneConfiguration:(UISceneConfiguration *)sceneConfiguration NS_SWIFT_NAME(cameraCapture(sceneConfiguration:)) API_AVAILABLE(ios(27.1));
++ (instancetype)cameraCaptureWithSceneConfiguration:(UISceneConfiguration *)sceneConfiguration userInfo:(id)userInfo NS_SWIFT_NAME(cameraCapture(sceneConfiguration:userInfo:)) API_AVAILABLE(ios(27.1));
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+@end
+/* availability changes ask the registering controller (and its view) for updateProperties and layout */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(27.0))
+@interface UISceneAccessoryRegistration : NSObject
+@property (nonatomic, readonly, getter=isAvailable) BOOL available;
+@property (nonatomic, getter=isEnabled) BOOL enabled;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 @end
 NS_ASSUME_NONNULL_END

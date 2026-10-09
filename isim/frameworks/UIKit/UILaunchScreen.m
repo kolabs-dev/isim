@@ -93,8 +93,15 @@ void isim_ib_show_launch_screen(void) {
     isim_ui_set_needs_display();
 }
 
+/* UIScene extendStateRestoration / completeStateRestoration: the launch screen stays until every extension completed */
+static int restoration_holds; static BOOL hide_deferred;
+void isim_ib_launch_screen_hold(BOOL hold) {
+    if (hold) { restoration_holds++; return; }
+    if (restoration_holds > 0 && --restoration_holds == 0 && hide_deferred) { hide_deferred = NO; isim_ib_hide_launch_screen(); }
+}
 void isim_ib_hide_launch_screen(void) {
     if (!launch_window) return;
+    if (restoration_holds > 0) { hide_deferred = YES; NSLog(@"isim: launch screen kept until state restoration completes"); return; }
     const char *e = getenv("ISIM_LAUNCH_SCREEN_SECS");
     double secs = e && *e ? atof(e) : 0.25;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(secs * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{

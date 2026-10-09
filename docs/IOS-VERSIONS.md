@@ -139,7 +139,9 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
   `NavigationTransition.crossFade` (proposed);
   UIKit (`tests/ui/test_kit27.py`): `UIMenuElement.preferredImageVisibility` / `highlightStateUpdateHandler`,
   `UIContextMenuConfiguration.allowsTypeSelect`, `UIWindowScene.displayLink`, `UIDragInteraction.liftBehavior` /
-  `allowsPointerDragBeforeLiftDelay`;
+  `allowsPointerDragBeforeLiftDelay`; scene accessories on a simulated external display, `UISceneClosureConfirmation`
+  (`tests/ui/test_scenes27.py`, under every version: before 27 the manifest's external display scene and closing
+  without confirmation);
 - not done (listed as ❌ in [COVERAGE.md](COVERAGE.md)): `ReadableDocument`/`WritableDocument`, `reorderable()`,
   `reorderContainer`, the `@State` macro / `ContentBuilder`
   (Xcode 27 compiler features), gesture input kinds, UIKit `NSTextTable` family, attachment view reuse; iOS 27.1
