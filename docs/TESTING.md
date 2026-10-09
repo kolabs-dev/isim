@@ -67,8 +67,8 @@ When a test is marked:
   (`launch` already passes it) rather than a fixed `--device`, since iPhone 17 does not run iOS 17 / 18;
 - it must pass under all four; where a feature does not exist in a version, `pytest.skip` with the reason (as the
   iOS 17 exclusions do);
-- CI runs them in its **os matrix** job (in parallel with the main job; both must pass for `ci / build and test`);
-  run `OS_MATRIX=1 isim/build.py test` locally first and put the result in the pull request's description.
+- CI runs them under each version in its own job (see below); run `OS_MATRIX=1 isim/build.py test` locally first and
+  put the result in the pull request's description.
 
 Quick check while writing a test: if the code under test calls `isim_ui_glass()` / `sys_os()` or reads
 `ISIM_OS_VERSION` (`grep -rn "isim_ui_glass\|sys_os()\|ISIM_OS_VERSION" isim/frameworks isim/runtime isim/swift`),
@@ -77,9 +77,15 @@ or the test looks at system chrome, mark it.
 ## CI
 
 `.github/workflows/ci.yml` builds isim and runs every test plus the ABI check in a stock Ubuntu 24.04 image
-(`isim/ci/Dockerfile`), so CI also proves isim works on an ordinary Linux. A second job, **os matrix**, runs in
-parallel and runs the `os_matrix` tests under iOS 17, 18, 26 and 27 (`build.py ci test -- -m os_matrix`); the
-commit status `ci / build and test` is posted when both are done and passes only if both do. For pull requests it runs only on demand: Actions → CI → Run
+(`isim/ci/Dockerfile`), so CI also proves isim works on an ordinary Linux. It runs in three stages:
+
+    build  ->  test (iOS 17) | test (iOS 18) | test (iOS 26) | test (iOS 27)  ->  status
+
+**build** builds isim and runs the ABI check, and saves the build to the cache under the run's key. The four **test**
+jobs restore that build and run in parallel: iOS 18 (iPhone 16 Pro, the default) runs every test; iOS 17 (iPhone 15),
+26 and 27 (iPhone 17) run the `os_matrix` tests (`build.py ci test -- -m os_matrix --os 26 --device iphone17`). Each
+puts its results in the run's summary and its own artifact. **status** posts the commit status `ci / build and test`
+when all four are done: success only if the build and every version passed. For pull requests it runs only on demand: Actions → CI → Run
 workflow on the PR's branch. Pushes to `main` run it automatically, which keeps `main`'s build cache fresh: a
 branch's first run starts from it. The build directory is cached; `build.py ci` gives sources whose content is unchanged
 their cached timestamps back (a checkout gives every file a new one), so Ninja rebuilds only what the branch changed; JUnit results and failure screenshots are uploaded as artifacts.
