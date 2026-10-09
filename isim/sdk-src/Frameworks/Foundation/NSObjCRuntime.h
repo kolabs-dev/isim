@@ -37,6 +37,9 @@
 #define NS_FORMAT_FUNCTION(F, A) __attribute__((format(__NSString__, F, A)))
 #define NS_SWIFT_NAME(_name) __attribute__((swift_name(#_name)))
 #define NS_SWIFT_UI_ACTOR
+/* as in Apple's NSObjCRuntime.h: a block (or typedef) marked NS_SWIFT_SENDABLE imports into Swift as @Sendable */
+#define NS_SWIFT_SENDABLE __attribute__((swift_attr("@Sendable")))
+#define NS_SWIFT_NONSENDABLE __attribute__((swift_attr("@_nonSendable")))
 #define NS_REFINED_FOR_SWIFT __attribute__((swift_private))
 #define NS_SWIFT_UNAVAILABLE(_msg) __attribute__((availability(swift, unavailable, message=_msg)))
 #define NS_NOESCAPE __attribute__((noescape))
