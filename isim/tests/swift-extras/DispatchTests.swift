@@ -1,7 +1,8 @@
 import Foundation
 
-/// Waits (polling) until `cond` holds or `timeout` passes.
-func waitFor(_ timeout: Double = 2, _ cond: () -> Bool) -> Bool {
+/// Waits (polling) until `cond` holds or `timeout` passes (generous: a loaded machine can starve the queues for seconds;
+/// a passing check returns as soon as its condition holds).
+func waitFor(_ timeout: Double = 10, _ cond: () -> Bool) -> Bool {
     let end = Date().addingTimeInterval(timeout)
     while Date() < end { if cond() { return true }; pause(0.01) }
     return cond()
@@ -90,9 +91,11 @@ func dispatchTests() {
     let sigCount = Box<UInt>(0)
     signal(SIGUSR1, SIG_IGN)
     let sig = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: q)
+    let sigRegistered = Box(false)
+    sig.setRegistrationHandler { sigRegistered.value = true }
     sig.setEventHandler { sigCount.mutate { $0 += sig.data } }
     sig.resume()
-    pause(0.05)
+    check(waitFor { sigRegistered.value }, "signal source registers")   // raised before that, the signals would be ignored
     raise(SIGUSR1); raise(SIGUSR1)
     check(waitFor { sigCount.value == 2 }, "signal source counts SIGUSR1 deliveries (\(sigCount.value))")
     sig.cancel()
@@ -107,9 +110,11 @@ func dispatchTests() {
     let fd = open(file, O_RDWR)
     let fsEvents = Box<DispatchSource.FileSystemEvent>([])
     let fsSource = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .extend, .rename, .delete], queue: q)
+    let fsRegistered = Box(false)
+    fsSource.setRegistrationHandler { fsRegistered.value = true }
     fsSource.setEventHandler { fsEvents.mutate { $0.formUnion(fsSource.data) } }
     fsSource.resume()
-    pause(0.1)
+    check(waitFor { fsRegistered.value }, "file system source registers")
     _ = "bcd".withCString { write(fd, $0, 3) }
     check(waitFor { fsEvents.value.contains(.write) && fsEvents.value.contains(.extend) }, "file system source: .write + .extend after appending")
     fsEvents.value = []
@@ -122,9 +127,11 @@ func dispatchTests() {
     let dirFD = open(dir, O_RDONLY)
     let dirEvents = Box<DispatchSource.FileSystemEvent>([])
     let dirSource = DispatchSource.makeFileSystemObjectSource(fileDescriptor: dirFD, eventMask: .write, queue: q)
+    let dirRegistered = Box(false)
+    dirSource.setRegistrationHandler { dirRegistered.value = true }
     dirSource.setEventHandler { dirEvents.mutate { $0.formUnion(dirSource.data) } }
     dirSource.resume()
-    pause(0.1)
+    check(waitFor { dirRegistered.value }, "directory source registers")
     FileManager.default.createFile(atPath: dir + "/new.txt", contents: Data())
     check(waitFor { dirEvents.value.contains(.write) }, "directory source: .write when an entry is added")
     dirSource.cancel(); close(dirFD)
@@ -183,7 +190,7 @@ func dispatchTests() {
     wio.write(offset: 4, data: payload, queue: q) { finished, rest, err in
         if finished { writeResult.value = (true, rest?.count ?? 0, err); done.signal() }
     }
-    _ = done.wait(timeout: .now() + 2)
+    _ = done.wait(timeout: .now() + 10)
     check(writeResult.value == (true, 0, 0), "DispatchIO random write at offset 4 completes with nothing left over")
     let readBack = Box<[UInt8]>([])
     let readDone = Box(false)
@@ -191,7 +198,7 @@ func dispatchTests() {
         if let data { readBack.mutate { $0 += Array(data) } }
         if finished { readDone.value = true; done.signal() }
     }
-    _ = done.wait(timeout: .now() + 2)
+    _ = done.wait(timeout: .now() + 10)
     check(readDone.value && readBack.value == Array("23456".utf8), "DispatchIO random read(offset:length:) (\(String(decoding: readBack.value, as: UTF8.self)))")
     wio.close()
     check(waitFor { cleanup.value == [0] }, "DispatchIO close runs the cleanup handler once")
@@ -241,8 +248,9 @@ func dispatchTests() {
     iio.setLimit(lowWater: 1000)
     iio.setInterval(interval: .milliseconds(20), flags: .strictInterval)
     iio.read(offset: 0, length: Int.max, queue: q) { finished, data, _ in if !finished, data != nil { partials.mutate { $0 += 1 } } }
-    for _ in 0..<6 where partials.value == 0 { _ = write(ifds[1], "x", 1); pause(0.03) }
-    check(partials.value >= 1, "DispatchIO setInterval(.strictInterval) delivers partial data below the low-water mark")
+    var written = 0                                   // a byte per poll, well below the low-water mark
+    check(waitFor { if partials.value == 0 && written < 200 { _ = write(ifds[1], "x", 1); written += 1 }; return partials.value >= 1 },
+          "DispatchIO setInterval(.strictInterval) delivers partial data below the low-water mark")
     iio.close(flags: .stop)
     _ = write(ifds[1], "y", 1)
     close(ifds[1])

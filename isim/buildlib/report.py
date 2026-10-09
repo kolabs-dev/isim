@@ -35,7 +35,7 @@ def summarize(xml, log, out, repo):
         text = open(log, errors="replace").read()
     except OSError:
         text = ""
-    flaky = re.findall(r"^FLAKY \(passed on rerun\): (\S+)", text, re.M)
+    flaky = re.findall(r"^FLAKY \(passed on rerun\): (\S+)(?:\n  first attempt: (.*))?", text, re.M)
     slow = sorted(((float(c.get("time") or 0), f"{c.get('file') or c.get('classname')}::{c.get('name')}") for c in cases), reverse=True)[:10]
     icon = "✅" if not counts["failed"] else "❌"
     md = [f"## {icon} Tests: {counts['passed']} passed, {counts['failed']} failed, {counts['skipped']} skipped", ""]
@@ -43,7 +43,7 @@ def summarize(xml, log, out, repo):
         md += ["### Failed", "", "| Test | Error |", "|---|---|"]
         md += ["| `%s` | %s |" % (n, m.replace("|", "\\|")) for n, m, _ in rows] + [""]
     if flaky:
-        md += ["### Flaky (passed on the retry)", ""] + [f"- `{f}`" for f in flaky] + [""]
+        md += ["### Flaky (passed on the retry)", ""] + [f"- `{f}`" + (f": {m}" if m else "") for f, m in flaky] + [""]
     md += ["### Slowest", "", "| Test | Time |", "|---|---:|"] + [f"| `{n}` | {t:.0f} s |" for t, n in slow]
     with open(out, "w") as f:
         f.write("\n".join(md) + "\n")
