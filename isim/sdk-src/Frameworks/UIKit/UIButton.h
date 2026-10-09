@@ -52,6 +52,20 @@ typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeS
 @end
 typedef NS_ENUM(NSInteger, UIButtonConfigurationCornerStyle) { UIButtonConfigurationCornerStyleFixed = -1, UIButtonConfigurationCornerStyleDynamic, UIButtonConfigurationCornerStyleSmall, UIButtonConfigurationCornerStyleMedium, UIButtonConfigurationCornerStyleLarge, UIButtonConfigurationCornerStyleCapsule };
 typedef NS_ENUM(NSInteger, UIButtonConfigurationSize) { UIButtonConfigurationSizeMedium = 0, UIButtonConfigurationSizeSmall, UIButtonConfigurationSizeMini, UIButtonConfigurationSizeLarge };
+/* iOS 26: how a button's symbol image changes when its configuration's image does. Swift:
+   UISymbolContentTransition(.replace, options:) (UIKit overlay); isim plays the replace animation of image views */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0))
+@interface UISymbolContentTransition : NSObject <NSCopying>
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+/* kind: the Symbols effect kind (replace 6, automatic 7); direction: up 1, down -1; box: the Swift effect and options */
+- (instancetype)initWithIsimKind:(NSInteger)kind direction:(NSInteger)direction speed:(double)speed box:(nullable id)box
+    NS_SWIFT_NAME(init(_isimKind:direction:speed:box:)) NS_DESIGNATED_INITIALIZER;
+@property (nonatomic, readonly) NSInteger _isim_effectKind;
+@property (nonatomic, readonly) NSInteger _isim_effectDirection;
+@property (nonatomic, readonly) double _isim_effectSpeed;
+@property (nonatomic, readonly, nullable) id _isim_box;
+@end
 NS_SWIFT_UI_ACTOR
 @interface UIButtonConfiguration : NSObject <NSCopying>
 + (instancetype)plainButtonConfiguration;
@@ -84,5 +98,6 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) NSDirectionalRectEdge imagePlacement;     /* leading (default), trailing, top or bottom */
 @property (nonatomic) CGFloat titlePadding;
 @property (nonatomic) UIButtonConfigurationTitleAlignment titleAlignment;
+@property (nonatomic, copy, nullable) UISymbolContentTransition *symbolContentTransition API_AVAILABLE(ios(26.0));
 @end
 NS_ASSUME_NONNULL_END

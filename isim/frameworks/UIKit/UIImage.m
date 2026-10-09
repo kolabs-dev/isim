@@ -335,6 +335,7 @@ static CGFloat scale_from_name(NSString *path) {
 - (BOOL)isSymbolImage { return _symbol; }
 - (UIImageSymbolConfiguration *)symbolConfiguration { return _config; }
 - (BOOL)_isim_isTemplate { return _mode == UIImageRenderingModeAlwaysTemplate; }
+- (NSString *)_isim_symbolName { return _symbol ? _name : nil; }
 - (UIImage *)imageWithRenderingMode:(UIImageRenderingMode)m { UIImage *i = [self _copy]; i->_mode = m; return i; }
 - (UIImage *)imageWithTintColor:(UIColor *)c { return [self imageWithTintColor:c renderingMode:UIImageRenderingModeAlwaysOriginal]; }
 - (UIImage *)imageWithTintColor:(UIColor *)c renderingMode:(UIImageRenderingMode)m { UIImage *i = [self _copy]; i->_tint = c; i->_mode = m; return i; }
