@@ -16,6 +16,21 @@ public struct Chart<Content: ChartContent>: View {
     @Environment(\._chartLegend) var legend
     @Environment(\._chartXLabel) var xLabel
     @Environment(\._chartYLabel) var yLabel
+    @Environment(\._chartSymbolScale) var symbolScale
+    @Environment(\._chartSymbolSizeScale) var symbolSizeScale
+    @Environment(\._chartXSelection) var xSelection
+    @Environment(\._chartYSelection) var ySelection
+    @Environment(\._chartXRangeSelection) var xRangeSelection
+    @Environment(\._chartYRangeSelection) var yRangeSelection
+    @Environment(\._chartAngleSelection) var angleSelection
+    @Environment(\._chartScroll) var scroll
+    @Environment(\._chartOverlay) var overlay
+    @Environment(\._chartBackground) var background
+    @Environment(\._chartGesture) var chartGesture
+    @Environment(\._chartPlotStyle) var plotStyle
+    /// live scroll positions (data units along x / y; category indexes on category axes) while no binding is given
+    @State private var scrollX: Double? = nil
+    @State private var scrollY: Double? = nil
 
     public init(@ChartContentBuilder content: () -> Content) { self.content = content() }
     public init<Data: RandomAccessCollection, ID: Hashable, C: ChartContent>(_ data: Data, id: KeyPath<Data.Element, ID>,
@@ -28,11 +43,19 @@ public struct Chart<Content: ChartContent>: View {
     }
 
     public var body: some View {
-        let cfg = _ChartConfig(xVisibility: xVisibility, yVisibility: yVisibility, xAxis: xAxis?.specs, yAxis: yAxis?.specs, xDomain: xScale, yDomain: yScale,
-                               styleScale: styleScale, legend: legend, xLabel: xLabel?.view, yLabel: yLabel?.view)
+        var cfg = _ChartConfig(xVisibility: xVisibility, yVisibility: yVisibility, xAxis: xAxis?.specs, yAxis: yAxis?.specs, xDomain: xScale, yDomain: yScale,
+                               styleScale: styleScale, legend: legend, xLabel: xLabel, yLabel: yLabel)
+        cfg.symbolScale = symbolScale; cfg.symbolSizeScale = symbolSizeScale
+        cfg.selection = _SelectionSetters(x: xSelection?.set, y: ySelection?.set, xRange: xRangeSelection?.set, yRange: yRangeSelection?.set,
+                                          angle: angleSelection?.set)
+        cfg.scroll = scroll; cfg.overlay = overlay; cfg.background = background; cfg.gesture = chartGesture; cfg.plotStyle = plotStyle
+        cfg.scrollX = scrollX; cfg.scrollY = scrollY
+        let sx = $scrollX, sy = $scrollY
+        cfg.setScroll = { x, y in sx.wrappedValue = x; sy.wrappedValue = y }
         let marks = _resolveMarks(content)
         // fills the space it is offered; where a height is left open (scroll views) it is 200 pt tall
-        return GeometryReader { geo in _ChartRenderer(marks: marks, cfg: cfg, size: geo.size).view() }._isimIdealSize(height: 200)
+        let all = _expandFunctions(marks, xDomain: xScale)
+        return GeometryReader { geo in _ChartRenderer(marks: all, cfg: cfg, size: geo.size).view() }._isimIdealSize(height: 200)
     }
 }
 
@@ -41,7 +64,22 @@ struct _ChartConfig {
     var xAxis: [_AxisMarksSpec]?, yAxis: [_AxisMarksSpec]?
     var xDomain: _ChartDomain?, yDomain: _ChartDomain?
     var styleScale: _StyleScaleBox?, legend: _LegendBox?
-    var xLabel: AnyView?, yLabel: AnyView?
+    var xLabel: _ViewBox?, yLabel: _ViewBox?
+    var symbolScale: _SymbolScaleBox? = nil, symbolSizeScale: _SymbolSizeScaleBox? = nil
+    var selection = _SelectionSetters()
+    var scroll: _ScrollBox? = nil
+    var overlay: _ProxyViewBox? = nil, background: _ProxyViewBox? = nil, gesture: _ProxyViewBox? = nil
+    var plotStyle: _PlotStyleBox? = nil
+    var scrollX: Double? = nil, scrollY: Double? = nil
+    var setScroll: (Double?, Double?) -> Void = { _, _ in }
+}
+
+/// What is layered with the plot: views behind and over it, the plot style, the gesture layer, clipping.
+struct _ChartLayers {
+    var plot: CGRect = .zero
+    var clip = false
+    var background: AnyView?, plotStyle: AnyView?, gesture: AnyView?, overlay: AnyView?
+    var backgroundAlignment = Alignment.center, overlayAlignment = Alignment.center
 }
 
 // MARK: - Formatting and measuring
@@ -201,7 +239,9 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
             draws += pie(plot, style)
             placeLegend(&placed, legendItems, top: legendTop ? 0 : H - legendH + 8, width: W)
             if let c = cfg.legend?.content { placed.append(_PlacedView(view: c, rect: CGRect(x: 0, y: legendTop ? 0 : H - legendH, width: W, height: legendH), alignment: .leading)) }
-            return compose(draws, placed)
+            let unit = _Scale(kind: .linear(0, 1), start: plot.minX, end: plot.maxX), vunit = _Scale(kind: .linear(0, 1), start: plot.maxY, end: plot.minY)
+            let proxy = ChartProxy(plot: plot, xs: unit, ys: vunit, selection: cfg.selection, angleAt: { pieValue(at: $0, plot) })
+            return compose(draws, placed, layers(plot, proxy, scrolling: false))
         }
 
         // which axis carries the values of bars and areas
@@ -274,8 +314,15 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         }
         let xDesired = cfg.xAxis?.compactMap { if case .automatic(let n) = $0.values.kind { return n }; return nil }.first ?? 5
         let yDesired = cfg.yAxis?.compactMap { if case .automatic(let n) = $0.values.kind { return n }; return nil }.first ?? 5
-        let (xKind, xStep): (_Scale.Kind, Double) = xCategorical ? (.band(categories(true, cfg.xDomain)), 0) : numericScale(true, cfg.xDomain, desired: xDesired)
-        let (yKind, yStep): (_Scale.Kind, Double) = yCategorical ? (.band(categories(false, cfg.yDomain)), 0) : numericScale(false, cfg.yDomain, desired: yDesired)
+        var (xKind, xStep): (_Scale.Kind, Double) = xCategorical ? (.band(categories(true, cfg.xDomain)), 0) : numericScale(true, cfg.xDomain, desired: xDesired)
+        var (yKind, yStep): (_Scale.Kind, Double) = yCategorical ? (.band(categories(false, cfg.yDomain)), 0) : numericScale(false, cfg.yDomain, desired: yDesired)
+
+        // scrolling: the plot shows a window of the visible length; positions are data units (category indexes)
+        let sc = cfg.scroll
+        let xScroll = sc.flatMap { $0.axes.contains(.horizontal) ? _ScrollWindow(kind: xKind, axis: $0.x, live: cfg.scrollX) : nil }
+        let yScroll = sc.flatMap { $0.axes.contains(.vertical) ? _ScrollWindow(kind: yKind, axis: $0.y, live: cfg.scrollY) : nil }
+        if let w = xScroll, let k = w.windowKind { xKind = k; xStep = _niceStep(w.length, xDesired) }
+        if let w = yScroll, let k = w.windowKind { yKind = k; yStep = _niceStep(w.length, yDesired) }
 
         // axis tick values and labels
         let xHidden = cfg.xVisibility == .hidden || (cfg.xAxis?.isEmpty ?? false)
@@ -352,23 +399,32 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         let hasXLabels = xParts.contains { $0.parts.contains { if case .label = $0 { return true }; return false } }
         let xLabelH: CGFloat = hasXLabels ? 18 : 0
         let yLabelGap: CGFloat = yLabelW > 0 ? yLabelW + 6 : 0
-        let xTitleH: CGFloat = cfg.xLabel != nil ? 18 : 0, yTitleH: CGFloat = cfg.yLabel != nil ? 18 : 0
-        let topPad: CGFloat = (yLabelW > 0 ? 7 : 1) + yTitleH + (xTop ? xLabelH : 0) + (legendTop ? legendH : 0)
-        let plot = CGRect(x: yLeading ? yLabelGap : 0, y: topPad, width: max(1, W - yLabelGap - (yLeading ? 0 : 0)),
-                          height: max(1, H - topPad - (xTop ? 0 : xLabelH) - xTitleH - (legendTop ? 0 : legendH) - (yLabelW > 0 && !hasXLabels ? 6 : 0)))
-        let xs = _Scale(kind: xKind, start: plot.minX, end: plot.maxX)
+        // axis titles: x below (or .top), y above (or beside the plot, vertical, with .leading / .trailing)
+        let xTitleTop = cfg.xLabel?.position == .top
+        let yTitleSide: Int = cfg.yLabel?.position == .leading ? -1 : cfg.yLabel?.position == .trailing ? 1 : 0
+        let xTitleH: CGFloat = cfg.xLabel != nil ? 16 + (cfg.xLabel?.spacing ?? 2) : 0
+        let yTitleH: CGFloat = cfg.yLabel != nil && yTitleSide == 0 ? 16 + (cfg.yLabel?.spacing ?? 2) : 0
+        let yTitleW: CGFloat = cfg.yLabel != nil && yTitleSide != 0 ? 16 + (cfg.yLabel?.spacing ?? 2) : 0
+        let leftPad = (yLeading ? yLabelGap : 0) + (yTitleSide < 0 ? yTitleW : 0)
+        let rightPad = (yLeading ? 0 : yLabelGap) + (yTitleSide > 0 ? yTitleW : 0)
+        let topPad: CGFloat = (yLabelW > 0 ? 7 : 1) + yTitleH + (xTop ? xLabelH : 0) + (legendTop ? legendH : 0) + (xTitleTop ? xTitleH : 0)
+        let plot = CGRect(x: leftPad, y: topPad, width: max(1, W - leftPad - rightPad),
+                          height: max(1, H - topPad - (xTop ? 0 : xLabelH) - (xTitleTop ? 0 : xTitleH) - (legendTop ? 0 : legendH) - (yLabelW > 0 && !hasXLabels ? 6 : 0)))
+        let xs = xScroll?.scale(xKind, plot.minX, plot.maxX) ?? _Scale(kind: xKind, start: plot.minX, end: plot.maxX)
         let ys: _Scale
-        if case .band = yKind { ys = _Scale(kind: yKind, start: plot.minY, end: plot.maxY) }
+        if case .band = yKind { ys = yScroll?.scale(yKind, plot.minY, plot.maxY) ?? _Scale(kind: yKind, start: plot.minY, end: plot.maxY) }
         else {
             var reversed = false
             if case .automatic(_, let r?)? = cfg.yDomain?.kind { reversed = r }
             ys = reversed ? _Scale(kind: yKind, start: plot.minY, end: plot.maxY) : _Scale(kind: yKind, start: plot.maxY, end: plot.minY)
         }
+        func inPlotX(_ x: CGFloat) -> Bool { x >= plot.minX - 0.5 && x <= plot.maxX + 0.5 }
+        func inPlotY(_ y: CGFloat) -> Bool { y >= plot.minY - 0.5 && y <= plot.maxY + 0.5 }
 
         // grid lines, ticks and labels
         let grid = AnyShapeStyle(Color.gray.opacity(0.35))
         for (i, v) in yTicks.enumerated() {
-            guard let y = ys.pos(v) else { continue }
+            guard let y = ys.pos(v), inPlotY(y) else { continue }
             let ps = yParts[i]
             for p in ps.parts {
                 switch p {
@@ -382,7 +438,7 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                 case .label(let custom, _):
                     let text = custom.map { AnyView($0.font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary)).fixedSize()) }
                         ?? AnyView(Text(yLabels[i]).font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary)))
-                    let r = yLeading ? CGRect(x: 0, y: y - 8, width: yLabelW, height: 16) : CGRect(x: plot.maxX + 6, y: y - 8, width: max(yLabelW, 1), height: 16)
+                    let r = yLeading ? CGRect(x: plot.minX - yLabelGap, y: y - 8, width: yLabelW, height: 16) : CGRect(x: plot.maxX + 6, y: y - 8, width: max(yLabelW, 1), height: 16)
                     placed.append(_PlacedView(view: text, rect: r, alignment: yLeading ? .trailing : .leading))
                 }
             }
@@ -390,7 +446,7 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         let band = xs.bandWidth
         var lastLabelMaxX = -CGFloat.infinity
         for (i, v) in xTicks.enumerated() {
-            guard let x = xs.pos(v) else { continue }
+            guard let x = xs.pos(v), inPlotX(x) else { continue }
             let ps = xParts[i]
             for p in ps.parts {
                 switch p {
@@ -415,8 +471,27 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                 }
             }
         }
-        if let t = cfg.xLabel { placed.append(_PlacedView(view: AnyView(t.font(.system(size: 11)).foregroundStyle(.secondary)), rect: CGRect(x: plot.minX, y: plot.maxY + xLabelH, width: plot.width, height: 16), alignment: .center)) }
-        if let t = cfg.yLabel { placed.append(_PlacedView(view: AnyView(t.font(.system(size: 11)).foregroundStyle(.secondary)), rect: CGRect(x: plot.minX, y: topPad - yTitleH - 7, width: W, height: 16), alignment: yLeading ? .leading : .trailing)) }
+        func titleView(_ b: _ViewBox) -> AnyView { AnyView(b.view.font(.system(size: 11)).foregroundStyle(.secondary).fixedSize()) }
+        if let t = cfg.xLabel {
+            let sp = t.spacing ?? 2
+            let y = xTitleTop ? plot.minY - (xTop ? xLabelH : 0) - 16 - sp : plot.maxY + (xTop ? 0 : xLabelH) + sp
+            let a: Alignment = t.alignment.map { $0.horizontal == .leading ? .leading : $0.horizontal == .trailing ? .trailing : .center } ?? .center
+            placed.append(_PlacedView(view: titleView(t), rect: CGRect(x: plot.minX, y: y, width: plot.width, height: 16), alignment: a))
+        }
+        if let t = cfg.yLabel {
+            let sp = t.spacing ?? 2
+            if yTitleSide == 0 {
+                let a: Alignment = t.alignment.map { $0.horizontal == .leading ? .leading : $0.horizontal == .trailing ? .trailing : .center } ?? (yLeading ? .leading : .trailing)
+                placed.append(_PlacedView(view: titleView(t), rect: CGRect(x: 0, y: plot.minY - (yLabelW > 0 ? 7 : 1) - 16 - sp + 2, width: W, height: 16), alignment: a))
+            } else {
+                // vertical text beside the plot, outside the value labels; alignment runs along the axis (top = leading)
+                let x = yTitleSide < 0 ? plot.minX - (yLeading ? yLabelGap : 0) - sp - 16 : plot.maxX + (yLeading ? 0 : yLabelGap) + sp
+                let a: Alignment = t.alignment.map { $0.vertical == .top ? .leading : $0.vertical == .bottom ? .trailing : .center } ?? .center
+                let v = AnyView(t.view.font(.system(size: 11)).foregroundStyle(.secondary).fixedSize().frame(width: plot.height, height: 16, alignment: a)
+                                    .rotationEffect(.degrees(-90)))
+                placed.append(_PlacedView(view: v, rect: CGRect(x: x + 8 - plot.height / 2, y: plot.midY - 8, width: plot.height, height: 16), alignment: .center))
+            }
+        }
 
         // marks
         var drawnSeries: Set<String> = []
@@ -444,8 +519,11 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                 guard !pts.isEmpty else { continue }
                 if m.kind == .line {
                     draws.append(_ChartDraw(path: _curve(pts, m.interpolation), style: st, stroke: m.lineStyle ?? StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round), opacity: m.opacity))
-                    for j in members where marks[j].symbol != nil || marks[j].symbolKey != nil {
-                        if let x = xs.pos(marks[j].x), let y = ys.pos(marks[j].y) { draws.append(symbol(marks[j], CGPoint(x: x, y: y), st)) }
+                    for j in members where marks[j].symbol != nil || marks[j].symbolKey != nil || marks[j].symbolPath != nil || marks[j].symbolView != nil {
+                        guard let x = xs.pos(marks[j].x), let y = ys.pos(marks[j].y) else { continue }
+                        if let v = marks[j].symbolView {
+                            if inPlotX(x) && inPlotY(y) { placed.append(_PlacedView(view: AnyView(v.fixedSize()), rect: CGRect(x: x - 50, y: y - 50, width: 100, height: 100), alignment: .center)) }
+                        } else { draws.append(symbol(marks[j], CGPoint(x: x, y: y), st)) }
                     }
                 } else {
                     let base: [CGPoint] = members.compactMap { j in
@@ -457,8 +535,10 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                 for j in members { for a in marks[j].annotations { if let x = xs.pos(marks[j].x), let y = ys.pos(marks[j].y) { placed.append(annotation(a, CGRect(x: x - 4, y: y - 4, width: 8, height: 8))) } } }
             case .point:
                 guard let x = xs.pos(m.x), let y = ys.pos(m.y) else { continue }
-                draws.append(symbol(m, CGPoint(x: x, y: y), st))
-                let s = m.symbolSize.map { max(2, $0.squareRoot() * 1.13) } ?? 8
+                if let v = m.symbolView {
+                    if inPlotX(x) && inPlotY(y) { placed.append(_PlacedView(view: AnyView(v.fixedSize()), rect: CGRect(x: x - 50, y: y - 50, width: 100, height: 100), alignment: .center)) }
+                } else { draws.append(symbol(m, CGPoint(x: x, y: y), st)) }
+                let s = symbolSide(m)
                 for a in m.annotations { placed.append(annotation(a, CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s))) }
             case .rule:
                 var p = Path()
@@ -474,7 +554,76 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         }
         placeLegend(&placed, legendItems, top: legendTop ? 0 : H - legendH + 6, width: W)
         if let c = cfg.legend?.content, legendVisible { placed.append(_PlacedView(view: c, rect: CGRect(x: 0, y: legendTop ? 0 : H - legendH, width: W, height: legendH), alignment: .leading)) }
-        return compose(draws, placed)
+        let proxy = ChartProxy(plot: plot, xs: xs, ys: ys, selection: cfg.selection, angleAt: nil)
+        var lay = layers(plot, proxy, scrolling: xScroll != nil || yScroll != nil)
+        if (xScroll != nil || yScroll != nil) && cfg.gesture == nil {
+            lay.gesture = scrollLayer(plot, xs, ys, xScroll, yScroll, proxy)
+        }
+        // marks of a scrolled-away window are clipped; labels outside the plot were skipped above
+        return compose(draws, placed, lay)
+    }
+
+    /// Background, plot style, gesture and overlay layers.
+    func layers(_ plot: CGRect, _ proxy: ChartProxy, scrolling: Bool) -> _ChartLayers {
+        var l = _ChartLayers(plot: plot, clip: scrolling)
+        if let b = cfg.background { l.background = b.make(proxy); l.backgroundAlignment = b.alignment }
+        if let o = cfg.overlay { l.overlay = o.make(proxy); l.overlayAlignment = o.alignment }
+        if let p = cfg.plotStyle { l.plotStyle = p.make(ChartPlotContent()) }
+        if let g = cfg.gesture { l.gesture = g.make(proxy) }
+        else if cfg.selection.any { l.gesture = selectionLayer(plot, proxy) }
+        return l
+    }
+
+    /// The built-in selection gesture: the value under the finger while it is down (nil when it lifts); dragging
+    /// sideways (or up and down) selects a range.
+    func selectionLayer(_ plot: CGRect, _ proxy: ChartProxy) -> AnyView {
+        let sel = cfg.selection
+        return AnyView(Color.clear.contentShape(Rectangle()).gesture(DragGesture(minimumDistance: 0).onChanged { v in
+            let p = v.location, s = v.startLocation
+            sel.x.map { _ in proxy.selectXValue(at: p.x) }
+            sel.y.map { _ in proxy.selectYValue(at: p.y) }
+            if sel.angle != nil { proxy.selectAngleValue(at: p) }
+            if sel.xRange != nil, abs(p.x - s.x) > 4 { proxy.selectXRange(from: s.x, to: p.x) }
+            if sel.yRange != nil, abs(p.y - s.y) > 4 { proxy.selectYRange(from: s.y, to: p.y) }
+        }.onEnded { _ in
+            sel.x?(nil); sel.y?(nil); sel.angle?(nil)
+        }))
+    }
+
+    /// Dragging scrolls the windowed axes (taps still select); the position snaps to the target behavior at the end.
+    func scrollLayer(_ plot: CGRect, _ xs: _Scale, _ ys: _Scale, _ wx: _ScrollWindow?, _ wy: _ScrollWindow?, _ proxy: ChartProxy) -> AnyView {
+        let sel = cfg.selection, set = cfg.setScroll, target = cfg.scroll?.target
+        let xPerPt = wx.map { $0.unitsPerPoint(plot.width) } ?? 0, yPerPt = wy.map { $0.unitsPerPoint(plot.height) } ?? 0
+        let x0 = wx?.position, y0 = wy?.position
+        return AnyView(Color.clear.contentShape(Rectangle()).gesture(DragGesture(minimumDistance: 0).onChanged { v in
+            let dx = v.location.x - v.startLocation.x, dy = v.location.y - v.startLocation.y
+            if abs(dx) < 6 && abs(dy) < 6 {
+                if sel.x != nil { proxy.selectXValue(at: v.location.x) }
+                if sel.y != nil { proxy.selectYValue(at: v.location.y) }
+                return
+            }
+            let nx = wx.map { $0.clamp(x0! - Double(dx) * xPerPt) }, ny = wy.map { $0.clamp(y0! + ($0.isBand ? -1 : 1) * Double(dy) * yPerPt) }
+            set(nx, ny)
+            if let w = wx, let n = nx { w.publish(n) }
+            if let w = wy, let n = ny { w.publish(n) }
+        }.onEnded { v in
+            sel.x?(nil); sel.y?(nil)
+            let dx = v.location.x - v.startLocation.x, dy = v.location.y - v.startLocation.y
+            guard abs(dx) >= 6 || abs(dy) >= 6 else { return }
+            let nx = wx.map { $0.snap($0.clamp(x0! - Double(dx) * xPerPt), target) }, ny = wy.map { $0.snap($0.clamp(y0! + ($0.isBand ? -1 : 1) * Double(dy) * yPerPt), target) }
+            set(nx, ny)
+            if let w = wx, let n = nx { w.publish(n) }
+            if let w = wy, let n = ny { w.publish(n) }
+        }))
+    }
+
+    /// The cumulative pie value at a point (angle from 12 o'clock, clockwise, as a share of the total).
+    func pieValue(at p: CGPoint, _ plot: CGRect) -> Double? {
+        let total = marks.reduce(0) { $0 + max(0, $1.angle ?? 0) }
+        guard total > 0 else { return nil }
+        var a = atan2(Double(p.y - plot.midY), Double(p.x - plot.midX)) + Double.pi / 2
+        if a < 0 { a += 2 * Double.pi }
+        return a / (2 * Double.pi) * total
     }
 
     /// The rectangle of a bar or rectangle mark.
@@ -514,16 +663,35 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         return r
     }
 
+    /// The side of a mark's symbol: symbolSize (an area in square points), symbolSize(by:) through the size scale,
+    /// or 8 pt.
+    func symbolSide(_ m: _Mark) -> CGFloat {
+        if let v = m.symbolSizeValue {
+            let vals = marks.compactMap(\.symbolSizeValue)
+            let (lo, hi) = cfg.symbolSizeScale?.domain ?? (vals.min() ?? 0, vals.max() ?? 1)
+            let (a, b) = cfg.symbolSizeScale?.range ?? (20, 200)
+            let t = hi > lo ? min(1, max(0, (v - lo) / (hi - lo))) : 0.5
+            return max(2, CGFloat(a + t * (b - a)).squareRoot() * 1.13)
+        }
+        return m.symbolSize.map { max(2, $0.squareRoot() * 1.13) } ?? 8
+    }
     func symbol(_ m: _Mark, _ c: CGPoint, _ st: AnyShapeStyle) -> _ChartDraw {
-        let d = m.symbolSize.map { max(2, $0.squareRoot() * 1.13) } ?? 8
+        let d = symbolSide(m)
+        let r = CGRect(x: c.x - d / 2, y: c.y - d / 2, width: d, height: d)
+        if let p = m.symbolPath { return _ChartDraw(path: p(r), style: st, stroke: nil, opacity: m.opacity) }
         var shape = m.symbol ?? .circle
         if m.symbol == nil, let k = m.symbolKey {
             var keys: [String] = []
             for n in marks { if let s = n.symbolKey, !keys.contains(s) { keys.append(s) } }
+            let i = keys.firstIndex(of: k) ?? 0
+            if let sc = cfg.symbolScale, !sc.shapes.isEmpty {
+                if let ks = sc.keys { if let j = ks.firstIndex(of: k), j < sc.shapes.count { return _ChartDraw(path: sc.shapes[j](r), style: st, stroke: nil, opacity: m.opacity) } }
+                else { return _ChartDraw(path: sc.shapes[i % sc.shapes.count](r), style: st, stroke: nil, opacity: m.opacity) }
+            }
             let all: [BasicChartSymbolShape] = [.circle, .square, .triangle, .diamond, .pentagon, .plus, .cross, .asterisk]
-            shape = all[(keys.firstIndex(of: k) ?? 0) % all.count]
+            shape = all[i % all.count]
         }
-        return _ChartDraw(path: shape.path(in: CGRect(x: c.x - d / 2, y: c.y - d / 2, width: d, height: d)), style: st, stroke: nil, opacity: m.opacity)
+        return _ChartDraw(path: shape.path(in: r), style: st, stroke: nil, opacity: m.opacity)
     }
 
     /// Pie / donut slices, from 12 o'clock clockwise.
@@ -575,9 +743,14 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         }
     }
 
-    func compose(_ draws: [_ChartDraw], _ placed: [_PlacedView]) -> AnyView {
-        AnyView(ZStack(alignment: .topLeading) {
-            Canvas { ctx, _ in
+    func compose(_ draws: [_ChartDraw], _ placed: [_PlacedView], _ l: _ChartLayers) -> AnyView {
+        let plot = l.plot, clip = l.clip
+        return AnyView(ZStack(alignment: .topLeading) {
+            if let b = l.background { b.frame(width: size.width, height: size.height, alignment: l.backgroundAlignment) }
+            if let p = l.plotStyle { p.frame(width: plot.width, height: plot.height).offset(x: plot.minX, y: plot.minY) }
+            Canvas { context, _ in
+                var ctx = context
+                if clip { ctx.clip(to: Path(plot.insetBy(dx: -1, dy: -1))) }
                 for d in draws {
                     var c = ctx
                     c.opacity = d.opacity
@@ -589,6 +762,8 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                 placed[i].view.frame(width: placed[i].rect.width, height: placed[i].rect.height, alignment: placed[i].alignment)
                     .offset(x: placed[i].rect.minX, y: placed[i].rect.minY)
             }
+            if let g = l.gesture { g.frame(width: plot.width, height: plot.height).offset(x: plot.minX, y: plot.minY) }
+            if let o = l.overlay { o.frame(width: size.width, height: size.height, alignment: l.overlayAlignment) }
         }.frame(width: size.width, height: size.height, alignment: .topLeading))
     }
 }
