@@ -71,6 +71,7 @@ These override the Settings app for one run (the device's settings stay as they 
 | `ISIM_APPEARANCE=dark` | Dark Mode (`--dark` sets it) |
 | `ISIM_CONTENT_SIZE=UICTContentSizeCategoryXL` | Dynamic Type size (any `UIContentSizeCategory` value) |
 | `ISIM_BOLD_TEXT=1`, `ISIM_INCREASE_CONTRAST=1`, `ISIM_REDUCE_MOTION=1`, `ISIM_REDUCE_TRANSPARENCY=1` | the accessibility display settings |
+| `ISIM_HAPTIC_INDICATOR=0` | no ring for feedback generators (they are still logged) |
 | `ISIM_LOCALE=pt_BR` | region (default: from the first preferred language) |
 | `ISIM_HOUR_CYCLE=12\|24` | 12- or 24-hour time (default: the locale's) |
 | `ISIM_KEEP_TZ=1` | keep the process's `TZ` instead of applying Settings > Date & Time |

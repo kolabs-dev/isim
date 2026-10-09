@@ -64,6 +64,7 @@ public enum UIAccessibility {
     public static var prefersCrossFadeTransitions: Bool { UIAccessibilityPrefersCrossFadeTransitions() }
     public static var isVideoAutoplayEnabled: Bool { UIAccessibilityIsVideoAutoplayEnabled() }
     public static let voiceOverStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityVoiceOverStatusDidChangeNotification")
+    public static let switchControlStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilitySwitchControlStatusDidChangeNotification")
     public static let reduceMotionStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityReduceMotionStatusDidChangeNotification")
     public static let boldTextStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityBoldTextStatusDidChangeNotification")
     public static let reduceTransparencyStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityReduceTransparencyStatusDidChangeNotification")
