@@ -1,6 +1,9 @@
 # iOS versions (`--os`)
 
 isim emulates the API level and the look of **iOS 17, 18, 26 and 27**. The default is **iOS 18** (18.0).
+
+The look should match real iOS of each version as closely as isim can draw it (AGENTS.md, "Look and feel like real
+iOS"): differences are bugs, tracked as issues labelled `look-and-feel`.
 isim is not Apple's iOS: the version is what isim reports and how it behaves, and builds never claim an Apple SDK
 or Xcode version.
 

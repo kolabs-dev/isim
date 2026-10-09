@@ -29,6 +29,12 @@ Code lives in `isim/`; see the [README](README.md) for what isim is and how it i
       the PRs), and a note in the README's compatibility row when the break hits most apps (e.g. every Swift app).
   - Batch breaks: when one release already breaks a library, fold other pending breaks of it into the same release
     so users rebuild once.
+- **Look and feel like real iOS.** isim's system UI (bars, controls, keyboards, sheets, alerts, menus, Liquid Glass,
+  the home screen and Settings) mimics the real iOS of the version being emulated (`--os 17|18|26|27`): sizes,
+  spacing, fonts, colours, materials and motion. Work from Apple's Human Interface Guidelines and from screenshots of
+  real devices or Apple's Simulator, and compare isim's own samples against them. Where isim looks or behaves
+  differently from iOS, that is a bug: fix it, or open an issue labelled `look-and-feel` (see Issues) with a
+  screenshot of isim, a reference screenshot or description of iOS, and where the drawing lives.
 - **Never touch the user's device data.** Tests and experiments use a scratch `ISIM_DATA`, never
   `~/.local/share/isim`.
 
@@ -70,6 +76,22 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
     `OS_MATRIX=1` locally (CI's test job of each iOS version runs them too). The rules: [docs/TESTING.md](docs/TESTING.md#which-tests-run-under-every-ios-version-os_matrix).
 - **Issues.** A bug that is not fixed right away gets a GitHub issue with enough context to fix it later: symptom,
   reproduction, where to look. Missing API coverage is tracked by one issue per COVERAGE.md area (label `coverage`).
+  - **Every issue has at least one label** from the table below (several when they apply, e.g. `bug` and
+    `performance`). When none fits, create a new label (`gh label create NAME --description ... --color ...`) and
+    add it to the table in the same PR or right after.
+
+| Label | Use it for |
+|---|---|
+| `bug` | something isim does wrong (a crash, a wrong result, a hang) |
+| `enhancement` | new functionality |
+| `coverage` | API coverage toward 100%, one issue per COVERAGE.md area (with `enhancement`) |
+| `look-and-feel` | isim's UI does not look or behave like real iOS of that version (with a reference screenshot) |
+| `performance` | correct but too slow (an O(n) lookup, a slow load) |
+| `flaky-test` | a test that passes or fails intermittently |
+| `ci` | the CI workflows, runners and caches |
+| `abi` | ABI stability: deliberate breaks, baselines, `abi-check.py` |
+| `documentation` | docs (`docs/`, AGENTS.md, README) |
+| `duplicate`, `invalid`, `wontfix`, `question`, `help wanted`, `good first issue` | GitHub's defaults, for triage |
 
 ## Releases
 
