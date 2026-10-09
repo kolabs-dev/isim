@@ -532,12 +532,76 @@ static BOOL acc_leading(UICellAccessory *a) {
 }
 @end
 
-/* ================= base layout ================= */
 @interface UICollectionViewLayout ()
 @property (nullable, nonatomic, readwrite, weak) UICollectionView *collectionView;
 @property (nonatomic) BOOL _isim_valid;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, Class> *_isim_decorationClasses;
 @end
+
+/* ================= transition layout ================= */
+@implementation UICollectionViewTransitionLayout { NSMutableDictionary<NSString *, NSNumber *> *_values; }
+- (instancetype)initWithCurrentLayout:(UICollectionViewLayout *)a nextLayout:(UICollectionViewLayout *)b {
+    if ((self = [super init])) { _currentLayout = a; _nextLayout = b; _values = [NSMutableDictionary dictionary]; }
+    return self;
+}
+- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithCurrentLayout:[UICollectionViewLayout new] nextLayout:[UICollectionViewLayout new]]; }
+- (void)setTransitionProgress:(CGFloat)p { _transitionProgress = p; [self invalidateLayout]; }
+- (void)updateValue:(CGFloat)v forAnimatedKey:(NSString *)k { if (k) _values[k] = @(v); }
+- (CGFloat)valueForAnimatedKey:(NSString *)k { return _values[k].doubleValue; }
+- (void)prepareLayout {
+    UICollectionView *cv = self.collectionView;
+    for (UICollectionViewLayout *l in @[_currentLayout, _nextLayout]) {          /* both layouts see the collection view */
+        [l setValue:cv forKey:@"collectionView"];
+        if (!l._isim_valid) { [l prepareLayout]; l._isim_valid = YES; }
+    }
+}
+static CGFloat lerp(CGFloat a, CGFloat b, CGFloat t) { return a + (b - a) * t; }
+- (CGSize)collectionViewContentSize {
+    CGSize a = _currentLayout.collectionViewContentSize, b = _nextLayout.collectionViewContentSize;
+    CGFloat t = fmax(0, fmin(1, _transitionProgress));
+    return CGSizeMake(lerp(a.width, b.width, t), lerp(a.height, b.height, t));
+}
+static NSString *attr_key(UICollectionViewLayoutAttributes *a) {
+    return [NSString stringWithFormat:@"%ld/%@/%ld/%ld", (long)a.representedElementCategory, a.representedElementKind ?: @"", (long)a.indexPath.section, (long)a.indexPath.item];
+}
+- (UICollectionViewLayoutAttributes *)_isim_mix:(UICollectionViewLayoutAttributes *)a with:(UICollectionViewLayoutAttributes *)b {
+    CGFloat t = fmax(0, fmin(1, _transitionProgress));
+    UICollectionViewLayoutAttributes *r = [(a ?: b) copy];
+    if (a && b) {
+        r.center = CGPointMake(lerp(a.center.x, b.center.x, t), lerp(a.center.y, b.center.y, t));
+        r.size = CGSizeMake(lerp(a.size.width, b.size.width, t), lerp(a.size.height, b.size.height, t));
+        r.alpha = lerp(a.alpha, b.alpha, t);
+        CGAffineTransform x = a.transform, y = b.transform;
+        r.transform = CGAffineTransformMake(lerp(x.a, y.a, t), lerp(x.b, y.b, t), lerp(x.c, y.c, t), lerp(x.d, y.d, t), lerp(x.tx, y.tx, t), lerp(x.ty, y.ty, t));
+        r.zIndex = t < 0.5 ? a.zIndex : b.zIndex;
+    } else r.alpha = (a ? 1 - t : t) * r.alpha;       /* only in one layout: fades */
+    return r;
+}
+- (NSArray *)layoutAttributesForElementsInRect:(CGRect)rect {
+    CGRect big = CGRectInset(rect, -rect.size.width, -rect.size.height);            /* items moving in from outside */
+    NSMutableDictionary *from = [NSMutableDictionary dictionary], *to = [NSMutableDictionary dictionary];
+    for (UICollectionViewLayoutAttributes *a in [_currentLayout layoutAttributesForElementsInRect:big]) from[attr_key(a)] = a;
+    for (UICollectionViewLayoutAttributes *b in [_nextLayout layoutAttributesForElementsInRect:big]) to[attr_key(b)] = b;
+    NSMutableArray *out = [NSMutableArray array];
+    NSMutableSet *keys = [NSMutableSet setWithArray:from.allKeys]; [keys addObjectsFromArray:to.allKeys];
+    for (NSString *k in keys) {
+        UICollectionViewLayoutAttributes *a = from[k], *b = to[k];
+        if (!a && b.representedElementCategory == UICollectionElementCategoryCell) a = [_currentLayout layoutAttributesForItemAtIndexPath:b.indexPath];
+        if (!b && a.representedElementCategory == UICollectionElementCategoryCell) b = [_nextLayout layoutAttributesForItemAtIndexPath:a.indexPath];
+        UICollectionViewLayoutAttributes *m = [self _isim_mix:a with:b];
+        if (CGRectIntersectsRect(m.frame, rect)) [out addObject:m];
+    }
+    return out;
+}
+- (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)ip {
+    return [self _isim_mix:[_currentLayout layoutAttributesForItemAtIndexPath:ip] with:[_nextLayout layoutAttributesForItemAtIndexPath:ip]];
+}
+- (UICollectionViewLayoutAttributes *)layoutAttributesForSupplementaryViewOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip {
+    return [self _isim_mix:[_currentLayout layoutAttributesForSupplementaryViewOfKind:k atIndexPath:ip] with:[_nextLayout layoutAttributesForSupplementaryViewOfKind:k atIndexPath:ip]];
+}
+@end
+
+/* ================= base layout ================= */
 @implementation UICollectionViewLayout
 - (instancetype)init { return [super init]; }
 - (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
@@ -555,6 +619,9 @@ static BOOL acc_leading(UICellAccessory *a) {
     if (c) self._isim_decorationClasses[kind] = c; else [self._isim_decorationClasses removeObjectForKey:kind];
 }
 - (UICollectionViewLayoutAttributes *)layoutAttributesForDecorationViewOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip { return nil; }
+- (void)prepareForTransitionToLayout:(UICollectionViewLayout *)l {}
+- (void)prepareForTransitionFromLayout:(UICollectionViewLayout *)l {}
+- (void)finalizeLayoutTransition {}
 /* isim private hooks for the collection view */
 - (BOOL)_isim_setPreferredSize:(CGSize)s forAttributes:(UICollectionViewLayoutAttributes *)a { return NO; }
 - (BOOL)_isim_orthogonalSection:(NSInteger)s band:(CGRect *)band contentWidth:(CGFloat *)w { return NO; }
@@ -1265,10 +1332,47 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     _collectionViewLayout = l; l.collectionView = self; l._isim_valid = NO;
     [self setNeedsLayout];
 }
-- (void)setCollectionViewLayout:(UICollectionViewLayout *)l animated:(BOOL)a {
+- (void)setCollectionViewLayout:(UICollectionViewLayout *)l animated:(BOOL)a { [self setCollectionViewLayout:l animated:a completion:nil]; }
+- (void)setCollectionViewLayout:(UICollectionViewLayout *)l animated:(BOOL)a completion:(void (^)(BOOL))done {
+    UICollectionViewLayout *old = _collectionViewLayout;
+    [old prepareForTransitionToLayout:l]; [l prepareForTransitionFromLayout:old];
     self.collectionViewLayout = l;
-    if (a && self.window) [UIView animateWithDuration:0.3 animations:^{ [self _isim_cvLayoutPass]; }];
+    void (^fin)(BOOL) = ^(BOOL f) { [old finalizeLayoutTransition]; [l finalizeLayoutTransition]; if (done) done(f); };
+    if (a && self.window) [UIView animateWithDuration:0.3 animations:^{ [self _isim_cvLayoutPass]; } completion:fin];
+    else { [self _isim_cvLayoutPass]; fin(YES); }
 }
+/* ---- interactive layout transitions ---- */
+- (UICollectionViewTransitionLayout *)startInteractiveTransitionToCollectionViewLayout:(UICollectionViewLayout *)l completion:(UICollectionViewLayoutInteractiveTransitionCompletion)done {
+    UICollectionViewLayout *old = _collectionViewLayout;
+    id<UICollectionViewDelegate> d = self.delegate;
+    UICollectionViewTransitionLayout *t = [d respondsToSelector:@selector(collectionView:transitionLayoutForOldLayout:newLayout:)]
+        ? [d collectionView:self transitionLayoutForOldLayout:old newLayout:l] : nil;
+    if (!t) t = [[UICollectionViewTransitionLayout alloc] initWithCurrentLayout:old nextLayout:l];
+    [old prepareForTransitionToLayout:l]; [l prepareForTransitionFromLayout:old];
+    objc_setAssociatedObject(self, "isim.cv.transition", t, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(self, "isim.cv.transitionDone", done, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    if (_collectionViewLayout.collectionView == self) _collectionViewLayout.collectionView = nil;
+    _collectionViewLayout = t; t.collectionView = self; t._isim_valid = NO;
+    [self setNeedsLayout];
+    NSLog(@"isim: collection view layout transition started (%@ -> %@)", NSStringFromClass([old class]), NSStringFromClass([l class]));
+    return t;
+}
+- (void)_isim_endInteractiveTransition:(BOOL)finish {
+    UICollectionViewTransitionLayout *t = objc_getAssociatedObject(self, "isim.cv.transition");
+    if (!t) return;
+    UICollectionViewLayoutInteractiveTransitionCompletion done = objc_getAssociatedObject(self, "isim.cv.transitionDone");
+    objc_setAssociatedObject(self, "isim.cv.transition", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(self, "isim.cv.transitionDone", nil, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    UICollectionViewLayout *target = finish ? t.nextLayout : t.currentLayout;
+    _collectionViewLayout = target; target.collectionView = self; target._isim_valid = NO;
+    NSLog(@"isim: collection view layout transition %@", finish ? @"finished" : @"cancelled");
+    [UIView animateWithDuration:0.25 animations:^{ [self _isim_cvLayoutPass]; } completion:^(BOOL f) {
+        [t.currentLayout finalizeLayoutTransition]; [t.nextLayout finalizeLayoutTransition];
+        if (done) done(finish, YES);
+    }];
+}
+- (void)finishInteractiveTransition { [self _isim_endInteractiveTransition:YES]; }
+- (void)cancelInteractiveTransition { [self _isim_endInteractiveTransition:NO]; }
 - (void)setBackgroundView:(UIView *)v { [_backgroundView removeFromSuperview]; _backgroundView = v; if (v) [self insertSubview:v atIndex:0]; [self setNeedsLayout]; }
 - (void)setBounds:(CGRect)b {
     CGRect old = self.bounds;
