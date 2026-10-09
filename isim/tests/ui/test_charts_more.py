@@ -98,8 +98,9 @@ def test_functions_and_sectors(more):
 def test_scrolling(more):
     app, _, im = more
     assert not any(red(rgb(im, x, 405)) for x in range(150, 250)), "first 10 of 30 bars shown (chartXVisibleDomain)"
-    app.drag(300, 380, 100, 380, 0.6)
-    shot = app.screenshot("scrolled")                  # taken after the drag
+    app.drag(300, 380, 100, 380, 0.6, hold=0.3)        # held at the end: no fling, however slow the machine
+    app.wait_still()                                   # the snap to a multiple of 5 has finished
+    shot = app.screenshot("scrolled")
     positions = re.findall(r"scroll x (\d+)", app.log)
     assert positions and positions[-1] == "5", f"chartScrollPosition: snapped to a multiple of 5 {positions}"
     assert red(rgb(shot, 200, 405)) and blue(rgb(shot, 56, 405)), "scrolled to 5: bars 10+ (red) in view"
