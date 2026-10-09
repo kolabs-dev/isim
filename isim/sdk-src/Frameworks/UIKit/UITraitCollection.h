@@ -144,13 +144,15 @@ typedef NS_ENUM(NSInteger, UIVerticalBarEdge) { UIVerticalBarEdgeUnspecified = 0
 + (void)_isim_registerTraitIdentifier:(NSString *)identifier affectsColorAppearance:(BOOL)affectsColorAppearance;
 @property (class, nonatomic, readonly) NSArray<Class> *systemTraitsAffectingColorAppearance NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(17.0));
 @property (class, nonatomic, readonly) NSArray<Class> *systemTraitsAffectingImageLookup NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(17.0));
-/* iOS 27.1: the edge where the system puts the vertical bar; isim's devices have none (unspecified) */
-@property (nonatomic, readonly) UIVerticalBarEdge verticalBarEdge API_AVAILABLE(ios(27.1));
-@property (class, nonatomic, readonly) NSArray<Class> *systemTraitsAffectingVerticalBarEdge NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(27.1));
 @end
 NS_SWIFT_UI_ACTOR
 @protocol UITraitEnvironment <NSObject>
 @property (nonatomic, readonly) UITraitCollection *traitCollection;
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection;
+@end
+/* iOS 27.1: the edge where the system puts the vertical bar; isim's devices have none (unspecified) */
+@interface UITraitCollection (UIVerticalBar)
+@property (nonatomic, readonly) UIVerticalBarEdge verticalBarEdge API_AVAILABLE(ios(27.1));
+@property (class, nonatomic, readonly) NSArray<Class> *systemTraitsAffectingVerticalBarEdge NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(27.1));
 @end
 NS_ASSUME_NONNULL_END
