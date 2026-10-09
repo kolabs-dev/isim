@@ -43,7 +43,7 @@ static NSArray<NSString *> *host_list(NSString *language) {
                              @"fr": @[@"fr_FR", @"fr"], @"de": @[@"de_DE", @"de"] };
     const char *env = getenv("ISIM_DICTIONARIES");
     NSString *dirs = env ? @(env) : @"/usr/share/hunspell:/usr/share/myspell:/usr/share/myspell/dicts";
-    NSMutableSet *words = [NSMutableSet set];
+    NSMutableArray *words = [NSMutableArray array];          /* (sorted, then deduplicated: no hashing of 50k+ words) */
     if (![dirs isEqualToString:@"none"])
         for (NSString *dir in [dirs componentsSeparatedByString:@":"]) {
             NSString *text = nil;
@@ -62,7 +62,10 @@ static NSArray<NSString *> *host_list(NSString *language) {
             }
             break;
         }
-    return cache[k] = [words.allObjects sortedArrayUsingSelector:@selector(compare:)];
+    [words sortUsingSelector:@selector(compare:)];
+    NSMutableArray *unique = [NSMutableArray arrayWithCapacity:words.count];
+    for (NSString *w in words) if (![unique.lastObject isEqualToString:w]) [unique addObject:w];
+    return cache[k] = unique;
 }
 static BOOL host_known(NSString *w, NSString *language) {
     NSArray *list = host_list(language);
