@@ -62,15 +62,14 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
 - **Branches and PRs.** Make every change on a branch and open a pull request. Merges into `main` are squashed.
 - **Local checks first.** Before opening a PR, run the full local build, `isim/build.py test`, `OS_MATRIX=1` when the
   change is version-sensitive, and the ABI check. Put the results in the PR description.
-- **Screenshots.** When a change is visible (UI, drawing, system UI), attach screenshots of isim's own samples to the
-  PR: reference them in the body as `![what it shows](./name.png)` and upload them with
-  `gh pr edit <PR> --body-file body.md --attach ./name.png` (run where the files are; `gh` rewrites the references).
-  - Without `--attach` (stock `gh` has no such flag; agents with only the GitHub API cannot upload images either):
-    push the images alone to a branch `pr-assets/<PR>` (an orphan branch with no other files, never merged), then
-    show them in the PR body or a PR comment as
-    `![what it shows](https://github.com/<owner>/<repo>/blob/pr-assets/<PR>/name.png?raw=true)`. Keep the branch after
-    the merge (deleting it breaks the PR's images). Never commit screenshots to the PR's own branch: the squash merge
-    would put them in `main`.
+- **Screenshots.** When a change is visible (UI, drawing, system UI), show screenshots of isim's own samples in the PR.
+  They live on the `screenshots` branch, which holds only images shown in PRs (no code, never merged):
+  - add them in a folder named after the PR number (`screenshots:<PR>/<name>.png`), in a commit on that branch alone
+    (e.g. a separate clone or worktree with `git checkout screenshots`), and push it;
+  - show them in the PR body or a PR comment as
+    `![what it shows](https://github.com/kolabs-dev/isim/blob/screenshots/<PR>/<name>.png?raw=true)`;
+  - never delete or rename files there (the PRs that show them would break), and never commit screenshots to a PR's
+    own branch (the squash merge would put them in `main`).
 - **CI.** CI runs a stock Ubuntu 24.04 image: one build job (build, ABI check), then four test jobs in parallel, one
   per iOS version (iOS 18 runs every test; 17, 26 and 27 the `os_matrix` tests), then the status.
   - On a PR, start it by hand: Actions → CI → Run workflow, on the PR's branch.
