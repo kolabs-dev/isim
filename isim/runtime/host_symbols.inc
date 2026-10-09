@@ -281,9 +281,11 @@ static void glyph_text(cairo_t *c, const char *text, int invert) {
 enum { ENCL_NONE, ENCL_CIRCLE, ENCL_SQUARE, ENCL_TRIANGLE, ENCL_RECT };
 static const char *const enclosure_names[] = { NULL, "circle", "square", "triangle", "rectangle" };
 
-/* a glyph (path program, text or Adwaita SVG) with its variants into w x h (current user space) */
+/* a glyph (path program, text or Adwaita SVG) with its variants into w x h (current user space). part: 0 the whole
+   symbol in one colour (monochrome: a .fill enclosure's glyph is cut out), 1 the primary layer (the glyph and its
+   slash, drawn, not cut out), 2 the secondary layer (the enclosure); layered rendering modes draw 2 then 1 */
 static void draw_symbol(cairo_t *c, const struct glyph *g, const char *text, RsvgHandle *svg, int fill, int encl, int slash,
-                        double w, double h, double weight) {
+                        double w, double h, double weight, int part) {
     double s = fmin(w, h), lw = 8.5 * weight;
     cairo_save(c);
     cairo_translate(c, (w - s) / 2, (h - s) / 2);
@@ -292,23 +294,25 @@ static void draw_symbol(cairo_t *c, const struct glyph *g, const char *text, Rsv
     double k = 1, cy = 50;
     if (encl) {
         static const char *const shape[] = { NULL, "B:O 50 50 43", "B:R 7 7 86 86 18", "B:M 50 8 L 93 88 L 7 88 Z", "B:R 3 20 94 60 14" };
-        glyph_paint(c, shape[encl], fill, 0, lw);
+        if (part != 1) glyph_paint(c, shape[encl], fill, 0, lw);
         k = encl == ENCL_CIRCLE ? 0.52 : encl == ENCL_SQUARE ? 0.56 : encl == ENCL_TRIANGLE ? 0.42 : 0.44;
         if (encl == ENCL_TRIANGLE) cy = 60;
     }
+    if (part == 2) { cairo_restore(c); return; }   /* the enclosure only */
+    int invert = encl && fill && part == 0;         /* one colour: the glyph is cut out of a solid enclosure */
     cairo_save(c);
     cairo_translate(c, 50, cy); cairo_scale(c, k, k);
     if (g) { cairo_rotate(c, g->rot * M_PI / 180); cairo_scale(c, g->flip & 1 ? -1 : 1, g->flip & 2 ? -1 : 1); }
     cairo_translate(c, -50, -50);
     double ilw = encl ? lw * 0.9 / k : lw;
-    if (g) glyph_paint(c, g->path, fill, encl && fill, ilw);
-    else if (text) glyph_text(c, text, encl && fill);
+    if (g) glyph_paint(c, g->path, encl && part == 1 ? 0 : fill, invert, ilw);   /* layered: the glyph outline on its enclosure */
+    else if (text) glyph_text(c, text, invert);
     else if (svg) {
         cairo_push_group(c);
         RsvgRectangle vp = { 8, 8, 84, 84 };
         rsvg_handle_render_document(svg, c, &vp, NULL);
         cairo_pattern_t *pat = cairo_pop_group(c);
-        cairo_set_operator(c, encl && fill ? CAIRO_OPERATOR_CLEAR : CAIRO_OPERATOR_OVER);
+        cairo_set_operator(c, invert ? CAIRO_OPERATOR_CLEAR : CAIRO_OPERATOR_OVER);
         cairo_set_source_rgba(c, 0, 0, 0, 1);
         cairo_mask(c, pat);
         cairo_pattern_destroy(pat);

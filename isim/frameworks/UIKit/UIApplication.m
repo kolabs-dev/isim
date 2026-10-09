@@ -231,7 +231,7 @@ NSNotificationName const UIScreenBrightnessDidChangeNotification = @"UIScreenBri
 - (UITraitCollection *)traitCollection {
     UITraitCollection *base;
     if (_view) base = [(id)_view _isim_inheritedTraits];
-    else if (_presenting && _presenting.presentedViewController == self) base = _presenting.traitCollection;
+    else if (_presenting && _presenting.presentedViewController == self) base = isim_ui_presented_traits(self, _presenting);
     else if (_parent) base = _parent.traitCollection;
     else base = UIApplication.sharedApplication.keyWindow.traitCollection ?: isim_ui_screen_traits();
     return [self _isim_traitsFromBase:base];

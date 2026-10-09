@@ -255,3 +255,6 @@ TRAIT_REG_IMPL
 @implementation UIWindowScene (UITraitChangeObservable)
 TRAIT_REG_IMPL
 @end
+@implementation UIPresentationController (UITraitChangeObservable)
+TRAIT_REG_IMPL
+@end

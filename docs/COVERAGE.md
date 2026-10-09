@@ -26,15 +26,15 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 177 | 36 | 3 | 5 | 221 | 88% |
+| **UIKit** | 179 | 35 | 3 | 4 | 221 | 89% |
 | &nbsp;&nbsp;↳ Application & scenes | 22 | 3 | 0 | 0 | 25 | 94% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 22 | 9 | 0 | 0 | 31 | 85% |
 | &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
-| &nbsp;&nbsp;↳ Layout | 18 | 1 | 0 | 0 | 19 | 97% |
+| &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 11 | 1 | 2 | 0 | 14 | 82% |
-| &nbsp;&nbsp;↳ Drawing, images & symbols | 17 | 1 | 0 | 1 | 19 | 92% |
+| &nbsp;&nbsp;↳ Drawing, images & symbols | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 2 | 0 | 1 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
 | &nbsp;&nbsp;↳ Drag & drop | 1 | 2 | 0 | 0 | 3 | 67% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **695** | **233** | **29** | **40** | **997** | **81%** |
+| **All areas** | **697** | **232** | **29** | **39** | **997** | **82%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 90% (206) | 90% (210) | 90% (217) | 88% (221) |
+| UIKit | 91% (206) | 91% (210) | 91% (217) | 89% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **82%** (954) | **82%** (966) | **82%** (983) | **81%** (997) |
+| **All areas** | **83%** (954) | **82%** (966) | **82%** (983) | **82%** (997) |
 
 ---
 
@@ -275,7 +275,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIScrollView` `contentLayoutGuide` / `frameLayoutGuide` | ✅ | ≤17 | |
 | Trait collections (style, idiom, size classes, display scale) | ✅ | ≤17 | |
 | `traitCollectionDidChange` | ✅ | ≤17 | |
-| `registerForTraitChanges` (iOS 17), custom traits | 🟡 | 17.0 | handler, target/action and Swift generic forms for style, size classes, idiom, display scale (checked every frame); tested (HelloConstraints). No custom traits / `traitOverrides` |
+| `registerForTraitChanges` (iOS 17), custom traits | ✅ | 17.0 | handler, target/action and Swift generic forms on views, controllers, window scenes and presentation controllers, for system and custom traits (checked every frame); `traitOverrides` on views, controllers, window scenes and presentation controllers (the presented controller inherits the presentation controller's). Tested (HelloConstraints, HelloAppearance) |
 | Size classes | ✅ | ≤17 | fixed per device (portrait) |
 | Dynamic Type: `preferredFont(forTextStyle:)` | ✅ | ≤17 | sized for the content size category (Settings > Accessibility > Display & Text Size, 12 sizes); Bold Text makes system fonts heavier; tested (HelloAccessibility) |
 | Dynamic Type size changes, `UIFontMetrics`, `adjustsFontForContentSizeCategory` | ✅ | ≤17 | category changes repost `UIContentSizeCategory.didChangeNotification`, refit labels/text views/fields that adjust (text-style and `UIFontMetrics` fonts), `preferredContentSizeCategory` on the app and trait collections, `isAccessibilityCategory`; tested (HelloAccessibility). `traitCollectionDidChange` gets no previous collection |
@@ -353,7 +353,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `withTintColor`, rendering modes (template/original) | ✅ | ≤17 | |
 | SF Symbols (`UIImage(systemName:)`) | 🟡 | ≤17 | stand-in drawings, not Apple's SF Symbols artwork (Apple licenses it for its own platforms only, so isim cannot ship or copy it): about 170 common names are isim's own procedural glyphs (`isim/runtime/host_symbols.inc`: heart, star, bell, envelope, person, arrows, chevrons, media controls, weather, ...) and about 220 more map to the host's Adwaita symbolic icons. Variants compose for any drawn glyph: `.fill` (solid shape), `.circle` / `.square` / `.triangle` / `.rectangle` (enclosure; with `.fill` the glyph is cut out), `.slash`. Shapes and proportions differ from iOS; names without a stand-in draw a dashed placeholder and are reported once on stderr; `UIImage(systemName:)` never returns nil. Tested (HelloSymbols: 170 names, none draws the placeholder, `.fill` differs from the outline) |
 | `UIImage.SymbolConfiguration` (point size, weight, scale, text style) | ✅ | ≤17 | weight thickens or thins the strokes of drawn glyphs (Adwaita icons keep their weight); `configurationWithFont:` takes the font's weight; tested (HelloSymbols) |
-| Symbol rendering modes (hierarchical, palette, multicolor) | ❌ | ≤17 | isim's symbols are single-layer stand-ins (symbol effects: see below) |
+| Symbol rendering modes (hierarchical, palette, multicolor) | ✅ | ≤17 | adapted to isim's stand-in symbols: a glyph in an enclosure (`.circle`, `.square`, `.triangle`, `.rectangle`, with or without `.fill`) has two layers — primary the glyph (and slash), secondary the enclosure; other symbols have one. `SymbolConfiguration(hierarchicalColor:)` (secondary at half opacity), `(paletteColors:)`, `.preferringMulticolor()` (isim's colours for common symbols — heart, star, bolt, flame, leaf, drop, check / plus / minus / xmark / info / exclamationmark circles and the warning triangle — modelled on iOS's; others draw monochrome, as iOS does for symbols without a multicolor variant), `.preferringMonochrome()`, merged by `applying(_:)` and `UIImageView.preferredSymbolConfiguration`. Layer opacities and multicolor colours approximate Apple's artwork, which isim cannot ship. Tested (HelloSymbols, OS matrix) |
 | `UIColor` (RGB/HSB/white, system & semantic colors, dynamic provider) | ✅ | ≤17 | Apple HIG light/dark values |
 | Named asset-catalog colors (light/dark) | ✅ | ≤17 | |
 | `UIFont` (system weights, italic, monospaced, monospaced digits, metrics) | ✅ | ≤17 | adapted: Adwaita Sans / Mono (bundled) stand in for SF Pro / SF Mono, which Apple licenses for its own platforms only, so glyph shapes and advances differ; metrics follow SF Pro's ratios. Weights, italic (Adwaita Sans Italic), monospaced, tabular digits (`tnum`). `UIFontDescriptor`: Apple's attribute / trait / feature keys, `symbolicTraits`, `withSymbolicTraits`, `withDesign` (serif drawn with a serif face of the host; rounded uses the default face; nil for named fonts, like iOS), `addingAttributes` (`.traits` weight, `.featureSettings` monospaced numbers), `preferredFontDescriptor(withTextStyle:)` (keeps Dynamic Type), `withSize`/`withFamily`/`withFace`/`withMatrix`, `NSSecureCoding`. `systemFont(ofSize:weight:width:)` ignores the width (adapted). Tested (HelloFonts) |
@@ -396,7 +396,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Dynamic colors resolve per trait collection | ✅ | ≤17 | |
 | Live appearance switch while the app runs | ✅ | ≤17 | script `appearance light|dark` / Settings / the shell: trait change pass with `traitCollectionDidChange(_:)` (previous traits) and `registerForTraitChanges` handlers, then redraw. Tested (HelloAppearance) |
 | `overrideUserInterfaceStyle` (view, controller) | ✅ | ≤17 | |
-| iOS 17 trait system (`UITraitDefinition` custom traits, `traitOverrides`, `registerForTraitChanges`, `UITraitCollection(mutations:)`) | ✅ | ≤17 | per-view trait collections from the window scene (size classes, idiom, display scale, style, contrast, legibility, content size, layout direction, …), overrides on views, controllers and scenes, custom traits with default values, `UITraitCollection.current` during layout/drawing; old `UITraitDefinition` ObjC protocol kept for ABI. Tested (HelloAppearance) |
+| iOS 17 trait system (`UITraitDefinition` custom traits, `traitOverrides`, `registerForTraitChanges`, `UITraitCollection(mutations:)`) | ✅ | ≤17 | per-view trait collections from the window scene (size classes, idiom, display scale, style, contrast, legibility, content size, layout direction, …), overrides on views, controllers, scenes and presentation controllers, custom traits with default values, `UITraitCollection.current` during layout/drawing; old `UITraitDefinition` ObjC protocol kept for ABI. Tested (HelloAppearance) |
 | Increase Contrast (`accessibilityContrast`, high-contrast colors) | ✅ | ≤17 | script `contrast on|off` / Settings; high-contrast variants of system colors and asset-catalog colors/images. Tested (HelloAppearance) |
 | Dynamic images (`UIImageAsset`, asset appearance variants, `UIImage.withConfiguration`) | ✅ | ≤17 | any/dark/high-contrast variants from the asset catalog and registered images resolve per trait collection when drawn. Tested by pixels (HelloAppearance) |
 | Accent color from the asset catalog (`AccentColor`) | ✅ | ≤17 | `UIColor.tintColor` and the default tint of every window; SwiftUI `accentColor`. Tested (HelloAppearance) |

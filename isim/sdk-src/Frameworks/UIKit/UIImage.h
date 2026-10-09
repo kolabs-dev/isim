@@ -38,6 +38,11 @@ typedef NS_ENUM(NSInteger, UIImageSymbolWeight) {
 + (instancetype)configurationWithWeight:(UIImageSymbolWeight)weight;
 + (instancetype)configurationWithTextStyle:(UIFontTextStyle)textStyle;
 + (instancetype)configurationWithFont:(UIFont *)font;
+/* rendering modes (isim: the glyph is the primary layer, its .circle / .square / ... enclosure the secondary one) */
++ (instancetype)configurationWithHierarchicalColor:(UIColor *)hierarchicalColor API_AVAILABLE(ios(15.0));
++ (instancetype)configurationWithPaletteColors:(NSArray<UIColor *> *)paletteColors API_AVAILABLE(ios(15.0));
++ (instancetype)configurationPreferringMulticolor API_AVAILABLE(ios(15.0)) NS_SWIFT_NAME(preferringMulticolor());
++ (instancetype)configurationPreferringMonochrome API_AVAILABLE(ios(16.0)) NS_SWIFT_NAME(preferringMonochrome());
 - (instancetype)configurationByApplyingConfiguration:(nullable UIImageSymbolConfiguration *)configuration;
 @end
 typedef NS_ENUM(NSInteger, UIImageOrientation) {

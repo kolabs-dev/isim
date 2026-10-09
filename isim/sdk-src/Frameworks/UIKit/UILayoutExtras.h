@@ -60,4 +60,12 @@ typedef void (^UITraitChangeHandler)(id<UITraitEnvironment> traitEnvironment, UI
 - (void)unregisterForTraitChanges:(id<UITraitChangeRegistration>)registration NS_SWIFT_NAME(unregisterForTraitChanges(_:));
 - (id<UITraitChangeRegistration>)_isim_registerForTraits:(NSArray *)traits handler:(nullable UITraitChangeHandler)handler target:(nullable id)target action:(nullable SEL)action;   /* traits: classes or Swift trait identifiers */
 @end
+@class UIPresentationController;
+@interface UIPresentationController (UITraitChangeObservable)
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withHandler:(UITraitChangeHandler)handler NS_REFINED_FOR_SWIFT;
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withTarget:(id)target action:(SEL)action NS_REFINED_FOR_SWIFT;
+- (id<UITraitChangeRegistration>)registerForTraitChanges:(NSArray<Class> *)traits withAction:(SEL)action NS_REFINED_FOR_SWIFT;
+- (void)unregisterForTraitChanges:(id<UITraitChangeRegistration>)registration NS_SWIFT_NAME(unregisterForTraitChanges(_:));
+- (id<UITraitChangeRegistration>)_isim_registerForTraits:(NSArray *)traits handler:(nullable UITraitChangeHandler)handler target:(nullable id)target action:(nullable SEL)action;   /* traits: classes or Swift trait identifiers */
+@end
 NS_ASSUME_NONNULL_END

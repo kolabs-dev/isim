@@ -280,12 +280,13 @@ int isim_image_symbol(const char *name, double *w, double *h) {
     return proc_symbol(PROC_PLACEHOLDER, 0, NULL, w, h);
 }
 
+static int symbol_part;               /* draw_symbol's part while a layered symbol draws (0: whole) */
 static void draw_proc(cairo_t *c, struct img *im, double w, double h) {
     double s = fmin(w, h), cx = w / 2, cy = h / 2, r = s / 2 - s * 0.06, lw = s * 0.085;
     cairo_set_line_width(c, lw); cairo_set_line_cap(c, CAIRO_LINE_CAP_ROUND); cairo_set_line_join(c, CAIRO_LINE_JOIN_ROUND);
     switch (im->proc) {
     case PROC_GLYPH:
-        draw_symbol(c, im->g, im->text[0] ? im->text : NULL, im->svg, im->fill, im->encl, im->slash, w, h, symbol_weight_factor(symbol_weight));
+        draw_symbol(c, im->g, im->text[0] ? im->text : NULL, im->svg, im->fill, im->encl, im->slash, w, h, symbol_weight_factor(symbol_weight), symbol_part);
         break;
     case PROC_NUM_CIRCLE: case PROC_CHECK_CIRCLE:
         cairo_new_sub_path(c); cairo_arc(c, cx, cy, r, 0, 2 * M_PI);
@@ -409,6 +410,22 @@ void isim_image_draw_symbol(int hd, double x, double y, double w, double h, cons
     symbol_weight = weight;
     isim_image_draw(hd, x, y, w, h, tint, alpha);
     symbol_weight = saved;
+}
+
+/* rendering-mode layers of a symbol image: 2 for a glyph in an enclosure (primary: the glyph, secondary: the
+   enclosure), else 1 */
+int isim_image_symbol_layers(int hd) {
+    struct img *im = get(hd);
+    return im && im->kind == IMG_PROC && im->proc == PROC_GLYPH && im->encl ? 2 : 1;
+}
+/* a symbol with one colour per layer (rgba: primary, then secondary), for the hierarchical, palette and multicolor
+   rendering modes; a one-layer symbol takes the primary colour */
+void isim_image_draw_symbol_layered(int hd, double x, double y, double w, double h, const double *rgba2, double alpha, int weight) {
+    if (isim_image_symbol_layers(hd) < 2) { isim_image_draw_symbol(hd, x, y, w, h, rgba2, alpha, weight); return; }
+    int saved = symbol_part;
+    symbol_part = 2; isim_image_draw_symbol(hd, x, y, w, h, rgba2 + 4, alpha, weight);
+    symbol_part = 1; isim_image_draw_symbol(hd, x, y, w, h, rgba2, alpha, weight);
+    symbol_part = saved;
 }
 
 /* Draws the source rectangle (sx, sy, sw, sh in image pixels) of a raster image into (x, y, w, h).

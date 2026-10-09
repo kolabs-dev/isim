@@ -197,3 +197,18 @@ extension UIWindowScene {
         _isim_register(forTraits: _isimTraitObjects(traits), handler: nil, target: nil, action: action)
     }
 }
+@available(iOS 17.0, *)
+extension UIPresentationController {
+    @discardableResult
+    public func registerForTraitChanges<T: UITraitEnvironment>(_ traits: [UITrait], handler: @escaping (T, UITraitCollection) -> Void) -> any UITraitChangeRegistration {
+        _isim_register(forTraits: _isimTraitObjects(traits), handler: { env, previous in handler(env as! T, previous) }, target: nil, action: nil)
+    }
+    @discardableResult
+    public func registerForTraitChanges(_ traits: [UITrait], target: Any, action: Selector) -> any UITraitChangeRegistration {
+        _isim_register(forTraits: _isimTraitObjects(traits), handler: nil, target: target, action: action)
+    }
+    @discardableResult
+    public func registerForTraitChanges(_ traits: [UITrait], action: Selector) -> any UITraitChangeRegistration {
+        _isim_register(forTraits: _isimTraitObjects(traits), handler: nil, target: nil, action: action)
+    }
+}
