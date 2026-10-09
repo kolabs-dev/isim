@@ -678,10 +678,15 @@ static char k_toolbar_edge;
 - (UIScrollView *)_isim_edgeScrollView { return objc_getAssociatedObject(self, &k_toolbar_edge); }
 - (void)set_isim_edgeScrollView:(UIScrollView *)sv { objc_setAssociatedObject(self, &k_toolbar_edge, sv, OBJC_ASSOCIATION_ASSIGN); }
 @end
-@implementation UIToolbar { __IsimBarBackground *_bg; NSMutableArray<UIView *> *_views; }
+/* legacy bar images (adapted): keyed by position (and metrics); an exact (position, metrics) image wins, then .any, then
+   the default metrics' */
+static NSNumber *bar_image_key(UIBarPosition p, UIBarMetrics m) { return @((long)p * 1000 + (long)m); }
+@implementation UIToolbar { __IsimBarBackground *_bg; NSMutableArray<UIView *> *_views;
+                            NSMutableDictionary<NSNumber *, UIImage *> *_bgImages, *_shadowImages; NSMutableSet<NSNumber *> *_fromAppearance; }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
         _views = [NSMutableArray array]; _translucent = YES;
+        _bgImages = [NSMutableDictionary dictionary]; _shadowImages = [NSMutableDictionary dictionary]; _fromAppearance = [NSMutableSet set];
         _bg = [__IsimBarBackground new]; _bg.tag = 1; [self addSubview:_bg];
         _standardAppearance = [UIToolbarAppearance new];
         [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(setNeedsLayout) name:BarItemChanged object:nil];
@@ -691,10 +696,52 @@ static char k_toolbar_edge;
 - (CGSize)sizeThatFits:(CGSize)s { return CGSizeMake(s.width, 44); }
 - (void)setItems:(NSArray *)items { _items = [items copy]; [self setNeedsLayout]; }
 - (void)setItems:(NSArray *)items animated:(BOOL)a { self.items = items; }
+- (void)setDelegate:(id<UIToolbarDelegate>)d { _delegate = d; [self setNeedsLayout]; }
+- (UIBarPosition)barPosition {
+    id<UIToolbarDelegate> d = _delegate;
+    return [d respondsToSelector:@selector(positionForBar:)] ? [d positionForBar:self] : UIBarPositionBottom;
+}
+static void set_bar_image(UIToolbar *t, NSMutableDictionary *dict, NSNumber *k, UIImage *i, NSMutableSet *fromAppearance) {
+    if (i) dict[k] = i; else [dict removeObjectForKey:k];
+    [fromAppearance removeObject:@([k longValue] + (dict == t->_shadowImages ? 100000 : 0))];
+    [t setNeedsLayout]; isim_ui_set_needs_layout();
+}
+- (void)setBackgroundImage:(UIImage *)i forToolbarPosition:(UIBarPosition)p barMetrics:(UIBarMetrics)m { set_bar_image(self, _bgImages, bar_image_key(p, m), i, _fromAppearance); }
+- (UIImage *)backgroundImageForToolbarPosition:(UIBarPosition)p barMetrics:(UIBarMetrics)m { return _bgImages[bar_image_key(p, m)]; }
+- (void)setShadowImage:(UIImage *)i forToolbarPosition:(UIBarPosition)p { set_bar_image(self, _shadowImages, bar_image_key(p, 0), i, _fromAppearance); }
+- (UIImage *)shadowImageForToolbarPosition:(UIBarPosition)p { return _shadowImages[bar_image_key(p, 0)]; }
+/* UIAppearance (UIAppearance.m): a proxy's images go to a toolbar that has none of its own for that key */
+- (void)_isim_appearanceCopyTo:(UIToolbar *)t {
+    for (int shadow = 0; shadow < 2; shadow++) {
+        NSDictionary *mine = shadow ? _shadowImages : _bgImages; NSMutableDictionary *theirs = shadow ? t->_shadowImages : t->_bgImages;
+        for (NSNumber *k in mine) {
+            NSNumber *tag = @(k.longValue + (shadow ? 100000 : 0));
+            if (theirs[k] && ![t->_fromAppearance containsObject:tag]) continue;     /* the toolbar's own image wins */
+            theirs[k] = mine[k]; [t->_fromAppearance addObject:tag];
+        }
+    }
+    [t setNeedsLayout];
+}
+/* the background: a legacy background image replaces the appearance's (blur, colour, bar tint) */
+- (UIToolbarAppearance *)_isim_effectiveAppearance {
+    UIBarPosition p = self.barPosition;
+    UIBarMetrics m = self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact ? UIBarMetricsCompact : UIBarMetricsDefault;
+    UIImage *bg = nil;
+    for (int i = 0; i < 4 && !bg; i++) bg = _bgImages[bar_image_key(i & 1 ? UIBarPositionAny : p, i < 2 ? m : UIBarMetricsDefault)];
+    if (!bg) {
+        if (!_barTintColor) return _standardAppearance;
+        UIToolbarAppearance *o = [_standardAppearance copy]; o.backgroundColor = _barTintColor;
+        return o;
+    }
+    UIToolbarAppearance *o = [_standardAppearance copy];
+    o.backgroundEffect = nil; o.backgroundColor = nil; o.backgroundImage = bg; o.backgroundImageContentMode = UIViewContentModeScaleToFill;
+    UIImage *shadow = _shadowImages[bar_image_key(p, 0)] ?: _shadowImages[bar_image_key(UIBarPositionAny, 0)];
+    if (shadow) { o.shadowImage = shadow; if (!o.shadowColor) o.shadowColor = UIColor.separatorColor; }
+    return o;
+}
 - (void)layoutSubviews {
     [super layoutSubviews];
-    _bg.frame = self.bounds; [_bg apply:_standardAppearance];
-    if (_barTintColor) { UIToolbarAppearance *o = [_standardAppearance copy]; o.backgroundColor = _barTintColor; [_bg apply:o]; }
+    _bg.frame = self.bounds; [_bg apply:[self _isim_effectiveAppearance]];
     for (UIView *v in _views) [v removeFromSuperview];
     [_views removeAllObjects];
     /* fixed widths and buttons first, then flexible spaces share what is left */

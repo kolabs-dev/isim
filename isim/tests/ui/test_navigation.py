@@ -1,9 +1,11 @@
 """UIKit containers (HelloNavigation): tab bar with badge, large title collapsing on scroll, push/pop, back button and
-back swipe, toolbar items, hidesBottomBarWhenPushed, bar button menus, tab switching. Port of tests/ui/navigation.sh
+back swipe, toolbar items, hidesBottomBarWhenPushed, legacy toolbar images (setBackgroundImage / setShadowImage per
+position and metrics, the delegate's position, UIAppearance), bar button menus, tab switching. Port of tests/ui/navigation.sh
 with condition waits instead of fixed sleeps."""
 
 
 import pytest
+from isimtest import rgb
 
 
 def nav_bar_height(app):
@@ -38,6 +40,14 @@ def test_navigation(launch, ios):
 
     app.wait_for(id="read").tap()
     app.wait_log("reader appeared, tab bar hidden: true")
+    app.wait_log(r"toolbars: clear 0\.0 shadow true, positions 1/2, top from appearance true, compact true/false")
+    def yellow(c): return c[0] > 230 and c[1] > 180 and c[2] < 40
+    def green(c): return c[1] > 160 and c[0] < 80 and c[2] < 120
+    shot = app.wait_until(lambda: (lambda s: s if green(rgb(s, 300, 392)) else None)(app.screenshot("toolbars")),
+                          what="toolbar images drawn")      # own image for the bottom position (no delegate: bottom)
+    assert all(yellow(rgb(shot, 300, y)) for y in (300, 322, 343)), "empty background and shadow images: no bar, no hairline"
+    assert (lambda c: c[0] > 230 and c[1] < 80 and c[2] < 80)(rgb(shot, 300, 462)), "the appearance's image for the top position"
+    assert not (lambda c: c[2] > 200 and c[0] < 80)(rgb(shot, 300, 532)), "a compact-only image is not used in portrait"
     app.wait_for(id="nav-back").tap()
     app.wait_log("detail 3 appears", count=2)
     app.wait_for(id="nav-back").tap()

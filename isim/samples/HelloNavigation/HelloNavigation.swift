@@ -1,5 +1,6 @@
 // Sample: UIKit containers on isim — UITabBarController (badge), UINavigationController with large titles
-// over a scroll view, push/pop, bar button items (system, title, menu), toolbar items, hidesBottomBarWhenPushed.
+// over a scroll view, push/pop, bar button items (system, title, menu), toolbar items, hidesBottomBarWhenPushed,
+// legacy toolbar images (setBackgroundImage / setShadowImage per position and metrics, a delegate's position, UIAppearance).
 import UIKit
 
 @main
@@ -89,13 +90,42 @@ final class DetailViewController: UIViewController {
     @objc func share() { print("share tapped") }
 }
 
-final class ReaderViewController: UIViewController {
+func solid(_ c: UIColor) -> UIImage {
+    UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { ctx in c.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 2, height: 2)) }
+}
+
+/// standalone toolbars over the yellow page: transparent (empty images), an own image for the bottom position, an
+/// appearance proxy's image for the top position (a delegate puts that bar at the top), and a compact-only image
+final class ReaderViewController: UIViewController, UIToolbarDelegate {
+    var bars: [String: UIToolbar] = [:]
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Reader"
         view.backgroundColor = .systemYellow
+        UIToolbar.appearance().setBackgroundImage(solid(.systemRed), forToolbarPosition: .top, barMetrics: .default)
+        for (i, name) in ["clear", "green", "top", "compact"].enumerated() {
+            let bar = UIToolbar(frame: CGRect(x: 0, y: 300 + CGFloat(i) * 70, width: view.bounds.width, height: 44))
+            bar.autoresizingMask = .flexibleWidth; bar.accessibilityIdentifier = "toolbar-\(name)"
+            bar.items = [UIBarButtonItem(title: name, style: .plain, target: nil, action: nil), .flexibleSpace()]
+            bars[name] = bar
+        }
+        bars["clear"]!.setBackgroundImage(UIImage(), forToolbarPosition: .any, barMetrics: .default)   // the classic transparent toolbar
+        bars["clear"]!.setShadowImage(UIImage(), forToolbarPosition: .any)
+        bars["green"]!.setBackgroundImage(solid(.systemGreen), forToolbarPosition: .bottom, barMetrics: .default)
+        bars["top"]!.delegate = self
+        bars["compact"]!.setBackgroundImage(solid(.systemBlue), forToolbarPosition: .any, barMetrics: .compact)
+        for name in ["clear", "green", "top", "compact"] { view.addSubview(bars[name]!) }
     }
-    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); print("reader appeared, tab bar hidden: \(tabBarController?.tabBar.isHidden ?? false)") }
+    func position(for bar: UIBarPositioning) -> UIBarPosition { .top }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        print("reader appeared, tab bar hidden: \(tabBarController?.tabBar.isHidden ?? false)")
+        let clear = bars["clear"]!, top = bars["top"]!, compact = bars["compact"]!
+        print("toolbars: clear \(clear.backgroundImage(forToolbarPosition: .any, barMetrics: .default)?.size.width ?? -1) shadow \(clear.shadowImage(forToolbarPosition: .any) != nil), " +
+              "positions \(bars["green"]!.barPosition.rawValue)/\(top.barPosition.rawValue), " +
+              "top from appearance \(top.backgroundImage(forToolbarPosition: .top, barMetrics: .default) != nil), " +
+              "compact \(compact.backgroundImage(forToolbarPosition: .any, barMetrics: .compact) != nil)/\(compact.backgroundImage(forToolbarPosition: .any, barMetrics: .default) != nil)")
+    }
 }
 
 final class InboxViewController: UIViewController {

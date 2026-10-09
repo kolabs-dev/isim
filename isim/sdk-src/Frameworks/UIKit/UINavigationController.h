@@ -154,6 +154,25 @@ NS_SWIFT_UI_ACTOR
 @interface UITabBarAppearance : UIBarAppearance
 @end
 
+/* bar metrics and positions (UIBarCommon.h) */
+typedef NS_ENUM(NSInteger, UIBarMetrics) { UIBarMetricsDefault, UIBarMetricsCompact, UIBarMetricsDefaultPrompt = 101, UIBarMetricsCompactPrompt };
+typedef NS_ENUM(NSInteger, UIBarPosition) { UIBarPositionAny = 0, UIBarPositionBottom = 1, UIBarPositionTop = 2, UIBarPositionTopAttached = 3 };
+#define UIBarPositionOverlap UIBarPositionTopAttached
+/* iOS 5-6 names */
+#define UIToolbarPosition UIBarPosition
+#define UIToolbarPositionAny UIBarPositionAny
+#define UIToolbarPositionBottom UIBarPositionBottom
+#define UIToolbarPositionTop UIBarPositionTop
+NS_SWIFT_UI_ACTOR
+@protocol UIBarPositioning <NSObject>
+@property (nonatomic, readonly) UIBarPosition barPosition;
+@end
+NS_SWIFT_UI_ACTOR
+@protocol UIBarPositioningDelegate <NSObject>
+@optional
+- (UIBarPosition)positionForBar:(id<UIBarPositioning>)bar NS_SWIFT_NAME(position(for:));
+@end
+
 @class UINavigationBar;
 /* a standalone bar's delegate (a navigation controller's bar answers these itself) */
 NS_SWIFT_UI_ACTOR
@@ -186,13 +205,26 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *largeTitleTextAttributes;
 @end
 
+@class UIToolbar;
 NS_SWIFT_UI_ACTOR
-@interface UIToolbar : UIView
+@protocol UIToolbarDelegate <UIBarPositioningDelegate>
+@end
+NS_SWIFT_UI_ACTOR
+@interface UIToolbar : UIView <UIBarPositioning>
 @property (nullable, nonatomic, copy) NSArray<UIBarButtonItem *> *items;
 - (void)setItems:(nullable NSArray<UIBarButtonItem *> *)items animated:(BOOL)animated;
 @property (nullable, nonatomic, strong) UIColor *barTintColor;
 @property (nonatomic, getter=isTranslucent) BOOL translucent;
 @property (nonatomic, copy) UIToolbarAppearance *standardAppearance;
+/* the delegate's positionForBar: (default: bottom) */
+@property (nullable, nonatomic, weak) id<UIToolbarDelegate> delegate;
+@property (nonatomic, readonly) UIBarPosition barPosition;
+/* legacy bar images: a background image replaces the appearance's background (an empty image: transparent); a shadow
+   image replaces the hairline when a background image is set too */
+- (void)setBackgroundImage:(nullable UIImage *)backgroundImage forToolbarPosition:(UIBarPosition)topOrBottom barMetrics:(UIBarMetrics)barMetrics;
+- (nullable UIImage *)backgroundImageForToolbarPosition:(UIBarPosition)topOrBottom barMetrics:(UIBarMetrics)barMetrics;
+- (void)setShadowImage:(nullable UIImage *)shadowImage forToolbarPosition:(UIBarPosition)topOrBottom;
+- (nullable UIImage *)shadowImageForToolbarPosition:(UIBarPosition)topOrBottom;
 @end
 
 typedef NS_ENUM(NSInteger, UITabBarSystemItem) {
