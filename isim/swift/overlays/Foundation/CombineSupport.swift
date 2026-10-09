@@ -76,14 +76,27 @@ extension RunLoop: Scheduler {
     public var now: SchedulerTimeType { SchedulerTimeType(Date()) }
     public var minimumTolerance: SchedulerTimeType.Stride { 0 }
     public func schedule(options: SchedulerOptions?, _ action: @escaping () -> Void) {
-        DispatchQueue.main.async(execute: action)       // isim: the main run loop is driven by the main queue
+        nonisolated(unsafe) let action = action
+        perform { action() }                            // this run loop's common modes
     }
     public func schedule(after date: SchedulerTimeType, tolerance: SchedulerTimeType.Stride, options: SchedulerOptions?, _ action: @escaping () -> Void) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, date.date.timeIntervalSinceNow), execute: action)
+        nonisolated(unsafe) let action = action
+        add(Timer(fire: date.date, interval: 0, repeats: false) { _ in action() }, forMode: .default)
     }
 }
 
 // MARK: - Timer.publish, NotificationCenter.publisher
+
+extension Timer {
+    /// isim: a block timer on the current run loop in its common modes, for isim's system frameworks: their timers keep
+    /// running while the user scrolls (the main run loop's tracking mode), as on iOS. Apps' scheduledTimer uses the default mode.
+    @discardableResult
+    public static func _isimScheduledTimer(withTimeInterval interval: TimeInterval, repeats: Bool, block: @escaping @Sendable (Timer) -> Void) -> Timer {
+        let t = Timer(timeInterval: interval, repeats: repeats, block: block)
+        RunLoop.current.add(t, forMode: .common)
+        return t
+    }
+}
 
 extension Timer {
     public static func publish(every interval: TimeInterval, tolerance: TimeInterval? = nil, on runLoop: RunLoop,
@@ -104,7 +117,8 @@ extension Timer {
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Date, S.Failure == Never { subject.receive(subscriber: subscriber) }
         public func connect() -> Cancellable {
             let subj = subject
-            let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in subj.send(Date()) }
+            let timer = Timer(timeInterval: interval, repeats: true) { _ in subj.send(Date()) }
+            runLoop.add(timer, forMode: mode)              // the run loop and mode it was published on
             return AnyCancellable { timer.invalidate() }
         }
     }

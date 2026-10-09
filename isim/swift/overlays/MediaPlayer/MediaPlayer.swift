@@ -158,7 +158,7 @@ open class MPRemoteCommandCenter: NSObject {
 
     func _startPolling() {
         guard timer == nil else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?._poll() }
+        timer = Timer._isimScheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?._poll() }
     }
     func _poll() {
         var buf = [CChar](repeating: 0, count: 64)

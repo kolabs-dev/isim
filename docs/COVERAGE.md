@@ -55,13 +55,13 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 60 | 21 | 1 | 1 | 83 | 85% |
+| **Foundation** | 62 | 19 | 1 | 1 | 83 | 86% |
 | &nbsp;&nbsp;↳ Strings & text | 11 | 4 | 0 | 0 | 15 | 87% |
 | &nbsp;&nbsp;↳ Collections & values | 10 | 3 | 0 | 0 | 13 | 88% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 7 | 3 | 0 | 0 | 10 | 85% |
-| &nbsp;&nbsp;↳ Notifications, timers & threads | 7 | 2 | 0 | 0 | 9 | 89% |
+| &nbsp;&nbsp;↳ Notifications, timers & threads | 9 | 0 | 0 | 0 | 9 | 100% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **765** | **186** | **23** | **38** | **1012** | **85%** |
+| **All areas** | **767** | **184** | **23** | **38** | **1012** | **85%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 100% (207) | 100% (211) | 100% (225) | 97% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
+| Foundation | 86% (83) | 86% (83) | 86% (83) | 86% (83) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (17) | 100% (17) | 100% (17) | 100% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (956) | **86%** (968) | **85%** (992) | **85%** (1012) |
+| **All areas** | **86%** (956) | **86%** (968) | **86%** (992) | **85%** (1012) |
 
 ---
 
@@ -871,10 +871,10 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `NotificationCenter` (selector, block, Combine publisher) | ✅ | ≤17 | |
 | `NotificationQueue` | ✅ | ≤17 | `.now`, `.asap` (end of the run-loop pass), `.whenIdle` (shortly after), coalescing on name/sender, `dequeueNotifications`; one queue per thread. Tested: HelloSharedData |
 | `DistributedNotificationCenter` | N/A | ≤17 | macOS only (not in the iOS SDK) |
-| `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | ≤17 | the run loop keeps scheduled timers alive until invalidated |
-| `RunLoop` | 🟡 | ≤17 | main run loop only; modes ignored |
-| `Thread` (main checks, detach, sleep, name) | ✅ | ≤17 | |
-| `OperationQueue` | 🟡 | ≤17 | block operations only; no `Operation` subclasses or dependencies |
+| `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | ≤17 | the run loop keeps scheduled timers alive until invalidated; `init(fire:interval:repeats:block:)` / target forms, `fireDate`, `tolerance` (accepted; timers fire on time); scheduled timers go to the current thread's run loop in the default mode. Tested: FoundationTest, SwiftFoundationTest |
+| `RunLoop` | ✅ | ≤17 | one per thread (`RunLoop.current` on a `Thread`), with modes: timers, delayed performs (`perform(_:with:afterDelay:inModes:)`, cancelling), ordered performs (`perform(_:target:argument:order:modes:)`), blocks (`perform(_:)`, `perform(inModes:block:)`) and ports (`Port` / `NSMachPort` keep a loop running) each in a set of modes; `.common` stands for the loop's common modes; `run()`, `run(until:)`, `run(mode:before:)` (false when the mode has nothing to wait for), `limitDate(forMode:)`, `acceptInput(forMode:before:)`, `currentMode`. The main loop is driven by UIKit's event loop and runs in `RunLoop.Mode.tracking` (`UITrackingRunLoopMode`, a common mode) while a scroll view is dragged or decelerates, so default-mode timers wait, as on iOS (isim's own framework timers use the common modes). Main-queue blocks run in the main loop's common modes. `Timer.publish(every:on:in:)` and the `RunLoop` Combine scheduler use the given loop and mode. Adapted: ports carry no messages (no `NSPortMessage`); no `CFRunLoop` API. Tested: FoundationTest, SwiftFoundationTest, HelloScrollAndLists (tracking mode) |
+| `Thread` (main checks, detach, sleep, name) | ✅ | ≤17 | pthreads: `Thread(block:)` / `init(target:selector:object:)`, `start`, `main`, `cancel`, `isExecuting` / `isFinished` / `isCancelled`, `detachNewThread`, `exit()`, `stackSize`, `threadDictionary`, `qualityOfService` / `threadPriority` (recorded, not applied: adapted), `callStackSymbols` / `callStackReturnAddresses`, `isMultiThreaded`, `NSThreadWillExit` / `NSWillBecomeMultiThreaded` notifications; `perform(_:on:with:waitUntilDone:modes:)`, `performSelector(onMainThread:with:waitUntilDone:modes:)` (waits for the target thread's run loop), `performSelector(inBackground:with:)`. Tested: FoundationTest, SwiftFoundationTest |
+| `OperationQueue` | ✅ | ≤17 | `Operation` (subclasses overriding `main`, or asynchronous ones overriding `start` / `isExecuting` / `isFinished` and posting KVO), `BlockOperation` (several execution blocks run concurrently), `NSInvocationOperation` (Objective-C); dependencies (a cancelled operation stops waiting), `queuePriority`, `qualityOfService`, `completionBlock` (on another thread), `waitUntilFinished`, KVO on `isReady` / `isExecuting` / `isFinished` / `isCancelled`. Queues: `addOperation(s)`, `addOperation { }`, `addBarrierBlock`, `maxConcurrentOperationCount`, `isSuspended`, `cancelAllOperations`, `waitUntilAllOperationsAreFinished`, `operations` / `operationCount` (KVO), `underlyingQueue`, `progress`, `OperationQueue.current` / `.main`. Operations run on the global dispatch queue of their quality of service (the main queue for `.main`). Tested: FoundationTest, SwiftFoundationTest |
 | `NSLock`, `NSRecursiveLock`, `NSCondition` | ✅ | ≤17 | |
 | `ProcessInfo` (environment, arguments, processor count, uptime) | ✅ | ≤17 | |
 | `ProcessInfo.thermalState`, `isLowPowerModeEnabled`, `physicalMemory`, `operatingSystemVersion`, activities | ✅ | ≤17 | a simulated iPhone: always `.nominal`, never Low Power Mode, memory per device model |

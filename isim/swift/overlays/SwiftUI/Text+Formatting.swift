@@ -192,7 +192,7 @@ final class _TextTicker: _AnyStorage {
     var timer: Timer?
     init(_ g: _Graph) {
         super.init()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak g] _ in
+        timer = Timer._isimScheduledTimer(withTimeInterval: 1, repeats: true) { [weak g] _ in
             MainActor.assumeIsolated { g?.invalidate() }
         }
     }

@@ -234,6 +234,7 @@ static NSString *alt_icon_file(void) { return [isim_dir() stringByAppendingPathC
 
 /* ================= background execution ================= */
 const UIBackgroundTaskIdentifier UIBackgroundTaskInvalid = 0;
+NSRunLoopMode const UITrackingRunLoopMode = @"UITrackingRunLoopMode";
 UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsURLKey = @"UIApplicationLaunchOptionsURLKey",
     UIApplicationLaunchOptionsSourceApplicationKey = @"UIApplicationLaunchOptionsSourceApplicationKey",
     UIApplicationLaunchOptionsShortcutItemKey = @"UIApplicationLaunchOptionsShortcutItemKey",
@@ -273,7 +274,7 @@ static void bg_schedule(void) {
     [bg_timer invalidate]; bg_timer = nil;
     if (!bg_tasks.count || UIApplication.sharedApplication.applicationState != UIApplicationStateBackground) return;
     double left = bg_limit() - (isim_time() - bg_entered);
-    bg_timer = [NSTimer scheduledTimerWithTimeInterval:MAX(0, left) repeats:NO block:^(NSTimer *t) { bg_expire(); }];
+    bg_timer = isim_scheduled_common_timer(MAX(0, left), NO, ^(NSTimer *t) { bg_expire(); });
 }
 @implementation UIApplication (UIBackgroundTasks)
 - (UIBackgroundTaskIdentifier)beginBackgroundTaskWithExpirationHandler:(void (^)(void))h { return [self beginBackgroundTaskWithName:nil expirationHandler:h]; }
@@ -494,7 +495,7 @@ static void reasons_start(void) {
     [reasons_timer invalidate];
     last_reasons = nil;
     isim_sys_report_background();
-    reasons_timer = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *t) { isim_sys_report_background(); }];
+    reasons_timer = isim_scheduled_common_timer(0.5, YES, ^(NSTimer *t) { isim_sys_report_background(); });
 }
 static void reasons_stop(void) { [reasons_timer invalidate]; reasons_timer = nil; last_reasons = nil; }
 

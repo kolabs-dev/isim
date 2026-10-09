@@ -637,7 +637,7 @@ static const struct shim libsystem_table[] = {
     A("_arc4random", d_arc4random), A("_arc4random_uniform", d_arc4random_uniform), A("_arc4random_buf", d_arc4random_buf),
     /* pthreads */
     A("_pthread_create", d_pthread_create), A("_pthread_join", d_pthread_join), A("_pthread_detach", d_pthread_detach),
-    P(pthread_self), P(pthread_equal), P(sched_yield), A("_pthread_main_np", d_pthread_main_np), A("_pthread_setname_np", d_pthread_setname_np),
+    P(pthread_self), P(pthread_exit), P(pthread_equal), P(sched_yield), A("_pthread_main_np", d_pthread_main_np), A("_pthread_setname_np", d_pthread_setname_np),
     A("_pthread_mutex_init", d_mutex_init), A("_pthread_mutex_lock", d_mutex_lock), A("_pthread_mutex_trylock", d_mutex_trylock),
     A("_pthread_mutex_unlock", d_mutex_unlock), A("_pthread_mutex_destroy", d_mutex_destroy),
     A("_pthread_mutexattr_init", d_mutexattr_init), A("_pthread_mutexattr_settype", d_mutexattr_settype), A("_pthread_mutexattr_destroy", d_mutexattr_destroy),

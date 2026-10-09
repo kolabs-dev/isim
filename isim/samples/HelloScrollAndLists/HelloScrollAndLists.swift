@@ -48,9 +48,48 @@ final class MenuViewController: UIViewController {
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Edit", style: .plain, target: nil, action: nil)
         let pages: [(String, () -> UIViewController)] = [("paging", { PagingViewController() }), ("layouts", { LayoutsViewController() }),
                                                          ("reorder", { ReorderViewController() }), ("bars", { BarsViewController() }),
-                                                         ("providers", { ProvidersViewController() })]
+                                                         ("providers", { ProvidersViewController() }), ("runloop", { RunLoopModesViewController() })]
         for (i, (name, make)) in pages.enumerated() {
             button(name, name.capitalized, y: 130 + CGFloat(i) * 44, in: view) { [unowned self] in navigationController?.pushViewController(make(), animated: true) }
+        }
+    }
+}
+
+// MARK: - run loop modes while scrolling
+
+/// Two timers: one in the default mode (paused while the scroll view tracks, as on iOS) and one in the common modes
+/// (keeps firing in UITrackingRunLoopMode). The delegate logs how many times each fired during a drag.
+final class RunLoopModesViewController: UIViewController, UIScrollViewDelegate {
+    var defaultTicks = 0, commonTicks = 0, commonInTracking = 0
+    var atBegin = (0, 0)
+    var timers: [Timer] = []
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Run loop"
+        view.backgroundColor = .systemBackground
+        let scroll = UIScrollView(frame: CGRect(x: 0, y: 100, width: view.bounds.width, height: 500))
+        scroll.accessibilityIdentifier = "modes-scroll"
+        scroll.backgroundColor = .secondarySystemBackground
+        scroll.contentSize = CGSize(width: view.bounds.width, height: 3000)
+        scroll.delegate = self
+        view.addSubview(scroll)
+        timers.append(Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [unowned self] _ in defaultTicks += 1 })
+        let common = Timer(timeInterval: 0.05, repeats: true) { [unowned self] _ in
+            commonTicks += 1
+            if RunLoop.main.currentMode == .tracking { commonInTracking += 1 }
+        }
+        RunLoop.main.add(common, forMode: .common)
+        timers.append(common)
+        print("run loop modes ready, mode \(RunLoop.main.currentMode?.rawValue ?? "none")")
+    }
+    override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); timers.forEach { $0.invalidate() } }
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { atBegin = (defaultTicks, commonTicks); commonInTracking = 0 }
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        print("while dragging: default +\(defaultTicks - atBegin.0), common +\(commonTicks - atBegin.1), in tracking mode \(commonInTracking)")
+        let resumedFrom = defaultTicks
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self else { return }
+            print("after scrolling: default +\(self.defaultTicks - resumedFrom), mode \(RunLoop.main.currentMode?.rawValue ?? "none")")
         }
     }
 }
