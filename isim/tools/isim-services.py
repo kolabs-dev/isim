@@ -17,6 +17,7 @@
   isim gamecenter friends                          this device's friends and friend requests
   isim gamecenter befriend <nickname> [<nickname>] make two players friends (default: with this device's player)
   isim gamecenter accept-friend <nickname>         accept a friend request (Settings > Game Center does the same)
+  isim gamecenter request-friend <nickname> [message]   a test player asks this device's player to be friends
   isim gamecenter <app> score <nickname> <leaderboard> <value> [context]   post a score for a player
   isim gamecenter <app> scores                     every player's scores in the game
   isim gamecenter <app> challenge <nickname> score <leaderboard> <value> [message]
@@ -154,7 +155,7 @@ def storekit(app, cmd, args):
 
 
 GC = os.environ.get('ISIM_GAMECENTER') or os.path.expanduser('~/.local/share/isim-gamecenter')
-GC_NETWORK = ('players', 'player', 'friends', 'befriend', 'accept-friend')
+GC_NETWORK = ('players', 'player', 'friends', 'befriend', 'accept-friend', 'request-friend')
 
 
 def gc_path(*parts):
@@ -278,6 +279,13 @@ def gamecenter_network(cmd, args):
             die(f'no friend request from {p.get("alias")}')
         gc_befriend(me, p['id'])
         print(f'accepted the friend request from {p.get("alias")}')
+    elif cmd == 'request-friend':
+        me, p = gc_me(), gc_player(args[0] if args and args[0] else die('usage: isim gamecenter request-friend <nickname> [message]'))
+        os.makedirs(gc_path('friend-requests'), exist_ok=True)
+        write_json(gc_path('friend-requests', f'{p["id"]}+{me}.json'),
+                   {'from': p['id'], 'to': me, 'message': args[1] if len(args) > 1 else '', 'date': time.time()})
+        gc_post(me, {'kind': 'friendRequest', 'from': p['id'], 'game': '*'})
+        print(f'{p.get("alias")} asked {gc_alias(me)} to be friends')
 
 
 def gc_entries(bid, board):

@@ -14,7 +14,7 @@
 #   isim test -project X.xcodeproj -scheme S [-only-testing:T/C/m] [-resultBundlePath D]   build + run XCTest/XCUITest/Swift Testing
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 #   isim storekit <app> list|refund|expire|cancel|resume|clear ...   local StoreKit Transaction Manager
-#   isim gamecenter <app> saved-games|conflict|reset ...              local Game Center data
+#   isim gamecenter [<app>] players|friends|score|challenge|activity|saved-games|...   local Game Center network
 #   isim openurl <URL> [--control FIFO]   open a URL (custom scheme or universal link) in the running device's foreground app
 #   isim push [BUNDLE_ID] <payload.apns|->   send a remote notification payload (JSON with an "aps" dictionary; without
 #                                BUNDLE_ID its "Simulator Target Bundle" key names the app), like `xcrun simctl push`

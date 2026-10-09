@@ -86,54 +86,67 @@ enum _GC {
 }
 
 /// iOS-style Game Center banner: slides down from the top with a spring, then slides away. A banner with a `tap`
-/// action (an invite, a challenge) stays longer and can be tapped (accessibility identifier "gc-banner").
+/// action (an invite, a challenge) stays longer and can be tapped (accessibility identifier "gc-banner"); touches
+/// anywhere else go through to the app.
 @MainActor enum _GCBanner {
     enum Kind { case player, achievement(String), other(String) }
     static var window: UIWindow?
     static func show(title: String, subtitle: String, kind: Kind, tap: (() -> Void)? = nil) {
         window?.isHidden = true
-        let width = min(UIScreen.main.bounds.width - 24, 380), height: CGFloat = 64
-        let w = UIWindow(frame: CGRect(x: (UIScreen.main.bounds.width - width) / 2, y: -height - 10, width: width, height: height))
+        let w = _GCPassthroughWindow(frame: UIScreen.main.bounds)
         w.windowLevel = UIWindow.Level(rawValue: 2100)
         w.isUserInteractionEnabled = tap != nil
         w.backgroundColor = .clear
+        let width = min(UIScreen.main.bounds.width - 24, 380), height: CGFloat = 64
         let host = UIHostingController(rootView: _GCBannerView(title: title, subtitle: subtitle, kind: kind))
         host.view.backgroundColor = .clear
         let root = UIViewController(); root.view.backgroundColor = .clear
         root.addChild(host)
-        host.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
-        root.view.addSubview(host.view)
+        let card = host.view!
+        w.content = card
+        card.frame = CGRect(x: (UIScreen.main.bounds.width - width) / 2, y: -height - 10, width: width, height: height)
+        root.view.addSubview(card)
         host.didMove(toParent: root)
         if let tap {
             let b = UIButton(type: .custom)
-            b.frame = host.view.frame
+            b.frame = card.bounds
+            b.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             b.accessibilityIdentifier = "gc-banner"
             b.accessibilityLabel = title
-            b.addAction(UIAction { _ in
+            b.addAction(UIAction { [weak w] _ in
                 NSLog("isim GameKit: banner tapped: %@", title)
-                w.isHidden = true
+                w?.isHidden = true
                 if window === w { window = nil }
                 tap()
             }, for: .touchUpInside)
-            root.view.addSubview(b)
+            card.addSubview(b)
         }
         w.rootViewController = root
         window = w
         w.isHidden = false
         NSLog("isim GameKit: banner: %@ — %@", title, subtitle)
-        let top = max(UIApplication.shared.windows.first?.safeAreaInsets.top ?? 0, 20)
+        let top = max(w.safeAreaInsets.top, 20)
         UIView.animate(withDuration: 0.6, delay: 0, usingSpringWithDamping: 0.78, initialSpringVelocity: 0, options: [], animations: {
-            w.frame.origin.y = top + 4
+            card.frame.origin.y = top + 4
         }, completion: nil)
         // a fixed time on screen (not an animation delay, so it holds with animations off)
         DispatchQueue.main.asyncAfter(deadline: .now() + (tap == nil ? 3 : 8)) {
             MainActor.assumeIsolated {
                 guard window === w else { return }
                 UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseIn], animations: {
-                    w.frame.origin.y = -height - 10
+                    card.frame.origin.y = -height - 10
                 }, completion: { _ in if window === w { w.isHidden = true; window = nil } })
             }
         }
+    }
+}
+
+/// A full-screen window that only takes touches on its content (the banner card); the rest go to the windows below.
+final class _GCPassthroughWindow: UIWindow {
+    weak var content: UIView?
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let content, let v = super.hitTest(point, with: event), v.isDescendant(of: content) else { return nil }
+        return v
     }
 }
 

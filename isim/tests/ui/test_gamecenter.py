@@ -9,6 +9,9 @@ challenges (received from a test player and completed by beating the score; sent
 the matchmaker (nobody else is looking). Then `isim gamecenter ... conflict` adds a version from another device; run 2
 fetches saved games, gets the conflict and resolves it.
 
+test_gamecenter_settings: Settings > Game Center lists friend requests from other players (accept, decline) and the
+friends.
+
 test_gamecenter_activities: game activities under iOS 26 (definitions, start / end, a request from
 `isim gamecenter ... activity` with a party code).
 
@@ -170,6 +173,23 @@ def test_gamecenter(launch, device_data):
     assert app.quit() == 0
     saves = gamecenter(device_data, APP, "saved-games")
     assert sum("slot1" in l for l in saves.splitlines()) == 1, f"one saved game left: {saves}"
+
+
+def test_gamecenter_settings(launch, device_data):
+    for args in (("player", "add", "Alex"), ("player", "add", "Kim"), ("request-friend", "Alex", "Let's play"), ("request-friend", "Kim")):
+        gamecenter(device_data, *args)
+    dev = launch(None)
+    dev.send("launch dev.isim.settings")
+    dev.wait_tap_id("settings-gamecenter")
+    page = dev.wait_view(r"id=settings-gamecenter-accept-Kim")
+    assert "text=Let's play" in page and "text=No Friends" in page, "requests with their message; no friends yet"
+    dev.tap_id("settings-gamecenter-accept-Alex")
+    dev.wait_view(r"id=settings-gamecenter-friend-Alex")
+    dev.tap_id("settings-gamecenter-decline-Kim")
+    dev.wait_view(visible("settings-gamecenter-decline-Kim"), gone=True)
+    friends = gamecenter(device_data, "friends")
+    assert "friend   Alex" in friends and "request" not in friends and "Kim" not in friends, friends
+    assert dev.quit() == 0
 
 
 def test_gamecenter_activities(launch, device_data):

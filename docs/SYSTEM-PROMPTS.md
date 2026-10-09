@@ -36,6 +36,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_LOCATION_PERMISSION` | `once`, `wheninuse`, `always`, `deny` |
 | `ISIM_PHOTOS_PERMISSION` | `allow`, `limited`, `deny` |
 | `ISIM_PASTE_PERMISSION` | `ask`, `allow`, `deny` (Paste from Other Apps; otherwise the app's setting in Settings, Ask by default) |
+| `ISIM_GAMECENTER_FRIENDS_PERMISSION` | `allow`, `deny` (Game Center's friends-list prompt) |
 | `ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`, `ISIM_SPEECH_PERMISSION` | `allow`, `deny` |
 
 ## Simulated hardware and services
@@ -57,6 +58,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_BACKGROUND_TASK_SECONDS=S` | how long `beginBackgroundTask` / BackgroundTasks tasks run in the background before their expiration handler (default 30; processing tasks 180) |
 | `ISIM_GAMEPADS=0` | ignore host game controllers |
 | `ISIM_MAIL=1`, `ISIM_MESSAGES=1` | make `MFMailComposeViewController` / `MFMessageComposeViewController` available; sent items are saved under `$ISIM_DATA/Library` |
+| `ISIM_GAMECENTER=DIR` | the local Game Center network the isim devices on this computer share (default `~/.local/share/isim-gamecenter`): players, friends, scores, challenges, matches ([GAMECENTER.md](GAMECENTER.md)) |
 | `ISIM_ICLOUD=noAccount` | no iCloud account (also `restricted`, `temporarilyUnavailable`): CloudKit fails with `notAuthenticated`, `url(forUbiquityContainerIdentifier:)` and `ubiquityIdentityToken` are nil, `NSUbiquitousKeyValueStore` keeps nothing |
 | `ISIM_LANGUAGES=ru,en` | preferred languages for one run (overrides Settings > Language & Region): localized strings and plural rules |
 | `ISIM_GEOCODER=offline` | every `CLGeocoder` request fails with `CLError.network` (default: an offline gazetteer answers) |
