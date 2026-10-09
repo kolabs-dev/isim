@@ -21,6 +21,7 @@ char *getcwd(char *, size_t);
 pid_t getpid(void);
 uid_t getuid(void);
 int isatty(int);
+int getpagesize(void);
 unsigned int sleep(unsigned int);
 int usleep(unsigned int);
 int gethostname(char *, size_t);

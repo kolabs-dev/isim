@@ -42,6 +42,8 @@ module Darwin [system] [extern_c] {
   module Mach {
     header "mach-o/dyld.h"
     header "malloc/malloc.h"
+    header "mach/mach.h"
+    header "mach/mach_time.h"
     export *
   }
   export *

@@ -456,6 +456,18 @@ def _(a):
     a.cc("-dynamiclib", "-install_name", "@rpath/SwiftPlugin.framework/SwiftPlugin", so, "-o", os.path.join(d, "SwiftPlugin"))
 
 
+@app("tests/mach", products=["MachTest.app"])
+def _(a):
+    """MachTest.app: Objective-C checks (main.m) and Swift ones (mach.swift) in one executable"""
+    b = a.bundle("MachTest")
+    obj = os.path.join(OBJ, "MachTest")
+    os.makedirs(obj, exist_ok=True)
+    a.swiftc("MachSwift", [os.path.join(a.d, "mach.swift")], f"{obj}/mach.o")
+    a.cc("-O1", "-Wall", "-c", os.path.join(a.d, "main.m"), "-o", f"{obj}/main.o")
+    a.cc(f"{obj}/main.o", f"{obj}/mach.o", "-framework", "Foundation", "-o", os.path.join(b, "MachTest"))
+    a.copy("Info.plist", b)
+
+
 @app("tests/objc-literals", products=["ObjCLiteralsTest.app"])
 def _(a):
     """Literals.m with -fobjc-constant-literals (clang 23+) bridged into Swift; with an older clang the committed

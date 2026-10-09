@@ -145,9 +145,7 @@ static uint64_t d_clock_gettime_nsec_np(int clk) {
     struct timespec ts; if (d_clock_gettime(clk, &ts)) return 0;
     return (uint64_t)ts.tv_sec * 1000000000ull + ts.tv_nsec;
 }
-static uint64_t d_mach_absolute_time(void) { return d_clock_gettime_nsec_np(8); }   /* Darwin: CLOCK_UPTIME_RAW */
-struct d_timebase { uint32_t numer, denom; };
-static int d_mach_timebase_info(struct d_timebase *tb) { tb->numer = 1; tb->denom = 1; return 0; }
+#include "mach.inc"      /* Mach: time, task / thread / host information, VM, ports and messages, semaphores */
 
 /* ---------------- pthreads (Darwin layouts) ---------------- */
 #define SIG_MUTEX_INIT 0x32AAABA7L
@@ -244,7 +242,11 @@ static int d_once(struct d_once *o, void (*fn)(void)) {
 
 static int d_pthread_create(pthread_t *t, const void *attr, void *(*fn)(void *), void *arg) {
     const struct { long sig; pthread_attr_t *host; } *a = attr;
-    return d_errno(pthread_create(t, a && a->sig == 0x54485241 ? a->host : NULL, fn, arg));
+    struct tstart *s = malloc(sizeof *s);                 /* the thread registers its tid first (mach.inc) */
+    s->fn = fn; s->arg = arg;
+    int r = pthread_create(t, a && a->sig == 0x54485241 ? a->host : NULL, thread_trampoline, s);
+    if (r) free(s);
+    return d_errno(r);
 }
 static int d_pthread_join(pthread_t t, void **r) { return d_errno(pthread_join(t, r)); }
 static int d_pthread_detach(pthread_t t) { return d_errno(pthread_detach(t)); }
@@ -292,8 +294,6 @@ static int d_ulock_wake(uint32_t op, void *addr, uint64_t wake_value) {
     syscall(SYS_futex, addr, FUTEX_WAKE_PRIVATE, (op & ULF_WAKE_ALL) ? INT32_MAX : 1, NULL, NULL, 0);
     return 0;
 }
-static unsigned int d_pthread_mach_thread_np(pthread_t t) { return (unsigned int)(((uintptr_t)t >> 12) & 0xffffffff) | 1; }
-static int d_pthread_threadid_np(pthread_t t, uint64_t *id) { if (id) *id = t ? (uint64_t)(uintptr_t)t : (uint64_t)gettid(); return 0; }
 static void *d_pthread_get_stackaddr_np(pthread_t t) {
     pthread_attr_t a; void *addr = NULL; size_t sz = 0;
     if (pthread_getattr_np(t, &a) == 0) { pthread_attr_getstack(&a, &addr, &sz); pthread_attr_destroy(&a); }
@@ -381,6 +381,7 @@ void libsystem_init(int argc, char **argv) {
     guest_argc = argc; guest_argv = argv;
     if (argc > 0) { char *a = strdup(argv[0]); d_progname = strdup(basename(a)); free(a); }
     if (getrandom(&stack_chk_guard, sizeof stack_chk_guard, 0) != sizeof stack_chk_guard) stack_chk_guard = 0x5a17e57a;
+    mach_init();
 }
 
 extern int __cxa_atexit(void (*f)(void *), void *arg, void *dso);
@@ -401,7 +402,7 @@ static const struct shim libsystem_table[] = {
     P(puts), P(fputs), P(fputc), P(putchar), P(fwrite), P(fread), P(fflush), P(fopen), P(fclose), P(fgets), P(fseek), P(ftell), P(perror),
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
     /* process & environment */
-    P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(sleep), P(usleep), P(nanosleep),
+    P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(getpagesize), P(sleep), P(usleep), P(nanosleep),
     A("_open", d_open), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(ftruncate), P(fsync), P(access), P(unlink), P(readlink), P(getcwd), P(mkdir), P(rmdir), P(chmod),
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
@@ -413,7 +414,7 @@ static const struct shim libsystem_table[] = {
     A("_iswalpha", d_iswalpha), A("_iswdigit", d_iswdigit), A("_iswalnum", d_iswalnum), A("_iswspace", d_iswspace), A("_iswpunct", d_iswpunct),
     A("_iswupper", d_iswupper), A("_iswlower", d_iswlower), A("_iswcntrl", d_iswcntrl), A("_iswprint", d_iswprint), A("_iswxdigit", d_iswxdigit),
     A("_iswgraph", d_iswgraph), A("_towupper", d_towupper), A("_towlower", d_towlower), A("_qos_class_self", d_qos_class_self), I("___isPlatformVersionAtLeast", d_isPlatformVersionAtLeast), I("___isOSVersionAtLeast", d_isOSVersionAtLeast), A("_qos_class_main", d_qos_class_main), A("_pthread_set_qos_class_self_np", d_pthread_set_qos_class_self_np), A("_pthread_get_qos_class_np", d_pthread_get_qos_class_np), A("_clock_getres", d_clock_getres), A("_memset_s", d_memset_s), I("_memset_pattern4", d_memset_pattern4), I("_memset_pattern8", d_memset_pattern8), I("_memset_pattern16", d_memset_pattern16), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
-    A("_mach_absolute_time", d_mach_absolute_time), A("_mach_timebase_info", d_mach_timebase_info),
+    MACH_SHIMS,
     /* math (Darwin's libm lives in libSystem): full C99 set incl. f/l variants */
     P(acos),
     P(acosf),
@@ -595,8 +596,8 @@ static const struct shim libsystem_table[] = {
     P(clearerr), P(feof), P(ferror), P(strcoll), P(strxfrm), P(strpbrk), P(strspn), P(strcspn), P(strtok), P(strtok_r),
     P(strerror), A("_strerror_r", d_strerror_r), A("_strlcpy", d_strlcpy), A("_strlcat", d_strlcat), P(clock), P(difftime), P(asctime), P(ctime),
     P(gmtime), P(localtime), P(timespec_get), P(imaxabs), P(imaxdiv), P(strtoimax), P(strtoumax), POSIX_EXTRAS,
-    A("___ulock_wait", d_ulock_wait), A("___ulock_wake", d_ulock_wake), A("_pthread_mach_thread_np", d_pthread_mach_thread_np),
-    A("_pthread_threadid_np", d_pthread_threadid_np), A("_pthread_get_stackaddr_np", d_pthread_get_stackaddr_np),
+    A("___ulock_wait", d_ulock_wait), A("___ulock_wake", d_ulock_wake),
+    A("_pthread_get_stackaddr_np", d_pthread_get_stackaddr_np),
     A("_pthread_get_stacksize_np", d_pthread_get_stacksize_np), A("_pthread_attr_init", d_attr_init),
     A("_pthread_attr_destroy", d_attr_destroy), A("_pthread_attr_setstacksize", d_attr_setstacksize),
     A("_pthread_attr_getstacksize", d_attr_getstacksize), A("_pthread_attr_getstack", d_attr_getstack),
