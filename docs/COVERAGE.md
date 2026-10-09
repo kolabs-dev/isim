@@ -26,8 +26,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 216 | 4 | 0 | 15 | 235 | 93% |
-| &nbsp;&nbsp;↳ Application & scenes | 23 | 2 | 0 | 0 | 25 | 96% |
+| **UIKit** | 218 | 2 | 0 | 15 | 235 | 93% |
+| &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
 | &nbsp;&nbsp;↳ Views & controls | 60 | 0 | 0 | 14 | 74 | 81% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **746** | **192** | **26** | **47** | **1011** | **83%** |
+| **All areas** | **748** | **190** | **26** | **47** | **1011** | **83%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 99% (206) | 99% (210) | 97% (224) | 93% (235) |
+| UIKit | 100% (206) | 100% (210) | 98% (224) | 93% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (82) | 85% (82) | 85% (82) | 85% (82) |
@@ -143,9 +143,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIDevice` (name, model, systemVersion, userInterfaceIdiom) | ✅ | ≤17 | systemVersion is the emulated version (`--os` / `ISIM_OS_VERSION`); battery level/state and notifications from `ISIM_BATTERY` (`"LEVEL [unplugged|charging|full]"`, default `"1 full"`); `identifierForVendor` stable per device data and vendor; proximity monitoring (never near). Tested (HelloWindows) |
 | Device orientation, rotation, `supportedInterfaceOrientations` | ✅ | ≤17 | Ctrl+Left/Right or script `rotate`; Info.plist/delegate/VC masks (containers use their visible child; no plist key = portrait, adapted), `requestGeometryUpdate`, device notifications, landscape screen through the shell; tested (HelloRotation) |
 | Application/scene lifecycle notifications (`didBecomeActiveNotification`, …) | ✅ | ≤17 | |
-| `open(_:options:)` / `canOpenURL` | 🟡 | ≤17 | URLs of installed apps' schemes and universal links open those apps through the home screen (`universalLinksOnly` honoured), `canOpenURL` sees installed schemes (tested, HelloSystem); `app-settings:` opens Settings; other http(s)/mailto open on the host only with `ISIM_OPEN_URLS=1` |
+| `open(_:options:)` / `canOpenURL` | ✅ | ≤17 | URLs of installed apps' schemes and universal links open those apps through the home screen (`universalLinksOnly` honoured), `canOpenURL` sees installed schemes (tested, HelloSystem); `app-settings:` opens Settings; other http(s) URLs open in isim's Safari (a WKWebView browser: iPhone bottom address bar, iPad top bar; tested, test_handoff). With `isim run` (no home screen) web/mailto URLs open on the host only with `ISIM_OPEN_URLS=1`; no Mail app (`mailto:` is logged) |
 | Incoming URLs (custom URL schemes, `application(_:open:)`, scene URL contexts) | ✅ | ≤17 | `CFBundleURLTypes` routing (script `openurl URL`, other apps' `open`), `scene(_:openURLContexts:)` and `connectionOptions.urlContexts` on cold launch, `application(_:open:options:)` for apps without scenes, SwiftUI `onOpenURL`. Tested (HelloSystem) |
-| Universal links, `NSUserActivity`, Handoff | 🟡 | ≤17 | adapted: one `NSUserActivity` (Foundation): `becomeCurrent` indexes `isEligibleForSearch` activities for the home screen's Spotlight; continuing one calls `scene(_:continue:)` / `application(_:continue:restorationHandler:)` (or `connectionOptions.userActivities` / launch options on a cold launch) and SwiftUI `onContinueUserActivity` (else `onOpenURL`). Universal links: `applinks:` domains (incl. `*.` wildcards, `?mode=`) from the app's archived-expanded-entitlements.xcent (written by `isim build` from `CODE_SIGN_ENTITLEMENTS`); `openurl https://…` (script, or `isim openurl` with `--control`) — under `isim boot` the home screen opens the app that claims the domain (also for `UIApplication.open` from other apps), with `isim run` the running app gets links of its own domains, other web URLs "open in Safari" (logged). No AASA fetch (all paths match), no Handoff. Tested (HelloSystem, HelloSafari, HelloScenes) |
+| Universal links, `NSUserActivity`, Handoff | ✅ | ≤17 | adapted: one `NSUserActivity` (Foundation): `becomeCurrent` indexes `isEligibleForSearch` activities for the home screen's Spotlight; continuing one calls `scene(_:continue:)` / `application(_:continue:restorationHandler:)` (or `connectionOptions.userActivities` / launch options on a cold launch) and SwiftUI `onContinueUserActivity` (else `onOpenURL`). Universal links: `applinks:` domains (incl. `*.` wildcards, `?mode=`) from the app's archived-expanded-entitlements.xcent (written by `isim build` from `CODE_SIGN_ENTITLEMENTS`); `openurl https://…` (script, or `isim openurl` with `--control`) — under `isim boot` the home screen opens the app that claims the domain (also for `UIApplication.open` from other apps), with `isim run` the running app gets links of its own domains, other web URLs "open in Safari" (logged). No AASA fetch (all paths match). Handoff: adapted, isim is one device: `becomeCurrent` of an `isEligibleForHandoff` activity is logged as advertised, and the script `handoff TYPE [URL] [TITLE]` plays the other device: the app declaring `TYPE` in `NSUserActivityTypes` continues it (cold or warm), web pages go to the claiming app or Safari. Tested (HelloSystem, HelloSafari, HelloScenes, test_handoff) |
 | `applicationIconBadgeNumber` | ✅ | ≤17 | the home-screen icon shows the badge when notifications may badge; same store as `UNUserNotificationCenter.setBadgeCount`. Tested (HelloPush) |
 | `isIdleTimerDisabled` | ✅ | ≤17 | adapted: under `isim boot` with `ISIM_AUTOLOCK=SECONDS` the device locks after that much idle time unless the foreground app disables the idle timer (default: never locks, like the Simulator; lock: Ctrl+L / script `lock`). Tested (HelloViews) |
 | Status bar (`prefersStatusBarHidden`, `preferredStatusBarStyle`), home indicator, deferred edge gestures | ✅ | ≤17 | view-controller-based (`childForStatusBarHidden/Style`, presented full-screen controllers, `setNeedsStatusBarAppearanceUpdate`) and the Info.plist keys; default/light/dark content; SwiftUI `statusBarHidden`; tested by pixels (HelloViews). `prefersHomeIndicatorAutoHidden` / `preferredScreenEdgesDeferringSystemGestures` with their `setNeedsUpdateOf…` calls (the indicator fades after 2 s; the bottom edge needs a second swipe) (unverified in UIKit; tested through SwiftUI, HelloEffects) |

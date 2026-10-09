@@ -52,7 +52,8 @@ static void spotlight_update(void (^edit)(NSMutableArray *items)) {
 - (void)becomeCurrent {
     id<NSUserActivityDelegate> d = _delegate;
     if (_needsSave && [d respondsToSelector:@selector(userActivityWillSave:)]) { [d userActivityWillSave:self]; _needsSave = NO; }
-    if (!_eligibleForSearch) { NSLog(@"isim: user activity %@ is current (not indexed: isEligibleForSearch is false; no Handoff on isim)", _activityType); return; }
+    if (_eligibleForHandoff) NSLog(@"isim: user activity %@ is current and advertised for Handoff (isim has no nearby devices; script `handoff` plays one)", _activityType);
+    if (!_eligibleForSearch) { NSLog(@"isim: user activity %@ is current (not indexed: isEligibleForSearch is false)", _activityType); return; }
     NSDictionary *entry = @{ @"id": [self _isim_indexID], @"title": _title ?: @"", @"kind": @"activity", @"keywords": _keywords.allObjects ?: @[],
                              @"domain": @"", @"activity": [self _isim_plist] };
     spotlight_update(^(NSMutableArray *items) {

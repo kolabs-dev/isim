@@ -67,8 +67,8 @@ def test_system(launch):
     dev.wait_log(r"continue NSUserActivityTypeBrowsingWeb https://hello\.isim\.dev/items/7")   # universal link
     dev.send("openurl hellosystem://open?x=1")
     dev.wait_log(r"openURLContexts hellosystem://open\?x=1")             # custom URL scheme via openurl
-    dev.send("openurl https://example.com/nothing")
-    dev.wait_log(r"no app handles https://example\.com/nothing")         # unknown URL not handled
+    dev.send("openurl nothing://here")
+    dev.wait_log(r"no app handles nothing://here")                      # unknown URL scheme not handled
     dev.wait_tap_id("schedule")
     dev.wait_log(r"submitted dev\.isim\.samples\.HelloSystem\.refresh \(refresh\)")
     dev.wait_log(r"unpermitted submit error code 3")
