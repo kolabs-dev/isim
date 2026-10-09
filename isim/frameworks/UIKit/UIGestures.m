@@ -215,6 +215,7 @@ BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down) {
                : hid == 0x28 ? UIPressTypeSelect : hid == 0x29 ? UIPressTypeMenu : (UIPressType)-1;
     if (!active_presses) active_presses = [NSMutableDictionary dictionary];
     UIResponder *start = focus_responder();
+    if (down && !mflag && !(mods & (UIKeyModifierCommand | UIKeyModifierControl)) && isim_ui_menu_key(hid, key.characters)) return YES;   /* an open menu first */
     /* key commands first (key down, modifiers themselves never match) */
     BOOL consumed = NO;
     if (down && !mflag) {

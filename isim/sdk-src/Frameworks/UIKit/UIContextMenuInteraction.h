@@ -24,6 +24,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UIContextMenuConfigurationElementOrder preferredMenuElementOrder API_AVAILABLE(ios(16.0));
 @property (nonatomic, copy) NSSet<NSIndexPath *> *secondaryItemIdentifiers API_AVAILABLE(ios(16.0));
 @property (nonatomic) NSInteger badgeCount API_AVAILABLE(ios(16.0));
+/* iOS 27: typing on a hardware keyboard moves the highlight to a matching item (default YES); NO lets the keys reach an
+   active text field */
+@property (nonatomic) BOOL allowsTypeSelect API_AVAILABLE(ios(27.0));
 @end
 NS_SWIFT_UI_ACTOR
 @protocol UIContextMenuInteractionAnimating <NSObject>

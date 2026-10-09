@@ -21,6 +21,7 @@
 + (instancetype)configurationWithIdentifier:(id<NSCopying>)identifier previewProvider:(UIContextMenuContentPreviewProvider)preview actionProvider:(UIContextMenuActionProvider)actions {
     UIContextMenuConfiguration *c = [self new];
     c.identifier = identifier ?: NSUUID.UUID; c.previewProvider = preview; c.actionProvider = actions; c.secondaryItemIdentifiers = [NSSet set];
+    c.allowsTypeSelect = YES;
     return c;
 }
 @end
@@ -129,6 +130,7 @@ static void present_context_menu(__IsimContextSession *s, UIView *source, CGRect
     if (menu.children.count) {
         [overlay _isim_presentMenu:menu fromRect:[overlay convertRect:anchor fromView:overlay] previewRect:host.frame
                       onPreviewTap:^{ end_session(ws, YES); } onDismiss:^{ end_session(ws, NO); }];
+        isim_ui_menu_set_type_select(s.configuration.allowsTypeSelect);
     } else {
         UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:overlay action:@selector(removeFromSuperview)];
         [overlay addGestureRecognizer:tap];

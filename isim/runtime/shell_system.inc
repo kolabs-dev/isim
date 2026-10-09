@@ -786,6 +786,23 @@ static void nb_thumb(cairo_t *c, const char *path, double x, double y, double s)
     isim_image_free(hd);
 }
 
+/* What the overlays leave of the device: the status bar (system UI drawn over them; alpha: Control Center's fade-in),
+   the Dynamic Island or notch, the home indicator (lock screen, Notification Center) and the display's rounded
+   corners. Over apps host.c draws these in isim_frame_end. */
+static void sys_chrome(cairo_t *c, double alpha) {
+    static const double white[4] = { 1, 1, 1, 1 };
+    int lockish = ov == OV_LOCK || ov == OV_NC || (ov == OV_NX && locked);
+    if (!pctx) text_context(c);
+    cairo_t *saved = cr; cr = c;
+    cairo_save(c); cairo_identity_matrix(c); cairo_reset_clip(c); cairo_scale(c, px_scale, px_scale);
+    cairo_push_group(c);
+    draw_status_bar(ov == OV_CC ? SB_CC : lockish ? SB_LOCK : SB_APP, white);
+    cairo_pop_group_to_source(c); cairo_paint_with_alpha(c, alpha);
+    draw_hardware(lockish, white);
+    apply_corner_mask();
+    cairo_restore(c);
+    cr = saved;
+}
 static void sys_draw(void) {
     if (!comp) comp = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
     nels = 0;
@@ -860,6 +877,7 @@ static void sys_draw(void) {
         cairo_paint_with_alpha(c, ov == OV_CC ? e : 1);
     }
     cairo_surface_destroy(bs); cairo_surface_destroy(home);
+    if (ov != OV_NONE) sys_chrome(c, ov == OV_CC ? e : 1);
     if (cc_brightness < 0.999) { cairo_identity_matrix(c); cairo_set_source_rgba(c, 0, 0, 0, (1 - cc_brightness) * 0.7); cairo_paint(c); }
     cairo_destroy(c);
     present_comp();

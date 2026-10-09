@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 221 | 2 | 0 | 12 | 235 | 94% |
+| **UIKit** | 225 | 2 | 0 | 8 | 235 | 96% |
 | &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 63 | 0 | 0 | 11 | 74 | 85% |
+| &nbsp;&nbsp;↳ Views & controls | 67 | 0 | 0 | 7 | 74 | 91% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **760** | **186** | **23** | **43** | **1012** | **84%** |
+| **All areas** | **764** | **186** | **23** | **39** | **1012** | **85%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (206) | 100% (210) | 99% (224) | 94% (235) |
+| UIKit | 100% (207) | 100% (211) | 99% (225) | 96% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (955) | **86%** (967) | **85%** (991) | **84%** (1012) |
+| **All areas** | **86%** (956) | **86%** (968) | **85%** (992) | **85%** (1012) |
 
 ---
 
@@ -143,7 +143,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIDevice` (name, model, systemVersion, userInterfaceIdiom) | ✅ | ≤17 | systemVersion is the emulated version (`--os` / `ISIM_OS_VERSION`); battery level/state and notifications from `ISIM_BATTERY` (`"LEVEL [unplugged|charging|full]"`, default `"1 full"`); `identifierForVendor` stable per device data and vendor; proximity monitoring (never near). Tested (HelloWindows) |
 | Device orientation, rotation, `supportedInterfaceOrientations` | ✅ | ≤17 | Ctrl+Left/Right or script `rotate`; Info.plist/delegate/VC masks (containers use their visible child; no plist key = portrait, adapted), `requestGeometryUpdate`, device notifications, landscape screen through the shell; tested (HelloRotation) |
 | Application/scene lifecycle notifications (`didBecomeActiveNotification`, …) | ✅ | ≤17 | |
-| `open(_:options:)` / `canOpenURL` | ✅ | ≤17 | URLs of installed apps' schemes and universal links open those apps through the home screen (`universalLinksOnly` honoured), `canOpenURL` sees installed schemes (tested, HelloSystem); `app-settings:` opens Settings; other http(s) URLs open in isim's Safari (a WKWebView browser: iPhone bottom address bar, iPad top bar; tested, test_handoff). With `isim run` (no home screen) web/mailto URLs open on the host only with `ISIM_OPEN_URLS=1`; no Mail app (`mailto:` is logged) |
+| `open(_:options:)` / `canOpenURL` | ✅ | ≤17 | URLs of installed apps' schemes and universal links open those apps through the home screen (`universalLinksOnly` honoured), `canOpenURL` sees installed schemes (tested, HelloSystem); `app-settings:` opens Settings; other http(s) URLs open in isim's Safari (a WKWebView browser: iPhone bottom address bar, a floating Liquid Glass bar under iOS 26+, iPad top bar; tested, test_handoff). With `isim run` (no home screen) web/mailto URLs open on the host only with `ISIM_OPEN_URLS=1`; no Mail app (`mailto:` is logged) |
 | Incoming URLs (custom URL schemes, `application(_:open:)`, scene URL contexts) | ✅ | ≤17 | `CFBundleURLTypes` routing (script `openurl URL`, other apps' `open`), `scene(_:openURLContexts:)` and `connectionOptions.urlContexts` on cold launch, `application(_:open:options:)` for apps without scenes, SwiftUI `onOpenURL`. Tested (HelloSystem) |
 | Universal links, `NSUserActivity`, Handoff | ✅ | ≤17 | adapted: one `NSUserActivity` (Foundation): `becomeCurrent` indexes `isEligibleForSearch` activities for the home screen's Spotlight; continuing one calls `scene(_:continue:)` / `application(_:continue:restorationHandler:)` (or `connectionOptions.userActivities` / launch options on a cold launch) and SwiftUI `onContinueUserActivity` (else `onOpenURL`). Universal links: `applinks:` domains (incl. `*.` wildcards, `?mode=`) from the app's archived-expanded-entitlements.xcent (written by `isim build` from `CODE_SIGN_ENTITLEMENTS`); `openurl https://…` (script, or `isim openurl` with `--control`) — under `isim boot` the home screen opens the app that claims the domain (also for `UIApplication.open` from other apps), with `isim run` the running app gets links of its own domains, other web URLs "open in Safari" (logged). No AASA fetch (all paths match). Handoff: adapted, isim is one device: `becomeCurrent` of an `isEligibleForHandoff` activity is logged as advertised, and the script `handoff TYPE [URL] [TITLE]` plays the other device: the app declaring `TYPE` in `NSUserActivityTypes` continues it (cold or warm), web pages go to the claiming app or Safari. Tested (HelloSystem, HelloSafari, HelloScenes, test_handoff) |
 | `applicationIconBadgeNumber` | ✅ | ≤17 | the home-screen icon shows the badge when notifications may badge; same store as `UNUserNotificationCenter.setBadgeCount`. Tested (HelloPush) |
@@ -261,15 +261,15 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UINavigationItem` subtitles (`subtitle`, `largeSubtitle`, `attributedSubtitle`, `largeAttributedSubtitle`, `subtitleView`, `largeSubtitleView`), `largeTitle`, `attributedTitle` (`AttributedString` in Swift); `UINavigationBarAppearance.subtitleTextAttributes` / `largeSubtitleTextAttributes` | ✅ | 26.0 | adapted: inline, a 17 pt title over a 13 pt secondary subtitle centred in the bar row; under a large title a 15 pt subtitle (`largeSubtitle`, else the subtitle) and a 72 pt large title band; subtitle views sit where the text would. Font sizes and spacing are isim's estimate (not yet compared with a device). Tested (HelloModernBars) |
 | Search in toolbars (`searchBarPlacementAllowsToolbarIntegration`, `searchBarPlacementAllowsExternalIntegration`, `searchBarPlacementBarButtonItem`, `.integrated*` placements) | ❌ | 26.0 | |
 | `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloUITabs, per version: classic tabs on iOS 17) |
-| `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ❌ | 27.0 | |
+| `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ✅ | 27.0 | adapted: the lift delay is 0.5 s, `.extended` 0.75 s (isim's estimate) and a second finger cancels the lift; a pointer drag (iPad pointer touches, script `pointerdrag`) starts once the pointer moves unless `allowsPointerDragBeforeLiftDelay` is false (then it waits for the lift delay like a finger). Tested (HelloKit27) |
 | `NSTextTable`/`NSTextBlock` in UIKit, `UITextAttachmentViewProviderReusePolicy`, viewport rendering surfaces | ❌ | 27.0 | |
 | Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ❌ | 27.0 | |
-| `UIWindowScene.displayLink(target:selector:)` | ❌ | 27.0 | |
+| `UIWindowScene.displayLink(target:selector:)`, `displayLink(action:)` | ✅ | 27.0 | passthrough: isim has one display per device, so it is an ordinary `CADisplayLink` (add it to a run loop to start it); the closure form keeps its closure alive with the link. Tested (HelloKit27) |
 | `UINavigationItem.barMinimizeBehavior`, `barMinimizationSafeAreaAdjustment`, `UIBarButtonItem.visibilityPriority` | ❌ | 27.0 | the SwiftUI toolbar equivalents are implemented |
-| `UIMenuElement.subtitle`, `preferredImageVisibility`, `highlightStateUpdateHandler`; `UIContextMenuConfiguration.allowsTypeSelect` | ❌ | 27.0 | |
+| `UIMenuElement.subtitle`, `preferredImageVisibility`, `highlightStateUpdateHandler`; `UIContextMenuConfiguration.allowsTypeSelect` | ✅ | 27.0 | adapted: a subtitle is a second line (15 pt, secondary) and makes the row 58 pt; `.hidden` drops the image; the handler is told when a row is highlighted by touch or keyboard. Menus take a hardware keyboard: arrows move the highlight, Return chooses, Escape closes, letters type-select (unless `allowsTypeSelect` is false: then they reach the focused text field). `subtitle` itself is iOS 15. Tested (HelloKit27) |
 | `UITabBarController.prominentTabIdentifier`, `performBatchUpdates(_:)`, sidebar `preferredPlacement` / `isAvailable` / visibility callback | ❌ | 27.0 | |
-| `UILookToScrollInteraction` | ❌ | 27.0 | |
-| `UIImage.symbolWeight()`, `UIDocumentViewControllerLaunchOptions.subtitle` | ❌ | 27.0 | |
+| `UIFont.Weight.symbolWeight()`, `UIImage.SymbolWeight.fontWeight()` | ✅ | ≤17 | the nearest of the nine weights; `.unspecified` is regular. (iOS 13; listed under iOS 27 before.) Tested (HelloKit27) |
+| `UIDocumentViewController.LaunchOptions.subtitle` | ❌ | 27.0 | needs `UIDocument` / `UIDocumentViewController`, which isim does not have yet |
 | `UIArrangementViewController`, `UIView.ReservedRegion`, `UIHingeInteraction`, vertical bar placement | ❌ | 27.1 | iPhone Duo APIs (iOS 27.1 beta) |
 
 ### Layout
@@ -1484,7 +1484,7 @@ Transaction Manager. Tested by `tests/ui/test_store.py` (HelloStore sample).
 | Home screen: folders, App Library, widgets, rearranging icons, Spotlight | ✅ | ≤17 | edit mode: drag to rearrange, drop on an icon to make a folder (named from `LSApplicationCategoryType`); folders open; App Library page (categories, search); widgets in grid cells on any page (gallery); Spotlight (pull down on any page, Search button, script `spotlight`). Tested (homescreen, widgets, homepages). No folder renaming, dragging out of folders, jiggle animation |
 | Home screen pages | ✅ | ≤17 | 4×6 grid pages on iPhone (iPad: 6 columns), the dock fixed across pages; paging with rubber-banding at the ends, velocity snapping and a spring settle; page dots above the dock (tap / scrub to switch; one page: the Search button); edit mode: hold a dragged icon at the screen edge to turn the page, drops on a full page push the overflow to the next page, a new page past the last one, empty pages removed on Done; Edit Pages (tap the dots in edit mode): thumbnails with checkmarks to hide/show pages; saved in `Library/SpringBoard/IconState.plist` (pages, hidden, known apps); new apps go to the first page with space, or only to the App Library (Settings > Home Screen & App Library > App Library Only); script `homepage N|library`, `swipehome left|right`, `drag … secs hold`; `dump` shows "page X of N". Tested (homepages: 52 apps). No reordering of pages in Edit Pages, no page deletion button |
 | App switcher / multitasking | ✅ | ≤17 | swipe up and hold, Ctrl+Shift+H twice, script `switcher`: cards of running apps (last frames) in recent order; swipe a card up to close the app (scene sessions discarded), tap to switch. Tested (systemui). No Slide Over / Split View |
-| Lock screen, Notification Center, Control Center | ✅ | ≤17 | lock (Ctrl+L, script `lock`): apps go to the background, clock, notifications and Live Activities; swipe up / `unlock`. Notification Center (pull down from the top): list, open (didReceive), clear. Control Center (pull down at the top right): Wi-Fi / Airplane Mode make the network unavailable (NWPathMonitor, URLSession), Dark Mode (the global setting), orientation lock, Focus (hides banners); brightness dims the screen; cellular, Bluetooth, mirroring, volume, flashlight, timer are cosmetic. Tested (systemui) |
+| Lock screen, Notification Center, Control Center | ✅ | ≤17 | lock (Ctrl+L, script `lock`): apps go to the background, clock, notifications and Live Activities; swipe up / `unlock`. Notification Center (pull down from the top): list, open (didReceive), clear. Control Center (pull down at the top right): Wi-Fi / Airplane Mode make the network unavailable (NWPathMonitor, URLSession), Dark Mode (the global setting), orientation lock, Focus (hides banners); brightness dims the screen; cellular, Bluetooth, mirroring, volume, flashlight, timer are cosmetic. Tested (systemui). Over these overlays and the app switcher the Dynamic Island / notch, the rounded display corners and the status bar stay (lock screen and Notification Center: no clock, the carrier name up to iOS 18, the home indicator; Control Center: the carrier name and battery percentage, below the cutout on Face ID iPhones); tested by pixels (test_overlay_chrome.py) |
 | Settings app: General (About, Date & Time, Keyboard, Language & Region), Display & Brightness, Game Center, per-app pages | 🟡 | ≤17 | only the settings isim implements; per-app pages: the Settings.bundle, keyboards, Paste from Other Apps |
 | Settings bundles (`Settings.bundle` for app pages) | ✅ | ≤17 | the app's page in Settings: PSGroupSpecifier (header/footer), PSTextFieldSpecifier (secure), PSToggleSwitchSpecifier (True/FalseValue), PSMultiValueSpecifier, PSRadioGroupSpecifier (unverified), PSSliderSpecifier, PSTitleValueSpecifier, PSChildPaneSpecifier, StringsTable localization; written to the app's `UserDefaults` domain (re-read when the app returns to the foreground, posting "NSUserDefaultsDidChangeNotification" by name — the constant is not declared yet); tested (HelloStoryboards). Apps with keyboard extensions keep the Keyboards page instead |
 | System keyboard + keyboard extensions | ✅ | ≤17 | English (US) only |
