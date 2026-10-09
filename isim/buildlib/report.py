@@ -47,3 +47,59 @@ def summarize(xml, log, out, repo):
     md += ["### Slowest", "", "| Test | Time |", "|---|---:|"] + [f"| `{n}` | {t:.0f} s |" for t, n in slow]
     with open(out, "w") as f:
         f.write("\n".join(md) + "\n")
+
+
+def _results(xml):
+    """{test name: ("passed" | "failed" | "skipped", message)} of a JUnit file (a rerun test: its last attempt)"""
+    out = {}
+    for c in ET.parse(xml).getroot().iter("testcase"):
+        name = f"{c.get('file') or c.get('classname')}::{c.get('name')}"
+        bad = c.find("failure") if c.find("failure") is not None else c.find("error")
+        if bad is not None:
+            msg = (bad.get("message") or "").splitlines()[0][:200] if bad.get("message") else ""
+            out[name] = ("failed", msg)
+        elif c.find("skipped") is not None:
+            out[name] = ("skipped", "")
+        else:
+            out[name] = ("passed", "")
+    return out
+
+
+def matrix(versions, out):
+    """One summary for the CI run's test jobs, one per iOS version. versions: {"17": junit xml path, ...}. Totals per
+    version, the failures, then every test that ran under more than one version with its result in each."""
+    res, missing = {}, []
+    for v, path in versions.items():
+        try:
+            res[v] = _results(path)
+        except (OSError, ET.ParseError):
+            missing.append(v)
+    icon = {"passed": "✅", "failed": "❌", "skipped": "⏭"}
+    vs = list(versions)
+    failed = any(r == "failed" for v in res for r, _ in res[v].values()) or missing
+    md = [f"## {'❌' if failed else '✅'} Tests by iOS version", "",
+          "| | " + " | ".join(f"iOS {v}" for v in vs) + " |", "|---|" + "---:|" * len(vs)]
+    for kind in ("passed", "failed", "skipped"):
+        md.append(f"| {icon[kind]} {kind} | " + " | ".join(
+            "no results" if v in missing else str(sum(1 for r, _ in res[v].values() if r == kind)) for v in vs) + " |")
+    md.append("")
+    fails = [(v, n, m) for v in vs if v in res for n, (r, m) in sorted(res[v].items()) if r == "failed"]
+    if fails or missing:
+        md += ["### Failed", "", "| iOS | Test | Error |", "|---|---|---|"]
+        md += [f"| {v} | (the test job did not finish) | |" for v in missing]
+        md += ["| %s | `%s` | %s |" % (v, n, m.replace("|", "\\|")) for v, n, m in fails] + [""]
+    names = sorted({n for v in res for n in res[v]})
+    multi = [n for n in names if sum(n in res[v] for v in res) > 1]
+    if multi:
+        md += ["### Tests run under every version (os_matrix)", "", "| Test | " + " | ".join(f"iOS {v}" for v in vs) + " |",
+               "|---|" + ":---:|" * len(vs)]
+        md += ["| `%s` | %s |" % (n, " | ".join(icon[res[v][n][0]] if v in res and n in res[v] else "—" for v in vs)) for n in multi]
+    with open(out, "w") as f:
+        f.write("\n".join(md) + "\n")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":       # report.py matrix OUT.md 17=a.xml 18=b.xml ...
+    import sys
+    if sys.argv[1:2] == ["matrix"]:
+        sys.exit(matrix(dict(a.split("=", 1) for a in sys.argv[3:]), sys.argv[2]) and 0)

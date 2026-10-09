@@ -158,11 +158,26 @@ jobs:
 
   status:
     name: status
-    if: always() && github.event_name == 'workflow_dispatch'
+    if: always()
     needs: [build, test]
     runs-on: ubuntu-24.04
     steps:
+      # one summary for the four test jobs: totals and failures per iOS version, the os_matrix tests side by side
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: isim/buildlib
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-ios*
+          path: results
+      - name: Test results by iOS version
+        run: |
+          args=""
+          for v in 17 18 26 27; do args="$args $v=results/test-results-ios$v/test-results.xml"; done
+          python3 isim/buildlib/report.py matrix matrix.md $args
+          cat matrix.md >> "$GITHUB_STEP_SUMMARY"
       - name: Status (result)
+        if: github.event_name == 'workflow_dispatch'
         run: |
           b="${{ needs.build.result }}" t="${{ needs.test.result }}"
           if [ "$b" = success ] && [ "$t" = success ]; then state=success
