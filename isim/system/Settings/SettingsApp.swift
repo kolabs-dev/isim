@@ -69,7 +69,7 @@ struct SettingsApp: App {
 enum Route: Hashable {
     case accessibility, textSize, voiceOver
     case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter, homeScreen
-    case app(String), appKeyboards(String)
+    case app(String), appKeyboards(String), appPaste(String)
     case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
 }
 
@@ -162,6 +162,7 @@ struct RootView: View {
         case .gameCenter: GameCenterView()
         case .app(let id): AppSettingsView(id: id)
         case .appKeyboards(let id): AppKeyboardsView(id: id)
+        case .appPaste(let id): PasteAccessView(id: id)
         case .appPane(let bundle, let file, let id): ChildPaneView(bundlePath: bundle, file: file, appID: id)
         case .appMultiValue(let bundle, let file, let key): MultiValueRouteView(bundlePath: bundle, file: file, key: key)
         }
@@ -545,19 +546,60 @@ struct AppSettingsView: View {
             AppBundleSettingsView(app: app, bundlePath: bundle)       // the app's Settings.bundle
         } else {
         List {
-            if let app = app, !app.keyboards.isEmpty {
-                Section("Allow \(app.name) to Access") {
-                    NavigationLink(value: Route.appKeyboards(app.id)) {
-                        Label { Text("Keyboards") } icon: { SettingsIcon(symbol: "keyboard", color: .gray) }
-                    }
-                    .accessibilityIdentifier("settings-app-keyboards")
-                }
+            if let app = app {
+                AppAccessSection(app: app)
             } else {
                 Section { Text("No settings for this app.").foregroundStyle(.secondary) }
             }
         }
         .navigationTitle(app?.name ?? id).navigationBarTitleDisplayMode(.inline)
         }
+    }
+}
+
+/// "Allow <app> to Access": Paste from Other Apps (every app) and the app's keyboards
+struct AppAccessSection: View {
+    let app: InstalledApp
+    var body: some View {
+        Section("Allow \(app.name) to Access") {
+            NavigationLink(value: Route.appPaste(app.id)) {
+                LabeledContent {
+                    Text(pasteAccessTitle(AppPreferences(appID: app.id).value("_ISIMPrivacy.paste") as? String))
+                } label: {
+                    Label { Text("Paste from Other Apps") } icon: { SettingsIcon(symbol: "doc.on.clipboard", color: .blue) }
+                }
+            }
+            .accessibilityIdentifier("settings-app-paste")
+            if !app.keyboards.isEmpty {
+                NavigationLink(value: Route.appKeyboards(app.id)) {
+                    Label { Text("Keyboards") } icon: { SettingsIcon(symbol: "keyboard", color: .gray) }
+                }
+                .accessibilityIdentifier("settings-app-keyboards")
+            }
+        }
+    }
+}
+func pasteAccessTitle(_ v: String?) -> String { v == "deny" ? "Deny" : v == "allow" ? "Allow" : "Ask" }
+/// the app's "_ISIMPrivacy.paste" (UIPasteboard reads it): ask (default), deny, allow
+struct PasteAccessView: View {
+    let id: String
+    @StateObject private var prefs: AppPreferences
+    init(id: String) { self.id = id; _prefs = StateObject(wrappedValue: AppPreferences(appID: id)) }
+    var body: some View {
+        let current = prefs.value("_ISIMPrivacy.paste") as? String ?? "ask"
+        List {
+            Section {
+                ForEach(["ask", "deny", "allow"], id: \.self) { v in
+                    Button { prefs.set("_ISIMPrivacy.paste", v) } label: {
+                        HStack { Text(pasteAccessTitle(v)).foregroundStyle(.primary); Spacer(); if current == v { Image(systemName: "checkmark").foregroundStyle(.blue) } }
+                    }
+                    .accessibilityIdentifier("settings-paste-\(v)")
+                }
+            } footer: {
+                Text("Allow this app to paste content copied from other apps.")
+            }
+        }
+        .navigationTitle("Paste from Other Apps").navigationBarTitleDisplayMode(.inline)
     }
 }
 

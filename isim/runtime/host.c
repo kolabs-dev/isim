@@ -40,6 +40,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 
 #include "runtime.h"
 #include "host_crypto.h"

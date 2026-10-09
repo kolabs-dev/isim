@@ -1520,6 +1520,54 @@ static void scene_error(void (^handler)(NSError *), UISceneErrorCode code, NSStr
 - (void)requestSceneSessionRefresh:(UISceneSession *)session { NSLog(@"isim: scene session %@ refresh requested", session.persistentIdentifier); }
 @end
 
+/* one pass of the main loop: due timers and blocks, layout, a frame when needed, then the events that arrived */
+static BOOL quit_requested;
+static int last_minute = -1;
+static void run_loop_once(void) {
+    @autoreleasepool {
+        NSTimeInterval next = [NSRunLoop.mainRunLoop _isim_fireDue];
+        layout_all();
+        time_t now = time(NULL); struct tm tm; localtime_r(&now, &tm);
+        if (tm.tm_min != last_minute) { last_minute = tm.tm_min; isim_ui_set_needs_display(); }
+        if (isim_ui_take_display() && !backgrounded) { layout_all(); render_frame(); }
+        double timeout = next < 0.5 ? next : 0.5;
+        if ((isim_ui_animations_running() || isim_ui_display_links_active() || isim_ui_update_links_active()) && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
+        { extern double isim_main_next_due(void); double due = isim_main_next_due(); if (due < timeout) timeout = due; }   /* blocks queued while rendering run right away */
+        struct isim_event ev;
+        for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {
+            switch (ev.type) {
+            case ISIM_EV_QUIT: quit_requested = YES; break;
+            case ISIM_EV_TOUCH_DOWN: case ISIM_EV_TOUCH_MOVE: case ISIM_EV_TOUCH_UP: handle_touch(&ev); break;
+            case ISIM_EV_REDRAW: isim_ui_set_needs_display(); break;
+            case ISIM_EV_TEXT: case ISIM_EV_KEY: handle_key(&ev); break;
+            case ISIM_EV_KEY_UP: post_hardware_key(&ev, NO); isim_ui_hardware_key(ev.pad, ev.key, ev.mods, NO); break;
+            case ISIM_EV_ID_DOWN: case ISIM_EV_ID_UP: case ISIM_EV_TEXT_DOWN: case ISIM_EV_TEXT_UP: handle_id_touch(&ev); break;
+            case ISIM_EV_BACKGROUND: enter_background(); break;
+            case ISIM_EV_FOREGROUND: enter_foreground(); break;
+            case ISIM_EV_SETTINGS: settings_changed(); break;
+            case ISIM_EV_LAUNCH_ID: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimShellLaunch" object:@(ev.text)]; break;
+            case ISIM_EV_OPEN_URL: deliver_url(@(ev.text)); break;
+            case ISIM_EV_DEVICE_ORIENTATION: isim_ui_device_orientation_changed(ev.key); break;
+            case ISIM_EV_SYSTEM: isim_sys_event(ev.text); break;
+            case ISIM_EV_NOTIFICATION_RESPONSE: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimNotificationResponse" object:@(ev.text)]; break;
+            case ISIM_EV_HOVER: isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
+            case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
+            case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
+            case ISIM_EV_DUMP: layout_all();
+                if (!strncmp(ev.text, "views ", 6)) { dump_views_file(ev.text + 6); break; }                                /* tests */
+                if (ev.text[0]) { extern void isim_ui_write_ax_snapshot(const char *); isim_ui_write_ax_snapshot(ev.text); break; }   /* XCUITest */
+                for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
+            default: break;
+            }
+            if (quit_requested) break;
+        }
+    }
+}
+/* a nested main loop until done() (or quit): the paste permission prompt waits for its answer like iOS's blocking one */
+void isim_ui_run_until(BOOL (^done)(void)) {
+    while (!quit_requested && !done()) run_loop_once();
+}
+
 int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName) {
     @autoreleasepool {
         NSBundle *bundle = NSBundle.mainBundle;
@@ -1549,6 +1597,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         if (info[@"UIMainStoryboardFile"] && !info[@"UIApplicationSceneManifest"])
             storyboardWindow = isim_ib_storyboard_window([UIStoryboard storyboardWithName:info[@"UIMainStoryboardFile"] bundle:bundle], nil, d);
         if ([d respondsToSelector:@selector(application:willFinishLaunchingWithOptions:)]) [d application:app willFinishLaunchingWithOptions:launchOptions];
+        { extern void isim_ui_restore_state(void); isim_ui_restore_state(); }   /* view controller state restoration (UIStateRestoration.m) */
         if ([d respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]) isim_sys_did_finish_launching([d application:app didFinishLaunchingWithOptions:launchOptions]);
         else if ([d respondsToSelector:@selector(applicationDidFinishLaunching:)]) [d applicationDidFinishLaunching:app];
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidFinishLaunchingNotification object:app];
@@ -1585,47 +1634,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         }
     }
 
-    int lastMinute = -1;
-    for (BOOL quit = NO; !quit;) {
-        @autoreleasepool {
-            NSTimeInterval next = [NSRunLoop.mainRunLoop _isim_fireDue];
-            layout_all();
-            time_t now = time(NULL); struct tm tm; localtime_r(&now, &tm);
-            if (tm.tm_min != lastMinute) { lastMinute = tm.tm_min; isim_ui_set_needs_display(); }
-            if (isim_ui_take_display() && !backgrounded) { layout_all(); render_frame(); }
-            double timeout = next < 0.5 ? next : 0.5;
-            if ((isim_ui_animations_running() || isim_ui_display_links_active() || isim_ui_update_links_active()) && !backgrounded) { isim_ui_set_needs_display(); if (timeout > 1.0 / 60) timeout = 1.0 / 60; }
-            { extern double isim_main_next_due(void); double due = isim_main_next_due(); if (due < timeout) timeout = due; }   /* blocks queued while rendering run right away */
-            struct isim_event ev;
-            for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {
-                switch (ev.type) {
-                case ISIM_EV_QUIT: quit = YES; break;
-                case ISIM_EV_TOUCH_DOWN: case ISIM_EV_TOUCH_MOVE: case ISIM_EV_TOUCH_UP: handle_touch(&ev); break;
-                case ISIM_EV_REDRAW: isim_ui_set_needs_display(); break;
-                case ISIM_EV_TEXT: case ISIM_EV_KEY: handle_key(&ev); break;
-                case ISIM_EV_KEY_UP: post_hardware_key(&ev, NO); isim_ui_hardware_key(ev.pad, ev.key, ev.mods, NO); break;
-                case ISIM_EV_ID_DOWN: case ISIM_EV_ID_UP: case ISIM_EV_TEXT_DOWN: case ISIM_EV_TEXT_UP: handle_id_touch(&ev); break;
-                case ISIM_EV_BACKGROUND: enter_background(); break;
-                case ISIM_EV_FOREGROUND: enter_foreground(); break;
-                case ISIM_EV_SETTINGS: settings_changed(); break;
-                case ISIM_EV_LAUNCH_ID: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimShellLaunch" object:@(ev.text)]; break;
-                case ISIM_EV_OPEN_URL: deliver_url(@(ev.text)); break;
-                case ISIM_EV_DEVICE_ORIENTATION: isim_ui_device_orientation_changed(ev.key); break;
-                case ISIM_EV_SYSTEM: isim_sys_event(ev.text); break;
-                case ISIM_EV_NOTIFICATION_RESPONSE: [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimNotificationResponse" object:@(ev.text)]; break;
-                case ISIM_EV_HOVER: isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
-                case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
-                case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
-                case ISIM_EV_DUMP: layout_all();
-                    if (!strncmp(ev.text, "views ", 6)) { dump_views_file(ev.text + 6); break; }                                /* tests */
-                    if (ev.text[0]) { extern void isim_ui_write_ax_snapshot(const char *); isim_ui_write_ax_snapshot(ev.text); break; }   /* XCUITest */
-                    for (UIWindow *w in UIApplication.sharedApplication.windows) dump_view(w, 0); break;
-                default: break;
-                }
-                if (quit) break;
-            }
-        }
-    }
+    while (!quit_requested) run_loop_once();
     @autoreleasepool {
         UIApplication *app = UIApplication.sharedApplication;
         id<UIApplicationDelegate> d = app.delegate;

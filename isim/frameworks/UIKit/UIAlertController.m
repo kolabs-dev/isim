@@ -22,6 +22,12 @@
 /* the iOS 26 alert card: glass under a mostly opaque body (alerts stay readable over any content) */
 @interface __IsimGlassCard : UIView
 @end
+/* two actions sit side by side only when both titles fit there; otherwise they stack (like iOS) */
+static BOOL isim_alert_titles_fit(NSArray<UIAlertAction *> *actions, CGFloat width) {
+    UIFont *f = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
+    for (UIAlertAction *a in actions) if ([a.title ?: @"" sizeWithAttributes:@{ NSFontAttributeName: f }].width > width) return NO;
+    return YES;
+}
 @implementation __IsimGlassCard
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size;
@@ -144,7 +150,7 @@ static UIColor *card_color(void) {
     for (UIAlertAction *a in _actions) { if (a.style == UIAlertActionStyleCancel && !cancel) cancel = a; else [order addObject:a]; }
     if (cancel) { if (order.count == 1) [order insertObject:cancel atIndex:0]; else [order addObject:cancel]; }
     CGFloat bh = 48, gap = 8, inner = W - 2 * (pad - 6);
-    BOOL row = order.count == 2;
+    BOOL row = order.count == 2 && isim_alert_titles_fit(order, (inner - gap) / 2 - 20);
     for (NSUInteger i = 0; i < order.count; i++) {
         UIAlertAction *a = order[i];
         BOOL prominent = a == _preferredAction && a.style != UIAlertActionStyleDestructive;
@@ -214,7 +220,7 @@ static UIColor *card_color(void) {
         /* alerts: two actions side by side (cancel on the left), otherwise stacked (cancel last) */
         NSMutableArray *order = [main mutableCopy];
         if (cancel) { if (order.count == 1) [order insertObject:cancel atIndex:0]; else [order addObject:cancel]; }
-        if (order.count == 2) {
+        if (order.count == 2 && isim_alert_titles_fit(order, W / 2 - 12)) {
             UIView *h = [self _hairline]; h.frame = CGRectMake(0, y, W, 0.5); [card addSubview:h];
             for (NSUInteger i = 0; i < 2; i++) {
                 UIAlertAction *a = order[i];

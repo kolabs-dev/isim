@@ -68,8 +68,10 @@ func settingsBundlePath(_ app: InstalledApp) -> String? {
 struct SettingsPaneView: View {
     let pane: SettingsPane
     @StateObject var prefs: AppPreferences
+    var access: InstalledApp? = nil                      // the root pane: "Allow <app> to Access" first, like iOS
     var body: some View {
         List {
+            if let access { AppAccessSection(app: access) }
             ForEach(Array(pane.sections.enumerated()), id: \.offset) { _, section in
                 let header = (section.group?["Type"] as? String) == "PSGroupSpecifier" || (section.group?["Type"] as? String) == "PSRadioGroupSpecifier"
                     ? pane.localized(section.group?["Title"] as? String) : ""
@@ -175,10 +177,10 @@ struct AppBundleSettingsView: View {
     let app: InstalledApp, bundlePath: String
     var body: some View {
         if let pane = SettingsPane(bundlePath: bundlePath, file: "Root") {
-            SettingsPaneView(pane: pane, prefs: AppPreferences(appID: app.id))
+            SettingsPaneView(pane: pane, prefs: AppPreferences(appID: app.id), access: app)
                 .navigationTitle(app.name).navigationBarTitleDisplayMode(.inline)
         } else {
-            List { Section { Text("No settings for this app.").foregroundStyle(.secondary) } }
+            List { AppAccessSection(app: app) }
                 .navigationTitle(app.name).navigationBarTitleDisplayMode(.inline)
         }
     }
