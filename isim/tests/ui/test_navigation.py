@@ -46,6 +46,7 @@ def test_navigation(launch, ios):
     shot = app.wait_until(lambda: (lambda s: s if green(rgb(s, 300, 392)) else None)(app.screenshot("toolbars")),
                           what="toolbar images drawn")      # own image for the bottom position (no delegate: bottom)
     assert all(yellow(rgb(shot, 300, y)) for y in (300, 322, 343)), "empty background and shadow images: no bar, no hairline"
+    assert all(green(rgb(shot, x, y)) for x, y in ((2, 392), (399, 392), (300, 372), (300, 413))), "a small image is tiled to the edges"
     assert (lambda c: c[0] > 230 and c[1] < 80 and c[2] < 80)(rgb(shot, 300, 462)), "the appearance's image for the top position"
     assert not (lambda c: c[2] > 200 and c[0] < 80)(rgb(shot, 300, 532)), "a compact-only image is not used in portrait"
     app.wait_for(id="nav-back").tap()

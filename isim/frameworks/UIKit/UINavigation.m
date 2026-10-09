@@ -722,6 +722,11 @@ static void set_bar_image(UIToolbar *t, NSMutableDictionary *dict, NSNumber *k, 
     }
     [t setNeedsLayout];
 }
+/* like UIKit, a bar image that is not resizable is tiled (an empty one draws nothing) */
+static UIImage *tiled(UIImage *i) {
+    if (!i || i.resizingMode == UIImageResizingModeStretch || !UIEdgeInsetsEqualToEdgeInsets(i.capInsets, UIEdgeInsetsZero) || i.size.width <= 0 || i.size.height <= 0) return i;
+    return [i resizableImageWithCapInsets:UIEdgeInsetsZero resizingMode:UIImageResizingModeTile];
+}
 /* the background: a legacy background image replaces the appearance's (blur, colour, bar tint) */
 - (UIToolbarAppearance *)_isim_effectiveAppearance {
     UIBarPosition p = self.barPosition;
@@ -734,9 +739,9 @@ static void set_bar_image(UIToolbar *t, NSMutableDictionary *dict, NSNumber *k, 
         return o;
     }
     UIToolbarAppearance *o = [_standardAppearance copy];
-    o.backgroundEffect = nil; o.backgroundColor = nil; o.backgroundImage = bg; o.backgroundImageContentMode = UIViewContentModeScaleToFill;
+    o.backgroundEffect = nil; o.backgroundColor = nil; o.backgroundImage = tiled(bg); o.backgroundImageContentMode = UIViewContentModeScaleToFill;
     UIImage *shadow = _shadowImages[bar_image_key(p, 0)] ?: _shadowImages[bar_image_key(UIBarPositionAny, 0)];
-    if (shadow) { o.shadowImage = shadow; if (!o.shadowColor) o.shadowColor = UIColor.separatorColor; }
+    if (shadow) { o.shadowImage = tiled(shadow); if (!o.shadowColor) o.shadowColor = UIColor.separatorColor; }
     return o;
 }
 - (void)layoutSubviews {
