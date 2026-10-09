@@ -131,6 +131,8 @@ func fileManagerChecks() {
     check(rep == doc.path && doc.withUnsafeFileSystemRepresentation { $0.map { String(cString: $0) } } == doc.path && !fm.currentDirectoryPath.isEmpty, "file system representation, currentDirectoryPath")
     check(NSFileNoSuchFileError == 4 && NSFileWriteFileExistsError == CocoaError.fileWriteFileExists.rawValue, "NSFile*Error constants")
     try? fm.removeItem(at: root)
+}
+
 /// Operation subclasses, OperationQueue, Thread and RunLoop modes (issue #12)
 final class Locked<T>: @unchecked Sendable {
     private let lock = NSLock(); private var v: T
