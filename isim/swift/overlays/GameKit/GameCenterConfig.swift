@@ -12,8 +12,34 @@ struct _GCBoardDef {
     var start = Date(timeIntervalSince1970: 0)
     var duration: TimeInterval = 86400
     var sortLow = false
+    /// score format (App Store Connect's "Score Format Type"): integer, fixedPoint (`decimals`), elapsedTime
+    /// (`unit`: seconds, minutes or centiseconds: what one score unit is), money (`currency`, in hundredths)
     var format = "integer"
+    var decimals = 2, unit = "seconds", currency = "USD", suffix = ""
     var image: String?
+    func formatted(_ v: Int) -> String {
+        let text: String
+        switch format.lowercased() {
+        case "fixedpoint", "decimal", "fixed":
+            let f = NumberFormatter(); f.numberStyle = .decimal; f.minimumFractionDigits = decimals; f.maximumFractionDigits = decimals
+            var d = Double(v); for _ in 0..<decimals { d /= 10 }
+            text = f.string(from: NSNumber(value: d)) ?? String(d)
+        case "elapsedtime", "time":
+            let cs = unit == "centiseconds" ? v % 100 : 0
+            let secs = unit == "centiseconds" ? v / 100 : unit == "minutes" ? v * 60 : v
+            let h = secs / 3600, m = (secs % 3600) / 60, sec = secs % 60
+            var t = h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
+            if unit == "centiseconds" { t += String(format: ".%02d", cs) }
+            text = t
+        case "money", "currency":
+            let f = NumberFormatter(); f.numberStyle = .currency; f.currencyCode = currency
+            text = f.string(from: NSNumber(value: Double(v) / 100)) ?? String(v)
+        default:
+            let f = NumberFormatter(); f.numberStyle = .decimal
+            text = f.string(from: NSNumber(value: v)) ?? String(v)
+        }
+        return suffix.isEmpty ? text : text + suffix
+    }
     /// the current occurrence of a recurring leaderboard (start, end)
     func occurrence(at now: Date = Date(), offset: Int = 0) -> (Date, Date) {
         guard recurring, duration > 0 else { return (Date.distantPast, Date.distantFuture) }
@@ -30,12 +56,24 @@ struct _GCAchievementDef {
     var group: String?
 }
 struct _GCSetDef { let id: String, title: String; var boards: [String]; var image: String? }
+/// a game activity definition (iOS 26)
+struct _GCActivityDef {
+    let id: String, title: String
+    var details: String?, group: String?, fallbackURL: String?, image: String?
+    var properties: [String: String] = [:]
+    var partyCode = false, unlimited = false
+    var minPlayers: Int?, maxPlayers: Int?
+    var playStyle = "unspecified"
+    var achievements: [String] = [], leaderboards: [String] = []
+}
 
 enum _GCConfig {
-    nonisolated(unsafe) static var cached: (boards: [_GCBoardDef], sets: [_GCSetDef], achievements: [_GCAchievementDef])?
+    typealias All = (boards: [_GCBoardDef], sets: [_GCSetDef], achievements: [_GCAchievementDef], activities: [_GCActivityDef])
+    nonisolated(unsafe) static var cached: All?
     static var boards: [_GCBoardDef] { load().boards }
     static var sets: [_GCSetDef] { load().sets }
     static var achievements: [_GCAchievementDef] { load().achievements }
+    static var activities: [_GCActivityDef] { load().activities }
     static func board(_ id: String) -> _GCBoardDef { boards.first { $0.id == id } ?? _GCBoardDef(id: id, title: _GCText.title(id)) }
     static func achievement(_ id: String) -> _GCAchievementDef? { achievements.first { $0.id == id } }
 
@@ -76,9 +114,9 @@ enum _GCConfig {
         return Date(timeIntervalSince1970: Double(days * 86400 + hh * 3600 + mm * 60 + ss))
     }
 
-    static func load() -> (boards: [_GCBoardDef], sets: [_GCSetDef], achievements: [_GCAchievementDef]) {
+    static func load() -> All {
         if let c = cached { return c }
-        var boards: [_GCBoardDef] = [], sets: [_GCSetDef] = [], achs: [_GCAchievementDef] = []
+        var boards: [_GCBoardDef] = [], sets: [_GCSetDef] = [], achs: [_GCAchievementDef] = [], acts: [_GCActivityDef] = []
         let name = Bundle.main.object(forInfoDictionaryKey: "ISIMGameCenterConfiguration") as? String ?? "isim-GameCenter.json"
         let path = (Bundle.main.bundlePath as NSString).appendingPathComponent(name)
         if let data = FileManager.default.contents(atPath: path),
@@ -91,6 +129,10 @@ enum _GCConfig {
                 if let dur = duration(b["duration"] as? String) { d.duration = dur }
                 d.sortLow = (b["sortOrder"] as? String)?.lowercased() == "low"
                 d.format = b["format"] as? String ?? "integer"
+                d.decimals = b["decimals"] as? Int ?? 2
+                d.unit = b["unit"] as? String ?? "seconds"
+                d.currency = b["currency"] as? String ?? "USD"
+                d.suffix = b["suffix"] as? String ?? ""
                 d.image = b["image"] as? String
                 boards.append(d)
             }
@@ -110,9 +152,22 @@ enum _GCConfig {
                 d.group = a["groupIdentifier"] as? String
                 achs.append(d)
             }
-            NSLog("isim GameKit: local Game Center configuration %@ (%ld leaderboards, %ld sets, %ld achievements)", name, boards.count, sets.count, achs.count)
+            for a in root["activities"] as? [[String: Any]] ?? [] {
+                guard let id = a["id"] as? String else { continue }
+                var d = _GCActivityDef(id: id, title: a["title"] as? String ?? _GCText.title(id))
+                d.details = a["details"] as? String; d.group = a["groupIdentifier"] as? String
+                d.fallbackURL = a["fallbackURL"] as? String; d.image = a["image"] as? String
+                d.properties = a["defaultProperties"] as? [String: String] ?? [:]
+                d.partyCode = a["supportsPartyCode"] as? Bool ?? false
+                d.unlimited = a["supportsUnlimitedPlayers"] as? Bool ?? false
+                d.minPlayers = a["minPlayers"] as? Int; d.maxPlayers = a["maxPlayers"] as? Int
+                d.playStyle = a["playStyle"] as? String ?? "unspecified"
+                d.achievements = a["achievements"] as? [String] ?? []; d.leaderboards = a["leaderboards"] as? [String] ?? []
+                acts.append(d)
+            }
+            NSLog("isim GameKit: local Game Center configuration %@ (%ld leaderboards, %ld sets, %ld achievements, %ld activities)", name, boards.count, sets.count, achs.count, acts.count)
         }
-        let c = (boards, sets, achs)
+        let c = (boards, sets, achs, acts)
         cached = c
         return c
     }
@@ -149,6 +204,9 @@ enum _GCImages {
     }
     static func leaderboard(_ id: String) -> UIImage? {
         bundleImage(_GCConfig.board(id).image) ?? svg("board-\(id)", "<rect width=\"100\" height=\"100\" rx=\"22\" fill=\"#0A84FF\"/><path d=\"M28 70V48h12v22zM44 70V32h12v38zM60 70V56h12v14z\" fill=\"#FFFFFF\"/>", size: 120)
+    }
+    static func set(_ id: String) -> UIImage? {
+        bundleImage(_GCConfig.sets.first { $0.id == id }?.image) ?? svg("set-\(id)", "<rect width=\"100\" height=\"100\" rx=\"22\" fill=\"#5E5CE6\"/><path d=\"M26 26h20v20H26zM54 26h20v20H54zM26 54h20v20H26zM54 54h20v20H54z\" fill=\"#FFFFFF\"/>", size: 120)
     }
     static func achievement(_ id: String, completed: Bool) -> UIImage? {
         if completed, let img = bundleImage(_GCConfig.achievement(id)?.image) { return img }

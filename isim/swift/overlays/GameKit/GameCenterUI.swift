@@ -1,9 +1,9 @@
 // The Game Center dashboard (GKGameCenterViewController), drawn in SwiftUI like iOS's Game Center UI:
 // the game's icon and name, the player's monogram, leaderboard cards with rank and score, achievement medals
 // with progress rings, and a leaderboard page with Today / This Week / All Time.
-// isim's Game Center is local (one player, this device). Titles, descriptions, points, recurrence and sets
-// come from the app's isim-GameCenter.json; without it titles are derived from the identifiers
-// ("dev.example.highest_level" -> "Highest Level").
+// isim's Game Center is local: the players are the isim devices on this computer and test players
+// (GameCenterNetwork.swift). Titles, descriptions, points, recurrence, score formats and sets come from the app's
+// isim-GameCenter.json; without it titles are derived from the identifiers ("dev.example.highest_level" -> "Highest Level").
 import Foundation
 import UIKit
 import SwiftUI
@@ -67,15 +67,11 @@ struct _GCBoard: Identifiable {
     let id: String
     var def: _GCBoardDef { _GCConfig.board(id) }
     var title: String { def.title }
-    func best(_ scope: _GCScope) -> (score: Int, date: Date)? {
-        let (s, e) = def.occurrence()
-        let list = (_GC.scores()[id] ?? []).compactMap { e -> (Int, Date)? in
-            guard let v = e["value"] as? Int else { return nil }
-            return (v, Date(timeIntervalSince1970: e["date"] as? Double ?? 0))
-        }.filter { scope.includes($0.1) && $0.1 >= s && $0.1 < e }
-        let low = def.sortLow
-        return list.max { low ? $0.0 > $1.0 : $0.0 < $1.0 }.map { (score: $0.0, date: $0.1) }
+    /// every player's best score, ranked
+    func entries(_ scope: _GCScope) -> [GKLeaderboard.Entry] {
+        GKLeaderboard.make(id).ranked(GKLeaderboard.TimeScope(rawValue: scope.rawValue) ?? .allTime)
     }
+    func mine(_ scope: _GCScope) -> GKLeaderboard.Entry? { entries(scope).first { $0.player === GKLocalPlayer.local } }
     /// "Resets in 3h 20m" for recurring leaderboards
     var resetLine: String? {
         guard def.recurring else { return nil }
@@ -338,7 +334,7 @@ struct _GCHome: View {
                     }
                 }
 
-                Text(verbatim: "Game Center on isim is local: scores and achievements stay on this device.")
+                Text(verbatim: "Game Center on isim is local: the players are the isim devices on this computer.")
                     .font(.system(size: 12)).foregroundStyle(.secondary).padding(.top, 16)
             }
             .padding(.horizontal, 16).padding(.bottom, 24)
@@ -349,12 +345,12 @@ struct _GCHome: View {
 struct _GCBoardRow: View {
     let board: _GCBoard
     var body: some View {
-        let best = board.best(.allTime)
+        let best = board.mine(.allTime)
         HStack(spacing: 14) {
             _GCBoardIcon(id: board.id, symbol: "list.number")
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: board.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
-                Text(verbatim: best.map { "#1 · \(_GCText.number($0.score))" } ?? "No score yet").font(.system(size: 14)).foregroundStyle(.secondary)
+                Text(verbatim: best.map { "#\($0.rank) · \($0.formattedScore)" } ?? "No score yet").font(.system(size: 14)).foregroundStyle(.secondary)
                 if let r = board.resetLine { Text(verbatim: r).font(.system(size: 12)).foregroundStyle(.secondary) }
             }
             Spacer()
@@ -423,13 +419,30 @@ struct _GCBoardIcon: View {
 
 struct _GCFriends: View {
     var body: some View {
+        let friends = _GCNet.friendIDs().map(GKPlayer._make).sorted { $0.alias < $1.alias }
         ScrollView {
-            VStack(spacing: 12) {
-                Text(verbatim: "No Friends Yet").font(.system(size: 20, weight: .bold)).padding(.top, 40)
-                Text(verbatim: "isim’s Game Center is local: there are no other players on this device.")
-                    .font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            if friends.isEmpty {
+                VStack(spacing: 12) {
+                    Text(verbatim: "No Friends Yet").font(.system(size: 20, weight: .bold)).padding(.top, 40)
+                    Text(verbatim: "Friends are the players of the other isim devices on this computer, and test players.")
+                        .font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .padding(24)
+            } else {
+                _GCCard {
+                    ForEach(Array(friends.enumerated()), id: \.element._id) { i, f in
+                        if i > 0 { _GCRowDivider(inset: 66) }
+                        HStack(spacing: 12) {
+                            _GCAvatar(name: f.alias, size: 40)
+                            Text(verbatim: f.alias).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .accessibilityIdentifier("gc-friend-\(f.alias)")
+                    }
+                }
+                .padding(16)
             }
-            .padding(24)
         }
     }
 }
@@ -438,31 +451,35 @@ struct _GCLeaderboardPage: View {
     let board: _GCBoard
     @State private var scope: _GCScope = .allTime
     var body: some View {
-        let best = board.best(scope)
+        let entries = board.entries(scope)
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 _GCSegments(scope: $scope)
                 _GCCard {
-                    if let best {
-                        HStack(spacing: 12) {
-                            Text(verbatim: "1").font(.system(size: 17, weight: .bold)).foregroundStyle(.primary).frame(width: 28)
-                            _GCAvatar(name: _GC.alias, size: 40)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(verbatim: _GC.alias).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary)
-                                Text(verbatim: _GCText.date(best.date)).font(.system(size: 13)).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(verbatim: _GCText.number(best.score)).font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary)
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 12)
-                        .accessibilityIdentifier("gc-entry")
-                    } else {
+                    if entries.isEmpty {
                         Text(verbatim: scope == .allTime ? "No scores yet." : "No scores \(scope == .today ? "today" : "this week").")
                             .font(.system(size: 15)).foregroundStyle(.secondary).padding(16)
                     }
+                    ForEach(Array(entries.prefix(50).enumerated()), id: \.offset) { i, e in
+                        if i > 0 { _GCRowDivider(inset: 94) }
+                        let me = e.player === GKLocalPlayer.local
+                        HStack(spacing: 12) {
+                            Text(verbatim: "\(e.rank)").font(.system(size: 17, weight: .bold)).foregroundStyle(.primary).frame(width: 28)
+                            _GCAvatar(name: e.player.alias, size: 40)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(verbatim: e.player.alias).font(.system(size: 16, weight: .semibold)).foregroundStyle(me ? Color.accentColor : .primary)
+                                Text(verbatim: _GCText.date(e.date)).font(.system(size: 13)).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(verbatim: e.formattedScore).font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .accessibilityIdentifier("gc-entry-\(e.rank)")
+                    }
                 }
                 if let r = board.resetLine { Text(verbatim: r).font(.system(size: 13)).foregroundStyle(.secondary).accessibilityIdentifier("gc-board-reset") }
-                Text(verbatim: "1 player · isim local Game Center").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(verbatim: entries.count == 1 ? "1 player" : "\(entries.count) players").font(.system(size: 12)).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("gc-board-players")
             }
             .padding(16)
         }

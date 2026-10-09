@@ -465,26 +465,102 @@ struct TimeZoneView: View {
 
 // MARK: - Game Center
 
-/// isim's Game Center is local: games' scores and achievements stay on this device.
+/// isim's Game Center is local: the players are the isim devices on this computer and test players, sharing the
+/// local Game Center network ($ISIM_GAMECENTER, see the GameKit overlay's GameCenterNetwork.swift). Friend requests
+/// to this device's player are accepted or declined here.
 struct GameCenterView: View {
     @State private var signedIn = (Store.global.object(forKey: "ISIMGameCenterSignedIn") as? Bool) ?? true
     @State private var nickname = Store.global.string(forKey: "ISIMGameCenterNickname") ?? "Player"
+    @State private var requests: [GCNetwork.Request] = GCNetwork.requests()
+    @State private var friends: [String] = GCNetwork.friends()
     var body: some View {
         List {
             Section {
                 Toggle("Game Center", isOn: Binding(get: { signedIn }, set: { signedIn = $0; Store.set("ISIMGameCenterSignedIn", $0) }))
                     .accessibilityIdentifier("settings-gamecenter-toggle")
             } footer: {
-                Text("On isim, Game Center is local: games sign in as this player, and their leaderboard scores and achievements are kept on this device.")
+                Text("On isim, Game Center is local: the other players are the isim devices on this computer and test players, and nothing is sent to Apple.")
             }
             if signedIn {
                 Section("Profile") {
                     TextField("Nickname", text: Binding(get: { nickname }, set: { nickname = $0; Store.set("ISIMGameCenterNickname", $0) }))
                         .accessibilityIdentifier("settings-gamecenter-nickname")
                 }
+                if !requests.isEmpty {
+                    Section("Friend Requests") {
+                        ForEach(requests, id: \.from) { r in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(verbatim: r.alias)
+                                    if !r.message.isEmpty { Text(verbatim: r.message).font(.footnote).foregroundStyle(.secondary) }
+                                }
+                                Spacer()
+                                Button("Decline") { GCNetwork.answer(r, accept: false); refresh() }
+                                    .buttonStyle(.borderless).foregroundStyle(.red)
+                                    .accessibilityIdentifier("settings-gamecenter-decline-\(r.alias)")
+                                Button("Accept") { GCNetwork.answer(r, accept: true); refresh() }
+                                    .buttonStyle(.borderless)
+                                    .accessibilityIdentifier("settings-gamecenter-accept-\(r.alias)")
+                            }
+                        }
+                    }
+                }
+                Section("Friends") {
+                    if friends.isEmpty { Text("No Friends").foregroundStyle(.secondary) }
+                    ForEach(friends, id: \.self) { f in Text(verbatim: f).accessibilityIdentifier("settings-gamecenter-friend-\(f)") }
+                }
             }
         }
         .navigationTitle("Game Center").navigationBarTitleDisplayMode(.inline)
+        .task { while !Task.isCancelled { try? await Task.sleep(nanoseconds: 500_000_000); refresh() } }   // requests arriving
+    }
+    func refresh() {
+        let r = GCNetwork.requests(), f = GCNetwork.friends()
+        if r.map(\.from) != requests.map(\.from) { requests = r }
+        if f != friends { friends = f }
+    }
+}
+
+/// The local Game Center network as Settings sees it: this device's player, its friends and the friend requests to it.
+enum GCNetwork {
+    struct Request { let from: String, alias: String, message: String }
+    static func env(_ k: String) -> String? { ProcessInfo.processInfo.environment[k].flatMap { $0.isEmpty ? nil : $0 } }
+    static var home: String { env("HOME") ?? "/tmp" }
+    static var root: String { env("ISIM_GAMECENTER") ?? (home as NSString).appendingPathComponent(".local/share/isim-gamecenter") }
+    static var data: String { env("ISIM_DATA") ?? (home as NSString).appendingPathComponent(".local/share/isim") }
+    static func json(_ p: String) -> [String: Any]? {
+        FileManager.default.contents(atPath: p).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+    }
+    static func path(_ parts: String...) -> String { parts.reduce(root) { ($0 as NSString).appendingPathComponent($1) } }
+    static func list(_ dir: String) -> [String] { ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { !$0.contains(".isim-tmp-") }.sorted() }
+    /// this device's player id (made by GameKit when a game first signs in)
+    static var me: String? { json((data as NSString).appendingPathComponent("Library/GameCenter/player.json"))?["id"] as? String }
+    static func alias(_ id: String) -> String { json(path("players", "\(id).json"))?["alias"] as? String ?? id }
+    static func requests() -> [Request] {
+        guard let me else { return [] }
+        return list(path("friend-requests")).compactMap { f in
+            guard let r = json(path("friend-requests", f)), r["to"] as? String == me, let from = r["from"] as? String,
+                  !FileManager.default.fileExists(atPath: path("friends", [me, from].sorted().joined(separator: "+"))) else { return nil }
+            return Request(from: from, alias: alias(from), message: r["message"] as? String ?? "")
+        }
+    }
+    static func friends() -> [String] {
+        guard let me else { return [] }
+        return list(path("friends")).compactMap { f -> String? in
+            let ids = f.split(separator: "+").map(String.init)
+            guard ids.count == 2, ids.contains(me) else { return nil }
+            return alias(ids[0] == me ? ids[1] : ids[0])
+        }.sorted()
+    }
+    static func answer(_ r: Request, accept: Bool) {
+        guard let me else { return }
+        if accept {
+            let pair = [me, r.from].sorted().joined(separator: "+")
+            try? FileManager.default.createDirectory(atPath: path("friends"), withIntermediateDirectories: true, attributes: nil)
+            FileManager.default.createFile(atPath: path("friends", pair), contents: Data("{\"since\": \(Date().timeIntervalSince1970)}".utf8), attributes: nil)
+        }
+        try? FileManager.default.removeItem(atPath: path("friend-requests", "\(r.from)+\(me).json"))
+        NSLog("isim Settings: friend request from %@ %@", r.alias, accept ? "accepted" : "declined")
     }
 }
 

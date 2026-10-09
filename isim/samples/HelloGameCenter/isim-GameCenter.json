@@ -2,7 +2,8 @@
   "leaderboards": [
     { "id": "dev.isim.gc.high_score", "title": "High Score", "type": "classic", "sortOrder": "high" },
     { "id": "dev.isim.gc.daily", "title": "Daily Run", "type": "recurring", "start": "2025-01-01T00:00:00Z", "duration": "PT6S" },
-    { "id": "dev.isim.gc.fastest", "title": "Fastest Clear", "type": "classic", "sortOrder": "low", "format": "elapsedTime" }
+    { "id": "dev.isim.gc.fastest", "title": "Fastest Clear", "type": "classic", "sortOrder": "low", "format": "elapsedTime", "image": "fastest.svg" },
+    { "id": "dev.isim.gc.distance", "title": "Longest Jump", "format": "fixedPoint", "decimals": 2, "suffix": " m" }
   ],
   "leaderboardSets": [
     { "id": "dev.isim.gc.set.season1", "title": "Season 1", "leaderboards": [ "dev.isim.gc.high_score", "dev.isim.gc.fastest" ] }
@@ -11,5 +12,10 @@
     { "id": "dev.isim.gc.first_win", "title": "First Win", "points": 10, "unachievedDescription": "Win a game.", "achievedDescription": "You won your first game." },
     { "id": "dev.isim.gc.collector", "title": "Collector", "points": 25, "unachievedDescription": "Collect 100 gems.", "achievedDescription": "You collected 100 gems." },
     { "id": "dev.isim.gc.secret", "title": "Secret Door", "points": 50, "hidden": true, "unachievedDescription": "???", "achievedDescription": "You found the secret door." }
+  ],
+  "activities": [
+    { "id": "dev.isim.gc.activity.duel", "title": "Duel", "details": "Beat a friend’s high score.", "supportsPartyCode": true,
+      "minPlayers": 2, "maxPlayers": 2, "playStyle": "synchronous", "defaultProperties": { "arena": "forest" },
+      "leaderboards": [ "dev.isim.gc.high_score" ], "achievements": [ "dev.isim.gc.first_win" ] }
   ]
 }

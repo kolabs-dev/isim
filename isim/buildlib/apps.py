@@ -186,6 +186,7 @@ def _(a):
 def _(a):
     b = a.swift_app()
     a.copy("isim-GameCenter.json", b)                          # what `isim build` does with one next to the .xcodeproj
+    a.copy("fastest.svg", b)                                   # the configured leaderboard image
 
 
 @app("samples/HelloStore")

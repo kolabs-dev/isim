@@ -72,7 +72,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
 | Core Image, ImageIO & Metal | 2 | 1 | 0 | 2 | 5 | 50% |
 | SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
-| GameKit (Game Center) | 10 | 4 | 3 | 1 | 18 | 67% |
+| GameKit (Game Center) | 18 | 0 | 0 | 0 | 18 | 100% |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 13 | 8 | 1 | 4 | 26 | 65% |
 | AVFoundation & audio | 19 | 19 | 3 | 3 | 44 | 65% |
 | Photos, Vision, Core ML & camera | 5 | 7 | 2 | 0 | 14 | 61% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **749** | **190** | **26** | **47** | **1012** | **83%** |
+| **All areas** | **757** | **186** | **23** | **46** | **1012** | **84%** |
 
 ### Per iOS version
 
@@ -106,7 +106,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | QuartzCore / Core Animation | 83% (21) | 83% (21) | 83% (21) | 83% (21) |
 | Core Image, ImageIO & Metal | 50% (5) | 50% (5) | 50% (5) | 50% (5) |
 | SpriteKit | 67% (46) | 67% (46) | 67% (46) | 67% (46) |
-| GameKit (Game Center) | 71% (17) | 71% (17) | 67% (18) | 67% (18) |
+| GameKit (Game Center) | 100% (17) | 100% (17) | 100% (18) | 100% (18) |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 65% (26) | 65% (26) | 65% (26) | 65% (26) |
 | AVFoundation & audio | 65% (44) | 65% (44) | 65% (44) | 65% (44) |
 | Photos, Vision, Core ML & camera | 61% (14) | 61% (14) | 61% (14) | 61% (14) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **85%** (955) | **85%** (967) | **84%** (991) | **83%** (1012) |
+| **All areas** | **86%** (955) | **86%** (967) | **85%** (991) | **84%** (1012) |
 
 ---
 
@@ -1118,30 +1118,33 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 
 ## GameKit (Game Center)
 
-isim's Game Center is local: one player per device, no Apple servers. App Store Connect metadata (titles,
-descriptions, points, recurrence, sets) comes from an isim-only `isim-GameCenter.json` next to the `.xcodeproj`
-(see [GAMECENTER.md](GAMECENTER.md)); without it titles are derived from identifiers. Tested by `tests/ui/test_gamecenter.py`.
+isim's Game Center is local (adapted): no Apple servers. Every isim device on the computer is a player, and the devices
+share a local Game Center network (`ISIM_GAMECENTER`, default `~/.local/share/isim-gamecenter`); `isim gamecenter`
+adds test players and acts for them. App Store Connect metadata (titles, descriptions, points, recurrence, score
+formats, sets, game activities) comes from an isim-only `isim-GameCenter.json` next to the `.xcodeproj` (see
+[GAMECENTER.md](GAMECENTER.md)); without it titles are derived from identifiers. Tested by `tests/ui/test_gamecenter.py`
+(one device with test players; two devices playing together; Settings; iOS 26 activities).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `GKLocalPlayer.local.authenticateHandler` | ✅ | ≤17 | signed-in state from Settings > Game Center; "Welcome back" banner |
-| Player identity (`alias`, `displayName`, `gamePlayerID`, `teamPlayerID`) | ✅ | ≤17 | nickname from Settings |
+| Player identity (`alias`, `displayName`, `gamePlayerID`, `teamPlayerID`, `isEqual`, guest players) | ✅ | ≤17 | nickname from Settings; ids are the player's id on the local network (`A:_…`, `T:_…`), one per device |
 | Player photos (`loadPhoto`) | ✅ | ≤17 | generated monogram (initials on a gray circle), like the default Game Center avatar |
-| Leaderboards: `GKLeaderboard.submitScore`, `loadLeaderboards`, `loadEntries` | 🟡 | ≤17 | stored per app on the device; you are the only entry; titles and sort order (high/low) from the configuration |
+| Leaderboards: `GKLeaderboard.submitScore`, `loadLeaderboards`, `loadEntries` | ✅ | ≤17 | every player's best score (the other isim devices and test players), ranked by the configured sort order (ties: earlier first); `range`, total player count, `.friendsOnly`, `loadEntries(for: players)`, today / week scopes; `formattedScore` from the configured format: integer, fixed point, elapsed time (seconds, minutes, centiseconds), money (unverified), suffix; scores live on the local network, so they outlive the app |
 | Recurring leaderboards (`type`, `startDate`, `nextStartDate`, `duration`, `loadPreviousOccurrence`) | ✅ | ≤17 | local occurrences from `start` + `duration` in the configuration (any ISO 8601 duration, e.g. PT6S for tests); dashboard shows "resets in" |
 | Leaderboard sets (`GKLeaderboardSet`, `GKGameCenterViewController(leaderboardSetID:)`) | ✅ | ≤17 | from the configuration; shown in the dashboard |
-| Leaderboard / set images (`loadImage`) | 🟡 | ≤17 | image file from the configuration, else a generated placeholder |
+| Leaderboard / set images (`loadImage`) | ✅ | ≤17 | image file or asset from the configuration, else a generated placeholder (leaderboard, set); sizes checked |
 | Achievements: `GKAchievement.report`, `loadAchievements`, `resetAchievements`, completion banner | ✅ | ≤17 | local |
 | `GKAchievementDescription` (titles, descriptions, points, hidden, images) | ✅ | ≤17 | from the configuration; images: configured file or generated medal; `rarityPercent` is nil |
 | Dashboard UI (`GKGameCenterViewController`, leaderboards/achievements/sets states) | ✅ | ≤17 | iOS-style SwiftUI dashboard; achievement descriptions and points; not-started configured achievements listed, hidden ones hidden |
 | `GKAccessPoint` | ✅ | ≤17 | floating monogram bubble at the configured corner while active and signed in; tapping opens the dashboard; hidden while Game Center UI is shown; `showHighlights` ignored |
-| Friends (`loadFriends`, `loadFriendsAuthorizationStatus`, recent players) | 🧩 | ≤17 | always an empty list (no other players) |
-| Friend requests (`GKFriendRequestComposeViewController`, `presentFriendRequestCreator`) | 🟡 | ≤17 | composer UI works; the request is never sent |
+| Friends (`loadFriends`, `loadFriendsAuthorizationStatus`, recent players) | ✅ | ≤17 | friendships on the local network; the friends-list prompt (iOS 14.5+; `ISIM_GAMECENTER_FRIENDS_PERMISSION` answers it) needs `NSGKFriendListUsageDescription` (`friendListDescriptionMissing` without it); `loadFriends(identifiedBy:)`; recent players are the players met in matches; every friend can be challenged |
+| Friend requests (`GKFriendRequestComposeViewController`, `presentFriendRequestCreator`) | ✅ | ≤17 | sent to the player with that nickname (an email or phone number: the part before "@"); test players accept at once, a device's player accepts or declines in Settings > Game Center (or `isim gamecenter accept-friend`) |
 | Saved games (`saveGameData`, `fetchSavedGames`, `deleteSavedGames`, `resolveConflictingSavedGames`, `GKLocalPlayerListener`) | ✅ | ≤17 | stored in the device data (`Library/GameCenter/<bundle id>`), survives app deletion; conflicts come from `isim gamecenter <app> conflict` (no second device) |
-| Real-time multiplayer (`GKMatchmaker`, `GKMatch`, `GKMatchmakerViewController`) | 🟡 | ≤17 | matchmaker UI shows and cancels; finding players always fails (no other players, no loopback match) |
-| Turn-based multiplayer (`GKTurnBasedMatch`, `GKTurnBasedMatchmakerViewController`) | 🧩 | ≤17 | UI finds nobody; `loadMatches` is empty (unverified) |
-| Challenges, invites | 🧩 | ≤17 | `GKChallenge.loadReceivedChallenges` is empty; invites never arrive (unverified) |
-| Game activities (iOS 26 `GKGameActivity`) | ❌ | 26.0 | |
+| Real-time multiplayer (`GKMatchmaker`, `GKMatch`, `GKMatchmakerViewController`) | ✅ | ≤17 | adapted: automatching between the isim devices running the game (same `playerGroup`, within every request's min / max), invites to friends (banner → `player(_:didAccept:)`, `recipientResponseHandler`, `match(for: invite)`), the matchmaker (find players, invite a friend, join from an invite); `GKMatch` data over loopback TCP (reliable and unreliable alike), player state changes, `expectedPlayerCount`, disconnect, `chooseBestHostingPlayer`; hosted matches (`findPlayers`), `addPlayers` and nearby browsing unverified; `playerAttributes` roles, rematch, voice chat ❌ |
+| Turn-based multiplayer (`GKTurnBasedMatch`, `GKTurnBasedMatchmakerViewController`) | ✅ | ≤17 | matches shared on the local network: automatching into a match's open seat (else a new match, local player first), `endTurn`, `endMatchInTurn` with outcomes (and with scores / achievements), `loadMatches`, `loadMatchData`; turn events and `matchEnded` reach the other participants' listeners; the matchmaker lists the player's matches; invited recipients, `acceptInvite` / `declineInvite`, `saveCurrentTurn`, quitting, `remove`, `rematch` unverified; turn timeouts recorded, not enforced; exchanges ❌ |
+| Challenges, invites | ✅ | ≤17 | score and achievement challenges between friends: received (banner, `didReceive`, tapping it `wantsToPlay`), `loadReceivedChallenges`, `decline`, completed by beating the score or earning the achievement (`didComplete`; the issuer gets `issuedChallengeWasCompleted`), composers on `GKLeaderboard.Entry` and `GKAchievement`; `isim gamecenter … challenge` sends one from a test player; real-time invites: see real-time multiplayer; iOS 26 challenge definitions ❌ |
+| Game activities (`GKGameActivityDefinition`, `GKGameActivity`, `GKLocalPlayerListener.player(_:wantsToPlay:completionHandler:)`) | ✅ | 26.0 | adapted: definitions from the configuration's `activities`; start / pause / resume / end (ending posts the activity's scores and achievements), party codes (alphabet, validation); the Games app's request comes from `isim gamecenter <app> activity <id> [party code]`; `findMatch` (party code → player group) and `checkPendingGameActivityExistence` unverified |
 
 ## GameController, GameplayKit, SceneKit, RealityKit & ARKit
 
