@@ -196,8 +196,9 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
         c.image = [UIImage systemImageNamed:@"xmark"]; c.contentInsets = NSDirectionalEdgeInsetsMake(0, 0, 0, 0);
         c.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
         _cancel.configuration = c;
+        [_cancel setTitle:nil forState:UIControlStateNormal];
         _cancel.accessibilityLabel = @"Cancel";
-    } else _cancel.configuration = nil;
+    } else { _cancel.configuration = nil; [_cancel setTitle:@"Cancel" forState:UIControlStateNormal]; }
 }
 - (void)_isim_drawContent {
     if (_searchBarStyle == UISearchBarStyleMinimal || self._isim_inNavigationBar || self._isim_integrated) return;
@@ -391,7 +392,9 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
         [UIView performWithoutAnimation:^{ self->_bar.frame = from; }];
         [UIView animateWithDuration:0.3 animations:^{ self->_bar.frame = self->_barFrame; }];
         [nav.view setNeedsLayout];                                  /* the toolbar hides while the field is up */
-        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(_isim_keyboardMoved:) name:UIKeyboardWillChangeFrameNotification object:nil];
+        for (NSString *name in @[UIKeyboardWillChangeFrameNotification, UIKeyboardWillShowNotification, UIKeyboardWillHideNotification])
+            [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(_isim_keyboardMoved:) name:name object:nil];
+        [self _isim_placeBottomChrome:isim_ui_keyboard_frame() animated:NO];       /* the keyboard may be up already */
         barTop = CGRectGetMaxY(nav.navigationBar.frame);
     } else if (spot == SEARCH_FIELD_TRAILING || spot == SEARCH_FIELD_CENTERED) {
         barTop = CGRectGetMaxY([nav.navigationBar convertRect:nav.navigationBar.bounds toView:stage]);   /* stays in the bar row */
@@ -445,19 +448,23 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     [self _isim_updateResults];
     [self _isim_updateSuggestions];
     if (!_bar.isFirstResponder) [_bar becomeFirstResponder];
+    if (_bottom) [self _isim_placeBottomChrome:isim_ui_keyboard_frame() animated:YES];
     [self _isim_notify];
     if ([d respondsToSelector:@selector(didPresentSearchController:)]) [d didPresentSearchController:self];
 }
 /* the bottom field rides on top of the keyboard */
-- (void)_isim_keyboardMoved:(NSNotification *)n {
+- (void)_isim_keyboardMoved:(NSNotification *)n { [self _isim_placeBottomChrome:[n.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue] animated:YES]; }
+- (void)_isim_placeBottomChrome:(CGRect)kbScreen animated:(BOOL)animated {
     UIView *stage = _chrome.superview;
     if (!_bottom || !stage) return;
-    CGRect kb = [stage convertRect:[n.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue] fromView:nil];
+    CGRect kb = CGRectIsEmpty(kbScreen) ? CGRectNull : [stage convertRect:kbScreen fromView:nil];
     CGFloat H = stage.bounds.size.height;
     CGFloat safeBottom = stage.window ? isim_ui_safe_insets_for_rect(stage, [stage convertRect:stage.bounds toView:nil]).bottom : isim_ui_device()->safe_bottom;
     CGFloat bottom = CGRectIsEmpty(kb) || kb.origin.y >= H ? H - safeBottom : kb.origin.y;
     CGRect f = _chrome.frame; f.origin.y = bottom - 60;
-    [UIView animateWithDuration:0.25 animations:^{ self->_chrome.frame = f; }];
+    if (CGRectEqualToRect(f, _chrome.frame)) return;
+    if (animated) [UIView animateWithDuration:0.25 animations:^{ self->_chrome.frame = f; }];
+    else _chrome.frame = f;
 }
 - (BOOL)_isim_activeAtBottom { return _active && _bottom; }
 - (void)_isim_updateResults {
@@ -487,7 +494,11 @@ FWD(BOOL, enablesReturnKeyAutomatically, setEnablesReturnKeyAutomatically)
     __IsimSearchDim *dim = _dim; _dim = nil;
     [UIView animateWithDuration:0.2 animations:^{ dim.alpha = 0; } completion:^(BOOL f) { [dim removeFromSuperview]; }];
     UIViewController *host = [self _isim_findHost];
-    if (_bottom) { [NSNotificationCenter.defaultCenter removeObserver:self name:UIKeyboardWillChangeFrameNotification object:nil]; _bottom = NO; }
+    if (_bottom) {
+        for (NSString *name in @[UIKeyboardWillChangeFrameNotification, UIKeyboardWillShowNotification, UIKeyboardWillHideNotification])
+            [NSNotificationCenter.defaultCenter removeObserver:self name:name object:nil];
+        _bottom = NO;
+    }
     if (_chrome) {
         /* a snapshot of the bar slides back (below the title, or into the toolbar) */
         UIView *stage = _chrome.superview, *snap = [_bar snapshotViewAfterScreenUpdates:NO];

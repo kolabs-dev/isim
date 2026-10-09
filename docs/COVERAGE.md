@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 218 | 2 | 0 | 15 | 235 | 93% |
+| **UIKit** | 219 | 2 | 0 | 14 | 235 | 94% |
 | &nbsp;&nbsp;↳ Application & scenes | 25 | 0 | 0 | 0 | 25 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 60 | 0 | 0 | 14 | 74 | 81% |
+| &nbsp;&nbsp;↳ Views & controls | 61 | 0 | 0 | 13 | 74 | 82% |
 | &nbsp;&nbsp;↳ Layout | 19 | 0 | 0 | 0 | 19 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **757** | **186** | **23** | **46** | **1012** | **84%** |
+| **All areas** | **758** | **186** | **23** | **45** | **1012** | **84%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (206) | 100% (210) | 98% (224) | 93% (235) |
+| UIKit | 100% (206) | 100% (210) | 98% (224) | 94% (235) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (83) | 85% (83) | 85% (83) | 85% (83) |
@@ -259,7 +259,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIButton.Configuration.symbolContentTransition` | ❌ | 26.0 | |
 | `UITabBarController.tabBarMinimizeBehavior`, `bottomAccessory` / `UITabAccessory`, `contentLayoutGuide` | ❌ | 26.0 | the SwiftUI equivalents are implemented |
 | `UINavigationItem` subtitles (`subtitle`, `largeSubtitle`, attributed and view variants) | ❌ | 26.0 | |
-| Search in toolbars (`searchBarPlacementAllowsToolbarIntegration`, `searchBarPlacementAllowsExternalIntegration`, `searchBarPlacementBarButtonItem`, `.integrated*` placements) | ❌ | 26.0 | |
+| Search in toolbars (`searchBarPlacementAllowsToolbarIntegration`, `searchBarPlacementAllowsExternalIntegration`, `searchBarPlacementBarButtonItem`, `.integrated*` placements); `preferredSearchBarPlacement` / `searchBarPlacement` (iOS 16) | ✅ | 26.0 | adapted: iPhone under iOS 26: `.integrated` puts the field (a glass capsule) in the navigation controller's toolbar at `searchBarPlacementBarButtonItem` (else trailing; the toolbar shows for it), activating it lifts the field above the keyboard with a glass close button while the navigation bar stays; `.integratedButton` is a toolbar search button. iPad (regular width): a field in the navigation bar row, trailing or centred (`.integratedCentered`, leading title), or a search button whose activation moves the bar to the top. Before iOS 26 `.inline` is stacked on iPhone and in the bar row on iPad; `.automatic` is stacked. `searchBarPlacementAllowsExternalIntegration` is stored (no split-view relocation). Tested (HelloSearchBars) |
 | `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloUITabs, per version: classic tabs on iOS 17) |
 | `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ❌ | 27.0 | |
 | `NSTextTable`/`NSTextBlock` in UIKit, `UITextAttachmentViewProviderReusePolicy`, viewport rendering surfaces | ❌ | 27.0 | |
