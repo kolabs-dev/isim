@@ -1,4 +1,4 @@
-/* isim Foundation (ARC): NSIndexSet, NSOrderedSet, NSCountedSet, NSCache, NSHashTable, NSMapTable,
+/* isim Foundation (ARC): NSIndexSet, NSOrderedSet, NSCache, NSHashTable, NSMapTable,
  * NSPointerArray, NSSortDescriptor, and the NSArray/NSSet/NSDictionary API built on them. */
 #import <Foundation/Foundation.h>
 #include <objc/runtime.h>
@@ -389,41 +389,6 @@ static BOOL NSEqualRanges_isim(NSRange a, NSRange b) { return a.location == b.lo
 - (void)sortUsingComparator:(NSComparator NS_NOESCAPE)cmptr { [_a sortUsingComparator:cmptr]; }
 - (void)sortUsingDescriptors:(NSArray<NSSortDescriptor *> *)d { [_a sortUsingDescriptors:d]; }
 - (void)sortWithOptions:(NSSortOptions)opts usingComparator:(NSComparator NS_NOESCAPE)cmptr { [_a sortUsingComparator:cmptr]; }
-@end
-
-/* ================= NSCountedSet ================= */
-@implementation NSCountedSet { NSMutableArray *_items; NSMutableArray<NSNumber *> *_cnt; }
-/* NSSet's initializers funnel into -initWithObjects:count:, so storage is set up there */
-- (instancetype)initWithObjects:(const id *)objs count:(NSUInteger)n {
-    if ((self = [super initWithObjects:NULL count:0])) {
-        _items = [NSMutableArray array]; _cnt = [NSMutableArray array];
-        for (NSUInteger i = 0; i < n; i++) [self addObject:objs[i]];
-    }
-    return self;
-}
-- (instancetype)init { return [self initWithObjects:NULL count:0]; }
-- (instancetype)initWithCapacity:(NSUInteger)n { return [self initWithObjects:NULL count:0]; }
-- (instancetype)initWithArray:(NSArray *)a { if ((self = [self initWithObjects:NULL count:0])) for (id o in a) [self addObject:o]; return self; }
-- (instancetype)initWithSet:(NSSet *)s { return [self initWithArray:s.allObjects]; }
-- (NSUInteger)_indexOf:(id)o { return [_items indexOfObject:o]; }
-- (void)addObject:(id)o { NSUInteger i = [self _indexOf:o]; if (i == NSNotFound) { [_items addObject:o]; [_cnt addObject:@1]; } else _cnt[i] = @(_cnt[i].unsignedIntegerValue + 1); }
-- (void)removeObject:(id)o {
-    NSUInteger i = [self _indexOf:o]; if (i == NSNotFound) return;
-    NSUInteger c = _cnt[i].unsignedIntegerValue;
-    if (c <= 1) { [_items removeObjectAtIndex:i]; [_cnt removeObjectAtIndex:i]; } else _cnt[i] = @(c - 1);
-}
-- (void)removeAllObjects { [_items removeAllObjects]; [_cnt removeAllObjects]; }
-- (NSUInteger)countForObject:(id)o { NSUInteger i = [self _indexOf:o]; return i == NSNotFound ? 0 : _cnt[i].unsignedIntegerValue; }
-- (NSUInteger)count { return _items.count; }
-- (id)member:(id)o { NSUInteger i = [self _indexOf:o]; return i == NSNotFound ? nil : _items[i]; }
-- (BOOL)containsObject:(id)o { return [self _indexOf:o] != NSNotFound; }
-- (id)anyObject { return _items.firstObject; }
-- (NSArray *)allObjects { return [_items copy]; }
-- (NSEnumerator *)objectEnumerator { return [_items objectEnumerator]; }
-- (void)enumerateObjectsUsingBlock:(void (NS_NOESCAPE ^)(id obj, BOOL *stop))block { BOOL stop = NO; for (id o in [_items copy]) { block(o, &stop); if (stop) break; } }
-- (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)st objects:(__unsafe_unretained id *)buf count:(NSUInteger)len { return [_items countByEnumeratingWithState:st objects:buf count:len]; }
-- (id)copyWithZone:(NSZone *)z { NSCountedSet *c = [NSCountedSet new]; for (NSUInteger i = 0; i < _items.count; i++) for (NSUInteger k = 0; k < _cnt[i].unsignedIntegerValue; k++) [c addObject:_items[i]]; return c; }
-- (id)mutableCopyWithZone:(NSZone *)z { return [self copyWithZone:z]; }
 @end
 
 /* ================= NSSortDescriptor ================= */
