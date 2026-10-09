@@ -114,6 +114,10 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 + (NSString *)pathWithComponents:(NSArray<NSString *> *)components;
 @property (readonly, copy) NSString *stringByExpandingTildeInPath;
 @property (readonly, copy) NSString *stringByStandardizingPath;
+@end
+
+/* implemented with the file system code (Files.m) */
+@interface NSString (NSStringPathExtensions)
 @property (readonly, copy) NSString *stringByResolvingSymlinksInPath;
 /* the path as the C string file system calls take (UTF-8) */
 @property (readonly) const char *fileSystemRepresentation NS_RETURNS_INNER_POINTER;
