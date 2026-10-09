@@ -50,7 +50,8 @@
 - (id)copyWithZone:(NSZone *)z { return self; }
 @end
 
-@implementation UIAlertController { NSMutableArray<UIAlertAction *> *_actions; UIView *_dim; NSMutableArray<UIView *> *_cards; NSMutableArray<UITextField *> *_fields; }
+@implementation UIAlertController { NSMutableArray<UIAlertAction *> *_actions; UIView *_dim; NSMutableArray<UIView *> *_cards; NSMutableArray<UITextField *> *_fields;
+    BOOL _isimActed; }
 - (void)addTextFieldWithConfigurationHandler:(void (^)(UITextField *))h {
     if (_preferredStyle != UIAlertControllerStyleAlert) return;            /* UIKit raises: text fields are for alerts */
     if (!_fields) _fields = [NSMutableArray array];
@@ -76,6 +77,8 @@
 + (instancetype)alertControllerWithTitle:(NSString *)title message:(NSString *)message preferredStyle:(UIAlertControllerStyle)style {
     UIAlertController *a = [self new];
     a.title = title; a.message = message; a->_preferredStyle = style; a->_actions = [NSMutableArray array];
+    /* like iOS: an action sheet on iPad is a popover (the app gives it a sourceView / barButtonItem) */
+    if (style == UIAlertControllerStyleActionSheet && UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) a.modalPresentationStyle = UIModalPresentationPopover;
     return a;
 }
 - (void)addAction:(UIAlertAction *)a { [_actions addObject:a]; }
@@ -165,6 +168,7 @@ static UIColor *card_color(void) {
     _cards = [NSMutableArray array];
     BOOL sheet = _preferredStyle == UIAlertControllerStyleActionSheet;
     if (!sheet && isim_ui_glass()) { [self _isim_buildGlassAlert]; return; }
+    if (sheet && self.modalPresentationStyle == UIModalPresentationPopover) { [self _isim_buildPopoverSheet]; return; }
     UIView *card = sheet && isim_ui_glass() ? [__IsimGlassCard new] : [UIView new];
     if (![card isKindOfClass:[__IsimGlassCard class]]) card.backgroundColor = card_color();
     card.layer.cornerRadius = isim_ui_glass() ? 28 : sheet ? 13 : 14; card.clipsToBounds = YES;
@@ -247,9 +251,49 @@ static UIColor *card_color(void) {
         }
     }
 }
+/* an iPad action sheet in its popover: title, message and the actions in one list; no Cancel button (tapping
+   outside the popover cancels, like iOS) */
+- (void)_isim_buildPopoverSheet {
+    self.view.backgroundColor = card_color();          /* the popover (and its arrow) take this fill */
+    UIView *card = [UIView new];
+    [self.view addSubview:card]; [_cards addObject:card];
+    CGFloat W = 304, y = 0;
+    if (self.title.length || self.message.length) {
+        y = 14;
+        for (NSString *text in @[self.title ?: @"", self.message ?: @""]) {
+            if (!text.length) continue;
+            UILabel *l = [UILabel new]; l.text = text; l.numberOfLines = 0; l.textAlignment = NSTextAlignmentCenter;
+            l.font = text == self.title ? [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold] : [UIFont systemFontOfSize:13];
+            l.textColor = UIColor.secondaryLabelColor;
+            CGSize s = [l sizeThatFits:CGSizeMake(W - 32, 1000)];
+            l.frame = CGRectMake(16, y, W - 32, ceil(s.height)); [card addSubview:l]; y += ceil(s.height) + 2;
+        }
+        y += 12;
+    }
+    for (UIAlertAction *a in _actions) {
+        if (a.style == UIAlertActionStyleCancel) continue;
+        if (y > 0) { UIView *h = [self _hairline]; h.frame = CGRectMake(0, y, W, 0.5); [card addSubview:h]; }
+        __IsimAlertButton *b = [self _button:a bold:a == _preferredAction sheet:YES];
+        b.backgroundColor = nil;
+        b.frame = CGRectMake(0, y + 0.5, W, 57); b.label.frame = CGRectInset(b.bounds, 12, 0);
+        [card addSubview:b]; y += 57.5;
+    }
+    card.frame = CGRectMake(0, 0, W, y);
+    self.preferredContentSize = CGSizeMake(W, y);
+}
+- (void)viewDidDisappear:(BOOL)a {
+    [super viewDidDisappear:a];
+    if (_isimActed || self.modalPresentationStyle != UIModalPresentationPopover) return;
+    _isimActed = YES;                                  /* dismissed from outside the popover: the cancel action runs */
+    for (UIAlertAction *x in _actions) if (x.style == UIAlertActionStyleCancel) { if (x.handler) x.handler(x); break; }
+}
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGRect b = self.view.bounds; UIEdgeInsets safe = self.view.safeAreaInsets;
+    if (_preferredStyle == UIAlertControllerStyleActionSheet && self.modalPresentationStyle == UIModalPresentationPopover) {
+        UIView *card = _cards.firstObject; card.frame = CGRectMake(0, 0, b.size.width, card.frame.size.height);
+        return;
+    }
     if (_preferredStyle == UIAlertControllerStyleAlert) {
         UIView *card = _cards.firstObject; CGSize s = card.frame.size;
         CGRect kb = isim_ui_keyboard_frame();
@@ -267,6 +311,7 @@ static UIColor *card_color(void) {
 }
 - (void)_tap:(__IsimAlertButton *)b {
     UIAlertAction *a = b.action;
+    _isimActed = YES;
     UIViewController *presenter = self.presentingViewController;
     [presenter ?: self dismissViewControllerAnimated:YES completion:^{ if (a.handler) a.handler(a); }];
 }

@@ -829,8 +829,10 @@ static void handle_touch(const struct isim_event *ev) {
         UIControl *control = nil;
         for (UIView *v = hit; v; v = v.superview) if ([v isKindOfClass:[UIControl class]] && ((UIControl *)v).enabled) { control = (UIControl *)v; break; }
         BOOL aboveControl = NO;
-        /* like UIScrollView.touchesShouldCancel(in:): dragging a slider does not scroll its scroll view */
-        BOOL dragControl = [control isKindOfClass:[UISlider class]];
+        /* like UIScrollView.touchesShouldCancel(in:): dragging a control that tracks drags (a slider, a color spectrum, a
+           custom control overriding continueTracking) does not scroll its scroll view; buttons still scroll lists */
+        BOOL dragControl = [control isKindOfClass:[UISlider class]] || (control && [control methodForSelector:@selector(continueTrackingWithTouch:withEvent:)] !=
+                           [UIControl instanceMethodForSelector:@selector(continueTrackingWithTouch:withEvent:)]);
         for (UIView *v = hit; v; v = v.superview) {
             for (UIGestureRecognizer *g in v.gestureRecognizers) {
                 if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) continue;

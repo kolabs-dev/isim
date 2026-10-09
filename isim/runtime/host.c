@@ -24,6 +24,7 @@
 #include <pango/pangocairo.h>
 #include <pango/pangofc-fontmap.h>
 #include <fontconfig/fontconfig.h>
+#include <fontconfig/fcfreetype.h>
 #include <libgen.h>
 #include <math.h>
 #include <stdio.h>
@@ -591,10 +592,32 @@ __attribute__((constructor)) static void bundled_fonts(void) {
     FcConfigAppFontAddDir(FcConfigGetCurrent(), (const FcChar8 *)dir);
 }
 /* Adds a font file for this process (UIAppFonts / CTFontManagerRegisterFontsForURL). */
+static struct { char family[128], ps[128]; } app_faces[128];
+static int napp_faces;
 int isim_font_register(const char *path) {
     if (!FcConfigAppFontAddFile(FcConfigGetCurrent(), (const FcChar8 *)path)) return 0;
+    int count = 0;                                     /* the file's faces, for UIFont.familyNames / fontNames(forFamilyName:) */
+    for (int face = 0; napp_faces < 128; face++) {
+        FcPattern *p = FcFreeTypeQuery((const FcChar8 *)path, face, NULL, &count);
+        if (!p) break;
+        FcChar8 *fam = NULL, *ps = NULL;
+        FcPatternGetString(p, FC_FAMILY, 0, &fam); FcPatternGetString(p, FC_POSTSCRIPT_NAME, 0, &ps);
+        if (fam) {
+            snprintf(app_faces[napp_faces].family, sizeof app_faces[0].family, "%s", (const char *)fam);
+            snprintf(app_faces[napp_faces].ps, sizeof app_faces[0].ps, "%s", ps ? (const char *)ps : (const char *)fam);
+            napp_faces++;
+        }
+        FcPatternDestroy(p);
+        if (face + 1 >= count) break;
+    }
     PangoFontMap *fm = pango_cairo_font_map_get_default();
     if (PANGO_IS_FC_FONT_MAP(fm)) pango_fc_font_map_config_changed(PANGO_FC_FONT_MAP(fm));
+    return 1;
+}
+/* the i-th face registered by isim_font_register (family and PostScript name); 0 past the end */
+int isim_font_app_face(int i, char *family, int famlen, char *ps, int pslen) {
+    if (i < 0 || i >= napp_faces) return 0;
+    snprintf(family, famlen, "%s", app_faces[i].family); snprintf(ps, pslen, "%s", app_faces[i].ps);
     return 1;
 }
 /* Resolves a PostScript name ("Silkscreen-Bold") or a family name ("Sora") to family + UIFont weight.
@@ -1388,7 +1411,7 @@ static const struct shim isim_table[] = {
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
     H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke), H(isim_path_set_line_style), H(isim_path_set_fill_rule), H(isim_path_gradient),
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_text_measure_f), H(isim_text_end_point_f), H(isim_text_draw_f),
-    H(isim_font_register), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
+    H(isim_font_register), H(isim_font_app_face), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free), H(isim_image_draw_part), H(isim_image_pixel_size), H(isim_image_draw_symbol), H(isim_image_symbol_layers), H(isim_image_draw_symbol_layered),
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),

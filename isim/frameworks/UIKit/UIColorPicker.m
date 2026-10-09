@@ -4,8 +4,12 @@
  * Sliders segmented control, the 12 x 10 color grid (grays, then hues from dark to light), a hue/brightness
  * spectrum, RGB sliders, an opacity slider (supportsAlpha) and a swatch of the current color. Picking a color
  * sets selectedColor and tells the delegate (didSelectColor, continuously while dragging the spectrum or a
- * slider); closing calls colorPickerViewControllerDidFinish. UIColorWell draws the rainbow ring around its
- * color, presents a picker when tapped and sends .valueChanged as the color changes. No eyedropper/favorites. */
+ * slider); closing calls colorPickerViewControllerDidFinish. The Sliders page has an sRGB hex field (iOS shows Display P3;
+ * isim's colors are sRGB). The eyedropper (top left) hides the picker; the next touch anywhere in the window samples
+ * that pixel (drawn by the app's views) and brings the picker back with it. Saved colors: "+" adds the current color
+ * to a row of swatches shared by the device's apps (the global defaults, like iOS's favorites); a swatch picks its
+ * color, a long press removes it. UIColorWell draws the rainbow ring around its color, presents a picker when tapped
+ * and sends .valueChanged as the color changes. */
 #import "UIKitPrivate.h"
 #import <UIKit/UIColorPickerViewController.h>
 #include <math.h>
@@ -93,7 +97,8 @@ static UIColor *spectrum_at(double x, double y) {            /* unit coordinates
     UIScrollView *_scroll; UISegmentedControl *_mode;
     __IsimColorGrid *_grid; __IsimColorSpectrum *_spectrum; UIView *_sliders;
     UISlider *_rgb[3]; UILabel *_rgbValue[3]; UISlider *_alpha; UILabel *_alphaLabel, *_alphaValue; UIView *_swatch;
-    UILabel *_title; UIButton *_close;
+    UILabel *_title; UIButton *_close, *_eyedropper;
+    UITextField *_hex; UILabel *_hexLabel; UIView *_saved; UIButton *_add;
 }
 - (instancetype)initWithNibName:(NSString *)n bundle:(NSBundle *)b {
     if ((self = [super initWithNibName:n bundle:b])) { _selectedColor = UIColor.whiteColor; _supportsAlpha = YES; }
@@ -127,6 +132,7 @@ static UIColor *spectrum_at(double x, double y) {            /* unit coordinates
         _rgb[i] = [UISlider new]; _rgb[i].maximumValue = 255; _rgb[i].accessibilityIdentifier = [@"color-" stringByAppendingString:[names[(NSUInteger)i] lowercaseString]];
         _rgb[i].minimumTrackTintColor = @[UIColor.systemRedColor, UIColor.systemGreenColor, UIColor.systemBlueColor][(NSUInteger)i];
         [_rgb[i] addTarget:self action:@selector(_isim_slid:) forControlEvents:UIControlEventValueChanged];
+        [_rgb[i] addTarget:self action:@selector(_isim_slideEnded:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
         [_sliders addSubview:_rgb[i]];
         _rgbValue[i] = [UILabel new]; _rgbValue[i].font = [UIFont monospacedDigitSystemFontOfSize:17 weight:UIFontWeightRegular]; _rgbValue[i].textAlignment = NSTextAlignmentRight;
         [_sliders addSubview:_rgbValue[i]];
@@ -135,12 +141,34 @@ static UIColor *spectrum_at(double x, double y) {            /* unit coordinates
     [_scroll addSubview:_alphaLabel];
     _alpha = [UISlider new]; _alpha.maximumValue = 100; _alpha.accessibilityIdentifier = @"color-opacity";
     [_alpha addTarget:self action:@selector(_isim_slid:) forControlEvents:UIControlEventValueChanged];
+    [_alpha addTarget:self action:@selector(_isim_slideEnded:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
     [_scroll addSubview:_alpha];
     _alphaValue = [UILabel new]; _alphaValue.font = [UIFont monospacedDigitSystemFontOfSize:17 weight:UIFontWeightRegular]; _alphaValue.textAlignment = NSTextAlignmentRight;
     [_scroll addSubview:_alphaValue];
     _swatch = [UIView new]; _swatch.layer.cornerRadius = 10; _swatch.layer.borderWidth = 0.5; _swatch.layer.borderColor = UIColor.separatorColor.CGColor;
     _swatch.accessibilityIdentifier = @"color-swatch";
     [_scroll addSubview:_swatch];
+    _eyedropper = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_eyedropper setImage:[UIImage systemImageNamed:@"eyedropper" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightMedium]] forState:UIControlStateNormal];
+    _eyedropper.accessibilityIdentifier = @"color-eyedropper"; _eyedropper.accessibilityLabel = @"Eyedropper";
+    [_eyedropper addTarget:self action:@selector(_isim_eyedropper) forControlEvents:UIControlEventTouchUpInside];
+    [v addSubview:_eyedropper];
+    _hexLabel = [UILabel new]; _hexLabel.text = @"sRGB Hex Color #"; _hexLabel.font = [UIFont systemFontOfSize:17]; _hexLabel.textAlignment = NSTextAlignmentRight;
+    [_sliders addSubview:_hexLabel];
+    _hex = [UITextField new]; _hex.borderStyle = UITextBorderStyleRoundedRect; _hex.autocapitalizationType = UITextAutocapitalizationTypeAllCharacters;
+    _hex.autocorrectionType = UITextAutocorrectionTypeNo; _hex.font = [UIFont monospacedDigitSystemFontOfSize:17 weight:UIFontWeightRegular];
+    _hex.accessibilityIdentifier = @"color-hex"; _hex.returnKeyType = UIReturnKeyDone;
+    [_hex addTarget:self action:@selector(_isim_hexEntered) forControlEvents:UIControlEventEditingDidEndOnExit];
+    [_hex addTarget:self action:@selector(_isim_hexEntered) forControlEvents:UIControlEventEditingDidEnd];
+    [_sliders addSubview:_hex];
+    _saved = [UIView new]; _saved.accessibilityIdentifier = @"color-saved"; [_scroll addSubview:_saved];
+    _add = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_add setImage:[UIImage systemImageNamed:@"plus" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIImageSymbolWeightSemibold]] forState:UIControlStateNormal];
+    _add.backgroundColor = UIColor.tertiarySystemFillColor; _add.layer.cornerRadius = 15;
+    _add.accessibilityIdentifier = @"color-save"; _add.accessibilityLabel = @"Add to saved colors";
+    [_add addTarget:self action:@selector(_isim_saveColor) forControlEvents:UIControlEventTouchUpInside];
+    [_scroll addSubview:_add];
+    [self _isim_reloadSaved];
     [self _isim_syncControls];
 }
 - (void)viewDidLayoutSubviews {
@@ -149,6 +177,7 @@ static UIColor *spectrum_at(double x, double y) {            /* unit coordinates
     CGFloat W = b.width, m = 16, cw = W - 2 * m;
     _title.frame = CGRectMake(60, 14, W - 120, 24);
     _close.frame = CGRectMake(W - m - 30, 11, 30, 30);
+    _eyedropper.frame = CGRectMake(m - 6, 7, 38, 38);
     _scroll.frame = CGRectMake(0, 52, W, MAX(0, b.height - 52));
     CGFloat y = 4;
     _mode.frame = CGRectMake(m, y, cw, 32); y += 32 + 16;
@@ -161,13 +190,23 @@ static UIColor *spectrum_at(double x, double y) {            /* unit coordinates
         _rgb[i].frame = CGRectMake(0, i * 72 + 24, cw - 64, 31);
         _rgbValue[i].frame = CGRectMake(cw - 56, i * 72 + 24, 56, 31);
     }
+    _hexLabel.frame = CGRectMake(0, 3 * 72 + 4, cw - 120, 36);
+    _hex.frame = CGRectMake(cw - 110, 3 * 72 + 4, 110, 36);
     y += gh + 20;
     _alphaLabel.hidden = _alpha.hidden = _alphaValue.hidden = !_supportsAlpha;
     if (_supportsAlpha) {
         _alphaLabel.frame = CGRectMake(m, y, cw, 18); y += 24;
         _alpha.frame = CGRectMake(m, y, cw - 64, 31); _alphaValue.frame = CGRectMake(W - m - 56, y, 56, 31); y += 31 + 20;
     }
-    _swatch.frame = CGRectMake(m, y, 64, 64); y += 64 + 24;
+    _swatch.frame = CGRectMake(m, y, 64, 64);
+    /* saved colors right of the swatch: 30 pt circles, then "+" */
+    CGFloat sx = m + 64 + 16, sy = y + 2;
+    NSUInteger perRow = (NSUInteger)MAX(1, floor((W - m - sx + 8) / 38));
+    NSUInteger i = 0;
+    for (UIView *c in _saved.subviews) { c.frame = CGRectMake((i % perRow) * 38, (i / perRow) * 38, 30, 30); i++; }
+    _add.frame = CGRectMake(sx + (i % perRow) * 38, sy + (i / perRow) * 38, 30, 30);
+    _saved.frame = CGRectMake(sx, sy, W - m - sx, (i / perRow + 1) * 38);
+    y += MAX(64, (i / perRow + 1) * 38) + 24;
     _scroll.contentSize = CGSizeMake(W, y);
 }
 - (void)setSelectedColor:(UIColor *)c { _selectedColor = c ?: UIColor.whiteColor; [self _isim_syncControls]; }
@@ -178,6 +217,7 @@ static UIColor *spectrum_at(double x, double y) {            /* unit coordinates
     for (int i = 0; i < 3; i++) { _rgb[i].value = (float)(v[i] * 255); _rgbValue[i].text = [NSString stringWithFormat:@"%d", (int)lround(v[i] * 255)]; }
     _alpha.value = (float)(v[3] * 100); _alphaValue.text = [NSString stringWithFormat:@"%d%%", (int)lround(v[3] * 100)];
     _swatch.backgroundColor = _selectedColor;
+    if (!_hex.isFirstResponder) _hex.text = [hex(_selectedColor) substringWithRange:NSMakeRange(1, 6)];
 }
 - (void)_isim_pick:(UIColor *)c continuously:(BOOL)cont {
     double v[4]; isim_ui_rgba(c, v);
@@ -194,11 +234,100 @@ static UIColor *spectrum_at(double x, double y) {            /* unit coordinates
 - (void)_isim_spectrumPicked { [self _isim_pick:_spectrum.color continuously:_spectrum.selected]; }
 - (void)_isim_slid:(UISlider *)s {
     UIColor *c = [UIColor colorWithRed:_rgb[0].value / 255.0 green:_rgb[1].value / 255.0 blue:_rgb[2].value / 255.0 alpha:1];
-    [self _isim_pick:c continuously:s.isTracking];
+    [self _isim_pick:c continuously:YES];                 /* while dragging; the touch-up sends the final one */
+}
+/* the end of a slider drag: the final, non-continuous selection */
+- (void)_isim_slideEnded:(UISlider *)s {
+    UIColor *c = [UIColor colorWithRed:_rgb[0].value / 255.0 green:_rgb[1].value / 255.0 blue:_rgb[2].value / 255.0 alpha:1];
+    [self _isim_pick:c continuously:NO];
 }
 - (void)_isim_modeChanged {
     NSInteger m = _mode.selectedSegmentIndex;
     _grid.hidden = m != 0; _spectrum.hidden = m != 1; _sliders.hidden = m != 2;
+}
+/* ---- hex ---- */
+- (void)_isim_hexEntered {
+    NSString *t = [[_hex.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet] stringByReplacingOccurrencesOfString:@"#" withString:@""];
+    unsigned v = 0;
+    if (t.length != 6 || ![[NSScanner scannerWithString:t] scanHexInt:&v]) { [self _isim_syncControls]; return; }   /* invalid: back to the color */
+    [_hex resignFirstResponder];
+    [self _isim_pick:[UIColor colorWithRed:((v >> 16) & 255) / 255.0 green:((v >> 8) & 255) / 255.0 blue:(v & 255) / 255.0 alpha:1] continuously:NO];
+}
+/* ---- saved colors (shared by the device's apps, like iOS's) ---- */
+static NSUserDefaults *global_defaults(void) { return [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"]; }
+static NSArray<NSString *> *saved_colors(void) { NSArray *a = [global_defaults() arrayForKey:@"ISIMColorPickerSavedColors"]; return a ?: @[]; }
+static UIColor *color_from_saved(NSString *s) {
+    NSArray *c = [s componentsSeparatedByString:@" "];
+    return c.count == 4 ? [UIColor colorWithRed:[c[0] doubleValue] green:[c[1] doubleValue] blue:[c[2] doubleValue] alpha:[c[3] doubleValue]] : nil;
+}
+- (void)_isim_reloadSaved {
+    for (UIView *v in _saved.subviews.copy) [v removeFromSuperview];
+    NSArray *all = saved_colors();
+    for (NSUInteger i = 0; i < all.count; i++) {
+        UIColor *c = color_from_saved(all[i]);
+        if (!c) continue;
+        UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
+        b.backgroundColor = c; b.layer.cornerRadius = 15; b.layer.borderWidth = 0.5; b.layer.borderColor = UIColor.separatorColor.CGColor;
+        b.accessibilityIdentifier = [NSString stringWithFormat:@"color-saved-%lu", (unsigned long)i];
+        b.accessibilityLabel = hex(c);
+        __weak UIColorPickerViewController *ws = self;
+        [b addAction:[UIAction actionWithHandler:^(UIAction *a) { [ws _isim_pick:c continuously:NO]; }] forControlEvents:UIControlEventTouchUpInside];
+        UILongPressGestureRecognizer *lp = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_savedLongPress:)];
+        lp.name = all[i];
+        [b addGestureRecognizer:lp];
+        [_saved addSubview:b];
+    }
+    [self.viewIfLoaded setNeedsLayout];
+}
+- (void)_isim_saveColor {
+    double v[4]; isim_ui_rgba(_selectedColor, v);
+    NSString *entry = [NSString stringWithFormat:@"%g %g %g %g", v[0], v[1], v[2], v[3]];
+    NSMutableArray *all = [saved_colors() mutableCopy];
+    [all removeObject:entry]; [all addObject:entry];
+    [global_defaults() setObject:all forKey:@"ISIMColorPickerSavedColors"];
+    NSLog(@"isim: color picker saved %@ (%lu saved colors)", hex(_selectedColor), (unsigned long)all.count);
+    [self _isim_reloadSaved];
+}
+- (void)_isim_savedLongPress:(UILongPressGestureRecognizer *)g {
+    if (g.state != UIGestureRecognizerStateBegan) return;
+    NSMutableArray *all = [saved_colors() mutableCopy];
+    [all removeObject:g.name];
+    [global_defaults() setObject:all forKey:@"ISIMColorPickerSavedColors"];
+    NSLog(@"isim: color picker removed a saved color (%lu left)", (unsigned long)all.count);
+    [self _isim_reloadSaved];
+}
+/* ---- eyedropper: the picker steps aside; the next touch in the window samples its pixel ---- */
+- (UIView *)_isim_topView { UIView *t = self.view; while (t.superview && ![t.superview isKindOfClass:[UIWindow class]]) t = t.superview; return t; }
+- (void)_isim_eyedropper {
+    UIWindow *w = self.view.window;
+    if (!w) return;
+    [self _isim_topView].hidden = YES;
+    UIControl *catcher = [[UIControl alloc] initWithFrame:w.bounds];
+    catcher.accessibilityIdentifier = @"color-eyedropper-overlay";
+    catcher.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [catcher addTarget:self action:@selector(_isim_eyedropperTouched:withEvent:) forControlEvents:UIControlEventTouchUpInside];
+    [w addSubview:catcher];
+    NSLog(@"isim: color picker eyedropper: touch a point to sample its color");
+}
+- (void)_isim_eyedropperTouched:(UIControl *)catcher withEvent:(UIEvent *)e {
+    UIWindow *w = catcher.window;
+    CGPoint p = [e.allTouches.anyObject locationInView:w];
+    [catcher removeFromSuperview];
+    unsigned char px[4] = { 0 };
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(px, 1, 1, 8, 4, cs, kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(cs);
+    if (ctx && w) {
+        UIGraphicsPushContext(ctx);
+        CGContextTranslateCTM(ctx, 0, 1); CGContextScaleCTM(ctx, 1, -1);                  /* UIKit coordinates (y down) */
+        [w drawViewHierarchyInRect:CGRectMake(-p.x, -p.y, w.bounds.size.width, w.bounds.size.height) afterScreenUpdates:NO];
+        UIGraphicsPopContext();
+        CGContextRelease(ctx);
+    }
+    [self _isim_topView].hidden = NO;
+    UIColor *c = [UIColor colorWithRed:px[0] / 255.0 green:px[1] / 255.0 blue:px[2] / 255.0 alpha:1];
+    NSLog(@"isim: color picker eyedropper sampled %@ at %.0f,%.0f", hex(c), p.x, p.y);
+    [self _isim_pick:c continuously:NO];
 }
 - (void)_isim_closeTapped {
     __weak UIColorPickerViewController *ws = self;
