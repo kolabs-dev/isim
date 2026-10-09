@@ -7,6 +7,9 @@
  * TRUEPREDICATE/FALSEPREDICATE, FUNCTION-free arithmetic (+ - * /) on numbers. */
 #import <Foundation/Foundation.h>
 #include <ctype.h>
+#include <math.h>
+#include <stdlib.h>
+#include <objc/message.h>
 typedef void *pp_jmp[5];   /* __builtin_setjmp buffer (no setjmp in isim's libSystem) */
 #include <stdio.h>
 #include <stdarg.h>
@@ -28,9 +31,23 @@ typedef void *pp_jmp[5];   /* __builtin_setjmp buffer (no setjmp in isim's libSy
 @end
 
 /* ================= NSExpression ================= */
+/* FIRST / LAST / SIZE in "array[FIRST]" (objectFrom:withIndex:) */
+@interface _IsimIndexSymbol_isim : NSObject <NSCopying, NSSecureCoding>
+@property (copy) NSString *name;
+@end
+@implementation _IsimIndexSymbol_isim
++ (instancetype)symbol:(NSString *)n { static NSMutableDictionary *all; @synchronized (self) { if (!all) all = [NSMutableDictionary dictionary];
+    _IsimIndexSymbol_isim *s = all[n]; if (!s) { s = [self new]; s.name = n; all[n] = s; } return s; } }
+- (id)copyWithZone:(NSZone *)z { return self; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c { [c encodeObject:_name forKey:@"name"]; }
+- (instancetype)initWithCoder:(NSCoder *)c { return [_IsimIndexSymbol_isim symbol:[c decodeObjectOfClass:[NSString class] forKey:@"name"] ?: @"FIRST"]; }
+- (NSString *)description { return _name; }
+@end
+
 @implementation NSExpression {
-    @public NSExpressionType _type; id _constant; NSString *_keyPath, *_variable, *_function; NSArray *_args, *_collection;
-    NSExpression *_operand; id (^_block)(id, NSArray *, NSMutableDictionary *);
+    @public NSExpressionType _type; id _constant; NSString *_keyPath, *_variable, *_function; NSArray *_args; id _collection;
+    NSExpression *_operand, *_left, *_right; NSPredicate *_predicate; id (^_block)(id, NSArray *, NSMutableDictionary *);
 }
 + (NSExpression *)expressionWithFormat:(NSString *)fmt arguments:(va_list)ap {
     va_list copy; va_copy(copy, ap);
@@ -44,98 +61,293 @@ typedef void *pp_jmp[5];   /* __builtin_setjmp buffer (no setjmp in isim's libSy
 + (NSExpression *)expressionForVariable:(NSString *)v { NSExpression *e = [[self alloc] initWithExpressionType:NSVariableExpressionType]; e->_variable = [v copy]; return e; }
 + (NSExpression *)expressionForKeyPath:(NSString *)kp { NSExpression *e = [[self alloc] initWithExpressionType:NSKeyPathExpressionType]; e->_keyPath = [kp copy]; return e; }
 + (NSExpression *)expressionForAggregate:(NSArray<NSExpression *> *)subs { NSExpression *e = [[self alloc] initWithExpressionType:NSAggregateExpressionType]; e->_collection = [subs copy]; return e; }
++ (NSExpression *)expressionForAnyKey { return [[self alloc] initWithExpressionType:NSAnyKeyExpressionType]; }
 + (NSExpression *)expressionForFunction:(NSString *)name arguments:(NSArray *)args {
     NSExpression *e = [[self alloc] initWithExpressionType:NSFunctionExpressionType]; e->_function = [name copy]; e->_args = [args copy]; return e;
 }
+/* FUNCTION(operand, 'selector:', args...): a method of the operand's value */
++ (NSExpression *)expressionForFunction:(NSExpression *)target selectorName:(NSString *)name arguments:(NSArray *)args {
+    NSExpression *e = [self expressionForFunction:name arguments:args ?: @[]]; e->_operand = target; return e;
+}
 + (NSExpression *)expressionForBlock:(id (^)(id, NSArray<NSExpression *> *, NSMutableDictionary *))block arguments:(NSArray<NSExpression *> *)args {
     NSExpression *e = [[self alloc] initWithExpressionType:NSBlockExpressionType]; e->_block = [block copy]; e->_args = [args copy]; return e;
+}
++ (NSExpression *)expressionForSubquery:(NSExpression *)collection usingIteratorVariable:(NSString *)variable predicate:(NSPredicate *)predicate {
+    NSExpression *e = [[self alloc] initWithExpressionType:NSSubqueryExpressionType];
+    e->_collection = collection; e->_variable = [variable copy]; e->_predicate = predicate; return e;
+}
+static NSExpression *set_expr(NSExpressionType t, NSExpression *l, NSExpression *r) {
+    NSExpression *e = [[NSExpression alloc] initWithExpressionType:t]; e->_left = l; e->_right = r; return e;
+}
++ (NSExpression *)expressionForUnionSet:(NSExpression *)l with:(NSExpression *)r { return set_expr(NSUnionSetExpressionType, l, r); }
++ (NSExpression *)expressionForIntersectSet:(NSExpression *)l with:(NSExpression *)r { return set_expr(NSIntersectSetExpressionType, l, r); }
++ (NSExpression *)expressionForMinusSet:(NSExpression *)l with:(NSExpression *)r { return set_expr(NSMinusSetExpressionType, l, r); }
++ (NSExpression *)expressionForConditional:(NSPredicate *)predicate trueExpression:(NSExpression *)t falseExpression:(NSExpression *)f {
+    NSExpression *e = [[self alloc] initWithExpressionType:NSConditionalExpressionType]; e->_predicate = predicate; e->_left = t; e->_right = f; return e;
 }
 + (NSExpression *)expressionWithFormat:(NSString *)fmt, ... {
     va_list ap; va_start(ap, fmt); NSExpression *e = [self expressionWithFormat:fmt arguments:ap]; va_end(ap); return e;
 }
 - (instancetype)initWithExpressionType:(NSExpressionType)type { if ((self = [super init])) _type = type; return self; }
 - (instancetype)init { return [self initWithExpressionType:NSConstantValueExpressionType]; }
+/* archived as its format (and constant values as objects) */
 + (BOOL)supportsSecureCoding { return YES; }
-- (void)encodeWithCoder:(NSCoder *)c {}
-- (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
+- (void)encodeWithCoder:(NSCoder *)c {
+    if (_type == NSBlockExpressionType) [NSException raise:NSInvalidArgumentException format:@"Block expressions cannot be archived"];
+    if (_type == NSConstantValueExpressionType) [c encodeObject:_constant forKey:@"NSConstantValue"];
+    else [c encodeObject:[self predicateFormat_isim] forKey:@"NSExpressionFormat"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSString *fmt = [c decodeObjectOfClass:[NSString class] forKey:@"NSExpressionFormat"];
+    if (fmt) return [NSExpression expressionWithFormat:fmt argumentArray:@[]];
+    NSSet *classes = [NSSet setWithObjects:[NSString class], [NSNumber class], [NSDate class], [NSData class], [NSArray class], [NSDictionary class], [NSSet class], [NSNull class], [NSURL class], [NSUUID class], nil];
+    return [NSExpression expressionForConstantValue:[c decodeObjectOfClasses:classes forKey:@"NSConstantValue"]];
+}
 - (id)copyWithZone:(NSZone *)z { return self; }
 - (NSExpressionType)expressionType { return _type; }
-- (id)constantValue { return _constant; }
+- (id)constantValue {
+    if (_type != NSConstantValueExpressionType) [NSException raise:NSInternalInconsistencyException format:@"-constantValue only defined for constant value expressions"];
+    return _constant;
+}
 - (NSString *)keyPath { return _keyPath; }
 - (NSString *)variable { return _variable; }
 - (NSString *)function { return _function; }
 - (NSArray *)arguments { return _args; }
 - (id)collection { return _collection; }
-- (NSExpression *)operand { return _operand; }
-static id arith(NSString *op, id a, id b) {
-    double x = [a doubleValue], y = [b doubleValue];
-    double r = [op isEqualToString:@"add:to:"] ? x + y : [op isEqualToString:@"from:subtract:"] ? x - y : [op isEqualToString:@"multiply:by:"] ? x * y : [op isEqualToString:@"divide:by:"] ? x / y : 0;
-    return r == (long long)r && fabs(r) < 9e15 ? @((long long)r) : @(r);
+- (NSExpression *)operand { return _operand ?: (_type == NSFunctionExpressionType ? [NSExpression expressionForConstantValue:nil] : nil); }
+- (NSPredicate *)predicate { return _predicate; }
+- (NSExpression *)leftExpression { return _left; }
+- (NSExpression *)rightExpression { return _right; }
+- (NSExpression *)trueExpression { return _left; }
+- (NSExpression *)falseExpression { return _right; }
+- (id (^)(id, NSArray<NSExpression *> *, NSMutableDictionary *))expressionBlock { return _block; }
+- (void)allowEvaluation {}
+
+static id number_result(double r) { return r == (long long)r && fabs(r) < 9e15 ? @((long long)r) : @(r); }
+static NSArray *as_array(id v) {
+    if ([v isKindOfClass:[NSArray class]]) return v;
+    if ([v isKindOfClass:[NSSet class]]) return [v allObjects];
+    if ([v isKindOfClass:[NSOrderedSet class]]) return [v array];
+    if ([v isKindOfClass:[NSDictionary class]]) return [v allValues];
+    return v && v != [NSNull null] ? @[v] : @[];
 }
+static NSArray *numbers_of(id v) {
+    NSMutableArray *out = [NSMutableArray array];
+    for (id x in as_array(v)) if ([x isKindOfClass:[NSNumber class]]) [out addObject:x];
+    return out;
+}
+/* the built-in functions of Apple's NSExpression (expressionForFunction:arguments:) */
+static id call_builtin(NSString *f, NSArray *v) {
+    NSUInteger n = v.count;
+    id a = n > 0 ? v[0] : nil, b = n > 1 ? v[1] : nil;
+    if (a == [NSNull null]) a = nil;
+    if (b == [NSNull null]) b = nil;
+    double x = [a respondsToSelector:@selector(doubleValue)] ? [a doubleValue] : 0, y = [b respondsToSelector:@selector(doubleValue)] ? [b doubleValue] : 0;
+    long long ix = [a respondsToSelector:@selector(longLongValue)] ? [a longLongValue] : 0, iy = [b respondsToSelector:@selector(longLongValue)] ? [b longLongValue] : 0;
+    /* aggregates over a collection */
+    if ([f isEqualToString:@"count:"]) return @(as_array(a).count);
+    if ([f isEqualToString:@"sum:"] || [f isEqualToString:@"average:"] || [f isEqualToString:@"stddev:"]) {
+        NSArray *nums = numbers_of(a); double s = 0; for (NSNumber *k in nums) s += k.doubleValue;
+        if ([f isEqualToString:@"sum:"]) return number_result(s);
+        if (!nums.count) return nil;
+        double mean = s / nums.count;
+        if ([f isEqualToString:@"average:"]) return @(mean);
+        double var = 0; for (NSNumber *k in nums) var += (k.doubleValue - mean) * (k.doubleValue - mean);
+        return @(sqrt(var / nums.count));
+    }
+    if ([f isEqualToString:@"min:"] || [f isEqualToString:@"max:"]) {
+        id best = nil; BOOL max = [f isEqualToString:@"max:"];
+        for (id k in as_array(a)) if (k != [NSNull null] && (!best || [k compare:best] == (max ? NSOrderedDescending : NSOrderedAscending))) best = k;
+        return best;
+    }
+    if ([f isEqualToString:@"median:"]) {
+        NSArray *s = [numbers_of(a) sortedArrayUsingSelector:@selector(compare:)];
+        if (!s.count) return nil;
+        return s.count % 2 ? s[s.count / 2] : number_result(([s[s.count / 2 - 1] doubleValue] + [s[s.count / 2] doubleValue]) / 2);
+    }
+    if ([f isEqualToString:@"mode:"]) {
+        NSCountedSet *c = [NSCountedSet setWithArray:as_array(a)]; NSUInteger top = 0;
+        for (id k in c) top = MAX(top, [c countForObject:k]);
+        NSMutableArray *out = [NSMutableArray array];
+        for (id k in as_array(a)) if ([c countForObject:k] == top && ![out containsObject:k]) [out addObject:k];
+        return out;
+    }
+    /* arithmetic */
+    if ([f isEqualToString:@"add:to:"]) return number_result(x + y);
+    if ([f isEqualToString:@"from:subtract:"]) return number_result(x - y);
+    if ([f isEqualToString:@"multiply:by:"]) return number_result(x * y);
+    if ([f isEqualToString:@"divide:by:"]) return number_result(x / y);
+    if ([f isEqualToString:@"modulus:by:"]) return @(iy ? ix % iy : 0);
+    if ([f isEqualToString:@"sqrt:"]) return @(sqrt(x));
+    if ([f isEqualToString:@"log:"]) return @(log10(x));
+    if ([f isEqualToString:@"ln:"]) return @(log(x));
+    if ([f isEqualToString:@"raise:toPower:"]) return number_result(pow(x, y));
+    if ([f isEqualToString:@"exp:"]) return @(exp(x));
+    if ([f isEqualToString:@"ceiling:"]) return number_result(ceil(x));
+    if ([f isEqualToString:@"floor:"]) return number_result(floor(x));
+    if ([f isEqualToString:@"trunc:"]) return number_result(trunc(x));
+    if ([f isEqualToString:@"abs:"]) return number_result(fabs(x));
+    if ([f isEqualToString:@"random"]) return @(arc4random() / (double)UINT32_MAX);
+    if ([f isEqualToString:@"random:"]) { NSArray *c = as_array(a); return c.count ? c[arc4random_uniform((uint32_t)c.count)] : nil; }
+    if ([f isEqualToString:@"now"]) return [NSDate date];
+    /* bits */
+    if ([f isEqualToString:@"bitwiseAnd:with:"]) return @(ix & iy);
+    if ([f isEqualToString:@"bitwiseOr:with:"]) return @(ix | iy);
+    if ([f isEqualToString:@"bitwiseXor:with:"]) return @(ix ^ iy);
+    if ([f isEqualToString:@"leftshift:by:"]) return @(ix << iy);
+    if ([f isEqualToString:@"rightshift:by:"]) return @(ix >> iy);
+    if ([f isEqualToString:@"onesComplement:"]) return @(~ix);
+    /* strings, misc */
+    if ([f isEqualToString:@"lowercase:"]) return [a lowercaseString];
+    if ([f isEqualToString:@"uppercase:"]) return [a uppercaseString];
+    if ([f isEqualToString:@"length:"]) return @([a length]);
+    if ([f isEqualToString:@"noindex:"]) return a;
+    if ([f isEqualToString:@"distanceToLocation:fromLocation:"]) {
+        SEL d = NSSelectorFromString(@"distanceFromLocation:");
+        return [a respondsToSelector:d] ? @(((double (*)(id, SEL, id))objc_msgSend)(a, d, b)) : nil;
+    }
+    if ([f isEqualToString:@"castObject:toType:"]) {
+        NSString *type = b;
+        if ([type isEqualToString:@"NSString"]) return [a isKindOfClass:[NSString class]] ? a : [a description];
+        if ([type isEqualToString:@"NSNumber"]) return [a isKindOfClass:[NSDate class]] ? @([a timeIntervalSinceReferenceDate]) : [a isKindOfClass:[NSNumber class]] ? a : @([a doubleValue]);
+        if ([type isEqualToString:@"NSDate"]) return [a isKindOfClass:[NSDate class]] ? a : [NSDate dateWithTimeIntervalSinceReferenceDate:x];
+        if ([type isEqualToString:@"NSDecimalNumber"]) return [NSDecimalNumber decimalNumberWithString:[a description]];
+        return a;
+    }
+    if ([f isEqualToString:@"objectFrom:withIndex:"]) {
+        if ([a isKindOfClass:[NSDictionary class]]) return [a objectForKey:b];
+        NSArray *c = as_array(a);
+        if ([b isKindOfClass:[_IsimIndexSymbol_isim class]]) {
+            NSString *s = [b name];
+            if ([s isEqualToString:@"SIZE"]) return @(c.count);
+            if ([s isEqualToString:@"FIRST"]) return c.firstObject;
+            return c.lastObject;
+        }
+        return iy >= 0 && (NSUInteger)iy < c.count ? c[(NSUInteger)iy] : nil;
+    }
+    [NSException raise:NSInvalidArgumentException format:@"Unsupported function expression %@", f];
+    return nil;
+}
+static NSSet *as_set(id v) { return [NSSet setWithArray:as_array(v)]; }
 - (id)expressionValueWithObject:(id)object context:(NSMutableDictionary *)context {
     switch (_type) {
     case NSConstantValueExpressionType: return _constant;
     case NSEvaluatedObjectExpressionType: return object;
     case NSVariableExpressionType: return context[_variable];
     case NSKeyPathExpressionType: return [_keyPath isEqualToString:@"SELF"] ? object : [object valueForKeyPath:_keyPath];
+    case NSAnyKeyExpressionType: return [object isKindOfClass:[NSDictionary class]] ? [object allValues] : object;
     case NSAggregateExpressionType: {
         NSMutableArray *out = [NSMutableArray array];
         for (NSExpression *e in _collection) [out addObject:[e expressionValueWithObject:object context:context] ?: [NSNull null]];
         return out;
     }
     case NSBlockExpressionType: return _block(object, _args, context);
+    case NSSubqueryExpressionType: {
+        /* the members of the collection for which the predicate holds, with $variable bound to each */
+        id coll = [_collection isKindOfClass:[NSExpression class]] ? [(NSExpression *)_collection expressionValueWithObject:object context:context] : _collection;
+        NSMutableArray *out = [NSMutableArray array];
+        NSMutableDictionary *vars = context ? [context mutableCopy] : [NSMutableDictionary dictionary];
+        for (id item in as_array(coll)) {
+            vars[_variable] = item;
+            if ([_predicate evaluateWithObject:item substitutionVariables:vars]) [out addObject:item];
+        }
+        return out;
+    }
+    case NSUnionSetExpressionType: case NSIntersectSetExpressionType: case NSMinusSetExpressionType: {
+        NSMutableSet *s = [as_set([_left expressionValueWithObject:object context:context]) mutableCopy];
+        NSSet *r = as_set([_right expressionValueWithObject:object context:context]);
+        if (_type == NSUnionSetExpressionType) [s unionSet:r]; else if (_type == NSIntersectSetExpressionType) [s intersectSet:r]; else [s minusSet:r];
+        return s;
+    }
+    case NSConditionalExpressionType: {
+        BOOL c = [_predicate evaluateWithObject:object substitutionVariables:context];
+        return [(c ? _left : _right) expressionValueWithObject:object context:context];
+    }
     case NSFunctionExpressionType: {
         NSMutableArray *vals = [NSMutableArray array];
         for (NSExpression *e in _args) [vals addObject:[e expressionValueWithObject:object context:context] ?: [NSNull null]];
-        if (vals.count == 2 && [@[@"add:to:", @"from:subtract:", @"multiply:by:", @"divide:by:"] containsObject:_function]) return arith(_function, vals[0], vals[1]);
-        if (vals.count == 1 && [vals[0] isKindOfClass:[NSArray class]]) {
-            NSArray *a = vals[0];
-            if ([_function isEqualToString:@"count:"]) return @(a.count);
-            if ([_function isEqualToString:@"sum:"]) return [a valueForKeyPath:@"@sum.self"];
-            if ([_function isEqualToString:@"average:"]) return [a valueForKeyPath:@"@avg.self"];
-            if ([_function isEqualToString:@"max:"]) return [a valueForKeyPath:@"@max.self"];
-            if ([_function isEqualToString:@"min:"]) return [a valueForKeyPath:@"@min.self"];
+        if (_operand) {                                 /* FUNCTION(target, 'selector:', args): an object-returning method */
+            id target = [_operand expressionValueWithObject:object context:context];
+            SEL sel = NSSelectorFromString(_function);
+            if (![target respondsToSelector:sel]) [NSException raise:NSInvalidArgumentException format:@"%@ does not respond to %@", target, _function];
+            switch (vals.count) {
+            case 0: return ((id (*)(id, SEL))objc_msgSend)(target, sel);
+            case 1: return ((id (*)(id, SEL, id))objc_msgSend)(target, sel, vals[0] == [NSNull null] ? nil : vals[0]);
+            default: return ((id (*)(id, SEL, id, id))objc_msgSend)(target, sel, vals[0] == [NSNull null] ? nil : vals[0], vals[1] == [NSNull null] ? nil : vals[1]);
+            }
         }
-        if ([_function isEqualToString:@"lowercase:"]) return [vals[0] lowercaseString];
-        if ([_function isEqualToString:@"uppercase:"]) return [vals[0] uppercaseString];
-        if ([_function isEqualToString:@"now"]) return [NSDate date];
-        [NSException raise:NSInvalidArgumentException format:@"Unsupported function expression %@", _function];
-        return nil;
+        return call_builtin(_function, vals);
     }
     default: return nil;
     }
+}
+static NSString *quoted(NSString *s) {
+    return [NSString stringWithFormat:@"\"%@\"", [[s stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"] stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""]];
 }
 - (NSString *)predicateFormat_isim {
     switch (_type) {
     case NSConstantValueExpressionType:
         if (!_constant || _constant == [NSNull null]) return @"nil";
-        if ([_constant isKindOfClass:[NSString class]]) return [NSString stringWithFormat:@"\"%@\"", _constant];
+        if ([_constant isKindOfClass:[NSString class]]) return quoted(_constant);
+        if ([_constant isKindOfClass:[_IsimIndexSymbol_isim class]]) return [_constant name];
         if ([_constant isKindOfClass:[NSArray class]]) {
             NSMutableArray *p = [NSMutableArray array];
             for (id o in _constant) [p addObject:[[NSExpression expressionForConstantValue:o] predicateFormat_isim]];
             return [NSString stringWithFormat:@"{%@}", [p componentsJoinedByString:@", "]];
         }
+        if ([_constant isKindOfClass:[NSDate class]]) return [NSString stringWithFormat:@"CAST(%.6f, \"NSDate\")", [_constant timeIntervalSinceReferenceDate]];
         return [_constant description];
     case NSEvaluatedObjectExpressionType: return @"SELF";
     case NSVariableExpressionType: return [@"$" stringByAppendingString:_variable];
     case NSKeyPathExpressionType: return _keyPath;
+    case NSAnyKeyExpressionType: return @"ANYKEY";
     case NSAggregateExpressionType: return [NSString stringWithFormat:@"{%@}", [[_collection valueForKey:@"predicateFormat_isim"] componentsJoinedByString:@", "]];
+    case NSSubqueryExpressionType:
+        return [NSString stringWithFormat:@"SUBQUERY(%@, $%@, %@)", [_collection isKindOfClass:[NSExpression class]] ? [_collection predicateFormat_isim] : [_collection description], _variable, _predicate.predicateFormat];
+    case NSUnionSetExpressionType: return [NSString stringWithFormat:@"%@ UNION %@", [_left predicateFormat_isim], [_right predicateFormat_isim]];
+    case NSIntersectSetExpressionType: return [NSString stringWithFormat:@"%@ INTERSECT %@", [_left predicateFormat_isim], [_right predicateFormat_isim]];
+    case NSMinusSetExpressionType: return [NSString stringWithFormat:@"%@ MINUS %@", [_left predicateFormat_isim], [_right predicateFormat_isim]];
+    case NSConditionalExpressionType: return [NSString stringWithFormat:@"TERNARY(%@, %@, %@)", _predicate.predicateFormat, [_left predicateFormat_isim], [_right predicateFormat_isim]];
+    case NSBlockExpressionType: return @"BLOCK";
     case NSFunctionExpressionType: {
-        NSDictionary *ops = @{ @"add:to:": @"+", @"from:subtract:": @"-", @"multiply:by:": @"*", @"divide:by:": @"/" };
-        if (ops[_function] && _args.count == 2) return [NSString stringWithFormat:@"%@ %@ %@", [_args[0] predicateFormat_isim], ops[_function], [_args[1] predicateFormat_isim]];
-        return [NSString stringWithFormat:@"%@(%@)", _function, [[_args valueForKey:@"predicateFormat_isim"] componentsJoinedByString:@", "]];
+        NSDictionary *ops = @{ @"add:to:": @"+", @"from:subtract:": @"-", @"multiply:by:": @"*", @"divide:by:": @"/", @"raise:toPower:": @"**" };
+        NSArray *args = [_args valueForKey:@"predicateFormat_isim"];
+        if (_operand) return [NSString stringWithFormat:@"FUNCTION(%@, %@%@%@)", [_operand predicateFormat_isim], quoted(_function), args.count ? @", " : @"", [args componentsJoinedByString:@", "]];
+        if (ops[_function] && _args.count == 2) return [NSString stringWithFormat:@"%@ %@ %@", args[0], ops[_function], args[1]];
+        if ([_function isEqualToString:@"objectFrom:withIndex:"] && _args.count == 2) return [NSString stringWithFormat:@"%@[%@]", args[0], args[1]];
+        if ([_function isEqualToString:@"castObject:toType:"] && _args.count == 2) return [NSString stringWithFormat:@"CAST(%@, %@)", args[0], args[1]];
+        if (![_function hasSuffix:@":"]) return [NSString stringWithFormat:@"%@()", _function];
+        return [NSString stringWithFormat:@"%@(%@)", _function, [args componentsJoinedByString:@", "]];
     }
     default: return @"<expression>";
     }
 }
 - (NSString *)description { return [self predicateFormat_isim]; }
+static NSArray *subst_all(NSArray *a, NSDictionary *vars) {
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSExpression *e in a) [out addObject:[e _isim_substituting:vars]];
+    return out;
+}
 - (NSExpression *)_isim_substituting:(NSDictionary *)vars {
-    if (_type == NSVariableExpressionType && vars[_variable]) return [NSExpression expressionForConstantValue:vars[_variable]];
-    if (_type == NSAggregateExpressionType) {
-        NSMutableArray *a = [NSMutableArray array]; for (NSExpression *e in _collection) [a addObject:[e _isim_substituting:vars]];
-        return [NSExpression expressionForAggregate:a];
+    switch (_type) {
+    case NSVariableExpressionType: return vars[_variable] ? [NSExpression expressionForConstantValue:vars[_variable]] : self;
+    case NSAggregateExpressionType: return [NSExpression expressionForAggregate:subst_all(_collection, vars)];
+    case NSFunctionExpressionType: {
+        NSExpression *e = [NSExpression expressionForFunction:_function arguments:subst_all(_args, vars)];
+        e->_operand = [_operand _isim_substituting:vars];
+        return e;
     }
-    return self;
+    case NSSubqueryExpressionType: {
+        NSMutableDictionary *inner = [vars mutableCopy]; [inner removeObjectForKey:_variable];     /* the iterator stays a variable */
+        return [NSExpression expressionForSubquery:[_collection isKindOfClass:[NSExpression class]] ? [_collection _isim_substituting:vars] : _collection
+                             usingIteratorVariable:_variable predicate:[_predicate predicateWithSubstitutionVariables:inner]];
+    }
+    case NSUnionSetExpressionType: case NSIntersectSetExpressionType: case NSMinusSetExpressionType:
+        return set_expr(_type, [_left _isim_substituting:vars], [_right _isim_substituting:vars]);
+    case NSConditionalExpressionType:
+        return [NSExpression expressionForConditional:[_predicate predicateWithSubstitutionVariables:vars] trueExpression:[_left _isim_substituting:vars] falseExpression:[_right _isim_substituting:vars]];
+    default: return self;
+    }
 }
 @end
 
@@ -154,9 +366,16 @@ static NSPredicate *parse_predicate(NSString *format, va_list *ap, NSArray *args
 + (NSPredicate *)predicateWithFormat:(NSString *)format, ... {
     va_list ap; va_start(ap, format); NSPredicate *p = [self predicateWithFormat:format arguments:ap]; va_end(ap); return p;
 }
+/* archived as its format string (block predicates cannot be archived, as on iOS) */
 + (BOOL)supportsSecureCoding { return YES; }
-- (void)encodeWithCoder:(NSCoder *)c {}
-- (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
+- (void)encodeWithCoder:(NSCoder *)c {
+    if ([self.predicateFormat containsString:@"BLOCK"]) [NSException raise:NSInvalidArgumentException format:@"Block predicates cannot be archived"];
+    [c encodeObject:self.predicateFormat forKey:@"NSPredicateFormat"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSString *fmt = [c decodeObjectOfClass:[NSString class] forKey:@"NSPredicateFormat"];
+    return fmt.length ? [NSPredicate predicateWithFormat:fmt argumentArray:@[]] : [NSPredicate predicateWithValue:NO];
+}
 - (id)copyWithZone:(NSZone *)z { return self; }
 - (BOOL)evaluateWithObject:(id)object { return [self evaluateWithObject:object substitutionVariables:nil]; }
 - (BOOL)evaluateWithObject:(id)object substitutionVariables:(NSDictionary *)vars { return NO; }
@@ -213,6 +432,14 @@ static NSPredicate *parse_predicate(NSString *format, va_list *ap, NSArray *args
     if ((self = [super init])) { _leftExpression = l; _rightExpression = r; _comparisonPredicateModifier = m; _predicateOperatorType = t; _options = o; }
     return self;
 }
+/* the left value's method, called with the right value, returns the BOOL result */
+- (instancetype)initWithLeftExpression:(NSExpression *)l rightExpression:(NSExpression *)r customSelector:(SEL)sel {
+    if ((self = [self initWithLeftExpression:l rightExpression:r modifier:NSDirectPredicateModifier type:NSCustomSelectorPredicateOperatorType options:0])) _customSelector = sel;
+    return self;
+}
++ (NSPredicate *)predicateWithLeftExpression:(NSExpression *)l rightExpression:(NSExpression *)r customSelector:(SEL)sel {
+    return [[self alloc] initWithLeftExpression:l rightExpression:r customSelector:sel];
+}
 static NSString *fold(NSString *s, NSComparisonPredicateOptions o) {
     NSStringCompareOptions m = 0;
     if (o & NSCaseInsensitivePredicateOption) m |= NSCaseInsensitiveSearch;
@@ -244,9 +471,13 @@ static NSString *like_to_regex(NSString *pattern) {
     [out appendString:@"$"];
     return out;
 }
+enum { ISIM_UTI_CONFORMS = 2000, ISIM_UTI_EQUALS = 2001 };   /* "UTI-CONFORMS-TO", "UTI-EQUALS" */
+extern BOOL isim_uti_conforms(NSString *have, NSString *want);   /* ItemProvider.m */
 static BOOL test_one(id l, id r, NSPredicateOperatorType t, NSComparisonPredicateOptions o) {
     BOOL nilL = !l || l == [NSNull null], nilR = !r || r == [NSNull null];
-    switch (t) {
+    switch ((int)t) {
+    case ISIM_UTI_CONFORMS: return [l isKindOfClass:[NSString class]] && [r isKindOfClass:[NSString class]] && isim_uti_conforms(l, r);
+    case ISIM_UTI_EQUALS: return [l isKindOfClass:[NSString class]] && [r isKindOfClass:[NSString class]] && [l caseInsensitiveCompare:r] == NSOrderedSame;
     case NSEqualToPredicateOperatorType: return equal_values(l, r, o);
     case NSNotEqualToPredicateOperatorType: return !equal_values(l, r, o);
     case NSLessThanPredicateOperatorType: return !nilL && !nilR && compare_values(l, r, o) == NSOrderedAscending;
@@ -289,6 +520,8 @@ static BOOL test_one(id l, id r, NSPredicateOperatorType t, NSComparisonPredicat
     NSMutableDictionary *ctx = vars ? [vars mutableCopy] : [NSMutableDictionary dictionary];
     id l = [_leftExpression expressionValueWithObject:o context:ctx];
     id r = [_rightExpression expressionValueWithObject:o context:ctx];
+    if (_predicateOperatorType == NSCustomSelectorPredicateOperatorType && _customSelector)
+        return [l respondsToSelector:_customSelector] && ((BOOL (*)(id, SEL, id))objc_msgSend)(l, _customSelector, r);
     if (_comparisonPredicateModifier == NSDirectPredicateModifier) return test_one(l, r, _predicateOperatorType, _options);
     id coll = [l isKindOfClass:[NSSet class]] ? [l allObjects] : [l isKindOfClass:[NSOrderedSet class]] ? [l array] : l;
     if (![coll isKindOfClass:[NSArray class]]) coll = coll ? @[coll] : @[];
@@ -303,14 +536,18 @@ static BOOL test_one(id l, id r, NSPredicateOperatorType t, NSComparisonPredicat
                        @(NSGreaterThanOrEqualToPredicateOperatorType): @">=", @(NSEqualToPredicateOperatorType): @"==", @(NSNotEqualToPredicateOperatorType): @"!=",
                        @(NSMatchesPredicateOperatorType): @"MATCHES", @(NSLikePredicateOperatorType): @"LIKE", @(NSBeginsWithPredicateOperatorType): @"BEGINSWITH",
                        @(NSEndsWithPredicateOperatorType): @"ENDSWITH", @(NSInPredicateOperatorType): @"IN", @(NSContainsPredicateOperatorType): @"CONTAINS",
-                       @(NSBetweenPredicateOperatorType): @"BETWEEN" };
+                       @(NSBetweenPredicateOperatorType): @"BETWEEN", @(ISIM_UTI_CONFORMS): @"UTI-CONFORMS-TO", @(ISIM_UTI_EQUALS): @"UTI-EQUALS" };
+    if (_predicateOperatorType == NSCustomSelectorPredicateOperatorType && _customSelector)
+        return [NSString stringWithFormat:@"%@ %@ %@", [_leftExpression predicateFormat_isim], NSStringFromSelector(_customSelector), [_rightExpression predicateFormat_isim]];
     NSString *opts = _options ? [NSString stringWithFormat:@"[%@%@]", (_options & NSCaseInsensitivePredicateOption) ? @"c" : @"", (_options & NSDiacriticInsensitivePredicateOption) ? @"d" : @""] : @"";
     NSString *mod = _comparisonPredicateModifier == NSAnyPredicateModifier ? @"ANY " : _comparisonPredicateModifier == NSAllPredicateModifier ? @"ALL " : _comparisonPredicateModifier == 3 ? @"NONE " : @"";
     return [NSString stringWithFormat:@"%@%@ %@%@ %@", mod, [_leftExpression predicateFormat_isim], ops[@(_predicateOperatorType)], opts, [_rightExpression predicateFormat_isim]];
 }
 - (instancetype)predicateWithSubstitutionVariables:(NSDictionary *)vars {
-    return [[NSComparisonPredicate alloc] initWithLeftExpression:[_leftExpression _isim_substituting:vars] rightExpression:[_rightExpression _isim_substituting:vars]
-                                                        modifier:_comparisonPredicateModifier type:_predicateOperatorType options:_options];
+    NSComparisonPredicate *c = [[NSComparisonPredicate alloc] initWithLeftExpression:[_leftExpression _isim_substituting:vars] rightExpression:[_rightExpression _isim_substituting:vars]
+                                                                           modifier:_comparisonPredicateModifier type:_predicateOperatorType options:_options];
+    c->_customSelector = _customSelector;
+    return c;
 }
 @end
 
@@ -416,6 +653,50 @@ static NSExpression *pp_primary(pparser *p) {
         NSString *num = [p->s substringWithRange:NSMakeRange(s, p->i - s)];
         return [NSExpression expressionForConstantValue:isFloat ? @(num.doubleValue) : @(num.longLongValue)];
     }
+    if (pp_word(p, @"SUBQUERY")) {                     /* SUBQUERY(collection, $x, predicate) */
+        if (!pp_sym(p, @"(")) pp_fail(p, "expected ( after SUBQUERY");
+        NSExpression *coll = pp_expr(p);
+        if (!pp_sym(p, @",")) pp_fail(p, "expected , in SUBQUERY");
+        NSExpression *var = pp_primary(p);
+        if (var.expressionType != NSVariableExpressionType) pp_fail(p, "expected a $variable in SUBQUERY");
+        if (!pp_sym(p, @",")) pp_fail(p, "expected , in SUBQUERY");
+        NSPredicate *pred = pp_or(p);
+        if (!pp_sym(p, @")")) pp_fail(p, "expected ) after SUBQUERY");
+        return [NSExpression expressionForSubquery:coll usingIteratorVariable:var.variable predicate:pred];
+    }
+    if (pp_word(p, @"FUNCTION")) {                     /* FUNCTION(target, 'selector:', args...) */
+        if (!pp_sym(p, @"(")) pp_fail(p, "expected ( after FUNCTION");
+        NSExpression *target = pp_expr(p);
+        if (!pp_sym(p, @",")) pp_fail(p, "expected , in FUNCTION");
+        NSExpression *sel = pp_expr(p);
+        if (sel.expressionType != NSConstantValueExpressionType || ![sel.constantValue isKindOfClass:[NSString class]]) pp_fail(p, "expected a selector name in FUNCTION");
+        NSMutableArray *args = [NSMutableArray array];
+        while (pp_sym(p, @",")) [args addObject:pp_expr(p)];
+        if (!pp_sym(p, @")")) pp_fail(p, "expected ) after FUNCTION");
+        return [NSExpression expressionForFunction:target selectorName:sel.constantValue arguments:args];
+    }
+    if (pp_word(p, @"TERNARY")) {                      /* TERNARY(predicate, true expression, false expression) */
+        if (!pp_sym(p, @"(")) pp_fail(p, "expected ( after TERNARY");
+        NSPredicate *pred = pp_or(p);
+        if (!pp_sym(p, @",")) pp_fail(p, "expected , in TERNARY");
+        NSExpression *t = pp_expr(p);
+        if (!pp_sym(p, @",")) pp_fail(p, "expected , in TERNARY");
+        NSExpression *f = pp_expr(p);
+        if (!pp_sym(p, @")")) pp_fail(p, "expected ) after TERNARY");
+        return [NSExpression expressionForConditional:pred trueExpression:t falseExpression:f];
+    }
+    if (pp_word(p, @"CAST")) {                         /* CAST(expression, 'NSDate' | 'NSNumber' | 'NSString' | 'NSDecimalNumber') */
+        if (!pp_sym(p, @"(")) pp_fail(p, "expected ( after CAST");
+        NSExpression *v = pp_expr(p);
+        if (!pp_sym(p, @",")) pp_fail(p, "expected , in CAST");
+        NSExpression *t = pp_expr(p);
+        if (!pp_sym(p, @")")) pp_fail(p, "expected ) after CAST");
+        NSExpression *e = [NSExpression expressionForFunction:@"castObject:toType:" arguments:@[v, t]];
+        if (v.expressionType == NSConstantValueExpressionType && t.expressionType == NSConstantValueExpressionType)
+            return [NSExpression expressionForConstantValue:[e expressionValueWithObject:nil context:nil]];   /* CAST(123.0, "NSDate") is a constant */
+        return e;
+    }
+    if (pp_word(p, @"ANYKEY")) return [NSExpression expressionForAnyKey];
     if (pp_word(p, @"TRUE") || pp_word(p, @"YES")) return [NSExpression expressionForConstantValue:@YES];
     if (pp_word(p, @"FALSE") || pp_word(p, @"NO")) return [NSExpression expressionForConstantValue:@NO];
     if (pp_word(p, @"NULL") || pp_word(p, @"NIL")) return [NSExpression expressionForConstantValue:nil];
@@ -432,24 +713,89 @@ static NSExpression *pp_primary(pparser *p) {
             else break;
         }
         NSString *kp = [p->s substringWithRange:NSMakeRange(s, p->i - s)];
+        /* a function: "now()", "sum:(numbers)", "raise:toPower:(2, 3)" */
+        NSUInteger save = p->i;
+        NSMutableString *fn = [kp mutableCopy];
+        while (p->i < p->n && [p->s characterAtIndex:p->i] == ':') {
+            [fn appendString:@":"]; p->i++;
+            NSUInteger w = p->i;
+            while (p->i < p->n && (isalnum([p->s characterAtIndex:p->i]) || [p->s characterAtIndex:p->i] == '_')) p->i++;
+            if (p->i < p->n && [p->s characterAtIndex:p->i] == ':') [fn appendString:[p->s substringWithRange:NSMakeRange(w, p->i - w)]];
+            else { p->i = w; break; }
+        }
+        if (p->i < p->n && [p->s characterAtIndex:p->i] == '(' && ![kp containsString:@"."]) {
+            p->i++;
+            NSMutableArray *args = [NSMutableArray array];
+            if (!pp_sym(p, @")")) {
+                do { [args addObject:pp_expr(p)]; } while (pp_sym(p, @","));
+                if (!pp_sym(p, @")")) pp_fail(p, "expected ) after function arguments");
+            }
+            return [NSExpression expressionForFunction:fn arguments:args];
+        }
+        p->i = save;
         if ([kp hasPrefix:@"#"]) kp = [kp substringFromIndex:1];
         return [NSExpression expressionForKeyPath:kp];
     }
     pp_fail(p, "unexpected character");
 }
-static NSExpression *pp_term(pparser *p) {
+/* postfix: array[index], with FIRST / LAST / SIZE */
+static NSExpression *pp_postfix(pparser *p) {
     NSExpression *e = pp_primary(p);
     for (;;) {
-        if (pp_sym(p, @"*")) e = [NSExpression expressionForFunction:@"multiply:by:" arguments:@[e, pp_primary(p)]];
-        else if (pp_sym(p, @"/")) e = [NSExpression expressionForFunction:@"divide:by:" arguments:@[e, pp_primary(p)]];
+        pp_ws(p);
+        if (p->i < p->n && [p->s characterAtIndex:p->i] == '[') {
+            p->i++;
+            NSExpression *idx;
+            if (pp_word(p, @"FIRST")) idx = [NSExpression expressionForConstantValue:[_IsimIndexSymbol_isim symbol:@"FIRST"]];
+            else if (pp_word(p, @"LAST")) idx = [NSExpression expressionForConstantValue:[_IsimIndexSymbol_isim symbol:@"LAST"]];
+            else if (pp_word(p, @"SIZE")) idx = [NSExpression expressionForConstantValue:[_IsimIndexSymbol_isim symbol:@"SIZE"]];
+            else idx = pp_expr(p);
+            if (!pp_sym(p, @"]")) pp_fail(p, "expected ]");
+            e = [NSExpression expressionForFunction:@"objectFrom:withIndex:" arguments:@[e, idx]];
+            if (pp_sym(p, @".")) {                       /* array[0].name */
+                NSExpression *rest = pp_primary(p);
+                if (rest.expressionType != NSKeyPathExpressionType) pp_fail(p, "expected a key path after ].");
+                e = [NSExpression expressionForFunction:[NSExpression expressionForFunction:@"objectFrom:withIndex:" arguments:e.arguments] selectorName:@"valueForKeyPath:"
+                                              arguments:@[[NSExpression expressionForConstantValue:rest.keyPath]]];
+            }
+        } else return e;
+    }
+}
+static NSExpression *pp_unary(pparser *p) {
+    pp_ws(p);
+    if (p->i + 1 < p->n && [p->s characterAtIndex:p->i] == '-' && !isdigit([p->s characterAtIndex:p->i + 1])) {
+        p->i++;
+        return [NSExpression expressionForFunction:@"from:subtract:" arguments:@[[NSExpression expressionForConstantValue:@0], pp_unary(p)]];
+    }
+    NSExpression *e = pp_postfix(p);
+    if (pp_sym(p, @"**")) e = [NSExpression expressionForFunction:@"raise:toPower:" arguments:@[e, pp_unary(p)]];   /* right-associative */
+    return e;
+}
+static NSExpression *pp_term(pparser *p) {
+    NSExpression *e = pp_unary(p);
+    for (;;) {
+        pp_ws(p);
+        if (p->i + 1 < p->n && [p->s characterAtIndex:p->i] == '*' && [p->s characterAtIndex:p->i + 1] == '*') return e;
+        if (pp_sym(p, @"*")) e = [NSExpression expressionForFunction:@"multiply:by:" arguments:@[e, pp_unary(p)]];
+        else if (pp_sym(p, @"/")) e = [NSExpression expressionForFunction:@"divide:by:" arguments:@[e, pp_unary(p)]];
         else return e;
     }
 }
-static NSExpression *pp_expr(pparser *p) {
+static NSExpression *pp_sum(pparser *p) {
     NSExpression *e = pp_term(p);
     for (;;) {
         if (pp_sym(p, @"+")) e = [NSExpression expressionForFunction:@"add:to:" arguments:@[e, pp_term(p)]];
         else if (p->i < p->n && pp_sym(p, @"-")) e = [NSExpression expressionForFunction:@"from:subtract:" arguments:@[e, pp_term(p)]];
+        else return e;
+    }
+}
+/* set expressions: a UNION b, a INTERSECT b, a MINUS b */
+static NSExpression *pp_expr(pparser *p) {
+    NSExpression *e = pp_sum(p);
+    for (;;) {
+        if (pp_word(p, @"UNION")) e = [NSExpression expressionForUnionSet:e with:pp_sum(p)];
+        else if (pp_word(p, @"INTERSECT")) e = [NSExpression expressionForIntersectSet:e with:pp_sum(p)];
+        else if (pp_word(p, @"MINUS")) e = [NSExpression expressionForMinusSet:e with:pp_sum(p)];
         else return e;
     }
 }
@@ -504,6 +850,8 @@ static NSPredicate *pp_comparison(pparser *p) {
         else if (pp_word(p, @"ENDSWITH")) t = NSEndsWithPredicateOperatorType;
         else if (pp_word(p, @"LIKE")) t = NSLikePredicateOperatorType;
         else if (pp_word(p, @"MATCHES")) t = NSMatchesPredicateOperatorType;
+        else if (pp_word(p, @"UTI-CONFORMS-TO")) t = (NSPredicateOperatorType)ISIM_UTI_CONFORMS;
+        else if (pp_word(p, @"UTI-EQUALS")) t = (NSPredicateOperatorType)ISIM_UTI_EQUALS;
         else pp_fail(p, "expected an operator");
     }
     NSComparisonPredicateOptions o = pp_options(p);

@@ -471,3 +471,30 @@ extension Bundle {
     public var builtInPlugInsURL: URL? { URL(fileURLWithPath: builtInPlugInsPath) }
     public convenience init?(url: URL) { self.init(path: url.path) }
 }
+
+// MARK: - Progress (Apple's Swift overlay: the NSNumber-backed properties as Swift values)
+
+extension Progress {
+    public var estimatedTimeRemaining: TimeInterval? {
+        get { __estimatedTimeRemaining?.doubleValue }
+        set { if let v = newValue { __estimatedTimeRemaining = NSNumber(value: v) } else { __estimatedTimeRemaining = nil } }
+    }
+    public var throughput: Int? {
+        get { __throughput?.integerValue }
+        set { if let v = newValue { __throughput = NSNumber(value: v) } else { __throughput = nil } }
+    }
+    public var fileTotalCount: Int? {
+        get { __fileTotalCount?.integerValue }
+        set { if let v = newValue { __fileTotalCount = NSNumber(value: v) } else { __fileTotalCount = nil } }
+    }
+    public var fileCompletedCount: Int? {
+        get { __fileCompletedCount?.integerValue }
+        set { if let v = newValue { __fileCompletedCount = NSNumber(value: v) } else { __fileCompletedCount = nil } }
+    }
+    /// Becomes current with the pending units while `work` runs, then resigns; returns what `work` returns.
+    public func performAsCurrent<ReturnType>(withPendingUnitCount unitCount: Int64, using work: () throws -> ReturnType) rethrows -> ReturnType {
+        becomeCurrent(withPendingUnitCount: unitCount)
+        defer { resignCurrent() }
+        return try work()
+    }
+}
