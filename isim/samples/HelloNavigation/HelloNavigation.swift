@@ -82,7 +82,13 @@ final class DetailViewController: UIViewController {
             more.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 20), more.centerXAnchor.constraint(equalTo: view.centerXAnchor),
         ])
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .action, target: self, action: #selector(share))
+        let reply = UIBarButtonItem(image: UIImage(systemName: "arrowshape.turn.up.left"), primaryAction: UIAction { _ in print("reply tapped") })
+        reply.accessibilityIdentifier = "bar-reply"
+        let forward = UIBarButtonItem(image: UIImage(systemName: "arrowshape.turn.up.right"), primaryAction: UIAction { _ in print("forward tapped") })
+        forward.accessibilityIdentifier = "bar-forward"
+        // iOS 26: reply and forward share one glass capsule; the flexible spaces separate the groups
         toolbarItems = [UIBarButtonItem(systemItem: .trash, primaryAction: UIAction { _ in print("trash tapped") }), .flexibleSpace(),
+                        reply, forward, .flexibleSpace(),
                         UIBarButtonItem(title: "Favorite", primaryAction: UIAction { _ in print("favorite tapped") })]
     }
     override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); navigationController?.setToolbarHidden(false, animated: animated); print("detail \(number) appears") }

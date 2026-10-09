@@ -980,18 +980,30 @@ static UIImage *tiled(UIImage *i) {
     /* a filling item (an integrated search field) takes the free width instead of the flexible spaces */
     BOOL spaced = !flex || fills;
     CGFloat gap = isim_ui_glass() ? 8 : 16, gaps = n > 1 && spaced ? gap * (n - 1) : 0, free = fmax(0, W - 2 * margin - used - gaps);
+    /* iOS 26 (#107): like navigation bars, neighbouring items that share their background sit on one glass capsule;
+       flexible and fixed spaces, prominent items, items that do not share and filling items close a group */
+    BOOL glass = isim_ui_glass();
+    NSMutableArray *group = [NSMutableArray array], *glassViews = [NSMutableArray array];
     CGFloat x = margin; NSUInteger vi = 0;
     for (NSUInteger i = 0; i < _items.count; i++) {
         UIBarButtonItem *it = _items[i]; double w = [sizes[i] doubleValue];
         if (it.hidden) continue;
-        if (w == -1) { if (!fills) x += free / flex; continue; }
-        if ([it _isim_isFixed]) { x += w; continue; }
+        if (w == -1) { if (glass) close_glass_group(self, group, glassViews); if (!fills) x += free / flex; continue; }
+        if ([it _isim_isFixed]) { if (glass) close_glass_group(self, group, glassViews); x += w; continue; }
         UIView *v = _views[vi++];
+        BOOL prominent = it.style == UIBarButtonItemStyleDone || it.style == UIBarButtonItemStyleProminent;
+        BOOL shares = glass && w != -2 && !prominent && it.sharesBackground && !it.hidesSharedBackground;
+        if (glass && !shares) close_glass_group(self, group, glassViews);
+        if (glass && group.count && spaced) x -= gap;                        /* grouped: no gap between the items */
         if (w == -2) { w = free / fills; v.frame = CGRectMake(x, 0, w, 44); }
         else v.frame = CGRectMake(x, (44 - v.bounds.size.height) / 2, w, v.bounds.size.height);
         [self addSubview:v];
+        if ([v isKindOfClass:[__IsimBarButton class]]) ((__IsimBarButton *)v).noGlass = glass && it.hidesSharedBackground;
+        if (shares) [group addObject:v];
         x += w + (spaced ? gap : 0);
     }
+    if (glass) close_glass_group(self, group, glassViews);
+    [_views addObjectsFromArray:glassViews];
 }
 @end
 

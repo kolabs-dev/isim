@@ -4,8 +4,10 @@ position and metrics, the delegate's position, UIAppearance), bar button menus, 
 with condition waits instead of fixed sleeps."""
 
 
+import re
+
 import pytest
-from isimtest import rgb
+from isimtest import screen_frames, rgb
 
 
 def nav_bar_height(app):
@@ -35,6 +37,17 @@ def test_navigation(launch, ios):
     app.wait_for(id="book-3").tap()
     app.wait_log("detail 3 appears")
     app.wait_for(label="Details of book 3")
+    # iOS 26 (#107): neighbouring toolbar items share one glass capsule; flexible spaces separate the groups
+    tree = app.wait_view(r"id=bar-forward")
+    f = screen_frames(tree)
+    reply, fwd = f["bar-reply"], f["bar-forward"]
+    capsules = [tuple(float(v) for v in m) for m in re.findall(r"__IsimBarGlass \(([\d.]+) ([\d.]+); ([\d.]+) x ([\d.]+)\)", tree)]
+    if int(str(ios[0] or "18").split(".")[0]) >= 26:
+        assert fwd[0] == reply[0] + reply[2], f"grouped items touch: {reply} {fwd}"
+        assert any(abs(c[2] - (reply[2] + fwd[2])) < 0.5 and c[3] == 44 for c in capsules), f"one capsule under reply + forward: {capsules}"
+        assert len(capsules) == 1, f"trash and Favorite keep their own glass: {capsules}"
+    else:
+        assert not capsules, "no glass before iOS 26"
     app.wait_for(id="bar-Favorite").tap()
     app.wait_log("favorite tapped")
 
