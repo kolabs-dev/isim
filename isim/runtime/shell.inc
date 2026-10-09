@@ -376,9 +376,12 @@ static int shell_spawn_at(int slot, const char *bundle, const char *exe, const c
     unsigned char *px = mmap(NULL, surface_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, mfd, 0);
     if (px == MAP_FAILED) { perror("isim shell: mmap"); return -1; }
     memset(px, 0, surface_bytes);
-    pid_t pid = fork();
+    pid_t shell_pid = getpid(), pid = fork();
     if (pid < 0) { perror("isim shell: fork"); return -1; }
     if (pid == 0) {
+        /* the app dies with the shell, even while suspended (a stopped orphan would hold the device's pipes) */
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
+        if (getppid() != shell_pid) _exit(1);
         close(sv[0]);
         fcntl(sv[1], F_SETFD, 0); fcntl(mfd, F_SETFD, 0);
         char b1[16], b2[16], b3[32];
