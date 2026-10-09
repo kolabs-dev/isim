@@ -91,7 +91,7 @@ final class DocumentsViewController: UIViewController, UIDocumentPickerDelegate 
             let place = u.path.contains("-Inbox/") ? "inbox" : u.path.hasPrefix(docs) ? "documents" : u.path.contains("/Files/") ? "on-my-iphone" : "elsewhere"
             var isDir: ObjCBool = false
             _ = FileManager.default.fileExists(atPath: u.path, isDirectory: &isDir)
-            let text = isDir.boolValue ? "(folder)" : (try? String(contentsOf: u, encoding: .utf8)).map { "\"\($0)\"" } ?? "(\((try? Data(contentsOf: u))?.count ?? 0) bytes)"
+            let text = isDir.boolValue ? "(folder)" : (try? String(contentsOf: u, encoding: .utf8)).map { "\"\($0)\"" } ?? "(\((try? FileManager.default.attributesOfItem(atPath: u.path)[.size] as? Int) ?? 0) bytes)"
             print("picked \(u.lastPathComponent) in \(place) mode=\(controller.documentPickerMode.rawValue) \(text)")
         }
         status.text = urls.map(\.lastPathComponent).joined(separator: ", ")

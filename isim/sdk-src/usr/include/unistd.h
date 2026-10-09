@@ -21,6 +21,8 @@ off_t lseek(int, off_t, int);
 int access(const char *, int);
 int unlink(const char *);
 int rmdir(const char *);
+int chown(const char *, uid_t, gid_t);
+int lchown(const char *, uid_t, gid_t);
 ssize_t readlink(const char *, char *, size_t);
 char *getcwd(char *, size_t);
 pid_t getpid(void);
