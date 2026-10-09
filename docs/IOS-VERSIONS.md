@@ -109,6 +109,7 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
 | `UIGlassEffect`, glass button configurations, `glassEffect`, `.glass` | unavailable (compile-time) | unavailable | drawn as glass | adapted, verified |
 | Home screen | translucent dock | + icon appearance (`ISIM_ICON_STYLE=dark\|tinted`) | glass dock, icon rims, + `clear` icons | adapted, verified (dock pixels) |
 | Lock Screen (`lock`) | bold clock | bold clock | tall glass numerals, glass buttons | adapted, verified (pixels) |
+| Safari (iPhone) | opaque bottom bar: address pill above back / forward / share / reload | same | floating glass bar over the page: back button, address capsule with reload, “…” menu (share, forward) | adapted, verified (`tests/ui/test_handoff.py::test_safari`) |
 | Control Center (`controlcenter`) | iOS 17 modules | iOS 18 redesign: edit/power buttons, page column, round toggles | glass modules | adapted, verified (pixels) |
 | Permission alert wording | iOS 17 (e.g. contacts: Don't Allow / OK) | iOS 18 (limited access) | as iOS 18 | adapted, verified (existing suites) |
 | UIKit tabs (`UITab`, `UITabGroup`, `UISearchTab`, iPad sidebar) | classic view-controller tabs (API unavailable) | tab bar from tabs; iPad sidebar (`.tabSidebar`) | glass sidebar, `UIBackgroundExtensionView` under it | adapted, verified (HelloUITabs) |

@@ -1,6 +1,8 @@
 // isim Safari: the device's web browser (a WKWebView), so links apps open with UIApplication.open, http(s) URLs from
 // `openurl` and Handoff of web pages show on the device, like iOS. Modelled on iOS 17/18 Safari's bottom layout: the
-// address field in a rounded pill above the toolbar (back, forward, share, reload); iOS 26 puts them on Liquid Glass.
+// address field in a rounded pill above the toolbar (back, forward, share, reload). iPhone under iOS 26+: the compact
+// Liquid Glass bar floating over the page (a back button, the address capsule with reload, a "…" menu with forward and
+// share); the page runs under it to the bottom of the screen.
 // isim's own app (not Apple's): no tabs, bookmarks, Reader or private browsing.
 import UIKit
 import WebKit
@@ -32,6 +34,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
     let toolbar = UIToolbar()
     var back: UIBarButtonItem!, forward: UIBarButtonItem!
     var pending: URL?
+    // iPhone, iOS 26+: the floating glass bar (nil on iOS 17/18 and iPad)
+    var glass: (back: UIButton, capsule: UIView, more: UIButton)?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -71,13 +75,61 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
         clear.configureWithTransparentBackground()
         toolbar.standardAppearance = clear
         bar.addSubview(toolbar)
+        if #available(iOS 26, *), UIDevice.current.userInterfaceIdiom == .phone { makeGlassBar() }
         traitCollectionDidChange(nil)
         updateButtons()
         if let pending { self.pending = nil; open(pending) }
     }
+    @available(iOS 26, *)
+    func makeGlassBar() {
+        bar.isHidden = true
+        let circle = { (symbol: String, id: String) -> UIButton in
+            var c = UIButton.Configuration.glass()
+            c.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold))
+            c.baseForegroundColor = .label
+            let b = UIButton(configuration: c)
+            b.accessibilityIdentifier = id
+            self.view.addSubview(b)
+            return b
+        }
+        let back = circle("chevron.backward", "safari-back")
+        back.addAction(UIAction { [unowned self] _ in web.goBack() }, for: .touchUpInside)
+        let more = circle("ellipsis", "safari-more")
+        more.showsMenuAsPrimaryAction = true
+        let capsule = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
+        capsule.cornerConfiguration = .capsule()
+        capsule.clipsToBounds = true
+        capsule.accessibilityIdentifier = "safari-capsule"
+        view.addSubview(capsule)
+        address.font = .systemFont(ofSize: 15, weight: .medium)
+        capsule.contentView.addSubview(address)
+        var r = UIButton.Configuration.plain()
+        r.image = UIImage(systemName: "arrow.clockwise", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .medium))
+        r.baseForegroundColor = .label
+        let reload = UIButton(configuration: r, primaryAction: UIAction { [unowned self] _ in web.reload() })
+        reload.accessibilityIdentifier = "safari-reload"
+        reload.tag = 1
+        capsule.contentView.addSubview(reload)
+        capsule.contentView.addSubview(progress)
+        glass = (back, capsule, more)
+    }
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         let w = view.bounds.width, safe = view.safeAreaInsets
+        if let glass {                                           // iPhone, iOS 26+: back | address capsule | …, floating
+            let h: CGFloat = 48, gap: CGFloat = 8, side: CGFloat = 16
+            let y = view.bounds.height - (safe.bottom > 0 ? safe.bottom - 6 : 12) - h
+            web.frame = CGRect(x: 0, y: safe.top, width: w, height: view.bounds.height - safe.top)   // the page runs under the bar
+            glass.back.frame = CGRect(x: side, y: y, width: h, height: h)
+            glass.more.frame = CGRect(x: w - side - h, y: y, width: h, height: h)
+            glass.capsule.frame = CGRect(x: side + h + gap, y: y, width: w - 2 * (side + h + gap), height: h)
+            let cw = glass.capsule.bounds.width
+            glass.capsule.contentView.viewWithTag(1)?.frame = CGRect(x: cw - 44, y: 0, width: 40, height: h)
+            address.frame = CGRect(x: 44, y: 0, width: cw - 88, height: h)   // centred, clear of reload
+            progress.frame = CGRect(x: 0, y: h - 2, width: cw, height: 2)
+            for v in [glass.back, glass.capsule, glass.more] { view.bringSubviewToFront(v) }
+            return
+        }
         if traitCollection.userInterfaceIdiom == .pad {          // iPad: one bar at the top, the address field centred
             let barH: CGFloat = 50
             bar.frame = CGRect(x: 0, y: 0, width: w, height: safe.top + barH)
@@ -132,6 +184,13 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
     }
     func updateButtons() {
         back.isEnabled = web.canGoBack; forward.isEnabled = web.canGoForward
+        guard let glass else { return }
+        glass.back.isEnabled = web.canGoBack
+        let fwd = UIAction(title: "Forward", image: UIImage(systemName: "chevron.forward"),
+                           attributes: web.canGoForward ? [] : .disabled) { [unowned self] _ in web.goForward() }
+        let share = UIAction(title: "Share", image: UIImage(systemName: "square.and.arrow.up"),
+                             attributes: web.url == nil ? .disabled : []) { [unowned self] _ in shareTapped() }
+        glass.more.menu = UIMenu(children: [share, fwd])
     }
     // MARK: navigation
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
