@@ -262,3 +262,17 @@ usr/lib/swift/libswiftUniformTypeIdentifiers.dylib _$sSo15NSExtensionItemC22Unif
 usr/lib/swift/libswiftUniformTypeIdentifiers.dylib _$sSo15NSExtensionItemC22UniformTypeIdentifiersE11attachmentsSayAC14NSItemProviderCGSgvs
 usr/lib/swift/libswiftUniformTypeIdentifiers.dylib _OBJC_CLASS_$__TtC22UniformTypeIdentifiers14NSItemProvider
 usr/lib/swift/libswiftUniformTypeIdentifiers.dylib _OBJC_METACLASS_$__TtC22UniformTypeIdentifiers14NSItemProvider
+# 0.13.0 (issue #20): two GameKit placeholder types became Apple's real ones. GKMatchRequest.recipientResponseHandler was
+# ((GKPlayer, Int) -> Void)? (iOS: GKInviteRecipientResponse) and GKTurnBasedMatch.participants was [Any] (iOS:
+# [GKTurnBasedParticipant]). Before 0.13 no invite was ever answered and no turn-based match existed, so the handler
+# was never called and the list was always empty. Apps that use either API must be rebuilt with isim 0.13.0 or later.
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC24recipientResponseHandleryAA8GKPlayerC_SitcSgvMTj
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC24recipientResponseHandleryAA8GKPlayerC_SitcSgvMTq
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC24recipientResponseHandleryAA8GKPlayerC_SitcSgvgTj
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC24recipientResponseHandleryAA8GKPlayerC_SitcSgvgTq
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC24recipientResponseHandleryAA8GKPlayerC_SitcSgvpMV
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC24recipientResponseHandleryAA8GKPlayerC_SitcSgvsTj
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC24recipientResponseHandleryAA8GKPlayerC_SitcSgvsTq
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit16GKTurnBasedMatchC12participantsSayypGvgTj
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit16GKTurnBasedMatchC12participantsSayypGvgTq
+usr/lib/swift/libswiftGameKit.dylib _$s7GameKit16GKTurnBasedMatchC12participantsSayypGvpMV

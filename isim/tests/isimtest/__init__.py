@@ -208,8 +208,10 @@ class App:
             install_apps(self.data, *install)
         self.fifo = self.tmp / "control"
         os.mkfifo(self.fifo)
+        # the local Game Center network (players shared by isim devices): a scratch one next to the device data, shared
+        # by the devices of one test (their data directories are siblings)
         e = dict(os.environ, ISIM_DATA=str(self.data), ISIM_HEADLESS="1", ISIM_SHOT_SCALE="1",
-                 ISIM_DEVICE=device or DEFAULT_DEVICE, ISIM_SCRIPT="wait 0")
+                 ISIM_DEVICE=device or DEFAULT_DEVICE, ISIM_SCRIPT="wait 0", ISIM_GAMECENTER=str(self.data.parent / "gamecenter"))
         e.setdefault("ISIM_DICTIONARIES", "none")           # the built-in word lists only, whatever the host has installed
         if os_version:
             e["ISIM_OS_VERSION"] = str(os_version)
@@ -622,6 +624,7 @@ def run_app(name: str, *, script: str | None = None, timeout: float = 120, data:
     e = dict(os.environ)
     if data is not None:
         e["ISIM_DATA"] = str(data)
+        e["ISIM_GAMECENTER"] = str(Path(data).parent / "gamecenter")
     if standalone:
         e["ISIM_STANDALONE"] = "1"
     if script is not None:
