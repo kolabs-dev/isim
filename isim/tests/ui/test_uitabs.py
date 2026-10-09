@@ -70,8 +70,8 @@ def test_ipad_ios26(launch, tmp_path):
     c = rgb(pad, 150, 650)
     assert c[2] > 200 and c[0] < 160 and 140 < c[1] < 200, \
         f"iOS 26 glass sidebar; UIBackgroundExtensionView reaches under it {c}"
-    assert "badges 5 / indicator true" in log and red(rgb(pad, 755, 32)) and red(rgb(pad, 806, 32)), \
-        "iOS 26 UIBarButtonItem badges (count and indicator)"
+    assert "badges 5 / indicator true" in log and red(rgb(pad, 763, 32)) and red(rgb(pad, 806, 32)), \
+        "iOS 26 UIBarButtonItem badges (count and indicator; the items share one glass capsule)"
     assert min(rgb(pad, 500, 60)) > 250 and soft, "iOS 26 scroll edge effect: hard band, then soft fade"
     assert "automatic observation tracking on (iOS 26)" in log and "properties: 1" in log and \
         "layout: Changed" in log, "iOS 26 automatic observation tracking: layoutSubviews and updateProperties"

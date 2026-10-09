@@ -180,4 +180,32 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)drawViewHierarchyInRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates;
 - (nullable UIView *)resizableSnapshotViewFromRect:(CGRect)rect afterScreenUpdates:(BOOL)afterUpdates withCapInsets:(UIEdgeInsets)capInsets;
 @end
+/* iOS 26: corner configurations. A radius is fixed, or concentric with the view's container (the superview's corner,
+   or the screen's for a top-level view, minus the view's inset from it). isim (adapted): "uniform" corners share the
+   smallest of their computed radii; corners are circular arcs (no continuous curve). */
+API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
+@interface UICornerRadius : NSObject <NSCopying>
++ (instancetype)fixedRadius:(CGFloat)radius;
++ (instancetype)containerConcentricRadius;
++ (instancetype)containerConcentricRadiusWithMinimum:(CGFloat)minimum;
+@end
+API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
+@interface UICornerConfiguration : NSObject <NSCopying>
++ (instancetype)configurationWithRadius:(UICornerRadius *)radius;
++ (instancetype)configurationWithTopLeftRadius:(nullable UICornerRadius *)topLeftRadius topRightRadius:(nullable UICornerRadius *)topRightRadius
+                              bottomLeftRadius:(nullable UICornerRadius *)bottomLeftRadius bottomRightRadius:(nullable UICornerRadius *)bottomRightRadius;
++ (instancetype)capsuleConfiguration;
++ (instancetype)capsuleConfigurationWithMaximumRadius:(CGFloat)maximumRadius;
++ (instancetype)configurationWithUniformRadius:(UICornerRadius *)radius;
++ (instancetype)configurationWithUniformLeftRadius:(UICornerRadius *)leftRadius uniformRightRadius:(UICornerRadius *)rightRadius;
++ (instancetype)configurationWithUniformTopRadius:(UICornerRadius *)topRadius uniformBottomRadius:(UICornerRadius *)bottomRadius;
++ (instancetype)configurationWithUniformBottomRadius:(UICornerRadius *)bottomRadius topLeftRadius:(nullable UICornerRadius *)topLeftRadius topRightRadius:(nullable UICornerRadius *)topRightRadius;
++ (instancetype)configurationWithUniformLeftRadius:(UICornerRadius *)leftRadius topRightRadius:(nullable UICornerRadius *)topRightRadius bottomRightRadius:(nullable UICornerRadius *)bottomRightRadius;
++ (instancetype)configurationWithUniformRightRadius:(UICornerRadius *)rightRadius topLeftRadius:(nullable UICornerRadius *)topLeftRadius bottomLeftRadius:(nullable UICornerRadius *)bottomLeftRadius;
++ (instancetype)configurationWithUniformTopRadius:(UICornerRadius *)topRadius bottomLeftRadius:(nullable UICornerRadius *)bottomLeftRadius bottomRightRadius:(nullable UICornerRadius *)bottomRightRadius;
+@end
+@interface UIView (UICornerConfiguration)
+@property (nonatomic, copy) UICornerConfiguration *cornerConfiguration API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT;
+- (CGFloat)effectiveRadiusForCorner:(UIRectCorner)corner API_AVAILABLE(ios(26.0)) NS_SWIFT_NAME(effectiveRadius(corner:));
+@end
 NS_ASSUME_NONNULL_END

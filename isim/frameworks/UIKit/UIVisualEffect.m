@@ -127,6 +127,9 @@ void isim_ui_material(NSInteger style, BOOL dark, double *radius, double tint[4]
 }
 @end
 
+@interface UIVisualEffectView (IsimGlass)
+- (BOOL)_isim_pressed;
+@end
 @implementation UIVisualEffectView { UIView *_content; BOOL _isim_pressed; }
 - (instancetype)initWithEffect:(UIVisualEffect *)effect {
     if ((self = [super initWithFrame:CGRectZero])) {
@@ -145,10 +148,70 @@ void isim_ui_material(NSInteger style, BOOL dark, double *radius, double tint[4]
 - (void)touchesBegan:(NSSet *)t withEvent:(UIEvent *)e { if ([_effect isKindOfClass:[UIGlassEffect class]] && ((UIGlassEffect *)_effect).interactive) { _isim_pressed = YES; isim_ui_set_needs_display(); } [super touchesBegan:t withEvent:e]; }
 - (void)touchesEnded:(NSSet *)t withEvent:(UIEvent *)e { if (_isim_pressed) { _isim_pressed = NO; isim_ui_set_needs_display(); } [super touchesEnded:t withEvent:e]; }
 - (void)touchesCancelled:(NSSet *)t withEvent:(UIEvent *)e { if (_isim_pressed) { _isim_pressed = NO; isim_ui_set_needs_display(); } [super touchesCancelled:t withEvent:e]; }
+- (BOOL)_isim_pressed { return _isim_pressed; }
+/* the glass container effect view this glass view is drawn by (its glass is merged with its neighbours') */
+- (UIVisualEffectView *)_isim_glassContainer {
+    for (UIView *v = self.superview; v; v = v.superview)
+        if ([v isKindOfClass:[UIVisualEffectView class]]) {
+            UIVisualEffect *e = ((UIVisualEffectView *)v).effect;
+            if ([e isKindOfClass:[UIGlassContainerEffect class]]) return (UIVisualEffectView *)v;
+            if ([e isKindOfClass:[UIGlassEffect class]]) return nil;      /* glass inside glass draws itself */
+        }
+    return nil;
+}
+/* interactive glass grows a little while touched, like iOS */
+static CGRect pressed_rect(CGRect r, BOOL pressed) {
+    if (!pressed) return r;
+    CGFloat g = fmin(6, fmax(2, fmin(r.size.width, r.size.height) * 0.06));
+    return CGRectInset(r, -g, -g);
+}
+/* a container's glass elements: the UIGlassEffect views in its content (not inside another container or glass) */
+static void collect_glass(UIView *v, UIVisualEffectView *container, NSMutableArray *out) {
+    for (UIView *s in v.subviews) {
+        if (s.hidden) continue;
+        if ([s isKindOfClass:[UIVisualEffectView class]]) {
+            UIVisualEffect *e = ((UIVisualEffectView *)s).effect;
+            if ([e isKindOfClass:[UIGlassEffect class]]) { [out addObject:s]; continue; }
+            if ([e isKindOfClass:[UIGlassContainerEffect class]]) continue;
+        }
+        collect_glass(s, container, out);
+    }
+}
+- (void)_isim_drawGlassContainer {
+    NSMutableArray<UIVisualEffectView *> *els = [NSMutableArray array];
+    collect_glass(_content, self, els);
+    if (!els.count) return;
+    NSUInteger n = els.count, k = 0;
+    double *shapes = calloc(n * 5, sizeof *shapes), *tints = calloc(n * 4, sizeof *tints);
+    int *pressed = calloc(n, sizeof *pressed), flags = isim_ui_style() == UIUserInterfaceStyleDark ? 1 : 0;
+    for (UIVisualEffectView *ev in els) {
+        CGFloat alpha = 1, radius = 0, a;
+        CGRect r = [ev _isim_presentedFrame:&alpha radius:&radius];
+        for (UIView *p = ev.superview; p && p != self && alpha > 0.01; p = p.superview) {
+            CGRect pf = [p _isim_presentedFrame:&a radius:NULL];
+            alpha *= a;
+            r = CGRectOffset(r, pf.origin.x - p.bounds.origin.x, pf.origin.y - p.bounds.origin.y);
+        }
+        if (alpha <= 0.01 || r.size.width <= 0 || r.size.height <= 0) continue;
+        UIGlassEffect *g = (UIGlassEffect *)ev.effect;
+        r = pressed_rect(CGRectOffset(r, -self.bounds.origin.x, -self.bounds.origin.y), [ev _isim_pressed]);
+        shapes[5 * k] = r.origin.x; shapes[5 * k + 1] = r.origin.y; shapes[5 * k + 2] = r.size.width; shapes[5 * k + 3] = r.size.height;
+        shapes[5 * k + 4] = radius;
+        if (g.tintColor) isim_ui_rgba(g.tintColor, tints + 4 * k);
+        pressed[k] = [ev _isim_pressed];
+        if (g._isim_style == UIGlassEffectStyleClear) flags |= 2;
+        k++;
+    }
+    if (k) isim_gfx_glass_shapes((int)k, shapes, tints, pressed, ((UIGlassContainerEffect *)_effect).spacing, flags);
+    free(shapes); free(tints); free(pressed);
+}
 - (void)_isim_drawContent {
+    if ([_effect isKindOfClass:[UIGlassContainerEffect class]]) { [self _isim_drawGlassContainer]; return; }
     if ([_effect isKindOfClass:[UIGlassEffect class]]) {
+        if ([self _isim_glassContainer]) return;                  /* drawn, merged, by its container */
         UIGlassEffect *g = (UIGlassEffect *)_effect; CGSize s = self.bounds.size;
-        isim_ui_draw_glass(CGRectMake(0, 0, s.width, s.height), self.layer.cornerRadius, g.tintColor,
+        CGRect r = self.clipsToBounds ? CGRectMake(0, 0, s.width, s.height) : pressed_rect(CGRectMake(0, 0, s.width, s.height), _isim_pressed);
+        isim_ui_draw_glass(r, [self _isim_uniformRadius], g.tintColor,
                            (g._isim_style == UIGlassEffectStyleClear ? 2 : 0) | (_isim_pressed ? 8 : 0) | (self.clipsToBounds ? 4 : 0));
         return;
     }

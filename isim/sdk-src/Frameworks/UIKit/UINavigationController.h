@@ -66,6 +66,9 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_SWIFT_NAME(UIBarButtonItem.Badge)
 @end
 @interface UIBarButtonItem (UIBarButtonItemBadge)
 @property (nullable, nonatomic, copy) UIBarButtonItemBadge *badge API_AVAILABLE(ios(26.0));
+/* iOS 26: neighbouring items share one glass capsule (default YES); hidesSharedBackground draws the item without glass */
+@property (nonatomic) BOOL sharesBackground API_AVAILABLE(ios(26.0));
+@property (nonatomic) BOOL hidesSharedBackground API_AVAILABLE(ios(26.0));
 @end
 
 typedef NS_ENUM(NSInteger, UINavigationItemLargeTitleDisplayMode) {
