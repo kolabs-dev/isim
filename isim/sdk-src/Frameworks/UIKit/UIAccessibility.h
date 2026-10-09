@@ -131,6 +131,7 @@ UIKIT_EXTERN BOOL UIAccessibilityIsOnOffSwitchLabelsEnabled(void);
 UIKIT_EXTERN BOOL UIAccessibilityButtonShapesEnabled(void);
 UIKIT_EXTERN BOOL UIAccessibilityPrefersCrossFadeTransitions(void);
 UIKIT_EXTERN BOOL UIAccessibilityIsVideoAutoplayEnabled(void);
+UIKIT_EXTERN NSNotificationName const UIAccessibilitySwitchControlStatusDidChangeNotification;   /* isim: Settings > Accessibility > Switch Control, script `switchcontrol` */
 UIKIT_EXTERN NSNotificationName const UIAccessibilityVoiceOverStatusDidChangeNotification, UIAccessibilityReduceMotionStatusDidChangeNotification,
     UIAccessibilityBoldTextStatusDidChangeNotification, UIAccessibilityReduceTransparencyStatusDidChangeNotification,
     UIAccessibilityDarkerSystemColorsStatusDidChangeNotification, UIAccessibilityDifferentiateWithoutColorDidChangeNotification;

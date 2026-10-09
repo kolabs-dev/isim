@@ -14,7 +14,9 @@
  *   longdrag X1 Y1 X2 Y2 HOLD SECS  one finger down, held HOLD s (a long press), then moved over SECS and lifted
  *   hover X Y | hover off         pointer at (X, Y) without touching / pointer leaves
  *   compose TEXT                  IME marked text (an empty TEXT ends composing); `type` commits
- *   voiceover on|off|next|prev|activate|read   VoiceOver (the app's UIKit runs it)
+ *   voiceover on|off|next|prev|activate|read|rotor [prev]|up|down   VoiceOver (the app's UIKit runs it)
+ *   switchcontrol on|off|next|select|auto   Switch Control: item scanning (auto: a timer moves the highlight)
+ *   voicecontrol PHRASE          Voice Control: "tap Done", "show numbers", "tap 3", "scroll down", "go back", …
  */
 enum { EV_HOVER = 40, EV_TEXT_EDITING = 41, EV_VOICEOVER = 42 };
 
@@ -89,9 +91,12 @@ static int input_script_cmd(const char *cmd, const char *args) {
         script_resume = now() + 0.05;
         return 1;
     }
-    if (!strcmp(cmd, "voiceover") && sscanf(args, " %63[^; ]", arg) == 1) {
+    /* assistive technologies run in the app's UIKit: VoiceOver, Switch Control ("switch:"), Voice Control ("voice:") */
+    if ((!strcmp(cmd, "voiceover") || !strcmp(cmd, "switchcontrol") || !strcmp(cmd, "voicecontrol")) && sscanf(args, " %511[^;\n]", arg) == 1) {
+        for (size_t n = strlen(arg); n && arg[n - 1] == ' '; n--) arg[n - 1] = 0;
+        const char *prefix = !strcmp(cmd, "voiceover") ? "" : !strcmp(cmd, "switchcontrol") ? "switch:" : "voice:";
         pending[npending++] = (struct isim_event){ .type = EV_VOICEOVER };
-        snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
+        snprintf(pending[npending - 1].text, sizeof pending->text, "%s%s", prefix, arg);
         script_resume = now() + 0.1;
         return 1;
     }
