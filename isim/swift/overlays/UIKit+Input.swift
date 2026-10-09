@@ -36,6 +36,21 @@ public enum UIPointerShape {
         }
     }
 }
+extension UIPointerAccessory {
+    public typealias Position = UIPointerAccessoryPosition
+    /// an arrow pointing away from the pointer at that position
+    public static func arrow(_ position: Position) -> UIPointerAccessory { __arrowAccessory(with: position) }
+}
+extension UIPointerAccessoryPosition {
+    public static var top: Self { UIPointerAccessoryPositionTop }
+    public static var topRight: Self { UIPointerAccessoryPositionTopRight }
+    public static var right: Self { UIPointerAccessoryPositionRight }
+    public static var bottomRight: Self { UIPointerAccessoryPositionBottomRight }
+    public static var bottom: Self { UIPointerAccessoryPositionBottom }
+    public static var bottomLeft: Self { UIPointerAccessoryPositionBottomLeft }
+    public static var left: Self { UIPointerAccessoryPositionLeft }
+    public static var topLeft: Self { UIPointerAccessoryPositionTopLeft }
+}
 // MARK: - UIAccessibility (a namespace in Swift)
 public enum UIAccessibility {
     public struct Notification: Hashable, RawRepresentable, Sendable {

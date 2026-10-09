@@ -284,8 +284,16 @@ static void shape_corners(Shape o, CGPoint out[4]) {
     double xs[4] = { -o.hx, o.hx, o.hx, -o.hx }, ys[4] = { -o.hy, -o.hy, o.hy, o.hy };
     for (int k = 0; k < 4; k++) out[k] = CGPointMake(o.c.x + xs[k] * c - ys[k] * s, o.c.y + xs[k] * s + ys[k] * c);
 }
-/* the shape against the half-plane through P whose normal n points into free space */
-static BOOL shape_plane(Shape o, CGPoint P, double nx, double ny, CGPoint *contact, double *depth) {
+/* the shape against the half-plane through P whose normal n points into free space; for a segment (len >= 0, along
+   (ux, uy) from P) only the points over the segment count */
+static BOOL shape_plane_seg(Shape o, CGPoint P, double nx, double ny, double ux, double uy, double len, CGPoint *contact, double *depth);
+static BOOL shape_plane(Shape o, CGPoint P, double nx, double ny, CGPoint *contact, double *depth) { return shape_plane_seg(o, P, nx, ny, 0, 0, -1, contact, depth); }
+static BOOL over_segment(CGPoint x, CGPoint P, double ux, double uy, double len) {
+    if (len < 0) return YES;
+    double a = (x.x - P.x) * ux + (x.y - P.y) * uy;
+    return a >= -0.5 && a <= len + 0.5;
+}
+static BOOL shape_plane_seg(Shape o, CGPoint P, double nx, double ny, double ux, double uy, double len, CGPoint *contact, double *depth) {
     if (o.ellipse) {                                           /* support point of the ellipse in -n */
         double c = cos(o.ang), s = sin(o.ang);
         double lx = -nx * c - ny * s, ly = nx * s - ny * c;    /* -n in the ellipse's frame */
@@ -294,13 +302,13 @@ static BOOL shape_plane(Shape o, CGPoint P, double nx, double ny, CGPoint *conta
         ax /= len; ay /= len;
         CGPoint sp = CGPointMake(o.c.x + ax * c - ay * s, o.c.y + ax * s + ay * c);
         double d = -((sp.x - P.x) * nx + (sp.y - P.y) * ny);
-        if (d <= 0) return NO;
+        if (d <= 0 || !over_segment(sp, P, ux, uy, len)) return NO;
         *contact = sp; *depth = d;
         return YES;
     }
     CGPoint k[4]; shape_corners(o, k);
     double ds[4], maxd = 0;
-    for (int i = 0; i < 4; i++) { ds[i] = -((k[i].x - P.x) * nx + (k[i].y - P.y) * ny); maxd = fmax(maxd, ds[i]); }
+    for (int i = 0; i < 4; i++) { ds[i] = over_segment(k[i], P, ux, uy, len) ? -((k[i].x - P.x) * nx + (k[i].y - P.y) * ny) : -1; maxd = fmax(maxd, ds[i]); }
     if (maxd <= 0) return NO;
     double sx = 0, sy = 0; int n = 0;
     for (int i = 0; i < 4; i++) if (ds[i] >= maxd - 0.5) { sx += k[i].x; sy += k[i].y; n++; }
@@ -454,9 +462,7 @@ static BOOL shape_pair(Shape p, Shape q, double *nx, double *ny, double *depth, 
                     Shape o = shape_of(i, b);
                     if ((o.c.x - P.x) * nx + (o.c.y - P.y) * ny < 0) { nx = -nx; ny = -ny; }   /* the item's side of the line */
                     CGPoint at; double depth;
-                    if (!shape_plane(o, P, nx, ny, &at, &depth)) continue;
-                    double along = (at.x - P.x) * ux + (at.y - P.y) * uy;
-                    if (along < -1 || along > len + 1) continue;                            /* past the segment's ends */
+                    if (!shape_plane_seg(o, P, nx, ny, ux, uy, len, &at, &depth)) continue;   /* corners over the segment */
                     resolve_contact(i, b, o, at, nx, ny, depth, b->e);
                     report_contact(cb, now, i, nil, bd->identifier, at);
                 }

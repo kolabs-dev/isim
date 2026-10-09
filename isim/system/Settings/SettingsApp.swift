@@ -757,6 +757,9 @@ struct PasswordsView: View {
 
 /// Apple Pencil (iPad): Scribble
 struct PencilView: View {
+    /// UIPencilPreferredAction values (UIPencilInteraction.preferredTapAction reads them)
+    static let tapActions: [(String, Int)] = [("Switch between current tool and eraser", 1), ("Switch between current tool and last used", 2),
+                                             ("Show colour palette", 3), ("Show ink attributes", 4), ("Off", 0)]
     @State private var bump = 0
     var body: some View {
         let _ = bump
@@ -766,6 +769,23 @@ struct PencilView: View {
                                                  set: { Store.set("PencilScribble", $0); bump += 1 }))
                     .accessibilityIdentifier("settings-scribble")
             } footer: { Text("Write in any text field with Apple Pencil. isim has no Pencil: the script command scribble X Y TEXT writes TEXT at (X, Y).") }
+            Section {
+                Toggle("Only Draw with Apple Pencil", isOn: Binding(get: { Store.global.object(forKey: "PencilOnlyDrawing") as? Bool ?? false },
+                                                                   set: { Store.set("PencilOnlyDrawing", $0); bump += 1 }))
+                    .accessibilityIdentifier("settings-pencil-only")
+            }
+            Section("Double-Tap") {
+                ForEach(PencilView.tapActions, id: \.1) { name, value in
+                    Button { Store.set("PencilTapAction", value); bump += 1 } label: {
+                        HStack {
+                            Text(name).foregroundStyle(.primary)
+                            Spacer()
+                            if (Store.global.object(forKey: "PencilTapAction") as? Int ?? 1) == value { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                        }
+                    }
+                    .accessibilityIdentifier("settings-pencil-tap-\(value)")
+                }
+            }
         }
         .navigationTitle("Apple Pencil").navigationBarTitleDisplayMode(.inline)
     }

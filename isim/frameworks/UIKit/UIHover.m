@@ -250,13 +250,20 @@ static BOOL pointer_device(void) { return UIDevice.currentDevice.userInterfaceId
     } else if (_shapeKind == 0 || _shapeKind == 2) {
         isim_gfx_fill_rounded(_shapeRect.origin.x, _shapeRect.origin.y, _shapeRect.size.width, _shapeRect.size.height, _shapeRadius, c);
     } else isim_gfx_fill_ellipse(_at.x - 9.5, _at.y - 9.5, 19, 19, c);
-    /* accessories: small arrows around the pointer, pointing away from it */
+    /* accessories: small arrows just outside the pointer's shape, pointing away from it (drawn as chevrons: adapted) */
+    double hw = 9.5, hh = 9.5;
+    if (_shapeKind == 1) { hw = _shapeRect.size.width / 2; hh = _shapeRect.size.height / 2; }
+    else if (_shapeKind == 0 || _shapeKind == 2) { hw = _shapeRect.size.width / 2; hh = _shapeRect.size.height / 2; }
     for (UIPointerAccessory *a in _accessories) {
-        double ang = a.position.angle, off = a.position.offset + 9.5 + 6;
-        double ax = _at.x + sin(ang) * off, ay = _at.y - cos(ang) * off;
-        isim_gfx_save(); isim_gfx_translate(ax, ay); if (a.orientationMatchesAngle) isim_gfx_rotate(ang);
-        isim_gfx_fill_rounded(-1.5, -4, 3, 8, 1.5, c);                     /* the arrow's stem */
-        isim_gfx_fill_rounded(-4.5, -4, 9, 3, 1.5, c);                     /* and head */
+        double ang = a.position.angle, dx = sin(ang), dy = -cos(ang);
+        double ext = fabs(dx) * hw + fabs(dy) * hh, off = ext + a.position.offset;
+        double ax = _at.x + dx * off, ay = _at.y + dy * off;
+        isim_gfx_save(); isim_gfx_translate(ax, ay); isim_gfx_rotate(ang);
+        for (int side = -1; side <= 1; side += 2) {               /* the two strokes of a chevron pointing "up" (away) */
+            isim_gfx_save(); isim_gfx_rotate(side * M_PI / 4);
+            isim_gfx_fill_rounded(-1.5, -1.5, 3, 7.5, 1.5, c);
+            isim_gfx_restore();
+        }
         isim_gfx_restore();
     }
 }

@@ -87,19 +87,23 @@ NS_SWIFT_UI_ACTOR
 + (instancetype)shapeWithRoundedRect:(CGRect)rect cornerRadius:(CGFloat)cornerRadius;
 + (instancetype)beamWithPreferredLength:(CGFloat)length axis:(UIAxis)axis;
 @end
-NS_SWIFT_UI_ACTOR
 /* small shapes around the pointer (iOS 15): arrows hinting at the directions it can move */
-typedef struct UIPointerAccessoryPosition { CGFloat offset; CGFloat angle; } UIPointerAccessoryPosition;
-UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionTop, UIPointerAccessoryPositionTopRight, UIPointerAccessoryPositionRight,
-    UIPointerAccessoryPositionBottomRight, UIPointerAccessoryPositionBottom, UIPointerAccessoryPositionBottomLeft, UIPointerAccessoryPositionLeft,
-    UIPointerAccessoryPositionTopLeft;
+typedef struct UIPointerAccessoryPosition { CGFloat offset; CGFloat angle; } UIPointerAccessoryPosition;   /* Swift: UIPointerAccessory.Position */
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionTop;
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionTopRight;
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionRight;
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionBottomRight;
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionBottom;
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionBottomLeft;
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionLeft;
+UIKIT_EXTERN const UIPointerAccessoryPosition UIPointerAccessoryPositionTopLeft;
 NS_SWIFT_UI_ACTOR
 @interface UIPointerAccessory : NSObject <NSCopying>
 @property (nonatomic, readonly, copy) UIPointerShape *shape;
 @property (nonatomic, readonly) UIPointerAccessoryPosition position;
 @property (nonatomic, getter=isOrientationMatchingAngle) BOOL orientationMatchesAngle;
-+ (instancetype)accessoryWithShape:(UIPointerShape *)shape position:(UIPointerAccessoryPosition)position;
-+ (instancetype)arrowAccessoryWithPosition:(UIPointerAccessoryPosition)position;
++ (instancetype)accessoryWithShape:(UIPointerShape *)shape position:(UIPointerAccessoryPosition)position NS_SWIFT_NAME(init(_:position:));
++ (instancetype)arrowAccessoryWithPosition:(UIPointerAccessoryPosition)position NS_REFINED_FOR_SWIFT;
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 @end
@@ -146,8 +150,8 @@ NS_SWIFT_UI_ACTOR
 @protocol UIPencilInteractionDelegate <NSObject>
 @optional
 - (void)pencilInteractionDidTap:(UIPencilInteraction *)interaction;
-- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveTap:(UIPencilInteractionTap *)tap;
-- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveSqueeze:(UIPencilInteractionSqueeze *)squeeze;
+- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveTap:(UIPencilInteractionTap *)tap NS_SWIFT_NAME(pencilInteraction(_:didReceiveTap:));
+- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveSqueeze:(UIPencilInteractionSqueeze *)squeeze NS_SWIFT_NAME(pencilInteraction(_:didReceiveSqueeze:));
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIPencilInteraction : NSObject <UIInteraction>
