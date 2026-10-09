@@ -168,13 +168,13 @@ extension NSItemProvider {
     public func registerDataRepresentation(for contentType: UTType, visibility: NSItemProviderRepresentationVisibility = .all,
                                            loadHandler: @escaping @Sendable (@escaping @Sendable (Data?, Error?) -> Void) -> Progress?) {
         registerDataRepresentation(forTypeIdentifier: contentType.identifier, visibility: visibility) { done in
-            loadHandler { d, e in done(d, e.map { $0 as NSError }) }
+            loadHandler { d, e in done(d, e) }
         }
     }
     public func registerFileRepresentation(for contentType: UTType, visibility: NSItemProviderRepresentationVisibility = .all, openInPlace: Bool = false,
                                            loadHandler: @escaping @Sendable (@escaping @Sendable (URL?, Bool, Error?) -> Void) -> Progress?) {
         registerFileRepresentation(forTypeIdentifier: contentType.identifier, fileOptions: openInPlace ? .openInPlace : [], visibility: visibility) { done in
-            loadHandler { u, c, e in done(u, c, e.map { $0 as NSError }) }
+            loadHandler { u, c, e in done(u, c, e) }
         }
     }
     public convenience init(contentsOf fileURL: URL?, contentType: UTType?, openInPlace: Bool = false, coordinated: Bool = false,

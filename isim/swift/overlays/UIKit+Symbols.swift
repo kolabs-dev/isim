@@ -257,3 +257,23 @@ extension UIImageView {
         _IsimSymbolEffectPlayer.player(for: self).replace(with: image, effect: contentTransition, options: options, completion: done)
     }
 }
+
+// MARK: - UISymbolContentTransition (iOS 26): a button configuration's symbol replace animation
+/// the Swift values behind a UISymbolContentTransition (Objective-C keeps the kind, direction and speed it draws with)
+final class _IsimSymbolContentTransitionBox: NSObject {
+    let effect: any ContentTransitionSymbolEffect & SymbolEffect
+    let options: SymbolEffectOptions
+    init(_ effect: any ContentTransitionSymbolEffect & SymbolEffect, _ options: SymbolEffectOptions) { self.effect = effect; self.options = options }
+}
+@available(iOS 26.0, *)
+extension UISymbolContentTransition {
+    public convenience init(_ contentTransition: some ContentTransitionSymbolEffect & SymbolEffect, options: SymbolEffectOptions = .default) {
+        let d = contentTransition._isimDescription
+        self.init(_isimKind: d.kind.rawValue, direction: d.direction, speed: options._isimSpeed,
+                  box: _IsimSymbolContentTransitionBox(contentTransition, options))
+    }
+    public var contentTransition: any ContentTransitionSymbolEffect & SymbolEffect {
+        (_isim_box as? _IsimSymbolContentTransitionBox)?.effect ?? ReplaceSymbolEffect()
+    }
+    public var options: SymbolEffectOptions { (_isim_box as? _IsimSymbolContentTransitionBox)?.options ?? .default }
+}

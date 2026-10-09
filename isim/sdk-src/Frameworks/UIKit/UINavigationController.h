@@ -4,7 +4,7 @@
 #import <UIKit/UIViewController.h>
 #import <UIKit/UIControl.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIImage, UIColor, UIMenu, UIGestureRecognizer, UIFont, UIBlurEffect, UISearchController, UINavigationBarAppearance;
+@class UIImage, UIColor, UIMenu, UIGestureRecognizer, UIFont, UIBlurEffect, UISearchController, UINavigationBarAppearance, NSAttributedString, UILayoutGuide;
 
 typedef NS_ENUM(NSInteger, UIBarButtonItemStyle) { UIBarButtonItemStylePlain, UIBarButtonItemStyleBordered, UIBarButtonItemStyleDone, UIBarButtonItemStyleProminent = 3 };
 typedef NS_ENUM(NSInteger, UIBarButtonSystemItem) {
@@ -115,6 +115,17 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *scrollEdgeAppearance;
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *compactAppearance;
 @property (nullable, nonatomic, copy) UINavigationBarAppearance *compactScrollEdgeAppearance;
+/* iOS 26: a subtitle under the title (inline: a second line in the bar row; large: under the large title, else the
+   subtitle); attributed and view variants win over the plain strings; largeTitle replaces the title while it is large.
+   The attributed ones are AttributedString in Swift (UIKit overlay) */
+@property (nullable, nonatomic, copy) NSString *subtitle API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSAttributedString *attributedSubtitle NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, strong) UIView *subtitleView API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSString *largeTitle API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSAttributedString *attributedTitle NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSString *largeSubtitle API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, copy) NSAttributedString *largeAttributedSubtitle NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, strong) UIView *largeSubtitleView API_AVAILABLE(ios(26.0));
 @end
 
 /* appearances (iOS 13+) */
@@ -155,6 +166,8 @@ NS_SWIFT_UI_ACTOR
 @interface UINavigationBarAppearance : UIBarAppearance
 @property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *titleTextAttributes;
 @property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *largeTitleTextAttributes;
+@property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *subtitleTextAttributes API_AVAILABLE(ios(26.0));
+@property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *largeSubtitleTextAttributes API_AVAILABLE(ios(26.0));
 @property (nonatomic) UIOffset titlePositionAdjustment;
 @property (nonatomic, copy) UIBarButtonItemAppearance *buttonAppearance;
 @property (nonatomic, copy) UIBarButtonItemAppearance *doneButtonAppearance;
@@ -329,6 +342,17 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_SWIFT_NAME(UITabBarController.Side
 - (BOOL)tabBarController:(UITabBarController *)tabBarController shouldSelectTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:shouldSelectTab:)) API_AVAILABLE(ios(18.0));
 - (void)tabBarController:(UITabBarController *)tabBarController didSelectTab:(UITab *)selectedTab previousTab:(nullable UITab *)previousTab NS_SWIFT_NAME(tabBarController(_:didSelectTab:previousTab:)) API_AVAILABLE(ios(18.0));
 @end
+/* iOS 26: the floating tab bar shrinks to the selected tab while the selected tab's content scrolls (iPhone), and an
+   accessory (a glass capsule) sits above it, or beside it while it is minimized */
+typedef NS_ENUM(NSInteger, UITabBarMinimizeBehavior) { UITabBarMinimizeBehaviorAutomatic = 0, UITabBarMinimizeBehaviorNever = 1,
+    UITabBarMinimizeBehaviorOnScrollDown = 2, UITabBarMinimizeBehaviorOnScrollUp = 3 } NS_SWIFT_NAME(UITabBarController.MinimizeBehavior) API_AVAILABLE(ios(26.0));
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0))
+@interface UITabAccessory : NSObject
+- (instancetype)initWithContentView:(UIView *)contentView NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+@property (nonatomic, readonly, strong) UIView *contentView;
+@end
 NS_SWIFT_UI_ACTOR
 @interface UITabBarController : UIViewController <UITabBarDelegate>
 @property (nullable, nonatomic, copy) NSArray<__kindof UIViewController *> *viewControllers;
@@ -346,6 +370,12 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UITabBarControllerSidebar *sidebar API_AVAILABLE(ios(18.0));
 @property (nonatomic, getter=isTabBarHidden) BOOL tabBarHidden API_AVAILABLE(ios(18.0));
 - (void)setTabBarHidden:(BOOL)hidden animated:(BOOL)animated API_AVAILABLE(ios(18.0));
+/* iOS 26 */
+@property (nonatomic) UITabBarMinimizeBehavior tabBarMinimizeBehavior API_AVAILABLE(ios(26.0));
+@property (nullable, nonatomic, strong) UITabAccessory *bottomAccessory API_AVAILABLE(ios(26.0));
+- (void)setBottomAccessory:(nullable UITabAccessory *)bottomAccessory animated:(BOOL)animated API_AVAILABLE(ios(26.0));
+/* the area of the selected tab's content not covered by the tab bar or the iPad sidebar */
+@property (nonatomic, readonly, strong) UILayoutGuide *contentLayoutGuide API_AVAILABLE(ios(26.0));
 @end
 
 @interface UIViewController (UIContainers)

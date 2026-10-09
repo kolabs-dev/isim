@@ -643,6 +643,23 @@ extension UIButton.Configuration {
     }
 }
 
+// MARK: - iOS 26 navigation item titles and subtitles as AttributedString (Apple's Swift API)
+@available(iOS 26.0, *)
+extension UINavigationItem {
+    public var attributedTitle: AttributedString? {
+        get { __attributedTitle.map { AttributedString($0) } }
+        set { __attributedTitle = newValue.map { NSAttributedString($0) } }
+    }
+    public var attributedSubtitle: AttributedString? {
+        get { __attributedSubtitle.map { AttributedString($0) } }
+        set { __attributedSubtitle = newValue.map { NSAttributedString($0) } }
+    }
+    public var largeAttributedSubtitle: AttributedString? {
+        get { __largeAttributedSubtitle.map { AttributedString($0) } }
+        set { __largeAttributedSubtitle = newValue.map { NSAttributedString($0) } }
+    }
+}
+
 // MARK: - The UIKit attribute scope for AttributedString (NSAttributedString keys: NSColor, NSFont, ...)
 extension AttributeScopes {
     public var uiKit: UIKitAttributes.Type { UIKitAttributes.self }

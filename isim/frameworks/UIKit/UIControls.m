@@ -17,7 +17,7 @@
     return self;
 }
 - (void)_changed { [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
-- (void)setText:(NSString *)t { _attributedText = nil; if (t == _text || [t isEqualToString:_text]) return; _text = [t copy]; [self _changed]; }
+- (void)setText:(NSString *)t { BOOL had = _attributedText != nil; _attributedText = nil; if (!had && (t == _text || [t isEqualToString:_text])) return; _text = [t copy]; [self _changed]; }
 @synthesize attributedText = _attributedText;
 - (void)setAttributedText:(NSAttributedString *)a { _attributedText = [a copy]; _text = [a.string copy]; [self _changed]; }
 - (NSAttributedString *)attributedText {
@@ -193,6 +193,15 @@
 - (void)_isim_touchUpInside {}
 @end
 
+/* ================= UISymbolContentTransition (iOS 26) ================= */
+@implementation UISymbolContentTransition
+- (instancetype)initWithIsimKind:(NSInteger)kind direction:(NSInteger)direction speed:(double)speed box:(id)box {
+    if ((self = [super init])) { __isim_effectKind = kind; __isim_effectDirection = direction; __isim_effectSpeed = speed > 0 ? speed : 1; __isim_box = box; }
+    return self;
+}
+- (id)copyWithZone:(NSZone *)z { return self; }     /* immutable */
+@end
+
 /* ================= UIButtonConfiguration ================= */
 typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, IsimFilled, IsimBordered,
     IsimGlass, IsimProminentGlass, IsimClearGlass, IsimProminentClearGlass };   /* glass: iOS 26 */
@@ -219,6 +228,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     c.cornerStyle = _cornerStyle; c.buttonSize = _buttonSize; c.contentInsets = _contentInsets; c.imagePadding = _imagePadding;
     c.attributedTitle = _attributedTitle; c.attributedSubtitle = _attributedSubtitle; c.showsActivityIndicator = _showsActivityIndicator;
     c.imagePlacement = _imagePlacement; c.titlePadding = _titlePadding; c.titleAlignment = _titleAlignment;
+    c.symbolContentTransition = _symbolContentTransition;
     return c;
 }
 @end
@@ -227,7 +237,8 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 @implementation UIButton { NSMutableDictionary<NSNumber *, NSString *> *_titles; NSMutableDictionary<NSNumber *, UIColor *> *_colors; UILabel *_label;
     NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs;
     NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors;
-    BOOL _needsConfigUpdate, _configShown; UIActivityIndicatorView *_spinner; }
+    BOOL _needsConfigUpdate, _configShown; UIActivityIndicatorView *_spinner;
+    UIImage *_transFrom, *_configImage; double _transStart; CADisplayLink *_transLink; }
 /* configuration updates: state changes, setNeedsUpdateConfiguration, and the first time the button shows */
 - (void)updateConfiguration { if (_configurationUpdateHandler) _configurationUpdateHandler(self); }
 - (void)setNeedsUpdateConfiguration {
@@ -290,7 +301,42 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 }
 - (UILabel *)titleLabel { return _label; }
 - (UIImageView *)imageView { return nil; }
-- (void)setConfiguration:(UIButtonConfiguration *)c { _configuration = [c copy]; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; isim_ui_set_needs_display(); }
+- (void)setConfiguration:(UIButtonConfiguration *)c {
+    /* the image of the configuration set last time (a configuration read back from the button and changed is the same
+       object here, so its own image is already the new one) */
+    UIImage *old = _configImage;
+    _configuration = [c copy];
+    UIImage *now = _configImage = _configuration.image;
+    /* iOS 26 symbolContentTransition: a different symbol image animates in (only on screen) */
+    BOOL changed = old && now && old != now && !(old._isim_symbolName && [old._isim_symbolName isEqualToString:now._isim_symbolName]);
+    if (_configuration.symbolContentTransition && changed && self.window) [self _isim_startSymbolTransitionFrom:old];
+    [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; isim_ui_set_needs_display();
+}
+- (void)_isim_startSymbolTransitionFrom:(UIImage *)old {
+    _transFrom = old; _transStart = CACurrentMediaTime();
+    NSLog(@"isim: symbol content transition %@ -> %@", old._isim_symbolName ?: @"image", _configuration.image._isim_symbolName ?: @"image");
+    if (!_transLink) { _transLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(_isim_transitionTick:)]; [_transLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes]; }
+}
+- (void)_isim_transitionTick:(CADisplayLink *)l {
+    if ([self _isim_transitionProgress] >= 1) { [_transLink invalidate]; _transLink = nil; _transFrom = nil; _transStart = 0; }
+    isim_ui_set_needs_display();
+}
+- (double)_isim_transitionProgress {
+    if (_transStart <= 0) return 1;
+    return (CACurrentMediaTime() - _transStart) * _configuration.symbolContentTransition._isim_effectSpeed / 0.4;
+}
+/* the image, or mid-transition (like an image view's replace effect): the old symbol shrinks and fades out, then the new
+   one grows in, both nudged along the transition's direction */
+- (void)_isim_drawImage:(UIImage *)img inRect:(CGRect)r tint:(UIColor *)tint alpha:(double)a {
+    double u = [self _isim_transitionProgress];
+    if (u >= 1 || !_transFrom) { [img _isim_drawInRect:r tint:tint alpha:a]; return; }
+    BOOL first = u < 0.5; double x = first ? u * 2 : (u - 0.5) * 2, h = x * x * (3 - 2 * x);
+    UIImage *show = first ? _transFrom : img;
+    double k = first ? 1 - 0.4 * h : 0.6 + 0.4 * h, al = first ? 1 - h : h, dir = _configuration.symbolContentTransition._isim_effectDirection;
+    double dy = first ? dir * -4 * h : dir * 4 * (1 - h);
+    CGSize sz = show.size; CGFloat cx = CGRectGetMidX(r), cy = CGRectGetMidY(r) + dy;
+    [show _isim_drawInRect:CGRectMake(cx - sz.width * k / 2, cy - sz.height * k / 2, sz.width * k, sz.height * k) tint:tint alpha:a * al];
+}
 - (void)setContentEdgeInsets:(UIEdgeInsets)i { _contentEdgeInsets = i; [self invalidateIntrinsicContentSize]; }
 - (void)setTitle:(NSString *)t forState:(UIControlState)s {
     NSString *old = _titles[@(s)];
@@ -444,7 +490,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (_configuration && (_configuration.attributedTitle || _configuration.showsActivityIndicator || [self _isim_vertical] || _configuration.imagePlacement == NSDirectionalRectEdgeTrailing)) {
         /* configuration layout: image / activity indicator at its placement, then the (attributed) title */
         CGRect ir = [self _isim_imageRect];
-        if (img) [img _isim_drawInRect:ir tint:[self _fg] alpha:fgAlpha];
+        if (img) [self _isim_drawImage:img inRect:ir tint:[self _fg] alpha:fgAlpha];
         if (!t.length) return;
         CGSize ts = [self _isim_titleSize]; CGFloat pad = (img || _configuration.showsActivityIndicator) ? [self _imagePadding] : 0;
         BOOL hasImage = img || _configuration.showsActivityIndicator;
@@ -467,7 +513,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
         CGFloat x = tr.origin.x + (tr.size.width - is.width - tw) / 2;
         CGRect ir = CGRectMake(round(x), round(tr.origin.y + (tr.size.height - is.height) / 2), is.width, is.height);
         UIColor *tint = _configuration || _buttonType == UIButtonTypeSystem ? [self _fg] : self.tintColor;
-        [img _isim_drawInRect:ir tint:tint alpha:fgAlpha];
+        [self _isim_drawImage:img inRect:ir tint:tint alpha:fgAlpha];
         if (!t.length) return;
         tr = CGRectMake(ir.origin.x + is.width + [self _imagePadding], tr.origin.y, tw - [self _imagePadding], tr.size.height);
         isim_ui_draw_text(t, [self _font], [self _fg], tr, NSTextAlignmentLeft, 1, fgAlpha);

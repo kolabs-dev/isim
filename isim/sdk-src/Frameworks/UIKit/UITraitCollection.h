@@ -20,6 +20,10 @@ typedef NS_ENUM(NSInteger, UIUserInterfaceActiveAppearance) { UIUserInterfaceAct
     UIUserInterfaceActiveAppearanceInactive, UIUserInterfaceActiveAppearanceActive } API_AVAILABLE(ios(14.0));
 typedef NS_ENUM(NSInteger, UIListEnvironment) { UIListEnvironmentUnspecified, UIListEnvironmentNone, UIListEnvironmentPlain,
     UIListEnvironmentGrouped, UIListEnvironmentInsetGrouped, UIListEnvironmentSidebar, UIListEnvironmentSidebarPlain } API_AVAILABLE(ios(18.0));
+@class UITabAccessory;
+/* iOS 26: where a tab bar accessory's content view is shown (above the tab bar: regular; beside a minimized one: inline) */
+typedef NS_ENUM(NSInteger, UITabAccessoryEnvironment) { UITabAccessoryEnvironmentUnspecified = 0, UITabAccessoryEnvironmentNone = 1,
+    UITabAccessoryEnvironmentRegular = 2, UITabAccessoryEnvironmentInline = 3 } NS_SWIFT_NAME(UITabAccessory.Environment) API_AVAILABLE(ios(26.0));
 typedef NSString *UIContentSizeCategory NS_TYPED_ENUM;
 typedef NS_ENUM(NSInteger, UIAccessibilityContrast) { UIAccessibilityContrastUnspecified = -1, UIAccessibilityContrastNormal, UIAccessibilityContrastHigh };
 typedef NS_ENUM(NSInteger, UILegibilityWeight) { UILegibilityWeightUnspecified = -1, UILegibilityWeightRegular, UILegibilityWeightBold };
@@ -61,6 +65,7 @@ API_AVAILABLE(ios(17.0)) @interface UITraitUserInterfaceLevel : NSObject <UITrai
 API_AVAILABLE(ios(17.0)) @interface UITraitLegibilityWeight : NSObject <UITraitDefinition> @end
 API_AVAILABLE(ios(17.0)) @interface UITraitActiveAppearance : NSObject <UITraitDefinition> @end
 API_AVAILABLE(ios(18.0)) @interface UITraitListEnvironment : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(26.0)) @interface UITraitTabAccessoryEnvironment : NSObject <UITraitDefinition> @end
 
 /* writable traits: the block of +traitCollectionWithTraits: and traitOverrides */
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
@@ -81,6 +86,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
 @property (nonatomic) UIUserInterfaceLevel userInterfaceLevel;
 @property (nonatomic) UILegibilityWeight legibilityWeight;
 @property (nonatomic) UIUserInterfaceActiveAppearance activeAppearance;
+@property (nonatomic) UITabAccessoryEnvironment tabAccessoryEnvironment API_AVAILABLE(ios(26.0));
 /* isim: storage for Swift custom traits (keyed by the trait's identifier); used by the UIKit overlay */
 - (void)_isim_setObject:(nullable id)object forTraitIdentifier:(NSString *)identifier;
 - (nullable id)_isim_objectForTraitIdentifier:(NSString *)identifier;
@@ -108,6 +114,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
 @property (nonatomic, readonly) UIUserInterfaceLevel userInterfaceLevel;
 @property (nonatomic, readonly) UIUserInterfaceActiveAppearance activeAppearance API_AVAILABLE(ios(14.0));
 @property (nonatomic, readonly) UIListEnvironment listEnvironment API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly) UITabAccessoryEnvironment tabAccessoryEnvironment API_AVAILABLE(ios(26.0));
 + (UITraitCollection *)traitCollectionWithUserInterfaceStyle:(UIUserInterfaceStyle)style;
 + (UITraitCollection *)traitCollectionWithUserInterfaceIdiom:(UIUserInterfaceIdiom)idiom;
 + (UITraitCollection *)traitCollectionWithHorizontalSizeClass:(UIUserInterfaceSizeClass)horizontalSizeClass;

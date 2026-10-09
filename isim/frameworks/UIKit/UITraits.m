@@ -29,6 +29,7 @@
 #define K_LEGIBILITY @"UITraitLegibilityWeight"
 #define K_ACTIVE @"UITraitActiveAppearance"
 #define K_LIST @"UITraitListEnvironment"
+#define K_TABACC @"UITraitTabAccessoryEnvironment"
 
 static NSDictionary<NSString *, id> *builtin_defaults(void) {
     static NSDictionary *d;
@@ -36,7 +37,8 @@ static NSDictionary<NSString *, id> *builtin_defaults(void) {
                    K_VSIZE: @(UIUserInterfaceSizeClassUnspecified), K_SCALE: @0.0, K_DIR: @(UITraitEnvironmentLayoutDirectionUnspecified),
                    K_FORCE: @(UIForceTouchCapabilityUnknown), K_CATEGORY: @"_UICTContentSizeCategoryUnspecified", K_GAMUT: @(UIDisplayGamutUnspecified),
                    K_CONTRAST: @(UIAccessibilityContrastUnspecified), K_LEVEL: @(UIUserInterfaceLevelUnspecified),
-                   K_LEGIBILITY: @(UILegibilityWeightUnspecified), K_ACTIVE: @(UIUserInterfaceActiveAppearanceUnspecified), K_LIST: @(UIListEnvironmentUnspecified) };
+                   K_LEGIBILITY: @(UILegibilityWeightUnspecified), K_ACTIVE: @(UIUserInterfaceActiveAppearanceUnspecified), K_LIST: @(UIListEnvironmentUnspecified),
+                   K_TABACC: @(UITabAccessoryEnvironmentUnspecified) };
     return d;
 }
 /* traits whose change alters how dynamic colors resolve; Swift custom traits register here (affectsColorAppearance) */
@@ -94,6 +96,7 @@ TRAIT_CLASS(UITraitUserInterfaceLevel, @"UserInterfaceLevel", YES)
 TRAIT_CLASS(UITraitLegibilityWeight, @"LegibilityWeight", NO)
 TRAIT_CLASS(UITraitActiveAppearance, @"ActiveAppearance", YES)
 TRAIT_CLASS(UITraitListEnvironment, @"ListEnvironment", NO)
+TRAIT_CLASS(UITraitTabAccessoryEnvironment, @"TabAccessoryEnvironment", NO)
 
 /* ================= mutable traits / trait overrides ================= */
 @interface __IsimMutableTraits : NSObject <UITraitOverrides>
@@ -131,6 +134,7 @@ MT_INT(accessibilityContrast, setAccessibilityContrast, UIAccessibilityContrast,
 MT_INT(userInterfaceLevel, setUserInterfaceLevel, UIUserInterfaceLevel, K_LEVEL)
 MT_INT(legibilityWeight, setLegibilityWeight, UILegibilityWeight, K_LEGIBILITY)
 MT_INT(activeAppearance, setActiveAppearance, UIUserInterfaceActiveAppearance, K_ACTIVE)
+MT_INT(tabAccessoryEnvironment, setTabAccessoryEnvironment, UITabAccessoryEnvironment, K_TABACC)
 - (CGFloat)displayScale { return [(_d[K_SCALE] ?: @0) doubleValue]; }
 - (void)setDisplayScale:(CGFloat)s { [self _set:@(s) key:K_SCALE]; }
 - (UIContentSizeCategory)preferredContentSizeCategory { return _d[K_CATEGORY] ?: UIContentSizeCategoryUnspecified; }
@@ -177,6 +181,7 @@ static UITraitCollection *with(NSString *k, id v) { return [[UITraitCollection a
 - (UIUserInterfaceLevel)userInterfaceLevel { return (UIUserInterfaceLevel)[self _int:K_LEVEL]; }
 - (UIUserInterfaceActiveAppearance)activeAppearance { return (UIUserInterfaceActiveAppearance)[self _int:K_ACTIVE]; }
 - (UIListEnvironment)listEnvironment { return (UIListEnvironment)[self _int:K_LIST]; }
+- (UITabAccessoryEnvironment)tabAccessoryEnvironment { return (UITabAccessoryEnvironment)[self _int:K_TABACC]; }
 - (UIContentSizeCategory)preferredContentSizeCategory { return _t[K_CATEGORY] ?: UIContentSizeCategoryUnspecified; }
 - (UIAccessibilityContrast)accessibilityContrast { return (UIAccessibilityContrast)[self _int:K_CONTRAST]; }
 - (UILegibilityWeight)legibilityWeight { return (UILegibilityWeight)[self _int:K_LEGIBILITY]; }
