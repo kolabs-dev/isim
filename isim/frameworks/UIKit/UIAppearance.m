@@ -150,6 +150,10 @@ static UIColor *inherited_tint(id target, UIView *host) {
     if ([target isKindOfClass:[UIView class]]) { UIView *v = target; return v.superview ? v.superview.tintColor : (isim_ui_accent_color() ?: UIColor.systemBlueColor); }
     return nil;                                        /* bar items: no inherited tint of their own */
 }
+/* classes that copy some appearance values themselves (UIToolbar's per-position bar images, UINavigation.m) */
+@protocol __IsimAppearanceCopying
+- (void)_isim_appearanceCopyTo:(id)target;
+@end
 /* target: a view (host = its superview) or a bar item (host = the bar it is placed in) */
 static void apply_to(id target, UIView *host) {
     if (creating || !entries.count || objc_getAssociatedObject(target, &kProxy) || objc_getAssociatedObject(target, &kApplied)) return;
@@ -199,6 +203,8 @@ static void apply_to(id target, UIView *host) {
                     [mine addObject:mk];
                 }
             }
+            /* values a class copies itself (UIToolbar's per-position bar images) */
+            if ([e.proxy respondsToSelector:@selector(_isim_appearanceCopyTo:)]) [(id<__IsimAppearanceCopying>)e.proxy _isim_appearanceCopyTo:target];
         }
     }
 }

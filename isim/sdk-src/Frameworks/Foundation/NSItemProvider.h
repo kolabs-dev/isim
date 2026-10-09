@@ -34,7 +34,7 @@ typedef NS_OPTIONS(NSInteger, NSItemProviderFileOptions) {
 - (NSItemProviderRepresentationVisibility)itemProviderVisibilityForRepresentationWithTypeIdentifier:(NSString *)typeIdentifier;
 @required
 - (nullable NSProgress *)loadDataWithTypeIdentifier:(NSString *)typeIdentifier
-                   forItemProviderCompletionHandler:(void (^)(NSData *_Nullable data, NSError *_Nullable error))completionHandler;
+                   forItemProviderCompletionHandler:(void (NS_SWIFT_SENDABLE ^)(NSData *_Nullable data, NSError *_Nullable error))completionHandler;
 @end
 
 @protocol NSItemProviderReading <NSObject>
@@ -50,29 +50,29 @@ typedef void (^NSItemProviderLoadHandler)(_Null_unspecified NSItemProviderComple
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 /* representations */
 - (void)registerDataRepresentationForTypeIdentifier:(NSString *)typeIdentifier visibility:(NSItemProviderRepresentationVisibility)visibility
-                                        loadHandler:(NSProgress *_Nullable (^)(void (^completionHandler)(NSData *_Nullable data, NSError *_Nullable error)))loadHandler;
+                                        loadHandler:(NSProgress *_Nullable (NS_SWIFT_SENDABLE ^)(void (NS_SWIFT_SENDABLE ^completionHandler)(NSData *_Nullable data, NSError *_Nullable error)))loadHandler;
 - (void)registerFileRepresentationForTypeIdentifier:(NSString *)typeIdentifier fileOptions:(NSItemProviderFileOptions)fileOptions
                                          visibility:(NSItemProviderRepresentationVisibility)visibility
-                                        loadHandler:(NSProgress *_Nullable (^)(void (^completionHandler)(NSURL *_Nullable url, BOOL coordinated, NSError *_Nullable error)))loadHandler;
+                                        loadHandler:(NSProgress *_Nullable (NS_SWIFT_SENDABLE ^)(void (NS_SWIFT_SENDABLE ^completionHandler)(NSURL *_Nullable url, BOOL coordinated, NSError *_Nullable error)))loadHandler;
 @property (nonatomic, readonly, copy) NSArray<NSString *> *registeredTypeIdentifiers;
 - (NSArray<NSString *> *)registeredTypeIdentifiersWithFileOptions:(NSItemProviderFileOptions)fileOptions;
 - (BOOL)hasItemConformingToTypeIdentifier:(NSString *)typeIdentifier NS_SWIFT_NAME(hasItemConformingToTypeIdentifier(_:));
 - (BOOL)hasRepresentationConformingToTypeIdentifier:(NSString *)typeIdentifier fileOptions:(NSItemProviderFileOptions)fileOptions;
 - (NSProgress *)loadDataRepresentationForTypeIdentifier:(NSString *)typeIdentifier
-                                      completionHandler:(void (^)(NSData *_Nullable data, NSError *_Nullable error))completionHandler;
+                                      completionHandler:(void (NS_SWIFT_SENDABLE ^)(NSData *_Nullable data, NSError *_Nullable error))completionHandler;
 - (NSProgress *)loadFileRepresentationForTypeIdentifier:(NSString *)typeIdentifier
-                                      completionHandler:(void (^)(NSURL *_Nullable url, NSError *_Nullable error))completionHandler;
+                                      completionHandler:(void (NS_SWIFT_SENDABLE ^)(NSURL *_Nullable url, NSError *_Nullable error))completionHandler;
 - (nullable NSProgress *)loadInPlaceFileRepresentationForTypeIdentifier:(NSString *)typeIdentifier
-                                                     completionHandler:(void (^)(NSURL *_Nullable url, BOOL isInPlace, NSError *_Nullable error))completionHandler;
+                                                     completionHandler:(void (NS_SWIFT_SENDABLE ^)(NSURL *_Nullable url, BOOL isInPlace, NSError *_Nullable error))completionHandler;
 @property (nonatomic, copy, nullable) NSString *suggestedName;
 /* objects */
 - (instancetype)initWithObject:(id<NSItemProviderWriting>)object;
 - (void)registerObject:(id<NSItemProviderWriting>)object visibility:(NSItemProviderRepresentationVisibility)visibility;
 - (void)registerObjectOfClass:(Class<NSItemProviderWriting>)aClass visibility:(NSItemProviderRepresentationVisibility)visibility
-                  loadHandler:(NSProgress *_Nullable (^)(void (^completionHandler)(id<NSItemProviderWriting> _Nullable object, NSError *_Nullable error)))loadHandler NS_REFINED_FOR_SWIFT;
+                  loadHandler:(NSProgress *_Nullable (NS_SWIFT_SENDABLE ^)(void (NS_SWIFT_SENDABLE ^completionHandler)(id<NSItemProviderWriting> _Nullable object, NSError *_Nullable error)))loadHandler NS_REFINED_FOR_SWIFT;
 - (BOOL)canLoadObjectOfClass:(Class<NSItemProviderReading>)aClass;
 - (NSProgress *)loadObjectOfClass:(Class<NSItemProviderReading>)aClass
-                completionHandler:(void (^)(__kindof id<NSItemProviderReading> _Nullable object, NSError *_Nullable error))completionHandler NS_REFINED_FOR_SWIFT;
+                completionHandler:(void (NS_SWIFT_SENDABLE ^)(__kindof id<NSItemProviderReading> _Nullable object, NSError *_Nullable error))completionHandler NS_REFINED_FOR_SWIFT;
 /* items (the original API) */
 - (instancetype)initWithItem:(nullable id<NSSecureCoding>)item typeIdentifier:(nullable NSString *)typeIdentifier;
 - (nullable instancetype)initWithContentsOfURL:(null_unspecified NSURL *)fileURL;

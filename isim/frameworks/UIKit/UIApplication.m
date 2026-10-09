@@ -18,7 +18,7 @@
 @property (nonatomic, readwrite, strong) UIView *view;
 @property (nonatomic) CGPoint loc, prev;
 @property (nonatomic) int isimFinger;
-@property (nonatomic) BOOL isimPencil;
+@property (nonatomic) BOOL isimPencil, isimPointer;
 @property (nonatomic) double isimForce, isimAltitude, isimAzimuth;
 @end
 @implementation UITouch
@@ -33,7 +33,8 @@
 - (void)_isim_setStationary { if (_phase != UITouchPhaseEnded && _phase != UITouchPhaseCancelled) { _phase = UITouchPhaseStationary; _prev = _loc; } }
 /* a simulated Apple Pencil touch (script `pencil`): force 0...4.17, altitude above the screen, azimuth (radians) */
 - (void)_isim_setPencilForce:(double)f altitude:(double)alt azimuth:(double)az { _isimPencil = YES; _isimForce = f; _isimAltitude = alt; _isimAzimuth = az; }
-- (UITouchType)type { return _isimPencil ? UITouchTypePencil : UITouchTypeDirect; }
+- (void)_isim_setPointer { _isimPointer = YES; }            /* an iPad pointer (trackpad / mouse) touch (script `pointerdrag`) */
+- (UITouchType)type { return _isimPencil ? UITouchTypePencil : _isimPointer ? UITouchTypeIndirectPointer : UITouchTypeDirect; }
 - (CGFloat)majorRadius { return _isimPencil ? 0.25 : 20; }
 - (CGFloat)majorRadiusTolerance { return _isimPencil ? 0 : 5; }
 - (CGFloat)force { return _phase == UITouchPhaseEnded || _phase == UITouchPhaseCancelled ? 0 : _isimPencil ? _isimForce : 1; }
@@ -622,6 +623,8 @@ static CGPoint space_from_screen(id<UICoordinateSpace> s, CGPoint p) {
 @end
 @implementation UIWindowScene { NSMutableArray<UIWindow *> *_windows; id<UITraitOverrides> _traitOverrides; CGRect _isimFrame; BOOL _isimHasFrame;
     UISceneSizeRestrictions *_sizeRestrictions; __IsimSceneSpace *_space; }
+/* iOS 27: isim has one display per device, so the link is an ordinary display link */
+- (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel { return [CADisplayLink displayLinkWithTarget:target selector:sel]; }
 - (NSMutableArray *)valueForKey_isimWindows { if (!_windows) _windows = [NSMutableArray array]; return _windows; }
 - (UIScreen *)screen { return UIScreen.mainScreen; }
 - (NSArray *)windows { return [_windows copy] ?: @[]; }
@@ -849,6 +852,7 @@ static void handle_touch(const struct isim_event *ev) {
         if (!w.isKeyWindow && isim_ui_scenes_split() && w.windowScene && w.windowLevel == UIWindowLevelNormal) [w makeKeyWindow];   /* the touched side of a split view */
         cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y) time:ev->timestamp];
         [cur_touch _isim_setFinger:finger];
+        if (!strcmp(ev->text, "pointer")) [cur_touch _isim_setPointer];   /* before recognizers are asked (shouldReceiveTouch) */
         [active_touches removeAllObjects];
         active_touches[@(finger)] = cur_touch;
         if (ev->timestamp - last_tap_time < 0.35 && hypot(p.x - last_tap_point.x, p.y - last_tap_point.y) < 20) [cur_touch setValue_isimTapCount:last_tap_count + 1];
@@ -878,6 +882,7 @@ static void handle_touch(const struct isim_event *ev) {
     if (!t) return;
     double pf, pa, pz;                                       /* a Pencil touch (script `pencil`) */
     if (!strncmp(ev->text, "pencil ", 7) && sscanf(ev->text + 7, "%lf %lf %lf", &pf, &pa, &pz) == 3) [t _isim_setPencilForce:pf altitude:pa azimuth:pz];
+    if (!strcmp(ev->text, "pointer")) [t _isim_setPointer];
     UITouchPhase phase = ev->type == ISIM_EV_TOUCH_DOWN ? UITouchPhaseBegan : ev->type == ISIM_EV_TOUCH_MOVE ? UITouchPhaseMoved : UITouchPhaseEnded;
     CGRect wf = t.window.frame;
     if (t == premoved && phase == UITouchPhaseMoved) premoved = nil;     /* moved already (with finger 0's move) */

@@ -67,7 +67,7 @@ final class _IsimSymbolEffectPlayer: NSObject {
     func startLink() {
         if link == nil {
             let l = CADisplayLink(target: self, selector: #selector(tick(_:)))
-            l.add(to: RunLoop.main, forMode: RunLoop.Mode.common.rawValue)
+            l.add(to: RunLoop.main, forMode: .common)
             link = l
         }
         tick(nil)

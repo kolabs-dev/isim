@@ -11,6 +11,9 @@ typedef NS_ENUM(NSInteger, UIImageSymbolWeight) {
     UIImageSymbolWeightUnspecified = 0, UIImageSymbolWeightUltraLight = 1, UIImageSymbolWeightThin, UIImageSymbolWeightLight,
     UIImageSymbolWeightRegular, UIImageSymbolWeightMedium, UIImageSymbolWeightSemibold, UIImageSymbolWeightBold, UIImageSymbolWeightHeavy, UIImageSymbolWeightBlack
 };
+/* the symbol weight that matches a font weight (the nearest), and the other way round (iOS 13) */
+UIKIT_EXTERN UIImageSymbolWeight UIImageSymbolWeightForFontWeight(UIFontWeight fontWeight) NS_SWIFT_NAME(UIFontWeight.symbolWeight(self:));
+UIKIT_EXTERN UIFontWeight UIFontWeightForImageSymbolWeight(UIImageSymbolWeight symbolWeight) NS_SWIFT_NAME(UIImageSymbolWeight.fontWeight(self:));
 @interface UIImageConfiguration : NSObject <NSCopying>
 @property (nullable, nonatomic, readonly) UITraitCollection *traitCollection;
 + (instancetype)configurationWithTraitCollection:(nullable UITraitCollection *)traitCollection;
