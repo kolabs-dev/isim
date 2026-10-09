@@ -479,7 +479,8 @@ static NSMutableArray *tickers;
         if ([o _isim_tick:now]) any = YES;
         else [tickers removeObjectIdenticalTo:o];
     }
-    if (!any) { [driver_link invalidate]; driver_link = nil; }
+    /* layers or tickers added during this tick (e.g. an animation started from animationDidStop:) keep it going */
+    if (!any && !layers.count && !tickers.count) { [driver_link invalidate]; driver_link = nil; }
 }
 @end
 void ca_driver_wake(void) {
