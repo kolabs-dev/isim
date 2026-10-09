@@ -104,11 +104,26 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UICo
 - (void)_isim_setViewController:(UIViewController *)vc;
 - (void)_isim_render;
 - (void)_isim_drawContent;                  /* subclass content (label text, button title, ...) */
+- (CGRect)_isim_presentedFrame:(CGFloat *)alpha radius:(CGFloat *)radius;   /* frame / alpha / corner radius as drawn now */
+- (BOOL)_isim_cornerRadii:(double *)out size:(CGSize)size radius:(double)radius;   /* per-corner radii; YES if they differ */
+- (CGFloat)_isim_uniformRadius;             /* the corner radius for single-radius shapes (glass) */
+
 - (void)_isim_layoutPass;
 - (CGSize)_isim_fittingSize;                /* intrinsic size adjusted by fixed width/height constraints */
 - (CGPoint)_isim_toWindow:(CGPoint)p;
 - (CGPoint)_isim_fromWindow:(CGPoint)p;
 - (void)_isim_movedToWindow:(UIWindow *)w;
+@end
+@interface UICornerRadius ()
+@property (nonatomic, readonly) int _isim_kind;          /* 0 fixed, 1 container concentric */
+@property (nonatomic, readonly) CGFloat _isim_value;     /* fixed: the radius; concentric: the minimum (NaN: none) */
+@end
+@interface UICornerConfiguration ()
+- (void)_isim_radii:(double *)out size:(CGSize)size concentric:(double (^)(int corner, double minimum))concentric;
+@property (nonatomic, readonly) BOOL _isim_capsule;
+@property (nonatomic, readonly) CGFloat _isim_maximumRadius;   /* capsule: NaN for none */
+- (nullable UICornerRadius *)_isim_radiusAt:(int)corner;       /* 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right */
+- (int)_isim_groupAt:(int)corner;                              /* corners with the same group are uniform */
 @end
 
 @interface UIViewController (IsimPrivate)

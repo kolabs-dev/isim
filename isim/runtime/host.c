@@ -431,13 +431,17 @@ void isim_gfx_backdrop_blur(double x, double y, double w, double h, double r, do
     cairo_pattern_destroy(p);
     cairo_surface_destroy(small);
 }
-/* Liquid Glass (iOS 26+ material, isim's approximation): a soft shadow, a light backdrop blur (glass bends and
- * blurs a little; it is not a frosted material), a translucent body (tinted when `tint` is given), a brighter
- * top-left specular rim and a faint inner glow along the top edge. flags: 1 dark appearance, 2 clear (more
- * transparent, used over media), 4 no shadow, 8 interactive highlight (pressed). */
+/* Liquid Glass (iOS 26+ material, isim's approximation), drawn from a signed distance field of the shapes:
+ * - shapes closer than `spacing` merge into one (smooth union), like UIGlassContainerEffect / GlassEffectContainer;
+ *   per-frame drawing of animated frames makes them morph as they move;
+ * - a soft shadow, the backdrop lightly blurred (glass bends light; it is not a frosted material) and refracted
+ *   (lensing: near the rim the backdrop is magnified toward the inside), a translucent body (tinted per shape),
+ *   a faint glow along the top edge and a specular rim lit from the top left (and, dimmer, the bottom right).
+ * shapes: 5 doubles each (x, y, w, h, corner radius), user space; tints: 4 each (alpha 0: none) or NULL; pressed: per
+ * shape (interactive highlight) or NULL. flags: 1 dark appearance, 2 clear (more transparent, used over media), 4 no
+ * shadow, 8 all pressed. Rotated or skewed transforms fall back to isim_gfx_glass_path (no merging or refraction). */
 void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
-void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags) {
-    if (w <= 0 || h <= 0) return;
+static void glass_path(double x, double y, double w, double h, double r, const double *tint, int flags) {
     int dark = flags & 1, clear = flags & 2;
     r = fmin(r, fmin(w, h) / 2);
     if (!(flags & 4)) {
@@ -454,13 +458,11 @@ void isim_gfx_glass(double x, double y, double w, double h, double r, const doub
     cairo_paint(cr);
     if (tint && tint[3] > 0) { cairo_set_source_rgba(cr, tint[0], tint[1], tint[2], tint[3] * (clear ? 0.55 : 0.88)); cairo_paint(cr); }
     if (flags & 8) { cairo_set_source_rgba(cr, 1, 1, 1, dark ? 0.12 : 0.25); cairo_paint(cr); }
-    /* inner glow along the top edge */
     cairo_pattern_t *g = cairo_pattern_create_linear(0, y, 0, y + fmin(h, 18));
     cairo_pattern_add_color_stop_rgba(g, 0, 1, 1, 1, dark ? 0.10 : 0.28);
     cairo_pattern_add_color_stop_rgba(g, 1, 1, 1, 1, 0);
     cairo_set_source(cr, g); cairo_paint(cr); cairo_pattern_destroy(g);
     cairo_restore(cr);
-    /* specular rim: bright where the light hits (top-left), dimmer at the far edge */
     double lw = 1;
     rounded(x + lw / 2, y + lw / 2, w - lw, h - lw, fmax(0, r - lw / 2));
     cairo_pattern_t *rim = cairo_pattern_create_linear(x, y, x + w * 0.6, y + h);
@@ -468,6 +470,122 @@ void isim_gfx_glass(double x, double y, double w, double h, double r, const doub
     cairo_pattern_add_color_stop_rgba(rim, 0.5, 1, 1, 1, dark ? 0.12 : 0.35);
     cairo_pattern_add_color_stop_rgba(rim, 1, 1, 1, 1, dark ? 0.28 : 0.70);
     cairo_set_line_width(cr, lw); cairo_set_source(cr, rim); cairo_stroke(cr); cairo_pattern_destroy(rim);
+}
+static double sd_round_rect(double px, double py, const double *b) {   /* b: x0 y0 x1 y1 r (device pixels) */
+    double hx = (b[2] - b[0]) / 2 - b[4], hy = (b[3] - b[1]) / 2 - b[4];
+    double qx = fabs(px - (b[0] + b[2]) / 2) - hx, qy = fabs(py - (b[1] + b[3]) / 2) - hy;
+    double ox = fmax(qx, 0), oy = fmax(qy, 0);
+    return sqrt(ox * ox + oy * oy) + fmin(fmax(qx, qy), 0) - b[4];
+}
+static inline double clamp01(double v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+void isim_gfx_glass_shapes(int n, const double *shapes, const double *tints, const int *pressed, double spacing, int flags) {
+    if (n <= 0) return;
+    cairo_matrix_t m; cairo_get_matrix(cr, &m);
+    cairo_surface_t *tgt = cairo_get_group_target(cr);
+    if (fabs(m.xy) > 1e-6 || fabs(m.yx) > 1e-6 || m.xx <= 0 || m.yy <= 0 || cairo_surface_get_type(tgt) != CAIRO_SURFACE_TYPE_IMAGE) {
+        for (int i = 0; i < n; i++)
+            glass_path(shapes[5 * i], shapes[5 * i + 1], shapes[5 * i + 2], shapes[5 * i + 3], shapes[5 * i + 4],
+                       tints ? tints + 4 * i : NULL, flags | (pressed && pressed[i] ? 8 : 0));
+        return;
+    }
+    int dark = flags & 1, clear = flags & 2, shadow = !(flags & 4);
+    double sc = sqrt(m.xx * m.yy), ox, oy;
+    cairo_surface_get_device_offset(tgt, &ox, &oy);
+    int sw = cairo_image_surface_get_width(tgt), sh = cairo_image_surface_get_height(tgt);
+    double (*b)[5] = malloc(sizeof *b * (size_t)n);
+    double bx0 = 1e18, by0 = 1e18, bx1 = -1e18, by1 = -1e18;
+    for (int i = 0; i < n; i++) {
+        const double *q = shapes + 5 * i;
+        double w = fmax(0, q[2]), h = fmax(0, q[3]);
+        b[i][0] = m.xx * q[0] + m.x0 + ox; b[i][1] = m.yy * q[1] + m.y0 + oy;
+        b[i][2] = b[i][0] + m.xx * w; b[i][3] = b[i][1] + m.yy * h;
+        b[i][4] = fmin(fmax(0, q[4]) * sc, fmin(b[i][2] - b[i][0], b[i][3] - b[i][1]) / 2);
+        bx0 = fmin(bx0, b[i][0]); by0 = fmin(by0, b[i][1]); bx1 = fmax(bx1, b[i][2]); by1 = fmax(by1, b[i][3]);
+    }
+    double k = fmax(0, spacing) * 2 * sc, pad = (shadow ? 18 : 2) * sc + k / 2;
+    int x0 = (int)floor(bx0 - pad), y0 = (int)floor(by0 - pad), x1 = (int)ceil(bx1 + pad), y1 = (int)ceil(by1 + pad);
+    if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 > sw) x1 = sw; if (y1 > sh) y1 = sh;
+    int W = x1 - x0, H = y1 - y0;
+    if (W <= 0 || H <= 0) { free(b); return; }
+    cairo_surface_flush(tgt);
+    uint32_t *px = (uint32_t *)cairo_image_surface_get_data(tgt);
+    int stride = cairo_image_surface_get_stride(tgt) / 4;
+    float *d = malloc(sizeof *d * (size_t)W * H);
+    unsigned short *near = malloc(sizeof *near * (size_t)W * H);
+    uint32_t *blur = malloc(sizeof *blur * (size_t)W * H);
+    for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x++) {
+            double cx = x0 + x + 0.5, cy = y0 + y + 0.5, best = 1e18, u = 1e18; int bi = 0;
+            for (int i = 0; i < n; i++) {
+                double v = sd_round_rect(cx, cy, b[i]);
+                if (v < best) { best = v; bi = i; }
+                if (k > 0) { double hh = fmax(k - fabs(u - v), 0) / k; u = fmin(u, v) - hh * hh * k * 0.25; }   /* smooth union */
+                else u = fmin(u, v);
+            }
+            d[(size_t)y * W + x] = (float)u; near[(size_t)y * W + x] = (unsigned short)bi;
+        }
+        memcpy(blur + (size_t)y * W, px + (size_t)(y0 + y) * stride + x0, sizeof *blur * (size_t)W);
+    }
+    int br = (int)lround((clear ? 2 : 6) * sc / 2);
+    for (int pass = 0; pass < 3; pass++) { box_blur_pass(blur, W, H, W, br, 1); box_blur_pass(blur, W, H, W, br, 0); }
+    double band = 12 * sc, lens = clear ? 0.5 : 0.35, glow = (dark ? 0.10 : 0.28), rimw = 1.0 * sc;
+    double body = clear ? (dark ? 0.12 : 0.10) : (dark ? 0.50 : 0.46), bodyc = dark ? 0.16 : 1;
+    double lx = -0.55, ly = -0.83, sa = dark ? 0.32 : 0.14;
+    int soff = (int)lround(4 * sc);
+    #define D(X, Y) d[(size_t)((Y) < 0 ? 0 : (Y) >= H ? H - 1 : (Y)) * W + ((X) < 0 ? 0 : (X) >= W ? W - 1 : (X))]
+    for (int y = 0; y < H; y++) {
+        uint32_t *row = px + (size_t)(y0 + y) * stride + x0;
+        for (int x = 0; x < W; x++) {
+            double dv = D(x, y), cov = clamp01(0.5 - dv);
+            double t[4]; uint32_t tv = row[x];
+            for (int c = 0; c < 4; c++) t[c] = ((tv >> (8 * c)) & 255) / 255.0;   /* B G R A, premultiplied */
+            if (shadow && cov < 1) {
+                double ds = D(x, y - soff), a = sa * (1 - clamp01((ds + 6 * sc) / (18 * sc))) * (1 - cov);
+                for (int c = 0; c < 4; c++) t[c] *= 1 - a;
+                t[3] += a;
+            }
+            if (cov > 0) {
+                double nx = D(x + 1, y) - D(x - 1, y), ny = D(x, y + 1) - D(x, y - 1), nl = sqrt(nx * nx + ny * ny);
+                if (nl > 1e-9) { nx /= nl; ny /= nl; } else { nx = 0; ny = 0; }
+                double depth = -dv, g[4];
+                double e = depth < band ? 1 - fmax(depth, 0) / band : 0, disp = e * e * band * lens;
+                double fx = x - nx * disp, fy = y - ny * disp;     /* lensing: sample toward the inside */
+                int ix = (int)floor(fx), iy = (int)floor(fy); double ax = fx - ix, ay = fy - iy;
+                for (int c = 0; c < 4; c++) g[c] = 0;
+                for (int j = 0; j < 4; j++) {
+                    int sx = ix + (j & 1), sy = iy + (j >> 1);
+                    sx = sx < 0 ? 0 : sx >= W ? W - 1 : sx; sy = sy < 0 ? 0 : sy >= H ? H - 1 : sy;
+                    double wgt = ((j & 1) ? ax : 1 - ax) * ((j >> 1) ? ay : 1 - ay);
+                    uint32_t v = blur[(size_t)sy * W + sx];
+                    for (int c = 0; c < 4; c++) g[c] += wgt * ((v >> (8 * c)) & 255) / 255.0;
+                }
+                #define OVER(R, G_, B_, A) do { double a_ = (A); g[2] = g[2] * (1 - a_) + (R) * a_; g[1] = g[1] * (1 - a_) + (G_) * a_; \
+                                                g[0] = g[0] * (1 - a_) + (B_) * a_; g[3] = g[3] * (1 - a_) + a_; } while (0)
+                OVER(bodyc, bodyc, dark ? 0.17 : 1, body);
+                const double *tn = tints ? tints + 4 * near[(size_t)y * W + x] : NULL;
+                if (tn && tn[3] > 0) OVER(tn[0], tn[1], tn[2], tn[3] * (clear ? 0.55 : 0.88));
+                if ((flags & 8) || (pressed && pressed[near[(size_t)y * W + x]])) OVER(1, 1, 1, dark ? 0.12 : 0.25);
+                if (ny < 0) OVER(1, 1, 1, glow * clamp01(1 - depth / (18 * sc)) * clamp01(-ny * 1.5));
+                double dl = nx * lx + ny * ly;
+                double ring = clamp01(rimw + 0.5 - depth);
+                double rim = dark ? 0.12 + 0.33 * fmax(dl, 0) + 0.16 * fmax(-dl, 0) : 0.35 + 0.60 * fmax(dl, 0) + 0.35 * fmax(-dl, 0);
+                OVER(1, 1, 1, ring * rim);
+                #undef OVER
+                for (int c = 0; c < 4; c++) t[c] = t[c] * (1 - cov) + g[c] * cov;
+            }
+            uint32_t o = 0;
+            for (int c = 0; c < 4; c++) o |= (uint32_t)lround(clamp01(t[c]) * 255) << (8 * c);
+            row[x] = o;
+        }
+    }
+    #undef D
+    cairo_surface_mark_dirty(tgt);
+    free(b); free(d); free(near); free(blur);
+}
+void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags) {
+    if (w <= 0 || h <= 0) return;
+    double s[5] = { x, y, w, h, r };
+    isim_gfx_glass_shapes(1, s, tint && tint[3] > 0 ? tint : NULL, NULL, 0, flags);
 }
 double isim_gfx_get_alpha(void) { return 1; }
 void isim_gfx_push_group(void) { cairo_push_group(cr); }
@@ -1474,6 +1592,6 @@ static const struct shim isim_table[] = {
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
-    H(isim_gfx_pop_group_filtered), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges),
+    H(isim_gfx_pop_group_filtered), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges), H(isim_gfx_glass_shapes),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

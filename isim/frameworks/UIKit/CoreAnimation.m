@@ -304,13 +304,19 @@ void ca_emit_path(CGPathRef path) {
 }
 /* rounded rect with only some corners rounded (maskedCorners) */
 void ca_rounded_path(CGRect r, double rad, CACornerMask m) {
-    isim_path_begin();
     rad = fmax(0, fmin(rad, fmin(r.size.width, r.size.height) / 2));
-    if (rad <= 0 || m == 0) { isim_path_rect(r.origin.x, r.origin.y, r.size.width, r.size.height, 0); return; }
-    if (m == 15) { isim_path_rect(r.origin.x, r.origin.y, r.size.width, r.size.height, rad); return; }
+    if (rad <= 0 || m == 0) { isim_path_begin(); isim_path_rect(r.origin.x, r.origin.y, r.size.width, r.size.height, 0); return; }
+    if (m == 15) { isim_path_begin(); isim_path_rect(r.origin.x, r.origin.y, r.size.width, r.size.height, rad); return; }
+    double c[4] = { m & kCALayerMinXMinYCorner ? rad : 0, m & kCALayerMaxXMinYCorner ? rad : 0,
+                    m & kCALayerMinXMaxYCorner ? rad : 0, m & kCALayerMaxXMaxYCorner ? rad : 0 };
+    ca_corners_path(r, c);
+}
+/* rounded rect with its own radius per corner: c = top-left, top-right, bottom-left, bottom-right */
+void ca_corners_path(CGRect r, const double *c) {
+    isim_path_begin();
+    double lim = fmin(r.size.width, r.size.height) / 2;
+    double tl = fmax(0, fmin(c[0], lim)), tr = fmax(0, fmin(c[1], lim)), bl = fmax(0, fmin(c[2], lim)), br = fmax(0, fmin(c[3], lim));
     double x0 = r.origin.x, y0 = r.origin.y, x1 = x0 + r.size.width, y1 = y0 + r.size.height;
-    double tl = m & kCALayerMinXMinYCorner ? rad : 0, tr = m & kCALayerMaxXMinYCorner ? rad : 0;
-    double bl = m & kCALayerMinXMaxYCorner ? rad : 0, br = m & kCALayerMaxXMaxYCorner ? rad : 0;
     isim_path_move(x0 + tl, y0);
     isim_path_line(x1 - tr, y0); if (tr > 0) isim_path_arc(x1 - tr, y0 + tr, tr, -M_PI / 2, 0, 1);
     isim_path_line(x1, y1 - br); if (br > 0) isim_path_arc(x1 - br, y1 - br, br, 0, M_PI / 2, 1);
@@ -1183,6 +1189,17 @@ void isim_ca_render_view_3d(UIView *view, CGRect f, CATransform3D t) {
     isim_image_free(img);
 }
 /* a view's drop shadow: the shadow path, else its background shape; blurred like Core Animation's */
+/* a view's drop shadow with a radius per corner (UIView corner configuration / masked corners) */
+void isim_ca_view_shadow_corners(CALayer *layer, CGSize sz, const double *corners, double opacity, double blur, CGSize off) {
+    double sc[4]; ca_rgba(layer.shadowColor, sc); sc[3] *= opacity;
+    if (sc[3] <= 0) return;
+    double black[4] = { 0, 0, 0, 1 };
+    isim_gfx_push_group();
+    if (layer.shadowPath) ca_emit_path(layer.shadowPath);
+    else ca_corners_path(CGRectMake(0, 0, sz.width, sz.height), corners);
+    isim_path_fill(black);
+    isim_gfx_pop_group_shadow(sc, blur, off.width, off.height);
+}
 void isim_ca_view_shadow(CALayer *layer, CGSize sz, double radius, double opacity, double blur, CGSize off) {
     double sc[4]; ca_rgba(layer.shadowColor, sc); sc[3] *= opacity;
     if (sc[3] <= 0) return;

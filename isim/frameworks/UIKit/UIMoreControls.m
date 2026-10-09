@@ -9,30 +9,170 @@ static void fill(UIColor *c, double x, double y, double w, double h, double r, d
 }
 
 /* ================= UISlider ================= */
-@implementation UISlider { BOOL _dragging; double _grab; }
-- (instancetype)initWithFrame:(CGRect)f {
-    if ((self = [super initWithFrame:CGRectMake(f.origin.x, f.origin.y, f.size.width, f.size.height ?: 31)])) { _maximumValue = 1; _continuous = YES; }
+/* iOS 17/18: 4 pt track, 28 pt round white thumb. iOS 26/27 (Liquid Glass): 6 pt track, a 38 x 24 white capsule thumb
+   that turns into clear glass and grows while dragged; stepped sliders (trackConfiguration) show tick dots; the
+   thumbless style is a thicker track the finger drags anywhere. */
+@implementation UISliderTick
++ (BOOL)supportsSecureCoding { return YES; }
++ (instancetype)tickWithPosition:(float)position title:(NSString *)title image:(UIImage *)image {
+    UISliderTick *t = [self new]; t->_position = position; t.title = title; t.image = image; return t;
+}
+- (id)copyWithZone:(NSZone *)z { return [UISliderTick tickWithPosition:_position title:_title image:_image]; }
+- (BOOL)isEqual:(id)o { return [o isKindOfClass:[UISliderTick class]] && ((UISliderTick *)o)->_position == _position && [((UISliderTick *)o).title ?: @"" isEqual:_title ?: @""] && ((UISliderTick *)o).image == _image; }
+- (NSUInteger)hash { return (NSUInteger)(_position * 1000) ^ _title.hash; }
+- (void)encodeWithCoder:(NSCoder *)c { [c encodeFloat:_position forKey:@"position"]; [c encodeObject:_title forKey:@"title"]; [c encodeObject:_image forKey:@"image"]; }
+- (instancetype)initWithCoder:(NSCoder *)c {
+    if ((self = [super init])) { _position = [c decodeFloatForKey:@"position"]; _title = [c decodeObjectOfClass:[NSString class] forKey:@"title"]; _image = [c decodeObjectOfClass:[UIImage class] forKey:@"image"]; }
     return self;
 }
-- (CGSize)intrinsicContentSize { return CGSizeMake(UIViewNoIntrinsicMetric, 31); }
-- (CGSize)sizeThatFits:(CGSize)s { return CGSizeMake(s.width > 0 ? s.width : 118, 31); }
+@end
+@implementation UISliderTrackConfiguration
++ (BOOL)supportsSecureCoding { return YES; }
+- (instancetype)init { if ((self = [super init])) { _allowsTickValuesOnly = YES; _maximumEnabledValue = 1; _ticks = @[]; } return self; }
++ (instancetype)configurationWithNumberOfTicks:(NSInteger)n {
+    NSMutableArray *t = [NSMutableArray array];
+    for (NSInteger i = 0; i < n; i++) [t addObject:[UISliderTick tickWithPosition:n > 1 ? (float)i / (float)(n - 1) : 0 title:nil image:nil]];
+    return [self configurationWithTicks:t];
+}
++ (instancetype)configurationWithTicks:(NSArray<UISliderTick *> *)ticks {
+    UISliderTrackConfiguration *c = [self new];
+    c->_ticks = [[ticks ?: @[] copy] sortedArrayUsingComparator:^NSComparisonResult(UISliderTick *a, UISliderTick *b) { return a.position < b.position ? NSOrderedAscending : a.position > b.position ? NSOrderedDescending : NSOrderedSame; }];
+    return c;
+}
+- (id)copyWithZone:(NSZone *)z {
+    UISliderTrackConfiguration *c = [UISliderTrackConfiguration configurationWithTicks:_ticks];
+    c.allowsTickValuesOnly = _allowsTickValuesOnly; c.neutralValue = _neutralValue; c.minimumEnabledValue = _minimumEnabledValue; c.maximumEnabledValue = _maximumEnabledValue;
+    return c;
+}
+- (BOOL)isEqual:(id)o {
+    if (![o isKindOfClass:[UISliderTrackConfiguration class]]) return NO;
+    UISliderTrackConfiguration *c = o;
+    return c.allowsTickValuesOnly == _allowsTickValuesOnly && c.neutralValue == _neutralValue && c.minimumEnabledValue == _minimumEnabledValue
+        && c.maximumEnabledValue == _maximumEnabledValue && [c.ticks isEqualToArray:_ticks];
+}
+- (NSUInteger)hash { return _ticks.count ^ (NSUInteger)(_neutralValue * 1000); }
+- (void)encodeWithCoder:(NSCoder *)c {
+    [c encodeBool:_allowsTickValuesOnly forKey:@"allowsTickValuesOnly"]; [c encodeFloat:_neutralValue forKey:@"neutralValue"];
+    [c encodeFloat:_minimumEnabledValue forKey:@"minimumEnabledValue"]; [c encodeFloat:_maximumEnabledValue forKey:@"maximumEnabledValue"];
+    [c encodeObject:_ticks forKey:@"ticks"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    if ((self = [super init])) {
+        _allowsTickValuesOnly = [c decodeBoolForKey:@"allowsTickValuesOnly"]; _neutralValue = [c decodeFloatForKey:@"neutralValue"];
+        _minimumEnabledValue = [c decodeFloatForKey:@"minimumEnabledValue"]; _maximumEnabledValue = [c decodeFloatForKey:@"maximumEnabledValue"];
+        _ticks = [c decodeObjectOfClasses:[NSSet setWithObjects:[NSArray class], [UISliderTick class], nil] forKey:@"ticks"] ?: @[];
+    }
+    return self;
+}
+@end
+
+@implementation UISlider { BOOL _dragging; double _grab; NSMutableDictionary<NSNumber *, UIImage *> *_thumbImages, *_minTrackImages, *_maxTrackImages;
+    UISliderStyle _sliderStyle; UISliderTrackConfiguration *_trackConfiguration; }
+- (instancetype)initWithFrame:(CGRect)f {
+    if ((self = [super initWithFrame:CGRectMake(f.origin.x, f.origin.y, f.size.width, f.size.height ?: 31)])) {
+        _maximumValue = 1; _continuous = YES;
+        _thumbImages = [NSMutableDictionary dictionary]; _minTrackImages = [NSMutableDictionary dictionary]; _maxTrackImages = [NSMutableDictionary dictionary];
+    }
+    return self;
+}
+- (CGFloat)_height {
+    CGFloat h = 31;
+    for (UIImage *i in @[_minimumValueImage ?: (id)NSNull.null, _maximumValueImage ?: (id)NSNull.null, self.currentThumbImage ?: (id)NSNull.null])
+        if ([i isKindOfClass:[UIImage class]]) h = fmax(h, i.size.height);
+    return h;
+}
+- (CGSize)intrinsicContentSize { return CGSizeMake(UIViewNoIntrinsicMetric, [self _height]); }
+- (CGSize)sizeThatFits:(CGSize)s { return CGSizeMake(s.width > 0 ? s.width : 118, [self _height]); }
 - (void)setValue:(float)v { _value = fmaxf(_minimumValue, fminf(_maximumValue, v)); isim_ui_set_needs_display(); }
 - (void)setValue:(float)v animated:(BOOL)a { self.value = v; }
 - (void)setMinimumValue:(float)v { _minimumValue = v; if (_maximumValue < v) _maximumValue = v; self.value = _value; }
 - (void)setMaximumValue:(float)v { _maximumValue = v; if (_minimumValue > v) _minimumValue = v; self.value = _value; }
-- (double)_fraction { return _maximumValue > _minimumValue ? (_value - _minimumValue) / (_maximumValue - _minimumValue) : 0; }
-- (double)_thumbX { CGFloat w = self.bounds.size.width; return 14 + [self _fraction] * (w - 28); }
+- (void)setMinimumValueImage:(UIImage *)i { _minimumValueImage = i; [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
+- (void)setMaximumValueImage:(UIImage *)i { _maximumValueImage = i; [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
+/* images: setting a thumb tint drops custom thumb images and vice versa, like UIKit */
+- (void)setThumbTintColor:(UIColor *)c { _thumbTintColor = c; if (c) [_thumbImages removeAllObjects]; isim_ui_set_needs_display(); }
+- (void)setMinimumTrackTintColor:(UIColor *)c { _minimumTrackTintColor = c; if (c) [_minTrackImages removeAllObjects]; isim_ui_set_needs_display(); }
+- (void)setMaximumTrackTintColor:(UIColor *)c { _maximumTrackTintColor = c; if (c) [_maxTrackImages removeAllObjects]; isim_ui_set_needs_display(); }
+static void set_state_image(NSMutableDictionary *d, UIImage *i, UIControlState s) { if (i) d[@(s)] = i; else [d removeObjectForKey:@(s)]; isim_ui_set_needs_display(); }
+- (void)setThumbImage:(UIImage *)i forState:(UIControlState)s { set_state_image(_thumbImages, i, s); if (i) _thumbTintColor = nil; [self invalidateIntrinsicContentSize]; }
+- (void)setMinimumTrackImage:(UIImage *)i forState:(UIControlState)s { set_state_image(_minTrackImages, i, s); if (i) _minimumTrackTintColor = nil; }
+- (void)setMaximumTrackImage:(UIImage *)i forState:(UIControlState)s { set_state_image(_maxTrackImages, i, s); if (i) _maximumTrackTintColor = nil; }
+- (UIImage *)thumbImageForState:(UIControlState)s { return _thumbImages[@(s)]; }
+- (UIImage *)minimumTrackImageForState:(UIControlState)s { return _minTrackImages[@(s)]; }
+- (UIImage *)maximumTrackImageForState:(UIControlState)s { return _maxTrackImages[@(s)]; }
+- (UIImage *)_current:(NSDictionary *)d { return d[@(self.state)] ?: d[@(UIControlStateNormal)]; }
+- (UIImage *)currentThumbImage { return [self _current:_thumbImages]; }
+- (UIImage *)currentMinimumTrackImage { return [self _current:_minTrackImages]; }
+- (UIImage *)currentMaximumTrackImage { return [self _current:_maxTrackImages]; }
+- (UIControlState)state { return [super state] | (_dragging ? UIControlStateHighlighted : 0); }
+- (UISliderStyle)sliderStyle { return _sliderStyle; }
+- (void)setSliderStyle:(UISliderStyle)st { _sliderStyle = st; isim_ui_set_needs_display(); }
+- (UISliderTrackConfiguration *)trackConfiguration { return [_trackConfiguration copy]; }
+- (void)setTrackConfiguration:(UISliderTrackConfiguration *)c { _trackConfiguration = [c copy]; self.value = _value; isim_ui_set_needs_display(); }
+- (BOOL)_glassLook { return isim_ui_glass(); }
+- (BOOL)_thumbless { return _sliderStyle == UISliderStyleThumbless; }
+/* the default thumb: 28 pt circle (iOS 17/18), 38 x 24 capsule (iOS 26+), or the custom image's size */
+- (CGSize)_thumbSize {
+    UIImage *i = self.currentThumbImage;
+    if (i) return i.size;
+    if ([self _thumbless]) return CGSizeZero;
+    return [self _glassLook] ? CGSizeMake(38, 24) : CGSizeMake(28, 28);
+}
+- (CGRect)minimumValueImageRectForBounds:(CGRect)b {
+    UIImage *i = _minimumValueImage; if (!i) return CGRectZero;
+    CGSize s = i.size; BOOL rtl = [self _isim_isRTL];
+    return CGRectMake(rtl ? CGRectGetMaxX(b) - s.width : b.origin.x, CGRectGetMidY(b) - s.height / 2, s.width, s.height);
+}
+- (CGRect)maximumValueImageRectForBounds:(CGRect)b {
+    UIImage *i = _maximumValueImage; if (!i) return CGRectZero;
+    CGSize s = i.size; BOOL rtl = [self _isim_isRTL];
+    return CGRectMake(rtl ? b.origin.x : CGRectGetMaxX(b) - s.width, CGRectGetMidY(b) - s.height / 2, s.width, s.height);
+}
+- (CGRect)trackRectForBounds:(CGRect)b {
+    CGFloat lead = _minimumValueImage ? _minimumValueImage.size.width + 8 : 0, trail = _maximumValueImage ? _maximumValueImage.size.width + 8 : 0;
+    if ([self _isim_isRTL]) { CGFloat t = lead; lead = trail; trail = t; }
+    CGFloat th = [self _thumbless] ? 10 : [self _glassLook] ? 6 : 4;
+    return CGRectMake(b.origin.x + lead + 2, CGRectGetMidY(b) - th / 2, fmax(0, b.size.width - lead - trail - 4), th);
+}
+- (double)_fractionOf:(float)v { return _maximumValue > _minimumValue ? (v - _minimumValue) / (_maximumValue - _minimumValue) : 0; }
+- (double)_fraction { return [self _fractionOf:_value]; }
+- (CGRect)thumbRectForBounds:(CGRect)b trackRect:(CGRect)r value:(float)v {
+    CGSize s = [self _thumbSize];
+    double f = [self _fractionOf:v]; if ([self _isim_isRTL]) f = 1 - f;
+    CGFloat inset = s.width / 2 - 2, cx = r.origin.x + inset + f * fmax(0, r.size.width - 2 * inset);
+    return CGRectMake(cx - s.width / 2, CGRectGetMidY(r) - s.height / 2, s.width, s.height);
+}
+- (CGRect)_track { return [self trackRectForBounds:self.bounds]; }
+- (double)_thumbX { CGRect t = [self thumbRectForBounds:self.bounds trackRect:[self _track] value:_value]; return CGRectGetMidX(t); }
+/* the value under x: the track's thumb travel mapped to the range, clamped to the enabled range, snapped to ticks */
+- (float)_valueAtX:(double)x {
+    CGRect r = [self _track]; CGFloat inset = [self _thumbSize].width / 2 - 2;
+    double f = fmin(1, fmax(0, (x - r.origin.x - fmax(0, inset)) / fmax(1, r.size.width - 2 * fmax(0, inset))));
+    if ([self _isim_isRTL]) f = 1 - f;
+    UISliderTrackConfiguration *c = _trackConfiguration;
+    if (c) {
+        f = fmin(fmax(f, c.minimumEnabledValue), c.maximumEnabledValue);
+        if (c.allowsTickValuesOnly && c.ticks.count) {
+            double best = c.ticks[0].position;
+            for (UISliderTick *t in c.ticks)
+                if (t.position >= c.minimumEnabledValue && t.position <= c.maximumEnabledValue && fabs(t.position - f) < fabs(best - f)) best = t.position;
+            f = best;
+        }
+    }
+    return _minimumValue + (float)f * (_maximumValue - _minimumValue);
+}
 - (BOOL)beginTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
     CGPoint p = [t locationInView:self];
     double tx = [self _thumbX];
-    if (fabs(p.x - tx) > 22) return NO;                                /* like iOS: grab the thumb */
-    _dragging = YES; _grab = p.x - tx;
+    if ([self _thumbless]) _grab = 0;                                    /* thumbless: the finger drags the value anywhere */
+    else if (fabs(p.x - tx) > fmax(22, [self _thumbSize].width / 2 + 6)) return NO;   /* like iOS: grab the thumb */
+    else _grab = p.x - tx;
+    _dragging = YES; isim_ui_set_needs_display();
+    if ([self _thumbless]) [self continueTrackingWithTouch:t withEvent:e];
     return YES;
 }
 - (BOOL)continueTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
-    CGFloat w = self.bounds.size.width;
-    double x = [t locationInView:self].x - _grab, f = fmin(1, fmax(0, (x - 14) / fmax(1, w - 28)));
-    float v = _minimumValue + (float)f * (_maximumValue - _minimumValue);
+    float v = [self _valueAtX:[t locationInView:self].x - _grab];
     if (v != _value) { self.value = v; if (_continuous) [self _isim_sendEvents:UIControlEventValueChanged withEvent:e]; }
     return YES;
 }
@@ -42,15 +182,64 @@ static void fill(UIColor *c, double x, double y, double w, double h, double r, d
 }
 - (void)cancelTrackingWithEvent:(UIEvent *)e { _dragging = NO; isim_ui_set_needs_display(); }
 - (void)_isim_drawContent {
-    CGFloat w = self.bounds.size.width, h = self.bounds.size.height, cy = h / 2;
-    double alpha = self.enabled ? 1 : 0.45, tx = [self _thumbX];
-    fill(_maximumTrackTintColor ?: UIColor.tertiarySystemFillColor, 2, cy - 2, w - 4, 4, 2, alpha);
-    fill(_minimumTrackTintColor ?: tint_of(self), 2, cy - 2, fmax(0, tx - 2), 4, 2, alpha);
+    CGRect b = self.bounds, tr = [self _track];
+    double alpha = self.enabled ? 1 : 0.45, tx = [self _thumbX], rad = tr.size.height / 2;
+    UIColor *minC = _minimumTrackTintColor ?: tint_of(self), *maxC = _maximumTrackTintColor ?: UIColor.tertiarySystemFillColor;
+    BOOL rtl = [self _isim_isRTL];
+    if (_minimumValueImage) [_minimumValueImage _isim_drawInRect:[self minimumValueImageRectForBounds:b] tint:UIColor.secondaryLabelColor alpha:alpha];
+    if (_maximumValueImage) [_maximumValueImage _isim_drawInRect:[self maximumValueImageRectForBounds:b] tint:UIColor.secondaryLabelColor alpha:alpha];
+    UIImage *minI = self.currentMinimumTrackImage, *maxI = self.currentMaximumTrackImage;
+    CGRect lead = CGRectMake(tr.origin.x, tr.origin.y, fmax(0, tx - tr.origin.x), tr.size.height);
+    CGRect trail = CGRectMake(tx, tr.origin.y, fmax(0, CGRectGetMaxX(tr) - tx), tr.size.height);
+    CGRect minR = rtl ? trail : lead, maxR = rtl ? lead : trail;
+    if (maxI) [maxI _isim_drawInRect:maxR tint:nil alpha:alpha];
+    else fill(maxC, tr.origin.x, tr.origin.y, tr.size.width, tr.size.height, rad, alpha);
+    UISliderTrackConfiguration *c = _trackConfiguration;
+    if (c && (c.minimumEnabledValue > 0 || c.maximumEnabledValue < 1)) {   /* outside the enabled range: dimmer */
+        double x0 = tr.origin.x + tr.size.width * c.minimumEnabledValue, x1 = tr.origin.x + tr.size.width * c.maximumEnabledValue;
+        if (rtl) { double a0 = CGRectGetMaxX(tr) - (x1 - tr.origin.x), a1 = CGRectGetMaxX(tr) - (x0 - tr.origin.x); x0 = a0; x1 = a1; }
+        UIColor *bg = UIColor.systemBackgroundColor;
+        if (x0 > tr.origin.x) fill(bg, tr.origin.x, tr.origin.y, x0 - tr.origin.x, tr.size.height, rad, 0.55 * alpha);
+        if (x1 < CGRectGetMaxX(tr)) fill(bg, x1, tr.origin.y, CGRectGetMaxX(tr) - x1, tr.size.height, rad, 0.55 * alpha);
+    }
+    if (minI) [minI _isim_drawInRect:minR tint:nil alpha:alpha];
+    else if (c && c.neutralValue > 0) {                                  /* the fill runs from the neutral value to the value */
+        double nf = c.neutralValue; if (rtl) nf = 1 - nf;
+        double nx = tr.origin.x + nf * tr.size.width, x0 = fmin(nx, tx), x1 = fmax(nx, tx);
+        fill(minC, x0, tr.origin.y, x1 - x0, tr.size.height, rad, alpha);
+    } else fill(minC, minR.origin.x, tr.origin.y, minR.size.width + (rtl ? 0 : rad), tr.size.height, rad, alpha);
+    if (c.ticks.count && !minI && !maxI) {                             /* stepped slider: tick dots on the track */
+        double dot = fmin(4, tr.size.height - 2);
+        for (UISliderTick *t in c.ticks) {
+            double f = rtl ? 1 - t.position : t.position, inset = fmax(rad, [self _thumbSize].width / 2 - 2);
+            double x = tr.origin.x + inset + f * fmax(0, tr.size.width - 2 * inset);
+            double rgba[4]; isim_ui_rgba(UIColor.systemBackgroundColor, rgba); rgba[3] *= 0.75 * alpha;
+            isim_gfx_fill_ellipse(x - dot / 2, CGRectGetMidY(tr) - dot / 2, dot, dot, rgba);
+        }
+    }
+    if ([self _thumbless]) return;
+    UIImage *thumb = self.currentThumbImage;
+    CGRect th = [self thumbRectForBounds:b trackRect:tr value:_value];
+    if (thumb) { [thumb _isim_drawInRect:th tint:nil alpha:alpha]; return; }
+    if ([self _glassLook]) {
+        if (_dragging) {                                                 /* clear glass, grown, while dragged */
+            CGRect g = CGRectInset(th, -th.size.width * 0.22, -th.size.height * 0.22);
+            isim_ui_draw_glass(g, g.size.height / 2, _thumbTintColor, 2);
+            return;
+        }
+        double shadow[4] = { 0, 0, 0, 0.14 * alpha };
+        isim_gfx_fill_rounded(th.origin.x, th.origin.y + 1.5, th.size.width, th.size.height, th.size.height / 2, shadow);
+        double ring[4] = { 0, 0, 0, 0.05 }; isim_gfx_fill_rounded(th.origin.x - 0.5, th.origin.y - 0.5, th.size.width + 1, th.size.height + 1, th.size.height / 2 + 0.5, ring);
+        double tc[4]; isim_ui_rgba(_thumbTintColor ?: UIColor.whiteColor, tc);
+        isim_gfx_fill_rounded(th.origin.x, th.origin.y, th.size.width, th.size.height, th.size.height / 2, tc);
+        return;
+    }
+    double cx = CGRectGetMidX(th), cy = CGRectGetMidY(th);
     double shadow[4] = { 0, 0, 0, 0.12 * alpha };
-    isim_gfx_fill_ellipse(tx - 14.5, cy - 13.5, 29, 29, shadow);
-    double ring[4] = { 0, 0, 0, 0.06 }; isim_gfx_fill_ellipse(tx - 14.5, cy - 14.5, 29, 29, ring);
-    double th[4]; isim_ui_rgba(_thumbTintColor ?: UIColor.whiteColor, th);
-    isim_gfx_fill_ellipse(tx - 14, cy - 14, 28, 28, th);
+    isim_gfx_fill_ellipse(cx - 14.5, cy - 13.5, 29, 29, shadow);
+    double ring[4] = { 0, 0, 0, 0.06 }; isim_gfx_fill_ellipse(cx - 14.5, cy - 14.5, 29, 29, ring);
+    double tc[4]; isim_ui_rgba(_thumbTintColor ?: UIColor.whiteColor, tc);
+    isim_gfx_fill_ellipse(cx - 14, cy - 14, 28, 28, tc);
 }
 @end
 
@@ -76,8 +265,9 @@ static void fill(UIColor *c, double x, double y, double w, double h, double r, d
 }
 - (void)cancelTrackingWithEvent:(UIEvent *)e { _pressed = 0; isim_ui_set_needs_display(); }
 - (void)_isim_drawContent {
-    fill(UIColor.tertiarySystemFillColor, 0, 0, 94, 32, 8, 1);
-    if (_pressed) fill(UIColor.tertiarySystemFillColor, _pressed < 0 ? 0 : 47, 0, 47, 32, 8, 1);
+    double r = isim_ui_glass() ? 16 : 8;                                /* iOS 26: a capsule */
+    fill(UIColor.tertiarySystemFillColor, 0, 0, 94, 32, r, 1);
+    if (_pressed) fill(UIColor.tertiarySystemFillColor, _pressed < 0 ? 0 : 47, 0, 47, 32, r, 1);
     fill(UIColor.separatorColor, 46.5, 8, 1, 16, 0, 1);
     BOOL canDec = self.enabled && (_wraps || _value > _minimumValue), canInc = self.enabled && (_wraps || _value < _maximumValue);
     UIColor *c = UIColor.labelColor;
@@ -103,7 +293,7 @@ const NSInteger UISegmentedControlNoSegment = -1;
         _items = [NSMutableArray arrayWithArray:items ?: @[]]; _disabled = [NSMutableSet set]; _widths = [NSMutableDictionary dictionary];
         _selectedSegmentIndex = UISegmentedControlNoSegment; _pressedIndex = -1;
         _thumb = [[UIView alloc] initWithFrame:CGRectZero];
-        _thumb.layer.cornerRadius = 7; _thumb.userInteractionEnabled = NO;
+        _thumb.layer.cornerRadius = 7; _thumb.userInteractionEnabled = NO;   /* iOS 26: capsule (_placeThumb) */
         _thumb.layer.shadowColor = UIColor.blackColor.CGColor; _thumb.layer.shadowOpacity = 0.12; _thumb.layer.shadowRadius = 4; _thumb.layer.shadowOffset = CGSizeMake(0, 2);
         _thumb.hidden = YES;
         [self addSubview:_thumb];
@@ -145,6 +335,7 @@ const NSInteger UISegmentedControlNoSegment = -1;
     _thumb.backgroundColor = _selectedSegmentTintColor ?: [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) {
         return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.39 alpha:1] : UIColor.whiteColor; }];
     _thumb.frame = CGRectInset([self _segmentRect:(NSUInteger)_selectedSegmentIndex], 2, 2);
+    _thumb.layer.cornerRadius = isim_ui_glass() ? (_thumb.frame.size.height) / 2 : 7;
 }
 - (void)layoutSubviews { [super layoutSubviews]; [UIView performWithoutAnimation:^{ [self _placeThumb]; }]; }
 - (void)setSelectedSegmentIndex:(NSInteger)i {
@@ -173,18 +364,40 @@ const NSInteger UISegmentedControlNoSegment = -1;
 - (BOOL)isEnabledForSegmentAtIndex:(NSUInteger)i { return ![_disabled containsObject:@(i)]; }
 - (void)setWidth:(CGFloat)w forSegmentAtIndex:(NSUInteger)i { _widths[@(i)] = @(w); [self setNeedsLayout]; }
 - (NSInteger)_indexAt:(CGPoint)p { for (NSUInteger i = 0; i < _items.count; i++) if (p.x < CGRectGetMaxX([self _segmentRect:i])) return (NSInteger)i; return (NSInteger)_items.count - 1; }
-- (BOOL)beginTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e { _pressedIndex = [self _indexAt:[t locationInView:self]]; isim_ui_set_needs_display(); return YES; }
+- (BOOL)beginTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
+    _pressedIndex = [self _indexAt:[t locationInView:self]];
+    if (isim_ui_glass() && _pressedIndex == _selectedSegmentIndex && !_momentary) _thumb.alpha = 0;   /* the selection turns to glass while held */
+    isim_ui_set_needs_display(); return YES;
+}
 - (void)endTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
     NSInteger i = [self _indexAt:[t locationInView:self]];
-    _pressedIndex = -1; isim_ui_set_needs_display();
+    _pressedIndex = -1; _thumb.alpha = 1; isim_ui_set_needs_display();
     if (i < 0 || ![self isEnabledForSegmentAtIndex:(NSUInteger)i] || !CGRectContainsPoint(CGRectInset(self.bounds, -20, -20), [t locationInView:self])) return;
     if (_momentary) { [self _isim_sendEvents:UIControlEventValueChanged withEvent:e]; return; }
     if (i != _selectedSegmentIndex) { self.selectedSegmentIndex = i; [self _isim_sendEvents:UIControlEventValueChanged withEvent:e]; }
 }
-- (void)cancelTrackingWithEvent:(UIEvent *)e { _pressedIndex = -1; isim_ui_set_needs_display(); }
+- (void)cancelTrackingWithEvent:(UIEvent *)e { _pressedIndex = -1; _thumb.alpha = 1; isim_ui_set_needs_display(); }
+- (BOOL)continueTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
+    if (_thumb.alpha == 0) {                       /* iOS 26: dragging the held glass selection moves it */
+        NSInteger i = [self _indexAt:[t locationInView:self]];
+        if (i >= 0 && i != _selectedSegmentIndex && [self isEnabledForSegmentAtIndex:(NSUInteger)i]) {
+            _pressedIndex = i; self.selectedSegmentIndex = i; [self _isim_sendEvents:UIControlEventValueChanged withEvent:e];
+        }
+    }
+    return YES;
+}
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size;
-    fill(UIColor.tertiarySystemFillColor, 0, 0, s.width, s.height, 9, 1);
+    BOOL glass = isim_ui_glass();
+    fill(UIColor.tertiarySystemFillColor, 0, 0, s.width, s.height, glass ? s.height / 2 : 9, 1);
+    if (glass) {                                   /* iOS 26: no separators; a held selection is glass, a little larger */
+        if (_thumb.alpha == 0 && !_thumb.hidden) {
+            CGRect r = [_thumb _isim_presentedFrame:NULL radius:NULL];
+            r = CGRectInset(r, -4, -4);
+            isim_ui_draw_glass(r, r.size.height / 2, nil, 2);
+        }
+        return;
+    }
     for (NSUInteger i = 0; i + 1 < _items.count; i++) {
         BOOL nearSel = (NSInteger)i == _selectedSegmentIndex || (NSInteger)i + 1 == _selectedSegmentIndex;
         if (!nearSel || _momentary) fill(UIColor.separatorColor, CGRectGetMaxX([self _segmentRect:i]) - 0.5, 8, 1, s.height - 16, 0, 1);
