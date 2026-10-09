@@ -70,7 +70,7 @@ and test isim like CI. In the environment's settings (Edit environment):
   | `ISIM_TEST_JOBS=4` | optional: test workers, as many as the container's CPUs (the default is half), like CI |
   | `ISIM_WAIT_SCALE=3` | optional, with `ISIM_TEST_JOBS`: longer test waits on a busy machine, like CI |
 
-When a session starts, the SessionStart hook (`.claude/settings.json` → `isim/ci/cloud-session.sh`, a no-op outside
-the cloud) starts Docker if it is not running, pulls the Swift image if it is missing and runs `build.py fetch`, in
-the background (log: `/tmp/isim-session.log`). Each session builds `isim/out` from scratch (the first `build.py` takes
-a while; later builds are incremental). Tests use a scratch `ISIM_DATA`.
+In a session, run `isim/build.py fetch` once before the first build. If `docker info` fails (the daemon did not keep
+running after the setup script), start it with `nohup dockerd > /tmp/dockerd.log 2>&1 &`. Each session builds
+`isim/out` from scratch (the first `build.py` takes a while; later builds are incremental). Tests use a scratch
+`ISIM_DATA`.
