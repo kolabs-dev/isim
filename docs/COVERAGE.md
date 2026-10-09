@@ -26,14 +26,14 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 173 | 39 | 3 | 6 | 221 | 87% |
+| **UIKit** | 175 | 38 | 3 | 5 | 221 | 88% |
 | &nbsp;&nbsp;↳ Application & scenes | 20 | 5 | 0 | 0 | 25 | 90% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 22 | 9 | 0 | 0 | 31 | 85% |
 | &nbsp;&nbsp;↳ Views & controls | 47 | 10 | 0 | 3 | 60 | 87% |
 | &nbsp;&nbsp;↳ Layout | 18 | 1 | 0 | 0 | 19 | 97% |
 | &nbsp;&nbsp;↳ Animation | 9 | 3 | 0 | 0 | 12 | 88% |
 | &nbsp;&nbsp;↳ Gestures & touches | 11 | 2 | 0 | 0 | 13 | 92% |
-| &nbsp;&nbsp;↳ Text input & keyboard | 10 | 2 | 2 | 0 | 14 | 79% |
+| &nbsp;&nbsp;↳ Text input & keyboard | 11 | 1 | 2 | 0 | 14 | 82% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 17 | 1 | 0 | 1 | 19 | 92% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 2 | 0 | 1 | 0 | 3 | 67% |
 | &nbsp;&nbsp;↳ Accessibility | 4 | 3 | 0 | 0 | 7 | 79% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **691** | **236** | **29** | **41** | **997** | **81%** |
+| **All areas** | **693** | **235** | **29** | **40** | **997** | **81%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 89% (206) | 89% (210) | 89% (217) | 87% (221) |
+| UIKit | 90% (206) | 90% (210) | 89% (217) | 88% (221) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
@@ -322,7 +322,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | System keyboard (English US: letters/numbers/symbols, shift, auto-capitalization, return-key titles) | ✅ | ≤17 | |
-| Keyboard types (number pad, decimal, email, URL, phone) | 🟡 | ≤17 | trait stored; always the full keyboard |
+| Keyboard types (number pad, decimal, email, URL, phone) | ✅ | ≤17 | the responder's `keyboardType` picks the layout: number / ASCII number, decimal (the locale's separator) and phone pads (3 × 4 keys with the letters under the digits, the phone pad's `+*#` page, no return key or keyboard switching), email (`@` `.` next to space), URL (`.` `/` `.com`, no space bar), Twitter (`@` `#`), web search (`.`), numbers and punctuation (starts and stays on the numbers layer). The phone pad's `+*#` page is adapted (iOS also offers pause / wait). Name-phone pad uses the letters keyboard. Tested (HelloKeyboardTypes, OS matrix) |
 | Other languages, emoji keyboard | ✅ | ≤17 | built-in English (US), Portuguese (Brazil), Spanish (ñ), French (AZERTY), German (QWERTZ + üöä) and Emoji keyboards enabled in Settings > General > Keyboard > Keyboards (AppleKeyboards, default English + Emoji), globe / emoji key and list, localized space/return keys, accent popups on long press, `UITextInputMode.activeInputModes`; tested (HelloTextEditing) |
 | Autocorrection, predictive bar, spell checking, `UITextChecker` | 🟡 | ≤17 | `UITextChecker` over small built-in word lists (en/pt/es/fr/de): misspelled = unknown and one edit from a listed word; guesses, completions, learn/ignore; predictive bar (typed word, corrections, completions) and autocorrection on space/punctuation from the on-screen keyboard; red dotted underline while editing; Settings toggles; tested (HelloTextEditing). Small dictionaries, no learning from typing, no inline predictions |
 | Selection, caret movement, loupe, copy/paste/edit menu | ✅ | ≤17 | tap places the caret at a word boundary, double tap selects a word, triple tap a paragraph, long press shows the loupe and moves the caret, selection handles drag; edit menu (Cut, Copy, Paste, Select, Select All, Replace… with guesses; delegate `editMenuForTextIn`), `UIEditMenuInteraction`, `UIMenuController`; arrows, Shift-select, Option/Cmd jumps, Cmd/Ctrl+A/C/X/V, forward delete; UITextField, UITextView and SwiftUI TextField/TextEditor; tested (HelloTextEditing). No floating cursor, no undo |
