@@ -339,12 +339,30 @@ public protocol DispatchSourceUserDataReplace: DispatchSourceProtocol { func rep
 public protocol DispatchSourceRead: DispatchSourceProtocol {}
 public protocol DispatchSourceWrite: DispatchSourceProtocol {}
 public protocol DispatchSourceSignal: DispatchSourceProtocol {}
-public protocol DispatchSourceProcess: DispatchSourceProtocol {}
-public protocol DispatchSourceFileSystemObject: DispatchSourceProtocol {}
-public protocol DispatchSourceMemoryPressure: DispatchSourceProtocol {}
-public protocol DispatchSourceMachSend: DispatchSourceProtocol {}
-public protocol DispatchSourceMachReceive: DispatchSourceProtocol {}
-// typed views, like Apple's overlay (overloads of the UInt requirements)
+// typed views, like Apple's overlay: requirements of the refined protocols (so `let e = source.data` is typed), with
+// the extensions below as their implementations
+public protocol DispatchSourceProcess: DispatchSourceProtocol {
+    var handle: pid_t { get }
+    var data: DispatchSource.ProcessEvent { get }
+    var mask: DispatchSource.ProcessEvent { get }
+}
+public protocol DispatchSourceFileSystemObject: DispatchSourceProtocol {
+    var handle: Int32 { get }
+    var data: DispatchSource.FileSystemEvent { get }
+    var mask: DispatchSource.FileSystemEvent { get }
+}
+public protocol DispatchSourceMemoryPressure: DispatchSourceProtocol {
+    var data: DispatchSource.MemoryPressureEvent { get }
+    var mask: DispatchSource.MemoryPressureEvent { get }
+}
+public protocol DispatchSourceMachSend: DispatchSourceProtocol {
+    var handle: mach_port_t { get }
+    var data: DispatchSource.MachSendEvent { get }
+    var mask: DispatchSource.MachSendEvent { get }
+}
+public protocol DispatchSourceMachReceive: DispatchSourceProtocol {
+    var handle: mach_port_t { get }
+}
 extension DispatchSourceProcess {
     public var handle: pid_t { pid_t(truncatingIfNeeded: (self as DispatchSourceProtocol).handle) }
     public var data: DispatchSource.ProcessEvent { DispatchSource.ProcessEvent(rawValue: (self as DispatchSourceProtocol).data) }
@@ -437,11 +455,11 @@ public enum DispatchSource {
     }
     /// `.dead` when the port's receive right is destroyed (isim's in-process ports); `.possible` never fires.
     public static func makeMachSendSource(port: mach_port_t, eventMask: MachSendEvent, queue: DispatchQueue? = nil) -> DispatchSourceMachSend {
-        _MachSource(kind: 10, handle: UInt(port), mask: eventMask.rawValue, queue: queue)
+        _MachSendSource(kind: 10, handle: UInt(port), mask: eventMask.rawValue, queue: queue)
     }
     /// Fires while messages are queued on the port (receive them with `mach_msg` in the handler).
     public static func makeMachReceiveSource(port: mach_port_t, queue: DispatchQueue? = nil) -> DispatchSourceMachReceive {
-        _MachSource(kind: 11, handle: UInt(port), mask: 0, queue: queue)
+        _MachReceiveSource(kind: 11, handle: UInt(port), mask: 0, queue: queue)
     }
 }
 
@@ -532,7 +550,14 @@ final class _MemoryPressureSource: _SourceBase, DispatchSourceMemoryPressure, @u
     init(kind: Int32, handle: UInt, mask: UInt, queue: DispatchQueue?) { super.init(type: _isim_dispatch_source_type(kind), handle: handle, mask: mask, queue: queue) }
 }
 
-final class _MachSource: _SourceBase, DispatchSourceMachSend, DispatchSourceMachReceive, @unchecked Sendable {
+final class _MachSendSource: _SourceBase, DispatchSourceMachSend, @unchecked Sendable {
+    var handle: UInt { rawHandle }
+    var mask: UInt { rawMask }
+    var data: UInt { rawData }
+    init(kind: Int32, handle: UInt, mask: UInt, queue: DispatchQueue?) { super.init(type: _isim_dispatch_source_type(kind), handle: handle, mask: mask, queue: queue) }
+}
+
+final class _MachReceiveSource: _SourceBase, DispatchSourceMachReceive, @unchecked Sendable {
     var handle: UInt { rawHandle }
     var mask: UInt { rawMask }
     var data: UInt { rawData }

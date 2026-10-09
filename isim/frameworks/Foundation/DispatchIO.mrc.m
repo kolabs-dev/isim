@@ -70,8 +70,7 @@ dispatch_data_t dispatch_data_create(const void *buffer, size_t size, dispatch_q
     else { b->ptr = buffer; b->destructor = Block_copy(destructor); b->queue = queue; }
     b->size = size;
     dispatch_data_t d = data_new(1);
-    data_add(d, b, 0, size);
-    b->refs--;                                                              /* data_add counted the one reference */
+    data_add(d, b, 0, size);                                                /* the buffer's first reference */
     return d;
 }
 size_t dispatch_data_get_size(dispatch_data_t d) { return d ? d->size : 0; }

@@ -129,7 +129,7 @@ func dispatchTests() {
     check(waitFor { dirEvents.value.contains(.write) }, "directory source: .write when an entry is added")
     dirSource.cancel(); close(dirFD)
 
-    // process source: memory pressure never fires; a process source for a dead pid reports .exit
+    // process source: a process source for a dead pid reports .exit
     let exitSeen = Box(false)
     let proc = DispatchSource.makeProcessSource(identifier: 999_999, eventMask: .exit, queue: q)
     proc.setEventHandler { if proc.data.contains(.exit) { exitSeen.value = true } }
@@ -139,7 +139,7 @@ func dispatchTests() {
     let mem = DispatchSource.makeMemoryPressureSource(eventMask: .all, queue: q)
     mem.setEventHandler { }
     mem.resume()
-    check(mem.mask == .all && !mem.isCancelled, "memory pressure source can be created (never fires on isim)")
+    check(mem.mask == .all && !mem.isCancelled, "memory pressure source (fires on the Simulator's memory warning: HelloAppearance)")
     mem.cancel()
 
     // timer source: wall deadline + data counts fires
@@ -221,5 +221,43 @@ func dispatchTests() {
     }
     check(waitFor { whole.value.1 == 0 } && whole.value.0 == "....0123456789", "DispatchIO.read(fromFileDescriptor:) (\(whole.value.0))")
     close(fileFD)
+
+    // an open error reaches the handlers and the cleanup handler (the channel itself is created, like Apple's)
+    let openErr = Box<(Int32, Int32)>((-1, -1))
+    if let missing = DispatchIO(type: .stream, path: dir + "/missing.bin", oflag: O_RDONLY, mode: 0, queue: q,
+                                cleanupHandler: { err in openErr.mutate { $0.1 = err } }) {
+        missing.read(offset: 0, length: 10, queue: q) { finished, _, err in if finished { openErr.mutate { $0.0 = err } } }
+        missing.close()
+        check(waitFor { openErr.value == (ENOENT, ENOENT) }, "DispatchIO(path:) of a missing file: ENOENT to the read and cleanup handlers (\(openErr.value))")
+    } else { check(false, "DispatchIO(path:) of a missing file still gives a channel") }
+    check(DispatchIO(type: .stream, path: "relative.bin", oflag: O_RDONLY, mode: 0, queue: q, cleanupHandler: { _ in }) == nil,
+          "DispatchIO(path:) with a relative path is nil")
+
+    // a strict interval delivers partial results below the low-water mark
+    var ifds: [Int32] = [0, 0]
+    _ = pipe(&ifds)
+    let partials = Box(0)
+    let iio = DispatchIO(type: .stream, fileDescriptor: ifds[0], queue: q) { _ in close(ifds[0]) }
+    iio.setLimit(lowWater: 1000)
+    iio.setInterval(interval: .milliseconds(20), flags: .strictInterval)
+    iio.read(offset: 0, length: Int.max, queue: q) { finished, data, _ in if !finished, data != nil { partials.mutate { $0 += 1 } } }
+    for _ in 0..<6 where partials.value == 0 { _ = write(ifds[1], "x", 1); pause(0.03) }
+    check(partials.value >= 1, "DispatchIO setInterval(.strictInterval) delivers partial data below the low-water mark")
+    iio.close(flags: .stop)
+    _ = write(ifds[1], "y", 1)
+    close(ifds[1])
+
+    // Mach send source: .dead when the port's receive right goes away
+    var port: mach_port_t = 0
+    _ = mach_port_allocate(mach_task_self_, MACH_PORT_RIGHT_RECEIVE, &port)
+    _ = mach_port_insert_right(mach_task_self_, port, port, mach_msg_type_name_t(MACH_MSG_TYPE_MAKE_SEND))
+    let deadSeen = Box<DispatchSource.MachSendEvent>([])
+    let send = DispatchSource.makeMachSendSource(port: port, eventMask: .dead, queue: q)
+    send.setEventHandler { deadSeen.value = send.data }
+    send.resume()
+    check(send.handle == port && send.mask == .dead, "Mach send source handle / mask")
+    _ = mach_port_mod_refs(mach_task_self_, port, MACH_PORT_RIGHT_RECEIVE, -1)
+    check(waitFor { deadSeen.value == .dead }, "Mach send source reports .dead")
+    send.cancel()
     try? FileManager.default.removeItem(atPath: dir)
 }

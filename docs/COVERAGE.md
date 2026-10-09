@@ -63,9 +63,9 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 6 | 3 | 0 | 0 | 9 | 83% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 7 | 2 | 0 | 0 | 9 | 89% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
-| **Swift runtime, stdlib & concurrency** | 35 | 4 | 0 | 0 | 39 | 95% |
+| **Swift runtime, stdlib & concurrency** | 37 | 2 | 0 | 0 | 39 | 97% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
-| &nbsp;&nbsp;↳ Dispatch | 4 | 2 | 0 | 0 | 6 | 83% |
+| &nbsp;&nbsp;↳ Dispatch | 6 | 0 | 0 | 0 | 6 | 100% |
 | Objective-C runtime & C library | 17 | 0 | 0 | 0 | 17 | 100% |
 | Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
 | Core Text | 4 | 3 | 0 | 0 | 7 | 79% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **700** | **229** | **29** | **39** | **997** | **82%** |
+| **All areas** | **702** | **227** | **29** | **39** | **997** | **82%** |
 
 ### Per iOS version
 
@@ -99,7 +99,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
-| Swift runtime, stdlib & concurrency | 95% (39) | 95% (39) | 95% (39) | 95% (39) |
+| Swift runtime, stdlib & concurrency | 97% (39) | 97% (39) | 97% (39) | 97% (39) |
 | Objective-C runtime & C library | 100% (17) | 100% (17) | 100% (17) | 100% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
 | Core Text | 79% (7) | 79% (7) | 79% (7) | 79% (7) |
@@ -939,8 +939,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Barriers, `DispatchWorkItem`, `dispatchPrecondition`, queue-specific values | ✅ | ≤17 | |
 | `DispatchGroup`, `DispatchSemaphore`, `concurrentPerform` / `dispatch_apply` | ✅ | ≤17 | |
 | Timer sources (`DispatchSource.makeTimerSource`) | ✅ | ≤17 | |
-| User-data (add/or/replace), read/write, signal, process, file-system-object and memory-pressure sources; registration handlers | 🟡 | ≤17 | a monitor thread polls fds; process exit via `kill(pid, 0)` and file events via `fstat` every 50 ms (renames via /proc); write sources report 1, not the free space; memory pressure and Mach sources never fire. Tested: SwiftExtrasTest |
-| `DispatchData`, `DispatchIO` (stream / random, `read`/`write`, high/low water, `close`, class `read`/`write`) | 🟡 | ≤17 | Swift API only (no C `dispatch_data_t`/`dispatch_io_t`); `setInterval` ignored. Tested: SwiftExtrasTest |
+| User-data (add/or/replace), read/write, signal, process, file-system-object, memory-pressure and Mach send/receive sources; registration handlers | ✅ | ≤17 | adapted from kqueue onto Linux, one monitor thread in `poll()`: read sources report readable bytes (a listening socket: pending connections), write sources the pipe's / socket's free space (files and terminals: 1); file-system-object sources wake on inotify and compare `fstat` (write, extend, attrib, link, rename, delete, revoke); process exit on a pidfd (zombies included), fork / exec checked every 50 ms (`/proc` children, executable); Mach receive sources fire while messages are queued on isim's in-process ports, send sources report `.dead`; memory pressure comes from the Simulator's memory warning (`memorywarning [warn\|critical\|normal]`). Not reported: process `.signal`, `.funlock`, Mach `.possible`. Typed `data`/`mask`/`handle` requirements like Apple's overlay. Tested: tests/dispatch, SwiftExtrasTest, HelloAppearance (test_appearance) |
+| `DispatchData`, `DispatchIO` (stream / random, `read`/`write`, high/low water, interval, `close`, `barrier`, class `read`/`write`); C `dispatch_data_t` / `dispatch_io_t` (`dispatch_data_create` with each destructor, concat, subrange, map, apply, copy_region; `dispatch_io_create*`, read/write/barrier/close, `dispatch_read`/`dispatch_write`, `_f` variants) | ✅ | ≤17 | isim's own implementation (Foundation, DispatchIO.mrc.m) with the Swift API on top (no copies between them): each channel's operations run in order on its queue; random-access offsets are relative to the descriptor's position at creation; Apple's default water marks (low 512 KiB, high unlimited), strict and non-strict intervals; path channels need an absolute path, open errors go to the handlers and the cleanup handler. `dispatch_data_t` is a plain C object, not toll-free bridged to `NSData` (as for all isim dispatch objects). Tested: tests/dispatch, SwiftExtrasTest |
 
 ---
 

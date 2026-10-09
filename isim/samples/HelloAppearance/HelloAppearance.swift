@@ -2,7 +2,7 @@
 // registerForTraitChanges, UITraitCollection(mutations:)), overrideUserInterfaceStyle propagation (children, presented
 // controllers), dynamic colors and images (asset catalog Any/Dark/High Contrast, UIImageAsset), the accent color as
 // the default tint, live appearance and contrast changes, materials and vibrancy per appearance, UIAppearance
-// proxies for controls and bar items (per-state setters), memory warnings.
+// proxies for controls and bar items (per-state setters), memory warnings (also as a memory-pressure dispatch source).
 import UIKit
 
 func hex(_ c: UIColor?) -> String {
@@ -150,6 +150,7 @@ final class AppearanceViewController: UIViewController {
     let autoSwatch = UIView(), darkHost = ProbeView(), darkSwatch = UIView(), themeSwatch = ProbeView()
     let badgeAuto = UIImageView(), badgeDark = UIImageView()
     let lightBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterialLight))
+    let memoryPressure = DispatchSource.makeMemoryPressureSource(eventMask: .all, queue: .main)
     let darkBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterialDark))
     let accentButton = UIButton(type: .system)
     let container = DarkContainerViewController()
@@ -239,6 +240,11 @@ final class AppearanceViewController: UIViewController {
             print("registration: theme \(previous.theme) -> \(vc.traitCollection.theme), contrast \(vc.traitCollection.accessibilityContrast.rawValue)")
         }
         NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: nil) { _ in print("memory warning: notification") }
+        memoryPressure.setEventHandler { [memoryPressure] in
+            let level = memoryPressure.data
+            print("memory pressure: \(level.contains(.critical) ? "critical" : level.contains(.warning) ? "warning" : "normal")")
+        }
+        memoryPressure.activate()
     }
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
