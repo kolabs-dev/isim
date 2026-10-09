@@ -1,7 +1,8 @@
 """Swift for isim, from the pinned sources in third_party (build.py fetch) with the swift:6.2 Docker image
 (Swift 6.2.4):
   core     Embedded stdlib + support library; libc++; the Swift runtime and libswiftCore; Concurrency, Observation,
-           Synchronization, Distributed, SwiftOnoneSupport, Regex (_RegexParser, _StringProcessing, RegexBuilder)
+           Synchronization, Distributed, SwiftOnoneSupport, Regex (_RegexParser, _StringProcessing, RegexBuilder),
+           C++ interop (Cxx, CxxStdlib)
   overlays isim's Swift modules for the SDK's frameworks (swift/overlays)
   testing  Swift Testing (`import Testing`)
 Swift compiles in Docker (`isim swiftc`, or the image's swiftc for the stdlib); C/C++ parts with the host clang."""
@@ -183,13 +184,16 @@ class Swift:
         return a
 
     def resource_dir(self):
-        """isim's Swift resource dir: the image's clang builtin headers + SwiftShims (no Linux corelibs module maps)"""
+        """isim's Swift resource dir: the image's clang builtin headers + SwiftShims (no Linux corelibs module maps), and
+        the C++ interop shims (CxxShim, CxxStdlibShim) where the compiler looks for them for iOS targets"""
         stamp = f"{SW}/resource/.stamp"
+        shims = [f"{self.src}/stdlib/public/Cxx/cxxshim/{f}" for f in ("libcxxshim.modulemap", "libcxxshim.h", "libcxxstdlibshim.h")]
         repo = self.c.repo
         self.n.build(stamp, ["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}", "-v", f"{repo}:{repo}", "-w", self.c.root,
-                             IMAGE, "bash", "-c", f"rm -rf {SW}/resource && mkdir -p {SW}/resource && cp -rL /usr/lib/swift/clang "
-                             f"/usr/lib/swift/shims /usr/lib/swift/apinotes {SW}/resource/ && touch {stamp}"],
-                     implicit=[self.key], desc="Swift resource dir")
+                             IMAGE, "bash", "-c", f"rm -rf {SW}/resource && mkdir -p {SW}/resource/iphonesimulator && cp -rL /usr/lib/swift/clang "
+                             f"/usr/lib/swift/shims /usr/lib/swift/apinotes {SW}/resource/ && cp {' '.join(shims)} {SW}/resource/iphonesimulator/ "
+                             f"&& touch {stamp}"],
+                     implicit=[self.key, *shims], desc="Swift resource dir")
         return stamp
 
     def libcxx(self):
@@ -273,8 +277,9 @@ class Swift:
         distributed = self.distributed()
         onone = self.onone()
         regex = self.string_processing()
+        cxx = self.cxx_interop()
         n.phony("swift-core", [*emb, *full, support, res, libcxx, core, *concurrency, *observation, *sync, *distributed,
-                               *onone, *regex])
+                               *onone, *regex, *cxx])
 
     def isim_module(self, name, srcs, flags, link_args=(), extra_objs=(), implicit=(), link_name=None, objdir=None,
                     concurrency=True, minos="17.0", extra_outs=()):
@@ -376,6 +381,36 @@ class Swift:
         objs = self.cxx_objs([f"{D}/DistributedActor.cpp"], f"{SW}/obj/distributed", cflags)
         return self.isim_module("Distributed", srcs, flags, extra_objs=objs,
                                 link_args=["-lSystem", "-lobjc", "-lc++", "-lswiftCore", "-lswift_Concurrency"])
+
+    def cxx_interop(self):
+        """C++ interop (`-cxx-interoperability-mode=default`): Cxx (Swift protocols for C++ containers and iterators) and
+        CxxStdlib (the overlay of libc++'s `std` Clang module: String / chrono conversions, Hashable), from the Swift
+        6.2.4 sources, as dylibs with link names so apps linked by clang get them.
+        CxxStdlib is built from a copy without @inlinable / @_alwaysEmitIntoClient: an app compiled by Swift 6.2 cannot
+        deserialize the overlay's references to libc++ (22) members (`result not found (init)`: the compiler crashes),
+        so the overlay's code stays in libswiftCxxStdlib.dylib (library evolution: nothing is serialized)"""
+        X = f"{self.src}/stdlib/public/Cxx"
+        gen = f"{SW}/gen/cxxstdlib"
+        std_srcs = []
+        for f in sorted(self.c.glob(f"{X}/std/*.swift")):
+            text = open(os.path.join(self.c.root, f)).read()
+            text = re.sub(r"^[ \t]*@(_alwaysEmitIntoClient|inlinable|_transparent)[ \t]*\n", "", text, flags=re.M)
+            text = re.sub(r"@(_alwaysEmitIntoClient|inlinable|_transparent) ", "", text)
+            out = f"{gen}/{os.path.basename(f)}"
+            act.write_if_changed(os.path.join(self.c.root, out), text)
+            std_srcs.append(out)
+        flags = ["-swift-version", "5", "-O", "-wmo", "-enable-library-evolution", "-cxx-interoperability-mode=default",
+                 "-strict-memory-safety", "-Xfrontend", "-require-explicit-availability=ignore", *self.avail()]
+        for f in ("Span BuiltinModule AllowUnsafeAttribute LifetimeDependence NonescapableTypes AddressableParameters "
+                  "AddressableTypes ValueGenerics InoutLifetimeDependence LifetimeDependenceMutableAccessors").split():
+            flags += ["-enable-experimental-feature", f]
+        out = self.isim_module("Cxx", self.c.glob(f"{X}/*.swift"), flags + ["-Xcc", "-nostdinc++"],
+                               link_args=["-lSystem", "-lswiftCore"])
+        out += self.isim_module("CxxStdlib", std_srcs,
+                                flags + ["-enable-experimental-feature", "AssumeResilientCxxTypes", "-disable-upcoming-feature",
+                                         "MemberImportVisibility"],
+                                implicit=[mod("Cxx")], link_args=["-lSystem", "-lc++", "-lswiftCore", "-lswiftCxx"])
+        return out
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"

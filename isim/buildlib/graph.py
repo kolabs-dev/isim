@@ -103,7 +103,21 @@ def sdk_headers(c):
     L = f"{c.tp}/llvm-project"
     if os.path.isdir(os.path.join(c.root, L, "libcxx/include")):
         v1 = f"{SDK}/usr/include/c++/v1"
+        # libc++ as Clang modules (Swift's `import CxxStdlib`): its module map, with the config site entry CMake adds;
+        # the "only supports Clang 20 and later" warning stays quiet in Swift's importer (Swift 6.2 imports with its
+        # clang 17), not for C/C++ compiled with the host clang
+        gen = f"{OUT}/gen/libcxx"
+        mm = open(os.path.join(c.root, L, "libcxx/include/module.modulemap.in")).read()
+        act.write_if_changed(os.path.join(c.root, gen, "module.modulemap"),
+                             mm.replace("@LIBCXX_CONFIG_SITE_MODULE_ENTRY@", 'textual header "__config_site"'))
+        ch = open(os.path.join(c.root, L, "libcxx/include/__configuration/compiler.h")).read()
+        old = "#    if _LIBCPP_CLANG_VER < 2001\n"
+        assert old in ch, "libc++ __configuration/compiler.h: the Clang version check changed"
+        act.write_if_changed(os.path.join(c.root, gen, "compiler.h"), ch.replace(old, "#    if _LIBCPP_CLANG_VER < 2001 && !defined(__swift__)\n"))
         spec += ["--tree", f"{L}/libcxx/include", v1, "--exclude", "*.in", "--exclude", "CMakeLists.txt",
+                 "--exclude", "__configuration/compiler.h",
+                 "--file", f"{gen}/module.modulemap", f"{v1}/module.modulemap",
+                 "--file", f"{gen}/compiler.h", f"{v1}/__configuration/compiler.h",
                  "--file", "sdk-src/libcxx/__config_site", f"{v1}/__config_site",
                  "--file", f"{L}/libcxx/vendor/llvm/default_assertion_handler.in", f"{v1}/__assertion_handler"]
         for h in c.glob(f"{L}/libcxxabi/include/*.h"):

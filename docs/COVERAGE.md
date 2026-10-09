@@ -4,7 +4,7 @@ This tracks how much of the iOS SDK isim covers (iOS 17, 18, 26 and 27, selected
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-08
+Last updated: 2026-10-09
 
 **Legend**
 
@@ -63,7 +63,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 6 | 3 | 0 | 0 | 9 | 83% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 7 | 2 | 0 | 0 | 9 | 89% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
-| **Swift runtime, stdlib & concurrency** | 37 | 2 | 0 | 0 | 39 | 97% |
+| **Swift runtime, stdlib & concurrency** | 38 | 1 | 0 | 0 | 39 | 99% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Dispatch | 6 | 0 | 0 | 0 | 6 | 100% |
 | Objective-C runtime & C library | 17 | 0 | 0 | 0 | 17 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **702** | **227** | **29** | **39** | **997** | **82%** |
+| **All areas** | **703** | **226** | **29** | **39** | **997** | **82%** |
 
 ### Per iOS version
 
@@ -99,7 +99,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 87% (15) | 81% (16) | 81% (16) | 81% (16) |
 | Foundation | 84% (82) | 84% (82) | 84% (82) | 84% (82) |
-| Swift runtime, stdlib & concurrency | 97% (39) | 97% (39) | 97% (39) | 97% (39) |
+| Swift runtime, stdlib & concurrency | 99% (39) | 99% (39) | 99% (39) | 99% (39) |
 | Objective-C runtime & C library | 100% (17) | 100% (17) | 100% (17) | 100% (17) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
 | Core Text | 79% (7) | 79% (7) | 79% (7) | 79% (7) |
@@ -909,7 +909,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `Regex`, regex literals, `RegexBuilder` (`_StringProcessing`) | ✅ | ≤17 | built from swift-experimental-string-processing (swift-6.2.4); bare `/.../` literals need `-enable-bare-slash-regex` or Swift 6 mode like Xcode |
 | `Synchronization` (`Mutex`, `Atomic`, `WordPair`, `AtomicLazyReference`) | ✅ | ≤17 | built from the Swift 6.2.4 sources (iOS 18+ like Apple); `Mutex` on isim's `os_unfair_lock`; 128-bit atomics. Tested: SwiftExtrasTest |
 | Distributed actors (`Distributed`, `LocalTestingDistributedActorSystem`) | ✅ | ≤17 | built from the Swift 6.2.4 sources; distributed calls, `resolve(id:using:)`, thrown errors. Tested: SwiftExtrasTest |
-| C++ interop (`-cxx-interoperability-mode=default`) | 🟡 | ≤17 | user C++ (structs, classes, operators, static members, `enum class`, templates through inline functions, `.cpp` code) works; the C++ standard library is not importable (`import CxxStdlib`, `std::string`/`std::vector`: libc++'s headers do not build as a Clang module against isim's C headers). Tested: tests/swift-cxx |
+| C++ interop (`-cxx-interoperability-mode=default`) | ✅ | ≤17 | user C++ (structs, classes, operators, static members, `enum class`, templates through typedefs and inline functions, `.cpp` code) and the C++ standard library: `import CxxStdlib` (libc++ as Clang modules), `std.string` ↔ `String`, `Hashable`, `std.vector` / `std.map` as Swift collections (`Cxx`), `std.optional`, `std.chrono` ↔ `Duration`. Adapted: `Cxx` and `CxxStdlib` are built from the Swift 6.2.4 sources as dylibs, the overlay without inlinable bodies (Swift 6.2 cannot deserialize its references to libc++ 22 members), libc++'s hidden inline functions without ABI tags; headers isim's libc++ leaves out (iostreams, locales, wide characters, filesystem) are not available. Tested: tests/swift-cxx |
 | Swift macros from packages | 🟡 | ≤17 | `@Observable` works (toolchain plugin); `#Preview` and package macro targets unverified |
 
 ### Combine
