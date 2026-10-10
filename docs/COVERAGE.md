@@ -39,20 +39,20 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
-| **SwiftUI** | 223 | 13 | 1 | 2 | 239 | 96% |
+| **SwiftUI** | 236 | 2 | 1 | 2 | 241 | 98% |
 | &nbsp;&nbsp;↳ App & scenes | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ State & data flow | 17 | 0 | 0 | 0 | 17 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 37 | 2 | 0 | 0 | 39 | 97% |
+| &nbsp;&nbsp;↳ Views & controls | 38 | 2 | 0 | 1 | 41 | 95% |
 | &nbsp;&nbsp;↳ Containers & layout | 28 | 0 | 0 | 0 | 28 | 100% |
-| &nbsp;&nbsp;↳ Navigation & presentation | 33 | 3 | 0 | 1 | 37 | 93% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 33 | 3 | 0 | 0 | 36 | 96% |
+| &nbsp;&nbsp;↳ Navigation & presentation | 37 | 0 | 0 | 0 | 37 | 100% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 36 | 0 | 0 | 0 | 36 | 100% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 23 | 0 | 0 | 1 | 24 | 96% |
 | &nbsp;&nbsp;↳ Animation | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Gestures | 8 | 0 | 0 | 0 | 8 | 100% |
-| &nbsp;&nbsp;↳ Lifecycle, async & events | 7 | 1 | 0 | 0 | 8 | 94% |
+| &nbsp;&nbsp;↳ Lifecycle, async & events | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 3 | 0 | 1 | 0 | 4 | 75% |
-| &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
-| &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
+| &nbsp;&nbsp;↳ Environment values | 7 | 0 | 0 | 0 | 7 | 100% |
+| &nbsp;&nbsp;↳ Accessibility | 5 | 0 | 0 | 0 | 5 | 100% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
 | **Foundation** | 86 | 0 | 0 | 0 | 86 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **843** | **136** | **21** | **26** | **1026** | **89%** |
+| **All areas** | **856** | **125** | **21** | **26** | **1028** | **89%** |
 
 ### Per iOS version
 
@@ -96,7 +96,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
-| SwiftUI | 97% (216) | 97% (222) | 97% (229) | 96% (239) |
+| SwiftUI | 98% (218) | 98% (224) | 98% (231) | 98% (241) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (85) | 100% (85) | 100% (86) | 100% (86) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **89%** (967) | **89%** (979) | **89%** (1005) | **89%** (1026) |
+| **All areas** | **89%** (969) | **89%** (981) | **89%** (1007) | **89%** (1028) |
 
 ---
 
@@ -518,7 +518,8 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `ContentUnavailableView` | ✅ | 17.0 | icon, title, description, actions; `.search` / `.search(text:)`; tested (HelloPickers) |
 | `ControlGroup`, `GroupBox`, `DisclosureGroup`, `OutlineGroup` | ✅ | ≤17 | disclosure rows expand/collapse (own state or `isExpanded:` binding; in a List the content follows as indented rows); `OutlineGroup` and `List(_:children:)` build the tree; control groups share one bordered row (`controlGroupStyle` ignored); tested (HelloPickers) |
 | `EditButton`, `PasteButton`, `RenameButton` | ✅ | ≤17 | `EditButton` toggles `\.editMode` (tested, HelloLists); `PasteButton` is UIKit's paste control: enabled while the pasteboard has an accepted type, a tap pastes without the "Allow Paste" prompt and delivers `Transferable` payloads or item providers (tested, HelloSwiftUIControls); `RenameButton` runs `.renameAction { }` or focuses `.renameAction($focus)` (tested) |
-| `VideoPlayer` (AVKit), `Map` (MapKit) | ✅ | ≤17 | `Map` (iOS 17 MapContent + iOS 14 `coordinateRegion` API) on isim's MKMapView: tested (HelloMaps). `VideoPlayer` (with `videoOverlay`): see AVKit |
+| `VideoPlayer` (AVKit) | ✅ | ≤17 | with `videoOverlay`: see AVKit (tested there) |
+| `Map` (MapKit) | 🟡 | ≤17 | iOS 17 MapContent + iOS 14 `coordinateRegion` API on isim's MKMapView: tested (HelloMaps); `mapControls` are accepted but not drawn: see the MapKit row |
 | `SceneView` (SceneKit) | ❌ | ≤17 | needs SceneKit, a 3D renderer isim does not have (see the SceneKit row); not part of SwiftUI itself |
 | `SpriteView` | ✅ | ≤17 | see SpriteKit |
 
