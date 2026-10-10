@@ -12,6 +12,7 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
 
 @interface UITextField () <IsimEditableText>
 @end
+NSString *const UITextFieldDidEndEditingReasonKey = @"UITextFieldDidEndEditingReasonKey";
 @implementation UITextField {
     NSString *_storage;
     NSRange _sel;
@@ -90,7 +91,7 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
     _sel = NSMakeRange(_storage.length, 0); _scrollX = 0;
     if ([d respondsToSelector:@selector(textFieldDidEndEditing:)]) [d textFieldDidEndEditing:self];
     [self _isim_sendEvents:UIControlEventEditingDidEnd withEvent:nil];
-    [NSNotificationCenter.defaultCenter postNotificationName:UITextFieldTextDidEndEditingNotification object:self];
+    [NSNotificationCenter.defaultCenter postNotificationName:UITextFieldTextDidEndEditingNotification object:self userInfo:@{ UITextFieldDidEndEditingReasonKey: @(UITextFieldDidEndEditingReasonCommitted) }];
     isim_ui_set_needs_display();
     return YES;
 }

@@ -33,6 +33,12 @@ UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotificatio
     UIApplicationWillEnterForegroundNotification, UIApplicationWillTerminateNotification;
 /* isim: sent by Debug > Simulate Memory Warning (script command memorywarning) */
 UIKIT_EXTERN NSNotificationName const UIApplicationDidReceiveMemoryWarningNotification;
+/* isim: at local midnight and when the time zone changes (Settings > General > Date & Time) */
+UIKIT_EXTERN NSNotificationName const UIApplicationSignificantTimeChangeNotification;
+/* isim: script command `takescreenshot` (the Simulator's Device > Trigger Screenshot) */
+UIKIT_EXTERN NSNotificationName const UIApplicationUserDidTakeScreenshotNotification API_AVAILABLE(ios(7.0));
+UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataWillBecomeUnavailable NS_SWIFT_NAME(UIApplication.protectedDataWillBecomeUnavailableNotification);
+UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataDidBecomeAvailable NS_SWIFT_NAME(UIApplication.protectedDataDidBecomeAvailableNotification);
 
 @class NSUserActivity;
 NS_SWIFT_UI_ACTOR
@@ -52,6 +58,7 @@ NS_SWIFT_UI_ACTOR
 - (void)applicationWillEnterForeground:(UIApplication *)application;
 - (void)applicationWillTerminate:(UIApplication *)application;
 - (void)applicationDidReceiveMemoryWarning:(UIApplication *)application;
+- (void)applicationSignificantTimeChange:(UIApplication *)application;
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options;
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
 - (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;

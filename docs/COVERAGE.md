@@ -26,7 +26,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 259 | 4 | 0 | 48 | 311 | 84% |
+| **UIKit** | 260 | 4 | 0 | 47 | 311 | 84% |
 | &nbsp;&nbsp;↳ Application & scenes | 28 | 0 | 0 | 4 | 32 | 88% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 33 | 1 | 0 | 9 | 43 | 78% |
 | &nbsp;&nbsp;↳ Views & controls | 79 | 1 | 0 | 13 | 93 | 85% |
@@ -36,7 +36,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Text input & keyboard | 14 | 0 | 0 | 10 | 24 | 58% |
 | &nbsp;&nbsp;↳ Drawing, images & symbols | 19 | 1 | 0 | 3 | 23 | 85% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
-| &nbsp;&nbsp;↳ Accessibility | 13 | 0 | 0 | 1 | 14 | 93% |
+| &nbsp;&nbsp;↳ Accessibility | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 4 | 0 | 0 | 4 | 8 | 50% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 2 | 16 | 88% |
 | **SwiftUI** | 188 | 42 | 2 | 7 | 239 | 87% |
@@ -55,13 +55,13 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 84 | 0 | 0 | 0 | 84 | 100% |
+| **Foundation** | 85 | 0 | 0 | 0 | 85 | 100% |
 | &nbsp;&nbsp;↳ Strings & text | 15 | 0 | 0 | 0 | 15 | 100% |
 | &nbsp;&nbsp;↳ Collections & values | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 11 | 0 | 0 | 0 | 11 | 100% |
-| &nbsp;&nbsp;↳ Notifications, timers & threads | 9 | 0 | 0 | 0 | 9 | 100% |
+| &nbsp;&nbsp;↳ Notifications, timers & threads | 10 | 0 | 0 | 0 | 10 | 100% |
 | &nbsp;&nbsp;↳ Networking | 17 | 0 | 0 | 0 | 17 | 100% |
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **836** | **154** | **22** | **78** | **1090** | **84%** |
+| **All areas** | **838** | **154** | **22** | **77** | **1091** | **84%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 84% (276) | 83% (283) | 84% (300) | 84% (311) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 100% (84) | 100% (84) | 100% (84) | 100% (84) |
+| Foundation | 100% (84) | 100% (84) | 100% (85) | 100% (85) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **84%** (1027) | **84%** (1042) | **84%** (1069) | **84%** (1090) |
+| **All areas** | **84%** (1027) | **84%** (1042) | **84%** (1070) | **84%** (1091) |
 
 ---
 
@@ -457,7 +457,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Larger Text sizes, Bold Text, Increase Contrast, Reduce Transparency settings | ✅ | ≤17 | Settings > Accessibility pages write the device preferences every app reads; tested (HelloAccessibility via preferences). Colors don't change for Increase Contrast; materials don't turn opaque |
 | Large Content Viewer | ✅ | ≤17 | `UILargeContentViewerInteraction` (+ delegate: item at point, did end on item) and `showsLargeContentViewer` / `largeContentTitle` / `largeContentImage`: at accessibility text sizes a long press shows the item big in a HUD, following the finger across items. Tested (HelloAssistive) |
 | `UIAccessibility` settings, notifications and functions | ✅ | ≤17 | Settings > Accessibility values with their change notifications (Guided Access, Mono Audio, Speak Screen / Selection, AssistiveTouch, Shake to Undo, On/Off Labels, Video Autoplay, cross-fade; script `accessibility SETTING on\|off`), Apple's `darkerSystemColorsEnabled` / `shouldDifferentiateWithoutColorDidChange` names (isim's older names kept and posted too), `hearingDevicePairedEar` (no hearing devices: none), `focusedElement(using:)` and `accessibilityAssistiveTechnologyFocusedIdentifiers` (VoiceOver, Switch Control), `convertToScreenCoordinates` (rect, path), `UIAccessibilityPriority` and the speech attributes (VoiceOver reads spell-out ranges letter by letter and heading levels; announcements log their priority and queueing; punctuation / language / pitch / IPA stored but not used by its speech), textual contexts (stored), Zoom functions (logged: isim has no Zoom). Tested (HelloAccessibilityExtras, OS matrix) |
-| `UIAccessibility` typed messages (iOS 26 `NotificationCenter` messages) | ❌ | 26 | 18 symbols from Apple's documentation not in isim yet (API sweep, #9): `AnnouncementDidFinishMessage`, `ElementFocusedMessage`, `VoiceOverStatusDidChangeMessage`, `BoldTextStatusDidChangeMessage` and the other status messages |
+| UIKit typed notification messages (iOS 26 `NotificationCenter` messages) | ✅ | 26 | the `MainActorMessage` types of `UIApplication`, `UIScene`, `UIWindow`, `UIScreen`, `UIDevice`, `UIResponder` (keyboard frames, duration, curve), `UITextField` / `UITextView`, `UITableView`, `UIViewController`, `UIDocument`, `UIPasteboard`, `UITextInputMode`, `UIContentSizeCategory` and `UIAccessibility` (status changes, announcements, focused element), with their identifiers (`addObserver(of: UIScreen.self, for: .keyboardWillShow)`); each wraps the UIKit notification of the same name (so it arrives whenever isim posts that notification). Tested (HelloMessages, OS matrix). The focus system and pointer lock messages are missing (isim has neither yet) |
 | Accessibility containers, data tables and reading content | ✅ | ≤17 | `UIAccessibilityContainerDataTable` / `…Cell` (VoiceOver says "Row R, Column C"), `accessibilityContainerType` (data tables by default for data table containers; others stored), `UIAccessibilityReadingContent` (`voiceover read` reads the page content), `UIAccessibilityLocationDescriptor` and drag / drop descriptors (stored), `adjustsImageSizeForAccessibilityContentSizeCategory` (image views and buttons grow with the body text at the accessibility sizes), `UIPickerViewAccessibilityDelegate` (one adjustable element per wheel: label, hint, input labels; increment / decrement turn it), `UIScrollViewAccessibilityDelegate` (the status VoiceOver says after `voiceover scroll`), expanded status, direct touch options (stored), next / previous text navigation elements, `accessibilityHitTest(_:with:)`, `automationElements` (stored). Tested (HelloAccessibilityExtras, OS matrix) |
 | Custom actions and rotors members (system rotor types) | ✅ | ≤17 | `UIAccessibilityCustomAction` attributed names and images (all initializers), `category` / `editCategory` (stored); `UIAccessibilityCustomRotor(attributedName:)`, `init(systemType:)` (named like VoiceOver's rotor of that type; a Heading one replaces the built-in Headings rotor), `systemRotorType`. Tested (HelloAccessibilityExtras) |
 | Block-based accessibility properties (`AX…ReturnBlock`) | ✅ | ≤17 | the iOS 17 blocks (label, value, hint, traits, frame, path, activation point, elements, custom actions / rotors, activate / increment / decrement / escape / magic tap, …) answer before the stored values, also for UIKit controls' own adjustments; VoiceOver asks them each time. Tested (HelloAccessibilityExtras, OS matrix) |
@@ -946,6 +946,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `NotificationCenter` (selector, block, Combine publisher) | ✅ | ≤17 | |
+| `NotificationCenter` messages (`MainActorMessage`, `AsyncMessage`, `MessageIdentifier`, `ObservationToken`) | ✅ | 26 | `addObserver(of:for:using:)` (a subject, a subject type or a message type), `post(_:subject:)`, `removeObserver(_:)`, `messages(of:for:bufferSize:)` (an async sequence); a message posted from Swift reaches Swift observers as the same value, notifications posted the old way become messages with `makeMessage`, and old observers get `makeNotification`'s notification. Main-actor messages posted off the main thread are delivered on it. Tested (HelloMessages, OS matrix). Foundation's own messages (`UndoManager`, `UserDefaults`, `Locale`, …) are not defined yet |
 | `NotificationQueue` | ✅ | ≤17 | `.now`, `.asap` (end of the run-loop pass), `.whenIdle` (shortly after), coalescing on name/sender, `dequeueNotifications`; one queue per thread. Tested: HelloSharedData |
 | `DistributedNotificationCenter` | N/A | ≤17 | macOS only (not in the iOS SDK) |
 | `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | ≤17 | the run loop keeps scheduled timers alive until invalidated; `init(fire:interval:repeats:block:)` / target forms, `fireDate`, `tolerance` (accepted; timers fire on time); scheduled timers go to the current thread's run loop in the default mode. Tested: FoundationTest, SwiftFoundationTest |

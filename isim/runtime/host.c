@@ -97,7 +97,7 @@ double isim_time(void) { return now() - t0; }
 
 /* script commands passed to the app as they are ("VERB ARGS"): its UIKit handles them (isim_sys_event) */
 static int is_app_verb(const char *cmd) {
-    static const char *verbs[] = { "attributions", "fullpage", "tilt", "guidedaccess", "accessibility", NULL };
+    static const char *verbs[] = { "attributions", "fullpage", "tilt", "guidedaccess", "accessibility", "takescreenshot", NULL };
     for (int i = 0; verbs[i]; i++) if (!strcmp(cmd, verbs[i])) return 1;
     return 0;
 }

@@ -76,6 +76,7 @@ public enum UIAccessibility {
     public static var isClosedCaptioningEnabled: Bool { UIAccessibilityIsClosedCaptioningEnabled() }
     public static var isOnOffSwitchLabelsEnabled: Bool { UIAccessibilityIsOnOffSwitchLabelsEnabled() }
     public static var buttonShapesEnabled: Bool { UIAccessibilityButtonShapesEnabled() }
+    public static let buttonShapesEnabledStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityButtonShapesEnabledStatusDidChangeNotification")
     public static var prefersCrossFadeTransitions: Bool { UIAccessibilityPrefersCrossFadeTransitions() }
     public static var isVideoAutoplayEnabled: Bool { UIAccessibilityIsVideoAutoplayEnabled() }
     public static let voiceOverStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityVoiceOverStatusDidChangeNotification")

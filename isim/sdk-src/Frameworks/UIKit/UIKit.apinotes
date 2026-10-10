@@ -819,6 +819,40 @@ Globals:
   SwiftName: UIScreen.didConnectNotification
 - Name: UIScreenDidDisconnectNotification
   SwiftName: UIScreen.didDisconnectNotification
+- Name: UIScreenModeDidChangeNotification
+  SwiftName: UIScreen.modeDidChangeNotification
+- Name: UIScreenCapturedDidChangeNotification
+  SwiftName: UIScreen.capturedDidChangeNotification
+- Name: UIScreenReferenceDisplayModeStatusDidChangeNotification
+  SwiftName: UIScreen.referenceDisplayModeStatusDidChangeNotification
+- Name: UIWindowDidBecomeVisibleNotification
+  SwiftName: UIWindow.didBecomeVisibleNotification
+- Name: UIWindowDidBecomeHiddenNotification
+  SwiftName: UIWindow.didBecomeHiddenNotification
+- Name: UIWindowDidBecomeKeyNotification
+  SwiftName: UIWindow.didBecomeKeyNotification
+- Name: UIWindowDidResignKeyNotification
+  SwiftName: UIWindow.didResignKeyNotification
+- Name: UIApplicationSignificantTimeChangeNotification
+  SwiftName: UIApplication.significantTimeChangeNotification
+- Name: UIApplicationUserDidTakeScreenshotNotification
+  SwiftName: UIApplication.userDidTakeScreenshotNotification
+- Name: UISceneSystemProtectionDidChangeNotification
+  SwiftName: UIScene.systemProtectionDidChangeNotification
+- Name: UITableViewSelectionDidChangeNotification
+  SwiftName: UITableView.selectionDidChangeNotification
+- Name: UIViewControllerShowDetailTargetDidChangeNotification
+  SwiftName: UIViewController.showDetailTargetDidChangeNotification
+- Name: UITextInputCurrentInputModeDidChangeNotification
+  SwiftName: UITextInputMode.currentInputModeDidChangeNotification
+- Name: UIKeyboardIsLocalUserInfoKey
+  SwiftName: UIResponder.keyboardIsLocalUserInfoKey
+- Name: UIDeviceBatteryLevelDidChangeNotification
+  SwiftName: UIDevice.batteryLevelDidChangeNotification
+- Name: UIDeviceBatteryStateDidChangeNotification
+  SwiftName: UIDevice.batteryStateDidChangeNotification
+- Name: UIDeviceProximityStateDidChangeNotification
+  SwiftName: UIDevice.proximityStateDidChangeNotification
 - Name: kCAFilterNearest
   SwiftName: CALayerContentsFilter.nearest
 - Name: kCAFilterLinear

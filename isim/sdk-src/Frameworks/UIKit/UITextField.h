@@ -8,6 +8,8 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, UITextBorderStyle) { UITextBorderStyleNone, UITextBorderStyleLine, UITextBorderStyleBezel, UITextBorderStyleRoundedRect };
 typedef NS_ENUM(NSInteger, UITextFieldViewMode) { UITextFieldViewModeNever, UITextFieldViewModeWhileEditing, UITextFieldViewModeUnlessEditing, UITextFieldViewModeAlways };
 typedef NS_ENUM(NSInteger, UITextFieldDidEndEditingReason) { UITextFieldDidEndEditingReasonCommitted };
+/* the reason in UITextFieldTextDidEndEditingNotification's userInfo (an NSNumber) */
+UIKIT_EXTERN NSString *const UITextFieldDidEndEditingReasonKey NS_SWIFT_NAME(UITextField.didEndEditingReasonUserInfoKey) API_AVAILABLE(ios(10.0));
 NS_SWIFT_UI_ACTOR
 @protocol UITextFieldDelegate <NSObject>
 @optional

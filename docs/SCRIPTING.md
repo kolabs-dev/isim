@@ -39,6 +39,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `appearance light\|dark` | switch the device appearance (like Settings > Display & Brightness); running apps get a trait change (`traitCollectionDidChange`, `registerForTraitChanges`) |
 | `contrast on\|off` | Increase Contrast (`accessibilityContrast`): high-contrast system and asset colors |
 | `boldtext on\|off` | Bold Text (`legibilityWeight`) |
+| `takescreenshot` | the user takes a screenshot (the Simulator's Device ▸ Trigger Screenshot): the app gets `UIApplication.userDidTakeScreenshotNotification` |
 | `memorywarning [warn\|critical\|normal]` | simulate a memory warning (like the Simulator's Debug menu): memory-pressure dispatch sources get the level (default `warn`); `warn` and `critical` then reach the app delegate, `didReceiveMemoryWarningNotification` and every loaded view controller |
 
 ## System UI (`isim boot`)

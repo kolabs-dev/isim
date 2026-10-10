@@ -12,6 +12,8 @@ UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleApplication NS_SWI
 typedef NS_ENUM(NSInteger, UISceneActivationState) { UISceneActivationStateUnattached = -1, UISceneActivationStateForegroundActive, UISceneActivationStateForegroundInactive, UISceneActivationStateBackground };
 UIKIT_EXTERN NSNotificationName const UISceneWillConnectNotification, UISceneDidActivateNotification, UISceneDidDisconnectNotification,
     UISceneWillDeactivateNotification, UISceneWillEnterForegroundNotification, UISceneDidEnterBackgroundNotification;
+/* iOS 18 locked / hidden apps: isim never posts it (apps can't be locked) */
+UIKIT_EXTERN NSNotificationName const UISceneSystemProtectionDidChangeNotification API_AVAILABLE(ios(18.0));
 UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleExternalDisplayNonInteractive NS_SWIFT_NAME(windowExternalDisplayNonInteractive);
 /* iOS 27.1: the role of scenes made for a camera capture scene accessory (set by the system) */
 UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleCameraCaptureAccessory NS_SWIFT_NAME(windowCameraCaptureAccessory) API_AVAILABLE(ios(27.1));

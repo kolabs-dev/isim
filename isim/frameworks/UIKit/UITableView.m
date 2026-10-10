@@ -6,6 +6,7 @@
 #include <math.h>
 
 const CGFloat UITableViewAutomaticDimension = -1;
+NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableViewSelectionDidChangeNotification";
 @protocol _IsimIndexSet <NSObject>
 - (void)enumerateIndexesUsingBlock:(void (^)(NSUInteger idx, BOOL *stop))block;
 @end
@@ -895,10 +896,15 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     id<UITableViewDelegate> d = self.delegate;
     if ([d respondsToSelector:@selector(tableView:willSelectRowAtIndexPath:)]) { ip = [d tableView:self willSelectRowAtIndexPath:ip]; if (!ip) return; }
     if (!_allowsMultipleSelection) for (NSIndexPath *o in [_selected allObjects]) if (![o isEqual:ip]) [self deselectRowAtIndexPath:o animated:NO notify:YES];
-    if (_allowsMultipleSelection && [_selected containsObject:ip]) { [self deselectRowAtIndexPath:ip animated:YES notify:YES]; return; }
+    if (_allowsMultipleSelection && [_selected containsObject:ip]) {
+        [self deselectRowAtIndexPath:ip animated:YES notify:YES];
+        [NSNotificationCenter.defaultCenter postNotificationName:UITableViewSelectionDidChangeNotification object:self];
+        return;
+    }
     [_selected addObject:ip];
     [_visible[ip] setSelected:YES animated:NO];
     if ([d respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)]) [d tableView:self didSelectRowAtIndexPath:ip];
+    [NSNotificationCenter.defaultCenter postNotificationName:UITableViewSelectionDidChangeNotification object:self];   /* user selections only, like UIKit */
     isim_ib_cell_selected(c);                    /* storyboard selection segue */
 }
 - (void)selectRowAtIndexPath:(NSIndexPath *)ip animated:(BOOL)a scrollPosition:(UITableViewScrollPosition)pos {

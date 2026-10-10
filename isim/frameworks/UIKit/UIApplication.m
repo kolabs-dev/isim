@@ -178,6 +178,9 @@ NSNotificationName const UIDeviceBatteryStateDidChangeNotification = @"UIDeviceB
 NSNotificationName const UIScreenBrightnessDidChangeNotification = @"UIScreenBrightnessDidChangeNotification";
 NSNotificationName const UIScreenDidConnectNotification = @"UIScreenDidConnectNotification";
 NSNotificationName const UIScreenDidDisconnectNotification = @"UIScreenDidDisconnectNotification";
+NSNotificationName const UIScreenModeDidChangeNotification = @"UIScreenModeDidChangeNotification";
+NSNotificationName const UIScreenCapturedDidChangeNotification = @"UIScreenCapturedDidChangeNotification";
+NSNotificationName const UIScreenReferenceDisplayModeStatusDidChangeNotification = @"UIScreenReferenceDisplayModeStatusDidChangeNotification";
 
 /* ================= UIViewController ================= */
 @interface UIViewController () {
@@ -494,7 +497,18 @@ BOOL isim_ui_window_external(UIWindow *w) {
     UIWindowScene *s = [w valueForKey_isimScene];
     return s && ![s.session.role isEqualToString:UIWindowSceneSessionRoleApplication];
 }
+NSNotificationName const UIWindowDidBecomeVisibleNotification = @"UIWindowDidBecomeVisibleNotification";
+NSNotificationName const UIWindowDidBecomeHiddenNotification = @"UIWindowDidBecomeHiddenNotification";
+NSNotificationName const UIWindowDidBecomeKeyNotification = @"UIWindowDidBecomeKeyNotification";
+NSNotificationName const UIWindowDidResignKeyNotification = @"UIWindowDidResignKeyNotification";
 @implementation UIWindow
+/* the app's windows say when they show and hide (isim's own overlay windows don't) */
+- (void)setHidden:(BOOL)h {
+    BOOL was = self.hidden;
+    [super setHidden:h];
+    if (was != h && ![self _isim_isSystemWindow])
+        [NSNotificationCenter.defaultCenter postNotificationName:h ? UIWindowDidBecomeHiddenNotification : UIWindowDidBecomeVisibleNotification object:self];
+}
 - (UIWindowScene *)valueForKey_isimScene { return _windowScene; }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) { self.screen = UIScreen.mainScreen; self.hidden = YES; [UIApplication.sharedApplication _isim_addWindow:self]; [self _isim_movedToWindow:self]; }
@@ -554,6 +568,7 @@ UISceneSessionRole const UIWindowSceneSessionRoleApplication = @"UIWindowSceneSe
 NSNotificationName const UISceneWillConnectNotification = @"UISceneWillConnectNotification";
 NSNotificationName const UISceneDidActivateNotification = @"UISceneDidActivateNotification";
 NSNotificationName const UISceneDidDisconnectNotification = @"UISceneDidDisconnectNotification";
+NSNotificationName const UISceneSystemProtectionDidChangeNotification = @"UISceneSystemProtectionDidChangeNotification";
 NSNotificationName const UISceneWillDeactivateNotification = @"UISceneWillDeactivateNotification";
 NSNotificationName const UISceneWillEnterForegroundNotification = @"UISceneWillEnterForegroundNotification";
 NSNotificationName const UISceneDidEnterBackgroundNotification = @"UISceneDidEnterBackgroundNotification";
@@ -738,7 +753,14 @@ static BOOL idle_timer_disabled;
     NSLog(@"isim: idle timer %@", d ? @"disabled" : @"enabled");
     if (isim_shell_present()) isim_shell_request(ISIM_SHELL_SYSTEM, "idle-timer", d ? "1" : "0", NULL);
 }
-- (void)_isim_windowBecameKey:(UIWindow *)w { UIWindow *old = _key; if (old == w) return; [old resignKeyWindow]; _key = w; [w becomeKeyWindow]; isim_ui_set_needs_display(); }
+- (void)_isim_windowBecameKey:(UIWindow *)w {
+    UIWindow *old = _key; if (old == w) return;
+    [old resignKeyWindow];
+    if (old) [NSNotificationCenter.defaultCenter postNotificationName:UIWindowDidResignKeyNotification object:old];
+    _key = w; [w becomeKeyWindow];
+    if (w) [NSNotificationCenter.defaultCenter postNotificationName:UIWindowDidBecomeKeyNotification object:w];
+    isim_ui_set_needs_display();
+}
 - (UIWindow *)keyWindow { return _key; }
 - (NSArray *)windows { return [_allWindows copy]; }
 - (NSSet *)connectedScenes { return [_scenes copy]; }
@@ -1124,6 +1146,26 @@ static void render_frame(void) {
 /* ---- Debug > Simulate Memory Warning (script memorywarning): the app delegate, the notification, every view
    controller in the windows (children and presented ones included) ---- */
 NSNotificationName const UIApplicationDidReceiveMemoryWarningNotification = @"UIApplicationDidReceiveMemoryWarningNotification";
+NSNotificationName const UIApplicationSignificantTimeChangeNotification = @"UIApplicationSignificantTimeChangeNotification";
+NSNotificationName const UIApplicationUserDidTakeScreenshotNotification = @"UIApplicationUserDidTakeScreenshotNotification";
+NSNotificationName const UIApplicationProtectedDataWillBecomeUnavailable = @"UIApplicationProtectedDataWillBecomeUnavailable";
+NSNotificationName const UIApplicationProtectedDataDidBecomeAvailable = @"UIApplicationProtectedDataDidBecomeAvailable";
+/* a significant time change: local midnight, a time zone change (the delegate, then the notification) */
+static void significant_time_change(void) {
+    UIApplication *app = UIApplication.sharedApplication;
+    id<UIApplicationDelegate> d = app.delegate;
+    NSLog(@"isim: significant time change");
+    if ([d respondsToSelector:@selector(applicationSignificantTimeChange:)]) [d applicationSignificantTimeChange:app];
+    [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationSignificantTimeChangeNotification object:app];
+}
+static NSTimer *midnight_timer;
+static void schedule_midnight(void) {
+    [midnight_timer invalidate];
+    NSTimeInterval now = NSDate.date.timeIntervalSince1970, off = [NSTimeZone.systemTimeZone secondsFromGMTForDate:NSDate.date];
+    NSDate *next = [NSDate dateWithTimeIntervalSince1970:(floor((now + off) / 86400) + 1) * 86400 - off];   /* the next local midnight */
+    midnight_timer = [[NSTimer alloc] initWithFireDate:next interval:0 repeats:NO block:^(NSTimer *t) { significant_time_change(); schedule_midnight(); }];
+    [NSRunLoop.mainRunLoop addTimer:midnight_timer forMode:NSRunLoopCommonModes];
+}
 static void vc_memory_warning(UIViewController *vc, NSMutableSet *seen) {
     if (!vc || [seen containsObject:vc]) return;
     [seen addObject:vc];
@@ -1219,7 +1261,9 @@ static void settings_changed(void) {
     extern void isim_ui_reload_settings(void);
     extern void isim_reapply_time_zone_setting(void);
     isim_ui_reload_settings();
+    NSString *zone = NSTimeZone.systemTimeZone.name;
     isim_reapply_time_zone_setting();                 /* Date & Time > Time Zone applies live */
+    if (![zone isEqualToString:NSTimeZone.systemTimeZone.name]) { significant_time_change(); schedule_midnight(); }
     isim_ui_accessibility_reload_settings();          /* Settings > Accessibility (Dynamic Type, VoiceOver, ...) */
     isim_ui_traits_flush();                           /* appearance, Dynamic Type, contrast, bold text: traitCollectionDidChange: */
     [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSettingsChanged" object:nil];
@@ -1779,6 +1823,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         if ([d respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]) isim_sys_did_finish_launching([d application:app didFinishLaunchingWithOptions:launchOptions]);
         else if ([d respondsToSelector:@selector(applicationDidFinishLaunching:)]) [d applicationDidFinishLaunching:app];
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidFinishLaunchingNotification object:app];
+        schedule_midnight();
 
         NSDictionary *manifest = info[@"UIApplicationSceneManifest"];
         /* scene-based apps: a scene manifest, or a delegate that configures scenes (SwiftUI apps) */

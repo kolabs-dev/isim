@@ -10,6 +10,7 @@ extern NSDictionary *isim_global_preferences(void);
 static BOOL pref(NSString *key, BOOL dflt) { id v = isim_global_preferences()[key]; return v ? [v boolValue] : dflt; }
 
 /* ================= constants ================= */
+NSNotificationName const UIAccessibilityButtonShapesEnabledStatusDidChangeNotification = @"UIAccessibilityButtonShapesEnabledStatusDidChangeNotification";
 NSNotificationName const UIAccessibilityShouldDifferentiateWithoutColorDidChangeNotification = @"UIAccessibilityShouldDifferentiateWithoutColorDidChangeNotification";
 NSNotificationName const UIAccessibilityClosedCaptioningStatusDidChangeNotification = @"UIAccessibilityClosedCaptioningStatusDidChangeNotification";
 NSNotificationName const UIAccessibilityGrayscaleStatusDidChangeNotification = @"UIAccessibilityGrayscaleStatusDidChangeNotification";
@@ -70,6 +71,7 @@ NSDictionary *isim_ui_accessibility_extra_settings(void) {
               UIAccessibilityAssistiveTouchStatusDidChangeNotification: @(UIAccessibilityIsAssistiveTouchRunning()),
               UIAccessibilityShakeToUndoDidChangeNotification: @(UIAccessibilityIsShakeToUndoEnabled()),
               UIAccessibilityOnOffSwitchLabelsDidChangeNotification: @(UIAccessibilityIsOnOffSwitchLabelsEnabled()),
+              UIAccessibilityButtonShapesEnabledStatusDidChangeNotification: @(UIAccessibilityButtonShapesEnabled()),
               UIAccessibilityVideoAutoplayStatusDidChangeNotification: @(UIAccessibilityIsVideoAutoplayEnabled()),
               UIAccessibilityPrefersCrossFadeTransitionsStatusDidChangeNotification: @(UIAccessibilityPrefersCrossFadeTransitions()) };
 }

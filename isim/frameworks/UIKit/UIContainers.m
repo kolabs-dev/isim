@@ -21,6 +21,7 @@
 #include <math.h>
 
 /* ================= UISplitViewController ================= */
+NSNotificationName const UIViewControllerShowDetailTargetDidChangeNotification = @"UIViewControllerShowDetailTargetDidChangeNotification";
 @implementation UISplitViewController {
     UIViewController *_cols[4];               /* primary, supplementary, secondary, compact (as given) */
     UINavigationController *_nav[3];          /* column navigation controllers (wrapping plain controllers) */
@@ -243,6 +244,7 @@ static NSInteger col_index(UISplitViewControllerColumn c) { return c == UISplitV
         }
         NSLog(@"isim: split view expanded (%@)", mode_name(self.displayMode));
         if ([d respondsToSelector:@selector(splitViewControllerDidExpand:)]) [d splitViewControllerDidExpand:self];
+        [NSNotificationCenter.defaultCenter postNotificationName:UIViewControllerShowDetailTargetDidChangeNotification object:self];
         return;
     }
     [self _isim_rebuild];
@@ -282,6 +284,7 @@ static NSArray *unwrapped(UIViewController *vc) {
     [nav setViewControllers:stack animated:NO];
     NSLog(@"isim: split view collapsed, top column %ld, %lu controllers", (long)top, (unsigned long)stack.count);
     if ([d respondsToSelector:@selector(splitViewControllerDidCollapse:)]) [d splitViewControllerDidCollapse:self];
+    [NSNotificationCenter.defaultCenter postNotificationName:UIViewControllerShowDetailTargetDidChangeNotification object:self];
 }
 - (void)_isim_buildColumns {
     for (int i = 0; i < 3; i++) {
