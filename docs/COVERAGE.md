@@ -39,13 +39,13 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
-| **SwiftUI** | 214 | 21 | 1 | 3 | 239 | 94% |
+| **SwiftUI** | 215 | 20 | 1 | 3 | 239 | 94% |
 | &nbsp;&nbsp;↳ App & scenes | 7 | 4 | 0 | 0 | 11 | 82% |
 | &nbsp;&nbsp;↳ State & data flow | 16 | 1 | 0 | 0 | 17 | 97% |
 | &nbsp;&nbsp;↳ Views & controls | 37 | 2 | 0 | 0 | 39 | 97% |
 | &nbsp;&nbsp;↳ Containers & layout | 28 | 0 | 0 | 0 | 28 | 100% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 32 | 3 | 0 | 2 | 37 | 91% |
-| &nbsp;&nbsp;↳ Modifiers & visual effects | 32 | 4 | 0 | 0 | 36 | 94% |
+| &nbsp;&nbsp;↳ Modifiers & visual effects | 33 | 3 | 0 | 0 | 36 | 96% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 23 | 0 | 0 | 1 | 24 | 96% |
 | &nbsp;&nbsp;↳ Animation | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Gestures | 8 | 0 | 0 | 0 | 8 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **832** | **144** | **21** | **27** | **1024** | **88%** |
+| **All areas** | **833** | **143** | **21** | **27** | **1024** | **88%** |
 
 ### Per iOS version
 
@@ -641,7 +641,7 @@ and cairo blend operators) on the view's group; HelloEffects (`tests/ui/test_eff
 | `.buttonStyle(.glass)`, `.buttonStyle(.glassProminent)` | 🟡 | 26.0 | glass capsule (prominent: tinted, white label); bordered styles become capsules with `--os 26`/`27`; tested |
 | `scrollEdgeEffectStyle(_:for:)`, `scrollEdgeEffectHidden`, `backgroundExtensionEffect()` | ✅ | 26.0 | adapted: `.hard` gives the scrolled navigation / bottom bar an opaque edge with a divider, `.soft` the fade, hidden none (tested, HelloTabs); background extension: blurred mirror images of the view fill the safe area beside it (under the status bar, beside it in landscape), behind the content; tested (HelloTabs) |
 | `Animatable()` macro, `Slider` tick marks, `TextEditor` with `AttributedString` | ✅ | 26.0 | `@Animatable` / `@AnimatableIgnored` (isim's SwiftUIMacros plugin: `animatableData` from the stored vars; tested, HelloContainers); `Slider` ticks (`SliderTick`, `SliderTickBuilder`, `SliderTickContentForEach`, `ticks:` / `tick:`; a stepped slider shows its steps), `neutralValue`, `enabledBounds` on UIKit's slider track configuration (tick labels accepted, not drawn, like UIKit's titles); `TextEditor(text: Binding<AttributedString>, selection:)`: runs drawn with their SwiftUI / Foundation attributes, typing takes the attributes before it, `AttributedTextSelection` follows and sets the selection (no formatting menu). Tested (HelloSwiftUIControls, OS matrix) |
-| `swipeActionsContainer()`, `swipeActions` on any view (iOS 27 form), `reorderable()`, `reorderContainer(for:isEnabled:move:)` | 🟡 | 27.0 | `swipeActions` on a view outside a List: dragging reveals the actions (full swipe runs the first); `swipeActionsContainer()` keeps one open at a time; tested (HelloEffects). Reordering (`reorderable`, `reorderContainer`) missing |
+| `swipeActionsContainer()`, `swipeActions` on any view (iOS 27 form), `reorderable()`, `reorderContainer(for:isEnabled:move:)` | ✅ | 27.0 | `swipeActions` on a view outside a List: dragging reveals the actions (full swipe runs the first); `swipeActionsContainer()` keeps one open at a time; tested (HelloEffects). Reordering in stacks, grids and layouts: `reorderable()` / `reorderable(collectionID:)` on a ForEach, `reorderContainer(for:isEnabled:move:)` and the `in:` / `itemID:` forms, `ReorderDifference` (sources, destination before an item or at the end of a collection); adapted: a long press lifts the item (scaled, with a shadow) and it follows the finger, the other items of its collection make room, the drop calls `move` (animated); between collections the target collection does not make room; `DropSession.reorderDestination` missing. Tested (HelloContainers, `--os 27`) |
 | `asyncImageURLSession(_:)`, `AsyncImage(request:)` | ✅ | 27.0 | AsyncImages inside load with the given session; the request initializers load the `URLRequest`; tested (HelloTabs) |
 
 ### Shapes, paths, gradients & materials

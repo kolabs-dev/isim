@@ -36,6 +36,9 @@ NS_SWIFT_UI_ACTOR
 /* isim (SwiftUI high-priority and simultaneous gestures): a tap recognizer that still takes taps on the controls
    inside its view (UIKit's rule lets a control's tap win over its superviews' tap recognizers) */
 @property (nonatomic, setter=_isim_setTakesControlTaps:) BOOL _isim_takesControlTaps;
+/* isim (SwiftUI reordering): once it begins, the other recognizers still deciding (a scroll view's pan) drop out */
+- (BOOL)_isim_exclusive;
+- (void)_isim_setExclusive:(BOOL)exclusive;
 @end
 @interface UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer;

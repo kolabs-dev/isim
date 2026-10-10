@@ -121,6 +121,9 @@ public protocol DynamicViewContent: View {
     var data: Data { get }
 }
 extension ForEach: DynamicViewContent where Content: View {}
+extension _EditableContent: _IdentifiedContent {
+    func _ids(_ ctx: _Context) -> [AnyHashable] { (base as? _IdentifiedContent)?._ids(ctx) ?? [] }
+}
 public struct _EditableContent<Base: DynamicViewContent>: DynamicViewContent, _PrimitiveView {
     let base: Base
     var onDelete: ((IndexSet) -> Void)?

@@ -4,7 +4,8 @@
 // with pinned section headers / footers, scroll indicators and bounce behaviour.
 // The page comes from the environment: PAGE=list (LIST_STYLE=plain|grouped|inset|insetGrouped|sidebar|automatic),
 // selection, pinned, grid, hstack, scroll, spacing, spaces, subviews (custom containers, container values, @Entry,
-// @Animatable), insets (safeAreaInset, safeAreaPadding, contentMargins), crf (containerRelativeFrame in a stack).
+// @Animatable), insets (safeAreaInset, safeAreaPadding, contentMargins), crf (containerRelativeFrame in a stack),
+// reorder (iOS 27: reorderable / reorderContainer in a stack, a grid and two collections).
 import SwiftUI
 
 @main
@@ -27,6 +28,7 @@ struct Root: View {
         case "subviews": SubviewsPage()
         case "insets": InsetsPage()
         case "crf": RelativeFramePage()
+        case "reorder": if #available(iOS 27.0, *) { ReorderPage() } else { Text("iOS 27") }
         default: ListPage()
         }
     }
@@ -376,5 +378,60 @@ struct RelativeFramePage: View {
                 .navigationTitle("Relative")
                 .navigationBarTitleDisplayMode(.inline)
         }
+    }
+}
+
+struct Tile: Identifiable, Hashable, Sendable { let id: String }
+
+@available(iOS 27.0, *)
+struct ReorderPage: View {
+    @State var rows = ["A", "B", "C", "D"].map(Tile.init)
+    @State var tiles = (1...6).map { Tile(id: "\($0)") }
+    @State var left = ["L1", "L2"].map(Tile.init)
+    @State var right = ["R1", "R2"].map(Tile.init)
+    var body: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 6) {
+                ForEach(rows) { r in
+                    Text(r.id).frame(maxWidth: .infinity).frame(height: 40).background(Color.orange.opacity(0.4)).accessibilityIdentifier("row-\(r.id)")
+                }
+                .reorderable()
+            }
+            .reorderContainer(for: Tile.self) { d in apply(d, to: &rows); print("rows " + rows.map(\.id).joined()) }
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(60)), count: 3), spacing: 8) {
+                ForEach(tiles) { t in
+                    Text(t.id).frame(width: 60, height: 50).background(Color.teal.opacity(0.4)).accessibilityIdentifier("tile-\(t.id)")
+                }
+                .reorderable()
+            }
+            .reorderContainer(for: Tile.self) { d in apply(d, to: &tiles); print("tiles " + tiles.map(\.id).joined(separator: ",")) }
+            HStack(alignment: .top, spacing: 30) {
+                VStack(spacing: 6) {
+                    ForEach(left) { t in Text(t.id).frame(width: 80, height: 40).background(Color.purple.opacity(0.3)).accessibilityIdentifier("item-\(t.id)") }
+                        .reorderable(collectionID: "left")
+                }
+                VStack(spacing: 6) {
+                    ForEach(right) { t in Text(t.id).frame(width: 80, height: 40).background(Color.green.opacity(0.3)).accessibilityIdentifier("item-\(t.id)") }
+                        .reorderable(collectionID: "right")
+                }
+            }
+            .reorderContainer(for: Tile.self, in: String.self) { d in
+                let moving = (left + right).filter { d.sources.contains($0.id) }
+                left.removeAll { d.sources.contains($0.id) }; right.removeAll { d.sources.contains($0.id) }
+                func insert(_ list: inout [Tile]) {
+                    if case .before(let id) = d.destination.position, let i = list.firstIndex(where: { $0.id == id }) { list.insert(contentsOf: moving, at: i) }
+                    else { list.append(contentsOf: moving) }
+                }
+                if d.destination.collectionID == "left" { insert(&left) } else { insert(&right) }
+                print("left " + left.map(\.id).joined(separator: ",") + " right " + right.map(\.id).joined(separator: ","))
+            }
+        }
+        .padding()
+    }
+    func apply(_ d: ReorderDifference<String, ReorderableSingleCollectionIdentifier>, to list: inout [Tile]) {
+        let moving = list.filter { d.sources.contains($0.id) }
+        list.removeAll { d.sources.contains($0.id) }
+        if case .before(let id) = d.destination.position, let i = list.firstIndex(where: { $0.id == id }) { list.insert(contentsOf: moving, at: i) }
+        else { list.append(contentsOf: moving) }
     }
 }

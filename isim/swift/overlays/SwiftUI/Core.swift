@@ -111,6 +111,14 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content> {
     /// For other modules' ForEach conformances (Charts): data, element id and content.
     public init(_data: Data, _id: @escaping (Data.Element) -> ID, _content: @escaping (Data.Element) -> Content) { data = _data; id = _id; content = _content }
 }
+/// The element IDs of a ForEach, in order (reordering: Reorder.swift).
+protocol _IdentifiedContent { @MainActor func _ids(_ ctx: _Context) -> [AnyHashable] }
+extension ForEach: _IdentifiedContent {
+    func _ids(_ ctx: _Context) -> [AnyHashable] {
+        let data = (self.data as? _ContextCollection)?._resolved(ctx) as? Data ?? self.data
+        return data.map { AnyHashable(id($0)) }
+    }
+}
 extension ForEach: View, _PrimitiveView where Content: View {
     public init(_ data: Data, id: KeyPath<Data.Element, ID>, @ViewBuilder content: @escaping (Data.Element) -> Content) {
         self.data = data; self.content = content; self.id = { $0[keyPath: id] }

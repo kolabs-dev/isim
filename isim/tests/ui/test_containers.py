@@ -300,3 +300,52 @@ def test_container_relative_frame(launch):
     assert app.quit() == 0, "exits cleanly"
     # the navigation stack's content area: 402 x (874 - 62 status - 44 bar - 34 home indicator) = 402 x 734
     assert frame(dump, "half")[2:] == (201, 367), "containerRelativeFrame measures against the navigation stack's content"
+
+
+def window_rect(dump, ident):
+    """The window frame of the view with this id: its own frame plus its ancestors' origins."""
+    lines = dump.splitlines()
+    i = next(k for k, line in enumerate(lines) if re.search(rf" id={re.escape(ident)}\b", line))
+    num = lambda line: [float(v) for v in re.search(r"\((-?[0-9.]+) (-?[0-9.]+); ([0-9.]+) x ([0-9.]+)\)", line).groups()]
+    x, y, w, h = num(lines[i])
+    depth = len(lines[i]) - len(lines[i].lstrip())
+    for line in reversed(lines[:i]):
+        d = len(line) - len(line.lstrip())
+        if d < depth:
+            depth = d
+            px, py, _, _ = num(line)
+            x += px; y += py
+    return x, y, w, h
+
+
+@pytest.mark.os_matrix
+def test_reorder_containers(launch, ios):
+    """iOS 27: reorderable() items in reorderContainer stacks and grids: a long press lifts an item, the others make room
+    while it is dragged, the drop calls move with the difference; collections (reorderable(collectionID:))."""
+    if int(str(ios[0] or 18)) < 27:
+        pytest.skip("reordering containers are iOS 27")
+    app = launch("HelloContainers", env={"PAGE": "reorder"})
+    dump = app.wait_view(r"id=item-R2")
+    app.wait_still()
+    c = lambda ident: (lambda r: (r[0] + r[2] / 2, r[1] + r[3] / 2))(window_rect(dump, ident))
+    # the stack: A dropped on D's upper half goes before D, while dragging B and C move up
+    (ax, ay), (_, by), (dx, dy) = c("row-A"), c("row-B"), c("row-D")
+    app.send(f"longdrag {ax} {ay} {dx} {dy - 8} 0.6 0.8")
+    app.wait_log(r"^isim: reorder lift A")
+    app.wait_log(r"^rows BCAD$")
+    # the grid: 6 dropped on 1's leading half goes first
+    (sx, sy), (tx, ty) = c("tile-6"), c("tile-1")
+    app.send(f"longdrag {sx} {sy} {tx - 15} {ty} 0.6 0.8")
+    app.wait_log(r"^tiles 6,1,2,3,4,5$")
+    # between collections: L1 onto R2's lower half goes to the end of the right collection
+    (lx, ly), (rx, ry) = c("item-L1"), c("item-R2")
+    app.send(f"longdrag {lx} {ly} {rx} {ry + 12} 0.6 0.8")
+    app.wait_log(r"^left L2 right R1,R2,L1$")
+    app.wait_still()
+    after = app.view_dump()
+    app.screenshot("reorder")
+    assert app.quit() == 0, "exits cleanly"
+    order = sorted(("A", "B", "C", "D"), key=lambda k: window_rect(after, f"row-{k}")[1])
+    assert order == ["B", "C", "A", "D"], f"the rows are laid out in the new order ({order})"
+    first = min((f"{k}" for k in range(1, 7)), key=lambda k: (window_rect(after, f"tile-{k}")[1], window_rect(after, f"tile-{k}")[0]))
+    assert first == "6", f"the moved tile takes the first slot ({first} is first)"
