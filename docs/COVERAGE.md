@@ -76,7 +76,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 13 | 8 | 1 | 4 | 26 | 65% |
 | AVFoundation & audio | 19 | 19 | 3 | 3 | 44 | 65% |
 | Photos, Vision, Core ML & camera | 5 | 7 | 2 | 0 | 14 | 61% |
-| StoreKit | 20 | 9 | 0 | 0 | 29 | 84% |
+| StoreKit | 29 | 0 | 0 | 0 | 29 | 100% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
 | Data & persistence | 14 | 6 | 0 | 3 | 23 | 74% |
 | Identity & security | 9 | 2 | 2 | 0 | 13 | 77% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **809** | **162** | **22** | **96** | **1089** | **82%** |
+| **All areas** | **818** | **153** | **22** | **96** | **1089** | **82%** |
 
 ### Per iOS version
 
@@ -110,7 +110,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 65% (26) | 65% (26) | 65% (26) | 65% (26) |
 | AVFoundation & audio | 65% (44) | 65% (44) | 65% (44) | 65% (44) |
 | Photos, Vision, Core ML & camera | 61% (14) | 61% (14) | 61% (14) | 61% (14) |
-| StoreKit | 84% (29) | 84% (29) | 84% (29) | 84% (29) |
+| StoreKit | 100% (29) | 100% (29) | 100% (29) | 100% (29) |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 33% (6) | 33% (6) | 33% (6) | 33% (6) |
 | Data & persistence | 74% (23) | 74% (23) | 74% (23) | 74% (23) |
 | Identity & security | 77% (13) | 77% (13) | 77% (13) | 77% (13) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **82%** (1027) | **82%** (1042) | **82%** (1068) | **82%** (1089) |
+| **All areas** | **83%** (1027) | **82%** (1042) | **82%** (1068) | **82%** (1089) |
 
 ---
 
@@ -1338,9 +1338,11 @@ Labels in the notes: *passthrough* = a host tool does the real work; *adapted* =
 ## StoreKit
 
 Local StoreKit testing, like Xcode's: products come from the project's `.storekit` configuration; nothing is
-charged, nothing reaches Apple, transactions are `.verified` and JWS/receipts are local and **unsigned**.
-The ledger lives in the app container (`Library/isim/StoreKit/ledger.json`); `isim storekit <app> ...` is the
-Transaction Manager. Tested by `tests/ui/test_store.py` (HelloStore sample).
+charged and nothing reaches Apple. Transactions are `.verified`; JWS values and the receipt are signed with the isim
+device's own "isim StoreKit Testing" certificate (like Xcode's StoreKit Test certificate; `isim storekit certificate`
+exports it), never by Apple. The purchase history is the device's account (`ISIM_DATA/Library/isim/StoreKit/<bundle
+id>/ledger.json`, kept when the app is deleted); `isim storekit <app> ...` is the Transaction Manager. Tested by
+`tests/ui/test_store.py` (HelloStore sample). See [GAMECENTER.md](GAMECENTER.md#storekit-testing).
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
@@ -1351,28 +1353,28 @@ Transaction Manager. Tested by `tests/ui/test_store.py` (HelloStore sample).
 | `Transaction.currentEntitlements`, `all`, `latest(for:)`, `currentEntitlement(for:)`, `unfinished` | ✅ | ≤17 | `all` leaves out finished consumables (unless `SKIncludeConsumableInAppPurchaseHistory`) |
 | `Transaction.updates` | ✅ | ≤17 | unfinished transactions at launch, renewals, refunds, offer-code redemptions, Transaction Manager changes |
 | `Transaction.finish()` | ✅ | ≤17 | unfinished transactions are delivered again at the next launch |
-| `VerificationResult` | ✅ | ≤17 | always `.verified`; `jwsRepresentation` is an unsigned local token (`alg: none`) |
-| `AppStore.sync()` (restore) | 🟡 | ≤17 | re-reads the local ledger (no account to sync) |
+| `VerificationResult` | ✅ | ≤17 | always `.verified`; `jwsRepresentation` is ES256 with the device's StoreKit testing certificate in `x5c` (Apple's payload fields, environment `Xcode`); `deviceVerification` = SHA-384(nonce + device ID); tested: verified with OpenSSL (`test_store_billing`) |
+| `AppStore.sync()` (restore) | ✅ | ≤17 | adapted: the purchase history is the device's account (outlives the app); sync applies renewals and Transaction Manager changes, re-delivers unfinished transactions, sends every status to `Status.updates` and signs the receipt again; no sign-in prompt (as in Xcode's local testing); tested: the app deleted and reinstalled keeps its subscription, sync (`test_store_billing`) |
 | `AppStore.canMakePayments` | ✅ | ≤17 | |
 | Consumables / non-consumables | ✅ | ≤17 | |
 | Auto-renewable subscriptions: `Product.SubscriptionInfo` (group, period, level, group name) | ✅ | ≤17 | |
-| Subscription status (`status`, `Status.updates`, `RenewalInfo`, `RenewalState`) | ✅ | ≤17 | subscribed / expired / revoked / billing retry; one status per group (no Family Sharing) |
+| Subscription status (`status`, `Status.updates`, `RenewalInfo`, `RenewalState`) | ✅ | ≤17 | subscribed / expired / revoked / grace period / billing retry; one status per group (no Family Sharing) |
 | Renewals on an accelerated clock | ✅ | ≤17 | Xcode time rate from `.storekit` `_timeRate` (SKTestSession.TimeRate order; mapping unverified against Xcode) or `ISIM_STOREKIT_TIME_RATE` (`month=4`, `renewal=10`, names); renews while the app runs and catches up at launch |
-| Expiration, cancel (auto-renew off), billing issues | 🟡 | ≤17 | expiry and cancel tested; billing retry via `isim storekit billing-issue` unverified; no grace period |
+| Expiration, cancel (auto-renew off), billing issues | ✅ | ≤17 | `isim storekit billing-issue` makes renewals fail: billing grace period (`.storekit` `_billingGracePeriodEnabled`, key name unverified against Xcode, or `ISIM_STOREKIT_BILLING_GRACE_PERIOD=1`; 16 days, 6 for weekly plans, entitlement kept, `gracePeriodExpirationDate`), then billing retry (60 days, `isInBillingRetry`, `expirationReason` `.billingError`), then expiry; resolving (`isim storekit resolve`, the Billing Problem message) renews; tested: every step (`test_store_billing`), expiry and cancel (`test_store`) |
 | Upgrade / downgrade / crossgrade within a group | ✅ | ≤17 | upgrades (and same-period crossgrades) immediate, `isUpgraded` set; downgrades at the next renewal |
 | Introductory offers (free trial, pay as you go, pay up front), `isEligibleForIntroOffer` | ✅ | ≤17 | eligible until the first subscription in the group |
-| Promotional offers (`.promotionalOffer(...)`) | 🟡 | ≤17 | from `.storekit` `adHocOffers`; the signature is not verified locally |
-| Win-back offers (`.winBackOffer`) | 🟡 | ≤17 | from `winbackOffers`; eligible only after a lapsed subscription; no automatic win-back sheet |
-| Offer codes (`presentOfferCodeRedeemSheet`, `offerCodeRedemption`) | 🟡 | ≤17 | redeem sheet; codes are the `.storekit` `codeOffers` reference names / IDs; subscriptions only |
+| Promotional offers (`.promotionalOffer(...)`) | ✅ | ≤17 | from `.storekit` `adHocOffers`; the signature (ECDSA P-256 over Apple's payload, or the compact JWS; StoreKit 1 `SKPaymentDiscount` too) is checked against the device's subscription offers key (`isim storekit offer-key`), at most 24 h old, single-use nonce, app account token bound; existing and lapsed subscribers only; tested: forged, valid and JWS signatures |
+| Win-back offers (`.winBackOffer`) | ✅ | ≤17 | from `winbackOffers`; eligible only after a lapsed subscription; iOS 18+: the win-back message (`Message.Reason.winBackOffer`, isim's sheet or the app's `Message.messages`), SubscriptionStoreView shows the offer, `preferredSubscriptionOffer`; tested: sheet purchase reaches `Transaction.updates`, deferred by a listener, the store view, none under iOS 17 (`test_store_winback_ios17`) |
+| Offer codes (`presentOfferCodeRedeemSheet`, `offerCodeRedemption`) | ✅ | ≤17 | redeem sheet; codes are the `.storekit` `codeOffers` reference names / IDs; `eligibility` (new / existing / expired), each offer once, a current subscriber's offer starts at the next renewal; iOS 18+: codes for one-time products; tested: invalid, new, existing, already redeemed, non-consumable |
 | Refunds (`beginRefundRequest`, `refundRequestSheet`), `revocationDate` / `revocationReason` | ✅ | ≤17 | refund sheet; local requests are approved at once; revoked transactions arrive in `Transaction.updates` |
 | `showManageSubscriptions`, `manageSubscriptionsSheet` | ✅ | ≤17 | iOS-style sheet: status, change plan, cancel |
-| StoreKit views (`StoreView`, `ProductView`, `SubscriptionStoreView`) | 🟡 | ≤17 | iOS-like look; styles compact/regular/large; `storeButton`, `onInAppPurchaseCompletion/Start`, `subscriptionStatusTask`, `currentEntitlementTask`; custom control styles, policies and promotional icons ignored |
-| `AppTransaction` | 🟡 | ≤17 | local: original app version = CFBundleVersion at first launch on this device; environment `.xcode`; unsigned |
+| StoreKit views (`StoreView`, `ProductView`, `SubscriptionStoreView`) | ✅ | ≤17 | iOS-like look; product view styles compact/regular/large and app-defined (`makeBody(configuration:)`); `storeButton` (incl. `.policies`), `subscriptionStorePolicyDestination` (URL or view), control styles (automatic/picker, prominent picker, compact picker, buttons), `subscriptionStoreButtonLabel`, `preferredSubscriptionOffer`, `onInAppPurchaseCompletion/Start`, `subscriptionStatusTask`, `currentEntitlementTask`; `prefersPromotionalIcon` uses the icon, as in Xcode's local testing (promotional images come from App Store Connect); tested: buttons + multiline label + policies + win-back offer, a custom product style |
+| `AppTransaction` | ✅ | ≤17 | adapted: original app version = CFBundleVersion at the first launch on this device's account; environment `.xcode`; signed with the device's StoreKit testing certificate; `deviceVerification` = SHA-384(nonce + `deviceVerificationID`), `originalPlatform`; tested: JWS verified with OpenSSL, device verification |
 | `SKStoreReviewController.requestReview`, `@Environment(\.requestReview)` | ✅ | ≤17 | development-style rating card, at most 3 times per 365 days; nothing sent |
 | StoreKit 1 (`SKProductsRequest`, `SKProduct`/`SKProductDiscount`, `SKPaymentQueue`, observers, `finishTransaction`, restore) | ✅ | ≤17 | shares the StoreKit 2 ledger; renewals reach the observer |
-| App receipt (`Bundle.main.appStoreReceiptURL`, `SKReceiptRefreshRequest`) | 🟡 | ≤17 | a local, unsigned JSON summary — not PKCS #7; receipt validation rejects it |
-| `SKOverlay`, `SKStoreProductViewController` | 🟡 | ≤17 | placeholder overlay card / product page (the App Store isn't available) |
-| Transaction Manager (refund, expire, cancel, clear) | ✅ | ≤17 | `isim storekit <app> list\|refund\|expire\|cancel\|resume\|billing-issue\|delete\|clear`; the running app picks changes up within 0.5 s |
+| App receipt (`Bundle.main.appStoreReceiptURL`, `SKReceiptRefreshRequest`) | ✅ | ≤17 | adapted, like Xcode's local receipts: PKCS #7 SignedData with Apple's ASN.1 receipt fields (bundle ID, versions, opaque value, SHA-1 hash with `identifierForVendor`, in-app purchases), signed with the device's StoreKit testing certificate (validate against `isim storekit certificate` instead of Apple's root); refresh properties expired / volume purchase; tested: `openssl cms -verify`, fields and hash |
+| `SKOverlay`, `SKStoreProductViewController` | ✅ | ≤17 | adapted: the app's listing (name, developer, icon, rating, price, description) from Apple's public lookup API (`ISIM_APPSTORE_LOOKUP_URL` overrides it); unknown apps fail (`loadProduct` completion, `storeOverlay(_:didFailToLoadWithError:)`); overlay slides in with the delegate's transition calls; installing is unavailable on isim (GET says so); tested with a lookup fixture |
+| Transaction Manager (refund, expire, cancel, clear) | ✅ | ≤17 | `isim storekit <app> list\|refund\|expire\|cancel\|resume\|billing-issue\|resolve\|delete\|clear`, `isim storekit certificate\|offer-key`; the running app picks changes up within 0.5 s |
 
 ## Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP)
 
