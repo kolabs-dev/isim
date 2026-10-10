@@ -332,6 +332,20 @@ void isim_bundle_register_extension(NSString *path) {
             NSDictionary *entry = plurals[key];
             if ([entry isKindOfClass:[NSDictionary class]] && [entry[@"NSStringLocalizedFormatKey"] isKindOfClass:[NSString class]])
                 return isim_plural_format(entry, loc);
+            if ([entry isKindOfClass:[NSDictionary class]]) {
+                /* device variations: the simulated device's idiom, else "other" */
+                NSDictionary *dev = entry[@"NSStringDeviceSpecificRuleType"];
+                if ([dev isKindOfClass:[NSDictionary class]] && dev.count) {
+                    const char *d = getenv("ISIM_DEVICE");
+                    NSString *idiom = d && !strncmp(d, "ipad", 4) ? @"ipad" : @"iphone";
+                    id v = dev[idiom] ?: dev[@"other"] ?: dev[[dev.allKeys sortedArrayUsingSelector:@selector(compare:)].firstObject];
+                    if ([v isKindOfClass:[NSString class]]) return v;
+                    if ([v isKindOfClass:[NSDictionary class]] && [v[@"NSStringLocalizedFormatKey"] isKindOfClass:[NSString class]]) return isim_plural_format(v, loc);
+                }
+                /* width variations: the widest; -variantFittingPresentationWidth: picks another */
+                NSDictionary *width = entry[@"NSStringVariableWidthRuleType"];
+                if ([width isKindOfClass:[NSDictionary class]] && width.count) return isim_width_variants(width);
+            }
             NSDictionary *strings = _tables[cacheKey];
             if (!strings) {
                 NSString *path = [self pathForResource:table ofType:@"strings" inDirectory:nil forLocalization:loc];

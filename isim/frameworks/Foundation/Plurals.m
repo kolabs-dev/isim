@@ -23,6 +23,40 @@ static NSArray *lookup(NSString *fmt) {
     @synchronized ([NSString class]) { return registry[fmt]; }
 }
 
+/* .stringsdict width variations (NSStringVariableWidthRuleType: width -> text): the widest text is returned and the
+ * variants are remembered by it, for -variantFittingPresentationWidth: (Apple marks the string itself) */
+static NSMutableDictionary<NSString *, NSDictionary *> *widths;
+NSString *isim_width_variants(NSDictionary *rule) {
+    NSString *widest = nil; NSInteger best = NSIntegerMin;
+    for (NSString *k in rule) {
+        if (![rule[k] isKindOfClass:[NSString class]]) continue;
+        NSInteger w = k.integerValue;
+        if (w > best) { best = w; widest = rule[k]; }
+    }
+    if (!widest) return nil;
+    @synchronized ([NSString class]) {
+        if (!widths) widths = [NSMutableDictionary new];
+        widths[widest] = rule;
+    }
+    return widest;
+}
+@implementation NSString (NSBundleExtensionMethods)
+/* the variant for the widest width that fits `width` (in "ems", as in the catalog); the narrowest if none fits */
+- (NSString *)variantFittingPresentationWidth:(NSInteger)width {
+    NSDictionary *rule;
+    @synchronized ([NSString class]) { rule = widths[self]; }
+    if (!rule) return self;
+    NSString *fit = nil, *narrowest = nil; NSInteger fitW = NSIntegerMin, narrowW = NSIntegerMax;
+    for (NSString *k in rule) {
+        if (![rule[k] isKindOfClass:[NSString class]]) continue;
+        NSInteger w = k.integerValue;
+        if (w <= width && w > fitW) { fitW = w; fit = rule[k]; }
+        if (w < narrowW) { narrowW = w; narrowest = rule[k]; }
+    }
+    return fit ?: narrowest ?: self;
+}
+@end
+
 static NSString *base_language(NSString *lang) {
     if (!lang.length || [lang isEqualToString:@"Base"]) lang = isim_preferred_languages().firstObject ?: @"en";
     NSRange r = [lang rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"-_"]];

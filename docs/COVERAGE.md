@@ -55,8 +55,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 66 | 16 | 1 | 1 | 84 | 88% |
-| &nbsp;&nbsp;↳ Strings & text | 11 | 4 | 0 | 0 | 15 | 87% |
+| **Foundation** | 69 | 13 | 1 | 1 | 84 | 90% |
+| &nbsp;&nbsp;↳ Strings & text | 14 | 1 | 0 | 0 | 15 | 97% |
 | &nbsp;&nbsp;↳ Collections & values | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **779** | **181** | **23** | **35** | **1018** | **85%** |
+| **All areas** | **782** | **178** | **23** | **35** | **1018** | **86%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 99% (210) | 99% (214) | 99% (229) | 98% (239) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 88% (84) | 88% (84) | 88% (84) | 88% (84) |
+| Foundation | 90% (84) | 90% (84) | 90% (84) | 90% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (961) | **86%** (973) | **86%** (998) | **85%** (1018) |
+| **All areas** | **86%** (961) | **86%** (973) | **86%** (998) | **86%** (1018) |
 
 ---
 
@@ -796,14 +796,14 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | String encodings (`data(using:)`, `String(data:encoding:)`, `String(contentsOf:)`) | ✅ | ≤17 | |
 | `CharacterSet` | ✅ | ≤17 | BMP only |
 | `NSAttributedString`, `NSMutableAttributedString` | ✅ | ≤17 | Foundation keys only (UIKit's font/color keys belong to UIKit); `mutableString` is a snapshot |
-| `AttributedString`, `AttributeContainer`, attribute scopes, runs | 🟡 | ≤17 | Foundation scope (link, inline/presentation intents, imageURL, ...); no Codable, no iOS 17 invalidation/inheritance rules |
-| `AttributedString(markdown:)` | 🟡 | ≤17 | CommonMark + GFM blocks/inlines as presentation intents; no reference links, extended attributes or source positions |
+| `AttributedString`, `AttributeContainer`, attribute scopes, runs | ✅ | ≤17 | Foundation scope (link, inline/presentation intents, imageURL, language, Markdown source position, ...); Codable (Foundation scope by default, any scope through `CodableWithConfiguration` / `@CodableConfiguration(from: \.myScope)`; reads Apple's attribute-table form too); the iOS 17 key rules: `runBoundaries` (`.paragraph`, `.character`), `inheritedByAddedText`, `invalidationConditions` (`.textChanged`, `.attributeChanged`). Adapted: `CodableConfiguration` resolves attribute scopes itself (isim's `AttributeScope` does not refine the configuration-providing protocols, to keep built apps' scopes working). Tested: SwiftFoundationTest |
+| `AttributedString(markdown:)` | ✅ | ≤17 | CommonMark + GFM blocks/inlines as presentation intents; reference links (`[text][label]`, `[label]`, one-line definitions); extended attributes `^[text](key: value)` (`allowsExtendedAttributes`, JSON5 values decoded by the scope's `MarkdownDecodableAttributedStringKey`s, `including:` scopes); source positions (`appliesSourcePositionAttributes`: each run's text, 1-based lines and UTF-8 columns; tabs count as 4). Raw HTML stays text. Tested: SwiftFoundationTest |
 | `NSRegularExpression`, `NSTextCheckingResult` | ✅ | ≤17 | host PCRE2 (close to ICU syntax); templates, named groups, options |
 | `NSDataDetector` | ✅ | ≤17 | links, phone numbers, dates, street addresses (US style: street, city, state, ZIP in `addressComponents`), transit information (flight numbers of common airlines: `components` airline and flight); tested (foundation self-test). Addresses outside the US format are not recognised |
 | `Scanner` | ✅ | ≤17 | ObjC and Swift (`scanString`, `scanInt`, `scanDouble`, `scanDecimal`, `currentIndex`) APIs |
 | `String(localized:)`, `NSLocalizedString`, `Bundle.localizedString` | ✅ | ≤17 | |
 | `LocalizedStringResource` | ✅ | ≤17 | Foundation's (also used by AppIntents); `String(localized:)` resolves it with the bundle/table/locale lookup, plurals included. Tested: HelloSharedData (en, ru) |
-| String Catalogs (`.xcstrings`) | 🟡 | ≤17 | compiled to `.strings` + `.stringsdict`: plural variations and substitutions (`%#@name@`, `argNum`, `%arg`) keep every category; device/width variations use `other`/the first value. Tested: HelloSharedData (catalog compiled by isim build's compiler) |
+| String Catalogs (`.xcstrings`) | ✅ | ≤17 | compiled to `.strings` + `.stringsdict` like Xcode: plural variations and substitutions (`%#@name@`, `argNum`, `%arg`) keep every category; device variations (`NSStringDeviceSpecificRuleType`: the simulated device's idiom, else `other`) and width variations (`NSStringVariableWidthRuleType`: the widest by default, `variantFittingPresentationWidth(_:)`). Tested: HelloSharedData (catalog compiled by isim build's compiler) |
 | `.stringsdict` plural rules | ✅ | ≤17 | `NSStringPluralRuleType` with `zero` + CLDR integer categories for en, de, es, it, nl, sv, fr, pt (BR/PT), ru, uk, be, pl, cs, sk, hr, sr, ar, he, ro, ja, zh, ko, ...; applied by `localizedStringWithFormat:` / `stringWithFormat:` / `String(format:)` / `String(localized:)`, positional variables too. Isim finds the entry by the format text (strings bridge to Swift by copying). Tested: HelloSharedData |
 
 ### Collections & values

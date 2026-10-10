@@ -1,4 +1,5 @@
-"""HelloSharedData: plural localization (String Catalog plurals + substitutions compiled to .stringsdict, a
+"""HelloSharedData: plural localization (String Catalog plurals, substitutions, device and width variations
+compiled to .stringsdict, a
 hand-written .stringsdict with a zero rule, English and Russian CLDR categories), LocalizedStringResource, app group
 container + shared defaults across launches, the local iCloud key-value store (persistence and an external change
 while the app runs), ubiquity containers with and without an account, NotificationQueue.
@@ -48,12 +49,16 @@ def test_plurals(runs):
                                    "plural songs-11: 11 songs in the playlist")), \
         ".stringsdict with a zero rule via localizedStringWithFormat"
     assert "plural welcome: Welcome" in log1, "LocalizedStringResource (source language)"
+    assert "plural device: Tap to continue" in log1, "String Catalog device variations (the iPhone's)"
+    assert "plural width: Application Settings" in log1 and "plural width-25: Settings" in log1, \
+        "String Catalog width variations: the widest, variantFittingPresentationWidth"
     assert "id=files-1" in log1 and "text=1 file" in log1, "plurals shown in the UI"
     assert all(s in log2 for s in ("plural files-1: 1 файл", "plural files-2: 2 файла", "plural files-5: 5 файлов",
                                    "plural files-21: 21 файл")), "Russian CLDR categories (one/few/many) from the catalog"
     assert all(s in log2 for s in ("plural songs-1: 1 песня в плейлисте", "plural songs-3: 3 песни в плейлисте",
                                    "plural songs-11: 11 песен в плейлисте")), "Russian .stringsdict (one/few/many)"
     assert "plural welcome: Добро пожаловать" in log2, "LocalizedStringResource (Russian)"
+    assert "plural device: Коснитесь, чтобы продолжить" in log2, "device variations (Russian)"
 
 
 def test_containers(runs):

@@ -101,9 +101,19 @@ def _plural_rule(variations, fallback_spec='lld', substitution=False):
     return rule
 
 
+def _variation_value(v):
+    """a device / width variation: its text, or a plural entry for nested plural variations (else None)"""
+    v = v or {}
+    if 'plural' in (v.get('variations') or {}):
+        return {'NSStringLocalizedFormatKey': '%#@value@', 'value': _plural_rule(v['variations']['plural'])}
+    value = (v.get('stringUnit') or {}).get('value')
+    return value
+
+
 def compile_xcstrings(path, bundle):
-    """String catalog -> <lang>.lproj/<table>.strings (+ <table>.stringsdict for plural variations and
-    substitutions, like Xcode). Device and width variations are dropped (the 'other'/first value is used)."""
+    """String catalog -> <lang>.lproj/<table>.strings (+ <table>.stringsdict for plural, device and width
+    variations and substitutions, like Xcode: NSStringPluralRuleType, NSStringDeviceSpecificRuleType,
+    NSStringVariableWidthRuleType). The .strings file keeps the 'other' / first value as a fallback."""
     table = os.path.splitext(os.path.basename(path))[0]
     with open(path, encoding='utf-8') as f:
         cat = json.load(f)
@@ -125,11 +135,25 @@ def compile_xcstrings(path, bundle):
                     per_lang.setdefault(lang, {})[key] = other['value']     # .strings fallback
                 continue
             if not unit:
-                for kind in ('device', 'width'):
+                for kind, rule_type in (('device', 'NSStringDeviceSpecificRuleType'), ('width', 'NSStringVariableWidthRuleType')):
                     vs = variations.get(kind, {})
-                    pick = vs.get('other') or (next(iter(vs.values())) if vs else None)
-                    if pick and (pick.get('stringUnit') or {}).get('value') is not None:
-                        unit = pick['stringUnit']; break
+                    if not vs:
+                        continue
+                    rule = {name: val for name, val in ((n, _variation_value(v)) for n, v in vs.items()) if val is not None}
+                    if rule:
+                        plurals.setdefault(lang, {})[key] = {rule_type: rule}
+                    # the .strings fallback: 'other', else the widest / first variation's text
+                    order = sorted(vs, key=lambda n: -int(n) if n.isdigit() else 0) if kind == 'width' else ['other'] + list(vs)
+                    for n in order:
+                        val = _variation_value(vs.get(n))
+                        if isinstance(val, dict):
+                            val = (vs[n]['variations']['plural'].get('other') or {}).get('stringUnit', {}).get('value')
+                        if val is not None:
+                            per_lang.setdefault(lang, {})[key] = val
+                            break
+                    break
+                if key in plurals.get(lang, {}):
+                    continue
             if unit and unit.get('value') is not None and subs:
                 fmt = unit['value']
                 d = {}

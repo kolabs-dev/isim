@@ -65,6 +65,7 @@ NSString *isim_plist_write_xml(id root);
 
 /* plural rules (Plurals.m): a localized format from a .stringsdict entry; isim_format expands its %#@var@ */
 NSString *isim_plural_format(NSDictionary *entry, NSString *language);
+NSString *isim_width_variants(NSDictionary *rule);   /* NSStringVariableWidthRuleType -> the widest text */
 NSString *isim_plural_expand(NSString *fmt, double (^value)(int position), BOOL *expanded);
 NSString *isim_plural_category(NSString *language, double n);
 NSString *isim_plural_typed(NSString *fmt);   /* %#@var@ -> %<value type>, or nil when fmt is no known plural format */

@@ -290,6 +290,94 @@ func operationChecks() {
 }
 
 /// Objective-C collections of classes bridged to Swift collections of metatypes (issue #49)
+/// AttributedString: Codable, iOS 17 attribute rules, Markdown reference links / extended attributes / source positions (issue #12)
+enum RhymeAttribute: CodableAttributedStringKey, MarkdownDecodableAttributedStringKey {
+    typealias Value = String
+    static let name = "rhyme"
+}
+enum ParagraphLevelAttribute: AttributedStringKey {
+    typealias Value = Int
+    static let name = "paragraphLevel"
+    static let runBoundaries: AttributedString.AttributeRunBoundaries? = .paragraph
+}
+enum SpellingAttribute: AttributedStringKey {
+    typealias Value = Bool
+    static let name = "spelling"
+    static let inheritedByAddedText = false
+    static let invalidationConditions: Set<AttributedString.AttributeInvalidationCondition>? = [.textChanged]
+}
+enum LinkColorAttribute: AttributedStringKey {
+    typealias Value = Int
+    static let name = "linkColor"
+    static let invalidationConditions: Set<AttributedString.AttributeInvalidationCondition>? = [.attributeChanged(AttributeScopes.FoundationAttributes.LinkAttribute.self)]
+}
+extension AttributeScopes {
+    struct TestAttributes: AttributeScope {
+        let rhyme: RhymeAttribute
+        let paragraphLevel: ParagraphLevelAttribute
+        let foundation: FoundationAttributes
+    }
+    var test: TestAttributes.Type { TestAttributes.self }
+}
+extension AttributeDynamicLookup {
+    subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.TestAttributes, T>) -> T { self[T.self] }
+}
+struct Note: Codable {
+    @CodableConfiguration(from: \.test) var text = AttributedString()
+}
+func attributedStringChecks() {
+    // Codable
+    var a = AttributedString("Hello")
+    a.link = URL(string: "https://example.com")
+    a += AttributedString(" world")
+    let data = try? JSONEncoder().encode(a)
+    let back = data.flatMap { try? JSONDecoder().decode(AttributedString.self, from: $0) }
+    check(back == a && back?.runs.count == 2, "AttributedString Codable round trip (\(data.map { String(decoding: $0, as: UTF8.self) } ?? "nil"))")
+    check((try? JSONEncoder().encode(AttributedString("plain"))).map { String(decoding: $0, as: UTF8.self) } == "\"plain\"", "an attribute-free AttributedString encodes as its text")
+    let table = #"{"runs":["Hi ",0,"there",1],"attributeTable":[{},{"NSLink":"https://swift.org"}]}"#
+    let fromTable = try? JSONDecoder().decode(AttributedString.self, from: Data(table.utf8))
+    check(fromTable?.runs.last?.link?.absoluteString == "https://swift.org" && fromTable.map { String($0.characters) } == "Hi there", "decodes the attribute-table form")
+    var note = Note()
+    note.text = AttributedString("rhymes")
+    note.text.rhyme = "times"
+    note.text.paragraphLevel = 3
+    let noteBack = (try? JSONEncoder().encode(note)).flatMap { try? JSONDecoder().decode(Note.self, from: $0) }
+    check(noteBack?.text.rhyme == "times" && noteBack?.text.paragraphLevel == nil,
+          "@CodableConfiguration(from: \\.test) codes the scope's Codable keys only")
+    // iOS 17 attribute rules
+    var para = AttributedString("First line\nSecond line")
+    if let r = para.range(of: "line") { para[r].paragraphLevel = 2 }
+    check(para.runs.count == 2 && para.runs.first?.paragraphLevel == 2 && para.runs.last?.paragraphLevel == nil,
+          "runBoundaries .paragraph: a value set on part of a paragraph covers the paragraph")
+    var spell = AttributedString("Hello") + AttributedString(" world")
+    if let r = spell.range(of: "Hello") { spell[r][SpellingAttribute.self] = true }
+    spell.characters.insert("!", at: spell.index(spell.startIndex, offsetByCharacters: 5))
+    check(spell.runs.allSatisfy { $0[SpellingAttribute.self] == nil }, "invalidationConditions .textChanged removes the attribute from an edited run")
+    var typed = AttributedString("Hi")
+    typed[SpellingAttribute.self] = true
+    typed.characters.append(contentsOf: "!")
+    check(typed.runs.allSatisfy { $0[SpellingAttribute.self] == nil }, "inheritedByAddedText = false")
+    var colored = AttributedString("tap here")
+    colored[LinkColorAttribute.self] = 1
+    if let r = colored.range(of: "here") { colored[r].link = URL(string: "https://example.com") }
+    check(colored.runs.first?[LinkColorAttribute.self] == 1 && colored.runs.last?[LinkColorAttribute.self] == nil,
+          "invalidationConditions .attributeChanged(link)")
+    // Markdown
+    let refs = try? AttributedString(markdown: "See [the docs][docs] and [Swift].\n\n[docs]: https://example.com/docs\n[swift]: <https://swift.org> \"Swift\"")
+    let links = refs?.runs.compactMap { $0.link?.absoluteString } ?? []
+    check(links == ["https://example.com/docs", "https://swift.org"] && refs.map { String($0.characters) } == "See the docs and Swift.",
+          "Markdown reference links (\(links))")
+    let ext = try? AttributedString(markdown: "Hello ^[world](rhyme: 'bird')!", including: \.test, options: .init(allowsExtendedAttributes: true))
+    check(ext?.runs.first { $0.rhyme != nil }.map { String(ext![$0.range].characters) } == "world" && ext?.runs.compactMap(\.rhyme) == ["bird"],
+          "Markdown extended attributes ^[text](key: value)")
+    let literal = try? AttributedString(markdown: "Hello ^[world](rhyme: 'bird')!")
+    check(literal.map { String($0.characters) } == "Hello ^world!" && literal?.runs.allSatisfy({ $0[RhymeAttribute.self] == nil }) == true,
+          "extended attributes need allowsExtendedAttributes (CommonMark reads a link)")
+    let pos = try? AttributedString(markdown: "# Title\n\nSome **bold** text", options: .init(appliesSourcePositionAttributes: true))
+    let positions = pos?.runs.map { "\(String(pos![$0.range].characters))@\($0.markdownSourcePosition?.description ?? "-")" } ?? []
+    check(positions == ["Title@1:3-1:7", "Some @3:1-3:5", "bold@3:8-3:11", " text@3:14-3:18"], "Markdown source positions (\(positions))")
+}
+
 func classBridgingChecks() {
     let classes = [NSString.self, UIColor.self] as [AnyClass] as NSArray
     let any = classes as! [AnyClass]
@@ -555,6 +643,7 @@ func errorBridgingChecks() {
         fileManagerChecks()
         predicateAndDecimalChecks()
         operationChecks()
+        attributedStringChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }

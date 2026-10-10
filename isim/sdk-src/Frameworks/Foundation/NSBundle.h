@@ -35,6 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)pathForResource:(nullable NSString *)name ofType:(nullable NSString *)ext inDirectory:(nullable NSString *)subpath forLocalization:(nullable NSString *)localizationName;
 - (NSString *)localizedStringForKey:(NSString *)key value:(nullable NSString *)value table:(nullable NSString *)tableName;
 @end
+@interface NSString (NSBundleExtensionMethods)
+/* a width variation of a localized string (String Catalog / .stringsdict NSStringVariableWidthRuleType) */
+- (NSString *)variantFittingPresentationWidth:(NSInteger)width;
+@end
 #define NSLocalizedString(key, comment) [NSBundle.mainBundle localizedStringForKey:(key) value:@"" table:nil]
 #define NSLocalizedStringFromTable(key, tbl, comment) [NSBundle.mainBundle localizedStringForKey:(key) value:@"" table:(tbl)]
 #define NSLocalizedStringFromTableInBundle(key, tbl, bundle, comment) [bundle localizedStringForKey:(key) value:@"" table:(tbl)]
