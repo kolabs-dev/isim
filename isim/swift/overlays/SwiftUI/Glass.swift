@@ -2,8 +2,10 @@
 // - The emulated iOS version (isim --os) picks the look: 17/18 the classic materials, 26+ Liquid Glass
 //   (floating glass tab bar, glass back button and bar items, capsule bordered buttons).
 // - glassEffect(_:in:), Glass (.regular/.clear/.identity, tint, interactive), GlassEffectContainer, the glass
-//   button styles: adapted — drawn with isim's glass approximation (light backdrop blur, translucent body,
-//   specular rim); containers do not merge or morph neighbouring shapes, glassEffectID is accepted (no morphing).
+//   button styles, glassEffectID / glassEffectTransition: adapted — drawn with isim's glass approximation (light
+//   backdrop blur, lensing near the rim, translucent body, specular rim); a container draws its shapes as one
+//   signed distance field, so near shapes blend and morph as they move, and inserted / removed shapes with a
+//   glassEffectID grow out of / shrink into their neighbour (matchedGeometry) or fade (materialize).
 // - iOS 26 bar/scroll APIs: scroll edge styles (nav/bottom bars), background extension; tab bar minimizing and the
 //   bottom accessory are in TabView+More.swift.
 // - iOS 27 toolbar/tab additions (visibility priority, overflow menu, pinned trailing placement, minimization,
@@ -22,18 +24,50 @@ final class _SUIGlassView: UIView {
     var radius: CGFloat = 0 { didSet { if radius != oldValue { setNeedsDisplay() } } }
     var unionKey: String?          // glassEffectUnion (GlassEffectContainer merges equal keys)
     var glassTint: UIColor? { didSet { setNeedsDisplay() } }
-    var clear = false, pressed = false, shadow = true
+    var clear = false, shadow = true
+    var pressed = false { didSet { if pressed != oldValue { setNeedsDisplay(); container?.setNeedsDisplay() } } }
+    /// glassEffectID (namespace|id) and glassEffectTransition (0 matched geometry, 1 materialize, 2 identity)
+    var morphID: String?, transition = 0
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; isUserInteractionEnabled = false }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    /// the GlassEffectContainer that draws this glass, merged with its neighbours
+    var container: _SUIGlassContainerView? {
+        var v = superview
+        while let x = v { if let c = x as? _SUIGlassContainerView { return c }; v = x.superview }
+        return nil
+    }
     override func draw(_ rect: CGRect) {
+        if container != nil { return }
+        let pr = pressed ? _glassPressedInset(bounds) : bounds
         var t = [0.0, 0.0, 0.0, 0.0]
         if let c = glassTint { var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             c.resolvedColor(with: traitCollection).getRed(&r, green: &g, blue: &b, alpha: &a); t = [Double(r), Double(g), Double(b), Double(a)] }
         var flags: Int32 = traitCollection.userInterfaceStyle == .dark ? 1 : 0
         if clear { flags |= 2 }; if !shadow { flags |= 4 }; if pressed { flags |= 8 }
-        let r = min(radius, min(bounds.width, bounds.height) / 2)
-        t.withUnsafeBufferPointer { p in isim_gfx_glass(0, 0, Double(bounds.width), Double(bounds.height), Double(r), glassTint == nil ? nil : p.baseAddress, flags) }
+        let r = min(radius + (pr.width - bounds.width) / 2, min(pr.width, pr.height) / 2)
+        t.withUnsafeBufferPointer { p in isim_gfx_glass(Double(pr.minX), Double(pr.minY), Double(pr.width), Double(pr.height), Double(r), glassTint == nil ? nil : p.baseAddress, flags) }
     }
+}
+/// Interactive glass grows a little while touched (like UIKit's interactive UIGlassEffect).
+func _glassPressedInset(_ r: CGRect) -> CGRect {
+    let g = min(6, max(2, min(r.width, r.height) * 0.06))
+    return r.insetBy(dx: -g, dy: -g)
+}
+/// Presses interactive glass while a touch is down; it never recognizes, so it takes nothing from the controls and
+/// gestures under it.
+final class _SUIGlassPressRecognizer: UIGestureRecognizer, UIGestureRecognizerDelegate {
+    weak var glass: _SUIGlassView?
+    init(glass: _SUIGlassView) {
+        self.glass = glass
+        super.init(target: nil, action: nil)
+        cancelsTouchesInView = false; delaysTouchesBegan = false; delaysTouchesEnded = false
+        delegate = self
+    }
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) { glass?.pressed = true }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) { glass?.pressed = false; state = .failed }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { glass?.pressed = false; state = .failed }
+    override func reset() { glass?.pressed = false }
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith o: UIGestureRecognizer) -> Bool { true }
 }
 /// The scroll-edge fade iOS 26 bars use instead of an opaque material (top: fades downwards).
 final class _SUIEdgeFadeView: UIView {
@@ -82,18 +116,28 @@ struct _GlassBackground: View, _PrimitiveView {
     let kindRadius: (CGSize) -> CGFloat
     let tint: UIColor?, clear: Bool, interactive: Bool
     var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node { let n = _GlassNode(path: ctx.path, background: self); n.unionKey = ctx.environment._glassUnion; return n }
+    func _makeNode(_ ctx: _Context) -> _Node {
+        let n = _GlassNode(path: ctx.path, background: self)
+        n.unionKey = ctx.environment._glassUnion; n.morphID = ctx.environment._glassID; n.transition = ctx.environment._glassTransition
+        return n
+    }
 }
 final class _GlassNode: _Node {
     let background: _GlassBackground
-    var unionKey: String?
+    var unionKey: String?, morphID: String?, transition = 0
     init(path: String, background: _GlassBackground) { self.background = background; super.init(path: path, children: []) }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: p.width ?? 10, height: p.height ?? 10) }
     override func mountView(_ g: _Graph) -> UIView {
         let v = g.view(viewKey) { _SUIGlassView(frame: .zero) }
         v.radius = background.kindRadius(frame.size); v.glassTint = background.tint; v.clear = background.clear
-        v.unionKey = unionKey; v.isHidden = false
+        v.unionKey = unionKey; v.morphID = morphID; v.transition = transition; v.isHidden = false
         v.setNeedsDisplay()
+        if background.interactive {
+            g.postRender.append { [weak v] in
+                guard let v, let host = v.superview, !(host.gestureRecognizers ?? []).contains(where: { ($0 as? _SUIGlassPressRecognizer)?.glass === v }) else { return }
+                host.addGestureRecognizer(_SUIGlassPressRecognizer(glass: v))
+            }
+        }
         return v
     }
 }
@@ -121,9 +165,16 @@ extension View {
     }
     @available(iOS 26.0, *)
     public func glassEffect(_ glass: Glass = .regular) -> some View { glassEffect(glass, in: DefaultGlassEffectShape()) }
-    /// Identifies a glass shape for morphing between containers (isim: accepted, no morphing).
+    /// Identifies a glass shape in a GlassEffectContainer: inserted or removed with an animation, it grows out of the
+    /// shape with the same id (or the nearest one) and shrinks back into it.
     @available(iOS 26.0, *)
-    public func glassEffectID<ID: Hashable & Sendable>(_ id: ID?, in namespace: Namespace.ID) -> some View { self }
+    public func glassEffectID<ID: Hashable & Sendable>(_ id: ID?, in namespace: Namespace.ID) -> some View {
+        let key = id.map { "\(namespace.value)|\($0)" }
+        return _env { $0._glassID = key }
+    }
+    /// How the glass shapes inside are inserted and removed in a GlassEffectContainer.
+    @available(iOS 26.0, *)
+    public func glassEffectTransition(_ transition: GlassEffectTransition) -> some View { _env { $0._glassTransition = transition.kind } }
     /// Glass shapes with the same union id in a GlassEffectContainer draw as one shape (their bounding capsule).
     @available(iOS 26.0, *)
     public func glassEffectUnion<ID: Hashable & Sendable>(id: ID?, namespace: Namespace.ID) -> some View {
@@ -185,8 +236,9 @@ extension View {
     public func asyncImageURLSession(_ urlSession: URLSession) -> some View { _env { $0._asyncImageSession = urlSession } }
 }
 
-/// Groups glass shapes so they blend: shapes closer than `spacing` (or with the same glassEffectUnion id) draw as one
-/// glass shape over their bounding box (adapted: no morphing animation, no lensing).
+/// Groups glass shapes so they blend: drawn together as one signed distance field, shapes closer than `spacing` flow
+/// into one another (and morph as they move); shapes with the same glassEffectUnion id draw as one shape over their
+/// bounding box (adapted: isim's glass, see the top of the file).
 @available(iOS 26.0, *)
 public struct GlassEffectContainer<Content: View>: View, _PrimitiveView {
     let spacing: CGFloat?, content: Content
@@ -197,7 +249,22 @@ public struct GlassEffectContainer<Content: View>: View, _PrimitiveView {
     }
 }
 struct _GlassUnionKey: EnvironmentKey { static var defaultValue: String? { nil } }
-extension EnvironmentValues { var _glassUnion: String? { get { self[_GlassUnionKey.self] } set { self[_GlassUnionKey.self] = newValue } } }
+struct _GlassIDKey: EnvironmentKey { static var defaultValue: String? { nil } }
+struct _GlassTransitionKey: EnvironmentKey { static var defaultValue: Int { 0 } }
+extension EnvironmentValues {
+    var _glassUnion: String? { get { self[_GlassUnionKey.self] } set { self[_GlassUnionKey.self] = newValue } }
+    var _glassID: String? { get { self[_GlassIDKey.self] } set { self[_GlassIDKey.self] = newValue } }
+    var _glassTransition: Int { get { self[_GlassTransitionKey.self] } set { self[_GlassTransitionKey.self] = newValue } }
+}
+/// How a glass shape is added to or removed from a GlassEffectContainer: `matchedGeometry` (the default) grows it out
+/// of the shape with the same glassEffectID or the nearest one, `materialize` fades it in place, `identity` none.
+@available(iOS 26.0, *)
+public struct GlassEffectTransition: Sendable {
+    let kind: Int
+    public static var matchedGeometry: GlassEffectTransition { GlassEffectTransition(kind: 0) }
+    public static var materialize: GlassEffectTransition { GlassEffectTransition(kind: 1) }
+    public static var identity: GlassEffectTransition { GlassEffectTransition(kind: 2) }
+}
 
 /// After layout, merges the glass shapes inside it that touch (within `spacing`) or share a union id.
 final class _GlassContainerNode: _WrapperNode {
@@ -215,22 +282,25 @@ final class _GlassContainerNode: _WrapperNode {
 }
 final class _SUIGlassContainerView: _PassthroughViewBase {
     var spacing: CGFloat = 0
-    private var unions: [_SUIGlassView] = []
+    /// markers of the merged groups (shapes within `spacing`, or with one union id), for view dumps
+    private var markers: [UIView] = []
+    override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     /// the glass views inside (not inside a nested container)
     func glassViews(_ v: UIView, _ out: inout [_SUIGlassView]) {
-        for s in v.subviews {
-            if let gl = s as? _SUIGlassView, !unions.contains(where: { $0 === gl }) { out.append(gl); continue }
+        for s in v.subviews where !s.isHidden {
+            if let gl = s as? _SUIGlassView { out.append(gl); continue }
             if s is _SUIGlassContainerView { continue }
             glassViews(s, &out)
         }
     }
+    /// After each update: the merged groups as marker views (isim-glass-union-N, the group's bounding box).
     func merge() {
         var gs: [_SUIGlassView] = []
         glassViews(self, &gs)
-        for u in unions { u.removeFromSuperview() }
-        unions = []
+        for m in markers { m.removeFromSuperview() }
+        markers = []
         let frames = gs.map { $0.convert($0.bounds, to: self) }
-        // clusters: touching within `spacing`, or the same union id
         var cluster = Array(0..<gs.count)
         func root(_ i: Int) -> Int { var i = i; while cluster[i] != i { i = cluster[i] }; return i }
         for i in gs.indices { for j in gs.indices where j > i {
@@ -240,18 +310,93 @@ final class _SUIGlassContainerView: _PassthroughViewBase {
         } }
         var groups: [Int: [Int]] = [:]
         for i in gs.indices { groups[root(i), default: []].append(i) }
-        for (k, members) in groups.sorted(by: { $0.key < $1.key }) {
-            let merged = members.count > 1
-            for m in members { gs[m].isHidden = merged }
-            guard merged else { continue }
-            let box = members.map { frames[$0] }.reduce(frames[members[0]]) { $0.union($1) }
-            let u = _SUIGlassView(frame: box)
-            u.radius = min(members.map { gs[$0].radius }.max() ?? 0, min(box.width, box.height) / 2)
-            u.glassTint = gs[members[0]].glassTint; u.clear = gs[members[0]].clear
-            u.accessibilityIdentifier = "isim-glass-union-\(k)"
-            insertSubview(u, at: 0)
-            unions.append(u)
+        for (k, members) in groups.sorted(by: { $0.key < $1.key }) where members.count > 1 {
+            let m = UIView(frame: members.map { frames[$0] }.reduce(frames[members[0]]) { $0.union($1) })
+            m.isUserInteractionEnabled = false; m.backgroundColor = .clear
+            m.accessibilityIdentifier = "isim-glass-union-\(k)"
+            insertSubview(m, at: 0)
+            markers.append(m)
         }
+        setNeedsDisplay()
+    }
+    struct Shape { var rect: CGRect, radius: CGFloat, tint: UIColor?, pressed: Bool, alpha: CGFloat }
+    /// The frame (in this view) and alpha a glass view is drawn with now, and as its model ends up.
+    func presented(_ v: UIView) -> (now: CGRect, alpha: CGFloat, model: CGRect, modelAlpha: CGFloat) {
+        var a: CGFloat = 1, r = v._isim_presentedFrame(&a, radius: nil), model = v.frame, ma = v.isHidden ? 0 : v.alpha
+        var p = v.superview
+        while let x = p, x !== self {
+            var pa: CGFloat = 1
+            let pf = x._isim_presentedFrame(&pa, radius: nil)
+            a *= pa; ma *= x.isHidden ? 0 : x.alpha
+            r = r.offsetBy(dx: pf.minX - x.bounds.minX, dy: pf.minY - x.bounds.minY)
+            model = model.offsetBy(dx: x.frame.minX - x.bounds.minX, dy: x.frame.minY - x.bounds.minY)
+            p = x.superview
+        }
+        return (r.offsetBy(dx: -bounds.minX, dy: -bounds.minY), a, model.offsetBy(dx: -bounds.minX, dy: -bounds.minY), ma)
+    }
+    override func draw(_ rect: CGRect) {
+        var gs: [_SUIGlassView] = []
+        glassViews(self, &gs)
+        guard !gs.isEmpty else { return }
+        let items = gs.map { presented($0) }
+        // a shape fading in or out (inserted or removed with an animation) is in transition
+        let fading = items.map { $0.modelAlpha > 0.01 ? $0.alpha < $0.modelAlpha - 0.01 : $0.alpha > 0.01 }
+        var shapes: [Shape] = [], faded: [Shape] = []
+        var unions: [String: Int] = [:]
+        for (i, g) in gs.enumerated() {
+            let it = items[i]
+            var r = it.now, alpha = min(1, it.alpha)
+            if fading[i] {
+                let f = it.modelAlpha > 0.01 ? min(1, it.alpha / it.modelAlpha) : it.alpha
+                switch g.transition {
+                case 0 where g.morphID != nil:
+                    // matched geometry: from / into the shape with the same id, else the nearest steady one
+                    var target: CGRect?
+                    if let j = gs.indices.first(where: { $0 != i && gs[$0].morphID == g.morphID }) { target = items[j].model }
+                    else {
+                        let c = CGPoint(x: it.model.midX, y: it.model.midY)
+                        target = gs.indices.filter { $0 != i && !fading[$0] && items[$0].alpha > 0.01 }
+                            .min { hypot(items[$0].now.midX - c.x, items[$0].now.midY - c.y) < hypot(items[$1].now.midX - c.x, items[$1].now.midY - c.y) }
+                            .map { items[$0].now }
+                    }
+                    let t = target ?? CGRect(x: it.model.midX, y: it.model.midY, width: 0, height: 0)
+                    let m = it.model
+                    r = CGRect(x: t.minX + (m.minX - t.minX) * f, y: t.minY + (m.minY - t.minY) * f,
+                               width: t.width + (m.width - t.width) * f, height: t.height + (m.height - t.height) * f)
+                    alpha = f > 0.001 || target != nil ? 1 : 0
+                case 2: alpha = it.alpha > 0.01 ? 1 : 0                   // identity: no transition of the glass
+                default: alpha = f                                          // materialize: fades in place
+                }
+            }
+            guard alpha > 0.01, r.width > 0, r.height > 0 else { continue }
+            if g.pressed { r = _glassPressedInset(r) }
+            let radius = min(g.radius * (r.width / max(1, it.model.width)), min(r.width, r.height) / 2)
+            var sh = Shape(rect: r, radius: radius, tint: g.glassTint, pressed: g.pressed, alpha: alpha)
+            if let k = g.unionKey, alpha >= 0.99 {                          // glassEffectUnion: one shape over the box
+                if let j = unions[k] {
+                    let box = shapes[j].rect.union(r)
+                    shapes[j].rect = box; shapes[j].radius = min(max(shapes[j].radius, radius), min(box.width, box.height) / 2)
+                    continue
+                }
+                unions[k] = shapes.count
+            }
+            if alpha < 0.99 { sh.alpha = alpha; faded.append(sh) } else { shapes.append(sh) }
+        }
+        var flags: Int32 = traitCollection.userInterfaceStyle == .dark ? 1 : 0
+        if gs.contains(where: { $0.clear }) { flags |= 2 }
+        func draw(_ list: [Shape]) {
+            var geo: [Double] = [], tints: [Double] = [], pressed: [Int32] = []
+            for s in list {
+                geo += [Double(s.rect.minX), Double(s.rect.minY), Double(s.rect.width), Double(s.rect.height), Double(s.radius)]
+                var c: (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+                s.tint?.resolvedColor(with: traitCollection).getRed(&c.0, green: &c.1, blue: &c.2, alpha: &c.3)
+                tints += [Double(c.0), Double(c.1), Double(c.2), Double(c.3)]
+                pressed.append(s.pressed ? 1 : 0)
+            }
+            isim_gfx_glass_shapes(Int32(list.count), geo, tints, pressed, Double(spacing), flags)
+        }
+        if !shapes.isEmpty { draw(shapes) }
+        for s in faded { isim_gfx_push_group(); draw([s]); isim_gfx_pop_group(Double(s.alpha)) }
     }
 }
 

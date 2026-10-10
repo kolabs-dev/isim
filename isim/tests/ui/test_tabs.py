@@ -1,7 +1,7 @@
 """TabView and bars across iOS versions (HelloTabs). Port of tests/ui/tabs.sh and tabs_check.py.
 - iOS 18 (the test device): TabSection tabs flattened into the tab bar, no bottom accessory.
 - iOS 27 on iPhone 17: the bottom accessory above the floating tab bar, minimizing on scroll (accessory inline), tap to
-  expand, merging glass in GlassEffectContainer and glassEffectUnion, backgroundExtensionEffect under the status bar,
+  expand, merging glass in GlassEffectContainer and glassEffectUnion, glassEffectID morphing, interactive glass, backgroundExtensionEffect under the status bar,
   toolbar overflow by visibilityPriority with a pinned trailing item and ToolbarOverflowMenu, bottom bar minimization,
   the hard scroll edge.
 - iOS 26 on iPad: .sidebarAdaptable: the sidebar with the sections; choosing a tab there."""
@@ -53,6 +53,33 @@ def test_ios27_bars(launch):
     widths = sorted(float(x[2]) for x in u)
     assert abs(widths[0] - 110) < 1 and abs(widths[1] - 180) < 1, \
         f"GlassEffectContainer merges near shapes; glassEffectUnion merges a pair: {u}"
+
+    t = app.view_dump()
+    a, tap = screen_frame(t, "g-morph-a"), screen_frame(t, "g-interactive")
+    y = a[1] + a[3] / 2
+    shot = app.screenshot("glass")
+    bg = rgb(shot, 395, y)
+
+    def extent(img):                                                  # the right end of the glass along the row
+        xs = [x for x in range(int(a[0]), 400) if sum(abs(p - q) for p, q in zip(rgb(img, x, y), bg)) > 40]
+        return max(xs) if xs else 0
+    start, end = a[0] + a[2], a[0] + a[2] + 40 + 50                   # the pencil's right edge; the note's
+    assert abs(extent(shot) - start) <= 3, f"one glass shape before expanding: {extent(shot)} {start}"
+    app.tap_id("g-expand")                                            # withAnimation(.linear(duration: 2.5))
+    app.shot_during(lambda im: start + 12 < extent(im) < end - 12, lambda im: extent(im) >= end - 3,
+                    what="glassEffectID: the note's glass grows out of the pencil's")
+    app.wait_shot(lambda im: abs(extent(im) - end) <= 3, what="the note's glass at its place")
+    app.tap_id("g-expand")
+    app.shot_during(lambda im: start + 12 < extent(im) < end - 12, lambda im: extent(im) <= start + 3,
+                    what="glassEffectID: removed, the note's glass shrinks back into the pencil's")
+    app.wait_shot(lambda im: abs(extent(im) - start) <= 3, what="one glass shape again")
+
+    edge = (tap[0] + tap[2] + 1.5, tap[1] + tap[3] / 2)              # just outside the interactive glass
+    idle = rgb(app.screenshot(), *edge)
+    app.send("holdid g-interactive 1")                                # the sample renders itself mid-press
+    held = tuple(int(c) for c in app.wait_log(r"^glass held edge (\d+) (\d+) (\d+)$").groups())
+    assert sum(held) > sum(idle) + 40, f"interactive glass grows and brightens while touched: {held} {idle}"
+    app.wait_shot(lambda im: abs(sum(rgb(im, *edge)) - sum(idle)) <= 12, what="released, the glass settles back")
 
     app.tap_id("tab-Bars")
     t4 = app.wait_view(r"id=toolbar-overflow\b")

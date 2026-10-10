@@ -1,5 +1,5 @@
 // Sample: TabView and bar features across iOS versions on isim — TabSection and the iPad sidebar (iOS 18), the bottom
-// accessory, tab bar minimizing, scroll edge effects, background extension and merging glass (iOS 26), toolbar overflow
+// accessory, tab bar minimizing, scroll edge effects, background extension and merging, morphing (glassEffectID) and interactive glass (iOS 26), toolbar overflow
 // by visibility priority, pinned trailing items, ToolbarOverflowMenu, ToolbarSpacer and bottom bar minimizing (iOS 27);
 // the search tab's .searchable field in the iOS 26 tab bar; PROMINENT=1: a TabRole.prominent tab instead (iOS 27);
 // tabViewCustomization kept in @AppStorage (the iPad sidebar's Edit mode hides and moves tabs).
@@ -122,6 +122,7 @@ struct Bars27: View {
 
 struct GlassTab: View {
     @Namespace private var ns
+    @State private var expanded = false
     var body: some View {
         if #available(iOS 26.0, *) {
             VStack(spacing: 30) {
@@ -139,12 +140,45 @@ struct GlassTab: View {
                         Image(systemName: "heart").frame(width: 50, height: 50).glassEffect().glassEffectUnion(id: "pair", namespace: ns).accessibilityIdentifier("g-pair-2")
                     }
                 }
+                // glassEffectID: the second shape grows out of the first (and shrinks back into it), slowly
+                GlassEffectContainer(spacing: 10) {
+                    HStack(spacing: 40) {
+                        Image(systemName: "pencil").frame(width: 50, height: 50).glassEffect().glassEffectID("pencil", in: ns).accessibilityIdentifier("g-morph-a")
+                        if expanded {
+                            Image(systemName: "note").frame(width: 50, height: 50).glassEffect().glassEffectID("note", in: ns)
+                                .glassEffectTransition(.matchedGeometry).accessibilityIdentifier("g-morph-b")
+                        }
+                    }
+                    .frame(width: 240, alignment: .leading)
+                }
+                HStack(spacing: 30) {
+                    Button(expanded ? "Collapse" : "Expand") {
+                        withAnimation(.linear(duration: 2.5)) { expanded.toggle() }
+                    }.accessibilityIdentifier("g-expand")
+                    Image(systemName: "hand.tap").frame(width: 50, height: 50).glassEffect(.regular.interactive()).accessibilityIdentifier("g-interactive")
+                        .onLongPressGesture(minimumDuration: 0.4) { reportGlassEdge() }
+                }
             }
             .padding(.top, 80)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color.teal.opacity(0.4))
         } else { Text("Glass needs iOS 26") }
     }
+}
+
+/// While the interactive glass is held: the colour just outside its right edge, from a render of the window (the
+/// glass grows a little while touched).
+@MainActor func reportGlassEdge() {
+    guard let w = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first else { return }
+    func find(_ v: UIView) -> UIView? { v.accessibilityIdentifier == "g-interactive" ? v : v.subviews.lazy.compactMap(find).first }
+    guard let v = find(w) else { return }
+    let f = v.convert(v.bounds, to: w), p = CGPoint(x: f.maxX + 1.5, y: f.midY)
+    let img = UIGraphicsImageRenderer(bounds: w.bounds, format: { let f = UIGraphicsImageRendererFormat(); f.scale = 1; return f }()).image { _ in
+        w.drawHierarchy(in: w.bounds, afterScreenUpdates: false)
+    }
+    guard let cg = img.cgImage, let data = cg.dataProvider?.data, let b = CFDataGetBytePtr(data) else { return }
+    let o = Int(p.y) * cg.bytesPerRow + Int(p.x) * cg.bitsPerPixel / 8
+    print("glass held edge \(b[o]) \(b[o + 1]) \(b[o + 2])")
 }
 
 /// The search tab: a list filtered by its .searchable (iOS 26: the field is in the tab bar).

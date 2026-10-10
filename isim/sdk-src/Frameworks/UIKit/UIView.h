@@ -160,6 +160,7 @@ NS_SWIFT_UI_ACTOR
 + (void)animateWithDuration:(NSTimeInterval)duration delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
 + (void)animateWithDuration:(NSTimeInterval)duration delay:(NSTimeInterval)delay usingSpringWithDamping:(CGFloat)dampingRatio initialSpringVelocity:(CGFloat)velocity options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
 + (void)performWithoutAnimation:(void (NS_NOESCAPE ^)(void))actionsWithoutAnimation;
+- (CGRect)_isim_presentedFrame:(nullable CGFloat *)alpha radius:(nullable CGFloat *)radius;   /* isim: the frame (in the superview), alpha and corner radius as drawn now, mid-animation */
 - (void)_isim_removeAllAnimations;      /* isim: stops this view's running animations (layer.removeAllAnimations) */
 /* isim (SwiftUI animations): curve 0 ease in-out, 1 ease in, 2 ease out, 3 linear, 4 spring (damping, velocity),
    5 cubic Bézier (controlPoints x1 y1 x2 y2); plays: 0 once, -1 forever, n times (with autoreverse every other play

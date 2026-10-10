@@ -458,7 +458,7 @@ extension UIView {
 
 /// A plain container that does not intercept touches outside its children.
 final class _PassthroughView: UIView {
-    var hovers: Bool { gestureRecognizers?.contains { $0 is UIHoverGestureRecognizer } ?? false }
+    var hovers: Bool { gestureRecognizers?.contains { $0 is UIHoverGestureRecognizer || $0 is _SUIGlassPressRecognizer } ?? false }   // hover, interactive glass
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
         // (drag/drop interactions and hover recognizers make it a target)
