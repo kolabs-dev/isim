@@ -88,3 +88,40 @@ def test_ipad_sidebar(launch):
     app.wait_tap_id("sidebar-Glass")
     app.wait_log(r"^tab 2")                                          # choosing a tab in the sidebar
     assert app.quit() == 0
+
+
+def test_ios26_search_tab(launch):
+    """iOS 26: selecting the search tab turns the floating tab bar into a circle with the tab to go back to and the search
+    tab's .searchable field; typing filters, the field rides above the keyboard; the circle goes back."""
+    app = launch("HelloTabs", os_version="26", device="iphone17")
+    app.wait_tap_id("tab-Search")
+    t = app.wait_view(r"id=tab-search-field")
+    f = screen_frames(t)
+    home, field = f["tab-Home"], f["tab-search-field"]
+    assert "id=search-tab" in t and home[0] < field[0], "the back circle (Home) leading, the search field after it"
+    assert "UISearchBar" not in t and "id=search-field" not in t, "the field is in the tab bar, not under the title"
+    bar0 = f["isim-tabbar"]
+    app.tap_id("tab-search-field")
+    app.type("ap")
+    app.wait_log(r"^query ap$")
+    t2 = app.wait_view(lambda d: "id=fruit-Apple" in d and "id=fruit-Apricot" in d and "id=fruit-Banana" not in d, what="filtered")
+    app.screenshot("search-tab")
+    # the field rides above the keyboard: where the bar was, the keyboard now shows (no white glass)
+    bx, by, bw, bh = field
+    app.wait_shot(lambda im: max(im.getpixel((int(bx + bw / 2), int(by + bh / 2)))[:3]) < 235, what="the bar above the keyboard")
+    app.tap_id("tab-Home")
+    app.wait_log(r"^tab 0$")
+    assert app.quit() == 0, "exits cleanly"
+
+
+def test_ios27_prominent_tab(launch):
+    """TabRole.prominent (iOS 27): apart at the trailing end on a tinted glass circle, its icon white."""
+    app = launch("HelloTabs", os_version="27", device="iphone17", env={"PROMINENT": "1"})
+    t = app.wait_view(r"id=tab-New\b")
+    shot = app.screenshot("prominent-tab")
+    x, y, w, h = screen_frames(t)["tab-New"]
+    c = shot.getpixel((int(x + 6), int(y + h / 2)))[:3]
+    assert c[2] > 180 and c[0] < 120, f"the circle is tinted (blue) {c}"
+    app.tap_id("tab-New")
+    app.wait_view(r"id=new-tab")
+    assert app.quit() == 0, "exits cleanly"

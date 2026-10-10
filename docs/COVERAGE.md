@@ -584,8 +584,8 @@ checks it (verified), "unverified" means proposed (implemented, no test).
 | `.refreshable` | ✅ | ≤17 | pull past 60 pt and release: spinner while the async action runs (List tested, HelloLists; ScrollView unverified) |
 | `.inspector` | ✅ | 17.0 | iPad: a trailing column beside the content (`inspectorColumnWidth`; tested, HelloSheets); iPhone: a sheet, as in compact width (tested, HelloKeys) |
 | `@Environment(\.openURL)` | ✅ | ≤17 | |
-| `Tab(_:systemImage:value:role:)`, `TabRole.search` | 🟡 | 18.0 | with `--os 26`/`27` the search tab sits apart on its own glass circle; with 18 an ordinary tab; tested (HelloOSVersions). The iOS 26 search field in the tab bar is not drawn |
-| `TabRole.prominent` | 🟡 | 27.0 | like `.search`: apart at the trailing end on a glass circle |
+| `Tab(_:systemImage:value:role:)`, `TabRole.search` | ✅ | 18.0 | with `--os 26`/`27` the search tab sits apart on its own glass circle; selected, the bar turns into a circle with the tab to go back to and the search tab's `.searchable` field on glass (its text, prompt, submit and `isSearching`), riding above the keyboard; with 18 an ordinary tab. Tested (HelloOSVersions, HelloTabs) |
+| `TabRole.prominent` | ✅ | 27.0 | apart at the trailing end on a glass circle tinted with the tab view's tint, its icon white. Tested (HelloTabs, `--os 27`) |
 | `TabSection`, `.sidebarAdaptable` sidebar, `tabViewCustomization` | 🟡 | 18.0 | `TabSection` (flat in the tab bar; headed groups in the sidebar); `.sidebarAdaptable` on iPad: a sidebar button by the top tab bar shows the sidebar (tested, HelloTabs); `tabViewCustomization` / `customizationID` stored only (no reordering or hiding by the user) |
 | `navigationTransition(_:)` (`.automatic`, `.zoom(sourceID:in:)`), `matchedTransitionSource(id:in:)` | ✅ | 18.0 | adapted: `.zoom` grows the pushed level / full-screen cover out of the source view and shrinks it back on pop / dismiss (no morphing of the source); tested (HelloNavStack, HelloSheets). Sheets keep their slide |
 | `NavigationTransition.crossFade` | ✅ | 27.0 | the pushed level fades in, the popped one out (unverified) |

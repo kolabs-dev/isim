@@ -1,6 +1,7 @@
 // Sample: TabView and bar features across iOS versions on isim — TabSection and the iPad sidebar (iOS 18), the bottom
 // accessory, tab bar minimizing, scroll edge effects, background extension and merging glass (iOS 26), toolbar overflow
-// by visibility priority, pinned trailing items, ToolbarOverflowMenu, ToolbarSpacer and bottom bar minimizing (iOS 27).
+// by visibility priority, pinned trailing items, ToolbarOverflowMenu, ToolbarSpacer and bottom bar minimizing (iOS 27);
+// the search tab's .searchable field in the iOS 26 tab bar; PROMINENT=1: a TabRole.prominent tab instead (iOS 27).
 import SwiftUI
 
 @main
@@ -24,7 +25,11 @@ struct TabsRoot: View {
             TabSection("More") {
                 Tab("Glass", systemImage: "circle", value: 2) { GlassTab() }
             }
-            Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) { Text("Search tab").accessibilityIdentifier("search-tab") }
+            if ProcessInfo.processInfo.environment["PROMINENT"] == "1", #available(iOS 27.0, *) {
+                Tab("New", systemImage: "plus", value: 3, role: .prominent) { Text("New item").accessibilityIdentifier("new-tab") }
+            } else {
+                Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) { SearchTab() }
+            }
         }
         .tabViewStyle(.sidebarAdaptable)
         .modifier(TabExtras())
@@ -131,5 +136,20 @@ struct GlassTab: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color.teal.opacity(0.4))
         } else { Text("Glass needs iOS 26") }
+    }
+}
+
+/// The search tab: a list filtered by its .searchable (iOS 26: the field is in the tab bar).
+struct SearchTab: View {
+    @State private var query = ""
+    let fruits = ["Apple", "Apricot", "Banana", "Cherry"]
+    var body: some View {
+        NavigationStack {
+            List(fruits.filter { query.isEmpty || $0.localizedCaseInsensitiveContains(query) }, id: \.self) { Text($0).accessibilityIdentifier("fruit-\($0)") }
+                .navigationTitle("Search")
+                .accessibilityIdentifier("search-tab")
+        }
+        .searchable(text: $query)
+        .onChange(of: query) { _, q in print("query \(q)") }
     }
 }

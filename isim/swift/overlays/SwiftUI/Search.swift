@@ -83,6 +83,12 @@ extension View {
                 let list = _makeList(sug, _Context(graph: g, path: at, environment: env, nav: ctx.nav))
                 if _collectsRows(list) { node = list }
             }
+            // iPhone iOS 26, in a TabView's search tab: the field is in the tab bar
+            if ctx.environment._inSearchTab, let host = ctx.environment._tabSearchHost {
+                host.config = cfg
+                ctx.nav?.contentIsList = wasList
+                return node
+            }
             if let lv = ctx.nav, lv.contentIsList { lv.search = cfg; return node }         // the List shows the field under its title
             ctx.nav?.contentIsList = wasList
             let field = _SearchFieldNode(path: ctx.path + "/field", config: cfg)

@@ -2,7 +2,8 @@
 // page style (swipe between pages, page dots). Tabs are chosen by .tag / Tab(value:) (or by position).
 // Every tab stays mounted (hidden when not selected), so scroll positions and text fields keep their state.
 // The bar follows the emulated iOS version (isim --os): iOS 17/18 the material bar (iPad iOS 18: a capsule at the
-// top with titles); iOS 26+ a floating Liquid Glass capsule (search/prominent role tabs on their own glass circle).
+// top with titles); iOS 26+ a floating Liquid Glass capsule (search/prominent role tabs on their own glass circle;
+// a selected search tab turns the bar into the other tabs' circle and its `.searchable` field; prominent: tinted).
 import UIKit
 
 public protocol TabViewStyle {}
@@ -67,7 +68,8 @@ public struct Tab<Value: Hashable, Content: View, Label: View>: View, _Primitive
     var _role = 0                                   // TabRole id (Glass.swift)
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
-        let n = _resolve(content, ctx.child("c"))
+        // (a search tab's `.searchable` puts its field in the iOS 26 tab bar: TabSearch below)
+        let n = _resolve(content, ctx.child("c").with { $0._inSearchTab = _role == 1 })
         n.tabItem = _resolve(label, ctx.child("label"))
         n.tabRole = _role
         if let value { n.tag = AnyHashable(value) }
@@ -103,7 +105,12 @@ public struct TabView<SelectionValue: Hashable, Content: View>: View, _Primitive
         // tab content sits above the tab bar: no bottom safe area inside
         let saved = g.safeArea
         if case .bar = style { g.safeArea.bottom = 0 }
-        let children = _flatten([_resolve(content, ctx.child("tabs").with { $0._tabStyle = .bar })])
+        // iPhone iOS 26: a search tab's .searchable field goes in the tab bar (registered with this host)
+        let hostKey = ctx.path + "#tabsearch"
+        g.usedKeys.insert(hostKey)
+        let host = (g.storage[hostKey] as? _TabSearchHost) ?? { let h = _TabSearchHost(); g.storage[hostKey] = h; return h }()
+        host.config = nil
+        let children = _flatten([_resolve(content, ctx.child("tabs").with { $0._tabStyle = .bar; $0._tabSearchHost = _tabBarMode() == 1 ? host : nil })])
         g.safeArea = saved
         let tags = children.enumerated().map { i, c in _tagged(c) ?? AnyHashable(i) }
         let key = ctx.path + "#tab"
@@ -129,6 +136,9 @@ public struct TabView<SelectionValue: Hashable, Content: View>: View, _Primitive
         }
         let node = _TabViewNode(path: ctx.path, tabs: children, items: items, selected: index, select: select, style: style,
                                 tint: (ctx.environment._tint ?? .accentColor).uiColor)
+        // the tab to go back to from the search tab (the last other tab selected)
+        if index < items.count, items[index].role != 1 { host.lastRegular = index }
+        node.searchHost = host
         node.safeTop = saved.top; node.safeBottom = saved.bottom
         if index < children.count { node.barHidden = _tabBarHidden(children[index]) }   // .toolbar(.hidden, for: .tabBar)
         _tabExtras(node, ctx)                      // bottom accessory, minimizing, sidebar (TabView+More.swift)
@@ -158,6 +168,7 @@ final class _TabViewNode: _Node {
     var sidebarAdaptable = false, sidebarShown = false
     var toggleSidebar: (() -> Void)?
     var sidebarWidth: CGFloat { sidebarAdaptable && sidebarShown && _tabBarMode() >= 2 ? 280 : 0 }
+    var searchHost: _TabSearchHost?
     init(path: String, tabs: [_Node], items: [_TabItemInfo], selected: Int, select: @escaping (Int) -> Void, style: _TabStyle, tint: UIColor) {
         self.tabs = tabs; self.items = items; self.selected = selected; self.select = select; self.style = style; self.tint = tint
         super.init(path: path, children: tabs)
@@ -221,6 +232,8 @@ final class _TabViewNode: _Node {
             }
             bar.minimized = minimized && _tabBarMode() == 1
             let sm = setMinimized; bar.expand = { sm?(false) }
+            // iOS 26 search tab selected: the other tabs collapse into a circle, the search field fills the bar
+            bar.search = selected < items.count && items[selected].role == 1 && _tabBarMode() == 1 ? searchHost : nil
             bar.update(items: items, selected: selected, tint: tint, select: select)
             bar.isHidden = barHidden || sidebarWidth > 0
             _mountTabExtras(self, g, view, bar)
@@ -296,15 +309,34 @@ final class _SUITabBar: UIView {
     var buttons: [_SUITabButton] = []
     /// iOS 26 minimized bar (tabBarMinimizeBehavior): only the selected tab, on a glass circle at the leading edge
     var minimized = false
+    /// iOS 26 search tab selected: its search field (and the tab to go back to)
+    var search: _TabSearchHost?
+    let searchGlass = _SUIGlassView(frame: .zero)
+    let searchField = _SUITabSearchField(frame: .zero)
+    var keyboardLift: CGFloat = 0
+    private var keyboardObserver: NSObjectProtocol?
     var expand: (() -> Void)?
     override init(frame: CGRect) {
         super.init(frame: frame)
         addSubview(backdrop)
         hairline.backgroundColor = .separator
         addSubview(hairline)
-        addSubview(glass); addSubview(roleGlass)
+        addSubview(glass); addSubview(roleGlass); addSubview(searchGlass); addSubview(searchField)
         accessibilityIdentifier = "isim-tabbar"
+        // the search field rides above the keyboard
+        keyboardObserver = NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: nil) { [weak self] n in
+            let end = (n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
+            MainActor.assumeIsolated {
+                guard let self, let w = self.window else { return }
+                let screen = UIScreen.main.bounds.height
+                let height = end.isEmpty || end.minY >= screen ? 0 : screen - end.minY
+                let bottomInset = w.safeAreaInsets.bottom
+                self.keyboardLift = height > 0 && self.searchField.field.isFirstResponder ? height - bottomInset + 8 : 0
+                self.transform = CGAffineTransform(translationX: 0, y: -self.keyboardLift)
+            }
+        }
     }
+    deinit { if let o = keyboardObserver { NotificationCenter.default.removeObserver(o) } }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     func update(items: [_TabItemInfo], selected: Int, tint: UIColor, select: @escaping (Int) -> Void) {
         let mode = _tabBarMode()
@@ -324,6 +356,35 @@ final class _SUITabBar: UIView {
         glass.isHidden = mode != 1 && mode != 3; roleGlass.isHidden = roleIndex == nil
         glass.frame = area; glass.radius = area.height / 2
         if let _ = roleIndex { roleGlass.frame = CGRect(x: full.maxX + 10, y: area.minY, width: 62, height: 62); roleGlass.radius = 31 }
+        // TabRole.prominent: its glass circle is tinted (the icon white), like a prominent glass button
+        let prominent = roleIndex.map { items[$0].role == 2 } ?? false
+        roleGlass.glassTint = prominent ? tint : nil
+        searchGlass.isHidden = true; searchField.isHidden = true
+        if let host = search, let ri = roleIndex, items[ri].role == 1 {
+            // search tab selected: the tab to go back to on a glass circle, then the search field across the bar
+            let back = host.lastRegular < items.count && host.lastRegular != ri ? host.lastRegular : (items.indices.first { $0 != ri } ?? 0)
+            let circle = CGRect(x: full.minX, y: area.minY, width: 62, height: 62)
+            glass.frame = circle; glass.radius = 31
+            roleGlass.isHidden = true
+            searchGlass.isHidden = false; searchField.isHidden = false
+            searchGlass.frame = CGRect(x: circle.maxX + 10, y: area.minY, width: bounds.width - (circle.maxX + 10) - full.minX, height: 62)
+            searchGlass.radius = 31
+            searchField.frame = searchGlass.frame
+            searchField.configure(host.config, tint: tint)
+            for (i, it) in items.enumerated() {
+                let b = buttons[i]
+                b.mode = mode
+                b.isHidden = i != back
+                b.compact = true
+                if i == back { b.frame = circle.insetBy(dx: 4, dy: 4) }
+                bringSubviewToFront(b)
+                b.configure(it, selected: false, tint: tint)
+                b.action = { select(back) }
+                b.accessibilityIdentifier = "tab-" + (it.title.isEmpty ? "\(i)" : it.title)
+            }
+            bringSubviewToFront(searchField)
+            return
+        }
         let inner = mode == 0 ? area : area.insetBy(dx: 4, dy: 4)
         let count = minimized ? 1 : CGFloat(max(1, items.count - (roleIndex == nil ? 0 : 1)))
         let w = inner.width / count
@@ -337,7 +398,7 @@ final class _SUITabBar: UIView {
             else if minimized { if i == selected { b.frame = inner } }
             else { b.frame = mode == 0 ? CGRect(x: CGFloat(slot) * w, y: 0, width: w, height: 49) : CGRect(x: inner.minX + CGFloat(slot) * w, y: inner.minY, width: w, height: inner.height); slot += 1 }
             bringSubviewToFront(b)
-            b.configure(it, selected: i == selected, tint: tint)
+            b.configure(it, selected: i == selected, tint: tint, prominent: i == roleIndex && prominent)
             b.action = minimized && i == selected && expand != nil ? { [weak self] in self?.expand?() } : { select(i) }   // a minimized bar expands
             b.accessibilityIdentifier = "tab-" + (it.title.isEmpty ? "\(i)" : it.title)
         }
@@ -361,7 +422,7 @@ final class _SUITabButton: UIControl {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func fire() { action?() }
-    func configure(_ it: _TabItemInfo, selected: Bool, tint: UIColor) {
+    func configure(_ it: _TabItemInfo, selected: Bool, tint: UIColor, prominent: Bool = false) {
         var color = selected ? tint : UIColor.systemGray
         let w = bounds.width
         pill.isHidden = !selected || mode == 0
@@ -379,6 +440,7 @@ final class _SUITabButton: UIControl {
         icon.isHidden = false
         title.font = .systemFont(ofSize: 10, weight: mode == 1 ? .semibold : .medium)
         if mode == 1 && !selected { color = .label }    // iOS 26: unselected tabs are monochrome
+        if prominent { color = .white }                  // on the tinted glass of a prominent tab
         icon.image = it.image?.withRenderingMode(.alwaysTemplate)
         icon.tintColor = color
         let s = icon.image?.size ?? .zero, k = 24 / max(1, max(s.width, s.height))      // symbols scale cleanly
@@ -396,4 +458,45 @@ final class _SUITabButton: UIControl {
         }
     }
     override var isHighlighted: Bool { didSet { alpha = isHighlighted ? 0.5 : 1 } }
+}
+
+// MARK: - iOS 26 tab bar search field
+
+/// The `.searchable` of a TabView's search tab (iPhone, iOS 26): its field shows in the tab bar.
+@MainActor final class _TabSearchHost: _AnyStorage {
+    var config: _SearchConfig?
+    var lastRegular = 0
+}
+struct _InSearchTabKey: EnvironmentKey { static var defaultValue: Bool { false } }
+struct _TabSearchHostKey: EnvironmentKey { nonisolated(unsafe) static var defaultValue: _TabSearchHost? { nil } }
+extension EnvironmentValues {
+    var _inSearchTab: Bool { get { self[_InSearchTabKey.self] } set { self[_InSearchTabKey.self] = newValue } }
+    var _tabSearchHost: _TabSearchHost? { get { self[_TabSearchHostKey.self] } set { self[_TabSearchHostKey.self] = newValue } }
+}
+/// The search field on the tab bar's glass: a magnifier, the text (the searchable's binding) and its prompt.
+final class _SUITabSearchField: UIView, UITextFieldDelegate {
+    let icon = UIImageView(image: UIImage(systemName: "magnifyingglass")), field = UITextField()
+    weak var config: _SearchConfig?
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        icon.tintColor = .secondaryLabel; icon.contentMode = .scaleAspectFit
+        field.font = .systemFont(ofSize: 17); field.clearButtonMode = .whileEditing; field.returnKeyType = .search
+        field.delegate = self
+        field.accessibilityIdentifier = "tab-search-field"
+        field.addTarget(self, action: #selector(changed), for: .editingChanged)
+        addSubview(icon); addSubview(field)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    func configure(_ c: _SearchConfig?, tint: UIColor) {
+        config = c
+        field.placeholder = c?.prompt ?? "Search"
+        if let t = c?.text.wrappedValue, field.text != t, !field.isFirstResponder { field.text = t }
+        field.tintColor = tint
+        icon.frame = CGRect(x: 18, y: (bounds.height - 20) / 2, width: 20, height: 20)
+        field.frame = CGRect(x: 46, y: 0, width: bounds.width - 46 - 14, height: bounds.height)
+    }
+    @objc func changed() { config?.text.wrappedValue = field.text ?? "" }
+    func textFieldDidBeginEditing(_ textField: UITextField) { config?.searching.wrappedValue = true }
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool { config?.submit(); textField.resignFirstResponder(); return false }
+    func textFieldDidEndEditing(_ textField: UITextField) { if (textField.text ?? "").isEmpty { config?.searching.wrappedValue = false } }
 }
