@@ -10,6 +10,8 @@
  * UniformTypeIdentifiers module (isim_uti_file_conforms, looked up at run time). */
 #import "UIKitPrivate.h"
 #import <UIKit/UIDocumentPickerViewController.h>
+#import <UIKit/UIDocumentViewController.h>
+#import <objc/runtime.h>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
@@ -427,7 +429,7 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
 - (void)_isimDecorate:(UIViewController *)vc {
     NSMutableArray *right = [NSMutableArray array], *left = [NSMutableArray arrayWithArray:_additionalLeadingNavigationBarButtonItems];
     if (_allowsDocumentCreation && [vc isKindOfClass:[__IsimFilesList class]]) {
-        UIBarButtonItem *create = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(_isimCreate)];
+        UIBarButtonItem *create = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(_isimCreateDefault)];
         create.accessibilityIdentifier = @"docs-create"; create.accessibilityLabel = _localizedCreateDocumentActionTitle;
         [right addObject:create];
     }
@@ -507,4 +509,17 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
     [[self _top] reload];
     if (completion) completion(dst, dst ? nil : err ?: [NSError errorWithDomain:UIDocumentBrowserErrorDomain code:UIDocumentBrowserErrorGeneric userInfo:nil]);
 }
+@end
+
+/* iOS 18: the intent of the create document action that asked the delegate for a document */
+static char kActiveIntent;
+@implementation UIDocumentBrowserViewController (UIDocumentCreationIntent)
+- (UIDocumentCreationIntent)activeDocumentCreationIntent { return objc_getAssociatedObject(self, &kActiveIntent); }
+- (void)_isimCreateWithIntent:(UIDocumentCreationIntent)intent {
+    objc_setAssociatedObject(self, &kActiveIntent, intent, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    NSLog(@"isim UIKit: document browser: create document (%@)", intent);
+    [self _isimCreate];                                            /* the delegate is asked synchronously */
+    objc_setAssociatedObject(self, &kActiveIntent, nil, OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+- (void)_isimCreateDefault { [self _isimCreateWithIntent:UIDocumentCreationIntentDefault]; }
 @end

@@ -929,7 +929,7 @@ static __IsimLargeContentWindow *lcv_window;
         if (!lcv_window) { lcv_window = [[__IsimLargeContentWindow alloc] initWithFrame:UIScreen.mainScreen.bounds]; lcv_window.windowLevel = 16500000; lcv_window.backgroundColor = UIColor.clearColor; }
         CGSize s = UIScreen.mainScreen.bounds.size;
         UIView *hud = [[UIView alloc] initWithFrame:CGRectMake(s.width / 2 - 120, s.height / 2 - 120, 240, 240)];
-        hud.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.92]; hud.layer.cornerRadius = 18;
+        hud.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.92]; hud.layer.cornerRadius = 18; hud.layer.cornerCurve = kCACornerCurveContinuous;
         hud.accessibilityIdentifier = @"isim-large-content";
         UIImage *img = [item largeContentImage];
         if (img) { UIImageView *iv = [[UIImageView alloc] initWithFrame:CGRectMake(70, 40, 100, 100)]; iv.image = img; iv.tintColor = UIColor.whiteColor; iv.contentMode = UIViewContentModeScaleAspectFit; [hud addSubview:iv]; }

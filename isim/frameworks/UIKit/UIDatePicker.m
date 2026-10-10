@@ -497,7 +497,7 @@ enum { COL_MONTH, COL_DAY, COL_YEAR, COL_HOUR, COL_MINUTE, COL_AMPM, COL_DATE, C
     o.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     UIView *card = [UIView new];
     card.backgroundColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.17 alpha:1] : UIColor.whiteColor; }];
-    card.layer.cornerRadius = 13;
+    card.layer.cornerRadius = 13; card.layer.cornerCurve = kCACornerCurveContinuous;
     card.layer.shadowColor = UIColor.blackColor.CGColor; card.layer.shadowOpacity = 0.1; card.layer.shadowRadius = 12; card.layer.shadowOffset = CGSizeMake(0, 4);
     card.tintColor = self.tintColor;
     content.frame = CGRectMake(0, 4, size.width, size.height);

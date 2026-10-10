@@ -591,7 +591,7 @@ static NSInteger draw_item(id item, CGRect paper, CGRect printable, BOOL draw) {
     [row setTitle:show ? @"isim Printer" : @"No AirPrint Printers Found" forState:UIControlStateNormal];
     row.enabled = show; row.accessibilityIdentifier = @"printer-isim";
     row.frame = CGRectMake(20, 100, 300, 44);
-    row.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor; row.layer.cornerRadius = 10;
+    row.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor; row.layer.cornerRadius = 10; row.layer.cornerCurve = kCACornerCurveContinuous;
     row.contentEdgeInsets = UIEdgeInsetsMake(0, 16, 0, 16);
     row.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
     [row addTarget:self action:@selector(isimPickerChoose) forControlEvents:UIControlEventTouchUpInside];

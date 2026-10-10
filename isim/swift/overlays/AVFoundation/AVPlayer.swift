@@ -516,6 +516,7 @@ public struct AVLayerVideoGravity: RawRepresentable, Hashable, Sendable {
 /// Draws the player's current video frame (isim: a CALayer drawn by UIKit's renderer each frame).
 open class AVPlayerLayer: CALayer {
     public override init() { super.init() }
+    public required init?(coder: NSCoder) { super.init(coder: coder) }
     public convenience init(player: AVPlayer?) { self.init(); self.player = player }
     open var player: AVPlayer? {
         didSet {

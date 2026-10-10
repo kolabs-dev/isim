@@ -55,6 +55,10 @@ void isim_path_curve(double x1, double y1, double x2, double y2, double x, doubl
 void isim_path_arc(double cx, double cy, double r, double a0, double a1, int clockwise);
 void isim_path_close(void);
 void isim_path_rect(double x, double y, double w, double h, double r);
+/* rounded rect with a radius per corner (top-left, top-right, bottom-left, bottom-right) */
+void isim_path_corners(double x, double y, double w, double h, const double *radii);
+/* rounded-rect corners from now on: 1 continuous (the default), 0 circular, -1 unchanged; returns the previous */
+int isim_gfx_corner_curve(int continuous);
 void isim_path_fill(const double *rgba);
 void isim_path_stroke(double lw, const double *rgba);
 /* stroke style of the graphics state: cap 0 butt 1 round 2 square; join 0 miter 1 round 2 bevel; dash lengths (ndash 0 = solid) */
@@ -120,6 +124,15 @@ void isim_image_bytes_free(unsigned char *_Nullable bytes);
 /* attributed text as Pango markup (<span font_family= size= weight= foreground= ...>); align 0 left 1 center 2 right */
 void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h);
 void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba);
+/* text layouts kept for queries (TextKit): byte offsets into the layout's UTF-8 text */
+void *isim_tl_create(const char *markup, double maxw, int align, double spacing, double indent, int n, const int *bytes, const double *boxes);
+void isim_tl_free(void *t);
+void isim_tl_size(void *t, double *w, double *h);
+int isim_tl_line_count(void *t);
+void isim_tl_line(void *t, int i, int *start, int *len, double *rect, double *baseline);
+void isim_tl_index_rect(void *t, int byte, double *rect);
+int isim_tl_index_at(void *t, double x, double y, int *trailing);
+void isim_tl_draw(void *t, double x, double y, const double *rgba);
 /* audio: PCM buffers (float, interleaved) played as mixed voices. Voice handles are longs (> 0). */
 int isim_audio_available(void);
 int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate);

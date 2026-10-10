@@ -47,6 +47,8 @@
 #import <UIKit/UIImagePickerController.h>
 #import <UIKit/UIPrinting.h>
 #import <UIKit/UIDocumentPickerViewController.h>
+#import <UIKit/UIDocument.h>
+#import <UIKit/UIDocumentViewController.h>
 #import <UIKit/UIReferenceLibraryViewController.h>
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>
@@ -57,6 +59,9 @@
 #import <UIKit/UIOrientation.h>
 #import <UIKit/UILayoutExtras.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>
+#import <UIKit/NSTextStorage.h>
+#import <UIKit/NSTextAttachment.h>
+#import <UIKit/NSTextLayoutManager.h>
 #import <UIKit/UITextView.h>
 #import <UIKit/UIPickerView.h>
 #import <UIKit/UIDatePicker.h>

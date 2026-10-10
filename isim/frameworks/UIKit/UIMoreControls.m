@@ -729,10 +729,10 @@ void isim_ui_menu_set_type_select(BOOL allowed) { current_menu.typeSelect = allo
         UIGlassEffect *g = [UIGlassEffect effectWithStyle:UIGlassEffectStyleRegular];
         g.tintColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return [UIColor colorWithWhite:t.userInterfaceStyle == UIUserInterfaceStyleDark ? 0.12 : 0.98 alpha:0.55]; }];
         o.card = [[UIVisualEffectView alloc] initWithEffect:g];
-        o.card.layer.cornerRadius = 26;
+        o.card.layer.cornerRadius = 26; o.card.layer.cornerCurve = kCACornerCurveContinuous;
     } else {
         o.card = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterial]];
-        o.card.layer.cornerRadius = 13;
+        o.card.layer.cornerRadius = 13; o.card.layer.cornerCurve = kCACornerCurveContinuous;
     }
     o.card.clipsToBounds = YES;
     [o addSubview:o.card];
@@ -756,7 +756,7 @@ void isim_ui_menu_set_type_select(BOOL allowed) { current_menu.typeSelect = allo
     CGFloat px = fmin(fmax(16, CGRectGetMidX(anchor) - ps.width / 2), b.size.width - 16 - ps.width);
     CGFloat py = fmin(fmax(d->safe_top + 8, anchor.origin.y), b.size.height - d->safe_bottom - 8 - card.size.height - 8 - ps.height);
     preview.frame = CGRectMake(px, fmax(d->safe_top + 8, py), ps.width, ps.height);
-    preview.layer.cornerRadius = 13; preview.clipsToBounds = YES;
+    preview.layer.cornerRadius = 13; preview.layer.cornerCurve = kCACornerCurveContinuous; preview.clipsToBounds = YES;
     preview.accessibilityIdentifier = preview.accessibilityIdentifier ?: @"isim-menu-preview";
     [o insertSubview:preview belowSubview:o.card];
     card.origin.y = CGRectGetMaxY(preview.frame) + 8;
