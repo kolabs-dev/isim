@@ -346,8 +346,9 @@ typedef int (*hook_getImageName)(Class cls, const char **out);
 typedef const char *(*hook_lazyNamer)(Class cls);
 /* Like libobjc, hooks start out as default implementations so chained hooks can always call "old". */
 Class objc_lookUpClass(const char *name);
+static Class lookup_class_raw(const char *name);
 const char *isim_image_path_for_address(const void *addr);
-static int default_getclass(const char *name, Class *out) { *out = objc_lookUpClass(name); return *out != NULL; }
+static int default_getclass(const char *name, Class *out) { *out = lookup_class_raw(name); return *out != NULL; }
 static int default_imagename(Class cls, const char **out) { *out = cls ? isim_image_path_for_address(cls) : NULL; return *out != NULL; }
 static const char *default_lazynamer(Class cls) { return NULL; }
 static hook_getClass getclass_hook = default_getclass;
@@ -509,18 +510,21 @@ void objc_rt_load_image(const struct objc_image *img) {
 }
 
 /* ================= public introspection API ================= */
-Class objc_lookUpClass(const char *name) {
+static Class lookup_class_raw(const char *name) {
     pthread_mutex_lock(&rt_lock);
     void **slot = strmap_slot(&classes, name, 0);
     pthread_mutex_unlock(&rt_lock);
     return slot ? *slot : NULL;
 }
-Class objc_getClass(const char *name) {
+/* like libobjc, a class not registered yet goes to the getClass hooks (the Swift runtime's mangled names; Foundation
+   loading the Swift overlay that defines a runtime-visible class such as NSURLSession) */
+Class objc_lookUpClass(const char *name) {
     if (!name) return NULL;
-    Class c = objc_lookUpClass(name);
-    if (!c) getclass_hook(name, &c);      /* e.g. Swift mangled names, resolved by the Swift runtime */
+    Class c = lookup_class_raw(name);
+    if (!c) getclass_hook(name, &c);
     return c;
 }
+Class objc_getClass(const char *name) { return objc_lookUpClass(name); }
 Class objc_getMetaClass(const char *name) { Class c = objc_getClass(name); return c ? c->isa : NULL; }
 const char *class_getName(Class c) { return cls_name(c); }
 Class class_getSuperclass(Class c) { return c ? c->superclass : NULL; }

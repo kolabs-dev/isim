@@ -17,7 +17,7 @@
 import isim_host
 
 // MARK: - configuration
-open class URLSessionConfiguration: NSObject, @unchecked Sendable {
+@objc(NSURLSessionConfiguration) open class URLSessionConfiguration: NSObject, @unchecked Sendable {
     open class var `default`: URLSessionConfiguration { URLSessionConfiguration() }
     /// no persistent storage: a private cookie jar and an in-memory cache
     open class var ephemeral: URLSessionConfiguration {
@@ -152,7 +152,7 @@ public let NSURLSessionTransferSizeUnknown: Int64 = -1
 public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeData"
 
 // MARK: - session
-open class URLSession: NSObject, @unchecked Sendable {
+@objc(NSURLSession) open class URLSession: NSObject, @unchecked Sendable {
     public enum ResponseDisposition: Int, Sendable { case cancel = 0, allow = 1, becomeDownload = 2, becomeStream = 3 }
     public enum DelayedRequestDisposition: Int, Sendable { case continueLoading = 0, useNewRequest = 1, cancel = 2 }
 
@@ -299,7 +299,7 @@ open class URLSession: NSObject, @unchecked Sendable {
 }
 
 // MARK: - tasks
-open class URLSessionTask: NSObject, @unchecked Sendable {
+@objc(NSURLSessionTask) open class URLSessionTask: NSObject, @unchecked Sendable {
     public enum State: Int, Sendable { case running = 0, suspended = 1, canceling = 2, completed = 3 }
     public static let defaultPriority: Float = 0.5
     public static let lowPriority: Float = 0.25
@@ -667,7 +667,8 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             nonisolated(unsafe) let sd = sessionDelegate
             _session.delegateQueue.addOperation {
                 sd.urlSession(self._session, didReceive: ch) { r, c in
-                    if r == .performDefaultHandling && taskDelegate != nil && taskDelegate !== sd { askTask() } else { box.value = (r, c); sem.signal() }
+                    let defers = taskDelegate !== sd || (sd as? _ObjCURLSessionDelegate)?._defersSessionChallenges == true
+                    if r == .performDefaultHandling && taskDelegate != nil && defers { askTask() } else { box.value = (r, c); sem.signal() }
                 }
             }
         } else { askTask() }
@@ -811,7 +812,7 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
 
 final class _URLBox<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v } }
 
-open class URLSessionDataTask: URLSessionTask, @unchecked Sendable {
+@objc(NSURLSessionDataTask) open class URLSessionDataTask: URLSessionTask, @unchecked Sendable {
     var _dataCompletion: (@Sendable (Data?, URLResponse?, Error?) -> Void)?
     var _uploadBody: Data?
     var _uploadFile: URL?
@@ -855,12 +856,12 @@ private func cacheableHint(_ t: URLSessionTask) -> Bool {
     t._session.configuration.urlCache != nil && (t.originalRequest?.httpMethod ?? "GET") == "GET"
 }
 
-open class URLSessionUploadTask: URLSessionDataTask, @unchecked Sendable {
+@objc(NSURLSessionUploadTask) open class URLSessionUploadTask: URLSessionDataTask, @unchecked Sendable {
     /// iOS 17: resumable uploads are not supported by isim
     open func cancel(byProducingResumeData completionHandler: @escaping @Sendable (Data?) -> Void) { cancel(); completionHandler(nil) }
 }
 
-open class URLSessionDownloadTask: URLSessionTask, @unchecked Sendable {
+@objc(NSURLSessionDownloadTask) open class URLSessionDownloadTask: URLSessionTask, @unchecked Sendable {
     var _downloadCompletion: (@Sendable (URL?, URLResponse?, Error?) -> Void)?
     var _location: URL?
 

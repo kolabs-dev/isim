@@ -240,7 +240,7 @@ public struct URLRequest: Hashable, @unchecked Sendable, CustomStringConvertible
 // MARK: - URLResponse / HTTPURLResponse
 public let NSURLResponseUnknownLength: Int64 = -1
 
-open class URLResponse: NSObject, @unchecked Sendable {
+@objc(NSURLResponse) open class URLResponse: NSObject, @unchecked Sendable {
     public let url: URL?
     public let mimeType: String?
     public let expectedContentLength: Int64
@@ -269,7 +269,7 @@ open class URLResponse: NSObject, @unchecked Sendable {
     open override var description: String { "<\(type(of: self)): \(url?.absoluteString ?? "")>" }
 }
 
-open class HTTPURLResponse: URLResponse, @unchecked Sendable {
+@objc(NSHTTPURLResponse) open class HTTPURLResponse: URLResponse, @unchecked Sendable {
     public let statusCode: Int
     let _headers: [(String, String)]
     let _httpVersion: String?

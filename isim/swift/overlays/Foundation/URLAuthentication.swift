@@ -38,7 +38,7 @@ public let NSURLProtectionSpaceFTP = "ftp"
 public let NSURLProtectionSpaceHTTPProxy = "http"
 public let NSURLProtectionSpaceHTTPSProxy = "https"
 
-open class URLCredential: NSObject, @unchecked Sendable {
+@objc(NSURLCredential) open class URLCredential: NSObject, @unchecked Sendable {
     public enum Persistence: UInt, Sendable { case none = 0, forSession, permanent, synchronizable }
     open private(set) var user: String?
     open private(set) var password: String?
@@ -70,7 +70,7 @@ open class URLCredential: NSObject, @unchecked Sendable {
     var _storeKey: String? { user ?? (_identity != nil ? "" : nil) }
 }
 
-open class URLProtectionSpace: NSObject, @unchecked Sendable {
+@objc(NSURLProtectionSpace) open class URLProtectionSpace: NSObject, @unchecked Sendable {
     open private(set) var host: String
     open private(set) var port: Int
     open private(set) var `protocol`: String?
@@ -102,7 +102,7 @@ open class URLProtectionSpace: NSObject, @unchecked Sendable {
     open override var description: String { "<URLProtectionSpace \(_key)>" }
 }
 
-open class URLAuthenticationChallenge: NSObject, @unchecked Sendable {
+@objc(NSURLAuthenticationChallenge) open class URLAuthenticationChallenge: NSObject, @unchecked Sendable {
     open private(set) var protectionSpace: URLProtectionSpace
     open private(set) var proposedCredential: URLCredential?
     open private(set) var previousFailureCount: Int
@@ -123,7 +123,7 @@ extension URLSession {
 
 /// Credentials by protection space. `.permanent` credentials of the shared storage are kept for this run only
 /// (isim has no keychain-backed credential store).
-open class URLCredentialStorage: NSObject, @unchecked Sendable {
+@objc(NSURLCredentialStorage) open class URLCredentialStorage: NSObject, @unchecked Sendable {
     static let _shared = URLCredentialStorage()
     open class var shared: URLCredentialStorage { _shared }
     let lock = NSLock()

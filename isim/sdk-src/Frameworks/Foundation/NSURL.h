@@ -159,3 +159,44 @@ FOUNDATION_EXPORT NSURLFileResourceType const NSURLFileResourceTypeUnknown NS_SW
 @property (nullable, readonly, copy) NSURL *URLByResolvingSymlinksInPath NS_REFINED_FOR_SWIFT;
 @end
 NS_ASSUME_NONNULL_END
+
+/* URLComponents / URLQueryItem for Objective-C: classes of the Swift overlay (Swift code uses the structs) */
+#if !defined(__swift__)
+NS_ASSUME_NONNULL_BEGIN
+ISIM_RUNTIME_VISIBLE
+@interface NSURLQueryItem : NSObject <NSCopying>
+- (instancetype)initWithName:(NSString *)name value:(nullable NSString *)value;
++ (instancetype)queryItemWithName:(NSString *)name value:(nullable NSString *)value;
+@property (readonly) NSString *name;
+@property (nullable, readonly) NSString *value;
+@end
+
+ISIM_RUNTIME_VISIBLE
+@interface NSURLComponents : NSObject <NSCopying>
+- (instancetype)init;
+- (nullable instancetype)initWithURL:(NSURL *)url resolvingAgainstBaseURL:(BOOL)resolve;
++ (nullable instancetype)componentsWithURL:(NSURL *)url resolvingAgainstBaseURL:(BOOL)resolve;
+- (nullable instancetype)initWithString:(NSString *)URLString;
++ (nullable instancetype)componentsWithString:(NSString *)URLString;
+@property (nullable, readonly, copy) NSURL *URL;
+- (nullable NSURL *)URLRelativeToURL:(nullable NSURL *)baseURL;
+@property (nullable, readonly, copy) NSString *string;
+@property (nullable, copy) NSString *scheme;
+@property (nullable, copy) NSString *user;
+@property (nullable, copy) NSString *password;
+@property (nullable, copy) NSString *host;
+@property (nullable, copy) NSNumber *port;
+@property (nullable, copy) NSString *path;
+@property (nullable, copy) NSString *query;
+@property (nullable, copy) NSString *fragment;
+@property (nullable, copy) NSString *percentEncodedUser;
+@property (nullable, copy) NSString *percentEncodedPassword;
+@property (nullable, copy) NSString *percentEncodedHost;
+@property (nullable, copy) NSString *percentEncodedPath;
+@property (nullable, copy) NSString *percentEncodedQuery;
+@property (nullable, copy) NSString *percentEncodedFragment;
+@property (nullable, copy) NSArray<NSURLQueryItem *> *queryItems;
+@property (nullable, copy) NSArray<NSURLQueryItem *> *percentEncodedQueryItems;
+@end
+NS_ASSUME_NONNULL_END
+#endif

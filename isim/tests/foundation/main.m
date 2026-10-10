@@ -603,6 +603,130 @@ static void file_checks(void) {
     [fm removeItemAtPath:dir error:NULL];
 }
 
+/* the URL loading system from Objective-C: classes of Foundation's Swift overlay, found through the runtime (this app
+   has no Swift code: the first lookup loads the overlay); requests go to http_server.py (ISIM_TEST_HTTP_PORT) */
+@interface SessionRecorder : NSObject <NSURLSessionDataDelegate>
+@property (strong) NSMutableData *body;
+@property NSInteger status, challenges, redirects;
+@property (copy) NSString *realm;
+@property (strong) NSError *error;
+@property BOOL completed;
+@end
+@implementation SessionRecorder
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response
+ completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
+    self.status = [(NSHTTPURLResponse *)response statusCode];
+    self.body = [NSMutableData data];
+    completionHandler(NSURLSessionResponseAllow);
+}
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data { [self.body appendData:data]; }
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
+ completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential *))completionHandler {
+    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodHTTPBasic]) {
+        self.challenges++; self.realm = challenge.protectionSpace.realm;
+        completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialWithUser:@"user" password:@"secret" persistence:NSURLCredentialPersistenceNone]);
+    } else completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+}
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+        newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler {
+    self.redirects++;
+    completionHandler(request);
+}
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error { self.error = error; self.completed = YES; }
+@end
+
+static void objc_networking_checks(void) {
+    NSURLComponents *c = [NSURLComponents componentsWithString:@"https://user@example.com:8443/a%20b?q=swift%20ui#frag"];
+    CHECK((c && [c.host isEqualToString:@"example.com"] && c.port.intValue == 8443 && [c.path isEqualToString:@"/a b"]));
+    CHECK(([c.queryItems.firstObject.name isEqualToString:@"q"] && [c.queryItems.firstObject.value isEqualToString:@"swift ui"]));
+    c.queryItems = @[[NSURLQueryItem queryItemWithName:@"k" value:@"v w"]];
+    CHECK_STR(c.URL.absoluteString, @"https://user@example.com:8443/a%20b?k=v%20w#frag");
+
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"http://example.com/x"]];
+    req.HTTPMethod = @"PUT"; req.timeoutInterval = 12;
+    [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"]; [req addValue:@"b" forHTTPHeaderField:@"X-A"]; [req addValue:@"c" forHTTPHeaderField:@"x-a"];
+    NSURLRequest *frozen = [req copy];
+    CHECK(([frozen.HTTPMethod isEqualToString:@"PUT"] && frozen.timeoutInterval == 12 && [[frozen valueForHTTPHeaderField:@"content-type"] isEqualToString:@"application/json"] &&
+           [[frozen valueForHTTPHeaderField:@"X-A"] isEqualToString:@"b,c"] && ![frozen isKindOfClass:NSClassFromString(@"NSMutableURLRequest")] &&
+           [[frozen mutableCopy] isKindOfClass:NSClassFromString(@"NSMutableURLRequest")] && [frozen isEqual:req]));
+
+    NSHTTPURLResponse *hr = [[NSHTTPURLResponse alloc] initWithURL:[NSURL URLWithString:@"http://x/f.json"] statusCode:404 HTTPVersion:@"HTTP/1.1"
+                                                      headerFields:@{ @"Content-Type": @"application/json; charset=utf-8" }];
+    CHECK((hr.statusCode == 404 && [hr.MIMEType isEqualToString:@"application/json"] && [[hr valueForHTTPHeaderField:@"content-type"] hasPrefix:@"application/json"] &&
+           [[NSHTTPURLResponse localizedStringForStatusCode:404] isEqualToString:@"not found"]));
+
+    NSHTTPCookie *ck = [NSHTTPCookie cookieWithProperties:@{ NSHTTPCookieName: @"id", NSHTTPCookieValue: @"42", NSHTTPCookieDomain: @"example.com", NSHTTPCookiePath: @"/" }];
+    NSArray<NSHTTPCookie *> *parsed = [NSHTTPCookie cookiesWithResponseHeaderFields:@{ @"Set-Cookie": @"theme=dark; Path=/; Secure" } forURL:[NSURL URLWithString:@"https://example.com/"]];
+    CHECK(([ck.name isEqualToString:@"id"] && [ck.value isEqualToString:@"42"] && ck.isSessionOnly && parsed.count == 1 && parsed[0].isSecure &&
+           [[NSHTTPCookie requestHeaderFieldsWithCookies:@[ck]][@"Cookie"] isEqualToString:@"id=42"] && [ck.properties[NSHTTPCookieName] isEqualToString:@"id"]));
+
+    const char *portEnv = getenv("ISIM_TEST_HTTP_PORT");
+    if (!portEnv) { CHECK(!"ISIM_TEST_HTTP_PORT (run through test_foundation.py)"); return; }
+    NSString *base = [NSString stringWithFormat:@"http://127.0.0.1:%s", portEnv];
+
+    /* completion handlers on the shared session */
+    __block NSData *got = nil; __block NSHTTPURLResponse *gotResponse = nil; __block NSError *gotError = nil; __block BOOL done = NO;
+    [[NSURLSession.sharedSession dataTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/hello"]]
+                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        got = data; gotResponse = (NSHTTPURLResponse *)response; gotError = error; done = YES;
+    }] resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && gotError == nil && gotResponse.statusCode == 200 && [gotResponse.MIMEType isEqualToString:@"text/plain"] &&
+           [[[NSString alloc] initWithData:got encoding:NSUTF8StringEncoding] isEqualToString:@"hello objc"]));
+
+    NSMutableURLRequest *post = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/echo"]]];
+    post.HTTPMethod = @"POST";
+    done = NO; got = nil;
+    NSURLSessionUploadTask *up = [NSURLSession.sharedSession uploadTaskWithRequest:post fromData:[@"ping" dataUsingEncoding:NSUTF8StringEncoding]
+                                                                 completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) { got = data; done = YES; }];
+    [up resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && [got isEqualToData:[@"ping" dataUsingEncoding:NSUTF8StringEncoding]] && up.state == NSURLSessionTaskStateCompleted &&
+           [up.originalRequest.HTTPMethod isEqualToString:@"POST"] && up.countOfBytesSent == 4));
+
+    __block NSString *downloaded = nil; done = NO;
+    [[NSURLSession.sharedSession downloadTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/hello"]]
+                                   completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+        downloaded = [NSString stringWithContentsOfURL:location encoding:NSUTF8StringEncoding error:NULL]; done = YES;
+    }] resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && [downloaded isEqualToString:@"hello objc"]));
+
+    /* cookies land in the shared storage */
+    done = NO;
+    [[NSURLSession.sharedSession dataTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/cookie"]]
+                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) { done = YES; }] resume];
+    NSArray<NSHTTPCookie *> *jar = spin_until(^BOOL { return done; }, 10) ? [NSHTTPCookieStorage.sharedHTTPCookieStorage cookiesForURL:[NSURL URLWithString:base]] : nil;
+    CHECK((jar.count == 1 && [jar[0].name isEqualToString:@"flavor"] && [jar[0].value isEqualToString:@"oatmeal"]));
+
+    /* an Objective-C delegate (NSURLSessionDataDelegate): response, data, redirect, Basic authentication, completion */
+    NSURLSessionConfiguration *cfg = NSURLSessionConfiguration.ephemeralSessionConfiguration;
+    cfg.timeoutIntervalForRequest = 20; cfg.HTTPAdditionalHeaders = @{ @"X-Isim": @"objc" };
+    SessionRecorder *rec = [SessionRecorder new];
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:cfg delegate:rec delegateQueue:nil];
+    CHECK((session.delegate == rec && session.configuration.timeoutIntervalForRequest == 20 && session.configuration.identifier == nil));
+    [[session dataTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/redirect"]]] resume];
+    CHECK((spin_until(^BOOL { return rec.completed; }, 10) && rec.error == nil && rec.status == 200 && rec.redirects == 1 &&
+           [[[NSString alloc] initWithData:rec.body encoding:NSUTF8StringEncoding] isEqualToString:@"hello objc"]));
+    rec.completed = NO;
+    [[session dataTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/auth"]]] resume];
+    CHECK((spin_until(^BOOL { return rec.completed; }, 10) && rec.status == 200 && rec.challenges == 1 && [rec.realm isEqualToString:@"isim"] &&
+           [[[NSString alloc] initWithData:rec.body encoding:NSUTF8StringEncoding] isEqualToString:@"welcome"]));
+    [session invalidateAndCancel];
+
+    /* errors are NSURLErrorDomain NSErrors */
+    done = NO; gotError = nil;
+    [[NSURLSession.sharedSession dataTaskWithURL:[NSURL URLWithString:@"http://127.0.0.1:1/"]
+                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) { gotError = error; done = YES; }] resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && [gotError.domain isEqualToString:NSURLErrorDomain] && gotError.code == NSURLErrorCannotConnectToHost &&
+           [NSURLErrorDomain isEqualToString:gotError.domain] && gotError.domain.hash == NSURLErrorDomain.hash));
+
+    /* NSURLCache */
+    NSURLCache *cache = [[NSURLCache alloc] initWithMemoryCapacity:1 << 20 diskCapacity:0 diskPath:nil];
+    NSURLRequest *cacheKey = [NSURLRequest requestWithURL:[NSURL URLWithString:@"http://cache.invalid/objc"]];
+    [cache storeCachedResponse:[[NSCachedURLResponse alloc] initWithResponse:hr data:[@"cached" dataUsingEncoding:NSUTF8StringEncoding]] forRequest:cacheKey];
+    NSCachedURLResponse *back = [cache cachedResponseForRequest:cacheKey];
+    CHECK(([back.data isEqualToData:[@"cached" dataUsingEncoding:NSUTF8StringEncoding]] && [(NSHTTPURLResponse *)back.response statusCode] == 404 &&
+           back.storagePolicy == NSURLCacheStorageAllowed && cache.currentMemoryUsage > 0));
+}
+
 int main(int argc, char *argv[]) {
     @autoreleasepool {
         // strings & formatting
@@ -1164,6 +1288,7 @@ int main(int argc, char *argv[]) {
         CHECK([fm removeItemAtPath:fmDir error:NULL]);
         thread_checks();
         file_checks();
+        objc_networking_checks();
         locale_checks();
 
         collection_checks();

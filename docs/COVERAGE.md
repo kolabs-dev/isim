@@ -55,14 +55,14 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 83 | 0 | 0 | 1 | 84 | 99% |
+| **Foundation** | 84 | 0 | 0 | 0 | 84 | 100% |
 | &nbsp;&nbsp;↳ Strings & text | 15 | 0 | 0 | 0 | 15 | 100% |
 | &nbsp;&nbsp;↳ Collections & values | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 9 | 0 | 0 | 0 | 9 | 100% |
-| &nbsp;&nbsp;↳ Networking | 16 | 0 | 0 | 1 | 17 | 94% |
+| &nbsp;&nbsp;↳ Networking | 17 | 0 | 0 | 0 | 17 | 100% |
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Dispatch | 6 | 0 | 0 | 0 | 6 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **805** | **165** | **22** | **32** | **1024** | **87%** |
+| **All areas** | **806** | **165** | **22** | **31** | **1024** | **87%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 99% (84) | 99% (84) | 99% (84) | 99% (84) |
+| Foundation | 100% (84) | 100% (84) | 100% (84) | 100% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -910,7 +910,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Background `URLSession` | ✅ | ≤17 | adapted (isim has no transfer daemon): `background(withIdentifier:)` transfers run in the app, which reports "transfer" so it is not suspended; finished in the background, the app is woken (`handleEventsForBackgroundURLSession` / SwiftUI `.backgroundTask(.urlSession)`), the held delegate events follow, then `urlSessionDidFinishEvents(forBackgroundURLSession:)`; completion-handler tasks are refused as on iOS. Unfinished downloads and file uploads are saved: when the system ends the app (script `terminate BUNDLE-ID`, or a crash) the home screen relaunches it in the background to finish them — iOS would finish them in its daemon and relaunch the app afterwards; a session the app does not recreate at launch is announced to the app first, then its events follow without a second wake. Closing the app in the app switcher cancels them, as on iOS. Downloads start again from the beginning (no resume data across launches). Tested (HelloTransfers, HelloScenes: test_transfers) |
 | `HTTPCookie`, `HTTPCookieStorage` | ✅ | ≤17 | Set-Cookie parsing (domain, path, expiry, secure); `shared` persists in the app container; ephemeral sessions get a private jar; tested; accept policies unverified |
 | `URLCache`, `CachedURLResponse` | ✅ | ≤17 | adapted: an in-memory LRU (`memoryCapacity`) over an on-disk LRU (`diskCapacity`; a metadata and a body file per response in `directory` / `diskPath`, by default `Library/Caches/<bundle id>/isim-urlcache`, not CFNetwork's Cache.db) that survives relaunches; responses over 5% of a tier's capacity skip it, `.allowedInMemoryOnly` stays in memory; max-age/Expires/heuristic freshness, ETag/Last-Modified revalidation, request cache policies, `removeCachedResponses(since:)`. Tested (SwiftNetworkTest: a second cache object on the same directory, LRU eviction, a later session served from disk) |
-| Objective-C `NSURLSession`, `NSURLRequest`, `NSURLComponents`, `NSHTTPCookie` | ❌ | ≤17 | the networking API is Swift-only |
+| Objective-C `NSURLSession`, `NSURLRequest`, `NSURLComponents`, `NSHTTPCookie` | ✅ | ≤17 | adapted: the Swift overlay's classes under Apple's Objective-C names (`NSURLSession`, `NSURLSessionConfiguration`, data / upload / download tasks, `NSURLResponse` / `NSHTTPURLResponse`, `NSHTTPCookie` / `NSHTTPCookieStorage`, `NSURLCache` / `NSCachedURLResponse`, `NSURLCredential` / `NSURLProtectionSpace` / `NSURLAuthenticationChallenge` / `NSURLCredentialStorage`) with Apple's selectors, plus `NSURLRequest` / `NSMutableURLRequest`, `NSURLComponents` / `NSURLQueryItem` wrapping the Swift structs (and bridging to them); completion-handler blocks and `NSURLSessionDelegate` / `TaskDelegate` / `DataDelegate` / `DownloadDelegate` objects (each implemented optional method is called); the constants (`NSURLErrorDomain` and codes, cookie property keys, authentication methods...). The headers declare the classes `objc_runtime_visible` (found through the runtime: an app without Swift loads the overlay on first use), so Objective-C code cannot subclass them or add categories. Not for Objective-C: WebSocket and stream tasks, task metrics, `serverTrust` / client identities, `HTTPBodyStream`. Tested (FoundationTest against http_server.py: components, requests, responses, cookies, completion handlers, upload, download, a delegate with redirect and Basic authentication, errors, cache) |
 
 ---
 

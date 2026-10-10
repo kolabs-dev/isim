@@ -504,6 +504,8 @@ class Swift:
                         srcs, implicit=base + implicit, keep=[obj, mod(m)], desc=f"SWIFT {m}")
             objs = [obj] + [a for a in args if a.endswith(".o")]
             link_args = ["-lSystem", "-lobjc", "-lswiftCore"] + [a for a in args if not a.endswith(".o")]
+            if m == "Foundation":
+                link_args += foundation_objc_aliases()
             outs += [mod(m), self.link(f"swift{m}", objs, link_args, minos="17.0")]
         # stand-ins for remote Swift packages that isim cannot fetch or run (isim build reads this)
         act.write_if_changed(os.path.join(c.root, SDK, "usr/share/isim/package-standins.json"), STANDINS)
@@ -585,6 +587,26 @@ def generate(c):
 
 
 # Swift modules for the SDK's frameworks: Module [link arguments...] (each module also imports the ones it links)
+
+# Foundation overlay classes that took Apple's Objective-C names (NSURLSession...: ObjCNetworking.swift) keep their old
+# Objective-C class symbols as aliases, for apps linked against them
+FOUNDATION_OBJC_NAMES = {
+    "URLSessionConfiguration": "NSURLSessionConfiguration", "URLSession": "NSURLSession", "URLSessionTask": "NSURLSessionTask",
+    "URLSessionDataTask": "NSURLSessionDataTask", "URLSessionUploadTask": "NSURLSessionUploadTask",
+    "URLSessionDownloadTask": "NSURLSessionDownloadTask", "URLCredential": "NSURLCredential", "URLProtectionSpace": "NSURLProtectionSpace",
+    "URLAuthenticationChallenge": "NSURLAuthenticationChallenge", "URLCredentialStorage": "NSURLCredentialStorage",
+    "URLResponse": "NSURLResponse", "HTTPURLResponse": "NSHTTPURLResponse", "HTTPCookie": "NSHTTPCookie",
+    "HTTPCookieStorage": "NSHTTPCookieStorage", "CachedURLResponse": "NSCachedURLResponse", "URLCache": "NSURLCache",
+}
+
+
+def foundation_objc_aliases():
+    out = []
+    for swift, objc in FOUNDATION_OBJC_NAMES.items():
+        for kind in ("OBJC_CLASS", "OBJC_METACLASS"):
+            out += ["-alias", f"_{kind}_$_{objc}", f"_{kind}_$__TtC10Foundation{len(swift)}{swift}"]
+    return out
+
 OVERLAYS = """
 CoreGraphics -framework CoreGraphics
 ObjectiveC -framework Foundation   # NSObject lives in isim Foundation, not libobjc

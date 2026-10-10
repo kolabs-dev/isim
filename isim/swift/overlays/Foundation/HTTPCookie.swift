@@ -27,7 +27,7 @@ public struct HTTPCookieStringPolicy: RawRepresentable, Hashable, Sendable {
     public static let sameSiteStrict = HTTPCookieStringPolicy(rawValue: "strict")
 }
 
-open class HTTPCookie: NSObject, @unchecked Sendable {
+@objc(NSHTTPCookie) open class HTTPCookie: NSObject, @unchecked Sendable {
     public let name: String
     public let value: String
     public let domain: String
@@ -202,7 +202,7 @@ extension Notification.Name {
 
 /// Cookie jar. `shared` persists cookies with an expiry date in the app container (Library/Cookies/Cookies.json,
 /// isim's own format); ephemeral sessions use a private in-memory storage.
-open class HTTPCookieStorage: NSObject, @unchecked Sendable {
+@objc(NSHTTPCookieStorage) open class HTTPCookieStorage: NSObject, @unchecked Sendable {
     let _lock = NSLock()
     var _cookies: [HTTPCookie] = []
     let _file: String?
@@ -292,7 +292,7 @@ open class HTTPCookieStorage: NSObject, @unchecked Sendable {
 }
 
 // MARK: - URLCache
-open class CachedURLResponse: NSObject, @unchecked Sendable {
+@objc(NSCachedURLResponse) open class CachedURLResponse: NSObject, @unchecked Sendable {
     public enum StoragePolicy: UInt, Sendable { case allowed = 0, allowedInMemoryOnly = 1, notAllowed = 2 }
     public let response: URLResponse
     public let data: Data
@@ -309,7 +309,7 @@ open class CachedURLResponse: NSObject, @unchecked Sendable {
 /// bytes (one metadata file and one body file per response under `directory`; by default the app's
 /// Library/Caches/<bundle id>/isim-urlcache), so cached responses survive relaunches like CFNetwork's Cache.db.
 /// Responses over 5% of a tier's capacity skip that tier, as on iOS; `.allowedInMemoryOnly` responses stay in memory.
-open class URLCache: NSObject, @unchecked Sendable {
+@objc(NSURLCache) open class URLCache: NSObject, @unchecked Sendable {
     open var memoryCapacity: Int { didSet { _lock.lock(); _trimMemory(); _lock.unlock() } }
     open var diskCapacity: Int { didSet { _lock.lock(); _trimDisk(); _lock.unlock() } }
     let _lock = NSLock()

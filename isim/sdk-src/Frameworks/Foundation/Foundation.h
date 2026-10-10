@@ -21,6 +21,17 @@
 #import <Foundation/NSDate.h>
 #import <Foundation/NSLocale.h>
 #import <Foundation/NSURL.h>
+#import <Foundation/NSURLError.h>
+#import <Foundation/NSURLRequest.h>
+#import <Foundation/NSURLResponse.h>
+#import <Foundation/NSHTTPCookie.h>
+#import <Foundation/NSHTTPCookieStorage.h>
+#import <Foundation/NSURLCache.h>
+#import <Foundation/NSURLCredential.h>
+#import <Foundation/NSURLProtectionSpace.h>
+#import <Foundation/NSURLAuthenticationChallenge.h>
+#import <Foundation/NSURLCredentialStorage.h>
+#import <Foundation/NSURLSession.h>
 #import <Foundation/NSFileManager.h>
 #import <Foundation/NSTimeZone.h>
 #import <Foundation/NSFormatter.h>
