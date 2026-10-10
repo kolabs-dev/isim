@@ -148,9 +148,11 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
 - iOS 27.1 (beta), the APIs for foldable iPhones (`tests/ui/test_arrangements.py`, under `--os 27.1`): arrangement
   view controllers, reserved regions, the hinge interaction and the vertical bar, as they behave on a device that
   does not fold (isim has no foldable preset: Apple has published no specifications);
-- implemented in SwiftUI (adapted; `tests/ui/test_containers.py` under `--os 27`): `reorderable()`,
-  `reorderContainer` and `ReorderDifference` (signatures from Apple's documentation);
-- not done (listed as ❌ in [COVERAGE.md](COVERAGE.md)): `ReadableDocument`/`WritableDocument`, the `@State` macro / `ContentBuilder`
+- implemented in SwiftUI (adapted; `tests/ui/test_containers.py` and `test_document_group.py` under `--os 27`):
+  `reorderable()`, `reorderContainer` and `ReorderDifference`; `ReadableDocument` / `WritableDocument` / `Document`
+  with their readers and writers and the DocumentGroup initializers that make them (signatures from Apple's
+  documentation);
+- not done (listed as ❌ in [COVERAGE.md](COVERAGE.md)): the `@State` macro / `ContentBuilder`
   (Xcode 27 compiler features), gesture input kinds, attachment view reuse and viewport rendering surfaces (TextKit
   2, which isim does not have);
 - **not done: iOS 27 visuals.** Apple describes an updated Liquid Glass appearance and a tint slider without

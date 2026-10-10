@@ -13,6 +13,8 @@ import UIKit
 @MainActor final class _SceneCollector {
     var groups: [(id: String?, make: () -> AnyView)] = []
     var backgroundTasks: [(id: String, kind: String, run: @Sendable () async -> Void)] = []
+    /// a scene hosted by its own view controller (DocumentGroup), when it is the first scene
+    var rootController: (@MainActor () -> UIViewController)?
 }
 protocol _SceneNode { @MainActor func _collect(_ c: _SceneCollector) }
 
@@ -26,6 +28,30 @@ public struct _TupleScene<each S: Scene>: Scene, _SceneNode {
 extension SceneBuilder {
     public static func buildBlock<each S: Scene>(_ s: repeat each S) -> _TupleScene<repeat each S> { _TupleScene(scenes: (repeat each s)) }
     public static func buildIf<S: Scene>(_ s: S?) -> _OptionalScene<S> { _OptionalScene(scene: s) }
+}
+extension SceneBuilder {
+    public static func buildEither<T: Scene, F: Scene>(first s: T) -> _ConditionalScene<T, F> { _ConditionalScene(first: s, second: nil) }
+    public static func buildEither<T: Scene, F: Scene>(second s: F) -> _ConditionalScene<T, F> { _ConditionalScene(first: nil, second: s) }
+}
+extension SceneBuilder {
+    /// `if #available` in App.body: the scene, type-erased
+    public static func buildLimitedAvailability(_ s: any Scene) -> _AnyScene { _AnyScene(scene: s) }
+}
+public struct _AnyScene: Scene, _SceneNode {
+    let scene: any Scene
+    public var body: Never { fatalError() }
+    @MainActor func _collect(_ c: _SceneCollector) {
+        if let n = scene as? _SceneNode { n._collect(c) } else if let r = scene as? _SceneRoot { c.groups.append((nil, { r._rootView })) }
+    }
+}
+/// `if` / `else` in App.body: the branch taken.
+public struct _ConditionalScene<T: Scene, F: Scene>: Scene, _SceneNode {
+    let first: T?, second: F?
+    public var body: Never { fatalError() }
+    @MainActor func _collect(_ c: _SceneCollector) {
+        let s: Any? = first ?? second
+        if let n = s as? _SceneNode { n._collect(c) } else if let r = s as? _SceneRoot { c.groups.append((nil, { r._rootView })) }
+    }
 }
 public struct _OptionalScene<S: Scene>: Scene, _SceneNode {
     let scene: S?

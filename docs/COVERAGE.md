@@ -39,12 +39,12 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
-| **SwiftUI** | 215 | 20 | 1 | 3 | 239 | 94% |
-| &nbsp;&nbsp;↳ App & scenes | 7 | 4 | 0 | 0 | 11 | 82% |
+| **SwiftUI** | 217 | 19 | 1 | 2 | 239 | 95% |
+| &nbsp;&nbsp;↳ App & scenes | 8 | 3 | 0 | 0 | 11 | 86% |
 | &nbsp;&nbsp;↳ State & data flow | 16 | 1 | 0 | 0 | 17 | 97% |
 | &nbsp;&nbsp;↳ Views & controls | 37 | 2 | 0 | 0 | 39 | 97% |
 | &nbsp;&nbsp;↳ Containers & layout | 28 | 0 | 0 | 0 | 28 | 100% |
-| &nbsp;&nbsp;↳ Navigation & presentation | 32 | 3 | 0 | 2 | 37 | 91% |
+| &nbsp;&nbsp;↳ Navigation & presentation | 33 | 3 | 0 | 1 | 37 | 93% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 33 | 3 | 0 | 0 | 36 | 96% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 23 | 0 | 0 | 1 | 24 | 96% |
 | &nbsp;&nbsp;↳ Animation | 11 | 0 | 0 | 0 | 11 | 100% |
@@ -55,9 +55,9 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 84 | 0 | 0 | 0 | 84 | 100% |
+| **Foundation** | 86 | 0 | 0 | 0 | 86 | 100% |
 | &nbsp;&nbsp;↳ Strings & text | 15 | 0 | 0 | 0 | 15 | 100% |
-| &nbsp;&nbsp;↳ Collections & values | 13 | 0 | 0 | 0 | 13 | 100% |
+| &nbsp;&nbsp;↳ Collections & values | 15 | 0 | 0 | 0 | 15 | 100% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 11 | 0 | 0 | 0 | 11 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **833** | **143** | **21** | **27** | **1024** | **88%** |
+| **All areas** | **837** | **142** | **21** | **26** | **1026** | **88%** |
 
 ### Per iOS version
 
@@ -96,9 +96,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
-| SwiftUI | 96% (216) | 95% (222) | 95% (229) | 94% (239) |
+| SwiftUI | 96% (216) | 96% (222) | 95% (229) | 95% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 100% (84) | 100% (84) | 100% (84) | 100% (84) |
+| Foundation | 100% (85) | 100% (85) | 100% (86) | 100% (86) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **89%** (966) | **88%** (978) | **88%** (1003) | **88%** (1024) |
+| **All areas** | **89%** (967) | **89%** (979) | **89%** (1005) | **88%** (1026) |
 
 ---
 
@@ -445,7 +445,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 |---|---|---|---|
 | `App` protocol, `@main` | ✅ | ≤17 | |
 | `WindowGroup` | ✅ | ≤17 | one window; `title`/`id` ignored |
-| Several scenes in `body`, `Settings`, `DocumentGroup`, `Window` | 🟡 | ≤17 | several `WindowGroup`s (`id:`, `for:`) and scene modifiers in `body`; the first group is shown. `Settings`/`Window` are macOS-only (not provided, like the iOS SDK); `DocumentGroup` ❌. Tested (HelloScenes) |
+| Several scenes in `body`, `Settings`, `DocumentGroup`, `Window` | ✅ | ≤17 | several `WindowGroup`s (`id:`, `for:`) and scene modifiers in `body`, `if` / `else` and `if #available` between scenes; the first group is shown (tested, HelloScenes). `Settings`/`Window` are macOS-only (not provided, like the iOS SDK). `DocumentGroup(newDocument:editor:)` / `(viewing:viewer:)` with `FileDocument` (a value; binding edits are undoable and autosaved) or `ReferenceFileDocument` (saved from snapshots; changes count through `\.undoManager` registrations and `objectWillChange`), `FileDocumentConfiguration` / `ReferenceFileDocumentConfiguration`, `\.documentConfiguration`, `\.undoManager`: on UIKit's `UIDocumentViewController` (iOS 18: the launch view with the app's name on its accent colour, Create Document, the document browser; the editor under the navigation bar with the document's name, back and undo / redo); contents are `FileWrapper`s. Tested (HelloDocumentGroup, OS matrix) |
 | `@Environment(\.scenePhase)` | ✅ | ≤17 | active / inactive / background |
 | `@UIApplicationDelegateAdaptor` | ✅ | ≤17 | launch callbacks, every other `UIApplicationDelegate` method forwarded (ObjC forwarding), a scene delegate class from its `configurationForConnecting` gets the scene callbacks SwiftUI does not handle. Tested (HelloScenes) |
 | `UIHostingController` | ✅ | ≤17 | |
@@ -596,7 +596,7 @@ checks it (verified), "unverified" means proposed (implemented, no test).
 | `ToolbarOverflowMenu` | ✅ | 27.0 | its content joins the overflow menu with the items that did not fit; tested (HelloTabs) |
 | `ToolbarItemPlacement.topBarPinnedTrailing` | ✅ | 27.0 | at the trailing edge, never moved to the overflow menu; tested (HelloTabs) |
 | `toolbarMinimizationBehavior(_:for:)` | ✅ | 27.0 | while the content is dragged: the bottom bar slides away, the navigation bar fades; tested (HelloTabs) |
-| `ReadableDocument` / `WritableDocument` (URL-based documents) | ❌ | 27.0 | |
+| `ReadableDocument` / `WritableDocument` (URL-based documents) | ✅ | 27.0 | `ReadableDocument`, `WritableDocument`, `Document`, `DocumentReader` / `DocumentWriter`, `FileWrapperDocumentReader` / `FileWrapperDocumentWriter`, `DocumentReadConfiguration` / `DocumentWriteConfiguration`, `URLDocumentConfiguration`, `DocumentCreationContext` / `DocumentCreationSource`, `DocumentGroup(allowCreating:editor:makeDocument:)` and `(viewer:makeReadableDocument:)` (signatures from Apple's documentation; `@ContentBuilder` closures are `@ViewBuilder`): the document is made and read when it opens (reader, then `apply(snapshot:previous:)`), saves take a snapshot for the writer with the previous one. Not provided: `makeFileCoordinator()` (no `NSFileCoordinator`), the SwiftData forms. Tested (HelloDocumentGroup, `--os 27`) |
 | `ArrangementView`, reserved regions, hinge (`onHingeChange`), vertical toolbars | ❌ | 27.1 | iPhone Duo APIs (iOS 27.1 beta) |
 
 ### Modifiers & visual effects
@@ -829,6 +829,8 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Key-value coding (`value(forKey:)`, key paths, collection operators) and observing (KVO, `observe(\.x)`, `publisher(for:)`) | ✅ | ≤17 | KVO wraps setters; `@objc dynamic` Swift properties observable |
 | `UndoManager` | ✅ | ≤17 | groups, run-loop grouping, redo, action names, `registerUndo(withTarget:handler:)` |
 | `Progress` | ✅ | ≤17 | units, children, implicit (`becomeCurrent`, `performAsCurrent`), KVO on `fractionCompleted`, file progress (`kind = .file`, `fileOperationKind`, `fileURL`, `fileTotalCount` / `fileCompletedCount`, `throughput`, `estimatedTimeRemaining`, file-aware localized descriptions), `ProgressReporting`. Publishing and subscribing are macOS-only (unavailable on iOS). Tested: FoundationTest, SwiftFoundationTest |
+| `ProgressManager`, `Subprogress` | ✅ | 26.0 | a subset: total and completed counts, `fractionCompleted` (started children count within the share their parent assigned), `isFinished`, `isIndeterminate`, `complete(count:)`, `setCounts`, `subprogress(assigningCount:)` / `start(totalCount:)` (an unstarted subprogress completes its share when it goes away). Not provided: `ProgressReporter`, custom properties, the bridge to `Progress`. Used by SwiftUI's document readers and writers (tested, HelloDocumentGroup) |
+| `FileWrapper` (`NSFileWrapper`) | ✅ | ≤17 | regular files, directories (packages) of named children (`addFileWrapper`, `addRegularFileWithContents`, `removeFileWrapper`, `keyForFileWrapper`, unique names), symbolic links; `init(url:options:)` / `read(from:options:)` read the whole tree, `write(to:options:originalContentsURL:)` (atomic: a package is written beside the destination and moved over it), `matchesContents(of:)`, file attributes. Not provided: `serializedRepresentation`, icons. Tested (HelloDocumentGroup) |
 
 ### Encoding & serialization
 

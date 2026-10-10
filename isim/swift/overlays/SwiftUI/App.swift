@@ -48,6 +48,7 @@ public struct SceneBuilder {
 
 final class _SUIAppRoot {
     nonisolated(unsafe) static var makeRoot: (@MainActor () -> AnyView)?
+    nonisolated(unsafe) static var makeRootController: (@MainActor () -> UIViewController)?    /* DocumentGroup */
     nonisolated(unsafe) static var adaptor: NSObject?            /* @UIApplicationDelegateAdaptor */
 }
 
@@ -55,7 +56,9 @@ extension App {
     /// Entry point used by `@main`: runs UIApplicationMain with a delegate that hosts the first WindowGroup.
     @MainActor public static func main() {
         let app = Self()
-        _SUIBackgroundTasks.install(_collectScenes(app).backgroundTasks)     /* before launch: background launches have no UI */
+        let scenes = _collectScenes(app)
+        _SUIBackgroundTasks.install(scenes.backgroundTasks)     /* before launch: background launches have no UI */
+        _SUIAppRoot.makeRootController = scenes.rootController
         _SUIAppRoot.makeRoot = { _rootView(app) }
         _ = UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(_SUIAppDelegate.self))
     }
@@ -105,7 +108,7 @@ extension App {
         guard let ws = scene as? UIWindowScene else { return }
         let w = UIWindow(windowScene: ws)
         let root = _SUIAppRoot.makeRoot ?? { AnyView(EmptyView()) }
-        w.rootViewController = _SUIHostingController(root: { root() })
+        w.rootViewController = _SUIAppRoot.makeRootController?() ?? _SUIHostingController(root: { root() })
         w.tintColor = _accentUIColor()
         window = w
         _SUIWindows.window = w
