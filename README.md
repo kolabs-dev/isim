@@ -34,7 +34,7 @@ running device to the front. `--no-desktop` (`… | bash -s -- --no-desktop`) sk
 isim install ~/.local/lib/isim/current/apps/*.app
 ```
 
-**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.14.0` for a given one);
+**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.15.0` for a given one);
 `isim versions` lists the installed releases and `isim use VERSION` switches between them. Device data
 (`~/.local/share/isim`) is shared by all versions. You can also download a tarball from
 [Releases](https://github.com/kolabs-dev/isim/releases) and run `bin/isim` from it directly.
@@ -123,7 +123,7 @@ Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (t
 22.04 container):
 
 ```bash
-isim/build.py package 0.14.0
+isim/build.py package 0.15.0
 ```
 
 ## Status
