@@ -11,7 +11,7 @@
  * - Clients ask to launch apps (SM_LAUNCH), report settings changes (broadcast as EV_SETTINGS),
  *   go home, or terminate the other apps (language changes). */
 
-struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit; int orient; int defer_edges; double defer_armed;
+struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit, forcequit; int orient; int defer_edges; double defer_armed;
                       int bg, bg_seen, suspended; double bg_t, wake_at; char reasons[128];   /* background execution (shell_system.inc) */
                       int idle_disabled; };                                                    /* UIApplication.isIdleTimerDisabled (auto-lock) */
 static struct shell_client clients[32];
@@ -544,6 +544,9 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
                 }
                 if (i == 0) { fprintf(stderr, "isim shell: the home screen exited; shutting down\n"); shell_quit(); return 0; }
                 if (i == active) { active = -1; shell_activate(0); }
+                /* not closed by the user: the home screen relaunches it in the background when it has unfinished
+                   background URLSession transfers (iOS's transfer daemon would finish them meanwhile) */
+                if (!clients[i].forcequit) sys_send_text(0, "app-exited %s", clients[i].bundle);
             }
         }
         /* client messages */

@@ -1,12 +1,23 @@
 // HelloScenes: SwiftUI app-level APIs — several scenes in App.body, @UIApplicationDelegateAdaptor (with its own
 // scene delegate class), @SceneStorage restored across launches, .userActivity / .onContinueUserActivity
-// (Spotlight), .backgroundTask(.appRefresh) and openWindow / dismissWindow.
+// (Spotlight), .backgroundTask(.appRefresh), .backgroundTask(.urlSession) and openWindow / dismissWindow.
 import SwiftUI
 import BackgroundTasks
 
 func log(_ s: String) { NSLog("HelloScenes: %@", s) }
 let refreshID = "dev.isim.samples.HelloScenes.refresh"
 let activityType = "dev.isim.samples.HelloScenes.recipe"
+let transferID = "dev.isim.samples.HelloScenes.transfers"
+
+/// a background URLSession, created when first needed (also by the .backgroundTask(.urlSession) action after a relaunch)
+final class Transfers: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    static let shared = Transfers()
+    lazy var session = URLSession(configuration: .background(withIdentifier: transferID), delegate: self, delegateQueue: nil)
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        log("download finished: \((try? Data(contentsOf: location))?.count ?? -1) bytes")
+    }
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) { log("session finished events") }
+}
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
@@ -37,6 +48,10 @@ struct HelloScenesApp: App {
         .backgroundTask(.appRefresh(refreshID)) {
             log("SwiftUI background refresh ran")
         }
+        .backgroundTask(.urlSession(transferID)) {
+            _ = Transfers.shared.session                       // recreated here after a relaunch
+            log("SwiftUI background URL session \(transferID)")
+        }
         WindowGroup(id: "detail") {
             DetailView()
         }
@@ -58,6 +73,11 @@ struct ContentView: View {
                     do { try BGTaskScheduler.shared.submit(BGAppRefreshTaskRequest(identifier: refreshID)); log("scheduled refresh") }
                     catch { log("schedule failed \(error)") }
                 }.accessibilityIdentifier("schedule")
+                Button("Start download") {
+                    let url = URL(string: ProcessInfo.processInfo.environment["TRANSFER_URL"] ?? "http://127.0.0.1:8765/file")!
+                    Transfers.shared.session.downloadTask(with: url).resume()
+                    log("download started")
+                }.accessibilityIdentifier("download")
                 Button("Open detail window") { log("supportsMultipleWindows \(multi)"); openWindow(id: "detail") }.accessibilityIdentifier("openDetail")
             }
             .navigationTitle("Scenes")

@@ -112,6 +112,8 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
         if ([verb isEqualToString:@"reload"]) [self reload];
         else if ([verb isEqualToString:@"openurl"]) [self openURLString:args];
         else if ([verb isEqualToString:@"launchtask"]) [self backgroundTask:args];
+        else if ([verb isEqualToString:@"terminate"]) [self terminateApp:args];
+        else if ([verb isEqualToString:@"app-exited"]) [self appExited:args];
         else if ([verb isEqualToString:@"handoff"]) [self handoff:args];
         else if ([verb isEqualToString:@"set-appearance"]) {          /* Control Center's Dark Mode: the same setting as Settings */
             NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
@@ -174,6 +176,34 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
     if (!a) { NSLog(@"SpringBoard: bgtask: no installed app '%@' (usage: bgtask BUNDLE-ID TASK-ID)", parts.firstObject ?: @""); return; }
     NSString *exeURL = [NSString stringWithFormat:@"%@\x1fisim-bgtask:%@", a.executable, parts[1]];
     NSLog(@"SpringBoard: background task %@ for %@", parts[1], a.name);
+    isim_shell_request(ISIM_SHELL_SYSTEM, "launch-bg", a.path.UTF8String, exeURL.UTF8String);
+}
+/* script "terminate BUNDLE-ID": the system ends the app (iOS reclaiming memory) */
+- (void)terminateApp:(NSString *)ident {
+    HSApp *a = [self appWithIdentifier:ident];
+    if (!a) { NSLog(@"SpringBoard: terminate: no installed app '%@'", ident); return; }
+    isim_shell_request(ISIM_SHELL_SYSTEM, "terminate", a.path.UTF8String, "");
+}
+/* an app ended without the user closing it: if it has unfinished background URLSession transfers (Foundation keeps
+   them in Library/Caches/isim-nsurlsessiond), launch it in the background to finish them. Adapted: iOS's transfer
+   daemon would finish them and relaunch the app afterwards; isim has no daemon, so the app runs them itself. */
+- (void)appExited:(NSString *)path {
+    HSApp *a = nil;
+    for (HSApp *x in self.apps) if ([x.path isEqualToString:path]) { a = x; break; }
+    if (!a) return;
+    NSString *dir = [a.containerPath stringByAppendingPathComponent:@"Library/Caches/isim-nsurlsessiond"];
+    NSMutableArray *ids = [NSMutableArray array];
+    for (NSString *f in [NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:NULL] ?: @[])
+        if ([f hasSuffix:@".plist"]) [ids addObject:f.stringByDeletingPathExtension];
+    if (!ids.count) return;
+    static NSMutableDictionary *last;                     /* an app that keeps crashing is not relaunched in a loop */
+    if (!last) last = [NSMutableDictionary dictionary];
+    NSDate *prev = last[a.bundleID];
+    if (prev && -prev.timeIntervalSinceNow < 10) { NSLog(@"SpringBoard: %@ exited again with background transfers; not relaunching", a.name); return; }
+    last[a.bundleID] = [NSDate date];
+    [ids sortUsingSelector:@selector(compare:)];
+    NSLog(@"SpringBoard: %@ ended with unfinished background transfers (%@): relaunching it in the background", a.name, [ids componentsJoinedByString:@", "]);
+    NSString *exeURL = [NSString stringWithFormat:@"%@\x1fisim-urlsession:%@", a.executable, [ids componentsJoinedByString:@","]];
     isim_shell_request(ISIM_SHELL_SYSTEM, "launch-bg", a.path.UTF8String, exeURL.UTF8String);
 }
 - (void)publishAppInfo {

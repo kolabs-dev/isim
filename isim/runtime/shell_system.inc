@@ -932,7 +932,7 @@ static void sw_activate(int i, struct rectf from, double radius) {
 }
 static void sw_kill(int i) {
     fprintf(stderr, "isim shell: closed %s from the app switcher\n", clients[i].bundle);
-    clients[i].sysquit = 1;
+    clients[i].sysquit = 1; clients[i].forcequit = 1;
     sys_send_text(i, "discard-scenes");
     shell_send(i, EV_QUIT);
     if (i == active) active = 0;
@@ -1224,6 +1224,14 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
         sys_send_text(0, "openurl %s", m->c);
     } else if (!strcmp(verb, "reload-home")) {
         sys_send_text(0, "reload");
+    } else if (!strcmp(verb, "terminate")) {               /* script `terminate BUNDLE-ID` (resolved by the home screen) */
+        int k = shell_find(m->b);
+        if (k > 0) {                                          /* like iOS reclaiming memory: killed without notice */
+            fprintf(stderr, "isim shell: terminated %s (system)\n", clients[k].bundle);
+            clients[k].sysquit = 1;
+            kill(clients[k].pid, SIGKILL);
+            if (k == active) { active = -1; shell_activate(0); }
+        } else fprintf(stderr, "isim shell: terminate: %s is not running\n", m->b);
     } else if (!strcmp(verb, "launch-bg")) {
         const char *sep = strchr(m->c, '\x1f');
         char exe[512]; snprintf(exe, sizeof exe, "%.*s", sep ? (int)(sep - m->c) : (int)strlen(m->c), m->c);
@@ -1270,6 +1278,7 @@ static int sys_command(const char *text) {
     sscanf(text, "%31s%n", verb, &n);
     const char *args = text + n; while (*args == ' ') args++;
     if (!strcmp(verb, "bgtask")) { sys_send_text(0, "launchtask %s", args); return 1; }  /* the home screen resolves the bundle id */
+    if (!strcmp(verb, "terminate")) { sys_send_text(0, "terminate %s", args); return 1; }
     if (!strcmp(verb, "openurl")) { sys_send_text(0, "openurl %s", args); return 1; }
     if (!strcmp(verb, "handoff")) { sys_send_text(0, "handoff %s", args); return 1; }   /* an activity from another device */
     if (!strcmp(verb, "push") || !strcmp(verb, "push-drop")) {   /* remote notifications: the home screen routes them */

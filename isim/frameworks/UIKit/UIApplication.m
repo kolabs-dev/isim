@@ -1178,6 +1178,7 @@ static void enter_foreground(void) {
     isim_audio_suspend(0);
     if (!backgrounded) { isim_ui_set_needs_display(); return; }
     UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+    unsetenv("ISIM_LAUNCH_BACKGROUND");                     /* no longer a background launch (Foundation reads it) */
     isim_sys_entered_foreground();
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
     each_scene_delegate(^(UIScene *s, id<UISceneDelegate> sd) { s.activationState = UISceneActivationStateForegroundInactive; if ([sd respondsToSelector:@selector(sceneWillEnterForeground:)]) [sd sceneWillEnterForeground:s];

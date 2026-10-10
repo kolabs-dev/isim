@@ -9,8 +9,11 @@
 // are held; when the session has nothing left to do, UIKit wakes the app with
 // application(_:handleEventsForBackgroundURLSession:completionHandler:), then the held events are delivered and
 // urlSessionDidFinishEvents(forBackgroundURLSession:) is called. Completion-handler tasks are refused, as on iOS.
-// Unfinished download and file-upload tasks are saved (Library/Caches/isim-nsurlsessiond/IDENTIFIER.plist); if the
-// app was terminated, creating the session with the same identifier starts them again.
+// Unfinished download and file-upload tasks are saved (Library/Caches/isim-nsurlsessiond/IDENTIFIER.plist); creating
+// the session with the same identifier starts them again. When the system ends the app (not the user, in the app
+// switcher, which discards them), the home screen relaunches it in the background to finish them ("isim-urlsession:"):
+// the app hears about a session it does not recreate while launching (UIKit, ISIM_URLSESSION_HANDLED), and the
+// session's events follow without a second wake.
 import isim_host
 
 // MARK: - configuration
@@ -1142,6 +1145,7 @@ enum _IsimBackgroundSessions {
     static func observe() {
         lock.lock(); let first = !observing; observing = true; lock.unlock()
         guard first else { return }
+        if ProcessInfo.processInfo.environment["ISIM_LAUNCH_BACKGROUND"] == "1" { appInBackground = true }   // launched in the background
         let nc = NotificationCenter.default
         _ = nc.addObserver(forName: Notification.Name("UIApplicationDidEnterBackgroundNotification"), object: nil, queue: nil) { _ in appInBackground = true }
         _ = nc.addObserver(forName: Notification.Name("UIApplicationWillEnterForegroundNotification"), object: nil, queue: nil) { _ in
@@ -1151,6 +1155,10 @@ enum _IsimBackgroundSessions {
         _ = nc.addObserver(forName: Notification.Name("_IsimBackgroundQuery"), object: nil, queue: nil) { n in
             guard let q = n.object as? NSMutableDictionary else { return }
             if busy() { q.setObject(NSNumber(value: true), forKey: "transfer" as NSString) }                                    // keeps the app from being suspended
+        }
+        _ = nc.addObserver(forName: Notification.Name("_IsimBackgroundSessionsQuery"), object: nil, queue: nil) { n in   // UIKit: which sessions exist
+            guard let q = n.object as? NSMutableDictionary else { return }
+            q.setObject(live().compactMap { $0.configuration.identifier } as NSArray, forKey: "sessions" as NSString)
         }
     }
     static func live() -> [URLSession] { lock.lock(); defer { lock.unlock() }; return sessions.values.compactMap(\.session) }
@@ -1166,6 +1174,14 @@ enum _IsimBackgroundSessions {
         if idle { s._waking = true }
         s._lock.unlock()
         guard idle else { return }
+        // relaunched for this session and the app already heard about it (UIKit): its events, without a second wake
+        let handled = (ProcessInfo.processInfo.environment["ISIM_URLSESSION_HANDLED"] ?? "").split(separator: ",").contains { $0 == id }
+        if handled {
+            unsetHandled(id)
+            NSLog("isim: background URL session %@ finished", id)
+            flush(s, finish: true)
+            return
+        }
         lock.lock(); pendingWakes += 1; lock.unlock()
         NSLog("isim: background URL session %@ finished: waking the app", id)
         let done: @convention(block) () -> Void = {
@@ -1177,6 +1193,10 @@ enum _IsimBackgroundSessions {
             NotificationCenter.default.post(name: Notification.Name("_IsimBackgroundURLSessionEvents"), object: id as NSString,
                                             userInfo: ["completion": done as AnyObject, "deliver": deliver as AnyObject])
         }
+    }
+    static func unsetHandled(_ id: String) {
+        let rest = (ProcessInfo.processInfo.environment["ISIM_URLSESSION_HANDLED"] ?? "").split(separator: ",").filter { $0 != id }
+        if rest.isEmpty { unsetenv("ISIM_URLSESSION_HANDLED") } else { setenv("ISIM_URLSESSION_HANDLED", rest.joined(separator: ","), 1) }
     }
     /// the held events, in order, then (when woken) urlSessionDidFinishEvents
     static func flush(_ s: URLSession, finish: Bool) {
