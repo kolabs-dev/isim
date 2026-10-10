@@ -28,6 +28,11 @@ final class Model: ObservableObject {
         }
         let welcome: LocalizedStringResource = "Welcome"
         plurals.append(("welcome", String(localized: welcome)))
+        // device and width variations (String Catalog -> NSStringDeviceSpecificRuleType / NSStringVariableWidthRuleType)
+        plurals.append(("device", String(localized: "Tap to continue")))
+        let settings = NSLocalizedString("Settings title", comment: "")
+        plurals.append(("width", settings))
+        plurals.append(("width-25", (settings as NSString).variantFittingPresentationWidth(25)))
         for (id, text) in plurals { print("plural \(id): \(text)") }
 
         // app group container + shared defaults

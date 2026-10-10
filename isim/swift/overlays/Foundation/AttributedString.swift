@@ -1,14 +1,56 @@
 // isim Foundation: AttributedString (characters + attribute runs), AttributeContainer, attribute keys and
 // scopes, Foundation's attributes (link, inline/presentation intents, ...), conversion to and from
 // NSAttributedString. Markdown parsing lives in Markdown.swift.
-// Simplified vs Apple: no Codable conformance, no attribute invalidation/inheritance rules (iOS 17),
-// scopes passed to conversions are accepted but every registered key converts.
+// Codable (AttributedStringCodable.swift) and the iOS 17 attribute rules (run boundaries, inheritance by added
+// text, invalidation conditions) follow Apple's behaviour. Simplified: scopes passed to NSAttributedString
+// conversions are accepted but every registered key converts.
 
 // MARK: - keys and scopes
 public protocol AttributedStringKey {
   associatedtype Value: Hashable
   static var name: String { get }
+  /// iOS 17: the value is constant within each paragraph (or between occurrences of a character)
+  static var runBoundaries: AttributedString.AttributeRunBoundaries? { get }
+  /// iOS 17: whether text added next to a run (typed into the character view) takes the attribute
+  static var inheritedByAddedText: Bool { get }
+  /// iOS 17: changes that remove the attribute from a run (its text or another attribute changing)
+  static var invalidationConditions: Set<AttributedString.AttributeInvalidationCondition>? { get }
 }
+extension AttributedStringKey {
+  public static var runBoundaries: AttributedString.AttributeRunBoundaries? { nil }
+  public static var inheritedByAddedText: Bool { true }
+  public static var invalidationConditions: Set<AttributedString.AttributeInvalidationCondition>? { nil }
+}
+extension AttributedString {
+  public struct AttributeRunBoundaries: Hashable, Sendable {
+    let _separator: Character?   // nil: paragraphs
+    public static var paragraph: AttributeRunBoundaries { AttributeRunBoundaries(_separator: nil) }
+    public static func character(_ character: Character) -> AttributeRunBoundaries { AttributeRunBoundaries(_separator: character) }
+  }
+  public struct AttributeInvalidationCondition: Hashable, Sendable {
+    let _attribute: String?      // nil: the text changed
+    public static let textChanged = AttributeInvalidationCondition(_attribute: nil)
+    public static func attributeChanged<T: AttributedStringKey>(_ attribute: T.Type) -> AttributeInvalidationCondition {
+      AttributeInvalidationCondition(_attribute: T.name)
+    }
+  }
+}
+
+/// Key types seen by name, for the iOS 17 rules (and Codable, which also finds keys through scopes).
+final class _AttrKeyRegistry: @unchecked Sendable {
+  let lock = NSLock()
+  var types: [String: any AttributedStringKey.Type] = [:]
+  var ruled: [String: any AttributedStringKey.Type] = [:]   // keys with a rule
+  func register<K: AttributedStringKey>(_ k: K.Type) {
+    lock.lock(); defer { lock.unlock() }
+    guard types[K.name] == nil else { return }
+    types[K.name] = k
+    if K.runBoundaries != nil || !K.inheritedByAddedText || K.invalidationConditions != nil { ruled[K.name] = k }
+  }
+  var ruledTypes: [String: any AttributedStringKey.Type] { lock.lock(); defer { lock.unlock() }; return ruled }
+}
+let _attrKeys = _AttrKeyRegistry()
+func _registerAttributeKey<K: AttributedStringKey>(_ k: K.Type) { _attrKeys.register(k) }
 public protocol ObjectiveCConvertibleAttributedStringKey: AttributedStringKey {
   associatedtype ObjectiveCValue: NSObject
   static func objectiveCValue(for value: Value) throws -> ObjectiveCValue
@@ -16,8 +58,18 @@ public protocol ObjectiveCConvertibleAttributedStringKey: AttributedStringKey {
 }
 public protocol MarkdownDecodableAttributedStringKey: AttributedStringKey {
   static var markdownName: String { get }
+  /// decodes the value of an extended attribute (`^[text](name: value)`)
+  static func decodeMarkdown(from decoder: Decoder) throws -> Value
 }
-extension MarkdownDecodableAttributedStringKey { public static var markdownName: String { name } }
+extension MarkdownDecodableAttributedStringKey {
+  public static var markdownName: String { name }
+  public static func decodeMarkdown(from decoder: Decoder) throws -> Value {
+    guard let d = Value.self as? Decodable.Type, let v = try d.init(from: decoder) as? Value else {
+      throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "\(Value.self) is not Decodable"))
+    }
+    return v
+  }
+}
 public protocol AttributeScope {}
 public enum AttributeScopes {}
 
@@ -30,6 +82,13 @@ extension AttributeScopes {
     public let alternateDescription: AlternateDescriptionAttribute
     public let imageURL: ImageURLAttribute
     public let languageIdentifier: LanguageIdentifierAttribute
+    public let markdownSourcePosition: MarkdownSourcePositionAttribute
+
+    /// where a run's text came from in the Markdown source (MarkdownParsingOptions.appliesSourcePositionAttributes)
+    public enum MarkdownSourcePositionAttribute: AttributedStringKey {
+      public typealias Value = AttributedString.MarkdownSourcePosition
+      public static let name = "NSMarkdownSourcePosition"
+    }
 
     public enum LinkAttribute: ObjectiveCConvertibleAttributedStringKey {
       public typealias Value = URL
@@ -110,6 +169,17 @@ public func _isimRegisterAttributeKey<K: ObjectiveCConvertibleAttributedStringKe
     fromObjC: { o in (o as? K.ObjectiveCValue).flatMap { try? K.value(for: $0) }.map { AnyHashable($0) } })
 }
 
+extension AttributedString {
+  /// 1-based lines and columns (UTF-8 bytes) of the first and last character, both inclusive
+  public struct MarkdownSourcePosition: Hashable, Codable, Sendable, CustomStringConvertible {
+    public let startLine: Int, startColumn: Int, endLine: Int, endColumn: Int
+    public init(startLine: Int, startColumn: Int, endLine: Int, endColumn: Int) {
+      self.startLine = startLine; self.startColumn = startColumn; self.endLine = endLine; self.endColumn = endColumn
+    }
+    public var description: String { "\(startLine):\(startColumn)-\(endLine):\(endColumn)" }
+  }
+}
+
 // MARK: - InlinePresentationIntent / PresentationIntent
 extension InlinePresentationIntent: Hashable, @unchecked Sendable {}
 
@@ -157,6 +227,12 @@ public struct PresentationIntent: Hashable, CustomDebugStringConvertible, @unche
   public var debugDescription: String { components.map(\.debugDescription).joined(separator: ", ") }
 }
 
+extension PresentationIntent: Codable {}
+extension PresentationIntent.Kind: Codable {}
+extension PresentationIntent.IntentType: Codable {}
+extension PresentationIntent.TableColumn: Codable {}
+extension PresentationIntent.TableColumn.Alignment: Codable {}
+
 // MARK: - AttributeContainer
 @dynamicMemberLookup
 public struct AttributeContainer: Hashable, CustomStringConvertible, @unchecked Sendable {
@@ -165,7 +241,7 @@ public struct AttributeContainer: Hashable, CustomStringConvertible, @unchecked 
   init(_storage: [String: AnyHashable]) { self._storage = _storage }
   public subscript<K: AttributedStringKey>(_: K.Type) -> K.Value? {
     get { _storage[K.name]?.base as? K.Value }
-    set { _storage[K.name] = newValue.map { AnyHashable($0) } }
+    set { _registerAttributeKey(K.self); _storage[K.name] = newValue.map { AnyHashable($0) } }
   }
   public subscript<K: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeDynamicLookup, K>) -> K.Value? {
     get { self[K.self] }
@@ -262,25 +338,106 @@ public struct AttributedString: AttributedStringProtocol, @unchecked Sendable {
     _coalesce()
   }
   mutating func _editAttributes(_ r: Range<Int>, _ edit: (inout AttributeContainer) -> Void) {
-    let runs = _pieces(r).map { piece -> _Run in var a = piece.1; edit(&a); return _Run(length: piece.0.count, attrs: a) }
+    let ruled = _attrKeys.ruledTypes
+    let runs = _pieces(r).map { piece -> _Run in
+      var a = piece.1; edit(&a)
+      if !ruled.isEmpty { AttributedString._invalidateDependents(old: piece.1, new: &a, ruled) }
+      return _Run(length: piece.0.count, attrs: a)
+    }
     _spliceRuns(r, runs)
+    if !ruled.isEmpty { _enforceBoundaries(ruled) }
   }
-  /// Replace the text in UTF-8 range `r` with `other`.
-  mutating func _replace(_ r: Range<Int>, with other: AttributedString) {
+  /// `.attributeChanged(X)`: keys that depend on an attribute whose value changed lose their value there.
+  static func _invalidateDependents(old: AttributeContainer, new: inout AttributeContainer, _ ruled: [String: any AttributedStringKey.Type]) {
+    let changed = Set(old._storage.keys).union(new._storage.keys).filter { old._storage[$0] != new._storage[$0] }
+    guard !changed.isEmpty else { return }
+    for (name, t) in ruled where new._storage[name] != nil && !changed.contains(name) {
+      if let conds = t.invalidationConditions, conds.contains(where: { $0._attribute.map(changed.contains) ?? false }) { new._storage[name] = nil }
+    }
+  }
+  /// UTF-8 ranges of the segments a run-boundary key is constant over (paragraphs, or text between separators)
+  func _segments(_ b: AttributeRunBoundaries) -> [Range<Int>] {
+    var out: [Range<Int>] = [], start = 0, pos = 0
+    for ch in _string {
+      pos += ch.utf8.count
+      let ends = b._separator.map { ch == $0 } ?? (ch == "\n" || ch == "\r\n" || ch == "\r" || ch == "\u{2029}" || ch == "\u{85}")
+      if ends { out.append(start..<pos); start = pos }
+    }
+    if start < pos { out.append(start..<pos) }
+    return out
+  }
+  /// Run-boundary keys take one value per segment: the value at the segment's start.
+  mutating func _enforceBoundaries(_ ruled: [String: any AttributedStringKey.Type]) {
+    let bounded = ruled.compactMap { k, t in t.runBoundaries.map { (k, $0) } }
+    guard !bounded.isEmpty else { return }
+    let present = Set(_runs.flatMap { $0.attrs._storage.keys })
+    for (name, b) in bounded where present.contains(name) {
+      for seg in _segments(b) {
+        let ps = _pieces(seg)
+        let v = ps.first?.1._storage[name]
+        if ps.allSatisfy({ $0.1._storage[name] == v }) { continue }
+        _spliceRuns(seg, ps.map { p -> _Run in var a = p.1; a._storage[name] = v; return _Run(length: p.0.count, attrs: a) })
+      }
+    }
+  }
+  /// A range widened to the segments of the run-boundary keys among `names`.
+  func _expandedForBoundaries(_ r: Range<Int>, names: some Sequence<String>) -> Range<Int> {
+    let ruled = _attrKeys.ruledTypes
+    var out = r
+    for name in names {
+      guard let b = ruled[name]?.runBoundaries else { continue }
+      for seg in _segments(b) where seg.overlaps(out) || (out.isEmpty && seg.contains(out.lowerBound)) {
+        out = min(out.lowerBound, seg.lowerBound)..<max(out.upperBound, seg.upperBound)
+      }
+    }
+    return out
+  }
+  /// Replace the text in UTF-8 range `r` with `other`. `invalidating`: existing text changes (or added text joins a
+  /// run), so `.textChanged` keys of the runs it touches lose their value.
+  mutating func _replace(_ r: Range<Int>, with other: AttributedString, invalidating: Bool = false) {
+    let ruled = _attrKeys.ruledTypes
+    var spans: [(String, Range<Int>)] = []
+    if invalidating && !ruled.isEmpty {
+      let probe = r.isEmpty ? max(0, r.lowerBound - 1)..<r.lowerBound : r
+      for (name, t) in ruled where t.invalidationConditions?.contains(.textChanged) == true {
+        // the runs (maximal spans of one value) that touch the edit
+        var pos = 0, spanStart = 0, spanValue: AnyHashable? = nil
+        for run in _runs {
+          let v = run.attrs._storage[name]
+          if v != spanValue {
+            if spanValue != nil, (spanStart..<pos).overlaps(probe) { spans.append((name, spanStart..<pos)) }
+            spanStart = pos; spanValue = v
+          }
+          pos += run.length
+        }
+        if spanValue != nil, (spanStart..<pos).overlaps(probe) { spans.append((name, spanStart..<pos)) }
+      }
+    }
     let lo = _string.utf8.index(_string.startIndex, offsetBy: r.lowerBound), hi = _string.utf8.index(_string.startIndex, offsetBy: r.upperBound)
     _spliceRuns(r, other._runs)   // run arithmetic first: offsets refer to the old text
     _string.replaceSubrange(lo..<hi, with: other._string)
+    if ruled.isEmpty { return }
+    let delta = other._string.utf8.count - r.count
+    for (name, span) in spans {
+      let newSpan = span.lowerBound..<min(_string.utf8.count, span.upperBound + delta)
+      if newSpan.isEmpty { continue }
+      _spliceRuns(newSpan, _pieces(newSpan).map { p -> _Run in var a = p.1; a._storage[name] = nil; return _Run(length: p.0.count, attrs: a) })
+    }
+    _enforceBoundaries(ruled)
   }
-  /// Attributes new text typed at `off` inherits (the character before it, else the one after).
+  /// Attributes new text typed at `off` inherits (the character before it, else the one after), without the keys
+  /// that are not inherited by added text.
   func _attrsForInsertion(at off: Int) -> AttributeContainer {
     let probe = off > 0 ? off - 1 : off
-    return _pieces(probe..<(probe + 1)).first?.1 ?? AttributeContainer()
+    var a = _pieces(probe..<(probe + 1)).first?.1 ?? AttributeContainer()
+    for (name, t) in _attrKeys.ruledTypes where !t.inheritedByAddedText { a._storage[name] = nil }
+    return a
   }
 
   // MARK: whole-string attributes
   public subscript<K: AttributedStringKey>(_: K.Type) -> K.Value? {
     get { _uniform(K.self, 0..<_string.utf8.count) }
-    set { let k = K.name; _editAttributes(0..<_string.utf8.count) { $0._storage[k] = newValue.map { AnyHashable($0) } } }
+    set { _registerAttributeKey(K.self); let k = K.name; _editAttributes(0..<_string.utf8.count) { $0._storage[k] = newValue.map { AnyHashable($0) } } }
   }
   public subscript<K: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeDynamicLookup, K>) -> K.Value? {
     get { self[K.self] }
@@ -295,9 +452,17 @@ public struct AttributedString: AttributedStringProtocol, @unchecked Sendable {
   // MARK: substrings
   public subscript<R: RangeExpression>(bounds: R) -> AttributedSubstring where R.Bound == Index {
     get { AttributedSubstring(_base: self, _range: bounds.relative(to: characters)) }
+    // `s[r].attribute = v` edits the whole string (attributes with run boundaries can reach past `r`)
+    _modify {
+      var sub = AttributedSubstring(_base: self, _range: bounds.relative(to: characters))
+      defer { self = sub._base }
+      yield &sub
+    }
     set {
       let r = bounds.relative(to: characters)
-      _replace(_off(r.lowerBound)..<_off(r.upperBound), with: newValue._materialize())
+      let new = newValue._materialize()
+      let changed = String(_string[r.lowerBound._i..<r.upperBound._i]) != new._string
+      _replace(_off(r.lowerBound)..<_off(r.upperBound), with: new, invalidating: !r.isEmpty && changed)
     }
   }
 
@@ -306,11 +471,11 @@ public struct AttributedString: AttributedStringProtocol, @unchecked Sendable {
   public mutating func insert<S: AttributedStringProtocol>(_ s: S, at index: Index) { let o = _off(index); _replace(o..<o, with: AttributedString(s)) }
   public mutating func replaceSubrange<R: RangeExpression, S: AttributedStringProtocol>(_ range: R, with s: S) where R.Bound == Index {
     let r = range.relative(to: characters)
-    _replace(_off(r.lowerBound)..<_off(r.upperBound), with: AttributedString(s))
+    _replace(_off(r.lowerBound)..<_off(r.upperBound), with: AttributedString(s), invalidating: !r.isEmpty)
   }
   public mutating func removeSubrange<R: RangeExpression>(_ range: R) where R.Bound == Index {
     let r = range.relative(to: characters)
-    _replace(_off(r.lowerBound)..<_off(r.upperBound), with: AttributedString())
+    _replace(_off(r.lowerBound)..<_off(r.upperBound), with: AttributedString(), invalidating: !r.isEmpty)
   }
   public static func + (a: AttributedString, b: AttributedString) -> AttributedString { var r = a; r.append(b); return r }
   public static func += (a: inout AttributedString, b: AttributedString) { a.append(b) }
@@ -371,7 +536,11 @@ public struct AttributedSubstring: AttributedStringProtocol, @unchecked Sendable
   public var endIndex: AttributedString.Index { _range.upperBound }
   public subscript<K: AttributedStringKey>(_: K.Type) -> K.Value? {
     get { _base._uniform(K.self, _offs) }
-    set { let k = K.name; _base._editAttributes(_offs) { $0._storage[k] = newValue.map { AnyHashable($0) } } }
+    set {
+      _registerAttributeKey(K.self)
+      let k = K.name
+      _base._editAttributes(_base._expandedForBoundaries(_offs, names: [k])) { $0._storage[k] = newValue.map { AnyHashable($0) } }
+    }
   }
   public subscript<K: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeDynamicLookup, K>) -> K.Value? {
     get { self[K.self] }
@@ -380,9 +549,11 @@ public struct AttributedSubstring: AttributedStringProtocol, @unchecked Sendable
   public subscript<R: RangeExpression>(bounds: R) -> AttributedSubstring where R.Bound == AttributedString.Index {
     AttributedSubstring(_base: _base, _range: bounds.relative(to: characters))
   }
-  public mutating func setAttributes(_ attributes: AttributeContainer) { _base._editAttributes(_offs) { $0 = attributes } }
+  public mutating func setAttributes(_ attributes: AttributeContainer) {
+    _base._editAttributes(_base._expandedForBoundaries(_offs, names: attributes._storage.keys)) { $0 = attributes }
+  }
   public mutating func mergeAttributes(_ attributes: AttributeContainer, mergePolicy: AttributedString.AttributeMergePolicy = .keepNew) {
-    _base._editAttributes(_offs) { $0.merge(attributes, mergePolicy: mergePolicy) }
+    _base._editAttributes(_base._expandedForBoundaries(_offs, names: attributes._storage.keys)) { $0.merge(attributes, mergePolicy: mergePolicy) }
   }
   public mutating func replaceAttributes(_ attributes: AttributeContainer, with others: AttributeContainer) {
     _base._editAttributes(_offs) { a in
@@ -440,7 +611,7 @@ extension AttributedString {
       let lo = base._off(subrange.lowerBound), hi = base._off(subrange.upperBound)
       let start = base._off(_sub._range.lowerBound), end = base._off(_sub._range.upperBound)
       let text = String(newElements)
-      base._replace(lo..<hi, with: AttributedString(text, attributes: base._attrsForInsertion(at: lo == hi ? lo : lo + 1)))
+      base._replace(lo..<hi, with: AttributedString(text, attributes: base._attrsForInsertion(at: lo == hi ? lo : lo + 1)), invalidating: true)
       let newEnd = end + text.utf8.count - (hi - lo)
       _sub = AttributedSubstring(_base: base, _range: base._idx(start)..<base._idx(newEnd))
     }

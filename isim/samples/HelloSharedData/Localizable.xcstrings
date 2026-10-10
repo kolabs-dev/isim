@@ -1,54 +1,194 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-    "%lld files" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld file" } },
-              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld files" } }
+  "sourceLanguage": "en",
+  "strings": {
+    "%lld files": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld file"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld files"
+                }
+              }
             }
           }
         },
-        "ru" : {
-          "variations" : {
-            "plural" : {
-              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld файл" } },
-              "few" : { "stringUnit" : { "state" : "translated", "value" : "%lld файла" } },
-              "many" : { "stringUnit" : { "state" : "translated", "value" : "%lld файлов" } },
-              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld файла" } }
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld файл"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld файла"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld файлов"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld файла"
+                }
+              }
             }
           }
         }
       }
     },
-    "%lld photos in %lld albums" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "%#@photos@ in %#@albums@" },
-          "substitutions" : {
-            "photos" : {
-              "argNum" : 1, "formatSpecifier" : "lld",
-              "variations" : { "plural" : {
-                "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg photo" } },
-                "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg photos" } } } }
+    "%lld photos in %lld albums": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@photos@ in %#@albums@"
+          },
+          "substitutions": {
+            "photos": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg photo"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg photos"
+                    }
+                  }
+                }
+              }
             },
-            "albums" : {
-              "argNum" : 2, "formatSpecifier" : "lld",
-              "variations" : { "plural" : {
-                "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg album" } },
-                "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg albums" } } } }
+            "albums": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg album"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg albums"
+                    }
+                  }
+                }
+              }
             }
           }
         }
       }
     },
-    "Welcome" : {
-      "localizations" : {
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Добро пожаловать" } }
+    "Welcome": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добро пожаловать"
+          }
+        }
+      }
+    },
+    "Tap to continue": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Tap to continue"
+                }
+              },
+              "ipad": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Tap anywhere to continue"
+                }
+              },
+              "mac": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Click to continue"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Continue"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Коснитесь, чтобы продолжить"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Продолжить"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Settings title": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "width": {
+              "20": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Settings"
+                }
+              },
+              "50": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Application Settings"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }
