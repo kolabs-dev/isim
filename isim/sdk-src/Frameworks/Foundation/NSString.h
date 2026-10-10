@@ -90,6 +90,8 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 /* search and replace with options (NSRegularExpressionSearch uses NSRegularExpression) */
 - (NSRange)rangeOfString:(NSString *)searchString options:(NSStringCompareOptions)mask range:(NSRange)rangeOfReceiverToSearch;
 - (NSRange)rangeOfString:(NSString *)searchString options:(NSStringCompareOptions)mask range:(NSRange)rangeOfReceiverToSearch locale:(nullable NSLocale *)locale;
+- (NSComparisonResult)compare:(NSString *)string options:(NSStringCompareOptions)mask range:(NSRange)rangeOfReceiverToCompare;
+- (NSComparisonResult)compare:(NSString *)string options:(NSStringCompareOptions)mask range:(NSRange)rangeOfReceiverToCompare locale:(nullable id)locale;
 - (NSString *)stringByReplacingOccurrencesOfString:(NSString *)target withString:(NSString *)replacement options:(NSStringCompareOptions)options range:(NSRange)searchRange;
 - (BOOL)localizedCaseInsensitiveContainsString:(NSString *)str;
 - (BOOL)localizedStandardContainsString:(NSString *)str;
@@ -102,12 +104,12 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 - (NSRange)lineRangeForRange:(NSRange)range;
 - (NSRange)paragraphRangeForRange:(NSRange)range;
 - (NSString *)stringByPaddingToLength:(NSUInteger)newLength withString:(NSString *)padString startingAtIndex:(NSUInteger)padIndex;
-@property (readonly, copy) NSString *localizedLowercaseString;
-@property (readonly, copy) NSString *localizedUppercaseString;
-@property (readonly, copy) NSString *localizedCapitalizedString;
-- (NSString *)lowercaseStringWithLocale:(nullable NSLocale *)locale;
-- (NSString *)uppercaseStringWithLocale:(nullable NSLocale *)locale;
-- (NSString *)capitalizedStringWithLocale:(nullable NSLocale *)locale;
+@property (readonly, copy) NSString *localizedLowercaseString NS_SWIFT_NAME(localizedLowercase);
+@property (readonly, copy) NSString *localizedUppercaseString NS_SWIFT_NAME(localizedUppercase);
+@property (readonly, copy) NSString *localizedCapitalizedString NS_SWIFT_NAME(localizedCapitalized);
+- (NSString *)lowercaseStringWithLocale:(nullable NSLocale *)locale NS_SWIFT_NAME(lowercased(with:));
+- (NSString *)uppercaseStringWithLocale:(nullable NSLocale *)locale NS_SWIFT_NAME(uppercased(with:));
+- (NSString *)capitalizedStringWithLocale:(nullable NSLocale *)locale NS_SWIFT_NAME(capitalized(with:));
 - (NSString *)commonPrefixWithString:(NSString *)str options:(NSStringCompareOptions)mask;
 @property (readonly, getter=isAbsolutePath) BOOL absolutePath;
 @property (readonly, copy) NSArray<NSString *> *pathComponents;

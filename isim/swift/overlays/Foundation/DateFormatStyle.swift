@@ -6,12 +6,12 @@
 // MARK: - Calendar <-> NSCalendar, DateComponents <-> NSDateComponents
 extension Calendar: _ObjectiveCBridgeable {
     public func _bridgeToObjectiveC() -> NSCalendar {
-        let c = NSCalendar(calendarIdentifier: identifier == .iso8601 ? .ISO8601 : .gregorian)!
+        let c = NSCalendar(calendarIdentifier: NSCalendar.Identifier(rawValue: identifier._icuName))!
         c.timeZone = timeZone; c.locale = locale; c.firstWeekday = firstWeekday; c.minimumDaysInFirstWeek = minimumDaysInFirstWeek
         return c
     }
     public static func _forceBridgeFromObjectiveC(_ x: NSCalendar, result: inout Calendar?) {
-        var c = Calendar(identifier: x.calendarIdentifier == .ISO8601 ? .iso8601 : .gregorian)
+        var c = Calendar(identifier: Calendar.Identifier(_icuName: x.calendarIdentifier.rawValue) ?? .gregorian)
         c.timeZone = x.timeZone; c.locale = x.locale; c.firstWeekday = Int(x.firstWeekday); c.minimumDaysInFirstWeek = Int(x.minimumDaysInFirstWeek)
         result = c
     }
@@ -145,11 +145,15 @@ extension Date {
             if s.isEmpty { s = "yMdjmm" }
             return s
         }
-        var pattern: String { DateFormatter.dateFormat(fromTemplate: skeleton, options: 0, locale: locale) ?? skeleton }
+        var pattern: String {
+            let f = DateFormatter(); f.locale = locale; f.calendar = calendar
+            f.setLocalizedDateFormatFromTemplate(skeleton)
+            return f.dateFormat ?? skeleton
+        }
         public func format(_ value: Date) -> String {
             let f = DateFormatter()
-            f.locale = locale; f.timeZone = timeZone
-            f.dateFormat = pattern
+            f.locale = locale; f.timeZone = timeZone; f.calendar = calendar
+            f.setLocalizedDateFormatFromTemplate(skeleton)
             var out = f.string(from: value)
             if capitalizationContext == .beginningOfSentence || capitalizationContext == .standalone || capitalizationContext == .listItem, let first = out.first {
                 out = first.uppercased() + out.dropFirst()

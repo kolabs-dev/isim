@@ -1,5 +1,6 @@
 /* isim Foundation private: built-in locale data (Locale.m) shared by the formatters (Formatters.m, Units.m).
- * A small hand-written subset of CLDR for the languages/regions isim supports; not Apple's data. */
+ * A small hand-written subset of CLDR for the languages/regions it covers; not Apple's data. Other locales get the
+ * same structs built from the host's ICU (ICU.m). */
 #pragma once
 #import <Foundation/Foundation.h>
 
@@ -50,3 +51,30 @@ BOOL isim_plural_one(NSString *lang, double n, int fractionDigits);
 NSString *isim_currency_symbol(NSString *code, NSLocale *locale);
 NSString *isim_currency_name(NSString *code, BOOL plural);
 int isim_currency_digits(NSString *code);
+
+/* ---- the host's ICU (ICU.m); every function returns nil / NULL without ICU ---- */
+BOOL isim_icu_on(void);
+NSString *isim_icu_locale_id(NSLocale *locale);                 /* ICU identifier ("en_US", "he_IL@calendar=hebrew") */
+const isim_region_t *isim_icu_region(NSString *ident);         /* region data for a locale without a built-in row */
+const isim_lang_t *isim_icu_lang(NSString *lang);              /* language data for a language without a built-in table */
+BOOL isim_lang_builtin(NSString *lang);                        /* en, pt, es, fr, de, it, ja (Locale.m) */
+NSString *isim_icu_date_format_string(NSString *locale, NSString *tz, NSString *pattern, NSDate *date);
+NSDate *isim_icu_date_parse_string(NSString *locale, NSString *tz, NSString *pattern, NSString *text, BOOL lenient);
+NSString *isim_icu_skeleton_pattern(NSString *locale, NSString *skeleton);
+NSString *isim_icu_style_pattern(NSString *locale, NSInteger dateStyle, NSInteger timeStyle);   /* NSDateFormatterStyle values */
+NSArray<NSString *> *isim_icu_symbols(NSString *locale, int type);                              /* UDateFormatSymbolType */
+NSString *isim_icu_number(NSString *locale, NSString *skeleton, double v);
+NSString *isim_icu_number_style(NSString *locale, int style, NSString *currency, double v);     /* UNumberFormatStyle */
+NSString *isim_icu_relative_string(NSString *locale, double offset, int unit, int width, BOOL numeric);
+NSString *isim_icu_interval_string(NSString *locale, NSString *tz, NSString *skeleton, NSDate *from, NSDate *to);
+NSString *isim_icu_list_string(NSString *locale, NSArray<NSString *> *items, int type, int width);
+NSString *isim_icu_plural_category(NSString *locale, double n, BOOL ordinal);
+NSString *isim_icu_display(NSString *displayLocale, NSString *code, int kind);
+NSString *isim_icu_currency_string(NSString *locale, NSString *code, int kind, NSString *count);
+NSString *isim_icu_case_string(NSString *locale, NSString *s, int kind);
+NSString *isim_icu_unit_id(NSString *unitKey);
+NSString *isim_icu_unit_phrase(NSString *locale, NSString *unitID, double value, NSString *number, int width);
+/* calendar identifiers: Foundation's NSCalendarIdentifier values are ICU's keyword values ("islamic-civil"), except
+ * Swift's Calendar.Identifier names, which isim_icu_calendar_name maps */
+NSString *isim_icu_calendar_name(NSString *foundationID);
+NSString *isim_foundation_calendar_id(NSString *icuName);

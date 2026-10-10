@@ -91,7 +91,7 @@ Requirements: clang/lld/llvm 21 or newer, `python3` (with `venv`), `pkg-config`,
 gdk-pixbuf, fontconfig, ImageMagick and Docker (Swift compiles in the `swift:6.2` image). Package names for Ubuntu are
 in [isim/ci/Dockerfile](isim/ci/Dockerfile), which CI builds on; on Arch/CachyOS: `clang lld llvm sdl3 cairo pango
 librsvg python imagemagick docker`.
-Optional at run time: `webkitgtk-6.0` + `gtk4` (`gtk4-broadwayd`) for WKWebView / SFSafariViewController / ASWebAuthenticationSession (real WebKit, rendered off screen), `openssl` 3 (`libssl.so.3`) for TLS NWConnections, `libcurl` for URLSession.
+Optional at run time: `webkitgtk-6.0` + `gtk4` (`gtk4-broadwayd`) for WKWebView / SFSafariViewController / ASWebAuthenticationSession (real WebKit, rendered off screen), `openssl` 3 (`libssl.so.3`) for TLS NWConnections, `libcurl` for URLSession, ICU (`libicuuc` / `libicui18n`, any version from 50) for locale data beyond the built-in languages (collation, non-Gregorian calendars, every locale's formats).
 Media and ML (each used only when an app needs it): `ffmpeg` (video, export, asset reader/writer, the simulated camera `ISIM_CAMERA`), `zbar` (QR/barcodes in capture and Vision), `tesseract` (Vision text recognition), whisper.cpp or Vosk (Speech recognition). Tests that need a missing tool skip it.
 
 ```bash

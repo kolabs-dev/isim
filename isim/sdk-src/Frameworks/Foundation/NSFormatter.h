@@ -56,6 +56,7 @@ typedef NS_ENUM(NSUInteger, NSDateFormatterStyle) NS_SWIFT_NAME(DateFormatter.St
 @property (null_resettable, copy) NSString *AMSymbol;
 @property (null_resettable, copy) NSString *PMSymbol;
 @property (readonly, copy) NSArray<NSString *> *eraSymbols;
+@property (readonly, copy) NSArray<NSString *> *longEraSymbols;
 @property (readonly, copy) NSArray<NSString *> *quarterSymbols;
 @property (readonly, copy) NSArray<NSString *> *shortQuarterSymbols;
 @end

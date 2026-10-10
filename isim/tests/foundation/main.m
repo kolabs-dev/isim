@@ -272,6 +272,75 @@ static int initialized;
 }
 @end
 
+
+/* locale data from the host's ICU: collation, case rules, locales and calendars the built-in tables lack (#12) */
+#define CHECK_STR(expr, want) do { NSString *got_ = (expr); checks++; if ([got_ isEqualToString:(want)]) printf("PASS  %s == %s\n", #expr, [(want) UTF8String]); \
+    else { failures++; printf("FAIL  %s == %s  (got \"%s\") (%s:%d)\n", #expr, [(want) UTF8String], got_ ? got_.UTF8String : "nil", __FILE__, __LINE__); } } while (0)
+static void locale_checks(void) {
+    NSLocale *fr = [NSLocale localeWithLocaleIdentifier:@"fr_FR"], *sv = [NSLocale localeWithLocaleIdentifier:@"sv_SE"], *de = [NSLocale localeWithLocaleIdentifier:@"de_DE"];
+    NSLocale *ru = [NSLocale localeWithLocaleIdentifier:@"ru_RU"], *tr = [NSLocale localeWithLocaleIdentifier:@"tr_TR"];
+    /* collation */
+    CHECK([@"é" compare:@"f" options:0 range:NSMakeRange(0, 1) locale:fr] == NSOrderedAscending && [@"é" compare:@"f"] == NSOrderedDescending);
+    CHECK([@"ä" compare:@"z" options:0 range:NSMakeRange(0, 1) locale:sv] == NSOrderedDescending && [@"ä" compare:@"z" options:0 range:NSMakeRange(0, 1) locale:de] == NSOrderedAscending);
+    CHECK([@"file10" localizedStandardCompare:@"file9"] == NSOrderedDescending && [@"apple" localizedCaseInsensitiveCompare:@"Banana"] == NSOrderedAscending);
+    CHECK([@"cote" compare:@"Côte" options:NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch range:NSMakeRange(0, 4) locale:fr] == NSOrderedSame);
+    NSArray *sorted = [@[@"Zoë", @"zebra", @"Émile", @"eagle"] sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+    CHECK_STR([sorted componentsJoinedByString:@","], @"eagle,Émile,zebra,Zoë");
+    /* case rules */
+    CHECK_STR([@"istanbul" uppercaseStringWithLocale:tr], @"İSTANBUL");
+    CHECK_STR([@"TITLE" lowercaseStringWithLocale:tr], @"tıtle");
+    /* a locale without a built-in table: Russian */
+    NSDate *d = [NSDate dateWithTimeIntervalSince1970:1792065600];        /* 2026-10-15 12:00 UTC */
+    NSDateFormatter *df = [NSDateFormatter new]; df.locale = ru; df.timeZone = [NSTimeZone timeZoneWithName:@"UTC"];
+    df.dateStyle = NSDateFormatterLongStyle;
+    CHECK_STR([df stringFromDate:d], @"15 октября 2026\u202Fг.");
+    df.dateFormat = @"EEEE, d MMMM y";
+    CHECK_STR([df stringFromDate:d], @"четверг, 15 октября 2026");
+    CHECK([[df dateFromString:@"четверг, 15 октября 2026"] isEqualToDate:[NSDate dateWithTimeIntervalSince1970:1792022400]]);
+    CHECK_STR(df.standaloneMonthSymbols[9], @"октябрь");
+    CHECK_STR([NSDateFormatter dateFormatFromTemplate:@"yMMMd" options:0 locale:ru], @"d MMM y\u202F'г'.");
+    NSNumberFormatter *nf = [NSNumberFormatter new]; nf.locale = ru; nf.numberStyle = NSNumberFormatterDecimalStyle;
+    CHECK_STR([nf stringFromNumber:@1234567.5], @"1\u00A0234\u00A0567,5");
+    nf.numberStyle = NSNumberFormatterCurrencyStyle;
+    CHECK_STR([nf stringFromNumber:@1234.5], @"1\u00A0234,50\u00A0₽");
+    nf.numberStyle = NSNumberFormatterSpellOutStyle;
+    CHECK_STR([nf stringFromNumber:@42], @"сорок два");
+    nf.locale = de; CHECK_STR([nf stringFromNumber:@42], @"zwei\u00ADund\u00ADvierzig");
+    nf.locale = [NSLocale localeWithLocaleIdentifier:@"de_CH"]; nf.numberStyle = NSNumberFormatterDecimalStyle;
+    CHECK_STR([nf stringFromNumber:@1234.5], @"1’234.5");
+    nf.locale = fr; nf.numberStyle = NSNumberFormatterCurrencyPluralStyle; nf.currencyCode = @"USD";
+    CHECK_STR([nf stringFromNumber:@2], @"2,00 dollars des États-Unis");
+    NSRelativeDateTimeFormatter *rel = [NSRelativeDateTimeFormatter new]; rel.locale = ru;
+    CHECK_STR([rel localizedStringFromTimeInterval:3 * 86400], @"через 3 дня");
+    rel.dateTimeStyle = NSRelativeDateTimeFormatterStyleNamed;
+    CHECK_STR([rel localizedStringFromTimeInterval:-86400], @"вчера");
+    NSListFormatter *lf = [NSListFormatter new]; lf.locale = ru;
+    CHECK_STR(([lf stringFromItems:@[@"чай", @"кофе", @"сок"]]), @"чай, кофе и сок");
+    NSMeasurementFormatter *mf = [NSMeasurementFormatter new]; mf.locale = ru; mf.unitStyle = NSFormattingUnitStyleLong;
+    mf.unitOptions = NSMeasurementFormatterUnitOptionsProvidedUnit;
+    CHECK_STR([mf stringFromMeasurement:[[NSMeasurement alloc] initWithDoubleValue:5 unit:NSUnitLength.kilometers]], @"5 километров");
+    NSDateComponentsFormatter *dcf = [NSDateComponentsFormatter new]; dcf.unitsStyle = NSDateComponentsFormatterUnitsStyleFull;
+    dcf.calendar.locale = ru;
+    CHECK_STR([dcf stringFromTimeInterval:3700], @"1 час 1 минута 40 секунд");
+    NSDateIntervalFormatter *itv = [NSDateIntervalFormatter new]; itv.locale = ru; itv.timeZone = df.timeZone;
+    itv.dateStyle = NSDateIntervalFormatterMediumStyle; itv.timeStyle = NSDateIntervalFormatterNoStyle;
+    CHECK_STR([itv stringFromDate:d toDate:[d dateByAddingTimeInterval:3 * 86400]], @"15–18 окт. 2026\u202Fг.");
+    CHECK_STR([fr localizedStringForLanguageCode:@"en"], @"anglais");
+    CHECK_STR([ru localizedStringForCountryCode:@"DE"], @"Германия");
+    CHECK_STR([[NSLocale localeWithLocaleIdentifier:@"en_US"] localizedStringForCurrencyCode:@"EUR"], @"Euro");
+    /* calendars */
+    NSLocale *hebrew = [NSLocale localeWithLocaleIdentifier:@"en_US@calendar=hebrew"];
+    CHECK([hebrew.calendarIdentifier isEqualToString:NSCalendarIdentifierHebrew] && [hebrew.countryCode isEqualToString:@"US"]);
+    NSDateFormatter *hf = [NSDateFormatter new]; hf.locale = [NSLocale localeWithLocaleIdentifier:@"en_US"]; hf.timeZone = df.timeZone;
+    hf.calendar = [NSCalendar calendarWithIdentifier:NSCalendarIdentifierHebrew]; hf.dateFormat = @"d MMMM y";
+    CHECK_STR([hf stringFromDate:d], @"4 Heshvan 5787");
+    hf.calendar = [NSCalendar calendarWithIdentifier:NSCalendarIdentifierJapanese]; hf.dateFormat = @"GGGG y";
+    CHECK_STR([hf stringFromDate:d], @"Reiwa 8");
+    hf.calendar = [NSCalendar calendarWithIdentifier:NSCalendarIdentifierBuddhist]; hf.dateFormat = @"y G";
+    CHECK_STR([hf stringFromDate:d], @"2569 BE");
+    CHECK_STR(hf.quarterSymbols.firstObject, @"1st quarter");
+}
+
 int main(int argc, char *argv[]) {
     @autoreleasepool {
         // strings & formatting
@@ -832,6 +901,7 @@ int main(int argc, char *argv[]) {
         CHECK(NSFileNoSuchFileError == 4 && NSFileReadNoSuchFileError == 260 && NSFileWriteFileExistsError == 516 && NSPropertyListReadCorruptError == 3840);
         CHECK([fm removeItemAtPath:fmDir error:NULL]);
         thread_checks();
+        locale_checks();
 
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }

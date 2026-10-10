@@ -66,8 +66,13 @@ extension StringProtocol {
     public func localizedStandardRange<T: StringProtocol>(of other: T) -> Range<String.Index>? { range(of: other, options: [.caseInsensitive, .diacriticInsensitive]) }
     public func caseInsensitiveCompare<T: StringProtocol>(_ other: T) -> ComparisonResult { (String(self) as NSString).compare(String(other), options: .caseInsensitive) }
     public func compare<T: StringProtocol>(_ other: T, options: String.CompareOptions = [], range: Range<String.Index>? = nil, locale: Locale? = nil) -> ComparisonResult {
-        (String(self) as NSString).compare(String(other), options: options)
+        let ns = String(self) as NSString
+        let r = range.map { NSRange($0, in: self) } ?? NSRange(location: 0, length: ns.length)
+        return ns.compare(String(other), options: options, range: r, locale: locale?._ns)
     }
+    public var localizedLowercase: String { (String(self) as NSString).localizedLowercase }
+    public var localizedUppercase: String { (String(self) as NSString).localizedUppercase }
+    public var localizedCapitalized: String { (String(self) as NSString).localizedCapitalized }
     public func padding<T: StringProtocol>(toLength newLength: Int, withPad padString: T, startingAt padIndex: Int) -> String {
         let s = String(self), u = Array(s.utf16)
         if u.count >= newLength { return String(decoding: u[0..<newLength], as: UTF16.self) }

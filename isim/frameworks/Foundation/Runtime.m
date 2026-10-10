@@ -366,6 +366,9 @@ void isim_bundle_register_extension(NSString *path) {
 - (NSTimeInterval)timeIntervalSinceDate:(NSDate *)d { return _t - d.timeIntervalSinceReferenceDate; }
 - (NSDate *)dateByAddingTimeInterval:(NSTimeInterval)ti { return [[NSDate alloc] initWithTimeIntervalSinceReferenceDate:_t + ti]; }
 - (NSComparisonResult)compare:(NSDate *)o { NSTimeInterval b = o.timeIntervalSinceReferenceDate; return _t < b ? NSOrderedAscending : _t > b ? NSOrderedDescending : NSOrderedSame; }
+- (BOOL)isEqualToDate:(NSDate *)o { return o && _t == o.timeIntervalSinceReferenceDate; }
+- (NSDate *)earlierDate:(NSDate *)o { return [self compare:o] == NSOrderedDescending ? o : self; }
+- (NSDate *)laterDate:(NSDate *)o { return [self compare:o] == NSOrderedAscending ? o : self; }
 - (BOOL)isEqual:(id)o { return [o isKindOfClass:[NSDate class]] && [self compare:o] == NSOrderedSame; }
 - (NSUInteger)hash { return (NSUInteger)_t; }
 - (id)copyWithZone:(NSZone *)z { return self; }
