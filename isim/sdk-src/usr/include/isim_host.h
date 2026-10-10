@@ -124,6 +124,15 @@ void isim_image_bytes_free(unsigned char *_Nullable bytes);
 /* attributed text as Pango markup (<span font_family= size= weight= foreground= ...>); align 0 left 1 center 2 right */
 void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h);
 void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba);
+/* text layouts kept for queries (TextKit): byte offsets into the layout's UTF-8 text */
+void *isim_tl_create(const char *markup, double maxw, int align, double spacing, double indent, int n, const int *bytes, const double *boxes);
+void isim_tl_free(void *t);
+void isim_tl_size(void *t, double *w, double *h);
+int isim_tl_line_count(void *t);
+void isim_tl_line(void *t, int i, int *start, int *len, double *rect, double *baseline);
+void isim_tl_index_rect(void *t, int byte, double *rect);
+int isim_tl_index_at(void *t, double x, double y, int *trailing);
+void isim_tl_draw(void *t, double x, double y, const double *rgba);
 /* audio: PCM buffers (float, interleaved) played as mixed voices. Voice handles are longs (> 0). */
 int isim_audio_available(void);
 int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate);

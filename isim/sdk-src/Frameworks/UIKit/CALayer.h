@@ -124,7 +124,7 @@ typedef NS_OPTIONS(unsigned int, CAAutoresizingMask) {
 
 /* isim: NSCoding methods are declared but CALayer does not adopt NSSecureCoding, so Swift subclasses need no
    required init(coder:) (they may still declare one) */
-@interface CALayer : NSObject <CAMediaTiming>
+@interface CALayer : NSObject <NSSecureCoding, CAMediaTiming>
 + (instancetype)layer;
 - (instancetype)init;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder;

@@ -1507,6 +1507,70 @@ void isim_text_draw_markup(const char *markup, double x, double y, double w, int
     g_object_unref(l);
 }
 
+/* ---- text layouts kept for queries (TextKit: line fragments, character <-> point); byte offsets are into the
+   layout's UTF-8 text (the markup's text without its tags) ---- */
+/* shapes: n inline boxes (text attachments) at byte offsets, each x y w h relative to the baseline (y up negative),
+   that replace the character there; indent: the first line's indent (negative: the other lines') */
+void *isim_tl_create(const char *markup, double maxw, int align, double spacing, double indent, int n, const int *bytes, const double *boxes) {
+    measure_context();
+    PangoLayout *l = layout_markup(markup, maxw, 0, align, spacing);
+    if (indent != 0) pango_layout_set_indent(l, (int)(indent * PANGO_SCALE));
+    if (n > 0) {
+        PangoAttrList *old = pango_layout_get_attributes(l);
+        PangoAttrList *al = old ? pango_attr_list_copy(old) : pango_attr_list_new();
+        const char *text = pango_layout_get_text(l);
+        for (int i = 0; i < n; i++) {
+            const double *b = boxes + 4 * i;
+            PangoRectangle r = { (int)(b[0] * PANGO_SCALE), (int)(b[1] * PANGO_SCALE), (int)(b[2] * PANGO_SCALE), (int)(b[3] * PANGO_SCALE) };
+            PangoAttribute *a = pango_attr_shape_new(&r, &r);
+            a->start_index = (guint)bytes[i];
+            a->end_index = (guint)(g_utf8_next_char(text + bytes[i]) - text);
+            pango_attr_list_insert(al, a);
+        }
+        pango_layout_set_attributes(l, al);
+        pango_attr_list_unref(al);
+    }
+    return l;
+}
+void isim_tl_free(void *t) { if (t) g_object_unref((PangoLayout *)t); }
+void isim_tl_size(void *t, double *w, double *h) {
+    PangoRectangle log; pango_layout_get_extents((PangoLayout *)t, NULL, &log);
+    *w = (double)log.width / PANGO_SCALE; *h = (double)log.height / PANGO_SCALE;
+}
+int isim_tl_line_count(void *t) { return pango_layout_get_line_count((PangoLayout *)t); }
+/* line i: its byte range, its logical rect (x y w h, layout coordinates) and baseline */
+void isim_tl_line(void *t, int i, int *start, int *len, double *r, double *baseline) {
+    PangoLayoutIter *it = pango_layout_get_iter((PangoLayout *)t);
+    for (int k = 0; k < i && pango_layout_iter_next_line(it); k++) {}
+    PangoLayoutLine *line = pango_layout_iter_get_line_readonly(it);
+    PangoRectangle log; pango_layout_iter_get_line_extents(it, NULL, &log);
+    int y0, y1; pango_layout_iter_get_line_yrange(it, &y0, &y1);
+    *start = line->start_index; *len = line->length;
+    r[0] = (double)log.x / PANGO_SCALE; r[1] = (double)y0 / PANGO_SCALE; r[2] = (double)log.width / PANGO_SCALE; r[3] = (double)(y1 - y0) / PANGO_SCALE;
+    *baseline = (double)pango_layout_iter_get_baseline(it) / PANGO_SCALE;
+    pango_layout_iter_free(it);
+}
+/* the rect of the character at a byte offset (its leading edge for an insertion point) */
+void isim_tl_index_rect(void *t, int byte, double *r) {
+    PangoRectangle pos; pango_layout_index_to_pos((PangoLayout *)t, byte, &pos);
+    r[0] = (double)pos.x / PANGO_SCALE; r[1] = (double)pos.y / PANGO_SCALE; r[2] = (double)pos.width / PANGO_SCALE; r[3] = (double)pos.height / PANGO_SCALE;
+}
+/* the byte offset of the character under a point; trailing: how far past it (in characters) the point is */
+int isim_tl_index_at(void *t, double x, double y, int *trailing) {
+    int idx = 0, tr = 0;
+    pango_layout_xy_to_index((PangoLayout *)t, (int)(x * PANGO_SCALE), (int)(y * PANGO_SCALE), &idx, &tr);
+    if (trailing) *trailing = tr;
+    return idx;
+}
+void isim_tl_draw(void *t, double x, double y, const double *rgba) {
+    PangoLayout *l = (PangoLayout *)t;
+    pango_cairo_update_context(cr, pctx);
+    pango_layout_context_changed(l);
+    cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
+    cairo_move_to(cr, x, y);
+    pango_cairo_show_layout(cr, l);
+}
+
 int isim_image_load(const char *path, double *w, double *h);
 long isim_image_encode(int hd, int fmt, double quality, unsigned char **out);
 void isim_image_bytes_free(unsigned char *p);
@@ -1683,7 +1747,7 @@ static const struct shim isim_table[] = {
     H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_trust), H(isim_pki_pkcs12),
     H(isim_set_orientation), H(isim_device_orientation),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
-    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_draw_markup),
+    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),

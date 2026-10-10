@@ -59,6 +59,9 @@
 #import <UIKit/UIOrientation.h>
 #import <UIKit/UILayoutExtras.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>
+#import <UIKit/NSTextStorage.h>
+#import <UIKit/NSTextAttachment.h>
+#import <UIKit/NSTextLayoutManager.h>
 #import <UIKit/UITextView.h>
 #import <UIKit/UIPickerView.h>
 #import <UIKit/UIDatePicker.h>

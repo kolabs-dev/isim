@@ -1,8 +1,11 @@
 #pragma once
-/* isim: UITextView — editable, scrollable multi-line plain text. Not editable and selectable, it shows the
-   dataDetectorTypes it finds (links, phone numbers, addresses, dates) as tappable links (UITextServices.m). */
+/* isim: UITextView — editable, scrollable multi-line text. Not editable and selectable, it shows the
+   dataDetectorTypes it finds (links, phone numbers, addresses, dates) as tappable links (UITextServices.m).
+   Its text lives in a TextKit text storage (attributedText, typingAttributes): TextKit 2 objects by default
+   (textLayoutManager), TextKit 1 ones (layoutManager) once asked for or with init(frame:textContainer:). */
 #import <UIKit/UIScrollView.h>
 #import <UIKit/UITextInput.h>
+#import <UIKit/NSTextLayoutManager.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UITextView, UIFont, UIColor, UIAction, UIMenu, UIMenuElement;
 
@@ -81,6 +84,35 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) UITextInputPasswordRules *passwordRules;
 @property (nonatomic) UITextInlinePredictionType inlinePredictionType;
 - (void)scrollRangeToVisible:(NSRange)range;
+/* TextKit */
+- (instancetype)initWithFrame:(CGRect)frame textContainer:(nullable NSTextContainer *)textContainer;
++ (instancetype)textViewUsingTextLayoutManager:(BOOL)usingTextLayoutManager NS_SWIFT_NAME(init(usingTextLayoutManager:)) API_AVAILABLE(ios(16.0));
+@property (null_resettable, nonatomic, copy) NSAttributedString *attributedText;
+@property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *typingAttributes;
+@property (null_resettable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *linkTextAttributes;
+@property (nonatomic, readonly) NSTextContainer *textContainer;
+@property (nonatomic, readonly) NSLayoutManager *layoutManager;            /* switches the view to TextKit 1 */
+@property (nonatomic, readonly, strong) NSTextStorage *textStorage;
+@property (nullable, nonatomic, readonly) NSTextLayoutManager *textLayoutManager API_AVAILABLE(ios(16.0));
+@property (nonatomic) BOOL usesStandardTextScaling API_AVAILABLE(ios(13.0));   /* stored (a Mac idiom setting) */
+@end
+
+/* iOS 27: keep attachment view providers (and their views) instead of recreating them when they scroll out of the
+   viewport or their paragraph is edited (TextKit 2 text views) */
+typedef NS_OPTIONS(NSUInteger, UITextAttachmentViewProviderReusePolicy) {
+    UITextAttachmentViewProviderReusePolicyOnScrollingOutOfViewport = 1 << 0,
+    UITextAttachmentViewProviderReusePolicyOnEditingInlineParagraphs = 1 << 1,
+} API_AVAILABLE(ios(27.0));
+/* iOS 27: text views lay out through their viewport layout controller's delegate methods (subclasses call super) */
+@interface UITextView (NSTextViewportLayoutControllerDelegate) <NSTextViewportLayoutControllerDelegate>
+- (CGRect)viewportBoundsForTextViewportLayoutController:(NSTextViewportLayoutController *)textViewportLayoutController API_AVAILABLE(ios(27.0));
+- (void)textViewportLayoutControllerWillLayout:(NSTextViewportLayoutController *)textViewportLayoutController API_AVAILABLE(ios(27.0));
+- (void)textViewportLayoutController:(NSTextViewportLayoutController *)textViewportLayoutController
+    configureRenderingSurfaceForTextLayoutFragment:(NSTextLayoutFragment *)textLayoutFragment API_AVAILABLE(ios(27.0));
+- (void)textViewportLayoutControllerDidLayout:(NSTextViewportLayoutController *)textViewportLayoutController API_AVAILABLE(ios(27.0));
+- (void)textViewportLayoutControllerReceivedSetNeedsLayout:(NSTextViewportLayoutController *)textViewportLayoutController API_AVAILABLE(ios(27.0));
+- (void)registerTextAttachmentViewProviderReusePolicy:(UITextAttachmentViewProviderReusePolicy)policy forTextAttachmentViewProviderType:(Class)viewProviderType
+    NS_SWIFT_NAME(register(_:forTextAttachmentViewProviderType:)) API_AVAILABLE(ios(27.0));
 @end
 
 @interface UIView (UITextFieldEditing)
