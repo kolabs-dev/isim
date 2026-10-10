@@ -4,7 +4,7 @@ This tracks how much of the iOS SDK isim covers (iOS 17, 18, 26 and 27, selected
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-09
+Last updated: 2026-10-10
 
 **Legend**
 
@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 233 | 2 | 0 | 4 | 239 | 98% |
+| **UIKit** | 236 | 3 | 0 | 3 | 242 | 98% |
 | &nbsp;&nbsp;↳ Application & scenes | 26 | 0 | 0 | 0 | 26 | 100% |
-| &nbsp;&nbsp;↳ View controllers & presentation | 31 | 0 | 0 | 0 | 31 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 73 | 0 | 0 | 3 | 76 | 96% |
+| &nbsp;&nbsp;↳ View controllers & presentation | 33 | 1 | 0 | 0 | 34 | 99% |
+| &nbsp;&nbsp;↳ Views & controls | 74 | 0 | 0 | 2 | 76 | 97% |
 | &nbsp;&nbsp;↳ Layout | 20 | 0 | 0 | 0 | 20 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **773** | **186** | **23** | **35** | **1017** | **85%** |
+| **All areas** | **777** | **187** | **23** | **34** | **1021** | **85%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 99% (210) | 99% (214) | 99% (229) | 98% (239) |
+| UIKit | 99% (213) | 99% (217) | 99% (232) | 98% (242) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (84) | 85% (84) | 85% (84) | 85% (84) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (960) | **86%** (972) | **85%** (997) | **85%** (1017) |
+| **All areas** | **86%** (964) | **86%** (976) | **85%** (1001) | **85%** (1021) |
 
 ---
 
@@ -185,6 +185,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UISearchController` | ✅ | ≤17 | in `navigationItem.searchController`: bar below the (large) title, collapses on scroll (`hidesSearchBarWhenScrolling`); activating slides the bar to the top as the navigation bar hides (and back on Cancel), shows Cancel, dims the content (`obscuresBackgroundDuringPresentation`), calls the results updater per keystroke, shows the results controller once text is typed (`showsSearchResultsController`), lists `searchSuggestions` (`UISearchSuggestionItem`; `updateSearchResults(for:selecting:)`), restores the scroll position on cancel; standalone search controllers keep their bar in place; tested (HelloInputs, HelloControllers) |
 | `UIImagePickerController` (camera/library) | ✅ | ≤17 | library: the device photo library (photos and videos, filtered by `mediaTypes`; a video comes back as a `mediaURL` copy in tmp), `imageURL`; `allowsEditing` shows the Move and Scale square (pan / zoom, `editedImage`, `cropRect`). Camera (adapted: isim's simulated camera, `ISIM_CAMERA`; without it the source is unavailable, like the Simulator): live preview, shutter, switch camera (front mirrored), PHOTO / VIDEO, Retake / Use Photo / Use Video, `mediaMetadata` (isim's values, not a real sensor's), video capture to H.264 .MOV via ffmpeg (no sound; `videoQuality`, `videoMaximumDuration`), `showsCameraControls = false` + `cameraOverlayView` + `takePicture` / `startVideoCapture` / `stopVideoCapture`, `cameraViewTransform`, the camera permission (shared with AVFoundation). No flash (`isFlashAvailable` is NO), no video trimming. `UISaveVideoAtPathToSavedPhotosAlbum`, `UIVideoAtPathIsCompatibleWithSavedPhotosAlbum`. Tested (HelloImagePicker, HelloPhotos) |
 | `UIDocumentPickerViewController` / `UIDocumentBrowserViewController` | ✅ | ≤17 | adapted: the device's files as Files shows them — On My iPhone (`$ISIM_DATA/Files`, shared by the device's apps) with a folder for each app that shares its Documents (`UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`); no iCloud Drive / other providers, Recents or Tags. Picker: `init(forOpeningContentTypes:asCopy:)` (copies into `tmp/<bundle id>-Inbox`, or the files in place), multiple selection, folders (`.folder`), `init(forExporting:asCopy:)` (Save copies, Move moves; "name 2.ext" on clashes), the legacy `init(documentTypes:in:)` / `init(url(s):in:)` modes, `directoryURL`, `shouldShowFileExtensions`, files that do not match dimmed, dismisses itself. Browser: folder listings, picking (and Select for `allowsPickingMultipleItems`), document creation through the delegate's import handler (copy / move), `additionalLeading/TrailingNavigationBarButtonItems`, `revealDocument(at:importIfNeeded:)`, `importDocument(at:nextToDocumentAt:mode:)`. Types from UniformTypeIdentifiers (`UTType` initializers in the Swift overlay). No thumbnails or grid view, no document transitions. Tested (HelloDocuments) |
+| `UIDocument` (open / close, `load(fromContents:ofType:)`, `contents(forType:)`, `save(to:for:)`, `read(from:)` / `writeContents…`, `revert(toContentsOf:)`, `documentState` + `stateChangedNotification`, change count and tokens, undo manager, autosave, `performAsynchronousFileAccess`, `disableEditing`, user activity URL, `handleError`) | ✅ | ≤17 | adapted: files through `NSFileManager` on the document's serial queue (no `NSFileCoordinator` / `NSFilePresenter`: no conflicts, versions or iCloud; `progress` is nil); reads load and saves ask for contents on the main queue like UIKit; saves write a temporary file renamed over the original; changes autosave 2 s later and when the app goes to the background or terminates. Contents are `Data` (no `FileWrapper` packages). `didMoveToWritableLocationNotification` (iOS 26) is declared, never posted (no read-only locations). Tested (HelloDocumentApp) |
+| `UIDocumentViewController` (`document`, `openDocument`, `documentDidOpen`, `navigationItemDidUpdate`, `undoRedoItemGroup`), `LaunchOptions` (title, background, accessory views, primary / secondary actions, `createDocumentAction(withIntent:)`, `browserViewController`), `UIDocument.CreationIntent`, `activeDocumentCreationIntent` | ✅ | 17.0 | adapted: opens its document when it appears and closes the one it replaces; the title is the document's name; undo / redo items hidden without a document, enabled as the undo manager can undo / redo. Without a document: before iOS 18 UIKit's "No Document" state and a Documents button (the document picker); from iOS 18 the launch view (background, title, subtitle, Create Document and the secondary action as capsules, accessory views) with isim's browser in a sheet; documents it picks or creates open as the Info.plist's `UIDocumentClass` for their type. The launch view's look is isim's (Apple shows an app illustration over a gradient). `documentTargetView` is stored. Tested (HelloDocumentApp) |
+| `UIBarButtonItemGroup` (`barButtonItems`, `representativeItem`, `isHidden`), `UIBarButtonItem.buttonGroup`, `UINavigationItem.style`, `leadingItemGroups` / `centerItemGroups` / `trailingItemGroups` | 🟡 | 16.0 | groups feed the bar's item arrays (hidden groups left out); center groups sit before the trailing items, or in the overflow menu with the navigator style; the representative item is never shown (isim shows the items). The rest of the iOS 16 navigation bar API (`fixedGroup` / `movableGroup` / `optionalGroup`, customization, `pinnedTrailingGroup`, `additionalOverflowItems`, `titleMenuProvider`, `renameDelegate`, `backAction`): #154. Tested (HelloDocumentApp: the undo / redo group) |
 | `UIColorPickerViewController` | ✅ | ≤17 | adapted: grid, spectrum (continuous while dragging) and RGB sliders (continuous, then a final selection when the drag ends), opacity, an sRGB hex field on the Sliders page (iOS shows Display P3; isim's colors are sRGB), saved colors shared by the device's apps ("+", a swatch picks, a long press removes), the eyedropper (the picker steps aside and the next touch samples that pixel of the app), delegate callbacks (`didSelectColor:continuously:`, did finish); `UIColorWell`. Tested (HelloSystemPickers, OS matrix; UIColorWell in HelloInputs) |
 | `UIFontPickerViewController` | ✅ | ≤17 | adapted: searchable list of the iOS font families (`UIFont.familyNames`: isim's table of iOS's families and faces, drawn with isim's fonts) and the app's fonts (UIAppFonts), each in its own face; `UIFontPickerViewController.Configuration`: `includeFaces` (a family's chevron opens its faces), `displayUsingSystemFont`, `filteredTraits`, `filteredLanguagesPredicate` / `filterPredicate(forFilteredLanguages:)` (isim's list of languages per family); `selectedFontDescriptor` (family, name, face), delegate pick/cancel. Tested (HelloSystemPickers, OS matrix; HelloStoryboards) |
 | `UIReferenceLibraryViewController`, `QLPreviewController` | ✅ | ≤17 | QuickLook framework: `QLPreviewController` with data source / delegate (will / did dismiss), `canPreview`, `currentPreviewItemIndex`, `reloadData`, `refreshCurrentPreviewItem`, `URL` as `QLPreviewItem`; swipes between items; previews images (zoom, double tap), PDFs (pages rendered with the host's poppler), text and source files, audio / video (play / pause, time; the host's ffmpeg), other files as name, kind and size; Done + Share bar when presented, Share in the navigation item when pushed. Adapted: no Markup / editing modes, no item list, no zoom transition. `UIReferenceLibraryViewController`: adapted like a Simulator without downloaded dictionaries ("No definition found", Manage lists none); the host's WordNet (`wn`) is used when installed (unverified). Tested (HelloQuickLook) |
@@ -272,7 +275,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIMenuElement.subtitle`, `preferredImageVisibility`, `highlightStateUpdateHandler`; `UIContextMenuConfiguration.allowsTypeSelect` | ✅ | 27.0 | adapted: a subtitle is a second line (15 pt, secondary) and makes the row 58 pt; `.hidden` drops the image; the handler is told when a row is highlighted by touch or keyboard. Menus take a hardware keyboard: arrows move the highlight, Return chooses, Escape closes, letters type-select (unless `allowsTypeSelect` is false: then they reach the focused text field). `subtitle` itself is iOS 15. Tested (HelloKit27) |
 | `UITabBarController.prominentTabIdentifier`, `performBatchUpdates(_:)`, sidebar `preferredPlacement` / `isAvailable` / visibility callback | ✅ | 27.0 | adapted: the prominent tab sits on its own glass circle at the trailing end of the floating tab bar (iOS 26+: the search tab, like SwiftUI's search role) and stays while the bar is minimized; batch updates lay the tabs out once, animated; the sidebar is available on iPad in `.tabSidebar` mode (`tabBarController(_:sidebarAvailabilityDidChange:)`), `preferredPlacement` is kept (isim shows no sidebar on iPhone), `tabBarController(_:sidebarVisibilityWillChange:animator:)` runs the animator's animations with the change and its completions after; `UISearchTab.automaticallyActivatesSearch` activates the tab's search controller. Tested (HelloBars27) |
 | `UIFont.Weight.symbolWeight()`, `UIImage.SymbolWeight.fontWeight()` | ✅ | ≤17 | the nearest of the nine weights; `.unspecified` is regular. (iOS 13; listed under iOS 27 before.) Tested (HelloKit27) |
-| `UIDocumentViewController.LaunchOptions.subtitle` | ❌ | 27.0 | needs `UIDocument` / `UIDocumentViewController`, which isim does not have yet |
+| `UIDocumentViewController.LaunchOptions.subtitle` | ✅ | 27.0 | a line under the launch view's title from iOS 27 (none when nil); tested (HelloDocumentApp) |
 | `UIArrangementViewController` (split / overlay arrangements, dimension ranges, view states), `UIView.ReservedRegion`, `UIHingeInteraction` / `UIHinge`, vertical bar (`preferredVerticalBarBehavior`, `verticalBarEdge`, `UIBarButtonItem.axisBehavior`, `verticalBarCompressionBehavior`), `LayoutRegion.bar(onEdge:extent:)` | ✅ | 27.1 | iOS 27.1 (beta) APIs for foldable iPhones, as they behave on isim's devices, none of which folds (isim has no foldable preset: Apple has published no specifications). Adapted: a split arrangement stacks its views in compact width portrait and puts them side by side otherwise (within `axes(_:)`), sized by the dimension ranges (absolute, fractional, intrinsic, automatic; the lower `layoutPriority` takes the difference); an overlay layers the primary over the secondary and never turns side by side; the hinge handler gets a nil hinge when the interaction joins or leaves a window; occlusion regions are the Dynamic Island / notch, active, without margins; no division regions; `verticalBarEdge` is unspecified and the vertical bar preferences are resolved (through containers) and kept; a bar region is a strip along an edge of the safe area. Tested (HelloArrangements, iPhone 17 and iPad Pro under iOS 27.1) |
 
 ### Layout

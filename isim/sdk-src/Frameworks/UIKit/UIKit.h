@@ -47,6 +47,8 @@
 #import <UIKit/UIImagePickerController.h>
 #import <UIKit/UIPrinting.h>
 #import <UIKit/UIDocumentPickerViewController.h>
+#import <UIKit/UIDocument.h>
+#import <UIKit/UIDocumentViewController.h>
 #import <UIKit/UIReferenceLibraryViewController.h>
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>

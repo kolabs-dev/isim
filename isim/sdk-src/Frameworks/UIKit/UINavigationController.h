@@ -53,6 +53,20 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, strong) UIColor *tintColor;
 @property (nonatomic, getter=isHidden) BOOL hidden;
 @end
+/* a group of bar button items (the representative item stands for the group when the bar is short of room; isim
+   shows the group's items, so it is not used). Navigation items take groups through leading/center/trailingItemGroups */
+NS_SWIFT_UI_ACTOR
+@interface UIBarButtonItemGroup : NSObject <NSCoding>
+- (instancetype)initWithBarButtonItems:(NSArray<UIBarButtonItem *> *)barButtonItems representativeItem:(nullable UIBarButtonItem *)representativeItem NS_DESIGNATED_INITIALIZER;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
+@property (nonatomic, copy) NSArray<UIBarButtonItem *> *barButtonItems;
+@property (nonatomic, strong, nullable) UIBarButtonItem *representativeItem;
+@property (nonatomic, readonly, getter=isDisplayingRepresentativeItem) BOOL displayingRepresentativeItem;
+@property (nonatomic, getter=isHidden) BOOL hidden API_AVAILABLE(ios(16.0));
+@end
+@interface UIBarButtonItem (UIBarButtonItemGroup)
+@property (nullable, nonatomic, readonly, weak) UIBarButtonItemGroup *buttonGroup;
+@end
 /* iOS 26: a badge on a bar button item (a count, a short string, or an indicator dot), drawn at its top trailing corner */
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_SWIFT_NAME(UIBarButtonItem.Badge)
 @interface UIBarButtonItemBadge : NSObject <NSCopying>
@@ -475,6 +489,18 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIBarButtonItem *editButtonItem;
 @property (nonatomic, readonly, getter=isMovingToParentViewController) BOOL movingToParentViewController;
 @property (nonatomic, readonly, getter=isMovingFromParentViewController) BOOL movingFromParentViewController;
+@end
+/* iOS 16: how the navigation item lays out its content (navigator: center groups go to the overflow menu) */
+typedef NS_ENUM(NSInteger, UINavigationItemStyle) { UINavigationItemStyleNavigator, UINavigationItemStyleBrowser, UINavigationItemStyleEditor }
+    NS_SWIFT_NAME(UINavigationItem.ItemStyle) API_AVAILABLE(ios(16.0));
+/* item groups (iOS 16): leading groups replace leftBarButtonItems and trailing groups rightBarButtonItems (the item
+   arrays read back the groups' items); center groups sit before the trailing items (browser / editor) or in the
+   overflow menu (navigator). Hidden groups are not shown. Customization, pinned groups and representative items: #154 */
+@interface UINavigationItem (UIBarButtonItemGroups)
+@property (nonatomic) UINavigationItemStyle style API_AVAILABLE(ios(16.0));
+@property (nonatomic, copy) NSArray<UIBarButtonItemGroup *> *leadingItemGroups API_AVAILABLE(ios(16.0));
+@property (nonatomic, copy) NSArray<UIBarButtonItemGroup *> *centerItemGroups API_AVAILABLE(ios(16.0));
+@property (nonatomic, copy) NSArray<UIBarButtonItemGroup *> *trailingItemGroups API_AVAILABLE(ios(16.0));
 @end
 @interface UINavigationItem (UIVerticalBar)
 @property (nonatomic, assign, readwrite) UIVerticalBarCompressionBehavior verticalBarCompressionBehavior API_AVAILABLE(ios(27.1));
