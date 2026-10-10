@@ -26,10 +26,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 236 | 3 | 0 | 3 | 242 | 98% |
+| **UIKit** | 241 | 3 | 0 | 1 | 245 | 99% |
 | &nbsp;&nbsp;↳ Application & scenes | 26 | 0 | 0 | 0 | 26 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 33 | 1 | 0 | 0 | 34 | 99% |
-| &nbsp;&nbsp;↳ Views & controls | 74 | 0 | 0 | 2 | 76 | 97% |
+| &nbsp;&nbsp;↳ Views & controls | 78 | 1 | 0 | 0 | 79 | 99% |
 | &nbsp;&nbsp;↳ Layout | 20 | 0 | 0 | 0 | 20 | 100% |
 | &nbsp;&nbsp;↳ Animation | 12 | 0 | 0 | 0 | 12 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 13 | 0 | 0 | 0 | 13 | 100% |
@@ -38,7 +38,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
-| &nbsp;&nbsp;↳ Appearance & dark mode | 13 | 1 | 0 | 1 | 15 | 90% |
+| &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
 | **SwiftUI** | 187 | 43 | 2 | 7 | 239 | 87% |
 | &nbsp;&nbsp;↳ App & scenes | 6 | 5 | 0 | 0 | 11 | 77% |
 | &nbsp;&nbsp;↳ State & data flow | 15 | 2 | 0 | 0 | 17 | 94% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **777** | **187** | **23** | **34** | **1021** | **85%** |
+| **All areas** | **782** | **187** | **23** | **32** | **1024** | **85%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 99% (213) | 99% (217) | 99% (232) | 98% (242) |
+| UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 85% (84) | 85% (84) | 85% (84) | 85% (84) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (964) | **86%** (976) | **85%** (1001) | **85%** (1021) |
+| **All areas** | **86%** (966) | **86%** (978) | **86%** (1003) | **85%** (1024) |
 
 ---
 
@@ -267,8 +267,11 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UITab`, `UITabGroup`, `UITabBarController.Mode.tabSidebar` (sidebar-adaptable tabs) | ✅ | 18.0 | adapted: `tabs`, groups (children, `defaultChildIdentifier`), `UISearchTab`, `selectedTab`, `tab(forIdentifier:)`, `isTabBarHidden`, delegate `shouldSelectTab` / `didSelectTab:previousTab:`; iPad sidebar (`.tabSidebar`/automatic, 320 pt, glass under `--os 26`) toggled by its button; iPhone tab bar from tabs (a group shows its first child). Tested (HelloUITabs, per version: classic tabs on iOS 17) |
 | `UIDragInteraction.allowsPointerDragBeforeLiftDelay`, `liftBehavior` | ✅ | 27.0 | adapted: the lift delay is 0.5 s, `.extended` 0.75 s (isim's estimate) and a second finger cancels the lift; a pointer drag (iPad pointer touches, script `pointerdrag`) starts once the pointer moves unless `allowsPointerDragBeforeLiftDelay` is false (then it waits for the lift delay like a finger). Tested (HelloKit27) |
 | `NSTextTable` / `NSTextTableBlock` / `NSTextBlock` in UIKit, `NSParagraphStyle.textBlocks` | ✅ | ≤17 | public in UIKit with iOS 27 (Apple's documentation lists iOS 6; the per-edge `setWidth(_:type:for:rectEdge:)`, `width(for:rectEdge:)`, `setBorderColor(_:rectEdge:)` and `borderColor(for:)` are 27.0). Adapted: UILabel, CATextLayer and `NSAttributedString` drawing / `boundingRect` lay the blocks out with isim's own box model (no TextKit): margin / border / padding per edge (absolute or percentage), widths and heights, backgrounds and per-edge border colours; table cells in a grid with row and column spans, cell widths, automatic (content width) or fixed columns, vertical alignment, `collapsesBorders`, `hidesEmptyCells`. Line limits do not apply to block layouts; UITextView does not draw attributed text yet. Tested (HelloTextTables, pixels) |
-| `UITextAttachmentViewProviderReusePolicy`, `NSTextViewportRenderingSurface` / `NSTextViewportRenderingSurfaceKey` | ❌ | 27.0 | TextKit 2 APIs (`NSTextAttachmentViewProvider`, `NSTextViewportLayoutController`): they need TextKit, which isim does not have (next row) |
-| TextKit (`NSTextStorage`, `NSLayoutManager`, `NSTextContainer`, `NSTextLayoutManager`, `NSTextContentStorage`, `UITextView.textLayoutManager`) | ❌ | ≤17 | isim lays text out with Pango directly; text views have no TextKit objects |
+| `UITextAttachmentViewProviderReusePolicy` (`UITextView.register(_:forTextAttachmentViewProviderType:)`), `NSTextLayoutManagerDelegate` provider cache (`cacheTextAttachmentViewProvider` / `retrieveCachedTextAttachmentViewProvider`), `UITextView` as `NSTextViewportLayoutControllerDelegate` | ✅ | 27.0 | `.onScrollingOutOfViewport` keeps a provider's view in the text view when it scrolls out of the viewport (removed otherwise); `.onEditingInlineParagraphs` reuses a provider when its paragraph is laid out again after an edit (a new one otherwise); a provider about to be discarded is offered to the layout manager's delegate, which can hand it back. Tested (HelloTextKit, per iOS version) |
+| `NSTextViewportRenderingSurface` / `NSTextViewportRenderingSurfaceKey`, the viewport delegate's `cacheRenderingSurface` / `retrieveCachedRenderingSurface` | 🟡 | 27.0 | the protocols (layout fragments and strings are keys) and delegate methods are declared; isim's viewport layout controller does not call the cache methods (Apple documents no call order, and isim's text views draw fragments themselves). Laying out the viewport calls `configureRenderingSurfaceFor` per visible fragment (tested, HelloTextKit) |
+| TextKit 1 (`NSTextStorage` + delegate / notifications / subclassing with a backing store, `NSTextContainer`, `NSLayoutManager`: line fragments, glyph / character ranges and queries, bounding rects, insertion points, drawing; `NSTextAttachment` with images and `NSAttributedString(attachment:)`) | ✅ | ≤17 | adapted: isim's TextKit engine lays the storage out with Pango, one layout per paragraph (alignment, line and paragraph spacing, head / first line / tail indents), attachments as inline boxes drawing their image. A glyph is a UTF-16 unit (glyph index = character index; `CGGlyph` from Core Text when the app links it); the first text container gets all the text (exclusion paths stored, not applied); typesetter setters (`setLineFragmentRect…`) are ignored; `NSTextBlock` tables are not laid out by TextKit. Tested (HelloTextKit) |
+| TextKit 2 (`NSTextContentStorage` / `NSTextContentManager` + delegates, `NSTextParagraph`, `NSTextRange` / `NSTextLocation`, `NSTextLayoutManager`: layout fragments, line fragments, text segments, rendering and link rendering attributes; `NSTextViewportLayoutController` + delegate, `NSTextSelection`, `NSTextAttachmentViewProvider`), `UITextView.textLayoutManager`, `init(usingTextLayoutManager:)` | ✅ | ≤17 | adapted: locations are offsets into the content storage; each paragraph is a layout fragment of one whole-document layout (isim's TextKit engine); no estimated layout (the document is laid out when a fragment is needed). Text views are TextKit 2 by default and switch to TextKit 1 when asked for `layoutManager` (logged, like UIKit); attachment views are placed by the viewport layout. `NSTextSelectionNavigation` holds its data source only (moving / extending selections: #154). Tested (HelloTextKit) |
+| `UITextView.attributedText`, `typingAttributes`, `linkTextAttributes`, `textStorage` / `textContainer` / `layoutManager`, `init(frame:textContainer:)` | ✅ | ≤17 | the view's text lives in its text storage (edits by the app are shown); font, colour and alignment apply to all its text and to typing; typed text takes the typing attributes. Tested (HelloTextKit, HelloDocumentApp) |
 | Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ✅ | 27.0 | adapted: an external display is simulated (script `display connect [WxH]` / `display disconnect`; `display shot PATH` saves what it shows, isim opens no second window): while it is connected, the most recent enabled `externalNonInteractive` registration gets a `windowExternalDisplayNonInteractive` scene from its configuration, with `sceneAccessoryUserInfo`; `isAvailable` changes call the controller's `updateProperties` and layout; a disabled accessory leaves the display to the manifest's external display configuration, else it mirrors the device. `cameraCapture` (27.1) registrations are never available (stub: no capture accessory surface). Script `closescene [SESSION-ID]` closes a window (iPad, multiple scenes) after the `closureConfirmation` alert (Close / Cancel, replaced by `.destructive` / `.cancel` actions; adapted: an alert in the scene, not the system's window chrome). `extendStateRestoration` keeps the launch screen up until every extension completes (iOS 15). Tested (HelloScenes27, iOS 17–27) |
 | `UIWindowScene.displayLink(target:selector:)`, `displayLink(action:)` | ✅ | 27.0 | passthrough: isim has one display per device, so it is an ordinary `CADisplayLink` (add it to a run loop to start it); the closure form keeps its closure alive with the link. Tested (HelloKit27) |
 | `UINavigationItem.navigationBarMinimization` (`UIBarMinimization`: minimization, restoration, safe area adjustment), `UIBarButtonItem.visibilityPriority` (`UIBarButtonItemVisibilityPriority`) | ✅ | 27.0 | adapted, like the SwiftUI toolbar equivalents: `.onScrollDown` / `.onScrollUp` fade the navigation bar away while the content is dragged (`.automatic` / `.never` keep it), the reverse drag brings it back (`.atScrollEdge`: only at the top), `.enabled` gives the content the bar's safe area meanwhile; trailing items that do not fit move to an overflow (ellipsis) menu, lowest priority first (then the leading-most), the overflow button at the trailing edge. Tested (HelloBars27) |
@@ -421,7 +424,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Increase Contrast (`accessibilityContrast`, high-contrast colors) | ✅ | ≤17 | script `contrast on|off` / Settings; high-contrast variants of system colors and asset-catalog colors/images. Tested (HelloAppearance) |
 | Dynamic images (`UIImageAsset`, asset appearance variants, `UIImage.withConfiguration`) | ✅ | ≤17 | any/dark/high-contrast variants from the asset catalog and registered images resolve per trait collection when drawn. Tested by pixels (HelloAppearance) |
 | Accent color from the asset catalog (`AccentColor`) | ✅ | ≤17 | `UIColor.tintColor` and the default tint of every window; SwiftUI `accentColor`. Tested (HelloAppearance) |
-| Liquid Glass system look (`--os 26`/`27`) | 🟡 | 26.0 | adapted: floating glass tab bar (iPhone), glass back button and bar button items (Done items prominent), scroll-edge fade instead of the bar material, glass alerts (300 pt, corner 34, leading text, capsule buttons, preferred action filled), glass menus and action sheets, rounder sheets/popovers, 63×28 switch with a pill thumb, capsule configuration buttons, capsule segmented controls (no separators; the held selection turns to glass) and steppers, capsule slider thumbs, navigation bar and toolbar items on shared glass capsules (tested, HelloNavigation); continuous corners on glass and system shapes (tested, HelloCorners); glass refracts what is behind it; tested by pixels (HelloOSVersions) |
+| Liquid Glass system look (`--os 26`/`27`) | ✅ | 26.0 | adapted: floating glass tab bar (iPhone), glass back button and bar button items (Done items prominent), scroll-edge fade instead of the bar material, glass alerts (300 pt, corner 34, leading text, capsule buttons, preferred action filled), glass menus and action sheets, rounder sheets/popovers, 63×28 switch with a pill thumb, capsule configuration buttons, capsule segmented controls (no separators; the held selection turns to glass) and steppers, capsule slider thumbs, navigation bar and toolbar items on shared glass capsules (tested, HelloNavigation); continuous corners on glass and system shapes (tested, HelloCorners); glass refracts what is behind it; tested by pixels (HelloOSVersions) |
 | iPadOS 18 tab bar (floating capsule at the top, titles only) | ✅ | 18.0 | adapted: drawn by `UITabBarController` and SwiftUI `TabView` on iPads with `--os 18` (glass with `--os 26`/`27`); the sidebar is under Views & controls (`UITab`) |
 | iOS 27 appearance refresh (Liquid Glass updates, tint slider) | ❌ | 27.0 | not specified in detail by Apple's documentation; `--os 27` uses the iOS 26 look |
 | Observable objects tracked in `layoutSubviews` (automatic invalidation) | ✅ | 26.0 | Observation reads in `layoutSubviews`, `viewWillLayoutSubviews`, `updateProperties()` and friends invalidate the view on change (iOS 26 default; on iOS 18 with `UIObservationTrackingEnabled`). Tested (HelloUITabs) |
