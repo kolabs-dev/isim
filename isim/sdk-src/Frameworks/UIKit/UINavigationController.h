@@ -495,7 +495,7 @@ typedef NS_ENUM(NSInteger, UINavigationItemStyle) { UINavigationItemStyleNavigat
     NS_SWIFT_NAME(UINavigationItem.ItemStyle) API_AVAILABLE(ios(16.0));
 /* item groups (iOS 16): leading groups replace leftBarButtonItems and trailing groups rightBarButtonItems (the item
    arrays read back the groups' items); center groups sit before the trailing items (browser / editor) or in the
-   overflow menu (navigator). Hidden groups are not shown. Customization, pinned groups and representative items: #154 */
+   overflow menu (navigator). Hidden groups are not shown. Customization, pinned groups and representative items: #9 */
 @interface UINavigationItem (UIBarButtonItemGroups)
 @property (nonatomic) UINavigationItemStyle style API_AVAILABLE(ios(16.0));
 @property (nonatomic, copy) NSArray<UIBarButtonItemGroup *> *leadingItemGroups API_AVAILABLE(ios(16.0));

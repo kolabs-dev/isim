@@ -26,7 +26,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 241 | 3 | 0 | 1 | 245 | 99% |
+| **UIKit** | 241 | 3 | 0 | 465 | 709 | 34% |
 | &nbsp;&nbsp;↳ Application & scenes | 26 | 0 | 0 | 0 | 26 | 100% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 33 | 1 | 0 | 0 | 34 | 99% |
 | &nbsp;&nbsp;↳ Views & controls | 78 | 1 | 0 | 0 | 79 | 99% |
@@ -39,6 +39,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
+| &nbsp;&nbsp;↳ Not yet covered (API sweep against Apple's documentation) | 0 | 0 | 0 | 464 | 464 | 0% |
 | **SwiftUI** | 188 | 42 | 2 | 7 | 239 | 87% |
 | &nbsp;&nbsp;↳ App & scenes | 7 | 4 | 0 | 0 | 11 | 82% |
 | &nbsp;&nbsp;↳ State & data flow | 15 | 2 | 0 | 0 | 17 | 94% |
@@ -87,7 +88,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **806** | **165** | **22** | **31** | **1024** | **87%** |
+| **All areas** | **806** | **165** | **22** | **495** | **1488** | **60%** |
 
 ### Per iOS version
 
@@ -95,7 +96,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
+| UIKit | 34% (626) | 33% (660) | 34% (691) | 34% (709) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (84) | 100% (84) | 100% (84) | 100% (84) |
@@ -121,7 +122,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **87%** (966) | **87%** (978) | **87%** (1003) | **87%** (1024) |
+| **All areas** | **61%** (1377) | **60%** (1419) | **60%** (1460) | **60%** (1488) |
 
 ---
 
@@ -187,7 +188,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIDocumentPickerViewController` / `UIDocumentBrowserViewController` | ✅ | ≤17 | adapted: the device's files as Files shows them — On My iPhone (`$ISIM_DATA/Files`, shared by the device's apps) with a folder for each app that shares its Documents (`UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`); no iCloud Drive / other providers, Recents or Tags. Picker: `init(forOpeningContentTypes:asCopy:)` (copies into `tmp/<bundle id>-Inbox`, or the files in place), multiple selection, folders (`.folder`), `init(forExporting:asCopy:)` (Save copies, Move moves; "name 2.ext" on clashes), the legacy `init(documentTypes:in:)` / `init(url(s):in:)` modes, `directoryURL`, `shouldShowFileExtensions`, files that do not match dimmed, dismisses itself. Browser: folder listings, picking (and Select for `allowsPickingMultipleItems`), document creation through the delegate's import handler (copy / move), `additionalLeading/TrailingNavigationBarButtonItems`, `revealDocument(at:importIfNeeded:)`, `importDocument(at:nextToDocumentAt:mode:)`. Types from UniformTypeIdentifiers (`UTType` initializers in the Swift overlay). No thumbnails or grid view, no document transitions. Tested (HelloDocuments) |
 | `UIDocument` (open / close, `load(fromContents:ofType:)`, `contents(forType:)`, `save(to:for:)`, `read(from:)` / `writeContents…`, `revert(toContentsOf:)`, `documentState` + `stateChangedNotification`, change count and tokens, undo manager, autosave, `performAsynchronousFileAccess`, `disableEditing`, user activity URL, `handleError`) | ✅ | ≤17 | adapted: files through `NSFileManager` on the document's serial queue (no `NSFileCoordinator` / `NSFilePresenter`: no conflicts, versions or iCloud; `progress` is nil); reads load and saves ask for contents on the main queue like UIKit; saves write a temporary file renamed over the original; changes autosave 2 s later and when the app goes to the background or terminates. Contents are `Data` (no `FileWrapper` packages). `didMoveToWritableLocationNotification` (iOS 26) is declared, never posted (no read-only locations). Tested (HelloDocumentApp) |
 | `UIDocumentViewController` (`document`, `openDocument`, `documentDidOpen`, `navigationItemDidUpdate`, `undoRedoItemGroup`), `LaunchOptions` (title, background, accessory views, primary / secondary actions, `createDocumentAction(withIntent:)`, `browserViewController`), `UIDocument.CreationIntent`, `activeDocumentCreationIntent` | ✅ | 17.0 | adapted: opens its document when it appears and closes the one it replaces; the title is the document's name; undo / redo items hidden without a document, enabled as the undo manager can undo / redo. Without a document: before iOS 18 UIKit's "No Document" state and a Documents button (the document picker); from iOS 18 the launch view (background, title, subtitle, Create Document and the secondary action as capsules, accessory views) with isim's browser in a sheet; documents it picks or creates open as the Info.plist's `UIDocumentClass` for their type. The launch view's look is isim's (Apple shows an app illustration over a gradient). `documentTargetView` is stored. Tested (HelloDocumentApp) |
-| `UIBarButtonItemGroup` (`barButtonItems`, `representativeItem`, `isHidden`), `UIBarButtonItem.buttonGroup`, `UINavigationItem.style`, `leadingItemGroups` / `centerItemGroups` / `trailingItemGroups` | 🟡 | 16.0 | groups feed the bar's item arrays (hidden groups left out); center groups sit before the trailing items, or in the overflow menu with the navigator style; the representative item is never shown (isim shows the items). The rest of the iOS 16 navigation bar API (`fixedGroup` / `movableGroup` / `optionalGroup`, customization, `pinnedTrailingGroup`, `additionalOverflowItems`, `titleMenuProvider`, `renameDelegate`, `backAction`): #154. Tested (HelloDocumentApp: the undo / redo group) |
+| `UIBarButtonItemGroup` (`barButtonItems`, `representativeItem`, `isHidden`), `UIBarButtonItem.buttonGroup`, `UINavigationItem.style`, `leadingItemGroups` / `centerItemGroups` / `trailingItemGroups` | 🟡 | 16.0 | groups feed the bar's item arrays (hidden groups left out); center groups sit before the trailing items, or in the overflow menu with the navigator style; the representative item is never shown (isim shows the items). The rest of the iOS 16 navigation bar API (`fixedGroup` / `movableGroup` / `optionalGroup`, customization, `pinnedTrailingGroup`, `additionalOverflowItems`, `titleMenuProvider`, `renameDelegate`, `backAction`): #9. Tested (HelloDocumentApp: the undo / redo group) |
 | `UIColorPickerViewController` | ✅ | ≤17 | adapted: grid, spectrum (continuous while dragging) and RGB sliders (continuous, then a final selection when the drag ends), opacity, an sRGB hex field on the Sliders page (iOS shows Display P3; isim's colors are sRGB), saved colors shared by the device's apps ("+", a swatch picks, a long press removes), the eyedropper (the picker steps aside and the next touch samples that pixel of the app), delegate callbacks (`didSelectColor:continuously:`, did finish); `UIColorWell`. Tested (HelloSystemPickers, OS matrix; UIColorWell in HelloInputs) |
 | `UIFontPickerViewController` | ✅ | ≤17 | adapted: searchable list of the iOS font families (`UIFont.familyNames`: isim's table of iOS's families and faces, drawn with isim's fonts) and the app's fonts (UIAppFonts), each in its own face; `UIFontPickerViewController.Configuration`: `includeFaces` (a family's chevron opens its faces), `displayUsingSystemFont`, `filteredTraits`, `filteredLanguagesPredicate` / `filterPredicate(forFilteredLanguages:)` (isim's list of languages per family); `selectedFontDescriptor` (family, name, face), delegate pick/cancel. Tested (HelloSystemPickers, OS matrix; HelloStoryboards) |
 | `UIReferenceLibraryViewController`, `QLPreviewController` | ✅ | ≤17 | QuickLook framework: `QLPreviewController` with data source / delegate (will / did dismiss), `canPreview`, `currentPreviewItemIndex`, `reloadData`, `refreshCurrentPreviewItem`, `URL` as `QLPreviewItem`; swipes between items; previews images (zoom, double tap), PDFs (pages rendered with the host's poppler), text and source files, audio / video (play / pause, time; the host's ffmpeg), other files as name, kind and size; Done + Share bar when presented, Share in the navigation item when pushed. Adapted: no Markup / editing modes, no item list, no zoom transition. `UIReferenceLibraryViewController`: adapted like a Simulator without downloaded dictionaries ("No definition found", Manage lists none); the host's WordNet (`wn`) is used when installed (unverified). Tested (HelloQuickLook) |
@@ -270,7 +271,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UITextAttachmentViewProviderReusePolicy` (`UITextView.register(_:forTextAttachmentViewProviderType:)`), `NSTextLayoutManagerDelegate` provider cache (`cacheTextAttachmentViewProvider` / `retrieveCachedTextAttachmentViewProvider`), `UITextView` as `NSTextViewportLayoutControllerDelegate` | ✅ | 27.0 | `.onScrollingOutOfViewport` keeps a provider's view in the text view when it scrolls out of the viewport (removed otherwise); `.onEditingInlineParagraphs` reuses a provider when its paragraph is laid out again after an edit (a new one otherwise); a provider about to be discarded is offered to the layout manager's delegate, which can hand it back. Tested (HelloTextKit, per iOS version) |
 | `NSTextViewportRenderingSurface` / `NSTextViewportRenderingSurfaceKey`, the viewport delegate's `cacheRenderingSurface` / `retrieveCachedRenderingSurface` | 🟡 | 27.0 | the protocols (layout fragments and strings are keys) and delegate methods are declared; isim's viewport layout controller does not call the cache methods (Apple documents no call order, and isim's text views draw fragments themselves). Laying out the viewport calls `configureRenderingSurfaceFor` per visible fragment (tested, HelloTextKit) |
 | TextKit 1 (`NSTextStorage` + delegate / notifications / subclassing with a backing store, `NSTextContainer`, `NSLayoutManager`: line fragments, glyph / character ranges and queries, bounding rects, insertion points, drawing; `NSTextAttachment` with images and `NSAttributedString(attachment:)`) | ✅ | ≤17 | adapted: isim's TextKit engine lays the storage out with Pango, one layout per paragraph (alignment, line and paragraph spacing, head / first line / tail indents), attachments as inline boxes drawing their image. A glyph is a UTF-16 unit (glyph index = character index; `CGGlyph` from Core Text when the app links it); the first text container gets all the text (exclusion paths stored, not applied); typesetter setters (`setLineFragmentRect…`) are ignored; `NSTextBlock` tables are not laid out by TextKit. Tested (HelloTextKit) |
-| TextKit 2 (`NSTextContentStorage` / `NSTextContentManager` + delegates, `NSTextParagraph`, `NSTextRange` / `NSTextLocation`, `NSTextLayoutManager`: layout fragments, line fragments, text segments, rendering and link rendering attributes; `NSTextViewportLayoutController` + delegate, `NSTextSelection`, `NSTextAttachmentViewProvider`), `UITextView.textLayoutManager`, `init(usingTextLayoutManager:)` | ✅ | ≤17 | adapted: locations are offsets into the content storage; each paragraph is a layout fragment of one whole-document layout (isim's TextKit engine); no estimated layout (the document is laid out when a fragment is needed). Text views are TextKit 2 by default and switch to TextKit 1 when asked for `layoutManager` (logged, like UIKit); attachment views are placed by the viewport layout. `NSTextSelectionNavigation` holds its data source only (moving / extending selections: #154). Tested (HelloTextKit) |
+| TextKit 2 (`NSTextContentStorage` / `NSTextContentManager` + delegates, `NSTextParagraph`, `NSTextRange` / `NSTextLocation`, `NSTextLayoutManager`: layout fragments, line fragments, text segments, rendering and link rendering attributes; `NSTextViewportLayoutController` + delegate, `NSTextSelection`, `NSTextAttachmentViewProvider`), `UITextView.textLayoutManager`, `init(usingTextLayoutManager:)` | ✅ | ≤17 | adapted: locations are offsets into the content storage; each paragraph is a layout fragment of one whole-document layout (isim's TextKit engine); no estimated layout (the document is laid out when a fragment is needed). Text views are TextKit 2 by default and switch to TextKit 1 when asked for `layoutManager` (logged, like UIKit); attachment views are placed by the viewport layout. `NSTextSelectionNavigation` holds its data source only (moving / extending selections: #9). Tested (HelloTextKit) |
 | `UITextView.attributedText`, `typingAttributes`, `linkTextAttributes`, `textStorage` / `textContainer` / `layoutManager`, `init(frame:textContainer:)` | ✅ | ≤17 | the view's text lives in its text storage (edits by the app are shown); font, colour and alignment apply to all its text and to typing; typed text takes the typing attributes. Tested (HelloTextKit, HelloDocumentApp) |
 | Scene accessories (`UISceneAccessory`, `registerSceneAccessory(_:)`), `UISceneClosureConfirmation` / `UIWindowScene.closureConfirmation`, `UIScene.extendStateRestoration()` / `completeStateRestoration()` | ✅ | 27.0 | adapted: an external display is simulated (script `display connect [WxH]` / `display disconnect`; `display shot PATH` saves what it shows, isim opens no second window): while it is connected, the most recent enabled `externalNonInteractive` registration gets a `windowExternalDisplayNonInteractive` scene from its configuration, with `sceneAccessoryUserInfo`; `isAvailable` changes call the controller's `updateProperties` and layout; a disabled accessory leaves the display to the manifest's external display configuration, else it mirrors the device. `cameraCapture` (27.1) registrations are never available (stub: no capture accessory surface). Script `closescene [SESSION-ID]` closes a window (iPad, multiple scenes) after the `closureConfirmation` alert (Close / Cancel, replaced by `.destructive` / `.cancel` actions; adapted: an alert in the scene, not the system's window chrome). `extendStateRestoration` keeps the launch screen up until every extension completes (iOS 15). Tested (HelloScenes27, iOS 17–27) |
 | `UIWindowScene.displayLink(target:selector:)`, `displayLink(action:)` | ✅ | 27.0 | passthrough: isim has one display per device, so it is an ordinary `CADisplayLink` (add it to a run loop to start it); the closure form keeps its closure alive with the link. Tested (HelloKit27) |
@@ -431,6 +432,482 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | SF Symbols effects (`addSymbolEffect`, `removeSymbolEffect`, `setSymbolImage(_:contentTransition:)`; iOS 18 wiggle, breathe, rotate; iOS 26 draw on/off) | ✅ | ≤17 | adapted (`Symbols` module + UIImageView): isim's stand-in symbols have no layers, so effects animate the whole image (scale, offset, rotation, opacity) over its own transform/alpha; `byLayer` and variable-colour layer modes only change the look slightly. Indefinite effects run or hold (scale, disappear) until removed, discrete ones honour `SymbolEffectOptions` repeat counts / `.periodic` / speed, completions report `isFinished`. Bounce and wiggle play once when added (pulse, variable colour, breathe, rotate run until removed). Tested per version (HelloSymbolEffects). SwiftUI `symbolEffect` is separate (see SwiftUI) |
 | `UIUpdateLink` | ✅ | 18.0 | per-frame actions while the view is in a visible window (`isEnabled`, `requiresContinuousUpdates`, `preferredFrameRateRange`, `wantsImmediatePresentation` accepted); tested (HelloUITabs) |
 | Zoom transition (`preferredTransition = .zoom`) | ✅ | 18.0 | adapted: pushes and full-screen presentations grow from the source view and shrink back into it on pop/dismissal (`sourceViewProvider` asked each time); `.coverVertical`/`.crossDissolve`/… set the modal transition style. Tested (HelloViews) |
+
+
+### Not yet covered (API sweep against Apple's documentation)
+
+A sweep of Apple's UIKit documentation (12,944 symbols) against isim's SDK headers and Swift overlays, done for #9.
+Each row is one documented type with the iOS symbols isim does not declare yet (deprecated, macOS-only and
+Mac Catalyst-only symbols left out). A whole type missing reads "not in isim's SDK"; otherwise the row lists the
+missing members. The iOS column is the earliest version among them. Names are Apple's Swift names. The match is by
+name, so a few rows may be false positives (an API isim declares under another name); fix the row when you find one.
+
+| API / feature | Status | iOS | Notes |
+|---|---|---|---|
+| `AXArrayReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXAttributedStringArrayReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXAttributedStringReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXBoolReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXContainerTypeReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXCustomActionsReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXCustomRotorsReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXNavigationStyleReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXObjectReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXPathReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXPointReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXRectReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXStringArrayReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXStringReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXTextualContextReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXTraitsReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `AXUITextInputReturnBlock` | ❌ | 18.0 | not in isim's SDK |
+| `AXVoidReturnBlock` | ❌ | ≤17 | not in isim's SDK |
+| `NSAdaptiveImageGlyph` | ❌ | 18.0 | not in isim's SDK (with 3 members: `init(imageContent:)`, `imageContent`, `contentIdentifier`) |
+| `NSCollectionLayoutAnchor` | ❌ | ≤17 | not in isim's SDK (with 5 members: `init(edges:)`, `init(edges:absoluteOffset:)`, `init(edges:fractionalOffset:)`, `isAbsoluteOffset`, `isFractionalOffset`) |
+| `NSCollectionLayoutDimension` members | ❌ | ≤17 | 1 missing: `isUniformAcrossSiblings` |
+| `NSCollectionLayoutGroup` members | ❌ | ≤17 | 1 missing: `supplementaryItems` |
+| `NSCollectionLayoutItem` members | ❌ | ≤17 | 1 missing: `supplementaryItems` |
+| `NSCollectionLayoutSection` members | ❌ | ≤17 | 3 missing: `orthogonalScrollingProperties`, `contentInsetsReference`, `supplementaryContentInsetsReference` |
+| `NSCollectionLayoutSectionVisibleItemsInvalidationHandler` | ❌ | ≤17 | not in isim's SDK |
+| `NSCollectionLayoutSupplementaryItem` members | ❌ | ≤17 | 4 missing: `init(layoutSize:elementKind:containerAnchor:)`, `init(layoutSize:elementKind:containerAnchor:itemAnchor:)`, `itemAnchor`, `containerAnchor` |
+| `NSDataAsset` | ❌ | ≤17 | not in isim's SDK |
+| `NSDataAssetName` | ❌ | ≤17 | not in isim's SDK |
+| `NSDiffableDataSourceSectionSnapshot` members | ❌ | 18.0 | 1 missing: `expandedItems` |
+| `NSDiffableDataSourceSectionSnapshotReference` members | ❌ | ≤17 | 11 missing: `ofParentItem(_:)`, `ofParentItem(_:includingParentItem:)`, `level(ofItem:)`, `parent(ofChildItem:)`, `containsItem(_:)`, `insert(_:afterItem:)`, `insert(_:beforeItem:)`, `replaceChildren(ofParentItem:with:)` and 3 more |
+| `NSDiffableDataSourceSnapshot` members | ❌ | ≤17 | 1 missing: `reloadedSectionIdentifiers` |
+| `NSDiffableDataSourceSnapshotReference` members | ❌ | ≤17 | 14 missing: `insertItems(withIdentifiers:afterItemWithIdentifier:)`, `insertItems(withIdentifiers:beforeItemWithIdentifier:)`, `insertSections(withIdentifiers:afterSectionWithIdentifier:)`, `insertSections(withIdentifiers:beforeSectionWithIdentifier:)`, `deleteItems(withIdentifiers:)`, `deleteSections(withIdentifiers:)`, `moveItem(withIdentifier:afterItemWithIdentifier:)`, `moveItem(withIdentifier:beforeItemWithIdentifier:)` and 6 more |
+| `NSLAYOUTANCHOR_H` | ❌ | ≤17 | not in isim's SDK |
+| `NSLayoutConstraint` members | ❌ | ≤17 | 3 missing: `shouldBeArchived`, `spacingBaselineToBaseline`, `spacingMask` |
+| `NSLAYOUTCONSTRAINT_H` | ❌ | ≤17 | not in isim's SDK |
+| `NSLayoutManager` members | ❌ | ≤17 | 2 missing: `glyph(at:)`, `glyph(at:isValidIndex:)` |
+| `NSLayoutXAxisAnchor` members | ❌ | ≤17 | 3 missing: `constraint(greaterThanOrEqualToSystemSpacingAfter:multiplier:)`, `constraint(lessThanOrEqualToSystemSpacingAfter:multiplier:)`, `anchorWithOffset(to:)` |
+| `NSLayoutYAxisAnchor` members | ❌ | ≤17 | 3 missing: `constraint(greaterThanOrEqualToSystemSpacingBelow:multiplier:)`, `constraint(lessThanOrEqualToSystemSpacingBelow:multiplier:)`, `anchorWithOffset(to:)` |
+| `NSMutableParagraphStyle` members | ❌ | ≤17 | 8 missing: `setParagraphStyle(_:)`, `addTabStop(_:)`, `removeTabStop(_:)`, `tabStops`, `defaultTabInterval`, `textLists`, `lineBreakStrategy`, `allowsDefaultTighteningForTruncation` |
+| `NSParagraphStyle` members | ❌ | ≤17 | 10 missing: `tabStops`, `defaultTabInterval`, `textLists`, `lineBreakStrategy`, `LineBreakStrategy`, `allowsDefaultTighteningForTruncation`, `defaultWritingDirection(forLanguage:)`, `pushOut` and 2 more |
+| `NSStringDrawingOptions` members | ❌ | 26.0 | 1 missing: `optionsResolvesNaturalAlignmentWithBaseWritingDirection` |
+| `NSTextAlignment` members | ❌ | ≤17 | 1 missing: `init(_:)` |
+| `NSTextAttachment` members | ❌ | ≤17 | 1 missing: `fileWrapper` |
+| `NSTextLayoutOrientationProvider` | ❌ | ≤17 | not in isim's SDK (with 1 members: `layoutOrientation`) |
+| `NSTextList` | ❌ | ≤17 | not in isim's SDK (with 26 members: `init(markerFormat:options:)`, `init(markerFormat:options:startingItemNumber:)`, `markerFormat`, `MarkerFormat`, `marker(forItemNumber:)`, `listOptions`, `Options`, `startingItemNumber` and 18 more) |
+| `NSTextListElement` | ❌ | ≤17 | not in isim's SDK (with 5 members: `init(children:textList:nestingLevel:)`, `init(contents:markerAttributes:textList:children:)`, `init(parent:textList:contents:markerAttributes:children:)`, `textList`, `markerAttributes`) |
+| `NSTextSelectionDataSource` members | ❌ | ≤17 | 8 missing: `enumerateCaretOffsetsInLineFragment(at:using:)`, `enumerateContainerBoundaries(from:reverse:using:)`, `enumerateSubstrings(from:options:using:)`, `lineFragmentRange(for:inContainerAt:)`, `textRange(for:enclosing:)`, `baseWritingDirection(at:)`, `textLayoutOrientation(at:)`, `convertInteractionPoint(_:toContainerAt:)` |
+| `NSTextSelectionNavigation` members | ❌ | ≤17 | 28 missing: `textSelection(for:enclosing:inContainerAt:)`, `textSelection(for:enclosing:)`, `textSelections(interactingAt:inContainerAt:anchors:modifiers:selecting:bounds:)`, `destinationSelection(for:direction:destination:extending:confined:)`, `resolvedInsertionLocation(for:writingDirection:)`, `deletionRanges(for:direction:destination:allowsDecomposition:)`, `extend`, `multiple` and 20 more |
+| `NSTextTab` | ❌ | ≤17 | not in isim's SDK (with 4 members: `init(textAlignment:location:options:)`, `columnTerminators(for:)`, `OptionKey`, `columnTerminators`) |
+| `UIAccessibility` members | ❌ | ≤17 | 75 missing: `guidedAccessRestrictionState(forIdentifier:)`, `configureForGuidedAccess(features:enabled:completionHandler:)`, `GuidedAccessError.Code`, `convertToScreenCoordinates(_:in:)`, `focusedElement(using:)`, `hearingDevicePairedEar`, `HearingDeviceEar`, `registerGestureConflictWithZoom()` and 67 more |
+| `UIAccessibilityContainerDataTable` | ❌ | ≤17 | not in isim's SDK (with 5 members: `accessibilityDataTableCellElement(forRow:column:)`, `accessibilityColumnCount()`, `accessibilityRowCount()`, `accessibilityHeaderElements(forColumn:)`, `accessibilityHeaderElements(forRow:)`) |
+| `UIAccessibilityContainerDataTableCell` | ❌ | ≤17 | not in isim's SDK (with 2 members: `accessibilityColumnRange()`, `accessibilityRowRange()`) |
+| `UIAccessibilityContainerType` | ❌ | ≤17 | not in isim's SDK (with 5 members: `none`, `dataTable`, `list`, `landmark`, `semanticGroup`) |
+| `UIAccessibilityContentSizeCategoryImageAdjusting` | ❌ | ≤17 | not in isim's SDK (with 1 members: `adjustsImageSizeForAccessibilityContentSizeCategory`) |
+| `UIAccessibilityCustomAction` members | ❌ | ≤17 | 6 missing: `init(attributedName:actionHandler:)`, `init(attributedName:target:selector:)`, `init(attributedName:image:actionHandler:)`, `init(attributedName:image:target:selector:)`, `attributedName`, `editCategory` |
+| `UIAccessibilityCustomRotor` members | ❌ | ≤17 | 24 missing: `init(attributedName:itemSearch:)`, `init(systemType:itemSearch:)`, `systemRotorType`, `SystemRotorType`, `attributedName`, `SystemRotorType.none`, `SystemRotorType.link`, `SystemRotorType.visitedLink` and 16 more |
+| `UIAccessibilityLocationDescriptor` | ❌ | ≤17 | not in isim's SDK (with 2 members: `init(attributedName:point:in:)`, `attributedName`) |
+| `UIAccessibilityPriority` | ❌ | ≤17 | not in isim's SDK (with 3 members: `high`, `default`, `low`) |
+| `UIAccessibilityReadingContent` | ❌ | ≤17 | not in isim's SDK (with 6 members: `accessibilityLineNumber(for:)`, `accessibilityAttributedContent(forLineNumber:)`, `accessibilityContent(forLineNumber:)`, `accessibilityFrame(forLineNumber:)`, `accessibilityAttributedPageContent()`, `accessibilityPageContent()`) |
+| `UIAccessibilityTextualContext` | ❌ | ≤17 | not in isim's SDK (with 7 members: `console`, `fileSystem`, `messaging`, `narrative`, `sourceCode`, `spreadsheet`, `wordProcessing`) |
+| `UIAction` members | ❌ | ≤17 | 6 missing: `captureTextFromCamera(responder:identifier:)`, `paste`, `pasteAndGo`, `pasteAndMatchStyle`, `pasteAndSearch`, `newFromPasteboard` |
+| `UIActionSheetDelegate` | ❌ | ≤17 | not in isim's SDK |
+| `UIActivityCollaborationMode` | ❌ | 18.0 | not in isim's SDK (with 2 members: `collaborate`, `sendCopy`) |
+| `UIActivityItemProvider` | ❌ | ≤17 | not in isim's SDK (with 2 members: `init(placeholderItem:)`, `placeholderItem`) |
+| `UIActivityItemsConfiguration` | ❌ | ≤17 | not in isim's SDK (with 5 members: `init(itemProviders:)`, `metadataProvider`, `perItemMetadataProvider`, `applicationActivitiesProvider`, `supportedInteractions`) |
+| `UIActivityItemsConfigurationInteraction` | ❌ | ≤17 | not in isim's SDK (with 2 members: `copy`, `share`) |
+| `UIActivityItemsConfigurationMetadataKey` | ❌ | ≤17 | not in isim's SDK (with 5 members: `title`, `messageBody`, `linkPresentationMetadata`, `shareRecipients`, `collaborationModeRestrictions`) |
+| `UIActivityItemsConfigurationPreviewIntent` | ❌ | ≤17 | not in isim's SDK (with 2 members: `fullSize`, `thumbnail`) |
+| `UIActivityItemsConfigurationProviding` | ❌ | ≤17 | not in isim's SDK (with 1 members: `activityItemsConfiguration`) |
+| `UIActivityItemsConfigurationReading` | ❌ | ≤17 | not in isim's SDK (with 6 members: `itemProvidersForActivityItemsConfiguration`, `applicationActivitiesForActivityItemsConfiguration`, `activityItemsConfigurationMetadata(key:)`, `activityItemsConfigurationMetadataForItem(at:key:)`, `activityItemsConfigurationSupports(interaction:)`, `activityItemsConfigurationPreviewForItem(at:intent:suggestedSize:)`) |
+| `UIActivityItemSource` members | ❌ | ≤17 | 2 missing: `activityViewControllerLinkMetadata(_:)`, `activityViewControllerShareRecipients(_:)` |
+| `UIActivitySectionTypes` | ❌ | 18.0 | not in isim's SDK (with 1 members: `peopleSuggestions`) |
+| `UIActivityViewController` members | ❌ | ≤17 | 12 missing: `init(activityItemsConfiguration:)`, `excludedActivitySectionTypes`, `CollaborationModeRestriction`, `init(disabledMode:)`, `init(disabledMode:alertTitle:alertMessage:)`, `init(disabledMode:alertTitle:alertMessage:alertDismissButtonTitle:)`, `init(disabledMode:alertTitle:alertMessage:alertDismissButtonTitle:alertRecoverySuggestionButtonTitle:alertRecoverySuggestionButtonLaunch:)`, `alertDismissButtonTitle` and 4 more |
+| `UIAlertController` members | ❌ | ≤17 | 1 missing: `severity` |
+| `UIAlertControllerSeverity` | ❌ | ≤17 | not in isim's SDK (with 2 members: `critical`, `default`) |
+| `UIAlertViewDelegate` | ❌ | ≤17 | not in isim's SDK |
+| `UIAlertViewStyle` | ❌ | ≤17 | not in isim's SDK (with 4 members: `default`, `secureTextInput`, `plainTextInput`, `loginAndPasswordInput`) |
+| `UIApplication` members | ❌ | ≤17 | 37 missing: `openSettingsURLString`, `openNotificationSettingsURLString`, `openDefaultApplicationsSettingsURLString`, `isProtectedDataAvailable`, `protectedDataDidBecomeAvailableNotification`, `protectedDataWillBecomeUnavailableNotification`, `beginReceivingRemoteControlEvents()`, `endReceivingRemoteControlEvents()` and 29 more |
+| `UIApplicationDelegate` members | ❌ | ≤17 | 5 missing: `applicationProtectedDataDidBecomeAvailable(_:)`, `applicationProtectedDataWillBecomeUnavailable(_:)`, `applicationSignificantTimeChange(_:)`, `applicationShouldRequestHealthAuthorization(_:)`, `applicationShouldAutomaticallyLocalizeKeyCommands(_:)` |
+| `UIApplicationShortcutIcon` members | ❌ | ≤17 | 1 missing: `init(contact:)` |
+| `UIAttachmentBehavior` members | ❌ | ≤17 | 5 missing: `slidingAttachment(with:attachmentAnchor:axisOfTranslation:)`, `slidingAttachment(with:attachedTo:attachmentAnchor:axisOfTranslation:)`, `fixedAttachment(with:attachedTo:attachmentAnchor:)`, `limitAttachment(with:offsetFromCenter:attachedTo:offsetFromCenter:)`, `pinAttachment(with:attachedTo:attachmentAnchor:)` |
+| `UIBackgroundConfiguration` members | ❌ | ≤17 | 13 missing: `listAccompaniedSidebarCell()`, `backgroundInsets`, `edgesAddingLayoutMarginsToBackgroundInsets`, `backgroundColorTransformer`, `resolvedBackgroundColor(for:)`, `shadowProperties`, `strokeColorTransformer`, `resolvedStrokeColor(for:)` and 5 more |
+| `UIBandSelectionInteraction` | ❌ | ≤17 | not in isim's SDK (with 9 members: `State`, `init(_:)`, `selectionRect`, `initialModifierFlags`, `shouldBeginHandler`, `State.possible`, `State.began`, `State.selecting` and 1 more) |
+| `UIBarButtonItem` members | ❌ | ≤17 | 19 missing: `fixedSpace()`, `creatingOptionalGroup(customizationIdentifier:isInDefaultCustomization:)`, `creatingFixedGroup()`, `creatingMovableGroup(customizationIdentifier:)`, `possibleTitles`, `backButtonBackgroundImage(for:barMetrics:)`, `setBackButtonBackgroundImage(_:for:barMetrics:)`, `backButtonTitlePositionAdjustment(for:)` and 11 more |
+| `UIBarButtonItemGroup` members | ❌ | ≤17 | 6 missing: `fixedGroup(representativeItem:items:)`, `movableGroup(customizationIdentifier:representativeItem:items:)`, `optionalGroup(customizationIdentifier:isInDefaultCustomization:representativeItem:items:)`, `alwaysAvailable`, `menuRepresentation`, `fixedSpace()` |
+| `UIBarItem` members | ❌ | ≤17 | 5 missing: `landscapeImagePhone`, `largeContentSizeImage`, `imageInsets`, `landscapeImagePhoneInsets`, `largeContentSizeImageInsets` |
+| `UIBarStyle` | ❌ | ≤17 | not in isim's SDK (with 2 members: `default`, `black`) |
+| `UIBaselineAdjustment` | ❌ | ≤17 | not in isim's SDK (with 3 members: `alignBaselines`, `alignCenters`, `none`) |
+| `UIBehavioralStyle` | ❌ | ≤17 | not in isim's SDK (with 3 members: `automatic`, `pad`, `mac`) |
+| `UIButton` members | ❌ | ≤17 | 33 missing: `systemButton(with:target:action:)`, `attributedTitle(for:)`, `setAttributedTitle(_:for:)`, `preferredSymbolConfigurationForImage(in:)`, `behavioralStyle`, `preferredBehavioralStyle`, `currentAttributedTitle`, `currentTitleShadowColor` and 25 more |
+| `UIButtonPointerStyleProvider` | ❌ | ≤17 | not in isim's SDK |
+| `UICalendarSelection` | ❌ | ≤17 | not in isim's SDK (with 1 members: `updateSelectableDates()`) |
+| `UICalendarSelectionMultiDate` | ❌ | ≤17 | not in isim's SDK (with 2 members: `selectedDates`, `setSelectedDates(_:animated:)`) |
+| `UICalendarSelectionMultiDateDelegate` | ❌ | ≤17 | not in isim's SDK (with 4 members: `multiDateSelection(_:canSelectDate:)`, `multiDateSelection(_:canDeselectDate:)`, `multiDateSelection(_:didSelectDate:)`, `multiDateSelection(_:didDeselectDate:)`) |
+| `UICalendarSelectionSingleDate` | ❌ | ≤17 | not in isim's SDK (with 2 members: `selectedDate`, `setSelected(_:animated:)`) |
+| `UICalendarSelectionSingleDateDelegate` | ❌ | ≤17 | not in isim's SDK (with 2 members: `dateSelection(_:canSelectDate:)`, `dateSelection(_:didSelectDate:)`) |
+| `UICalendarSelectionWeekOfYear` | ❌ | 18.0 | not in isim's SDK (with 2 members: `selectedWeekOfYear`, `setSelected(_:animated:)`) |
+| `UICalendarSelectionWeekOfYearDelegate` | ❌ | 18.0 | not in isim's SDK (with 2 members: `week(ofYearSelection:canSelectWeekOfYear:)`, `week(ofYearSelection:didSelectWeekOfYear:)`) |
+| `UICalendarView` | ❌ | ≤17 | not in isim's SDK (with 11 members: `visibleDateComponents`, `setVisibleDateComponents(_:animated:)`, `availableDateRange`, `Decoration`, `DecorationSize`, `wantsDateDecorations`, `reloadDecorations(forDateComponents:animated:)`, `customView(_:)` and 3 more) |
+| `UICalendarViewDelegate` | ❌ | ≤17 | not in isim's SDK (with 2 members: `calendarView(_:decorationFor:)`, `calendarView(_:didChangeVisibleDateComponentsFrom:)`) |
+| `UICellAccessory` members | ❌ | ≤17 | 11 missing: `popUpMenu(_:displayed:options:selectedElementDidChangeHandler:)`, `MenuSelectedElementDidChangeHandler`, `PopUpMenuOptions`, `InsertOptions`, `multiselect(displayed:options:)`, `MultiselectOptions`, `ActionHandler`, `showsVerticalSeparator` and 3 more |
+| `UICellConfigurationState` members | ❌ | ≤17 | 5 missing: `cellDragState`, `cellDropState`, `DropState`, `DragState.lifting`, `DropState.notTargeted` |
+| `UICloudSharingController` | ❌ | ≤17 | not in isim's SDK (with 8 members: `init(share:container:)`, `availablePermissions`, `PermissionOptions`, `activityItemSource()`, `allowPublic`, `allowPrivate`, `allowReadOnly`, `allowReadWrite`) |
+| `UICloudSharingControllerDelegate` | ❌ | ≤17 | not in isim's SDK (with 6 members: `itemTitle(for:)`, `itemType(for:)`, `itemThumbnailData(for:)`, `cloudSharingController(_:failedToSaveShareWithError:)`, `cloudSharingControllerDidStopSharing(_:)`, `cloudSharingControllerDidSaveShare(_:)`) |
+| `UICollectionLayoutListConfiguration` members | ❌ | ≤17 | 8 missing: `separatorConfiguration`, `itemSeparatorHandler`, `ItemSeparatorHandler`, `contentHuggingElements`, `ContentHuggingElements`, `Appearance.sidebarPlain`, `HeaderMode.firstItemInSection`, `supplementaryHeader` |
+| `UICollectionLayoutSectionOrthogonalScrollingProperties` | ❌ | ≤17 | not in isim's SDK (with 8 members: `Bounce`, `DecelerationRate`, `Bounce.always`, `Bounce.automatic`, `Bounce.never`, `automatic`, `fast`, `normal`) |
+| `UICollectionReusableView` members | ❌ | ≤17 | 2 missing: `willTransition(from:to:)`, `didTransition(from:to:)` |
+| `UICollectionView` members | ❌ | ≤17 | 22 missing: `beginInteractiveMovementForItem(at:)`, `updateInteractiveMovementTargetPosition(_:)`, `endInteractiveMovement()`, `cancelInteractiveMovement()`, `hasActiveDrop`, `reorderingCadence`, `ReorderingCadence`, `indexPathsForVisibleSupplementaryElements(ofKind:)` and 14 more |
+| `UICollectionViewCell` members | ❌ | ≤17 | 5 missing: `defaultBackgroundConfiguration()`, `dragStateDidChange(_:)`, `DragState.none`, `DragState.lifting`, `DragState.dragging` |
+| `UICollectionViewCompositionalLayoutConfiguration` members | ❌ | ≤17 | 1 missing: `contentInsetsReference` |
+| `UICollectionViewController` members | ❌ | ≤17 | 2 missing: `installsStandardGestureForInteractiveMovement`, `useLayoutToLayoutNavigationTransitions` |
+| `UICollectionViewDataSource` members | ❌ | ≤17 | 1 missing: `indexTitles(for:)` |
+| `UICollectionViewDelegate` members | ❌ | ≤17 | 2 missing: `collectionViewDidEndMultipleSelectionInteraction(_:)`, `indexPathForPreferredFocusedView(in:)` |
+| `UICollectionViewDiffableDataSourceReference` members | ❌ | ≤17 | 10 missing: `init(collectionView:cellProvider:)`, `itemIdentifier(for:)`, `indexPath(forItemIdentifier:)`, `sectionIdentifier(for:)`, `index(forSectionIdentifier:)`, `applySnapshot(_:animatingDifferences:)`, `applySnapshot(_:animatingDifferences:completion:)`, `snapshot(forSection:)` and 2 more |
+| `UICollectionViewDiffableDataSourceReferenceCellProvider` | ❌ | ≤17 | not in isim's SDK |
+| `UICollectionViewDiffableDataSourceReferenceSupplementaryViewProvider` | ❌ | ≤17 | not in isim's SDK |
+| `UICollectionViewDropCoordinator` members | ❌ | ≤17 | 3 missing: `drop(_:toItemAt:)`, `drop(_:intoItemAt:rect:)`, `drop(_:to:)` |
+| `UICollectionViewDropPlaceholder` | ❌ | ≤17 | not in isim's SDK (with 1 members: `previewParametersProvider`) |
+| `UICollectionViewDropPlaceholderContext` | ❌ | ≤17 | not in isim's SDK (with 3 members: `commitInsertion(dataSourceUpdates:)`, `setNeedsCellUpdate()`, `deletePlaceholder()`) |
+| `UICollectionViewDropProposal` members | ❌ | ≤17 | 4 missing: `init(operation:intent:)`, `Intent.insertAtDestinationIndexPath`, `Intent.insertIntoDestinationIndexPath`, `Intent.unspecified` |
+| `UICollectionViewFlowLayout` members | ❌ | ≤17 | 5 missing: `sectionInsetReference`, `SectionInsetReference`, `SectionInsetReference.fromContentInset`, `SectionInsetReference.fromLayoutMargins`, `SectionInsetReference.fromSafeArea` |
+| `UICollectionViewFlowLayoutInvalidationContext` | ❌ | ≤17 | not in isim's SDK (with 2 members: `invalidateFlowLayoutDelegateMetrics`, `invalidateFlowLayoutAttributes`) |
+| `UICollectionViewFocusUpdateContext` | ❌ | ≤17 | not in isim's SDK (with 2 members: `previouslyFocusedIndexPath`, `nextFocusedIndexPath`) |
+| `UICollectionViewLayout` members | ❌ | ≤17 | 26 missing: `layoutAttributesClass`, `layoutAttributesForInteractivelyMovingItem(at:withTargetPosition:)`, `prepare(forCollectionViewUpdates:)`, `finalizeCollectionViewUpdates()`, `indexPathsToInsertForSupplementaryView(ofKind:)`, `indexPathsToInsertForDecorationView(ofKind:)`, `initialLayoutAttributesForAppearingItem(at:)`, `initialLayoutAttributesForAppearingSupplementaryElement(ofKind:at:)` and 18 more |
+| `UICollectionViewLayoutInvalidationContext` | ❌ | ≤17 | not in isim's SDK (with 13 members: `invalidateEverything`, `invalidateDataSourceCounts`, `contentOffsetAdjustment`, `contentSizeAdjustment`, `invalidateItems(at:)`, `invalidateSupplementaryElements(ofKind:at:)`, `invalidateDecorationElements(ofKind:at:)`, `invalidatedItemIndexPaths` and 5 more) |
+| `UICollectionViewListCell` members | ❌ | ≤17 | 2 missing: `indentsAccessories`, `separatorLayoutGuide` |
+| `UICollectionViewPlaceholder` | ❌ | ≤17 | not in isim's SDK (with 2 members: `init(insertionIndexPath:reuseIdentifier:)`, `cellUpdateHandler`) |
+| `UICollectionViewUpdateItem` | ❌ | ≤17 | not in isim's SDK (with 9 members: `indexPathBeforeUpdate`, `indexPathAfterUpdate`, `updateAction`, `Action`, `Action.none`, `Action.insert`, `Action.delete`, `Action.reload` and 1 more) |
+| `UIColor` members | ❌ | ≤17 | 14 missing: `getHue(_:saturation:brightness:alpha:)`, `linearExposure`, `accessibilityName`, `prominence`, `withProminence(_:)`, `applyingContentHeadroom(_:)`, `standardDynamicRange`, `init(displayP3Red:green:blue:alpha:)` and 6 more |
+| `UIColorEffect` | ❌ | ≤17 | not in isim's SDK (with 1 members: `init(color:)`) |
+| `UIColorPickerViewController` members | ❌ | 26.0 | 2 missing: `maximumLinearExposure`, `supportsEyedropper` |
+| `UIColorWell` members | ❌ | 26.0 | 2 missing: `maximumLinearExposure`, `supportsEyedropper` |
+| `UICommand` | ❌ | ≤17 | not in isim's SDK (with 1 members: `alternates`) |
+| `UICommandAlternate` | ❌ | ≤17 | not in isim's SDK (with 1 members: `init(title:action:modifierFlags:)`) |
+| `UICommandTagShare` | ❌ | ≤17 | not in isim's SDK |
+| `UIConfigurationColorTransformer` | ❌ | ≤17 | not in isim's SDK (with 2 members: `preferredTint`, `monochromeTint`) |
+| `UIConfigurationStateCustomKey` | ❌ | ≤17 | not in isim's SDK |
+| `UIConfigurationTextAttributesTransformer` | ❌ | ≤17 | not in isim's SDK |
+| `UIContentContainer` members | ❌ | ≤17 | 1 missing: `systemLayoutFittingSizeDidChange(forChildContentContainer:)` |
+| `UIContentInsetsReference` | ❌ | ≤17 | not in isim's SDK (with 5 members: `automatic`, `none`, `safeArea`, `layoutMargins`, `readableContent`) |
+| `UIContentSizeCategory` members | ❌ | 26.0 | 1 missing: `DidChangeMessage` |
+| `UIContentUnavailableConfiguration` members | ❌ | ≤17 | 5 missing: `ButtonProperties`, `axesPreservingSuperviewLayoutMargins`, `secondaryAttributedText`, `accessibilityIgnoresInvertColors`, `allowsDefaultTighteningForTruncation` |
+| `UIContextMenuInteraction` members | ❌ | ≤17 | 4 missing: `menuAppearance`, `appearance.unknown`, `appearance.rich`, `appearance.compact` |
+| `UIContextMenuSystem` | ❌ | 26.0 | not in isim's SDK (with 1 members: `shared`) |
+| `UIControl` members | ❌ | ≤17 | 9 missing: `effectiveContentHorizontalAlignment`, `removeAction(identifiedBy:for:)`, `enumerateEventHandlers(_:)`, `performPrimaryAction()`, `isContextMenuInteractionEnabled`, `menuAttachmentPoint(for:)`, `toolTip`, `toolTipInteraction` and 1 more |
+| `UIConversationContext` | ❌ | 18.0 | not in isim's SDK (with 9 members: `Entry`, `selfIdentifiers`, `responsePrimaryRecipientIdentifiers`, `participantNameByIdentifier`, `entryIdentifier`, `replyThreadIdentifier`, `sentDate`, `senderIdentifier` and 1 more) |
+| `UICornerCurve` | ❌ | ≤17 | not in isim's SDK (with 3 members: `automatic`, `circular`, `continuous`) |
+| `UIDataDetectorTypes` members | ❌ | ≤17 | 2 missing: `money`, `physicalValue` |
+| `UIDataSourceTranslating` | ❌ | ≤17 | not in isim's SDK (with 5 members: `presentationIndexPath(forDataSourceIndexPath:)`, `dataSourceIndexPath(forPresentationIndexPath:)`, `presentationSectionIndex(forDataSourceSectionIndex:)`, `dataSourceSectionIndex(forPresentationSectionIndex:)`, `performUsingPresentationValues(_:)`) |
+| `UIDeferredMenuElement` | ❌ | ≤17 | not in isim's SDK (with 5 members: `Provider`, `init(_:)`, `uncached(_:)`, `usingFocus(identifier:shouldCacheItems:)`, `Identifier`) |
+| `UIDevice` members | ❌ | 26.0 | 4 missing: `BatteryLevelDidChangeMessage`, `BatteryStateDidChangeMessage`, `OrientationDidChangeMessage`, `ProximityStateDidChangeMessage` |
+| `UIDocument` members | ❌ | 26.0 | 2 missing: `DidMoveToWritableLocationMessage`, `StateChangedMessage` |
+| `UIDocumentBrowserAction` | ❌ | ≤17 | not in isim's SDK (with 4 members: `supportsMultipleItems`, `Availability`, `menu`, `navigationBar`) |
+| `UIDocumentBrowserError` | ❌ | ≤17 | not in isim's SDK (with 1 members: `noLocationAvailable`) |
+| `UIDocumentBrowserTransitionController` | ❌ | ≤17 | not in isim's SDK (with 1 members: `loadingProgress`) |
+| `UIDocumentBrowserViewController` members | ❌ | ≤17 | 4 missing: `init(forOpening:)`, `customActions`, `transitionController(forDocumentAt:)`, `renameDocument(at:proposedName:completionHandler:)` |
+| `UIDocumentInteractionController` | ❌ | ≤17 | not in isim's SDK (with 9 members: `init(url:)`, `presentPreview(animated:)`, `dismissPreview(animated:)`, `presentOptionsMenu(from:in:animated:)`, `presentOptionsMenu(from:animated:)`, `presentOpenInMenu(from:in:animated:)`, `presentOpenInMenu(from:animated:)`, `dismissMenu(animated:)` and 1 more) |
+| `UIDocumentInteractionControllerDelegate` | ❌ | ≤17 | not in isim's SDK (with 11 members: `documentInteractionControllerViewControllerForPreview(_:)`, `documentInteractionControllerViewForPreview(_:)`, `documentInteractionControllerRectForPreview(_:)`, `documentInteractionControllerWillBeginPreview(_:)`, `documentInteractionControllerDidEndPreview(_:)`, `documentInteractionControllerWillPresentOptionsMenu(_:)`, `documentInteractionControllerDidDismissOptionsMenu(_:)`, `documentInteractionControllerWillPresentOpenInMenu(_:)` and 3 more) |
+| `UIDocumentPickerViewController` members | ❌ | ≤17 | 2 missing: `init(forOpeningContentTypes:)`, `init(forOpeningContentTypes:asCopy:)` |
+| `UIDocumentProperties` | ❌ | ≤17 | not in isim's SDK (with 4 members: `init(metadata:)`, `wantsIconRepresentation`, `dragItemsProvider`, `activityViewControllerProvider`) |
+| `UIDragDropSession` members | ❌ | ≤17 | 3 missing: `canLoadObjects(ofClass:)`, `hasItemsConforming(toTypeIdentifiers:)`, `isRestrictedToDraggingApplication` |
+| `UIDragInteraction` members | ❌ | ≤17 | 3 missing: `isEnabledByDefault`, `LiftBehavior.default`, `LiftBehavior.extended` |
+| `UIDragItem` members | ❌ | ≤17 | 2 missing: `init(itemProvider:)`, `setNeedsDropPreviewUpdate()` |
+| `UIDragPreview` members | ❌ | ≤17 | 2 missing: `init(for:)`, `init(for:title:)` |
+| `UIDragPreviewTarget` | ❌ | ≤17 | not in isim's SDK |
+| `UIDropProposal` members | ❌ | ≤17 | 2 missing: `init(operation:)`, `isPrecise` |
+| `UIDropSession` members | ❌ | ≤17 | 1 missing: `loadObjects(ofClass:completion:)` |
+| `UIDynamicAnimator` members | ❌ | ≤17 | 1 missing: `layoutAttributesForCell(at:)` |
+| `UIEditingInteractionConfiguration` | ❌ | ≤17 | not in isim's SDK (with 2 members: `default`, `none`) |
+| `UIEditMenuInteraction` members | ❌ | ≤17 | 1 missing: `updateVisibleMenuPosition(animated:)` |
+| `UIEvent` members | ❌ | ≤17 | 12 missing: `buttonMask`, `ButtonMask`, `EventType.scroll`, `EventType.hover`, `EventType.transform`, `EventSubtype.remoteControlBeginSeekingBackward`, `EventSubtype.remoteControlEndSeekingBackward`, `EventSubtype.remoteControlBeginSeekingForward` and 4 more |
+| `UIEventAttribution` | ❌ | ≤17 | not in isim's SDK (with 4 members: `init(sourceIdentifier:destinationURL:sourceDescription:purchaser:)`, `purchaser`, `reportEndpoint`, `sourceDescription`) |
+| `UIEventAttributionView` | ❌ | ≤17 | not in isim's SDK |
+| `UIFieldBehavior` | ❌ | ≤17 | not in isim's SDK (with 6 members: `velocityField(direction:)`, `radialGravityField(position:)`, `linearGravityField(direction:)`, `noiseField(smoothness:animationSpeed:)`, `turbulenceField(smoothness:animationSpeed:)`, `field(evaluationBlock:)`) |
+| `UIFindInteraction` | ❌ | ≤17 | not in isim's SDK (with 9 members: `init(sessionDelegate:)`, `presentFindNavigator(showingReplace:)`, `dismissFindNavigator()`, `findNext()`, `findPrevious()`, `isFindNavigatorVisible`, `optionsMenuProvider`, `activeFindSession` and 1 more) |
+| `UIFindInteractionDelegate` | ❌ | ≤17 | not in isim's SDK (with 3 members: `findInteraction(_:sessionFor:)`, `findInteraction(_:didBegin:)`, `findInteraction(_:didEnd:)`) |
+| `UIFindSession` | ❌ | ≤17 | not in isim's SDK (with 13 members: `SearchResultDisplayStyle`, `highlightedResultIndex`, `supportsReplacement`, `allowsReplacementForCurrentlyHighlightedResult`, `searchResultDisplayStyle`, `performSearch(query:options:)`, `performSingleReplacement(query:replacementString:options:)`, `replaceAll(searchQuery:replacementString:options:)` and 5 more) |
+| `UIFocusAnimationContext` | ❌ | ≤17 | not in isim's SDK |
+| `UIFocusAnimationCoordinator` | ❌ | ≤17 | not in isim's SDK (with 3 members: `addCoordinatedFocusingAnimations(_:completion:)`, `addCoordinatedUnfocusingAnimations(_:completion:)`, `addCoordinatedAnimations(_:completion:)`) |
+| `UIFocusDebugger` | ❌ | ≤17 | not in isim's SDK (with 4 members: `checkFocusability(for:)`, `focusGroups(for:)`, `preferredFocusEnvironments(for:)`, `simulateFocusUpdateRequest(from:)`) |
+| `UIFocusDebuggerOutput` | ❌ | ≤17 | not in isim's SDK |
+| `UIFocusEffect` | ❌ | ≤17 | not in isim's SDK |
+| `UIFocusEnvironment` | ❌ | ≤17 | not in isim's SDK (with 8 members: `setNeedsFocusUpdate()`, `updateFocusIfNeeded()`, `shouldUpdateFocus(in:)`, `didUpdateFocus(in:with:)`, `preferredFocusEnvironments`, `parentFocusEnvironment`, `focusItemContainer`, `focusGroupIdentifier`) |
+| `UIFocusGroupPriority` | ❌ | ≤17 | not in isim's SDK (with 4 members: `ignored`, `previouslyFocused`, `prioritized`, `currentlyFocused`) |
+| `UIFocusGuide` | ❌ | ≤17 | not in isim's SDK (with 1 members: `preferredFocusEnvironments`) |
+| `UIFocusHaloEffect` | ❌ | ≤17 | not in isim's SDK (with 7 members: `Position`, `init(roundedRect:cornerRadius:curve:)`, `init(rect:)`, `init(path:)`, `Position.automatic`, `Position.outside`, `Position.inside`) |
+| `UIFocusHeading` | ❌ | ≤17 | not in isim's SDK (with 8 members: `up`, `down`, `left`, `right`, `next`, `previous`, `first`, `last`) |
+| `UIFocusItem` | ❌ | ≤17 | not in isim's SDK (with 5 members: `canBecomeFocused`, `focusGroupPriority`, `didHintFocusMovement(_:)`, `isTransparentFocusItem`, `focusItemDeferralMode`) |
+| `UIFocusItemContainer` | ❌ | ≤17 | not in isim's SDK (with 1 members: `focusItems(in:)`) |
+| `UIFocusItemDeferralMode` | ❌ | 18.0 | not in isim's SDK (with 3 members: `always`, `automatic`, `never`) |
+| `UIFocusItemScrollableContainer` | ❌ | ≤17 | not in isim's SDK (with 1 members: `visibleSize`) |
+| `UIFocusMovementHint` | ❌ | ≤17 | not in isim's SDK (with 3 members: `movementDirection`, `interactionTransform`, `perspectiveTransform`) |
+| `UIFocusSoundIdentifier` | ❌ | ≤17 | not in isim's SDK |
+| `UIFocusSystem` | ❌ | ≤17 | not in isim's SDK (with 13 members: `focusedItem`, `requestFocusUpdate(to:)`, `updateFocusIfNeeded()`, `animationCoordinatorUserInfoKey`, `didUpdateNotification`, `focusUpdateContextUserInfoKey`, `movementDidFailNotification`, `DidUpdateMessage` and 5 more) |
+| `UIFocusUpdateContext` | ❌ | ≤17 | not in isim's SDK (with 5 members: `previouslyFocusedView`, `nextFocusedView`, `focusHeading`, `previouslyFocusedItem`, `nextFocusedItem`) |
+| `UIFont` members | ❌ | ≤17 | 2 missing: `extraLargeTitle`, `extraLargeTitle2` |
+| `UIFontPickerViewController` members | ❌ | 18.0 | 1 missing: `languageFilter` |
+| `UIGestureRecognizer` members | ❌ | ≤17 | 6 missing: `buttonMask`, `allowedPressTypes`, `allowedTouchTypes`, `touchesEstimatedPropertiesUpdated(_:)`, `shouldReceive(_:)`, `ignore(_:for:)` |
+| `UIGraphicsAddPDFContextDestinationAtPoint(_:_:)` | ❌ | ≤17 | not in isim's SDK |
+| `UIGraphicsDrawingActions` | ❌ | ≤17 | not in isim's SDK |
+| `UIGraphicsImageRendererFormat` members | ❌ | ≤17 | 2 missing: `init(for:)`, `supportsHighDynamicRange` |
+| `UIGraphicsRenderer` members | ❌ | ≤17 | 4 missing: `runDrawingActions(_:completionActions:)`, `context(with:)`, `prepare(_:with:)`, `rendererContextClass()` |
+| `UIGraphicsSetPDFContextDestinationForRect(_:_:)` | ❌ | ≤17 | not in isim's SDK |
+| `UIGuidedAccessAccessibilityFeature` | ❌ | ≤17 | not in isim's SDK (with 5 members: `assistiveTouch`, `grayscaleDisplay`, `invertColors`, `voiceOver`, `zoom`) |
+| `UIGuidedAccessRestrictionDelegate` | ❌ | ≤17 | not in isim's SDK (with 4 members: `guidedAccessRestrictionIdentifiers`, `textForGuidedAccessRestriction(withIdentifier:)`, `detailTextForGuidedAccessRestriction(withIdentifier:)`, `guidedAccessRestriction(withIdentifier:didChange:)`) |
+| `UIHDRHeadroomUsageLimit` | ❌ | ≤17 | not in isim's SDK (with 3 members: `active`, `inactive`, `unspecified`) |
+| `UIHoverAutomaticEffect` | ❌ | ≤17 | not in isim's SDK |
+| `UIHoverEffect` | ❌ | ≤17 | not in isim's SDK |
+| `UIHoverHighlightEffect` | ❌ | ≤17 | not in isim's SDK |
+| `UIHoverLiftEffect` | ❌ | ≤17 | not in isim's SDK |
+| `UIHoverStyle` | ❌ | ≤17 | not in isim's SDK |
+| `UIImage` members | ❌ | ≤17 | 43 missing: `DynamicRange`, `preparingForDisplay()`, `prepareForDisplay(completionHandler:)`, `preparingThumbnail(of:)`, `prepareThumbnail(of:completionHandler:)`, `animatedResizableImageNamed(_:capInsets:duration:)`, `animatedResizableImageNamed(_:capInsets:resizingMode:duration:)`, `withAlignmentRectInsets(_:)` and 35 more |
+| `UIImageReader` | ❌ | ≤17 | not in isim's SDK (with 4 members: `prefersHighDynamicRange`, `preparesImagesForDisplay`, `preferredThumbnailSize`, `pixelsPerInch`) |
+| `UIImageView` members | ❌ | ≤17 | 2 missing: `imageDynamicRange`, `preferredImageDynamicRange` |
+| `UIInputSuggestion` | ❌ | 18.0 | not in isim's SDK |
+| `UIInputViewAudioFeedback` | ❌ | ≤17 | not in isim's SDK (with 1 members: `enableInputClicksWhenVisible`) |
+| `UIInputViewController` members | ❌ | ≤17 | 1 missing: `requestSupplementaryLexicon(completion:)` |
+| `UIInterpolatingMotionEffect` | ❌ | ≤17 | not in isim's SDK (with 6 members: `init(keyPath:type:)`, `minimumRelativeValue`, `maximumRelativeValue`, `EffectType`, `EffectType.tiltAlongHorizontalAxis`, `EffectType.tiltAlongVerticalAxis`) |
+| `UIItemProviderPresentationSizeProviding` | ❌ | ≤17 | not in isim's SDK (with 1 members: `preferredPresentationSizeForItemProvider`) |
+| `UIItemProviderReadingAugmentationDesignating` | ❌ | ≤17 | not in isim's SDK |
+| `UIItemProviderReadingAugmentationProviding` | ❌ | ≤17 | not in isim's SDK (with 2 members: `additionalLeadingReadableTypeIdentifiersForItemProvider`, `additionalTrailingReadableTypeIdentifiersForItemProvider`) |
+| `UIKeyboardAppearance` members | ❌ | ≤17 | 1 missing: `alert` |
+| `UIKeyboardHIDUsage` members | ❌ | ≤17 | 80 missing: `keyboardNonUSBackslash`, `keyboardNonUSPound`, `keyboardSeparator`, `keyboardLockingCapsLock`, `keyboardLockingNumLock`, `keyboardLockingScrollLock`, `keyboardScrollLock`, `keyboardInsert` and 72 more |
+| `UIKeyboardType` members | ❌ | ≤17 | 1 missing: `alphabet` |
+| `UIKeyCommand` members | ❌ | ≤17 | 15 missing: `alternates`, `allowsAutomaticLocalization`, `allowsAutomaticMirroring`, `f1`, `f2`, `f3`, `f4`, `f5` and 7 more |
+| `UIKIT_HAS_UIFOUNDATION_SYMBOLS` | ❌ | ≤17 | not in isim's SDK |
+| `UILabel` members | ❌ | ≤17 | 5 missing: `lineBreakStrategy`, `showsExpansionTextWhenTruncated`, `allowsDefaultTighteningForTruncation`, `baselineAdjustment`, `preferredVibrancy` |
+| `UILabelVibrancy` | ❌ | ≤17 | not in isim's SDK (with 2 members: `automatic`, `none`) |
+| `UILargeContentViewerInteraction` members | ❌ | ≤17 | 2 missing: `gestureRecognizerForExclusionRelationship`, `enabledStatusDidChangeNotification` |
+| `UILargeContentViewerInteractionDelegate` members | ❌ | ≤17 | 1 missing: `viewController(for:)` |
+| `UILargeContentViewerItem` members | ❌ | ≤17 | 2 missing: `largeContentImageInsets`, `scalesLargeContentImage` |
+| `UILayoutGuide` members | ❌ | ≤17 | 2 missing: `constraintsAffectingLayout(for:)`, `hasAmbiguousLayout` |
+| `UILayoutGuideAspectFitting` | ❌ | ≤17 | not in isim's SDK |
+| `UILayoutPriority` members | ❌ | ≤17 | 3 missing: `dragThatCanResizeScene`, `sceneSizeStayPut`, `dragThatCannotResizeScene` |
+| `UILayoutSupport` | ❌ | ≤17 | not in isim's SDK |
+| `UILetterformAwareAdjusting` | ❌ | ≤17 | not in isim's SDK (with 1 members: `sizingRule`) |
+| `UILetterformAwareSizingRule` | ❌ | ≤17 | not in isim's SDK (with 2 members: `oversize`, `typographic`) |
+| `UILexicon` | ❌ | ≤17 | not in isim's SDK |
+| `UILexiconEntry` | ❌ | ≤17 | not in isim's SDK (with 2 members: `documentText`, `userInput`) |
+| `UIListContentConfiguration` members | ❌ | ≤17 | 17 missing: `accompaniedSidebarCell()`, `accompaniedSidebarSubtitleCell()`, `prominentInsetGroupedHeader()`, `extraProminentInsetGroupedHeader()`, `secondaryAttributedText`, `axesPreservingSuperviewLayoutMargins`, `textToSecondaryTextHorizontalPadding`, `tintColorTransformer` and 9 more |
+| `UIListContentView` members | ❌ | ≤17 | 3 missing: `textLayoutGuide`, `secondaryTextLayoutGuide`, `imageLayoutGuide` |
+| `UIListSeparatorConfiguration` | ❌ | ≤17 | not in isim's SDK (with 6 members: `topSeparatorVisibility`, `bottomSeparatorVisibility`, `topSeparatorInsets`, `bottomSeparatorInsets`, `automaticInsets`, `multipleSelectionColor`) |
+| `UILocalizedIndexedCollation` | ❌ | ≤17 | not in isim's SDK (with 5 members: `current()`, `section(for:collationStringSelector:)`, `sortedArray(from:collationStringSelector:)`, `sectionTitles`, `section(forSectionIndexTitle:)`) |
+| `UILookToDictateCapable` | ❌ | ≤17 | not in isim's SDK (with 1 members: `isLookToDictateEnabled`) |
+| `UIMailConversationContext` | ❌ | 18.0 | not in isim's SDK (with 11 members: `MailEntry`, `responseSubject`, `responseHasCustomSignature`, `responseSecondaryRecipientIdentifiers`, `MailEntry.Kind`, `MailEntry.Kind.news`, `MailEntry.Kind.none`, `MailEntry.Kind.personal` and 3 more) |
+| `UIMainMenuSystem` | ❌ | 26.0 | not in isim's SDK (with 12 members: `shared`, `setBuildConfiguration(_:buildHandler:)`, `Configuration`, `documentPreference`, `findingConfiguration`, `findingPreference`, `inspectorPreference`, `newScenePreference` and 4 more) |
+| `UIManagedDocument` | ❌ | ≤17 | not in isim's SDK (with 8 members: `configurePersistentStoreCoordinator(for:ofType:modelConfiguration:storeOptions:)`, `persistentStoreOptions`, `modelConfiguration`, `persistentStoreType(forFileType:)`, `readAdditionalContent(from:)`, `additionalContent(for:)`, `writeAdditionalContent(_:to:originalContentsURL:)`, `persistentStoreName`) |
+| `UIMenu` members | ❌ | ≤17 | 59 missing: `replacingChildren(_:)`, `selectedElements`, `preferredElementSize`, `ElementSize`, `displayPreferences`, `application`, `file`, `edit` and 51 more |
+| `UIMenuBuilder` | ❌ | ≤17 | not in isim's SDK (with 19 members: `menu(for:)`, `action(for:)`, `insertChild(_:atStartOfMenu:)`, `insertChild(_:atEndOfMenu:)`, `insertSibling(_:beforeMenu:)`, `insertSibling(_:afterMenu:)`, `replaceChildren(ofMenu:from:)`, `remove(menu:)` and 11 more) |
+| `UIMenuDisplayPreferences` | ❌ | ≤17 | not in isim's SDK (with 1 members: `maximumNumberOfTitleLines`) |
+| `UIMenuElement` members | ❌ | ≤17 | 4 missing: `keepsMenuPresented`, `RepeatBehavior.automatic`, `RepeatBehavior.nonRepeatable`, `RepeatBehavior.repeatable` |
+| `UIMenuLeaf` | ❌ | ≤17 | not in isim's SDK (with 3 members: `presentationSourceItem`, `performWithSender(_:target:)`, `repeatBehavior`) |
+| `UIMenuSystem` | ❌ | ≤17 | not in isim's SDK (with 14 members: `main`, `context`, `setNeedsRebuild()`, `setNeedsRevalidate()`, `ElementGroupPreference`, `FindElementGroupConfiguration`, `FindElementGroupConfiguration.Style`, `ElementGroupPreference.automatic` and 6 more) |
+| `UIMessageConversationContext` | ❌ | 18.0 | not in isim's SDK (with 8 members: `MessageEntry`, `isJunk`, `dataKind`, `MessageEntry.DataKind`, `wasSentBySelf`, `MessageEntry.DataKind.attachment`, `MessageEntry.DataKind.other`, `MessageEntry.DataKind.text`) |
+| `UIMotionEffect` | ❌ | ≤17 | not in isim's SDK (with 1 members: `keyPathsAndRelativeValues(forViewerOffset:)`) |
+| `UIMotionEffectGroup` | ❌ | ≤17 | not in isim's SDK (with 1 members: `motionEffects`) |
+| `UIMutableTraits` members | ❌ | ≤17 | 8 missing: `headroomUsageLimit`, `imageDynamicRange`, `sceneCaptureState`, `splitViewControllerLayoutEnvironment`, `toolbarItemPresentationSize`, `typesettingLanguage`, `navigationTitleAlignment`, `systemPrefersReducedResourceUsage` |
+| `UINavigationBar` members | ❌ | ≤17 | 12 missing: `behavioralStyle`, `preferredBehavioralStyle`, `currentNSToolbarSection`, `NSToolbarSection`, `titleVerticalPositionAdjustment(for:)`, `setTitleVerticalPositionAdjustment(_:for:)`, `backgroundImage(for:)`, `backgroundImage(for:barMetrics:)` and 4 more |
+| `UINavigationBarAppearance` members | ❌ | ≤17 | 1 missing: `prominentButtonAppearance` |
+| `UINavigationBarDelegate` members | ❌ | ≤17 | 1 missing: `navigationBarNSToolbarSection(_:)` |
+| `UINavigationController` members | ❌ | ≤17 | 7 missing: `interactiveContentPopGestureRecognizer`, `hideShowBarDuration`, `hidesBarsOnTap`, `hidesBarsWhenVerticallyCompact`, `hidesBarsWhenKeyboardAppears`, `barHideOnTapGestureRecognizer`, `barHideOnSwipeGestureRecognizer` |
+| `UINavigationControllerDelegate` members | ❌ | ≤17 | 1 missing: `navigationControllerPreferredInterfaceOrientationForPresentation(_:)` |
+| `UINavigationItem` members | ❌ | ≤17 | 18 missing: `backButtonDisplayMode`, `BackButtonDisplayMode`, `setHidesBackButton(_:animated:)`, `backAction`, `pinnedTrailingGroup`, `customizationIdentifier`, `additionalOverflowItems`, `overflowPresentationSource` and 10 more |
+| `UINavigationItemRenameDelegate` | ❌ | ≤17 | not in isim's SDK (with 1 members: `navigationItemShouldBeginRenaming(_:)`) |
+| `UINSToolbarItemPresentationSize` | ❌ | ≤17 | not in isim's SDK (with 4 members: `regular`, `small`, `large`, `unspecified`) |
+| `UIOffset` members | ❌ | ≤17 | 1 missing: `zero` |
+| `UIPageControl` members | ❌ | ≤17 | 20 missing: `preferredIndicatorImage`, `indicatorImage(forPage:)`, `setIndicatorImage(_:forPage:)`, `preferredCurrentPageIndicatorImage`, `currentPageIndicatorImage(forPage:)`, `setCurrentPageIndicatorImage(_:forPage:)`, `backgroundStyle`, `allowsContinuousInteraction` and 12 more |
+| `UIPageControlProgress` | ❌ | ≤17 | not in isim's SDK (with 1 members: `isProgressVisible`) |
+| `UIPageControlProgressDelegate` | ❌ | ≤17 | not in isim's SDK (with 2 members: `pageControlProgress(_:initialProgressForPage:)`, `pageControlProgressVisibilityDidChange(_:)`) |
+| `UIPageControlTimerProgress` | ❌ | ≤17 | not in isim's SDK (with 7 members: `init(preferredDuration:)`, `preferredDuration`, `resetsToInitialPageAfterEnd`, `duration(forPage:)`, `pauseTimer()`, `resumeTimer()`, `setDuration(_:forPage:)`) |
+| `UIPageControlTimerProgressDelegate` | ❌ | ≤17 | not in isim's SDK (with 2 members: `pageControlTimerProgress(_:shouldAdvanceToPage:)`, `pageControlTimerProgressDidChange(_:)`) |
+| `UIPageViewControllerDelegate` members | ❌ | ≤17 | 2 missing: `pageViewControllerSupportedInterfaceOrientations(_:)`, `pageViewControllerPreferredInterfaceOrientationForPresentation(_:)` |
+| `UIPanGestureRecognizer` members | ❌ | ≤17 | 1 missing: `allowedScrollTypesMask` |
+| `UIPasteboard` members | ❌ | ≤17 | 9 missing: `DetectedValues`, `ChangedMessage`, `RemovedMessage`, `calendarEvents`, `flightNumbers`, `moneyAmounts`, `shipmentTrackingNumbers`, `typesAdded` and 1 more |
+| `UIPasteConfiguration` members | ❌ | ≤17 | 3 missing: `init(acceptableTypeIdentifiers:)`, `init(forAccepting:)`, `addTypeIdentifiers(forAccepting:)` |
+| `UIPasteControl` members | ❌ | ≤17 | 4 missing: `DisplayMode.iconAndLabel`, `DisplayMode.iconOnly`, `DisplayMode.labelOnly`, `DisplayMode.arrowAndLabel` |
+| `UIPhotoSearchSuggestion` | ❌ | 27.0 | not in isim's SDK (with 4 members: `whatValues`, `whenValues`, `whereValues`, `whoValues`) |
+| `UIPickerViewAccessibilityDelegate` | ❌ | ≤17 | not in isim's SDK |
+| `UIPointerAccessory` members | ❌ | ≤17 | 1 missing: `defaultOffset` |
+| `UIPointerLockState` | ❌ | ≤17 | not in isim's SDK (with 4 members: `didChangeNotification`, `sceneUserInfoKey`, `DidChangeMessage`, `pointerLockState`) |
+| `UIPopoverBackgroundView` | ❌ | ≤17 | not in isim's SDK (with 1 members: `arrowOffset`) |
+| `UIPopoverBackgroundViewMethods` | ❌ | ≤17 | not in isim's SDK (with 3 members: `contentViewInsets()`, `arrowBase()`, `arrowHeight()`) |
+| `UIPopoverControllerDelegate` | ❌ | ≤17 | not in isim's SDK |
+| `UIPopoverPresentationController` members | ❌ | ≤17 | 4 missing: `popoverLayoutMargins`, `popoverBackgroundViewClass`, `sourceItem`, `adaptiveSheetPresentationController` |
+| `UIPopoverPresentationControllerSourceItem` | ❌ | ≤17 | not in isim's SDK |
+| `UIPressesEvent` members | ❌ | ≤17 | 1 missing: `presses(for:)` |
+| `UIPreviewActionItem` | ❌ | ≤17 | not in isim's SDK |
+| `UIPreviewInteraction` | ❌ | ≤17 | not in isim's SDK (with 2 members: `cancel()`, `location(in:)`) |
+| `UIPreviewInteractionDelegate` | ❌ | ≤17 | not in isim's SDK (with 4 members: `previewInteractionShouldBegin(_:)`, `previewInteraction(_:didUpdatePreviewTransition:ended:)`, `previewInteraction(_:didUpdateCommitTransition:ended:)`, `previewInteractionDidCancel(_:)`) |
+| `UIPrinter` members | ❌ | ≤17 | 6 missing: `CutterBehavior`, `CutterBehavior.noCut`, `CutterBehavior.printerDefault`, `CutterBehavior.cutAfterEachPage`, `CutterBehavior.cutAfterEachCopy`, `CutterBehavior.cutAfterEachJob` |
+| `UIPrinterDestination` | ❌ | ≤17 | not in isim's SDK |
+| `UIPrintError` | ❌ | ≤17 | not in isim's SDK (with 3 members: `noContent`, `unknownImageFormat`, `jobFailed`) |
+| `UIPrintFormatter` members | ❌ | ≤17 | 1 missing: `requiresMainThread` |
+| `UIPrintPageRenderer` members | ❌ | ≤17 | 1 missing: `currentRenderingQuality(forRequested:)` |
+| `UIPrintPaper` members | ❌ | ≤17 | 1 missing: `printRect()` |
+| `UIPrintRenderingQuality` | ❌ | ≤17 | not in isim's SDK (with 2 members: `best`, `responsive`) |
+| `UIPrintServiceExtension` | ❌ | ≤17 | not in isim's SDK (with 1 members: `printerDestinations(for:)`) |
+| `UIProgressView` members | ❌ | ≤17 | 3 missing: `observedProgress`, `progressImage`, `trackImage` |
+| `UIRectClip(_:)` | ❌ | ≤17 | not in isim's SDK |
+| `UIRectFillUsingBlendMode(_:_:)` | ❌ | ≤17 | not in isim's SDK |
+| `UIRectFrameUsingBlendMode(_:_:)` | ❌ | ≤17 | not in isim's SDK |
+| `UIRegion` | ❌ | ≤17 | not in isim's SDK (with 6 members: `infinite`, `init(radius:)`, `inverse()`, `byDifference(from:)`, `byIntersection(with:)`, `byUnion(with:)`) |
+| `UIResponder` members | ❌ | ≤17 | 23 missing: `touchesEstimatedPropertiesUpdated(_:)`, `remoteControlReceived(with:)`, `inputViewController`, `inputAccessoryViewController`, `reloadInputViews()`, `buildMenu(with:)`, `validate(_:)`, `textInputMode` and 15 more |
+| `UIResponderStandardEditActions` members | ❌ | ≤17 | 16 missing: `pasteAndGo(_:)`, `pasteAndMatchStyle(_:)`, `pasteAndSearch(_:)`, `findNext(_:)`, `findPrevious(_:)`, `findAndReplace(_:)`, `useSelectionForFind(_:)`, `updateTextAttributes(conversionHandler:)` and 8 more |
+| `UIScene` members | ❌ | ≤17 | 22 missing: `activationConditions`, `destructionConditions`, `systemProtectionManager`, `SystemProtectionManager`, `systemProtectionDidChangeNotification`, `pointerLockState`, `DestructionCondition`, `DidActivateMessage` and 14 more |
+| `UISceneActivationConditions` | ❌ | ≤17 | not in isim's SDK (with 2 members: `prefersToActivateForTargetContentIdentifierPredicate`, `canActivateForTargetContentIdentifierPredicate`) |
+| `UISceneCaptureState` | ❌ | ≤17 | not in isim's SDK (with 3 members: `active`, `inactive`, `unspecified`) |
+| `UISceneError` | ❌ | ≤17 | not in isim's SDK (with 4 members: `multipleScenesNotSupported`, `requestDenied`, `geometryRequestUnsupported`, `geometryRequestDenied`) |
+| `UISceneSession` members | ❌ | ≤17 | 4 missing: `windowAssistiveAccessApplication`, `carTemplateApplication`, `CPTemplateApplicationDashboardSceneSessionRoleApplication`, `CPTemplateApplicationInstrumentClusterSceneSessionRoleApplication` |
+| `UISceneWindowingBehaviors` | ❌ | ≤17 | not in isim's SDK (with 2 members: `isClosable`, `isMiniaturizable`) |
+| `UIScreen` members | ❌ | ≤17 | 27 missing: `fixedCoordinateSpace`, `wantsSoftwareDimming`, `preferredMode`, `availableModes`, `overscanCompensationInsets`, `overscanCompensation`, `OverscanCompensation`, `calibratedLatency` and 19 more |
+| `UIScreenMode` | ❌ | ≤17 | not in isim's SDK (with 1 members: `pixelAspectRatio`) |
+| `UIScreenshotService` | ❌ | ≤17 | not in isim's SDK |
+| `UIScreenshotServiceDelegate` | ❌ | ≤17 | not in isim's SDK (with 1 members: `screenshotService(_:generatePDFRepresentationWithCompletion:)`) |
+| `UIScrollEdgeElementContainerInteraction` | ❌ | 26.0 | not in isim's SDK |
+| `UIScrollType` | ❌ | ≤17 | not in isim's SDK (with 2 members: `discrete`, `continuous`) |
+| `UIScrollTypeMask` | ❌ | ≤17 | not in isim's SDK (with 3 members: `all`, `continuous`, `discrete`) |
+| `UIScrollView` members | ❌ | ≤17 | 26 missing: `adjustedContentInsetDidChange()`, `isDirectionalLockEnabled`, `bouncesHorizontally`, `bouncesVertically`, `isScrollAnimating`, `stopScrollingAndZooming()`, `indicatorStyle`, `IndicatorStyle` and 18 more |
+| `UIScrollViewAccessibilityDelegate` | ❌ | ≤17 | not in isim's SDK (with 2 members: `accessibilityScrollStatus(for:)`, `accessibilityAttributedScrollStatus(for:)`) |
+| `UIScrollViewDelegate` members | ❌ | ≤17 | 2 missing: `scrollViewShouldScrollToTop(_:)`, `scrollViewDidScrollToTop(_:)` |
+| `UISearchBar` members | ❌ | ≤17 | 23 missing: `inputAssistantItem`, `isSearchResultsButtonSelected`, `backgroundImage(for:barMetrics:)`, `image(for:state:)`, `positionAdjustment(for:)`, `setPositionAdjustment(_:for:)`, `searchFieldBackgroundImage(for:)`, `setSearchFieldBackgroundImage(_:for:)` and 15 more |
+| `UISearchBarDelegate` members | ❌ | ≤17 | 2 missing: `searchBarBookmarkButtonClicked(_:)`, `searchBarResultsListButtonClicked(_:)` |
+| `UISearchContainerViewController` | ❌ | ≤17 | not in isim's SDK (with 1 members: `init(searchController:)`) |
+| `UISearchController` members | ❌ | ≤17 | 7 missing: `ignoresSearchSuggestionsForSearchBarPlacementStacked`, `scopeBarActivation`, `ScopeBarActivation`, `ScopeBarActivation.automatic`, `ScopeBarActivation.manual`, `ScopeBarActivation.onTextEntry`, `ScopeBarActivation.onSearchActivation` |
+| `UISearchDisplayDelegate` | ❌ | ≤17 | not in isim's SDK |
+| `UISearchSuggestion` members | ❌ | ≤17 | 1 missing: `localizedAttributedSuggestion` |
+| `UISearchSuggestionItem` members | ❌ | ≤17 | 4 missing: `init(localizedAttributedSuggestion:localizedDescription:iconImage:)`, `init(localizedAttributedSuggestion:localizedDescription:)`, `init(localizedAttributedSuggestion:)`, `localizedAttributedSuggestion` |
+| `UISearchTextField` members | ❌ | ≤17 | 9 missing: `replaceTextualPortion(of:with:at:)`, `textualRange`, `allowsDeletingTokens`, `allowsCopyingTokens`, `insertToken(_:at:)`, `removeToken(at:)`, `tokenBackgroundColor`, `tokens(in:)` and 1 more |
+| `UISearchTextFieldDelegate` | ❌ | ≤17 | not in isim's SDK |
+| `UISearchTextFieldPasteItem` | ❌ | ≤17 | not in isim's SDK (with 1 members: `setSearchTokenResult(_:)`) |
+| `UISearchToken` | ❌ | ≤17 | not in isim's SDK (with 1 members: `init(icon:text:)`) |
+| `UISegmentedControl` members | ❌ | ≤17 | 16 missing: `actionForSegment(at:)`, `setAction(_:forSegmentAt:)`, `segmentIndex(identifiedBy:)`, `insertSegment(action:at:animated:)`, `contentOffsetForSegment(at:)`, `widthForSegment(at:)`, `contentPositionAdjustment(forSegmentType:barMetrics:)`, `setContentPositionAdjustment(_:forSegmentType:barMetrics:)` and 8 more |
+| `UIShadowProperties` | ❌ | 18.0 | not in isim's SDK |
+| `UIShape` | ❌ | ≤17 | not in isim's SDK (with 2 members: `fixedRect(_:cornerRadius:cornerCurve:maskedCorners:)`, `ResolutionContext`) |
+| `UIShapeProvider` | ❌ | ≤17 | not in isim's SDK |
+| `UISheetPresentationController` members | ❌ | 27.0 | 4 missing: `Placement.automatic`, `Placement.center`, `Placement.leading`, `Placement.trailing` |
+| `UISlider` members | ❌ | ≤17 | 2 missing: `behavioralStyle`, `preferredBehavioralStyle` |
+| `UISmartReplySuggestion` | ❌ | 18.0 | not in isim's SDK (with 1 members: `smartReply`) |
+| `UISplitViewController` members | ❌ | ≤17 | 22 missing: `isShowing(_:)`, `minimumSupplementaryColumnWidth`, `maximumSupplementaryColumnWidth`, `preferredSecondaryColumnWidth`, `preferredSecondaryColumnWidthFraction`, `minimumSecondaryColumnWidth`, `preferredInspectorColumnWidth`, `preferredInspectorColumnWidthFraction` and 14 more |
+| `UISplitViewControllerDelegate` members | ❌ | ≤17 | 6 missing: `splitViewControllerPreferredInterfaceOrientationForPresentation(_:)`, `splitViewControllerSupportedInterfaceOrientations(_:)`, `splitViewControllerInteractivePresentationGestureWillBegin(_:)`, `splitViewControllerInteractivePresentationGestureDidEnd(_:)`, `primaryViewController(forCollapsing:)`, `primaryViewController(forExpanding:)` |
+| `UISpringLoadedInteraction` | ❌ | ≤17 | not in isim's SDK (with 4 members: `init(interactionBehavior:interactionEffect:activationHandler:)`, `init(activationHandler:)`, `interactionBehavior`, `interactionEffect`) |
+| `UISpringLoadedInteractionBehavior` | ❌ | ≤17 | not in isim's SDK (with 2 members: `shouldAllow(_:with:)`, `interactionDidFinish(_:)`) |
+| `UISpringLoadedInteractionContext` | ❌ | ≤17 | not in isim's SDK (with 1 members: `targetItem`) |
+| `UISpringLoadedInteractionEffect` | ❌ | ≤17 | not in isim's SDK |
+| `UISpringLoadedInteractionEffectState` | ❌ | ≤17 | not in isim's SDK (with 4 members: `activated`, `activating`, `inactive`, `possible`) |
+| `UISpringLoadedInteractionSupporting` | ❌ | ≤17 | not in isim's SDK (with 1 members: `isSpringLoaded`) |
+| `UIStackView` members | ❌ | ≤17 | 2 missing: `isBaselineRelativeArrangement`, `customSpacing(after:)` |
+| `UIStandardTextCursorView` | ❌ | ≤17 | not in isim's SDK |
+| `UIStatusBarAnimation` | ❌ | ≤17 | not in isim's SDK (with 3 members: `none`, `fade`, `slide`) |
+| `UIStatusBarManager` | ❌ | ≤17 | not in isim's SDK (with 2 members: `statusBarStyle`, `statusBarFrame`) |
+| `UIStepper` members | ❌ | ≤17 | 6 missing: `decrementImage(for:)`, `setDecrementImage(_:for:)`, `dividerImage(forLeftSegmentState:rightSegmentState:)`, `setDividerImage(_:forLeftSegmentState:rightSegmentState:)`, `incrementImage(for:)`, `setIncrementImage(_:for:)` |
+| `UISwitch` members | ❌ | ≤17 | 5 missing: `onImage`, `offImage`, `Style.automatic`, `Style.checkbox`, `Style.sliding` |
+| `UITab` members | ❌ | 18.0 | 2 missing: `isHiddenByDefault`, `hasVisiblePlacement` |
+| `UITabBar` members | ❌ | ≤17 | 11 missing: `beginCustomizingItems(_:)`, `endCustomizing(animated:)`, `isCustomizing`, `itemPositioning`, `ItemPositioning`, `itemSpacing`, `itemWidth`, `selectionIndicatorImage` and 3 more |
+| `UITabBarAppearance` members | ❌ | ≤17 | 8 missing: `stackedLayoutAppearance`, `stackedItemPositioning`, `stackedItemSpacing`, `stackedItemWidth`, `inlineLayoutAppearance`, `compactInlineLayoutAppearance`, `selectionIndicatorTintColor`, `selectionIndicatorImage` |
+| `UITabBarController` members | ❌ | ≤17 | 14 missing: `init(tabs:)`, `compactTabIdentifiers`, `customizationIdentifier`, `customizableViewControllers`, `moreNavigationController`, `preferredLayout`, `reconfigureItem(for:)`, `bottomBarView` and 6 more |
+| `UITabBarControllerDelegate` members | ❌ | ≤17 | 4 missing: `tabBarControllerSupportedInterfaceOrientations(_:)`, `tabBarControllerPreferredInterfaceOrientationForPresentation(_:)`, `tabBarControllerDidEndEditing(_:)`, `tabBarControllerWillBeginEditing(_:)` |
+| `UITabBarItem` members | ❌ | ≤17 | 2 missing: `setBadgeTextAttributes(_:for:)`, `badgeTextAttributes(for:)` |
+| `UITabBarItemAppearance` | ❌ | ≤17 | not in isim's SDK (with 4 members: `Style`, `Style.stacked`, `Style.inline`, `Style.compactInline`) |
+| `UITabBarItemStateAppearance` | ❌ | ≤17 | not in isim's SDK (with 5 members: `iconColor`, `badgeTextAttributes`, `badgeBackgroundColor`, `badgeTitlePositionAdjustment`, `badgePositionAdjustment`) |
+| `UITabGroup` members | ❌ | 18.0 | 10 missing: `defaultChildIdentifier`, `sidebarAppearance`, `SidebarAppearance`, `displayOrder`, `sidebarActions`, `isCollapsedByDefault`, `isSidebarDestination`, `SidebarAppearance.automatic` and 2 more |
+| `UITableView` members | ❌ | ≤17 | 26 missing: `fillerRowHeight`, `cellLayoutMarginsFollowReadableWidth`, `insetsContentViewsToSafeArea`, `separatorEffect`, `separatorInsetReference`, `SeparatorInsetReference`, `indexPathsForRows(in:)`, `selectionDidChangeNotification` and 18 more |
+| `UITableViewCell` members | ❌ | ≤17 | 18 missing: `defaultBackgroundConfiguration()`, `multipleSelectionBackgroundView`, `editingAccessoryView`, `showingDeleteConfirmation`, `userInteractionEnabledWhileDragging`, `dragStateDidChange(_:)`, `willTransition(to:)`, `didTransition(to:)` and 10 more |
+| `UITableViewContentHuggingElements` | ❌ | 18.0 | not in isim's SDK (with 1 members: `sectionHeaders`) |
+| `UITableViewDelegate` members | ❌ | ≤17 | 2 missing: `tableViewDidEndMultipleSelectionInteraction(_:)`, `indexPathForPreferredFocusedView(in:)` |
+| `UITableViewDiffableDataSourceReference` members | ❌ | ≤17 | 7 missing: `init(tableView:cellProvider:)`, `itemIdentifier(for:)`, `indexPath(forItemIdentifier:)`, `sectionIdentifier(for:)`, `index(forSectionIdentifier:)`, `applySnapshot(_:animatingDifferences:)`, `applySnapshot(_:animatingDifferences:completion:)` |
+| `UITableViewDiffableDataSourceReferenceCellProvider` | ❌ | ≤17 | not in isim's SDK |
+| `UITableViewDropCoordinator` members | ❌ | ≤17 | 3 missing: `drop(_:toRowAt:)`, `drop(_:intoRowAt:rect:)`, `drop(_:to:)` |
+| `UITableViewDropPlaceholder` | ❌ | ≤17 | not in isim's SDK (with 1 members: `previewParametersProvider`) |
+| `UITableViewDropPlaceholderContext` | ❌ | ≤17 | not in isim's SDK (with 2 members: `commitInsertion(dataSourceUpdates:)`, `deletePlaceholder()`) |
+| `UITableViewDropProposal` members | ❌ | ≤17 | 5 missing: `init(operation:intent:)`, `Intent.unspecified`, `Intent.insertAtDestinationIndexPath`, `Intent.insertIntoDestinationIndexPath`, `Intent.automatic` |
+| `UITableViewFocusUpdateContext` | ❌ | ≤17 | not in isim's SDK (with 2 members: `previouslyFocusedIndexPath`, `nextFocusedIndexPath`) |
+| `UITableViewHeaderFooterView` members | ❌ | ≤17 | 1 missing: `defaultBackgroundConfiguration()` |
+| `UITableViewPlaceholder` | ❌ | ≤17 | not in isim's SDK (with 2 members: `init(insertionIndexPath:reuseIdentifier:rowHeight:)`, `cellUpdateHandler`) |
+| `UITabSidebarItem` | ❌ | 18.0 | not in isim's SDK (with 3 members: `Request`, `init(request:)`, `defaultBackgroundConfiguration()`) |
+| `UITapGestureRecognizer` members | ❌ | ≤17 | 1 missing: `buttonMaskRequired` |
+| `UITargetedDragPreview` members | ❌ | ≤17 | 2 missing: `init(for:target:)`, `init(for:title:target:)` |
+| `UITextAttributesConversionHandler` | ❌ | ≤17 | not in isim's SDK |
+| `UITextChecker` members | ❌ | 27.0 | 2 missing: `ignoreGrammarRange(_:inSentence:)`, `requestGrammarChecking(of:range:waitForAllResults:completionHandler:)` |
+| `UITextContentType` members | ❌ | 27.0 | 3 missing: `cellularIMEI1`, `cellularIMEI2`, `cellularNAL` |
+| `UITextCursorDropPositionAnimator` | ❌ | ≤17 | not in isim's SDK (with 5 members: `init(textCursorView:textInput:)`, `cursorView`, `animate(alongsideChanges:completion:)`, `placeCursor(at:animated:)`, `setCursorVisible(_:animated:)`) |
+| `UITextCursorView` | ❌ | ≤17 | not in isim's SDK (with 2 members: `isBlinking`, `resetBlinkAnimation()`) |
+| `UITextDragDelegate` | ❌ | ≤17 | not in isim's SDK (with 5 members: `textDraggableView(_:dragSessionWillBegin:)`, `textDraggableView(_:dragSessionDidEnd:with:)`, `textDraggableView(_:willAnimateLiftWith:session:)`, `textDraggableView(_:itemsForDrag:)`, `textDraggableView(_:dragPreviewForLiftingItem:session:)`) |
+| `UITextDraggable` | ❌ | ≤17 | not in isim's SDK (with 4 members: `isTextDragActive`, `textDragInteraction`, `textDragDelegate`, `textDragOptions`) |
+| `UITextDragOptions` | ❌ | ≤17 | not in isim's SDK (with 1 members: `stripTextColorFromPreviews`) |
+| `UITextDragPreviewRenderer` | ❌ | ≤17 | not in isim's SDK (with 6 members: `init(layoutManager:range:)`, `init(layoutManager:range:unifyRects:)`, `bodyRect`, `firstLineRect`, `lastLineRect`, `adjust(firstLineRect:bodyRect:lastLineRect:textOrigin:)`) |
+| `UITextDragRequest` | ❌ | ≤17 | not in isim's SDK (with 4 members: `existingItems`, `suggestedItems`, `dragRange`, `dragSession`) |
+| `UITextDropDelegate` | ❌ | ≤17 | not in isim's SDK (with 8 members: `textDroppableView(_:proposalForDrop:)`, `textDroppableView(_:willBecomeEditableForDrop:)`, `textDroppableView(_:dropSessionDidEnter:)`, `textDroppableView(_:dropSessionDidExit:)`, `textDroppableView(_:dropSessionDidUpdate:)`, `textDroppableView(_:dropSessionDidEnd:)`, `textDroppableView(_:willPerformDrop:)`, `textDroppableView(_:previewForDroppingAllItemsWithDefault:)`) |
+| `UITextDropEditability` | ❌ | ≤17 | not in isim's SDK (with 3 members: `no`, `temporary`, `yes`) |
+| `UITextDroppable` | ❌ | ≤17 | not in isim's SDK (with 3 members: `isTextDropActive`, `textDropInteraction`, `textDropDelegate`) |
+| `UITextDropProposal` | ❌ | ≤17 | not in isim's SDK (with 14 members: `Action`, `Performer`, `ProgressMode`, `dropAction`, `dropPerformer`, `dropProgressMode`, `useFastSameViewOperations`, `Action.insert` and 6 more) |
+| `UITextDropRequest` | ❌ | ≤17 | not in isim's SDK (with 4 members: `dropPosition`, `isSameView`, `suggestedProposal`, `dropSession`) |
+| `UITextField` members | ❌ | ≤17 | 14 missing: `attributedPlaceholder`, `defaultTextAttributes`, `didEndEditingReasonUserInfoKey`, `disabledBackground`, `placeholderRect(forBounds:)`, `drawPlaceholder(in:)`, `borderRect(forBounds:)`, `editingRect(forBounds:)` and 6 more |
+| `UITextFormattingCoordinator` | ❌ | ≤17 | not in isim's SDK (with 4 members: `init(for:)`, `isFontPanelVisible`, `toggleFontPanel(_:)`, `setSelectedAttributes(_:isMultiple:)`) |
+| `UITextFormattingCoordinatorDelegate` | ❌ | ≤17 | not in isim's SDK (with 1 members: `updateTextAttributes(conversionHandler:)`) |
+| `UITextFormattingViewController` | ❌ | 18.0 | not in isim's SDK (with 70 members: `ComponentSize`, `ComponentKey`, `Highlight`, `TextAlignment`, `TextList`, `Component`, `ComponentGroup`, `Configuration` and 62 more) |
+| `UITextGrammarCheckingType` | ❌ | 27.0 | not in isim's SDK (with 3 members: `default`, `no`, `yes`) |
+| `UITextInput` members | ❌ | ≤17 | 14 missing: `selectionAffinity`, `caretTransform(for:)`, `insertTextPlaceholder(with:)`, `remove(_:)`, `editMenu(for:suggestedActions:)`, `willPresentEditMenu(animator:)`, `willDismissEditMenu(animator:)`, `insert(_:)` and 6 more |
+| `UITextInputAssistantItem` | ❌ | ≤17 | not in isim's SDK (with 3 members: `leadingBarButtonGroups`, `trailingBarButtonGroups`, `allowsHidingShortcuts`) |
+| `UITextInputContext` | ❌ | ≤17 | not in isim's SDK (with 2 members: `isDictationInputExpected`, `isHardwareKeyboardInputExpected`) |
+| `UITextInputDelegate` members | ❌ | 18.0 | 1 missing: `conversationContext(_:didChange:)` |
+| `UITextInputMode` members | ❌ | 26.0 | 1 missing: `CurrentInputModeDidChangeMessage` |
+| `UITextInputTraits` members | ❌ | 18.0 | 6 missing: `writingToolsBehavior`, `conversationContext`, `mathExpressionCompletionType`, `allowedWritingToolsResultOptions`, `allowsNumberPadPopover`, `grammarCheckingType` |
+| `UITextInteraction` | ❌ | ≤17 | not in isim's SDK (with 3 members: `init(for:)`, `gesturesForFailureRequirements`, `textInteractionMode`) |
+| `UITextInteractionDelegate` | ❌ | ≤17 | not in isim's SDK (with 3 members: `interactionShouldBegin(_:at:)`, `interactionWillBegin(_:)`, `interactionDidEnd(_:)`) |
+| `UITextInteractionMode` | ❌ | ≤17 | not in isim's SDK (with 2 members: `editable`, `nonEditable`) |
+| `UITextLoupeSession` | ❌ | ≤17 | not in isim's SDK (with 1 members: `begin(at:fromSelectionWidgetView:in:)`) |
+| `UITextMathExpressionCompletionType` | ❌ | 18.0 | not in isim's SDK (with 3 members: `default`, `no`, `yes`) |
+| `UITextPasteConfigurationSupporting` | ❌ | ≤17 | not in isim's SDK (with 1 members: `pasteDelegate`) |
+| `UITextPasteDelegate` | ❌ | ≤17 | not in isim's SDK (with 4 members: `textPasteConfigurationSupporting(_:transform:)`, `textPasteConfigurationSupporting(_:combineItemAttributedStrings:for:)`, `textPasteConfigurationSupporting(_:performPasteOf:to:)`, `textPasteConfigurationSupporting(_:shouldAnimatePasteOf:to:)`) |
+| `UITextPasteItem` | ❌ | ≤17 | not in isim's SDK (with 5 members: `setResult(string:)`, `setResult(attributedString:)`, `setResult(attachment:)`, `setDefaultResult()`, `setNoResult()`) |
+| `UITextPlaceholder` | ❌ | ≤17 | not in isim's SDK |
+| `UITextSearchAggregator` | ❌ | ≤17 | not in isim's SDK (with 4 members: `foundRange(_:searchString:document:)`, `invalidateFoundRange(_:document:)`, `finishedSearching()`, `allFoundRanges`) |
+| `UITextSearchFoundTextStyle` | ❌ | ≤17 | not in isim's SDK (with 3 members: `normal`, `found`, `highlighted`) |
+| `UITextSearching` | ❌ | ≤17 | not in isim's SDK (with 8 members: `performTextSearch(queryString:options:resultAggregator:)`, `DocumentIdentifier`, `clearAllDecoratedFoundText()`, `willHighlight(foundTextRange:document:)`, `selectedTextSearchDocument`, `supportsTextReplacement`, `replaceAll(queryString:options:withText:)`, `shouldReplace(foundTextRange:document:withText:)`) |
+| `UITextSearchingFindSession` | ❌ | ≤17 | not in isim's SDK (with 2 members: `init(searchableObject:)`, `searchableObject`) |
+| `UITextSearchOptions` | ❌ | ≤17 | not in isim's SDK (with 6 members: `WordMatchMethod`, `stringCompareOptions`, `wordMatchMethod`, `WordMatchMethod.contains`, `WordMatchMethod.startsWith`, `WordMatchMethod.fullWord`) |
+| `UITextSelectionDisplayInteraction` | ❌ | ≤17 | not in isim's SDK (with 6 members: `isActivated`, `setNeedsSelectionUpdate()`, `layoutManagedSubviews()`, `highlightView`, `handleViews`, `cursorView`) |
+| `UITextSelectionDisplayInteractionDelegate` | ❌ | ≤17 | not in isim's SDK (with 1 members: `selectionContainerViewBelowText(for:)`) |
+| `UITextSelectionHandleView` | ❌ | ≤17 | not in isim's SDK (with 2 members: `preferredFrame(for:)`, `customShape`) |
+| `UITextSelectionHighlightView` | ❌ | ≤17 | not in isim's SDK (with 1 members: `selectionRects`) |
+| `UITextView` members | ❌ | ≤17 | 15 missing: `textHighlightAttributes`, `drawTextHighlightBackground(for:origin:)`, `isFindInteractionEnabled`, `findInteraction`, `writingToolsBehavior`, `allowedWritingToolsResultOptions`, `isWritingToolsActive`, `writingToolsCoordinator` and 7 more |
+| `UITextViewDelegate` members | ❌ | 18.0 | 2 missing: `textViewWritingToolsWillBegin(_:)`, `textViewWritingToolsDidEnd(_:)` |
+| `UIToolbarAppearance` members | ❌ | 26.0 | 1 missing: `prominentButtonAppearance` |
+| `UIToolTipConfiguration` | ❌ | ≤17 | not in isim's SDK (with 3 members: `init(toolTip:)`, `init(toolTip:in:)`, `toolTip`) |
+| `UIToolTipInteraction` | ❌ | ≤17 | not in isim's SDK (with 2 members: `init(defaultToolTip:)`, `defaultToolTip`) |
+| `UIToolTipInteractionDelegate` | ❌ | ≤17 | not in isim's SDK (with 1 members: `toolTipInteraction(_:configurationAt:)`) |
+| `UITouch` members | ❌ | ≤17 | 6 missing: `location(in:)`, `previousLocation(in:)`, `stylus`, `Phase.regionEntered`, `Phase.regionMoved`, `Phase.regionExited` |
+| `UITrackingLayoutGuide` members | ❌ | ≤17 | 5 missing: `setConstraints(_:activeWhenNearEdge:)`, `setConstraints(_:activeWhenAwayFrom:)`, `constraints(activeWhenNearEdge:)`, `constraints(activeWhenAwayFrom:)`, `removeAllTrackedConstraints()` |
+| `UITraitBridgedEnvironmentKey` | ❌ | ≤17 | not in isim's SDK |
+| `UITraitChangeObservable` members | ❌ | ≤17 | 1 missing: `TraitChangeHandler` |
+| `UITraitCollection` members | ❌ | ≤17 | 18 missing: `TraitMutations`, `changedTraits(from:)`, `toolbarItemPresentationSize`, `hdrHeadroomUsageLimit`, `splitViewControllerLayoutEnvironment`, `sceneCaptureState`, `imageDynamicRange`, `typesettingLanguage` and 10 more |
+| `UITraitHDRHeadroomUsageLimit` | ❌ | 26.0 | not in isim's SDK |
+| `UITraitImageDynamicRange` | ❌ | ≤17 | not in isim's SDK |
+| `UITraitNavigationTitleAlignment` | ❌ | 27.0 | not in isim's SDK |
+| `UITraitResolvesNaturalAlignmentWithBaseWritingDirection` | ❌ | 26.0 | not in isim's SDK |
+| `UITraitSceneCaptureState` | ❌ | ≤17 | not in isim's SDK |
+| `UITraitSplitViewControllerLayoutEnvironment` | ❌ | 26.0 | not in isim's SDK |
+| `UITraitSystemPrefersReducedResourceUsage` | ❌ | 27.0 | not in isim's SDK |
+| `UITraitToolbarItemPresentationSize` | ❌ | ≤17 | not in isim's SDK |
+| `UITraitTypesettingLanguage` | ❌ | ≤17 | not in isim's SDK |
+| `UIUpdateActionPhase` members | ❌ | 18.0 | 7 missing: `afterUpdateScheduled`, `beforeEventDispatch`, `beforeLowLatencyEventDispatch`, `afterLowLatencyEventDispatch`, `beforeLowLatencyCATransactionCommit`, `afterLowLatencyCATransactionCommit`, `afterUpdateComplete` |
+| `UIUpdateInfo` members | ❌ | 18.0 | 1 missing: `current(for:)` |
+| `UIVideoEditorController` | ❌ | ≤17 | not in isim's SDK (with 1 members: `canEditVideo(atPath:)`) |
+| `UIVideoEditorControllerDelegate` | ❌ | ≤17 | not in isim's SDK (with 3 members: `videoEditorController(_:didSaveEditedVideoToPath:)`, `videoEditorControllerDidCancel(_:)`, `videoEditorController(_:didFailWithError:)`) |
+| `UIView` members | ❌ | ≤17 | 46 missing: `preservesSuperviewLayoutMargins`, `layoutMarginsDidChange()`, `insetsLayoutMarginsFromSafeArea`, `alignmentRect(forFrame:)`, `frame(forAlignmentRect:)`, `alignmentRectInsets`, `forFirstBaselineLayout`, `forLastBaselineLayout` and 38 more |
+| `UIViewController` members | ❌ | ≤17 | 42 missing: `updateContentUnavailableConfiguration(using:)`, `viewIsAppearing(_:)`, `ViewLoading`, `viewRespectsSystemMinimumLayoutMargins`, `systemMinimumLayoutMargins`, `viewLayoutMarginsDidChange()`, `edgesForExtendedLayout`, `extendedLayoutIncludesOpaqueBars` and 34 more |
+| `UIViewControllerPreviewing` | ❌ | ≤17 | not in isim's SDK |
+| `UIViewControllerPreviewingDelegate` | ❌ | ≤17 | not in isim's SDK |
+| `UIViewControllerTransitionCoordinator` members | ❌ | ≤17 | 1 missing: `notifyWhenInteractionChanges(_:)` |
+| `UIViewInvalidating` | ❌ | ≤17 | not in isim's SDK |
+| `UIViewPropertyAnimator` members | ❌ | 26.0 | 1 missing: `flushUpdates` |
+| `UIWebViewDelegate` | ❌ | ≤17 | not in isim's SDK |
+| `UIWindow` members | ❌ | ≤17 | 10 missing: `canResizeToFitContent`, `didBecomeVisibleNotification`, `didBecomeHiddenNotification`, `didBecomeKeyNotification`, `didResignKeyNotification`, `safeAreaAspectFitLayoutGuide`, `DidBecomeHiddenMessage`, `DidBecomeKeyMessage` and 2 more |
+| `UIWindowScene` members | ❌ | ≤17 | 16 missing: `screenshotService`, `activityItemsConfigurationSource`, `windowingBehaviors`, `focusSystem`, `statusBarManager`, `WindowingControlStyle`, `ActivationAction`, `ActivationConfiguration` and 8 more |
+| `UIWindowSceneDelegate` members | ❌ | 26.0 | 2 missing: `supportedInterfaceOrientations(for:)`, `preferredWindowingControlStyle(for:)` |
+| `UIWindowSceneDragInteraction` | ❌ | ≤17 | not in isim's SDK (with 1 members: `gestureForFailureRelationships`) |
+| `UIWindowScenePlacement` | ❌ | ≤17 | not in isim's SDK |
+| `UIWindowSceneProminentPlacement` | ❌ | ≤17 | not in isim's SDK |
+| `UIWindowSceneStandardPlacement` | ❌ | ≤17 | not in isim's SDK |
+| `UIWritingToolsBehavior` | ❌ | 18.0 | not in isim's SDK (with 4 members: `none`, `default`, `complete`, `limited`) |
+| `UIWritingToolsCoordinator` | ❌ | 18.0 | not in isim's SDK (with 56 members: `Delegate`, `Context`, `AnimationParameters`, `isWritingToolsAvailable`, `effectContainerView`, `decorationContainerView`, `preferredBehavior`, `preferredResultOptions` and 48 more) |
+| `UIWritingToolsCoordinatorTextAnimationDebugDescription(_:)` | ❌ | 18.0 | not in isim's SDK |
+| `UIWritingToolsResultOptions` | ❌ | 18.0 | not in isim's SDK (with 5 members: `plainText`, `richText`, `list`, `table`, `presentationIntent`) |
 
 ---
 
