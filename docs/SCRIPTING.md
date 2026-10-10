@@ -39,13 +39,14 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `appearance light\|dark` | switch the device appearance (like Settings > Display & Brightness); running apps get a trait change (`traitCollectionDidChange`, `registerForTraitChanges`) |
 | `contrast on\|off` | Increase Contrast (`accessibilityContrast`): high-contrast system and asset colors |
 | `boldtext on\|off` | Bold Text (`legibilityWeight`) |
+| `takescreenshot` | the user takes a screenshot (the Simulator's Device ▸ Trigger Screenshot): the app gets `UIApplication.userDidTakeScreenshotNotification` |
 | `memorywarning [warn\|critical\|normal]` | simulate a memory warning (like the Simulator's Debug menu): memory-pressure dispatch sources get the level (default `warn`); `warn` and `critical` then reach the app delegate, `didReceiveMemoryWarningNotification` and every loaded view controller |
 
 ## System UI (`isim boot`)
 
 | Command | What it does |
 |---|---|
-| `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock |
+| `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock (apps lose protected data while locked: `isProtectedDataAvailable`, the delegate calls and notifications) |
 | `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
 | `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
 | `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes) |
@@ -107,7 +108,7 @@ extension's view is drawn at the top of the card.
 | Command | What it does |
 |---|---|
 | `rotate portrait\|upsidedown\|landscapeleft\|landscaperight\|left\|right` | turn the device |
-| `shake` | Device ▸ Shake |
+| `shake` | Device ▸ Shake (Shake to Undo offers to undo the first responder's last change when `applicationSupportsShakeToEdit` is on) |
 | `location LAT LON` / `location none` | Features ▸ Location |
 | `remote NAME [ARG]` | `MPRemoteCommandCenter` command: `play`, `pause`, `toggle`, `next`, `previous`, `skipforward`, `skipback`, `seek S`, `rate R` |
 | `audio interrupt begin` · `audio interrupt end [resume]` · `audio route NAME` · `audio silence begin\|end` · `audio reset` | `AVAudioSession` events: an interruption (like a phone call; it pauses `AVAudioPlayer`s, `resume` sets `.shouldResume`), a route change to `headphones`, `headset`, `bluetooth`, `carplay`, `airplay`, `usb`, `hdmi`, `receiver` or `speaker`, the secondary-audio hint, media services reset |
@@ -115,10 +116,16 @@ extension's view is drawn at the top of the card.
 | `display connect [WxH]` · `display shot PATH` · `display disconnect` | a simulated external display (default 1920x1080): the app's external display scene (a scene accessory, or the manifest's `UIWindowSceneSessionRoleExternalDisplayNonInteractive` configuration) or the mirrored device; `display shot` saves what it shows as a PNG |
 | `closescene [SESSION_ID]` | the user closes a window (iPad apps with multiple scenes; the key scene by default): the scene's `closureConfirmation` is shown first when it has one |
 | `metrickit` | Debug ▸ Simulate MetricKit Payloads |
-| `voiceover on\|off\|next\|prev\|activate\|increment\|decrement\|action\|escape\|read` | drive the simulated VoiceOver |
+| `voiceover on\|off\|next\|prev\|activate\|increment\|decrement\|action\|escape\|magictap\|read` | drive the simulated VoiceOver (`read` reads `UIAccessibilityReadingContent` elements as their page content) |
+| `voiceover scroll up\|down\|left\|right\|next\|prev` | a three-finger swipe: the focused element or a container's `accessibilityScroll(_:)`, else the nearest scroll view moves a page; VoiceOver says the scroll status (`UIScrollViewAccessibilityDelegate`, else "Page N of M") |
 | `voiceover rotor [prev]`, `voiceover up\|down` | turn the VoiceOver rotor (custom rotors, Headings, Actions, Adjust Value) / move by its item (like swiping up / down) |
 | `switchcontrol on\|off\|next\|select\|autoSECS\|stop` | simulated Switch Control: item scanning (`auto0.5` moves the highlight every 0.5 s), select activates |
 | `voicecontrol PHRASE` | simulated Voice Control: `tap NAME` (label or `accessibilityUserInputLabels`), `show numbers` / `show names` / `hide numbers`, `tap N`, `scroll down\|up\|left\|right`, `go back` |
+| `accessibility SETTING on\|off` | a Settings ▸ Accessibility switch: `monoaudio`, `speakscreen`, `speakselection`, `assistivetouch`, `shaketoundo`, `buttonshapes`, `onofflabels`, `differentiate`, `reducemotion`, `reducetransparency`; the app gets the matching `UIAccessibility…DidChangeNotification` |
+| `guidedaccess on\|off` · `guidedaccess restrict ID allow\|deny` | start / end a Guided Access session (the app delegate's `UIGuidedAccessRestrictionDelegate` restrictions are logged) / switch one of its restrictions, as in the Guided Access options |
+| `tilt H V` | tilt the device (each −1…1) for `UIInterpolatingMotionEffect`s; `tilt 0 0` levels it |
+| `attributions` | list the private click measurement clicks (`UIEventAttribution`) the app recorded |
+| `fullpage PATH` | a full-page screenshot: the scene's `UIScreenshotServiceDelegate` PDF, written to PATH |
 
 ## Inspecting
 

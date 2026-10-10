@@ -98,6 +98,7 @@ NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
 @implementation UIPressesEvent
 - (NSSet<UIPress *> *)allPresses { return _isimPresses ?: [NSSet set]; }
 - (UIEventType)type { return UIEventTypePresses; }
+- (NSSet<UIPress *> *)pressesForGestureRecognizer:(UIGestureRecognizer *)g { return [NSSet set]; }   /* recognizers get no presses */
 @end
 @interface __IsimMotionEvent : UIEvent
 @end
@@ -250,6 +251,9 @@ void isim_ui_shake(void) {
     __IsimMotionEvent *e = [__IsimMotionEvent new];
     [r motionBegan:UIEventSubtypeMotionShake withEvent:e];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [focus_responder() motionEnded:UIEventSubtypeMotionShake withEvent:e];
+        UIResponder *r2 = focus_responder();
+        [r2 motionEnded:UIEventSubtypeMotionShake withEvent:e];
+        extern void isim_ui_shake_to_edit(UIResponder *);
+        isim_ui_shake_to_edit(r2);                       /* Shake to Undo (UISceneExtras.m) */
     });
 }

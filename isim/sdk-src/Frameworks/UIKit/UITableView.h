@@ -149,6 +149,8 @@ typedef NS_ENUM(NSInteger, UITableViewRowAnimation) {
     UITableViewRowAnimationFade, UITableViewRowAnimationRight, UITableViewRowAnimationLeft, UITableViewRowAnimationTop, UITableViewRowAnimationBottom,
     UITableViewRowAnimationNone, UITableViewRowAnimationMiddle, UITableViewRowAnimationAutomatic = 100 };
 UIKIT_EXTERN const CGFloat UITableViewAutomaticDimension;
+/* the selection changed (selectRow, deselectRow, a tap) */
+UIKIT_EXTERN NSNotificationName const UITableViewSelectionDidChangeNotification;
 
 @protocol UITableViewDataSource <NSObject>
 @required

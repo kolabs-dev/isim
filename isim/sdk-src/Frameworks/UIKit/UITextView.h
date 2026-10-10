@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UILetterformAwareAdjusting.h>
 /* isim: UITextView — editable, scrollable multi-line text. Not editable and selectable, it shows the
    dataDetectorTypes it finds (links, phone numbers, addresses, dates) as tappable links (UITextServices.m).
    Its text lives in a TextKit text storage (attributedText, typingAttributes): TextKit 2 objects by default
@@ -55,7 +56,7 @@ NS_SWIFT_UI_ACTOR
 @end
 
 NS_SWIFT_UI_ACTOR
-@interface UITextView : UIScrollView <UITextInput>
+@interface UITextView : UIScrollView <UITextInput, UILetterformAwareAdjusting>
 - (instancetype)initWithFrame:(CGRect)frame;
 @property (nullable, nonatomic, weak) id<UITextViewDelegate> delegate;
 @property (null_resettable, nonatomic, copy) NSString *text;

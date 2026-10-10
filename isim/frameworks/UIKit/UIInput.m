@@ -16,7 +16,9 @@ static char k_label, k_hint, k_value, k_traits, k_element, k_ident, k_hidden, k_
 /* implemented by NSObject (UIAccessibilityExtras) in UIAccessibilityRuntime.m */
 @dynamic accessibilityFrame, accessibilityActivationPoint, accessibilityLanguage, accessibilityNavigationStyle, accessibilityPath,
          accessibilityRespondsToUserInteraction, accessibilityUserInputLabels, shouldGroupAccessibilityChildren;
+/* an iOS 17 block (accessibilityLabelBlock & co, UIAccessibilityExtras.m) answers before the stored value */
 - (NSString *)accessibilityLabel {
+    AXStringReturnBlock b = self.accessibilityLabelBlock; if (b) return b();
     NSString *l = objc_getAssociatedObject(self, &k_label);
     if (l || ![self isKindOfClass:[UIView class]]) return l;
     if ([self isKindOfClass:[UILabel class]]) return ((UILabel *)self).text;                  /* UIKit defaults */
@@ -24,11 +26,12 @@ static char k_label, k_hint, k_value, k_traits, k_element, k_ident, k_hidden, k_
     return nil;
 }
 - (void)setAccessibilityLabel:(NSString *)v { objc_setAssociatedObject(self, &k_label, v, OBJC_ASSOCIATION_COPY_NONATOMIC); }
-- (NSString *)accessibilityHint { return objc_getAssociatedObject(self, &k_hint); }
+- (NSString *)accessibilityHint { AXStringReturnBlock b = self.accessibilityHintBlock; return b ? b() : objc_getAssociatedObject(self, &k_hint); }
 - (void)setAccessibilityHint:(NSString *)v { objc_setAssociatedObject(self, &k_hint, v, OBJC_ASSOCIATION_COPY_NONATOMIC); }
-- (NSString *)accessibilityValue { return objc_getAssociatedObject(self, &k_value); }
+- (NSString *)accessibilityValue { AXStringReturnBlock b = self.accessibilityValueBlock; return b ? b() : objc_getAssociatedObject(self, &k_value); }
 - (void)setAccessibilityValue:(NSString *)v { objc_setAssociatedObject(self, &k_value, v, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (UIAccessibilityTraits)accessibilityTraits {
+    AXTraitsReturnBlock b = self.accessibilityTraitsBlock; if (b) return b();
     NSNumber *n = objc_getAssociatedObject(self, &k_traits);
     if (n) return n.unsignedLongLongValue;
     if ([self isKindOfClass:[UIButton class]]) return UIAccessibilityTraitButton;
@@ -37,17 +40,18 @@ static char k_label, k_hint, k_value, k_traits, k_element, k_ident, k_hidden, k_
 }
 - (void)setAccessibilityTraits:(UIAccessibilityTraits)v { objc_setAssociatedObject(self, &k_traits, @(v), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 - (BOOL)isAccessibilityElement {
+    AXBoolReturnBlock b = self.isAccessibilityElementBlock; if (b) return b();
     NSNumber *n = objc_getAssociatedObject(self, &k_element);
     return n ? n.boolValue : ([self isKindOfClass:[UIControl class]] || [self isKindOfClass:[UILabel class]]);
 }
 - (void)setIsAccessibilityElement:(BOOL)v { objc_setAssociatedObject(self, &k_element, @(v), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (BOOL)accessibilityElementsHidden { return [objc_getAssociatedObject(self, &k_hidden) boolValue]; }
+- (BOOL)accessibilityElementsHidden { AXBoolReturnBlock b = self.accessibilityElementsHiddenBlock; return b ? b() : [objc_getAssociatedObject(self, &k_hidden) boolValue]; }
 - (void)setAccessibilityElementsHidden:(BOOL)v { objc_setAssociatedObject(self, &k_hidden, @(v), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (BOOL)accessibilityViewIsModal { return [objc_getAssociatedObject(self, &k_modal) boolValue]; }
+- (BOOL)accessibilityViewIsModal { AXBoolReturnBlock b = self.accessibilityViewIsModalBlock; return b ? b() : [objc_getAssociatedObject(self, &k_modal) boolValue]; }
 - (void)setAccessibilityViewIsModal:(BOOL)v { objc_setAssociatedObject(self, &k_modal, @(v), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end
 @implementation UIView (UIAccessibilityIdentification)
-- (NSString *)accessibilityIdentifier { return objc_getAssociatedObject(self, &k_ident); }
+- (NSString *)accessibilityIdentifier { AXStringReturnBlock b = self.accessibilityIdentifierBlock; return b ? b() : objc_getAssociatedObject(self, &k_ident); }
 - (void)setAccessibilityIdentifier:(NSString *)v { objc_setAssociatedObject(self, &k_ident, v, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 @end
 /* UIAccessibilityIsVoiceOverRunning & co: UIAccessibilityRuntime.m */

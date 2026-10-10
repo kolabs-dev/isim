@@ -36,6 +36,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     CGFloat _measuredWidth;
     NSArray<NSTextCheckingResult *> *_items; NSString *_itemsText; UIDataDetectorTypes _itemsTypes;
 }
+@synthesize sizingRule = _sizingRule;     /* UILetterformAwareAdjusting (iOS 17) */
 @dynamic delegate;
 @synthesize autocapitalizationType = _autocapitalizationType, autocorrectionType = _autocorrectionType, spellCheckingType = _spellCheckingType,
     keyboardType = _keyboardType, keyboardAppearance = _keyboardAppearance, returnKeyType = _returnKeyType,

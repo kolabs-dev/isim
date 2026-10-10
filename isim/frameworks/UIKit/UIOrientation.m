@@ -55,6 +55,9 @@ static UIViewController *top_controller(void) {
 - (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindow:(UIWindow *)window {
     id<UIApplicationDelegate> d = self.delegate;
     if ([d respondsToSelector:@selector(application:supportedInterfaceOrientationsForWindow:)]) return [d application:self supportedInterfaceOrientationsForWindow:window];
+    /* iOS 26: the window scene's delegate replaces the Info.plist value for its scene */
+    id<UIWindowSceneDelegate> sd = (id)(window ?: self.keyWindow).windowScene.delegate;
+    if ([sd respondsToSelector:@selector(supportedInterfaceOrientationsForWindowScene:)]) return [sd supportedInterfaceOrientationsForWindowScene:(window ?: self.keyWindow).windowScene];
     return plist_mask();
 }
 @end
@@ -213,6 +216,7 @@ void isim_ui_device_orientation_changed(int o) {
     }
     UIViewController *top = top_controller();
     if (top && !top.shouldAutorotate && o > 0) return;
+    if (top && o > 0 && top.prefersInterfaceOrientationLocked && (allowed_mask() & (1u << interface_orientation))) return;   /* iOS 26 orientation lock */
     rotate_interface(choose(current_device_orientation(), allowed_mask()), YES);
 }
 
@@ -224,7 +228,11 @@ void isim_ui_device_orientation_changed(int o) {
 @implementation UIWindowScene (UIRotation)
 - (UIInterfaceOrientation)interfaceOrientation { return interface_orientation; }
 - (void)requestGeometryUpdateWithPreferences:(UIWindowSceneGeometryPreferences *)p errorHandler:(void (^)(NSError *))errorHandler {
-    UIInterfaceOrientationMask want = [p isKindOfClass:[UIWindowSceneGeometryPreferencesIOS class]] ? ((UIWindowSceneGeometryPreferencesIOS *)p).interfaceOrientations : 0;
+    if (![p isKindOfClass:[UIWindowSceneGeometryPreferencesIOS class]]) {          /* Mac (or other) preferences on iOS */
+        if (errorHandler) errorHandler([NSError errorWithDomain:@"UISceneErrorDomain" code:100 userInfo:@{ NSLocalizedDescriptionKey: @"The geometry preferences are not supported on this platform." }]);
+        return;
+    }
+    UIInterfaceOrientationMask want = ((UIWindowSceneGeometryPreferencesIOS *)p).interfaceOrientations;
     UIInterfaceOrientationMask allowed = want & allowed_mask();
     if (!allowed) {
         if (errorHandler) errorHandler([NSError errorWithDomain:@"UISceneErrorDomain" code:101

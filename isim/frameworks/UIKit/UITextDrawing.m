@@ -163,6 +163,14 @@ CGSize isim_ui_measure_attributed(NSAttributedString *s, UIFont *f, UIColor *c, 
     double w, h; isim_text_measure_markup(mk.UTF8String, maxw, (int)lines, pango_align(al), sp, &w, &h);
     return CGSizeMake(w, h);
 }
+/* the ink of tall scripts outside the line boxes (UILetterformAwareSizingRuleOversize) */
+UIEdgeInsets isim_ui_ink_overhang(NSAttributedString *s, UIFont *f, UIColor *c, CGFloat maxw, NSInteger lines) {
+    if (!s.length || isim_ui_has_text_blocks(s)) return UIEdgeInsetsZero;
+    NSTextAlignment al = NSTextAlignmentNatural; CGFloat sp = 0;
+    NSString *mk = isim_ui_markup(s, f, c, &al, &sp);
+    double above, below; isim_text_ink_markup(mk.UTF8String, maxw, (int)lines, pango_align(al), sp, &above, &below);
+    return UIEdgeInsetsMake(above, 0, below, 0);
+}
 void isim_ui_draw_attributed(NSAttributedString *s, UIFont *f, UIColor *c, CGRect r, NSTextAlignment align, NSInteger lines, CGFloat alpha) {
     if (!s.length) return;
     if (isim_ui_has_text_blocks(s)) {
@@ -293,13 +301,21 @@ NSData *UIImageJPEGRepresentation(UIImage *img, CGFloat q) {
 @end
 @implementation UIGraphicsImageRendererFormat
 - (instancetype)init { if ((self = [super init])) { _scale = isim_ui_device()->scale; _preferredRange = UIGraphicsImageRendererFormatRangeAutomatic; } return self; }
+/* the scale of a trait collection (its display scale; else the device's) */
++ (instancetype)formatForTraitCollection:(UITraitCollection *)traits {
+    UIGraphicsImageRendererFormat *f = [self new];
+    if (traits.displayScale > 0) f.scale = traits.displayScale;
+    return f;
+}
+- (BOOL)supportsHighDynamicRange { return NO; }      /* isim renders standard dynamic range */
 - (id)copyWithZone:(NSZone *)z { UIGraphicsImageRendererFormat *f = [super copyWithZone:z]; f.scale = _scale; f.opaque = _opaque; f.preferredRange = _preferredRange; return f; }
 @end
 @interface UIGraphicsRendererContext ()
 @property (nonatomic, readwrite, strong) UIGraphicsRendererFormat *format;
 @end
-@implementation UIGraphicsRendererContext
-- (CGContextRef)CGContext { return UIGraphicsGetCurrentContext(); }
+@implementation UIGraphicsRendererContext { CGContextRef _isimCG; }
+- (CGContextRef)CGContext { return _isimCG ?: UIGraphicsGetCurrentContext(); }
+- (void)_isim_setCG:(CGContextRef)c { _isimCG = c; }
 - (void)fillRect:(CGRect)r { CGContextFillRect(self.CGContext, r); }
 - (void)strokeRect:(CGRect)r { CGContextStrokeRect(self.CGContext, r); }
 - (void)clipToRect:(CGRect)r { CGContextClipToRect(self.CGContext, r); }
@@ -318,8 +334,43 @@ NSData *UIImageJPEGRepresentation(UIImage *img, CGFloat q) {
     return self;
 }
 - (BOOL)allowsImageOutput { return YES; }
+/* subclassing hooks (UIGraphicsRendererProtected): a renderer draws into the CGContext its class makes for the format,
+   handing the actions a context object of its class */
++ (Class)rendererContextClass { return [UIGraphicsRendererContext class]; }
++ (CGContextRef)contextWithFormat:(UIGraphicsRendererFormat *)f {
+    CGRect b = f.bounds;
+    CGFloat sc = [f isKindOfClass:[UIGraphicsImageRendererFormat class]] && ((UIGraphicsImageRendererFormat *)f).scale > 0 ? ((UIGraphicsImageRendererFormat *)f).scale : 1;
+    size_t w = (size_t)ceil(b.size.width * sc), h = (size_t)ceil(b.size.height * sc);
+    if (!w || !h) return NULL;
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef c = CGBitmapContextCreate(NULL, w, h, 8, 0, cs, (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+    CGColorSpaceRelease(cs);
+    if (!c) return NULL;
+    CGContextTranslateCTM(c, 0, h); CGContextScaleCTM(c, sc, -sc);       /* UIKit coordinates: origin top left, points */
+    CGContextTranslateCTM(c, -b.origin.x, -b.origin.y);
+    return c;
+}
++ (void)prepareCGContext:(CGContextRef)context withRendererContext:(UIGraphicsRendererContext *)rendererContext {}
+- (BOOL)runDrawingActions:(UIGraphicsDrawingActions)actions completionActions:(UIGraphicsDrawingActions)completion error:(NSError **)error {
+    CGContextRef c = [self.class contextWithFormat:self.format];
+    if (!c) {
+        if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:256 userInfo:@{ NSLocalizedDescriptionKey: @"The renderer could not make a context." }];
+        return NO;
+    }
+    UIGraphicsRendererContext *rc = [[self.class rendererContextClass] new];
+    rc.format = self.format; [rc _isim_setCG:c];
+    [self.class prepareCGContext:c withRendererContext:rc];
+    UIGraphicsPushContext(c);
+    if (actions) actions(rc);
+    if (completion) completion(rc);
+    UIGraphicsPopContext();
+    [rc _isim_setCG:NULL];
+    CGContextRelease(c);
+    return YES;
+}
 @end
 @implementation UIGraphicsImageRenderer
++ (Class)rendererContextClass { return [UIGraphicsImageRendererContext class]; }
 - (instancetype)initWithSize:(CGSize)s { return [self initWithBounds:CGRectMake(0, 0, s.width, s.height) format:[UIGraphicsImageRendererFormat defaultFormat]]; }
 - (instancetype)initWithSize:(CGSize)s format:(UIGraphicsImageRendererFormat *)f { return [self initWithBounds:CGRectMake(0, 0, s.width, s.height) format:f]; }
 - (instancetype)initWithBounds:(CGRect)b format:(UIGraphicsImageRendererFormat *)f { return [super initWithBounds:b format:f]; }

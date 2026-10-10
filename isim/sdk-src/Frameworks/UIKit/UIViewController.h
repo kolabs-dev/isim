@@ -6,6 +6,8 @@ NS_ASSUME_NONNULL_BEGIN
 @class UINavigationItem, UIStoryboard, NSBundle;
 typedef NS_ENUM(NSInteger, UIStatusBarStyle) { UIStatusBarStyleDefault = 0, UIStatusBarStyleLightContent = 1, UIStatusBarStyleDarkContent = 3 };
 typedef NS_ENUM(NSInteger, UIModalPresentationStyle) { UIModalPresentationFullScreen = 0, UIModalPresentationPageSheet, UIModalPresentationFormSheet, UIModalPresentationCurrentContext, UIModalPresentationCustom, UIModalPresentationOverFullScreen, UIModalPresentationOverCurrentContext, UIModalPresentationPopover, UIModalPresentationNone = -1, UIModalPresentationAutomatic = -2 };
+/* posted when a split view controller collapses or expands (the target of showDetailViewController changes) */
+UIKIT_EXTERN NSNotificationName const UIViewControllerShowDetailTargetDidChangeNotification API_AVAILABLE(ios(8.0));
 @interface UIViewController : UIResponder <NSCoding, UITraitEnvironment>
 - (instancetype)initWithNibName:(nullable NSString *)nibNameOrNil bundle:(nullable NSBundle *)nibBundleOrNil NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;

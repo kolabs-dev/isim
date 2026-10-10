@@ -100,6 +100,7 @@ static UIApplicationShortcutIconType icon_type_named(NSString *n) {
 @end
 @implementation UISceneOpenURLOptions
 - (id)annotation { return nil; }
+- (UIEventAttribution *)eventAttribution { return nil; }
 @end
 @interface UIOpenURLContext ()
 @property (nonatomic, readwrite, copy) NSURL *URL;
@@ -248,6 +249,94 @@ NSString * const UIApplicationLaunchOptionsUserActivityKey = @"UIApplicationLaun
 UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsSourceApplicationKey = @"UIApplicationOpenURLOptionsSourceApplicationKey",
     UIApplicationOpenURLOptionsOpenInPlaceKey = @"UIApplicationOpenURLOptionsOpenInPlaceKey";
 UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenURLOptionUniversalLinksOnly = @"UIApplicationOpenURLOptionUniversalLinksOnly";
+UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenExternalURLOptionsEventAttributionKey = @"UIApplicationOpenExternalURLOptionsEventAttributionKey";
+UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsEventAttributionKey = @"UIApplicationOpenURLOptionsEventAttributionKey";
+UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsEventAttributionKey = @"UIApplicationLaunchOptionsEventAttributionKey";
+
+/* ================= private click measurement (iOS 14.5) =================
+   A tap on a UIEventAttributionView arms an attribution for a second; opening a URL with an attribution then records
+   it (logged, listed by the `attributions` script command); nothing is reported over the network. */
+@implementation UIEventAttribution
+- (instancetype)initWithSourceIdentifier:(uint8_t)sid destinationURL:(NSURL *)dest sourceDescription:(NSString *)desc purchaser:(NSString *)purchaser {
+    if ((self = [super init])) {
+        _sourceIdentifier = sid; _destinationURL = [dest copy]; _sourceDescription = [desc copy] ?: @""; _purchaser = [purchaser copy] ?: @"";
+        id ep = NSBundle.mainBundle.infoDictionary[@"NSAdvertisingAttributionReportEndpoint"];
+        _reportEndpoint = [ep isKindOfClass:[NSString class]] ? [NSURL URLWithString:ep] : nil;
+    }
+    return self;
+}
+- (id)copyWithZone:(NSZone *)z { return self; }
+- (NSString *)description { return [NSString stringWithFormat:@"<UIEventAttribution source %u -> %@>", _sourceIdentifier, _destinationURL.host]; }
+@end
+static CFTimeInterval attribution_tap = -1e9;        /* the last touch on an attribution view */
+static NSMutableArray<NSString *> *attributions;     /* recorded clicks */
+static NSHashTable<UIEventAttributionView *> *attribution_views;
+@implementation UIEventAttributionView
+- (instancetype)initWithFrame:(CGRect)f {
+    if ((self = [super initWithFrame:f])) {
+        self.backgroundColor = UIColor.clearColor;
+        if (!attribution_views) attribution_views = [NSHashTable weakObjectsHashTable];
+        [attribution_views addObject:self];
+    }
+    return self;
+}
+/* touches go to the ad underneath; the touch dispatch tells us about them (isim_ui_attribution_touch) */
+- (UIView *)hitTest:(CGPoint)p withEvent:(UIEvent *)e { return nil; }
+@end
+/* a finger or pointer went down at a window point (UIApplication.m): over an attribution view, the click counts */
+void isim_ui_attribution_touch(UIWindow *w, CGPoint p) {
+    for (UIEventAttributionView *v in attribution_views.allObjects) {
+        if (v.window != w || v.hidden) continue;
+        BOOL shown = YES;
+        for (UIView *s = v; s; s = s.superview) if (s.hidden || s.alpha <= 0.01) { shown = NO; break; }
+        if (shown && CGRectContainsPoint(v.bounds, [v convertPoint:p fromView:nil])) { attribution_tap = isim_time(); return; }
+    }
+}
+/* ================= full-page screenshots (iOS 13) ================= */
+@interface UIScreenshotService ()
+- (instancetype)initIsimWithScene:(UIWindowScene *)scene;
+@end
+@implementation UIScreenshotService
+- (instancetype)initIsimWithScene:(UIWindowScene *)scene { if ((self = [super init])) _windowScene = scene; return self; }
+@end
+@implementation UIWindowScene (UIScreenshotService)
+- (UIScreenshotService *)screenshotService {
+    static char k;
+    UIScreenshotService *s = objc_getAssociatedObject(self, &k);
+    if (!s) { s = [[UIScreenshotService alloc] initIsimWithScene:self]; objc_setAssociatedObject(self, &k, s, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    return s;
+}
+@end
+/* script "fullpage PATH": the delegate of the frontmost scene's service makes the PDF */
+static void full_page(NSString *path) {
+    UIWindowScene *scene = nil;                     /* the scene whose service has a delegate (the frontmost one first) */
+    NSMutableArray *scenes = [NSMutableArray arrayWithArray:UIApplication.sharedApplication.connectedScenes.allObjects];
+    for (UIWindow *w in UIApplication.sharedApplication.windows) if (w.windowScene && ![scenes containsObject:w.windowScene]) [scenes addObject:w.windowScene];
+    for (UIScene *s in scenes)
+        if ([s isKindOfClass:[UIWindowScene class]] && ((UIWindowScene *)s).screenshotService.delegate && (!scene || s.activationState == UISceneActivationStateForegroundActive)) scene = (UIWindowScene *)s;
+    id<UIScreenshotServiceDelegate> d = scene.screenshotService.delegate;
+    if (![d respondsToSelector:@selector(screenshotService:generatePDFRepresentationWithCompletion:)]) { NSLog(@"isim: full page: no screenshot service delegate"); return; }
+    [d screenshotService:scene.screenshotService generatePDFRepresentationWithCompletion:^(NSData *pdf, NSInteger page, CGRect rect) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (!pdf.length) { NSLog(@"isim: full page: the delegate gave no PDF"); return; }
+            BOOL ok = [pdf writeToFile:path atomically:YES];
+            NSLog(@"isim: full page %@ (%lu bytes) page %ld rect %.0f,%.0f %.0fx%.0f%@", path, (unsigned long)pdf.length, (long)page,
+                  rect.origin.x, rect.origin.y, rect.size.width, rect.size.height, ok ? @"" : @" (not written)");
+        });
+    }];
+}
+/* opening a URL with an attribution: recorded when the person tapped an attribution view just before */
+void isim_ui_record_attribution(UIEventAttribution *a, NSURL *url) {
+    if (![a isKindOfClass:[UIEventAttribution class]]) return;
+    if (isim_time() - attribution_tap > 1.0) { NSLog(@"isim: event attribution for %@ dropped (no tap on a UIEventAttributionView)", a.destinationURL.host ?: @"?"); return; }
+    attribution_tap = 0;
+    NSString *rec = [NSString stringWithFormat:@"source %u purchaser \"%@\" destination %@ report %@", a.sourceIdentifier, a.purchaser,
+                     a.destinationURL.host ?: a.destinationURL.absoluteString, a.reportEndpoint.host ?: @"none"];
+    if (!attributions) attributions = [NSMutableArray array];
+    [attributions addObject:rec];
+    NSLog(@"isim: event attribution recorded: %@ (\"%@\", opening %@)", rec, a.sourceDescription, url.absoluteString);
+}
+NSArray<NSString *> *isim_ui_attributions(void) { return attributions ?: @[]; }
 NSNotificationName const UIApplicationBackgroundRefreshStatusDidChangeNotification = @"UIApplicationBackgroundRefreshStatusDidChangeNotification";
 const NSTimeInterval UIApplicationBackgroundFetchIntervalMinimum = 0, UIApplicationBackgroundFetchIntervalNever = DBL_MAX;
 
@@ -795,6 +884,37 @@ void isim_sys_event(const char *text) {
             if (on) [g setBool:YES forKey:key]; else [g removeObjectForKey:key];
         }
         NSLog(@"isim: %@ %@", verb, args);
+    }
+    else if ([verb isEqualToString:@"fullpage"]) full_page(args);
+    else if ([verb isEqualToString:@"tilt"]) { extern void isim_ui_tilt(NSString *); isim_ui_tilt(args); }
+    else if ([verb isEqualToString:@"guidedaccess"]) { extern void isim_ui_guided_access_command(NSString *); isim_ui_guided_access_command(args); }
+    else if ([verb isEqualToString:@"protected-data"]) { extern void isim_ui_protected_data(BOOL); isim_ui_protected_data(args.intValue != 0); }
+    else if ([verb isEqualToString:@"takescreenshot"]) {        /* the Simulator's Device > Trigger Screenshot */
+        NSLog(@"isim: user took a screenshot");
+        [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationUserDidTakeScreenshotNotification object:UIApplication.sharedApplication];
+    }
+    else if ([verb isEqualToString:@"accessibility"]) {
+        /* script "accessibility SETTING on|off": a Settings > Accessibility switch, written to the global domain like
+           Settings does (every app re-reads it; the matching UIAccessibility...DidChangeNotification is posted) */
+        NSDictionary *keys = @{ @"monoaudio": @"ISIMMonoAudio", @"speakscreen": @"ISIMSpeakScreen", @"speakselection": @"ISIMSpeakSelection",
+                                @"assistivetouch": @"ISIMAssistiveTouch", @"shaketoundo": @"ISIMShakeToUndo", @"buttonshapes": @"ISIMButtonShapes",
+                                @"onofflabels": @"ISIMOnOffLabels", @"differentiate": @"ISIMDifferentiateWithoutColor", @"reducemotion": @"ISIMReduceMotion",
+                                @"reducetransparency": @"ISIMReduceTransparency" };
+        NSArray *p = [args componentsSeparatedByString:@" "];
+        NSString *key = p.count == 2 ? keys[p[0]] : nil;
+        if (!key || !([p[1] isEqualToString:@"on"] || [p[1] isEqualToString:@"off"])) {
+            NSLog(@"isim: accessibility %@ on|off", [[keys.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@"|"]);
+        } else {
+            NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
+            [g setBool:[p[1] isEqualToString:@"on"] forKey:key];
+            NSLog(@"isim: accessibility %@ %@", p[0], p[1]);
+        }
+    }
+    else if ([verb isEqualToString:@"attributions"]) {             /* the recorded private click measurement clicks */
+        extern NSArray<NSString *> *isim_ui_attributions(void);
+        NSArray *a = isim_ui_attributions();
+        NSLog(@"isim: attributions %lu", (unsigned long)a.count);
+        for (NSString *r in a) NSLog(@"isim: attribution %@", r);
     }
     else if ([verb isEqualToString:@"memory-warning"]) {           /* Debug > Simulate Memory Warning */
         /* like iOS, memory-pressure dispatch sources hear it first (level: warn, critical or normal); warn and

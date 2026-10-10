@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UIAccessibility.h>
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIControl.h>
 NS_ASSUME_NONNULL_BEGIN
@@ -14,7 +15,7 @@ typedef void (^UIButtonConfigurationUpdateHandler)(__kindof UIButton *button);
 typedef NS_ENUM(NSInteger, UIButtonConfigurationTitleAlignment) { UIButtonConfigurationTitleAlignmentAutomatic = 0, UIButtonConfigurationTitleAlignmentLeading,
     UIButtonConfigurationTitleAlignmentCenter, UIButtonConfigurationTitleAlignmentTrailing };
 typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeSystem = 1, UIButtonTypeDetailDisclosure, UIButtonTypeInfoLight, UIButtonTypeInfoDark, UIButtonTypeContactAdd, UIButtonTypeClose = 7, UIButtonTypeRoundedRect = UIButtonTypeSystem };
-@interface UIButton : UIControl
+@interface UIButton : UIControl <UIAccessibilityContentSizeCategoryImageAdjusting>
 + (instancetype)buttonWithType:(UIButtonType)buttonType;
 + (instancetype)systemButtonWithPrimaryAction:(nullable UIAction *)primaryAction;
 + (instancetype)buttonWithType:(UIButtonType)buttonType primaryAction:(nullable UIAction *)primaryAction;

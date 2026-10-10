@@ -12,6 +12,7 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
 
 @interface UITextField () <IsimEditableText>
 @end
+NSString *const UITextFieldDidEndEditingReasonKey = @"UITextFieldDidEndEditingReasonKey";
 @implementation UITextField {
     NSString *_storage;
     NSRange _sel;
@@ -19,6 +20,7 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
     CGFloat _scrollX;                       /* single line: horizontal scroll that keeps the caret visible */
     NSInteger _isim_minLines, _isim_maxLines; BOOL _isim_multi;
 }
+@synthesize sizingRule = _sizingRule;     /* UILetterformAwareAdjusting (iOS 17) */
 /* the alignment text is laid out with: natural is right aligned right to left */
 - (NSTextAlignment)_isim_alignment { return _textAlignment == NSTextAlignmentNatural ? ([self _isim_isRTL] ? NSTextAlignmentRight : NSTextAlignmentLeft) : _textAlignment; }
 - (void)_isim_setLineLimitMin:(NSInteger)minLines max:(NSInteger)maxLines { _isim_minLines = minLines; _isim_maxLines = maxLines; _isim_multi = YES; [self _changed]; }
@@ -89,7 +91,7 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
     _sel = NSMakeRange(_storage.length, 0); _scrollX = 0;
     if ([d respondsToSelector:@selector(textFieldDidEndEditing:)]) [d textFieldDidEndEditing:self];
     [self _isim_sendEvents:UIControlEventEditingDidEnd withEvent:nil];
-    [NSNotificationCenter.defaultCenter postNotificationName:UITextFieldTextDidEndEditingNotification object:self];
+    [NSNotificationCenter.defaultCenter postNotificationName:UITextFieldTextDidEndEditingNotification object:self userInfo:@{ UITextFieldDidEndEditingReasonKey: @(UITextFieldDidEndEditingReasonCommitted) }];
     isim_ui_set_needs_display();
     return YES;
 }

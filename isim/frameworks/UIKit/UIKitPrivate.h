@@ -80,6 +80,7 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect
 /* attributed text (Pango markup); font/color are the defaults where the string has none */
 NSString *isim_ui_markup(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, NSTextAlignment *_Nullable align, CGFloat *_Nullable spacing);
 CGSize isim_ui_measure_attributed(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, CGFloat maxWidth, NSInteger lines);
+UIEdgeInsets isim_ui_ink_overhang(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, CGFloat maxWidth, NSInteger lines);
 void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, CGRect rect, NSTextAlignment align, NSInteger lines, CGFloat alpha);
 
 @interface UIFont (IsimPrivate)

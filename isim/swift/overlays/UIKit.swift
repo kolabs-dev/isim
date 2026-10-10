@@ -34,19 +34,32 @@ extension UIApplication.LaunchOptionsKey {
     public static var userActivityType: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsUserActivityTypeKey") }
     public static var remoteNotification: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsRemoteNotificationKey") }
     public static var location: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsLocationKey") }
+    public static var eventAttribution: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsEventAttributionKey") }
 }
 extension UIApplication.OpenURLOptionsKey {
     public static var sourceApplication: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsSourceApplicationKey") }
     public static var openInPlace: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsOpenInPlaceKey") }
+    public static var eventAttribution: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsEventAttributionKey") }
 }
 extension UIApplication.OpenExternalURLOptionsKey {
     public static var universalLinksOnly: UIApplication.OpenExternalURLOptionsKey { UIApplication.OpenExternalURLOptionsKey(rawValue: "UIApplicationOpenURLOptionUniversalLinksOnly") }
+    public static var eventAttribution: UIApplication.OpenExternalURLOptionsKey { UIApplication.OpenExternalURLOptionsKey(rawValue: "UIApplicationOpenExternalURLOptionsEventAttributionKey") }
 }
 
 // MARK: - Geometry conveniences (UIKit Swift overlay API)
 extension UIEdgeInsets: Equatable {
     public static var zero: UIEdgeInsets { UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0) }
     public static func == (a: UIEdgeInsets, b: UIEdgeInsets) -> Bool { a.top == b.top && a.left == b.left && a.bottom == b.bottom && a.right == b.right }
+}
+// the string forms of Foundation's geometry (NSStringFromCGPoint / Size / Rect) under their UIKit Swift names
+extension NSCoder {
+    public static func string(for point: CGPoint) -> String { NSStringFromCGPoint(point) }
+    public static func string(for size: CGSize) -> String { NSStringFromCGSize(size) }
+    public static func string(for rect: CGRect) -> String { NSStringFromCGRect(rect) }
+}
+extension UIOffset: Equatable {
+    public static var zero: UIOffset { UIOffset(horizontal: 0, vertical: 0) }
+    public static func == (a: UIOffset, b: UIOffset) -> Bool { a.horizontal == b.horizontal && a.vertical == b.vertical }
 }
 extension NSDirectionalEdgeInsets: Equatable {
     public static var zero: NSDirectionalEdgeInsets { NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0) }
@@ -532,6 +545,79 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
 extension UIWindowScene.GeometryPreferences {
     /// `UIWindowScene.GeometryPreferences.iOS(interfaceOrientations:)` (the importer cannot nest this class two levels deep)
     public typealias iOS = UIWindowSceneGeometryPreferencesIOS
+    /// Mac preferences (requesting them on iOS fails with UISceneError.geometryRequestUnsupported)
+    public typealias Mac = UIWindowSceneGeometryPreferencesMac
+}
+/// the scene errors as a Swift error type (`catch let e as UISceneError`, `e.code == .multipleScenesNotSupported`)
+public struct UISceneError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+    public typealias Code = UISceneErrorCode
+    public let code: Code
+    public init(_ code: Code) { self.code = code }
+    public init?(_bridgedNSError e: __shared NSError) {
+        guard e.domain == UISceneErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+        self.init(c)
+    }
+    public static var errorDomain: String { UISceneErrorDomain }
+    public var errorCode: Int { code.rawValue }
+    public static var multipleScenesNotSupported: Code { .multipleScenesNotSupported }
+    public static var requestDenied: Code { .requestDenied }
+    public static var geometryRequestUnsupported: Code { .geometryRequestUnsupported }
+    public static var geometryRequestDenied: Code { .geometryRequestDenied }
+}
+extension UIApplication {
+    /// errors of `isDefault(_:)`
+    @available(iOS 18.2, *)
+    public struct CategoryDefaultError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+        public typealias Code = UIApplicationCategoryDefaultErrorCode
+        public let code: Code
+        public init(_ code: Code) { self.code = code }
+        public init?(_bridgedNSError e: __shared NSError) {
+            guard e.domain == UIApplicationCategoryDefaultErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+            self.init(c)
+        }
+        public static var errorDomain: String { UIApplicationCategoryDefaultErrorDomain }
+        public var errorCode: Int { code.rawValue }
+        public static var rateLimited: Code { .rateLimited }
+        public nonisolated static let statusLastProvidedDateErrorKey: String = UIApplicationCategoryDefaultStatusLastProvidedDateErrorKey
+        public nonisolated static let retryAvailableDateErrorKey: String = UIApplicationCategoryDefaultRetryAvailabilityDateErrorKey
+    }
+}
+@available(iOS 17.0, *)
+extension UIWindowScene.ActivationAction {
+    /// the identifier and the alternate action are optional (Apple's defaults)
+    public convenience init(alternate: UIAction? = nil, configuration: @escaping UIWindowScene.ActivationAction.ConfigurationProvider) {
+        self.init(identifier: nil, alternate: alternate, configuration: configuration)
+    }
+    public convenience init(alternate: UIAction? = nil, configuration: @escaping UIWindowScene.ActivationAction.ConfigurationProvider, errorHandler: ((any Error) -> Void)?) {
+        self.init(identifier: nil, alternate: alternate, configuration: configuration, errorHandler: errorHandler)
+    }
+}
+/// where a new window scene appears (iPadOS 17): prominent takes the screen, standard goes beside the others
+@available(iOS 17.0, *)
+public protocol UIWindowScenePlacement: Hashable {}
+@available(iOS 17.0, *)
+public struct UIWindowSceneStandardPlacement: UIWindowScenePlacement { public init() {} }
+@available(iOS 17.0, *)
+public struct UIWindowSceneProminentPlacement: UIWindowScenePlacement { public init() {} }
+@available(iOS 17.0, *)
+extension UIWindowScenePlacement where Self == UIWindowSceneStandardPlacement { public static var standard: Self { .init() } }
+@available(iOS 17.0, *)
+extension UIWindowScenePlacement where Self == UIWindowSceneProminentPlacement { public static var prominent: Self { .init() } }
+@available(iOS 17.0, *)
+extension UIWindowScene.ActivationRequestOptions {
+    /// isim: the placement is the presentation style (prominent: the whole screen; standard: side by side)
+    public var placement: (any UIWindowScenePlacement)? {
+        get {
+            switch preferredPresentationStyle {
+            case .prominent: return UIWindowSceneProminentPlacement()
+            case .standard: return UIWindowSceneStandardPlacement()
+            default: return nil
+            }
+        }
+        set {
+            preferredPresentationStyle = newValue is UIWindowSceneProminentPlacement ? .prominent : newValue is UIWindowSceneStandardPlacement ? .standard : .automatic
+        }
+    }
 }
 extension UIDeviceOrientation {
     public var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }

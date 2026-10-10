@@ -37,6 +37,47 @@ void isim_ui_reload_settings(void) { cached_style = 0; isim_ui_traits_invalidate
 const UIEdgeInsets UIEdgeInsetsZero = { 0, 0, 0, 0 };
 const NSDirectionalEdgeInsets NSDirectionalEdgeInsetsZero = { 0, 0, 0, 0 };
 NSString *NSStringFromUIEdgeInsets(UIEdgeInsets i) { return [NSString stringWithFormat:@"{%g, %g, %g, %g}", i.top, i.left, i.bottom, i.right]; }
+const UIOffset UIOffsetZero = { 0, 0 };
+NSString *NSStringFromCGVector(CGVector v) { return [NSString stringWithFormat:@"{%g, %g}", v.dx, v.dy]; }
+NSString *NSStringFromCGAffineTransform(CGAffineTransform t) { return [NSString stringWithFormat:@"[%g, %g, %g, %g, %g, %g]", t.a, t.b, t.c, t.d, t.tx, t.ty]; }
+NSString *NSStringFromDirectionalEdgeInsets(NSDirectionalEdgeInsets i) { return [NSString stringWithFormat:@"{%g, %g, %g, %g}", i.top, i.leading, i.bottom, i.trailing]; }
+NSString *NSStringFromUIOffset(UIOffset o) { return [NSString stringWithFormat:@"{%g, %g}", o.horizontal, o.vertical]; }
+/* the numbers of a string form in order, whatever its brackets ("{{1, 2}, {3, 4}}", "[1, 2, 3, 4, 5, 6]"); missing ones are 0 */
+static void numbers(NSString *s, double *out, int n) {
+    for (int i = 0; i < n; i++) out[i] = 0;
+    const char *p = s.UTF8String; int k = 0;
+    while (p && *p && k < n) {
+        if ((*p >= '0' && *p <= '9') || *p == '-' || *p == '+' || *p == '.') { char *e; out[k++] = strtod(p, &e); p = e > p ? e : p + 1; }
+        else p++;
+    }
+}
+CGPoint CGPointFromString(NSString *s) { double v[2]; numbers(s, v, 2); return CGPointMake(v[0], v[1]); }
+CGVector CGVectorFromString(NSString *s) { double v[2]; numbers(s, v, 2); return (CGVector){ v[0], v[1] }; }
+CGSize CGSizeFromString(NSString *s) { double v[2]; numbers(s, v, 2); return CGSizeMake(v[0], v[1]); }
+CGRect CGRectFromString(NSString *s) { double v[4]; numbers(s, v, 4); return CGRectMake(v[0], v[1], v[2], v[3]); }
+CGAffineTransform CGAffineTransformFromString(NSString *s) { double v[6]; numbers(s, v, 6); return (CGAffineTransform){ v[0], v[1], v[2], v[3], v[4], v[5] }; }
+UIEdgeInsets UIEdgeInsetsFromString(NSString *s) { double v[4]; numbers(s, v, 4); return UIEdgeInsetsMake(v[0], v[1], v[2], v[3]); }
+NSDirectionalEdgeInsets NSDirectionalEdgeInsetsFromString(NSString *s) { double v[4]; numbers(s, v, 4); return NSDirectionalEdgeInsetsMake(v[0], v[1], v[2], v[3]); }
+UIOffset UIOffsetFromString(NSString *s) { double v[2]; numbers(s, v, 2); return UIOffsetMake(v[0], v[1]); }
+@implementation NSCoder (UIGeometryKeyedCodingAdditions)
+- (void)encodeCGPoint:(CGPoint)p forKey:(NSString *)k { [self encodeObject:NSStringFromCGPoint(p) forKey:k]; }
+- (void)encodeCGVector:(CGVector)v forKey:(NSString *)k { [self encodeObject:NSStringFromCGVector(v) forKey:k]; }
+- (void)encodeCGSize:(CGSize)s forKey:(NSString *)k { [self encodeObject:NSStringFromCGSize(s) forKey:k]; }
+- (void)encodeCGRect:(CGRect)r forKey:(NSString *)k { [self encodeObject:NSStringFromCGRect(r) forKey:k]; }
+- (void)encodeCGAffineTransform:(CGAffineTransform)t forKey:(NSString *)k { [self encodeObject:NSStringFromCGAffineTransform(t) forKey:k]; }
+- (void)encodeUIEdgeInsets:(UIEdgeInsets)i forKey:(NSString *)k { [self encodeObject:NSStringFromUIEdgeInsets(i) forKey:k]; }
+- (void)encodeDirectionalEdgeInsets:(NSDirectionalEdgeInsets)i forKey:(NSString *)k { [self encodeObject:NSStringFromDirectionalEdgeInsets(i) forKey:k]; }
+- (void)encodeUIOffset:(UIOffset)o forKey:(NSString *)k { [self encodeObject:NSStringFromUIOffset(o) forKey:k]; }
+- (NSString *)_isim_geometry:(NSString *)k { id o = [self decodeObjectOfClass:[NSString class] forKey:k]; return [o isKindOfClass:[NSString class]] ? o : @""; }
+- (CGPoint)decodeCGPointForKey:(NSString *)k { return CGPointFromString([self _isim_geometry:k]); }
+- (CGVector)decodeCGVectorForKey:(NSString *)k { return CGVectorFromString([self _isim_geometry:k]); }
+- (CGSize)decodeCGSizeForKey:(NSString *)k { return CGSizeFromString([self _isim_geometry:k]); }
+- (CGRect)decodeCGRectForKey:(NSString *)k { return CGRectFromString([self _isim_geometry:k]); }
+- (CGAffineTransform)decodeCGAffineTransformForKey:(NSString *)k { return CGAffineTransformFromString([self _isim_geometry:k]); }
+- (UIEdgeInsets)decodeUIEdgeInsetsForKey:(NSString *)k { return UIEdgeInsetsFromString([self _isim_geometry:k]); }
+- (NSDirectionalEdgeInsets)decodeDirectionalEdgeInsetsForKey:(NSString *)k { return NSDirectionalEdgeInsetsFromString([self _isim_geometry:k]); }
+- (UIOffset)decodeUIOffsetForKey:(NSString *)k { return UIOffsetFromString([self _isim_geometry:k]); }
+@end
 
 /* ================= UIColor ================= */
 @implementation UIColor {
@@ -439,6 +480,13 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect r, N
 CGContextRef UIGraphicsGetCurrentContext(void) { return isim_cg_current_context(); }
 void UIRectFill(CGRect r) { CGContextFillRect(isim_cg_current_context(), r); }
 void UIRectFrame(CGRect r) { CGContextStrokeRect(isim_cg_current_context(), r); }
+void UIRectFillUsingBlendMode(CGRect r, CGBlendMode m) {
+    CGContextRef c = isim_cg_current_context(); CGContextSaveGState(c); CGContextSetBlendMode(c, m); CGContextFillRect(c, r); CGContextRestoreGState(c);
+}
+void UIRectFrameUsingBlendMode(CGRect r, CGBlendMode m) {
+    CGContextRef c = isim_cg_current_context(); CGContextSaveGState(c); CGContextSetBlendMode(c, m); CGContextStrokeRect(c, r); CGContextRestoreGState(c);
+}
+void UIRectClip(CGRect r) { CGContextClipToRect(isim_cg_current_context(), r); }
 
 /* backed by a CGMutablePath, like UIKit's: drawing replays it into the current context with the path's line and fill
    settings (saved and restored around fill / stroke, as UIKit does) */

@@ -64,6 +64,158 @@ static char k_interactions;
 - (BOOL)_isim_acceptsExtraTouches { return NO; }
 @end
 
+/* ================= tooltips (iOS 15) ================= */
+@implementation UIToolTipConfiguration
++ (instancetype)configurationWithToolTip:(NSString *)t { return [self configurationWithToolTip:t inRect:CGRectNull]; }
++ (instancetype)configurationWithToolTip:(NSString *)t inRect:(CGRect)r {
+    UIToolTipConfiguration *c = [super new]; c->_toolTip = [t copy] ?: @""; c->_sourceRect = r; return c;
+}
+@end
+@interface __IsimToolTipWindow : UIWindow
+@end
+@implementation __IsimToolTipWindow
+- (BOOL)_isim_isSystemWindow { return YES; }
+- (BOOL)canBecomeKeyWindow { return NO; }
+- (UIView *)hitTest:(CGPoint)p withEvent:(UIEvent *)e { return nil; }
+@end
+static __IsimToolTipWindow *tooltip_window;
+static __weak UIToolTipInteraction *tooltip_owner;
+static void tooltip_hide(void) {
+    if (!tooltip_window || tooltip_window.hidden) return;
+    for (UIView *v in [tooltip_window.subviews copy]) [v removeFromSuperview];
+    tooltip_window.hidden = YES; tooltip_owner = nil;
+    isim_ui_set_needs_display();
+}
+/* a platter next to the pointer (below and to the right, kept on screen) */
+static void tooltip_show(NSString *text, CGPoint screenPoint) {
+    if (!tooltip_window) { tooltip_window = [[__IsimToolTipWindow alloc] initWithFrame:UIScreen.mainScreen.bounds]; tooltip_window.windowLevel = 16000000; tooltip_window.backgroundColor = UIColor.clearColor; }
+    for (UIView *v in [tooltip_window.subviews copy]) [v removeFromSuperview];
+    UIFont *f = [UIFont systemFontOfSize:13];
+    CGSize ts = isim_ui_measure(text, f, 280, 0);
+    CGSize sz = CGSizeMake(ceil(ts.width) + 16, ceil(ts.height) + 10), scr = UIScreen.mainScreen.bounds.size;
+    CGFloat x = fmin(fmax(4, screenPoint.x + 8), scr.width - sz.width - 4), y = screenPoint.y + 20;
+    if (y + sz.height > scr.height - 4) y = screenPoint.y - sz.height - 8;
+    UIView *box = [[UIView alloc] initWithFrame:CGRectMake(x, y, sz.width, sz.height)];
+    box.backgroundColor = UIColor.secondarySystemBackgroundColor; box.layer.cornerRadius = 6; box.layer.cornerCurve = kCACornerCurveContinuous;
+    box.layer.borderWidth = 0.5; box.layer.borderColor = UIColor.separatorColor.CGColor;
+    box.layer.shadowOpacity = 0.15; box.layer.shadowRadius = 6; box.layer.shadowOffset = CGSizeMake(0, 2);
+    box.accessibilityIdentifier = @"isim-tooltip";
+    UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(8, 5, ceil(ts.width), ceil(ts.height))];
+    l.text = text; l.font = f; l.textColor = UIColor.labelColor; l.numberOfLines = 0;
+    [box addSubview:l]; [tooltip_window addSubview:box];
+    tooltip_window.hidden = NO;
+    NSLog(@"isim: tooltip \"%@\"", text);
+    isim_ui_set_needs_display();
+}
+@implementation UIToolTipInteraction { __weak UIView *_view; UIHoverGestureRecognizer *_hover; NSTimer *_timer; CGPoint _at; CGRect _shownRect; }
+- (instancetype)init {
+    if ((self = [super init])) { _enabled = YES; _hover = [[UIHoverGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_hovered:)]; _shownRect = CGRectNull; }
+    return self;
+}
+- (instancetype)initWithDefaultToolTip:(NSString *)t { if ((self = [self init])) _defaultToolTip = [t copy]; return self; }
+- (UIView *)view { return _view; }
+- (void)willMoveToView:(UIView *)v { if (_view) [_view removeGestureRecognizer:_hover]; [self _isim_cancel]; }
+- (void)didMoveToView:(UIView *)v { _view = v; if (v) [v addGestureRecognizer:_hover]; }
+- (void)setEnabled:(BOOL)e { _enabled = e; if (!e) [self _isim_cancel]; }
+- (void)_isim_cancel { [_timer invalidate]; _timer = nil; if (tooltip_owner == self) tooltip_hide(); _shownRect = CGRectNull; }
+- (UIToolTipConfiguration *)_isim_configurationAt:(CGPoint)p {
+    id<UIToolTipInteractionDelegate> d = _delegate;
+    if ([d respondsToSelector:@selector(toolTipInteraction:configurationAtPoint:)]) return [d toolTipInteraction:self configurationAtPoint:p];
+    return _defaultToolTip.length ? [UIToolTipConfiguration configurationWithToolTip:_defaultToolTip] : nil;
+}
+- (void)_isim_hovered:(UIHoverGestureRecognizer *)g {
+    UIView *v = _view;
+    if (!_enabled || !v || g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) { [self _isim_cancel]; return; }
+    if (v.traitCollection.userInterfaceIdiom != UIUserInterfaceIdiomPad) return;      /* tooltips need a pointer */
+    _at = [g locationInView:v];
+    if (tooltip_owner == self) {                       /* shown: it stays while the pointer is in its rect */
+        if (!CGRectIsNull(_shownRect) && !CGRectContainsPoint(_shownRect, _at)) [self _isim_cancel]; else return;
+    }
+    [_timer invalidate];
+    __weak UIToolTipInteraction *ws = self;
+    _timer = [NSTimer scheduledTimerWithTimeInterval:0.7 repeats:NO block:^(NSTimer *t) { [ws _isim_fire]; }];
+}
+- (void)_isim_fire {
+    _timer = nil;
+    UIView *v = _view;
+    if (!v.window || !_enabled) return;
+    UIToolTipConfiguration *c = [self _isim_configurationAt:_at];
+    if (!c.toolTip.length) return;
+    CGRect r = CGRectIsNull(c.sourceRect) ? v.bounds : c.sourceRect;
+    if (!CGRectContainsPoint(r, _at)) return;
+    _shownRect = r; tooltip_owner = self;
+    CGPoint sp = [v convertPoint:_at toView:nil]; sp.x += v.window.frame.origin.x; sp.y += v.window.frame.origin.y;
+    tooltip_show(c.toolTip, sp);
+}
+@end
+static char k_tooltip;
+@implementation UIControl (UIToolTip)
+- (UIToolTipInteraction *)toolTipInteraction { return objc_getAssociatedObject(self, &k_tooltip); }
+- (NSString *)toolTip { return self.toolTipInteraction.defaultToolTip; }
+- (void)setToolTip:(NSString *)t {
+    UIToolTipInteraction *i = self.toolTipInteraction;
+    if (!i && t.length) { i = [[UIToolTipInteraction alloc] init]; objc_setAssociatedObject(self, &k_tooltip, i, OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self addInteraction:i]; }
+    i.defaultToolTip = t;
+}
+@end
+
+/* ================= band selection (iOS 15) ================= */
+@interface UIPanGestureRecognizer (IsimDown)
+- (CGPoint)_isim_downPoint;
+@end
+@implementation UIBandSelectionInteraction { __weak UIView *_view; UIPanGestureRecognizer *_pan; void (^_handler)(UIBandSelectionInteraction *); CGPoint _start; UIView *_band; }
+- (instancetype)initWithSelectionHandler:(void (^)(UIBandSelectionInteraction *))h {
+    if ((self = [super init])) {
+        _enabled = YES; _handler = [h copy]; _selectionRect = CGRectNull;
+        _pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_dragged:)];
+        _pan.allowedTouchTypes = @[@(UITouchTypeIndirectPointer)];      /* pointer drags only */
+        _pan.cancelsTouchesInView = NO;
+    }
+    return self;
+}
+- (UIView *)view { return _view; }
+- (void)willMoveToView:(UIView *)v { if (_view) [_view removeGestureRecognizer:_pan]; }
+- (void)didMoveToView:(UIView *)v { _view = v; if (v) [v addGestureRecognizer:_pan]; }
+- (void)setEnabled:(BOOL)e { _enabled = e; _pan.enabled = e; }
+- (void)_isim_report { if (_handler) _handler(self); }
+- (void)_isim_dragged:(UIPanGestureRecognizer *)g {
+    UIView *v = _view;
+    if (!v) return;
+    CGPoint p = [g locationInView:v];
+    switch (g.state) {
+    case UIGestureRecognizerStateBegan: {
+        _start = [g.view convertPoint:[g _isim_downPoint] fromView:g.view.window];     /* where the pointer went down */
+        _start = [g.view convertPoint:_start toView:v];
+        if (_shouldBeginHandler && !_shouldBeginHandler(self, _start)) { g.enabled = NO; g.enabled = _enabled; return; }
+        _initialModifierFlags = g.modifierFlags;
+        _band = [[UIView alloc] initWithFrame:CGRectZero];
+        _band.backgroundColor = [UIColor.systemGrayColor colorWithAlphaComponent:0.2];
+        _band.layer.borderColor = [UIColor.systemGrayColor colorWithAlphaComponent:0.7].CGColor; _band.layer.borderWidth = 1;
+        _band.userInteractionEnabled = NO; _band.accessibilityIdentifier = @"isim-selection-band";
+        [v addSubview:_band];
+        _state = UIBandSelectionInteractionStateBegan;
+        _selectionRect = CGRectMake(_start.x, _start.y, 0, 0); _band.frame = _selectionRect;
+        [self _isim_report];
+        break; }
+    case UIGestureRecognizerStateChanged:
+        if (_state == UIBandSelectionInteractionStatePossible) return;
+        _state = UIBandSelectionInteractionStateSelecting;
+        _selectionRect = CGRectStandardize(CGRectMake(_start.x, _start.y, p.x - _start.x, p.y - _start.y));
+        _band.frame = _selectionRect;
+        [self _isim_report];
+        break;
+    default:
+        if (_state == UIBandSelectionInteractionStatePossible) return;
+        if (g.state == UIGestureRecognizerStateEnded) _selectionRect = CGRectStandardize(CGRectMake(_start.x, _start.y, p.x - _start.x, p.y - _start.y));
+        _state = UIBandSelectionInteractionStateEnded;
+        [self _isim_report];
+        [_band removeFromSuperview]; _band = nil;
+        _state = UIBandSelectionInteractionStatePossible; _selectionRect = CGRectNull;
+    }
+    isim_ui_set_needs_display();
+}
+@end
+
 /* ================= pointer types ================= */
 @implementation UIPointerRegionRequest { CGPoint _loc; UIKeyModifierFlags _mods; }
 - (instancetype)initWithIsimLocation:(CGPoint)p { if ((self = [super init])) _loc = p; return self; }

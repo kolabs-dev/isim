@@ -65,6 +65,7 @@ void UIGraphicsSetPDFContextURLForRect(NSURL *url, CGRect rect) {}
 - (void)setDestinationWithName:(NSString *)name forRect:(CGRect)rect {}
 @end
 @implementation UIGraphicsPDFRenderer
++ (Class)rendererContextClass { return [UIGraphicsPDFRendererContext class]; }
 - (instancetype)initWithBounds:(CGRect)b { return [self initWithBounds:b format:[UIGraphicsPDFRendererFormat defaultFormat]]; }
 - (instancetype)initWithBounds:(CGRect)b format:(UIGraphicsPDFRendererFormat *)f { return [super initWithBounds:b format:f ?: [UIGraphicsPDFRendererFormat defaultFormat]]; }
 - (BOOL)allowsImageOutput { return NO; }

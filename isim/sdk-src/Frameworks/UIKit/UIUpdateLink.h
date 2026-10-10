@@ -1,7 +1,8 @@
 #pragma once
-/* isim: UIUpdateLink (iOS 18) — per-frame actions for a view (while it is visible) or a window scene, run with the
-   display links before a frame is drawn (adapted: the action phases run in their order within one callback per
-   frame); requiresContinuousUpdates keeps frames coming. */
+/* isim: UIUpdateLink (iOS 18) — per-frame actions for a view (while it is visible) or a window scene; requiresContinuousUpdates
+   keeps frames coming. Adapted: the phases run in Apple's order around the display links and the frame's drawing; the
+   low-latency phases never run (low-latency event dispatch is never confirmed). eventDispatch is isim's earlier name
+   for beforeEventDispatch. */
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
 #import <UIKit/UIScene.h>
@@ -10,12 +11,19 @@ NS_ASSUME_NONNULL_BEGIN
 @class UIUpdateLink;
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @interface UIUpdateActionPhase : NSObject
-@property (class, nonatomic, readonly) UIUpdateActionPhase *eventDispatch;
+@property (class, nonatomic, readonly) UIUpdateActionPhase *afterUpdateScheduled;
+@property (class, nonatomic, readonly) UIUpdateActionPhase *beforeEventDispatch;
+@property (class, nonatomic, readonly) UIUpdateActionPhase *eventDispatch;     /* isim's earlier name for beforeEventDispatch */
 @property (class, nonatomic, readonly) UIUpdateActionPhase *afterEventDispatch;
+@property (class, nonatomic, readonly) UIUpdateActionPhase *beforeLowLatencyEventDispatch;
+@property (class, nonatomic, readonly) UIUpdateActionPhase *afterLowLatencyEventDispatch;
 @property (class, nonatomic, readonly) UIUpdateActionPhase *beforeCADisplayLinkDispatch;
 @property (class, nonatomic, readonly) UIUpdateActionPhase *afterCADisplayLinkDispatch;
+@property (class, nonatomic, readonly) UIUpdateActionPhase *beforeLowLatencyCATransactionCommit;
+@property (class, nonatomic, readonly) UIUpdateActionPhase *afterLowLatencyCATransactionCommit;
 @property (class, nonatomic, readonly) UIUpdateActionPhase *beforeCATransactionCommit;
 @property (class, nonatomic, readonly) UIUpdateActionPhase *afterCATransactionCommit;
+@property (class, nonatomic, readonly) UIUpdateActionPhase *afterUpdateComplete;
 @end
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @interface UIUpdateInfo : NSObject
@@ -25,6 +33,9 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @property (nonatomic, readonly, getter=isImmediatePresentationExpected) BOOL immediatePresentationExpected;
 @property (nonatomic, readonly, getter=isLowLatencyEventDispatchConfirmed) BOOL lowLatencyEventDispatchConfirmed;
 @property (nonatomic, readonly, getter=isPerformingLowLatencyPhases) BOOL performingLowLatencyPhases;
+/* the update in progress (from before the display links until the frame is drawn), else nil */
++ (nullable instancetype)currentUpdateInfoForWindowScene:(UIWindowScene *)windowScene NS_SWIFT_NAME(current(for:));
++ (nullable instancetype)currentUpdateInfoForView:(UIView *)view NS_SWIFT_NAME(current(for:));
 @end
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @interface UIUpdateLink : NSObject

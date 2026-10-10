@@ -123,6 +123,8 @@ long isim_image_encode(int handle, int fmt, double quality, unsigned char *_Null
 void isim_image_bytes_free(unsigned char *_Nullable bytes);
 /* attributed text as Pango markup (<span font_family= size= weight= foreground= ...>); align 0 left 1 center 2 right */
 void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h);
+/* how far the glyphs' ink reaches above the layout's top and below its bottom (0 when it stays inside) */
+void isim_text_ink_markup(const char *markup, double maxw, int lines, int align, double spacing, double *above, double *below);
 void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba);
 /* text layouts kept for queries (TextKit): byte offsets into the layout's UTF-8 text */
 void *isim_tl_create(const char *markup, double maxw, int align, double spacing, double indent, int n, const int *bytes, const double *boxes);

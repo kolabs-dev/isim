@@ -59,10 +59,18 @@
 
 @interface UIEvent ()
 @property (nonatomic, strong) NSSet *touchSet;
+@property (nonatomic) UIKeyModifierFlags isimMods;
 @end
+extern UIKeyModifierFlags isim_ui_current_modifiers(int hostmods);
 @implementation UIEvent
-- (instancetype)initWithIsimTouch:(UITouch *)t { if ((self = [super init])) _touchSet = [NSSet setWithObject:t]; return self; }
-- (instancetype)initWithIsimTouches:(NSSet *)ts { if ((self = [super init])) _touchSet = [ts copy]; return self; }
+- (instancetype)initWithIsimTouch:(UITouch *)t { if ((self = [super init])) { _touchSet = [NSSet setWithObject:t]; _isimMods = isim_ui_current_modifiers(0); } return self; }
+- (instancetype)initWithIsimTouches:(NSSet *)ts { if ((self = [super init])) { _touchSet = [ts copy]; _isimMods = isim_ui_current_modifiers(0); } return self; }
+- (UIKeyModifierFlags)modifierFlags { return _isimMods; }
+/* an iPad pointer click is the primary button while it is down */
+- (UIEventButtonMask)buttonMask {
+    for (UITouch *t in _touchSet) if (t.type == UITouchTypeIndirectPointer && t.phase != UITouchPhaseEnded && t.phase != UITouchPhaseCancelled) return UIEventButtonMaskPrimary;
+    return 0;
+}
 - (UIEventType)type { return UIEventTypeTouches; }
 - (UIEventSubtype)subtype { return UIEventSubtypeNone; }
 - (NSTimeInterval)timestamp { return _touchSet ? [_touchSet.anyObject timestamp] : isim_time(); }
@@ -170,6 +178,9 @@ NSNotificationName const UIDeviceBatteryStateDidChangeNotification = @"UIDeviceB
 NSNotificationName const UIScreenBrightnessDidChangeNotification = @"UIScreenBrightnessDidChangeNotification";
 NSNotificationName const UIScreenDidConnectNotification = @"UIScreenDidConnectNotification";
 NSNotificationName const UIScreenDidDisconnectNotification = @"UIScreenDidDisconnectNotification";
+NSNotificationName const UIScreenModeDidChangeNotification = @"UIScreenModeDidChangeNotification";
+NSNotificationName const UIScreenCapturedDidChangeNotification = @"UIScreenCapturedDidChangeNotification";
+NSNotificationName const UIScreenReferenceDisplayModeStatusDidChangeNotification = @"UIScreenReferenceDisplayModeStatusDidChangeNotification";
 
 /* ================= UIViewController ================= */
 @interface UIViewController () {
@@ -486,7 +497,18 @@ BOOL isim_ui_window_external(UIWindow *w) {
     UIWindowScene *s = [w valueForKey_isimScene];
     return s && ![s.session.role isEqualToString:UIWindowSceneSessionRoleApplication];
 }
+NSNotificationName const UIWindowDidBecomeVisibleNotification = @"UIWindowDidBecomeVisibleNotification";
+NSNotificationName const UIWindowDidBecomeHiddenNotification = @"UIWindowDidBecomeHiddenNotification";
+NSNotificationName const UIWindowDidBecomeKeyNotification = @"UIWindowDidBecomeKeyNotification";
+NSNotificationName const UIWindowDidResignKeyNotification = @"UIWindowDidResignKeyNotification";
 @implementation UIWindow
+/* the app's windows say when they show and hide (isim's own overlay windows don't) */
+- (void)setHidden:(BOOL)h {
+    BOOL was = self.hidden;
+    [super setHidden:h];
+    if (was != h && ![self _isim_isSystemWindow])
+        [NSNotificationCenter.defaultCenter postNotificationName:h ? UIWindowDidBecomeHiddenNotification : UIWindowDidBecomeVisibleNotification object:self];
+}
 - (UIWindowScene *)valueForKey_isimScene { return _windowScene; }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) { self.screen = UIScreen.mainScreen; self.hidden = YES; [UIApplication.sharedApplication _isim_addWindow:self]; [self _isim_movedToWindow:self]; }
@@ -546,6 +568,7 @@ UISceneSessionRole const UIWindowSceneSessionRoleApplication = @"UIWindowSceneSe
 NSNotificationName const UISceneWillConnectNotification = @"UISceneWillConnectNotification";
 NSNotificationName const UISceneDidActivateNotification = @"UISceneDidActivateNotification";
 NSNotificationName const UISceneDidDisconnectNotification = @"UISceneDidDisconnectNotification";
+NSNotificationName const UISceneSystemProtectionDidChangeNotification = @"UISceneSystemProtectionDidChangeNotification";
 NSNotificationName const UISceneWillDeactivateNotification = @"UISceneWillDeactivateNotification";
 NSNotificationName const UISceneWillEnterForegroundNotification = @"UISceneWillEnterForegroundNotification";
 NSNotificationName const UISceneDidEnterBackgroundNotification = @"UISceneDidEnterBackgroundNotification";
@@ -592,7 +615,9 @@ static UIWindowScene *implicit_scene(void) {
 - (NSString *)subtitle { return _subtitle ?: @""; }
 - (void)setSubtitle:(NSString *)t { _subtitle = [t copy]; }
 - (void)openURL:(NSURL *)url options:(UISceneOpenExternalURLOptions *)options completionHandler:(void (^)(BOOL))completion {
-    NSDictionary *o = options.universalLinksOnly ? @{ UIApplicationOpenURLOptionUniversalLinksOnly: @YES } : @{};
+    NSMutableDictionary *o = [NSMutableDictionary dictionary];
+    if (options.universalLinksOnly) o[UIApplicationOpenURLOptionUniversalLinksOnly] = @YES;
+    if (options.eventAttribution) o[UIApplicationOpenExternalURLOptionsEventAttributionKey] = options.eventAttribution;
     [UIApplication.sharedApplication openURL:url options:o completionHandler:completion];
 }
 /* the launch screen (UILaunchScreen.m) waits for every extension to complete */
@@ -648,6 +673,8 @@ static CGPoint space_from_screen(id<UICoordinateSpace> s, CGPoint p) {
 }
 - (CGPoint)convertPoint:(CGPoint)p toCoordinateSpace:(id<UICoordinateSpace>)s { return space_from_screen(s, space_to_screen(self, p)); }
 - (CGPoint)convertPoint:(CGPoint)p fromCoordinateSpace:(id<UICoordinateSpace>)s { return space_from_screen(self, space_to_screen(s, p)); }
+- (CGRect)convertRect:(CGRect)r toCoordinateSpace:(id<UICoordinateSpace>)s { return isim_ui_space_convert_rect(self, r, s, YES); }
+- (CGRect)convertRect:(CGRect)r fromCoordinateSpace:(id<UICoordinateSpace>)s { return isim_ui_space_convert_rect(self, r, s, NO); }
 @end
 @implementation UIWindowScene { NSMutableArray<UIWindow *> *_windows; id<UITraitOverrides> _traitOverrides; CGRect _isimFrame; BOOL _isimHasFrame;
     UISceneSizeRestrictions *_sizeRestrictions; __IsimSceneSpace *_space; UIScreen *_isimScreen; __weak UIWindow *_isimExternalKey;
@@ -728,7 +755,14 @@ static BOOL idle_timer_disabled;
     NSLog(@"isim: idle timer %@", d ? @"disabled" : @"enabled");
     if (isim_shell_present()) isim_shell_request(ISIM_SHELL_SYSTEM, "idle-timer", d ? "1" : "0", NULL);
 }
-- (void)_isim_windowBecameKey:(UIWindow *)w { UIWindow *old = _key; if (old == w) return; [old resignKeyWindow]; _key = w; [w becomeKeyWindow]; isim_ui_set_needs_display(); }
+- (void)_isim_windowBecameKey:(UIWindow *)w {
+    UIWindow *old = _key; if (old == w) return;
+    [old resignKeyWindow];
+    if (old) [NSNotificationCenter.defaultCenter postNotificationName:UIWindowDidResignKeyNotification object:old];
+    _key = w; [w becomeKeyWindow];
+    if (w) [NSNotificationCenter.defaultCenter postNotificationName:UIWindowDidBecomeKeyNotification object:w];
+    isim_ui_set_needs_display();
+}
 - (UIWindow *)keyWindow { return _key; }
 - (NSArray *)windows { return [_allWindows copy]; }
 - (NSSet *)connectedScenes { return [_scenes copy]; }
@@ -757,6 +791,7 @@ BOOL isim_sys_can_open_url(NSURL *url);
 BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BOOL));
 - (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""] || isim_sys_can_open_url(url); }
 - (void)openURL:(NSURL *)url options:(NSDictionary *)options completionHandler:(void (^)(BOOL))completion {
+    { extern void isim_ui_record_attribution(id, NSURL *); id a = options[UIApplicationOpenExternalURLOptionsEventAttributionKey]; if (a) isim_ui_record_attribution(a, url); }
     if (isim_sys_route_url(url, options, completion)) return;     /* another app's URL scheme or universal link */
     NSString *scheme = url.scheme.lowercaseString ?: @"";
     if ([scheme isEqualToString:@"app-settings"] && isim_shell_present()) {
@@ -885,6 +920,7 @@ static void handle_touch(const struct isim_event *ev) {
             if (hit) { w = c; break; }
         }
         if (!hit) { cur_touch = nil; return; }
+        { extern void isim_ui_attribution_touch(UIWindow *, CGPoint); isim_ui_attribution_touch(w, CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y)); }
         if (!w.isKeyWindow && isim_ui_scenes_split() && w.windowScene && w.windowLevel == UIWindowLevelNormal) [w makeKeyWindow];   /* the touched side of a split view */
         cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y) time:ev->timestamp];
         [cur_touch _isim_setFinger:finger];
@@ -907,6 +943,7 @@ static void handle_touch(const struct isim_event *ev) {
                 if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) continue;
                 if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
                 id<UIGestureRecognizerDelegate> gd = g.delegate;
+                if (![g _isim_allowsTouch:cur_touch]) continue;              /* allowedTouchTypes */
                 if ([gd respondsToSelector:@selector(gestureRecognizer:shouldReceiveTouch:)] && ![gd gestureRecognizer:g shouldReceiveTouch:cur_touch]) continue;
                 [g _isim_beginTouchSequence];         /* forget touches of an earlier sequence it was dropped from */
                 [cur_gestures addObject:g];
@@ -934,6 +971,8 @@ static void handle_touch(const struct isim_event *ev) {
     for (UIGestureRecognizer *g in [cur_gestures copy]) {
         if (![cur_gestures containsObject:g]) continue;
         if (t != cur_touch && (![g _isim_acceptsExtraTouches] || ![t.view isDescendantOfView:g.view])) continue;
+        if (phase == UITouchPhaseBegan && t == cur_touch && ![g shouldReceiveEvent:e]) { [cur_gestures removeObject:g]; continue; }
+        [g _isim_setLastEvent:e];
         [g _isim_touch:t phase:phase event:e];
     }
     if (!touch_cancelled && toView) {
@@ -1076,8 +1115,9 @@ static void render_frame(void) {
     { extern void isim_ui_trait_registrations_tick(void); isim_ui_trait_registrations_tick(); }
     isim_ui_keyboard_check();
     { extern void isim_ui_accessibility_frame_tick(void); isim_ui_accessibility_frame_tick(); }
+    isim_ui_update_links_fire();                      /* UIUpdateLink (UIUpdates.m): the phases before the display links */
     isim_ui_display_links_fire();
-    isim_ui_update_links_fire();                      /* UIUpdateLink (UIUpdates.m) */
+    { extern void isim_ui_update_links_stage(int); isim_ui_update_links_stage(1); }   /* after them, before the commit */
     isim_ui_animations_tick();
     UIWindow *key = top_window();
     UIViewController *vc = key.rootViewController;
@@ -1102,11 +1142,32 @@ static void render_frame(void) {
     CGFloat brightness = UIScreen.mainScreen.brightness;     /* adapted: a lower screen brightness dims the frame */
     if (brightness < 0.999) { double dim[4] = { 0, 0, 0, (1 - brightness) * 0.8 }; CGRect sb = UIScreen.mainScreen.bounds; isim_gfx_fill_rounded(0, 0, sb.size.width, sb.size.height, 0, dim); }
     isim_frame_end();
+    { extern void isim_ui_update_links_stage(int); isim_ui_update_links_stage(2); }   /* after the commit */
 }
 
 /* ---- Debug > Simulate Memory Warning (script memorywarning): the app delegate, the notification, every view
    controller in the windows (children and presented ones included) ---- */
 NSNotificationName const UIApplicationDidReceiveMemoryWarningNotification = @"UIApplicationDidReceiveMemoryWarningNotification";
+NSNotificationName const UIApplicationSignificantTimeChangeNotification = @"UIApplicationSignificantTimeChangeNotification";
+NSNotificationName const UIApplicationUserDidTakeScreenshotNotification = @"UIApplicationUserDidTakeScreenshotNotification";
+NSNotificationName const UIApplicationProtectedDataWillBecomeUnavailable = @"UIApplicationProtectedDataWillBecomeUnavailable";
+NSNotificationName const UIApplicationProtectedDataDidBecomeAvailable = @"UIApplicationProtectedDataDidBecomeAvailable";
+/* a significant time change: local midnight, a time zone change (the delegate, then the notification) */
+static void significant_time_change(void) {
+    UIApplication *app = UIApplication.sharedApplication;
+    id<UIApplicationDelegate> d = app.delegate;
+    NSLog(@"isim: significant time change");
+    if ([d respondsToSelector:@selector(applicationSignificantTimeChange:)]) [d applicationSignificantTimeChange:app];
+    [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationSignificantTimeChangeNotification object:app];
+}
+static NSTimer *midnight_timer;
+static void schedule_midnight(void) {
+    [midnight_timer invalidate];
+    NSTimeInterval now = NSDate.date.timeIntervalSince1970, off = [NSTimeZone.systemTimeZone secondsFromGMTForDate:NSDate.date];
+    NSDate *next = [NSDate dateWithTimeIntervalSince1970:(floor((now + off) / 86400) + 1) * 86400 - off];   /* the next local midnight */
+    midnight_timer = [[NSTimer alloc] initWithFireDate:next interval:0 repeats:NO block:^(NSTimer *t) { significant_time_change(); schedule_midnight(); }];
+    [NSRunLoop.mainRunLoop addTimer:midnight_timer forMode:NSRunLoopCommonModes];
+}
 static void vc_memory_warning(UIViewController *vc, NSMutableSet *seen) {
     if (!vc || [seen containsObject:vc]) return;
     [seen addObject:vc];
@@ -1202,7 +1263,9 @@ static void settings_changed(void) {
     extern void isim_ui_reload_settings(void);
     extern void isim_reapply_time_zone_setting(void);
     isim_ui_reload_settings();
+    NSString *zone = NSTimeZone.systemTimeZone.name;
     isim_reapply_time_zone_setting();                 /* Date & Time > Time Zone applies live */
+    if (![zone isEqualToString:NSTimeZone.systemTimeZone.name]) { significant_time_change(); schedule_midnight(); }
     isim_ui_accessibility_reload_settings();          /* Settings > Accessibility (Dynamic Type, VoiceOver, ...) */
     isim_ui_traits_flush();                           /* appearance, Dynamic Type, contrast, bold text: traitCollectionDidChange: */
     [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSettingsChanged" object:nil];
@@ -1613,6 +1676,10 @@ static void scene_error(void (^handler)(NSError *), UISceneErrorCode code, NSStr
 @implementation UIApplication (UIMultipleScenes)
 - (void)requestSceneSessionActivation:(UISceneSession *)session userActivity:(NSUserActivity *)activity options:(UISceneActivationRequestOptions *)options errorHandler:(void (^)(NSError *))errorHandler {
     if (session && ![self.openSessions containsObject:session]) { scene_error(errorHandler, UISceneErrorCodeRequestDenied, @"The scene session is not open."); return; }
+    if (!session && activity.targetContentIdentifier) {          /* the scene whose activation conditions take the content */
+        extern UIScene *isim_ui_scene_for_target(NSString *);
+        session = isim_ui_scene_for_target(activity.targetContentIdentifier).session;
+    }
     UIScene *existing = session.scene;
     if (existing && [existing isKindOfClass:[UIWindowScene class]]) {             /* an existing session: back on screen */
         NSLog(@"isim: activating scene session %@", session.persistentIdentifier);
@@ -1762,6 +1829,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         if ([d respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]) isim_sys_did_finish_launching([d application:app didFinishLaunchingWithOptions:launchOptions]);
         else if ([d respondsToSelector:@selector(applicationDidFinishLaunching:)]) [d applicationDidFinishLaunching:app];
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidFinishLaunchingNotification object:app];
+        schedule_midnight();
 
         NSDictionary *manifest = info[@"UIApplicationSceneManifest"];
         /* scene-based apps: a scene manifest, or a delegate that configures scenes (SwiftUI apps) */

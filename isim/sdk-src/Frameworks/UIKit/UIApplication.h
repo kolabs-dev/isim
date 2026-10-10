@@ -22,6 +22,10 @@ UIKIT_EXTERN UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsURLKe
 UIKIT_EXTERN NSString * const UIApplicationLaunchOptionsUserActivityKey;   /* isim: the NSUserActivity in the activity dictionary */
 UIKIT_EXTERN UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsSourceApplicationKey, UIApplicationOpenURLOptionsOpenInPlaceKey;
 UIKIT_EXTERN UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenURLOptionUniversalLinksOnly;
+/* a UIEventAttribution for private click measurement (UIEventAttribution.h) */
+UIKIT_EXTERN UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenExternalURLOptionsEventAttributionKey API_AVAILABLE(ios(14.5));
+UIKIT_EXTERN UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsEventAttributionKey API_AVAILABLE(ios(14.5));
+UIKIT_EXTERN UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsEventAttributionKey API_AVAILABLE(ios(14.5));
 UIKIT_EXTERN NSNotificationName const UIApplicationBackgroundRefreshStatusDidChangeNotification;
 UIKIT_EXTERN const NSTimeInterval UIApplicationBackgroundFetchIntervalMinimum, UIApplicationBackgroundFetchIntervalNever;
 UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotification, UIApplicationDidBecomeActiveNotification,
@@ -29,6 +33,12 @@ UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotificatio
     UIApplicationWillEnterForegroundNotification, UIApplicationWillTerminateNotification;
 /* isim: sent by Debug > Simulate Memory Warning (script command memorywarning) */
 UIKIT_EXTERN NSNotificationName const UIApplicationDidReceiveMemoryWarningNotification;
+/* isim: at local midnight and when the time zone changes (Settings > General > Date & Time) */
+UIKIT_EXTERN NSNotificationName const UIApplicationSignificantTimeChangeNotification;
+/* isim: script command `takescreenshot` (the Simulator's Device > Trigger Screenshot) */
+UIKIT_EXTERN NSNotificationName const UIApplicationUserDidTakeScreenshotNotification API_AVAILABLE(ios(7.0));
+UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataWillBecomeUnavailable NS_SWIFT_NAME(UIApplication.protectedDataWillBecomeUnavailableNotification);
+UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataDidBecomeAvailable NS_SWIFT_NAME(UIApplication.protectedDataDidBecomeAvailableNotification);
 
 @class NSUserActivity;
 NS_SWIFT_UI_ACTOR
@@ -48,6 +58,13 @@ NS_SWIFT_UI_ACTOR
 - (void)applicationWillEnterForeground:(UIApplication *)application;
 - (void)applicationWillTerminate:(UIApplication *)application;
 - (void)applicationDidReceiveMemoryWarning:(UIApplication *)application;
+- (void)applicationSignificantTimeChange:(UIApplication *)application;
+/* the device was locked / unlocked (UIApplication.isProtectedDataAvailable) */
+- (void)applicationProtectedDataWillBecomeUnavailable:(UIApplication *)application;
+- (void)applicationProtectedDataDidBecomeAvailable:(UIApplication *)application;
+/* isim never remaps key commands for localized keyboards, nor asks for HealthKit access this way */
+- (BOOL)applicationShouldAutomaticallyLocalizeKeyCommands:(UIApplication *)application API_AVAILABLE(ios(15.0));
+- (void)applicationShouldRequestHealthAuthorization:(UIApplication *)application;
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options;
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
 - (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;
@@ -87,7 +104,7 @@ NS_SWIFT_UI_ACTOR
 /* isim: URLs are logged; with ISIM_OPEN_URLS=1, http(s)/mailto URLs open on the host desktop (xdg-open) */
 - (BOOL)canOpenURL:(NSURL *)url;
 - (void)openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenExternalURLOptionsKey, id> *)options completionHandler:(void (^ _Nullable)(BOOL success))completion;
-@property (class, nonatomic, readonly) NSString *openSettingsURLString;
+/* openSettingsURLString: UIApplicationOpenSettingsURLString (UIWindowSceneExtras.h) */
 @property (nonatomic, readonly) NSSet<UISceneSession *> *openSessions;
 @property (nonatomic, readonly) BOOL supportsMultipleScenes;
 /* isim: under `isim boot` with ISIM_AUTOLOCK=SECONDS the device locks after that long without input, unless the

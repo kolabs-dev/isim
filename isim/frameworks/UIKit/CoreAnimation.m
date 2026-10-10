@@ -82,26 +82,58 @@ CGPoint ca_project(CATransform3D t, double x, double y, double *w) {
 CFTimeInterval CACurrentMediaTime(void) { return isim_time(); }
 
 /* ================= NSValue: transforms and vectors ================= */
-@interface __IsimGeometryValue : NSValue { @public int _k; CATransform3D _t; CGAffineTransform _a; CGVector _v; }
+/* kinds: 0 CATransform3D, 1 CGAffineTransform, 2 CGVector, 3 UIEdgeInsets, 4 NSDirectionalEdgeInsets, 5 UIOffset */
+@interface __IsimGeometryValue : NSValue { @public int _k; CATransform3D _t; CGAffineTransform _a; CGVector _v; UIEdgeInsets _i; NSDirectionalEdgeInsets _d; UIOffset _o; }
 @end
 @implementation __IsimGeometryValue
 - (const char *)objCType {
-    return _k == 0 ? "{CATransform3D=dddddddddddddddd}" : _k == 1 ? "{CGAffineTransform=dddddd}" : "{CGVector=dd}";
+    switch (_k) {
+    case 0: return @encode(CATransform3D);
+    case 1: return @encode(CGAffineTransform);
+    case 2: return @encode(CGVector);
+    case 3: return @encode(UIEdgeInsets);
+    case 4: return @encode(NSDirectionalEdgeInsets);
+    default: return @encode(UIOffset);
+    }
 }
+- (void)getValue:(void *)value {
+    switch (_k) {
+    case 0: memcpy(value, &_t, sizeof _t); break;
+    case 1: memcpy(value, &_a, sizeof _a); break;
+    case 2: memcpy(value, &_v, sizeof _v); break;
+    case 3: memcpy(value, &_i, sizeof _i); break;
+    case 4: memcpy(value, &_d, sizeof _d); break;
+    default: memcpy(value, &_o, sizeof _o);
+    }
+}
+- (UIEdgeInsets)UIEdgeInsetsValue { return _k == 3 ? _i : UIEdgeInsetsZero; }
+- (NSDirectionalEdgeInsets)directionalEdgeInsetsValue { return _k == 4 ? _d : NSDirectionalEdgeInsetsZero; }
+- (UIOffset)UIOffsetValue { return _k == 5 ? _o : UIOffsetZero; }
 - (CATransform3D)CATransform3DValue { return _k == 0 ? _t : _k == 1 ? CATransform3DMakeAffineTransform(_a) : CATransform3DIdentity; }
 - (CGAffineTransform)CGAffineTransformValue { return _k == 1 ? _a : _k == 0 ? CATransform3DGetAffineTransform(_t) : CGAffineTransformIdentity; }
 - (CGVector)CGVectorValue { return _k == 2 ? _v : (CGVector){ 0, 0 }; }
 - (BOOL)isEqualToValue:(NSValue *)o {
     if (![o isKindOfClass:[__IsimGeometryValue class]]) return NO;
     __IsimGeometryValue *g = (__IsimGeometryValue *)o;
-    return g->_k == _k && (_k == 0 ? CATransform3DEqualToTransform(_t, g->_t) : _k == 1 ? CGAffineTransformEqualToTransform(_a, g->_a) : (_v.dx == g->_v.dx && _v.dy == g->_v.dy));
+    if (g->_k != _k) return NO;
+    switch (_k) {
+    case 0: return CATransform3DEqualToTransform(_t, g->_t);
+    case 1: return CGAffineTransformEqualToTransform(_a, g->_a);
+    case 2: return _v.dx == g->_v.dx && _v.dy == g->_v.dy;
+    case 3: return UIEdgeInsetsEqualToEdgeInsets(_i, g->_i);
+    case 4: return NSDirectionalEdgeInsetsEqualToDirectionalEdgeInsets(_d, g->_d);
+    default: return UIOffsetEqualToOffset(_o, g->_o);
+    }
 }
 - (BOOL)isEqual:(id)o { return [o isKindOfClass:[NSValue class]] && [self isEqualToValue:o]; }
-- (NSUInteger)hash { return (NSUInteger)(_t.m11 * 31 + _t.m41 * 7 + _a.a * 3 + _a.tx + _v.dx * 13) ^ (NSUInteger)_k; }
+- (NSUInteger)hash { return (NSUInteger)(_t.m11 * 31 + _t.m41 * 7 + _a.a * 3 + _a.tx + _v.dx * 13 + _i.top * 17 + _i.left + _d.top * 19 + _d.leading + _o.horizontal * 23 + _o.vertical) ^ (NSUInteger)_k; }
 - (id)copyWithZone:(NSZone *)z { return self; }
 - (NSString *)description {
     if (_k == 1) return [NSString stringWithFormat:@"CGAffineTransform: {{%g, %g, %g, %g}, {%g, %g}}", _a.a, _a.b, _a.c, _a.d, _a.tx, _a.ty];
     if (_k == 2) return [NSString stringWithFormat:@"CGVector: {%g, %g}", _v.dx, _v.dy];
+    if (_k == 3) return [NSString stringWithFormat:@"UIEdgeInsets: %@", NSStringFromUIEdgeInsets(_i)];
+    if (_k == 4) return [NSString stringWithFormat:@"NSDirectionalEdgeInsets: %@", NSStringFromDirectionalEdgeInsets(_d)];
+    if (_k == 5) return [NSString stringWithFormat:@"UIOffset: %@", NSStringFromUIOffset(_o)];
     return [NSString stringWithFormat:@"CATransform3D: {%g %g %g %g; %g %g %g %g; %g %g %g %g; %g %g %g %g}", _t.m11, _t.m12, _t.m13, _t.m14,
             _t.m21, _t.m22, _t.m23, _t.m24, _t.m31, _t.m32, _t.m33, _t.m34, _t.m41, _t.m42, _t.m43, _t.m44];
 }
@@ -115,6 +147,12 @@ CFTimeInterval CACurrentMediaTime(void) { return isim_time(); }
 + (NSValue *)valueWithCGVector:(CGVector)d { __IsimGeometryValue *v = [__IsimGeometryValue new]; v->_k = 2; v->_v = d; return v; }
 - (CGAffineTransform)CGAffineTransformValue { return CGAffineTransformIdentity; }
 - (CGVector)CGVectorValue { return (CGVector){ 0, 0 }; }
++ (NSValue *)valueWithUIEdgeInsets:(UIEdgeInsets)i { __IsimGeometryValue *v = [__IsimGeometryValue new]; v->_k = 3; v->_i = i; return v; }
++ (NSValue *)valueWithDirectionalEdgeInsets:(NSDirectionalEdgeInsets)d { __IsimGeometryValue *v = [__IsimGeometryValue new]; v->_k = 4; v->_d = d; return v; }
++ (NSValue *)valueWithUIOffset:(UIOffset)o { __IsimGeometryValue *v = [__IsimGeometryValue new]; v->_k = 5; v->_o = o; return v; }
+- (UIEdgeInsets)UIEdgeInsetsValue { return UIEdgeInsetsZero; }
+- (NSDirectionalEdgeInsets)directionalEdgeInsetsValue { return NSDirectionalEdgeInsetsZero; }
+- (UIOffset)UIOffsetValue { return UIOffsetZero; }
 @end
 @implementation NSNull (CAActionAdditions)
 - (void)runActionForKey:(NSString *)event object:(id)o arguments:(NSDictionary *)d {}
