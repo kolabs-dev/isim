@@ -4,4 +4,7 @@
 #include <CoreText/CTFontDescriptor.h>
 #include <CoreText/CTFont.h>
 #include <CoreText/CTFontManager.h>
+#include <CoreText/CTTextTab.h>
+#include <CoreText/CTParagraphStyle.h>
+#include <CoreText/CTRun.h>
 #include <CoreText/CTLine.h>

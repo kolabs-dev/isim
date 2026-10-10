@@ -146,6 +146,7 @@ CG_EXTERN void CGContextShowText(CGContextRef _Nullable c, const char *_Nullable
 /* isim-private: the context's fill color as sRGB RGBA (alpha included); Core Text line drawing with the text state */
 CG_EXTERN void isim_cg_context_fill_rgba(CGContextRef _Nullable c, double *_Nonnull rgba);
 CG_EXTERN void isim_cg_context_draw_text_line(CGContextRef _Nullable c, void *_Nonnull layout, int line, double dx, double dy, const double *_Nullable defaultRGBA, double advance);
+CG_EXTERN void isim_cg_context_draw_glyphs(CGContextRef _Nullable c, void *_Nullable font, const CGGlyph *_Nonnull glyphs, const double *_Nonnull positions, int count);
 /* isim-private: UIGraphicsPushContext/PopContext make a bitmap/PDF context UIKit's current drawing target */
 CG_EXTERN void isim_cg_push_current(CGContextRef _Nullable c);
 CG_EXTERN void isim_cg_pop_current(void);
