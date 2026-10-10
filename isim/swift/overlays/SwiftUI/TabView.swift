@@ -110,8 +110,43 @@ public struct TabView<SelectionValue: Hashable, Content: View>: View, _Primitive
         g.usedKeys.insert(hostKey)
         let host = (g.storage[hostKey] as? _TabSearchHost) ?? { let h = _TabSearchHost(); g.storage[hostKey] = h; return h }()
         host.config = nil
-        let children = _flatten([_resolve(content, ctx.child("tabs").with { $0._tabStyle = .bar; $0._tabSearchHost = _tabBarMode() == 1 ? host : nil })])
+        var children = _flatten([_resolve(content, ctx.child("tabs").with { $0._tabStyle = .bar; $0._tabSearchHost = _tabBarMode() == 1 ? host : nil })])
         g.safeArea = saved
+        var items = children.map { c -> _TabItemInfo in
+            var x: _Node? = c, item: _Node?, badge: String?, role = 0, section: String?, cid: String?, sid: String?, beh = 0
+            var dbar = false, dside = false
+            while let n = x {
+                if item == nil { item = n.tabItem }; if badge == nil { badge = n.badge }; if role == 0 { role = n.tabRole }; if section == nil { section = n.tabSection }
+                if cid == nil { cid = n.tabCustomID }; if sid == nil { sid = n.tabSectionID }; if beh == 0 { beh = n.tabBehavior }
+                dbar = dbar || n.tabDefaultHidden.bar; dside = dside || n.tabDefaultHidden.sidebar
+                x = n.children.count == 1 ? n.children[0] : nil
+            }
+            var info = _TabItemInfo(title: item.map { _collectText($0).joined(separator: " ") } ?? "", image: item.flatMap { _firstImage($0) }, badge: badge, role: role)
+            info.section = section; info.customID = cid; info.sectionID = sid; info.behavior = beh
+            info.hiddenBar = dbar; info.hiddenSidebar = dside
+            return info
+        }
+        // tabViewCustomization: the order of each section's tabs, and the tabs a person hid
+        let custom = ctx.environment._tabCustomization
+        if #available(iOS 18.0, *), let c = (custom as? Binding<TabViewCustomization>)?.wrappedValue {
+            var order = Array(children.indices), i = 0
+            while i < items.count {
+                var j = i
+                while j < items.count && items[j].section == items[i].section { j += 1 }
+                if let sid = items[i].sectionID, let to = c[sectionID: sid] {
+                    let rank = { (k: Int) in items[k].customID.flatMap { to.firstIndex(of: $0) } ?? Int.max }
+                    order.replaceSubrange(i..<j, with: (i..<j).sorted { rank($0) != rank($1) ? rank($0) < rank($1) : $0 < $1 })
+                }
+                i = j
+            }
+            children = order.map { children[$0] }; items = order.map { items[$0] }
+            for k in items.indices {
+                guard let id = items[k].customID else { continue }
+                let t = c[tab: id]
+                if t.sidebarVisibility != .automatic { items[k].hiddenSidebar = t.sidebarVisibility == .hidden }
+                if t.tabBarVisibility != .automatic { items[k].hiddenBar = t.tabBarVisibility == .hidden }
+            }
+        }
         let tags = children.enumerated().map { i, c in _tagged(c) ?? AnyHashable(i) }
         let key = ctx.path + "#tab"
         g.usedKeys.insert(key)
@@ -124,21 +159,20 @@ public struct TabView<SelectionValue: Hashable, Content: View>: View, _Primitive
             if let sel { if let v = tags[i].base as? SelectionValue { sel.wrappedValue = v } }
             else { stored.value = tags[i]; g?.invalidate() }
         }
-        let items = children.map { c -> _TabItemInfo in
-            var x: _Node? = c, item: _Node?, badge: String?, role = 0, section: String?
-            while let n = x {
-                if item == nil { item = n.tabItem }; if badge == nil { badge = n.badge }; if role == 0 { role = n.tabRole }; if section == nil { section = n.tabSection }
-                x = n.children.count == 1 ? n.children[0] : nil
-            }
-            var info = _TabItemInfo(title: item.map { _collectText($0).joined(separator: " ") } ?? "", image: item.flatMap { _firstImage($0) }, badge: badge, role: role)
-            info.section = section
-            return info
-        }
         let node = _TabViewNode(path: ctx.path, tabs: children, items: items, selected: index, select: select, style: style,
                                 tint: (ctx.environment._tint ?? .accentColor).uiColor)
         // the tab to go back to from the search tab (the last other tab selected)
         if index < items.count, items[index].role != 1 { host.lastRegular = index }
         node.searchHost = host
+        if #available(iOS 18.0, *), let b = custom as? Binding<TabViewCustomization> {
+            node.setHidden = { id, hidden in
+                var c = b.wrappedValue
+                c[tab: id].sidebarVisibility = hidden ? .hidden : .visible
+                c[tab: id].tabBarVisibility = hidden ? .hidden : .visible
+                b.wrappedValue = c
+            }
+            node.setOrder = { sid, order in var c = b.wrappedValue; c[sectionID: sid] = order; b.wrappedValue = c }
+        }
         node.safeTop = saved.top; node.safeBottom = saved.bottom
         if index < children.count { node.barHidden = _tabBarHidden(children[index]) }   // .toolbar(.hidden, for: .tabBar)
         _tabExtras(node, ctx)                      // bottom accessory, minimizing, sidebar (TabView+More.swift)
@@ -149,7 +183,12 @@ extension TabView where SelectionValue == Int {
     public init(@ViewBuilder content: () -> Content) { selection = nil; self.content = content() }
 }
 
-struct _TabItemInfo { let title: String, image: UIImage?, badge: String?; var role = 0; var section: String? = nil }
+struct _TabItemInfo {
+    let title: String, image: UIImage?, badge: String?; var role = 0; var section: String? = nil
+    /// tab customization: identifiers, behavior (0 automatic, 1 disabled, 2 reorderable), hidden where
+    var customID: String? = nil, sectionID: String? = nil, behavior = 0
+    var hiddenBar = false, hiddenSidebar = false
+}
 /// 0 bottom material bar, 1 floating glass capsule (iPhone, iOS 26+), 2 top capsule (iPad, iOS 18), 3 top glass (iPad, iOS 26+)
 @MainActor func _tabBarMode() -> Int {
     let os = _isimOSMajor()
@@ -169,6 +208,10 @@ final class _TabViewNode: _Node {
     var toggleSidebar: (() -> Void)?
     var sidebarWidth: CGFloat { sidebarAdaptable && sidebarShown && _tabBarMode() >= 2 ? 280 : 0 }
     var searchHost: _TabSearchHost?
+    /// the iPad sidebar's Edit mode changes the tab view customization (nil without tabViewCustomization):
+    /// hide or show a tab (by customization ID), set a section's tab order
+    var setHidden: ((String, Bool) -> Void)?
+    var setOrder: ((String, [String]) -> Void)?
     init(path: String, tabs: [_Node], items: [_TabItemInfo], selected: Int, select: @escaping (Int) -> Void, style: _TabStyle, tint: UIColor) {
         self.tabs = tabs; self.items = items; self.selected = selected; self.select = select; self.style = style; self.tint = tint
         super.init(path: path, children: tabs)
@@ -234,7 +277,10 @@ final class _TabViewNode: _Node {
             let sm = setMinimized; bar.expand = { sm?(false) }
             // iOS 26 search tab selected: the other tabs collapse into a circle, the search field fills the bar
             bar.search = selected < items.count && items[selected].role == 1 && _tabBarMode() == 1 ? searchHost : nil
-            bar.update(items: items, selected: selected, tint: tint, select: select)
+            // tabs a person hid stay out of the tab bar (unless selected)
+            let shown = items.indices.filter { !items[$0].hiddenBar || $0 == selected }
+            let sel = select
+            bar.update(items: shown.map { items[$0] }, selected: shown.firstIndex(of: selected) ?? 0, tint: tint, select: { sel(shown[$0]) })
             bar.isHidden = barHidden || sidebarWidth > 0
             _mountTabExtras(self, g, view, bar)
         }

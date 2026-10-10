@@ -10,6 +10,10 @@ import re
 from isimtest import count_px, rgb, screen_frames, visible
 
 
+def screen_frame(dump, ident):
+    return screen_frames(dump)[ident]
+
+
 def test_ios18_tab_sections(launch):
     app = launch("HelloTabs")
     tree = app.wait_view(r"id=tab-Glass\b")
@@ -87,6 +91,27 @@ def test_ipad_sidebar(launch):
         "iPad sidebarAdaptable: the sidebar lists the sections and tabs"
     app.wait_tap_id("sidebar-Glass")
     app.wait_log(r"^tab 2")                                          # choosing a tab in the sidebar
+    # tabViewCustomization: Edit hides a tab (check circle) and moves one within its section (handle)
+    app.tap_id("sidebar-Home")
+    app.wait_log(r"^tab 0")
+    app.tap_id("sidebar-edit")
+    app.wait_tap_id("sidebar-check-Glass")
+    app.wait_log(r"^customization main - glass hidden$")
+    app.wait_view(r"id=sidebar-check-Glass")                          # still listed (unchecked) while editing
+    t = app.view_dump()
+    x, y, w, h = screen_frame(t, "sidebar-handle-Bars")
+    app.drag(x + w / 2, y + h / 2, x + w / 2, y + h / 2 - 46, 0.4)   # Bars above Home
+    app.wait_log(r"^isim: tab order main: bars,home$")
+    app.wait_log(r"^customization main bars,home glass hidden$")
+    app.tap_id("sidebar-edit")                                       # Done
+    t = app.wait_view(lambda d: "id=sidebar-edit" in d and "id=sidebar-check-" not in d, what="done editing")
+    assert "id=sidebar-Glass" not in t, "a hidden tab leaves the sidebar"
+    f = screen_frames(t)
+    assert f["sidebar-Bars"][1] < f["sidebar-Home"][1], "the new order in the sidebar"
+    app.tap_id("isim-tab-sidebar-toggle")                            # the tab bar: the same order, without Glass
+    t = app.wait_view(lambda d: "id=tab-Bars" in d and "hidden id=isim-tabbar" not in d, what="tab bar back")
+    f = screen_frames(t)
+    assert "id=tab-Glass" not in t and f["tab-Bars"][0] < f["tab-Home"][0], "the tab bar follows the customization"
     assert app.quit() == 0
 
 

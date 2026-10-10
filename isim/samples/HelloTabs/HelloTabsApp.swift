@@ -1,7 +1,8 @@
 // Sample: TabView and bar features across iOS versions on isim — TabSection and the iPad sidebar (iOS 18), the bottom
 // accessory, tab bar minimizing, scroll edge effects, background extension and merging glass (iOS 26), toolbar overflow
 // by visibility priority, pinned trailing items, ToolbarOverflowMenu, ToolbarSpacer and bottom bar minimizing (iOS 27);
-// the search tab's .searchable field in the iOS 26 tab bar; PROMINENT=1: a TabRole.prominent tab instead (iOS 27).
+// the search tab's .searchable field in the iOS 26 tab bar; PROMINENT=1: a TabRole.prominent tab instead (iOS 27);
+// tabViewCustomization kept in @AppStorage (the iPad sidebar's Edit mode hides and moves tabs).
 import SwiftUI
 
 @main
@@ -16,15 +17,18 @@ struct HelloTabsApp: App {
 @available(iOS 18.0, *)
 struct TabsRoot: View {
     @State private var tab = 0
+    @AppStorage("tab-customization") private var customization: TabViewCustomization
     var body: some View {
         TabView(selection: $tab) {
             TabSection("Main") {
-                Tab("Home", systemImage: "house", value: 0) { HomeTab() }
-                Tab("Bars", systemImage: "hammer", value: 1) { BarsTab() }
+                Tab("Home", systemImage: "house", value: 0) { HomeTab() }.customizationID("home")
+                Tab("Bars", systemImage: "hammer", value: 1) { BarsTab() }.customizationID("bars")
             }
+            .customizationID("main")
             TabSection("More") {
-                Tab("Glass", systemImage: "circle", value: 2) { GlassTab() }
+                Tab("Glass", systemImage: "circle", value: 2) { GlassTab() }.customizationID("glass")
             }
+            .customizationID("more")
             if ProcessInfo.processInfo.environment["PROMINENT"] == "1", #available(iOS 27.0, *) {
                 Tab("New", systemImage: "plus", value: 3, role: .prominent) { Text("New item").accessibilityIdentifier("new-tab") }
             } else {
@@ -32,7 +36,11 @@ struct TabsRoot: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        .tabViewCustomization($customization)
         .modifier(TabExtras())
+        .onChange(of: customization) { _, c in
+            print("customization main \(c[sectionID: "main"]?.joined(separator: ",") ?? "-") glass \(c[tab: "glass"].tabBarVisibility == .hidden ? "hidden" : "shown")")
+        }
         .onChange(of: tab) { _, t in print("tab \(t)") }
     }
 }

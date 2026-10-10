@@ -414,6 +414,11 @@ extension UIView {
     var tabRole = 0
     /// TabSection title (TabView sidebar), toolbar item priority (visibilityPriority) and spacer width (ToolbarSpacer)
     var tabSection: String?
+    /// tab customization (TabView+More.swift): the tab's and its section's customizationID, default visibilities
+    /// (tab bar, sidebar), customization behavior (0 automatic, 1 disabled, 2 reorderable)
+    var tabCustomID: String?, tabSectionID: String?
+    var tabDefaultHidden = (bar: false, sidebar: false)
+    var tabBehavior = 0
     var toolbarPriority = 0
     var toolbarSpacer: CGFloat?
     /// action when this node is a whole list row (Button, NavigationLink, Link)
