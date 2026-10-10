@@ -42,7 +42,9 @@ def test_coretext(launch):
     r = nums(line("glyph H rect"))
     assert r[0:4] == r[4:8] and abs(r[3] - 1493 / 2048 * 20) < 0.02, "H: bounding rect = its outline's bounds, as tall as the glyph"
     d = nums(line("glyph outline vs drawn"))
-    assert d[1] > 500 and d[0] < 0.02 * d[1], "CTFontCreatePathForGlyph filled = CTFontDrawGlyphs"
+    # cairo fills the outline, FreeType rasterizes the glyph with the host's hinting: edge pixels may differ (7% on CI);
+    # a wrong size or offset differs on most of the ink
+    assert d[1] > 500 and d[0] < 0.15 * d[1], "CTFontCreatePathForGlyph filled = CTFontDrawGlyphs"
     assert has("space path empty true"), "a space has an empty outline"
     assert has("bold style Bold file DejaVuSans-Bold.ttf traits bold true"), "bold copy: the face's style and file"
     assert has("names family DejaVu Sans style Book full DejaVu Sans Bold"), "CTFontCopyName"
