@@ -65,6 +65,8 @@ extension StringProtocol {
     public func localizedStandardContains<T: StringProtocol>(_ other: T) -> Bool { range(of: other, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
     public func localizedStandardRange<T: StringProtocol>(of other: T) -> Range<String.Index>? { range(of: other, options: [.caseInsensitive, .diacriticInsensitive]) }
     public func caseInsensitiveCompare<T: StringProtocol>(_ other: T) -> ComparisonResult { (String(self) as NSString).compare(String(other), options: .caseInsensitive) }
+    public func localizedCompare<T: StringProtocol>(_ other: T) -> ComparisonResult { (String(self) as NSString).localizedCompare(String(other)) }
+    public func localizedStandardCompare<T: StringProtocol>(_ other: T) -> ComparisonResult { (String(self) as NSString).localizedStandardCompare(String(other)) }
     public func compare<T: StringProtocol>(_ other: T, options: String.CompareOptions = [], range: Range<String.Index>? = nil, locale: Locale? = nil) -> ComparisonResult {
         (String(self) as NSString).compare(String(other), options: options)
     }

@@ -4,6 +4,7 @@
 @_exported import Foundation
 @_exported import Dispatch
 @_exported import Combine
+@_exported @_spi(ISIMFoundation) import FoundationEssentials   // #Predicate and Expression (the macros expand to FoundationEssentials.Predicate)
 
 // TimeInterval is the imported NSTimeInterval typedef (Double), like Apple's Foundation
 
