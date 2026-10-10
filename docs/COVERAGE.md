@@ -720,7 +720,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `onReceive` | ✅ | ≤17 | |
 | `onSubmit` | ✅ | ≤17 | |
 | `onKeyPress`, `keyboardShortcut` | ✅ | ≤17 | shortcuts on buttons become UIKeyCommands (incl. `defaultAction`/`cancelAction`); `onKeyPress` key/characters/phases forms: the handlers on the focused view and its ancestors get the presses, innermost first (none while nothing has focus); Tab / Shift-Tab not taken by a handler move focus. Tested (HelloKeys) |
-| `onGeometryChange`, `onContinuousHover`, `onHover` | 🟡 | ≤17 | `onGeometryChange` (size; `frame(in: .global)` is approximate) tested (HelloLayout); hover modifiers missing |
+| `onGeometryChange`, `onContinuousHover`, `onHover` | ✅ | ≤17 | `onGeometryChange` (size, frames in any coordinate space; tested, HelloLayout); `onHover` / `onContinuousHover` (location in a coordinate space, `.ended`) on UIKit's hover recognizer: the iPad pointer or the host mouse without a button (script `hover X Y`); `hoverEffect(.automatic / .highlight / .lift)` and `hoverEffectDisabled` as iPad pointer effects. Tested (HelloSwiftUIControls) |
 
 ### Focus & keyboard
 

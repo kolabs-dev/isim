@@ -6,7 +6,8 @@
 // Opens controlsplus:// URLs (onOpenURL prints them; HelloScenes links here).
 // PAGE=env: \.isSearching in a searchable list, \.presentationMode / \.isPresented in a sheet.
 // PAGE=ax: accessibilitySortPriority and named accessibility actions (drive it with isim's VoiceOver).
-// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich|env|ax.
+// PAGE=hover: onHover, onContinuousHover, hoverEffect (drive the pointer with the script's `hover X Y`).
+// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich|env|ax|hover.
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -28,6 +29,7 @@ struct Root: View {
         case "rename": RenamePage()
         case "env": EnvPage()
         case "ax": AxPage()
+        case "hover": HoverPage()
         case "ticks": if #available(iOS 26.0, *) { TicksPage() } else { Text("iOS 26") }
         case "rich": if #available(iOS 26.0, *) { RichPage() } else { Text("iOS 26") }
         default: SymbolsPage()
@@ -301,6 +303,31 @@ struct AxPage: View {
             Text("Mail")
                 .accessibilityAction(named: "Archive") { print("archived") }
                 .accessibilityAction(named: Text("Flag")) { print("flagged") }
+        }
+    }
+}
+
+struct HoverPage: View {
+    @State var inside = false
+    @State var location = "none"
+    var body: some View {
+        VStack(spacing: 30) {
+            Text(inside ? "hovering" : "not hovering").frame(width: 200, height: 80)
+                .background(inside ? Color.blue.opacity(0.3) : Color.gray.opacity(0.2))
+                .onHover { inside = $0; print("hover \($0)") }
+                .accessibilityIdentifier("hover-box")
+            Text("at \(location)").frame(width: 200, height: 80).background(Color.orange.opacity(0.2))
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let p): location = "\(Int(p.x)),\(Int(p.y))"
+                    case .ended: location = "none"; print("continuous ended")
+                    }
+                }
+                .accessibilityIdentifier("track-box")
+            HStack(spacing: 40) {
+                Button("Highlight") {}.hoverEffect(.highlight).accessibilityIdentifier("highlight-button")
+                Button("Lift") {}.hoverEffect(.lift).accessibilityIdentifier("lift-button")
+            }
         }
     }
 }

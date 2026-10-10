@@ -433,9 +433,11 @@ extension UIView {
 
 /// A plain container that does not intercept touches outside its children.
 final class _PassthroughView: UIView {
+    var hovers: Bool { gestureRecognizers?.contains { $0 is UIHoverGestureRecognizer } ?? false }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
-        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self && interactions.isEmpty ? nil : v }   // (drag/drop interactions make it a target)
+        // (drag/drop interactions and hover recognizers make it a target)
+        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self && interactions.isEmpty && !hovers ? nil : v }
         // like SwiftUI, content outside a container's frame (offset, overflowing) still takes touches
         for s in subviews.reversed() { if let h = s.hitTest(s.convert(point, from: self), with: event) { return h } }
         return nil

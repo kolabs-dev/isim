@@ -290,3 +290,36 @@ def test_accessibility_order_and_actions(launch):
     app.wait_log(r"^flagged$")                                               # accessibilityAction(named: Text)
     app.send("voiceover off")
     assert app.quit() == 0, "exits cleanly"
+
+
+def test_hover(launch):
+    """onHover and onContinuousHover follow the pointer (script `hover X Y`); hover ends when it leaves."""
+    app = launch("HelloSwiftUIControls", env={"PAGE": "hover"})
+    dump = app.wait_view(r"id=track-box")
+    hx, hy, hw, hh = window_rect(dump, "hover-box")
+    tx, ty, tw, th = window_rect(dump, "track-box")
+    app.send(f"hover {hx + 20} {hy + 20}")
+    app.wait_log(r"^hover true$")
+    app.wait_view(r"text=hovering")
+    app.send(f"hover {tx + 30} {ty + 10}")
+    app.wait_log(r"^hover false$")                                        # left the first box
+    app.wait_view(r"text=at 30,10")                                       # location in the view's own space
+    app.send(f"hover {tx + 50} {ty + 40}")
+    app.wait_view(r"text=at 50,40")
+    app.send("hover")                                                     # the pointer goes away
+    app.wait_log(r"^continuous ended$")
+    assert app.quit() == 0, "exits cleanly"
+
+
+def test_hover_effect_ipad(launch):
+    """hoverEffect on the iPad pointer: .highlight draws the highlight platter under the pointer."""
+    app = launch("HelloSwiftUIControls", env={"PAGE": "hover"}, device="ipad")
+    dump = app.wait_view(r"id=highlight-button")
+    x, y, w, h = window_rect(dump, "highlight-button")
+    app.send("hover 50 50")
+    app.send(f"hover {x + w / 2} {y + h / 2}")
+    app.wait_log(r"pointer entered")
+    app.wait_view(r"id=isim-pointer-effect\b")                           # the highlight platter
+    app.send("hover 50 50")
+    app.wait_view(r"id=isim-pointer-effect\b", gone=True)
+    assert app.quit() == 0, "exits cleanly"
