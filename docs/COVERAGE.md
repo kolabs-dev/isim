@@ -39,9 +39,9 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
-| **SwiftUI** | 220 | 16 | 1 | 2 | 239 | 95% |
+| **SwiftUI** | 223 | 13 | 1 | 2 | 239 | 96% |
 | &nbsp;&nbsp;↳ App & scenes | 11 | 0 | 0 | 0 | 11 | 100% |
-| &nbsp;&nbsp;↳ State & data flow | 16 | 1 | 0 | 0 | 17 | 97% |
+| &nbsp;&nbsp;↳ State & data flow | 17 | 0 | 0 | 0 | 17 | 100% |
 | &nbsp;&nbsp;↳ Views & controls | 37 | 2 | 0 | 0 | 39 | 97% |
 | &nbsp;&nbsp;↳ Containers & layout | 28 | 0 | 0 | 0 | 28 | 100% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 33 | 3 | 0 | 1 | 37 | 93% |
@@ -49,8 +49,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 23 | 0 | 0 | 1 | 24 | 96% |
 | &nbsp;&nbsp;↳ Animation | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Gestures | 8 | 0 | 0 | 0 | 8 | 100% |
-| &nbsp;&nbsp;↳ Lifecycle, async & events | 6 | 2 | 0 | 0 | 8 | 88% |
-| &nbsp;&nbsp;↳ Focus & keyboard | 2 | 1 | 1 | 0 | 4 | 62% |
+| &nbsp;&nbsp;↳ Lifecycle, async & events | 7 | 1 | 0 | 0 | 8 | 94% |
+| &nbsp;&nbsp;↳ Focus & keyboard | 3 | 0 | 1 | 0 | 4 | 75% |
 | &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **840** | **139** | **21** | **26** | **1026** | **89%** |
+| **All areas** | **843** | **136** | **21** | **26** | **1026** | **89%** |
 
 ### Per iOS version
 
@@ -96,7 +96,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
-| SwiftUI | 97% (216) | 96% (222) | 96% (229) | 95% (239) |
+| SwiftUI | 97% (216) | 97% (222) | 97% (229) | 96% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (85) | 100% (85) | 100% (86) | 100% (86) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
@@ -473,7 +473,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@Namespace` | ✅ | ≤17 | |
 | `@GestureState` | ✅ | ≤17 | set through `.updating`, reset when the gesture ends or is cancelled; tested (HelloSwiftUIGestures) |
 | `@ScaledMetric` | ✅ | ≤17 | scales with `dynamicTypeSize`, which follows Settings > Accessibility > Larger Text; tested (HelloLayout, HelloAccessibility) |
-| `@FocusedValue`, `@FocusedBinding` | 🟡 | ≤17 | with `.focusedValue`/`.focusedSceneValue`; values are scene-wide (no per-focus chain, adapted); tested (HelloKeys) |
+| `@FocusedValue`, `@FocusedBinding` | ✅ | ≤17 | a `.focusedValue` is seen while its view or one inside it has focus (the innermost value of a key wins), a `.focusedSceneValue` while its scene is shown; readers update when focus moves. Tested (HelloKeys) |
 | `PreferenceKey`, `.preference`, `.onPreferenceChange`, anchor preferences | ✅ | ≤17 | values reduce up the laid-out tree (incl. GeometryReader backgrounds), `transformPreference`, `anchorPreference` / `transformAnchorPreference` with `overlayPreferenceValue` / `backgroundPreferenceValue` and `proxy[anchor]`; tested (HelloLayout) |
 | `Transaction`, `withTransaction` | ✅ | ≤17 | the animation / `disablesAnimations` / `isContinuous` / `tracksVelocity` / `scrollTargetAnchor`, custom `TransactionKey` values (and `@Entry`), `withTransaction(_:_:)` and the key path form, `.transaction { }` (its changes apply to the views inside), `.transaction(value:_:)`, `.transaction(_:body:)`, `addAnimationCompletion`; `UIViewRepresentableContext.transaction`. Tested (HelloContainers) |
 
@@ -719,7 +719,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `Scene.onChange(of:initial:)` (e.g. `scenePhase`) | ✅ | ≤17 | adapted: wraps the scene's root view in `onChange`; tested (HelloSourceCompat) |
 | `onReceive` | ✅ | ≤17 | |
 | `onSubmit` | ✅ | ≤17 | |
-| `onKeyPress`, `keyboardShortcut` | 🟡 | ≤17 | shortcuts on buttons become UIKeyCommands (incl. `defaultAction`/`cancelAction`); `onKeyPress` key/characters/phases forms; tested (HelloKeys). No focus routing: every onKeyPress on screen sees presses, innermost first (adapted) |
+| `onKeyPress`, `keyboardShortcut` | ✅ | ≤17 | shortcuts on buttons become UIKeyCommands (incl. `defaultAction`/`cancelAction`); `onKeyPress` key/characters/phases forms: the handlers on the focused view and its ancestors get the presses, innermost first (none while nothing has focus); Tab / Shift-Tab not taken by a handler move focus. Tested (HelloKeys) |
 | `onGeometryChange`, `onContinuousHover`, `onHover` | 🟡 | ≤17 | `onGeometryChange` (size; `frame(in: .global)` is approximate) tested (HelloLayout); hover modifiers missing |
 
 ### Focus & keyboard
@@ -727,7 +727,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `focused(_:)`, `focused(_:equals:)` | ✅ | ≤17 | |
-| `focusable`, `defaultFocus`, `focusSection` | 🟡 | ≤17 | `defaultFocus` sets the focus binding on appear (tested, HelloKeys); `focusable`/`focusSection` accepted, no effect (no focus engine for non-text views) |
+| `focusable`, `defaultFocus`, `focusSection` | ✅ | ≤17 | `.focusable()` views take focus (a tap, Tab, or their `.focused` binding) as the first responder and show a focus ring in the tint colour (`.focusEffectDisabled()` hides it); Tab / Shift-Tab move between focusable views and text fields in reading order, a `.focusSection()`'s items staying together; `defaultFocus` sets the focus binding on appear. Tested (HelloKeys) |
 | `scrollDismissesKeyboard` | 🧩 | ≤17 | ignored |
 | Form scrolls the focused field above the keyboard | ✅ | ≤17 | |
 

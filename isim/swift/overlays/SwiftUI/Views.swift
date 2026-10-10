@@ -740,9 +740,10 @@ final class _SUITextField: UITextField {
         if t == "\n", let n = node, n.axis != .vertical, let g = n.graph, let submit = g.submitAction(for: n.path) { submit(); return }
         super.insertText(t)
     }
-    @objc func began() { if let f = node?.focus, !f.get() { f.set(true) } }
+    @objc func began() { if let f = node?.focus, !f.get() { f.set(true) }; _FocusEngine.changed() }
     @objc func ended() {
         if let c = node?.commit, !c.commit(text ?? "") { text = c.display() }     // unparseable: back to the value
         if let f = node?.focus, f.get() { f.set(false) }
+        _FocusEngine.changed()
     }
 }

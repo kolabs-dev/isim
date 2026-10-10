@@ -1,6 +1,6 @@
 // Hardware keyboard in SwiftUI: .keyboardShortcut on buttons (exposed as UIKeyCommands by the hosting
-// controller) and .onKeyPress (hosting controller presses). isim has no SwiftUI focus system for keys:
-// onKeyPress handlers anywhere in the hierarchy receive presses, the innermost (most recently resolved) first.
+// controller) and .onKeyPress (hosting controller presses): the handlers on the focused view and its ancestors get them,
+// innermost first (FocusEngine.swift); Tab moves focus.
 import UIKit
 
 public struct KeyEquivalent: Hashable, Sendable, ExpressibleByExtendedGraphemeClusterLiteral {
@@ -82,6 +82,7 @@ final class _ShortcutBox: _AnyStorage {
 }
 final class _KeyPressBox: _AnyStorage {
     var keys: Set<KeyEquivalent>?; var characters: CharacterSet?; var phases: KeyPress.Phases; var order: Int
+    var path = ""
     var action: (KeyPress) -> KeyPress.Result
     init(keys: Set<KeyEquivalent>?, characters: CharacterSet?, phases: KeyPress.Phases, order: Int, action: @escaping (KeyPress) -> KeyPress.Result) {
         self.keys = keys; self.characters = characters; self.phases = phases; self.order = order; self.action = action
@@ -113,8 +114,9 @@ extension View {
             let key = ctx.path + "#keypress"
             ctx.graph.usedKeys.insert(key)
             _keyPressOrder += 1
-            if let b = ctx.graph.storage[key] as? _KeyPressBox { b.keys = keys; b.characters = characters; b.phases = phases; b.action = action; b.order = _keyPressOrder }
-            else { ctx.graph.storage[key] = _KeyPressBox(keys: keys, characters: characters, phases: phases, order: _keyPressOrder, action: action) }
+            let b = ctx.graph.storage[key] as? _KeyPressBox ?? _KeyPressBox(keys: keys, characters: characters, phases: phases, order: _keyPressOrder, action: action)
+            b.keys = keys; b.characters = characters; b.phases = phases; b.action = action; b.order = _keyPressOrder; b.path = ctx.path
+            ctx.graph.storage[key] = b
             return _resolve(c, ctx.child("kp"))
         }
     }
@@ -167,7 +169,11 @@ private func _keyEquivalent(_ k: UIKey) -> KeyEquivalent {
 }
 /// returns true when a handler took the press
 @MainActor func _suiHandlePresses(_ g: _Graph, _ presses: Set<UIPress>, up: Bool) -> Bool {
-    let boxes = g.storage.values.compactMap { $0 as? _KeyPressBox }.sorted { $0.order > $1.order }
+    // the handlers on the focused view and its ancestors, innermost first; nothing focused: none
+    guard let focus = _FocusEngine.focusedPath(in: g) else { return _suiTab(g, presses, up: up) }
+    let boxes = g.storage.values.compactMap { $0 as? _KeyPressBox }
+        .filter { focus == $0.path || focus.hasPrefix($0.path + "/") }
+        .sorted { $0.path.count != $1.path.count ? $0.path.count > $1.path.count : $0.order > $1.order }
     var handled = false
     for p in presses {
         guard let k = p.key else { continue }
@@ -178,6 +184,11 @@ private func _keyEquivalent(_ k: UIKey) -> KeyEquivalent {
             if b.action(kp) == .handled { handled = true; break }
         }
     }
-    if handled { g.invalidate() }
-    return handled
+    if handled { g.invalidate(); return true }
+    return _suiTab(g, presses, up: up)
+}
+/// Tab / Shift-Tab (not taken by a handler) move focus.
+@MainActor func _suiTab(_ g: _Graph, _ presses: Set<UIPress>, up: Bool) -> Bool {
+    guard !up, let k = presses.first?.key, k.charactersIgnoringModifiers == "\t", let root = g.hostView?.window else { return false }
+    return _FocusEngine.advance(in: root, backwards: k.modifierFlags.contains(.shift))
 }

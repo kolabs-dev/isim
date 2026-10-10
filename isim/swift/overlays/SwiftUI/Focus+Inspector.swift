@@ -1,7 +1,7 @@
 // .inspector (a sheet in compact width, as on iPhone), focus helpers (focusable, defaultFocus, focusSection) and
 // focused values (@FocusedValue, @FocusedBinding, .focusedValue, .focusedSceneValue).
-// isim adaptation: there is no per-view focus chain for values, so focused values set anywhere on screen are
-// visible to every @FocusedValue (like scene values); the last one resolved wins.
+// Focused values follow focus (FocusEngine.swift): a `.focusedValue` is seen while its view or one inside it has focus,
+// a `.focusedSceneValue` while its scene is shown; the innermost value of a key wins.
 import UIKit
 
 // MARK: - inspector
@@ -15,9 +15,6 @@ public struct FocusInteractions: OptionSet, Sendable {
     public static let automatic: FocusInteractions = [.activate, .edit]
 }
 extension View {
-    public func focusable(_ isFocusable: Bool = true) -> some View { self }
-    public func focusable(_ isFocusable: Bool = true, interactions: FocusInteractions) -> some View { self }
-    public func focusSection() -> some View { self }
     /// sets the focus binding to `value` when the view first appears if nothing is focused yet
     public func defaultFocus<V: Hashable>(_ binding: FocusState<V?>.Binding, _ value: V, priority: DefaultFocusEvaluationPriority = .automatic) -> some View {
         onAppear { if binding.wrappedValue == nil { binding.wrappedValue = value } }
@@ -38,35 +35,70 @@ public struct FocusedValues {
 }
 @MainActor final class _FocusedStore {
     static let shared = _FocusedStore()
-    var current = FocusedValues(), pending = FocusedValues(), fingerprint = ""
+    /// the values the views set in their last render, per graph: where (node path), whether scene-wide
+    struct Entry { let path: String; let key: ObjectIdentifier; let value: Any; let scene: Bool }
+    var entries: [ObjectIdentifier: (graph: WeakGraph, list: [Entry])] = [:]
+    var pending: [ObjectIdentifier: [Entry]] = [:]
+    var current = FocusedValues(), fingerprint = ""
     var graphs: [WeakGraph] = []
     final class WeakGraph { weak var g: _Graph?; init(_ g: _Graph) { self.g = g } }
-    func note(_ g: _Graph) { if !graphs.contains(where: { $0.g === g }) { graphs.append(WeakGraph(g)) } }
-    /// after a render: publish what the views set; re-render readers when it changed
-    func publish() {
-        let fp = pending.values.map { k, v in "\(k.hashValue):\(v is _AnyBindingMarker ? "binding" : String(describing: v))" }.sorted().joined(separator: "|")
-        current = pending
-        pending = FocusedValues()
-        if fp != fingerprint { fingerprint = fp; for w in graphs { w.g?.invalidate() } }
-        scheduled = false
+    var responderObserver: NSObjectProtocol?
+    func note(_ g: _Graph) {
+        if !graphs.contains(where: { $0.g === g }) { graphs.append(WeakGraph(g)) }
+        // any first responder change (UIKit views inside representables too) moves focus
+        if responderObserver == nil {
+            responderObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimFirstResponderDidChange"), object: nil, queue: nil) { _ in _FocusEngine.changed() }
+        }
     }
-    var scheduled = false
+    func add(_ g: _Graph, _ e: Entry) {
+        let id = ObjectIdentifier(g)
+        if pending[id] == nil {
+            pending[id] = []
+            g.postRender.append { [weak g] in guard let g else { return }; self.publish(g) }
+        }
+        pending[id]!.append(e)
+    }
+    /// after a render: the graph's values replace its old ones
+    func publish(_ g: _Graph) {
+        let id = ObjectIdentifier(g)
+        entries[id] = (WeakGraph(g), pending.removeValue(forKey: id) ?? [])
+        recompute()
+    }
+    /// what @FocusedValue sees: for each key, the innermost value around the focused view, else a scene value
+    func recompute() {
+        entries = entries.filter { $0.value.graph.g != nil }
+        var out = FocusedValues()
+        let focusedGraph = _FocusEngine.focused()?._focusGraph, focusedPath = _FocusEngine.focused()?._focusPath
+        var best: [ObjectIdentifier: Int] = [:]
+        for (_, e) in entries {
+            for x in e.list where x.scene { if best[x.key] == nil { out.values[x.key] = x.value } }
+            guard let fp = focusedPath, e.graph.g === focusedGraph else { continue }
+            for x in e.list where !x.scene && (fp == x.path || fp.hasPrefix(x.path + "/")) {
+                if x.path.count >= (best[x.key] ?? -1) { best[x.key] = x.path.count; out.values[x.key] = x.value }
+            }
+        }
+        let fp = out.values.map { k, v in "\(k.hashValue):\(v is _AnyBindingMarker ? "binding" : String(describing: v))" }.sorted().joined(separator: "|")
+        current = out
+        if fp != fingerprint { fingerprint = fp; for w in graphs { w.g?.invalidate() } }
+    }
 }
 protocol _AnyBindingMarker {}
 extension Binding: _AnyBindingMarker {}
 
 extension View {
-    public func focusedValue<Value>(_ keyPath: WritableKeyPath<FocusedValues, Value?>, _ value: Value?) -> some View {
+    /// A value @FocusedValue sees while this view, or one inside it, has focus.
+    public func focusedValue<Value>(_ keyPath: WritableKeyPath<FocusedValues, Value?>, _ value: Value?) -> some View { _focused(keyPath, value, scene: false) }
+    /// A value @FocusedValue sees while the scene is shown.
+    public func focusedSceneValue<Value>(_ keyPath: WritableKeyPath<FocusedValues, Value?>, _ value: Value?) -> some View { _focused(keyPath, value, scene: true) }
+    func _focused<Value>(_ keyPath: WritableKeyPath<FocusedValues, Value?>, _ value: Value?, scene: Bool) -> some View {
         _modify { ctx, c in
             let st = _FocusedStore.shared
             st.note(ctx.graph)
-            st.pending[keyPath: keyPath] = value
-            if !st.scheduled { st.scheduled = true; ctx.graph.postRender.append { st.publish() } }
+            var probe = FocusedValues()
+            probe[keyPath: keyPath] = value
+            if let (k, v) = probe.values.first { st.add(ctx.graph, .init(path: ctx.path, key: k, value: v, scene: scene)) }
             return _resolve(c, ctx.child("fv"))
         }
-    }
-    public func focusedSceneValue<Value>(_ keyPath: WritableKeyPath<FocusedValues, Value?>, _ value: Value?) -> some View {
-        focusedValue(keyPath, value)
     }
 }
 
