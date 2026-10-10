@@ -1,6 +1,6 @@
-// isim Foundation: Calendar and DateComponents (Gregorian; ISO 8601 week rules for .iso8601).
-// Self-authored. Other calendar systems (Buddhist, Japanese, Hebrew, ...) are not implemented: a
-// Calendar created with one computes with Gregorian rules and logs once.
+// isim Foundation: Calendar and DateComponents (Gregorian; ISO 8601 week rules for .iso8601). Self-authored.
+// Other calendar systems (Buddhist, Japanese, Hebrew, Islamic, Chinese, ...) are computed by the host's ICU
+// (CalendarICU.swift); without ICU they fall back to Gregorian rules and log once.
 import Darwin
 
 public struct DateComponents: Hashable, Sendable, CustomStringConvertible {
@@ -132,11 +132,14 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
         locale = .current
         firstWeekday = identifier == .iso8601 ? 2 : Calendar.defaultFirstWeekday()
         minimumDaysInFirstWeek = identifier == .iso8601 ? 4 : 1
-        if identifier != .gregorian && identifier != .iso8601 {
-            NSLog("isim Calendar: %@ calendar is not implemented; using Gregorian rules", identifier.rawValue)
+        if identifier != .gregorian && identifier != .iso8601 && !Calendar._icuAvailable {
+            NSLog("isim Calendar: %@ calendar needs the host's ICU (libicu); using Gregorian rules", identifier.rawValue)
         }
     }
-    public static var current: Calendar { Calendar(identifier: .gregorian) }
+    /// the current locale's calendar ("th_TH@calendar=buddhist" -> Buddhist)
+    public static var current: Calendar {
+        Calendar(identifier: Calendar.Identifier(_icuName: NSLocale.__isim_current().calendarIdentifier) ?? .gregorian)
+    }
     public static var autoupdatingCurrent: Calendar { current }
     static func defaultFirstWeekday() -> Int {
         // Monday in most regions; Sunday in the US, Canada, Japan, Brazil, Mexico, ... (CLDR weekData)
@@ -189,6 +192,7 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
 
     // MARK: API
     public func dateComponents(_ components: Set<Component>, from date: Date) -> DateComponents {
+        if _usesICU { return _icuComponents(components, from: date) }
         let f = fields(date)
         var c = DateComponents()
         if components.contains(.calendar) { c.calendar = self }
@@ -227,6 +231,7 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
     public func component(_ c: Component, from date: Date) -> Int { dateComponents([c], from: date).value(for: c) ?? 0 }
 
     public func date(from c: DateComponents) -> Date? {
+        if _usesICU { return _icuDate(from: c) }
         var cal = self
         if let tz = c.timeZone { cal.timeZone = tz }
         var y = c.year ?? 1, m = c.month ?? 1, d = c.day ?? 1
@@ -251,6 +256,7 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
     }
 
     public func startOfDay(for date: Date) -> Date {
+        if _usesICU { return _icuStartOfDay(date) }
         let f = fields(date)
         return dateFromLocal(Double(_days(fromCivil: f.y, f.m, f.d)) * 86400)
     }
@@ -260,6 +266,7 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
         return self.date(byAdding: c, to: date, wrappingComponents: wrappingComponents)
     }
     public func date(byAdding comps: DateComponents, to date: Date, wrappingComponents: Bool = false) -> Date? {
+        if _usesICU { return _icuAdding(comps, to: date, wrapping: wrappingComponents) }
         var f = fields(date)
         // calendar units: years/months clamp the day (Jan 31 + 1 month = Feb 28/29)
         let addMonths = (comps.year ?? 0) * 12 + (comps.month ?? 0) + (comps.quarter ?? 0) * 3
@@ -343,15 +350,21 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
     }
     public func date(bySettingHour h: Int, minute: Int, second: Int, of date: Date, matchingPolicy: MatchingPolicy = .nextTime,
                      repeatedTimePolicy: RepeatedTimePolicy = .first, direction: SearchDirection = .forward) -> Date? {
+        if _usesICU {
+            var c = _icuComponents([.era, .year, .month, .day, .isLeapMonth], from: date)
+            c.hour = h; c.minute = minute; c.second = second
+            return _icuDate(from: c)
+        }
         let f = fields(date)
         return dateFromLocal(Double(_days(fromCivil: f.y, f.m, f.d)) * 86400 + Double(h * 3600 + minute * 60 + second))
     }
     public func date(bySetting c: Component, value: Int, of date: Date) -> Date? {
-        var comps = dateComponents([.year, .month, .day, .hour, .minute, .second, .nanosecond], from: date)
+        var comps = dateComponents(_usesICU ? [.era, .year, .month, .day, .isLeapMonth, .hour, .minute, .second, .nanosecond] : [.year, .month, .day, .hour, .minute, .second, .nanosecond], from: date)
         comps.setValue(value, for: c)
         return self.date(from: comps)
     }
     public func range(of smaller: Component, in larger: Component, for date: Date) -> Range<Int>? {
+        if _usesICU { return _icuRange(of: smaller, in: larger, for: date) }
         let f = fields(date)
         switch (smaller, larger) {
         case (.day, .month): return 1..<(Calendar.daysIn(f.y, f.m) + 1)
@@ -365,6 +378,7 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
         }
     }
     public func dateInterval(of c: Component, for date: Date) -> DateInterval? {
+        if _usesICU { return _icuInterval(of: c, for: date) }
         let f = fields(date)
         let start: Date, end: Date
         switch c {
@@ -386,21 +400,36 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
         let sign = direction == .forward ? 1 : -1
         for n in 0..<(366 * 8) {
             guard let day = self.date(byAdding: .day, value: n * sign, to: startOfDay(for: date)) else { return nil }
-            let f = fields(day)
-            if let m = comps.month, m != f.m { continue }
-            if let d = comps.day, d != f.d { continue }
-            if let w = comps.weekday, w != f.wd { continue }
-            if let y = comps.year, y != f.y { continue }
+            let f = dateComponents([.year, .month, .day, .weekday], from: day)
+            if let m = comps.month, m != f.month { continue }
+            if let d = comps.day, d != f.day { continue }
+            if let w = comps.weekday, w != f.weekday { continue }
+            if let y = comps.year, y != f.year { continue }
             guard let t = self.date(bySettingHour: comps.hour ?? 0, minute: comps.minute ?? 0, second: comps.second ?? 0, of: day) else { continue }
             if direction == .forward ? t > date : t < date { return t }
         }
         return nil
     }
-    public var shortWeekdaySymbols: [String] { ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] }
-    public var weekdaySymbols: [String] { ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] }
-    public var veryShortWeekdaySymbols: [String] { ["S", "M", "T", "W", "T", "F", "S"] }
-    public var monthSymbols: [String] { ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] }
-    public var shortMonthSymbols: [String] { ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] }
+    // symbols in the calendar's locale (and calendar system: Hebrew months, Japanese eras, ...)
+    var _symbolFormatter: DateFormatter { let f = DateFormatter(); f.locale = locale ?? .current; f.calendar = self; return f }
+    public var eraSymbols: [String] { _symbolFormatter.eraSymbols }
+    public var longEraSymbols: [String] { _symbolFormatter.longEraSymbols }
+    public var monthSymbols: [String] { _symbolFormatter.monthSymbols }
+    public var shortMonthSymbols: [String] { _symbolFormatter.shortMonthSymbols }
+    public var veryShortMonthSymbols: [String] { _symbolFormatter.veryShortMonthSymbols }
+    public var standaloneMonthSymbols: [String] { _symbolFormatter.standaloneMonthSymbols }
+    public var shortStandaloneMonthSymbols: [String] { _symbolFormatter.shortStandaloneMonthSymbols }
+    public var veryShortStandaloneMonthSymbols: [String] { _symbolFormatter.veryShortStandaloneMonthSymbols }
+    public var weekdaySymbols: [String] { _symbolFormatter.weekdaySymbols }
+    public var shortWeekdaySymbols: [String] { _symbolFormatter.shortWeekdaySymbols }
+    public var veryShortWeekdaySymbols: [String] { _symbolFormatter.veryShortWeekdaySymbols }
+    public var standaloneWeekdaySymbols: [String] { _symbolFormatter.standaloneWeekdaySymbols }
+    public var shortStandaloneWeekdaySymbols: [String] { _symbolFormatter.shortStandaloneWeekdaySymbols }
+    public var veryShortStandaloneWeekdaySymbols: [String] { _symbolFormatter.veryShortStandaloneWeekdaySymbols }
+    public var quarterSymbols: [String] { _symbolFormatter.quarterSymbols }
+    public var shortQuarterSymbols: [String] { _symbolFormatter.shortQuarterSymbols }
+    public var amSymbol: String { _symbolFormatter.amSymbol }
+    public var pmSymbol: String { _symbolFormatter.pmSymbol }
 }
 
 public struct DateInterval: Hashable, Comparable, Sendable, Codable {

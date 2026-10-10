@@ -1487,6 +1487,30 @@ int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
 int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
 void isim_ws_close(struct isim_ws *w);
 int isim_net_path(int *flags);
+int isim_icu_version(void);
+int isim_icu_collate(const char *, const uint16_t *, int, const uint16_t *, int, int);
+int isim_icu_date_format(const char *, const char *, const char *, double, char *, int);
+int isim_icu_date_parse(const char *, const char *, const char *, const char *, int, double *);
+int isim_icu_date_pattern(const char *, const char *, int, int, char *, int);
+int isim_icu_date_symbols(const char *, int, char *, int);
+int isim_icu_cal_fields(const char *, const char *, int, int, double, int *);
+int isim_icu_cal_date(const char *, const char *, int, int, const int *, unsigned, double *);
+int isim_icu_cal_add(const char *, const char *, int, int, double, int, int, int, double *);
+int isim_icu_cal_limit(const char *, const char *, int, int, double, int, int, int *);
+int isim_icu_week_data(const char *, int *, int *);
+int isim_icu_tz_name(const char *, const char *, int, char *, int);
+int isim_icu_number_skeleton(const char *, const char *, double, char *, int);
+int isim_icu_number_format(const char *, int, const char *, double, char *, int);
+int isim_icu_number_parse(const char *, int, const char *, const char *, double *);
+int isim_icu_number_pattern(const char *, int, char *, int);
+int isim_icu_number_symbol(const char *, int, char *, int);
+int isim_icu_currency(const char *, const char *, int, const char *, char *, int);
+int isim_icu_relative(const char *, double, int, int, int, char *, int);
+int isim_icu_interval(const char *, const char *, const char *, double, double, char *, int);
+int isim_icu_list(const char *, const char *, int, int, char *, int);
+int isim_icu_plural(const char *, double, int, char *, int);
+int isim_icu_display_name(const char *, const char *, int, char *, int);
+int isim_icu_case(const char *, const char *, int, char *, int);
 void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int options, int unix_lines, int *err, unsigned long *erroffset);
 void isim_regex_free(void *code);
 int isim_regex_capture_count(void *code);
@@ -1639,5 +1663,10 @@ static const struct shim isim_table[] = {
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
     H(isim_gfx_pop_group_filtered), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges), H(isim_gfx_glass_shapes),
+    H(isim_icu_version), H(isim_icu_collate), H(isim_icu_date_format), H(isim_icu_date_parse), H(isim_icu_date_pattern),
+    H(isim_icu_date_symbols), H(isim_icu_cal_fields), H(isim_icu_cal_date), H(isim_icu_cal_add), H(isim_icu_cal_limit),
+    H(isim_icu_week_data), H(isim_icu_tz_name), H(isim_icu_number_skeleton), H(isim_icu_number_format), H(isim_icu_number_parse),
+    H(isim_icu_number_pattern), H(isim_icu_number_symbol), H(isim_icu_currency), H(isim_icu_relative), H(isim_icu_interval),
+    H(isim_icu_list), H(isim_icu_plural), H(isim_icu_display_name), H(isim_icu_case),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };

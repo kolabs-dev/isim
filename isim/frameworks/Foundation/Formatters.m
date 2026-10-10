@@ -14,6 +14,7 @@
 #include "isim_locale.h"
 
 NSString *isim_format_date(NSDate *date, NSString *fmt, NSLocale *locale, NSTimeZone *tz, NSDictionary *symbols);
+NSString *isim_icu_date_locale(NSLocale *locale, NSString *calendarID);
 
 /* ================= decimal digits ================= */
 /* A non-negative decimal: digits d[0..n) (most significant first) and exponent e so value = 0.d1d2... * 10^e. */
@@ -353,8 +354,17 @@ STR(negativeInfinitySymbol, setNegativeInfinitySymbol, _negInf, @"-∞")
 - (NSString *)_formatDecimal:(decnum)x negative:(BOOL)neg value:(double)v {
     NSString *lang = [self _lang];
     switch (_style) {
-    case NSNumberFormatterSpellOutStyle: return spell_out(neg ? -v : v, lang);
+    case NSNumberFormatterSpellOutStyle: {
+        /* ICU's rule-based spell-out for every language; the built-in one is English */
+        NSString *icu = isim_icu_on() ? isim_icu_number_style(isim_locale_ident(_locale), 5, nil, neg ? -v : v) : nil;
+        return icu ?: spell_out(neg ? -v : v, lang);
+    }
     case NSNumberFormatterOrdinalStyle: {
+        if (!isim_lang_builtin(lang) && isim_icu_on()) {
+            dec_round(&x, x.e, (int)_rounding, neg);
+            NSString *icu = isim_icu_number_style(isim_locale_ident(_locale), 6, nil, (neg ? -1 : 1) * dec_to_double(&x));
+            if (icu) return icu;
+        }
         numspec sp = [self _spec]; sp.maxFrac = 0; sp.minFrac = 0; sp.useSig = NO; sp.grouping = YES;
         dec_round(&x, x.e, (int)_rounding, neg);
         NSString *num = format_plain(x, &sp, neg);
@@ -379,6 +389,11 @@ STR(negativeInfinitySymbol, setNegativeInfinitySymbol, _negInf, @"-∞")
     NSString *pre = neg ? self.negativePrefix : self.positivePrefix, *suf = neg ? self.negativeSuffix : self.positiveSuffix;
     if (_style == NSNumberFormatterCurrencyPluralStyle) {
         NSString *name = isim_currency_name(self.currencyCode, !isim_plural_one(lang, v, 0) || [body containsString:sp.dec]);
+        if (isim_icu_on()) {                     /* the currency's name in the locale's language, in the number's plural form */
+            NSString *ident = isim_locale_ident(_locale);
+            NSString *cat = isim_icu_plural_category(ident, [body containsString:sp.dec] ? v + 0.5 * (v == floor(v)) : v, NO);
+            name = isim_icu_currency_string(ident, self.currencyCode, 3, cat ?: @"other") ?: name;
+        }
         return [NSString stringWithFormat:@"%@%@ %@", pre, body, name];
     }
     return [NSString stringWithFormat:@"%@%@%@", pre, body, suf];
@@ -475,6 +490,8 @@ STR(negativeInfinitySymbol, setNegativeInfinitySymbol, _negInf, @"-∞")
 
 /* ================= NSCalendar (minimal; Swift's Calendar is a value type in the overlay) ================= */
 NSCalendarIdentifier const NSCalendarIdentifierGregorian = @"gregorian", NSCalendarIdentifierISO8601 = @"iso8601";
+/* the other calendars are ICU's keyword values (computed by the host's ICU, see Swift's CalendarICU.swift) */
+NSCalendarIdentifier const NSCalendarIdentifierBuddhist = @"buddhist", NSCalendarIdentifierChinese = @"chinese", NSCalendarIdentifierCoptic = @"coptic", NSCalendarIdentifierEthiopicAmeteMihret = @"ethiopic", NSCalendarIdentifierEthiopicAmeteAlem = @"ethiopic-amete-alem", NSCalendarIdentifierHebrew = @"hebrew", NSCalendarIdentifierIndian = @"indian", NSCalendarIdentifierIslamic = @"islamic", NSCalendarIdentifierIslamicCivil = @"islamic-civil", NSCalendarIdentifierIslamicTabular = @"islamic-tbla", NSCalendarIdentifierIslamicUmmAlQura = @"islamic-umalqura", NSCalendarIdentifierJapanese = @"japanese", NSCalendarIdentifierPersian = @"persian", NSCalendarIdentifierRepublicOfChina = @"roc";
 @implementation NSCalendar { NSString *_ident; }
 + (NSCalendar *)currentCalendar { return [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian]; }
 + (NSCalendar *)autoupdatingCurrentCalendar { return [self currentCalendar]; }
@@ -584,7 +601,14 @@ NSCalendarIdentifier const NSCalendarIdentifierGregorian = @"gregorian", NSCalen
 
 /* ================= unit phrases shared by relative / components formatters ================= */
 /* unit index: 0 year, 1 month, 2 week, 3 day, 4 hour, 5 minute, 6 second */
+static NSString *const DURATION_UNITS[7] = { @"duration-year", @"duration-month", @"duration-week", @"duration-day", @"duration-hour", @"duration-minute", @"duration-second" };
+static const int REL_UNITS[7] = { 0, 2, 3, 4, 5, 6, 7 };    /* URelativeDateTimeUnit for unit 0 year .. 6 second */
 static NSString *count_unit(NSString *lang, double n, int unit, int width, BOOL relative, NSLocale *locale) {
+    if (!isim_lang_builtin(lang) && isim_icu_on()) {          /* ICU's unit names, with the language's plural forms */
+        NSNumberFormatter *nf = [NSNumberFormatter new]; nf.locale = locale; nf.numberStyle = width == 4 ? NSNumberFormatterSpellOutStyle : NSNumberFormatterDecimalStyle;
+        NSString *p = isim_icu_unit_phrase(isim_locale_ident(locale), DURATION_UNITS[unit], n, [nf stringFromNumber:@(n)], width == 0 || width == 4 ? 2 : width == 1 ? 1 : 0);
+        if (p) return p;
+    }
     const isim_lang_t *L = isim_lang(lang);
     BOOL one = isim_plural_one(lang, n, n == floor(n) ? 0 : 1);
     NSNumberFormatter *nf = [NSNumberFormatter new]; nf.locale = locale; nf.numberStyle = NSNumberFormatterDecimalStyle;
@@ -609,6 +633,11 @@ static NSString *count_unit(NSString *lang, double n, int unit, int width, BOOL 
 - (void)setLocale:(NSLocale *)l { _locale = l ?: NSLocale.currentLocale; }
 - (NSString *)_phrase:(double)value unit:(int)unit {
     NSString *lang = isim_locale_lang(_locale);
+    if (!isim_lang_builtin(lang) && isim_icu_on()) {          /* ICU's relative date formatting (CLDR) */
+        int width = _unitsStyle == NSRelativeDateTimeFormatterUnitsStyleShort ? 1 : _unitsStyle == NSRelativeDateTimeFormatterUnitsStyleAbbreviated ? 2 : 0;
+        NSString *p = isim_icu_relative_string(isim_locale_ident(_locale), value, REL_UNITS[unit], width, _dateTimeStyle != NSRelativeDateTimeFormatterStyleNamed);
+        if (p) return p;
+    }
     const isim_lang_t *L = isim_lang(lang);
     if (_dateTimeStyle == NSRelativeDateTimeFormatterStyleNamed) {
         long iv = lround(value);
@@ -775,6 +804,9 @@ static const double UNIT_SECONDS[7] = { 31556952, 2629746, 604800, 86400, 3600, 
     if (!parts.count) return nil;
     NSString *sep = width == 2 || width == 5 ? @" " : @(isim_lang(lang)->listSep);
     NSString *s = [parts componentsJoinedByString:sep];
+    if (!isim_lang_builtin(lang) && isim_icu_on() && parts.count > 1) {          /* the language's unit list ("1 h, 5 min") */
+        s = isim_icu_list_string(isim_locale_ident(locale), parts, 2, width == 0 || width == 4 ? 0 : width == 1 ? 1 : 2) ?: s;
+    }
     if (neg) s = [@"-" stringByAppendingString:s];
     if (_includesApproximationPhrase) s = [@"About " stringByAppendingString:s];
     if (_includesTimeRemainingPhrase) s = [s stringByAppendingString:@" remaining"];
@@ -835,7 +867,20 @@ static const double UNIT_SECONDS[7] = { 31556952, 2629746, 604800, 86400, 3600, 
     if ((self = [super init])) { _locale = NSLocale.currentLocale; _timeZone = NSTimeZone.defaultTimeZone; _calendar = NSCalendar.currentCalendar; _dateStyle = NSDateIntervalFormatterShortStyle; _timeStyle = NSDateIntervalFormatterShortStyle; }
     return self;
 }
+/* the skeleton for ICU's interval formats ("yMMMd", "jm") */
+- (NSString *)_skeleton {
+    if (_dateTemplate.length) return _dateTemplate;
+    NSString *d = @[@"", @"yMd", @"yMMMd", @"yMMMMd", @"yMMMMEEEEd"][MIN((NSUInteger)_dateStyle, (NSUInteger)4)];
+    NSString *t = @[@"", @"jm", @"jms", @"jmsz", @"jmszzzz"][MIN((NSUInteger)_timeStyle, (NSUInteger)4)];
+    return [d stringByAppendingString:t];
+}
 - (NSString *)stringFromDate:(NSDate *)from toDate:(NSDate *)to {
+    NSString *icu = isim_icu_date_locale(_locale, _calendar.calendarIdentifier);
+    NSString *sk = [self _skeleton];
+    if (icu && sk.length) {                                    /* a locale or calendar the built-in tables lack: ICU */
+        NSString *s = isim_icu_interval_string(icu, _timeZone.name, sk, from, to);
+        if (s) return s;
+    }
     NSDateFormatter *df = [NSDateFormatter new]; df.locale = _locale; df.timeZone = _timeZone;
     NSDateFormatter *tf = [NSDateFormatter new]; tf.locale = _locale; tf.timeZone = _timeZone;
     NSString *datePat, *timePat;
@@ -943,6 +988,10 @@ NSString *isim_join_list(NSArray<NSString *> *items, NSLocale *locale, BOOL orLi
     if (!n) return @"";
     if (n == 1) return items[0];
     NSString *lang = isim_locale_lang(locale), *ident = isim_locale_ident(locale);
+    if (!isim_lang_builtin(lang) && isim_icu_on()) {           /* ICU's list patterns (CLDR) */
+        NSString *s = isim_icu_list_string(ident, items, orList ? 1 : 0, width);
+        if (s) return s;
+    }
     const isim_lang_t *L = isim_lang(lang);
     NSString *sep = @(L->listSep);
     if ([lang isEqualToString:@"ja"]) {

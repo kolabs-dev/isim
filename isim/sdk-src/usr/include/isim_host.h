@@ -305,4 +305,31 @@ long isim_tls_read(struct isim_tls *t, void *buf, long n);
 long isim_tls_write(struct isim_tls *t, const void *buf, long n);
 void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen);
 void isim_tls_close(struct isim_tls *_Nullable t);
+/* Locale data from the host's ICU (runtime/host_icu.c). UTF-8 strings, dates in ms since 1970, ICU locale identifiers
+   (calendars as "en_US@calendar=hebrew"). Each returns the output length (NUL-terminated), or -1 without ICU
+   (Foundation then uses its built-in tables). isim_icu_version: the host ICU's major version, 0 if none. */
+int isim_icu_version(void);
+int isim_icu_collate(const char *_Nullable locale, const uint16_t *a, int alen, const uint16_t *b, int blen, int flags);   /* -1/0/1, -2 */
+int isim_icu_date_format(const char *_Nullable locale, const char *_Nullable tz, const char *pattern, double ms, char *out, int cap);
+int isim_icu_date_parse(const char *_Nullable locale, const char *_Nullable tz, const char *pattern, const char *text, int lenient, double *ms);
+int isim_icu_date_pattern(const char *_Nullable locale, const char *_Nullable skeleton, int dateStyle, int timeStyle, char *out, int cap);
+int isim_icu_date_symbols(const char *_Nullable locale, int type, char *out, int cap);
+int isim_icu_cal_fields(const char *_Nullable calLocale, const char *_Nullable tz, int firstWeekday, int minDays, double ms, int *fields);
+int isim_icu_cal_date(const char *_Nullable calLocale, const char *_Nullable tz, int firstWeekday, int minDays, const int *fields, unsigned mask, double *ms);
+int isim_icu_cal_add(const char *_Nullable calLocale, const char *_Nullable tz, int firstWeekday, int minDays, double ms, int field, int amount, int roll, double *out);
+int isim_icu_cal_limit(const char *_Nullable calLocale, const char *_Nullable tz, int firstWeekday, int minDays, double ms, int field, int which, int *value);
+int isim_icu_week_data(const char *_Nullable locale, int *firstWeekday, int *minDays);
+int isim_icu_tz_name(const char *tz, const char *_Nullable locale, int type, char *out, int cap);
+int isim_icu_number_skeleton(const char *_Nullable locale, const char *skeleton, double v, char *out, int cap);
+int isim_icu_number_format(const char *_Nullable locale, int style, const char *_Nullable currency, double v, char *out, int cap);
+int isim_icu_number_parse(const char *_Nullable locale, int style, const char *_Nullable currency, const char *text, double *v);
+int isim_icu_number_pattern(const char *_Nullable locale, int style, char *out, int cap);
+int isim_icu_number_symbol(const char *_Nullable locale, int symbol, char *out, int cap);
+int isim_icu_currency(const char *_Nullable locale, const char *_Nullable code, int kind, const char *_Nullable count, char *out, int cap);
+int isim_icu_relative(const char *_Nullable locale, double offset, int unit, int width, int numeric, char *out, int cap);
+int isim_icu_interval(const char *_Nullable locale, const char *_Nullable tz, const char *skeleton, double from, double to, char *out, int cap);
+int isim_icu_list(const char *_Nullable locale, const char *items, int type, int width, char *out, int cap);
+int isim_icu_plural(const char *_Nullable locale, double n, int ordinal, char *out, int cap);
+int isim_icu_display_name(const char *_Nullable displayLocale, const char *code, int kind, char *out, int cap);
+int isim_icu_case(const char *_Nullable locale, const char *s, int kind, char *out, int cap);
 __END_DECLS

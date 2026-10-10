@@ -378,6 +378,50 @@ func attributedStringChecks() {
     check(positions == ["Title@1:3-1:7", "Some @3:1-3:5", "bold@3:8-3:11", " text@3:14-3:18"], "Markdown source positions (\(positions))")
 }
 
+/// calendars, collation and formatting from the host's ICU (issue #12)
+func localeChecks() {
+    let utc = TimeZone(identifier: "UTC")!
+    let d = Date(timeIntervalSince1970: 1792065600)   // 2026-10-15 12:00 UTC
+    var hebrew = Calendar(identifier: .hebrew); hebrew.timeZone = utc
+    let h = hebrew.dateComponents([.era, .year, .month, .day, .weekday], from: d)
+    check(h.year == 5787 && h.month == 2 && h.day == 4 && h.weekday == 5, "Calendar(.hebrew) components (\(h))")
+    check(hebrew.date(from: DateComponents(year: 5787, month: 2, day: 4, hour: 12)) == d, "Calendar(.hebrew) date(from:)")
+    check(hebrew.range(of: .month, in: .year, for: d) == 1..<14 && hebrew.range(of: .day, in: .month, for: d) == 1..<31,
+          "Calendar(.hebrew) range: 13 months in a leap year, 30 days in Heshvan 5787 (\(String(describing: hebrew.range(of: .day, in: .month, for: d))))")
+    let nextMonth = hebrew.date(byAdding: .month, value: 1, to: d).map { hebrew.dateComponents([.month, .day], from: $0) }
+    check(nextMonth?.month == 3 && nextMonth?.day == 4, "Calendar(.hebrew) date(byAdding: .month)")
+    var japanese = Calendar(identifier: .japanese); japanese.timeZone = utc
+    let j = japanese.dateComponents([.era, .year], from: d)
+    check(j.era == 236 && j.year == 8, "Calendar(.japanese): Reiwa 8 (\(j))")
+    var buddhist = Calendar(identifier: .buddhist); buddhist.timeZone = utc
+    check(buddhist.component(.year, from: d) == 2569, "Calendar(.buddhist) year 2569")
+    var islamic = Calendar(identifier: .islamicUmmAlQura); islamic.timeZone = utc
+    let i = islamic.dateComponents([.year, .month, .day], from: d)
+    check(i.year == 1448 && i.month == 5 && i.day == 4, "Calendar(.islamicUmmAlQura) (\(i))")
+    var persian = Calendar(identifier: .persian); persian.timeZone = utc
+    check(persian.dateInterval(of: .month, for: d).map { persian.component(.day, from: $0.start) } == 1, "Calendar(.persian) dateInterval(of: .month)")
+    hebrew.locale = Locale(identifier: "en_US")
+    check(hebrew.monthSymbols.count == 14 && hebrew.monthSymbols[0] == "Tishri", "Calendar(.hebrew).monthSymbols (\(hebrew.monthSymbols.prefix(2)))")
+    check(Locale(identifier: "th_TH@calendar=buddhist").calendar.identifier == .buddhist, "Locale.calendar from @calendar=")
+    let style = Date.FormatStyle(date: .long, time: .omitted, locale: Locale(identifier: "en_US"), calendar: japanese, timeZone: utc)
+    check(d.formatted(style) == "October 15, 8 Reiwa", "Date.FormatStyle with a Japanese calendar (\(d.formatted(style)))")
+    // collation and case rules
+    check("ä".compare("z", locale: Locale(identifier: "sv_SE")) == .orderedDescending && "ä".compare("z", locale: Locale(identifier: "de_DE")) == .orderedAscending,
+          "String.compare(_:locale:) follows the locale's collation")
+    check(["item 10", "Item 9", "item 1"].sorted { $0.localizedStandardCompare($1) == .orderedAscending } == ["item 1", "Item 9", "item 10"],
+          "localizedStandardCompare: numeric, case-insensitive")
+    check("istanbul".uppercased(with: Locale(identifier: "tr_TR")) == "İSTANBUL", "uppercased(with:) Turkish dotted I")
+    // other languages through ICU
+    let ru = Locale(identifier: "ru_RU")
+    let dur = Duration.seconds(3700).formatted(.units(allowed: [.hours, .minutes], width: .wide).locale(ru))
+    check(dur == "1 час 2 минуты", "Duration.UnitsFormatStyle in Russian (\(dur))")
+    let compact = 1_500_000.formatted(.number.notation(.compactName).locale(ru))
+    check(compact == "1,5\u{A0}млн", "compact notation in Russian (\(compact))")
+    check(d.formatted(Date.FormatStyle(date: .complete, time: .omitted, locale: ru, timeZone: utc)) == "четверг, 15 октября 2026\u{202F}г.",
+          "Date.FormatStyle in Russian (\(d.formatted(Date.FormatStyle(date: .complete, time: .omitted, locale: ru, timeZone: utc))))")
+    check(Locale(identifier: "fr_FR").localizedString(forLanguageCode: "de") == "allemand", "Locale.localizedString(forLanguageCode:) in French")
+}
+
 func classBridgingChecks() {
     let classes = [NSString.self, UIColor.self] as [AnyClass] as NSArray
     let any = classes as! [AnyClass]
@@ -644,6 +688,7 @@ func errorBridgingChecks() {
         predicateAndDecimalChecks()
         operationChecks()
         attributedStringChecks()
+        localeChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }
