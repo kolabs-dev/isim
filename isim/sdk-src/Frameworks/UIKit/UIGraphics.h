@@ -33,7 +33,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL opaque;
 @property (nonatomic) UIGraphicsImageRendererFormatRange preferredRange;
 /* the scale of the trait collection's display */
-- (instancetype)initForTraitCollection:(UITraitCollection *)traitCollection NS_SWIFT_NAME(init(for:)) API_AVAILABLE(ios(11.0));
++ (instancetype)formatForTraitCollection:(UITraitCollection *)traitCollection API_AVAILABLE(ios(11.0));
 /* isim renders standard dynamic range: always NO */
 @property (nonatomic, readonly) BOOL supportsHighDynamicRange API_AVAILABLE(ios(17.0));
 @end

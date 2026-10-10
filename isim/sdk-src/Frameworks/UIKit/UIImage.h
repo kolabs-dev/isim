@@ -1,6 +1,7 @@
 #pragma once
 #import <UIKit/NSItemProvider+UIKitAdditions.h>
 #import <UIKit/UIView.h>
+#import <UIKit/UIAccessibility.h>
 #import <UIKit/UIFont.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIColor, UITraitCollection;
@@ -107,7 +108,7 @@ UIKIT_EXTERN NSData *_Nullable UIImageJPEGRepresentation(UIImage *image, CGFloat
 typedef NS_ENUM(NSInteger, UIImageDynamicRange) {
     UIImageDynamicRangeUnspecified = -1, UIImageDynamicRangeStandard = 0, UIImageDynamicRangeConstrainedHigh = 1, UIImageDynamicRangeHigh = 2
 } NS_SWIFT_NAME(UIImage.DynamicRange) API_AVAILABLE(ios(17.0));
-@interface UIImageView : UIView
+@interface UIImageView : UIView <UIAccessibilityContentSizeCategoryImageAdjusting>
 - (instancetype)initWithImage:(nullable UIImage *)image;
 - (instancetype)initWithImage:(nullable UIImage *)image highlightedImage:(nullable UIImage *)highlightedImage;
 @property (nullable, nonatomic, strong) UIImage *highlightedImage;

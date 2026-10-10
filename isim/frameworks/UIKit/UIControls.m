@@ -274,6 +274,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors;
     BOOL _needsConfigUpdate, _configShown; UIActivityIndicatorView *_spinner;
     UIImage *_transFrom, *_configImage; double _transStart; CADisplayLink *_transLink; }
+@dynamic adjustsImageSizeForAccessibilityContentSizeCategory;      /* UIAccessibilityExtras.m */
 /* configuration updates: state changes, setNeedsUpdateConfiguration, and the first time the button shows */
 - (void)updateConfiguration { if (_configurationUpdateHandler) _configurationUpdateHandler(self); }
 - (void)setNeedsUpdateConfiguration {

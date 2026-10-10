@@ -887,6 +887,24 @@ void isim_sys_event(const char *text) {
     }
     else if ([verb isEqualToString:@"fullpage"]) full_page(args);
     else if ([verb isEqualToString:@"tilt"]) { extern void isim_ui_tilt(NSString *); isim_ui_tilt(args); }
+    else if ([verb isEqualToString:@"guidedaccess"]) { extern void isim_ui_guided_access_command(NSString *); isim_ui_guided_access_command(args); }
+    else if ([verb isEqualToString:@"accessibility"]) {
+        /* script "accessibility SETTING on|off": a Settings > Accessibility switch, written to the global domain like
+           Settings does (every app re-reads it; the matching UIAccessibility...DidChangeNotification is posted) */
+        NSDictionary *keys = @{ @"monoaudio": @"ISIMMonoAudio", @"speakscreen": @"ISIMSpeakScreen", @"speakselection": @"ISIMSpeakSelection",
+                                @"assistivetouch": @"ISIMAssistiveTouch", @"shaketoundo": @"ISIMShakeToUndo", @"buttonshapes": @"ISIMButtonShapes",
+                                @"onofflabels": @"ISIMOnOffLabels", @"differentiate": @"ISIMDifferentiateWithoutColor", @"reducemotion": @"ISIMReduceMotion",
+                                @"reducetransparency": @"ISIMReduceTransparency" };
+        NSArray *p = [args componentsSeparatedByString:@" "];
+        NSString *key = p.count == 2 ? keys[p[0]] : nil;
+        if (!key || !([p[1] isEqualToString:@"on"] || [p[1] isEqualToString:@"off"])) {
+            NSLog(@"isim: accessibility %@ on|off", [[keys.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@"|"]);
+        } else {
+            NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
+            [g setBool:[p[1] isEqualToString:@"on"] forKey:key];
+            NSLog(@"isim: accessibility %@ %@", p[0], p[1]);
+        }
+    }
     else if ([verb isEqualToString:@"attributions"]) {             /* the recorded private click measurement clicks */
         extern NSArray<NSString *> *isim_ui_attributions(void);
         NSArray *a = isim_ui_attributions();

@@ -471,6 +471,7 @@ static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
 
 /* ---------------- UIImageView ---------------- */
 @implementation UIImageView { CADisplayLink *_animLink; double _animStart; NSInteger _isimPrefRange; }
+@dynamic adjustsImageSizeForAccessibilityContentSizeCategory;      /* UIAccessibilityExtras.m */
 /* stored + 2 so that 0 (a new view) reads as unspecified */
 - (UIImageDynamicRange)preferredImageDynamicRange { return _isimPrefRange ? (UIImageDynamicRange)(_isimPrefRange - 2) : UIImageDynamicRangeUnspecified; }
 - (void)setPreferredImageDynamicRange:(UIImageDynamicRange)r { _isimPrefRange = r + 2; }
@@ -530,7 +531,14 @@ static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
     UIImage *i = _highlighted && _highlightedImage ? _highlightedImage : _image;
     return _preferredSymbolConfiguration && i.symbolImage ? [i imageByApplyingSymbolConfiguration:_preferredSymbolConfiguration] : i;
 }
-- (CGSize)intrinsicContentSize { UIImage *i = [self _shown]; return i ? i.size : CGSizeMake(UIViewNoIntrinsicMetric, UIViewNoIntrinsicMetric); }
+/* adjustsImageSizeForAccessibilityContentSizeCategory: larger at the accessibility text sizes (UIAccessibilityExtras.m) */
+- (CGSize)intrinsicContentSize {
+    extern CGFloat isim_ui_accessibility_image_scale(UIView *);
+    UIImage *i = [self _shown];
+    if (!i) return CGSizeMake(UIViewNoIntrinsicMetric, UIViewNoIntrinsicMetric);
+    CGFloat k = isim_ui_accessibility_image_scale(self);
+    return CGSizeMake(i.size.width * k, i.size.height * k);
+}
 - (void)tintColorDidChange { isim_ui_set_needs_display(); }
 - (void)_isim_drawContent {
     UIImage *img = [self _shown];

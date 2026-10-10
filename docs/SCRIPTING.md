@@ -115,10 +115,16 @@ extension's view is drawn at the top of the card.
 | `display connect [WxH]` · `display shot PATH` · `display disconnect` | a simulated external display (default 1920x1080): the app's external display scene (a scene accessory, or the manifest's `UIWindowSceneSessionRoleExternalDisplayNonInteractive` configuration) or the mirrored device; `display shot` saves what it shows as a PNG |
 | `closescene [SESSION_ID]` | the user closes a window (iPad apps with multiple scenes; the key scene by default): the scene's `closureConfirmation` is shown first when it has one |
 | `metrickit` | Debug ▸ Simulate MetricKit Payloads |
-| `voiceover on\|off\|next\|prev\|activate\|increment\|decrement\|action\|escape\|read` | drive the simulated VoiceOver |
+| `voiceover on\|off\|next\|prev\|activate\|increment\|decrement\|action\|escape\|magictap\|read` | drive the simulated VoiceOver (`read` reads `UIAccessibilityReadingContent` elements as their page content) |
+| `voiceover scroll up\|down\|left\|right\|next\|prev` | a three-finger swipe: the focused element or a container's `accessibilityScroll(_:)`, else the nearest scroll view moves a page; VoiceOver says the scroll status (`UIScrollViewAccessibilityDelegate`, else "Page N of M") |
 | `voiceover rotor [prev]`, `voiceover up\|down` | turn the VoiceOver rotor (custom rotors, Headings, Actions, Adjust Value) / move by its item (like swiping up / down) |
 | `switchcontrol on\|off\|next\|select\|autoSECS\|stop` | simulated Switch Control: item scanning (`auto0.5` moves the highlight every 0.5 s), select activates |
 | `voicecontrol PHRASE` | simulated Voice Control: `tap NAME` (label or `accessibilityUserInputLabels`), `show numbers` / `show names` / `hide numbers`, `tap N`, `scroll down\|up\|left\|right`, `go back` |
+| `accessibility SETTING on\|off` | a Settings ▸ Accessibility switch: `monoaudio`, `speakscreen`, `speakselection`, `assistivetouch`, `shaketoundo`, `buttonshapes`, `onofflabels`, `differentiate`, `reducemotion`, `reducetransparency`; the app gets the matching `UIAccessibility…DidChangeNotification` |
+| `guidedaccess on\|off` · `guidedaccess restrict ID allow\|deny` | start / end a Guided Access session (the app delegate's `UIGuidedAccessRestrictionDelegate` restrictions are logged) / switch one of its restrictions, as in the Guided Access options |
+| `tilt H V` | tilt the device (each −1…1) for `UIInterpolatingMotionEffect`s; `tilt 0 0` levels it |
+| `attributions` | list the private click measurement clicks (`UIEventAttribution`) the app recorded |
+| `fullpage PATH` | a full-page screenshot: the scene's `UIScreenshotServiceDelegate` PDF, written to PATH |
 
 ## Inspecting
 

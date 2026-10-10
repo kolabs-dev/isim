@@ -68,6 +68,9 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/isim/MyApp.app --head
 - `tapid`, `taptext`, `type`, `key`, `drag`, `swipeid` act like a finger and a keyboard; `appearance dark`,
   `rotate landscapeleft`, `location LAT LON`, `push …`, `openurl …` change the device. The full list is in
   [SCRIPTING.md](SCRIPTING.md).
+- Accessibility can be checked the same way: `voiceover on; voiceover next; …` logs what VoiceOver says
+  (`isim: VoiceOver: "…"`), and `accessibility SETTING on|off`, `contrast on`, `boldtext on` and
+  `guidedaccess on` switch the Settings ▸ Accessibility features an app reacts to.
 - `ISIM_ANIMATIONS=0` finishes animations at once and `ISIM_SKIP_LAUNCH_SCREEN=1` skips the launch screen, so the
   waits can be short. `ISIM_WAIT_SCALE=2` doubles every `wait` on a slow machine.
 - End the script with `quit`.

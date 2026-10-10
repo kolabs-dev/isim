@@ -302,9 +302,10 @@ NSData *UIImageJPEGRepresentation(UIImage *img, CGFloat q) {
 @implementation UIGraphicsImageRendererFormat
 - (instancetype)init { if ((self = [super init])) { _scale = isim_ui_device()->scale; _preferredRange = UIGraphicsImageRendererFormatRangeAutomatic; } return self; }
 /* the scale of a trait collection (its display scale; else the device's) */
-- (instancetype)initForTraitCollection:(UITraitCollection *)traits {
-    if ((self = [self init]) && traits.displayScale > 0) _scale = traits.displayScale;
-    return self;
++ (instancetype)formatForTraitCollection:(UITraitCollection *)traits {
+    UIGraphicsImageRendererFormat *f = [self new];
+    if (traits.displayScale > 0) f.scale = traits.displayScale;
+    return f;
 }
 - (BOOL)supportsHighDynamicRange { return NO; }      /* isim renders standard dynamic range */
 - (id)copyWithZone:(NSZone *)z { UIGraphicsImageRendererFormat *f = [super copyWithZone:z]; f.scale = _scale; f.opaque = _opaque; f.preferredRange = _preferredRange; return f; }

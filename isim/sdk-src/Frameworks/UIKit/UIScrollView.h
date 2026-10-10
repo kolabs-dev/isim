@@ -27,6 +27,13 @@ NS_SWIFT_UI_ACTOR
 - (void)scrollViewDidZoom:(UIScrollView *)scrollView;
 - (void)scrollViewDidEndZooming:(UIScrollView *)scrollView withView:(nullable UIView *)view atScale:(CGFloat)scale;
 @end
+/* VoiceOver speaks the scroll status after a three-finger scroll (accessibilityScroll) or a page scrolled notification */
+NS_SWIFT_UI_ACTOR
+@protocol UIScrollViewAccessibilityDelegate <UIScrollViewDelegate>
+@optional
+- (nullable NSString *)accessibilityScrollStatusForScrollView:(UIScrollView *)scrollView;
+- (nullable NSAttributedString *)accessibilityAttributedScrollStatusForScrollView:(UIScrollView *)scrollView API_AVAILABLE(ios(11.0));
+@end
 /* isim: scrolling with rubber-banding, deceleration and paging; pinch zooming (UIScrollViewZoom.m). */
 @interface UIScrollView : UIView
 @property (nonatomic) CGPoint contentOffset;

@@ -90,6 +90,65 @@ public enum UIAccessibility {
     public static let announcementStringValueUserInfoKey = "UIAccessibilityAnnouncementKeyStringValue"
     public static let announcementWasSuccessfulUserInfoKey = "UIAccessibilityAnnouncementKeyWasSuccessful"
     public static let focusedElementUserInfoKey = "UIAccessibilityFocusedElementKey"
+    public static let unfocusedElementUserInfoKey = "UIAccessibilityUnfocusedElementKey"
+    public static let assistiveTechnologyUserInfoKey = "UIAccessibilityAssistiveTechnologyKey"
+    // the further Settings > Accessibility values and their notifications
+    public static var isGuidedAccessEnabled: Bool { UIAccessibilityIsGuidedAccessEnabled() }
+    public static var isMonoAudioEnabled: Bool { UIAccessibilityIsMonoAudioEnabled() }
+    public static var isSpeakScreenEnabled: Bool { UIAccessibilityIsSpeakScreenEnabled() }
+    public static var isSpeakSelectionEnabled: Bool { UIAccessibilityIsSpeakSelectionEnabled() }
+    public static var isAssistiveTouchRunning: Bool { UIAccessibilityIsAssistiveTouchRunning() }
+    public static var isShakeToUndoEnabled: Bool { UIAccessibilityIsShakeToUndoEnabled() }
+    public static var hearingDevicePairedEar: HearingDeviceEar { UIAccessibilityHearingDevicePairedEar() }
+    public static let guidedAccessStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityGuidedAccessStatusDidChangeNotification")
+    public static let monoAudioStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityMonoAudioStatusDidChangeNotification")
+    public static let speakScreenStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilitySpeakScreenStatusDidChangeNotification")
+    public static let speakSelectionStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilitySpeakSelectionStatusDidChangeNotification")
+    public static let assistiveTouchStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityAssistiveTouchStatusDidChangeNotification")
+    public static let shakeToUndoDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityShakeToUndoDidChangeNotification")
+    public static let hearingDevicePairedEarDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityHearingDevicePairedEarDidChangeNotification")
+    public static let closedCaptioningStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityClosedCaptioningStatusDidChangeNotification")
+    public static let grayscaleStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityGrayscaleStatusDidChangeNotification")
+    public static let invertColorsStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityInvertColorsStatusDidChangeNotification")
+    public static let videoAutoplayStatusDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityVideoAutoplayStatusDidChangeNotification")
+    public static let prefersCrossFadeTransitionsStatusDidChange = NSNotification.Name(rawValue: "UIAccessibilityPrefersCrossFadeTransitionsStatusDidChangeNotification")
+    public static let onOffSwitchLabelsDidChangeNotification = NSNotification.Name(rawValue: "UIAccessibilityOnOffSwitchLabelsDidChangeNotification")
+    public typealias AssistiveTechnologyIdentifier = UIAccessibilityAssistiveTechnologyIdentifier
+    public typealias HearingDeviceEar = UIAccessibilityHearingDeviceEar
+    public typealias ZoomType = UIAccessibilityZoomType
+    @available(iOS 13.0, *) public typealias TextualContext = UIAccessibilityTextualContext
+    public typealias GuidedAccessRestrictionState = UIGuidedAccessRestrictionState
+    // isim's error enums are plain enums: this is the Swift error type of their codes (an NSError from
+    // configureForGuidedAccess has this domain and a Code raw value)
+    @available(iOS 12.2, *) public struct GuidedAccessError: CustomNSError, Hashable {
+        public typealias Code = UIGuidedAccessErrorCode
+        public let code: Code
+        public init(_ code: Code) { self.code = code }
+        public static var errorDomain: String { UIGuidedAccessErrorDomain }
+        public var errorCode: Int { code.rawValue }
+        public static var permissionDenied: Code { .permissionDenied }
+        public static var failed: Code { .failed }
+    }
+    @available(iOS 12.2, *) public static var guidedAccessErrorDomain: String { UIGuidedAccessErrorDomain }
+    @available(iOS 18.0, *) public typealias ExpandedStatus = UIAccessibilityExpandedStatus
+    @available(iOS 17.0, *) public typealias DirectTouchOptions = UIAccessibilityDirectTouchOptions
+    @MainActor public static func focusedElement(using assistiveTechnologyIdentifier: AssistiveTechnologyIdentifier?) -> Any? {
+        UIAccessibilityFocusedElement(assistiveTechnologyIdentifier)
+    }
+    @MainActor public static func convertToScreenCoordinates(_ rect: CGRect, in view: UIView) -> CGRect { UIAccessibilityConvertFrameToScreenCoordinates(rect, view) }
+    @MainActor public static func convertToScreenCoordinates(_ path: UIBezierPath, in view: UIView) -> UIBezierPath { UIAccessibilityConvertPathToScreenCoordinates(path, view) }
+    @MainActor public static func zoomFocusChanged(_ type: ZoomType, frame: CGRect, in view: UIView) { UIAccessibilityZoomFocusChanged(type, frame, view) }
+    @MainActor public static func registerGestureConflictWithZoom() { UIAccessibilityRegisterGestureConflictWithZoom() }
+    @MainActor public static func guidedAccessRestrictionState(forIdentifier restrictionIdentifier: String) -> GuidedAccessRestrictionState {
+        UIGuidedAccessRestrictionStateForIdentifier(restrictionIdentifier)
+    }
+    @MainActor public static func requestGuidedAccessSession(enabled enable: Bool, completionHandler: @escaping (Bool) -> Void) {
+        UIAccessibilityRequestGuidedAccessSession(enable, completionHandler)
+    }
+    @available(iOS 12.2, *) @MainActor public static func configureForGuidedAccess(features: UIGuidedAccessAccessibilityFeature, enabled: Bool,
+                                                           completionHandler: @escaping (Bool, Error?) -> Void) {
+        UIGuidedAccessConfigureAccessibilityFeatures(features, enabled, completionHandler)
+    }
 }
 
 // UIAccessibilityTraits is an option set in Swift ([.button, .selected], insert, contains)

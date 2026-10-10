@@ -20,6 +20,17 @@ NS_SWIFT_UI_ACTOR
 - (UIView *)pickerView:(UIPickerView *)pickerView viewForRow:(NSInteger)row forComponent:(NSInteger)component reusingView:(nullable UIView *)view;
 - (void)pickerView:(UIPickerView *)pickerView didSelectRow:(NSInteger)row inComponent:(NSInteger)component;
 @end
+/* what VoiceOver says for a component (wheel) */
+NS_SWIFT_UI_ACTOR
+@protocol UIPickerViewAccessibilityDelegate <UIPickerViewDelegate>
+@optional
+- (nullable NSString *)pickerView:(UIPickerView *)pickerView accessibilityLabelForComponent:(NSInteger)component;
+- (nullable NSString *)pickerView:(UIPickerView *)pickerView accessibilityHintForComponent:(NSInteger)component;
+- (NSArray<NSString *> *)pickerView:(UIPickerView *)pickerView accessibilityUserInputLabelsForComponent:(NSInteger)component API_AVAILABLE(ios(13.0));
+- (nullable NSAttributedString *)pickerView:(UIPickerView *)pickerView accessibilityAttributedLabelForComponent:(NSInteger)component API_AVAILABLE(ios(11.0));
+- (nullable NSAttributedString *)pickerView:(UIPickerView *)pickerView accessibilityAttributedHintForComponent:(NSInteger)component API_AVAILABLE(ios(11.0));
+- (NSArray<NSAttributedString *> *)pickerView:(UIPickerView *)pickerView accessibilityAttributedUserInputLabelsForComponent:(NSInteger)component API_AVAILABLE(ios(13.0));
+@end
 
 NS_SWIFT_UI_ACTOR
 @interface UIPickerView : UIView
