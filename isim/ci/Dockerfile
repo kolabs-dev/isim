@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev \
       libpulse-dev libasound2-dev libdbus-1-dev libudev-dev \
       fontconfig fonts-noto-core fonts-noto-color-emoji fonts-dejavu-core adwaita-icon-theme imagemagick \
-      ffmpeg espeak-ng libzbar0 zbar-tools qrencode libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 \
+      ffmpeg espeak-ng libzbar0 zbar-tools qrencode libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 libicu74 \
       libwebkitgtk-6.0-dev libgtk-4-dev libgtk-4-bin libpoppler-glib8 \
     && rm -rf /var/lib/apt/lists/*
 # clang/lld 22 from LLVM's official apt repository: isim's SDK ships libc++ 22, whose headers need clang 21 or newer

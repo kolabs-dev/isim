@@ -130,6 +130,7 @@ extension String {
   public func uppercased(with locale: Locale?) -> String { _localeCase(self, locale, upper: true) }
   public func lowercased(with locale: Locale?) -> String { _localeCase(self, locale, upper: false) }
   public func capitalized(with locale: Locale?) -> String {
+    if let locale, Calendar._icuAvailable { return (self as NSString).capitalized(with: locale) }
     var out = "", start = true
     for ch in self { out += start ? _localeCase(String(ch), locale, upper: true) : String(ch); start = ch.isWhitespace }
     return out
@@ -253,6 +254,15 @@ public struct Locale: Hashable, @unchecked Sendable, CustomStringConvertible {
   public func localizedString(forIdentifier i: String) -> String? { _ns.localizedString(forLocaleIdentifier: i) }
   public func localizedString(forLanguageCode c: String) -> String? { _ns.localizedString(forLanguageCode: c) }
   public func localizedString(forRegionCode c: String) -> String? { _ns.localizedString(forCountryCode: c) }
+  public func localizedString(forScriptCode c: String) -> String? { _ns.localizedString(forScriptCode: c) }
+  public func localizedString(forCurrencyCode c: String) -> String? { _ns.localizedString(forCurrencyCode: c) }
+  public func localizedString(for calendarIdentifier: Calendar.Identifier) -> String? { _ns.localizedString(forCalendarIdentifier: calendarIdentifier._icuName) }
+  /// the locale's calendar ("@calendar=" keyword; Gregorian by default)
+  public var calendar: Calendar {
+    var c = Calendar(identifier: Calendar.Identifier(_icuName: _ns.calendarIdentifier) ?? .gregorian)
+    c.locale = self
+    return c
+  }
   public var description: String { identifier }
   public static func == (a: Locale, b: Locale) -> Bool { a.identifier == b.identifier }
   public func hash(into h: inout Hasher) { h.combine(identifier) }
@@ -603,6 +613,9 @@ extension Error {
 
 /// Case mapping with the locale's special rules (Turkish/Azeri dotted i, Lithuanian handled as default).
 func _localeCase(_ s: String, _ locale: Locale?, upper: Bool) -> String {
+  if let locale, Calendar._icuAvailable {   // the locale's case rules from the host's ICU
+    return upper ? (s as NSString).uppercased(with: locale) : (s as NSString).lowercased(with: locale)
+  }
   let lang = locale?.languageCode ?? ""
   if lang == "tr" || lang == "az" {
     var out = ""

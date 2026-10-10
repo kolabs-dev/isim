@@ -6,7 +6,8 @@
  *   ISIM_HOUR_CYCLE "12", "24" or unset (locale default)
  *   TZ              time zone name (honoured by the host C library)
  * Locale data (month names, date patterns, separators) is a small built-in table covering common
- * locales; other locales fall back to their language or to en_US. It is not CLDR. */
+ * locales (hand-written to match iOS); every other locale and calendar comes from the host's ICU (ICU.m),
+ * and without ICU falls back to its language's table or to en_US. */
 #import <Foundation/Foundation.h>
 #include <ctype.h>
 #include <math.h>
@@ -143,9 +144,15 @@ static const isim_lang_t LANGS[] = {
       { "来年", "来月", "来週", NULL, NULL, NULL, NULL }, 0,
       { "バイト", "KB", "MB", "GB", "TB", "PB" }, "0", NULL },
 };
+BOOL isim_lang_builtin(NSString *lang) {
+    for (size_t i = 0; i < sizeof LANGS / sizeof *LANGS; i++) if ([lang isEqualToString:@(LANGS[i].lang)]) return YES;
+    return NO;
+}
+/* the built-in table for its languages; any other language from the host's ICU (ICU.m); English without ICU */
 const isim_lang_t *isim_lang(NSString *lang) {
     for (size_t i = 0; i < sizeof LANGS / sizeof *LANGS; i++) if ([lang isEqualToString:@(LANGS[i].lang)]) return &LANGS[i];
-    return &LANGS[0];
+    const isim_lang_t *icu = isim_icu_lang(lang);
+    return icu ?: &LANGS[0];
 }
 
 #define NB " "
@@ -168,17 +175,30 @@ static const isim_region_t REGIONS[] = {
     { "ja_JP", ".", ",", "JPY", "￥", 0, 1, "y/MM/dd", "y/MM/dd", "y年M月d日", "y年M月d日EEEE", 1, 0, "¤#", "#%", 1 },
     { "ar_SA", "٫", "٬", "SAR", "ر.س.‏", 1, 1, "d‏/M‏/y", "dd‏/MM‏/y", "d MMMM y", "EEEE، d MMMM y", 1, 0, "#" NB "¤", "#%", 1 },
 };
+/* a built-in row for its locales; any other locale from the host's ICU (ICU.m); without ICU, a row of the same
+ * language or en_US */
 static const isim_region_t *region_for(NSString *ident) {
     for (size_t i = 0; i < sizeof REGIONS / sizeof *REGIONS; i++) if ([ident isEqualToString:@(REGIONS[i].loc)]) return &REGIONS[i];
+    const isim_region_t *icu = isim_icu_region(ident);
+    if (icu) return icu;
     NSString *lang = [ident componentsSeparatedByString:@"_"].firstObject;
     for (size_t i = 0; i < sizeof REGIONS / sizeof *REGIONS; i++) if ([@(REGIONS[i].loc) hasPrefix:[lang stringByAppendingString:@"_"]]) return &REGIONS[i];
     return &REGIONS[0];
 }
+BOOL isim_region_builtin(NSString *ident) {
+    for (size_t i = 0; i < sizeof REGIONS / sizeof *REGIONS; i++) if ([ident isEqualToString:@(REGIONS[i].loc)]) return YES;
+    return NO;
+}
+#define builtin_region isim_region_builtin
 const isim_region_t *isim_region(NSString *ident) { return region_for(ident.length ? ident : default_locale_identifier()); }
 NSString *isim_locale_ident(NSLocale *l) { NSString *i = (l ?: NSLocale.currentLocale).localeIdentifier; return i.length ? i : @"en_US"; }
 NSString *isim_locale_lang(NSLocale *l) { NSString *c = (l ?: NSLocale.currentLocale).languageCode; return c.length ? c : @"en"; }
 
 BOOL isim_plural_one(NSString *lang, double n, int fractionDigits) {
+    if (!isim_lang_builtin(lang) && isim_icu_on()) {                       /* CLDR plural rules from ICU */
+        NSString *cat = isim_icu_plural_category(lang, fractionDigits && n == floor(n) ? n + 0.5 : n, NO);
+        if (cat) return [cat isEqualToString:@"one"];
+    }
     if ([lang isEqualToString:@"ja"] || [lang isEqualToString:@"zh"] || [lang isEqualToString:@"ko"]) return NO;
     if ([lang isEqualToString:@"fr"] || [lang isEqualToString:@"pt"]) return fabs(n) < 2;          /* i = 0,1 */
     return fabs(n) == 1 && fractionDigits == 0;
@@ -373,6 +393,10 @@ static const currency_t *currency_for(NSString *code) {
 NSString *isim_currency_symbol(NSString *code, NSLocale *locale) {
     const isim_region_t *r = region_for(isim_locale_ident(locale));
     NSString *lang = isim_locale_lang(locale);
+    if (isim_icu_on() && code.length && (!builtin_region(isim_locale_ident(locale)) || !currency_for(code))) {
+        NSString *s = isim_icu_currency_string(isim_locale_ident(locale), code, 0, nil);
+        if (s) return s;
+    }
     if (!code.length || [code isEqualToString:@(r->currencyCode)]) return @(r->currencySymbol);
     if ([code isEqualToString:@"USD"]) {
         if ([lang isEqualToString:@"de"] || [lang isEqualToString:@"it"] || [lang isEqualToString:@"ja"]) return @"$";
@@ -388,7 +412,12 @@ NSString *isim_currency_name(NSString *code, BOOL plural) {
     const currency_t *c = currency_for(code);
     return c ? @(plural ? c->other : c->one) : code;
 }
-int isim_currency_digits(NSString *code) { const currency_t *c = currency_for(code); return c ? c->digits : 2; }
+int isim_currency_digits(NSString *code) {
+    const currency_t *c = currency_for(code);
+    if (c) return c->digits;
+    NSString *icu = isim_icu_on() ? isim_icu_currency_string(@"en", code, 5, nil) : nil;
+    return icu ? icu.intValue : 2;
+}
 
 static NSDictionary *language_names(void) {
     return @{ @"en": @[@"English", @"English"], @"pt": @[@"Portuguese", @"português"], @"es": @[@"Spanish", @"español"],
@@ -420,7 +449,28 @@ BOOL isim_uses_12h(NSLocale *locale) {
 }
 
 /* ---------------- NSLocale ---------------- */
-@implementation NSLocale { NSString *_ident; NSString *_lang, *_region, *_script; BOOL _current; }
+/* Foundation calendar identifiers <-> ICU's calendar keyword values */
+static NSDictionary<NSString *, NSString *> *calendar_names(void) {
+    return @{ @"gregorian": @"gregorian", @"buddhist": @"buddhist", @"chinese": @"chinese", @"coptic": @"coptic",
+              @"ethiopic": @"ethiopic", @"ethiopic-amete-alem": @"ethiopic-amete-alem", @"hebrew": @"hebrew", @"iso8601": @"iso8601",
+              @"indian": @"indian", @"islamic": @"islamic", @"islamic-civil": @"islamic-civil", @"japanese": @"japanese",
+              @"persian": @"persian", @"roc": @"roc", @"islamic-tbla": @"islamic-tbla", @"islamic-umalqura": @"islamic-umalqura",
+              @"dangi": @"dangi", @"vietnamese": @"chinese", @"bangla": @"indian", @"gujarati": @"indian", @"kannada": @"indian",
+              @"malayalam": @"indian", @"marathi": @"indian", @"odia": @"indian", @"tamil": @"indian", @"telugu": @"indian" };
+}
+NSString *isim_icu_calendar_name(NSString *foundationID) {
+    NSDictionary *m = @{ @"ethiopicAmeteMihret": @"ethiopic", @"ethiopicAmeteAlem": @"ethiopic-amete-alem", @"islamicCivil": @"islamic-civil",
+                         @"republicOfChina": @"roc", @"islamicTabular": @"islamic-tbla", @"islamicUmmAlQura": @"islamic-umalqura",
+                         @"vietnamese": @"chinese" };
+    return m[foundationID] ?: foundationID;
+}
+NSString *isim_foundation_calendar_id(NSString *icuName) {
+    NSDictionary *m = @{ @"ethiopic": @"ethiopic", @"ethiopic-amete-alem": @"ethiopic-amete-alem", @"islamic-civil": @"islamic-civil",
+                         @"roc": @"roc", @"islamic-tbla": @"islamic-tbla", @"islamic-umalqura": @"islamic-umalqura" };
+    return calendar_names()[icuName] ? (m[icuName] ?: icuName) : @"gregorian";
+}
+
+@implementation NSLocale { NSString *_ident; NSString *_lang, *_region, *_script, *_calendar; BOOL _current; }
 + (BOOL)supportsSecureCoding { return YES; }
 - (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSLocale class]); }    /* NS.identifier */
 - (instancetype)initWithCoder:(NSCoder *)c { return [self initWithLocaleIdentifier:[c decodeObjectOfClass:[NSString class] forKey:@"NS.identifier"] ?: @""]; }
@@ -439,7 +489,15 @@ BOOL isim_uses_12h(NSLocale *locale) {
 - (instancetype)initWithLocaleIdentifier:(NSString *)ident {
     if ((self = [super init])) {
         _ident = [[ident stringByReplacingOccurrencesOfString:@"-" withString:@"_"] copy];
-        NSArray *parts = [_ident componentsSeparatedByString:@"_"];
+        NSRange at = [_ident rangeOfString:@"@"];                       /* "he_IL@calendar=hebrew" */
+        NSString *base = at.location == NSNotFound ? _ident : [_ident substringToIndex:at.location];
+        if (at.location != NSNotFound) {
+            for (NSString *kv in [[_ident substringFromIndex:at.location + 1] componentsSeparatedByString:@";"]) {
+                NSArray *p = [kv componentsSeparatedByString:@"="];
+                if (p.count == 2 && [p[0] isEqualToString:@"calendar"]) _calendar = isim_foundation_calendar_id(p[1]);
+            }
+        }
+        NSArray *parts = [base componentsSeparatedByString:@"_"];
         _lang = parts.count && [parts[0] length] ? parts[0] : nil;
         for (NSUInteger i = 1; i < parts.count; i++) {
             NSString *p = parts[i];
@@ -458,8 +516,8 @@ BOOL isim_uses_12h(NSLocale *locale) {
 - (NSString *)countryCode { return _region; }
 - (NSString *)regionCode { return _region; }
 - (NSString *)scriptCode { return _script; }
-- (NSString *)calendarIdentifier { return @"gregorian"; }
-- (const isim_region_t *)_region { return region_for(_ident.length ? _ident : @"en_US"); }
+- (NSString *)calendarIdentifier { return _calendar ?: @"gregorian"; }
+- (const isim_region_t *)_region { return region_for(_ident.length ? _ident : default_locale_identifier()); }
 - (NSString *)decimalSeparator { return @([self _region]->decimal); }
 - (NSString *)groupingSeparator { return @([self _region]->group); }
 - (NSString *)currencySymbol { return @([self _region]->currencySymbol); }
@@ -480,12 +538,23 @@ BOOL isim_uses_12h(NSLocale *locale) {
     return nil;
 }
 - (NSString *)localizedStringForLanguageCode:(NSString *)code {
+    NSString *icu = isim_icu_display(isim_icu_locale_id(self), [code stringByReplacingOccurrencesOfString:@"-" withString:@"_"], 1);
+    if (icu) return icu;
     NSArray *n = language_names()[[code componentsSeparatedByString:@"-"].firstObject];
     if (!n) return nil;
     return [_lang isEqualToString:[code componentsSeparatedByString:@"-"].firstObject] ? n[1] : n[0];
 }
-- (NSString *)localizedStringForCountryCode:(NSString *)code { return country_names()[code.uppercaseString]; }
+- (NSString *)localizedStringForCountryCode:(NSString *)code {
+    return isim_icu_display(isim_icu_locale_id(self), code.uppercaseString, 2) ?: country_names()[code.uppercaseString];
+}
+- (NSString *)localizedStringForScriptCode:(NSString *)code { return isim_icu_display(isim_icu_locale_id(self), code, 3); }
+- (NSString *)localizedStringForCurrencyCode:(NSString *)code {
+    return isim_icu_display(isim_icu_locale_id(self), code.uppercaseString, 5) ?: isim_currency_name(code.uppercaseString, NO);
+}
+- (NSString *)localizedStringForCalendarIdentifier:(NSString *)ident { return isim_icu_display(isim_icu_locale_id(self), isim_icu_calendar_name(ident), 4); }
 - (NSString *)localizedStringForLocaleIdentifier:(NSString *)ident {
+    NSString *icu = isim_icu_display(isim_icu_locale_id(self), [ident stringByReplacingOccurrencesOfString:@"-" withString:@"_"], 0);
+    if (icu) return icu;
     NSLocale *l = [NSLocale localeWithLocaleIdentifier:ident];
     NSString *lang = [self localizedStringForLanguageCode:l.languageCode ?: @""] ?: ident;
     NSString *country = l.countryCode ? [self localizedStringForCountryCode:l.countryCode] : nil;
@@ -495,6 +564,9 @@ BOOL isim_uses_12h(NSLocale *locale) {
     if ([key isEqualToString:NSLocaleIdentifier]) return [self localizedStringForLocaleIdentifier:value];
     if ([key isEqualToString:NSLocaleLanguageCode]) return [self localizedStringForLanguageCode:value];
     if ([key isEqualToString:NSLocaleCountryCode]) return [self localizedStringForCountryCode:value];
+    if ([key isEqualToString:NSLocaleScriptCode]) return [self localizedStringForScriptCode:value];
+    if ([key isEqualToString:NSLocaleCurrencyCode]) return [self localizedStringForCurrencyCode:value];
+    if ([key isEqualToString:NSLocaleCalendarIdentifier]) return [self localizedStringForCalendarIdentifier:value];
     return nil;
 }
 + (NSLocaleLanguageDirection)characterDirectionForLanguage:(NSString *)code {
@@ -714,6 +786,59 @@ NSString *isim_format_date(NSDate *date, NSString *fmt, NSLocale *locale, NSTime
     return out;
 }
 
+/* The ICU locale for formatting dates in a locale and calendar, or nil when the built-in tables cover them
+ * (a built-in region and language, Gregorian or ISO 8601). */
+NSString *isim_icu_date_locale(NSLocale *locale, NSString *calendarID) {
+    if (!isim_icu_on()) return nil;
+    NSString *ident = isim_locale_ident(locale);
+    NSString *cal = calendarID ?: locale.calendarIdentifier;
+    BOOL gregorian = !cal.length || [cal isEqualToString:@"gregorian"] || [cal isEqualToString:@"iso8601"];
+    NSRange at = [ident rangeOfString:@"@"];
+    NSString *base = at.location == NSNotFound ? ident : [ident substringToIndex:at.location];
+    if (gregorian && builtin_region(base) && isim_lang_builtin(isim_locale_lang(locale))) return nil;
+    return gregorian ? base : [NSString stringWithFormat:@"%@@calendar=%@", base, isim_icu_calendar_name(cal)];
+}
+/* the user's 12/24-hour setting on an ICU pattern (the current locale only, as on iOS) */
+static NSString *hour_cycle(NSString *pat, NSLocale *locale) {
+    if (!pat.length || (locale && ![locale _isim_isCurrent])) return pat;
+    BOOL want12 = isim_uses_12h(locale);
+    NSMutableString *out = [NSMutableString string];
+    BOOL quoted = NO, has12 = NO, has24 = NO;
+    for (NSUInteger i = 0; i < pat.length; i++) {
+        unichar c = [pat characterAtIndex:i];
+        if (c == '\'') quoted = !quoted;
+        else if (!quoted && (c == 'h' || c == 'K')) has12 = YES;
+        else if (!quoted && (c == 'H' || c == 'k')) has24 = YES;
+    }
+    if ((want12 && !has24) || (!want12 && !has12)) return pat;
+    quoted = NO;
+    for (NSUInteger i = 0; i < pat.length; i++) {
+        unichar c = [pat characterAtIndex:i];
+        if (c == '\'') { quoted = !quoted; [out appendFormat:@"%C", c]; continue; }
+        if (quoted) { [out appendFormat:@"%C", c]; continue; }
+        if (!want12 && (c == 'h' || c == 'K')) { [out appendString:@"H"]; continue; }
+        if (!want12 && (c == 'a' || c == 'b' || c == 'B')) {           /* drop the day period and the space before it */
+            while (out.length && [[NSCharacterSet whitespaceCharacterSet] characterIsMember:[out characterAtIndex:out.length - 1]]) [out deleteCharactersInRange:NSMakeRange(out.length - 1, 1)];
+            while (i + 1 < pat.length && [pat characterAtIndex:i + 1] == c) i++;
+            if (i + 1 < pat.length && [[NSCharacterSet whitespaceCharacterSet] characterIsMember:[pat characterAtIndex:i + 1]] && !out.length) i++;
+            continue;
+        }
+        if (want12 && (c == 'H' || c == 'k')) {
+            [out appendString:@"h"];
+            while (i + 1 < pat.length && ([pat characterAtIndex:i + 1] == 'H' || [pat characterAtIndex:i + 1] == 'k')) i++;
+            continue;
+        }
+        [out appendFormat:@"%C", c];
+    }
+    if (want12) {                                                      /* the day period after the last time field */
+        for (NSUInteger i = out.length; i > 0; i--) {
+            unichar c = [out characterAtIndex:i - 1];
+            if (c == 'h' || c == 'm' || c == 's' || c == 'S') { [out insertString:@"\u202Fa" atIndex:i]; break; }
+        }
+    }
+    return out;
+}
+
 @implementation NSDateFormatter { NSString *_fmt; NSLocale *_locale; NSTimeZone *_tz; NSMutableDictionary *_symbols; }
 @synthesize calendar = _calendar, dateStyle = _dateStyle, timeStyle = _timeStyle;
 - (NSCalendar *)calendar { return _calendar ?: NSCalendar.currentCalendar; }
@@ -737,10 +862,33 @@ NSString *isim_format_date(NSDate *date, NSString *fmt, NSLocale *locale, NSTime
 - (void)setDateFormat:(NSString *)f { _fmt = [f copy]; }
 - (void)setDateStyle:(NSDateFormatterStyle)s { _dateStyle = s; _fmt = nil; }
 - (void)setTimeStyle:(NSDateFormatterStyle)s { _timeStyle = s; _fmt = nil; }
-- (NSString *)dateFormat { return _fmt ?: isim_style_pattern((NSInteger)self.dateStyle, (NSInteger)self.timeStyle, _locale); }
-- (void)setLocalizedDateFormatFromTemplate:(NSString *)tmpl { _fmt = isim_date_pattern(tmpl, _locale); }
+- (NSString *)_icuLocale { return isim_icu_date_locale(_locale, _calendar.calendarIdentifier); }
+- (NSString *)dateFormat {
+    if (_fmt) return _fmt;
+    NSString *icu = [self _icuLocale];
+    NSString *p = icu ? hour_cycle(isim_icu_style_pattern(icu, (NSInteger)self.dateStyle, (NSInteger)self.timeStyle), _locale) : nil;
+    return p ?: isim_style_pattern((NSInteger)self.dateStyle, (NSInteger)self.timeStyle, _locale);
+}
+- (void)setLocalizedDateFormatFromTemplate:(NSString *)tmpl {
+    NSString *icu = [self _icuLocale];
+    _fmt = (icu ? hour_cycle(isim_icu_skeleton_pattern(icu, tmpl), _locale) : nil) ?: isim_date_pattern(tmpl, _locale);
+}
 + (NSString *)dateFormatFromTemplate:(NSString *)tmpl options:(NSUInteger)opts locale:(NSLocale *)locale {
-    return isim_date_pattern(tmpl, locale ?: NSLocale.currentLocale);
+    locale = locale ?: NSLocale.currentLocale;
+    NSString *icu = isim_icu_date_locale(locale, nil);
+    return (icu ? hour_cycle(isim_icu_skeleton_pattern(icu, tmpl), locale) : nil) ?: isim_date_pattern(tmpl, locale);
+}
+/* format with ICU when the built-in tables do not cover the locale or calendar (and no symbol was overridden) */
+- (NSString *)_format:(NSDate *)date pattern:(NSString *)pattern {
+    NSString *icu = _symbols.count ? nil : [self _icuLocale];
+    NSString *s = icu ? isim_icu_date_format_string(icu, _tz.name, pattern, date) : nil;
+    return s ?: isim_format_date(date, pattern, _locale, _tz, _symbols);
+}
+/* ICU's symbols when it formats for this locale / calendar (UDateFormatSymbolType) */
+- (NSArray *)_icuSymbols:(int)type key:(NSString *)key {
+    if (_symbols[key]) return _symbols[key];
+    NSString *icu = [self _icuLocale];
+    return icu ? isim_icu_symbols(icu, type) : nil;
 }
 + (NSString *)localizedStringFromDate:(NSDate *)d dateStyle:(NSDateFormatterStyle)ds timeStyle:(NSDateFormatterStyle)ts {
     NSDateFormatter *f = [NSDateFormatter new]; f.dateStyle = ds; f.timeStyle = ts; return [f stringFromDate:d];
@@ -753,29 +901,37 @@ NSString *isim_format_date(NSDate *date, NSString *fmt, NSLocale *locale, NSTime
     return a;
 }
 - (const isim_lang_t *)_lang { return isim_lang(isim_locale_lang(_locale)); }
-- (NSArray *)monthSymbols { return [self _names:[self _lang]->months count:12 key:@"months" narrow:NO]; }
+- (NSArray *)monthSymbols { return [self _icuSymbols:1 key:@"months"] ?: [self _names:[self _lang]->months count:12 key:@"months" narrow:NO]; }
 - (void)setMonthSymbols:(NSArray *)a { _symbols[@"months"] = [a copy]; }
-- (NSArray *)shortMonthSymbols { return [self _names:[self _lang]->monthsShort count:12 key:@"shortMonths" narrow:NO]; }
+- (NSArray *)shortMonthSymbols { return [self _icuSymbols:2 key:@"shortMonths"] ?: [self _names:[self _lang]->monthsShort count:12 key:@"shortMonths" narrow:NO]; }
 - (void)setShortMonthSymbols:(NSArray *)a { _symbols[@"shortMonths"] = [a copy]; }
-- (NSArray *)veryShortMonthSymbols { return [self _names:[self _lang]->months count:12 key:@"veryShortMonths" narrow:YES]; }
-- (NSArray *)standaloneMonthSymbols { return self.monthSymbols; }
-- (NSArray *)shortStandaloneMonthSymbols { return self.shortMonthSymbols; }
-- (NSArray *)veryShortStandaloneMonthSymbols { return self.veryShortMonthSymbols; }
-- (NSArray *)weekdaySymbols { return [self _names:[self _lang]->weekdays count:7 key:@"weekdays" narrow:NO]; }
+- (NSArray *)veryShortMonthSymbols { return [self _icuSymbols:8 key:@"veryShortMonths"] ?: [self _names:[self _lang]->months count:12 key:@"veryShortMonths" narrow:YES]; }
+- (NSArray *)standaloneMonthSymbols { return [self _icuSymbols:10 key:@"standaloneMonths"] ?: self.monthSymbols; }
+- (NSArray *)shortStandaloneMonthSymbols { return [self _icuSymbols:11 key:@"shortStandaloneMonths"] ?: self.shortMonthSymbols; }
+- (NSArray *)veryShortStandaloneMonthSymbols { return [self _icuSymbols:12 key:@"veryShortStandaloneMonths"] ?: self.veryShortMonthSymbols; }
+- (NSArray *)weekdaySymbols { return [self _icuSymbols:3 key:@"weekdays"] ?: [self _names:[self _lang]->weekdays count:7 key:@"weekdays" narrow:NO]; }
 - (void)setWeekdaySymbols:(NSArray *)a { _symbols[@"weekdays"] = [a copy]; }
-- (NSArray *)shortWeekdaySymbols { return [self _names:[self _lang]->weekdaysShort count:7 key:@"shortWeekdays" narrow:NO]; }
+- (NSArray *)shortWeekdaySymbols { return [self _icuSymbols:4 key:@"shortWeekdays"] ?: [self _names:[self _lang]->weekdaysShort count:7 key:@"shortWeekdays" narrow:NO]; }
 - (void)setShortWeekdaySymbols:(NSArray *)a { _symbols[@"shortWeekdays"] = [a copy]; }
-- (NSArray *)veryShortWeekdaySymbols { return [self _names:[self _lang]->weekdays count:7 key:@"veryShortWeekdays" narrow:YES]; }
-- (NSArray *)standaloneWeekdaySymbols { return self.weekdaySymbols; }
-- (NSArray *)shortStandaloneWeekdaySymbols { return self.shortWeekdaySymbols; }
-- (NSArray *)veryShortStandaloneWeekdaySymbols { return self.veryShortWeekdaySymbols; }
-- (NSString *)AMSymbol { return _symbols[@"AM"] ?: @([self _lang]->am); }
+- (NSArray *)veryShortWeekdaySymbols { return [self _icuSymbols:9 key:@"veryShortWeekdays"] ?: [self _names:[self _lang]->weekdays count:7 key:@"veryShortWeekdays" narrow:YES]; }
+- (NSArray *)standaloneWeekdaySymbols { return [self _icuSymbols:13 key:@"standaloneWeekdays"] ?: self.weekdaySymbols; }
+- (NSArray *)shortStandaloneWeekdaySymbols { return [self _icuSymbols:14 key:@"shortStandaloneWeekdays"] ?: self.shortWeekdaySymbols; }
+- (NSArray *)veryShortStandaloneWeekdaySymbols { return [self _icuSymbols:15 key:@"veryShortStandaloneWeekdays"] ?: self.veryShortWeekdaySymbols; }
+- (NSString *)AMSymbol { return _symbols[@"AM"] ?: [self _icuSymbols:5 key:@"AMPM"].firstObject ?: @([self _lang]->am); }
 - (void)setAMSymbol:(NSString *)s { _symbols[@"AM"] = [s copy]; }
-- (NSString *)PMSymbol { return _symbols[@"PM"] ?: @([self _lang]->pm); }
+- (NSString *)PMSymbol { NSArray *a = [self _icuSymbols:5 key:@"AMPM"]; return _symbols[@"PM"] ?: (a.count > 1 ? a[1] : nil) ?: @([self _lang]->pm); }
 - (void)setPMSymbol:(NSString *)s { _symbols[@"PM"] = [s copy]; }
-- (NSArray *)eraSymbols { return @[@([self _lang]->eras[0]), @([self _lang]->eras[1])]; }
-- (NSArray *)quarterSymbols { return @[@"1st quarter", @"2nd quarter", @"3rd quarter", @"4th quarter"]; }
-- (NSArray *)shortQuarterSymbols { return @[@"Q1", @"Q2", @"Q3", @"Q4"]; }
+- (NSArray *)eraSymbols { return [self _icuSymbols:0 key:@"eras"] ?: @[@([self _lang]->eras[0]), @([self _lang]->eras[1])]; }
+- (NSArray *)longEraSymbols { return [self _icuSymbols:7 key:@"longEras"] ?: self.eraSymbols; }
+/* quarters: ICU's names for the locale when the host has ICU (the built-in tables have English only) */
+- (NSArray *)quarterSymbols {
+    NSArray *a = [self _icuSymbols:16 key:@"quarters"] ?: (isim_icu_on() ? isim_icu_symbols(isim_locale_ident(_locale), 16) : nil);
+    return a.count == 4 ? a : @[@"1st quarter", @"2nd quarter", @"3rd quarter", @"4th quarter"];
+}
+- (NSArray *)shortQuarterSymbols {
+    NSArray *a = [self _icuSymbols:17 key:@"shortQuarters"] ?: (isim_icu_on() ? isim_icu_symbols(isim_locale_ident(_locale), 17) : nil);
+    return a.count == 4 ? a : @[@"Q1", @"Q2", @"Q3", @"Q4"];
+}
 
 - (NSString *)stringFromDate:(NSDate *)date {
     if (!date) return nil;
@@ -786,11 +942,13 @@ NSString *isim_format_date(NSDate *date, NSString *fmt, NSLocale *locale, NSTime
         if (word) {
             word = [[word substringToIndex:1].uppercaseString stringByAppendingString:[word substringFromIndex:1]];
             if (self.timeStyle == NSDateFormatterNoStyle) return word;
-            NSString *t = isim_format_date(date, isim_style_pattern(0, (NSInteger)self.timeStyle, _locale), _locale, _tz, _symbols);
+            NSString *icu = [self _icuLocale];
+            NSString *tp = (icu ? hour_cycle(isim_icu_style_pattern(icu, 0, (NSInteger)self.timeStyle), _locale) : nil) ?: isim_style_pattern(0, (NSInteger)self.timeStyle, _locale);
+            NSString *t = [self _format:date pattern:tp];
             return [NSString stringWithFormat:@"%@%s%@", word, [isim_locale_lang(_locale) isEqualToString:@"en"] ? " at " : n->dateTimeSep, t];
         }
     }
-    return isim_format_date(date, self.dateFormat, _locale, _tz, _symbols);
+    return [self _format:date pattern:self.dateFormat];
 }
 - (NSInteger)_dayOffsetFromToday:(NSDate *)date {
     isim_bdate a, b; broken_down(date, _tz, &a); broken_down([NSDate date], _tz, &b);
@@ -805,6 +963,8 @@ static BOOL is_space(unichar c) { return c == ' ' || c == 0xA0 || c == 0x202F ||
 - (NSDate *)dateFromString:(NSString *)string {
     if (!string) return nil;
     NSString *fmt = self.dateFormat;
+    NSString *icu = _symbols.count ? nil : [self _icuLocale];
+    if (icu) return isim_icu_date_parse_string(icu, _tz.name, fmt, string, self.lenient);
     const isim_lang_t *n = [self _lang];
     struct tm tm = {0}; tm.tm_mday = 1; tm.tm_year = 70;
     int pm = -1; double frac = 0; BOOL haveOffset = NO; long offset = 0; int yearDigits = 0;

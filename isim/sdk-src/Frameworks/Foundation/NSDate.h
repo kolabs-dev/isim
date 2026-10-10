@@ -17,5 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSTimeInterval)timeIntervalSinceDate:(NSDate *)anotherDate;
 - (NSDate *)dateByAddingTimeInterval:(NSTimeInterval)ti;
 - (NSComparisonResult)compare:(NSDate *)other;
+- (BOOL)isEqualToDate:(NSDate *)otherDate;
+- (NSDate *)earlierDate:(NSDate *)anotherDate;
+- (NSDate *)laterDate:(NSDate *)anotherDate;
 @end
 NS_ASSUME_NONNULL_END

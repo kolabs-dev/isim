@@ -5,6 +5,20 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NSString *NSCalendarIdentifier NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(NSCalendar.Identifier);
 FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierGregorian;
 FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierISO8601;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierBuddhist;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierChinese;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierCoptic;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierEthiopicAmeteMihret;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierEthiopicAmeteAlem;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierHebrew;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierIndian;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierIslamic;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierIslamicCivil;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierIslamicTabular;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierIslamicUmmAlQura;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierJapanese;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierPersian;
+FOUNDATION_EXPORT NSCalendarIdentifier const NSCalendarIdentifierRepublicOfChina;
 
 typedef NS_OPTIONS(NSUInteger, NSCalendarUnit) {
     NSCalendarUnitEra NS_SWIFT_NAME(era) = 1UL << 1, NSCalendarUnitYear NS_SWIFT_NAME(year) = 1UL << 2,
