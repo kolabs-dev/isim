@@ -43,7 +43,8 @@ def test_grid(launch):
     assert right(grid, "qty-apples") == right(grid, "qty-kiwi") and \
         frame(grid, "qty-apples")[0] != frame(grid, "qty-kiwi")[0], "Grid: trailing column alignment"
     assert right(grid, "span") == right(grid, "qty-apples"), "Grid: gridCellColumns spans both columns"
-    assert frame(grid, "h1") == (0, 44.5, 40, 21) and frame(grid, "h2") == (50, 4.5, 40, 21), \
+    # rows 30 pt with GridItem's default 8 pt gap, centred in the 70 pt grid; columns `spacing` (10) apart
+    assert frame(grid, "h1") == (0, 43.5, 40, 21) and frame(grid, "h2") == (50, 5.5, 40, 21), \
         "LazyHGrid fills rows, then columns"
     assert "text=Short" in grep(grid, r"id=fits-narrow", after=2) and \
         "text=Wide label" in grep(grid, r"id=fits-wide", after=1), "ViewThatFits picks what fits"

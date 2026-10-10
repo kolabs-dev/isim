@@ -104,12 +104,12 @@ public struct DragGesture: Gesture {
         let e = (c == nil && en == nil) ? e0 : _GestureEvents(changed: { c?($0); e0.changed($0) }, ended: { en?($0); e0.ended($0) }, cancelled: e0.cancelled)
         let g = _SUIDragRecognizer(target: nil, action: nil)
         g.minimumDistance = minimumDistance
-        let global = coordinateSpace == .global
+        let space = coordinateSpace
         _addRecognizer(g, to: view) { r in
             let d = r as! _SUIDragRecognizer
             var v = d.value
-            if global, let w = d.view?.window, let dv = d.view {
-                v.location = dv.convert(v.location, to: w); v.startLocation = dv.convert(v.startLocation, to: w)
+            if space != .local, let dv = d.view {             // .global, .named, .scrollView (Geometry+Spaces.swift)
+                v.location = _livePoint(v.location, in: dv, space); v.startLocation = _livePoint(v.startLocation, in: dv, space)
             }
             switch r.state {
             case .began, .changed: e.changed(v)
@@ -149,10 +149,10 @@ public struct SpatialTapGesture: Gesture {
     public func _install(on view: UIView, _ e: _GestureEvents<Value>) -> [UIGestureRecognizer] {
         let g = UITapGestureRecognizer(target: nil, action: nil)
         g.numberOfTapsRequired = max(1, count)
-        let global = coordinateSpace == .global
+        let space = coordinateSpace
         _addRecognizer(g, to: view) { r in
-            guard r.state == .ended else { return }
-            e.ended(Value(location: r.location(in: global ? r.view?.window : r.view)))
+            guard r.state == .ended, let v = r.view else { return }
+            e.ended(Value(location: _livePoint(r.location(in: v), in: v, space)))
         }
         return [g]
     }
@@ -445,6 +445,13 @@ final class _GestureNode: _WrapperNode {
         return v
     }
 }
+/// Whether a view or one of its subviews (shown, not transparent containers) covers a point (in its coordinates).
+@MainActor func _drawsAt(_ v: UIView, _ p: CGPoint) -> Bool {
+    if v.isHidden || v.alpha <= 0.01 { return false }
+    if !(v is _PassthroughView || v is _PassthroughViewBase), v.bounds.contains(p) { return true }
+    if v.clipsToBounds && !v.bounds.contains(p) { return false }
+    return v.subviews.contains { _drawsAt($0, $0.convert(p, from: v)) }
+}
 /// The view a `.gesture` wraps: it owns the gesture's recognizers (rebuilt with the latest closures on each update).
 final class _SUIGestureView: UIView {
     var recognizers: [UIGestureRecognizer] = []
@@ -457,6 +464,13 @@ final class _SUIGestureView: UIView {
         recognizers = install(self)
     }
     var pending: (@MainActor (UIView) -> [UIGestureRecognizer])?
+    /// like SwiftUI, content drawn outside the view's frame (moved by .offset, overflowing) takes the gesture too
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if let v = super.hitTest(point, with: event) { return v }
+        guard !isHidden, alpha > 0.01, isUserInteractionEnabled, !clipsToBounds else { return nil }
+        for s in subviews.reversed() { if let h = s.hitTest(s.convert(point, from: self), with: event) { return h } }
+        return subviews.contains { _drawsAt($0, $0.convert(point, from: self)) } ? self : nil
+    }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
         if let p = pending { pending = nil; DispatchQueue.main.async { MainActor.assumeIsolated { self.reinstall(p) } } }

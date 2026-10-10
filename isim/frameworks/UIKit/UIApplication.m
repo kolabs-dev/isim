@@ -990,8 +990,9 @@ static void dump_view_to(FILE *out, UIView *v, int depth) {
     NSString *ident = v.accessibilityIdentifier, *label = [v respondsToSelector:@selector(_isim_dumpText)] ? [(id)v _isim_dumpText]
         : [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
         : [v isKindOfClass:[UITextField class]] ? [NSString stringWithFormat:@"\"%@\"%@", ((UITextField *)v).text, v.isFirstResponder ? @" (editing)" : @""]
-        : [v isKindOfClass:[UIScrollView class]] ? [NSString stringWithFormat:@"offset %g, content %g x %g, inset bottom %g", ((UIScrollView *)v).contentOffset.y,
-              ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom]
+        : [v isKindOfClass:[UIScrollView class]] ? [NSString stringWithFormat:@"offset %g, content %g x %g, inset bottom %g%@", ((UIScrollView *)v).contentOffset.y,
+              ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom,
+              !((UIScrollView *)v).showsVerticalScrollIndicator && !((UIScrollView *)v).showsHorizontalScrollIndicator ? @", indicators hidden" : @""]
         : [v isKindOfClass:[UISwitch class]] ? (((UISwitch *)v).on ? @"on" : @"off")
         : [v isKindOfClass:[UISlider class]] ? [NSString stringWithFormat:@"%g", ((UISlider *)v).value]
         : [v isKindOfClass:[UISegmentedControl class]] ? [NSString stringWithFormat:@"segment %ld", (long)((UISegmentedControl *)v).selectedSegmentIndex] : nil;

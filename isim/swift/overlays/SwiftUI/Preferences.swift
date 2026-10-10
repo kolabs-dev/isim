@@ -224,7 +224,9 @@ final class _GeometryChangeNode<T: Equatable>: _WrapperNode {
         child.place(CGRect(origin: .zero, size: rect.size))
         guard let g = graph else { return }
         let key = path + "#geochange"
-        let v = transform(GeometryProxy(size: rect.size, safeAreaInsets: EdgeInsets(), globalFrame: rect))
+        let key2 = viewKey, local = CGRect(origin: .zero, size: rect.size)
+        let v = transform(GeometryProxy(size: rect.size, safeAreaInsets: EdgeInsets(), globalFrame: rect,
+                                        _space: { [weak g] s in g?.geometryFrame(key2, s, fallback: { if case .local = s { return local }; return rect }()) }))
         let a = action
         if let old = g.storage[key] as? _PrefValueBox<T> {
             if old.value != v { let o = old.value; old.value = v; g.postRender.append { a(o, v) } }

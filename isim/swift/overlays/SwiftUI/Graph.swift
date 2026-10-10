@@ -111,6 +111,12 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         submitActions.filter { path.hasPrefix($0.key) }.max { $0.key.count < $1.key.count }?.value
     }
 
+    // GeometryReader / onGeometryChange frames measured from the views (Geometry+Spaces.swift)
+    var geometryReads: [String: (String, CoordinateSpace)] = [:]
+    var geometryCache: [String: CGRect] = [:]
+    var geometryPasses = 0, geometryPass = false
+    var scrollGeometryObserver: NSObjectProtocol?
+
     init(root: @escaping () -> any View) { self.root = root; installURLObserver(); installActivityObserver(); installAppObservers() }
 
     /// Callable from any context (bindings, UIKit callbacks); state changes happen on the main thread.
@@ -133,7 +139,9 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         defer { rendering = false }
         self.safeArea = safeArea
         usedKeys = []; mountedKeys = []; usedChanges = []; usedTasks = []; usedAppear = []; postRender = []; focusLinks = []; submitActions = [:]; urlHandlers = [:]
-        usedSubscriptions = []; idViews = [:]
+        usedSubscriptions = []; idViews = [:]; geometryReads = [:]
+        if !geometryPass { geometryPasses = 0 }
+        geometryPass = false
         var env = EnvironmentValues()
         env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
         _systemEnvironment(&env, traits: traits)
@@ -171,6 +179,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         let work = postRender
         postRender = []
         for w in work { w() }
+        verifyGeometry()
         if pending { pending = false; hostView?.setNeedsLayout() }
     }
 
@@ -365,9 +374,21 @@ final class _GroupNode: _Node {
     override func mountView(_ g: _Graph) -> UIView { g.view(viewKey) { _PassthroughView() } }
 }
 
+/// The views of a container: groups (TupleView, ForEach, ...) and sections (outside a List: header, rows, footer)
+/// are spliced in.
 @MainActor func _flatten(_ nodes: [_Node]) -> [_Node] {
     var out: [_Node] = []
-    for n in nodes { if n is _GroupNode { out += _flatten(n.children) } else { out.append(n) } }
+    for n in nodes {
+        if n is _GroupNode { out += _flatten(n.children) }
+        else if let s = n as? _SectionNode { out += s.spliced }
+        else { out.append(n) }
+    }
+    return out
+}
+/// Like _flatten, but sections stay whole (List and Form content).
+@MainActor func _flattenGroups(_ nodes: [_Node]) -> [_Node] {
+    var out: [_Node] = []
+    for n in nodes { if n is _GroupNode { out += _flattenGroups(n.children) } else { out.append(n) } }
     return out
 }
 
@@ -455,6 +476,8 @@ final class _GroupNode: _Node {
 
 final class _StackNode: _Node {
     let axis: Axis, spacing: CGFloat, alignment: Alignment
+    var pinned: PinnedScrollableViews = []          // LazyVStack / LazyHStack (Lazy+Pinned.swift)
+    var lazy = false
     init(path: String, axis: Axis, spacing: CGFloat?, alignment: Alignment, children: [_Node]) {
         self.axis = axis; self.alignment = alignment
         self.spacing = spacing ?? 8
@@ -468,6 +491,7 @@ final class _StackNode: _Node {
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {
         for (i, c) in _flatten(children).enumerated() { g.mount(c, in: view, order: i) }
+        if !pinned.isEmpty { _registerPins(_sectionPins(children, pinned, axis: axis, host: view, g), from: view, horizontal: axis == .horizontal, g) }
     }
 }
 

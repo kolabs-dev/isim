@@ -5,12 +5,34 @@ import UIKit
 
 public struct Section<Parent: View, Content: View, Footer: View>: View, _PrimitiveView {
     let header: Parent?, content: Content, footer: Footer?
+    var isExpanded: Binding<Bool>? = nil          // Section(isExpanded:) (Lists+Styles.swift)
+    init(header: Parent?, content: Content, footer: Footer?, isExpanded: Binding<Bool>? = nil) {
+        self.header = header; self.content = content; self.footer = footer; self.isExpanded = isExpanded
+    }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
-        let h = header.map { _resolve($0, ctx.child("header").with { $0._inList = false; $0.font = $0.font ?? .footnote; $0._foreground = $0._foreground ?? .secondary; $0._sectionHeader = true }) }
-        let f = footer.map { _resolve($0, ctx.child("footer").with { $0._inList = false; $0.font = $0.font ?? .footnote; $0._foreground = $0._foreground ?? .secondary }) }
-        let rows = _flatten([_resolve(content, ctx.child("rows"))])
-        return _SectionNode(path: ctx.path, header: h, footer: f, rows: rows)
+        let env = ctx.environment, look = env._listLook
+        // header look: grouped lists use uppercase footnote text; plain lists bold text on a grey band; sidebars a large
+        // bold title; .headerProminence(.increased) a title3 header
+        let prominent = env.headerProminence == .increased, inList = env._inList
+        let h = header.map { _resolve($0, ctx.child("header").with { e in
+            e._inList = false
+            if !inList { return }                       // in a stack or grid the header is drawn as it is
+            if look.sidebar { e.font = e.font ?? .system(size: 20, weight: .bold); e._foreground = e._foreground ?? .primary }
+            else if prominent { e.font = e.font ?? .title3.bold(); e._foreground = e._foreground ?? .primary }
+            else if look.plainLike { e.font = e.font ?? .system(size: 15, weight: .semibold); e._foreground = e._foreground ?? .primary }
+            else { e.font = e.font ?? .footnote; e._foreground = e._foreground ?? .secondary; e._sectionHeader = true }
+        }) }
+        let f = footer.map { _resolve($0, ctx.child("footer").with { e in
+            e._inList = false
+            if inList { e.font = e.font ?? .footnote; e._foreground = e._foreground ?? .secondary }
+        }) }
+        let expanded = isExpanded?.wrappedValue ?? true
+        let rows = expanded ? _flatten([_resolve(content, ctx.child("rows"))]) : []
+        let s = _SectionNode(path: ctx.path, header: h, footer: f, rows: rows)
+        s.spacing = env._sectionSpacing
+        s.expansion = isExpanded
+        return s
     }
 }
 extension Section where Parent == EmptyView, Footer == EmptyView {
@@ -32,12 +54,24 @@ extension Section where Parent == EmptyView {
     public init(@ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) { header = nil; self.content = content(); self.footer = footer() }
 }
 
+/// A section: in a List its header, rows and footer; in a stack (LazyVStack, ...) its views follow one another like a
+/// group's (the header can stay pinned: Lazy+Pinned.swift).
 final class _SectionNode: _Node {
-    let header: _Node?, footer: _Node?, rows: [_Node]
+    let header: _Node?, footer: _Node?
+    var rows: [_Node]
+    var spacing: CGFloat?                      // listSectionSpacing set on the section
+    var expansion: Binding<Bool>?
+    var topSeparatorHidden = false, bottomSeparatorHidden = false, separatorTint: Color?
     init(path: String, header: _Node?, footer: _Node?, rows: [_Node]) {
         self.header = header; self.footer = footer; self.rows = rows
         super.init(path: path, children: rows)
     }
+    /// header, rows and footer, as a stack sees them
+    var spliced: [_Node] { [header].compactMap { $0 } + _flatten(rows) + [footer].compactMap { $0 } }
+    // on its own (outside a List or a stack): like a VStack of its views
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { _stackSize(spliced, axis: .vertical, spacing: 8, p) }
+    override func place(_ rect: CGRect) { frame = rect; _stackPlace(spliced, axis: .vertical, spacing: 8, alignment: .center, in: rect, relative: true) }
+    override func mountChildren(_ g: _Graph, in view: UIView) { for (i, c) in spliced.enumerated() { g.mount(c, in: view, order: i) } }
 }
 
 public struct Form<Content: View>: View, _PrimitiveView {
@@ -55,28 +89,23 @@ public struct List<SelectionValue: Hashable, Content: View>: View, _PrimitiveVie
 extension List where SelectionValue == Never {
     public init(@ViewBuilder content: () -> Content) { self.content = content() }
 }
-extension View {
-    public func listStyle<S>(_ style: S) -> some View { self }
-    public func formStyle<S>(_ style: S) -> some View { self }
-    public func listRowBackground<V: View>(_ view: V?) -> some View { self }
-    public func listRowSeparator(_ visibility: Visibility, edges: VerticalEdge.Set = .all) -> some View { self }
-    public func listSectionSpacing(_ spacing: CGFloat) -> some View { self }
-    public func scrollContentBackground(_ visibility: Visibility) -> some View { self }
-    public func headerProminence(_ p: Prominence) -> some View { self }
-}
 public enum Visibility: Hashable, CaseIterable, Sendable { case automatic, visible, hidden }
 public enum Prominence: Hashable, Sendable { case standard, increased }
 public enum VerticalEdge: Int8, Sendable {
     case top, bottom
-    public struct Set: OptionSet, Sendable { public let rawValue: Int8; public init(rawValue: Int8) { self.rawValue = rawValue }; public static let all = Set(rawValue: 3) }
+    public struct Set: OptionSet, Sendable {
+        public let rawValue: Int8
+        public init(rawValue: Int8) { self.rawValue = rawValue }
+        public static let top = Set(rawValue: 1), bottom = Set(rawValue: 2)
+        public static let all = Set(rawValue: 3)
+    }
 }
-public struct InsetGroupedListStyle { public init() {} }
-public struct GroupedListStyle { public init() {} }
-public struct PlainListStyle { public init() {} }
+// list styles and row / section modifiers: Lists+Styles.swift
 
 @MainActor func _makeList<C: View>(_ content: C, _ ctx: _Context) -> _Node {
-    let inner = ctx.child("list").with { $0._inList = true; $0._listSelection = nil }
-    let nodes = _flatten([_resolve(content, inner)])
+    let look = ctx.environment._listLook, spacing = ctx.environment._sectionSpacing
+    let inner = ctx.child("list").with { $0._inList = true; $0._listSelection = nil; $0._sectionSpacing = nil }
+    let nodes = _flattenGroups([_resolve(content, inner)])
     // rows outside sections form implicit sections
     var sections: [_SectionNode] = []
     var loose: [_Node] = []
@@ -85,7 +114,9 @@ public struct PlainListStyle { public init() {} }
     flush()
     let level = ctx.nav
     level?.contentIsList = true
+    level?.listColor = look.hidesBackground ? nil : look.background
     let node = _ListNode(path: ctx.path, sections: sections, level: level, graph: ctx.graph)
+    node.look = look; node.listSpacing = spacing
     node.extras = _listExtras(ctx)             // editing, selection, refresh (Lists+Editing.swift)
     return node
 }
@@ -95,16 +126,21 @@ extension EnvironmentValues {
 }
 struct _SectionHeaderKey: EnvironmentKey { static var defaultValue: Bool { false } }
 
-/// Inset-grouped list (UITableView .insetGrouped metrics), rendered in a UIScrollView.
+/// A list in one of UITableView's looks (inset grouped by default; `listStyle`: Lists+Styles.swift), rendered in a
+/// UIScrollView: section cards of rows, headers and footers, separators.
 final class _ListNode: _Node {
     let sections: [_SectionNode]
     weak var level: _NavLevel?
     weak var graph: _Graph?
+    var look = _ListLook()
+    var listSpacing: CGFloat?
     // layout results
-    struct RowLayout { let node: _Node; let rect: CGRect; let contentRect: CGRect; let separatorLeading: CGFloat?; let section: Int }
+    struct RowLayout { let node: _Node; let rect: CGRect; let contentRect: CGRect; let separatorLeading: CGFloat?; let section: Int; let card: Int; let options: _ListRowOptions; let last: Bool }
     var rows: [RowLayout] = []
     var cards: [CGRect] = []
-    var headers: [(_Node, CGRect)] = []
+    /// headers: the node and the band it sits in (plain lists: a full-width band that sticks to the top while its
+    /// section scrolls by; sidebars: the tappable header row), and where the section ends
+    var headers: [(node: _Node, band: CGRect, section: Int, end: CGFloat)] = []
     var footers: [(_Node, CGRect)] = []
     var largeTitleRect: CGRect?
     var searchRect: CGRect?
@@ -117,16 +153,16 @@ final class _ListNode: _Node {
     override var ignoresSafeArea: Bool { true }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: p.width ?? 320, height: p.height ?? 480) }
     static let margin: CGFloat = 20, rowInset: CGFloat = 20, minRow: CGFloat = 44
+    var rowInset: CGFloat { look.sidebar ? 12 : _ListNode.rowInset }
     override func place(_ rect: CGRect) {
         frame = rect
         rows = []; cards = []; headers = []; footers = []; largeTitleRect = nil; searchRect = nil
-        let W = rect.width, cardX = _ListNode.margin, cardW = W - 2 * _ListNode.margin
-        let rowContentW = cardW - 2 * _ListNode.rowInset
+        let W = rect.width, cardX = look.margin, cardW = W - 2 * look.margin
         var y: CGFloat = 0
         if let lv = level, lv.showsLargeTitle {
             largeTitleRect = CGRect(x: 20, y: 0, width: W - 40, height: 52)
             y = 52
-        } else { y = 18 }
+        } else { y = look.plainLike ? 0 : 18 }
         if level?.search != nil {                               // .searchable: the field under the title
             searchRect = CGRect(x: 16, y: largeTitleRect == nil ? 8 : y, width: W - 32, height: 36)
             y = searchRect!.maxY + 12
@@ -137,38 +173,64 @@ final class _ListNode: _Node {
             }
         }
         for (si, sec) in sections.enumerated() {
-            if si > 0 { y += sec.header == nil ? 35 : 22 } else if sec.header != nil { y += 4 }
+            // the gap before a section: listSectionSpacing (of the section before, or the list), else the style's
+            if si > 0 {
+                if let custom = sections[si - 1].spacing ?? listSpacing { y += custom }
+                else if look.sidebar { y += 10 }
+                else if !look.plainLike { y += sec.header == nil ? 35 : 22 }
+            } else if sec.header != nil && look.grouped { y += 4 }
+            var headerIndex: Int?
             if let h = sec.header {
-                let hs = h.sizeThatFits(_Proposal(width: cardW - 2 * _ListNode.rowInset, height: nil))
-                let r = CGRect(x: cardX + _ListNode.rowInset, y: y, width: cardW - 2 * _ListNode.rowInset, height: hs.height)
-                h.place(CGRect(x: r.minX, y: r.minY, width: min(hs.width, r.width), height: hs.height))
-                headers.append((h, r)); y += hs.height + 7
+                let textW = cardW - 2 * rowInset - (sec.expansion != nil ? 24 : 0)
+                let hs = h.sizeThatFits(_Proposal(width: textW, height: nil))
+                if look.plainLike || look.sidebar {
+                    // a band the width of the list (plain) or of the rows (sidebar), the text inside it
+                    let bandH = max(hs.height + (look.sidebar ? 16 : 12), look.minHeaderHeight ?? 0)
+                    let band = CGRect(x: look.sidebar ? cardX : 0, y: y, width: look.sidebar ? cardW : W, height: bandH)
+                    h.place(CGRect(x: look.sidebar ? rowInset : cardX + rowInset, y: (bandH - hs.height) / 2, width: min(hs.width, textW), height: hs.height))
+                    headerIndex = headers.count
+                    headers.append((h, band, si, 0)); y += bandH + (look.sidebar ? 2 : 0)
+                } else {
+                    let r = CGRect(x: cardX + rowInset, y: y, width: textW, height: max(hs.height, (look.minHeaderHeight ?? 0) - 7))
+                    h.place(CGRect(x: r.minX, y: r.minY + r.height - hs.height, width: min(hs.width, r.width), height: hs.height))
+                    headers.append((h, r, si, 0)); y += r.height + 7
+                }
             }
-            let cardTop = y
-            for row in sec.rows {
+            var cardTop = y
+            for (ri, row) in sec.rows.enumerated() {
+                let opts = _listRowOptions(row)
+                if let rs = look.rowSpacing, ri > 0 {            // listRowSpacing: every row is a card of its own
+                    cards.append(CGRect(x: cardX, y: cardTop, width: cardW, height: y - cardTop))
+                    y += rs; cardTop = y
+                }
                 let (lead, trail) = _rowEditInsets(row, extras)
-                let s = row.sizeThatFits(_Proposal(width: rowContentW - lead - trail - (row.rowAccessory != nil ? 20 : 0), height: nil))
-                let h = max(_ListNode.minRow, s.height + 22)
+                let li = opts.insets?.leading ?? rowInset, ti = opts.insets?.trailing ?? rowInset
+                let vt = opts.insets?.top ?? 11, vb = opts.insets?.bottom ?? 11
+                let contentW = max(0, cardW - li - ti - lead - trail)
+                let s = row.sizeThatFits(_Proposal(width: contentW - (row.rowAccessory != nil ? 20 : 0), height: nil))
+                let h = max(look.minRowHeight, s.height + vt + vb)
                 let rr = CGRect(x: cardX, y: y, width: cardW, height: h)
-                let cr = CGRect(x: _ListNode.rowInset + lead, y: (h - s.height) / 2, width: min(s.width, rowContentW - lead - trail), height: s.height)
+                let cr = CGRect(x: li + lead, y: vt + (h - vt - vb - s.height) / 2, width: min(s.width, contentW), height: s.height)
                 row.place(cr)
-                rows.append(RowLayout(node: row, rect: rr, contentRect: cr, separatorLeading: _separatorLeading(row), section: si))
+                rows.append(RowLayout(node: row, rect: rr, contentRect: cr, separatorLeading: _separatorLeading(row).map { $0 - _ListNode.rowInset + li },
+                                      section: si, card: cards.count, options: opts, last: ri == sec.rows.count - 1))
                 y += h
             }
-            cards.append(CGRect(x: cardX, y: cardTop, width: cardW, height: y - cardTop))
+            if !sec.rows.isEmpty { cards.append(CGRect(x: cardX, y: cardTop, width: cardW, height: y - cardTop)) }
             if let f = sec.footer {
-                y += 7
-                let fs = f.sizeThatFits(_Proposal(width: cardW - 2 * _ListNode.rowInset, height: nil))
-                let r = CGRect(x: cardX + _ListNode.rowInset, y: y, width: cardW - 2 * _ListNode.rowInset, height: fs.height)
+                y += look.plainLike ? 6 : 7
+                let fs = f.sizeThatFits(_Proposal(width: cardW - 2 * rowInset, height: nil))
+                let r = CGRect(x: cardX + rowInset, y: y, width: cardW - 2 * rowInset, height: fs.height)
                 f.place(CGRect(x: r.minX, y: r.minY, width: min(fs.width, r.width), height: fs.height))
-                footers.append((f, r)); y += fs.height
+                footers.append((f, r)); y += fs.height + (look.plainLike ? 6 : 0)
             }
+            if let hi = headerIndex { headers[hi].end = y }
         }
-        contentHeight = y + 35
+        contentHeight = y + (look.plainLike ? 0 : 35)
     }
     override func mountView(_ g: _Graph) -> UIView {
         let sv = g.view(viewKey) { _SUIListScroll(frame: .zero) }
-        sv.backgroundColor = .systemGroupedBackground
+        sv.backgroundColor = look.background
         sv.level = level
         sv.contentSize = CGSize(width: frame.width, height: contentHeight)
         return sv
@@ -182,25 +244,65 @@ final class _ListNode: _Node {
             l.frame = lt
             sv.largeTitleBottom = lt.maxY
         } else { sv.largeTitleBottom = 0 }
+        let hair = 1 / max(1, UIScreen.main.scale)
         for (i, c) in cards.enumerated() {
             let card = g.view(path + "|card\(i)") { UIView() }
-            card.backgroundColor = .secondarySystemGroupedBackground
-            card.layer.cornerRadius = 10
+            card.backgroundColor = look.cardColor
+            card.layer.cornerRadius = look.cornerRadius
             card.clipsToBounds = true
             card.isUserInteractionEnabled = true
             if card.superview !== sv { sv.addSubview(card) }
             card.frame = c
+            // grouped lists: hairlines along the top and bottom of each section
+            for (k, edge) in ["top", "bottom"].enumerated() {
+                let key = path + "|card\(i)" + edge
+                if look.kind == 2 && look.rowSpacing == nil {
+                    let line = g.view(key) { UIView() }
+                    line.backgroundColor = .separator
+                    if line.superview !== sv { sv.addSubview(line) }
+                    line.frame = CGRect(x: 0, y: k == 0 ? c.minY : c.maxY - hair, width: c.width, height: hair)
+                } else { g.views[key]?.removeFromSuperview(); g.views[key] = nil }
+            }
         }
-        for (h, _) in headers { g.mount(h, in: sv, order: 0) }
+        var pins: [(UIView, CGFloat, CGFloat)] = []
+        for (i, h) in headers.enumerated() {
+            if look.plainLike || look.sidebar {
+                let sec = sections[h.section]
+                let band = g.view(path + "|hband\(i)") { _SUIControl(frame: .zero) }
+                band.backgroundColor = look.plainLike ? .secondarySystemBackground : .clear
+                band.onPressed = { _ in }                       // no dimming
+                band.accessibilityIdentifier = "list-header-\(h.section)"
+                if band.superview !== sv { sv.addSubview(band) }
+                band.frame = h.band
+                g.mount(h.node, in: band, order: 0)
+                // Section(isExpanded:): a chevron, the header toggles the section
+                let chevKey = path + "|hchev\(i)"
+                if let exp = sec.expansion {
+                    band.action = { withAnimation(.easeInOut(duration: 0.25)) { exp.wrappedValue.toggle() } }
+                    let iv = g.view(chevKey) { UIImageView() }
+                    iv.image = UIImage(systemName: exp.wrappedValue ? "chevron.down" : "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold))
+                    iv.tintColor = look.sidebar ? _accentUIColor() : .tertiaryLabel
+                    if iv.superview !== band { band.addSubview(iv) }
+                    let s = iv.image?.size ?? CGSize(width: 12, height: 12)
+                    iv.frame = CGRect(x: h.band.width - rowInset - s.width - (look.plainLike ? look.margin : 0), y: (h.band.height - s.height) / 2, width: s.width, height: s.height)
+                } else { band.action = nil; g.views[chevKey]?.removeFromSuperview(); g.views[chevKey] = nil }
+                if look.plainLike { pins.append((band, h.band.minY, h.end)) }
+            } else { g.mount(h.node, in: sv, order: 0) }
+        }
         for (f, _) in footers { g.mount(f, in: sv, order: 0) }
-        var previous: RowLayout?
         for (i, r) in rows.enumerated() {
-            guard let card = g.views[path + "|card\(r.section)"] else { continue }
+            guard let card = g.views[path + "|card\(r.card)"] else { continue }
+            let cardRect = cards[r.card]
             let rowView = g.view(path + "|row\(i)|" + r.node.path) { _SUIListRow(frame: .zero) }
             rowView.action = r.node.rowAction
-            rowView.frame = CGRect(x: 0, y: r.rect.minY - cards[r.section].minY, width: r.rect.width, height: r.rect.height)
+            rowView.frame = CGRect(x: 0, y: r.rect.minY - cardRect.minY, width: r.rect.width, height: r.rect.height)
+            rowView.layer.cornerRadius = look.sidebar ? 10 : 0
             if rowView.superview !== card { card.addSubview(rowView) }
-            g.mount(r.node, in: rowView, order: 0)
+            if let bg = r.options.background {                  // listRowBackground: behind the row's content
+                bg.place(CGRect(origin: .zero, size: r.rect.size))
+                g.mount(bg, in: rowView, order: 0)
+            }
+            g.mount(r.node, in: rowView, order: 1)
             if let acc = r.node.rowAccessory, !extras.editing {
                 let iv = g.view(path + "|acc\(i)") { UIImageView() }
                 iv.image = UIImage(systemName: acc, withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold))
@@ -211,16 +313,23 @@ final class _ListNode: _Node {
             }
             _configureListRow(rowView, r.node, index: i, rowHeight: r.rect.height, list: self, g)
             if extras.editing, r.node.rowAccessory != nil { g.views[path + "|acc\(i)"]?.removeFromSuperview(); g.views[path + "|acc\(i)"] = nil }
-            // separator above this row (between rows of the same section)
-            if let p = previous, p.section == r.section {
-                let sep = g.view(path + "|sep\(i)") { UIView() }
-                sep.backgroundColor = .separator
+            // the separator under this row: between rows of a section, and under each section's last row in plain lists;
+            // none in sidebars or between spaced rows. listRowSeparator / listSectionSeparator hide it, their tints colour it
+            let sepKey = path + "|sep\(i)"
+            let next = i + 1 < rows.count && rows[i + 1].section == r.section ? rows[i + 1] : nil
+            let sec = sections[r.section]
+            var shown = !look.sidebar && look.rowSpacing == nil && (next != nil || (look.plainLike && i + 1 < rows.count))
+            if r.options.bottomSeparator == true || next?.options.topSeparator == true { shown = false }
+            if r.options.bottomSeparator == false && !look.sidebar { shown = true }
+            if next == nil && sec.bottomSeparatorHidden { shown = false }
+            if shown {
+                let sep = g.view(sepKey) { UIView() }
+                sep.backgroundColor = (r.options.bottomTint ?? next?.options.topTint ?? sec.separatorTint)?.uiColor ?? .separator
                 if sep.superview !== card { card.addSubview(sep) }
-                let lead = r.separatorLeading ?? _ListNode.rowInset
-                let hair = 1 / max(1, UIScreen.main.scale)
-                sep.frame = CGRect(x: lead, y: r.rect.minY - cards[r.section].minY, width: r.rect.width - lead, height: hair)
-            }
-            previous = r
+                let lead = r.separatorLeading ?? (r.options.insets?.leading ?? rowInset)
+                sep.frame = CGRect(x: lead, y: r.rect.maxY - cardRect.minY - hair, width: r.rect.width - lead, height: hair)
+                card.bringSubviewToFront(sep)
+            } else { g.views[sepKey]?.removeFromSuperview(); g.views[sepKey] = nil }
         }
         if let sc = level?.search?.scopeNode, searchRect != nil { g.mount(sc, in: sv, order: 0) }
         if let sr = searchRect, let cfg = level?.search {
@@ -231,6 +340,7 @@ final class _ListNode: _Node {
         if extras.refresh != nil || sv.refresher != nil {                    // .refreshable
             let rd = sv.refresher ?? _RefreshDriver(); sv.refresher = rd; rd.attach(sv, extras.refresh)
         }
+        sv.pins = pins.map { (v, top, end) in _PinnedView(view: v, host: sv, natural: top, size: v.bounds.height, start: top, end: end, rest: CGPoint(x: v.frame.minX, y: top)) }
         sv.scrollViewDidScroll(sv)
     }
 }
@@ -306,8 +416,11 @@ final class _SUIListScroll: UIScrollView, UIScrollViewDelegate {
         for s in v.subviews { if let f = firstResponderField(in: s) { return f } }
         return nil
     }
+    /// plain lists: section headers that stick to the top while their section scrolls by
+    var pins: [_PinnedView] = []
     func scrollViewDidScroll(_ s: UIScrollView) {
         refresher?.scrolled(s)
+        _applyPins(pins, in: s, horizontal: false)
         let offset = s.contentOffset.y + s.adjustedContentInset.top
         let past = largeTitleBottom > 0 ? offset > largeTitleBottom - 8 : offset > 1
         level?.scrolledPastTitle = past
@@ -380,6 +493,7 @@ public enum NavigationBarItem {
     var displayMode: NavigationBarItem.TitleDisplayMode = .automatic
     var toolbar: [(ToolbarItemPlacement, _Node)] = []
     var contentIsList = false
+    var listColor: UIColor?                  // the list's background (listStyle, scrollContentBackground)
     var scrolledPastTitle = false
     // Navigation+More.swift / Search.swift
     var destinations: [_NavDestination] = []
@@ -593,7 +707,7 @@ final class _NavStackNode: _Node {
                 container.frame = view.bounds
                 container.isHidden = i != nodes.count - 1
             }
-            container.backgroundColor = levels[i].contentIsList ? .systemGroupedBackground : .systemBackground
+            container.backgroundColor = levels[i].contentIsList ? levels[i].listColor ?? .systemGroupedBackground : .systemBackground
             sv?.levelViews[i] = container
             g.mount(node, in: container, order: 0)
         }
@@ -852,7 +966,7 @@ final class _SUINavBar: UIView {
             titleMenuButton.action = { [weak self] in guard let self else { return }; self.titleMenuButton._isim_present(build(), from: self.titleMenuButton.bounds) }
         }
         let solid = scrolled
-        backgroundColor = solid ? UIColor.systemBackground.withAlphaComponent(0.94) : (l.contentIsList ? .systemGroupedBackground : .systemBackground)
+        backgroundColor = solid ? UIColor.systemBackground.withAlphaComponent(0.94) : (l.contentIsList ? l.listColor ?? .systemGroupedBackground : .systemBackground)
         // .toolbarBackground / .toolbarColorScheme (Navigation+More.swift)
         if l.barBackgroundVisibility == .visible || l.barBackground != nil { backgroundColor = l.barBackground?.uiColor ?? UIColor.systemBackground.withAlphaComponent(0.94); hairline.isHidden = false }
         if l.barBackgroundVisibility == .hidden { backgroundColor = .clear; hairline.isHidden = true }
