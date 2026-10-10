@@ -26,11 +26,25 @@ public struct WindowGroup<Content: View>: Scene, _SceneRoot, _SceneNode {
     public init(_ title: LocalizedStringKey, id: String, @ViewBuilder content: @escaping () -> Content) { self.content = content; self.id = id }
     /// a window for a value (openWindow(value:)); isim shows it with a nil value
     public init<D: Codable & Hashable>(for type: D.Type, @ViewBuilder content: @escaping (Binding<D?>) -> Content) {
-        self.content = { content(.constant(nil)) }
+        self.content = { content(_WindowGroupValue.binding(D.self)) }
+        id = _SUIWindows.typeID(D.self)
+    }
+    /// a window for a value with an id (openWindow(id:value:))
+    public init<D: Codable & Hashable>(id: String, for type: D.Type, @ViewBuilder content: @escaping (Binding<D?>) -> Content) {
+        self.content = { content(_WindowGroupValue.binding(D.self)) }
+        self.id = id
     }
     public var body: Never { fatalError() }
     var _rootView: AnyView { AnyView(content()) }
     @MainActor func _collect(_ c: _SceneCollector) { let make = content; c.groups.append((id, { AnyView(make()) })) }
+}
+/// The value of the window being made (openWindow(value:)), as a binding its content can change.
+enum _WindowGroupValue {
+    @MainActor static func binding<D: Codable>(_ t: D.Type) -> Binding<D?> {
+        let box = _SUIWindows.currentBox
+        return Binding(get: { box?.data.flatMap { try? JSONDecoder().decode(D.self, from: $0) } },
+                       set: { box?.data = $0.flatMap { try? JSONEncoder().encode($0) }; box?.changed?() })
+    }
 }
 @resultBuilder
 public struct SceneBuilder {
@@ -107,8 +121,34 @@ extension App {
         if let f = forward as? UISceneDelegate { f.scene?(scene, willConnectTo: session, options: connectionOptions) }
         guard let ws = scene as? UIWindowScene else { return }
         let w = UIWindow(windowScene: ws)
-        let root = _SUIAppRoot.makeRoot ?? { AnyView(EmptyView()) }
-        w.rootViewController = _SUIAppRoot.makeRootController?() ?? _SUIHostingController(root: { root() })
+        _ = _SUIAppRoot.makeRoot?()                               // (collects the scenes of App.body)
+        // the window's WindowGroup: an openWindow request, or the one it showed before (relaunch), else the first
+        let opened = connectionOptions.userActivities.first { $0.activityType == _SUIWindows.activityType }
+        var target = _SUIWindows.sessionInfo(session)
+        if let info = opened?.userInfo {
+            let id = info["id"] as? String
+            target = (id?.isEmpty == false ? id : nil, info["value"] as? Data)
+            var u = session.userInfo ?? [:]
+            var record: [String: Any] = ["id": id ?? ""]
+            if let v = info["value"] { record["value"] = v }
+            u["isim.window"] = record
+            session.userInfo = u
+        }
+        let root = _SUIWindows.root(id: target?.id, value: target?.value, session: session)
+        if target == nil, let rc = _SUIAppRoot.makeRootController { w.rootViewController = rc() }
+        else {
+            let make = root.make, h = _SUIHostingController(root: { make() })
+            let box = root.box
+            root.box.changed = { [weak h, weak session] in
+                // the window is now the one for the new value (openWindow(value:) finds it by it)
+                if let session, var record = session.userInfo?["isim.window"] as? [String: Any] {
+                    record["value"] = box.data
+                    var u = session.userInfo ?? [:]; u["isim.window"] = record; session.userInfo = u
+                }
+                h?.graph.invalidate()
+            }
+            w.rootViewController = h
+        }
         w.tintColor = _accentUIColor()
         window = w
         _SUIWindows.window = w

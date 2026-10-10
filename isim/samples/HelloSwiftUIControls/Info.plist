@@ -10,5 +10,16 @@
 	<string>dev.isim.samples.HelloSwiftUIControls</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>dev.isim.samples.HelloSwiftUIControls</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>controlsplus</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

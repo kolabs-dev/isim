@@ -3,13 +3,14 @@
 // allowsTightening; MultiDatePicker; PasteButton (UIKit's paste control); ShareLink with Transferable items and a
 // SharePreview (UIKit's share sheet); RenameButton / renameAction.
 // iOS 26: Slider tick marks, neutral value and enabled bounds; TextEditor editing an AttributedString with a selection.
+// Opens controlsplus:// URLs (onOpenURL prints them; HelloScenes links here).
 // The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich.
 import SwiftUI
 import UniformTypeIdentifiers
 
 @main
 struct HelloSwiftUIControlsApp: App {
-    var body: some Scene { WindowGroup { Root() } }
+    var body: some Scene { WindowGroup { Root().onOpenURL { url in print("opened \(url.absoluteString)") } } }
 }
 
 let env = ProcessInfo.processInfo.environment

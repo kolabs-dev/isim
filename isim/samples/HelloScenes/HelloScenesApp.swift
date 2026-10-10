@@ -55,6 +55,9 @@ struct HelloScenesApp: App {
         WindowGroup(id: "detail") {
             DetailView()
         }
+        WindowGroup(for: Int.self) { $item in
+            ItemView(item: $item)
+        }
     }
 }
 
@@ -79,6 +82,8 @@ struct ContentView: View {
                     log("download started")
                 }.accessibilityIdentifier("download")
                 Button("Open detail window") { log("supportsMultipleWindows \(multi)"); openWindow(id: "detail") }.accessibilityIdentifier("openDetail")
+                Button("Open item 7") { openWindow(value: 7) }.accessibilityIdentifier("openItem")
+                Link("Open Controls+", destination: URL(string: "controlsplus://item/42?from=scenes")!).accessibilityIdentifier("openControls")
             }
             .navigationTitle("Scenes")
         }
@@ -100,6 +105,18 @@ struct DetailView: View {
         VStack(spacing: 20) {
             Text("Detail window").font(.largeTitle).accessibilityIdentifier("detailTitle")
             Button("Close") { dismissWindow() }.accessibilityIdentifier("closeDetail")
+        }
+    }
+}
+
+struct ItemView: View {
+    @Binding var item: Int?
+    @Environment(\.dismissWindow) var dismissWindow
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Item \(item.map(String.init) ?? "none")").font(.largeTitle).accessibilityIdentifier("itemTitle")
+            Button("Next") { item = (item ?? 0) + 1 }.accessibilityIdentifier("nextItem")
+            Button("Close") { dismissWindow() }.accessibilityIdentifier("closeItem")
         }
     }
 }

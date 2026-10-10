@@ -4,8 +4,8 @@
 //  - (.onContinueUserActivity / .userActivity: UserActivity.swift)
 //  - .backgroundTask(.appRefresh(id)) (BackgroundTasks launches: script `bgtask BUNDLE ID`), .backgroundTask(.urlSession(id))
 //    (a background URLSession's events: the action runs where a UIKit app's handleEventsForBackgroundURLSession would)
-//  - openWindow / dismissWindow: isim shows one scene per app; on iPad with UIApplicationSupportsMultipleScenes the
-//    requested WindowGroup replaces the window's content (dismissWindow goes back); on iPhone they do nothing, like iOS.
+//  - openWindow / dismissWindow: on iPad with UIApplicationSupportsMultipleScenes each window is a UIKit scene session
+//    (a new window shares the screen in split view; dismissWindow destroys it); on iPhone they do nothing, like iOS.
 import UIKit
 
 // MARK: - scene collection
@@ -151,48 +151,87 @@ public struct UIApplicationDelegateAdaptor<DelegateType: NSObject & UIApplicatio
 // MARK: - windows
 
 public struct OpenWindowAction {
-    @MainActor public func callAsFunction(id: String) { _SUIWindows.open(id) }
-    @MainActor public func callAsFunction<D: Codable & Hashable>(value: D) { _SUIWindows.open(nil) }
-    @MainActor public func callAsFunction<D: Codable & Hashable>(id: String, value: D) { _SUIWindows.open(id) }
+    @MainActor public func callAsFunction(id: String) { _SUIWindows.open(id, value: nil) }
+    @MainActor public func callAsFunction<D: Codable & Hashable>(value: D) { _SUIWindows.open(_SUIWindows.typeID(D.self), value: try? JSONEncoder().encode(value)) }
+    @MainActor public func callAsFunction<D: Codable & Hashable>(id: String, value: D) { _SUIWindows.open(id, value: try? JSONEncoder().encode(value)) }
 }
 public struct DismissWindowAction {
-    @MainActor public func callAsFunction() { _SUIWindows.dismiss() }
-    @MainActor public func callAsFunction(id: String) { _SUIWindows.dismiss() }
+    /// the scene the view is in
+    var session: _WeakSession? = nil
+    @MainActor public func callAsFunction() { _SUIWindows.dismiss(session?.session) }
+    @MainActor public func callAsFunction(id: String) { _SUIWindows.dismiss(id: id, value: nil) }
+    @MainActor public func callAsFunction<D: Codable & Hashable>(value: D) { _SUIWindows.dismiss(id: _SUIWindows.typeID(D.self), value: try? JSONEncoder().encode(value)) }
+    @MainActor public func callAsFunction<D: Codable & Hashable>(id: String, value: D) { _SUIWindows.dismiss(id: id, value: try? JSONEncoder().encode(value)) }
 }
+final class _WeakSession: @unchecked Sendable { weak var session: UISceneSession?; init(_ s: UISceneSession?) { session = s } }
 struct _OpenWindowKey: EnvironmentKey { static var defaultValue: OpenWindowAction { OpenWindowAction() } }
 struct _DismissWindowKey: EnvironmentKey { static var defaultValue: DismissWindowAction { DismissWindowAction() } }
 extension EnvironmentValues {
     public var openWindow: OpenWindowAction { self[_OpenWindowKey.self] }
     public var dismissWindow: DismissWindowAction { self[_DismissWindowKey.self] }
+    var _dismissWindow: DismissWindowAction { get { self[_DismissWindowKey.self] } set { self[_DismissWindowKey.self] = newValue } }
     /// iPad apps with UIApplicationSupportsMultipleScenes; false on iPhone.
     @MainActor public var supportsMultipleWindows: Bool { _SUIWindows.supported }
 }
 
+/// A presented value window's value (WindowGroup(for:)), JSON-encoded, shared by its content's binding.
+final class _WindowValueBox { var data: Data?; var changed: (() -> Void)?; init(_ d: Data?) { data = d } }
+
+/// Windows of a SwiftUI app: each WindowGroup window is a UIKit scene session (iPad with
+/// UIApplicationSupportsMultipleScenes: openWindow activates a session beside the current one, split view;
+/// dismissWindow destroys it); the session's userInfo names its group and value, so windows come back on relaunch.
 @MainActor final class _SUIWindows {
     static var groups: [(id: String?, make: () -> AnyView)] = []
     static var stack: [String?] = []
     static weak var window: UIWindow?
+    static let activityType = "dev.isim.swiftui.window"
     static var supported: Bool {
         let multi = (Bundle.main.object(forInfoDictionaryKey: "UIApplicationSceneManifest") as? [String: Any])?["UIApplicationSupportsMultipleScenes"] as? Bool ?? false
         return UIDevice.current.userInterfaceIdiom == .pad && multi
     }
-    static func show(_ id: String?) {
-        guard let g = groups.first(where: { $0.id == id }) ?? (id == nil ? groups.first : nil), let w = window else { return }
-        let make = g.make
-        w.rootViewController = _SUIHostingController(root: { make() })
+    /// the implicit id of a `WindowGroup(for:)` without one
+    nonisolated static func typeID<D>(_ t: D.Type) -> String { "#type:\(String(reflecting: t))" }
+    /// the value box of the window whose content is being made (WindowGroup(for:) reads it)
+    static var currentBox: _WindowValueBox?
+    /// The root view of a window: its group (by id; else the first) with its value.
+    static func root(id: String?, value: Data?, session: UISceneSession?) -> (make: () -> AnyView, box: _WindowValueBox) {
+        let g = groups.first(where: { $0.id == id && id != nil }) ?? groups.first
+        let make = g?.make ?? { AnyView(EmptyView()) }
+        let box = _WindowValueBox(value), weak = _WeakSession(session)
+        return ({
+            let saved = currentBox
+            currentBox = box
+            defer { currentBox = saved }
+            return AnyView(make().environment(\._dismissWindow, DismissWindowAction(session: weak)))
+        }, box)
     }
-    static func open(_ id: String?) {
+    static func sessionInfo(_ s: UISceneSession) -> (id: String?, value: Data?)? {
+        guard let info = s.userInfo?["isim.window"] as? [String: Any] else { return nil }
+        return (info["id"] as? String, info["value"] as? Data)
+    }
+    static func open(_ id: String?, value: Data?) {
         guard supported else { NSLog("isim SwiftUI: openWindow(id: %@) ignored (multiple windows need an iPad and UIApplicationSupportsMultipleScenes)", id ?? "nil"); return }
         guard groups.contains(where: { $0.id == id }) else { NSLog("isim SwiftUI: openWindow: no WindowGroup with id %@", id ?? "nil"); return }
-        stack.append(id)
-        NSLog("isim SwiftUI: openWindow(id: %@) (isim shows one window per app: it replaces the current one)", id ?? "nil")
-        show(id)
+        // a window for the same group and value comes back instead of a new one
+        if let existing = UIApplication.shared.openSessions.first(where: { s in sessionInfo(s).map { $0.id == id && $0.value == value } ?? false }) {
+            NSLog("isim SwiftUI: openWindow(id: %@): the existing window", id ?? "nil")
+            UIApplication.shared.requestSceneSessionActivation(existing, userActivity: nil, options: nil, errorHandler: nil)
+            return
+        }
+        let a = NSUserActivity(activityType: activityType)
+        var info: [String: Any] = ["id": id ?? ""]
+        if let value { info["value"] = value }
+        a.userInfo = info
+        NSLog("isim SwiftUI: openWindow(id: %@): a new window", id ?? "nil")
+        UIApplication.shared.requestSceneSessionActivation(nil, userActivity: a, options: nil) { e in NSLog("isim SwiftUI: openWindow failed: %@", "\(e)") }
     }
-    static func dismiss() {
-        guard supported, stack.count > 1 else { NSLog("isim SwiftUI: dismissWindow ignored"); return }
-        stack.removeLast()
-        NSLog("isim SwiftUI: dismissWindow -> %@", stack.last.flatMap { $0 } ?? "main")
-        show(stack.last ?? nil)
+    static func dismiss(_ session: UISceneSession?) {
+        guard supported, let session, UIApplication.shared.openSessions.count > 1 else { NSLog("isim SwiftUI: dismissWindow ignored"); return }
+        NSLog("isim SwiftUI: dismissWindow %@", sessionInfo(session)?.id ?? "main")
+        UIApplication.shared.requestSceneSessionDestruction(session, options: nil, errorHandler: nil)
+    }
+    static func dismiss(id: String, value: Data?) {
+        for s in UIApplication.shared.openSessions where sessionInfo(s).map({ $0.id == id && (value == nil || $0.value == value) }) ?? false { dismiss(s) }
     }
 }
 
