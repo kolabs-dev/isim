@@ -370,7 +370,7 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     [container addSubview:dim];
     CGRect end = sheet_frame(vc, b);
     v.autoresizingMask = UIViewAutoresizingNone;
-    v.layer.cornerRadius = 10; v.clipsToBounds = YES;
+    v.layer.cornerRadius = 10; v.layer.cornerCurve = kCACornerCurveContinuous; v.clipsToBounds = YES;
     [container addSubview:v];
     __IsimSheetPan *pan = [[__IsimSheetPan alloc] initWithTarget:vc action:@selector(_isim_sheetPan:)];
     pan.sheetController = vc;
@@ -382,7 +382,7 @@ static CGRect sheet_frame(UIViewController *vc, CGRect b) {
     if (stack) {
         vc->_sheetWindowBG = w.backgroundColor; vc->_sheetBehindClipped = behind.clipsToBounds; vc->_sheetBehindRadius = behind.layer.cornerRadius;
         w.backgroundColor = UIColor.blackColor;
-        behind.clipsToBounds = YES; behind.layer.cornerRadius = 10;
+        behind.clipsToBounds = YES; behind.layer.cornerRadius = 10; behind.layer.cornerCurve = kCACornerCurveContinuous;
     }
     [w addSubview:container];
     [UIView performWithoutAnimation:^{ v.frame = phone ? CGRectOffset(end, 0, b.size.height - end.origin.y) : CGRectOffset(end, 0, b.size.height); }];

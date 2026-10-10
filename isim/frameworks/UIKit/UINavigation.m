@@ -1982,7 +1982,7 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
     BOOL glass = isim_ui_glass();
     CGFloat safeTop = host.window ? isim_ui_safe_insets_for_rect(host, [host convertRect:host.bounds toView:nil]).top : isim_ui_device()->safe_top;
     _sidebarView.frame = glass ? CGRectMake(8, safeTop + 8, 320 - 16, host.bounds.size.height - safeTop - 16) : CGRectMake(0, 0, 320, host.bounds.size.height);
-    _sidebarView.layer.cornerRadius = glass ? 24 : 0;
+    _sidebarView.layer.cornerRadius = glass ? 24 : 0; _sidebarView.layer.cornerCurve = kCACornerCurveContinuous;
     _sidebarView.backgroundColor = nil;
     for (UIView *s in _sidebarView.subviews) [s removeFromSuperview];
     __block CGFloat y = glass ? 12 : safeTop + 12; CGFloat w = _sidebarView.bounds.size.width;

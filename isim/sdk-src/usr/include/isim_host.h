@@ -55,6 +55,10 @@ void isim_path_curve(double x1, double y1, double x2, double y2, double x, doubl
 void isim_path_arc(double cx, double cy, double r, double a0, double a1, int clockwise);
 void isim_path_close(void);
 void isim_path_rect(double x, double y, double w, double h, double r);
+/* rounded rect with a radius per corner (top-left, top-right, bottom-left, bottom-right) */
+void isim_path_corners(double x, double y, double w, double h, const double *radii);
+/* rounded-rect corners from now on: 1 continuous (the default), 0 circular, -1 unchanged; returns the previous */
+int isim_gfx_corner_curve(int continuous);
 void isim_path_fill(const double *rgba);
 void isim_path_stroke(double lw, const double *rgba);
 /* stroke style of the graphics state: cap 0 butt 1 round 2 square; join 0 miter 1 round 2 bevel; dash lengths (ndash 0 = solid) */
