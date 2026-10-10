@@ -464,7 +464,10 @@ static void hidx_compact(isim_hidx *x, id *keys, id *vals, NSUInteger *aux, NSUI
     for (NSUInteger i = 0, n = _count; i < n && !stop; i++) if (_keys[i]) block(_keys[i], _vals[i], &stop);
 }
 - (BOOL)isEqualToDictionary:(NSDictionary *)o {
-    if (o->_count != _count) return NO;
+    if (!o) return NO;                       /* like iOS; [o count]: o can be any NSDictionary subclass */
+    if (o == self) return YES;
+    [self _isim_compact];
+    if ([o count] != _count) return NO;
     [self _isim_compact];
     for (NSUInteger i = 0; i < _count; i++) if (![[o objectForKey:_keys[i]] isEqual:_vals[i]]) return NO;
     return YES;

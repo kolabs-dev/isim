@@ -2,7 +2,8 @@
 //  - several scenes in App.body (WindowGroups by id; the first is shown at launch), scene modifiers
 //  - @UIApplicationDelegateAdaptor (the delegate gets every UIApplicationDelegate call SwiftUI does not handle)
 //  - (.onContinueUserActivity / .userActivity: UserActivity.swift)
-//  - .backgroundTask(.appRefresh(id)) (BackgroundTasks launches: script `bgtask BUNDLE ID`)
+//  - .backgroundTask(.appRefresh(id)) (BackgroundTasks launches: script `bgtask BUNDLE ID`), .backgroundTask(.urlSession(id))
+//    (a background URLSession's events: the action runs where a UIKit app's handleEventsForBackgroundURLSession would)
 //  - openWindow / dismissWindow: isim shows one scene per app; on iPad with UIApplicationSupportsMultipleScenes the
 //    requested WindowGroup replaces the window's content (dismissWindow goes back); on iPhone they do nothing, like iOS.
 import UIKit
@@ -11,7 +12,7 @@ import UIKit
 
 @MainActor final class _SceneCollector {
     var groups: [(id: String?, make: () -> AnyView)] = []
-    var backgroundTasks: [(id: String, run: @Sendable () async -> Void)] = []
+    var backgroundTasks: [(id: String, kind: String, run: @Sendable () async -> Void)] = []
 }
 protocol _SceneNode { @MainActor func _collect(_ c: _SceneCollector) }
 
@@ -51,9 +52,11 @@ public struct BackgroundTask<Request, Response>: Sendable {
 }
 extension Scene {
     /// Runs `action` when the system launches the app for this background task (a BGAppRefreshTaskRequest submitted
-    /// with the same identifier; isim: script `bgtask BUNDLE-ID ID`).
+    /// with the same identifier; isim: script `bgtask BUNDLE-ID ID`), or, for `.urlSession(id)`, when the background
+    /// URLSession with that identifier has events for the app (its delegate events follow; the system may suspend
+    /// the app once the action returns).
     public func backgroundTask(_ task: BackgroundTask<Void, Void>, action: @escaping @Sendable () async -> Void) -> some Scene {
-        _ModifiedScene(base: self, transform: { $0 }, apply: { c in c.backgroundTasks.append((task.identifier, action)) })
+        _ModifiedScene(base: self, transform: { $0 }, apply: { c in c.backgroundTasks.append((task.identifier, task.kind, action)) })
     }
     public func handlesExternalEvents(matching conditions: Set<String>) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
     public func commands<C>(@_SceneCommandsBuilder content: () -> C) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
@@ -67,23 +70,39 @@ extension Scene {
 /// SwiftUI runs its .backgroundTask actions when UIKit launches a pending task (works without BGTaskScheduler
 /// registration); BackgroundTasks asks whether SwiftUI claims an identifier before reporting a missing handler.
 @MainActor final class _SUIBackgroundTasks {
-    static var tasks: [(id: String, run: @Sendable () async -> Void)] = []
+    static var tasks: [(id: String, kind: String, run: @Sendable () async -> Void)] = []
     static var observers: [NSObjectProtocol] = []
-    static func install(_ t: [(id: String, run: @Sendable () async -> Void)]) {
+    static func install(_ t: [(id: String, kind: String, run: @Sendable () async -> Void)]) {
         tasks = t
         guard observers.isEmpty, !t.isEmpty else { return }
         observers.append(NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimSwiftUIBackgroundTask"), object: nil, queue: nil) { n in
             guard let box = n.object as? NSMutableDictionary, let ident = box["identifier"] as? String else { return }
-            MainActor.assumeIsolated { if _SUIBackgroundTasks.tasks.contains(where: { $0.id == ident }) { box.setObject(true, forKey: "handled" as NSString) } }
+            MainActor.assumeIsolated { if _SUIBackgroundTasks.tasks.contains(where: { $0.id == ident && $0.kind != "urlSession" }) { box.setObject(true, forKey: "handled" as NSString) } }
         })
         observers.append(NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimBackgroundTaskLaunch"), object: nil, queue: nil) { n in
             guard let ident = n.object as? String else { return }
             MainActor.assumeIsolated {
-                guard let t = _SUIBackgroundTasks.tasks.first(where: { $0.id == ident }) else { return }
+                guard let t = _SUIBackgroundTasks.tasks.first(where: { $0.id == ident && $0.kind != "urlSession" }) else { return }
                 NSLog("isim SwiftUI: background task %@ (.backgroundTask)", ident)
                 let run = t.run
                 let bg = UIApplication.shared.beginBackgroundTask(withName: ident, expirationHandler: nil)
                 Task.detached { await run(); NSLog("isim SwiftUI: background task %@ finished", ident); await MainActor.run { UIApplication.shared.endBackgroundTask(bg) } }
+            }
+        })
+        // a background URLSession's events (UIKit; the box carries the completion that lets the app be suspended)
+        observers.append(NotificationCenter.default.addObserver(forName: NSNotification.Name("_IsimSwiftUIBackgroundURLSession"), object: nil, queue: nil) { n in
+            guard let box = n.object as? NSMutableDictionary, let ident = box["identifier"] as? String else { return }
+            nonisolated(unsafe) let done = box["completion"] as AnyObject?
+            MainActor.assumeIsolated {
+                guard let t = _SUIBackgroundTasks.tasks.first(where: { $0.id == ident && $0.kind == "urlSession" }) else { return }
+                box.setObject(true, forKey: "handled" as NSString)
+                NSLog("isim SwiftUI: background URL session %@ (.backgroundTask(.urlSession))", ident)
+                let run = t.run
+                Task.detached {
+                    await run()
+                    NSLog("isim SwiftUI: background URL session task %@ finished", ident)
+                    if let done { unsafeBitCast(done, to: (@convention(block) () -> Void).self)() }
+                }
             }
         })
     }

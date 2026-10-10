@@ -48,6 +48,13 @@ NSString *NSTemporaryDirectory_isim(void);
 
 /* device data & system preferences (Runtime.m, Files.m) */
 NSString *isim_data_dir(void);
+/* per-file metadata Linux cannot keep (ResourceValues.m), by absolute path */
+id isim_file_meta(NSString *path, NSString *key);
+void isim_file_meta_set(NSString *path, NSString *key, id value);
+void isim_file_meta_move(NSString *from, NSString *to);          /* to = nil: the item was removed */
+/* the iCloud state of a file in a ubiquity container (Ubiquity.m), or nil outside one:
+ * container, displayName, evicted, downloading, excludedFromSync */
+NSDictionary *isim_ubiquity_item_status(NSString *path);
 NSDictionary *isim_global_preferences(void);
 
 /* regular expressions (Regex.m) */

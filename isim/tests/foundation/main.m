@@ -4,6 +4,11 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <pthread.h>
 
 static int failures, checks;
 #define CHECK(cond) do { checks++; if (cond) printf("PASS  %s\n", #cond); else { failures++; printf("FAIL  %s  (%s:%d)\n", #cond, __FILE__, __LINE__); } } while (0)
@@ -437,6 +442,289 @@ static void locale_checks(void) {
     hf.calendar = [NSCalendar calendarWithIdentifier:NSCalendarIdentifierBuddhist]; hf.dateFormat = @"y G";
     CHECK_STR([hf stringFromDate:d], @"2569 BE");
     CHECK_STR(hf.quarterSymbols.firstObject, @"1st quarter");
+}
+
+
+/* files: resource values, socket / bound streams, FileHandle background notifications, iCloud documents (#12) */
+static int listen_local(int *port) {
+    int s = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = 0 };
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (bind(s, (struct sockaddr *)&a, sizeof a) || listen(s, 4)) { close(s); return -1; }
+    socklen_t len = sizeof a; getsockname(s, (struct sockaddr *)&a, &len);
+    *port = ntohs(a.sin_port);
+    return s;
+}
+static void *echo_server(void *arg) {
+    int s = (int)(intptr_t)arg, c = accept(s, NULL, NULL);
+    char buf[256]; ssize_t n;
+    while ((n = read(c, buf, sizeof buf)) > 0) write(c, buf, (size_t)n);
+    close(c); close(s);
+    return NULL;
+}
+@interface StreamEvents : NSObject <NSStreamDelegate>
+@property NSUInteger events;
+@end
+@implementation StreamEvents
+- (void)stream:(NSStream *)s handleEvent:(NSStreamEvent)e { self.events |= e; }
+@end
+@interface TestPresenter : NSObject <NSFilePresenter>
+@property (copy) NSURL *presentedItemURL;
+@property (retain) NSOperationQueue *presentedItemOperationQueue;
+@property (atomic) int changes, saves;
+@end
+@implementation TestPresenter
+- (void)presentedItemDidChange { self.changes++; }
+- (void)savePresentedItemChangesWithCompletionHandler:(void (^)(NSError *))done { self.saves++; done(nil); }
+@end
+
+static void file_checks(void) {
+    NSFileManager *fm = NSFileManager.defaultManager;
+    NSString *dir = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
+    [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSURL *note = [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:@"note.txt"]];
+    [@"hello" writeToURL:note atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    /* resource values: content types, the data volume, stored values, temporary values */
+    NSDictionary *rv = [note resourceValuesForKeys:@[NSURLTypeIdentifierKey, NSURLLocalizedTypeDescriptionKey, NSURLVolumeTotalCapacityKey,
+                                                     NSURLVolumeAvailableCapacityForImportantUsageKey, NSURLVolumeNameKey, NSURLVolumeSupportsCaseSensitiveNamesKey,
+                                                     NSURLIsUbiquitousItemKey, NSURLFileProtectionKey] error:NULL];
+    CHECK([rv[NSURLTypeIdentifierKey] isEqualToString:@"public.plain-text"] && [rv[NSURLLocalizedTypeDescriptionKey] length] > 0);
+    CHECK([rv[NSURLVolumeTotalCapacityKey] longLongValue] > 0 && [rv[NSURLVolumeAvailableCapacityForImportantUsageKey] longLongValue] > 0 &&
+          [rv[NSURLVolumeNameKey] isEqualToString:@"Data"] && [rv[NSURLVolumeSupportsCaseSensitiveNamesKey] boolValue]);
+    CHECK(![rv[NSURLIsUbiquitousItemKey] boolValue] && [rv[NSURLFileProtectionKey] isEqualToString:NSURLFileProtectionCompleteUntilFirstUserAuthentication]);
+    id folderType = nil; [[NSURL fileURLWithPath:dir] getResourceValue:&folderType forKey:NSURLTypeIdentifierKey error:NULL];
+    CHECK([folderType isEqualToString:@"public.folder"]);
+    NSDate *born = [NSDate dateWithTimeIntervalSince1970:1000000000];
+    CHECK(([note setResourceValues:@{ NSURLIsExcludedFromBackupKey: @YES, NSURLCreationDateKey: born, NSURLIsHiddenKey: @YES } error:NULL]));
+    NSDictionary *back = [[NSURL fileURLWithPath:note.path] resourceValuesForKeys:@[NSURLIsExcludedFromBackupKey, NSURLCreationDateKey, NSURLIsHiddenKey] error:NULL];
+    CHECK([back[NSURLIsExcludedFromBackupKey] boolValue] && [back[NSURLCreationDateKey] isEqualToDate:born] && [back[NSURLIsHiddenKey] boolValue]);
+    [note setTemporaryResourceValue:@"temp" forKey:NSURLLocalizedNameKey];
+    id tempName = nil; [note getResourceValue:&tempName forKey:NSURLLocalizedNameKey error:NULL];
+    [note removeCachedResourceValueForKey:NSURLLocalizedNameKey];
+    id realName = nil; [note getResourceValue:&realName forKey:NSURLLocalizedNameKey error:NULL];
+    CHECK([tempName isEqualToString:@"temp"] && [realName isEqualToString:@"note.txt"]);
+    /* bound stream pair */
+    NSInputStream *bin = nil; NSOutputStream *bout = nil;
+    [NSStream getBoundStreamsWithBufferSize:4 inputStream:&bin outputStream:&bout];
+    [bin open]; [bout open];
+    NSInteger w1 = [bout write:(const uint8_t *)"abcdef" maxLength:6];
+    uint8_t rb[8] = {0};
+    NSInteger r1 = [bin read:rb maxLength:sizeof rb];
+    NSInteger w2 = [bout write:(const uint8_t *)"ef" maxLength:2];
+    [bout close];
+    NSInteger r2 = [bin read:rb + r1 maxLength:sizeof rb - (NSUInteger)r1];
+    CHECK(w1 == 4 && r1 == 4 && w2 == 2 && r2 == 2 && !memcmp(rb, "abcdef", 6) && bin.streamStatus == NSStreamStatusAtEnd);
+    /* socket streams: an echo server on the loopback interface; delegate events on this run loop */
+    int port = 0, ls = listen_local(&port);
+    pthread_t server; pthread_create(&server, NULL, echo_server, (void *)(intptr_t)ls);
+    NSInputStream *sin = nil; NSOutputStream *sout = nil;
+    [NSStream getStreamsToHostWithName:@"127.0.0.1" port:port inputStream:&sin outputStream:&sout];
+    StreamEvents *ev = [StreamEvents new];
+    sin.delegate = ev; sout.delegate = ev;
+    [sin scheduleInRunLoop:NSRunLoop.currentRunLoop forMode:NSDefaultRunLoopMode];
+    [sout scheduleInRunLoop:NSRunLoop.currentRunLoop forMode:NSDefaultRunLoopMode];
+    [sin open]; [sout open];
+    CHECK(spin_until(^BOOL { return (ev.events & NSStreamEventOpenCompleted) && (ev.events & NSStreamEventHasSpaceAvailable); }, 5));
+    CHECK([sout write:(const uint8_t *)"ping" maxLength:4] == 4);
+    CHECK(spin_until(^BOOL { return (ev.events & NSStreamEventHasBytesAvailable) != 0; }, 5));
+    uint8_t sb[8] = {0};
+    CHECK([sin read:sb maxLength:sizeof sb] == 4 && !memcmp(sb, "ping", 4));
+    [sout close];
+    CHECK(spin_until(^BOOL { return (ev.events & NSStreamEventEndEncountered) != 0; }, 5) && sin.streamStatus == NSStreamStatusAtEnd);
+    [sin close];
+    pthread_join(server, NULL);
+    NSInputStream *refused = nil; NSOutputStream *refusedOut = nil;
+    [NSStream getStreamsToHostWithName:@"127.0.0.1" port:port inputStream:&refused outputStream:&refusedOut];
+    [refused open];
+    CHECK(spin_until(^BOOL { return refused.streamStatus == NSStreamStatusError; }, 5) && [refused.streamError.domain isEqualToString:NSPOSIXErrorDomain]);
+    /* FileHandle: accept a connection, then read from it, in the background */
+    int lport = 0, lfd = listen_local(&lport);
+    NSFileHandle *listener = [[NSFileHandle alloc] initWithFileDescriptor:lfd closeOnDealloc:YES];
+    __block NSFileHandle *accepted = nil; __block NSData *readData = nil;
+    id o1 = [NSNotificationCenter.defaultCenter addObserverForName:NSFileHandleConnectionAcceptedNotification object:listener queue:nil usingBlock:^(NSNotification *n) {
+        accepted = n.userInfo[NSFileHandleNotificationFileHandleItem];
+    }];
+    [listener acceptConnectionInBackgroundAndNotify];
+    int client = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in ca = { .sin_family = AF_INET, .sin_port = htons((uint16_t)lport) };
+    ca.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    connect(client, (struct sockaddr *)&ca, sizeof ca);
+    CHECK(spin_until(^BOOL { return accepted != nil; }, 5));
+    id o2 = [NSNotificationCenter.defaultCenter addObserverForName:NSFileHandleReadCompletionNotification object:accepted queue:nil usingBlock:^(NSNotification *n) {
+        readData = n.userInfo[NSFileHandleNotificationDataItem];
+    }];
+    [accepted readInBackgroundAndNotify];
+    write(client, "abc", 3);
+    CHECK(spin_until(^BOOL { return readData != nil; }, 5) && [readData isEqualToData:[NSData dataWithBytes:"abc" length:3]]);
+    close(client);
+    [NSNotificationCenter.defaultCenter removeObserver:o1]; [NSNotificationCenter.defaultCenter removeObserver:o2];
+    /* iCloud documents (local): a metadata query, eviction and download, coordination */
+    NSURL *container = [fm URLForUbiquityContainerIdentifier:nil];
+    NSURL *docs = [container URLByAppendingPathComponent:@"Documents"];
+    NSURL *doc = [docs URLByAppendingPathComponent:@"report.txt"];
+    [@"quarterly numbers" writeToURL:doc atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    [@"x" writeToURL:[docs URLByAppendingPathComponent:@"image.png"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    CHECK(container && [fm isUbiquitousItemAtURL:doc]);
+    NSMetadataQuery *q = [NSMetadataQuery new];
+    q.searchScopes = @[NSMetadataQueryUbiquitousDocumentsScope];
+    q.predicate = [NSPredicate predicateWithFormat:@"%K LIKE '*.txt'", NSMetadataItemFSNameKey];
+    q.notificationBatchingInterval = 0.2;
+    __block BOOL gathered = NO; __block NSDictionary *update = nil;
+    id o3 = [NSNotificationCenter.defaultCenter addObserverForName:NSMetadataQueryDidFinishGatheringNotification object:q queue:nil usingBlock:^(NSNotification *n) { gathered = YES; }];
+    id o4 = [NSNotificationCenter.defaultCenter addObserverForName:NSMetadataQueryDidUpdateNotification object:q queue:nil usingBlock:^(NSNotification *n) { update = n.userInfo; }];
+    CHECK([q startQuery]);
+    CHECK(spin_until(^BOOL { return gathered; }, 5) && q.resultCount == 1 &&
+          [[[q resultAtIndex:0] valueForAttribute:NSMetadataItemFSNameKey] isEqualToString:@"report.txt"] &&
+          [[[q resultAtIndex:0] valueForAttribute:NSMetadataUbiquitousItemDownloadingStatusKey] isEqualToString:NSMetadataUbiquitousItemDownloadingStatusCurrent]);
+    CHECK([fm evictUbiquitousItemAtURL:doc error:NULL]);
+    id status = nil; [doc getResourceValue:&status forKey:NSURLUbiquitousItemDownloadingStatusKey error:NULL];
+    CHECK([status isEqualToString:NSURLUbiquitousItemDownloadingStatusNotDownloaded] && [[fm attributesOfItemAtPath:doc.path error:NULL] fileSize] == 0);
+    CHECK(spin_until(^BOOL { return update != nil && [update[NSMetadataQueryUpdateChangedItemsKey] count] == 1; }, 5) &&
+          [[[q resultAtIndex:0] valueForAttribute:NSMetadataUbiquitousItemDownloadingStatusKey] isEqualToString:NSMetadataUbiquitousItemDownloadingStatusNotDownloaded]);
+    CHECK([fm startDownloadingUbiquitousItemAtURL:doc error:NULL]);
+    CHECK(spin_until(^BOOL {
+        id st = nil; NSURL *fresh = [NSURL fileURLWithPath:doc.path]; [fresh getResourceValue:&st forKey:NSURLUbiquitousItemDownloadingStatusKey error:NULL];
+        return [st isEqualToString:NSURLUbiquitousItemDownloadingStatusCurrent];
+    }, 5) && [[NSString stringWithContentsOfURL:doc encoding:NSUTF8StringEncoding error:NULL] isEqualToString:@"quarterly numbers"]);
+    [q stopQuery];
+    [NSNotificationCenter.defaultCenter removeObserver:o3]; [NSNotificationCenter.defaultCenter removeObserver:o4];
+    [fm evictUbiquitousItemAtURL:doc error:NULL];
+    TestPresenter *presenter = [TestPresenter new];
+    presenter.presentedItemURL = doc; presenter.presentedItemOperationQueue = [NSOperationQueue new];
+    [NSFileCoordinator addFilePresenter:presenter];
+    NSFileCoordinator *coordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
+    __block NSString *coordinatedText = nil;
+    [coordinator coordinateReadingItemAtURL:doc options:0 error:NULL byAccessor:^(NSURL *u) { coordinatedText = [NSString stringWithContentsOfURL:u encoding:NSUTF8StringEncoding error:NULL]; }];
+    CHECK([coordinatedText isEqualToString:@"quarterly numbers"]);          /* a coordinated read downloads an evicted item */
+    [coordinator coordinateWritingItemAtURL:doc options:0 error:NULL byAccessor:^(NSURL *u) { [@"revised" writeToURL:u atomically:YES encoding:NSUTF8StringEncoding error:NULL]; }];
+    CHECK(spin_until(^BOOL { return presenter.changes == 1; }, 5) && presenter.saves >= 1);
+    [NSFileCoordinator removeFilePresenter:presenter];
+    CHECK(NSFileCoordinator.filePresenters.count == 0);
+    [fm removeItemAtPath:dir error:NULL];
+}
+
+/* the URL loading system from Objective-C: classes of Foundation's Swift overlay, found through the runtime (this app
+   has no Swift code: the first lookup loads the overlay); requests go to http_server.py (ISIM_TEST_HTTP_PORT) */
+@interface SessionRecorder : NSObject <NSURLSessionDataDelegate>
+@property (strong) NSMutableData *body;
+@property NSInteger status, challenges, redirects;
+@property (copy) NSString *realm;
+@property (strong) NSError *error;
+@property BOOL completed;
+@end
+@implementation SessionRecorder
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response
+ completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
+    self.status = [(NSHTTPURLResponse *)response statusCode];
+    self.body = [NSMutableData data];
+    completionHandler(NSURLSessionResponseAllow);
+}
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data { [self.body appendData:data]; }
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
+ completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential *))completionHandler {
+    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodHTTPBasic]) {
+        self.challenges++; self.realm = challenge.protectionSpace.realm;
+        completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialWithUser:@"user" password:@"secret" persistence:NSURLCredentialPersistenceNone]);
+    } else completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+}
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+        newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler {
+    self.redirects++;
+    completionHandler(request);
+}
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error { self.error = error; self.completed = YES; }
+@end
+
+static void objc_networking_checks(void) {
+    NSURLComponents *c = [NSURLComponents componentsWithString:@"https://user@example.com:8443/a%20b?q=swift%20ui#frag"];
+    CHECK((c && [c.host isEqualToString:@"example.com"] && c.port.intValue == 8443 && [c.path isEqualToString:@"/a b"]));
+    CHECK(([c.queryItems.firstObject.name isEqualToString:@"q"] && [c.queryItems.firstObject.value isEqualToString:@"swift ui"]));
+    c.queryItems = @[[NSURLQueryItem queryItemWithName:@"k" value:@"v w"]];
+    CHECK_STR(c.URL.absoluteString, @"https://user@example.com:8443/a%20b?k=v%20w#frag");
+
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"http://example.com/x"]];
+    req.HTTPMethod = @"PUT"; req.timeoutInterval = 12;
+    [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"]; [req addValue:@"b" forHTTPHeaderField:@"X-A"]; [req addValue:@"c" forHTTPHeaderField:@"x-a"];
+    NSURLRequest *frozen = [req copy];
+    CHECK(([frozen.HTTPMethod isEqualToString:@"PUT"] && frozen.timeoutInterval == 12 && [[frozen valueForHTTPHeaderField:@"content-type"] isEqualToString:@"application/json"] &&
+           [[frozen valueForHTTPHeaderField:@"X-A"] isEqualToString:@"b,c"] && ![frozen isKindOfClass:NSClassFromString(@"NSMutableURLRequest")] &&
+           [[frozen mutableCopy] isKindOfClass:NSClassFromString(@"NSMutableURLRequest")] && [frozen isEqual:req]));
+
+    NSHTTPURLResponse *hr = [[NSHTTPURLResponse alloc] initWithURL:[NSURL URLWithString:@"http://x/f.json"] statusCode:404 HTTPVersion:@"HTTP/1.1"
+                                                      headerFields:@{ @"Content-Type": @"application/json; charset=utf-8" }];
+    CHECK((hr.statusCode == 404 && [hr.MIMEType isEqualToString:@"application/json"] && [[hr valueForHTTPHeaderField:@"content-type"] hasPrefix:@"application/json"] &&
+           [[NSHTTPURLResponse localizedStringForStatusCode:404] isEqualToString:@"not found"]));
+
+    NSHTTPCookie *ck = [NSHTTPCookie cookieWithProperties:@{ NSHTTPCookieName: @"id", NSHTTPCookieValue: @"42", NSHTTPCookieDomain: @"example.com", NSHTTPCookiePath: @"/" }];
+    NSArray<NSHTTPCookie *> *parsed = [NSHTTPCookie cookiesWithResponseHeaderFields:@{ @"Set-Cookie": @"theme=dark; Path=/; Secure" } forURL:[NSURL URLWithString:@"https://example.com/"]];
+    CHECK(([ck.name isEqualToString:@"id"] && [ck.value isEqualToString:@"42"] && ck.isSessionOnly && parsed.count == 1 && parsed[0].isSecure &&
+           [[NSHTTPCookie requestHeaderFieldsWithCookies:@[ck]][@"Cookie"] isEqualToString:@"id=42"] && [ck.properties[NSHTTPCookieName] isEqualToString:@"id"]));
+
+    const char *portEnv = getenv("ISIM_TEST_HTTP_PORT");
+    if (!portEnv) { CHECK(!"ISIM_TEST_HTTP_PORT (run through test_foundation.py)"); return; }
+    NSString *base = [NSString stringWithFormat:@"http://127.0.0.1:%s", portEnv];
+
+    /* completion handlers on the shared session */
+    __block NSData *got = nil; __block NSHTTPURLResponse *gotResponse = nil; __block NSError *gotError = nil; __block BOOL done = NO;
+    [[NSURLSession.sharedSession dataTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/hello"]]
+                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        got = data; gotResponse = (NSHTTPURLResponse *)response; gotError = error; done = YES;
+    }] resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && gotError == nil && gotResponse.statusCode == 200 && [gotResponse.MIMEType isEqualToString:@"text/plain"] &&
+           [[[NSString alloc] initWithData:got encoding:NSUTF8StringEncoding] isEqualToString:@"hello objc"]));
+
+    NSMutableURLRequest *post = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/echo"]]];
+    post.HTTPMethod = @"POST";
+    done = NO; got = nil;
+    NSURLSessionUploadTask *up = [NSURLSession.sharedSession uploadTaskWithRequest:post fromData:[@"ping" dataUsingEncoding:NSUTF8StringEncoding]
+                                                                 completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) { got = data; done = YES; }];
+    [up resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && [got isEqualToData:[@"ping" dataUsingEncoding:NSUTF8StringEncoding]] && up.state == NSURLSessionTaskStateCompleted &&
+           [up.originalRequest.HTTPMethod isEqualToString:@"POST"] && up.countOfBytesSent == 4));
+
+    __block NSString *downloaded = nil; done = NO;
+    [[NSURLSession.sharedSession downloadTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/hello"]]
+                                   completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+        downloaded = [NSString stringWithContentsOfURL:location encoding:NSUTF8StringEncoding error:NULL]; done = YES;
+    }] resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && [downloaded isEqualToString:@"hello objc"]));
+
+    /* cookies land in the shared storage */
+    done = NO;
+    [[NSURLSession.sharedSession dataTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/cookie"]]
+                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) { done = YES; }] resume];
+    NSArray<NSHTTPCookie *> *jar = spin_until(^BOOL { return done; }, 10) ? [NSHTTPCookieStorage.sharedHTTPCookieStorage cookiesForURL:[NSURL URLWithString:base]] : nil;
+    CHECK((jar.count == 1 && [jar[0].name isEqualToString:@"flavor"] && [jar[0].value isEqualToString:@"oatmeal"]));
+
+    /* an Objective-C delegate (NSURLSessionDataDelegate): response, data, redirect, Basic authentication, completion */
+    NSURLSessionConfiguration *cfg = NSURLSessionConfiguration.ephemeralSessionConfiguration;
+    cfg.timeoutIntervalForRequest = 20; cfg.HTTPAdditionalHeaders = @{ @"X-Isim": @"objc" };
+    SessionRecorder *rec = [SessionRecorder new];
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:cfg delegate:rec delegateQueue:nil];
+    CHECK((session.delegate == rec && session.configuration.timeoutIntervalForRequest == 20 && session.configuration.identifier == nil));
+    [[session dataTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/redirect"]]] resume];
+    CHECK((spin_until(^BOOL { return rec.completed; }, 10) && rec.error == nil && rec.status == 200 && rec.redirects == 1 &&
+           [[[NSString alloc] initWithData:rec.body encoding:NSUTF8StringEncoding] isEqualToString:@"hello objc"]));
+    rec.completed = NO;
+    [[session dataTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/auth"]]] resume];
+    CHECK((spin_until(^BOOL { return rec.completed; }, 10) && rec.status == 200 && rec.challenges == 1 && [rec.realm isEqualToString:@"isim"] &&
+           [[[NSString alloc] initWithData:rec.body encoding:NSUTF8StringEncoding] isEqualToString:@"welcome"]));
+    [session invalidateAndCancel];
+
+    /* errors are NSURLErrorDomain NSErrors */
+    done = NO; gotError = nil;
+    [[NSURLSession.sharedSession dataTaskWithURL:[NSURL URLWithString:@"http://127.0.0.1:1/"]
+                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) { gotError = error; done = YES; }] resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && [gotError.domain isEqualToString:NSURLErrorDomain] && gotError.code == NSURLErrorCannotConnectToHost &&
+           [NSURLErrorDomain isEqualToString:gotError.domain] && gotError.domain.hash == NSURLErrorDomain.hash));
+
+    /* NSURLCache */
+    NSURLCache *cache = [[NSURLCache alloc] initWithMemoryCapacity:1 << 20 diskCapacity:0 diskPath:nil];
+    NSURLRequest *cacheKey = [NSURLRequest requestWithURL:[NSURL URLWithString:@"http://cache.invalid/objc"]];
+    [cache storeCachedResponse:[[NSCachedURLResponse alloc] initWithResponse:hr data:[@"cached" dataUsingEncoding:NSUTF8StringEncoding]] forRequest:cacheKey];
+    NSCachedURLResponse *back = [cache cachedResponseForRequest:cacheKey];
+    CHECK(([back.data isEqualToData:[@"cached" dataUsingEncoding:NSUTF8StringEncoding]] && [(NSHTTPURLResponse *)back.response statusCode] == 404 &&
+           back.storagePolicy == NSURLCacheStorageAllowed && cache.currentMemoryUsage > 0));
 }
 
 int main(int argc, char *argv[]) {
@@ -999,6 +1287,8 @@ int main(int argc, char *argv[]) {
         CHECK(NSFileNoSuchFileError == 4 && NSFileReadNoSuchFileError == 260 && NSFileWriteFileExistsError == 516 && NSPropertyListReadCorruptError == 3840);
         CHECK([fm removeItemAtPath:fmDir error:NULL]);
         thread_checks();
+        file_checks();
+        objc_networking_checks();
         locale_checks();
 
         collection_checks();

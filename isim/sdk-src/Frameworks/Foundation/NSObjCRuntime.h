@@ -41,6 +41,9 @@
 #define NS_SWIFT_SENDABLE __attribute__((swift_attr("@Sendable")))
 #define NS_SWIFT_NONSENDABLE __attribute__((swift_attr("@_nonSendable")))
 #define NS_REFINED_FOR_SWIFT __attribute__((swift_private))
+/* isim: an Objective-C class that Foundation's Swift overlay defines (the URL loading system): Objective-C code finds it
+   through the runtime, not the linker, so it cannot subclass it or add a category to it */
+#define ISIM_RUNTIME_VISIBLE __attribute__((objc_runtime_visible))
 #define NS_SWIFT_UNAVAILABLE(_msg) __attribute__((availability(swift, unavailable, message=_msg)))
 #define NS_NOESCAPE __attribute__((noescape))
 #define NS_RETURNS_INNER_POINTER __attribute__((objc_returns_inner_pointer))

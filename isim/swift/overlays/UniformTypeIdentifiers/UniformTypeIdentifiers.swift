@@ -198,3 +198,8 @@ public func _isimUTIFileConforms(_ ext: UnsafePointer<CChar>, _ isDirectory: Int
     for id in String(cString: types).split(separator: ",") where UTType(String(id)).map(t.conforms(to:)) == true { return 1 }
     return 0
 }
+
+extension URLResourceValues {
+    /// the file's type (from its filename extension; directories are folders)
+    public var contentType: UTType? { (allValues[.contentTypeKey] as? String ?? typeIdentifier).flatMap { UTType($0) } }
+}

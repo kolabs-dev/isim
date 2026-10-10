@@ -102,7 +102,7 @@ static int url_error(CURL *c, int rc) {
     case 47: return -1007;                   /* HTTPTooManyRedirects */
     case 35: case 77: return -1200;          /* SecureConnectionFailed */
     case 58: return -1206;                   /* ClientCertificateRequired */
-    case 60: case 83: return -1202;          /* ServerCertificateUntrusted */
+    case 60: case 83: case 90: return -1202; /* ServerCertificateUntrusted (90: not the pinned key) */
     case 61: return -1016;                   /* CannotDecodeContentData */
     default: return -1;                      /* Unknown */
     }
@@ -113,6 +113,7 @@ struct isim_http {
     pthread_mutex_t mu; pthread_cond_t cv;
     CURL *easy; struct curl_slist *hdrs;
     char *url, *method; void *body; long body_len; double timeout, resource_timeout; int flags;
+    char *pinned; void *client_pem; long client_pem_len;   /* CURLOPT_PINNEDPUBLICKEY, the client identity (PEM) */
     char *hbuf; size_t hlen, hcap;           /* header block of the latest response */
     int have_response, done, error, refs; volatile int cancelled;
     double timing[7]; long http_version, new_connections, local_port, remote_port; char remote_ip[64], local_ip[64];   /* URLSessionTaskMetrics */
@@ -128,6 +129,7 @@ static void http_unref(struct isim_http *h) {
     if (!last) return;
     if (h->easy) curl.cleanup(h->easy);
     if (h->hdrs) curl.slist_free_all(h->hdrs);
+    free(h->pinned); free(h->client_pem);
     free(h->url); free(h->method); free(h->body); free(h->hbuf); free(h->final_url); free(h->final_headers); free(h->buf);
     pthread_mutex_destroy(&h->mu); pthread_cond_destroy(&h->cv);
     free(h);
@@ -187,6 +189,13 @@ static void *http_thread(void *arg) {
     curl.setopt(c, O_ACCEPT_ENCODING, "");            /* like CFNetwork: advertise and transparently decode gzip etc. */
     if (!(h->flags & 1)) { curl.setopt(c, O_FOLLOWLOCATION, 1L); curl.setopt(c, O_MAXREDIRS, 16L); }
     if (h->flags & 2) { curl.setopt(c, 64 /* CURLOPT_SSL_VERIFYPEER */, 0L); curl.setopt(c, 81 /* CURLOPT_SSL_VERIFYHOST */, 0L); }   /* the app trusted the server */
+    /* the server key the app's trust challenge saw: a different server certificate fails the transfer */
+    if (h->pinned) curl.setopt(c, 10230 /* CURLOPT_PINNEDPUBLICKEY */, h->pinned);
+    if (h->client_pem) {                                  /* the identity of a client-certificate challenge */
+        struct { void *data; size_t len; unsigned int flags; } blob = { h->client_pem, (size_t)h->client_pem_len, 1 /* CURL_BLOB_COPY */ };
+        curl.setopt(c, 10086 /* CURLOPT_SSLCERTTYPE */, "PEM"); curl.setopt(c, 40291 /* CURLOPT_SSLCERT_BLOB */, &blob);
+        curl.setopt(c, 10088 /* CURLOPT_SSLKEYTYPE */, "PEM"); curl.setopt(c, 40292 /* CURLOPT_SSLKEY_BLOB */, &blob);
+    }
     /* timeoutIntervalForRequest is an idle timeout (no bytes for that long), as on iOS */
     if (h->timeout > 0) {
         curl.setopt(c, O_CONNECTTIMEOUT_MS, (long)(h->timeout * 1000));
@@ -212,6 +221,11 @@ static void *http_thread(void *arg) {
       ip = NULL; if (curl.getinfo(c, 0x100000 + 41, &ip) == 0 && ip) snprintf(h->local_ip, sizeof h->local_ip, "%s", ip); }
     pthread_mutex_lock(&h->mu);
     h->error = h->cancelled ? -999 : url_error(c, rc);
+    /* TLS alerts from a server that wants a client certificate (none sent, or one it does not accept) */
+    if (h->error == -1005 || h->error == -1200) {
+        if (strcasestr(h->errbuf, "certificate required")) h->error = -1206;            /* ClientCertificateRequired */
+        else if (strcasestr(h->errbuf, "bad certificate") || strcasestr(h->errbuf, "unknown ca")) h->error = h->client_pem ? -1205 : -1206;   /* ClientCertificateRejected */
+    }
     if (!h->error) publish_response(h);
     else if (!h->errbuf[0]) snprintf(h->errbuf, sizeof h->errbuf, "%s", curl.strerror(rc));
     h->done = 1;
@@ -223,8 +237,18 @@ static void *http_thread(void *arg) {
 
 /* Starts a transfer. headers: "Name: value" lines separated by '\n'. flags: 1 = do not follow redirects, 2 = accept any server certificate.
  * timeout: idle timeout (s); resource_timeout: whole transfer (s, <= 0 none). NULL if libcurl is missing. */
+struct isim_http *isim_http_start_tls(const char *method, const char *url, const char *headers, const void *body, long body_len,
+                                      double timeout, double resource_timeout, int flags, const char *pinned_key,
+                                      const void *client_pem, long client_pem_len);
 struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len,
                                   double timeout, double resource_timeout, int flags) {
+    return isim_http_start_tls(method, url, headers, body, body_len, timeout, resource_timeout, flags, NULL, NULL, 0);
+}
+/* isim_http_start with TLS options: pinned_key ("sha256//<base64>", or NULL) is the only server key accepted;
+ * client_pem (or NULL) holds the client certificate chain and its private key, offered when the server asks */
+struct isim_http *isim_http_start_tls(const char *method, const char *url, const char *headers, const void *body, long body_len,
+                                      double timeout, double resource_timeout, int flags, const char *pinned_key,
+                                      const void *client_pem, long client_pem_len) {
     if (!curl_load()) return NULL;
     struct isim_http *h = calloc(1, sizeof *h);
     pthread_mutex_init(&h->mu, NULL); pthread_cond_init(&h->cv, NULL);
@@ -232,6 +256,8 @@ struct isim_http *isim_http_start(const char *method, const char *url, const cha
     h->url = strdup(url); h->method = strdup(method && *method ? method : "GET");
     if (body) { h->body = malloc(body_len ? body_len : 1); memcpy(h->body, body, body_len); h->body_len = body_len; }
     h->timeout = timeout; h->resource_timeout = resource_timeout; h->flags = flags;
+    if (pinned_key && *pinned_key) h->pinned = strdup(pinned_key);
+    if (client_pem && client_pem_len > 0) { h->client_pem = malloc(client_pem_len); memcpy(h->client_pem, client_pem, client_pem_len); h->client_pem_len = client_pem_len; }
     if (headers) {
         const char *p = headers;
         while (*p) {
@@ -396,9 +422,16 @@ static int ws_parse(struct isim_ws *w, int *fin, int *opcode, unsigned char **pa
     return 1;
 }
 
+struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response);
 /* Connects (blocking, up to timeout). Returns NULL with *err set to an NSURLError code on failure. */
 struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err) {
+    return isim_ws_open_ex(url, headers, timeout, err, NULL);
+}
+/* isim_ws_open, and *response (when not NULL) gets the server's response head ("HTTP/1.1 101 ...\r\n" and the
+   header lines; malloc'd, free it) whenever one arrived, also for a refused upgrade */
+struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response) {
     *err = 0;
+    if (response) *response = NULL;
     if (offline()) { *err = -1009; return NULL; }
     int secure;
     const char *rest;
@@ -537,7 +570,7 @@ struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeou
                     status == 101 ? ", bad Sec-WebSocket-Accept" : "");
             rc = -1011;                                        /* bad server response */
         }
-        free(head);
+        if (response) *response = head; else free(head);
     }
     if (rc) {
         if (w->tls) isim_tls_close(w->tls);

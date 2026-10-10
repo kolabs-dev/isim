@@ -9,12 +9,15 @@
 // are held; when the session has nothing left to do, UIKit wakes the app with
 // application(_:handleEventsForBackgroundURLSession:completionHandler:), then the held events are delivered and
 // urlSessionDidFinishEvents(forBackgroundURLSession:) is called. Completion-handler tasks are refused, as on iOS.
-// Unfinished download and file-upload tasks are saved (Library/Caches/isim-nsurlsessiond/IDENTIFIER.plist); if the
-// app was terminated, creating the session with the same identifier starts them again.
+// Unfinished download and file-upload tasks are saved (Library/Caches/isim-nsurlsessiond/IDENTIFIER.plist); creating
+// the session with the same identifier starts them again. When the system ends the app (not the user, in the app
+// switcher, which discards them), the home screen relaunches it in the background to finish them ("isim-urlsession:"):
+// the app hears about a session it does not recreate while launching (UIKit, ISIM_URLSESSION_HANDLED), and the
+// session's events follow without a second wake.
 import isim_host
 
 // MARK: - configuration
-open class URLSessionConfiguration: NSObject, @unchecked Sendable {
+@objc(NSURLSessionConfiguration) open class URLSessionConfiguration: NSObject, @unchecked Sendable {
     open class var `default`: URLSessionConfiguration { URLSessionConfiguration() }
     /// no persistent storage: a private cookie jar and an in-memory cache
     open class var ephemeral: URLSessionConfiguration {
@@ -149,7 +152,7 @@ public let NSURLSessionTransferSizeUnknown: Int64 = -1
 public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeData"
 
 // MARK: - session
-open class URLSession: NSObject, @unchecked Sendable {
+@objc(NSURLSession) open class URLSession: NSObject, @unchecked Sendable {
     public enum ResponseDisposition: Int, Sendable { case cancel = 0, allow = 1, becomeDownload = 2, becomeStream = 3 }
     public enum DelayedRequestDisposition: Int, Sendable { case continueLoading = 0, useNewRequest = 1, cancel = 2 }
 
@@ -169,6 +172,8 @@ open class URLSession: NSObject, @unchecked Sendable {
     var _held: [() -> Void] = []
     var _waking = false
     var _isBackground: Bool { configuration.identifier != nil }
+    /// what isim_tls_probe learnt of each HTTPS server ("host:port"), for the trust and client-certificate challenges
+    var _tlsProbes: [String: _TLSProbe] = [:]
 
     open var delegate: URLSessionDelegate? { _lock.lock(); defer { _lock.unlock() }; return _delegate }
 
@@ -294,7 +299,7 @@ open class URLSession: NSObject, @unchecked Sendable {
 }
 
 // MARK: - tasks
-open class URLSessionTask: NSObject, @unchecked Sendable {
+@objc(NSURLSessionTask) open class URLSessionTask: NSObject, @unchecked Sendable {
     public enum State: Int, Sendable { case running = 0, suspended = 1, canceling = 2, completed = 3 }
     public static let defaultPriority: Float = 0.5
     public static let lowPriority: Float = 0.25
@@ -486,15 +491,39 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             if req.cachePolicy == .reloadIgnoringLocalAndRemoteCacheData { set("Cache-Control", "no-cache"); set("Pragma", "no-cache") }
             for (k, v) in _extraHeaders { set(k, v) }
             if let a = authHeader { set(a.0, a.1) }
-            // HTTPS: offer the delegate a server-trust challenge first (iOS asks before using the connection)
+            // HTTPS: offer the delegate a server-trust challenge first (iOS asks before using the connection), with the
+            // server's certificates from a handshake of our own; libcurl's connection is then pinned to that server key.
+            // A server that asks for a client certificate gets a client-certificate challenge too.
             var curlFlags: Int32 = 1
-            if scheme == "https" && !_trustAccepted, _session.delegate != nil {
-                let space = URLProtectionSpace(host: url.host ?? "", port: url.port ?? 443, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodServerTrust)
-                let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
-                switch _askChallenge(ch, sessionWide: true) {
-                case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
-                case (.useCredential, let c?) where c._trust != nil: _trustAccepted = true
-                default: break
+            var pinnedKey: String? = nil, clientPEM: [UInt8]? = nil, certificateAsked = false
+            if scheme == "https", _session.delegate != nil {
+                let host = url.host ?? "", port = url.port ?? 443
+                let probe = _session._probe(host: host, port: port, timeout: req.timeoutInterval)
+                pinnedKey = probe?.pin
+                if !_trustAccepted {
+                    let space = URLProtectionSpace(host: host, port: port, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodServerTrust)
+                    space._serverTrust = SecTrust(host: host, chain: probe?.chain ?? [])
+                    let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
+                    switch _askChallenge(ch, sessionWide: true) {
+                    case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
+                    case (.useCredential, let c?) where c._trust != nil: _trustAccepted = true
+                    default: break
+                    }
+                }
+                if probe?.clientCertificateRequested == true {
+                    certificateAsked = true
+                    let space = URLProtectionSpace(host: host, port: port, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodClientCertificate)
+                    space._distinguishedNames = probe?.distinguishedNames ?? []
+                    let stored = config.urlCredentialStorage?.defaultCredential(for: space)
+                    let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: stored, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
+                    switch _askChallenge(ch, sessionWide: true) {
+                    case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
+                    case (.useCredential, let c?) where c._clientPEM != nil:
+                        clientPEM = c._clientPEM
+                        if c.persistence != .none { config.urlCredentialStorage?.set(c, for: space) }
+                    case (.performDefaultHandling, _): clientPEM = stored?._clientPEM
+                    default: break
+                    }
                 }
             }
             if _trustAccepted { curlFlags |= 2 }
@@ -503,10 +532,15 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             let sendBody = method == "GET" || method == "HEAD" ? (body?.isEmpty == false ? body : nil) : body
             var urlString = url.absoluteString
             if let h = urlString.firstIndex(of: "#") { urlString = String(urlString[..<h]) }
-            let h: OpaquePointer? = sendBody.map { b in
-                b.withUnsafeBytes { p in isim_http_start(method, urlString, headerText, p.baseAddress ?? UnsafeRawPointer(bitPattern: 1), b.count,
-                                                         req.timeoutInterval, config.timeoutIntervalForResource, curlFlags) }
-            } ?? isim_http_start(method, urlString, headerText, nil, 0, req.timeoutInterval, config.timeoutIntervalForResource, curlFlags)
+            let pem = clientPEM ?? []
+            let h: OpaquePointer? = pem.withUnsafeBytes { cp in
+                let cpem = clientPEM == nil ? nil : cp.baseAddress
+                return sendBody.map { b in
+                    b.withUnsafeBytes { p in isim_http_start_tls(method, urlString, headerText, p.baseAddress ?? UnsafeRawPointer(bitPattern: 1), b.count,
+                                                                 req.timeoutInterval, config.timeoutIntervalForResource, curlFlags, pinnedKey, cpem, pem.count) }
+                } ?? isim_http_start_tls(method, urlString, headerText, nil, 0, req.timeoutInterval, config.timeoutIntervalForResource, curlFlags,
+                                         pinnedKey, cpem, pem.count)
+            }
             let tm = URLSessionTaskTransactionMetrics(request: req)
             tm.fetchStartDate = Date(); tm.resourceFetchType = .networkLoad
             _metrics.transactionMetrics.append(tm)
@@ -523,6 +557,15 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
 
             var status = 0, cURL: UnsafeMutablePointer<CChar>? = nil, cHeaders: UnsafeMutablePointer<CChar>? = nil
             let rc = isim_http_response(h, &status, &cURL, &cHeaders)
+            if Int(rc) == NSURLErrorServerCertificateUntrusted, pinnedKey != nil {   /* the server's key changed: probe it again next time */
+                _session._lock.lock(); _session._tlsProbes["\((url.host ?? "").lowercased()):\(url.port ?? 443)"] = nil; _session._lock.unlock()
+            }
+            // the server asked for a client certificate and got none: its refusal (a TLS alert, or just a closed
+            // connection, depending on the TLS versions) is clientCertificateRequired, as on iOS
+            if certificateAsked && clientPEM == nil && (rc == -1005 || rc == -1200) {
+                _fillMetrics(tm, h, response: nil, bodyBytes: 0)
+                return (URLError._make(NSURLErrorClientCertificateRequired, url: url, detail: String(cString: isim_http_error_message(h))), nil)
+            }
             if rc != 0 { _fillMetrics(tm, h, response: nil, bodyBytes: 0); return (URLError._make(Int(rc), url: url, detail: String(cString: isim_http_error_message(h))), nil) }
             let finalURL = cURL.map { URL(string: String(cString: $0)) ?? url } ?? url
             let (version, fields) = URLSessionTask._parseHeaders(cHeaders.map { String(cString: $0) } ?? "")
@@ -631,7 +674,8 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             nonisolated(unsafe) let sd = sessionDelegate
             _session.delegateQueue.addOperation {
                 sd.urlSession(self._session, didReceive: ch) { r, c in
-                    if r == .performDefaultHandling && taskDelegate != nil && taskDelegate !== sd { askTask() } else { box.value = (r, c); sem.signal() }
+                    let defers = taskDelegate !== sd || (sd as? _ObjCURLSessionDelegate)?._defersSessionChallenges == true
+                    if r == .performDefaultHandling && taskDelegate != nil && defers { askTask() } else { box.value = (r, c); sem.signal() }
                 }
             }
         } else { askTask() }
@@ -775,7 +819,7 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
 
 final class _URLBox<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v } }
 
-open class URLSessionDataTask: URLSessionTask, @unchecked Sendable {
+@objc(NSURLSessionDataTask) open class URLSessionDataTask: URLSessionTask, @unchecked Sendable {
     var _dataCompletion: (@Sendable (Data?, URLResponse?, Error?) -> Void)?
     var _uploadBody: Data?
     var _uploadFile: URL?
@@ -819,12 +863,12 @@ private func cacheableHint(_ t: URLSessionTask) -> Bool {
     t._session.configuration.urlCache != nil && (t.originalRequest?.httpMethod ?? "GET") == "GET"
 }
 
-open class URLSessionUploadTask: URLSessionDataTask, @unchecked Sendable {
+@objc(NSURLSessionUploadTask) open class URLSessionUploadTask: URLSessionDataTask, @unchecked Sendable {
     /// iOS 17: resumable uploads are not supported by isim
     open func cancel(byProducingResumeData completionHandler: @escaping @Sendable (Data?) -> Void) { cancel(); completionHandler(nil) }
 }
 
-open class URLSessionDownloadTask: URLSessionTask, @unchecked Sendable {
+@objc(NSURLSessionDownloadTask) open class URLSessionDownloadTask: URLSessionTask, @unchecked Sendable {
     var _downloadCompletion: (@Sendable (URL?, URLResponse?, Error?) -> Void)?
     var _location: URL?
 
@@ -1109,6 +1153,7 @@ enum _IsimBackgroundSessions {
     static func observe() {
         lock.lock(); let first = !observing; observing = true; lock.unlock()
         guard first else { return }
+        if ProcessInfo.processInfo.environment["ISIM_LAUNCH_BACKGROUND"] == "1" { appInBackground = true }   // launched in the background
         let nc = NotificationCenter.default
         _ = nc.addObserver(forName: Notification.Name("UIApplicationDidEnterBackgroundNotification"), object: nil, queue: nil) { _ in appInBackground = true }
         _ = nc.addObserver(forName: Notification.Name("UIApplicationWillEnterForegroundNotification"), object: nil, queue: nil) { _ in
@@ -1118,6 +1163,10 @@ enum _IsimBackgroundSessions {
         _ = nc.addObserver(forName: Notification.Name("_IsimBackgroundQuery"), object: nil, queue: nil) { n in
             guard let q = n.object as? NSMutableDictionary else { return }
             if busy() { q.setObject(NSNumber(value: true), forKey: "transfer" as NSString) }                                    // keeps the app from being suspended
+        }
+        _ = nc.addObserver(forName: Notification.Name("_IsimBackgroundSessionsQuery"), object: nil, queue: nil) { n in   // UIKit: which sessions exist
+            guard let q = n.object as? NSMutableDictionary else { return }
+            q.setObject(live().compactMap { $0.configuration.identifier } as NSArray, forKey: "sessions" as NSString)
         }
     }
     static func live() -> [URLSession] { lock.lock(); defer { lock.unlock() }; return sessions.values.compactMap(\.session) }
@@ -1133,6 +1182,14 @@ enum _IsimBackgroundSessions {
         if idle { s._waking = true }
         s._lock.unlock()
         guard idle else { return }
+        // relaunched for this session and the app already heard about it (UIKit): its events, without a second wake
+        let handled = (ProcessInfo.processInfo.environment["ISIM_URLSESSION_HANDLED"] ?? "").split(separator: ",").contains { $0 == id }
+        if handled {
+            unsetHandled(id)
+            NSLog("isim: background URL session %@ finished", id)
+            flush(s, finish: true)
+            return
+        }
         lock.lock(); pendingWakes += 1; lock.unlock()
         NSLog("isim: background URL session %@ finished: waking the app", id)
         let done: @convention(block) () -> Void = {
@@ -1144,6 +1201,10 @@ enum _IsimBackgroundSessions {
             NotificationCenter.default.post(name: Notification.Name("_IsimBackgroundURLSessionEvents"), object: id as NSString,
                                             userInfo: ["completion": done as AnyObject, "deliver": deliver as AnyObject])
         }
+    }
+    static func unsetHandled(_ id: String) {
+        let rest = (ProcessInfo.processInfo.environment["ISIM_URLSESSION_HANDLED"] ?? "").split(separator: ",").filter { $0 != id }
+        if rest.isEmpty { unsetenv("ISIM_URLSESSION_HANDLED") } else { setenv("ISIM_URLSESSION_HANDLED", rest.joined(separator: ","), 1) }
     }
     /// the held events, in order, then (when woken) urlSessionDidFinishEvents
     static func flush(_ s: URLSession, finish: Bool) {
@@ -1188,5 +1249,35 @@ enum _IsimBackgroundSessions {
                 s.downloadTask(with: url).resume()
             }
         }
+    }
+}
+
+// MARK: - TLS probe (server certificates for the trust challenge, client-certificate requests)
+struct _TLSProbe {
+    var chain: [[UInt8]]
+    var pin: String?
+    var clientCertificateRequested: Bool
+    var distinguishedNames: [Data]
+}
+extension URLSession {
+    /// the server's certificates and client-certificate request, from one handshake per server and session
+    func _probe(host: String, port: Int, timeout: TimeInterval) -> _TLSProbe? {
+        let key = "\(host.lowercased()):\(port)"
+        _lock.lock(); let known = _tlsProbes[key]; _lock.unlock()
+        if let known { return known }
+        var chain = [UInt8](repeating: 0, count: 65536), lens = [Int](repeating: 0, count: 16), n: Int32 = 0
+        var dn = [UInt8](repeating: 0, count: 16384), dnLens = [Int](repeating: 0, count: 32), ndn: Int32 = 0
+        var pin = [CChar](repeating: 0, count: 128), err = [CChar](repeating: 0, count: 256), asked: Int32 = 0
+        let ok = isim_tls_probe(host, Int32(port), timeout, &chain, chain.count, &lens, 16, &n, &pin, 128, &asked,
+                                &dn, dn.count, &dnLens, 32, &ndn, &err, 256)
+        guard ok == 1 else { return nil }
+        var certs: [[UInt8]] = [], at = 0
+        for i in 0..<Int(n) { certs.append(Array(chain[at..<(at + lens[i])])); at += lens[i] }
+        var names: [Data] = []; at = 0
+        for i in 0..<Int(ndn) { names.append(Data(dn[at..<(at + dnLens[i])])); at += dnLens[i] }
+        let pinText = String(cString: pin)
+        let probe = _TLSProbe(chain: certs, pin: pinText.isEmpty ? nil : pinText, clientCertificateRequested: asked != 0, distinguishedNames: names)
+        _lock.lock(); _tlsProbes[key] = probe; _lock.unlock()
+        return probe
     }
 }

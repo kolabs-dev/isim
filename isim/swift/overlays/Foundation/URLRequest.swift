@@ -25,6 +25,11 @@ public let NSURLErrorFileDoesNotExist = -1100
 public let NSURLErrorFileIsDirectory = -1101
 public let NSURLErrorSecureConnectionFailed = -1200
 public let NSURLErrorServerCertificateUntrusted = -1202
+public let NSURLErrorServerCertificateHasBadDate = -1201
+public let NSURLErrorServerCertificateHasUnknownRoot = -1203
+public let NSURLErrorServerCertificateNotYetValid = -1204
+public let NSURLErrorClientCertificateRejected = -1205
+public let NSURLErrorClientCertificateRequired = -1206
 public let NSURLErrorCannotWriteToFile = -3003
 
 public struct URLError: Error, CustomNSError, LocalizedError, Hashable, @unchecked Sendable {
@@ -235,7 +240,7 @@ public struct URLRequest: Hashable, @unchecked Sendable, CustomStringConvertible
 // MARK: - URLResponse / HTTPURLResponse
 public let NSURLResponseUnknownLength: Int64 = -1
 
-open class URLResponse: NSObject, @unchecked Sendable {
+@objc(NSURLResponse) open class URLResponse: NSObject, @unchecked Sendable {
     public let url: URL?
     public let mimeType: String?
     public let expectedContentLength: Int64
@@ -264,7 +269,7 @@ open class URLResponse: NSObject, @unchecked Sendable {
     open override var description: String { "<\(type(of: self)): \(url?.absoluteString ?? "")>" }
 }
 
-open class HTTPURLResponse: URLResponse, @unchecked Sendable {
+@objc(NSHTTPURLResponse) open class HTTPURLResponse: URLResponse, @unchecked Sendable {
     public let statusCode: Int
     let _headers: [(String, String)]
     let _httpVersion: String?

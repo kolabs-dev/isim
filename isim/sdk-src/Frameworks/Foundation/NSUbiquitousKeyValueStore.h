@@ -17,6 +17,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSURL *)URLForUbiquityContainerIdentifier:(nullable NSString *)containerIdentifier;
 @property (nullable, readonly, copy) id<NSObject, NSCopying, NSCoding> ubiquityIdentityToken;
 @end
+@interface NSFileManager (IsimUbiquity)
+/* iCloud documents, simulated locally: everything in a ubiquity container is uploaded; evicting keeps the file's
+ * name with no contents until it is downloaded again (startDownloading, or a coordinated read) */
+- (BOOL)isUbiquitousItemAtURL:(NSURL *)url;
+- (BOOL)setUbiquitous:(BOOL)flag itemAtURL:(NSURL *)url destinationURL:(NSURL *)destinationURL error:(NSError **)error;
+- (BOOL)startDownloadingUbiquitousItemAtURL:(NSURL *)url error:(NSError **)error;
+- (BOOL)evictUbiquitousItemAtURL:(NSURL *)url error:(NSError **)error;
+/* not supported: there is no iCloud to publish to (NSFeatureUnsupportedError) */
+- (nullable NSURL *)URLForPublishingUbiquitousItemAtURL:(NSURL *)url expirationDate:(NSDate * _Nullable * _Nullable)outDate error:(NSError **)error;
+@end
 FOUNDATION_EXPORT NSNotificationName const NSUbiquityIdentityDidChangeNotification;
 
 @interface NSUbiquitousKeyValueStore : NSObject

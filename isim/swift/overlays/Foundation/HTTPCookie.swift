@@ -27,7 +27,7 @@ public struct HTTPCookieStringPolicy: RawRepresentable, Hashable, Sendable {
     public static let sameSiteStrict = HTTPCookieStringPolicy(rawValue: "strict")
 }
 
-open class HTTPCookie: NSObject, @unchecked Sendable {
+@objc(NSHTTPCookie) open class HTTPCookie: NSObject, @unchecked Sendable {
     public let name: String
     public let value: String
     public let domain: String
@@ -202,7 +202,7 @@ extension Notification.Name {
 
 /// Cookie jar. `shared` persists cookies with an expiry date in the app container (Library/Cookies/Cookies.json,
 /// isim's own format); ephemeral sessions use a private in-memory storage.
-open class HTTPCookieStorage: NSObject, @unchecked Sendable {
+@objc(NSHTTPCookieStorage) open class HTTPCookieStorage: NSObject, @unchecked Sendable {
     let _lock = NSLock()
     var _cookies: [HTTPCookie] = []
     let _file: String?
@@ -292,40 +292,57 @@ open class HTTPCookieStorage: NSObject, @unchecked Sendable {
 }
 
 // MARK: - URLCache
-open class CachedURLResponse: NSObject, @unchecked Sendable {
+@objc(NSCachedURLResponse) open class CachedURLResponse: NSObject, @unchecked Sendable {
     public enum StoragePolicy: UInt, Sendable { case allowed = 0, allowedInMemoryOnly = 1, notAllowed = 2 }
     public let response: URLResponse
     public let data: Data
     public let userInfo: [AnyHashable: Any]?
     public let storagePolicy: StoragePolicy
-    let _stored = Date()
+    var _stored = Date()
     public init(response: URLResponse, data: Data) { self.response = response; self.data = data; userInfo = nil; storagePolicy = .allowed; super.init() }
     public init(response: URLResponse, data: Data, userInfo: [AnyHashable: Any]? = nil, storagePolicy: StoragePolicy) {
         self.response = response; self.data = data; self.userInfo = userInfo; self.storagePolicy = storagePolicy; super.init()
     }
 }
 
-/// Response cache for GET requests. isim keeps it in memory: the disk capacity counts toward the in-memory
-/// budget but nothing is written to disk, so the cache starts empty on each launch.
-open class URLCache: NSObject, @unchecked Sendable {
-    public var memoryCapacity: Int
-    public var diskCapacity: Int
+/// Response cache for GET requests: an in-memory LRU of `memoryCapacity` bytes over an on-disk LRU of `diskCapacity`
+/// bytes (one metadata file and one body file per response under `directory`; by default the app's
+/// Library/Caches/<bundle id>/isim-urlcache), so cached responses survive relaunches like CFNetwork's Cache.db.
+/// Responses over 5% of a tier's capacity skip that tier, as on iOS; `.allowedInMemoryOnly` responses stay in memory.
+@objc(NSURLCache) open class URLCache: NSObject, @unchecked Sendable {
+    open var memoryCapacity: Int { didSet { _lock.lock(); _trimMemory(); _lock.unlock() } }
+    open var diskCapacity: Int { didSet { _lock.lock(); _trimDisk(); _lock.unlock() } }
     let _lock = NSLock()
     var _entries: [String: CachedURLResponse] = [:]
-    var _order: [String] = []          // least recently used first
+    var _order: [String] = []          // in memory, least recently used first
+    let _dir: URL?
+    /// on disk: file stem -> (bytes, last use, stored date); loaded on first use
+    var _disk: [String: (size: Int, used: Date, stored: Date)]?
     nonisolated(unsafe) static var _shared = URLCache(memoryCapacity: 512 * 1024, diskCapacity: 10 * 1024 * 1024, directory: nil)
     open class var shared: URLCache {
         get { _shared }
         set { _shared = newValue }
     }
+    static var _defaultDirectory: URL? {
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
+        return caches.appendingPathComponent(Bundle.main.bundleIdentifier ?? "isim").appendingPathComponent("isim-urlcache")
+    }
+    /// diskPath: a directory relative to the app's Caches directory (or an absolute path), as on iOS
     public init(memoryCapacity: Int, diskCapacity: Int, diskPath: String?) {
-        self.memoryCapacity = memoryCapacity; self.diskCapacity = diskCapacity; super.init()
+        self.memoryCapacity = memoryCapacity; self.diskCapacity = diskCapacity
+        if let path = diskPath, !path.isEmpty {
+            _dir = path.hasPrefix("/") ? URL(fileURLWithPath: path)
+                : FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent(path)
+        } else { _dir = URLCache._defaultDirectory }
+        super.init()
     }
     public init(memoryCapacity: Int, diskCapacity: Int, directory: URL? = nil) {
-        self.memoryCapacity = memoryCapacity; self.diskCapacity = diskCapacity; super.init()
+        self.memoryCapacity = memoryCapacity; self.diskCapacity = diskCapacity
+        _dir = directory ?? URLCache._defaultDirectory
+        super.init()
     }
     open var currentMemoryUsage: Int { _lock.lock(); defer { _lock.unlock() }; return _entries.values.reduce(0) { $0 + $1.data.count } }
-    open var currentDiskUsage: Int { 0 }
+    open var currentDiskUsage: Int { _lock.lock(); defer { _lock.unlock() }; return _index().values.reduce(0) { $0 + $1.size } }
 
     static func _key(_ r: URLRequest) -> String? {
         guard let u = r.url, (r.httpMethod ?? "GET") == "GET" else { return nil }
@@ -333,33 +350,46 @@ open class URLCache: NSObject, @unchecked Sendable {
         if let h = s.firstIndex(of: "#") { s = String(s[..<h]) }
         return s
     }
+    /// a stable file name for a key (FNV-1a 64)
+    static func _stem(_ key: String) -> String {
+        var h: UInt64 = 0xcbf29ce484222325
+        for b in key.utf8 { h = (h ^ UInt64(b)) &* 0x100000001b3 }
+        return String(h, radix: 16)
+    }
+
     open func cachedResponse(for request: URLRequest) -> CachedURLResponse? {
         guard let k = URLCache._key(request) else { return nil }
         _lock.lock(); defer { _lock.unlock() }
-        guard let e = _entries[k] else { return nil }
-        _order.removeAll { $0 == k }; _order.append(k)
+        if let e = _entries[k] {
+            _order.removeAll { $0 == k }; _order.append(k)
+            return e
+        }
+        guard let e = _load(k) else { return nil }
+        _remember(k, e)
         return e
     }
     open func storeCachedResponse(_ cached: CachedURLResponse, for request: URLRequest) {
         guard let k = URLCache._key(request), cached.storagePolicy != .notAllowed else { return }
-        let budget = memoryCapacity + diskCapacity
-        guard cached.data.count <= budget / 20 else { return }      // like CFNetwork: no entries over 5% of the cache
         _lock.lock(); defer { _lock.unlock() }
-        _entries[k] = cached
-        _order.removeAll { $0 == k }; _order.append(k)
-        var used = _entries.values.reduce(0) { $0 + $1.data.count }
-        while used > budget, let old = _order.first {
-            _order.removeFirst(); used -= _entries.removeValue(forKey: old)?.data.count ?? 0
-        }
+        _remember(k, cached)
+        if cached.storagePolicy == .allowed, cached.data.count <= diskCapacity / 20 { _save(k, cached) }
+        else { _delete(URLCache._stem(k)) }
     }
     open func removeCachedResponse(for request: URLRequest) {
         guard let k = URLCache._key(request) else { return }
-        _lock.lock(); _entries[k] = nil; _order.removeAll { $0 == k }; _lock.unlock()
+        _lock.lock(); _entries[k] = nil; _order.removeAll { $0 == k }; _delete(URLCache._stem(k)); _lock.unlock()
     }
-    open func removeAllCachedResponses() { _lock.lock(); _entries = [:]; _order = []; _lock.unlock() }
+    open func removeAllCachedResponses() {
+        _lock.lock(); defer { _lock.unlock() }
+        _entries = [:]; _order = []
+        _disk = nil                                       // rescan: other URLCache objects may share the directory
+        for stem in Array(_index().keys) { _delete(stem) }
+    }
     open func removeCachedResponses(since date: Date) {
         _lock.lock(); defer { _lock.unlock() }
         for (k, v) in _entries where v._stored >= date { _entries[k] = nil; _order.removeAll { $0 == k } }
+        _disk = nil
+        for (stem, e) in _index() where e.stored >= date { _delete(stem) }
     }
     open func storeCachedResponse(_ cached: CachedURLResponse, for task: URLSessionDataTask) {
         if let r = task.currentRequest { storeCachedResponse(cached, for: r) }
@@ -368,4 +398,96 @@ open class URLCache: NSObject, @unchecked Sendable {
         completionHandler(task.currentRequest.flatMap { cachedResponse(for: $0) })
     }
     open func removeCachedResponse(for task: URLSessionDataTask) { if let r = task.currentRequest { removeCachedResponse(for: r) } }
+
+    // MARK: memory tier (callers hold _lock)
+    func _remember(_ k: String, _ e: CachedURLResponse) {
+        _entries[k] = nil; _order.removeAll { $0 == k }
+        guard e.data.count <= memoryCapacity / 20 || (memoryCapacity > 0 && e.data.count == 0) else { return }
+        _entries[k] = e; _order.append(k)
+        _trimMemory()
+    }
+    func _trimMemory() {
+        var used = _entries.values.reduce(0) { $0 + $1.data.count }
+        while used > memoryCapacity, let old = _order.first {
+            _order.removeFirst(); used -= _entries.removeValue(forKey: old)?.data.count ?? 0
+        }
+        if memoryCapacity == 0 { _entries = [:]; _order = [] }
+    }
+
+    // MARK: disk tier (callers hold _lock): <stem>.json (key, response, dates) + <stem>.body
+    func _index() -> [String: (size: Int, used: Date, stored: Date)] {
+        if let d = _disk { return d }
+        var d: [String: (size: Int, used: Date, stored: Date)] = [:]
+        if let dir = _dir, let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) {
+            for n in names where n.hasSuffix(".json") {
+                let stem = String(n.dropLast(5))
+                let meta = dir.appendingPathComponent(n), body = dir.appendingPathComponent(stem + ".body")
+                guard let a = try? FileManager.default.attributesOfItem(atPath: meta.path) else { continue }
+                let bsize = ((try? FileManager.default.attributesOfItem(atPath: body.path))?[.size] as? Int) ?? 0
+                let info = (try? Data(contentsOf: meta)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                let stored = (info?["stored"] as? Double).map { Date(timeIntervalSince1970: $0) } ?? Date.distantPast
+                d[stem] = ((a[.size] as? Int ?? 0) + bsize, a[.modificationDate] as? Date ?? Date.distantPast, stored)
+            }
+        }
+        _disk = d
+        return d
+    }
+    func _save(_ k: String, _ e: CachedURLResponse) {
+        guard let dir = _dir, diskCapacity > 0 else { return }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let stem = URLCache._stem(k)
+        var info: [String: Any] = ["key": k, "stored": e._stored.timeIntervalSince1970, "url": e.response.url?.absoluteString ?? k]
+        if let h = e.response as? HTTPURLResponse {
+            info["status"] = h.statusCode; info["version"] = h._httpVersion ?? "HTTP/1.1"
+            info["headers"] = h._headers.map { [$0.0, $0.1] }
+        } else {
+            info["mime"] = e.response.mimeType ?? ""; info["length"] = e.response.expectedContentLength
+            info["encoding"] = e.response.textEncodingName ?? ""
+        }
+        guard let meta = try? JSONSerialization.data(withJSONObject: info) else { return }
+        let mURL = dir.appendingPathComponent(stem + ".json"), bURL = dir.appendingPathComponent(stem + ".body")
+        guard (try? e.data.write(to: bURL, options: .atomic)) != nil, (try? meta.write(to: mURL, options: .atomic)) != nil else { return }
+        var d = _index()
+        d[stem] = (meta.count + e.data.count, Date(), e._stored)
+        _disk = d
+        _trimDisk()
+    }
+    func _load(_ k: String) -> CachedURLResponse? {
+        guard let dir = _dir else { return nil }
+        let stem = URLCache._stem(k)
+        let mURL = dir.appendingPathComponent(stem + ".json"), bURL = dir.appendingPathComponent(stem + ".body")
+        guard let m = try? Data(contentsOf: mURL), let info = try? JSONSerialization.jsonObject(with: m) as? [String: Any],
+              info["key"] as? String == k, let body = try? Data(contentsOf: bURL),
+              let url = URL(string: info["url"] as? String ?? k) else { return nil }
+        let response: URLResponse
+        if let status = info["status"] as? Int {
+            let headers = (info["headers"] as? [[String]] ?? []).compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
+            response = HTTPURLResponse(_url: url, statusCode: status, httpVersion: info["version"] as? String, headers: headers)
+        } else {
+            let mime = info["mime"] as? String, enc = info["encoding"] as? String
+            response = URLResponse(url: url, mimeType: mime?.isEmpty == false ? mime : nil, expectedContentLength: info["length"] as? Int ?? body.count,
+                                   textEncodingName: enc?.isEmpty == false ? enc : nil)
+        }
+        let e = CachedURLResponse(response: response, data: body, userInfo: nil, storagePolicy: .allowed)
+        e._stored = Date(timeIntervalSince1970: info["stored"] as? Double ?? Date().timeIntervalSince1970)
+        // the least recently used entries go first when the disk tier is full
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: mURL.path)
+        var d = _index()
+        d[stem] = (m.count + body.count, Date(), e._stored)   // also when another URLCache object wrote it
+        _disk = d
+        return e
+    }
+    func _delete(_ stem: String) {
+        guard let dir = _dir else { return }
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent(stem + ".json"))
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent(stem + ".body"))
+        _disk?[stem] = nil
+    }
+    func _trimDisk() {
+        var d = _index()
+        var used = d.values.reduce(0) { $0 + $1.size }
+        for (stem, _) in d.sorted(by: { $0.value.used < $1.value.used }) where used > diskCapacity {
+            used -= d[stem]?.size ?? 0; d[stem] = nil; _delete(stem)
+        }
+    }
 }

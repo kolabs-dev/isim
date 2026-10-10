@@ -254,7 +254,32 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     return class_createInstance(self, 0);
 }
 - (instancetype)init { return self; }
-- (const char *)_isim_bytes:(NSUInteger *)len { *len = 0; return ""; }
+/* A subclass isim does not implement (a Swift string bridged to Objective-C, an app's own NSString subclass): its UTF-8
+ * from the primitives every subclass implements, -length and -characterAtIndex: (autoreleased). Without them: empty. */
+- (const char *)_isim_bytes:(NSUInteger *)len {
+    Class base = [NSString class], cls = object_getClass(self);
+    if (class_getMethodImplementation(cls, @selector(length)) == class_getMethodImplementation(base, @selector(length)) ||
+        class_getMethodImplementation(cls, @selector(characterAtIndex:)) == class_getMethodImplementation(base, @selector(characterAtIndex:))) {
+        *len = 0; return "";
+    }
+    NSUInteger n = [self length];
+    NSMutableData *d = [NSMutableData dataWithLength:n * 3 + 1];
+    unsigned char *o = [d mutableBytes]; NSUInteger k = 0;
+    for (NSUInteger i = 0; i < n; i++) {
+        uint32_t c = [self characterAtIndex:i];
+        if (c >= 0xD800 && c < 0xDC00 && i + 1 < n) {
+            unichar lo = [self characterAtIndex:i + 1];
+            if (lo >= 0xDC00 && lo < 0xE000) { c = 0x10000 + ((c - 0xD800) << 10) + (lo - 0xDC00); i++; }
+        }
+        if (c < 0x80) o[k++] = (unsigned char)c;
+        else if (c < 0x800) { o[k++] = 0xC0 | (c >> 6); o[k++] = 0x80 | (c & 0x3F); }
+        else if (c < 0x10000) { o[k++] = 0xE0 | (c >> 12); o[k++] = 0x80 | ((c >> 6) & 0x3F); o[k++] = 0x80 | (c & 0x3F); }
+        else { o[k++] = 0xF0 | (c >> 18); o[k++] = 0x80 | ((c >> 12) & 0x3F); o[k++] = 0x80 | ((c >> 6) & 0x3F); o[k++] = 0x80 | (c & 0x3F); }
+    }
+    o[k] = 0;
+    *len = k;
+    return (const char *)o;
+}
 /* The Swift stdlib bridges small ASCII strings (String._bridgeToObjectiveCImpl, used e.g. for error domains when a
  * Swift Error crosses into Objective-C) by sending this to __StringStorage, whose superclass is connected to NSString.
  * Apple's Foundation answers with a tagged pointer; isim returns an ordinary immutable string (+1, "new" family). */
@@ -271,6 +296,11 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     id s = [[self alloc] initWithFormat:format arguments:ap];
     va_end(ap);
     return [s autorelease];
+}
++ (instancetype)stringWithContentsOfURL:(NSURL *)url encoding:(NSStringEncoding)enc error:(id *)error {
+    if ([url isFileURL]) return [self stringWithContentsOfFile:[url path] encoding:enc error:error];
+    NSData *d = [NSData dataWithContentsOfURL:url];
+    return d ? [[[self alloc] initWithData:d encoding:enc] autorelease] : nil;
 }
 + (instancetype)stringWithContentsOfFile:(NSString *)path encoding:(NSStringEncoding)enc error:(id *)error {
     int fd = open([path UTF8String], O_RDONLY);
@@ -527,6 +557,10 @@ static NSString *map_case(NSString *s, int mode) {   /* mode: 0 lower, 1 upper, 
     return b[n - 1] == '/' ? [self stringByAppendingString:c] : [self stringByAppendingFormat:@"/%@", c];
 }
 - (NSString *)stringByAppendingPathExtension:(NSString *)e { return [self stringByAppendingFormat:@".%@", e]; }
+- (BOOL)writeToURL:(NSURL *)url atomically:(BOOL)a encoding:(NSStringEncoding)e error:(id *)err {
+    if (![url isFileURL]) { if (err) *err = [NSError errorWithDomain:@"NSCocoaErrorDomain" code:518 userInfo:nil]; return NO; }   /* NSFileWriteUnsupportedSchemeError */
+    return [self writeToFile:[url path] atomically:a encoding:e error:err];
+}
 - (BOOL)writeToFile:(NSString *)path atomically:(BOOL)a encoding:(NSStringEncoding)e error:(id *)err {
     int fd = open([path UTF8String], O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) return NO;

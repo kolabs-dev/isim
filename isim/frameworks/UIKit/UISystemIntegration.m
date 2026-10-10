@@ -476,17 +476,49 @@ void isim_sys_report_background(void) {
     NSLog(@"isim: running in the background: %@", s.length ? s : @"nothing (the app can be suspended)");
     isim_shell_request(ISIM_SHELL_SYSTEM, "bg-assert", s.UTF8String, NULL);
 }
-/* a background URLSession finished while the app was in the background (Foundation): the app delegate's
-   handleEventsForBackgroundURLSession, then the session delivers its held events */
-static void background_session_events(NSNotification *n) {
-    NSString *ident = n.object;
-    void (^done)(void) = n.userInfo[@"completion"], (^deliver)(void) = n.userInfo[@"deliver"];
+/* the app hears that a background URLSession has events: SwiftUI's .backgroundTask(.urlSession(id)) action when the
+   app declares one (it calls done when the action returns), else the app delegate's handleEventsForBackgroundURLSession */
+static void handle_background_session(NSString *ident, void (^done)(void)) {
+    NSMutableDictionary *box = [NSMutableDictionary dictionaryWithObject:ident forKey:@"identifier"];
+    if (done) box[@"completion"] = done;
+    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSwiftUIBackgroundURLSession" object:box];
+    if ([box[@"handled"] boolValue]) return;
     id<UIApplicationDelegate> d = UIApplication.sharedApplication.delegate;
     if ([d respondsToSelector:@selector(application:handleEventsForBackgroundURLSession:completionHandler:)]) {
         NSLog(@"isim: application:handleEventsForBackgroundURLSession: %@", ident);
         [d application:UIApplication.sharedApplication handleEventsForBackgroundURLSession:ident completionHandler:^{ if (done) done(); }];
     } else if (done) done();
+}
+/* a background URLSession finished while the app was in the background (Foundation): the app hears it, then the
+   session delivers its held events */
+static void background_session_events(NSNotification *n) {
+    NSString *ident = n.object;
+    void (^done)(void) = n.userInfo[@"completion"], (^deliver)(void) = n.userInfo[@"deliver"];
+    handle_background_session(ident, done);
     if (deliver) deliver();
+}
+/* launched in the background to finish a terminated app's background transfers ("isim-urlsession:ID,ID"; SpringBoard):
+   a session the app recreated while launching restarts its transfers and wakes the app when they end, as usual. For one
+   it did not recreate, the app hears about the session now (apps recreate it in handleEventsForBackgroundURLSession);
+   Foundation then delivers its events without a second wake (ISIM_URLSESSION_HANDLED). */
+static void relaunched_for_sessions(NSString *list) {
+    NSMutableDictionary *q = [NSMutableDictionary dictionary];
+    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimBackgroundSessionsQuery" object:q];
+    NSArray *live = q[@"sessions"] ?: @[];
+    for (NSString *ident in [list componentsSeparatedByString:@","]) {
+        if (!ident.length || [live containsObject:ident]) continue;
+        const char *prev = getenv("ISIM_URLSESSION_HANDLED");
+        NSString *handled = prev && *prev ? [NSString stringWithFormat:@"%s,%@", prev, ident] : ident;
+        setenv("ISIM_URLSESSION_HANDLED", handled.UTF8String, 1);
+        NSLog(@"isim: relaunched for background URL session %@", ident);
+        __block UIBackgroundTaskIdentifier task = [UIApplication.sharedApplication beginBackgroundTaskWithName:ident expirationHandler:^{}];
+        handle_background_session(ident, ^{
+            NSLog(@"isim: background URL session %@ events handled", ident);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (task != UIBackgroundTaskInvalid) { [UIApplication.sharedApplication endBackgroundTask:task]; task = UIBackgroundTaskInvalid; }
+            });
+        });
+    }
 }
 __attribute__((constructor)) static void background_session_observer(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -666,7 +698,7 @@ BOOL isim_sys_deliver_launch(void) {
 BOOL isim_sys_open_url(NSString *s) {
     if ([s hasPrefix:@"isim-shortcut:"]) { perform_shortcut(shortcut_item_of_type([s substringFromIndex:14]), NO); return YES; }
     if ([s hasPrefix:@"isim-activity:"] || [s hasPrefix:@"isim-universal:"]) { continue_activity(activity_from_marker(s), NO); return YES; }
-    if ([s hasPrefix:@"isim-bgtask:"] || [s hasPrefix:@"isim-push"] || [s hasPrefix:@"isim-nc-action:"]) return YES;
+    if ([s hasPrefix:@"isim-bgtask:"] || [s hasPrefix:@"isim-urlsession:"] || [s hasPrefix:@"isim-push"] || [s hasPrefix:@"isim-nc-action:"]) return YES;
     NSURL *url = [NSURL URLWithString:s];
     if (!url) return NO;
     NSString *scheme = url.scheme.lowercaseString;
@@ -714,6 +746,7 @@ void isim_sys_after_background_launch(void) {
     parse_launch();
     const char *u = getenv("ISIM_LAUNCH_URL");
     if (u && !strncmp(u, "isim-bgtask:", 12)) { NSString *ident = @(u + 12); dispatch_async(dispatch_get_main_queue(), ^{ run_background_task(ident); }); }
+    if (u && !strncmp(u, "isim-urlsession:", 16)) { NSString *ids = @(u + 16); dispatch_async(dispatch_get_main_queue(), ^{ relaunched_for_sessions(ids); }); }
     if (launch_push) { NSDictionary *w = launch_push; dispatch_async(dispatch_get_main_queue(), ^{ deliver_remote(w, 1); }); }
     if (launch_action) { NSString *a = launch_action; dispatch_async(dispatch_get_main_queue(), ^{ notification_action(a); }); }
     dispatch_async(dispatch_get_main_queue(), ^{ reasons_start(); });
@@ -780,6 +813,9 @@ void isim_sys_event(const char *text) {
         isim_ui_discard_restoration_state();
         extern void isim_ui_scenes_discarded(void);
         isim_ui_scenes_discarded();
+        /* like iOS, closing the app in the switcher also cancels its background URLSession transfers */
+        NSString *caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
+        if (caches) [NSFileManager.defaultManager removeItemAtPath:[caches stringByAppendingPathComponent:@"isim-nsurlsessiond"] error:NULL];
         NSLog(@"isim: scene sessions discarded");
     } else [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
 }

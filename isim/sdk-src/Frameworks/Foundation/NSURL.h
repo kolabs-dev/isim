@@ -27,6 +27,97 @@ FOUNDATION_EXPORT NSURLResourceKey const NSURLCreationDateKey NS_SWIFT_NAME(crea
 FOUNDATION_EXPORT NSURLResourceKey const NSURLContentModificationDateKey NS_SWIFT_NAME(contentModificationDateKey);
 FOUNDATION_EXPORT NSURLResourceKey const NSURLContentAccessDateKey NS_SWIFT_NAME(contentAccessDateKey);
 FOUNDATION_EXPORT NSURLResourceKey const NSURLAttributeModificationDateKey NS_SWIFT_NAME(attributeModificationDateKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsExcludedFromBackupKey;   /* Swift: URLResourceKey.isExcludedFromBackupKey (overlay) */
+FOUNDATION_EXPORT NSURLResourceKey const NSURLFileProtectionKey NS_SWIFT_NAME(fileProtectionKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLTypeIdentifierKey NS_SWIFT_NAME(typeIdentifierKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLContentTypeKey NS_SWIFT_NAME(contentTypeKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLLocalizedTypeDescriptionKey NS_SWIFT_NAME(localizedTypeDescriptionKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLAddedToDirectoryDateKey NS_SWIFT_NAME(addedToDirectoryDateKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLDocumentIdentifierKey NS_SWIFT_NAME(documentIdentifierKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLGenerationIdentifierKey NS_SWIFT_NAME(generationIdentifierKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLFileResourceIdentifierKey NS_SWIFT_NAME(fileResourceIdentifierKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLFileIdentifierKey NS_SWIFT_NAME(fileIdentifierKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLFileContentIdentifierKey NS_SWIFT_NAME(fileContentIdentifierKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLPreferredIOBlockSizeKey NS_SWIFT_NAME(preferredIOBlockSizeKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsVolumeKey NS_SWIFT_NAME(isVolumeKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsSystemImmutableKey NS_SWIFT_NAME(isSystemImmutableKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsUserImmutableKey NS_SWIFT_NAME(isUserImmutableKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLHasHiddenExtensionKey NS_SWIFT_NAME(hasHiddenExtensionKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLCanonicalPathKey NS_SWIFT_NAME(canonicalPathKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsAliasFileKey NS_SWIFT_NAME(isAliasFileKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsMountTriggerKey NS_SWIFT_NAME(isMountTriggerKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLMayShareFileContentKey NS_SWIFT_NAME(mayShareFileContentKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLMayHaveExtendedAttributesKey NS_SWIFT_NAME(mayHaveExtendedAttributesKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsPurgeableKey NS_SWIFT_NAME(isPurgeableKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsSparseKey NS_SWIFT_NAME(isSparseKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLDirectoryEntryCountKey NS_SWIFT_NAME(directoryEntryCountKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeURLKey NS_SWIFT_NAME(volumeURLKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIdentifierKey NS_SWIFT_NAME(volumeIdentifierKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeNameKey NS_SWIFT_NAME(volumeNameKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeLocalizedNameKey NS_SWIFT_NAME(volumeLocalizedNameKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeUUIDStringKey NS_SWIFT_NAME(volumeUUIDStringKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeCreationDateKey NS_SWIFT_NAME(volumeCreationDateKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeLocalizedFormatDescriptionKey NS_SWIFT_NAME(volumeLocalizedFormatDescriptionKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeTypeNameKey NS_SWIFT_NAME(volumeTypeNameKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSubtypeKey NS_SWIFT_NAME(volumeSubtypeKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeTotalCapacityKey NS_SWIFT_NAME(volumeTotalCapacityKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeAvailableCapacityKey NS_SWIFT_NAME(volumeAvailableCapacityKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeAvailableCapacityForImportantUsageKey NS_SWIFT_NAME(volumeAvailableCapacityForImportantUsageKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeAvailableCapacityForOpportunisticUsageKey NS_SWIFT_NAME(volumeAvailableCapacityForOpportunisticUsageKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeResourceCountKey NS_SWIFT_NAME(volumeResourceCountKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeMaximumFileSizeKey NS_SWIFT_NAME(volumeMaximumFileSizeKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsReadOnlyKey NS_SWIFT_NAME(volumeIsReadOnlyKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsLocalKey NS_SWIFT_NAME(volumeIsLocalKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsInternalKey NS_SWIFT_NAME(volumeIsInternalKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsRemovableKey NS_SWIFT_NAME(volumeIsRemovableKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsEjectableKey NS_SWIFT_NAME(volumeIsEjectableKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsRootFileSystemKey NS_SWIFT_NAME(volumeIsRootFileSystemKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsEncryptedKey NS_SWIFT_NAME(volumeIsEncryptedKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsBrowsableKey NS_SWIFT_NAME(volumeIsBrowsableKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsAutomountedKey NS_SWIFT_NAME(volumeIsAutomountedKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeIsJournalingKey NS_SWIFT_NAME(volumeIsJournalingKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsPersistentIDsKey NS_SWIFT_NAME(volumeSupportsPersistentIDsKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsSymbolicLinksKey NS_SWIFT_NAME(volumeSupportsSymbolicLinksKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsHardLinksKey NS_SWIFT_NAME(volumeSupportsHardLinksKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsJournalingKey NS_SWIFT_NAME(volumeSupportsJournalingKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsSparseFilesKey NS_SWIFT_NAME(volumeSupportsSparseFilesKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsZeroRunsKey NS_SWIFT_NAME(volumeSupportsZeroRunsKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsCaseSensitiveNamesKey NS_SWIFT_NAME(volumeSupportsCaseSensitiveNamesKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsCasePreservedNamesKey NS_SWIFT_NAME(volumeSupportsCasePreservedNamesKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsRootDirectoryDatesKey NS_SWIFT_NAME(volumeSupportsRootDirectoryDatesKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsVolumeSizesKey NS_SWIFT_NAME(volumeSupportsVolumeSizesKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsRenamingKey NS_SWIFT_NAME(volumeSupportsRenamingKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsAdvisoryFileLockingKey NS_SWIFT_NAME(volumeSupportsAdvisoryFileLockingKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsExtendedSecurityKey NS_SWIFT_NAME(volumeSupportsExtendedSecurityKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsCompressionKey NS_SWIFT_NAME(volumeSupportsCompressionKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsFileCloningKey NS_SWIFT_NAME(volumeSupportsFileCloningKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsSwapRenamingKey NS_SWIFT_NAME(volumeSupportsSwapRenamingKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsExclusiveRenamingKey NS_SWIFT_NAME(volumeSupportsExclusiveRenamingKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsImmutableFilesKey NS_SWIFT_NAME(volumeSupportsImmutableFilesKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsAccessPermissionsKey NS_SWIFT_NAME(volumeSupportsAccessPermissionsKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLVolumeSupportsFileProtectionKey NS_SWIFT_NAME(volumeSupportsFileProtectionKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLIsUbiquitousItemKey NS_SWIFT_NAME(isUbiquitousItemKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemDownloadingStatusKey NS_SWIFT_NAME(ubiquitousItemDownloadingStatusKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemIsDownloadingKey NS_SWIFT_NAME(ubiquitousItemIsDownloadingKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemIsUploadedKey NS_SWIFT_NAME(ubiquitousItemIsUploadedKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemIsUploadingKey NS_SWIFT_NAME(ubiquitousItemIsUploadingKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemHasUnresolvedConflictsKey NS_SWIFT_NAME(ubiquitousItemHasUnresolvedConflictsKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemDownloadRequestedKey NS_SWIFT_NAME(ubiquitousItemDownloadRequestedKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemContainerDisplayNameKey NS_SWIFT_NAME(ubiquitousItemContainerDisplayNameKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemIsSharedKey NS_SWIFT_NAME(ubiquitousItemIsSharedKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemIsExcludedFromSyncKey NS_SWIFT_NAME(ubiquitousItemIsExcludedFromSyncKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemDownloadingErrorKey NS_SWIFT_NAME(ubiquitousItemDownloadingErrorKey);
+FOUNDATION_EXPORT NSURLResourceKey const NSURLUbiquitousItemUploadingErrorKey NS_SWIFT_NAME(ubiquitousItemUploadingErrorKey);
+typedef NSString *NSURLUbiquitousItemDownloadingStatus NS_TYPED_ENUM NS_SWIFT_NAME(URLUbiquitousItemDownloadingStatus);
+FOUNDATION_EXPORT NSURLUbiquitousItemDownloadingStatus const NSURLUbiquitousItemDownloadingStatusNotDownloaded NS_SWIFT_NAME(notDownloaded);
+FOUNDATION_EXPORT NSURLUbiquitousItemDownloadingStatus const NSURLUbiquitousItemDownloadingStatusDownloaded NS_SWIFT_NAME(downloaded);
+FOUNDATION_EXPORT NSURLUbiquitousItemDownloadingStatus const NSURLUbiquitousItemDownloadingStatusCurrent NS_SWIFT_NAME(current);
+typedef NSString *NSURLFileProtectionType NS_TYPED_ENUM NS_SWIFT_NAME(URLFileProtection);
+FOUNDATION_EXPORT NSURLFileProtectionType const NSURLFileProtectionNone NS_SWIFT_NAME(none);
+FOUNDATION_EXPORT NSURLFileProtectionType const NSURLFileProtectionComplete NS_SWIFT_NAME(complete);
+FOUNDATION_EXPORT NSURLFileProtectionType const NSURLFileProtectionCompleteUnlessOpen NS_SWIFT_NAME(completeUnlessOpen);
+FOUNDATION_EXPORT NSURLFileProtectionType const NSURLFileProtectionCompleteUntilFirstUserAuthentication NS_SWIFT_NAME(completeUntilFirstUserAuthentication);
+FOUNDATION_EXPORT NSURLFileProtectionType const NSURLFileProtectionCompleteWhenUserInactive NS_SWIFT_NAME(completeWhenUserInactive);
 FOUNDATION_EXPORT NSURLFileResourceType const NSURLFileResourceTypeNamedPipe NS_SWIFT_NAME(namedPipe);
 FOUNDATION_EXPORT NSURLFileResourceType const NSURLFileResourceTypeCharacterSpecial NS_SWIFT_NAME(characterSpecial);
 FOUNDATION_EXPORT NSURLFileResourceType const NSURLFileResourceTypeDirectory NS_SWIFT_NAME(directory);
@@ -60,6 +151,52 @@ FOUNDATION_EXPORT NSURLFileResourceType const NSURLFileResourceTypeUnknown NS_SW
 /* file URLs: the values of the keys asked for (keys that do not apply are left out); fails when the file does not exist */
 - (nullable NSDictionary<NSURLResourceKey, id> *)resourceValuesForKeys:(NSArray<NSURLResourceKey> *)keys error:(NSError * _Nullable * _Nullable)error NS_REFINED_FOR_SWIFT;
 - (BOOL)getResourceValue:(out id _Nullable * _Nonnull)value forKey:(NSURLResourceKey)key error:(NSError * _Nullable * _Nullable)error NS_REFINED_FOR_SWIFT;
+- (BOOL)setResourceValue:(nullable id)value forKey:(NSURLResourceKey)key error:(NSError * _Nullable * _Nullable)error NS_REFINED_FOR_SWIFT;
+- (BOOL)setResourceValues:(NSDictionary<NSURLResourceKey, id> *)keyedValues error:(NSError * _Nullable * _Nullable)error NS_REFINED_FOR_SWIFT;
+- (void)setTemporaryResourceValue:(nullable id)value forKey:(NSURLResourceKey)key;
+- (void)removeCachedResourceValueForKey:(NSURLResourceKey)key;
+- (void)removeAllCachedResourceValues;
 @property (nullable, readonly, copy) NSURL *URLByResolvingSymlinksInPath NS_REFINED_FOR_SWIFT;
 @end
 NS_ASSUME_NONNULL_END
+
+/* URLComponents / URLQueryItem for Objective-C: classes of the Swift overlay (Swift code uses the structs) */
+#if !defined(__swift__)
+NS_ASSUME_NONNULL_BEGIN
+ISIM_RUNTIME_VISIBLE
+@interface NSURLQueryItem : NSObject <NSCopying>
+- (instancetype)initWithName:(NSString *)name value:(nullable NSString *)value;
++ (instancetype)queryItemWithName:(NSString *)name value:(nullable NSString *)value;
+@property (readonly) NSString *name;
+@property (nullable, readonly) NSString *value;
+@end
+
+ISIM_RUNTIME_VISIBLE
+@interface NSURLComponents : NSObject <NSCopying>
+- (instancetype)init;
+- (nullable instancetype)initWithURL:(NSURL *)url resolvingAgainstBaseURL:(BOOL)resolve;
++ (nullable instancetype)componentsWithURL:(NSURL *)url resolvingAgainstBaseURL:(BOOL)resolve;
+- (nullable instancetype)initWithString:(NSString *)URLString;
++ (nullable instancetype)componentsWithString:(NSString *)URLString;
+@property (nullable, readonly, copy) NSURL *URL;
+- (nullable NSURL *)URLRelativeToURL:(nullable NSURL *)baseURL;
+@property (nullable, readonly, copy) NSString *string;
+@property (nullable, copy) NSString *scheme;
+@property (nullable, copy) NSString *user;
+@property (nullable, copy) NSString *password;
+@property (nullable, copy) NSString *host;
+@property (nullable, copy) NSNumber *port;
+@property (nullable, copy) NSString *path;
+@property (nullable, copy) NSString *query;
+@property (nullable, copy) NSString *fragment;
+@property (nullable, copy) NSString *percentEncodedUser;
+@property (nullable, copy) NSString *percentEncodedPassword;
+@property (nullable, copy) NSString *percentEncodedHost;
+@property (nullable, copy) NSString *percentEncodedPath;
+@property (nullable, copy) NSString *percentEncodedQuery;
+@property (nullable, copy) NSString *percentEncodedFragment;
+@property (nullable, copy) NSArray<NSURLQueryItem *> *queryItems;
+@property (nullable, copy) NSArray<NSURLQueryItem *> *percentEncodedQueryItems;
+@end
+NS_ASSUME_NONNULL_END
+#endif
