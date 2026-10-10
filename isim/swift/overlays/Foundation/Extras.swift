@@ -480,10 +480,91 @@ public struct URLResourceValues: @unchecked Sendable {
     public var linkCount: Int? { _get(.linkCountKey) }
     public var creationDate: Date? { get { _get(.creationDateKey) } set { _set(.creationDateKey, newValue) } }
     public var contentModificationDate: Date? { get { _get(.contentModificationDateKey) } set { _set(.contentModificationDateKey, newValue) } }
-    public var contentAccessDate: Date? { _get(.contentAccessDateKey) }
+    public var contentAccessDate: Date? { get { _get(.contentAccessDateKey) } set { _set(.contentAccessDateKey, newValue) } }
     public var attributeModificationDate: Date? { _get(.attributeModificationDateKey) }
-    /// stub: isim keeps no backups, so this is accepted by setResourceValues and not stored (it reads back nil)
+    /// kept in isim's file metadata store (isim keeps no backups; the value reads back)
     public var isExcludedFromBackup: Bool? { get { _get(.isExcludedFromBackupKey) } set { _set(.isExcludedFromBackupKey, newValue) } }
+    public var fileProtection: URLFileProtection? { get { _get(.fileProtectionKey) } set { _set(.fileProtectionKey, newValue) } }
+    public var typeIdentifier: String? { _get(.typeIdentifierKey) }
+    public var localizedTypeDescription: String? { _get(.localizedTypeDescriptionKey) }
+    public var addedToDirectoryDate: Date? { _get(.addedToDirectoryDateKey) }
+    public var documentIdentifier: Int? { _get(.documentIdentifierKey) }
+    public var generationIdentifier: (NSCopying & NSSecureCoding & NSObjectProtocol)? { _values[.generationIdentifierKey] as? (NSCopying & NSSecureCoding & NSObjectProtocol) }
+    public var fileResourceIdentifier: (NSCopying & NSSecureCoding & NSObjectProtocol)? { _values[.fileResourceIdentifierKey] as? (NSCopying & NSSecureCoding & NSObjectProtocol) }
+    public var fileIdentifier: UInt64? { _get(.fileIdentifierKey) }
+    public var fileContentIdentifier: Int64? { _get(.fileContentIdentifierKey) }
+    public var preferredIOBlockSize: Int? { _get(.preferredIOBlockSizeKey) }
+    public var isVolume: Bool? { _get(.isVolumeKey) }
+    public var isSystemImmutable: Bool? { _get(.isSystemImmutableKey) }
+    public var isUserImmutable: Bool? { _get(.isUserImmutableKey) }
+    public var hasHiddenExtension: Bool? { _get(.hasHiddenExtensionKey) }
+    public var canonicalPath: String? { _get(.canonicalPathKey) }
+    public var isAliasFile: Bool? { _get(.isAliasFileKey) }
+    public var isMountTrigger: Bool? { _get(.isMountTriggerKey) }
+    public var mayShareFileContent: Bool? { _get(.mayShareFileContentKey) }
+    public var mayHaveExtendedAttributes: Bool? { _get(.mayHaveExtendedAttributesKey) }
+    public var isPurgeable: Bool? { _get(.isPurgeableKey) }
+    public var isSparse: Bool? { _get(.isSparseKey) }
+    public var directoryEntryCount: Int? { _get(.directoryEntryCountKey) }
+    // the data volume
+    public var volume: URL? { _get(.volumeURLKey) }
+    public var volumeIdentifier: (NSCopying & NSCoding & NSSecureCoding & NSObjectProtocol)? { _values[.volumeIdentifierKey] as? (NSCopying & NSCoding & NSSecureCoding & NSObjectProtocol) }
+    public var volumeName: String? { _get(.volumeNameKey) }
+    public var volumeLocalizedName: String? { _get(.volumeLocalizedNameKey) }
+    public var volumeUUIDString: String? { _get(.volumeUUIDStringKey) }
+    public var volumeCreationDate: Date? { _get(.volumeCreationDateKey) }
+    public var volumeLocalizedFormatDescription: String? { _get(.volumeLocalizedFormatDescriptionKey) }
+    public var volumeTypeName: String? { _get(.volumeTypeNameKey) }
+    public var volumeSubtype: Int? { _get(.volumeSubtypeKey) }
+    public var volumeTotalCapacity: Int? { _get(.volumeTotalCapacityKey) }
+    public var volumeAvailableCapacity: Int? { _get(.volumeAvailableCapacityKey) }
+    public var volumeAvailableCapacityForImportantUsage: Int64? { _get(.volumeAvailableCapacityForImportantUsageKey) }
+    public var volumeAvailableCapacityForOpportunisticUsage: Int64? { _get(.volumeAvailableCapacityForOpportunisticUsageKey) }
+    public var volumeResourceCount: Int? { _get(.volumeResourceCountKey) }
+    public var volumeMaximumFileSize: Int? { _get(.volumeMaximumFileSizeKey) }
+    public var volumeIsReadOnly: Bool? { _get(.volumeIsReadOnlyKey) }
+    public var volumeIsLocal: Bool? { _get(.volumeIsLocalKey) }
+    public var volumeIsInternal: Bool? { _get(.volumeIsInternalKey) }
+    public var volumeIsRemovable: Bool? { _get(.volumeIsRemovableKey) }
+    public var volumeIsEjectable: Bool? { _get(.volumeIsEjectableKey) }
+    public var volumeIsRootFileSystem: Bool? { _get(.volumeIsRootFileSystemKey) }
+    public var volumeIsEncrypted: Bool? { _get(.volumeIsEncryptedKey) }
+    public var volumeIsBrowsable: Bool? { _get(.volumeIsBrowsableKey) }
+    public var volumeIsAutomounted: Bool? { _get(.volumeIsAutomountedKey) }
+    public var volumeIsJournaling: Bool? { _get(.volumeIsJournalingKey) }
+    public var volumeSupportsPersistentIDs: Bool? { _get(.volumeSupportsPersistentIDsKey) }
+    public var volumeSupportsSymbolicLinks: Bool? { _get(.volumeSupportsSymbolicLinksKey) }
+    public var volumeSupportsHardLinks: Bool? { _get(.volumeSupportsHardLinksKey) }
+    public var volumeSupportsJournaling: Bool? { _get(.volumeSupportsJournalingKey) }
+    public var volumeSupportsSparseFiles: Bool? { _get(.volumeSupportsSparseFilesKey) }
+    public var volumeSupportsZeroRuns: Bool? { _get(.volumeSupportsZeroRunsKey) }
+    public var volumeSupportsCaseSensitiveNames: Bool? { _get(.volumeSupportsCaseSensitiveNamesKey) }
+    public var volumeSupportsCasePreservedNames: Bool? { _get(.volumeSupportsCasePreservedNamesKey) }
+    public var volumeSupportsRootDirectoryDates: Bool? { _get(.volumeSupportsRootDirectoryDatesKey) }
+    public var volumeSupportsVolumeSizes: Bool? { _get(.volumeSupportsVolumeSizesKey) }
+    public var volumeSupportsRenaming: Bool? { _get(.volumeSupportsRenamingKey) }
+    public var volumeSupportsAdvisoryFileLocking: Bool? { _get(.volumeSupportsAdvisoryFileLockingKey) }
+    public var volumeSupportsExtendedSecurity: Bool? { _get(.volumeSupportsExtendedSecurityKey) }
+    public var volumeSupportsCompression: Bool? { _get(.volumeSupportsCompressionKey) }
+    public var volumeSupportsFileCloning: Bool? { _get(.volumeSupportsFileCloningKey) }
+    public var volumeSupportsSwapRenaming: Bool? { _get(.volumeSupportsSwapRenamingKey) }
+    public var volumeSupportsExclusiveRenaming: Bool? { _get(.volumeSupportsExclusiveRenamingKey) }
+    public var volumeSupportsImmutableFiles: Bool? { _get(.volumeSupportsImmutableFilesKey) }
+    public var volumeSupportsAccessPermissions: Bool? { _get(.volumeSupportsAccessPermissionsKey) }
+    public var volumeSupportsFileProtection: Bool? { _get(.volumeSupportsFileProtectionKey) }
+    // iCloud (local simulation)
+    public var isUbiquitousItem: Bool? { _get(.isUbiquitousItemKey) }
+    public var ubiquitousItemDownloadingStatus: URLUbiquitousItemDownloadingStatus? { _get(.ubiquitousItemDownloadingStatusKey) }
+    public var ubiquitousItemIsDownloading: Bool? { _get(.ubiquitousItemIsDownloadingKey) }
+    public var ubiquitousItemIsUploaded: Bool? { _get(.ubiquitousItemIsUploadedKey) }
+    public var ubiquitousItemIsUploading: Bool? { _get(.ubiquitousItemIsUploadingKey) }
+    public var ubiquitousItemHasUnresolvedConflicts: Bool? { _get(.ubiquitousItemHasUnresolvedConflictsKey) }
+    public var ubiquitousItemDownloadRequested: Bool? { _get(.ubiquitousItemDownloadRequestedKey) }
+    public var ubiquitousItemContainerDisplayName: String? { _get(.ubiquitousItemContainerDisplayNameKey) }
+    public var ubiquitousItemIsShared: Bool? { _get(.ubiquitousItemIsSharedKey) }
+    public var ubiquitousItemIsExcludedFromSync: Bool? { get { _get(.ubiquitousItemIsExcludedFromSyncKey) } set { _set(.ubiquitousItemIsExcludedFromSyncKey, newValue) } }
+    public var ubiquitousItemDownloadingError: NSError? { _get(.ubiquitousItemDownloadingErrorKey) }
+    public var ubiquitousItemUploadingError: NSError? { _get(.ubiquitousItemUploadingErrorKey) }
 }
 extension URLResourceKey {
     public static let isExcludedFromBackupKey = URLResourceKey(rawValue: "NSURLIsExcludedFromBackupKey")
@@ -493,19 +574,20 @@ extension URL {
     public func resourceValues(forKeys keys: Set<URLResourceKey>) throws -> URLResourceValues {
         URLResourceValues(_values: try _ns.__resourceValues(forKeys: Array(keys)))
     }
-    /// Sets the values that were set on `values`: `name` renames the file (and this URL follows it),
-    /// `contentModificationDate` is applied; `creationDate`, `isHidden` and `isExcludedFromBackup` are accepted and
-    /// ignored (adapted: Linux cannot set them).
+    /// Sets the values that were set on `values`: `name` renames the file (and this URL follows it), the dates are
+    /// applied; `creationDate`, `isHidden`, `isExcludedFromBackup`, `fileProtection` and
+    /// `ubiquitousItemIsExcludedFromSync` go to isim's file metadata store (adapted: Linux cannot keep them).
     public mutating func setResourceValues(_ values: URLResourceValues) throws {
-        if values._keysToSet.contains(.contentModificationDateKey), let date = values.contentModificationDate {
-            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path)
-        }
+        var d: [URLResourceKey: Any] = [:]
+        for key in values._keysToSet { d[key] = values._values[key] ?? NSNull() }
+        try _ns.__setResourceValues(d)
         if values._keysToSet.contains(.nameKey), let name = values.name, name != lastPathComponent {
-            let renamed = deletingLastPathComponent().appendingPathComponent(name)
-            try FileManager.default.moveItem(at: self, to: renamed)
-            self = renamed
+            self = deletingLastPathComponent().appendingPathComponent(name)
         }
     }
+    public func setTemporaryResourceValue(_ value: Any, forKey key: URLResourceKey) { _ns.setTemporaryResourceValue(value, forKey: key) }
+    public mutating func removeCachedResourceValue(forKey key: URLResourceKey) { _ns.removeCachedResourceValue(forKey: key) }
+    public mutating func removeAllCachedResourceValues() { _ns.removeAllCachedResourceValues() }
     public func resolvingSymlinksInPath() -> URL { _ns.__resolvingSymlinksInPath ?? self }
     public mutating func resolveSymlinksInPath() { self = resolvingSymlinksInPath() }
     public func withUnsafeFileSystemRepresentation<ResultType>(_ block: (UnsafePointer<Int8>?) throws -> ResultType) rethrows -> ResultType {

@@ -55,12 +55,12 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 73 | 9 | 1 | 1 | 84 | 92% |
+| **Foundation** | 76 | 6 | 1 | 1 | 84 | 94% |
 | &nbsp;&nbsp;↳ Strings & text | 12 | 3 | 0 | 0 | 15 | 90% |
 | &nbsp;&nbsp;↳ Collections & values | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 11 | 0 | 0 | 0 | 11 | 100% |
-| &nbsp;&nbsp;↳ Files, bundles & preferences | 8 | 3 | 0 | 0 | 11 | 86% |
+| &nbsp;&nbsp;↳ Files, bundles & preferences | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 9 | 0 | 0 | 0 | 9 | 100% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **786** | **174** | **23** | **35** | **1018** | **86%** |
+| **All areas** | **789** | **171** | **23** | **35** | **1018** | **86%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 99% (210) | 99% (214) | 99% (229) | 98% (239) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 92% (84) | 92% (84) | 92% (84) | 92% (84) |
+| Foundation | 94% (84) | 94% (84) | 94% (84) | 94% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (961) | **86%** (973) | **86%** (998) | **86%** (1018) |
+| **All areas** | **87%** (961) | **86%** (973) | **86%** (998) | **86%** (1018) |
 
 ---
 
@@ -859,12 +859,12 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 |---|---|---|---|
 | App sandbox container (Documents, Library, Caches, tmp) | ✅ | ≤17 | per app, under `ISIM_DATA` |
 | `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | ✅ | ≤17 | Swift and Objective-C (path and URL forms). `copyItem` copies whole trees (symbolic links as links, permissions and modification dates kept); `moveItem` renames, or copies and removes across file systems; neither replaces an existing item (`NSFileWriteFileExistsError`). Directory enumerators (`enumerator(atPath:)`, `enumerator(at:includingPropertiesForKeys:options:errorHandler:)`, `subpathsOfDirectory(atPath:)`, `contentsOfDirectory(at:includingPropertiesForKeys:options:)`): pre-order, entries sorted by name, links not followed, `skipDescendants`, `level`, `fileAttributes`, the hidden-file / shallow / package / post-order options and the error handler; `NSEnumerator` is a Swift `Sequence`. Symbolic and hard links (`createSymbolicLink`, `destinationOfSymbolicLink`, `linkItem`), `replaceItemAt` / `replaceItem(at:…)` (rename(2), backup item, keeps the original's permissions), `contentsEqual`, `isExecutableFile` / `isDeletableFile`, `currentDirectoryPath` / `changeCurrentDirectoryPath`, file system representation (`NSString.fileSystemRepresentation`, `withFileSystemRepresentation`), `stringByResolvingSymlinksInPath`, the `NSFile*Error` codes (`FoundationErrors.h`). Adapted: packages are directories with a known package extension (`.app`, `.bundle`, `.framework`, …; no Uniform Type lookup); `producesRelativePathURLs` gives absolute URLs; `displayName(atPath:)` is the file name. Tested: FoundationTest, SwiftFoundationTest |
-| URL resource values (`URL.resourceValues(forKeys:)`, `URLResourceKey` / `URLResourceValues`, `setResourceValues`, `-[NSURL resourceValuesForKeys:error:]` / `getResourceValue:forKey:error:`) | 🟡 | ≤17 | adapted: from lstat / access(2): name, path, parent directory, regular file / directory / symbolic link / package / hidden, readable / writable / executable, resource type, (allocated) sizes, link count, creation / modification / access / attribute-change dates. `setResourceValues` renames (`name`) and sets the modification date; `creationDate`, `isHidden` and `isExcludedFromBackup` are accepted and ignored (stub: no backups). No volume, ubiquity, content-type, tag or thumbnail keys; no prefetching. Tested: FoundationTest, SwiftFoundationTest |
+| URL resource values (`URL.resourceValues(forKeys:)`, `URLResourceKey` / `URLResourceValues`, `setResourceValues`, `-[NSURL resourceValuesForKeys:error:]` / `getResourceValue:forKey:error:` / `setResourceValue(s):…`, temporary and cached values) | ✅ | ≤17 | adapted: file keys from lstat / access(2) (name, path, parent, file type flags, readable / writable / executable, resource type, (allocated / total) sizes, link count, file and resource identifiers, all dates); `contentType` / `typeIdentifier` / `localizedTypeDescription` through UniformTypeIdentifiers (a built-in table when it is not linked); volume keys from the host's file system (one APFS-like volume "Data": capacities incl. important / opportunistic usage, capabilities, UUID); ubiquity keys (`isUbiquitousItem`, downloading status, `ubiquitousItemIsDownloading` / `…IsUploaded` …) from isim's local iCloud (below); `setResourceValues` renames (`name`), sets the modification / access dates, and keeps `creationDate`, `isHidden`, `isExcludedFromBackup` (no backups: remembered only), `ubiquitousItemIsExcludedFromSync` and `fileProtection` (not enforced) in a per-device metadata store (`<isim data>/Library/.isim-file-metadata.plist`) that FileManager moves and removals follow; `setTemporaryResourceValue`, `removeCachedResourceValue(forKey:)` / `removeAllCachedResourceValues`. No thumbnail, tag or Finder label keys (nil), no prefetching. Tested: FoundationTest, SwiftFoundationTest |
 | `FileManager` attributes (`attributesOfItem(atPath:)`, `setAttributes(_:ofItemAtPath:)`, `attributesOfFileSystem(forPath:)`, `FileAttributeKey` / `FileAttributeType` / `FileProtectionType`, `NSDictionary` file accessors) | ✅ | ≤17 | adapted: from `lstat` (birth time from `statx`), `statvfs`; sets permissions, owner / group, modification date; creation date, data protection, immutable / append-only and HFS codes are accepted and ignored. `createFile` / `createDirectory` apply their attributes. Tested: FoundationTest, SwiftFoundationTest |
 | `Data(contentsOf:)`, `Data.write(to:)` | ✅ | ≤17 | |
-| `FileHandle`, `InputStream` / `OutputStream` | 🟡 | ≤17 | files, memory and standard I/O; `readabilityHandler` on a thread; no sockets / bound stream pairs |
+| `FileHandle`, `InputStream` / `OutputStream` | ✅ | ≤17 | adapted: files, memory and standard I/O; `readabilityHandler` / `writeabilityHandler` on threads; `readInBackgroundAndNotify(forModes:)`, `readToEndOfFileInBackgroundAndNotify`, `acceptConnectionInBackgroundAndNotify`, `waitForDataInBackgroundAndNotify` (notifications on the calling thread's run loop); streams: data / file / URL input, memory / buffer / file output, `schedule(in:forMode:)` / delegates with events coalesced like CFStream, `Stream.getStreamsToHost(withName:port:…)` (TCP, then TLS through the host's OpenSSL for `socketSecurityLevelKey` / `kCFStreamPropertySSLSettings`; a peer that closes without close_notify ends the stream), `getBoundStreams(withBufferSize:…)`, `setProperty` / `property(forKey:)` (file offsets, data written). No SOCKS / proxy properties (logged). Tested: FoundationTest (sockets, bound pairs, background notifications), SwiftNetworkTest (TLS) |
 | App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ✅ | ≤17 | `<isim data>/Shared/AppGroup/<id>`, shared by apps and their extensions; `UserDefaults(suiteName:)` uses it. Tested (HelloWidgets: the widget extension and the app share a counter) |
-| iCloud Drive / ubiquity containers (`url(forUbiquityContainerIdentifier:)`, `ubiquityIdentityToken`) | 🟡 | ≤17 | **local, no iCloud sync**: `<isim data>/Mobile Documents/<container>/Documents`; nil when `ISIM_ICLOUD=noAccount`. No `NSMetadataQuery`, file coordination or download states. Tested: HelloSharedData |
+| iCloud Drive / ubiquity containers (`url(forUbiquityContainerIdentifier:)`, `ubiquityIdentityToken`), `NSMetadataQuery`, `NSFileCoordinator` / `NSFilePresenter`, download states | ✅ | ≤17 | **local, no iCloud sync**: `<isim data>/Mobile Documents/<container>/Documents`; nil when `ISIM_ICLOUD=noAccount`. `setUbiquitous(_:itemAt:destinationURL:)` moves files in and out, `isUbiquitousItem(at:)`, `evictUbiquitousItem(at:)` (the content moves aside and the item reads as `.notDownloaded`), `startDownloadingUbiquitousItem(at:)` (back to `.current` shortly after; a coordinated read downloads first), `url(forPublishingUbiquitousItemAt:)` fails (no sharing). `NSMetadataQuery`: predicate (on `NSMetadataItem` attributes: name, path, URL, size, dates, content type, ubiquity status), `searchScopes` (ubiquitous documents / data / external), sort descriptors, grouping, value lists, `operationQueue`, gathering / finish / update notifications (polled at `notificationBatchingInterval`, 0.2–1 s, while live), `disableUpdates` / `enableUpdates`. `NSFileCoordinator`: reader / writer coordination within the app process (across apps it is not coordinated), `coordinate(with:queue:)` with `NSFileAccessIntent`, presenters (`addFilePresenter`) told of changes, moves and deletions by other coordinators and asked to save / relinquish first. Tested: FoundationTest, SwiftFoundationTest |
 | `Bundle` (main, by path/id, resources, Info.plist, localizations) | ✅ | ≤17 | code loading (`load`, `principalClass`, `allFrameworks`, ...): see Objective-C runtime & C library (`dlopen`) |
 | `UserDefaults` (standard, suites, register defaults, argument domain) | ✅ | ≤17 | persisted as an XML plist in the container |
 | `NSUbiquitousKeyValueStore` | ✅ | ≤17 | **local, no iCloud sync**: a plist per store under `<isim data>/Mobile Documents/KeyValueStore`; another process (or the host) writing it posts `didChangeExternallyNotification` (server change, changed keys) within 0.5 s. Tested: HelloSharedData |

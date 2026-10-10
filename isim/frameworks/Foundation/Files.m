@@ -250,7 +250,7 @@ static BOOL remove_tree(const char *path) {
     return unlink(path) == 0;
 }
 - (BOOL)removeItemAtPath:(NSString *)p error:(NSError **)err {
-    if (remove_tree(p.UTF8String)) return YES;
+    if (remove_tree(p.UTF8String)) { isim_file_meta_move(p, nil); return YES; }
     if (err) *err = [NSError errorWithDomain:NSCocoaErrorDomain code:4 userInfo:@{ @"NSFilePath": p ?: @"" }];
     return NO;
 }
@@ -426,10 +426,10 @@ static BOOL copy_tree(const char *src, const char *dst) {
     struct stat st;
     if (!src || lstat(src.UTF8String, &st) != 0) { if (err) *err = file_error(4, src, ENOENT); return NO; }      /* NSFileNoSuchFileError */
     if (!dst || lstat(dst.UTF8String, &st) == 0) { if (err) *err = file_error(516, dst, EEXIST); return NO; }
-    if (rename(src.UTF8String, dst.UTF8String) == 0) return YES;
+    if (rename(src.UTF8String, dst.UTF8String) == 0) { isim_file_meta_move(src, dst); return YES; }
     int e = errno;
     if (e == EXDEV) {
-        if (copy_tree(src.UTF8String, dst.UTF8String)) { remove_tree(src.UTF8String); return YES; }
+        if (copy_tree(src.UTF8String, dst.UTF8String)) { remove_tree(src.UTF8String); isim_file_meta_move(src, dst); return YES; }
         e = errno; remove_tree(dst.UTF8String);
     }
     if (err) *err = file_error(e == ENOENT || e == ENOTDIR ? 4 : write_code(e), src, e);
@@ -716,80 +716,6 @@ NSFileProtectionType const NSFileProtectionNone = @"NSFileProtectionNone", NSFil
 - (NSNumber *)fileGroupOwnerAccountID { return self[NSFileGroupOwnerAccountID]; }
 @end
 
-/* ---------------- NSURL resource values ---------------- */
-NSURLResourceKey const NSURLNameKey = @"NSURLNameKey", NSURLLocalizedNameKey = @"NSURLLocalizedNameKey", NSURLPathKey = @"_NSURLPathKey",
-    NSURLParentDirectoryURLKey = @"NSURLParentDirectoryURLKey", NSURLIsRegularFileKey = @"NSURLIsRegularFileKey",
-    NSURLIsDirectoryKey = @"NSURLIsDirectoryKey", NSURLIsSymbolicLinkKey = @"NSURLIsSymbolicLinkKey", NSURLIsPackageKey = @"NSURLIsPackageKey",
-    NSURLIsHiddenKey = @"NSURLIsHiddenKey", NSURLIsReadableKey = @"NSURLIsReadableKey", NSURLIsWritableKey = @"NSURLIsWritableKey",
-    NSURLIsExecutableKey = @"NSURLIsExecutableKey", NSURLFileResourceTypeKey = @"NSURLFileResourceTypeKey", NSURLFileSizeKey = @"NSURLFileSizeKey",
-    NSURLTotalFileSizeKey = @"NSURLTotalFileSizeKey", NSURLFileAllocatedSizeKey = @"NSURLFileAllocatedSizeKey",
-    NSURLTotalFileAllocatedSizeKey = @"NSURLTotalFileAllocatedSizeKey", NSURLLinkCountKey = @"NSURLLinkCountKey",
-    NSURLCreationDateKey = @"NSURLCreationDateKey", NSURLContentModificationDateKey = @"NSURLContentModificationDateKey",
-    NSURLContentAccessDateKey = @"NSURLContentAccessDateKey", NSURLAttributeModificationDateKey = @"NSURLAttributeModificationDateKey";
-NSURLFileResourceType const NSURLFileResourceTypeNamedPipe = @"NSURLFileResourceTypeNamedPipe",
-    NSURLFileResourceTypeCharacterSpecial = @"NSURLFileResourceTypeCharacterSpecial", NSURLFileResourceTypeDirectory = @"NSURLFileResourceTypeDirectory",
-    NSURLFileResourceTypeBlockSpecial = @"NSURLFileResourceTypeBlockSpecial", NSURLFileResourceTypeRegular = @"NSURLFileResourceTypeRegular",
-    NSURLFileResourceTypeSymbolicLink = @"NSURLFileResourceTypeSymbolicLink", NSURLFileResourceTypeSocket = @"NSURLFileResourceTypeSocket",
-    NSURLFileResourceTypeUnknown = @"NSURLFileResourceTypeUnknown";
-
-/* adapted: from lstat (a symbolic link's own values, like iOS) and access(2). Sizes are left out for directories. */
-@implementation NSURL (NSURLResourceValues)
-- (NSDictionary<NSURLResourceKey, id> *)resourceValuesForKeys:(NSArray<NSURLResourceKey> *)keys error:(NSError **)err {
-    if (!self.isFileURL) {                              /* NSFileReadUnsupportedSchemeError */
-        if (err) *err = [NSError errorWithDomain:NSCocoaErrorDomain code:262 userInfo:@{ NSURLErrorKey: self }];
-        return nil;
-    }
-    NSString *p = self.path;
-    struct stat st;
-    if (lstat(p.UTF8String, &st) != 0) {
-        int e = errno;
-        if (err) *err = [NSError errorWithDomain:NSCocoaErrorDomain code:e == ENOENT || e == ENOTDIR ? 260 : e == EACCES ? 257 : 256
-                                        userInfo:@{ @"NSFilePath": p, NSURLErrorKey: self, NSUnderlyingErrorKey: [NSError errorWithDomain:NSPOSIXErrorDomain code:e userInfo:nil] }];
-        return nil;
-    }
-    mode_t type = st.st_mode & S_IFMT;
-    BOOL dir = type == S_IFDIR;
-    NSMutableDictionary *out = [NSMutableDictionary dictionary];
-    for (NSURLResourceKey k in keys) {
-        id v = nil;
-        if ([k isEqualToString:NSURLNameKey] || [k isEqualToString:NSURLLocalizedNameKey]) v = p.lastPathComponent;
-        else if ([k isEqualToString:NSURLPathKey]) v = p;
-        else if ([k isEqualToString:NSURLParentDirectoryURLKey]) v = [p isEqualToString:@"/"] ? nil : [NSURL fileURLWithPath:p.stringByDeletingLastPathComponent isDirectory:YES];
-        else if ([k isEqualToString:NSURLIsRegularFileKey]) v = @(type == S_IFREG);
-        else if ([k isEqualToString:NSURLIsDirectoryKey]) v = @(dir);
-        else if ([k isEqualToString:NSURLIsSymbolicLinkKey]) v = @(type == S_IFLNK);
-        else if ([k isEqualToString:NSURLIsPackageKey]) v = @(dir && isim_is_package_path(p));
-        else if ([k isEqualToString:NSURLIsHiddenKey]) v = @([p.lastPathComponent hasPrefix:@"."]);
-        else if ([k isEqualToString:NSURLIsReadableKey]) v = @(access(p.UTF8String, R_OK) == 0);
-        else if ([k isEqualToString:NSURLIsWritableKey]) v = @(access(p.UTF8String, W_OK) == 0);
-        else if ([k isEqualToString:NSURLIsExecutableKey]) v = @(access(p.UTF8String, X_OK) == 0);
-        else if ([k isEqualToString:NSURLFileResourceTypeKey])
-            v = type == S_IFREG ? NSURLFileResourceTypeRegular : dir ? NSURLFileResourceTypeDirectory : type == S_IFLNK ? NSURLFileResourceTypeSymbolicLink :
-                type == S_IFIFO ? NSURLFileResourceTypeNamedPipe : type == S_IFCHR ? NSURLFileResourceTypeCharacterSpecial :
-                type == S_IFBLK ? NSURLFileResourceTypeBlockSpecial : type == S_IFSOCK ? NSURLFileResourceTypeSocket : NSURLFileResourceTypeUnknown;
-        else if ([k isEqualToString:NSURLFileSizeKey] || [k isEqualToString:NSURLTotalFileSizeKey]) v = dir ? nil : @((long long)st.st_size);
-        else if ([k isEqualToString:NSURLFileAllocatedSizeKey] || [k isEqualToString:NSURLTotalFileAllocatedSizeKey]) v = dir ? nil : @((long long)st.st_blocks * 512);
-        else if ([k isEqualToString:NSURLLinkCountKey]) v = @((long)st.st_nlink);
-        else if ([k isEqualToString:NSURLCreationDateKey]) v = date_of(st.st_birthtimespec);
-        else if ([k isEqualToString:NSURLContentModificationDateKey]) v = date_of(st.st_mtimespec);
-        else if ([k isEqualToString:NSURLContentAccessDateKey]) v = date_of(st.st_atimespec);
-        else if ([k isEqualToString:NSURLAttributeModificationDateKey]) v = date_of(st.st_ctimespec);
-        if (v) out[k] = v;
-    }
-    return [out copy];
-}
-- (BOOL)getResourceValue:(id *)value forKey:(NSURLResourceKey)key error:(NSError **)err {
-    NSDictionary *d = key ? [self resourceValuesForKeys:@[key] error:err] : nil;
-    *value = d[key];
-    return d != nil;
-}
-/* the real path when the file exists (iOS also drops /private from /private/var paths; Linux has none) */
-- (NSURL *)URLByResolvingSymlinksInPath {
-    if (!self.isFileURL) return self;
-    char buf[4096];
-    return realpath(self.path.UTF8String, buf) ? [NSURL fileURLWithPath:@(buf) isDirectory:[self.absoluteString hasSuffix:@"/"]] : self;
-}
-@end
 
 @implementation NSString (NSStringPathExtensions)
 - (const char *)fileSystemRepresentation { return self.UTF8String; }

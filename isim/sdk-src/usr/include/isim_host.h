@@ -303,6 +303,10 @@ struct isim_tls *_Nullable isim_tls_connect(int fd, const char *_Nullable host, 
                                             char *err, int errlen, int *_Nullable code);
 long isim_tls_read(struct isim_tls *t, void *buf, long n);
 long isim_tls_write(struct isim_tls *t, const void *buf, long n);
+/* non-blocking socket (one session read and written from two threads, each call under the caller's lock): bytes,
+   0 closed by the peer (read), -1 error, -2 would block (poll and retry) */
+long isim_tls_read_nb(struct isim_tls *t, void *buf, long n);
+long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n);
 void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen);
 void isim_tls_close(struct isim_tls *_Nullable t);
 /* Locale data from the host's ICU (runtime/host_icu.c). UTF-8 strings, dates in ms since 1970, ICU locale identifiers

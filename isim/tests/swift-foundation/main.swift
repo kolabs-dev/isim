@@ -1,6 +1,7 @@
 // Swift <-> Foundation interop self-test on isim (overlays: ObjectiveC, Foundation; UIKit for UIColor's coding).
 import Foundation
 import UIKit
+import UniformTypeIdentifiers
 
 var failures = 0, checks = 0
 func check(_ ok: @autoclosure () -> Bool, _ what: String) {
@@ -334,6 +335,58 @@ func localeChecks() {
     check(Locale(identifier: "fr_FR").localizedString(forLanguageCode: "de") == "allemand", "Locale.localizedString(forLanguageCode:) in French")
 }
 
+/// files from Swift: resource values, streams, iCloud documents (issue #12)
+func fileChecks() {
+    let fm = FileManager.default
+    let dir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+    var url = dir.appendingPathComponent("photo.png")
+    try? Data([1, 2, 3]).write(to: url)
+    let v = try? url.resourceValues(forKeys: [.contentTypeKey, .typeIdentifierKey, .volumeAvailableCapacityForImportantUsageKey, .volumeIsEncryptedKey, .fileProtectionKey])
+    check(v?.contentType == .png && v?.typeIdentifier == "public.png", "URLResourceValues.contentType (\(String(describing: v?.typeIdentifier)))")
+    check((v?.volumeAvailableCapacityForImportantUsage ?? 0) > 0 && v?.volumeIsEncrypted == true, "volume capacity for important usage (Int64), volumeIsEncrypted")
+    check(v?.fileProtection == .completeUntilFirstUserAuthentication, "fileProtection")
+    var set = URLResourceValues()
+    set.isExcludedFromBackup = true
+    set.name = "renamed.png"
+    try? url.setResourceValues(set)
+    check(url.lastPathComponent == "renamed.png" && (try? url.resourceValues(forKeys: [.isExcludedFromBackupKey]))?.isExcludedFromBackup == true,
+          "setResourceValues: name and isExcludedFromBackup")
+    // a bound pair in Swift
+    var input: InputStream?, output: OutputStream?
+    Stream.getBoundStreams(withBufferSize: 16, inputStream: &input, outputStream: &output)
+    input?.open(); output?.open()
+    let bytes: [UInt8] = Array("swift".utf8)
+    _ = output?.write(bytes, maxLength: bytes.count)
+    var buf = [UInt8](repeating: 0, count: 16)
+    let n = input?.read(&buf, maxLength: buf.count) ?? 0
+    check(n == 5 && String(decoding: buf[0..<n], as: UTF8.self) == "swift", "Stream.getBoundStreams(withBufferSize:inputStream:outputStream:)")
+    // iCloud documents
+    guard let container = fm.url(forUbiquityContainerIdentifier: nil) else { check(false, "ubiquity container"); return }
+    let doc = container.appendingPathComponent("Documents/notes.md")
+    try? "# Notes".write(to: doc, atomically: true, encoding: .utf8)
+    try? fm.evictUbiquitousItem(at: doc)
+    let status = (try? URL(fileURLWithPath: doc.path).resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey, .isUbiquitousItemKey]))
+    check(status?.ubiquitousItemDownloadingStatus == .notDownloaded && status?.isUbiquitousItem == true, "evictUbiquitousItem(at:), downloading status")
+    var text: String?
+    var err: NSError?
+    NSFileCoordinator().coordinate(readingItemAt: doc, options: [], error: &err) { text = try? String(contentsOf: $0, encoding: .utf8) }
+    check(text == "# Notes" && err == nil, "NSFileCoordinator coordinated read downloads the item")
+    let query = NSMetadataQuery()
+    query.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
+    query.predicate = NSPredicate(format: "%K ENDSWITH '.md'", NSMetadataItemFSNameKey)
+    var gathered = false
+    let token = NotificationCenter.default.addObserver(forName: .NSMetadataQueryDidFinishGathering, object: query, queue: nil) { _ in gathered = true }
+    _ = query.start()
+    let deadline = Date(timeIntervalSinceNow: 5)
+    while !gathered && Date() < deadline { RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05)) }
+    check(gathered && query.resultCount == 1 && (query.result(at: 0) as? NSMetadataItem)?.value(forAttribute: NSMetadataItemFSNameKey) as? String == "notes.md",
+          "NSMetadataQuery in Swift")
+    query.stop()
+    NotificationCenter.default.removeObserver(token)
+    try? fm.removeItem(at: dir)
+}
+
 func classBridgingChecks() {
     let classes = [NSString.self, UIColor.self] as [AnyClass] as NSArray
     let any = classes as! [AnyClass]
@@ -599,6 +652,7 @@ func errorBridgingChecks() {
         fileManagerChecks()
         predicateAndDecimalChecks()
         operationChecks()
+        fileChecks()
         localeChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))

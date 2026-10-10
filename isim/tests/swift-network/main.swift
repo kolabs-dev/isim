@@ -513,8 +513,29 @@ func webSocketChecks(base: String, what: String) async {
         if let port = env["ISIM_TEST_WSS_PORT"] {                  // TLS: a throwaway certificate for localhost (SSL_CERT_FILE)
             await webSocketChecks(base: "wss://localhost:\(port)", what: "wss")
         }
+        if let port = env["ISIM_TEST_WSS_PORT"], let p = Int(port) { tlsStreamCheck(port: p) }
 
         print("network test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
     }
+}
+
+/// Stream.getStreamsToHost with NSStreamSocketSecurityLevelKey: a TLS connection (the WebSocket server answers an
+/// upgrade request with 101; the certificate is trusted through SSL_CERT_FILE)
+func tlsStreamCheck(port: Int) {
+    var input: InputStream?, output: OutputStream?
+    Stream.getStreamsToHost(withName: "localhost", port: port, inputStream: &input, outputStream: &output)
+    guard let input, let output else { check(false, "Stream.getStreamsToHost returned streams"); return }
+    input.setProperty(StreamSocketSecurityLevel.negotiatedSSL.rawValue, forKey: .socketSecurityLevelKey)
+    input.open(); output.open()
+    let deadline = Date(timeIntervalSinceNow: 10)
+    while output.streamStatus != .open && output.streamStatus != .error && Date() < deadline { usleep(20_000) }
+    let request = "GET /ws HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+    let bytes = Array(request.utf8)
+    let wrote = output.write(bytes, maxLength: bytes.count)
+    var buf = [UInt8](repeating: 0, count: 512)
+    let n = wrote == bytes.count ? input.read(&buf, maxLength: buf.count) : -1
+    let reply = n > 0 ? String(decoding: buf[0..<n], as: UTF8.self) : ""
+    check(reply.hasPrefix("HTTP/1.1 101"), "TLS socket streams (NSStreamSocketSecurityLevelKey): \(reply.split(separator: "\r\n").first ?? "no reply") \(output.streamError.map { "\($0)" } ?? "")")
+    input.close(); output.close()
 }

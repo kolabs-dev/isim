@@ -8,6 +8,9 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSExceptionName const NSFileHandleOperationException;
 FOUNDATION_EXPORT NSNotificationName const NSFileHandleReadCompletionNotification, NSFileHandleReadToEndOfFileCompletionNotification, NSFileHandleDataAvailableNotification;
 FOUNDATION_EXPORT NSString * const NSFileHandleNotificationDataItem;
+FOUNDATION_EXPORT NSNotificationName const NSFileHandleConnectionAcceptedNotification;
+FOUNDATION_EXPORT NSString * const NSFileHandleNotificationFileHandleItem;
+FOUNDATION_EXPORT NSString * const NSFileHandleNotificationMonitorModes;
 
 @interface NSFileHandle : NSObject
 @property (readonly, copy) NSData *availableData;
@@ -44,11 +47,37 @@ FOUNDATION_EXPORT NSString * const NSFileHandleNotificationDataItem;
 - (void)truncateFileAtOffset:(unsigned long long)offset;
 - (void)synchronizeFile;
 - (void)closeFile;
+/* background reads, accepts and waits: posted on the calling thread's run loop (modes: NSDefaultRunLoopMode) */
+- (void)readInBackgroundAndNotifyForModes:(nullable NSArray<NSRunLoopMode> *)modes;
+- (void)readInBackgroundAndNotify;
+- (void)readToEndOfFileInBackgroundAndNotifyForModes:(nullable NSArray<NSRunLoopMode> *)modes;
+- (void)readToEndOfFileInBackgroundAndNotify;
+- (void)acceptConnectionInBackgroundAndNotifyForModes:(nullable NSArray<NSRunLoopMode> *)modes;
+- (void)acceptConnectionInBackgroundAndNotify;
+- (void)waitForDataInBackgroundAndNotifyForModes:(nullable NSArray<NSRunLoopMode> *)modes;
+- (void)waitForDataInBackgroundAndNotify;
 @end
 
 typedef NSString *NSStreamPropertyKey NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(Stream.PropertyKey);
 FOUNDATION_EXPORT NSStreamPropertyKey const NSStreamDataWrittenToMemoryStreamKey NS_SWIFT_NAME(dataWrittenToMemoryStreamKey);
 FOUNDATION_EXPORT NSStreamPropertyKey const NSStreamFileCurrentOffsetKey NS_SWIFT_NAME(fileCurrentOffsetKey);
+FOUNDATION_EXPORT NSStreamPropertyKey const NSStreamSocketSecurityLevelKey NS_SWIFT_NAME(socketSecurityLevelKey);
+FOUNDATION_EXPORT NSStreamPropertyKey const NSStreamSOCKSProxyConfigurationKey NS_SWIFT_NAME(socksProxyConfigurationKey);
+FOUNDATION_EXPORT NSStreamPropertyKey const NSStreamNetworkServiceType NS_SWIFT_NAME(networkServiceType);
+typedef NSString *NSStreamSocketSecurityLevel NS_TYPED_ENUM NS_SWIFT_NAME(StreamSocketSecurityLevel);
+FOUNDATION_EXPORT NSStreamSocketSecurityLevel const NSStreamSocketSecurityLevelNone NS_SWIFT_NAME(none);
+FOUNDATION_EXPORT NSStreamSocketSecurityLevel const NSStreamSocketSecurityLevelSSLv2 NS_SWIFT_NAME(ssLv2);
+FOUNDATION_EXPORT NSStreamSocketSecurityLevel const NSStreamSocketSecurityLevelSSLv3 NS_SWIFT_NAME(ssLv3);
+FOUNDATION_EXPORT NSStreamSocketSecurityLevel const NSStreamSocketSecurityLevelTLSv1 NS_SWIFT_NAME(tlSv1);
+FOUNDATION_EXPORT NSStreamSocketSecurityLevel const NSStreamSocketSecurityLevelNegotiatedSSL NS_SWIFT_NAME(negotiatedSSL);
+typedef NSString *NSStreamNetworkServiceTypeValue NS_TYPED_ENUM NS_SWIFT_NAME(StreamNetworkServiceTypeValue);
+FOUNDATION_EXPORT NSStreamNetworkServiceTypeValue const NSStreamNetworkServiceTypeVoIP NS_SWIFT_NAME(voIP);
+FOUNDATION_EXPORT NSStreamNetworkServiceTypeValue const NSStreamNetworkServiceTypeVideo NS_SWIFT_NAME(video);
+FOUNDATION_EXPORT NSStreamNetworkServiceTypeValue const NSStreamNetworkServiceTypeBackground NS_SWIFT_NAME(background);
+FOUNDATION_EXPORT NSStreamNetworkServiceTypeValue const NSStreamNetworkServiceTypeVoice NS_SWIFT_NAME(voice);
+FOUNDATION_EXPORT NSStreamNetworkServiceTypeValue const NSStreamNetworkServiceTypeCallSignaling NS_SWIFT_NAME(callSignaling);
+FOUNDATION_EXPORT NSErrorDomain const NSStreamSocketSSLErrorDomain;
+FOUNDATION_EXPORT NSErrorDomain const NSStreamSOCKSErrorDomain;
 typedef NS_ENUM(NSUInteger, NSStreamStatus) {
     NSStreamStatusNotOpen NS_SWIFT_NAME(notOpen) = 0, NSStreamStatusOpening NS_SWIFT_NAME(opening) = 1, NSStreamStatusOpen NS_SWIFT_NAME(open) = 2,
     NSStreamStatusReading NS_SWIFT_NAME(reading) = 3, NSStreamStatusWriting NS_SWIFT_NAME(writing) = 4, NSStreamStatusAtEnd NS_SWIFT_NAME(atEnd) = 5,
@@ -96,6 +125,13 @@ NS_SWIFT_NAME(OutputStream)
 + (instancetype)outputStreamToBuffer:(uint8_t *)buffer capacity:(NSUInteger)capacity;
 + (instancetype)outputStreamToFileAtPath:(NSString *)path append:(BOOL)shouldAppend;
 + (nullable instancetype)outputStreamWithURL:(NSURL *)url append:(BOOL)shouldAppend;
+@end
+@interface NSStream (NSSocketStreamCreationExtensions)
+/* a TCP connection to the host, made when either stream opens; TLS with NSStreamSocketSecurityLevelKey or
+   kCFStreamPropertySSLSettings (set before opening). Both streams share the connection. */
++ (void)getStreamsToHostWithName:(NSString *)hostname port:(NSInteger)port inputStream:(NSInputStream * _Nullable * _Nullable)inputStream outputStream:(NSOutputStream * _Nullable * _Nullable)outputStream;
+/* what is written to the output stream is read from the input stream (at most bufferSize bytes in between) */
++ (void)getBoundStreamsWithBufferSize:(NSUInteger)bufferSize inputStream:(NSInputStream * _Nullable * _Nullable)inputStream outputStream:(NSOutputStream * _Nullable * _Nullable)outputStream;
 @end
 NS_SWIFT_NAME(StreamDelegate)
 @protocol NSStreamDelegate <NSObject>
