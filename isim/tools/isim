@@ -25,7 +25,14 @@
 #   isim devices                 list device presets with the iOS versions each can run
 #   isim update [VERSION]        install the latest (or given) release and make it active (keeps the others)
 #   isim versions · isim use VERSION   list installed releases · switch the active one
+#   isim send COMMAND...         send script commands (docs/SCRIPTING.md) to the running device of this device data, e.g.
+#                                isim send "tapid login; shot s.png"
+#   isim open [device options] [FILE.apns]   the desktop launcher's entry point: bring the running device to the
+#                                front, or boot one; an .apns file is sent as a push
+#   isim desktop install|uninstall   add / remove isim Simulator in the desktop's app launcher (icon, .apns files)
 #   device options: --os N --device NAME --zoom N --dark --headless --script "..." --control FIFO (live script commands, one per line); device data: ISIM_DATA (~/.local/share/isim)
+#     Without --control, a device reads commands from a FIFO of its own ($XDG_RUNTIME_DIR/isim/), which isim send,
+#     isim open and isim openurl find through the device data.
 #   --os 17|18|26|27 (or a point release, e.g. 17.5; env ISIM_OS_VERSION): the iOS version the device runs (default 18).
 #     The device data remembers it for later boots/runs. Like Xcode, a device needs an iOS at least as new as the one it
 #     shipped with (iPhone 17 models: 26+): an explicit older --os is an error; otherwise the nearest valid one is used.
@@ -64,6 +71,107 @@ select_os() {   # validates the device + iOS version pairing; remembers an expli
   fi
 }
 plist_get() { python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb")).get(sys.argv[2],""))' "$1" "$2"; }
+# The running device's control FIFO: every device reads script commands from one, --control FIFO or else a default
+# FIFO of its own, and `$CTLREC` names it with the device's pid (this script execs the runtime, so the pid stays) for
+# isim send / open / openurl.
+CTLREC=$DATA/Library/isim/control
+control_setup() {   # before exec'ing a device
+  if [ -z "${ISIM_CONTROL:-}" ]; then
+    local dir
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$XDG_RUNTIME_DIR" ]; then dir=$XDG_RUNTIME_DIR/isim
+    else dir=${TMPDIR:-/tmp}/isim-$(id -u); fi
+    mkdir -p -m 700 "$dir" 2>/dev/null || true
+    if [ -d "$dir" ] && [ -O "$dir" ] && [ ! -L "$dir" ]; then       # ours, not someone else's in a shared /tmp
+      local f
+      f=$dir/$(printf %s "$DATA" | sha256sum | cut -c1-16).ctl     # one per device data
+      [ -p "$f" ] || { rm -f -- "$f"; mkfifo -m 600 -- "$f"; }
+      export ISIM_CONTROL=$f ISIM_CONTROL_AUTO=1                   # the runtime removes it when it exits
+    fi
+  fi
+  [ -n "${ISIM_CONTROL:-}" ] || return 0
+  mkdir -p "$DATA/Library/isim"
+  printf '%s\n%s\n' "$$" "$(realpath -m -- "$ISIM_CONTROL")" > "$CTLREC"
+}
+device_control() {  # prints the running device's control FIFO; fails when no device runs on this device data
+  local pid fifo
+  [ -f "$CTLREC" ] && { read -r pid && read -r fifo; } < "$CTLREC" || return 1
+  [ -n "$pid" ] && [ "$(basename -- "$(readlink "/proc/$pid/exe" 2>/dev/null)")" = isim-runtime ] && [ -p "$fifo" ] || return 1
+  printf '%s\n' "$fifo"
+}
+send_cmd() {        # send_cmd FIFO "commands": one line; bounded, so a FIFO nobody reads cannot hang us
+  timeout 5 bash -c 'printf "%s\n" "$2" > "$1"' _ "$1" "$2" || { echo "isim: the device did not take the command (is it running?)" >&2; return 1; }
+}
+no_device() { echo "isim $1: no device is running on $DATA (start one with isim boot or isim run)" >&2; exit 1; }
+# isim Simulator in the desktop's app launcher (freedesktop.org desktop entry, hicolor icons, a MIME type for .apns
+# files), in $XDG_DATA_HOME (~/.local/share). install.sh / isim update run `desktop install` for the active release.
+APP_ID=dev.isim.Simulator
+desktop_cmd() {
+  local share=${XDG_DATA_HOME:-$HOME/.local/share}
+  local entry=$share/applications/$APP_ID.desktop mime=$share/mime/packages/$APP_ID.xml icons=$share/icons/hicolor
+  case "$1" in
+    install)
+      local src=$BIN/../share/icons/hicolor exe
+      [ -d "$src" ] || { echo "isim desktop: this isim has no icons ($src; build.py makes them)" >&2; exit 1; }
+      # an installed release: through `current`, so isim update / isim use keep the entry working
+      case "$BIN/" in
+        "$(realpath -m -- "$ISIM_INSTALL_DIR")"/*/bin/) exe=$ISIM_INSTALL_DIR/current/bin/isim ;;
+        *) exe=$BIN/isim ;;
+      esac
+      case "$exe" in *[\"\`\$\\%]*|*$'\n'*)
+        echo "isim desktop: cannot write a desktop entry for a path with \", \`, \$, \\ or %: $exe" >&2; exit 1 ;; esac
+      mkdir -p "$share/applications" "$share/mime/packages"
+      local a actions=""
+      for a in "iphone15 iPhone 15" "iphonese iPhone SE" "ipadair11 iPad Air 11″"; do
+        actions+=$'\n'"[Desktop Action ${a%% *}]"$'\n'"Name=${a#* }"$'\n'"Exec=\"$exe\" open --device ${a%% *}"$'\n'
+      done
+      cat > "$entry.tmp" <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=isim Simulator
+GenericName=iOS-compatible Simulator
+Comment=Run iOS apps on a simulated iPhone or iPad
+Exec="$exe" open %f
+TryExec=$exe
+Icon=$APP_ID
+Terminal=false
+StartupNotify=false
+StartupWMClass=$APP_ID
+Categories=Development;
+Keywords=iOS;iPhone;iPad;simulator;
+MimeType=application/x-apns+json;
+Actions=iphone15;iphonese;ipadair11;
+$actions
+EOF
+      mv -f "$entry.tmp" "$entry"
+      local f rel
+      for f in "$src"/*/apps/$APP_ID.*; do
+        rel=${f#"$src"/}; mkdir -p "$icons/$(dirname -- "$rel")"; cp -f -- "$f" "$icons/$rel"
+      done
+      cat > "$mime" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-apns+json">
+    <comment>Push notification payload</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.apns"/>
+  </mime-type>
+</mime-info>
+EOF
+      desktop_caches "$share"
+      echo "isim desktop: isim Simulator is in the app launcher ($entry)" ;;
+    uninstall)
+      rm -f -- "$entry" "$mime" "$icons"/*/apps/$APP_ID.png "$icons"/scalable/apps/$APP_ID.svg
+      desktop_caches "$share"
+      echo "isim desktop: removed isim Simulator from the app launcher" ;;
+    *) echo "usage: isim desktop install|uninstall" >&2; exit 2 ;;
+  esac
+}
+desktop_caches() {  # refresh the desktop's caches where the tools exist (not needed by every desktop)
+  ! command -v update-desktop-database >/dev/null || update-desktop-database -q "$1/applications" 2>/dev/null || true
+  ! command -v update-mime-database >/dev/null || update-mime-database "$1/mime" >/dev/null 2>&1 || true
+  ! command -v gtk-update-icon-cache >/dev/null || gtk-update-icon-cache -q -f -t "$1/icons/hicolor" 2>/dev/null || true
+}
 case "$cmd" in
   version|--version|-v)
     echo "isim $(cat "$BIN/VERSION" 2>/dev/null || echo unknown)"
@@ -88,10 +196,15 @@ case "$cmd" in
   use)                  # isim use VERSION: make an installed release the active one
     v=${1:?usage: isim use VERSION}; v=${v#v}
     [ -x "$ISIM_INSTALL_DIR/$v/bin/isim" ] || { echo "isim: $v is not installed (isim versions; isim update $v)" >&2; exit 1; }
-    ln -sfn "$v" "$ISIM_INSTALL_DIR/current"; echo "isim $v is active" ;;
+    ln -sfn "$v" "$ISIM_INSTALL_DIR/current"; echo "isim $v is active"
+    if [ -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/$APP_ID.desktop" ]; then   # keep the launcher entry right
+      if [ -d "$ISIM_INSTALL_DIR/$v/share/icons" ]; then ISIM_INSTALL_DIR=$ISIM_INSTALL_DIR "$ISIM_INSTALL_DIR/$v/bin/isim" desktop install >/dev/null
+      else desktop_cmd uninstall >/dev/null; echo "isim: $v has no desktop launcher; removed isim Simulator from the app launcher"; fi
+    fi ;;
   boot)
     device_opts "$@"
     select_os
+    control_setup
     mkdir -p "$DATA/Applications"
     export ISIM_DATA=$DATA ISIM_SYSTEM_APPS=$SDK/Applications ISIM_APPS=$DATA/Applications
     exec "$BIN/isim-runtime" --root "$SDK" --shell "$SDK/Applications/SpringBoard.app" "$SDK/Applications/SpringBoard.app/SpringBoard" ;;
@@ -137,6 +250,7 @@ case "$cmd" in
       esac
     done
     select_os
+    control_setup
     exe=$app
     if [ -d "$app" ]; then
       name=$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$app/Info.plist")
@@ -208,11 +322,36 @@ PY
     if [ -f "$DATA/Library/isim/shell.pid" ] && kill -0 "$(cat "$DATA/Library/isim/shell.pid")" 2>/dev/null; then
       echo "isim push: sent to $target"
     else echo "isim push: queued for $target (no device is running; it is delivered when the device boots: isim boot)"; fi ;;
-  openurl)   # isim openurl URL [--control FIFO]: open a URL in the foreground app of a device started with --control FIFO
+  openurl)   # isim openurl URL [--control FIFO]: open a URL in the running device (its FIFO, or the given one)
     url=${1:?usage: isim openurl <URL> [--control FIFO]}; shift
     [ "${1:-}" = "--control" ] && ISIM_CONTROL=$2
-    [ -p "${ISIM_CONTROL:-}" ] || { echo "isim openurl: start the device with --control FIFO (or set ISIM_CONTROL) to send it URLs" >&2; exit 2; }
-    printf 'openurl %s\n' "$url" > "$ISIM_CONTROL" ;;
+    if [ -p "${ISIM_CONTROL:-}" ]; then fifo=$ISIM_CONTROL; else fifo=$(device_control) || no_device openurl; fi
+    send_cmd "$fifo" "openurl $url" ;;
+  send)      # isim send COMMAND...: script commands to the running device of this device data
+    [ $# -gt 0 ] || { echo 'usage: isim send COMMAND... (script commands, docs/SCRIPTING.md; e.g. isim send "home; shot s.png")' >&2; exit 2; }
+    fifo=$(device_control) || no_device send
+    send_cmd "$fifo" "$*" ;;
+  open)      # isim open [device options] [FILE.apns]: the desktop launcher's entry point (isim desktop install)
+    device_opts "$@"
+    file=
+    for a in "${REST[@]}"; do
+      case "$a" in
+        *.apns) file=$a ;;
+        -*) echo "isim open: unknown option $a" >&2; exit 2 ;;
+        *) echo "isim open: cannot open $a (only .apns push payloads)" >&2; exit 2 ;;
+      esac
+    done
+    self=${BASH_SOURCE[0]}
+    if fifo=$(device_control); then                   # already running: bring it to the front
+      [ -z "$file" ] || "$self" push "$file"
+      [ -z "${ISIM_DEVICE:-}${ISIM_OS_VERSION:-}" ] || echo "isim open: a device is already running on $DATA; quit it to start another device or iOS version" >&2
+      send_cmd "$fifo" focus
+      exit 0
+    fi
+    [ -z "$file" ] || "$self" push "$file"            # queued: delivered once the device boots
+    exec "$self" boot ;;                              # (device options are in the environment now)
+  desktop)   # isim desktop install|uninstall: isim Simulator in the desktop's app launcher (freedesktop.org entries)
+    desktop_cmd "${1:-}" ;;
   test)
     exec python3 "$BIN/isim-test.py" "$@" ;;
   storekit|gamecenter|appleid)
@@ -225,5 +364,5 @@ PY
     [ -d "$f" ] && f=$f/$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$f/Info.plist")
     llvm-objdump --macho --private-headers "$f" | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos|sdk'
     llvm-otool -L "$f" | tail -n +2 ;;
-  *) sed -n '2,30p' "$0" ;;
+  *) sed -n '2,/^set -euo/{/^set -euo/!p}' "${BASH_SOURCE[0]}" ;;
 esac

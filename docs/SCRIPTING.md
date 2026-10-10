@@ -1,8 +1,19 @@
 # Scripting and automation
 
 `isim boot` and `isim run` accept `--headless --script "…"`: a list of commands separated by `;` that drive the
-device like a person (or like Xcode's Simulator menus) and then quit. Tests and CI use this. With
-`--control FIFO`, the same commands can be sent to a running device, one per line, e.g. `echo "shot s.png" > FIFO`.
+device like a person (or like Xcode's Simulator menus) and then quit. Tests and CI use this.
+
+The same commands can be sent to a running device from another terminal (or by an AI agent) with `isim send`:
+
+```bash
+isim send "tapid loginButton; shot s.png"        # to the device running on this device data (ISIM_DATA)
+```
+
+Every device reads commands from a control FIFO, one command line at a time: the one given with `--control FIFO`
+(e.g. `echo "shot s.png" > FIFO`), or else a FIFO of its own in `$XDG_RUNTIME_DIR/isim/` that the device removes when
+it quits. The device data records which FIFO the running device reads, so `isim send`, `isim openurl` and
+`isim open` find it without options. The FIFO goes one way: commands get no reply, so read results from files
+(`dump views FILE`, `shot FILE`) and from the device's output.
 
 ```bash
 isim boot --headless --script "wait 2; launch dev.isim.settings; wait 1; shot s.png; quit"
@@ -17,9 +28,10 @@ Coordinates are in points of the device screen, with the origin at the top left.
 |---|---|
 | `wait S` | wait S seconds (fractions allowed; `ISIM_WAIT_SCALE=2` doubles every wait, for slow machines) |
 | `quit` | stop the device |
+| `focus` | bring the device window to the front (what `isim open` sends to a running device; the desktop may only highlight it, Wayland compositors decide) |
 | `home` | go to the home screen |
 | `launch BUNDLE_ID` | open an installed app |
-| `openurl URL` | open a URL: under `isim boot` the home screen opens it in the app that handles it (its `CFBundleURLTypes` scheme, or an https universal link of its `applinks:` domains); with `isim run` the running app gets it (custom schemes, its own universal links, other web URLs "open in Safari"). Under `isim boot`, web URLs no app claims open in isim's Safari. `isim openurl URL --control FIFO` does the same from another terminal |
+| `openurl URL` | open a URL: under `isim boot` the home screen opens it in the app that handles it (its `CFBundleURLTypes` scheme, or an https universal link of its `applinks:` domains); with `isim run` the running app gets it (custom schemes, its own universal links, other web URLs "open in Safari"). Under `isim boot`, web URLs no app claims open in isim's Safari. `isim openurl URL` does the same from another terminal |
 | `handoff TYPE [URL] [TITLE]` | `isim boot` only: an `NSUserActivity` handed off from another device (isim is one device; the script plays the other). The app that lists `TYPE` in `NSUserActivityTypes` continues it (launched with it in `connectionOptions.userActivities` / launch options, or `scene(_:continue:)` / `application(_:continue:restorationHandler:)` when running); `NSUserActivityTypeBrowsingWeb` with a URL goes to the app that claims it as a universal link, else to Safari |
 | `bgtask BUNDLE_ID TASK_ID` | launch a submitted BackgroundTasks request (like Xcode's `_simulateLaunchForTaskWithIdentifier`); a closed app is started in the background (a suspended one is resumed). `TASK_ID` `--fetch` runs a background fetch (with `UIBackgroundModes` `fetch` and a minimum fetch interval other than never, like iOS) |
 | `terminate BUNDLE_ID` | the system ends the app without notice (as iOS does to reclaim memory), unlike closing it in the app switcher; an app with unfinished background `URLSession` transfers is relaunched in the background to finish them |

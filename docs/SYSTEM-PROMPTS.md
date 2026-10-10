@@ -95,6 +95,8 @@ These override the Settings app for one run (the device's settings stay as they 
 | `ISIM_MIN_IOS=17.0` | deployment target used by `isim cc` / `isim swiftc` |
 | `ISIM_TEST_TIMEOUT=S` | `isim test`: time limit per test bundle (default 900) |
 | `ISIM_INSTALL_DIR=DIR` | where `install.sh` / `isim update` keep releases (default `~/.local/lib/isim`) |
+| `ISIM_NO_DESKTOP=1` | `install.sh` / `isim update` do not add isim Simulator to the app launcher (like `--no-desktop`) |
+| `ISIM_CONTROL=FIFO` | the control FIFO a device reads (like `--control`); without it, each device makes one in `$XDG_RUNTIME_DIR/isim/` (see [SCRIPTING.md](SCRIPTING.md)) |
 | `ISIM_OBJC_EXCEPTION_LOG=1` | log every Objective-C exception when it is thrown |
 | `ISIM_NO_CRASH_HANDLER=1` | no crash report / backtrace on a guest crash (for debuggers) |
 | `ISIM_SKIP_LAUNCH_SCREEN=1` | apps start without their launch screen (the Python tests set it) |
