@@ -13,6 +13,7 @@
 #   isim build -project X.xcodeproj [-target T] [-configuration Debug]   build an Xcode project for isim
 #   isim test -project X.xcodeproj -scheme S [-only-testing:T/C/m] [-resultBundlePath D]   build + run XCTest/XCUITest/Swift Testing
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
+#   isim preview <App.app> [NAME|INDEX|--list] [-o FILE.png]   render a #Preview to a PNG (Xcode's canvas, one preview)
 #   isim storekit <app> list|refund|expire|cancel|resume|clear ...   local StoreKit Transaction Manager
 #   isim gamecenter [<app>] players|friends|score|challenge|activity|saved-games|...   local Game Center network
 #   isim openurl <URL> [--control FIFO]   open a URL (custom scheme or universal link) in the running device's foreground app
@@ -187,6 +188,8 @@ case "$cmd" in
       $( [ -d "$SDK/usr/lib/swift/_StringProcessing.swiftmodule" ] || echo -Xfrontend -disable-implicit-string-processing-module-import ) "$@" ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
+  preview)   # isim preview <App.app> [NAME|INDEX|--list] [-o FILE.png] [--device D] [--os N] [--dark]
+    exec python3 "$BIN/isim-preview.py" "$@" ;;
   push)      # isim push [BUNDLE_ID] payload.apns|-: queue a payload for the device's home screen (like `xcrun simctl push booted`)
     [ $# -ge 1 ] || { echo "usage: isim push [BUNDLE_ID] <payload.apns|->" >&2; exit 2; }
     if [ $# -ge 2 ]; then bundle=$1; src=$2; else bundle=; src=$1; fi

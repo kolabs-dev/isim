@@ -181,6 +181,9 @@ final class _SUIHostView: UIView {
     override func traitCollectionDidChange(_ previous: UITraitCollection?) { setNeedsLayout() }
 }
 
+extension _SUIHostingController: _IsimSizing {
+    func _isimFittingSize(in size: CGSize) -> CGSize { graph.measure(CGSize(width: size.width, height: 0), traits: traitCollection) }
+}
 class _SUIHostingController: UIViewController {
     let graph: _Graph
     init(root: @escaping () -> any View) {

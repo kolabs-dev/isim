@@ -73,6 +73,11 @@ Choose the device and iOS version like a person would: `--device iphonese` (Home
 (Dynamic Island), `--device ipadair11`; `--os 17|18|26|27` (Liquid Glass from 26). Checking a screen on a small
 iPhone, a large one and an iPad catches most layout bugs. `isim devices` lists the presets.
 
+To look at one view without navigating to it, render its `#Preview` (like Xcode's canvas, one preview at a time):
+`isim preview build/isim/MyApp.app --list` lists the previews, `isim preview build/isim/MyApp.app "Detail" -o
+/tmp/detail.png` (a name or an index; `--device`, `--os`, `--dark`) saves a screenshot of it, laid out by its traits
+(the device, `.sizeThatFitsLayout` or `.fixedLayout` on a grey canvas).
+
 ### 3. Read the output
 
 Everything goes to the terminal:

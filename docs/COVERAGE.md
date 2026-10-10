@@ -39,8 +39,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
-| **SwiftUI** | 219 | 17 | 1 | 2 | 239 | 95% |
-| &nbsp;&nbsp;↳ App & scenes | 10 | 1 | 0 | 0 | 11 | 95% |
+| **SwiftUI** | 220 | 16 | 1 | 2 | 239 | 95% |
+| &nbsp;&nbsp;↳ App & scenes | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ State & data flow | 16 | 1 | 0 | 0 | 17 | 97% |
 | &nbsp;&nbsp;↳ Views & controls | 37 | 2 | 0 | 0 | 39 | 97% |
 | &nbsp;&nbsp;↳ Containers & layout | 28 | 0 | 0 | 0 | 28 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **839** | **140** | **21** | **26** | **1026** | **89%** |
+| **All areas** | **840** | **139** | **21** | **26** | **1026** | **89%** |
 
 ### Per iOS version
 
@@ -453,7 +453,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `.onContinueUserActivity`, `.handlesExternalEvents` | ✅ | ≤17 | `.onContinueUserActivity` (Spotlight, universal links; queued until a handler registers), `.userActivity(_:isActive:_:)` advertises/indexes; `.handlesExternalEvents` accepted (one scene). Tested (HelloScenes) |
 | `.backgroundTask` | ✅ | ≤17 | `.appRefresh(id)` runs when the request is launched (script `bgtask BUNDLE ID`), also in a background launch; `.urlSession(id)` runs where a UIKit app's `handleEventsForBackgroundURLSession` would (the session's events follow), also after a relaunch for unfinished transfers, where the action can recreate the session. Tested (HelloScenes: test_scenes, test_transfers) |
 | `openWindow` / `dismissWindow` | ✅ | ≤17 | iPad + `UIApplicationSupportsMultipleScenes`: each WindowGroup window is a UIKit scene session: `openWindow(id:)` / `(value:)` / `(id:value:)` opens the group in a new window beside the current one (split view, see UIKit's multiple scenes) or brings back the one already showing that group and value; `WindowGroup(for:)` content gets the value as a binding (changing it changes the window's value); `dismissWindow()` closes the view's own window, `dismissWindow(id:)` / `(value:)` those of a group; windows come back on relaunch with their group and value. iPhone: ignored like iOS; `supportsMultipleWindows`. Tested (HelloScenes) |
-| `#Preview` / `PreviewProvider` | 🟡 | ≤17 | adapted: `#Preview` (SwiftUI views, UIViews, UIViewControllers; names, traits) and `PreviewProvider` (+ `previewDisplayName` / `previewLayout` / `previewDevice` / `previewInterfaceOrientation`) compile and type-check: isim's PreviewsMacros plugin expands each `#Preview` into a `DeveloperToolsSupport.PreviewRegistry` type like Xcode's. No preview canvas; the modifiers change nothing. Tested: HelloToolchain (UIKit) and HelloSwiftUI (SwiftUI, PreviewProvider) build with previews |
+| `#Preview` / `PreviewProvider` | ✅ | ≤17 | adapted: `#Preview` (SwiftUI views, UIViews, UIViewControllers; names, traits) and `PreviewProvider` (+ `previewDisplayName` / `previewLayout` / `previewDevice` / `previewInterfaceOrientation`) compile and type-check: isim's PreviewsMacros plugin expands each `#Preview` into a `DeveloperToolsSupport.PreviewRegistry` type like Xcode's, plus an exported entry point; `isim preview App.app [NAME\|INDEX\|--list] [-o FILE.png]` renders one `#Preview` to a screenshot (the app runs alone in UIKit's preview mode) laid out by its traits (the device, `.sizeThatFitsLayout` and `.fixedLayout` centred on a grey canvas; orientation traits not applied: use `--device`). No live canvas; `PreviewProvider` previews are not rendered and their modifiers change nothing. Tested: HelloToolchain (UIKit) and HelloSwiftUI (SwiftUI, PreviewProvider) build with previews; `isim preview` (test_previews) |
 
 ### State & data flow
 

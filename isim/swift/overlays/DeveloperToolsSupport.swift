@@ -1,7 +1,7 @@
 // isim DeveloperToolsSupport overlay (self-authored): the types behind `#Preview`. The macro (isim's PreviewsMacros
 // plugin, swift/macro-support/PreviewsMacros.swift) turns each `#Preview` into a type conforming to PreviewRegistry,
-// like Xcode's. isim has no preview canvas: previews compile and type-check, and their content can be built at run time
-// (`_isimMakeContent`), but nothing shows them by itself. Re-exported by UIKit (and so SwiftUI).
+// like Xcode's. isim has no preview canvas: previews compile and type-check, their content can be built at run time
+// (`_isimMakeContent`), and `isim preview` renders one (UIKit's preview mode). Re-exported by UIKit (and so SwiftUI).
 import CoreGraphics
 
 /// One `#Preview`: its name, traits and content (a SwiftUI view, a UIView or a UIViewController).
@@ -12,6 +12,8 @@ public struct Preview {
     public let name: String?
     public let traits: [PreviewTrait<ViewTraits>]
     let content: @MainActor () -> Any
+    /// isim: makes a view controller showing the content (SwiftUI sets it for views; UIKit wraps UIViews itself)
+    public var _isimController: (@MainActor () -> AnyObject)? = nil
 
     /// isim: what the `#Preview` expansions build (SwiftUI and UIKit add typed initializers).
     public init(_isimName name: String?, traits: [PreviewTrait<ViewTraits>], content: @escaping @MainActor () -> Any) {
@@ -22,7 +24,7 @@ public struct Preview {
     @MainActor public func _isimMakeContent() -> Any { content() }
 }
 
-/// A preview trait (`.landscapeLeft`, `.sizeThatFitsLayout`, ...). isim records it; nothing renders previews.
+/// A preview trait (`.landscapeLeft`, `.sizeThatFitsLayout`, ...); `isim preview` applies the layouts.
 public struct PreviewTrait<T> {
     public enum _Kind: Equatable {
         case orientation(String), sizeThatFitsLayout, defaultLayout, fixedLayout(width: CGFloat, height: CGFloat)
