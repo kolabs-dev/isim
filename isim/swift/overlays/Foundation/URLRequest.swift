@@ -25,6 +25,11 @@ public let NSURLErrorFileDoesNotExist = -1100
 public let NSURLErrorFileIsDirectory = -1101
 public let NSURLErrorSecureConnectionFailed = -1200
 public let NSURLErrorServerCertificateUntrusted = -1202
+public let NSURLErrorServerCertificateHasBadDate = -1201
+public let NSURLErrorServerCertificateHasUnknownRoot = -1203
+public let NSURLErrorServerCertificateNotYetValid = -1204
+public let NSURLErrorClientCertificateRejected = -1205
+public let NSURLErrorClientCertificateRequired = -1206
 public let NSURLErrorCannotWriteToFile = -3003
 
 public struct URLError: Error, CustomNSError, LocalizedError, Hashable, @unchecked Sendable {

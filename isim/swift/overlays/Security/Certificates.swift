@@ -122,10 +122,11 @@ final class _TrustState {
     init(certificates: [SecCertificate], policies: [SecPolicy]) { self.certificates = certificates; self.policies = policies }
 }
 extension SecTrust {
-    /// the certificate state; an HTTPS challenge's trust (host only) gets an empty state with an SSL policy for the host
+    /// the certificate state; an HTTPS challenge's trust gets the server's certificates (when URLSession could read
+    /// them) with an SSL policy for the host
     var state: _TrustState {
         if let s = _isimState as? _TrustState { return s }
-        let s = _TrustState(certificates: [], policies: [SecPolicyCreateSSL(true, _host as CFString)])
+        let s = _TrustState(certificates: _isimChain.compactMap { SecCertificate(der: $0) }, policies: [SecPolicyCreateSSL(true, _host as CFString)])
         _isimState = s
         return s
     }
@@ -291,6 +292,24 @@ public func SecIdentityCopyCertificate(_ identityRef: SecIdentity, _ certificate
 }
 public func SecIdentityCopyPrivateKey(_ identity: SecIdentity, _ privateKeyRef: UnsafeMutablePointer<SecKey?>) -> OSStatus {
     privateKeyRef.pointee = identity.key; return errSecSuccess
+}
+
+/// A client-certificate credential for URLSession: the identity's certificate and `certificates` (intermediates) with
+/// its private key, as the PEM that libcurl presents to the server.
+extension URLCredential {
+    public convenience init(identity: SecIdentity, certificates: [Any]?, persistence: URLCredential.Persistence) {
+        func pem(_ label: String, _ der: [UInt8]) -> String {
+            "-----BEGIN \(label)-----\n" + Data(der).base64EncodedString(options: .lineLength64Characters) + "\n-----END \(label)-----\n"
+        }
+        var text = pem("CERTIFICATE", identity.certificate.der)
+        for c in certificates ?? [] { if let c = c as? SecCertificate, c != identity.certificate { text += pem("CERTIFICATE", c.der) } }
+        var key = [UInt8](repeating: 0, count: 8192), n = key.count
+        let k = identity.key
+        if k.raw.withUnsafeBufferPointer({ r in key.withUnsafeMutableBufferPointer { isim_pki_key_der(k.type, r.baseAddress!, r.count, $0.baseAddress, &n) } }) == 1 {
+            text += pem(k.type == 1 ? "EC PRIVATE KEY" : "RSA PRIVATE KEY", Array(key[0..<n]))
+        }
+        self.init(_isimIdentity: identity, certificates: certificates, pem: Array(text.utf8), persistence: persistence)
+    }
 }
 
 public let kSecImportExportPassphrase: CFString = "passphrase" as CFString

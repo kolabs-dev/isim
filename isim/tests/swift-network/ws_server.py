@@ -7,8 +7,8 @@ GET /ws          the scenarios below; the client's frames must be masked (else c
 GET /refuse      403 instead of the upgrade
 
 Text messages on /ws:
-  "headers?"     -> "x-isim=<X-Isim header> proto=<Sec-WebSocket-Protocol> query=<the request's query>" (the server
-                    accepts the first protocol)
+  "headers?"     -> "x-isim=<X-Isim header> proto=<the protocol chosen> query=<the request's query>" (the server
+                    chooses the first protocol it speaks, "chat" or "superchat", of those the client offers)
   "fragment"     -> a ping, then "frag-1 frag-2 frag-3" in three fragments with a ping between them
   "pongs?"       -> "pongs: <n>" (pongs received for the server's pings, with the right payloads)
   "big"          -> a 70000-byte binary message (64-bit length)
@@ -58,7 +58,8 @@ def serve(conn):
         conn.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
         return
     accept = base64.b64encode(hashlib.sha1((headers["sec-websocket-key"] + GUID).encode()).digest()).decode()
-    proto = headers.get("sec-websocket-protocol", "").split(",")[0].strip()
+    offered = [p.strip() for p in headers.get("sec-websocket-protocol", "").split(",")]
+    proto = next((p for p in offered if p in ("chat", "superchat")), "")
     conn.sendall(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
                   f"Sec-WebSocket-Accept: {accept}\r\n" + (f"Sec-WebSocket-Protocol: {proto}\r\n" if proto else "") +
                   "\r\n").encode())

@@ -64,8 +64,17 @@ open class URLSessionWebSocketTask: URLSessionTask, @unchecked Sendable {
                 headers.append("Cookie: " + cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; "))
             }
         }
-        var err: Int32 = 0
-        let ws = isim_ws_open(url.absoluteString, headers.joined(separator: "\n"), originalRequest?.timeoutInterval ?? 60, &err)
+        var err: Int32 = 0, head: UnsafeMutablePointer<CChar>? = nil
+        let ws = isim_ws_open_ex(url.absoluteString, headers.joined(separator: "\n"), originalRequest?.timeoutInterval ?? 60, &err, &head)
+        // the server's response (101, or the refusal), and the subprotocol it chose
+        var negotiated: String? = nil
+        if let head {
+            let raw = String(cString: head); free(head)
+            let status = raw.split(separator: " ", maxSplits: 2).dropFirst().first.flatMap { Int($0) } ?? 0
+            let (version, fields) = URLSessionTask._parseHeaders(raw)
+            negotiated = fields.first { $0.0.caseInsensitiveCompare("Sec-WebSocket-Protocol") == .orderedSame }?.1
+            _setResponse(HTTPURLResponse(_url: url, statusCode: status, httpVersion: version ?? "HTTP/1.1", headers: fields))
+        }
         _lock.lock()
         if let ws, _cancelled { isim_ws_close(ws); _lock.unlock(); _openSignal.signal(); _finish(nil); return }
         _ws = ws; _opened = ws != nil
@@ -73,9 +82,8 @@ open class URLSessionWebSocketTask: URLSessionTask, @unchecked Sendable {
         _lock.unlock()
         _openSignal.signal()
         guard let ws else { _failAll(_openError!); _finish(_openError); return }
-        _setResponse(HTTPURLResponse(_url: url, statusCode: 101, httpVersion: "HTTP/1.1", headers: []))
         if let d = _sessionTaskDelegate as? URLSessionWebSocketDelegate {
-            let proto = originalRequest?.value(forHTTPHeaderField: "Sec-WebSocket-Protocol")?.split(separator: ",").first.map { $0.trimmingCharacters(in: .whitespaces) }
+            let proto = negotiated
             _session.delegateQueue.addOperation { d.urlSession(self._session, webSocketTask: self, didOpenWithProtocol: proto) }
         }
         // reader

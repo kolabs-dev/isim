@@ -5,6 +5,7 @@
 import Foundation
 import Combine
 import Network
+import Security
 
 nonisolated(unsafe) var failures = 0, checks = 0
 let checkLock = NSLock()
@@ -166,8 +167,10 @@ func webSocketChecks(base: String, what: String) async {
     func bytes(_ m: URLSessionWebSocketTask.Message?) -> Data? { if case .data(let d)? = m { return d }; return nil }
     var req = URLRequest(url: URL(string: "\(base)/ws?client=isim")!)
     req.setValue("hello", forHTTPHeaderField: "X-Isim")
-    req.setValue("chat, superchat", forHTTPHeaderField: "Sec-WebSocket-Protocol")
+    req.setValue("v9.unknown, chat, superchat", forHTTPHeaderField: "Sec-WebSocket-Protocol")
     let task = URLSession.shared.webSocketTask(with: req)
+    let opened = WebSocketOpenDelegate()
+    task.delegate = opened
     task.resume()
     do {
         try await task.send(.string("hello isim"))
@@ -175,6 +178,10 @@ func webSocketChecks(base: String, what: String) async {
         try await task.send(.string("headers?"))
         let h = text(try await task.receive())
         check(h == "x-isim=hello proto=chat query=client=isim", "\(what): request headers, Sec-WebSocket-Protocol and the query reach the server (\(h ?? "nil"))")
+        _ = opened.done.wait(timeout: .now() + 5)
+        let http = task.response as? HTTPURLResponse
+        check(opened.proto == "chat" && http?.statusCode == 101 && http?.value(forHTTPHeaderField: "Sec-WebSocket-Protocol") == "chat",
+              "\(what): didOpenWithProtocol reports the subprotocol the server chose, and the task's response is its 101 (\(opened.proto ?? "nil"), \(http?.statusCode ?? 0))")
         try await task.send(.data(Data([0, 1, 2, 254, 255])))
         check(bytes(try await task.receive()) == Data([0, 1, 2, 254, 255]), "\(what): binary message echo")
         try await task.send(.string("fragment"))
@@ -199,6 +206,68 @@ func webSocketChecks(base: String, what: String) async {
     refused.resume()
     do { _ = try await refused.receive(); check(false, "\(what): a refused upgrade fails") }
     catch { check(code(error) == NSURLErrorBadServerResponse, "\(what): a refused upgrade fails with badServerResponse (\(code(error)))") }
+    check((refused.response as? HTTPURLResponse)?.statusCode == 403, "\(what): a refused upgrade's task has the server's response (\((refused.response as? HTTPURLResponse)?.statusCode ?? 0))")
+}
+
+final class WebSocketOpenDelegate: NSObject, URLSessionWebSocketDelegate, @unchecked Sendable {
+    var proto: String?
+    let done = DispatchSemaphore(value: 0)
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) { proto = `protocol`; done.signal() }
+}
+
+/// Server trust with the server's certificate chain (pinning) and client certificates, against https_server.py
+final class TLSDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    let pinned: Data
+    let identity: SecIdentity?
+    var chain: [SecCertificate] = [], trusted = false, clientChallenges = 0, names = -1
+    init(pinned: Data, identity: SecIdentity?) { self.pinned = pinned; self.identity = identity }
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let space = challenge.protectionSpace
+        if space.authenticationMethod == NSURLAuthenticationMethodServerTrust, let trust = space.serverTrust {
+            chain = (SecTrustCopyCertificateChain(trust) as? [SecCertificate]) ?? []
+            trusted = SecTrustEvaluateWithError(trust, nil)
+            if chain.first.map({ SecCertificateCopyData($0) as Data }) == pinned { completionHandler(.useCredential, URLCredential(trust: trust)) }
+            else { completionHandler(.cancelAuthenticationChallenge, nil) }
+        } else if space.authenticationMethod == NSURLAuthenticationMethodClientCertificate {
+            clientChallenges += 1; names = space.distinguishedNames?.count ?? -1
+            if let identity { completionHandler(.useCredential, URLCredential(identity: identity, certificates: nil, persistence: .forSession)) }
+            else { completionHandler(.performDefaultHandling, nil) }
+        } else { completionHandler(.performDefaultHandling, nil) }
+    }
+}
+
+func tlsChecks(env: [String: String]) async {
+    guard let port = env["ISIM_TEST_HTTPS_PORT"], let mtls = env["ISIM_TEST_HTTPS_MTLS_PORT"],
+          let der = env["ISIM_TEST_HTTPS_CERT"].flatMap({ Data(base64Encoded: $0) }),
+          let p12 = env["ISIM_TEST_CLIENT_P12"].flatMap({ FileManager.default.contents(atPath: $0) }) else {
+        check(false, "HTTPS test servers (ISIM_TEST_HTTPS_*; run through test_swift_network.py)"); return
+    }
+    var items: CFArray?
+    let st = SecPKCS12Import(p12 as CFData, [kSecImportExportPassphrase as String: "isim"] as CFDictionary, &items)
+    let identity = ((items as? [[String: Any]])?.first?[kSecImportItemIdentity as String]).map { $0 as! SecIdentity }
+    check(st == errSecSuccess && identity != nil, "client identity from PKCS#12 (\(st))")
+    func get(_ url: String, _ d: TLSDelegate) async -> (String?, Int) {
+        let s = URLSession(configuration: .ephemeral, delegate: d, delegateQueue: nil)
+        defer { s.invalidateAndCancel() }
+        do { let (data, _) = try await s.data(from: URL(string: url)!); return (String(decoding: data, as: UTF8.self), 0) }
+        catch { return (nil, code(error)) }
+    }
+    let pin = TLSDelegate(pinned: der, identity: nil)
+    let (body, _) = await get("https://localhost:\(port)/", pin)
+    check(body == "client=none" && pin.chain.count >= 1 && pin.trusted && pin.clientChallenges == 0,
+          "server trust: the challenge's SecTrust holds the server's certificate (pinned) and evaluates (\(body ?? "nil"), \(pin.chain.count) certificates)")
+    let wrong = TLSDelegate(pinned: Data([1, 2, 3]), identity: nil)
+    let (_, wrongCode) = await get("https://localhost:\(port)/", wrong)
+    check(wrongCode == NSURLErrorCancelled, "server trust: a certificate that does not match the pin is cancelled (\(wrongCode))")
+    let client = TLSDelegate(pinned: der, identity: identity)
+    let (who, _) = await get("https://localhost:\(mtls)/", client)
+    check(who == "client=isim-client" && client.clientChallenges == 1 && client.names >= 0,
+          "client certificate: a client-certificate challenge (with distinguishedNames) that URLCredential(identity:) answers (\(who ?? "nil"), names \(client.names))")
+    let none = TLSDelegate(pinned: der, identity: nil)
+    let (_, noneCode) = await get("https://localhost:\(mtls)/", none)
+    check(none.clientChallenges == 1 && noneCode == NSURLErrorClientCertificateRequired,
+          "client certificate: without one the server's refusal is clientCertificateRequired (\(noneCode))")
 }
 
 @main struct Main {
@@ -434,6 +503,46 @@ func webSocketChecks(base: String, what: String) async {
             catch { check((error as? URLError)?.code == .resourceUnavailable, ".returnCacheDataDontLoad without a cached response fails") }
         } catch { check(false, "cache threw \(error)") }
 
+        // MARK: URLCache on disk
+        do {
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("urlcache-\(ProcessInfo.processInfo.processIdentifier)")
+            try? FileManager.default.removeItem(at: dir)
+            let req = URLRequest(url: URL(string: "http://cache.invalid/item")!)
+            let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                                       headerFields: ["Content-Type": "text/plain", "Cache-Control": "max-age=60"])!
+            let c1 = URLCache(memoryCapacity: 0, diskCapacity: 1 << 20, directory: dir)
+            c1.storeCachedResponse(CachedURLResponse(response: resp, data: Data("cached body".utf8)), for: req)
+            check(c1.currentDiskUsage > 0 && c1.currentMemoryUsage == 0, "URLCache writes responses to its directory (disk \(c1.currentDiskUsage), memory \(c1.currentMemoryUsage))")
+            let c2 = URLCache(memoryCapacity: 1 << 20, diskCapacity: 1 << 20, directory: dir)
+            let got = c2.cachedResponse(for: req), gotHTTP = got?.response as? HTTPURLResponse
+            check(got.map { String(decoding: $0.data, as: UTF8.self) } == "cached body" && gotHTTP?.statusCode == 200 &&
+                  gotHTTP?.value(forHTTPHeaderField: "cache-control") == "max-age=60" && gotHTTP?.mimeType == "text/plain",
+                  "another URLCache on the same directory reads the response back (a relaunch)")
+            let memReq = URLRequest(url: URL(string: "http://cache.invalid/memory")!)
+            c2.storeCachedResponse(CachedURLResponse(response: resp, data: Data("m".utf8), userInfo: nil, storagePolicy: .allowedInMemoryOnly), for: memReq)
+            let c3 = URLCache(memoryCapacity: 1 << 20, diskCapacity: 1 << 20, directory: dir)
+            check(c2.cachedResponse(for: memReq) != nil && c3.cachedResponse(for: memReq) == nil, ".allowedInMemoryOnly responses are not written to disk")
+            let small = URLCache(memoryCapacity: 0, diskCapacity: 8000, directory: dir.appendingPathComponent("small"))
+            for i in 0..<40 {
+                small.storeCachedResponse(CachedURLResponse(response: resp, data: Data(repeating: UInt8(i), count: 100)),
+                                          for: URLRequest(url: URL(string: "http://cache.invalid/lru/\(i)")!))
+            }
+            check(small.currentDiskUsage <= 8000 && small.cachedResponse(for: URLRequest(url: URL(string: "http://cache.invalid/lru/0")!)) == nil &&
+                  small.cachedResponse(for: URLRequest(url: URL(string: "http://cache.invalid/lru/39")!)) != nil,
+                  "a full disk cache drops the least recently used responses (\(small.currentDiskUsage) bytes)")
+            // URLSession through a disk cache, then a new session and cache on the same directory without the network
+            let cfg = URLSessionConfiguration.default; cfg.urlCache = URLCache(memoryCapacity: 0, diskCapacity: 1 << 20, directory: dir)
+            let (a, _) = try await URLSession(configuration: cfg).data(from: URL(string: base + "/fresh")!)
+            let cfg2 = URLSessionConfiguration.default; cfg2.urlCache = URLCache(memoryCapacity: 0, diskCapacity: 1 << 20, directory: dir)
+            var offline = URLRequest(url: URL(string: base + "/fresh")!); offline.cachePolicy = .returnCacheDataDontLoad
+            let (b, _) = try await URLSession(configuration: cfg2).data(for: offline)
+            check(a == b && !a.isEmpty, "a URLSession response cached on disk is served to a later session (\(String(decoding: b, as: UTF8.self)))")
+            c2.removeAllCachedResponses()
+            let c4 = URLCache(memoryCapacity: 0, diskCapacity: 1 << 20, directory: dir)
+            check(c4.cachedResponse(for: req) == nil && c4.currentDiskUsage == 0, "removeAllCachedResponses empties the directory")
+            try? FileManager.default.removeItem(at: dir)
+        } catch { check(false, "disk cache threw \(error)") }
+
         // MARK: delegates
         let dq = OperationQueue(); dq.maxConcurrentOperationCount = 1
         let dd = DataDelegate(queue: dq)
@@ -512,6 +621,7 @@ func webSocketChecks(base: String, what: String) async {
         } else { check(false, "WebSocket server port (ISIM_TEST_WS_PORT; run through test_swift_network.py)") }
         if let port = env["ISIM_TEST_WSS_PORT"] {                  // TLS: a throwaway certificate for localhost (SSL_CERT_FILE)
             await webSocketChecks(base: "wss://localhost:\(port)", what: "wss")
+            await tlsChecks(env: env)
         }
         if let port = env["ISIM_TEST_WSS_PORT"], let p = Int(port) { tlsStreamCheck(port: p) }
 
