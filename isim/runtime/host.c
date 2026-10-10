@@ -398,16 +398,18 @@ static void rounded(double x, double y, double w, double h, double r) {
     double c[4] = { r, r, r, r };
     isim_path_corners(x, y, w, h, c);
 }
-void isim_gfx_clip_rounded(double x, double y, double w, double h, double r) { rounded(x, y, w, h, r); cairo_clip(cr); }
+/* each starts a new path: isim_path_fill / isim_path_stroke keep theirs (preserve) */
+void isim_gfx_clip_rounded(double x, double y, double w, double h, double r) { cairo_new_path(cr); rounded(x, y, w, h, r); cairo_clip(cr); }
 void isim_gfx_fill_rounded(double x, double y, double w, double h, double r, const double *rgba) {
-    rounded(x, y, w, h, r); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
+    cairo_new_path(cr); rounded(x, y, w, h, r); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
 }
 void isim_gfx_stroke_rounded(double x, double y, double w, double h, double r, double lw, const double *rgba) {
+    cairo_new_path(cr);
     rounded(x + lw / 2, y + lw / 2, w - lw, h - lw, r - lw / 2);
     cairo_set_line_width(cr, lw); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_stroke(cr);
 }
 void isim_gfx_fill_ellipse(double x, double y, double w, double h, const double *rgba) {
-    cairo_save(cr); cairo_translate(cr, x + w / 2, y + h / 2); cairo_scale(cr, w / 2, h / 2);
+    cairo_new_path(cr); cairo_save(cr); cairo_translate(cr, x + w / 2, y + h / 2); cairo_scale(cr, w / 2, h / 2);
     cairo_arc(cr, 0, 0, 1, 0, 2 * M_PI); cairo_restore(cr);
     cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
 }

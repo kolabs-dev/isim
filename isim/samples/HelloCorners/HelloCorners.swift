@@ -1,6 +1,7 @@
 // Sample: corner curves on isim (UIKit / Core Animation) — CALayer.cornerCurve .circular (the default) next to
 // .continuous (Apple's "squircle" corners, which ease into the straight edges), on standalone layers and on views,
-// with masksToBounds and a border; and a capsule, which stays circular whatever the curve.
+// with masksToBounds and a border; and a capsule, which stays circular whatever the curve (and keeps its own colour
+// when drawn after the views).
 import UIKit
 
 func log(_ s: String) { print("hco \(s)") }
