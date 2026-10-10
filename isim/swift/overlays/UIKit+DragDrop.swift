@@ -413,6 +413,7 @@ final class _IsimDragController {
     @MainActor static func begin(at p: CGPoint, in w: UIWindow, source: _IsimSourceKind, view: UIView) {
         var items: [UIDragItem] = []
         var liftView: UIView = view
+        var targeted: UITargetedDragPreview?
         var src: Source
         var ip: IndexPath?
         let session = _IsimDragSession(items: [])
@@ -421,7 +422,7 @@ final class _IsimDragController {
         case .interaction(let i):
             src = .interaction(i)
             items = i.delegate?.dragInteraction(i, itemsForBeginning: session) ?? []
-            if let first = items.first, let tp = i.delegate?.dragInteraction(i, previewForLifting: first, session: session) { liftView = tp.view }
+            if let first = items.first, let tp = i.delegate?.dragInteraction(i, previewForLifting: first, session: session) { liftView = tp.view; targeted = tp }
         case .list(let lv):
             src = .list(lv)
             if let tv = lv as? UITableView, tv.dragInteractionEnabled, let d = tv.dragDelegate, let idx = tv.indexPathForRow(at: tv.convert(p, from: w)) {
@@ -452,11 +453,20 @@ final class _IsimDragController {
         dw.windowLevel = UIWindow.Level(rawValue: 14_000_000)
         dw.backgroundColor = .clear
         dw.isUserInteractionEnabled = false
-        let frame = liftView.convert(liftView.bounds, to: w)
-        let snap = liftView.snapshotView(afterScreenUpdates: false) ?? UIView()
+        var frame = liftView.convert(liftView.bounds, to: w)
+        let snap: UIView
+        if liftView.window == nil, let tp = targeted {
+            // a preview view that is not on screen (a custom drag preview): itself, centred on its target
+            let size = tp.view.bounds.size == .zero ? tp.view.sizeThatFits(w.bounds.size) : tp.view.bounds.size
+            let c = tp.target.container.convert(tp.target.center, to: w)
+            frame = CGRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height)
+            snap = tp.view
+        } else {
+            snap = liftView.snapshotView(afterScreenUpdates: false) ?? UIView()
+        }
         snap.frame = frame
         snap.layer.shadowColor = UIColor.black.cgColor; snap.layer.shadowOpacity = 0.25; snap.layer.shadowRadius = 10; snap.layer.shadowOffset = CGSize(width: 0, height: 6)
-        snap.accessibilityIdentifier = "isim-drag-preview"
+        if snap.accessibilityIdentifier == nil { snap.accessibilityIdentifier = "isim-drag-preview" }
         dw.addSubview(snap)
         dw.isHidden = false
         UIView.animate(withDuration: 0.15) { snap.transform = CGAffineTransform(scaleX: 1.05, y: 1.05) }

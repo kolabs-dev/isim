@@ -8,8 +8,24 @@ nonisolated(unsafe) private var kSUIDrag: UInt8 = 0, kSUIDrop: UInt8 = 0
 
 final class _SUIDragSource: NSObject, UIDragInteractionDelegate {
     var make: () -> NSItemProvider
+    /// a custom preview (`preview:`): a SwiftUI view shown under the finger instead of the view itself
+    var preview: (@MainActor () -> AnyView)?
+    var previewHost: UIViewController?                     // (keeps the preview's hosting controller alive)
     init(_ make: @escaping () -> NSItemProvider) { self.make = make }
     func dragInteraction(_ interaction: UIDragInteraction, itemsForBeginning session: UIDragSession) -> [UIDragItem] { [UIDragItem(itemProvider: make())] }
+    func dragInteraction(_ interaction: UIDragInteraction, previewForLifting item: UIDragItem, session: UIDragSession) -> UITargetedDragPreview? {
+        guard let make = preview, let source = interaction.view else { return nil }
+        return MainActor.assumeIsolated {
+            let host = UIHostingController(rootView: make())
+            previewHost = host
+            let size = host.sizeThatFits(in: CGSize(width: 400, height: 400))
+            host.view.frame = CGRect(origin: .zero, size: size)
+            host.view.backgroundColor = .clear
+            host.view.accessibilityIdentifier = "isim-drag-custom-preview"
+            let target = UIPreviewTarget(container: source, center: CGPoint(x: source.bounds.midX, y: source.bounds.midY))
+            return UITargetedDragPreview(view: host.view, parameters: UIDragPreviewParameters(), target: target)
+        }
+    }
 }
 final class _SUIDropTarget: NSObject, UIDropInteractionDelegate {
     var types: [UTType]
@@ -27,9 +43,10 @@ final class _SUIDropTarget: NSObject, UIDropInteractionDelegate {
     }
 }
 
-@MainActor func _installDrag(_ v: UIView, _ make: @escaping () -> NSItemProvider) {
-    if let src = objc_getAssociatedObject(v, &kSUIDrag) as? _SUIDragSource { src.make = make; return }
+@MainActor func _installDrag(_ v: UIView, _ make: @escaping () -> NSItemProvider, preview: (@MainActor () -> AnyView)? = nil) {
+    if let src = objc_getAssociatedObject(v, &kSUIDrag) as? _SUIDragSource { src.make = make; src.preview = preview; return }
     let src = _SUIDragSource(make)
+    src.preview = preview
     objc_setAssociatedObject(v, &kSUIDrag, src, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
     v.addInteraction(UIDragInteraction(delegate: src))
     v.isUserInteractionEnabled = true
@@ -62,7 +79,11 @@ extension View {
     public func onDrag(_ data: @escaping () -> NSItemProvider) -> some View {
         _accessibility(deepest: false) { v in _installDrag(v, data) }
     }
-    public func onDrag<V: View>(_ data: @escaping () -> NSItemProvider, preview: () -> V) -> some View { onDrag(data) }
+    /// With a custom drag preview (the view shown under the finger).
+    public func onDrag<V: View>(_ data: @escaping () -> NSItemProvider, preview: () -> V) -> some View {
+        let p = AnyView(preview())
+        return _accessibility(deepest: false) { v in _installDrag(v, data, preview: { p }) }
+    }
     public func onDrop(of types: [UTType], isTargeted: Binding<Bool>?, perform action: @escaping ([NSItemProvider]) -> Bool) -> some View {
         onDrop(of: types, isTargeted: isTargeted) { providers, _ in action(providers) }
     }
@@ -77,7 +98,7 @@ extension View {
         onDrag { _provider(payload()) }
     }
     public func draggable<T: Transferable, V: View>(_ payload: @autoclosure @escaping () -> T, preview: () -> V) -> some View {
-        onDrag { _provider(payload()) }
+        onDrag({ _provider(payload()) }, preview: preview)
     }
     public func dropDestination<T: Transferable>(for payloadType: T.Type = T.self, action: @escaping ([T], CGPoint) -> Bool,
                                                 isTargeted: @escaping (Bool) -> Void = { _ in }) -> some View {

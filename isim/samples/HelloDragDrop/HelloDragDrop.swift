@@ -1,6 +1,7 @@
 // Sample: drag and drop on isim — a UIDragInteraction source, a UIDropInteraction target that loads the dropped
 // string, a UITableView reordered by dragging (dragDelegate/dropDelegate + the data source's move) that also accepts
-// dropped text (performDrop inserts a row), and SwiftUI's .draggable / .dropDestination. Long press (0.5 s) lifts.
+// dropped text (performDrop inserts a row), and SwiftUI's .draggable (with a custom preview) / .dropDestination.
+// Long press (0.5 s) lifts.
 import UIKit
 import SwiftUI
 
@@ -20,7 +21,9 @@ struct SwiftUIDrops: View {
     @State var targeted = false
     var body: some View {
         VStack(spacing: 16) {
-            Text("SwiftUI tag").padding(10).background(Color.orange.opacity(0.3)).draggable("SwiftUI tag").accessibilityIdentifier("swiftui-source")
+            Text("SwiftUI tag").padding(10).background(Color.orange.opacity(0.3)).draggable("SwiftUI tag") {
+                Text("Moving tag").padding(8).background(Color.yellow).accessibilityIdentifier("custom-preview")
+            }.accessibilityIdentifier("swiftui-source")
             RoundedRectangle(cornerRadius: 12).fill(targeted ? Color.green.opacity(0.4) : Color.gray.opacity(0.2))
                 .frame(height: 100)
                 .overlay(Text(dropped.isEmpty ? "Drop here" : dropped.joined(separator: ", ")))

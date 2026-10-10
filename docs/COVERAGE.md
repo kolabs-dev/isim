@@ -749,7 +749,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 |---|---|---|---|
 | `accessibilityIdentifier` | ✅ | ≤17 | |
 | `accessibilityLabel` | ✅ | ≤17 | stored on the UIKit view |
-| `.draggable`, `.dropDestination`, `.onDrag`, `.onDrop` | 🟡 | ≤17 | Transferable payloads / NSItemProviders through UIDragInteraction/UIDropInteraction (long press to lift); `isTargeted`; tested (HelloDragDrop: String draggable → dropDestination). Custom previews ignored |
+| `.draggable`, `.dropDestination`, `.onDrag`, `.onDrop` | ✅ | ≤17 | Transferable payloads / NSItemProviders through UIDragInteraction/UIDropInteraction (long press to lift); `isTargeted`; `preview:` views lift under the finger instead of the view (the lifting preview, see UIKit's `previewForLifting`). Tested (HelloDragDrop: String draggable with a custom preview → dropDestination) |
 | `accessibilityHint`, `accessibilityHidden` | ✅ | ≤17 | set on the mounted UIKit view; VoiceOver reads hints and skips hidden views; tested (HelloAccessibility) |
 | `accessibilityValue`, `accessibilityAddTraits`, `accessibilityElement(children:)`, `accessibilityAction`, `accessibilityAdjustableAction`, `accessibilitySortPriority` | ✅ | ≤17 | feed the UIKit accessibility tree (value, traits, `.combine`/`.ignore` label from the children's text, `.contain` grouping, default and named actions, adjustable increments, sort priority); tested (HelloAccessibility: value, header trait, combine, adjustable, hidden; HelloSwiftUIControls: sort priority, named actions through VoiceOver's action and Actions rotor) |
 
