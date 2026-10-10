@@ -355,7 +355,7 @@ final class _TextNode: _Node {
         l.font = font; l.textColor = color; l.numberOfLines = maxLines ?? 0
         l.adjustsFontSizeToFitWidth = minimumScale < 1; l.minimumScaleFactor = minimumScale
         l.allowsDefaultTighteningForTruncation = tightening          // allowsTightening
-        l.textAlignment = alignment == .center ? .center : alignment == .trailing ? .right : .left
+        l.textAlignment = alignment == .center ? .center : (alignment == .trailing) != isRTL ? .right : .left
         return l
     }
 }

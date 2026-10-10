@@ -323,3 +323,26 @@ def test_hover_effect_ipad(launch):
     app.send("hover 50 50")
     app.wait_view(r"id=isim-pointer-effect\b", gone=True)
     assert app.quit() == 0, "exits cleanly"
+
+
+@pytest.mark.parametrize("app_rtl", [False, True])
+def test_right_to_left(launch, app_rtl):
+    """Right to left: stacks run right to left, leading alignment and padding are on the right, text aligns right —
+    app-wide (Xcode's right-to-left pseudolanguage) and in a subtree (.environment(\\.layoutDirection, .rightToLeft))."""
+    args = ["-AppleTextDirection", "YES"] if app_rtl else []
+    app = launch("HelloSwiftUIControls", env={"PAGE": "rtl"}, args=args)
+    dump = app.wait_view(r"id=flipped-direction")
+    app.wait_still()
+    img = app.screenshot("rtl-app" if app_rtl else "rtl")
+    assert app.quit() == 0, "exits cleanly"
+    for tag, rtl in (("app", app_rtl), ("flipped", True)):
+        a, b = window_rect(dump, f"{tag}-a"), window_rect(dump, f"{tag}-b")
+        assert (a[0] > b[0]) == rtl, f"{tag}: the stack runs {'right to left' if rtl else 'left to right'} ({a} {b})"
+        assert f"id={tag}-direction text=direction {'rtl' if rtl else 'ltr'}" in dump, "\\.layoutDirection"
+        tx, ty, tw, th = window_rect(dump, f"{tag}-text")
+        ink = [x for x in range(int(tx), int(tx + tw)) if any(sum(img.getpixel((x, y))[:3]) < 300 for y in range(int(ty), int(ty + th)))]
+        assert (ink[0] > tx + tw / 3) == rtl, f"{tag}: leading text on the {'right' if rtl else 'left'}"
+        px, py, pw, ph = window_rect(dump, f"{tag}-padded")
+        blue = [x for x in range(int(px), int(px + pw)) if (lambda c: c[2] > 200 and c[0] < 60)(img.getpixel((x, int(py + ph / 2)))[:3])]
+        edge = (px + pw - blue[-1]) if rtl else (blue[0] - px)
+        assert abs(edge - 30) <= 2, f"{tag}: padding(.leading, 30) on the {'right' if rtl else 'left'} ({edge})"

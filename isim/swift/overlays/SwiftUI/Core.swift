@@ -153,6 +153,7 @@ func _typeName(_ t: Any.Type) -> String { String(describing: t) }
 @MainActor func _resolve(_ view: any View, _ ctx: _Context) -> _Node {
     let n = _resolveView(view, ctx)
     n.source = (view, ctx.path)                // the outermost view that made this node (Subviews.swift)
+    n.isRTL = ctx.environment.layoutDirection == .rightToLeft      // (laid out right to left: Graph.mirrorRTL)
     return n
 }
 @MainActor private func _resolveView(_ view: any View, _ ctx: _Context) -> _Node {

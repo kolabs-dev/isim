@@ -216,14 +216,16 @@ final class _LayoutPlacer { var placed: Set<Int> = []; var origin = CGPoint.zero
 
 public struct LayoutSubviews: RandomAccessCollection, Equatable {
     let items: [LayoutSubview]
+    /// the container's direction (SwiftUI mirrors the placements itself: Graph.mirrorRTL)
+    var rtl = false
     public typealias Index = Int
     public typealias Element = LayoutSubview
     public typealias SubSequence = LayoutSubviews
     public var startIndex: Int { 0 }
     public var endIndex: Int { items.count }
     public subscript(i: Int) -> LayoutSubview { items[i] }
-    public subscript(r: Range<Int>) -> LayoutSubviews { LayoutSubviews(items: Array(items[r])) }
-    public var layoutDirection: LayoutDirection { .leftToRight }
+    public subscript(r: Range<Int>) -> LayoutSubviews { LayoutSubviews(items: Array(items[r]), rtl: rtl) }
+    public var layoutDirection: LayoutDirection { rtl ? .rightToLeft : .leftToRight }
     public static func == (a: LayoutSubviews, b: LayoutSubviews) -> Bool { a.items == b.items }
 }
 
@@ -289,7 +291,7 @@ struct _LayoutView<Content: View>: View, _PrimitiveView {
 final class _CustomLayoutNode: _Node {
     let layout: AnyLayout
     let placer = _LayoutPlacer()
-    lazy var subviews = LayoutSubviews(items: children.enumerated().map { LayoutSubview(node: $1, placer: placer, index: $0) })
+    lazy var subviews = LayoutSubviews(items: children.enumerated().map { LayoutSubview(node: $1, placer: placer, index: $0) }, rtl: isRTL)
     lazy var cache: AnyLayout._AnyCache = layout.makeCache(subviews: subviews)
     init(path: String, layout: AnyLayout, children: [_Node]) { self.layout = layout; super.init(path: path, children: children) }
     override func sizeThatFits(_ p: _Proposal) -> CGSize {

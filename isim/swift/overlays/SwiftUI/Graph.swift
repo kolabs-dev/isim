@@ -175,6 +175,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         _containerSizes = []
         extendIntoSafeArea(node, offset: .zero, safe: bounds.inset(by: safeArea), bounds: bounds)
         matchTargets(node)
+        mirrorRTL(node, rtl: false, width: bounds.width)
         fresh = []; mountedViews = []; newMatched = [:]; originShift = [:]; oldSizes = [:]
         let oldTransitions = transitions, oldMatchedKeys = matchedKeys
         transitions = [:]; matchedKeys = [:]
@@ -230,6 +231,16 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         // stacks and other containers splice group children with container-relative frames
         let base = n.transparent ? offset : CGPoint(x: abs.minX, y: abs.minY)
         for c in n.children { extendIntoSafeArea(c, offset: base, safe: safe, bounds: bounds) }
+    }
+
+    /// Right to left: SwiftUI lays out in the leading-to-trailing direction, so in a right-to-left environment each
+    /// container's children are mirrored within it (stacks run right to left, leading alignment and padding are on
+    /// the right, offsets mirror); content drawn by a view (text, images, shapes) is not mirrored.
+    func mirrorRTL(_ n: _Node, rtl parentRTL: Bool, width: CGFloat) {
+        if parentRTL { n.frame.origin.x = width - n.frame.maxX }
+        let w = n.transparent ? width : n.frame.width
+        for c in n.children { mirrorRTL(c, rtl: n.isRTL, width: w) }
+        if let b = (n as? _BackgroundNode)?.background { mirrorRTL(b, rtl: n.isRTL, width: n.frame.width) }
     }
 
     /// matchedGeometryEffect(isSource: false): such views take their source's geometry (both laid out in the host's
@@ -359,6 +370,11 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             matchedKeys[m.viewKey] = m.matchKey
             newMatched[m.matchKey] = parent.convert(node.frame, to: hostView)
         }
+        if node.isRTL != (UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft) {
+            v.semanticContentAttribute = node.isRTL ? .forceRightToLeft : .forceLeftToRight     // UIKit controls inside follow
+        } else if v.semanticContentAttribute == .forceRightToLeft || v.semanticContentAttribute == .forceLeftToRight {
+            v.semanticContentAttribute = .unspecified
+        }
         if let id = node.accessibilityIdentifier { v.accessibilityIdentifier = id }
         if let label = node.accessibilityLabel { v.accessibilityLabel = label }
         for apply in node.accessibilityApply { apply(v) }          // accessibility modifiers (Accessibility.swift)
@@ -384,6 +400,8 @@ extension UIView {
     /// the view this node was resolved from, and where (a Subview resolves it again under another environment)
     var source: (view: any View, path: String)?
     var frame: CGRect = .zero
+    /// in a right-to-left environment: its children are mirrored, leading text aligns right
+    var isRTL = false
     var accessibilityIdentifier: String?
     var accessibilityLabel: String?
     var accessibilityApply: [(UIView) -> Void] = []

@@ -146,8 +146,8 @@ extension EnvironmentValues {
     case .inactive: env.scenePhase = .inactive
     default: env.scenePhase = .background
     }
-    let lang = Bundle.main.preferredLocalizations.first ?? "en"
-    env.layoutDirection = Locale.Language(identifier: lang).characterDirection == .rightToLeft ? .rightToLeft : .leftToRight
+    // the app's direction (its localization, Xcode's right-to-left pseudolanguage, ISIM_LAYOUT_DIRECTION), like UIKit's
+    env.layoutDirection = UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
 }
 
 public struct UnitPoint: Hashable, Sendable {

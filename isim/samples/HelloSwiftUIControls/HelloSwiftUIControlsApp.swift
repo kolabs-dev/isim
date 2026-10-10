@@ -7,7 +7,8 @@
 // PAGE=env: \.isSearching in a searchable list, \.presentationMode / \.isPresented in a sheet.
 // PAGE=ax: accessibilitySortPriority and named accessibility actions (drive it with isim's VoiceOver).
 // PAGE=hover: onHover, onContinuousHover, hoverEffect (drive the pointer with the script's `hover X Y`).
-// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich|env|ax|hover.
+// PAGE=rtl: right-to-left layout — app-wide (-AppleTextDirection YES) and a subtree with .environment(\.layoutDirection).
+// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich|env|ax|hover|rtl.
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -30,6 +31,7 @@ struct Root: View {
         case "env": EnvPage()
         case "ax": AxPage()
         case "hover": HoverPage()
+        case "rtl": RTLPage()
         case "ticks": if #available(iOS 26.0, *) { TicksPage() } else { Text("iOS 26") }
         case "rich": if #available(iOS 26.0, *) { RichPage() } else { Text("iOS 26") }
         default: SymbolsPage()
@@ -328,6 +330,33 @@ struct HoverPage: View {
                 Button("Highlight") {}.hoverEffect(.highlight).accessibilityIdentifier("highlight-button")
                 Button("Lift") {}.hoverEffect(.lift).accessibilityIdentifier("lift-button")
             }
+        }
+    }
+}
+
+struct RTLRow: View {
+    let tag: String
+    @Environment(\.layoutDirection) var direction
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Color.red.frame(width: 40, height: 30).accessibilityIdentifier("\(tag)-a")
+                Color.green.frame(width: 40, height: 30).accessibilityIdentifier("\(tag)-b")
+                Spacer()
+            }
+            Text("Leading text in a wide frame").frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("\(tag)-text")
+            Color.blue.frame(width: 50, height: 20).padding(.leading, 30).frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("\(tag)-padded")
+            Text("direction \(direction == .rightToLeft ? "rtl" : "ltr")").accessibilityIdentifier("\(tag)-direction")
+        }
+        .padding(.horizontal, 20)
+    }
+}
+struct RTLPage: View {
+    var body: some View {
+        VStack(spacing: 40) {
+            RTLRow(tag: "app")
+            RTLRow(tag: "flipped").environment(\.layoutDirection, .rightToLeft)
         }
     }
 }
