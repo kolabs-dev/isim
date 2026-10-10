@@ -6,7 +6,7 @@ import shlex
 import shutil
 import subprocess
 
-from . import act, apps, swift
+from . import act, apps, icons, swift
 from .ninja import Ninja
 
 OUT = "out"
@@ -89,6 +89,11 @@ def host_runtime(c):
     for f in c.glob("fonts/*.ttf") + c.glob("fonts/LICENSE*"):
         spec += ["--file", f, f"{OUT}/share/fonts/{os.path.basename(f)}"]
     targets.append(c.sync(f"{OUT}/stamps/fonts", spec, "fonts"))
+    # the app icon (icons/, README there): hicolor PNGs for the desktop entry (isim desktop install) and the window icon
+    srcs = ["icons/isim.svg", "icons/isim-small.svg"]
+    targets += n.build(icons.outputs(f"{OUT}/share/icons/hicolor"),
+                       ["python3", "buildlib/icons.py", *srcs, f"{OUT}/share/icons/hicolor"],
+                       inputs=srcs, implicit=["buildlib/icons.py"], desc="ICONS")
     n.phony("runtime", targets)
 
 

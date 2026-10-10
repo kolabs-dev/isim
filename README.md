@@ -25,7 +25,10 @@ if the installer says so). Then:
 isim boot
 ```
 
-This opens the device on its home screen, with Settings in the dock. To add the demo apps:
+This opens the device on its home screen, with Settings in the dock. The installer also adds **isim Simulator** to
+your desktop's app launcher (GNOME, KDE, …): open it from there, or pin it to the dock; opening it again brings the
+running device to the front. `--no-desktop` (`… | bash -s -- --no-desktop`) skips that on headless machines;
+`isim desktop uninstall` removes it. To add the demo apps:
 
 ```bash
 isim install ~/.local/lib/isim/current/apps/*.app
@@ -49,6 +52,9 @@ isim install ~/.local/lib/isim/current/apps/*.app
 | `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
 | `isim info App.app` | show Mach-O platform and dependencies |
 | `isim push [BUNDLE_ID] payload.apns\|-` | send a remote notification to the running device, like `xcrun simctl push` (or drop a `.apns` file on it) |
+| `isim send COMMAND…` | send [script commands](docs/SCRIPTING.md) to the running device, e.g. `isim send "tapid login; shot s.png"` |
+| `isim open [--device D] [--os V] [FILE.apns]` | what the app launcher runs: bring the running device to the front, or boot one; an `.apns` file is sent as a push |
+| `isim desktop install` · `isim desktop uninstall` | add or remove isim Simulator in the desktop's app launcher (icon, `.apns` files) |
 | `isim devices` · `isim version` | device presets with the iOS versions each can run; the isim version and supported iOS versions |
 
 **Options** for `boot`, `run` (and `--os`/`--device` for `test`):
@@ -68,8 +74,10 @@ isim install ~/.local/lib/isim/current/apps/*.app
 - F12 takes a screenshot.
 - Device data lives in `~/.local/share/isim` (override with `ISIM_DATA`).
 
-**Automation:** `--headless --script "wait 2; tapid login; shot s.png; quit"` drives the device from tests and CI;
-see [docs/SCRIPTING.md](docs/SCRIPTING.md) for every command. Permission prompts, Face ID, location, microphone
+**Automation:** `--headless --script "wait 2; tapid login; shot s.png; quit"` drives the device from tests and CI,
+and `isim send "…"` sends the same commands to a device that is already running (a window you have open, for
+example); see [docs/SCRIPTING.md](docs/SCRIPTING.md) for every command and [docs/AI-AGENTS.md](docs/AI-AGENTS.md) for
+coding agents. Permission prompts, Face ID, location, microphone
 and logs can be answered or configured with environment variables: see [docs/SYSTEM-PROMPTS.md](docs/SYSTEM-PROMPTS.md).
 
 **Compiling** needs clang/lld 21 or newer (isim's SDK ships libc++ 22; on Ubuntu/Debian get it from [apt.llvm.org](https://apt.llvm.org)). Constant Objective-C literals (clang 23) are supported. Swift needs Docker with the `swift:6.2` image.
@@ -77,7 +85,7 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 ## Documentation
 
 - [Developing with AI agents](docs/AI-AGENTS.md): the build → run → look → fix loop for coding agents, answering prompts headless
-- [Scripting and automation](docs/SCRIPTING.md): script commands, `--control` FIFO, interactive shortcuts
+- [Scripting and automation](docs/SCRIPTING.md): script commands, `isim send` and the control FIFO, interactive shortcuts
 - [System prompts, simulated hardware and logs](docs/SYSTEM-PROMPTS.md): environment variables for permissions, biometrics, location, network, logs
 - [iOS versions](docs/IOS-VERSIONS.md): `--os 17|18|26|27`, device pairing, `#available`, what changes per version (Liquid Glass)
 - [API coverage](docs/COVERAGE.md): what is implemented, per framework and per iOS version
@@ -150,6 +158,7 @@ rows). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 | `isim/tools` | `isim` CLI and Xcode project builder |
 | `isim/samples`, `isim/tests` | demo apps and test suites |
 | `isim/release` | release packaging |
+| `isim/icons`, `isim/fonts` | the app icon (desktop launcher, window); isim's UI fonts |
 | `docs/` | documentation |
 
 ## License

@@ -58,6 +58,7 @@ def package(root, version, ctx):
     os.makedirs(os.path.join(stage, "share/fonts"))                       # isim's UI fonts (OFL)
     for f in glob.glob(os.path.join(root, "fonts/*.ttf")) + [os.path.join(root, "fonts/LICENSE-OFL.txt")]:
         shutil.copy(f, os.path.join(stage, "share/fonts"))
+    shutil.copytree(os.path.join(root, "out/share/icons"), os.path.join(stage, "share/icons"))   # app icon (icons/)
     shutil.copytree(os.path.join(root, "out/swift/resource"), os.path.join(stage, "swift/resource"), symlinks=True)   # isim swiftc
     shutil.copytree(os.path.join(root, "out/swift/host"), os.path.join(stage, "swift/host"), symlinks=True)   # macro plugins
     for a in DEMOS:

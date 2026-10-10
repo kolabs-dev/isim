@@ -26,12 +26,15 @@ This page is for people building **their own apps** with an agent. Working on is
 
    ```markdown
    ## Running the app (isim, iOS simulator for Linux)
-   - Always `export ISIM_DATA=$PWD/.isim-data` first; never use the default device data.
+   - Always `export ISIM_DATA=$PWD/.isim-data` first for your own runs. The default device data is mine: never boot,
+     install into or reset it.
    - Build: `isim build -project MyApp.xcodeproj -scheme MyApp -o build/isim` (last line: `done: <path to .app>`).
    - Test: `isim test -project MyApp.xcodeproj -scheme MyApp` (exit 65 on failures).
    - Look at it: `ISIM_ANIMATIONS=0 isim run <the .app from the done: line> --headless --script "wait 2; dump; shot /tmp/s.png; quit"`,
      then read the dump and the screenshot. Script commands: docs/SCRIPTING.md in the isim repository.
    - Give every control you need to tap an `accessibilityIdentifier`, and use `tapid` rather than coordinates.
+   - When I have the isim window open (my default device data), send it commands with
+     `ISIM_DATA=~/.local/share/isim isim send "…"` (script commands) instead of starting another device.
    - isim is not Apple's simulator. If an iOS API is missing or wrong in isim, do not change the app to avoid it:
      say so (it is a gap in isim, see its docs/COVERAGE.md) and draft an issue for
      https://github.com/kolabs-dev/isim/issues; show it to me before posting it.
@@ -108,25 +111,31 @@ The simulated camera (`ISIM_CAMERA=picture.png`), microphone (`ISIM_AUDIO_INPUT=
 
 ## Sharing a window with a person
 
-A developer often keeps the device window open while the agent works. Start it with a control FIFO:
+A developer often keeps the device window open while the agent works, started from a terminal or from the app
+launcher (isim Simulator, see the README):
 
 ```bash
-isim run build/isim/MyApp.app --control /tmp/isim.ctl     # a window, on the home screen with MyApp open
+isim run build/isim/MyApp.app      # a window, on the home screen with MyApp open
 ```
 
-The agent (or a terminal) then sends the same script commands, one per line:
+The agent (or a terminal) then sends it the same script commands with `isim send`, using the same `ISIM_DATA` as the
+window (the default one when the window came from the launcher):
 
 ```bash
-echo "tapid loginButton" > /tmp/isim.ctl
-rm -f /tmp/v.txt; echo "dump views /tmp/v.txt" > /tmp/isim.ctl     # then wait until /tmp/v.txt exists
-echo "shot /tmp/s.png" > /tmp/isim.ctl
-isim openurl myapp://settings --control /tmp/isim.ctl
+isim send "tapid loginButton"
+rm -f /tmp/v.txt; isim send "dump views /tmp/v.txt"     # then wait until /tmp/v.txt exists
+isim send "shot /tmp/s.png"
+isim openurl myapp://settings
 isim push dev.example.myapp payload.apns
 ```
 
-The FIFO only goes one way: commands get no reply. To read a result, write it to a file (`dump views FILE`,
-`shot FILE`) and wait for the file to appear. After a new build, run `isim run` again: it installs the new bundle
-and opens it.
+Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
+works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file
+(`dump views FILE`, `shot FILE`) and wait for the file to appear. `isim send` fails with a message when no device
+runs on that device data. After a new build, run `isim run` again: it installs the new bundle and opens it.
+
+Do not boot a second device on the same `ISIM_DATA` as the person's window: use `isim send` for that window, or a
+headless run with a device data of your own for checks that should not disturb it.
 
 ## What isim is and is not
 
