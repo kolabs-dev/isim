@@ -68,7 +68,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Dispatch | 6 | 0 | 0 | 0 | 6 | 100% |
 | Objective-C runtime & C library | 18 | 0 | 0 | 0 | 18 | 100% |
 | Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
-| Core Text | 4 | 3 | 0 | 0 | 7 | 79% |
+| Core Text | 7 | 0 | 0 | 0 | 7 | 100% |
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
 | Core Image, ImageIO & Metal | 2 | 1 | 0 | 2 | 5 | 50% |
 | SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **815** | **156** | **22** | **96** | **1089** | **82%** |
+| **All areas** | **818** | **153** | **22** | **96** | **1089** | **82%** |
 
 ### Per iOS version
 
@@ -102,7 +102,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
-| Core Text | 79% (7) | 79% (7) | 79% (7) | 79% (7) |
+| Core Text | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | QuartzCore / Core Animation | 83% (21) | 83% (21) | 83% (21) | 83% (21) |
 | Core Image, ImageIO & Metal | 50% (5) | 50% (5) | 50% (5) | 50% (5) |
 | SpriteKit | 67% (46) | 67% (46) | 67% (46) | 67% (46) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **82%** (1027) | **82%** (1042) | **82%** (1068) | **82%** (1089) |
+| **All areas** | **83%** (1027) | **82%** (1042) | **82%** (1068) | **82%** (1089) |
 
 ---
 
@@ -1091,13 +1091,13 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `CTFont` by name, size, names, metrics, character set | ✅ | ≤17 | unknown names fall back to the system font; iOS font names missing on the host keep their weight/slant on the substitute |
+| `CTFont` by name, size, names, metrics, character set | ✅ | ≤17 | adapted: fontconfig picks the face; metrics (ascent, descent, leading, cap / x height, underline, bounding box, units per em, glyph count, slant angle) are read from that font file with HarfBuzz; `CTFontCopyName`; a UIFont works as a CTFont. Unknown names fall back to the system font; iOS font names missing on the host keep their weight/slant on the substitute (and their name). Tested (HelloCoreText, HelloQuartz) |
 | `CTFontManagerRegisterFontsForURL` | ✅ | ≤17 | process scope |
-| `CTFontDescriptor`, symbolic traits, font features | 🟡 | ≤17 | descriptors are attribute dictionaries; bold/italic/mono traits; OpenType feature tags and a few AAT selectors go to the shaper; glyph advances are estimates; unverified |
-| `CTLine` (create, typographic bounds, offsets/indices, truncation, draw) | ✅ | ≤17 | laid out by Pango (HarfBuzz); tested (HelloQuartz); truncation unverified |
-| `CTRun` (glyphs, positions, advances, string indices, attributes) | 🟡 | ≤17 | runs are Pango glyph items; glyph ids are HarfBuzz's for the substituted font; counts tested (HelloQuartz) |
-| `CTFramesetter` / `CTFrame` (frames in a path's bounding box, line origins, suggest size) | ✅ | ≤17 | rectangular paths only (bounding box); tested (HelloQuartz) |
-| `CTParagraphStyle` | 🟡 | ≤17 | alignment and line spacing; others stored; unverified |
+| `CTFontDescriptor`, symbolic traits, font features | ✅ | ≤17 | adapted: descriptors are attribute dictionaries (name, family, style name, size, traits with weight / width / slant, feature settings, file URL) resolved through fontconfig; matching descriptors list the family's installed faces (closest first; mandatory attributes filter). Traits: bold, italic, condensed / expanded set the face asked for (fontconfig synthesizes a missing bold or oblique); monospace and colour glyphs are read from the face. Glyphs, advances, bounding rects and outlines (`CTFontCreatePathForGlyph`) come from the font file (HarfBuzz), `CTFontDrawGlyphs` draws through Pango. Features: OpenType tags go to the shaper; AAT type/selector pairs map to their OpenType features (ligatures, number spacing and case, fractions, vertical position, slashed zero, case-sensitive forms, small / petite caps, contextual and swash alternates, stylistic sets); exclusive types replace earlier settings; `CTFontCopyFeatures` lists the types whose features the font has. Tested (HelloCoreText) |
+| `CTLine` (create, typographic bounds, offsets/indices, truncation, draw) | ✅ | ≤17 | laid out by Pango (HarfBuzz) at fractional positions; leading and ink bounds from the fonts; truncation by Pango's ellipsis (the truncation token is ignored); `CTLineCreateJustifiedLine` returns the line unchanged. Tested (HelloCoreText, HelloQuartz) |
+| `CTRun` (glyphs, positions, advances, string indices, attributes) | ✅ | ≤17 | adapted: runs are Pango's glyph items (one per font, direction and attribute change) in string order; glyph ids are those of the face Pango used, and the run's `kCTFontAttributeName` is that font (a fallback font for characters the requested one lacks, the 12 pt system font when none was set); right-to-left / non-monotonic status; UTF-16 string indices; base advances and origins; metrics of the run's font; ink bounds; `CTRunDraw` of a glyph range. A line redrawn from its runs with `CTFontDrawGlyphs` matches `CTLineDraw`. `kCTRunDelegateAttributeName` (run delegates) is not supported. Tested (HelloCoreText) |
+| `CTFramesetter` / `CTFrame` (frames in a path's bounding box, line origins, suggest size) | ✅ | ≤17 | adapted: each paragraph (ended by `\n`, `\r`, `\r\n` or U+2029) is laid out on its own with its paragraph style and isim places the lines (see `CTParagraphStyle`); rectangular paths only (bounding box). Tested (HelloCoreText, HelloQuartz) |
+| `CTParagraphStyle` | ✅ | ≤17 | adapted: every specifier is kept and read back (`CTParagraphStyleCreateCopy`, `CTTextTab`). Frames apply alignment (natural follows the paragraph's direction), base writing direction, first-line / head / tail indents, tab stops (left, right, center, decimal: the separator centred on the stop) and the default tab interval, line break modes (word, character, clipping, truncation to one line), line height multiple / minimum / maximum, line spacing (adjustment, minimum / maximum, the deprecated fixed spacing) and paragraph spacing before / after (before applies to the first paragraph too). Lines (`CTLine`) use the tab stops and writing direction. UIKit's `NSParagraphStyle` is read the same way. Line bounds options are stored only. Tested (HelloCoreText) |
 
 ## QuartzCore / Core Animation
 

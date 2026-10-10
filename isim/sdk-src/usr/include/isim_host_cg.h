@@ -59,7 +59,24 @@ void isim_cg_fill_pattern(int handle, double cw, double ch, const double *matrix
 void isim_cg_draw_image_tiled(int handle, double sx, double sy, double sw, double sh, double x, double y, double w, double h, double tw, double th);
 
 /* Core Text: Pango layouts of markup. width 0 = unwrapped; single: 1 one paragraph (CTLine), 2/3/4 one line truncated at start/middle/end */
-struct isim_ct_run { int start, len, glyphs, weight, italic, has_color; double x, width, size, rgba[4]; char family[96]; };
+/* a run: UTF-8 byte range, the font Pango used (family, size, Pango weight / stretch), its metrics, bidi direction;
+ * font is the run's PangoFont, valid while the layout lives (isim_ct_font_retain keeps it) */
+struct isim_ct_run { int start, len, glyphs, weight, italic, has_color; double x, width, size, rgba[4]; char family[96];
+                     int stretch, rtl; double ascent, descent, leading; void *_Nullable font; };
+/* a paragraph layout: width 0 = unwrapped; indent = Pango indent (first line minus other lines); align: CTTextAlignment
+ * (only justified (3) matters, lines are placed by the caller); wrap: 0 words, 1 characters, 2 none (clip), 3/4/5 one
+ * line truncated at the start / end / middle; dir: -1 natural, 0 left-to-right, 1 right-to-left; tabs: -1 Pango's
+ * default, else tab stops (tab_align: CTTextAlignment, 5 = decimal); family / weight / italic / size: the layout's
+ * default font (empty family: the system font, 12 pt) */
+struct isim_ct_para { double width, indent; int align, wrap, dir, single, tabs; double tab_pos[64]; int tab_align[64];
+                      char family[160]; int weight, italic; double size; };
+/* line metrics without any placement: ink is (x, y, w, h) y-up from the baseline; start/len in UTF-8 bytes */
+struct isim_ct_line { double ascent, descent, leading, width, trailing, ink[4]; int start, len, rtl, para_start; };
+/* a font's metrics (points), names and face: face_weight is the OpenType weight of the face file, synthetic 1 = bold
+ * synthesized, 2 = oblique synthesized */
+struct isim_ct_font_info { double size, ascent, descent, leading, cap_height, x_height, underline_position, underline_thickness, slant_angle, bbox[4];
+                           int units_per_em, glyph_count, mono, color, weight, italic, stretch, face_weight, face_italic, face_width, synthetic;
+                           char family[96], style[64], psname[128], file[512]; };
 void *_Nullable isim_ct_layout_create(const char *markup, double width, int align, double spacing, int single);
 void isim_ct_layout_free(void *_Nullable l);
 int isim_ct_layout_lines(void *l);
@@ -71,6 +88,27 @@ int isim_ct_line_index_at(void *l, int line, double x);          /* UTF-8 byte i
 double isim_ct_line_x_at(void *l, int line, int byte_index);
 /* draws a line with its baseline origin at (x, y) in user space, glyphs y-up (Core Graphics text space), tm = text matrix */
 void isim_ct_line_draw(void *l, int line, double x, double y, const double *_Nullable tm, const double *rgba);
+void *_Nullable isim_ct_layout_create_para(const char *markup, const struct isim_ct_para *p);
+void isim_ct_line_metrics(void *l, int line, struct isim_ct_line *out);
+/* ink bounds (x, y, w, h; y-up) of glyphs [start, start + len) of a run, x from the line start */
+void isim_ct_run_ink(void *l, int line, int run, int start, int len, double *rect);
+/* fonts: a PangoFont for a family list (NULL: the system font), Pango weight (0: regular), italic, Pango stretch, size */
+void *_Nullable isim_ct_font_load(const char *_Nullable family, int weight, int italic, int stretch, double size);
+void isim_ct_font_retain(void *_Nullable f);
+void isim_ct_font_free(void *_Nullable f);
+void isim_ct_font_info(void *_Nullable f, struct isim_ct_font_info *out);
+/* nominal glyphs of code points (0 = none); returns how many were found */
+int isim_ct_font_glyphs(void *_Nullable f, const unsigned *cps, unsigned short *glyphs, int n);
+/* advances and bounding rects (x, y, w, h; y-up), points */
+void isim_ct_font_glyph_metrics(void *_Nullable f, const unsigned short *glyphs, int n, double *_Nullable adv, double *_Nullable rects);
+/* outline: 0 move x y, 1 line x y, 2 quad cx cy x y, 3 cubic x1 y1 x2 y2 x y, 4 close; returns the doubles needed */
+int isim_ct_font_glyph_path(void *_Nullable f, unsigned short glyph, double *_Nullable ops, int max);
+/* OpenType feature tags (GSUB, GPOS); returns the count, which may exceed max */
+int isim_ct_font_features(void *_Nullable f, unsigned *_Nullable tags, int max);
+/* draws glyphs at text-space positions (y-up), transformed by tm, at (x, y) in user space */
+void isim_ct_font_draw(void *_Nullable f, const unsigned short *glyphs, const double *pos, int n, double x, double y, const double *_Nullable tm, const double *rgba);
+/* the faces of a family, one per line: PostScript name, style, family, OpenType weight, italic, fontconfig width (tabs) */
+int isim_ct_font_faces(const char *_Nullable family, char *_Nullable out, int outlen);
 
 /* ImageIO: container info and frames (PNG, JPEG, GIF, WebP, BMP, TIFF, ICO via gdk-pixbuf; HEIC via ffmpeg) */
 int isim_imgsrc_info(const void *data, long len, int *frames, int *w, int *h, char *type, int typelen, int *orientation, int *alpha, int *loops);
