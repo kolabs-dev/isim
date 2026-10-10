@@ -134,8 +134,26 @@ public struct _ShapeView<Content: Shape, Style: ShapeStyle>: View, _PrimitiveVie
             return _ShapeNode(path: ctx.path, kind: info._kind, color: _color(of: resolved, env))
         }
         let eo = fillStyle.isEOFilled
+        // ContainerRelativeShape (or an inset one) inside a container shape: the path comes from where the view is
+        if let cs = env._containerShape, let extra = _containerRelativeInset(shape) {
+            let n = _PathNode(path: ctx.path, ops: { r in [_DrawOp(path: Path(r), paint: _resolvePaint(resolved, in: r, env), stroke: stroke, eoFill: eo)] })
+            n.relative = { [weak g = ctx.graph] view, r in
+                guard let g, let cv = g.views[cs.viewKey], let sup = view.superview else { return nil }
+                let inContainer = sup.convert(view.frame, to: cv)
+                return [_DrawOp(path: _concentricPath(cs, rect: inContainer, container: cv.bounds.size, extra: extra),
+                                paint: _resolvePaint(resolved, in: r, env), stroke: stroke, eoFill: eo)]
+            }
+            return n
+        }
         return _PathNode(path: ctx.path, ops: { r in [_DrawOp(path: makePath(r), paint: _resolvePaint(resolved, in: r, env), stroke: stroke, eoFill: eo)] })
     }
+}
+/// How far a ContainerRelativeShape is inset (nil: the shape is not one; strokes of one count too).
+func _containerRelativeInset(_ s: Any) -> CGFloat? {
+    if s is ContainerRelativeShape { return 0 }
+    if let i = s as? _InsetShape<ContainerRelativeShape> { return i.amount }
+    for c in Mirror(reflecting: s).children where c.label == "shape" { return _containerRelativeInset(c.value) }
+    return nil
 }
 
 /// A background of `shape` painted with `style`, when that takes isim's renderer (gradients, image paint, or a
@@ -165,11 +183,15 @@ struct _DrawOp {
 /// A node drawn with draw operations computed for its frame (shapes, gradients).
 final class _PathNode: _Node {
     let ops: (CGRect) -> [_DrawOp]
+    /// ops that depend on where the view is (ContainerRelativeShape): computed once it is in place
+    var relative: (@MainActor (UIView, CGRect) -> [_DrawOp]?)?
     init(path: String, ops: @escaping (CGRect) -> [_DrawOp]) { self.ops = ops; super.init(path: path, children: []) }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: p.width ?? 10, height: p.height ?? 10) }
     override func mountView(_ g: _Graph) -> UIView {
         let v = g.view(viewKey) { _SUIPathView(frame: .zero) }
-        v.ops = ops(CGRect(origin: .zero, size: frame.size))
+        let local = CGRect(origin: .zero, size: frame.size)
+        v.ops = ops(local)
+        if let rel = relative { g.postRender.append { [weak v] in if let v, let o = rel(v, local) { v.ops = o; v.setNeedsDisplay() } } }
         v.setNeedsDisplay()
         return v
     }

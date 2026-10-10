@@ -118,8 +118,7 @@ extension Animation {
     /// Seconds until the animation ends (delay and speed included); nil when it repeats forever.
     var _totalDuration: Double? {
         if repeats < 0 { return nil }
-        let cycle = duration * (autoreverses && repeats != 0 ? 2 : 1)
-        return (delayTime + cycle) / speedFactor
+        return (delayTime + duration * Double(max(1, repeats))) / speedFactor
     }
     static func _bezier(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, _ x: Double) -> Double {
         var t = x
@@ -151,7 +150,8 @@ extension Animation {
         case .easeOut: return Animation._bezier(0, 0, 0.58, 1, x)
         case .linear: return x
         case .easeInOut: return Animation._bezier(0.42, 0, 0.58, 1, x)
-        case .spring(let d): return Animation._spring(d, duration, elapsed)
+        case .spring(let d): return Animation._spring(d, duration, elapsed, v0: velocity)
+        case .bezier(let a, let b, let c, let e): return Animation._bezier(a, b, c, e, x)
         }
     }
     /// Progress (0 -> 1, springs may overshoot) `t` seconds after the animation started, and whether it ended.
@@ -160,9 +160,14 @@ extension Animation {
         let el = t * speedFactor - delayTime
         if el < 0 { return (0, false) }
         let cycle = max(0.0001, duration)
-        if repeats != 0 {
+        if repeats > 0 {                       // n plays, every other one backwards with autoreverse (then the end value)
+            if el >= cycle * Double(repeats) { return (1, true) }
+            let k = Int(el / cycle), le = el - Double(k) * cycle
+            let p = _curve(le / cycle, elapsed: le)
+            return (autoreverses && k % 2 == 1 ? 1 - p : p, false)
+        }
+        if repeats < 0 {
             let period = autoreverses ? 2 * cycle : cycle
-            if repeats > 0, el >= period * Double(repeats) { return (autoreverses ? 0 : 1, true) }
             let ph = el.truncatingRemainder(dividingBy: period)
             let back = autoreverses && ph >= cycle
             let le = back ? ph - cycle : ph

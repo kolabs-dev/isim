@@ -630,7 +630,7 @@ extension ShareLink where Label == SwiftUI.Label<Text, Image> {
 
 /// UIKit's paste control: enabled while the pasteboard holds a type it accepts; a tap pastes (a user paste: no
 /// "Allow Paste" prompt) and delivers the items.
-public struct PasteButton: View, _PrimitiveView {
+public struct PasteButton: View {
     let types: [UTType]
     let deliver: ([NSItemProvider]) -> Void
     public init<T: Transferable>(payloadType: T.Type, onPaste: @escaping ([T]) -> Void) {
@@ -649,8 +649,13 @@ public struct PasteButton: View, _PrimitiveView {
     @_disfavoredOverload public init(supportedContentTypes: [Any], payloadAction: @escaping ([Any]) -> Void) {
         types = supportedContentTypes.compactMap { $0 as? UTType }; deliver = { payloadAction($0) }
     }
-    public var body: Never { fatalError() }
+    public var body: some View { _PasteButtonContent(button: self) }
+}
+struct _PasteButtonContent: View, _PrimitiveView {
+    let button: PasteButton
+    var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
+        let types = button.types, deliver = button.deliver
         let n = _PasteButtonNode(path: ctx.path, types: types, deliver: deliver, enabled: ctx.environment.isEnabled)
         n.tint = ctx.environment._tint?.uiColor
         n.labelStyle = ctx.environment._labelStyleKind

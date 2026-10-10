@@ -39,15 +39,15 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
-| **SwiftUI** | 204 | 28 | 1 | 6 | 239 | 91% |
+| **SwiftUI** | 210 | 24 | 1 | 4 | 239 | 93% |
 | &nbsp;&nbsp;↳ App & scenes | 7 | 4 | 0 | 0 | 11 | 82% |
 | &nbsp;&nbsp;↳ State & data flow | 16 | 1 | 0 | 0 | 17 | 97% |
 | &nbsp;&nbsp;↳ Views & controls | 37 | 2 | 0 | 0 | 39 | 97% |
 | &nbsp;&nbsp;↳ Containers & layout | 28 | 0 | 0 | 0 | 28 | 100% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 32 | 3 | 0 | 2 | 37 | 91% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 31 | 4 | 0 | 1 | 36 | 92% |
-| &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 3 | 24 | 81% |
-| &nbsp;&nbsp;↳ Animation | 8 | 3 | 0 | 0 | 11 | 86% |
+| &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 23 | 0 | 0 | 1 | 24 | 96% |
+| &nbsp;&nbsp;↳ Animation | 9 | 2 | 0 | 0 | 11 | 91% |
 | &nbsp;&nbsp;↳ Gestures | 7 | 1 | 0 | 0 | 8 | 94% |
 | &nbsp;&nbsp;↳ Lifecycle, async & events | 6 | 2 | 0 | 0 | 8 | 88% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 1 | 1 | 0 | 4 | 62% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **822** | **151** | **21** | **30** | **1024** | **88%** |
+| **All areas** | **828** | **147** | **21** | **28** | **1024** | **88%** |
 
 ### Per iOS version
 
@@ -96,7 +96,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
-| SwiftUI | 94% (216) | 93% (222) | 92% (229) | 91% (239) |
+| SwiftUI | 95% (216) | 95% (222) | 94% (229) | 93% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (84) | 100% (84) | 100% (84) | 100% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
@@ -654,26 +654,26 @@ Shapes, paths, gradients and Canvas draw through libisim_host (cairo); tested by
 | Custom `Shape` (`path(in:)`) | ✅ | ≤17 | shape inits and `path(in:)` are not main-actor isolated, like SwiftUI |
 | `Path` (move/line/quad/curve, `addArc` (center and tangent forms), `addRelativeArc`, rects, rounded rects, ellipses, `Path { }`, `Path(CGPath)`, `cgPath`) | ✅ | ≤17 | arcs become cubic curves |
 | `Path` queries (`boundingRect`, `contains(_:eoFill:)`, `trimmedPath`, `applying`, `offsetBy`, string form) | ✅ | ≤17 | |
-| `Path.strokedPath`, boolean operations (`union`, `intersection`, …), `Shape.union` etc. | ❌ | ≤17 | |
+| `Path.strokedPath`, boolean operations (`union`, `intersection`, …), `Shape.union` etc. | ✅ | ≤17 | adapted: curves are flattened (0.2 pt) and regions combined by a slab sweep into polygon outlines: `union`, `intersection`, `subtracting`, `symmetricDifference`, `normalized` (both fill rules), `lineIntersection` / `lineSubtraction`; `strokedPath` outlines the stroke (width, caps, joins, miter limit, dashes); the same on shapes. Tested (HelloShapes) |
 | `fill` (colors, any style, `FillStyle(eoFill:)`) | ✅ | ≤17 | |
 | `stroke` / `stroke(style:)` with `StrokeStyle` (width, caps, joins, miter limit, dashes, dash phase) | ✅ | ≤17 | dashes tested; joins and miter limit unverified |
 | `trim(from:to:)` | ✅ | ≤17 | exact on curves (arc length) |
 | `Ellipse`, `UnevenRoundedRectangle` | ✅ | ≤17 | |
-| `ContainerRelativeShape` | 🟡 | ≤17 | the frame's rectangle (isim has no container shapes) |
+| `ContainerRelativeShape` | ✅ | ≤17 | the shape of the nearest `.containerShape(_:)`, made concentric (a rounded rectangle's radius minus the distance to the container's edge; other shapes inset); outside one, the frame's rectangle. Tested (HelloShapes) |
 | `InsettableShape` (`inset(by:)`, `strokeBorder`) | ✅ | ≤17 | |
 | `AnyShape` | ✅ | ≤17 | |
 | Shape `.offset`, `.rotation`, `.scale`, `.transform`, `.size` | ✅ | ≤17 | offset and rotation tested; scale/transform/size unverified |
-| `fill(_:).stroke(_:)` on a filled shape (iOS 17) | 🟡 | ≤17 | drawn as an overlay (unverified) |
+| `fill(_:).stroke(_:)` on a filled shape (iOS 17) | ✅ | ≤17 | the fill with the stroke centred on its edge. Tested (HelloShapes) |
 | `LinearGradient`, `RadialGradient`, `AngularGradient` / `conicGradient`, `EllipticalGradient`, `Gradient` (colors, stops) | ✅ | ≤17 | as views and shape styles |
 | Gradients in `fill`, `foregroundStyle`, `background`, `background(_:in:)`, `overlay` | ✅ | ≤17 | gradient strokes unverified |
 | `Color.gradient` (`AnyGradient`) | ✅ | ≤17 | a top-to-bottom gradient a little lighter at the top (approximates Apple's) |
-| Text with a gradient `foregroundStyle` | 🟡 | ≤17 | drawn in the gradient's first color (tested); no gradient across the glyphs |
+| Text with a gradient `foregroundStyle` | ✅ | ≤17 | the gradient (linear, radial, angular, any shape style) fills the glyphs, across the text's frame. Tested (HelloShapes, HelloDrawing) |
 | `Material` (`.ultraThinMaterial` … `.bar`) | ✅ | ≤17 | real backdrop blur (UIVisualEffectView) |
 | `Color` (system colors, RGB/HSB/white, `Color(uiColor:)`, asset colors) | ✅ | ≤17 | |
 | `ImagePaint` (`.image(_:sourceRect:scale:)`) | ✅ | ≤17 | tiles fills; image strokes are not drawn |
 | `Canvas` / `GraphicsContext` (fill/stroke paths with colors, styles and gradients, text, images, transforms, opacity, clip, `drawLayer`) | ✅ | ≤17 | filters, blend modes, `clipToLayer` and symbols are accepted and not drawn |
 | Shaders (`ShaderLibrary`, `.colorEffect`, `.layerEffect`, `.distortionEffect`) | ❌ | ≤17 | need Metal, which isim does not have |
-| `MeshGradient`, `Color.mix(with:by:)` | ❌ | 18.0 | |
+| `MeshGradient`, `Color.mix(with:by:)` | ✅ | 18.0 | adapted: the mesh is rasterized by isim (points or Bézier points, smooth Catmull-Rom or bilinear colours, background), as a view and a shape style; `Color.mix` in Oklab (`.perceptual`) or sRGB (`.device`); `Color.Resolved` / `resolve(in:)` (iOS 17). Tested (HelloShapes) |
 
 ### Animation
 
@@ -686,7 +686,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 |---|---|---|---|
 | `withAnimation` (incl. `completion:`) | ✅ | ≤17 | animates the next render (frames, opacity, transforms, colors) |
 | `.animation(_:value:)` | ✅ | ≤17 | animates its subtree when the value changes |
-| Curves & springs (`.easeInOut`, `.spring`, `.bouncy`, `.snappy`, `.smooth`, `timingCurve`, `interpolatingSpring`), repeat/delay/speed | 🟡 | ≤17 | mapped onto UIKit curves/springs; custom timing curves approximated (unverified) |
+| Curves & springs (`.easeInOut`, `.spring`, `.bouncy`, `.snappy`, `.smooth`, `timingCurve`, `interpolatingSpring`), repeat/delay/speed | ✅ | ≤17 | standard curves, exact cubic Bézier `timingCurve` / `UnitCurve`, damped springs from duration + bounce or mass / stiffness / damping (`Spring` values, velocity, settling duration), `repeatCount` (autoreversing plays) / `repeatForever`, delay, speed, on UIKit's animation engine. Tested (HelloShapes: positions over time) |
 | Transitions (`.opacity`, `.scale`, `.slide`, `.move`, `.offset`, `.push`, `asymmetric`, `combined`) | 🟡 | ≤17 | insertion and removal play; each kind unverified |
 | `matchedGeometryEffect` | 🟡 | ≤17 | an inserted view moves from the matched view's old frame; no simultaneous source/target |
 | `contentTransition` (`.numericText`, `.interpolate`) | ✅ | ≤17 | in an animated update, `.numericText` rolls the old text out (up, or down when counting down) and the new one in; `.opacity` / `.interpolate` cross-fade; `.symbolEffect` scales a replaced symbol; numeric text tested (HelloEffects) |

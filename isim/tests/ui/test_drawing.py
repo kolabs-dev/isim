@@ -65,7 +65,9 @@ def test_drawing(launch):
     n = 160 * 40
     reds = count_px(shapes, (220, 750, 160, 40), lambda c: c[0] > 0.8 * 255 and c[1] < 0.3 * 255 and c[2] < 0.3 * 255)
     blues = count_px(shapes, (220, 750, 160, 40), lambda c: c[2] > 0.8 * 255 and c[0] < 0.3 * 255)
-    assert reds / n > 0.04 and blues == 0, f"Text with a gradient style uses its first color ({reds} red, {blues} blue)"
+    left_reds = count_px(shapes, (220, 750, 80, 40), lambda c: c[0] > 0.8 * 255 and c[1] < 0.3 * 255 and c[2] < 0.3 * 255)
+    assert reds / n > 0.01 and blues / n > 0.01 and left_reds > reds * 0.8, \
+        f"Text with a gradient style: the gradient across the glyphs, red leading, blue trailing ({reds} red, {blues} blue)"
     log = app.log
     for line in ("path description: 0 0 m 100 0 l 100 50 l h", "path bounds: (0.0, 0.0, 100.0, 50.0)",
                  "path contains inside: true outside: false", "trimmed: 0 0 m 100 0 l 100 100 l",

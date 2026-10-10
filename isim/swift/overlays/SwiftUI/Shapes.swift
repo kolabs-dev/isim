@@ -106,13 +106,51 @@ public struct UnevenRoundedRectangle: Sendable {
     public var animatableData: RectangleCornerRadii.AnimatableData { get { cornerRadii.animatableData } set { cornerRadii.animatableData = newValue } }
 }
 extension UnevenRoundedRectangle: InsettableShape, _InsetPath {}
-/// The shape of the containing container (widgets, …). isim has no container shapes: it is the rectangle of its frame.
+/// The shape of the container it is in (`.containerShape(_:)`), inset to stay concentric with it: drawn, it is the
+/// container's shape (a rounded rectangle's radius minus the distance to the container's edge); outside a container
+/// shape it is the rectangle of its frame. (`path(in:)` alone has no container: the rectangle.)
 public struct ContainerRelativeShape: Sendable {
     public init() {}
     public func path(in rect: CGRect) -> Path { Path(rect) }
     public func inset(by amount: CGFloat) -> _InsetShape<ContainerRelativeShape> { _InsetShape(base: self, amount: amount) }
 }
 extension ContainerRelativeShape: InsettableShape {}
+
+/// `.containerShape(_:)`: the container's shape and the view that measures it.
+struct _ContainerShape { let shape: AnyShape; let kind: _ShapeKind?; let viewKey: String }
+struct _ContainerShapeKey: EnvironmentKey { static var defaultValue: _ContainerShape? { nil } }
+extension EnvironmentValues { var _containerShape: _ContainerShape? { get { self[_ContainerShapeKey.self] } set { self[_ContainerShapeKey.self] = newValue } } }
+final class _ContainerShapeNode: _WrapperNode {
+    override var layoutPriority: Double { child.layoutPriority }
+    override var ignoresSafeArea: Bool { child.ignoresSafeArea }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
+    override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
+}
+extension View {
+    /// The shape ContainerRelativeShapes inside take (inset to stay concentric).
+    public func containerShape<T: InsettableShape>(_ shape: T) -> some View {
+        _modify { ctx, c in
+            let key = ctx.path + "|" + String(describing: _ContainerShapeNode.self)
+            let info = _ContainerShape(shape: AnyShape(shape), kind: (shape as? _ShapeInfo)?._kind, viewKey: key)
+            return _ContainerShapeNode(path: ctx.path, child: _resolve(c, ctx.child("cshape").with { $0._containerShape = info }))
+        }
+    }
+}
+/// A ContainerRelativeShape inset by `extra`, in a view at `rect` of a container of `size` (both in the container's
+/// coordinates): the container's shape made concentric, in the view's own coordinates.
+func _concentricPath(_ c: _ContainerShape, rect: CGRect, container size: CGSize, extra: CGFloat) -> Path {
+    let d = max(0, min(rect.minX, rect.minY, size.width - rect.maxX, size.height - rect.maxY)) + extra
+    let local = CGRect(origin: .zero, size: rect.size).insetBy(dx: extra, dy: extra)
+    func rounded(_ r: CGFloat) -> Path { Path(roundedRect: local, cornerRadius: min(max(0, r - d), min(local.width, local.height) / 2)) }
+    switch c.kind {
+    case .rect?: return Path(local)
+    case .rounded(let r)?: return rounded(r)
+    case .circle?, .capsule?: return rounded(min(size.width, size.height) / 2)
+    case nil:
+        // another shape: the container's shape inset by the distance, in the view's coordinates
+        return c.shape.path(in: CGRect(origin: .zero, size: size).insetBy(dx: d, dy: d)).offsetBy(dx: -rect.minX, dy: -rect.minY)
+    }
+}
 
 /// A shape inset by an amount on every edge.
 public struct _InsetShape<Base: Shape>: Sendable {
