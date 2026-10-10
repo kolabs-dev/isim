@@ -1,9 +1,11 @@
 // isim SwiftUI: more controls and containers — TextEditor, TextField(value:formatter:), ProgressView (labels,
 // `.linear` / `.circular` / custom ProgressViewStyle), Gauge (+ gaugeStyle), GroupBox, DisclosureGroup, OutlineGroup,
-// ControlGroup, ContentUnavailableView, ShareLink (share sheet), PasteButton (no pasteboard on isim: disabled),
+// ControlGroup, ContentUnavailableView, ShareLink (UIKit's share sheet), PasteButton (UIKit's paste control),
 // AsyncImage (URLSession), `.controlSize`, `.buttonBorderShape`, PrimitiveButtonStyle.
 // Most are composed from other SwiftUI views (adapted: drawn by isim, not UIKit's private controls).
 import UIKit
+import UniformTypeIdentifiers
+import CoreTransferable
 
 // MARK: - TextEditor
 
@@ -510,31 +512,99 @@ extension List where SelectionValue == Never {
 
 // MARK: - ShareLink, PasteButton
 
-/// Shows a share sheet with the item. isim has no other apps or share extensions to send it to; the sheet offers
-/// the item and a Done button (and logs the share to the console).
+/// The preview a share sheet shows for the items (title, image, icon).
+public struct SharePreview<Image: Transferable, Icon: Transferable> {
+    let title: String
+    let image: Image?, icon: Icon?
+    public init(_ title: Text, image: Image, icon: Icon) { self.title = title.string; self.image = image; self.icon = icon }
+    public init<S: StringProtocol>(_ title: S, image: Image, icon: Icon) { self.title = String(title); self.image = image; self.icon = icon }
+}
+extension SharePreview where Image == Never, Icon == Never {
+    public init(_ title: Text) { self.title = title.string; image = nil; icon = nil }
+    public init<S: StringProtocol>(_ title: S) { self.title = String(title); image = nil; icon = nil }
+}
+extension SharePreview where Icon == Never {
+    public init(_ title: Text, image: Image) { self.title = title.string; self.image = image; icon = nil }
+    public init<S: StringProtocol>(_ title: S, image: Image) { self.title = String(title); self.image = image; icon = nil }
+}
+extension SharePreview where Image == Never {
+    public init(_ title: Text, icon: Icon) { self.title = title.string; image = nil; self.icon = icon }
+    public init<S: StringProtocol>(_ title: S, icon: Icon) { self.title = String(title); image = nil; self.icon = icon }
+}
+
+/// Presents the share sheet (UIActivityViewController: Copy, Save Image, Print, the installed apps' Share and Action
+/// extensions) with the items; Transferable items are shared as text, a URL, an image or a file of their first
+/// exported type.
 public struct ShareLink<Label: View>: View {
-    let item: String, subject: Text?, message: Text?, label: Label
-    @State private var open = false
+    let make: @Sendable () async -> [Any]
+    let subject: Text?, message: Text?, label: Label
+    var item: String = ""                       // the first item, as text (logged)
     public var body: some View {
-        Button { print("isim: share \(item)"); open = true } label: { label }
-            .sheet(isPresented: $open) {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack { Text("Share").font(.headline); Spacer(); Button("Done") { open = false }.accessibilityIdentifier("share-done") }
-                    if let subject { subject.font(.subheadline.weight(.semibold)) }
-                    Text(verbatim: item).accessibilityIdentifier("share-item")
-                    if let message { message.foregroundStyle(.secondary) }
-                    Text("No share destinations on isim").font(.footnote).foregroundStyle(.secondary)
-                    Spacer()
-                }.padding().presentationDetents([.medium])
+        let make = self.make, subject = self.subject?.string, message = self.message?.string, item = self.item
+        return _ShareButton(label: label) { anchor in
+            print("isim: share \(item)")
+            Task { @MainActor in
+                var items = await make()
+                if let subject, let first = items.first { items[0] = _ShareItemSource(item: first, subject: subject) }   // (the mail subject)
+                if let m = message { items.append(m) }
+                let ac = UIActivityViewController(activityItems: items, applicationActivities: nil)
+                ac.popoverPresentationController?.sourceView = anchor
+                await _topController(from: anchor)?.present(ac, animated: true)
             }
+        }
     }
+}
+/// A button that knows its view (the share sheet's popover anchor on iPad).
+struct _ShareButton<L: View>: View, _PrimitiveView {
+    let label: L, action: (UIView?) -> Void
+    var body: Never { fatalError() }
+    func _makeNode(_ ctx: _Context) -> _Node {
+        let g = ctx.graph, key = ctx.path + "|" + String(describing: _ButtonNode.self)
+        let act = action
+        return Button(action: { act(g.views[key]) }) { label }._makeNode(ctx)
+    }
+}
+/// A share sheet item with a subject.
+final class _ShareItemSource: NSObject, UIActivityItemSource {
+    let item: Any, subject: String
+    init(item: Any, subject: String) { self.item = item; self.subject = subject }
+    func activityViewControllerPlaceholderItem(_ c: UIActivityViewController) -> Any { item }
+    func activityViewController(_ c: UIActivityViewController, itemForActivityType t: UIActivity.ActivityType?) -> Any? { item }
+    func activityViewController(_ c: UIActivityViewController, subjectForActivityType t: UIActivity.ActivityType?) -> String { subject }
+}
+/// A Transferable value as a share sheet item.
+func _shareItem<T: Transferable>(_ v: T) async -> Any {
+    if let s = v as? String { return s }
+    if let u = v as? URL { return u }
+    guard let type = T.exportedContentTypes.first, let data = try? await v.exported(as: type) else { return "\(v)" }
+    if type.conforms(to: .plainText) || type.conforms(to: .text) { return String(decoding: data, as: UTF8.self) }
+    if type.conforms(to: .url), let u = URL(string: String(decoding: data, as: UTF8.self)) { return u }
+    if type.conforms(to: .image), let img = UIImage(data: data) { return img }
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent("Shared item").appendingPathExtension(type.preferredFilenameExtension ?? "data")
+    try? data.write(to: file)
+    return file
 }
 extension ShareLink {
     public init(item: URL, subject: Text? = nil, message: Text? = nil, @ViewBuilder label: () -> Label) {
-        self.item = item.absoluteString; self.subject = subject; self.message = message; self.label = label()
+        make = { [item] }; self.item = item.absoluteString; self.subject = subject; self.message = message; self.label = label()
     }
     public init<S: StringProtocol>(item: S, subject: Text? = nil, message: Text? = nil, @ViewBuilder label: () -> Label) {
-        self.item = String(item); self.subject = subject; self.message = message; self.label = label()
+        let s = String(item); make = { [s] }; self.item = s; self.subject = subject; self.message = message; self.label = label()
+    }
+    public init<T: Transferable, I: Transferable, C: Transferable>(item: T, subject: Text? = nil, message: Text? = nil, preview: SharePreview<I, C>,
+                                                                   @ViewBuilder label: () -> Label) {
+        let box = _UncheckedSendable(item)
+        make = { [await _shareItem(box.value)] }; self.item = preview.title; self.subject = subject; self.message = message; self.label = label()
+    }
+    public init<D: RandomAccessCollection>(items: D, subject: Text? = nil, message: Text? = nil, @ViewBuilder label: () -> Label) where D.Element: Transferable {
+        let box = _UncheckedSendable(Array(items))
+        make = { var out: [Any] = []; for i in box.value { out.append(await _shareItem(i)) }; return out }
+        self.item = "\(items.count) items"; self.subject = subject; self.message = message; self.label = label()
+    }
+    public init<D: RandomAccessCollection, I: Transferable, C: Transferable>(items: D, subject: Text? = nil, message: Text? = nil,
+                                                                             preview: @escaping (D.Element) -> SharePreview<I, C>,
+                                                                             @ViewBuilder label: () -> Label) where D.Element: Transferable {
+        self.init(items: items, subject: subject, message: message, label: label)
     }
 }
 extension ShareLink where Label == SwiftUI.Label<Text, Image> {
@@ -550,14 +620,95 @@ extension ShareLink where Label == SwiftUI.Label<Text, Image> {
     @_disfavoredOverload public init<T: StringProtocol>(_ title: T, item: URL, subject: Text? = nil, message: Text? = nil) {
         self.init(item: item, subject: subject, message: message) { SwiftUI.Label(title, systemImage: "square.and.arrow.up") }
     }
+    public init<T: Transferable, I: Transferable, C: Transferable>(item: T, subject: Text? = nil, message: Text? = nil, preview: SharePreview<I, C>) {
+        self.init(item: item, subject: subject, message: message, preview: preview) { SwiftUI.Label("Share", systemImage: "square.and.arrow.up") }
+    }
+    public init<D: RandomAccessCollection>(items: D, subject: Text? = nil, message: Text? = nil) where D.Element: Transferable {
+        self.init(items: items, subject: subject, message: message) { SwiftUI.Label("Share", systemImage: "square.and.arrow.up") }
+    }
 }
 
-/// Stub: isim has no pasteboard, so the Paste button is shown disabled and never delivers anything.
-public struct PasteButton: View {
-    public init<T>(payloadType: T.Type, onPaste: @escaping ([T]) -> Void) {}
-    public init(supportedContentTypes: [Any], payloadAction: @escaping ([Any]) -> Void) {}
-    public var body: some View {
-        Button {} label: { SwiftUI.Label("Paste", systemImage: "doc.on.clipboard") }.disabled(true)
+/// UIKit's paste control: enabled while the pasteboard holds a type it accepts; a tap pastes (a user paste: no
+/// "Allow Paste" prompt) and delivers the items.
+public struct PasteButton: View, _PrimitiveView {
+    let types: [UTType]
+    let deliver: ([NSItemProvider]) -> Void
+    public init<T: Transferable>(payloadType: T.Type, onPaste: @escaping ([T]) -> Void) {
+        let types = T.importedContentTypes
+        self.types = types
+        deliver = { providers in _loadTransferables(providers, types: types) { (v: [T]) in onPaste(v) } }
+    }
+    public init(supportedContentTypes: [UTType], payloadAction: @escaping ([NSItemProvider]) -> Void) {
+        types = supportedContentTypes; deliver = payloadAction
+    }
+    /// (kept for apps built against isim 0.14 and older)
+    @_disfavoredOverload public init<T>(payloadType: T.Type, onPaste: @escaping ([T]) -> Void) {
+        types = [.plainText]
+        deliver = { providers in _loadTransferables(providers, types: [.plainText]) { (v: [String]) in onPaste(v.compactMap { $0 as? T }) } }
+    }
+    @_disfavoredOverload public init(supportedContentTypes: [Any], payloadAction: @escaping ([Any]) -> Void) {
+        types = supportedContentTypes.compactMap { $0 as? UTType }; deliver = { payloadAction($0) }
+    }
+    public var body: Never { fatalError() }
+    func _makeNode(_ ctx: _Context) -> _Node {
+        let n = _PasteButtonNode(path: ctx.path, types: types, deliver: deliver, enabled: ctx.environment.isEnabled)
+        n.tint = ctx.environment._tint?.uiColor
+        n.labelStyle = ctx.environment._labelStyleKind
+        return n
+    }
+}
+/// Loads Transferable values of `types` from item providers (in order), then calls `done` on the main thread.
+func _loadTransferables<T: Transferable>(_ providers: [NSItemProvider], types: [UTType], _ done: @escaping ([T]) -> Void) {
+    let group = DispatchGroup(), lock = NSLock()
+    nonisolated(unsafe) var out: [(Int, T)] = []
+    for (i, p) in providers.enumerated() {
+        guard let t = types.first(where: { p.hasItemConformingToTypeIdentifier($0.identifier) }) else { continue }
+        group.enter()
+        p.loadDataRepresentation(forTypeIdentifier: t.identifier) { data, _ in
+            guard let data else { group.leave(); return }
+            Task.detached {
+                if let v = try? await T._isimImport(data, contentType: t) { lock.lock(); out.append((i, v)); lock.unlock() }
+                group.leave()
+            }
+        }
+    }
+    let box = _UncheckedSendable(done)
+    group.notify(queue: .main) { box.value(out.sorted { $0.0 < $1.0 }.map(\.1)) }
+}
+final class _PasteTarget: UIResponder {
+    var deliver: (([NSItemProvider]) -> Void)?
+    override func paste(itemProviders: [NSItemProvider]) { deliver?(itemProviders) }
+}
+final class _PasteButtonNode: _Node {
+    let types: [UTType], deliver: ([NSItemProvider]) -> Void, enabled: Bool
+    var tint: UIColor?
+    var labelStyle = 0
+    init(path: String, types: [UTType], deliver: @escaping ([NSItemProvider]) -> Void, enabled: Bool) {
+        self.types = types; self.deliver = deliver; self.enabled = enabled; super.init(path: path, children: [])
+    }
+    var mode: UIPasteControl.DisplayMode { labelStyle == 2 ? .iconOnly : labelStyle == 1 ? .labelOnly : .iconAndLabel }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize {
+        let c = UIPasteControl(configuration: { let c = UIPasteControl.Configuration(); c.displayMode = mode; return c }())
+        return c.intrinsicContentSize
+    }
+    final class State: _AnyStorage { let control: UIPasteControl; let target = _PasteTarget(); init(_ c: UIPasteControl) { control = c } }
+    override func mountView(_ g: _Graph) -> UIView {
+        let key = path + "#paste"
+        g.usedKeys.insert(key)
+        let st = (g.storage[key] as? State).flatMap { $0.control.configuration.displayMode == mode ? $0 : nil } ?? {
+            let c = UIPasteControl.Configuration(); c.displayMode = mode
+            return State(UIPasteControl(configuration: c))
+        }()
+        g.storage[key] = st
+        g.mountedKeys.insert(viewKey)
+        if g.views[viewKey] !== st.control { g.views[viewKey]?.removeFromSuperview(); g.views[viewKey] = st.control }
+        st.target.deliver = deliver
+        st.target.pasteConfiguration = UIPasteConfiguration(acceptableTypeIdentifiers: types.map(\.identifier))
+        st.control.target = st.target
+        if let t = tint { st.control.tintColor = t }
+        st.control.accessibilityIdentifier = st.control.accessibilityIdentifier ?? "paste-button"
+        if !enabled { st.control.isEnabled = false }
+        return st.control
     }
 }
 

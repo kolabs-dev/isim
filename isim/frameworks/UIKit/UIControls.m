@@ -73,8 +73,19 @@
     CGSize s = [self _isim_measure:n == 1 ? 0 : b.size.width lines:n font:_font];
     return CGRectMake(b.origin.x, b.origin.y, MIN(s.width, b.size.width), MIN(s.height, b.size.height));
 }
+/* allowsDefaultTighteningForTruncation: a one-line text a little too wide draws with its letters closer together
+   (up to 5% of the font size per letter) before it is truncated */
+- (NSAttributedString *)_isim_tightened:(CGFloat)width font:(UIFont *)f color:(UIColor *)c {
+    if (!_allowsDefaultTighteningForTruncation || _numberOfLines != 1 || _attributedText || _text.length < 2) return nil;
+    CGFloat w = isim_ui_measure(_text, f, 0, 1).width;
+    if (w <= width) return nil;
+    CGFloat kern = fmax((width - w) / (CGFloat)(_text.length - 1), -0.05 * f.pointSize);
+    return [[NSAttributedString alloc] initWithString:_text attributes:@{ NSFontAttributeName: f, NSForegroundColorAttributeName: c, NSKernAttributeName: @(kern) }];
+}
 - (void)drawTextInRect:(CGRect)r {
     UIColor *c = _highlighted && _highlightedTextColor ? _highlightedTextColor : _textColor;
+    NSAttributedString *tight = [self _isim_tightened:r.size.width font:[self _effectiveFont] color:c];
+    if (tight) { isim_ui_draw_attributed(tight, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
     if (_attributedText) { isim_ui_draw_attributed(_attributedText, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
     isim_ui_draw_text(_text, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4);
 }

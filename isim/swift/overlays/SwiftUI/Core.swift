@@ -6,6 +6,7 @@
 @_exported import Foundation
 @_exported import Combine
 @_exported import Observation
+@_exported import CoreTransferable           // like Apple's: `import SwiftUI` is enough for Transferable types
 
 // MARK: - View
 

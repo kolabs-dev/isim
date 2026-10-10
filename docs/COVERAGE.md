@@ -39,11 +39,11 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
-| **SwiftUI** | 188 | 42 | 2 | 7 | 239 | 87% |
+| **SwiftUI** | 204 | 28 | 1 | 6 | 239 | 91% |
 | &nbsp;&nbsp;↳ App & scenes | 7 | 4 | 0 | 0 | 11 | 82% |
-| &nbsp;&nbsp;↳ State & data flow | 15 | 2 | 0 | 0 | 17 | 94% |
-| &nbsp;&nbsp;↳ Views & controls | 31 | 8 | 0 | 0 | 39 | 90% |
-| &nbsp;&nbsp;↳ Containers & layout | 19 | 7 | 1 | 1 | 28 | 80% |
+| &nbsp;&nbsp;↳ State & data flow | 16 | 1 | 0 | 0 | 17 | 97% |
+| &nbsp;&nbsp;↳ Views & controls | 37 | 2 | 0 | 0 | 39 | 97% |
+| &nbsp;&nbsp;↳ Containers & layout | 28 | 0 | 0 | 0 | 28 | 100% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 32 | 3 | 0 | 2 | 37 | 91% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 31 | 4 | 0 | 1 | 36 | 92% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 18 | 3 | 0 | 3 | 24 | 81% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **806** | **165** | **22** | **31** | **1024** | **87%** |
+| **All areas** | **822** | **151** | **21** | **30** | **1024** | **88%** |
 
 ### Per iOS version
 
@@ -96,7 +96,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
-| SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
+| SwiftUI | 94% (216) | 93% (222) | 92% (229) | 91% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (84) | 100% (84) | 100% (84) | 100% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **87%** (966) | **87%** (978) | **87%** (1003) | **87%** (1024) |
+| **All areas** | **88%** (966) | **88%** (978) | **88%** (1003) | **88%** (1024) |
 
 ---
 
@@ -475,7 +475,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `@ScaledMetric` | ✅ | ≤17 | scales with `dynamicTypeSize`, which follows Settings > Accessibility > Larger Text; tested (HelloLayout, HelloAccessibility) |
 | `@FocusedValue`, `@FocusedBinding` | 🟡 | ≤17 | with `.focusedValue`/`.focusedSceneValue`; values are scene-wide (no per-focus chain, adapted); tested (HelloKeys) |
 | `PreferenceKey`, `.preference`, `.onPreferenceChange`, anchor preferences | ✅ | ≤17 | values reduce up the laid-out tree (incl. GeometryReader backgrounds), `transformPreference`, `anchorPreference` / `transformAnchorPreference` with `overlayPreferenceValue` / `backgroundPreferenceValue` and `proxy[anchor]`; tested (HelloLayout) |
-| `Transaction`, `withTransaction` | 🟡 | ≤17 | carries the animation / `disablesAnimations`; custom transaction keys missing |
+| `Transaction`, `withTransaction` | ✅ | ≤17 | the animation / `disablesAnimations` / `isContinuous` / `tracksVelocity` / `scrollTargetAnchor`, custom `TransactionKey` values (and `@Entry`), `withTransaction(_:_:)` and the key path form, `.transaction { }` (its changes apply to the views inside), `.transaction(value:_:)`, `.transaction(_:body:)`, `addAnimationCompletion`; `UIViewRepresentableContext.transaction`. Tested (HelloContainers) |
 
 ### Views & controls
 
@@ -488,10 +488,10 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `Text(Image)` (inline images in text, `Text + Text`, Canvas `draw(Text)`) | ✅ | ≤17 | symbols take the text's font size, weight and colour; laid out as words in rich text; tested (HelloSourceCompat). SF Symbols without a stand-in icon draw as a placeholder |
 | `strikethrough`, `underline`, `kerning`, `tracking`, `textCase`, `baselineOffset` | ✅ | ≤17 | on `Text` and as view modifiers; lines are hairline views, kerning places glyphs one by one (`tracking` = `kerning`), line patterns drawn solid; tested (HelloText) |
 | `lineLimit`, `multilineTextAlignment` | ✅ | ≤17 | |
-| `truncationMode`, `minimumScaleFactor`, `allowsTightening` | 🟡 | ≤17 | head/middle/tail truncation of one-line text (tested), `minimumScaleFactor` shrinks one-line labels to fit (screenshot only); `allowsTightening` is stored, no effect |
+| `truncationMode`, `minimumScaleFactor`, `allowsTightening` | ✅ | ≤17 | head / middle / tail truncation of one-line text, `minimumScaleFactor` shrinks one-line text to fit, `allowsTightening` draws a slightly long line with its letters closer together (up to 5% of the size) before truncating (UILabel `allowsDefaultTighteningForTruncation`). Tested (HelloSwiftUIControls) |
 | `Image` (asset/bundle name, `uiImage:`), `resizable`, `renderingMode`, `interpolation` | ✅ | ≤17 | |
 | `Image(systemName:)` | 🟡 | ≤17 | the same stand-in drawings as `UIImage(systemName:)` (not Apple's SF Symbols); `.font` / `.fontWeight` set size and stroke weight |
-| `imageScale`, `symbolRenderingMode`, `symbolVariant`, `symbolEffect` | 🟡 | ≤17 | `imageScale` sizes symbols (tested); `symbolVariant` appends `.fill`/`.circle`/... to the symbol name (unverified); `symbolRenderingMode` accepted, ignored; `symbolEffect`: adapted — bounce, pulse, variable colour, scale, appear / disappear, replace (content transition), iOS 18 wiggle / rotate / breathe animate the whole symbol (no per-layer motion); bounce and pulse tested (HelloEffects) |
+| `imageScale`, `symbolRenderingMode`, `symbolVariant`, `symbolEffect` | ✅ | ≤17 | `imageScale`; `symbolVariant` (`.fill`, `.circle`, `.square`, `.slash`, combined) picks the variant symbol; `symbolRenderingMode` (also `Image.symbolRenderingMode`) `.monochrome` / `.hierarchical` / `.palette` (the `foregroundStyle(_:_:)` / `(_:_:_:)` colours) / `.multicolor` through UIKit's symbol configurations (see UIKit: rendering modes, adapted to isim's two-layer stand-in symbols); `symbolEffect`: adapted like UIKit's — bounce, pulse, variable colour, scale, appear / disappear, replace (content transition), iOS 18 wiggle / rotate / breathe animate the whole symbol, with `SymbolEffectOptions` repeats and speed. Tested (HelloSwiftUIControls, OS matrix; HelloEffects) |
 | `AsyncImage` | ✅ | ≤17 | URLSession (http(s), file, data URLs); phases, `content:placeholder:`; decoded through a temporary file (isim's UIImage has no `init(data:)`); tested (HelloPickers) |
 | `Label` | ✅ | ≤17 | |
 | `Button` (action, label, role) | ✅ | ≤17 | |
@@ -502,8 +502,8 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `Slider` | ✅ | ≤17 | UISlider; step, value labels, onEditingChanged; tested |
 | `Stepper` | ✅ | ≤17 | value/bounds/step and onIncrement/onDecrement; tested |
 | `Picker` (menu, segmented, wheel, inline, navigationLink styles) | ✅ | ≤17 | all five styles; `.wheel` is a snapping scroll-wheel drawn by isim (no UIPickerView); tested (HelloForms, HelloPickers) |
-| `DatePicker`, `MultiDatePicker` | 🟡 | ≤17 | `DatePicker`: compact (date/time pills open a calendar or time wheel in a sheet — iOS uses a popover), graphical (month grid, month paging, time row), wheel; `.date` / `.hourAndMinute`; ranges; `labelsHidden`; tested (HelloPickers). `MultiDatePicker` missing |
-| `ColorPicker` | 🟡 | ≤17 | colour well opening a sheet with iOS's colour grid and an opacity slider (no spectrum/sliders pages, no eyedropper); `Color` and `CGColor` bindings; tested (HelloPickers) |
+| `DatePicker`, `MultiDatePicker` | ✅ | ≤17 | `DatePicker`: compact (date / time pills open the calendar or the time wheel in a popover, like iOS; picking a day closes it), graphical (month grid, month paging, time row), wheel; `.date` / `.hourAndMinute`; ranges; `labelsHidden`. `MultiDatePicker`: a month calendar toggling days in a `Set<DateComponents>`, `in:` ranges (days outside disabled). Tested (HelloPickers, HelloSwiftUIControls, OS matrix) |
+| `ColorPicker` | ✅ | ≤17 | UIKit's colour well, presenting UIKit's colour picker (grid, spectrum, sliders, opacity, saved colours, eyedropper; see UIKit `UIColorPickerViewController`), like iOS; `Color` and `CGColor` bindings, `supportsOpacity`. Tested (HelloPickers) |
 | `TextField` (String binding, placeholder, `axis: .vertical` multi-line) | ✅ | ≤17 | `prompt` ignored |
 | `TextField(value:format:)`, `TextField(value:formatter:)` | ✅ | ≤17 | parseable format styles and NumberFormatter / DateFormatter values, parsed on Return or end of editing (unparseable text reverts); tested (HelloPickers) |
 | `SecureField` | ✅ | ≤17 | |
@@ -511,13 +511,13 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `ProgressView` | ✅ | ≤17 | UIProgressView bar / spinning UIActivityIndicatorView; labels and current-value labels, `.linear` / `.circular` / custom `ProgressViewStyle`; label tested (HelloPickers) |
 | `Gauge` | ✅ | ≤17 | linear capacity (default), `.accessoryLinear`, `.accessoryCircular`, `.accessoryCircularCapacity`, custom `GaugeStyle`; tested (HelloPickers) |
 | `Link` | ✅ | ≤17 | opens through `openURL` |
-| `ShareLink` | 🟡 | ≤17 | opens a share sheet showing the item; isim has no share destinations (adapted) ; tested (HelloPickers) |
+| `ShareLink` | ✅ | ≤17 | presents UIKit's share sheet (`UIActivityViewController`: Copy, Save Image, Print, the installed apps' Share and Action extensions) with the item(s): URLs, strings, `Transferable` values (their first exported type as text, a URL, an image or a file), `items:`, `subject` / `message`, `SharePreview`. Tested (HelloPickers, HelloSwiftUIControls, OS matrix) |
 | `Menu` | ✅ | ≤17 | pop-up menu with sections, submenus, pickers, destructive buttons; tested |
 | `Divider`, `Spacer`, `EmptyView`, `Color` as a view | ✅ | ≤17 | |
 | `LabeledContent` | ✅ | ≤17 | |
 | `ContentUnavailableView` | ✅ | 17.0 | icon, title, description, actions; `.search` / `.search(text:)`; tested (HelloPickers) |
 | `ControlGroup`, `GroupBox`, `DisclosureGroup`, `OutlineGroup` | ✅ | ≤17 | disclosure rows expand/collapse (own state or `isExpanded:` binding; in a List the content follows as indented rows); `OutlineGroup` and `List(_:children:)` build the tree; control groups share one bordered row (`controlGroupStyle` ignored); tested (HelloPickers) |
-| `EditButton`, `PasteButton`, `RenameButton` | 🟡 | ≤17 | `EditButton` toggles `\.editMode` (tested, HelloLists); `PasteButton` is a stub (no pasteboard on isim: shown disabled, tested); `RenameButton` missing |
+| `EditButton`, `PasteButton`, `RenameButton` | ✅ | ≤17 | `EditButton` toggles `\.editMode` (tested, HelloLists); `PasteButton` is UIKit's paste control: enabled while the pasteboard has an accepted type, a tap pastes without the "Allow Paste" prompt and delivers `Transferable` payloads or item providers (tested, HelloSwiftUIControls); `RenameButton` runs `.renameAction { }` or focuses `.renameAction($focus)` (tested) |
 | `VideoPlayer` (AVKit), `Map` (MapKit), `SceneView` | 🟡 | ≤17 | `Map` (iOS 17 MapContent + iOS 14 `coordinateRegion` API) on isim's MKMapView: tested (HelloMaps). `VideoPlayer` see AVKit; `SceneView` missing |
 | `SpriteView` | ✅ | ≤17 | see SpriteKit |
 
@@ -527,32 +527,32 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 |---|---|---|---|
 | `VStack`, `HStack`, `ZStack` (alignment, spacing) | ✅ | ≤17 | |
 | `Spacer(minLength:)`, `layoutPriority`, `fixedSize` | ✅ | ≤17 | |
-| `LazyVStack`, `LazyHStack` | 🟡 | ≤17 | laid out like plain stacks; `pinnedViews` ignored |
-| `LazyVGrid` (`GridItem` fixed / flexible / adaptive) | 🟡 | ≤17 | `pinnedViews` ignored |
+| `LazyVStack`, `LazyHStack` | ✅ | ≤17 | adapted: all views are laid out (not created on demand), like stacks; sections splice their header, rows and footer; `pinnedViews` `.sectionHeaders` stick to the top (leading) edge of the scroll view while their section passes under it and are pushed away by the next, `.sectionFooters` to the bottom (trailing) edge. Tested (HelloContainers: LazyVStack header / footer pinning, LazyHStack) |
+| `LazyVGrid` (`GridItem` fixed / flexible / adaptive) | ✅ | ≤17 | columns: fixed sizes, flexible ones share the rest within their bounds, adaptive ones repeat as many times as fit; `GridItem.spacing` between columns (default 8), the grid's `spacing` between rows, `GridItem.alignment` in the cells, the grid's alignment; sections (the header and footer span the grid, items start a new row), `pinnedViews`; `LazyHGrid` the same across rows. Eager layout (adapted). Tested (HelloContainers, HelloLayout) |
 | `LazyHGrid` | ✅ | ≤17 | `init(rows:)` with fixed / flexible / adaptive rows, items flow down then across; laid out eagerly; tested (HelloLayout) |
 | `Grid`, `GridRow` | ✅ | ≤17 | column widths from the widest cells, flexible cells share the rest; `gridCellColumns`, `gridColumnAlignment`, `gridCellAnchor`, `gridCellUnsizedAxes`, row alignment, full-width non-row views; tested (HelloLayout) |
 | `ScrollView` (vertical, horizontal) | ✅ | ≤17 | |
 | `ScrollViewReader`, `scrollTo` | ✅ | ≤17 | |
-| `scrollIndicators`, `scrollDisabled`, `scrollBounceBehavior` | 🟡 | ≤17 | `scrollDisabled` tested (HelloLayout); hidden indicators and `.basedOnSize` bounce unverified |
+| `scrollIndicators`, `scrollDisabled`, `scrollBounceBehavior` | ✅ | ≤17 | `scrollIndicators(.hidden / .never)` hides the indicators (the view dump says "indicators hidden"), `scrollDisabled`, `scrollBounceBehavior(.basedOnSize)`: content that fits does not bounce. Tested (HelloContainers, HelloLayout) |
 | `scrollPosition`, `scrollTargetBehavior` (paging), `scrollTransition`, `onScrollGeometryChange` | ✅ | ≤17 | `.paging` (UIScrollView paging), `.viewAligned` + `scrollTargetLayout()` (snaps to children), custom `ScrollTargetBehavior.updateTarget`, `scrollPosition(id:)` both ways; tested (HelloLayout). `scrollTransition` (identity while visible, interpolated towards the edge phase as the view leaves; `.animated`, thresholds) and iOS 18 `onScrollGeometryChange` / `onScrollVisibilityChange`; tested (HelloEffects) |
-| `List` (content builder, sections, data, selection) | 🟡 | ≤17 | inset-grouped look; `List(data)`, `List(data, children:)`, `List(selection:)` single (tested via NavigationSplitView) and multiple (circles in edit mode, unverified) |
-| `listStyle`, `listRowBackground`, `listRowSeparator`, `listSectionSpacing`, `scrollContentBackground` | 🧩 | ≤17 | accepted, ignored |
+| `List` (content builder, sections, data, selection) | ✅ | ≤17 | list styles below; `List(data)`, `List(data, children:)`, `List(selection:)` single (tested via NavigationSplitView) and multiple (selection circles in edit mode, rows make room; tested, HelloContainers) |
+| `listStyle`, `listRowBackground`, `listRowSeparator`, `listSectionSpacing`, `scrollContentBackground` | ✅ | ≤17 | UITableView's looks: `.automatic` / `.insetGrouped` (cards inset 20 pt), `.grouped` (full width, section hairlines), `.plain` (system background, bold headers on a grey band that stick to the top, separators under every row), `.inset` (plain, rows inset), `.sidebar` (no separators, large bold headers, rounded selection); `listRowBackground`, `listRowInsets`, `listRowSeparator(_:edges:)` / `listRowSeparatorTint`, `listSectionSeparator` / `Tint`, `listRowSpacing` (each row its own card), `listSectionSpacing` (`.default` / `.compact` / custom, on the list or a section), `scrollContentBackground(.hidden)`, `headerProminence(.increased)`, `listItemTint`, `defaultMinListRowHeight` / `defaultMinListHeaderHeight`, `Section(isExpanded:)` (sidebar and plain headers collapse it). Tested (HelloContainers, OS matrix) |
 | `.onDelete`, `.onMove`, `.swipeActions`, edit mode | ✅ | ≤17 | swipe to delete, leading/trailing swipe actions (tint, full swipe), edit mode delete buttons and reorder handles; tested (HelloLists) |
 | `Form` | ✅ | ≤17 | inset-grouped rows; `formStyle` ignored |
 | `Section` (header, footer) | ✅ | ≤17 | |
 | `ForEach` (`id:`, `Identifiable`, `Range`) | ✅ | ≤17 | |
 | `Group`, `AnyView`, `if`/`switch` in builders | ✅ | ≤17 | |
 | `GeometryReader`, `GeometryProxy.size`, `frame(in: .local/.global)`, safe-area insets | ✅ | ≤17 | |
-| Named coordinate spaces | 🟡 | ≤17 | `.named` falls back to global |
+| Named coordinate spaces | ✅ | ≤17 | `.coordinateSpace(name:)` / `.coordinateSpace(.named(_))`, `.named`, `.global`, `.local`, `.scrollView`: GeometryReader and onGeometryChange frames measured from the views (geometry effects such as `.offset` included); content laid out before its views exist gets the frame of the previous render and the graph renders again when a frame changes (also while an enclosing scroll view scrolls), like SwiftUI re-evaluating geometry; DragGesture / SpatialTapGesture locations in any space; `GeometryProxy.safeAreaInsets`. Tested (HelloContainers) |
 | `ViewThatFits` | ✅ | ≤17 | first child whose ideal size fits (per axis); tested (HelloLayout) |
 | `Layout` protocol, `AnyLayout` | ✅ | ≤17 | `sizeThatFits` / `placeSubviews` with subviews' `sizeThatFits` / `dimensions` / `place(at:anchor:proposal:)`, caches, `layoutValue`; `AnyLayout` switching keeps child state; `HStackLayout` / `VStackLayout` / `ZStackLayout` / `GridLayout`; tested (HelloLayout). Spacing preferences are a fixed 8 pt; not animatable |
-| `containerRelativeFrame` | 🟡 | ≤17 | relative to the nearest scroll view, else the window's safe area (navigation/tab content are not containers of their own); `count:span:spacing:` and closure forms; tested (HelloLayout) |
+| `containerRelativeFrame` | ✅ | ≤17 | relative to the nearest container: a scroll view, a list, the content area of a navigation stack or tab view, a split view column, else the window's safe area; `count:span:spacing:` and closure forms. Tested (HelloLayout, HelloContainers) |
 | `frame` (fixed, min/ideal/max, alignment), `padding`, `aspectRatio`, `offset` | ✅ | ≤17 | |
 | `position`, `alignmentGuide` | ✅ | ≤17 | `position` centres the view at a point; explicit guides and custom `AlignmentID`s line up views in HStack / VStack / ZStack, also through nested stacks; tested (HelloLayout) |
 | `ignoresSafeArea`, `edgesIgnoringSafeArea` | ✅ | ≤17 | |
-| `safeAreaInset`, `safeAreaPadding`, `contentMargins` | 🟡 | ≤17 | `safeAreaInset` lays the inset view at the edge and the content in the rest (content does not scroll beneath it); `safeAreaPadding` is padding; `contentMargins` pads scroll view content; inset and margins tested (HelloLayout) |
+| `safeAreaInset`, `safeAreaPadding`, `contentMargins` | ✅ | ≤17 | `safeAreaInset` lays the inset view at the edge; a scroll view or list filling the content extends beneath it with its content inset by it (the last rows scroll out from under it), other content is laid out in the rest; `safeAreaPadding`: content insets for scroll views and lists, padding for other views; `contentMargins` `.scrollContent` (content) / `.scrollIndicators` (indicator insets) / `.automatic`. Tested (HelloContainers, HelloLayout) |
 | `overlay`, `background` (view, shape style, `in:` shape), `zIndex` | ✅ | ≤17 | |
-| `Group(subviews:)`, `ForEach(subviews:)`, `containerValue`, `@Entry` | ❌ | 18.0 | |
+| `Group(subviews:)`, `ForEach(subviews:)`, `containerValue`, `@Entry` | ✅ | 18.0 | `Group(subviews:)` / `ForEach(subviews:)` (`Subview`, `SubviewsCollection`, slices), `Group(sections:)` / `ForEach(sections:)` (`SectionConfiguration`: header, content, footer, container values; loose views form sections), `ContainerValueKey` / `ContainerValues` / `.containerValue` (on views, ForEach and sections); the content splits into views like a stack would (ForEach, conditionals, custom views' bodies); a subview placed under another environment resolves again there. `@Entry` (isim's SwiftUIMacros compiler plugin) in EnvironmentValues, ContainerValues, FocusedValues and Transaction. Tested (HelloContainers) |
 
 ### Navigation & presentation
 

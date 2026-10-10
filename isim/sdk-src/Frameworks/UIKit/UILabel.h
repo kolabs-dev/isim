@@ -17,6 +17,7 @@ typedef NS_ENUM(NSInteger, NSLineBreakMode) { NSLineBreakByWordWrapping = 0, NSL
 @property (nonatomic) NSInteger numberOfLines;
 @property (nonatomic) BOOL adjustsFontSizeToFitWidth;
 @property (nonatomic) CGFloat minimumScaleFactor;
+@property (nonatomic) BOOL allowsDefaultTighteningForTruncation;
 @property (nonatomic) CGFloat preferredMaxLayoutWidth;
 @property (nonatomic) BOOL adjustsFontForContentSizeCategory;
 - (CGRect)textRectForBounds:(CGRect)bounds limitedToNumberOfLines:(NSInteger)numberOfLines;

@@ -185,3 +185,11 @@ extension NSItemProvider {
         }
     }
 }
+
+/// Never is Transferable (it has no representation), so APIs can default a Transferable type parameter to it (SwiftUI's
+/// SharePreview without an image or icon).
+public struct _NeverTransferRepresentation: TransferRepresentation { public typealias Item = Never; public init() {} }
+extension Never: Transferable {
+    public typealias Representation = _TupleRepresentation<Never>
+    public static var transferRepresentation: _TupleRepresentation<Never> { _NeverTransferRepresentation() }
+}

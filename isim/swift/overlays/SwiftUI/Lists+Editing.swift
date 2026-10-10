@@ -37,6 +37,38 @@ public struct EditButton: View {
     }
 }
 
+// MARK: - RenameButton
+
+/// What a RenameButton does: focus a title field, or the app's own action (`.renameAction`).
+public struct RenameAction {
+    let action: () -> Void
+    @MainActor public func callAsFunction() { action() }
+}
+struct _RenameKey: EnvironmentKey { static var defaultValue: RenameAction? { nil } }
+extension EnvironmentValues {
+    public var rename: RenameAction? { get { self[_RenameKey.self] } set { self[_RenameKey.self] = newValue } }
+}
+extension View {
+    /// The action of RenameButtons inside (and of an editable navigation title).
+    public func renameAction(_ action: @escaping () -> Void) -> some View { _env { $0.rename = RenameAction(action: action) } }
+    /// RenameButtons inside focus this field.
+    public func renameAction(_ isFocused: FocusState<Bool>.Binding) -> some View { _env { $0.rename = RenameAction { isFocused.wrappedValue = true } } }
+}
+/// "Rename" (a pencil): runs the environment's rename action; disabled without one.
+public struct RenameButton<Label: View>: View {
+    @Environment(\.rename) var rename
+    let label: Label?
+    public var body: some View {
+        Button { rename?() } label: {
+            if let label { label } else { SwiftUI.Label("Rename", systemImage: "pencil") }
+        }
+        .disabled(rename == nil)
+    }
+}
+extension RenameButton where Label == SwiftUI.Label<Text, Image> {
+    public init() { label = nil }
+}
+
 // MARK: - isPresented, presentationMode
 
 struct _IsPresentedKey: EnvironmentKey { static var defaultValue: Bool { false } }

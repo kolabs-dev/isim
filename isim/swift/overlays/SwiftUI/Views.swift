@@ -313,7 +313,7 @@ public struct Text: View, Equatable, _PrimitiveView {
 @MainActor let _measureLabel = UILabel()
 final class _TextNode: _Node {
     let text: String, font: UIFont, color: UIColor, minLines: Int?, maxLines: Int?, alignment: TextAlignment
-    var truncation = Text.TruncationMode.tail, minimumScale: CGFloat = 1
+    var truncation = Text.TruncationMode.tail, minimumScale: CGFloat = 1, tightening = false
     var contentTransition: ContentTransition?
     init(path: String, text: String, font: UIFont, color: UIColor, minLines: Int?, maxLines: Int?, alignment: TextAlignment) {
         self.text = text; self.font = font; self.color = color; self.minLines = minLines; self.maxLines = maxLines; self.alignment = alignment
@@ -347,6 +347,7 @@ final class _TextNode: _Node {
         l.text = shown
         l.font = font; l.textColor = color; l.numberOfLines = maxLines ?? 0
         l.adjustsFontSizeToFitWidth = minimumScale < 1; l.minimumScaleFactor = minimumScale
+        l.allowsDefaultTighteningForTruncation = tightening          // allowsTightening
         l.textAlignment = alignment == .center ? .center : alignment == .trailing ? .right : .left
         return l
     }
@@ -360,6 +361,7 @@ public struct Image: View, _PrimitiveView {
     var isResizable = false
     var renderingMode: TemplateRenderingMode?
     var interpolationMode: Interpolation?
+    var symbolMode: SymbolRenderingMode?             // Image.symbolRenderingMode(_:) (Text+Formatting.swift)
     public enum TemplateRenderingMode: Sendable { case template, original }
     public enum Scale: Sendable { case small, medium, large }
     public init(systemName: String) { source = .system(systemName) }
@@ -373,7 +375,11 @@ public struct Image: View, _PrimitiveView {
         var img: UIImage?
         var template = false
         switch source {
-        case .system(let n): img = UIImage(systemName: _symbolName(n, ctx.environment), withConfiguration: _symbolConfig(font, ctx.environment)); template = true
+        case .system(let n):
+            // rendering modes: monochrome is a template tinted with the foreground; hierarchical, palette and
+            // multicolor symbols carry their colours (UIKit's symbol configurations)
+            let (cfg, coloured) = _symbolRendering(_symbolConfig(font, ctx.environment), symbolMode ?? ctx.environment.symbolRenderingMode, ctx.environment)
+            img = UIImage(systemName: _symbolName(n, ctx.environment), withConfiguration: cfg); template = !coloured
         case .named(let n, _): img = UIImage(named: n)
         case .ui(let u): img = u
         }
