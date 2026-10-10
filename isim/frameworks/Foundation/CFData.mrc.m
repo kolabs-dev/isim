@@ -1,4 +1,4 @@
-/* isim Foundation: CFData, CFArray and CFDictionary functions over NSData / NSArray / NSDictionary (toll-free bridged, as on iOS). */
+/* isim Foundation: CFData, CFArray, CFDictionary and CFSet functions over NSData / NSArray / NSDictionary / NSSet (toll-free bridged, as on iOS). */
 #import <Foundation/Foundation.h>
 #include <CoreFoundation/CoreFoundation.h>
 
@@ -26,3 +26,9 @@ CFDictionaryRef CFDictionaryCreate(CFAllocatorRef a, const void **keys, const vo
 }
 CFIndex CFDictionaryGetCount(CFDictionaryRef d) { return d ? (CFIndex)[(NSDictionary *)d count] : 0; }
 const void *CFDictionaryGetValue(CFDictionaryRef d, const void *key) { return d && key ? (const void *)[(NSDictionary *)d objectForKey:(id)key] : NULL; }
+const CFSetCallBacks kCFTypeSetCallBacks = { 0 };
+CFSetRef CFSetCreate(CFAllocatorRef a, const void **values, CFIndex n, const CFSetCallBacks *cb) {
+    return (CFSetRef)[[NSSet alloc] initWithObjects:(id *)values count:(NSUInteger)(n > 0 ? n : 0)];
+}
+CFIndex CFSetGetCount(CFSetRef s) { return s ? (CFIndex)[(NSSet *)s count] : 0; }
+Boolean CFSetContainsValue(CFSetRef s, const void *v) { return s && v && [(NSSet *)s containsObject:(id)v]; }

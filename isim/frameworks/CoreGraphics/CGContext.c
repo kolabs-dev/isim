@@ -583,6 +583,19 @@ void isim_cg_context_draw_text_line(CGContextRef c, void *layout, int line, doub
     x->textPos.x += advance;
     leave(x);
 }
+/* Core Text glyphs (CTFontDrawGlyphs): a host font's glyphs at text-space positions, in the fill color */
+void isim_cg_context_draw_glyphs(CGContextRef c, void *font, const CGGlyph *glyphs, const double *pos, int n) {
+    struct CGContext *x = enter(c);
+    if (G(x)->textMode != kCGTextInvisible && G(x)->textMode != kCGTextClip) {
+        int fx = fx_begin(x);
+        double rgba[4]; with_alpha(x, G(x)->fill, rgba);
+        CGAffineTransform t = x->textMatrix;
+        double tm[6] = { t.a, t.b, t.c, t.d, t.tx, t.ty };
+        isim_ct_font_draw(font, glyphs, pos, n, 0, 0, tm, rgba);
+        fx_end(x, fx);
+    }
+    leave(x);
+}
 static char cg_font_name[256] = "Helvetica";
 void CGContextSelectFont(CGContextRef c, const char *name, CGFloat size, int32_t enc) {
     struct CGContext *x = c ? c : (struct CGContext *)isim_cg_current_context();
