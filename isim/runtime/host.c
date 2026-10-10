@@ -54,6 +54,7 @@ int isim_pki_encrypt(const uint8_t *, size_t, int, const uint8_t *, size_t, uint
 int isim_pki_decrypt(const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
 int isim_pki_ecdh(const uint8_t *, size_t, const uint8_t *, size_t, uint8_t *, size_t *);
 int isim_pki_cert_parse(const uint8_t *, size_t, char *, size_t);
+int isim_pki_key_der(int, const uint8_t *, size_t, uint8_t *, size_t *);
 int isim_pki_trust(const uint8_t *, const size_t *, int, const uint8_t *, const size_t *, int, int, int, const char *, double, char *, size_t, int *);
 int isim_pki_pkcs12(const uint8_t *, size_t, const char *, uint8_t *, size_t *, int *, uint8_t *, size_t, size_t *, int *);
 
@@ -1609,6 +1610,8 @@ void isim_http_cancel(struct isim_http *h);
 void isim_http_close(struct isim_http *h);
 void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen);
 struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err);
+struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response);
+struct isim_http *isim_http_start_tls(const char *, const char *, const char *, const void *, long, double, double, int, const char *, const void *, long);
 int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
 int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
 void isim_ws_close(struct isim_ws *w);
@@ -1687,6 +1690,7 @@ void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void 
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
 long isim_tls_read(struct isim_tls *t, void *buf, long n); long isim_tls_write(struct isim_tls *t, const void *buf, long n);
 void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen); void isim_tls_close(struct isim_tls *t);
+int isim_tls_probe(const char *, int, double, unsigned char *, long, long *, int, int *, char *, int, int *, unsigned char *, long, long *, int, int *, char *, int);
 /* XCUITest: the app under test as a child process (host_xctest.c) */
 int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp); int isim_xcui_running(int h);
 int isim_xcui_send(int h, const char *line); char *isim_xcui_snapshot(int h, double timeout); void isim_xcui_free(char *p); void isim_xcui_terminate(int h);
@@ -1762,13 +1766,13 @@ static const struct shim isim_table[] = {
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),
     H(isim_audio_available), H(isim_audio_buffer_create), H(isim_audio_buffer_release), H(isim_audio_play), H(isim_audio_stop),
     H(isim_audio_pause), H(isim_audio_set_volume), H(isim_audio_is_playing), H(isim_audio_position), H(isim_audio_seek), H(isim_audio_suspend), H(isim_audio_decode_file), H(isim_audio_free), H(isim_audio_active),
-    H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close), H(isim_http_metrics),
+    H(isim_http_start), H(isim_http_response), H(isim_http_read), H(isim_http_error_message), H(isim_http_cancel), H(isim_http_close), H(isim_http_metrics), H(isim_http_start_tls), H(isim_ws_open_ex),
     H(isim_ws_open), H(isim_ws_send), H(isim_ws_recv), H(isim_ws_close), H(isim_net_path), H(isim_account_name), H(isim_account_id), H(isim_fs_stats),
     H(isim_crypto_available), H(isim_crypto_aead), H(isim_crypto_ec_generate), H(isim_crypto_ec_public), H(isim_crypto_ec_import_public),
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
     H(isim_pki_available), H(isim_pki_error), H(isim_pki_generate), H(isim_pki_public), H(isim_pki_key_bits), H(isim_pki_sign), H(isim_pki_verify),
-    H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_trust), H(isim_pki_pkcs12),
+    H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_key_der), H(isim_pki_trust), H(isim_pki_pkcs12),
     H(isim_set_orientation), H(isim_device_orientation),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_text_draw_markup),
@@ -1784,7 +1788,7 @@ static const struct shim isim_table[] = {
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
-    H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close),
+    H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_probe),
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),

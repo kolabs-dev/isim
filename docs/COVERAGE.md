@@ -55,14 +55,14 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 73 | 9 | 1 | 1 | 84 | 92% |
+| **Foundation** | 76 | 6 | 1 | 1 | 84 | 94% |
 | &nbsp;&nbsp;↳ Strings & text | 12 | 3 | 0 | 0 | 15 | 90% |
 | &nbsp;&nbsp;↳ Collections & values | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 8 | 3 | 0 | 0 | 11 | 86% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 9 | 0 | 0 | 0 | 9 | 100% |
-| &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
+| &nbsp;&nbsp;↳ Networking | 15 | 0 | 1 | 1 | 17 | 88% |
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Dispatch | 6 | 0 | 0 | 0 | 6 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **794** | **175** | **23** | **32** | **1024** | **86%** |
+| **All areas** | **797** | **172** | **23** | **32** | **1024** | **86%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 92% (84) | 92% (84) | 92% (84) | 92% (84) |
+| Foundation | 94% (84) | 94% (84) | 94% (84) | 94% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (966) | **86%** (978) | **86%** (1003) | **86%** (1024) |
+| **All areas** | **87%** (966) | **86%** (978) | **86%** (1003) | **86%** (1024) |
 
 ---
 
@@ -904,12 +904,12 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `bytes(from:)` / `bytes(for:)`, `AsyncBytes.lines` | ✅ | ≤17 | `lines` skips empty lines like Apple's; tested |
 | `URLSessionConfiguration` (`.default`, `.ephemeral`, timeouts, extra headers, cache/cookie settings) | ✅ | ≤17 | `timeoutIntervalForRequest` is an idle timeout as on iOS; `waitsForConnectivity`, `allowsCellularAccess` and service types are stored only |
 | `file:` and `data:` URLs in `URLSession` | ✅ | ≤17 | tested |
-| `URLSessionWebSocketTask` | 🟡 | ≤17 | adapted: isim's own RFC 6455 client over ws:// and wss:// (any host libcurl): the upgrade (Sec-WebSocket-Accept checked; request headers, cookies and Sec-WebSocket-Protocol sent), text and data, fragmented messages joined, pings answered, sendPing, close with code and reason; no proxies or permessage-deflate; the negotiated subprotocol is not reported. Tested (SwiftNetworkTest over ws and wss, HelloNetwork echo) |
-| Authentication challenges (`didReceive challenge`, `URLCredential`, `URLProtectionSpace`), certificate pinning | 🟡 | ≤17 | HTTP Basic and Digest (MD5, qop=auth) through the task delegate (completion and async forms), `previousFailureCount`, `URLCredentialStorage` default credentials (in memory), 401 without a credential; server-trust challenge before each HTTPS request (`.useCredential` + `URLCredential(trust:)` accepts the certificate, cancel → -999). Adapted: `SecTrust` names the host only, so certificate pinning cannot inspect certificates; no client certificates, NTLM or proxies. Tested (HelloConnections) |
+| `URLSessionWebSocketTask` | ✅ | ≤17 | adapted: isim's own RFC 6455 client over ws:// and wss:// (any host libcurl): the upgrade (Sec-WebSocket-Accept checked; request headers, cookies and `Sec-WebSocket-Protocol` sent), the subprotocol the server chose in `didOpenWithProtocol`, the server's response (101, or a refusal's status) as the task's `response`, text and data, fragmented messages joined, pings answered, `sendPing`, close with code and reason. No proxies or permessage-deflate (servers fall back to uncompressed frames). Tested (SwiftNetworkTest over ws and wss, HelloNetwork echo) |
+| Authentication challenges (`didReceive challenge`, `URLCredential`, `URLProtectionSpace`), certificate pinning, client certificates | ✅ | ≤17 | HTTP Basic and Digest (MD5, qop=auth) through the task delegate (completion and async forms), `previousFailureCount`, `URLCredentialStorage` default credentials (in memory), 401 without a credential. Server trust: adapted: before an HTTPS request (with a delegate), URLSession meets the server in a handshake of its own (host OpenSSL) and puts the server's certificate chain in the challenge's `serverTrust`, so pinning code reads it with `SecTrustCopyCertificateChain` / `SecCertificateCopyData` / `SecTrustCopyKey` and `SecTrustEvaluateWithError`; libcurl's connection is then pinned to that certificate's key (a server whose key changes fails with -1202). `.useCredential` + `URLCredential(trust:)` accepts the certificate, cancel → -999, default handling checks it against the CA store. Client certificates: a server that asks for one gets an `NSURLAuthenticationMethodClientCertificate` challenge (`distinguishedNames`: the CAs the server names); `URLCredential(identity:certificates:persistence:)` (an identity from `SecPKCS12Import` or the keychain) is presented through libcurl; none → `clientCertificateRequired` (-1206). One probe per server and session. No NTLM / Negotiate or proxies. Tested (SwiftNetworkTest against https_server.py: pin match and mismatch, client identity and none; HelloConnections) |
 | `URLSessionTaskMetrics`, task `progress`, resumable downloads (`resumeData`) | ✅ | ≤17 | metrics per transaction from libcurl timings (lookup, connect, TLS, request, response; protocol, addresses, reused connection, local-cache loads), redirect count; `progress` (bytes, KVO `fractionCompleted`); `cancel(byProducingResumeData:)`, failed downloads' `NSURLSessionDownloadTaskResumeData`, `downloadTask(withResumeData:)` with `Range`/`If-Range` and `didResumeAtOffset`. Tested (HelloConnections). Resumable uploads not supported |
 | Background `URLSession` | 🧩 | ≤17 | `background(withIdentifier:)` sessions run like default sessions while the app runs |
 | `HTTPCookie`, `HTTPCookieStorage` | ✅ | ≤17 | Set-Cookie parsing (domain, path, expiry, secure); `shared` persists in the app container; ephemeral sessions get a private jar; tested; accept policies unverified |
-| `URLCache`, `CachedURLResponse` | 🟡 | ≤17 | in memory only (nothing written to disk); max-age/Expires/heuristic freshness, ETag/Last-Modified revalidation, request cache policies; tested |
+| `URLCache`, `CachedURLResponse` | ✅ | ≤17 | adapted: an in-memory LRU (`memoryCapacity`) over an on-disk LRU (`diskCapacity`; a metadata and a body file per response in `directory` / `diskPath`, by default `Library/Caches/<bundle id>/isim-urlcache`, not CFNetwork's Cache.db) that survives relaunches; responses over 5% of a tier's capacity skip it, `.allowedInMemoryOnly` stays in memory; max-age/Expires/heuristic freshness, ETag/Last-Modified revalidation, request cache policies, `removeCachedResponses(since:)`. Tested (SwiftNetworkTest: a second cache object on the same directory, LRU eviction, a later session served from disk) |
 | Objective-C `NSURLSession`, `NSURLRequest`, `NSURLComponents`, `NSHTTPCookie` | ❌ | ≤17 | the networking API is Swift-only |
 
 ---
@@ -1365,7 +1365,7 @@ Transaction Manager. Tested by `tests/ui/test_store.py` (HelloStore sample).
 | CommonCrypto (`CC_SHA*`, `CC_MD5`, `CCHmac`, `CCCrypt`/`CCCryptor`, `CCKeyDerivationPBKDF`, `CCRandomGenerateBytes`) | ✅ | ≤17 | in libSystem like iOS; contexts copyable; AES (ECB/CBC/CTR/CFB/OFB) and 3DES via the host's OpenSSL, other ciphers `kCCUnimplemented`. Known-answer tests |
 | Security: `SecRandomCopyBytes`, `SecCopyErrorMessageString` | ✅ | ≤17 | |
 | Security: `SecKey` (RSA 1024-8192, EC P-256/384/521: create, import/export in Apple's formats, sign/verify incl. PSS and RFC 4754, RSA PKCS#1/OAEP encryption, ECDH + X9.63 KDF, attributes) | ✅ | ≤17 | host OpenSSL; no Secure Enclave (`kSecAttrTokenIDSecureEnclave` fails with `errSecUnimplemented`); ECIES algorithms unsupported. Tested: SecurityTest (interoperates with CryptoKit) |
-| Security: certificates and trust (`SecCertificate`, `SecPolicy`, `SecTrust` create/anchors/verify date/evaluate (sync, async), chain, exceptions, `SecPKCS12Import`, `SecIdentity`) | 🟡 | ≤17 | host OpenSSL; system anchors are the host's CA store (Apple's trust policies — CT, key-size rules, revocation — are not applied); a URLSession challenge's trust names the host only (no chain) and evaluates as trusted because libcurl checks the server. Tested: SecurityTest (test CA, wildcard host, expired, self-signed, wrong password) |
+| Security: certificates and trust (`SecCertificate`, `SecPolicy`, `SecTrust` create/anchors/verify date/evaluate (sync, async), chain, exceptions, `SecPKCS12Import`, `SecIdentity`) | 🟡 | ≤17 | host OpenSSL; system anchors are the host's CA store (Apple's trust policies — CT, key-size rules, revocation — are not applied); a URLSession challenge's trust holds the server's certificate chain (pinning; see Authentication challenges); `URLCredential(identity:certificates:persistence:)` for client certificates. Tested: SecurityTest (test CA, wildcard host, expired, self-signed, wrong password) |
 | DeviceCheck / App Attest | 🧩 | ≤17 | `isSupported` is false and calls fail with `DCError.featureUnsupported`, like the Simulator |
 
 ## Notifications & background work

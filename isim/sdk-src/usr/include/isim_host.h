@@ -155,6 +155,11 @@ void isim_audio_free(float *_Nullable pcm);
 struct isim_http;
 struct isim_http *_Nullable isim_http_start(const char *method, const char *url, const char *_Nullable headers, const void *_Nullable body, long body_len,
                                             double timeout, double resource_timeout, int flags);   /* flags: 1 = do not follow redirects, 2 = accept any certificate */
+/* with TLS options: pinned_key ("sha256//<base64>") is the only server key accepted; client_pem: the client certificate
+   chain and private key (PEM), offered when the server asks */
+struct isim_http *_Nullable isim_http_start_tls(const char *method, const char *url, const char *_Nullable headers, const void *_Nullable body,
+                                                long body_len, double timeout, double resource_timeout, int flags, const char *_Nullable pinned_key,
+                                                const void *_Nullable client_pem, long client_pem_len);
 int isim_http_response(struct isim_http *h, long *status, char *_Nullable *_Nonnull url, char *_Nullable *_Nonnull headers);
 long isim_http_read(struct isim_http *h, void *buf, long cap);
 const char *isim_http_error_message(struct isim_http *h);
@@ -165,6 +170,9 @@ void isim_http_close(struct isim_http *_Nullable h);
 void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen);
 struct isim_ws;
 struct isim_ws *_Nullable isim_ws_open(const char *url, const char *_Nullable headers, double timeout, int *err);
+/* isim_ws_open, and *response gets the server's response head (malloc'd; free it) when one arrived, also on failure */
+struct isim_ws *_Nullable isim_ws_open_ex(const char *url, const char *_Nullable headers, double timeout, int *err,
+                                         char *_Nullable *_Nullable response);
 int isim_ws_send(struct isim_ws *w, int kind, const void *_Nullable data, long len);    /* kind: 1 text, 2 binary, 8 close, 9 ping */
 int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char *_Nullable *_Nonnull data, long *len);
 void isim_ws_close(struct isim_ws *_Nullable w);
@@ -203,6 +211,7 @@ int isim_pki_available(void);
 const char *isim_pki_error(void);
 int isim_pki_generate(int type, int bits, uint8_t *_Nullable out, size_t *outlen);
 int isim_pki_public(int type, const uint8_t *priv, size_t len, uint8_t *_Nullable out, size_t *outlen);
+int isim_pki_key_der(int type, const uint8_t *priv, size_t len, uint8_t *_Nullable out, size_t *outlen);   /* PKCS#1 / SEC1 DER */
 int isim_pki_key_bits(int type, const uint8_t *key, size_t len, int isPrivate);
 int isim_pki_sign(int type, const uint8_t *priv, size_t len, int alg, const uint8_t *_Nullable data, size_t dlen, uint8_t *sig, size_t *siglen);
 int isim_pki_verify(int type, const uint8_t *pub, size_t len, int alg, const uint8_t *_Nullable data, size_t dlen, const uint8_t *sig, size_t siglen);
@@ -318,6 +327,11 @@ long isim_tls_read(struct isim_tls *t, void *buf, long n);
 long isim_tls_write(struct isim_tls *t, const void *buf, long n);
 void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen);
 void isim_tls_close(struct isim_tls *_Nullable t);
+/* a TLS handshake with host:port that accepts any certificate: the server's chain (DER, leaf first, sizes in lens), its key
+   pin ("sha256//<base64>"), and whether it asks for a client certificate (with its CA names, DER). 0 + err on failure */
+int isim_tls_probe(const char *host, int port, double timeout, unsigned char *chain, long cap, long *lens, int maxcerts, int *ncerts,
+                   char *pin, int pincap, int *client_requested, unsigned char *dn, long dncap, long *dnlens, int maxdn, int *ndn,
+                   char *err, int errlen);
 /* Locale data from the host's ICU (runtime/host_icu.c). UTF-8 strings, dates in ms since 1970, ICU locale identifiers
    (calendars as "en_US@calendar=hebrew"). Each returns the output length (NUL-terminated), or -1 without ICU
    (Foundation then uses its built-in tables). isim_icu_version: the host ICU's major version, 0 if none. */

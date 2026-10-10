@@ -10,8 +10,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
-typedef void SSL_CTX, SSL, SSL_METHOD;
+typedef void SSL_CTX, SSL, SSL_METHOD, X509, X509_NAME, X509_PUBKEY, EVP_PKEY, EVP_MD, OPENSSL_STACK;
 static struct {
     int tried, ok;
     const SSL_METHOD *(*TLS_client_method)(void);
@@ -37,6 +43,19 @@ static struct {
     unsigned long (*ERR_get_error)(void);
     void (*ERR_error_string_n)(unsigned long, char *, size_t);
     const char *(*X509_verify_cert_error_string)(long);
+    /* the probe (isim_tls_probe): the server's chain and key, and its client-certificate request */
+    OPENSSL_STACK *(*SSL_get_peer_cert_chain)(const SSL *);
+    OPENSSL_STACK *(*SSL_get_client_CA_list)(const SSL *);
+    void (*SSL_CTX_set_client_cert_cb)(SSL_CTX *, int (*)(SSL *, X509 **, EVP_PKEY **));
+    int (*OPENSSL_sk_num)(const OPENSSL_STACK *);
+    void *(*OPENSSL_sk_value)(const OPENSSL_STACK *, int);
+    int (*i2d_X509)(X509 *, unsigned char **);
+    int (*i2d_X509_NAME)(const X509_NAME *, unsigned char **);
+    X509_PUBKEY *(*X509_get_X509_PUBKEY)(const X509 *);
+    int (*i2d_X509_PUBKEY)(const X509_PUBKEY *, unsigned char **);
+    int (*EVP_Digest)(const void *, size_t, unsigned char *, unsigned int *, const EVP_MD *, void *);
+    const EVP_MD *(*EVP_sha256)(void);
+    void (*CRYPTO_free)(void *, const char *, int);
 } L;
 static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
 
@@ -52,6 +71,9 @@ static int load(void) {
             S(SSL_new); S(SSL_free); S(SSL_set_fd); S(SSL_ctrl); S(SSL_set1_host); S(SSL_set_alpn_protos); S(SSL_get0_alpn_selected);
             S(SSL_connect); S(SSL_read); S(SSL_write); S(SSL_shutdown); S(SSL_get_error); S(SSL_get_verify_result); S(SSL_get_version);
             C(ERR_get_error); C(ERR_error_string_n); C(X509_verify_cert_error_string);
+            S(SSL_get_peer_cert_chain); S(SSL_get_client_CA_list); S(SSL_CTX_set_client_cert_cb);
+            C(OPENSSL_sk_num); C(OPENSSL_sk_value); C(i2d_X509); C(i2d_X509_NAME); C(X509_get_X509_PUBKEY); C(i2d_X509_PUBKEY);
+            C(EVP_Digest); C(EVP_sha256); C(CRYPTO_free);
             L.ok = L.TLS_client_method && L.SSL_CTX_new && L.SSL_new && L.SSL_set_fd && L.SSL_connect && L.SSL_read && L.SSL_write && L.SSL_ctrl
                    && L.SSL_set1_host && L.SSL_CTX_set_verify && L.SSL_get_verify_result && L.ERR_get_error && L.ERR_error_string_n;
         }
@@ -179,4 +201,116 @@ void isim_tls_close(struct isim_tls *t) {
     if (L.SSL_shutdown) L.SSL_shutdown(t->ssl);
     nopipe_end(&om);
     L.SSL_free(t->ssl); L.SSL_CTX_free(t->ctx); free(t);
+}
+
+/* --- isim_tls_probe: what URLSession's trust and client-certificate challenges show, before libcurl connects --- */
+struct probe {
+    unsigned char *chain; long cap, used; long *lens; int max, n;          /* the server's certificates (DER) */
+    int client_requested;
+    unsigned char *dn; long dncap, dnused; long *dnlens; int dnmax, ndn;   /* the CA names it accepts (DER) */
+};
+static __thread struct probe *cur_probe;
+
+static void probe_chain(SSL *ssl, struct probe *p) {
+    OPENSSL_STACK *st = L.SSL_get_peer_cert_chain ? L.SSL_get_peer_cert_chain(ssl) : NULL;
+    if (!st || p->n) return;
+    for (int i = 0, m = L.OPENSSL_sk_num(st); i < m && p->n < p->max; i++) {
+        unsigned char *der = NULL; int dl = L.i2d_X509(L.OPENSSL_sk_value(st, i), &der);
+        if (dl > 0 && p->used + dl <= p->cap) { memcpy(p->chain + p->used, der, (size_t)dl); p->lens[p->n++] = dl; p->used += dl; }
+        if (der) L.CRYPTO_free(der, __FILE__, __LINE__);
+    }
+}
+/* the server asked for a client certificate: remember it and its CA names, send none */
+static int probe_client_cert(SSL *ssl, X509 **x, EVP_PKEY **k) {
+    struct probe *p = cur_probe;
+    if (!p) return 0;
+    p->client_requested = 1;
+    probe_chain(ssl, p);
+    OPENSSL_STACK *names = L.SSL_get_client_CA_list ? L.SSL_get_client_CA_list(ssl) : NULL;
+    for (int i = 0, m = names ? L.OPENSSL_sk_num(names) : 0; i < m && p->ndn < p->dnmax; i++) {
+        unsigned char *der = NULL; int dl = L.i2d_X509_NAME(L.OPENSSL_sk_value(names, i), &der);
+        if (dl > 0 && p->dnused + dl <= p->dncap) { memcpy(p->dn + p->dnused, der, (size_t)dl); p->dnlens[p->ndn++] = dl; p->dnused += dl; }
+        if (der) L.CRYPTO_free(der, __FILE__, __LINE__);
+    }
+    return 0;
+}
+
+/* Connects to host:port and runs a TLS handshake that accepts any certificate, to learn the server's certificate
+ * chain (DER, concatenated into chain with sizes in lens, leaf first), its key pin ("sha256//<base64 of the SHA-256
+ * of the leaf's SubjectPublicKeyInfo>", libcurl's CURLOPT_PINNEDPUBLICKEY form) and whether it asks for a client
+ * certificate (*client_requested, with the DER names of the CAs it accepts in dn / dnlens). Returns 1, or 0 with a
+ * message in err when the server cannot be reached or does not speak TLS. */
+int isim_tls_probe(const char *host, int port, double timeout, unsigned char *chain, long cap, long *lens, int maxcerts, int *ncerts,
+                   char *pin, int pincap, int *client_requested, unsigned char *dn, long dncap, long *dnlens, int maxdn, int *ndn,
+                   char *err, int errlen) {
+    *ncerts = 0; *ndn = 0; *client_requested = 0; if (pincap > 0) pin[0] = 0; if (errlen > 0) err[0] = 0;
+    if (!load() || !L.SSL_get_peer_cert_chain || !L.OPENSSL_sk_num || !L.i2d_X509 || !L.EVP_Digest || !L.CRYPTO_free) {
+        snprintf(err, errlen, "TLS needs the host's OpenSSL 3 libssl.so.3"); return 0;
+    }
+    char ps[16]; snprintf(ps, sizeof ps, "%d", port);
+    struct addrinfo hints = { .ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM }, *res = NULL;
+    if (getaddrinfo(host, ps, &hints, &res) != 0 || !res) { snprintf(err, errlen, "cannot find host %s", host); return 0; }
+    int ms = timeout > 0 && timeout < 600 ? (int)(timeout * 1000) : 60000, fd = -1;
+    for (struct addrinfo *a = res; a && fd < 0; a = a->ai_next) {
+        int s = socket(a->ai_family, a->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC, a->ai_protocol);
+        if (s < 0) continue;
+        if (connect(s, a->ai_addr, a->ai_addrlen) == 0) { fd = s; break; }
+        if (errno == EINPROGRESS) {
+            struct pollfd pf = { s, POLLOUT, 0 }; int so = 0; socklen_t sl = sizeof so;
+            if (poll(&pf, 1, ms) > 0 && getsockopt(s, SOL_SOCKET, SO_ERROR, &so, &sl) == 0 && so == 0) { fd = s; break; }
+        }
+        close(s);
+    }
+    freeaddrinfo(res);
+    if (fd < 0) { snprintf(err, errlen, "cannot connect to %s:%d", host, port); return 0; }
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
+    struct timeval tv = { ms / 1000, (ms % 1000) * 1000 };
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv); setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+
+    struct probe p = { chain, cap, 0, lens, maxcerts, 0, 0, dn, dncap, 0, dnlens, maxdn, 0 };
+    SSL_CTX *ctx = L.SSL_CTX_new(L.TLS_client_method());
+    if (!ctx) { close(fd); snprintf(err, errlen, "SSL_CTX_new failed"); return 0; }
+    L.SSL_CTX_set_verify(ctx, 0, NULL);
+    if (L.SSL_CTX_set_client_cert_cb) L.SSL_CTX_set_client_cert_cb(ctx, probe_client_cert);
+    SSL *ssl = L.SSL_new(ctx);
+    L.SSL_set_fd(ssl, fd);
+    L.SSL_ctrl(ssl, 55 /* SSL_CTRL_SET_TLSEXT_HOSTNAME */, 0, (void *)host);
+    unsigned char alpn[] = "\x08http/1.1";
+    if (L.SSL_set_alpn_protos) L.SSL_set_alpn_protos(ssl, alpn, sizeof alpn - 1);
+    sigset_t om; nopipe_begin(&om);
+    cur_probe = &p;
+    int crc = L.SSL_connect(ssl);
+    cur_probe = NULL;
+    probe_chain(ssl, &p);
+    if (L.SSL_shutdown && crc == 1) L.SSL_shutdown(ssl);
+    nopipe_end(&om);
+    if (p.n > 0 && L.X509_get_X509_PUBKEY && L.i2d_X509_PUBKEY && L.EVP_sha256) {
+        /* the leaf's SubjectPublicKeyInfo */
+        OPENSSL_STACK *st = L.SSL_get_peer_cert_chain(ssl);
+        X509 *leaf = st && L.OPENSSL_sk_num(st) > 0 ? L.OPENSSL_sk_value(st, 0) : NULL;
+        unsigned char *spki = NULL; int sl = leaf ? L.i2d_X509_PUBKEY(L.X509_get_X509_PUBKEY(leaf), &spki) : 0;
+        if (sl > 0) {
+            unsigned char md[32]; unsigned int mdl = 0;
+            if (L.EVP_Digest(spki, (size_t)sl, md, &mdl, L.EVP_sha256(), NULL) == 1 && pincap > 60) {
+                static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                int o = snprintf(pin, pincap, "sha256//");
+                for (unsigned i = 0; i < mdl; i += 3) {
+                    unsigned v = md[i] << 16 | (i + 1 < mdl ? md[i + 1] << 8 : 0) | (i + 2 < mdl ? md[i + 2] : 0);
+                    pin[o++] = b64[v >> 18]; pin[o++] = b64[v >> 12 & 63];
+                    pin[o++] = i + 1 < mdl ? b64[v >> 6 & 63] : '='; pin[o++] = i + 2 < mdl ? b64[v & 63] : '=';
+                }
+                pin[o] = 0;
+            }
+        }
+        if (spki) L.CRYPTO_free(spki, __FILE__, __LINE__);
+    }
+    L.SSL_free(ssl); L.SSL_CTX_free(ctx); close(fd);
+    *ncerts = p.n; *ndn = p.ndn; *client_requested = p.client_requested;
+    if (p.n == 0) {
+        unsigned long e = L.ERR_get_error(); char buf[256] = "no server certificate";
+        if (e) L.ERR_error_string_n(e, buf, sizeof buf);
+        snprintf(err, errlen, "TLS handshake failed: %s", buf);
+        return 0;
+    }
+    return 1;
 }

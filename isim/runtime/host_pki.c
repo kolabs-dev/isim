@@ -181,6 +181,18 @@ int isim_pki_public(int type, const uint8_t *priv, size_t len, uint8_t *out, siz
     EVP_PKEY *pk = load_key(type, priv, len, 1); if (!pk) return 0;
     int r = export_key(pk, 0, out, outlen); P.EVP_PKEY_free(pk); return r;
 }
+/* a private key (Apple representation) as OpenSSL's traditional DER: PKCS#1 RSAPrivateKey or SEC1 ECPrivateKey
+ * (for a PEM "RSA PRIVATE KEY" / "EC PRIVATE KEY", e.g. a TLS client identity) */
+int isim_pki_key_der(int type, const uint8_t *priv, size_t len, uint8_t *out, size_t *outlen) {
+    EVP_PKEY *pk = load_key(type, priv, len, 1); if (!pk) return 0;
+    unsigned char *der = NULL; int n = P.i2d_PrivateKey(pk, &der);
+    P.EVP_PKEY_free(pk);
+    if (n <= 0) { fail("cannot export the key"); return 0; }
+    int good = *outlen >= (size_t)n;
+    if (good && out) memcpy(out, der, (size_t)n);
+    *outlen = (size_t)n; ossl_free(der);
+    return good;
+}
 /* key size in bits, or 0 when the data is not a key of that type and class */
 int isim_pki_key_bits(int type, const uint8_t *key, size_t len, int priv) {
     EVP_PKEY *pk = load_key(type, key, len, priv); if (!pk) return 0;

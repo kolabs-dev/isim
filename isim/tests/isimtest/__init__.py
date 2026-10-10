@@ -645,7 +645,8 @@ def selftest(name: str, *, timeout: float = 120, **kw) -> Run:
     tail = "\n".join(r.output.splitlines()[-40:])
     assert m, f"{name}: no 'N/M passed' line (exit {r.returncode})\n{tail}"
     passed, total = int(m[-1].group(1)), int(m[-1].group(2))
-    assert passed == total and r.returncode == 0, f"{name}: {passed}/{total} passed (exit {r.returncode})\n{tail}"
+    fails = "\n".join(line for line in r.output.splitlines()[:-40] if line.startswith("FAIL"))   # those before the tail
+    assert passed == total and r.returncode == 0, f"{name}: {passed}/{total} passed (exit {r.returncode})\n{fails}\n{tail}"
     return r
 
 

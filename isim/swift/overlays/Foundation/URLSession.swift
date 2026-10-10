@@ -169,6 +169,8 @@ open class URLSession: NSObject, @unchecked Sendable {
     var _held: [() -> Void] = []
     var _waking = false
     var _isBackground: Bool { configuration.identifier != nil }
+    /// what isim_tls_probe learnt of each HTTPS server ("host:port"), for the trust and client-certificate challenges
+    var _tlsProbes: [String: _TLSProbe] = [:]
 
     open var delegate: URLSessionDelegate? { _lock.lock(); defer { _lock.unlock() }; return _delegate }
 
@@ -486,15 +488,38 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             if req.cachePolicy == .reloadIgnoringLocalAndRemoteCacheData { set("Cache-Control", "no-cache"); set("Pragma", "no-cache") }
             for (k, v) in _extraHeaders { set(k, v) }
             if let a = authHeader { set(a.0, a.1) }
-            // HTTPS: offer the delegate a server-trust challenge first (iOS asks before using the connection)
+            // HTTPS: offer the delegate a server-trust challenge first (iOS asks before using the connection), with the
+            // server's certificates from a handshake of our own; libcurl's connection is then pinned to that server key.
+            // A server that asks for a client certificate gets a client-certificate challenge too.
             var curlFlags: Int32 = 1
-            if scheme == "https" && !_trustAccepted, _session.delegate != nil {
-                let space = URLProtectionSpace(host: url.host ?? "", port: url.port ?? 443, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodServerTrust)
-                let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
-                switch _askChallenge(ch, sessionWide: true) {
-                case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
-                case (.useCredential, let c?) where c._trust != nil: _trustAccepted = true
-                default: break
+            var pinnedKey: String? = nil, clientPEM: [UInt8]? = nil
+            if scheme == "https", _session.delegate != nil {
+                let host = url.host ?? "", port = url.port ?? 443
+                let probe = _session._probe(host: host, port: port, timeout: req.timeoutInterval)
+                pinnedKey = probe?.pin
+                if !_trustAccepted {
+                    let space = URLProtectionSpace(host: host, port: port, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodServerTrust)
+                    space._serverTrust = SecTrust(host: host, chain: probe?.chain ?? [])
+                    let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
+                    switch _askChallenge(ch, sessionWide: true) {
+                    case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
+                    case (.useCredential, let c?) where c._trust != nil: _trustAccepted = true
+                    default: break
+                    }
+                }
+                if probe?.clientCertificateRequested == true {
+                    let space = URLProtectionSpace(host: host, port: port, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodClientCertificate)
+                    space._distinguishedNames = probe?.distinguishedNames ?? []
+                    let stored = config.urlCredentialStorage?.defaultCredential(for: space)
+                    let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: stored, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
+                    switch _askChallenge(ch, sessionWide: true) {
+                    case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
+                    case (.useCredential, let c?) where c._clientPEM != nil:
+                        clientPEM = c._clientPEM
+                        if c.persistence != .none { config.urlCredentialStorage?.set(c, for: space) }
+                    case (.performDefaultHandling, _): clientPEM = stored?._clientPEM
+                    default: break
+                    }
                 }
             }
             if _trustAccepted { curlFlags |= 2 }
@@ -503,10 +528,15 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
             let sendBody = method == "GET" || method == "HEAD" ? (body?.isEmpty == false ? body : nil) : body
             var urlString = url.absoluteString
             if let h = urlString.firstIndex(of: "#") { urlString = String(urlString[..<h]) }
-            let h: OpaquePointer? = sendBody.map { b in
-                b.withUnsafeBytes { p in isim_http_start(method, urlString, headerText, p.baseAddress ?? UnsafeRawPointer(bitPattern: 1), b.count,
-                                                         req.timeoutInterval, config.timeoutIntervalForResource, curlFlags) }
-            } ?? isim_http_start(method, urlString, headerText, nil, 0, req.timeoutInterval, config.timeoutIntervalForResource, curlFlags)
+            let pem = clientPEM ?? []
+            let h: OpaquePointer? = pem.withUnsafeBytes { cp in
+                let cpem = clientPEM == nil ? nil : cp.baseAddress
+                return sendBody.map { b in
+                    b.withUnsafeBytes { p in isim_http_start_tls(method, urlString, headerText, p.baseAddress ?? UnsafeRawPointer(bitPattern: 1), b.count,
+                                                                 req.timeoutInterval, config.timeoutIntervalForResource, curlFlags, pinnedKey, cpem, pem.count) }
+                } ?? isim_http_start_tls(method, urlString, headerText, nil, 0, req.timeoutInterval, config.timeoutIntervalForResource, curlFlags,
+                                         pinnedKey, cpem, pem.count)
+            }
             let tm = URLSessionTaskTransactionMetrics(request: req)
             tm.fetchStartDate = Date(); tm.resourceFetchType = .networkLoad
             _metrics.transactionMetrics.append(tm)
@@ -523,6 +553,9 @@ open class URLSessionTask: NSObject, @unchecked Sendable {
 
             var status = 0, cURL: UnsafeMutablePointer<CChar>? = nil, cHeaders: UnsafeMutablePointer<CChar>? = nil
             let rc = isim_http_response(h, &status, &cURL, &cHeaders)
+            if Int(rc) == NSURLErrorServerCertificateUntrusted, pinnedKey != nil {   /* the server's key changed: probe it again next time */
+                _session._lock.lock(); _session._tlsProbes["\((url.host ?? "").lowercased()):\(url.port ?? 443)"] = nil; _session._lock.unlock()
+            }
             if rc != 0 { _fillMetrics(tm, h, response: nil, bodyBytes: 0); return (URLError._make(Int(rc), url: url, detail: String(cString: isim_http_error_message(h))), nil) }
             let finalURL = cURL.map { URL(string: String(cString: $0)) ?? url } ?? url
             let (version, fields) = URLSessionTask._parseHeaders(cHeaders.map { String(cString: $0) } ?? "")
@@ -1188,5 +1221,35 @@ enum _IsimBackgroundSessions {
                 s.downloadTask(with: url).resume()
             }
         }
+    }
+}
+
+// MARK: - TLS probe (server certificates for the trust challenge, client-certificate requests)
+struct _TLSProbe {
+    var chain: [[UInt8]]
+    var pin: String?
+    var clientCertificateRequested: Bool
+    var distinguishedNames: [Data]
+}
+extension URLSession {
+    /// the server's certificates and client-certificate request, from one handshake per server and session
+    func _probe(host: String, port: Int, timeout: TimeInterval) -> _TLSProbe? {
+        let key = "\(host.lowercased()):\(port)"
+        _lock.lock(); let known = _tlsProbes[key]; _lock.unlock()
+        if let known { return known }
+        var chain = [UInt8](repeating: 0, count: 65536), lens = [Int](repeating: 0, count: 16), n: Int32 = 0
+        var dn = [UInt8](repeating: 0, count: 16384), dnLens = [Int](repeating: 0, count: 32), ndn: Int32 = 0
+        var pin = [CChar](repeating: 0, count: 128), err = [CChar](repeating: 0, count: 256), asked: Int32 = 0
+        let ok = isim_tls_probe(host, Int32(port), timeout, &chain, chain.count, &lens, 16, &n, &pin, 128, &asked,
+                                &dn, dn.count, &dnLens, 32, &ndn, &err, 256)
+        guard ok == 1 else { return nil }
+        var certs: [[UInt8]] = [], at = 0
+        for i in 0..<Int(n) { certs.append(Array(chain[at..<(at + lens[i])])); at += lens[i] }
+        var names: [Data] = []; at = 0
+        for i in 0..<Int(ndn) { names.append(Data(dn[at..<(at + dnLens[i])])); at += dnLens[i] }
+        let pinText = String(cString: pin)
+        let probe = _TLSProbe(chain: certs, pin: pinText.isEmpty ? nil : pinText, clientCertificateRequested: asked != 0, distinguishedNames: names)
+        _lock.lock(); _tlsProbes[key] = probe; _lock.unlock()
+        return probe
     }
 }

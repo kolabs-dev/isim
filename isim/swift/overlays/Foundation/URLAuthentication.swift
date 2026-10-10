@@ -3,16 +3,21 @@
 //
 // URLSession answers HTTP 401/407 Basic and Digest (MD5, qop=auth) challenges through the delegate (or the
 // credential storage's default credential), and offers a server-trust challenge before each HTTPS request when a
-// delegate is set. Adapted: the TLS handshake happens in the host's libcurl after that challenge, so
-// `serverTrust` describes the host only (no certificate chain); `.useCredential` with URLCredential(trust:)
-// accepts the server's certificate without checking it. Client certificates are not supported.
+// delegate is set. Adapted: the transfer runs in the host's libcurl, so URLSession first meets the server in a
+// handshake of its own (isim_tls_probe) to put the server's certificate chain in `serverTrust` (pinning code reads
+// it with Security's SecTrust functions), and pins libcurl's connection to that certificate's key. A server that
+// asks for a client certificate gets a client-certificate challenge (`distinguishedNames` = the CAs it accepts);
+// URLCredential(identity:certificates:persistence:) (Security) answers it.
 
 /// Security's trust object (the one SecTrust type: defined here because URLProtectionSpace hands it out, extended by
-/// the Security module with certificates, policies and evaluation). An HTTPS challenge's trust names the host only;
-/// certificates are not exposed for it.
+/// the Security module with certificates, policies and evaluation). An HTTPS challenge's trust carries the server's
+/// certificate chain (`_isimChain`), which Security turns into its certificate state.
 public final class SecTrust: @unchecked Sendable, CustomStringConvertible {
     public let _host: String
+    /// the server's certificates (DER, leaf first) for an HTTPS challenge; Security makes its certificate state of them
+    public internal(set) var _isimChain: [[UInt8]] = []
     init(host: String) { _host = host }
+    init(host: String, chain: [[UInt8]]) { _host = host; _isimChain = chain }
     public var description: String { "<SecTrust \(_host)>" }
     /// Security's state for trusts made with SecTrustCreateWithCertificates (certificates, policies, anchors, result)
     public var _isimState: AnyObject?
@@ -40,18 +45,29 @@ open class URLCredential: NSObject, @unchecked Sendable {
     open var hasPassword: Bool { password != nil }
     open private(set) var persistence: Persistence = .none
     let _trust: SecTrust?
+    /// a client identity (Security's SecIdentity), its extra certificates, and both with the key as PEM for libcurl
+    var _identity: AnyObject?, _certificates: [Any] = [], _clientPEM: [UInt8]?
     public init(user: String, password: String, persistence: Persistence) {
         self.user = user; self.password = password; self.persistence = persistence; _trust = nil
         super.init()
     }
     public init(trust: SecTrust) { _trust = trust; super.init(); persistence = .forSession }
-    open var identity: AnyObject? { nil }
-    open var certificates: [Any] { [] }
+    /// Security's URLCredential(identity:certificates:persistence:): pem holds the certificate chain and the private key
+    public init(_isimIdentity identity: AnyObject, certificates: [Any]?, pem: [UInt8], persistence: Persistence) {
+        _trust = nil; _identity = identity; _certificates = certificates ?? []; _clientPEM = pem
+        super.init()
+        self.persistence = persistence
+    }
+    /// the client identity (a SecIdentity; typed AnyObject because Security's types are not visible to Foundation)
+    open var identity: AnyObject? { _identity }
+    open var certificates: [Any] { _certificates }
     open override func isEqual(_ object: Any?) -> Bool {
         guard let o = object as? URLCredential else { return false }
-        return o.user == user && o.password == password && o._trust === _trust
+        return o.user == user && o.password == password && o._trust === _trust && o._identity === _identity
     }
     open override var hash: Int { (user ?? "").hashValue }
+    /// URLCredentialStorage's key: the user, or "" for a client identity
+    var _storeKey: String? { user ?? (_identity != nil ? "" : nil) }
 }
 
 open class URLProtectionSpace: NSObject, @unchecked Sendable {
@@ -63,8 +79,12 @@ open class URLProtectionSpace: NSObject, @unchecked Sendable {
     open private(set) var isProxy = false
     open var proxyType: String? { isProxy ? `protocol` : nil }
     open var receivesCredentialSecurely: Bool { `protocol` == NSURLProtectionSpaceHTTPS || authenticationMethod == NSURLAuthenticationMethodHTTPDigest }
-    open var serverTrust: SecTrust? { authenticationMethod == NSURLAuthenticationMethodServerTrust ? SecTrust(host: host) : nil }
-    open var distinguishedNames: [Data]? { nil }
+    var _serverTrust: SecTrust?, _distinguishedNames: [Data]?
+    open var serverTrust: SecTrust? {
+        authenticationMethod == NSURLAuthenticationMethodServerTrust ? _serverTrust ?? SecTrust(host: host) : nil
+    }
+    /// the DER names of the certificate authorities a server accepts client certificates from
+    open var distinguishedNames: [Data]? { authenticationMethod == NSURLAuthenticationMethodClientCertificate ? _distinguishedNames ?? [] : nil }
     public init(host: String, port: Int, protocol: String?, realm: String?, authenticationMethod: String?) {
         self.host = host; self.port = port; self.protocol = `protocol`; self.realm = realm
         self.authenticationMethod = authenticationMethod ?? NSURLAuthenticationMethodDefault
@@ -119,7 +139,7 @@ open class URLCredentialStorage: NSObject, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }; return store[space._key]?.creds
     }
     open func set(_ credential: URLCredential, for space: URLProtectionSpace) {
-        guard credential.persistence != .none, let u = credential.user else { return }
+        guard credential.persistence != .none, let u = credential._storeKey else { return }
         lock.lock()
         var e = store[space._key] ?? (space, [:], nil)
         e.creds[u] = credential
@@ -130,7 +150,7 @@ open class URLCredentialStorage: NSObject, @unchecked Sendable {
     open func remove(_ credential: URLCredential, for space: URLProtectionSpace) { remove(credential, for: space, options: nil) }
     open func remove(_ credential: URLCredential, for space: URLProtectionSpace, options: [String: Any]?) {
         lock.lock()
-        if var e = store[space._key], let u = credential.user { e.creds[u] = nil; if e.def == u { e.def = nil }; store[space._key] = e }
+        if var e = store[space._key], let u = credential._storeKey { e.creds[u] = nil; if e.def == u { e.def = nil }; store[space._key] = e }
         lock.unlock()
         NotificationCenter.default.post(name: .NSURLCredentialStorageChanged, object: self)
     }
@@ -143,7 +163,7 @@ open class URLCredentialStorage: NSObject, @unchecked Sendable {
     open func setDefaultCredential(_ credential: URLCredential, for space: URLProtectionSpace) {
         set(credential, for: space)
         lock.lock()
-        if let u = credential.user, var e = store[space._key] { e.def = u; store[space._key] = e }
+        if let u = credential._storeKey, var e = store[space._key] { e.def = u; store[space._key] = e }
         lock.unlock()
     }
     open func getCredentials(for space: URLProtectionSpace, task: URLSessionTask, completionHandler: @escaping @Sendable ([String: URLCredential]?) -> Void) {
