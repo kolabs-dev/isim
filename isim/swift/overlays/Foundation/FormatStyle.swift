@@ -275,7 +275,8 @@ func _compact(_ v: Double, locale: Locale) -> (Double, String, Int) {
     case "de": table = [(1e12, "\u{A0}Bio."), (1e9, "\u{A0}Mrd."), (1e6, "\u{A0}Mio.")]
     case "it": table = [(1e12, "\u{A0}Bln"), (1e9, "\u{A0}Mrd"), (1e6, "\u{A0}Mln")]
     case "ja": table = [(1e12, "兆"), (1e8, "億"), (1e4, "万")]
-    default: table = [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]
+    case "en": table = [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]
+    default: table = _icuCompactTable(locale) ?? [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]   // other languages: ICU (CLDR)
     }
     for (scale, suffix) in table where a >= scale {
         var s = v / scale
@@ -751,11 +752,13 @@ extension Duration {
             if let m = maximumUnitCount { shown = Array(shown.prefix(m)) }
             let lang = locale.languageCode ?? "en"
             let strings = shown.map { _durationUnit(value: $0.1, unit: $0.0, width: unitWidth.kind, lang: lang, locale: locale) }
-            let joined: String
+            var joined: String
             switch unitWidth.kind {
             case 3, 2: joined = strings.joined(separator: " ")
             default: joined = strings.joined(separator: lang == "ja" ? " " : ", ")
             }
+            if !_durationTableLanguages.contains(lang), strings.count > 1,
+               let l = _icuList(locale, strings, type: 2, width: unitWidth.kind == 0 ? 0 : unitWidth.kind == 1 ? 1 : 2) { joined = l }
             return value._seconds < 0 ? "-" + joined : joined
         }
         public func locale(_ locale: Locale) -> Self { var s = self; s.locale = locale; return s }
@@ -763,9 +766,14 @@ extension Duration {
     public func formatted() -> String { TimeFormatStyle(pattern: .hourMinuteSecond).format(self) }
     public func formatted<S: FormatStyle>(_ v: S) -> S.FormatOutput where S.FormatInput == Duration { v.format(self) }
 }
+let _durationTableLanguages: Set<String> = ["en", "pt", "es", "fr", "de"]
 func _durationUnit(value: Double, unit: Int, width: Int, lang: String, locale: Locale) -> String {
     let n = NumberFormatter(); n.locale = locale; n.numberStyle = .decimal; n.maximumFractionDigits = 6
     let num = n.string(from: NSNumber(value: value)) ?? "\(value)"
+    if !_durationTableLanguages.contains(lang) {   // other languages: ICU's unit names (CLDR)
+        let ids = ["duration-week", "duration-day", "duration-hour", "duration-minute", "duration-second", "duration-millisecond", "duration-microsecond", "duration-nanosecond"]
+        if let p = _icuUnitPhrase(locale, unit: ids[unit], value: value, number: num, width: width == 0 ? 2 : width == 1 ? 1 : 0) { return p }
+    }
     let one = value == 1
     let en: [(String, String, String, String)] = [("week", "weeks", "wk", "w"), ("day", "days", "day", "d"), ("hour", "hours", "hr", "h"), ("minute", "minutes", "min", "m"),
                                                   ("second", "seconds", "sec", "s"), ("millisecond", "milliseconds", "ms", "ms"), ("microsecond", "microseconds", "μs", "μs"), ("nanosecond", "nanoseconds", "ns", "ns")]

@@ -15,7 +15,7 @@ apt-get install -y --no-install-recommends \
   libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev \
   libpulse-dev libasound2-dev libdbus-1-dev libudev-dev \
   fontconfig fonts-noto-core fonts-noto-color-emoji fonts-dejavu-core adwaita-icon-theme imagemagick \
-  ffmpeg espeak-ng libzbar0 zbar-tools qrencode libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 \
+  ffmpeg espeak-ng libzbar0 zbar-tools qrencode libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 libicu74 \
   libwebkitgtk-6.0-dev libgtk-4-dev libgtk-4-bin libpoppler-glib8
 
 # clang/lld 22 from LLVM's apt repository (Ubuntu 24.04 has clang 18; isim's libc++ 22 headers need 21 or newer)

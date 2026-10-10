@@ -4,6 +4,8 @@
 #include <ctype.h>
 #include <string.h>
 #include "isim_foundation.h"
+#include "isim_locale.h"
+#include <isim_host.h>
 
 /* ---------------- Unicode case mapping (Latin, Greek, Cyrillic, Armenian, fullwidth) ---------------- */
 uint32_t isim_case_map(uint32_t c, int upper) {
@@ -109,6 +111,41 @@ static scalars_t scalars_of(NSString *s, NSStringCompareOptions mask) {
 }
 - (NSRange)rangeOfString:(NSString *)str options:(NSStringCompareOptions)mask range:(NSRange)range locale:(NSLocale *)locale {
     return [self rangeOfString:str options:mask range:range];
+}
+- (NSComparisonResult)compare:(NSString *)string options:(NSStringCompareOptions)mask range:(NSRange)range {
+    return [self compare:string options:mask range:range locale:nil];
+}
+/* With a locale: the locale's collation from the host's ICU (UCA + CLDR tailorings: "é" sorts with "e", "ä" after
+ * "z" in Swedish, digits numerically with NSNumericSearch), as on iOS. Without one (or without ICU): code points, with
+ * case / diacritic folding. NSForcedOrderingSearch orders strings that collate equal by their code points. */
+- (NSComparisonResult)compare:(NSString *)string options:(NSStringCompareOptions)mask range:(NSRange)range locale:(id)locale {
+    if (NSMaxRange(range) > self.length) [NSException raise:NSRangeException format:@"-[NSString compare:options:range:locale:]: range {%lu, %lu} out of bounds", (unsigned long)range.location, (unsigned long)range.length];
+    NSString *a = range.location == 0 && range.length == self.length ? self : [self substringWithRange:range];
+    NSString *b = string ?: @"";
+    if (locale && !(mask & NSLiteralSearch) && isim_icu_on()) {
+        NSString *ident = [locale isKindOfClass:[NSLocale class]] ? [(NSLocale *)locale localeIdentifier] : NSLocale.currentLocale.localeIdentifier;
+        int flags = ((mask & NSCaseInsensitiveSearch) ? 1 : 0) | ((mask & NSDiacriticInsensitiveSearch) ? 2 : 0) |
+                    ((mask & NSNumericSearch) ? 4 : 0) | ((mask & NSWidthInsensitiveSearch) ? 8 : 0);
+        NSUInteger na = a.length, nb = b.length;
+        unichar *ua = malloc((na + 1) * sizeof(unichar)), *ub = malloc((nb + 1) * sizeof(unichar));
+        [a getCharacters:ua range:NSMakeRange(0, na)];
+        [b getCharacters:ub range:NSMakeRange(0, nb)];
+        int r = isim_icu_collate(ident.UTF8String, ua, (int)na, ub, (int)nb, flags);
+        free(ua); free(ub);
+        if (r != -2) {
+            if (r == 0 && (mask & NSForcedOrderingSearch)) return [a compare:b options:0];
+            return r < 0 ? NSOrderedAscending : r > 0 ? NSOrderedDescending : NSOrderedSame;
+        }
+    }
+    if (mask & NSNumericSearch) return [a compare:b options:mask & (NSCaseInsensitiveSearch | NSNumericSearch)];
+    scalars_t x = scalars_of(a, mask), y = scalars_of(b, mask);
+    NSComparisonResult res = NSOrderedSame;
+    for (NSUInteger i = 0; i < x.n && i < y.n && res == NSOrderedSame; i++)
+        if (x.cp[i] != y.cp[i]) res = x.cp[i] < y.cp[i] ? NSOrderedAscending : NSOrderedDescending;
+    if (res == NSOrderedSame && x.n != y.n) res = x.n < y.n ? NSOrderedAscending : NSOrderedDescending;
+    free(x.cp); free(x.u16); free(y.cp); free(y.u16);
+    if (res == NSOrderedSame && (mask & NSForcedOrderingSearch) && (mask & (NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch))) return [a compare:b options:0];
+    return res;
 }
 - (NSString *)stringByReplacingOccurrencesOfString:(NSString *)target withString:(NSString *)rep options:(NSStringCompareOptions)mask range:(NSRange)range {
     if (mask & NSRegularExpressionSearch) {
@@ -250,12 +287,14 @@ static scalars_t scalars_of(NSString *s, NSStringCompareOptions mask) {
     for (NSUInteger i = 0; len + i < newLength && pl; i++) [out appendString:[pad substringWithRange:NSMakeRange((padIndex + i) % pl, 1)]];
     return out;
 }
-- (NSString *)localizedLowercaseString { return self.lowercaseString; }
-- (NSString *)localizedUppercaseString { return self.uppercaseString; }
-- (NSString *)localizedCapitalizedString { return self.capitalizedString; }
-- (NSString *)lowercaseStringWithLocale:(NSLocale *)locale { return self.lowercaseString; }
-- (NSString *)uppercaseStringWithLocale:(NSLocale *)locale { return self.uppercaseString; }
-- (NSString *)capitalizedStringWithLocale:(NSLocale *)locale { return self.capitalizedString; }
+/* with a locale: its case rules from the host's ICU (Turkish and Azeri dotted / dotless i, Lithuanian dot above,
+ * Greek accents in upper case, Dutch IJ in titles); without a locale or ICU: the root rules */
+- (NSString *)localizedLowercaseString { return [self lowercaseStringWithLocale:NSLocale.currentLocale]; }
+- (NSString *)localizedUppercaseString { return [self uppercaseStringWithLocale:NSLocale.currentLocale]; }
+- (NSString *)localizedCapitalizedString { return [self capitalizedStringWithLocale:NSLocale.currentLocale]; }
+- (NSString *)lowercaseStringWithLocale:(NSLocale *)locale { return (locale && isim_icu_on() ? isim_icu_case_string(locale.localeIdentifier, self, 1) : nil) ?: self.lowercaseString; }
+- (NSString *)uppercaseStringWithLocale:(NSLocale *)locale { return (locale && isim_icu_on() ? isim_icu_case_string(locale.localeIdentifier, self, 0) : nil) ?: self.uppercaseString; }
+- (NSString *)capitalizedStringWithLocale:(NSLocale *)locale { return (locale && isim_icu_on() ? isim_icu_case_string(locale.localeIdentifier, self, 2) : nil) ?: self.capitalizedString; }
 - (NSString *)commonPrefixWithString:(NSString *)other options:(NSStringCompareOptions)mask {
     NSUInteger i = 0, n = MIN(self.length, other.length);
     while (i < n) {

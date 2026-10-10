@@ -341,9 +341,12 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     return a == b && !memcmp(x, y, a);
 }
 - (NSComparisonResult)compare:(NSString *)o { return [self compare:o options:0]; }
-- (NSComparisonResult)localizedCompare:(NSString *)o { return [self compare:o options:0]; }
-- (NSComparisonResult)localizedCaseInsensitiveCompare:(NSString *)o { return [self compare:o options:NSCaseInsensitiveSearch]; }
-- (NSComparisonResult)localizedStandardCompare:(NSString *)o { return [self compare:o options:NSCaseInsensitiveSearch | NSNumericSearch]; }
+/* the current locale's collation (StringExtras.m); Finder-like ordering for localizedStandardCompare: */
+- (NSComparisonResult)localizedCompare:(NSString *)o { return [self compare:o options:0 range:NSMakeRange(0, [self length]) locale:[NSLocale currentLocale]]; }
+- (NSComparisonResult)localizedCaseInsensitiveCompare:(NSString *)o { return [self compare:o options:NSCaseInsensitiveSearch range:NSMakeRange(0, [self length]) locale:[NSLocale currentLocale]]; }
+- (NSComparisonResult)localizedStandardCompare:(NSString *)o {
+    return [self compare:o options:NSCaseInsensitiveSearch | NSNumericSearch | NSWidthInsensitiveSearch | NSForcedOrderingSearch range:NSMakeRange(0, [self length]) locale:[NSLocale currentLocale]];
+}
 - (NSComparisonResult)caseInsensitiveCompare:(NSString *)o { return [self compare:o options:NSCaseInsensitiveSearch]; }
 - (NSComparisonResult)compare:(NSString *)o options:(NSStringCompareOptions)mask {
     NSUInteger a, b; const char *x = [self _isim_bytes:&a], *y = [o _isim_bytes:&b];

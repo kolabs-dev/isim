@@ -55,11 +55,11 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 66 | 16 | 1 | 1 | 84 | 88% |
-| &nbsp;&nbsp;↳ Strings & text | 11 | 4 | 0 | 0 | 15 | 87% |
+| **Foundation** | 73 | 9 | 1 | 1 | 84 | 92% |
+| &nbsp;&nbsp;↳ Strings & text | 12 | 3 | 0 | 0 | 15 | 90% |
 | &nbsp;&nbsp;↳ Collections & values | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
-| &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
+| &nbsp;&nbsp;↳ Dates, calendars & formatters | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 8 | 3 | 0 | 0 | 11 | 86% |
 | &nbsp;&nbsp;↳ Notifications, timers & threads | 9 | 0 | 0 | 0 | 9 | 100% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **779** | **181** | **23** | **35** | **1018** | **85%** |
+| **All areas** | **786** | **174** | **23** | **35** | **1018** | **86%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 99% (210) | 99% (214) | 99% (229) | 98% (239) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 88% (84) | 88% (84) | 88% (84) | 88% (84) |
+| Foundation | 92% (84) | 92% (84) | 92% (84) | 92% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (961) | **86%** (973) | **86%** (998) | **85%** (1018) |
+| **All areas** | **86%** (961) | **86%** (973) | **86%** (998) | **86%** (1018) |
 
 ---
 
@@ -791,7 +791,7 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `String` ⇄ `NSString` bridging | ✅ | ≤17 | copies instead of lazy bridging |
-| `NSString` / `NSMutableString` API (search, replace, case, trimming, components, paths) | 🟡 | ≤17 | search options (case/diacritic-insensitive, anchored, backwards, regex), Unicode case mapping, substring/line enumeration; comparisons are code-point ordered, not locale-aware |
+| `NSString` / `NSMutableString` API (search, replace, case, trimming, components, paths) | ✅ | ≤17 | search options (case/diacritic-insensitive, anchored, backwards, regex), Unicode case mapping, substring/line enumeration; locale-aware comparisons (`localizedCompare`, `localizedCaseInsensitiveCompare`, `localizedStandardCompare`, `compare(_:options:range:locale:)`) use the locale's collation and locale case mapping (`uppercased(with:)`, `localizedUppercase`: Turkish dotted I, ...) uses its rules, both from the host's ICU (libicu, dlopen'd; isim's built-in tables without it), as on iOS (code-point order without ICU). Tested: FoundationTest, SwiftFoundationTest |
 | `String(format:)`, `NSLog` | ✅ | ≤17 | |
 | String encodings (`data(using:)`, `String(data:encoding:)`, `String(contentsOf:)`) | ✅ | ≤17 | |
 | `CharacterSet` | ✅ | ≤17 | BMP only |
@@ -842,15 +842,15 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `Date`, `TimeInterval`, `Date.now` | ✅ | ≤17 | |
-| `Calendar`, `DateComponents`, `DateInterval` | 🟡 | ≤17 | Gregorian + ISO 8601; other calendars compute as Gregorian |
+| `Calendar`, `DateComponents`, `DateInterval` | ✅ | ≤17 | Gregorian and ISO 8601 in Swift; every other identifier (Buddhist, Chinese, Coptic, Ethiopic, Hebrew, Indian, Islamic variants, Japanese, Persian, Republic of China) is computed by the host's ICU (libicu, dlopen'd; Gregorian rules without it): components, `date(from:)`, adding / rolling, ranges (13-month Hebrew years), intervals; `Locale.calendar` from `@calendar=`; localized symbols (`monthSymbols`, eras, quarters). Tested: SwiftFoundationTest, FoundationTest |
 | `TimeZone` (named zones, DST) | ✅ | ≤17 | Settings > Date & Time or the host's zone; changes apply live (`NSSystemTimeZoneDidChange`, `resetSystemTimeZone`) |
 | `Locale` (identifiers, language/region, separators, currency, `Locale.Language`) | ✅ | ≤17 | |
-| `DateFormatter` (styles, `dateFormat`, templates, parsing) | 🟡 | ≤17 | built-in CLDR subset: en, pt, es, fr, de, it, ja names and ~40 regions; other languages fall back to English names |
-| `NumberFormatter` (decimal, currency, percent, scientific, spell-out, ordinal, rounding, parsing) | 🟡 | ≤17 | ICU-style rounding; locale data limited to the built-in regions; spell-out English only |
+| `DateFormatter` (styles, `dateFormat`, templates, parsing) | ✅ | ≤17 | adapted: built-in tables for en, pt, es, fr, de, it, ja and their regions (they mirror iOS's strings); every other locale, and any locale with a non-Gregorian calendar (`calendar`, `@calendar=`), formats and parses with the host's ICU (libicu, dlopen'd; isim's built-in tables without it) (CLDR patterns, names, standalone and narrow symbols, quarters, long eras); the 12/24-hour setting applies to the current locale. Tested: FoundationTest, SwiftFoundationTest |
+| `NumberFormatter` (decimal, currency, percent, scientific, spell-out, ordinal, rounding, parsing) | ✅ | ≤17 | adapted: isim's decimal engine (ICU-style rounding) with locale data (separators, grouping, currency and percent patterns, currency symbols and digits) for every locale from the host's ICU (libicu, dlopen'd; isim's built-in tables without it); spell-out in every language (ICU's rule-based formats), ordinals for languages without built-in rules, currency plural names in the locale's language. Tested: FoundationTest |
 | `ISO8601DateFormatter` | ✅ | ≤17 | |
-| `RelativeDateTimeFormatter`, `DateComponentsFormatter`, `DateIntervalFormatter` | 🟡 | ≤17 | localized for the built-in languages |
-| `.formatted()` / `FormatStyle` (dates, ISO 8601, relative, intervals, numbers, currency, percent, lists, byte counts, durations, measurements) and parse strategies | 🟡 | ≤17 | follows the device region; same locale data limits as the formatters |
-| `Measurement`, `Unit*`, `MeasurementFormatter` | 🟡 | ≤17 | 22 unit families with conversion; locale-preferred units for length, mass, temperature, speed, volume; unit names localized for the built-in languages |
+| `RelativeDateTimeFormatter`, `DateComponentsFormatter`, `DateIntervalFormatter` | ✅ | ≤17 | adapted: built-in phrases for en, pt, es, fr, de, it, ja; every other language (relative phrases, unit names with its plural forms, unit lists, interval patterns, non-Gregorian calendars) from the host's ICU (libicu, dlopen'd; isim's built-in tables without it). The "About" / "remaining" phrases of DateComponentsFormatter are English. Tested: FoundationTest |
+| `.formatted()` / `FormatStyle` (dates, ISO 8601, relative, intervals, numbers, currency, percent, lists, byte counts, durations, measurements) and parse strategies | ✅ | ≤17 | follows the device region; built on the formatters above, so every locale and calendar `Date.FormatStyle` is given works (ICU for the ones without built-in tables); duration units and compact notation for other languages from ICU. Tested: SwiftFoundationTest |
+| `Measurement`, `Unit*`, `MeasurementFormatter` | ✅ | ≤17 | 22 unit families with conversion; locale-preferred units for length, mass, temperature, speed, volume; unit names and patterns for en, pt, es, fr, de, it built in, every other language from the host's ICU (libicu, dlopen'd; isim's built-in tables without it). Tested: FoundationTest |
 | `ByteCountFormatter`, `PersonNameComponentsFormatter`, `ListFormatter` | ✅ | ≤17 | |
 
 ### Files, bundles & preferences

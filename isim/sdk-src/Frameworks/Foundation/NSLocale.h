@@ -36,6 +36,9 @@ typedef NS_ENUM(NSUInteger, NSLocaleLanguageDirection) {
 - (nullable NSString *)localizedStringForLocaleIdentifier:(NSString *)localeIdentifier;
 - (nullable NSString *)localizedStringForLanguageCode:(NSString *)languageCode;
 - (nullable NSString *)localizedStringForCountryCode:(NSString *)countryCode;
+- (nullable NSString *)localizedStringForScriptCode:(NSString *)scriptCode;
+- (nullable NSString *)localizedStringForCurrencyCode:(NSString *)currencyCode;
+- (nullable NSString *)localizedStringForCalendarIdentifier:(NSString *)calendarIdentifier;
 + (NSLocaleLanguageDirection)characterDirectionForLanguage:(NSString *)isoLangCode;
 @end
 NS_ASSUME_NONNULL_END

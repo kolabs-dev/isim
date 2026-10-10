@@ -397,6 +397,12 @@ static NSString *localized_name(NSString *key, NSString *lang, BOOL one) {
 }
 NSString *isim_unit_long_name(NSUnit *unit, NSString *lang, BOOL one) {
     NSString *key = unit->_isimKey;
+    if (key && !isim_lang_builtin(lang) && isim_icu_on()) {    /* ICU's unit name in the language */
+        NSString *num = isim_icu_number(lang, @"precision-unlimited", one ? 1 : 5);
+        NSString *p = isim_icu_unit_phrase(lang, isim_icu_unit_id(key), one ? 1 : 5, num, 2);
+        NSRange r = p && num ? [p rangeOfString:num] : NSMakeRange(NSNotFound, 0);
+        if (r.location != NSNotFound) return [[p stringByReplacingCharactersInRange:r withString:@""] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"  \u202F"]];
+    }
     if (key && ![lang isEqualToString:@"en"]) { NSString *n = localized_name(key, lang, one); if (n) return n; }
     if (unit->_isimOne) return one ? unit->_isimOne : unit->_isimOther;
     return unit.symbol;
@@ -444,6 +450,10 @@ NSUnit *isim_preferred_unit(NSMeasurement *m, NSLocale *locale, NSString *usage)
 /* "5 km", "5km", "5 kilometers"; width: 0 narrow/short, 1 abbreviated/medium, 2 wide/long */
 NSString *isim_format_measurement(NSString *number, double value, NSUnit *unit, int width, NSLocale *locale) {
     NSString *lang = isim_locale_lang(locale);
+    if (!isim_lang_builtin(lang) && isim_icu_on()) {           /* ICU's unit patterns for the language (CLDR) */
+        NSString *p = isim_icu_unit_phrase(isim_locale_ident(locale), isim_icu_unit_id(unit->_isimKey), value, number, width);
+        if (p) return p;
+    }
     BOOL temp = [unit isKindOfClass:[NSUnitTemperature class]] && ![unit->_isimKey isEqualToString:@"kelvin"];
     if (width == 2) {
         BOOL one = isim_plural_one(lang, value, [number rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@".,"]].location != NSNotFound ? 1 : 0);
