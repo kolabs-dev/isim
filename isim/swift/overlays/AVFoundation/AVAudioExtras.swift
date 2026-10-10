@@ -411,7 +411,7 @@ enum _AudioInput {
     static func subscribe(_ owner: AnyObject, _ f: @escaping ([Float]) -> Void) {
         if subscribers.isEmpty {
             kind = isim_audio_input_start()
-            timer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in poll() }
+            timer = Timer._isimScheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in poll() }
         }
         subscribers[ObjectIdentifier(owner)] = f
     }

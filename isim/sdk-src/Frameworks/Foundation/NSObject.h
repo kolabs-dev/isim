@@ -36,7 +36,6 @@ typedef struct {
 - (nullable id)forwardingTargetForSelector:(SEL)aSelector;
 + (NSUInteger)hash;
 - (void)performSelector:(SEL)aSelector withObject:(nullable id)anArgument afterDelay:(NSTimeInterval)delay;
-- (void)performSelectorOnMainThread:(SEL)aSelector withObject:(nullable id)arg waitUntilDone:(BOOL)wait;
 + (void)cancelPreviousPerformRequestsWithTarget:(id)aTarget;
 @end
 /* CF <-> Objective-C ownership transfer (CF types are Objective-C objects) */

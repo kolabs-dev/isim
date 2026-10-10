@@ -72,10 +72,6 @@
 - (void)performSelector:(SEL)sel withObject:(id)arg afterDelay:(NSTimeInterval)delay {
     isim_schedule_perform(self, sel, arg, delay);
 }
-- (void)performSelectorOnMainThread:(SEL)sel withObject:(id)arg waitUntilDone:(BOOL)wait {
-    if (wait && pthread_main_np()) { [self performSelector:sel withObject:arg]; return; }
-    isim_schedule_perform(self, sel, arg, 0);
-}
 + (void)cancelPreviousPerformRequestsWithTarget:(id)target { isim_cancel_performs(target); }
 
 - (BOOL)isEqual:(id)o { return self == o; }

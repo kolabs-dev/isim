@@ -224,7 +224,7 @@ open class AVSpeechSynthesizer: NSObject, @unchecked Sendable {
     }
     func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { [weak self] _ in self?.tick() }
+        timer = Timer._isimScheduledTimer(withTimeInterval: 0.02, repeats: true) { [weak self] _ in self?.tick() }
     }
     func tick() {
         guard let u = current, !isPaused else { return }

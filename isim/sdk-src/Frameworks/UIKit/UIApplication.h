@@ -14,6 +14,8 @@ typedef NSString *UIApplicationOpenExternalURLOptionsKey NS_TYPED_ENUM;
 typedef NS_ENUM(NSInteger, UIBackgroundRefreshStatus) { UIBackgroundRefreshStatusRestricted, UIBackgroundRefreshStatusDenied, UIBackgroundRefreshStatusAvailable };
 typedef NSUInteger UIBackgroundTaskIdentifier NS_TYPED_ENUM;
 UIKIT_EXTERN const UIBackgroundTaskIdentifier UIBackgroundTaskInvalid;
+/* the main run loop's mode while a scroll view is dragged or decelerates (one of its common modes) */
+UIKIT_EXTERN NSRunLoopMode const UITrackingRunLoopMode NS_SWIFT_NAME(tracking);
 UIKIT_EXTERN UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsURLKey, UIApplicationLaunchOptionsSourceApplicationKey,
     UIApplicationLaunchOptionsShortcutItemKey, UIApplicationLaunchOptionsUserActivityDictionaryKey, UIApplicationLaunchOptionsUserActivityTypeKey,
     UIApplicationLaunchOptionsRemoteNotificationKey, UIApplicationLaunchOptionsLocationKey;

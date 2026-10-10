@@ -397,7 +397,7 @@ final class _TimelineBox {
         if date == fireDate, timer != nil { return }
         timer?.invalidate(); timer = nil; fireDate = date
         guard let date else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: max(0.001, date.timeIntervalSinceNow), repeats: false) { [weak self, weak graph] _ in
+        timer = Timer._isimScheduledTimer(withTimeInterval: max(0.001, date.timeIntervalSinceNow), repeats: false) { [weak self, weak graph] _ in
             MainActor.assumeIsolated { guard let self, self.timer != nil else { return }; self.timer = nil; self.fireDate = nil; graph?.invalidate() }
         }
     }

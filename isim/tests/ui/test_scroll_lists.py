@@ -108,3 +108,22 @@ def test_item_providers(launch, ios):
                  r"transferable: a transferable note", r"preview: true size 120"):
         app.wait_log(line)
     assert app.quit() == 0
+
+
+def test_run_loop_tracking_mode(launch):
+    """While a scroll view is dragged the main run loop runs in UITrackingRunLoopMode: a default-mode timer waits,
+    a common-modes timer keeps firing; the default mode comes back afterwards."""
+    app = launch("HelloScrollAndLists")
+    app.wait_tap_id("runloop")
+    app.wait_log(r"^run loop modes ready, mode kCFRunLoopDefaultMode$")
+    scroll = app.wait_for(id="modes-scroll")
+    app.wait_still()
+    x = scroll.x + scroll.w / 2
+    app.drag(x, scroll.y + scroll.h - 40, x, scroll.y + 60, 0.3, 1.0)    # held 1 s before lifting: still dragging
+    m = app.wait_log(r"^while dragging: default \+(\d+), common \+(\d+), in tracking mode (\d+)$")
+    default, common, tracking = (int(g) for g in m.groups())
+    assert default <= 1 and common >= 8 and tracking >= 8, m.group(0)
+    m = app.wait_log(r"^after scrolling: default \+(\d+), mode (\S+)$")
+    assert int(m.group(1)) >= 5 and m.group(2) == "kCFRunLoopDefaultMode", m.group(0)
+    assert app.quit() == 0
+

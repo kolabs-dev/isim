@@ -189,7 +189,7 @@ extension Animation {
         let t = tickers[id] ?? { let t = _FrameTicker(); t.graph = g; tickers[id] = t; return t }()
         t.requested = true
         if t.timer == nil {
-            t.timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak t] _ in MainActor.assumeIsolated { t?.tick() } }
+            t.timer = Timer._isimScheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak t] _ in MainActor.assumeIsolated { t?.tick() } }
         }
     }
     func tick() {
