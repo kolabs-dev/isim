@@ -51,6 +51,9 @@
 #import <Foundation/NSAttributedString.h>
 #import <Foundation/NSValueTransformer.h>
 #import <Foundation/NSUbiquitousKeyValueStore.h>
+#import <Foundation/NSFilePresenter.h>
+#import <Foundation/NSFileCoordinator.h>
+#import <Foundation/NSMetadata.h>
 #import <Foundation/NSUserActivity.h>
 #import <Foundation/NSItemProvider.h>
 #import <Foundation/NSExtensionContext.h>

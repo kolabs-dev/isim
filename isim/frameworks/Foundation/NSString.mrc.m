@@ -272,6 +272,11 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     va_end(ap);
     return [s autorelease];
 }
++ (instancetype)stringWithContentsOfURL:(NSURL *)url encoding:(NSStringEncoding)enc error:(id *)error {
+    if ([url isFileURL]) return [self stringWithContentsOfFile:[url path] encoding:enc error:error];
+    NSData *d = [NSData dataWithContentsOfURL:url];
+    return d ? [[[self alloc] initWithData:d encoding:enc] autorelease] : nil;
+}
 + (instancetype)stringWithContentsOfFile:(NSString *)path encoding:(NSStringEncoding)enc error:(id *)error {
     int fd = open([path UTF8String], O_RDONLY);
     if (fd < 0) { if (error) *error = nil; return nil; }
@@ -527,6 +532,10 @@ static NSString *map_case(NSString *s, int mode) {   /* mode: 0 lower, 1 upper, 
     return b[n - 1] == '/' ? [self stringByAppendingString:c] : [self stringByAppendingFormat:@"/%@", c];
 }
 - (NSString *)stringByAppendingPathExtension:(NSString *)e { return [self stringByAppendingFormat:@".%@", e]; }
+- (BOOL)writeToURL:(NSURL *)url atomically:(BOOL)a encoding:(NSStringEncoding)e error:(id *)err {
+    if (![url isFileURL]) { if (err) *err = [NSError errorWithDomain:@"NSCocoaErrorDomain" code:518 userInfo:nil]; return NO; }   /* NSFileWriteUnsupportedSchemeError */
+    return [self writeToFile:[url path] atomically:a encoding:e error:err];
+}
 - (BOOL)writeToFile:(NSString *)path atomically:(BOOL)a encoding:(NSStringEncoding)e error:(id *)err {
     int fd = open([path UTF8String], O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) return NO;

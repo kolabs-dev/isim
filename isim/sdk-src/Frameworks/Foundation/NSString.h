@@ -1,7 +1,7 @@
 #pragma once
 #import <Foundation/NSObject.h>
 NS_ASSUME_NONNULL_BEGIN
-@class NSError;
+@class NSError, NSURL;
 @class NSArray<ObjectType>, NSData;
 typedef unsigned short unichar;
 typedef NSUInteger NSStringEncoding;
@@ -34,6 +34,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 + (instancetype)stringWithFormat:(NSString *)format, ... NS_FORMAT_FUNCTION(1, 2);
 + (instancetype)stringWithCString:(const char *)cString encoding:(NSStringEncoding)enc;
 + (nullable instancetype)stringWithContentsOfFile:(NSString *)path encoding:(NSStringEncoding)enc error:(NSError * _Nullable * _Nullable)error;
++ (nullable instancetype)stringWithContentsOfURL:(NSURL *)url encoding:(NSStringEncoding)enc error:(NSError * _Nullable * _Nullable)error;
 - (instancetype)initWithString:(NSString *)aString;
 - (nullable instancetype)initWithUTF8String:(const char *)nullTerminatedCString;
 - (instancetype)initWithFormat:(NSString *)format, ... NS_FORMAT_FUNCTION(1, 2);
@@ -84,6 +85,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 - (NSString *)stringByAppendingPathComponent:(NSString *)str;
 - (NSString *)stringByAppendingPathExtension:(NSString *)str;
 - (BOOL)writeToFile:(NSString *)path atomically:(BOOL)useAuxiliaryFile encoding:(NSStringEncoding)enc error:(NSError * _Nullable * _Nullable)error;
+- (BOOL)writeToURL:(NSURL *)url atomically:(BOOL)useAuxiliaryFile encoding:(NSStringEncoding)enc error:(NSError * _Nullable * _Nullable)error;
 @end
 
 @interface NSString (NSStringExtensionMethods)

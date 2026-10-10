@@ -3,7 +3,9 @@
 #import <Foundation/Foundation.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <pthread.h>
+#include <sys/socket.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -18,6 +20,9 @@ NSNotificationName const NSFileHandleReadCompletionNotification = @"NSFileHandle
     NSFileHandleReadToEndOfFileCompletionNotification = @"NSFileHandleReadToEndOfFileCompletionNotification",
     NSFileHandleDataAvailableNotification = @"NSFileHandleDataAvailableNotification";
 NSString *const NSFileHandleNotificationDataItem = @"NSFileHandleNotificationDataItem";
+NSNotificationName const NSFileHandleConnectionAcceptedNotification = @"NSFileHandleConnectionAcceptedNotification";
+NSString *const NSFileHandleNotificationFileHandleItem = @"NSFileHandleNotificationFileHandleItem",
+    *const NSFileHandleNotificationMonitorModes = @"NSFileHandleNotificationMonitorModes";
 
 static NSError *posix_error(int err, NSString *path) {
     NSInteger code = err == ENOENT ? 4 : err == EACCES || err == EPERM ? 513 : err == EEXIST ? 516 : err == ENOSPC ? 640 : 512;
@@ -27,8 +32,8 @@ static NSError *posix_error(int err, NSString *path) {
 }
 
 /* ================= NSFileHandle ================= */
-@implementation NSFileHandle { int _fd; BOOL _close; BOOL _closed; pthread_t _reader; BOOL _readerRunning; }
-@synthesize readabilityHandler = _readabilityHandler;
+@implementation NSFileHandle { int _fd; BOOL _close; BOOL _closed; pthread_t _reader; BOOL _readerRunning, _writerRunning; }
+@synthesize readabilityHandler = _readabilityHandler, writeabilityHandler = _writeabilityHandler;
 + (NSFileHandle *)fileHandleWithStandardInput { static NSFileHandle *h; static dispatch_once_t o; dispatch_once(&o, ^{ h = [[NSFileHandle alloc] initWithFileDescriptor:0 closeOnDealloc:NO]; }); return h; }
 + (NSFileHandle *)fileHandleWithStandardOutput { static NSFileHandle *h; static dispatch_once_t o; dispatch_once(&o, ^{ h = [[NSFileHandle alloc] initWithFileDescriptor:1 closeOnDealloc:NO]; }); return h; }
 + (NSFileHandle *)fileHandleWithStandardError { static NSFileHandle *h; static dispatch_once_t o; dispatch_once(&o, ^{ h = [[NSFileHandle alloc] initWithFileDescriptor:2 closeOnDealloc:NO]; }); return h; }
@@ -144,6 +149,91 @@ static void *reader_thread(void *arg) {
     }
     return NULL;
 }
+/* ---- background reads, accepts and waits: the work runs on another thread, the notification is posted on the
+ * calling thread's run loop in the given modes (NSDefaultRunLoopMode by default), like iOS ---- */
+- (void)_isim_background:(NSNotificationName)name modes:(NSArray<NSRunLoopMode> *)modes work:(NSDictionary *(^)(void))work {
+    NSRunLoop *rl = NSRunLoop.currentRunLoop;
+    NSArray *m = modes.count ? modes : @[NSDefaultRunLoopMode];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+        NSDictionary *info = work();
+        [rl performInModes:m block:^{ [NSNotificationCenter.defaultCenter postNotificationName:name object:self userInfo:info]; }];
+    });
+}
+static NSDictionary *read_result(NSData *data, int err) {
+    return err ? @{ NSFileHandleNotificationDataItem: data ?: [NSData data], @"NSFileHandleError": @(err) } : @{ NSFileHandleNotificationDataItem: data ?: [NSData data] };
+}
+- (void)readInBackgroundAndNotifyForModes:(NSArray<NSRunLoopMode> *)modes {
+    int fd = _fd;
+    [self _isim_background:NSFileHandleReadCompletionNotification modes:modes work:^NSDictionary *{
+        char buf[65536];
+        for (;;) {
+            ssize_t r = read(fd, buf, sizeof buf);
+            if (r < 0 && errno == EINTR) continue;
+            return read_result(r > 0 ? [NSData dataWithBytes:buf length:(NSUInteger)r] : [NSData data], r < 0 ? errno : 0);
+        }
+    }];
+}
+- (void)readInBackgroundAndNotify { [self readInBackgroundAndNotifyForModes:nil]; }
+- (void)readToEndOfFileInBackgroundAndNotifyForModes:(NSArray<NSRunLoopMode> *)modes {
+    int fd = _fd;
+    [self _isim_background:NSFileHandleReadToEndOfFileCompletionNotification modes:modes work:^NSDictionary *{
+        NSMutableData *all = [NSMutableData data];
+        char buf[65536];
+        for (;;) {
+            ssize_t r = read(fd, buf, sizeof buf);
+            if (r < 0 && errno == EINTR) continue;
+            if (r <= 0) return read_result(all, r < 0 ? errno : 0);
+            [all appendBytes:buf length:(NSUInteger)r];
+        }
+    }];
+}
+- (void)readToEndOfFileInBackgroundAndNotify { [self readToEndOfFileInBackgroundAndNotifyForModes:nil]; }
+/* a listening socket: the next connection, as a file handle that closes it on dealloc */
+- (void)acceptConnectionInBackgroundAndNotifyForModes:(NSArray<NSRunLoopMode> *)modes {
+    int fd = _fd;
+    [self _isim_background:NSFileHandleConnectionAcceptedNotification modes:modes work:^NSDictionary *{
+        for (;;) {
+            int c = accept(fd, NULL, NULL);
+            if (c < 0 && errno == EINTR) continue;
+            if (c < 0) return @{ @"NSFileHandleError": @(errno) };
+            return @{ NSFileHandleNotificationFileHandleItem: [[NSFileHandle alloc] initWithFileDescriptor:c closeOnDealloc:YES] };
+        }
+    }];
+}
+- (void)acceptConnectionInBackgroundAndNotify { [self acceptConnectionInBackgroundAndNotifyForModes:nil]; }
+- (void)waitForDataInBackgroundAndNotifyForModes:(NSArray<NSRunLoopMode> *)modes {
+    int fd = _fd;
+    [self _isim_background:NSFileHandleDataAvailableNotification modes:modes work:^NSDictionary *{
+        struct pollfd p = { .fd = fd, .events = POLLIN };
+        while (poll(&p, 1, -1) < 0 && errno == EINTR) {}
+        return nil;
+    }];
+}
+- (void)waitForDataInBackgroundAndNotify { [self waitForDataInBackgroundAndNotifyForModes:nil]; }
+/* called (on another thread) whenever the descriptor can take more data, while the handler is set */
+static void *writer_thread(void *arg) {
+    NSFileHandle *h = (__bridge_transfer NSFileHandle *)arg;
+    for (;;) {
+        void (^handler)(NSFileHandle *) = h.writeabilityHandler;
+        if (!handler || h.fileDescriptor < 0) break;
+        struct pollfd p = { .fd = h.fileDescriptor, .events = POLLOUT };
+        int r = poll(&p, 1, 200);
+        if (r < 0 && errno != EINTR) break;
+        if (r > 0 && (p.revents & POLLOUT)) { @autoreleasepool { handler(h); } }
+        if (r > 0 && (p.revents & (POLLERR | POLLHUP | POLLNVAL))) break;
+    }
+    return NULL;
+}
+- (void (^)(NSFileHandle *))writeabilityHandler { @synchronized (self) { return _writeabilityHandler; } }
+- (void)setWriteabilityHandler:(void (^)(NSFileHandle *))handler {
+    BOOL start;
+    @synchronized (self) { _writeabilityHandler = [handler copy]; start = handler && !_writerRunning; if (start) _writerRunning = YES; }
+    if (start) {
+        pthread_t t;
+        pthread_create(&t, NULL, writer_thread, (__bridge_retained void *)self);
+        pthread_detach(t);
+    }
+}
 - (void (^)(NSFileHandle *))readabilityHandler { @synchronized (self) { return _readabilityHandler; } }
 - (void)setReadabilityHandler:(void (^)(NSFileHandle *))handler {
     @synchronized (self) { _readabilityHandler = [handler copy]; }
@@ -152,125 +242,6 @@ static void *reader_thread(void *arg) {
         pthread_create(&_reader, NULL, reader_thread, (__bridge_retained void *)self);
         pthread_detach(_reader);
     }
-}
-@end
-
-/* ================= NSStream ================= */
-NSStreamPropertyKey const NSStreamDataWrittenToMemoryStreamKey = @"kCFStreamPropertyDataWritten", NSStreamFileCurrentOffsetKey = @"kCFStreamPropertyFileCurrentOffset";
-@implementation NSStream { __weak id<NSStreamDelegate> _streamDelegate; }
-- (id<NSStreamDelegate>)delegate { return _streamDelegate ?: (id<NSStreamDelegate>)self; }
-- (void)setDelegate:(id<NSStreamDelegate>)d { _streamDelegate = d; }
-- (void)open {}
-- (void)close {}
-- (id)propertyForKey:(NSStreamPropertyKey)key { return nil; }
-- (BOOL)setProperty:(id)property forKey:(NSStreamPropertyKey)key { return NO; }
-- (void)scheduleInRunLoop:(NSRunLoop *)aRunLoop forMode:(NSRunLoopMode)mode {}
-- (void)removeFromRunLoop:(NSRunLoop *)aRunLoop forMode:(NSRunLoopMode)mode {}
-- (NSStreamStatus)streamStatus { return NSStreamStatusNotOpen; }
-- (NSError *)streamError { return nil; }
-@end
-
-@implementation NSInputStream { NSData *_data; NSUInteger _pos; int _fd; NSString *_path; NSStreamStatus _status; NSError *_error; BOOL _scheduled; BOOL _eof; }
-+ (instancetype)inputStreamWithData:(NSData *)data { return [[self alloc] initWithData:data]; }
-+ (instancetype)inputStreamWithFileAtPath:(NSString *)path { return [[self alloc] initWithFileAtPath:path]; }
-+ (instancetype)inputStreamWithURL:(NSURL *)url { return [[self alloc] initWithURL:url]; }
-- (instancetype)initWithData:(NSData *)data { if ((self = [super init])) { _data = [data copy]; _fd = -1; } return self; }
-- (instancetype)initWithFileAtPath:(NSString *)path { if ((self = [super init])) { _path = [path copy]; _fd = -1; } return self; }
-- (instancetype)initWithURL:(NSURL *)url { return url.isFileURL ? [self initWithFileAtPath:url.path] : nil; }
-- (void)dealloc { if (_fd >= 0) close(_fd); }
-- (NSStreamStatus)streamStatus { return _status; }
-- (NSError *)streamError { return _error; }
-- (void)_post:(NSStreamEvent)event {
-    if (!_scheduled) return;
-    id<NSStreamDelegate> d = self.delegate;
-    if (![d respondsToSelector:@selector(stream:handleEvent:)]) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ if (self->_status != NSStreamStatusClosed) [d stream:self handleEvent:event]; });
-}
-- (void)scheduleInRunLoop:(NSRunLoop *)rl forMode:(NSRunLoopMode)mode { _scheduled = YES; }
-- (void)removeFromRunLoop:(NSRunLoop *)rl forMode:(NSRunLoopMode)mode { _scheduled = NO; }
-- (void)open {
-    if (_status != NSStreamStatusNotOpen) return;
-    if (_path) {
-        _fd = open(_path.UTF8String, O_RDONLY);
-        if (_fd < 0) { _error = posix_error(errno, _path); _status = NSStreamStatusError; [self _post:NSStreamEventErrorOccurred]; return; }
-    }
-    _status = NSStreamStatusOpen;
-    [self _post:NSStreamEventOpenCompleted];
-    [self _post:self.hasBytesAvailable ? NSStreamEventHasBytesAvailable : NSStreamEventEndEncountered];
-}
-- (void)close { if (_fd >= 0) close(_fd); _fd = -1; _status = NSStreamStatusClosed; }
-- (BOOL)hasBytesAvailable { return _status == NSStreamStatusOpen && (_data ? _pos < _data.length : !_eof); }
-- (NSInteger)read:(uint8_t *)buffer maxLength:(NSUInteger)len {
-    if (_status != NSStreamStatusOpen && _status != NSStreamStatusAtEnd) return -1;
-    NSInteger n;
-    if (_data) {
-        n = (NSInteger)MIN(len, _data.length - _pos);
-        memcpy(buffer, (const char *)_data.bytes + _pos, (size_t)n); _pos += (NSUInteger)n;
-        if (_pos >= _data.length) _eof = YES;
-    } else {
-        ssize_t r = read(_fd, buffer, len);
-        if (r < 0) { _error = posix_error(errno, _path); _status = NSStreamStatusError; [self _post:NSStreamEventErrorOccurred]; return -1; }
-        n = r; if (r == 0) _eof = YES;
-    }
-    if (_eof && n == 0) _status = NSStreamStatusAtEnd;
-    [self _post:self.hasBytesAvailable ? NSStreamEventHasBytesAvailable : NSStreamEventEndEncountered];
-    if (_eof && _data) _status = NSStreamStatusAtEnd;
-    return n;
-}
-- (BOOL)getBuffer:(uint8_t **)buffer length:(NSUInteger *)len { return NO; }
-- (id)propertyForKey:(NSStreamPropertyKey)key {
-    if ([key isEqualToString:NSStreamFileCurrentOffsetKey]) return _data ? @(_pos) : @((unsigned long long)lseek(_fd, 0, SEEK_CUR));
-    return nil;
-}
-@end
-
-@implementation NSOutputStream { NSMutableData *_mem; int _fd; NSString *_path; BOOL _append; NSStreamStatus _status; NSError *_error; BOOL _scheduled; uint8_t *_buf; NSUInteger _cap, _len; }
-+ (instancetype)outputStreamToMemory { return [[self alloc] initToMemory]; }
-+ (instancetype)outputStreamToFileAtPath:(NSString *)path append:(BOOL)a { return [[self alloc] initToFileAtPath:path append:a]; }
-+ (instancetype)outputStreamWithURL:(NSURL *)url append:(BOOL)a { return [[self alloc] initWithURL:url append:a]; }
-+ (instancetype)outputStreamToBuffer:(uint8_t *)buffer capacity:(NSUInteger)capacity { return [[self alloc] initToBuffer:buffer capacity:capacity]; }
-- (instancetype)initToMemory { if ((self = [super init])) { _mem = [NSMutableData data]; _fd = -1; } return self; }
-- (instancetype)initToBuffer:(uint8_t *)buffer capacity:(NSUInteger)capacity { if ((self = [super init])) { _buf = buffer; _cap = capacity; _fd = -1; } return self; }
-- (instancetype)initToFileAtPath:(NSString *)path append:(BOOL)a { if ((self = [super init])) { _path = [path copy]; _append = a; _fd = -1; } return self; }
-- (instancetype)initWithURL:(NSURL *)url append:(BOOL)a { return url.isFileURL ? [self initToFileAtPath:url.path append:a] : nil; }
-- (void)dealloc { if (_fd >= 0) close(_fd); }
-- (NSStreamStatus)streamStatus { return _status; }
-- (NSError *)streamError { return _error; }
-- (void)scheduleInRunLoop:(NSRunLoop *)rl forMode:(NSRunLoopMode)mode { _scheduled = YES; }
-- (void)removeFromRunLoop:(NSRunLoop *)rl forMode:(NSRunLoopMode)mode { _scheduled = NO; }
-- (void)_post:(NSStreamEvent)event {
-    if (!_scheduled) return;
-    id<NSStreamDelegate> d = self.delegate;
-    if ([d respondsToSelector:@selector(stream:handleEvent:)]) dispatch_async(dispatch_get_main_queue(), ^{ if (self->_status != NSStreamStatusClosed) [d stream:self handleEvent:event]; });
-}
-- (void)open {
-    if (_status != NSStreamStatusNotOpen) return;
-    if (_path) {
-        _fd = open(_path.UTF8String, O_WRONLY | O_CREAT | (_append ? O_APPEND : O_TRUNC), 0644);
-        if (_fd < 0) { _error = posix_error(errno, _path); _status = NSStreamStatusError; [self _post:NSStreamEventErrorOccurred]; return; }
-    }
-    _status = NSStreamStatusOpen;
-    [self _post:NSStreamEventOpenCompleted]; [self _post:NSStreamEventHasSpaceAvailable];
-}
-- (void)close { if (_fd >= 0) close(_fd); _fd = -1; _status = NSStreamStatusClosed; }
-- (BOOL)hasSpaceAvailable { return _status == NSStreamStatusOpen && (!_buf || _len < _cap); }
-- (NSInteger)write:(const uint8_t *)buffer maxLength:(NSUInteger)len {
-    if (_status != NSStreamStatusOpen) return -1;
-    NSInteger n = (NSInteger)len;
-    if (_mem) [_mem appendBytes:buffer length:len];
-    else if (_buf) { n = (NSInteger)MIN(len, _cap - _len); memcpy(_buf + _len, buffer, (size_t)n); _len += (NSUInteger)n; if (_len == _cap) _status = NSStreamStatusAtEnd; }
-    else {
-        ssize_t w = write(_fd, buffer, len);
-        if (w < 0) { _error = posix_error(errno, _path); _status = NSStreamStatusError; [self _post:NSStreamEventErrorOccurred]; return -1; }
-        n = w;
-    }
-    [self _post:NSStreamEventHasSpaceAvailable];
-    return n;
-}
-- (id)propertyForKey:(NSStreamPropertyKey)key {
-    if ([key isEqualToString:NSStreamDataWrittenToMemoryStreamKey]) return _mem ? [_mem copy] : nil;
-    if ([key isEqualToString:NSStreamFileCurrentOffsetKey]) return _fd >= 0 ? @((unsigned long long)lseek(_fd, 0, SEEK_CUR)) : @(_mem.length);
-    return nil;
 }
 @end
 
