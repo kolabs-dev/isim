@@ -419,6 +419,8 @@ extension UIView {
     var tabCustomID: String?, tabSectionID: String?
     var tabDefaultHidden = (bar: false, sidebar: false)
     var tabBehavior = 0
+    /// ArrangementView sizing preferences (Arrangement.swift)
+    var arrangementSizing: _ArrangementSizing?
     var toolbarPriority = 0
     var toolbarSpacer: CGFloat?
     /// action when this node is a whole list row (Button, NavigationLink, Link)
