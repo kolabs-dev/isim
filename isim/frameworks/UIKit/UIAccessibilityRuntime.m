@@ -849,6 +849,8 @@ void isim_ui_accessibility_reload_settings(void) {
         NSLog(@"isim: content size category %@", now[@"cat"]);
         [nc postNotificationName:UIContentSizeCategoryDidChangeNotification object:UIApplication.sharedApplication userInfo:@{ UIContentSizeCategoryNewValueKey: now[@"cat"] }];
     }
+    if (UIContentSizeCategoryIsAccessibilityCategory(now[@"cat"]) != UIContentSizeCategoryIsAccessibilityCategory(old[@"cat"]))
+        [nc postNotificationName:UILargeContentViewerInteractionEnabledStatusDidChangeNotification object:nil];
     if (![now[@"bold"] isEqual:old[@"bold"]]) [nc postNotificationName:UIAccessibilityBoldTextStatusDidChangeNotification object:nil];
     if (![now[@"motion"] isEqual:old[@"motion"]]) [nc postNotificationName:UIAccessibilityReduceMotionStatusDidChangeNotification object:nil];
     if (![now[@"transp"] isEqual:old[@"transp"]]) [nc postNotificationName:UIAccessibilityReduceTransparencyStatusDidChangeNotification object:nil];
@@ -873,7 +875,8 @@ void isim_ui_accessibility_frame_tick(void) {
 }
 
 /* ================= Large Content Viewer ================= */
-static char k_lcv_shows, k_lcv_title, k_lcv_image;
+static char k_lcv_shows, k_lcv_title, k_lcv_image, k_lcv_insets, k_lcv_scales;
+NSNotificationName const UILargeContentViewerInteractionEnabledStatusDidChangeNotification = @"UILargeContentViewerInteractionEnabledStatusDidChangeNotification";
 @implementation UIView (UILargeContentViewer)
 - (BOOL)showsLargeContentViewer { return [objc_getAssociatedObject(self, &k_lcv_shows) boolValue]; }
 - (void)setShowsLargeContentViewer:(BOOL)b { objc_setAssociatedObject(self, &k_lcv_shows, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
@@ -887,6 +890,10 @@ static char k_lcv_shows, k_lcv_title, k_lcv_image;
 - (void)setLargeContentTitle:(NSString *)t { objc_setAssociatedObject(self, &k_lcv_title, t, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (UIImage *)largeContentImage { return objc_getAssociatedObject(self, &k_lcv_image) ?: ([self isKindOfClass:[UIButton class]] ? ((UIButton *)self).currentImage : nil); }
 - (void)setLargeContentImage:(UIImage *)i { objc_setAssociatedObject(self, &k_lcv_image, i, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (UIEdgeInsets)largeContentImageInsets { NSValue *v = objc_getAssociatedObject(self, &k_lcv_insets); return v ? v.UIEdgeInsetsValue : UIEdgeInsetsZero; }
+- (void)setLargeContentImageInsets:(UIEdgeInsets)i { objc_setAssociatedObject(self, &k_lcv_insets, [NSValue valueWithUIEdgeInsets:i], OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (BOOL)scalesLargeContentImage { return [objc_getAssociatedObject(self, &k_lcv_scales) boolValue]; }
+- (void)setScalesLargeContentImage:(BOOL)b { objc_setAssociatedObject(self, &k_lcv_scales, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end
 @interface __IsimLargeContentWindow : UIWindow
 @property (nonatomic, strong) UIView *hud;
@@ -899,16 +906,23 @@ static char k_lcv_shows, k_lcv_title, k_lcv_image;
 static __IsimLargeContentWindow *lcv_window;
 @implementation UILargeContentViewerInteraction { __weak UIView *_view; __weak id<UILargeContentViewerInteractionDelegate> _delegate; UILongPressGestureRecognizer *_press; id _item; }
 + (BOOL)isEnabled { return UIContentSizeCategoryIsAccessibilityCategory(settings_category()); }
-- (instancetype)initWithDelegate:(id<UILargeContentViewerInteractionDelegate>)d { if ((self = [super init])) _delegate = d; return self; }
+- (instancetype)initWithDelegate:(id<UILargeContentViewerInteractionDelegate>)d {
+    if ((self = [super init])) {
+        _delegate = d;
+        _press = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(_pressed:)];
+        _press.minimumPressDuration = 0.5; _press.cancelsTouchesInView = NO;
+    }
+    return self;
+}
+- (instancetype)init { return [self initWithDelegate:nil]; }
+/* the long press that shows the viewer, for require(toFail:) / simultaneous recognition with the app's recognizers */
+- (UIGestureRecognizer *)gestureRecognizerForExclusionRelationship { return _press; }
 - (id<UILargeContentViewerInteractionDelegate>)delegate { return _delegate; }
 - (UIView *)view { return _view; }
 - (void)willMoveToView:(UIView *)v { if (_press) [_view removeGestureRecognizer:_press]; }
 - (void)didMoveToView:(UIView *)v {
     _view = v;
-    if (!v) return;
-    _press = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(_pressed:)];
-    _press.minimumPressDuration = 0.5; _press.cancelsTouchesInView = NO;
-    [v addGestureRecognizer:_press];
+    if (v) [v addGestureRecognizer:_press];
 }
 - (id)_itemAt:(CGPoint)p {
     id<UILargeContentViewerInteractionDelegate> d = _delegate;
@@ -927,17 +941,32 @@ static __IsimLargeContentWindow *lcv_window;
         [lcv_window.hud removeFromSuperview];
         if (!item) { lcv_window.hidden = YES; return; }
         if (!lcv_window) { lcv_window = [[__IsimLargeContentWindow alloc] initWithFrame:UIScreen.mainScreen.bounds]; lcv_window.windowLevel = 16500000; lcv_window.backgroundColor = UIColor.clearColor; }
-        CGSize s = UIScreen.mainScreen.bounds.size;
+        /* the delegate may name the view controller that shows the viewer (centred in its view), else a system window */
+        id<UILargeContentViewerInteractionDelegate> d = _delegate;
+        UIViewController *host = [d respondsToSelector:@selector(viewControllerForLargeContentViewerInteraction:)] ? [d viewControllerForLargeContentViewerInteraction:self] : nil;
+        UIView *container = host.viewIfLoaded.window ? host.view : lcv_window;
+        CGSize s = container.bounds.size;
         UIView *hud = [[UIView alloc] initWithFrame:CGRectMake(s.width / 2 - 120, s.height / 2 - 120, 240, 240)];
         hud.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.92]; hud.layer.cornerRadius = 18; hud.layer.cornerCurve = kCACornerCurveContinuous;
         hud.accessibilityIdentifier = @"isim-large-content";
         UIImage *img = [item largeContentImage];
-        if (img) { UIImageView *iv = [[UIImageView alloc] initWithFrame:CGRectMake(70, 40, 100, 100)]; iv.image = img; iv.tintColor = UIColor.whiteColor; iv.contentMode = UIViewContentModeScaleAspectFit; [hud addSubview:iv]; }
+        if (img) {
+            /* scalesLargeContentImage (or a symbol image): fitted to the image area; else drawn at its own size;
+               largeContentImageInsets move it (visual centring) */
+            UIEdgeInsets in = [item respondsToSelector:@selector(largeContentImageInsets)] ? [item largeContentImageInsets] : UIEdgeInsetsZero;
+            BOOL scales = img.isSymbolImage || ([item respondsToSelector:@selector(scalesLargeContentImage)] && [item scalesLargeContentImage]);
+            CGRect area = UIEdgeInsetsInsetRect(CGRectMake(70, 40, 100, 100), in);
+            UIImageView *iv = [[UIImageView alloc] initWithFrame:area]; iv.image = img; iv.tintColor = UIColor.whiteColor;
+            iv.contentMode = scales ? UIViewContentModeScaleAspectFit : UIViewContentModeCenter; iv.clipsToBounds = YES;
+            iv.accessibilityIdentifier = @"isim-large-content-image";
+            [hud addSubview:iv];
+        }
         UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(10, img ? 150 : 60, 220, img ? 70 : 120)];
         l.text = [item largeContentTitle]; l.textColor = UIColor.whiteColor; l.font = [UIFont systemFontOfSize:30 weight:UIFontWeightSemibold];
         l.textAlignment = NSTextAlignmentCenter; l.numberOfLines = 2;
         [hud addSubview:l];
-        lcv_window.hud = hud; [lcv_window addSubview:hud]; lcv_window.hidden = NO;
+        lcv_window.hud = hud; [container addSubview:hud]; lcv_window.hidden = container != lcv_window;
+        if (host) NSLog(@"isim: large content viewer in %@", NSStringFromClass(host.class));
         NSLog(@"isim: large content viewer \"%@\"", [item largeContentTitle] ?: @"");
     } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
         id item = _item; _item = nil;

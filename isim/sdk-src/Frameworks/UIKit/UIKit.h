@@ -21,11 +21,13 @@
 #import <UIKit/UIDevice.h>
 #import <UIKit/UIWindow.h>
 #import <UIKit/UIViewController.h>
+#import <UIKit/UILetterformAwareAdjusting.h>
 #import <UIKit/UILabel.h>
 #import <UIKit/UIControl.h>
 #import <UIKit/UIButton.h>
 #import <UIKit/UISwitch.h>
 #import <UIKit/UIStackView.h>
+#import <UIKit/NSItemProvider+UIKitAdditions.h>
 #import <UIKit/UIImage.h>
 #import <UIKit/UIGraphics.h>
 #import <UIKit/UIBezierPath.h>
@@ -89,3 +91,8 @@
 #import <UIKit/UIUpdateLink.h>
 #import <UIKit/UIContextMenuInteraction.h>
 #import <UIKit/UIStateRestoration.h>
+#import <UIKit/UIEventAttribution.h>
+#import <UIKit/UIScreenshotService.h>
+#import <UIKit/UIToolTipInteraction.h>
+#import <UIKit/UIBandSelectionInteraction.h>
+#import <UIKit/UIMotionEffect.h>

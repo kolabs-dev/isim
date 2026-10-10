@@ -98,6 +98,7 @@ NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
 @implementation UIPressesEvent
 - (NSSet<UIPress *> *)allPresses { return _isimPresses ?: [NSSet set]; }
 - (UIEventType)type { return UIEventTypePresses; }
+- (NSSet<UIPress *> *)pressesForGestureRecognizer:(UIGestureRecognizer *)g { return [NSSet set]; }   /* recognizers get no presses */
 @end
 @interface __IsimMotionEvent : UIEvent
 @end

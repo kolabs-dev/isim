@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/NSItemProvider+UIKitAdditions.h>
 #import <UIKit/UIView.h>
 #import <UIKit/UIFont.h>
 NS_ASSUME_NONNULL_BEGIN
@@ -53,6 +54,7 @@ typedef NS_ENUM(NSInteger, UIImageOrientation) {
     UIImageOrientationUpMirrored, UIImageOrientationDownMirrored, UIImageOrientationLeftMirrored, UIImageOrientationRightMirrored
 };
 typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, UIImageResizingModeStretch = 1 };
+/* (isim: UIImage also answers preferredPresentationSizeForItemProvider, its size) */
 @interface UIImage : NSObject <NSSecureCoding, NSItemProviderReading, NSItemProviderWriting>
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage;
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage scale:(CGFloat)scale orientation:(UIImageOrientation)orientation;
@@ -102,6 +104,9 @@ typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, U
 @end
 UIKIT_EXTERN NSData *_Nullable UIImagePNGRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.pngData(self:));
 UIKIT_EXTERN NSData *_Nullable UIImageJPEGRepresentation(UIImage *image, CGFloat compressionQuality) NS_SWIFT_NAME(UIImage.jpegData(self:compressionQuality:));
+typedef NS_ENUM(NSInteger, UIImageDynamicRange) {
+    UIImageDynamicRangeUnspecified = -1, UIImageDynamicRangeStandard = 0, UIImageDynamicRangeConstrainedHigh = 1, UIImageDynamicRangeHigh = 2
+} NS_SWIFT_NAME(UIImage.DynamicRange) API_AVAILABLE(ios(17.0));
 @interface UIImageView : UIView
 - (instancetype)initWithImage:(nullable UIImage *)image;
 - (instancetype)initWithImage:(nullable UIImage *)image highlightedImage:(nullable UIImage *)highlightedImage;
@@ -117,5 +122,9 @@ UIKIT_EXTERN NSData *_Nullable UIImageJPEGRepresentation(UIImage *image, CGFloat
 @property (nonatomic, readonly, getter=isAnimating) BOOL animating;
 @property (nullable, nonatomic, strong) UIImage *image;
 @property (nullable, nonatomic, copy) UIImageSymbolConfiguration *preferredSymbolConfiguration;
+/* HDR: the range the view would like (unspecified: the trait collection's) and the one it draws with (isim renders
+   standard dynamic range, so .standard) */
+@property (nonatomic) UIImageDynamicRange preferredImageDynamicRange API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly) UIImageDynamicRange imageDynamicRange API_AVAILABLE(ios(17.0));
 @end
 NS_ASSUME_NONNULL_END

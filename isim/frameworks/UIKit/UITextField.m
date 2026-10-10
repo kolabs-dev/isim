@@ -19,6 +19,7 @@ NSNotificationName const UITextFieldTextDidChangeNotification = @"UITextFieldTex
     CGFloat _scrollX;                       /* single line: horizontal scroll that keeps the caret visible */
     NSInteger _isim_minLines, _isim_maxLines; BOOL _isim_multi;
 }
+@synthesize sizingRule = _sizingRule;     /* UILetterformAwareAdjusting (iOS 17) */
 /* the alignment text is laid out with: natural is right aligned right to left */
 - (NSTextAlignment)_isim_alignment { return _textAlignment == NSTextAlignmentNatural ? ([self _isim_isRTL] ? NSTextAlignmentRight : NSTextAlignmentLeft) : _textAlignment; }
 - (void)_isim_setLineLimitMin:(NSInteger)minLines max:(NSInteger)maxLines { _isim_minLines = minLines; _isim_maxLines = maxLines; _isim_multi = YES; [self _changed]; }

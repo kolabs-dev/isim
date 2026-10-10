@@ -32,3 +32,9 @@ public func _isimItemProviders(_ raw: NSArray) -> NSArray {
     }
     return out as NSArray
 }
+
+// MARK: - band selection (iOS 15): the band rect is optional in Swift
+@available(iOS 15.0, *)
+extension UIBandSelectionInteraction {
+    public var selectionRect: CGRect? { let r = __selectionRect; return r.isNull ? nil : r }
+}

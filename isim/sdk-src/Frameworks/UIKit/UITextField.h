@@ -1,4 +1,5 @@
 #pragma once
+#import <UIKit/UILetterformAwareAdjusting.h>
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIControl.h>
 #import <UIKit/UITextInput.h>
@@ -20,7 +21,7 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)textFieldShouldReturn:(UITextField *)textField;
 @end
 /* isim: the caret is always at the end of the text (no selection or cursor movement yet). */
-@interface UITextField : UIControl <UITextInput>
+@interface UITextField : UIControl <UITextInput, UILetterformAwareAdjusting>
 @property (nullable, nonatomic, copy) NSString *text;
 @property (nullable, nonatomic, copy) NSString *placeholder;
 @property (nullable, nonatomic, strong) UIFont *font;

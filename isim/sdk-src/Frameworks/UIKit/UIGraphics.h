@@ -6,9 +6,12 @@ NS_ASSUME_NONNULL_BEGIN
 UIKIT_EXTERN CGContextRef _Nullable UIGraphicsGetCurrentContext(void) __attribute__((cf_returns_not_retained));
 UIKIT_EXTERN void UIRectFill(CGRect rect);
 UIKIT_EXTERN void UIRectFrame(CGRect rect);
+UIKIT_EXTERN void UIRectFillUsingBlendMode(CGRect rect, CGBlendMode blendMode);
+UIKIT_EXTERN void UIRectFrameUsingBlendMode(CGRect rect, CGBlendMode blendMode);
+UIKIT_EXTERN void UIRectClip(CGRect rect);
 UIKIT_EXTERN void UIGraphicsPushContext(CGContextRef context);
 UIKIT_EXTERN void UIGraphicsPopContext(void);
-@class UIImage;
+@class UIImage, UITraitCollection;
 /* offscreen bitmap contexts (isim: drawn by the host's cairo into an image surface) */
 UIKIT_EXTERN void UIGraphicsBeginImageContext(CGSize size);
 UIKIT_EXTERN void UIGraphicsBeginImageContextWithOptions(CGSize size, BOOL opaque, CGFloat scale);
@@ -29,6 +32,10 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) CGFloat scale;
 @property (nonatomic) BOOL opaque;
 @property (nonatomic) UIGraphicsImageRendererFormatRange preferredRange;
+/* the scale of the trait collection's display */
+- (instancetype)initForTraitCollection:(UITraitCollection *)traitCollection NS_SWIFT_NAME(init(for:)) API_AVAILABLE(ios(11.0));
+/* isim renders standard dynamic range: always NO */
+@property (nonatomic, readonly) BOOL supportsHighDynamicRange API_AVAILABLE(ios(17.0));
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIGraphicsRendererContext : NSObject
@@ -43,12 +50,22 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIImage *currentImage;
 @end
 typedef void (^UIGraphicsImageDrawingActions)(UIGraphicsImageRendererContext *rendererContext);
+typedef void (^UIGraphicsDrawingActions)(__kindof UIGraphicsRendererContext *rendererContext);
 NS_SWIFT_UI_ACTOR
 @interface UIGraphicsRenderer : NSObject
 - (instancetype)initWithBounds:(CGRect)bounds;
 - (instancetype)initWithBounds:(CGRect)bounds format:(UIGraphicsRendererFormat *)format;
 @property (nonatomic, readonly) UIGraphicsRendererFormat *format;
 @property (nonatomic, readonly) BOOL allowsImageOutput;
+@end
+/* subclassing: the context a renderer of the class draws into (a bitmap context of the format's bounds), the class of
+   the object handed to the actions, and a hook to prepare the context; runDrawingActions runs the actions in it */
+@interface UIGraphicsRenderer (UIGraphicsRendererProtected)
++ (Class)rendererContextClass;
++ (nullable CGContextRef)contextWithFormat:(UIGraphicsRendererFormat *)format CF_RETURNS_RETAINED;
++ (void)prepareCGContext:(CGContextRef)context withRendererContext:(UIGraphicsRendererContext *)rendererContext;
+- (BOOL)runDrawingActions:(NS_NOESCAPE UIGraphicsDrawingActions)drawingActions
+        completionActions:(nullable NS_NOESCAPE UIGraphicsDrawingActions)completionActions error:(NSError **)error;
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIGraphicsImageRenderer : UIGraphicsRenderer

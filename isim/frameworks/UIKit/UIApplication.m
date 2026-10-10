@@ -59,10 +59,18 @@
 
 @interface UIEvent ()
 @property (nonatomic, strong) NSSet *touchSet;
+@property (nonatomic) UIKeyModifierFlags isimMods;
 @end
+extern UIKeyModifierFlags isim_ui_current_modifiers(int hostmods);
 @implementation UIEvent
-- (instancetype)initWithIsimTouch:(UITouch *)t { if ((self = [super init])) _touchSet = [NSSet setWithObject:t]; return self; }
-- (instancetype)initWithIsimTouches:(NSSet *)ts { if ((self = [super init])) _touchSet = [ts copy]; return self; }
+- (instancetype)initWithIsimTouch:(UITouch *)t { if ((self = [super init])) { _touchSet = [NSSet setWithObject:t]; _isimMods = isim_ui_current_modifiers(0); } return self; }
+- (instancetype)initWithIsimTouches:(NSSet *)ts { if ((self = [super init])) { _touchSet = [ts copy]; _isimMods = isim_ui_current_modifiers(0); } return self; }
+- (UIKeyModifierFlags)modifierFlags { return _isimMods; }
+/* an iPad pointer click is the primary button while it is down */
+- (UIEventButtonMask)buttonMask {
+    for (UITouch *t in _touchSet) if (t.type == UITouchTypeIndirectPointer && t.phase != UITouchPhaseEnded && t.phase != UITouchPhaseCancelled) return UIEventButtonMaskPrimary;
+    return 0;
+}
 - (UIEventType)type { return UIEventTypeTouches; }
 - (UIEventSubtype)subtype { return UIEventSubtypeNone; }
 - (NSTimeInterval)timestamp { return _touchSet ? [_touchSet.anyObject timestamp] : isim_time(); }
@@ -592,7 +600,9 @@ static UIWindowScene *implicit_scene(void) {
 - (NSString *)subtitle { return _subtitle ?: @""; }
 - (void)setSubtitle:(NSString *)t { _subtitle = [t copy]; }
 - (void)openURL:(NSURL *)url options:(UISceneOpenExternalURLOptions *)options completionHandler:(void (^)(BOOL))completion {
-    NSDictionary *o = options.universalLinksOnly ? @{ UIApplicationOpenURLOptionUniversalLinksOnly: @YES } : @{};
+    NSMutableDictionary *o = [NSMutableDictionary dictionary];
+    if (options.universalLinksOnly) o[UIApplicationOpenURLOptionUniversalLinksOnly] = @YES;
+    if (options.eventAttribution) o[UIApplicationOpenExternalURLOptionsEventAttributionKey] = options.eventAttribution;
     [UIApplication.sharedApplication openURL:url options:o completionHandler:completion];
 }
 /* the launch screen (UILaunchScreen.m) waits for every extension to complete */
@@ -757,6 +767,7 @@ BOOL isim_sys_can_open_url(NSURL *url);
 BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BOOL));
 - (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""] || isim_sys_can_open_url(url); }
 - (void)openURL:(NSURL *)url options:(NSDictionary *)options completionHandler:(void (^)(BOOL))completion {
+    { extern void isim_ui_record_attribution(id, NSURL *); id a = options[UIApplicationOpenExternalURLOptionsEventAttributionKey]; if (a) isim_ui_record_attribution(a, url); }
     if (isim_sys_route_url(url, options, completion)) return;     /* another app's URL scheme or universal link */
     NSString *scheme = url.scheme.lowercaseString ?: @"";
     if ([scheme isEqualToString:@"app-settings"] && isim_shell_present()) {
@@ -885,6 +896,7 @@ static void handle_touch(const struct isim_event *ev) {
             if (hit) { w = c; break; }
         }
         if (!hit) { cur_touch = nil; return; }
+        { extern void isim_ui_attribution_touch(UIWindow *, CGPoint); isim_ui_attribution_touch(w, CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y)); }
         if (!w.isKeyWindow && isim_ui_scenes_split() && w.windowScene && w.windowLevel == UIWindowLevelNormal) [w makeKeyWindow];   /* the touched side of a split view */
         cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y) time:ev->timestamp];
         [cur_touch _isim_setFinger:finger];
@@ -907,6 +919,7 @@ static void handle_touch(const struct isim_event *ev) {
                 if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) continue;
                 if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
                 id<UIGestureRecognizerDelegate> gd = g.delegate;
+                if (![g _isim_allowsTouch:cur_touch]) continue;              /* allowedTouchTypes */
                 if ([gd respondsToSelector:@selector(gestureRecognizer:shouldReceiveTouch:)] && ![gd gestureRecognizer:g shouldReceiveTouch:cur_touch]) continue;
                 [g _isim_beginTouchSequence];         /* forget touches of an earlier sequence it was dropped from */
                 [cur_gestures addObject:g];
@@ -934,6 +947,8 @@ static void handle_touch(const struct isim_event *ev) {
     for (UIGestureRecognizer *g in [cur_gestures copy]) {
         if (![cur_gestures containsObject:g]) continue;
         if (t != cur_touch && (![g _isim_acceptsExtraTouches] || ![t.view isDescendantOfView:g.view])) continue;
+        if (phase == UITouchPhaseBegan && t == cur_touch && ![g shouldReceiveEvent:e]) { [cur_gestures removeObject:g]; continue; }
+        [g _isim_setLastEvent:e];
         [g _isim_touch:t phase:phase event:e];
     }
     if (!touch_cancelled && toView) {
@@ -1076,8 +1091,9 @@ static void render_frame(void) {
     { extern void isim_ui_trait_registrations_tick(void); isim_ui_trait_registrations_tick(); }
     isim_ui_keyboard_check();
     { extern void isim_ui_accessibility_frame_tick(void); isim_ui_accessibility_frame_tick(); }
+    isim_ui_update_links_fire();                      /* UIUpdateLink (UIUpdates.m): the phases before the display links */
     isim_ui_display_links_fire();
-    isim_ui_update_links_fire();                      /* UIUpdateLink (UIUpdates.m) */
+    { extern void isim_ui_update_links_stage(int); isim_ui_update_links_stage(1); }   /* after them, before the commit */
     isim_ui_animations_tick();
     UIWindow *key = top_window();
     UIViewController *vc = key.rootViewController;
@@ -1102,6 +1118,7 @@ static void render_frame(void) {
     CGFloat brightness = UIScreen.mainScreen.brightness;     /* adapted: a lower screen brightness dims the frame */
     if (brightness < 0.999) { double dim[4] = { 0, 0, 0, (1 - brightness) * 0.8 }; CGRect sb = UIScreen.mainScreen.bounds; isim_gfx_fill_rounded(0, 0, sb.size.width, sb.size.height, 0, dim); }
     isim_frame_end();
+    { extern void isim_ui_update_links_stage(int); isim_ui_update_links_stage(2); }   /* after the commit */
 }
 
 /* ---- Debug > Simulate Memory Warning (script memorywarning): the app delegate, the notification, every view

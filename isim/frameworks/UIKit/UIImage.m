@@ -123,6 +123,7 @@ enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MOD
 /* NSItemProviderReading / Writing: PNG, JPEG and HEIC data read; PNG written (like iOS, which also offers JPEG) */
 + (NSArray<NSString *> *)readableTypeIdentifiersForItemProvider { return @[@"public.png", @"public.jpeg", @"public.heic", @"public.image"]; }
 + (NSArray<NSString *> *)writableTypeIdentifiersForItemProvider { return @[@"public.png", @"public.jpeg"]; }
+- (CGSize)preferredPresentationSizeForItemProvider { return self.size; }
 + (instancetype)objectWithItemProviderData:(NSData *)data typeIdentifier:(NSString *)t error:(NSError **)e {
     UIImage *img = [[self alloc] initWithData:data];
     if (!img && e) *e = [NSError errorWithDomain:NSItemProviderErrorDomain code:NSItemProviderUnavailableCoercionError userInfo:nil];
@@ -469,7 +470,11 @@ static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
 @end
 
 /* ---------------- UIImageView ---------------- */
-@implementation UIImageView { CADisplayLink *_animLink; double _animStart; }
+@implementation UIImageView { CADisplayLink *_animLink; double _animStart; NSInteger _isimPrefRange; }
+/* stored + 2 so that 0 (a new view) reads as unspecified */
+- (UIImageDynamicRange)preferredImageDynamicRange { return _isimPrefRange ? (UIImageDynamicRange)(_isimPrefRange - 2) : UIImageDynamicRangeUnspecified; }
+- (void)setPreferredImageDynamicRange:(UIImageDynamicRange)r { _isimPrefRange = r + 2; }
+- (UIImageDynamicRange)imageDynamicRange { return UIImageDynamicRangeStandard; }      /* isim renders SDR */
 - (instancetype)initWithImage:(UIImage *)image {
     if ((self = [self initWithFrame:CGRectMake(0, 0, image.size.width, image.size.height)])) { _image = image; if (image.images.count) [self startAnimating]; }
     return self;

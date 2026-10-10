@@ -51,11 +51,14 @@ NS_SWIFT_UI_ACTOR
 @end
 
 /* scene URL deliveries (scene(_:openURLContexts:), connectionOptions.urlContexts) */
+@class UIEventAttribution;
 NS_SWIFT_UI_ACTOR
 @interface UISceneOpenURLOptions : NSObject
 @property (nullable, nonatomic, readonly) NSString *sourceApplication;
 @property (nullable, nonatomic, readonly) id annotation;
 @property (nonatomic, readonly) BOOL openInPlace;
+/* isim: always nil (attributions are not passed between apps) */
+@property (nonatomic, readonly, nullable) UIEventAttribution *eventAttribution API_AVAILABLE(ios(14.5));
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIOpenURLContext : NSObject

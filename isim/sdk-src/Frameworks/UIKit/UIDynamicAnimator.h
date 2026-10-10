@@ -123,6 +123,53 @@ NS_SWIFT_UI_ACTOR
 @property (readwrite, nonatomic) CGPoint anchorPoint;
 @property (readwrite, nonatomic) CGFloat length, damping, frequency, frictionTorque;
 @property (readwrite, nonatomic) UIFloatRange attachmentRange;
+/* iOS 9 attachments: an item sliding along an axis through an anchor (or two items sliding against each other), two
+   items fixed together, a rope (at most the current distance) and a pin (items turn about a shared anchor) */
++ (instancetype)slidingAttachmentWithItem:(id<UIDynamicItem>)item attachmentAnchor:(CGPoint)point axisOfTranslation:(CGVector)axis;
++ (instancetype)slidingAttachmentWithItem:(id<UIDynamicItem>)item1 attachedToItem:(id<UIDynamicItem>)item2 attachmentAnchor:(CGPoint)point axisOfTranslation:(CGVector)axis;
++ (instancetype)fixedAttachmentWithItem:(id<UIDynamicItem>)item1 attachedToItem:(id<UIDynamicItem>)item2 attachmentAnchor:(CGPoint)point;
++ (instancetype)limitAttachmentWithItem:(id<UIDynamicItem>)item1 offsetFromCenter:(UIOffset)offset1 attachedToItem:(id<UIDynamicItem>)item2 offsetFromCenter:(UIOffset)offset2;
++ (instancetype)pinAttachmentWithItem:(id<UIDynamicItem>)item1 attachedToItem:(id<UIDynamicItem>)item2 attachmentAnchor:(CGPoint)point;
+@end
+
+/* ---- fields (iOS 9): forces over a region around a position ----
+   Adapted: strengths are in UIKit's units (1 = gravity's acceleration for linear and radial gravity, 1000 pt/s^2);
+   noise and turbulence are a smooth pseudo-random field; items carry a charge from UIDynamicItemBehavior.charge. */
+NS_SWIFT_UI_ACTOR
+@interface UIRegion : NSObject <NSCopying, NSCoding>
+@property (class, nonatomic, readonly) UIRegion *infiniteRegion;
+- (instancetype)initWithRadius:(CGFloat)radius;
+- (instancetype)initWithSize:(CGSize)size;
+- (instancetype)inverseRegion;
+- (instancetype)regionByUnionWithRegion:(UIRegion *)region;
+- (instancetype)regionByDifferenceFromRegion:(UIRegion *)region;
+- (instancetype)regionByIntersectionWithRegion:(UIRegion *)region;
+- (BOOL)containsPoint:(CGPoint)point;
+@end
+@class UIFieldBehavior;
+typedef CGVector (^UIFieldCustomEvaluator)(UIFieldBehavior *field, CGPoint position, CGVector velocity, CGFloat mass, CGFloat charge, NSTimeInterval deltaTime);
+NS_SWIFT_UI_ACTOR
+@interface UIFieldBehavior : UIDynamicBehavior
+- (void)addItem:(id<UIDynamicItem>)item;
+- (void)removeItem:(id<UIDynamicItem>)item;
+@property (nonatomic, readonly, copy) NSArray<id<UIDynamicItem>> *items;
+@property (nonatomic, assign) CGPoint position;
+@property (nonatomic, strong) UIRegion *region;
+@property (nonatomic, assign) CGFloat strength, falloff, minimumRadius;
+@property (nonatomic, assign) CGVector direction;
+@property (nonatomic, assign) CGFloat smoothness, animationSpeed;
++ (instancetype)dragField;
++ (instancetype)vortexField;
++ (instancetype)radialGravityFieldWithPosition:(CGPoint)position NS_SWIFT_NAME(radialGravityField(position:));
++ (instancetype)linearGravityFieldWithVector:(CGVector)direction NS_SWIFT_NAME(linearGravityField(direction:));
++ (instancetype)velocityFieldWithVector:(CGVector)direction NS_SWIFT_NAME(velocityField(direction:));
++ (instancetype)noiseFieldWithSmoothness:(CGFloat)smoothness animationSpeed:(CGFloat)speed NS_SWIFT_NAME(noiseField(smoothness:animationSpeed:));
++ (instancetype)turbulenceFieldWithSmoothness:(CGFloat)smoothness animationSpeed:(CGFloat)speed NS_SWIFT_NAME(turbulenceField(smoothness:animationSpeed:));
++ (instancetype)springField;
++ (instancetype)electricField;
++ (instancetype)magneticField;
++ (instancetype)fieldWithEvaluationBlock:(UIFieldCustomEvaluator)block NS_SWIFT_NAME(field(evaluationBlock:));
+- (instancetype)init NS_UNAVAILABLE;
 @end
 
 NS_SWIFT_UI_ACTOR
@@ -160,5 +207,14 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly, getter=isRunning) BOOL running;
 @property (nonatomic, readonly) NSTimeInterval elapsedTime;
 @property (nullable, nonatomic, weak) id<UIDynamicAnimatorDelegate> delegate;
+@end
+/* an animator moving a collection view layout's attributes: the layout is invalidated each step and asks the animator
+   for the attributes it moved */
+@class UICollectionViewLayout, UICollectionViewLayoutAttributes;
+@interface UIDynamicAnimator (UICollectionViewAdditions)
+- (instancetype)initWithCollectionViewLayout:(UICollectionViewLayout *)layout;
+- (nullable UICollectionViewLayoutAttributes *)layoutAttributesForCellAtIndexPath:(NSIndexPath *)indexPath;
+- (nullable UICollectionViewLayoutAttributes *)layoutAttributesForSupplementaryViewOfKind:(NSString *)kind atIndexPath:(NSIndexPath *)indexPath;
+- (nullable UICollectionViewLayoutAttributes *)layoutAttributesForDecorationViewOfKind:(NSString *)decorationViewKind atIndexPath:(NSIndexPath *)indexPath;
 @end
 NS_ASSUME_NONNULL_END

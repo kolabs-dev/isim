@@ -137,15 +137,22 @@ UIKIT_EXTERN NSNotificationName const UIAccessibilityVoiceOverStatusDidChangeNot
     UIAccessibilityDarkerSystemColorsStatusDidChangeNotification, UIAccessibilityDifferentiateWithoutColorDidChangeNotification;
 
 /* Large Content Viewer: at accessibility text sizes, a long press over an item shows it big in the middle */
+NS_SWIFT_UI_ACTOR
 @protocol UILargeContentViewerItem <NSObject>
 @property (nonatomic, readonly) BOOL showsLargeContentViewer;
 @property (nullable, nonatomic, readonly) NSString *largeContentTitle;
 @property (nullable, nonatomic, readonly) UIImage *largeContentImage;
+/* fitted to the viewer's image area (symbol images always are); else drawn at its own size */
+@property (nonatomic, readonly) BOOL scalesLargeContentImage;
+/* move the image for visual centring */
+@property (nonatomic, readonly) UIEdgeInsets largeContentImageInsets;
 @end
 @class UILargeContentViewerInteraction;
 @interface UIView (UILargeContentViewer) <UILargeContentViewerItem>
 @property (nonatomic, readwrite) BOOL showsLargeContentViewer;
 @property (nullable, nonatomic, readwrite, copy) NSString *largeContentTitle;
 @property (nullable, nonatomic, readwrite, strong) UIImage *largeContentImage;
+@property (nonatomic, readwrite) BOOL scalesLargeContentImage;
+@property (nonatomic, readwrite) UIEdgeInsets largeContentImageInsets;
 @end
 NS_ASSUME_NONNULL_END

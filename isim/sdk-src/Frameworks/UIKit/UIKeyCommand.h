@@ -6,9 +6,7 @@
 #import <UIKit/UIViewController.h>
 @class UIImage;
 NS_ASSUME_NONNULL_BEGIN
-typedef NS_OPTIONS(NSInteger, UIKeyModifierFlags) {
-    UIKeyModifierAlphaShift = 1 << 16, UIKeyModifierShift = 1 << 17, UIKeyModifierControl = 1 << 18,
-    UIKeyModifierAlternate = 1 << 19, UIKeyModifierCommand = 1 << 20, UIKeyModifierNumericPad = 1 << 21 };
+/* UIKeyModifierFlags: UIEvent.h */
 typedef NS_ENUM(NSInteger, UIKeyboardHIDUsage) {
     UIKeyboardHIDUsageKeyboardA = 0x04, UIKeyboardHIDUsageKeyboardB, UIKeyboardHIDUsageKeyboardC, UIKeyboardHIDUsageKeyboardD,
     UIKeyboardHIDUsageKeyboardE, UIKeyboardHIDUsageKeyboardF, UIKeyboardHIDUsageKeyboardG, UIKeyboardHIDUsageKeyboardH,
@@ -57,6 +55,8 @@ NS_SWIFT_UI_ACTOR
 NS_SWIFT_UI_ACTOR
 @interface UIPressesEvent : UIEvent
 @property (nonatomic, readonly) NSSet<UIPress *> *allPresses;
+/* the presses the recognizer receives (isim: recognizers get no presses, so an empty set) */
+- (NSSet<UIPress *> *)pressesForGestureRecognizer:(UIGestureRecognizer *)gesture;
 @end
 
 UIKIT_EXTERN NSString *const UIKeyInputUpArrow;

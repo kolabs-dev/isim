@@ -33,7 +33,10 @@ typedef NS_OPTIONS(NSUInteger, UIViewAnimationOptions) {
     UIViewAnimationOptionTransitionFlipFromRight = 2 << 20, UIViewAnimationOptionTransitionCurlUp = 3 << 20,
     UIViewAnimationOptionTransitionCurlDown = 4 << 20, UIViewAnimationOptionTransitionCrossDissolve = 5 << 20,
     UIViewAnimationOptionTransitionFlipFromTop = 6 << 20, UIViewAnimationOptionTransitionFlipFromBottom = 7 << 20,
-    UIViewAnimationOptionPreferredFramesPerSecondDefault = 0 << 24, UIViewAnimationOptionPreferredFramesPerSecond60 = 3 << 24
+    UIViewAnimationOptionPreferredFramesPerSecondDefault = 0 << 24, UIViewAnimationOptionPreferredFramesPerSecond60 = 3 << 24,
+    UIViewAnimationOptionPreferredFramesPerSecond30 = 7 << 24,
+    /* iOS 26: pending trait, property and layout updates are applied before the animations and, animated, after them */
+    UIViewAnimationOptionFlushUpdates API_AVAILABLE(ios(26.0)) = 1 << 29,
 };
 typedef NS_ENUM(NSInteger, UILayoutConstraintAxis) { UILayoutConstraintAxisHorizontal = 0, UILayoutConstraintAxisVertical = 1 };
 typedef float UILayoutPriority NS_TYPED_EXTENSIBLE_ENUM;

@@ -53,9 +53,11 @@ NS_SWIFT_UI_ACTOR
 - (void)extendStateRestoration API_AVAILABLE(ios(15.0));
 - (void)completeStateRestoration API_AVAILABLE(ios(15.0));
 @end
+@class UIEventAttribution;
 NS_SWIFT_NAME(UIScene.OpenExternalURLOptions)
 @interface UISceneOpenExternalURLOptions : NSObject
 @property (nonatomic) BOOL universalLinksOnly;
+@property (nonatomic, copy, nullable) UIEventAttribution *eventAttribution API_AVAILABLE(ios(14.5));
 @end
 
 /* ---- multiple windows (iPad): activation and destruction requests ---- */

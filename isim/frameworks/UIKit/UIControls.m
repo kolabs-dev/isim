@@ -6,6 +6,7 @@
 
 /* ================= UILabel ================= */
 @implementation UILabel
+@synthesize sizingRule = _sizingRule;     /* UILetterformAwareAdjusting (iOS 17) */
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
         _font = [UIFont systemFontOfSize:17]; _textColor = UIColor.labelColor; _numberOfLines = 1; _enabled = YES;
@@ -25,10 +26,35 @@
     if (!_text) return nil;
     return [[NSAttributedString alloc] initWithString:_text attributes:@{ NSFontAttributeName: _font, NSForegroundColorAttributeName: _textColor }];
 }
-/* the label's text measured with its attributes when it has some */
-- (CGSize)_isim_measure:(CGFloat)maxw lines:(NSInteger)lines font:(UIFont *)f {
-    return _attributedText ? isim_ui_measure_attributed(_attributedText, f, _textColor, maxw, lines) : isim_ui_measure(_text, f, maxw, lines);
+/* the label's text measured with its attributes when it has some; with the oversize sizing rule (iOS 17) the ink of
+   tall scripts that reaches outside the line boxes is added */
+- (UIEdgeInsets)_isim_overhang:(CGFloat)maxw lines:(NSInteger)lines font:(UIFont *)f {
+    if (_sizingRule != UILetterformAwareSizingRuleOversize || !_text.length) return UIEdgeInsetsZero;
+    return isim_ui_ink_overhang(self.attributedText, f, _textColor, maxw, lines);
 }
+- (CGSize)_isim_measure:(CGFloat)maxw lines:(NSInteger)lines font:(UIFont *)f {
+    CGSize s = _attributedText ? isim_ui_measure_attributed(_attributedText, f, _textColor, maxw, lines) : isim_ui_measure(_text, f, maxw, lines);
+    UIEdgeInsets o = [self _isim_overhang:maxw lines:lines font:f];
+    s.height += o.top + o.bottom;
+    return s;
+}
+- (void)setSizingRule:(UILetterformAwareSizingRule)r { _sizingRule = r; [self _changed]; }
+- (void)setBaselineAdjustment:(UIBaselineAdjustment)b { _baselineAdjustment = b; isim_ui_set_needs_display(); }
+/* a truncated label shows its full text as a tooltip on iPad (UIToolTipInteraction, UIHover.m) */
+- (void)setShowsExpansionTextWhenTruncated:(BOOL)b { _showsExpansionTextWhenTruncated = b; [self _isim_updateExpansion]; }
+- (BOOL)_isim_truncated {
+    if (!_text.length || self.bounds.size.width <= 0) return NO;
+    CGSize full = [self _isim_measure:_numberOfLines == 1 ? 0 : self.bounds.size.width lines:0 font:[self _effectiveFont]];
+    return full.width > self.bounds.size.width + 0.5 || full.height > self.bounds.size.height + 0.5;
+}
+- (void)_isim_updateExpansion {
+    static char k;
+    UIToolTipInteraction *i = objc_getAssociatedObject(self, &k);
+    BOOL want = _showsExpansionTextWhenTruncated && [self _isim_truncated];
+    if (want && !i) { i = [[UIToolTipInteraction alloc] init]; objc_setAssociatedObject(self, &k, i, OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self addInteraction:i]; self.userInteractionEnabled = YES; }
+    i.defaultToolTip = want ? _text : nil;
+}
+- (void)layoutSubviews { [super layoutSubviews]; if (_showsExpansionTextWhenTruncated) [self _isim_updateExpansion]; }
 - (void)setFont:(UIFont *)f { _font = f ?: [UIFont systemFontOfSize:17]; [self _changed]; }
 - (void)setTextColor:(UIColor *)c { _textColor = c ?: UIColor.labelColor; isim_ui_set_needs_display(); }
 - (void)setTextAlignment:(NSTextAlignment)a { _textAlignment = a; isim_ui_set_needs_display(); }
@@ -75,6 +101,15 @@
 }
 - (void)drawTextInRect:(CGRect)r {
     UIColor *c = _highlighted && _highlightedTextColor ? _highlightedTextColor : _textColor;
+    UIFont *ef = [self _effectiveFont];
+    UIEdgeInsets o = [self _isim_overhang:_numberOfLines == 1 ? 0 : r.size.width lines:_numberOfLines font:ef];
+    r = UIEdgeInsetsInsetRect(r, o);
+    if (ef != _font && _baselineAdjustment != UIBaselineAdjustmentAlignCenters) {
+        /* shrunk text: keep the original line's baseline, or its top (the drawing centres the rect it is given) */
+        CGFloat h0 = ceil(_font.lineHeight), h1 = ceil(ef.lineHeight), top0 = r.origin.y + (r.size.height - h0) / 2;
+        CGFloat top1 = _baselineAdjustment == UIBaselineAdjustmentAlignBaselines ? top0 + _font.ascender - ef.ascender : top0;
+        r = CGRectMake(r.origin.x, top1, r.size.width, h1);
+    }
     if (_attributedText) { isim_ui_draw_attributed(_attributedText, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
     isim_ui_draw_text(_text, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4);
 }
@@ -577,6 +612,8 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 - (void)setAlignment:(UIStackViewAlignment)a { _alignment = a; isim_ui_constraints_changed(); [self setNeedsLayout]; }
 - (void)setDistribution:(UIStackViewDistribution)d { _distribution = d; isim_ui_constraints_changed(); [self setNeedsLayout]; }
 - (void)setCustomSpacing:(CGFloat)s afterView:(UIView *)v { _customSpacing[[NSValue valueWithNonretainedObject:v]] = @(s); [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
+- (CGFloat)customSpacingAfterView:(UIView *)v { NSNumber *n = _customSpacing[[NSValue valueWithNonretainedObject:v]]; return n ? n.doubleValue : UIStackViewSpacingUseDefault; }
+- (void)setBaselineRelativeArrangement:(BOOL)b { _baselineRelativeArrangement = b; isim_ui_constraints_changed(); [self setNeedsLayout]; }
 - (CGFloat)_spacingAfter:(UIView *)v {
     NSNumber *n = _customSpacing[[NSValue valueWithNonretainedObject:v]];
     CGFloat sp = n ? n.doubleValue : _spacing;
@@ -608,7 +645,9 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     CGFloat gaps = 0;
     for (NSUInteger i = 0; i + 1 < n; i++) {
         CGFloat sp = [self _spacingAfter:vs[i]]; gaps += sp;
-        isim_al_add(al, vs[i + 1], mMin, spaced ? GE : EQ, vs[i], mMax, 1, sp, R);
+        if (_baselineRelativeArrangement && !h)      /* vertical: spacing from one view's last baseline to the next's first */
+            isim_al_add(al, vs[i + 1], NSLayoutAttributeFirstBaseline, spaced ? GE : EQ, vs[i], NSLayoutAttributeLastBaseline, 1, sp, R);
+        else isim_al_add(al, vs[i + 1], mMin, spaced ? GE : EQ, vs[i], mMax, 1, sp, R);
     }
     isim_al_add(al, vs[n - 1], mMax, EQ, self, mMax, 1, -mTrail, R);
     switch (_distribution) {
@@ -694,6 +733,8 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 @property (nonatomic, strong) NSMutableArray<UITouch *> *isimTouches;   /* touches down on it (multi-touch aware recognizers) */
 @property (nonatomic) BOOL isimHeldBegan;                               /* a continuous recognizer waiting for failures */
 @property (nonatomic) double isimHeldSince;
+@property (nonatomic, copy) NSArray<NSNumber *> *isimAllowedTouchTypes, *isimAllowedPressTypes;
+@property (nonatomic, weak) UIEvent *isimLastEvent;                      /* the event being handled (modifierFlags, buttonMask) */
 @end
 @implementation UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g { return YES; }
@@ -793,6 +834,21 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     return YES;
 }
 - (void)ignoreTouch:(UITouch *)touch forEvent:(UIEvent *)event {}
+- (void)ignorePress:(UIPress *)press forEvent:(UIPressesEvent *)event {}
+- (void)touchesEstimatedPropertiesUpdated:(NSSet *)touches {}
+/* touch types: all by default; the touch dispatch (UIApplication.m) skips recognizers that don't allow a touch's type */
+- (NSArray<NSNumber *> *)allowedTouchTypes { return _isimAllowedTouchTypes ?: @[@(UITouchTypeDirect), @(UITouchTypeIndirect), @(UITouchTypePencil), @(UITouchTypeIndirectPointer)]; }
+- (void)setAllowedTouchTypes:(NSArray<NSNumber *> *)a { _isimAllowedTouchTypes = [a copy]; }
+- (NSArray<NSNumber *> *)allowedPressTypes { return _isimAllowedPressTypes ?: @[@(UIPressTypeUpArrow), @(UIPressTypeDownArrow), @(UIPressTypeLeftArrow), @(UIPressTypeRightArrow), @(UIPressTypeSelect), @(UIPressTypeMenu), @(UIPressTypePlayPause)]; }
+- (void)setAllowedPressTypes:(NSArray<NSNumber *> *)a { _isimAllowedPressTypes = [a copy]; }
+- (BOOL)_isim_allowsTouch:(UITouch *)t { return [self.allowedTouchTypes containsObject:@(t.type)]; }
+- (void)_isim_setLastEvent:(UIEvent *)e { self.isimLastEvent = e; }
+- (BOOL)shouldReceiveEvent:(UIEvent *)e {
+    id<UIGestureRecognizerDelegate> d = _delegate;
+    return ![d respondsToSelector:@selector(gestureRecognizer:shouldReceiveEvent:)] || [d gestureRecognizer:self shouldReceiveEvent:e];
+}
+- (UIKeyModifierFlags)modifierFlags { return self.isimLastEvent.modifierFlags; }
+- (UIEventButtonMask)buttonMask { return self.isimLastEvent.buttonMask; }
 - (void)reset {}
 /* custom subclasses: touches go to touchesBegan/Moved/Ended; setting `state` sends the actions */
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {}
@@ -850,10 +906,14 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 }
 @end
 @implementation UITapGestureRecognizer
-- (instancetype)initWithTarget:(id)t action:(SEL)a { if ((self = [super initWithTarget:t action:a])) { _numberOfTapsRequired = 1; _numberOfTouchesRequired = 1; } return self; }
+- (instancetype)initWithTarget:(id)t action:(SEL)a { if ((self = [super initWithTarget:t action:a])) { _numberOfTapsRequired = 1; _numberOfTouchesRequired = 1; _buttonMaskRequired = UIEventButtonMaskPrimary; } return self; }
 - (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event {
     CGPoint p = [touch locationInView:self.view];
-    if (phase == UITouchPhaseBegan) { self.startPoint = p; self.startTime = touch.timestamp; self.state = UIGestureRecognizerStatePossible; }
+    if (phase == UITouchPhaseBegan) {
+        self.startPoint = p; self.startTime = touch.timestamp; self.state = UIGestureRecognizerStatePossible;
+        /* a pointer click is the primary button: a recognizer requiring another one fails (isim has no secondary click) */
+        if (touch.type == UITouchTypeIndirectPointer && (event.buttonMask & _buttonMaskRequired) != _buttonMaskRequired) self.state = UIGestureRecognizerStateFailed;
+    }
     else if (phase == UITouchPhaseMoved) { if (hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) self.state = UIGestureRecognizerStateFailed; }
     else if (phase == UITouchPhaseEnded && self.state == UIGestureRecognizerStatePossible && touch.timestamp - self.startTime < 0.75 && touch.tapCount >= _numberOfTapsRequired) {
         self.lastPoint = p;
@@ -946,6 +1006,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 - (CGPoint)locationInView:(UIView *)v { return [self.view.window convertPoint:self.lastPoint toView:v]; }
 - (CGPoint)_isim_downLocationInView:(UIView *)v { return [self.view.window convertPoint:_down toView:v]; }
 - (CGPoint)translationInView:(UIView *)v { return CGPointMake(self.lastPoint.x - self.startPoint.x, self.lastPoint.y - self.startPoint.y); }
+- (CGPoint)_isim_downPoint { return _down; }          /* where the touches went down (before the movement threshold) */
 - (void)setTranslation:(CGPoint)t inView:(UIView *)v { self.startPoint = CGPointMake(self.lastPoint.x - t.x, self.lastPoint.y - t.y); }
 /* points per second over the last ~100 ms of movement */
 - (CGPoint)velocityInView:(UIView *)v {

@@ -34,19 +34,32 @@ extension UIApplication.LaunchOptionsKey {
     public static var userActivityType: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsUserActivityTypeKey") }
     public static var remoteNotification: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsRemoteNotificationKey") }
     public static var location: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsLocationKey") }
+    public static var eventAttribution: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsEventAttributionKey") }
 }
 extension UIApplication.OpenURLOptionsKey {
     public static var sourceApplication: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsSourceApplicationKey") }
     public static var openInPlace: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsOpenInPlaceKey") }
+    public static var eventAttribution: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsEventAttributionKey") }
 }
 extension UIApplication.OpenExternalURLOptionsKey {
     public static var universalLinksOnly: UIApplication.OpenExternalURLOptionsKey { UIApplication.OpenExternalURLOptionsKey(rawValue: "UIApplicationOpenURLOptionUniversalLinksOnly") }
+    public static var eventAttribution: UIApplication.OpenExternalURLOptionsKey { UIApplication.OpenExternalURLOptionsKey(rawValue: "UIApplicationOpenExternalURLOptionsEventAttributionKey") }
 }
 
 // MARK: - Geometry conveniences (UIKit Swift overlay API)
 extension UIEdgeInsets: Equatable {
     public static var zero: UIEdgeInsets { UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0) }
     public static func == (a: UIEdgeInsets, b: UIEdgeInsets) -> Bool { a.top == b.top && a.left == b.left && a.bottom == b.bottom && a.right == b.right }
+}
+// the string forms of Foundation's geometry (NSStringFromCGPoint / Size / Rect) under their UIKit Swift names
+extension NSCoder {
+    public static func string(for point: CGPoint) -> String { NSStringFromCGPoint(point) }
+    public static func string(for size: CGSize) -> String { NSStringFromCGSize(size) }
+    public static func string(for rect: CGRect) -> String { NSStringFromCGRect(rect) }
+}
+extension UIOffset: Equatable {
+    public static var zero: UIOffset { UIOffset(horizontal: 0, vertical: 0) }
+    public static func == (a: UIOffset, b: UIOffset) -> Bool { a.horizontal == b.horizontal && a.vertical == b.vertical }
 }
 extension NSDirectionalEdgeInsets: Equatable {
     public static var zero: NSDirectionalEdgeInsets { NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0) }

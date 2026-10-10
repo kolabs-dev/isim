@@ -7,6 +7,7 @@
 #import <UIKit/UIScrollView.h>
 #import <UIKit/UIViewController.h>
 #import <UIKit/UITableView.h>
+#import <UIKit/UIDynamicAnimator.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UICollectionView, UICollectionViewLayout, UICollectionViewLayoutAttributes, UIColor;
 
@@ -23,7 +24,7 @@ typedef NS_OPTIONS(NSUInteger, UICollectionViewScrollPosition) {
 
 /* ---- reusable views and cells ---- */
 NS_SWIFT_UI_ACTOR
-@interface UICollectionViewLayoutAttributes : NSObject <NSCopying>
+@interface UICollectionViewLayoutAttributes : NSObject <NSCopying, UIDynamicItem>
 + (instancetype)layoutAttributesForCellWithIndexPath:(NSIndexPath *)indexPath;
 + (instancetype)layoutAttributesForSupplementaryViewOfKind:(NSString *)elementKind withIndexPath:(NSIndexPath *)indexPath;
 + (instancetype)layoutAttributesForDecorationViewOfKind:(NSString *)decorationViewKind withIndexPath:(NSIndexPath *)indexPath NS_SWIFT_NAME(init(forDecorationViewOfKind:with:));

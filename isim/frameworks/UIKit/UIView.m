@@ -1078,6 +1078,14 @@ static IMP base_drawRect;
     double caOpacity = _layer.opacity; CATransform3D t3d; BOOL has3d = NO;
     isim_ca_view_values(_layer, &frame, &xf, &caOpacity, &radius, &borderW, borderC, &borderAnim, bgv, &bgAnim, &shadowOp, &shadowRad, &shadowOff, &t3d, &has3d);
     if (isim_ca_flat_view == self) { frame.origin = CGPointZero; xf = CGAffineTransformIdentity; has3d = NO; isim_ca_flat_view = nil; }
+    {   /* motion effects (parallax): added to the presentation (UIMotionEffect.m) */
+        extern BOOL isim_ui_motion_effect_values(UIView *, CGPoint *, CGSize *, CGFloat *);
+        CGPoint dc = CGPointZero; CGSize ds = CGSizeZero; CGFloat da = 0;
+        if (isim_ui_motion_effect_values(self, &dc, &ds, &da)) {
+            frame.origin.x += dc.x; frame.origin.y += dc.y; shadowOff.width += ds.width; shadowOff.height += ds.height;
+            alpha = fmin(1, fmax(0, alpha + da));
+        }
+    }
     if (_hidden || alpha <= 0.01 || _layer.hidden) return;
     if (has3d) { isim_ca_render_view_3d(self, frame, t3d); return; }
     CGSize sz = frame.size;
@@ -1156,15 +1164,26 @@ static IMP base_drawRect;
 /* ---- animation ---- */
 + (void)animateWithDuration:(NSTimeInterval)d animations:(void (^)(void))a { [self animateWithDuration:d delay:0 options:0 animations:a completion:nil]; }
 + (void)animateWithDuration:(NSTimeInterval)d animations:(void (^)(void))a completion:(void (^)(BOOL))c { [self animateWithDuration:d delay:0 options:0 animations:a completion:c]; }
+/* iOS 26 flushUpdates: pending trait, property and layout updates are applied before the animations (without
+   animation) and after them (animated) */
+void isim_ui_flush_updates(void) {
+    NSArray *ws = UIApplication.sharedApplication.windows;
+    isim_ui_layout_roots(ws);
+    for (UIWindow *w in ws) [w _isim_layoutPass];
+}
+void (^isim_ui_flushing_block(void (^a)(void)))(void) {
+    isim_ui_without_animation(^{ isim_ui_flush_updates(); });
+    return ^{ if (a) a(); isim_ui_flush_updates(); };
+}
 + (void)animateWithDuration:(NSTimeInterval)d delay:(NSTimeInterval)delay usingSpringWithDamping:(CGFloat)damp initialSpringVelocity:(CGFloat)v options:(UIViewAnimationOptions)o animations:(void (^)(void))a completion:(void (^)(BOOL))c {
-    isim_ui_animate(d, delay, o, 1, damp, v, a, c);
+    isim_ui_animate(d, delay, o, 1, damp, v, (o & UIViewAnimationOptionFlushUpdates) ? isim_ui_flushing_block(a) : a, c);
 }
 + (void)animateWithDuration:(NSTimeInterval)d delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)o animations:(void (^)(void))a completion:(void (^)(BOOL))c {
-    isim_ui_animate(d, delay, o, 0, 0, 0, a, c);
+    isim_ui_animate(d, delay, o, 0, 0, 0, (o & UIViewAnimationOptionFlushUpdates) ? isim_ui_flushing_block(a) : a, c);
 }
 /* iOS 17: spring by perceptual duration and bounce (0 = critically damped) */
 + (void)animateWithSpringDuration:(NSTimeInterval)d bounce:(CGFloat)bounce initialSpringVelocity:(CGFloat)v delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)o animations:(void (^)(void))a completion:(void (^)(BOOL))c {
-    isim_ui_animate(d * 1.6, delay, o, 1, bounce >= 0 ? 1 - bounce : 1 / (1 + bounce), v, a, c);
+    isim_ui_animate(d * 1.6, delay, o, 1, bounce >= 0 ? 1 - bounce : 1 / (1 + bounce), v, (o & UIViewAnimationOptionFlushUpdates) ? isim_ui_flushing_block(a) : a, c);
 }
 + (void)transitionWithView:(UIView *)view duration:(NSTimeInterval)d options:(UIViewAnimationOptions)o animations:(void (^)(void))a completion:(void (^)(BOOL))c {
     extern void isim_ui_transition_with_view(UIView *, double, UIViewAnimationOptions, void (^)(void), void (^)(BOOL));
