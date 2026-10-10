@@ -271,16 +271,18 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     double col[4] = { 0, 0, 0, 0.35 };
     if (isim_ui_style() == UIUserInterfaceStyleDark) col[0] = col[1] = col[2] = 1;
     double contentH = _contentSize.height + a.top + a.bottom, viewH = b.height;
+    /* verticalScrollIndicatorInsets / horizontalScrollIndicatorInsets move the indicators in from the edges */
+    UIEdgeInsets vi = self.verticalScrollIndicatorInsets, hi = self.horizontalScrollIndicatorInsets;
     if (_showsVerticalScrollIndicator && contentH > viewH + 0.5) {
-        double track = viewH - a.top - a.bottom - 6, len = fmax(36, track * viewH / contentH);
+        double track = viewH - a.top - a.bottom - vi.top - vi.bottom - 6, len = fmax(36, track * viewH / contentH);
         double pos = (o.y + a.top) / (contentH - viewH); pos = fmin(fmax(pos, 0), 1);
-        isim_gfx_fill_rounded(o.x + b.width - 6, o.y + a.top + 3 + (track - len) * pos, 3, len, 1.5, col);
+        isim_gfx_fill_rounded(o.x + b.width - 6 - vi.right, o.y + a.top + vi.top + 3 + (track - len) * pos, 3, len, 1.5, col);
     }
     double contentW = _contentSize.width + a.left + a.right;
     if (_showsHorizontalScrollIndicator && contentW > b.width + 0.5) {
-        double track = b.width - 6, len = fmax(36, track * b.width / contentW);
+        double track = b.width - hi.left - hi.right - 6, len = fmax(36, track * b.width / contentW);
         double pos = (o.x + a.left) / (contentW - b.width); pos = fmin(fmax(pos, 0), 1);
-        isim_gfx_fill_rounded(o.x + 3 + (track - len) * pos, o.y + b.height - a.bottom - 6, len, 3, 1.5, col);
+        isim_gfx_fill_rounded(o.x + hi.left + 3 + (track - len) * pos, o.y + b.height - a.bottom - hi.bottom - 6, len, 3, 1.5, col);
     }
     dispatch_async(dispatch_get_main_queue(), ^{ isim_ui_set_needs_display(); });   /* keep redrawing until it fades */
 }

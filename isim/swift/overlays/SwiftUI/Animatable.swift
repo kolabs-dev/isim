@@ -273,3 +273,15 @@ func _sameShape<D: VectorArithmetic>(_ a: D, _ b: D) -> Bool {
 
 /// ISIM_ANIMATIONS=0 makes animations finish at once (UI tests).
 let _animationsOff: Bool = ProcessInfo.processInfo.environment["ISIM_ANIMATIONS"] == "0"
+
+// MARK: - @Animatable (iOS 26)
+
+/// Synthesizes `Animatable` conformance: `animatableData` from the stored `var`s (as `AnimatablePair`s), except those
+/// marked `@AnimatableIgnored` (isim's SwiftUIMacros plugin).
+@available(iOS 26.0, *)
+@attached(extension, conformances: Animatable) @attached(member, names: named(animatableData))
+public macro Animatable() = #externalMacro(module: "SwiftUIMacros", type: "AnimatableMacro")
+/// Leaves a stored property out of `@Animatable`'s `animatableData`.
+@available(iOS 26.0, *)
+@attached(peer)
+public macro AnimatableIgnored() = #externalMacro(module: "SwiftUIMacros", type: "AnimatableIgnoredMacro")

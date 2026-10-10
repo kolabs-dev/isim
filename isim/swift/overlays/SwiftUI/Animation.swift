@@ -105,6 +105,13 @@ public struct Spring: Hashable, Sendable {
         guard let a = pending, Date().timeIntervalSinceReferenceDate - pendingStamp < 1 else { return nil }
         return a
     }
+    /// the transaction for the render happening now (withTransaction's, else one with the animation)
+    static func takeTransaction(_ animation: Animation?) -> Transaction {
+        defer { pendingTransaction = nil }
+        var t = (Date().timeIntervalSinceReferenceDate - pendingStamp < 1 ? pendingTransaction : nil) ?? Transaction()
+        t.animation = animation
+        return t
+    }
 }
 
 @MainActor public func withAnimation<Result>(_ animation: Animation? = .default, _ body: () throws -> Result) rethrows -> Result {
@@ -118,10 +125,7 @@ public struct Spring: Hashable, Sendable {
     DispatchQueue.main.asyncAfter(deadline: .now() + d) { completion() }
     return r
 }
-@MainActor public func withTransaction<R>(_ t: Transaction, _ body: () throws -> R) rethrows -> R {
-    if t.disablesAnimations { return try body() }
-    return try withAnimation(t.animation, body)
-}
+// withTransaction: Transaction.swift
 
 // MARK: - Transitions
 

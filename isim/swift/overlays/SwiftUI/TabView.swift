@@ -175,11 +175,13 @@ final class _TabViewNode: _Node {
             var r = area
             if case .page = style { r.origin.x = CGFloat(i - selected) * area.width }
             if case .bar = style, !t.ignoresSafeArea { r = CGRect(x: area.minX, y: safeTop, width: area.width, height: area.height - safeTop) }
-            if t.ignoresSafeArea { t.place(r) }
-            else {
-                let s = t.sizeThatFits(_Proposal(width: r.width, height: r.height))
-                t.place(CGRect(x: r.minX + (r.width - min(s.width, r.width)) / 2, y: r.minY + (r.height - min(s.height, r.height)) / 2,
-                               width: min(s.width, r.width), height: min(s.height, r.height)))
+            _inContainer(r.size) {                    // the tab's content area: containerRelativeFrame's container
+                if t.ignoresSafeArea { t.place(r) }
+                else {
+                    let s = t.sizeThatFits(_Proposal(width: r.width, height: r.height))
+                    t.place(CGRect(x: r.minX + (r.width - min(s.width, r.width)) / 2, y: r.minY + (r.height - min(s.height, r.height)) / 2,
+                                   width: min(s.width, r.width), height: min(s.height, r.height)))
+                }
             }
         }
     }

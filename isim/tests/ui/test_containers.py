@@ -235,3 +235,68 @@ def test_scroll_indicators_and_bounce(launch):
     assert re.search(r"id=indicators-shown\n\s+_TtC7SwiftUI14_SUIScrollView .*inset bottom 0$", dump, re.M), \
         "indicators shown by default"
     assert "based on size bounced" not in app.log, "scrollBounceBehavior(.basedOnSize): short content does not bounce"
+
+
+@pytest.mark.os_matrix
+def test_custom_containers(launch, ios):
+    app = launch("HelloContainers", env={"PAGE": "subviews"})
+    app.wait_view(r"id=section-count-2")
+    app.wait_still()
+    dump = app.view_dump()
+    shot = app.screenshot("subviews")
+    app.tap_id("toggle")
+    app.wait_log(r"^transaction origin button, animated false")
+    app.tap_id("animate")
+    app.wait_log(r"^transaction origin unknown, animated true")
+    assert app.quit() == 0, "exits cleanly"
+    log = app.log
+
+    assert "id=card-count text=4 cards" in dump, "Group(subviews:): a ForEach's views are subviews of their own"
+    for ident in ("alpha", "beta", "gamma", "delta"):
+        assert f"id={ident}" in dump, f"ForEach(subviews): {ident}"
+    big = [f for f in re.findall(r"UILabel \([0-9.]+ [0-9.]+; [0-9.]+ x ([0-9.]+)\) id=alpha", dump)]
+    assert big == ["21", "42"] or big == ["21", "41"], f"a subview placed again under .font(.largeTitle) resolves there ({big})"
+    assert "text=2 in plain section" in dump and "text=1 in red section" in dump and "text=1 in plain section" in dump, \
+        "ForEach(sections:): sections, their content and container values; loose views form a section"
+    assert "id=greeting text=Hello, world" in dump and "id=greeting text=Hi, world" in dump, "@Entry in EnvironmentValues"
+    assert re.search(r"^transaction origin button", log, re.M), "@Entry in Transaction: withTransaction(\\.origin, ...) reaches .transaction"
+    reds = sum(1 for y in range(60, 400) if (lambda c: c[0] > 230 and 140 < c[1] < 200 and 140 < c[2] < 200)(shot.getpixel((10 + 16, y))))
+    assert reds >= 20, f"containerValue(\\.cardTint, .red): Beta's card is red ({reds} px)"
+    if int(str(ios[0] or 18)) >= 26:
+        assert re.search(r"^ring data 0.25 4.0$", log, re.M) and re.search(r"^ring set 0.5 8.0 ring$", log, re.M), \
+            "@Animatable: animatableData from the stored vars, not the @AnimatableIgnored one"
+
+
+def test_safe_area_insets(launch):
+    app = launch("HelloContainers", env={"PAGE": "insets"})
+    app.wait_view(r"id=margins-scroll")
+    app.wait_still()
+    top = app.view_dump()
+    app.send("swipeid inset-scroll 0 -600 0.3")
+    app.wait_still()
+    dump = app.view_dump()
+    # a slow drag shows the indicator of the scroll view with indicator margins
+    stack_y = views(top, r"_TtC7SwiftUI16_PassthroughView")[0][1]          # the page's VStack, centred in the window
+    base = frame(top, "margins-scroll")[1] + stack_y
+    app.send("swipeid margins-scroll 0 -40 1.2")
+    grey = lambda c: c[0] < 200 and abs(c[0] - c[1]) < 6 and abs(c[1] - c[2]) < 6
+    shot = app.wait_shot(lambda im: any(grey(im.getpixel((402 - 5, int(y)))) for y in range(int(base), int(base + 120))),
+                         what="the scroll indicator")
+    assert app.quit() == 0, "exits cleanly"
+    scroll = grep(dump, r"id=inset-scroll", after=2)
+    assert "(0 0; 402 x 300) text=offset 550, content 402 x 800, inset bottom 50" in scroll, \
+        "safeAreaInset: the scroll view extends beneath the bar, its content inset by it (the last item scrolls above it)"
+    assert frame(dump, "bottom-bar")[1:] == (250, 402, 50), "the inset view at the bottom edge"
+    assert re.search(r"_SUIListScroll \(0 0; 402 x 200\) text=offset -30,", top), "safeAreaPadding(.top, 30) on a List: a content inset"
+    assert frame(top, "padded-text")[2] == 140, "safeAreaPadding on other content pads it"
+    ys = [y for y in range(int(base), int(base + 120)) if grey(shot.getpixel((402 - 5, y)))]
+    assert ys and ys[0] >= base + 20 + 3 and ys[-1] <= base + 120 - 20 - 3, \
+        f"contentMargins(.vertical, 20, for: .scrollIndicators): the indicator stays 20 pt from the ends ({ys[0]}-{ys[-1]}, frame {base})"
+
+
+def test_container_relative_frame(launch):
+    app = launch("HelloContainers", env={"PAGE": "crf"})
+    dump = app.wait_view(r"id=half")
+    assert app.quit() == 0, "exits cleanly"
+    # the navigation stack's content area: 402 x (874 - 62 status - 44 bar - 34 home indicator) = 402 x 734
+    assert frame(dump, "half")[2:] == (201, 367), "containerRelativeFrame measures against the navigation stack's content"

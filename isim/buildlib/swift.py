@@ -416,7 +416,8 @@ class Swift:
     def host_plugins(self):
         """Swift macros on the compiler's side (Linux, the swift:6.2 toolchain's host, against its swift-syntax
         libraries in /usr/lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
-        compiles their macro targets against it) and isim's PreviewsMacros plugin (`#Preview`), in out/swift/host
+        compiles their macro targets against it), isim's PreviewsMacros plugin (`#Preview`) and SwiftUIMacros plugin
+        (`@Entry`, `@Animatable`), in out/swift/host
         (`isim swiftc` passes -plugin-path out/swift/host/plugins)"""
         H = f"{SW}/host"
         os.makedirs(os.path.join(self.c.root, H, "plugins"), exist_ok=True)
@@ -431,7 +432,12 @@ class Swift:
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libPreviewsMacros.so"],
                          ["swift/macro-support/PreviewsMacros.swift"], implicit=cp, docker=True, desc="SWIFT PreviewsMacros (host)")
-        return cp + pm
+        um = self.swiftc([f"{H}/plugins/libSwiftUIMacros.so"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "SwiftUIMacros", *WERROR, *host, "-I", H, "-L", H,
+                          "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
+                          "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libSwiftUIMacros.so"],
+                         ["swift/macro-support/SwiftUIMacros.swift"], implicit=cp, docker=True, desc="SWIFT SwiftUIMacros (host)")
+        return cp + pm + um
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"
@@ -497,6 +503,7 @@ class Swift:
             flags = ["-Xfrontend", "-disable-objc-attr-requires-foundation-module", *WERROR] + (["-enable-library-evolution"] if m in EVOLUTION else [])
             implicit = [mod(d) for d in deps if not d.startswith("_")] + [mod(d) for d in deps if d.startswith("_")]
             implicit += [c.fw_header_stamp[f] for f in fws if f in c.fw_header_stamp] + [c.header_stamps[0]]
+            implicit += [f"{SW}/host/plugins/lib{p}.so" for p in MACRO_PLUGINS.get(m, [])]      # macros it declares
             obj = f"{objdir}/{m}.o"
             os.makedirs(os.path.join(c.root, LIB, f"{m}.swiftmodule"), exist_ok=True)
             self.swiftc([obj, mod(m)], ["-parse-as-library", "-module-name", m, "-module-link-name", f"swift{m}", *flags,
@@ -691,6 +698,8 @@ QuartzCore CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit 
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech".split())
+# overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
+MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"]}
 
 STANDINS = """{
   "https://github.com/googleads/swift-package-manager-google-mobile-ads.git": {

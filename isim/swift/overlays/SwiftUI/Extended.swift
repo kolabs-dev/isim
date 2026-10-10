@@ -510,6 +510,8 @@ public struct ScrollView<Content: View>: View, _PrimitiveView {
 final class _ScrollNode: _WrapperNode {
     let axes: Axis.Set, indicators: Bool
     var contentSize = CGSize.zero
+    /// content insets from an enclosing safeAreaInset / safeAreaPadding, indicator insets from contentMargins
+    var extraInsets = UIEdgeInsets.zero, indicatorMargins = UIEdgeInsets.zero
     init(path: String, axes: Axis.Set, indicators: Bool, child: _Node) { self.axes = axes; self.indicators = indicators; super.init(path: path, child: child) }
     func contentProposal(_ p: _Proposal) -> _Proposal {
         _Proposal(width: axes.contains(.horizontal) ? nil : p.width, height: axes.contains(.vertical) ? nil : p.height)
@@ -540,6 +542,11 @@ final class _ScrollNode: _WrapperNode {
         v.alwaysBounceVertical = axes.contains(.vertical)
         v.alwaysBounceHorizontal = axes.contains(.horizontal)
         if v.contentSize != contentSize { v.contentSize = contentSize }
+        var ci = extraInsets
+        if v.behavior?.refresher?.refreshing == true { ci.top += 50 }          // (the pull-to-refresh spinner's room)
+        if v.contentInset != ci { v.contentInset = ci }
+        let ind = indicatorMargins.adding(extraInsets)
+        if v.verticalScrollIndicatorInsets != ind { v.verticalScrollIndicatorInsets = ind; v.horizontalScrollIndicatorInsets = ind }
         _applyScrollOptions(self, v, g)
         return v
     }
@@ -697,12 +704,7 @@ public struct UIViewRepresentableContext<Representable: UIViewRepresentable> {
     public var environment: EnvironmentValues
     public var transaction = Transaction()
 }
-public struct Transaction: Sendable {
-    public var animation: Animation?
-    public var disablesAnimations = false
-    public init() {}
-    public init(animation: Animation?) { self.animation = animation }
-}
+// Transaction: Transaction.swift
 
 final class _RepresentableState<R: UIViewRepresentable>: _AnyStorage {
     let view: R.UIViewType
@@ -720,7 +722,7 @@ final class _RepresentableNode<R: UIViewRepresentable>: _Node {
         graph.usedKeys.insert(key)
         if let s = graph.storage[key] as? _RepresentableState<R> { return s }
         let coord = rep.makeCoordinator()
-        let v = rep.makeUIView(context: UIViewRepresentableContext(coordinator: coord, environment: env))
+        let v = rep.makeUIView(context: UIViewRepresentableContext(coordinator: coord, environment: env, transaction: env._transaction))
         let s = _RepresentableState<R>(view: v, coordinator: coord)
         graph.storage[key] = s
         return s
@@ -739,7 +741,7 @@ final class _RepresentableNode<R: UIViewRepresentable>: _Node {
         let s = state
         g.mountedKeys.insert(viewKey)
         if g.views[viewKey] !== s.view { g.views[viewKey]?.removeFromSuperview(); g.views[viewKey] = s.view }
-        rep.updateUIView(s.view, context: UIViewRepresentableContext(coordinator: s.coordinator, environment: env))
+        rep.updateUIView(s.view, context: UIViewRepresentableContext(coordinator: s.coordinator, environment: env, transaction: env._transaction))
         return s.view
     }
 }

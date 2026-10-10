@@ -147,7 +147,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         _systemEnvironment(&env, traits: traits)
         _rootEnvironment(&env, self)                              // edit mode (Lists+Editing.swift)
         let animation = hostView?.window != nil ? _AnimationContext.take() : nil
-        env._transactionAnimation = animation
+        env._transaction = _AnimationContext.takeTransaction(animation)       // (Transaction.swift)
         let ctx = _Context(graph: self, path: "root", environment: env, nav: nil)
         // @Observable: properties read while the views evaluate are tracked; a change re-renders
         var resolved: _Node?
@@ -303,6 +303,8 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
 @MainActor class _Node {
     let path: String
     var children: [_Node]
+    /// the view this node was resolved from, and where (a Subview resolves it again under another environment)
+    var source: (view: any View, path: String)?
     var frame: CGRect = .zero
     var accessibilityIdentifier: String?
     var accessibilityLabel: String?

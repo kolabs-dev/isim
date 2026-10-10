@@ -62,6 +62,7 @@ final class _SectionNode: _Node {
     var spacing: CGFloat?                      // listSectionSpacing set on the section
     var expansion: Binding<Bool>?
     var topSeparatorHidden = false, bottomSeparatorHidden = false, separatorTint: Color?
+    var containerValues: [(inout ContainerValues) -> Void] = []      // Subviews.swift
     init(path: String, header: _Node?, footer: _Node?, rows: [_Node]) {
         self.header = header; self.footer = footer; self.rows = rows
         super.init(path: path, children: rows)
@@ -146,6 +147,7 @@ final class _ListNode: _Node {
     var searchRect: CGRect?
     var extras = _ListExtras()
     var contentHeight: CGFloat = 0
+    var extraInsets = UIEdgeInsets.zero                     // from an enclosing safeAreaInset / safeAreaPadding
     init(path: String, sections: [_SectionNode], level: _NavLevel?, graph: _Graph) {
         self.sections = sections; self.level = level; self.graph = graph
         super.init(path: path, children: [])
@@ -154,7 +156,8 @@ final class _ListNode: _Node {
     override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: p.width ?? 320, height: p.height ?? 480) }
     static let margin: CGFloat = 20, rowInset: CGFloat = 20, minRow: CGFloat = 44
     var rowInset: CGFloat { look.sidebar ? 12 : _ListNode.rowInset }
-    override func place(_ rect: CGRect) {
+    override func place(_ rect: CGRect) { _inContainer(rect.size) { placeList(rect) } }
+    func placeList(_ rect: CGRect) {
         frame = rect
         rows = []; cards = []; headers = []; footers = []; largeTitleRect = nil; searchRect = nil
         let W = rect.width, cardX = look.margin, cardW = W - 2 * look.margin
@@ -233,6 +236,7 @@ final class _ListNode: _Node {
         sv.backgroundColor = look.background
         sv.level = level
         sv.contentSize = CGSize(width: frame.width, height: contentHeight)
+        sv.extraInsets = extraInsets
         return sv
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {
@@ -384,6 +388,14 @@ final class _SUIListScroll: UIScrollView, UIScrollViewDelegate {
     override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool { g === panGestureRecognizer ? _listShouldBeginPan(self, g) : true }
     var largeTitleBottom: CGFloat = 0
     var keyboardOverlap: CGFloat = 0
+    /// safeAreaInset / safeAreaPadding around the list: its rows scroll out from under them
+    var extraInsets = UIEdgeInsets.zero { didSet { if extraInsets != oldValue { applyInsets() } } }
+    func applyInsets() {
+        let i = UIEdgeInsets(top: extraInsets.top + (refresher?.refreshing == true ? 50 : 0), left: extraInsets.left,
+                             bottom: max(extraInsets.bottom, keyboardOverlap), right: extraInsets.right)
+        if contentInset != i { contentInset = i }
+        verticalScrollIndicatorInsets = extraInsets
+    }
     private var observers: [NSObjectProtocol] = []
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -404,7 +416,7 @@ final class _SUIListScroll: UIScrollView, UIScrollViewDelegate {
         let mine = convert(bounds, to: nil)
         let overlap = end.isEmpty || end.minY >= UIScreen.main.bounds.height ? 0 : max(0, mine.maxY + w.frame.minY - end.minY)
         keyboardOverlap = overlap
-        var inset = contentInset; inset.bottom = overlap; contentInset = inset
+        applyInsets()
         if overlap > 0, let field = firstResponderField(in: self) {
             let r = field.convert(field.bounds, to: self).insetBy(dx: 0, dy: -12)
             scrollRectToVisible(r, animated: false)
@@ -671,6 +683,10 @@ final class _NavStackNode: _Node {
     func placeLevel(_ content: _Node, _ level: _NavLevel, _ rect: CGRect) {
         let top = safeTop + (level.barHidden ? 0 : barHeight)
         let bottomBar: CGFloat = level.hasBottomBar ? 49 + safeBottom : 0         // .toolbar { ToolbarItem(placement: .bottomBar) }
+        // the stack's content area is the container of containerRelativeFrame
+        _inContainer(CGSize(width: rect.width, height: rect.height - top - max(safeBottom, bottomBar))) { placeContent(content, level, rect, top: top, bottomBar: bottomBar) }
+    }
+    func placeContent(_ content: _Node, _ level: _NavLevel, _ rect: CGRect, top: CGFloat, bottomBar: CGFloat) {
         if content.ignoresSafeArea {
             content.place(CGRect(x: 0, y: top, width: rect.width, height: rect.height - top - bottomBar))
         } else {

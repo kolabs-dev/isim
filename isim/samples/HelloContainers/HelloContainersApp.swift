@@ -3,7 +3,8 @@
 // scrollContentBackground, headerProminence, Section(isExpanded:)), List multiple selection, lazy stacks and grids
 // with pinned section headers / footers, scroll indicators and bounce behaviour.
 // The page comes from the environment: PAGE=list (LIST_STYLE=plain|grouped|inset|insetGrouped|sidebar|automatic),
-// selection, pinned, grid, hstack, scroll, spacing, spaces.
+// selection, pinned, grid, hstack, scroll, spacing, spaces, subviews (custom containers, container values, @Entry,
+// @Animatable), insets (safeAreaInset, safeAreaPadding, contentMargins), crf (containerRelativeFrame in a stack).
 import SwiftUI
 
 @main
@@ -23,6 +24,9 @@ struct Root: View {
         case "scroll": ScrollPage()
         case "spacing": SpacingPage()
         case "spaces": SpacesPage()
+        case "subviews": SubviewsPage()
+        case "insets": InsetsPage()
+        case "crf": RelativeFramePage()
         default: ListPage()
         }
     }
@@ -239,6 +243,138 @@ struct SpacesPage: View {
             }
             .frame(height: 200)
             .accessibilityIdentifier("spaces-scroll")
+        }
+    }
+}
+
+// MARK: - Custom containers (iOS 18): Group(subviews:), ForEach(sections:), container values, @Entry
+
+extension ContainerValues { @Entry var cardTint: Color = .gray }
+extension EnvironmentValues { @Entry var greeting: String = "Hello" }
+extension Transaction { @Entry var origin: String = "unknown" }
+
+/// Lays its content out as cards: a count, each view on a tinted card (its cardTint), the first one again in big type.
+struct CardStack<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(spacing: 6) {
+            Group(subviews: content) { subviews in
+                Text("\(subviews.count) cards").accessibilityIdentifier("card-count")
+                ForEach(subviews) { s in
+                    s.padding(6).frame(maxWidth: .infinity).background(s.containerValues.cardTint.opacity(0.4))
+                }
+                if let first = subviews.first {
+                    first.font(.largeTitle)
+                }
+            }
+        }
+    }
+}
+/// Each section of its content: the header in bold, the items, how many there were.
+struct SectionSummary<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(sections: content) { section in
+                section.header.bold()
+                ForEach(section.content) { item in item.padding(.leading, 12) }
+                Text("\(section.content.count) in \(section.containerValues.cardTint == .red ? "red" : "plain") section")
+                    .accessibilityIdentifier("section-count-\(section.content.count)")
+            }
+        }
+    }
+}
+struct Greeting: View {
+    @Environment(\.greeting) var greeting
+    var body: some View { Text("\(greeting), world").accessibilityIdentifier("greeting") }
+}
+@available(iOS 26.0, *)
+@Animatable
+struct Ring: Shape {
+    var progress: Double
+    var width: CGFloat
+    @AnimatableIgnored var label: String = "ring"
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.addArc(center: CGPoint(x: rect.midX, y: rect.midY), radius: min(rect.width, rect.height) / 2 - width,
+                 startAngle: .degrees(0), endAngle: .degrees(360 * progress), clockwise: false)
+        return p
+    }
+}
+
+struct SubviewsPage: View {
+    @State private var flag = false
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                CardStack {
+                    Text("Alpha").accessibilityIdentifier("alpha")
+                    Text("Beta").containerValue(\.cardTint, .red).accessibilityIdentifier("beta")
+                    ForEach(["Gamma", "Delta"], id: \.self) { Text($0).accessibilityIdentifier($0.lowercased()) }
+                }
+                SectionSummary {
+                    Section("Fruit") { Text("Apple"); Text("Pear") }
+                    Section { Text("Leek") } header: { Text("Veg") }
+                        .containerValue(\.cardTint, .red)
+                    Text("Loose")
+                }
+                Greeting()
+                Greeting().environment(\.greeting, "Hi")
+                Text(flag ? "on" : "off")
+                    .transaction { t in print("transaction origin \(t.origin), animated \(t.animation != nil)") }
+                    .accessibilityIdentifier("flag")
+                Button("Toggle") { withTransaction(\.origin, "button") { flag.toggle() } }.accessibilityIdentifier("toggle")
+                Button("Animate") { withAnimation(.easeIn) { flag.toggle() } }.accessibilityIdentifier("animate")
+            }
+            .padding()
+        }
+        .onAppear {
+            if #available(iOS 26.0, *) {
+                var r = Ring(progress: 0.25, width: 4)
+                print("ring data \(r.animatableData.first) \(r.animatableData.second)")
+                r.animatableData = AnimatablePair(0.5, 8)
+                print("ring set \(r.progress) \(r.width) \(r.label)")
+            }
+        }
+    }
+}
+
+// MARK: - Safe area insets and padding, content margins, containerRelativeFrame
+
+struct InsetsPage: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(0..<20) { i in Text("Item \(i)").frame(maxWidth: .infinity, minHeight: 40).accessibilityIdentifier("item-\(i)") }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Text("Bottom bar").frame(maxWidth: .infinity, minHeight: 50).background(Color.orange.opacity(0.8)).accessibilityIdentifier("bottom-bar")
+            }
+            .frame(height: 300)
+            .accessibilityIdentifier("inset-scroll")
+            List { ForEach(0..<10) { i in Text("Row \(i)").accessibilityIdentifier("prow-\(i)") } }
+                .safeAreaPadding(.top, 30)
+                .frame(height: 200)
+                .accessibilityIdentifier("padded-list")
+            Text("Padded").safeAreaPadding(.horizontal, 40).background(Color.yellow).accessibilityIdentifier("padded-text")
+            ScrollView { VStack { ForEach(0..<20) { Text("M\($0)") } } }
+                .contentMargins(.vertical, 20, for: .scrollIndicators)
+                .frame(height: 120)
+                .accessibilityIdentifier("margins-scroll")
+        }
+    }
+}
+
+struct RelativeFramePage: View {
+    var body: some View {
+        NavigationStack {
+            Color.teal
+                .containerRelativeFrame([.horizontal, .vertical]) { length, _ in length / 2 }
+                .accessibilityIdentifier("half")
+                .navigationTitle("Relative")
+                .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

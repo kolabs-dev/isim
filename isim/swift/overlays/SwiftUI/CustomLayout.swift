@@ -367,8 +367,15 @@ public struct GridLayout: Layout {
 
 // MARK: - containerRelativeFrame
 
-/// The size of the nearest container (scroll view, or the window's safe area), set while laying out.
+/// The size of the nearest container (scroll view, list, navigation stack or tab content, split view column, or the
+/// window's safe area), set while laying out.
 @MainActor var _containerSizes: [CGSize] = []
+/// Lays out `body` inside a container of `size` (containerRelativeFrame measures against it).
+@MainActor func _inContainer<T>(_ size: CGSize, _ body: () -> T) -> T {
+    _containerSizes.append(size)
+    defer { _containerSizes.removeLast() }
+    return body()
+}
 final class _ContainerRelativeNode: _WrapperNode {
     let axes: Axis.Set, alignment: Alignment, length: (CGFloat, Axis) -> CGFloat
     init(path: String, axes: Axis.Set, alignment: Alignment, length: @escaping (CGFloat, Axis) -> CGFloat, child: _Node) {
@@ -415,8 +422,9 @@ public enum HorizontalEdge: Int8, CaseIterable, Sendable {
         public static let leading = Set(rawValue: 1), trailing = Set(rawValue: 2), all = Set(rawValue: 3)
     }
 }
-/// The inset content sits at an edge; the main content is laid out in the rest (isim does not extend the main content
-/// beneath it, so scrolling content stops at the inset view).
+/// The inset content sits at an edge. Like SwiftUI, a scroll view (or list) filling the main content extends beneath
+/// it, its content inset by the inset's size (so the last rows scroll out from under it); other content is laid out
+/// in the rest.
 final class _SafeAreaInsetNode: _Node {
     let edge: Edge, spacing: CGFloat, alignment: Alignment
     var main: _Node { children[0] }
@@ -445,8 +453,45 @@ final class _SafeAreaInsetNode: _Node {
         case .leading: insetRect.size.width = i.width; mainRect.origin.x = used; mainRect.size.width -= used
         case .trailing: insetRect.origin.x = rect.width - i.width; insetRect.size.width = i.width; mainRect.size.width -= used
         }
-        main.place(mainRect)
+        var extra = UIEdgeInsets.zero
+        switch edge { case .top: extra.top = used; case .bottom: extra.bottom = used; case .leading: extra.left = used; case .trailing: extra.right = used }
+        if !_placeBeneath(main, in: CGRect(origin: .zero, size: rect.size), extra) { main.place(mainRect) }
         inset.place(_align(CGSize(width: min(i.width, insetRect.width), height: min(i.height, insetRect.height)), in: insetRect, alignment))
+    }
+}
+/// A scroll view or list that fills `rect` (through modifiers that keep its size): placed there with `extra` added to
+/// its content insets. False if `main` is not one (it is laid out in the remaining space instead).
+@MainActor func _placeBeneath(_ main: _Node, in rect: CGRect, _ extra: UIEdgeInsets) -> Bool {
+    var x: _Node? = main, scroll: _Node?
+    while let n = x {
+        if n is _ScrollNode || n is _ListNode { scroll = n; break }
+        if n is _PaddingNode || n is _PositionNode || n is _AspectNode { break }
+        x = n.children.count == 1 ? n.children[0] : nil
+    }
+    guard let s = scroll else { return false }
+    let fit = main.sizeThatFits(_Proposal(width: rect.width, height: rect.height))
+    guard abs(fit.width - rect.width) < 0.5, abs(fit.height - rect.height) < 0.5 else { return false }
+    if let sc = s as? _ScrollNode { sc.extraInsets = sc.extraInsets.adding(extra) } else if let l = s as? _ListNode { l.extraInsets = l.extraInsets.adding(extra) }
+    main.place(rect)
+    return true
+}
+extension UIEdgeInsets {
+    func adding(_ o: UIEdgeInsets) -> UIEdgeInsets { UIEdgeInsets(top: top + o.top, left: left + o.left, bottom: bottom + o.bottom, right: right + o.right) }
+}
+/// safeAreaPadding: a scroll view or list inside gets the padding as content insets (its content scrolls through the
+/// padded area); other content is padded.
+final class _SafeAreaPaddingNode: _WrapperNode {
+    let insets: EdgeInsets
+    init(path: String, insets: EdgeInsets, child: _Node) { self.insets = insets; super.init(path: path, child: child) }
+    override var ignoresSafeArea: Bool { child.ignoresSafeArea }
+    var pad: _PaddingNode { _PaddingNode(path: path + "/pad", insets: insets, child: child) }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { pad.sizeThatFits(p) }
+    override func place(_ rect: CGRect) {
+        frame = rect
+        let extra = UIEdgeInsets(top: insets.top, left: insets.leading, bottom: insets.bottom, right: insets.trailing)
+        if !_placeBeneath(child, in: CGRect(origin: .zero, size: rect.size), extra) {
+            child.place(CGRect(x: insets.leading, y: insets.top, width: max(0, rect.width - insets.leading - insets.trailing), height: max(0, rect.height - insets.top - insets.bottom)))
+        }
     }
 }
 extension View {
@@ -464,17 +509,27 @@ extension View {
                                main: _resolve(c, ctx.child("sai")), inset: _resolve(v, ctx.child("saic")))
         }
     }
-    /// Adds to the safe area (laid out as padding on isim).
-    public func safeAreaPadding(_ insets: EdgeInsets) -> some View { padding(insets) }
-    public func safeAreaPadding(_ edges: Edge.Set = .all, _ length: CGFloat? = nil) -> some View { padding(edges, length) }
-    public func safeAreaPadding(_ length: CGFloat) -> some View { padding(length) }
+    /// Adds to the safe area: scroll views and lists inside scroll through it, other content is padded.
+    public func safeAreaPadding(_ insets: EdgeInsets) -> some View {
+        _modify { ctx, c in _SafeAreaPaddingNode(path: ctx.path, insets: insets, child: _resolve(c, ctx.child("sap"))) }
+    }
+    public func safeAreaPadding(_ edges: Edge.Set = .all, _ length: CGFloat? = nil) -> some View {
+        let l = length ?? 16
+        return safeAreaPadding(EdgeInsets(top: edges.contains(.top) ? l : 0, leading: edges.contains(.leading) ? l : 0,
+                                          bottom: edges.contains(.bottom) ? l : 0, trailing: edges.contains(.trailing) ? l : 0))
+    }
+    public func safeAreaPadding(_ length: CGFloat) -> some View { safeAreaPadding(.all, length) }
     /// Margins around scroll view content (and its indicators' insets on iOS).
+    /// Margins of scroll views inside: `.scrollContent` insets the content, `.scrollIndicators` the indicators,
+    /// `.automatic` both.
     public func contentMargins(_ edges: Edge.Set = .all, _ insets: EdgeInsets, for placement: ContentMarginPlacement = .automatic) -> some View {
         _env { e in
-            var m = e._contentMargins ?? EdgeInsets()
-            if edges.contains(.top) { m.top = insets.top }; if edges.contains(.bottom) { m.bottom = insets.bottom }
-            if edges.contains(.leading) { m.leading = insets.leading }; if edges.contains(.trailing) { m.trailing = insets.trailing }
-            e._contentMargins = m
+            func set(_ m: inout EdgeInsets) {
+                if edges.contains(.top) { m.top = insets.top }; if edges.contains(.bottom) { m.bottom = insets.bottom }
+                if edges.contains(.leading) { m.leading = insets.leading }; if edges.contains(.trailing) { m.trailing = insets.trailing }
+            }
+            if placement.id != 2 { var m = e._contentMargins ?? EdgeInsets(); set(&m); e._contentMargins = m }
+            if placement.id != 1 { var m = e._indicatorMargins ?? EdgeInsets(); set(&m); e._indicatorMargins = m }
         }
     }
     public func contentMargins(_ edges: Edge.Set = .all, _ length: CGFloat?, for placement: ContentMarginPlacement = .automatic) -> some View {
@@ -488,4 +543,8 @@ public struct ContentMarginPlacement: Sendable {
     public static let automatic = ContentMarginPlacement(id: 0), scrollContent = ContentMarginPlacement(id: 1), scrollIndicators = ContentMarginPlacement(id: 2)
 }
 struct _ContentMarginsKey: EnvironmentKey { static var defaultValue: EdgeInsets? { nil } }
-extension EnvironmentValues { var _contentMargins: EdgeInsets? { get { self[_ContentMarginsKey.self] } set { self[_ContentMarginsKey.self] = newValue } } }
+struct _IndicatorMarginsKey: EnvironmentKey { static var defaultValue: EdgeInsets? { nil } }
+extension EnvironmentValues {
+    var _contentMargins: EdgeInsets? { get { self[_ContentMarginsKey.self] } set { self[_ContentMarginsKey.self] = newValue } }
+    var _indicatorMargins: EdgeInsets? { get { self[_IndicatorMarginsKey.self] } set { self[_IndicatorMarginsKey.self] = newValue } }
+}
