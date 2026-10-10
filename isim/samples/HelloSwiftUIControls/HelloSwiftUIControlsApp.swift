@@ -2,7 +2,8 @@
 // multicolor), symbolVariant, imageScale and every symbol effect; truncationMode, minimumScaleFactor and
 // allowsTightening; MultiDatePicker; PasteButton (UIKit's paste control); ShareLink with Transferable items and a
 // SharePreview (UIKit's share sheet); RenameButton / renameAction.
-// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename.
+// iOS 26: Slider tick marks, neutral value and enabled bounds; TextEditor editing an AttributedString with a selection.
+// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich.
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -22,6 +23,8 @@ struct Root: View {
         case "paste": PastePage()
         case "share": SharePage()
         case "rename": RenamePage()
+        case "ticks": if #available(iOS 26.0, *) { TicksPage() } else { Text("iOS 26") }
+        case "rich": if #available(iOS 26.0, *) { RichPage() } else { Text("iOS 26") }
         default: SymbolsPage()
         }
     }
@@ -179,5 +182,72 @@ struct RenamePage: View {
             RenameButton().renameAction { print("custom rename") }.accessibilityIdentifier("rename-custom")
         }
         .renameAction($editing)
+    }
+}
+
+@available(iOS 26.0, *)
+struct TicksPage: View {
+    @State var stepped = 2.0
+    @State var custom = 0.0
+    @State var neutral = 0.0
+    @State var bounded = 50.0
+    var body: some View {
+        VStack(spacing: 24) {
+            Slider(value: $stepped, in: 0...4, step: 1).accessibilityIdentifier("stepped")
+            Slider(value: $custom, in: 0...10) { Text("Speed") } ticks: {
+                SliderTick(0)
+                SliderTick(5) { Text("Mid") }
+                SliderTick(10)
+            }
+            .accessibilityIdentifier("custom")
+            Slider(value: $neutral, in: -1...1, neutralValue: 0).accessibilityIdentifier("neutral")
+            Slider(value: $bounded, in: 0...100, enabledBounds: 20...80) { Text("Bounded") } ticks: {
+                SliderTickContentForEach([20.0, 50.0, 80.0], id: \.self) { SliderTick($0) }
+            }
+            .accessibilityIdentifier("bounded")
+            Text(String(format: "stepped %.0f custom %.1f neutral %.2f bounded %.0f", stepped, custom, neutral, bounded)).accessibilityIdentifier("values")
+        }
+        .padding(24)
+        .onChange(of: stepped) { print(String(format: "stepped %.2f", stepped)) }
+        .onChange(of: bounded) { print(String(format: "bounded %.0f", bounded)) }
+        .onChange(of: neutral) { print(String(format: "neutral %.2f", neutral)) }
+    }
+}
+
+@available(iOS 26.0, *)
+struct RichPage: View {
+    @State var text: AttributedString = {
+        var a = AttributedString("Hello ")
+        var w = AttributedString("world")
+        w.foregroundColor = .red
+        w.font = .body.bold()
+        a.append(w)
+        return a
+    }()
+    @State var selection = AttributedTextSelection()
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            TextEditor(text: $text, selection: $selection).frame(height: 120).border(.gray).accessibilityIdentifier("editor")
+            Button("Select Hello") {
+                if let r = text.range(of: "Hello") { selection = AttributedTextSelection(range: r) }
+            }
+            .accessibilityIdentifier("select")
+            Button("Underline selection") {
+                if case .ranges(let rs) = selection.indices(in: text) { for r in rs.ranges { text[r].underlineStyle = .single } }
+            }
+            .accessibilityIdentifier("underline")
+            Text(text).accessibilityIdentifier("preview")
+        }
+        .padding(24)
+        .onChange(of: text) {
+            let runs = text.runs.map { r in "\(String(text[r.range].characters))\(r.foregroundColor == .red ? "[red]" : "")\(r.underlineStyle != nil ? "[u]" : "")" }
+            print("text " + runs.joined(separator: "|"))
+        }
+        .onChange(of: selection) {
+            switch selection.indices(in: text) {
+            case .insertionPoint(let i): print("caret \(text.characters.distance(from: text.startIndex, to: i))")
+            case .ranges(let rs): print("selected " + rs.ranges.map { String(text[$0].characters) }.joined(separator: ","))
+            }
+        }
     }
 }

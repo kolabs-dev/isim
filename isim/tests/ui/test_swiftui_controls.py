@@ -191,3 +191,60 @@ def test_rename_button(launch):
     app.tap_id("rename-custom")
     app.wait_log(r"^custom rename")
     assert app.quit() == 0, "exits cleanly"
+
+
+@pytest.mark.os_matrix
+def test_slider_ticks(launch, ios):
+    """iOS 26: a stepped slider shows its steps as ticks and snaps to them; custom ticks; neutralValue; enabledBounds."""
+    if int(str(ios[0] or 18)) < 26:
+        pytest.skip("Slider ticks are iOS 26")
+    app = launch("HelloSwiftUIControls", env={"PAGE": "ticks"})
+    dump = app.wait_view(r"id=values")
+    app.wait_still()
+    img = app.screenshot("ticks")
+    sx, sy, sw, sh = window_rect(dump, "stepped")
+    app.drag(sx + sw / 2, sy + sh / 2, sx + sw * 0.7, sy + sh / 2, 0.4)
+    app.wait_log(r"^stepped 3\.00$")                                       # 0...4 step 1: snaps to 3
+    bx, by, bw, bh = window_rect(dump, "bounded")
+    app.drag(bx + bw / 2, by + bh / 2, bx + 2, by + bh / 2, 0.4)
+    app.wait_log(r"^bounded 20$")                                          # clamped to the enabled bounds
+    nx, ny, nw, nh = window_rect(dump, "neutral")
+    app.drag(nx + nw / 2, ny + nh / 2, nx + nw * 0.25, ny + nh / 2, 0.4)
+    app.wait_log(r"^neutral -0\.[0-9]+$")
+    app.wait_still()
+    after = app.screenshot("ticks-after")
+    assert app.quit() == 0, "exits cleanly"
+    # tick dots: brighter or darker specks on the stepped track (5 steps, the thumb hides the middle one)
+    track_y = int(sy + sh / 2)
+    row = [img.getpixel((x, track_y))[:3] for x in range(int(sx), int(sx + sw))]
+    specks = sum(1 for i in range(1, len(row) - 1) if abs(sum(row[i]) - sum(row[i - 1])) > 60 and abs(sum(row[i]) - sum(row[i + 1])) < 60)
+    assert specks >= 3, f"a stepped slider shows tick marks ({specks} edges)"
+    # neutralValue: the fill runs from the middle to the thumb (to the left of the centre)
+    blue_px = lambda im, x: (lambda c: c[2] > 200 and c[0] < 80)(im.getpixel((int(x), int(ny + nh / 2)))[:3])
+    assert blue_px(after, nx + nw * 0.4) and not blue_px(after, nx + nw * 0.6), "the fill starts at the neutral value"
+
+
+@pytest.mark.os_matrix
+def test_attributed_text_editor(launch, ios):
+    """iOS 26: TextEditor(text: Binding<AttributedString>, selection:): runs drawn with their attributes, typed text
+    takes the attributes before it, the selection binding sets and follows the selection."""
+    if int(str(ios[0] or 18)) < 26:
+        pytest.skip("TextEditor with AttributedString is iOS 26")
+    app = launch("HelloSwiftUIControls", env={"PAGE": "rich"})
+    dump = app.wait_view(r"id=editor")
+    app.wait_still()
+    img = app.screenshot("rich")
+    ex, ey, ew, eh = window_rect(dump, "editor")
+    red = lambda c: c[0] > 200 and c[1] < 90 and c[2] < 90
+    assert count(colours(img, (ex, ey, ew, 30)), red) > 40, "the red bold run is drawn red"
+    app.tap(ex + 6, ey + 12)                                               # before "Hello"
+    app.wait_log(r"^caret 0$")
+    app.tap(ex + ew - 20, ey + 12)                                         # after "world"
+    app.wait_log(r"^caret 11$")
+    app.type("wide")
+    app.wait_log(r"^text Hello \|worldwide\[red\]$")
+    app.tap_id("select")
+    app.wait_log(r"^selected Hello$")
+    app.tap_id("underline")
+    app.wait_log(r"^text Hello\[u\]\| \|worldwide\[red\]$")
+    assert app.quit() == 0, "exits cleanly"

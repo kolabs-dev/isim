@@ -12,10 +12,18 @@ import CoreTransferable
 /// Multi-line text editing that fills the space it is offered (a vertical TextField underneath).
 public struct TextEditor: View {
     let text: Binding<String>
+    /// iOS 26: rich text (AttributedEditor.swift)
+    var attributed: Binding<AttributedString>? = nil
+    var selection: Binding<_AnySelection>? = nil
     public init(text: Binding<String>) { self.text = text }
     public var body: some View {
-        TextField("", text: text, axis: .vertical)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        if let attributed {
+            _AttributedEditor(text: attributed, selection: selection)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            TextField("", text: text, axis: .vertical)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
     }
 }
 
