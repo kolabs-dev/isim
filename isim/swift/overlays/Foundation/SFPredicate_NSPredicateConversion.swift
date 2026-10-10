@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(ISIMFoundation) import FoundationEssentials
+
 #if true   // isim: part of iOS (FOUNDATION_FRAMEWORK upstream)
 
 #if true   // isim: the public NSExpression API (upstream: Foundation_Private)
@@ -186,6 +188,8 @@ extension PredicateExpressions.KeyPath : ConvertibleExpression {
                 return .expression(NSExpression(forFunction: rootExpr, selectorName: .subscriptSelector, arguments: [NSExpression(forSymbolicString: "FIRST")!]))
             case .bidirectionalCollectionLast:
                 return .expression(NSExpression(forFunction: rootExpr, selectorName: .subscriptSelector, arguments: [NSExpression(forSymbolicString: "LAST")!]))
+            @unknown default:   // isim: the enum is in another (resilient) module here
+                throw NSPredicateConversionError.unsupportedKeyPath
             }
         } else {
             throw NSPredicateConversionError.unsupportedKeyPath
@@ -249,6 +253,7 @@ extension PredicateExpressions.Arithmetic : ConvertibleExpression {
         case .add: .additionSelector
         case .subtract: .subtractionSelector
         case .multiply: .multiplicationSelector
+        @unknown default: throw NSPredicateConversionError.unsupportedType   // isim: resilient enum
         }
         return .expression(NSExpression(forFunction: funcName, arguments: [try lhs.convertToExpression(state: &state), try rhs.convertToExpression(state: &state)]))
     }
@@ -267,6 +272,7 @@ extension PredicateExpressions.Comparison : ConvertibleExpression {
         case .greaterThanOrEqual: .greaterThanOrEqualTo
         case .lessThan: .lessThan
         case .lessThanOrEqual: .lessThanOrEqualTo
+        @unknown default: throw NSPredicateConversionError.unsupportedType   // isim: resilient enum
         }
         return .predicate(NSComparisonPredicate(leftExpression: try lhs.convertToExpression(state: &state), rightExpression: try rhs.convertToExpression(state: &state), modifier: .direct, type: type))
     }
@@ -592,3 +598,8 @@ extension NSExpression {
 
 #endif //canImport(Foundation_Private.NSExpression)
 #endif
+
+// isim: how a Predicate's description shows captured Foundation values (upstream: in Predicate+Description.swift)
+@_spi(ISIMFoundation) extension Date: _PredicateCaptureDescribable { public var _predicateCaptureDescription: String { "<Date \(timeIntervalSince1970)>" } }
+@_spi(ISIMFoundation) extension Data: _PredicateCaptureDescribable { public var _predicateCaptureDescription: String { "<Data \(base64EncodedString())>" } }
+@_spi(ISIMFoundation) extension UUID: _PredicateCaptureDescribable { public var _predicateCaptureDescription: String { "<UUID \(uuidString)>" } }

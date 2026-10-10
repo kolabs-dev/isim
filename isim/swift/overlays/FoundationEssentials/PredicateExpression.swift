@@ -27,7 +27,7 @@ public protocol StandardPredicateExpression<Output> : PredicateExpression, Codab
 
 @available(macOS 14, iOS 17, tvOS 17, watchOS 10, *)
 public struct PredicateError: Error, Hashable, CustomDebugStringConvertible {
-    internal enum _Error: Hashable, Sendable {
+    @_spi(ISIMFoundation) public enum _Error: Hashable, Sendable {
         case undefinedVariable
         case forceUnwrapFailure(String?)
         case forceCastFailure(String?)
@@ -36,7 +36,7 @@ public struct PredicateError: Error, Hashable, CustomDebugStringConvertible {
     
     private let _error: _Error
     
-    internal init(_ error: _Error) {
+    @_spi(ISIMFoundation) public init(_ error: _Error) {
         _error = error
     }
     
@@ -186,7 +186,7 @@ extension PredicateExpressions {
 }
 
 extension KeyPath {
-    internal var _unsafeAssumeSendable: KeyPath<Root, Value> & Sendable {
+    @_spi(ISIMFoundation) public var _unsafeAssumeSendable: KeyPath<Root, Value> & Sendable {
         func _unsafeCast<T, U>(_ t: T) -> U {
             t as! U
         }
@@ -195,7 +195,7 @@ extension KeyPath {
 }
 
 extension AnyKeyPath {
-    internal var _unsafeAssumeSendableAnyKeyPath: AnyKeyPath & Sendable {
+    @_spi(ISIMFoundation) public var _unsafeAssumeSendableAnyKeyPath: AnyKeyPath & Sendable {
         func _unsafeCast<T, U>(_ t: T) -> U {
             t as! U
         }

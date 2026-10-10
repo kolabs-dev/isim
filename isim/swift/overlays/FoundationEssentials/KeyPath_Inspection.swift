@@ -54,9 +54,14 @@ extension AnyKeyPath {
         ptr = ptr.advanced(by: Self.WORD_SIZE)
         let firstComponentHeader = ptr.load(as: UInt32.self)
         switch firstComponentHeader._keyPathComponentHeader_kind {
-        case 1: // struct/tuple/self stored property
-            fallthrough
         case 3: // class stored property
+            // isim: MemoryLayout.offset(of:) is nil for every class key path, so the struct check below rejected them
+            // all; one class component is its 32-bit header and at most a 32-bit out-of-line offset (later
+            // components follow a pointer-aligned type word)
+            if header._keyPathHeader_bufferSize > Self.WORD_SIZE {
+                fatalError("Predicate does not support keypaths with multiple components")
+            }
+        case 1: // struct/tuple/self stored property
             // Key paths to stored properties are only single-component if MemoryLayout.offset(of:) returns an offset
             func project<T>(_: T.Type) -> Bool {
                 _keyPathOffset(T.self, self) == nil

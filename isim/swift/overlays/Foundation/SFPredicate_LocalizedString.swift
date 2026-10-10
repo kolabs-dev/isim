@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(ISIMFoundation) import FoundationEssentials
+
 #if true   // isim: part of iOS (FOUNDATION_FRAMEWORK upstream)
 
 @available(macOS 14, iOS 17, tvOS 17, watchOS 10, *)
@@ -49,8 +51,8 @@ extension PredicateExpressions.StringLocalizedStandardContains : CustomStringCon
 }
 
 @available(macOS 14.4, iOS 17.4, tvOS 17.4, watchOS 10.4, *)
-extension PredicateExpressions.StringLocalizedStandardContains : DebugStringConvertiblePredicateExpression where Root : DebugStringConvertiblePredicateExpression, Other : DebugStringConvertiblePredicateExpression {
-    internal func debugString(state: inout DebugStringConversionState) -> String {
+@_spi(ISIMFoundation) extension PredicateExpressions.StringLocalizedStandardContains : DebugStringConvertiblePredicateExpression where Root : DebugStringConvertiblePredicateExpression, Other : DebugStringConvertiblePredicateExpression {
+    public func debugString(state: inout DebugStringConversionState) -> String {
         "\(root.debugString(state: &state)).localizedStandardContains(\(other.debugString(state: &state)))"
     }
 }
@@ -113,8 +115,8 @@ extension PredicateExpressions.StringLocalizedCompare : CustomStringConvertible 
 }
 
 @available(macOS 14.4, iOS 17.4, tvOS 17.4, watchOS 10.4, *)
-extension PredicateExpressions.StringLocalizedCompare : DebugStringConvertiblePredicateExpression where Root : DebugStringConvertiblePredicateExpression, Other : DebugStringConvertiblePredicateExpression {
-    internal func debugString(state: inout DebugStringConversionState) -> String {
+@_spi(ISIMFoundation) extension PredicateExpressions.StringLocalizedCompare : DebugStringConvertiblePredicateExpression where Root : DebugStringConvertiblePredicateExpression, Other : DebugStringConvertiblePredicateExpression {
+    public func debugString(state: inout DebugStringConversionState) -> String {
         "\(root.debugString(state: &state)).localizedCompare(\(other.debugString(state: &state)))"
     }
 }

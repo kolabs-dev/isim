@@ -332,6 +332,12 @@ static id<NSDecimalNumberBehaviors> default_behavior;
 }
 - (instancetype)initWithString:(NSString *)s { return [self initWithString:s locale:nil]; }
 - (instancetype)init { NSDecimal z = {0}; return [self initWithDecimal:z]; }
+/* NSNumber's scalar initializers (Swift's integer and float literals use them) make an exact decimal, as on iOS */
+#define DEC_INIT(sel, type, num) - (instancetype)sel(type)v { return [self initWithDecimal:[[NSNumber num:v] decimalValue]]; }
+DEC_INIT(initWithInt:, int, numberWithInt) DEC_INIT(initWithInteger:, NSInteger, numberWithInteger)
+DEC_INIT(initWithLongLong:, long long, numberWithLongLong) DEC_INIT(initWithUnsignedLongLong:, unsigned long long, numberWithUnsignedLongLong)
+DEC_INIT(initWithUnsignedInteger:, NSUInteger, numberWithUnsignedInteger) DEC_INIT(initWithDouble:, double, numberWithDouble)
+DEC_INIT(initWithFloat:, float, numberWithFloat) DEC_INIT(initWithBool:, BOOL, numberWithInteger)
 + (NSDecimalNumber *)decimalNumberWithMantissa:(unsigned long long)m exponent:(short)e isNegative:(BOOL)neg { return [[self alloc] initWithMantissa:m exponent:e isNegative:neg]; }
 + (NSDecimalNumber *)decimalNumberWithDecimal:(NSDecimal)d { return [[self alloc] initWithDecimal:d]; }
 + (NSDecimalNumber *)decimalNumberWithString:(NSString *)s { return [[self alloc] initWithString:s]; }

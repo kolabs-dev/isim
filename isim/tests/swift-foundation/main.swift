@@ -156,11 +156,17 @@ func predicateAndDecimalChecks() {
         let nsPredicate = NSPredicate(#Predicate<Gadget> { $0.price > 10 && $0.name != "x" })
         let gadgets = [Gadget("pen", 2), Gadget("lamp", 40)]
         check(nsPredicate != nil && (gadgets as NSArray).filtered(using: nsPredicate!).count == 1, "NSPredicate(_: Predicate) (\(nsPredicate?.predicateFormat ?? "nil"))")
+        if #available(iOS 18, *) {
+            let doubled = #Expression<Book, Int> { $0.pages * 2 }
+            check((try? doubled.evaluate(books[2])) == 160, "#Expression (iOS 18)")
+        }
+        check(String(describing: long).contains("Predicate<main.Book>") && String(describing: long).contains("400"), "Predicate description")
     }
     // Decimal bridges to NSDecimalNumber, both ways, exactly
     let price = Decimal(string: "19.99")!
     let ns = price as NSDecimalNumber
-    check(ns.stringValue == "19.99" && (ns.multiplying(by: 3) as Decimal) == Decimal(string: "59.97")!, "Decimal as NSDecimalNumber, arithmetic, back as Decimal")
+    let tripled = ns.multiplying(by: 3) as Decimal
+    check(ns.stringValue == "19.99" && tripled == Decimal(string: "59.97")!, "Decimal as NSDecimalNumber, arithmetic, back as Decimal (\(ns.stringValue) * 3 = \(tripled))")
     check(NSDecimalNumber(decimal: Decimal(string: "-0.0001")!).decimalValue == Decimal(string: "-0.0001")! && NSNumber(value: 0.1).decimalValue == Decimal(string: "0.1")!,
           "NSDecimalNumber(decimal:), NSNumber.decimalValue")
     let rounded = NSDecimalNumber(string: "2.675").rounding(accordingToBehavior: NSDecimalNumberHandler(roundingMode: .plain, scale: 2, raiseOnExactness: false, raiseOnOverflow: false, raiseOnUnderflow: false, raiseOnDivideByZero: false))

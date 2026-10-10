@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(ISIMFoundation) import FoundationEssentials
+
 #if true   // isim: part of iOS (FOUNDATION_FRAMEWORK upstream)
 
 @available(macOS 14, iOS 17, tvOS 17, watchOS 10, *)
@@ -68,5 +70,13 @@ extension PredicateExpressions.StringCaseInsensitiveCompare : Codable where Root
 
 @available(macOS 14, iOS 17, tvOS 17, watchOS 10, *)
 extension PredicateExpressions.StringCaseInsensitiveCompare : Sendable where Root : Sendable, Other : Sendable {}
+
+// isim: from Predicate+Description.swift upstream (FoundationEssentials has no ComparisonResult here)
+@available(macOS 14.4, iOS 17.4, tvOS 17.4, watchOS 10.4, *)
+@_spi(ISIMFoundation) extension PredicateExpressions.StringCaseInsensitiveCompare : DebugStringConvertiblePredicateExpression where Root : DebugStringConvertiblePredicateExpression, Other : DebugStringConvertiblePredicateExpression {
+    public func debugString(state: inout DebugStringConversionState) -> String {
+        "\(root.debugString(state: &state)).caseInsensitiveCompare(\(other.debugString(state: &state)))"
+    }
+}
 
 #endif

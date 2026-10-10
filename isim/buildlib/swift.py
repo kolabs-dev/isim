@@ -590,7 +590,8 @@ CoreGraphics -framework CoreGraphics
 ObjectiveC -framework Foundation   # NSObject lives in isim Foundation, not libobjc
 Combine Combine-compat.o           # enum case symbols for apps built before Completion was @frozen
 Dispatch -framework Foundation
-Foundation -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
+FoundationEssentials -lswift_Concurrency  # Predicate, Expression: Swift-only, so the #Predicate expansions' module name resolves
+Foundation -lswiftFoundationEssentials -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
 UniformTypeIdentifiers -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 CoreTransferable -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswift_Concurrency -framework Foundation
 Symbols
@@ -660,7 +661,7 @@ CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concur
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
-EVOLUTION = set("""ObjectiveC Dispatch Spatial DeveloperToolsSupport Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
+EVOLUTION = set("""ObjectiveC Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices

@@ -62,7 +62,7 @@ FOUNDATION_EXPORT NSExceptionName const NSDecimalNumberDivideByZeroException;
 @property (class, readonly, copy) NSDecimalNumber *one;
 @property (class, readonly, copy) NSDecimalNumber *minimumDecimalNumber;
 @property (class, readonly, copy) NSDecimalNumber *maximumDecimalNumber;
-@property (class, readonly, copy) NSDecimalNumber *notANumber;
+@property (class, readonly, copy) NSDecimalNumber *notANumber NS_SWIFT_NAME(notANumber);
 - (NSDecimalNumber *)decimalNumberByAdding:(NSDecimalNumber *)decimalNumber;
 - (NSDecimalNumber *)decimalNumberByAdding:(NSDecimalNumber *)decimalNumber withBehavior:(nullable id<NSDecimalNumberBehaviors>)behavior;
 - (NSDecimalNumber *)decimalNumberBySubtracting:(NSDecimalNumber *)decimalNumber;
