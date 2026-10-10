@@ -1,4 +1,5 @@
 #pragma once
+@class NSURL, NSNumber;
 #import <Foundation/NSObject.h>
 #import <Foundation/NSNotification.h>
 NS_ASSUME_NONNULL_BEGIN
@@ -38,10 +39,28 @@ FOUNDATION_EXPORT NSNotificationName const NSUndoManagerCheckpointNotification, 
 - (NSString *)redoMenuTitleForUndoActionName:(NSString *)actionName;
 @end
 
-typedef NSString *NSProgressKind NS_TYPED_EXTENSIBLE_ENUM;
-typedef NSString *NSProgressUserInfoKey NS_TYPED_EXTENSIBLE_ENUM;
-FOUNDATION_EXPORT NSProgressKind const NSProgressKindFile;
-FOUNDATION_EXPORT NSProgressUserInfoKey const NSProgressEstimatedTimeRemainingKey, NSProgressThroughputKey;
+typedef NSString *NSProgressKind NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(ProgressKind);
+typedef NSString *NSProgressUserInfoKey NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(ProgressUserInfoKey);
+typedef NSString *NSProgressFileOperationKind NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(Progress.FileOperationKind);
+FOUNDATION_EXPORT NSProgressKind const NSProgressKindFile NS_SWIFT_NAME(file);
+FOUNDATION_EXPORT NSProgressUserInfoKey const NSProgressEstimatedTimeRemainingKey NS_SWIFT_NAME(estimatedTimeRemainingKey);
+FOUNDATION_EXPORT NSProgressUserInfoKey const NSProgressThroughputKey NS_SWIFT_NAME(throughputKey);
+FOUNDATION_EXPORT NSProgressUserInfoKey const NSProgressFileOperationKindKey NS_SWIFT_NAME(fileOperationKindKey);
+FOUNDATION_EXPORT NSProgressUserInfoKey const NSProgressFileURLKey NS_SWIFT_NAME(fileURLKey);
+FOUNDATION_EXPORT NSProgressUserInfoKey const NSProgressFileTotalCountKey NS_SWIFT_NAME(fileTotalCountKey);
+FOUNDATION_EXPORT NSProgressUserInfoKey const NSProgressFileCompletedCountKey NS_SWIFT_NAME(fileCompletedCountKey);
+FOUNDATION_EXPORT NSProgressFileOperationKind const NSProgressFileOperationKindDownloading NS_SWIFT_NAME(downloading);
+FOUNDATION_EXPORT NSProgressFileOperationKind const NSProgressFileOperationKindDecompressingAfterDownloading NS_SWIFT_NAME(decompressingAfterDownloading);
+FOUNDATION_EXPORT NSProgressFileOperationKind const NSProgressFileOperationKindReceiving NS_SWIFT_NAME(receiving);
+FOUNDATION_EXPORT NSProgressFileOperationKind const NSProgressFileOperationKindCopying NS_SWIFT_NAME(copying);
+FOUNDATION_EXPORT NSProgressFileOperationKind const NSProgressFileOperationKindUploading NS_SWIFT_NAME(uploading);
+FOUNDATION_EXPORT NSProgressFileOperationKind const NSProgressFileOperationKindDuplicating NS_SWIFT_NAME(duplicating);
+@class NSProgress;
+/* an object that reports its work with a progress */
+NS_SWIFT_NAME(ProgressReporting)
+@protocol NSProgressReporting <NSObject>
+@property (readonly) NSProgress *progress;
+@end
 @interface NSProgress : NSObject
 @property (class, nullable, readonly) NSProgress *currentProgress;
 + (NSProgress *)progressWithTotalUnitCount:(int64_t)unitCount;
@@ -71,5 +90,15 @@ FOUNDATION_EXPORT NSProgressUserInfoKey const NSProgressEstimatedTimeRemainingKe
 - (void)resume;
 @property (readonly, copy) NSDictionary<NSProgressUserInfoKey, id> *userInfo;
 @property (nullable, copy) NSProgressKind kind;
+/* time remaining (seconds) and throughput (bytes per second), shown in the localized descriptions; userInfo entries */
+@property (nullable, copy) NSNumber *estimatedTimeRemaining NS_REFINED_FOR_SWIFT;
+@property (nullable, copy) NSNumber *throughput NS_REFINED_FOR_SWIFT;
+/* file progress (kind NSProgressKindFile): userInfo entries */
+@property (nullable, copy) NSProgressFileOperationKind fileOperationKind;
+@property (nullable, copy) NSURL *fileURL;
+@property (nullable, copy) NSNumber *fileTotalCount NS_REFINED_FOR_SWIFT;
+@property (nullable, copy) NSNumber *fileCompletedCount NS_REFINED_FOR_SWIFT;
+/* becomes current with the pending units for the block, then resigns */
+- (void)performAsCurrentWithPendingUnitCount:(int64_t)unitCount usingBlock:(void (NS_NOESCAPE ^)(void))work NS_REFINED_FOR_SWIFT;
 @end
 NS_ASSUME_NONNULL_END

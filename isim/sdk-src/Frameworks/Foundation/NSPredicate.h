@@ -4,24 +4,33 @@
 #import <Foundation/NSSet.h>
 #import <Foundation/NSOrderedCollections.h>
 NS_ASSUME_NONNULL_BEGIN
-@class NSString, NSDictionary<KeyType, ObjectType>, NSMutableDictionary<KeyType, ObjectType>;
+@class NSString, NSDictionary<KeyType, ObjectType>, NSMutableDictionary<KeyType, ObjectType>, NSPredicate;
 
 typedef NS_ENUM(NSUInteger, NSExpressionType) {
-    NSConstantValueExpressionType = 0, NSEvaluatedObjectExpressionType, NSVariableExpressionType, NSKeyPathExpressionType,
-    NSFunctionExpressionType, NSUnionSetExpressionType, NSIntersectSetExpressionType, NSMinusSetExpressionType,
-    NSSubqueryExpressionType = 13, NSAggregateExpressionType, NSAnyKeyExpressionType = 15, NSBlockExpressionType = 19, NSConditionalExpressionType = 20
+    NSConstantValueExpressionType NS_SWIFT_NAME(constantValue) = 0, NSEvaluatedObjectExpressionType NS_SWIFT_NAME(evaluatedObject), NSVariableExpressionType NS_SWIFT_NAME(variable), NSKeyPathExpressionType NS_SWIFT_NAME(keyPath),
+    NSFunctionExpressionType NS_SWIFT_NAME(function), NSUnionSetExpressionType NS_SWIFT_NAME(unionSet), NSIntersectSetExpressionType NS_SWIFT_NAME(intersectSet), NSMinusSetExpressionType NS_SWIFT_NAME(minusSet),
+    NSSubqueryExpressionType NS_SWIFT_NAME(subquery) = 13, NSAggregateExpressionType NS_SWIFT_NAME(aggregate), NSAnyKeyExpressionType NS_SWIFT_NAME(anyKey) = 15, NSBlockExpressionType NS_SWIFT_NAME(block) = 19, NSConditionalExpressionType NS_SWIFT_NAME(conditional) = 20
 };
 @interface NSExpression : NSObject <NSSecureCoding, NSCopying>
 + (NSExpression *)expressionWithFormat:(NSString *)expressionFormat argumentArray:(NSArray *)arguments;
 + (NSExpression *)expressionWithFormat:(NSString *)expressionFormat, ...;
 + (NSExpression *)expressionWithFormat:(NSString *)expressionFormat arguments:(va_list)argList;
 + (NSExpression *)expressionForConstantValue:(nullable id)obj;
-+ (NSExpression *)expressionForEvaluatedObject;
++ (NSExpression *)expressionForEvaluatedObject NS_SWIFT_NAME(expressionForEvaluatedObject());
 + (NSExpression *)expressionForVariable:(NSString *)string;
 + (NSExpression *)expressionForKeyPath:(NSString *)keyPath;
 + (NSExpression *)expressionForFunction:(NSString *)name arguments:(NSArray *)parameters;
 + (NSExpression *)expressionForAggregate:(NSArray<NSExpression *> *)subexpressions;
 + (NSExpression *)expressionForBlock:(id (^)(id _Nullable evaluatedObject, NSArray<NSExpression *> *expressions, NSMutableDictionary * _Nullable context))block arguments:(nullable NSArray<NSExpression *> *)arguments;
++ (NSExpression *)expressionForFunction:(NSExpression *)target selectorName:(NSString *)name arguments:(nullable NSArray *)parameters;
++ (NSExpression *)expressionForAnyKey NS_SWIFT_NAME(expressionForAnyKey());
+/* FIRST, LAST or SIZE (the index of "array[FIRST]"); nil for anything else (Apple: private, used by Foundation's Swift code) */
++ (nullable NSExpression *)expressionForSymbolicString:(NSString *)string NS_SWIFT_NAME(init(forSymbolicString:));
++ (NSExpression *)expressionForSubquery:(NSExpression *)expression usingIteratorVariable:(NSString *)variable predicate:(NSPredicate *)predicate;
++ (NSExpression *)expressionForUnionSet:(NSExpression *)left with:(NSExpression *)right;
++ (NSExpression *)expressionForIntersectSet:(NSExpression *)left with:(NSExpression *)right;
++ (NSExpression *)expressionForMinusSet:(NSExpression *)left with:(NSExpression *)right;
++ (NSExpression *)expressionForConditional:(NSPredicate *)predicate trueExpression:(NSExpression *)trueExpression falseExpression:(NSExpression *)falseExpression;
 - (instancetype)initWithExpressionType:(NSExpressionType)type NS_DESIGNATED_INITIALIZER;
 @property (readonly) NSExpressionType expressionType;
 @property (nullable, readonly, retain) id constantValue;
@@ -31,7 +40,14 @@ typedef NS_ENUM(NSUInteger, NSExpressionType) {
 @property (readonly, copy) NSExpression *operand;
 @property (nullable, readonly, copy) NSArray<NSExpression *> *arguments;
 @property (readonly, retain) id collection;
+@property (readonly, copy) NSPredicate *predicate;
+@property (readonly, copy) NSExpression *leftExpression;
+@property (readonly, copy) NSExpression *rightExpression;
+@property (readonly, copy) NSExpression *trueExpression;
+@property (readonly, copy) NSExpression *falseExpression;
+@property (readonly, copy) id (^expressionBlock)(id _Nullable, NSArray<NSExpression *> *, NSMutableDictionary * _Nullable);
 - (nullable id)expressionValueWithObject:(nullable id)object context:(nullable NSMutableDictionary *)context;
+- (void)allowEvaluation;
 @end
 
 @interface NSPredicate : NSObject <NSSecureCoding, NSCopying>
@@ -81,6 +97,9 @@ typedef NS_ENUM(NSUInteger, NSPredicateOperatorType) {
 @property (readonly, retain) NSExpression *leftExpression;
 @property (readonly, retain) NSExpression *rightExpression;
 @property (readonly) NSComparisonPredicateOptions options;
++ (NSPredicate *)predicateWithLeftExpression:(NSExpression *)lhs rightExpression:(NSExpression *)rhs customSelector:(SEL)selector;
+- (instancetype)initWithLeftExpression:(NSExpression *)lhs rightExpression:(NSExpression *)rhs customSelector:(SEL)selector NS_DESIGNATED_INITIALIZER;
+@property (nullable, readonly) SEL customSelector;
 @end
 
 @interface NSArray<ObjectType> (NSPredicateSupport)

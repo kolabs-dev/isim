@@ -2,7 +2,7 @@
 // exponent in -128...127, like Apple's NSDecimal. Arithmetic is exact and rounded once (half away from zero)
 // to 38 digits; division produces 38 correct digits. Values are kept compact (no trailing zeros), so
 // Decimal(string: "1.50") == 1.5 and describes as "1.5" like Apple's.
-// Not provided: NSDecimalNumber (Decimal does not bridge to an Objective-C object on isim).
+// Bridges to NSDecimalNumber (Objective-C, Foundation's NSDecimal arithmetic) through their decimal digits.
 
 public struct Decimal: Hashable, Comparable, Sendable, CustomStringConvertible, ExpressibleByIntegerLiteral,
                        ExpressibleByFloatLiteral, SignedNumeric, Strideable, Codable {
@@ -233,6 +233,31 @@ public func pow(_ x: Decimal, _ y: Int) -> Decimal {
   var result: Decimal = 1, base = x, n = y
   while n > 0 { if n & 1 == 1 { result *= base }; n >>= 1; if n > 0 { base *= base } }
   return result
+}
+
+// MARK: NSDecimalNumber bridging
+
+extension Decimal {
+  /// the same value from an Objective-C NSDecimal (through its digits: both hold 38 digits, exponents -128...127)
+  init(_nsDecimal d: NSDecimal) {
+    var copy = d
+    let text = __NSDecimalString(&copy, nil)
+    self = text == "NaN" ? .nan : (Decimal(string: text) ?? .nan)
+  }
+  var _nsDecimal: NSDecimal { NSDecimalNumber(string: isNaN ? "NaN" : description).__decimalValue }
+}
+extension NSDecimalNumber {
+  public convenience init(decimal dcm: Decimal) { self.init(__decimal: dcm._nsDecimal) }
+}
+extension NSNumber {
+  /// the value as a Decimal (an NSDecimalNumber exactly; a double through its shortest digits)
+  public var decimalValue: Decimal { Decimal(_nsDecimal: __decimalValue) }
+}
+extension Decimal: _ObjectiveCBridgeable {
+  public func _bridgeToObjectiveC() -> NSDecimalNumber { NSDecimalNumber(decimal: self) }
+  public static func _forceBridgeFromObjectiveC(_ x: NSDecimalNumber, result: inout Decimal?) { result = x.decimalValue }
+  public static func _conditionallyBridgeFromObjectiveC(_ x: NSDecimalNumber, result: inout Decimal?) -> Bool { result = x.decimalValue; return true }
+  public static func _unconditionallyBridgeFromObjectiveC(_ s: NSDecimalNumber?) -> Decimal { s?.decimalValue ?? Decimal() }
 }
 
 // MARK: NSDecimal C-style functions

@@ -159,7 +159,13 @@ NSNotificationName const NSUndoManagerCheckpointNotification = @"NSUndoManagerCh
 
 /* ================= NSProgress ================= */
 NSProgressKind const NSProgressKindFile = @"NSProgressKindFile";
-NSProgressUserInfoKey const NSProgressEstimatedTimeRemainingKey = @"NSProgressEstimatedTimeRemainingKey", NSProgressThroughputKey = @"NSProgressThroughputKey";
+NSProgressUserInfoKey const NSProgressEstimatedTimeRemainingKey = @"NSProgressEstimatedTimeRemainingKey", NSProgressThroughputKey = @"NSProgressThroughputKey",
+    NSProgressFileOperationKindKey = @"NSProgressFileOperationKindKey", NSProgressFileURLKey = @"NSProgressFileURLKey",
+    NSProgressFileTotalCountKey = @"NSProgressFileTotalCountKey", NSProgressFileCompletedCountKey = @"NSProgressFileCompletedCountKey";
+NSProgressFileOperationKind const NSProgressFileOperationKindDownloading = @"NSProgressFileOperationKindDownloading",
+    NSProgressFileOperationKindDecompressingAfterDownloading = @"NSProgressFileOperationKindDecompressingAfterDownloading",
+    NSProgressFileOperationKindReceiving = @"NSProgressFileOperationKindReceiving", NSProgressFileOperationKindCopying = @"NSProgressFileOperationKindCopying",
+    NSProgressFileOperationKindUploading = @"NSProgressFileOperationKindUploading", NSProgressFileOperationKindDuplicating = @"NSProgressFileOperationKindDuplicating";
 static __thread __unsafe_unretained NSProgress *current_progress;   /* retained by its becomeCurrent caller */
 static __thread int64_t current_pending;
 @interface NSProgress ()
@@ -253,18 +259,76 @@ static __thread int64_t current_pending;
 - (void)pause { if (_paused || !_pausable) return; _paused = YES; if (_pausingHandler) _pausingHandler(); for (NSProgress *c in _children) [c pause]; }
 - (void)resume { if (!_paused) return; _paused = NO; if (_resumingHandler) _resumingHandler(); for (NSProgress *c in _children) [c resume]; }
 - (NSDictionary *)userInfo { return [_info copy]; }
-- (void)setUserInfoObject:(id)obj forKey:(NSProgressUserInfoKey)key { _info[key] = obj; }
+- (void)setUserInfoObject:(id)obj forKey:(NSProgressUserInfoKey)key {
+    [self willChangeValueForKey:@"userInfo"];
+    _info[key] = obj;
+    [self didChangeValueForKey:@"userInfo"];
+    [self willChangeValueForKey:@"localizedAdditionalDescription"]; [self didChangeValueForKey:@"localizedAdditionalDescription"];
+}
+/* the userInfo-backed properties (as on iOS: they read and write the same entries) */
+- (NSNumber *)estimatedTimeRemaining { return _info[NSProgressEstimatedTimeRemainingKey]; }
+- (void)setEstimatedTimeRemaining:(NSNumber *)n { [self setUserInfoObject:n forKey:NSProgressEstimatedTimeRemainingKey]; }
+- (NSNumber *)throughput { return _info[NSProgressThroughputKey]; }
+- (void)setThroughput:(NSNumber *)n { [self setUserInfoObject:n forKey:NSProgressThroughputKey]; }
+- (NSProgressFileOperationKind)fileOperationKind { return _info[NSProgressFileOperationKindKey]; }
+- (void)setFileOperationKind:(NSProgressFileOperationKind)k { [self setUserInfoObject:k forKey:NSProgressFileOperationKindKey]; }
+- (NSURL *)fileURL { return _info[NSProgressFileURLKey]; }
+- (void)setFileURL:(NSURL *)u { [self setUserInfoObject:u forKey:NSProgressFileURLKey]; }
+- (NSNumber *)fileTotalCount { return _info[NSProgressFileTotalCountKey]; }
+- (void)setFileTotalCount:(NSNumber *)n { [self setUserInfoObject:n forKey:NSProgressFileTotalCountKey]; }
+- (NSNumber *)fileCompletedCount { return _info[NSProgressFileCompletedCountKey]; }
+- (void)setFileCompletedCount:(NSNumber *)n { [self setUserInfoObject:n forKey:NSProgressFileCompletedCountKey]; }
+- (void)performAsCurrentWithPendingUnitCount:(int64_t)n usingBlock:(void (NS_NOESCAPE ^)(void))work {
+    NSProgress *saved = current_progress; int64_t savedPending = current_pending;
+    [self becomeCurrentWithPendingUnitCount:n];
+    @try { work(); }
+    @finally { [self resignCurrent]; current_progress = saved; current_pending = savedPending; }
+}
+/* "Downloading “photo.jpg”…", "Copying 3 files…" for file progress; else "N% completed" (adapted: English) */
 - (NSString *)localizedDescription {
     if (_desc) return _desc;
+    NSString *op = self.fileOperationKind;
+    if ([self.kind isEqualToString:NSProgressKindFile] && op) {
+        NSDictionary *verbs = @{ NSProgressFileOperationKindDownloading: @"Downloading", NSProgressFileOperationKindDecompressingAfterDownloading: @"Decompressing",
+                                 NSProgressFileOperationKindReceiving: @"Receiving", NSProgressFileOperationKindCopying: @"Copying",
+                                 NSProgressFileOperationKindUploading: @"Uploading", NSProgressFileOperationKindDuplicating: @"Duplicating" };
+        NSString *verb = verbs[op] ?: @"Processing";
+        long files = self.fileTotalCount.longValue;
+        if (files > 1) return [NSString stringWithFormat:@"%@ %ld files…", verb, files];
+        if (self.fileURL.lastPathComponent.length) return [NSString stringWithFormat:@"%@ “%@”…", verb, self.fileURL.lastPathComponent];
+        return [NSString stringWithFormat:@"%@ files…", verb];
+    }
     NSNumberFormatter *f = [NSNumberFormatter new]; f.numberStyle = NSNumberFormatterPercentStyle;
     return [NSString stringWithFormat:@"%@ completed", [f stringFromNumber:@(self.fractionCompleted)]];
 }
 - (void)setLocalizedDescription:(NSString *)s { _desc = [s copy]; }
+static NSString *remaining_text(double seconds) {
+    if (seconds < 60) return seconds < 5 ? @"About 5 seconds remaining" : [NSString stringWithFormat:@"About %ld seconds remaining", (long)(seconds + 0.5)];
+    long minutes = (long)(seconds / 60 + 0.5);
+    if (minutes < 60) return minutes == 1 ? @"About a minute remaining" : [NSString stringWithFormat:@"About %ld minutes remaining", minutes];
+    long hours = (long)(seconds / 3600 + 0.5);
+    return hours == 1 ? @"About an hour remaining" : [NSString stringWithFormat:@"About %ld hours remaining", hours];
+}
+/* "3 of 10", or for file progress "2 of 5 files" / "12 MB of 40 MB (1.2 MB/sec)", then "— About 2 minutes remaining" */
 - (NSString *)localizedAdditionalDescription {
     if (_addDesc) return _addDesc;
-    if (_total <= 0) return @"";
-    NSNumberFormatter *f = [NSNumberFormatter new]; f.numberStyle = NSNumberFormatterDecimalStyle;
-    return [NSString stringWithFormat:@"%@ of %@", [f stringFromNumber:@(_completed)], [f stringFromNumber:@(_total)]];
+    NSMutableString *out = [NSMutableString string];
+    BOOL file = [self.kind isEqualToString:NSProgressKindFile];
+    if (file && self.fileTotalCount.longValue > 1 && self.fileCompletedCount) {
+        [out appendFormat:@"%ld of %ld files", self.fileCompletedCount.longValue, self.fileTotalCount.longValue];
+    } else if (file && _total > 0) {
+        NSByteCountFormatter *b = [NSByteCountFormatter new]; b.countStyle = NSByteCountFormatterCountStyleFile;
+        [out appendFormat:@"%@ of %@", [b stringFromByteCount:_completed], [b stringFromByteCount:_total]];
+        if (self.throughput) [out appendFormat:@" (%@/sec)", [b stringFromByteCount:self.throughput.longLongValue]];
+    } else if (_total > 0) {
+        NSNumberFormatter *f = [NSNumberFormatter new]; f.numberStyle = NSNumberFormatterDecimalStyle;
+        [out appendFormat:@"%@ of %@", [f stringFromNumber:@(_completed)], [f stringFromNumber:@(_total)]];
+    }
+    if (self.estimatedTimeRemaining && !self.isFinished) {
+        if (out.length) [out appendString:@" — "];
+        [out appendString:remaining_text(self.estimatedTimeRemaining.doubleValue)];
+    }
+    return out;
 }
 - (void)setLocalizedAdditionalDescription:(NSString *)s { _addDesc = [s copy]; }
 - (NSString *)description { return [NSString stringWithFormat:@"<NSProgress %p> : Fraction completed: %.4f / Completed: %lld of %lld", self, self.fractionCompleted, _completed, _total]; }

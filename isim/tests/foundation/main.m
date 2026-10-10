@@ -28,6 +28,104 @@ static int deallocs;
 - (instancetype)initWithCoder:(NSCoder *)c { if ((self = [super initWithCoder:c])) _tag = [c decodeObjectOfClass:[NSString class] forKey:@"tag"]; return self; }
 @end
 
+/* NSDecimalNumber, NSPredicate / NSExpression additions, Progress file properties (#12) */
+@interface Shelf : NSObject
+@property (copy) NSString *name;
+@property (strong) NSArray *books;
+@property (strong) NSDictionary *tags;
+@end
+@implementation Shelf
+- (NSNumber *)doubled:(NSNumber *)n { return @(n.integerValue * 2); }
+- (BOOL)isNamed:(NSString *)n { return [self.name isEqualToString:n]; }
+@end
+static void collection_checks(void) {
+    // NSDecimalNumber: exact arithmetic, rounding behaviors, exceptions, NSDecimal C API
+    NSDecimalNumber *a = [NSDecimalNumber decimalNumberWithString:@"0.1"], *b = [NSDecimalNumber decimalNumberWithString:@"0.2"];
+    CHECK([[[a decimalNumberByAdding:b] stringValue] isEqualToString:@"0.3"]);
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"1"] decimalNumberByDividingBy:[NSDecimalNumber decimalNumberWithString:@"3"]].stringValue isEqualToString:@"0.33333333333333333333333333333333333333"]);
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"123.456"] decimalNumberByMultiplyingBy:[NSDecimalNumber decimalNumberWithString:@"-2"]].stringValue isEqualToString:@"-246.912"]);
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"1.5"] decimalNumberByRaisingToPower:3].stringValue isEqualToString:@"3.375"]);
+    CHECK([[[NSDecimalNumber decimalNumberWithMantissa:12345 exponent:-2 isNegative:YES] stringValue] isEqualToString:@"-123.45"]);
+    NSDecimalNumberHandler *cents = [NSDecimalNumberHandler decimalNumberHandlerWithRoundingMode:NSRoundBankers scale:2 raiseOnExactness:NO raiseOnOverflow:NO raiseOnUnderflow:NO raiseOnDivideByZero:NO];
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"2.345"] decimalNumberByRoundingAccordingToBehavior:cents].stringValue isEqualToString:@"2.34"] &&
+          [[[NSDecimalNumber decimalNumberWithString:@"2.355"] decimalNumberByRoundingAccordingToBehavior:cents].stringValue isEqualToString:@"2.36"]);
+    NSDecimalNumberHandler *down = [NSDecimalNumberHandler decimalNumberHandlerWithRoundingMode:NSRoundDown scale:0 raiseOnExactness:NO raiseOnOverflow:NO raiseOnUnderflow:NO raiseOnDivideByZero:NO];
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"-1.2"] decimalNumberByRoundingAccordingToBehavior:down].stringValue isEqualToString:@"-2"]);
+    CHECK([[NSDecimalNumber.one decimalNumberByDividingBy:NSDecimalNumber.zero withBehavior:cents] isEqual:NSDecimalNumber.notANumber]);
+    BOOL raised = NO;
+    @try { [NSDecimalNumber.one decimalNumberByDividingBy:NSDecimalNumber.zero]; } @catch (NSException *e) { raised = [e.name isEqualToString:NSDecimalNumberDivideByZeroException]; }
+    CHECK(raised);
+    CHECK([[NSDecimalNumber decimalNumberWithString:@"10"] compare:@9.5] == NSOrderedDescending && [[NSDecimalNumber decimalNumberWithString:@"2.50"] isEqual:@2.5] &&
+          [NSDecimalNumber decimalNumberWithString:@"abc"] == NSDecimalNumber.notANumber || [[NSDecimalNumber decimalNumberWithString:@"abc"] isEqual:NSDecimalNumber.notANumber]);
+    CHECK([[NSDecimalNumber decimalNumberWithString:@"3,25" locale:@{ NSLocaleDecimalSeparator: @"," }].stringValue isEqualToString:@"3.25"] &&
+          [[[NSDecimalNumber decimalNumberWithString:@"3.25"] descriptionWithLocale:[NSLocale localeWithLocaleIdentifier:@"de_DE"]] isEqualToString:@"3,25"]);
+    CHECK(fabs([NSDecimalNumber decimalNumberWithString:@"1e3"].doubleValue - 1000) < 1e-9 && strcmp([a objCType], "d") == 0 && [a isKindOfClass:[NSNumber class]]);
+    NSDecimal x = [NSDecimalNumber decimalNumberWithString:@"7.125"].decimalValue, y = [@2 decimalValue], r;
+    CHECK(NSDecimalMultiply(&r, &x, &y, NSRoundPlain) == NSCalculationNoError && [NSDecimalString(&r, nil) isEqualToString:@"14.25"]);
+    NSDecimalRound(&r, &x, 2, NSRoundPlain);
+    CHECK([NSDecimalString(&r, nil) isEqualToString:@"7.13"] && NSDecimalCompare(&x, &y) == NSOrderedDescending);
+    NSDecimal d1 = [@0.1 decimalValue];
+    CHECK([NSDecimalString(&d1, nil) isEqualToString:@"0.1"]);
+    NSDecimalNumber *archived = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSDecimalNumber class] fromData:[NSKeyedArchiver archivedDataWithRootObject:a requiringSecureCoding:YES error:NULL] error:NULL];
+    CHECK([archived isEqual:a]);
+
+    // NSPredicate / NSExpression: subqueries, functions, index access, set expressions, TERNARY, custom selectors
+    Shelf *s1 = [Shelf new]; s1.name = @"fiction"; s1.books = @[@{ @"title": @"Dune", @"pages": @412 }, @{ @"title": @"Emma", @"pages": @474 }, @{ @"title": @"Ubik", @"pages": @202 }];
+    s1.tags = @{ @"color": @"red" };
+    Shelf *s2 = [Shelf new]; s2.name = @"poems"; s2.books = @[@{ @"title": @"Odes", @"pages": @80 }];
+    NSArray *shelves = @[s1, s2];
+    NSPredicate *sub = [NSPredicate predicateWithFormat:@"SUBQUERY(books, $b, $b.pages > 400).@count >= 2"];
+    CHECK([[shelves filteredArrayUsingPredicate:sub] isEqual:@[s1]] && [sub.predicateFormat containsString:@"SUBQUERY(books, $b, $b.pages > 400)"]);
+    CHECK([[[NSExpression expressionWithFormat:@"sum:(books.pages)"] expressionValueWithObject:s1 context:nil] isEqual:@1088]);
+    CHECK([[[NSExpression expressionWithFormat:@"average:({1, 2, 3, 4})"] expressionValueWithObject:nil context:nil] isEqual:@2.5]);
+    CHECK([[[NSExpression expressionWithFormat:@"median:({5, 1, 3})"] expressionValueWithObject:nil context:nil] isEqual:@3]);
+    CHECK([[[NSExpression expressionWithFormat:@"modulus:by:(17, 5)"] expressionValueWithObject:nil context:nil] isEqual:@2]);
+    CHECK([[[NSExpression expressionWithFormat:@"2 ** 10"] expressionValueWithObject:nil context:nil] isEqual:@1024]);
+    CHECK([[[NSExpression expressionWithFormat:@"sqrt:(16) + abs:(-2)"] expressionValueWithObject:nil context:nil] doubleValue] == 6);
+    CHECK([[[NSExpression expressionWithFormat:@"uppercase:(name)"] expressionValueWithObject:s1 context:nil] isEqual:@"FICTION"]);
+    CHECK([[[NSExpression expressionWithFormat:@"books[FIRST].title"] expressionValueWithObject:s1 context:nil] isEqual:@"Dune"] &&
+          [[[NSExpression expressionWithFormat:@"books[LAST]"] expressionValueWithObject:s1 context:nil][@"title"] isEqual:@"Ubik"] &&
+          [[[NSExpression expressionWithFormat:@"books[SIZE]"] expressionValueWithObject:s1 context:nil] isEqual:@3] &&
+          [[[NSExpression expressionWithFormat:@"books[1]"] expressionValueWithObject:s1 context:nil][@"title"] isEqual:@"Emma"] &&
+          [[[NSExpression expressionWithFormat:@"tags['color']"] expressionValueWithObject:s1 context:nil] isEqual:@"red"]);
+    CHECK([[NSPredicate predicateWithFormat:@"FUNCTION(SELF, 'doubled:', 21) == 42"] evaluateWithObject:s1]);
+    CHECK([[NSPredicate predicateWithFormat:@"TERNARY(name == 'poems', 1, 0) == 1"] evaluateWithObject:s2]);
+    NSSet *u = [[NSExpression expressionWithFormat:@"{1, 2} UNION {2, 3}"] expressionValueWithObject:nil context:nil];
+    NSSet *i = [[NSExpression expressionWithFormat:@"{1, 2} INTERSECT {2, 3}"] expressionValueWithObject:nil context:nil];
+    NSSet *m = [[NSExpression expressionWithFormat:@"{1, 2} MINUS {2, 3}"] expressionValueWithObject:nil context:nil];
+    CHECK(u.count == 3 && [i isEqual:[NSSet setWithObject:@2]] && [m isEqual:[NSSet setWithObject:@1]]);
+    NSPredicate *custom = [NSComparisonPredicate predicateWithLeftExpression:[NSExpression expressionForEvaluatedObject] rightExpression:[NSExpression expressionForConstantValue:@"poems"] customSelector:@selector(isNamed:)];
+    CHECK([[shelves filteredArrayUsingPredicate:custom] isEqual:@[s2]] && ((NSComparisonPredicate *)custom).customSelector == @selector(isNamed:));
+    CHECK(([[NSPredicate predicateWithFormat:@"%@ UTI-CONFORMS-TO 'public.image'", @"public.png"] evaluateWithObject:nil] &&
+           ![[NSPredicate predicateWithFormat:@"%@ UTI-CONFORMS-TO 'public.image'", @"public.plain-text"] evaluateWithObject:nil]));
+    CHECK(([[NSPredicate predicateWithFormat:@"CAST(0, 'NSDate') < %@", [NSDate date]] evaluateWithObject:nil]));
+    NSPredicate *withVar = [[NSPredicate predicateWithFormat:@"SUBQUERY(books, $b, $b.pages > $min).@count == 1"] predicateWithSubstitutionVariables:@{ @"min": @450 }];
+    CHECK([withVar evaluateWithObject:s1]);
+    NSPredicate *roundTrip = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSPredicate class] fromData:[NSKeyedArchiver archivedDataWithRootObject:sub requiringSecureCoding:YES error:NULL] error:NULL];
+    CHECK([roundTrip evaluateWithObject:s1] && ![roundTrip evaluateWithObject:s2]);
+
+    // Progress: file properties, time remaining, throughput, performAsCurrent
+    NSProgress *file = [NSProgress progressWithTotalUnitCount:40 * 1000 * 1000];
+    file.kind = NSProgressKindFile;
+    file.fileOperationKind = NSProgressFileOperationKindDownloading;
+    file.fileURL = [NSURL fileURLWithPath:@"/tmp/movie.mov"];
+    file.completedUnitCount = 12 * 1000 * 1000;
+    file.throughput = @(1200 * 1000);
+    file.estimatedTimeRemaining = @(130);
+    CHECK([file.localizedDescription isEqualToString:@"Downloading “movie.mov”…"]);
+    CHECK([file.localizedAdditionalDescription containsString:@" of "] && [file.localizedAdditionalDescription containsString:@"/sec)"] &&
+          [file.localizedAdditionalDescription hasSuffix:@"About 2 minutes remaining"]);
+    CHECK([file.userInfo[NSProgressThroughputKey] isEqual:@(1200 * 1000)] && [file.userInfo[NSProgressFileOperationKindKey] isEqual:NSProgressFileOperationKindDownloading]);
+    file.fileTotalCount = @5; file.fileCompletedCount = @2;
+    CHECK([file.localizedDescription isEqualToString:@"Downloading 5 files…"] && [file.localizedAdditionalDescription hasPrefix:@"2 of 5 files"]);
+    NSProgress *parent = [NSProgress progressWithTotalUnitCount:10];
+    [parent performAsCurrentWithPendingUnitCount:4 usingBlock:^{
+        NSProgress *child = [NSProgress progressWithTotalUnitCount:2];
+        child.completedUnitCount = 2;
+    }];
+    CHECK(parent.completedUnitCount == 4 && NSProgress.currentProgress == nil);
+}
+
 /* operations, threads and run loops (#12) */
 @interface AsyncOp : NSOperation
 @property (atomic) BOOL running, done;
@@ -902,6 +1000,8 @@ int main(int argc, char *argv[]) {
         CHECK([fm removeItemAtPath:fmDir error:NULL]);
         thread_checks();
         locale_checks();
+
+        collection_checks();
 
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }
