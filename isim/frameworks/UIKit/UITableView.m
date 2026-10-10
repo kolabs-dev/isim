@@ -677,7 +677,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
 }
 - (UIView *)_cardFor:(NSInteger)s {
     UIView *card = _cards[@(s)];
-    if (!card) { card = [UIView new]; card.userInteractionEnabled = YES; card.layer.cornerRadius = 10; card.clipsToBounds = YES; _cards[@(s)] = card; }
+    if (!card) { card = [UIView new]; card.userInteractionEnabled = YES; card.layer.cornerRadius = 10; card.layer.cornerCurve = kCACornerCurveContinuous; card.clipsToBounds = YES; _cards[@(s)] = card; }
     return card;
 }
 

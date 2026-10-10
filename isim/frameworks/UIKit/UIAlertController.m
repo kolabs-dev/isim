@@ -120,7 +120,7 @@ static UIColor *card_color(void) {
 /* iOS 26+ alert: 300 pt glass card, corner 34, leading text, capsule buttons (two side by side, more stacked) */
 - (void)_isim_buildGlassAlert {
     UIView *card = [__IsimGlassCard new];
-    card.layer.cornerRadius = 34; card.clipsToBounds = YES;
+    card.layer.cornerRadius = 34; card.layer.cornerCurve = kCACornerCurveContinuous; card.clipsToBounds = YES;
     [self.view addSubview:card]; [_cards addObject:card];
     CGFloat W = 300, pad = 22, y = 22;
     if (self.title.length) {
@@ -177,7 +177,7 @@ static UIColor *card_color(void) {
     if (sheet && self.modalPresentationStyle == UIModalPresentationPopover) { [self _isim_buildPopoverSheet]; return; }
     UIView *card = sheet && isim_ui_glass() ? [__IsimGlassCard new] : [UIView new];
     if (![card isKindOfClass:[__IsimGlassCard class]]) card.backgroundColor = card_color();
-    card.layer.cornerRadius = isim_ui_glass() ? 28 : sheet ? 13 : 14; card.clipsToBounds = YES;
+    card.layer.cornerRadius = isim_ui_glass() ? 28 : sheet ? 13 : 14; card.layer.cornerCurve = kCACornerCurveContinuous; card.clipsToBounds = YES;
     [self.view addSubview:card]; [_cards addObject:card];
     CGFloat W = sheet ? MIN(UIScreen.mainScreen.bounds.size.width - 16, 400) : 270, y = 0;
     if (self.title.length || self.message.length) {
@@ -248,7 +248,7 @@ static UIColor *card_color(void) {
         if (cancel) {
             UIView *c = [UIView new];
             c.backgroundColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *t) { return t.userInterfaceStyle == UIUserInterfaceStyleDark ? [UIColor colorWithWhite:0.17 alpha:1] : UIColor.whiteColor; }];
-            c.layer.cornerRadius = isim_ui_glass() ? 28 : 13; c.clipsToBounds = YES;
+            c.layer.cornerRadius = isim_ui_glass() ? 28 : 13; c.layer.cornerCurve = kCACornerCurveContinuous; c.clipsToBounds = YES;
             __IsimAlertButton *b = [self _button:cancel bold:YES sheet:YES];
             b.frame = CGRectMake(0, 0, W, rowH); b.label.frame = b.bounds;
             [c addSubview:b];

@@ -75,7 +75,8 @@ UIKIT_EXTERN CAMediaTimingFillMode const kCAFillModeRemoved NS_SWIFT_NAME(CAMedi
 
 /* ================= CALayer ================= */
 typedef NSString *CALayerCornerCurve NS_TYPED_ENUM;
-UIKIT_EXTERN CALayerCornerCurve const kCACornerCurveCircular, kCACornerCurveContinuous;
+UIKIT_EXTERN CALayerCornerCurve const kCACornerCurveCircular NS_SWIFT_NAME(CALayerCornerCurve.circular);
+UIKIT_EXTERN CALayerCornerCurve const kCACornerCurveContinuous NS_SWIFT_NAME(CALayerCornerCurve.continuous);
 typedef NSString *CALayerContentsFilter NS_TYPED_ENUM;
 UIKIT_EXTERN CALayerContentsFilter const kCAFilterNearest, kCAFilterLinear, kCAFilterTrilinear;
 typedef NSString *CALayerContentsGravity NS_TYPED_ENUM;
@@ -123,7 +124,7 @@ typedef NS_OPTIONS(unsigned int, CAAutoresizingMask) {
 
 /* isim: NSCoding methods are declared but CALayer does not adopt NSSecureCoding, so Swift subclasses need no
    required init(coder:) (they may still declare one) */
-@interface CALayer : NSObject <CAMediaTiming>
+@interface CALayer : NSObject <NSSecureCoding, CAMediaTiming>
 + (instancetype)layer;
 - (instancetype)init;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder;

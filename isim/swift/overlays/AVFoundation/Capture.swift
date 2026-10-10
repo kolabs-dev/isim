@@ -836,6 +836,7 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
 /// Shows the session's camera feed (redrawn every display frame while the session runs).
 open class AVCaptureVideoPreviewLayer: CALayer {
     public override init() { super.init() }
+    public required init?(coder: NSCoder) { super.init(coder: coder) }
     public convenience init(session: AVCaptureSession) { self.init(); self.session = session }
     public convenience init(sessionWithNoConnection session: AVCaptureSession) { self.init(session: session) }
     open var session: AVCaptureSession? {

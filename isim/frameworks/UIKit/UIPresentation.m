@@ -416,7 +416,7 @@ UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewControll
         CGFloat W = _container.bounds.size.width, sc = (W - 32) / W, ty = (d->safe_top - 6) - H * (1 - sc) / 2;
         CGFloat s = 1 - (1 - sc) * q;
         behind.transform = CGAffineTransformTranslate(CGAffineTransformMakeScale(s, s), 0, ty * q / s);
-        behind.layer.cornerRadius = 10 * q;
+        behind.layer.cornerRadius = 10 * q; behind.layer.cornerCurve = kCACornerCurveContinuous;
         dim = fmin(dim, 0.12 + 0.18 * (1 - q));
     }
     _dim.alpha = dim;
@@ -723,7 +723,7 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
     _dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [c addSubview:_dim];
     CGRect end = [self presentedFrame];
-    v.autoresizingMask = UIViewAutoresizingNone; v.layer.cornerRadius = isim_ui_glass() ? 26 : 10; v.clipsToBounds = YES;
+    v.autoresizingMask = UIViewAutoresizingNone; v.layer.cornerRadius = isim_ui_glass() ? 26 : 10; v.layer.cornerCurve = kCACornerCurveContinuous; v.clipsToBounds = YES;
     [c addSubview:v];
     _drag = [[__IsimSheetDrag alloc] initWithTarget:self action:@selector(sheetDragged:)];
     _drag.presentation = self;
@@ -745,7 +745,7 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
     _dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [c addSubview:_dim];
     v.autoresizingMask = UIViewAutoresizingNone;
-    v.layer.cornerRadius = s.preferredCornerRadius > 0 ? s.preferredCornerRadius : isim_ui_glass() ? 34 : 10; v.clipsToBounds = YES;   /* iOS 26: rounder sheets */
+    v.layer.cornerRadius = s.preferredCornerRadius > 0 ? s.preferredCornerRadius : isim_ui_glass() ? 34 : 10; v.layer.cornerCurve = kCACornerCurveContinuous; v.clipsToBounds = YES;   /* iOS 26: rounder sheets */
     v.layer.shadowColor = UIColor.blackColor.CGColor; v.layer.shadowOpacity = 0.12; v.layer.shadowRadius = 6; v.layer.shadowOffset = CGSizeMake(0, -1);
     [c addSubview:v];
     _grabber = [__IsimGrabber new];
@@ -791,7 +791,7 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
     v.frame = [self popoverContentFrame];
     v.autoresizingMask = UIViewAutoresizingNone;
     if (!v.backgroundColor) v.backgroundColor = _popoverCard.fill;
-    v.layer.cornerRadius = isim_ui_glass() ? 26 : 13; v.clipsToBounds = YES;
+    v.layer.cornerRadius = isim_ui_glass() ? 26 : 13; v.layer.cornerCurve = kCACornerCurveContinuous; v.clipsToBounds = YES;
     [c addSubview:v];
     NSLog(@"isim: popover shown, arrow %@", @{ @1: @"up", @2: @"down", @4: @"left", @8: @"right" }[@(pop.arrowDirection)] ?: @"?");
     __IsimTransitionContext *ctx = _context; ctx.duration = animated ? 0.25 : 0; ctx.toFinal = v.frame;

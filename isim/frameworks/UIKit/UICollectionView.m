@@ -1478,7 +1478,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         CGRect items = [_collectionViewLayout _isim_itemsRectForSection:s];
         UIView *card = _cards[@(s)];
         if (lc.appearance == UICollectionLayoutListAppearanceInsetGrouped && !CGRectIsNull(items) && items.size.height > 0 && CGRectIntersectsRect(items, rect)) {
-            if (!card) { card = [UIView new]; card.layer.cornerRadius = 10; card.clipsToBounds = YES; card.userInteractionEnabled = NO; _cards[@(s)] = card; }
+            if (!card) { card = [UIView new]; card.layer.cornerRadius = 10; card.layer.cornerCurve = kCACornerCurveContinuous; card.clipsToBounds = YES; card.userInteractionEnabled = NO; _cards[@(s)] = card; }
             card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
             if (card.superview != self) [self insertSubview:card atIndex:_backgroundView ? 1 : 0];
             card.frame = CGRectOffset(items, ai.left, 0);
