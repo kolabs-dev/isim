@@ -55,13 +55,13 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 3 | 2 | 0 | 0 | 5 | 80% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
 | Swift Charts | 16 | 0 | 0 | 0 | 16 | 100% |
-| **Foundation** | 61 | 21 | 1 | 1 | 84 | 85% |
+| **Foundation** | 66 | 16 | 1 | 1 | 84 | 88% |
 | &nbsp;&nbsp;↳ Strings & text | 11 | 4 | 0 | 0 | 15 | 87% |
-| &nbsp;&nbsp;↳ Collections & values | 10 | 3 | 0 | 0 | 13 | 88% |
+| &nbsp;&nbsp;↳ Collections & values | 13 | 0 | 0 | 0 | 13 | 100% |
 | &nbsp;&nbsp;↳ Encoding & serialization | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Dates, calendars & formatters | 5 | 6 | 0 | 0 | 11 | 73% |
 | &nbsp;&nbsp;↳ Files, bundles & preferences | 8 | 3 | 0 | 0 | 11 | 86% |
-| &nbsp;&nbsp;↳ Notifications, timers & threads | 7 | 2 | 0 | 0 | 9 | 89% |
+| &nbsp;&nbsp;↳ Notifications, timers & threads | 9 | 0 | 0 | 0 | 9 | 100% |
 | &nbsp;&nbsp;↳ Networking | 12 | 3 | 1 | 1 | 17 | 79% |
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **782** | **187** | **23** | **32** | **1024** | **85%** |
+| **All areas** | **787** | **182** | **23** | **32** | **1024** | **86%** |
 
 ### Per iOS version
 
@@ -98,7 +98,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
 | SwiftUI | 90% (216) | 89% (222) | 88% (229) | 87% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
-| Foundation | 85% (84) | 85% (84) | 85% (84) | 85% (84) |
+| Foundation | 88% (84) | 88% (84) | 88% (84) | 88% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **86%** (966) | **86%** (978) | **86%** (1003) | **85%** (1024) |
+| **All areas** | **86%** (966) | **86%** (978) | **86%** (1003) | **86%** (1024) |
 
 ---
 
@@ -822,13 +822,13 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `IndexPath` / `NSIndexPath` (+ UIKit `row`/`section`/`item`) | ✅ | ≤17 | value type bridged to NSIndexPath; tested (HelloTable) |
 | `NSNumber`, `NSValue` (CG geometry), `NSNull` | ✅ | ≤17 | |
 | `UUID` | ✅ | ≤17 | |
-| `Decimal` | 🟡 | ≤17 | 38 significant digits, exact arithmetic, `NSDecimalRound`/`NSDecimalAdd`..., `pow`; no `NSDecimalNumber`, does not bridge to an Objective-C object |
+| `Decimal`, `NSDecimalNumber`, `NSDecimalNumberHandler` | ✅ | ≤17 | adapted: 38 significant digits, exact decimal arithmetic (digit strings), `NSDecimalRound`/`NSDecimalAdd`... (Swift and C), `pow`; `NSDecimalNumber` (an `NSNumber` subclass: arithmetic with behaviors, rounding modes, raise-on errors, `notANumber`, `compare:`, coding, scalar initializers exact), `NSDecimalNumberHandler`, `NSNumber.decimalValue`; `Decimal` bridges to `NSDecimalNumber` both ways (`as`, `Any`). Tested: FoundationTest, SwiftFoundationTest |
 | `NSError`, `LocalizedError`, `CustomNSError`, `RecoverableError`, `CocoaError` | ✅ | ≤17 | Swift errors bridge through the Swift runtime's NSError box: `domain`/`code` from the error (raw values, `errorDomain`/`errorCode`), `userInfo` from `errorUserInfo` + `errorDescription`/`failureReason`/`recoverySuggestion`/`helpAnchor` + recovery options; `localizedDescription` matches iOS (default "The operation couldn’t be completed. (domain error n.)"); `as? MyError` works after a round trip through Objective-C; NSErrors of the Cocoa / URL domains bridge to `CocoaError` / `URLError` (`catch CocoaError.fileReadNoSuchFile`); Objective-C `NSError *` parameters and block arguments import as `Error` / `Error?`, as on iOS (Foundation API notes: `SwiftBridge: Swift.Error`), so Swift errors pass without `as NSError` and Swift classes adopt Objective-C protocols with Apple's signatures; `NSError.setUserInfoValueProvider(forDomain:)`, `localizedRecoverySuggestion`, `localizedRecoveryOptions`, `helpAnchor`, `underlyingErrors`. Tested (tests/swift-foundation, tests/foundation). `POSIXError`/`MachError` missing |
-| `NSPredicate`, `NSExpression` (format strings, `filtered(using:)`) | 🟡 | ≤17 | comparisons, string operators (`CONTAINS[cd]`, `LIKE`, `MATCHES`, ...), aggregates, `ANY`/`ALL`, key paths, block predicates; no subqueries or function expressions; the `#Predicate` macro is not available |
+| `NSPredicate`, `NSExpression` (format strings, `filtered(using:)`), `Predicate` / `#Predicate`, `Expression` / `#Expression` | ✅ | ≤17 | adapted: comparisons, string operators (`CONTAINS[cd]`, `LIKE`, `MATCHES`, `UTI-CONFORMS-TO`, ...), aggregates, `ANY`/`ALL`/`NONE`, `SUBQUERY`, `FUNCTION`, built-in functions (`sum:`, `average:`, `now()`, `uppercase:`, `count:`, ...), `$variables`, ternaries, set operations, block and custom-selector predicates; every `NSExpression` kind; secure coding. `#Predicate` / `#Expression` (the toolchain's macros) with swift-foundation's `Predicate` sources (Apache 2.0, see NOTICE) in a `FoundationEssentials` module that Foundation re-exports, as the macros expand to it; `NSPredicate(_: Predicate)` / `NSExpression(_:)` conversion. Tested: FoundationTest, SwiftFoundationTest |
 | `NSSortDescriptor`, `SortDescriptor`, `KeyPathComparator`, `sorted(using:)` | ✅ | ≤17 | |
 | Key-value coding (`value(forKey:)`, key paths, collection operators) and observing (KVO, `observe(\.x)`, `publisher(for:)`) | ✅ | ≤17 | KVO wraps setters; `@objc dynamic` Swift properties observable |
 | `UndoManager` | ✅ | ≤17 | groups, run-loop grouping, redo, action names, `registerUndo(withTarget:handler:)` |
-| `Progress` | 🟡 | ≤17 | units, children, KVO on `fractionCompleted`, localized description; no publishing/file progress |
+| `Progress` | ✅ | ≤17 | units, children, implicit (`becomeCurrent`, `performAsCurrent`), KVO on `fractionCompleted`, file progress (`kind = .file`, `fileOperationKind`, `fileURL`, `fileTotalCount` / `fileCompletedCount`, `throughput`, `estimatedTimeRemaining`, file-aware localized descriptions), `ProgressReporting`. Publishing and subscribing are macOS-only (unavailable on iOS). Tested: FoundationTest, SwiftFoundationTest |
 
 ### Encoding & serialization
 
@@ -882,10 +882,10 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | `NotificationCenter` (selector, block, Combine publisher) | ✅ | ≤17 | |
 | `NotificationQueue` | ✅ | ≤17 | `.now`, `.asap` (end of the run-loop pass), `.whenIdle` (shortly after), coalescing on name/sender, `dequeueNotifications`; one queue per thread. Tested: HelloSharedData |
 | `DistributedNotificationCenter` | N/A | ≤17 | macOS only (not in the iOS SDK) |
-| `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | ≤17 | the run loop keeps scheduled timers alive until invalidated |
-| `RunLoop` | 🟡 | ≤17 | main run loop only; modes ignored |
-| `Thread` (main checks, detach, sleep, name) | ✅ | ≤17 | |
-| `OperationQueue` | 🟡 | ≤17 | block operations only; no `Operation` subclasses or dependencies |
+| `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | ≤17 | the run loop keeps scheduled timers alive until invalidated; `init(fire:interval:repeats:block:)` / target forms, `fireDate`, `tolerance` (accepted; timers fire on time); scheduled timers go to the current thread's run loop in the default mode. Tested: FoundationTest, SwiftFoundationTest |
+| `RunLoop` | ✅ | ≤17 | one per thread (`RunLoop.current` on a `Thread`), with modes: timers, delayed performs (`perform(_:with:afterDelay:inModes:)`, cancelling), ordered performs (`perform(_:target:argument:order:modes:)`), blocks (`perform(_:)`, `perform(inModes:block:)`) and ports (`Port` / `NSMachPort` keep a loop running) each in a set of modes; `.common` stands for the loop's common modes; `run()`, `run(until:)`, `run(mode:before:)` (false when the mode has nothing to wait for), `limitDate(forMode:)`, `acceptInput(forMode:before:)`, `currentMode`. The main loop is driven by UIKit's event loop and runs in `RunLoop.Mode.tracking` (`UITrackingRunLoopMode`, a common mode) while a scroll view is dragged or decelerates, so default-mode timers wait, as on iOS (isim's own framework timers use the common modes). Main-queue blocks run in the main loop's common modes. `Timer.publish(every:on:in:)` and the `RunLoop` Combine scheduler use the given loop and mode. Adapted: ports carry no messages (no `NSPortMessage`); no `CFRunLoop` API. Tested: FoundationTest, SwiftFoundationTest, HelloScrollAndLists (tracking mode) |
+| `Thread` (main checks, detach, sleep, name) | ✅ | ≤17 | pthreads: `Thread(block:)` / `init(target:selector:object:)`, `start`, `main`, `cancel`, `isExecuting` / `isFinished` / `isCancelled`, `detachNewThread`, `exit()`, `stackSize`, `threadDictionary`, `qualityOfService` / `threadPriority` (recorded, not applied: adapted), `callStackSymbols` / `callStackReturnAddresses`, `isMultiThreaded`, `NSThreadWillExit` / `NSWillBecomeMultiThreaded` notifications; `perform(_:on:with:waitUntilDone:modes:)`, `performSelector(onMainThread:with:waitUntilDone:modes:)` (waits for the target thread's run loop), `performSelector(inBackground:with:)`. Tested: FoundationTest, SwiftFoundationTest |
+| `OperationQueue` | ✅ | ≤17 | `Operation` (subclasses overriding `main`, or asynchronous ones overriding `start` / `isExecuting` / `isFinished` and posting KVO), `BlockOperation` (several execution blocks run concurrently), `NSInvocationOperation` (Objective-C); dependencies (a cancelled operation stops waiting), `queuePriority`, `qualityOfService`, `completionBlock` (on another thread), `waitUntilFinished`, KVO on `isReady` / `isExecuting` / `isFinished` / `isCancelled`. Queues: `addOperation(s)`, `addOperation { }`, `addBarrierBlock`, `maxConcurrentOperationCount`, `isSuspended`, `cancelAllOperations`, `waitUntilAllOperationsAreFinished`, `operations` / `operationCount` (KVO), `underlyingQueue`, `progress`, `OperationQueue.current` / `.main`. Operations run on the global dispatch queue of their quality of service (the main queue for `.main`). Tested: FoundationTest, SwiftFoundationTest |
 | `NSLock`, `NSRecursiveLock`, `NSCondition` | ✅ | ≤17 | |
 | `ProcessInfo` (environment, arguments, processor count, uptime) | ✅ | ≤17 | |
 | `ProcessInfo.thermalState`, `isLowPowerModeEnabled`, `physicalMemory`, `operatingSystemVersion`, activities | ✅ | ≤17 | a simulated iPhone: always `.nominal`, never Low Power Mode, memory per device model |
@@ -1328,7 +1328,7 @@ Transaction Manager. Tested by `tests/ui/test_store.py` (HelloStore sample).
 |---|---|---|---|
 | Core Data: stack (`NSPersistentContainer`, `NSPersistentStoreCoordinator`, `NSPersistentStoreDescription`) | ✅ | ≤17 | isim's Objective-C `CoreData` framework (+ Swift overlay). Container finds `<name>.momd` in the main bundle; SQLite store in Library/Application Support/`<name>`.sqlite; `/dev/null` URL or `NSInMemoryStoreType` = in-memory. Store layout is isim's own (see docs/COREDATA.md). Tested: CoreDataTest, HelloCoreData |
 | Core Data: models (`NSManagedObjectModel`, `NSEntityDescription`, attributes, relationships, inheritance) | ✅ | ≤17 | Built in code or loaded from isim-compiled models. All attribute types incl. UUID, URI, Date, Binary, Decimal (as NSNumber/REAL), Transformable (value transformer data); to-one/to-many/ordered/many-to-many with inverses; fetch request templates, fetched properties, configurations. Tested: CoreDataTest |
-| Core Data: `.xcdatamodeld` in Xcode projects + codegen | ✅ | ≤17 | `isim build` compiles `.xcdatamodeld`/`.xcdatamodel` (versions, `.xccurrentversion`) to `<Name>.momd` in **isim's own model format** (XML plists; not Apple's binary .mom) and generates the Swift that Xcode's Class Definition / Category codegen makes (`@NSManaged` properties, `fetchRequest()`, to-many accessors). Decimal attributes generate `NSNumber?` (isim has no NSDecimalNumber). Tested: CoreDataTest, HelloCoreData |
+| Core Data: `.xcdatamodeld` in Xcode projects + codegen | ✅ | ≤17 | `isim build` compiles `.xcdatamodeld`/`.xcdatamodel` (versions, `.xccurrentversion`) to `<Name>.momd` in **isim's own model format** (XML plists; not Apple's binary .mom) and generates the Swift that Xcode's Class Definition / Category codegen makes (`@NSManaged` properties, `fetchRequest()`, to-many accessors). Decimal attributes generate `NSNumber?` (Xcode: `NSDecimalNumber?`). Tested: CoreDataTest, HelloCoreData |
 | Core Data: `NSManagedObject` (`@NSManaged` accessors, faults, KVC/KVO, `changedValues`, validation) | ✅ | ≤17 | Dynamic accessors via `+resolveInstanceMethod:` typed from the property's declared type (scalars, objects, `add<Key>Object:` & co., ordered accessors, `primitive<Key>`); `ObservableObject` + `Identifiable`; lazy faults (`object(with:)`, to-many loaded on first access); validation: mandatory, min/max, regex, validation predicates, `validate<Key>:error:`, relationship counts, deny. Tested: CoreDataTest |
 | Core Data: `NSManagedObjectContext` (insert/delete/save/rollback/reset/refresh, delete rules, notifications) | ✅ | ≤17 | Cascade/nullify/deny/no-action; `ObjectsDidChange` (end of event / `processPendingChanges`), `WillSave`/`DidSave`; `perform`/`performAndWait` (+ async `perform`, `performBackgroundTask`), main/private queues; parent/child contexts; `automaticallyMergesChangesFromParent` (children and sibling root contexts); `mergeChanges(fromContextDidSave:)`, `mergeChanges(fromRemoteContextSave:into:)`; permanent IDs + `URIRepresentation`. Tested: CoreDataTest |
 | Core Data: merge policies | 🟡 | ≤17 | Optimistic locking per row; error, object-trump, store-trump, overwrite, rollback policies decide per object (property-level merge simplified). Uniqueness constraints are parsed but not enforced. Tested: error, object trump, store trump |
@@ -1339,7 +1339,7 @@ Transaction Manager. Tested by `tests/ui/test_store.py` (HelloStore sample).
 | Core Data: migration | 🟡 | ≤17 | Lightweight only (`shouldMigrateStoreAutomatically` + `shouldInferMappingModelAutomatically`, the defaults): added entities/attributes/relationships, renaming identifiers; removed properties are left in the store; changed attribute types keep stored values; no mapping models / `NSMigrationManager` / staged migration. Tested: CoreDataTest |
 | Core Data: persistent history, derived attributes, `NSBatchInsertRequest`, undo | ❌ | ≤17 | `undoManager` is stored but changes are not registered with it |
 | Core Data: `NSPersistentCloudKitContainer`, `NSPersistentCloudKitContainerOptions`, `cloudKitContainerOptions` | 🟡 | ≤17 | adapted: an `NSPersistentContainer` subclass whose store stays on the device — **local, no iCloud mirroring**; options are remembered, `initializeCloudKitSchema` only logs, `canUpdateRecord`/… return true, no `eventChangedNotification` events. Tested: HelloCloudKit (load, save, count) |
-| SwiftData (`@Model`, `ModelContainer`, `@Query`) | ❌ | 17.0 | needs Apple's Swift macros (`@Model`, `#Predicate`), which isim cannot build; Core Data is the supported persistence framework |
+| SwiftData (`@Model`, `ModelContainer`, `@Query`) | ❌ | 17.0 | needs Apple's `@Model` macro, which isim cannot build (`#Predicate` itself works, see Foundation); Core Data is the supported persistence framework |
 | CloudKit: containers, account (`CKContainer.default()`, `accountStatus`, `userRecordID`, `ISIM_ICLOUD=noAccount`) | ✅ | **local, no iCloud sync**: a simulated account; `ISIM_ICLOUD=noAccount\|restricted\|temporarilyUnavailable` changes the status, and private/shared operations (and public writes) fail with `CKError.notAuthenticated`. Default container `iCloud.<bundle id>`. Tested: HelloCloudKit |
 | CloudKit: records (`CKRecord` typed values, `CKAsset`, `CKRecord.Reference`, `CLLocation`, lists, `changedKeys`, change tags, dates, `encodeSystemFields`) | ✅ | ≤17 | stored per container/database as JSON in `$ISIM_DATA/Library/isim/CloudKit/<container>/`; assets copied into the store; `.deleteSelf` references cascade; values read back as Objective-C-style values (`as? String/Int/Double/Date/[String]`). `encryptedValues` are stored like other fields (not encrypted at rest). Tested: HelloCloudKit (relaunch persistence) |
 | CloudKit: `CKDatabase` save/fetch/delete (+ async), `records(matching:)`, `modifyRecords`, `CKQuery` (NSPredicate + sort), `CKQueryOperation` (cursor, `resultsLimit`), `CKModifyRecordsOperation` (save policies, atomic), `CKFetchRecordsOperation`, `CKError` | ✅ | ≤17 | `serverRecordChanged` with server/client records, `.changedKeys`/`.allKeys`, atomic batches in custom zones (`batchRequestFailed`), `unknownItem` for missing records/types, `partialFailure`. Predicates use isim's NSPredicate (no `distanceToLocation:`); `CKOperation` is not an `NSOperation` (isim has none): add operations to a database/container. Tested: HelloCloudKit |

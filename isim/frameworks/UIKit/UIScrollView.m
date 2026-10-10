@@ -21,7 +21,18 @@ const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal = 0.998, U
     UILayoutGuide *_contentGuide, *_frameGuide;
     BOOL _contentFromLayout;
     UIEdgeInsets _lastAdjusted;
+    BOOL _countsTracking;                  /* counted in tracking_views: dragging or decelerating */
 }
+/* the main run loop runs in UITrackingRunLoopMode while a scroll view is dragged or decelerates, as on iOS: timers in
+ * the default mode wait, those in the common modes keep firing */
+static int tracking_views;
+static void update_tracking(UIScrollView *s, BOOL active) {
+    if (active == s->_countsTracking) return;
+    s->_countsTracking = active;
+    tracking_views += active ? 1 : -1;
+    isim_runloop_set_main_mode(tracking_views > 0 ? UITrackingRunLoopMode : NSDefaultRunLoopMode);
+}
+- (void)_isim_updateTracking { update_tracking(self, self.isDragging || self.isDecelerating); }
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
         self.clipsToBounds = YES;
@@ -133,7 +144,8 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     if (o.y < mn.y) o.y = mn.y + rubber(o.y - mn.y, b.height); else if (o.y > mx.y) o.y = mx.y + rubber(o.y - mx.y, b.height);
     return o;
 }
-- (void)_isim_pan:(UIPanGestureRecognizer *)g {
+- (void)_isim_pan:(UIPanGestureRecognizer *)g { [self _isim_panStep:g]; [self _isim_updateTracking]; }
+- (void)_isim_panStep:(UIPanGestureRecognizer *)g {
     if (!_scrollEnabled) return;
     if ([self respondsToSelector:@selector(isZooming)] && self.zooming) {      /* the pinch moves the content (UIScrollViewZoom.m) */
         BOOL ending = g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled;
@@ -194,7 +206,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     }
 }
 - (void)_startDeceleration {
-    _decelerating = YES;
+    _decelerating = YES; update_tracking(self, YES);
     id<UIScrollViewDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(scrollViewWillBeginDecelerating:)]) [d scrollViewWillBeginDecelerating:self];
     _lastTick = isim_time();
@@ -231,7 +243,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
 }
 /* paging / adjusted targets: a short ease-out glide to the target, reported as deceleration */
 - (void)_snapTo:(CGPoint)target {
-    _decelerating = YES;
+    _decelerating = YES; update_tracking(self, YES);
     id<UIScrollViewDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(scrollViewWillBeginDecelerating:)]) [d scrollViewWillBeginDecelerating:self];
     CGPoint from = self.contentOffset; double start = isim_time(), dur = 0.35;
@@ -249,8 +261,8 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     }];
     [NSRunLoop.mainRunLoop addTimer:_anim forMode:NSRunLoopCommonModes];
 }
-- (void)_stopAnimation { [_anim invalidate]; _anim = nil; }
-- (void)dealloc { [_anim invalidate]; }
+- (void)_stopAnimation { [_anim invalidate]; _anim = nil; if (_countsTracking && !self.isDragging) update_tracking(self, NO); }
+- (void)dealloc { [_anim invalidate]; if (_countsTracking) { tracking_views--; isim_runloop_set_main_mode(tracking_views > 0 ? UITrackingRunLoopMode : NSDefaultRunLoopMode); } }
 
 /* ---- indicators ---- */
 - (void)_isim_drawOverlay {

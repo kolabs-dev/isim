@@ -142,7 +142,7 @@ enum _ASAppleID {
         watching = true
         lastState = entry()?["state"] as? String
         DispatchQueue.main.async {
-            Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            Timer._isimScheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
                 let s = entry()?["state"] as? String
                 if s != lastState {
                     if lastState == "authorized" && s != "authorized" {

@@ -28,6 +28,7 @@ extern struct isim_const_dict __NSDictionary0__struct;
 /* run loop services (NSRunLoop.m) */
 void isim_schedule_perform(id target, SEL sel, id arg, NSTimeInterval delay);
 void isim_cancel_performs(id target);
+NSArray<NSString *> *isim_symbolicate(NSArray<NSNumber *> *addresses);   /* Runtime.m */
 const char *isim_process_name(void);
 
 /* property list parsing (NSBundle.m) */

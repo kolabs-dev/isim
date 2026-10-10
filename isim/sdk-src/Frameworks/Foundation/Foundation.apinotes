@@ -111,8 +111,20 @@ Classes:
   SwiftName: FileManager.DirectoryEnumerator
 - Name: NSThread
   SwiftName: Thread
+- Name: NSOperation
+  SwiftName: Operation
+- Name: NSBlockOperation
+  SwiftName: BlockOperation
+- Name: NSPort
+  SwiftName: Port
+- Name: NSMachPort
+  SwiftName: NSMachPort
 - Name: NSOperationQueue
   SwiftName: OperationQueue
+  Methods:
+  - Selector: 'addOperationWithBlock:'
+    MethodKind: Instance
+    SwiftName: 'addOperation(_:)'
   Properties:
   - Name: mainQueue
     PropertyKind: Class
@@ -135,6 +147,10 @@ Globals:
 - Name: NSRunLoopCommonModes
   SwiftName: common
 Tags:
+- Name: NSQualityOfService
+  SwiftName: QualityOfService
+- Name: NSOperationQueuePriority
+  SwiftName: Operation.QueuePriority
 - Name: NSComparisonResult
   SwiftName: ComparisonResult
 - Name: NSSearchPathDirectory

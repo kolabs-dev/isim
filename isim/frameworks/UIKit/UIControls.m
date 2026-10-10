@@ -778,7 +778,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     double start = isim_time();
     for (UIGestureRecognizer *o in waiting) if (o.isimRecognizedAt >= start - 0.1) return YES;      /* it just won: we fail */
     __weak UIGestureRecognizer *ws = self;
-    __block NSTimer *t = [NSTimer scheduledTimerWithTimeInterval:0.03 repeats:YES block:^(NSTimer *timer) {
+    __block NSTimer *t = isim_scheduled_common_timer(0.03, YES, ^(NSTimer *timer) {
         BOOL won = NO, pending = NO;
         for (UIGestureRecognizer *o in waiting) {
             if (o.isimRecognizedAt >= start - 0.1) won = YES;
@@ -788,7 +788,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
         if (pending || isim_time() - start < 0.36) return;      /* a double tap has 0.35 s for its second tap */
         [timer invalidate];
         if (ws) fire();
-    }];
+    });
     (void)t;
     return YES;
 }

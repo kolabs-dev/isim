@@ -5,3 +5,8 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 isim is not affiliated with, endorsed by, or sponsored by Apple Inc. Apple, iPhone, iPad, iOS,
 Xcode, Swift, UIKit, SwiftUI, TestFlight and App Store are trademarks of Apple Inc.
+
+This product includes software from swift-foundation (https://github.com/swiftlang/swift-foundation):
+the Predicate sources in isim/swift/overlays/FoundationEssentials/ and isim/swift/overlays/Foundation/SFPredicate_*.swift.
+Copyright (c) 2014 - 2023 Apple Inc. and the Swift project authors.
+Licensed under the Apache License v2.0 with Runtime Library Exception (https://swift.org/LICENSE.txt).

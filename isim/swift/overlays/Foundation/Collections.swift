@@ -331,6 +331,14 @@ public struct NSFastEnumerationIterator: IteratorProtocol {
 extension NSEnumerator: Sequence {
     public func makeIterator() -> NSFastEnumerationIterator { NSFastEnumerationIterator(self) }
 }
+extension BlockOperation {
+    /// the blocks, without a dynamic cast of each block object (isim's runtime cannot cast a block object to a
+    /// block function type when bridging an NSArray)
+    public var executionBlocks: [@convention(block) () -> Void] {
+        guard let blocks = value(forKey: "executionBlocks") as? NSArray else { return [] }
+        return (0..<blocks.count).map { unsafeBitCast(blocks.object(at: $0) as AnyObject, to: (@convention(block) () -> Void).self) }
+    }
+}
 
 // MARK: - key-value observing in Swift
 public struct NSKeyValueObservedChange<Value> {

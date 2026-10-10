@@ -622,7 +622,7 @@ static void switch_command(NSString *c) {
     else if ([c hasPrefix:@"auto"]) {                 /* auto scanning: the highlight moves every interval (default 1 s) */
         double t = [[c substringFromIndex:4] doubleValue]; if (t <= 0) t = 1;
         [sc_timer invalidate];
-        sc_timer = [NSTimer scheduledTimerWithTimeInterval:t repeats:YES block:^(NSTimer *x) { sc_next(); }];
+        sc_timer = isim_scheduled_common_timer(t, YES, ^(NSTimer *x) { sc_next(); });
         NSLog(@"isim: Switch Control auto scanning every %g s", t);
     } else if ([c isEqualToString:@"stop"]) { [sc_timer invalidate]; sc_timer = nil; }
     else NSLog(@"isim: unknown switchcontrol command '%@'", c);

@@ -57,17 +57,11 @@ void NSSetUncaughtExceptionHandler(NSUncaughtExceptionHandler *h) {
 }
 __attribute__((constructor)) static void isim_install_exception_preprocessor(void) { objc_setExceptionPreprocessor(isim_exception_preprocessor); }
 
-@implementation NSException
-+ (NSException *)exceptionWithName:(NSExceptionName)n reason:(NSString *)r userInfo:(NSDictionary *)u { return [[self alloc] initWithName:n reason:r userInfo:u]; }
-+ (void)raise:(NSExceptionName)name format:(NSString *)format arguments:(va_list)ap {
-    [[self exceptionWithName:name reason:[[NSString alloc] initWithFormat:format arguments:ap] userInfo:nil] raise];
-    __builtin_unreachable();
-}
-- (NSArray<NSNumber *> *)callStackReturnAddresses { return _isimCallStack ?: @[]; }
-- (NSArray<NSString *> *)callStackSymbols {
+/* "0   Image   0x...  symbol + offset" lines, like -[NSException callStackSymbols] */
+NSArray<NSString *> *isim_symbolicate(NSArray<NSNumber *> *addresses) {
     NSMutableArray *out = [NSMutableArray array];
     NSUInteger i = 0;
-    for (NSNumber *n in self.callStackReturnAddresses) {
+    for (NSNumber *n in addresses) {
         Dl_info di; void *pc = (void *)(uintptr_t)n.unsignedLongValue;
         const char *img = "???", *sym = NULL; uintptr_t off = 0;
         if (dladdr(pc, &di)) {
@@ -80,6 +74,15 @@ __attribute__((constructor)) static void isim_install_exception_preprocessor(voi
     }
     return out;
 }
+
+@implementation NSException
++ (NSException *)exceptionWithName:(NSExceptionName)n reason:(NSString *)r userInfo:(NSDictionary *)u { return [[self alloc] initWithName:n reason:r userInfo:u]; }
++ (void)raise:(NSExceptionName)name format:(NSString *)format arguments:(va_list)ap {
+    [[self exceptionWithName:name reason:[[NSString alloc] initWithFormat:format arguments:ap] userInfo:nil] raise];
+    __builtin_unreachable();
+}
+- (NSArray<NSNumber *> *)callStackReturnAddresses { return _isimCallStack ?: @[]; }
+- (NSArray<NSString *> *)callStackSymbols { return isim_symbolicate(self.callStackReturnAddresses); }
 - (instancetype)initWithName:(NSExceptionName)n reason:(NSString *)r userInfo:(NSDictionary *)u {
     if ((self = [super init])) { _name = [n copy]; _reason = [r copy]; _userInfo = [u copy]; }
     return self;
@@ -373,165 +376,6 @@ void isim_bundle_register_extension(NSString *path) {
 }
 @end
 
-/* ================= run loop: timers, delayed performs, main-queue blocks ================= */
-@interface __IsimRunLoopItem : NSObject
-@property double fireAt, interval;
-@property BOOL repeats, valid;
-@property (copy) void (^block)(void);
-@property (strong) id target, arg;
-@property SEL sel;
-@property (weak) NSTimer *timer;
-@property (strong) NSTimer *scheduled;     /* the run loop keeps a scheduled timer alive until it is invalidated */
-@end
-@implementation __IsimRunLoopItem @end
-
-static pthread_mutex_t rl_lock = PTHREAD_MUTEX_INITIALIZER;
-static NSMutableArray<__IsimRunLoopItem *> *rl_items;
-
-static pthread_cond_t rl_cond = PTHREAD_COND_INITIALIZER;
-void (*isim_main_wakeup_hook)(void);      /* set by UIKit: wakes the UI event loop */
-static void rl_add(__IsimRunLoopItem *it) {
-    pthread_mutex_lock(&rl_lock);
-    if (!rl_items) rl_items = [NSMutableArray array];
-    it.valid = YES;
-    [rl_items addObject:it];
-    pthread_cond_broadcast(&rl_cond);
-    pthread_mutex_unlock(&rl_lock);
-    if (!pthread_main_np() && isim_main_wakeup_hook) isim_main_wakeup_hook();
-}
-void isim_schedule_perform(id target, SEL sel, id arg, NSTimeInterval delay) {
-    __IsimRunLoopItem *it = [__IsimRunLoopItem new];
-    it.fireAt = mono_now() + delay; it.target = target; it.sel = sel; it.arg = arg;
-    rl_add(it);
-}
-void isim_cancel_performs(id target) {
-    pthread_mutex_lock(&rl_lock);
-    for (__IsimRunLoopItem *it in [rl_items copy]) if (it.target == target && !it.timer) { it.valid = NO; [rl_items removeObject:it]; }
-    pthread_mutex_unlock(&rl_lock);
-}
-static void rl_add_block(double delay, dispatch_block_t block) {
-    __IsimRunLoopItem *it = [__IsimRunLoopItem new];
-    it.fireAt = mono_now() + delay; it.block = block;
-    rl_add(it);
-}
-
-/* main-queue services for the dispatch implementation (Dispatch.mrc.m) */
-void isim_main_enqueue_f(double delay, void (*f)(void *), void *ctx) { rl_add_block(delay, ^{ f(ctx); }); }
-double isim_main_fire_due(void) { return [NSRunLoop.mainRunLoop _isim_fireDue]; }
-/* seconds until the next main run loop item is due (0 if one is due now) without firing anything */
-double isim_main_next_due(void) {
-    double next = 1e9, now = mono_now();
-    pthread_mutex_lock(&rl_lock);
-    for (__IsimRunLoopItem *it in rl_items) if (it.fireAt - now < next) next = it.fireAt - now;
-    pthread_mutex_unlock(&rl_lock);
-    return next < 0 ? 0 : next;
-}
-void isim_main_wait(double seconds) {
-    if (seconds <= 0) return;
-    struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
-    double t = ts.tv_sec + ts.tv_nsec / 1e9 + seconds;
-    ts.tv_sec = (time_t)t; ts.tv_nsec = (long)((t - (double)ts.tv_sec) * 1e9);
-    pthread_mutex_lock(&rl_lock);
-    BOOL due = NO; double now = mono_now();
-    for (__IsimRunLoopItem *it in rl_items) if (it.fireAt <= now) { due = YES; break; }
-    if (!due) pthread_cond_timedwait(&rl_cond, &rl_lock, &ts);
-    pthread_mutex_unlock(&rl_lock);
-}
-
-@interface NSTimer ()
-@property (strong) __IsimRunLoopItem *item;
-@property (copy) void (^timerBlock)(NSTimer *);
-@property (strong) id target;
-@property SEL selector;
-@end
-@implementation NSTimer
-+ (NSTimer *)timerWithTimeInterval:(NSTimeInterval)i repeats:(BOOL)r block:(void (^)(NSTimer *))block {
-    NSTimer *t = [self _isim_timerWithTimeInterval:i repeats:r]; t.timerBlock = block; return t;
-}
-+ (NSTimer *)_isim_timerWithTimeInterval:(NSTimeInterval)i repeats:(BOOL)r {     /* without a block (target/selector timers) */
-    NSTimer *t = [NSTimer new];
-    t->_timeInterval = i;
-    __IsimRunLoopItem *it = [__IsimRunLoopItem new];
-    it.interval = i > 0.0001 ? i : 0.0001; it.repeats = r; it.timer = t;
-    t.item = it;
-    return t;
-}
-+ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)i repeats:(BOOL)r block:(void (^)(NSTimer *))block {
-    NSTimer *t = [self timerWithTimeInterval:i repeats:r block:block];
-    [[NSRunLoop mainRunLoop] addTimer:t forMode:NSDefaultRunLoopMode];
-    return t;
-}
-+ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)i target:(id)target selector:(SEL)sel userInfo:(id)info repeats:(BOOL)r {
-    NSTimer *t = [self _isim_timerWithTimeInterval:i repeats:r];
-    t.target = target; t.selector = sel; t->_userInfo = info;
-    [[NSRunLoop mainRunLoop] addTimer:t forMode:NSDefaultRunLoopMode];
-    return t;
-}
-- (void)fire {
-    if (self.timerBlock) self.timerBlock(self);
-    else if (self.target) ((void (*)(id, SEL, id))[self.target methodForSelector:self.selector])(self.target, self.selector, self);
-}
-- (void)invalidate {
-    pthread_mutex_lock(&rl_lock);
-    self.item.valid = NO;
-    [rl_items removeObject:self.item];
-    pthread_mutex_unlock(&rl_lock);
-    self.item.scheduled = nil;
-    self.target = nil; self.timerBlock = nil;
-}
-- (BOOL)isValid { return self.item.valid; }
-- (NSDate *)fireDate { return [NSDate dateWithTimeIntervalSinceNow:self.item.fireAt - mono_now()]; }
-- (void)setFireDate:(NSDate *)d { self.item.fireAt = mono_now() + d.timeIntervalSinceNow; }
-@end
-
-NSRunLoopMode const NSDefaultRunLoopMode = @"kCFRunLoopDefaultMode";
-NSRunLoopMode const NSRunLoopCommonModes = @"kCFRunLoopCommonModes";
-
-@implementation NSRunLoop
-+ (NSRunLoop *)mainRunLoop { static NSRunLoop *rl; static dispatch_once_t o; dispatch_once(&o, ^{ rl = [NSRunLoop new]; }); return rl; }
-+ (NSRunLoop *)currentRunLoop { return [self mainRunLoop]; }   /* isim: one (main) run loop */
-- (void)addTimer:(NSTimer *)t forMode:(NSRunLoopMode)mode {
-    t.item.fireAt = mono_now() + t.item.interval;
-    t.item.scheduled = t;
-    rl_add(t.item);
-}
-- (NSTimeInterval)_isim_fireDue {
-    double now = mono_now();
-    NSMutableArray *due = [NSMutableArray array];
-    pthread_mutex_lock(&rl_lock);
-    for (__IsimRunLoopItem *it in rl_items) if (it.fireAt <= now) [due addObject:it];
-    for (__IsimRunLoopItem *it in due) {
-        if (it.repeats) { it.fireAt += it.interval; if (it.fireAt < now) it.fireAt = now + it.interval; }
-        else [rl_items removeObject:it];
-    }
-    pthread_mutex_unlock(&rl_lock);
-    for (__IsimRunLoopItem *it in due) {
-        @autoreleasepool {
-            if (!it.valid) continue;
-            if (!it.repeats) it.valid = NO;
-            if (it.timer) { NSTimer *t = it.timer; [t fire]; if (!it.repeats) it.scheduled = nil; }
-            else if (it.block) it.block();
-            else if (it.target) ((void (*)(id, SEL, id))[it.target methodForSelector:it.sel])(it.target, it.sel, it.arg);
-        }
-    }
-    double next = 1e9;
-    pthread_mutex_lock(&rl_lock);
-    for (__IsimRunLoopItem *it in rl_items) if (it.fireAt - mono_now() < next) next = it.fireAt - mono_now();
-    pthread_mutex_unlock(&rl_lock);
-    return next < 0 ? 0 : next;
-}
-- (void)runUntilDate:(NSDate *)limit {
-    for (;;) {
-        double left = limit.timeIntervalSinceNow;
-        if (left <= 0) return;
-        double next = [self _isim_fireDue];
-        double s = next < left ? next : left;
-        if (s > 0.05) s = 0.05;
-        struct timespec ts = { 0, (long)(s * 1e9) }; nanosleep(&ts, NULL);
-    }
-}
-- (void)run { [self runUntilDate:[NSDate distantFuture]]; }
-@end
 
 /* ================= NSNotificationCenter ================= */
 @implementation NSNotification
@@ -862,55 +706,3 @@ static NSMutableDictionary *error_providers;
 - (NSString *)description { return [NSString stringWithFormat:@"<%s %p>", _kind ?: "CGObject", self]; }
 @end
 
-/* NSThread: identity objects for the calling pthread (one per thread, via a key) */
-static pthread_key_t thread_key;
-static NSThread *main_thread_obj;
-static void thread_obj_release(void *p) { NSThread *t = (__bridge_transfer NSThread *)p; (void)t; }
-@implementation NSThread
-+ (void)initialize { if (self == [NSThread class]) pthread_key_create(&thread_key, thread_obj_release); }
-+ (BOOL)isMainThread { return pthread_main_np() != 0; }
-- (BOOL)isMainThread { return self == main_thread_obj; }
-+ (NSThread *)currentThread {
-    if (pthread_main_np()) return [self mainThread];
-    NSThread *t = (__bridge NSThread *)pthread_getspecific(thread_key);
-    if (!t) { t = [NSThread new]; pthread_setspecific(thread_key, (__bridge_retained void *)t); }
-    return t;
-}
-+ (NSThread *)mainThread { static dispatch_once_t o; dispatch_once(&o, ^{ main_thread_obj = [NSThread new]; main_thread_obj.name = @"main"; }); return main_thread_obj; }
-+ (void)sleepForTimeInterval:(NSTimeInterval)ti { if (ti > 0) { struct timespec ts = { (time_t)ti, (long)((ti - (time_t)ti) * 1e9) }; nanosleep(&ts, NULL); } }
-+ (void)detachNewThreadWithBlock:(void (^)(void))block { dispatch_async(dispatch_get_global_queue(0, 0), block); }
-@end
-
-/* ================= NSOperationQueue ================= */
-static char opq_key;
-@implementation NSOperationQueue { dispatch_queue_t _q; dispatch_group_t _g; }
-+ (NSOperationQueue *)mainQueue {
-    static NSOperationQueue *m; static dispatch_once_t o;
-    dispatch_once(&o, ^{ m = [NSOperationQueue new]; m->_q = dispatch_get_main_queue(); m.name = @"NSOperationQueue Main Queue"; m.maxConcurrentOperationCount = 1;
-                         dispatch_queue_set_specific(m->_q, &opq_key, (__bridge void *)m, NULL); });
-    return m;
-}
-+ (NSOperationQueue *)currentQueue { return pthread_main_np() ? self.mainQueue : (__bridge NSOperationQueue *)dispatch_get_specific(&opq_key); }
-- (instancetype)init {
-    if ((self = [super init])) {
-        _q = dispatch_queue_create("NSOperationQueue", DISPATCH_QUEUE_CONCURRENT);
-        _g = dispatch_group_create();
-        _maxConcurrentOperationCount = -1;
-        dispatch_queue_set_specific(_q, &opq_key, (__bridge void *)self, NULL);
-    }
-    return self;
-}
-@synthesize maxConcurrentOperationCount = _maxConcurrentOperationCount;
-- (NSInteger)maxConcurrentOperationCount { return _maxConcurrentOperationCount; }
-- (void)setMaxConcurrentOperationCount:(NSInteger)n {
-    _maxConcurrentOperationCount = n;
-    if (n == 1 && _q != dispatch_get_main_queue()) { _q = dispatch_queue_create("NSOperationQueue (serial)", NULL); dispatch_queue_set_specific(_q, &opq_key, (__bridge void *)self, NULL); }
-}
-- (void)addOperationWithBlock:(void (^)(void))block {
-    if (!_g) _g = dispatch_group_create();
-    dispatch_group_async(_g, _q, ^{ @autoreleasepool { block(); } });
-}
-- (void)addBarrierBlock:(void (^)(void))barrier { [self addOperationWithBlock:barrier]; }
-- (void)waitUntilAllOperationsAreFinished { if (_g && _q != dispatch_get_main_queue()) dispatch_group_wait(_g, DISPATCH_TIME_FOREVER); }
-- (void)cancelAllOperations {}
-@end

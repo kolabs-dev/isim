@@ -133,6 +133,162 @@ func fileManagerChecks() {
     try? fm.removeItem(at: root)
 }
 
+/// #Predicate (iOS 17), NSPredicate from a Predicate, Decimal <-> NSDecimalNumber, Progress file properties (issue #12)
+struct Book { let title: String; let pages: Int; let tags: [String] }
+final class Gadget: NSObject {
+    @objc let name: String
+    @objc let price: Int
+    init(_ name: String, _ price: Int) { self.name = name; self.price = price }
+}
+func predicateAndDecimalChecks() {
+    if #available(iOS 17, *) {
+        let books = [Book(title: "Dune", pages: 412, tags: ["sf"]), Book(title: "Emma", pages: 474, tags: []), Book(title: "Odes", pages: 80, tags: ["poems", "sf"])]
+        let long = #Predicate<Book> { $0.pages > 400 && !$0.title.isEmpty }
+        let tagged = #Predicate<Book> { book in book.tags.contains("sf") }
+        let search = #Predicate<Book> { $0.title.localizedStandardContains("dU") }
+        let longTitles = (try? books.filter(long))?.map(\.title)
+        check(longTitles == ["Dune", "Emma"], "#Predicate with && and ! (\(longTitles ?? []))")
+        check((try? books.filter(tagged))?.map(\.title) == ["Dune", "Odes"], "#Predicate with Sequence.contains")
+        check((try? search.evaluate(books[0])) == true && (try? search.evaluate(books[1])) == false, "#Predicate with localizedStandardContains")
+        let minimum = 300
+        let captured = #Predicate<Book> { $0.pages >= minimum ? $0.tags.isEmpty : false }
+        check((try? books.filter(captured))?.map(\.title) == ["Emma"], "#Predicate capturing a value, with ?:")
+        let nsPredicate = NSPredicate(#Predicate<Gadget> { $0.price > 10 && $0.name != "x" })
+        let gadgets = [Gadget("pen", 2), Gadget("lamp", 40)]
+        check(nsPredicate != nil && (gadgets as NSArray).filtered(using: nsPredicate!).count == 1, "NSPredicate(_: Predicate) (\(nsPredicate?.predicateFormat ?? "nil"))")
+        if #available(iOS 18, *) {
+            let doubled = #Expression<Book, Int> { $0.pages * 2 }
+            check((try? doubled.evaluate(books[2])) == 160, "#Expression (iOS 18)")
+        }
+        check(String(describing: long).contains("Predicate<main.Book>") && String(describing: long).contains("400"), "Predicate description")
+    }
+    // Decimal bridges to NSDecimalNumber, both ways, exactly
+    let price = Decimal(string: "19.99")!
+    let ns = price as NSDecimalNumber
+    let tripled = ns.multiplying(by: 3) as Decimal
+    check(ns.stringValue == "19.99" && tripled == Decimal(string: "59.97")!, "Decimal as NSDecimalNumber, arithmetic, back as Decimal (\(ns.stringValue) * 3 = \(tripled))")
+    check(NSDecimalNumber(decimal: Decimal(string: "-0.0001")!).decimalValue == Decimal(string: "-0.0001")! && NSNumber(value: 0.1).decimalValue == Decimal(string: "0.1")!,
+          "NSDecimalNumber(decimal:), NSNumber.decimalValue")
+    let rounded = NSDecimalNumber(string: "2.675").rounding(accordingToBehavior: NSDecimalNumberHandler(roundingMode: .plain, scale: 2, raiseOnExactness: false, raiseOnOverflow: false, raiseOnUnderflow: false, raiseOnDivideByZero: false))
+    check(rounded.stringValue == "2.68" && NSDecimalNumber.notANumber.decimalValue.isNaN, "NSDecimalNumberHandler rounding, NaN")
+    let boxed: Any = Decimal(5)
+    check((boxed as AnyObject) is NSDecimalNumber, "a Decimal in Any bridges to NSDecimalNumber")
+    // Progress file properties as Swift values
+    let progress = Progress(totalUnitCount: 100)
+    progress.kind = .file
+    progress.fileOperationKind = .copying
+    progress.fileTotalCount = 3
+    progress.fileCompletedCount = 1
+    progress.estimatedTimeRemaining = 45
+    progress.throughput = 2048
+    check(progress.fileTotalCount == 3 && progress.estimatedTimeRemaining == 45 && progress.throughput == 2048 &&
+          progress.userInfo[.fileCompletedCountKey] as? Int == 1 && progress.localizedDescription == "Copying 3 files…", "Progress file properties (\(progress.localizedDescription ?? ""))")
+    let parent = Progress(totalUnitCount: 10)
+    let result = parent.performAsCurrent(withPendingUnitCount: 5) { () -> Int in
+        let child = Progress(totalUnitCount: 1); child.completedUnitCount = 1; return 7
+    }
+    check(result == 7 && parent.completedUnitCount == 5, "Progress.performAsCurrent(withPendingUnitCount:using:)")
+}
+
+/// Operation subclasses, OperationQueue, Thread and RunLoop modes (issue #12)
+final class Locked<T>: @unchecked Sendable {
+    private let lock = NSLock(); private var v: T
+    init(_ v: T) { self.v = v }
+    var value: T { lock.lock(); defer { lock.unlock() }; return v }
+    func mutate(_ f: (inout T) -> Void) { lock.lock(); f(&v); lock.unlock() }
+}
+final class DelayedOperation: Operation, @unchecked Sendable {
+    private let state = Locked((executing: false, finished: false))
+    let log: Locked<[String]>
+    init(log: Locked<[String]>) { self.log = log }
+    override var isAsynchronous: Bool { true }
+    override var isExecuting: Bool { state.value.executing }
+    override var isFinished: Bool { state.value.finished }
+    override func start() {
+        if isCancelled { finish(); return }
+        willChangeValue(forKey: "isExecuting"); state.mutate { $0.executing = true }; didChangeValue(forKey: "isExecuting")
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { self.log.mutate { $0.append("delayed") }; self.finish() }
+    }
+    private func finish() {
+        willChangeValue(forKey: "isFinished"); willChangeValue(forKey: "isExecuting")
+        state.mutate { $0 = (false, true) }
+        didChangeValue(forKey: "isExecuting"); didChangeValue(forKey: "isFinished")
+    }
+}
+final class SquareOperation: Operation, @unchecked Sendable {
+    let input: Int
+    var output = 0
+    init(_ n: Int) { input = n }
+    override func main() { if !isCancelled { output = input * input } }
+}
+func operationChecks() {
+    let log = Locked<[String]>([])
+    let q = OperationQueue()
+    q.maxConcurrentOperationCount = 2
+    let delayed = DelayedOperation(log: log), square = SquareOperation(7)
+    square.addDependency(delayed)
+    q.addOperations([square, delayed], waitUntilFinished: true)
+    check(square.output == 49 && delayed.isFinished && square.isFinished && log.value == ["delayed"],
+          "Operation subclasses: an asynchronous one finishing by KVO, a dependent main()")
+    let block = BlockOperation { log.mutate { $0.append("block") } }
+    block.addExecutionBlock { log.mutate { $0.append("block2") } }
+    block.queuePriority = .veryHigh; block.qualityOfService = .userInitiated
+    q.addOperation(block)
+    q.addOperation { log.mutate { $0.append("closure") } }
+    q.waitUntilAllOperationsAreFinished()
+    check(Set(log.value) == ["delayed", "block", "block2", "closure"] && block.executionBlocks.count == 2,
+          "BlockOperation with execution blocks, addOperation(_:) with a closure (\(log.value))")
+    let cancelled = SquareOperation(3)
+    cancelled.cancel()
+    q.addOperations([cancelled], waitUntilFinished: true)
+    check(cancelled.isFinished && cancelled.output == 0, "a cancelled Operation finishes without running")
+    let watched = OperationQueue()
+    watched.isSuspended = true
+    let counts = Locked<[Int]>([])
+    let observation = watched.observe(\.operationCount, options: [.new]) { _, change in counts.mutate { $0.append(change.newValue ?? -1) } }
+    watched.addOperation {}
+    watched.isSuspended = false
+    watched.waitUntilAllOperationsAreFinished()
+    observation.invalidate()
+    check(counts.value == [1, 0] && OperationQueue.defaultMaxConcurrentOperationCount == -1, "observe(\\.operationCount) (\(counts.value))")
+    let current = Locked<OperationQueue?>(nil)
+    q.addOperations([BlockOperation { current.mutate { $0 = OperationQueue.current } }], waitUntilFinished: true)
+    check(current.value === q && OperationQueue.current === OperationQueue.main, "OperationQueue.current")
+
+    // a Thread with its own RunLoop: a Timer and a perform from the main thread
+    let ticks = Locked(0), ownLoop = Locked(false)
+    let done = DispatchSemaphore(value: 0)
+    let worker = Thread {
+        ownLoop.mutate { $0 = RunLoop.current !== RunLoop.main && !Thread.isMainThread }
+        Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { timer in
+            ticks.mutate { $0 += 1 }
+            if ticks.value == 3 { timer.invalidate() }
+        }
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 2))     // returns when the timer is gone
+        done.signal()
+    }
+    worker.name = "swift-worker"
+    worker.start()
+    check(done.wait(timeout: .now() + 3) == .success && ticks.value == 3 && ownLoop.value, "Thread(block:) runs its RunLoop and Timer")
+    // modes: a timer in a custom mode fires only when the loop runs in that mode
+    let mode = RunLoop.Mode("isim.swift.mode")
+    let firedIn = Locked<RunLoop.Mode?>(nil)
+    RunLoop.main.add(Timer(timeInterval: 0.01, repeats: false) { _ in firedIn.mutate { $0 = RunLoop.main.currentMode } }, forMode: mode)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+    check(firedIn.value == nil, "a custom-mode timer waits while the loop runs in the default mode")
+    _ = RunLoop.main.run(mode: mode, before: Date(timeIntervalSinceNow: 0.5))
+    check(firedIn.value == mode, "RunLoop.run(mode:before:) fires that mode's timers (\(firedIn.value?.rawValue ?? "none"))")
+    let performed = Locked(false)
+    RunLoop.main.perform { performed.mutate { $0 = true } }
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+    check(performed.value && RunLoop.Mode.tracking.rawValue == "UITrackingRunLoopMode", "RunLoop.perform(_:), RunLoop.Mode.tracking")
+    let fired = Locked(false)
+    let cancellable = Timer.publish(every: 0.01, on: .main, in: .common).autoconnect().sink { _ in fired.mutate { $0 = true } }
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+    cancellable.cancel()
+    check(fired.value, "Timer.publish(every:on:in:) on the given run loop and mode")
+}
+
 /// Objective-C collections of classes bridged to Swift collections of metatypes (issue #49)
 func classBridgingChecks() {
     let classes = [NSString.self, UIColor.self] as [AnyClass] as NSArray
@@ -397,6 +553,8 @@ func errorBridgingChecks() {
         classBridgingChecks()
         fileAttributeChecks()
         fileManagerChecks()
+        predicateAndDecimalChecks()
+        operationChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }

@@ -438,7 +438,7 @@ open class MXMetricManager: NSObject, @unchecked Sendable {
 
     private func startPolling() {
         guard timer == nil else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.poll() }
+        timer = Timer._isimScheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.poll() }
     }
     private func poll() {
         let now = try? String(contentsOfFile: MXMetricManager.triggerPath, encoding: .utf8)

@@ -28,6 +28,297 @@ static int deallocs;
 - (instancetype)initWithCoder:(NSCoder *)c { if ((self = [super initWithCoder:c])) _tag = [c decodeObjectOfClass:[NSString class] forKey:@"tag"]; return self; }
 @end
 
+/* NSDecimalNumber, NSPredicate / NSExpression additions, Progress file properties (#12) */
+@interface Shelf : NSObject
+@property (copy) NSString *name;
+@property (strong) NSArray *books;
+@property (strong) NSDictionary *tags;
+@end
+@implementation Shelf
+- (NSNumber *)doubled:(NSNumber *)n { return @(n.integerValue * 2); }
+- (BOOL)isNamed:(NSString *)n { return [self.name isEqualToString:n]; }
+@end
+static void collection_checks(void) {
+    // NSDecimalNumber: exact arithmetic, rounding behaviors, exceptions, NSDecimal C API
+    NSDecimalNumber *a = [NSDecimalNumber decimalNumberWithString:@"0.1"], *b = [NSDecimalNumber decimalNumberWithString:@"0.2"];
+    CHECK([[[a decimalNumberByAdding:b] stringValue] isEqualToString:@"0.3"]);
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"1"] decimalNumberByDividingBy:[NSDecimalNumber decimalNumberWithString:@"3"]].stringValue isEqualToString:@"0.33333333333333333333333333333333333333"]);
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"123.456"] decimalNumberByMultiplyingBy:[NSDecimalNumber decimalNumberWithString:@"-2"]].stringValue isEqualToString:@"-246.912"]);
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"1.5"] decimalNumberByRaisingToPower:3].stringValue isEqualToString:@"3.375"]);
+    CHECK([[[NSDecimalNumber decimalNumberWithMantissa:12345 exponent:-2 isNegative:YES] stringValue] isEqualToString:@"-123.45"]);
+    NSDecimalNumberHandler *cents = [NSDecimalNumberHandler decimalNumberHandlerWithRoundingMode:NSRoundBankers scale:2 raiseOnExactness:NO raiseOnOverflow:NO raiseOnUnderflow:NO raiseOnDivideByZero:NO];
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"2.345"] decimalNumberByRoundingAccordingToBehavior:cents].stringValue isEqualToString:@"2.34"] &&
+          [[[NSDecimalNumber decimalNumberWithString:@"2.355"] decimalNumberByRoundingAccordingToBehavior:cents].stringValue isEqualToString:@"2.36"]);
+    NSDecimalNumberHandler *down = [NSDecimalNumberHandler decimalNumberHandlerWithRoundingMode:NSRoundDown scale:0 raiseOnExactness:NO raiseOnOverflow:NO raiseOnUnderflow:NO raiseOnDivideByZero:NO];
+    CHECK([[[NSDecimalNumber decimalNumberWithString:@"-1.2"] decimalNumberByRoundingAccordingToBehavior:down].stringValue isEqualToString:@"-2"]);
+    CHECK([[NSDecimalNumber.one decimalNumberByDividingBy:NSDecimalNumber.zero withBehavior:cents] isEqual:NSDecimalNumber.notANumber]);
+    BOOL raised = NO;
+    @try { [NSDecimalNumber.one decimalNumberByDividingBy:NSDecimalNumber.zero]; } @catch (NSException *e) { raised = [e.name isEqualToString:NSDecimalNumberDivideByZeroException]; }
+    CHECK(raised);
+    CHECK([[NSDecimalNumber decimalNumberWithString:@"10"] compare:@9.5] == NSOrderedDescending && [[NSDecimalNumber decimalNumberWithString:@"2.50"] isEqual:@2.5] &&
+          [NSDecimalNumber decimalNumberWithString:@"abc"] == NSDecimalNumber.notANumber || [[NSDecimalNumber decimalNumberWithString:@"abc"] isEqual:NSDecimalNumber.notANumber]);
+    CHECK([[NSDecimalNumber decimalNumberWithString:@"3,25" locale:@{ NSLocaleDecimalSeparator: @"," }].stringValue isEqualToString:@"3.25"] &&
+          [[[NSDecimalNumber decimalNumberWithString:@"3.25"] descriptionWithLocale:[NSLocale localeWithLocaleIdentifier:@"de_DE"]] isEqualToString:@"3,25"]);
+    CHECK(fabs([NSDecimalNumber decimalNumberWithString:@"1e3"].doubleValue - 1000) < 1e-9 && strcmp([a objCType], "d") == 0 && [a isKindOfClass:[NSNumber class]]);
+    NSDecimal x = [NSDecimalNumber decimalNumberWithString:@"7.125"].decimalValue, y = [@2 decimalValue], r;
+    CHECK(NSDecimalMultiply(&r, &x, &y, NSRoundPlain) == NSCalculationNoError && [NSDecimalString(&r, nil) isEqualToString:@"14.25"]);
+    NSDecimalRound(&r, &x, 2, NSRoundPlain);
+    CHECK([NSDecimalString(&r, nil) isEqualToString:@"7.13"] && NSDecimalCompare(&x, &y) == NSOrderedDescending);
+    NSDecimal d1 = [@0.1 decimalValue];
+    CHECK([NSDecimalString(&d1, nil) isEqualToString:@"0.1"]);
+    NSDecimalNumber *archived = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSDecimalNumber class] fromData:[NSKeyedArchiver archivedDataWithRootObject:a requiringSecureCoding:YES error:NULL] error:NULL];
+    CHECK([archived isEqual:a]);
+
+    // NSPredicate / NSExpression: subqueries, functions, index access, set expressions, TERNARY, custom selectors
+    Shelf *s1 = [Shelf new]; s1.name = @"fiction"; s1.books = @[@{ @"title": @"Dune", @"pages": @412 }, @{ @"title": @"Emma", @"pages": @474 }, @{ @"title": @"Ubik", @"pages": @202 }];
+    s1.tags = @{ @"color": @"red" };
+    Shelf *s2 = [Shelf new]; s2.name = @"poems"; s2.books = @[@{ @"title": @"Odes", @"pages": @80 }];
+    NSArray *shelves = @[s1, s2];
+    NSPredicate *sub = [NSPredicate predicateWithFormat:@"SUBQUERY(books, $b, $b.pages > 400).@count >= 2"];
+    CHECK([[shelves filteredArrayUsingPredicate:sub] isEqual:@[s1]] && [sub.predicateFormat containsString:@"SUBQUERY(books, $b, $b.pages > 400)"]);
+    CHECK([[[NSExpression expressionWithFormat:@"sum:(books.pages)"] expressionValueWithObject:s1 context:nil] isEqual:@1088]);
+    CHECK([[[NSExpression expressionWithFormat:@"average:({1, 2, 3, 4})"] expressionValueWithObject:nil context:nil] isEqual:@2.5]);
+    CHECK([[[NSExpression expressionWithFormat:@"median:({5, 1, 3})"] expressionValueWithObject:nil context:nil] isEqual:@3]);
+    CHECK([[[NSExpression expressionWithFormat:@"modulus:by:(17, 5)"] expressionValueWithObject:nil context:nil] isEqual:@2]);
+    CHECK([[[NSExpression expressionWithFormat:@"2 ** 10"] expressionValueWithObject:nil context:nil] isEqual:@1024]);
+    CHECK([[[NSExpression expressionWithFormat:@"sqrt:(16) + abs:(-2)"] expressionValueWithObject:nil context:nil] doubleValue] == 6);
+    CHECK([[[NSExpression expressionWithFormat:@"uppercase:(name)"] expressionValueWithObject:s1 context:nil] isEqual:@"FICTION"]);
+    CHECK([[[NSExpression expressionWithFormat:@"books[FIRST].title"] expressionValueWithObject:s1 context:nil] isEqual:@"Dune"] &&
+          [[[NSExpression expressionWithFormat:@"books[LAST]"] expressionValueWithObject:s1 context:nil][@"title"] isEqual:@"Ubik"] &&
+          [[[NSExpression expressionWithFormat:@"books[SIZE]"] expressionValueWithObject:s1 context:nil] isEqual:@3] &&
+          [[[NSExpression expressionWithFormat:@"books[1]"] expressionValueWithObject:s1 context:nil][@"title"] isEqual:@"Emma"] &&
+          [[[NSExpression expressionWithFormat:@"tags['color']"] expressionValueWithObject:s1 context:nil] isEqual:@"red"]);
+    CHECK([[NSPredicate predicateWithFormat:@"FUNCTION(SELF, 'doubled:', 21) == 42"] evaluateWithObject:s1]);
+    CHECK([[NSPredicate predicateWithFormat:@"TERNARY(name == 'poems', 1, 0) == 1"] evaluateWithObject:s2]);
+    NSSet *u = [[NSExpression expressionWithFormat:@"{1, 2} UNION {2, 3}"] expressionValueWithObject:nil context:nil];
+    NSSet *i = [[NSExpression expressionWithFormat:@"{1, 2} INTERSECT {2, 3}"] expressionValueWithObject:nil context:nil];
+    NSSet *m = [[NSExpression expressionWithFormat:@"{1, 2} MINUS {2, 3}"] expressionValueWithObject:nil context:nil];
+    CHECK(u.count == 3 && [i isEqual:[NSSet setWithObject:@2]] && [m isEqual:[NSSet setWithObject:@1]]);
+    NSPredicate *custom = [NSComparisonPredicate predicateWithLeftExpression:[NSExpression expressionForEvaluatedObject] rightExpression:[NSExpression expressionForConstantValue:@"poems"] customSelector:@selector(isNamed:)];
+    CHECK([[shelves filteredArrayUsingPredicate:custom] isEqual:@[s2]] && ((NSComparisonPredicate *)custom).customSelector == @selector(isNamed:));
+    CHECK(([[NSPredicate predicateWithFormat:@"%@ UTI-CONFORMS-TO 'public.image'", @"public.png"] evaluateWithObject:nil] &&
+           ![[NSPredicate predicateWithFormat:@"%@ UTI-CONFORMS-TO 'public.image'", @"public.plain-text"] evaluateWithObject:nil]));
+    CHECK(([[NSPredicate predicateWithFormat:@"CAST(0, 'NSDate') < %@", [NSDate date]] evaluateWithObject:nil]));
+    NSPredicate *withVar = [[NSPredicate predicateWithFormat:@"SUBQUERY(books, $b, $b.pages > $min).@count == 1"] predicateWithSubstitutionVariables:@{ @"min": @450 }];
+    CHECK([withVar evaluateWithObject:s1]);
+    NSPredicate *roundTrip = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSPredicate class] fromData:[NSKeyedArchiver archivedDataWithRootObject:sub requiringSecureCoding:YES error:NULL] error:NULL];
+    CHECK([roundTrip evaluateWithObject:s1] && ![roundTrip evaluateWithObject:s2]);
+
+    // Progress: file properties, time remaining, throughput, performAsCurrent
+    NSProgress *file = [NSProgress progressWithTotalUnitCount:40 * 1000 * 1000];
+    file.kind = NSProgressKindFile;
+    file.fileOperationKind = NSProgressFileOperationKindDownloading;
+    file.fileURL = [NSURL fileURLWithPath:@"/tmp/movie.mov"];
+    file.completedUnitCount = 12 * 1000 * 1000;
+    file.throughput = @(1200 * 1000);
+    file.estimatedTimeRemaining = @(130);
+    CHECK([file.localizedDescription isEqualToString:@"Downloading “movie.mov”…"]);
+    CHECK([file.localizedAdditionalDescription containsString:@" of "] && [file.localizedAdditionalDescription containsString:@"/sec)"] &&
+          [file.localizedAdditionalDescription hasSuffix:@"About 2 minutes remaining"]);
+    CHECK([file.userInfo[NSProgressThroughputKey] isEqual:@(1200 * 1000)] && [file.userInfo[NSProgressFileOperationKindKey] isEqual:NSProgressFileOperationKindDownloading]);
+    file.fileTotalCount = @5; file.fileCompletedCount = @2;
+    CHECK([file.localizedDescription isEqualToString:@"Downloading 5 files…"] && [file.localizedAdditionalDescription hasPrefix:@"2 of 5 files"]);
+    NSProgress *parent = [NSProgress progressWithTotalUnitCount:10];
+    [parent performAsCurrentWithPendingUnitCount:4 usingBlock:^{
+        NSProgress *child = [NSProgress progressWithTotalUnitCount:2];
+        child.completedUnitCount = 2;
+    }];
+    CHECK(parent.completedUnitCount == 4 && NSProgress.currentProgress == nil);
+}
+
+/* operations, threads and run loops (#12) */
+@interface AsyncOp : NSOperation
+@property (atomic) BOOL running, done;
+@property (atomic, strong) NSMutableArray *log;
+@end
+@implementation AsyncOp
+- (BOOL)isAsynchronous { return YES; }
+- (BOOL)isExecuting { return self.running; }
+- (BOOL)isFinished { return self.done; }
+- (void)start {
+    [self willChangeValueForKey:@"isExecuting"]; self.running = YES; [self didChangeValueForKey:@"isExecuting"];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC), dispatch_get_global_queue(0, 0), ^{
+        @synchronized (self.log) { [self.log addObject:@"async"]; }
+        [self willChangeValueForKey:@"isFinished"]; [self willChangeValueForKey:@"isExecuting"];
+        self.running = NO; self.done = YES;
+        [self didChangeValueForKey:@"isExecuting"]; [self didChangeValueForKey:@"isFinished"];
+    });
+}
+@end
+@interface CountObserver : NSObject
+@property (atomic) int changes;
+@end
+@implementation CountObserver
+- (void)observeValueForKeyPath:(NSString *)k ofObject:(id)o change:(NSDictionary *)c context:(void *)ctx { self.changes++; }
+@end
+@interface ThreadHelper : NSObject
+@property (atomic, strong) NSThread *ranOn;
+@property (atomic, strong) NSMutableArray *log;
+@end
+@implementation ThreadHelper
+- (void)note:(NSString *)s { self.ranOn = NSThread.currentThread; @synchronized (self.log) { [self.log addObject:s]; } }
+- (NSString *)echo:(NSString *)s { return [s stringByAppendingString:@"!"]; }
+@end
+static BOOL spin_until(BOOL (^cond)(void), double seconds) {
+    NSDate *end = [NSDate dateWithTimeIntervalSinceNow:seconds];
+    while (!cond() && end.timeIntervalSinceNow > 0) [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    return cond();
+}
+static void thread_checks(void) {
+    // dependencies, priorities, a serial queue
+    NSOperationQueue *q = [NSOperationQueue new];
+    q.maxConcurrentOperationCount = 1;
+    q.suspended = YES;
+    NSMutableArray *order = [NSMutableArray array];
+    NSBlockOperation *a = [NSBlockOperation blockOperationWithBlock:^{ @synchronized (order) { [order addObject:@"a"]; } }];
+    NSBlockOperation *b = [NSBlockOperation blockOperationWithBlock:^{ @synchronized (order) { [order addObject:@"b"]; } }];
+    NSBlockOperation *c = [NSBlockOperation blockOperationWithBlock:^{ @synchronized (order) { [order addObject:@"c"]; } }];
+    NSBlockOperation *hi = [NSBlockOperation blockOperationWithBlock:^{ @synchronized (order) { [order addObject:@"hi"]; } }];
+    hi.queuePriority = NSOperationQueuePriorityVeryHigh;
+    [a addDependency:b];                                // b before a, though a was added first
+    __block BOOL completed = NO;
+    c.completionBlock = ^{ completed = YES; };
+    CHECK(!a.isReady && b.isReady && [a.dependencies isEqual:@[b]]);
+    CountObserver *obs = [CountObserver new];
+    [q addObserver:obs forKeyPath:@"operationCount" options:0 context:NULL];
+    [q addOperations:@[a, b, c, hi] waitUntilFinished:NO];
+    CHECK(q.operationCount == 4 && q.operations.count == 4 && obs.changes == 1);
+    q.suspended = NO;
+    [q waitUntilAllOperationsAreFinished];
+    CHECK([order isEqual:(@[@"hi", @"b", @"a", @"c"])]);
+    if (![order isEqual:(@[@"hi", @"b", @"a", @"c"])]) NSLog(@"operation order: %@", order);
+    CHECK(a.isFinished && !a.isExecuting && q.operationCount == 0 && obs.changes == 5 && spin_until(^{ return completed; }, 2));
+    [q removeObserver:obs forKeyPath:@"operationCount"];
+    // cancelling: a cancelled operation does not run, finishes, ignores its dependencies
+    NSOperationQueue *q2 = [NSOperationQueue new];
+    __block BOOL ran = NO;
+    NSBlockOperation *never = [NSBlockOperation blockOperationWithBlock:^{ ran = YES; }];
+    NSBlockOperation *gate = [NSBlockOperation blockOperationWithBlock:^{}];
+    [never addDependency:gate];
+    [q2 addOperation:never];
+    CHECK(!never.isReady);
+    [never cancel];
+    CHECK(never.isCancelled && never.isReady);
+    [never waitUntilFinished];
+    CHECK(never.isFinished && !ran);
+    // an asynchronous subclass finishes through its own KVO notifications; its dependents wait for it
+    AsyncOp *async = [AsyncOp new]; async.log = [NSMutableArray array];
+    NSBlockOperation *after = [NSBlockOperation blockOperationWithBlock:^{ @synchronized (async.log) { [async.log addObject:@"after"]; } }];
+    [after addDependency:async];
+    [q2 addOperations:@[after, async] waitUntilFinished:YES];
+    CHECK([async.log isEqual:(@[@"async", @"after"])] && async.isFinished && q2.operationCount == 0);
+    // concurrency limit, currentQueue, multiple execution blocks
+    NSOperationQueue *q3 = [NSOperationQueue new];
+    q3.maxConcurrentOperationCount = 2; q3.name = @"limited";
+    __block int now = 0, peak = 0;
+    __block NSOperationQueue *seen = nil;
+    for (int i = 0; i < 6; i++)
+        [q3 addOperationWithBlock:^{
+            @synchronized (q3) { now++; if (now > peak) peak = now; }
+            seen = NSOperationQueue.currentQueue;
+            [NSThread sleepForTimeInterval:0.03];
+            @synchronized (q3) { now--; }
+        }];
+    [q3 waitUntilAllOperationsAreFinished];
+    CHECK(peak == 2 && seen == q3 && NSOperationQueue.currentQueue == NSOperationQueue.mainQueue);
+    NSBlockOperation *multi = [NSBlockOperation new];
+    __block int blocks = 0;
+    for (int i = 0; i < 3; i++) [multi addExecutionBlock:^{ @synchronized (q3) { blocks++; } }];
+    [q3 addOperations:@[multi] waitUntilFinished:YES];
+    CHECK(blocks == 3 && multi.executionBlocks.count == 3);
+    // a barrier waits for earlier operations; later ones wait for it
+    NSMutableArray *bar = [NSMutableArray array];
+    NSOperationQueue *q4 = [NSOperationQueue new];
+    [q4 addOperationWithBlock:^{ [NSThread sleepForTimeInterval:0.05]; @synchronized (bar) { [bar addObject:@"slow"]; } }];
+    [q4 addBarrierBlock:^{ @synchronized (bar) { [bar addObject:@"barrier"]; } }];
+    [q4 addOperationWithBlock:^{ @synchronized (bar) { [bar addObject:@"later"]; } }];
+    [q4 waitUntilAllOperationsAreFinished];
+    CHECK([bar isEqual:(@[@"slow", @"barrier", @"later"])]);
+    // main queue operations run on the main thread; NSInvocationOperation
+    __block BOOL onMain = NO;
+    [NSOperationQueue.mainQueue addOperationWithBlock:^{ onMain = NSThread.isMainThread; }];
+    CHECK(spin_until(^{ return onMain; }, 2));
+    ThreadHelper *h = [ThreadHelper new]; h.log = [NSMutableArray array];
+    NSInvocationOperation *inv = [[NSInvocationOperation alloc] initWithTarget:h selector:@selector(echo:) object:@"hey"];
+    [q3 addOperations:@[inv] waitUntilFinished:YES];
+    CHECK([inv.result isEqualToString:@"hey!"]);
+    BOOL threw = NO;
+    @try { [inv start]; } @catch (NSException *e) { threw = [e.name isEqualToString:NSInvalidArgumentException]; }
+    CHECK(threw);                                       // finished operations cannot start again
+
+    // NSThread with its own run loop: a timer, performs from other threads, a port keeping it alive
+    __block NSRunLoop *threadLoop = nil;
+    __block int ticks = 0;
+    __block BOOL loopExited = NO;
+    NSThread *worker = [[NSThread alloc] initWithBlock:^{
+        threadLoop = NSRunLoop.currentRunLoop;
+        [NSTimer scheduledTimerWithTimeInterval:0.01 repeats:YES block:^(NSTimer *t) { if (++ticks == 3) [t invalidate]; }];
+        [NSRunLoop.currentRunLoop addPort:[NSPort port] forMode:NSDefaultRunLoopMode];
+        while (!NSThread.currentThread.isCancelled) [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        loopExited = YES;
+    }];
+    worker.name = @"isim-worker";
+    [worker start];
+    CHECK(spin_until(^{ return (BOOL)(ticks == 3 && threadLoop != nil); }, 3));
+    CHECK(threadLoop != NSRunLoop.mainRunLoop && worker.isExecuting && [worker.name isEqualToString:@"isim-worker"] && NSThread.isMultiThreaded);
+    [h performSelector:@selector(note:) onThread:worker withObject:@"waited" waitUntilDone:YES];
+    CHECK(h.ranOn == worker && [h.log isEqual:@[@"waited"]]);
+    [h performSelector:@selector(note:) onThread:worker withObject:@"later" waitUntilDone:NO];
+    CHECK(spin_until(^{ return (BOOL)(h.log.count == 2); }, 2));
+    [worker cancel];
+    CHECK(spin_until(^{ return (BOOL)(loopExited && worker.isFinished); }, 2));
+    [h performSelectorInBackground:@selector(note:) withObject:@"background"];
+    CHECK(spin_until(^{ return (BOOL)(h.log.count == 3 && h.ranOn != NSThread.mainThread); }, 2));
+    [h performSelectorOnMainThread:@selector(note:) withObject:@"main" waitUntilDone:YES];
+    CHECK(h.ranOn == NSThread.mainThread);
+    __block BOOL fromBackground = NO;
+    [NSThread detachNewThreadWithBlock:^{
+        [h performSelectorOnMainThread:@selector(note:) withObject:@"to main" waitUntilDone:YES];   // waits for the main loop
+        fromBackground = h.ranOn == NSThread.mainThread;
+    }];
+    CHECK(spin_until(^{ return fromBackground; }, 2));
+    // a run loop with nothing to wait for returns at once; ports and timers are per mode
+    __block BOOL returned = NO, customFired = NO, defaultFiredInCustom = NO, commonFired = NO;
+    [NSThread detachNewThreadWithBlock:^{
+        NSRunLoop *rl = NSRunLoop.currentRunLoop;
+        BOOL r1 = [rl runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
+        [rl run];                                       // returns: no input sources
+        returned = !r1 && rl.currentMode == nil && [rl limitDateForMode:NSDefaultRunLoopMode] == nil;
+        NSTimer *custom = [NSTimer timerWithTimeInterval:0.01 repeats:NO block:^(NSTimer *t) { customFired = [rl.currentMode isEqualToString:@"isim.custom"]; }];
+        NSTimer *plain = [NSTimer timerWithTimeInterval:0.01 repeats:NO block:^(NSTimer *t) { defaultFiredInCustom = YES; }];
+        NSTimer *common = [NSTimer timerWithTimeInterval:0.01 repeats:NO block:^(NSTimer *t) { commonFired = YES; }];
+        [rl addTimer:custom forMode:@"isim.custom"];
+        [rl addTimer:plain forMode:NSDefaultRunLoopMode];
+        [rl addTimer:common forMode:NSRunLoopCommonModes];
+        [rl runMode:@"isim.custom" beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+        [rl runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+    }];
+    CHECK(spin_until(^{ return returned; }, 2) && spin_until(^{ return customFired; }, 2));
+    CHECK(!defaultFiredInCustom || commonFired);        // the default timer only fires once the loop runs in the default mode
+    CHECK(spin_until(^{ return commonFired; }, 2));
+    // delayed performs in modes, cancelling them; ordered performs
+    NSMutableArray *performed = [NSMutableArray array];
+    ThreadHelper *ph = [ThreadHelper new]; ph.log = performed;
+    [ph performSelector:@selector(note:) withObject:@"x" afterDelay:0.01 inModes:@[NSDefaultRunLoopMode]];
+    [ph performSelector:@selector(note:) withObject:@"cancelled" afterDelay:0.01];
+    [NSObject cancelPreviousPerformRequestsWithTarget:ph selector:@selector(note:) object:@"cancelled"];
+    [NSRunLoop.mainRunLoop performSelector:@selector(note:) target:ph argument:@"second" order:2 modes:@[NSDefaultRunLoopMode]];
+    [NSRunLoop.mainRunLoop performSelector:@selector(note:) target:ph argument:@"first" order:1 modes:@[NSDefaultRunLoopMode]];
+    [NSRunLoop.mainRunLoop performBlock:^{ @synchronized (performed) { [performed addObject:@"block"]; } }];
+    CHECK(spin_until(^{ return (BOOL)(performed.count == 4); }, 2));
+    CHECK(performed.count == 4 && [performed[0] isEqual:@"first"] && [performed[1] isEqual:@"second"] && [performed containsObject:@"x"] &&
+          ![performed containsObject:@"cancelled"]);
+    if (performed.count != 4 || ![performed[0] isEqual:@"first"]) NSLog(@"performs: %@", performed);
+    // timers: fire date, tolerance, validity
+    NSTimer *later = [NSTimer timerWithTimeInterval:10 repeats:NO block:^(NSTimer *t) {}];
+    later.tolerance = 0.5;
+    CHECK(later.isValid && later.tolerance == 0.5 && fabs(later.fireDate.timeIntervalSinceNow - 10) < 1);
+    [later invalidate];
+    CHECK(!later.isValid);
+    CHECK(NSThread.callStackSymbols.count > 1 && NSThread.callStackReturnAddresses.count > 1 && NSThread.mainThread.isMainThread &&
+          [NSThread.currentThread.threadDictionary isKindOfClass:[NSMutableDictionary class]]);
+}
+
 static int initialized;
 @interface Lazy : NSObject @end
 @implementation Lazy
@@ -638,6 +929,9 @@ int main(int argc, char *argv[]) {
         CHECK([@"short" getFileSystemRepresentation:fsbuf maxLength:sizeof fsbuf] && !strcmp(fsbuf, "short") && ![@"much too long" getFileSystemRepresentation:fsbuf maxLength:sizeof fsbuf]);
         CHECK(NSFileNoSuchFileError == 4 && NSFileReadNoSuchFileError == 260 && NSFileWriteFileExistsError == 516 && NSPropertyListReadCorruptError == 3840);
         CHECK([fm removeItemAtPath:fmDir error:NULL]);
+        thread_checks();
+
+        collection_checks();
 
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }

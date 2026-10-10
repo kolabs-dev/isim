@@ -779,7 +779,7 @@ open class SKView: UIView {
         timer?.invalidate(); timer = nil
         guard window != nil, scene != nil else { return }
         let fps = max(1, min(preferredFramesPerSecond, 60))
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / Double(fps), repeats: true) { [weak self] _ in
+        timer = Timer._isimScheduledTimer(withTimeInterval: 1.0 / Double(fps), repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
     }
