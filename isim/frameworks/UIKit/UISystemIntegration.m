@@ -888,6 +888,7 @@ void isim_sys_event(const char *text) {
     else if ([verb isEqualToString:@"fullpage"]) full_page(args);
     else if ([verb isEqualToString:@"tilt"]) { extern void isim_ui_tilt(NSString *); isim_ui_tilt(args); }
     else if ([verb isEqualToString:@"guidedaccess"]) { extern void isim_ui_guided_access_command(NSString *); isim_ui_guided_access_command(args); }
+    else if ([verb isEqualToString:@"protected-data"]) { extern void isim_ui_protected_data(BOOL); isim_ui_protected_data(args.intValue != 0); }
     else if ([verb isEqualToString:@"takescreenshot"]) {        /* the Simulator's Device > Trigger Screenshot */
         NSLog(@"isim: user took a screenshot");
         [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationUserDidTakeScreenshotNotification object:UIApplication.sharedApplication];

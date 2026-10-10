@@ -53,8 +53,12 @@ NS_SWIFT_UI_ACTOR
 @protocol UICoordinateSpace <NSObject>
 - (CGPoint)convertPoint:(CGPoint)point toCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
 - (CGPoint)convertPoint:(CGPoint)point fromCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
+- (CGRect)convertRect:(CGRect)rect toCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
+- (CGRect)convertRect:(CGRect)rect fromCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
 @property (readonly, nonatomic) CGRect bounds;
 @end
+/* isim: a rect converted through its corners (UICoordinateSpace implementations) */
+CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<UICoordinateSpace> other, BOOL to);
 
 @interface UIView : UIResponder <NSCoding, UITraitEnvironment, UICoordinateSpace>
 @property (class, nonatomic, readonly) Class layerClass;

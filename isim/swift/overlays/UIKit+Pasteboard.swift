@@ -147,7 +147,7 @@ extension UIResponder: UIPasteConfigurationSupporting {
 
 @objc(UIPasteControl)
 open class UIPasteControl: UIControl {
-    public enum DisplayMode: Int, Sendable { case iconAndLabel, iconOnly, labelOnly }
+    public enum DisplayMode: Int, Sendable { case iconAndLabel, iconOnly, labelOnly, arrowAndLabel }
     open class Configuration: NSObject {
         open var displayMode: DisplayMode = .iconAndLabel
         open var cornerStyle: UIButtonConfigurationCornerStyle = .dynamic
@@ -197,13 +197,14 @@ open class UIPasteControl: UIControl {
         switch configuration.displayMode {
         case .iconOnly: return CGSize(width: 44, height: 44)
         case .labelOnly: return CGSize(width: l.width + 32, height: 44)
-        case .iconAndLabel: return CGSize(width: l.width + 60, height: 44)
+        case .iconAndLabel, .arrowAndLabel: return CGSize(width: l.width + 60, height: 44)
         }
     }
     open override func layoutSubviews() {
         super.layoutSubviews()
         let b = bounds, l = label.intrinsicContentSize
         icon.isHidden = configuration.displayMode == .labelOnly
+        if configuration.displayMode == .arrowAndLabel { icon.image = UIImage(systemName: "arrow.right.doc.on.clipboard") }
         label.isHidden = configuration.displayMode == .iconOnly
         let iconW: CGFloat = icon.isHidden ? 0 : 22, gap: CGFloat = icon.isHidden || label.isHidden ? 0 : 6
         let total = iconW + gap + (label.isHidden ? 0 : l.width)

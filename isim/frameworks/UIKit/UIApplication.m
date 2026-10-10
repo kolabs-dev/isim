@@ -673,6 +673,8 @@ static CGPoint space_from_screen(id<UICoordinateSpace> s, CGPoint p) {
 }
 - (CGPoint)convertPoint:(CGPoint)p toCoordinateSpace:(id<UICoordinateSpace>)s { return space_from_screen(s, space_to_screen(self, p)); }
 - (CGPoint)convertPoint:(CGPoint)p fromCoordinateSpace:(id<UICoordinateSpace>)s { return space_from_screen(self, space_to_screen(s, p)); }
+- (CGRect)convertRect:(CGRect)r toCoordinateSpace:(id<UICoordinateSpace>)s { return isim_ui_space_convert_rect(self, r, s, YES); }
+- (CGRect)convertRect:(CGRect)r fromCoordinateSpace:(id<UICoordinateSpace>)s { return isim_ui_space_convert_rect(self, r, s, NO); }
 @end
 @implementation UIWindowScene { NSMutableArray<UIWindow *> *_windows; id<UITraitOverrides> _traitOverrides; CGRect _isimFrame; BOOL _isimHasFrame;
     UISceneSizeRestrictions *_sizeRestrictions; __IsimSceneSpace *_space; UIScreen *_isimScreen; __weak UIWindow *_isimExternalKey;
@@ -1674,6 +1676,10 @@ static void scene_error(void (^handler)(NSError *), UISceneErrorCode code, NSStr
 @implementation UIApplication (UIMultipleScenes)
 - (void)requestSceneSessionActivation:(UISceneSession *)session userActivity:(NSUserActivity *)activity options:(UISceneActivationRequestOptions *)options errorHandler:(void (^)(NSError *))errorHandler {
     if (session && ![self.openSessions containsObject:session]) { scene_error(errorHandler, UISceneErrorCodeRequestDenied, @"The scene session is not open."); return; }
+    if (!session && activity.targetContentIdentifier) {          /* the scene whose activation conditions take the content */
+        extern UIScene *isim_ui_scene_for_target(NSString *);
+        session = isim_ui_scene_for_target(activity.targetContentIdentifier).session;
+    }
     UIScene *existing = session.scene;
     if (existing && [existing isKindOfClass:[UIWindowScene class]]) {             /* an existing session: back on screen */
         NSLog(@"isim: activating scene session %@", session.persistentIdentifier);

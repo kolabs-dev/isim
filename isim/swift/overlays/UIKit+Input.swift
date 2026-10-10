@@ -121,10 +121,14 @@ public enum UIAccessibility {
     public typealias GuidedAccessRestrictionState = UIGuidedAccessRestrictionState
     // isim's error enums are plain enums: this is the Swift error type of their codes (an NSError from
     // configureForGuidedAccess has this domain and a Code raw value)
-    @available(iOS 12.2, *) public struct GuidedAccessError: CustomNSError, Hashable {
+    @available(iOS 12.2, *) public struct GuidedAccessError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
         public typealias Code = UIGuidedAccessErrorCode
         public let code: Code
         public init(_ code: Code) { self.code = code }
+        public init?(_bridgedNSError e: __shared NSError) {
+            guard e.domain == UIGuidedAccessErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+            self.init(c)
+        }
         public static var errorDomain: String { UIGuidedAccessErrorDomain }
         public var errorCode: Int { code.rawValue }
         public static var permissionDenied: Code { .permissionDenied }

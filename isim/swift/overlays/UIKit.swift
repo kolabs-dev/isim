@@ -545,6 +545,79 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
 extension UIWindowScene.GeometryPreferences {
     /// `UIWindowScene.GeometryPreferences.iOS(interfaceOrientations:)` (the importer cannot nest this class two levels deep)
     public typealias iOS = UIWindowSceneGeometryPreferencesIOS
+    /// Mac preferences (requesting them on iOS fails with UISceneError.geometryRequestUnsupported)
+    public typealias Mac = UIWindowSceneGeometryPreferencesMac
+}
+/// the scene errors as a Swift error type (`catch let e as UISceneError`, `e.code == .multipleScenesNotSupported`)
+public struct UISceneError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+    public typealias Code = UISceneErrorCode
+    public let code: Code
+    public init(_ code: Code) { self.code = code }
+    public init?(_bridgedNSError e: __shared NSError) {
+        guard e.domain == UISceneErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+        self.init(c)
+    }
+    public static var errorDomain: String { UISceneErrorDomain }
+    public var errorCode: Int { code.rawValue }
+    public static var multipleScenesNotSupported: Code { .multipleScenesNotSupported }
+    public static var requestDenied: Code { .requestDenied }
+    public static var geometryRequestUnsupported: Code { .geometryRequestUnsupported }
+    public static var geometryRequestDenied: Code { .geometryRequestDenied }
+}
+extension UIApplication {
+    /// errors of `isDefault(_:)`
+    @available(iOS 18.2, *)
+    public struct CategoryDefaultError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+        public typealias Code = UIApplicationCategoryDefaultErrorCode
+        public let code: Code
+        public init(_ code: Code) { self.code = code }
+        public init?(_bridgedNSError e: __shared NSError) {
+            guard e.domain == UIApplicationCategoryDefaultErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+            self.init(c)
+        }
+        public static var errorDomain: String { UIApplicationCategoryDefaultErrorDomain }
+        public var errorCode: Int { code.rawValue }
+        public static var rateLimited: Code { .rateLimited }
+        public nonisolated static let statusLastProvidedDateErrorKey: String = UIApplicationCategoryDefaultStatusLastProvidedDateErrorKey
+        public nonisolated static let retryAvailableDateErrorKey: String = UIApplicationCategoryDefaultRetryAvailabilityDateErrorKey
+    }
+}
+@available(iOS 17.0, *)
+extension UIWindowScene.ActivationAction {
+    /// the identifier and the alternate action are optional (Apple's defaults)
+    public convenience init(alternate: UIAction? = nil, configuration: @escaping UIWindowScene.ActivationAction.ConfigurationProvider) {
+        self.init(identifier: nil, alternate: alternate, configuration: configuration)
+    }
+    public convenience init(alternate: UIAction? = nil, configuration: @escaping UIWindowScene.ActivationAction.ConfigurationProvider, errorHandler: ((any Error) -> Void)?) {
+        self.init(identifier: nil, alternate: alternate, configuration: configuration, errorHandler: errorHandler)
+    }
+}
+/// where a new window scene appears (iPadOS 17): prominent takes the screen, standard goes beside the others
+@available(iOS 17.0, *)
+public protocol UIWindowScenePlacement: Hashable {}
+@available(iOS 17.0, *)
+public struct UIWindowSceneStandardPlacement: UIWindowScenePlacement { public init() {} }
+@available(iOS 17.0, *)
+public struct UIWindowSceneProminentPlacement: UIWindowScenePlacement { public init() {} }
+@available(iOS 17.0, *)
+extension UIWindowScenePlacement where Self == UIWindowSceneStandardPlacement { public static var standard: Self { .init() } }
+@available(iOS 17.0, *)
+extension UIWindowScenePlacement where Self == UIWindowSceneProminentPlacement { public static var prominent: Self { .init() } }
+@available(iOS 17.0, *)
+extension UIWindowScene.ActivationRequestOptions {
+    /// isim: the placement is the presentation style (prominent: the whole screen; standard: side by side)
+    public var placement: (any UIWindowScenePlacement)? {
+        get {
+            switch preferredPresentationStyle {
+            case .prominent: return UIWindowSceneProminentPlacement()
+            case .standard: return UIWindowSceneStandardPlacement()
+            default: return nil
+            }
+        }
+        set {
+            preferredPresentationStyle = newValue is UIWindowSceneProminentPlacement ? .prominent : newValue is UIWindowSceneStandardPlacement ? .standard : .automatic
+        }
+    }
 }
 extension UIDeviceOrientation {
     public var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }

@@ -96,3 +96,4 @@
 #import <UIKit/UIToolTipInteraction.h>
 #import <UIKit/UIBandSelectionInteraction.h>
 #import <UIKit/UIMotionEffect.h>
+#import <UIKit/UIWindowSceneExtras.h>

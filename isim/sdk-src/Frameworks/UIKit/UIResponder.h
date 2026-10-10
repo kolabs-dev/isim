@@ -14,4 +14,9 @@ NS_SWIFT_UI_ACTOR
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(nullable UIEvent *)event;
 - (BOOL)canPerformAction:(SEL)action withSender:(nullable id)sender;
 @end
+/* the next responder's; a window has its own (Shake to Undo uses the first responder's). A category: UIResponder's
+   instance size (and its subclasses' ivar offsets) must not change */
+@interface UIResponder (UIResponderUndo)
+@property (nullable, nonatomic, readonly) NSUndoManager *undoManager;
+@end
 NS_ASSUME_NONNULL_END

@@ -6,7 +6,7 @@
 #import <UIKit/UIDevice.h>
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIWindow, UIScreen, UISceneSession, UISceneConnectionOptions;
+@class UIWindow, UIScreen, UISceneSession, UISceneConnectionOptions, UISceneWindowingControlStyle;
 typedef NSString *UISceneSessionRole NS_TYPED_EXTENSIBLE_ENUM;
 UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleApplication NS_SWIFT_NAME(windowApplication);
 typedef NS_ENUM(NSInteger, UISceneActivationState) { UISceneActivationStateUnattached = -1, UISceneActivationStateForegroundActive, UISceneActivationStateForegroundInactive, UISceneActivationStateBackground };
@@ -92,6 +92,9 @@ NS_SWIFT_UI_ACTOR
 - (void)windowScene:(UIWindowScene *)windowScene performActionForShortcutItem:(UIApplicationShortcutItem *)shortcutItem completionHandler:(void (^)(BOOL succeeded))completionHandler;
 /* the scene's size or orientation changed (split view, rotation) */
 - (void)windowScene:(UIWindowScene *)windowScene didUpdateCoordinateSpace:(id<UICoordinateSpace>)previousCoordinateSpace interfaceOrientation:(UIInterfaceOrientation)previousInterfaceOrientation traitCollection:(UITraitCollection *)previousTraitCollection;
+/* iOS 26: replaces UISupportedInterfaceOrientations for this scene */
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene *)windowScene API_AVAILABLE(ios(26.0));
+- (UISceneWindowingControlStyle *)preferredWindowingControlStyleForScene:(UIWindowScene *)windowScene NS_SWIFT_NAME(preferredWindowingControlStyle(for:)) API_AVAILABLE(ios(26.0));
 @end
 
 /* iPad: the smallest / largest size the scene accepts (split view widths honour minimumSize) */

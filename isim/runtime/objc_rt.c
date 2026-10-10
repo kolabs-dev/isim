@@ -372,6 +372,17 @@ static void slide_ivars(Class c) {
     uint32_t start = (sro->instance_size + 7) & ~7u;
     if (start <= ro->instance_start) return;
     uint32_t diff = start - ro->instance_start;
+    /* keep the ivars' alignment (a Swift SIMD property is 16-byte aligned): slide by a multiple of the largest one */
+    uint32_t align = 8;
+    if (ro->ivars) {
+        uint32_t es = ro->ivars->entsize_flags & ~3u;
+        for (uint32_t i = 0; i < ro->ivars->count; i++) {
+            struct ivar_t *iv = (void *)((uint8_t *)(ro->ivars + 1) + i * es);
+            uint32_t a = iv->alignment_raw == ~0u ? 8 : 1u << iv->alignment_raw;
+            if (a > align && a <= 64) align = a;
+        }
+    }
+    diff = (diff + align - 1) & ~(align - 1);
     if (ro->ivars) {
         uint32_t es = ro->ivars->entsize_flags & ~3u;
         for (uint32_t i = 0; i < ro->ivars->count; i++) {

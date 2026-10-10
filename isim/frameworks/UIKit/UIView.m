@@ -255,6 +255,12 @@ static void cg_rgba(CGColorRef c, double out[4]) {
 }
 @end
 
+CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect r, id<UICoordinateSpace> other, BOOL to) {
+    CGPoint a = r.origin, b = CGPointMake(CGRectGetMaxX(r), CGRectGetMaxY(r));
+    a = to ? [space convertPoint:a toCoordinateSpace:other] : [space convertPoint:a fromCoordinateSpace:other];
+    b = to ? [space convertPoint:b toCoordinateSpace:other] : [space convertPoint:b fromCoordinateSpace:other];
+    return CGRectMake(fmin(a.x, b.x), fmin(a.y, b.y), fabs(b.x - a.x), fabs(b.y - a.y));
+}
 @implementation UIView
 @synthesize layer = _layer;
 + (Class)layerClass { return [__IsimViewLayer class]; }
@@ -551,6 +557,8 @@ static inline CGPoint from_superview(UIView *v, CGPoint p, CGRect frame, CGPoint
 - (CGRect)convertRect:(CGRect)r fromView:(UIView *)v { r.origin = [self convertPoint:r.origin fromView:v]; return r; }
 - (CGPoint)convertPoint:(CGPoint)p toCoordinateSpace:(id<UICoordinateSpace>)s { return [s isKindOfClass:[UIView class]] ? [self convertPoint:p toView:(UIView *)s] : [self _isim_toWindow:p]; }
 - (CGPoint)convertPoint:(CGPoint)p fromCoordinateSpace:(id<UICoordinateSpace>)s { return [s isKindOfClass:[UIView class]] ? [self convertPoint:p fromView:(UIView *)s] : [self _isim_fromWindow:p]; }
+- (CGRect)convertRect:(CGRect)r toCoordinateSpace:(id<UICoordinateSpace>)s { return [s isKindOfClass:[UIView class]] ? [self convertRect:r toView:(UIView *)s] : isim_ui_space_convert_rect(self, r, s, YES); }
+- (CGRect)convertRect:(CGRect)r fromCoordinateSpace:(id<UICoordinateSpace>)s { return [s isKindOfClass:[UIView class]] ? [self convertRect:r fromView:(UIView *)s] : isim_ui_space_convert_rect(self, r, s, NO); }
 
 /* ---- safe area & margins ---- */
 /* The safe area in window coordinates for content inside `v`: the device's safe area, narrowed by the

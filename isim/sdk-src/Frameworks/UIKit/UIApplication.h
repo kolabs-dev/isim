@@ -59,6 +59,12 @@ NS_SWIFT_UI_ACTOR
 - (void)applicationWillTerminate:(UIApplication *)application;
 - (void)applicationDidReceiveMemoryWarning:(UIApplication *)application;
 - (void)applicationSignificantTimeChange:(UIApplication *)application;
+/* the device was locked / unlocked (UIApplication.isProtectedDataAvailable) */
+- (void)applicationProtectedDataWillBecomeUnavailable:(UIApplication *)application;
+- (void)applicationProtectedDataDidBecomeAvailable:(UIApplication *)application;
+/* isim never remaps key commands for localized keyboards, nor asks for HealthKit access this way */
+- (BOOL)applicationShouldAutomaticallyLocalizeKeyCommands:(UIApplication *)application API_AVAILABLE(ios(15.0));
+- (void)applicationShouldRequestHealthAuthorization:(UIApplication *)application;
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options;
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options;
 - (void)application:(UIApplication *)application didDiscardSceneSessions:(NSSet<UISceneSession *> *)sceneSessions;
@@ -98,7 +104,7 @@ NS_SWIFT_UI_ACTOR
 /* isim: URLs are logged; with ISIM_OPEN_URLS=1, http(s)/mailto URLs open on the host desktop (xdg-open) */
 - (BOOL)canOpenURL:(NSURL *)url;
 - (void)openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenExternalURLOptionsKey, id> *)options completionHandler:(void (^ _Nullable)(BOOL success))completion;
-@property (class, nonatomic, readonly) NSString *openSettingsURLString;
+/* openSettingsURLString: UIApplicationOpenSettingsURLString (UIWindowSceneExtras.h) */
 @property (nonatomic, readonly) NSSet<UISceneSession *> *openSessions;
 @property (nonatomic, readonly) BOOL supportsMultipleScenes;
 /* isim: under `isim boot` with ISIM_AUTOLOCK=SECONDS the device locks after that long without input, unless the
