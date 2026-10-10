@@ -3,7 +3,8 @@
 // animation (UIView.animate: frames, opacity, transforms and colors interpolate; springs, delay, repeat):
 //  - withAnimation { ... } animates the next render; .animation(_:value:) animates its subtree when the value changes
 //  - views inserted in an animated update play their transition (default .opacity); removed ones fade/move out
-//  - matchedGeometryEffect: a view inserted with an id that was on screen moves from the old frame
+//  - matchedGeometryEffect: a view inserted with an id that was on screen moves from the old frame (the removed one
+//    moves to the new frame as it fades); `isSource: false` views take the source's frame / position / size
 // Animatable data (shape trims and paths, gradients, colors of shapes, custom Animatable views, modifiers and
 // GeometryEffects) interpolates per frame during the same updates (Animatable.swift). Not animated: text content.
 import UIKit
@@ -214,7 +215,7 @@ public struct AnyTransition: Sendable {
     public static func offset(_ s: CGSize) -> AnyTransition { AnyTransition(.offset(s)) }
     public static func push(from edge: Edge) -> AnyTransition {
         let opposite: Edge = edge == .leading ? .trailing : edge == .trailing ? .leading : edge == .top ? .bottom : .top
-        return AnyTransition(.asymmetric(.move(edge), .move(opposite)))
+        return AnyTransition(.combined(.asymmetric(.move(edge), .move(opposite)), .opacity))     // moving and fading
     }
     public static func asymmetric(insertion: AnyTransition, removal: AnyTransition) -> AnyTransition { AnyTransition(.asymmetric(insertion.kind, removal.kind)) }
     public func combined(with other: AnyTransition) -> AnyTransition { AnyTransition(.combined(kind, other.kind), animation: animation ?? other.animation) }
@@ -276,7 +277,10 @@ extension View {
     }
     public func matchedGeometryEffect<ID: Hashable>(id: ID, in namespace: Namespace.ID, properties: MatchedGeometryProperties = .frame,
                                                     anchor: UnitPoint = .center, isSource: Bool = true) -> some View {
-        _modify { ctx, c in _MatchedNode(path: ctx.path, matchKey: "\(namespace.value)/\(AnyHashable(id).hashValue)", child: _resolve(c, ctx.child("mg"))) }
+        _modify { ctx, c in
+            _MatchedNode(path: ctx.path, matchKey: "\(namespace.value)/\(AnyHashable(id).hashValue)", isSource: isSource, properties: properties,
+                         anchor: anchor, child: _resolve(c, ctx.child("mg")))
+        }
     }
 }
 
@@ -313,9 +317,22 @@ final class _AnimationScopeNode: _WrapperNode {
     }
 }
 
+/// `matchedGeometryEffect`: a source's frame is what views inserted with its id start from (and what a removed one
+/// moves to); a view with `isSource: false` takes the source's frame, position or size while both are on screen.
 final class _MatchedNode: _WrapperNode {
     let matchKey: String
-    init(path: String, matchKey: String, child: _Node) { self.matchKey = matchKey; super.init(path: path, child: child) }
+    let isSource: Bool, properties: MatchedGeometryProperties, anchor: UnitPoint
+    init(path: String, matchKey: String, isSource: Bool = true, properties: MatchedGeometryProperties = .frame, anchor: UnitPoint = .center, child: _Node) {
+        self.matchKey = matchKey; self.isSource = isSource; self.properties = properties; self.anchor = anchor; super.init(path: path, child: child)
+    }
+    /// The frame (in the parent's coordinates, from the frame it laid out at) that takes `source`'s properties.
+    func matched(_ own: CGRect, to source: CGRect) -> CGRect {
+        let size = properties.contains(.size) ? source.size : own.size
+        // the anchor points line up: the source's (position) or its own (size only)
+        let ref = properties.contains(.position) ? source : own
+        let p = CGPoint(x: ref.minX + anchor.x * ref.width, y: ref.minY + anchor.y * ref.height)
+        return CGRect(x: p.x - anchor.x * size.width, y: p.y - anchor.y * size.height, width: size.width, height: size.height)
+    }
     override var layoutPriority: Double { child.layoutPriority }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
     override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }

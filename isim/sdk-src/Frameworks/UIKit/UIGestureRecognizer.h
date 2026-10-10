@@ -33,6 +33,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL delaysTouchesEnded;
 @property (nonatomic) BOOL requiresExclusiveTouchType;
 - (void)requireGestureRecognizerToFail:(UIGestureRecognizer *)otherGestureRecognizer;
+/* isim (SwiftUI high-priority and simultaneous gestures): a tap recognizer that still takes taps on the controls
+   inside its view (UIKit's rule lets a control's tap win over its superviews' tap recognizers) */
+@property (nonatomic, setter=_isim_setTakesControlTaps:) BOOL _isim_takesControlTaps;
 @end
 @interface UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer;

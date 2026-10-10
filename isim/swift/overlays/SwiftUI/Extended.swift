@@ -177,12 +177,20 @@ public struct Angle: Hashable, Comparable, Sendable {
 }
 
 @propertyWrapper
-public struct Namespace: DynamicProperty, Sendable {
+/// A namespace for matched geometry: the same ID on every update of the view that declares it (kept in its state).
+public struct Namespace: DynamicProperty, Sendable, _DynamicProperty {
     public struct ID: Hashable, Sendable { let value: Int }
     nonisolated(unsafe) static var next = 0
+    final class Box: @unchecked Sendable { var id: ID; init(_ id: ID) { self.id = id } }
     let id: ID
-    public init() { Namespace.next += 1; id = ID(value: Namespace.next) }
-    public var wrappedValue: ID { id }
+    let box: Box
+    public init() { Namespace.next += 1; id = ID(value: Namespace.next); box = Box(id) }
+    public var wrappedValue: ID { box.id }
+    func _install(_ ctx: _Context, label: String) {
+        let key = ctx.path + "#" + label
+        ctx.graph.usedKeys.insert(key)
+        if let kept = ctx.graph.storage[key] as? Box { box.id = kept.id } else { ctx.graph.storage[key] = Box(box.id) }
+    }
 }
 
 extension View {

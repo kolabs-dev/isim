@@ -287,10 +287,20 @@ extension View {
         }
     }
     public func onTapGesture(count: Int = 1, perform action: @escaping () -> Void) -> some View {
-        _modify { ctx, c in _ButtonNode(path: ctx.path, child: _resolve(c, ctx.child("tap")), action: action, inList: ctx.environment._inList, enabled: true) }
+        _modify { ctx, c in
+            // inside a gesture whose mask turns the subviews' gestures off: no tap
+            if ctx.environment._gesturesOff { return _resolve(c, ctx.child("tap")) }
+            if count != 1 { return _resolve(_TapGestureContent(content: AnyView(c), count: count, action: action), ctx) }
+            return _ButtonNode(path: ctx.path, child: _resolve(c, ctx.child("tap")), action: action, inList: ctx.environment._inList, enabled: true)
+        }
     }
     public func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> some View { self }
     // labelStyle, textFieldStyle, toggleStyle: Styles.swift
+}
+/// `onTapGesture(count:)` with several taps: a TapGesture.
+struct _TapGestureContent: View {
+    let content: AnyView, count: Int, action: () -> Void
+    var body: some View { content.gesture(TapGesture(count: count).onEnded { action() }) }
 }
 public struct ScrollDismissesKeyboardMode: Sendable {
     public static let automatic = ScrollDismissesKeyboardMode(), immediately = ScrollDismissesKeyboardMode()

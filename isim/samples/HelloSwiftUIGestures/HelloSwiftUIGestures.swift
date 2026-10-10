@@ -1,11 +1,17 @@
 // Sample: SwiftUI gestures on isim — MagnifyGesture and RotateGesture together (simultaneously), SpatialTapGesture,
 // a long press sequenced before a drag with @GestureState (resets when the gesture ends), and a double tap that wins
 // over a single tap (exclusively). Two-finger gestures: Option-drag on the host, or the script's pinch / rotate2.
+// PAGE=priority: nested gestures — a child's gesture wins over its parent's, highPriorityGesture, simultaneousGesture
+// and gesture masks.
 import SwiftUI
 
 @main
 struct GesturesApp: App {
-    var body: some Scene { WindowGroup { ContentView() } }
+    var body: some Scene {
+        WindowGroup {
+            if ProcessInfo.processInfo.environment["PAGE"] == "priority" { PriorityView() } else { ContentView() }
+        }
+    }
 }
 
 struct ContentView: View {
@@ -55,6 +61,34 @@ struct ContentView: View {
                 .gesture(TapGesture(count: 2).onEnded { taps = "double"; print("double tap") }
                     .exclusively(before: SpatialTapGesture().onEnded { v in taps = "single"; print(String(format: "single tap at %.0f,%.0f", v.location.x, v.location.y)) }))
                 .accessibilityIdentifier("taps")
+        }
+    }
+}
+
+/// Each row: a parent (grey, 300 x 70) around a child (blue, 80 x 40 on its trailing side), both with a tap gesture.
+struct PriorityView: View {
+    func child(_ name: String) -> some View {
+        Color.blue.frame(width: 80, height: 40).onTapGesture { print("\(name) child") }.accessibilityIdentifier("\(name)-child")
+    }
+    func parent<C: View>(_ name: String, @ViewBuilder _ c: () -> C) -> some View {
+        HStack { Spacer(); c() }.padding(.horizontal, 15).frame(width: 300, height: 70).background(Color.gray.opacity(0.2))
+    }
+    var body: some View {
+        VStack(spacing: 14) {
+            parent("normal") { child("normal") }
+                .onTapGesture { print("normal parent") }
+            parent("high") { child("high") }
+                .highPriorityGesture(TapGesture().onEnded { print("high parent") })
+            parent("simul") { child("simul") }
+                .simultaneousGesture(TapGesture().onEnded { print("simul parent") })
+            parent("own") { child("own") }
+                .gesture(TapGesture().onEnded { print("own parent") }, including: .gesture)
+            parent("subviews") { child("subviews") }
+                .gesture(TapGesture().onEnded { print("subviews parent") }, including: .subviews)
+            parent("off") { child("off") }
+                .gesture(TapGesture().onEnded { print("off parent") }, isEnabled: false)
+            parent("drag") { child("drag") }
+                .gesture(DragGesture(minimumDistance: 10).onEnded { _ in print("drag parent") })
         }
     }
 }

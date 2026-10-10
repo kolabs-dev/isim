@@ -1,8 +1,9 @@
 // Sample: SwiftUI shapes, styles and animation timing on isim — path boolean operations (`union`, `intersection`,
 // `subtracting`, `symmetricDifference`, `lineIntersection`) and `strokedPath`; `fill().stroke()`; text filled with a
 // gradient; `ContainerRelativeShape` inside `.containerShape`; `MeshGradient` and `Color.mix`; timing curves, springs
-// and `repeatCount`.
-// The page comes from the environment: PAGE=ops|fills|mesh|curves.
+// and `repeatCount`; every transition kind; matchedGeometryEffect (an inserted view moving from its match, and a view
+// following its source with `isSource: false`).
+// The page comes from the environment: PAGE=ops|fills|mesh|curves|transitions|matched.
 import SwiftUI
 
 @main
@@ -18,6 +19,8 @@ struct Root: View {
         case "fills": FillsPage()
         case "mesh": if #available(iOS 18.0, *) { MeshPage() }
         case "curves": CurvesPage()
+        case "transitions": TransitionsPage()
+        case "matched": MatchedPage()
         default: OpsPage()
         }
     }
@@ -133,5 +136,67 @@ struct CurvesPage: View {
     }
     func box(_ id: String, _ c: Color, _ a: Animation) -> some View {
         c.frame(width: 40, height: 40).offset(x: right ? 240 : 0).animation(a, value: right).accessibilityIdentifier(id)
+    }
+}
+
+/// Eight slots (120 x 90), each showing a 60 pt square with one transition while `shown`; Toggle animates linearly.
+struct TransitionsPage: View {
+    @State var shown = env["SHOWN"] == "1"
+    let d = Double(env["DURATION"] ?? "2") ?? 2
+    static let kinds: [(String, Color, AnyTransition)] = [
+        ("opacity", Color(red: 1, green: 0, blue: 0), .opacity),
+        ("scale", Color(red: 0, green: 0.6, blue: 0), .scale),
+        ("slide", Color(red: 0, green: 0, blue: 1), .slide),
+        ("move", Color(red: 1, green: 0.5, blue: 0), .move(edge: .top)),
+        ("offset", Color(red: 0.5, green: 0, blue: 0.5), .offset(x: 40, y: 0)),
+        ("push", Color(red: 0, green: 0.5, blue: 0.5), .push(from: .trailing)),
+        ("asymmetric", Color(red: 0.6, green: 0.3, blue: 0), .asymmetric(insertion: .scale, removal: .opacity)),
+        ("combined", Color(red: 1, green: 0, blue: 1), AnyTransition.opacity.combined(with: .scale(scale: 0.5))),
+    ]
+    var body: some View {
+        VStack(spacing: 10) {
+            Button("Toggle") { withAnimation(.linear(duration: d)) { shown.toggle() } }.accessibilityIdentifier("toggle")
+            LazyVGrid(columns: [GridItem(.fixed(120), spacing: 30), GridItem(.fixed(120))], spacing: 20) {
+                ForEach(Self.kinds, id: \.0) { name, color, t in
+                    ZStack {
+                        if shown { color.frame(width: 60, height: 60).transition(t) }
+                    }
+                    .frame(width: 120, height: 90)
+                    .accessibilityIdentifier("slot-\(name)")
+                }
+            }
+        }
+    }
+}
+
+struct MatchedPage: View {
+    @Namespace var ns
+    @State var big = false
+    @State var selected = 0
+    let d = Double(env["DURATION"] ?? "2") ?? 2
+    var body: some View {
+        VStack(spacing: 30) {
+            Button("Grow") { withAnimation(.linear(duration: d)) { big.toggle() } }.accessibilityIdentifier("grow")
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                if big {
+                    Color.blue.frame(width: 200, height: 120).matchedGeometryEffect(id: "card", in: ns)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing).accessibilityIdentifier("card-big")
+                } else {
+                    Color.blue.frame(width: 60, height: 60).matchedGeometryEffect(id: "card", in: ns).accessibilityIdentifier("card-small")
+                }
+            }
+            .frame(width: 300, height: 220)
+            .background(Color.gray.opacity(0.15))
+            HStack(spacing: 12) {
+                ForEach(0..<3) { i in
+                    Text(["One", "Two", "Three"][i]).padding(.horizontal, i == 2 ? 30 : 14).padding(.vertical, 8)
+                        .matchedGeometryEffect(id: i, in: ns)
+                        .onTapGesture { withAnimation(.linear(duration: d)) { selected = i } }
+                        .accessibilityIdentifier("tab-\(i)")
+                }
+            }
+            .background(Capsule().fill(Color.orange.opacity(0.5)).matchedGeometryEffect(id: selected, in: ns, isSource: false).accessibilityIdentifier("highlight"))
+        }
     }
 }

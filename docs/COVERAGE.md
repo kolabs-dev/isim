@@ -39,7 +39,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 1 | 15 | 93% |
-| **SwiftUI** | 210 | 24 | 1 | 4 | 239 | 93% |
+| **SwiftUI** | 213 | 21 | 1 | 4 | 239 | 94% |
 | &nbsp;&nbsp;↳ App & scenes | 7 | 4 | 0 | 0 | 11 | 82% |
 | &nbsp;&nbsp;↳ State & data flow | 16 | 1 | 0 | 0 | 17 | 97% |
 | &nbsp;&nbsp;↳ Views & controls | 37 | 2 | 0 | 0 | 39 | 97% |
@@ -47,8 +47,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Navigation & presentation | 32 | 3 | 0 | 2 | 37 | 91% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 31 | 4 | 0 | 1 | 36 | 92% |
 | &nbsp;&nbsp;↳ Shapes, paths, gradients & materials | 23 | 0 | 0 | 1 | 24 | 96% |
-| &nbsp;&nbsp;↳ Animation | 9 | 2 | 0 | 0 | 11 | 91% |
-| &nbsp;&nbsp;↳ Gestures | 7 | 1 | 0 | 0 | 8 | 94% |
+| &nbsp;&nbsp;↳ Animation | 11 | 0 | 0 | 0 | 11 | 100% |
+| &nbsp;&nbsp;↳ Gestures | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Lifecycle, async & events | 6 | 2 | 0 | 0 | 8 | 88% |
 | &nbsp;&nbsp;↳ Focus & keyboard | 2 | 1 | 1 | 0 | 4 | 62% |
 | &nbsp;&nbsp;↳ Environment values | 5 | 2 | 0 | 0 | 7 | 86% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **828** | **147** | **21** | **28** | **1024** | **88%** |
+| **All areas** | **831** | **144** | **21** | **28** | **1024** | **88%** |
 
 ### Per iOS version
 
@@ -96,7 +96,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 100% (215) | 100% (219) | 100% (234) | 99% (245) |
-| SwiftUI | 95% (216) | 95% (222) | 94% (229) | 93% (239) |
+| SwiftUI | 96% (216) | 95% (222) | 95% (229) | 94% (239) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (84) | 100% (84) | 100% (84) | 100% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **88%** (966) | **88%** (978) | **88%** (1003) | **88%** (1024) |
+| **All areas** | **89%** (966) | **88%** (978) | **88%** (1003) | **88%** (1024) |
 
 ---
 
@@ -687,8 +687,8 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `withAnimation` (incl. `completion:`) | ✅ | ≤17 | animates the next render (frames, opacity, transforms, colors) |
 | `.animation(_:value:)` | ✅ | ≤17 | animates its subtree when the value changes |
 | Curves & springs (`.easeInOut`, `.spring`, `.bouncy`, `.snappy`, `.smooth`, `timingCurve`, `interpolatingSpring`), repeat/delay/speed | ✅ | ≤17 | standard curves, exact cubic Bézier `timingCurve` / `UnitCurve`, damped springs from duration + bounce or mass / stiffness / damping (`Spring` values, velocity, settling duration), `repeatCount` (autoreversing plays) / `repeatForever`, delay, speed, on UIKit's animation engine. Tested (HelloShapes: positions over time) |
-| Transitions (`.opacity`, `.scale`, `.slide`, `.move`, `.offset`, `.push`, `asymmetric`, `combined`) | 🟡 | ≤17 | insertion and removal play; each kind unverified |
-| `matchedGeometryEffect` | 🟡 | ≤17 | an inserted view moves from the matched view's old frame; no simultaneous source/target |
+| Transitions (`.opacity`, `.scale`, `.slide`, `.move`, `.offset`, `.push`, `asymmetric`, `combined`) | ✅ | ≤17 | insertion and removal of each kind play from / to where the view is (not riding along with its container's change): fade, scale about the anchor, slide in from the leading edge and out to the trailing one, move from an edge, offset, push (moving and fading), asymmetric, combined; `.animation(_:)` on a transition. Tested (HelloShapes: positions, sizes and opacity over time) |
+| `matchedGeometryEffect` | ✅ | ≤17 | an inserted view moves and scales from its match's frame while the removed one moves to the new frame, the two cross-fading; `isSource: false` views take the source's frame, position or size (`properties`, `anchor`) while both are on screen; `@Namespace` IDs stay the same across updates. Adapted: the size change is a scale of the content (laid out at its own size). Tested (HelloShapes) |
 | `contentTransition` (`.numericText`, `.interpolate`) | ✅ | ≤17 | in an animated update, `.numericText` rolls the old text out (up, or down when counting down) and the new one in; `.opacity` / `.interpolate` cross-fade; `.symbolEffect` scales a replaced symbol; numeric text tested (HelloEffects) |
 | Animating shape `trim`, paths, colors, gradients | ✅ | ≤17 | trim, custom path, fill color and gradient stops tested mid-animation |
 | `Animatable` / `animatableData` (`VectorArithmetic`, `AnimatablePair`), `AnimatableModifier` | ✅ | ≤17 | custom shape and modifier tested; repeating animations of animatable data unverified |
@@ -704,7 +704,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `onLongPressGesture`, `LongPressGesture` | ✅ | ≤17 | |
 | `DragGesture` (`onChanged`/`onEnded`, translation, velocity, predicted end) | ✅ | ≤17 | UIKit recognizers on the wrapped view; `.local`/`.global` coordinate spaces; tested (HelloSwiftUIGestures, HelloDrawing) |
 | `Optional: Gesture` (`.gesture(enabled ? g : nil)`) | ✅ | ≤17 | nil installs no recognizer; tested (HelloSourceCompat) |
-| `simultaneousGesture`, `highPriorityGesture`, `simultaneously(with:)`, `sequenced(before:)`, `exclusively(before:)`, `map` | 🟡 | ≤17 | composition tested (HelloSwiftUIGestures: magnify+rotate together, long press before drag, double tap before single); `highPriorityGesture` and gesture masks behave like `.gesture` |
+| `simultaneousGesture`, `highPriorityGesture`, `simultaneously(with:)`, `sequenced(before:)`, `exclusively(before:)`, `map` | ✅ | ≤17 | composition (magnify+rotate together, long press before drag, double tap before single); nested gestures compete like SwiftUI's: a view's gesture or tap wins over its parent's `.gesture` (which waits for it to fail), `highPriorityGesture` wins over the gestures and taps inside it, `simultaneousGesture` fires with them; `including:` masks (`.gesture`, `.subviews`, `.none`) and `isEnabled:`. Tested (HelloSwiftUIGestures) |
 | `MagnifyGesture`, `RotateGesture` (+ `MagnificationGesture`, `RotationGesture`) | ✅ | ≤17 | two fingers from isim's multi-touch (Option-drag, script `pinch`/`rotate2`); magnification/rotation, velocity, start anchor/location; tested (HelloSwiftUIGestures) |
 | `SpatialTapGesture` | ✅ | ≤17 | location in local/global space; tested (HelloSwiftUIGestures) |
 | `sequenced`, `exclusively`, `simultaneously(with:)`, `.updating` | ✅ | ≤17 | built on UIKit recognizers; tested (HelloSwiftUIGestures) |

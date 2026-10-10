@@ -599,6 +599,13 @@ final class _SUIControl: UIControl {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard !isHidden, alpha > 0.01, isUserInteractionEnabled, self.point(inside: point, with: event) else { return nil }
         if _contentShapeRejects(self, point) { return nil }          // .contentShape (VisualEffects.swift)
+        // a control inside (a button or `onTapGesture` view in this one's content) takes its own touches
+        for s in subviews.reversed() {
+            guard let h = s.hitTest(s.convert(point, from: self), with: event) else { continue }
+            var x: UIView? = h
+            while let c = x, c !== self { if c is UIControl { return h }; x = c.superview }
+            break
+        }
         return self
     }
 }

@@ -904,7 +904,7 @@ static void handle_touch(const struct isim_event *ev) {
                            [UIControl instanceMethodForSelector:@selector(continueTrackingWithTouch:withEvent:)]);
         for (UIView *v = hit; v; v = v.superview) {
             for (UIGestureRecognizer *g in v.gestureRecognizers) {
-                if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) continue;
+                if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]] && !g._isim_takesControlTaps)) continue;
                 if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
                 id<UIGestureRecognizerDelegate> gd = g.delegate;
                 if ([gd respondsToSelector:@selector(gestureRecognizer:shouldReceiveTouch:)] && ![gd gestureRecognizer:g shouldReceiveTouch:cur_touch]) continue;

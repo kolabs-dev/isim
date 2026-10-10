@@ -166,3 +166,108 @@ def test_curves_and_springs(launch):
     inter = [p(f, "interp") for f in frames if f["interp"] is not None]
     assert max(inter) > 1.2 and min(inter[inter.index(max(inter)):]) < 0.95, "interpolatingSpring oscillates around the target"
     assert all(abs(p(final, k) - 1) < 0.03 for k in COLOURS), "every animation ends at the target"
+
+
+SLOTS = {"opacity": (255, 0, 0), "scale": (0, 153, 0), "slide": (0, 0, 255), "move": (255, 128, 0), "offset": (128, 0, 128),
+         "push": (0, 128, 128), "asymmetric": (153, 77, 0), "combined": (255, 0, 255)}
+
+
+def alpha_of(c, k):
+    """How much of colour k (over white) pixel c is, or None when c is not a mix of k and white."""
+    i = max(range(3), key=lambda j: 255 - k[j])
+    a = (255 - c[i]) / (255 - k[i])
+    if a < 0.08:
+        return None
+    return a if all(abs(255 - a * (255 - k[j]) - c[j]) < 18 for j in range(3)) else None
+
+
+def boxes(img, rects):
+    """Per slot: the bounding box of its colour (window points) around the slot and the colour's strength there."""
+    out = {}
+    for name, (x, y, w, h) in rects.items():
+        hits = [(px, py, a) for px in range(int(x - 70), int(x + w + 70), 2) for py in range(int(y - 60), int(y + h + 60), 2)
+                if 0 <= px < img.width and 0 <= py < img.height and (a := alpha_of(img.getpixel((px, py))[:3], SLOTS[name])) is not None]
+        if len(hits) < 6:
+            out[name] = None
+            continue
+        xs, ys = [p[0] for p in hits], [p[1] for p in hits]
+        out[name] = (min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys), max(p[2] for p in hits))
+    return out
+
+
+def record(app, rects, until):
+    frames, end = [], time.monotonic() + 12
+    while time.monotonic() < end:
+        frames.append(boxes(app.screenshot(), rects))
+        if len(frames) > 6 and until(frames[-1]) and frames[-1] == frames[-2] == frames[-3]:
+            break
+    return frames
+
+
+def test_transitions(launch):
+    app = launch("HelloShapes", env={"PAGE": "transitions", "DURATION": "2"})
+    app.wait_view(r"id=slot-combined")
+    app.wait_still()
+    dump = app.view_dump()
+    rects = {k: window_rect(dump, f"slot-{k}") for k in SLOTS}
+    app.tap_id("toggle")
+    ins = record(app, rects, lambda f: all(b and b[4] > 0.95 and b[2] > 54 for b in f.values()))
+    final = ins[-1]
+    app.tap_id("toggle")
+    rem = record(app, rects, lambda f: all(b is None for b in f.values()))
+    assert app.quit() == 0, "exits cleanly"
+    assert all(final[k] and abs(final[k][2] - 58) < 4 for k in SLOTS), f"every square ends in place ({final})"
+    seen = lambda frames, k, pred: any(f[k] and pred(f[k], final[k]) for f in frames)
+    faded = lambda b, e: b[4] < 0.8
+    full = lambda b, e: abs(b[2] - e[2]) < 4
+    small = lambda b, e: 4 < b[2] < e[2] - 12
+    for frames, phase in ((ins, "insertion"), (rem, "removal")):
+        assert seen(frames, "opacity", lambda b, e: faded(b, e) and full(b, e)), f".opacity fades ({phase})"
+        assert not seen(frames, "opacity", small), f".opacity does not scale ({phase})"
+        assert seen(frames, "scale", lambda b, e: small(b, e) and abs((b[0] + b[2] / 2) - (e[0] + e[2] / 2)) < 4), f".scale grows / shrinks about the centre ({phase})"
+        assert seen(frames, "move", lambda b, e: full(b, e) and b[1] < e[1] - 8), f".move(edge: .top) comes from / goes to the top ({phase})"
+        assert seen(frames, "offset", lambda b, e: full(b, e) and b[0] > e[0] + 8), f".offset(x: 40) ({phase})"
+        assert seen(frames, "combined", lambda b, e: faded(b, e) and small(b, e)), f".opacity.combined(with: .scale) ({phase})"
+    assert seen(ins, "slide", lambda b, e: b[0] < e[0] - 8) and seen(rem, "slide", lambda b, e: b[0] > e[0] + 8), \
+        ".slide: in from the leading edge, out to the trailing edge"
+    assert seen(ins, "push", lambda b, e: b[0] > e[0] + 8 and faded(b, e)) and seen(rem, "push", lambda b, e: b[0] < e[0] - 8 and faded(b, e)), \
+        ".push(from: .trailing): in from the trailing edge, out to the leading one, fading"
+    assert seen(ins, "asymmetric", small) and not seen(ins, "asymmetric", lambda b, e: faded(b, e) and full(b, e)), ".asymmetric: inserted with .scale"
+    assert seen(rem, "asymmetric", lambda b, e: faded(b, e) and full(b, e)) and not seen(rem, "asymmetric", small), ".asymmetric: removed with .opacity"
+
+
+def test_matched_geometry(launch):
+    app = launch("HelloShapes", env={"PAGE": "matched", "DURATION": "2"})
+    app.wait_view(r"id=card-small")
+    app.wait_still()
+    dump = app.view_dump()
+    small = window_rect(dump, "card-small")
+    blue_ = lambda c: c[2] - c[0] > 100                                  # (the two cards cross-fade over each other)
+
+    def card(img):
+        hits = [(x, y) for x in range(0, img.width, 2) for y in range(int(small[1] - 10), int(small[1] + 240), 2) if blue_(img.getpixel((x, y))[:3])]
+        return (min(p[0] for p in hits), min(p[1] for p in hits), max(p[0] for p in hits) - min(p[0] for p in hits),
+                max(p[1] for p in hits) - min(p[1] for p in hits)) if hits else None
+    app.tap_id("grow")
+    frames, end = [], time.monotonic() + 10
+    while time.monotonic() < end:
+        frames.append(card(app.screenshot()))
+        if len(frames) > 6 and frames[-1] and frames[-1][2] > 190 and frames[-1] == frames[-2] == frames[-3]:
+            break
+    bx, by, bw, bh = window_rect(app.view_dump(), "card-big")              # (the id is on the frame around the 200 x 120 card)
+    big = (bx + bw - 200, by + bh - 120, 200, 120)
+    # the highlight (isSource: false) takes the selected tab's frame
+    app.tap_id("tab-2")
+    tab = app.wait_view(r"id=highlight")
+    end = time.monotonic() + 8
+    while time.monotonic() < end and window_rect(app.view_dump(), "highlight") != window_rect(app.view_dump(), "tab-2"):
+        app.wait_still()
+    dump = app.view_dump()
+    app.screenshot("matched")
+    assert app.quit() == 0, "exits cleanly"
+    mid = [f for f in frames if f and small[2] + 20 < f[2] < big[2] - 20]
+    assert mid, f"the card grows through in-between sizes ({frames})"
+    assert all(small[0] - 2 <= f[0] <= big[0] + 2 and small[1] - 2 <= f[1] <= big[1] + 2 for f in mid), \
+        f"matchedGeometryEffect: the inserted card moves from the removed one's frame to its own ({small} {big} {mid})"
+    assert window_rect(dump, "highlight") == window_rect(dump, "tab-2"), "isSource: false follows the source's frame"
+    assert window_rect(dump, "highlight")[2] > window_rect(dump, "tab-0")[2] + 20, "...including its size"

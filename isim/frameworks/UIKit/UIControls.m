@@ -699,6 +699,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 @property (nonatomic) CGPoint startPoint, lastPoint;
 @property (nonatomic) NSTimeInterval startTime;
 @property (nonatomic) BOOL isimExclusive;
+@property (nonatomic) BOOL isimTakesControlTaps;
 @property (nonatomic, strong) NSMutableArray *isimFailureRequirements;   /* __IsimWeakRecognizer */
 @property (nonatomic) double isimRecognizedAt;
 @property (nonatomic) BOOL isimTracking;
@@ -720,6 +721,8 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 - (void)_isim_setView:(UIView *)v { _view = v; }
 - (BOOL)_isim_exclusive { return self.isimExclusive; }
 - (void)_isim_setExclusive:(BOOL)e { self.isimExclusive = e; }
+- (BOOL)_isim_takesControlTaps { return self.isimTakesControlTaps; }
+- (void)_isim_setTakesControlTaps:(BOOL)t { self.isimTakesControlTaps = t; }
 - (BOOL)_isim_shouldBegin {
     id<UIGestureRecognizerDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(gestureRecognizerShouldBegin:)] && ![d gestureRecognizerShouldBegin:self]) return NO;
