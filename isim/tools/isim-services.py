@@ -6,9 +6,14 @@
   isim storekit <app> expire <group|product|id>    end a subscription now (auto-renew off)
   isim storekit <app> cancel <group|product|id>    turn auto-renew off (expires at the end of the period)
   isim storekit <app> resume <group|product|id>    turn auto-renew back on
-  isim storekit <app> billing-issue <group|product|id> on|off   renewals fail (billing retry) while on
+  isim storekit <app> billing-issue <group|product|id> on|off   renewals fail (grace period, billing retry) while on
+  isim storekit <app> resolve <group|product|id>   resolve the billing issue (the subscription renews)
   isim storekit <app> delete <transaction id>      remove a transaction
   isim storekit <app> clear                        remove all transactions and subscriptions
+  isim storekit certificate [--der] [FILE]         the device's StoreKit testing certificate (PEM, or DER), which
+                                                   signs its JWS values and app receipts (like Xcode's StoreKitTestCertificate.cer)
+  isim storekit offer-key [--id|--pem]             the device's subscription offers key: key ID and private key (PEM)
+                                                   for the server that signs promotional offers
   isim gamecenter <app> saved-games                list saved games
   isim gamecenter <app> conflict <name> [text]     add a conflicting saved-game version from "Other Device"
   isim gamecenter <app> reset                      erase the app's local Game Center data
@@ -30,10 +35,12 @@
   isim appleid <app> reset                         forget the app (next sign-in is a new account again)
 
 <app> is a bundle identifier, an .app bundle or an installed app's name. Running apps notice changes
-within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/. The local Game Center network that isim
+within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/; StoreKit purchase
+histories (the device's account, kept when an app is deleted), certificate and offer key: ISIM_DATA/Library/isim/StoreKit/.
+The local Game Center network that isim
 devices on this computer share: ISIM_GAMECENTER (~/.local/share/isim-gamecenter).
 """
-import base64, json, os, plistlib, random, sys, time, uuid, shutil
+import base64, json, os, plistlib, random, string, subprocess, sys, time, uuid, shutil
 
 DATA = os.environ.get('ISIM_DATA') or os.path.expanduser('~/.local/share/isim')
 
@@ -73,8 +80,65 @@ def when(t):
     return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) if t else '-'
 
 
+STOREKIT = os.path.join(DATA, 'Library/isim/StoreKit')
+
+
+def storekit_device(cmd, args):
+    """the device's StoreKit testing certificate and subscription offers key (made with openssl when missing)"""
+    os.makedirs(STOREKIT, exist_ok=True)
+
+    def openssl(*a):
+        r = subprocess.run(['openssl', *a], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if r.returncode:
+            die(f'openssl {a[0]} failed: {r.stderr.strip()}')
+        return r.stdout
+    if cmd == 'certificate':
+        key, cert = os.path.join(STOREKIT, 'testing-key.pem'), os.path.join(STOREKIT, 'testing-cert.der')
+        if not (os.path.exists(key) and os.path.exists(cert)):
+            openssl('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-days', '3650',
+                    '-subj', '/O=isim/CN=isim StoreKit Testing', '-addext', 'basicConstraints=critical,CA:TRUE',
+                    '-addext', 'keyUsage=critical,digitalSignature,keyCertSign,cRLSign',
+                    '-keyout', key + '.tmp', '-outform', 'DER', '-out', cert + '.tmp')
+            os.replace(key + '.tmp', key)
+            os.replace(cert + '.tmp', cert)
+        files = [a for a in args if not a.startswith('--')]
+        der = '--der' in args or (files and files[0].endswith(('.cer', '.der')))
+        if der:
+            data = open(cert, 'rb').read()
+        else:
+            data = openssl('x509', '-inform', 'DER', '-in', cert).encode()
+        if files:
+            open(files[0], 'wb').write(data)
+            print(f'wrote the StoreKit testing certificate to {files[0]} ({"DER" if der else "PEM"})')
+        else:
+            sys.stdout.buffer.write(data)
+    elif cmd == 'offer-key':
+        key, kid = os.path.join(STOREKIT, 'offer-key.pem'), os.path.join(STOREKIT, 'offer-key.id')
+        if not (os.path.exists(key) and os.path.exists(kid)):
+            openssl('genpkey', '-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256', '-out', key + '.tmp')
+            os.replace(key + '.tmp', key)
+            with open(kid, 'w') as f:
+                f.write(''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10)) + '\n')
+        key_id, pem = open(kid).read().strip(), open(key).read()
+        if '--id' in args:
+            print(key_id)
+        elif '--pem' in args:
+            sys.stdout.write(pem)
+        else:
+            print(f'Key ID: {key_id}')
+            sys.stdout.write(pem)
+    else:
+        die(f'unknown storekit command {cmd}')
+
+
 def storekit(app, cmd, args):
-    path = os.path.join(container(app), 'Library/isim/StoreKit/ledger.json')
+    if app in ('certificate', 'offer-key'):
+        return storekit_device(app, [a for a in [cmd, *args] if a])
+    bid = bundle_id(app)
+    path = os.path.join(STOREKIT, bid, 'ledger.json')
+    old = os.path.join(container(app), 'Library/isim/StoreKit/ledger.json')
+    if not os.path.exists(path) and os.path.exists(old):
+        path = old             # not moved yet (the app moves it at its next launch)
     if not os.path.exists(path):
         die(f'no StoreKit transactions for {bundle_id(app)} ({path})')
     led = json.load(open(path))
@@ -113,9 +177,17 @@ def storekit(app, cmd, args):
                 state += f', offer {t.get("offerID") or t.get("offerType")}'
             print(f'{t["id"]:>5} {t["originalID"]:>5}  {t["productID"]:38} {t["type"]:28} {when(t["purchaseDate"]):19}  {when(t.get("expirationDate")):19}  {state}')
         for g, s in sorted(subs.items()):
+            billing = ''
+            if s.get('billingIssue'):
+                billing = ', billing issue'
+                if s.get('graceUntil') and s['graceUntil'] > now:
+                    billing += f' (grace period until {when(s["graceUntil"])})'
+                elif s.get('retryUntil') and s['retryUntil'] > now:
+                    billing += f' (billing retry until {when(s["retryUntil"])})'
+                elif s.get('retryUntil'):
+                    billing += ' (billing retry ended)'
             print(f'subscription group {g}: {s["productID"]}, auto-renew {"on" if s["willAutoRenew"] else "off"}'
-                  f'{" -> " + s["autoRenewProductID"] if s["autoRenewProductID"] != s["productID"] else ""}'
-                  f'{", billing issue" if s.get("billingIssue") else ""}')
+                  f'{" -> " + s["autoRenewProductID"] if s["autoRenewProductID"] != s["productID"] else ""}{billing}')
         return
     if cmd == 'refund':
         t = find_tx(args[0])
@@ -137,10 +209,10 @@ def storekit(app, cmd, args):
                 t['expirationDate'] = now
             s['expirationReason'] = 1
         print(f'{cmd}: subscription group {g} ({s["productID"]})')
-    elif cmd == 'billing-issue':
+    elif cmd in ('billing-issue', 'resolve'):
         g = find_group(args[0])
-        subs[g]['billingIssue'] = (args[1:] or ['on'])[0] == 'on'
-        print(f'billing issue {"on" if subs[g]["billingIssue"] else "off"} for subscription group {g}')
+        subs[g]['billingIssue'] = cmd == 'billing-issue' and (args[1:] or ['on'])[0] == 'on'
+        print(f'billing issue {"on" if subs[g]["billingIssue"] else "off (resolved)"} for subscription group {g}')
     elif cmd == 'delete':
         t = find_tx(args[0])
         txs.remove(t)
@@ -417,6 +489,8 @@ def appleid(app, cmd, args):
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
+        sys.argv.append('')
+    if len(sys.argv) == 3 and sys.argv[1] == 'storekit' and sys.argv[2] in ('certificate', 'offer-key'):
         sys.argv.append('')
     if len(sys.argv) < 4:
         print(__doc__.strip())

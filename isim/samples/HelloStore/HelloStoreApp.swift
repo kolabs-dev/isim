@@ -2,9 +2,13 @@
 // an accelerated clock, offers, Transaction.updates, finish(), refunds, AppTransaction), the StoreKit views
 // (StoreView, ProductView, SubscriptionStoreView), system sheets (manage subscriptions, offer codes, refund),
 // the review prompt, and StoreKit 1 (SKProductsRequest, SKPaymentQueue, receipt, SKOverlay, product page).
-// Every state change is printed, so tests/ui/test_store.py can check it.
+// Promotional offers are signed in the app with the key in HELLOSTORE_OFFER_KEY (standing in for the developer's
+// server; `isim storekit offer-key` prints it). HELLOSTORE_MESSAGES=listen|defer makes the app take StoreKit messages
+// (Message.messages) instead of letting isim show them. Every state change is printed, so tests/ui/test_store.py can
+// check it.
 import SwiftUI
 import StoreKit
+import CryptoKit
 
 let groupID = "21000001"
 let coinsID = "dev.isim.store.coins", fullGameID = "dev.isim.store.full_game"
@@ -29,14 +33,29 @@ let coinsID = "dev.isim.store.coins", fullGameID = "dev.isim.store.full_game"
                 await t.finish()
             }
         }
+        // HELLOSTORE_MESSAGES=listen: take StoreKit messages and show them; =defer: take them and show none
+        if let mode = ProcessInfo.processInfo.environment["HELLOSTORE_MESSAGES"] {
+            Task { @MainActor in
+                for await m in StoreKit.Message.messages {
+                    print("message: \(m.reason)")
+                    if mode == "listen" { try? m.display(in: UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first!) }
+                }
+            }
+        }
         Task {
             for await s in Product.SubscriptionInfo.Status.updates {
                 print("status update: \(s.state) \(s.transaction.unsafePayloadValue.productID) autoRenew=\(s.renewalInfo.unsafePayloadValue.willAutoRenew)")
             }
         }
         Task {
-            if case .verified(let a) = try await AppTransaction.shared {
+            let shared = try await AppTransaction.shared
+            if case .verified(let a) = shared {
                 print("appTransaction: bundle=\(a.bundleID) version=\(a.appVersion) original=\(a.originalAppVersion) env=\(a.environment.rawValue)")
+                // device verification: SHA-384 of the nonce and the device verification ID, as Apple documents it
+                let id = AppStore.deviceVerificationID!.uuidString.lowercased()
+                let expected = Data(SHA384.hash(data: Data((a.deviceVerificationNonce.uuidString.lowercased() + id).utf8)))
+                print("appTransaction deviceVerification ok=\(expected == a.deviceVerification)")
+                print("appTransaction jws: \(shared.jwsRepresentation)")
             }
             let products = try await Product.products(for: [coinsID, fullGameID, "dev.isim.store.plus.monthly", "dev.isim.store.plus.yearly", "dev.isim.store.premium.monthly"])
             for p in products.sorted(by: { $0.id < $1.id }) {
@@ -61,6 +80,12 @@ let coinsID = "dev.isim.store.coins", fullGameID = "dev.isim.store.full_game"
         let st = (try? await Product.SubscriptionInfo.status(for: groupID))?.first
         var s = "none"
         if let st { s = "\(st.state) \(st.transaction.unsafePayloadValue.productID) autoRenew=\(st.renewalInfo.unsafePayloadValue.willAutoRenew)" }
+        if let st {
+            let info = st.renewalInfo.unsafePayloadValue
+            if st.state == .inGracePeriod { s += " grace=\(info.gracePeriodExpirationDate != nil)" }
+            if st.state == .inBillingRetryPeriod || st.state == .inGracePeriod { s += " billingRetry=\(info.isInBillingRetry)" }
+            if let r = info.expirationReason, st.state != .subscribed { s += " reason=\(r.rawValue)" }
+        }
         if s != lastStatus { lastStatus = s; status = s; print("status: \(s)") }
         var list: [String] = []
         for await r in Transaction.currentEntitlements { if case .verified(let t) = r { list.append(t.productID) } }
@@ -102,6 +127,7 @@ struct RootView: View {
     @State private var showSubs = false
     @State private var showProducts = false
     @State private var overlay = false
+    @State private var showPlans = false
     var body: some View {
         NavigationStack {
             List {
@@ -119,8 +145,23 @@ struct RootView: View {
                         }
                     }.accessibilityIdentifier("refund")
                     Button("Redeem code") { Task { try? await AppStore.presentOfferCodeRedeemSheet(in: scene()) } }.accessibilityIdentifier("redeem")
-                    Button("Promotional offer") { Task { await buyOffer(winBack: false) } }.accessibilityIdentifier("promo")
-                    Button("Win-back offer") { Task { await buyOffer(winBack: true) } }.accessibilityIdentifier("winback")
+                    Button("Promotional offer") { Task { await buyOffer(.promo) } }.accessibilityIdentifier("promo")
+                    Button("Promotional offer (JWS)") { Task { await buyOffer(.promoJWS) } }.accessibilityIdentifier("promo-jws")
+                    Button("Promotional offer (bad signature)") { Task { await buyOffer(.promoForged) } }.accessibilityIdentifier("promo-bad")
+                    Button("Win-back offer") { Task { await buyOffer(.winBack) } }.accessibilityIdentifier("winback")
+                    Button("Plans (buttons)") { showPlans = true }.accessibilityIdentifier("open-plans")
+                    Button("Restore (AppStore.sync)") {
+                        Task {
+                            do { try await AppStore.sync(); await shop.refresh(); print("sync: done entitlements=[\(shop.entitlements.joined(separator: ","))]") }
+                            catch { print("sync failed: \(error)") }
+                        }
+                    }.accessibilityIdentifier("sync")
+                    Button("Signed transaction") {
+                        Task {
+                            guard let r = await Transaction.latest(for: "dev.isim.store.plus.monthly") else { return }
+                            print("transaction jws: \(r.jwsRepresentation)")
+                        }
+                    }.accessibilityIdentifier("jws")
                     Button("Request review") { requestReview() }.accessibilityIdentifier("review")
                 }
                 Section("StoreKit 1") {
@@ -133,12 +174,13 @@ struct RootView: View {
                     }.accessibilityIdentifier("sk1")
                     Button("SK1 restore") { SKPaymentQueue.default().restoreCompletedTransactions() }.accessibilityIdentifier("sk1-restore")
                     Button("Receipt") {
-                        if let url = Bundle.main.appStoreReceiptURL, let d = try? Data(contentsOf: url), let s = String(data: d, encoding: .utf8) {
-                            print("receipt: \(d.count) bytes, local unsigned=\(has(s, "LOCAL UNSIGNED")), full_game=\(has(s, fullGameID))")
+                        if let url = Bundle.main.appStoreReceiptURL, let d = try? Data(contentsOf: url) {
+                            print("receipt: \(d.count) bytes, pkcs7=\(d.first == 0x30), path=\(url.path)")
                         }
                     }.accessibilityIdentifier("receipt")
                     Button("App Store overlay") { overlay.toggle() }.accessibilityIdentifier("overlay")
-                    Button("App Store page") { showProductPage() }.accessibilityIdentifier("product-page")
+                    Button("App Store page") { showProductPage("1234567890") }.accessibilityIdentifier("product-page")
+                    Button("App Store page (unknown app)") { showProductPage("999") }.accessibilityIdentifier("product-page-unknown")
                 }
                 Section("Status") {
                     Text("Plus: \(shop.status)").accessibilityIdentifier("status")
@@ -170,16 +212,52 @@ struct RootView: View {
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { showProducts = false }.accessibilityIdentifier("close-products") } }
             }
         }
+        .sheet(isPresented: $showPlans) {
+            NavigationStack {
+                VStack(spacing: 0) {
+                    SubscriptionStoreView(groupID: groupID)
+                        .subscriptionStoreControlStyle(.buttons)
+                        .subscriptionStoreButtonLabel(.multiline)
+                        .storeButton(.visible, for: .policies)
+                        .subscriptionStorePolicyDestination(url: URL(string: "https://isim.dev/terms")!, for: .termsOfService)
+                        .subscriptionStorePolicyDestination(for: .privacyPolicy) { Text("HelloStore keeps nothing.").accessibilityIdentifier("privacy-text") }
+                    ProductView(id: fullGameID).productViewStyle(BadgeStyle())
+                }
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { showPlans = false }.accessibilityIdentifier("close-plans") } }
+            }
+        }
         .appStoreOverlay(isPresented: $overlay) { SKOverlay.AppConfiguration(appIdentifier: "1234567890", position: .bottom) }
     }
-    /// Plus Monthly with its promotional offer (signature not checked locally) or win-back offer.
-    func buyOffer(winBack: Bool) async {
+    enum OfferKind { case promo, promoJWS, promoForged, winBack }
+    /// Plus Monthly with its promotional offer (signed here, standing in for the developer's server) or win-back offer.
+    func buyOffer(_ kind: OfferKind) async {
         guard let p = try? await Product.products(for: ["dev.isim.store.plus.monthly"]).first, let s = p.subscription else { return }
-        let option: Product.PurchaseOption = winBack
-            ? .winBackOffer(s.winBackOffers[0])
-            : .promotionalOffer(offerID: s.promotionalOffers[0].id!, keyID: "LOCALKEY", nonce: UUID(), signature: Data(), timestamp: 0)
+        let env = ProcessInfo.processInfo.environment
+        let offerID = s.promotionalOffers[0].id!
+        let key = (try? P256.Signing.PrivateKey(pemRepresentation: env["HELLOSTORE_OFFER_KEY"] ?? "")) ?? P256.Signing.PrivateKey()
+        let keyID = env["HELLOSTORE_OFFER_KEY_ID"] ?? "NOKEY"
+        let token = UUID(), nonce = UUID(), timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        var option: Product.PurchaseOption
+        switch kind {
+        case .winBack:
+            option = .winBackOffer(s.winBackOffers[0])
+        case .promo, .promoForged:
+            let message = [Bundle.main.bundleIdentifier!, keyID, p.id, offerID, token.uuidString.lowercased(), nonce.uuidString.lowercased(), "\(timestamp)"]
+                .joined(separator: "\u{2063}")
+            let signer = kind == .promoForged ? P256.Signing.PrivateKey() : key
+            let signature = try! signer.signature(for: Data(message.utf8)).derRepresentation
+            option = .promotionalOffer(offerID: offerID, keyID: keyID, nonce: nonce, signature: signature, timestamp: timestamp)
+        case .promoJWS:
+            func b64(_ d: Data) -> String { d.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
+            let header = b64(Data(#"{"alg":"ES256","kid":"\#(keyID)","typ":"JWT"}"#.utf8))
+            let claims: [String: Any] = ["bid": Bundle.main.bundleIdentifier!, "productId": p.id, "offerIdentifier": offerID,
+                                         "nonce": nonce.uuidString.lowercased(), "iat": Int(Date().timeIntervalSince1970), "appAccountToken": token.uuidString.lowercased()]
+            let body = b64(try! JSONSerialization.data(withJSONObject: claims))
+            let sig = try! key.signature(for: Data("\(header).\(body)".utf8)).rawRepresentation
+            option = .promotionalOffer(offerID, compactJWS: "\(header).\(body).\(b64(sig))")
+        }
         do {
-            if case .success(.verified(let t)) = try await p.purchase(options: [option]) {
+            if case .success(.verified(let t)) = try await p.purchase(options: [option, .appAccountToken(token)]) {
                 print("offer purchase: txn \(t.id) \(t.productID) offer=\(t.offerType?.rawValue ?? 0):\(t.offerID ?? "-") expires=\(t.expirationDate.map { "\(Int($0.timeIntervalSince(t.purchaseDate).rounded()))s" } ?? "-")")
                 await t.finish()
             }
@@ -187,10 +265,10 @@ struct RootView: View {
     }
     func scene() -> UIWindowScene { UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first! }
     /// SKStoreProductViewController, presented with UIKit as apps do
-    func showProductPage() {
+    func showProductPage(_ id: String) {
         let vc = SKStoreProductViewController()
         vc.delegate = ProductPageDelegate.shared
-        vc.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: "1234567890"]) { ok, _ in print("product page loaded: \(ok)") }
+        vc.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: id]) { ok, _ in print("product page \(id) loaded: \(ok)") }
         var top = scene().windows.first(where: { $0.isKeyWindow })?.rootViewController
         while let p = top?.presentedViewController { top = p }
         top?.present(vc, animated: true)
@@ -202,9 +280,16 @@ final class ProductPageDelegate: NSObject, SKStoreProductViewControllerDelegate 
     func productViewControllerDidFinish(_ vc: SKStoreProductViewController) { print("product page finished"); vc.dismiss(animated: true) }
 }
 
-func has(_ s: String, _ sub: String) -> Bool {
-    let a = Array(s.utf8), b = Array(sub.utf8)
-    guard b.count <= a.count else { return false }
-    for i in 0...(a.count - b.count) where Array(a[i..<(i + b.count)]) == b { return true }
-    return false
+/// an app's own ProductViewStyle (makeBody with the configuration)
+struct BadgeStyle: ProductViewStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            Text(configuration.product?.displayName ?? configuration.productID).font(.headline)
+            Spacer()
+            if configuration.hasCurrentEntitlement { Text("Owned").accessibilityIdentifier("badge-owned") }
+            else { Button("Get \(configuration.product?.displayPrice ?? "")") { configuration.purchase() }.accessibilityIdentifier("badge-buy") }
+        }
+        .padding()
+        .accessibilityIdentifier("badge-style")
+    }
 }

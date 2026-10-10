@@ -16,6 +16,9 @@
       "familyShareable" : false,
       "internalID" : "1000000002",
       "localizations" : [ { "description" : "Unlock every level, forever.", "displayName" : "Full Game", "locale" : "en_US" } ],
+      "codeOffers" : [
+        { "displayPrice" : "0.00", "eligibility" : [ "new" ], "internalID" : "2000000015", "referenceName" : "FREEGAME" }
+      ],
       "productID" : "dev.isim.store.full_game",
       "referenceName" : "Full Game",
       "type" : "NonConsumable"
@@ -39,7 +42,8 @@
             { "displayPrice" : "0.99", "internalID" : "2000000011", "numberOfPeriods" : 1, "offerID" : "comeback", "paymentMode" : "payAsYouGo", "referenceName" : "Come Back", "subscriptionPeriod" : "P1M" }
           ],
           "codeOffers" : [
-            { "displayPrice" : "0.00", "eligibility" : [ "new", "expired" ], "internalID" : "2000000012", "isStackable" : true, "numberOfPeriods" : 1, "paymentMode" : "free", "referenceName" : "WELCOME", "subscriptionPeriod" : "P1M" }
+            { "displayPrice" : "0.00", "eligibility" : [ "new", "expired" ], "internalID" : "2000000012", "isStackable" : true, "numberOfPeriods" : 1, "paymentMode" : "free", "referenceName" : "WELCOME", "subscriptionPeriod" : "P1M" },
+            { "displayPrice" : "0.00", "eligibility" : [ "existing" ], "internalID" : "2000000014", "isStackable" : true, "numberOfPeriods" : 1, "paymentMode" : "free", "referenceName" : "LOYAL", "subscriptionPeriod" : "P1M" }
           ],
           "displayPrice" : "2.99",
           "familyShareable" : false,

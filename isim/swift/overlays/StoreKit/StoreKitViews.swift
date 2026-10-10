@@ -17,19 +17,73 @@ struct _SKStyleKey: EnvironmentKey { static var defaultValue: Int { 0 } }   // 0
 struct _SKButtonsKey: EnvironmentKey { static var defaultValue: [String: Visibility] { [:] } }
 struct _SKStartKey: EnvironmentKey { static var defaultValue: ((Product) async -> Void)? { nil } }
 struct _SKCompletionKey: EnvironmentKey { static var defaultValue: ((Product, Result<Product.PurchaseResult, Error>) async -> Void)? { nil } }
+struct _SKStyleBodyKey: EnvironmentKey { static var defaultValue: (@MainActor (ProductViewStyleConfiguration) -> AnyView)? { nil } }
+struct _SKControlKey: EnvironmentKey { static var defaultValue: String { "automatic" } }
+struct _SKButtonLabelKey: EnvironmentKey { static var defaultValue: SubscriptionStoreButtonLabel { .automatic } }
+struct _SKPoliciesKey: EnvironmentKey { static var defaultValue: [String: _SKPolicyDestination] { [:] } }
+struct _SKOfferSelectorKey: EnvironmentKey {
+    static var defaultValue: ((Product, Product.SubscriptionInfo, [Product.SubscriptionOffer]) -> Product.SubscriptionOffer?)? { nil }
+}
+/// where a policy link goes: a URL (opened like a link) or a view (shown in a sheet)
+struct _SKPolicyDestination { var url: URL?; var view: (() -> AnyView)? }
 extension EnvironmentValues {
     public var purchase: PurchaseAction { get { self[_SKPurchaseKey.self] } set { self[_SKPurchaseKey.self] = newValue } }
     var _skStyle: Int { get { self[_SKStyleKey.self] } set { self[_SKStyleKey.self] = newValue } }
     var _skButtons: [String: Visibility] { get { self[_SKButtonsKey.self] } set { self[_SKButtonsKey.self] = newValue } }
     var _skStart: ((Product) async -> Void)? { get { self[_SKStartKey.self] } set { self[_SKStartKey.self] = newValue } }
     var _skCompletion: ((Product, Result<Product.PurchaseResult, Error>) async -> Void)? { get { self[_SKCompletionKey.self] } set { self[_SKCompletionKey.self] = newValue } }
+    var _skStyleBody: (@MainActor (ProductViewStyleConfiguration) -> AnyView)? { get { self[_SKStyleBodyKey.self] } set { self[_SKStyleBodyKey.self] = newValue } }
+    var _skControl: String { get { self[_SKControlKey.self] } set { self[_SKControlKey.self] = newValue } }
+    var _skButtonLabel: SubscriptionStoreButtonLabel { get { self[_SKButtonLabelKey.self] } set { self[_SKButtonLabelKey.self] = newValue } }
+    var _skPolicies: [String: _SKPolicyDestination] { get { self[_SKPoliciesKey.self] } set { self[_SKPoliciesKey.self] = newValue } }
+    var _skOfferSelector: ((Product, Product.SubscriptionInfo, [Product.SubscriptionOffer]) -> Product.SubscriptionOffer?)? {
+        get { self[_SKOfferSelectorKey.self] } set { self[_SKOfferSelectorKey.self] = newValue }
+    }
 }
 
-public protocol ProductViewStyle { var _skStyle: Int { get } }
-public struct AutomaticProductViewStyle: ProductViewStyle { public init() {}; public var _skStyle: Int { 0 } }
-public struct CompactProductViewStyle: ProductViewStyle { public init() {}; public var _skStyle: Int { 1 } }
-public struct RegularProductViewStyle: ProductViewStyle { public init() {}; public var _skStyle: Int { 0 } }
-public struct LargeProductViewStyle: ProductViewStyle { public init() {}; public var _skStyle: Int { 2 } }
+/// What a ProductViewStyle draws: the product (once loaded), its icon, whether the customer owns it, and the purchase.
+public struct ProductViewStyleConfiguration {
+    public enum State { case loading, success(Product), unavailable, failure(Error) }
+    public struct Icon: View {
+        let content: AnyView
+        public var body: some View { content }
+    }
+    public let productID: String
+    public let state: State
+    public let icon: Icon
+    public let hasCurrentEntitlement: Bool
+    let buy: @MainActor () -> Void
+    public var product: Product? { if case .success(let p) = state { return p }; return nil }
+    /// starts the purchase, as the built-in styles' price button does
+    @MainActor public func purchase() { buy() }
+}
+
+public protocol ProductViewStyle {
+    associatedtype Body: View
+    typealias Configuration = ProductViewStyleConfiguration
+    @MainActor @ViewBuilder func makeBody(configuration: Configuration) -> Body
+    var _skStyle: Int { get }
+}
+extension ProductViewStyle {
+    /// an app's own style (its makeBody draws the product view)
+    public var _skStyle: Int { -1 }
+}
+public struct AutomaticProductViewStyle: ProductViewStyle {
+    public init() {}; public var _skStyle: Int { 0 }
+    public func makeBody(configuration: Configuration) -> some View { _SKProductContent(configuration: configuration, style: 0) }
+}
+public struct CompactProductViewStyle: ProductViewStyle {
+    public init() {}; public var _skStyle: Int { 1 }
+    public func makeBody(configuration: Configuration) -> some View { _SKProductContent(configuration: configuration, style: 1) }
+}
+public struct RegularProductViewStyle: ProductViewStyle {
+    public init() {}; public var _skStyle: Int { 0 }
+    public func makeBody(configuration: Configuration) -> some View { _SKProductContent(configuration: configuration, style: 0) }
+}
+public struct LargeProductViewStyle: ProductViewStyle {
+    public init() {}; public var _skStyle: Int { 2 }
+    public func makeBody(configuration: Configuration) -> some View { _SKProductContent(configuration: configuration, style: 2) }
+}
 extension ProductViewStyle where Self == AutomaticProductViewStyle { public static var automatic: AutomaticProductViewStyle { .init() } }
 extension ProductViewStyle where Self == CompactProductViewStyle { public static var compact: CompactProductViewStyle { .init() } }
 extension ProductViewStyle where Self == RegularProductViewStyle { public static var regular: RegularProductViewStyle { .init() } }
@@ -60,19 +114,43 @@ struct _SKStoreButtons: ViewModifier {
         return content.environment(\._skButtons, merged)
     }
 }
-public protocol SubscriptionStoreControlStyle {}
-public struct AutomaticSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {} }
-public struct PickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {} }
-public struct ButtonsSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {} }
-public struct PrefersProminentPickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {} }
+/// How SubscriptionStoreView lets the customer pick a plan: a picker (rows with a checkmark and one subscribe button),
+/// a prominent picker (larger rows), a compact picker (side-by-side tiles) or buttons (one subscribe button per plan).
+public protocol SubscriptionStoreControlStyle { var _skControl: String { get } }
+extension SubscriptionStoreControlStyle { public var _skControl: String { "automatic" } }
+public struct AutomaticSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "automatic" } }
+public struct PickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "picker" } }
+public struct ButtonsSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "buttons" } }
+public struct PrefersProminentPickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "prominentPicker" } }
+public struct CompactPickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "compactPicker" } }
 extension SubscriptionStoreControlStyle where Self == AutomaticSubscriptionStoreControlStyle { public static var automatic: Self { .init() } }
 extension SubscriptionStoreControlStyle where Self == PickerSubscriptionStoreControlStyle { public static var picker: Self { .init() } }
 extension SubscriptionStoreControlStyle where Self == ButtonsSubscriptionStoreControlStyle { public static var buttons: Self { .init() } }
 extension SubscriptionStoreControlStyle where Self == PrefersProminentPickerSubscriptionStoreControlStyle { public static var prominentPicker: Self { .init() } }
+extension SubscriptionStoreControlStyle where Self == CompactPickerSubscriptionStoreControlStyle { public static var compactPicker: Self { .init() } }
+
+/// The subscription store's policy links (shown with storeButton(.visible, for: .policies)).
+public struct SubscriptionStorePolicyKind: Hashable, Sendable {
+    let name: String
+    public static let termsOfService = SubscriptionStorePolicyKind(name: "termsOfService")
+    public static let privacyPolicy = SubscriptionStorePolicyKind(name: "privacyPolicy")
+}
 public enum SubscriptionStoreButtonLabel: Hashable, Sendable { case automatic, action, displayName, price, singleLine, multiline }
 
+@MainActor func _skCustomBody<S: ProductViewStyle>(_ style: S, _ c: ProductViewStyleConfiguration) -> AnyView {
+    let body: S.Body = style.makeBody(configuration: c)
+    return AnyView(body)
+}
+
 extension View {
-    public func productViewStyle<S: ProductViewStyle>(_ style: S) -> some View { environment(\._skStyle, style._skStyle) }
+    public func productViewStyle<S: ProductViewStyle>(_ style: S) -> some View {
+        let n: Int = style._skStyle
+        var custom: (@MainActor (ProductViewStyleConfiguration) -> AnyView)?
+        if n < 0 {
+            custom = { @MainActor (c: ProductViewStyleConfiguration) -> AnyView in _skCustomBody(style, c) }
+        }
+        return environment(\EnvironmentValues._skStyle, n).environment(\EnvironmentValues._skStyleBody, custom)
+    }
     public func storeButton(_ visibility: Visibility, for buttonKinds: StoreButtonKind...) -> some View {
         modifier(_SKStoreButtons(visibility: visibility, kinds: buttonKinds.map { $0.name }))
     }
@@ -80,9 +158,22 @@ extension View {
     public func onInAppPurchaseCompletion(perform action: ((Product, Result<Product.PurchaseResult, Error>) async -> Void)?) -> some View {
         environment(\._skCompletion, action)
     }
-    public func subscriptionStoreControlStyle<S: SubscriptionStoreControlStyle>(_ style: S) -> some View { self }
-    public func subscriptionStoreButtonLabel(_ label: SubscriptionStoreButtonLabel) -> some View { self }
-    public func subscriptionStorePolicyDestination(url: URL, for policy: Any) -> some View { self }
+    public func subscriptionStoreControlStyle<S: SubscriptionStoreControlStyle>(_ style: S) -> some View { environment(\._skControl, style._skControl) }
+    public func subscriptionStoreButtonLabel(_ label: SubscriptionStoreButtonLabel) -> some View { environment(\._skButtonLabel, label) }
+    public func subscriptionStorePolicyDestination(url: URL, for policy: Any) -> some View {
+        modifier(_SKPolicyModifier(kind: (policy as? SubscriptionStorePolicyKind)?.name ?? "\(policy)", destination: _SKPolicyDestination(url: url, view: nil)))
+    }
+    public func subscriptionStorePolicyDestination(url: URL, for policy: SubscriptionStorePolicyKind) -> some View {
+        modifier(_SKPolicyModifier(kind: policy.name, destination: _SKPolicyDestination(url: url, view: nil)))
+    }
+    public func subscriptionStorePolicyDestination<Destination: View>(for policy: SubscriptionStorePolicyKind, @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        modifier(_SKPolicyModifier(kind: policy.name, destination: _SKPolicyDestination(url: nil, view: { AnyView(destination()) })))
+    }
+    /// Chooses the offer SubscriptionStoreView and ProductView show and buy for a subscription (iOS 18): from the
+    /// customer's eligible offers (introductory, or win-back for a lapsed subscriber); nil shows none.
+    public func preferredSubscriptionOffer(_ offerSelector: @escaping (Product, Product.SubscriptionInfo, [Product.SubscriptionOffer]) -> Product.SubscriptionOffer?) -> some View {
+        environment(\._skOfferSelector, offerSelector)
+    }
     public func storeProductTask(for id: String, priority: TaskPriority = .medium, action: @escaping (Product?) async -> Void) -> some View {
         task { await action(try? await Product.products(for: [id]).first) }
     }
@@ -186,6 +277,45 @@ struct _SKPriceButton: View {
 
 // MARK: - ProductView
 
+/// The built-in product view styles (compact / regular / large). `prefersPromotionalIcon` falls back to the icon, as in
+/// Xcode's local testing: promotional images come from App Store Connect, and .storekit files have none.
+struct _SKProductContent: View {
+    let configuration: ProductViewStyleConfiguration, style: Int
+    var body: some View {
+        if let p = configuration.product {
+            let owned = configuration.hasCurrentEntitlement
+            let buy = { configuration.purchase() }
+            if style == 2 {
+                VStack(spacing: 10) {
+                    configuration.icon
+                    Text(verbatim: p.displayName).font(.system(size: 22, weight: .bold))
+                    Text(verbatim: p.description).font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    _SKPriceButton(product: p, owned: owned, action: buy)
+                }
+                .frame(maxWidth: .infinity)
+            } else if style == 1 {
+                HStack(spacing: 10) {
+                    Text(verbatim: p.displayName).font(.system(size: 16, weight: .semibold))
+                    Spacer()
+                    _SKPriceButton(product: p, owned: owned, action: buy)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    configuration.icon
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: p.displayName).font(.system(size: 16, weight: .semibold))
+                        Text(verbatim: p.description).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    Spacer()
+                    _SKPriceButton(product: p, owned: owned, action: buy)
+                }
+            }
+        } else {
+            Text(verbatim: "Product unavailable").foregroundStyle(.secondary)
+        }
+    }
+}
+
 public struct ProductView<Icon: View, PlaceholderIcon: View>: View {
     let id: String
     let given: Product?
@@ -206,42 +336,18 @@ public struct ProductView<Icon: View, PlaceholderIcon: View>: View {
     var product: Product? { given ?? _SKConfig.load().item(id).map(Product.init) }
 
     public var body: some View {
-        if let p = product {
-            let owned = _SKLedger.shared.entitlements().contains { $0.productID == p.id } && p.type != .consumable
-            let style = env._skStyle
-            let iconView = Group { if let icon { icon() } else { _SKProductIcon(product: p, size: style == 2 ? 96 : 52) } }
-            let buy = { Task { @MainActor in await _skBuy(p, env); version += 1 } }
-            Group {
-                if style == 2 {
-                    VStack(spacing: 10) {
-                        iconView
-                        Text(verbatim: p.displayName).font(.system(size: 22, weight: .bold))
-                        Text(verbatim: p.description).font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        _SKPriceButton(product: p, owned: owned) { _ = buy() }
-                    }
-                    .frame(maxWidth: .infinity)
-                } else if style == 1 {
-                    HStack(spacing: 10) {
-                        Text(verbatim: p.displayName).font(.system(size: 16, weight: .semibold))
-                        Spacer()
-                        _SKPriceButton(product: p, owned: owned) { _ = buy() }
-                    }
-                } else {
-                    HStack(spacing: 12) {
-                        iconView
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(verbatim: p.displayName).font(.system(size: 16, weight: .semibold))
-                            Text(verbatim: p.description).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2)
-                        }
-                        Spacer()
-                        _SKPriceButton(product: p, owned: owned) { _ = buy() }
-                    }
-                }
-            }
-            .id(version)
-        } else {
-            Text(verbatim: "Product unavailable").foregroundStyle(.secondary)
+        let p = product
+        let style = env._skStyle
+        let owned = p.map { p in p.type != .consumable && _SKLedger.shared.entitlements().contains { $0.productID == p.id } } ?? false
+        let iconView: AnyView = p.map { p in icon.map { AnyView($0()) } ?? AnyView(_SKProductIcon(product: p, size: style == 2 ? 96 : 52)) } ?? AnyView(EmptyView())
+        let env = self.env
+        let bump = { version += 1 }
+        let config = ProductViewStyleConfiguration(productID: id, state: p.map { .success($0) } ?? .unavailable, icon: .init(content: iconView),
+                                                   hasCurrentEntitlement: owned, buy: { if let p { Task { @MainActor in await _skBuy(p, env); bump() } } })
+        Group {
+            if let custom = env._skStyleBody { custom(config) } else { _SKProductContent(configuration: config, style: style) }
         }
+        .id(version)
     }
 }
 
@@ -289,15 +395,31 @@ extension StoreView where Icon == EmptyView, PlaceholderIcon == EmptyView {
     public init(products: [Product], prefersPromotionalIcon: Bool = false) { ids = products.map { $0.id }; icon = nil }
 }
 
+struct _SKPolicyModifier: ViewModifier {
+    let kind: String, destination: _SKPolicyDestination
+    @Environment(\._skPolicies) var current
+    func body(content: Content) -> some View {
+        var merged = current
+        merged[kind] = destination
+        return content.environment(\._skPolicies, merged)
+    }
+}
+
+/// Apple's standard license agreement: the terms of service when the app sets none
+let _skStandardEULA = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+
 struct _SKStoreFooter: View {
     let restoreDefault: Bool
     @Environment(\.self) private var env
     @Environment(\.dismiss) private var dismiss
+    @State private var policySheet: String?
     var body: some View {
         let b = env._skButtons
         let restore = b["restorePurchases"].map { $0 == .visible } ?? restoreDefault
         let redeem = b["redeemCode"] == .visible
         let cancel = b["cancellation"] == .visible
+        let policies = b["policies"] == .visible
+        let privacy = env._skPolicies["privacyPolicy"]
         VStack(spacing: 10) {
             if restore {
                 Button("Restore Purchases") { Task { try? await AppStore.sync(); NSLog("isim StoreKit: restore purchases (store view)") } }
@@ -305,11 +427,35 @@ struct _SKStoreFooter: View {
             }
             if redeem { Button("Redeem Code") { Task { @MainActor in await _SKSheets.redeemCode() } }.accessibilityIdentifier("sk-store-redeem") }
             if cancel { Button("Cancel") { dismiss() }.accessibilityIdentifier("sk-store-cancel") }
+            if policies {
+                HStack(spacing: 6) {
+                    Button("Terms of Service") { open("termsOfService") }.accessibilityIdentifier("sk-policy-terms")
+                    if privacy != nil {
+                        Text(verbatim: "·").foregroundStyle(.secondary)
+                        Button("Privacy Policy") { open("privacyPolicy") }.accessibilityIdentifier("sk-policy-privacy")
+                    }
+                }
+                .font(.system(size: 13))
+            }
             Text(verbatim: "[Environment: isim StoreKit testing]").font(.system(size: 11)).foregroundStyle(.secondary)
         }
         .font(.system(size: 15))
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
+        .sheet(isPresented: Binding(get: { policySheet != nil }, set: { if !$0 { policySheet = nil } })) {
+            if let k = policySheet, let v = env._skPolicies[k]?.view {
+                NavigationStack {
+                    v().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { policySheet = nil }.accessibilityIdentifier("sk-policy-done") } }
+                }
+            }
+        }
+    }
+    func open(_ kind: String) {
+        let d = env._skPolicies[kind]
+        if d?.view != nil { NSLog("isim StoreKit: policy %@: showing the app's view", kind); policySheet = kind; return }
+        let url = d?.url ?? _skStandardEULA
+        NSLog("isim StoreKit: policy %@: opening %@", kind, url.absoluteString)
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }
 }
 
@@ -331,15 +477,32 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
         groupID = nil; productIDs = subscriptions.map { $0.id }; marketing = marketingContent
     }
 
+    /// the offer shown and bought for a plan: introductory (never subscribed) or win-back (lapsed, iOS 18), or the
+    /// app's choice (preferredSubscriptionOffer)
+    func offer(_ p: _SKItem, eligibleIntro: Bool, lapsed: Bool) -> Product.SubscriptionOffer? {
+        var eligible: [Product.SubscriptionOffer] = []
+        if eligibleIntro, let i = p.intro?.offer { eligible.append(i) }
+        if lapsed, _skOSMajor() >= 18 { eligible += p.winBacks.map { $0.offer } }
+        if let choose = env._skOfferSelector {
+            let product = Product(p)
+            guard let info = product.subscription else { return nil }
+            return choose(product, info, eligible)
+        }
+        return eligible.first { $0.type == .winBack } ?? eligible.first
+    }
+
     public var body: some View {
         let cfg = _SKConfig.load()
         let plans = (groupID.map { g in cfg.items.filter { $0.groupID == g } } ?? productIDs.compactMap { cfg.item($0) })
             .filter { $0.type == .autoRenewable }.sorted { ($0.groupLevel, $0.price) < ($1.groupLevel, $1.price) }
         let group = groupID ?? plans.first?.groupID ?? ""
         let current = _SKLedger.shared.entitlements().first { $0.groupID == group }
-        let eligible = !_SKLedger.shared.everSubscribed(group: group)
+        let ever = _SKLedger.shared.everSubscribed(group: group)
+        let lapsed = ever && current == nil
+        let offers = Dictionary(plans.map { ($0.id, offer($0, eligibleIntro: !ever, lapsed: lapsed)) }, uniquingKeysWith: { a, _ in a })
         let choice = selected ?? current?.productID ?? plans.first?.id
         let chosen = plans.first { $0.id == choice }
+        let control = env._skControl
         ScrollView {
             VStack(spacing: 16) {
                 if let marketing { marketing() } else {
@@ -350,26 +513,35 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
                     }
                     .padding(.top, 24)
                 }
-                VStack(spacing: 10) {
-                    ForEach(plans, id: \.id) { p in
-                        Button { selected = p.id } label: { planRow(p, chosen: p.id == choice, current: current?.productID == p.id, eligible: eligible) }
-                            .accessibilityIdentifier("sk-plan-\(p.id)")
+                if control == "buttons" {
+                    VStack(spacing: 10) {
+                        ForEach(plans, id: \.id) { p in
+                            subscribeButton(p, offer: offers[p.id] ?? nil, current: current).accessibilityIdentifier("sk-subscribe-\(p.id)")
+                        }
                     }
+                } else {
+                    if control == "compactPicker" {
+                        HStack(spacing: 8) {
+                            ForEach(plans, id: \.id) { p in
+                                Button { selected = p.id } label: { compactTile(p, chosen: p.id == choice, current: current?.productID == p.id) }
+                                    .accessibilityIdentifier("sk-plan-\(p.id)")
+                            }
+                        }
+                    } else {
+                        VStack(spacing: control == "prominentPicker" ? 12 : 10) {
+                            ForEach(plans, id: \.id) { p in
+                                Button { selected = p.id } label: {
+                                    planRow(p, chosen: p.id == choice, current: current?.productID == p.id, offer: offers[p.id] ?? nil, prominent: control == "prominentPicker")
+                                }
+                                .accessibilityIdentifier("sk-plan-\(p.id)")
+                            }
+                        }
+                    }
+                    if let chosen { subscribeButton(chosen, offer: offers[chosen.id] ?? nil, current: current).accessibilityIdentifier("sk-subscribe") }
                 }
                 if let chosen {
-                    let isCurrent = current?.productID == chosen.id
-                    let free = eligible && chosen.intro?.offer.paymentMode == .freeTrial
-                    Button {
-                        Task { @MainActor in await _skBuy(Product(chosen), env); version += 1 }
-                    } label: {
-                        Text(verbatim: isCurrent ? "Current Plan" : free ? "Try It Free" : current == nil ? "Subscribe" : "Change Plan")
-                            .font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
-                            .frame(maxWidth: .infinity).frame(height: 50)
-                            .background(isCurrent ? Color(uiColor: .systemGray3) : Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
-                    }
-                    .disabled(isCurrent)
-                    .accessibilityIdentifier("sk-subscribe")
-                    Text(verbatim: termsLine(chosen, eligible: eligible)).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    Text(verbatim: termsLine(chosen, offer: offers[chosen.id] ?? nil)).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        .accessibilityIdentifier("sk-terms")
                 }
                 _SKStoreFooter(restoreDefault: true)
             }
@@ -378,29 +550,76 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
         }
     }
 
-    func termsLine(_ p: _SKItem, eligible: Bool) -> String {
+    /// the subscribe button's label: the action, the plan's name or price, on one line or two
+    func buttonText(_ p: _SKItem, offer: Product.SubscriptionOffer?, isCurrent: Bool, current: _SKTxn?) -> (String, String?) {
+        let action = isCurrent ? "Current Plan" : offer?.paymentMode == .freeTrial ? "Try It Free" : offer?.type == .winBack ? "Resubscribe"
+            : current == nil ? "Subscribe" : "Change Plan"
+        let price = offer.map { "\($0.summary), then \(_SKSheets.pricePerPeriod(p))" } ?? _SKSheets.pricePerPeriod(p)
+        switch env._skButtonLabel {
+        case .displayName: return (p.name, nil)
+        case .price: return (price, nil)
+        case .singleLine: return ("\(action) · \(price)", nil)
+        case .multiline: return (action, price)
+        default: return (env._skControl == "buttons" ? "\(p.name) · \(_SKSheets.pricePerPeriod(p))" : action, nil)
+        }
+    }
+
+    func subscribeButton(_ p: _SKItem, offer: Product.SubscriptionOffer?, current: _SKTxn?) -> some View {
+        let isCurrent = current?.productID == p.id
+        let (title, subtitle) = buttonText(p, offer: offer, isCurrent: isCurrent, current: current)
+        let env = self.env
+        return Button {
+            Task { @MainActor in
+                let options: Set<Product.PurchaseOption> = offer?.type == .winBack ? [.winBackOffer(offer!)] : []
+                await _skBuy(Product(p), env, options: options); version += 1
+            }
+        } label: {
+            VStack(spacing: 2) {
+                Text(verbatim: title).font(.system(size: 17, weight: .semibold))
+                if let subtitle { Text(verbatim: subtitle).font(.system(size: 13)) }
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity).frame(minHeight: 50).padding(.vertical, subtitle == nil ? 0 : 4)
+            .background(isCurrent ? Color(uiColor: .systemGray3) : Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
+        }
+        .disabled(isCurrent)
+    }
+
+    func termsLine(_ p: _SKItem, offer: Product.SubscriptionOffer?) -> String {
         let base = _SKSheets.pricePerPeriod(p)
-        if eligible, let o = p.intro?.offer { return "\(o.summary), then \(base). Auto-renews until canceled." }
+        if let o = offer { return "\(o.summary), then \(base). Auto-renews until canceled." }
         return "\(base). Auto-renews until canceled."
     }
 
-    func planRow(_ p: _SKItem, chosen: Bool, current: Bool, eligible: Bool) -> some View {
+    func planRow(_ p: _SKItem, chosen: Bool, current: Bool, offer: Product.SubscriptionOffer?, prominent: Bool) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: chosen ? "checkmark.circle.fill" : "circle").font(.system(size: 22))
+            Image(systemName: chosen ? "checkmark.circle.fill" : "circle").font(.system(size: prominent ? 26 : 22))
                 .foregroundStyle(chosen ? Color.accentColor : Color(uiColor: .tertiaryLabel))
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: p.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary)
-                Text(verbatim: _SKSheets.pricePerPeriod(p)).font(.system(size: 14)).foregroundStyle(.secondary)
-                if eligible, let o = p.intro?.offer {
+                Text(verbatim: p.name).font(.system(size: prominent ? 19 : 16, weight: .semibold)).foregroundStyle(.primary)
+                Text(verbatim: _SKSheets.pricePerPeriod(p)).font(.system(size: prominent ? 16 : 14)).foregroundStyle(.secondary)
+                if let o = offer {
                     Text(verbatim: o.summary).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accentColor)
+                        .accessibilityIdentifier("sk-offer-\(p.id)")
                 }
             }
             Spacer()
             if current { Text(verbatim: "Current").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary) }
         }
-        .padding(14)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(chosen ? Color.accentColor : Color.clear, lineWidth: 2))
+        .padding(prominent ? 18 : 14)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: prominent ? 18 : 14))
+        .overlay(RoundedRectangle(cornerRadius: prominent ? 18 : 14).stroke(chosen ? Color.accentColor : Color.clear, lineWidth: 2))
+    }
+
+    func compactTile(_ p: _SKItem, chosen: Bool, current: Bool) -> some View {
+        VStack(spacing: 4) {
+            Text(verbatim: p.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+            Text(verbatim: _SKSheets.pricePerPeriod(p)).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+            if current { Text(verbatim: "Current").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary) }
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 12)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(chosen ? Color.accentColor : Color.clear, lineWidth: 2))
     }
 }
 extension SubscriptionStoreView where MarketingContent == EmptyView {
