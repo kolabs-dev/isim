@@ -495,7 +495,7 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
             // server's certificates from a handshake of our own; libcurl's connection is then pinned to that server key.
             // A server that asks for a client certificate gets a client-certificate challenge too.
             var curlFlags: Int32 = 1
-            var pinnedKey: String? = nil, clientPEM: [UInt8]? = nil
+            var pinnedKey: String? = nil, clientPEM: [UInt8]? = nil, certificateAsked = false
             if scheme == "https", _session.delegate != nil {
                 let host = url.host ?? "", port = url.port ?? 443
                 let probe = _session._probe(host: host, port: port, timeout: req.timeoutInterval)
@@ -511,6 +511,7 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
                     }
                 }
                 if probe?.clientCertificateRequested == true {
+                    certificateAsked = true
                     let space = URLProtectionSpace(host: host, port: port, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodClientCertificate)
                     space._distinguishedNames = probe?.distinguishedNames ?? []
                     let stored = config.urlCredentialStorage?.defaultCredential(for: space)
@@ -558,6 +559,12 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
             let rc = isim_http_response(h, &status, &cURL, &cHeaders)
             if Int(rc) == NSURLErrorServerCertificateUntrusted, pinnedKey != nil {   /* the server's key changed: probe it again next time */
                 _session._lock.lock(); _session._tlsProbes["\((url.host ?? "").lowercased()):\(url.port ?? 443)"] = nil; _session._lock.unlock()
+            }
+            // the server asked for a client certificate and got none: its refusal (a TLS alert, or just a closed
+            // connection, depending on the TLS versions) is clientCertificateRequired, as on iOS
+            if certificateAsked && clientPEM == nil && (rc == -1005 || rc == -1200) {
+                _fillMetrics(tm, h, response: nil, bodyBytes: 0)
+                return (URLError._make(NSURLErrorClientCertificateRequired, url: url, detail: String(cString: isim_http_error_message(h))), nil)
             }
             if rc != 0 { _fillMetrics(tm, h, response: nil, bodyBytes: 0); return (URLError._make(Int(rc), url: url, detail: String(cString: isim_http_error_message(h))), nil) }
             let finalURL = cURL.map { URL(string: String(cString: $0)) ?? url } ?? url
