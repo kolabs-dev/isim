@@ -739,7 +739,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `horizontalSizeClass`, `verticalSizeClass`, `displayScale` | ✅ | ≤17 | |
 | `layoutDirection` | 🟡 | ≤17 | value exists; RTL layout not implemented |
 | `calendar`, `timeZone`, `dynamicTypeSize`, `colorSchemeContrast` | ✅ | ≤17 | `dynamicTypeSize` and `colorSchemeContrast` follow Settings > Accessibility (Larger Text, Increase Contrast); text styles (`.body`, `.headline`, …) scale with Dynamic Type; tested (HelloAccessibility) |
-| `editMode`, `isPresented`, `isSearching`, `presentationMode` | 🟡 | ≤17 | `editMode` (a window-wide binding, or your own via `.environment`) and `isPresented` tested (HelloLists); `isSearching`, `presentationMode` unverified |
+| `editMode`, `isPresented`, `isSearching`, `presentationMode` | ✅ | ≤17 | `editMode` (a window-wide binding, or your own via `.environment`) and `isPresented` (tested, HelloLists); `isSearching` follows the search field of the enclosing `.searchable`; `presentationMode` (`isPresented`, `dismiss()`) in presented content; a dismissed presentation's views get `onDisappear` and their tasks are cancelled. Tested (HelloSwiftUIControls) |
 | `accessibilityReduceMotion` and other accessibility values | ✅ | ≤17 | `accessibilityReduceMotion`, `accessibilityReduceTransparency`, `accessibilityDifferentiateWithoutColor`, `accessibilityVoiceOverEnabled`, `legibilityWeight` from Settings > Accessibility; tested (HelloAccessibility). `accessibilityInvertColors` always false |
 | `requestReview` | ✅ | ≤17 | see StoreKit |
 
@@ -751,7 +751,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 | `accessibilityLabel` | ✅ | ≤17 | stored on the UIKit view |
 | `.draggable`, `.dropDestination`, `.onDrag`, `.onDrop` | 🟡 | ≤17 | Transferable payloads / NSItemProviders through UIDragInteraction/UIDropInteraction (long press to lift); `isTargeted`; tested (HelloDragDrop: String draggable → dropDestination). Custom previews ignored |
 | `accessibilityHint`, `accessibilityHidden` | ✅ | ≤17 | set on the mounted UIKit view; VoiceOver reads hints and skips hidden views; tested (HelloAccessibility) |
-| `accessibilityValue`, `accessibilityAddTraits`, `accessibilityElement(children:)`, `accessibilityAction`, `accessibilityAdjustableAction`, `accessibilitySortPriority` | 🟡 | ≤17 | feed the UIKit accessibility tree (value, traits, `.combine`/`.ignore` label from the children's text, `.contain` grouping, default and named actions, adjustable increments, sort priority); tested (HelloAccessibility: value, header trait, combine, adjustable, hidden). Named actions and sort priority unverified |
+| `accessibilityValue`, `accessibilityAddTraits`, `accessibilityElement(children:)`, `accessibilityAction`, `accessibilityAdjustableAction`, `accessibilitySortPriority` | ✅ | ≤17 | feed the UIKit accessibility tree (value, traits, `.combine`/`.ignore` label from the children's text, `.contain` grouping, default and named actions, adjustable increments, sort priority); tested (HelloAccessibility: value, header trait, combine, adjustable, hidden; HelloSwiftUIControls: sort priority, named actions through VoiceOver's action and Actions rotor) |
 
 ### UIKit interop
 

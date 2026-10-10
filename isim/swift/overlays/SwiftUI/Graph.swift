@@ -36,6 +36,14 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var disappearActions: [String: () -> Void] = [:]
     var rendering = false, pending = false
     var urlHandlers: [String: (URL) -> Void] = [:]
+    /// Every view is gone (the presentation hosting them was dismissed): disappear actions run, tasks are cancelled.
+    func disappearAll() {
+        let actions = disappearActions
+        disappearActions = [:]; appeared = []
+        for (_, t) in tasks { t.cancel() }
+        tasks = [:]
+        for a in actions.values { a() }
+    }
     var urlObserver: NSObjectProtocol?
     var pendingURLs: [URL] = []
     func installURLObserver() {

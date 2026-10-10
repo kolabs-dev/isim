@@ -4,7 +4,9 @@
 // SharePreview (UIKit's share sheet); RenameButton / renameAction.
 // iOS 26: Slider tick marks, neutral value and enabled bounds; TextEditor editing an AttributedString with a selection.
 // Opens controlsplus:// URLs (onOpenURL prints them; HelloScenes links here).
-// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich.
+// PAGE=env: \.isSearching in a searchable list, \.presentationMode / \.isPresented in a sheet.
+// PAGE=ax: accessibilitySortPriority and named accessibility actions (drive it with isim's VoiceOver).
+// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich|env|ax.
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -24,6 +26,8 @@ struct Root: View {
         case "paste": PastePage()
         case "share": SharePage()
         case "rename": RenamePage()
+        case "env": EnvPage()
+        case "ax": AxPage()
         case "ticks": if #available(iOS 26.0, *) { TicksPage() } else { Text("iOS 26") }
         case "rich": if #available(iOS 26.0, *) { RichPage() } else { Text("iOS 26") }
         default: SymbolsPage()
@@ -249,6 +253,54 @@ struct RichPage: View {
             case .insertionPoint(let i): print("caret \(text.characters.distance(from: text.startIndex, to: i))")
             case .ranges(let rs): print("selected " + rs.ranges.map { String(text[$0].characters) }.joined(separator: ","))
             }
+        }
+    }
+}
+
+struct EnvPage: View {
+    @State var query = ""
+    @State var sheet = false
+    var body: some View {
+        NavigationStack {
+            List {
+                SearchState()
+                Button("Show sheet") { sheet = true }.accessibilityIdentifier("show-sheet")
+                ForEach(["Apple", "Banana", "Cherry"].filter { query.isEmpty || $0.contains(query) }, id: \.self) { Text($0) }
+            }
+            .searchable(text: $query)
+            .navigationTitle("Environment")
+        }
+        .sheet(isPresented: $sheet) { SheetContent() }
+    }
+}
+/// Reads \.isSearching (it is inside the searchable list).
+struct SearchState: View {
+    @Environment(\.isSearching) var searching
+    var body: some View {
+        Text(searching ? "searching" : "not searching").accessibilityIdentifier("search-state")
+            .onChange(of: searching) { _, s in print("isSearching \(s)") }
+    }
+}
+struct SheetContent: View {
+    @Environment(\.presentationMode) var mode
+    @Environment(\.isPresented) var presented
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("presented \(presented ? "yes" : "no") mode \(mode.wrappedValue.isPresented ? "yes" : "no")").accessibilityIdentifier("sheet-state")
+            Button("Done") { mode.wrappedValue.dismiss() }.accessibilityIdentifier("sheet-done")
+        }
+        .onDisappear { print("sheet gone") }
+    }
+}
+
+struct AxPage: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Second").accessibilitySortPriority(1)
+            Text("First").accessibilitySortPriority(2)
+            Text("Mail")
+                .accessibilityAction(named: "Archive") { print("archived") }
+                .accessibilityAction(named: Text("Flag")) { print("flagged") }
         }
     }
 }

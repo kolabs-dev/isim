@@ -248,3 +248,45 @@ def test_attributed_text_editor(launch, ios):
     app.tap_id("underline")
     app.wait_log(r"^text Hello\[u\]\| \|worldwide\[red\]$")
     assert app.quit() == 0, "exits cleanly"
+
+
+def test_search_and_presentation_environment(launch):
+    """\\.isSearching follows the search field of a .searchable list; \\.presentationMode and \\.isPresented in a sheet,
+    and presentationMode.dismiss() closes it."""
+    app = launch("HelloSwiftUIControls", env={"PAGE": "env"})
+    app.wait_view(r"id=search-state text=not searching")
+    app.wait_tap_id("search-field")
+    app.wait_log(r"^isSearching true$")
+    app.wait_view(r"id=search-state text=searching")
+    app.type("an")
+    app.wait_view(r"text=Banana")
+    app.tap_id("search-cancel")
+    app.wait_log(r"^isSearching false$")
+    app.wait_tap_id("show-sheet")
+    app.wait_view(r"id=sheet-state text=presented yes mode yes")
+    app.tap_id("sheet-done")
+    app.wait_log(r"^sheet gone$")
+    app.wait_view(r"id=sheet-state", gone=True)
+    assert app.quit() == 0, "exits cleanly"
+
+
+def test_accessibility_order_and_actions(launch):
+    """accessibilitySortPriority orders VoiceOver within a container; named accessibility actions (the first with
+    `voiceover action`, others from the Actions rotor)."""
+    app = launch("HelloSwiftUIControls", env={"PAGE": "ax"})
+    app.send("voiceover on")
+    app.wait_log(r'VoiceOver: "First"')                                      # the higher sort priority first
+    app.send("voiceover next")
+    app.wait_log(r'VoiceOver: "Second"')
+    app.send("voiceover next")
+    app.wait_log(r'VoiceOver: "Mail. Actions available."')
+    app.send("voiceover action")
+    app.wait_log(r"^archived$")                                              # accessibilityAction(named:)
+    app.send("voiceover rotor").send("voiceover rotor")
+    app.wait_log(r"VoiceOver rotor: Actions")
+    app.send("voiceover down")
+    app.wait_log(r'VoiceOver: "Flag"')
+    app.send("voiceover activate")
+    app.wait_log(r"^flagged$")                                               # accessibilityAction(named: Text)
+    app.send("voiceover off")
+    assert app.quit() == 0, "exits cleanly"

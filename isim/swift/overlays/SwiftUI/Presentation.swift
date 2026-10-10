@@ -10,7 +10,10 @@ final class _SUIPresentedHostingController: UIHostingController<AnyView> {
     var onUIKitDismiss: (() -> Void)?
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        if presentingViewController == nil { let f = onUIKitDismiss; onUIKitDismiss = nil; f?() }
+        if presentingViewController == nil {
+            let f = onUIKitDismiss; onUIKitDismiss = nil; f?()
+            graph.disappearAll()                                       // its views are gone: onDisappear, tasks cancelled
+        }
     }
 }
 
