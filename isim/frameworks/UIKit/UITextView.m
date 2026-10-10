@@ -1,24 +1,38 @@
-/* UITextView: multi-line plain text in a vertically scrolling UIScrollView (UIKeyInput).
- * Editable text views bring up isim's system keyboard when they become first responder; the
- * hardware keyboard and ISIM_SCRIPT "type"/"key" edit them too. The caret sits at selectedRange
- * (a tap places it at the nearest character); insertions replace the selected range. The caret does
- * not blink (stable screenshots). With isScrollEnabled = false the view sizes itself to its text
- * (Auto Layout self-sizing), like UIKit. Defaults follow UIKit: 12 pt system font, insets 8/0/8/0,
- * line fragment padding 5. */
+/* UITextView: multi-line text in a vertically scrolling UIScrollView (UIKeyInput), kept in a TextKit text storage.
+ * Editable text views bring up isim's system keyboard when they become first responder; the hardware keyboard and
+ * ISIM_SCRIPT "type"/"key" edit them too. The caret sits at selectedRange (a tap places it at the nearest character);
+ * insertions replace the selected range and take the typing attributes. The caret does not blink (stable
+ * screenshots). With isScrollEnabled = false the view sizes itself to its text (Auto Layout self-sizing), like UIKit.
+ * Defaults follow UIKit: 12 pt system font, insets 8/0/8/0, line fragment padding 5.
+ *
+ * TextKit: the text storage is laid out by an NSTextLayoutManager (TextKit 2, the default) or, once layoutManager is
+ * asked for or with init(frame:textContainer:), an NSLayoutManager (TextKit 1); both use isim's TextKit engine
+ * (UITextKitEngine.m), which the view draws and hit-tests with. With TextKit 2 the view is its viewport layout
+ * controller's delegate: laying out the viewport places attachment views (NSTextAttachmentViewProvider) and, with
+ * iOS 27 reuse policies, keeps them across scrolling and paragraph edits. */
 #import "UITextInputImpl.h"
+#import "UITextKitPrivate.h"
 #import <UIKit/UITextView.h>
+#import <objc/runtime.h>
 #include <math.h>
 
 NSNotificationName const UITextViewTextDidBeginEditingNotification = @"UITextViewTextDidBeginEditingNotification";
 NSNotificationName const UITextViewTextDidChangeNotification = @"UITextViewTextDidChangeNotification";
 NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewTextDidEndEditingNotification";
 
-#define PAD 5.0     /* NSTextContainer.lineFragmentPadding */
-
-@interface UITextView () <IsimEditableText>
+@interface UITextView () <IsimEditableText, NSTextStorageDelegate>
 @end
 @implementation UITextView {
-    NSString *_storage;
+    NSTextStorage *_ts;
+    NSTextContainer *_tc;
+    NSLayoutManager *_lm;
+    NSTextContentStorage *_tcs;
+    NSTextLayoutManager *_tlm;
+    BOOL _tk1, _updatingStorage;
+    NSDictionary *_typing, *_linkAttrs;
+    NSMutableDictionary<NSString *, NSNumber *> *_reusePolicies;          /* provider class name -> policy */
+    NSMutableArray<NSTextAttachmentViewProvider *> *_placedProviders;
+    __IsimTextEngine *_secureEngine; NSString *_secureText;
     CGFloat _measuredWidth;
     NSArray<NSTextCheckingResult *> *_items; NSString *_itemsText; UIDataDetectorTypes _itemsTypes;
 }
@@ -30,12 +44,36 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     smartQuotesType = _smartQuotesType, smartDashesType = _smartDashesType, smartInsertDeleteType = _smartInsertDeleteType,
     inlinePredictionType = _inlinePredictionType, passwordRules = _passwordRules;
 
-- (instancetype)initWithFrame:(CGRect)f {
+- (instancetype)initWithFrame:(CGRect)f { return [self initIsimWithFrame:f container:nil textKit1:NO]; }
+- (instancetype)initWithFrame:(CGRect)f textContainer:(NSTextContainer *)c { return [self initIsimWithFrame:f container:c textKit1:YES]; }
++ (instancetype)textViewUsingTextLayoutManager:(BOOL)tk2 {
+    UITextView *v = [[self alloc] initWithFrame:CGRectZero];
+    if (!tk2) [v _isimSwitchToTextKit1];
+    return v;
+}
+- (instancetype)initIsimWithFrame:(CGRect)f container:(NSTextContainer *)c textKit1:(BOOL)tk1 {
     if ((self = [super initWithFrame:f])) {
-        _storage = @""; _font = [UIFont systemFontOfSize:12]; _textColor = UIColor.labelColor;
+        _font = [UIFont systemFontOfSize:12]; _textColor = UIColor.labelColor;
         _textAlignment = NSTextAlignmentNatural; _editable = YES; _selectable = YES;
         _textContainerInset = UIEdgeInsetsMake(8, 0, 8, 0);
         _autocapitalizationType = UITextAutocapitalizationTypeSentences;
+        _typing = @{ NSFontAttributeName: _font, NSForegroundColorAttributeName: _textColor };
+        _reusePolicies = [NSMutableDictionary dictionary]; _placedProviders = [NSMutableArray array];
+        /* the text container (the caller's for TextKit 1), the storage, and the layout manager */
+        _tc = c ?: [[NSTextContainer alloc] initWithSize:CGSizeMake(f.size.width, CGFLOAT_MAX)];
+        _tc.widthTracksTextView = YES;
+        if (tk1 && c.layoutManager.textStorage) {                 /* a container already in a TextKit 1 stack */
+            _lm = c.layoutManager; _ts = _lm.textStorage; _tk1 = YES;
+        } else {
+            _ts = [NSTextStorage new];
+            if (tk1) { _tk1 = YES; _lm = c.layoutManager ?: [NSLayoutManager new]; if (!c.layoutManager) [_lm addTextContainer:_tc]; [_ts addLayoutManager:_lm]; }
+            else {
+                _tcs = [NSTextContentStorage new]; _tcs.textStorage = _ts;
+                _tlm = [NSTextLayoutManager new]; _tlm.textContainer = _tc; [_tcs addTextLayoutManager:_tlm];
+                _tlm.textViewportLayoutController.delegate = self;
+            }
+        }
+        _ts.delegate = self;
         self.backgroundColor = UIColor.systemBackgroundColor;
         self.showsHorizontalScrollIndicator = NO;
         self.alwaysBounceHorizontal = NO;
@@ -45,32 +83,173 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     return self;
 }
 
+/* ---- TextKit ---- */
+- (NSTextStorage *)textStorage { return _ts; }
+- (NSTextContainer *)textContainer { return _tc; }
+- (NSTextLayoutManager *)textLayoutManager { return _tk1 ? nil : _tlm; }
+- (NSLayoutManager *)layoutManager { if (!_tk1) [self _isimSwitchToTextKit1]; return _lm; }
+/* like UIKit: asking a TextKit 2 view for its layout manager makes it a TextKit 1 view for good */
+- (void)_isimSwitchToTextKit1 {
+    if (_tk1) return;
+    NSLog(@"isim UIKit: UITextView %p is switching to TextKit 1 compatibility mode because its layoutManager was accessed", self);
+    for (NSTextAttachmentViewProvider *p in _placedProviders) [p.view removeFromSuperview];
+    [_placedProviders removeAllObjects];
+    _tlm.textViewportLayoutController.delegate = nil;
+    [_tcs removeTextLayoutManager:_tlm];
+    _tcs.textStorage = nil; _tcs = nil; _tlm = nil;
+    _tc.textLayoutManager = nil;
+    _lm = [NSLayoutManager new];
+    [_lm addTextContainer:_tc];
+    [_ts addLayoutManager:_lm];
+    _tk1 = YES;
+    [self _isim_tvChanged];
+}
+- (__IsimTextEngine *)_isim_tvEngine {
+    CGFloat w = [self _isim_tvContainerWidthFor:self.bounds.size.width];
+    if (_tc.widthTracksTextView && fabs(_tc.size.width - w) > 0.01) _tc.size = CGSizeMake(w, CGFLOAT_MAX);
+    if (_secureTextEntry) {                                       /* bullets */
+        NSString *s = [self _isim_tvShown];
+        if (!_secureEngine || ![_secureText isEqualToString:s] || fabs(_secureEngine.width - _tc.size.width) > 0.01) {
+            _secureText = s;
+            _secureEngine = [[__IsimTextEngine alloc] initWithString:[[NSAttributedString alloc] initWithString:s attributes:_typing] width:_tc.size.width
+                                                            padding:_tc.lineFragmentPadding font:_font color:_textColor maxLines:_tc.maximumNumberOfLines];
+        }
+        return _secureEngine;
+    }
+    return _tk1 ? [_lm _isim_engine] : [_tlm _isim_engine];
+}
+/* NSTextStorageDelegate: the view follows edits made to its storage (by the app, or its own) */
+- (void)textStorage:(NSTextStorage *)ts didProcessEditing:(NSTextStorageEditActions)mask range:(NSRange)r changeInLength:(NSInteger)delta {
+    if (_updatingStorage) return;
+    if (_selectedRange.location > ts.length) _selectedRange = NSMakeRange(ts.length, 0);
+    else if (NSMaxRange(_selectedRange) > ts.length) _selectedRange.length = ts.length - _selectedRange.location;
+    dispatch_async(dispatch_get_main_queue(), ^{ [self _isim_tvChanged]; });   /* (after the layout managers heard of it) */
+}
+- (void)registerTextAttachmentViewProviderReusePolicy:(UITextAttachmentViewProviderReusePolicy)policy forTextAttachmentViewProviderType:(Class)type {
+    if (type) _reusePolicies[NSStringFromClass(type)] = @(policy);
+}
+- (UITextAttachmentViewProviderReusePolicy)_isimPolicyForAttachment:(NSTextAttachment *)a {
+    Class c = a.fileType ? [NSTextAttachment textAttachmentViewProviderClassForFileType:a.fileType] : nil;
+    return c ? [_reusePolicies[NSStringFromClass(c)] unsignedIntegerValue] : 0;
+}
+- (UITextAttachmentViewProviderReusePolicy)_isimPolicyForProvider:(NSTextAttachmentViewProvider *)p {
+    for (Class c = p.class; c; c = class_getSuperclass(c)) { NSNumber *n = _reusePolicies[NSStringFromClass(c)]; if (n) return n.unsignedIntegerValue; }
+    return 0;
+}
+
+/* ---- NSTextViewportLayoutControllerDelegate (TextKit 2): attachment views in the viewport ---- */
+- (CGPoint)_isim_tvTextOrigin { return CGPointMake(_textContainerInset.left, _textContainerInset.top); }
+- (CGRect)viewportBoundsForTextViewportLayoutController:(NSTextViewportLayoutController *)c {
+    CGPoint o = [self _isim_tvTextOrigin];
+    CGRect b = self.bounds;
+    return CGRectMake(b.origin.x - o.x, b.origin.y - o.y, b.size.width, b.size.height);
+}
+- (void)textViewportLayoutControllerWillLayout:(NSTextViewportLayoutController *)c {}
+- (void)textViewportLayoutController:(NSTextViewportLayoutController *)c configureRenderingSurfaceForTextLayoutFragment:(NSTextLayoutFragment *)f {
+    __weak UITextView *w = self;
+    NSArray *ps = [_tlm _isimProvidersFor:f parentView:self reuse:^BOOL(NSTextAttachment *a) {
+        return ([w _isimPolicyForAttachment:a] & UITextAttachmentViewProviderReusePolicyOnEditingInlineParagraphs) != 0;
+    }];
+    CGPoint o = [self _isim_tvTextOrigin];
+    CGRect ff = f.layoutFragmentFrame;
+    for (NSTextAttachmentViewProvider *p in ps) {
+        UIView *v = p.view;
+        if (!v) continue;
+        CGRect af = [f frameForTextAttachmentAtLocation:p.location];
+        v.frame = CGRectMake(o.x + af.origin.x, o.y + ff.origin.y + af.origin.y, af.size.width, af.size.height);
+        if (v.superview != self) [self addSubview:v];
+        v.hidden = NO;
+        if (![_placedProviders containsObject:p]) [_placedProviders addObject:p];
+    }
+}
+- (void)textViewportLayoutControllerDidLayout:(NSTextViewportLayoutController *)c {
+    /* views of providers no longer in a visible fragment: removed, unless their class keeps them (iOS 27) */
+    NSMutableSet *current = [NSMutableSet set];
+    CGRect vb = c.viewportBounds;
+    for (NSTextLayoutFragment *f in [_tlm _isimFragments]) {
+        CGRect ff = f.layoutFragmentFrame;
+        BOOL visible = CGRectGetMaxY(ff) >= CGRectGetMinY(vb) && ff.origin.y <= CGRectGetMaxY(vb);
+        for (NSTextAttachmentViewProvider *p in f.textAttachmentViewProviders) if (visible) [current addObject:p];
+        for (NSTextAttachmentViewProvider *p in f.textAttachmentViewProviders)
+            if (!visible && ([self _isimPolicyForProvider:p] & UITextAttachmentViewProviderReusePolicyOnScrollingOutOfViewport)) [current addObject:p];
+    }
+    for (NSTextAttachmentViewProvider *p in [_placedProviders copy]) {
+        if ([current containsObject:p]) continue;
+        [p.view removeFromSuperview];
+        [_placedProviders removeObject:p];
+    }
+}
+- (void)textViewportLayoutControllerReceivedSetNeedsLayout:(NSTextViewportLayoutController *)c { [self setNeedsLayout]; }
+
 /* ---- text ---- */
-- (NSString *)text { return _storage; }
+- (NSString *)text { return _ts.string; }
 - (void)setText:(NSString *)t {
     t = t ?: @"";
-    if ([t isEqualToString:_storage]) return;
-    _storage = [t copy];
-    _selectedRange = NSMakeRange(_storage.length, 0);
+    if ([t isEqualToString:_ts.string] && ![self _isimHasForeignAttributes]) return;
+    [self _isimSetStorage:[[NSAttributedString alloc] initWithString:t attributes:_typing]];
+    _selectedRange = NSMakeRange(_ts.length, 0);
     isim_ui_set_marked_range(self, NSMakeRange(NSNotFound, 0));
     [self _isim_tvChanged];
 }
-- (void)setFont:(UIFont *)f { _font = f ?: [UIFont systemFontOfSize:12]; [self _isim_tvChanged]; }
-- (void)setTextColor:(UIColor *)c { _textColor = c ?: UIColor.labelColor; isim_ui_set_needs_display(); }
-- (void)setTextAlignment:(NSTextAlignment)a { _textAlignment = a; isim_ui_set_needs_display(); }
+- (BOOL)_isimHasForeignAttributes {
+    __block BOOL foreign = NO;
+    [_ts enumerateAttributesInRange:NSMakeRange(0, _ts.length) options:0 usingBlock:^(NSDictionary *a, NSRange r, BOOL *stop) { if (![a isEqualToDictionary:self->_typing]) { foreign = YES; *stop = YES; } }];
+    return foreign;
+}
+- (void)_isimSetStorage:(NSAttributedString *)s {
+    _updatingStorage = YES;
+    [_ts setAttributedString:s];
+    _updatingStorage = NO;
+}
+- (NSAttributedString *)attributedText { return [_ts attributedSubstringFromRange:NSMakeRange(0, _ts.length)]; }
+- (void)setAttributedText:(NSAttributedString *)a {
+    a = a ?: [NSAttributedString new];
+    [self _isimSetStorage:a];
+    if (a.length) {                                               /* like UIKit: the view's font and colour follow the text's start */
+        NSDictionary *at = [a attributesAtIndex:0 effectiveRange:NULL];
+        if (at[NSFontAttributeName]) _font = at[NSFontAttributeName];
+        if (at[NSForegroundColorAttributeName]) _textColor = at[NSForegroundColorAttributeName];
+        NSMutableDictionary *t = [_typing mutableCopy]; [t addEntriesFromDictionary:at]; [t removeObjectForKey:NSAttachmentAttributeName]; [t removeObjectForKey:NSLinkAttributeName];
+        _typing = t;
+    }
+    _selectedRange = NSMakeRange(_ts.length, 0);
+    isim_ui_set_marked_range(self, NSMakeRange(NSNotFound, 0));
+    [self _isim_tvChanged];
+}
+- (NSDictionary *)typingAttributes { return _typing; }
+- (void)setTypingAttributes:(NSDictionary *)t { _typing = [t copy] ?: @{}; }
+- (NSDictionary *)linkTextAttributes { return _linkAttrs ?: @{ NSForegroundColorAttributeName: self.tintColor ?: UIColor.linkColor }; }
+- (void)setLinkTextAttributes:(NSDictionary *)a { _linkAttrs = [a copy]; isim_ui_set_needs_display(); }
+/* font, colour and alignment apply to all the text and to typing */
+- (void)_isimApply:(NSAttributedStringKey)key value:(id)v {
+    NSMutableDictionary *t = [_typing mutableCopy]; if (v) t[key] = v; else [t removeObjectForKey:key]; _typing = t;
+    if (!_ts.length) return;
+    _updatingStorage = YES;
+    if (v) [_ts addAttribute:key value:v range:NSMakeRange(0, _ts.length)]; else [_ts removeAttribute:key range:NSMakeRange(0, _ts.length)];
+    _updatingStorage = NO;
+}
+- (void)setFont:(UIFont *)f { _font = f ?: [UIFont systemFontOfSize:12]; [self _isimApply:NSFontAttributeName value:_font]; [self _isim_tvChanged]; }
+- (void)setTextColor:(UIColor *)c { _textColor = c ?: UIColor.labelColor; [self _isimApply:NSForegroundColorAttributeName value:_textColor]; isim_ui_set_needs_display(); }
+- (void)setTextAlignment:(NSTextAlignment)a {
+    _textAlignment = a;
+    NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new]; ps.alignment = a;
+    [self _isimApply:NSParagraphStyleAttributeName value:a == NSTextAlignmentNatural ? nil : ps];
+    [self _isim_tvChanged];
+}
 - (void)setTextContainerInset:(UIEdgeInsets)i { _textContainerInset = i; [self _isim_tvChanged]; }
 - (void)setEditable:(BOOL)e { _editable = e; if (!e && self.isFirstResponder) [self resignFirstResponder]; }
 - (void)setSelectedRange:(NSRange)r {
-    NSUInteger len = _storage.length;
+    NSUInteger len = _ts.length;
     if (r.location > len) r.location = len;
     if (NSMaxRange(r) > len) r.length = len - r.location;
     _selectedRange = r;
     isim_ui_set_needs_display();
 }
 - (void)setScrollEnabled:(BOOL)e { [super setScrollEnabled:e]; [self invalidateIntrinsicContentSize]; }
-- (BOOL)hasText { return _storage.length > 0; }
+- (void)setSecureTextEntry:(BOOL)s { _secureTextEntry = s; _secureEngine = nil; [self _isim_tvChanged]; }
+- (BOOL)hasText { return _ts.length > 0; }
 - (NSString *)_isim_dumpText {
-    NSString *t = [_storage stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"];
+    NSString *t = [_ts.string stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"];
     NSString *sel = _selectedRange.length ? [NSString stringWithFormat:@" selection %lu+%lu", (unsigned long)_selectedRange.location, (unsigned long)_selectedRange.length] : @"";
     NSRange m = isim_ui_marked_range(self);
     if (m.location != NSNotFound) sel = [sel stringByAppendingFormat:@" marked %lu+%lu", (unsigned long)m.location, (unsigned long)m.length];
@@ -78,30 +257,28 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 }
 
 /* ---- metrics ---- */
-- (CGFloat)_isim_tvTextWidthFor:(CGFloat)w { return fmax(1, w - _textContainerInset.left - _textContainerInset.right - 2 * PAD); }
+- (CGFloat)_isim_tvContainerWidthFor:(CGFloat)w { return fmax(1, w - _textContainerInset.left - _textContainerInset.right); }
 - (NSString *)_isim_tvShown {
-    if (!_secureTextEntry) return _storage;
+    if (!_secureTextEntry) return _ts.string;
     NSMutableString *m = [NSMutableString string];
-    for (NSUInteger i = 0; i < _storage.length; i++) [m appendString:@"•"];
+    for (NSUInteger i = 0; i < _ts.length; i++) [m appendString:@"•"];
     return m;
 }
-- (CGFloat)_isim_tvTextHeightFor:(CGFloat)w {
-    NSString *s = [self _isim_tvShown];
+- (CGFloat)_isim_tvTextHeight {
     CGFloat lh = ceil(_font.lineHeight);
-    if (!s.length) return lh;
-    CGFloat h = isim_ui_measure(s, _font, [self _isim_tvTextWidthFor:w], 0).height;
-    if ([s hasSuffix:@"\n"]) h += lh;                    /* an empty last line still takes a line */
-    return fmax(h, lh);
+    return fmax([self _isim_tvEngine].height, lh);
 }
 - (void)_isim_tvUpdateContent {
     CGFloat w = self.bounds.size.width;
     _measuredWidth = w;
-    CGFloat h = [self _isim_tvTextHeightFor:w] + _textContainerInset.top + _textContainerInset.bottom;
+    CGFloat h = [self _isim_tvTextHeight] + _textContainerInset.top + _textContainerInset.bottom;
     self.contentSize = CGSizeMake(w, ceil(h));
 }
 - (void)_isim_tvChanged {
+    _secureEngine = nil;
     [self _isim_tvUpdateContent];
     if (!self.scrollEnabled) [self invalidateIntrinsicContentSize];
+    [self setNeedsLayout];
     isim_ui_set_needs_display();
 }
 /* (content size follows width changes in layoutSubviews, not in setFrame: a frame applied by the Auto Layout
@@ -109,14 +286,26 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 - (void)layoutSubviews {
     [super layoutSubviews];
     if (self.bounds.size.width != _measuredWidth) [self _isim_tvUpdateContent];
+    if (!_tk1 && _tlm) [_tlm.textViewportLayoutController layoutViewport];
 }
+- (void)setContentOffset:(CGPoint)o {
+    [super setContentOffset:o];
+    if (!_tk1 && _tlm && _placedProviders.count + [self _isimAttachmentCount]) [self setNeedsLayout];
+}
+- (NSUInteger)_isimAttachmentCount { return _tk1 || !_tlm ? 0 : [_tlm _isim_engine].attachments.count; }
 /* not scrolling: the view is as tall as its text (self-sizing) */
 - (CGSize)_isim_tvSizeForWidth:(CGFloat)w {
-    NSString *s = [self _isim_tvShown];
-    CGFloat textW = s.length ? isim_ui_measure(s, _font, 0, 0).width : 0;
     UIEdgeInsets in = _textContainerInset;
-    CGFloat width = ceil(textW) + 2 * PAD + in.left + in.right;
-    CGFloat height = [self _isim_tvTextHeightFor:w > 0 ? w : width] + in.top + in.bottom;
+    __IsimTextEngine *one = [[__IsimTextEngine alloc] initWithString:[[NSAttributedString alloc] initWithString:[self _isim_tvShown] attributes:_typing]
+                                                                width:0 padding:_tc.lineFragmentPadding font:_font color:_textColor maxLines:0];
+    if (!_secureTextEntry) one = [[__IsimTextEngine alloc] initWithString:self.attributedText width:0 padding:_tc.lineFragmentPadding font:_font color:_textColor maxLines:0];
+    CGFloat width = ceil(CGRectGetMaxX(one.usedRect)) + in.left + in.right;
+    if (w <= 0) w = width;
+    CGFloat ww = [self _isim_tvContainerWidthFor:w];
+    __IsimTextEngine *e = fabs(ww - _tc.size.width) < 0.01 ? [self _isim_tvEngine]
+        : [[__IsimTextEngine alloc] initWithString:_secureTextEntry ? [[NSAttributedString alloc] initWithString:[self _isim_tvShown] attributes:_typing] : self.attributedText
+                                             width:ww padding:_tc.lineFragmentPadding font:_font color:_textColor maxLines:_tc.maximumNumberOfLines];
+    CGFloat height = fmax(e.height, ceil(_font.lineHeight)) + in.top + in.bottom;
     return CGSizeMake(width, ceil(height));
 }
 - (CGSize)intrinsicContentSize {
@@ -130,44 +319,16 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 - (BOOL)_isim_heightTracksWidth { return !self.scrollEnabled; }
 - (CGSize)sizeThatFits:(CGSize)s { return [self _isim_tvSizeForWidth:s.width > 0 && s.width < 1e5 ? s.width : 0]; }
 
-/* caret position (text coordinates: origin at the first line's top-left) for a character index */
-- (CGPoint)_isim_tvCaretFor:(NSUInteger)index {
-    NSString *s = [self _isim_tvShown];
-    CGFloat w = [self _isim_tvTextWidthFor:self.bounds.size.width];
-    if (index == 0 || !s.length) {
-        CGFloat x = _textAlignment == NSTextAlignmentCenter ? w / 2 : _textAlignment == NSTextAlignmentRight ? w : 0;
-        return CGPointMake(x, 0);
-    }
-    NSString *prefix = [s substringToIndex:MIN(index, s.length)];
-    CGPoint p = isim_ui_text_end_point(prefix, _font, w);
-    if ([prefix hasSuffix:@"\n"] && p.x > 0.5) p = CGPointMake(0, p.y + ceil(_font.lineHeight));
-    return p;
+/* the insertion point before a character, in content coordinates */
+- (CGRect)_isim_tvCaretRect:(NSUInteger)index {
+    CGPoint o = [self _isim_tvTextOrigin];
+    CGRect c = [[self _isim_tvEngine] caretRectForIndex:MIN(index, _ts.length)];
+    return CGRectOffset(c, o.x, o.y);
 }
-- (CGPoint)_isim_tvTextOrigin { return CGPointMake(_textContainerInset.left + PAD, _textContainerInset.top); }
-/* nearest character index for a point in content coordinates (binary search over caret positions) */
+/* nearest insertion point for a point in content coordinates */
 - (NSUInteger)_isim_tvIndexAt:(CGPoint)p {
     CGPoint o = [self _isim_tvTextOrigin];
-    CGFloat lh = ceil(_font.lineHeight);
-    CGFloat x = p.x - o.x, line = floor((p.y - o.y) / lh);
-    NSUInteger lo = 0, hi = _storage.length;
-    if (line < 0) return 0;
-    while (lo < hi) {                                    /* first index whose caret is past (line, x) */
-        NSUInteger mid = (lo + hi) / 2;
-        CGPoint c = [self _isim_tvCaretFor:mid];
-        CGFloat cl = floor((c.y + lh / 2) / lh);
-        if (cl < line || (cl == line && c.x < x)) lo = mid + 1; else hi = mid;
-    }
-    /* pick the closer of lo-1 and lo on the same line */
-    if (lo > 0) {
-        CGPoint a = [self _isim_tvCaretFor:lo - 1], b = [self _isim_tvCaretFor:lo];
-        CGFloat bl = floor((b.y + lh / 2) / lh);
-        if (bl != line || fabs(a.x - x) < fabs(b.x - x)) lo = lo - 1;
-    }
-    if (lo < _storage.length) {                          /* (an empty text has no character to snap to) */
-        NSRange r = [_storage rangeOfComposedCharacterSequenceAtIndex:lo];
-        if (lo != r.location) lo = r.location;
-    }
-    return lo;
+    return MIN([[self _isim_tvEngine] insertionIndexForPoint:CGPointMake(p.x - o.x, p.y - o.y)], _ts.length);
 }
 
 /* ---- editing ---- */
@@ -178,7 +339,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     id<UITextViewDelegate> d = self.delegate;
     if ([d respondsToSelector:@selector(textViewShouldBeginEditing:)] && ![d textViewShouldBeginEditing:self]) return NO;
     if (![super becomeFirstResponder]) return NO;
-    if (_clearsOnInsertion) { _storage = @""; _selectedRange = NSMakeRange(0, 0); [self _isim_tvChanged]; }
+    if (_clearsOnInsertion) { [self _isimSetStorage:[NSAttributedString new]]; _selectedRange = NSMakeRange(0, 0); [self _isim_tvChanged]; }
     if ([d respondsToSelector:@selector(textViewDidBeginEditing:)]) [d textViewDidBeginEditing:self];
     [NSNotificationCenter.defaultCenter postNotificationName:UITextViewTextDidBeginEditingNotification object:self];
     [self _isim_tvScrollToCaret];
@@ -200,7 +361,9 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     id<UITextViewDelegate> d = self.delegate;
     BOOL composing = isim_ui_marked_range(self).location != NSNotFound;
     if (!composing && [d respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementText:)] && ![d textView:self shouldChangeTextInRange:r replacementText:s]) return;
-    _storage = [_storage stringByReplacingCharactersInRange:r withString:s];
+    _updatingStorage = YES;
+    [_ts replaceCharactersInRange:r withAttributedString:[[NSAttributedString alloc] initWithString:s attributes:_typing]];
+    _updatingStorage = NO;
     _selectedRange = NSMakeRange(r.location + s.length, 0);
     [self _isim_tvChanged];
     if ([d respondsToSelector:@selector(textViewDidChange:)]) [d textViewDidChange:self];
@@ -215,7 +378,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 }
 - (void)deleteBackward { if (_editable) isim_ti_delete_backward(self); }
 /* IsimEditableText (view coordinates = content coordinates) */
-- (NSString *)_isim_plainText { return _storage; }
+- (NSString *)_isim_plainText { return _ts.string; }
 - (NSRange)_isim_selectedRange { return _selectedRange; }
 - (BOOL)_isim_isEditable { return _editable; }
 - (void)_isim_setSelectedRange:(NSRange)r {
@@ -227,62 +390,49 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 }
 - (void)_isim_replaceRange:(NSRange)r withText:(NSString *)t { if (_editable) [self _isim_tvReplace:r with:t ?: @""]; }
 - (CGRect)_isim_caretRectForIndex:(NSUInteger)i {
-    CGPoint o = [self _isim_tvTextOrigin], c = [self _isim_tvCaretFor:MIN(i, _storage.length)];
-    return CGRectMake(o.x + c.x - 1, o.y + c.y + 1, 2, ceil(_font.lineHeight) - 2);
+    CGRect c = [self _isim_tvCaretRect:i];
+    return CGRectMake(c.origin.x - 1, c.origin.y + 1, 2, fmax(2, c.size.height - 2));
 }
 - (NSUInteger)_isim_indexAtPoint:(CGPoint)p { return [self _isim_tvIndexAt:p]; }
 - (NSArray<NSValue *> *)_isim_selectionRectsForRange:(NSRange)r {
     NSMutableArray *out = [NSMutableArray array];
-    if (NSMaxRange(r) > _storage.length) return out;
-    CGPoint o = [self _isim_tvTextOrigin], a = [self _isim_tvCaretFor:r.location], b = [self _isim_tvCaretFor:NSMaxRange(r)];
-    CGFloat lh = ceil(_font.lineHeight), w = [self _isim_tvTextWidthFor:self.bounds.size.width];
-    if (fabs(a.y - b.y) < 1) { [out addObject:[NSValue valueWithCGRect:CGRectMake(o.x + a.x, o.y + a.y, b.x - a.x, lh)]]; return out; }
-    [out addObject:[NSValue valueWithCGRect:CGRectMake(o.x + a.x, o.y + a.y, w - a.x, lh)]];
-    for (CGFloat y = a.y + lh; y < b.y - 0.5; y += lh) [out addObject:[NSValue valueWithCGRect:CGRectMake(o.x, o.y + y, w, lh)]];
-    [out addObject:[NSValue valueWithCGRect:CGRectMake(o.x, o.y + b.y, b.x, lh)]];
+    if (NSMaxRange(r) > _ts.length) return out;
+    CGPoint o = [self _isim_tvTextOrigin];
+    for (NSValue *v in [[self _isim_tvEngine] rectsForRange:r]) [out addObject:[NSValue valueWithCGRect:CGRectOffset(v.CGRectValue, o.x, o.y)]];
     return out;
 }
 ISIM_TEXT_INPUT_METHODS
 /* ---- scrolling ---- */
 - (void)_isim_tvScrollToCaret {
     if (!self.scrollEnabled) return;
-    CGPoint o = [self _isim_tvTextOrigin], c = [self _isim_tvCaretFor:NSMaxRange(_selectedRange)];
-    CGFloat lh = ceil(_font.lineHeight);
-    [self scrollRectToVisible:CGRectMake(o.x + c.x, o.y + c.y, 2, lh + _textContainerInset.bottom) animated:NO];
+    CGRect c = [self _isim_tvCaretRect:NSMaxRange(_selectedRange)];
+    [self scrollRectToVisible:CGRectMake(c.origin.x, c.origin.y, 2, c.size.height + _textContainerInset.bottom) animated:NO];
 }
 - (void)scrollRangeToVisible:(NSRange)r {
-    if (r.location > _storage.length) return;
-    CGPoint o = [self _isim_tvTextOrigin], a = [self _isim_tvCaretFor:r.location], b = [self _isim_tvCaretFor:MIN(NSMaxRange(r), _storage.length)];
-    CGFloat lh = ceil(_font.lineHeight);
-    [self scrollRectToVisible:CGRectMake(0, o.y + a.y, self.bounds.size.width, b.y - a.y + lh) animated:NO];
+    if (r.location > _ts.length) return;
+    CGRect a = [self _isim_tvCaretRect:r.location], b = [self _isim_tvCaretRect:MIN(NSMaxRange(r), _ts.length)];
+    [self scrollRectToVisible:CGRectMake(0, a.origin.y, self.bounds.size.width, CGRectGetMaxY(b) - a.origin.y) animated:NO];
 }
 
 /* ---- detected items (dataDetectorTypes; not editable, selectable): UITextServices.m ---- */
 - (void)setDataDetectorTypes:(UIDataDetectorTypes)t { _dataDetectorTypes = t; isim_ui_set_needs_display(); }
 - (NSArray<NSTextCheckingResult *> *)_isim_items {
     if (_editable || !_selectable || !_dataDetectorTypes || _secureTextEntry) return @[];
-    if (!_items || _itemsTypes != _dataDetectorTypes || ![_itemsText isEqualToString:_storage]) {
-        _items = isim_ui_detect_items(_storage, _dataDetectorTypes);
-        _itemsText = _storage; _itemsTypes = _dataDetectorTypes;
+    if (!_items || _itemsTypes != _dataDetectorTypes || ![_itemsText isEqualToString:_ts.string]) {
+        _items = isim_ui_detect_items(_ts.string, _dataDetectorTypes);
+        _itemsText = _ts.string; _itemsTypes = _dataDetectorTypes;
     }
     return _items;
 }
 /* an item's pieces, one per line: (character range, rect in content coordinates) */
 - (void)_isim_itemPieces:(NSRange)r each:(void (^)(NSRange piece, CGRect rect))each {
     CGPoint o = [self _isim_tvTextOrigin];
-    CGFloat lh = ceil(_font.lineHeight);
-    NSUInteger start = r.location;
-    CGPoint a = [self _isim_tvCaretFor:start];
-    for (NSUInteger i = r.location + 1; i <= NSMaxRange(r); i++) {
-        CGPoint c = [self _isim_tvCaretFor:i];
-        BOOL wrapped = c.y > a.y + 0.5 && i < NSMaxRange(r);
-        if (wrapped || i == NSMaxRange(r)) {
-            NSUInteger end = wrapped ? i - 1 : i;
-            CGPoint e = wrapped ? [self _isim_tvCaretFor:end] : c;
-            if (e.y > a.y + 0.5) e = CGPointMake([self _isim_tvTextWidthFor:self.bounds.size.width], a.y);
-            if (end > start) each(NSMakeRange(start, end - start), CGRectMake(o.x + a.x, o.y + a.y, e.x - a.x, lh));
-            if (wrapped) { start = end; a = [self _isim_tvCaretFor:start]; if (a.y < c.y - 0.5) a = CGPointMake(0, c.y); }
-        }
+    __IsimTextEngine *e = [self _isim_tvEngine];
+    for (__IsimTextLine *l in e.lines) {
+        NSRange in = NSIntersectionRange(l->range, r);
+        while (in.length && [_ts.string characterAtIndex:NSMaxRange(in) - 1] == '\n') in.length--;
+        if (!in.length) continue;
+        each(in, CGRectOffset([e boundingRectForRange:in], o.x, o.y));
     }
 }
 - (NSTextCheckingResult *)_isim_itemAt:(CGPoint)p {
@@ -320,23 +470,24 @@ ISIM_TEXT_INPUT_METHODS
         [self _isim_itemPieces:r.range each:^(NSRange piece, CGRect rect) {
             CGRect d = CGRectOffset(rect, -off.x, -off.y);
             isim_gfx_fill_rounded(d.origin.x, d.origin.y, d.size.width + 1, d.size.height, 0, back);
-            isim_ui_draw_text([_storage substringWithRange:piece], _font, tc, CGRectMake(d.origin.x, d.origin.y, d.size.width + 20, d.size.height), NSTextAlignmentLeft, 1, 1);
-            isim_gfx_fill_rounded(d.origin.x, d.origin.y + ceil(_font.ascender) + 2, d.size.width, 1, 0, tint);
+            UIFont *f = [self->_ts attribute:NSFontAttributeName atIndex:piece.location effectiveRange:NULL] ?: self->_font;
+            isim_ui_draw_text([self->_ts.string substringWithRange:piece], f, tc, CGRectMake(d.origin.x, d.origin.y, d.size.width + 20, d.size.height), NSTextAlignmentLeft, 1, 1);
+            isim_gfx_fill_rounded(d.origin.x, d.origin.y + ceil(f.ascender) + 2, d.size.width, 1, 0, tint);
         }];
 }
 
 /* ---- drawing (content coordinates are shifted by the scroll offset) ---- */
 - (void)_isim_drawContent {
     CGPoint off = self.contentOffset, o = [self _isim_tvTextOrigin];
-    CGFloat w = [self _isim_tvTextWidthFor:self.bounds.size.width];
-    NSString *s = [self _isim_tvShown];
-    CGFloat x = o.x - off.x, y = o.y - off.y;
     isim_gfx_save(); isim_gfx_translate(-off.x, -off.y);
     isim_ui_text_draw_selection_rects(self);
     isim_gfx_restore();
-    if (s.length) {
-        CGFloat h = isim_ui_measure(s, _font, w, 0).height;
-        isim_ui_draw_text(s, _font, _textColor, CGRectMake(x, y, w, h), _textAlignment, 0, 1);
+    __IsimTextEngine *e = [self _isim_tvEngine];
+    if (e.string.length) {
+        isim_gfx_save();
+        isim_gfx_clip_rounded(0, 0, self.bounds.size.width, self.bounds.size.height, 0);
+        [e drawRange:NSMakeRange(0, e.string.length) atPoint:CGPointMake(o.x - off.x, o.y - off.y) skipAttachmentViews:!_tk1];
+        isim_gfx_restore();
     }
     [self _isim_drawItems];
     isim_gfx_save(); isim_gfx_translate(-off.x, -off.y);

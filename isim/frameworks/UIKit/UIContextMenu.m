@@ -108,7 +108,7 @@ static void present_context_menu(__IsimContextSession *s, UIView *source, CGRect
         content = snap;
     }
     UIView *host = [[UIView alloc] initWithFrame:inWindow];
-    host.layer.cornerRadius = 13; host.clipsToBounds = YES;
+    host.layer.cornerRadius = 13; host.layer.cornerCurve = kCACornerCurveContinuous; host.clipsToBounds = YES;
     host.backgroundColor = UIColor.systemBackgroundColor;
     host.accessibilityIdentifier = @"isim-context-preview";
     content.frame = host.bounds; content.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;

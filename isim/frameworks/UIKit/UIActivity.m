@@ -205,7 +205,7 @@ static BOOL rule_accepts(id rule, NSArray *items) {
     if ((self = [super initWithFrame:CGRectZero])) {
         _extension = x;
         _icon = [[UIImageView alloc] initWithImage:x.appIcon ? [UIImage imageWithContentsOfFile:x.appIcon] : nil];
-        _icon.layer.cornerRadius = 13.5; _icon.clipsToBounds = YES; _icon.userInteractionEnabled = NO;
+        _icon.layer.cornerRadius = 13.5; _icon.layer.cornerCurve = kCACornerCurveContinuous; _icon.clipsToBounds = YES; _icon.userInteractionEnabled = NO;
         if (!_icon.image) _icon.backgroundColor = UIColor.systemBlueColor;
         _label = [UILabel new]; _label.text = x.name; _label.font = [UIFont systemFontOfSize:11]; _label.textAlignment = NSTextAlignmentCenter;
         _label.textColor = UIColor.labelColor; _label.userInteractionEnabled = NO;
@@ -272,7 +272,7 @@ static BOOL rule_accepts(id rule, NSArray *items) {
     [v addSubview:_close];
     /* actions */
     _list = [UIView new];
-    _list.backgroundColor = UIColor.systemBackgroundColor; _list.layer.cornerRadius = 10; _list.clipsToBounds = YES;
+    _list.backgroundColor = UIColor.systemBackgroundColor; _list.layer.cornerRadius = 10; _list.layer.cornerCurve = kCACornerCurveContinuous; _list.clipsToBounds = YES;
     [v addSubview:_list];
     _rows = [NSMutableArray array];
     BOOL copyable = NO;

@@ -1107,6 +1107,7 @@ static IMP base_drawRect;
     /* drop shadow of the shadow path or the background shape, Gaussian-blurred (CoreAnimation.m) */
     double cr[4]; BOOL corners = [self _isim_cornerRadii:cr size:sz radius:radius];   /* per-corner radii */
     if (!corners && _cornerConfig) radius = cr[0];                /* a uniform corner configuration */
+    int curve = ca_begin_corner_curve(_layer);            /* the background, clip and border follow layer.cornerCurve */
     if ((bg[3] > 0 || _layer.shadowPath) && shadowOp > 0 && _layer.shadowColor) {
         if (corners) isim_ca_view_shadow_corners(_layer, sz, cr, shadowOp, shadowRad, shadowOff);
         else isim_ca_view_shadow(_layer, sz, radius, shadowOp, shadowRad, shadowOff);
@@ -1121,6 +1122,7 @@ static IMP base_drawRect;
         if (corners) { ca_corners_path(CGRectMake(0, 0, sz.width, sz.height), cr); isim_gfx_clip_path(); }
         else isim_gfx_clip_rounded(0, 0, sz.width, sz.height, radius);
     }
+    ca_end_corner_curve(curve);
     [self _isim_drawContent];
     [_layer _isim_renderLayerContents];      /* drawInContext: overrides (AVPlayerLayer) and sublayers */
     if (!base_drawRect) base_drawRect = class_getMethodImplementation([UIView class], @selector(drawRect:));
@@ -1134,11 +1136,13 @@ static IMP base_drawRect;
     [self _isim_drawOverlay];
     if (clip) isim_gfx_restore();
     if (borderW > 0 && (_layer.borderColor || borderAnim)) {
+        curve = ca_begin_corner_curve(_layer);
         double bc[4]; if (borderAnim) memcpy(bc, borderC, sizeof bc); else cg_rgba(_layer.borderColor, bc);
         if (corners) {
             double in[4]; for (int i = 0; i < 4; i++) in[i] = fmax(0, cr[i] - borderW / 2);
             ca_corners_path(CGRectMake(borderW / 2, borderW / 2, sz.width - borderW, sz.height - borderW), in); isim_path_stroke(borderW, bc);
         } else isim_gfx_stroke_rounded(borderW / 2, borderW / 2, sz.width - borderW, sz.height - borderW, fmax(0, radius - borderW / 2), borderW, bc);
+        ca_end_corner_curve(curve);
     }
     if (caTransition) isim_ca_view_transition_end(_layer, sz);
     if (group && maskLayer) { isim_gfx_push_group(); isim_gfx_save(); isim_ca_render_mask(maskLayer); isim_gfx_restore(); isim_gfx_pop_group_masked(_vfx ? 1 : a); }

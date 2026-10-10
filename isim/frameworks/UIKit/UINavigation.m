@@ -417,6 +417,87 @@ static void check_bar_items(UINavigationItem *n, NSArray *a) {      /* like UIKi
 - (void)setRightBarButtonItems:(NSArray *)i animated:(BOOL)a { self.rightBarButtonItems = i; }
 @end
 
+/* ---- bar button item groups (iOS 9; navigation item groups iOS 16) ---- */
+@interface __IsimWeakBox : NSObject                  /* UIPresentation.m */
+@property (nonatomic, weak) id value;
+@end
+static char kButtonGroup, kOwnerItem;
+@implementation UIBarButtonItem (UIBarButtonItemGroup)
+- (UIBarButtonItemGroup *)buttonGroup { return ((__IsimWeakBox *)objc_getAssociatedObject(self, &kButtonGroup)).value; }
+@end
+@implementation UIBarButtonItemGroup
+- (instancetype)initWithBarButtonItems:(NSArray<UIBarButtonItem *> *)items representativeItem:(UIBarButtonItem *)rep {
+    if ((self = [super init])) { self.barButtonItems = items ?: @[]; _representativeItem = rep; }
+    return self;
+}
+- (instancetype)initWithCoder:(NSCoder *)coder { return [self initWithBarButtonItems:@[] representativeItem:nil]; }
+- (instancetype)init { return [self initWithBarButtonItems:@[] representativeItem:nil]; }
+- (void)encodeWithCoder:(NSCoder *)coder {}
+- (void)setBarButtonItems:(NSArray<UIBarButtonItem *> *)items {
+    for (UIBarButtonItem *it in _barButtonItems) if (it.buttonGroup == self) objc_setAssociatedObject(it, &kButtonGroup, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    _barButtonItems = [items copy] ?: @[];
+    for (UIBarButtonItem *it in _barButtonItems) { __IsimWeakBox *b = [__IsimWeakBox new]; b.value = self; objc_setAssociatedObject(it, &kButtonGroup, b, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    [self _isimChanged];
+}
+- (BOOL)isDisplayingRepresentativeItem { return NO; }          /* isim shows the group's items */
+- (void)setHidden:(BOOL)h { _hidden = h; [self _isimChanged]; }
+- (void)_isimChanged {
+    UINavigationItem *owner = ((__IsimWeakBox *)objc_getAssociatedObject(self, &kOwnerItem)).value;
+    if ([owner respondsToSelector:@selector(_isimGroupsChanged)]) [owner performSelector:@selector(_isimGroupsChanged)];
+    bar_item_changed(self);
+}
+@end
+
+static char kLeadingGroups, kCenterGroups, kTrailingGroups, kItemStyle;
+static NSArray<UIBarButtonItem *> *group_items(NSArray<UIBarButtonItemGroup *> *groups) {
+    NSMutableArray *out = [NSMutableArray array];
+    for (UIBarButtonItemGroup *g in groups) if (!g.hidden) [out addObjectsFromArray:g.barButtonItems];
+    return out;
+}
+@implementation UINavigationItem (UIBarButtonItemGroups)
+- (UINavigationItemStyle)style { return [objc_getAssociatedObject(self, &kItemStyle) integerValue]; }
+- (void)setStyle:(UINavigationItemStyle)st { objc_setAssociatedObject(self, &kItemStyle, @(st), OBJC_ASSOCIATION_RETAIN_NONATOMIC); bar_item_changed(self); }
+- (void)_isimOwn:(NSArray<UIBarButtonItemGroup *> *)groups {
+    for (UIBarButtonItemGroup *g in groups) { __IsimWeakBox *b = [__IsimWeakBox new]; b.value = self; objc_setAssociatedObject(g, &kOwnerItem, b, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+}
+/* the groups read back as set while the item arrays still hold their items; after a direct leftBarButtonItems /
+   rightBarButtonItems change, one fixed group of those items */
+- (NSArray<UIBarButtonItemGroup *> *)_isimGroups:(const void *)key items:(NSArray *)items {
+    NSArray<UIBarButtonItemGroup *> *g = objc_getAssociatedObject(self, key);
+    if (g && [group_items(g) isEqualToArray:items ?: @[]]) return g;
+    return items.count ? @[[[UIBarButtonItemGroup alloc] initWithBarButtonItems:items representativeItem:nil]] : @[];
+}
+- (NSArray<UIBarButtonItemGroup *> *)leadingItemGroups { return [self _isimGroups:&kLeadingGroups items:self.leftBarButtonItems]; }
+- (NSArray<UIBarButtonItemGroup *> *)trailingItemGroups {
+    /* trailing groups run leading to trailing; rightBarButtonItems run trailing to leading */
+    NSArray<UIBarButtonItemGroup *> *g = objc_getAssociatedObject(self, &kTrailingGroups);
+    if (g && [group_items(g) isEqualToArray:self.rightBarButtonItems.reverseObjectEnumerator.allObjects ?: @[]]) return g;
+    NSArray *items = self.rightBarButtonItems.reverseObjectEnumerator.allObjects;
+    return items.count ? @[[[UIBarButtonItemGroup alloc] initWithBarButtonItems:items representativeItem:nil]] : @[];
+}
+- (NSArray<UIBarButtonItemGroup *> *)centerItemGroups { return objc_getAssociatedObject(self, &kCenterGroups) ?: @[]; }
+- (void)setLeadingItemGroups:(NSArray<UIBarButtonItemGroup *> *)g {
+    objc_setAssociatedObject(self, &kLeadingGroups, [g copy] ?: @[], OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self _isimOwn:g];
+    self.leftBarButtonItems = group_items(g);
+}
+- (void)setTrailingItemGroups:(NSArray<UIBarButtonItemGroup *> *)g {
+    objc_setAssociatedObject(self, &kTrailingGroups, [g copy] ?: @[], OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self _isimOwn:g];
+    self.rightBarButtonItems = group_items(g).reverseObjectEnumerator.allObjects;
+}
+- (void)setCenterItemGroups:(NSArray<UIBarButtonItemGroup *> *)g {
+    objc_setAssociatedObject(self, &kCenterGroups, [g copy] ?: @[], OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self _isimOwn:g];
+    bar_item_changed(self);
+}
+/* a group's items or visibility changed: refresh the item arrays the groups feed */
+- (void)_isimGroupsChanged {
+    NSArray *lg = objc_getAssociatedObject(self, &kLeadingGroups), *tg = objc_getAssociatedObject(self, &kTrailingGroups);
+    if (lg) self.leftBarButtonItems = group_items(lg);
+    if (tg) self.rightBarButtonItems = group_items(tg).reverseObjectEnumerator.allObjects;
+    bar_item_changed(self);
+}
+- (NSArray<UIBarButtonItem *> *)_isim_centerItems { return group_items(self.centerItemGroups); }
+@end
+
 @implementation UIBarButtonItemStateAppearance
 - (instancetype)init { if ((self = [super init])) _titleTextAttributes = @{}; return self; }
 - (void)_isim_copyFrom:(UIBarButtonItemStateAppearance *)o {
@@ -779,6 +860,10 @@ static void set_label_text(UILabel *l, NSString *plain, NSAttributedString *attr
     /* an integrated search (inline / iOS 26 integrated placements) in the bar row: a search button, or a field */
     int spot = search_spot(item, [self _isim_navigationController], self);
     NSArray *right = item.rightBarButtonItems ?: @[];
+    /* iOS 16 center groups: before the trailing items (browser / editor styles) or in the overflow menu (navigator) */
+    NSArray<UIBarButtonItem *> *center = [item _isim_centerItems];
+    if (center.count && item.style == UINavigationItemStyleNavigator) right = [@[[self _isim_overflowItemFor:center]] arrayByAddingObjectsFromArray:right];
+    else if (center.count) right = [right arrayByAddingObjectsFromArray:center.reverseObjectEnumerator.allObjects];
     if (spot == SEARCH_BUTTON) right = [@[[item _isim_searchButtonItem]] arrayByAddingObjectsFromArray:right];      /* trailingmost: the first item */
     NSArray *rv = [self _isim_placeRightItems:right x:W - margin y:y limit:W / 2];
     CGFloat rightStart = W - margin;
@@ -980,18 +1065,30 @@ static UIImage *tiled(UIImage *i) {
     /* a filling item (an integrated search field) takes the free width instead of the flexible spaces */
     BOOL spaced = !flex || fills;
     CGFloat gap = isim_ui_glass() ? 8 : 16, gaps = n > 1 && spaced ? gap * (n - 1) : 0, free = fmax(0, W - 2 * margin - used - gaps);
+    /* iOS 26 (#107): like navigation bars, neighbouring items that share their background sit on one glass capsule;
+       flexible and fixed spaces, prominent items, items that do not share and filling items close a group */
+    BOOL glass = isim_ui_glass();
+    NSMutableArray *group = [NSMutableArray array], *glassViews = [NSMutableArray array];
     CGFloat x = margin; NSUInteger vi = 0;
     for (NSUInteger i = 0; i < _items.count; i++) {
         UIBarButtonItem *it = _items[i]; double w = [sizes[i] doubleValue];
         if (it.hidden) continue;
-        if (w == -1) { if (!fills) x += free / flex; continue; }
-        if ([it _isim_isFixed]) { x += w; continue; }
+        if (w == -1) { if (glass) close_glass_group(self, group, glassViews); if (!fills) x += free / flex; continue; }
+        if ([it _isim_isFixed]) { if (glass) close_glass_group(self, group, glassViews); x += w; continue; }
         UIView *v = _views[vi++];
+        BOOL prominent = it.style == UIBarButtonItemStyleDone || it.style == UIBarButtonItemStyleProminent;
+        BOOL shares = glass && w != -2 && !prominent && it.sharesBackground && !it.hidesSharedBackground;
+        if (glass && !shares) close_glass_group(self, group, glassViews);
+        if (glass && group.count && spaced) x -= gap;                        /* grouped: no gap between the items */
         if (w == -2) { w = free / fills; v.frame = CGRectMake(x, 0, w, 44); }
         else v.frame = CGRectMake(x, (44 - v.bounds.size.height) / 2, w, v.bounds.size.height);
         [self addSubview:v];
+        if ([v isKindOfClass:[__IsimBarButton class]]) ((__IsimBarButton *)v).noGlass = glass && it.hidesSharedBackground;
+        if (shares) [group addObject:v];
         x += w + (spaced ? gap : 0);
     }
+    if (glass) close_glass_group(self, group, glassViews);
+    [_views addObjectsFromArray:glassViews];
 }
 @end
 
@@ -1970,7 +2067,7 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
     BOOL glass = isim_ui_glass();
     CGFloat safeTop = host.window ? isim_ui_safe_insets_for_rect(host, [host convertRect:host.bounds toView:nil]).top : isim_ui_device()->safe_top;
     _sidebarView.frame = glass ? CGRectMake(8, safeTop + 8, 320 - 16, host.bounds.size.height - safeTop - 16) : CGRectMake(0, 0, 320, host.bounds.size.height);
-    _sidebarView.layer.cornerRadius = glass ? 24 : 0;
+    _sidebarView.layer.cornerRadius = glass ? 24 : 0; _sidebarView.layer.cornerCurve = kCACornerCurveContinuous;
     _sidebarView.backgroundColor = nil;
     for (UIView *s in _sidebarView.subviews) [s removeFromSuperview];
     __block CGFloat y = glass ? 12 : safeTop + 12; CGFloat w = _sidebarView.bounds.size.width;

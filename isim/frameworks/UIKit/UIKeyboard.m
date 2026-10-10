@@ -1061,7 +1061,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     CGFloat rowH = 44, w = 240, h = rowH * names.count;
     _menu = [[UIView alloc] initWithFrame:CGRectMake(8, MAX(8, _bar.frame.origin.y - h - 4), w, h)];
     _menu.backgroundColor = dyn(0.98, 0.22);
-    _menu.layer.cornerRadius = 12;
+    _menu.layer.cornerRadius = 12; _menu.layer.cornerCurve = kCACornerCurveContinuous;
     _menu.layer.shadowColor = UIColor.blackColor.CGColor; _menu.layer.shadowOpacity = 0.25; _menu.layer.shadowRadius = 8;
     for (NSUInteger i = 0; i < names.count; i++) {
         UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];

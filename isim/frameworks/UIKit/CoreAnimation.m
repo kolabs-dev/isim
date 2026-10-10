@@ -302,7 +302,7 @@ void ca_emit_path(CGPathRef path) {
     isim_path_begin();
     CGContextAddPath(isim_cg_current_context(), path);
 }
-/* rounded rect with only some corners rounded (maskedCorners) */
+/* rounded rect with only some corners rounded (maskedCorners); corners as isim_gfx_corner_curve says */
 void ca_rounded_path(CGRect r, double rad, CACornerMask m) {
     rad = fmax(0, fmin(rad, fmin(r.size.width, r.size.height) / 2));
     if (rad <= 0 || m == 0) { isim_path_begin(); isim_path_rect(r.origin.x, r.origin.y, r.size.width, r.size.height, 0); return; }
@@ -314,16 +314,15 @@ void ca_rounded_path(CGRect r, double rad, CACornerMask m) {
 /* rounded rect with its own radius per corner: c = top-left, top-right, bottom-left, bottom-right */
 void ca_corners_path(CGRect r, const double *c) {
     isim_path_begin();
-    double lim = fmin(r.size.width, r.size.height) / 2;
-    double tl = fmax(0, fmin(c[0], lim)), tr = fmax(0, fmin(c[1], lim)), bl = fmax(0, fmin(c[2], lim)), br = fmax(0, fmin(c[3], lim));
-    double x0 = r.origin.x, y0 = r.origin.y, x1 = x0 + r.size.width, y1 = y0 + r.size.height;
-    isim_path_move(x0 + tl, y0);
-    isim_path_line(x1 - tr, y0); if (tr > 0) isim_path_arc(x1 - tr, y0 + tr, tr, -M_PI / 2, 0, 1);
-    isim_path_line(x1, y1 - br); if (br > 0) isim_path_arc(x1 - br, y1 - br, br, 0, M_PI / 2, 1);
-    isim_path_line(x0 + bl, y1); if (bl > 0) isim_path_arc(x0 + bl, y1 - bl, bl, M_PI / 2, M_PI, 1);
-    isim_path_line(x0, y0 + tl); if (tl > 0) isim_path_arc(x0 + tl, y0 + tl, tl, M_PI, 1.5 * M_PI, 1);
-    isim_path_close();
+    isim_path_corners(r.origin.x, r.origin.y, r.size.width, r.size.height, c);
 }
+/* draws the layer's rounded shapes with its cornerCurve until ca_end_corner_curve (circular unless .continuous,
+   like Core Animation); returns the previous curve */
+int ca_begin_corner_curve(CALayer *l) {
+    NSString *c = l.cornerCurve;
+    return isim_gfx_corner_curve(c == kCACornerCurveContinuous || [c isEqualToString:kCACornerCurveContinuous]);
+}
+void ca_end_corner_curve(int was) { isim_gfx_corner_curve(was); }
 
 /* ================= CALayer ================= */
 CALayerCornerCurve const kCACornerCurveCircular = @"circular", kCACornerCurveContinuous = @"continuous";
@@ -698,8 +697,10 @@ static CATransform3D to_root(CALayer *l) {
     isim_gfx_save();
     isim_gfx_translate(-b.origin.x, -b.origin.y);
     double bg[4]; ca_rgba(p.backgroundColor, bg);
+    int curve = ca_begin_corner_curve(p);
     if (bg[3] > 0) { ca_rounded_path(b, p.cornerRadius, p.maskedCorners); isim_path_fill(bg); }
     if (p.masksToBounds) { isim_gfx_save(); ca_rounded_path(b, p.cornerRadius, p.maskedCorners); isim_gfx_clip_path(); }
+    ca_end_corner_curve(curve);
     ca_draw_contents(p, b);
     [p _isim_drawContentWithModel:self];
     [p _isim_renderSublayersOf:self];
@@ -1033,9 +1034,11 @@ static void render_body(CALayer *m, CALayer *p, BOOL silhouette) {
             isim_gfx_pop_group_shadow(sc, p.shadowRadius, p.shadowOffset.width, p.shadowOffset.height);
         }
     }
+    int curve = ca_begin_corner_curve(p);
     if (bg[3] > 0) { ca_rounded_path(b, r, corners); isim_path_fill(bg); }
     BOOL clip = p.masksToBounds;
     if (clip) { isim_gfx_save(); ca_rounded_path(b, r, corners); isim_gfx_clip_path(); }
+    ca_end_corner_curve(curve);
     ca_draw_contents(p, b);
     [p _isim_drawContentWithModel:m];
     [p _isim_renderSublayersOf:m];
@@ -1043,7 +1046,9 @@ static void render_body(CALayer *m, CALayer *p, BOOL silhouette) {
     if (p.borderWidth > 0 && p.borderColor) {
         double bc[4]; ca_rgba(p.borderColor, bc);
         double w = p.borderWidth;
+        curve = ca_begin_corner_curve(p);
         ca_rounded_path(CGRectInset(b, w / 2, w / 2), fmax(0, r - w / 2), corners);
+        ca_end_corner_curve(curve);
         isim_path_stroke(w, bc);
     }
 }
@@ -1196,7 +1201,7 @@ void isim_ca_view_shadow_corners(CALayer *layer, CGSize sz, const double *corner
     double black[4] = { 0, 0, 0, 1 };
     isim_gfx_push_group();
     if (layer.shadowPath) ca_emit_path(layer.shadowPath);
-    else ca_corners_path(CGRectMake(0, 0, sz.width, sz.height), corners);
+    else { int curve = ca_begin_corner_curve(layer); ca_corners_path(CGRectMake(0, 0, sz.width, sz.height), corners); ca_end_corner_curve(curve); }
     isim_path_fill(black);
     isim_gfx_pop_group_shadow(sc, blur, off.width, off.height);
 }
@@ -1206,7 +1211,7 @@ void isim_ca_view_shadow(CALayer *layer, CGSize sz, double radius, double opacit
     double black[4] = { 0, 0, 0, 1 };
     isim_gfx_push_group();
     if (layer.shadowPath) ca_emit_path(layer.shadowPath);
-    else ca_rounded_path(CGRectMake(0, 0, sz.width, sz.height), radius, layer.maskedCorners);
+    else { int curve = ca_begin_corner_curve(layer); ca_rounded_path(CGRectMake(0, 0, sz.width, sz.height), radius, layer.maskedCorners); ca_end_corner_curve(curve); }
     isim_path_fill(black);
     isim_gfx_pop_group_shadow(sc, blur, off.width, off.height);
 }

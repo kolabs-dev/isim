@@ -335,26 +335,81 @@ void isim_gfx_restore(void) { cairo_restore(cr); }
 void isim_gfx_translate(double x, double y) { cairo_translate(cr, x, y); }
 void isim_gfx_scale(double sx, double sy) { cairo_scale(cr, sx, sy); }
 
+/* corner shape of rounded rects: 1 continuous (Apple's "squircle" corners, the default for system drawing),
+   0 circular arcs (CALayer's default cornerCurve) */
+static int corner_continuous = 1;
+int isim_gfx_corner_curve(int continuous) {
+    int was = corner_continuous;
+    if (continuous >= 0) corner_continuous = continuous != 0;
+    return was;
+}
+/* the smoothing of a continuous corner of radius r with `budget` of edge available to it (half the shorter side):
+   the curve reaches (1 + smoothing) r along each edge; 0 when it has no room (a capsule stays circular) */
+static double corner_smoothing(double r, double budget) {
+    if (!corner_continuous || r <= 0) return 0;
+    return fmax(0, fmin(0.6, budget / r - 1));
+}
+/* one corner at k, entering along u and leaving along v (unit axis vectors), radius r: a circular arc with
+   cubic easings into both edges (Figma's smooth corner construction); starts with a line to the curve's start */
+static void corner_to(double kx, double ky, double ux, double uy, double vx, double vy, double r, double budget) {
+    double xi = corner_smoothing(r, budget);
+    if (r <= 0) { cairo_line_to(cr, kx, ky); return; }
+    double p = (1 + xi) * r, th = M_PI / 2 * (1 - xi), L = sin(th / 2) * r * M_SQRT2;
+    double al = (M_PI / 2 - th) / 2, p34 = r * tan(al / 2), be = M_PI / 4 * xi;
+    double c = p34 * cos(be), d = c * tan(be), b = (p - L - c - d) / 3, a = 2 * b;
+#define PT(s, t) kx + (s) * ux + (t) * vx, ky + (s) * uy + (t) * vy   /* k + s u + t v */
+    cairo_line_to(cr, PT(-p, 0));
+    if (xi > 0) cairo_curve_to(cr, PT(-p + a, 0), PT(-p + a + b, 0), PT(-p + a + b + c, d));
+    /* the arc around (-r, r): from angle phi0 to phi1, as one cubic (k = 4/3 tan(sweep / 4)) */
+    double s0 = -p + a + b + c, t0 = d, s1 = -d, t1 = p - (a + b + c);
+    double h = 4.0 / 3 * tan(th / 4) * r;
+    double r0s = (s0 + r) / r, r0t = (t0 - r) / r, r1s = (s1 + r) / r, r1t = (t1 - r) / r;   /* unit radius vectors */
+    /* tangents along the travel direction: the radius vector turned by -90 degrees in (s, t) */
+    cairo_curve_to(cr, PT(s0 - r0t * h, t0 + r0s * h), PT(s1 + r1t * h, t1 - r1s * h), PT(s1, t1));
+    if (xi > 0) cairo_curve_to(cr, PT(0, p - a - b), PT(0, p - a), PT(0, p));
+#undef PT
+}
+/* rounded rect with a radius per corner: c = top-left, top-right, bottom-left, bottom-right; continuous or circular
+   corners (isim_gfx_corner_curve) */
+void isim_path_corners(double x, double y, double w, double h, const double *c) {
+    double lim = fmin(w, h) / 2;
+    double tl = fmax(0, fmin(c[0], lim)), tr = fmax(0, fmin(c[1], lim)), bl = fmax(0, fmin(c[2], lim)), br = fmax(0, fmin(c[3], lim));
+    double x1 = x + w, y1 = y + h;
+    cairo_new_sub_path(cr);
+    cairo_move_to(cr, x + tl * (1 + corner_smoothing(tl, lim)), y);
+    corner_to(x1, y, 1, 0, 0, 1, tr, lim);
+    corner_to(x1, y1, 0, 1, -1, 0, br, lim);
+    corner_to(x, y1, -1, 0, 0, -1, bl, lim);
+    corner_to(x, y, 0, -1, 1, 0, tl, lim);
+    cairo_close_path(cr);
+}
 static void rounded(double x, double y, double w, double h, double r) {
     if (r <= 0) { cairo_rectangle(cr, x, y, w, h); return; }
     r = fmin(r, fmin(w, h) / 2);
-    cairo_new_sub_path(cr);
-    cairo_arc(cr, x + w - r, y + r, r, -M_PI / 2, 0);
-    cairo_arc(cr, x + w - r, y + h - r, r, 0, M_PI / 2);
-    cairo_arc(cr, x + r, y + h - r, r, M_PI / 2, M_PI);
-    cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);
-    cairo_close_path(cr);
+    if (!corner_continuous || r >= fmin(w, h) / 2) {
+        cairo_new_sub_path(cr);
+        cairo_arc(cr, x + w - r, y + r, r, -M_PI / 2, 0);
+        cairo_arc(cr, x + w - r, y + h - r, r, 0, M_PI / 2);
+        cairo_arc(cr, x + r, y + h - r, r, M_PI / 2, M_PI);
+        cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);
+        cairo_close_path(cr);
+        return;
+    }
+    double c[4] = { r, r, r, r };
+    isim_path_corners(x, y, w, h, c);
 }
-void isim_gfx_clip_rounded(double x, double y, double w, double h, double r) { rounded(x, y, w, h, r); cairo_clip(cr); }
+/* each starts a new path: isim_path_fill / isim_path_stroke keep theirs (preserve) */
+void isim_gfx_clip_rounded(double x, double y, double w, double h, double r) { cairo_new_path(cr); rounded(x, y, w, h, r); cairo_clip(cr); }
 void isim_gfx_fill_rounded(double x, double y, double w, double h, double r, const double *rgba) {
-    rounded(x, y, w, h, r); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
+    cairo_new_path(cr); rounded(x, y, w, h, r); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
 }
 void isim_gfx_stroke_rounded(double x, double y, double w, double h, double r, double lw, const double *rgba) {
+    cairo_new_path(cr);
     rounded(x + lw / 2, y + lw / 2, w - lw, h - lw, r - lw / 2);
     cairo_set_line_width(cr, lw); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_stroke(cr);
 }
 void isim_gfx_fill_ellipse(double x, double y, double w, double h, const double *rgba) {
-    cairo_save(cr); cairo_translate(cr, x + w / 2, y + h / 2); cairo_scale(cr, w / 2, h / 2);
+    cairo_new_path(cr); cairo_save(cr); cairo_translate(cr, x + w / 2, y + h / 2); cairo_scale(cr, w / 2, h / 2);
     cairo_arc(cr, 0, 0, 1, 0, 2 * M_PI); cairo_restore(cr);
     cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
 }
@@ -477,10 +532,17 @@ static void glass_path(double x, double y, double w, double h, double r, const d
     cairo_set_line_width(cr, lw); cairo_set_source(cr, rim); cairo_stroke(cr); cairo_pattern_destroy(rim);
 }
 static double sd_round_rect(double px, double py, const double *b) {   /* b: x0 y0 x1 y1 r (device pixels) */
-    double hx = (b[2] - b[0]) / 2 - b[4], hy = (b[3] - b[1]) / 2 - b[4];
+    /* a continuous corner reaches re = (1 + smoothing) r along the edges: approximated by a superellipse of radius re
+       through the same mid-corner point as the circular arc (exponent 2 when circular) */
+    double hw = (b[2] - b[0]) / 2, hh = (b[3] - b[1]) / 2, r = b[4], re = (1 + corner_smoothing(r, fmin(hw, hh))) * r;
+    double hx = hw - re, hy = hh - re;
     double qx = fabs(px - (b[0] + b[2]) / 2) - hx, qy = fabs(py - (b[1] + b[3]) / 2) - hy;
     double ox = fmax(qx, 0), oy = fmax(qy, 0);
-    return sqrt(ox * ox + oy * oy) + fmin(fmax(qx, qy), 0) - b[4];
+    if (re > r && ox > 0 && oy > 0) {
+        double n = M_LN2 / -log(1 - (1 - M_SQRT1_2) * r / re);
+        return pow(pow(ox, n) + pow(oy, n), 1 / n) - re;
+    }
+    return sqrt(ox * ox + oy * oy) + fmin(fmax(qx, qy), 0) - re;
 }
 static inline double clamp01(double v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 void isim_gfx_glass_shapes(int n, const double *shapes, const double *tints, const int *pressed, double spacing, int flags) {
@@ -1445,6 +1507,70 @@ void isim_text_draw_markup(const char *markup, double x, double y, double w, int
     g_object_unref(l);
 }
 
+/* ---- text layouts kept for queries (TextKit: line fragments, character <-> point); byte offsets are into the
+   layout's UTF-8 text (the markup's text without its tags) ---- */
+/* shapes: n inline boxes (text attachments) at byte offsets, each x y w h relative to the baseline (y up negative),
+   that replace the character there; indent: the first line's indent (negative: the other lines') */
+void *isim_tl_create(const char *markup, double maxw, int align, double spacing, double indent, int n, const int *bytes, const double *boxes) {
+    measure_context();
+    PangoLayout *l = layout_markup(markup, maxw, 0, align, spacing);
+    if (indent != 0) pango_layout_set_indent(l, (int)(indent * PANGO_SCALE));
+    if (n > 0) {
+        PangoAttrList *old = pango_layout_get_attributes(l);
+        PangoAttrList *al = old ? pango_attr_list_copy(old) : pango_attr_list_new();
+        const char *text = pango_layout_get_text(l);
+        for (int i = 0; i < n; i++) {
+            const double *b = boxes + 4 * i;
+            PangoRectangle r = { (int)(b[0] * PANGO_SCALE), (int)(b[1] * PANGO_SCALE), (int)(b[2] * PANGO_SCALE), (int)(b[3] * PANGO_SCALE) };
+            PangoAttribute *a = pango_attr_shape_new(&r, &r);
+            a->start_index = (guint)bytes[i];
+            a->end_index = (guint)(g_utf8_next_char(text + bytes[i]) - text);
+            pango_attr_list_insert(al, a);
+        }
+        pango_layout_set_attributes(l, al);
+        pango_attr_list_unref(al);
+    }
+    return l;
+}
+void isim_tl_free(void *t) { if (t) g_object_unref((PangoLayout *)t); }
+void isim_tl_size(void *t, double *w, double *h) {
+    PangoRectangle log; pango_layout_get_extents((PangoLayout *)t, NULL, &log);
+    *w = (double)log.width / PANGO_SCALE; *h = (double)log.height / PANGO_SCALE;
+}
+int isim_tl_line_count(void *t) { return pango_layout_get_line_count((PangoLayout *)t); }
+/* line i: its byte range, its logical rect (x y w h, layout coordinates) and baseline */
+void isim_tl_line(void *t, int i, int *start, int *len, double *r, double *baseline) {
+    PangoLayoutIter *it = pango_layout_get_iter((PangoLayout *)t);
+    for (int k = 0; k < i && pango_layout_iter_next_line(it); k++) {}
+    PangoLayoutLine *line = pango_layout_iter_get_line_readonly(it);
+    PangoRectangle log; pango_layout_iter_get_line_extents(it, NULL, &log);
+    int y0, y1; pango_layout_iter_get_line_yrange(it, &y0, &y1);
+    *start = line->start_index; *len = line->length;
+    r[0] = (double)log.x / PANGO_SCALE; r[1] = (double)y0 / PANGO_SCALE; r[2] = (double)log.width / PANGO_SCALE; r[3] = (double)(y1 - y0) / PANGO_SCALE;
+    *baseline = (double)pango_layout_iter_get_baseline(it) / PANGO_SCALE;
+    pango_layout_iter_free(it);
+}
+/* the rect of the character at a byte offset (its leading edge for an insertion point) */
+void isim_tl_index_rect(void *t, int byte, double *r) {
+    PangoRectangle pos; pango_layout_index_to_pos((PangoLayout *)t, byte, &pos);
+    r[0] = (double)pos.x / PANGO_SCALE; r[1] = (double)pos.y / PANGO_SCALE; r[2] = (double)pos.width / PANGO_SCALE; r[3] = (double)pos.height / PANGO_SCALE;
+}
+/* the byte offset of the character under a point; trailing: how far past it (in characters) the point is */
+int isim_tl_index_at(void *t, double x, double y, int *trailing) {
+    int idx = 0, tr = 0;
+    pango_layout_xy_to_index((PangoLayout *)t, (int)(x * PANGO_SCALE), (int)(y * PANGO_SCALE), &idx, &tr);
+    if (trailing) *trailing = tr;
+    return idx;
+}
+void isim_tl_draw(void *t, double x, double y, const double *rgba) {
+    PangoLayout *l = (PangoLayout *)t;
+    pango_cairo_update_context(cr, pctx);
+    pango_layout_context_changed(l);
+    cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
+    cairo_move_to(cr, x, y);
+    pango_cairo_show_layout(cr, l);
+}
+
 int isim_image_load(const char *path, double *w, double *h);
 long isim_image_encode(int hd, int fmt, double quality, unsigned char **out);
 void isim_image_bytes_free(unsigned char *p);
@@ -1629,7 +1755,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_save), H(isim_gfx_restore), H(isim_gfx_translate), H(isim_gfx_scale), H(isim_gfx_clip_rounded),
     H(isim_gfx_fill_rounded), H(isim_gfx_stroke_rounded), H(isim_gfx_fill_ellipse), H(isim_gfx_push_group), H(isim_gfx_pop_group),
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
-    H(isim_path_rect), H(isim_path_fill), H(isim_path_stroke), H(isim_path_set_line_style), H(isim_path_set_fill_rule), H(isim_path_gradient),
+    H(isim_path_rect), H(isim_path_corners), H(isim_gfx_corner_curve), H(isim_path_fill), H(isim_path_stroke), H(isim_path_set_line_style), H(isim_path_set_fill_rule), H(isim_path_gradient),
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_text_measure_f), H(isim_text_end_point_f), H(isim_text_draw_f),
     H(isim_font_register), H(isim_font_app_face), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
@@ -1646,7 +1772,7 @@ static const struct shim isim_table[] = {
     H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_trust), H(isim_pki_pkcs12),
     H(isim_set_orientation), H(isim_device_orientation),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
-    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_draw_markup),
+    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
