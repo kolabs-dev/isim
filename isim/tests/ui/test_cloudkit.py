@@ -38,6 +38,7 @@ def test_cloudkit(launch, device_data):
     app.wait_log(r"container: iCloud\.dev\.isim\.samples\.HelloCloudKit account=available")
     app.wait_log(r"user record: true")
     app.wait_view(r"text=account: available")                            # default container, account available
+    app.screenshot("data-persistence")                                  # PR visual evidence: the added sharing/sync/SwiftData controls
     app.wait_log(r"metrickit: subscribed, past payloads 0")              # MetricKit: nothing by itself
     for button, lines in STEPS:
         app.wait_tap_id(button)
