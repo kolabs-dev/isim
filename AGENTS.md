@@ -62,7 +62,9 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
 - **Branches and PRs.** Make every change on a branch and open a pull request. Merges into `main` are squashed.
 - **Local checks first.** Before opening a PR, run the full local build, `isim/build.py test`, `OS_MATRIX=1` when the
   change is version-sensitive, and the ABI check. Put the results in the PR description.
-- **Screenshots.** When a change is visible (UI, drawing, system UI), show screenshots of isim's own samples in the PR.
+- **Screenshots on applicable PRs.** When a change has a meaningful visual result (UI, drawing, system UI), include
+  authentic screenshots of isim's own samples in the PR. Capture the changed state in a test or scripted sample when
+  practical; do not use mockups or unrelated images. Screenshot-only evidence is not required for non-visual changes.
   They live on the `screenshots` branch, which holds only images shown in PRs (no code, never merged):
   - add them in a folder named after the PR number (`screenshots:<PR>/<name>.png`), in a commit on that branch alone
     (e.g. a separate clone or worktree with `git checkout screenshots`), and push it;
