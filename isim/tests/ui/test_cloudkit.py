@@ -52,14 +52,14 @@ def test_cloudkit(launch, device_data):
     app.tap_id("delete")
     app.wait_log(r"deleted n1 \(cascade\): n1=CKError 11 n2=CKError 11")  # delete cascades (.deleteSelf reference)
     app.tap_id("list")
-    app.wait_log(r"records: n3,p1,u1")
+    app.wait_log(r"records: n3,p1,sync1,u1")
     assert app.count(r"push: query") == 1, "one query subscription push"
     assert app.count(r"metrickit: metric payload") == 1, "MetricKit: one payload, from the script command"
     assert app.quit() == 0
 
     app = launch("HelloCloudKit")                                        # relaunch: the records persist
     app.wait_tap_id("list")
-    app.wait_log(r"records: n3,p1,u1")
+    app.wait_log(r"records: n3,p1,sync1,u1")
     mk = subprocess.run([str(ISIM), "metrickit"], env=dict(os.environ, ISIM_DATA=str(device_data)),
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout
     assert "simulated MetricKit payloads requested" in mk, mk
