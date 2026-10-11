@@ -55,7 +55,7 @@ def parse_contents(path):
         if e.get('versionHashModifier'):
             ent['versionHashModifier'] = e.get('versionHashModifier')
         attrs, rels, fetched = [], [], []
-        for a in e.findall('attribute'):
+        for a in list(e.findall('attribute')) + list(e.findall('derivedAttribute')):
             t = a.get('attributeType', 'Undefined')
             d = {'name': a.get('name'), 'type': t, 'optional': yes(a.get('optional')),
                  'scalar': yes(a.get('usesScalarValueType', 'YES' if t in ('Integer 16', 'Integer 32', 'Integer 64', 'Double', 'Float', 'Boolean') else 'NO'))}
@@ -69,7 +69,8 @@ def parse_contents(path):
                 d['defaultValue'] = dv
             for key, xmlk in (('valueTransformerName', 'valueTransformerName'), ('customClassName', 'customClassName'),
                               ('minValue', 'minValueString'), ('maxValue', 'maxValueString'),
-                              ('regularExpression', 'regularExpressionString'), ('renamingIdentifier', 'elementID')):
+                              ('regularExpression', 'regularExpressionString'), ('renamingIdentifier', 'elementID'),
+                              ('derivationExpression', 'derivationExpression')):
                 if a.get(xmlk):
                     d[key] = a.get(xmlk)
             attrs.append(d)

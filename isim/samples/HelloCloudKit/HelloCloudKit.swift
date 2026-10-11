@@ -8,6 +8,24 @@ import CloudKit
 import CoreData
 import CoreLocation
 import MetricKit
+import SwiftData
+
+@Model final class LocalNote {
+    @Attribute(.unique) var title: String
+    init(title: String) { self.title = title }
+}
+
+final class SyncDelegate: CKSyncEngineDelegate, @unchecked Sendable {
+    var records: [CKRecord.ID: CKRecord] = [:]
+    func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
+        if case .sentRecordZoneChanges(let result) = event {
+            print("sync engine: saved=\(result.savedRecords.count) failed=\(result.failedRecordSaves.count) pending=\(syncEngine.state.pendingRecordZoneChanges.count)")
+        }
+    }
+    func nextRecordZoneChangeBatch(_ context: CKSyncEngine.SendChangesContext, syncEngine: CKSyncEngine) async -> CKSyncEngine.RecordZoneChangeBatch? {
+        CKSyncEngine.RecordZoneChangeBatch(pendingChanges: context.pendingRecordZoneChanges) { records[$0] }
+    }
+}
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubscriber {
@@ -49,6 +67,8 @@ final class CloudViewController: UIViewController {
     let container = CKContainer.default()
     var db: CKDatabase { container.privateCloudDatabase }
     let status = UILabel()
+    private var syncDelegate: SyncDelegate?
+    private var syncEngine: CKSyncEngine?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -68,7 +88,8 @@ final class CloudViewController: UIViewController {
         stack.addArrangedSubview(status)
         for (title, id, action) in [("Save notes", "save", save), ("Query (paged)", "query", query), ("Fetch typed values", "fetch", fetch),
                                     ("Conflict + resolve", "conflict", conflict), ("Subscribe + push", "subscribe", subscribe),
-                                    ("Zone, atomic batch, changes", "zone", zone), ("Delete (cascade)", "delete", delete),
+                                    ("Zone, atomic batch, changes", "zone", zone), ("Share + discovery", "share", share), ("Delete (cascade)", "delete", delete),
+                                    ("CKSyncEngine", "sync", sync), ("SwiftData", "swiftdata", swiftData),
                                     ("Core Data + CloudKit container", "coredata", coreData), ("List records", "list", list)] as [(String, String, () -> Void)] {
             let cfg = UIButton.Configuration.filled()
             cfg.title = title
@@ -219,6 +240,13 @@ final class CloudViewController: UIViewController {
                 }
                 print("atomic batch: \(codes.joined(separator: ","))")
                 _ = try await db.modifyRecords(saving: [note("w1", "Plan", 1, zone: work.zoneID), note("w3", "Ship", 3, zone: work.zoneID)], deleting: [])
+                var databaseZones: [String] = []
+                let databaseChanges = CKFetchDatabaseChangesOperation(previousServerChangeToken: nil)
+                databaseChanges.recordZoneWithIDChangedBlock = { databaseZones.append($0.zoneName) }
+                databaseChanges.fetchDatabaseChangesResultBlock = { result in
+                    if case .success(let page) = result { print("database changes: \(databaseZones.sorted().joined(separator: ",")) more=\(page.moreComing)") }
+                }
+                db.add(databaseChanges)
                 var token: CKServerChangeToken?
                 var changed: [String] = []
                 let op = CKFetchRecordZoneChangesOperation(recordZoneIDs: [work.zoneID], configurationsByRecordZoneID: nil)
@@ -255,6 +283,48 @@ final class CloudViewController: UIViewController {
         }
     }
 
+    func share() {
+        Task {
+            do {
+                let root = try await db.record(for: CKRecord.ID(recordName: "n3"))
+                let participant = try await container.shareParticipant(forEmailAddress: "casey@example.com")
+                participant.permission = .readWrite
+                let share = CKShare(rootRecord: root)
+                share[CKShare.SystemFieldKey.title.rawValue] = "Notes"
+                share.publicPermission = .readOnly
+                share.addParticipant(participant)
+                let saved = try await db.save(share)
+                let identity = try await container.userIdentity(forEmailAddress: "casey@example.com")
+                let sheet = UICloudSharingController(share: share, container: container)
+                sheet.availablePermissions = [.allowPrivate, .allowReadWrite]
+                print("sharing: saved=\(saved is CKShare) participants=\(share.participants.count) permission=\(share.publicPermission.rawValue) discovered=\(identity.userRecordID != nil) sheet=true")
+            } catch { print("sharing error: \(code(error))") }
+        }
+    }
+
+    func sync() {
+        let delegate = SyncDelegate()
+        let record = note("sync1", "From CKSyncEngine", 40)
+        delegate.records[record.recordID] = record
+        var configuration = CKSyncEngine.Configuration(database: db, delegate: delegate)
+        configuration.automaticallySync = false
+        let engine = CKSyncEngine(configuration)
+        syncDelegate = delegate
+        syncEngine = engine
+        engine.state.add(pendingRecordZoneChanges: [.init(recordID: record.recordID, type: .saveRecord)])
+        Task { try await engine.sendChanges() }
+    }
+
+    func swiftData() {
+        do {
+            let container = try ModelContainer(for: [LocalNote.self], configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+            container.mainContext.insert(LocalNote(title: "Local model"))
+            try container.mainContext.save()
+            let notes = try container.mainContext.fetch(FetchDescriptor<LocalNote>())
+            print("swiftdata: models=\(notes.count) title=\(notes.first?.title ?? "-") changes=\(container.mainContext.hasChanges)")
+        } catch { print("swiftdata error: \(error)") }
+    }
+
     func list() {
         Task {
             do {
@@ -270,6 +340,12 @@ final class CloudViewController: UIViewController {
         e.properties = [a]
         let m = NSManagedObjectModel(); m.entities = [e]
         let c = NSPersistentCloudKitContainer(name: "Items", managedObjectModel: m)
+        let eventObserver = NotificationCenter.default.addObserver(forName: NSPersistentCloudKitContainer.eventChangedNotification, object: c, queue: nil) { note in
+            if let event = note.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey] as? NSPersistentCloudKitContainer.Event, event.endDate != nil {
+                let kind = [0: "setup", 1: "import", 2: "export"][event.type.rawValue] ?? "?"
+                print("coredata event: \(kind) succeeded=\(event.succeeded)")
+            }
+        }
         let d = c.persistentStoreDescriptions.first!
         d.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: "iCloud.dev.isim.samples.HelloCloudKit")
         d.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
@@ -282,5 +358,6 @@ final class CloudViewController: UIViewController {
         try? c.viewContext.save()
         let n = (try? c.viewContext.count(for: NSFetchRequest<NSFetchRequestResult>(entityName: "Item"))) ?? -1
         print("coredata: items=\(n) isContainer=\((c as NSPersistentContainer) is NSPersistentCloudKitContainer)")
+        NotificationCenter.default.removeObserver(eventObserver)
     }
 }

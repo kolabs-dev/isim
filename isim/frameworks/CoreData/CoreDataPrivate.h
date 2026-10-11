@@ -108,7 +108,8 @@ NSArray *CDToManyArray(id value);                           /* NSSet / NSOrdered
 - (NSArray<NSManagedObjectID *> *)_cd_permanentIDsForEntities:(NSArray<NSEntityDescription *> *)entities error:(NSError **)error;
 /* one transaction; conflicts (version changed in the store) are resolved with the merge policy */
 - (BOOL)_cd_saveInserted:(NSArray<NSManagedObject *> *)inserted updated:(NSArray<NSManagedObject *> *)updated
-                 deleted:(NSArray<NSManagedObject *> *)deleted mergePolicy:(NSMergePolicy *)policy error:(NSError **)error;
+                 deleted:(NSArray<NSManagedObject *> *)deleted mergePolicy:(NSMergePolicy *)policy
+                  author:(NSString *)author contextName:(NSString *)contextName error:(NSError **)error;
 - (id)_cd_executeBatch:(NSPersistentStoreRequest *)request context:(NSManagedObjectContext *)context error:(NSError **)error;
 /* predicate -> SQL (superset); *exact = NO when part of it must be checked in memory */
 - (NSString *)_cd_sqlForPredicate:(NSPredicate *)predicate entity:(NSEntityDescription *)entity args:(NSMutableArray *)args exact:(BOOL *)exact;
@@ -130,6 +131,7 @@ NSArray *CDToManyArray(id value);                           /* NSSet / NSOrdered
 /* ---------------- contexts ---------------- */
 @interface NSManagedObjectContext (CDPrivate)
 - (void)_cd_registerObject:(NSManagedObject *)object;
+- (void)_cd_replaceObject:(NSManagedObject *)object withPermanentID:(NSManagedObjectID *)objectID;
 - (void)_cd_objectDidChange:(NSManagedObject *)object;
 - (NSManagedObject *)_cd_objectForSnapshot:(CDSnapshot *)snapshot;
 - (CDSnapshot *)_cd_snapshotForObjectID:(NSManagedObjectID *)oid;
@@ -137,6 +139,7 @@ NSArray *CDToManyArray(id value);                           /* NSSet / NSOrdered
 - (BOOL)_cd_isInserted:(NSManagedObject *)o;
 - (BOOL)_cd_isUpdated:(NSManagedObject *)o;
 - (BOOL)_cd_isDeleted:(NSManagedObject *)o;
+- (void)_cd_registerUndoForObject:(NSManagedObject *)object key:(NSString *)key oldValue:(id)value;
 - (NSArray *)_cd_executeFetch:(NSFetchRequest *)request error:(NSError **)error;
 - (NSUInteger)_cd_count:(NSFetchRequest *)request error:(NSError **)error;
 - (NSEntityDescription *)_cd_entityNamed:(NSString *)name;
@@ -157,4 +160,29 @@ NSArray *CDToManyArray(id value);                           /* NSSet / NSOrdered
 @end
 @interface NSBatchUpdateResult (CDPrivate)
 - (instancetype)_cd_initWithResult:(id)result type:(NSBatchUpdateRequestResultType)type __attribute__((objc_method_family(init)));
+@end
+@interface NSBatchInsertRequest (CDPrivate)
+- (NSEntityDescription *)_cd_entityInContext:(NSManagedObjectContext *)context;
+@end
+@interface NSBatchInsertResult (CDPrivate)
+- (instancetype)_cd_initWithResult:(id)result type:(NSBatchInsertRequestResultType)type __attribute__((objc_method_family(init)));
+@end
+@interface NSPersistentHistoryToken (CDPrivate)
++ (instancetype)_cd_token:(int64_t)number;
+@property (readonly) int64_t _cd_number;
+@end
+@interface NSPersistentHistoryChange (CDPrivate)
++ (instancetype)_cd_change:(int64_t)number objectID:(NSManagedObjectID *)objectID type:(NSPersistentHistoryChangeType)type;
+- (void)_cd_setTransaction:(NSPersistentHistoryTransaction *)transaction;
+@end
+@interface NSPersistentHistoryTransaction (CDPrivate)
++ (instancetype)_cd_transaction:(int64_t)number storeID:(NSString *)storeID author:(NSString *)author context:(NSString *)context changes:(NSArray *)changes;
+@end
+@interface NSPersistentHistoryChangeRequest (CDPrivate)
+@property (readonly) BOOL _cd_delete;
+@property (readonly) int64_t _cd_number;
+@property (readonly) NSDate *_cd_date;
+@end
+@interface NSPersistentHistoryResult (CDPrivate)
+- (instancetype)_cd_initWithResult:(id)result type:(NSPersistentHistoryResultType)type __attribute__((objc_method_family(init)));
 @end

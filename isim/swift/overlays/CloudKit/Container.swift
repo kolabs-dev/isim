@@ -98,7 +98,7 @@ open class CKDatabase: NSObject, @unchecked Sendable {
     var user: CKRecord.ID { CKRecord.ID(recordName: _CKEnv.userRecordName) }
 
     func record(from s: _CKStoredRecord, id: CKRecord.ID, desiredKeys: [String]? = nil) -> CKRecord {
-        let r = CKRecord(recordType: s.type, recordID: id)
+        let r: CKRecord = s.type == CKRecordTypeShare ? CKShare(recordID: id) : CKRecord(recordType: s.type, recordID: id)
         r.fields = desiredKeys.map { keys in s.fields.filter { keys.contains($0.key) } } ?? s.fields
         r.recordChangeTag = s.tag
         r.creationDate = Date(timeIntervalSinceReferenceDate: s.created)

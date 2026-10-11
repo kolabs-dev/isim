@@ -337,6 +337,9 @@ static void touched(NSManagedObject *o, NSString *key) {
     [self _cd_fire];
     NSRelationshipDescription *r = _entity.relationshipsByName[key];
     if (r.toMany) { NSArray *a = CDToManyArray(value); value = r.ordered ? [NSMutableOrderedSet orderedSetWithArray:a] : [NSMutableSet setWithArray:a]; }
+    id old = _values[key];
+    if (old == value || (old && value && [old isEqual:value])) return;
+    [_ctx _cd_registerUndoForObject:self key:key oldValue:old ?: [NSNull null]];
     [self willChangeValueForKey:key];
     if (value) _values[key] = value; else [_values removeObjectForKey:key];
     [self didChangeValueForKey:key];
@@ -353,6 +356,7 @@ static void touched(NSManagedObject *o, NSString *key) {
     for (id o in old) if (![newSet containsObject:o]) [removed addObject:o];
     BOOL reorder = r.ordered && ![old isEqualToArray:members];
     if (!added.count && !removed.count && !reorder) return;
+    [_ctx _cd_registerUndoForObject:self key:key oldValue:r.ordered ? [NSOrderedSet orderedSetWithArray:old] : [NSSet setWithArray:old]];
     [self willChangeValueForKey:key];
     _values[key] = r.ordered ? [NSMutableOrderedSet orderedSetWithArray:members] : [NSMutableSet setWithArray:members];
     [self didChangeValueForKey:key];
@@ -376,18 +380,21 @@ static void touched(NSManagedObject *o, NSString *key) {
 - (void)_cd_rawAdd:(id)o key:(NSString *)key {
     id set = [self _cd_raw:key];
     if ([set containsObject:o]) return;
+    [_ctx _cd_registerUndoForObject:self key:key oldValue:[set copy]];
     [self willChangeValueForKey:key]; [set addObject:o]; [self didChangeValueForKey:key];
     touched(self, key);
 }
 - (void)_cd_rawRemove:(id)o key:(NSString *)key {
     id set = [self _cd_raw:key];
     if (![set containsObject:o]) return;
+    [_ctx _cd_registerUndoForObject:self key:key oldValue:[set copy]];
     [self willChangeValueForKey:key]; [set removeObject:o]; [self didChangeValueForKey:key];
     touched(self, key);
 }
 - (void)_cd_rawSetToOne:(id)o key:(NSString *)key {
     [self _cd_fire];
     if (_values[key] == o) return;
+    [_ctx _cd_registerUndoForObject:self key:key oldValue:_values[key] ?: [NSNull null]];
     [self willChangeValueForKey:key];
     if (o) _values[key] = o; else [_values removeObjectForKey:key];
     [self didChangeValueForKey:key];
@@ -429,6 +436,9 @@ static void touched(NSManagedObject *o, NSString *key) {
 - (void)setPrimitiveValue:(id)value forKey:(NSString *)key {
     NSPropertyDescription *p = _entity.propertiesByName[key];
     if (!p) { [super setValue:value forKey:key]; return; }
+    id old = [self _cd_raw:key];
+    if (old == value || (old && value && [old isEqual:value])) return;
+    [_ctx _cd_registerUndoForObject:self key:key oldValue:old ?: [NSNull null]];
     if ([p isKindOfClass:[NSRelationshipDescription class]] && ((NSRelationshipDescription *)p).toMany) {
         NSRelationshipDescription *r = (NSRelationshipDescription *)p;
         NSArray *a = CDToManyArray(value);
@@ -464,6 +474,7 @@ static void touched(NSManagedObject *o, NSString *key) {
     [self _cd_fire];
     id old = _values[key];
     if (old == value || (old && value && [old isEqual:value] && [old class] == [value class])) return;
+    [_ctx _cd_registerUndoForObject:self key:key oldValue:old ?: [NSNull null]];
     [self willChangeValueForKey:key];
     if (value) _values[key] = value; else [_values removeObjectForKey:key];
     [self didChangeValueForKey:key];

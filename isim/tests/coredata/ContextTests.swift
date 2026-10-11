@@ -100,13 +100,26 @@ func contextTests() {
     check1.performAndWait { check1.reset(); final = (try? check1.existingObject(with: a.objectID) as? Author)?.name ?? "" }
     check(final == "D", "mergeByPropertyStoreTrump: the store's values win (\(final))")
 
+    let ctxE = c.newBackgroundContext(), ctxF = c.newBackgroundContext()
+    ctxE.performAndWait { _ = (ctxE.object(with: a.objectID) as! Author).name; (ctxE.object(with: a.objectID) as! Author).name = "Overwrite" }
+    ctxF.performAndWait { (ctxF.object(with: a.objectID) as! Author).name = "Other"; try? ctxF.save() }
+    ctxE.performAndWait { ctxE.mergePolicy = NSMergePolicy.overwrite; try? ctxE.save() }
+    check1.performAndWait { check1.reset(); final = (try? check1.existingObject(with: a.objectID) as? Author)?.name ?? "" }
+    check(final == "Overwrite", "overwrite merge policy writes the context's snapshot")
+
+    let ctxG = c.newBackgroundContext(), ctxH = c.newBackgroundContext()
+    ctxG.performAndWait { _ = (ctxG.object(with: a.objectID) as! Author).name; (ctxG.object(with: a.objectID) as! Author).name = "Rolled back" }
+    ctxH.performAndWait { (ctxH.object(with: a.objectID) as! Author).name = "Store value"; try? ctxH.save() }
+    ctxG.performAndWait { ctxG.mergePolicy = NSMergePolicy.rollback; try? ctxG.save(); final = (ctxG.object(with: a.objectID) as! Author).name ?? "" }
+    check(final == "Store value", "rollback merge policy drops the conflicting object's changes")
+
     // reset / refresh
     let before = view.registeredObjects.count
     view.reset()
     check(before > 0 && view.registeredObjects.isEmpty && !view.hasChanges, "reset() forgets registered objects")
     let reloaded = try? view.existingObject(with: a.objectID) as? Author
     view.refresh(reloaded!, mergeChanges: false)
-    check(reloaded?.isFault == true && reloaded?.name == "D", "refresh(_:mergeChanges: false) turns the object into a fault that reloads")
+    check(reloaded?.isFault == true && reloaded?.name == "Store value", "refresh(_:mergeChanges: false) turns the object into a fault that reloads")
 }
 
 func batchTests() {
@@ -114,12 +127,18 @@ func batchTests() {
     let ctx = c.viewContext
     for i in 0..<10 { let b = Book(context: ctx); b.title = "B\(i)"; b.pages = Int32(i * 10) }
     try? ctx.save()
+    let insert = NSBatchInsertRequest(entityName: "Book", objects: [["title": "Bulk A", "pages": 101], ["title": "Bulk B", "pages": 102]])
+    insert.resultType = .objectIDs
+    let ir = try? ctx.execute(insert) as? NSBatchInsertResult
+    let inserted = ir?.result as? [NSManagedObjectID] ?? []
+    check(inserted.count == 2, "NSBatchInsertRequest inserts dictionaries and returns object IDs")
+    NSManagedObjectContext.mergeChanges(fromRemoteContextSave: [NSInsertedObjectIDsKey: inserted], into: [ctx])
     let upd = NSBatchUpdateRequest(entityName: "Book")
     upd.predicate = NSPredicate(format: "pages >= 50")
     upd.propertiesToUpdate = ["borrowed": true]
     upd.resultType = .updatedObjectsCountResultType
     let ur = try? ctx.execute(upd) as? NSBatchUpdateResult
-    check((ur?.result as? NSNumber)?.intValue == 5, "NSBatchUpdateRequest updates rows in the store (count result)")
+    check((ur?.result as? NSNumber)?.intValue == 7, "NSBatchUpdateRequest updates rows in the store (count result)")
     let del = NSBatchDeleteRequest(fetchRequest: { let r = NSFetchRequest<NSFetchRequestResult>(entityName: "Book"); r.predicate = NSPredicate(format: "pages < 30"); return r }())
     del.resultType = .resultTypeObjectIDs
     let dr = try? ctx.execute(del) as? NSBatchDeleteResult
@@ -128,7 +147,30 @@ func batchTests() {
     NSManagedObjectContext.mergeChanges(fromRemoteContextSave: [NSDeletedObjectsKey: deleted], into: [ctx])
     ctx.reset()
     let borrowed = (Book.fetchRequest() as NSFetchRequest<Book>); borrowed.predicate = NSPredicate(format: "borrowed == YES")
-    check((try? ctx.count(for: (Book.fetchRequest() as NSFetchRequest<Book>))) == 7 && (try? ctx.count(for: borrowed)) == 5, "store reflects batch update + delete")
+    check((try? ctx.count(for: (Book.fetchRequest() as NSFetchRequest<Book>))) == 9 && (try? ctx.count(for: borrowed)) == 7, "store reflects batch insert + update + delete")
+}
+
+func persistentHistoryTests() {
+    let c = NSPersistentContainer(name: "TestModel")
+    let d = NSPersistentStoreDescription(url: storeDir.appendingPathComponent("History.sqlite"))
+    d.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+    c.persistentStoreDescriptions = [d]
+    c.loadPersistentStores { _, error in if let error { check(false, "history store: \(error)") } }
+    let ctx = c.viewContext
+    ctx.name = "writer"; ctx.transactionAuthor = "CoreDataTest"
+    let a = Author(context: ctx); a.name = "History"
+    try? ctx.save()
+    a.name = "History 2"; try? ctx.save()
+    let request = NSPersistentHistoryChangeRequest.fetchHistory(after: nil as NSPersistentHistoryToken?)
+    let result = try? ctx.execute(request) as? NSPersistentHistoryResult
+    let transactions = result?.result as? [NSPersistentHistoryTransaction] ?? []
+    check(transactions.count == 2 && transactions.first?.author == "CoreDataTest" && transactions.first?.contextName == "writer",
+          "persistent history records transactions, author and context")
+    check(transactions.flatMap { $0.changes ?? [] }.map(\.changeType) == [.insert, .update], "persistent history records insert/update changes")
+    let after = NSPersistentHistoryChangeRequest.fetchHistory(after: transactions.first?.token)
+    let later = (try? ctx.execute(after) as? NSPersistentHistoryResult)?.result as? [NSPersistentHistoryTransaction]
+    check(later?.count == 1, "persistent history fetches after a token")
+    if let token = transactions.last?.token { _ = try? ctx.execute(NSPersistentHistoryChangeRequest.deleteHistory(before: token)) }
 }
 
 final class FRCDelegate: NSObject, NSFetchedResultsControllerDelegate {
@@ -207,6 +249,15 @@ func migrationTests() {
     let m = NSManagedObject(entity: v1.entitiesByName["Mig"]!, insertInto: c1); m.setValue("kept", forKey: "title")
     try? c1.save()
     _ = try? p1.remove(p1.persistentStores[0])
+
+    let mapping = try? NSMappingModel.inferredMappingModel(forSourceModel: v1, destinationModel: v2)
+    let manager = NSMigrationManager(sourceModel: v1, destinationModel: v2)
+    let migratedURL = storeDir.appendingPathComponent("Manager.sqlite")
+    var managerOK = false
+    if let mapping { do { try manager.migrateStore(from: url, type: NSSQLiteStoreType, options: nil, with: mapping,
+                                                    toDestinationURL: migratedURL, destinationType: NSSQLiteStoreType,
+                                                    destinationOptions: nil); managerOK = true } catch {} }
+    check(managerOK && manager.migrationProgress == 1, "NSMigrationManager performs an inferred lightweight mapping")
 
     let p2 = NSPersistentStoreCoordinator(managedObjectModel: v2)
     var err: NSError?
