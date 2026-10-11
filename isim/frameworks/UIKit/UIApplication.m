@@ -1732,6 +1732,18 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
     @autoreleasepool {
         NSBundle *bundle = NSBundle.mainBundle;
         NSDictionary *info = bundle.infoDictionary;
+        NSArray *families = [info[@"UIDeviceFamily"] isKindOfClass:[NSArray class]] ? info[@"UIDeviceFamily"] : nil;
+        BOOL phone = !families || [families containsObject:@1], pad = !families || [families containsObject:@2];
+        BOOL physicalPad = MIN(isim_ui_device()->width, isim_ui_device()->height) >= 700;
+        if ((!physicalPad && !phone) || (physicalPad && !phone && !pad)) {
+            fprintf(stderr, "isim: cannot launch %s: UIDeviceFamily does not support this device\n", bundle.bundlePath.UTF8String);
+            return 78;
+        }
+        if (physicalPad && phone && !pad) {
+            isim_set_phone_compatibility_mode();
+            isim_ui_device_refresh();
+            NSLog(@"isim: using iPhone compatibility mode on iPad (375 x 667 points)");
+        }
         isim_ui_register_app_fonts();
         if ([info[@"UIStatusBarHidden"] boolValue]) { status_bar_hidden = YES; isim_set_status_bar_hidden(1); }
         Class appClass = class_named(principalClassName ?: info[@"NSPrincipalClass"]) ?: [UIApplication class];
