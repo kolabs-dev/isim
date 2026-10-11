@@ -1,6 +1,7 @@
 // CloudKit sharing and user discovery on isim.  These are local adaptations: shares and identities stay in the
 // simulated device's CloudKit store; no invitation is sent and no Apple directory is queried.
 import Foundation
+import UIKit
 
 public let CKRecordTypeShare = "cloudkit.share"
 
@@ -127,5 +128,15 @@ extension CKContainer {
     }
     public func shareParticipant(forUserRecordID recordID: CKRecord.ID) async throws -> CKShare.Participant {
         CKShare.Participant(identity(CKUserIdentity.LookupInfo(userRecordID: recordID)), role: .privateUser, permission: .readOnly, status: .pending)
+    }
+}
+
+extension UICloudSharingController {
+    /// The Objective-C initializer's CloudKit forward declarations are not imported into isim's Swift UIKit module;
+    /// expose its normal Swift spelling from CloudKit, where CKShare and CKContainer are complete types.
+    public convenience init(share: CKShare, container: CKContainer) {
+        self.init()
+        setValue(share, forKey: "share")
+        setValue(container, forKey: "container")
     }
 }

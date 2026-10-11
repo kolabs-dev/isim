@@ -293,9 +293,9 @@ final class CloudViewController: UIViewController {
                 share.addParticipant(participant)
                 let saved = try await db.save(share)
                 let identity = try await container.userIdentity(forEmailAddress: "casey@example.com")
-                let sheet = UICloudSharingController()
+                let sheet = UICloudSharingController(share: share, container: container)
                 sheet.availablePermissions = [.allowPrivate, .allowReadWrite]
-                print("sharing: saved=\(saved is CKShare) participants=\(share.participants.count) permission=\(share.publicPermission.rawValue) discovered=\(identity.userRecordID != nil) sheet=true")
+                print("sharing: saved=\(saved is CKShare) participants=\(share.participants.count) permission=\(share.publicPermission.rawValue) discovered=\(identity.userRecordID != nil) sheet=\(sheet.share != nil)")
             } catch { print("sharing error: \(code(error))") }
         }
     }
