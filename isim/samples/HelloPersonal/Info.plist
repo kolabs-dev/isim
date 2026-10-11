@@ -14,6 +14,8 @@
 	<string>Finds friends to invite.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Shows your upcoming events.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Adds events to your calendar.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Adds your shopping list.</string>
 </dict>

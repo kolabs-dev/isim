@@ -5,6 +5,8 @@ answers remembered after a relaunch; ISIM_*_PERMISSION=deny; iOS 17's two-button
 Port of tests/ui/personal.sh."""
 import re
 
+import pytest
+
 
 def test_personal(launch):
     app = launch("HelloPersonal")
@@ -35,6 +37,9 @@ def test_personal(launch):
     app.wait_log(r"^calendar access ")
     app.wait_tap_id("addEvent")
     app.wait_log(r"^calendars ")
+    app.wait_log(r"^event metadata alarms -300\.0 recurrence 1/2")
+    app.wait_log(r"^event removed true")
+    app.wait_log(r"^event store changed")
     app.tap_id("editEvent")
     new_event = app.wait_view(r"id=event-title")
     app.wait_still()
@@ -71,10 +76,12 @@ def test_personal(launch):
         has(r"^calendar access true status 3"), "calendar full-access alert"
     assert has(r"^saved event true in Calendar") and has(r'^calendars \["Calendar"\] events \["Team lunch"\]'), \
         "save event in the default calendar + predicate"
-    assert "text=New Event" in new_event and has(r"^edit saved Dentist") and \
+    assert "text=New Event" in new_event and has(r"^edit saved Dentist location - allDay false") and \
         has(r'events \["Team lunch", "Dentist"\]|events \["Dentist", "Team lunch"\]'), "EKEventEditViewController saves"
     assert has(r"^reminders access true") and has(r'^reminders \["Buy milk"\] in Reminders'), \
         "reminders access + save + fetch"
+    assert has(r'^completed reminders \["Buy milk"\]') and has(r"^reminders after remove 0"), \
+        "completion-date predicate + reminder removal"
 
     app = launch("HelloPersonal")                                     # answers remembered; data persists
     app.wait_tap_id("contactsAccess")
@@ -100,6 +107,29 @@ def test_personal_denied(launch):
     assert re.search(r"^contacts access false status 2 error 100", log, re.M) and \
         re.search(r"^contacts error 100", log, re.M) and re.search(r"^calendar access false status 2", log, re.M) and \
         re.search(r"^save event error", log, re.M), "ISIM_*_PERMISSION=deny"
+
+
+@pytest.mark.os_matrix
+def test_eventkit_write_only_and_editor_without_access(launch):
+    app = launch("HelloPersonal", env={"ISIM_CALENDAR_PERMISSION": "writeonly"})
+    app.wait_tap_id("calendarWriteOnly")
+    app.wait_log(r"^calendar write-only true status 4 read 0 saved true")
+    assert app.quit() == 0
+
+    app = launch("HelloPersonal", env={"ISIM_CALENDAR_PERMISSION": "allow"})
+    app.wait_tap_id("editEvent")
+    form = app.wait_view(r"id=event-title")
+    app.tap_id("event-title")
+    app.type("Private appointment")
+    app.tap_id("event-location")
+    app.type("Clinic")
+    app.tap_id("event-allday")
+    app.tap_id("event-add")
+    app.wait_log(r"^edit saved Private appointment location Clinic allDay true")
+    app.wait_tap_id("calendarAccess")
+    app.wait_log(r'events \["Write-only event", "Private appointment"\]|events \["Private appointment", "Write-only event"\]')
+    assert "id=event-starts" in form and "id=event-ends" in form, "editor shows its non-editable dates"
+    assert app.quit() == 0
 
 
 def test_personal_ios17(launch):
