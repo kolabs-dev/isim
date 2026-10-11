@@ -110,7 +110,7 @@ func contextTests() {
     let ctxG = c.newBackgroundContext(), ctxH = c.newBackgroundContext()
     ctxG.performAndWait { _ = (ctxG.object(with: a.objectID) as! Author).name; (ctxG.object(with: a.objectID) as! Author).name = "Rolled back" }
     ctxH.performAndWait { (ctxH.object(with: a.objectID) as! Author).name = "Store value"; try? ctxH.save() }
-    ctxG.performAndWait { ctxG.mergePolicy = NSMergePolicy.rollback; try? ctxG.save(); final = (ctxG.object(with: a.objectID) as! Author).name }
+    ctxG.performAndWait { ctxG.mergePolicy = NSMergePolicy.rollback; try? ctxG.save(); final = (ctxG.object(with: a.objectID) as! Author).name ?? "" }
     check(final == "Store value", "rollback merge policy drops the conflicting object's changes")
 
     // reset / refresh
@@ -254,7 +254,7 @@ func migrationTests() {
     let manager = NSMigrationManager(sourceModel: v1, destinationModel: v2)
     let migratedURL = storeDir.appendingPathComponent("Manager.sqlite")
     var managerOK = false
-    if let mapping { do { try manager.migrateStore(from: url, sourceType: NSSQLiteStoreType, options: nil, with: mapping,
+    if let mapping { do { try manager.migrateStore(from: url, type: NSSQLiteStoreType, options: nil, with: mapping,
                                                     toDestinationURL: migratedURL, destinationType: NSSQLiteStoreType,
                                                     destinationOptions: nil); managerOK = true } catch {} }
     check(managerOK && manager.migrationProgress == 1, "NSMigrationManager performs an inferred lightweight mapping")
