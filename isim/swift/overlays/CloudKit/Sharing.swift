@@ -81,41 +81,41 @@ extension CKContainer {
         var n = PersonNameComponents(); n.givenName = key.split(separator: "@").first.map(String.init) ?? "CloudKit User"
         return CKUserIdentity(recordID: CKRecord.ID(recordName: String(format: "_local_%016llx", hash)), name: n, contacts: [key])
     }
-    open func requestApplicationPermission(_ applicationPermission: ApplicationPermissions, completionHandler: @escaping @Sendable (ApplicationPermissionStatus, Error?) -> Void) {
+    public func requestApplicationPermission(_ applicationPermission: ApplicationPermissions, completionHandler: @escaping @Sendable (ApplicationPermissionStatus, Error?) -> Void) {
         CKDatabase.reply { completionHandler(_CKEnv.accountStatus == .available ? .granted : .couldNotComplete, _CKEnv.accountStatus == .available ? nil : CKError(.notAuthenticated)) }
     }
-    open func status(forApplicationPermission applicationPermission: ApplicationPermissions, completionHandler: @escaping @Sendable (ApplicationPermissionStatus, Error?) -> Void) {
+    public func status(forApplicationPermission applicationPermission: ApplicationPermissions, completionHandler: @escaping @Sendable (ApplicationPermissionStatus, Error?) -> Void) {
         requestApplicationPermission(applicationPermission, completionHandler: completionHandler)
     }
-    open func discoverUserIdentity(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
+    public func discoverUserIdentity(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         discoverUserIdentity(with: CKUserIdentity.LookupInfo(emailAddress: email), completionHandler: completionHandler)
     }
-    open func discoverUserIdentity(withPhoneNumber phoneNumber: String, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
+    public func discoverUserIdentity(withPhoneNumber phoneNumber: String, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         discoverUserIdentity(with: CKUserIdentity.LookupInfo(phoneNumber: phoneNumber), completionHandler: completionHandler)
     }
-    open func discoverUserIdentity(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
+    public func discoverUserIdentity(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         discoverUserIdentity(with: CKUserIdentity.LookupInfo(userRecordID: recordID), completionHandler: completionHandler)
     }
-    open func discoverUserIdentity(with lookupInfo: CKUserIdentity.LookupInfo, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
+    public func discoverUserIdentity(with lookupInfo: CKUserIdentity.LookupInfo, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         guard _CKEnv.accountStatus == .available else { CKDatabase.reply { completionHandler(nil, CKError(.notAuthenticated)) }; return }
         let result = identity(lookupInfo); CKDatabase.reply { completionHandler(result, nil) }
     }
-    open func discoverAllIdentities(with lookupInfos: [CKUserIdentity.LookupInfo], completionHandler: @escaping @Sendable ([CKUserIdentity]?, Error?) -> Void) {
+    public func discoverAllIdentities(with lookupInfos: [CKUserIdentity.LookupInfo], completionHandler: @escaping @Sendable ([CKUserIdentity]?, Error?) -> Void) {
         guard _CKEnv.accountStatus == .available else { CKDatabase.reply { completionHandler(nil, CKError(.notAuthenticated)) }; return }
         let results = lookupInfos.map(identity); CKDatabase.reply { completionHandler(results, nil) }
     }
     public func userIdentity(forUserRecordID recordID: CKRecord.ID) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(userRecordID: recordID)) }
     public func userIdentity(forEmailAddress email: String) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(emailAddress: email)) }
     public func userIdentity(forPhoneNumber phoneNumber: String) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(phoneNumber: phoneNumber)) }
-    open func fetchShareParticipant(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
+    public func fetchShareParticipant(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
         let p = CKShare.Participant(identity(CKUserIdentity.LookupInfo(emailAddress: email)), role: .privateUser, permission: .readOnly, status: .pending)
         CKDatabase.reply { completionHandler(p, nil) }
     }
-    open func fetchShareParticipant(withPhoneNumber phoneNumber: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
+    public func fetchShareParticipant(withPhoneNumber phoneNumber: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
         let p = CKShare.Participant(identity(CKUserIdentity.LookupInfo(phoneNumber: phoneNumber)), role: .privateUser, permission: .readOnly, status: .pending)
         CKDatabase.reply { completionHandler(p, nil) }
     }
-    open func fetchShareParticipant(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
+    public func fetchShareParticipant(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
         let p = CKShare.Participant(identity(CKUserIdentity.LookupInfo(userRecordID: recordID)), role: .privateUser, permission: .readOnly, status: .pending)
         CKDatabase.reply { completionHandler(p, nil) }
     }
