@@ -119,7 +119,7 @@ func contextTests() {
     check(before > 0 && view.registeredObjects.isEmpty && !view.hasChanges, "reset() forgets registered objects")
     let reloaded = try? view.existingObject(with: a.objectID) as? Author
     view.refresh(reloaded!, mergeChanges: false)
-    check(reloaded?.isFault == true && reloaded?.name == "D", "refresh(_:mergeChanges: false) turns the object into a fault that reloads")
+    check(reloaded?.isFault == true && reloaded?.name == "Store value", "refresh(_:mergeChanges: false) turns the object into a fault that reloads")
 }
 
 func batchTests() {

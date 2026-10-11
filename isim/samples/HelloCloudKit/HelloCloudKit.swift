@@ -67,6 +67,8 @@ final class CloudViewController: UIViewController {
     let container = CKContainer.default()
     var db: CKDatabase { container.privateCloudDatabase }
     let status = UILabel()
+    private var syncDelegate: SyncDelegate?
+    private var syncEngine: CKSyncEngine?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -307,6 +309,8 @@ final class CloudViewController: UIViewController {
         var configuration = CKSyncEngine.Configuration(database: db, delegate: delegate)
         configuration.automaticallySync = false
         let engine = CKSyncEngine(configuration)
+        syncDelegate = delegate
+        syncEngine = engine
         engine.state.add(pendingRecordZoneChanges: [.init(recordID: record.recordID, type: .saveRecord)])
         Task { try await engine.sendChanges() }
     }
