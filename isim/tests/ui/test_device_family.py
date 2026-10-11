@@ -31,7 +31,11 @@ def test_iphone_app_on_ipad_uses_compatibility_mode(launch, device_data, tmp_pat
                             what="iPhone screen metrics and idiom")
     assert "screen 375x667" in dump and "idiom phone" in dump
 
-    shot = device.screenshot()
+    def compatibility_frame():
+        shot = device.screenshot()
+        return shot if rgb(shot, 20, 500) == (0, 0, 0) else None
+
+    shot = device.wait_until(compatibility_frame, what="the launch animation to reveal the black compatibility canvas")
     assert shot.size == (744, 1133), "the shell keeps the physical iPad canvas"
     assert rgb(shot, 20, 500) == (0, 0, 0), "the compatibility app is centred on black"
     assert rgb(shot, 372, 500) != (0, 0, 0), "the scaled iPhone canvas fills the iPad's height"
