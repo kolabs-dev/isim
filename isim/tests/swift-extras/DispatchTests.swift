@@ -32,11 +32,11 @@ func dispatchTests() {
     check(waitFor { addSum.value.count == 2 } && addSum.value.last == 7, "user data add source: data resets after each handler")
     add.cancel()
 
-    let orBits = Box<UInt>(0)
+    let orBits = Box<[UInt]>([])
     let or = DispatchSource.makeUserDataOrSource(queue: q)
-    or.setEventHandler { orBits.value = or.data }
+    or.setEventHandler { orBits.mutate { $0.append(or.data) } }
     q.suspend(); or.activate(); or.or(data: 0b001); or.or(data: 0b100); q.resume()
-    check(waitFor { orBits.value == 0b101 }, "user data or source")
+    check(waitFor { orBits.value == [0b101] }, "user data or source coalesces 0b001 | 0b100 into one event (\(orBits.value))")
     or.cancel()
 
     let replaced = Box<UInt>(0)
