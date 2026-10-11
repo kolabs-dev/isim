@@ -30,6 +30,7 @@ let storeDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathCompone
         fetchTests()
         contextTests()
         batchTests()
+        persistentHistoryTests()
         fetchedResultsControllerTests()
         migrationTests()
         asyncTests()

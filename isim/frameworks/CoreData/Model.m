@@ -462,6 +462,7 @@ static id plist_default(id v, NSAttributeType t) {
             a.allowsExternalBinaryDataStorage = [ad[@"allowsExternalBinaryDataStorage"] boolValue];
             a.renamingIdentifier = ad[@"renamingIdentifier"];
             a.userInfo = ad[@"userInfo"];
+            if ([ad[@"derivationExpression"] length]) a.derivationExpression = [NSExpression expressionWithFormat:ad[@"derivationExpression"] argumentArray:@[]];
             a._cd_minValue = ad[@"minValue"]; a._cd_maxValue = ad[@"maxValue"]; a._cd_regex = ad[@"regularExpression"];
             [props addObject:a];
         }

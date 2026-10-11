@@ -19,6 +19,7 @@ import Combine
     @NSManaged var link: URL?
     @NSManaged var dec: NSNumber?
     @NSManaged var info: NSDictionary?
+    @NSManaged var nameLength: Int64
     var awoke = false
     override func awakeFromInsert() { super.awakeFromInsert(); awoke = true; setPrimitiveValue("fresh", forKey: "name") }
 }
@@ -35,11 +36,14 @@ func gadgetModel() -> NSManagedObjectModel {
     e.managedObjectClassName = NSStringFromClass(Gadget.self)
     let info = attr("info", .transformableAttributeType)
     info.valueTransformerName = NSValueTransformerName.secureUnarchiveFromDataTransformerName.rawValue
+    let nameLength = attr("nameLength", .integer64AttributeType, defaultValue: 0)
+    nameLength.derivationExpression = NSExpression(forKeyPath: "name.length")
     e.properties = [attr("i16", .integer16AttributeType, defaultValue: 7), attr("i32", .integer32AttributeType), attr("i64", .integer64AttributeType),
                     attr("dbl", .doubleAttributeType), attr("flt", .floatAttributeType), attr("flag", .booleanAttributeType, defaultValue: true),
                     attr("boxed", .integer64AttributeType), attr("name", .stringAttributeType), attr("when", .dateAttributeType),
                     attr("blob", .binaryDataAttributeType), attr("uuid", .UUIDAttributeType), attr("link", .URIAttributeType),
-                    attr("dec", .decimalAttributeType), info]
+                    attr("dec", .decimalAttributeType), info, nameLength]
+    e.uniquenessConstraints = [["name"]]
     let m = NSManagedObjectModel()
     m.entities = [e]
     return m
@@ -77,6 +81,7 @@ func programmaticModelTests() {
     g.i64 += 1
     check(g.i64 == 9_000_000_000_001 && g.dbl == 3.25 && g.flt == 1.5 && !g.flag, "@NSManaged scalar accessors (Int64, Double, Float, Bool)")
     do { try ctx.save() } catch { check(false, "save: \(error)") }
+    check(g.nameLength == 8, "derived attribute is recomputed before save")
     check(!g.objectID.isTemporaryID && !ctx.hasChanges && g.objectID.uriRepresentation().absoluteString.hasPrefix("x-coredata://"),
           "save: permanent ID \(g.objectID.uriRepresentation().absoluteString)")
     let uri = g.objectID.uriRepresentation()
@@ -87,7 +92,7 @@ func programmaticModelTests() {
     (psc, ctx) = open()
     let req = NSFetchRequest<Gadget>(entityName: "Gadget")
     let all = (try? ctx.fetch(req)) ?? []
-    let r = all.first
+    var r = all.first
     check(all.count == 1 && r !== g, "store reopened: 1 row fetched into a new object")
     check(r?.i16 == -12 && r?.i32 == 1_000_000 && r?.i64 == 9_000_000_000_001 && r?.dbl == 3.25 && r?.flt == 1.5 && r?.flag == false,
           "integers, Double, Float, Bool survive SQLite")
@@ -105,6 +110,28 @@ func programmaticModelTests() {
     check(r?.isUpdated == true && r?.changedValues()["name"] as? String == "Changed" && r?.committedValues(forKeys: ["name"])["name"] as? String == "Widget ✓",
           "changedValues / committedValues(forKeys:)")
     ctx.rollback()
+
+    // registered changes participate in the context's undo manager
+    ctx.undoManager = UndoManager()
+    r?.name = "Undo me"
+    ctx.processPendingChanges()
+    ctx.undo()
+    check(r?.name == "Widget ✓" && r?.hasPersistentChangedValues == false, "undoManager restores a managed property")
+    ctx.redo()
+    check(r?.name == "Undo me", "redo reapplies a managed property change")
+    ctx.rollback()
+
+    // uniqueness constraints are enforced and resolved with the selected merge policy
+    let duplicate = Gadget(context: ctx); duplicate.name = "Widget ✓"; duplicate.i32 = 77
+    var constraintError: NSError?
+    do { try ctx.save() } catch { constraintError = error as NSError }
+    check(constraintError?.code == NSManagedObjectConstraintMergeError, "uniqueness constraint rejects a duplicate under NSErrorMergePolicy")
+    ctx.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
+    try? ctx.save()
+    ctx.reset()
+    let uniqueRows = (try? ctx.fetch(NSFetchRequest<Gadget>(entityName: "Gadget"))) ?? []
+    r = uniqueRows.first
+    check(uniqueRows.count == 1 && uniqueRows.first?.i32 == 77, "object-trump merges a uniqueness conflict into the existing row")
     check(r?.name == "Widget ✓" && !ctx.hasChanges, "rollback restores committed values")
 
     // KVO on a managed property

@@ -28,7 +28,20 @@ open class NSPersistentCloudKitContainer: NSPersistentContainer {
         public static let printSchema = SchemaInitializationOptions(rawValue: 1 << 2)
     }
     public static let eventChangedNotification = Notification.Name("NSPersistentCloudKitContainerEventChangedNotification")
+    public static let eventNotificationUserInfoKey = "event"
+    open class Event: NSObject, @unchecked Sendable {
+        public enum EventType: Int, Sendable { case setup = 0, `import` = 1, export = 2 }
+        public let identifier = UUID()
+        public let storeIdentifier: String
+        public let type: EventType
+        public let startDate: Date
+        public internal(set) var endDate: Date?
+        public internal(set) var succeeded = false
+        public internal(set) var error: Error?
+        init(storeIdentifier: String, type: EventType) { self.storeIdentifier = storeIdentifier; self.type = type; startDate = Date() }
+    }
     nonisolated(unsafe) static var logged = false
+    private var saveObserver: NSObjectProtocol?
 
     public override init(name: String, managedObjectModel model: NSManagedObjectModel) {
         super.init(name: name, managedObjectModel: model)
@@ -38,6 +51,25 @@ open class NSPersistentCloudKitContainer: NSPersistentContainer {
         if !NSPersistentCloudKitContainer.logged {
             NSPersistentCloudKitContainer.logged = true
             NSLog("isim CoreData: NSPersistentCloudKitContainer \"%@\" keeps its store on the device (local, no iCloud sync)", name)
+        }
+    }
+
+    open override func loadPersistentStores(completionHandler block: @escaping (NSPersistentStoreDescription, Error?) -> Void) {
+        let event = Event(storeIdentifier: persistentStoreDescriptions.first?.url?.path ?? name, type: .setup)
+        NotificationCenter.default.post(name: Self.eventChangedNotification, object: self, userInfo: [Self.eventNotificationUserInfoKey: event])
+        super.loadPersistentStores { [weak self] loaded, error in
+            event.endDate = Date(); event.succeeded = error == nil; event.error = error
+            NotificationCenter.default.post(name: Self.eventChangedNotification, object: self, userInfo: [Self.eventNotificationUserInfoKey: event])
+            block(loaded, error)
+        }
+        if saveObserver == nil {
+            saveObserver = NotificationCenter.default.addObserver(forName: .NSManagedObjectContextDidSave, object: nil, queue: nil) { [weak self] note in
+                guard let self, (note.object as? NSManagedObjectContext)?.persistentStoreCoordinator === self.persistentStoreCoordinator else { return }
+                let event = Event(storeIdentifier: self.persistentStoreCoordinator.persistentStores.first?.identifier ?? self.name, type: .export)
+                NotificationCenter.default.post(name: Self.eventChangedNotification, object: self, userInfo: [Self.eventNotificationUserInfoKey: event])
+                event.endDate = Date(); event.succeeded = true
+                NotificationCenter.default.post(name: Self.eventChangedNotification, object: self, userInfo: [Self.eventNotificationUserInfoKey: event])
+            }
         }
     }
 

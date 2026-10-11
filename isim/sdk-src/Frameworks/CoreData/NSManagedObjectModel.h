@@ -96,6 +96,8 @@ typedef NS_ENUM(NSUInteger, NSAttributeType) {
 @property BOOL allowsExternalBinaryDataStorage;
 @property BOOL preservesValueInHistoryOnDeletion;
 @property BOOL allowsCloudEncryption;
+/// Expression recomputed when an inserted or updated object is saved.
+@property (nullable, strong) NSExpression *derivationExpression;
 @end
 
 typedef NS_ENUM(NSUInteger, NSDeleteRule) {

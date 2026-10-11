@@ -51,6 +51,8 @@ static NSString *sql_quote(id v) {
     NSMutableDictionary<NSNumber *, NSEntityDescription *> *_numEnts;
     NSString *_storeType;
     BOOL _inTxn;
+    NSMutableArray<NSPersistentHistoryTransaction *> *_history;
+    int64_t _historyNumber;
 }
 - (NSString *)type { return _storeType ?: NSSQLiteStoreType; }
 - (void)_cd_setType:(NSString *)t { _storeType = [t copy]; }
@@ -240,6 +242,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
 }
 - (BOOL)_cd_openWithModel:(NSManagedObjectModel *)model options:(NSDictionary *)options error:(NSError **)error {
     _model = model;
+    if ([options[NSPersistentHistoryTrackingKey] boolValue]) _history = [NSMutableArray array];
     NSString *path = self.URL.path;
     BOOL memory = [_storeType isEqualToString:NSInMemoryStoreType] || !path.length || [path isEqualToString:@"/dev/null"];
     BOOL readOnly = [options[NSReadOnlyPersistentStoreOption] boolValue];
@@ -516,12 +519,13 @@ static id sql_value(NSAttributeDescription *a, id v) {
     return YES;
 }
 - (BOOL)_cd_saveInserted:(NSArray<NSManagedObject *> *)inserted updated:(NSArray<NSManagedObject *> *)updated deleted:(NSArray<NSManagedObject *> *)deleted
-             mergePolicy:(NSMergePolicy *)policy error:(NSError **)error {
+             mergePolicy:(NSMergePolicy *)policy author:(NSString *)author contextName:(NSString *)contextName error:(NSError **)error {
     if (!_db) { if (error) *error = CDError(NSPersistentStoreSaveError, @"The store is closed.", nil); return NO; }
     if (![self _exec:@"BEGIN IMMEDIATE" error:error]) return NO;
     _inTxn = YES;
     BOOL ok = YES;
     NSMutableArray *conflicts = [NSMutableArray array], *write = [NSMutableArray array];
+    NSMutableArray *toInsert = [inserted mutableCopy];
     for (NSManagedObject *o in updated) {                          /* optimistic locking */
         sqlite3_stmt *st = [self _prepare:[NSString stringWithFormat:@"SELECT Z_OPT FROM %@ WHERE Z_PK = ?", o.entity._cd_table]];
         bind(st, 1, @(o.objectID._cd_pk));
@@ -576,7 +580,50 @@ static id sql_value(NSAttributeDescription *a, id v) {
         if (error) *error = CDError(NSManagedObjectMergeError, @"Could not merge changes.", @{ NSPersistentStoreSaveConflictsErrorKey: conflicts });
         return NO;
     }
-    for (NSManagedObject *o in inserted) {
+    /* Enforce model uniqueness constraints.  A conflicting insert is merged into the existing row using the
+     * context's merge policy; this is adapted but keeps the important invariant that a constraint is unique. */
+    for (NSManagedObject *o in [inserted copy]) {
+        for (NSArray *constraint in o.entity.uniquenessConstraints) {
+            if (!constraint.count) continue;
+            NSMutableArray *where = [NSMutableArray arrayWithObject:@"Z_ENT = ?"], *args = [NSMutableArray arrayWithObject:_entNums[o.entity.name] ?: @0];
+            BOOL supported = YES;
+            for (id item in constraint) {
+                NSString *key = [item isKindOfClass:[NSPropertyDescription class]] ? [item name] : item;
+                NSPropertyDescription *p = o.entity.propertiesByName[key];
+                if (![p isKindOfClass:[NSAttributeDescription class]] && !([p isKindOfClass:[NSRelationshipDescription class]] && ![(NSRelationshipDescription *)p isToMany])) { supported = NO; break; }
+                [where addObject:[p._cd_column stringByAppendingString:@" IS ?"]];
+                id value = [o _cd_raw:key];
+                [args addObject:[p isKindOfClass:[NSAttributeDescription class]] ? sql_value((NSAttributeDescription *)p, value) : (value ? @(pk_of(value)) : [NSNull null])];
+            }
+            if (!supported) continue;
+            sqlite3_stmt *st = [self _prepare:[NSString stringWithFormat:@"SELECT Z_PK FROM %@ WHERE %@ LIMIT 1", o.entity._cd_table, [where componentsJoinedByString:@" AND "]]];
+            bind_all(st, args);
+            BOOL found = st && sqlite3_step(st) == SQLITE_ROW;
+            int64_t pk = found ? sqlite3_column_int64(st, 0) : 0;
+            sqlite3_finalize(st);
+            if (!found) continue;
+            NSManagedObjectID *existingID = [NSManagedObjectID _cd_idWithEntity:o.entity store:self pk:pk];
+            if (policy.mergeType == NSErrorMergePolicyType) {
+                [conflicts addObject:@{ @"object": o, @"constraint": constraint, @"databaseObject": existingID }];
+                continue;
+            }
+            [toInsert removeObject:o];
+            [o.managedObjectContext _cd_replaceObject:o withPermanentID:existingID];
+            CDSnapshot *snapshot = [self _cd_rowForObjectID:existingID];
+            if (policy.mergeType == NSMergeByPropertyStoreTrumpMergePolicyType || policy.mergeType == NSRollbackMergePolicyType) {
+                if (snapshot) [o _cd_mergeSnapshot:snapshot keepChanges:NO];
+            } else {
+                if (snapshot) { o._cd_version = snapshot.version; [write addObject:o]; }
+            }
+            break;
+        }
+    }
+    if (conflicts.count) {
+        [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO;
+        if (error) *error = CDError(NSManagedObjectConstraintMergeError, @"Could not merge objects because a uniqueness constraint was violated.", @{ NSPersistentStoreSaveConflictsErrorKey: conflicts });
+        return NO;
+    }
+    for (NSManagedObject *o in toInsert) {
         NSMutableArray *cols = [NSMutableArray arrayWithObjects:@"Z_PK", @"Z_ENT", @"Z_OPT", nil];
         NSMutableArray *vals = [NSMutableArray arrayWithObjects:@(o.objectID._cd_pk), _entNums[o.entity.name] ?: @0, @1, nil];
         [self _columnsAndValuesFor:o cols:cols vals:vals];
@@ -591,7 +638,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
         [vals addObject:@(o.objectID._cd_pk)];
         ok = ok && [self _run:[NSString stringWithFormat:@"UPDATE %@ SET %@ WHERE Z_PK = ?", o.entity._cd_table, [sets componentsJoinedByString:@", "]] args:vals error:error];
     }
-    for (NSManagedObject *o in inserted) ok = ok && [self _writeJoinsFor:o all:YES error:error];
+    for (NSManagedObject *o in toInsert) ok = ok && [self _writeJoinsFor:o all:YES error:error];
     for (NSManagedObject *o in write) ok = ok && [self _writeJoinsFor:o all:NO error:error];
     NSMutableDictionary<NSString *, NSMutableArray *> *byRoot = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSEntityDescription *> *roots = [NSMutableDictionary dictionary];
@@ -606,12 +653,20 @@ static id sql_value(NSAttributeDescription *a, id v) {
     if (!ok) { [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO; return NO; }
     if (![self _exec:@"COMMIT" error:error]) { [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO; return NO; }
     _inTxn = NO;
-    for (NSManagedObject *o in inserted) o._cd_version = 1;
+    for (NSManagedObject *o in toInsert) o._cd_version = 1;
     for (NSManagedObject *o in write) {
         sqlite3_stmt *st = [self _prepare:[NSString stringWithFormat:@"SELECT Z_OPT FROM %@ WHERE Z_PK = ?", o.entity._cd_table]];
         bind(st, 1, @(o.objectID._cd_pk));
         if (st && sqlite3_step(st) == SQLITE_ROW) o._cd_version = sqlite3_column_int64(st, 0);
         sqlite3_finalize(st);
+    }
+    if (_history && (toInsert.count || write.count || deleted.count)) {
+        int64_t number = ++_historyNumber, change = 0;
+        NSMutableArray *changes = [NSMutableArray array];
+        for (NSManagedObject *o in toInsert) [changes addObject:[NSPersistentHistoryChange _cd_change:number * 100000 + ++change objectID:o.objectID type:NSPersistentHistoryChangeTypeInsert]];
+        for (NSManagedObject *o in write) [changes addObject:[NSPersistentHistoryChange _cd_change:number * 100000 + ++change objectID:o.objectID type:NSPersistentHistoryChangeTypeUpdate]];
+        for (NSManagedObject *o in deleted) [changes addObject:[NSPersistentHistoryChange _cd_change:number * 100000 + ++change objectID:o.objectID type:NSPersistentHistoryChangeTypeDelete]];
+        [_history addObject:[NSPersistentHistoryTransaction _cd_transaction:number storeID:self.identifier ?: @"" author:author context:contextName changes:changes]];
     }
     return YES;
 }
@@ -636,6 +691,62 @@ static id sql_value(NSAttributeDescription *a, id v) {
 }
 - (id)_cd_executeBatch:(NSPersistentStoreRequest *)request context:(NSManagedObjectContext *)context error:(NSError **)error {
     if (!_db || self.readOnly) { if (error) *error = CDError(NSPersistentStoreOperationError, @"The store is closed or read-only.", nil); return nil; }
+    if ([request isKindOfClass:[NSPersistentHistoryChangeRequest class]]) {
+        NSPersistentHistoryChangeRequest *req = (NSPersistentHistoryChangeRequest *)request;
+        if (!_history) { if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, @"Persistent history tracking is not enabled for this store.", nil); return nil; }
+        if (req._cd_delete) {
+            NSIndexSet *remove = [_history indexesOfObjectsPassingTest:^BOOL(NSPersistentHistoryTransaction *t, NSUInteger idx, BOOL *stop) {
+                return req._cd_date ? [t.timestamp compare:req._cd_date] == NSOrderedAscending : t.transactionNumber < req._cd_number;
+            }];
+            [_history removeObjectsAtIndexes:remove];
+            return [[NSPersistentHistoryResult alloc] _cd_initWithResult:@YES type:req.resultType];
+        }
+        NSMutableArray *transactions = [NSMutableArray array];
+        for (NSPersistentHistoryTransaction *t in _history) {
+            BOOL include = req._cd_date ? [t.timestamp compare:req._cd_date] == NSOrderedDescending : t.transactionNumber > req._cd_number;
+            if (include && (!req.fetchRequest.predicate || [req.fetchRequest.predicate evaluateWithObject:t])) [transactions addObject:t];
+        }
+        if (req.fetchRequest.sortDescriptors.count) [transactions sortUsingDescriptors:req.fetchRequest.sortDescriptors];
+        NSMutableArray *changes = [NSMutableArray array]; for (NSPersistentHistoryTransaction *t in transactions) [changes addObjectsFromArray:t.changes ?: @[]];
+        id result;
+        switch (req.resultType) {
+        case NSPersistentHistoryResultTypeStatusOnly: result = @YES; break;
+        case NSPersistentHistoryResultTypeObjectIDs: result = [changes valueForKey:@"changedObjectID"]; break;
+        case NSPersistentHistoryResultTypeCount: result = @(transactions.count); break;
+        case NSPersistentHistoryResultTypeChangesOnly: result = changes; break;
+        default: result = transactions; break;
+        }
+        return [[NSPersistentHistoryResult alloc] _cd_initWithResult:result type:req.resultType];
+    }
+    if ([request isKindOfClass:[NSBatchInsertRequest class]]) {
+        NSBatchInsertRequest *req = (NSBatchInsertRequest *)request;
+        NSEntityDescription *entity = [req _cd_entityInContext:context];
+        if (!entity) { if (error) *error = CDError(NSCoreDataError, @"NSBatchInsertRequest: unknown entity", nil); return nil; }
+        NSManagedObjectContext *scratch = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSConfinementConcurrencyType];
+        scratch.persistentStoreCoordinator = self.persistentStoreCoordinator;
+        NSMutableArray<NSManagedObject *> *objects = [NSMutableArray array];
+        void (^append)(NSDictionary *) = ^(NSDictionary *values) {
+            NSManagedObject *o = [[entity._cd_objectClass alloc] initWithEntity:entity insertIntoManagedObjectContext:scratch];
+            for (NSString *key in values) if (entity.propertiesByName[key]) [o setValue:values[key] forKey:key];
+            [objects addObject:o];
+        };
+        if (req.objectsToInsert) for (NSDictionary *values in req.objectsToInsert) append(values);
+        else if (req.dictionaryHandler) {
+            for (;;) { NSMutableDictionary *values = [NSMutableDictionary dictionary]; if (req.dictionaryHandler(values)) break; append(values); }
+        } else if (req.managedObjectHandler) {
+            for (;;) { NSManagedObject *o = [[entity._cd_objectClass alloc] initWithEntity:entity insertIntoManagedObjectContext:scratch]; if (req.managedObjectHandler(o)) { [scratch deleteObject:o]; break; } [objects addObject:o]; }
+        }
+        NSMutableArray *validation = [NSMutableArray array];
+        for (NSManagedObject *o in objects) { NSError *e = nil; if (![o validateForInsert:&e] && e) [validation addObject:e]; }
+        if (validation.count) { if (error) *error = validation.count == 1 ? validation[0] : CDError(NSValidationMultipleErrorsError, @"Multiple validation errors occurred.", @{ NSDetailedErrorsKey: validation }); return nil; }
+        NSMutableArray *entities = [NSMutableArray array]; for (NSManagedObject *o in objects) [entities addObject:o.entity];
+        NSArray *ids = [self _cd_permanentIDsForEntities:entities error:error];
+        if (!ids) return nil;
+        for (NSUInteger i = 0; i < objects.count; i++) [objects[i] _cd_setObjectID:ids[i]];
+        if (![self _cd_saveInserted:objects updated:@[] deleted:@[] mergePolicy:NSErrorMergePolicy author:context.transactionAuthor contextName:context.name error:error]) return nil;
+        id result = req.resultType == NSBatchInsertRequestResultTypeObjectIDs ? ids : req.resultType == NSBatchInsertRequestResultTypeCount ? @(objects.count) : @YES;
+        return [[NSBatchInsertResult alloc] _cd_initWithResult:result type:req.resultType];
+    }
     if ([request isKindOfClass:[NSBatchDeleteRequest class]]) {
         NSBatchDeleteRequest *req = (NSBatchDeleteRequest *)request;
         NSArray *ids = req._cd_objectIDs;

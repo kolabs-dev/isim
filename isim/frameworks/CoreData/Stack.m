@@ -2,6 +2,51 @@
  * NSPersistentContainer. */
 #import "CoreDataPrivate.h"
 
+@implementation NSEntityMapping
+@end
+@implementation NSMappingModel
++ (NSMappingModel *)mappingModelFromBundles:(NSArray *)bundles forSourceModel:(NSManagedObjectModel *)source destinationModel:(NSManagedObjectModel *)destination { return [self inferredMappingModelForSourceModel:source destinationModel:destination error:NULL]; }
++ (NSMappingModel *)inferredMappingModelForSourceModel:(NSManagedObjectModel *)source destinationModel:(NSManagedObjectModel *)destination error:(NSError **)error {
+    NSMappingModel *m = [self new]; NSMutableArray *maps = [NSMutableArray array];
+    for (NSEntityDescription *d in destination.entities) {
+        NSEntityDescription *s = source.entitiesByName[d.renamingIdentifier ?: d.name];
+        if (!s) continue;
+        NSEntityMapping *e = [NSEntityMapping new]; e.name = d.name; e.sourceEntityName = s.name; e.destinationEntityName = d.name; [maps addObject:e];
+    }
+    m.entityMappings = maps; return m;
+}
+@end
+@implementation NSMigrationManager { BOOL _cancelled; NSError *_cancelError; }
+- (instancetype)initWithSourceModel:(NSManagedObjectModel *)source destinationModel:(NSManagedObjectModel *)destination { if ((self = [super init])) { _sourceModel = source; _destinationModel = destination; _userInfo = [NSMutableDictionary dictionary]; } return self; }
+- (BOOL)migrateStoreFromURL:(NSURL *)source type:(NSString *)sourceType options:(NSDictionary *)sourceOptions withMappingModel:(NSMappingModel *)mapping toDestinationURL:(NSURL *)destination destinationType:(NSString *)destinationType destinationOptions:(NSDictionary *)destinationOptions error:(NSError **)error {
+    _mappingModel = mapping; _migrationProgress = 0;
+    if (_cancelled) { if (error) *error = _cancelError ?: CDError(NSMigrationCancelledError, @"Migration was cancelled.", nil); return NO; }
+    if (![source isEqual:destination]) {
+        [[NSFileManager defaultManager] removeItemAtURL:destination error:NULL];
+        if (![[NSFileManager defaultManager] copyItemAtURL:source toURL:destination error:error]) return NO;
+    }
+    NSPersistentStoreCoordinator *coordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:_destinationModel];
+    NSMutableDictionary *options = [NSMutableDictionary dictionaryWithDictionary:destinationOptions ?: @{}];
+    options[NSMigratePersistentStoresAutomaticallyOption] = @YES; options[NSInferMappingModelAutomaticallyOption] = @YES;
+    NSPersistentStore *store = [coordinator addPersistentStoreWithType:destinationType configuration:nil URL:destination options:options error:error];
+    if (!store) return NO;
+    [coordinator removePersistentStore:store error:NULL]; _migrationProgress = 1; return YES;
+}
+- (void)cancelMigrationWithError:(NSError *)error { _cancelled = YES; _cancelError = error; }
+@end
+@implementation NSMigrationStage
+- (instancetype)init { if ((self = [super init])) _label = @""; return self; }
+@end
+@implementation NSLightweightMigrationStage
+- (instancetype)initWithVersionChecksum:(NSString *)checksum { if ((self = [super init])) _versionChecksum = [checksum copy]; return self; }
+@end
+@implementation NSCustomMigrationStage
+- (instancetype)initMigratingFromVersion:(NSString *)current toVersion:(NSString *)next { if ((self = [super init])) { _currentModelChecksum = [current copy]; _nextModelChecksum = [next copy]; } return self; }
+@end
+@implementation NSStagedMigrationManager
+- (instancetype)initWithMigrationStages:(NSArray *)stages { if ((self = [super init])) _stages = [stages copy]; return self; }
+@end
+
 /* ================= NSPersistentStore ================= */
 @implementation NSPersistentStore {
     __weak NSPersistentStoreCoordinator *_psc;

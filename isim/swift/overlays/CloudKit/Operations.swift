@@ -261,19 +261,23 @@ open class CKFetchDatabaseChangesOperation: CKDatabaseOperation, @unchecked Send
     open override func main() {
         if let e = db.check(write: false) { fetchDatabaseChangesResultBlock?(.failure(e)); _isim_fetchDatabaseChangesCompletionBlock?(nil, false, e); return }
         let since = previousServerChangeToken?.seq ?? 0
-        let (changed, deleted, now): ([CKRecordZone.ID], [CKRecordZone.ID], Int) = db.store.access { d in
-            var ch = d.zones.values.filter { $0.seq > since }.map { CKRecordZone.ID(zoneName: $0.name, ownerName: $0.owner) }
-            if d.records.contains(where: { $0.value.seq > since && $0.key.hasPrefix(CKRecordZone.ID.default.key + "/") }) || d.tombstones.contains(where: { $0.seq > since && $0.zone == CKRecordZoneDefaultName }) {
-                ch.insert(.default, at: 0)
-            }
-            return (ch, d.deletedZones.filter { $0.seq > since }.map { CKRecordZone.ID(zoneName: $0.name, ownerName: $0.owner) }, d.counter)
+        let (changed, deleted, now, more): ([CKRecordZone.ID], [CKRecordZone.ID], Int, Bool) = db.store.access { d in
+            var events: [(Int, Bool, CKRecordZone.ID)] = d.zones.values.filter { $0.seq > since }.map { ($0.seq, false, CKRecordZone.ID(zoneName: $0.name, ownerName: $0.owner)) }
+            let defaultSeq = max(d.records.filter { $0.value.seq > since && $0.key.hasPrefix(CKRecordZone.ID.default.key + "/") }.map(\.value.seq).max() ?? 0,
+                                 d.tombstones.filter { $0.seq > since && $0.zone == CKRecordZoneDefaultName }.map(\.seq).max() ?? 0)
+            if defaultSeq > 0 { events.append((defaultSeq, false, .default)) }
+            events += d.deletedZones.filter { $0.seq > since }.map { ($0.seq, true, CKRecordZone.ID(zoneName: $0.name, ownerName: $0.owner)) }
+            events.sort { $0.0 < $1.0 }
+            let limit = resultsLimit > 0 ? resultsLimit : Int.max
+            let page = Array(events.prefix(limit)), token = page.last?.0 ?? since
+            return (page.filter { !$0.1 }.map(\.2), page.filter { $0.1 }.map(\.2), token, page.count < events.count)
         }
         changed.forEach { recordZoneWithIDChangedBlock?($0) }
         deleted.forEach { recordZoneWithIDWasDeletedBlock?($0) }
         let token = CKServerChangeToken(now)
         changeTokenUpdatedBlock?(token)
-        fetchDatabaseChangesResultBlock?(.success((token, false)))
-        _isim_fetchDatabaseChangesCompletionBlock?(token, false, nil)
+        fetchDatabaseChangesResultBlock?(.success((token, more)))
+        _isim_fetchDatabaseChangesCompletionBlock?(token, more, nil)
     }
 }
 
@@ -308,20 +312,28 @@ open class CKFetchRecordZoneChangesOperation: CKDatabaseOperation, @unchecked Se
         for z in recordZoneIDs ?? [] {
             let cfg = configurationsByRecordZoneID?[z]
             let since = cfg?.previousServerChangeToken?.seq ?? 0
-            let r: Result<([CKRecord], [(CKRecord.ID, String)], Int), Error> = db.store.access { d in
+            let r: Result<([CKRecord], [(CKRecord.ID, String)], Int, Bool), Error> = db.store.access { d in
                 guard db.zoneExists(z, d) else { return .failure(CKError(.zoneNotFound)) }
-                let recs = d.records.filter { $0.key.hasPrefix(z.key + "/") && $0.value.seq > since }.sorted { $0.value.seq < $1.value.seq }
-                    .map { db.record(from: $0.value, id: CKRecord.ID(recordName: String($0.key.dropFirst(z.key.count + 1)), zoneID: z), desiredKeys: cfg?.desiredKeys) }
-                let dels = d.tombstones.filter { $0.zone == z.zoneName && $0.owner == z.ownerName && $0.seq > since }.map { (CKRecord.ID(recordName: $0.name, zoneID: z), $0.type) }
-                return .success((recs, dels, d.counter))
+                enum Change { case record(CKRecord); case deletion(CKRecord.ID, String) }
+                var events: [(Int, Change)] = d.records.filter { $0.key.hasPrefix(z.key + "/") && $0.value.seq > since }.map {
+                    ($0.value.seq, .record(db.record(from: $0.value, id: CKRecord.ID(recordName: String($0.key.dropFirst(z.key.count + 1)), zoneID: z), desiredKeys: cfg?.desiredKeys)))
+                }
+                events += d.tombstones.filter { $0.zone == z.zoneName && $0.owner == z.ownerName && $0.seq > since }.map {
+                    ($0.seq, .deletion(CKRecord.ID(recordName: $0.name, zoneID: z), $0.type))
+                }
+                events.sort { $0.0 < $1.0 }
+                let limit = (cfg?.resultsLimit ?? 0) > 0 ? cfg!.resultsLimit : Int.max
+                let page = Array(events.prefix(limit)); var recs: [CKRecord] = [], dels: [(CKRecord.ID, String)] = []
+                for (_, event) in page { switch event { case .record(let r): recs.append(r); case .deletion(let id, let type): dels.append((id, type)) } }
+                return .success((recs, dels, page.last?.0 ?? since, page.count < events.count))
             }
             switch r {
-            case .success(let (recs, dels, now)):
+            case .success(let (recs, dels, now, more)):
                 for rec in recs { recordWasChangedBlock?(rec.recordID, .success(rec)); _isim_recordChangedBlock?(rec) }
                 for (id, t) in dels { recordWithIDWasDeletedBlock?(id, t) }
                 let token = CKServerChangeToken(now)
                 recordZoneChangeTokensUpdatedBlock?(z, token, nil)
-                recordZoneFetchResultBlock?(z, .success((token, nil, false)))
+                recordZoneFetchResultBlock?(z, .success((token, nil, more)))
             case .failure(let e):
                 recordZoneFetchResultBlock?(z, .failure(e))
             }

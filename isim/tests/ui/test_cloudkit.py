@@ -22,9 +22,13 @@ STEPS = [   # (button, log lines it leads to)
     ("subscribe", [r"subscriptions: everything,urgent-notes",
                    r"push: query subscription=urgent-notes reason=created record=u1 title=Urgent: call back "
                    r"alert=An urgent note changed", r"push: database subscription=everything"]),
-    ("zone", [r"zones: _defaultZone,Work", r"atomic batch: CKError 22,CKError 16", r"zone changes: w1,w3",
+    ("zone", [r"zones: _defaultZone,Work", r"atomic batch: CKError 22,CKError 16", r"database changes: Work,_defaultZone more=false", r"zone changes: w1,w3",
               r"zone changes since token: changed=0 deleted=w3:Note"]),
-    ("coredata", [r"coredata store: loaded=true options=iCloud\.dev\.isim\.samples\.HelloCloudKit",
+    ("share", [r"sharing: saved=true participants=2 permission=2 discovered=true sheet=true"]),
+    ("sync", [r"sync engine: saved=1 failed=0 pending=0"]),
+    ("swiftdata", [r"swiftdata: models=1 title=Local model changes=false"]),
+    ("coredata", [r"coredata event: setup succeeded=true", r"coredata store: loaded=true options=iCloud\.dev\.isim\.samples\.HelloCloudKit",
+                  r"coredata event: export succeeded=true",
                   r"coredata: items=1 isContainer=true", r"keeps its store on the device \(local, no iCloud sync\)"]),
 ]
 

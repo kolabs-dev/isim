@@ -34,7 +34,8 @@ Entity: `name`, `className` (representedClassName), `codeGenerationType` (`class
 `parent`, `abstract`, `renamingIdentifier`, `uniquenessConstraints`, `userInfo`, and
 
 - `attributes`: `{name, type ("Integer 16" … "Transformable", Xcode's names), optional, scalar, transient, indexed,
-  defaultValue, valueTransformerName, customClassName, minValue, maxValue, regularExpression, renamingIdentifier}`;
+  defaultValue, valueTransformerName, customClassName, minValue, maxValue, regularExpression, renamingIdentifier,
+  derivationExpression}`; both `attribute` and `derivedAttribute` elements are compiled;
   date defaults are seconds since 2001-01-01.
 - `relationships`: `{name, destination, inverse, optional, toMany, ordered, minCount, maxCount, deleteRule ("Nullify",
   "Cascade", "Deny", "No Action"), transient, renamingIdentifier}`
@@ -68,10 +69,25 @@ When the stored `isimSchema` differs from the model and the store options allow 
 `NSPersistentStoreDescription` defaults), isim migrates in place: it adds tables, columns (with the attribute's
 default) and join tables, and follows `renamingIdentifier`s for entities and attributes. Removed properties stay in
 the file unused; changed attribute types keep their stored values; changing an entity's parent fails. Without the
-options, opening fails with `NSPersistentStoreIncompatibleVersionHashError` (134100). Mapping models and
-`NSMigrationManager` are not available.
+options, opening fails with `NSPersistentStoreIncompatibleVersionHashError` (134100). `NSMappingModel` can infer an
+entity mapping and `NSMigrationManager` copies then migrates a store to a destination URL; this is adapted to isim's
+lightweight schema migrator rather than Apple's per-entity mapping pipeline. The staged migration API accepts
+lightweight and custom stages for source compatibility.
 
-## Not available
+## Adapted persistence APIs
 
-SwiftData (needs Apple's Swift macros), `NSPersistentCloudKitContainer`, persistent history, `NSBatchInsertRequest`,
-undo registration, enforced uniqueness constraints, binary/XML store types.
+- `NSBatchInsertRequest` inserts dictionaries or values supplied by dictionary/managed-object handlers directly in
+  one store transaction. Batch update/delete retain their direct-SQL semantics.
+- Uniqueness constraints are enforced on insert; error, object/store trump, overwrite and rollback merge policies
+  resolve conflicts. Derived expressions are refreshed before each save, and managed-object mutations register with
+  the context's `undoManager`.
+- Persistent history is available when `NSPersistentHistoryTrackingKey` is enabled. Transactions, changes, tokens,
+  author/context filters and delete-history requests are implemented; history currently lasts for the lifetime of
+  the loaded store rather than being written to SQLite.
+- `NSPersistentCloudKitContainer` remains intentionally local: it remembers CloudKit options and emits setup/export
+  events, but does not mirror to iCloud.
+- isim's SwiftData overlay supplies real `@Model`, `@Attribute` and `@Relationship` compiler macros plus a local
+  `ModelContainer`, `ModelContext`, fetch descriptors and SwiftUI `@Query`. It is process-local and does not yet have
+  disk schema migration, relationship/delete-rule processing, predicate execution or a CloudKit backend.
+
+Binary/XML Core Data store types are not available.
