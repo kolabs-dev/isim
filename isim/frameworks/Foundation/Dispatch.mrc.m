@@ -41,7 +41,7 @@ typedef struct specific { const void *key; void *ctx; dispatch_function_t dtor; 
 
 struct dispatch_queue_s {
     dobj h;
-    int qkind;                         /* 0 main, 1 global, 2 serial */
+    int qkind;                         /* 0 main, 1 concurrent, 2 serial */
     const char *label;
     pthread_mutex_t lock;
     job *head, *tail; int draining, suspended;
@@ -311,8 +311,9 @@ static void sync_trampoline(void *p) {
     pthread_mutex_lock(&s->m); s->done = 1; pthread_cond_signal(&s->c); pthread_mutex_unlock(&s->m);
 }
 void dispatch_sync_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) {
-    /* concurrent queues, and the queue we're already on (UIKit code calling sync on main from main), run inline */
-    if (q->qkind == 1 || on_queue(q)) { run_on(q, f, ctx); return; }
+    /* The queue we're already on, and non-suspendable global queues, run inline. A custom concurrent queue
+       enqueues synchronous work too so suspension applies to it. */
+    if (on_queue(q) || (q->qkind == 1 && q->h.refs >= (1 << 29))) { run_on(q, f, ctx); return; }
     syncjob s = { f, ctx, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0 };
     dispatch_async_f(q, &s, sync_trampoline);
     pthread_mutex_lock(&s.m); while (!s.done) pthread_cond_wait(&s.c, &s.m); pthread_mutex_unlock(&s.m);
