@@ -4,6 +4,7 @@
  *   { items = ( { id, domain, title, description, keywords, kind = item|activity, activity = <plist form> }, ... ) }
  * written here (activities made current with isEligibleForSearch) and by CoreSpotlight (CSSearchableIndex);
  * the home screen's Spotlight searches it. */
+#import <objc/runtime.h>
 #import <Foundation/Foundation.h>
 #include <sys/stat.h>
 
@@ -103,6 +104,8 @@ static void spotlight_update(void (^edit)(NSMutableArray *items)) {
     if (p[@"keywords"]) a.keywords = [NSSet setWithArray:p[@"keywords"]];
     if (p[@"requiredUserInfoKeys"]) a.requiredUserInfoKeys = [NSSet setWithArray:p[@"requiredUserInfoKeys"]];
     a.eligibleForSearch = [p[@"eligibleForSearch"] boolValue]; a.eligibleForHandoff = [p[@"eligibleForHandoff"] boolValue]; a.eligibleForPrediction = [p[@"eligibleForPrediction"] boolValue];
+    /* SiriKit continuations: the interaction (Intents reads it back as NSUserActivity.interaction) */
+    if ([p[@"interaction"] isKindOfClass:[NSDictionary class]]) objc_setAssociatedObject(a, NSSelectorFromString(@"interaction"), p[@"interaction"], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return a;
 }
 @end

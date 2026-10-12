@@ -1,4 +1,4 @@
-"""The apps: samples/*, the self-test apps in tests/* and the system apps (home screen, Settings).
+"""The apps: samples/*, the self-test apps in tests/* and the system apps (home screen, Settings, Safari, Shortcuts).
 
 A sample whose directory has Swift files and an Info.plist needs no entry here: it builds as <Dir>.app from its
 top-level *.swift files. Everything else is described below by a function that builds the app (it runs as one Ninja
@@ -245,6 +245,16 @@ def _(a):
     x = a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
     for d in (b, x):                                           # the app group both share
         a.copy("HelloWidgets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+
+
+@app("samples/HelloSiri")
+def _(a):   # App Intents + SiriKit: the app, its Intents extension and its Intents UI extension
+    b = a.swift_app(srcs=["HelloSiriApp.swift", "Shared.swift"], link=["-framework", "Intents", "-framework", "IntentsUI"])
+    exts = [a.appex(b, "HelloSiriIntents", ["Intents/IntentHandler.swift", "Shared.swift"], "Intents/Info.plist", link=["-framework", "Intents"]),
+            a.appex(b, "HelloSiriIntentsUI", ["IntentsUI/MessageViewController.swift"], "IntentsUI/Info.plist", link=["-framework", "Intents", "-framework", "IntentsUI"])]
+    for d in [b] + exts:                                       # Siri, and the app group the app and its extension share
+        a.copy("HelloSiri.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#a0522d", "#5c2e12", "C")
 
 
 @app("samples/HelloKeyboard", products=["HelloKeyboard.appex"])
@@ -634,6 +644,14 @@ def _(a):
         a.run("magick", "-size", "180x180", "gradient:#a6acb6-#6b717c", "(", "-background", "none", "-density", "900", gear,
               "-resize", "120x120", "-fill", "white", "-colorize", "100", ")", "-gravity", "center", "-compose", "over", "-composite",
               f"{b}/icon.png", check=False, quiet=True)
+
+
+@app("system/Shortcuts", products=["Shortcuts.app"], dest="out/sdk/Applications")
+def _(a):   # App Shortcuts, actions, voice shortcuts and Siri Suggestions of the installed apps
+    b = a.swift_app("Shortcuts", link=["-lisim_host"])
+    if shutil.which("magick"):   # two overlapping rounded squares on a blue-to-pink gradient
+        a.run("magick", "-size", "180x180", "gradient:#3d5afe-#e040fb", "-fill", "#ffffffcc", "-draw", "roundrectangle 40,40 112,112 18,18",
+              "-fill", "#ffffff", "-draw", "roundrectangle 68,68 140,140 18,18", f"{b}/icon.png", check=False, quiet=True)
 
 
 # ---- the graph ----

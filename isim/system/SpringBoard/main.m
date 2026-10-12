@@ -302,6 +302,7 @@ static NSString *icon_state_file(void) {
     [self installSystemObservers];
     [self installWidgetObservers];
     [self installNotificationObservers];
+    [self installSiriObservers];
     [self reload];
 }
 - (void)pagerPulledDown:(HSPager *)pager { if (!_editing) [self showSpotlight]; }

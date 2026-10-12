@@ -51,7 +51,8 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
 | `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
 | `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes) |
-| `spotlight` | Spotlight on the home screen |
+| `spotlight` | Spotlight on the home screen (it also lists the apps' App Shortcuts: `spotlight-shortcut-BUNDLE-N`) |
+| `siri` · `siri PHRASE` · `siri intent CLASS KEY=VALUE …` · `siri dismiss` | the simulated Siri (see below): `siri` alone starts listening (like holding the side button); `siri PHRASE` is what you say, or the answer to Siri's question; `siri intent` builds a SiriKit intent directly |
 | `island` | expand / collapse the Dynamic Island's Live Activity |
 | `homepage N` / `homepage library` | show home-screen page N (1-based) or the App Library |
 | `iconstyle STYLE [#RRGGBB] [small\|large]` | Home Screen icon appearance, as chosen in edit mode › Edit › Customize: `automatic`, `light`, `dark`, `tinted` (with the tint) or, iOS 26+, `clear`; small or large icons (saved; logs `SpringBoard: icon appearance …`) |
@@ -64,6 +65,39 @@ While one of these is shown, `dump` lists its parts (ids and text) and `tapid` /
 `nx-background` (tap: close; categories with `.customDismissAction` send the dismiss action). A text input action
 opens `nx-reply-field`: `type TEXT` then `key return` (or `tapid nx-reply-send`) sends the reply. A Notification Content
 extension's view is drawn at the top of the card.
+
+**Siri** (adapted; isim has no speech recognition, so Siri understands text): `siri PHRASE` is matched, in this
+order, against the installed apps' App Shortcut phrases (case and trailing punctuation ignored; `\(.applicationName)`
+is the app's display name or `CFBundleName`; an `AppEnum` or `AppEntity` parameter in a phrase matches one of its
+cases, or of the entities the app suggested (`suggestedEntities()`, refreshed by `updateAppShortcutParameters()`)),
+then voice shortcuts added to Siri (`INVoiceShortcut` invocation phrases), then these English SiriKit phrasings, each
+optionally ending with `using|with|in|on|via APP` (or starting with `APP,`):
+
+| Phrasing | Intent |
+|---|---|
+| `send a message to NAME [saying\|that says\|with TEXT]`, `message NAME saying TEXT`, `tell NAME [that] TEXT` | `INSendMessageIntent` |
+| `call NAME`, `facetime NAME`, `video call NAME` | `INStartCallIntent` |
+| `show my messages [from NAME]`, `read my messages`, `search for messages from NAME` | `INSearchForMessagesIntent` |
+| `play NAME`, `shuffle NAME` | `INPlayMediaIntent` (`mediaSearch.mediaName`) |
+| `add TASK to [my] LIST [list]`, `remind me to TASK` | `INAddTasksIntent` |
+| `create a note [saying TEXT]`, `note TEXT` | `INCreateNoteIntent` |
+
+`siri intent CLASS KEY=VALUE …` (`CLASS`: `INSendMessageIntent` or `SendMessage`; quote values with spaces) takes
+`recipients=A,B content=TEXT` (messages), `contacts=A video=1` (calls), `senders=A terms=X,Y` (message search),
+`media=NAME shuffle=1`, `tasks=A,B list=NAME`, `title=… content=… folder=…` (notes) and `app=BUNDLE_ID`. A SiriKit
+intent goes to the app that supports it (its Intents extension's `IntentsSupported`, or `INIntentsSupported` in the
+app's Info.plist; Siri asks "Which app?" when several do); the app must have the `com.apple.developer.siri`
+entitlement and have been allowed to use Siri (`INPreferences.requestSiriAuthorization`).
+
+While Siri is shown, `dump` lists `IsimSiri … mode=MODE source=SOURCE` and its parts: `siri-card` (text: what Siri
+says or asks), `siri-heard`, `siri-detail` (a message read back, search results), `siri-snippet` (a snippet view or
+an Intents UI extension's view), `siri-option-N` (choices: tap one, or `siri TITLE`, or `siri N`), `siri-confirm` /
+`siri-cancel` (or `siri yes`), `siri-field` (Type to Siri: `type TEXT; key return`, or `siri TEXT`), `siri-orb` (iOS
+17) / `siri-glow` (iOS 18+), and `siri-background` (tap: dismiss). The same card, without the orb or the glow, shows
+the questions and results of App Shortcuts run from the Shortcuts app (`launch dev.isim.shortcuts`: `tapid
+shortcut-BUNDLE-N`, `action-TYPE`, `suggestion-ID`, `voice-PHRASE`) and from Spotlight. The output has `SpringBoard:
+Siri heard “…”`, `Siri asks “…”` (with the choices), `Siri says “…”` and `Siri answer …` lines. A result stays for 8 s
+(`ISIM_SIRI_RESULT_SECONDS`).
 
 **Notification banners**: while the shell shows a banner (a notification for an app in the background or not running),
 `dump` lists it before the app's view tree:
@@ -138,7 +172,7 @@ In a window: click to touch, drag to swipe, Option-drag for a second finger (pin
 to move two fingers together. Swipe up from the bottom edge or press Ctrl+Shift+H to go home; Ctrl+Left/Right
 rotates; F12 saves a screenshot. Under `isim boot`: Ctrl+Shift+H twice opens the app switcher (or swipe up from the
 bottom edge and hold), Ctrl+L locks/unlocks, pulling down from the top edge opens Notification Center (Control
-Center from the top-right corner).
+Center from the top-right corner), Ctrl+Shift+S brings up Siri (the side button held) or dismisses it.
 
 The iOS version (`--os 17|18|26|27`, see [IOS-VERSIONS.md](IOS-VERSIONS.md)) changes what scripts see: frames of
 system controls (e.g. the iOS 26 switch is 63 × 28, bar buttons are 44 pt glass circles), Control Center's parts

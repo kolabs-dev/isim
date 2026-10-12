@@ -1756,6 +1756,7 @@ void isim_ui_run_until(BOOL (^done)(void)) {
 
 int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName) {
     @autoreleasepool {
+        { extern int isim_sys_intents_metadata_main(void); int r = isim_sys_intents_metadata_main(); if (r >= 0) return r; }   /* App Intents metadata (the home screen asks) */
         NSBundle *bundle = NSBundle.mainBundle;
         NSDictionary *info = bundle.infoDictionary;
         NSArray *families = [info[@"UIDeviceFamily"] isKindOfClass:[NSArray class]] ? info[@"UIDeviceFamily"] : nil;

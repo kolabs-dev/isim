@@ -82,6 +82,11 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/isim/MyApp.app --head
 - `tapid`, `taptext`, `type`, `key`, `drag`, `swipeid` act like a finger and a keyboard; `appearance dark`,
   `rotate landscapeleft`, `location LAT LON`, `push …`, `openurl …` change the device. The full list is in
   [SCRIPTING.md](SCRIPTING.md).
+- App Intents and SiriKit are tried under `isim boot` (the home screen is the system): `siri "Order a latte in
+  MyApp"` says an App Shortcut phrase, `siri intent SendMessage recipients=Anna content=Hi` builds a SiriKit intent,
+  and `siri ANSWER` / `tapid siri-option-N` / `tapid siri-confirm` answer Siri's questions; `dump` shows what Siri
+  says (`siri-card`) and the output logs it (`SpringBoard: Siri says “…”`). `launch dev.isim.shortcuts` lists and runs
+  the app's App Shortcuts. `ISIM_SIRI_PERMISSION=allow` answers `INPreferences.requestSiriAuthorization`.
 - `ISIM_ANIMATIONS=0` finishes animations at once and `ISIM_SKIP_LAUNCH_SCREEN=1` skips the launch screen, so the
   waits can be short. `ISIM_WAIT_SCALE=2` doubles every `wait` on a slow machine.
 - End the script with `quit`.
