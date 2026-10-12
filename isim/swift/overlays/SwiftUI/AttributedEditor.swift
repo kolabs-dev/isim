@@ -67,12 +67,14 @@ struct _AttributedEditor: View, _PrimitiveView {
         let n = _AttributedEditorNode(path: ctx.path, text: text, selection: selection?.wrappedValue)
         n.baseFont = (ctx.environment.font ?? .body).uiFont
         n.baseColor = (ctx.environment._foreground ?? .primary).uiColor
+        n.keyboardDismiss = ctx.environment._scrollOptions.keyboard
         return n
     }
 }
 final class _AttributedEditorNode: _Node {
     let text: Binding<AttributedString>, selection: _AnySelection?
     var baseFont: UIFont = .systemFont(ofSize: 17), baseColor: UIColor = .label
+    var keyboardDismiss = 0
     init(path: String, text: Binding<AttributedString>, selection: _AnySelection?) {
         self.text = text; self.selection = selection; super.init(path: path, children: [])
     }
@@ -80,6 +82,7 @@ final class _AttributedEditorNode: _Node {
     override func mountView(_ g: _Graph) -> UIView {
         let v = g.view(viewKey) { _SUIAttributedTextView(frame: .zero, textContainer: nil) }
         v.node = self
+        v.keyboardDismissMode = _keyboardDismissMode(keyboardDismiss, editor: true)
         let shown = _nsAttributed(text.wrappedValue, font: baseFont, color: baseColor)
         if !v.attributedText.isEqual(to: shown) {
             let sel = v.selectedRange
