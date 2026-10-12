@@ -1,10 +1,14 @@
-// isim MediaPlayer (subset): MPNowPlayingInfoCenter, MPRemoteCommandCenter, MPMediaItemArtwork, MPVolumeView.
-// Self-authored. isim has no lock screen or Control Center: now-playing info is stored (and logged when it
-// changes), and remote commands come from the `remote NAME [ARG]` script/control command (play, pause, toggle,
-// stop, next, previous, skipforward [s], skipback [s], seek SECONDS, rate R, like, dislike, bookmark).
-// MPVolumeView is a stub (a slider that does not change the host volume). No music library.
+// isim MediaPlayer: MPNowPlayingInfoCenter, MPRemoteCommandCenter, MPMediaItemArtwork, MPVolumeView (this file) and the
+// music library (MusicLibrary.swift). Self-authored.
+// - Now Playing info goes to the device's Control Center and lock screen (isim boot: the shell draws title, artist,
+//   artwork, progress and the transport buttons), and is logged when it changes.
+// - Remote commands come from those buttons and from the `remote NAME [ARG]` script/control command (play, pause,
+//   toggle, stop, next, previous, skipforward [s], skipback [s], seek SECONDS, rate R, like, dislike, bookmark).
+// - MPVolumeView's slider is the device volume (isim's own, shared with Control Center and the `volume up|down`
+//   command: every app of the device plays at it; the host's volume never changes).
 @_exported import Foundation
 import UIKit
+import AVFoundation
 import isim_host
 
 public let MPMediaItemPropertyTitle = "title"
@@ -48,16 +52,44 @@ open class MPNowPlayingInfoCenter: NSObject {
         didSet {
             let title = nowPlayingInfo?[MPMediaItemPropertyTitle] as? String ?? "-"
             let artist = nowPlayingInfo?[MPMediaItemPropertyArtist] as? String
-            let elapsed = (nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? NSNumber)?.doubleValue
-                ?? nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
+            let elapsed = Self.number(nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime])
             let summary = nowPlayingInfo == nil ? "cleared" : title + (artist.map { " — \($0)" } ?? "") + (elapsed.map { String(format: " @ %.1f s", $0) } ?? "")
             if summary != lastSummary { lastSummary = summary; NSLog("isim MediaPlayer: now playing %@", summary) }
+            publish()
         }
     }
     open var playbackState: MPNowPlayingPlaybackState = .unknown {
-        didSet { NSLog("isim MediaPlayer: playback state %@", ["unknown", "playing", "paused", "stopped", "interrupted"][Int(playbackState.rawValue)]) }
+        didSet {
+            NSLog("isim MediaPlayer: playback state %@", ["unknown", "playing", "paused", "stopped", "interrupted"][Int(playbackState.rawValue)])
+            publish()
+        }
     }
     var lastSummary = ""
+    var artworkFile: (artwork: MPMediaItemArtwork, path: String)?
+    static func number(_ v: Any?) -> Double? { (v as? NSNumber)?.doubleValue ?? v as? Double ?? (v as? Int).map(Double.init) ?? (v as? Float).map(Double.init) }
+    /// the playback rate the system shows: the info's rate, or the playback state when the info has none
+    var rate: Double {
+        if let r = Self.number(nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate]) { return playbackState == .paused ? 0 : r }
+        return playbackState == .playing ? 1 : 0
+    }
+    /// sends the info to the device's Control Center and lock screen (isim boot)
+    func publish() {
+        guard isim_shell_present() != 0 else { return }
+        guard let info = nowPlayingInfo else { isim_shell_request(40, "nowplaying", "", ""); return }
+        let field = { (k: String) in (info[k] as? String ?? "").replacingOccurrences(of: "\u{1f}", with: " ") }
+        var art = ""
+        if let a = info[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
+            if let f = artworkFile, f.artwork === a { art = f.path }
+            else if let png = a.image(at: CGSize(width: 120, height: 120))?.pngData() {
+                let path = NSTemporaryDirectory() + "isim-nowplaying-\(ProcessInfo.processInfo.processIdentifier).png"
+                if FileManager.default.createFile(atPath: path, contents: png) { art = path; artworkFile = (a, path) }
+            }
+        }
+        let b = [field(MPMediaItemPropertyTitle), field(MPMediaItemPropertyArtist), field(MPMediaItemPropertyAlbumTitle), art].joined(separator: "\u{1f}")
+        let c = String(format: "%.3f %.3f %.3f", Self.number(info[MPMediaItemPropertyPlaybackDuration]) ?? 0,
+                       Self.number(info[MPNowPlayingInfoPropertyElapsedPlaybackTime]) ?? 0, rate)
+        isim_shell_request(40, "nowplaying", b.isEmpty ? " " : b, c)
+    }
 }
 
 public enum MPRemoteCommandHandlerStatus: Int, Sendable { case success = 0, noSuchContent = 100, noActionableNowPlayingItem = 110, deviceNotFound = 120, commandFailed = 200 }
@@ -180,25 +212,66 @@ open class MPRemoteCommandCenter: NSObject {
             case let c as MPFeedbackCommand: event = MPFeedbackCommandEvent(command: c, negative: c === dislikeCommand)
             default: event = cmd === seekForwardCommand || cmd === seekBackwardCommand ? MPSeekCommandEvent(command: cmd, type: arg == 0 ? .endSeeking : .beginSeeking) : MPRemoteCommandEvent(command: cmd)
             }
-            let status = cmd._send(event)
+            var target = cmd, sent = event
+            // like iOS, a toggle reaches play or pause when the app only handles those
+            if cmd === togglePlayPauseCommand && cmd.handlers.isEmpty && cmd.selectorTargets.isEmpty {
+                target = MPNowPlayingInfoCenter.shared.rate > 0 ? pauseCommand : playCommand
+                sent = MPRemoteCommandEvent(command: target)
+            }
+            let status = target._send(sent)
             NSLog("isim MediaPlayer: remote command %@ -> %@", line, status == .success ? "success" : "status \(status.rawValue)")
         }
     }
 }
 
-/// Stub: a volume slider that does not change the host's volume (isim has no system volume).
+/// The device volume slider (and the route button: the audio route picker).
 open class MPVolumeView: UIView {
     open var showsVolumeSlider = true { didSet { slider.isHidden = !showsVolumeSlider } }
-    open var showsRouteButton = false
-    open var isWirelessRouteActive: Bool { false }
+    open var showsRouteButton = false { didSet { routeButton.isHidden = !showsRouteButton; setNeedsLayout() } }
+    open var isWirelessRouteActive: Bool { AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay } }
+    open var isWirelessRoutesAvailable: Bool { true }
     let slider = UISlider()
+    let routeButton = UIButton(type: .system)
+    var observer: NSObjectProtocol?
     public override init(frame: CGRect) {
         super.init(frame: frame)
-        slider.value = 1
-        slider.accessibilityIdentifier = "isim-volume-slider"
-        addSubview(slider)
+        setup()
     }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
-    open override func layoutSubviews() { super.layoutSubviews(); slider.frame = bounds }
+    public required init?(coder: NSCoder) { super.init(coder: coder); setup() }
+    func setup() {
+        slider.value = Float(isim_device_volume())
+        slider.accessibilityIdentifier = "isim-volume-slider"
+        slider.minimumValueImage = UIImage(systemName: "speaker.fill")
+        slider.maximumValueImage = UIImage(systemName: "speaker.wave.3.fill")
+        slider.addTarget(self, action: #selector(changed), for: .valueChanged)
+        addSubview(slider)
+        routeButton.setImage(UIImage(systemName: "airplayaudio"), for: .normal)
+        routeButton.accessibilityIdentifier = "isim-volume-route"
+        routeButton.accessibilityLabel = "AirPlay"
+        routeButton.isHidden = true
+        routeButton.addTarget(self, action: #selector(route), for: .touchUpInside)
+        addSubview(routeButton)
+        observer = NotificationCenter.default.addObserver(forName: Notification.Name("_IsimSystemEvent"), object: nil, queue: .main) { [weak self] n in
+            guard let t = n.object as? String, t.hasPrefix("volume "), let v = Float(t.dropFirst(7)) else { return }
+            MainActor.assumeIsolated { self?.slider.value = v }
+        }
+    }
+    deinit { if let o = observer { NotificationCenter.default.removeObserver(o) } }
+    /// the device volume: this app plays at it now, the device (Control Center, other apps) hears about it
+    @objc func changed() {
+        let v = Double(slider.value)
+        isim_device_volume_set(v, 1)
+        if isim_shell_present() != 0 { isim_shell_request(40, "volume", String(format: "%.4f", v), "") }
+        NotificationCenter.default.post(name: Notification.Name("_IsimSystemEvent"), object: String(format: "volume %.4f", v) as NSString)
+    }
+    @objc func route() { AVAudioSession._isimShowRoutePicker(from: routeButton) }
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        let rb: CGFloat = showsRouteButton ? 34 : 0
+        slider.frame = CGRect(x: 0, y: 0, width: bounds.width - rb, height: bounds.height)
+        routeButton.frame = CGRect(x: bounds.width - rb, y: 0, width: rb, height: bounds.height)
+    }
     open override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: 34) }
+    open func volumeSliderRect(forBounds bounds: CGRect) -> CGRect { slider.frame }
+    open func routeButtonRect(forBounds bounds: CGRect) -> CGRect { routeButton.frame }
 }

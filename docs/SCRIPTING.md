@@ -53,7 +53,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock |
 | `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
 | `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
-| `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes). `cc-focus` toggles the last Focus, `cc-focus-modes` opens the Focus list (`cc-focus-dnd`, `cc-focus-personal`, `cc-focus-work`, `cc-focus-sleep`; `cc-page-background` goes back). iOS 18+: `cc-edit` is edit mode (`cc-remove-NAME`, `cc-resize-KIND` for app controls, `cc-add-control` opens the gallery: `cc-gallery-KIND` adds an app's ControlWidget, `cc-gallery-system-NAME` a system control, `cc-gallery-close`; `cc-edit-background` ends edit mode); added controls are `cc-control-KIND` (text: title and value) and run their intent when tapped |
+| `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; Now Playing: `cc-nowplaying` (its text is the title — artist), `cc-np-previous`, `cc-np-play`, `cc-np-next`; `tapid cc-background` closes). `cc-focus` toggles the last Focus, `cc-focus-modes` opens the Focus list (`cc-focus-dnd`, `cc-focus-personal`, `cc-focus-work`, `cc-focus-sleep`; `cc-page-background` goes back). iOS 18+: `cc-edit` is edit mode (`cc-remove-NAME`, `cc-resize-KIND` for app controls, `cc-add-control` opens the gallery: `cc-gallery-KIND` adds an app's ControlWidget, `cc-gallery-system-NAME` a system control, `cc-gallery-close`; `cc-edit-background` ends edit mode); added controls are `cc-control-KIND` (text: title and value) and run their intent when tapped. The lock screen's player has `lock-nowplaying`, `lock-np-previous`, `lock-np-play`, `lock-np-next` |
 | `focus dnd\|personal\|work\|sleep\|off` | turn a Focus on (or off), like Control Center's Focus list (logs `isim shell: Focus Work on`): banners of apps the Focus does not allow (Settings › Focus › the Focus › Apps) are silenced, time-sensitive ones break through, apps' Focus filters run (`SetFocusFilterIntent.perform()`) |
 | `lockcontrol left\|right CONTROL` | the Lock Screen's bottom buttons (iOS 18 lets you replace the flashlight and camera): `flashlight`, `camera`, `timer`, `dark`, `lowpower`, `focus`, `none`, or an app control's kind; on the lock screen `tapid lock-control-left` / `lock-control-right` runs it |
 | `actionbutton [assign CONTROL]` | press the Action button (iPhone 15 Pro and later, iPhone 16 and 17 presets; default: Silent Mode), or assign it a control (`silent`, `focus`, `flashlight`, …, or an app control's kind). Devices without one log that they have none |
@@ -179,7 +179,8 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | `rotate portrait\|upsidedown\|landscapeleft\|landscaperight\|left\|right` | turn the device |
 | `shake` | Device ▸ Shake |
 | `location LAT LON` / `location none` | Features ▸ Location |
-| `remote NAME [ARG]` | `MPRemoteCommandCenter` command: `play`, `pause`, `toggle`, `next`, `previous`, `skipforward`, `skipback`, `seek S`, `rate R` |
+| `remote NAME [ARG]` | `MPRemoteCommandCenter` command: `play`, `pause`, `toggle`, `next`, `previous`, `skipforward`, `skipback`, `seek S`, `rate R`; with `isim boot` it goes to the app that publishes Now Playing, like Control Center's controls |
+| `volume up\|down\|V` | the device volume (the side buttons: steps of 1/16; or V from 0 to 1): `AVAudioSession.outputVolume`, `MPVolumeView`, the mixer's master gain; remembered in the device data |
 | `audio interrupt begin` · `audio interrupt end [resume]` · `audio route NAME` · `audio silence begin\|end` · `audio reset` | `AVAudioSession` events: an interruption (like a phone call; it pauses `AVAudioPlayer`s, `resume` sets `.shouldResume`), a route change to `headphones`, `headset`, `bluetooth`, `carplay`, `airplay`, `usb`, `hdmi`, `receiver` or `speaker`, the secondary-audio hint, media services reset |
 | `gamepad connect [NAME]` · `gamepad button NAME 0\|1` · `gamepad axis NAME VALUE` · `gamepad disconnect` | a virtual game controller |
 | `display connect [WxH]` · `display shot PATH` · `display disconnect` | a simulated external display (default 1920x1080): the app's external display scene (a scene accessory, or the manifest's `UIWindowSceneSessionRoleExternalDisplayNonInteractive` configuration) or the mirrored device; `display shot` saves what it shows as a PNG |
@@ -189,6 +190,14 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | `voiceover rotor [prev]`, `voiceover up\|down` | turn the VoiceOver rotor (custom rotors, Headings, Actions, Adjust Value) / move by its item (like swiping up / down) |
 | `switchcontrol on\|off\|next\|select\|autoSECS\|stop` | simulated Switch Control: item scanning (`auto0.5` moves the highlight every 0.5 s), select activates |
 | `voicecontrol PHRASE` | simulated Voice Control: `tap NAME` (label or `accessibilityUserInputLabels`), `show numbers` / `show names` / `hide numbers`, `tap N`, `scroll down\|up\|left\|right`, `go back` |
+
+**Picture in Picture**: while an app shows a video in Picture in Picture (`isim boot`), the shell's floating window is
+`pip-window` (its text is the title and `playing` / `paused`); `tapid pip-window` shows its controls: `pip-close`,
+`pip-restore` (back to the app), `pip-play`, `pip-skip-back`, `pip-skip-forward`. **Route picker** (`AVRoutePickerView`,
+`MPVolumeView`, the AirPlay button of `AVPlayerViewController`): `route-iphone`, `route-headphones` (when plugged in with
+`audio route headphones`), `route-airplay`, `route-picker-background` (closes). `AVPlayerViewController` controls:
+`avkit-pip`, `avkit-airplay`, `avkit-speed` (a menu: `menu-1×`, `menu-2×`, …), `avkit-fullscreen`. Media picker
+(`MPMediaPickerController`): `media-picker-TITLE` (spaces as dashes), `media-picker-done`, `media-picker-cancel`.
 
 ## Inspecting
 

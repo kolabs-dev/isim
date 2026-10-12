@@ -1408,10 +1408,18 @@ static int script_step(struct isim_event *ev) {
     else if (!strcmp(cmd, "launch") && sscanf(args, " %63[^; ]", arg) == 1) {
         pending[npending++] = (struct isim_event){ .type = EV_LAUNCH_ID }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.5;
-    } else if (!strcmp(cmd, "remote") && sscanf(args, " %63[^;]", arg) == 1) {    /* MPRemoteCommandCenter: remote play|pause|toggle|next|previous|seek S|skipforward|skipback */
+    } else if (!strcmp(cmd, "remote") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1) {    /* MPRemoteCommandCenter: remote play|pause|toggle|next|previous|seek S|skipforward|skipback */
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "volume") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1) {    /* the volume buttons (the app alone): up|down|0...1 */
+        double isim_device_volume(void); void isim_device_volume_set(double v, int save);
+        double v = isim_device_volume();
+        if (!strncmp(arg, "up", 2)) v += 1.0 / 16; else if (!strncmp(arg, "down", 4)) v -= 1.0 / 16; else v = atof(arg);
+        v = fmin(1, fmax(0, round(v * 16) / 16));
+        isim_device_volume_set(v, 1);
+        fprintf(stderr, "isim: volume %d%%\n", (int)lround(v * 100));
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "volume %.4f", v);
     } else if (!strcmp(cmd, "audio") && sscanf(args, " %63[^;]", arg) == 1) {     /* AVAudioSession: audio interrupt begin|end [resume], audio route NAME */
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_audio_session_post(const char *ev);
@@ -1425,7 +1433,7 @@ static int script_step(struct isim_event *ev) {
         snprintf(pending[npending - 1].text, sizeof pending->text, "%s%s%s", cmd, *args ? " " : "", args);
         script_resume = now() + 0.4;
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
-               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || (!strcmp(cmd, "appclip") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
+               || !strcmp(cmd, "remote") || !strcmp(cmd, "volume") || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || (!strcmp(cmd, "appclip") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
                || (!strcmp(cmd, "focus") && shell_mode && args[strspn(args, " ")] && args[strspn(args, " ")] != ';')   /* `focus MODE`; bare `focus`: the window */
                || !strcmp(cmd, "actionbutton") || !strcmp(cmd, "lockcontrol")
                || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode) || (!strcmp(cmd, "siri") && shell_mode)) {
@@ -1787,6 +1795,9 @@ int isim_media_thumbnail_png(const char *url, double t, double max_side, void **
 int isim_media_transcode(const char *in, const char *out);
 void isim_media_free(void *p);
 int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float **out, long *frames, double *rate);
+struct isim_tts_event; int isim_tts_available(void);
+int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume, float **out, long *frames, double *rate,
+                    struct isim_tts_event **events, int *nevents);
 int isim_audio_input_start(void);
 long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
@@ -1797,6 +1808,12 @@ int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out)
 /* host_capture.c */
 int isim_camera_source(char *desc, int len);
 int isim_camera_open(int max_side, double fps, int *w, int *h);
+void isim_camera_set_effects(int h, double zoom, double gain);
+int isim_camera_source_at(int position, char *desc, int len);
+int isim_heif_can_encode(void);
+long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out);
+int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba);
+int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h);
 long isim_camera_frame(int h, unsigned char *out, long seq, double timeout);
 int isim_camera_preview(int h);
 void isim_camera_close(int h);
@@ -1806,6 +1823,7 @@ long isim_media_reader_read(int hd, void *buf, long n);
 void isim_media_reader_close(int hd);
 int isim_vision_available(int kind);
 char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
+char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended);
 char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs);
 char *isim_vision_text_languages(void);
 int isim_speech_available(void);
@@ -1815,6 +1833,12 @@ int isim_audio_stream_open(double volume);
 long isim_audio_stream_write(int s, const float *pcm, long frames);
 void isim_audio_stream_control(int s, int paused, double volume);
 void isim_audio_stream_close(int s);
+double isim_device_volume(void); void isim_device_volume_set(double v, int save);
+int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
+struct isim_acodec; struct isim_acodec *isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate);
+int isim_acodec_frame_size(struct isim_acodec *h); int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames);
+int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int cap); int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *d, int n);
+int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *channels, double *rate); void isim_acodec_close(struct isim_acodec *h);
 int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
 void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
@@ -1908,15 +1932,17 @@ static const struct shim isim_table[] = {
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
-    H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
-    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
+    H(isim_media_probe), H(isim_media_open), H(isim_media_open_rate), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
+    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_audio_set_pan), H(isim_image_read_bgra),
-    H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close),
+    H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close), H(isim_camera_source_at), H(isim_camera_open_at), H(isim_camera_set_effects), H(isim_vision_barcodes_ex), H(isim_heif_can_encode), H(isim_heif_encode_bgra), H(isim_heif_decode),
     H(isim_ffmpeg_run), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
     H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages),
     H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
+    H(isim_acodec_open), H(isim_acodec_frame_size), H(isim_acodec_send_pcm), H(isim_acodec_receive_packet), H(isim_acodec_send_packet),
+    H(isim_acodec_receive_pcm), H(isim_acodec_close), H(isim_device_volume), H(isim_device_volume_set), H(isim_media_remote_post),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),

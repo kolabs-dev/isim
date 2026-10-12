@@ -10,6 +10,7 @@
  * Nothing here opens a camera or microphone unless the user configured it. Face detection has no host backend. */
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -100,9 +101,15 @@ static int temp_path(char *buf, size_t n, const char *suffix) {
 }
 
 /* ================= simulated camera ================= */
-/* kind: 0 no camera, 1 still image, 2 video file, 3 webcam (v4l2). desc receives the source (file or device). */
-int isim_camera_source(char *desc, int len) {
-    const char *s = getenv("ISIM_CAMERA");
+/* The source of a camera: ISIM_CAMERA, or for the front camera ISIM_CAMERA_FRONT when set (else the same source). */
+static const char *camera_env(int front) {
+    const char *f = front ? getenv("ISIM_CAMERA_FRONT") : NULL;
+    return f && *f ? f : getenv("ISIM_CAMERA");
+}
+/* kind: 0 no camera, 1 still image, 2 video file, 3 webcam (v4l2). desc receives the source (file or device).
+ * position: 0 back (ISIM_CAMERA), 1 front (ISIM_CAMERA_FRONT, else ISIM_CAMERA). */
+int isim_camera_source_at(int position, char *desc, int len) {
+    const char *s = camera_env(position == 1);
     if (desc && len > 0) desc[0] = 0;
     if (!s || !*s) return 0;
     if (!strncmp(s, "webcam", 6)) {
@@ -117,22 +124,58 @@ int isim_camera_source(char *desc, int len) {
     if (ext) for (int i = 0; still[i]; i++) if (!strcasecmp(ext, still[i])) return 1;
     return 2;
 }
+int isim_camera_source(char *desc, int len) { return isim_camera_source_at(0, desc, len); }
 
-#define MAX_CAMS 4
+#define MAX_CAMS 6
 struct cam {
     int used, w, h; pid_t pid; int fd; pthread_t th; int thread;
     pthread_mutex_t m; pthread_cond_t cv;
-    unsigned char *front, *back; long seq; int stop, eof;
+    unsigned char *front, *back, *raw; long seq; int stop, eof;
     int img; long img_seq;
+    double zoom, gain;                  /* digital zoom (centre crop) and brightness gain, set by isim_camera_set_effects */
 };
 static struct cam cams[MAX_CAMS];
 static pthread_mutex_t cams_mtx = PTHREAD_MUTEX_INITIALIZER;
 
+/* zoom > 1 shows the centre 1/zoom of the picture (bilinear), gain scales the colour */
+static void cam_effects(const struct cam *c, const unsigned char *src, unsigned char *dst, double zoom, double gain) {
+    int w = c->w, h = c->h;
+    int g = (int)(gain * 256 + 0.5);
+    if (zoom <= 1.0001) {
+        for (size_t i = 0; i < (size_t)w * h; i++) {
+            for (int k = 0; k < 3; k++) { int v = src[i * 4 + k] * g >> 8; dst[i * 4 + k] = (unsigned char)(v > 255 ? 255 : v); }
+            dst[i * 4 + 3] = src[i * 4 + 3];
+        }
+        return;
+    }
+    double sw = w / zoom, sh = h / zoom, x0 = (w - sw) / 2, y0 = (h - sh) / 2;
+    for (int y = 0; y < h; y++) {
+        double fy = y0 + (y + 0.5) * sh / h - 0.5; if (fy < 0) fy = 0;
+        int iy = (int)fy; double ty = fy - iy; int iy1 = iy + 1 < h ? iy + 1 : iy;
+        for (int x = 0; x < w; x++) {
+            double fx = x0 + (x + 0.5) * sw / w - 0.5; if (fx < 0) fx = 0;
+            int ix = (int)fx; double tx = fx - ix; int ix1 = ix + 1 < w ? ix + 1 : ix;
+            const unsigned char *a = src + ((size_t)iy * w + ix) * 4, *b = src + ((size_t)iy * w + ix1) * 4;
+            const unsigned char *cc = src + ((size_t)iy1 * w + ix) * 4, *d = src + ((size_t)iy1 * w + ix1) * 4;
+            unsigned char *o = dst + ((size_t)y * w + x) * 4;
+            for (int k = 0; k < 4; k++) {
+                double v = (a[k] * (1 - tx) + b[k] * tx) * (1 - ty) + (cc[k] * (1 - tx) + d[k] * tx) * ty;
+                if (k < 3) v = v * g / 256;
+                o[k] = (unsigned char)(v > 255 ? 255 : v + 0.5);
+            }
+        }
+    }
+}
 static void *cam_thread(void *arg) {
     struct cam *c = arg;
     size_t n = (size_t)c->w * c->h * 4;
     for (;;) {
-        if (!read_full(c->fd, c->back, n)) break;
+        if (!read_full(c->fd, c->raw, n)) break;
+        pthread_mutex_lock(&c->m);
+        double zoom = c->zoom, gain = c->gain;
+        pthread_mutex_unlock(&c->m);
+        if (zoom > 1.0001 || gain < 0.999 || gain > 1.001) cam_effects(c, c->raw, c->back, zoom, gain);
+        else memcpy(c->back, c->raw, n);
         pthread_mutex_lock(&c->m);
         unsigned char *t = c->front; c->front = c->back; c->back = t;
         c->seq++;
@@ -147,12 +190,12 @@ static void *cam_thread(void *arg) {
 
 /* Starts the simulated camera at up to max_side pixels (longest side; 0 = 1280) and fps frames per second.
  * Returns a handle (> 0) with the frame size in w x h, or 0 (no ISIM_CAMERA, unreadable source, no ffmpeg). */
-int isim_camera_open(int max_side, double fps, int *w, int *h) {
+int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h) {
     char src[1024];
-    int kind = isim_camera_source(src, sizeof src);
+    int kind = isim_camera_source_at(position, src, sizeof src);
     if (!kind) {
-        const char *s = getenv("ISIM_CAMERA");
-        if (s && *s) fprintf(stderr, "isim camera: cannot read ISIM_CAMERA=%s\n", s);
+        const char *s = camera_env(position == 1);
+        if (s && *s) fprintf(stderr, "isim camera: cannot read %s\n", s);
         return 0;
     }
     if (max_side <= 0) max_side = 1280;
@@ -191,11 +234,13 @@ int isim_camera_open(int max_side, double fps, int *w, int *h) {
     c->pid = spawn2(kind == 1 ? img_argv : kind == 2 ? vid_argv : cam_argv, &c->fd, NULL);
     if (c->pid < 0) { c->used = 0; fprintf(stderr, "isim camera: cannot start ffmpeg (the simulated camera needs ffmpeg on the host)\n"); return 0; }
     pthread_mutex_init(&c->m, NULL); pthread_cond_init(&c->cv, NULL);
-    c->front = calloc((size_t)ow * oh, 4); c->back = calloc((size_t)ow * oh, 4);
+    c->front = calloc((size_t)ow * oh, 4); c->back = calloc((size_t)ow * oh, 4); c->raw = calloc((size_t)ow * oh, 4);
+    c->zoom = 1; c->gain = 1;
     c->thread = pthread_create(&c->th, NULL, cam_thread, c) == 0;
     *w = ow; *h = oh;
     return slot + 1;
 }
+int isim_camera_open(int max_side, double fps, int *w, int *h) { return isim_camera_open_at(0, max_side, fps, w, h); }
 static struct cam *cam_get(int h) { return h > 0 && h <= MAX_CAMS && cams[h - 1].used ? &cams[h - 1] : NULL; }
 
 /* Copies the newest frame (BGRA, w*h*4 bytes) into out when it is newer than `seq`, waiting up to timeout seconds.
@@ -213,6 +258,13 @@ long isim_camera_frame(int h, unsigned char *out, long seq, double timeout) {
     if (c->seq > seq) { if (out) memcpy(out, c->front, (size_t)c->w * c->h * 4); s = c->seq; }
     pthread_mutex_unlock(&c->m);
     return s;
+}
+/* Digital zoom (1 = none; the centre 1/zoom of the picture) and brightness gain (1 = none; torch, flash, exposure
+   bias) for the frames that follow. */
+void isim_camera_set_effects(int h, double zoom, double gain) {
+    struct cam *c = cam_get(h);
+    if (!c) return;
+    pthread_mutex_lock(&c->m); c->zoom = zoom < 1 ? 1 : zoom; c->gain = gain < 0 ? 0 : gain; pthread_mutex_unlock(&c->m);
 }
 /* UI thread: an image handle showing the newest frame (0 before the first frame arrives) */
 int isim_camera_preview(int h) {
@@ -234,7 +286,7 @@ void isim_camera_close(int h) {
     close(c->fd);
     int st; if (c->pid > 0) waitpid(c->pid, &st, 0);
     if (c->img) isim_image_free(c->img);
-    free(c->front); free(c->back);
+    free(c->front); free(c->back); free(c->raw);
     pthread_mutex_destroy(&c->m); pthread_cond_destroy(&c->cv);
     pthread_mutex_lock(&cams_mtx); memset(c, 0, sizeof *c); pthread_mutex_unlock(&cams_mtx);
 }
@@ -298,11 +350,13 @@ int isim_media_reader_open(const char *url, int kind, double start, double durat
     char ss[32], tt[32], vf[96], ar[32], ac[16];
     snprintf(ss, sizeof ss, "%.6f", start > 0 ? start : 0);
     snprintf(tt, sizeof tt, "%.6f", duration > 0 ? duration : 1e9);
-    snprintf(vf, sizeof vf, "scale=%d:%d,fps=%.6f", w > 0 ? w : 2, h > 0 ? h : 2, rate > 0 ? rate : 30);
+    /* video rate < 0: the source's own frames (no frame-rate conversion; the caller knows their times) */
+    if (kind == 0 && rate < 0) snprintf(vf, sizeof vf, "scale=%d:%d", w > 0 ? w : 2, h > 0 ? h : 2);
+    else snprintf(vf, sizeof vf, "scale=%d:%d,fps=%.6f", w > 0 ? w : 2, h > 0 ? h : 2, rate > 0 ? rate : 30);
     snprintf(ar, sizeof ar, "%d", rate > 0 ? (int)rate : 44100);
     snprintf(ac, sizeof ac, "%d", channels > 0 ? channels : 2);
     char *vargv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-t", tt, "-i", (char *)url, "-an", "-sn", "-vf", vf,
-                      "-pix_fmt", "bgra", "-f", "rawvideo", "-", NULL };
+                      "-pix_fmt", "bgra", "-fps_mode", rate < 0 ? "passthrough" : "auto", "-f", "rawvideo", "-", NULL };
     char *aargv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-t", tt, "-i", (char *)url, "-vn", "-sn",
                       "-f", "f32le", "-ac", ac, "-ar", ar, "-", NULL };
     int fd; pid_t pid = spawn2(kind == 0 ? vargv : aargv, &fd, NULL);
@@ -386,19 +440,65 @@ static int zbar_load(void) {
 int isim_vision_available(int kind) {
     if (kind == 1) return zbar_load();
     if (kind == 2) return on_path("tesseract");
+    if (kind == 3) return on_path("ZXingReader");       /* zxing-cpp's reader: Aztec, Data Matrix, Micro QR */
     return 0;
 }
 
+/* The symbols zbar cannot read (Aztec, Data Matrix, Micro QR, rMQR, MaxiCode) through zxing-cpp's ZXingReader:
+   appends lines in isim_vision_barcodes' format to out. Returns 0 when the tool is missing or fails. */
+static int zxing_scan(const unsigned char *gray, int w, int h, char **out, size_t *n, size_t *cap) {
+    if (!on_path("ZXingReader")) return 0;
+    char path[512];
+    if (!temp_path(path, sizeof path, ".pgm")) return 0;
+    FILE *f = fopen(path, "wb");
+    if (!f) { unlink(path); return 0; }
+    fprintf(f, "P5\n%d %d\n255\n", w, h);
+    fwrite(gray, 1, (size_t)w * h, f);
+    fclose(f);
+    char *argv[] = { "ZXingReader", "-format", "Aztec,DataMatrix,MicroQRCode,rMQRCode,MaxiCode", path, NULL };
+    char *res = run_capture(argv, NULL);
+    unlink(path);
+    if (!res) return 1;                                  /* nothing found (or unreadable): no symbols */
+    char fmt[64] = "", pos[256] = "", bytes[8192] = "";
+    for (char *line = res; line && *line; ) {
+        char *end = strchr(line, '\n'); if (end) *end = 0;
+        int last = !end || !end[1] || end[1] == '\n';
+        if (!strncmp(line, "Format:", 7)) sscanf(line + 7, " %63s", fmt);
+        else if (!strncmp(line, "Position:", 9)) snprintf(pos, sizeof pos, "%s", line + 9);
+        else if (!strncmp(line, "Bytes:", 6)) snprintf(bytes, sizeof bytes, "%s", line + 6);
+        if ((!*line || last) && *fmt) {
+            const char *name = !strcmp(fmt, "MicroQRCode") ? "MicroQR" : fmt;
+            size_t need = *n + 64 + strlen(name) + strlen(pos) * 2 + strlen(bytes);
+            if (need > *cap) { *cap = need * 2; *out = realloc(*out, *cap); }
+            *n += (size_t)sprintf(*out + *n, "%s\t100\t", name);
+            int first = 1, x, y, k; const char *p = pos;
+            while (sscanf(p, " %dx%d%n", &x, &y, &k) == 2) { *n += (size_t)sprintf(*out + *n, "%s%d,%d", first ? "" : ";", x, y); first = 0; p += k; }
+            (*out)[(*n)++] = '\t';
+            for (const char *b = bytes; *b; b++) if (*b != ' ') (*out)[(*n)++] = (char)tolower((unsigned char)*b);
+            (*out)[(*n)++] = '\n'; (*out)[*n] = 0;
+            fmt[0] = pos[0] = bytes[0] = 0;
+        }
+        line = end ? end + 1 : NULL;
+    }
+    free(res);
+    return 1;
+}
+
 /* Scans BGRA pixels for barcodes. Returns malloc'd lines "SYMBOLOGY\tQUALITY\tx,y;x,y;...\tHEXDATA\n" (pixel
- * corner points), "" when nothing was found, NULL without zbar. Free with isim_media_free. */
-char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride) {
-    if (!bgra || w <= 0 || h <= 0 || !zbar_load()) return NULL;
+ * corner points), "" when nothing was found, NULL without zbar. Free with isim_media_free.
+ * extended: also look for Aztec, Data Matrix and Micro QR with zxing-cpp's ZXingReader (a process per call). */
+char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended) {
+    int zbar = zbar_load(), zx = extended && on_path("ZXingReader");
+    if (!bgra || w <= 0 || h <= 0 || (!zbar && !zx)) return NULL;
     if (stride <= 0) stride = w * 4;
     unsigned char *gray = malloc((size_t)w * h);
     for (int y = 0; y < h; y++) {
         const unsigned char *p = bgra + (size_t)y * stride;
         for (int x = 0; x < w; x++, p += 4) gray[(size_t)y * w + x] = (unsigned char)((p[0] * 29 + p[1] * 150 + p[2] * 77) >> 8);
     }
+    size_t cap = 256, n = 0; char *out = malloc(cap); out[0] = 0;
+    if (zx) zxing_scan(gray, w, h, &out, &n, &cap);
+    if (!zbar) { free(gray); return out; }
     void *sc = zb.scanner_create();
     zb.scanner_set_config(sc, 0, 0 /* ZBAR_CFG_ENABLE */, 1);
     void *img = zb.image_create();
@@ -406,7 +506,6 @@ char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride) 
     zb.image_set_size(img, (unsigned)w, (unsigned)h);
     zb.image_set_data(img, gray, (unsigned long)w * h, NULL);
     zb.scan_image(sc, img);
-    size_t cap = 256, n = 0; char *out = malloc(cap); out[0] = 0;
     for (const void *s = zb.first_symbol(img); s; s = zb.symbol_next(s)) {
         const char *name = zb.get_symbol_name(zb.symbol_get_type(s));
         unsigned dl = zb.symbol_get_data_length(s), loc = zb.symbol_get_loc_size(s);
@@ -423,6 +522,7 @@ char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride) 
     free(gray);
     return out;
 }
+char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride) { return isim_vision_barcodes_ex(bgra, w, h, stride, 0); }
 
 /* Text recognition with the host's tesseract. langs: tesseract language codes joined by '+' ("eng", "eng+fra").
  * Returns tesseract's TSV output (level, page, block, par, line, word, left, top, width, height, conf, text),

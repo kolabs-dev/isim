@@ -8,6 +8,10 @@
 	<string>HelloVideo</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.isim.samples.HelloVideo</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 </dict>

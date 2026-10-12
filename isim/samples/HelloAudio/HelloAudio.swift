@@ -54,6 +54,7 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
         try? AVAudioSession.sharedInstance().setActive(true)
         synth.delegate = self
         voices()
+        ssmlMarkers()
         systemSounds()
         effects()
         writeAndReadFiles()
@@ -79,6 +80,26 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
             if b.frameLength == 0 { log("speech rendered \(f2(Double(frames) / rate)) s, audible \(peak > 0.05)") }
         }
     }
+    /// SSML with a bookmark, rendered with markers (iOS 17): word ranges in the plain text, the mark, rising offsets
+    func ssmlMarkers() {
+        guard let u = AVSpeechUtterance(ssmlRepresentation: "<speak>Hello <mark name=\"middle\"/>big &amp; bright world</speak>") else {
+            log("ssml rejected"); return
+        }
+        var marks: [AVSpeechSynthesisMarker] = []
+        var frames = 0
+        synth.write(u, toBufferCallback: { b in frames += Int((b as! AVAudioPCMBuffer).frameLength) }, toMarkerCallback: { marks += $0 })
+        let text = u.speechString as NSString
+        let desc = marks.filter { $0.mark != .phoneme }.map { m -> String in
+            switch m.mark {
+            case .word: return "word:" + text.substring(with: m.textRange)
+            case .bookmark: return "mark:" + m.bookmarkName
+            default: return "sentence"
+            }
+        }
+        let offsets = marks.filter { $0.mark == .word }.map { $0.byteSampleOffset }
+        log("ssml text=\(u.speechString) markers=\(desc.joined(separator: ",")) rising=\(offsets == offsets.sorted() && Set(offsets).count == offsets.count) inside=\((offsets.last ?? 0) / 4 < frames)")
+        log("personal voice \(AVSpeechSynthesizer.personalVoiceAuthorizationStatus == .unsupported ? "unsupported" : "?") apple id \(AVSpeechSynthesisVoice(identifier: "com.apple.voice.compact.en-US.Samantha")?.language ?? "nil")")
+    }
     @objc func speakTapped() {
         let u = AVSpeechUtterance(string: "Hello from the isim speech synthesizer")
         u.voice = AVSpeechSynthesisVoice(language: "en-US")
@@ -97,6 +118,7 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
     func systemSounds() {
         AudioServicesPlaySystemSoundWithCompletion(1104) { log("system sound 1104 completed") }
         AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        AudioServicesPlaySystemSoundWithCompletion(1201) { log("system sound 1201 (dial pad 1) completed") }
     }
 
     // MARK: effects, rendered offline
@@ -220,14 +242,30 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
     }
 
     // MARK: MediaPlayer
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+        if keyPath == "outputVolume" { log("output volume \(String(format: "%.2f", AVAudioSession.sharedInstance().outputVolume))") }
+    }
     func nowPlaying() {
         let center = MPRemoteCommandCenter.shared()
-        var info: [String: Any] = [MPMediaItemPropertyTitle: "Test Tone", MPMediaItemPropertyArtist: "isim",
+        let art = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 120)).image { ctx in
+            let colors = [UIColor.systemPink.cgColor, UIColor.systemIndigo.cgColor] as CFArray
+            let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
+            ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: 120, y: 120), options: [])
+            UIImage(systemName: "music.note")?.withTintColor(.white).draw(in: CGRect(x: 35, y: 30, width: 50, height: 60))
+        }
+        var info: [String: Any] = [MPMediaItemPropertyTitle: "Test Tone", MPMediaItemPropertyArtist: "isim", MPMediaItemPropertyAlbumTitle: "Samples",
                                    MPMediaItemPropertyPlaybackDuration: 30.0, MPNowPlayingInfoPropertyElapsedPlaybackTime: 0.0,
-                                   MPNowPlayingInfoPropertyPlaybackRate: 1.0]
+                                   MPNowPlayingInfoPropertyPlaybackRate: 1.0, MPMediaItemPropertyArtwork: MPMediaItemArtwork(boundsSize: art.size) { _ in art }]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-        _ = center.playCommand.addTarget { _ in log("remote play"); return .success }
-        _ = center.pauseCommand.addTarget { _ in log("remote pause"); return .success }
+        _ = center.playCommand.addTarget { _ in
+            info[MPNowPlayingInfoPropertyPlaybackRate] = 1.0; MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+            log("remote play"); return .success
+        }
+        _ = center.pauseCommand.addTarget { _ in
+            info[MPNowPlayingInfoPropertyPlaybackRate] = 0.0; MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+            log("remote pause"); return .success
+        }
+        AVAudioSession.sharedInstance().addObserver(self, forKeyPath: "outputVolume", options: [.new], context: nil)
         center.skipForwardCommand.preferredIntervals = [NSNumber(value: 15)]
         _ = center.skipForwardCommand.addTarget { e in
             log("remote skip \(Int((e as! MPSkipIntervalCommandEvent).interval))"); return .success

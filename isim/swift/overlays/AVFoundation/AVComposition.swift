@@ -353,13 +353,64 @@ open class AVMutableAudioMix: AVAudioMix, @unchecked Sendable {
 }
 open class AVAudioMixInputParameters: NSObject, @unchecked Sendable {
     open var trackID: CMPersistentTrackID = 0
-    var _volume: Float = 1
+    open var audioTimePitchAlgorithm: AVAudioTimePitchAlgorithm?
+    /// volume changes in time order: a constant volume from `start`, or a ramp over [start, end]
+    struct _Change { let start: Double; let end: Double; let from: Float; let to: Float }
+    var _changes: [_Change] = []
+    var _volume: Float { _changes.first?.from ?? 1 }
+    /// the ramp (or constant volume) in effect at `time`
+    open func getVolumeRamp(for time: CMTime, startVolume: UnsafeMutablePointer<Float>?, endVolume: UnsafeMutablePointer<Float>?,
+                            timeRange: UnsafeMutablePointer<CMTimeRange>?) -> Bool {
+        let t = time.seconds
+        guard let c = _changes.last(where: { $0.start <= t }) else { return false }
+        startVolume?.pointee = c.from; endVolume?.pointee = c.to
+        timeRange?.pointee = CMTimeRange(start: CMTime(seconds: c.start, preferredTimescale: 600),
+                                         duration: c.end.isFinite ? CMTime(seconds: c.end - c.start, preferredTimescale: 600) : .positiveInfinity)
+        return true
+    }
+    /// an ffmpeg volume expression of t (seconds from the start of the output), nil for unity gain
+    func _expression(offset: Double = 0) -> String? {
+        let cs = _changes.sorted { $0.start < $1.start }
+        guard !cs.isEmpty, !(cs.count == 1 && cs[0].from == 1 && cs[0].to == 1) else { return nil }
+        func f(_ v: Double) -> String { String(format: "%.6f", v) }
+        // change i holds from its start to the next change: its ramp, then its end volume; before the first: 1
+        func region(_ c: _Change) -> String {
+            guard c.end.isFinite, c.end > c.start else { return "\(c.to)" }
+            return "if(lt(t,\(f(c.end - offset))),\(c.from)+(\(c.to - c.from))*(t-\(f(c.start - offset)))/\(f(c.end - c.start)),\(c.to))"
+        }
+        var e = region(cs[cs.count - 1])
+        for i in stride(from: cs.count - 2, through: 0, by: -1) { e = "if(lt(t,\(f(cs[i + 1].start - offset))),\(region(cs[i])),\(e))" }
+        e = "if(lt(t,\(f(cs[0].start - offset))),1,\(e))"
+        return e
+    }
+    func _filter(offset: Double = 0) -> String? { _expression(offset: offset).map { "volume='\($0)':eval=frame" } }
 }
 open class AVMutableAudioMixInputParameters: AVAudioMixInputParameters, @unchecked Sendable {
     public convenience init(track: AVAssetTrack?) { self.init(); trackID = track?.trackID ?? 0 }
-    /// isim: a constant volume is applied on export; ramps use their start volume (adapted).
-    open func setVolume(_ volume: Float, at time: CMTime) { _volume = volume }
-    open func setVolumeRamp(fromStartVolume startVolume: Float, toEndVolume endVolume: Float, timeRange: CMTimeRange) { _volume = startVolume }
+    open func setVolume(_ volume: Float, at time: CMTime) {
+        let t = time.isNumeric ? time.seconds : 0
+        _changes.removeAll { $0.start == t }
+        _changes.append(_Change(start: t, end: .infinity, from: volume, to: volume))
+    }
+    open func setVolumeRamp(fromStartVolume startVolume: Float, toEndVolume endVolume: Float, timeRange: CMTimeRange) {
+        let a = timeRange.start.isNumeric ? timeRange.start.seconds : 0
+        let b = timeRange.end.isNumeric ? timeRange.end.seconds : a
+        _changes.removeAll { $0.start == a }
+        _changes.append(_Change(start: a, end: b, from: startVolume, to: endVolume))
+    }
+}
+public struct AVAudioTimePitchAlgorithm: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public static let lowQualityZeroLatency = AVAudioTimePitchAlgorithm(rawValue: "LowQualityZeroLatency")
+    public static let timeDomain = AVAudioTimePitchAlgorithm(rawValue: "TimeDomain")
+    public static let spectral = AVAudioTimePitchAlgorithm(rawValue: "Spectral")
+    public static let varispeed = AVAudioTimePitchAlgorithm(rawValue: "Varispeed")
+}
+extension AVAudioMix {
+    func _params(_ trackID: CMPersistentTrackID) -> AVAudioMixInputParameters? {
+        (self as? AVMutableAudioMix)?.inputParameters.first { $0.trackID == trackID } ?? (self as? AVMutableAudioMix)?.inputParameters.first { $0.trackID == 0 }
+    }
 }
 
 // MARK: - export
@@ -453,23 +504,28 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
     }
 
     func _fail(_ e: Error) { error = e; status = .failed }
+    /// isim: AVAssetReader renders compositions, audio mixes and video compositions losslessly (FFV1 video, float PCM,
+    /// Matroska) into a temporary file it then decodes
+    var _lossless = false
+    var _wantVideo = true, _wantAudio = true
+    var _audioTrackIDs: [CMPersistentTrackID]?
     func _run() {
         guard status != .cancelled else { return }
         guard let out = outputURL else { _fail(_avNSError(.exportFailed, "outputURL is not set")); return }
         guard let ft = outputFileType ?? (supportedFileTypes.first) else { _fail(_avNSError(.exportFailed, "outputFileType is not set")); return }
-        guard supportedFileTypes.contains(ft) else { _fail(_avNSError(.exportFailed, "the preset does not support \(ft.rawValue)")); return }
+        guard _lossless || supportedFileTypes.contains(ft) else { _fail(_avNSError(.exportFailed, "the preset does not support \(ft.rawValue)")); return }
         if FileManager.default.fileExists(atPath: out.path) { _fail(_avNSError(.fileAlreadyExists, "the output file already exists")); return }
         status = .exporting
         let total = asset.duration.seconds
         let r0 = timeRange.start.isNumeric ? max(0, timeRange.start.seconds) : 0
         let r1 = timeRange.end.isNumeric ? min(total, timeRange.end.seconds) : total
         guard r1 > r0 else { _fail(_avNSError(.exportFailed, "the time range is empty")); return }
-        let (mux, takesVideo) = ft._muxer
-        let video = takesVideo && !_audioOnly
+        let (mux, takesVideo) = _lossless ? ("matroska", true) : ft._muxer
+        let video = takesVideo && !_audioOnly && _wantVideo
         var args = ["-y"]
         var maps: [String] = []
         if let comp = asset as? AVComposition {
-            let (inputs, graph, vlabel, alabel) = _compositionGraph(comp, from: r0, to: r1, video: video)
+            let (inputs, graph, vlabel, alabel) = _compositionGraph(comp, from: r0, to: r1, video: video, audio: _wantAudio, audioTrackIDs: _audioTrackIDs)
             args += inputs
             if !graph.isEmpty { args += ["-filter_complex", graph] }
             if let v = vlabel { maps += ["-map", v] }
@@ -480,17 +536,37 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
             guard let u = asset._url, asset.isPlayable else { _fail(_avLoadError(asset)); return }
             args += ["-ss", String(format: "%.6f", r0), "-t", String(format: "%.6f", r1 - r0), "-i", _path(u)]
             if !video { args += ["-vn"] }
-            if let vf = _scaleFilter(), video, presetName != AVAssetExportPresetPassthrough { args += ["-vf", vf] }
+            if !_wantAudio { args += ["-an"] }
+            var vf = [_scaleFilter()].compactMap { $0 }
+            if let vc = videoComposition, vc.frameDuration.seconds > 0 { vf.append("fps=\(1 / vc.frameDuration.seconds)") }
+            if !vf.isEmpty, video, presetName != AVAssetExportPresetPassthrough { args += ["-vf", vf.joined(separator: ",")] }
+            // several audio tracks: each at its volume, mixed; one track: its volume curve
+            let audioTracks = asset.tracks(withMediaType: .audio).filter { _audioTrackIDs == nil || _audioTrackIDs!.contains($0.trackID) }
+            if _wantAudio, let mix = audioMix, presetName != AVAssetExportPresetPassthrough {
+                if audioTracks.count > 1 {
+                    let chains = audioTracks.enumerated().map { i, t in "[0:a:\(i)]\(mix._params(t.trackID)?._filter(offset: r0) ?? "anull")[m\(i)]" }
+                    args += ["-filter_complex", chains.joined(separator: ";") + ";" + (0..<audioTracks.count).map { "[m\($0)]" }.joined()
+                             + "amix=inputs=\(audioTracks.count):normalize=0:duration=longest[amixed]", "-map", "[amixed]"]
+                    if video { args += ["-map", "0:v:0"] }
+                } else if let f = audioTracks.first.flatMap({ mix._params($0.trackID)?._filter(offset: r0) }) { args += ["-af", f] }
+            }
         }
-        if presetName == AVAssetExportPresetPassthrough && !(asset is AVComposition) {
+        if _lossless {
+            if video { args += ["-c:v", "ffv1", "-pix_fmt", "bgra"] }
+            args += ["-c:a", "pcm_f32le", "-ar", "48000"]
+        } else if presetName == AVAssetExportPresetPassthrough && !(asset is AVComposition) {
             args += ["-c", "copy"]
         } else {
             if video { args += _FFmpeg.videoCodecArgs(presetName.contains("HEVC") ? .hevc : .h264, bitrate: _bitrate) }
             args += _FFmpeg.audioCodecArgs(nil, fileType: ft == .mov && _audioOnly ? .m4a : ft)
         }
-        if let mix = audioMix as? AVMutableAudioMix, let v = mix.inputParameters.first?._volume, v != 1, !(asset is AVComposition) { args += ["-af", "volume=\(v)"] }
         if shouldOptimizeForNetworkUse && (mux == "mp4" || mux == "mov" || mux == "ipod") { args += ["-movflags", "+faststart"] }
         if fileLengthLimit > 0 { args += ["-fs", String(fileLengthLimit)] }
+        let items = (metadata ?? []).compactMap { $0 as? AVMetadataItem }
+        if !items.isEmpty && !_lossless {
+            args += _MetadataMap.arguments(items)
+            if ["mov", "mp4", "ipod"].contains(mux) { args += ["-movflags", "use_metadata_tags"] }
+        }
         args += ["-f", mux, _path(out)]
         let err = withUnsafeMutablePointer(to: &_progress) { p in withUnsafeMutablePointer(to: &_cancel) { c in _FFmpeg.run(args, progress: p, cancel: c) } }
         if _cancel != 0 { status = .cancelled; try? FileManager.default.removeItem(at: out); return }
@@ -537,16 +613,19 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
     }
 
     /// ffmpeg inputs and a filter graph for the composition's segments within [r0, r1].
-    func _compositionGraph(_ comp: AVComposition, from r0: Double, to r1: Double, video wantVideo: Bool) -> ([String], String, String?, String?) {
+    func _compositionGraph(_ comp: AVComposition, from r0: Double, to r1: Double, video wantVideo: Bool, audio wantAudio: Bool = true,
+                           audioTrackIDs: [CMPersistentTrackID]? = nil) -> ([String], String, String?, String?) {
         var inputs: [String] = [], chains: [String] = []
         var vlabel: String?, alabel: String?
         var n = 0
         let size = _outputSize(comp.naturalSize == .zero ? CGSize(width: 640, height: 360) : comp.naturalSize)
         let fps = Double(comp._tracks.first { $0.mediaType == .video }?.nominalFrameRate ?? 30).nonZero ?? 30
         let fr = videoComposition.map { $0.frameDuration.seconds > 0 ? 1 / $0.frameDuration.seconds : fps } ?? fps
-        let vol = (audioMix as? AVMutableAudioMix)?.inputParameters.first?._volume ?? 1
-        for kind in [AVMediaType.video, .audio] {
-            guard kind == .audio || wantVideo, let track = comp._tracks.first(where: { $0.mediaType == kind && !$0._segments.isEmpty }) else { continue }
+        var jobs: [(AVMediaType, AVMutableCompositionTrack)] = []
+        if wantVideo, let v = comp._tracks.first(where: { $0.mediaType == .video && !$0._segments.isEmpty }) { jobs.append((.video, v)) }
+        if wantAudio { for a in comp._tracks where a.mediaType == .audio && !a._segments.isEmpty && (audioTrackIDs == nil || audioTrackIDs!.contains(a.trackID)) { jobs.append((.audio, a)) } }
+        var audioOuts: [String] = []
+        for (kind, track) in jobs {
             var parts: [String] = []
             var t = r0
             let segs = track._segments.filter { $0._target.end.seconds > r0 + 1e-6 && $0._target.start.seconds < r1 - 1e-6 }
@@ -575,16 +654,22 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
                     while f > 2.0 { tempo += ",atempo=2.0"; f /= 2 }
                     while f < 0.5 { tempo += ",atempo=0.5"; f /= 0.5 }
                     if abs(f - 1) > 1e-4 { tempo += ",atempo=\(f)" }
-                    chains.append("[\(idx):a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo\(tempo)\(vol != 1 ? ",volume=\(vol)" : "")[\(l)]")
+                    chains.append("[\(idx):a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo\(tempo)[\(l)]")
                 }
                 parts.append(l)
                 t = b
             }
             gap(r1 - t)
             guard !parts.isEmpty else { continue }
-            let out = kind == .video ? "vout" : "aout"
-            chains.append(parts.map { "[\($0)]" }.joined() + "concat=n=\(parts.count):v=\(kind == .video ? 1 : 0):a=\(kind == .audio ? 1 : 0)[\(out)]")
-            if kind == .video { vlabel = "[vout]" } else { alabel = "[aout]" }
+            let out = kind == .video ? "vout" : "aout\(audioOuts.count)"
+            let volume = kind == .audio ? audioMix?._params(track.trackID)?._filter(offset: r0).map { "," + $0 } ?? "" : ""
+            chains.append(parts.map { "[\($0)]" }.joined() + "concat=n=\(parts.count):v=\(kind == .video ? 1 : 0):a=\(kind == .audio ? 1 : 0)\(volume)[\(out)]")
+            if kind == .video { vlabel = "[vout]" } else { audioOuts.append(out) }
+        }
+        if audioOuts.count == 1 { alabel = "[\(audioOuts[0])]" }
+        else if audioOuts.count > 1 {                 // several audio tracks play together (unnormalized sum, like iOS)
+            chains.append(audioOuts.map { "[\($0)]" }.joined() + "amix=inputs=\(audioOuts.count):normalize=0:duration=longest[amixed]")
+            alabel = "[amixed]"
         }
         return (inputs, chains.joined(separator: ";"), vlabel, alabel)
     }
@@ -596,80 +681,135 @@ extension Double { var nonZero: Double? { self > 0 ? self : nil } }
 open class AVAssetReaderOutput: NSObject, @unchecked Sendable {
     open var mediaType: AVMediaType { .video }
     open var alwaysCopiesSampleData = true
+    /// with random access, the output ends each time range (copyNextSampleBuffer returns nil) and reads the next ones
+    /// given to reset(forReadingTimeRanges:) until markConfigurationAsFinal()
     open var supportsRandomAccess = false
     weak var _reader: AVAssetReader?
-    open func copyNextSampleBuffer() -> CMSampleBuffer? { nil }
-    open func reset(forReadingTimeRanges timeRanges: [NSValue]) {}
-    open func markConfigurationAsFinal() {}
-    func _start(_ range: CMTimeRange) -> Bool { false }
-    func _stop() {}
+    var _ranges: [CMTimeRange] = []
+    var _final = false
+    var _stream: _ReaderStream?
+    open func copyNextSampleBuffer() -> CMSampleBuffer? {
+        guard var st = _stream, _reader?.status == .reading else { return nil }
+        while true {
+            if let sb = st.next() { return sb }
+            st.close()
+            guard let nxt = st.following?() else { break }      // the next of several time ranges, without a pause
+            st = nxt
+        }
+        if supportsRandomAccess && !_final { _stream = nil; return nil }      // waits for reset(forReadingTimeRanges:)
+        _stream = nil
+        _reader?._outputEnded()
+        return nil
+    }
+    open func reset(forReadingTimeRanges timeRanges: [NSValue]) {
+        guard supportsRandomAccess, !_final, _reader?.status == .reading else {
+            NSLog("isim AVFoundation: reset(forReadingTimeRanges:) needs supportsRandomAccess and a reading reader (iOS raises an exception)"); return
+        }
+        _ranges = timeRanges.map(\.timeRangeValue)
+        _stream?.close()
+        _stream = nil
+        _nextRange()
+    }
+    open func markConfigurationAsFinal() {
+        _final = true
+        if _stream == nil && _ranges.isEmpty && _reader?.status == .reading { _reader?._outputEnded() }
+    }
+    /// opens the stream for the next queued time range
+    @discardableResult func _nextRange() -> Bool {
+        guard !_ranges.isEmpty else { return false }
+        let r = _ranges.removeFirst()
+        _stream = _open(r)
+        if _stream == nil { return false }
+        _stream?.following = _ranges.isEmpty ? nil : { [weak self] in self?._advance() }
+        return true
+    }
+    func _advance() -> _ReaderStream? { _nextRange() ? _stream : nil }
+    func _start(_ range: CMTimeRange) -> Bool {
+        _ranges = [range]
+        return _nextRange()
+    }
+    func _open(_ range: CMTimeRange) -> _ReaderStream? { nil }
+    func _stop() { _stream?.close(); _stream = nil }
 }
 
-/// Decoded samples of one track: video as CVPixelBuffers (32BGRA or 420 per outputSettings), audio as linear PCM.
-open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
-    public let track: AVAssetTrack
-    public let outputSettings: [String: Any]?
-    open override var mediaType: AVMediaType { track.mediaType }
-    var _handle: Int32 = 0
-    var _frame = 0
-    var _w = 0, _h = 0, _fps = 30.0, _start = 0.0
-    var _asbd = AudioStreamBasicDescription()
-    var _audioFrames = 0
-    var _downmix = false
-    public init(track: AVAssetTrack, outputSettings: [String: Any]?) { self.track = track; self.outputSettings = outputSettings }
-    override func _start(_ range: CMTimeRange) -> Bool {
-        guard let u = track.asset?._url else { return false }
-        _start = range.start.isNumeric ? range.start.seconds : 0
+/// A source of sample buffers for one time range.
+class _ReaderStream {
+    var following: (() -> _ReaderStream?)?
+    func next() -> CMSampleBuffer? { nil }
+    func close() {}
+}
+
+/// Decoded frames / PCM of a media file's first video or audio stream (ffmpeg, host_capture.c).
+final class _DecodedStream: _ReaderStream {
+    let video: Bool
+    var handle: Int32 = 0
+    var frame = 0, w = 0, h = 0, fps = 30.0, start = 0.0
+    var asbd = AudioStreamBasicDescription()
+    var audioFrames = 0
+    var downmix = false
+    var pixelFormat: OSType = kCVPixelFormatType_32BGRA
+    /// the frames' own presentation times (MP4 / QuickTime sources), else frames come at a constant rate
+    var times: [Double]?
+    init?(url: URL, video: Bool, range: CMTimeRange, settings: [String: Any]?, size: CGSize, fps: Double) {
+        self.video = video
+        super.init()
+        start = range.start.isNumeric ? range.start.seconds : 0
         let dur = range.duration.isNumeric ? range.duration.seconds : 0
-        if track.mediaType == .video {
-            _w = Int(track.naturalSize.width); _h = Int(track.naturalSize.height); _fps = Double(track.nominalFrameRate).nonZero ?? 30
-            if let w = _num(outputSettings, AVVideoWidthKey), let h = _num(outputSettings, AVVideoHeightKey) { _w = Int(w); _h = Int(h) }
-            _handle = isim_media_reader_open(_path(u), 0, _start, dur, Int32(_w), Int32(_h), _fps, 0)
+        if video {
+            w = Int(size.width); h = Int(size.height); self.fps = fps > 0 ? fps : 30
+            if let sw = _num(settings, AVVideoWidthKey), let sh = _num(settings, AVVideoHeightKey) { w = Int(sw); h = Int(sh) }
+            if w <= 0 || h <= 0 { let m = _AVMediaInfo(url: url); w = Int(m.width); h = Int(m.height); if fps <= 0 { self.fps = m.fps > 0 ? m.fps : 30 } }
+            if let d = try? Data(contentsOf: url, options: .alwaysMapped), let t = _MP4.read(d)?.first(where: { $0.isVideo }) {
+                let ts = Double(t.timescale), end = range.end.isNumeric && range.duration.isNumeric ? range.end.seconds : .infinity
+                let all = t.samples.map { Double($0.cts - t.editMediaTime) / ts }.sorted()
+                times = all.filter { $0 >= start - 1e-6 && $0 < end }
+            }
+            let v = settings?[kCVPixelBufferPixelFormatTypeKey as String]
+            pixelFormat = (v as? NSNumber).map { OSType(truncatingIfNeeded: $0.int64Value) } ?? (v as? UInt32) ?? (v as? Int).map { OSType(truncatingIfNeeded: $0) } ?? kCVPixelFormatType_32BGRA
+            guard w > 0, h > 0 else { return nil }
+            handle = isim_media_reader_open(_path(url), 0, start, dur, Int32(w), Int32(h), times != nil ? -1 : self.fps, 0)
         } else {
-            let rate = _num(outputSettings, AVSampleRateKey) ?? 44100, ch = Int(_num(outputSettings, AVNumberOfChannelsKey) ?? 2)
-            let bits = Int(_num(outputSettings, AVLinearPCMBitDepthKey) ?? 16)
-            let float = (outputSettings?[AVLinearPCMIsFloatKey] as? Bool) ?? false
+            let rate = _num(settings, AVSampleRateKey) ?? 44100, ch = Int(_num(settings, AVNumberOfChannelsKey) ?? 2)
+            let bits = Int(_num(settings, AVLinearPCMBitDepthKey) ?? 16)
+            let float = (settings?[AVLinearPCMIsFloatKey] as? Bool) ?? false
             let fb = UInt32(ch * (float ? 4 : bits / 8))
-            _asbd = AudioStreamBasicDescription(mSampleRate: rate, mFormatID: kAudioFormatLinearPCM,
-                                                mFormatFlags: (float ? kAudioFormatFlagIsFloat : kAudioFormatFlagIsSignedInteger) | kAudioFormatFlagIsPacked,
-                                                mBytesPerPacket: fb, mFramesPerPacket: 1, mBytesPerFrame: fb, mChannelsPerFrame: UInt32(ch),
-                                                mBitsPerChannel: UInt32(float ? 32 : bits), mReserved: 0)
+            asbd = AudioStreamBasicDescription(mSampleRate: rate, mFormatID: kAudioFormatLinearPCM,
+                                               mFormatFlags: (float ? kAudioFormatFlagIsFloat : kAudioFormatFlagIsSignedInteger) | kAudioFormatFlagIsPacked,
+                                               mBytesPerPacket: fb, mFramesPerPacket: 1, mBytesPerFrame: fb, mChannelsPerFrame: UInt32(ch),
+                                               mBitsPerChannel: UInt32(float ? 32 : bits), mReserved: 0)
             // ffmpeg's stereo-to-mono downmix is -3 dB; decode stereo and average it here instead (like iOS)
-            _downmix = ch == 1
-            _handle = isim_media_reader_open(_path(u), 1, _start, dur, 0, 0, rate, Int32(_downmix ? 2 : ch))
+            downmix = ch == 1
+            handle = isim_media_reader_open(_path(url), 1, start, dur, 0, 0, rate, Int32(downmix ? 2 : ch))
         }
-        return _handle > 0
+        if handle <= 0 { return nil }
     }
-    override func _stop() { if _handle > 0 { isim_media_reader_close(_handle); _handle = 0 } }
-    open override func copyNextSampleBuffer() -> CMSampleBuffer? {
-        guard _handle > 0, _reader?.status == .reading else { return nil }
-        if track.mediaType == .video {
-            let n = _w * _h * 4
+    override func close() { if handle > 0 { isim_media_reader_close(handle); handle = 0 } }
+    override func next() -> CMSampleBuffer? {
+        guard handle > 0 else { return nil }
+        if video {
+            let n = w * h * 4
             var px = [UInt8](repeating: 0, count: n)
-            let got = px.withUnsafeMutableBytes { isim_media_reader_read(_handle, $0.baseAddress!, n) }
-            guard got == n else { _reader?._outputEnded(); return nil }
-            let fmt: OSType = {
-                let v = outputSettings?[kCVPixelBufferPixelFormatTypeKey as String]
-                if let n = v as? NSNumber { return OSType(truncatingIfNeeded: n.int64Value) }
-                if let u = v as? UInt32 { return u }
-                if let i = v as? Int { return OSType(truncatingIfNeeded: i) }
-                return kCVPixelFormatType_32BGRA
-            }()
-            guard let pb = px.withUnsafeBufferPointer({ _pixelBuffer(fromBGRA: $0.baseAddress!, width: _w, height: _h, format: fmt) }) else { return nil }
-            let t = CMTime(seconds: _start + Double(_frame) / _fps, preferredTimescale: 600)
-            _frame += 1
-            return CMSampleBuffer(_imageBuffer: pb, presentationTime: t, duration: CMTime(seconds: 1 / _fps, preferredTimescale: 600))
+            let got = px.withUnsafeMutableBytes { isim_media_reader_read(handle, $0.baseAddress!, n) }
+            guard got == n else { return nil }
+            guard let pb = px.withUnsafeBufferPointer({ _pixelBuffer(fromBGRA: $0.baseAddress!, width: w, height: h, format: pixelFormat) }) else { return nil }
+            var t = start + Double(frame) / fps, d = 1 / fps
+            if let ts = times, !ts.isEmpty {
+                let i = min(frame, ts.count - 1)
+                t = ts[i]; d = i + 1 < ts.count ? ts[i + 1] - ts[i] : (i > 0 ? ts[i] - ts[i - 1] : d)
+            }
+            frame += 1
+            return CMSampleBuffer(_imageBuffer: pb, presentationTime: CMTime(seconds: t, preferredTimescale: 600), duration: CMTime(seconds: d, preferredTimescale: 600))
         }
-        let ch = Int(_asbd.mChannelsPerFrame), chunk = 4096, rch = _downmix ? 2 : ch
+        let ch = Int(asbd.mChannelsPerFrame), chunk = 4096, rch = downmix ? 2 : ch
         var f = [Float](repeating: 0, count: chunk * rch)
-        let got = f.withUnsafeMutableBytes { isim_media_reader_read(_handle, $0.baseAddress!, chunk * rch * 4) }
+        let got = f.withUnsafeMutableBytes { isim_media_reader_read(handle, $0.baseAddress!, chunk * rch * 4) }
         let frames = got / (rch * 4)
-        guard frames > 0 else { _reader?._outputEnded(); return nil }
-        if _downmix { f = (0..<frames).map { (f[2 * $0] + f[2 * $0 + 1]) / 2 } }
+        guard frames > 0 else { return nil }
+        if downmix { f = (0..<frames).map { (f[2 * $0] + f[2 * $0 + 1]) / 2 } }
         var bytes: [UInt8]
-        if _asbd._isFloat { bytes = f.withUnsafeBytes { Array($0.prefix(frames * ch * 4)) } }
+        if asbd._isFloat { bytes = f.withUnsafeBytes { Array($0.prefix(frames * ch * 4)) } }
         else {
-            let bps = Int(_asbd.mBitsPerChannel) / 8
+            let bps = Int(asbd.mBitsPerChannel) / 8
             bytes = [UInt8](repeating: 0, count: frames * ch * bps)
             for i in 0..<(frames * ch) {
                 let x = Double(max(-1, min(1, f[i])))
@@ -677,9 +817,118 @@ open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
                 for k in 0..<bps { bytes[i * bps + k] = UInt8(truncatingIfNeeded: (bps == 1 ? v + 128 : v) >> (8 * Int32(k))) }
             }
         }
-        let t = CMTime(value: Int64(_audioFrames), timescale: Int32(_asbd.mSampleRate)) + CMTime(seconds: _start, preferredTimescale: Int32(_asbd.mSampleRate))
-        _audioFrames += frames
-        return CMSampleBuffer(_audio: bytes, format: _asbd, presentationTime: t)
+        let t = CMTime(value: Int64(audioFrames), timescale: Int32(asbd.mSampleRate)) + CMTime(seconds: start, preferredTimescale: Int32(asbd.mSampleRate))
+        audioFrames += frames
+        return CMSampleBuffer(_audio: bytes, format: asbd, presentationTime: t)
+    }
+}
+
+/// The compressed samples of a track as stored in the file (MP4.swift): pass-through reading.
+final class _PassthroughStream: _ReaderStream {
+    let data: Data
+    let track: _MP4Track
+    let format: CMFormatDescription
+    var index: Int
+    let end: Int64?
+    init?(url: URL, mediaType: AVMediaType, ordinal: Int, range: CMTimeRange) {
+        guard let (d, tracks) = _MP4.open(url) else { return nil }
+        let same = tracks.filter { mediaType == .video ? $0.isVideo : $0.isAudio }
+        guard ordinal < same.count else { return nil }
+        let t = same[ordinal]
+        data = d; track = t
+        var atoms: [String: Any] = [:]
+        for (k, v) in t.atoms { atoms[k] = v }
+        if t.isVideo {
+            format = CMFormatDescription(_codec: t.codec, width: t.width, height: t.height,
+                                         extensions: [kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String: atoms])
+        } else {
+            let id: AudioFormatID = t.codec == _MP4.fourcc("mp4a") ? kAudioFormatMPEG4AAC : t.codec
+            var asbd = AudioStreamBasicDescription()
+            asbd.mFormatID = id; asbd.mSampleRate = t.sampleRate; asbd.mChannelsPerFrame = UInt32(t.channels)
+            asbd.mFramesPerPacket = id == kAudioFormatMPEG4AAC ? 1024 : 0
+            format = CMFormatDescription(_audio: asbd)
+            format._extensions = [kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String: atoms]
+            if let esds = t.atoms["esds"] { format._cookie = Array(esds) }
+        }
+        let ts = Double(t.timescale)
+        let s0 = range.start.isNumeric ? Int64(range.start.seconds * ts) : 0
+        end = range.end.isNumeric && range.duration.isNumeric ? Int64(range.end.seconds * ts) : nil
+        // from the last sync sample at or before the start (a decoder needs it)
+        var i = t.samples.firstIndex { $0.cts - t.editMediaTime + $0.duration > s0 } ?? t.samples.count
+        while i > 0 && i < t.samples.count && !t.samples[i].sync { i -= 1 }
+        index = i
+        super.init()
+    }
+    override func next() -> CMSampleBuffer? {
+        guard index < track.samples.count else { return nil }
+        let smp = track.samples[index]
+        let pts = smp.cts - track.editMediaTime
+        if let e = end, pts >= e { return nil }
+        index += 1
+        let ts = track.timescale
+        let bytes = Array(data[(data.startIndex + smp.offset)..<(data.startIndex + smp.offset + smp.size)])
+        let timing = CMSampleTimingInfo(duration: CMTime(value: smp.duration, timescale: ts), presentationTimeStamp: CMTime(value: pts, timescale: ts),
+                                        decodeTimeStamp: CMTime(value: smp.dts - track.editMediaTime, timescale: ts))
+        let sb = CMSampleBuffer(_block: CMBlockBuffer(_bytes: bytes), format: format, count: 1, timings: [timing], sizes: [smp.size])
+        if !smp.sync {
+            let a = NSMutableDictionary(); a.setObject(true, forKey: kCMSampleAttachmentKey_NotSync as String as NSString); a.setObject(true, forKey: kCMSampleAttachmentKey_DependsOnOthers as String as NSString)
+            sb._sampleAttachments = [a]
+        }
+        return sb
+    }
+}
+
+/// Decoded (or, with nil output settings, stored compressed) samples of one track: video as CVPixelBuffers (32BGRA or
+/// 420 per outputSettings), audio as linear PCM. Composition tracks are rendered first.
+open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
+    public let track: AVAssetTrack
+    public let outputSettings: [String: Any]?
+    open override var mediaType: AVMediaType { track.mediaType }
+    open var audioTimePitchAlgorithm: AVAudioTimePitchAlgorithm?
+    public init(track: AVAssetTrack, outputSettings: [String: Any]?) { self.track = track; self.outputSettings = outputSettings }
+    override func _open(_ range: CMTimeRange) -> _ReaderStream? {
+        guard let asset = track.asset ?? _reader?.asset else { return nil }
+        if outputSettings == nil && !(asset is AVComposition) {
+            guard let u = asset._url else { return nil }
+            let ordinal = asset.tracks(withMediaType: track.mediaType).firstIndex { $0.trackID == track.trackID } ?? 0
+            return _PassthroughStream(url: u, mediaType: track.mediaType, ordinal: ordinal, range: range)
+        }
+        let video = track.mediaType == .video
+        guard let u = asset is AVComposition ? _reader?._render(video: video, audioTrackIDs: video ? nil : [track.trackID], audioMix: nil, videoComposition: nil)
+                                             : asset._url else { return nil }
+        return _DecodedStream(url: u, video: video, range: range, settings: outputSettings ?? [:], size: track.naturalSize == .zero ? asset.naturalSize : track.naturalSize,
+                              fps: Double(track.nominalFrameRate))
+    }
+}
+
+/// The asset's audio tracks mixed (at the audio mix's volumes and ramps) as linear PCM.
+open class AVAssetReaderAudioMixOutput: AVAssetReaderOutput, @unchecked Sendable {
+    public let audioTracks: [AVAssetTrack]
+    public let audioSettings: [String: Any]?
+    open var audioMix: AVAudioMix?
+    open var audioTimePitchAlgorithm: AVAudioTimePitchAlgorithm?
+    open override var mediaType: AVMediaType { .audio }
+    public init(audioTracks: [AVAssetTrack], audioSettings: [String: Any]?) { self.audioTracks = audioTracks; self.audioSettings = audioSettings }
+    override func _open(_ range: CMTimeRange) -> _ReaderStream? {
+        guard let u = _reader?._render(video: false, audioTrackIDs: audioTracks.map(\.trackID), audioMix: audioMix, videoComposition: nil) else { return nil }
+        return _DecodedStream(url: u, video: false, range: range, settings: audioSettings ?? [:], size: .zero, fps: 0)
+    }
+}
+
+/// The asset's video as the video composition renders it (render size, frame duration).
+open class AVAssetReaderVideoCompositionOutput: AVAssetReaderOutput, @unchecked Sendable {
+    public let videoTracks: [AVAssetTrack]
+    public let videoSettings: [String: Any]?
+    open var videoComposition: AVVideoComposition?
+    open var customVideoCompositor: AnyObject? { nil }
+    open override var mediaType: AVMediaType { .video }
+    public init(videoTracks: [AVAssetTrack], videoSettings: [String: Any]?) { self.videoTracks = videoTracks; self.videoSettings = videoSettings }
+    override func _open(_ range: CMTimeRange) -> _ReaderStream? {
+        guard let asset = _reader?.asset,
+              let u = _reader?._render(video: true, audioTrackIDs: [], audioMix: nil, videoComposition: videoComposition) else { return nil }
+        let size = videoComposition.map { $0.renderSize.width > 0 ? $0.renderSize : asset.naturalSize } ?? asset.naturalSize
+        let fps = videoComposition.map { $0.frameDuration.seconds > 0 ? 1 / $0.frameDuration.seconds : 30 } ?? Double(videoTracks.first?.nominalFrameRate ?? 30)
+        return _DecodedStream(url: u, video: true, range: range, settings: videoSettings ?? [:], size: size, fps: fps)
     }
 }
 
@@ -691,12 +940,13 @@ open class AVAssetReader: NSObject, @unchecked Sendable {
     open private(set) var error: Error?
     open var timeRange = CMTimeRange(start: .zero, duration: .positiveInfinity)
     var _ended = 0
+    var _renders: [String: URL] = [:]
     public init(asset: AVAsset) throws {
         self.asset = asset
         super.init()
-        if asset is AVComposition { throw AVError(.operationNotAllowed, reason: "isim's AVAssetReader reads media files; export the composition first") }
-        try asset._check()
+        if !(asset is AVComposition) { try asset._check() }
     }
+    deinit { for u in _renders.values { try? FileManager.default.removeItem(at: u) } }
     open func canAdd(_ output: AVAssetReaderOutput) -> Bool { status == .unknown && !outputs.contains(output) }
     open func add(_ output: AVAssetReaderOutput) { if canAdd(output) { outputs.append(output); output._reader = self } }
     @discardableResult open func startReading() -> Bool {
@@ -705,7 +955,7 @@ open class AVAssetReader: NSObject, @unchecked Sendable {
         for o in outputs where !o._start(timeRange) {
             outputs.forEach { $0._stop() }
             status = .failed
-            error = _avNSError(.decoderNotFound, "isim needs ffmpeg on the host to decode media")
+            if error == nil { error = _avNSError(.decoderNotFound, "isim needs ffmpeg on the host to decode media") }
             return false
         }
         return true
@@ -714,6 +964,20 @@ open class AVAssetReader: NSObject, @unchecked Sendable {
     func _outputEnded() {
         _ended += 1
         if _ended >= outputs.count, status == .reading { status = .completed; outputs.forEach { $0._stop() } }
+    }
+    /// the asset rendered losslessly for decoding: a composition, an audio mix or a video composition (cached)
+    func _render(video: Bool, audioTrackIDs: [CMPersistentTrackID]?, audioMix: AVAudioMix?, videoComposition: AVVideoComposition?) -> URL? {
+        let key = "\(video) \(audioTrackIDs.map { $0.map(String.init).joined(separator: ",") } ?? "all") \(audioMix.map { "\(ObjectIdentifier($0))" } ?? "") \(videoComposition.map { "\(ObjectIdentifier($0))" } ?? "")"
+        if let u = _renders[key] { return u }
+        guard let s = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return nil }
+        let out = URL(fileURLWithPath: NSTemporaryDirectory() + "isim-reader-\(UUID().uuidString).mkv")
+        s.outputURL = out; s.outputFileType = .mov
+        s._lossless = true; s._wantVideo = video; s._wantAudio = audioTrackIDs.map { !$0.isEmpty } ?? true; s._audioTrackIDs = audioTrackIDs
+        s.audioMix = audioMix; s.videoComposition = videoComposition
+        s._run()
+        guard s.status == .completed else { error = s.error ?? _avNSError(.decodeFailed, "the asset could not be rendered"); return nil }
+        _renders[key] = out
+        return out
     }
 }
 
@@ -768,6 +1032,9 @@ open class AVAssetWriterInput: NSObject, @unchecked Sendable {
     var _audio: Data?
     var _audioASBD: AudioStreamBasicDescription?
     var _firstTime: CMTime?
+    /// pass-through: compressed samples (payload, presentation, decode time, duration, sync) and their format
+    var _compressed: [(Data, CMTime, CMTime, CMTime, Bool)] = []
+    var _compressedFormat: CMFormatDescription?
     public init(mediaType: AVMediaType, outputSettings: [String: Any]?, sourceFormatHint: CMFormatDescription?) {
         self.mediaType = mediaType; self.outputSettings = outputSettings; self.sourceFormatHint = sourceFormatHint
     }
@@ -777,6 +1044,24 @@ open class AVAssetWriterInput: NSObject, @unchecked Sendable {
     @discardableResult open func append(_ sampleBuffer: CMSampleBuffer) -> Bool {
         guard isReadyForMoreMediaData else { return false }
         if let pb = sampleBuffer.imageBuffer { return _appendPixels(pb, sampleBuffer.presentationTimeStamp) }
+        if let f = sampleBuffer.formatDescription, let block = sampleBuffer.dataBuffer,
+           f.mediaType == kCMMediaType_Video || (f.mediaType == kCMMediaType_Audio && !f._asbd._isPCM) {
+            // compressed samples: written as they are (pass-through), whatever the output settings say (adapted)
+            if _compressedFormat == nil { _compressedFormat = f; _firstTime = sampleBuffer.presentationTimeStamp }
+            let timings = sampleBuffer._timings.isEmpty ? [sampleBuffer._timing] : sampleBuffer._timings
+            for i in 0..<max(1, sampleBuffer.numSamples) {
+                guard let r = sampleBuffer._sampleRange(i) else { break }
+                let t = i < timings.count ? timings[i] : timings.last!
+                var pts = t.presentationTimeStamp, dur = t.duration
+                if timings.count == 1 && sampleBuffer.numSamples > 1, t.duration.isNumeric {    // one entry for all: consecutive samples
+                    dur = t.duration
+                    pts = t.presentationTimeStamp + CMTimeMultiply(t.duration, multiplier: Int32(i))
+                }
+                let dts = t.decodeTimeStamp.isNumeric ? (timings.count == 1 && i > 0 ? pts : t.decodeTimeStamp) : pts
+                _compressed.append((Data(block._bytes[r]), pts, dts, dur, _isimSampleIsSync(sampleBuffer, i)))
+            }
+            return true
+        }
         guard mediaType == .audio, let asbd = sampleBuffer.formatDescription?.audioStreamBasicDescription, let block = sampleBuffer.dataBuffer else { return false }
         if _audioASBD == nil { _audioASBD = asbd; _audio = Data(); _firstTime = sampleBuffer.presentationTimeStamp }
         _audio?.append(contentsOf: block._bytes)
@@ -870,41 +1155,118 @@ open class AVAssetWriter: NSObject, @unchecked Sendable {
     @available(*, deprecated) open func finishWriting() -> Bool { inputs.forEach { $0._finished = true }; _encode(); return status == .completed }
 
     func _encode() {
-        var args = ["-y"]
-        var n = 0
         let start = _sessionStart.isNumeric ? _sessionStart.seconds : 0
+        let items = metadata.compactMap { $0 as? AVMetadataItem }
+        let (muxer, _) = outputFileType._muxer
+        let movie = ["mov", "mp4", "ipod", "3gp"].contains(muxer)
         let v = inputs.first { $0.mediaType == .video && $0._video != nil }
         let a = inputs.first { $0.mediaType == .audio && $0._audio?.isEmpty == false }
-        var tmp: String?
-        if let v, let sink = v._video {
-            let lead = max(0, (v._firstTime?.seconds ?? start) - start)
-            if lead > 0.001 { args += ["-itsoffset", String(format: "%.6f", lead)] }
-            args += sink.inputArgs(); n += 1
+        let pass = inputs.filter { !$0._compressed.isEmpty }
+        // frames appended at uneven times keep them: encoded at a constant rate, then given their times again
+        let vfr: Bool = {
+            guard let times = v?._video?.times, times.count > 2 else { return false }
+            let d = zip(times.dropFirst(), times).map { $0 - $1 }
+            guard let mn = d.min(), let mx = d.max() else { return false }
+            return mx - mn > 0.002
+        }()
+        let remux = movie && (!pass.isEmpty || vfr)
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory() + "isim-writer-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        if v != nil || a != nil {
+            var args = ["-y"]
+            var n = 0
+            var pcmPath: String?
+            if let v, let sink = v._video {
+                let lead = remux ? 0 : max(0, (v._firstTime?.seconds ?? start) - start)
+                if lead > 0.001 { args += ["-itsoffset", String(format: "%.6f", lead)] }
+                args += sink.inputArgs(); n += 1
+            }
+            if let a, let asbd = a._audioASBD, let data = a._audio {
+                let p = NSTemporaryDirectory() + "isim-audio-\(UUID().uuidString).pcm"
+                FileManager.default.createFile(atPath: p, contents: data)
+                pcmPath = p
+                let bits = Int(asbd.mBitsPerChannel)
+                let fmt = asbd._isFloat ? (bits == 64 ? "f64" : "f32") : (bits == 8 ? "u8" : "s\(bits)")
+                let lead = max(0, (a._firstTime?.seconds ?? start) - start)
+                if lead > 0.001 { args += ["-itsoffset", String(format: "%.6f", lead)] }
+                args += ["-f", fmt + (bits == 8 && !asbd._isFloat ? "" : asbd._isBigEndian ? "be" : "le"), "-ar", String(Int(asbd.mSampleRate)), "-ac", String(asbd.mChannelsPerFrame), "-i", p]
+                n += 1
+            }
+            defer { if let pcmPath { try? FileManager.default.removeItem(atPath: pcmPath) } }
+            for i in 0..<n { args += ["-map", "\(i)"] }
+            if let v {
+                let codec = (v.outputSettings?[AVVideoCodecKey] as? String).map(AVVideoCodecType.init(rawValue:)) ?? (v.outputSettings?[AVVideoCodecKey] as? AVVideoCodecType)
+                let br = _num(v.outputSettings?[AVVideoCompressionPropertiesKey] as? [String: Any], AVVideoAverageBitRateKey)
+                args += _FFmpeg.videoCodecArgs(codec, bitrate: br)
+                if remux { args += ["-bf", "0"] }                // frames keep their order, so they can get their own times
+            }
+            if let a { args += _FFmpeg.audioCodecArgs(a.outputSettings, fileType: remux ? .mov : outputFileType) }
+            if _sessionEnd.isNumeric && !remux { args += ["-t", String(format: "%.6f", _sessionEnd.seconds - start)] }
+            if !remux {
+                if shouldOptimizeForNetworkUse { args += ["-movflags", "+faststart"] }
+                if !items.isEmpty { args += _MetadataMap.arguments(items); if movie { args += ["-movflags", "use_metadata_tags"] } }
+            }
+            args += ["-f", remux ? "mov" : muxer, _path(remux ? tmp : outputURL)]
+            if let e = _FFmpeg.run(args) { status = .failed; error = e; try? FileManager.default.removeItem(at: outputURL); return }
+        } else if pass.isEmpty {
+            status = .failed; error = _avNSError(.noDataCaptured, "no samples were appended"); return
         }
-        if let a, let asbd = a._audioASBD, let data = a._audio {
-            let p = NSTemporaryDirectory() + "isim-audio-\(UUID().uuidString).pcm"
-            FileManager.default.createFile(atPath: p, contents: data)
-            tmp = p
-            let bits = Int(asbd.mBitsPerChannel)
-            let fmt = asbd._isFloat ? (bits == 64 ? "f64" : "f32") : (bits == 8 ? "u8" : "s\(bits)")
-            let lead = max(0, (a._firstTime?.seconds ?? start) - start)
-            if lead > 0.001 { args += ["-itsoffset", String(format: "%.6f", lead)] }
-            args += ["-f", fmt + (bits == 8 && !asbd._isFloat ? "" : asbd._isBigEndian ? "be" : "le"), "-ar", String(Int(asbd.mSampleRate)), "-ac", String(asbd.mChannelsPerFrame), "-i", p]
-            n += 1
+        guard remux else { status = .completed; return }
+        // our own muxer: encoded tracks with their real times, and pass-through samples as they came
+        var tracks: [_MP4.OutTrack] = []
+        if v != nil || a != nil {
+            guard let d = try? Data(contentsOf: tmp), let enc = _MP4.read(d) else { status = .failed; error = _avNSError(.exportFailed, "the encoded media could not be read"); return }
+            for t in enc {
+                var o = _MP4.OutTrack(handler: t.handler, codec: t.codec, width: t.width, height: t.height, sampleRate: t.sampleRate, channels: t.channels,
+                                      atoms: t.atoms.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }, timescale: t.timescale)
+                o.editMediaTime = t.editMediaTime > 0 ? t.editMediaTime : nil
+                let times = t.isVideo ? (v?._video?.times ?? []) : []
+                let ts = Double(t.timescale)
+                let first = times.first ?? 0
+                for (i, smp) in t.samples.enumerated() {
+                    let payload = d.subdata(in: (d.startIndex + smp.offset)..<(d.startIndex + smp.offset + smp.size))
+                    if t.isVideo && i < times.count {
+                        let pts = Int64(((times[i] - first) * ts).rounded())
+                        let next = i + 1 < times.count ? Int64(((times[i + 1] - first) * ts).rounded()) : pts + max(1, smp.duration)
+                        o.samples.append((payload, pts, pts, max(1, next - pts), smp.sync))
+                    } else { o.samples.append((payload, smp.dts, smp.cts, smp.duration, smp.sync)) }
+                }
+                tracks.append(o)
+            }
         }
-        defer { if let tmp { try? FileManager.default.removeItem(atPath: tmp) } }
-        guard n > 0 else { status = .failed; error = _avNSError(.noDataCaptured, "no samples were appended"); return }
-        for i in 0..<n { args += ["-map", "\(i)"] }
-        if let v {
-            let codec = (v.outputSettings?[AVVideoCodecKey] as? String).map(AVVideoCodecType.init(rawValue:)) ?? (v.outputSettings?[AVVideoCodecKey] as? AVVideoCodecType)
-            let br = _num(v.outputSettings?[AVVideoCompressionPropertiesKey] as? [String: Any], AVVideoAverageBitRateKey)
-            args += _FFmpeg.videoCodecArgs(codec, bitrate: br)
+        for input in pass {
+            guard let f = input._compressedFormat else { continue }
+            let video = f.mediaType == kCMMediaType_Video
+            let ts: Int32 = input.mediaTimeScale > 0 ? input.mediaTimeScale : video ? 90000 : Int32(max(1, f._asbd.mSampleRate))
+            var atoms: [(String, Data)] = []
+            if let ext = f._extensions[kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String] as? [String: Any] {
+                for (k, val) in ext.sorted(by: { $0.key < $1.key }) { if let dv = val as? Data { atoms.append((k, dv)) } else if let bv = val as? [UInt8] { atoms.append((k, Data(bv))) } }
+            }
+            if !video, !atoms.contains(where: { $0.0 == "esds" }), let c = f._cookie { atoms.append(("esds", Data(c))) }
+            let codec: FourCharCode = video ? f.mediaSubType : f._asbd.mFormatID == kAudioFormatMPEG4AAC ? _MP4.fourcc("mp4a") : f._asbd.mFormatID
+            var o = _MP4.OutTrack(handler: video ? "vide" : "soun", codec: codec, width: Int(f.dimensions.width), height: Int(f.dimensions.height),
+                                  sampleRate: f._asbd.mSampleRate, channels: Int(f._asbd.mChannelsPerFrame), atoms: atoms, timescale: ts)
+            func units(_ t: CMTime) -> Int64 { Int64(((t.seconds - start) * Double(ts)).rounded()) }
+            let minDTS = input._compressed.map { units($0.2) }.min() ?? 0
+            let shift = minDTS < 0 ? -minDTS : 0              // decode times before the session start: the edit list skips them
+            for smp in input._compressed {
+                let dur = smp.3.isNumeric ? max(1, Int64((smp.3.seconds * Double(ts)).rounded())) : 1
+                o.samples.append((smp.0, units(smp.2) + shift, units(smp.1) + shift, dur, smp.4))
+            }
+            if shift > 0 { o.editMediaTime = shift }
+            tracks.append(o)
         }
-        if let a { args += _FFmpeg.audioCodecArgs(a.outputSettings, fileType: outputFileType) }
-        if _sessionEnd.isNumeric { args += ["-t", String(format: "%.6f", _sessionEnd.seconds - start)] }
-        if shouldOptimizeForNetworkUse { args += ["-movflags", "+faststart"] }
-        args += ["-f", outputFileType._muxer.0, _path(outputURL)]
-        if let e = _FFmpeg.run(args) { status = .failed; error = e; try? FileManager.default.removeItem(at: outputURL) }
-        else { status = .completed }
+        do {
+            try _MP4.write(tracks, to: outputURL, quickTime: muxer == "mov")
+        } catch { status = .failed; self.error = _avNSError(.exportFailed, "\(error)"); return }
+        if shouldOptimizeForNetworkUse || !items.isEmpty {
+            let fin = URL(fileURLWithPath: NSTemporaryDirectory() + "isim-writer-\(UUID().uuidString).\(outputURL.pathExtension.isEmpty ? "mov" : outputURL.pathExtension)")
+            var args = ["-y", "-i", _path(outputURL), "-map", "0", "-c", "copy"] + _MetadataMap.arguments(items)
+            args += ["-movflags", (shouldOptimizeForNetworkUse ? "+faststart" : "") + (items.isEmpty ? "" : "+use_metadata_tags"), "-f", muxer, _path(fin)]
+            if let e = _FFmpeg.run(args) { status = .failed; error = e; return }
+            try? FileManager.default.removeItem(at: outputURL)
+            try? FileManager.default.moveItem(at: fin, to: outputURL)
+        }
+        status = .completed
     }
 }

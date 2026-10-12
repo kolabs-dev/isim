@@ -249,6 +249,83 @@ final class MediaViewController: UIViewController {
     }
 
     // MARK: AudioToolbox
+
+    /// AudioConverter PCM -> AAC (packets + magic cookie), then AAC -> PCM through a second converter
+    func aacRoundTrip(_ src16: [Int16], _ inFmt: inout AudioStreamBasicDescription, _ aac: inout AudioStreamBasicDescription) {
+        final class Src { var data: [Int16]; var pos = 0; init(_ d: [Int16]) { data = d } }
+        final class Packets { var data: [[UInt8]] = []; var pos = 0; var current: [UInt8] = []; var desc = AudioStreamPacketDescription() }
+        var enc: AudioConverterRef?
+        let st = AudioConverterNew(&inFmt, &aac, &enc)
+        guard st == noErr, let enc else { log("converter to AAC status=\(st)"); return }
+        var bitrate: UInt32 = 96000
+        _ = AudioConverterSetProperty(enc, kAudioConverterEncodeBitRate, 4, &bitrate)
+        var cookieSize: UInt32 = 0
+        _ = AudioConverterGetPropertyInfo(enc, kAudioConverterCompressionMagicCookie, &cookieSize, nil)
+        var cookie = [UInt8](repeating: 0, count: Int(cookieSize))
+        _ = AudioConverterGetProperty(enc, kAudioConverterCompressionMagicCookie, &cookieSize, &cookie)
+        let src = Src(src16), out = Packets()
+        var buf = [UInt8](repeating: 0, count: 8192)
+        var descs = [AudioStreamPacketDescription](repeating: AudioStreamPacketDescription(), count: 8)
+        while true {
+            var n: UInt32 = 8
+            let status: OSStatus = buf.withUnsafeMutableBytes { raw in
+                var list = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 2, mDataByteSize: UInt32(raw.count), mData: raw.baseAddress))
+                return AudioConverterFillComplexBuffer(enc, { _, ioPackets, ioData, _, user in
+                    let f = Unmanaged<Src>.fromOpaque(user!).takeUnretainedValue()
+                    let n = min(Int(ioPackets.pointee), f.data.count / 2 - f.pos)
+                    ioPackets.pointee = UInt32(max(0, n))
+                    guard n > 0 else { return 0 }
+                    ioData.pointee.mBuffers.mNumberChannels = 2
+                    ioData.pointee.mBuffers.mDataByteSize = UInt32(n * 4)
+                    ioData.pointee.mBuffers.mData = f.data.withUnsafeMutableBytes { $0.baseAddress! + f.pos * 4 }
+                    f.pos += n
+                    return 0
+                }, Unmanaged.passUnretained(src).toOpaque(), &n, &list, &descs)
+            }
+            if n == 0 || status != noErr { break }
+            for i in 0..<Int(n) { out.data.append(Array(buf[Int(descs[i].mStartOffset)..<Int(descs[i].mStartOffset) + Int(descs[i].mDataByteSize)])) }
+        }
+        AudioConverterDispose(enc)
+        // decode: AAC -> 44.1 kHz mono float
+        var pcm = AudioStreamBasicDescription(mSampleRate: 44100, mFormatID: kAudioFormatLinearPCM, mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
+                                              mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 1, mBitsPerChannel: 32, mReserved: 0)
+        var aacIn = aac
+        aacIn.mFramesPerPacket = 1024
+        var dec: AudioConverterRef?
+        guard AudioConverterNew(&aacIn, &pcm, &dec) == noErr, let dec else { log("converter from AAC failed"); return }
+        _ = AudioConverterSetProperty(dec, kAudioConverterDecompressionMagicCookie, UInt32(cookie.count), cookie)
+        var samples = [Float](repeating: 0, count: 60000)
+        var got = 0
+        while got < samples.count {
+            var n = UInt32(min(4096, samples.count - got))
+            let status: OSStatus = samples.withUnsafeMutableBytes { raw in
+                var list = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 1, mDataByteSize: n * 4, mData: raw.baseAddress! + got * 4))
+                return AudioConverterFillComplexBuffer(dec, { _, ioPackets, ioData, outDesc, user in
+                    let p = Unmanaged<Packets>.fromOpaque(user!).takeUnretainedValue()
+                    guard p.pos < p.data.count else { ioPackets.pointee = 0; return 0 }
+                    p.current = p.data[p.pos]; p.pos += 1
+                    ioPackets.pointee = 1
+                    ioData.pointee.mBuffers.mDataByteSize = UInt32(p.current.count)
+                    ioData.pointee.mBuffers.mData = p.current.withUnsafeMutableBytes { $0.baseAddress! }
+                    p.desc = AudioStreamPacketDescription(mStartOffset: 0, mVariableFramesInPacket: 0, mDataByteSize: UInt32(p.current.count))
+                    outDesc?.pointee = withUnsafeMutablePointer(to: &p.desc) { $0 }
+                    return 0
+                }, Unmanaged.passUnretained(out).toOpaque(), &n, &list, nil)
+            }
+            if n == 0 || status != noErr { break }
+            got += Int(n)
+        }
+        AudioConverterDispose(dec)
+        let body = Array(samples[4096..<max(4096, got - 4096)])
+        var crossings = 0
+        for i in 1..<body.count where (body[i - 1] < 0) != (body[i] < 0) { crossings += 1 }
+        let bytes = out.data.reduce(0) { $0 + $1.count }
+        let tag = cookie.first.map { String(format: "%02x", $0) } ?? "-"
+        let peak: Float = body.map { abs($0) }.max() ?? 0
+        let seconds = Double(body.count) / 44100
+        let freq = Int((Double(crossings) / 2 / seconds / 10).rounded()) * 10
+        log("converter aac packets=\(out.data.count) cookie=\(tag) kbps=\(bytes * 8 / 1000) decoded=\(got) peak=\(f2(Double(peak))) freq=\(freq)")
+    }
     func audioToolbox() {
         let wav = res.appendingPathComponent("tone.wav") as CFURL
         var ext: ExtAudioFileRef?
@@ -316,8 +393,7 @@ final class MediaViewController: UIViewController {
                                                  mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 1, mBitsPerChannel: 32, mReserved: 0)
         var conv: AudioConverterRef?
         var aac = AudioStreamBasicDescription(); aac.mFormatID = kAudioFormatMPEG4AAC; aac.mSampleRate = 44100; aac.mChannelsPerFrame = 2
-        var bad: AudioConverterRef?
-        log("converter to AAC status=\(AudioConverterNew(&inFmt, &aac, &bad) == kAudioConverterErr_FormatNotSupported ? "fmt?" : "other")")
+        aacRoundTrip(src16, &inFmt, &aac)
         if AudioConverterNew(&inFmt, &outFmt, &conv) == noErr, let conv {
             var out = [Float](repeating: 0, count: 30000)
             let ud = Unmanaged.passUnretained(feed).toOpaque()

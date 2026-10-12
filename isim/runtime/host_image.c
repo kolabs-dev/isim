@@ -66,10 +66,27 @@ static cairo_status_t png_read(void *closure, unsigned char *buf, unsigned int n
     return CAIRO_STATUS_SUCCESS;
 }
 /* Returns a handle (>0) or 0. Size is in pixels of the source (the caller applies @2x/@3x). */
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
 int isim_image_load_data(const void *data, unsigned long len, double *w, double *h) {
     if (len > 5 && (!memcmp(data, "<?xml", 5) || !memcmp(data, "<svg", 4))) {
         RsvgHandle *svg = rsvg_handle_new_from_data(data, len, NULL);
         return svg ? load_svg(svg, w, h) : 0;
+    }
+    /* HEIF (HEIC) through isim's container reader and ffmpeg's HEVC decoder (host_heif.c) */
+    if (len > 12 && !memcmp((const char *)data + 4, "ftyp", 4) &&
+        (!memcmp((const char *)data + 8, "heic", 4) || !memcmp((const char *)data + 8, "heix", 4) || !memcmp((const char *)data + 8, "mif1", 4) ||
+         !memcmp((const char *)data + 8, "heim", 4) || !memcmp((const char *)data + 8, "heis", 4) || !memcmp((const char *)data + 8, "msf1", 4))) {
+        extern int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba);
+        int iw, ih; unsigned char *px;
+        if (isim_heif_decode(data, (long)len, &iw, &ih, &px)) {
+            int hd = isim_image_create_bgra(iw, ih);
+            for (long i = 0; i < (long)iw * ih; i++) { unsigned char t = px[i * 4]; px[i * 4] = px[i * 4 + 2]; px[i * 4 + 2] = t; }   /* RGBA -> BGRA */
+            isim_image_update_bgra(hd, px, iw, ih);
+            free(px);
+            *w = iw; *h = ih;
+            return hd;
+        }
     }
     /* PNG through cairo (no gdk-pixbuf loader modules needed); other formats through gdk-pixbuf */
     if (len > 8 && !memcmp(data, "\x89PNG\r\n\x1a\n", 8)) {
@@ -522,6 +539,13 @@ long isim_image_encode(int hd, int fmt, double quality, unsigned char **out) {
     GByteArray *a = g_byte_array_new();
     if (fmt == 0) {
         if (cairo_surface_write_to_png_stream(im->surf, png_write, a) != CAIRO_STATUS_SUCCESS) { g_byte_array_free(a, TRUE); return 0; }
+    } else if (fmt == 3) {                          /* HEIC (host_heif.c; needs ffmpeg's libx265), opaque like JPEG */
+        extern long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out);
+        unsigned char *heic = NULL;
+        long n = isim_heif_encode_bgra(cairo_image_surface_get_data(im->surf), cairo_image_surface_get_width(im->surf),
+                                       cairo_image_surface_get_height(im->surf), cairo_image_surface_get_stride(im->surf), quality, &heic);
+        if (n <= 0) { g_byte_array_free(a, TRUE); return 0; }
+        g_byte_array_append(a, heic, (guint)n); free(heic);
     } else {
         int w = cairo_image_surface_get_width(im->surf), h = cairo_image_surface_get_height(im->surf), ss = cairo_image_surface_get_stride(im->surf);
         const unsigned char *src = cairo_image_surface_get_data(im->surf);

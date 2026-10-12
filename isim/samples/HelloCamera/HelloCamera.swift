@@ -153,7 +153,9 @@ final class CameraViewController: UIViewController, AVCaptureVideoDataOutputSamp
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         let a = AVURLAsset(url: outputFileURL)
         let size = a.tracks(withMediaType: .video).first?.naturalSize ?? .zero
-        log("recorded error=\(error == nil ? "none" : "\(error!)") duration=\(String(format: "%.1f", a.duration.seconds)) size=\(Int(size.width))x\(Int(size.height))")
+        let e = error as NSError?
+        let finished = e?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? false
+        log("recorded error=\(e.map { "\($0.code) finished=\(finished)" } ?? "none") duration=\(String(format: "%.1f", a.duration.seconds)) size=\(Int(size.width))x\(Int(size.height))")
     }
     @objc func stop() {
         sessionQueue.async {

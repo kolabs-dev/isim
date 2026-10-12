@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #define OUT_RATE 48000
 #define MAX_BUFS 1024
@@ -23,6 +24,7 @@ static int audio_state;          /* 0 = not tried, 1 = open, -1 = unavailable */
 static int suspended;
 static float *mixbuf; static int mixcap;
 static FILE *tap;                /* ISIM_AUDIO_TAP=file: a copy of the mixed output (raw f32le stereo 48 kHz), for tests */
+static double master = -1;       /* the device volume (Control Center, MPVolumeView, the volume buttons); -1: not read yet */
 
 static void unref(int b) {
     if (b <= 0 || b >= MAX_BUFS || !bufs[b].pcm) return;
@@ -35,9 +37,8 @@ static void unref(int b) {
 struct astream { int used, paused; double volume; float *ring; long rd, wr; /* frame counters */ };
 static struct astream streams[MAX_STREAMS];
 
-static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total) {
-    int frames = additional / (int)(2 * sizeof(float));
-    if (frames <= 0) return;
+/* mixes `frames` frames of every stream and voice into mixbuf (device volume and soft clip applied) */
+static void mix(int frames) {
     if (frames * 2 > mixcap) { mixcap = frames * 2; mixbuf = realloc(mixbuf, mixcap * sizeof(float)); }
     memset(mixbuf, 0, frames * 2 * sizeof(float));
     SDL_LockMutex(mtx);
@@ -82,18 +83,44 @@ static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total
         }
     }
     SDL_UnlockMutex(mtx);
-    for (int i = 0; i < frames * 2; i++) {          /* soft clip */
-        float x = mixbuf[i];
+    float gain = master < 0 ? 1.f : (float)master;
+    for (int i = 0; i < frames * 2; i++) {          /* device volume, soft clip */
+        float x = mixbuf[i] * gain;
         if (x > 1.f) x = 1.f; else if (x < -1.f) x = -1.f;
         mixbuf[i] = x;
     }
+}
+static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total) {
+    int frames = additional / (int)(2 * sizeof(float));
+    if (frames <= 0) return;
+    mix(frames);
     SDL_PutAudioStreamData(s, mixbuf, frames * 2 * (int)sizeof(float));
     if (tap) fwrite(mixbuf, sizeof(float), (size_t)frames * 2, tap);
 }
 
+/* Without an audio device (headless runs, ISIM_MUTE, no sound card) voices still play in time, silently: a clock
+   thread mixes into nothing, so players advance, finish and call back as they would with sound. */
+static int clock_on;
+static int SDLCALL clock_thread(void *ud) {
+    Uint64 t0 = SDL_GetTicksNS(), done = 0;
+    for (;;) {
+        SDL_Delay(10);
+        Uint64 due = (SDL_GetTicksNS() - t0) * OUT_RATE / 1000000000ull;
+        if (due > done) { mix((int)(due - done)); done = due; }
+    }
+    return 0;
+}
+static int ensure_clock(void) {
+    if (!mtx) mtx = SDL_CreateMutex();
+    if (!clock_on) { clock_on = 1; SDL_DetachThread(SDL_CreateThread(clock_thread, "isim-audio-clock", NULL)); }
+    return 1;
+}
+
+double isim_device_volume(void);
 static int ensure_open(void) {
     if (audio_state) return audio_state > 0;
     audio_state = -1;
+    if (master < 0) master = isim_device_volume();
     if (!mtx) mtx = SDL_CreateMutex();
     int headless = getenv("ISIM_HEADLESS") && atoi(getenv("ISIM_HEADLESS"));
     if ((getenv("ISIM_MUTE") && atoi(getenv("ISIM_MUTE"))) || (headless && !getenv("ISIM_AUDIO"))) return 0;   /* tests: silent */
@@ -134,7 +161,7 @@ void isim_audio_buffer_release(int b) { if (!mtx) return; SDL_LockMutex(mtx); un
 
 /* Returns a voice handle (> 0): index + generation, so stale handles are ignored. loops: 0 = once, n = n extra, -1 = forever. */
 long isim_audio_play(int b, double volume, int loops) {
-    if (!ensure_open() || b <= 0 || b >= MAX_BUFS) return 0;
+    if (b <= 0 || b >= MAX_BUFS || (!ensure_open() && !ensure_clock())) return 0;
     SDL_LockMutex(mtx);
     long h = 0;
     if (bufs[b].pcm) {
@@ -309,4 +336,32 @@ void isim_audio_stream_control(int s, int paused, double volume) {
 void isim_audio_stream_close(int s) {
     if (s <= 0 || s > MAX_STREAMS || !mtx) return;
     SDL_LockMutex(mtx); free(streams[s - 1].ring); memset(&streams[s - 1], 0, sizeof streams[s - 1]); SDL_UnlockMutex(mtx);
+}
+
+/* ---------------- the device volume ----------------
+ * isim's own device volume (the host's volume is never changed): $ISIM_DATA/Library/isim/Volume holds it (0...1), so
+ * every app of the device plays at it; 1 when it was never set. The shell (Control Center, `volume` script command)
+ * and MPVolumeView change it; apps hear about changes through the "volume" system event. */
+static void volume_path(char *p, size_t n) {
+    const char *d = getenv("ISIM_DATA");
+    if (d && *d) snprintf(p, n, "%s/Library/isim/Volume", d);
+    else { const char *h = getenv("HOME"); snprintf(p, n, "%s/.local/share/isim/Library/isim/Volume", h ? h : "/tmp"); }
+}
+double isim_device_volume(void) {
+    char p[1024]; volume_path(p, sizeof p);
+    FILE *f = fopen(p, "r");
+    double v = 1;
+    if (f) { if (fscanf(f, "%lf", &v) != 1) v = 1; fclose(f); }
+    return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+/* sets the volume this process plays at; save: also remember it for the device */
+void isim_device_volume_set(double v, int save) {
+    v = v < 0 ? 0 : v > 1 ? 1 : v;
+    master = v;
+    if (!save) return;
+    char p[1024]; volume_path(p, sizeof p);
+    char dir[1024]; snprintf(dir, sizeof dir, "%s", p);
+    for (char *s = dir + 1; *s; s++) if (*s == '/') { *s = 0; mkdir(dir, 0755); *s = '/'; }
+    FILE *f = fopen(p, "w");
+    if (f) { fprintf(f, "%.4f\n", v); fclose(f); }
 }

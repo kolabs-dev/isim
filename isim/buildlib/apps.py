@@ -339,6 +339,9 @@ def _(a):
              "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=25:d=1", "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
              "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0,format=yuv420p[v]", "-map", "[v]", "-map", "3:a",
              "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac", "-b:a", "64k", "-shortest", f"{b}/clip.mp4")
+    # a 12 s test pattern with a tone, for Picture in Picture
+    a.ffmpeg("-f", "lavfi", "-i", "testsrc2=s=320x180:r=25:d=12", "-f", "lavfi", "-i", "sine=frequency=330:duration=12",
+             "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "64k", "-shortest", f"{b}/long.mp4")
 
 
 @app("samples/HelloMedia", needs=("ffmpeg",))

@@ -5,11 +5,14 @@
 // - Files: linear-PCM WAV/AIFF/CAF are read and written directly (any bit depth/endianness). Compressed files (m4a/AAC,
 //   MP3, ALAC, FLAC, ...) are decoded by the host's ffmpeg/GStreamer and then present 48 kHz stereo float32 packets;
 //   writing a compressed file type stores PCM and encodes it with ffmpeg on close.
-// - Converters: linear PCM to linear PCM (sample format, channel count, sample rate by linear interpolation).
-//   Converters to or from compressed formats return kAudioConverterErr_FormatNotSupported.
+// - Converters: linear PCM to linear PCM (sample format, channel count, sample rate by linear interpolation), linear
+//   PCM to AAC-LC and AAC/MP3 to linear PCM through the host's libavcodec (passthrough; without it those converters
+//   return kAudioConverterErr_FormatNotSupported). Other codecs (ALAC, Opus, iLBC, ...) are not converted.
 // - Queues: output queues play through the host mixer (silently paced in real time when headless); input queues read
 //   the simulated microphone (ISIM_AUDIO_INPUT). Callbacks run on an internal thread, or on the dispatch queue given.
-//   No Audio Units (AUGraph, AudioComponent), no queue processing taps or timelines.
+//   Output queues apply pan, time/pitch (kAudioQueueProperty_EnableTimePitch: play rate and pitch with isim's WSOLA,
+//   or varispeed) and processing taps (pre/post effects, siphon). No timelines; no taps on input queues.
+// Audio Units and AUGraph: AudioUnits.swift.
 import Foundation
 import isim_host
 @_exported import _AudioToolboxTypes
@@ -81,6 +84,12 @@ public let kAudioQueueProperty_IsRunning: AudioQueuePropertyID = 0x6171_7275    
 public let kAudioQueueProperty_StreamDescription: AudioQueuePropertyID = 0x6171_6674  // 'aqft'
 public let kAudioQueueProperty_CurrentLevelMeter: AudioQueuePropertyID = 0x6171_6D76  // 'aqmv'
 public let kAudioQueueProperty_EnableLevelMetering: AudioQueuePropertyID = 0x6171_6D65 // 'aqme'
+public let kAudioQueueProperty_EnableTimePitch: AudioQueuePropertyID = 0x715F_7470     // 'q_tp'
+public let kAudioQueueProperty_TimePitchAlgorithm: AudioQueuePropertyID = 0x7174_7061  // 'qtpa'
+public let kAudioQueueProperty_TimePitchBypass: AudioQueuePropertyID = 0x7174_7062     // 'qtpb'
+public let kAudioQueueTimePitchAlgorithm_Spectral: UInt32 = 0x7370_6563                // 'spec'
+public let kAudioQueueTimePitchAlgorithm_TimeDomain: UInt32 = 0x7469_646F              // 'tido'
+public let kAudioQueueTimePitchAlgorithm_Varispeed: UInt32 = 0x7673_7064               // 'vspd'
 
 // errors
 public let kAudio_UnimplementedError: OSStatus = -4
@@ -114,6 +123,10 @@ public let kAudioQueueErr_InvalidParameter: OSStatus = -66678
 public let kAudioQueueErr_InvalidPropertySize: OSStatus = -66683
 public let kAudioQueueErr_InvalidProperty: OSStatus = -66682
 public let kAudioQueueErr_EnqueueDuringReset: OSStatus = -66632
+public let kAudioQueueErr_InvalidRunState: OSStatus = -66681
+public let kAudioQueueErr_InvalidPropertyValue: OSStatus = -66684
+public let kAudioQueueErr_InvalidTapContext: OSStatus = -66630
+public let kAudioQueueErr_InvalidTapType: OSStatus = -66629
 
 // MARK: - PCM sample conversion
 
@@ -633,28 +646,202 @@ public func ExtAudioFileTell(_ inExtAudioFile: ExtAudioFileRef, _ outFrameOffset
 
 // MARK: - Audio Converter Services
 
-final class _AudioConverter {
-    let from: AudioStreamBasicDescription, to: AudioStreamBasicDescription
-    var pending: [[Float]]               // converted frames not yet handed out
-    init(from: AudioStreamBasicDescription, to: AudioStreamBasicDescription) {
-        self.from = from; self.to = to; pending = [[Float]](repeating: [], count: Int(to.mChannelsPerFrame))
+public struct AudioConverterPrimeInfo: Sendable {
+    public var leadingFrames: UInt32
+    public var trailingFrames: UInt32
+    public init() { leadingFrames = 0; trailingFrames = 0 }
+    public init(leadingFrames: UInt32, trailingFrames: UInt32) { self.leadingFrames = leadingFrames; self.trailingFrames = trailingFrames }
+}
+
+/// Frames at one rate in, frames at another out (linear interpolation, continuous across calls).
+final class _RateStream {
+    let step: Double
+    var buf: [[Float]]
+    var pos = 0.0
+    var ended = false
+    init(channels: Int, from: Double, to: Double) { step = from / max(1, to); buf = [[Float]](repeating: [], count: max(1, channels)) }
+    func feed(_ x: [[Float]]) { for c in 0..<buf.count { buf[c] += x[min(c, x.count - 1)] } }
+    /// output frames that can be made now
+    var available: Int {
+        let n = buf[0].count
+        if step == 1 { return max(0, n - Int(pos)) }
+        let last = Double(ended ? n - 1 : n - 2)
+        return last < pos ? (ended && n > 0 && Int(pos) < n ? 1 : 0) : Int(((last - pos) / step).rounded(.down)) + 1
+    }
+    func take(_ max: Int) -> [[Float]] {
+        let k = min(max, available)
+        var out = [[Float]](repeating: [Float](repeating: 0, count: k), count: buf.count)
+        for c in 0..<buf.count {
+            let b = buf[c]
+            var p = pos
+            for i in 0..<k {
+                let i0 = Int(p), i1 = Swift.min(i0 + 1, b.count - 1), t = Float(p - Double(i0))
+                out[c][i] = b[i0] + (b[i1] - b[i0]) * t
+                p += step
+            }
+        }
+        pos += Double(k) * step
+        let drop = Swift.min(Int(pos), buf[0].count)
+        if drop > 0 { for c in 0..<buf.count { buf[c].removeFirst(drop) }; pos -= Double(drop) }
+        return out
     }
 }
+
+/// AAC magic cookies: an AudioSpecificConfig, or the esds-style descriptors iOS uses (tag 5 holds the config).
+enum _AACConfig {
+    static let rates = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350]
+    static func index(_ rate: Double) -> Int { rates.firstIndex(of: Int(rate)) ?? 4 }
+    static func asc(rate: Double, channels: Int, object: Int = 2) -> [UInt8] {
+        let sfi = index(rate)
+        return [UInt8((object << 3) | (sfi >> 1)), UInt8(((sfi & 1) << 7) | (channels << 3))]
+    }
+    /// the cookie iOS's AAC encoder returns: ES_Descriptor > DecoderConfigDescriptor > DecoderSpecificInfo, SLConfig
+    static func esds(rate: Double, channels: Int, bitrate: Int) -> [UInt8] {
+        func desc(_ tag: UInt8, _ body: [UInt8]) -> [UInt8] { [tag, 0x80, 0x80, 0x80, UInt8(body.count)] + body }
+        let br = [UInt8(bitrate >> 24 & 0xFF), UInt8(bitrate >> 16 & 0xFF), UInt8(bitrate >> 8 & 0xFF), UInt8(bitrate & 0xFF)]
+        let dsi = desc(5, asc(rate: rate, channels: channels))
+        let dcd = desc(4, [0x40, 0x15, 0, 0x18, 0] + br + br + dsi)
+        return desc(3, [0, 0, 0] + dcd + desc(6, [2]))
+    }
+    /// (object type, sample rate index, channel configuration) of a cookie
+    static func parse(_ c: [UInt8]) -> (Int, Int, Int)? {
+        var bytes = c
+        if c.first == 3 {                                   // esds descriptors: find the DecoderSpecificInfo
+            var i = 0
+            while i < c.count {
+                let tag = c[i]; i += 1
+                var len = 0
+                while i < c.count { let b = c[i]; i += 1; len = len << 7 | Int(b & 0x7F); if b & 0x80 == 0 { break } }
+                if tag == 5 { bytes = Array(c[i..<Swift.min(c.count, i + len)]); break }
+                if tag == 3 { i += 3 } else if tag == 4 { i += 13 } else { i += len }
+            }
+        }
+        guard bytes.count >= 2 else { return nil }
+        let obj = Int(bytes[0] >> 3), sfi = Int((bytes[0] & 7) << 1 | bytes[1] >> 7), ch = Int((bytes[1] >> 3) & 0xF)
+        return (obj, sfi, ch)
+    }
+    static func adts(_ payload: Int, object: Int, sfi: Int, channels: Int) -> [UInt8] {
+        let len = payload + 7, prof = max(0, object - 1) & 3
+        return [0xFF, 0xF1, UInt8(prof << 6 | (sfi & 0xF) << 2 | (channels >> 2) & 1), UInt8((channels & 3) << 6 | (len >> 11) & 3),
+                UInt8((len >> 3) & 0xFF), UInt8((len & 7) << 5 | 0x1F), 0xFC]
+    }
+}
+
+final class _AudioConverter {
+    enum Mode { case pcm, encode, decode }
+    let from: AudioStreamBasicDescription, to: AudioStreamBasicDescription
+    let mode: Mode
+    var rate: _RateStream
+    var codec: OpaquePointer?
+    var bitrate: Int
+    var aac = (object: 2, sfi: 4, channels: 2)
+    var packets: [[UInt8]] = []          // encoded, not yet handed out
+    var inputEnded = false, codecEnded = false
+    var leading: UInt32 = 0
+    init(from: AudioStreamBasicDescription, to: AudioStreamBasicDescription, mode: Mode) {
+        self.from = from; self.to = to; self.mode = mode
+        let chans = Int(mode == .encode ? to.mChannelsPerFrame : to.mChannelsPerFrame)
+        let srcRate = mode == .encode ? from.mSampleRate : from.mSampleRate
+        let dstRate = mode == .encode ? to.mSampleRate : to.mSampleRate
+        rate = _RateStream(channels: chans, from: srcRate, to: dstRate)
+        bitrate = Int(to.mChannelsPerFrame) * 64000
+    }
+    deinit { isim_acodec_close(codec) }
+    func openCodec() -> Bool {
+        switch mode {
+        case .pcm: return true
+        case .encode:
+            codec = isim_acodec_open(1, "aac", to.mSampleRate, Int32(to.mChannelsPerFrame), bitrate)
+            leading = 2112
+        case .decode:
+            let name = from.mFormatID == kAudioFormatMPEGLayer3 ? "mp3float" : "aac"
+            codec = isim_acodec_open(0, name, from.mSampleRate, Int32(from.mChannelsPerFrame), 0)
+            aac = (2, _AACConfig.index(from.mSampleRate), Int(from.mChannelsPerFrame))
+        }
+        return codec != nil
+    }
+    func reset() {
+        rate = _RateStream(channels: rate.buf.count, from: from.mSampleRate, to: to.mSampleRate)
+        packets = []; inputEnded = false; codecEnded = false
+        isim_acodec_close(codec); codec = nil
+        _ = openCodec()
+    }
+    /// what the decoder made, into the rate stream
+    func drainDecoder() {
+        var tmp = [Float](repeating: 0, count: 8192 * 8)
+        while true {
+            var ch: Int32 = 0, r = 0.0
+            let n = tmp.withUnsafeMutableBufferPointer { isim_acodec_receive_pcm(codec, $0.baseAddress!, 8192, &ch, &r) }
+            if n < 0 { codecEnded = true; break }
+            if n == 0 { break }
+            let c = Int(max(1, ch))
+            var x = (0..<c).map { k in (0..<Int(n)).map { tmp[$0 * c + k] } }
+            if c != rate.buf.count { x = _PCM.adapt(x, from: _pcmFormat(rate: 1, channels: c, bits: 32, float: true), to: _pcmFormat(rate: 1, channels: rate.buf.count, bits: 32, float: true)) }
+            rate.feed(x)
+        }
+    }
+    func drainEncoder() {
+        var tmp = [UInt8](repeating: 0, count: 8192)
+        while true {
+            let n = tmp.withUnsafeMutableBufferPointer { isim_acodec_receive_packet(codec, $0.baseAddress!, 8192) }
+            if n < 0 { codecEnded = true; break }
+            if n == 0 { break }
+            packets.append(Array(tmp[0..<Int(n)]))
+        }
+    }
+}
+
+/// Converters between linear PCM formats (sample format, channels, rate), from linear PCM to AAC (AAC-LC encoder) and
+/// from AAC or MP3 to linear PCM; the codecs are the host's libavcodec (passthrough).
 public func AudioConverterNew(_ inSourceFormat: UnsafePointer<AudioStreamBasicDescription>, _ inDestinationFormat: UnsafePointer<AudioStreamBasicDescription>,
                               _ outAudioConverter: UnsafeMutablePointer<AudioConverterRef?>) -> OSStatus {
     let a = inSourceFormat.pointee, b = inDestinationFormat.pointee
-    guard _PCM.valid(a), _PCM.valid(b) else {
-        NSLog("isim AudioToolbox: AudioConverter supports linear PCM only (%@ -> %@); encode with AVAssetWriter/AVAudioFile, decode with AVAudioFile/ExtAudioFile",
+    let mode: _AudioConverter.Mode
+    if _PCM.valid(a) && _PCM.valid(b) { mode = .pcm }
+    else if _PCM.valid(a) && b.mFormatID == kAudioFormatMPEG4AAC && b.mSampleRate > 0 && (1...8).contains(b.mChannelsPerFrame) { mode = .encode }
+    else if _PCM.valid(b) && (a.mFormatID == kAudioFormatMPEG4AAC || a.mFormatID == kAudioFormatMPEGLayer3) && a.mSampleRate > 0 { mode = .decode }
+    else {
+        NSLog("isim AudioToolbox: AudioConverter converts linear PCM, AAC (both ways) and MP3 (decoding) only (%@ -> %@)",
               a._isPCM ? _PCM.describe(a) : "compressed", b._isPCM ? _PCM.describe(b) : "compressed")
         return kAudioConverterErr_FormatNotSupported
     }
-    outAudioConverter.pointee = _handle(_AudioConverter(from: a, to: b))
+    let c = _AudioConverter(from: a, to: b, mode: mode)
+    guard c.openCodec() else {
+        NSLog("isim AudioToolbox: AudioConverter: no AAC/MP3 codec on this host (libavcodec)")
+        return kAudioConverterErr_FormatNotSupported
+    }
+    outAudioConverter.pointee = _handle(c)
     return noErr_
 }
 @discardableResult public func AudioConverterDispose(_ inAudioConverter: AudioConverterRef) -> OSStatus { _release(inAudioConverter); return noErr_ }
 @discardableResult public func AudioConverterReset(_ inAudioConverter: AudioConverterRef) -> OSStatus {
     guard let c = _object(inAudioConverter, _AudioConverter.self) else { return kAudio_ParamError }
-    c.pending = [[Float]](repeating: [], count: Int(c.to.mChannelsPerFrame))
+    c.reset()
+    return noErr_
+}
+public let kAudioConverterPropertyMaximumOutputPacketSize: AudioConverterPropertyID = 0x786F_7073   // 'xops'
+public let kAudioConverterPropertyMaximumInputPacketSize: AudioConverterPropertyID = 0x7869_7073    // 'xips'
+public let kAudioConverterCompressionMagicCookie: AudioConverterPropertyID = 0x6B6D_6763            // 'kmgc'
+public let kAudioConverterDecompressionMagicCookie: AudioConverterPropertyID = 0x646D_6763          // 'dmgc'
+public let kAudioConverterEncodeBitRate: AudioConverterPropertyID = 0x6272_6174                     // 'brat'
+public let kAudioConverterPrimeInfo: AudioConverterPropertyID = 0x7072_696D                         // 'prim'
+public let kAudioConverterCodecQuality: AudioConverterPropertyID = 0x6364_7175                      // 'cdqu'
+public let kAudioConverterPropertyMinimumInputBufferSize: AudioConverterPropertyID = 0x6D69_6273    // 'mibs'
+public let kAudioConverterPropertyMinimumOutputBufferSize: AudioConverterPropertyID = 0x6D6F_6273   // 'mobs'
+public func AudioConverterGetPropertyInfo(_ inAudioConverter: AudioConverterRef, _ inPropertyID: AudioConverterPropertyID,
+                                          _ outSize: UnsafeMutablePointer<UInt32>?, _ outWritable: UnsafeMutablePointer<DarwinBoolean>?) -> OSStatus {
+    guard let c = _object(inAudioConverter, _AudioConverter.self) else { return kAudio_ParamError }
+    switch inPropertyID {
+    case kAudioConverterCompressionMagicCookie:
+        guard c.mode == .encode else { return kAudioConverterErr_PropertyNotSupported }
+        outSize?.pointee = UInt32(_AACConfig.esds(rate: c.to.mSampleRate, channels: Int(c.to.mChannelsPerFrame), bitrate: c.bitrate).count)
+        outWritable?.pointee = false
+    case kAudioConverterCurrentInputStreamDescription, kAudioConverterCurrentOutputStreamDescription:
+        outSize?.pointee = UInt32(MemoryLayout<AudioStreamBasicDescription>.size); outWritable?.pointee = false
+    case kAudioConverterPrimeInfo: outSize?.pointee = 8; outWritable?.pointee = true
+    case kAudioConverterDecompressionMagicCookie: outSize?.pointee = 0; outWritable?.pointee = true
+    default: outSize?.pointee = 4; outWritable?.pointee = true
+    }
     return noErr_
 }
 public func AudioConverterGetProperty(_ inAudioConverter: AudioConverterRef, _ inPropertyID: AudioConverterPropertyID, _ ioPropertyDataSize: UnsafeMutablePointer<UInt32>,
@@ -663,18 +850,45 @@ public func AudioConverterGetProperty(_ inAudioConverter: AudioConverterRef, _ i
     switch inPropertyID {
     case kAudioConverterCurrentInputStreamDescription: return _put(c.from, ioPropertyDataSize, outPropertyData)
     case kAudioConverterCurrentOutputStreamDescription: return _put(c.to, ioPropertyDataSize, outPropertyData)
+    case kAudioConverterPropertyMaximumOutputPacketSize:
+        return _put(UInt32(c.mode == .encode ? 768 * Int(c.to.mChannelsPerFrame) : c.to._frameBytes), ioPropertyDataSize, outPropertyData)
+    case kAudioConverterPropertyMaximumInputPacketSize:
+        return _put(UInt32(c.mode == .decode ? 768 * Int(max(1, c.from.mChannelsPerFrame)) : c.from._frameBytes), ioPropertyDataSize, outPropertyData)
+    case kAudioConverterEncodeBitRate: return _put(UInt32(c.bitrate), ioPropertyDataSize, outPropertyData)
+    case kAudioConverterPrimeInfo: return _put(AudioConverterPrimeInfo(leadingFrames: c.leading, trailingFrames: 0), ioPropertyDataSize, outPropertyData)
+    case kAudioConverterCompressionMagicCookie:
+        guard c.mode == .encode else { return kAudioConverterErr_PropertyNotSupported }
+        let cookie = _AACConfig.esds(rate: c.to.mSampleRate, channels: Int(c.to.mChannelsPerFrame), bitrate: c.bitrate)
+        guard Int(ioPropertyDataSize.pointee) >= cookie.count else { return kAudioConverterErr_InvalidOutputSize }
+        cookie.withUnsafeBytes { outPropertyData.copyMemory(from: $0.baseAddress!, byteCount: cookie.count) }
+        ioPropertyDataSize.pointee = UInt32(cookie.count)
+        return noErr_
     default: return kAudioConverterErr_PropertyNotSupported
     }
 }
 public func AudioConverterSetProperty(_ inAudioConverter: AudioConverterRef, _ inPropertyID: AudioConverterPropertyID, _ inPropertyDataSize: UInt32,
                                       _ inPropertyData: UnsafeRawPointer) -> OSStatus {
-    inPropertyID == kAudioConverterSampleRateConverterQuality ? noErr_ : kAudioConverterErr_PropertyNotSupported
+    guard let c = _object(inAudioConverter, _AudioConverter.self) else { return kAudio_ParamError }
+    switch inPropertyID {
+    case kAudioConverterSampleRateConverterQuality, kAudioConverterCodecQuality, kAudioConverterPrimeInfo: return noErr_
+    case kAudioConverterEncodeBitRate:
+        guard c.mode == .encode, inPropertyDataSize >= 4 else { return kAudioConverterErr_PropertyNotSupported }
+        c.bitrate = Int(inPropertyData.loadUnaligned(as: UInt32.self))
+        c.reset()                                            // the encoder is opened again with the bit rate
+        return noErr_
+    case kAudioConverterDecompressionMagicCookie:
+        guard c.mode == .decode else { return kAudioConverterErr_PropertyNotSupported }
+        let bytes = Array(UnsafeRawBufferPointer(start: inPropertyData, count: Int(inPropertyDataSize)))
+        if let (o, sfi, ch) = _AACConfig.parse(bytes) { c.aac = (o, sfi, ch > 0 ? ch : Int(c.from.mChannelsPerFrame)) }
+        return noErr_
+    default: return kAudioConverterErr_PropertyNotSupported
+    }
 }
-/// Converts a whole buffer (interleaved formats).
+/// Converts a whole buffer (linear PCM, interleaved, same sample rate).
 public func AudioConverterConvertBuffer(_ inAudioConverter: AudioConverterRef, _ inInputDataSize: UInt32, _ inInputData: UnsafeRawPointer,
                                         _ ioOutputDataSize: UnsafeMutablePointer<UInt32>, _ outOutputData: UnsafeMutableRawPointer) -> OSStatus {
     guard let c = _object(inAudioConverter, _AudioConverter.self) else { return kAudio_ParamError }
-    guard c.from.mSampleRate == c.to.mSampleRate else { return kAudioConverterErr_OperationNotSupported }   // like iOS: rate conversion needs FillComplexBuffer
+    guard c.mode == .pcm, c.from.mSampleRate == c.to.mSampleRate else { return kAudioConverterErr_OperationNotSupported }   // like iOS
     let x = _PCM.decode(UnsafeRawBufferPointer(start: inInputData, count: Int(inInputDataSize)), c.from)
     let bytes = _PCM.encode(_PCM.adapt(x, from: c.from, to: c.to), c.to)
     guard bytes.count <= Int(ioOutputDataSize.pointee) else { return kAudioConverterErr_InvalidOutputSize }
@@ -682,7 +896,17 @@ public func AudioConverterConvertBuffer(_ inAudioConverter: AudioConverterRef, _
     ioOutputDataSize.pointee = UInt32(bytes.count)
     return noErr_
 }
-/// Pulls input through `inInputDataProc` until *ioOutputDataPacketSize packets are produced or the proc returns no data/an error.
+/// Converts linear PCM in one call (iOS 13 AudioConverterConvertComplexBuffer): same rate and frame count.
+public func AudioConverterConvertComplexBuffer(_ inAudioConverter: AudioConverterRef, _ inNumberPCMFrames: UInt32, _ inInputData: UnsafePointer<AudioBufferList>,
+                                               _ outOutputData: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
+    guard let c = _object(inAudioConverter, _AudioConverter.self) else { return kAudio_ParamError }
+    guard c.mode == .pcm, c.from.mSampleRate == c.to.mSampleRate else { return kAudioConverterErr_OperationNotSupported }
+    let x = _PCM.read(UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inInputData)), c.from, frames: Int(inNumberPCMFrames))
+    _ = _PCM.fill(UnsafeMutableAudioBufferListPointer(outOutputData), _PCM.adapt(x, from: c.from, to: c.to), c.to, from: 0, count: Int(inNumberPCMFrames))
+    return noErr_
+}
+/// Pulls input through `inInputDataProc` until *ioOutputDataPacketSize packets are produced or the input ends (the proc
+/// returns no packets or an error).
 public func AudioConverterFillComplexBuffer(_ inAudioConverter: AudioConverterRef, _ inInputDataProc: AudioConverterComplexInputDataProc,
                                             _ inInputDataProcUserData: UnsafeMutableRawPointer?, _ ioOutputDataPacketSize: UnsafeMutablePointer<UInt32>,
                                             _ outOutputData: UnsafeMutablePointer<AudioBufferList>,
@@ -690,22 +914,96 @@ public func AudioConverterFillComplexBuffer(_ inAudioConverter: AudioConverterRe
     guard let c = _object(inAudioConverter, _AudioConverter.self) else { return kAudio_ParamError }
     let want = Int(ioOutputDataPacketSize.pointee)
     var status = noErr_
-    while (c.pending.first?.count ?? 0) < want {
-        let ich = Int(c.from.mChannelsPerFrame)
-        let list = AudioBufferList.allocate(maximumBuffers: c.from._isNonInterleaved ? ich : 1)
+    /// asks the app for input; false when it has none (the end, or an error kept in `status`)
+    func pull(_ packets: Int, _ use: (UnsafeMutableAudioBufferListPointer, Int, UnsafeMutablePointer<AudioStreamPacketDescription>?) -> Void) -> Bool {
+        let ich = Int(max(1, c.from.mChannelsPerFrame))
+        let list = AudioBufferList.allocate(maximumBuffers: c.from._isPCM && c.from._isNonInterleaved ? ich : 1)
         defer { free(list.unsafeMutablePointer) }
-        var packets = UInt32(max(1, Int(Double(want - (c.pending.first?.count ?? 0)) * c.from.mSampleRate / c.to.mSampleRate)))
-        status = inInputDataProc(inAudioConverter, &packets, list.unsafeMutablePointer, nil, inInputDataProcUserData)
-        if packets == 0 || status != noErr_ { break }
-        let x = _PCM.read(list, c.from, frames: Int(packets))
-        let y = _PCM.adapt(x, from: c.from, to: c.to)
-        for i in 0..<c.pending.count { c.pending[i] += y[min(i, y.count - 1)] }
+        var n = UInt32(max(1, packets))
+        var descs: UnsafeMutablePointer<AudioStreamPacketDescription>? = nil
+        status = withUnsafeMutablePointer(to: &descs) { d in
+            inInputDataProc(inAudioConverter, &n, list.unsafeMutablePointer, c.mode == .decode ? d : nil, inInputDataProcUserData)
+        }
+        guard n > 0, status == noErr_ else { return false }
+        use(list, Int(n), descs)
+        return true
     }
-    let have = c.pending.first?.count ?? 0
-    let n = _PCM.fill(UnsafeMutableAudioBufferListPointer(outOutputData), c.pending, c.to, from: 0, count: min(want, have))
-    for i in 0..<c.pending.count { c.pending[i].removeFirst(min(n, c.pending[i].count)) }
-    ioOutputDataPacketSize.pointee = UInt32(n)
-    return n > 0 ? noErr_ : status
+    switch c.mode {
+    case .pcm, .encode:
+        let chans = c.rate.buf.count
+        let toPCM = _pcmFormat(rate: c.from.mSampleRate, channels: chans, bits: 32, float: true)
+        func feed(_ k: Int) {
+            if c.inputEnded { return }
+            let ok = pull(k) { list, n, _ in c.rate.feed(_PCM.adapt(_PCM.read(list, c.from, frames: n), from: c.from, to: toPCM)) }
+            if !ok { c.inputEnded = true; c.rate.ended = true }
+        }
+        if c.mode == .pcm {
+            while c.rate.available < want && !c.inputEnded { feed(max(1, Int(Double(want - c.rate.available) * c.rate.step) + 1)) }
+            let y = c.rate.take(want)
+            let n = _PCM.fill(UnsafeMutableAudioBufferListPointer(outOutputData), y, c.to, from: 0, count: y.first?.count ?? 0)
+            ioOutputDataPacketSize.pointee = UInt32(n)
+            return n > 0 ? noErr_ : status
+        }
+        // encode: AAC packets of 1024 frames
+        while c.packets.count < want && !c.codecEnded {
+            if c.inputEnded {
+                let rest = c.rate.take(c.rate.available)
+                var inter = [Float](repeating: 0, count: (rest.first?.count ?? 0) * chans)
+                for i in 0..<(rest.first?.count ?? 0) { for k in 0..<chans { inter[i * chans + k] = rest[k][i] } }
+                if !inter.isEmpty { _ = inter.withUnsafeBufferPointer { isim_acodec_send_pcm(c.codec, $0.baseAddress, Int32(rest[0].count)) } }
+                _ = isim_acodec_send_pcm(c.codec, nil, 0)
+                c.drainEncoder()
+                if !c.codecEnded { break }
+                continue
+            }
+            feed(1024)
+            let y = c.rate.take(c.rate.available)
+            let n = y.first?.count ?? 0
+            if n > 0 {
+                var inter = [Float](repeating: 0, count: n * chans)
+                for i in 0..<n { for k in 0..<chans { inter[i * chans + k] = y[k][i] } }
+                _ = inter.withUnsafeBufferPointer { isim_acodec_send_pcm(c.codec, $0.baseAddress, Int32(n)) }
+            }
+            c.drainEncoder()
+        }
+        let out = UnsafeMutableAudioBufferListPointer(outOutputData)
+        guard out.count > 0, let base = out[0].mData else { return kAudio_ParamError }
+        let cap = Int(out[0].mDataByteSize)
+        var used = 0, n = 0
+        while n < want, let p = c.packets.first, used + p.count <= cap {
+            p.withUnsafeBytes { (base + used).copyMemory(from: $0.baseAddress!, byteCount: p.count) }
+            outPacketDescription?[n] = AudioStreamPacketDescription(mStartOffset: Int64(used), mVariableFramesInPacket: 0, mDataByteSize: UInt32(p.count))
+            used += p.count; n += 1
+            c.packets.removeFirst()
+        }
+        out[0].mDataByteSize = UInt32(used)
+        ioOutputDataPacketSize.pointee = UInt32(n)
+        return n > 0 ? noErr_ : status
+    case .decode:
+        while c.rate.available < want && !c.codecEnded {
+            if c.inputEnded { _ = isim_acodec_send_packet(c.codec, nil, 0); c.drainDecoder(); c.rate.ended = true; c.codecEnded = true; break }
+            let ok = pull(1) { list, n, descs in
+                guard let data = list[0].mData else { return }
+                let total = Int(list[0].mDataByteSize)
+                for i in 0..<n {
+                    let off = descs.map { Int($0[i].mStartOffset) } ?? 0, len = descs.map { Int($0[i].mDataByteSize) } ?? total
+                    guard off + len <= total, len > 0 else { continue }
+                    var packet = [UInt8](UnsafeRawBufferPointer(start: data + off, count: len))
+                    let isADTS = packet.count > 1 && packet[0] == 0xFF && packet[1] & 0xF0 == 0xF0
+                    if c.from.mFormatID == kAudioFormatMPEG4AAC && !isADTS {
+                        packet = _AACConfig.adts(len, object: c.aac.object, sfi: c.aac.sfi, channels: c.aac.channels) + packet
+                    }
+                    _ = packet.withUnsafeBufferPointer { isim_acodec_send_packet(c.codec, $0.baseAddress, Int32($0.count)) }
+                    c.drainDecoder()
+                }
+            }
+            if !ok { c.inputEnded = true }
+        }
+        let y = c.rate.take(want)
+        let n = _PCM.fill(UnsafeMutableAudioBufferListPointer(outOutputData), y, c.to, from: 0, count: y.first?.count ?? 0)
+        ioOutputDataPacketSize.pointee = UInt32(n)
+        return n > 0 ? noErr_ : status
+    }
 }
 
 // MARK: - Audio Queue Services
@@ -732,6 +1030,15 @@ final class _AudioQueue: @unchecked Sendable {
     var listeners: [(AudioQueuePropertyListenerProc, UnsafeMutableRawPointer?)] = []
     var metering = false
     var level = AudioQueueLevelMeterState(mAveragePower: 0, mPeakPower: 0)
+    // output processing: time/pitch, pan, processing tap
+    var playRate: Float = 1, pitch: Float = 0, pan: Float = 0
+    var timePitch = false, timePitchBypass = false
+    var timePitchAlgorithm: UInt32 = kAudioQueueTimePitchAlgorithm_Spectral
+    let timePitchKernel = _IsimTimePitchKernel(), varispeedKernel = _IsimVarispeedKernel()
+    var tap: _AQTap?
+    var pending: [[Float]] = []                                 // decoded frames not yet rendered (queue rate)
+    var inFlight: [(buffer: AudioQueueBufferRef, end: Int64)] = []
+    var decoded: Int64 = 0, consumed: Int64 = 0
     init(input: Bool, format: AudioStreamBasicDescription, queue: DispatchQueue?) { self.input = input; self.format = format; callbackQueue = queue }
 
     func deliver(_ b: AudioQueueBufferRef, _ t: AudioTimeStamp, _ packets: UInt32) {
@@ -745,10 +1052,9 @@ final class _AudioQueue: @unchecked Sendable {
         for (proc, data) in listeners { proc(data, handle, kAudioQueueProperty_IsRunning) }
     }
     func loop() {
+        guard input else { outputLoop(); return }
         loopThread = Thread.current
         let rate = format.mSampleRate
-        var t0 = Date().timeIntervalSince1970
-        var paced = 0.0                   // seconds of audio handled since start (headless pacing)
         if input { _ = isim_audio_input_start() }
         while true {
             lock.lock()
@@ -775,34 +1081,93 @@ final class _AudioQueue: @unchecked Sendable {
                 var ts = AudioTimeStamp(); ts.mSampleTime = Double(framesDone); ts.mFlags = .sampleTimeValid
                 framesDone += Int64(frames)
                 deliver(b, ts, UInt32(frames))
-            } else {
-                let now = Date().timeIntervalSince1970
-                if t0 + paced < now { t0 = now - paced }          // after a pause or an empty queue: play from now
-                let x = _PCM.decode(UnsafeRawBufferPointer(start: b.pointee.mAudioData, count: Int(b.pointee.mAudioDataByteSize)), format)
-                let frames = x.first?.count ?? 0
-                meter(x)
-                let st = _PCM.adapt(x, from: format, to: _PCM.hostFormat)
-                let n = st.first?.count ?? 0
-                if stream > 0 && n > 0 {
-                    var inter = [Float](repeating: 0, count: n * 2)
-                    for i in 0..<n { inter[2 * i] = st[0][i] * volume; inter[2 * i + 1] = st[1][i] * volume }
-                    var done = 0
-                    while done < n && !stopping && !disposed {
-                        let w = inter.withUnsafeBufferPointer { isim_audio_stream_write(stream, $0.baseAddress! + 2 * done, n - done) }
-                        done += w
-                        if w == 0 { Thread.sleep(forTimeInterval: 0.005) }
-                    }
-                }
-                // a buffer is "done" (and goes back to the app) once it has played: pace in real time (silently when headless)
-                paced += Double(frames) / rate
-                let ahead = t0 + paced - Date().timeIntervalSince1970
-                if ahead > 0 { Thread.sleep(forTimeInterval: ahead) }
-                framesDone += Int64(frames)
-                if !disposed { deliver(b, AudioTimeStamp(), 0) }
             }
         }
         if input { isim_audio_input_stop() }
     }
+    /// output: renders 20 ms slices pulled from the decoded buffers (through the tap and time/pitch), writes them to
+    /// the host mixer and paces them in real time (silently when headless); a buffer goes back to the app once it
+    /// has been played
+    func outputLoop() {
+        loopThread = Thread.current
+        let rate = format.mSampleRate
+        let slice = max(64, Int(rate * 0.02))
+        var t0 = Date().timeIntervalSince1970
+        var paced = 0.0
+        while true {
+            lock.lock()
+            while ((queued.isEmpty && (pending.first?.isEmpty ?? true)) || paused) && !stopping && !disposed { lock.wait(until: Date().addingTimeInterval(0.05)) }
+            if stopping || disposed { lock.unlock(); break }
+            lock.unlock()
+            let now = Date().timeIntervalSince1970
+            if t0 + paced < now { t0 = now - paced }          // after a pause or an empty queue: play from now
+            let x = renderSlice(slice)
+            meter(x)
+            var st = _PCM.adapt(x, from: format, to: _PCM.hostFormat)
+            let n = st.first?.count ?? 0
+            let gl = volume * (pan > 0 ? 1 - pan : 1), gr = volume * (pan < 0 ? 1 + pan : 1)
+            if stream > 0 && n > 0 {
+                var inter = [Float](repeating: 0, count: n * 2)
+                for i in 0..<n { inter[2 * i] = st[0][i] * gl; inter[2 * i + 1] = st[1][i] * gr }
+                st = []
+                var done = 0
+                while done < n && !stopping && !disposed {
+                    let w = inter.withUnsafeBufferPointer { isim_audio_stream_write(stream, $0.baseAddress! + 2 * done, n - done) }
+                    done += w
+                    if w == 0 { Thread.sleep(forTimeInterval: 0.005) }
+                }
+            }
+            paced += Double(slice) / rate
+            let ahead = t0 + paced - Date().timeIntervalSince1970
+            if ahead > 0 { Thread.sleep(forTimeInterval: ahead) }
+            lock.lock()
+            framesDone = consumed
+            var done: [AudioQueueBufferRef] = []
+            while let f = inFlight.first, f.end <= consumed { done.append(f.buffer); inFlight.removeFirst() }
+            lock.unlock()
+            if !disposed { for b in done { deliver(b, AudioTimeStamp(), 0) } }
+        }
+    }
+    /// `n` frames of decoded audio (silence past what the app has queued)
+    func take(_ n: Int) -> [[Float]] {
+        lock.lock(); defer { lock.unlock() }
+        let ch = Int(max(1, format.mChannelsPerFrame))
+        if pending.count != ch { pending = [[Float]](repeating: [], count: ch) }
+        while pending[0].count < n, !queued.isEmpty {
+            let b = queued.removeFirst()
+            let x = _PCM.decode(UnsafeRawBufferPointer(start: b.pointee.mAudioData, count: Int(b.pointee.mAudioDataByteSize)), format)
+            for c in 0..<ch { pending[c].append(contentsOf: x[min(c, x.count - 1)]) }
+            decoded += Int64(x.first?.count ?? 0)
+            inFlight.append((b, decoded))
+        }
+        let k = min(n, pending[0].count)
+        var out = pending.map { Array($0.prefix(k)) }
+        for c in 0..<ch { pending[c].removeFirst(k); if k < n { out[c] += [Float](repeating: 0, count: n - k) } }
+        consumed += Int64(k)
+        return out
+    }
+    func renderSlice(_ n: Int) -> [[Float]] {
+        let rate = format.mSampleRate
+        let source: (Int) -> [[Float]] = { self.take($0) }
+        let stretching = timePitch && !timePitchBypass && (playRate != 1 || pitch != 0)
+        let effect: (Int, (Int) -> [[Float]]) -> [[Float]] = { m, pull in
+            guard stretching else { return pull(m) }
+            if self.timePitchAlgorithm == kAudioQueueTimePitchAlgorithm_Varispeed {
+                self.varispeedKernel.rate = self.playRate
+                return self.varispeedKernel.render(m, rate: rate, pull: pull)
+            }
+            self.timePitchKernel.rate = self.playRate
+            self.timePitchKernel.pitch = self.timePitchAlgorithm == kAudioQueueTimePitchAlgorithm_Spectral ? self.pitch : 0
+            return self.timePitchKernel.render(m, rate: rate, pull: pull)
+        }
+        guard let tap else { return effect(n, source) }
+        if tap.flags.contains(.postEffects) { return tap.process(n) { effect($0, source) } }
+        if tap.flags.contains(.siphon) {
+            return effect(n) { m in let x = source(m); _ = tap.process(m, siphon: x) { _ in x }; return x }
+        }
+        return effect(n) { m in tap.process(m, source) }
+    }
+
     func meter(_ x: [[Float]]) {
         guard metering, let c = x.first, !c.isEmpty else { return }
         var s: Float = 0, p: Float = 0
@@ -823,7 +1188,8 @@ final class _AudioQueue: @unchecked Sendable {
         lock.lock(); stopping = true; lock.broadcast(); lock.unlock()
         while Thread.current !== loopThread { lock.lock(); let r = threadRunning; lock.unlock(); if !r { break }; Thread.sleep(forTimeInterval: 0.005) }
         if stream > 0 { isim_audio_stream_close(stream); stream = 0 }
-        lock.lock(); queued.removeAll(); lock.unlock()
+        lock.lock(); queued.removeAll(); pending = []; inFlight = []; decoded = 0; consumed = 0; lock.unlock()
+        timePitchKernel.reset(); varispeedKernel.reset()
         if running { setRunning(false) }
     }
 }
@@ -942,14 +1308,24 @@ public func AudioQueueSetParameter(_ inAQ: AudioQueueRef, _ inParamID: AudioQueu
     guard let q = _object(inAQ, _AudioQueue.self) else { return kAudio_ParamError }
     switch inParamID {
     case kAudioQueueParam_Volume: q.volume = max(0, min(1, inValue))
-    case kAudioQueueParam_PlayRate, kAudioQueueParam_Pitch, kAudioQueueParam_VolumeRampTime, kAudioQueueParam_Pan: break   // accepted, not applied
+    case kAudioQueueParam_PlayRate: q.playRate = max(0.5, min(2, inValue))           // with kAudioQueueProperty_EnableTimePitch
+    case kAudioQueueParam_Pitch: q.pitch = max(-2400, min(2400, inValue))            // cents, spectral algorithm
+    case kAudioQueueParam_Pan: q.pan = max(-1, min(1, inValue))
+    case kAudioQueueParam_VolumeRampTime: break
     default: return kAudioQueueErr_InvalidParameter
     }
     return noErr_
 }
 public func AudioQueueGetParameter(_ inAQ: AudioQueueRef, _ inParamID: AudioQueueParameterID, _ outValue: UnsafeMutablePointer<AudioQueueParameterValue>) -> OSStatus {
     guard let q = _object(inAQ, _AudioQueue.self) else { return kAudio_ParamError }
-    outValue.pointee = inParamID == kAudioQueueParam_Volume ? q.volume : inParamID == kAudioQueueParam_PlayRate ? 1 : 0
+    switch inParamID {
+    case kAudioQueueParam_Volume: outValue.pointee = q.volume
+    case kAudioQueueParam_PlayRate: outValue.pointee = q.playRate
+    case kAudioQueueParam_Pitch: outValue.pointee = q.pitch
+    case kAudioQueueParam_Pan: outValue.pointee = q.pan
+    case kAudioQueueParam_VolumeRampTime: outValue.pointee = 0
+    default: return kAudioQueueErr_InvalidParameter
+    }
     return noErr_
 }
 public func AudioQueueGetProperty(_ inAQ: AudioQueueRef, _ inID: AudioQueuePropertyID, _ outData: UnsafeMutableRawPointer, _ ioDataSize: UnsafeMutablePointer<UInt32>) -> OSStatus {
@@ -959,6 +1335,9 @@ public func AudioQueueGetProperty(_ inAQ: AudioQueueRef, _ inID: AudioQueuePrope
     case kAudioQueueProperty_StreamDescription: return _put(q.format, ioDataSize, outData)
     case kAudioQueueProperty_EnableLevelMetering: return _put(UInt32(q.metering ? 1 : 0), ioDataSize, outData)
     case kAudioQueueProperty_CurrentLevelMeter: return _put(q.level, ioDataSize, outData)
+    case kAudioQueueProperty_EnableTimePitch: return _put(UInt32(q.timePitch ? 1 : 0), ioDataSize, outData)
+    case kAudioQueueProperty_TimePitchAlgorithm: return _put(q.timePitchAlgorithm, ioDataSize, outData)
+    case kAudioQueueProperty_TimePitchBypass: return _put(UInt32(q.timePitchBypass ? 1 : 0), ioDataSize, outData)
     default: return kAudioQueueErr_InvalidProperty
     }
 }
@@ -972,8 +1351,21 @@ public func AudioQueueGetPropertySize(_ inAQ: AudioQueueRef, _ inID: AudioQueueP
 }
 public func AudioQueueSetProperty(_ inAQ: AudioQueueRef, _ inID: AudioQueuePropertyID, _ inData: UnsafeRawPointer, _ inDataSize: UInt32) -> OSStatus {
     guard let q = _object(inAQ, _AudioQueue.self) else { return kAudio_ParamError }
-    if inID == kAudioQueueProperty_EnableLevelMetering { q.metering = inData.load(as: UInt32.self) != 0; return noErr_ }
-    return kAudioQueueErr_InvalidProperty
+    let v = inData.load(as: UInt32.self)
+    switch inID {
+    case kAudioQueueProperty_EnableLevelMetering: q.metering = v != 0
+    case kAudioQueueProperty_EnableTimePitch:
+        guard !q.running else { return kAudioQueueErr_InvalidRunState }
+        q.timePitch = v != 0
+    case kAudioQueueProperty_TimePitchAlgorithm:
+        guard [kAudioQueueTimePitchAlgorithm_Spectral, kAudioQueueTimePitchAlgorithm_TimeDomain, kAudioQueueTimePitchAlgorithm_Varispeed].contains(v) else {
+            return kAudioQueueErr_InvalidPropertyValue
+        }
+        q.timePitchAlgorithm = v
+    case kAudioQueueProperty_TimePitchBypass: q.timePitchBypass = v != 0
+    default: return kAudioQueueErr_InvalidProperty
+    }
+    return noErr_
 }
 public func AudioQueueAddPropertyListener(_ inAQ: AudioQueueRef, _ inID: AudioQueuePropertyID, _ inProc: AudioQueuePropertyListenerProc, _ inUserData: UnsafeMutableRawPointer?) -> OSStatus {
     guard let q = _object(inAQ, _AudioQueue.self) else { return kAudio_ParamError }
@@ -993,5 +1385,98 @@ public func AudioQueueGetCurrentTime(_ inAQ: AudioQueueRef, _ inTimeline: Opaque
     var ts = AudioTimeStamp(); ts.mSampleTime = Double(q.framesDone); ts.mFlags = .sampleTimeValid
     outTimeStamp?.pointee = ts
     outTimelineDiscontinuity?.pointee = false
+    return noErr_
+}
+
+// MARK: - processing taps
+
+final class _AQTap {
+    unowned let queue: _AudioQueue
+    let callback: AudioQueueProcessingTapCallback
+    let client: UnsafeMutableRawPointer?
+    let flags: AudioQueueProcessingTapFlags
+    var handle: AudioQueueProcessingTapRef!
+    var source: ((Int) -> [[Float]])?
+    var sampleTime = 0.0
+    var started = false
+    init(_ q: _AudioQueue, _ cb: @escaping AudioQueueProcessingTapCallback, _ client: UnsafeMutableRawPointer?, _ flags: AudioQueueProcessingTapFlags) {
+        queue = q; callback = cb; self.client = client; self.flags = flags
+    }
+    var format: AudioStreamBasicDescription {
+        _pcmFormat(rate: queue.format.mSampleRate, channels: Int(max(1, queue.format.mChannelsPerFrame)), bits: 32, float: true, nonInterleaved: true)
+    }
+    /// runs the app's callback for `n` frames whose source audio comes from `src`
+    func process(_ n: Int, siphon: [[Float]]? = nil, _ src: @escaping (Int) -> [[Float]]) -> [[Float]] {
+        let f = format
+        let list = AudioBufferList.allocate(maximumBuffers: Int(f.mChannelsPerFrame))
+        var data: [UnsafeMutableRawPointer] = []
+        for c in 0..<Int(f.mChannelsPerFrame) {
+            let p = calloc(n, 4)!
+            data.append(p)
+            list[c] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(n * 4), mData: p)
+        }
+        defer { for p in data { free(p) }; free(list.unsafeMutablePointer) }
+        source = src
+        var ts = AudioTimeStamp(); ts.mSampleTime = sampleTime; ts.mFlags = .sampleTimeValid
+        var fl = flags
+        if !started { fl.insert(.startOfStream); started = true }
+        var outFrames: UInt32 = 0
+        callback(client ?? UnsafeMutableRawPointer(bitPattern: 1)!, handle, UInt32(n), &ts, &fl, &outFrames, list.unsafeMutablePointer)
+        source = nil
+        sampleTime += Double(n)
+        if let siphon { return siphon }
+        var y = _PCM.read(list, f, frames: Int(min(UInt32(n), outFrames)))
+        for c in 0..<y.count where y[c].count < n { y[c] += [Float](repeating: 0, count: n - y[c].count) }
+        return y
+    }
+}
+
+public func AudioQueueProcessingTapNew(_ inAQ: AudioQueueRef, _ inCallback: @escaping AudioQueueProcessingTapCallback, _ inClientData: UnsafeMutableRawPointer?,
+                                       _ inFlags: AudioQueueProcessingTapFlags, _ outMaxFrames: UnsafeMutablePointer<UInt32>,
+                                       _ outProcessingFormat: UnsafeMutablePointer<AudioStreamBasicDescription>,
+                                       _ outAQTap: UnsafeMutablePointer<AudioQueueProcessingTapRef?>) -> OSStatus {
+    guard let q = _object(inAQ, _AudioQueue.self) else { return kAudio_ParamError }
+    guard !q.input else { return kAudioQueueErr_InvalidTapType }
+    guard q.tap == nil else { return kAudioQueueErr_InvalidTapContext }
+    let t = _AQTap(q, inCallback, inClientData, inFlags)
+    t.handle = _handle(t)
+    q.lock.lock(); q.tap = t; q.lock.unlock()
+    outMaxFrames.pointee = UInt32(max(64, Int(q.format.mSampleRate * 0.02)))
+    outProcessingFormat.pointee = t.format
+    outAQTap.pointee = t.handle
+    return noErr_
+}
+public func AudioQueueProcessingTapDispose(_ inAQTap: AudioQueueProcessingTapRef) -> OSStatus {
+    guard let t = _object(inAQTap, _AQTap.self) else { return kAudio_ParamError }
+    let q = t.queue
+    q.lock.lock(); if q.tap === t { q.tap = nil }; q.lock.unlock()
+    _release(inAQTap)
+    return noErr_
+}
+/// From inside the tap callback: the queue's audio for this slice (in the processing format).
+public func AudioQueueProcessingTapGetSourceAudio(_ inAQTap: AudioQueueProcessingTapRef, _ inNumberFrames: UInt32,
+                                                  _ ioTimeStamp: UnsafeMutablePointer<AudioTimeStamp>,
+                                                  _ outFlags: UnsafeMutablePointer<AudioQueueProcessingTapFlags>,
+                                                  _ outNumberFrames: UnsafeMutablePointer<UInt32>, _ ioData: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
+    guard let t = _object(inAQTap, _AQTap.self), let src = t.source else { return kAudioQueueErr_InvalidTapContext }
+    let n = Int(inNumberFrames)
+    let x = src(n)
+    let list = UnsafeMutableAudioBufferListPointer(ioData)
+    for i in 0..<list.count where list[i].mData == nil || Int(list[i].mDataByteSize) < n * 4 {
+        guard list[i].mData == nil else { list[i].mDataByteSize = UInt32(n * 4); continue }
+        return kAudio_ParamError
+    }
+    let w = _PCM.fill(list, x, t.format, from: 0, count: n)
+    outNumberFrames.pointee = UInt32(w)
+    outFlags.pointee = []
+    ioTimeStamp.pointee.mSampleTime = t.sampleTime
+    ioTimeStamp.pointee.mFlags = .sampleTimeValid
+    return noErr_
+}
+public func AudioQueueProcessingTapGetQueueTime(_ inAQTap: AudioQueueProcessingTapRef, _ outQueueSampleTime: UnsafeMutablePointer<Float64>,
+                                                _ outQueueFrameCount: UnsafeMutablePointer<UInt32>) -> OSStatus {
+    guard let t = _object(inAQTap, _AQTap.self) else { return kAudio_ParamError }
+    outQueueSampleTime.pointee = Double(t.queue.consumed)
+    outQueueFrameCount.pointee = UInt32(max(64, Int(t.queue.format.mSampleRate * 0.02)))
     return noErr_
 }

@@ -102,6 +102,7 @@ typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, U
 @end
 UIKIT_EXTERN NSData *_Nullable UIImagePNGRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.pngData(self:));
 UIKIT_EXTERN NSData *_Nullable UIImageJPEGRepresentation(UIImage *image, CGFloat compressionQuality) NS_SWIFT_NAME(UIImage.jpegData(self:compressionQuality:));
+UIKIT_EXTERN NSData *_Nullable UIImageHEICRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.heicData(self:)) API_AVAILABLE(ios(17.0));
 @interface UIImageView : UIView
 - (instancetype)initWithImage:(nullable UIImage *)image;
 - (instancetype)initWithImage:(nullable UIImage *)image highlightedImage:(nullable UIImage *)highlightedImage;

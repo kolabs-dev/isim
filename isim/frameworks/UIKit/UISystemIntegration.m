@@ -858,6 +858,15 @@ void isim_sys_event(const char *text) {
         isim_dispatch_memory_pressure(level);
         if (level != 1) isim_ui_memory_warning();
     }
+    else if ([verb isEqualToString:@"volume"]) {                   /* the device volume changed (Control Center, buttons, another app) */
+        extern void isim_device_volume_set(double v, int save);
+        isim_device_volume_set(args.doubleValue, 0);
+        [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
+    }
+    else if ([verb isEqualToString:@"remote"]) {                   /* Now Playing controls: MPRemoteCommandCenter polls the queue */
+        extern void isim_media_remote_post(const char *cmd);
+        isim_media_remote_post(args.UTF8String);
+    }
     else if ([verb isEqualToString:@"power-state"]) {               /* Control Center's Low Power Mode */
         NSLog(@"isim: Low Power Mode %@", [args isEqualToString:@"low"] ? @"on" : @"off");
         [NSNotificationCenter.defaultCenter postNotificationName:NSProcessInfoPowerStateDidChangeNotification object:NSProcessInfo.processInfo];
