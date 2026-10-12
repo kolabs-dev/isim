@@ -1,10 +1,15 @@
-// isim AVKit (subset): AVPlayerViewController with iOS 17-style playback controls (play/pause, 10 s skip,
-// scrubber, elapsed/remaining time, mute, close when presented, auto-hiding), SwiftUI VideoPlayer, and stubs
-// for picture in picture and AirPlay route picking (unsupported on isim). Self-authored; the glyphs are drawn
-// with paths (no SF Symbols artwork).
+// isim AVKit: AVPlayerViewController with iOS 17-style playback controls (play/pause, 10 s skip, scrubber,
+// elapsed/remaining time, mute, close when presented, full screen when embedded, Picture in Picture, AirPlay,
+// playback speed menu, auto-hiding), AVPictureInPictureController, AVRoutePickerView and SwiftUI VideoPlayer.
+// Self-authored; the glyphs are isim's own drawings (no SF Symbols artwork).
+// Picture in Picture (adapted): on a booted device the system (isim's shell) floats the video over everything —
+// the app, the home screen, other apps — decoding it from the player's media itself while the app's player keeps
+// the sound and the timeline; `isim run` (no system UI) floats it in a window over the app. AirPlay: the route
+// picker of AVFoundation (simulated routes: the device, headphones when plugged in, an AirPlay speaker).
 @_exported import AVFoundation
 import UIKit
 import SwiftUI
+import isim_host
 
 // MARK: - glyphs
 
@@ -125,6 +130,12 @@ final class _AVPlayerView: UIView {
     @objc optional func playerViewController(_ playerViewController: AVPlayerViewController, willEndFullScreenPresentationWithAnimationCoordinator coordinator: AnyObject)
     @objc optional func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController)
     @objc optional func playerViewControllerDidStopPictureInPicture(_ playerViewController: AVPlayerViewController)
+    @objc optional func playerViewControllerDidStartPictureInPicture(_ playerViewController: AVPlayerViewController)
+    @objc optional func playerViewControllerWillStopPictureInPicture(_ playerViewController: AVPlayerViewController)
+    @objc optional func playerViewController(_ playerViewController: AVPlayerViewController, failedToStartPictureInPictureWithError error: Error)
+    @objc optional func playerViewControllerShouldAutomaticallyDismissAtPictureInPictureStart(_ playerViewController: AVPlayerViewController) -> Bool
+    @objc optional func playerViewController(_ playerViewController: AVPlayerViewController,
+                                             restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void)
 }
 
 open class AVPlayerViewController: UIViewController {
@@ -140,13 +151,18 @@ open class AVPlayerViewController: UIViewController {
     open var requiresLinearPlayback = false
     open var showsTimecodes = false
     open var allowsVideoFrameAnalysis = false
-    open var speeds: [AVPlaybackSpeed] = AVPlaybackSpeed.systemDefaultSpeeds
+    open var speeds: [AVPlaybackSpeed] = AVPlaybackSpeed.systemDefaultSpeeds { didSet { if isViewLoaded { _updateSpeedMenu() } } }
     open private(set) var selectedSpeed: AVPlaybackSpeed?
     open var isReadyForDisplay: Bool { isViewLoaded && _playerView.playerLayer.isReadyForDisplay }
     open var videoBounds: CGRect { isViewLoaded ? _playerView.playerLayer.videoRect : .zero }
     open private(set) var contentOverlayView: UIView?
     open var customOverlayViewController: UIViewController?
-    open func selectSpeed(_ speed: AVPlaybackSpeed) { selectedSpeed = speed; if player?.rate ?? 0 > 0 { player?.rate = speed.rate } }
+    open func selectSpeed(_ speed: AVPlaybackSpeed) {
+        selectedSpeed = speed
+        player?.defaultRate = speed.rate
+        if player?.rate ?? 0 > 0 { player?.rate = speed.rate }
+        if isViewLoaded { _updateSpeedMenu() }
+    }
 
     let _playerView = _AVPlayerView()
     let _controls = UIView()
@@ -156,6 +172,13 @@ open class AVPlayerViewController: UIViewController {
     let _close = _AVGlyphButton(.close)
     let _mute = _AVGlyphButton(.speaker)
     let _scrubber = _AVScrubber(frame: .zero)
+    let _pipButton = UIButton(type: .custom)
+    let _airplay = UIButton(type: .custom)
+    let _fullScreen = UIButton(type: .custom)
+    let _speed = UIButton(type: .system)
+    var _pip: AVPictureInPictureController?
+    var _pipDelegate: _AVPlayerVCPiPDelegate?
+    var _fullScreenChild: AVPlayerViewController?
     let _elapsed = UILabel()
     let _remaining = UILabel()
     var _timeObserver: Any?
@@ -170,6 +193,7 @@ open class AVPlayerViewController: UIViewController {
     }
     open override func viewDidLoad() {
         super.viewDidLoad()
+        overrideUserInterfaceStyle = .dark                                  // the playback chrome is always dark on iOS
         _playerView.backgroundColor = .black
         _playerView.playerLayer.videoGravity = videoGravity
         _playerView.accessibilityIdentifier = "avkit-video"
@@ -191,6 +215,26 @@ open class AVPlayerViewController: UIViewController {
         _fwd.addTarget(self, action: #selector(_skipForward), for: .touchUpInside)
         _close.addTarget(self, action: #selector(_closeTapped), for: .touchUpInside)
         _mute.addTarget(self, action: #selector(_muteTapped), for: .touchUpInside)
+        for (b, id, label, symbol) in [(_pipButton, "avkit-pip", "Picture in Picture", "pip.enter"), (_airplay, "avkit-airplay", "AirPlay", "airplayvideo"),
+                                       (_fullScreen, "avkit-fullscreen", "Full Screen", "arrow.up.left.and.arrow.down.right")] {
+            b.accessibilityIdentifier = id; b.accessibilityLabel = label
+            b.setImage(UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)), for: .normal)
+            b.tintColor = .white
+            b.backgroundColor = UIColor(white: 0.1, alpha: 0.55)
+            b.layer.cornerRadius = 17
+            _controls.addSubview(b)
+        }
+        _pipButton.addTarget(self, action: #selector(_pipTapped), for: .touchUpInside)
+        _airplay.addTarget(self, action: #selector(_airplayTapped), for: .touchUpInside)
+        _fullScreen.addTarget(self, action: #selector(_fullScreenTapped), for: .touchUpInside)
+        _speed.accessibilityIdentifier = "avkit-speed"; _speed.accessibilityLabel = "Playback Speed"
+        _speed.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        _speed.tintColor = .white
+        _speed.backgroundColor = UIColor(white: 0.1, alpha: 0.55)
+        _speed.layer.cornerRadius = 12
+        _speed.showsMenuAsPrimaryAction = true
+        _controls.addSubview(_speed)
+        _updateSpeedMenu()
         _scrubber.accessibilityIdentifier = "avkit-scrubber"
         _scrubber.addTarget(self, action: #selector(_scrubbed), for: .valueChanged)
         _scrubber.addTarget(self, action: #selector(_scrubEnded), for: .editingDidEnd)
@@ -217,13 +261,21 @@ open class AVPlayerViewController: UIViewController {
         _back.frame = CGRect(x: b.midX - 34 - 96, y: cy - 24, width: 48, height: 48)
         _fwd.frame = CGRect(x: b.midX + 34 + 48, y: cy - 24, width: 48, height: 48)
         let top = max(safe.top, 8) + 6
+        let presented = presentingViewController != nil
         _close.frame = CGRect(x: 16, y: top, width: 34, height: 34)
-        _close.isHidden = presentingViewController == nil
+        _close.isHidden = !presented
+        _fullScreen.frame = CGRect(x: 16, y: top, width: 34, height: 34)
+        _fullScreen.isHidden = presented
+        _pipButton.frame = CGRect(x: 16 + 42, y: top, width: 34, height: 34)
+        _pipButton.isHidden = !allowsPictureInPicturePlayback || !AVPictureInPictureController.isPictureInPictureSupported()
         _mute.frame = CGRect(x: b.width - 50, y: top, width: 34, height: 34)
+        _airplay.frame = CGRect(x: b.width - 50 - 42, y: top, width: 34, height: 34)
         let bottom = b.height - max(safe.bottom, 12) - 8
         _elapsed.frame = CGRect(x: 18, y: bottom - 18, width: 80, height: 18)
         _remaining.frame = CGRect(x: b.width - 98, y: bottom - 18, width: 80, height: 18)
         _scrubber.frame = CGRect(x: 18, y: bottom - 46, width: b.width - 36, height: 26)
+        _speed.frame = CGRect(x: b.width - 18 - 52, y: bottom - 46 - 34, width: 52, height: 24)
+        _speed.isHidden = speeds.isEmpty
     }
     open override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -309,6 +361,95 @@ open class AVPlayerViewController: UIViewController {
     @objc func _scrubEnded() { _refresh(); _scheduleHide() }
     @objc func _closeTapped() { player?.pause(); dismiss(animated: true) }
     @objc func _muteTapped() { player?.isMuted.toggle(); _refresh() }
+
+    // MARK: playback speed, AirPlay, full screen, Picture in Picture
+    func _updateSpeedMenu() {
+        let current = selectedSpeed?.rate ?? 1
+        _speed.setTitle(AVPlaybackSpeed(rate: current, localizedName: "").localizedNumericName, for: .normal)
+        let actions = speeds.map { sp in
+            UIAction(title: sp.localizedNumericName, state: sp.rate == current ? .on : .off) { [weak self] _ in
+                MainActor.assumeIsolated { self?.selectSpeed(sp); NSLog("isim AVKit: playback speed %@", sp.localizedNumericName) }
+            }
+        }
+        _speed.menu = UIMenu(title: "Playback Speed", children: actions)
+    }
+    @objc func _airplayTapped() { AVAudioSession._isimShowRoutePicker(from: _airplay) }
+    @objc func _fullScreenTapped() {
+        let full = AVPlayerViewController()
+        full.player = player
+        full.speeds = speeds
+        if let s = selectedSpeed { full.selectSpeed(s) }
+        full.modalPresentationStyle = .fullScreen
+        full._fullScreenParent = self
+        _fullScreenChild = full
+        delegate?.playerViewController?(self, willBeginFullScreenPresentationWithAnimationCoordinator: NSObject())
+        NSLog("isim AVKit: full screen")
+        present(full, animated: true)
+    }
+    weak var _fullScreenParent: AVPlayerViewController?
+    open override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if let parent = _fullScreenParent, presentingViewController == nil {
+            parent.delegate?.playerViewController?(parent, willEndFullScreenPresentationWithAnimationCoordinator: NSObject())
+            parent._fullScreenChild = nil
+            _fullScreenParent = nil
+        }
+    }
+    @objc func _pipTapped() {
+        if _pip == nil {
+            let pip = AVPictureInPictureController(playerLayer: _playerView.playerLayer)
+            let d = _AVPlayerVCPiPDelegate(self)
+            pip?.delegate = d
+            _pip = pip; _pipDelegate = d
+        }
+        guard let pip = _pip else { return }
+        if pip.isPictureInPictureActive { pip.stopPictureInPicture() } else { pip.startPictureInPicture() }
+    }
+}
+
+/// AVPlayerViewController's own Picture in Picture: the controller is dismissed while the video floats, and comes
+/// back through the delegate when the user returns to the app.
+final class _AVPlayerVCPiPDelegate: NSObject, AVPictureInPictureControllerDelegate {
+    weak var vc: AVPlayerViewController?
+    var presenter: UIViewController?
+    init(_ vc: AVPlayerViewController) { self.vc = vc }
+    func pictureInPictureControllerWillStartPictureInPicture(_ c: AVPictureInPictureController) {
+        guard let vc else { return }
+        vc.delegate?.playerViewControllerWillStartPictureInPicture?(vc)
+    }
+    func pictureInPictureControllerDidStartPictureInPicture(_ c: AVPictureInPictureController) {
+        guard let vc else { return }
+        // Like iOS, the player is already off screen when the delegate hears that Picture in Picture started.
+        if vc.presentingViewController != nil, vc.delegate?.playerViewControllerShouldAutomaticallyDismissAtPictureInPictureStart?(vc) ?? true {
+            presenter = vc.presentingViewController
+            vc.dismiss(animated: true) { [weak vc] in
+                if let vc { vc.delegate?.playerViewControllerDidStartPictureInPicture?(vc) }
+            }
+        } else {
+            vc.delegate?.playerViewControllerDidStartPictureInPicture?(vc)
+        }
+    }
+    func pictureInPictureController(_ c: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
+        guard let vc else { return }
+        vc.delegate?.playerViewController?(vc, failedToStartPictureInPictureWithError: error)
+    }
+    func pictureInPictureControllerWillStopPictureInPicture(_ c: AVPictureInPictureController) {
+        guard let vc else { return }
+        vc.delegate?.playerViewControllerWillStopPictureInPicture?(vc)
+    }
+    func pictureInPictureControllerDidStopPictureInPicture(_ c: AVPictureInPictureController) {
+        guard let vc else { return }
+        vc.delegate?.playerViewControllerDidStopPictureInPicture?(vc)
+    }
+    func pictureInPictureController(_ c: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler done: @escaping (Bool) -> Void) {
+        guard let vc else { done(false); return }
+        if let d = vc.delegate, d.responds(to: #selector(AVPlayerViewControllerDelegate.playerViewController(_:restoreUserInterfaceForPictureInPictureStopWithCompletionHandler:))) {
+            d.playerViewController?(vc, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler: done)
+        } else if let p = presenter, vc.presentingViewController == nil {
+            p.present(vc, animated: true) { done(true) }
+        } else { done(true) }
+        presenter = nil
+    }
 }
 
 public struct AVPlaybackSpeed: Hashable, Sendable {
@@ -322,22 +463,257 @@ public struct AVPlaybackSpeed: Hashable, Sendable {
     public static let systemDefaultSpeeds = [0.5, 1, 1.25, 1.5, 2].map { AVPlaybackSpeed(rate: Float($0), localizedName: $0 == 1 ? "Normal" : "\($0)×") }
 }
 
-// MARK: - picture in picture, routes (not available on isim)
+// MARK: - Picture in Picture
+
+@objc public protocol AVPictureInPictureControllerDelegate: NSObjectProtocol {
+    @objc optional func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController)
+    @objc optional func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController)
+    @objc optional func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error)
+    @objc optional func pictureInPictureControllerWillStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController)
+    @objc optional func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController)
+    @objc optional func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController,
+                                                   restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void)
+}
 
 open class AVPictureInPictureController: NSObject {
-    public static func isPictureInPictureSupported() -> Bool { false }
+    /// isim: Picture in Picture floats AVPlayerLayer content (sample-buffer content is not supported)
+    public static func isPictureInPictureSupported() -> Bool { true }
+    public final class ContentSource: NSObject {
+        public let playerLayer: AVPlayerLayer?
+        public init(playerLayer: AVPlayerLayer) { self.playerLayer = playerLayer }
+    }
+    open class var pictureInPictureButtonStartImage: UIImage { UIImage(systemName: "pip.enter") ?? UIImage() }
+    open class var pictureInPictureButtonStopImage: UIImage { UIImage(systemName: "pip.exit") ?? UIImage() }
     public let playerLayer: AVPlayerLayer
     open weak var delegate: AnyObject?
-    open var isPictureInPictureActive: Bool { false }
-    open var isPictureInPicturePossible: Bool { false }
-    open var canStartPictureInPictureAutomaticallyFromInline = false
-    public init?(playerLayer: AVPlayerLayer) { self.playerLayer = playerLayer; super.init() }
-    open func startPictureInPicture() { NSLog("isim AVKit: picture in picture is not available") }
-    open func stopPictureInPicture() {}
+    open var contentSource: ContentSource?
+    open var canStartPictureInPictureAutomaticallyFromInline = false { didSet { _watchBackground() } }
+    open var requiresLinearPlayback = false
+    @objc open private(set) var isPictureInPictureActive = false
+    open var isPictureInPictureSuspended: Bool { false }
+    /// the player has a video ready to float
+    @objc open var isPictureInPicturePossible: Bool { playerLayer.player?._isimMedia != nil }
+    public init?(playerLayer: AVPlayerLayer) { self.playerLayer = playerLayer; contentSource = ContentSource(playerLayer: playerLayer); super.init() }
+    public init(contentSource: ContentSource) {
+        self.contentSource = contentSource
+        playerLayer = contentSource.playerLayer ?? AVPlayerLayer()
+        super.init()
+    }
+    deinit { if let o = _eventObserver { NotificationCenter.default.removeObserver(o) }; if let o = _bgObserver { NotificationCenter.default.removeObserver(o) }; _timer?.invalidate() }
+
+    var _d: AVPictureInPictureControllerDelegate? { delegate as? AVPictureInPictureControllerDelegate }
+    var _eventObserver: NSObjectProtocol?
+    var _bgObserver: NSObjectProtocol?
+    var _timer: Timer?
+    var _sent = (time: 0.0, rate: Float(0), at: 0.0)
+    var _window: _PiPWindow?
+    var _shell: Bool { isim_shell_present() != 0 }
+
+    open func startPictureInPicture() {
+        guard !isPictureInPictureActive else { return }
+        guard let player = playerLayer.player, let media = player._isimMedia else {
+            let e = NSError(domain: "AVKitErrorDomain", code: -1001, userInfo: [NSLocalizedDescriptionKey: "Picture in Picture is not possible: the player has no video"])
+            _d?.pictureInPictureController?(self, failedToStartPictureInPictureWithError: e)
+            return
+        }
+        _d?.pictureInPictureControllerWillStartPictureInPicture?(self)
+        if _shell {
+            let title = (player.currentItem?.asset as? AVURLAsset)?.url.deletingPathExtension().lastPathComponent ?? ""
+            let t = player.currentTime().seconds
+            isim_shell_request(40, "pip-start", media.url + "\u{1f}" + title,
+                               String(format: "%.3f %.3f %.0f %.0f %.3f", t.isFinite ? t : 0, player.rate, media.width, media.height, media.fps))
+            _sent = (t.isFinite ? t : 0, player.rate, isim_time())
+            _timer = Timer._isimScheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?._sync() } }
+        } else {
+            let w = _PiPWindow(player: player, owner: self)
+            w.show()
+            _window = w
+        }
+        _eventObserver = NotificationCenter.default.addObserver(forName: Notification.Name("_IsimSystemEvent"), object: nil, queue: .main) { [weak self] n in
+            guard let t = n.object as? String, t.hasPrefix("pip ") else { return }
+            MainActor.assumeIsolated { self?._event(String(t.dropFirst(4))) }
+        }
+        playerLayer._isimPictureInPicture = true
+        willChangeValue(forKey: "isPictureInPictureActive"); isPictureInPictureActive = true; didChangeValue(forKey: "isPictureInPictureActive")
+        NSLog("isim AVKit: Picture in Picture started")
+        DispatchQueue.main.async { self._d?.pictureInPictureControllerDidStartPictureInPicture?(self) }
+    }
+    open func stopPictureInPicture() { _stop(restore: false) }
+    open func invalidatePlaybackState() { MainActor.assumeIsolated { _sync(force: true) } }
+    /// keeps the system's floating video in step with the app's player (play, pause, seek, rate)
+    @MainActor func _sync(force: Bool = false) {
+        guard _shell, isPictureInPictureActive, let p = playerLayer.player else { return }
+        let t = p.currentTime().seconds, r = p.rate
+        let predicted = _sent.time + (isim_time() - _sent.at) * Double(_sent.rate)
+        guard force || r != _sent.rate || abs(t - predicted) > 0.3 else { return }
+        _sent = (t.isFinite ? t : 0, r, isim_time())
+        isim_shell_request(40, "pip-update", "", String(format: "%.3f %.3f", _sent.time, r))
+    }
+    @MainActor func _event(_ e: String) {
+        guard isPictureInPictureActive, let p = playerLayer.player else { return }
+        NSLog("isim AVKit: Picture in Picture %@", e)
+        if e == "play" { p.play() }
+        else if e == "pause" { p.pause() }
+        else if e.hasPrefix("skip "), let d = Double(e.dropFirst(5)) {
+            var t = p.currentTime().seconds + d
+            if let dur = p.currentItem?.duration.seconds, dur.isFinite { t = min(t, dur) }
+            p.seek(to: CMTime(seconds: max(0, t), preferredTimescale: 600))
+        } else if e == "close" { p.pause(); _stop(restore: false) }
+        else if e == "restore" { _stop(restore: true) }
+        _window?.refresh()
+        _sync(force: true)
+    }
+    func _stop(restore: Bool) {
+        guard isPictureInPictureActive else { return }
+        let finish = { [self] in
+            _d?.pictureInPictureControllerWillStopPictureInPicture?(self)
+            if _shell { isim_shell_request(40, "pip-stop", "", "") }
+            _timer?.invalidate(); _timer = nil
+            _window?.close(); _window = nil
+            if let o = _eventObserver { NotificationCenter.default.removeObserver(o); _eventObserver = nil }
+            playerLayer._isimPictureInPicture = false
+            willChangeValue(forKey: "isPictureInPictureActive"); isPictureInPictureActive = false; didChangeValue(forKey: "isPictureInPictureActive")
+            NSLog("isim AVKit: Picture in Picture stopped%@", restore ? " (restored)" : "")
+            _d?.pictureInPictureControllerDidStopPictureInPicture?(self)
+        }
+        if restore, let d = _d, d.responds(to: #selector(AVPictureInPictureControllerDelegate.pictureInPictureController(_:restoreUserInterfaceForPictureInPictureStopWithCompletionHandler:))) {
+            d.pictureInPictureController?(self, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler: { _ in DispatchQueue.main.async(execute: finish) })
+        } else { finish() }
+    }
+    /// canStartPictureInPictureAutomaticallyFromInline: a playing video floats when the app goes to the background
+    func _watchBackground() {
+        guard canStartPictureInPictureAutomaticallyFromInline, _bgObserver == nil else { return }
+        _bgObserver = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.isPictureInPictureActive, self.canStartPictureInPictureAutomaticallyFromInline,
+                      (self.playerLayer.player?.rate ?? 0) > 0, UIApplication.shared.applicationState == .active else { return }
+                NSLog("isim AVKit: Picture in Picture starts automatically")
+                self.startPictureInPicture()
+            }
+        }
+    }
 }
+
+/// `isim run` (no system UI): the floating video in a window over the app, with the system's controls.
+final class _PiPWindow: UIWindow {
+    let player: AVPlayer
+    weak var owner: AVPictureInPictureController?
+    let video = _AVPlayerView()
+    let controls = UIView()
+    var buttons: [String: UIButton] = [:]
+    var corner = 3
+    init(player: AVPlayer, owner: AVPictureInPictureController) {
+        self.player = player; self.owner = owner
+        super.init(frame: .zero)
+        windowLevel = UIWindow.Level(rawValue: 2000)
+        backgroundColor = .clear
+        let root = UIViewController()
+        root.view.backgroundColor = .black
+        root.view.layer.cornerRadius = 12
+        root.view.clipsToBounds = true
+        root.view.accessibilityIdentifier = "pip-window"
+        rootViewController = root
+        video.playerLayer.player = player
+        video.frame = root.view.bounds; video.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        root.view.addSubview(video)
+        controls.frame = root.view.bounds; controls.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        controls.backgroundColor = UIColor(white: 0, alpha: 0.35); controls.isHidden = true
+        root.view.addSubview(controls)
+        for (id, symbol) in [("pip-close", "xmark"), ("pip-restore", "pip.exit"), ("pip-skip-back", "gobackward.15"), ("pip-play", "pause.fill"), ("pip-skip-forward", "goforward.15")] {
+            let b = UIButton(type: .custom)
+            b.setImage(UIImage(systemName: symbol), for: .normal); b.tintColor = .white
+            b.accessibilityIdentifier = id
+            b.addTarget(self, action: #selector(pressed(_:)), for: .touchUpInside)
+            controls.addSubview(b); buttons[id] = b
+        }
+        let tap = UITapGestureRecognizer(target: self, action: #selector(toggleControls))
+        root.view.addGestureRecognizer(tap)
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(dragged(_:)))
+        root.view.addGestureRecognizer(pan)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    var size: CGSize {
+        let screen = UIScreen.main.bounds
+        let w = min(screen.width * 0.62, 260), info = player._isimMedia
+        let h = info.map { w * $0.height / max(1, $0.width) } ?? w * 9 / 16
+        return CGSize(width: w, height: h)
+    }
+    func place() {
+        let screen = UIScreen.main.bounds, s = size
+        let insets = UIApplication.shared.windows.first?.safeAreaInsets ?? .zero
+        let x = corner & 1 != 0 ? screen.width - 10 - s.width : 10
+        let y = corner & 2 != 0 ? screen.height - max(insets.bottom, 10) - 10 - s.height : max(insets.top, 20) + 6
+        frame = CGRect(x: x, y: y, width: s.width, height: s.height)
+        let b = bounds, c = CGPoint(x: b.midX, y: b.midY)
+        buttons["pip-close"]?.frame = CGRect(x: 4, y: 4, width: 36, height: 36)
+        buttons["pip-restore"]?.frame = CGRect(x: b.width - 40, y: 4, width: 36, height: 36)
+        buttons["pip-play"]?.frame = CGRect(x: c.x - 22, y: c.y - 22, width: 44, height: 44)
+        buttons["pip-skip-back"]?.frame = CGRect(x: c.x - 78, y: c.y - 20, width: 40, height: 40)
+        buttons["pip-skip-forward"]?.frame = CGRect(x: c.x + 38, y: c.y - 20, width: 40, height: 40)
+    }
+    func show() { place(); isHidden = false; refresh() }
+    func close() { isHidden = true; video.playerLayer.player = nil }
+    func refresh() { buttons["pip-play"]?.setImage(UIImage(systemName: player.rate > 0 ? "pause.fill" : "play.fill"), for: .normal) }
+    @objc func toggleControls() { controls.isHidden.toggle(); refresh() }
+    @objc func pressed(_ b: UIButton) {
+        let id = b.accessibilityIdentifier ?? ""
+        let e = id == "pip-close" ? "close" : id == "pip-restore" ? "restore" : id == "pip-play" ? (player.rate > 0 ? "pause" : "play")
+            : id == "pip-skip-back" ? "skip -15" : "skip 15"
+        owner?._event(e)
+    }
+    @objc func dragged(_ g: UIPanGestureRecognizer) {
+        let t = g.translation(in: nil)
+        if g.state == .changed { transform = CGAffineTransform(translationX: t.x, y: t.y) }
+        if g.state == .ended || g.state == .cancelled {
+            let c = CGPoint(x: frame.midX, y: frame.midY), screen = UIScreen.main.bounds
+            transform = .identity
+            corner = (c.x > screen.midX ? 1 : 0) | (c.y > screen.midY ? 2 : 0)
+            UIView.animate(withDuration: 0.25) { self.place() }
+        }
+    }
+}
+
+// MARK: - AirPlay route picker
+
+@objc public protocol AVRoutePickerViewDelegate: NSObjectProtocol {
+    @objc optional func routePickerViewWillBeginPresentingRoutes(_ routePickerView: AVRoutePickerView)
+    @objc optional func routePickerViewDidEndPresentingRoutes(_ routePickerView: AVRoutePickerView)
+}
+/// The AirPlay button: tapping it presents the audio route picker (AVFoundation's simulated routes).
 open class AVRoutePickerView: UIView {
-    open var activeTintColor: UIColor? = nil
-    open var prioritizesVideoDevices = false
+    open var activeTintColor: UIColor? = nil { didSet { refresh() } }
+    open var prioritizesVideoDevices = false { didSet { refresh() } }
+    open weak var delegate: AVRoutePickerViewDelegate?
+    let button = UIButton(type: .custom)
+    var observer: NSObjectProtocol?
+    public override init(frame: CGRect) { super.init(frame: frame); setup() }
+    public required init?(coder: NSCoder) { super.init(coder: coder); setup() }
+    func setup() {
+        button.accessibilityIdentifier = "avkit-route-picker"
+        button.accessibilityLabel = "AirPlay"
+        button.addTarget(self, action: #selector(tapped), for: .touchUpInside)
+        addSubview(button)
+        observer = NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+        refresh()
+    }
+    deinit { if let o = observer { NotificationCenter.default.removeObserver(o) } }
+    func refresh() {
+        button.setImage(UIImage(systemName: prioritizesVideoDevices ? "airplayvideo" : "airplayaudio"), for: .normal)
+        let airplay = AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }
+        button.tintColor = airplay ? (activeTintColor ?? tintColor) : tintColor
+    }
+    open override func tintColorDidChange() { super.tintColorDidChange(); refresh() }
+    open override func layoutSubviews() { super.layoutSubviews(); button.frame = bounds }
+    open override var intrinsicContentSize: CGSize { CGSize(width: 30, height: 30) }
+    @objc func tapped() {
+        delegate?.routePickerViewWillBeginPresentingRoutes?(self)
+        AVAudioSession._isimShowRoutePicker(from: self) { [weak self] in
+            guard let self else { return }
+            MainActor.assumeIsolated { self.refresh(); self.delegate?.routePickerViewDidEndPresentingRoutes?(self) }
+        }
+    }
 }
 
 // MARK: - SwiftUI VideoPlayer

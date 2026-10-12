@@ -83,6 +83,7 @@ extension AVAudioSession {
         vc.modalPresentationStyle = .overFullScreen
         vc.modalTransitionStyle = .crossDissolve
         vc.onDismiss = done
+        vc.overrideUserInterfaceStyle = presenter.traitCollection.userInterfaceStyle   // dark over a video player
         presenter.present(vc, animated: true)
     }
 }

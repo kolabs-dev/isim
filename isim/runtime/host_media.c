@@ -181,7 +181,12 @@ static void fmt_time(char *b, size_t n, double t) { snprintf(b, n, "%.6f", t > 0
 /* Opens a playback session at `start` seconds. want_video: decode frames (needs width/height/fps of the
  * video track, from isim_media_probe); want_audio: stream the soundtrack to the mixer when sound is
  * available. Returns a handle (> 0) or 0. */
+int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
 int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume) {
+    return isim_media_open_rate(url, start, width, height, fps, want_video, want_audio, volume, 1);
+}
+/* the same at a playback rate: the soundtrack is time-stretched (ffmpeg's atempo keeps the pitch) */
+int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate) {
     struct media *md = calloc(1, sizeof *md);
     md->url = strdup(url); md->start = start > 0 ? start : 0; md->fps = fps > 0 ? fps : 30;
     md->vpid = md->apid = -1; md->vfd = md->afd = -1;
@@ -202,7 +207,13 @@ int isim_media_open(const char *url, double start, double width, double height, 
         } else fprintf(stderr, "isim media: cannot start ffmpeg for %s (video needs ffmpeg on the host)\n", url);
     }
     if (want_audio && (md->astream = isim_audio_stream_open(volume)) > 0) {
-        char *argv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-i", md->url, "-vn", "-sn",
+        char af[160] = "anull";
+        if (rate > 0 && fabs(rate - 1) > 1e-3) {             /* atempo takes 0.5...100 per stage: chain stages for slower rates */
+            double r = rate; int n = 0; af[0] = 0;
+            while (r < 0.5 && n < 6) { strcat(af, n++ ? ",atempo=0.5" : "atempo=0.5"); r /= 0.5; }
+            char last[40]; snprintf(last, sizeof last, "%satempo=%.6f", n ? "," : "", r); strcat(af, last);
+        }
+        char *argv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-i", md->url, "-vn", "-sn", "-af", af,
                          "-f", "f32le", "-ac", "2", "-ar", "48000", "-", NULL };
         md->apid = spawn_reader(argv, &md->afd);
         if (md->apid > 0) md->athread = pthread_create(&md->ath, NULL, audio_thread, md) == 0;

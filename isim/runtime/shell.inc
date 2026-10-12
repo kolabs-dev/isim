@@ -64,7 +64,7 @@ static void shell_forward(int i, const struct isim_event *ev) {
 }
 static int nb_visible(void); static void nb_draw(void);
 static int sys_visible(void); static void sys_draw(void); static int sys_hides_banners(void);   /* shell_system.inc */
-static int la_island_visible(void); static int pill_visible(void);
+static int la_island_visible(void); static int pill_visible(void); static int pip_visible(void);
 static struct rectf client_rect(int i) {
     if (i < 0 || !clients[i].phone_compat) return (struct rectf){ 0, 0, dev.width, dev.height };
     int pw, ph; client_dims(i, &pw, &ph);
@@ -81,7 +81,7 @@ static void paint_client(cairo_t *c, int i) {
 }
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
-    if (sys_visible() || la_island_visible() || pill_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island, location indicator */
+    if (sys_visible() || la_island_visible() || pill_visible() || pip_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island, location indicator, Picture in Picture */
     shell_apply_orient(clients[i].orient);
     if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
     if (clients[i].phone_compat) {

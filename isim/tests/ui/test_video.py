@@ -87,3 +87,64 @@ def test_seek_rate_queue_looper_avkit_swiftui(launch):
     at(t0, 1.4)
     assert green(rgb(app.screenshot("swiftui"), 201, 380)), "SwiftUI VideoPlayer plays (green at ~1.4 s)"
     assert app.quit() == 0
+
+
+def test_avkit_speed_airplay_pip_inline(launch):
+    """AVPlayerViewController's playback speed menu, AirPlay route picker and Picture in Picture with `isim run` (no
+    system UI: the video floats in a window over the app)."""
+    app = launch("HelloVideo")
+    app.wait_log(r"item status readyToPlay")
+    app.wait_tap_id("long")
+    app.wait_log(r"long video playing")
+    app.wait_tap_id("avkit-speed")                                     # the speed menu
+    app.wait_tap_id("menu-2×")
+    app.wait_log(r"isim AVKit: playback speed 2×")
+    app.wait_log(r"long rate 2\.0")
+    app.wait_tap_id("avkit-airplay")
+    picker = app.wait_view(r"id=route-airplay")
+    app.wait_still()
+    app.screenshot("route-picker")
+    app.tap_id("route-airplay")
+    app.wait_log(r"HelloVideo: route AirPlay")
+    app.wait_tap_id("avkit-pip")
+    app.wait_log(r"pip did start presented=false")                     # the player controller is dismissed
+    app.wait_view(r"id=pip-window")
+    app.tap_id("pip-window")                                            # controls
+    app.wait_tap_id("pip-restore")
+    app.wait_log(r"HelloVideo: pip restore")
+    app.wait_log(r"HelloVideo: pip did stop")
+    app.wait_view(r"id=avkit-pip")                                      # presented again
+    assert app.quit() == 0
+    assert "id=route-iphone" in picker and "AirPlay Speaker" in picker, "route picker lists the device and an AirPlay speaker"
+
+
+def test_avkit_pip_system(launch):
+    """Picture in Picture on a booted device: the system floats the video over the app and over the home screen; its
+    controls pause the app's player and bring the app back (the controller is presented again)."""
+    dev = launch(None, install=["HelloVideo"])
+    dev.send("launch dev.isim.samples.HelloVideo")
+    dev.wait_tap_id("long")
+    dev.wait_log(r"long video playing")
+    dev.wait_tap_id("avkit-pip")
+    dev.wait_log(r"isim shell: Picture in Picture from Video \(320x180\)")
+    dev.wait_log(r"pip did start presented=false")
+    dev.wait_dump(r"id=pip-window text=long playing")
+    dev.wait_still()
+    over_app = dev.screenshot("pip-over-app")
+    dev.send("home")
+    dev.wait_log(r"isim shell: home")
+    dev.sleep(0.6)
+    home = dev.screenshot("pip-over-home")
+    dev.tap_id("pip-window")
+    dev.wait_dump(r"id=pip-play text=pause")
+    controls = dev.screenshot("pip-controls")
+    dev.tap_id("pip-play")
+    dev.wait_log(r"isim AVKit: Picture in Picture pause")
+    dev.wait_dump(r"id=pip-play text=play")                             # the controls stay up after a tap
+    dev.tap_id("pip-restore")
+    dev.wait_log(r"HelloVideo: pip restore")
+    dev.wait_log(r"isim shell: Picture in Picture ended")
+    dev.wait_view(r"id=avkit-pip")                                      # back in the app, presented again
+    dev.wait_log(r"long rate 0\.0")
+    assert dev.quit() == 0
+    assert over_app and home and controls

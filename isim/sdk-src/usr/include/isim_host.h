@@ -232,6 +232,8 @@ struct isim_media_info { double duration, width, height, fps; int has_video, has
 int isim_media_probe(const char *url, struct isim_media_info *info);            /* 0: unreadable / no ffprobe */
 /* playback session from `start` seconds: video frames (if want_video) and the soundtrack to the mixer (if want_audio) */
 int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
+/* the same at a playback rate: the soundtrack is time-stretched (pitch kept) */
+int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
 /* UI thread: image handle of the frame for time t (0 before the first frame); eof once all frames were shown */
 int isim_media_video_frame(int media, double t, int *eof, double *pts);
 void isim_media_set_audio(int media, int paused, double volume);

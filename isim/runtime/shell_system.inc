@@ -652,6 +652,161 @@ static void bg_tick(void) {
         if (kill(c->pid, SIGSTOP) == 0) { c->suspended = 1; fprintf(stderr, "isim shell: suspended %s\n", short_name(i)); }
     }
 }
+/* ======================= Picture in Picture =======================
+ * An app's AVPictureInPictureController hands its video to the system: "pip-start URL\x1fTITLE", c = "TIME RATE W H FPS";
+ * "pip-update", c = "TIME RATE"; "pip-stop". The shell decodes the video itself (host_media.c: frames only; the app's
+ * player keeps the sound) and floats it over the screen — over the app, the home screen and other apps — until the app
+ * stops it. Like iOS: tap shows the controls (close, return to the app, skip ±15 s, play/pause); drag moves it to a
+ * corner. Controls send the app "pip close|restore|play|pause|skip SECONDS" system events. Elements: pip-window,
+ * pip-close, pip-restore, pip-play, pip-skip-back, pip-skip-forward. */
+struct isim_media_info { double duration, width, height, fps; int has_video, has_audio; };
+int isim_media_probe(const char *url, struct isim_media_info *info);
+int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
+int isim_media_video_frame(int h, double t, int *eof, double *pts);
+void isim_media_close(int h);
+int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out);
+static struct {
+    int on, client, media, corner, controls, down, moved;
+    char url[1024], title[256];
+    double t0, at, rate, vw, vh, fps, mw, mh, controls_t, ox, oy, dx, dy;
+    unsigned char *px;
+} pip = { .corner = 3 };
+static int pip_visible(void) { return pip.on && pip.client > 0 && pip.client < nclients && clients[pip.client].alive && !locked && ov == OV_NONE && anim.kind == ANIM_NONE; }
+static double pip_time(void) { return pip.t0 + (pip.rate > 0 ? (now() - pip.at) * pip.rate : 0); }
+static struct rectf pip_rect(void) {
+    double w = fmin(dev.width * 0.62, 260), h = pip.vw > 0 ? w * pip.vh / pip.vw : w * 9 / 16;
+    if (h > dev.height * 0.4) { h = dev.height * 0.4; w = pip.vh > 0 ? h * pip.vw / pip.vh : w; }
+    double m = 10, top = fmax(dev.safe_top, 20) + 6, bottom = dev.height - fmax(dev.safe_bottom, 10) - 10 - h;
+    struct rectf r = { pip.corner & 1 ? dev.width - m - w : m, pip.corner & 2 ? bottom : top, w, h };
+    if (pip.down && pip.moved) { r.x += pip.dx; r.y += pip.dy; }
+    return r;
+}
+static void pip_open_media(void) {
+    if (pip.media > 0) { isim_media_close(pip.media); pip.media = 0; }
+    double sc = fmax(pip.vw, pip.vh) > 960 ? 960 / fmax(pip.vw, pip.vh) : 1;
+    pip.mw = (int)lround(pip.vw * sc / 2) * 2; pip.mh = (int)lround(pip.vh * sc / 2) * 2;
+    if (pip.mw < 2 || pip.mh < 2) return;
+    pip.media = isim_media_open_rate(pip.url, pip_time(), pip.vw, pip.vh, pip.fps, 1, 0, 0, pip.rate > 0 ? pip.rate : 1);
+    free(pip.px); pip.px = malloc((size_t)pip.mw * pip.mh * 4); memset(pip.px, 0, (size_t)pip.mw * pip.mh * 4);
+}
+static void pip_stop(void) {
+    if (pip.media > 0) isim_media_close(pip.media);
+    pip.media = 0; pip.on = 0; free(pip.px); pip.px = NULL;
+}
+static void pip_glyph(cairo_t *c, const char *g, double cx, double cy, double s) {
+    cairo_save(c); cairo_set_source_rgb(c, 1, 1, 1); cairo_set_line_width(c, s * 0.12); cairo_set_line_cap(c, CAIRO_LINE_CAP_ROUND);
+    cairo_set_line_join(c, CAIRO_LINE_JOIN_ROUND); cairo_new_path(c);
+    if (!strcmp(g, "close")) { double d = s * 0.32; cairo_move_to(c, cx - d, cy - d); cairo_line_to(c, cx + d, cy + d); cairo_move_to(c, cx + d, cy - d); cairo_line_to(c, cx - d, cy + d); cairo_stroke(c); }
+    else if (!strcmp(g, "play")) { cairo_move_to(c, cx - s * 0.3, cy - s * 0.42); cairo_line_to(c, cx + s * 0.45, cy); cairo_line_to(c, cx - s * 0.3, cy + s * 0.42); cairo_close_path(c); cairo_fill(c); }
+    else if (!strcmp(g, "pause")) { sys_round(c, cx - s * 0.36, cy - s * 0.42, s * 0.24, s * 0.84, s * 0.05); sys_round(c, cx + s * 0.12, cy - s * 0.42, s * 0.24, s * 0.84, s * 0.05); cairo_fill(c); }
+    else if (!strcmp(g, "restore")) {                                 /* a screen with a small window: back to the app */
+        sys_round(c, cx - s * 0.45, cy - s * 0.34, s * 0.9, s * 0.68, s * 0.1); cairo_stroke(c);
+        sys_round(c, cx + s * 0.02, cy + s * 0.0, s * 0.3, s * 0.22, s * 0.04); cairo_fill(c);
+    } else {                                                          /* skip: an arc with an arrow head and "15" */
+        int fwd = !strcmp(g, "fwd");
+        cairo_arc(c, cx, cy, s * 0.42, fwd ? -M_PI * 0.45 : -M_PI * 0.55 - 0.0, fwd ? M_PI * 1.25 : -M_PI * 2.25);
+        if (!fwd) { cairo_new_path(c); cairo_arc_negative(c, cx, cy, s * 0.42, -M_PI * 0.55, M_PI * -2.25 + M_PI * 2); }
+        cairo_stroke(c);
+        double tx = cx + (fwd ? s * 0.05 : -s * 0.05), ty = cy - s * 0.42;
+        cairo_move_to(c, tx + (fwd ? -s * 0.12 : s * 0.12), ty - s * 0.12); cairo_line_to(c, tx + (fwd ? s * 0.06 : -s * 0.06), ty); cairo_line_to(c, tx + (fwd ? -s * 0.12 : s * 0.12), ty + s * 0.12);
+        cairo_stroke(c);
+        sys_text(c, "15", cx - s * 0.5, cy - s * 0.2, s, s * 0.32, PANGO_WEIGHT_BOLD, 1, 1, 1, 1, 1, 1);
+    }
+    cairo_restore(c);
+}
+static struct rectf pip_button(const char *which) {
+    struct rectf r = pip_rect(); double b = 36;
+    if (!strcmp(which, "pip-close")) return (struct rectf){ r.x + 4, r.y + 4, b, b };
+    if (!strcmp(which, "pip-restore")) return (struct rectf){ r.x + r.w - 4 - b, r.y + 4, b, b };
+    if (!strcmp(which, "pip-play")) return (struct rectf){ r.x + r.w / 2 - 22, r.y + r.h / 2 - 22, 44, 44 };
+    if (!strcmp(which, "pip-skip-back")) return (struct rectf){ r.x + r.w / 2 - 22 - 56, r.y + r.h / 2 - 20, 40, 40 };
+    return (struct rectf){ r.x + r.w / 2 + 22 + 16, r.y + r.h / 2 - 20, 40, 40 };
+}
+static void pip_draw(cairo_t *c) {
+    if (!pip_visible()) return;
+    struct rectf r = pip_rect();
+    if (pip.controls && now() - pip.controls_t > 3) pip.controls = 0;
+    cairo_save(c);
+    cairo_new_path(c); sys_round(c, r.x - 1, r.y + 2, r.w + 2, r.h + 2, 13); cairo_set_source_rgba(c, 0, 0, 0, 0.25); cairo_fill(c);
+    cairo_new_path(c); sys_round(c, r.x, r.y, r.w, r.h, 12); cairo_clip(c);
+    cairo_set_source_rgb(c, 0, 0, 0); cairo_paint(c);
+    if (pip.media > 0 && pip.px) {
+        int eof = 0; double pts = 0;
+        int img = isim_media_video_frame(pip.media, pip_time(), &eof, &pts);
+        if (img > 0) isim_image_read_bgra(img, 0, 0, (int)pip.mw, (int)pip.mh, pip.px);
+        cairo_surface_t *f = cairo_image_surface_create_for_data(pip.px, CAIRO_FORMAT_ARGB32, (int)pip.mw, (int)pip.mh, (int)pip.mw * 4);
+        cairo_save(c); cairo_translate(c, r.x, r.y); cairo_scale(c, r.w / pip.mw, r.h / pip.mh);
+        cairo_set_source_surface(c, f, 0, 0); cairo_pattern_set_filter(cairo_get_source(c), CAIRO_FILTER_GOOD); cairo_paint(c);
+        cairo_restore(c); cairo_surface_destroy(f);
+    }
+    char t[300]; snprintf(t, sizeof t, "%s %s", pip.title[0] ? pip.title : app_label(pip.client), pip.rate > 0 ? "playing" : "paused");
+    el_add("pip-window", t, r, EL_NONE, 0);
+    if (pip.controls) {
+        cairo_set_source_rgba(c, 0, 0, 0, 0.35); cairo_paint(c);
+        struct { const char *id, *glyph; double size; } b[5] = { { "pip-close", "close", 18 }, { "pip-restore", "restore", 22 },
+            { "pip-skip-back", "back", 26 }, { "pip-play", pip.rate > 0 ? "pause" : "play", 30 }, { "pip-skip-forward", "fwd", 26 } };
+        for (int k = 0; k < 5; k++) {
+            struct rectf br = pip_button(b[k].id);
+            pip_glyph(c, b[k].glyph, br.x + br.w / 2, br.y + br.h / 2, b[k].size);
+            el_add(b[k].id, k == 3 ? (pip.rate > 0 ? "pause" : "play") : "", br, EL_NONE, 0);
+        }
+    }
+    cairo_restore(c);
+}
+static void pip_action(const char *id) {
+    const char *a = !strcmp(id, "pip-close") ? "close" : !strcmp(id, "pip-restore") ? "restore" : !strcmp(id, "pip-play") ? (pip.rate > 0 ? "pause" : "play")
+        : !strcmp(id, "pip-skip-back") ? "skip -15" : !strcmp(id, "pip-skip-forward") ? "skip 15" : NULL;
+    if (!a) return;
+    fprintf(stderr, "isim shell: Picture in Picture %s (%s)\n", a, app_label(pip.client));
+    int app = pip.client;
+    if (!strcmp(a, "restore") && app != active) shell_launch(clients[app].bundle, clients[app].exe, NULL);   /* back to the app */
+    sys_send_text(app, "pip %s", a);
+    pip.controls_t = now();
+}
+/* touches on the floating window: tap shows the controls (or presses one), a drag moves it to another corner */
+static int pip_input(const struct isim_event *ev) {
+    if (!pip_visible()) return 0;
+    if (ev->type == EV_DUMP) {                                       /* `dump`: the floating window and its controls */
+        struct rectf r = pip_rect();
+        fprintf(stderr, "IsimPictureInPicture (%g %g; %g x %g) id=pip-window text=%s %s\n", r.x, r.y, r.w, r.h,
+                pip.title[0] ? pip.title : app_label(pip.client), pip.rate > 0 ? "playing" : "paused");
+        if (pip.controls) {
+            const char *ids[5] = { "pip-close", "pip-restore", "pip-skip-back", "pip-play", "pip-skip-forward" };
+            for (int k = 0; k < 5; k++) { struct rectf b = pip_button(ids[k]); fprintf(stderr, "  IsimControlButton (%g %g; %g x %g) id=%s%s\n", b.x, b.y, b.w, b.h, ids[k], k == 3 ? (pip.rate > 0 ? " text=pause" : " text=play") : ""); }
+        }
+        return 0;
+    }
+    if (ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) {
+        if (strncmp(ev->text, "pip-", 4)) return 0;
+        if (ev->type == EV_ID_UP) { if (!strcmp(ev->text, "pip-window")) { pip.controls = !pip.controls; pip.controls_t = now(); } else if (pip.controls) pip_action(ev->text); shell_show(active); }
+        return 1;
+    }
+    struct rectf r = pip_rect();
+    int inside = ev->x >= r.x && ev->x <= r.x + r.w && ev->y >= r.y && ev->y <= r.y + r.h;
+    if (ev->type == EV_TOUCH_DOWN) { if (!inside) return 0; pip.down = 1; pip.moved = 0; pip.ox = ev->x; pip.oy = ev->y; pip.dx = pip.dy = 0; return 1; }
+    if (!pip.down) return 0;
+    if (ev->type == EV_TOUCH_MOVE) {
+        pip.dx = ev->x - pip.ox; pip.dy = ev->y - pip.oy;
+        if (fabs(pip.dx) + fabs(pip.dy) > 8) pip.moved = 1;
+        shell_show(active); return 1;
+    }
+    if (ev->type == EV_TOUCH_UP) {
+        if (pip.moved) {
+            struct rectf m = pip_rect();
+            pip.corner = (m.x + m.w / 2 > dev.width / 2 ? 1 : 0) | (m.y + m.h / 2 > dev.height / 2 ? 2 : 0);
+            fprintf(stderr, "isim shell: Picture in Picture moved to the %s %s corner\n", pip.corner & 2 ? "bottom" : "top", pip.corner & 1 ? "right" : "left");
+        } else if (!pip.controls) { pip.controls = 1; pip.controls_t = now(); }
+        else {
+            const char *ids[5] = { "pip-close", "pip-restore", "pip-play", "pip-skip-back", "pip-skip-forward" }; int hit = 0;
+            for (int k = 0; k < 5; k++) { struct rectf b = pip_button(ids[k]); if (ev->x >= b.x && ev->x <= b.x + b.w && ev->y >= b.y && ev->y <= b.y + b.h) { pip_action(ids[k]); hit = 1; break; } }
+            if (!hit) pip.controls = 0;
+        }
+        pip.down = 0; pip.moved = 0;
+        shell_show(active); return 1;
+    }
+    return 0;
+}
+
 /* the blue location indicator (iOS: the status bar's time on a blue capsule while an app uses location in the background) */
 static int pill_client(void) {
     if (locked || ov != OV_NONE) return -1;
@@ -899,6 +1054,7 @@ static void sys_draw(void) {
         cairo_scale(c, px_scale, px_scale);
         la_draw_island(c);
         pill_draw(c);
+        pip_draw(c);
     } else if (ov == OV_NX) {                                         /* an expanded notification over the blurred screen */
         cairo_surface_t *under = locked ? home : bs; int uw = locked ? hw : bw, uh = locked ? hh : bh;
         sys_paint_blurred(c, under, uw, uh, 0.3);
@@ -1128,6 +1284,7 @@ static int sys_input(const struct isim_event *ev) {
     }
     if (ev->type == EV_DEVICE_ORIENTATION && cc_on[CC_ORIENT]) { device_orient = 1; fprintf(stderr, "isim shell: rotation ignored (orientation lock)\n"); return 1; }
     if (nx_text_input(ev)) return 1;
+    if (ov == OV_NONE && pip_input(ev)) return 1;
     if (ov == OV_NONE && pill_visible()) {                       /* the location indicator: tap opens the app using location */
         struct rectf r = pill_rect(NULL); int app = pill_client();
         if ((ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) && !strcmp(ev->text, "location-indicator")) {
@@ -1243,6 +1400,10 @@ static void sys_tick(void) {
     if (active != seen_active) { seen_active = active; if (active > 0) last_active_t[active] = now(); }
     sys_autolock_tick();
     bg_tick();
+    if (pip_visible()) {                                   /* the floating video: ~30 frames a second */
+        static double last_pip;
+        if (now() - last_pip > 1.0 / 30) { last_pip = now(); shell_show(active >= 0 ? active : 0); }
+    }
     if (ov == OV_NONE) return;
     static double last_draw;
     double t = now();
@@ -1281,6 +1442,25 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
             fprintf(stderr, "isim shell: Now Playing %s — %s (%s) %.1f/%.1f s rate %g\n", np.title, np.artist, app_label(from), np.elapsed, np.duration, np.rate);
         }
         if (ov != OV_NONE) sys_draw();
+    } else if (!strcmp(verb, "pip-start")) {               /* b = URL\x1fTITLE, c = "TIME RATE W H FPS" */
+        pip_stop();
+        field(m->b, 0, pip.url, sizeof pip.url); field(m->b, 1, pip.title, sizeof pip.title);
+        pip.vw = pip.vh = 0; pip.fps = 30; pip.t0 = 0; pip.rate = 0;
+        sscanf(m->c, "%lf %lf %lf %lf %lf", &pip.t0, &pip.rate, &pip.vw, &pip.vh, &pip.fps);
+        pip.at = now(); pip.client = from; pip.on = 1; pip.controls = 0;
+        pip_open_media();
+        fprintf(stderr, "isim shell: Picture in Picture from %s (%.0fx%.0f) at %.1f s\n", app_label(from), pip.vw, pip.vh, pip.t0);
+        shell_show(active >= 0 ? active : 0);
+    } else if (!strcmp(verb, "pip-update")) {              /* c = "TIME RATE": seek / play / pause */
+        if (pip.on && pip.client == from) {
+            double t = pip.t0, r = pip.rate;
+            sscanf(m->c, "%lf %lf", &t, &r);
+            int reopen = fabs(t - pip_time()) > 0.4 || (r > 0 && fabs(r - pip.rate) > 1e-3 && pip.rate > 0);
+            pip.t0 = t; pip.at = now(); pip.rate = r;
+            if (reopen) pip_open_media();
+        }
+    } else if (!strcmp(verb, "pip-stop")) {
+        if (pip.client == from && pip.on) { pip_stop(); fprintf(stderr, "isim shell: Picture in Picture ended\n"); shell_show(active >= 0 ? active : 0); }
     } else if (!strcmp(verb, "volume")) {                  /* an app's MPVolumeView changed the device volume */
         sys_volume_changed(atof(m->b), from);
         fprintf(stderr, "isim shell: volume %d%% (%s)\n", (int)lround(cc_volume * 100), app_label(from));

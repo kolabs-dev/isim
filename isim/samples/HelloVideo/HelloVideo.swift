@@ -42,6 +42,9 @@ final class VideoViewController: UIViewController {
     var queue: AVQueuePlayer?
     var looper: AVPlayerLooper?
     var loopPlayer: AVQueuePlayer?
+    var longPlayer: AVPlayerViewController?
+    var routeObserver: NSObjectProtocol?
+    var rateObserver: NSKeyValueObservation?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -67,7 +70,8 @@ final class VideoViewController: UIViewController {
         var x: CGFloat = 20, y: CGFloat = 370
         for (t, id, sel) in [("Play", "play", #selector(play)), ("Pause", "pause", #selector(pause)), ("Seek 2s", "seek", #selector(seek)),
                              ("2x", "rate", #selector(fast)), ("Queue", "queue", #selector(runQueue)), ("Loop", "loop", #selector(runLooper)),
-                             ("Full Screen", "fullscreen", #selector(fullScreen)), ("SwiftUI", "swiftui", #selector(swiftUI))] {
+                             ("Full Screen", "fullscreen", #selector(fullScreen)), ("SwiftUI", "swiftui", #selector(swiftUI)),
+                             ("Long Video", "long", #selector(longVideo))] {
             let b = UIButton(type: .system)
             b.setTitle(t, for: .normal); b.accessibilityIdentifier = id
             b.addTarget(self, action: sel, for: .touchUpInside)
@@ -174,6 +178,23 @@ final class VideoViewController: UIViewController {
         vc.modalPresentationStyle = .fullScreen
         present(vc, animated: false) { log("presented AVPlayerViewController") }
     }
+    /// a 12 s clip in AVPlayerViewController: Picture in Picture, playback speed, AirPlay
+    @objc func longVideo() {
+        player.pause()
+        let url = Bundle.main.url(forResource: "long", withExtension: "mp4")!
+        let vc = AVPlayerViewController()
+        vc.player = AVPlayer(url: url)
+        vc.delegate = self
+        vc.modalPresentationStyle = .fullScreen
+        longPlayer = vc
+        if routeObserver == nil {
+            routeObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { _ in
+                log("route \(AVAudioSession.sharedInstance().currentRoute.outputs.first?.portName ?? "-")")
+            }
+            rateObserver = vc.player?.observe(\.rate, options: [.new]) { p, _ in log("long rate \(p.rate)") }
+        }
+        present(vc, animated: false) { vc.player?.play(); log("long video playing") }
+    }
     @objc func swiftUI() {
         player.pause()
         let p = AVPlayer(url: clip)
@@ -191,5 +212,15 @@ struct SwiftUIPlayer: View {
         }
         .ignoresSafeArea()
         .onAppear { player.play(); log("SwiftUI VideoPlayer appeared") }
+    }
+}
+
+extension VideoViewController: AVPlayerViewControllerDelegate {
+    func playerViewControllerWillStartPictureInPicture(_ vc: AVPlayerViewController) { log("pip will start") }
+    func playerViewControllerDidStartPictureInPicture(_ vc: AVPlayerViewController) { log("pip did start presented=\(vc.presentingViewController != nil)") }
+    func playerViewControllerDidStopPictureInPicture(_ vc: AVPlayerViewController) { log("pip did stop") }
+    func playerViewController(_ vc: AVPlayerViewController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler done: @escaping (Bool) -> Void) {
+        log("pip restore")
+        present(vc, animated: false) { done(true) }
     }
 }
