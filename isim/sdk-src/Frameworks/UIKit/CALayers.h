@@ -62,6 +62,8 @@ UIKIT_EXTERN CATextLayerAlignmentMode const kCAAlignmentJustified NS_SWIFT_NAME(
 @property (copy) CATextLayerTruncationMode truncationMode;
 @property (copy) CATextLayerAlignmentMode alignmentMode;
 @property BOOL allowsFontSubpixelQuantization;
+/* isim: the string as last drawn, after truncation (for tests) */
+@property (readonly, nullable) id _isim_drawnString;
 @end
 
 /* ================= CAReplicatorLayer ================= */
@@ -76,7 +78,9 @@ UIKIT_EXTERN CATextLayerAlignmentMode const kCAAlignmentJustified NS_SWIFT_NAME(
 @end
 
 /* ================= CATransformLayer / CAScrollLayer ================= */
-@interface CATransformLayer : CALayer   /* isim: renders like a plain layer (no shared 3D space) */
+/* its sublayers share its 3D space (not flattened into its plane): each is drawn in perspective, back to front by
+   depth (isim: whole layers are ordered by their centres, no per-pixel depth buffer); it draws no content of its own */
+@interface CATransformLayer : CALayer
 @end
 typedef NSString *CAScrollLayerScrollMode NS_TYPED_ENUM;
 UIKIT_EXTERN CAScrollLayerScrollMode const kCAScrollNone NS_SWIFT_NAME(CAScrollLayerScrollMode.none);
@@ -124,7 +128,7 @@ UIKIT_EXTERN CAEmitterLayerRenderMode const kCAEmitterLayerAdditive NS_SWIFT_NAM
 @property CGFloat contentsScale;
 @property (copy) CALayerContentsFilter minificationFilter, magnificationFilter;
 @property float minificationFilterBias;
-@property (nullable, copy) NSArray<CAEmitterCell *> *emitterCells;   /* isim: stored, not emitted */
+@property (nullable, copy) NSArray<CAEmitterCell *> *emitterCells;   /* emitted by each particle of this cell */
 @property (nullable, copy) NSDictionary *style;
 @property CFTimeInterval beginTime, duration, timeOffset, repeatDuration;
 @property float speed, repeatCount;
@@ -132,8 +136,10 @@ UIKIT_EXTERN CAEmitterLayerRenderMode const kCAEmitterLayerAdditive NS_SWIFT_NAM
 @property (copy) CAMediaTimingFillMode fillMode;
 @end
 
-/* isim: a simple 2D particle simulation (point/line/rectangle/circle shapes; velocity, acceleration, spin,
-   scale and colour speeds; additive rendering) stepped each frame */
+/* isim: a particle simulation stepped each frame (point/line/rectangle/circle/cuboid/sphere shapes; velocity,
+   acceleration, spin, scale and colour speeds; sub-cells emitted by each particle; additive rendering). Particles move
+   in 3D (emissionLatitude, zAcceleration, emitterZPosition/emitterDepth) and are drawn projected onto the layer's
+   plane (orthographic) */
 @interface CAEmitterLayer : CALayer
 @property (nullable, copy) NSArray<CAEmitterCell *> *emitterCells;
 @property float birthRate, lifetime, velocity, scale, spin;
@@ -145,7 +151,8 @@ UIKIT_EXTERN CAEmitterLayerRenderMode const kCAEmitterLayerAdditive NS_SWIFT_NAM
 @property (copy) CAEmitterLayerRenderMode renderMode;
 @property BOOL preservesDepth;
 @property unsigned int seed;
-/* isim: number of live particles (for tests) */
+/* isim: number of live particles, all or of one named cell (for tests) */
 @property (readonly) NSInteger _isim_particleCount;
+- (NSInteger)_isim_particleCountOfCell:(NSString *)name;
 @end
 NS_ASSUME_NONNULL_END
