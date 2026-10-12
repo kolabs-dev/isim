@@ -13,7 +13,8 @@
  *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
  *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "iconstyle STYLE [#RRGGBB] [small|large]", "swipehome left|right",
  *                  "push BUNDLE-ID FILE", "handoff TYPE [URL] [TITLE]", "terminate BUNDLE-ID", "appclip URL|register|unregister|expire|list ...",
- *                  "focus [dnd|personal|work|sleep|off]", "actionbutton [assign CONTROL]", "lockcontrol left|right CONTROL"
+ *                  "focus [dnd|personal|work|sleep|off]", "actionbutton [assign CONTROL]", "lockcontrol left|right CONTROL",
+ *                  "standby on|off", "lockscreen customize|done"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
  * installed apps) is a child process ("client") that renders into a shared-memory surface and
@@ -1412,6 +1413,14 @@ static int script_step(struct isim_event *ev) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_audio_session_post(const char *ev);
         isim_audio_session_post(arg);
+    } else if ((!strcmp(cmd, "standby") || !strcmp(cmd, "lockscreen")) && shell_mode) {
+        /* WidgetKit system UI (shell_system.inc): "standby on|off" (StandBy: charging, landscape), "lockscreen customize|done"
+           (the Lock Screen editor: accessory widgets) */
+        for (char *e = args + strlen(args) - 1; e >= args && *e == ' '; e--) *e = 0;
+        while (*args == ' ') args++;
+        pending[npending++] = (struct isim_event){ .type = EV_SHELL_CMD };
+        snprintf(pending[npending - 1].text, sizeof pending->text, "%s%s%s", cmd, *args ? " " : "", args);
+        script_resume = now() + 0.4;
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
                || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || (!strcmp(cmd, "appclip") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
                || (!strcmp(cmd, "focus") && shell_mode && args[strspn(args, " ")] && args[strspn(args, " ")] != ';')   /* `focus MODE`; bare `focus`: the window */

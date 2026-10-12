@@ -108,7 +108,7 @@ def test_widgets(launch):
 
     def has(p):
         return re.search(p, log, re.M)
-    assert has(r"isim WidgetKit: 2 widget kind\(s\), 1 Live Activity configuration\(s\)") and \
+    assert has(r"isim WidgetKit: 3 widget kind\(s\), 1 Live Activity configuration\(s\)") and \
         "id=widget-add-Counter-systemSmall" in gallery and "id=widget-add-Ticker-systemMedium" in gallery, \
         "the extension lists its widgets; the gallery offers them"
     assert has(r"added widget Counter \(systemSmall\)") and \
