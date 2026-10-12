@@ -60,7 +60,7 @@ open class AVAudioSession: NSObject {
     }
     nonisolated(unsafe) static let shared = AVAudioSession()
     /// isim: also starts listening for the `audio` script command (interruptions, route changes)
-    open class func sharedInstance() -> AVAudioSession { _AudioSessionEvents.start(); return shared }
+    open class func sharedInstance() -> AVAudioSession { _AudioSessionEvents.start(); _AVSessionPrefs.installMicrophonePrompt(); return shared }
     open private(set) var category: Category = .soloAmbient
     open private(set) var mode: Mode = .default
     open private(set) var categoryOptions: CategoryOptions = []

@@ -33,7 +33,7 @@ def test_media(launch, ios, device_data):
     tap = device_data / "tap.f32"
     app = launch("HelloMedia", device=ios[1] or "iphone17",
                  env={"ISIM_AUDIO": "1", "SDL_AUDIO_DRIVER": "dummy", "ISIM_AUDIO_TAP": str(tap),
-                      "ISIM_AUDIO_INPUT": str(app_dir / "tone.wav")})
+                      "ISIM_AUDIO_INPUT": str(app_dir / "tone.wav"), "ISIM_MICROPHONE_PERMISSION": "allow"})
     app.wait_log(r"^.*meter avg")
     app.send("audio interrupt begin")
     app.wait_log(r"interruption began")

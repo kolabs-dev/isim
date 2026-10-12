@@ -35,7 +35,7 @@ def test_audio_engine(launch, device_data):
     subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i",
                     "aevalsrc=0.6*sin(2*PI*1000*t):s=48000:d=10", str(tone)], check=True)
     tap_file = device_data / "tap.f32"
-    app = launch("HelloAudioEngine", env={"ISIM_AUDIO": "1", "SDL_AUDIO_DRIVER": "dummy", "ISIM_AUDIO_INPUT": str(tone),
+    app = launch("HelloAudioEngine", env={"ISIM_AUDIO": "1", "SDL_AUDIO_DRIVER": "dummy", "ISIM_AUDIO_INPUT": str(tone), "ISIM_MICROPHONE_PERMISSION": "allow",
                                           "ISIM_AUDIO_TAP": str(tap_file)})
     app.wait_log(r"HelloAudioEngine: done", timeout=30)
     assert app.quit() == 0, "exits cleanly"

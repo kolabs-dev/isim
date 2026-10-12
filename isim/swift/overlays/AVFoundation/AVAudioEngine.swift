@@ -951,6 +951,7 @@ open class AVAudioEngine: NSObject {
     public override init() {
         super.init()
         outputNode.engine = self
+        _AVSessionPrefs.installMicrophonePrompt()
     }
     open var attachedNodes: Set<AVAudioNode> {
         var s = Set(nodes)

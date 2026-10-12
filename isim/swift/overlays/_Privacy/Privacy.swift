@@ -79,8 +79,17 @@ enum _Privacy {
         return vc
     }
     /// shows an iOS-style permission alert; `buttons` are (title, style); calls `done` with the tapped index
-    @MainActor static func alert(_ title: String, _ message: String?, _ buttons: [(String, UIAlertAction.Style)], _ done: @escaping (Int) -> Void) {
-        guard let vc = topController() else { NSLog("isim: no window to show “%@”", title); done(-1); return }
+    @MainActor static func alert(_ title: String, _ message: String?, _ buttons: [(String, UIAlertAction.Style)], tries: Int = 100,
+                                 _ done: @escaping (Int) -> Void) {
+        // iOS shows the alert over the app whatever it is doing: while the app's window is not on screen yet
+        // (a request from viewDidLoad or launch), wait for it
+        guard let vc = topController(), vc.viewIfLoaded?.window != nil else {
+            if tries > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { MainActor.assumeIsolated { alert(title, message, buttons, tries: tries - 1, done) } }
+                return
+            }
+            NSLog("isim: no window to show “%@”", title); done(-1); return
+        }
         let a = UIAlertController(title: title, message: message, preferredStyle: .alert)
         for (i, b) in buttons.enumerated() { a.addAction(UIAlertAction(title: b.0, style: b.1) { _ in done(i) }) }
         vc.present(a, animated: true, completion: nil)

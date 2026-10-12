@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <math.h>
 #include <pthread.h>
+#include <poll.h>
 #include <signal.h>
 #include <spawn.h>
 #include <stdio.h>
@@ -369,6 +370,12 @@ int isim_audio_input_start(void) {
         char *ff[] = { "ffmpeg", "-nostdin", "-v", "error", "-f", "pulse", "-i", "default", "-f", "f32le", "-ac", "2", "-ar", "48000", "-", NULL };
         char *ar[] = { "arecord", "-q", "-t", "raw", "-f", "FLOAT_LE", "-r", "48000", "-c", "2", NULL };
         in.pid = spawn_reader(ff, &in.fd);
+        if (in.pid > 0) {                     /* ffmpeg without PulseAudio exits at once: then try arecord (ALSA) */
+            struct pollfd pf = { in.fd, POLLIN, 0 };
+            if (poll(&pf, 1, 1000) == 1 && (pf.revents & POLLHUP) && !(pf.revents & POLLIN)) {
+                close(in.fd); int st; waitpid(in.pid, &st, 0); in.pid = -1;
+            }
+        }
         if (in.pid < 0) in.pid = spawn_reader(ar, &in.fd);
         if (in.pid > 0) {
             in.ring = calloc(IN_RING * 2, sizeof(float)); in.rd = in.wr = 0;

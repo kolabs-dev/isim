@@ -111,11 +111,33 @@ public enum _IsimAudioInput {
             isim_audio_input_stop()
         }
     }
+    /// isim: AVFoundation installs the microphone permission prompt here (AVCaptureDevice.requestAccess(for: .audio)).
+    nonisolated(unsafe) public static var requestPermission: (() -> Void)?
+    nonisolated(unsafe) static var requested = false
+    /// AVAudioApplication's input mute and AVAudioSession's input gain
+    nonisolated(unsafe) public static var muted = false
+    nonisolated(unsafe) public static var gain: Float = 1
+    nonisolated(unsafe) static var checked = 0.0, allowed = true
+    /// Like iOS, the microphone records silence until the app may use it: the answer remembered for the app
+    /// (AVCaptureDevice's), asked for the first time the input is used; without AVFoundation (no prompt) it is allowed.
+    static func permitted() -> Bool {
+        let now = Date().timeIntervalSince1970
+        if now - checked < 0.25 { return allowed }
+        checked = now
+        let status = UserDefaults.standard.object(forKey: "_ISIMPrivacy.microphone") as? Int ?? 0   // AVAuthorizationStatus
+        if status == 0, let ask = requestPermission {
+            if !requested { requested = true; DispatchQueue.main.async(execute: ask) }
+            allowed = false
+        } else { allowed = status == 0 || status == 3 }
+        return allowed
+    }
     /// Hands what arrived to the subscribers now.
     public static func poll() {
         lock.lock()
         guard !subscribers.isEmpty else { lock.unlock(); return }
-        let x = read()
+        var x = read()
+        if !x.isEmpty && (!permitted() || muted) { x = [Float](repeating: 0, count: x.count) }
+        else if gain != 1 { for i in 0..<x.count { x[i] *= gain } }
         let subs = Array(subscribers.values)
         lock.unlock()
         guard !x.isEmpty else { return }

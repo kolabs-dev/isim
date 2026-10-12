@@ -1739,6 +1739,9 @@ int isim_media_thumbnail_png(const char *url, double t, double max_side, void **
 int isim_media_transcode(const char *in, const char *out);
 void isim_media_free(void *p);
 int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float **out, long *frames, double *rate);
+struct isim_tts_event; int isim_tts_available(void);
+int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume, float **out, long *frames, double *rate,
+                    struct isim_tts_event **events, int *nevents);
 int isim_audio_input_start(void);
 long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
@@ -1865,7 +1868,7 @@ static const struct shim isim_table[] = {
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
-    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
+    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_audio_set_pan), H(isim_image_read_bgra),
     H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close),

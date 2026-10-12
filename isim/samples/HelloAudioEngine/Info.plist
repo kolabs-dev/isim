@@ -8,6 +8,8 @@
 	<string>HelloAudioEngine</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.isim.samples.HelloAudioEngine</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Records a voice memo and taps the microphone.</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 </dict>

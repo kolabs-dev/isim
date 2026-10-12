@@ -54,6 +54,7 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
         try? AVAudioSession.sharedInstance().setActive(true)
         synth.delegate = self
         voices()
+        ssmlMarkers()
         systemSounds()
         effects()
         writeAndReadFiles()
@@ -78,6 +79,26 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
             for i in 0..<Int(b.frameLength) { peak = max(peak, abs(b.floatChannelData![0][i])) }
             if b.frameLength == 0 { log("speech rendered \(f2(Double(frames) / rate)) s, audible \(peak > 0.05)") }
         }
+    }
+    /// SSML with a bookmark, rendered with markers (iOS 17): word ranges in the plain text, the mark, rising offsets
+    func ssmlMarkers() {
+        guard let u = AVSpeechUtterance(ssmlRepresentation: "<speak>Hello <mark name=\"middle\"/>big &amp; bright world</speak>") else {
+            log("ssml rejected"); return
+        }
+        var marks: [AVSpeechSynthesisMarker] = []
+        var frames = 0
+        synth.write(u, toBufferCallback: { b in frames += Int((b as! AVAudioPCMBuffer).frameLength) }, toMarkerCallback: { marks += $0 })
+        let text = u.speechString as NSString
+        let desc = marks.filter { $0.mark != .phoneme }.map { m -> String in
+            switch m.mark {
+            case .word: return "word:" + text.substring(with: m.textRange)
+            case .bookmark: return "mark:" + m.bookmarkName
+            default: return "sentence"
+            }
+        }
+        let offsets = marks.filter { $0.mark == .word }.map { $0.byteSampleOffset }
+        log("ssml text=\(u.speechString) markers=\(desc.joined(separator: ",")) rising=\(offsets == offsets.sorted() && Set(offsets).count == offsets.count) inside=\((offsets.last ?? 0) / 4 < frames)")
+        log("personal voice \(AVSpeechSynthesizer.personalVoiceAuthorizationStatus == .unsupported ? "unsupported" : "?") apple id \(AVSpeechSynthesisVoice(identifier: "com.apple.voice.compact.en-US.Samantha")?.language ?? "nil")")
     }
     @objc func speakTapped() {
         let u = AVSpeechUtterance(string: "Hello from the isim speech synthesizer")

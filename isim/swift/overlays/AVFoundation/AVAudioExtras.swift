@@ -37,26 +37,82 @@ func _stretch(_ x: [Float], by stretch: Double, rate: Double) -> [Float] {
 
 extension AVAudioSession {
     public enum RecordPermission: UInt, Sendable { case undetermined = 0x756E6474, denied = 0x64656E79, granted = 0x67726E74 }
-    /// isim: always granted (input is a file or silence unless ISIM_AUDIO_INPUT=mic).
-    public var recordPermission: RecordPermission { .granted }
-    public func requestRecordPermission(_ response: @escaping (Bool) -> Void) { DispatchQueue.main.async { response(true) } }
+    /// the microphone permission (the same answer as AVCaptureDevice.authorizationStatus(for: .audio))
+    public var recordPermission: RecordPermission {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: return .granted
+        case .denied, .restricted: return .denied
+        default: return .undetermined
+        }
+    }
+    /// the microphone privacy alert (NSMicrophoneUsageDescription; ISIM_MICROPHONE_PERMISSION=allow|deny answers it)
+    public func requestRecordPermission(_ response: @escaping (Bool) -> Void) {
+        AVCaptureDevice.requestAccess(for: .audio) { ok in DispatchQueue.main.async { response(ok) } }
+    }
     public var isInputAvailable: Bool { true }
     public var inputNumberOfChannels: Int { 1 }
+    public var maximumInputNumberOfChannels: Int { 1 }
+    public var preferredInputNumberOfChannels: Int { 1 }
+    public func setPreferredInputNumberOfChannels(_ count: Int) throws {
+        guard count == 1 else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(AVAudioSession.ErrorCode.badParam.rawValue)) }
+    }
     public var inputLatency: TimeInterval { 0.005 }
     public var outputLatency: TimeInterval { 0.01 }
-    public var ioBufferDuration: TimeInterval { 0.01 }
-    public func setPreferredSampleRate(_ rate: Double) throws {}
-    public func setPreferredIOBufferDuration(_ d: TimeInterval) throws {}
+    /// the render slice length of AVAudioEngine and I/O units (the preferred duration, 5...93 ms; 10 ms by default)
+    public var ioBufferDuration: TimeInterval { _IsimSessionIO.ioBufferDuration }
+    public var preferredIOBufferDuration: TimeInterval { _AVSessionPrefs.ioBuffer ?? 0 }
+    /// isim's mixer runs at 48 kHz: the preferred rate is remembered but the hardware rate stays 48 kHz (iOS may
+    /// also not honor it)
+    public func setPreferredSampleRate(_ rate: Double) throws {
+        guard rate >= 0 else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(AVAudioSession.ErrorCode.badParam.rawValue)) }
+        _AVSessionPrefs.sampleRate = rate
+    }
+    public func setPreferredIOBufferDuration(_ d: TimeInterval) throws {
+        guard d >= 0 else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(AVAudioSession.ErrorCode.badParam.rawValue)) }
+        _AVSessionPrefs.ioBuffer = d
+        _IsimSessionIO.ioBufferDuration = d == 0 ? 0.01 : (min(max(d, 0.005), 0.093) * 48000).rounded() / 48000
+    }
+    public var isInputGainSettable: Bool { true }
+    public var inputGain: Float { _AVSessionPrefs.inputGain }
+    public func setInputGain(_ gain: Float) throws { _AVSessionPrefs.inputGain = max(0, min(1, gain)); _IsimAudioInput.gain = _AVSessionPrefs.inputGain }
+    public enum ErrorCode: Int, Error, Sendable {
+        case none = 0, mediaServicesFailed = 0x6D73_7276, isBusy = 0x2161_6374, incompatibleCategory = 0x2163_6174, cannotInterruptOthers = 0x2169_6E74,
+             missingEntitlement = 0x656E_743F, siriIsRecording = 0x7369_7269, cannotStartPlaying = 0x2170_6C61, cannotStartRecording = 0x2172_6563,
+             badParam = -50, insufficientPriority = 0x2170_7269, resourceNotAvailable = 0x2172_6573, unspecified = 0x7768_6174,
+             expiredSession = 0x2173_6573, sessionNotActive = 0x696E_6163
+    }
+}
+enum _AVSessionPrefs {
+    nonisolated(unsafe) static var sampleRate = 0.0
+    nonisolated(unsafe) static var ioBuffer: TimeInterval?
+    nonisolated(unsafe) static var inputGain: Float = 1
+    /// the microphone prompt for AudioToolbox's input (installed by AVFoundation's entry points)
+    static func installMicrophonePrompt() {
+        guard _IsimAudioInput.requestPermission == nil else { return }
+        _IsimAudioInput.requestPermission = { AVCaptureDevice.requestAccess(for: .audio) { _ in } }
+    }
 }
 open class AVAudioApplication: NSObject {
-    public enum recordPermission: Int, Sendable { case undetermined = 0, denied, granted }
+    public enum recordPermission: Int, Sendable { case undetermined = 0x756E6474, denied = 0x64656E79, granted = 0x67726E74 }
     nonisolated(unsafe) static let _shared = AVAudioApplication()
     open class var shared: AVAudioApplication { _shared }
-    open var recordPermission: AVAudioApplication.recordPermission { .granted }
+    open var recordPermission: AVAudioApplication.recordPermission {
+        AVAudioApplication.recordPermission(rawValue: Int(AVAudioSession.shared.recordPermission.rawValue)) ?? .undetermined
+    }
+    /// muting silences the microphone for the app's input (AVAudioEngine, recorders, queues)
     open var isInputMuted = false
-    open func setInputMuted(_ muted: Bool) throws { isInputMuted = muted }
-    open class func requestRecordPermission(completionHandler response: @escaping (Bool) -> Void) { DispatchQueue.main.async { response(true) } }
-    open class func requestRecordPermission() async -> Bool { true }
+    open func setInputMuted(_ muted: Bool) throws {
+        isInputMuted = muted
+        _IsimAudioInput.muted = muted
+        NotificationCenter.default.post(name: AVAudioApplication.inputMuteStateChangeNotification, object: self,
+                                        userInfo: [AVAudioApplication.muteStateKey: muted])
+    }
+    public static let inputMuteStateChangeNotification = Notification.Name("AVAudioApplicationInputMuteStateChangeNotification")
+    public static let muteStateKey = "AVAudioApplicationMuteStateKey"
+    open class func requestRecordPermission(completionHandler response: @escaping (Bool) -> Void) { AVAudioSession.shared.requestRecordPermission(response) }
+    open class func requestRecordPermission() async -> Bool {
+        await withCheckedContinuation { k in requestRecordPermission { k.resume(returning: $0) } }
+    }
 }
 
 // MARK: - settings keys and file writing
@@ -188,6 +244,7 @@ open class AVAudioRecorder: NSObject {
     var subscribed = false
 
     public init(url: URL, settings: [String: Any]) throws {
+        _AVSessionPrefs.installMicrophonePrompt()
         self.url = url; self.settings = settings
         writer = try _AudioFileWriter(url: url, settings: settings)
         format = AVAudioFormat(standardFormatWithSampleRate: writer.rate, channels: AVAudioChannelCount(writer.channelCount))!

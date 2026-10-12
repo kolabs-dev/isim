@@ -241,6 +241,12 @@ int isim_media_transcode(const char *in, const char *out);
 void isim_media_free(void *_Nullable p);
 /* text to speech with espeak-ng/espeak: mono float PCM (free with isim_media_free); 0 if no TTS on the host */
 int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float *_Nullable *_Nonnull out, long *frames, double *rate);
+/* speech with events through the host's libespeak-ng (host_tts.c): kind 1 word, 2 sentence, 3 SSML mark, 5 end,
+   7 phoneme; text positions in characters of the input text; 0 when libespeak-ng is unavailable */
+struct isim_tts_event { int kind, text_pos, text_len; long frame; char name[64]; };
+int isim_tts_available(void);
+int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume, float *_Nullable *_Nonnull out,
+                    long *frames, double *rate, struct isim_tts_event *_Nullable *_Nonnull events, int *nevents);
 /* audio input (ISIM_AUDIO_INPUT=file|mic): 48 kHz stereo float, paced in real time. start returns 2 mic, 1 file, 0 silence */
 int isim_audio_input_start(void);
 long isim_audio_input_read(float *out, long max_frames);
