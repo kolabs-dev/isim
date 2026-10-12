@@ -1767,6 +1767,10 @@ int isim_audio_stream_open(double volume);
 long isim_audio_stream_write(int s, const float *pcm, long frames);
 void isim_audio_stream_control(int s, int paused, double volume);
 void isim_audio_stream_close(int s);
+struct isim_acodec; struct isim_acodec *isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate);
+int isim_acodec_frame_size(struct isim_acodec *h); int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames);
+int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int cap); int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *d, int n);
+int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *channels, double *rate); void isim_acodec_close(struct isim_acodec *h);
 int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
 void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
@@ -1869,6 +1873,8 @@ static const struct shim isim_table[] = {
     H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages),
     H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
+    H(isim_acodec_open), H(isim_acodec_frame_size), H(isim_acodec_send_pcm), H(isim_acodec_receive_packet), H(isim_acodec_send_packet),
+    H(isim_acodec_receive_pcm), H(isim_acodec_close),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),

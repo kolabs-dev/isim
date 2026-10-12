@@ -264,6 +264,17 @@ int isim_audio_stream_open(double volume);
 long isim_audio_stream_write(int stream, const float *pcm, long frames);
 void isim_audio_stream_control(int stream, int paused, double volume);
 void isim_audio_stream_close(int stream);
+/* audio codecs through the host's libavcodec (host_codec.c): encode "aac" (AAC-LC) from interleaved float PCM; decode
+   "aac", "mp3float", ... to interleaved float. open returns NULL when unavailable. send_pcm with 0 frames and
+   send_packet with size 0 end the stream; receive returns the size/frames, 0 when more input is needed, -1 at the end */
+struct isim_acodec;
+struct isim_acodec *_Nullable isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate);
+int isim_acodec_frame_size(struct isim_acodec *_Nullable codec);
+int isim_acodec_send_pcm(struct isim_acodec *_Nullable codec, const float *_Nullable pcm, int frames);
+int isim_acodec_receive_packet(struct isim_acodec *_Nullable codec, unsigned char *out, int cap);
+int isim_acodec_send_packet(struct isim_acodec *_Nullable codec, const unsigned char *_Nullable data, int size);
+int isim_acodec_receive_pcm(struct isim_acodec *_Nullable codec, float *out, int cap, int *_Nullable channels, double *_Nullable rate);
+void isim_acodec_close(struct isim_acodec *_Nullable codec);
 /* stereo balance of a playing voice: -1 left .. 1 right */
 void isim_audio_set_pan(long voice, double pan);
 /* copies pixels of an image as premultiplied BGRA (rows packed, w*4 bytes) */

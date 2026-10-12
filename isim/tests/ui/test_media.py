@@ -98,7 +98,8 @@ def test_media(launch, ios, device_data):
         "ExtAudioFile client format converts (48 kHz mono float)"
     assert has(r"audiofile caf packets=48000 16-bit 48000 Hz duration=1.00 firstBytes=8"), \
         "ExtAudioFile writes CAF; AudioFile reads it"
-    assert has(r"converter to AAC status=fmt\?"), "AudioConverter: AAC not supported (fmt?)"
+    assert has(r"converter aac packets=4[3-5] cookie=03 kbps=(9[0-9]|10[0-9]) decoded=4[4-6]\d{3} peak=0\.(4[5-9]|5[0-5]) freq=1000"), \
+        f"AudioConverter PCM -> AAC (packets, esds cookie, bit rate) -> PCM (libavcodec): {line('converter aac')}"
     assert has(r"converter out=22050 peak=0.50"), "AudioConverter: 44.1k stereo int16 -> 22.05k mono float"
     # the app waits until 0.5 s have played: one callback per 0.1 s buffer played (3 are queued ahead), and no faster
     # than real time

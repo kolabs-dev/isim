@@ -406,7 +406,73 @@ final class EngineViewController: UIViewController {
             _ = AudioOutputUnitStop(u!)
             report("remoteio input frames \(micFrames >= 4800) peak \(f2(Double(micPeak)))")
             _ = AudioComponentInstanceDispose(u!)
-            report("done")
+            audioQueue()
+        }
+    }
+
+    // MARK: Audio Queue: time/pitch, pan, processing tap
+
+    var queue: AudioQueueRef?
+    var queuePhase = 0.0
+    var queueBuffers = 0
+    let tapLock = NSLock()
+    var tapSamples: [Float] = []
+    func fill(_ b: AudioQueueBufferRef) {
+        let p = b.pointee.mAudioData.assumingMemoryBound(to: Int16.self)
+        for i in 0..<4410 { p[i] = Int16(sin(queuePhase) * 16000); queuePhase += 2 * .pi * 440 / 44100 }
+        b.pointee.mAudioDataByteSize = 4410 * 2
+    }
+    func audioQueue() {
+        var f = AudioStreamBasicDescription(mSampleRate: 44100, mFormatID: kAudioFormatLinearPCM,
+                                            mFormatFlags: kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, mBytesPerPacket: 2,
+                                            mFramesPerPacket: 1, mBytesPerFrame: 2, mChannelsPerFrame: 1, mBitsPerChannel: 16, mReserved: 0)
+        var q: AudioQueueRef?
+        _ = AudioQueueNewOutputWithDispatchQueue(&q, &f, 0, DispatchQueue(label: "queue")) { [weak self] q, b in
+            guard let self else { return }
+            self.queueBuffers += 1
+            self.fill(b)
+            _ = AudioQueueEnqueueBuffer(q, b, 0, nil)
+        }
+        queue = q
+        var one: UInt32 = 1
+        _ = AudioQueueSetProperty(q!, kAudioQueueProperty_EnableTimePitch, &one, 4)
+        _ = AudioQueueSetParameter(q!, kAudioQueueParam_PlayRate, 2)
+        _ = AudioQueueSetParameter(q!, kAudioQueueParam_Pan, -1)
+        var maxFrames: UInt32 = 0
+        var tapFormat = AudioStreamBasicDescription()
+        var tap: AudioQueueProcessingTapRef?
+        let st = AudioQueueProcessingTapNew(q!, { client, tap, frames, ts, flags, outFrames, data in
+            let vc = Unmanaged<EngineViewController>.fromOpaque(client).takeUnretainedValue()
+            _ = AudioQueueProcessingTapGetSourceAudio(tap, frames, ts, flags, outFrames, data)
+            let p = UnsafeMutableAudioBufferListPointer(data)[0].mData!.assumingMemoryBound(to: Float.self)
+            vc.tapLock.lock()
+            vc.tapSamples += Array(UnsafeBufferPointer(start: p, count: Int(outFrames.pointee)))
+            vc.tapLock.unlock()
+        }, Unmanaged.passUnretained(self).toOpaque(), [.postEffects], &maxFrames, &tapFormat, &tap)
+        for _ in 0..<3 {
+            var b: AudioQueueBufferRef?
+            _ = AudioQueueAllocateBuffer(q!, 4410 * 2, &b)
+            fill(b!)
+            _ = AudioQueueEnqueueBuffer(q!, b!, 0, nil)
+        }
+        _ = AudioQueueStart(q!, nil)
+        let started = Date()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [self] in
+            let elapsed = Date().timeIntervalSince(started)
+            tapLock.lock(); let fast = tapSamples; tapSamples = []; tapLock.unlock()
+            let played = Double(queueBuffers) * 0.1
+            _ = AudioQueueSetParameter(q!, kAudioQueueParam_PlayRate, 1)
+            _ = AudioQueueSetParameter(q!, kAudioQueueParam_Pitch, 1200)
+            var rate: Float = 0
+            _ = AudioQueueGetParameter(q!, kAudioQueueParam_PlayRate, &rate)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [self] in
+                tapLock.lock(); let high = tapSamples; tapLock.unlock()
+                _ = AudioQueueStop(q!, true)
+                _ = AudioQueueDispose(q!, true)
+                let speed = played / elapsed
+                report("queue tap \(st) format \(Int(tapFormat.mSampleRate)) speed \(String(format: "%.1f", speed)) freq \(Int((frequency(Array(fast.suffix(22050)), rate: 44100) / 10).rounded()) * 10) pitched \(Int((frequency(Array(high.suffix(11025)), rate: 44100) / 10).rounded()) * 10) rate \(rate)")
+                report("done")
+            }
         }
     }
 }
