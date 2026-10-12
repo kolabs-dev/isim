@@ -64,7 +64,8 @@ def test_web(launch, web):
     app.wait_log(r"keyboard shown", count=2)                              # the field's keyboard (the first was prompt()'s)
     app.type("hello")
     app.wait_log(r"page out: typed hello")                                # focus a page field -> keyboard -> typing
-    app.tap(330, 560)
+    app.tap(330, 560)                                                     # blur the field: the page reports it,
+    app.wait_log(r"keyboard hidden", count=2)                             # then the keyboard hides (it covers the bar)
     app.wait_tap_id("eval")
     app.wait_log(r"^HelloWeb: eval completion: 18 error=none")
     app.wait_log(r"^HelloWeb: eval async: hello")
