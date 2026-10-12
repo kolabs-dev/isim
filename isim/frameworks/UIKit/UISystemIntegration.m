@@ -927,6 +927,7 @@ void isim_sys_event(const char *text) {
     }
     else if ([verb isEqualToString:@"display"]) { extern void isim_ui_display_event(NSString *args); isim_ui_display_event(args); }   /* UISceneAccessories.m */
     else if ([verb isEqualToString:@"closescene"]) { extern void isim_ui_close_scene(NSString *ident); isim_ui_close_scene(args); }
+    else if ([verb isEqualToString:@"mainmenu"]) isim_ui_main_menu_event(args);       /* UIMenuSystem.m: log the main menu, show / hide the shortcuts */
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */
         [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL];
         extern void isim_ui_discard_restoration_state(void);

@@ -44,7 +44,11 @@ typedef NS_ENUM(NSInteger, UIControlContentVerticalAlignment) { UIControlContent
 @end
 typedef void (^UIActionHandler)(UIAction *action);
 @class UIImage;
-typedef NS_OPTIONS(NSUInteger, UIMenuElementAttributes) { UIMenuElementAttributesDisabled = 1 << 0, UIMenuElementAttributesDestructive = 1 << 1, UIMenuElementAttributesHidden = 1 << 2 };
+/* action and menu identifiers (typed in Swift: UIAction.Identifier, UIMenu.Identifier; UIMenuSystem.h has the standard ones) */
+typedef NSString *UIActionIdentifier NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(UIAction.Identifier) API_AVAILABLE(ios(13.0));
+typedef NSString *UIMenuIdentifier NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(UIMenu.Identifier) API_AVAILABLE(ios(13.0));
+typedef NS_OPTIONS(NSUInteger, UIMenuElementAttributes) { UIMenuElementAttributesDisabled = 1 << 0, UIMenuElementAttributesDestructive = 1 << 1, UIMenuElementAttributesHidden = 1 << 2,
+    UIMenuElementAttributesKeepsMenuPresented API_AVAILABLE(ios(16.0)) = 1 << 3 };
 typedef NS_ENUM(NSInteger, UIMenuElementState) { UIMenuElementStateOff, UIMenuElementStateOn, UIMenuElementStateMixed };
 NS_SWIFT_UI_ACTOR
 /* iOS 27: whether a menu shows an element's image (automatic: shown when it has one) */
@@ -61,14 +65,14 @@ typedef NS_ENUM(NSInteger, UIMenuElementImageVisibility) { UIMenuElementImageVis
 NS_SWIFT_UI_ACTOR
 @interface UIAction : UIMenuElement
 + (instancetype)actionWithHandler:(UIActionHandler)handler;
-+ (instancetype)actionWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(nullable NSString *)identifier handler:(UIActionHandler)handler;
-+ (instancetype)actionWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(nullable NSString *)identifier
++ (instancetype)actionWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(nullable UIActionIdentifier)identifier handler:(UIActionHandler)handler;
++ (instancetype)actionWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(nullable UIActionIdentifier)identifier
            discoverabilityTitle:(nullable NSString *)discoverabilityTitle attributes:(UIMenuElementAttributes)attributes
                           state:(UIMenuElementState)state handler:(UIActionHandler)handler
     NS_SWIFT_NAME(init(__title:image:identifier:discoverabilityTitle:attributes:state:handler:));
 @property (nonatomic, readonly, nullable, weak) id sender;
 @property (nonatomic) UIMenuElementAttributes attributes;
 @property (nonatomic) UIMenuElementState state;
-@property (nonatomic, copy) NSString *identifier;
+@property (nonatomic, copy) UIActionIdentifier identifier;
 @end
 NS_ASSUME_NONNULL_END

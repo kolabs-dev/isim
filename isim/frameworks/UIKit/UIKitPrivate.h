@@ -271,7 +271,30 @@ BOOL isim_al_add(isim_al *al, id a, NSLayoutAttribute aa, NSLayoutRelation rel, 
 void isim_ui_gesture_recognized(UIGestureRecognizer *g);
 UIResponder *isim_ui_first_responder(void);
 BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down);
-BOOL isim_ui_menu_key(int hid, NSString *characters);     /* an open menu's keyboard navigation (UIMoreControls.m); YES if taken */
+BOOL isim_ui_menu_key(int hid, NSString *characters);
+/* menus and commands (UIMenuSystem.m) */
+UIMenuElementAttributes isim_ui_element_attributes(UIMenuElement *e);
+UIMenuElementState isim_ui_element_state(UIMenuElement *e);
+BOOL isim_ui_command_available(UICommand *c, UIView *_Nullable source);      /* validated; NO: nothing performs it */
+void isim_ui_perform_leaf(UIMenuElement *e, UIView *_Nullable source);
+NSString *isim_ui_shortcut_text(UIKeyCommand *c);
+void isim_ui_menu_will_show(UIMenu *m);                                      /* uncached deferred elements ask again */
+UIMenu *isim_ui_main_menu(void);
+BOOL isim_ui_main_menu_key(NSString *base, NSString *characters, UIKeyModifierFlags mods, BOOL isRepeat);
+void isim_ui_main_menu_modifier(UIKeyModifierFlags flag, BOOL down, BOOL otherKey);
+void isim_ui_main_menu_event(NSString *args);
+UIResponder *_Nullable isim_ui_focus_responder(void);
+BOOL isim_ui_focus_key(int hid, UIKeyModifierFlags mods);        /* UIFocus.m: Tab, arrows, Return / Space on iPad */
+UIView *_Nullable isim_ui_focused_view(void);
+@interface UICommand (IsimPrivate)
+- (void)_isim_setAction:(SEL)action propertyList:(nullable id)plist alternates:(nullable NSArray *)alternates;
+@end
+@interface UIMenu (IsimPrivate)
+- (void)_isim_setIdentifier:(nullable NSString *)identifier;
+@end
+@interface UIDeferredMenuElement (IsimPrivate)
+- (nullable NSArray *)_isim_elementsReloading:(void (^)(void))reload;
+@end     /* an open menu's keyboard navigation (UIMoreControls.m); YES if taken */
 void isim_ui_menu_set_type_select(BOOL allowed);   /* presses + key commands; YES if a key command took it */
 void isim_ui_shake(void);
 /* system keyboard (UIKeyboard.m) */

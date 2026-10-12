@@ -6,6 +6,7 @@
 #import <UIKit/UIViewController.h>
 #import <Foundation/NSIndexPath.h>
 NS_ASSUME_NONNULL_BEGIN
+@class UITableViewFocusUpdateContext, UIFocusAnimationCoordinator;
 @class UIImage, UIColor, UIFont, UILabel, UIImageView, UITableView, UIRefreshControl;
 
 @interface NSIndexPath (UIKitAdditions)
@@ -205,9 +206,14 @@ UIKIT_EXTERN NSString *const UITableViewIndexSearch NS_SWIFT_NAME(UITableView.in
 - (void)tableView:(UITableView *)tableView willPerformPreviewActionForMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(id<UIContextMenuInteractionCommitAnimating>)animator;
 - (void)tableView:(UITableView *)tableView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
 - (void)tableView:(UITableView *)tableView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
-/* multiple selection with a two-finger pan (isim: not called) and the focus engine's preferred row (isim: no focus engine) */
+/* multiple selection with a two-finger pan (isim: not called) and the focus engine's preferred row  */
 - (void)tableViewDidEndMultipleSelectionInteraction:(UITableView *)tableView API_AVAILABLE(ios(13.0));
 - (nullable NSIndexPath *)indexPathForPreferredFocusedViewInTableView:(UITableView *)tableView;
+/* keyboard focus (iPad, UIFocus.h): whether a row takes focus, and the focus updates inside the list */
+- (BOOL)tableView:(UITableView *)tableView canFocusRowAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(9.0));
+- (BOOL)tableView:(UITableView *)tableView shouldUpdateFocusInContext:(UITableViewFocusUpdateContext *)context API_AVAILABLE(ios(9.0));
+- (void)tableView:(UITableView *)tableView didUpdateFocusInContext:(UITableViewFocusUpdateContext *)context withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator API_AVAILABLE(ios(9.0));
+- (BOOL)tableView:(UITableView *)tableView selectionFollowsFocusForRowAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(15.0));
 @end
 
 NS_SWIFT_UI_ACTOR

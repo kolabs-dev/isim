@@ -141,12 +141,13 @@ NS_SWIFT_UI_ACTOR
 @end
 
 /* menus (UIButton.menu, context menus; SwiftUI Menu and Picker .menu) */
-typedef NS_OPTIONS(NSUInteger, UIMenuOptions) { UIMenuOptionsDisplayInline = 1 << 0, UIMenuOptionsDestructive = 1 << 1, UIMenuOptionsSingleSelection = 1 << 5 };
+typedef NS_OPTIONS(NSUInteger, UIMenuOptions) { UIMenuOptionsDisplayInline = 1 << 0, UIMenuOptionsDestructive = 1 << 1, UIMenuOptionsSingleSelection = 1 << 5,
+    UIMenuOptionsDisplayAsPalette API_AVAILABLE(ios(17.0)) = 1 << 7 };
 NS_SWIFT_UI_ACTOR
 @interface UIMenu : UIMenuElement
 + (UIMenu *)menuWithChildren:(NSArray<UIMenuElement *> *)children;
 + (UIMenu *)menuWithTitle:(NSString *)title children:(NSArray<UIMenuElement *> *)children;
-+ (UIMenu *)menuWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(nullable NSString *)identifier
++ (UIMenu *)menuWithTitle:(NSString *)title image:(nullable UIImage *)image identifier:(nullable UIMenuIdentifier)identifier
                   options:(UIMenuOptions)options children:(NSArray<UIMenuElement *> *)children
     NS_SWIFT_NAME(init(__title:image:identifier:options:children:));
 @property (nonatomic, readonly) UIMenuOptions options;

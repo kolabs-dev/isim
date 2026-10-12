@@ -16,7 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UIControl (UIControlExtras) <UIContextMenuInteractionDelegate>
 /* leading / trailing resolved to left / right for the layout direction */
 @property (nonatomic, readonly) UIControlContentHorizontalAlignment effectiveContentHorizontalAlignment;
-- (void)removeActionForIdentifier:(NSString *)actionIdentifier forControlEvents:(UIControlEvents)controlEvents NS_SWIFT_NAME(removeAction(identifiedBy:for:));
+- (void)removeActionForIdentifier:(UIActionIdentifier)actionIdentifier forControlEvents:(UIControlEvents)controlEvents NS_SWIFT_NAME(removeAction(identifiedBy:for:));
 /* every action and target-action pair with its events (Swift: (UIAction?, (Any?, Selector)?, UIControl.Event, inout Bool)) */
 - (void)enumerateEventHandlers:(void (NS_NOESCAPE ^)(UIAction *_Nullable actionHandler, id _Nullable target, SEL _Nullable action,
                                                        UIControlEvents controlEvents, BOOL *stop))iterator NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(14.0));
@@ -95,7 +95,7 @@ typedef NS_ENUM(NSInteger, UISegmentedControlSegment) { UISegmentedControlSegmen
 - (void)insertSegmentWithAction:(UIAction *)action atIndex:(NSUInteger)segment animated:(BOOL)animated API_AVAILABLE(ios(14.0));
 - (void)setAction:(UIAction *)action forSegmentAtIndex:(NSUInteger)segment API_AVAILABLE(ios(14.0));
 - (nullable UIAction *)actionForSegmentAtIndex:(NSUInteger)segment API_AVAILABLE(ios(14.0));
-- (NSInteger)segmentIndexForActionIdentifier:(NSString *)actionIdentifier NS_SWIFT_NAME(segmentIndex(identifiedBy:)) API_AVAILABLE(ios(14.0));
+- (NSInteger)segmentIndexForActionIdentifier:(UIActionIdentifier)actionIdentifier NS_SWIFT_NAME(segmentIndex(identifiedBy:)) API_AVAILABLE(ios(14.0));
 /* 0: sized by the control (equal, or by content) */
 - (CGFloat)widthForSegmentAtIndex:(NSUInteger)segment;
 - (void)setContentOffset:(CGSize)offset forSegmentAtIndex:(NSUInteger)segment;

@@ -43,7 +43,7 @@ typedef NS_OPTIONS(NSUInteger, UITableViewContentHuggingElements) { UITableViewC
 /* isim applies updates at once: NO; no drop session over the table: NO */
 @property (nonatomic, readonly) BOOL hasUncommittedUpdates API_AVAILABLE(ios(11.0));
 @property (nonatomic, readonly) BOOL hasActiveDrop API_AVAILABLE(ios(11.0));
-/* focus (isim has no focus engine: stored) */
+/* keyboard focus (UIFocus.h): rows take focus when allowsFocus (or the delegate says so) */
 @property (nonatomic) BOOL allowsFocus API_AVAILABLE(ios(15.0));
 @property (nonatomic) BOOL allowsFocusDuringEditing API_AVAILABLE(ios(15.0));
 @property (nonatomic) BOOL remembersLastFocusedIndexPath API_AVAILABLE(ios(9.0));
@@ -103,7 +103,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(11.0))
 @property (nonatomic) UICollectionViewReorderingCadence reorderingCadence API_AVAILABLE(ios(11.0));    /* isim: stored (moves are immediate) */
 - (NSArray<NSIndexPath *> *)indexPathsForVisibleSupplementaryElementsOfKind:(NSString *)elementKind API_AVAILABLE(ios(9.0));
 - (nullable NSIndexPath *)indexPathForSupplementaryView:(UICollectionReusableView *)supplementaryView API_AVAILABLE(ios(16.0));
-@property (nonatomic) BOOL allowsFocus API_AVAILABLE(ios(15.0));                          /* isim: stored */
+@property (nonatomic) BOOL allowsFocus API_AVAILABLE(ios(15.0));                          /* items take keyboard focus (UIFocus.h) */
 @property (nonatomic) BOOL allowsFocusDuringEditing API_AVAILABLE(ios(15.0));
 @property (nonatomic) BOOL remembersLastFocusedIndexPath API_AVAILABLE(ios(9.0));
 @property (nonatomic) UICollectionViewSelfSizingInvalidation selfSizingInvalidation API_AVAILABLE(ios(16.0));   /* isim: stored */

@@ -1,8 +1,8 @@
 // iOS 26 typed UIKit notification messages (NotificationCenter.MainActorMessage) and their identifiers, e.g.
 //     NotificationCenter.default.addObserver(of: UIScreen.self, for: .keyboardWillShow) { message in … message.endFrame … }
 // Each wraps the UIKit notification of the same name: makeMessage reads its object and userInfo, makeNotification
-// builds it for the notification's observers. Generated (one shape per message, from Apple's declarations); the focus
-// system and pointer lock messages come with those types.
+// builds it for the notification's observers. Generated (one shape per message, from Apple's declarations); the
+// pointer lock messages come with those types. The focus system's (at the end) are written by hand.
 import Foundation
 import CoreGraphics
 
@@ -1183,4 +1183,42 @@ extension UIAccessibility {
 }
 @available(iOS 26.0, *) extension NotificationCenter.MessageIdentifier where Self == NotificationCenter.BaseMessageIdentifier<UIAccessibility.ElementFocusedMessage> {
     public static var elementFocused: Self { .init() }
+}
+@available(iOS 26.0, *)
+extension UIFocusSystem {
+    public struct DidUpdateMessage: NotificationCenter.MainActorMessage {
+        public typealias Subject = UIFocusSystem
+        public static var name: Foundation.Notification.Name { UIFocusSystem.didUpdateNotification }
+        public var focusSystem: UIFocusSystem
+        public var updateContext: UIFocusUpdateContext?
+        public var animationCoordinator: UIFocusAnimationCoordinator?
+        public init(focusSystem: UIFocusSystem, updateContext: UIFocusUpdateContext?, animationCoordinator: UIFocusAnimationCoordinator?) {
+            self.focusSystem = focusSystem; self.updateContext = updateContext; self.animationCoordinator = animationCoordinator
+        }
+        @MainActor public static func makeMessage(_ n: Foundation.Notification) -> Self? {
+            guard let system = n.object as? UIFocusSystem else { return nil }
+            return Self(focusSystem: system, updateContext: n.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey] as? UIFocusUpdateContext,
+                        animationCoordinator: n.userInfo?[UIFocusSystem.animationCoordinatorUserInfoKey] as? UIFocusAnimationCoordinator)
+        }
+        @MainActor public static func makeNotification(_ m: Self) -> Foundation.Notification {
+            var info: [AnyHashable: Any] = [:]
+            if let c = m.updateContext { info[UIFocusSystem.focusUpdateContextUserInfoKey] = c }
+            if let a = m.animationCoordinator { info[UIFocusSystem.animationCoordinatorUserInfoKey] = a }
+            return Foundation.Notification(name: name, object: m.focusSystem, userInfo: info)
+        }
+    }
+    public struct MovementDidFailMessage: NotificationCenter.MainActorMessage {
+        public typealias Subject = UIFocusSystem
+        public static var name: Foundation.Notification.Name { UIFocusSystem.movementDidFailNotification }
+        public var focusSystem: UIFocusSystem
+        public var updateContext: UIFocusUpdateContext?
+        public init(focusSystem: UIFocusSystem, updateContext: UIFocusUpdateContext?) { self.focusSystem = focusSystem; self.updateContext = updateContext }
+        @MainActor public static func makeMessage(_ n: Foundation.Notification) -> Self? {
+            guard let system = n.object as? UIFocusSystem else { return nil }
+            return Self(focusSystem: system, updateContext: n.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey] as? UIFocusUpdateContext)
+        }
+        @MainActor public static func makeNotification(_ m: Self) -> Foundation.Notification {
+            Foundation.Notification(name: name, object: m.focusSystem, userInfo: m.updateContext.map { [UIFocusSystem.focusUpdateContextUserInfoKey: $0] })
+        }
+    }
 }

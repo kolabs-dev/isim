@@ -8,7 +8,7 @@
 NS_ASSUME_NONNULL_BEGIN
 @class NSLayoutConstraint;
 
-/* the focus engine's group priorities (iOS 15; isim has no focus engine: stored) */
+/* the focus engine's group priorities (iOS 15; UIFocus.h): the prioritized item of a group takes focus first */
 typedef NSInteger UIFocusGroupPriority NS_TYPED_EXTENSIBLE_ENUM API_AVAILABLE(ios(15.0));
 static const UIFocusGroupPriority UIFocusGroupPriorityIgnored = 0;
 static const UIFocusGroupPriority UIFocusGroupPriorityPreviouslyFocused = 1000;
@@ -43,7 +43,7 @@ typedef NS_ENUM(NSUInteger, UISystemAnimation) { UISystemAnimationDelete } NS_SW
 /* isim's solver never leaves a layout ambiguous (a weak pull keeps under-constrained views put): NO */
 @property (nonatomic, readonly) BOOL hasAmbiguousLayout;
 - (void)exerciseAmbiguityInLayout;
-/* focus: views are not focusable (isim has no focus engine); the group priority is stored */
+/* focus (UIFocus.h): views are not focusable unless a subclass says so; the group priority picks a group's item */
 @property (nonatomic, readonly) BOOL canBecomeFocused;
 @property (nonatomic) UIFocusGroupPriority focusGroupPriority API_AVAILABLE(ios(15.0));
 /* the Dynamic Type range the view and its subviews see (the trait collection's category is clamped) */

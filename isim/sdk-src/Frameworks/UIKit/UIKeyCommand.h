@@ -4,7 +4,9 @@
 #import <UIKit/UIEvent.h>
 #import <UIKit/UIResponder.h>
 #import <UIKit/UIViewController.h>
+#import <UIKit/UIControl.h>
 @class UIImage;
+@protocol UIPopoverPresentationControllerSourceItem;
 NS_ASSUME_NONNULL_BEGIN
 /* UIKeyModifierFlags: UIEvent.h */
 typedef NS_ENUM(NSInteger, UIKeyboardHIDUsage) {
@@ -70,17 +72,74 @@ UIKIT_EXTERN NSString *const UIKeyInputHome;
 UIKIT_EXTERN NSString *const UIKeyInputEnd;
 UIKIT_EXTERN NSString *const UIKeyInputDelete;
 
+/* how a menu leaf behaves while its keyboard shortcut is held (iOS 16) */
+typedef NS_ENUM(NSInteger, UIMenuElementRepeatBehavior) {
+    UIMenuElementRepeatBehaviorAutomatic = 0, UIMenuElementRepeatBehaviorRepeatable = 1, UIMenuElementRepeatBehaviorNonRepeatable = 2,
+} NS_SWIFT_NAME(UIMenuElement.RepeatBehavior) API_AVAILABLE(ios(16.0));
+
+/* a menu element without children: actions and commands */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(16.0))
+@protocol UIMenuLeaf <NSObject>
+@property (nonatomic, copy) NSString *title;
+@property (nullable, nonatomic, copy) UIImage *image;
+@property (nullable, nonatomic, copy) NSString *discoverabilityTitle;
+@property (nonatomic) UIMenuElementAttributes attributes;
+@property (nonatomic) UIMenuElementState state;
+@property (nonatomic) UIMenuElementRepeatBehavior repeatBehavior;
+@property (nullable, nonatomic, readonly) id sender;
+/* where the chosen element was shown (the menu's source view or bar button item): an anchor for a popover */
+@property (nullable, nonatomic, readonly) id<UIPopoverPresentationControllerSourceItem> presentationSourceItem;
+/* runs the element: an action's handler, a command's action sent to the target (nil: the first responder's chain) */
+- (void)performWithSender:(nullable id)sender target:(nullable id)target;
+@end
+
+/* another action of a command, chosen with modifier keys held (macOS menus; kept on iOS) */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(13.0))
+@interface UICommandAlternate : NSObject <NSCopying>
++ (instancetype)alternateWithTitle:(NSString *)title action:(SEL)action modifierFlags:(UIKeyModifierFlags)modifierFlags;
+- (instancetype)init NS_UNAVAILABLE;
+@property (nonatomic, readonly) NSString *title;
+@property (nonatomic, readonly) SEL action;
+@property (nonatomic, readonly) UIKeyModifierFlags modifierFlags;
+@end
+
+/* a menu element that sends its action through the responder chain (the first responder's, then up); a responder
+   that can perform it may update it in validateCommand: */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(13.0))
+@interface UICommand : UIMenuElement <UIMenuLeaf>
++ (instancetype)commandWithTitle:(NSString *)title image:(nullable UIImage *)image action:(SEL)action propertyList:(nullable id)propertyList
+    NS_SWIFT_NAME(init(__title:image:action:propertyList:));
++ (instancetype)commandWithTitle:(NSString *)title image:(nullable UIImage *)image action:(SEL)action propertyList:(nullable id)propertyList
+                      alternates:(NSArray<UICommandAlternate *> *)alternates NS_SWIFT_NAME(init(__title:image:action:propertyList:alternates:));
+@property (nonatomic, copy) NSString *title;
+@property (nullable, nonatomic, copy) UIImage *image;
+@property (nullable, nonatomic, copy) NSString *discoverabilityTitle;
+@property (nonatomic, readonly) SEL action;
+@property (nullable, nonatomic, readonly) id propertyList;
+@property (nonatomic) UIMenuElementAttributes attributes;
+@property (nonatomic) UIMenuElementState state;
+@property (nonatomic) UIMenuElementRepeatBehavior repeatBehavior API_AVAILABLE(ios(16.0));
+@property (nonatomic, readonly) NSArray<UICommandAlternate *> *alternates;
+@property (nullable, nonatomic, readonly) id sender;
+@property (nullable, nonatomic, readonly) id<UIPopoverPresentationControllerSourceItem> presentationSourceItem API_AVAILABLE(ios(16.0));
+- (void)performWithSender:(nullable id)sender target:(nullable id)target API_AVAILABLE(ios(16.0));
+@end
+/* a command's property list marking it as the Share menu item */
+UIKIT_EXTERN NSString *const UICommandTagShare API_AVAILABLE(ios(13.0));
+
+/* a command with a keyboard shortcut: in a responder's keyCommands or the main menu */
 NS_SWIFT_UI_ACTOR
-@interface UIKeyCommand : NSObject <NSCopying>
+@interface UIKeyCommand : UICommand
 + (instancetype)keyCommandWithInput:(NSString *)input modifierFlags:(UIKeyModifierFlags)modifierFlags action:(SEL)action;
 + (instancetype)commandWithTitle:(NSString *)title image:(nullable UIImage *)image action:(SEL)action input:(NSString *)input modifierFlags:(UIKeyModifierFlags)modifierFlags propertyList:(nullable id)propertyList;
++ (instancetype)commandWithTitle:(NSString *)title image:(nullable UIImage *)image action:(SEL)action input:(NSString *)input modifierFlags:(UIKeyModifierFlags)modifierFlags
+                    propertyList:(nullable id)propertyList alternates:(NSArray<UICommandAlternate *> *)alternates
+    NS_SWIFT_NAME(init(__title:image:action:input:modifierFlags:propertyList:alternates:)) API_AVAILABLE(ios(13.0));
 @property (nullable, nonatomic, readonly) NSString *input;
 @property (nonatomic, readonly) UIKeyModifierFlags modifierFlags;
-@property (nullable, nonatomic, readonly) SEL action;
 @property (nonatomic, copy) NSString *title;
 @property (nullable, nonatomic, copy) NSString *discoverabilityTitle;
 @property (nonatomic) BOOL wantsPriorityOverSystemBehavior;
-@property (nullable, nonatomic, readonly) id propertyList;
 @end
 
 @interface UIResponder (UIKeyboardAndMotion)

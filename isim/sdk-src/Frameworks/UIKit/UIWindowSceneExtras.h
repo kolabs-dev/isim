@@ -146,10 +146,10 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0)) NS_SWIFT_NAME(UIWindowScene.Activatio
 typedef UIWindowSceneActivationConfiguration *_Nullable (^UIWindowSceneActivationActionConfigurationProvider)(UIWindowSceneActivationAction *action) NS_SWIFT_NAME(UIWindowSceneActivationAction.ConfigurationProvider) API_AVAILABLE(ios(17.0));
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0)) NS_SWIFT_NAME(UIWindowScene.ActivationAction)
 @interface UIWindowSceneActivationAction : UIAction
-+ (instancetype)actionWithIdentifier:(nullable NSString *)identifier alternateAction:(nullable UIAction *)alternateAction
++ (instancetype)actionWithIdentifier:(nullable UIActionIdentifier)identifier alternateAction:(nullable UIAction *)alternateAction
                 configurationProvider:(UIWindowSceneActivationActionConfigurationProvider)configurationProvider
     NS_SWIFT_NAME(init(identifier:alternate:configuration:));
-+ (instancetype)actionWithIdentifier:(nullable NSString *)identifier alternateAction:(nullable UIAction *)alternateAction
++ (instancetype)actionWithIdentifier:(nullable UIActionIdentifier)identifier alternateAction:(nullable UIAction *)alternateAction
                 configurationProvider:(UIWindowSceneActivationActionConfigurationProvider)configurationProvider
                          errorHandler:(nullable void (^)(NSError *error))errorHandler
     NS_SWIFT_NAME(init(identifier:alternate:configuration:errorHandler:));

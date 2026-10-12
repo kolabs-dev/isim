@@ -1369,6 +1369,10 @@ static int script_step(struct isim_event *ev) {
         if (!strncmp(arg, "shot ", 5) && arg[5] != '/' && getcwd(cwd, sizeof cwd)) snprintf(pending[npending - 1].text, sizeof pending->text, "display shot %s/%s", cwd, arg + 5);
         else snprintf(pending[npending - 1].text, sizeof pending->text, "display %s", arg);
         script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "mainmenu")) {       /* the app's main menu: "mainmenu" logs it, "mainmenu show|hide" the keyboard shortcuts (iPad: hold Command) */
+        if (sscanf(args, " %63[^; ]", arg) != 1) arg[0] = 0;
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "mainmenu %s", arg);
+        script_resume = now() + 0.2;
     } else if (!strcmp(cmd, "closescene")) {     /* the user closes a window (iPad, multiple scenes): "closescene [SESSION-ID]" */
         if (sscanf(args, " %63[^; ]", arg) != 1) arg[0] = 0;
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "closescene %s", arg);

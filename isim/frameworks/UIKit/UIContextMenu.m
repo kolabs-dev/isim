@@ -47,6 +47,7 @@
 @interface __IsimContextSession : NSObject
 @property (nonatomic, strong) UIContextMenuConfiguration *configuration;
 @property (nonatomic, weak) UIView *source;
+@property (nonatomic, weak) id interaction;
 @property (nonatomic, strong) UIView *overlay, *previewHost;
 @property (nonatomic, strong) UIViewController *previewController;
 @property (nonatomic, copy) void (^willDisplay)(id<UIContextMenuInteractionAnimating>);
@@ -160,7 +161,7 @@ static void present_context_menu(__IsimContextSession *s, UIView *source, CGRect
     _location = [g locationInView:v];
     UIContextMenuConfiguration *c = [d contextMenuInteraction:self configurationForMenuAtLocation:_location];
     if (!c || !v) return;
-    __IsimContextSession *s = [__IsimContextSession new]; s.configuration = c;
+    __IsimContextSession *s = [__IsimContextSession new]; s.configuration = c; s.interaction = self;
     __weak UIContextMenuInteraction *wi = self;
     if ([d respondsToSelector:@selector(contextMenuInteraction:willDisplayMenuForConfiguration:animator:)]) s.willDisplay = ^(id<UIContextMenuInteractionAnimating> a) { UIContextMenuInteraction *i = wi; [i.delegate contextMenuInteraction:i willDisplayMenuForConfiguration:c animator:a]; };
     if ([d respondsToSelector:@selector(contextMenuInteraction:willEndForConfiguration:animator:)]) s.willEnd = ^(id<UIContextMenuInteractionAnimating> a) { UIContextMenuInteraction *i = wi; [i.delegate contextMenuInteraction:i willEndForConfiguration:c animator:a]; };
@@ -170,6 +171,11 @@ static void present_context_menu(__IsimContextSession *s, UIView *source, CGRect
 }
 - (void)updateVisibleMenuWithBlock:(UIMenu *(NS_NOESCAPE ^)(UIMenu *))block {}
 - (void)dismissMenu { end_session(current_session, NO); }
+/* iOS 14: rich (the lifted preview and the menu, a long press) while this interaction's menu is up */
+- (UIContextMenuInteractionAppearance)menuAppearance {
+    __IsimContextSession *s = current_session;
+    return s && !s.ended && s.interaction == self ? UIContextMenuInteractionAppearanceRich : UIContextMenuInteractionAppearanceUnknown;
+}
 @end
 
 /* ================= table and collection view rows ================= */

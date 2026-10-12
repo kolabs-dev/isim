@@ -536,6 +536,12 @@ void isim_ui_show_edit_menu(CGRect rect, NSArray<UIMenuElement *> *elements, voi
     for (UIMenuElement *e in flatten(elements)) [titles addObject:e.title ?: @""];
     NSLog(@"isim: edit menu shown: %@", [titles componentsJoinedByString:@", "]);
 }
+/* the visible menu points at another rect (UIEditMenuInteraction.updateVisibleMenuPosition) */
+static void move_edit_menu(CGRect rect, BOOL animated) {
+    if (!isim_ui_edit_menu_visible()) return;
+    menu_target = rect;
+    if (animated) [UIView animateWithDuration:0.2 animations:^{ menu_build(); }]; else menu_build();
+}
 
 /* the standard edit menu of a text view: its suggested actions (and the delegate's say) */
 static NSString *loc(NSString *s) { return [[NSBundle bundleForClass:[UIView class]] localizedStringForKey:s value:s table:nil]; }
@@ -632,11 +638,7 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
     if (!v.window) return;
     id<UIEditMenuInteractionDelegate> d = _delegate;
     _loc = c.sourcePoint;
-    CGRect target = CGRectMake(c.sourcePoint.x, c.sourcePoint.y, 0, 0);
-    if ([d respondsToSelector:@selector(editMenuInteraction:targetRectForConfiguration:)]) {
-        CGRect t = [d editMenuInteraction:self targetRectForConfiguration:c];
-        if (!CGRectIsNull(t)) target = t;
-    }
+    CGRect target = [self _isim_targetRect:c];
     /* suggested actions: the standard edit actions the responder chain can perform */
     NSMutableArray *suggested = [NSMutableArray array];
     struct { NSString *t; SEL s; } std[] = { { @"Cut", @selector(cut:) }, { @"Copy", @selector(copy:) }, { @"Paste", @selector(paste:) },
@@ -661,8 +663,7 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
         [d editMenuInteraction:self willPresentMenuForConfiguration:c animator:a]; [a _run];
     }
     _shown = c;
-    CGRect r = [v convertRect:target toView:nil];
-    r.origin = [v.window convertPoint:r.origin toView:nil];
+    CGRect r = [self _isim_screenRect:target];
     __weak UIEditMenuInteraction *ws = self;
     isim_ui_show_edit_menu(r, items, ^{
         UIEditMenuInteraction *s = ws; if (!s) return;
@@ -673,6 +674,29 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
             [dd editMenuInteraction:s willDismissMenuForConfiguration:cfg animator:a]; [a _run];
         }
     });
+}
+- (CGRect)_isim_targetRect:(UIEditMenuConfiguration *)c {
+    CGRect target = CGRectMake(c.sourcePoint.x, c.sourcePoint.y, 0, 0);
+    id<UIEditMenuInteractionDelegate> d = _delegate;
+    if ([d respondsToSelector:@selector(editMenuInteraction:targetRectForConfiguration:)]) {
+        CGRect t = [d editMenuInteraction:self targetRectForConfiguration:c];
+        if (!CGRectIsNull(t)) target = t;
+    }
+    return target;
+}
+- (CGRect)_isim_screenRect:(CGRect)target {
+    UIView *v = _view;
+    CGRect r = [v convertRect:target toView:nil];
+    r.origin = [v.window convertPoint:r.origin toView:nil];
+    return r;
+}
+/* the delegate's target rect again (the content under the menu moved) */
+- (void)updateVisibleMenuPositionAnimated:(BOOL)animated {
+    UIEditMenuConfiguration *c = _shown;
+    if (!c || !_view.window) return;
+    CGRect r = [self _isim_screenRect:[self _isim_targetRect:c]];
+    move_edit_menu(r, animated);
+    NSLog(@"isim: edit menu moved to %.0f,%.0f", r.origin.x, r.origin.y);
 }
 - (void)dismissMenu { if (_shown) isim_ui_hide_edit_menu(); }
 - (void)reloadVisibleMenu { UIEditMenuConfiguration *c = _shown; if (c) [self presentEditMenuWithConfiguration:c]; }

@@ -134,19 +134,71 @@ extension CGRect {
 
 // MARK: - Menus (Swift conveniences from Apple's UIKit overlay)
 extension UIAction {
-    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: UIAction.Identifier? = nil,
                             discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [],
                             state: UIMenuElement.State = .off, handler: @escaping UIActionHandler) {
         self.init(__title: title, image: image, identifier: identifier, discoverabilityTitle: discoverabilityTitle,
                   attributes: attributes, state: state, handler: handler)
         self.subtitle = subtitle
     }
+    // isim before 0.16 typed identifiers as String (kept for apps built then)
+    @_disfavoredOverload @available(*, deprecated, message: "identifiers are UIAction.Identifier, as on iOS")
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+                            discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [],
+                            state: UIMenuElement.State = .off, handler: @escaping UIActionHandler) {
+        self.init(title: title, subtitle: subtitle, image: image, identifier: identifier.map(UIAction.Identifier.init(rawValue:)),
+                  discoverabilityTitle: discoverabilityTitle, attributes: attributes, state: state, handler: handler)
+    }
 }
 extension UIMenu {
-    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: UIMenu.Identifier? = nil,
                             options: UIMenu.Options = [], children: [UIMenuElement] = []) {
         self.init(__title: title, image: image, identifier: identifier, options: options, children: children)
         self.subtitle = subtitle
+    }
+    // isim before 0.16 typed identifiers as String (kept for apps built then)
+    @_disfavoredOverload @available(*, deprecated, message: "identifiers are UIMenu.Identifier, as on iOS")
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+                            options: UIMenu.Options = [], children: [UIMenuElement] = []) {
+        self.init(title: title, subtitle: subtitle, image: image, identifier: identifier.map(UIMenu.Identifier.init(rawValue:)), options: options, children: children)
+    }
+}
+extension UICommand {
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, action: Selector, propertyList: Any? = nil,
+                            alternates: [UICommandAlternate] = [], discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [],
+                            state: UIMenuElement.State = .off) {
+        self.init(__title: title, image: image, action: action, propertyList: propertyList, alternates: alternates)
+        self.subtitle = subtitle
+        self.discoverabilityTitle = discoverabilityTitle
+        self.attributes = attributes
+        self.state = state
+    }
+}
+extension UIKeyCommand {
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, action: Selector, input: String,
+                            modifierFlags: UIKeyModifierFlags = [], propertyList: Any? = nil, alternates: [UICommandAlternate] = [],
+                            discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [], state: UIMenuElement.State = .off) {
+        self.init(__title: title, image: image, action: action, input: input, modifierFlags: modifierFlags, propertyList: propertyList, alternates: alternates)
+        self.subtitle = subtitle
+        self.discoverabilityTitle = discoverabilityTitle
+        self.attributes = attributes
+        self.state = state
+    }
+}
+extension UIMenuBuilder {
+    @available(iOS 26.0, *)
+    public func insertElements(_ insertedElements: [UIMenuElement], beforeCommand siblingAction: Selector, propertyList siblingPropertyList: Any? = nil) {
+        __insertElements(insertedElements, beforeCommand: siblingAction, propertyList: siblingPropertyList)
+    }
+    @available(iOS 26.0, *)
+    public func insertElements(_ insertedElements: [UIMenuElement], afterCommand siblingAction: Selector, propertyList siblingPropertyList: Any? = nil) {
+        __insertElements(insertedElements, afterCommand: siblingAction, propertyList: siblingPropertyList)
+    }
+}
+@available(iOS 26.0, *)
+extension UIMainMenuSystem {
+    public func setBuildConfiguration(_ configuration: UIMainMenuSystem.Configuration, buildHandler: ((any UIMenuBuilder) -> Void)? = nil) {
+        __setBuildConfiguration(configuration, buildHandler: buildHandler)
     }
 }
 

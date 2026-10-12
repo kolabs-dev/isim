@@ -167,11 +167,11 @@ final class ControlsViewController: UIViewController, UIPageControlTimerProgress
         // a system button with an image, its handlers and the primary action
         let plus = UIButton.systemButton(with: UIImage(systemName: "plus.circle")!, target: self, action: #selector(plusTapped))
         plus.frame = CGRect(x: 20, y: 200, width: 44, height: 44); plus.accessibilityIdentifier = "plus-button"
-        plus.addAction(UIAction(identifier: "extra") { _ in log("extra action") }, for: .touchUpInside)
+        plus.addAction(UIAction(identifier: UIAction.Identifier("extra")) { _ in log("extra action") }, for: .touchUpInside)
         view.addSubview(plus)
         var handlers = 0
         plus.enumerateEventHandlers { action, target, events, _ in handlers += 1; _ = (action, target, events) }
-        plus.removeAction(identifiedBy: "extra", for: .touchUpInside)
+        plus.removeAction(identifiedBy: UIAction.Identifier("extra"), for: .touchUpInside)
         var after = 0
         plus.enumerateEventHandlers { _, _, _, _ in after += 1 }
         log("handlers \(handlers) after remove \(after)")
@@ -185,12 +185,12 @@ final class ControlsViewController: UIViewController, UIPageControlTimerProgress
         view.addSubview(toggle)
         // segments made from actions
         let segments = UISegmentedControl(frame: CGRect(x: 20, y: 260, width: 300, height: 32), actions: ["One", "Two", "Three"].map { t in
-            UIAction(title: t, identifier: "seg-\(t)") { _ in log("segment action \(t)") }
+            UIAction(title: t, identifier: UIAction.Identifier("seg-\(t)")) { _ in log("segment action \(t)") }
         })
         segments.accessibilityIdentifier = "segments"
         segments.setContentOffset(CGSize(width: 0, height: 1), forSegmentAt: 0)
         view.addSubview(segments)
-        log("segment index \(segments.segmentIndex(identifiedBy: "seg-Two")) action \(segments.actionForSegment(at: 2)?.title ?? "-") width \(segments.widthForSegment(at: 0))")
+        log("segment index \(segments.segmentIndex(identifiedBy: UIAction.Identifier("seg-Two"))) action \(segments.actionForSegment(at: 2)?.title ?? "-") width \(segments.widthForSegment(at: 0))")
         // a stepper with chevron images
         let stepper = UIStepper(frame: CGRect(x: 20, y: 310, width: 94, height: 32))
         stepper.setIncrementImage(UIImage(systemName: "chevron.up"), for: .normal)

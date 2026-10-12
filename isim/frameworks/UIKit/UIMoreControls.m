@@ -642,7 +642,9 @@ BOOL isim_ui_display_links_active(void) { for (CADisplayLink *l in display_links
 + (UIMenu *)menuWithChildren:(NSArray *)c { return [self menuWithTitle:@"" image:nil identifier:nil options:0 children:c]; }
 + (UIMenu *)menuWithTitle:(NSString *)t children:(NSArray *)c { return [self menuWithTitle:t image:nil identifier:nil options:0 children:c]; }
 + (UIMenu *)menuWithTitle:(NSString *)t image:(UIImage *)img identifier:(NSString *)ident options:(UIMenuOptions)o children:(NSArray *)c {
-    UIMenu *m = [self new]; m.title = t ?: @""; m.image = img; m->_children = [c copy] ?: @[]; m->_options = o; return m;
+    UIMenu *m = [self new]; m.title = t ?: @""; m.image = img; m->_children = [c copy] ?: @[]; m->_options = o;
+    if (ident.length) [m _isim_setIdentifier:ident];
+    return m;
 }
 - (NSArray *)children { return _children; }
 - (UIMenuOptions)options { return _options; }
@@ -651,7 +653,16 @@ BOOL isim_ui_display_links_active(void) { for (CADisplayLink *l in display_links
 @interface __IsimMenuRow : UIControl
 @property (nonatomic, strong) UIMenuElement *element;
 @property (nonatomic) BOOL showsCheckColumn, last;
+@property (nonatomic) BOOL unavailable, loading;          /* a command nothing performs; a deferred element's "Loading…" */
+@property (nonatomic) NSInteger paletteSize;              /* 0 a list row; a palette cell: 1 small (image), 2 medium (image over title) */
+@property (nonatomic) NSInteger titleLines;               /* 0: as many as the title needs */
 @end
+/* an inline menu shown side by side (preferredElementSize small / medium, displayAsPalette) */
+@interface __IsimMenuPalette : NSObject
+@property (nonatomic, strong) UIMenu *menu;
+@property (nonatomic) NSInteger size;
+@end
+@implementation __IsimMenuPalette @end
 @implementation __IsimMenuRow
 /* iOS 27 highlightStateUpdateHandler: told when the row is highlighted (touch, keyboard) and unhighlighted */
 - (void)setHighlighted:(BOOL)h {
@@ -664,29 +675,59 @@ BOOL isim_ui_display_links_active(void) { for (CADisplayLink *l in display_links
     if ([e isKindOfClass:[UIMenu class]]) return YES;              /* the submenu chevron */
     return e.image && e.preferredImageVisibility != UIMenuElementImageVisibilityHidden;
 }
+- (void)_isim_drawPaletteCell {
+    CGSize s = self.bounds.size;
+    UIMenuElementAttributes at = isim_ui_element_attributes(self.element);
+    BOOL disabled = (at & UIMenuElementAttributesDisabled) || self.unavailable;
+    UIColor *c = (at & UIMenuElementAttributesDestructive) ? UIColor.systemRedColor : UIColor.labelColor;
+    double alpha = disabled ? 0.35 : 1;
+    if (self.highlighted) fill(UIColor.tertiarySystemFillColor, 0, 0, s.width, s.height, 0, 1);
+    UIImage *img = self.element.image;
+    CGFloat iy = self.paletteSize == 2 ? 10 : s.height / 2 - 11;
+    if (isim_ui_element_state(self.element) == UIMenuElementStateOn) {        /* the chosen one: a ring */
+        double rgba[4]; isim_ui_rgba(UIColor.labelColor, rgba); rgba[3] *= 0.5;
+        isim_gfx_stroke_rounded(s.width / 2 - 17, iy - 6, 34, 34, 17, 2, rgba);
+    }
+    if (img) {
+        CGSize is = img.size; double k = fmin(1, 22 / fmax(is.width, is.height)); is.width *= k; is.height *= k;
+        [img _isim_drawInRect:CGRectMake(s.width / 2 - is.width / 2, iy + 11 - is.height / 2, is.width, is.height) tint:c alpha:alpha];
+    }
+    if (self.paletteSize == 2 || !img) {
+        UIFont *f = [UIFont systemFontOfSize:img ? 12 : 15];
+        CGSize ts = isim_ui_measure(self.element.title, f, s.width - 8, 1);
+        isim_ui_draw_text(self.element.title, f, c, CGRectMake(4, img ? s.height - 8 - ts.height : s.height / 2 - ts.height / 2, s.width - 8, ts.height), NSTextAlignmentCenter, 1, alpha);
+    }
+}
 - (void)_isim_drawContent {
+    if (self.paletteSize) { [self _isim_drawPaletteCell]; return; }
     CGSize s = self.bounds.size;
     if (self.highlighted) fill(UIColor.tertiarySystemFillColor, 0, 0, s.width, s.height, 0, 1);
-    UIAction *a = [self.element isKindOfClass:[UIAction class]] ? (UIAction *)self.element : nil;
-    BOOL destructive = a && (a.attributes & UIMenuElementAttributesDestructive), disabled = a && (a.attributes & UIMenuElementAttributesDisabled);
-    UIColor *c = destructive ? UIColor.systemRedColor : UIColor.labelColor;
+    UIMenuElementAttributes at = isim_ui_element_attributes(self.element);
+    BOOL destructive = (at & UIMenuElementAttributesDestructive) != 0, disabled = (at & UIMenuElementAttributesDisabled) || self.unavailable;
+    UIColor *c = destructive ? UIColor.systemRedColor : self.loading ? UIColor.secondaryLabelColor : UIColor.labelColor;
     double alpha = disabled ? 0.35 : 1, x = self.showsCheckColumn ? 40 : 16;
-    if (a.state == UIMenuElementStateOn) {
+    if (isim_ui_element_state(self.element) == UIMenuElementStateOn) {
         UIImage *check = [UIImage systemImageNamed:@"checkmark"];
         [check _isim_drawInRect:CGRectMake(14, s.height / 2 - 7, 15, 14) tint:c alpha:alpha];
     }
     UIFont *f = [UIFont systemFontOfSize:17];
     BOOL showsImage = [self _isim_showsImage];
-    CGFloat tw = s.width - x - (showsImage ? 48 : 16);
-    CGSize ts = isim_ui_measure(self.element.title, f, tw, 1);
+    NSString *shortcut = [self.element isKindOfClass:[UIKeyCommand class]] ? isim_ui_shortcut_text((UIKeyCommand *)self.element) : nil;
+    CGFloat sw = shortcut.length ? isim_ui_measure(shortcut, f, 200, 1).width + 12 : 0;
+    CGFloat tw = s.width - x - (showsImage ? 48 : 16) - sw;
+    NSInteger lines = self.titleLines;
+    CGSize ts = isim_ui_measure(self.element.title, f, tw, lines);
     NSString *sub = self.element.subtitle;
     if (sub.length) {                       /* a title over a 15 pt secondary subtitle */
         UIFont *sf = [UIFont systemFontOfSize:15];
         CGSize ss = isim_ui_measure(sub, sf, tw, 1);
         CGFloat top = (s.height - ts.height - 2 - ss.height) / 2;
-        isim_ui_draw_text(self.element.title, f, c, CGRectMake(x, top, tw, ts.height), NSTextAlignmentLeft, 1, alpha);
+        isim_ui_draw_text(self.element.title, f, c, CGRectMake(x, top, tw, ts.height), NSTextAlignmentLeft, lines, alpha);
         isim_ui_draw_text(sub, sf, UIColor.secondaryLabelColor, CGRectMake(x, top + ts.height + 2, tw, ss.height), NSTextAlignmentLeft, 1, alpha);
-    } else isim_ui_draw_text(self.element.title, f, c, CGRectMake(x, s.height / 2 - ts.height / 2, tw, ts.height), NSTextAlignmentLeft, 1, alpha);
+    } else isim_ui_draw_text(self.element.title, f, c, CGRectMake(x, s.height / 2 - ts.height / 2, tw, ts.height), NSTextAlignmentLeft, lines, alpha);
+    if (shortcut.length)                    /* a key command's shortcut, trailing */
+        isim_ui_draw_text(shortcut, f, UIColor.secondaryLabelColor, CGRectMake(s.width - (showsImage ? 48 : 16) - sw + 12, s.height / 2 - ts.height / 2, sw - 12, isim_ui_measure(shortcut, f, 200, 1).height),
+                          NSTextAlignmentRight, 1, alpha);
     UIImage *img = !showsImage ? nil : [self.element isKindOfClass:[UIMenu class]] ? [UIImage systemImageNamed:@"chevron.right"] : self.element.image;
     if (img) {
         CGSize is = img.size; double k = fmin(1, 20 / fmax(is.width, is.height)); is.width *= k; is.height *= k;
@@ -703,6 +744,7 @@ BOOL isim_ui_display_links_active(void) { for (CADisplayLink *l in display_links
 @property (nonatomic, copy) void (^onPreviewTap)(void), (^onDismiss)(void);
 @property (nonatomic) BOOL typeSelect;                   /* hardware keyboard type select (UIContextMenuConfiguration.allowsTypeSelect) */
 @property (nonatomic, copy) NSString *typed; @property (nonatomic) double typedAt;
+@property (nonatomic, strong) UIMenu *shownMenu; @property (nonatomic) CGRect shownAnchor;
 @end
 @implementation __IsimMenuOverlay
 static __weak __IsimMenuOverlay *current_menu;
@@ -719,26 +761,53 @@ static __weak __IsimMenuOverlay *current_menu;
                      completion:^(BOOL f) { [self removeFromSuperview]; }];
     self.userInteractionEnabled = NO;
 }
-/* flattens inline submenus into sections: [[elements], ...] */
-static void collect(UIMenu *m, NSMutableArray<NSMutableArray *> *sections) {
-    NSMutableArray *cur = sections.lastObject;
-    for (UIMenuElement *e in m.children) {
-        if ([e isKindOfClass:[UIAction class]] && (((UIAction *)e).attributes & UIMenuElementAttributesHidden)) continue;
+/* flattens inline submenus into sections: [[elements], ...]; deferred elements show their elements in place (or
+   "Loading…" until the provider answers: then `reload`); side-by-side menus are one __IsimMenuPalette */
+static UIMenuElement *loading_element(void) { UIMenuElement *e = [UIMenuElement new]; e.title = @"Loading…"; return e; }
+static void collect(NSArray *children, NSMutableArray<NSMutableArray *> *sections, void (^reload)(void)) {
+    for (UIMenuElement *e in children) {
+        NSMutableArray *cur = sections.lastObject;
+        if (isim_ui_element_attributes(e) & UIMenuElementAttributesHidden) continue;
+        if ([e isKindOfClass:[UIDeferredMenuElement class]]) {
+            NSArray *els = [(UIDeferredMenuElement *)e _isim_elementsReloading:reload];
+            if (els) collect(els, sections, reload); else [cur addObject:loading_element()];
+            continue;
+        }
         if ([e isKindOfClass:[UIMenu class]] && (((UIMenu *)e).options & UIMenuOptionsDisplayInline)) {
+            UIMenu *m = (UIMenu *)e;
+            UIMenuElementSize size = m.preferredElementSize;
+            BOOL palette = (m.options & UIMenuOptionsDisplayAsPalette) || size == UIMenuElementSizeSmall || size == UIMenuElementSizeMedium;
             if (cur.count) [sections addObject:[NSMutableArray array]];
-            collect((UIMenu *)e, sections);
+            if (palette) {
+                __IsimMenuPalette *p = [__IsimMenuPalette new]; p.menu = m; p.size = size == UIMenuElementSizeMedium ? 2 : 1;
+                [sections.lastObject addObject:p];
+            } else collect(m.children, sections, reload);
             [sections addObject:[NSMutableArray array]];
-            cur = sections.lastObject;
         } else { [cur addObject:e]; }
     }
 }
+- (__IsimMenuRow *)_rowFor:(UIMenuElement *)e frame:(CGRect)f {
+    __IsimMenuRow *row = [[__IsimMenuRow alloc] initWithFrame:f];
+    row.element = e;
+    row.loading = [e.title isEqualToString:@"Loading…"] && [e class] == [UIMenuElement class];
+    if ([e isKindOfClass:[UICommand class]]) row.unavailable = !isim_ui_command_available((UICommand *)e, self.source);
+    row.accessibilityIdentifier = [@"menu-" stringByAppendingString:e.title ?: @""];
+    if (!row.loading) [row addTarget:self action:@selector(_rowTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [self.card.contentView addSubview:row];
+    return row;
+}
 - (void)showMenu:(UIMenu *)menu anchor:(CGRect)anchor {
+    self.shownMenu = menu; self.shownAnchor = anchor;
     for (UIView *v in [self.card.contentView.subviews copy]) [v removeFromSuperview];
     NSMutableArray<NSMutableArray *> *sections = [NSMutableArray arrayWithObject:[NSMutableArray array]];
-    collect(menu, sections);
+    __weak __IsimMenuOverlay *ws = self;
+    __weak UIMenu *wm = menu;
+    collect(menu.children, sections, ^{ __IsimMenuOverlay *o = ws; UIMenu *m = wm; if (o && m && o.shownMenu == m && o.superview) [o showMenu:m anchor:o.shownAnchor]; });
     for (NSInteger k = (NSInteger)sections.count - 1; k >= 0; k--) if (!sections[(NSUInteger)k].count) [sections removeObjectAtIndex:(NSUInteger)k];
     BOOL checks = NO;
-    for (NSArray *s in sections) for (UIMenuElement *e in s) if ([e isKindOfClass:[UIAction class]] && ((UIAction *)e).state != UIMenuElementStateOff) checks = YES;
+    for (NSArray *s in sections) for (id e in s) if ([e isKindOfClass:[UIMenuElement class]] && ![e isKindOfClass:[UIMenu class]] && isim_ui_element_state(e) != UIMenuElementStateOff) checks = YES;
+    UIMenuDisplayPreferences *prefs = menu.displayPreferences;
+    NSInteger lines = prefs ? prefs.maximumNumberOfTitleLines : 1;
     CGFloat W = 250, y = 0;
     if (menu.title.length) {
         UILabel *t = [UILabel new]; t.text = menu.title; t.font = [UIFont systemFontOfSize:13]; t.textColor = UIColor.secondaryLabelColor;
@@ -750,12 +819,27 @@ static void collect(UIMenu *m, NSMutableArray<NSMutableArray *> *sections) {
         if (si > 0) { UIView *gap = [UIView new]; gap.backgroundColor = [UIColor colorWithWhite:0 alpha:0.08]; gap.frame = CGRectMake(0, y, W, 8); [self.card.contentView addSubview:gap]; y += 8; }
         NSArray *s = sections[si];
         for (NSUInteger i = 0; i < s.count; i++) {
-            CGFloat rh = ((UIMenuElement *)s[i]).subtitle.length ? 58 : 44;
-            __IsimMenuRow *row = [[__IsimMenuRow alloc] initWithFrame:CGRectMake(0, y, W, rh)];
-            row.element = s[i]; row.showsCheckColumn = checks; row.last = i + 1 == s.count;
-            row.accessibilityIdentifier = [@"menu-" stringByAppendingString:row.element.title];
-            [row addTarget:self action:@selector(_rowTapped:) forControlEvents:UIControlEventTouchUpInside];
-            [self.card.contentView addSubview:row];
+            if ([s[i] isKindOfClass:[__IsimMenuPalette class]]) {         /* side by side */
+                __IsimMenuPalette *p = s[i];
+                NSMutableArray *items = [NSMutableArray array];
+                for (UIMenuElement *e in p.menu.children) if (!(isim_ui_element_attributes(e) & UIMenuElementAttributesHidden) && ![e isKindOfClass:[UIMenu class]]) [items addObject:e];
+                CGFloat rh = p.size == 2 ? 64 : 48, cw = items.count ? W / items.count : W;
+                for (NSUInteger k = 0; k < items.count; k++) {
+                    __IsimMenuRow *row = [self _rowFor:items[k] frame:CGRectMake(floor(k * cw), y, ceil(cw), rh)];
+                    row.paletteSize = p.size; row.last = YES;
+                }
+                if (i + 1 < s.count && !isim_ui_glass()) { UIView *sep = [UIView new]; sep.backgroundColor = UIColor.separatorColor; sep.frame = CGRectMake(0, y + rh - 0.5, W, 0.5); [self.card.contentView addSubview:sep]; }
+                y += rh;
+                continue;
+            }
+            UIMenuElement *e = s[i];
+            CGFloat rh = e.subtitle.length ? 58 : 44;
+            if (lines != 1) {
+                CGFloat th = isim_ui_measure(e.title, [UIFont systemFontOfSize:17], W - (checks ? 40 : 16) - 48, lines).height;
+                rh = fmax(rh, ceil(th) + (e.subtitle.length ? 38 : 22));
+            }
+            __IsimMenuRow *row = [self _rowFor:e frame:CGRectMake(0, y, W, rh)];
+            row.showsCheckColumn = checks; row.last = i + 1 == s.count; row.titleLines = lines;
             y += rh;
         }
     }
@@ -793,14 +877,20 @@ static void collect(UIMenu *m, NSMutableArray<NSMutableArray *> *sections) {
 }
 - (void)_rowTapped:(__IsimMenuRow *)row {
     UIMenuElement *e = row.element;
-    if ([e isKindOfClass:[UIMenu class]]) { [self showMenu:(UIMenu *)e anchor:self.card.frame]; return; }
-    UIAction *a = (UIAction *)e;
-    if (a.attributes & UIMenuElementAttributesDisabled) return;
-    [self dismiss];
-    [a setSender:self.source];
-    isim_ui_menu_chose(self.source, a);                  /* single selection: the chosen item's checkmark (UIControls.m) */
-    UIActionHandler h = a.handler;
-    if (h) dispatch_async(dispatch_get_main_queue(), ^{ h(a); });
+    if ([e isKindOfClass:[UIMenu class]]) { isim_ui_menu_will_show((UIMenu *)e); [self showMenu:(UIMenu *)e anchor:self.card.frame]; return; }
+    UIMenuElementAttributes at = isim_ui_element_attributes(e);
+    if ((at & UIMenuElementAttributesDisabled) || row.unavailable || row.loading) return;
+    UIView *source = self.source;
+    BOOL keep = (at & UIMenuElementAttributesKeepsMenuPresented) != 0;
+    if (!keep) [self dismiss];
+    if ([e isKindOfClass:[UIAction class]]) isim_ui_menu_chose(source, (UIAction *)e);   /* single selection: the chosen item's checkmark (UIControls.m) */
+    if (keep) {                              /* the menu stays: run it now and show its new state */
+        isim_ui_perform_leaf(e, source);
+        NSLog(@"isim: menu kept presented after %@", e.title);
+        if (self.shownMenu && self.superview) [self showMenu:self.shownMenu anchor:self.shownAnchor];
+        return;
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{ isim_ui_perform_leaf(e, source); });
 }
 @end
 
@@ -839,6 +929,7 @@ void isim_ui_menu_set_type_select(BOOL allowed) { current_menu.typeSelect = allo
     [o addSubview:o.card];
     [w addSubview:o];
     current_menu = o;
+    isim_ui_menu_will_show(menu);
     [o showMenu:menu anchor:[self convertRect:rect toView:w]];
     UIView *card = o.card;
     [UIView performWithoutAnimation:^{ card.alpha = 0; card.transform = CGAffineTransformMakeScale(0.85, 0.85); }];

@@ -144,7 +144,7 @@
 }
 + (instancetype)actionWithTitle:(NSString *)t image:(UIImage *)i identifier:(NSString *)ident discoverabilityTitle:(NSString *)d
                      attributes:(UIMenuElementAttributes)attr state:(UIMenuElementState)st handler:(UIActionHandler)h {
-    UIAction *a = [self actionWithTitle:t image:i identifier:ident handler:h]; a.attributes = attr; a.state = st; return a;
+    UIAction *a = [self actionWithTitle:t image:i identifier:ident handler:h]; a.attributes = attr; a.state = st; a.discoverabilityTitle = d; return a;
 }
 @end
 

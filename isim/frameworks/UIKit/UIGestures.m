@@ -109,13 +109,18 @@ NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
 @end
 
 @implementation UIKeyCommand
+@dynamic title, discoverabilityTitle;
 + (instancetype)keyCommandWithInput:(NSString *)input modifierFlags:(UIKeyModifierFlags)flags action:(SEL)action {
-    UIKeyCommand *c = [self new]; c->_input = [input copy]; c->_modifierFlags = flags; c->_action = action; c->_title = @""; return c;
+    UIKeyCommand *c = [self new]; c->_input = [input copy]; c->_modifierFlags = flags; [c _isim_setAction:action propertyList:nil alternates:nil]; return c;
 }
 + (instancetype)commandWithTitle:(NSString *)title image:(UIImage *)image action:(SEL)action input:(NSString *)input modifierFlags:(UIKeyModifierFlags)flags propertyList:(id)plist {
-    UIKeyCommand *c = [self keyCommandWithInput:input modifierFlags:flags action:action]; c.title = title ?: @""; c->_propertyList = plist; return c;
+    return [self commandWithTitle:title image:image action:action input:input modifierFlags:flags propertyList:plist alternates:@[]];
 }
-- (id)copyWithZone:(NSZone *)z { return self; }
++ (instancetype)commandWithTitle:(NSString *)title image:(UIImage *)image action:(SEL)action input:(NSString *)input modifierFlags:(UIKeyModifierFlags)flags
+                    propertyList:(id)plist alternates:(NSArray *)alternates {
+    UIKeyCommand *c = [self keyCommandWithInput:input modifierFlags:flags action:action];
+    c.title = title ?: @""; c.image = image; [c _isim_setAction:action propertyList:plist alternates:alternates]; return c;
+}
 @end
 
 @implementation UIResponder (UIKeyboardAndMotion)
@@ -164,10 +169,13 @@ static UIViewController *visible_controller(UIViewController *vc) {
 static UIResponder *focus_responder(void) {
     UIResponder *fr = isim_ui_first_responder();
     if (fr) return fr;
+    UIView *focused = isim_ui_focused_view();             /* iPad keyboard focus (UIFocus.m) */
+    if (focused) return focused;
     UIWindow *w = UIApplication.sharedApplication.keyWindow ?: UIApplication.sharedApplication.windows.firstObject;
     UIViewController *vc = visible_controller(w.rootViewController);
     return vc ?: (UIResponder *)w;
 }
+UIResponder *isim_ui_focus_responder(void) { return focus_responder(); }
 
 static UIKeyModifierFlags held_mods;
 static UIKeyModifierFlags mods_from_host(int sdl) {
@@ -221,6 +229,8 @@ BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down) {
     press.type = hid == 0x52 ? UIPressTypeUpArrow : hid == 0x51 ? UIPressTypeDownArrow : hid == 0x50 ? UIPressTypeLeftArrow : hid == 0x4F ? UIPressTypeRightArrow
                : hid == 0x28 ? UIPressTypeSelect : hid == 0x29 ? UIPressTypeMenu : (UIPressType)-1;
     if (!active_presses) active_presses = [NSMutableDictionary dictionary];
+    BOOL isRepeat = down && active_presses[@(hid)] != nil;          /* the host repeats a held key */
+    isim_ui_main_menu_modifier(mflag, down, !mflag);                /* iPad: Command held shows the keyboard shortcuts */
     UIResponder *start = focus_responder();
     if (down && !mflag && !(mods & (UIKeyModifierCommand | UIKeyModifierControl)) && isim_ui_menu_key(hid, key.characters)) return YES;   /* an open menu first */
     /* key commands first (key down, modifiers themselves never match) */
@@ -232,12 +242,17 @@ BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down) {
                 if (!c.action || !c.input) continue;
                 BOOL inputMatch = [c.input caseInsensitiveCompare:base] == NSOrderedSame || [c.input isEqualToString:key.characters];
                 if (!inputMatch || (c.modifierFlags & cmpMask) != (mods & cmpMask)) continue;
+                if (isRepeat && c.repeatBehavior == UIMenuElementRepeatBehaviorNonRepeatable) { consumed = YES; break; }
                 id target = [start targetForAction:c.action withSender:c];
                 if (!target) continue;
+                [target validateCommand:c];
+                if (c.attributes & UIMenuElementAttributesDisabled) continue;
                 ((void (*)(id, SEL, id))[target methodForSelector:c.action])(target, c.action, c);
                 consumed = YES; break;
             }
         }
+        if (!consumed) consumed = isim_ui_main_menu_key(base, key.characters, mods, isRepeat);   /* the app's main menu commands */
+        if (!consumed) consumed = isim_ui_focus_key(hid, mods);                              /* iPad keyboard focus (UIFocus.m) */
     }
     UIPressesEvent *e = [UIPressesEvent new];
     if (down) {
