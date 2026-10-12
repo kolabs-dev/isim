@@ -1,9 +1,9 @@
-// isim AVFoundation: AVAudioSession, AVAudioEngine/AVAudioPlayerNode/AVAudioMixerNode, AVAudioFile, AVAudioPCMBuffer,
-// AVAudioFormat, AVAudioPlayer (this file); assets and video playback (AVAsset.swift, AVPlayer.swift); speech
-// (AVSpeech.swift); effects, offline rendering, input and recording (AVAudioExtras.swift). Self-authored; sound goes
+// isim AVFoundation: AVAudioSession, AVAudioFile, AVAudioPCMBuffer, AVAudioFormat, AVAudioPlayer (this file);
+// AVAudioEngine and its nodes (AVAudioEngine.swift); assets and video playback (AVAsset.swift, AVPlayer.swift); speech
+// (AVSpeech.swift); recording, the session's input and AVAudioFile writing (AVAudioExtras.swift). Self-authored; sound goes
 // to the host's mixer (libisim_host, SDL3 audio). Decodes linear-PCM CAF and WAV files itself; compressed formats
 // and video are decoded by the host's ffmpeg (or GStreamer's gst-launch-1.0 for audio files); without them those
-// fail to open like an unreadable file. Capture: Capture.swift; composition/export: AVComposition.swift. No 3D audio.
+// fail to open like an unreadable file. Capture: Capture.swift; composition/export: AVComposition.swift.
 @_exported import Foundation
 @_exported import CoreMedia
 @_exported import AudioToolbox
@@ -111,6 +111,47 @@ open class AVAudioFormat: NSObject {
         self.sampleRate = sampleRate; channelCount = channels; self.commonFormat = commonFormat; isInterleaved = interleaved
     }
     public var isStandard: Bool { commonFormat == .pcmFormatFloat32 && !isInterleaved }
+    var _sd: UnsafeMutablePointer<AudioStreamBasicDescription>?
+    deinit { _sd?.deallocate() }
+    /// the linear-PCM description of this format
+    var _asbd: AudioStreamBasicDescription {
+        let bits: UInt32 = commonFormat == .pcmFormatInt16 ? 16 : commonFormat == .pcmFormatFloat64 ? 64 : 32
+        let isFloat = commonFormat == .pcmFormatFloat32 || commonFormat == .pcmFormatFloat64 || commonFormat == .otherFormat
+        var flags = (isFloat ? kAudioFormatFlagIsFloat : kAudioFormatFlagIsSignedInteger) | kAudioFormatFlagIsPacked
+        if !isInterleaved || channelCount == 1 { flags |= kAudioFormatFlagIsNonInterleaved }
+        let frameBytes = bits / 8 * (isInterleaved && channelCount > 1 ? channelCount : 1)
+        return AudioStreamBasicDescription(mSampleRate: sampleRate, mFormatID: kAudioFormatLinearPCM, mFormatFlags: flags, mBytesPerPacket: frameBytes,
+                                           mFramesPerPacket: 1, mBytesPerFrame: frameBytes, mChannelsPerFrame: channelCount, mBitsPerChannel: bits, mReserved: 0)
+    }
+    public var streamDescription: UnsafePointer<AudioStreamBasicDescription> {
+        if _sd == nil { _sd = .allocate(capacity: 1); _sd!.initialize(to: _asbd) }
+        return UnsafePointer(_sd!)
+    }
+    /// linear PCM descriptions only (16/32-bit integer, 32/64-bit float)
+    public convenience init?(streamDescription asbd: UnsafePointer<AudioStreamBasicDescription>) {
+        let d = asbd.pointee
+        guard d.mFormatID == kAudioFormatLinearPCM else { return nil }
+        let isFloat = d.mFormatFlags & kAudioFormatFlagIsFloat != 0
+        let common: AVAudioCommonFormat = isFloat ? (d.mBitsPerChannel == 64 ? .pcmFormatFloat64 : .pcmFormatFloat32)
+            : d.mBitsPerChannel == 16 ? .pcmFormatInt16 : d.mBitsPerChannel == 32 ? .pcmFormatInt32 : .otherFormat
+        self.init(commonFormat: common, sampleRate: d.mSampleRate, channels: d.mChannelsPerFrame,
+                  interleaved: d.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0 && d.mChannelsPerFrame > 1)
+    }
+    public convenience init?(settings: [String: Any]) {
+        func num(_ k: String) -> Double? { (settings[k] as? NSNumber)?.doubleValue ?? (settings[k] as? Double) ?? (settings[k] as? Int).map(Double.init) }
+        let rate = num(AVSampleRateKey) ?? 44100, ch = AVAudioChannelCount(num(AVNumberOfChannelsKey) ?? 2)
+        let isFloat = (settings[AVLinearPCMIsFloatKey] as? Bool) ?? ((settings[AVLinearPCMIsFloatKey] as? NSNumber)?.boolValue ?? true)
+        let bits = Int(num(AVLinearPCMBitDepthKey) ?? 32)
+        let nonInter = (settings[AVLinearPCMIsNonInterleaved] as? Bool) ?? false
+        let common: AVAudioCommonFormat = isFloat ? (bits == 64 ? .pcmFormatFloat64 : .pcmFormatFloat32) : bits == 16 ? .pcmFormatInt16 : .pcmFormatInt32
+        self.init(commonFormat: common, sampleRate: rate, channels: ch, interleaved: !nonInter)
+    }
+    public var settings: [String: Any] {
+        let isFloat = commonFormat == .pcmFormatFloat32 || commonFormat == .pcmFormatFloat64
+        return [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: sampleRate, AVNumberOfChannelsKey: Int(channelCount),
+                AVLinearPCMBitDepthKey: Int(_asbd.mBitsPerChannel), AVLinearPCMIsFloatKey: isFloat, AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: !isInterleaved]
+    }
     open override func isEqual(_ o: Any?) -> Bool {
         guard let f = o as? AVAudioFormat else { return false }
         return f.sampleRate == sampleRate && f.channelCount == channelCount && f.commonFormat == commonFormat && f.isInterleaved == isInterleaved
@@ -149,8 +190,22 @@ open class AVAudioPCMBuffer: AVAudioBuffer {
         if hostBuffer > 0 { isim_audio_buffer_release(hostBuffer) }
         for c in channels { c.deallocate() }
         channelTable.deallocate()
+        if let l = _abl { free(l.unsafeMutablePointer) }
     }
     open var floatChannelData: UnsafePointer<UnsafeMutablePointer<Float>>? { UnsafePointer(channelTable) }
+    var _abl: UnsafeMutableAudioBufferListPointer?
+    /// one non-interleaved float buffer per channel over the samples (sizes follow frameLength)
+    open var mutableAudioBufferList: UnsafeMutablePointer<AudioBufferList> {
+        if _abl == nil {
+            let l = AudioBufferList.allocate(maximumBuffers: max(1, channels.count))
+            for (i, c) in channels.enumerated() { l[i] = AudioBuffer(mNumberChannels: 1, mDataByteSize: 0, mData: UnsafeMutableRawPointer(c)) }
+            _abl = l
+        }
+        let l = _abl!
+        for i in 0..<channels.count { l[i].mDataByteSize = frameLength * 4 }
+        return l.unsafeMutablePointer
+    }
+    open var audioBufferList: UnsafePointer<AudioBufferList> { UnsafePointer(mutableAudioBufferList) }
     open var stride: Int { 1 }
     func invalidate() { if hostBuffer > 0 { isim_audio_buffer_release(hostBuffer); hostBuffer = 0 } }
     /// Uploads the samples to the host mixer once (interleaved).
@@ -315,144 +370,6 @@ open class AVAudioFile: NSObject {
     }
 }
 
-// MARK: - Engine
-
-public struct AVAudioTime: Sendable {
-    public var sampleTime: AVAudioFramePosition
-    public var sampleRate: Double
-    public init(sampleTime: AVAudioFramePosition, atRate rate: Double) { self.sampleTime = sampleTime; sampleRate = rate }
-}
-
-open class AVAudioNode: NSObject {
-    weak var engine: AVAudioEngine?
-    open func outputFormat(forBus bus: AVAudioNodeBus) -> AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)! }
-    open func inputFormat(forBus bus: AVAudioNodeBus) -> AVAudioFormat { outputFormat(forBus: bus) }
-    open func reset() {}
-}
-
-open class AVAudioMixerNode: AVAudioNode {
-    open var outputVolume: Float = 1 { didSet { engine?.volumesChanged() } }
-    open var volume: Float = 1 { didSet { engine?.volumesChanged() } }
-    open var pan: Float = 0
-}
-open class AVAudioOutputNode: AVAudioNode {}
-
-public struct AVAudioPlayerNodeBufferOptions: OptionSet, Sendable {
-    public let rawValue: UInt
-    public init(rawValue: UInt) { self.rawValue = rawValue }
-    public static let loops = AVAudioPlayerNodeBufferOptions(rawValue: 1)
-    public static let interrupts = AVAudioPlayerNodeBufferOptions(rawValue: 2)
-    public static let interruptsAtLoop = AVAudioPlayerNodeBufferOptions(rawValue: 4)
-}
-public enum AVAudioPlayerNodeCompletionCallbackType: Int, Sendable { case dataConsumed, dataRendered, dataPlayedBack }
-
-/// Plays scheduled buffers one after another; each runs as a voice in the host mixer.
-open class AVAudioPlayerNode: AVAudioNode {
-    struct Item { let buffer: AVAudioPCMBuffer; let options: AVAudioPlayerNodeBufferOptions; let completion: (() -> Void)? }
-    // offline (manual rendering) state: the processed current item, pulled by AVAudioEngine.renderOffline
-    var _offItem: Item?
-    var _offPCM: [[Float]] = []
-    var _offPos = 0
-    var queue: [Item] = []
-    var voice = 0
-    var current: Item?
-    var generation = 0
-    open private(set) var isPlaying = false
-    open var volume: Float = 1 { didSet { applyVolume() } }
-    open var pan: Float = 0
-    var effectiveVolume: Double { Double(volume) * Double(engine?.mainMixerNode.outputVolume ?? 1) * Double(engine?.mainMixerNode.volume ?? 1) }
-
-    open func scheduleBuffer(_ buffer: AVAudioPCMBuffer, at when: AVAudioTime? = nil, options: AVAudioPlayerNodeBufferOptions = [], completionHandler: (() -> Void)? = nil) {
-        let item = Item(buffer: buffer, options: options, completion: completionHandler)
-        if options.contains(.interrupts) || options.contains(.interruptsAtLoop) {
-            stopVoice(); queue = [item]
-        } else {
-            queue.append(item)
-        }
-        if isPlaying && voice == 0 { startNext() }
-    }
-    open func scheduleBuffer(_ buffer: AVAudioPCMBuffer, completionHandler: (() -> Void)? = nil) {
-        scheduleBuffer(buffer, at: nil, options: [], completionHandler: completionHandler)
-    }
-    open func scheduleFile(_ file: AVAudioFile, at when: AVAudioTime?, completionHandler: (() -> Void)? = nil) {
-        guard let b = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(max(1, file.length))) else { return }
-        file.framePosition = 0
-        try? file.read(into: b)
-        scheduleBuffer(b, at: when, options: [], completionHandler: completionHandler)
-    }
-    open func play() {
-        guard engine?.isRunning ?? false else { NSLog("isim AVFoundation: player started while the engine is not running"); return }
-        if isPlaying, voice != 0 { isim_audio_pause(voice, 0); return }
-        isPlaying = true
-        if voice == 0 { startNext() } else { isim_audio_pause(voice, 0) }
-    }
-    open func play(at when: AVAudioTime?) { play() }
-    open func pause() { isPlaying = false; if voice != 0 { isim_audio_pause(voice, 1) } }
-    open func stop() { isPlaying = false; stopVoice(); queue = []; _offItem = nil; _offPCM = []; _offPos = 0 }
-    open override func reset() { stop() }
-    func stopVoice() { if voice != 0 { isim_audio_stop(voice); voice = 0 }; current = nil; generation += 1 }
-    func applyVolume() { if voice != 0 { isim_audio_set_volume(voice, effectiveVolume) } }
-
-    func startNext() {
-        guard isPlaying, !queue.isEmpty else { voice = 0; return }
-        if engine?._manual != nil { return }          // renderOffline pulls the queue
-        let item = queue.removeFirst()
-        current = item
-        let loops = item.options.contains(.loops)
-        let processed = engine?._applyEffects(item.buffer, from: self) ?? item.buffer   // effect nodes downstream
-        let hb = processed.host()
-        voice = hb > 0 ? isim_audio_play(hb, effectiveVolume, loops ? -1 : 0) : 0
-        generation += 1
-        guard !loops else { return }
-        let gen = generation
-        let seconds = Double(processed.frameLength) / processed.format.sampleRate
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
-            guard let self, self.generation == gen else { return }
-            self.voice = 0
-            self.current = nil
-            item.completion?()
-            self.startNext()
-        }
-    }
-}
-
-open class AVAudioEngine: NSObject {
-    public let mainMixerNode = AVAudioMixerNode()
-    public let outputNode = AVAudioOutputNode()
-    var nodes: [AVAudioNode] = []
-    var _outputs: [ObjectIdentifier: AVAudioNode] = [:]     // node -> the node its output is connected to
-    var _manual: _ManualRendering?
-    var _inputNode: AVAudioInputNode?
-    /// The microphone (isim: ISIM_AUDIO_INPUT, see AVAudioExtras.swift).
-    open var inputNode: AVAudioInputNode {
-        if let n = _inputNode { return n }
-        let n = AVAudioInputNode(); n.engine = self; _inputNode = n
-        return n
-    }
-    open private(set) var isRunning = false
-    public override init() {
-        super.init()
-        mainMixerNode.engine = self
-        outputNode.engine = self
-    }
-    open var attachedNodes: Set<AVAudioNode> { Set(nodes) }
-    open func attach(_ node: AVAudioNode) { node.engine = self; if !nodes.contains(node) { nodes.append(node) } }
-    open func detach(_ node: AVAudioNode) { (node as? AVAudioPlayerNode)?.stop(); nodes.removeAll { $0 === node } }
-    open func connect(_ a: AVAudioNode, to b: AVAudioNode, format: AVAudioFormat?) { _outputs[ObjectIdentifier(a)] = b }
-    open func connect(_ a: AVAudioNode, to b: AVAudioNode, fromBus: AVAudioNodeBus, toBus: AVAudioNodeBus, format: AVAudioFormat?) { _outputs[ObjectIdentifier(a)] = b }
-    open func disconnectNodeOutput(_ node: AVAudioNode) { _outputs[ObjectIdentifier(node)] = nil }
-    open func disconnectNodeOutput(_ node: AVAudioNode, bus: AVAudioNodeBus) { _outputs[ObjectIdentifier(node)] = nil }
-    open func prepare() {}
-    open func start() throws {
-        _ = isim_audio_available()     // opens the device (or reports that sound is unavailable)
-        isRunning = true
-    }
-    open func pause() { isRunning = false; for case let p as AVAudioPlayerNode in nodes { p.pause() } }
-    open func stop() { isRunning = false; for case let p as AVAudioPlayerNode in nodes { p.stop() }; _inputNode?._stopCapture() }
-    open func reset() { for n in nodes { n.reset() } }
-    func volumesChanged() { for case let p as AVAudioPlayerNode in nodes { p.applyVolume() } }
-}
-
 // MARK: - AVAudioPlayer
 
 @objc public protocol AVAudioPlayerDelegate: NSObjectProtocol {
@@ -480,7 +397,7 @@ open class AVAudioPlayer: NSObject {
     open func setVolume(_ volume: Float, fadeDuration duration: TimeInterval) { self.volume = volume }
     /// set before prepareToPlay()/play() to allow rate changes (like iOS)
     open var enableRate = false
-    /// 0.5...2.0; with enableRate, playback speed changes and pitch is kept (adapted: overlap-add time stretch)
+    /// 0.5...2.0; with enableRate, playback speed changes and pitch is kept (adapted: WSOLA time stretch)
     open var rate: Float = 1 { didSet { rate = min(2, max(0.5, rate)); _rateChanged() } }
     /// -1 (left) ... 1 (right)
     open var pan: Float = 0 { didSet { pan = min(1, max(-1, pan)); if voice != 0 { isim_audio_set_pan(voice, Double(pan)) } } }
@@ -534,8 +451,7 @@ open class AVAudioPlayer: NSObject {
         if r == 1 { return buffer }
         if _rateBuffer > 0 && _rateOf == r { return _rateBuffer }
         if _rateBuffer > 0 { isim_audio_buffer_release(_rateBuffer); _rateBuffer = 0 }
-        let win = max(256, Int(sampleRate * 0.046))
-        let stretched = _pcm.map { _stretch($0, by: 1 / Double(r), window: win) }
+        let stretched = _pcm.map { _stretch($0, by: 1 / Double(r), rate: sampleRate) }
         _rateBuffer = _AVPlayerUpload.upload(_DecodedAudio(rate: sampleRate, channels: stretched))
         _rateOf = r
         return _rateBuffer

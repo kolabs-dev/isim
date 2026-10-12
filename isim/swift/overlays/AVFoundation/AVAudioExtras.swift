@@ -1,162 +1,10 @@
-// isim AVFoundation: audio effects (AVAudioUnitReverb, AVAudioUnitEQ, AVAudioUnitTimePitch, AVAudioUnitVarispeed,
-// AVAudioUnitDelay, AVAudioUnitDistortion), offline manual rendering, taps, the input node, AVAudioRecorder and
-// writing AVAudioFiles. Self-authored DSP (adapted: simple Freeverb-style reverb, RBJ biquads, overlap-add time
-// stretching — not Apple's algorithms).
-// Effects are applied when a buffer starts playing (the player node -> effect -> ... chain built with connect),
-// so parameter changes affect the next scheduled buffer, not one already playing.
+// isim AVFoundation: the session's input and permission, AVAudioRecorder and writing AVAudioFiles (effects and the
+// engine: AVAudioEngine.swift).
 // Input: isim never opens the host microphone unless asked: ISIM_AUDIO_INPUT=<audio file> plays a file into the
 // microphone in real time, ISIM_AUDIO_INPUT=mic records the host's default capture device; otherwise silence.
 import isim_host
 
-// MARK: - effect units
-
-open class AVAudioUnit: AVAudioNode {
-    open var name: String { String(describing: type(of: self)) }
-    open var manufacturerName: String { "isim" }
-    open var version: Int { 1 }
-}
-
-open class AVAudioUnitEffect: AVAudioUnit {
-    open var bypass = false
-    /// Processes deinterleaved channels in place (may change their length); rate in Hz.
-    func _process(_ ch: inout [[Float]], rate: Double) {}
-    /// Extra seconds of output after the input ends (reverb/delay tails).
-    var _tail: Double { 0 }
-}
-
-func _mix(_ dry: [Float], _ wet: [Float], _ wetDry: Float) -> [Float] {
-    let w = min(max(wetDry, 0), 100) / 100
-    var out = [Float](repeating: 0, count: max(dry.count, wet.count))
-    for i in 0..<out.count { out[i] = (i < dry.count ? dry[i] : 0) * (1 - w) + (i < wet.count ? wet[i] : 0) * w }
-    return out
-}
-
-public enum AVAudioUnitReverbPreset: Int, Sendable {
-    case smallRoom = 0, mediumRoom, largeRoom, mediumHall, largeHall, plate, mediumChamber, largeChamber, cathedral, largeRoom2, mediumHall2, mediumHall3, largeHall2
-}
-/// Freeverb-style reverb (8 combs + 4 allpasses per channel).
-open class AVAudioUnitReverb: AVAudioUnitEffect {
-    open var wetDryMix: Float = 100
-    var room: Float = 0.84, damp: Float = 0.2
-    open func loadFactoryPreset(_ p: AVAudioUnitReverbPreset) {
-        switch p {
-        case .smallRoom: room = 0.70; damp = 0.5
-        case .mediumRoom, .mediumChamber: room = 0.78; damp = 0.4
-        case .largeRoom, .largeRoom2, .largeChamber: room = 0.84; damp = 0.3
-        case .mediumHall, .mediumHall2, .mediumHall3, .plate: room = 0.88; damp = 0.25
-        case .largeHall, .largeHall2: room = 0.92; damp = 0.2
-        case .cathedral: room = 0.96; damp = 0.1
-        }
-    }
-    override var _tail: Double { Double(room) * 4 }
-    override func _process(_ ch: inout [[Float]], rate: Double) {
-        guard !bypass else { return }
-        let scale = rate / 44100
-        let combs = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617], alls = [556, 441, 341, 225]
-        for (ci, x) in ch.enumerated() {
-            let spread = ci * 23
-            let n = x.count
-            var wet = [Float](repeating: 0, count: n)
-            for d0 in combs {
-                let d = max(1, Int(Double(d0 + spread) * scale))
-                var buf = [Float](repeating: 0, count: d); var idx = 0; var store: Float = 0
-                for i in 0..<n {
-                    let y = buf[idx]
-                    store = y * (1 - damp) + store * damp
-                    buf[idx] = x[i] + store * room
-                    idx += 1; if idx == d { idx = 0 }
-                    wet[i] += y
-                }
-            }
-            for d0 in alls {
-                let d = max(1, Int(Double(d0 + spread) * scale))
-                var buf = [Float](repeating: 0, count: d); var idx = 0
-                for i in 0..<n {
-                    let b = buf[idx], inp = wet[i]
-                    wet[i] = -inp + b
-                    buf[idx] = inp + b * 0.5
-                    idx += 1; if idx == d { idx = 0 }
-                }
-            }
-            for i in 0..<n { wet[i] *= 0.015 * 3 }
-            ch[ci] = _mix(x, wet, wetDryMix)
-        }
-    }
-}
-
-public enum AVAudioUnitEQFilterType: Int, Sendable {
-    case parametric = 0, lowPass, highPass, resonantLowPass, resonantHighPass, bandPass, bandStop, lowShelf, highShelf, resonantLowShelf, resonantHighShelf
-}
-open class AVAudioUnitEQFilterParameters: NSObject {
-    open var filterType: AVAudioUnitEQFilterType = .parametric
-    open var frequency: Float = 1000
-    open var bandwidth: Float = 0.5      // octaves
-    open var gain: Float = 0             // dB
-    open var bypass = true               // like AUNBandEQ: bands start bypassed
-}
-/// N-band equalizer of RBJ biquad filters.
-open class AVAudioUnitEQ: AVAudioUnitEffect {
-    public let bands: [AVAudioUnitEQFilterParameters]
-    open var globalGain: Float = 0
-    public init(numberOfBands: Int) { bands = (0..<max(0, numberOfBands)).map { _ in AVAudioUnitEQFilterParameters() }; super.init() }
-    public override convenience init() { self.init(numberOfBands: 1) }
-    override func _process(_ ch: inout [[Float]], rate: Double) {
-        guard !bypass else { return }
-        for band in bands where !band.bypass {
-            let c = Self.coefficients(band, rate: rate)
-            for k in 0..<ch.count {
-                var x1: Double = 0, x2: Double = 0, y1: Double = 0, y2: Double = 0
-                ch[k].withUnsafeMutableBufferPointer { b in
-                    for i in 0..<b.count {
-                        let x = Double(b[i])
-                        let y = c.0 * x + c.1 * x1 + c.2 * x2 - c.3 * y1 - c.4 * y2
-                        x2 = x1; x1 = x; y2 = y1; y1 = y
-                        b[i] = Float(y)
-                    }
-                }
-            }
-        }
-        if globalGain != 0 {
-            let g = Float(pow(10, Double(globalGain) / 20))
-            for k in 0..<ch.count { for i in 0..<ch[k].count { ch[k][i] *= g } }
-        }
-    }
-    /// normalized (b0, b1, b2, a1, a2)
-    static func coefficients(_ p: AVAudioUnitEQFilterParameters, rate: Double) -> (Double, Double, Double, Double, Double) {
-        let f = min(max(Double(p.frequency), 10), rate * 0.45)
-        let w0 = 2 * Double.pi * f / rate, cw = cos(w0), sw = sin(w0)
-        let bw = max(0.05, Double(p.bandwidth))
-        let alphaBW = sw * sinh(log(2) / 2 * bw * w0 / sw)
-        let alphaQ = sw / (2 * 0.707)
-        let A = pow(10, Double(p.gain) / 40)
-        var b0 = 1.0, b1 = 0.0, b2 = 0.0, a0 = 1.0, a1 = 0.0, a2 = 0.0
-        switch p.filterType {
-        case .parametric:
-            b0 = 1 + alphaBW * A; b1 = -2 * cw; b2 = 1 - alphaBW * A; a0 = 1 + alphaBW / A; a1 = -2 * cw; a2 = 1 - alphaBW / A
-        case .lowPass, .resonantLowPass:
-            let al = p.filterType == .lowPass ? alphaQ : alphaBW
-            b0 = (1 - cw) / 2; b1 = 1 - cw; b2 = (1 - cw) / 2; a0 = 1 + al; a1 = -2 * cw; a2 = 1 - al
-        case .highPass, .resonantHighPass:
-            let al = p.filterType == .highPass ? alphaQ : alphaBW
-            b0 = (1 + cw) / 2; b1 = -(1 + cw); b2 = (1 + cw) / 2; a0 = 1 + al; a1 = -2 * cw; a2 = 1 - al
-        case .bandPass:
-            b0 = alphaBW; b1 = 0; b2 = -alphaBW; a0 = 1 + alphaBW; a1 = -2 * cw; a2 = 1 - alphaBW
-        case .bandStop:
-            b0 = 1; b1 = -2 * cw; b2 = 1; a0 = 1 + alphaBW; a1 = -2 * cw; a2 = 1 - alphaBW
-        case .lowShelf, .resonantLowShelf, .highShelf, .resonantHighShelf:
-            let low = p.filterType == .lowShelf || p.filterType == .resonantLowShelf
-            let al = sw / 2 * sqrt(2), sq = 2 * sqrt(A) * al
-            if low {
-                b0 = A * ((A + 1) - (A - 1) * cw + sq); b1 = 2 * A * ((A - 1) - (A + 1) * cw); b2 = A * ((A + 1) - (A - 1) * cw - sq)
-                a0 = (A + 1) + (A - 1) * cw + sq; a1 = -2 * ((A - 1) + (A + 1) * cw); a2 = (A + 1) + (A - 1) * cw - sq
-            } else {
-                b0 = A * ((A + 1) + (A - 1) * cw + sq); b1 = -2 * A * ((A - 1) + (A + 1) * cw); b2 = A * ((A + 1) + (A - 1) * cw - sq)
-                a0 = (A + 1) - (A - 1) * cw + sq; a1 = 2 * ((A - 1) - (A + 1) * cw); a2 = (A + 1) - (A - 1) * cw - sq
-            }
-        }
-        return (b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0)
-    }
-}
+// MARK: - whole-buffer helpers (AVAudioPlayer's rate, file writing)
 
 func _resample(_ x: [Float], by factor: Double) -> [Float] {
     // factor > 1 = faster / shorter (and higher pitched)
@@ -170,310 +18,19 @@ func _resample(_ x: [Float], by factor: Double) -> [Float] {
     }
     return out
 }
-/// Overlap-add time stretch: output length = input length * stretch, pitch unchanged.
-func _stretch(_ x: [Float], by stretch: Double, window n: Int) -> [Float] {
-    guard stretch > 0, abs(stretch - 1) > 1e-4, x.count > n else { return x }
-    let hs = n / 4, ha = max(1, Double(hs) / stretch)
-    let outCount = Int(Double(x.count) * stretch)
-    var out = [Float](repeating: 0, count: outCount + n), norm = [Float](repeating: 0, count: outCount + n)
-    let win = (0..<n).map { Float(0.5 - 0.5 * cos(2 * Double.pi * Double($0) / Double(n))) }
-    var k = 0
-    while true {
-        let a = Int(Double(k) * ha), s = k * hs
-        if a + n > x.count || s >= outCount { break }
-        for i in 0..<n { out[s + i] += x[a + i] * win[i]; norm[s + i] += win[i] }
-        k += 1
+/// Time stretch of a whole channel: output length = input length * stretch, pitch unchanged (AudioToolbox's WSOLA).
+func _stretch(_ x: [Float], by stretch: Double, rate: Double) -> [Float] {
+    guard stretch > 0, abs(stretch - 1) > 1e-4, !x.isEmpty else { return x }
+    var pos = 0
+    let st = _IsimStretcher()
+    let out = st.render(Int(Double(x.count) * stretch), stretch: stretch, rate: rate) { k in
+        let end = min(x.count, pos + k)
+        var chunk = pos < end ? Array(x[pos..<end]) : []
+        if chunk.count < k { chunk += [Float](repeating: 0, count: k - chunk.count) }
+        pos += k
+        return [chunk]
     }
-    for i in 0..<outCount where norm[i] > 1e-3 { out[i] /= norm[i] }
-    return Array(out[0..<outCount])
-}
-
-/// Changes playback rate without changing pitch, and pitch (cents) without changing rate.
-open class AVAudioUnitTimePitch: AVAudioUnitEffect {
-    open var rate: Float = 1
-    open var pitch: Float = 0
-    open var overlap: Float = 8
-    override func _process(_ ch: inout [[Float]], rate sr: Double) {
-        guard !bypass, rate != 1 || pitch != 0 else { return }
-        let r = Double(min(max(rate, 1.0 / 32), 32)), p = pow(2, Double(min(max(pitch, -2400), 2400)) / 1200)
-        let win = Int(sr * 0.046)
-        for k in 0..<ch.count {
-            let shifted = p != 1 ? _resample(ch[k], by: p) : ch[k]
-            ch[k] = _stretch(shifted, by: p / r, window: win)
-        }
-    }
-}
-/// Rate change by resampling (pitch follows the rate, like a tape).
-open class AVAudioUnitVarispeed: AVAudioUnitEffect {
-    open var rate: Float = 1
-    override func _process(_ ch: inout [[Float]], rate sr: Double) {
-        guard !bypass, rate != 1 else { return }
-        for k in 0..<ch.count { ch[k] = _resample(ch[k], by: Double(min(max(rate, 0.25), 4))) }
-    }
-}
-open class AVAudioUnitDelay: AVAudioUnitEffect {
-    open var delayTime: TimeInterval = 1
-    open var feedback: Float = 50
-    open var lowPassCutoff: Float = 15000
-    open var wetDryMix: Float = 100
-    override var _tail: Double {
-        let fb = Double(min(max(abs(feedback), 0), 99)) / 100
-        return fb > 0 ? min(10, delayTime * log(0.001) / log(fb)) : delayTime
-    }
-    override func _process(_ ch: inout [[Float]], rate sr: Double) {
-        guard !bypass else { return }
-        let d = max(1, Int(min(max(delayTime, 0), 2) * sr)), fb = Float(min(max(feedback, -100), 100)) / 100
-        let lp = Float(exp(-2 * Double.pi * Double(min(max(lowPassCutoff, 10), Float(sr / 2))) / sr))
-        for k in 0..<ch.count {
-            let x = ch[k]
-            var wet = [Float](repeating: 0, count: x.count)
-            var line = [Float](repeating: 0, count: d); var idx = 0; var z: Float = 0
-            for i in 0..<x.count {
-                let y = line[idx]
-                z = y * (1 - lp) + z * lp
-                line[idx] = x[i] + z * fb
-                idx += 1; if idx == d { idx = 0 }
-                wet[i] = y
-            }
-            ch[k] = _mix(x, wet, wetDryMix)
-        }
-    }
-}
-public enum AVAudioUnitDistortionPreset: Int, Sendable {
-    case drumsBitBrush = 0, drumsBufferBeats, drumsLoFi, multiBrokenSpeaker, multiCellphoneConcert, multiDecimated1, multiDecimated2,
-         multiDecimated3, multiDecimated4, multiDistortedFunk, multiDistortedCubed, multiDistortedSquared, multiEcho1, multiEcho2,
-         multiEchoTight1, multiEchoTight2, multiEverythingIsBroken, speechAlienChatter, speechCosmicInterference, speechGoldenPi,
-         speechRadioTower, speechWaves
-}
-/// Soft-clipping overdrive (every preset maps to a drive amount).
-open class AVAudioUnitDistortion: AVAudioUnitEffect {
-    open var preGain: Float = -6
-    open var wetDryMix: Float = 50
-    var drive: Float = 8
-    open func loadFactoryPreset(_ p: AVAudioUnitDistortionPreset) { drive = 4 + Float(p.rawValue % 6) * 4 }
-    override func _process(_ ch: inout [[Float]], rate sr: Double) {
-        guard !bypass else { return }
-        let g = Float(pow(10, Double(preGain) / 20)) * drive
-        for k in 0..<ch.count { let x = ch[k]; ch[k] = _mix(x, x.map { Float(tanh(Double($0 * g))) }, wetDryMix) }
-    }
-}
-
-// MARK: - engine graph: effects, offline rendering, taps
-
-extension AVAudioEngine {
-    /// The effect units downstream of a node, in order (player -> effect -> effect -> mixer).
-    func _effectChain(from node: AVAudioNode) -> [AVAudioUnitEffect] {
-        var out: [AVAudioUnitEffect] = [], seen = Set<ObjectIdentifier>()
-        var n: AVAudioNode? = _outputs[ObjectIdentifier(node)]
-        while let cur = n, !seen.contains(ObjectIdentifier(cur)) {
-            seen.insert(ObjectIdentifier(cur))
-            if let e = cur as? AVAudioUnitEffect { out.append(e) }
-            n = _outputs[ObjectIdentifier(cur)]
-        }
-        return out
-    }
-    /// The buffer run through its effect chain (nil when there are no effects).
-    func _applyEffects(_ b: AVAudioPCMBuffer, from node: AVAudioNode) -> AVAudioPCMBuffer? {
-        let chain = _effectChain(from: node)
-        guard !chain.isEmpty else { return nil }
-        let rate = b.format.sampleRate, n = Int(b.frameLength)
-        let tail = chain.reduce(0.0) { $0 + $1._tail }
-        var ch = b.channels.map { p -> [Float] in
-            var a = Array(UnsafeBufferPointer(start: p, count: n))
-            a.append(contentsOf: [Float](repeating: 0, count: Int(tail * rate)))
-            return a
-        }
-        for e in chain { e._process(&ch, rate: rate) }
-        let frames = ch.map { $0.count }.max() ?? 0
-        guard frames > 0, let out = AVAudioPCMBuffer(pcmFormat: b.format, frameCapacity: AVAudioFrameCount(frames)) else { return nil }
-        for (k, dst) in out.channels.enumerated() {
-            let src = ch[min(k, ch.count - 1)]
-            src.withUnsafeBufferPointer { dst.update(from: $0.baseAddress!, count: src.count) }
-            if src.count < frames { (dst + src.count).update(repeating: 0, count: frames - src.count) }
-        }
-        out.frameLength = AVAudioFrameCount(frames)
-        return out
-    }
-}
-
-public enum AVAudioEngineManualRenderingMode: Int, Sendable { case offline = 0, realtime }
-public enum AVAudioEngineManualRenderingStatus: Int, Sendable { case error = -1, success = 0, insufficientDataFromInputNode = 1, cannotDoInCurrentContext = 2 }
-public enum AVAudioEngineManualRenderingError: Int, Error, Sendable { case invalidMode = -80800, initialized = -80801, notRunning = -80802 }
-
-final class _ManualRendering {
-    let mode: AVAudioEngineManualRenderingMode, format: AVAudioFormat, maxFrames: AVAudioFrameCount
-    var sampleTime: AVAudioFramePosition = 0
-    init(mode: AVAudioEngineManualRenderingMode, format: AVAudioFormat, maxFrames: AVAudioFrameCount) { self.mode = mode; self.format = format; self.maxFrames = maxFrames }
-}
-
-extension AVAudioEngine {
-    /// Offline rendering: the engine renders into buffers instead of the speaker (player nodes, effects, mixer volume).
-    public func enableManualRenderingMode(_ mode: AVAudioEngineManualRenderingMode, format pcmFormat: AVAudioFormat, maximumFrameCount: AVAudioFrameCount) throws {
-        if isRunning { throw AVAudioEngineManualRenderingError.initialized }
-        _manual = _ManualRendering(mode: mode, format: pcmFormat, maxFrames: maximumFrameCount)
-    }
-    public func disableManualRenderingMode() { _manual = nil }
-    public var isInManualRenderingMode: Bool { _manual != nil }
-    public var manualRenderingMode: AVAudioEngineManualRenderingMode { _manual?.mode ?? .offline }
-    public var manualRenderingFormat: AVAudioFormat { _manual?.format ?? AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)! }
-    public var manualRenderingMaximumFrameCount: AVAudioFrameCount { _manual?.maxFrames ?? 0 }
-    public var manualRenderingSampleTime: AVAudioFramePosition { _manual?.sampleTime ?? 0 }
-
-    public func renderOffline(_ numberOfFrames: AVAudioFrameCount, to buffer: AVAudioPCMBuffer) throws -> AVAudioEngineManualRenderingStatus {
-        guard let m = _manual else { throw AVAudioEngineManualRenderingError.invalidMode }
-        guard isRunning else { throw AVAudioEngineManualRenderingError.notRunning }
-        let n = Int(min(numberOfFrames, buffer.frameCapacity, m.maxFrames))
-        let rate = m.format.sampleRate, chans = buffer.channels.count
-        var mix = [[Float]](repeating: [Float](repeating: 0, count: n), count: chans)
-        for case let p as AVAudioPlayerNode in nodes where p.isPlaying {
-            let vol = Float(p.effectiveVolume)
-            let src = p._pull(n, rate: rate)
-            for c in 0..<chans {
-                let s = src[min(c, src.count - 1)]
-                for i in 0..<min(n, s.count) { mix[c][i] += s[i] * vol }
-            }
-        }
-        for c in 0..<chans { mix[c].withUnsafeBufferPointer { buffer.channels[c].update(from: $0.baseAddress!, count: n) } }
-        buffer.frameLength = AVAudioFrameCount(n)
-        _deliverTap(mainMixerNode, buffer, AVAudioTime(sampleTime: m.sampleTime, atRate: rate))
-        m.sampleTime += AVAudioFramePosition(n)
-        return .success
-    }
-}
-
-extension AVAudioPlayerNode {
-    /// Offline: the next n frames of the scheduled buffers (after effects, resampled to `rate`).
-    func _pull(_ n: Int, rate: Double) -> [[Float]] {
-        var out: [[Float]] = [[]]
-        var filled = 0
-        while filled < n {
-            if _offItem == nil {
-                guard !queue.isEmpty else { break }
-                let item = queue.removeFirst()
-                let b = engine?._applyEffects(item.buffer, from: self) ?? item.buffer
-                let frames = Int(b.frameLength), r = b.format.sampleRate
-                _offPCM = b.channels.map { p in
-                    let a = Array(UnsafeBufferPointer(start: p, count: frames))
-                    return r == rate ? a : _resample(a, by: r / rate)
-                }
-                _offItem = item; _offPos = 0
-                if out.count < _offPCM.count { out = [[Float]](repeating: [Float](repeating: 0, count: filled), count: _offPCM.count) }
-            }
-            let len = _offPCM.first?.count ?? 0
-            let take = min(n - filled, len - _offPos)
-            for c in 0..<out.count {
-                let src = _offPCM[min(c, _offPCM.count - 1)]
-                out[c].append(contentsOf: src[_offPos..<(_offPos + max(0, take))])
-            }
-            filled += max(0, take); _offPos += max(0, take)
-            if _offPos >= len {
-                let item = _offItem
-                if item?.options.contains(.loops) == true && len > 0 { _offPos = 0; continue }
-                _offItem = nil; _offPCM = []
-                item?.completion?()
-            }
-        }
-        for c in 0..<out.count where out[c].count < n { out[c].append(contentsOf: [Float](repeating: 0, count: n - out[c].count)) }
-        return out
-    }
-}
-
-// taps (main mixer in offline rendering, input node in real time)
-public typealias AVAudioNodeTapBlock = (AVAudioPCMBuffer, AVAudioTime) -> Void
-enum _Taps { nonisolated(unsafe) static var blocks: [ObjectIdentifier: (AVAudioFrameCount, AVAudioNodeTapBlock)] = [:] }
-extension AVAudioNode {
-    public func installTap(onBus bus: AVAudioNodeBus, bufferSize: AVAudioFrameCount, format: AVAudioFormat?, block tapBlock: @escaping AVAudioNodeTapBlock) {
-        _Taps.blocks[ObjectIdentifier(self)] = (max(64, bufferSize), tapBlock)
-        if let input = self as? AVAudioInputNode { input._startCapture() }
-        else if !(self is AVAudioMixerNode) || engine?._manual == nil {
-            NSLog("isim AVFoundation: taps deliver audio only on the input node, and on the main mixer during offline rendering")
-        }
-    }
-    public func removeTap(onBus bus: AVAudioNodeBus) {
-        _Taps.blocks[ObjectIdentifier(self)] = nil
-        (self as? AVAudioInputNode)?._stopCapture()
-    }
-}
-extension AVAudioEngine {
-    func _deliverTap(_ node: AVAudioNode, _ b: AVAudioPCMBuffer, _ t: AVAudioTime) {
-        if let (_, block) = _Taps.blocks[ObjectIdentifier(node)] { block(b, t) }
-    }
-}
-
-// MARK: - input
-
-/// Host audio input shared by the input node and recorders (48 kHz stereo float, real time): one poller hands
-/// every chunk to all subscribers.
-enum _AudioInput {
-    nonisolated(unsafe) static var subscribers: [ObjectIdentifier: ([Float]) -> Void] = [:]
-    nonisolated(unsafe) static var timer: Timer?
-    nonisolated(unsafe) static var kind: Int32 = 0
-    static func subscribe(_ owner: AnyObject, _ f: @escaping ([Float]) -> Void) {
-        if subscribers.isEmpty {
-            kind = isim_audio_input_start()
-            timer = Timer._isimScheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in poll() }
-        }
-        subscribers[ObjectIdentifier(owner)] = f
-    }
-    static func unsubscribe(_ owner: AnyObject) {
-        guard subscribers.removeValue(forKey: ObjectIdentifier(owner)) != nil else { return }
-        if subscribers.isEmpty { timer?.invalidate(); timer = nil; isim_audio_input_stop() }
-    }
-    static func poll() {
-        let x = read()
-        guard !x.isEmpty else { return }
-        for f in Array(subscribers.values) { f(x) }
-    }
-    /// what has arrived since the last read (interleaved stereo)
-    static func read() -> [Float] {
-        var out: [Float] = []
-        var chunk = [Float](repeating: 0, count: 4096 * 2)
-        while true {
-            let n = chunk.withUnsafeMutableBufferPointer { isim_audio_input_read($0.baseAddress, 4096) }
-            if n <= 0 { break }
-            out.append(contentsOf: chunk[0..<(n * 2)])
-            if n < 4096 { break }
-        }
-        return out
-    }
-}
-
-open class AVAudioIONode: AVAudioNode {
-    open var presentationLatency: TimeInterval { 0 }
-    open var isVoiceProcessingEnabled: Bool { false }
-    open func setVoiceProcessingEnabled(_ enabled: Bool) throws {}
-}
-/// The microphone: 48 kHz mono. Taps receive buffers as input arrives.
-open class AVAudioInputNode: AVAudioIONode {
-    var capturing = false
-    var pending: [Float] = []
-    var sampleTime: AVAudioFramePosition = 0
-    open var volume: Float = 1
-    open override func outputFormat(forBus bus: AVAudioNodeBus) -> AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)! }
-    func _startCapture() {
-        guard !capturing else { return }
-        capturing = true
-        _AudioInput.subscribe(self) { [weak self] x in self?._received(x) }
-    }
-    func _stopCapture() {
-        guard capturing else { return }
-        capturing = false
-        _AudioInput.unsubscribe(self)
-        pending = []
-    }
-    func _received(_ inter: [Float]) {
-        guard engine?.isRunning == true, let (size, block) = _Taps.blocks[ObjectIdentifier(self)] else { return }
-        for i in Swift.stride(from: 0, to: inter.count - 1, by: 2) { pending.append((inter[i] + inter[i + 1]) * 0.5 * volume) }
-        let fmt = outputFormat(forBus: 0)
-        while pending.count >= Int(size) {
-            let b = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: size)!
-            pending.withUnsafeBufferPointer { b.channels[0].update(from: $0.baseAddress!, count: Int(size)) }
-            b.frameLength = size
-            pending.removeFirst(Int(size))
-            block(b, AVAudioTime(sampleTime: sampleTime, atRate: 48000))
-            sampleTime += AVAudioFramePosition(size)
-        }
-    }
+    return out[0]
 }
 
 // MARK: - session permission (iOS 17 AVAudioApplication and AVAudioSession)
@@ -638,7 +195,7 @@ open class AVAudioRecorder: NSObject {
     public convenience init(url: URL, format: AVAudioFormat) throws {
         try self.init(url: url, settings: [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: format.sampleRate, AVNumberOfChannelsKey: Int(format.channelCount)])
     }
-    deinit { if subscribed { _AudioInput.unsubscribe(self) } }
+    deinit { if subscribed { _IsimAudioInput.unsubscribe(self) } }
 
     open var currentTime: TimeInterval { Double(captured) / 48000 }
     open var deviceCurrentTime: TimeInterval { isim_time() }
@@ -646,9 +203,9 @@ open class AVAudioRecorder: NSObject {
     @discardableResult open func record() -> Bool {
         guard !isRecording else { return true }
         if writer.closed, let w = try? _AudioFileWriter(url: url, settings: settings) { writer = w; captured = 0 }
-        if subscribed { _AudioInput.poll() }      // (resuming) drop nothing, just catch up
+        if subscribed { _IsimAudioInput.poll() }      // (resuming) drop nothing, just catch up
         isRecording = true
-        if !subscribed { subscribed = true; _AudioInput.subscribe(self) { [weak self] x in self?.received(x) } }
+        if !subscribed { subscribed = true; _IsimAudioInput.subscribe(self) { [weak self] x in self?.received(x) } }
         return true
     }
     @discardableResult open func record(atTime time: TimeInterval) -> Bool { record() }
@@ -656,13 +213,13 @@ open class AVAudioRecorder: NSObject {
     @discardableResult open func record(atTime time: TimeInterval, forDuration duration: TimeInterval) -> Bool { record(forDuration: duration) }
     open func pause() {
         guard isRecording else { return }
-        _AudioInput.poll()
+        _IsimAudioInput.poll()
         isRecording = false
     }
     open func stop() {
-        if isRecording { _AudioInput.poll() }
+        if isRecording { _IsimAudioInput.poll() }
         isRecording = false
-        if subscribed { _AudioInput.unsubscribe(self); subscribed = false }
+        if subscribed { _IsimAudioInput.unsubscribe(self); subscribed = false }
         var ok = true
         do { try writer.finish() } catch {
             ok = false
