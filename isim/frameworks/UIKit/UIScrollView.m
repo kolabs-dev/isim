@@ -11,6 +11,23 @@ const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal = 0.998, U
 @property (nonatomic, readwrite) UIGestureRecognizerState state;
 @end
 
+/* the documentation sweep's members (#9), outside the instances: apps' subclasses keep their sizes */
+@interface __IsimScrollExtras : NSObject
+@property (nonatomic) BOOL lock, noBounceX, noBounceY, scrollAnimating, toTop, noAutoIndicators, cannotCancel, noDelay, noTransferX, noTransferY, noKeyboard;
+@property (nonatomic) int lockAxis;                   /* 0 undecided, 1 x, 2 y */
+@property (nonatomic) UIScrollViewIndicatorStyle indicatorStyle;
+@property (nonatomic) CGPoint alignment;
+@property (nonatomic, strong) UIGestureRecognizer *press;
+@end
+@implementation __IsimScrollExtras @end
+static char k_extras;
+static __IsimScrollExtras *ex(UIScrollView *s) {
+    __IsimScrollExtras *e = objc_getAssociatedObject(s, &k_extras);
+    if (!e) { e = [__IsimScrollExtras new]; objc_setAssociatedObject(s, &k_extras, e, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    return e;
+}
+static __IsimScrollExtras *ex_if(UIScrollView *s) { return objc_getAssociatedObject(s, &k_extras); }
+
 @implementation UIScrollView {
     UIPanGestureRecognizer *_pan;
     CGPoint _dragStart;
@@ -66,14 +83,17 @@ static void update_tracking(UIScrollView *s, BOOL active) {
     if (!animated) { self.contentOffset = o; return; }
     CGPoint from = self.contentOffset; double start = isim_time();
     __weak UIScrollView *weakSelf = self;
+    ex(self).scrollAnimating = YES;
     _anim = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *t) {
         UIScrollView *s = weakSelf;
         double k = fmin(1, (isim_time() - start) / 0.3); k = 1 - pow(1 - k, 3);
         s.contentOffset = CGPointMake(from.x + (o.x - from.x) * k, from.y + (o.y - from.y) * k);
         if (k >= 1) {
+            BOOL toTop = ex(s).toTop; ex(s).toTop = NO;
             [s _stopAnimation];
             id<UIScrollViewDelegate> d = s.delegate;
-            if ([d respondsToSelector:@selector(scrollViewDidEndScrollingAnimation:)]) [d scrollViewDidEndScrollingAnimation:s];
+            if (toTop) { if ([d respondsToSelector:@selector(scrollViewDidScrollToTop:)]) [d scrollViewDidScrollToTop:s]; }
+            else if ([d respondsToSelector:@selector(scrollViewDidEndScrollingAnimation:)]) [d scrollViewDidEndScrollingAnimation:s];
         }
     }];
     [NSRunLoop.mainRunLoop addTimer:_anim forMode:NSRunLoopCommonModes];
@@ -104,13 +124,20 @@ static void update_tracking(UIScrollView *s, BOOL active) {
 }
 - (CGPoint)_clamped:(CGPoint)o {
     CGPoint mn = [self _minOffset], mx = [self _maxOffset];
+    CGPoint al = ex_if(self).alignment;
+    if (al.x != 0 || al.y != 0) {                  /* content smaller than the view rests at contentAlignmentPoint */
+        UIEdgeInsets a = self.adjustedContentInset; CGSize b = self.bounds.size;
+        double sx = b.width - (_contentSize.width + a.left + a.right), sy = b.height - (_contentSize.height + a.top + a.bottom);
+        if (sx > 0) mn.x = mx.x = mn.x - sx * al.x;
+        if (sy > 0) mn.y = mx.y = mn.y - sy * al.y;
+    }
     return CGPointMake(fmin(fmax(o.x, mn.x), mx.x), fmin(fmax(o.y, mn.y), mx.y));
 }
 - (BOOL)_canScrollX { return _alwaysBounceHorizontal || [self _maxOffset].x > [self _minOffset].x; }
 - (BOOL)_canScrollY { return _alwaysBounceVertical || [self _maxOffset].y > [self _minOffset].y; }
 - (void)_clampIfIdle {
     if (_dragging || _decelerating || _anim) return;
-    if (!_userScrolled) { [self _isim_applyOffset:[self _minOffset]]; return; }     /* rest at the top until scrolled or positioned */
+    if (!_userScrolled) { [self _isim_applyOffset:[self _clamped:[self _minOffset]]]; return; }     /* rest at the top until scrolled or positioned */
     CGPoint c = [self _clamped:self.contentOffset];
     if (!CGPointEqualToPoint(c, self.contentOffset)) self.contentOffset = c;
 }
@@ -119,6 +146,7 @@ static void update_tracking(UIScrollView *s, BOOL active) {
     UIEdgeInsets a = self.adjustedContentInset;
     if (!UIEdgeInsetsEqualToEdgeInsets(a, _lastAdjusted)) {
         _lastAdjusted = a;
+        [self adjustedContentInsetDidChange];
         id<UIScrollViewDelegate> d = _delegate;
         if ([d respondsToSelector:@selector(scrollViewDidChangeAdjustedContentInset:)]) [d scrollViewDidChangeAdjustedContentInset:self];
     }
@@ -140,8 +168,11 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
 - (CGPoint)_rubberBanded:(CGPoint)o {
     CGPoint mn = [self _minOffset], mx = [self _maxOffset]; CGSize b = self.bounds.size;
     if (!_bounces) return [self _clamped:o];
-    if (o.x < mn.x) o.x = mn.x + rubber(o.x - mn.x, b.width); else if (o.x > mx.x) o.x = mx.x + rubber(o.x - mx.x, b.width);
-    if (o.y < mn.y) o.y = mn.y + rubber(o.y - mn.y, b.height); else if (o.y > mx.y) o.y = mx.y + rubber(o.y - mx.y, b.height);
+    __IsimScrollExtras *x = ex_if(self); CGPoint c = [self _clamped:o];
+    if (x.noBounceX) o.x = c.x;                    /* bouncesHorizontally / bouncesVertically NO */
+    else if (o.x < mn.x) o.x = mn.x + rubber(o.x - mn.x, b.width); else if (o.x > mx.x) o.x = mx.x + rubber(o.x - mx.x, b.width);
+    if (x.noBounceY) o.y = c.y;
+    else if (o.y < mn.y) o.y = mn.y + rubber(o.y - mn.y, b.height); else if (o.y > mx.y) o.y = mx.y + rubber(o.y - mx.y, b.height);
     return o;
 }
 - (void)_isim_pan:(UIPanGestureRecognizer *)g { [self _isim_panStep:g]; [self _isim_updateTracking]; }
@@ -157,7 +188,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     case UIGestureRecognizerStateBegan:
         [self _stopAnimation];
         _dragging = _tracking = YES; _userScrolled = YES;
-        _dragStart = self.contentOffset;
+        _dragStart = self.contentOffset; ex_if(self).lockAxis = 0;
         if (_keyboardDismissMode == UIScrollViewKeyboardDismissModeOnDrag || _keyboardDismissMode == UIScrollViewKeyboardDismissModeOnDragWithAccessory)
             [isim_ui_first_responder() resignFirstResponder];
         if ([d respondsToSelector:@selector(scrollViewWillBeginDragging:)]) [d scrollViewWillBeginDragging:self];
@@ -170,6 +201,11 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
             if (!CGRectIsEmpty(kb) && [g locationInView:nil].y >= CGRectGetMinY(kb)) [isim_ui_first_responder() resignFirstResponder];
         }
         CGPoint t = [g translationInView:self];
+        __IsimScrollExtras *x = ex_if(self);
+        if (x.lock) {                              /* directional lock: the first clear direction wins */
+            if (!x.lockAxis && hypot(t.x, t.y) > 10) x.lockAxis = fabs(t.x) > fabs(t.y) * 1.5 ? 1 : fabs(t.y) > fabs(t.x) * 1.5 ? 2 : 3;
+            if (x.lockAxis == 1) t.y = 0; else if (x.lockAxis == 2) t.x = 0; else if (!x.lockAxis) t = CGPointZero;
+        }
         CGPoint o = CGPointMake(_dragStart.x - ([self _canScrollX] ? t.x : 0), _dragStart.y - ([self _canScrollY] ? t.y : 0));
         self.contentOffset = [self _rubberBanded:o];
         _indicatorUntil = isim_time() + 0.5;
@@ -178,6 +214,8 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
         _dragging = _tracking = NO;
         CGPoint v = [g velocityInView:self];
         _velocity = CGPointMake([self _canScrollX] ? -v.x : 0, [self _canScrollY] ? -v.y : 0);
+        int lockAxis = ex_if(self).lock ? ex_if(self).lockAxis : 0;
+        if (lockAxis == 1) _velocity.y = 0; else if (lockAxis == 2) _velocity.x = 0;
         /* where deceleration would stop: v / (-1000 ln rate) past the current offset */
         CGPoint o = self.contentOffset; double kk = -1000 * log(_decelerationRate);
         CGPoint natural = [self _clamped:CGPointMake(o.x + _velocity.x / kk, o.y + _velocity.y / kk)], target = natural;
@@ -228,7 +266,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
             *p += *v * dt; *v *= decay;
             CGPoint cc = [self _clamped:o];
             double clim = axis ? cc.y : cc.x;
-            if (*p != clim && !_bounces) { *p = clim; *v = 0; }
+            if (*p != clim && (!_bounces || (axis ? ex_if(self).noBounceY : ex_if(self).noBounceX))) { *p = clim; *v = 0; }
         }
     }
     self.contentOffset = o;
@@ -261,7 +299,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     }];
     [NSRunLoop.mainRunLoop addTimer:_anim forMode:NSRunLoopCommonModes];
 }
-- (void)_stopAnimation { [_anim invalidate]; _anim = nil; if (_countsTracking && !self.isDragging) update_tracking(self, NO); }
+- (void)_stopAnimation { [_anim invalidate]; _anim = nil; ex_if(self).scrollAnimating = NO; if (_countsTracking && !self.isDragging) update_tracking(self, NO); }
 - (void)dealloc { [_anim invalidate]; if (_countsTracking) { tracking_views--; isim_runloop_set_main_mode(tracking_views > 0 ? UITrackingRunLoopMode : NSDefaultRunLoopMode); } }
 
 /* ---- indicators ---- */
@@ -269,10 +307,15 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     if (isim_time() > _indicatorUntil) return;
     CGSize b = self.bounds.size; CGPoint o = self.contentOffset; UIEdgeInsets a = self.adjustedContentInset;
     double col[4] = { 0, 0, 0, 0.35 };
-    if (isim_ui_style() == UIUserInterfaceStyleDark) col[0] = col[1] = col[2] = 1;
+    UIScrollViewIndicatorStyle is = ex_if(self).indicatorStyle;
+    if (is == UIScrollViewIndicatorStyleWhite || (is == UIScrollViewIndicatorStyleDefault && isim_ui_style() == UIUserInterfaceStyleDark)) col[0] = col[1] = col[2] = 1;
     double contentH = _contentSize.height + a.top + a.bottom, viewH = b.height;
     /* verticalScrollIndicatorInsets / horizontalScrollIndicatorInsets move the indicators in from the edges */
     UIEdgeInsets vi = self.verticalScrollIndicatorInsets, hi = self.horizontalScrollIndicatorInsets;
+    if (ex_if(self).noAutoIndicators) {            /* the indicators ignore the safe area: only their own insets */
+        UIEdgeInsets sa = self.safeAreaInsets;
+        vi.top -= sa.top; vi.bottom -= sa.bottom; hi.left -= sa.left; hi.right -= sa.right; hi.bottom -= sa.bottom;
+    }
     if (_showsVerticalScrollIndicator && contentH > viewH + 0.5) {
         double track = viewH - a.top - a.bottom - vi.top - vi.bottom - 6, len = fmax(36, track * viewH / contentH);
         double pos = (o.y + a.top) / (contentH - viewH); pos = fmin(fmax(pos, 0), 1);
@@ -285,6 +328,100 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
         isim_gfx_fill_rounded(o.x + hi.left + 3 + (track - len) * pos, o.y + b.height - a.bottom - hi.bottom - 6, len, 3, 1.5, col);
     }
     dispatch_async(dispatch_get_main_queue(), ^{ isim_ui_set_needs_display(); });   /* keep redrawing until it fades */
+}
+
+/* ---- the documentation sweep's members (#9) ---- */
+- (void)adjustedContentInsetDidChange {}
+- (BOOL)isDirectionalLockEnabled { return ex_if(self).lock; }
+- (void)setDirectionalLockEnabled:(BOOL)l { ex(self).lock = l; }
+- (BOOL)bouncesHorizontally { return !ex_if(self).noBounceX; }
+- (void)setBouncesHorizontally:(BOOL)b { ex(self).noBounceX = !b; }
+- (BOOL)bouncesVertically { return !ex_if(self).noBounceY; }
+- (void)setBouncesVertically:(BOOL)b { ex(self).noBounceY = !b; }
+- (BOOL)isScrollAnimating { return ex_if(self).scrollAnimating; }
+- (void)stopScrollingAndZooming {
+    ex_if(self).toTop = NO;
+    [self _stopAnimation];
+    if (_decelerating) { _decelerating = NO; _velocity = CGPointZero; }
+    if (_dragging) { _pan.enabled = NO; _pan.enabled = YES; _dragging = _tracking = NO; }    /* (the finger's drag ends) */
+    [self _isim_stopZoomAnimation];
+    if (!_dragging && !_decelerating) update_tracking(self, NO);
+    NSLog(@"isim: scroll view stopped at %@", NSStringFromCGPoint(self.contentOffset));
+}
+- (UIScrollViewIndicatorStyle)indicatorStyle { return ex_if(self).indicatorStyle; }
+- (void)setIndicatorStyle:(UIScrollViewIndicatorStyle)s { ex(self).indicatorStyle = s; isim_ui_set_needs_display(); }
+- (BOOL)automaticallyAdjustsScrollIndicatorInsets { return !ex_if(self).noAutoIndicators; }
+- (void)setAutomaticallyAdjustsScrollIndicatorInsets:(BOOL)a { ex(self).noAutoIndicators = !a; isim_ui_set_needs_display(); }
+- (UIEdgeInsets)scrollIndicatorInsets { return self.verticalScrollIndicatorInsets; }
+- (void)setScrollIndicatorInsets:(UIEdgeInsets)i { self.verticalScrollIndicatorInsets = i; self.horizontalScrollIndicatorInsets = i; }
+- (void)withScrollIndicatorsShownForContentOffsetChanges:(void (NS_NOESCAPE ^)(void))changes {
+    changes();
+    [self flashScrollIndicators];
+}
+- (BOOL)touchesShouldBegin:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event inContentView:(UIView *)view { return YES; }
+- (BOOL)touchesShouldCancelInContentView:(UIView *)view { return ![view isKindOfClass:[UIControl class]]; }
+- (BOOL)canCancelContentTouches { return !ex_if(self).cannotCancel; }
+- (void)setCanCancelContentTouches:(BOOL)c { ex(self).cannotCancel = !c; }
+- (BOOL)delaysContentTouches { return !ex_if(self).noDelay; }
+- (void)setDelaysContentTouches:(BOOL)d { ex(self).noDelay = !d; }
+- (UIGestureRecognizer *)directionalPressGestureRecognizer {
+    __IsimScrollExtras *x = ex(self);
+    if (!x.press) { x.press = [[UIGestureRecognizer alloc] initWithTarget:nil action:NULL]; x.press.enabled = NO; }
+    return x.press;
+}
+- (CGPoint)contentAlignmentPoint { return ex_if(self).alignment; }
+- (void)setContentAlignmentPoint:(CGPoint)p { ex(self).alignment = p; [self setNeedsLayout]; }
+- (BOOL)transfersHorizontalScrollingToParent { return !ex_if(self).noTransferX; }
+- (void)setTransfersHorizontalScrollingToParent:(BOOL)t { ex(self).noTransferX = !t; }
+- (BOOL)transfersVerticalScrollingToParent { return !ex_if(self).noTransferY; }
+- (void)setTransfersVerticalScrollingToParent:(BOOL)t { ex(self).noTransferY = !t; }
+- (BOOL)allowsKeyboardScrolling { return !ex_if(self).noKeyboard; }
+- (void)setAllowsKeyboardScrolling:(BOOL)a { ex(self).noKeyboard = !a; }
+/* the status bar tap: to the top (the delegate may refuse), then scrollViewDidScrollToTop: */
+- (BOOL)_isim_scrollToTop {
+    id<UIScrollViewDelegate> d = _delegate;
+    if ([d respondsToSelector:@selector(scrollViewShouldScrollToTop:)] && ![d scrollViewShouldScrollToTop:self]) return NO;
+    CGPoint top = CGPointMake(self.contentOffset.x, [self _minOffset].y);
+    _userScrolled = YES;
+    if (CGPointEqualToPoint(top, self.contentOffset)) { if ([d respondsToSelector:@selector(scrollViewDidScrollToTop:)]) [d scrollViewDidScrollToTop:self]; return YES; }
+    [self setContentOffset:top animated:YES];
+    ex(self).toTop = YES;
+    return YES;
+}
+/* hardware keyboard scrolling: a line (arrows), a page (Page Up / Down, Space; Shift-Space back), the ends (Home, End) */
+- (BOOL)_isim_keyboardScroll:(int)hid shift:(BOOL)shift {
+    CGPoint o = self.contentOffset, mn = [self _minOffset], mx = [self _maxOffset];
+    CGSize b = self.bounds.size; UIEdgeInsets a = self.adjustedContentInset;
+    double page = fmax(40, b.height - a.top - a.bottom - 44);
+    switch (hid) {
+    case 0x51: o.y += 40; break;                   /* down */
+    case 0x52: o.y -= 40; break;                   /* up */
+    case 0x4F: o.x += 40; break;                   /* right */
+    case 0x50: o.x -= 40; break;                   /* left */
+    case 0x4E: o.y += page; break;                 /* Page Down */
+    case 0x4B: o.y -= page; break;                 /* Page Up */
+    case 0x2C: o.y += shift ? -page : page; break; /* Space */
+    case 0x4A: o.y = mn.y; break;                  /* Home */
+    case 0x4D: o.y = mx.y; break;                  /* End */
+    default: return NO;
+    }
+    o = [self _clamped:o];
+    if (CGPointEqualToPoint(o, self.contentOffset)) return YES;
+    _userScrolled = YES;
+    [self setContentOffset:o animated:YES];
+    [self flashScrollIndicators];
+    return YES;
+}
+/* the drag that starts on content: may the scroll view take it (touchesShouldCancelInContentView:, canCancelContentTouches) */
+- (BOOL)_isim_mayCancelContent:(UIView *)hit defaultCancels:(BOOL)dflt {
+    if (!hit || hit == self) return YES;
+    if (ex_if(self).cannotCancel) {
+        for (UIView *v = hit; v && v != self; v = v.superview) if ([v isKindOfClass:[UIControl class]]) return NO;
+        return YES;
+    }
+    if ([self methodForSelector:@selector(touchesShouldCancelInContentView:)] != [UIScrollView instanceMethodForSelector:@selector(touchesShouldCancelInContentView:)])
+        return [self touchesShouldCancelInContentView:hit];
+    return dflt;
 }
 
 /* ---- Auto Layout ---- */
@@ -354,4 +491,58 @@ int isim_ui_edge_effect_mode(UIScrollView *sv, BOOL bottom) {
     UIScrollEdgeEffect *e = bottom ? sv.bottomEdgeEffect : sv.topEdgeEffect;
     if (e.hidden) return 2;
     return [(id)e.style _isim_kind] == 2 ? 1 : 0;
+}
+
+/* ================= scroll edge element containers (iOS 26) ================= */
+@implementation UIScrollEdgeElementContainerInteraction { __weak UIView *_view; }
+- (UIView *)view { return _view; }
+- (void)willMoveToView:(UIView *)view {}
+- (void)didMoveToView:(UIView *)view { _view = view; }
+@end
+
+/* the visible scroll views of a window (status bar taps, keyboard scrolling) */
+static void collect_scrolls(UIView *v, UIWindow *w, NSMutableArray *out) {
+    if (v.hidden || v.alpha <= 0.01) return;
+    if ([v isKindOfClass:[UIScrollView class]]) {
+        CGRect r = [v convertRect:v.bounds toView:nil];
+        if (CGRectIntersectsRect(r, w.bounds) && r.size.width > 1 && r.size.height > 1) [out addObject:v];
+    }
+    for (UIView *s in v.subviews) collect_scrolls(s, w, out);
+}
+static BOOL scrolls_vertically(UIScrollView *s) { UIEdgeInsets a = s.adjustedContentInset; return s.contentSize.height + a.top + a.bottom > s.bounds.size.height + 0.5; }
+/* a tap on the status bar: the one visible scroll view with scrollsToTop that can scroll goes to its top (as on iOS,
+   none when several qualify) */
+BOOL isim_ui_status_bar_tap(UIWindow *w) {
+    NSMutableArray<UIScrollView *> *all = [NSMutableArray array], *cands = [NSMutableArray array];
+    collect_scrolls(w, w, all);
+    for (UIScrollView *s in all) if (s.scrollsToTop && s.scrollEnabled && scrolls_vertically(s)) [cands addObject:s];
+    if (cands.count != 1) { NSLog(@"isim: status bar tap: %lu scroll view(s) with scrollsToTop", (unsigned long)cands.count); return NO; }
+    BOOL ok = [cands[0] _isim_scrollToTop];
+    NSLog(@"isim: status bar tap: %@ %@", NSStringFromClass(cands[0].class), ok ? @"scrolls to top" : @"declined");
+    return ok;
+}
+/* an unhandled arrow / page / Home / End key: the largest visible scroll view that allows keyboard scrolling */
+BOOL isim_ui_keyboard_scroll(UIWindow *w, int hid, BOOL shift) {
+    NSMutableArray<UIScrollView *> *all = [NSMutableArray array];
+    collect_scrolls(w, w, all);
+    UIScrollView *best = nil; double area = 0;
+    for (UIScrollView *s in all) {
+        if (!s.allowsKeyboardScrolling || !s.scrollEnabled) continue;
+        double a = s.bounds.size.width * s.bounds.size.height;
+        if (a > area) { area = a; best = s; }
+    }
+    return best && [best _isim_keyboardScroll:hid shift:shift];
+}
+/* a drag starting on a content view (UIApplication.m): may this scroll view's pan take it */
+BOOL isim_ui_scroll_may_take(UIScrollView *s, UIView *hit, BOOL dflt) { return [s _isim_mayCancelContent:hit defaultCancels:dflt]; }
+/* a touch landing in content: touchesShouldBegin:withEvent:inContentView: of the scroll views around it (overridden);
+   NO keeps the touch in the scroll view */
+UIView *isim_ui_scroll_touch_target(UIView *hit, UITouch *t) {
+    for (UIView *v = hit.superview; v; v = v.superview) {
+        if (![v isKindOfClass:[UIScrollView class]]) continue;
+        UIScrollView *s = (UIScrollView *)v;
+        if ([s methodForSelector:@selector(touchesShouldBegin:withEvent:inContentView:)] == [UIScrollView instanceMethodForSelector:@selector(touchesShouldBegin:withEvent:inContentView:)]) continue;
+        if (![s touchesShouldBegin:[NSSet setWithObject:t] withEvent:nil inContentView:hit]) return s;
+    }
+    return hit;
 }

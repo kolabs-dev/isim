@@ -976,3 +976,143 @@ public struct UIDocumentBrowserError: CustomNSError, Hashable, _ObjectiveCBridge
     public static var generic: Code { .generic }
     public static var noLocationAvailable: Code { .noLocationAvailable }
 }
+
+// MARK: - UIView.Invalidating: a property whose change invalidates an aspect of its view (iOS 15)
+/// An aspect of a view that a change makes invalid (`.layout`, `.display`, `.constraints`, `.intrinsicContentSize`,
+/// `.configuration`).
+public protocol UIViewInvalidating {
+    @MainActor func invalidate(view: UIView)
+}
+extension UIView {
+    public enum Invalidations {
+        public struct Layout: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.setNeedsLayout() } }
+        public struct Display: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.setNeedsDisplay() } }
+        public struct Constraints: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.setNeedsUpdateConstraints() } }
+        public struct IntrinsicContentSize: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.invalidateIntrinsicContentSize() } }
+        /// cells, buttons and other views with configurations update them
+        public struct Configuration: UIViewInvalidating {
+            public init() {}
+            @MainActor public func invalidate(view: UIView) {
+                let sel = NSSelectorFromString("setNeedsUpdateConfiguration")
+                if view.responds(to: sel) { _ = view.perform(sel) }
+            }
+        }
+        public struct Tuple<Invalidation1: UIViewInvalidating, Invalidation2: UIViewInvalidating>: UIViewInvalidating {
+            let first: Invalidation1, second: Invalidation2
+            public init(_ first: Invalidation1, _ second: Invalidation2) { self.first = first; self.second = second }
+            @MainActor public func invalidate(view: UIView) { first.invalidate(view: view); second.invalidate(view: view) }
+        }
+    }
+    /// `@UIView.Invalidating(.layout, .display) var spacing: CGFloat = 8`: setting a different value invalidates them
+    @propertyWrapper
+    public struct Invalidating<Value: Equatable, InvalidationType: UIViewInvalidating> {
+        private var value: Value
+        private let invalidation: InvalidationType
+        public init(wrappedValue: Value, _ invalidation: InvalidationType) { value = wrappedValue; self.invalidation = invalidation }
+        public init<I1, I2>(wrappedValue: Value, _ i1: I1, _ i2: I2) where InvalidationType == Invalidations.Tuple<I1, I2> {
+            self.init(wrappedValue: wrappedValue, Invalidations.Tuple(i1, i2))
+        }
+        public init<I1, I2, I3>(wrappedValue: Value, _ i1: I1, _ i2: I2, _ i3: I3) where InvalidationType == Invalidations.Tuple<Invalidations.Tuple<I1, I2>, I3> {
+            self.init(wrappedValue: wrappedValue, Invalidations.Tuple(Invalidations.Tuple(i1, i2), i3))
+        }
+        public init<I1, I2, I3, I4>(wrappedValue: Value, _ i1: I1, _ i2: I2, _ i3: I3, _ i4: I4)
+            where InvalidationType == Invalidations.Tuple<Invalidations.Tuple<Invalidations.Tuple<I1, I2>, I3>, I4> {
+            self.init(wrappedValue: wrappedValue, Invalidations.Tuple(Invalidations.Tuple(Invalidations.Tuple(i1, i2), i3), i4))
+        }
+        @available(*, unavailable, message: "@Invalidating is only available on UIView properties")
+        public var wrappedValue: Value {
+            get { fatalError() }
+            set { fatalError() }
+        }
+        @MainActor public static subscript<T: UIView>(
+            _enclosingInstance view: T,
+            wrapped wrappedKeyPath: ReferenceWritableKeyPath<T, Value>,
+            storage storageKeyPath: ReferenceWritableKeyPath<T, Invalidating<Value, InvalidationType>>
+        ) -> Value {
+            get { view[keyPath: storageKeyPath].value }
+            set {
+                let old = view[keyPath: storageKeyPath].value
+                view[keyPath: storageKeyPath].value = newValue
+                if old != newValue { view[keyPath: storageKeyPath].invalidation.invalidate(view: view) }
+            }
+        }
+    }
+}
+extension UIViewInvalidating where Self == UIView.Invalidations.Layout { public static var layout: Self { .init() } }
+extension UIViewInvalidating where Self == UIView.Invalidations.Display { public static var display: Self { .init() } }
+extension UIViewInvalidating where Self == UIView.Invalidations.Constraints { public static var constraints: Self { .init() } }
+extension UIViewInvalidating where Self == UIView.Invalidations.IntrinsicContentSize { public static var intrinsicContentSize: Self { .init() } }
+extension UIViewInvalidating where Self == UIView.Invalidations.Configuration { public static var configuration: Self { .init() } }
+
+// MARK: - Configuration transformers (Apple's Swift value types over the Objective-C blocks)
+@available(iOS 15.0, *)
+public struct UIConfigurationTextAttributesTransformer {
+    public let transform: (AttributeContainer) -> AttributeContainer
+    public init(_ transform: @escaping (AttributeContainer) -> AttributeContainer) { self.transform = transform }
+    public func callAsFunction(_ input: AttributeContainer) -> AttributeContainer { transform(input) }
+    init(_isim block: @escaping __UIConfigurationTextAttributesTransformer) {
+        transform = { c in AttributeContainer(block(_isimTextAttributes(c))) }
+    }
+    var _isimBlock: __UIConfigurationTextAttributesTransformer {
+        let t = transform
+        return { d in _isimTextAttributes(t(AttributeContainer(d))) }
+    }
+}
+private func _isimTextAttributes(_ c: AttributeContainer) -> [NSAttributedString.Key: Any] {
+    let s = NSAttributedString(AttributedString(" ", attributes: c))
+    return s.attributes(at: 0, effectiveRange: nil)
+}
+@available(iOS 14.0, *)
+public struct UIConfigurationColorTransformer {
+    public let transform: (UIColor) -> UIColor
+    public init(_ transform: @escaping (UIColor) -> UIColor) { self.transform = transform }
+    public func callAsFunction(_ input: UIColor) -> UIColor { transform(input) }
+    public static let grayscale = UIConfigurationColorTransformer(__UIConfigurationColorTransformerGrayscale)
+    public static let preferredTint = UIConfigurationColorTransformer(__UIConfigurationColorTransformerPreferredTint)
+    public static let monochromeTint = UIConfigurationColorTransformer(__UIConfigurationColorTransformerMonochromeTint)
+}
+extension UIButton.Configuration {
+    @available(iOS 15.0, *)
+    public var titleTextAttributesTransformer: UIConfigurationTextAttributesTransformer? {
+        get { __titleTextAttributesTransformer.map { UIConfigurationTextAttributesTransformer(_isim: $0) } }
+        set { __titleTextAttributesTransformer = newValue?._isimBlock }
+    }
+    @available(iOS 15.0, *)
+    public var subtitleTextAttributesTransformer: UIConfigurationTextAttributesTransformer? {
+        get { __subtitleTextAttributesTransformer.map { UIConfigurationTextAttributesTransformer(_isim: $0) } }
+        set { __subtitleTextAttributesTransformer = newValue?._isimBlock }
+    }
+    public var imageColorTransformer: UIConfigurationColorTransformer? {
+        get { __imageColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __imageColorTransformer = newValue.map { t in { t($0) } } }
+    }
+    public var indicatorColorTransformer: UIConfigurationColorTransformer? {
+        get { __indicatorColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __indicatorColorTransformer = newValue.map { t in { t($0) } } }
+    }
+    public var activityIndicatorColorTransformer: UIConfigurationColorTransformer? {
+        get { __activityIndicatorColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __activityIndicatorColorTransformer = newValue.map { t in { t($0) } } }
+    }
+}
+
+// MARK: - Control event handlers (Apple's Swift signature)
+extension UIControl {
+    @available(iOS 14.0, *)
+    public func enumerateEventHandlers(_ iterator: (_ actionHandler: UIAction?, _ targetAction: (Any?, Selector)?, _ controlEvents: UIControl.Event, _ stop: inout Bool) -> Void) {
+        withoutActuallyEscaping(iterator) { it in
+            __enumerateEventHandlers { action, target, sel, events, stop in
+                var s = false
+                it(action, sel.map { (target, $0) }, events, &s)
+                if s { stop.pointee = true }
+            }
+        }
+    }
+}
+
+// MARK: - Calendar view decorations (Apple's Swift spellings, with their default arguments)
+@available(iOS 16.0, *)
+extension UICalendarView.Decoration {
+    public class func `default`(color: UIColor? = nil, size: UICalendarView.DecorationSize = .medium) -> Self { __default(color: color, size: size) }
+    public class func image(_ image: UIImage?, color: UIColor? = nil, size: UICalendarView.DecorationSize = .medium) -> Self { __image(image, color: color, size: size) }
+}

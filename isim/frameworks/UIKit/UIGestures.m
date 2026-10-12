@@ -120,7 +120,13 @@ NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
 
 @implementation UIResponder (UIKeyboardAndMotion)
 - (NSArray<UIKeyCommand *> *)keyCommands { return nil; }
-- (void)pressesBegan:(NSSet *)p withEvent:(UIPressesEvent *)e { [self.nextResponder pressesBegan:p withEvent:e]; }
+- (void)pressesBegan:(NSSet *)p withEvent:(UIPressesEvent *)e {
+    UIResponder *n = self.nextResponder;
+    if (n) { [n pressesBegan:p withEvent:e]; return; }
+    /* nobody handled the key: arrows, Page Up / Down, Space, Home and End scroll the main scroll view (not while typing) */
+    if ([isim_ui_first_responder() respondsToSelector:@selector(insertText:)]) return;
+    for (UIPress *press in p) if (press.key) isim_ui_keyboard_scroll(UIApplication.sharedApplication.keyWindow, (int)press.key.keyCode, (press.key.modifierFlags & UIKeyModifierShift) != 0);
+}
 - (void)pressesChanged:(NSSet *)p withEvent:(UIPressesEvent *)e { [self.nextResponder pressesChanged:p withEvent:e]; }
 - (void)pressesEnded:(NSSet *)p withEvent:(UIPressesEvent *)e { [self.nextResponder pressesEnded:p withEvent:e]; }
 - (void)pressesCancelled:(NSSet *)p withEvent:(UIPressesEvent *)e { [self.nextResponder pressesCancelled:p withEvent:e]; }

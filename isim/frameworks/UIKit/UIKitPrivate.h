@@ -139,6 +139,35 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UICo
 
 @interface UIControl (IsimPrivate)
 - (void)_isim_sendEvents:(UIControlEvents)events withEvent:(UIEvent *)event;
+- (NSMutableArray *)_isim_handlers;                 /* the actions and target-action pairs (UIControls.m) */
+- (void)_isim_touchUpInside;                        /* the control's own response to a tap (a toggle, a menu) */
+@end
+/* control extras (UIControlExtras.m, drawn in UIControls.m / UIMoreControls.m) */
+@interface UIButton (IsimExtrasPrivate)
+- (nullable UIImageSymbolConfiguration *)_isim_symbolConfigurationForState:(UIControlState)state;
+- (UIFont *)_isim_subtitleFont;
+@end
+@interface UIButtonConfiguration (IsimExtrasPrivate)
+- (void)_isim_copyExtrasTo:(UIButtonConfiguration *)c;
+- (NSDirectionalEdgeInsets)_isim_defaultContentInsets;
+@end
+@interface UISegmentedControl (IsimExtrasPrivate)
+- (void)_isim_segmentInsertedAt:(NSUInteger)i;
+- (void)_isim_segmentRemovedAt:(NSUInteger)i;
+- (void)_isim_segmentsRemoved;
+- (void)_isim_runSegmentAction;
+- (CGFloat)_isim_explicitWidthForSegment:(NSUInteger)i;
+@end
+void isim_ui_set_hovered_view(UIView *_Nullable v);
+void isim_ui_menu_chose(UIView *_Nullable source, UIAction *action);
+@interface UIPageControl (IsimExtrasPrivate)
+- (void)_isim_setInteractionState:(UIPageControlInteractionState)state;
+@end
+@interface UIPageControlProgress (IsimPrivate)
+- (nullable UIPageControl *)_isim_pageControl;
+- (void)_isim_setPageControl:(nullable UIPageControl *)pageControl;
+- (void)_isim_pageChanged;
+- (void)_isim_visibilityChanged;
 @end
 
 @interface UITouch (IsimPrivate)
@@ -251,7 +280,12 @@ NSString *isim_ui_installed_apps_dir(void);
 @end
 @interface UIScrollView (IsimPrivate)
 - (void)_isim_markContentFromLayout;
+- (void)_isim_stopZoomAnimation;                    /* UIScrollViewZoom.m */
 @end
+BOOL isim_ui_status_bar_tap(UIWindow *w);           /* UIScrollView.m: scroll to top */
+BOOL isim_ui_keyboard_scroll(UIWindow *w, int hid, BOOL shift);
+BOOL isim_ui_scroll_may_take(UIScrollView *s, UIView *_Nullable hit, BOOL dflt);
+UIView *isim_ui_scroll_touch_target(UIView *hit, UITouch *t);
 @interface UIInputViewController (IsimPrivate)
 - (void)_isim_setTextInput:(nullable id<UIKeyInput>)input;
 @end

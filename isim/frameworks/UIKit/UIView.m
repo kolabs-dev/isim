@@ -3,6 +3,15 @@
  *
  * Auto Layout: a Cassowary solver (Cassowary.c) per window; see "Auto Layout engine" below. */
 #import "UIKitPrivate.h"
+/* UIViewExtras.m */
+void isim_ui_mark_needs_update_constraints(UIView *v);
+void isim_ui_update_constraints_in(UIView *v);
+void isim_ui_update_constraints_pass(void);
+void isim_ui_view_entered_window(UIView *v);
+UITraitCollection *isim_ui_clamp_content_size(UIView *v, UITraitCollection *t);
+UIEdgeInsets isim_ui_effective_margins(UIView *v);
+CGRect isim_ui_margins_rect(UIView *v);   /* the margins guide's frame */
+UIEdgeInsets isim_ui_alignment_insets(id item);
 #import "CAPrivate.h"
 #include "Cassowary.h"
 #include <math.h>
@@ -369,7 +378,7 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
     if (!w && (UIResponder *)self == first_responder) [self resignFirstResponder];
     [self willMoveToWindow:w];
     _window = w;
-    if (w) isim_ui_traits_invalidate(self); else _traitReported = nil;
+    if (w) { isim_ui_traits_invalidate(self); isim_ui_view_entered_window(self); } else _traitReported = nil;
     for (UIView *s in _subs) [s _isim_movedToWindow:w];
     [self didMoveToWindow];
 }
@@ -489,6 +498,7 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
     UIViewController *vc = _vc;
     if (vc) t = [vc _isim_traitsFromBase:t];
     t = isim_ui_apply_overrides(t, _traitOverrides, _overrideUserInterfaceStyle);
+    t = isim_ui_clamp_content_size(self, t);             /* UIViewExtras.m: minimum / maximumContentSizeCategory */
     _traitCache = t; _traitGen = g;
     return t;
 }
@@ -594,7 +604,11 @@ UIEdgeInsets isim_ui_safe_insets_for_rect(UIView *v, CGRect inWin) {
     return isim_ui_safe_insets_for_rect(self, [self convertRect:self.bounds toView:nil]);
 }
 - (void)safeAreaInsetsDidChange {}
-- (void)setLayoutMargins:(UIEdgeInsets)m { if (UIEdgeInsetsEqualToEdgeInsets(m, _layoutMargins)) return; _layoutMargins = m; isim_ui_constraints_changed(); [self setNeedsLayout]; }
+- (void)setLayoutMargins:(UIEdgeInsets)m {
+    if (UIEdgeInsetsEqualToEdgeInsets(m, _layoutMargins)) return;
+    _layoutMargins = m; isim_ui_constraints_changed(); [self setNeedsLayout];
+    [self layoutMarginsDidChange];
+}
 /* leading / trailing are the right / left margins right to left */
 - (NSDirectionalEdgeInsets)directionalLayoutMargins {
     BOOL rtl = [self _isim_isRTL];
@@ -616,7 +630,7 @@ UIEdgeInsets isim_ui_safe_insets_for_rect(UIView *v, CGRect inWin) {
     if (!_marginsGuide) {
         _marginsGuide = [UILayoutGuide new]; _marginsGuide.owningView = self; _marginsGuide.identifier = @"UIViewLayoutMarginsGuide";
         __weak UIView *w = self;
-        [_marginsGuide _isim_setFrameProvider:^CGRect { UIView *s = w; return UIEdgeInsetsInsetRect(UIEdgeInsetsInsetRect(s.bounds, s.safeAreaInsets), s.layoutMargins); }];
+        [_marginsGuide _isim_setFrameProvider:^CGRect { UIView *s = w; return isim_ui_margins_rect(s); }];
     }
     return _marginsGuide;
 }
@@ -629,7 +643,7 @@ UIEdgeInsets isim_ui_safe_insets_for_rect(UIView *v, CGRect inWin) {
         [_readableGuide _isim_setFrameProvider:^CGRect {
             UIView *s = w;
             extern CGFloat isim_ui_readable_width(NSString *category);
-            CGRect m = UIEdgeInsetsInsetRect(UIEdgeInsetsInsetRect(s.bounds, s.safeAreaInsets), s.layoutMargins);
+            CGRect m = isim_ui_margins_rect(s);
             CGFloat max = isim_ui_readable_width(s.traitCollection.preferredContentSizeCategory);
             if (m.size.width > max) { m.origin.x += floor((m.size.width - max) / 2); m.size.width = max; }
             return m;
@@ -661,8 +675,8 @@ ANCHORS(UIView)
 - (void)setContentHuggingPriority:(UILayoutPriority)p forAxis:(UILayoutConstraintAxis)a { _hug[a] = p; }
 - (UILayoutPriority)contentCompressionResistancePriorityForAxis:(UILayoutConstraintAxis)a { return _resist[a]; }
 - (void)setContentCompressionResistancePriority:(UILayoutPriority)p forAxis:(UILayoutConstraintAxis)a { _resist[a] = p; }
-- (void)setNeedsUpdateConstraints { [self setNeedsLayout]; }
-- (void)updateConstraintsIfNeeded {}
+- (void)setNeedsUpdateConstraints { isim_ui_mark_needs_update_constraints(self); [self setNeedsLayout]; }
+- (void)updateConstraintsIfNeeded { isim_ui_update_constraints_in(self); }
 - (void)updateConstraints {}
 - (CGSize)sizeThatFits:(CGSize)size { CGSize s = [self intrinsicContentSize]; return CGSizeMake(s.width < 0 ? _frame.size.width : s.width, s.height < 0 ? _frame.size.height : s.height); }
 - (void)sizeToFit { CGSize s = [self sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)]; self.frame = (CGRect){ _frame.origin, s }; }
@@ -725,11 +739,38 @@ static int al_negate(int n, double coeffs[2], double *offset) {
     *offset = -*offset;
     return n;
 }
+static int al_attr_terms_frame(id item, NSLayoutAttribute a, int *v, BOOL rtl, UIEdgeInsets m, int vars[2], double coeffs[2], double *offset);
 static int al_attr_terms(id item, NSLayoutAttribute a, unsigned gen, BOOL rtl, int vars[2], double coeffs[2], double *offset) {
     int *v = al_vars(item, gen);
     if (!v) return 0;
     *offset = 0;
-    UIEdgeInsets m = [item isKindOfClass:[UIView class]] ? ((UIView *)item).layoutMargins : UIEdgeInsetsZero;
+    UIEdgeInsets m = [item isKindOfClass:[UIView class]] ? isim_ui_effective_margins(item) : UIEdgeInsetsZero;
+    /* the alignment rect (frame inset by alignmentRectInsets) is what the edges, centres and sizes describe */
+    UIEdgeInsets ai = isim_ui_alignment_insets(item);
+    if (!UIEdgeInsetsEqualToEdgeInsets(ai, UIEdgeInsetsZero)) {
+        int n = al_attr_terms_frame(item, a, v, rtl, m, vars, coeffs, offset);
+        double adj = 0;
+        switch (a) {
+        case NSLayoutAttributeLeft: adj = ai.left; break;
+        case NSLayoutAttributeRight: adj = -ai.right; break;
+        case NSLayoutAttributeLeading: adj = rtl ? ai.right : ai.left; break;
+        case NSLayoutAttributeTrailing: adj = rtl ? -ai.left : -ai.right; break;
+        case NSLayoutAttributeTop: adj = ai.top; break;
+        case NSLayoutAttributeBottom: adj = -ai.bottom; break;
+        case NSLayoutAttributeWidth: adj = -(ai.left + ai.right); break;
+        case NSLayoutAttributeHeight: adj = -(ai.top + ai.bottom); break;
+        case NSLayoutAttributeCenterX: adj = rtl ? (ai.right - ai.left) / 2 : (ai.left - ai.right) / 2; break;
+        case NSLayoutAttributeCenterY: adj = (ai.top - ai.bottom) / 2; break;
+        default: break;
+        }
+        *offset += adj;                                                    /* (right to left: already in the negated space) */
+        return n;
+    }
+    return al_attr_terms_frame(item, a, v, rtl, m, vars, coeffs, offset);
+}
+/* the terms of an attribute of the item's frame (v: its variables, m: its effective margins) */
+static int al_attr_terms_frame(id item, NSLayoutAttribute a, int *v, BOOL rtl, UIEdgeInsets m, int vars[2], double coeffs[2], double *offset) {
+    *offset = 0;
     int L = v[0], T = v[1], W = v[2], H = v[3];
     #define ONE(x) (vars[0] = (x), coeffs[0] = 1, 1)
     #define TWO(x, y, k) (vars[0] = (x), coeffs[0] = 1, vars[1] = (y), coeffs[1] = (k), 2)
@@ -760,6 +801,16 @@ static int al_attr_terms(id item, NSLayoutAttribute a, unsigned gen, BOOL rtl, i
     case NSLayoutAttributeCenterXWithinMargins: *offset = (m.left - m.right) / 2; return rtl ? NEG(TWO(L, W, 0.5)) : TWO(L, W, 0.5);
     case NSLayoutAttributeCenterYWithinMargins: *offset = (m.top - m.bottom) / 2; return TWO(T, H, 0.5);
     case NSLayoutAttributeFirstBaseline: case NSLayoutAttributeLastBaseline: {
+        /* a view that gives another view's baseline (viewForFirst/LastBaselineLayout): that view's, where it is now */
+        UIView *bv = ![item isKindOfClass:[UIView class]] ? nil : a == NSLayoutAttributeFirstBaseline ? [item viewForFirstBaselineLayout] : [item viewForLastBaselineLayout];
+        if (bv && bv != item && [bv isDescendantOfView:item]) {
+            CGRect r = [bv convertRect:bv.bounds toView:item];
+            UIFont *bf = [bv isKindOfClass:[UILabel class]] ? ((UILabel *)bv).font : [bv isKindOfClass:[UIButton class]] ? ((UIButton *)bv).titleLabel.font : nil;
+            BOOL bmulti = [bv isKindOfClass:[UILabel class]] && ((UILabel *)bv).numberOfLines != 1;
+            *offset = r.origin.y + (!bf ? r.size.height : bmulti ? (a == NSLayoutAttributeFirstBaseline ? ceil(bf.ascender) : r.size.height + floor(bf.descender))
+                                                      : r.size.height / 2 + bf.ascender - bf.lineHeight / 2);
+            return ONE(T);
+        }
         UIFont *f = [item isKindOfClass:[UILabel class]] ? ((UILabel *)item).font : [item isKindOfClass:[UIButton class]] ? ((UIButton *)item).titleLabel.font : nil;
         if (!f) return TWO(T, H, 1);                                             /* views without text: bottom edge */
         BOOL multi = [item isKindOfClass:[UILabel class]] && ((UILabel *)item).numberOfLines != 1;
@@ -863,9 +914,11 @@ static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
             if (!v->_translatesAutoresizingMaskIntoConstraints) {
                 v->_alUsedWidth = v->_frame.size.width;
                 CGSize ics = [v _isim_intrinsicSizeForWidth:v->_frame.size.width];
+                UIEdgeInsets ai = isim_ui_alignment_insets(v);         /* the intrinsic size is the alignment rect's */
                 for (int axis = 0; axis < 2; axis++) {
                     double want = axis ? ics.height : ics.width;
                     if (want < 0) continue;
+                    want += axis ? ai.top + ai.bottom : ai.left + ai.right;
                     al_raw(&al, 1, &x[2 + axis], &one, -want, CW_GE, al_strength(v->_resist[axis]));
                     al_raw(&al, 1, &x[2 + axis], &one, -want, CW_LE, al_strength(v->_hug[axis]));
                 }
@@ -913,12 +966,14 @@ static void al_solve_root(UIView *root) {
 }
 /* engine inputs are tracked globally, so a dirty engine re-solves every root given */
 void isim_ui_layout_roots(NSArray<UIView *> *roots) {
+    isim_ui_update_constraints_pass();                   /* UIViewExtras.m: updateConstraints before solving */
     for (int round = 0; round < 3 && al_dirty; round++) {
         al_dirty = NO;
         for (UIView *r in roots) al_solve_root(r);
     }
 }
 void isim_ui_layout_window(UIView *root) {
+    isim_ui_update_constraints_pass();
     if (!al_dirty) return;
     al_dirty = NO;
     al_solve_root(root);

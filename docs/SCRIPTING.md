@@ -75,7 +75,7 @@ extension's view is drawn at the top of the card.
 
 | Command | What it does |
 |---|---|
-| `tap X Y` | tap a point |
+| `tap X Y` | tap a point (a tap on the status bar, e.g. `tap 200 20`, scrolls the scroll view with `scrollsToTop` to the top, as on iOS; with none, the tap reaches the app) |
 | `tapid ID` | tap the view whose `accessibilityIdentifier` is ID |
 | `taptext TEXT` | tap the view that shows TEXT |
 | `holdid ID S` | press and hold a view for S seconds |
@@ -97,7 +97,7 @@ extension's view is drawn at the top of the card.
 |---|---|
 | `type TEXT` | type text into the focused field |
 | `key NAME` | press a key: `backspace`, `return`, `tab`, `escape`, arrows, letters, digits, … |
-| `keydown NAME` / `keyup NAME` | press or release a hardware key (for `pressesBegan`, `GCKeyboard`) |
+| `keydown NAME` / `keyup NAME` | press or release a hardware key (for `pressesBegan`, `GCKeyboard`): letters, digits, `space`, `return`, `escape`, `tab`, `backspace`, arrows (`up`, `down`, `left`, `right`), `home`, `end`, `pageup`, `pagedown`, modifiers (`shift`, `ctrl`, `alt`, `cmd`). A key nobody handles scrolls the main scroll view (`allowsKeyboardScrolling`) |
 | `compose TEXT` | marked (composing) text, as from an input method |
 | `dictate TEXT` · `dictate fail` | dictation: TEXT is what was said into the keyboard's mic (it starts listening if needed; "comma", "period", "new line", … become punctuation); `fail` reports a recognition failure |
 | `scribble X Y TEXT` | Scribble (iPad): handwrite TEXT with Apple Pencil at (X, Y), into the text input there |

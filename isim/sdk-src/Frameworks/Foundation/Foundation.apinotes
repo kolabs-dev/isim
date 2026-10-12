@@ -84,6 +84,8 @@ Classes:
   SwiftName: PropertyListSerialization
 - Name: NSDateComponents
   SwiftBridge: Foundation.DateComponents
+- Name: NSDateInterval
+  SwiftBridge: Foundation.DateInterval
 - Name: NSURL
   SwiftBridge: Foundation.URL
 - Name: NSIndexPath

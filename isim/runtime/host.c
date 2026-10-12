@@ -1314,10 +1314,11 @@ static int script_step(struct isim_event *ev) {
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
     } else if ((!strcmp(cmd, "keydown") || !strcmp(cmd, "keyup")) && sscanf(args, " %63[^; ]", arg) == 1) {
         /* hardware key press/release by name (GameController's GCKeyboard): a-z, 0-9, space, return, escape, tab,
-           backspace, up, down, left, right, shift, ctrl, alt, cmd. pad = USB HID usage, key = SDL keycode */
+           backspace, up, down, left, right, home, end, pageup, pagedown, shift, ctrl, alt, cmd. pad = USB HID usage, key = SDL keycode */
         static const struct { const char *n; int hid, key; } names[] = {
             { "space", 44, ' ' }, { "return", 40, 13 }, { "escape", 41, 27 }, { "tab", 43, 9 }, { "backspace", 42, 8 },
             { "right", 79, 0x4000004f }, { "left", 80, 0x40000050 }, { "down", 81, 0x40000051 }, { "up", 82, 0x40000052 },
+            { "home", 74, 0x4000004a }, { "pageup", 75, 0x4000004b }, { "end", 77, 0x4000004d }, { "pagedown", 78, 0x4000004e },
             { "ctrl", 224, 0x400000e0 }, { "shift", 225, 0x400000e1 }, { "alt", 226, 0x400000e2 }, { "cmd", 227, 0x400000e3 } };
         int hid = 0, key = 0;
         if (!arg[1] && arg[0] >= 'a' && arg[0] <= 'z') { hid = 4 + arg[0] - 'a'; key = arg[0]; }

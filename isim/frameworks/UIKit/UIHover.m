@@ -568,4 +568,5 @@ void isim_ui_hover(double x, double y, BOOL exited) {
     for (UIHoverGestureRecognizer *g in [hovering copy]) if (![now containsObject:g]) { [g _isim_hoverAt:wp inside:NO]; [hovering removeObject:g]; }
     for (UIHoverGestureRecognizer *g in now) { [g _isim_hoverAt:wp inside:YES]; [hovering addObject:g]; }
     update_pointer(p, hit, exited);
+    isim_ui_set_hovered_view(exited ? nil : hit);
 }

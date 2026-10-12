@@ -257,7 +257,7 @@ NSNotificationName const UIScreenReferenceDisplayModeStatusDidChangeNotification
 - (void)viewDidDisappear:(BOOL)a {}
 - (void)viewWillLayoutSubviews {}
 - (void)viewDidLayoutSubviews {}
-- (void)updateViewConstraints {}
+- (void)updateViewConstraints { [self.viewIfLoaded updateConstraints]; }     /* (the update constraints pass, UIViewExtras.m) */
 - (void)didReceiveMemoryWarning {}
 - (void)setTitle:(NSString *)t { _title = [t copy]; self.navigationItem.title = t; }
 - (UINavigationItem *)navigationItem { if (!_navItem) _navItem = [UINavigationItem new]; return _navItem; }
@@ -917,11 +917,35 @@ static void premove_second_finger(const struct isim_event *ev) {
     [t _isim_setPhase:UITouchPhaseMoved location:CGPointMake(ev->x - wf.origin.x, ev->y - wf.origin.y) time:ev->timestamp];
     premoved = t;
 }
+/* a tap on the status bar scrolls the scroll view with scrollsToTop to its top (UIScrollView.m); held until the finger
+   lifts or moves: a drag, or a tap with nothing to scroll, reaches the app as before */
+static BOOL sb_pending, sb_replaying;
+static struct isim_event sb_down;
+static BOOL in_status_bar(CGPoint p) {
+    UIWindow *kw = UIApplication.sharedApplication.keyWindow;
+    CGRect f = kw.windowScene.statusBarManager.statusBarFrame;
+    return f.size.height > 0 && p.y >= 0 && p.y < f.size.height && p.x >= 0 && p.x < kw.frame.size.width;
+}
+static void handle_touch(const struct isim_event *ev);
+static BOOL status_bar_touch(const struct isim_event *ev) {
+    int finger = ev->pad == 1 ? 1 : 0;
+    if (!sb_pending) {
+        if (synthesizing || sb_replaying || finger || ev->type != ISIM_EV_TOUCH_DOWN || active_touches.count || !in_status_bar(CGPointMake(ev->x, ev->y))) return NO;
+        sb_pending = YES; sb_down = *ev;
+        return YES;
+    }
+    if (!finger && ev->type == ISIM_EV_TOUCH_MOVE && hypot(ev->x - sb_down.x, ev->y - sb_down.y) <= 10) return YES;
+    sb_pending = NO;
+    if (!finger && ev->type == ISIM_EV_TOUCH_UP && isim_ui_status_bar_tap(UIApplication.sharedApplication.keyWindow)) return YES;
+    sb_replaying = YES; handle_touch(&sb_down); sb_replaying = NO;   /* not a status bar tap: the touch goes to the app after all */
+    return NO;
+}
 static void handle_touch(const struct isim_event *ev) {
     if (!synthesizing && isim_ui_touch_filtered(ev)) return;              /* VoiceOver, drag sessions (UIKitInputPrivate.h) */
+    if (!active_touches) active_touches = [NSMutableDictionary dictionary];
+    if (status_bar_touch(ev)) return;
     CGPoint p = CGPointMake(ev->x, ev->y);
     int finger = ev->pad == 1 ? 1 : 0;
-    if (!active_touches) active_touches = [NSMutableDictionary dictionary];
     if (ev->type == ISIM_EV_TOUCH_DOWN && active_touches[@(finger)]) {    /* a lost up: end the old touch first */
         struct isim_event up = *ev; up.type = ISIM_EV_TOUCH_UP; handle_touch(&up);
     }
@@ -947,6 +971,8 @@ static void handle_touch(const struct isim_event *ev) {
         { extern void isim_ui_attribution_touch(UIWindow *, CGPoint); isim_ui_attribution_touch(w, CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y)); }
         if (!w.isKeyWindow && isim_ui_scenes_split() && w.windowScene && w.windowLevel == UIWindowLevelNormal) [w makeKeyWindow];   /* the touched side of a split view */
         cur_touch = [[UITouch alloc] initWithIsimView:hit window:w location:CGPointMake(p.x - w.frame.origin.x, p.y - w.frame.origin.y) time:ev->timestamp];
+        UIView *kept = isim_ui_scroll_touch_target(hit, cur_touch);     /* touchesShouldBegin:withEvent:inContentView: NO */
+        if (kept != hit) { hit = kept; [cur_touch _isim_setView:hit]; }
         [cur_touch _isim_setFinger:finger];
         if (!strcmp(ev->text, "pointer")) [cur_touch _isim_setPointer];   /* before recognizers are asked (shouldReceiveTouch) */
         [active_touches removeAllObjects];
@@ -965,7 +991,9 @@ static void handle_touch(const struct isim_event *ev) {
         for (UIView *v = hit; v; v = v.superview) {
             for (UIGestureRecognizer *g in v.gestureRecognizers) {
                 if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]] && !g._isim_takesControlTaps)) continue;
-                if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
+                if ([v isKindOfClass:[UIScrollView class]] && g == ((UIScrollView *)v).panGestureRecognizer) {
+                    if (!isim_ui_scroll_may_take((UIScrollView *)v, hit, !(aboveControl && dragControl))) continue;   /* touchesShouldCancelInContentView: */
+                } else if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
                 id<UIGestureRecognizerDelegate> gd = g.delegate;
                 if (![g _isim_allowsTouch:cur_touch]) continue;              /* allowedTouchTypes */
                 if ([gd respondsToSelector:@selector(gestureRecognizer:shouldReceiveTouch:)] && ![gd gestureRecognizer:g shouldReceiveTouch:cur_touch]) continue;

@@ -271,9 +271,13 @@ static void set_state_image(NSMutableDictionary *d, UIImage *i, UIControlState s
     fill(UIColor.separatorColor, 46.5, 8, 1, 16, 0, 1);
     BOOL canDec = self.enabled && (_wraps || _value > _minimumValue), canInc = self.enabled && (_wraps || _value < _maximumValue);
     UIColor *c = UIColor.labelColor;
-    fill(c, 23.5 - 7, 15.25, 14, 1.5, 0.75, canDec ? 1 : 0.3);                       /* − */
-    fill(c, 70.5 - 7, 15.25, 14, 1.5, 0.75, canInc ? 1 : 0.3);                       /* + */
-    fill(c, 70.5 - 0.75, 9, 1.5, 14, 0.75, canInc ? 1 : 0.3);
+    UIImage *dec = [self decrementImageForState:canDec ? (_pressed < 0 ? UIControlStateHighlighted : UIControlStateNormal) : UIControlStateDisabled];
+    UIImage *inc = [self incrementImageForState:canInc ? (_pressed > 0 ? UIControlStateHighlighted : UIControlStateNormal) : UIControlStateDisabled];
+    if (dec) [dec _isim_drawInRect:CGRectMake(round(23.5 - dec.size.width / 2), round(16 - dec.size.height / 2), dec.size.width, dec.size.height) tint:c alpha:canDec ? 1 : 0.3];   /* custom glyphs */
+    else fill(c, 23.5 - 7, 15.25, 14, 1.5, 0.75, canDec ? 1 : 0.3);                  /* − */
+    if (inc) [inc _isim_drawInRect:CGRectMake(round(70.5 - inc.size.width / 2), round(16 - inc.size.height / 2), inc.size.width, inc.size.height) tint:c alpha:canInc ? 1 : 0.3];
+    else { fill(c, 70.5 - 7, 15.25, 14, 1.5, 0.75, canInc ? 1 : 0.3);                 /* + */
+           fill(c, 70.5 - 0.75, 9, 1.5, 14, 0.75, canInc ? 1 : 0.3); }
 }
 @end
 
@@ -346,16 +350,23 @@ const NSInteger UISegmentedControlNoSegment = -1;
     isim_ui_set_needs_display();
 }
 - (void)setSelectedSegmentTintColor:(UIColor *)c { _selectedSegmentTintColor = c; [self _placeThumb]; }
-- (void)insertSegmentWithTitle:(NSString *)t atIndex:(NSUInteger)i animated:(BOOL)a { [_items insertObject:t ?: @"" atIndex:MIN(i, _items.count)]; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
-- (void)insertSegmentWithImage:(UIImage *)img atIndex:(NSUInteger)i animated:(BOOL)a { if (img) [_items insertObject:img atIndex:MIN(i, _items.count)]; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
+- (void)insertSegmentWithTitle:(NSString *)t atIndex:(NSUInteger)i animated:(BOOL)a {
+    i = MIN(i, _items.count); [_items insertObject:t ?: @"" atIndex:i]; [self _isim_segmentInsertedAt:i];
+    [self invalidateIntrinsicContentSize]; [self setNeedsLayout];
+}
+- (void)insertSegmentWithImage:(UIImage *)img atIndex:(NSUInteger)i animated:(BOOL)a {
+    if (!img) return;
+    i = MIN(i, _items.count); [_items insertObject:img atIndex:i]; [self _isim_segmentInsertedAt:i];
+    [self invalidateIntrinsicContentSize]; [self setNeedsLayout];
+}
 - (void)removeSegmentAtIndex:(NSUInteger)i animated:(BOOL)a {
     if (i >= _items.count) return;
-    [_items removeObjectAtIndex:i];
+    [_items removeObjectAtIndex:i]; [self _isim_segmentRemovedAt:i];
     if (_selectedSegmentIndex == (NSInteger)i) _selectedSegmentIndex = UISegmentedControlNoSegment;
     else if (_selectedSegmentIndex > (NSInteger)i) _selectedSegmentIndex--;
     [self invalidateIntrinsicContentSize]; [self setNeedsLayout];
 }
-- (void)removeAllSegments { [_items removeAllObjects]; _selectedSegmentIndex = UISegmentedControlNoSegment; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
+- (void)removeAllSegments { [_items removeAllObjects]; [self _isim_segmentsRemoved]; _selectedSegmentIndex = UISegmentedControlNoSegment; [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
 - (void)setTitle:(NSString *)t forSegmentAtIndex:(NSUInteger)i { if (i < _items.count) { _items[i] = t ?: @""; isim_ui_set_needs_display(); } }
 - (NSString *)titleForSegmentAtIndex:(NSUInteger)i { return i < _items.count && [_items[i] isKindOfClass:[NSString class]] ? _items[i] : nil; }
 - (void)setImage:(UIImage *)img forSegmentAtIndex:(NSUInteger)i { if (i < _items.count && img) { _items[i] = img; isim_ui_set_needs_display(); } }
@@ -363,6 +374,12 @@ const NSInteger UISegmentedControlNoSegment = -1;
 - (void)setEnabled:(BOOL)e forSegmentAtIndex:(NSUInteger)i { if (e) [_disabled removeObject:@(i)]; else [_disabled addObject:@(i)]; isim_ui_set_needs_display(); }
 - (BOOL)isEnabledForSegmentAtIndex:(NSUInteger)i { return ![_disabled containsObject:@(i)]; }
 - (void)setWidth:(CGFloat)w forSegmentAtIndex:(NSUInteger)i { _widths[@(i)] = @(w); [self setNeedsLayout]; }
+- (CGFloat)_isim_explicitWidthForSegment:(NSUInteger)i { return _widths[@(i)].doubleValue; }
+/* a value change also runs the selected segment's action */
+- (void)_isim_sendEvents:(UIControlEvents)ev withEvent:(UIEvent *)event {
+    if (ev & UIControlEventValueChanged) [self _isim_runSegmentAction];
+    [super _isim_sendEvents:ev withEvent:event];
+}
 - (NSInteger)_indexAt:(CGPoint)p { for (NSUInteger i = 0; i < _items.count; i++) if (p.x < CGRectGetMaxX([self _segmentRect:i])) return (NSInteger)i; return (NSInteger)_items.count - 1; }
 - (BOOL)beginTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
     _pressedIndex = [self _indexAt:[t locationInView:self]];
@@ -406,6 +423,7 @@ const NSInteger UISegmentedControlNoSegment = -1;
 - (void)_isim_drawOverlay {           /* titles draw above the sliding selection */
     for (NSUInteger i = 0; i < _items.count; i++) {
         CGRect r = [self _segmentRect:i];
+        CGSize off = [self contentOffsetForSegmentAtIndex:i]; r = CGRectOffset(r, off.width, off.height);
         BOOL sel = (NSInteger)i == _selectedSegmentIndex && !_momentary;
         double a = (!self.enabled || ![self isEnabledForSegmentAtIndex:i]) ? 0.3 : (_pressedIndex == (NSInteger)i && !sel ? 0.5 : 1);
         id it = _items[i];
@@ -433,6 +451,16 @@ const NSInteger UISegmentedControlNoSegment = -1;
 - (void)setProgress:(float)p animated:(BOOL)a { self.progress = p; }
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size; double r = _progressViewStyle == UIProgressViewStyleBar ? 0 : s.height / 2;
+    UIImage *track = self.trackImage, *bar = self.progressImage;          /* custom images, stretched */
+    if (track || bar) {
+        if (track) [track _isim_drawInRect:CGRectMake(0, 0, s.width, s.height) tint:nil alpha:1];
+        if (bar && _progress > 0) [bar _isim_drawInRect:CGRectMake(0, 0, s.width * _progress, s.height) tint:nil alpha:1];
+        if (track && bar) return;
+        if (!track) fill(_trackTintColor ?: UIColor.tertiarySystemFillColor, 0, 0, s.width, s.height, r, 1);
+        if (!bar && _progress > 0) fill(_progressTintColor ?: tint_of(self), 0, 0, s.width * _progress, s.height, r, 1);
+        if (!track && bar && _progress > 0) [bar _isim_drawInRect:CGRectMake(0, 0, s.width * _progress, s.height) tint:nil alpha:1];
+        return;
+    }
     fill(_trackTintColor ?: (_progressViewStyle == UIProgressViewStyleBar ? UIColor.clearColor : UIColor.tertiarySystemFillColor), 0, 0, s.width, s.height, r, 1);
     if (_progress > 0) fill(_progressTintColor ?: tint_of(self), 0, 0, s.width * _progress, s.height, r, 1);
 }
@@ -514,25 +542,97 @@ BOOL isim_ui_display_links_active(void) { for (CADisplayLink *l in display_links
 @end
 
 /* ================= UIPageControl ================= */
-@implementation UIPageControl
+@implementation UIPageControl { CGPoint _down; }
 - (instancetype)initWithFrame:(CGRect)f { if ((self = [super initWithFrame:f])) {} return self; }
-- (CGSize)sizeForNumberOfPages:(NSInteger)n { return CGSizeMake(n > 0 ? n * 16 + 16 : 0, 26); }
+/* top-to-bottom / bottom-to-top lay the indicators out vertically; right-to-left (or natural in a right-to-left
+   layout) and bottom-to-top reverse them */
+- (BOOL)_vertical { UIPageControlDirection d = self.direction; return d == UIPageControlDirectionTopToBottom || d == UIPageControlDirectionBottomToTop; }
+- (BOOL)_reversed {
+    UIPageControlDirection d = self.direction;
+    return d == UIPageControlDirectionRightToLeft || d == UIPageControlDirectionBottomToTop
+        || (d == UIPageControlDirectionNatural && self.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft);
+}
+- (BOOL)_progressShown { UIPageControlProgress *p = self.progress; return p && p.progressVisible; }
+- (CGSize)sizeForNumberOfPages:(NSInteger)n {
+    CGFloat along = n > 0 ? n * 16 + 16 + ([self _progressShown] ? 16 : 0) : 0;
+    return [self _vertical] ? CGSizeMake(n > 0 ? 26 : 0, along) : CGSizeMake(along, 26);
+}
 - (CGSize)intrinsicContentSize { return [self sizeForNumberOfPages:_numberOfPages]; }
 - (CGSize)sizeThatFits:(CGSize)s { return [self intrinsicContentSize]; }
 - (void)setNumberOfPages:(NSInteger)n { _numberOfPages = MAX(0, n); if (_currentPage >= _numberOfPages) _currentPage = MAX(0, _numberOfPages - 1); [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
-- (void)setCurrentPage:(NSInteger)p { _currentPage = MAX(0, MIN(p, _numberOfPages - 1)); isim_ui_set_needs_display(); }
-- (void)endTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
-    BOOL right = [t locationInView:self].x > self.bounds.size.width / 2;
-    NSInteger p = _currentPage + (right ? 1 : -1);
-    if (p >= 0 && p < _numberOfPages) { self.currentPage = p; [self _isim_sendEvents:UIControlEventValueChanged withEvent:e]; }
+- (void)setCurrentPage:(NSInteger)p {
+    NSInteger was = _currentPage;
+    _currentPage = MAX(0, MIN(p, _numberOfPages - 1));
+    if (was != _currentPage) [self.progress _isim_pageChanged];
+    isim_ui_set_needs_display();
 }
+/* the indicators' rects along the axis (the current one stretched while a progress shows) */
+- (CGRect)_indicatorRect:(NSInteger)i {
+    CGSize s = self.bounds.size; BOOL v = [self _vertical], prog = [self _progressShown];
+    double extra = prog ? 16 : 0, total = _numberOfPages * 16 - 9 + extra, len = v ? s.height : s.width, start = (len - total) / 2;
+    NSInteger k = [self _reversed] ? _numberOfPages - 1 - i : i, cur = [self _reversed] ? _numberOfPages - 1 - _currentPage : _currentPage;
+    double pos = start + k * 16 + (prog && k > cur ? extra : 0), size = 7 + (prog && i == _currentPage ? extra : 0), cross = (v ? s.width : s.height) / 2 - 3.5;
+    return v ? CGRectMake(cross, pos, 7, size) : CGRectMake(pos, cross, size, 7);
+}
+- (NSInteger)_pageAt:(CGPoint)p {
+    NSInteger best = _currentPage; double bd = INFINITY;
+    for (NSInteger i = 0; i < _numberOfPages; i++) {
+        CGRect r = [self _indicatorRect:i]; double d = [self _vertical] ? fabs(p.y - CGRectGetMidY(r)) : fabs(p.x - CGRectGetMidX(r));
+        if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+}
+- (BOOL)beginTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e { _down = [t locationInView:self]; [self _isim_setInteractionState:UIPageControlInteractionStateDiscrete]; return YES; }
+/* dragging (continuous interaction) scrubs to the page under the finger */
+- (BOOL)continueTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
+    CGPoint p = [t locationInView:self];
+    double moved = [self _vertical] ? fabs(p.y - _down.y) : fabs(p.x - _down.x);
+    if (self.interactionState != UIPageControlInteractionStateContinuous && (!self.allowsContinuousInteraction || moved < 10)) return YES;
+    if (self.interactionState != UIPageControlInteractionStateContinuous) { [self _isim_setInteractionState:UIPageControlInteractionStateContinuous]; NSLog(@"isim: page control scrubbing"); }
+    NSInteger i = [self _pageAt:p];
+    if (i != _currentPage) { self.currentPage = i; [self _isim_sendEvents:UIControlEventValueChanged withEvent:e]; }
+    return YES;
+}
+- (void)endTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
+    BOOL discrete = self.interactionState == UIPageControlInteractionStateDiscrete;
+    [self _isim_setInteractionState:UIPageControlInteractionStateNone];
+    if (!discrete) return;
+    CGPoint p = [t locationInView:self];
+    BOOL after = [self _vertical] ? p.y > self.bounds.size.height / 2 : p.x > self.bounds.size.width / 2;
+    if ([self _reversed]) after = !after;
+    NSInteger n = _currentPage + (after ? 1 : -1);
+    if (n >= 0 && n < _numberOfPages) { self.currentPage = n; [self _isim_sendEvents:UIControlEventValueChanged withEvent:e]; }
+}
+- (void)cancelTrackingWithEvent:(UIEvent *)e { [self _isim_setInteractionState:UIPageControlInteractionStateNone]; }
 - (void)_isim_drawContent {
     if (_numberOfPages <= 0 || (_hidesForSinglePage && _numberOfPages == 1)) return;
-    CGSize s = self.bounds.size; double total = _numberOfPages * 16 - 9, x = (s.width - total) / 2, y = s.height / 2 - 3.5;
+    UIPageControlBackgroundStyle bs = self.backgroundStyle;
+    if (bs == UIPageControlBackgroundStyleProminent || (bs == UIPageControlBackgroundStyleAutomatic && self.interactionState != UIPageControlInteractionStateNone)) {
+        CGRect a = [self _indicatorRect:0], z = [self _indicatorRect:_numberOfPages - 1], u = CGRectInset(CGRectUnion(a, z), -9.5, -9.5);   /* the platter */
+        fill([UIColor colorWithWhite:0.5 alpha:0.25], u.origin.x, u.origin.y, u.size.width, u.size.height, fmin(u.size.width, u.size.height) / 2, 1);
+    }
+    UIPageControlProgress *prog = [self _progressShown] ? self.progress : nil;
     for (NSInteger i = 0; i < _numberOfPages; i++) {
-        UIColor *c = i == _currentPage ? (_currentPageIndicatorTintColor ?: UIColor.labelColor) : (_pageIndicatorTintColor ?: UIColor.tertiaryLabelColor);
+        BOOL cur = i == _currentPage;
+        UIColor *track = _pageIndicatorTintColor ?: UIColor.tertiaryLabelColor, *c = cur ? (_currentPageIndicatorTintColor ?: UIColor.labelColor) : track;
+        CGRect r = [self _indicatorRect:i];
+        UIImage *img = cur ? ([self currentPageIndicatorImageForPage:i] ?: self.preferredCurrentPageIndicatorImage) : nil;
+        if (!img) img = [self indicatorImageForPage:i] ?: self.preferredIndicatorImage;
+        if (img && !(cur && prog)) {              /* custom indicator images, tinted */
+            CGSize is = img.size;
+            [img _isim_drawInRect:CGRectMake(round(CGRectGetMidX(r) - is.width / 2), round(CGRectGetMidY(r) - is.height / 2), is.width, is.height) tint:c alpha:1];
+            continue;
+        }
+        if (cur && prog) {                        /* the progress: a bar that fills along the stretched indicator */
+            fill(track, r.origin.x, r.origin.y, r.size.width, r.size.height, 3.5, 1);
+            double f = prog.currentProgress; BOOL v = [self _vertical], rev = [self _reversed];
+            CGRect fr = v ? CGRectMake(r.origin.x, rev ? CGRectGetMaxY(r) - r.size.height * f : r.origin.y, 7, r.size.height * f)
+                          : CGRectMake(rev ? CGRectGetMaxX(r) - r.size.width * f : r.origin.x, r.origin.y, r.size.width * f, 7);
+            if (f > 0) fill(c, fr.origin.x, fr.origin.y, fr.size.width, fr.size.height, 3.5, 1);
+            continue;
+        }
         double rgba[4]; isim_ui_rgba(c, rgba);
-        isim_gfx_fill_ellipse(x + i * 16, y, 7, 7, rgba);
+        isim_gfx_fill_ellipse(r.origin.x, r.origin.y, 7, 7, rgba);
     }
 }
 @end
@@ -698,6 +798,7 @@ static void collect(UIMenu *m, NSMutableArray<NSMutableArray *> *sections) {
     if (a.attributes & UIMenuElementAttributesDisabled) return;
     [self dismiss];
     [a setSender:self.source];
+    isim_ui_menu_chose(self.source, a);                  /* single selection: the chosen item's checkmark (UIControls.m) */
     UIActionHandler h = a.handler;
     if (h) dispatch_async(dispatch_get_main_queue(), ^{ h(a); });
 }

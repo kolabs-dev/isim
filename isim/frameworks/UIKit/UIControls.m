@@ -237,6 +237,7 @@
     [self _isim_sendEvents:UIControlEventTouchCancel withEvent:e];
 }
 - (void)_isim_touchUpInside {}
+- (NSMutableArray *)_isim_handlers { return _ta; }
 @end
 
 /* ================= UISymbolContentTransition (iOS 26) ================= */
@@ -275,11 +276,33 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     c.attributedTitle = _attributedTitle; c.attributedSubtitle = _attributedSubtitle; c.showsActivityIndicator = _showsActivityIndicator;
     c.imagePlacement = _imagePlacement; c.titlePadding = _titlePadding; c.titleAlignment = _titleAlignment;
     c.symbolContentTransition = _symbolContentTransition;
+    [self _isim_copyExtrasTo:c];
     return c;
 }
+- (NSDirectionalEdgeInsets)_isim_defaultContentInsets { return _style >= IsimGlass ? NSDirectionalEdgeInsetsMake(10, 16, 10, 16) : NSDirectionalEdgeInsetsMake(7, 12, 7, 12); }
 @end
 
 /* ================= UIButton ================= */
+/* the menu (of a menu tree) holding an action */
+static UIMenu *menu_holding(UIMenu *m, UIAction *a) {
+    for (UIMenuElement *e in m.children) {
+        if (e == a) return m;
+        if ([e isKindOfClass:[UIMenu class]]) { UIMenu *f = menu_holding((UIMenu *)e, a); if (f) return f; }
+    }
+    return nil;
+}
+static void leaves(UIMenu *m, NSMutableArray *out) { for (UIMenuElement *e in m.children) { if ([e isKindOfClass:[UIMenu class]]) leaves((UIMenu *)e, out); else if ([e isKindOfClass:[UIAction class]]) [out addObject:e]; } }
+/* an action chosen from a menu: in a single-selection menu (or a pop-up button's menu) it becomes the checked one */
+void isim_ui_menu_chose(UIView *source, UIAction *a) {
+    if (![source isKindOfClass:[UIButton class]]) return;
+    UIButton *b = (UIButton *)source;
+    UIMenu *holder = menu_holding(b.menu, a);
+    BOOL popup = b.changesSelectionAsPrimaryAction && b.showsMenuAsPrimaryAction;
+    if (!holder || (!popup && !(holder.options & UIMenuOptionsSingleSelection))) return;
+    NSMutableArray *all = [NSMutableArray array]; leaves(popup ? b.menu : holder, all);
+    for (UIAction *x in all) x.state = x == a ? UIMenuElementStateOn : UIMenuElementStateOff;
+    if (popup) { NSLog(@"isim: pop-up button shows %@", a.title); [b invalidateIntrinsicContentSize]; [b setNeedsUpdateConfiguration]; isim_ui_set_needs_display(); }
+}
 @implementation UIButton { NSMutableDictionary<NSNumber *, NSString *> *_titles; NSMutableDictionary<NSNumber *, UIColor *> *_colors; UILabel *_label;
     NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs;
     NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors;
@@ -305,11 +328,11 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (spin && !_spinner) { _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium]; _spinner.userInteractionEnabled = NO; _spinner.accessibilityIdentifier = @"isim-button-activity"; [self addSubview:_spinner]; }
     if (_spinner) {
         _spinner.hidden = !spin;
-        if (spin) { _spinner.color = [self _fg]; CGRect r = [self _isim_imageRect]; _spinner.frame = r; [_spinner startAnimating]; } else [_spinner stopAnimating];
+        if (spin) { UIConfigurationColorTransformer ct = _configuration.activityIndicatorColorTransformer; _spinner.color = ct ? ct([self _fg]) : [self _fg]; CGRect r = [self _isim_imageRect]; _spinner.frame = r; [_spinner startAnimating]; } else [_spinner stopAnimating];
     }
 }
 - (void)_isim_touchUpInside {
-    if (self.changesSelectionAsPrimaryAction) self.selected = !self.selected;      /* toggle buttons (iOS 15) */
+    if (self.changesSelectionAsPrimaryAction && !(self.showsMenuAsPrimaryAction && self.menu)) self.selected = !self.selected;      /* toggle buttons (iOS 15) */
     if (self.showsMenuAsPrimaryAction && self.menu) [self _isim_presentMenu:self.menu fromRect:self.bounds];
 }
 + (instancetype)buttonWithType:(UIButtonType)t { UIButton *b = [[self alloc] initWithFrame:CGRectZero]; b->_buttonType = t; [b _isim_applyType]; return b; }
@@ -417,9 +440,12 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (c) _symbolConfigs[@(s)] = c; else [_symbolConfigs removeObjectForKey:@(s)];
     [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
 }
+- (UIImageSymbolConfiguration *)_isim_symbolConfigurationForState:(UIControlState)s { return _symbolConfigs[@(s)] ?: _symbolConfigs[@(UIControlStateNormal)]; }
+/* setting a menu turns on the context menu interaction (a long press shows it) */
+- (void)setMenu:(UIMenu *)m { _menu = [m copy]; self.contextMenuInteractionEnabled = m != nil; }
 - (UIImage *)currentImage {
     UIImage *i = _configuration.image ?: [self imageForState:self.state];
-    UIImageSymbolConfiguration *c = _symbolConfigs[@(self.state)] ?: _symbolConfigs[@(UIControlStateNormal)];
+    UIImageSymbolConfiguration *c = [self _isim_symbolConfigurationForState:self.state] ?: _configuration.preferredSymbolConfigurationForImage;
     if (c && i.symbolImage) i = [i imageByApplyingSymbolConfiguration:c];
     else if (i.symbolImage && !i.symbolConfiguration) i = [i imageByApplyingSymbolConfiguration:[UIImageSymbolConfiguration configurationWithFont:[self _font]]];
     return i;
@@ -431,7 +457,17 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (_buttonType == UIButtonTypeSystem) return (s & UIControlStateDisabled) ? UIColor.tertiaryLabelColor : self.tintColor;
     return UIColor.whiteColor;
 }
-- (NSString *)currentTitle { return _configuration.attributedTitle.string ?: _configuration.title ?: [self titleForState:self.state]; }
+- (NSString *)currentTitle { return _configuration.attributedTitle.string ?: _configuration.title ?: [self _isim_popupTitle] ?: self.currentAttributedTitle.string ?: [self titleForState:self.state]; }
+/* a pop-up button (a menu as its primary action that changes selection) shows its selected item's title (the first
+   item's when none is selected) */
+- (NSString *)_isim_popupTitle {
+    if (!self.menu || !self.showsMenuAsPrimaryAction || !self.changesSelectionAsPrimaryAction) return nil;
+    NSMutableArray<UIAction *> *all = [NSMutableArray array]; leaves(self.menu, all);
+    for (UIAction *x in all) if (x.state == UIMenuElementStateOn) return x.title;
+    return all.firstObject.title;
+}
+/* the attributed title drawn: the configuration's, else (without a configuration) the state's */
+- (NSAttributedString *)_isim_attributedTitle { return _configuration ? _configuration.attributedTitle : self.currentAttributedTitle; }
 - (UIColor *)currentTitleColor { return [self titleColorForState:self.state]; }
 - (void)tintColorDidChange { isim_ui_set_needs_display(); }
 
@@ -440,12 +476,43 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 - (UIEdgeInsets)_insets {
     if (!_configuration) return _contentEdgeInsets;
     NSDirectionalEdgeInsets d = _configuration.contentInsets;
-    return UIEdgeInsetsMake(d.top, d.leading, d.bottom, d.trailing);
+    UIImage *ind = [self _isim_indicatorImage];
+    return UIEdgeInsetsMake(d.top, d.leading, d.bottom, d.trailing + (ind ? ind.size.width + 6 : 0));
+}
+/* the pop-up indicator after the title: asked for, or automatic for a menu button that changes its selection */
+- (UIImage *)_isim_indicatorImage {
+    UIButtonConfigurationIndicator k = _configuration.indicator;
+    BOOL show = k == UIButtonConfigurationIndicatorPopup || (k == UIButtonConfigurationIndicatorAutomatic && self.menu && self.showsMenuAsPrimaryAction && self.changesSelectionAsPrimaryAction);
+    if (!_configuration || !show) return nil;
+    return [UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:[self _font].pointSize * 0.75 weight:UIImageSymbolWeightSemibold]];
+}
+/* the configuration's title / subtitle attributes, through its transformers */
+- (NSDictionary *)_isim_textAttributes:(BOOL)subtitle {
+    NSDictionary *a = @{ NSFontAttributeName: subtitle ? [self _isim_subtitleFont] : [self _font], NSForegroundColorAttributeName: [self _fg] };
+    UIConfigurationTextAttributesTransformer t = subtitle ? _configuration.subtitleTextAttributesTransformer : _configuration.titleTextAttributesTransformer;
+    return t ? (t(a) ?: a) : a;
+}
+- (UIFont *)_isim_titleFont { if (!_configuration.titleTextAttributesTransformer) return [self _font]; UIFont *f = [self _isim_textAttributes:NO][NSFontAttributeName]; return [f isKindOfClass:[UIFont class]] ? f : [self _font]; }
+- (UIColor *)_isim_titleColor { if (!_configuration.titleTextAttributesTransformer) return [self _fg]; UIColor *c = [self _isim_textAttributes:NO][NSForegroundColorAttributeName]; return [c isKindOfClass:[UIColor class]] ? c : [self _fg]; }
+- (UIFont *)_isim_subtitleFont { return [UIFont systemFontOfSize:fmax(9, [self _font].pointSize - 2)]; }
+- (BOOL)_isim_hasSubtitle { return _configuration && (_configuration.attributedSubtitle.length || _configuration.subtitle.length); }
+- (CGSize)_isim_subtitleSize {
+    if (_configuration.attributedSubtitle.length) return isim_ui_measure_attributed(_configuration.attributedSubtitle, [self _isim_subtitleFont], [self _fg], 0, 1);
+    NSDictionary *a = [self _isim_textAttributes:YES];
+    return isim_ui_measure(_configuration.subtitle, a[NSFontAttributeName], 0, 1);
+}
+- (CGFloat)_isim_subtitleGap { return _configuration.titlePadding > 0 ? _configuration.titlePadding : 2; }
+- (UIColor *)_isim_imageTint { UIConfigurationColorTransformer t = _configuration.imageColorTransformer; return t ? t([self _fg]) : [self _fg]; }
+/* a selected toggle looks tinted (plain, gray), or filled (tinted) */
+- (BOOL)_isim_selectionLook {
+    IsimButtonStyle s = _configuration.style;
+    return _configuration && self.selected && _configuration.automaticallyUpdateForSelection && (s == IsimPlain || s == IsimGray || s == IsimTinted || s == IsimBordered);
 }
 - (UIColor *)_fg {
     if (!_configuration) return self.currentTitleColor;
     if (!self.enabled) return UIColor.tertiaryLabelColor;
     if (_configuration.baseForegroundColor) return _configuration.baseForegroundColor;
+    if ([self _isim_selectionLook]) return _configuration.style == IsimTinted ? UIColor.whiteColor : self.tintColor;
     if (_configuration.style == IsimGlass || _configuration.style == IsimClearGlass) return UIColor.labelColor;   /* glass glyphs are monochrome */
     return _configuration.style == IsimFilled || _configuration.style == IsimProminentGlass || _configuration.style == IsimProminentClearGlass ? UIColor.whiteColor : self.tintColor;
 }
@@ -453,6 +520,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 - (UIColor *)_bg {
     if (!_configuration) return nil;
     UIColor *base = _configuration.baseBackgroundColor;
+    if ([self _isim_selectionLook]) return _configuration.style == IsimTinted ? (base ?: self.tintColor) : [(base ?: self.tintColor) colorWithAlphaComponent:0.15];
     switch (_configuration.style) {
     case IsimFilled: return self.enabled ? (base ?: self.tintColor) : UIColor.tertiarySystemFillColor;
     case IsimTinted: return [(base ?: self.tintColor) colorWithAlphaComponent:0.15];
@@ -473,10 +541,21 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 - (CGFloat)_imagePadding { return _configuration ? (_configuration.imagePadding ?: 6) : 0; }
 - (CGSize)_isim_titleSize {
     NSString *t = self.currentTitle;
-    if (_configuration.attributedTitle) return isim_ui_measure_attributed(_configuration.attributedTitle, [self _font], [self _fg], 0, 1);
-    return t.length || !self.currentImage ? isim_ui_measure(t ?: @"", [self _font], 0, 1) : CGSizeZero;
+    NSAttributedString *at = [self _isim_attributedTitle];
+    CGSize s = at ? isim_ui_measure_attributed(at, [self _isim_titleFont], [self _isim_titleColor], 0, 1)
+        : t.length || !self.currentImage ? isim_ui_measure(t ?: @"", [self _isim_titleFont], 0, 1) : CGSizeZero;
+    if ([self _isim_hasSubtitle]) {               /* the subtitle under the title */
+        CGSize ss = [self _isim_subtitleSize];
+        s = CGSizeMake(fmax(s.width, ss.width), s.height + [self _isim_subtitleGap] + ss.height);
+    }
+    return s;
 }
-- (CGSize)_isim_imageSize { return _configuration.showsActivityIndicator ? CGSizeMake(20, 20) : self.currentImage.size; }
+- (CGSize)_isim_imageSize {
+    if (_configuration.showsActivityIndicator) return CGSizeMake(20, 20);
+    CGSize s = self.currentImage.size; CGFloat r = _configuration.imageReservation;
+    if (r > 0 && self.currentImage) { if ([self _isim_vertical]) s.height = fmax(s.height, r); else s.width = fmax(s.width, r); }   /* (the image centred in its reserved room) */
+    return s;
+}
 - (BOOL)_isim_vertical { return _configuration && (_configuration.imagePlacement == NSDirectionalRectEdgeTop || _configuration.imagePlacement == NSDirectionalRectEdgeBottom); }
 /* where the image (or activity indicator) goes, for the configuration's placement */
 - (CGRect)_isim_imageRect {
@@ -529,15 +608,25 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     }
     NSString *t = self.currentTitle;
     UIImage *img = _configuration.showsActivityIndicator ? nil : self.currentImage;
+    double fgAlpha = (bg && _configuration) ? 1 : hl;
+    if (self.highlighted && _buttonType == UIButtonTypeCustom && !_configuration) fgAlpha = 1;
+    UIImage *ind = [self _isim_indicatorImage];
+    if (ind) {                                     /* the pop-up indicator, at the trailing edge */
+        CGSize is = ind.size; UIConfigurationColorTransformer ct = _configuration.indicatorColorTransformer;
+        CGRect r = CGRectMake(round(b.size.width - _configuration.contentInsets.trailing - is.width), round((b.size.height - is.height) / 2), is.width, is.height);
+        [ind _isim_drawInRect:r tint:ct ? ct([self _fg]) : [self _fg] alpha:fgAlpha];
+    }
     if (!t.length && !img) return;
     UIEdgeInsets in = [self _insets];
     CGRect tr = UIEdgeInsetsInsetRect(b, in);
-    double fgAlpha = (bg && _configuration) ? 1 : hl;
-    if (self.highlighted && _buttonType == UIButtonTypeCustom && !_configuration) fgAlpha = 1;
-    if (_configuration && (_configuration.attributedTitle || _configuration.showsActivityIndicator || [self _isim_vertical] || _configuration.imagePlacement == NSDirectionalRectEdgeTrailing)) {
-        /* configuration layout: image / activity indicator at its placement, then the (attributed) title */
+    if (_configuration && (_configuration.attributedTitle || _configuration.showsActivityIndicator || [self _isim_vertical] || _configuration.imagePlacement == NSDirectionalRectEdgeTrailing
+                           || [self _isim_hasSubtitle] || _configuration.imageReservation > 0 || _configuration.imageColorTransformer || _configuration.titleAlignment != UIButtonConfigurationTitleAlignmentAutomatic)) {
+        /* configuration layout: image / activity indicator at its placement, then the (attributed) title and subtitle */
         CGRect ir = [self _isim_imageRect];
-        if (img) [self _isim_drawImage:img inRect:ir tint:[self _fg] alpha:fgAlpha];
+        if (img) {
+            CGSize is = img.size;
+            [self _isim_drawImage:img inRect:CGRectMake(round(CGRectGetMidX(ir) - is.width / 2), round(CGRectGetMidY(ir) - is.height / 2), is.width, is.height) tint:[self _isim_imageTint] alpha:fgAlpha];
+        }
         if (!t.length) return;
         CGSize ts = [self _isim_titleSize]; CGFloat pad = (img || _configuration.showsActivityIndicator) ? [self _imagePadding] : 0;
         BOOL hasImage = img || _configuration.showsActivityIndicator;
@@ -549,26 +638,41 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
             CGFloat x = !hasImage ? tr.origin.x + (tr.size.width - ceil(ts.width)) / 2 : _configuration.imagePlacement == NSDirectionalRectEdgeTrailing ? ir.origin.x - pad - ceil(ts.width) : CGRectGetMaxX(ir) + pad;
             title = CGRectMake(x, tr.origin.y + (tr.size.height - ts.height) / 2, ceil(ts.width) + 1, ts.height);
         }
-        NSTextAlignment al = [self _isim_vertical] ? NSTextAlignmentCenter : NSTextAlignmentLeft;
-        if (_configuration.attributedTitle) isim_ui_draw_attributed(_configuration.attributedTitle, [self _font], [self _fg], title, al, 1, fgAlpha);
-        else isim_ui_draw_text(t, [self _font], [self _fg], title, al, 1, fgAlpha);
+        UIButtonConfigurationTitleAlignment ta = _configuration.titleAlignment;
+        NSTextAlignment al = ta == UIButtonConfigurationTitleAlignmentLeading ? NSTextAlignmentLeft : ta == UIButtonConfigurationTitleAlignmentTrailing ? NSTextAlignmentRight
+            : ta == UIButtonConfigurationTitleAlignmentCenter || [self _isim_vertical] || !hasImage ? NSTextAlignmentCenter : NSTextAlignmentLeft;
+        if (ta != UIButtonConfigurationTitleAlignmentAutomatic && !hasImage) title = CGRectMake(tr.origin.x, title.origin.y, tr.size.width, title.size.height);
+        CGSize ss = [self _isim_hasSubtitle] ? [self _isim_subtitleSize] : CGSizeZero;
+        CGRect line = title; line.size.height -= ss.height ? ss.height + [self _isim_subtitleGap] : 0;
+        if (_configuration.attributedTitle) isim_ui_draw_attributed(_configuration.attributedTitle, [self _isim_titleFont], [self _isim_titleColor], line, al, 1, fgAlpha);
+        else isim_ui_draw_text(t, [self _isim_titleFont], [self _isim_titleColor], line, al, 1, fgAlpha);
+        if (ss.height) {
+            CGRect sub = CGRectMake(title.origin.x, CGRectGetMaxY(title) - ss.height, title.size.width, ss.height);
+            if (_configuration.attributedSubtitle.length) isim_ui_draw_attributed(_configuration.attributedSubtitle, [self _isim_subtitleFont], [self _fg], sub, al, 1, fgAlpha);
+            else { NSDictionary *a = [self _isim_textAttributes:YES]; UIColor *c = a[NSForegroundColorAttributeName];
+                   isim_ui_draw_text(_configuration.subtitle, a[NSFontAttributeName], [c isKindOfClass:[UIColor class]] ? c : [self _fg], sub, al, 1, fgAlpha * 0.85); }
+        }
         return;
     }
     if (img) {
         CGSize is = img.size;
-        CGFloat tw = t.length ? ceil(isim_ui_measure(t, [self _font], 0, 1).width) + [self _imagePadding] : 0;
+        NSAttributedString *at = [self _isim_attributedTitle];
+        CGFloat tw = t.length ? ceil(at ? isim_ui_measure_attributed(at, [self _isim_titleFont], [self _isim_titleColor], 0, 1).width : isim_ui_measure(t, [self _isim_titleFont], 0, 1).width) + [self _imagePadding] : 0;
         CGFloat x = tr.origin.x + (tr.size.width - is.width - tw) / 2;
         CGRect ir = CGRectMake(round(x), round(tr.origin.y + (tr.size.height - is.height) / 2), is.width, is.height);
         UIColor *tint = _configuration || _buttonType == UIButtonTypeSystem ? [self _fg] : self.tintColor;
         [self _isim_drawImage:img inRect:ir tint:tint alpha:fgAlpha];
         if (!t.length) return;
         tr = CGRectMake(ir.origin.x + is.width + [self _imagePadding], tr.origin.y, tw - [self _imagePadding], tr.size.height);
-        isim_ui_draw_text(t, [self _font], [self _fg], tr, NSTextAlignmentLeft, 1, fgAlpha);
+        if (at) isim_ui_draw_attributed(at, [self _isim_titleFont], [self _isim_titleColor], tr, NSTextAlignmentLeft, 1, fgAlpha);
+        else isim_ui_draw_text(t, [self _isim_titleFont], [self _isim_titleColor], tr, NSTextAlignmentLeft, 1, fgAlpha);
         return;
     }
     NSTextAlignment align = self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentLeft || self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentLeading ? NSTextAlignmentLeft
         : self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentRight || self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentTrailing ? NSTextAlignmentRight : NSTextAlignmentCenter;
-    isim_ui_draw_text(t, [self _font], [self _fg], tr, align, 1, fgAlpha);
+    NSAttributedString *at = [self _isim_attributedTitle];
+    if (at) isim_ui_draw_attributed(at, [self _isim_titleFont], [self _isim_titleColor], tr, align, 1, fgAlpha);
+    else isim_ui_draw_text(t, [self _isim_titleFont], [self _isim_titleColor], tr, align, 1, fgAlpha);
 }
 @end
 

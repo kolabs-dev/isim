@@ -179,7 +179,8 @@ CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<U
 + (void)animateWithSpringDuration:(NSTimeInterval)duration bounce:(CGFloat)bounce initialSpringVelocity:(CGFloat)velocity delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion
     NS_SWIFT_NAME(animate(springDuration:bounce:initialSpringVelocity:delay:options:animations:completion:)) API_AVAILABLE(ios(17.0));
 + (void)transitionWithView:(UIView *)view duration:(NSTimeInterval)duration options:(UIViewAnimationOptions)options animations:(void (^ _Nullable)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
-@property (class, nonatomic, getter=areAnimationsEnabled) BOOL animationsEnabled;
+@property (class, nonatomic, readonly) BOOL areAnimationsEnabled;
++ (void)setAnimationsEnabled:(BOOL)enabled;
 @property (class, nonatomic, readonly) NSTimeInterval inheritedAnimationDuration;
 @end
 /* snapshots: draws the view and its subviews into the current graphics context (UIGraphicsImageRenderer) */

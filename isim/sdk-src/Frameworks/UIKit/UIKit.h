@@ -103,3 +103,6 @@
 #import <UIKit/UITabBarExtras.h>
 #import <UIKit/UISearchExtras.h>
 #import <UIKit/UIDocumentInteractionController.h>
+#import <UIKit/UIViewExtras.h>
+#import <UIKit/UIControlExtras.h>
+#import <UIKit/UICalendarView.h>
