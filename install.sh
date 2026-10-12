@@ -3,6 +3,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/install.sh | bash
 #   curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/install.sh | bash -s -- 0.5.0   # a given version
+#   ... | bash -s -- --no-desktop      # no app launcher entry (headless machines, CI); also ISIM_NO_DESKTOP=1
 #
 # Releases are unpacked to $ISIM_INSTALL_DIR/<version> (default ~/.local/lib/isim), $ISIM_INSTALL_DIR/current points at the active
 # one and the `isim` command is linked into $ISIM_BIN_DIR (default ~/.local/bin). Device data (~/.local/share/isim)
@@ -11,7 +12,15 @@ set -euo pipefail
 REPO=${ISIM_REPO:-kolabs-dev/isim}
 ISIM_INSTALL_DIR=${ISIM_INSTALL_DIR:-$HOME/.local/lib/isim}
 BIN_DIR=${ISIM_BIN_DIR:-$HOME/.local/bin}
-want=${1:-latest}; want=${want#v}
+want=latest; desktop=1; [ "${ISIM_NO_DESKTOP:-0}" = 0 ] || desktop=0
+for a in "$@"; do
+  case "$a" in
+    --no-desktop) desktop=0 ;;
+    -*) printf 'isim install: unknown option %s\n' "$a" >&2; exit 2 ;;
+    *) want=$a ;;
+  esac
+done
+want=${want#v}
 
 say() { printf 'isim install: %s\n' "$*" >&2; }
 die() { say "$*"; exit 1; }
@@ -47,6 +56,13 @@ ln -sfn "$want" "$ISIM_INSTALL_DIR/current"
 mkdir -p "$BIN_DIR"
 ln -sfn "$ISIM_INSTALL_DIR/current/bin/isim" "$BIN_DIR/isim"
 say "isim $want is active: $BIN_DIR/isim -> $ISIM_INSTALL_DIR/current/bin/isim"
+# isim Simulator in the desktop's app launcher (releases with share/icons; older ones have no `isim desktop`)
+entry=${XDG_DATA_HOME:-$HOME/.local/share}/applications/dev.isim.Simulator.desktop
+if [ -d "$dest/share/icons" ]; then
+  [ "$desktop" = 0 ] || ISIM_INSTALL_DIR=$ISIM_INSTALL_DIR "$dest/bin/isim" desktop install >&2 || say "warning: could not add isim Simulator to the app launcher"
+elif [ -f "$entry" ]; then
+  rm -f "$entry"; say "isim $want has no desktop launcher; removed isim Simulator from the app launcher"
+fi
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
   *) say "add $BIN_DIR to your PATH, e.g.: echo 'export PATH=\"$BIN_DIR:\$PATH\"' >> ~/.bashrc" ;;

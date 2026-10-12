@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>isim (small sizes: 16-32 px)</title>
+  <!-- tile, nearly full bleed so the phone keeps a few pixels at 16 px -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#1f2b4a"/>
+  <!-- phone: thick body, no Dynamic Island -->
+  <rect x="112" y="32" width="288" height="448" rx="72" fill="#e9eef8"/>
+  <rect x="152" y="72" width="208" height="368" rx="40" fill="#0d1322"/>
+  <!-- heavier prompt -->
+  <path d="M190 196 L256 252 L190 308" fill="none" stroke="#8ab4ff" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="266" y="290" width="68" height="36" rx="8" fill="#8ab4ff"/>
+</svg>

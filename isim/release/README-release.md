@@ -20,8 +20,11 @@ Graphics, display and audio libraries come from the system; everything else is i
 curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/install.sh | bash
 ```
 
-This puts `isim` on your `PATH`; `isim update`, `isim versions` and `isim use VERSION` manage releases later. To use
-this tarball as is, keep the folder and link its CLI: `ln -s "$PWD/bin/isim" ~/.local/bin/isim`.
+This puts `isim` on your `PATH` and **isim Simulator** in your desktop's app launcher (`--no-desktop` skips the
+launcher; `isim desktop uninstall` removes it); `isim update`, `isim versions` and `isim use VERSION` manage releases
+later. To use
+this tarball as is, keep the folder and link its CLI: `ln -s "$PWD/bin/isim" ~/.local/bin/isim` (`bin/isim desktop install` adds
+it to the app launcher).
 
 ## Try it
 

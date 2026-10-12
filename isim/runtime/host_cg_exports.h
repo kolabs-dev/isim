@@ -4,6 +4,9 @@
 #pragma once
 struct isim_cg_fx;
 struct isim_ct_run;
+struct isim_ct_para;
+struct isim_ct_line;
+struct isim_ct_font_info;
 void *isim_cg_bitmap_create(void *data, int w, int h, int bpr, int fmt, int bpp);
 void isim_cg_target_bind(void *t);
 void isim_cg_target_unbind(void *t);
@@ -35,6 +38,19 @@ int isim_ct_run_glyphs(void *l, int line, int run, unsigned short *glyphs, doubl
 int isim_ct_line_index_at(void *l, int line, double x);
 double isim_ct_line_x_at(void *l, int line, int byte_index);
 void isim_ct_line_draw(void *l, int line, double x, double y, const double *tm, const double *rgba);
+void *isim_ct_layout_create_para(const char *markup, const struct isim_ct_para *p);
+void isim_ct_line_metrics(void *l, int line, struct isim_ct_line *out);
+void isim_ct_run_ink(void *l, int line, int run, int start, int len, double *rect);
+void *isim_ct_font_load(const char *family, int weight, int italic, int stretch, double size);
+void isim_ct_font_retain(void *f);
+void isim_ct_font_free(void *f);
+void isim_ct_font_info(void *f, struct isim_ct_font_info *out);
+int isim_ct_font_glyphs(void *f, const unsigned *cps, unsigned short *glyphs, int n);
+void isim_ct_font_glyph_metrics(void *f, const unsigned short *glyphs, int n, double *adv, double *rects);
+int isim_ct_font_glyph_path(void *f, unsigned short glyph, double *ops, int max);
+int isim_ct_font_features(void *f, unsigned *tags, int max);
+void isim_ct_font_draw(void *f, const unsigned short *glyphs, const double *pos, int n, double x, double y, const double *tm, const double *rgba);
+int isim_ct_font_faces(const char *family, char *out, int outlen);
 int isim_imgsrc_info(const void *data, long len, int *frames, int *w, int *h, char *type, int typelen, int *orientation, int *alpha, int *loops);
 int isim_imgsrc_frame(const void *data, long len, int index, double *delay);
 long isim_image_encode_gif(const int *handles, int n, const double *delays, int loops, unsigned char **out);
@@ -50,5 +66,8 @@ int isim_pdf_available(void);
     X(isim_cg_group_begin), X(isim_cg_group_end), X(isim_cg_fill_pattern), X(isim_cg_draw_image_tiled), \
     X(isim_ct_layout_create), X(isim_ct_layout_free), X(isim_ct_layout_lines), X(isim_ct_line_info), X(isim_ct_line_runs), \
     X(isim_ct_run_glyphs), X(isim_ct_line_index_at), X(isim_ct_line_x_at), X(isim_ct_line_draw), \
+    X(isim_ct_layout_create_para), X(isim_ct_line_metrics), X(isim_ct_run_ink), X(isim_ct_font_load), X(isim_ct_font_retain), X(isim_ct_font_free), \
+    X(isim_ct_font_info), X(isim_ct_font_glyphs), X(isim_ct_font_glyph_metrics), X(isim_ct_font_glyph_path), X(isim_ct_font_features), \
+    X(isim_ct_font_draw), X(isim_ct_font_faces), \
     X(isim_imgsrc_info), X(isim_imgsrc_frame), X(isim_image_encode_gif), \
     X(isim_pdf_open), X(isim_pdf_page_size), X(isim_pdf_page_render), X(isim_pdf_close), X(isim_pdf_available)

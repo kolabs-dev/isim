@@ -276,3 +276,28 @@ usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC24recipientRespo
 usr/lib/swift/libswiftGameKit.dylib _$s7GameKit16GKTurnBasedMatchC12participantsSayypGvgTj
 usr/lib/swift/libswiftGameKit.dylib _$s7GameKit16GKTurnBasedMatchC12participantsSayypGvgTq
 usr/lib/swift/libswiftGameKit.dylib _$s7GameKit16GKTurnBasedMatchC12participantsSayypGvpMV
+# 0.15 (issue #16): the private classes behind Core Text's layout objects (__NSCTLayout, __NSCTLine, __NSCTRun, __NSCTFrame,
+# __NSCTParagraphStyle) were reorganised for per-paragraph layout. Their names start with __NS and are in no header, so no
+# app can refer to them or their instance variables; nothing has to be rebuilt for these symbols.
+# Not a symbol, but a break all the same: CTParagraphStyleSpecifier had wrong values for ParagraphSpacing (10, Apple's 11),
+# ParagraphSpacingBefore (11, Apple's 12), MaximumLineHeight (14, Apple's 8) and MinimumLineHeight (15, Apple's 9). The
+# SDK now has Apple's values; apps built before 0.15 that pass those specifiers must be rebuilt (before 0.15 they had no
+# effect on layout).
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_CLASS_$___NSCTLayout
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTFrame._layout
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLayout._fromContext
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLayout._l
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLayout._nbytes
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLayout._s
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLayout._u16
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLine._asc
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLine._desc
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLine._layout
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLine._trailing
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTLine._width
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTParagraphStyle._align
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTParagraphStyle._lineHeightMultiple
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTParagraphStyle._paraSpacing
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTParagraphStyle._spacing
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTRun._line
+System/Library/Frameworks/CoreText.framework/CoreText _OBJC_METACLASS_$___NSCTLayout

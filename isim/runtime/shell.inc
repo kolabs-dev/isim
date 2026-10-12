@@ -501,12 +501,13 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     t0 = now();
     headless = getenv("ISIM_HEADLESS") && atoi(getenv("ISIM_HEADLESS"));
     if (getenv("ISIM_SCRIPT")) { script = strdup(getenv("ISIM_SCRIPT")); script_pos = script; }
+    if (!headless) app_identity();
     if (!headless && !SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "isim shell: SDL_Init failed: %s (headless)\n", SDL_GetError()); headless = 1; }
     if (!headless) {
         char t[256]; snprintf(t, sizeof t, "%s (isim)", dev.name);
         win = SDL_CreateWindow(t, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom), SDL_WINDOW_HIGH_PIXEL_DENSITY);
         if (!win) { fprintf(stderr, "isim shell: SDL_CreateWindow failed: %s\n", SDL_GetError()); headless = 1; }
-        else { px_scale = SDL_GetWindowPixelDensity(win) * zoom; SDL_StartTextInput(win); }
+        else { px_scale = SDL_GetWindowPixelDensity(win) * zoom; SDL_StartTextInput(win); window_icon(win); }
     }
     if (headless) px_scale = getenv("ISIM_SHOT_SCALE") ? atof(getenv("ISIM_SHOT_SCALE")) : 2;
     if (headless && !getenv("ISIM_AUDIO")) setenv("ISIM_MUTE", "1", 1);      /* headless runs (tests) are silent */

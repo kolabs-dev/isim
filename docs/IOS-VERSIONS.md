@@ -120,6 +120,7 @@ follow the selected version (verified for iOS 18, 26 and 27 under each `--os` by
 | Automatic observation tracking (`layoutSubviews`, `updateProperties`) | off | only with `UIObservationTrackingEnabled` | on | passthrough, verified (HelloUITabs) |
 | `UIBarButtonItem.badge`, `UIScrollEdgeEffect` | unavailable | unavailable | badges drawn; hard / soft edge effects | adapted, verified (HelloUITabs) |
 | Game Center game activities (`GKGameActivity`, `GKGameActivityDefinition`) | unavailable | unavailable | from `isim-GameCenter.json`; `isim gamecenter … activity` plays the Games app's part | adapted, verified (`tests/ui/test_gamecenter.py`) |
+| StoreKit win-back offers (`Message.Reason.winBackOffer`, the win-back sheet, the offer in `SubscriptionStoreView`), offer codes for one-time products | none | from `.storekit` `winbackOffers` / `codeOffers` | same | adapted, verified (`tests/ui/test_store.py`, `test_store_winback_ios17`) |
 
 ### Liquid Glass
 

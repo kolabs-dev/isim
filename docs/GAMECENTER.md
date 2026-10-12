@@ -123,21 +123,50 @@ definitions. Nothing is signed or verified by Apple.
   - `month=4`: one month lasts 4 s (other periods scale)
   - `renewal=10`: every period lasts 10 s
   - a TimeRate name, such as `monthlyRenewalEveryThirtySeconds`
-- Offer codes are the `codeOffers` of the `.storekit` file. You redeem one by typing its reference name or ID.
-- Promotional offer signatures are not checked.
+- Offer codes are the `codeOffers` of the `.storekit` file. You redeem one by typing its reference name or ID. Each
+  offer can be redeemed once, and its `eligibility` (`new`, `existing`, `expired` subscribers) applies. A current
+  subscriber gets the offer from the next renewal. Under iOS 18 and later, codes on one-time products give the product.
+- Promotional offer signatures are checked against the device's **subscription offers key**. `isim storekit offer-key`
+  prints its key ID and private key (PEM) for the server that signs offers. Both forms are checked: the ECDSA
+  signature over bundle ID, key ID, product, offer, app account token, nonce and timestamp, and the compact JWS. A
+  signature is valid for 24 hours and each nonce works once. Only existing and lapsed subscribers are eligible.
+  `ISIM_STOREKIT_OFFER_SIGNATURES=off` skips the check.
+- Billing issues: `isim storekit <app> billing-issue <group> on` makes renewals fail.
+  - With the billing grace period on (`.storekit` setting `_billingGracePeriodEnabled`, or
+    `ISIM_STOREKIT_BILLING_GRACE_PERIOD=1`), the customer keeps the subscription for 16 days (6 for weekly plans),
+    counted on the accelerated clock.
+  - Billing retry follows, up to 60 days. The subscription then expires with `.billingError`.
+  - isim sends the Billing Problem message (`StoreKit.Message`). Its Update Payment Method, or
+    `isim storekit <app> resolve <group>`, resolves the issue and the subscription renews.
+- Win-back offers (iOS 18 and later): a lapsed subscriber gets the win-back message. SubscriptionStoreView shows the
+  offer.
+- Apps that listen to `Message.messages` receive these messages and decide when to `display(in:)` them. Otherwise isim
+  shows them when they are due.
 - Refund requests are approved as soon as they are submitted.
-- The app receipt and every JWS are local and **unsigned**.
+- **Signing**, as in Xcode's local testing: each isim device has a P-256 key and a self-signed "isim StoreKit Testing"
+  certificate. Every JWS (transactions, renewal info, `AppTransaction`) is ES256 with that certificate in its `x5c`
+  header. The app receipt is a PKCS #7 container in Apple's ASN.1 receipt format, signed with the same key.
+  `isim storekit certificate [--der] [FILE]` exports the certificate. Server code validates against it, the way it
+  would against Xcode's `StoreKitTestCertificate.cer`. For example:
+  `openssl cms -verify -inform DER -in receipt -CAfile cert.pem -binary`. Apple never signed any of these values.
+- `SKOverlay` and `SKStoreProductViewController` show the app's listing from Apple's public lookup API
+  (`https://itunes.apple.com/lookup`). `ISIM_APPSTORE_LOOKUP_URL` replaces the endpoint, for example
+  `file:///fixtures/lookup-{id}.json`. Apps can't be installed from the App Store on isim.
 
-The ledger is `Library/isim/StoreKit/ledger.json` in the app container. `isim storekit` plays the part of
-Xcode's Transaction Manager. A running app picks up its changes within half a second:
+The purchase history belongs to the device's account: `ISIM_DATA/Library/isim/StoreKit/<bundle id>/ledger.json`. It
+outlives the app, so a reinstalled app gets its purchases back (and `AppStore.sync()` restores them). `isim storekit`
+plays the part of Xcode's Transaction Manager. A running app picks up its changes within half a second:
 
 ```
 isim storekit <app> list
 isim storekit <app> refund <transaction id>
 isim storekit <app> expire|cancel|resume <group id | product id | transaction id>
 isim storekit <app> billing-issue <group> on|off
+isim storekit <app> resolve <group>
 isim storekit <app> delete <transaction id>
 isim storekit <app> clear
+isim storekit certificate [--der] [FILE]
+isim storekit offer-key [--id|--pem]
 ```
 
 `<app>` is a bundle identifier, an `.app` path or an installed app's name. The device data is `ISIM_DATA`

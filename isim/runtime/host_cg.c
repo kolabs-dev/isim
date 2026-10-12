@@ -11,6 +11,10 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <math.h>
 #include <pango/pangocairo.h>
+#include <pango/pangofc-font.h>
+#include <hb.h>
+#include <hb-ot.h>
+#include <fontconfig/fontconfig.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +38,14 @@ struct isim_cg_fx {
     double mm[6], mx, my, mw, mh;
     int mask_luminance;
 };
-struct isim_ct_run { int start, len, glyphs, weight, italic, has_color; double x, width, size, rgba[4]; char family[96]; };
+struct isim_ct_run { int start, len, glyphs, weight, italic, has_color; double x, width, size, rgba[4]; char family[96];
+                     int stretch, rtl; double ascent, descent, leading; void *font; };
+struct isim_ct_para { double width, indent; int align, wrap, dir, single, tabs; double tab_pos[64]; int tab_align[64];
+                      char family[160]; int weight, italic; double size; };
+struct isim_ct_line { double ascent, descent, leading, width, trailing, ink[4]; int start, len, rtl, para_start; };
+struct isim_ct_font_info { double size, ascent, descent, leading, cap_height, x_height, underline_position, underline_thickness, slant_angle, bbox[4];
+                           int units_per_em, glyph_count, mono, color, weight, italic, stretch, face_weight, face_italic, face_width, synthetic;
+                           char family[96], style[64], psname[128], file[512]; };
 
 /* ---------------- pixel formats ---------------- */
 #define PX_PREMUL 0x1000
@@ -453,38 +464,82 @@ void isim_cg_draw_image_tiled(int hd, double sx, double sy, double sw, double sh
 }
 
 /* ---------------- Core Text: Pango layouts ---------------- */
-static PangoContext *ct_context(void) {
-    static PangoContext *ctx;
-    if (!ctx) {
-        ctx = pango_font_map_create_context(pango_cairo_font_map_get_default());
-        pango_cairo_context_set_resolution(ctx, 72);
+#define CT_SYSTEM_FAMILY "Adwaita Sans,Inter,Noto Sans,sans-serif"      /* the system font, as UIKit text */
+/* one context per base direction: natural (from the text), left-to-right, right-to-left */
+static PangoContext *ct_context_dir(int dir) {
+    static PangoContext *ctx[3];
+    int k = dir < 0 ? 0 : dir == 0 ? 1 : 2;
+    if (!ctx[k]) {
+        ctx[k] = pango_font_map_create_context(pango_cairo_font_map_get_default());
+        pango_cairo_context_set_resolution(ctx[k], 72);
         cairo_font_options_t *fo = cairo_font_options_create();
         cairo_font_options_set_antialias(fo, CAIRO_ANTIALIAS_GRAY);
         cairo_font_options_set_hint_style(fo, CAIRO_HINT_STYLE_SLIGHT);
         cairo_font_options_set_hint_metrics(fo, CAIRO_HINT_METRICS_OFF);
-        pango_cairo_context_set_font_options(ctx, fo);
+        pango_cairo_context_set_font_options(ctx[k], fo);
         cairo_font_options_destroy(fo);
+        pango_context_set_round_glyph_positions(ctx[k], FALSE);      /* Core Text positions glyphs at fractional advances */
+        if (k) pango_context_set_base_dir(ctx[k], k == 1 ? PANGO_DIRECTION_LTR : PANGO_DIRECTION_RTL);
     }
-    return ctx;
+    return ctx[k];
 }
+static PangoContext *ct_context(void) { return ct_context_dir(-1); }
 void *isim_ct_layout_create(const char *markup, double width, int align, double spacing, int single) {
-    PangoLayout *l = pango_layout_new(ct_context());
+    struct isim_ct_para p = { .width = width, .align = align == 1 ? 2 : align == 2 ? 1 : align, .dir = -1, .single = single ? 1 : 0, .tabs = -1 };
+    if (single >= 2) p.wrap = single == 2 ? 3 : single == 3 ? 5 : 4;
+    void *l = isim_ct_layout_create_para(markup, &p);
+    /* the old entry point aligns and spaces lines through Pango (CGContextShowText, UIKit-free callers) */
+    pango_layout_set_alignment(l, align == 1 ? PANGO_ALIGN_CENTER : align == 2 ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT);
+    if (spacing > 0) pango_layout_set_spacing(l, (int)(spacing * PANGO_SCALE));
+    return l;
+}
+void *isim_ct_layout_create_para(const char *markup, const struct isim_ct_para *p) {
+    PangoLayout *l = pango_layout_new(ct_context_dir(p->dir));
+    if (p->dir >= 0) pango_layout_set_auto_dir(l, FALSE);
     PangoFontDescription *fd = pango_font_description_new();
-    pango_font_description_set_family(fd, "Adwaita Sans,Inter,Noto Sans,sans-serif");   /* the system font, as UIKit text */
-    pango_font_description_set_absolute_size(fd, 12 * PANGO_SCALE);    /* CTFont's default size */
+    pango_font_description_set_family(fd, p->family[0] ? p->family : CT_SYSTEM_FAMILY);
+    pango_font_description_set_absolute_size(fd, (p->size > 0 ? p->size : 12) * PANGO_SCALE);    /* CTFont's default size */
+    if (p->weight) pango_font_description_set_weight(fd, p->weight);
+    if (p->italic) pango_font_description_set_style(fd, PANGO_STYLE_ITALIC);
     pango_layout_set_font_description(l, fd); pango_font_description_free(fd);
     pango_layout_set_markup(l, markup ? markup : "", -1);
-    if (single) pango_layout_set_single_paragraph_mode(l, TRUE);
-    if (width > 0) { pango_layout_set_width(l, (int)(width * PANGO_SCALE)); pango_layout_set_wrap(l, PANGO_WRAP_WORD_CHAR); }
-    /* single 2/3/4: one line truncated at the start / middle / end (CTLineCreateTruncatedLine) */
-    if (single >= 2 && width > 0) pango_layout_set_ellipsize(l, single == 2 ? PANGO_ELLIPSIZE_START : single == 3 ? PANGO_ELLIPSIZE_MIDDLE : PANGO_ELLIPSIZE_END);
-    pango_layout_set_alignment(l, align == 1 ? PANGO_ALIGN_CENTER : align == 2 ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT);
-    if (align == 3) pango_layout_set_justify(l, TRUE);
-    if (spacing > 0) pango_layout_set_spacing(l, (int)(spacing * PANGO_SCALE));
+    if (p->single) pango_layout_set_single_paragraph_mode(l, TRUE);
+    /* wrap: 0 words (characters when a word does not fit), 1 characters, 2 none (clip), 3/4/5 one line truncated
+     * at the start / end / middle */
+    if (p->width > 0 && p->wrap != 2) {
+        pango_layout_set_width(l, (int)(p->width * PANGO_SCALE));
+        pango_layout_set_wrap(l, p->wrap == 1 ? PANGO_WRAP_CHAR : PANGO_WRAP_WORD_CHAR);
+        if (p->wrap >= 3) pango_layout_set_ellipsize(l, p->wrap == 3 ? PANGO_ELLIPSIZE_START : p->wrap == 5 ? PANGO_ELLIPSIZE_MIDDLE : PANGO_ELLIPSIZE_END);
+    }
+    if (p->indent) pango_layout_set_indent(l, (int)(p->indent * PANGO_SCALE));
+    /* lines are placed by the caller (CTTextAlignment); Pango only justifies */
+    pango_layout_set_alignment(l, PANGO_ALIGN_LEFT);
+    if (p->align == 3) pango_layout_set_justify(l, TRUE);
+    if (p->tabs >= 0) {
+        PangoTabArray *ta = pango_tab_array_new(p->tabs ? p->tabs : 1, FALSE);
+        for (int i = 0; i < p->tabs && i < (int)(sizeof p->tab_pos / sizeof *p->tab_pos); i++) {
+            int a = p->tab_align[i];
+            pango_tab_array_set_tab(ta, i, a == 1 ? PANGO_TAB_RIGHT : a == 2 ? PANGO_TAB_CENTER : a == 5 ? PANGO_TAB_DECIMAL : PANGO_TAB_LEFT,
+                                    (int)(p->tab_pos[i] * PANGO_SCALE));
+            if (a == 5) pango_tab_array_set_decimal_point(ta, i, '.');
+        }
+        if (!p->tabs) pango_tab_array_set_tab(ta, 0, PANGO_TAB_LEFT, 0);
+        pango_layout_set_tabs(l, ta);
+        pango_tab_array_free(ta);
+    }
     return l;
 }
 void isim_ct_layout_free(void *l) { if (l) g_object_unref(l); }
 int isim_ct_layout_lines(void *l) { return pango_layout_get_line_count(l); }
+/* trailing whitespace width of a line */
+static double line_trailing(PangoLayout *l, PangoLayoutLine *ln) {
+    const char *text = pango_layout_get_text(l);
+    int end = ln->start_index + ln->length, k = end;
+    while (k > ln->start_index && (text[k - 1] == ' ' || text[k - 1] == '\t' || text[k - 1] == '\n' || text[k - 1] == '\r')) k--;
+    if (k >= end) return 0;
+    int xa, xb; pango_layout_line_index_to_x(ln, k, 0, &xa); pango_layout_line_index_to_x(ln, end, 0, &xb);
+    return fabs((double)(xb - xa)) / PANGO_SCALE;
+}
 void isim_ct_line_info(void *lp, int line, double *asc, double *desc, double *width, double *x, double *baseline, int *start, int *len, double *trailing) {
     PangoLayout *l = lp;
     PangoLayoutIter *it = pango_layout_get_iter(l);
@@ -496,15 +551,62 @@ void isim_ct_line_info(void *lp, int line, double *asc, double *desc, double *wi
     *x = (double)log.x / PANGO_SCALE; *baseline = (double)base / PANGO_SCALE;
     PangoRectangle lr; pango_layout_line_get_extents(ln, NULL, &lr); *width = (double)lr.width / PANGO_SCALE;
     *start = ln->start_index; *len = ln->length;
-    /* trailing whitespace width */
-    const char *text = pango_layout_get_text(l); double tw = 0;
-    int end = ln->start_index + ln->length, k = end;
-    while (k > ln->start_index && (text[k - 1] == ' ' || text[k - 1] == '\t' || text[k - 1] == '\n')) k--;
-    if (k < end) { int xa, xb; pango_layout_line_index_to_x(ln, k, 0, &xa); pango_layout_line_index_to_x(ln, end, 0, &xb); tw = fabs((double)(xb - xa)) / PANGO_SCALE; }
-    *trailing = tw;
+    *trailing = line_trailing(l, ln);
     pango_layout_iter_free(it);
 }
 static PangoLayoutLine *line_at(void *l, int line) { return pango_layout_get_line_readonly(l, line); }
+
+/* HarfBuzz font of a Pango font at 1 unit per font unit (variation coordinates kept); free with hb_font_destroy */
+static hb_font_t *unit_font(PangoFont *f, double *scale, double size) {
+    hb_font_t *hb = pango_font_get_hb_font(f);
+    if (!hb) return NULL;
+    hb_font_t *u = hb_font_create_sub_font(hb);
+    unsigned upem = hb_face_get_upem(hb_font_get_face(hb));
+    hb_font_set_scale(u, (int)upem, (int)upem);
+    *scale = size / (upem ? upem : 1000);
+    return u;
+}
+static double font_size(PangoFont *f) {
+    PangoFontDescription *fd = pango_font_describe(f);
+    double s = (double)pango_font_description_get_size(fd) / PANGO_SCALE;
+    pango_font_description_free(fd);
+    return s;
+}
+/* ascent, descent and line gap (Core Text leading) of a font, in points */
+static void font_extents(PangoFont *f, double *asc, double *desc, double *gap) {
+    double k; hb_font_t *u = unit_font(f, &k, font_size(f));
+    hb_font_extents_t e = { 0 };
+    if (u) { hb_font_get_h_extents(u, &e); hb_font_destroy(u); }
+    if (asc) *asc = e.ascender * k;
+    if (desc) *desc = -e.descender * k;
+    if (gap) *gap = e.line_gap * k;
+}
+void isim_ct_line_metrics(void *lp, int line, struct isim_ct_line *o) {
+    PangoLayout *l = lp;
+    PangoLayoutLine *ln = line_at(l, line);
+    memset(o, 0, sizeof *o);
+    if (!ln) return;
+    PangoRectangle ink, log; pango_layout_line_get_extents(ln, &ink, &log);
+    o->ascent = -(double)log.y / PANGO_SCALE; o->descent = (double)(log.y + log.height) / PANGO_SCALE;
+    o->width = (double)log.width / PANGO_SCALE;
+    o->ink[0] = (double)ink.x / PANGO_SCALE; o->ink[1] = -(double)(ink.y + ink.height) / PANGO_SCALE;     /* y-up */
+    o->ink[2] = (double)ink.width / PANGO_SCALE; o->ink[3] = (double)ink.height / PANGO_SCALE;
+    o->start = ln->start_index; o->len = ln->length;
+    o->trailing = line_trailing(l, ln);
+    o->rtl = ln->resolved_dir == PANGO_DIRECTION_RTL || ln->resolved_dir == PANGO_DIRECTION_WEAK_RTL;
+    o->para_start = ln->is_paragraph_start;
+    for (GSList *r = ln->runs; r; r = r->next) {
+        PangoGlyphItem *gi = r->data;
+        double gap = 0; font_extents(gi->item->analysis.font, NULL, NULL, &gap);
+        if (gap > o->leading) o->leading = gap;
+    }
+}
+/* glyph ids as Core Text reports them: Pango's empty glyph (zero-width, e.g. a line break) is 0xFFFF, unknown 0 */
+static unsigned short ct_glyph(PangoGlyph g) {
+    if (g == PANGO_GLYPH_EMPTY) return 0xffff;
+    if (g & PANGO_GLYPH_UNKNOWN_FLAG) return 0;
+    return (unsigned short)(g & 0xffff);
+}
 int isim_ct_line_runs(void *l, int line, struct isim_ct_run *out, int max) {
     PangoLayoutLine *ln = line_at(l, line); if (!ln) return 0;
     int n = 0; double x = 0;
@@ -518,6 +620,7 @@ int isim_ct_line_runs(void *l, int line, struct isim_ct_run *out, int max) {
             snprintf(o->family, sizeof o->family, "%s", pango_font_description_get_family(fd) ? pango_font_description_get_family(fd) : "");
             o->size = (double)pango_font_description_get_size(fd) / PANGO_SCALE;
             o->weight = pango_font_description_get_weight(fd); o->italic = pango_font_description_get_style(fd) != PANGO_STYLE_NORMAL;
+            o->stretch = pango_font_description_get_stretch(fd);
             pango_font_description_free(fd);
             for (GSList *a = gi->item->analysis.extra_attrs; a; a = a->next) {
                 PangoAttribute *at = a->data;
@@ -526,29 +629,48 @@ int isim_ct_line_runs(void *l, int line, struct isim_ct_run *out, int max) {
                     o->rgba[0] = c.red / 65535.0; o->rgba[1] = c.green / 65535.0; o->rgba[2] = c.blue / 65535.0; o->rgba[3] = 1; o->has_color = 1;
                 }
             }
+            font_extents(gi->item->analysis.font, &o->ascent, &o->descent, &o->leading);
+            o->rtl = gi->item->analysis.level & 1;
+            o->font = gi->item->analysis.font;
         }
         x += w; n++;
     }
     return n;
 }
-int isim_ct_run_glyphs(void *l, int line, int run, unsigned short *glyphs, double *pos, double *adv, int *idx, int max) {
-    PangoLayoutLine *ln = line_at(l, line); if (!ln) return 0;
-    double x = 0; int k = 0;
+static PangoGlyphItem *run_at(void *l, int line, int run, double *x) {
+    PangoLayoutLine *ln = line_at(l, line); if (!ln) return NULL;
+    int k = 0; *x = 0;
     for (GSList *r = ln->runs; r; r = r->next, k++) {
-        PangoGlyphItem *gi = r->data;
-        if (k != run) { x += (double)pango_glyph_string_get_width(gi->glyphs) / PANGO_SCALE; continue; }
-        int n = gi->glyphs->num_glyphs;
-        for (int i = 0; i < n && i < max; i++) {
-            PangoGlyphInfo *g = &gi->glyphs->glyphs[i];
-            if (glyphs) glyphs[i] = (unsigned short)(g->glyph & 0xffff);
-            if (pos) { pos[2 * i] = x + (double)g->geometry.x_offset / PANGO_SCALE; pos[2 * i + 1] = -(double)g->geometry.y_offset / PANGO_SCALE; }
-            if (adv) adv[i] = (double)g->geometry.width / PANGO_SCALE;
-            if (idx) idx[i] = gi->item->offset + gi->glyphs->log_clusters[i];
-            x += (double)g->geometry.width / PANGO_SCALE;
-        }
-        return n;
+        if (k == run) return r->data;
+        *x += (double)pango_glyph_string_get_width(((PangoGlyphItem *)r->data)->glyphs) / PANGO_SCALE;
     }
-    return 0;
+    return NULL;
+}
+int isim_ct_run_glyphs(void *l, int line, int run, unsigned short *glyphs, double *pos, double *adv, int *idx, int max) {
+    double x; PangoGlyphItem *gi = run_at(l, line, run, &x);
+    if (!gi) return 0;
+    int n = gi->glyphs->num_glyphs;
+    for (int i = 0; i < n && i < max; i++) {
+        PangoGlyphInfo *g = &gi->glyphs->glyphs[i];
+        if (glyphs) glyphs[i] = ct_glyph(g->glyph);
+        if (pos) { pos[2 * i] = x + (double)g->geometry.x_offset / PANGO_SCALE; pos[2 * i + 1] = -(double)g->geometry.y_offset / PANGO_SCALE; }
+        if (adv) adv[i] = (double)g->geometry.width / PANGO_SCALE;
+        if (idx) idx[i] = gi->item->offset + gi->glyphs->log_clusters[i];
+        x += (double)g->geometry.width / PANGO_SCALE;
+    }
+    return n;
+}
+/* ink bounds (x, y, w, h; y-up from the baseline, x from the line start) of glyphs [start, start + len) of a run */
+void isim_ct_run_ink(void *l, int line, int run, int start, int len, double *rect) {
+    double x; PangoGlyphItem *gi = run_at(l, line, run, &x);
+    rect[0] = rect[1] = rect[2] = rect[3] = 0;
+    if (!gi || len <= 0) return;
+    for (int i = 0; i < start && i < gi->glyphs->num_glyphs; i++) x += (double)gi->glyphs->glyphs[i].geometry.width / PANGO_SCALE;
+    PangoRectangle ink;
+    pango_glyph_string_extents_range(gi->glyphs, start, start + len, gi->item->analysis.font, &ink, NULL);
+    if (ink.width <= 0 || ink.height <= 0) { rect[0] = x; return; }
+    rect[0] = x + (double)ink.x / PANGO_SCALE; rect[1] = -(double)(ink.y + ink.height) / PANGO_SCALE;
+    rect[2] = (double)ink.width / PANGO_SCALE; rect[3] = (double)ink.height / PANGO_SCALE;
 }
 int isim_ct_line_index_at(void *l, int line, double x) {
     PangoLayoutLine *ln = line_at(l, line); if (!ln) return 0;
@@ -566,7 +688,7 @@ double isim_ct_line_x_at(void *l, int line, int byte_index) {
 void isim_ct_line_draw(void *l, int line, double x, double y, const double *tm, const double *rgba) {
     PangoLayoutLine *ln = line_at(l, line); if (!ln) return;
     cairo_t *cr = isim_host_cairo();
-    pango_cairo_update_context(cr, ct_context());
+    pango_cairo_update_context(cr, pango_layout_get_context(l));
     pango_layout_context_changed(l);
     ln = line_at(l, line);
     cairo_save(cr);
@@ -577,6 +699,216 @@ void isim_ct_line_draw(void *l, int line, double x, double y, const double *tm, 
     cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
     pango_cairo_show_layout_line(cr, ln);
     cairo_restore(cr);
+    /* back to user space: fonts, metrics and runs do not depend on the device transform of the last draw */
+    pango_context_set_matrix(pango_layout_get_context(l), NULL);
+    pango_layout_context_changed(l);
+}
+
+/* ---------------- Core Text: fonts (Pango fonts and their HarfBuzz faces) ---------------- */
+void *isim_ct_font_load(const char *family, int weight, int italic, int stretch, double size) {
+    PangoFontDescription *fd = pango_font_description_new();
+    pango_font_description_set_family(fd, family && family[0] ? family : CT_SYSTEM_FAMILY);
+    pango_font_description_set_size(fd, (int)lround((size > 0 ? size : 12) * PANGO_SCALE));
+    pango_font_description_set_weight(fd, weight ? weight : PANGO_WEIGHT_NORMAL);
+    pango_font_description_set_style(fd, italic ? PANGO_STYLE_ITALIC : PANGO_STYLE_NORMAL);
+    pango_font_description_set_stretch(fd, stretch >= 0 && stretch <= 8 ? stretch : PANGO_STRETCH_NORMAL);
+    PangoFont *f = pango_context_load_font(ct_context(), fd);
+    pango_font_description_free(fd);
+    return f;
+}
+void isim_ct_font_retain(void *f) { if (f) g_object_ref(f); }
+void isim_ct_font_free(void *f) { if (f) g_object_unref(f); }
+static uint16_t be16(const char *p) { return (uint16_t)((unsigned char)p[0] << 8 | (unsigned char)p[1]); }
+void isim_ct_font_info(void *fp, struct isim_ct_font_info *o) {
+    PangoFont *f = fp;
+    memset(o, 0, sizeof *o);
+    if (!f) return;
+    double size = font_size(f), k;
+    hb_font_t *u = unit_font(f, &k, size);
+    if (!u) return;
+    hb_face_t *face = hb_font_get_face(u);
+    o->size = size;
+    o->units_per_em = (int)hb_face_get_upem(face);
+    o->glyph_count = (int)hb_face_get_glyph_count(face);
+    hb_font_extents_t e = { 0 }; hb_font_get_h_extents(u, &e);
+    o->ascent = e.ascender * k; o->descent = -e.descender * k; o->leading = e.line_gap * k;
+    hb_position_t v;
+    o->cap_height = hb_ot_metrics_get_position(u, HB_OT_METRICS_TAG_CAP_HEIGHT, &v) ? v * k : o->ascent * 0.7;
+    o->x_height = hb_ot_metrics_get_position(u, HB_OT_METRICS_TAG_X_HEIGHT, &v) ? v * k : o->ascent * 0.5;
+    o->underline_position = hb_ot_metrics_get_position(u, HB_OT_METRICS_TAG_UNDERLINE_OFFSET, &v) ? v * k : -0.1 * size;
+    o->underline_thickness = hb_ot_metrics_get_position(u, HB_OT_METRICS_TAG_UNDERLINE_SIZE, &v) && v > 0 ? v * k : 0.05 * size;
+    o->slant_angle = hb_style_get_value(u, HB_STYLE_TAG_SLANT_ANGLE);
+    hb_blob_t *head = hb_face_reference_table(face, HB_TAG('h', 'e', 'a', 'd'));
+    unsigned hl; const char *hd = hb_blob_get_data(head, &hl);
+    if (hd && hl >= 54) {
+        o->bbox[0] = (int16_t)be16(hd + 36) * k; o->bbox[1] = (int16_t)be16(hd + 38) * k;
+        o->bbox[2] = ((int16_t)be16(hd + 40) - (int16_t)be16(hd + 36)) * k; o->bbox[3] = ((int16_t)be16(hd + 42) - (int16_t)be16(hd + 38)) * k;
+    }
+    hb_blob_destroy(head);
+    o->color = hb_ot_color_has_layers(face) || hb_ot_color_has_png(face) || hb_ot_color_has_svg(face) || hb_ot_color_has_paint(face);
+    hb_font_destroy(u);
+    PangoFontDescription *fd = pango_font_describe(f);
+    snprintf(o->family, sizeof o->family, "%s", pango_font_description_get_family(fd) ? pango_font_description_get_family(fd) : "");
+    o->weight = pango_font_description_get_weight(fd); o->italic = pango_font_description_get_style(fd) != PANGO_STYLE_NORMAL;
+    o->stretch = pango_font_description_get_stretch(fd);
+    pango_font_description_free(fd);
+    if (PANGO_IS_FC_FONT(f)) {
+        FcPattern *p = pango_fc_font_get_pattern(PANGO_FC_FONT(f));
+        FcChar8 *s = NULL; int sp = 0, w = 0, sl = 0, wd = 0;
+        if (FcPatternGetString(p, FC_POSTSCRIPT_NAME, 0, &s) == FcResultMatch) snprintf(o->psname, sizeof o->psname, "%s", (const char *)s);
+        if (FcPatternGetString(p, FC_STYLE, 0, &s) == FcResultMatch) snprintf(o->style, sizeof o->style, "%s", (const char *)s);
+        if (FcPatternGetString(p, FC_FILE, 0, &s) == FcResultMatch) snprintf(o->file, sizeof o->file, "%s", (const char *)s);
+        if (FcPatternGetInteger(p, FC_SPACING, 0, &sp) == FcResultMatch) o->mono = sp == FC_MONO || sp == FC_DUAL || sp == FC_CHARCELL;
+        /* the face's own style: fontconfig synthesizes bold and oblique when the family has no such face */
+        if (FcPatternGetInteger(p, FC_WEIGHT, 0, &w) == FcResultMatch) o->face_weight = (int)FcWeightToOpenType(w);
+        if (FcPatternGetInteger(p, FC_SLANT, 0, &sl) == FcResultMatch) o->face_italic = sl != FC_SLANT_ROMAN;
+        if (FcPatternGetInteger(p, FC_WIDTH, 0, &wd) == FcResultMatch) o->face_width = wd;
+        FcBool b = FcFalse;
+        if (FcPatternGetBool(p, FC_EMBOLDEN, 0, &b) == FcResultMatch && b) o->synthetic |= 1;
+        FcMatrix *m = NULL;
+        if (FcPatternGetMatrix(p, FC_MATRIX, 0, &m) == FcResultMatch && m && m->xy != 0) o->synthetic |= 2;
+    }
+    if (!o->slant_angle && (o->synthetic & 2)) o->slant_angle = -12;     /* fontconfig's oblique shear (0.2) */
+}
+/* nominal glyphs of code points; 0 where the font has none. Returns how many were found. */
+int isim_ct_font_glyphs(void *fp, const unsigned *cps, unsigned short *glyphs, int n) {
+    double k; hb_font_t *u = fp ? unit_font(fp, &k, font_size(fp)) : NULL;
+    int found = 0;
+    for (int i = 0; i < n; i++) {
+        hb_codepoint_t g = 0;
+        if (u && hb_font_get_nominal_glyph(u, cps[i], &g)) found++; else g = 0;
+        glyphs[i] = (unsigned short)g;
+    }
+    if (u) hb_font_destroy(u);
+    return found;
+}
+/* advances (points) and bounding rects (x, y, w, h; y-up) of glyphs */
+void isim_ct_font_glyph_metrics(void *fp, const unsigned short *glyphs, int n, double *adv, double *rects) {
+    double k; hb_font_t *u = fp ? unit_font(fp, &k, font_size(fp)) : NULL;
+    for (int i = 0; i < n; i++) {
+        if (adv) adv[i] = u ? hb_font_get_glyph_h_advance(u, glyphs[i]) * k : 0;
+        if (rects) {
+            hb_glyph_extents_t e = { 0 };
+            double *r = rects + 4 * i;
+            if (u && hb_font_get_glyph_extents(u, glyphs[i], &e)) { r[0] = e.x_bearing * k; r[1] = (e.y_bearing + e.height) * k; r[2] = e.width * k; r[3] = -e.height * k; }
+            else r[0] = r[1] = r[2] = r[3] = 0;
+        }
+    }
+    if (u) hb_font_destroy(u);
+}
+/* the outline of a glyph as path elements (y-up, points): 0 move x y, 1 line x y, 2 quad cx cy x y, 3 cubic c1 c2 p, 4 close */
+struct path_sink { double *ops, k; int n, max; };
+static void sink(struct path_sink *s, int code, int np, const float *pts) {
+    if (s->n + 1 + 2 * np <= s->max) { s->ops[s->n] = code; for (int i = 0; i < 2 * np; i++) s->ops[s->n + 1 + i] = pts[i] * s->k; }
+    s->n += 1 + 2 * np;
+}
+static void pm(hb_draw_funcs_t *d, void *s, hb_draw_state_t *st, float x, float y, void *u) { float p[] = { x, y }; sink(s, 0, 1, p); }
+static void pl(hb_draw_funcs_t *d, void *s, hb_draw_state_t *st, float x, float y, void *u) { float p[] = { x, y }; sink(s, 1, 1, p); }
+static void pq(hb_draw_funcs_t *d, void *s, hb_draw_state_t *st, float cx, float cy, float x, float y, void *u) { float p[] = { cx, cy, x, y }; sink(s, 2, 2, p); }
+static void pc(hb_draw_funcs_t *d, void *s, hb_draw_state_t *st, float ax, float ay, float bx, float by, float x, float y, void *u) {
+    float p[] = { ax, ay, bx, by, x, y }; sink(s, 3, 3, p);
+}
+static void pz(hb_draw_funcs_t *d, void *s, hb_draw_state_t *st, void *u) { sink(s, 4, 0, NULL); }
+int isim_ct_font_glyph_path(void *fp, unsigned short glyph, double *ops, int max) {
+    static hb_draw_funcs_t *df;
+    if (!df) {
+        df = hb_draw_funcs_create();
+        hb_draw_funcs_set_move_to_func(df, pm, NULL, NULL); hb_draw_funcs_set_line_to_func(df, pl, NULL, NULL);
+        hb_draw_funcs_set_quadratic_to_func(df, pq, NULL, NULL); hb_draw_funcs_set_cubic_to_func(df, pc, NULL, NULL);
+        hb_draw_funcs_set_close_path_func(df, pz, NULL, NULL);
+        hb_draw_funcs_make_immutable(df);
+    }
+    double k; hb_font_t *u = fp ? unit_font(fp, &k, font_size(fp)) : NULL;
+    if (!u) return 0;
+    struct path_sink s = { ops, k, 0, max };
+    hb_font_draw_glyph(u, glyph, df, &s);
+    hb_font_destroy(u);
+    return s.n;
+}
+/* OpenType layout feature tags of the font (GSUB and GPOS, without duplicates) */
+int isim_ct_font_features(void *fp, unsigned *tags, int max) {
+    if (!fp) return 0;
+    hb_font_t *hb = pango_font_get_hb_font(fp);
+    if (!hb) return 0;
+    hb_face_t *face = hb_font_get_face(hb);
+    int n = 0;
+    hb_tag_t tables[] = { HB_OT_TAG_GSUB, HB_OT_TAG_GPOS };
+    for (int t = 0; t < 2; t++) {
+        hb_tag_t buf[256]; unsigned cnt = 256;
+        hb_ot_layout_table_get_feature_tags(face, tables[t], 0, &cnt, buf);
+        for (unsigned i = 0; i < cnt; i++) {
+            int dup = 0;
+            for (int j = 0; j < n && j < max; j++) if (tags[j] == buf[i]) dup = 1;
+            if (dup) continue;
+            if (n < max) tags[n] = buf[i];
+            n++;
+        }
+    }
+    return n;
+}
+/* draws glyphs at positions (text space, y-up) with the text matrix tm, at (x, y) in user space. Pango draws them
+ * (as it draws lines), so colour and bitmap fonts render as in layouts. */
+void isim_ct_font_draw(void *fp, const unsigned short *glyphs, const double *pos, int n, double x, double y, const double *tm, const double *rgba) {
+    if (!fp || n <= 0) return;
+    cairo_t *cr = isim_host_cairo();
+    PangoGlyphString *gs = pango_glyph_string_new();
+    pango_glyph_string_set_size(gs, n);
+    int m = 0;
+    for (int i = 0; i < n; i++) {
+        if (glyphs[i] == 0xffff) continue;
+        PangoGlyphInfo *g = &gs->glyphs[m++];
+        memset(g, 0, sizeof *g);
+        g->glyph = glyphs[i];
+        g->geometry.width = 0;                              /* every glyph placed from the origin by its offset */
+        g->geometry.x_offset = (int)lround(pos[2 * i] * PANGO_SCALE);
+        g->geometry.y_offset = (int)lround(-pos[2 * i + 1] * PANGO_SCALE);
+        g->attr.is_cluster_start = 1;
+    }
+    gs->num_glyphs = m;
+    /* the same face loaded for this device transform (a bitmap colour font's strike scales with it), as lines do */
+    PangoContext *ctx = ct_context();
+    pango_cairo_update_context(cr, ctx);
+    PangoFontDescription *fd = pango_font_describe(fp);
+    PangoFont *f = pango_context_load_font(ctx, fd);
+    pango_font_description_free(fd);
+    cairo_save(cr);
+    cairo_translate(cr, x, y);
+    if (tm) { cairo_matrix_t mt; cairo_matrix_init(&mt, tm[0], tm[1], tm[2], tm[3], tm[4], tm[5]); cairo_transform(cr, &mt); }
+    cairo_scale(cr, 1, -1);
+    cairo_new_path(cr); cairo_move_to(cr, 0, 0);
+    cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
+    pango_cairo_show_glyph_string(cr, f ? f : fp, gs);
+    if (f) g_object_unref(f);
+    pango_context_set_matrix(ctx, NULL);
+    cairo_restore(cr);
+    pango_glyph_string_free(gs);
+}
+/* the faces of a family: lines "PostScript name \t style \t family \t OpenType weight \t italic \t fontconfig width" */
+int isim_ct_font_faces(const char *family, char *out, int outlen) {
+    FcPattern *p = FcPatternCreate();
+    if (family && family[0]) FcPatternAddString(p, FC_FAMILY, (const FcChar8 *)family);
+    FcObjectSet *os = FcObjectSetBuild(FC_FAMILY, FC_STYLE, FC_POSTSCRIPT_NAME, FC_WEIGHT, FC_SLANT, FC_WIDTH, FC_VARIABLE, (char *)0);
+    FcFontSet *fs = FcFontList(FcConfigGetCurrent(), p, os);
+    int n = 0, used = 0;
+    if (out && outlen) out[0] = 0;
+    for (int i = 0; fs && i < fs->nfont; i++) {
+        FcPattern *f = fs->fonts[i];
+        FcChar8 *ps = NULL, *st = NULL, *fam = NULL; int w = FC_WEIGHT_REGULAR, sl = FC_SLANT_ROMAN, wd = FC_WIDTH_NORMAL; FcBool var = FcFalse;
+        FcPatternGetBool(f, FC_VARIABLE, 0, &var);
+        if (var) continue;                                    /* named instances are listed on their own */
+        if (FcPatternGetString(f, FC_POSTSCRIPT_NAME, 0, &ps) != FcResultMatch) continue;
+        FcPatternGetString(f, FC_STYLE, 0, &st); FcPatternGetString(f, FC_FAMILY, 0, &fam);
+        FcPatternGetInteger(f, FC_WEIGHT, 0, &w); FcPatternGetInteger(f, FC_SLANT, 0, &sl); FcPatternGetInteger(f, FC_WIDTH, 0, &wd);
+        char line[512];
+        int ll = snprintf(line, sizeof line, "%s\t%s\t%s\t%d\t%d\t%d\n", (const char *)ps, st ? (const char *)st : "Regular", fam ? (const char *)fam : "",
+                          (int)FcWeightToOpenType(w), sl != FC_SLANT_ROMAN, wd);
+        if (out && used + ll < outlen) { memcpy(out + used, line, (size_t)ll + 1); used += ll; }
+        n++;
+    }
+    if (fs) FcFontSetDestroy(fs);
+    FcObjectSetDestroy(os);
+    FcPatternDestroy(p);
+    return n;
 }
 
 /* ---------------- ImageIO ---------------- */

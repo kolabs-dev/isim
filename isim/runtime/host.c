@@ -290,6 +290,44 @@ static void make_surface(void) {
     text_context(cr);
 }
 
+/* The desktop identity of isim's windows: the app id "dev.isim.Simulator" (Wayland app_id, X11 WM_CLASS; the desktop
+   entry from `isim desktop install` names it in StartupWMClass, so the dock groups the window with the launcher) and
+   the window icon (icons/, rendered by build.py to ../share/icons next to the runtime). Call before SDL_Init. */
+static void app_identity(void) {
+    SDL_SetAppMetadata("isim Simulator", NULL, "dev.isim.Simulator");
+}
+static void window_icon(SDL_Window *w) {
+    char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);
+    if (n <= 0) return;
+    self[n] = 0;
+    char *slash = strrchr(self, '/'); if (!slash) return;
+    *slash = 0;
+    char path[PATH_MAX + 64]; snprintf(path, sizeof path, "%s/../share/icons/hicolor/256x256/apps/dev.isim.Simulator.png", self);
+    if (access(path, R_OK)) return;
+    cairo_surface_t *png = cairo_image_surface_create_from_png(path);
+    if (cairo_surface_status(png) == CAIRO_STATUS_SUCCESS) {
+        int iw = cairo_image_surface_get_width(png), ih = cairo_image_surface_get_height(png);
+        SDL_Surface *s = SDL_CreateSurface(iw, ih, SDL_PIXELFORMAT_ARGB8888);
+        if (s) {
+            /* cairo's ARGB32 is premultiplied, SDL's ARGB8888 is not */
+            const unsigned char *src = cairo_image_surface_get_data(png); int ss = cairo_image_surface_get_stride(png);
+            for (int y = 0; y < ih; y++) {
+                const uint32_t *in = (const uint32_t *)(src + (size_t)y * ss);
+                uint32_t *out = (uint32_t *)((unsigned char *)s->pixels + (size_t)y * s->pitch);
+                for (int x = 0; x < iw; x++) {
+                    uint32_t p = in[x], a = p >> 24;
+                    if (a == 0 || a == 255) { out[x] = p; continue; }
+                    uint32_t r = ((p >> 16) & 255) * 255 / a, g = ((p >> 8) & 255) * 255 / a, b = (p & 255) * 255 / a;
+                    out[x] = a << 24 | (r > 255 ? 255 : r) << 16 | (g > 255 ? 255 : g) << 8 | (b > 255 ? 255 : b);
+                }
+            }
+            SDL_SetWindowIcon(w, s);
+            SDL_DestroySurface(s);
+        }
+    }
+    cairo_surface_destroy(png);
+}
+
 int isim_display_open(const char *title) {
     if (!dev.width) device_from_env();
     t0 = now();
@@ -307,13 +345,14 @@ int isim_display_open(const char *title) {
     headless = getenv("ISIM_HEADLESS") && atoi(getenv("ISIM_HEADLESS"));
     if (getenv("ISIM_SCRIPT")) { script = strdup(getenv("ISIM_SCRIPT")); script_pos = script; }
     if (!headless) {
+        app_identity();
         if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "isim host: SDL_Init failed: %s (falling back to headless)\n", SDL_GetError()); headless = 1; }
     }
     if (!headless) {
         char t[256]; snprintf(t, sizeof t, "%s — %s (isim)", title ? title : "App", dev.name);
         win = SDL_CreateWindow(t, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom), SDL_WINDOW_HIGH_PIXEL_DENSITY);
         if (!win) { fprintf(stderr, "isim host: SDL_CreateWindow failed: %s\n", SDL_GetError()); headless = 1; }
-        else px_scale = SDL_GetWindowPixelDensity(win) * zoom;
+        else { px_scale = SDL_GetWindowPixelDensity(win) * zoom; window_icon(win); }
         if (isim_verbose) fprintf(stderr, "isim host: video driver %s, pixel scale %.2f\n", SDL_GetCurrentVideoDriver(), px_scale);
     }
     if (headless) px_scale = getenv("ISIM_SHOT_SCALE") ? atof(getenv("ISIM_SHOT_SCALE")) : 2;
@@ -1050,6 +1089,7 @@ void isim_frame_end(void) {
 }
 
 static void screenshot(const char *path) {
+    if (!surf) { fprintf(stderr, "isim host: screenshot %s: no frame yet\n", path); return; }
     cairo_surface_flush(surf);
     cairo_status_t st = cairo_surface_write_to_png(surf, path);
     fprintf(stderr, "isim host: screenshot %s (%dx%d px): %s\n", path, surf_w, surf_h, cairo_status_to_string(st));
@@ -1080,12 +1120,19 @@ static void *ctl_watchdog(void *arg) {
     }
     return NULL;
 }
+static char ctl_auto_path[1024];
+static pid_t ctl_auto_pid;
+static void ctl_auto_unlink(void) { if (getpid() == ctl_auto_pid) unlink(ctl_auto_path); }
 static void control_poll(void) {
     if (ctl_fd == -2) {
         const char *p = getenv("ISIM_CONTROL");
         ctl_fd = p && *p ? open(p, O_RDWR | O_NONBLOCK) : -1;     /* O_RDWR: no EOF when writers come and go */
         script_len = script ? strlen(script) : 0;                  /* (first call: nothing consumed yet) */
         if (p && *p && ctl_fd < 0) fprintf(stderr, "isim: cannot open control FIFO %s\n", p);
+        if (ctl_fd >= 0 && getenv("ISIM_CONTROL_AUTO")) {          /* the default FIFO the isim CLI made: gone with us */
+            snprintf(ctl_auto_path, sizeof ctl_auto_path, "%s", p); ctl_auto_pid = getpid();
+            atexit(ctl_auto_unlink);
+        }
         static double limit = 8;
         const char *h = getenv("ISIM_HANG_DUMP"), *ws = getenv("ISIM_WAIT_SCALE");
         if (h && *h) limit = atof(h); else if (ws && atof(ws) > 0) limit *= atof(ws);
@@ -1190,6 +1237,7 @@ static int script_step(struct isim_event *ev) {
     while (*script_pos == ' ' || *script_pos == ';' || *script_pos == '\n' || *script_pos == '\r') script_pos++;
     if (!*script_pos) { if (ctl_fd < 0) script_pos = NULL; return 0; }
     char cmd[16] = {0}, arg[512] = {0}; double a, b, c, d; int n = 0;
+    char *cmd_start = script_pos;
     sscanf(script_pos, "%15[^;\n ]%n", cmd, &n);
     char *args = script_pos + n;
     char *end = strpbrk(script_pos, ";\n");
@@ -1289,6 +1337,11 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "closescene %s", arg);
         script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "shot") && sscanf(args, " %511[^;]", arg) == 1) {
+        if (!surf) {                         /* the shell has not composed its first frame yet: try again shortly */
+            if (end) *end = ';';
+            script_pos = cmd_start; script_resume = now() + 0.05;
+            return 0;
+        }
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         screenshot(arg);
     } else if (!strcmp(cmd, "taptext") && sscanf(args, " %63[^;]", arg) == 1) {
@@ -1342,6 +1395,13 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "dump")) {        /* "dump": view tree on stderr; "dump FILE": accessibility snapshot (XCUITest) */
         pending[npending++] = (struct isim_event){ .type = EV_DUMP };
         if (sscanf(args, " %511[^;]", arg) == 1) { for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg); }
+    }
+    else if (!strcmp(cmd, "focus")) {         /* bring the window to the front (`isim open` on a running device) */
+        if (win) {
+            SDL_RestoreWindow(win);
+            SDL_RaiseWindow(win);              /* best effort: a Wayland compositor may flag the window instead */
+            fprintf(stderr, "isim host: focus\n");
+        } else fprintf(stderr, "isim host: focus: no window (headless)\n");
     }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else if (input_script_cmd(cmd, args)) {}

@@ -1,5 +1,5 @@
 """Packaging a release for Linux x86_64 (dist/isim-VERSION-linux-x86_64.tar.gz):
-  - the host runtime built in the release container (release/Dockerfile: glibc 2.35, SDL3 from source) with its shared
+  - the host runtime built in the release container (release/Dockerfile: glibc 2.35, SDL3 and HarfBuzz from source) with its shared
     libraries bundled in lib/ (rpath $ORIGIN/../lib); glibc and the graphics/audio drivers come from the host;
   - the iOS-simulator SDK, frameworks, Swift libraries and system apps from this tree's build (platform independent);
   - demo apps; LICENSE, NOTICE and third-party licenses (release/licenses, plus the Debian copyright file of each
@@ -25,7 +25,7 @@ mkdir -p $out/licenses/ubuntu
 for lib in $(ldd $out/bin/isim-runtime | awk "/=>/{{print \$3}}"); do
   echo "$lib" | grep -Eq "$skip" && continue
   cp -L "$lib" $out/lib/
-  # license of the Ubuntu package that ships it (SDL3 is built from source: licenses/SDL3-LICENSE.txt)
+  # license of the Ubuntu package that ships it (SDL3 and HarfBuzz are built from source: licenses/*-LICENSE.txt)
   pkg=$(dpkg -S "*/$(basename "$(readlink -f "$lib")")" 2>/dev/null | head -1 | cut -d: -f1) || true
   if [ -n "$pkg" ]; then cp /usr/share/doc/$pkg/copyright $out/licenses/ubuntu/$pkg.copyright; fi
 done
@@ -58,6 +58,7 @@ def package(root, version, ctx):
     os.makedirs(os.path.join(stage, "share/fonts"))                       # isim's UI fonts (OFL)
     for f in glob.glob(os.path.join(root, "fonts/*.ttf")) + [os.path.join(root, "fonts/LICENSE-OFL.txt")]:
         shutil.copy(f, os.path.join(stage, "share/fonts"))
+    shutil.copytree(os.path.join(root, "out/share/icons"), os.path.join(stage, "share/icons"))   # app icon (icons/)
     shutil.copytree(os.path.join(root, "out/swift/resource"), os.path.join(stage, "swift/resource"), symlinks=True)   # isim swiftc
     shutil.copytree(os.path.join(root, "out/swift/host"), os.path.join(stage, "swift/host"), symlinks=True)   # macro plugins
     for a in DEMOS:

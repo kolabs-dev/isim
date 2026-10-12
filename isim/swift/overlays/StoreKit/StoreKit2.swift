@@ -11,6 +11,8 @@
 // "monthlyRenewalEveryThirtySeconds", "oneRenewalEveryTenSeconds" or "month=5" (one month = 5 s).
 // `isim storekit <app> ...` is the Transaction Manager: list, refund, expire, cancel, clear.
 import UIKit
+internal import CryptoKit
+internal import isim_host
 
 // MARK: - Subscription periods and offers
 
@@ -91,6 +93,8 @@ extension Product {
 struct _SKOfferDef: Hashable {
     let offer: Product.SubscriptionOffer
     let keys: [String]          // what redeems/identifies it: offerID, referenceName, internalID (lowercased)
+    var eligibility: [String] = ["new", "existing", "expired"]   // offer codes: who may redeem them (.storekit "eligibility")
+    var name: String { keys.first ?? offer.id ?? "" }
 }
 
 struct _SKItem {
@@ -171,12 +175,14 @@ struct _SKConfig {
     let groups: [String: String]           // group id -> display name
     let timeRate: _SKTimeRate
     let storefront: String
+    /// Xcode's "Enable Billing Grace Period": a renewal that fails keeps the subscription for the grace period
+    let gracePeriod: Bool
     nonisolated(unsafe) static var cached: _SKConfig?
     func item(_ id: String) -> _SKItem? { items.first { $0.id == id } }
     static func load() -> _SKConfig {
         if let c = cached { return c }
         var items: [_SKItem] = [], groups: [String: String] = [:]
-        var rate = _SKTimeRate.realTime, storefront = "USA"
+        var rate = _SKTimeRate.realTime, storefront = "USA", grace = false
         let name = Bundle.main.object(forInfoDictionaryKey: "ISIMStoreKitConfiguration") as? String ?? "isim-StoreKitConfiguration.storekit"
         let path = (Bundle.main.bundlePath as NSString).appendingPathComponent(name)
         if let data = FileManager.default.contents(atPath: path),
@@ -186,8 +192,9 @@ struct _SKConfig {
                 locs.first { ($0["locale"] as? String) == locale } ?? locs.first { ($0["locale"] as? String)?.hasPrefix("en") == true } ?? locs.first ?? [:]
             }
             func money(_ s: String) -> String { "$" + s }
-            func offer(_ o: [String: Any], _ type: Product.SubscriptionOffer.OfferType) -> _SKOfferDef? {
-                guard let period = Product.SubscriptionPeriod(iso: o["subscriptionPeriod"] as? String) else { return nil }
+            func offer(_ o: [String: Any], _ type: Product.SubscriptionOffer.OfferType, oneTime: Bool = false) -> _SKOfferDef? {
+                // offer codes for one-time products (iOS 18) have no period: the product itself is free
+                guard let period = Product.SubscriptionPeriod(iso: o["subscriptionPeriod"] as? String) ?? (oneTime ? Product.SubscriptionPeriod(value: 1, unit: .day) : nil) else { return nil }
                 let mode: Product.SubscriptionOffer.PaymentMode
                 switch (o["paymentMode"] as? String ?? "").lowercased() {
                 case "free", "freetrial": mode = .freeTrial
@@ -197,10 +204,12 @@ struct _SKConfig {
                 let priceText = mode == .freeTrial ? "0.00" : (o["displayPrice"] as? String ?? "0.00")
                 let id = (o["offerID"] as? String) ?? (type == .introductory ? nil : o["referenceName"] as? String)
                 let keys = [o["offerID"], o["referenceName"], o["internalID"]].compactMap { ($0 as? String)?.lowercased() }
-                return _SKOfferDef(offer: Product.SubscriptionOffer(id: id, type: type, price: Decimal(string: priceText) ?? .zero,
-                                                                     displayPrice: mode == .freeTrial ? "Free" : money(priceText),
-                                                                     period: period, periodCount: max(1, o["numberOfPeriods"] as? Int ?? 1), paymentMode: mode),
-                                   keys: keys)
+                var def = _SKOfferDef(offer: Product.SubscriptionOffer(id: id, type: type, price: Decimal(string: priceText) ?? .zero,
+                                                                        displayPrice: mode == .freeTrial ? "Free" : money(priceText),
+                                                                        period: period, periodCount: max(1, o["numberOfPeriods"] as? Int ?? 1), paymentMode: mode),
+                                      keys: keys)
+                if let e = o["eligibility"] as? [String], !e.isEmpty { def.eligibility = e.map { $0.lowercased() } }
+                return def
             }
             func add(_ list: [[String: Any]], _ fallback: Product.ProductType, group: (String, String)? = nil) {
                 for p in list {
@@ -227,6 +236,8 @@ struct _SKConfig {
                         it.promos = (p["adHocOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, .promotional) }
                         it.winBacks = (p["winbackOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, .winBack) }
                         it.codes = (p["codeOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, .code) }
+                    } else {
+                        it.codes = (p["codeOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, .code, oneTime: true) }
                     }
                     items.append(it)
                 }
@@ -242,13 +253,15 @@ struct _SKConfig {
             let settings = root["settings"] as? [String: Any] ?? [:]
             if let n = settings["_timeRate"] as? Int { rate = .xcode(n) }
             if let s = settings["_storefront"] as? String { storefront = s }
+            if let g = settings["_billingGracePeriodEnabled"] as? Bool { grace = g }
             NSLog("isim StoreKit: local testing configuration %@ (%ld products)", name, items.count)
         } else {
             NSLog("isim StoreKit: no StoreKit configuration in the bundle; no products are available")
         }
         if let env = ProcessInfo.processInfo.environment["ISIM_STOREKIT_TIME_RATE"], let r = _SKTimeRate.parse(env) { rate = r }
+        if let env = ProcessInfo.processInfo.environment["ISIM_STOREKIT_BILLING_GRACE_PERIOD"] { grace = ["1", "on", "true", "yes"].contains(env.lowercased()) }
         if items.contains(where: { $0.type == .autoRenewable }) { NSLog("isim StoreKit: subscription time rate: %@", rate.label) }
-        let c = _SKConfig(items: items, groups: groups, timeRate: rate, storefront: storefront)
+        let c = _SKConfig(items: items, groups: groups, timeRate: rate, storefront: storefront, gracePeriod: grace)
         cached = c
         return c
     }
@@ -291,6 +304,8 @@ struct _SKSub: Codable, Hashable, Sendable {
     var offerPaymentMode: String?
     var expirationReason: Int?
     var billingIssue: Bool?
+    var graceUntil: Double?          // a renewal failed (billing issue): still subscribed until then (billing grace period)
+    var retryUntil: Double?          // ... and the App Store retries billing until then; the subscription expires after it
 }
 
 struct _SKLedgerData: Codable {
@@ -301,9 +316,14 @@ struct _SKLedgerData: Codable {
     var firstLaunch: Double?
     var firstAppVersion: String?
     var deviceID: String?
+    var usedOfferNonces: [String]?   // promotional offer signatures are single-use
+    var redeemedOffers: [String]?    // "<product>/<offer>": each offer code can be redeemed once
+    var messages: [String]?          // StoreKit messages already delivered (billing issue, win-back offer)
 }
 
-/// Thread-safe ledger, persisted as JSON in the app container. `isim storekit` edits the same file;
+/// Thread-safe ledger: the purchase history of this app on the device's account (like the App Store keeps it), as JSON
+/// in the device data ($ISIM_DATA/Library/isim/StoreKit/<bundle id>/ledger.json). It survives deleting the app, so
+/// a reinstalled app gets its purchases back (AppStore.sync, restore). `isim storekit` edits the same file;
 /// the running app notices (it re-reads the file every half second) and emits Transaction.updates.
 final class _SKLedger: @unchecked Sendable {
     static let shared = _SKLedger()
@@ -314,8 +334,15 @@ final class _SKLedger: @unchecked Sendable {
     private var statusKeys: [String: String] = [:]
 
     init() {
-        path = (NSHomeDirectory() as NSString).appendingPathComponent("Library/isim/StoreKit/ledger.json")
-        try? FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true, attributes: nil)
+        path = _SKLedger.defaultPath
+        let fm = FileManager.default
+        try? fm.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true, attributes: nil)
+        // isim 0.14 and earlier kept the ledger in the app container
+        let old = (NSHomeDirectory() as NSString).appendingPathComponent("Library/isim/StoreKit/ledger.json")
+        if !fm.fileExists(atPath: path), fm.fileExists(atPath: old) {
+            try? fm.moveItem(atPath: old, toPath: path)
+            NSLog("isim StoreKit: moved the purchase history from the app container to the device's account data")
+        }
         _ = reload()
         if lastBytes == nil { migrate(); save() }
         if data.firstLaunch == nil {
@@ -325,6 +352,9 @@ final class _SKLedger: @unchecked Sendable {
             save()
         }
         statusKeys = currentStatusKeys(Date())
+    }
+    static var defaultPath: String {
+        (_SKSigning.directory as NSString).appendingPathComponent("\(Bundle.main.bundleIdentifier ?? "app")/ledger.json")
     }
     /// purchases stored by earlier isim versions (UserDefaults)
     private func migrate() {
@@ -370,11 +400,17 @@ final class _SKLedger: @unchecked Sendable {
     static func isActive(_ t: _SKTxn, _ now: Date) -> Bool {
         t.revocationDate == nil && (t.expirationDate.map { $0 > now.timeIntervalSince1970 } ?? true)
     }
+    /// a renewal failed and the billing grace period still runs: the customer keeps the subscription
+    static func inGrace(_ d: _SKLedgerData, group: String, _ now: Date) -> Bool {
+        guard let s = d.subscriptions[group], s.billingIssue == true, s.willAutoRenew, let until = s.graceUntil, until > now.timeIntervalSince1970,
+              let t = latest(d, group: group) else { return false }
+        return t.revocationDate == nil
+    }
     func entitlements(_ now: Date = Date()) -> [_SKTxn] {
         read { d in
             var out = d.transactions.filter { ($0.type == Product.ProductType.nonConsumable.rawValue || $0.type == Product.ProductType.nonRenewable.rawValue) && $0.revocationDate == nil }
             for g in Set(d.transactions.compactMap { $0.groupID }).sorted() {
-                if let t = _SKLedger.latest(d, group: g), _SKLedger.isActive(t, now) { out.append(t) }
+                if let t = _SKLedger.latest(d, group: g), _SKLedger.isActive(t, now) || _SKLedger.inGrace(d, group: g, now) { out.append(t) }
             }
             return out.sorted { $0.id < $1.id }
         }
@@ -446,13 +482,15 @@ final class _SKLedger: @unchecked Sendable {
         return t
     }
 
-    func purchase(_ item: _SKItem, quantity: Int, token: UUID?, api: String? = nil) -> _SKTxn {
+    /// a one-time purchase; `code`: redeemed with an offer code (free)
+    func purchase(_ item: _SKItem, quantity: Int, token: UUID?, api: String? = nil, code: _SKOfferDef? = nil) -> _SKTxn {
         mutate { d in
             let id = newID(&d), now = Date().timeIntervalSince1970
             let t = _SKTxn(id: id, originalID: id, productID: item.id, type: item.type.rawValue, groupID: nil, purchaseDate: now, originalPurchaseDate: now,
                            expirationDate: nil, revocationDate: nil, revocationReason: nil, finished: false, isUpgraded: false, reason: "purchase",
-                           offerType: nil, offerID: nil, offerPaymentMode: nil, quantity: max(1, quantity), appAccountToken: token?.uuidString,
-                           price: "\(item.price)", api: api)
+                           offerType: code.map { _ in Product.SubscriptionOffer.OfferType.code.rawValue }, offerID: code?.offer.id,
+                           offerPaymentMode: code.map { _ in Product.SubscriptionOffer.PaymentMode.freeTrial.rawValue }, quantity: max(1, quantity),
+                           appAccountToken: token?.uuidString, price: code == nil ? "\(item.price)" : "0", api: api)
             d.transactions.append(t)
             return t
         }
@@ -499,36 +537,75 @@ final class _SKLedger: @unchecked Sendable {
             NSLog("isim StoreKit: ledger changed by the Transaction Manager")
         }
         var changed = false
+        let nowT = now.timeIntervalSince1970
+        /// the next period of subscription group g, from `start` (an offer still running applies)
+        func renew(_ g: String, _ s: inout _SKSub, _ last: _SKTxn, start: Double) -> _SKTxn? {
+            guard let item = cfg.item(s.autoRenewProductID) ?? cfg.item(s.productID), let period = item.period else { return nil }
+            var offer: Product.SubscriptionOffer?
+            var offerType = s.offerType, offerID = s.offerID, mode = s.offerPaymentMode
+            var defs: [_SKOfferDef] = []
+            for i in [cfg.item(s.autoRenewProductID), cfg.item(s.productID)].compactMap({ $0 }) {
+                if let intro = i.intro { defs.append(intro) }
+                defs += i.promos + i.winBacks + i.codes
+            }
+            let pendingType = s.offerType, pendingID = s.offerID
+            if s.introPeriodsLeft > 0, let o = defs.first(where: { $0.offer.type.rawValue == pendingType && $0.offer.id == pendingID }) {
+                offer = o.offer; s.introPeriodsLeft -= 1
+            } else { offerType = nil; offerID = nil; mode = nil; s.introPeriodsLeft = 0 }
+            let count = offer.map { $0.paymentMode == .payAsYouGo ? 1 : $0.periodCount } ?? 1
+            let end = cfg.timeRate.end(from: Date(timeIntervalSince1970: start), period: offer?.period ?? period, count: count)
+            let id = data.nextID; data.nextID += 1
+            let t = _SKTxn(id: id, originalID: s.originalID, productID: item.id, type: item.type.rawValue, groupID: g, purchaseDate: start,
+                           originalPurchaseDate: data.transactions.first { $0.id == s.originalID }?.purchaseDate ?? last.originalPurchaseDate,
+                           expirationDate: end.timeIntervalSince1970, revocationDate: nil, revocationReason: nil, finished: false, isUpgraded: false,
+                           reason: "renewal", offerType: offerType, offerID: offerID, offerPaymentMode: mode, quantity: 1,
+                           appAccountToken: last.appAccountToken, price: "\(offer?.price ?? item.price)", api: last.api)
+            data.transactions.append(t)
+            s.productID = item.id
+            NSLog("isim StoreKit: subscription %@ renewed: transaction %llu until %@", item.id, id, "\(end)")
+            return t
+        }
         for (g, var s) in data.subscriptions.sorted(by: { $0.key < $1.key }) {
             guard var last = _SKLedger.latest(data, group: g), last.revocationDate == nil else { continue }
+            // a billing issue resolved during the grace period or billing retry: the subscription renews (from its
+            // renewal date in the grace period, from now in billing retry)
+            if s.billingIssue != true, let retry = s.retryUntil {
+                let grace = s.graceUntil ?? 0
+                s.retryUntil = nil; s.graceUntil = nil; changed = true
+                if retry > nowT, s.willAutoRenew, let exp = last.expirationDate, exp <= nowT,
+                   let t = renew(g, &s, last, start: grace > nowT ? exp : nowT) {
+                    s.expirationReason = nil
+                    events.append(t); last = t
+                    NSLog("isim StoreKit: billing issue resolved: subscription %@ renewed", t.productID)
+                }
+            }
             var n = 0
-            while let exp = last.expirationDate, exp <= now.timeIntervalSince1970, n < 100 {
-                if !s.willAutoRenew || s.billingIssue == true {
-                    let reason = s.billingIssue == true ? 2 : 1
-                    if s.expirationReason != reason { s.expirationReason = reason; changed = true
-                        NSLog("isim StoreKit: subscription %@ expired (%@)", last.productID, reason == 1 ? "auto-renew off" : "billing issue") }
+            while let exp = last.expirationDate, exp <= nowT, n < 100 {
+                if !s.willAutoRenew {
+                    if s.expirationReason != 1 { s.expirationReason = 1; changed = true
+                        NSLog("isim StoreKit: subscription %@ expired (auto-renew off)", last.productID) }
                     break
                 }
-                guard let item = cfg.item(s.autoRenewProductID) ?? cfg.item(s.productID), let period = item.period else { break }
-                var offerPeriod: Product.SubscriptionPeriod?
-                var offerType = s.offerType, offerID = s.offerID, mode = s.offerPaymentMode
-                if s.introPeriodsLeft > 0, let o = (cfg.item(s.productID).flatMap { i in ([i.intro].compactMap { $0 } + i.promos + i.winBacks + i.codes).first { $0.offer.type.rawValue == s.offerType && $0.offer.id == s.offerID } }) {
-                    offerPeriod = o.offer.period; s.introPeriodsLeft -= 1
-                } else { offerType = nil; offerID = nil; mode = nil; s.introPeriodsLeft = 0 }
-                let start = Date(timeIntervalSince1970: exp)
-                let end = cfg.timeRate.end(from: start, period: offerPeriod ?? period)
-                let id = data.nextID; data.nextID += 1
-                let t = _SKTxn(id: id, originalID: s.originalID, productID: item.id, type: item.type.rawValue, groupID: g, purchaseDate: exp,
-                               originalPurchaseDate: data.transactions.first { $0.id == s.originalID }?.purchaseDate ?? last.originalPurchaseDate,
-                               expirationDate: end.timeIntervalSince1970, revocationDate: nil, revocationReason: nil, finished: false, isUpgraded: false,
-                               reason: "renewal", offerType: offerType, offerID: offerID, offerPaymentMode: mode, quantity: 1,
-                               appAccountToken: last.appAccountToken, price: "\(item.price)", api: last.api)
-                data.transactions.append(t)
-                s.productID = item.id
+                if s.billingIssue == true {
+                    if s.retryUntil == nil {        // the renewal failed: billing retry (after the grace period, if enabled)
+                        let days = (cfg.item(last.productID)?.period?.approximateDays ?? 30) <= 7 ? 6 : 16
+                        let from = Date(timeIntervalSince1970: exp)
+                        if cfg.gracePeriod { s.graceUntil = cfg.timeRate.end(from: from, period: .init(value: days, unit: .day)).timeIntervalSince1970 }
+                        s.retryUntil = cfg.timeRate.end(from: from, period: .init(value: 60, unit: .day)).timeIntervalSince1970
+                        changed = true
+                        NSLog("isim StoreKit: subscription %@ could not renew (billing issue): %@billing retry until %@", last.productID,
+                              s.graceUntil.map { "grace period until \(Date(timeIntervalSince1970: $0)), " } ?? "", "\(Date(timeIntervalSince1970: s.retryUntil!))")
+                    }
+                    if (s.retryUntil ?? 0) <= nowT, s.expirationReason != 2 {
+                        s.expirationReason = 2; changed = true
+                        NSLog("isim StoreKit: subscription %@ expired (billing issue: billing retry ended)", last.productID)
+                    }
+                    break
+                }
+                guard let t = renew(g, &s, last, start: exp) else { break }
                 events.append(t); last = t; n += 1; changed = true
-                NSLog("isim StoreKit: subscription %@ renewed: transaction %llu until %@", item.id, id, "\(end)")
             }
-            data.subscriptions[g] = s
+            if data.subscriptions[g] != s { data.subscriptions[g] = s; changed = true }
         }
         if changed { save() }
         let keys = currentStatusKeys(now)
@@ -544,7 +621,7 @@ final class _SKLedger: @unchecked Sendable {
         var out: [String: String] = [:]
         for g in Set(data.transactions.compactMap { $0.groupID }) {
             if let st = _SKLedger.statuses(data, group: g, now: now).first {
-                out[g] = "\(st.state.rawValue)-\(st.transaction.unsafePayloadValue.id)-\(st.renewalInfo.unsafePayloadValue.willAutoRenew)-\(st.renewalInfo.unsafePayloadValue.autoRenewPreference ?? "")"
+                out[g] = "\(st.state.rawValue)-\(st.renewalInfo.unsafePayloadValue.offerID ?? "")-\(st.transaction.unsafePayloadValue.id)-\(st.renewalInfo.unsafePayloadValue.willAutoRenew)-\(st.renewalInfo.unsafePayloadValue.autoRenewPreference ?? "")"
             }
         }
         return out
@@ -556,12 +633,16 @@ final class _SKLedger: @unchecked Sendable {
         let state: Product.SubscriptionInfo.RenewalState
         if t.revocationDate != nil { state = .revoked }
         else if isActive(t, now) { state = .subscribed }
-        else if s?.billingIssue == true { state = .inBillingRetryPeriod }
+        else if inGrace(d, group: group, now) { state = .inGracePeriod }
+        else if s?.billingIssue == true && s?.willAutoRenew == true && (s?.retryUntil ?? .infinity) > now.timeIntervalSince1970 { state = .inBillingRetryPeriod }
         else { state = .expired }
+        let billing = state == .inGracePeriod || state == .inBillingRetryPeriod
+        let reason = billing ? 2 : state == .expired ? s?.expirationReason : nil
         let info = Product.SubscriptionInfo.RenewalInfo(
             originalTransactionID: t.originalID, currentProductID: t.productID, willAutoRenew: (s?.willAutoRenew ?? false) && t.revocationDate == nil,
-            autoRenewPreference: s?.autoRenewProductID, expirationReason: state == .expired || state == .inBillingRetryPeriod ? (s?.expirationReason).map { Product.SubscriptionInfo.RenewalInfo.ExpirationReason(rawValue: $0) } : nil,
-            isInBillingRetry: s?.billingIssue == true && state == .inBillingRetryPeriod,
+            autoRenewPreference: s?.autoRenewProductID, expirationReason: reason.map { Product.SubscriptionInfo.RenewalInfo.ExpirationReason(rawValue: $0) },
+            isInBillingRetry: billing,
+            gracePeriodExpirationDate: state == .inGracePeriod ? s?.graceUntil.map { Date(timeIntervalSince1970: $0) } : nil,
             renewalDate: t.expirationDate.map { Date(timeIntervalSince1970: $0) },
             offerType: (s?.introPeriodsLeft ?? 0) > 0 ? s?.offerType.map { Transaction.OfferType(rawValue: $0) } : nil,
             offerID: (s?.introPeriodsLeft ?? 0) > 0 ? s?.offerID : nil,
@@ -582,11 +663,15 @@ final class _SKBroadcast<T: Sendable>: @unchecked Sendable {
             c.onTermination = { [weak self] _ in guard let self else { return }; self.lock.lock(); self.continuations[key] = nil; self.lock.unlock() }
         }
     }
+    /// listeners right now
+    var count: Int { lock.lock(); defer { lock.unlock() }; return continuations.count }
     func yield(_ t: T) {
         lock.lock(); let cs = Array(continuations.values); lock.unlock()
         for c in cs { c.yield(t) }
     }
 }
+
+func _skOSMajor() -> Int { Int(isim_os_version()) / 10000 }
 
 enum _SKUpdates {
     static let transactions = _SKBroadcast<VerificationResult<Transaction>>()
@@ -597,11 +682,13 @@ enum _SKUpdates {
         if started { return }
         started = true
         _ = _SKLedger.shared
-        func loop() {
-            _SKLedger.shared.tick()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { loop() }
-        }
-        DispatchQueue.main.async { loop() }
+        DispatchQueue.main.async { MainActor.assumeIsolated { _ = _SKDevice.verificationID; clock() } }
+    }
+    /// the subscription clock: renewals, Transaction Manager changes, StoreKit messages
+    @MainActor static func clock() {
+        _SKLedger.shared.tick()
+        _SKMessages.check()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { MainActor.assumeIsolated { clock() } }
     }
 }
 
@@ -624,14 +711,18 @@ public struct Product: Identifiable, Hashable, Sendable {
     }
     public struct PurchaseOption: Hashable, Sendable {
         enum Kind: Hashable, Sendable {
-            case token(UUID), quantity(Int), promo(String), winBack(String), simulatesAskToBuy(Bool), custom(String), introEligibility
+            case token(UUID), quantity(Int), winBack(String), simulatesAskToBuy(Bool), custom(String), introEligibility
+            case promo(String, keyID: String, nonce: UUID, signature: Data, timestamp: Int)
+            case promoJWS(String, String)
         }
         let kind: Kind
         public static func appAccountToken(_ token: UUID) -> PurchaseOption { PurchaseOption(kind: .token(token)) }
         public static func quantity(_ quantity: Int) -> PurchaseOption { PurchaseOption(kind: .quantity(quantity)) }
-        /// The offer signature is not verified in isim's local testing (as with Xcode, nothing reaches Apple).
-        public static func promotionalOffer(offerID: String, keyID: String, nonce: UUID, signature: Data, timestamp: Int) -> PurchaseOption { PurchaseOption(kind: .promo(offerID)) }
-        public static func promotionalOffer(_ offerID: String, compactJWS: String) -> PurchaseOption { PurchaseOption(kind: .promo(offerID)) }
+        /// The signature is checked against the isim device's subscription offers key (`isim storekit offer-key`).
+        public static func promotionalOffer(offerID: String, keyID: String, nonce: UUID, signature: Data, timestamp: Int) -> PurchaseOption {
+            PurchaseOption(kind: .promo(offerID, keyID: keyID, nonce: nonce, signature: signature, timestamp: timestamp))
+        }
+        public static func promotionalOffer(_ offerID: String, compactJWS: String) -> PurchaseOption { PurchaseOption(kind: .promoJWS(offerID, compactJWS)) }
         public static func winBackOffer(_ offer: Product.SubscriptionOffer) -> PurchaseOption { PurchaseOption(kind: .winBack(offer.id ?? "")) }
         public static func introductoryOfferEligibility(compactJWS: String) -> PurchaseOption { PurchaseOption(kind: .introEligibility) }
         public static func simulatesAskToBuyInSandbox(_ value: Bool) -> PurchaseOption { PurchaseOption(kind: .simulatesAskToBuy(value)) }
@@ -688,12 +779,12 @@ public struct Product: Identifiable, Hashable, Sendable {
     @MainActor func _purchase(options: Set<PurchaseOption>, api: String?) async throws -> PurchaseResult {
         _SKUpdates.start()
         guard let item = _SKConfig.load().item(id) else { throw PurchaseError.productUnavailable }
-        var quantity = 1, token: UUID?, promo: String?, winBack: String?
+        var quantity = 1, token: UUID?, promo: String?, winBack: String?, promoOption: PurchaseOption.Kind?
         for o in options {
             switch o.kind {
             case .quantity(let q): quantity = q
             case .token(let t): token = t
-            case .promo(let p): promo = p
+            case .promo(let p, _, _, _, _), .promoJWS(let p, _): promo = p; promoOption = o.kind
             case .winBack(let w): winBack = w
             default: break
             }
@@ -701,10 +792,16 @@ public struct Product: Identifiable, Hashable, Sendable {
         guard quantity >= 1, quantity <= 10, quantity == 1 || type == .consumable else { throw PurchaseError.invalidQuantity }
         // offer
         var offer: SubscriptionOffer?
-        if let promo {
+        var nonce: String?
+        if let promo, let promoOption {
             guard let o = item.promos.first(where: { $0.offer.id == promo || $0.keys.contains(promo.lowercased()) }) else { throw PurchaseError.invalidOfferIdentifier }
+            // promotional offers are for existing and lapsed subscribers of the group
+            guard let g = item.groupID, _SKLedger.shared.everSubscribed(group: g) else {
+                NSLog("isim StoreKit: promotional offer %@: not eligible (never subscribed to the group)", promo)
+                throw PurchaseError.ineligibleForOffer
+            }
+            nonce = try _SKOffers.check(promoOption, product: id, offerID: o.offer.id ?? promo, token: token)
             offer = o.offer
-            NSLog("isim StoreKit: promotional offer %@ (signature not verified in local testing)", promo)
         } else if let winBack {
             guard let o = item.winBacks.first(where: { $0.offer.id == winBack }) else { throw PurchaseError.invalidOfferIdentifier }
             guard let g = item.groupID, _SKLedger.shared.everSubscribed(group: g),
@@ -724,6 +821,7 @@ public struct Product: Identifiable, Hashable, Sendable {
             return .success(.verified(Transaction(cur)))
         }
         guard await _SKPurchaseSheet.confirm(self, quantity: quantity, offer: offer) else { return .userCancelled }
+        if let nonce { _SKLedger.shared.mutate { d in d.usedOfferNonces = (d.usedOfferNonces ?? []) + [nonce] } }
         if type == .autoRenewable {
             switch _SKLedger.shared.subscribe(item, offer: offer, token: token, api: api) {
             case .new(let t), .deferred(let t), .already(let t):
@@ -784,20 +882,32 @@ public struct Product: Identifiable, Hashable, Sendable {
             public let autoRenewPreference: String?
             public let expirationReason: ExpirationReason?
             public let isInBillingRetry: Bool
+            public let gracePeriodExpirationDate: Date?
             public let renewalDate: Date?
             public let offerType: Transaction.OfferType?
             public let offerID: String?
             public let recentSubscriptionStartDate: Date
-            public var gracePeriodExpirationDate: Date? { nil }
             public var priceIncreaseStatus: PriceIncreaseStatus { .noIncreasePending }
-            public var signedDate: Date { Date() }
+            public var signedDate: Date { renewalDate ?? recentSubscriptionStartDate }
             public var environment: AppStore.Environment { .xcode }
-            public var deviceVerification: Data { Data() }
-            public var deviceVerificationNonce: UUID { UUID() }
+            public var deviceVerificationNonce: UUID {
+                _skStableUUID("renewal \(originalTransactionID) \(currentProductID) \(willAutoRenew) \(renewalDate?.timeIntervalSince1970 ?? 0) \(expirationReason?.rawValue ?? 0)")
+            }
+            public var deviceVerification: Data { _SKDevice.verification(nonce: deviceVerificationNonce) }
+            /// The JWS payload: the fields of Apple's JWSRenewalInfoDecodedPayload (environment "Xcode").
             public var jsonRepresentation: Data {
-                let d: [String: Any] = ["originalTransactionId": "\(originalTransactionID)", "productId": currentProductID, "autoRenewStatus": willAutoRenew ? 1 : 0,
-                                        "autoRenewProductId": autoRenewPreference ?? currentProductID, "environment": "Xcode", "isim": "local, unsigned"]
-                return (try? JSONSerialization.data(withJSONObject: d)) ?? Data()
+                var d: [String: Any] = ["originalTransactionId": "\(originalTransactionID)", "productId": currentProductID, "autoRenewStatus": willAutoRenew ? 1 : 0,
+                                        "autoRenewProductId": autoRenewPreference ?? currentProductID, "environment": "Xcode",
+                                        "isInBillingRetryPeriod": isInBillingRetry, "signedDate": Int(signedDate.timeIntervalSince1970 * 1000),
+                                        "recentSubscriptionStartDate": Int(recentSubscriptionStartDate.timeIntervalSince1970 * 1000), "currency": "USD",
+                                        "deviceVerification": deviceVerification.base64EncodedString(),
+                                        "deviceVerificationNonce": deviceVerificationNonce.uuidString.lowercased()]
+                if let r = renewalDate { d["renewalDate"] = Int(r.timeIntervalSince1970 * 1000) }
+                if let e = expirationReason { d["expirationIntent"] = e.rawValue }
+                if let g = gracePeriodExpirationDate { d["gracePeriodExpiresDate"] = Int(g.timeIntervalSince1970 * 1000) }
+                if let o = offerType { d["offerType"] = o.rawValue }
+                if let o = offerID { d["offerIdentifier"] = o }
+                return _SKSigning.json(d)
             }
         }
 
@@ -846,9 +956,9 @@ public enum VerificationResult<SignedType>: Sendable where SignedType: Sendable 
     public func payloadValue() throws -> SignedType {
         switch self { case .verified(let v): return v; case .unverified(_, let e): throw e }
     }
-    /// isim local testing: an unsigned compact JWS ("alg": "none", empty signature). Apple never signed it.
+    /// A compact ES256 JWS signed with the isim device's StoreKit testing key, like Xcode's local testing (its x5c header
+    /// holds the self-signed "isim StoreKit Testing" certificate; `isim storekit certificate` exports it). Not Apple's.
     public var jwsRepresentation: String {
-        func b64(_ d: Data) -> String { d.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
         var payload = Data("{}".utf8)
         switch unsafePayloadValue {
         case let t as Transaction: payload = t.jsonRepresentation
@@ -856,11 +966,32 @@ public enum VerificationResult<SignedType>: Sendable where SignedType: Sendable 
         case let a as AppTransaction: payload = a.jsonRepresentation
         default: break
         }
-        return b64(Data(#"{"alg":"none","typ":"JWT","isim":"local StoreKit testing, unsigned"}"#.utf8)) + "." + b64(payload) + "."
+        return _SKSigning.jws(payload)
     }
-    public var signedDate: Date { Date() }
-    public var deviceVerification: Data { Data() }
-    public var deviceVerificationNonce: UUID { UUID() }
+    public var signedDate: Date {
+        switch unsafePayloadValue {
+        case let t as Transaction: return t.signedDate
+        case let r as Product.SubscriptionInfo.RenewalInfo: return r.signedDate
+        case let a as AppTransaction: return a.signedDate
+        default: return Date()
+        }
+    }
+    public var deviceVerification: Data {
+        switch unsafePayloadValue {
+        case let t as Transaction: return t.deviceVerification
+        case let r as Product.SubscriptionInfo.RenewalInfo: return r.deviceVerification
+        case let a as AppTransaction: return a.deviceVerification
+        default: return Data()
+        }
+    }
+    public var deviceVerificationNonce: UUID {
+        switch unsafePayloadValue {
+        case let t as Transaction: return t.deviceVerificationNonce
+        case let r as Product.SubscriptionInfo.RenewalInfo: return r.deviceVerificationNonce
+        case let a as AppTransaction: return a.deviceVerificationNonce
+        default: return UUID()
+        }
+    }
 }
 
 public struct Transaction: Identifiable, Hashable, Sendable {
@@ -917,7 +1048,8 @@ public struct Transaction: Identifiable, Hashable, Sendable {
     public var isUpgraded: Bool { r.isUpgraded }
     public var purchasedQuantity: Int { r.quantity }
     public var ownershipType: OwnershipType { .purchased }
-    public var signedDate: Date { Date() }
+    /// when this state of the transaction was signed: its purchase, or its refund
+    public var signedDate: Date { Date(timeIntervalSince1970: r.revocationDate ?? r.purchaseDate) }
     public var environment: AppStore.Environment { .xcode }
     public var reason: Reason { r.reason == "renewal" ? .renewal : .purchase }
     public var appAccountToken: UUID? { r.appAccountToken.flatMap { UUID(uuidString: $0) } }
@@ -927,16 +1059,27 @@ public struct Transaction: Identifiable, Hashable, Sendable {
     public var offer: Offer? { r.offerType.map { Offer(id: r.offerID, type: OfferType(rawValue: $0), paymentMode: r.offerPaymentMode.map { Product.SubscriptionOffer.PaymentMode(rawValue: $0) }) } }
     public var price: Decimal? { r.price.flatMap { Decimal(string: $0) } }
     public var storefrontCountryCode: String { _SKConfig.load().storefront }
-    public var deviceVerification: Data { Data() }
-    public var deviceVerificationNonce: UUID { UUID() }
+    public var deviceVerificationNonce: UUID { _skStableUUID("transaction \(appBundleID) \(r.id) \(r.revocationDate ?? 0)") }
+    public var deviceVerification: Data { _SKDevice.verification(nonce: deviceVerificationNonce) }
+    /// The JWS payload: the fields of Apple's JWSTransactionDecodedPayload (environment "Xcode").
     public var jsonRepresentation: Data {
         var d: [String: Any] = ["transactionId": "\(r.id)", "originalTransactionId": "\(r.originalID)", "productId": r.productID, "type": r.type,
                                 "purchaseDate": Int(r.purchaseDate * 1000), "originalPurchaseDate": Int(r.originalPurchaseDate * 1000),
-                                "bundleId": appBundleID, "quantity": r.quantity, "environment": "Xcode", "isim": "local StoreKit testing, unsigned"]
+                                "bundleId": appBundleID, "quantity": r.quantity, "environment": "Xcode", "inAppOwnershipType": "PURCHASED",
+                                "signedDate": Int(signedDate.timeIntervalSince1970 * 1000), "storefront": storefrontCountryCode, "storefrontId": "143441",
+                                "transactionReason": reason.rawValue, "currency": "USD", "appTransactionId": appTransactionID,
+                                "deviceVerification": deviceVerification.base64EncodedString(),
+                                "deviceVerificationNonce": deviceVerificationNonce.uuidString.lowercased()]
         if let e = r.expirationDate { d["expiresDate"] = Int(e * 1000) }
-        if let g = r.groupID { d["subscriptionGroupIdentifier"] = g }
-        if let v = r.revocationDate { d["revocationDate"] = Int(v * 1000) }
-        return (try? JSONSerialization.data(withJSONObject: d)) ?? Data()
+        if let g = r.groupID { d["subscriptionGroupIdentifier"] = g; d["webOrderLineItemId"] = "\(r.id)" }
+        if let v = r.revocationDate { d["revocationDate"] = Int(v * 1000); d["revocationReason"] = r.revocationReason ?? 0 }
+        if r.isUpgraded { d["isUpgraded"] = true }
+        if let p = price { d["price"] = NSDecimalNumberHelper.milli(p) }
+        if let t = r.appAccountToken { d["appAccountToken"] = t.lowercased() }
+        if let o = r.offerType { d["offerType"] = o }
+        if let o = r.offerID { d["offerIdentifier"] = o }
+        if let m = r.offerPaymentMode { d["offerDiscountType"] = m.uppercased() == "FREETRIAL" ? "FREE_TRIAL" : m.uppercased() == "PAYUPFRONT" ? "PAY_UP_FRONT" : "PAY_AS_YOU_GO" }
+        return _SKSigning.json(d)
     }
 
     /// Marks the transaction finished; unfinished transactions are delivered again by Transaction.updates
@@ -1021,14 +1164,32 @@ public enum AppStore {
         /// local StoreKit testing (what isim provides)
         public static let xcode = Environment(rawValue: "Xcode")
     }
-    /// Restores purchases: re-reads the local ledger (there is no App Store account to sync with).
+    public struct Platform: RawRepresentable, Hashable, Sendable {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public static let iOS = Platform(rawValue: "iOS")
+        public static let macOS = Platform(rawValue: "macOS")
+        public static let tvOS = Platform(rawValue: "tvOS")
+        public static let visionOS = Platform(rawValue: "visionOS")
+    }
+    /// Restores purchases from the device's account (the purchase history in the device data, which outlives the app):
+    /// renewals and Transaction Manager changes are applied, unfinished transactions are delivered again through
+    /// Transaction.updates, every subscription status goes to Status.updates and the app receipt is signed again.
+    /// Like Xcode's local testing, there is no sign-in prompt.
     public static func sync() async throws {
         _SKUpdates.start()
-        _SKLedger.shared.tick()
-        NSLog("isim StoreKit: AppStore.sync() re-read the local ledger")
+        let ledger = _SKLedger.shared
+        ledger.tick()
+        let (unfinished, groups) = ledger.read { d in (d.transactions.filter { !$0.finished }, Set(d.transactions.compactMap { $0.groupID }).sorted()) }
+        for t in unfinished { _SKUpdates.transactions.yield(.verified(Transaction(t))) }
+        for g in groups { for st in ledger.read({ _SKLedger.statuses($0, group: g, now: Date()) }) { _SKUpdates.statuses.yield(st) } }
+        _SKReceipt.write()
+        let count = ledger.read { $0.transactions.count }
+        NSLog("isim StoreKit: AppStore.sync() restored %ld transactions from the account (%ld unfinished, %ld subscription groups)", count, unfinished.count, groups.count)
     }
     public static var canMakePayments: Bool { true }
-    public static var deviceVerificationID: UUID? { _SKLedger.shared.read { $0.deviceID.flatMap { UUID(uuidString: $0) } } }
+    /// the device's identifier for the app's vendor, as on iOS (UIDevice.identifierForVendor)
+    public static var deviceVerificationID: UUID? { _SKDevice.verificationID }
     @MainActor public static func showManageSubscriptions(in scene: UIWindowScene) async throws { await _SKSheets.manageSubscriptions(group: nil) }
     @MainActor public static func showManageSubscriptions(in scene: UIWindowScene, subscriptionGroupID: String) async throws { await _SKSheets.manageSubscriptions(group: subscriptionGroupID) }
     @MainActor public static func presentOfferCodeRedeemSheet(in scene: UIWindowScene) async throws { await _SKSheets.redeemCode() }
@@ -1042,34 +1203,91 @@ public struct Storefront: Identifiable, Hashable, Sendable {
     public static var updates: AsyncStream<Storefront> { AsyncStream { _ in } }
 }
 
-/// The app's "purchase" (here: its first launch on this device). Local and unsigned.
+/// The app's "purchase": its first launch on this isim device's account, signed like every other StoreKit value with
+/// the device's StoreKit testing key (environment .xcode, receipt type "Xcode").
 public struct AppTransaction: Sendable {
     public let appID: UInt64?
     public let appVersionID: UInt64?
     public let appVersion: String
     public let bundleID: String
-    /// the app version (CFBundleVersion) at the first launch on this isim device
+    /// the app version (CFBundleVersion) at its first launch on this isim device's account
     public let originalAppVersion: String
     public let originalPurchaseDate: Date
     public let preorderDate: Date?
     public let signedDate: Date
     public var environment: AppStore.Environment { .xcode }
     public var appTransactionID: String { "isim-local-\(bundleID)" }
-    public var deviceVerification: Data { Data() }
-    public var deviceVerificationNonce: UUID { UUID() }
+    public var originalPlatform: AppStore.Platform { .iOS }
+    public var deviceVerificationNonce: UUID { _skStableUUID("app transaction \(bundleID) \(originalPurchaseDate.timeIntervalSince1970) \(signedDate.timeIntervalSince1970)") }
+    public var deviceVerification: Data { _SKDevice.verification(nonce: deviceVerificationNonce) }
+    /// The JWS payload: the fields of Apple's JWSAppTransactionDecodedPayload (receiptType "Xcode").
     public var jsonRepresentation: Data {
-        let d: [String: Any] = ["bundleId": bundleID, "applicationVersion": appVersion, "originalApplicationVersion": originalAppVersion,
-                                "originalPurchaseDate": Int(originalPurchaseDate.timeIntervalSince1970 * 1000), "receiptType": "Xcode", "isim": "local, unsigned"]
-        return (try? JSONSerialization.data(withJSONObject: d)) ?? Data()
+        _SKSigning.json(["bundleId": bundleID, "applicationVersion": appVersion, "originalApplicationVersion": originalAppVersion,
+                         "originalPurchaseDate": Int(originalPurchaseDate.timeIntervalSince1970 * 1000), "receiptType": "Xcode",
+                         "receiptCreationDate": Int(signedDate.timeIntervalSince1970 * 1000), "requestDate": Int(signedDate.timeIntervalSince1970 * 1000),
+                         "signedDate": Int(signedDate.timeIntervalSince1970 * 1000), "appTransactionId": appTransactionID, "originalPlatform": "iOS",
+                         "deviceVerification": deviceVerification.base64EncodedString(),
+                         "deviceVerificationNonce": deviceVerificationNonce.uuidString.lowercased()])
     }
     public static var shared: VerificationResult<AppTransaction> { get async throws { make() } }
-    public static func refresh() async throws -> VerificationResult<AppTransaction> { make() }
+    /// signs it again (a new signed date), as refreshing does on iOS
+    public static func refresh() async throws -> VerificationResult<AppTransaction> { signed = Date(); return make() }
+    nonisolated(unsafe) static var signed = Date()
     static func make() -> VerificationResult<AppTransaction> {
         let (first, version) = _SKLedger.shared.read { ($0.firstLaunch ?? Date().timeIntervalSince1970, $0.firstAppVersion ?? "1") }
         return .verified(AppTransaction(appID: nil, appVersionID: nil,
                                         appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1",
                                         bundleID: Bundle.main.bundleIdentifier ?? "", originalAppVersion: version,
-                                        originalPurchaseDate: Date(timeIntervalSince1970: first), preorderDate: nil, signedDate: Date()))
+                                        originalPurchaseDate: Date(timeIntervalSince1970: first), preorderDate: nil,
+                                        signedDate: Date(timeIntervalSince1970: (signed.timeIntervalSince1970 * 1000).rounded(.down) / 1000)))
+    }
+}
+
+// MARK: - Promotional offer signatures
+
+enum _SKOffers {
+    /// Checks a promotional offer signature like the App Store: ECDSA P-256 / SHA-256 over
+    /// bundle ID, key ID, product ID, offer ID, app account token, nonce and timestamp (joined by U+2063), or an ES256
+    /// compact JWS, against the device's subscription offers key; at most 24 hours old; each nonce once.
+    /// Returns the nonce (recorded when the purchase goes through); ISIM_STOREKIT_OFFER_SIGNATURES=off skips the check.
+    static func check(_ option: Product.PurchaseOption.Kind, product: String, offerID: String, token: UUID?) throws -> String? {
+        if ProcessInfo.processInfo.environment["ISIM_STOREKIT_OFFER_SIGNATURES"]?.lowercased() == "off" {
+            NSLog("isim StoreKit: promotional offer %@: signature not checked (ISIM_STOREKIT_OFFER_SIGNATURES=off)", offerID)
+            return nil
+        }
+        func fail(_ why: String) -> Product.PurchaseError {
+            NSLog("isim StoreKit: promotional offer %@: invalid signature: %@", offerID, why)
+            return .invalidOfferSignature
+        }
+        guard let (keyID, key) = _SKSigning.offerKey() else {
+            throw fail("this device has no subscription offers key (make one with `isim storekit offer-key`)")
+        }
+        let bundle = Bundle.main.bundleIdentifier ?? ""
+        let nonce: String, timestamp: Double
+        switch option {
+        case .promo(_, let kid, let n, let signature, let ts):
+            guard kid == keyID else { throw fail("unknown key ID \(kid) (this device's is \(keyID))") }
+            let sep = "\u{2063}"
+            let message = [bundle, kid, product, offerID, token?.uuidString.lowercased() ?? "", n.uuidString.lowercased(), "\(ts)"].joined(separator: sep)
+            guard let sig = (try? P256.Signing.ECDSASignature(derRepresentation: signature)) ?? (try? P256.Signing.ECDSASignature(rawRepresentation: signature)),
+                  key.isValidSignature(sig, for: Data(message.utf8)) else { throw fail("the signature does not match") }
+            nonce = n.uuidString.lowercased(); timestamp = Double(ts) / 1000
+        case .promoJWS(_, let jws):
+            guard let payload = _SKSigning.verifyJWS(jws, key: key),
+                  let claims = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any] else { throw fail("the JWS signature does not match") }
+            if let header = _skFromBase64URL(String(jws.prefix { $0 != "." })).flatMap({ try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }),
+               let kid = header["kid"] as? String, kid != keyID { throw fail("unknown key ID \(kid)") }
+            guard (claims["productId"] as? String) == product, (claims["offerIdentifier"] as? String) == offerID else { throw fail("the JWS is for another product or offer") }
+            if let bid = claims["bid"] as? String, bid != bundle { throw fail("the JWS is for another app (\(bid))") }
+            if let t = claims["appAccountToken"] as? String, t.lowercased() != token?.uuidString.lowercased() { throw fail("the app account token does not match") }
+            nonce = (claims["nonce"] as? String)?.lowercased() ?? ""
+            timestamp = (claims["iat"] as? Double) ?? (claims["iat"] as? NSNumber)?.doubleValue ?? 0
+        default: return nil
+        }
+        guard abs(Date().timeIntervalSince1970 - timestamp) <= 86400 else { throw fail("the signature is more than 24 hours old") }
+        if !nonce.isEmpty, _SKLedger.shared.read({ ($0.usedOfferNonces ?? []).contains(nonce) }) { throw fail("the nonce was already used") }
+        NSLog("isim StoreKit: promotional offer %@: signature verified (key %@)", offerID, keyID)
+        return nonce.isEmpty ? nil : nonce
     }
 }
 

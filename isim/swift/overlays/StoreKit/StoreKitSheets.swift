@@ -61,22 +61,62 @@ final class _SKHostingController: UIHostingController<AnyView> {
         await present { close in AnyView(_SKRedeemView(close: close)) }
     }
 
-    static func productPage(_ appID: String, close: @escaping () -> Void) -> AnyView { AnyView(_SKProductPage(appID: appID, close: close)) }
 
-    /// Redeems an offer code from the .storekit file (matched against a code offer's reference name, offer ID
-    /// or internal ID). The subscription arrives through Transaction.updates, as on iOS.
+    /// Redeems an offer code from the .storekit file (matched against a code offer's reference name, offer ID or internal
+    /// ID), like the App Store: the code's "eligibility" (new, existing, expired subscribers) applies, each offer is
+    /// redeemed once, a current subscriber gets the offer from the next renewal, and (iOS 18) codes for one-time products
+    /// give the product. The transaction arrives through Transaction.updates, as on iOS. nil: redeemed; else the error.
     static func redeem(_ code: String) -> String? {
         let key = code.trimmingCharacters(in: .whitespaces).lowercased()
         guard !key.isEmpty else { return "Enter a code." }
+        let ledger = _SKLedger.shared
         for item in _SKConfig.load().items {
             guard let def = item.codes.first(where: { $0.keys.contains(key) }) else { continue }
-            if let g = item.groupID, _SKLedger.shared.entitlements().contains(where: { $0.groupID == g }) { return "You’re already subscribed to \(item.groupName ?? "this subscription")." }
-            if case .new(let t) = _SKLedger.shared.subscribe(item, offer: def.offer, token: nil) {
-                NSLog("isim StoreKit: offer code %@ redeemed: %@ (%@)", code, item.id, def.offer.summary)
-                _SKUpdates.transactions.yield(.verified(Transaction(t)))
+            let tag = "\(item.id)/\(def.name)"
+            if ledger.read({ ($0.redeemedOffers ?? []).contains(tag) }) {
+                NSLog("isim StoreKit: offer code %@: already redeemed", code)
+                return "You’ve already redeemed this offer."
             }
+            if let g = item.groupID {
+                let active = ledger.entitlements().contains { $0.groupID == g }
+                let state = active ? "existing" : ledger.everSubscribed(group: g) ? "expired" : "new"
+                guard def.eligibility.contains(state) else {
+                    NSLog("isim StoreKit: offer code %@: not eligible (%@ subscriber; the code is for %@)", code, state, def.eligibility.joined(separator: ", "))
+                    return "You’re not eligible for this offer."
+                }
+                if active {     // a current subscriber: the offer starts at the next renewal
+                    let o = def.offer
+                    ledger.mutate { d in
+                        guard var s = d.subscriptions[g] else { return }
+                        s.autoRenewProductID = item.id; s.willAutoRenew = true; s.expirationReason = nil
+                        s.offerType = o.type.rawValue; s.offerID = o.id; s.offerPaymentMode = o.paymentMode.rawValue
+                        s.introPeriodsLeft = o.paymentMode == .payAsYouGo ? o.periodCount : 1
+                        d.subscriptions[g] = s
+                        d.redeemedOffers = (d.redeemedOffers ?? []) + [tag]
+                    }
+                    ledger.tick()
+                    NSLog("isim StoreKit: offer code %@ redeemed: %@ (%@) from the next renewal", code, item.id, o.summary)
+                    return nil
+                }
+                if case .new(let t) = ledger.subscribe(item, offer: def.offer, token: nil) {
+                    ledger.mutate { d in d.redeemedOffers = (d.redeemedOffers ?? []) + [tag] }
+                    NSLog("isim StoreKit: offer code %@ redeemed: %@ (%@)", code, item.id, def.offer.summary)
+                    _SKUpdates.transactions.yield(.verified(Transaction(t)))
+                }
+                return nil
+            }
+            guard _skOSMajor() >= 18 else {
+                NSLog("isim StoreKit: offer code %@ is for a one-time product: offer codes for in-app purchases need iOS 18", code)
+                return "This code isn’t valid."
+            }
+            if item.type != .consumable, ledger.entitlements().contains(where: { $0.productID == item.id }) { return "You already own this item." }
+            let t = ledger.purchase(item, quantity: 1, token: nil, code: def)
+            ledger.mutate { d in d.redeemedOffers = (d.redeemedOffers ?? []) + [tag] }
+            NSLog("isim StoreKit: offer code %@ redeemed: %@ (one-time product)", code, item.id)
+            _SKUpdates.transactions.yield(.verified(Transaction(t)))
             return nil
         }
+        NSLog("isim StoreKit: offer code %@ isn’t valid", code)
         return "This code isn’t valid."
     }
 
@@ -284,7 +324,7 @@ struct _SKRedeemView: View {
                 _SKAppIcon(size: 64).padding(.top, 24)
                 Text(verbatim: redeemed ? "Code Redeemed" : "Redeem Code").font(.system(size: 22, weight: .bold))
                 if redeemed {
-                    Text(verbatim: "Your subscription for \(_SKSheets.appName) is active.").font(.system(size: 15)).foregroundStyle(.secondary).accessibilityIdentifier("sk-redeem-done")
+                    Text(verbatim: "Your offer for \(_SKSheets.appName) has been redeemed.").font(.system(size: 15)).foregroundStyle(.secondary).accessibilityIdentifier("sk-redeem-done")
                     Button { close() } label: { Text(verbatim: "Done").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent).accessibilityIdentifier("sk-redeem-ok")
                 } else {
                     Text(verbatim: "Enter the offer code for \(_SKSheets.appName).").font(.system(size: 15)).foregroundStyle(.secondary)
@@ -308,29 +348,159 @@ struct _SKRedeemView: View {
     }
 }
 
-// MARK: - App Store product page (placeholder)
+// MARK: - App Store product data
+
+/// An app's App Store listing from Apple's public lookup API (https://itunes.apple.com/lookup, no account needed):
+/// name, developer, icon, rating, price, description. ISIM_APPSTORE_LOOKUP_URL replaces the endpoint (a URL with
+/// "{id}" in it, or a base the query is appended to; file:// works for offline fixtures).
+struct _SKAppListing: Sendable {
+    var id: String
+    var name = "", seller = "", price = "", genre = "", version = "", contentRating = "", description = ""
+    var rating: Double = 0, ratingCount = 0
+    var iconURL: String?
+    var icon: Data?
+}
+
+enum _SKAppStore {
+    /// looks the app up by App Store ID (or bundle ID); nil: not found; throws when the lookup itself failed
+    static func lookup(id: String? = nil, bundleID: String? = nil) async throws -> _SKAppListing? {
+        let country = String(_SKConfig.load().storefront.prefix(2)).lowercased()
+        let env = ProcessInfo.processInfo.environment["ISIM_APPSTORE_LOOKUP_URL"].flatMap { $0.isEmpty ? nil : $0 }
+        let key = id.map { "id=\($0)" } ?? "bundleId=\(bundleID ?? "")"
+        var urlString: String
+        if let env, env.contains("{id}") { urlString = env.replacingOccurrences(of: "{id}", with: id ?? bundleID ?? "") }
+        else { urlString = (env ?? "https://itunes.apple.com/lookup") + "?\(key)&country=\(country)&entity=software" }
+        guard let url = URL(string: urlString) else { return nil }
+        let data = try await fetch(url)
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let r = (root["results"] as? [[String: Any]])?.first else { return nil }
+        var l = _SKAppListing(id: (r["trackId"] as? NSNumber).map { "\($0)" } ?? id ?? "")
+        l.name = r["trackName"] as? String ?? ""
+        l.seller = r["sellerName"] as? String ?? r["artistName"] as? String ?? ""
+        l.price = r["formattedPrice"] as? String ?? ""
+        l.genre = r["primaryGenreName"] as? String ?? ""
+        l.version = r["version"] as? String ?? ""
+        l.contentRating = r["trackContentRating"] as? String ?? ""
+        l.description = r["description"] as? String ?? ""
+        l.rating = (r["averageUserRating"] as? NSNumber)?.doubleValue ?? 0
+        l.ratingCount = Int((r["userRatingCount"] as? NSNumber)?.int64Value ?? 0)
+        l.iconURL = r["artworkUrl512"] as? String ?? r["artworkUrl100"] as? String
+        if let s = l.iconURL, let u = URL(string: s) { l.icon = try? await fetch(u) }
+        return l
+    }
+    static func fetch(_ url: URL) async throws -> Data {
+        if url.isFileURL { return try Data(contentsOf: url) }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 15
+        let (data, response) = try await URLSession.shared.data(for: req)
+        if let h = response as? HTTPURLResponse, h.statusCode >= 400 { throw URLError(.badServerResponse) }
+        return data
+    }
+}
+
+@MainActor final class _SKListingModel: ObservableObject {
+    @Published var listing: _SKAppListing?
+    @Published var failed: String?
+    let appID: String
+    init(appID: String) { self.appID = appID }
+}
+
+struct _SKListingIcon: View {
+    let listing: _SKAppListing?, size: CGFloat
+    var body: some View {
+        if let d = listing?.icon, let img = UIImage(data: d) {
+            Image(uiImage: img).resizable().frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size * 0.22))
+                .overlay(RoundedRectangle(cornerRadius: size * 0.22).stroke(Color(uiColor: .separator), lineWidth: 0.5))
+        } else {
+            RoundedRectangle(cornerRadius: size * 0.22).fill(Color(uiColor: .systemGray5)).frame(width: size, height: size)
+        }
+    }
+}
+
+struct _SKStars: View {
+    let rating: Double
+    var body: some View {
+        HStack(spacing: 1) {
+            ForEach(0..<5, id: \.self) { i in
+                Image(systemName: rating >= Double(i) + 0.75 ? "star.fill" : rating >= Double(i) + 0.25 ? "star.leadinghalf.filled" : "star")
+                    .font(.system(size: 11))
+            }
+        }
+        .foregroundStyle(.secondary)
+    }
+}
+
+/// "GET": installing apps from the App Store is not possible on isim
+@MainActor func _skGetUnavailable() {
+    NSLog("isim StoreKit: App Store install requested (not available on isim)")
+    guard let top = _SKPurchaseSheet.topController() else { return }
+    let a = UIAlertController(title: "App Store Unavailable", message: "Apps from the App Store can’t be installed on isim.", preferredStyle: .alert)
+    a.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+    top.present(a, animated: true, completion: nil)
+}
+
+// MARK: - App Store product page
 
 struct _SKProductPage: View {
-    let appID: String, close: () -> Void
+    @ObservedObject var model: _SKListingModel
+    let close: () -> Void
     var body: some View {
+        let l = model.listing
         NavigationStack {
-            VStack(spacing: 14) {
-                HStack(spacing: 14) {
-                    _SKAppIcon(size: 96)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(verbatim: "App \(appID)").font(.system(size: 20, weight: .bold)).accessibilityIdentifier("sk-product-page-title")
-                        Text(verbatim: "App Store").font(.system(size: 14)).foregroundStyle(.secondary)
-                        Text(verbatim: "GET").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
-                            .padding(.horizontal, 20).padding(.vertical, 5).background(Color(uiColor: .systemGray3), in: Capsule())
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .top, spacing: 14) {
+                        _SKListingIcon(listing: l, size: 108)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: l?.name ?? (model.failed == nil ? "Loading…" : "App \(model.appID)")).font(.system(size: 22, weight: .bold)).lineLimit(2)
+                                .accessibilityIdentifier("sk-product-page-title")
+                            Text(verbatim: l?.seller ?? "").font(.system(size: 15)).foregroundStyle(.secondary).accessibilityIdentifier("sk-product-page-seller")
+                            Spacer(minLength: 6)
+                            if l != nil {
+                                Button { _skGetUnavailable() } label: {
+                                    Text(verbatim: (l?.price ?? "").isEmpty || l?.price == "Free" ? "GET" : l!.price).font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                                        .padding(.horizontal, 22).padding(.vertical, 6).background(Color.accentColor, in: Capsule())
+                                }
+                                .accessibilityIdentifier("sk-product-page-get")
+                            }
+                        }
+                        Spacer(minLength: 0)
                     }
-                    Spacer()
+                    if let l {
+                        Divider()
+                        HStack {
+                            VStack(spacing: 2) {
+                                Text(verbatim: "\(l.ratingCount) RATINGS").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                                Text(verbatim: String(format: "%.1f", l.rating)).font(.system(size: 20, weight: .bold)).foregroundStyle(.secondary)
+                                    .accessibilityIdentifier("sk-product-page-rating")
+                                _SKStars(rating: l.rating)
+                            }
+                            .frame(maxWidth: .infinity)
+                            VStack(spacing: 2) {
+                                Text(verbatim: "AGE").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                                Text(verbatim: l.contentRating).font(.system(size: 20, weight: .bold)).foregroundStyle(.secondary)
+                                Text(verbatim: "Years Old").font(.system(size: 11)).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            VStack(spacing: 2) {
+                                Text(verbatim: "CATEGORY").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                                Image(systemName: "square.grid.2x2").font(.system(size: 18, weight: .semibold)).foregroundStyle(.secondary)
+                                Text(verbatim: l.genre).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        Divider()
+                        if !l.version.isEmpty { Text(verbatim: "Version \(l.version)").font(.system(size: 13)).foregroundStyle(.secondary) }
+                        Text(verbatim: l.description).font(.system(size: 15)).lineLimit(8).accessibilityIdentifier("sk-product-page-description")
+                    } else if let f = model.failed {
+                        Text(verbatim: f).font(.system(size: 15)).foregroundStyle(.secondary).accessibilityIdentifier("sk-product-page-note")
+                    } else {
+                        ProgressView().frame(maxWidth: .infinity)
+                    }
+                    Text(verbatim: "[Environment: isim — App Store listing; apps can’t be installed]").font(.system(size: 11)).foregroundStyle(.secondary)
                 }
-                Divider()
-                Text(verbatim: "The App Store isn’t available on isim. This is a placeholder for the product page of app \(appID).")
-                    .font(.system(size: 15)).foregroundStyle(.secondary).accessibilityIdentifier("sk-product-page-note")
-                Spacer()
+                .padding(20)
             }
-            .padding(20)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { close() }.accessibilityIdentifier("sk-product-page-done") } }
         }

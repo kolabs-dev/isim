@@ -6,6 +6,7 @@
 // not a PKCS #7 container and not signed by Apple; receipt validation code will (rightly) reject it.
 import UIKit
 import SwiftUI
+internal import CryptoKit
 
 public let SKErrorDomain = "SKErrorDomain"
 public struct SKError: Error, CustomNSError, Sendable {
@@ -40,7 +41,11 @@ open class NSDecimalNumber: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? NSDecimalNumber)?.decimalValue == decimalValue }
     open override var hash: Int { stringValue.hashValue }
 }
-enum NSDecimalNumberHelper { static func double(_ d: Decimal) -> Double { Double("\(d)") ?? 0 } }
+enum NSDecimalNumberHelper {
+    static func double(_ d: Decimal) -> Double { Double("\(d)") ?? 0 }
+    /// milliunits, as App Store JWS prices
+    static func milli(_ d: Decimal) -> Int { Int((double(d) * 1000).rounded()) }
+}
 extension NumberFormatter {
     public func string(from number: NSDecimalNumber) -> String? { string(from: NSNumber(value: number.doubleValue)) }
 }
@@ -138,45 +143,80 @@ open class SKProductsRequest: SKRequest {
     }
 }
 
-/// Writes the local receipt again (there is no App Store to fetch a signed one from).
+public let SKReceiptPropertyIsExpired = "expired"
+public let SKReceiptPropertyIsRevoked = "revoked"
+public let SKReceiptPropertyIsVolumePurchase = "vpp"
+
+/// Signs the app receipt again from the device's account (there is no App Store to fetch one from). Receipt properties
+/// (SKReceiptPropertyIsExpired / IsVolumePurchase), as in the sandbox, give the receipt an expiration date.
 open class SKReceiptRefreshRequest: SKRequest {
     public let receiptProperties: [String: Any]?
     public init(receiptProperties: [String: Any]? = nil) { self.receiptProperties = receiptProperties; super.init() }
     open override func start() {
+        let p = receiptProperties ?? [:]
+        func flag(_ k: String) -> Bool { (p[k] as? Bool) ?? ((p[k] as? NSNumber)?.boolValue ?? false) }
+        _SKReceipt.expired = flag(SKReceiptPropertyIsExpired)
+        _SKReceipt.volumePurchase = flag(SKReceiptPropertyIsVolumePurchase)
+        if flag(SKReceiptPropertyIsRevoked) { NSLog("isim StoreKit: SKReceiptPropertyIsRevoked: there is no revocation list for the local certificate; the receipt stays valid") }
         _SKReceipt.write()
+        NSLog("isim StoreKit: SKReceiptRefreshRequest: receipt signed again%@", _SKReceipt.expired ? " (expired)" : _SKReceipt.volumePurchase ? " (volume purchase)" : "")
         DispatchQueue.main.async { self.delegate?.requestDidFinish(self) }
     }
 }
 
 // MARK: - Receipt
 
+/// The app receipt, in Apple's format: a PKCS #7 SignedData container whose content is the documented ASN.1 receipt
+/// payload (SET OF ReceiptAttribute { type, version, value }), signed with the isim device's StoreKit testing
+/// certificate like Xcode's local receipts. Validate it as for Xcode: OpenSSL with the exported certificate
+/// (`isim storekit certificate`) as the root instead of Apple's; the SHA-1 hash uses identifierForVendor.
 enum _SKReceipt {
     static var url: URL { URL(fileURLWithPath: (NSHomeDirectory() as NSString).appendingPathComponent("StoreKit/receipt")) }
-    /// local, unsigned: a JSON summary of the ledger (not PKCS #7, not signed by Apple)
-    @discardableResult static func write() -> URL {
+    nonisolated(unsafe) static var expired = false
+    nonisolated(unsafe) static var volumePurchase = false
+
+    static func attr(_ type: Int, _ value: [UInt8]) -> [UInt8] { _SKDER.seq(_SKDER.int(type), _SKDER.int(1), _SKDER.octet(value)) }
+    static func date(_ t: Double?) -> [UInt8] { _SKDER.ia5(t.map { _skISODate(Date(timeIntervalSince1970: $0)) } ?? "") }
+
+    /// the receipt payload (unsigned ASN.1)
+    static func payload(opaque: [UInt8]) -> [UInt8] {
         let app = AppTransaction.make().unsafePayloadValue
-        let inApp: [[String: Any]] = _SKLedger.shared.all().map { t in
-            var d: [String: Any] = ["product_id": t.productID, "transaction_id": "\(t.id)", "original_transaction_id": "\(t.originalID)",
-                                    "purchase_date_ms": "\(Int(t.purchaseDate * 1000))", "quantity": "\(t.quantity)"]
-            if let e = t.expirationDate { d["expires_date_ms"] = "\(Int(e * 1000))" }
-            if let r = t.revocationDate { d["cancellation_date_ms"] = "\(Int(r * 1000))" }
-            return d
+        let bundleID = _SKDER.utf8(app.bundleID)
+        let hash = Array(Insecure.SHA1.hash(data: Data(_skUUIDBytes(_SKDevice.verificationID) + opaque + bundleID)))
+        var attrs: [[UInt8]] = [
+            attr(0, _SKDER.utf8("Xcode")), attr(2, bundleID), attr(3, _SKDER.utf8(app.appVersion)), attr(4, opaque), attr(5, hash),
+            attr(12, _SKDER.ia5(_skISODate(Date()))), attr(18, date(app.originalPurchaseDate.timeIntervalSince1970)),
+            attr(19, _SKDER.utf8(app.originalAppVersion)),
+        ]
+        if expired { attrs.append(attr(21, date(Date().timeIntervalSince1970 - 86400))) }
+        else if volumePurchase { attrs.append(attr(21, date(Date().timeIntervalSince1970 + 30 * 86400))) }
+        for t in _SKLedger.shared.all() {
+            var a: [[UInt8]] = [
+                attr(1701, _SKDER.int(t.quantity)), attr(1702, _SKDER.utf8(t.productID)), attr(1703, _SKDER.utf8("\(t.id)")),
+                attr(1704, date(t.purchaseDate)), attr(1705, _SKDER.utf8("\(t.originalID)")), attr(1706, date(t.originalPurchaseDate)),
+                attr(1708, date(t.expirationDate)), attr(1712, date(t.revocationDate)),
+                attr(1719, _SKDER.int(t.offerType == 1 && t.offerPaymentMode != "FreeTrial" ? 1 : 0)),
+                attr(1720, _SKDER.int(t.offerType == 1 && t.offerPaymentMode == "FreeTrial" ? 1 : 0)),
+            ]
+            if t.groupID != nil { a.append(attr(1711, _SKDER.int(Int(t.id)))) }
+            if t.offerType == 2, let o = t.offerID { a.append(attr(1721, _SKDER.utf8(o))) }
+            attrs.append(attr(17, _SKDER.set(a)))
         }
-        let receipt: [String: Any] = [
-            "isim": "LOCAL UNSIGNED RECEIPT written by isim StoreKit testing. Not a PKCS #7 container; not signed by Apple.",
-            "receipt_type": "Xcode", "bundle_id": app.bundleID, "application_version": app.appVersion,
-            "original_application_version": app.originalAppVersion, "original_purchase_date_ms": "\(Int(app.originalPurchaseDate.timeIntervalSince1970 * 1000))",
-            "in_app": inApp]
+        return _SKDER.set(attrs)
+    }
+
+    @discardableResult static func write() -> URL {
+        var opaque = [UInt8](repeating: 0, count: 16)
+        for i in 0..<16 { opaque[i] = UInt8.random(in: 0...255) }
+        let receipt = _SKSigning.pkcs7(payload(opaque: opaque))
         try? FileManager.default.createDirectory(atPath: url.deletingLastPathComponent().path, withIntermediateDirectories: true, attributes: nil)
-        if let data = try? JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: url, options: .atomic)
-        }
+        try? Data(receipt).write(to: url, options: .atomic)
         return url
     }
 }
 
 extension Bundle {
-    /// isim: a local, unsigned receipt (see _SKReceipt), rewritten on each access.
+    /// isim: the app receipt (see _SKReceipt), signed again on each access.
     public var appStoreReceiptURL: URL? { self === Bundle.main ? _SKReceipt.write() : nil }
 }
 
@@ -317,7 +357,12 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
                 t.transactionState = .failed; t.error = SKError(.storeProductNotAvailable); self.notify([t]); return
             }
             var options: Set<Product.PurchaseOption> = [.quantity(payment.quantity)]
-            if let d = payment.paymentDiscount { options.insert(.promotionalOffer(d.identifier, compactJWS: "")) }
+            // applicationUsername is the app account token when it is a UUID (as StoreKit 1 does)
+            if let u = payment.applicationUsername.flatMap({ UUID(uuidString: $0) }) { options.insert(.appAccountToken(u)) }
+            if let d = payment.paymentDiscount {
+                options.insert(.promotionalOffer(offerID: d.identifier, keyID: d.keyIdentifier, nonce: d.nonce,
+                                                 signature: Data(base64Encoded: d.signature) ?? Data(), timestamp: d.timestamp))
+            }
             do {
                 switch try await Product(item)._purchase(options: options, api: "sk1") {
                 case .success(let r):
@@ -325,6 +370,16 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
                     t.transactionState = .purchased; t.ledgerID = x.id; t.transactionIdentifier = "\(x.id)"; t.transactionDate = x.purchaseDate
                 case .pending: t.transactionState = .deferred
                 case .userCancelled: t.transactionState = .failed; t.error = SKError(.paymentCancelled)
+                }
+            } catch let e as Product.PurchaseError {
+                t.transactionState = .failed
+                switch e {
+                case .invalidOfferSignature: t.error = SKError(.invalidSignature)
+                case .invalidOfferIdentifier: t.error = SKError(.invalidOfferIdentifier)
+                case .ineligibleForOffer: t.error = SKError(.ineligibleForOffer)
+                case .missingOfferParameters: t.error = SKError(.missingOfferParams)
+                case .productUnavailable: t.error = SKError(.storeProductNotAvailable)
+                default: t.error = SKError(.paymentInvalid)
                 }
             } catch { t.transactionState = .failed; t.error = SKError(.paymentInvalid) }
             NSLog("isim StoreKit: SKPaymentQueue %@ -> state %ld", payment.productIdentifier, t.transactionState.rawValue)
@@ -372,20 +427,45 @@ extension SKStoreProductViewControllerDelegate {
     public func productViewControllerDidFinish(_ viewController: SKStoreProductViewController) {}
 }
 
-/// The App Store product page: a placeholder sheet (the App Store isn't available on isim).
+/// The App Store product page, with the app's listing from Apple's public lookup API (see _SKAppStore). Installing is
+/// not possible on isim ("GET" says so). An unknown app makes loadProduct fail, as on iOS.
 open class SKStoreProductViewController: UIViewController {
     weak open var delegate: SKStoreProductViewControllerDelegate?
     var appID = ""
+    lazy var model = _SKListingModel(appID: appID)
     open func loadProduct(withParameters parameters: [String: Any], completionBlock: ((Bool, Error?) -> Void)? = nil) {
         appID = "\(parameters[SKStoreProductParameterITunesItemIdentifier] ?? parameters[SKStoreProductParameterProductIdentifier] ?? "")"
-        NSLog("isim StoreKit: SKStoreProductViewController: product page for app %@ (placeholder)", appID)
-        DispatchQueue.main.async { completionBlock?(true, nil) }
+        let model = _SKListingModel(appID: appID)
+        self.model = model
+        let id = appID
+        NSLog("isim StoreKit: SKStoreProductViewController: looking up app %@", id)
+        Task { @MainActor in
+            do {
+                if let l = try await _SKAppStore.lookup(id: id) {
+                    model.listing = l
+                    NSLog("isim StoreKit: SKStoreProductViewController: product page for app %@ (%@)", id, l.name)
+                    completionBlock?(true, nil)
+                } else {
+                    model.failed = "This app is not available in the App Store."
+                    NSLog("isim StoreKit: SKStoreProductViewController: app %@ not found", id)
+                    completionBlock?(false, SKError(.storeProductNotAvailable))
+                }
+            } catch {
+                model.failed = "Cannot connect to the App Store."
+                NSLog("isim StoreKit: SKStoreProductViewController: lookup failed: %@", "\(error)")
+                completionBlock?(false, error)
+            }
+        }
     }
-    open func loadProduct(withParameters parameters: [String: Any]) async throws { loadProduct(withParameters: parameters, completionBlock: nil) }
+    open func loadProduct(withParameters parameters: [String: Any]) async throws {
+        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
+            loadProduct(withParameters: parameters) { ok, e in if ok { k.resume() } else { k.resume(throwing: e ?? SKError(.storeProductNotAvailable)) } }
+        }
+    }
     open override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        let host = UIHostingController(rootView: _SKSheets.productPage(appID) { [weak self] in
+        let host = UIHostingController(rootView: _SKProductPage(model: model) { [weak self] in
             guard let self else { return }
             if let d = self.delegate { d.productViewControllerDidFinish(self) } else { self.dismiss(animated: true, completion: nil) }
         })
@@ -412,7 +492,8 @@ extension SKOverlayDelegate {
     public func storeOverlay(_ overlay: SKOverlay, didFinishDismissal transitionContext: SKOverlay.TransitionContext) {}
 }
 
-/// The App Store overlay: a card at the bottom of the screen (placeholder app; "GET" does nothing).
+/// The App Store overlay: a card at the bottom of the screen with the app's listing (see _SKAppStore); it slides up,
+/// and "GET" says installing is not possible on isim. An unknown app fails through the delegate, as on iOS.
 open class SKOverlay: NSObject {
     public enum Position: Int, Sendable { case bottom = 0, bottomRaised = 1 }
     open class Configuration: NSObject {}
@@ -424,14 +505,20 @@ open class SKOverlay: NSObject {
         open var customProductPageIdentifier: String?
         open var latestReleaseID: String?
         open var userDismissible = true
+        var extra: [String: Any] = [:]
         public init(appIdentifier: String, position: Position) { self.appIdentifier = appIdentifier; self.position = position }
+        open func additionalValue(forKey key: String) -> Any? { extra[key] }
+        open func setAdditionalValue(_ value: Any?, forKey key: String) { extra[key] = value }
     }
     open class AppClipConfiguration: Configuration {
         open var position: Position
+        open var campaignToken: String?
+        open var providerToken: String?
         public init(position: Position) { self.position = position }
     }
     open class TransitionContext: NSObject {
-        public func addAnimationBlock(_ block: @escaping () -> Void) { block() }
+        var blocks: [() -> Void] = []
+        public func addAnimationBlock(_ block: @escaping () -> Void) { blocks.append(block) }
         public var startFrame: CGRect = .zero, endFrame: CGRect = .zero
     }
     public let configuration: Configuration
@@ -439,11 +526,32 @@ open class SKOverlay: NSObject {
     public init(configuration: Configuration) { self.configuration = configuration }
     @MainActor static var window: UIWindow?
     @MainActor static var current: SKOverlay?
+    @MainActor static var card: UIView?
 
     @MainActor open func present(in scene: UIWindowScene) {
-        SKOverlay.window?.isHidden = true
-        let appID = (configuration as? AppConfiguration)?.appIdentifier ?? Bundle.main.bundleIdentifier ?? ""
-        let raised = ((configuration as? AppConfiguration)?.position ?? (configuration as? AppClipConfiguration)?.position) == .bottomRaised
+        let app = configuration as? AppConfiguration
+        let raised = (app?.position ?? (configuration as? AppClipConfiguration)?.position) == .bottomRaised
+        let dismissible = app?.userDismissible ?? true
+        let id = app?.appIdentifier
+        // an App Clip's overlay shows its parent app (the clip's bundle ID without its last component)
+        let parent = (Bundle.main.bundleIdentifier ?? "").split(separator: ".").dropLast().joined(separator: ".")
+        Task { @MainActor in
+            let listing: _SKAppListing?
+            do { listing = try await (id != nil ? _SKAppStore.lookup(id: id) : _SKAppStore.lookup(bundleID: parent)) }
+            catch {
+                NSLog("isim StoreKit: SKOverlay: lookup failed: %@", "\(error)")
+                delegate?.storeOverlay(self, didFailToLoadWithError: error); return
+            }
+            guard let listing else {
+                NSLog("isim StoreKit: SKOverlay: app %@ not found", id ?? parent)
+                delegate?.storeOverlay(self, didFailToLoadWithError: SKError(.overlayInvalidConfiguration)); return
+            }
+            show(listing, raised: raised, dismissible: dismissible, scene: scene)
+        }
+    }
+
+    @MainActor func show(_ listing: _SKAppListing, raised: Bool, dismissible: Bool, scene: UIWindowScene) {
+        if let w = SKOverlay.window { w.isHidden = true; SKOverlay.window = nil }
         let screen = UIScreen.main.bounds
         let h: CGFloat = 80, bottomInset: CGFloat = raised ? 96 : 40
         // a full-screen window that lets touches through except on the card
@@ -451,47 +559,66 @@ open class SKOverlay: NSObject {
         w.windowLevel = UIWindow.Level(rawValue: 1500)
         w.backgroundColor = .clear
         let root = _ISIMPassThroughController()
-        let host = UIHostingController(rootView: _SKOverlayCard(appID: appID, close: {
+        let host = UIHostingController(rootView: _SKOverlayCard(listing: listing, dismissible: dismissible, close: {
             MainActor.assumeIsolated { SKOverlay.dismiss(in: scene, overlay: SKOverlay.current) }
         }))
         host.view.backgroundColor = .clear
         root.addChild(host)
-        host.view.frame = CGRect(x: 8, y: screen.height - h - bottomInset, width: screen.width - 16, height: h)
+        let end = CGRect(x: 8, y: screen.height - h - bottomInset, width: screen.width - 16, height: h)
+        let start = end.offsetBy(dx: 0, dy: h + bottomInset)
+        host.view.frame = start
         root.view.addSubview(host.view)
         host.didMove(toParent: root)
         w.rootViewController = root
-        SKOverlay.window = w; SKOverlay.current = self
+        SKOverlay.window = w; SKOverlay.current = self; SKOverlay.card = host.view
         let ctx = TransitionContext()
+        ctx.startFrame = start; ctx.endFrame = end
         delegate?.storeOverlay(self, willStartPresentation: ctx)
         w.isHidden = false
-        delegate?.storeOverlay(self, didFinishPresentation: ctx)
-        NSLog("isim StoreKit: SKOverlay presented for app %@ (placeholder)", appID)
+        UIView.animate(withDuration: 0.3, animations: { host.view.frame = end; for b in ctx.blocks { b() } }, completion: { _ in
+            MainActor.assumeIsolated { self.delegate?.storeOverlay(self, didFinishPresentation: ctx) }
+        })
+        NSLog("isim StoreKit: SKOverlay presented for app %@ (%@)", listing.id, listing.name)
     }
     @MainActor open class func dismiss(in scene: UIWindowScene) { dismiss(in: scene, overlay: current) }
     @MainActor static func dismiss(in scene: UIWindowScene, overlay: SKOverlay?) {
         guard let w = window else { return }
         let ctx = TransitionContext()
+        if let c = card { ctx.startFrame = c.frame; ctx.endFrame = c.frame.offsetBy(dx: 0, dy: c.frame.height + 140) }
         if let o = overlay { o.delegate?.storeOverlay(o, willStartDismissal: ctx) }
-        w.isHidden = true; window = nil; current = nil
-        if let o = overlay { o.delegate?.storeOverlay(o, didFinishDismissal: ctx) }
-        NSLog("isim StoreKit: SKOverlay dismissed")
+        window = nil; current = nil
+        let finish = {
+            w.isHidden = true
+            if let o = overlay { o.delegate?.storeOverlay(o, didFinishDismissal: ctx) }
+            NSLog("isim StoreKit: SKOverlay dismissed")
+        }
+        if let c = card {
+            card = nil
+            UIView.animate(withDuration: 0.25, animations: { c.frame = ctx.endFrame; for b in ctx.blocks { b() } }, completion: { _ in MainActor.assumeIsolated { finish() } })
+        } else { finish() }
     }
 }
 
 struct _SKOverlayCard: View {
-    let appID: String, close: () -> Void
+    let listing: _SKAppListing, dismissible: Bool, close: () -> Void
     var body: some View {
         HStack(spacing: 12) {
-            _SKAppIcon(size: 56)
+            _SKListingIcon(listing: listing, size: 56)
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: "App \(appID)").font(.system(size: 15, weight: .semibold)).lineLimit(1).accessibilityIdentifier("sk-overlay-title")
-                Text(verbatim: "App Store (not available on isim)").font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                Text(verbatim: listing.name).font(.system(size: 15, weight: .semibold)).lineLimit(1).accessibilityIdentifier("sk-overlay-title")
+                Text(verbatim: listing.seller).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                if listing.ratingCount > 0 { _SKStars(rating: listing.rating) }
             }
             Spacer()
-            Text(verbatim: "GET").font(.system(size: 15, weight: .bold)).foregroundStyle(Color.accentColor)
-                .padding(.horizontal, 18).padding(.vertical, 6).background(Color(uiColor: .systemGray5), in: Capsule())
-            Button { close() } label: { Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).foregroundStyle(.secondary) }
-                .accessibilityIdentifier("sk-overlay-close")
+            Button { _skGetUnavailable() } label: {
+                Text(verbatim: listing.price.isEmpty || listing.price == "Free" ? "GET" : listing.price).font(.system(size: 15, weight: .bold)).foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 18).padding(.vertical, 6).background(Color(uiColor: .systemGray5), in: Capsule())
+            }
+            .accessibilityIdentifier("sk-overlay-get")
+            if dismissible {
+                Button { close() } label: { Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).foregroundStyle(.secondary) }
+                    .accessibilityIdentifier("sk-overlay-close")
+            }
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

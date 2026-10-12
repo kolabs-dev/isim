@@ -30,6 +30,7 @@ typedef const struct __attribute__((objc_bridge(NSURL))) __CFURL *CFURLRef;
 typedef const struct __CFAllocator *CFAllocatorRef;
 typedef const struct __attribute__((objc_bridge(NSDictionary))) __CFDictionary *CFDictionaryRef;
 typedef const struct __attribute__((objc_bridge(NSArray))) __CFArray *CFArrayRef;
+typedef const struct __attribute__((objc_bridge(NSSet))) __CFSet *CFSetRef;
 typedef struct __attribute__((objc_bridge(NSError))) __CFError *CFErrorRef;
 typedef const struct __attribute__((objc_bridge(NSAttributedString))) __CFAttributedString *CFAttributedStringRef;
 typedef struct __attribute__((objc_bridge_mutable(NSMutableAttributedString))) __CFAttributedString *CFMutableAttributedStringRef;

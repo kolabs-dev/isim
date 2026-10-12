@@ -302,7 +302,7 @@ API_AVAILABLE(ios(15.0))
 @end
 
 /* the data a selection navigation works on (NSTextLayoutManager adopts it); isim: the navigation itself (moving
-   and extending selections) is not implemented yet (#154) */
+   and extending selections) is not implemented yet (#9) */
 API_AVAILABLE(ios(15.0))
 @protocol NSTextSelectionDataSource <NSObject>
 @property (strong, readonly) NSTextRange *documentRange;
