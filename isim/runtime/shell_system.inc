@@ -424,9 +424,10 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
         cairo_path_destroy(glyphs); cairo_restore(c);
     } else sys_text(c, t, 0, top + 50, dev.width, 92, PANGO_WEIGHT_BOLD, 1, 1, 1, 1, 1, 0.95);
     el_add("lock-clock", t, (struct rectf){ 0, top + 50, dev.width, 100 }, EL_NONE, 0);
-    focus_draw_lock(c, top + 156);
     double row = lw_draw_row(c);                                   /* the widgets under the clock */
-    double lt = fmax(dev.height * 0.30, row ? row + 14 : 0);
+    double pill = row ? row + 10 : top + 156;                      /* the Focus pill: under the widgets, if any */
+    int focused = focus_draw_lock(c, pill);
+    double lt = fmax(dev.height * 0.30, focused ? pill + 30 + 14 : row ? row + 14 : 0);
     lt += la_draw_lock(c, lt);
     nc_draw_list(c, fmax(lt, dev.height * 0.42), 1);
     cairo_set_source_rgba(c, 1, 1, 1, 0.9);

@@ -495,14 +495,15 @@ static void lockctl_draw(cairo_t *c, struct rectf bl, struct rectf br) {
     }
 }
 /* the Focus on the Lock Screen: a capsule under the clock */
-static void focus_draw_lock(cairo_t *c, double y) {
+static int focus_draw_lock(cairo_t *c, double y) {               /* 1 when a Focus pill was drawn */
     focus_load();
-    if (!focus_mode) return;
+    if (!focus_mode) return 0;
     double w = 170, h = 30, x = (dev.width - w) / 2;
     cairo_new_path(c); sys_round(c, x, y, w, h, h / 2); cairo_set_source_rgba(c, 0, 0, 0, 0.28); cairo_fill(c);
     sys_symbol(c, focus_symbols[focus_mode], x + 20, y + h / 2, 15, 1, 1, 1);
     sys_text(c, focus_names[focus_mode], x + 34, y + 6, w - 42, 14, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 1);
     el_add("lock-focus", focus_names[focus_mode], (struct rectf){ x, y, w, h }, EL_NONE, 0);
+    return 1;
 }
 
 /* ---- input ---- */
