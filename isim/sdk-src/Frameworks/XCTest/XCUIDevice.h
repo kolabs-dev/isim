@@ -10,7 +10,9 @@ typedef NS_ENUM(NSInteger, XCUIDeviceButton) {
     XCUIDeviceButtonVolumeDown = 3,
 } NS_SWIFT_NAME(XCUIDevice.Button);
 
-/* The simulated device. isim: orientation turns the device of the app most recently launched by the test. */
+/* The simulated device. isim: orientation turns the device of the app most recently launched by the test and reads
+ * back the orientation that app reports (UIDevice.orientation); pressButton(.home) sends it to the background.
+ * volumeUp / volumeDown exist only on devices (Apple's Simulator has no volume buttons): isim ignores them. */
 @interface XCUIDevice : NSObject
 @property (class, readonly) XCUIDevice *sharedDevice NS_SWIFT_NAME(shared);
 @property (nonatomic) UIDeviceOrientation orientation;
