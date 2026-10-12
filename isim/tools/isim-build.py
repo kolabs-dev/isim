@@ -2,7 +2,9 @@
 """isim build: build an Xcode project's iOS targets for the isim simulator, on Linux.
 
   isim build (-project App.xcodeproj | -workspace App.xcworkspace) [-target NAME | -scheme NAME]
-             [-configuration Debug|Release] [-o OUTDIR] [-package-cache DIR] [-skip-script-phases] [SETTING=VALUE ...]
+             [-configuration Debug|Release] [-o OUTDIR] [-package-cache DIR] [-skip-script-phases]
+             [-onlyUsePackageVersionsFromResolvedFile] [-resolvePackageDependencies] [-list | -showBuildSettings [-json]]
+             [SETTING=VALUE ...]
 
 What it does per target (dependencies first, also across the projects of a workspace):
   * product types: applications, app extensions, frameworks (dynamic, embedded in <App>.app/Frameworks and
@@ -25,9 +27,14 @@ What it does per target (dependencies first, also across the projects of a works
   * embeds app extensions into <App>.app/PlugIns/ and frameworks into <App>.app/Frameworks/ (copy-files phases)
   * Swift packages: local packages are built from source (Swift and C/ObjC targets, dependencies between
     packages, resources with Bundle.module, binary targets with a local .xcframework); manifests are read with
-    `swift package dump-package`. Remote packages are NEVER fetched: they build from a local checkout found in
-    -package-cache DIR / $ISIM_PACKAGE_CACHE (DIR/<name> or DIR/checkouts/<name>), or from a declared isim
-    stand-in (usr/share/isim/package-standins.json); otherwise the build stops and says so
+    `swift package dump-package`. Remote packages: a local checkout in -package-cache DIR / $ISIM_PACKAGE_CACHE
+    (DIR/<name> or DIR/checkouts/<name>) first, then a declared isim stand-in (usr/share/isim/package-standins.json),
+    else fetched with git into the package cache (default $XDG_CACHE_HOME/isim/packages) at the revision pinned in
+    Package.resolved, or resolved from the requirement and the repository's tags and pinned there
+    (-onlyUsePackageVersionsFromResolvedFile / -disableAutomaticPackageResolution refuse; -resolvePackageDependencies
+    only fetches); remote binary targets are downloaded and checked against their SHA-256 checksum
+  * project view: -list and -showBuildSettings (with -json) like xcodebuild; -tree (isim project) prints the targets,
+    build phases and files
   * .xcframeworks: the x86_64 iOS-simulator slice is used; arm64-only XCFrameworks cannot run on isim
     (it executes x86_64 simulator code), and the build says so
   * shell script phases run like Xcode's: in their place among the target's build phases (a code generator before

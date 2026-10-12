@@ -216,6 +216,8 @@ def test_remote_packages(launch, tmp_path, work):
         app = launch(work / "RemotePackages.app")
         app.wait_log(r"RemotePackages: greet 1\.2\.0 base 11 vendor 7")
         app.quit()
+        rc, log = build("-resolvePackageDependencies")                  # fetch only: everything is cached and pinned
+        assert rc == 0 and "isim build: resolved package dependencies" in log and "fetching" not in log, log[-3000:]
 
         # a version 1 Package.resolved (older Xcode) pins Greet 1.0.0 and Base 1.0.0
         def rev(repo, tag):
