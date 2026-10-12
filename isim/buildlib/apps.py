@@ -149,6 +149,12 @@ def _(a):
     a.swift_app(srcs=["HelloBackground.swift"])
 
 
+@app("samples/HelloQuartz", extra_inputs=["fonts/AdwaitaSans-Regular.ttf"])
+def _(a):
+    b = a.swift_app()
+    shutil.copy(os.path.join(ROOT, "fonts", "AdwaitaSans-Regular.ttf"), b)
+
+
 @app("samples/HelloSpriteKit")
 def _(a):
     b = a.swift_app()

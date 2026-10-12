@@ -1,15 +1,20 @@
 """Core Graphics below UIKit (HelloQuartz): bitmap contexts over app memory (RGBA, BGRA, gray; app pixel writes;
 makeImage; UIGraphicsPushContext), patterns, clip masks, CGImage from bytes / cropping / masking, gradients, shadings,
-shadows, blend modes, transparency layers, color spaces, Core Text lines and frames, PDF write + read.
+shadows (bitmap and PDF), blend modes, transparency layers, every supported color space, context queries and
+stroked-path replacement, Core Text lines and frames, CGFont names/data providers, PDF write + read.
 Port of tests/ui/quartz.sh."""
 import re
+
+import pytest
 
 from isimtest import close, count_px, rgb
 
 
+@pytest.mark.os_matrix
 def test_quartz(launch):
     app = launch("HelloQuartz")
-    for line in ("header %PDF-", "cgpdfcontext ", "ctframe lines", "p3 red space", "gray comps", "masking left"):
+    for line in ("header %PDF-", "cgpdfcontext ", "ctframe lines", "color spaces", "context ctm", "cgfont named",
+                 "pattern uncolored", "masking left"):
         app.wait_log(re.escape(line))
     shot = app.wait_shot(lambda s: close(s, 116, 100, (255, 149, 0)) and close(s, 36, 370, (64, 64, 64)),
                          "drawn on screen")
@@ -29,6 +34,8 @@ def test_quartz(launch):
     assert has("makeImage 64x64 alpha 1 bpc 8 bpp 32"), "makeImage layout"
     assert close(shot, 116, 100, (255, 149, 0)), "UIGraphicsPushContext draws into bitmap"
     assert has("pattern cell [128, 0, 128, 255] gap [0, 0, 0, 0]"), "pattern fill"
+    assert has("pattern uncolored fill [0, 255, 255, 255] gap [0, 0, 0, 0] stroke [0, 255, 255, 255] base kCGColorSpaceGenericCMYK"), \
+        "uncolored fill/stroke pattern uses its CMYK base space"
     assert has("clip mask center [52, 199, 89, 255] corner [0, 0, 0, 0]"), "clip to mask"
     assert has("cgimage from bytes 2x2 bpr 8 provider 16 bytes [255, 0, 0, 255]") and \
         close(shot, 30, 154, (255, 0, 0)) and close(shot, 60, 184, (255, 255, 255)), "CGImage from bytes + provider"
@@ -47,6 +54,13 @@ def test_quartz(launch):
         "transparency layer: overlap not darker"
     assert close(shot, 36, 370, (64, 64, 64)) and has("gray comps [0.25, 1.0] model 0"), "gray CGColor on a layer"
     assert has("p3 red space kCGColorSpaceDisplayP3 comps 4 srgb [255, 0, 0, 255]"), "Display P3 converted to sRGB"
+    assert has("kCGColorSpaceExtendedLinearSRGB,kCGColorSpaceGenericRGBLinear,kCGColorSpaceGenericGrayGamma2_2,kCGColorSpaceLinearGray,kCGColorSpaceExtendedGray,kCGColorSpaceGenericCMYK,kCGColorSpaceITUR_709") and \
+        has("extended 3 p3wide true"), "named RGB, gray, CMYK and extended color spaces retain their identity"
+    assert has("color conversions linear [137, 137, 137, 255] cmyk [0, 255, 255, 255]"), "linear RGB and CMYK convert to sRGB"
+    assert re.search(r"context ctm 2,3 device 18,2[67] user 4,5 clip 20x10 path 30 stroked 10 contains true empty true", log), \
+        "CTM/space conversions, clip/path queries and replacePathWithStrokedPath"
+    assert re.search(r"cgfont named Helvetica units 2048 provider \S+ full .+ units (1000|2048)", log), \
+        "CGFont by name and OpenType data provider"
     assert re.search(r"ctline width [0-9]+ ascent 2[0-9] descent [4-8] glyphs 6 runs 1 run0 glyphs 6", log) and \
         has("ctline index at x=width: 6"), "Core Text line metrics + runs"
     assert count_px(shot, (296, 70, 80, 40), lambda c: c[0] > 204 and c[1] < 102) > 0.05 * 80 * 40, \
@@ -55,6 +69,8 @@ def test_quartz(launch):
         count_px(shot, (70, 350, 120, 60), lambda c: c[0] < 102) > 0.03 * 120 * 60, "Core Text frame wraps"
     assert has("header %PDF-"), "UIGraphicsPDFRenderer writes a PDF"
     assert has("cgpdfcontext true bytes, %PDF %PDF"), "CGPDFContext writes a PDF"
-    if not has("CGPDFDocument unavailable"):                               # hosts without poppler-glib skip this
-        assert has("pdf read pages 2 box 200x100") and close(shot, 170, 165, (48, 176, 199)) and \
-            has("cgpdf roundtrip bottom [0, 0, 255, 255] top [0, 0, 0, 0]"), "CGPDFDocument reads + draws pages"
+    assert not has("CGPDFDocument unavailable") and has("pdf read pages 2 box 200x100") and close(shot, 170, 165, (48, 176, 199)), \
+        "CGPDFDocument reads and draws pages through the packaged poppler runtime"
+    m = re.search(r"cgpdf roundtrip fill \[(\d+), (\d+), (\d+), (\d+)\] shadow \[(\d+), (\d+), (\d+), (\d+)\] fade \[(\d+), (\d+), (\d+), (\d+)\] clear \[(\d+), (\d+), (\d+), (\d+)\] page 1 rotation 0 transform 0.5", log)
+    assert m and int(m.group(3)) > 200 and int(m.group(4)) > 200 and int(m.group(8)) > int(m.group(12)) > int(m.group(16)), \
+        "CGPDFPage properties and a blurred (not sharp) PDF shadow"

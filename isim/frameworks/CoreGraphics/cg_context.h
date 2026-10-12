@@ -10,7 +10,7 @@ struct gstate {
     CGImageRef mask; double mm[6]; CGRect mrect;          /* clip mask (retained) */
     CGPatternRef fillPat, strokePat;                       /* retained */
     CGFloat fillPatComps[5], strokePatComps[5];
-    CGColorSpaceRef fillSpace, strokeSpace;                /* unretained shared spaces */
+    CGColorSpaceRef fillSpace, strokeSpace;                /* retained */
     int textMode; CGFloat charSpacing, fontSize; CGFontRef font;
     int layer;                                             /* this level was pushed by BeginTransparencyLayer */
 };

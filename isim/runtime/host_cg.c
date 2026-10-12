@@ -311,6 +311,63 @@ int isim_cg_copy_path(double *out, int max) {
     cairo_path_destroy(p);
     return n;
 }
+static void stroke_disc(cairo_t *cr, double x, double y, double r) {
+    cairo_new_sub_path(cr); cairo_arc(cr, x, y, r, 0, 2 * M_PI); cairo_close_path(cr);
+}
+static void stroke_segment(cairo_t *cr, double x0, double y0, double x1, double y1, double half, int extend_start, int extend_end) {
+    double dx = x1 - x0, dy = y1 - y0, len = hypot(dx, dy);
+    if (len <= 1e-12) { stroke_disc(cr, x0, y0, half); return; }
+    dx /= len; dy /= len;
+    if (extend_start) { x0 -= dx * half; y0 -= dy * half; }
+    if (extend_end) { x1 += dx * half; y1 += dy * half; }
+    double nx = -dy * half, ny = dx * half;
+    cairo_move_to(cr, x0 + nx, y0 + ny); cairo_line_to(cr, x1 + nx, y1 + ny);
+    cairo_line_to(cr, x1 - nx, y1 - ny); cairo_line_to(cr, x0 - nx, y0 - ny); cairo_close_path(cr);
+}
+static void stroke_subpath(cairo_t *cr, const double *xy, int points, int closed, double half, cairo_line_cap_t cap) {
+    if (points < 2) return;
+    int segments = closed ? points : points - 1;
+    for (int i = 0; i < segments; i++) {
+        int j = (i + 1) % points;
+        stroke_segment(cr, xy[i * 2], xy[i * 2 + 1], xy[j * 2], xy[j * 2 + 1], half,
+                       !closed && i == 0 && cap == CAIRO_LINE_CAP_SQUARE,
+                       !closed && i == segments - 1 && cap == CAIRO_LINE_CAP_SQUARE);
+    }
+    if (closed) {
+        for (int i = 0; i < points; i++) stroke_disc(cr, xy[i * 2], xy[i * 2 + 1], half);
+    } else {
+        for (int i = 1; i < points - 1; i++) stroke_disc(cr, xy[i * 2], xy[i * 2 + 1], half);
+        if (cap == CAIRO_LINE_CAP_ROUND) {
+            stroke_disc(cr, xy[0], xy[1], half);
+            stroke_disc(cr, xy[(points - 1) * 2], xy[(points - 1) * 2 + 1], half);
+        }
+    }
+}
+/* Cairo has no public stroke-to-path operation. Build an adapted outline from its flattened path: segment quads,
+   round joins (also used as a conservative approximation of bevel/miter joins), and the requested cap shape. */
+void isim_cg_replace_path_with_stroke(double line_width) {
+    cairo_t *cr = isim_host_cairo();
+    cairo_path_t *p = cairo_copy_path_flat(cr);
+    cairo_line_cap_t cap = cairo_get_line_cap(cr);
+    double half = fabs(line_width) / 2;
+    double *xy = calloc((size_t)p->num_data * 2, sizeof *xy);
+    int points = 0;
+    cairo_new_path(cr);
+    for (int i = 0; i < p->num_data; i += p->data[i].header.length) {
+        cairo_path_data_t *d = &p->data[i];
+        if (d->header.type == CAIRO_PATH_MOVE_TO) {
+            stroke_subpath(cr, xy, points, 0, half, cap); points = 0;
+            xy[0] = d[1].point.x; xy[1] = d[1].point.y; points = 1;
+        } else if (d->header.type == CAIRO_PATH_LINE_TO && points) {
+            xy[points * 2] = d[1].point.x; xy[points * 2 + 1] = d[1].point.y; points++;
+        } else if (d->header.type == CAIRO_PATH_CLOSE_PATH && points) {
+            stroke_subpath(cr, xy, points, 1, half, cap); points = 0;
+        }
+    }
+    stroke_subpath(cr, xy, points, 0, half, cap);
+    free(xy);
+    cairo_path_destroy(p);
+}
 void isim_cg_set_ctm(const double *m) { cairo_matrix_t c; cairo_matrix_init(&c, m[0], m[1], m[2], m[3], m[4], m[5]); cairo_set_matrix(isim_host_cairo(), &c); }
 void isim_cg_group_begin(void) { cairo_t *cr = isim_host_cairo(); cairo_push_group(cr); cairo_set_operator(cr, CAIRO_OPERATOR_OVER); }
 
@@ -348,11 +405,23 @@ static void draw_shadow(cairo_t *cr, cairo_pattern_t *p, const struct isim_cg_fx
     double rgba[4] = { fx->srgba[0], fx->srgba[1], fx->srgba[2], fx->srgba[3] * fx->alpha };
     cairo_surface_t *gs = NULL;
     if (cairo_pattern_get_surface(p, &gs) != CAIRO_STATUS_SUCCESS || cairo_surface_get_type(gs) != CAIRO_SURFACE_TYPE_IMAGE) {
-        cairo_save(cr);                                   /* vector targets (PDF): a sharp offset shadow */
-        cairo_matrix_t m; cairo_get_matrix(cr, &m); cairo_identity_matrix(cr); cairo_translate(cr, dx, dy); cairo_transform(cr, &m);
-        cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_mask(cr, p);
-        cairo_restore(cr);
-        return;
+        /* A PDF group is a recording surface. Rasterize its alpha in device space so vector and bitmap contexts get
+           the same blurred shadow, then keep the original operation itself as vector content. */
+        double ux0, uy0, ux1, uy1; cairo_clip_extents(cr, &ux0, &uy0, &ux1, &uy1);
+        double px[4] = { ux0, ux1, ux1, ux0 }, py[4] = { uy0, uy0, uy1, uy1 };
+        double x0 = HUGE_VAL, y0 = HUGE_VAL, x1 = -HUGE_VAL, y1 = -HUGE_VAL;
+        for (int i = 0; i < 4; i++) { cairo_user_to_device(cr, &px[i], &py[i]); x0 = fmin(x0, px[i]); y0 = fmin(y0, py[i]); x1 = fmax(x1, px[i]); y1 = fmax(y1, py[i]); }
+        int r = (int)lround(rad), margin = 3 * r + 2, w = (int)ceil(x1 - x0) + 2 * margin, h = (int)ceil(y1 - y0) + 2 * margin;
+        if (w > 0 && h > 0 && w <= 32768 && h <= 32768) {
+            cairo_surface_t *a8 = cairo_image_surface_create(CAIRO_FORMAT_A8, w, h);
+            cairo_t *tmp = cairo_create(a8); cairo_matrix_t tm; cairo_get_matrix(cr, &tm);
+            tm.x0 += margin - x0; tm.y0 += margin - y0; cairo_set_matrix(tmp, &tm); cairo_set_source(tmp, p); cairo_paint(tmp); cairo_destroy(tmp);
+            cairo_surface_flush(a8); blur_a8(cairo_image_surface_get_data(a8), w, h, cairo_image_surface_get_stride(a8), r); cairo_surface_mark_dirty(a8);
+            cairo_save(cr); cairo_identity_matrix(cr); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
+            cairo_mask_surface(cr, a8, x0 - margin + dx, y0 - margin + dy); cairo_restore(cr); cairo_surface_destroy(a8); return;
+        }
+        cairo_save(cr); cairo_matrix_t m; cairo_get_matrix(cr, &m); cairo_identity_matrix(cr); cairo_translate(cr, dx, dy); cairo_transform(cr, &m);
+        cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_mask(cr, p); cairo_restore(cr); return;
     }
     cairo_surface_flush(gs);
     int gw = cairo_image_surface_get_width(gs), gh = cairo_image_surface_get_height(gs), gst = cairo_image_surface_get_stride(gs);
@@ -442,7 +511,11 @@ void isim_cg_fill_pattern(int hd, double cw, double ch, const double *mx, int mo
     cairo_save(cr);
     cairo_set_source(cr, p);
     if (mode == 0) { if (alpha >= 0.999) cairo_fill_preserve(cr); else { cairo_clip_preserve(cr); cairo_paint_with_alpha(cr, alpha); } }
-    else if (mode == 1) { cairo_set_line_width(cr, lw); cairo_stroke_preserve(cr); }
+    else if (mode == 1) {
+        cairo_set_line_width(cr, lw);
+        if (alpha >= 0.999) cairo_stroke_preserve(cr);
+        else { cairo_push_group(cr); cairo_stroke_preserve(cr); cairo_pattern_t *g = cairo_pop_group(cr); cairo_set_source(cr, g); cairo_paint_with_alpha(cr, alpha); cairo_pattern_destroy(g); }
+    }
     else cairo_paint_with_alpha(cr, alpha);
     cairo_restore(cr);
     cairo_pattern_destroy(p);
@@ -769,6 +842,27 @@ void isim_ct_font_info(void *fp, struct isim_ct_font_info *o) {
         if (FcPatternGetMatrix(p, FC_MATRIX, 0, &m) == FcResultMatch && m && m->xy != 0) o->synthetic |= 2;
     }
     if (!o->slant_angle && (o->synthetic & 2)) o->slant_angle = -12;     /* fontconfig's oblique shear (0.2) */
+}
+static void face_name(hb_face_t *face, hb_ot_name_id_t id, char *out, int outlen) {
+    if (!out || outlen < 1) return;
+    unsigned n = (unsigned)outlen - 1;
+    hb_ot_name_get_utf8(face, id, hb_language_from_string("en", -1), &n, out);
+    out[n < (unsigned)outlen ? n : (unsigned)outlen - 1] = 0;
+}
+int isim_cg_font_data_info(const void *data, long len, char *ps, int pslen, char *full, int fulllen, int *units) {
+    if (ps && pslen) ps[0] = 0; if (full && fulllen) full[0] = 0; if (units) *units = 0;
+    if (!data || len <= 0) return 0;
+    hb_blob_t *blob = hb_blob_create(data, (unsigned)len, HB_MEMORY_MODE_READONLY, NULL, NULL);
+    hb_face_t *face = hb_face_create(blob, 0); hb_blob_destroy(blob);
+    unsigned upem = hb_face_get_upem(face), glyphs = hb_face_get_glyph_count(face);
+    if (!upem || !glyphs) { hb_face_destroy(face); return 0; }
+    face_name(face, HB_OT_NAME_ID_POSTSCRIPT_NAME, ps, pslen);
+    face_name(face, HB_OT_NAME_ID_FULL_NAME, full, fulllen);
+    if (ps && pslen && !ps[0]) face_name(face, HB_OT_NAME_ID_FONT_FAMILY, ps, pslen);
+    if (full && fulllen && !full[0] && ps) snprintf(full, (size_t)fulllen, "%s", ps);
+    if (units) *units = (int)upem;
+    hb_face_destroy(face);
+    return ps && ps[0];
 }
 /* nominal glyphs of code points; 0 where the font has none. Returns how many were found. */
 int isim_ct_font_glyphs(void *fp, const unsigned *cps, unsigned short *glyphs, int n) {

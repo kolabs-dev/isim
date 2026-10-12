@@ -4,7 +4,7 @@ This tracks how much of the iOS SDK isim covers (iOS 17, 18, 26 and 27, selected
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-11
+Last updated: 2026-10-12
 
 **Legend**
 
@@ -67,7 +67,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Dispatch | 6 | 0 | 0 | 0 | 6 | 100% |
 | Objective-C runtime & C library | 18 | 0 | 0 | 0 | 18 | 100% |
-| Core Graphics | 16 | 6 | 0 | 0 | 22 | 86% |
+| Core Graphics | 22 | 0 | 0 | 0 | 22 | 100% |
 | Core Text | 7 | 0 | 0 | 0 | 7 | 100% |
 | QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
 | Core Image, ImageIO & Metal | 2 | 1 | 0 | 2 | 5 | 50% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **829** | **145** | **22** | **93** | **1089** | **83%** |
+| **All areas** | **835** | **139** | **22** | **93** | **1089** | **83%** |
 
 ### Per iOS version
 
@@ -101,7 +101,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Foundation | 100% (84) | 100% (84) | 100% (84) | 100% (84) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
-| Core Graphics | 86% (22) | 86% (22) | 86% (22) | 86% (22) |
+| Core Graphics | 100% (22) | 100% (22) | 100% (22) | 100% (22) |
 | Core Text | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | QuartzCore / Core Animation | 83% (21) | 83% (21) | 83% (21) | 83% (21) |
 | Core Image, ImageIO & Metal | 50% (5) | 50% (5) | 50% (5) | 50% (5) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **83%** (1027) | **83%** (1042) | **83%** (1068) | **83%** (1089) |
+| **All areas** | **84%** (1027) | **83%** (1042) | **83%** (1068) | **83%** (1089) |
 
 ---
 
@@ -1071,21 +1071,21 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Clipping (`clip`, `clip(using: .evenOdd)`, `clip(to: rect)`) | ✅ | ≤17 | even-odd clip unverified |
 | `CGPath` / `CGMutablePath` (build, bounding box, contains, apply) | ✅ | ≤17 | |
 | `CGColor` (RGB, gray, copy with alpha, components in their space, `converted(to:)`) | ✅ | ≤17 | gray colors keep 2 components; tested (HelloQuartz) |
-| `CGColorSpace` (sRGB, Display P3, linear, gray, CMYK, pattern) | 🟡 | ≤17 | colors in other spaces are converted to sRGB for drawing (P3 exact conversion, out-of-gamut clamped; no wide-color output); tested (HelloQuartz) |
-| Pattern colors (`CGPattern`, `setFillPattern`) | 🟡 | ≤17 | colored patterns: the cell is drawn once (2x) and tiled; pattern space is relative to the current CTM; tested (HelloQuartz). Uncolored patterns and stroke patterns unverified |
+| `CGColorSpace` (sRGB, Display P3, linear, gray, CMYK, pattern) | ✅ | ≤17 | adapted: named spaces preserve their name/model/base/extended-range properties; colors convert to sRGB for drawing (exact Display P3 matrix, linear transfer, gray and CMYK; out-of-gamut clamped, no wide-color output); tested (HelloQuartz) |
+| Pattern colors (`CGPattern`, `setFillPattern`) | ✅ | ≤17 | adapted: colored and uncolored fill/stroke patterns; uncolored components use the pattern space's RGB/gray/CMYK base; cell drawn once at 2x and tiled relative to the current CTM, with phase and alpha; tested (HelloQuartz) |
 | `CGImage` (from UIImage, crop, draw into context) | ✅ | ≤17 | decoded by the host |
 | `CGImage` from raw bytes (`CGDataProvider`, `CGImageCreate`, `CGImageMaskCreate`, `masking`, `dataProvider`) | ✅ | ≤17 | 8 bits per component (RGB(A/X) in any order, gray, gray+alpha, alpha only, masks, decode arrays); 16-bit/float layouts are refused with a log; decoded images report premultiplied RGBA bytes; tested (HelloQuartz) |
 | `CGBitmapContext` (`CGContext(data:...)`, pixel read/write, `makeImage`) | ✅ | ≤17 | draws into app memory (zero-copy for BGRA/A8, converted in/out for RGBA and gray), y-up like iOS; `UIGraphicsPushContext` makes UIKit draw into it; tested (HelloQuartz) |
 | `CGGradient`, `CGShading` (`CGFunction`) | ✅ | ≤17 | linear/radial with before/after extension; shadings sampled at 64 steps; tested (HelloQuartz). One-sided radial extension approximated |
 | Line dashes (`setLineDash`) | ✅ | ≤17 | tested (HelloDrawing) |
-| Shadows (`setShadow`) | 🟡 | ≤17 | operations drawn as a group, alpha blurred with a 3-pass box blur and offset in base space; tested (HelloQuartz). On PDF contexts the shadow is not blurred |
+| Shadows (`setShadow`) | ✅ | ≤17 | adapted: operations draw as a group; alpha is blurred with a 3-pass box blur and offset in base space. Vector/PDF groups rasterize only the shadow mask, keeping the source operation vector; tested on bitmap/UIKit and PDF contexts (HelloQuartz) |
 | Blend modes, transparency layers | ✅ | ≤17 | blend modes map to cairo operators (`plusDarker` approximated); layers composite with the outer alpha/shadow; multiply and layer tested (HelloQuartz) |
 | Clip to mask (`clip(to:mask:)`) | ✅ | ≤17 | alpha of masks with alpha, luminance of opaque masks; tested (HelloQuartz) |
 | Text drawing in CG (Core Text lines/frames, text matrix/position) | ✅ | ≤17 | glyphs drawn y-up through the text matrix (upside down in UIKit's flipped space, as on iOS); `CGContextShowTextAtPoint` (deprecated) unverified; text drawing modes other than fill/invisible draw as fill |
-| `CGContext` queries (`ctm`, `boundingBoxOfClipPath`, `path`, `isPathEmpty`, conversions) | 🟡 | ≤17 | unverified; `replacePathWithStrokedPath` is a no-op |
+| `CGContext` queries (`ctm`, `boundingBoxOfClipPath`, `path`, `isPathEmpty`, conversions) | ✅ | ≤17 | adapted through cairo; `replacePathWithStrokedPath` makes a flattened outline (exact segment width/caps, conservative round approximation for bevel/miter joins); tested (HelloQuartz) |
 | PDF contexts (`CGContext(consumer:mediaBox:)`, `beginPDFPage`, `closePDF`) | ✅ | ≤17 | cairo PDF surface, y-up pages; tested (HelloQuartz) |
-| `CGPDFDocument` / `CGPDFPage` (read, `drawPDFPage`) | 🟡 | ≤17 | through the host's poppler-glib when installed (fails to open otherwise); box rects are the media box; tested (HelloQuartz) |
-| `CGFont` | 🟡 | ≤17 | a font name only (no glyph tables); unverified |
+| `CGPDFDocument` / `CGPDFPage` (read, `drawPDFPage`) | ✅ | ≤17 | adapted through the packaged host poppler-glib: data-provider/URL documents, page count/lookup, media-sized box rects, page/document identity, rotation (0), drawing transform and rendering; tested (HelloQuartz) |
+| `CGFont` | ✅ | ≤17 | adapted subset: creation by name or an OpenType data provider; PostScript/full names and units/em (provider metadata parsed with HarfBuzz); tested (HelloQuartz). Glyph-table accessors are not in isim's SDK subset |
 
 ## Core Text
 

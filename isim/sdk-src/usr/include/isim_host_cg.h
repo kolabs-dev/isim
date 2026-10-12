@@ -43,6 +43,7 @@ void isim_cg_set_ctm(const double *m);
 /* what: 0 path extents (returns 1 if a path), 1 current point, 2 clip extents, 3 (x,y) in fill, 4 in stroke, 5 antialias (x != 0) */
 int isim_cg_query(int what, double x, double y, double *out);
 int isim_cg_copy_path(double *_Nullable out, int max);   /* elements of 7 doubles: type 0 move 1 line 3 curve 4 close, points */
+void isim_cg_replace_path_with_stroke(double line_width); /* adapted flattened outline of the current stroke */
 struct isim_cg_fx {
     double alpha;                                /* group opacity */
     int shadow, flip; double sdx, sdy, sblur, srgba[4];   /* shadow offset/blur in base units (flip: base space is y-up) */
@@ -109,6 +110,8 @@ int isim_ct_font_features(void *_Nullable f, unsigned *_Nullable tags, int max);
 void isim_ct_font_draw(void *_Nullable f, const unsigned short *glyphs, const double *pos, int n, double x, double y, const double *_Nullable tm, const double *rgba);
 /* the faces of a family, one per line: PostScript name, style, family, OpenType weight, italic, fontconfig width (tabs) */
 int isim_ct_font_faces(const char *_Nullable family, char *_Nullable out, int outlen);
+/* names and units/em from an OpenType font held by a CGDataProvider */
+int isim_cg_font_data_info(const void *data, long len, char *ps, int pslen, char *full, int fulllen, int *units_per_em);
 
 /* ImageIO: container info and frames (PNG, JPEG, GIF, WebP, BMP, TIFF, ICO via gdk-pixbuf; HEIC via ffmpeg) */
 int isim_imgsrc_info(const void *data, long len, int *frames, int *w, int *h, char *type, int typelen, int *orientation, int *alpha, int *loops);
