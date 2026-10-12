@@ -241,14 +241,30 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
     }
 
     // MARK: MediaPlayer
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+        if keyPath == "outputVolume" { log("output volume \(String(format: "%.2f", AVAudioSession.sharedInstance().outputVolume))") }
+    }
     func nowPlaying() {
         let center = MPRemoteCommandCenter.shared()
-        var info: [String: Any] = [MPMediaItemPropertyTitle: "Test Tone", MPMediaItemPropertyArtist: "isim",
+        let art = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 120)).image { ctx in
+            let colors = [UIColor.systemPink.cgColor, UIColor.systemIndigo.cgColor] as CFArray
+            let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
+            ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: 120, y: 120), options: [])
+            UIImage(systemName: "music.note")?.withTintColor(.white).draw(in: CGRect(x: 35, y: 30, width: 50, height: 60))
+        }
+        var info: [String: Any] = [MPMediaItemPropertyTitle: "Test Tone", MPMediaItemPropertyArtist: "isim", MPMediaItemPropertyAlbumTitle: "Samples",
                                    MPMediaItemPropertyPlaybackDuration: 30.0, MPNowPlayingInfoPropertyElapsedPlaybackTime: 0.0,
-                                   MPNowPlayingInfoPropertyPlaybackRate: 1.0]
+                                   MPNowPlayingInfoPropertyPlaybackRate: 1.0, MPMediaItemPropertyArtwork: MPMediaItemArtwork(boundsSize: art.size) { _ in art }]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-        _ = center.playCommand.addTarget { _ in log("remote play"); return .success }
-        _ = center.pauseCommand.addTarget { _ in log("remote pause"); return .success }
+        _ = center.playCommand.addTarget { _ in
+            info[MPNowPlayingInfoPropertyPlaybackRate] = 1.0; MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+            log("remote play"); return .success
+        }
+        _ = center.pauseCommand.addTarget { _ in
+            info[MPNowPlayingInfoPropertyPlaybackRate] = 0.0; MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+            log("remote pause"); return .success
+        }
+        AVAudioSession.sharedInstance().addObserver(self, forKeyPath: "outputVolume", options: [.new], context: nil)
         center.skipForwardCommand.preferredIntervals = [NSNumber(value: 15)]
         _ = center.skipForwardCommand.addTarget { e in
             log("remote skip \(Int((e as! MPSkipIntervalCommandEvent).interval))"); return .success

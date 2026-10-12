@@ -805,6 +805,15 @@ void isim_sys_event(const char *text) {
         isim_dispatch_memory_pressure(level);
         if (level != 1) isim_ui_memory_warning();
     }
+    else if ([verb isEqualToString:@"volume"]) {                   /* the device volume changed (Control Center, buttons, another app) */
+        extern void isim_device_volume_set(double v, int save);
+        isim_device_volume_set(args.doubleValue, 0);
+        [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
+    }
+    else if ([verb isEqualToString:@"remote"]) {                   /* Now Playing controls: MPRemoteCommandCenter polls the queue */
+        extern void isim_media_remote_post(const char *cmd);
+        isim_media_remote_post(args.UTF8String);
+    }
     else if ([verb isEqualToString:@"display"]) { extern void isim_ui_display_event(NSString *args); isim_ui_display_event(args); }   /* UISceneAccessories.m */
     else if ([verb isEqualToString:@"closescene"]) { extern void isim_ui_close_scene(NSString *ident); isim_ui_close_scene(args); }
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */

@@ -1374,16 +1374,24 @@ static int script_step(struct isim_event *ev) {
     else if (!strcmp(cmd, "launch") && sscanf(args, " %63[^; ]", arg) == 1) {
         pending[npending++] = (struct isim_event){ .type = EV_LAUNCH_ID }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.5;
-    } else if (!strcmp(cmd, "remote") && sscanf(args, " %63[^;]", arg) == 1) {    /* MPRemoteCommandCenter: remote play|pause|toggle|next|previous|seek S|skipforward|skipback */
+    } else if (!strcmp(cmd, "remote") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1) {    /* MPRemoteCommandCenter: remote play|pause|toggle|next|previous|seek S|skipforward|skipback */
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "volume") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1) {    /* the volume buttons (the app alone): up|down|0...1 */
+        double isim_device_volume(void); void isim_device_volume_set(double v, int save);
+        double v = isim_device_volume();
+        if (!strncmp(arg, "up", 2)) v += 1.0 / 16; else if (!strncmp(arg, "down", 4)) v -= 1.0 / 16; else v = atof(arg);
+        v = fmin(1, fmax(0, round(v * 16) / 16));
+        isim_device_volume_set(v, 1);
+        fprintf(stderr, "isim: volume %d%%\n", (int)lround(v * 100));
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "volume %.4f", v);
     } else if (!strcmp(cmd, "audio") && sscanf(args, " %63[^;]", arg) == 1) {     /* AVAudioSession: audio interrupt begin|end [resume], audio route NAME */
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_audio_session_post(const char *ev);
         isim_audio_session_post(arg);
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
-               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")
+               || !strcmp(cmd, "remote") || !strcmp(cmd, "volume") || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")
                || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),
@@ -1770,6 +1778,7 @@ int isim_audio_stream_open(double volume);
 long isim_audio_stream_write(int s, const float *pcm, long frames);
 void isim_audio_stream_control(int s, int paused, double volume);
 void isim_audio_stream_close(int s);
+double isim_device_volume(void); void isim_device_volume_set(double v, int save);
 struct isim_acodec; struct isim_acodec *isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate);
 int isim_acodec_frame_size(struct isim_acodec *h); int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames);
 int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int cap); int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *d, int n);
@@ -1877,7 +1886,7 @@ static const struct shim isim_table[] = {
     H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
     H(isim_acodec_open), H(isim_acodec_frame_size), H(isim_acodec_send_pcm), H(isim_acodec_receive_packet), H(isim_acodec_send_packet),
-    H(isim_acodec_receive_pcm), H(isim_acodec_close),
+    H(isim_acodec_receive_pcm), H(isim_acodec_close), H(isim_device_volume), H(isim_device_volume_set), H(isim_media_remote_post),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),

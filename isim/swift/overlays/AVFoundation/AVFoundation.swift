@@ -60,12 +60,28 @@ open class AVAudioSession: NSObject {
     }
     nonisolated(unsafe) static let shared = AVAudioSession()
     /// isim: also starts listening for the `audio` script command (interruptions, route changes)
-    open class func sharedInstance() -> AVAudioSession { _AudioSessionEvents.start(); _AVSessionPrefs.installMicrophonePrompt(); return shared }
+    open class func sharedInstance() -> AVAudioSession {
+        _AudioSessionEvents.start(); _AVSessionPrefs.installMicrophonePrompt(); _observeVolume()
+        return shared
+    }
     open private(set) var category: Category = .soloAmbient
     open private(set) var mode: Mode = .default
     open private(set) var categoryOptions: CategoryOptions = []
     open var sampleRate: Double { 48000 }
-    open var outputVolume: Float { 1 }
+    /// the device volume (isim's own: Control Center, MPVolumeView, `volume up|down`); key-value observable
+    @objc open var outputVolume: Float { Float(isim_device_volume()) }
+    nonisolated(unsafe) static var _volumeObserver: NSObjectProtocol?
+    static func _observeVolume() {
+        guard _volumeObserver == nil else { return }
+        _volumeObserver = NotificationCenter.default.addObserver(forName: Notification.Name("_IsimSystemEvent"), object: nil, queue: nil) { n in
+            guard let t = n.object as? String, t.hasPrefix("volume "), let v = Float(t.dropFirst(7)) else { return }
+            shared.willChangeValue(forKey: "outputVolume")
+            shared.didChangeValue(forKey: "outputVolume")
+            NotificationCenter.default.post(name: Notification.Name("AVSystemController_SystemVolumeDidChangeNotification"), object: nil,
+                                            userInfo: ["AVSystemController_AudioVolumeNotificationParameter": NSNumber(value: v),
+                                                       "AVSystemController_AudioCategoryNotificationParameter": "Audio/Video"])
+        }
+    }
     open var isOtherAudioPlaying: Bool { false }
     open var secondaryAudioShouldBeSilencedHint: Bool { false }
     open func setCategory(_ category: Category) throws { self.category = category; _IsimBackgroundAudio.publish(category) }

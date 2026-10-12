@@ -62,7 +62,7 @@ struct nc_item { char path[512], id[256], title[256], body[512], icon[512], reco
 static struct nc_item ncl[64]; static int nnc;
 
 struct sys_el { char id[128], text[192]; struct rectf r; int kind, arg; };
-enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND };
+enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_NP };
 static struct sys_el els[96]; static int nels;
 
 /* Control Center state */
@@ -75,6 +75,23 @@ static const char *const cc_symbols[CC_N] = { "airplane", "antenna.radiowaves.le
                                              "rectangle.on.rectangle", "moon.fill", "flashlight.on.fill", "timer", "circle.lefthalf.filled", "camera.fill" };
 static const char *const cc_names[CC_N] = { "Airplane Mode", "Cellular Data", "Wi-Fi", "Bluetooth", "Orientation Lock", "Screen Mirroring", "Focus",
                                            "Flashlight", "Timer", "Dark Mode", "Camera" };
+
+/* Now Playing: an app's MPNowPlayingInfoCenter info ("nowplaying" request), drawn in Control Center and on the lock
+   screen; their transport buttons send the app remote commands ("remote previous|toggle|next" system events) */
+static struct { int client; char title[256], artist[256], album[256], artwork[512]; double duration, elapsed, rate, at; } np = { .client = -1 };
+static int np_on(void) { return np.client >= 0 && np.client < nclients && clients[np.client].alive && np.title[0]; }
+static double np_elapsed(void) {
+    double e = np.elapsed + (np.rate > 0 ? (now() - np.at) * np.rate : 0);
+    return np.duration > 0 ? fmin(e, np.duration) : e;
+}
+static const char *const np_cmds[3] = { "previous", "toggle", "next" };
+/* the device volume (host_audio.c): Control Center's slider, the `volume` command and apps' MPVolumeViews share it */
+double isim_device_volume(void); void isim_device_volume_set(double v, int save);
+static void sys_volume_changed(double v, int except) {
+    cc_volume = v;
+    isim_device_volume_set(v, 1);
+    for (int i = 0; i < nclients; i++) if (i != except && clients[i].alive) sys_send_text(i, "volume %.4f", v);
+}
 
 static int sys_visible(void) { return ov != OV_NONE; }
 static int sys_hides_banners(void) { return locked || ov != OV_NONE || cc_on[CC_FOCUS]; }
@@ -354,13 +371,35 @@ static void cc_draw(cairo_t *c) {
     int ks[4] = { CC_AIRPLANE, CC_CELLULAR, CC_WIFI, CC_BLUETOOTH };
     for (int i = 0; i < 4; i++) cc_button(c, ks[i], (struct rectf){ conn.x + pad + (i % 2) * (d + pad), conn.y + pad + (i / 2) * (d + pad), d, d }, 1);
     /* now playing */
-    struct rectf np = { m + big + gap, top, big, big };
-    sys_platter(c, np.x, np.y, np.w, np.h, prad, 0.14);
-    sys_text(c, "Not Playing", np.x + 16, np.y + 16, np.w - 32, 15, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 0.85);
-    sys_symbol(c, "backward.fill", np.x + np.w * 0.22, np.y + np.h - 34, 20, 1, 1, 1);
-    sys_symbol(c, "play.fill", np.x + np.w * 0.5, np.y + np.h - 34, 24, 1, 1, 1);
-    sys_symbol(c, "forward.fill", np.x + np.w * 0.78, np.y + np.h - 34, 20, 1, 1, 1);
-    el_add("cc-nowplaying", "Not Playing", np, EL_NONE, 0);
+    struct rectf npr = { m + big + gap, top, big, big };
+    sys_platter(c, npr.x, npr.y, npr.w, npr.h, prad, 0.14);
+    if (np_on()) {                                              /* artwork, title, artist (the app's now-playing info) */
+        double tx = npr.x + 16;
+        cairo_surface_t *art = np.artwork[0] ? cairo_image_surface_create_from_png(np.artwork) : NULL;
+        if (art && cairo_surface_status(art) == CAIRO_STATUS_SUCCESS) {
+            double aw = cairo_image_surface_get_width(art), ah = cairo_image_surface_get_height(art), s = 36;
+            cairo_save(c); cairo_new_path(c); sys_round(c, npr.x + 14, npr.y + 14, s, s, 7); cairo_clip(c);
+            cairo_translate(c, npr.x + 14, npr.y + 14); cairo_scale(c, s / aw, s / ah); cairo_set_source_surface(c, art, 0, 0); cairo_paint(c);
+            cairo_restore(c);
+            tx += s + 8;
+        }
+        if (art) cairo_surface_destroy(art);
+        sys_text(c, np.title, tx, npr.y + 14, npr.x + npr.w - 12 - tx, 14, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 1);
+        if (np.artist[0]) sys_text(c, np.artist, tx, npr.y + 32, npr.x + npr.w - 12 - tx, 13, PANGO_WEIGHT_NORMAL, 0, 1, 1, 1, 1, 0.6);
+        char t[600]; snprintf(t, sizeof t, "%s%s%s", np.title, np.artist[0] ? " — " : "", np.artist);
+        el_add("cc-nowplaying", t, npr, EL_NONE, 0);
+    } else {
+        sys_text(c, "Not Playing", npr.x + 16, npr.y + 16, npr.w - 32, 15, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 0.85);
+        el_add("cc-nowplaying", "Not Playing", npr, EL_NONE, 0);
+    }
+    double fade = np_on() ? 1 : 0.35;
+    const char *glyphs[3] = { "backward.fill", np_on() && np.rate > 0 ? "pause.fill" : "play.fill", "forward.fill" };
+    const char *ids[3] = { "cc-np-previous", "cc-np-play", "cc-np-next" };
+    for (int k = 0; k < 3; k++) {
+        double cx = npr.x + npr.w * (0.22 + 0.28 * k), cy = npr.y + npr.h - 34;
+        sys_symbol(c, glyphs[k], cx, cy, k == 1 ? 24 : 20, fade, fade, fade);
+        el_add(ids[k], k == 1 ? (np_on() && np.rate > 0 ? "pause" : "play") : np_cmds[k], (struct rectf){ cx - 22, cy - 22, 44, 44 }, EL_NP, k);
+    }
     /* row 2: orientation lock, mirroring | brightness, volume (tall) ; focus under the first two */
     double y2 = top + big + gap;
     cc_button(c, CC_ORIENT, (struct rectf){ m, y2, u, u }, 0);
@@ -376,6 +415,44 @@ static void cc_draw(cairo_t *c) {
 
 /* ---- lock screen ---- */
 static double la_draw_lock(cairo_t *c, double top);
+/* the lock screen's media player: artwork, title, artist, progress with elapsed / remaining time, transport buttons */
+static double np_draw_lock(cairo_t *c, double top) {
+    if (!np_on()) return 0;
+    double x = 14, w = dev.width - 28, h = 176;
+    if (sys_os() >= 26) sys_glass(c, x, top, w, h, 24, NULL, 1 | 2);
+    else { cairo_new_path(c); sys_round(c, x, top, w, h, 22); cairo_set_source_rgba(c, 0.15, 0.15, 0.17, 0.55); cairo_fill(c); }
+    double tx = x + 16;
+    cairo_surface_t *art = np.artwork[0] ? cairo_image_surface_create_from_png(np.artwork) : NULL;
+    if (art && cairo_surface_status(art) == CAIRO_STATUS_SUCCESS) {
+        double aw = cairo_image_surface_get_width(art), ah = cairo_image_surface_get_height(art), s = 52;
+        cairo_save(c); cairo_new_path(c); sys_round(c, x + 16, top + 16, s, s, 8); cairo_clip(c);
+        cairo_translate(c, x + 16, top + 16); cairo_scale(c, s / aw, s / ah); cairo_set_source_surface(c, art, 0, 0); cairo_paint(c);
+        cairo_restore(c);
+        tx += s + 12;
+    }
+    if (art) cairo_surface_destroy(art);
+    sys_text(c, np.title, tx, top + 20, x + w - 16 - tx, 16, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 1);
+    if (np.artist[0]) sys_text(c, np.artist, tx, top + 42, x + w - 16 - tx, 15, PANGO_WEIGHT_NORMAL, 0, 1, 1, 1, 1, 0.6);
+    double e = np_elapsed(), py = top + 92;
+    cairo_new_path(c); sys_round(c, x + 16, py, w - 32, 5, 2.5); cairo_set_source_rgba(c, 1, 1, 1, 0.25); cairo_fill(c);
+    if (np.duration > 0) { cairo_new_path(c); sys_round(c, x + 16, py, (w - 32) * fmin(1, e / np.duration), 5, 2.5); cairo_set_source_rgba(c, 1, 1, 1, 0.9); cairo_fill(c); }
+    char a[32], b[32];
+    snprintf(a, sizeof a, "%d:%02d", (int)e / 60, (int)e % 60);
+    double rem = np.duration > 0 ? np.duration - e : 0;
+    snprintf(b, sizeof b, "-%d:%02d", (int)rem / 60, (int)rem % 60);
+    sys_text(c, a, x + 16, py + 10, 80, 12, PANGO_WEIGHT_NORMAL, 0, 1, 1, 1, 1, 0.6);
+    sys_text(c, np.duration > 0 ? b : "", x + w - 96, py + 10, 80, 12, PANGO_WEIGHT_NORMAL, 2, 1, 1, 1, 1, 0.6);
+    const char *glyphs[3] = { "backward.fill", np.rate > 0 ? "pause.fill" : "play.fill", "forward.fill" };
+    const char *ids[3] = { "lock-np-previous", "lock-np-play", "lock-np-next" };
+    for (int k = 0; k < 3; k++) {
+        double cx = x + w * (0.25 + 0.25 * k), cy = top + h - 30;
+        sys_symbol(c, glyphs[k], cx, cy, k == 1 ? 30 : 24, 1, 1, 1);
+        el_add(ids[k], k == 1 ? (np.rate > 0 ? "pause" : "play") : np_cmds[k], (struct rectf){ cx - 24, cy - 24, 48, 48 }, EL_NP, k);
+    }
+    char t[600]; snprintf(t, sizeof t, "%s%s%s %d:%02d", np.title, np.artist[0] ? " — " : "", np.artist, (int)e / 60, (int)e % 60);
+    el_add("lock-nowplaying", t, (struct rectf){ x, top, w, h }, EL_NONE, 0);
+    return h + 12;
+}
 static cairo_surface_t *wallpaper;
 static void wallpaper_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     if (!wallpaper && shell_springboard) {                     /* the home screen's wallpaper image */
@@ -422,6 +499,7 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     el_add("lock-clock", t, (struct rectf){ 0, top + 50, dev.width, 100 }, EL_NONE, 0);
     double lt = dev.height * 0.30;
     lt += la_draw_lock(c, lt);
+    lt += np_draw_lock(c, lt);
     nc_draw_list(c, fmax(lt, dev.height * 0.42), 1);
     cairo_set_source_rgba(c, 1, 1, 1, 0.9);
     sys_text(c, "Swipe up to open", 0, dev.height - 62, dev.width, 15, PANGO_WEIGHT_NORMAL, 1, 1, 1, 1, 1, 0.85);
@@ -1009,9 +1087,12 @@ static void el_tap(struct sys_el *e, double y) {
     case EL_NX_SEND: if (nx.reply) { struct nx_action *a = &nx.act[nx.reply - 1]; char t[512]; snprintf(t, sizeof t, "%s", nx.text); nx_respond(a->id, t, (a->opts & 4) != 0); } break;
     case EL_NC_CLEAR: fprintf(stderr, "isim shell: cleared %d notification(s)\n", nnc); nnc = 0; sys_draw(); break;
     case EL_CC_TOGGLE: cc_toggle(e->arg); break;
+    case EL_NP:
+        if (np_on()) { fprintf(stderr, "isim shell: Now Playing %s -> %s\n", np_cmds[e->arg], app_label(np.client)); sys_send_text(np.client, "remote %s", np_cmds[e->arg]); }
+        break;
     case EL_CC_SLIDER: {
         double v = fmin(1, fmax(0, 1 - (y - e->r.y) / e->r.h));
-        if (e->arg == 0) cc_brightness = fmax(0.05, v); else cc_volume = v;
+        if (e->arg == 0) cc_brightness = fmax(0.05, v); else sys_volume_changed(v, -1);
         fprintf(stderr, "isim shell: Control Center %s %d%%\n", e->arg ? "volume" : "brightness", (int)lround(v * 100));
         sys_draw(); break; }
     case EL_BG:
@@ -1027,7 +1108,7 @@ static void sys_dump(void) {
     for (int k = 0; k < nels; k++)
         fprintf(stderr, "  %s (%g %g; %g x %g) id=%s%s%s\n", els[k].kind == EL_CARD ? "IsimAppCard" : els[k].kind == EL_NC_ITEM ? "IsimNotification" :
                 els[k].kind == EL_NX_ACTION ? "IsimNotificationAction" : els[k].kind == EL_NX_CONTENT ? "IsimNotificationContent" :
-                els[k].kind == EL_CC_TOGGLE ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : "IsimSystemView",
+                els[k].kind == EL_CC_TOGGLE || els[k].kind == EL_NP ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : "IsimSystemView",
                 els[k].r.x, els[k].r.y, els[k].r.w, els[k].r.h, els[k].id, els[k].text[0] ? " text=" : "", els[k].text);
 }
 
@@ -1187,6 +1268,23 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
         if (strcmp(c->reasons, m->b)) fprintf(stderr, "isim shell: %s in the background: %s\n", short_name(from), m->b[0] ? m->b : "can be suspended");
         snprintf(c->reasons, sizeof c->reasons, "%s", m->b); c->bg_seen = 1;
         if (pill_visible() || from == active) shell_show(active >= 0 ? active : 0);
+    } else if (!strcmp(verb, "nowplaying")) {             /* b = title\x1fartist\x1falbum\x1fartwork PNG, c = "duration elapsed rate" */
+        if (!m->b[0]) {
+            if (np.client == from) { np.client = -1; np.title[0] = 0; fprintf(stderr, "isim shell: Now Playing cleared\n"); }
+        } else {
+            np.client = from;
+            field(m->b, 0, np.title, sizeof np.title); field(m->b, 1, np.artist, sizeof np.artist);
+            field(m->b, 2, np.album, sizeof np.album); field(m->b, 3, np.artwork, sizeof np.artwork);
+            np.duration = np.elapsed = np.rate = 0;
+            sscanf(m->c, "%lf %lf %lf", &np.duration, &np.elapsed, &np.rate);
+            np.at = now();
+            fprintf(stderr, "isim shell: Now Playing %s — %s (%s) %.1f/%.1f s rate %g\n", np.title, np.artist, app_label(from), np.elapsed, np.duration, np.rate);
+        }
+        if (ov != OV_NONE) sys_draw();
+    } else if (!strcmp(verb, "volume")) {                  /* an app's MPVolumeView changed the device volume */
+        sys_volume_changed(atof(m->b), from);
+        fprintf(stderr, "isim shell: volume %d%% (%s)\n", (int)lround(cc_volume * 100), app_label(from));
+        if (ov != OV_NONE) sys_draw();
     } else if (!strcmp(verb, "bg-wake")) {                 /* the app's next local notification (seconds since 1970) */
         clients[from].wake_at = atof(m->b);
     } else if (!strcmp(verb, "idle-timer")) {              /* UIApplication.isIdleTimerDisabled */
@@ -1294,6 +1392,20 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "switcher")) { if (!locked) sys_open(OV_SWITCHER); return 1; }
     if (!strcmp(verb, "notifications")) { if (!locked) sys_open(OV_NC); return 1; }
     if (!strcmp(verb, "controlcenter")) { if (!locked) sys_open(OV_CC); return 1; }
+    if (!strcmp(verb, "remote")) {                           /* to the app that is playing (else the foreground app) */
+        int to = np_on() ? np.client : active;
+        if (to >= 0) sys_send_text(to, "remote %s", args);
+        return 1;
+    }
+    if (!strcmp(verb, "volume")) {                           /* the volume buttons: volume up|down|0...1 */
+        double v = cc_volume;
+        if (!strcmp(args, "up")) v += 1.0 / 16; else if (!strcmp(args, "down")) v -= 1.0 / 16; else v = atof(args);
+        v = fmin(1, fmax(0, round(v * 16) / 16));
+        sys_volume_changed(v, -1);
+        fprintf(stderr, "isim shell: volume %d%%\n", (int)lround(v * 100));
+        if (ov != OV_NONE) sys_draw();
+        return 1;
+    }
     if (!strcmp(verb, "island")) {
         if (la.on) { la.expanded = !la.expanded; fprintf(stderr, "isim shell: Dynamic Island %s\n", la.expanded ? "expanded" : "compact"); shell_show(active); }
         else fprintf(stderr, "isim shell: no Live Activity\n");

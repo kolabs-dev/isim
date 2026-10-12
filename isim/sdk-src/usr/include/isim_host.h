@@ -273,6 +273,11 @@ void isim_audio_stream_close(int stream);
 /* audio codecs through the host's libavcodec (host_codec.c): encode "aac" (AAC-LC) from interleaved float PCM; decode
    "aac", "mp3float", ... to interleaved float. open returns NULL when unavailable. send_pcm with 0 frames and
    send_packet with size 0 end the stream; receive returns the size/frames, 0 when more input is needed, -1 at the end */
+/* the device volume (0...1, isim's own; the host's volume never changes): what every app of the device plays at */
+double isim_device_volume(void);
+void isim_device_volume_set(double volume, int save);
+/* queues a remote command for this app's MPRemoteCommandCenter (as the `remote` script command does) */
+void isim_media_remote_post(const char *cmd);
 struct isim_acodec;
 struct isim_acodec *_Nullable isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate);
 int isim_acodec_frame_size(struct isim_acodec *_Nullable codec);

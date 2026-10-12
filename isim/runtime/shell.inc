@@ -551,6 +551,10 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     { const char *d = getenv("ISIM_DATA"); char p[1024];        /* `isim push` checks that a device is running */
       if (d && *d) { snprintf(p, sizeof p, "%s/Library/isim", d); mkdir(p, 0755); snprintf(p, sizeof p, "%s/Library/isim/shell.pid", d);
                      FILE *f = fopen(p, "w"); if (f) { fprintf(f, "%d\n", (int)getpid()); fclose(f); } } }
+    { const char *d = getenv("ISIM_DATA"); char p[1024];      /* the device volume: 60 % on a new device */
+      snprintf(p, sizeof p, "%s/Library/isim/Volume", d && *d ? d : "/nonexistent");
+      if (d && *d && access(p, F_OK) != 0) isim_device_volume_set(0.6, 1);
+      cc_volume = isim_device_volume(); }
     if (shell_spawn(springboard_bundle, springboard_exe, NULL) != 0) return 1;
     active = 0;
     if (open_args) {                       /* isim run: open the app over the home screen, like Xcode */

@@ -109,3 +109,39 @@ exec {real} "$@"
         "which takes a few hundred ms to start): " + \
         "; ".join(x for x in app.log.splitlines() if "HelloAudio: rec" in x)
     assert re.search(r"input tap true frames, 48000 Hz 1 ch, peak 0\.3[3-7]", app.log), "the input node taps it"
+
+
+def test_audio_now_playing(launch):
+    """On a booted device: the app's Now Playing info in Control Center and on the lock screen (title, artist, artwork,
+    transport buttons that send remote commands: toggle reaches pause or play, a disabled command fails), and the device
+    volume (`volume down`, Control Center's slider) reaching the app's AVAudioSession.outputVolume and MPVolumeView."""
+    dev = launch(None, install=["HelloAudio"], env={"ISIM_MICROPHONE_PERMISSION": "allow"})
+    dev.send("launch dev.isim.samples.HelloAudio")
+    dev.wait_log(r"isim shell: Now Playing Test Tone — isim \(Audio\) 0\.0/30\.0 s rate 1")
+    dev.wait_tap_id("speak")                                       # the app is up
+    dev.send("controlcenter")
+    cc = dev.wait_dump(r"id=cc-nowplaying text=Test Tone — isim").string
+    dev.screenshot("control-center-now-playing")
+    dev.tap_id("cc-np-play")                                        # playing: the button pauses
+    dev.wait_log(r"HelloAudio: remote pause")
+    dev.wait_log(r"Now Playing Test Tone — isim \(Audio\) [\d.]+/30\.0 s rate 0")
+    paused = dev.wait_dump(r"id=cc-np-play text=play").string
+    dev.tap_id("cc-np-play")
+    dev.wait_log(r"HelloAudio: remote play")
+    dev.tap_id("cc-np-next")
+    dev.wait_log(r"remote command next -> status 200")
+    dev.send("volume down")
+    dev.wait_log(r"HelloAudio: output volume 0\.5[0-9]")
+    dev.tap_id("cc-background")
+    dev.wait_view(r"id=isim-volume-slider text=0\.5")
+    dev.send("lock")
+    lock = dev.wait_dump(r"id=lock-nowplaying text=Test Tone — isim").string
+    dev.screenshot("lock-now-playing")
+    dev.tap_id("lock-np-play")
+    dev.wait_log(r"HelloAudio: remote pause", count=2)
+    assert dev.quit() == 0, "exits cleanly"
+    assert "id=cc-np-previous" in cc and "id=cc-np-next" in cc and "id=cc-np-play text=pause" in cc, \
+        "Control Center: transport buttons, pause while playing"
+    assert "id=cc-np-play text=play" in paused, "after pause, the button plays"
+    assert "id=lock-np-play" in lock, "lock screen media player with transport buttons"
+    assert "isim shell: volume 50%" in dev.log or "isim shell: volume 56%" in dev.log, "volume buttons step the device volume"
