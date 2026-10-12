@@ -1,0 +1,9 @@
+{
+  "commitish" : "v1.3.0",
+  "iOS" : [
+    {
+      "container" : "Foo.xcframework",
+      "name" : "Foo"
+    }
+  ]
+}

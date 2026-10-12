@@ -1,0 +1,6 @@
+platform :ios, '17.0'
+
+target 'App' do
+  pod 'StaticPod', :path => 'LocalPods/StaticPod'
+  pod 'FramePod', :path => 'LocalPods/FramePod'
+end

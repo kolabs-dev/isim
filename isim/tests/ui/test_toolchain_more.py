@@ -412,3 +412,75 @@ def test_binary_dynamic_xcframework(launch, tmp_path, work):
     app = launch(work / "VendorApp.app")
     app.wait_log(r"VendorSDK: Vendor 3\.2\.1 greets isim \(legacy score 42\) \| VNDLegacy \| app widget")
     app.quit()
+
+
+# ---------------- CocoaPods and Carthage ----------------
+def test_cocoapods_workspace(launch, tmp_path, work):
+    src = copy_fixture("PodsApp", tmp_path)
+    build = lambda: isim(src, "build", "-workspace", "App.xcworkspace", "-scheme", "App", "-o", work)
+    rc, log = build()
+    assert rc == 0, log[-4000:]
+    for line in ('App: "[CP] Check Pods Manifest.lock": Podfile.lock matches Pods/Manifest.lock (checked by isim)',
+                 'App: embedded FramePod.framework in Frameworks/ (isim\'s "[CP] Embed Pods Frameworks")',
+                 'App: copied StaticPodResources.bundle into the bundle (isim\'s "[CP] Copy Pods Resources")'):
+        assert line in log, (line, log[-3000:])
+    app_dir = work / "App.app"
+    fw = app_dir / "Frameworks/FramePod.framework"
+    assert (fw / "FramePod").is_file() and (fw / "FramePodResources.bundle/greeting.txt").is_file() and \
+        not (fw / "Headers").exists(), "framework pod embedded with its resource bundle, without headers"
+    assert (app_dir / "StaticPodResources.bundle/counter.txt").is_file()
+    # products also where the pods' CONFIGURATION_BUILD_DIRs (xcconfig search paths) expect them
+    assert (work / "Build/Products/Debug-iphonesimulator/StaticPod/libStaticPod.a").exists()
+    app = launch(app_dir)
+    app.wait_log(r"PodsApp: StaticPod 2 counter resource \| FramePod hello from FramePodResources \(FramePod\.framework\) \| "
+                 r"COCOAPODS=1")
+    app.quit()
+    # Pods/ out of sync with Podfile.lock: the build stops like CocoaPods' check phase does
+    (src / "Pods/Manifest.lock").write_text((src / "Pods/Manifest.lock").read_text().replace("1.4.0", "1.3.0"))
+    rc, log = build()
+    assert rc != 0 and "The sandbox is not in sync with the Podfile.lock. Run 'pod install'" in log, log[-2000:]
+
+
+def objc_xcframework(srcdir, name, dest, tmp):
+    """A dynamic ObjC <name>.xcframework laid out like `carthage build --use-xcframeworks` / `xcodebuild
+    -create-xcframework` output: ios-arm64_x86_64-simulator (x86_64 code; isim cannot build arm64 simulator code, so
+    the simulator slice is x86_64 only here) and an ios-arm64 device slice (placeholder)."""
+    sim = dest / "ios-arm64_x86_64-simulator" / f"{name}.framework"
+    dev = dest / "ios-arm64" / f"{name}.framework"
+    for fw in (sim, dev):
+        (fw / "Headers").mkdir(parents=True)
+        (fw / "Modules").mkdir()
+        for h in srcdir.glob("*.h"):
+            shutil.copy(h, fw / "Headers")
+        shutil.copy(srcdir / "module.modulemap", fw / "Modules")
+        (fw / "Info.plist").write_bytes(plistlib.dumps({"CFBundleExecutable": name, "CFBundleIdentifier": f"org.example.{name}",
+                                                        "CFBundlePackageType": "FMWK", "CFBundleShortVersionString": "1.3.0",
+                                                        "MinimumOSVersion": "17.0"}))
+    objs = []
+    for m in srcdir.glob("*.m"):
+        o = tmp / f"{m.stem}.o"
+        run(ISIM, "cc", "-c", m, "-I", sim / "Headers", "-o", o)
+        objs.append(o)
+    run(ISIM, "cc", "-dynamiclib", "-install_name", f"@rpath/{name}.framework/{name}", *objs, "-framework", "Foundation",
+        "-o", sim / name)
+    (tmp / "placeholder.c").write_text("int placeholder(void) { return 0; }\n")
+    run("clang", "-target", "arm64-apple-ios17.0", "-dynamiclib", "-nostdlib", "-fuse-ld=lld", "-install_name",
+        f"@rpath/{name}.framework/{name}", tmp / "placeholder.c", "-o", dev / name)
+    (dest / "Info.plist").write_bytes(plistlib.dumps({"AvailableLibraries": [
+        {"BinaryPath": f"{name}.framework/{name}", "LibraryIdentifier": "ios-arm64", "LibraryPath": f"{name}.framework",
+         "SupportedArchitectures": ["arm64"], "SupportedPlatform": "ios"},
+        {"BinaryPath": f"{name}.framework/{name}", "LibraryIdentifier": "ios-arm64_x86_64-simulator",
+         "LibraryPath": f"{name}.framework", "SupportedArchitectures": ["arm64", "x86_64"], "SupportedPlatform": "ios",
+         "SupportedPlatformVariant": "simulator"}], "CFBundlePackageType": "XFWK", "XCFrameworkFormatVersion": "1.0"}))
+
+
+def test_carthage_xcframework(launch, tmp_path, work):
+    src = copy_fixture("CarthageApp", tmp_path)
+    objc_xcframework(src / "FooSource", "Foo", src / "Carthage/Build/Foo.xcframework", tmp_path)
+    rc, log = isim(src, "build", "-project", "CarthageApp.xcodeproj", "-o", work)
+    assert rc == 0, log[-4000:]
+    fw = work / "CarthageApp.app/Frameworks/Foo.framework"
+    assert (fw / "Foo").is_file() and not (fw / "Headers").exists()
+    app = launch(work / "CarthageApp.app")
+    app.wait_log(r"CarthageApp: Foo 1\.3 answer 42 from Foo\.framework")
+    app.quit()

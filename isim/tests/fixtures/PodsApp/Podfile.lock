@@ -1,0 +1,21 @@
+PODS:
+  - FramePod (2.0.0)
+  - StaticPod (1.4.0)
+
+DEPENDENCIES:
+  - FramePod (from `LocalPods/FramePod`)
+  - StaticPod (from `LocalPods/StaticPod`)
+
+EXTERNAL SOURCES:
+  FramePod:
+    :path: LocalPods/FramePod
+  StaticPod:
+    :path: LocalPods/StaticPod
+
+SPEC CHECKSUMS:
+  FramePod: 6f1e3b0c2a9d4e8f7a6b5c4d3e2f1a0b9c8d7e6f
+  StaticPod: 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
+
+PODFILE CHECKSUM: 0f9e8d7c6b5a49382716f5e4d3c2b1a098765432
+
+COCOAPODS: 1.16.2

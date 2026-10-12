@@ -1267,6 +1267,7 @@ class Builder:
         objdir = os.path.join(out, 'obj', target.name)
         defaults = {
             'BUILT_PRODUCTS_DIR': out, 'CONFIGURATION_BUILD_DIR': out, 'TARGET_BUILD_DIR': out, 'SYMROOT': out,
+            'BUILD_DIR': os.path.join(out, 'Build', 'Products'), 'BUILD_ROOT': os.path.join(out, 'Build', 'Products'),
             'OBJROOT': os.path.join(out, 'obj'), 'TARGET_TEMP_DIR': objdir, 'TEMP_DIR': objdir,
             'PROJECT_TEMP_DIR': os.path.join(out, 'obj'), 'DERIVED_FILE_DIR': os.path.join(objdir, 'DerivedSources'),
             'DERIVED_FILES_DIR': os.path.join(objdir, 'DerivedSources'),
@@ -1384,7 +1385,23 @@ class Builder:
             self.build(self.find_target(s['TEST_TARGET_NAME'], target.p))
         product = self.build_product(target, s, kind, ext, pkgtype, test_host)
         self.built[key] = product
+        self.publish_product(s, product)
         return product
+
+    def publish_product(self, s, product):
+        """isim builds every product into one directory (BUILT_PRODUCTS_DIR); a target with its own
+        CONFIGURATION_BUILD_DIR (CocoaPods gives each pod one) also gets its product linked there, where other
+        targets' search paths (LIBRARY_SEARCH_PATHS, FRAMEWORK_SEARCH_PATHS) look for it."""
+        cbd = os.path.normpath(str(s.get('CONFIGURATION_BUILD_DIR') or self.outdir))
+        if not product or cbd == os.path.normpath(self.outdir) or not os.path.isabs(cbd):
+            return
+        os.makedirs(cbd, exist_ok=True)
+        link = os.path.join(cbd, os.path.basename(product['path']))
+        if os.path.islink(link) or os.path.isfile(link):
+            os.remove(link)
+        elif os.path.isdir(link):
+            shutil.rmtree(link)
+        os.symlink(os.path.relpath(product['path'], cbd), link)
 
     def build_product(self, target, s, kind, ext, pkgtype, test_host):
         name = target.name
@@ -1454,7 +1471,7 @@ class Builder:
 
         # script phases placed before Headers / Compile Sources (code generators); their outputs with source
         # extensions are compiled, like Xcode's build rules do for script outputs
-        for f in self.run_script_phases(target, s, 'compile', kind):
+        for f in self.run_script_phases(target, s, 'compile', kind, path):
             if f.endswith('.swift') and f not in swift:
                 swift.append(f)
             elif f.endswith(('.m', '.mm', '.c', '.cpp', '.cc')) and f not in csrc:
@@ -1543,7 +1560,7 @@ class Builder:
             run([ISIM, 'cc', '-Wno-unused-command-line-argument', '-c', f, '-o', obj, '-I', os.path.dirname(f)] + cc_base + extra)
             objs.append(obj)
         objs += deps['objs']
-        self.run_script_phases(target, s, 'link', kind)
+        self.run_script_phases(target, s, 'link', kind, path)
 
         # product layout + link
         link_result = Packages.empty()
@@ -1603,6 +1620,10 @@ class Builder:
                            'uitest': ['@executable_path/Frameworks', '@loader_path/Frameworks']}.get(kind, [])
             for rp in dict.fromkeys(rpaths + defaults_rp):
                 link += ['-Wl,-rpath,' + rp]
+            for d in split_setting(s.get('LIBRARY_SEARCH_PATHS')):
+                link += ['-L', d.rstrip('/').removesuffix('/**')]
+            for d in split_setting(s.get('FRAMEWORK_SEARCH_PATHS')):
+                link += ['-F', d.rstrip('/').removesuffix('/**')]
             link += split_setting(s.get('OTHER_LDFLAGS'))
             run(link)
             if kind == 'framework':
@@ -1636,7 +1657,7 @@ class Builder:
                 f.write(f'module {module} {{\n' + ''.join(f'  header "{h}"\n' for h in hdrs) + '  export *\n}\n')
             link_result['swift_flags'] += ['-I', inc]
 
-        self.run_script_phases(target, s, 'resources', kind)
+        self.run_script_phases(target, s, 'resources', kind, path)
 
         # resources, Info.plist
         if wrapper:
@@ -1644,6 +1665,13 @@ class Builder:
             for res in target.resources():
                 if res.rstrip('/').endswith(('.xcdatamodeld', '.xcdatamodel')):
                     continue                                   # compiled above
+                if res.startswith('$(BUILT_PRODUCTS_DIR)/'):   # another target's product (e.g. a pod's resource bundle)
+                    t = self.find_product_target(os.path.basename(res))
+                    prod = self.build(t) if t else None
+                    if not prod:
+                        log(f'{name}: {os.path.basename(res)} is not built by this build (not copied)')
+                        continue
+                    res = prod['path']
                 localizations.update(self.install_resource(res, path))
             info = make_info_plist(target, s, path, localizations, pkgtype)
             if kind == 'app':
@@ -1670,7 +1698,7 @@ class Builder:
                 shutil.copy2(gc, os.path.join(path, 'isim-GameCenter.json'))
                 log(f'{name}: local Game Center configuration {os.path.relpath(gc, os.path.dirname(target.p.xcodeproj))}')
 
-        self.run_script_phases(target, s, 'embed', kind)
+        self.run_script_phases(target, s, 'embed', kind, path)
         # embedding: copy-files phases, plus dynamic frameworks of packages / xcframeworks (Xcode embeds those itself)
         self.copy_phases(target, s, path, before_link=False)
         if kind in ('app', 'appex', 'xctest', 'uitest'):
@@ -1689,7 +1717,7 @@ class Builder:
             dst = os.path.join(plugins, os.path.basename(path))
             shutil.rmtree(dst, ignore_errors=True)
             shutil.copytree(path, dst)
-        self.run_script_phases(target, s, 'end', kind)
+        self.run_script_phases(target, s, 'end', kind, path)
         return {'kind': kind, 'path': path, 'exe': exe, 'module': module, 'target': name, 'settings': s,
                 'link_result': link_result, 'test_host': test_host}
 
@@ -1775,7 +1803,7 @@ class Builder:
                 if not before_link:
                     log(f'{target.name}: embedded {os.path.basename(src)} in {os.path.relpath(dest, os.path.dirname(path)) if spec != "16" else os.path.relpath(dest, self.outdir)}/')
 
-    def run_script_phases(self, target, s, stage=None, kind=None):
+    def run_script_phases(self, target, s, stage=None, kind=None, path=None):
         """Shell script phases of the given stage (None: all, e.g. an aggregate target), like Xcode: in their place
         among the build phases, with Xcode's environment (build settings, SCRIPT_INPUT_FILE_n / _LIST_n,
         SCRIPT_OUTPUT_FILE_n / _LIST_n), skipped when every output is newer than every input (unless "Based on
@@ -1786,8 +1814,8 @@ class Builder:
             if stage is not None and ph['stage'] != stage:
                 continue
             title = f'{target.name}: script phase "{ph["name"]}"'
-            if ph['name'].startswith('[CP]'):
-                log(f'{target.name}: "{ph["name"]}" skipped: isim embeds and checks CocoaPods products itself')
+            if ph['name'].startswith('[CP] '):
+                self.cocoapods_phase(target, s, ph, path)
                 continue
             if not self.run_scripts:
                 log(f'{title} skipped (-skip-script-phases)')
@@ -1797,6 +1825,79 @@ class Builder:
                 continue
             produced += self.run_script_phase(target, s, ph, title, kind)
         return produced
+
+    def cocoapods_phase(self, target, s, ph, path):
+        """CocoaPods' generated "[CP]" phases call macOS tools (rsync, lipo, codesign); isim does what they do itself:
+        checks Manifest.lock against Podfile.lock, embeds the frameworks and copies the resources their file lists
+        name (products of the Pods project, or vendored frameworks / XCFrameworks), and copies vendored XCFramework
+        slices where the Pods xcconfigs look for them."""
+        name = ph['name'][5:]
+        root = target.p.root
+
+        def resolve(p):
+            p = expand(p, s).strip()
+            return p if os.path.isabs(p) else os.path.normpath(os.path.join(root, p))
+        entries = [resolve(p) for p in ph['inputs']]
+        for lp in ph['input_lists']:
+            lf = resolve(lp)
+            if os.path.exists(lf):
+                with open(lf, encoding='utf-8') as f:
+                    entries += [resolve(l) for l in (x.strip() for x in f) if l and not l.startswith('#')]
+            else:
+                log(f'{target.name}: "{ph["name"]}": {lf} not found')
+        entries = [e for e in entries if not e.endswith('.sh')]
+        if name == 'Check Pods Manifest.lock':
+            locks = [e for e in entries if e.endswith(('Podfile.lock', 'Manifest.lock'))]
+            if len(locks) == 2 and all(os.path.exists(l) for l in locks):
+                if open(locks[0], 'rb').read() != open(locks[1], 'rb').read():
+                    fail(f'{target.name}: "{ph["name"]}": The sandbox is not in sync with the Podfile.lock. Run \'pod install\' '
+                         'or update your CocoaPods installation.')
+                log(f'{target.name}: "{ph["name"]}": Podfile.lock matches Pods/Manifest.lock (checked by isim)')
+            else:
+                log(f'{target.name}: "{ph["name"]}" skipped: no Podfile.lock / Manifest.lock')
+            return
+
+        def product_of(e):
+            t = self.find_product_target(os.path.basename(e))
+            prod = self.build(t) if t else None
+            if prod:
+                return prod['path']
+            if os.path.exists(e):
+                return e
+            pods_root = expand('$(PODS_ROOT)', s) or os.path.join(root, 'Pods')
+            stem = os.path.splitext(os.path.basename(e))[0]
+            for dp, dn, _ in os.walk(pods_root):
+                if stem + '.xcframework' in dn:
+                    return xcframework_slice(os.path.join(dp, stem + '.xcframework'))[0]
+            return None
+        if name in ('Embed Pods Frameworks', 'Copy Pods Resources'):
+            if not path:
+                return
+            for e in entries:
+                src = product_of(e)
+                if not src:
+                    log(f'{target.name}: "{ph["name"]}": {os.path.basename(e)} not found (skipped)')
+                    continue
+                if name == 'Embed Pods Frameworks':
+                    self.embed(src, os.path.join(path, 'Frameworks'))
+                    log(f'{target.name}: embedded {os.path.basename(src)} in Frameworks/ (isim\'s "{ph["name"]}")')
+                else:
+                    self.install_resource(src, path)
+                    log(f'{target.name}: copied {os.path.basename(src)} into the bundle (isim\'s "{ph["name"]}")')
+            return
+        if name == 'Copy XCFrameworks':
+            dest_root = expand('$(PODS_XCFRAMEWORKS_BUILD_DIR)', s)
+            for e in entries:
+                if e.endswith('.xcframework') and os.path.isdir(e) and dest_root:
+                    lib, headers = xcframework_slice(e)
+                    dest = os.path.join(dest_root, os.path.basename(e)[:-len('.xcframework')])
+                    os.makedirs(dest, exist_ok=True)
+                    self.embed(lib, dest) if os.path.isdir(lib) else shutil.copy2(lib, dest)
+                    if headers and os.path.isdir(headers):
+                        shutil.copytree(headers, os.path.join(dest, 'Headers'), dirs_exist_ok=True)
+                    log(f'{target.name}: {os.path.basename(e)}: x86_64 simulator slice -> {dest} (isim\'s "{ph["name"]}")')
+            return
+        log(f'{target.name}: "{ph["name"]}" skipped: a CocoaPods phase isim does not replace')
 
     def run_script_phase(self, target, s, ph, title, kind):
         root = target.p.root
@@ -2033,8 +2134,10 @@ def print_tree(projects, workspace=None):
                             continue
                         obj = proj.objects[ref]
                         owner = proj.product_owner(ref)
-                        shown = obj.get('name') or obj.get('path', '') if owner or obj.get('isa') == 'PBXReferenceProxy' \
-                            else rel(proj.path_of(ref), root)
+                        built = owner or obj.get('isa') == 'PBXReferenceProxy' or obj.get('sourceTree') == 'BUILT_PRODUCTS_DIR'
+                        shown = os.path.basename(obj.get('path') or obj.get('name', '')) if built else rel(proj.path_of(ref), root)
+                        if built and not owner:
+                            shown += ' (built product)'
                         attrs = b.get('settings', {}).get('ATTRIBUTES', [])
                         files.append(shown + (f' (product of {owner})' if owner else '') + (f' [{", ".join(attrs)}]' if attrs else ''))
                 entries.append((title, files))
