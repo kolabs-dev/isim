@@ -39,7 +39,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 7 | 0 | 0 | 6 | 13 | 54% |
 | &nbsp;&nbsp;↳ Drag & drop | 3 | 0 | 0 | 5 | 8 | 38% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 14 | 0 | 0 | 2 | 16 | 88% |
-| **SwiftUI** | 236 | 2 | 1 | 2 | 241 | 98% |
+| **SwiftUI** | 237 | 2 | 0 | 2 | 241 | 99% |
 | &nbsp;&nbsp;↳ App & scenes | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ State & data flow | 17 | 0 | 0 | 0 | 17 | 100% |
 | &nbsp;&nbsp;↳ Views & controls | 38 | 2 | 0 | 1 | 41 | 95% |
@@ -50,7 +50,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Animation | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ Gestures | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Lifecycle, async & events | 8 | 0 | 0 | 0 | 8 | 100% |
-| &nbsp;&nbsp;↳ Focus & keyboard | 3 | 0 | 1 | 0 | 4 | 75% |
+| &nbsp;&nbsp;↳ Focus & keyboard | 4 | 0 | 0 | 0 | 4 | 100% |
 | &nbsp;&nbsp;↳ Environment values | 7 | 0 | 0 | 0 | 7 | 100% |
 | &nbsp;&nbsp;↳ Accessibility | 5 | 0 | 0 | 0 | 5 | 100% |
 | &nbsp;&nbsp;↳ UIKit interop | 4 | 0 | 0 | 0 | 4 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **885** | **99** | **21** | **88** | **1093** | **85%** |
+| **All areas** | **886** | **99** | **20** | **88** | **1093** | **86%** |
 
 ### Per iOS version
 
@@ -96,7 +96,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 78% (276) | 77% (283) | 78% (299) | 78% (310) |
-| SwiftUI | 98% (218) | 98% (224) | 98% (231) | 98% (241) |
+| SwiftUI | 99% (218) | 99% (224) | 99% (231) | 99% (241) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (85) | 100% (85) | 100% (86) | 100% (86) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **85%** (1030) | **85%** (1045) | **85%** (1072) | **85%** (1093) |
+| **All areas** | **85%** (1030) | **85%** (1045) | **85%** (1072) | **86%** (1093) |
 
 ---
 
@@ -795,7 +795,7 @@ updates (`Animatable.swift`, same timing curves); HelloDrawing checks those half
 |---|---|---|---|
 | `focused(_:)`, `focused(_:equals:)` | ✅ | ≤17 | |
 | `focusable`, `defaultFocus`, `focusSection` | ✅ | ≤17 | `.focusable()` views take focus (a tap, Tab, or their `.focused` binding) as the first responder and show a focus ring in the tint colour (`.focusEffectDisabled()` hides it); Tab / Shift-Tab move between focusable views and text fields in reading order, a `.focusSection()`'s items staying together; `defaultFocus` sets the focus binding on appear. Tested (HelloKeys) |
-| `scrollDismissesKeyboard` | 🧩 | ≤17 | ignored |
+| `scrollDismissesKeyboard` | ✅ | ≤17 | the scroll views inside (ScrollView, List / Form, the attributed TextEditor) take the mode as UIKit's `keyboardDismissMode`: `.automatic` dismisses as soon as a drag scrolls (a TextEditor: interactively), like iOS 16 and later; `.immediately`, `.interactively` (adapted: the keyboard goes when the drag reaches it, it does not follow the finger), `.never`. Tested (HelloSwiftUIControls) |
 | Form scrolls the focused field above the keyboard | ✅ | ≤17 | |
 
 ### Environment values

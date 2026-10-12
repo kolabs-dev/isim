@@ -8,7 +8,9 @@
 // PAGE=ax: accessibilitySortPriority and named accessibility actions (drive it with isim's VoiceOver).
 // PAGE=hover: onHover, onContinuousHover, hoverEffect (drive the pointer with the script's `hover X Y`).
 // PAGE=rtl: right-to-left layout — app-wide (-AppleTextDirection YES) and a subtree with .environment(\.layoutDirection).
-// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich|env|ax|hover|rtl.
+// PAGE=keyboard: scrollDismissesKeyboard (MODE=automatic|immediately|interactively|never) on a ScrollView, a List or an
+// iOS 26 attributed TextEditor (CONTAINER=scroll|list|editor); logs the keyboard's show / hide notifications.
+// The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich|env|ax|hover|rtl|keyboard.
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -32,6 +34,7 @@ struct Root: View {
         case "ax": AxPage()
         case "hover": HoverPage()
         case "rtl": RTLPage()
+        case "keyboard": KeyboardPage()
         case "ticks": if #available(iOS 26.0, *) { TicksPage() } else { Text("iOS 26") }
         case "rich": if #available(iOS 26.0, *) { RichPage() } else { Text("iOS 26") }
         default: SymbolsPage()
@@ -352,6 +355,47 @@ struct RTLRow: View {
         .padding(.horizontal, 20)
     }
 }
+/// scrollDismissesKeyboard on one kind of scroll view, the mode from MODE.
+struct KeyboardPage: View {
+    @State var text = ""
+    @State var rich = AttributedString((1...60).map { "Line \($0) of the editor" }.joined(separator: "\n"))
+    var mode: ScrollDismissesKeyboardMode {
+        switch env["MODE"] ?? "automatic" {
+        case "immediately": .immediately
+        case "interactively": .interactively
+        case "never": .never
+        default: .automatic
+        }
+    }
+    var body: some View {
+        content
+            .scrollDismissesKeyboard(mode)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in print("keyboard will show") }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in print("keyboard will hide") }
+    }
+    @ViewBuilder var content: some View {
+        switch env["CONTAINER"] ?? "scroll" {
+        case "list":
+            List {
+                TextField("Name", text: $text).accessibilityIdentifier("field")
+                ForEach(0..<60, id: \.self) { Text("Row \($0)") }
+            }
+        case "editor":
+            if #available(iOS 26.0, *) {
+                TextEditor(text: $rich).accessibilityIdentifier("field")
+            } else { Text("iOS 26") }
+        default:
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Name", text: $text).textFieldStyle(.roundedBorder).accessibilityIdentifier("field")
+                    ForEach(0..<60, id: \.self) { Text("Row \($0)") }
+                }
+                .padding()
+            }
+        }
+    }
+}
+
 struct RTLPage: View {
     var body: some View {
         VStack(spacing: 40) {

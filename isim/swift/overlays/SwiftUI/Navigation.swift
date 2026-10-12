@@ -118,6 +118,7 @@ public enum VerticalEdge: Int8, Sendable {
     level?.listColor = look.hidesBackground ? nil : look.background
     let node = _ListNode(path: ctx.path, sections: sections, level: level, graph: ctx.graph)
     node.look = look; node.listSpacing = spacing
+    node.keyboardDismiss = ctx.environment._scrollOptions.keyboard
     node.extras = _listExtras(ctx)             // editing, selection, refresh (Lists+Editing.swift)
     return node
 }
@@ -148,6 +149,7 @@ final class _ListNode: _Node {
     var extras = _ListExtras()
     var contentHeight: CGFloat = 0
     var extraInsets = UIEdgeInsets.zero                     // from an enclosing safeAreaInset / safeAreaPadding
+    var keyboardDismiss = 0                                 // scrollDismissesKeyboard (Scroll+Paging.swift)
     init(path: String, sections: [_SectionNode], level: _NavLevel?, graph: _Graph) {
         self.sections = sections; self.level = level; self.graph = graph
         super.init(path: path, children: [])
@@ -237,6 +239,7 @@ final class _ListNode: _Node {
         sv.level = level
         sv.contentSize = CGSize(width: frame.width, height: contentHeight)
         sv.extraInsets = extraInsets
+        sv.keyboardDismissMode = _keyboardDismissMode(keyboardDismiss)
         return sv
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {

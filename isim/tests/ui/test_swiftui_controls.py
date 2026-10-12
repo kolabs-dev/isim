@@ -1,7 +1,7 @@
 """SwiftUI views and controls (HelloSwiftUIControls): SF Symbol rendering modes (monochrome, hierarchical, palette,
 multicolor), symbolVariant, imageScale, symbol effects (variable colour, breathe, rotate, scale, disappear, wiggle,
 bounce, replace); truncationMode, minimumScaleFactor, allowsTightening; MultiDatePicker; PasteButton; ShareLink with
-Transferable items; RenameButton."""
+Transferable items; RenameButton; scrollDismissesKeyboard on ScrollView, List and TextEditor."""
 import re
 import time
 
@@ -346,3 +346,51 @@ def test_right_to_left(launch, app_rtl):
         blue = [x for x in range(int(px), int(px + pw)) if (lambda c: c[2] > 200 and c[0] < 60)(img.getpixel((x, int(py + ph / 2)))[:3])]
         edge = (px + pw - blue[-1]) if rtl else (blue[0] - px)
         assert abs(edge - 30) <= 2, f"{tag}: padding(.leading, 30) on the {'right' if rtl else 'left'} ({edge})"
+
+
+def scroll_offset(dump):
+    m = re.search(r"(?:_SUIScrollView|_SUIListScroll) .*text=offset (-?[0-9.]+)", dump)
+    return float(m.group(1)) if m else None
+
+
+@pytest.mark.parametrize("container,mode,dismisses", [
+    ("scroll", "automatic", True), ("list", "automatic", True), ("list", "immediately", True),
+    ("scroll", "never", False), ("list", "never", False)])
+def test_scroll_dismisses_keyboard(launch, container, mode, dismisses):
+    """scrollDismissesKeyboard: a ScrollView or List with a text field dismisses the keyboard as soon as a drag scrolls it
+    (.automatic, like iOS 16 and later, and .immediately), or never (.never)."""
+    app = launch("HelloSwiftUIControls", env={"PAGE": "keyboard", "MODE": mode, "CONTAINER": container})
+    app.wait_view(r"id=field")
+    app.wait_still()
+    app.tap_id("field")
+    app.wait_log(r"^keyboard will show")
+    app.wait_still()
+    start = scroll_offset(app.view_dump())
+    app.drag(200, 320, 200, 200, seconds=0.3)                         # up, above the keyboard: scrolls the content
+    if dismisses:
+        app.wait_log(r"^keyboard will hide")
+    else:
+        app.wait_view(lambda d: (scroll_offset(d) or start) > start + 50, what="the drag scrolls")
+        app.wait_still()
+        assert "keyboard will hide" not in app.log and "(editing)" in app.view_dump(), ".never: the keyboard stays up"
+    assert app.quit() == 0
+
+
+@pytest.mark.parametrize("container", ["scroll", "editor"])
+def test_scroll_dismisses_keyboard_interactively(launch, container):
+    """.interactively (and .automatic on a TextEditor, here the iOS 26 attributed one): dragging up keeps the keyboard;
+    dragging down into it dismisses it (adapted: isim's keyboard does not follow the finger)."""
+    mode = "interactively" if container == "scroll" else "automatic"
+    app = launch("HelloSwiftUIControls", env={"PAGE": "keyboard", "MODE": mode, "CONTAINER": container},
+                 os_version="26" if container == "editor" else None)
+    app.wait_view(r"id=field")
+    app.wait_still()
+    app.tap_id("field")
+    app.wait_log(r"^keyboard will show")
+    app.wait_still()
+    app.drag(200, 320, 200, 200, seconds=0.3)                         # up: the keyboard stays
+    app.wait_still()
+    assert "keyboard will hide" not in app.log, "dragging up keeps the keyboard"
+    app.drag(200, 200, 200, 860, seconds=0.6)                         # down into the keyboard
+    app.wait_log(r"^keyboard will hide")
+    assert app.quit() == 0
