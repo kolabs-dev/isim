@@ -13,13 +13,15 @@
 		5B0A00010000000000000004 /* ControlsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000004 /* ControlsViewController.swift */; };
 		5B0A00010000000000000005 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000001 /* Main.storyboard */; };
 		5B0A00010000000000000006 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000002 /* LaunchScreen.storyboard */; };
-		5B0A00010000000000000007 /* ProfileViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000007 /* ProfileViewController.xib */; };
+		5B0A00010000000000000007 /* ProfileViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000005 /* ProfileViewController.xib */; };
 		5B0A00010000000000000008 /* BadgeCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000008 /* BadgeCell.xib */; };
 		5B0A00010000000000000009 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000009 /* Settings.bundle */; };
 		5B0A0001000000000000000A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A0002000000000000000A /* Assets.xcassets */; };
 		5B0A00010000000000000011 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000011 /* main.m */; };
 		5B0A00010000000000000012 /* Classic.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000003 /* Classic.storyboard */; };
 		5B0A00010000000000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000013 /* Assets.xcassets */; };
+		5B0A00010000000000000014 /* LibraryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000016 /* LibraryViewController.swift */; };
+		5B0A00010000000000000015 /* Greeting.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000004 /* Greeting.storyboard */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,7 +31,12 @@
 		5B0A00020000000000000004 /* ControlsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlsViewController.swift; sourceTree = "<group>"; };
 		5B0A00020000000000000005 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		5B0A00020000000000000006 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		5B0A00020000000000000007 /* ProfileViewController.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = ProfileViewController.xib; sourceTree = "<group>"; };
+		5B0A00020000000000000007 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/ProfileViewController.xib; sourceTree = "<group>"; };
+		5B0A00020000000000000016 /* LibraryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewController.swift; sourceTree = "<group>"; };
+		5B0A00020000000000000017 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Greeting.storyboard; sourceTree = "<group>"; };
+		5B0A00020000000000000018 /* fr */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = fr; path = fr.lproj/Greeting.storyboard; sourceTree = "<group>"; };
+		5B0A00020000000000000019 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Main.strings; sourceTree = "<group>"; };
+		5B0A0002000000000000001A /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/ProfileViewController.strings; sourceTree = "<group>"; };
 		5B0A00020000000000000008 /* BadgeCell.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = BadgeCell.xib; sourceTree = "<group>"; };
 		5B0A00020000000000000009 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		5B0A0002000000000000000A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -76,8 +83,10 @@
 				5B0A00020000000000000002 /* NotesViewController.swift */,
 				5B0A00020000000000000003 /* NoteDetailViewController.swift */,
 				5B0A00020000000000000004 /* ControlsViewController.swift */,
+				5B0A00020000000000000016 /* LibraryViewController.swift */,
 				5B0A00030000000000000001 /* Main.storyboard */,
-				5B0A00020000000000000007 /* ProfileViewController.xib */,
+				5B0A00030000000000000004 /* Greeting.storyboard */,
+				5B0A00030000000000000005 /* ProfileViewController.xib */,
 				5B0A00020000000000000008 /* BadgeCell.xib */,
 				5B0A0002000000000000000A /* Assets.xcassets */,
 				5B0A00030000000000000002 /* LaunchScreen.storyboard */,
@@ -160,6 +169,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				fr,
 				Base,
 			);
 			mainGroup = 5B0A00050000000000000001;
@@ -181,6 +191,7 @@
 				5B0A00010000000000000006 /* LaunchScreen.storyboard in Resources */,
 				5B0A0001000000000000000A /* Assets.xcassets in Resources */,
 				5B0A00010000000000000005 /* Main.storyboard in Resources */,
+				5B0A00010000000000000015 /* Greeting.storyboard in Resources */,
 				5B0A00010000000000000007 /* ProfileViewController.xib in Resources */,
 				5B0A00010000000000000008 /* BadgeCell.xib in Resources */,
 				5B0A00010000000000000009 /* Settings.bundle in Resources */,
@@ -207,6 +218,7 @@
 				5B0A00010000000000000002 /* NotesViewController.swift in Sources */,
 				5B0A00010000000000000003 /* NoteDetailViewController.swift in Sources */,
 				5B0A00010000000000000004 /* ControlsViewController.swift in Sources */,
+				5B0A00010000000000000014 /* LibraryViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -225,6 +237,7 @@
 			isa = PBXVariantGroup;
 			children = (
 				5B0A00020000000000000005 /* Base */,
+				5B0A00020000000000000019 /* fr */,
 			);
 			name = Main.storyboard;
 			sourceTree = "<group>";
@@ -243,6 +256,24 @@
 				5B0A00020000000000000012 /* Base */,
 			);
 			name = Classic.storyboard;
+			sourceTree = "<group>";
+		};
+		5B0A00030000000000000004 /* Greeting.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				5B0A00020000000000000017 /* Base */,
+				5B0A00020000000000000018 /* fr */,
+			);
+			name = Greeting.storyboard;
+			sourceTree = "<group>";
+		};
+		5B0A00030000000000000005 /* ProfileViewController.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				5B0A00020000000000000007 /* Base */,
+				5B0A0002000000000000001A /* fr */,
+			);
+			name = ProfileViewController.xib;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */

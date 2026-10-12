@@ -1,0 +1,71 @@
+/* French strings of Main.storyboard: keys from `ibtool.py Main.storyboard --export-strings-file`;
+   untranslated keys are left out (the storyboard's own text is used). */
+
+/* Class = "UITabBarItem"; title = "Controls"; ObjectID = "tbi-00-002"; */
+"tbi-00-002.title" = "Commandes";
+
+/* Class = "UITabBarItem"; title = "Library"; ObjectID = "tbi-00-003"; */
+"tbi-00-003.title" = "Bibliothèque";
+
+/* Class = "LibraryViewController"; title = "Library"; ObjectID = "lib-00-001"; */
+"lib-00-001.title" = "Bibliothèque";
+
+/* Class = "UINavigationItem"; title = "Library"; ObjectID = "lni-00-001"; */
+"lni-00-001.title" = "Bibliothèque";
+
+/* Class = "UITableViewSection"; headerTitle = "Account"; ObjectID = "lsc-00-001"; */
+"lsc-00-001.headerTitle" = "Compte";
+
+/* Class = "UITableViewSection"; footerTitle = "These rows are static cells from the storyboard."; ObjectID = "lsc-00-001"; */
+"lsc-00-001.footerTitle" = "Ces lignes sont des cellules statiques du storyboard.";
+
+/* Class = "UITableViewSection"; headerTitle = "Browse"; ObjectID = "lsc-00-002"; */
+"lsc-00-002.headerTitle" = "Parcourir";
+
+/* Class = "UILabel"; text = "Notifications"; ObjectID = "lnl-00-001"; */
+"lnl-00-001.text" = "Alertes";
+
+/* Class = "UISwitch"; accessibilityLabel = "Enable notifications"; ObjectID = "lns-00-001"; */
+"lns-00-001.accessibilityLabel" = "Activer les alertes";
+
+/* Class = "UILabel"; text = "Colors"; ObjectID = "lgt-00-001"; */
+"lgt-00-001.text" = "Couleurs";
+
+/* Class = "UILabel"; text = "Greeting"; ObjectID = "lrt-00-001"; */
+"lrt-00-001.text" = "Salutation";
+
+/* Class = "UILabel"; text = "Taller row (heightForRowAt)"; ObjectID = "ltt-00-001"; */
+"ltt-00-001.text" = "Ligne plus haute (heightForRowAt)";
+
+/* Class = "GalleryViewController"; title = "Colors"; ObjectID = "gal-00-001"; */
+"gal-00-001.title" = "Couleurs";
+
+/* Class = "UINavigationItem"; title = "Colors"; ObjectID = "gni-00-001"; */
+"gni-00-001.title" = "Couleurs";
+
+/* Class = "ControlsViewController"; title = "Controls"; ObjectID = "ctl-00-001"; */
+"ctl-00-001.title" = "Commandes";
+
+/* Class = "UISegmentedControl"; segmentTitles[0] = "One"; ObjectID = "csg-00-001"; */
+"csg-00-001.segmentTitles[0]" = "Un";
+
+/* Class = "UISegmentedControl"; segmentTitles[1] = "Two"; ObjectID = "csg-00-001"; */
+"csg-00-001.segmentTitles[1]" = "Deux";
+
+/* Class = "UISegmentedControl"; segmentTitles[2] = "Three"; ObjectID = "csg-00-001"; */
+"csg-00-001.segmentTitles[2]" = "Trois";
+
+/* Class = "UITextField"; placeholder = "Your name"; ObjectID = "ctf-00-001"; */
+"ctf-00-001.placeholder" = "Votre nom";
+
+/* Class = "UIButton"; configuration.title = "Apply"; ObjectID = "cap-00-001"; */
+"cap-00-001.configuration.title" = "Appliquer";
+
+/* Class = "UILabel"; text = "Ready"; ObjectID = "cso-00-001"; */
+"cso-00-001.text" = "Prêt";
+
+/* Class = "UIButton"; normalTitle = "Fonts"; ObjectID = "cfb-00-001"; */
+"cfb-00-001.normalTitle" = "Polices";
+
+/* Class = "UIBarButtonItem"; title = "Reset"; ObjectID = "bbi-00-001"; */
+"bbi-00-001.title" = "Réinitialiser";

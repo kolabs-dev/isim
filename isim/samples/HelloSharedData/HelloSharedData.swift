@@ -33,7 +33,18 @@ final class Model: ObservableObject {
         let settings = NSLocalizedString("Settings title", comment: "")
         plurals.append(("width", settings))
         plurals.append(("width-25", (settings as NSString).variantFittingPresentationWidth(25)))
+        // two catalog plurals share the format text "%#@value@": each keeps its own rules
+        let filesFormat = NSLocalizedString("%lld files", comment: "")
+        let foldersFormat = NSLocalizedString("%lld folders", comment: "")
+        plurals.append(("identity", String.localizedStringWithFormat(filesFormat, 2) + " / " + String.localizedStringWithFormat(foldersFormat, 2)))
+        plurals.append(("folders-1", String(localized: "\(1) folders")))
         for (id, text) in plurals { print("plural \(id): \(text)") }
+        // CLDR categories of the app's language (Counts.stringsdict: each rule's text is its category name)
+        let counts = NSLocalizedString("%d items", tableName: "Counts", comment: "")
+        let fractions = NSLocalizedString("%g items", tableName: "Counts", comment: "")
+        let ints = [0, 1, 2, 3, 4, 5, 6, 11, 21, 100, 101, 102, 1_000_000].map { "\($0)=\(String.localizedStringWithFormat(counts, $0))" }
+        let reals = [0.5, 1.5].map { "\($0)=\(String.localizedStringWithFormat(fractions, $0))" }
+        print("plural categories \(Locale.preferredLanguages.first ?? "?"): " + (ints + reals).joined(separator: " "))
 
         // app group container + shared defaults
         if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupID) {
