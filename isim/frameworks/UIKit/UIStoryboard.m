@@ -11,7 +11,12 @@
  * overrides (a Swift class that only implements init(coder:) traps in its synthesized init(frame:)), then decodes
  * the IB attributes, subviews and keyed objects. After all objects exist: constraints, connections (outlets,
  * outlet collections, target-actions, segues), user defined runtime attributes, then -awakeFromNib.
- * A storyboard view controller's view is loaded lazily (-loadView), like iOS; so are its outlets into the view. */
+ * A storyboard view controller's view is loaded lazily (-loadView), like iOS; so are its outlets into the view.
+ * Localization, like iOS: the strings table named after the storyboard / nib (<lang>.lproj/Main.strings, keys
+ * "<object ID>.<property>", as Xcode's base internationalization exports them) replaces the IB texts for the app's
+ * language when objects are made; a full localized copy (<lang>.lproj/Main.storyboard) is found by NSBundle first.
+ * Static table cells (dataMode="static"): each cell is made once with the controller's view; UITableViewController's
+ * data source / delegate methods serve them (sections, rows, header/footer titles, row heights). */
 #import "UIKitPrivate.h"
 #import <UIKit/UIStoryboard.h>
 #include <objc/runtime.h>
@@ -99,6 +104,7 @@ static Class ib_kit_class(Class c) {
 @property (nonatomic, weak) UIViewController *sceneController;
 @property (nonatomic, strong) __IsimIBLoader *parent;                       /* scene loader of a prototype cell */
 @property (nonatomic, strong) NSString *ownerID;
+@property (nonatomic, copy) NSString *stringsTable;                        /* localization: <lang>.lproj/<table>.strings */
 - (id)instantiate:(NSDictionary *)node;
 - (id)objectForID:(NSString *)ident found:(BOOL *)found;
 - (void)finish;
@@ -407,6 +413,79 @@ static void ib_apply_props(id obj, NSDictionary *props, __IsimIBLoader *loader) 
     if ([props[@"$animating"] boolValue] && [obj isKindOfClass:[UIActivityIndicatorView class]]) [obj startAnimating];
 }
 
+/* ================= localization: <lang>.lproj/<storyboard or nib name>.strings ================= */
+/* the localized text of an object's property ("<id>.<property>"), or nil */
+static NSString *ib_localized(__IsimIBLoader *loader, NSString *ident, NSString *property) {
+    NSString *table = loader.stringsTable;
+    if (!table.length || !ident.length) return nil;
+    static NSMutableDictionary<NSString *, NSNumber *> *present;          /* bundle/table -> has a .strings table */
+    NSBundle *bundle = loader.bundle ?: NSBundle.mainBundle;
+    NSString *pk = [NSString stringWithFormat:@"%@/%@", bundle.bundlePath, table];
+    NSNumber *has;
+    @synchronized ([UIStoryboard class]) {
+        if (!present) present = [NSMutableDictionary dictionary];
+        has = present[pk];
+        if (!has) present[pk] = has = @([bundle pathForResource:table ofType:@"strings"] != nil);
+    }
+    if (!has.boolValue) return nil;
+    static NSString *const missing = @"\x01isim-ib-not-localized";
+    NSString *v = [bundle localizedStringForKey:[NSString stringWithFormat:@"%@.%@", ident, property] value:missing table:table];
+    return [v isEqualToString:missing] ? nil : v;
+}
+
+/* the node's attributes with its localizable texts replaced (Xcode's keys: text, placeholder, title, prompt,
+   backButtonTitle, accessibilityLabel / Hint, normalTitle / highlightedTitle / selectedTitle / disabledTitle,
+   configuration.title / subtitle, segmentTitles[n]) */
+static NSDictionary *ib_localized_props(NSDictionary *node, __IsimIBLoader *loader) {
+    NSDictionary *props = node[@"props"];
+    NSString *ident = node[@"id"];
+    if (!props.count || !ident.length || !loader.stringsTable.length) return props;
+    NSMutableDictionary *out = nil;
+#define IB_SET(k, v) do { if (!out) out = [props mutableCopy]; out[k] = v; } while (0)
+    for (NSString *k in @[@"text", @"placeholder", @"title", @"prompt", @"backButtonTitle", @"accessibilityLabel", @"accessibilityHint"]) {
+        if (![props[k] isKindOfClass:[NSString class]]) continue;
+        NSString *l = ib_localized(loader, ident, k);
+        if (l) IB_SET(k, l);
+    }
+    NSArray *states = props[@"$states"];
+    if ([states isKindOfClass:[NSArray class]]) {
+        NSMutableArray *ns = nil;
+        for (NSUInteger i = 0; i < states.count; i++) {
+            NSDictionary *st = states[i];
+            if (!st[@"title"]) continue;
+            NSUInteger state = [st[@"state"] unsignedIntegerValue];
+            NSString *name = state == 1 ? @"highlightedTitle" : state == 2 ? @"disabledTitle" : state == 4 ? @"selectedTitle" : @"normalTitle";
+            NSString *l = ib_localized(loader, ident, name);
+            if (!l) continue;
+            if (!ns) ns = [states mutableCopy];
+            NSMutableDictionary *m = [st mutableCopy]; m[@"title"] = l; ns[i] = m;
+        }
+        if (ns) IB_SET(@"$states", ns);
+    }
+    NSDictionary *conf = props[@"$configuration"];
+    if ([conf isKindOfClass:[NSDictionary class]]) {
+        NSMutableDictionary *nc = nil;
+        for (NSString *k in @[@"title", @"subtitle"]) {
+            NSString *l = conf[k] ? ib_localized(loader, ident, [@"configuration." stringByAppendingString:k]) : nil;
+            if (l) { if (!nc) nc = [conf mutableCopy]; nc[k] = l; }
+        }
+        if (nc) IB_SET(@"$configuration", nc);
+    }
+    NSArray *segs = props[@"$segments"];
+    if ([segs isKindOfClass:[NSArray class]]) {
+        NSMutableArray *ns = nil;
+        for (NSUInteger i = 0; i < segs.count; i++) {
+            NSString *l = segs[i][@"title"] ? ib_localized(loader, ident, [NSString stringWithFormat:@"segmentTitles[%lu]", (unsigned long)i]) : nil;
+            if (!l) continue;
+            if (!ns) ns = [segs mutableCopy];
+            NSMutableDictionary *m = [segs[i] mutableCopy]; m[@"title"] = l; ns[i] = m;
+        }
+        if (ns) IB_SET(@"$segments", ns);
+    }
+#undef IB_SET
+    return out ?: props;
+}
+
 /* ================= coder ================= */
 @implementation __IsimIBCoder
 - (BOOL)allowsKeyedCoding { return YES; }
@@ -558,11 +637,12 @@ static void ib_add_subviews(UIView *view, NSDictionary *node, __IsimIBLoader *lo
 }
 
 static void ib_prototypes(id obj, NSDictionary *node, __IsimIBLoader *loader);
+static void ib_static_sections(UITableView *tv, NSDictionary *node, __IsimIBLoader *loader);
 
 static void ib_configure_existing(id obj, NSDictionary *node, __IsimIBLoader *loader) {
     if (!obj) return;
     if (node[@"id"]) loader.objects[node[@"id"]] = obj;
-    NSMutableDictionary *props = [node[@"props"] mutableCopy];
+    NSMutableDictionary *props = [ib_localized_props(node, loader) mutableCopy];
     if ([obj isKindOfClass:[UIView class]] && [node[@"tag"] hasSuffix:@"ContentView"]) {
         [props removeObjectForKey:@"frame"]; [props removeObjectForKey:@"autoresizingMask"];   /* the cell sizes it */
         /* a table cell's content view has the system cell margins (iPhone: 11 pt vertical, 20 pt horizontal) */
@@ -588,7 +668,7 @@ id isim_ib_decode_object(id obj, __IsimIBCoder *coder) {
     if (!loader || !node) return obj;
     if (node[@"id"]) loader.objects[node[@"id"]] = obj;
     [loader.awake addObject:obj];
-    NSDictionary *props = node[@"props"];
+    NSDictionary *props = ib_localized_props(node, loader);
     if ([obj isKindOfClass:[UIButton class]] && props[@"$buttonType"]) {
         [obj setValue:props[@"$buttonType"] forKey:@"buttonType"];
         if ([obj respondsToSelector:NSSelectorFromString(@"_isim_applyType")]) ((void (*)(id, SEL))objc_msgSend)(obj, NSSelectorFromString(@"_isim_applyType"));
@@ -604,6 +684,7 @@ id isim_ib_decode_object(id obj, __IsimIBCoder *coder) {
     if ([obj isKindOfClass:[UIView class]] && ![obj isKindOfClass:[UIViewController class]]) ib_add_subviews(obj, node, loader);
     ib_keyed(obj, node, loader);
     if (node[@"prototypes"]) ib_prototypes(obj, node, loader);
+    if (node[@"staticSections"] && [obj isKindOfClass:[UITableView class]]) ib_static_sections(obj, node, loader);
     if (node[@"constraints"]) [loader.pendingConstraints addObject:@{@"owner": node[@"id"] ?: @"", @"list": node[@"constraints"]}];
     if (node[@"userDefined"]) [loader.pendingUserDefined addObject:@[obj, node[@"userDefined"]]];
     if (node[@"variations"] && [obj isKindOfClass:[UIView class]]) [loader.pendingVariations addObject:@[obj, node]];
@@ -632,7 +713,7 @@ id isim_ib_decode_object(id obj, __IsimIBCoder *coder) {
         if (!obj) return nil;
         if (node[@"id"]) _objects[node[@"id"]] = obj;
         [_awake addObject:obj];
-        ib_apply_props(obj, node[@"props"], self);
+        ib_apply_props(obj, ib_localized_props(node, self), self);
         ib_keyed(obj, node, self);
         if (node[@"userDefined"]) [_pendingUserDefined addObject:@[obj, node[@"userDefined"]]];
         (void)tag;
@@ -884,6 +965,70 @@ static void ib_prototypes(id obj, NSDictionary *node, __IsimIBLoader *loader) {
     }
 }
 
+/* ================= static table cells ================= */
+@interface __IsimStaticSection : NSObject
+@property (nonatomic, copy) NSString *header, *footer;
+@property (nonatomic, strong) NSArray<UITableViewCell *> *cells;
+@property (nonatomic, strong) NSArray<NSNumber *> *heights;          /* the cell's own row height, or -1 */
+@end
+@implementation __IsimStaticSection @end
+static char kStaticKey;
+
+/* Each static cell is made once, by a loader whose parent is the scene's (outlets and actions to the controller,
+   selection segues); its objects are known to the scene's loader too, so the controller's outlets into the cells
+   connect when the view finishes loading. */
+static void ib_static_sections(UITableView *tv, NSDictionary *node, __IsimIBLoader *loader) {
+    NSMutableArray *sections = [NSMutableArray array];
+    NSUInteger ncells = 0;
+    for (NSDictionary *sec in node[@"staticSections"]) {
+        __IsimStaticSection *s = [__IsimStaticSection new];
+        s.header = ib_localized(loader, sec[@"id"], @"headerTitle") ?: sec[@"headerTitle"];
+        s.footer = ib_localized(loader, sec[@"id"], @"footerTitle") ?: sec[@"footerTitle"];
+        NSMutableArray *cells = [NSMutableArray array], *heights = [NSMutableArray array];
+        for (NSDictionary *arc in sec[@"cells"]) {
+            __IsimIBLoader *cl = [[__IsimIBLoader alloc] initWithArchive:arc bundle:loader.bundle];
+            cl.storyboard = loader.storyboard; cl.parent = loader; cl.sceneController = loader.sceneController;
+            cl.stringsTable = loader.stringsTable;
+            id cell = [cl instantiate:arc[@"root"]];
+            if (![cell isKindOfClass:[UITableViewCell class]]) { NSLog(@"isim: static table section has a %@, not a cell", [cell class]); continue; }
+            [cl finish];
+            objc_setAssociatedObject(cell, &kLoaderKey, cl, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [cl.objects enumerateKeysAndObjectsUsingBlock:^(NSString *k, id o, BOOL *stop) { [loader.weakObjects setObject:o forKey:k]; }];
+            NSNumber *h = arc[@"root"][@"props"][@"$rowHeight"];
+            [cells addObject:cell];
+            [heights addObject:[h isKindOfClass:[NSNumber class]] ? h : @(-1)];
+        }
+        s.cells = cells; s.heights = heights;
+        ncells += cells.count;
+        [sections addObject:s];
+    }
+    objc_setAssociatedObject(tv, &kStaticKey, sections, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    NSLog(@"isim: static table: %lu sections, %lu cells", (unsigned long)sections.count, (unsigned long)ncells);
+}
+static NSArray<__IsimStaticSection *> *ib_static(UITableView *tv) { return tv ? objc_getAssociatedObject(tv, &kStaticKey) : nil; }
+NSInteger isim_ib_static_count(UITableView *tv, NSInteger section) {
+    NSArray<__IsimStaticSection *> *st = ib_static(tv);
+    if (!st) return -1;
+    if (section < 0) return (NSInteger)st.count;
+    return section < (NSInteger)st.count ? (NSInteger)st[section].cells.count : 0;
+}
+UITableViewCell *isim_ib_static_cell(UITableView *tv, NSIndexPath *ip) {
+    NSArray<__IsimStaticSection *> *st = ib_static(tv);
+    if (!st || ip.section >= (NSInteger)st.count || ip.row >= (NSInteger)st[ip.section].cells.count) return nil;
+    return st[ip.section].cells[ip.row];
+}
+NSString *isim_ib_static_title(UITableView *tv, NSInteger section, BOOL footer) {
+    NSArray<__IsimStaticSection *> *st = ib_static(tv);
+    if (!st || section < 0 || section >= (NSInteger)st.count) return nil;
+    return footer ? st[section].footer : st[section].header;
+}
+CGFloat isim_ib_static_height(UITableView *tv, NSIndexPath *ip) {
+    NSArray<__IsimStaticSection *> *st = ib_static(tv);
+    if (!st || ip.section >= (NSInteger)st.count || ip.row >= (NSInteger)st[ip.section].heights.count) return UITableViewAutomaticDimension;
+    CGFloat h = [st[ip.section].heights[ip.row] doubleValue];
+    return h >= 0 ? h : tv.rowHeight;                 /* the table's row height (UITableViewAutomaticDimension: self-sizing) */
+}
+
 /* ================= UINib ================= */
 static NSString *ib_find(NSBundle *bundle, NSString *name, NSString *ext, NSString *file) {
     NSString *p = [bundle pathForResource:name ofType:ext];
@@ -920,6 +1065,7 @@ static NSString *ib_find(NSBundle *bundle, NSString *name, NSString *ext, NSStri
     __IsimIBLoader *l = [[__IsimIBLoader alloc] initWithArchive:_archive bundle:_bundle];
     l.storyboard = _sceneLoader.storyboard;
     l.parent = _sceneLoader;
+    l.stringsTable = _sceneLoader ? _sceneLoader.stringsTable : _name.lastPathComponent;
     l.sceneController = _sceneLoader.sceneController;
     NSDictionary *externals = options[UINibExternalObjects];
     [_archive[@"placeholders"] enumerateKeysAndObjectsUsingBlock:^(NSString *ident, NSString *kind, BOOL *stop) {
@@ -1025,6 +1171,7 @@ void isim_ib_cell_selected(UIView *cell) {
     }
     __IsimIBLoader *l = [[__IsimIBLoader alloc] initWithArchive:arc bundle:_bundle];
     l.storyboard = self;
+    l.stringsTable = _name.lastPathComponent;
     NSDictionary *root = arc[@"root"];
     __IsimIBCoder *coder = [__IsimIBCoder new]; coder.node = root; coder.loader = l;
     UIViewController *vc;
@@ -1268,6 +1415,12 @@ BOOL isim_ib_vc_load_view(UIViewController *vc) {
         if (!v) return NO;
         vc.view = v;
         [l finish];
+        /* like iOS, a table view controller is its table's data source and delegate unless the storyboard says otherwise */
+        if ([vc isKindOfClass:[UITableViewController class]] && [v isKindOfClass:[UITableView class]]) {
+            UITableView *tv = (UITableView *)v;
+            if (!tv.dataSource) tv.dataSource = (id<UITableViewDataSource>)vc;
+            if (!tv.delegate) tv.delegate = (id<UITableViewDelegate>)vc;
+        }
         return YES;
     }
     NSString *nibName = isim_ib_vc_nib_name(vc);

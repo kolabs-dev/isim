@@ -685,7 +685,10 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
 - (void)_invalidateHeights {
     for (NSInteger s = 0; s < _nsecs; s++) for (NSInteger r = 0; r < _secs[s].rows; r++) {
         BOOL fixed = _secs[s].measured[r] && _rowHeight >= 0;
-        if (!fixed && ![self.delegate respondsToSelector:@selector(tableView:heightForRowAtIndexPath:)]) _secs[s].measured[r] = NO;
+        /* a height from the delegate stays; UITableViewAutomaticDimension from it self-sizes like no delegate height */
+        if (!fixed && [self.delegate respondsToSelector:@selector(tableView:heightForRowAtIndexPath:)])
+            fixed = [self.delegate tableView:self heightForRowAtIndexPath:[NSIndexPath indexPathForRow:r inSection:s]] >= 0;
+        if (!fixed) _secs[s].measured[r] = NO;
     }
 }
 /* ---- layout: visible rows, headers/footers, section cards ---- */
@@ -1123,6 +1126,16 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     if (_clearsSelectionOnViewWillAppear) for (NSIndexPath *ip in self.tableView.indexPathsForSelectedRows) [self.tableView deselectRowAtIndexPath:ip animated:a];
 }
 - (void)setEditing:(BOOL)e animated:(BOOL)a { [super setEditing:e animated:a]; [self.tableView setEditing:e animated:a]; }
-- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)s { return 0; }
-- (UITableViewCell *)tableView:(UITableView *)tv cellForRowAtIndexPath:(NSIndexPath *)ip { return [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil]; }
+/* The data source and delegate of a table: empty, or a storyboard's static cells (dataMode="static"); subclasses
+   that override these and call super get the static content, as on iOS */
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tv { NSInteger n = isim_ib_static_count(tv, -1); return n >= 0 ? n : 1; }
+- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)s { NSInteger n = isim_ib_static_count(tv, s); return n >= 0 ? n : 0; }
+- (UITableViewCell *)tableView:(UITableView *)tv cellForRowAtIndexPath:(NSIndexPath *)ip {
+    return isim_ib_static_cell(tv, ip) ?: [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
+}
+- (NSString *)tableView:(UITableView *)tv titleForHeaderInSection:(NSInteger)s { return isim_ib_static_title(tv, s, NO); }
+- (NSString *)tableView:(UITableView *)tv titleForFooterInSection:(NSInteger)s { return isim_ib_static_title(tv, s, YES); }
+- (CGFloat)tableView:(UITableView *)tv heightForRowAtIndexPath:(NSIndexPath *)ip { return isim_ib_static_height(tv, ip); }
+- (CGFloat)tableView:(UITableView *)tv heightForHeaderInSection:(NSInteger)s { return UITableViewAutomaticDimension; }
+- (CGFloat)tableView:(UITableView *)tv heightForFooterInSection:(NSInteger)s { return UITableViewAutomaticDimension; }
 @end

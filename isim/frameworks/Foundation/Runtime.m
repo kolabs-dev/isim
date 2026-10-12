@@ -286,7 +286,9 @@ static NSError *bundle_error(NSBundle *b, NSInteger code, NSString *why, NSStrin
     for (NSString *l in self.localizations) if (![l isEqualToString:@"Base"]) [avail addObject:l];
     NSArray *pref = [NSBundle preferredLocalizationsFromArray:avail];
     if (pref.count) return pref;
-    return avail.count ? @[[avail containsObject:self.developmentLocalization] ? self.developmentLocalization : avail.firstObject] : @[self.developmentLocalization];
+    /* no match: the development language; Base.lproj holds it when the bundle uses base internationalization */
+    BOOL base = [self.localizations containsObject:@"Base"];
+    return avail.count && !base ? @[[avail containsObject:self.developmentLocalization] ? self.developmentLocalization : avail.firstObject] : @[self.developmentLocalization];
 }
 - (NSString *)pathForResource:(NSString *)name ofType:(NSString *)ext inDirectory:(NSString *)sub forLocalization:(NSString *)loc {
     NSString *file = ext.length ? [name stringByAppendingPathExtension:ext] : name;

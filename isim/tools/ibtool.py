@@ -4,6 +4,8 @@ into isim's own runtime format, read by isim UIKit (UIStoryboard, UINib, UIViewC
 
   ibtool.py Main.storyboard -o Bundle.app/            -> Bundle.app/Main.storyboardc/isim-storyboard.plist
   ibtool.py Cell.xib -o Bundle.app/                   -> Bundle.app/Cell.nib/isim-nib.plist
+  ibtool.py Main.storyboard --export-strings-file Main.strings   -> the localizable texts, keyed like Xcode's
+                                                         ("<object ID>.<property>"), to translate into <lang>.lproj/
 
 THIS IS NOT APPLE'S FORMAT. Apple's ibtool writes binary .nib archives (and .storyboardc folders of them);
 isim writes an XML property list describing the object graph instead. Only isim's UIKit reads it.
@@ -18,7 +20,8 @@ isim IB archive format, version 1 (all property-list types):
             contentLayout|frameLayout|readableContent}}}
   node: {id, class (UIKit class of the element), customClass?, customModule?, props: {key: value},
          subviews?: [node], keyed?: {key: node | [node]}, constraints?: [constraint], userDefined?: [attr],
-         prototypes?: [archive] (table/collection prototype cells, each with root), staticSections?: [section],
+         prototypes?: [archive] (table/collection prototype cells, each with root),
+         staticSections?: [{id, headerTitle?, footerTitle?, cells: [archive]}] (dataMode="static" table cells),
          variations?: [{key, w?, h?, include?: {constraints|subviews: [id]}, exclude?: {...}, props?}]}
   value: a plain string/number/bool, or a typed dict {"$t": color|font|image|rect|size|point|insets|
          dinsets|date|nil|locale|symbolConfig, ...}
@@ -715,7 +718,7 @@ class Compiler:
             elif c.tag == 'sections' and tag == 'tableView':
                 node['staticSections'] = []
                 for sec in c:
-                    sd = {'cells': [self.template(cell) for cell in sec.iter('tableViewCell')]}
+                    sd = {'cells': [self.template(cell) for cell in sec.iter('tableViewCell')], 'id': sec.get('id', '')}
                     for k in ('headerTitle', 'footerTitle'):
                         if sec.get(k) is not None:
                             sd[k] = sec.get(k)
@@ -877,6 +880,72 @@ def compile_document(path, warn=lambda m: print(f'ibtool: warning: {m}', file=sy
     return name, kind, out
 
 
+# ---------------- localizable strings (base internationalization) ----------------
+STRING_PROPS = ('text', 'placeholder', 'title', 'prompt', 'backButtonTitle', 'accessibilityLabel', 'accessibilityHint')
+STATE_TITLES = {0: 'normalTitle', 1: 'highlightedTitle', 2: 'disabledTitle', 4: 'selectedTitle'}
+
+
+def node_strings(node):
+    """[(property key, text)] of a compiled node, keyed as Xcode's ibtool --export-strings-file does and as isim's
+    UIKit looks them up in <lang>.lproj/<Name>.strings ("<object ID>.<property key>")"""
+    p = node.get('props', {})
+    out = [(k, p[k]) for k in STRING_PROPS if isinstance(p.get(k), str) and p[k]]
+    for st in p.get('$states', []):
+        if st.get('title'):
+            out.append((STATE_TITLES.get(st.get('state', 0), 'normalTitle'), st['title']))
+    conf = p.get('$configuration') or {}
+    out += [('configuration.' + k, conf[k]) for k in ('title', 'subtitle') if conf.get(k)]
+    out += [(f'segmentTitles[{n}]', sg['title']) for n, sg in enumerate(p.get('$segments', [])) if sg.get('title')]
+    return out
+
+
+def export_strings(data):
+    """[(class, object ID, property key, text)] of a compiled storyboard / nib, in document order"""
+    out = []
+
+    def visit_archive(arc):
+        if not arc:
+            return
+        if arc.get('root'):
+            visit(arc['root'])
+        for n in arc.get('objects', []):
+            visit(n)
+
+    def visit(node):
+        cls = node.get('customClass') or node.get('class', 'NSObject')
+        for k, text in node_strings(node):
+            out.append((cls, node.get('id', ''), k, text))
+        for sub in node.get('subviews', []):
+            visit(sub)
+        for v in (node.get('keyed') or {}).values():
+            for n in (v if isinstance(v, list) else [v]):
+                visit(n)
+        for arc in node.get('prototypes', []):
+            visit_archive(arc)
+        for sec in node.get('staticSections', []):
+            for k in ('headerTitle', 'footerTitle'):
+                if sec.get(k):
+                    out.append(('UITableViewSection', sec.get('id', ''), k, sec[k]))
+            for arc in sec.get('cells', []):
+                visit_archive(arc)
+
+    if data.get('format') == 'isim-storyboard':
+        for arc in data.get('scenes', {}).values():
+            visit_archive(arc)
+    else:
+        visit_archive(data.get('archive'))
+    return out
+
+
+def write_strings(entries, path):
+    """A .strings file like Xcode's export: a comment with the class and the base text, then "ID.property" = "text";"""
+    def q(t):
+        return t.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+    with open(path, 'w', encoding='utf-8') as fh:
+        for cls, ident, key, text in entries:
+            fh.write(f'\n/* Class = "{cls}"; {key} = "{q(text)}"; ObjectID = "{ident}"; */\n"{ident}.{key}" = "{q(text)}";\n')
+
+
 def strip_none(v):
     if isinstance(v, dict):
         return {k: strip_none(x) for k, x in v.items() if x is not None}
@@ -910,10 +979,26 @@ def compile_to(path, outdir, warn=None):
 def main():
     ap = argparse.ArgumentParser(prog='ibtool.py', description='Compile .storyboard/.xib to isim\'s IB runtime format (not Apple\'s .nib).')
     ap.add_argument('documents', nargs='+')
-    ap.add_argument('-o', '--output', required=True, help='output directory (the app bundle or a .lproj in it)')
+    ap.add_argument('-o', '--output', help='output directory (the app bundle or a .lproj in it)')
+    ap.add_argument('--export-strings-file', metavar='FILE',
+                    help='write the localizable texts of the (single) document as a .strings file instead of compiling')
     ap.add_argument('-q', '--quiet', action='store_true')
     a = ap.parse_args()
     warn = (lambda m: None) if a.quiet else None
+    if a.export_strings_file:
+        if len(a.documents) != 1:
+            sys.exit('ibtool: error: --export-strings-file takes one document')
+        try:
+            _, _, data = compile_document(a.documents[0], **({'warn': warn} if warn else {}))
+        except (CompileError, ET.ParseError) as e:
+            sys.exit(f'ibtool: error: {e}')
+        entries = export_strings(data)
+        write_strings(entries, a.export_strings_file)
+        if not a.quiet:
+            print(f'ibtool: {a.documents[0]} -> {a.export_strings_file} ({len(entries)} strings)')
+        return
+    if not a.output:
+        ap.error('-o/--output is required to compile')
     for doc in a.documents:
         try:
             d = compile_to(doc, a.output, warn)
