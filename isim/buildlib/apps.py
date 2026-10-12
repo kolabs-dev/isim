@@ -311,6 +311,12 @@ def _(a):
     a.isim_build().compile_xcassets(assets, b)
 
 
+@app("samples/HelloDrawingExtras")
+def _(a):
+    b = a.swift_app()
+    a.isim_build().compile_xcassets(os.path.join(a.d, "Assets.xcassets"), b)
+
+
 @app("samples/HelloVideo", needs=("ffmpeg",))
 def _(a):
     b = a.swift_app()

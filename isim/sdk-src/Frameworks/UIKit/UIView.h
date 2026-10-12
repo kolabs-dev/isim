@@ -204,6 +204,14 @@ API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
 + (instancetype)containerConcentricRadius;
 + (instancetype)containerConcentricRadiusWithMinimum:(CGFloat)minimum;
 @end
+/* how a corner is rounded: circular arcs or continuous (squircle) curves; automatic: continuous where iOS uses it */
+typedef NS_ENUM(NSInteger, UICornerCurve) {
+    UICornerCurveAutomatic = 0, UICornerCurveCircular, UICornerCurveContinuous,
+} API_AVAILABLE(ios(17.0));
+/* how much HDR headroom content may use (traits, iOS 26); isim's display is standard dynamic range */
+typedef NS_ENUM(NSInteger, UIHDRHeadroomUsageLimit) {
+    UIHDRHeadroomUsageLimitUnspecified = -1, UIHDRHeadroomUsageLimitActive = 0, UIHDRHeadroomUsageLimitInactive = 1,
+} API_AVAILABLE(ios(26.0));
 API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
 @interface UICornerConfiguration : NSObject <NSCopying>
 + (instancetype)configurationWithRadius:(UICornerRadius *)radius;

@@ -41,6 +41,7 @@ extern NSString *isim_data_dir(void);
 @end
 
 @implementation UIPrintPaper { CGSize _size; CGRect _printable; }
+- (CGRect)printRect { return self.printableRect; }
 - (instancetype)_isimSize:(CGSize)s { _size = s; _printable = CGRectInset(CGRectMake(0, 0, s.width, s.height), 18, 18); return self; }
 + (UIPrintPaper *)_isimDefault {
     NSString *cc = [NSLocale.currentLocale objectForKey:NSLocaleCountryCode] ?: @"US";
@@ -72,6 +73,7 @@ extern NSString *isim_data_dir(void);
 @end
 
 @implementation UIPrintFormatter
+- (BOOL)requiresMainThread { return NO; }
 - (id)copyWithZone:(NSZone *)z {
     UIPrintFormatter *f = [[self class] new];
     f.maximumContentHeight = _maximumContentHeight; f.maximumContentWidth = _maximumContentWidth; f.perPageContentInsets = _perPageContentInsets;
@@ -234,6 +236,7 @@ static NSString *markup_text(NSString *html) {
 
 /* ---------------- page renderer ---------------- */
 @implementation UIPrintPageRenderer { CGRect _paper, _printable; }
+- (UIPrintRenderingQuality)currentRenderingQualityForRequestedRenderingQuality:(UIPrintRenderingQuality)q { return q; }
 @synthesize printFormatters = _printFormatters;
 - (instancetype)init {
     if ((self = [super init])) { UIPrintPaper *p = [UIPrintPaper _isimDefault]; _paper = CGRectMake(0, 0, p.paperSize.width, p.paperSize.height); _printable = p.printableRect; }

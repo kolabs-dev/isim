@@ -251,6 +251,7 @@ const UIFontTextStyle UIFontTextStyleLargeTitle = @"UICTFontTextStyleTitle0", UI
     UIFontTextStyleBody = @"UICTFontTextStyleBody", UIFontTextStyleCallout = @"UICTFontTextStyleCallout",
     UIFontTextStyleFootnote = @"UICTFontTextStyleFootnote", UIFontTextStyleCaption1 = @"UICTFontTextStyleCaption1",
     UIFontTextStyleCaption2 = @"UICTFontTextStyleCaption2";
+const UIFontTextStyle UIFontTextStyleExtraLargeTitle = @"UICTFontTextStyleExtraLargeTitle", UIFontTextStyleExtraLargeTitle2 = @"UICTFontTextStyleExtraLargeTitle2";
 
 /* App fonts (Info.plist UIAppFonts), registered once per process before the first font lookup. */
 void isim_ui_register_app_fonts(void) {
@@ -387,11 +388,13 @@ static BOOL ios_builtin_family(NSString *name, BOOL *mono) {
 + (UIFont *)preferredFontForTextStyle:(UIFontTextStyle)style {
     NSDictionary *sizes = @{ UIFontTextStyleLargeTitle: @34, UIFontTextStyleTitle1: @28, UIFontTextStyleTitle2: @22, UIFontTextStyleTitle3: @20,
                              UIFontTextStyleHeadline: @17, UIFontTextStyleBody: @17, UIFontTextStyleCallout: @16, UIFontTextStyleSubheadline: @15,
-                             UIFontTextStyleFootnote: @13, UIFontTextStyleCaption1: @12, UIFontTextStyleCaption2: @11 };
+                             UIFontTextStyleFootnote: @13, UIFontTextStyleCaption1: @12, UIFontTextStyleCaption2: @11,
+                             UIFontTextStyleExtraLargeTitle: @48, UIFontTextStyleExtraLargeTitle2: @40 };
     extern CGFloat isim_ui_content_size_multiplier(void);    /* Dynamic Type (UIAccessibilityRuntime.m) */
     extern void isim_ui_font_set_text_style(UIFont *f, NSString *style);
     CGFloat s = round(([sizes[style] doubleValue] ?: 17) * isim_ui_content_size_multiplier());
-    UIFont *f = [self systemFontOfSize:s weight:[style isEqualToString:UIFontTextStyleHeadline] ? UIFontWeightSemibold : UIFontWeightRegular];
+    BOOL xl = [style isEqualToString:UIFontTextStyleExtraLargeTitle] || [style isEqualToString:UIFontTextStyleExtraLargeTitle2];
+    UIFont *f = [self systemFontOfSize:s weight:xl ? UIFontWeightBold : [style isEqualToString:UIFontTextStyleHeadline] ? UIFontWeightSemibold : UIFontWeightRegular];
     isim_ui_font_set_text_style(f, style);
     return f;
 }

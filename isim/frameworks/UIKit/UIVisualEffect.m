@@ -215,6 +215,12 @@ static void collect_glass(UIView *v, UIVisualEffectView *container, NSMutableArr
                            (g._isim_style == UIGlassEffectStyleClear ? 2 : 0) | (_isim_pressed ? 8 : 0) | (self.clipsToBounds ? 4 : 0));
         return;
     }
+    if ([_effect isKindOfClass:[UIColorEffect class]]) {          /* a solid colour */
+        UIColor *c = ((UIColorEffect *)_effect)._isimColor; if (!c) return;
+        double rgba[4]; isim_ui_rgba(c, rgba); CGSize s = self.bounds.size;
+        isim_gfx_fill_rounded(0, 0, s.width, s.height, self.layer.cornerRadius, rgba);
+        return;
+    }
     if (![_effect isKindOfClass:[UIBlurEffect class]]) return;
     double radius, tint[4];
     isim_ui_material(((UIBlurEffect *)_effect)._isim_style, isim_ui_style() == UIUserInterfaceStyleDark, &radius, tint);

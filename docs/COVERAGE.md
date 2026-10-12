@@ -26,7 +26,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 
 | Area | ✅ | 🟡 | 🧩 | ❌ | Rows | Coverage |
 |---|---:|---:|---:|---:|---:|---:|
-| **UIKit** | 292 | 8 | 0 | 11 | 311 | 95% |
+| **UIKit** | 295 | 8 | 0 | 8 | 311 | 96% |
 | &nbsp;&nbsp;↳ Application & scenes | 29 | 3 | 0 | 0 | 32 | 95% |
 | &nbsp;&nbsp;↳ View controllers & presentation | 42 | 1 | 0 | 0 | 43 | 99% |
 | &nbsp;&nbsp;↳ Views & controls | 91 | 2 | 0 | 0 | 93 | 99% |
@@ -34,7 +34,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Animation | 16 | 0 | 0 | 0 | 16 | 100% |
 | &nbsp;&nbsp;↳ Gestures & touches | 14 | 1 | 0 | 1 | 16 | 91% |
 | &nbsp;&nbsp;↳ Text input & keyboard | 24 | 0 | 0 | 0 | 24 | 100% |
-| &nbsp;&nbsp;↳ Drawing, images & symbols | 19 | 1 | 0 | 3 | 23 | 85% |
+| &nbsp;&nbsp;↳ Drawing, images & symbols | 22 | 1 | 0 | 0 | 23 | 98% |
 | &nbsp;&nbsp;↳ Haptics & feedback | 3 | 0 | 0 | 0 | 3 | 100% |
 | &nbsp;&nbsp;↳ Accessibility | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 4 | 0 | 0 | 4 | 8 | 50% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **938** | **104** | **20** | **33** | **1095** | **90%** |
+| **All areas** | **941** | **104** | **20** | **30** | **1095** | **91%** |
 
 ### Per iOS version
 
@@ -95,7 +95,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 95% (275) | 95% (283) | 96% (300) | 95% (311) |
+| UIKit | 96% (275) | 96% (283) | 96% (300) | 96% (311) |
 | SwiftUI | 99% (218) | 99% (224) | 99% (231) | 99% (241) |
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (85) | 100% (85) | 100% (87) | 100% (87) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **90%** (1029) | **90%** (1045) | **90%** (1074) | **90%** (1095) |
+| **All areas** | **90%** (1029) | **91%** (1045) | **91%** (1074) | **91%** (1095) |
 
 ---
 
@@ -432,10 +432,10 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | `UIFont` (system weights, italic, monospaced, monospaced digits, metrics) | ✅ | ≤17 | adapted: Adwaita Sans / Mono (bundled) stand in for SF Pro / SF Mono, which Apple licenses for its own platforms only, so glyph shapes and advances differ; metrics follow SF Pro's ratios. Weights, italic (Adwaita Sans Italic), monospaced, tabular digits (`tnum`). `UIFontDescriptor`: Apple's attribute / trait / feature keys, `symbolicTraits`, `withSymbolicTraits`, `withDesign` (serif drawn with a serif face of the host; rounded uses the default face; nil for named fonts, like iOS), `addingAttributes` (`.traits` weight, `.featureSettings` monospaced numbers), `preferredFontDescriptor(withTextStyle:)` (keeps Dynamic Type), `withSize`/`withFamily`/`withFace`/`withMatrix`, `NSSecureCoding`. `systemFont(ofSize:weight:width:)` ignores the width (adapted). `familyNames` / `fontNames(forFamilyName:)`: isim's table of the families and faces iOS ships (drawn with isim's fonts) plus the app's UIAppFonts. Tested (HelloFonts, HelloSystemPickers) Tested (HelloFonts) |
 | Custom fonts (`UIAppFonts`) | ✅ | ≤17 | registered at launch |
 | `NSString.draw(in:withAttributes:)`, `boundingRect(with:)` | ✅ | ≤17 | NSString and NSAttributedString drawing/measuring, `NSParagraphStyle`, `NSStringDrawingOptions`; tested (HelloImages). `NSShadow` is accepted, not drawn |
-| `UIImage` members | ❌ | ≤17 | 50 symbols from Apple's documentation not in isim yet (API sweep, #9). Not in isim's SDK: `UIImageReader` (4 members), `NSDataAsset`, `NSDataAssetName`; `UIImage`: `DynamicRange`, `preparingForDisplay()`, `prepareForDisplay(completionHandler:)`, `preparingThumbnail(of:)`, `prepareThumbnail(of:completionHandler:)`, `animatedResizableImageNamed(_:capInsets:duration:)` and 37 more |
+| `UIImage` members | ✅ | ≤17 | `imageByPreparingForDisplay` / `prepareForDisplay` (and `byPreparingForDisplay()`), thumbnails (`preparingThumbnail(of:)`, aspect fit, never scaled up; async), `animatedResizableImageNamed`, alignment rect insets and baselines (`withAlignmentRectInsets`, `withBaselineOffset(fromBottom:)`, `imageWithoutBaseline`, `baselineOffsetFromBottom`: symbols have one), the standard images (`add`, `remove`, `actions`, `checkmark`, `strokedCheckmark`), `imageRendererFormat`, `drawAsPattern(in:)`, symbol configuration variants (`configurationWithoutWeight` / `Scale` / `TextStyle` / `PointSizeAndWeight`, `isEqual(to:)`, colour rendering and variable value modes: stored, drawn flat), `UIImage.Configuration(locale:)`; `UIImageReader` (pixels per inch, preferred thumbnail size; Swift struct), `NSDataAsset` (asset catalog data sets, compiled by `isim build`). Adapted: HDR members report standard dynamic range (`isHighDynamicRange` false); `heicData()` is nil (no HEIC encoder). Tested (HelloDrawingExtras, OS matrix) |
 | Graphics renderers and drawing functions | ✅ | ≤17 | `UIGraphicsRenderer` subclassing hooks (`rendererContextClass()`, `context(with:)`, `prepare(_:with:)`, `runDrawingActions(_:completionActions:)`), `UIGraphicsImageRendererFormat(for:)` (the traits' display scale), `supportsHighDynamicRange` (false: isim draws standard range), `UIRectClip`, `UIRectFillUsingBlendMode`, `UIRectFrameUsingBlendMode`. Tested (HelloKitExtras) |
-| `UIColor`, `UIFont` and corner curve members | ❌ | ≤17 | 26 symbols from Apple's documentation not in isim yet (API sweep, #9). Not in isim's SDK: `UIColorEffect` (1 member), `UICornerCurve` (3 members), `UIHDRHeadroomUsageLimit` (3 members); `UIColor`: `getHue(_:saturation:brightness:alpha:)`, `linearExposure`, `accessibilityName`, `prominence`, `withProminence(_:)`, `applyingContentHeadroom(_:)` and 8 more; `UIFont`: `extraLargeTitle`, `extraLargeTitle2` |
-| Printing members (`UIPrinter`, print formatters, PDF context destinations, print service extensions) | ❌ | ≤17 | 21 symbols from Apple's documentation not in isim yet (API sweep, #9). Not in isim's SDK: `UIPrintError` (3 members), `UIPrintRenderingQuality` (2 members), `UIPrintServiceExtension` (1 member), `UIPrinterDestination`, `UIGraphicsAddPDFContextDestinationAtPoint(_:_:)`, `UIGraphicsSetPDFContextDestinationForRect(_:_:)`; `UIPrintFormatter`: `requiresMainThread`; `UIPrintPageRenderer`: `currentRenderingQuality(forRequested:)`; `UIPrintPaper`: `printRect()`; `UIPrinter`: `CutterBehavior`, `CutterBehavior.noCut`, `CutterBehavior.printerDefault`, `CutterBehavior.cutAfterEachPage`, `CutterBehavior.cutAfterEachCopy`, `CutterBehavior.cutAfterEachJob` |
+| `UIColor`, `UIFont` and corner curve members | ✅ | ≤17 | `UIColor(patternImage:)` (views tile it as their background; fills use a CG pattern), `getHue(_:saturation:brightness:alpha:)`, `UIColor(ciColor:)` / `ciColor`, `init(displayP3Red:…)`, `init(cgColor:)`, `accessibilityName` (adapted: isim's names from hue and lightness), prominence (`withProminence(_:)`: the label colours' opacities), iOS 26 HDR members (`linearExposure`, `exposure:` / `linearExposure:` initializers, `applyingContentHeadroom(_:)`, `standardDynamicRange`; adapted: drawn in standard dynamic range), `UIColorEffect` (a solid colour in a visual effect view), `UIFont.TextStyle.extraLargeTitle` / `extraLargeTitle2` (48 / 40 pt bold), `UICornerCurve` and `UIHDRHeadroomUsageLimit` (declared). Tested (HelloDrawingExtras, OS matrix) |
+| Printing members (`UIPrinter`, print formatters, PDF context destinations, print service extensions) | ✅ | ≤17 | `UIPrintError` (Swift error type with `Code`), `UIPrintRenderingQuality` and `currentRenderingQuality(forRequested:)`, `UIPrinter.CutterBehavior` and the delegate's `chooseCutterBehavior` (declared: the isim Printer is a document printer, roll printers are asked), `UIPrintPaper.printRect()`, `UIPrintFormatter.requiresMainThread`, `UIPrinterDestination` (secure coding), `UIPrintServiceExtension` (isim runs no print service extensions: the base class offers none). Stub: PDF named destinations (`UIGraphicsAddPDFContextDestinationAtPoint`, `UIGraphicsSetPDFContextDestinationForRect`) are not written. Tested (HelloDrawingExtras, OS matrix) |
 
 ### Haptics & feedback
 

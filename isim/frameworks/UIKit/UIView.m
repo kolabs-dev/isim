@@ -1187,6 +1187,15 @@ static IMP base_drawRect;
         if (corners) { ca_corners_path(CGRectMake(0, 0, sz.width, sz.height), cr); isim_path_fill(bg); }
         else isim_gfx_fill_rounded(0, 0, sz.width, sz.height, radius, bg);
     }
+    extern UIImage *isim_ui_pattern_image(UIColor *c);         /* a pattern colour's image, tiled (UIColorExtras.m) */
+    UIImage *pattern = !bgAnim && _backgroundColor ? isim_ui_pattern_image(_backgroundColor) : nil;
+    if (pattern) {
+        isim_gfx_save();
+        if (corners) { ca_corners_path(CGRectMake(0, 0, sz.width, sz.height), cr); isim_gfx_clip_path(); }
+        else isim_gfx_clip_rounded(0, 0, sz.width, sz.height, radius);
+        [pattern drawAsPatternInRect:CGRectMake(0, 0, sz.width, sz.height)];
+        isim_gfx_restore();
+    }
     BOOL clip = _clipsToBounds || _layer.masksToBounds;
     if (clip) {
         isim_gfx_save();

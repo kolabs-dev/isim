@@ -100,6 +100,25 @@ enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MOD
 - (NSArray<UIColor *> *)_isim_renderingColors { return _symColors; }
 - (CGFloat)_isim_pointSize { return _pointSize; }
 - (UIImageSymbolWeight)_isim_weight { return _weight; }
++ (instancetype)configurationWithColorRenderingMode:(UIImageSymbolColorRenderingMode)m {
+    UIImageSymbolConfiguration *c = [self new]; objc_setAssociatedObject(c, @selector(configurationWithColorRenderingMode:), @(m), OBJC_ASSOCIATION_RETAIN_NONATOMIC); return c;
+}
++ (instancetype)configurationWithVariableValueMode:(UIImageSymbolVariableValueMode)m {
+    UIImageSymbolConfiguration *c = [self new]; objc_setAssociatedObject(c, @selector(configurationWithVariableValueMode:), @(m), OBJC_ASSOCIATION_RETAIN_NONATOMIC); return c;
+}
+/* without one of its values (a text style's point size goes with the text style: isim keeps the point size it made) */
+- (instancetype)configurationWithoutTextStyle { return [self _isim_clone]; }
+- (instancetype)configurationWithoutScale { UIImageSymbolConfiguration *c = [self _isim_clone]; c->_scale = UIImageSymbolScaleUnspecified; return c; }
+- (instancetype)configurationWithoutWeight { UIImageSymbolConfiguration *c = [self _isim_clone]; c->_weight = UIImageSymbolWeightUnspecified; return c; }
+- (instancetype)configurationWithoutPointSizeAndWeight {
+    UIImageSymbolConfiguration *c = [self _isim_clone]; c->_pointSize = 0; c->_weight = UIImageSymbolWeightUnspecified; return c;
+}
+- (BOOL)isEqualToConfiguration:(UIImageSymbolConfiguration *)o {
+    if (o == self) return YES;
+    if (![o isKindOfClass:[UIImageSymbolConfiguration class]]) return NO;
+    return o->_pointSize == _pointSize && o->_weight == _weight && o->_scale == _scale && o->_symMode == _symMode
+        && (o->_symColors == _symColors || [o->_symColors isEqualToArray:_symColors]);
+}
 - (UIImageSymbolScale)_isim_scale { return _scale; }
 @end
 
@@ -155,6 +174,8 @@ enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MOD
     i->_flipsRTL = _flipsRTL;
     i->_orient = _orient; i->_caps = _caps; i->_rmode = _rmode; i->_resizable = _resizable; i->_frames = _frames; i->_duration = _duration;
     i->_asset = _asset;
+    extern void isim_ui_image_copy_extras(UIImage *from, UIImage *to);       /* UIImageExtras.m */
+    isim_ui_image_copy_extras(self, i);
     return i;
 }
 - (UIImageAsset *)imageAsset { return _asset; }

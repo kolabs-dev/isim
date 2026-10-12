@@ -84,6 +84,9 @@ UIKIT_EXTERN void UIGraphicsBeginPDFPage(void);
 UIKIT_EXTERN void UIGraphicsBeginPDFPageWithInfo(CGRect bounds, NSDictionary *_Nullable pageInfo);
 UIKIT_EXTERN CGRect UIGraphicsGetPDFContextBounds(void);
 UIKIT_EXTERN void UIGraphicsSetPDFContextURLForRect(NSURL *url, CGRect rect);
+/* named destinations and links to them (stub: cairo's PDF output gets no destinations) */
+UIKIT_EXTERN void UIGraphicsAddPDFContextDestinationAtPoint(NSString *name, CGPoint point);
+UIKIT_EXTERN void UIGraphicsSetPDFContextDestinationForRect(NSString *name, CGRect rect);
 NS_SWIFT_UI_ACTOR
 @interface UIGraphicsPDFRendererFormat : UIGraphicsRendererFormat
 @property (nonatomic, copy) NSDictionary<NSString *, id> *documentInfo;

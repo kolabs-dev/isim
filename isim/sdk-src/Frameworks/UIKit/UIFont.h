@@ -8,6 +8,8 @@ typedef NSString *UIFontTextStyle NS_TYPED_ENUM;
 UIKIT_EXTERN const UIFontTextStyle UIFontTextStyleLargeTitle, UIFontTextStyleTitle1, UIFontTextStyleTitle2,
     UIFontTextStyleTitle3, UIFontTextStyleHeadline, UIFontTextStyleSubheadline, UIFontTextStyleBody,
     UIFontTextStyleCallout, UIFontTextStyleFootnote, UIFontTextStyleCaption1, UIFontTextStyleCaption2;
+/* visionOS's extra large titles (bold, 48 and 40 points at the default size) */
+UIKIT_EXTERN const UIFontTextStyle UIFontTextStyleExtraLargeTitle API_AVAILABLE(ios(17.0)), UIFontTextStyleExtraLargeTitle2 API_AVAILABLE(ios(17.0));
 @interface UIFont : NSObject <NSCopying>
 + (UIFont *)preferredFontForTextStyle:(UIFontTextStyle)style;
 + (nullable UIFont *)fontWithName:(NSString *)fontName size:(CGFloat)fontSize;

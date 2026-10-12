@@ -9,7 +9,17 @@ NS_ASSUME_NONNULL_BEGIN
 @class UIPrintInteractionController, UIPrintPageRenderer, UIPrintFormatter, UIPrinter, UIPrinterPickerController, UIBarButtonItem, UIFont, UIColor;
 
 UIKIT_EXTERN NSErrorDomain const UIPrintErrorDomain;
-typedef NS_ENUM(NSInteger, UIPrintErrorCode) { UIPrintingNotAvailableError = 1, UIPrintNoContentError, UIPrintUnknownImageFormatError, UIPrintJobFailedError };
+/* the codes of UIPrintErrorDomain (Swift: UIPrintError and UIPrintError.Code, in the overlay) */
+typedef NS_ENUM(NSInteger, UIPrintErrorCode) {
+    UIPrintingNotAvailableError NS_SWIFT_NAME(notAvailable) = 1, UIPrintNoContentError NS_SWIFT_NAME(noContent),
+    UIPrintUnknownImageFormatError NS_SWIFT_NAME(unknownImageFormat), UIPrintJobFailedError NS_SWIFT_NAME(jobFailed) };
+typedef NS_ENUM(NSInteger, UIPrintRenderingQuality) {
+    UIPrintRenderingQualityBest = 0, UIPrintRenderingQualityResponsive = 1,
+} API_AVAILABLE(ios(14.5));
+typedef NS_ENUM(NSInteger, UIPrinterCutterBehavior) {
+    UIPrinterCutterBehaviorNoCut, UIPrinterCutterBehaviorPrinterDefault, UIPrinterCutterBehaviorCutAfterEachPage,
+    UIPrinterCutterBehaviorCutAfterEachCopy, UIPrinterCutterBehaviorCutAfterEachJob,
+} NS_SWIFT_NAME(UIPrinter.CutterBehavior) API_AVAILABLE(ios(9.0));
 
 typedef NS_ENUM(NSInteger, UIPrintInfoOutputType) {
     UIPrintInfoOutputGeneral, UIPrintInfoOutputPhoto, UIPrintInfoOutputGrayscale, UIPrintInfoOutputPhotoGrayscale
@@ -34,6 +44,7 @@ NS_SWIFT_UI_ACTOR
 + (UIPrintPaper *)bestPaperForPageSize:(CGSize)contentSize withPapersFromArray:(NSArray<UIPrintPaper *> *)paperList NS_SWIFT_NAME(bestPaper(forPageSize:withPapersFrom:));
 @property (readonly) CGSize paperSize;
 @property (readonly) CGRect printableRect;
+- (CGRect)printRect;       /* the printable rect (older name) */
 @end
 
 NS_SWIFT_UI_ACTOR
@@ -48,6 +59,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) NSInteger pageCount;
 - (CGRect)rectForPageAtIndex:(NSInteger)pageIndex;
 - (void)drawInRect:(CGRect)rect forPageAtIndex:(NSInteger)pageIndex;
+/* whether it lays out on the main thread (views and markup do) */
+@property (nonatomic, readonly) BOOL requiresMainThread API_AVAILABLE(ios(15.0));
 @end
 
 NS_SWIFT_UI_ACTOR
@@ -95,6 +108,9 @@ NS_SWIFT_UI_ACTOR
 - (void)drawHeaderForPageAtIndex:(NSInteger)pageIndex inRect:(CGRect)headerRect;
 - (void)drawContentForPageAtIndex:(NSInteger)pageIndex inRect:(CGRect)contentRect;
 - (void)drawFooterForPageAtIndex:(NSInteger)pageIndex inRect:(CGRect)footerRect;
+/* the quality it draws pages with for a requested one (the default: the requested one) */
+- (UIPrintRenderingQuality)currentRenderingQualityForRequestedRenderingQuality:(UIPrintRenderingQuality)requestedRenderingQuality
+    NS_SWIFT_NAME(currentRenderingQuality(forRequested:)) API_AVAILABLE(ios(14.5));
 @end
 
 typedef void (^UIPrintInteractionCompletionHandler)(UIPrintInteractionController *printInteractionController, BOOL completed, NSError *_Nullable error);
@@ -110,6 +126,8 @@ typedef void (^UIPrintInteractionCompletionHandler)(UIPrintInteractionController
 - (void)printInteractionControllerWillStartJob:(UIPrintInteractionController *)printInteractionController;
 - (void)printInteractionControllerDidFinishJob:(UIPrintInteractionController *)printInteractionController;
 - (CGFloat)printInteractionController:(UIPrintInteractionController *)printInteractionController cutLengthForPaper:(UIPrintPaper *)paper;
+- (UIPrinterCutterBehavior)printInteractionController:(UIPrintInteractionController *)printInteractionController
+                                  chooseCutterBehavior:(NSArray<NSNumber *> *)availableBehaviors API_AVAILABLE(ios(9.0));
 @end
 
 NS_SWIFT_UI_ACTOR
@@ -176,5 +194,21 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)presentFromRect:(CGRect)rect inView:(UIView *)view animated:(BOOL)animated completionHandler:(nullable UIPrinterPickerCompletionHandler)completion;
 - (BOOL)presentFromBarButtonItem:(UIBarButtonItem *)item animated:(BOOL)animated completionHandler:(nullable UIPrinterPickerCompletionHandler)completion;
 - (void)dismissAnimated:(BOOL)animated;
+@end
+
+/* print service extensions (iOS 14.5): an app extension that offers printers without a configuration profile. isim
+   runs no print service extensions; an app can still make the destinations its extension would offer */
+API_AVAILABLE(ios(14.5)) NS_SWIFT_UI_ACTOR
+@interface UIPrinterDestination : NSObject <NSSecureCoding>
+- (instancetype)initWithURL:(NSURL *)url;
+- (instancetype)init NS_UNAVAILABLE;
+@property (nonatomic, copy) NSURL *URL;
+@property (nullable, nonatomic, copy) NSString *displayName;
+@property (nullable, nonatomic, copy) NSData *txtRecord;
+@end
+API_AVAILABLE(ios(14.5)) NS_SWIFT_UI_ACTOR
+@interface UIPrintServiceExtension : NSObject
+/* subclasses return their printers (the base class: none) */
+- (NSArray<UIPrinterDestination *> *)printerDestinationsForPrintInfo:(UIPrintInfo *)printInfo NS_SWIFT_NAME(printerDestinations(for:));
 @end
 NS_ASSUME_NONNULL_END
