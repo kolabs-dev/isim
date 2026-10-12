@@ -1013,18 +1013,33 @@ static void draw_status_bar(int style, const double *fg) {
     double sb = dev.safe_top >= 44 ? 54 : dev.safe_top;   /* status bar band height */
     double cy = dev.has_island ? 18 + 11 : sb / 2;          /* text baseline centre */
     double lx = dev.has_island ? 51 + 26 : -1;               /* centre of the left ear (-1: left-aligned) */
-    double rx = dev.width - (dev.has_island ? 34 : 10), left0 = 8;
+    /* iPads (the 24 pt band): the time and the date at the leading edge, Wi-Fi and the battery at the trailing edge, no
+       cellular bars (the presets are Wi-Fi models). The 20 pt edge insets and the 14 pt text are estimated from iPadOS
+       screenshots, not measured. */
+    int pad = portrait_dev.width >= 700;
+    double rx = dev.width - (dev.has_island ? 34 : pad ? 20 : 10), left0 = pad ? 20 : 8;
     if (style == SB_CC && dev.has_island) { cy = dev.safe_top - 4; lx = -1; left0 = 30; rx = dev.width - 30; }
-    char left[16] = ""; double lsize = 17;
+    char left[16] = "", date[32] = ""; double lsize = 17;
     if (style == SB_APP) {
         load_clock_prefs();
         time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
         if (clock_prefs.hour24) snprintf(left, sizeof left, "%02d:%02d", tm.tm_hour, tm.tm_min);
         else snprintf(left, sizeof left, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
+        if (pad) {                         /* "9:41  Mon Jun 10": short weekday, short month, day (English names) */
+            static const char *wd[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+            static const char *mo[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+            snprintf(date, sizeof date, "%s %s %d", wd[tm.tm_wday % 7], mo[tm.tm_mon % 12], tm.tm_mday);
+            lsize = 14;
+        }
     } else if (style == SB_CC || isim_os_version() / 10000 <= 18) { snprintf(left, sizeof left, SB_CARRIER); lsize = 15; }
     if (*left) {
         double tw, th; isim_text_measure(left, lsize, 0.3, 0, 0, 1, &tw, &th);
-        isim_text_draw(left, lx >= 0 ? lx - tw / 2 : left0, cy - th / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        double x0 = lx >= 0 ? lx - tw / 2 : left0;
+        isim_text_draw(left, x0, cy - th / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        if (*date) {                                         /* the date after the time, in the same weight */
+            double dw, dh; isim_text_measure(date, lsize, 0.3, 0, 0, 1, &dw, &dh);
+            isim_text_draw(date, x0 + tw + 6, cy - dh / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        }
     }
     /* battery */
     double bw = 25, bh = 12, bx = rx - bw, by = cy - bh / 2;
@@ -1047,9 +1062,9 @@ static void draw_status_bar(int style, const double *fg) {
         cairo_arc(cr, wx, wy, 3 + i * 3.6, -M_PI * 0.75, -M_PI * 0.25);
         cairo_set_line_width(cr, 2.0); cairo_stroke(cr);
     }
-    /* cellular bars */
+    /* cellular bars (not on the Wi-Fi iPads) */
     double cx0 = wx - 30;
-    for (int i = 0; i < 4; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
+    for (int i = 0; i < 4 && !pad; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
 }
 
 /* the hardware: the Dynamic Island or the notch, and (home) the home indicator */

@@ -25,11 +25,17 @@ static BOOL keyboard_key(UIView *v, NSString **type, NSString **ident, NSString 
     NSString *i = v.accessibilityIdentifier;
     if (![i hasPrefix:@"isim-kb-"]) return NO;
     NSString *k = [i substringFromIndex:8], *title = ((UIButton *)v).currentTitle ?: @"";
-    NSDictionary *named = @{ @"shift": @[@"shift", @"shift"], @"delete": @[@"delete", @"delete"], @"123": @[@"more", @"numbers"],
-                             @"abc": @[@"more", @"letters"], @"space": @[@"space", @"space"], @"dotcom": @[@".com", @".com"] };
+    /* iPad: a second shift and .?123 / ABC key (-right), the bottom row's emoji, mic and hide-keyboard keys */
+    NSDictionary *named = @{ @"shift": @[@"shift", @"shift"], @"shift-right": @[@"shift", @"shift"], @"delete": @[@"delete", @"delete"],
+                             @"123": @[@"more", @"numbers"], @"123-right": @[@"more", @"numbers"], @"abc": @[@"more", @"letters"],
+                             @"abc-right": @[@"more", @"letters"], @"space": @[@"space", @"space"], @"dotcom": @[@".com", @".com"] };
     *type = @"key";
     if ([k isEqualToString:@"return"]) { *type = @"button"; *ident = @"Return"; *label = title.length ? title : @"return"; }
     else if ([k isEqualToString:@"globe"]) { *type = @"button"; *ident = @"Next keyboard"; *label = @"Next keyboard"; }
+    else if ([k isEqualToString:@"emoji"]) { *type = @"button"; *ident = @"Emoji"; *label = @"Emoji"; }
+    else if ([k isEqualToString:@"dictation"]) { *type = @"button"; *ident = @"Dictate"; *label = v.accessibilityLabel ?: @"Dictate"; }
+    /* "Hide keyboard": the name iPad UI tests use for this key (app.keyboards.buttons["Hide keyboard"]) */
+    else if ([k isEqualToString:@"dismiss"]) { *type = @"button"; *ident = @"Hide keyboard"; *label = @"Hide keyboard"; }
     else if (named[k]) { *ident = named[k][0]; *label = named[k][1]; }
     else { *ident = title; *label = title; }
     return YES;
