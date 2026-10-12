@@ -2,7 +2,7 @@
 """isim test: build an Xcode project's test targets and run them in the isim simulator, like `xcodebuild test`.
 
   isim test (-project App.xcodeproj | -workspace App.xcworkspace) [-scheme NAME | -target TESTTARGET ...]
-            [-configuration Debug] [-only-testing:Target[/Class[/test]]] [-skip-testing:...] [-o OUTDIR]
+            [-configuration Debug] [-only-testing:Target[/Class[/test]]] [-skip-testing:...] [-o OUTDIR (default ./build)]
             [-resultBundlePath DIR] [-package-cache DIR] [--device NAME] [--os 17|18|26|27] [--windowed] [SETTING=VALUE ...]
 
 * unit-test bundles with a TEST_HOST run inside the host app (the app launches, then the tests run in it);
@@ -83,8 +83,8 @@ def main():
         if opts['scheme'] in schemes:
             scheme = ib.Scheme(*schemes[opts['scheme']])
     configuration = opts['configuration'] or (scheme.configuration('TestAction') if scheme else 'Debug')
-    name0 = os.path.splitext(os.path.basename(opts['workspace'] or projects[0]))[0]
-    outdir = os.path.abspath(opts['output'] or os.path.join(BIN, '..', 'projects', name0))
+    outdir = os.path.abspath(opts['output'] or 'build')          # ./build of the current folder, as isim build
+    os.environ['ISIM_SWIFTC_WRITABLE'] = ':'.join(filter(None, [os.environ.get('ISIM_SWIFTC_WRITABLE'), outdir]))
     os.makedirs(outdir, exist_ok=True)
     b = ib.Builder(projects, configuration, outdir, overrides, opts['package_cache'], opts['scripts'])
     b.packages.resolved_file = ib.resolved_file_path(containers[0] if containers[0].endswith('.xcworkspace') else None, projects)

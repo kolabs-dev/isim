@@ -14,6 +14,7 @@
 - Pods / Carthage: a checked-in workspace laid out like `pod install` output (Pods project, Pods-App xcconfigs, a
   static library pod, a framework pod with a resource bundle, [CP] script phases) and a Carthage/Build XCFramework.
 - Project view: `isim build -list` / `-showBuildSettings` (text and -json) and `isim project`.
+- Default output: products in ./build of the current folder, also for a project outside the isim tree.
 """
 import hashlib
 import http.server
@@ -54,6 +55,28 @@ def copy_fixture(name, tmp_path):
     dst = tmp_path / name
     shutil.copytree(FIX / name, dst, symlinks=True)
     return dst
+
+
+# ---------------- default output: ./build of the current folder ----------------
+def test_default_output_in_current_folder(launch):
+    """Without -o, isim build writes the products to ./build of the folder it runs in (like xcodebuild), also for a
+    project outside the isim tree, where isim swiftc's container mounts the products directory writable."""
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="isim-proj-") as d:                 # outside the isim workspace
+        src = Path(d) / "BuildPhases"
+        shutil.copytree(FIX / "BuildPhases", src, symlinks=True)
+        before = set((ROOT / "out/projects").glob("*")) if (ROOT / "out/projects").is_dir() else set()
+        rc, log = isim(src, "build", "-project", "BuildPhases.xcodeproj")
+        assert rc == 0, log[-3000:]
+        app_dir = src / "build" / "BuildPhases.app"
+        assert log.rstrip().endswith(f"done: {app_dir}"), log[-500:]
+        assert (app_dir / "BuildPhases").is_file() and (src / "build/obj/BuildPhases/DerivedSources/Generated.swift").is_file(), \
+            "the app and its intermediates (Swift compiled by the container) in ./build"
+        after = set((ROOT / "out/projects").glob("*")) if (ROOT / "out/projects").is_dir() else set()
+        assert after == before, "nothing written into the isim installation"
+        app = launch(app_dir)
+        app.wait_log(r"BuildPhases: Hello from codegen")
+        app.quit()
 
 
 # ---------------- shell script build phases ----------------
