@@ -1,10 +1,12 @@
 """HelloSharedData: plural localization (String Catalog plurals, substitutions, device and width variations
 compiled to .stringsdict, a
-hand-written .stringsdict with a zero rule, English and Russian CLDR categories), LocalizedStringResource, app group
+hand-written .stringsdict with a zero rule, English and Russian CLDR categories, plural entries kept by identity, every
+CLDR category of sl / lt / cy / ar / fr), LocalizedStringResource, app group
 container + shared defaults across launches, the local iCloud key-value store (persistence and an external change
 while the app runs), ubiquity containers with and without an account, NotificationQueue.
 Port of tests/ui/shareddata.sh."""
 import plistlib
+import re
 
 import pytest
 from PIL import ImageStat
@@ -59,6 +61,34 @@ def test_plurals(runs):
                                    "plural songs-11: 11 песен в плейлисте")), "Russian .stringsdict (one/few/many)"
     assert "plural welcome: Добро пожаловать" in log2, "LocalizedStringResource (Russian)"
     assert "plural device: Коснитесь, чтобы продолжить" in log2, "device variations (Russian)"
+    assert "plural identity: 2 files / 2 folders" in log1 and "plural folders-1: 1 folder" in log1 and \
+        "plural identity: 2 файла / 2 папки" in log2, \
+        "two catalog plurals with the same format text (%#@value@) keep their own rules"
+
+
+# CLDR cardinal categories (ICU, else isim's table) of the app's language; Counts.stringsdict's rule texts are the
+# category names. Apple's "zero" rule is only in the cy and ar tables (both have a CLDR zero category).
+CATEGORIES = {
+    "sl": "0=other 1=one 2=two 3=few 4=few 5=other 6=other 11=other 21=other 100=other 101=one 102=two "
+          "1000000=other 0.5=few 1.5=few",
+    "lt": "0=other 1=one 2=few 3=few 4=few 5=few 6=few 11=other 21=one 100=other 101=one 102=few "
+          "1000000=other 0.5=many 1.5=many",
+    "cy": "0=zero 1=one 2=two 3=few 4=other 5=other 6=many 11=other 21=other 100=other 101=other 102=other "
+          "1000000=other 0.5=other 1.5=other",
+    "ar": "0=zero 1=one 2=two 3=few 4=few 5=few 6=few 11=many 21=many 100=other 101=other 102=other "
+          "1000000=other 0.5=other 1.5=other",
+    "fr": "0=one 1=one 2=other 3=other 4=other 5=other 6=other 11=other 21=other 100=other 101=other 102=other "
+          "1000000=many 0.5=one 1.5=one",
+}
+
+
+@pytest.mark.parametrize("lang", sorted(CATEGORIES))
+def test_plural_categories(launch, lang):
+    app = launch("HelloSharedData", env={"ISIM_LANGUAGES": lang})
+    app.wait_log(r"plural categories ")
+    assert app.quit() == 0
+    found = re.search(rf"plural categories {lang}\S*: (.*)", app.log)
+    assert found and found.group(1).strip() == CATEGORIES[lang], f"CLDR plural categories ({lang})"
 
 
 def test_containers(runs):

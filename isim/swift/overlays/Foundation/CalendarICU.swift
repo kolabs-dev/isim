@@ -76,7 +76,7 @@ extension Calendar {
         if components.contains(.weekOfMonth) { c.weekOfMonth = v(.weekOfMonth) }
         if components.contains(.weekOfYear) { c.weekOfYear = v(.weekOfYear) }
         if components.contains(.yearForWeekOfYear) { c.yearForWeekOfYear = v(.yearForWeekOfYear) }
-        if components.contains(.dayOfYear) { c.dayOfYear = v(.dayOfYear) }
+        if #available(iOS 18.0, *), components.contains(.dayOfYear) { c._dayOfYear = v(.dayOfYear) }
         if components.contains(.isLeapMonth) { c.isLeapMonth = v(.isLeapMonth) != 0 }
         return c
     }
@@ -89,7 +89,7 @@ extension Calendar {
         set(.era, c.era); set(.year, c.year); set(.month, c.month); set(.isLeapMonth, c.isLeapMonth.map { $0 ? 1 : 0 })
         if c.weekOfYear != nil || c.yearForWeekOfYear != nil {
             set(.yearForWeekOfYear, c.yearForWeekOfYear); set(.weekOfYear, c.weekOfYear); set(.weekday, c.weekday ?? firstWeekday)
-        } else if let doy = c.dayOfYear, c.month == nil {
+        } else if let doy = c._dayOfYear, c.month == nil {
             set(.dayOfYear, doy)
         } else if c.weekOfMonth != nil || c.weekdayOrdinal != nil {
             set(.weekOfMonth, c.weekOfMonth); set(.weekdayOrdinal, c.weekdayOrdinal); set(.weekday, c.weekday)
@@ -118,7 +118,7 @@ extension Calendar {
         let steps: [(Int?, _ICUField)] = [(comps.era, .era), (comps.year, .year), (comps.yearForWeekOfYear, .yearForWeekOfYear),
                                          (comps.quarter.map { $0 * 3 }, .month), (comps.month, .month), (comps.weekOfYear, .weekOfYear),
                                          (comps.weekOfMonth, .weekOfMonth), (comps.weekdayOrdinal, .weekdayOrdinal),
-                                         (comps.weekday, .weekday), (comps.dayOfYear, .dayOfYear), (comps.day, .day),
+                                         (comps.weekday, .weekday), (comps._dayOfYear, .dayOfYear), (comps.day, .day),
                                          (comps.hour, .hour), (comps.minute, .minute), (comps.second, .second)]
         for (v, field) in steps {
             guard let v, v != 0, let cur = d else { continue }

@@ -1300,6 +1300,7 @@ static int sys_command(const char *text) {
         return 1;
     }
     if (!strcmp(verb, "homepage")) { if (!locked && active == 0) sys_send_text(0, "homepage %s", args); return 1; }
+    if (!strcmp(verb, "iconstyle")) { sys_send_text(0, "iconstyle %s", args); return 1; }   /* Home Screen > Edit > Customize */
     if (!strcmp(verb, "spotlight")) { if (!locked && active == 0) sys_send_text(0, "spotlight"); return 1; }
     fprintf(stderr, "isim shell: '%s' is not available\n", verb);
     return 1;

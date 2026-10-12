@@ -143,7 +143,7 @@ extension WidgetConfiguration {
     public func supportedFamilies(_ families: [WidgetFamily]) -> some WidgetConfiguration { _ModifiedConfiguration(base: self) { $0.families = families } }
     public func contentMarginsDisabled() -> some WidgetConfiguration { self }
     public func disfavoredLocations(_ l: [Any], for families: [WidgetFamily]) -> some WidgetConfiguration { self }
-    public func promptsForUserConfiguration() -> some WidgetConfiguration { self }
+    @available(iOS 18.0, *) public func promptsForUserConfiguration() -> some WidgetConfiguration { self }
 }
 
 // MARK: - Live Activities

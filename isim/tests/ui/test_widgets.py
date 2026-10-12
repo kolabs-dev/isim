@@ -1,11 +1,11 @@
 """WidgetKit and ActivityKit under `isim boot` (HelloWidgets): the widget extension lists its widgets, the gallery
-adds them (Edit Home Screen > +), timelines render and switch entries by date and reload at the end, tapping the
+adds them (Edit Home Screen > Edit > Add Widget; iOS 17: +), timelines render and switch entries by date and reload at the end, tapping the
 interactive widget's Button(intent:) runs the AppIntent in the extension and re-renders, the app's
 WidgetCenter.reloadTimelines reloads it; a Live Activity in the Dynamic Island (compact, expanded with
 contentMargins) and on the lock screen, updated and ended by the app. Port of tests/ui/widgets.sh."""
 import re
 
-from isimtest import mean_rgb
+from isimtest import mean_rgb, screen_frames
 
 APP = "dev.isim.samples.HelloWidgets"
 
@@ -20,6 +20,19 @@ def margins(shot):
         and not green((371, 122, 3, 4))
 
 
+def open_gallery(dev):
+    """The widget gallery from edit mode: Edit > Add Widget (iOS 18+), or + (iOS 17)."""
+    tree = dev.wait_view(r"id=home-(edit|add-widget)\b")
+    if "id=home-edit" in tree:
+        dev.tap_id("home-edit")
+        dev.wait_view(r"id=menu-Customize")
+        dev.wait_still()
+        x, y, w, h = screen_frames(dev.view_dump())["menu-Customize"]
+        dev.tap(x + w / 2, y - h / 2)                                   # Add Widget, the row above
+    else:
+        dev.tap_id("home-add-widget")
+
+
 def test_widgets(launch):
     dev = launch(None, install=["HelloWidgets"])
     dev.wait_log(r"isim WidgetKit: \d+ widget kind")
@@ -27,7 +40,7 @@ def test_widgets(launch):
     dev.wait_still()
     dev.send(f"holdid app-{APP} 0.8")
     dev.wait_tap_id("menu-edit")
-    dev.wait_tap_id("home-add-widget")
+    open_gallery(dev)
     gallery = dev.wait_view(r"id=widget-add-Ticker-systemMedium")
     dev.wait_still()
     dev.screenshot("gallery")
@@ -35,7 +48,7 @@ def test_widgets(launch):
     dev.wait_log(r"rendered Counter \(systemSmall\)")
     dev.wait_view(r"id=widget-add-", gone=True)
     dev.wait_still()
-    dev.wait_tap_id("home-add-widget")
+    open_gallery(dev)
     dev.wait_tap_id("widget-add-Ticker-systemMedium")
     dev.wait_log(r"added widget Ticker")
     dev.wait_view(r"id=widget-add-", gone=True)

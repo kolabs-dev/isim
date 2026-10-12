@@ -120,13 +120,13 @@ NS_SWIFT_UI_ACTOR
 @end
 
 /* ---- pencil (simulated: see the top of this header) ---- */
-typedef NS_ENUM(NSInteger, UIPencilPreferredAction) { UIPencilPreferredActionIgnore = 0, UIPencilPreferredActionSwitchEraser, UIPencilPreferredActionSwitchPrevious, UIPencilPreferredActionShowColorPalette, UIPencilPreferredActionShowInkAttributes, UIPencilPreferredActionShowContextualPalette, UIPencilPreferredActionRunSystemShortcut };
+typedef NS_ENUM(NSInteger, UIPencilPreferredAction) { UIPencilPreferredActionIgnore = 0, UIPencilPreferredActionSwitchEraser, UIPencilPreferredActionSwitchPrevious, UIPencilPreferredActionShowColorPalette, UIPencilPreferredActionShowInkAttributes, UIPencilPreferredActionShowContextualPalette API_AVAILABLE(ios(17.5)), UIPencilPreferredActionRunSystemShortcut API_AVAILABLE(ios(17.5)) };
 @class UIPencilInteraction;
 typedef NS_ENUM(NSInteger, UIPencilInteractionPhase) {
     UIPencilInteractionPhaseBegan, UIPencilInteractionPhaseChanged, UIPencilInteractionPhaseEnded, UIPencilInteractionPhaseCancelled
-} NS_SWIFT_NAME(UIPencilInteraction.Phase);
+} NS_SWIFT_NAME(UIPencilInteraction.Phase) API_AVAILABLE(ios(17.5));
 /* where the Pencil hovers above the screen when it is tapped or squeezed (nil when not hovering) */
-NS_SWIFT_UI_ACTOR
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.5))
 @interface UIPencilHoverPose : NSObject
 @property (nonatomic, readonly) CGPoint location;
 @property (nonatomic, readonly) CGFloat zOffset;
@@ -135,12 +135,12 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) CGFloat altitudeAngle;
 @property (nonatomic, readonly) CGFloat rollAngle;
 @end
-NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(UIPencilInteraction.Tap)
+NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(UIPencilInteraction.Tap) API_AVAILABLE(ios(17.5))
 @interface UIPencilInteractionTap : NSObject
 @property (nonatomic, readonly) NSTimeInterval timestamp;
 @property (nonatomic, nullable, readonly, strong) UIPencilHoverPose *hoverPose;
 @end
-NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(UIPencilInteraction.Squeeze)
+NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(UIPencilInteraction.Squeeze) API_AVAILABLE(ios(17.5))
 @interface UIPencilInteractionSqueeze : NSObject
 @property (nonatomic, readonly) NSTimeInterval timestamp;
 @property (nonatomic, readonly) UIPencilInteractionPhase phase;
@@ -150,13 +150,13 @@ NS_SWIFT_UI_ACTOR
 @protocol UIPencilInteractionDelegate <NSObject>
 @optional
 - (void)pencilInteractionDidTap:(UIPencilInteraction *)interaction;
-- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveTap:(UIPencilInteractionTap *)tap NS_SWIFT_NAME(pencilInteraction(_:didReceiveTap:));
-- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveSqueeze:(UIPencilInteractionSqueeze *)squeeze NS_SWIFT_NAME(pencilInteraction(_:didReceiveSqueeze:));
+- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveTap:(UIPencilInteractionTap *)tap NS_SWIFT_NAME(pencilInteraction(_:didReceiveTap:)) API_AVAILABLE(ios(17.5));
+- (void)pencilInteraction:(UIPencilInteraction *)interaction didReceiveSqueeze:(UIPencilInteractionSqueeze *)squeeze NS_SWIFT_NAME(pencilInteraction(_:didReceiveSqueeze:)) API_AVAILABLE(ios(17.5));
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIPencilInteraction : NSObject <UIInteraction>
 @property (class, nonatomic, readonly) UIPencilPreferredAction preferredTapAction;
-@property (class, nonatomic, readonly) UIPencilPreferredAction preferredSqueezeAction;
+@property (class, nonatomic, readonly) UIPencilPreferredAction preferredSqueezeAction API_AVAILABLE(ios(17.5));
 @property (class, nonatomic, readonly) BOOL prefersPencilOnlyDrawing;
 @property (class, nonatomic, readonly) BOOL prefersHoverToolPreview;
 @property (nonatomic, weak, nullable) id<UIPencilInteractionDelegate> delegate;

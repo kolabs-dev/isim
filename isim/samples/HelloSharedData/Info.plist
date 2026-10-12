@@ -16,6 +16,11 @@
 	<array>
 		<string>en</string>
 		<string>ru</string>
+		<string>sl</string>
+		<string>lt</string>
+		<string>cy</string>
+		<string>ar</string>
+		<string>fr</string>
 	</array>
 </dict>
 </plist>

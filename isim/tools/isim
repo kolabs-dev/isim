@@ -11,6 +11,8 @@
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
 #   isim build -project X.xcodeproj [-target T] [-configuration Debug]   build an Xcode project for isim
+#   isim build ... -list [-json] | -showBuildSettings [-json]   targets, configurations, schemes / resolved build settings
+#   isim project [X.xcodeproj|X.xcworkspace]   the project as a tree: targets -> build phases -> files, packages
 #   isim test -project X.xcodeproj -scheme S [-only-testing:T/C/m] [-resultBundlePath D]   build + run XCTest/XCUITest/Swift Testing
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 #   isim preview <App.app> [NAME|INDEX|--list] [-o FILE.png]   render a #Preview to a PNG (Xcode's canvas, one preview)
@@ -317,6 +319,13 @@ case "$cmd" in
       $( [ -d "$SDK/usr/lib/swift/_StringProcessing.swiftmodule" ] || echo -Xfrontend -disable-implicit-string-processing-module-import ) "$@" ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
+  project)   # isim project [App.xcodeproj|App.xcworkspace]: targets -> build phases -> files, as a tree
+    p=${1:-}; [ $# -gt 0 ] && shift
+    case "$p" in
+      *.xcworkspace|*.xcworkspace/) exec python3 "$BIN/isim-build.py" -workspace "$p" -tree "$@" ;;
+      '') exec python3 "$BIN/isim-build.py" -tree "$@" ;;
+      *) exec python3 "$BIN/isim-build.py" -project "$p" -tree "$@" ;;
+    esac ;;
   preview)   # isim preview <App.app> [NAME|INDEX|--list] [-o FILE.png] [--device D] [--os N] [--dark]
     exec python3 "$BIN/isim-preview.py" "$@" ;;
   push)      # isim push [BUNDLE_ID] payload.apns|-: queue a payload for the device's home screen (like `xcrun simctl push booted`)

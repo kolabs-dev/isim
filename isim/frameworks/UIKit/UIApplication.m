@@ -753,6 +753,7 @@ static BOOL idle_timer_disabled;
     return YES;
 }
 + (NSString *)openSettingsURLString { return @"app-settings:"; }
++ (NSString *)openNotificationSettingsURLString { return @"app-settings:notifications"; }   /* the app's notification settings */
 BOOL isim_sys_can_open_url(NSURL *url);
 BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BOOL));
 - (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""] || isim_sys_can_open_url(url); }
@@ -761,7 +762,8 @@ BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BO
     NSString *scheme = url.scheme.lowercaseString ?: @"";
     if ([scheme isEqualToString:@"app-settings"] && isim_shell_present()) {
         NSString *settings = [isim_ui_system_apps_dir() stringByAppendingPathComponent:@"Settings.app"];
-        NSString *target = [NSString stringWithFormat:@"app-settings:%@", NSBundle.mainBundle.bundleIdentifier ?: @""];
+        NSString *target = [NSString stringWithFormat:@"app-settings:%@%@", NSBundle.mainBundle.bundleIdentifier ?: @"",
+                            [url.absoluteString isEqualToString:@"app-settings:notifications"] ? @"/notifications" : @""];
         isim_shell_request(ISIM_SHELL_LAUNCH, settings.UTF8String, [settings stringByAppendingPathComponent:@"Settings"].UTF8String, target.UTF8String);
         NSLog(@"isim: open URL %@ -> Settings", url.absoluteString);
         if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(YES); });

@@ -20,6 +20,7 @@
 #import <UserNotifications/UserNotifications.h>
 #import <UIKit/UIKit.h>
 #include <isim_host.h>
+#include <objc/message.h>
 #include <time.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -733,6 +734,8 @@ static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_
             message:@"Notifications may include alerts, sounds, and icon badges. These can be configured in Settings." preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"Don’t Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { answer(NO); }]];
         [alert addAction:[UIAlertAction actionWithTitle:@"Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { answer(YES); }]];
+        SEL mark = NSSelectorFromString(@"_isim_markSystemAlert");          /* a SpringBoard alert on iOS (XCUITest) */
+        if ([alert respondsToSelector:mark]) ((void (*)(id, SEL))objc_msgSend)(alert, mark);
         [top presentViewController:alert animated:YES completion:nil];
     });
 }

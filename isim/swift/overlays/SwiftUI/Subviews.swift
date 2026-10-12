@@ -8,10 +8,12 @@ import UIKit
 
 // MARK: - Container values
 
+@available(iOS 18.0, *)
 public protocol ContainerValueKey {
     associatedtype Value
     static var defaultValue: Value { get }
 }
+@available(iOS 18.0, *)
 public struct ContainerValues {
     var values: [ObjectIdentifier: Any] = [:]
     public init() {}
@@ -20,10 +22,13 @@ public struct ContainerValues {
         set { values[ObjectIdentifier(key)] = newValue }
     }
 }
+/// What `.containerValue` writes, on the values' storage (`ContainerValues.values`; the closure types stay free of the
+/// iOS 18 type so that isim's internal nodes need no availability).
+typealias _ContainerValueApply = (inout [ObjectIdentifier: Any]) -> Void
 /// `.containerValue(\.x, v)`: a value the view carries for the container it is in.
 final class _ContainerValueNode: _WrapperNode {
-    let apply: (inout ContainerValues) -> Void
-    init(path: String, apply: @escaping (inout ContainerValues) -> Void, child: _Node) {
+    let apply: _ContainerValueApply
+    init(path: String, apply: @escaping _ContainerValueApply, child: _Node) {
         self.apply = apply; super.init(path: path, child: child); tag = child.tag
     }
     override var layoutPriority: Double { child.layoutPriority }
@@ -31,11 +36,16 @@ final class _ContainerValueNode: _WrapperNode {
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
     override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
 }
+@available(iOS 18.0, *)
 extension View {
     public func containerValue<V>(_ keyPath: WritableKeyPath<ContainerValues, V>, _ value: V) -> some View {
         _modify { ctx, c in
             let n = _resolve(c, ctx.child("cv"))
-            let apply: (inout ContainerValues) -> Void = { $0[keyPath: keyPath] = value }
+            let apply: _ContainerValueApply = { values in
+                var cv = ContainerValues(); cv.values = values
+                cv[keyPath: keyPath] = value
+                values = cv.values
+            }
             // on a group (ForEach, Group) or a section: every view (or the section) carries it
             if n is _GroupNode { n.children = n.children.map { _ContainerValueNode(path: $0.path + "/cv", apply: apply, child: $0) }; return n }
             if let s = n as? _SectionNode { s.containerValues.append(apply); return s }
@@ -44,18 +54,20 @@ extension View {
     }
 }
 /// The container values of a resolved view: the innermost value of each key wins.
+@available(iOS 18.0, *)
 @MainActor func _containerValues(_ n: _Node) -> ContainerValues {
     var chain: [_ContainerValueNode] = []
     var x: _Node? = n
     while let c = x { if let v = c as? _ContainerValueNode { chain.append(v) }; x = c.children.count == 1 ? c.children[0] : nil }
     var out = ContainerValues()
-    for v in chain.reversed() { v.apply(&out) }
+    for v in chain.reversed() { v.apply(&out.values) }
     return out
 }
 
 // MARK: - Subview
 
 /// One view of a container's content.
+@available(iOS 18.0, *)
 public struct Subview: View, Identifiable, _PrimitiveView {
     public struct ID: Hashable, Sendable { let path: String }
     let node: _Node
@@ -73,6 +85,7 @@ public struct Subview: View, Identifiable, _PrimitiveView {
 }
 
 /// The views of a container's content, in order.
+@available(iOS 18.0, *)
 public struct SubviewsCollection: RandomAccessCollection, View, _PrimitiveView {
     let items: [Subview]
     public typealias Element = Subview
@@ -85,6 +98,7 @@ public struct SubviewsCollection: RandomAccessCollection, View, _PrimitiveView {
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node { _GroupNode(path: ctx.path, children: items.map { $0._makeNode(ctx) }) }
 }
+@available(iOS 18.0, *)
 public struct SubviewsCollectionSlice: RandomAccessCollection, View, _PrimitiveView {
     let items: [Subview]
     public let startIndex: Int
@@ -98,10 +112,12 @@ public struct SubviewsCollectionSlice: RandomAccessCollection, View, _PrimitiveV
     func _makeNode(_ ctx: _Context) -> _Node { _GroupNode(path: ctx.path, children: items.map { $0._makeNode(ctx) }) }
 }
 
+@available(iOS 18.0, *)
 @MainActor func _subview(_ n: _Node, _ ctx: _Context) -> Subview {
     Subview(node: n, source: n.source, envRev: ctx.environment._rev)
 }
 /// Resolves a container's content and splits it into its views.
+@available(iOS 18.0, *)
 @MainActor func _subviews(_ content: any View, _ ctx: _Context) -> SubviewsCollection {
     let root = _resolve(content, ctx)
     return SubviewsCollection(items: _flatten([root]).map { _subview($0, ctx) })
@@ -109,6 +125,7 @@ public struct SubviewsCollectionSlice: RandomAccessCollection, View, _PrimitiveV
 
 // MARK: - Sections
 
+@available(iOS 18.0, *)
 public struct SectionConfiguration: Identifiable {
     public struct ID: Hashable, Sendable { let path: String }
     public let id: ID
@@ -117,6 +134,7 @@ public struct SectionConfiguration: Identifiable {
     public let footer: SubviewsCollection
     public let containerValues: ContainerValues
 }
+@available(iOS 18.0, *)
 public struct SectionCollection: RandomAccessCollection {
     let items: [SectionConfiguration]
     public typealias Element = SectionConfiguration
@@ -126,6 +144,7 @@ public struct SectionCollection: RandomAccessCollection {
     public subscript(i: Int) -> SectionConfiguration { items[i] }
 }
 /// The sections of a container's content; views outside a Section form sections without header and footer.
+@available(iOS 18.0, *)
 @MainActor func _sections(_ content: any View, _ ctx: _Context) -> SectionCollection {
     let nodes = _flattenGroups([_resolve(content, ctx)])
     var out: [SectionConfiguration] = [], loose: [_Node] = []
@@ -140,7 +159,7 @@ public struct SectionCollection: RandomAccessCollection {
         guard let s = n as? _SectionNode else { loose.append(n); continue }
         flush()
         var cv = ContainerValues()
-        for a in s.containerValues { a(&cv) }
+        for a in s.containerValues { a(&cv.values) }
         out.append(SectionConfiguration(id: .init(path: s.path), header: SubviewsCollection(items: s.header.map { _flatten([$0]).map { _subview($0, ctx) } } ?? []),
                                         content: SubviewsCollection(items: _flatten(s.rows).map { _subview($0, ctx) }),
                                         footer: SubviewsCollection(items: s.footer.map { _flatten([$0]).map { _subview($0, ctx) } } ?? []),
@@ -152,6 +171,7 @@ public struct SectionCollection: RandomAccessCollection {
 
 // MARK: - Group(subviews:), Group(sections:)
 
+@available(iOS 18.0, *)
 struct _SubviewsGroup<Result: View>: View, _PrimitiveView {
     let content: any View
     let transform: (SubviewsCollection) -> Result
@@ -161,6 +181,7 @@ struct _SubviewsGroup<Result: View>: View, _PrimitiveView {
         return _resolve(transform(subs), ctx.child("result"))
     }
 }
+@available(iOS 18.0, *)
 struct _SectionsGroup<Result: View>: View, _PrimitiveView {
     let content: any View
     let transform: (SectionCollection) -> Result
@@ -170,6 +191,7 @@ struct _SectionsGroup<Result: View>: View, _PrimitiveView {
         return _resolve(transform(secs), ctx.child("result"))
     }
 }
+@available(iOS 18.0, *)
 extension Group where Content: View {
     /// The views of `view`, for a container to lay out as it likes.
     public init<Base: View, Result: View>(subviews view: Base, @ViewBuilder transform: @escaping (SubviewsCollection) -> Result) where Content == _SubviewsGroupContent<Result> {
@@ -201,6 +223,7 @@ protocol _ContextCollection { @MainActor func _resolved(_ ctx: _Context) -> Self
 extension _LazySubviews: _ContextCollection {
     @MainActor func _resolved(_ ctx: _Context) -> _LazySubviews { var c = self; c.resolved = make(ctx); return c }
 }
+@available(iOS 18.0, *)
 extension ForEach where Content: View {
     public init<V: View>(subviews view: V, @ViewBuilder content: @escaping (Subview) -> Content) where Data == _LazySubviews<Subview>, ID == Subview.ID {
         self.init(_data: _LazySubviews(make: { ctx in Array(_subviews(view, ctx.child("subviews"))) }), _id: { $0.id }, _content: content)

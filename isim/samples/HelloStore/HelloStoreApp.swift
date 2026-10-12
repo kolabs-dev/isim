@@ -64,7 +64,7 @@ let coinsID = "dev.isim.store.coins", fullGameID = "dev.isim.store.full_game"
                     line += " group=\(s.subscriptionGroupID) level=\(s.groupLevel) period=\(s.subscriptionPeriod.value)\(s.subscriptionPeriod.unit)"
                     if let i = s.introductoryOffer { line += " intro=\(i.paymentMode.rawValue):\(i.period.value)\(i.period.unit)" }
                     if !s.promotionalOffers.isEmpty { line += " promos=\(s.promotionalOffers.compactMap { $0.id }.joined(separator: ","))" }
-                    if !s.winBackOffers.isEmpty { line += " winbacks=\(s.winBackOffers.compactMap { $0.id }.joined(separator: ","))" }
+                    if #available(iOS 18.0, *), !s.winBackOffers.isEmpty { line += " winbacks=\(s.winBackOffers.compactMap { $0.id }.joined(separator: ","))" }
                     line += " introEligible=\(await s.isEligibleForIntroOffer)"
                 }
                 print(line)
@@ -240,6 +240,7 @@ struct RootView: View {
         var option: Product.PurchaseOption
         switch kind {
         case .winBack:
+            guard #available(iOS 18.0, *) else { print("win-back offers need iOS 18"); return }
             option = .winBackOffer(s.winBackOffers[0])
         case .promo, .promoForged:
             let message = [Bundle.main.bundleIdentifier!, keyID, p.id, offerID, token.uuidString.lowercased(), nonce.uuidString.lowercased(), "\(timestamp)"]

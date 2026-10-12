@@ -93,7 +93,7 @@ final class LocationModel: NSObject, ObservableObject, CLLocationManagerDelegate
         liveTask = Task { @MainActor in
             var n = 0
             for await update in CLLocationUpdate.liveUpdates() {
-                if update.authorizationDenied { print("live denied"); break }
+                if #available(iOS 18.0, *), update.authorizationDenied { print("live denied"); break }
                 guard let l = update.location else { continue }
                 n += 1
                 print(String(format: "live %d %.4f %.4f speed %.0f", n, l.coordinate.latitude, l.coordinate.longitude, l.speed))

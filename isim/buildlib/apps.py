@@ -242,7 +242,9 @@ def _(a):
 @app("samples/HelloWidgets")
 def _(a):
     b = a.swift_app(srcs=["HelloWidgetsApp.swift", "Shared.swift"])
-    a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    x = a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    for d in (b, x):                                           # the app group both share
+        a.copy("HelloWidgets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
 
 
 @app("samples/HelloKeyboard", products=["HelloKeyboard.appex"])
@@ -278,8 +280,9 @@ def _(a):
 @app("samples/HelloSharedData")
 def _(a):
     b = a.swift_app()
-    for d in ("en.lproj", "ru.lproj"):
-        shutil.copytree(os.path.join(a.d, d), os.path.join(b, d))
+    a.copy("HelloSharedData.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # its app group
+    for d in ("en.lproj", "ru.lproj", "sl.lproj", "lt.lproj", "cy.lproj", "ar.lproj", "fr.lproj"):
+        shutil.copytree(os.path.join(a.d, d), os.path.join(b, d), dirs_exist_ok=True)
     os.chdir(a.d)
     print("localizations:", a.isim_build().compile_xcstrings("Localizable.xcstrings", b))
 
@@ -394,7 +397,8 @@ def _(a):
 # ---- self-test apps (tests/*) ----
 @app("tests/foundation", products=["FoundationTest.app"], swift=False)
 def _(a):
-    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="FoundationTest")
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="FoundationTest")
+    a.copy("FoundationTest.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # its iCloud container
 
 
 @app("tests/objc-runtime", products=["ObjCRuntimeTest.app", "ObjCUncaught.app", "SwiftUncaught.app"])
@@ -525,6 +529,7 @@ def _(a):
 @app("tests/security", products=["SecurityTest.app"])
 def _(a):
     b = a.swift_app("SecurityTest", objc=["OSLogC.m"], link=["-framework", "Foundation"])
+    a.copy("SecurityTest.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # keychain-access-groups
     for f in ("ca.der", "leaf.der", "expired.der", "selfsigned.der", "identity.p12", "ca.key"):   # test PKI (pki/make_fixtures.py)
         a.copy(f"pki/{f}", b)
 
@@ -559,6 +564,8 @@ def selftest(d, name, *flags):
         obj = os.path.join(OUT, "swift", f"{os.path.basename(d)}-test.o")
         a.run(ISIM, "swiftc", *SWIFT_WERROR, "-parse-as-library", *flags, "-c", "main.swift", "-o", obj)
         a.cc(obj, "-o", f"{b}/{name}")
+        if os.path.exists(os.path.join(a.d, f"{name}.entitlements")):
+            a.copy(f"{name}.entitlements", f"{b}/archived-expanded-entitlements.xcent")
 
 
 selftest("tests/swift-full", "SwiftFullTest")
@@ -663,7 +670,9 @@ def generate(c, have_swift):
         # the compiled module files only: .swiftdoc / .swiftsourceinfo change with comments and line numbers
         paths += [f"{S}/usr/lib/swift/*.swiftmodule/*.swiftmodule", f"{S}/usr/lib/swift/*.swiftmodule/*.swiftinterface",
                   f"{O}/swift/host/plugins/*.so"]          # isim's macro plugins: their expansions are in the apps
-    n.build(iface, c.act("stamp", iface, *paths), implicit=["sdk-c"] + (["swift"] if have_swift else []), desc="SDK interface")
+    # the installed tools too: apps are built with out/bin's copies (isim build imports ibtool / xcodeproj from there)
+    installed = [f"{O}/bin/{t}" for t in ("isim", "isim-build.py", "xcodeproj.py", "ibtool.py")]
+    n.build(iface, c.act("stamp", iface, *paths), implicit=["sdk-c"] + installed + (["swift"] if have_swift else []), desc="SDK interface")
     srcs = [f"samples/HelloToolchain/Vendor/Sum/{f}" for f in ("sum.c", "sum.h", "module.modulemap")]
     n.build([f"{XCF}/{f}" for f in XCF_FILES], ["python3", "-m", "buildlib.apps", "--xcframework"], inputs=srcs,
             implicit=["out/bin/isim", "buildlib/apps.py"], order_only=["sdk-c"], desc="XCFRAMEWORK Sum")

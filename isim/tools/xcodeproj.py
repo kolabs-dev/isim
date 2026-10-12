@@ -352,9 +352,42 @@ class Target:
         return out
 
     def script_phases(self):
-        return [{'name': ph.get('name', 'Run Script'), 'shell': ph.get('shellPath', '/bin/sh'), 'script': ph.get('shellScript', ''),
-                 'inputs': ph.get('inputPaths', []), 'outputs': ph.get('outputPaths', [])}
-                for ph in self.phases('PBXShellScriptBuildPhase')]
+        """PBXShellScriptBuildPhase, in build-phase order, with the stage of the build they run before: 'compile'
+        (a Headers or Sources phase follows), 'link' (Frameworks), 'resources' (Copy Bundle Resources), 'embed'
+        (a Copy Files phase) or 'end' (no build phase follows)."""
+        out = []
+        phases = [(ph, self.p.objects[ph]) for ph in self.obj.get('buildPhases', [])]
+        for i, (pid, ph) in enumerate(phases):
+            if ph['isa'] != 'PBXShellScriptBuildPhase':
+                continue
+            stage = 'end'
+            for _, nxt in phases[i + 1:]:
+                if nxt['isa'] in SCRIPT_STAGES:
+                    stage = SCRIPT_STAGES[nxt['isa']]
+                    break
+            out.append({'id': pid, 'name': ph.get('name', 'Run Script'), 'shell': ph.get('shellPath', '/bin/sh'),
+                        'script': ph.get('shellScript', ''), 'inputs': ph.get('inputPaths', []),
+                        'outputs': ph.get('outputPaths', []), 'input_lists': ph.get('inputFileListPaths', []),
+                        'output_lists': ph.get('outputFileListPaths', []),
+                        'always': str(ph.get('alwaysOutOfDate', '0')) == '1',
+                        'deployment_only': str(ph.get('runOnlyForDeploymentPostprocessing', '0')) == '1',
+                        'stage': stage})
+        return out
+
+    def phase_list(self):
+        """[(isa, name)] of the target's build phases, in order (for `isim project`)."""
+        return [(self.p.objects[ph]['isa'], self.p.objects[ph].get('name') or PHASE_NAMES.get(self.p.objects[ph]['isa'], self.p.objects[ph]['isa']))
+                for ph in self.obj.get('buildPhases', [])]
+
+
+PHASE_NAMES = {'PBXSourcesBuildPhase': 'Compile Sources', 'PBXFrameworksBuildPhase': 'Link Binary With Libraries',
+               'PBXResourcesBuildPhase': 'Copy Bundle Resources', 'PBXHeadersBuildPhase': 'Headers',
+               'PBXCopyFilesBuildPhase': 'Copy Files', 'PBXShellScriptBuildPhase': 'Run Script'}
+
+
+# the stage of isim build's fixed order a script phase runs before: the first other phase after it
+SCRIPT_STAGES = {'PBXHeadersBuildPhase': 'compile', 'PBXSourcesBuildPhase': 'compile', 'PBXFrameworksBuildPhase': 'link',
+                 'PBXResourcesBuildPhase': 'resources', 'PBXCopyFilesBuildPhase': 'embed'}
 
 
 def _match_conditions(conds, configuration):

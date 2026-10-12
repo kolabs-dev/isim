@@ -48,6 +48,10 @@ NSString *NSTemporaryDirectory_isim(void);
 
 /* device data & system preferences (Runtime.m, Files.m) */
 NSString *isim_data_dir(void);
+/* the main bundle's entitlements (<App>.app/archived-expanded-entitlements.xcent, written by isim build from
+ * CODE_SIGN_ENTITLEMENTS) and its com.apple.security.application-groups (Ubiquity.m) */
+NSDictionary *isim_entitlements(void);
+BOOL isim_app_group_entitled(NSString *group);
 /* per-file metadata Linux cannot keep (ResourceValues.m), by absolute path */
 id isim_file_meta(NSString *path, NSString *key);
 void isim_file_meta_set(NSString *path, NSString *key, id value);

@@ -2,7 +2,9 @@
 """isim build: build an Xcode project's iOS targets for the isim simulator, on Linux.
 
   isim build (-project App.xcodeproj | -workspace App.xcworkspace) [-target NAME | -scheme NAME]
-             [-configuration Debug|Release] [-o OUTDIR] [-package-cache DIR] [-run-script-phases] [SETTING=VALUE ...]
+             [-configuration Debug|Release] [-o OUTDIR] [-package-cache DIR] [-skip-script-phases]
+             [-onlyUsePackageVersionsFromResolvedFile] [-resolvePackageDependencies] [-list | -showBuildSettings [-json]]
+             [SETTING=VALUE ...]
 
 What it does per target (dependencies first, also across the projects of a workspace):
   * product types: applications, app extensions, frameworks (dynamic, embedded in <App>.app/Frameworks and
@@ -25,13 +27,22 @@ What it does per target (dependencies first, also across the projects of a works
   * embeds app extensions into <App>.app/PlugIns/ and frameworks into <App>.app/Frameworks/ (copy-files phases)
   * Swift packages: local packages are built from source (Swift and C/ObjC targets, dependencies between
     packages, resources with Bundle.module, binary targets with a local .xcframework); manifests are read with
-    `swift package dump-package`. Remote packages are NEVER fetched: they build from a local checkout found in
-    -package-cache DIR / $ISIM_PACKAGE_CACHE (DIR/<name> or DIR/checkouts/<name>), or from a declared isim
-    stand-in (usr/share/isim/package-standins.json); otherwise the build stops and says so
+    `swift package dump-package`. Remote packages: a local checkout in -package-cache DIR / $ISIM_PACKAGE_CACHE
+    (DIR/<name> or DIR/checkouts/<name>) first, then a declared isim stand-in (usr/share/isim/package-standins.json),
+    else fetched with git into the package cache (default $XDG_CACHE_HOME/isim/packages) at the revision pinned in
+    Package.resolved, or resolved from the requirement and the repository's tags and pinned there
+    (-onlyUsePackageVersionsFromResolvedFile / -disableAutomaticPackageResolution refuse; -resolvePackageDependencies
+    only fetches); remote binary targets are downloaded and checked against their SHA-256 checksum
+  * project view: -list and -showBuildSettings (with -json) like xcodebuild; -tree (isim project) prints the targets,
+    build phases and files
   * .xcframeworks: the x86_64 iOS-simulator slice is used; arm64-only XCFrameworks cannot run on isim
     (it executes x86_64 simulator code), and the build says so
-  * shell script phases run only with -run-script-phases (they often call macOS-only tools); CocoaPods'
-    "[CP]" phases are replaced by isim's own embedding of the frameworks the Pods project builds
+  * shell script phases run like Xcode's: in their place among the target's build phases (a code generator before
+    Compile Sources runs before compiling; its .swift/.m/.c outputs are compiled), with Xcode's environment (build
+    settings, SCRIPT_INPUT_FILE_n, SCRIPT_INPUT_FILE_LIST_n for .xcfilelists, ...), skipped when their outputs are
+    newer than their inputs, deployment-only phases only with DEPLOYMENT_POSTPROCESSING=YES; a failing script fails
+    the build. -skip-script-phases skips them all (scripts calling macOS-only tools). CocoaPods' "[CP]" phases are
+    replaced by isim's own embedding of the frameworks and resource bundles the Pods project builds
 
 It never writes Xcode/SDK identity keys (DTXcode, DTSDKName, ...): products are honest isim builds.
 """
@@ -46,7 +57,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from xcodeproj import Project, Workspace, Scheme, scheme_files, cross_dependencies, expand  # noqa: E402
+from xcodeproj import Project, Workspace, Scheme, scheme_files, cross_dependencies, expand, PHASE_NAMES  # noqa: E402
 import momc  # noqa: E402
 import ibtool  # noqa: E402
 
@@ -350,6 +361,135 @@ def norm_url(url):
     return (url or '').lower().rstrip('/').removesuffix('.git')
 
 
+def package_identity(url):
+    """SwiftPM's identity of a remote package: the last path component of its URL, lowercased, without .git."""
+    return norm_url(url).split('/')[-1].split(':')[-1]
+
+
+def resolved_file_path(workspace, projects):
+    """Where Xcode keeps the pins: <App>.xcworkspace/xcshareddata/swiftpm/Package.resolved, or for a project
+    <App>.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved."""
+    if workspace:
+        return os.path.join(workspace, 'xcshareddata', 'swiftpm', 'Package.resolved')
+    if projects:
+        return os.path.join(projects[0], 'project.xcworkspace', 'xcshareddata', 'swiftpm', 'Package.resolved')
+    return None
+
+
+def read_pins(path):
+    """Package.resolved (version 1, 2 or 3) -> {identity: {'location', 'state': {revision, version|branch}}}."""
+    if not path or not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        data = json.load(f)
+    out = {}
+    if data.get('version') == 1:
+        for p in (data.get('object') or {}).get('pins', []):
+            url = p.get('repositoryURL', '')
+            out[package_identity(url)] = {'location': url, 'state': {k: v for k, v in (p.get('state') or {}).items() if v}}
+    else:
+        for p in data.get('pins', []):
+            if p.get('kind', 'remoteSourceControl') != 'remoteSourceControl':
+                continue
+            out[p.get('identity') or package_identity(p.get('location'))] = {
+                'location': p.get('location', ''), 'state': {k: v for k, v in (p.get('state') or {}).items() if v}}
+    return out
+
+
+def write_pins(path, pins):
+    """Package.resolved in Xcode's version 2 format (pins sorted by identity)."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    data = {'pins': [{'identity': ident, 'kind': 'remoteSourceControl', 'location': p['location'],
+                      'state': {k: p['state'][k] for k in ('branch', 'revision', 'version') if p['state'].get(k)}}
+                     for ident, p in sorted(pins.items())], 'version': 2}
+    with open(path, 'w') as f:
+        f.write(json.dumps(data, indent=2) + '\n')
+
+
+_SEMVER = re.compile(r'^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$')
+
+
+def parse_version(v):
+    """'1.2.3' / 'v1.2' -> ((1, 2, 3), prerelease or '') or None."""
+    m = _SEMVER.match(str(v or '').strip())
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2) or 0), int(m.group(3) or 0)), (m.group(4) or '')[1:]
+
+
+def requirement_of_ref(ref):
+    """XCRemoteSwiftPackageReference.requirement -> ('range', lo, hi) | ('branch', name) | ('revision', sha)."""
+    r = (ref or {}).get('requirement') or {}
+    kind = r.get('kind', '')
+    lo = parse_version(r.get('minimumVersion') or r.get('version'))
+    if kind == 'branch':
+        return ('branch', r.get('branch', 'main'))
+    if kind == 'revision':
+        return ('revision', r.get('revision', ''))
+    if kind == 'exactVersion' and lo:
+        return ('exact', lo[0])
+    if kind == 'upToNextMinorVersion' and lo:
+        return ('range', lo[0], (lo[0][0], lo[0][1] + 1, 0))
+    if kind == 'versionRange' and lo:
+        hi = parse_version(r.get('maximumVersion'))
+        return ('range', lo[0], hi[0] if hi else (lo[0][0] + 1, 0, 0))
+    if lo:                                            # upToNextMajorVersion (Xcode's default)
+        return ('range', lo[0], (lo[0][0] + 1, 0, 0))
+    return ('range', (0, 0, 0), (1 << 30, 0, 0))
+
+
+def requirement_of_manifest(req):
+    """A dump-package sourceControl requirement ({'range': [{lowerBound, upperBound}]}, {'exact': [v]}, ...)."""
+    req = req or {}
+    if 'range' in req:
+        r = req['range'][0]
+        lo, hi = parse_version(r.get('lowerBound')), parse_version(r.get('upperBound'))
+        return ('range', lo[0] if lo else (0, 0, 0), hi[0] if hi else (1 << 30, 0, 0))
+    if 'exact' in req:
+        v = parse_version(req['exact'][0])
+        return ('exact', v[0]) if v else ('range', (0, 0, 0), (1 << 30, 0, 0))
+    if 'branch' in req:
+        return ('branch', req['branch'][0])
+    if 'revision' in req:
+        return ('revision', req['revision'][0])
+    return ('range', (0, 0, 0), (1 << 30, 0, 0))
+
+
+def git(*args, cwd=None, check=True):
+    r = subprocess.run(['git', *args], cwd=cwd, capture_output=True, text=True,
+                       env=dict(os.environ, GIT_TERMINAL_PROMPT='0'))
+    if check and r.returncode:
+        fail(f'git {" ".join(args[:3])} ... failed: {(r.stderr or r.stdout).strip()}')
+    return r
+
+
+def extract_zip(zpath, dest):
+    """Unzips an artifact (keeping the symbolic links zip files of frameworks carry)."""
+    import zipfile
+    with zipfile.ZipFile(zpath) as z:
+        for info in z.infolist():
+            target = os.path.normpath(os.path.join(dest, info.filename))
+            if not (target + os.sep).startswith(os.path.normpath(dest) + os.sep):
+                fail(f'{zpath}: unsafe path {info.filename!r} in the archive')
+            mode = (info.external_attr >> 16) & 0o170777
+            if info.is_dir():
+                os.makedirs(target, exist_ok=True)
+            elif mode & 0o170000 == 0o120000:            # symlink
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                link = z.read(info).decode()
+                if os.path.isabs(link) or not os.path.normpath(os.path.join(os.path.dirname(target), link)).startswith(os.path.normpath(dest)):
+                    fail(f'{zpath}: unsafe link {info.filename!r} in the archive')
+                if os.path.lexists(target):
+                    os.remove(target)
+                os.symlink(link, target)
+            else:
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with z.open(info) as src, open(target, 'wb') as out:
+                    shutil.copyfileobj(src, out)
+                if mode & 0o111:
+                    os.chmod(target, 0o755)
+
+
 class Packages:
     """Builds Swift package products from source as static code linked into the target that uses them (what
     Xcode does for automatic library products). Package targets are built once per build."""
@@ -358,6 +498,10 @@ class Packages:
         self.b = builder
         self.manifests = {}       # package dir -> manifest
         self.targets_built = {}   # (package dir, target) -> result dict
+        self.resolved_file = None  # the workspace's / project's Package.resolved (pins)
+        self.automatic = True     # resolve unpinned packages from their requirements (and write Package.resolved)
+        self._pins = None
+        self.remotes = {}         # identity -> checkout dir (this build)
 
     # -- locating packages --
     def cache_dirs(self):
@@ -379,6 +523,166 @@ class Packages:
                     return os.path.join(d, entry)
         return None
 
+    def fetch_dir(self):
+        """Where fetched packages and artifacts live: the first -package-cache / $ISIM_PACKAGE_CACHE directory, else
+        $XDG_CACHE_HOME/isim/packages (~/.cache/isim/packages)."""
+        dirs = list(self.b.package_cache) + [d for d in os.environ.get('ISIM_PACKAGE_CACHE', '').split(os.pathsep) if d]
+        if dirs:
+            return dirs[0]
+        base = os.environ.get('XDG_CACHE_HOME') or os.path.join(os.path.expanduser('~'), '.cache')
+        return os.path.join(base, 'isim', 'packages')
+
+    def pins(self):
+        if self._pins is None:
+            self._pins = read_pins(self.resolved_file)
+        return self._pins
+
+    def remote(self, url, requirement, pkg_dir=None):
+        """A checkout of a remote package: a local checkout in the package cache (offline), else the pinned revision
+        (Package.resolved), else the newest version matching the requirement, fetched with git."""
+        ident = package_identity(url)
+        if ident in self.remotes:
+            return self.remotes[ident]
+        local = self.checkout(url, ident)
+        if local:
+            log(f'{ident}: remote package from the local checkout {local} (not fetched)')
+            self.remotes[ident] = local
+            return local
+        pin = self.pins().get(ident)
+        if not pin and pkg_dir:                       # a local package's own Package.resolved
+            pin = read_pins(os.path.join(pkg_dir, 'Package.resolved')).get(ident)
+        if pin and pin['state'].get('revision'):
+            rev, state = pin['state']['revision'], pin['state']
+            dest = os.path.join(self.fetch_dir(), 'checkouts', f'{ident}@{rev[:12]}')
+            if os.path.exists(os.path.join(dest, 'Package.swift')):          # fetched before: no network needed
+                log(f'{ident}: {url} pinned {state.get("version") or state.get("branch") or rev[:12]} -> {dest}')
+                self.remotes[ident] = dest
+                return dest
+        repo = self.mirror(url, ident)
+        if pin and pin['state'].get('revision'):
+            how = f'pinned {state.get("version") or state.get("branch") or rev[:12]} (Package.resolved)'
+        elif pin and pin['state'].get('version'):
+            state = pin['state']
+            rev = self.tag_revision(repo, state['version'])
+            how = f'pinned {state["version"]} (Package.resolved)'
+        else:
+            if not self.automatic:
+                fail(f'{url} is not pinned in {self.resolved_file or "Package.resolved"} and automatic package resolution '
+                     'is disabled (-disableAutomaticPackageResolution / -onlyUsePackageVersionsFromResolvedFile)')
+            rev, state = self.resolve(repo, url, requirement)
+            how = f'resolved {state.get("version") or state.get("branch") or rev[:12]}'
+            self.pins()[ident] = {'location': url, 'state': state}
+            if self.resolved_file:
+                write_pins(self.resolved_file, self.pins())
+                log(f'{ident}: pinned in {self.resolved_file}')
+        if not git('cat-file', '-e', rev + '^{commit}', cwd=repo, check=False).returncode == 0:
+            git('fetch', '--quiet', '--tags', '--force', url, '+refs/heads/*:refs/heads/*', cwd=repo)
+        dest = os.path.join(self.fetch_dir(), 'checkouts', f'{ident}@{rev[:12]}')
+        if not os.path.exists(os.path.join(dest, 'Package.swift')):
+            tmp = dest + '.tmp'
+            shutil.rmtree(tmp, ignore_errors=True)
+            git('clone', '--quiet', '--shared', '--no-checkout', repo, tmp)
+            git('checkout', '--quiet', '--detach', rev, cwd=tmp)
+            if os.path.exists(os.path.join(tmp, '.gitmodules')):
+                git('submodule', 'update', '--quiet', '--init', '--recursive', cwd=tmp)
+            shutil.rmtree(dest, ignore_errors=True)
+            os.rename(tmp, dest)
+        if not os.path.exists(os.path.join(dest, 'Package.swift')):
+            fail(f'{url} at {rev[:12]}: no Package.swift')
+        log(f'{ident}: {url} {how} -> {dest}')
+        self.remotes[ident] = dest
+        return dest
+
+    def mirror(self, url, ident):
+        """A bare mirror of the package's repository in the fetch directory (cloned once, fetched when needed)."""
+        import hashlib
+        repo = os.path.join(self.fetch_dir(), 'repositories', f'{ident}-{hashlib.sha256(url.encode()).hexdigest()[:8]}.git')
+        if not os.path.isdir(repo):
+            os.makedirs(os.path.dirname(repo), exist_ok=True)
+            log(f'{ident}: fetching {url}')
+            tmp = repo + '.tmp'
+            shutil.rmtree(tmp, ignore_errors=True)
+            git('clone', '--quiet', '--mirror', url, tmp)
+            os.rename(tmp, repo)
+        return repo
+
+    def tag_revision(self, repo, version):
+        tags = self.tags(repo)
+        want = parse_version(version)
+        for name, (v, rev) in tags.items():
+            if name == version or (want and v == want):
+                return rev
+        git('fetch', '--quiet', '--tags', '--force', cwd=repo)
+        for name, (v, rev) in self.tags(repo).items():
+            if name == version or (want and v == want):
+                return rev
+        fail(f'{repo}: no tag {version}')
+
+    @staticmethod
+    def tags(repo):
+        """{tag name: (parsed version, commit)} of the repository's version tags."""
+        out, peeled = {}, {}
+        for line in git('show-ref', '--tags', '-d', cwd=repo, check=False).stdout.splitlines():
+            sha, _, ref = line.partition(' ')
+            name = ref.removeprefix('refs/tags/')
+            if name.endswith('^{}'):
+                peeled[name[:-3]] = sha
+            else:
+                out[name] = sha
+        res = {}
+        for name, sha in out.items():
+            v = parse_version(name)
+            if v:
+                res[name] = (v, peeled.get(name, sha))
+        return res
+
+    def resolve(self, repo, url, req):
+        """(revision, pin state) for a requirement: the newest matching version tag (no pre-releases), a branch head
+        or a revision."""
+        if req[0] == 'branch':
+            git('fetch', '--quiet', '--force', url, f'+refs/heads/{req[1]}:refs/heads/{req[1]}', cwd=repo, check=False)
+            r = git('rev-parse', '--verify', '--quiet', f'refs/heads/{req[1]}^{{commit}}', cwd=repo, check=False)
+            if r.returncode:
+                fail(f'{url}: no branch {req[1]!r}')
+            return r.stdout.strip(), {'branch': req[1], 'revision': r.stdout.strip()}
+        if req[0] == 'revision':
+            r = git('rev-parse', '--verify', '--quiet', req[1] + '^{commit}', cwd=repo, check=False)
+            if r.returncode:
+                fail(f'{url}: no revision {req[1]}')
+            return r.stdout.strip(), {'revision': r.stdout.strip()}
+        git('fetch', '--quiet', '--tags', '--force', cwd=repo, check=False)
+        cands = []
+        for name, (v, rev) in self.tags(repo).items():
+            num, pre = v
+            if pre:
+                continue
+            if (req[0] == 'exact' and num == req[1]) or (req[0] == 'range' and req[1] <= num < req[2]):
+                cands.append((num, name, rev))
+        if not cands:
+            what = f'{".".join(map(str, req[1]))}' if req[0] == 'exact' else \
+                f'{".".join(map(str, req[1]))}..<{".".join(map(str, req[2]))}'
+            fail(f'{url}: no version tag matches {what} (tags: {", ".join(sorted(self.tags(repo))) or "none"})')
+        num, name, rev = max(cands)
+        return rev, {'revision': rev, 'version': '.'.join(map(str, num))}
+
+    def resolve_all(self, projects):
+        """-resolvePackageDependencies: fetch every remote package of the projects and their dependencies."""
+        todo = []
+        for p in projects:
+            for rid in p.project.get('packageReferences', []):
+                ref = p.objects[rid]
+                if ref.get('isa') == 'XCRemoteSwiftPackageReference':
+                    todo.append(self.remote(ref.get('repositoryURL', ''), requirement_of_ref(ref)))
+                elif ref.get('isa') == 'XCLocalSwiftPackageReference':
+                    todo.append(os.path.normpath(os.path.join(p.root, ref.get('relativePath', ''))))
+        seen = set()
+        while todo:
+            d = todo.pop()
+            if d in seen or not isinstance(d, str):
+                continue
+            seen.add(d)
+            todo += list(self.dependency_dirs(d).values())
+
     def manifest(self, path):
         if path not in self.manifests:
             self.manifests[path] = dump_package(path, os.path.join(self.b.outdir, 'obj', 'packages'))
@@ -399,7 +703,10 @@ class Packages:
                 loc = d.get('location', {})
                 url = (loc.get('remote') or [{}])[0]
                 url = url.get('urlString') if isinstance(url, dict) else url
-                path = (loc.get('local') or [None])[0] or self.checkout(url, d.get('identity'))
+                path = (loc.get('local') or [None])[0]
+                if path and not os.path.exists(os.path.join(path, 'Package.swift')):
+                    url, path = 'file://' + path, None         # a local git repository (file:// URL): fetched like a remote
+                path = path or self.remote(url, requirement_of_manifest(d.get('requirement')), pkg_dir)
                 ident = d.get('identity', norm_url(url).split('/')[-1]).lower()
                 if not path:
                     out[ident] = ('missing', url)
@@ -413,17 +720,12 @@ class Packages:
         isa = ref.get('isa') if ref else 'XCLocalSwiftPackageReference'
         if isa == 'XCRemoteSwiftPackageReference':
             url = ref.get('repositoryURL', '')
-            path = self.checkout(url)
-            if not path:
+            if not self.checkout(url):
                 standin = load_standins().get(norm_url(url))
                 if standin and product in standin.get('products', {}):
                     log(f'{product}: isim stand-in ({standin.get("kind", "stub")}): {standin.get("note", "")}')
                     return self.empty()
-                fail(f'remote package product {product!r} ({url}) is not available: isim never downloads packages. '
-                     f'Put a checkout of it in a package cache (-package-cache DIR or $ISIM_PACKAGE_CACHE: '
-                     f'DIR/{norm_url(url).split("/")[-1]}), e.g. Xcode\'s SourcePackages/checkouts')
-            log(f'{product}: remote package from the local checkout {path} (not fetched)')
-            return self.product(path, product)
+            return self.product(self.remote(url, requirement_of_ref(ref)), product)
         if ref is None:                             # product of a local package: find the package that has it
             refs = [project.objects[r] for r in project.project.get('packageReferences', [])
                     if project.objects[r].get('isa') == 'XCLocalSwiftPackageReference']
@@ -569,9 +871,6 @@ class Packages:
         cands = [dep_dirs[ident.lower()]] if ident and ident.lower() in dep_dirs else list(dep_dirs.values())
         for c in cands:
             if isinstance(c, tuple):
-                if ident and c is dep_dirs.get(ident.lower()):
-                    fail(f'package {os.path.basename(pkg_dir)} depends on {c[1]}, which is not available locally: isim never '
-                         'downloads packages; put a checkout in -package-cache DIR / $ISIM_PACKAGE_CACHE')
                 continue
             if any(p['name'] == pname for p in self.manifest(c).get('products', [])):
                 return self.product(c, pname)
@@ -588,15 +887,52 @@ class Packages:
                 for cand in (os.path.join(d, 'artifacts', m['name'].lower(), t['name'], t['name'] + '.xcframework'),
                              os.path.join(d, 'artifacts', m['name'].lower(), t['name'] + '.xcframework'),
                              os.path.join(d, t['name'] + '.xcframework')):
-                    if os.path.isdir(cand):
+                    if os.path.isdir(cand) and not path:
                         path = cand
             if not path:
-                fail(f'binary target {t["name"]} ({url}) is remote: isim never downloads artifacts. Put the extracted '
-                     f'{t["name"]}.xcframework in -package-cache DIR')
+                path = self.download_artifact(m, t)
         full = path if os.path.isabs(path) else os.path.join(pkg_dir, path)
         self.b.add_binary(full, res)
         log(f'{t["name"]}: binary target {os.path.basename(full)}')
         return res
+
+    def download_artifact(self, m, t):
+        """A remote binary target: the zip at its url, verified against its checksum (SHA-256, what
+        `swift package compute-checksum` prints), extracted into <fetch dir>/artifacts/<package>/<target>/."""
+        import hashlib
+        import urllib.request
+        url, want = t.get('url', ''), (t.get('checksum') or '').lower()
+        dest = os.path.join(self.fetch_dir(), 'artifacts', m['name'].lower(), t['name'])
+        stamp = os.path.join(dest, '.isim-checksum')
+        if not (os.path.exists(stamp) and open(stamp).read().strip() == want):
+            os.makedirs(dest, exist_ok=True)
+            zpath = os.path.join(dest, os.path.basename(url.split('?')[0]) or 'artifact.zip')
+            log(f'{t["name"]}: downloading {url}')
+            try:
+                with urllib.request.urlopen(url, timeout=120) as r, open(zpath, 'wb') as f:
+                    shutil.copyfileobj(r, f)
+            except Exception as e:  # noqa: BLE001
+                fail(f'binary target {t["name"]}: cannot download {url}: {e}')
+            h = hashlib.sha256()
+            with open(zpath, 'rb') as f:
+                for chunk in iter(lambda: f.read(1 << 20), b''):
+                    h.update(chunk)
+            if want and h.hexdigest() != want:
+                os.remove(zpath)
+                fail(f'binary target {t["name"]}: checksum of {url} is {h.hexdigest()}, the package declares {want}')
+            for e in os.listdir(dest):
+                if e.endswith('.xcframework'):
+                    shutil.rmtree(os.path.join(dest, e), ignore_errors=True)
+            extract_zip(zpath, dest)
+            os.remove(zpath)
+            with open(stamp, 'w') as f:
+                f.write(want + '\n')
+            log(f'{t["name"]}: checksum verified ({want[:12]}...)')
+        for dp, dn, _ in os.walk(dest):
+            for d in dn:
+                if d.endswith('.xcframework'):
+                    return os.path.join(dp, d)
+        fail(f'binary target {t["name"]}: {url} has no .xcframework')
 
     def settings_of(self, t, tool):
         """(defines, flags, header paths) of a package target for tool 'swift' or 'c'/'cxx'."""
@@ -809,7 +1145,8 @@ def apply_alternate_icons(s, bundle, info, name):
         log(f'{name}: alternate app icons {", ".join(sorted(alt))}')
 
 
-# entitlements (associated domains, app groups) as Xcode's simulator builds have them: archived-expanded-entitlements.xcent
+# entitlements (associated domains, app groups, keychain groups) as Xcode's simulator builds have them: archived-expanded-entitlements.xcent
+# (isim enforces app groups and keychain access groups from it; nothing is signed)
 def apply_entitlements(target, s, bundle):
     if not s.get('CODE_SIGN_ENTITLEMENTS'):
         return
@@ -817,8 +1154,21 @@ def apply_entitlements(target, s, bundle):
     if os.path.exists(ent):
         with open(ent, 'rb') as f:
             ent_plist = plistlib.load(f)
+        # $(AppIdentifierPrefix) / $(TeamIdentifierPrefix) are "TEAM." with DEVELOPMENT_TEAM (Xcode gets them from the
+        # provisioning profile); isim signs nothing, so without a team they are empty
+        team = s.get('DEVELOPMENT_TEAM', '')
+        vs = dict(s, AppIdentifierPrefix=f'{team}.' if team else '', TeamIdentifierPrefix=f'{team}.' if team else '')
+
+        def exp(v):
+            if isinstance(v, str):
+                return expand(v, vs)
+            if isinstance(v, list):
+                return [exp(x) for x in v]
+            if isinstance(v, dict):
+                return {k: exp(x) for k, x in v.items()}
+            return v
         with open(os.path.join(bundle, 'archived-expanded-entitlements.xcent'), 'wb') as f:
-            plistlib.dump(ent_plist, f)
+            plistlib.dump(exp(ent_plist), f)
 
 
 def make_info_plist(target, settings, bundle, extra_localizations, package_type='APPL'):
@@ -893,7 +1243,7 @@ def product_kind(ptype):
 
 
 class Builder:
-    def __init__(self, projects, configuration, outdir, overrides=None, package_cache=(), run_scripts=False):
+    def __init__(self, projects, configuration, outdir, overrides=None, package_cache=(), run_scripts=True):
         self.projects = [p if isinstance(p, Project) else Project(p) for p in projects]
         self.configuration = configuration
         self.outdir = outdir                                   # $(BUILT_PRODUCTS_DIR)
@@ -938,6 +1288,7 @@ class Builder:
         objdir = os.path.join(out, 'obj', target.name)
         defaults = {
             'BUILT_PRODUCTS_DIR': out, 'CONFIGURATION_BUILD_DIR': out, 'TARGET_BUILD_DIR': out, 'SYMROOT': out,
+            'BUILD_DIR': os.path.join(out, 'Build', 'Products'), 'BUILD_ROOT': os.path.join(out, 'Build', 'Products'),
             'OBJROOT': os.path.join(out, 'obj'), 'TARGET_TEMP_DIR': objdir, 'TEMP_DIR': objdir,
             'PROJECT_TEMP_DIR': os.path.join(out, 'obj'), 'DERIVED_FILE_DIR': os.path.join(objdir, 'DerivedSources'),
             'DERIVED_FILES_DIR': os.path.join(objdir, 'DerivedSources'),
@@ -956,6 +1307,8 @@ class Builder:
         s.setdefault('FRAMEWORKS_FOLDER_PATH', wrapper + '/Frameworks')
         s.setdefault('PLUGINS_FOLDER_PATH', wrapper + '/PlugIns')
         s.setdefault('EXECUTABLE_PATH', wrapper + '/' + s.get('EXECUTABLE_NAME', name))
+        if kind not in ('static', 'dylib'):
+            s.setdefault('INFOPLIST_PATH', wrapper + '/Info.plist')
         s.setdefault('TARGET_DEVICE_OS_VERSION', s.get('IPHONEOS_DEPLOYMENT_TARGET', '17.0'))
         return s
 
@@ -1053,7 +1406,23 @@ class Builder:
             self.build(self.find_target(s['TEST_TARGET_NAME'], target.p))
         product = self.build_product(target, s, kind, ext, pkgtype, test_host)
         self.built[key] = product
+        self.publish_product(s, product)
         return product
+
+    def publish_product(self, s, product):
+        """isim builds every product into one directory (BUILT_PRODUCTS_DIR); a target with its own
+        CONFIGURATION_BUILD_DIR (CocoaPods gives each pod one) also gets its product linked there, where other
+        targets' search paths (LIBRARY_SEARCH_PATHS, FRAMEWORK_SEARCH_PATHS) look for it."""
+        cbd = os.path.normpath(str(s.get('CONFIGURATION_BUILD_DIR') or self.outdir))
+        if not product or cbd == os.path.normpath(self.outdir) or not os.path.isabs(cbd):
+            return
+        os.makedirs(cbd, exist_ok=True)
+        link = os.path.join(cbd, os.path.basename(product['path']))
+        if os.path.islink(link) or os.path.isfile(link):
+            os.remove(link)
+        elif os.path.isdir(link):
+            shutil.rmtree(link)
+        os.symlink(os.path.relpath(product['path'], cbd), link)
 
     def build_product(self, target, s, kind, ext, pkgtype, test_host):
         name = target.name
@@ -1120,6 +1489,14 @@ class Builder:
         objs = []
         public_headers = [h for h, vis in target.headers() if vis == 'public']
         private_headers = [h for h, vis in target.headers() if vis == 'private']
+
+        # script phases placed before Headers / Compile Sources (code generators); their outputs with source
+        # extensions are compiled, like Xcode's build rules do for script outputs
+        for f in self.run_script_phases(target, s, 'compile', kind, path):
+            if f.endswith('.swift') and f not in swift:
+                swift.append(f)
+            elif f.endswith(('.m', '.mm', '.c', '.cpp', '.cc')) and f not in csrc:
+                csrc.append(f)
 
         # headers products expose before compiling (consumers and the target's own Swift code import them)
         if is_framework:
@@ -1204,6 +1581,7 @@ class Builder:
             run([ISIM, 'cc', '-Wno-unused-command-line-argument', '-c', f, '-o', obj, '-I', os.path.dirname(f)] + cc_base + extra)
             objs.append(obj)
         objs += deps['objs']
+        self.run_script_phases(target, s, 'link', kind, path)
 
         # product layout + link
         link_result = Packages.empty()
@@ -1263,6 +1641,10 @@ class Builder:
                            'uitest': ['@executable_path/Frameworks', '@loader_path/Frameworks']}.get(kind, [])
             for rp in dict.fromkeys(rpaths + defaults_rp):
                 link += ['-Wl,-rpath,' + rp]
+            for d in split_setting(s.get('LIBRARY_SEARCH_PATHS')):
+                link += ['-L', d.rstrip('/').removesuffix('/**')]
+            for d in split_setting(s.get('FRAMEWORK_SEARCH_PATHS')):
+                link += ['-F', d.rstrip('/').removesuffix('/**')]
             link += split_setting(s.get('OTHER_LDFLAGS'))
             run(link)
             if kind == 'framework':
@@ -1296,12 +1678,21 @@ class Builder:
                 f.write(f'module {module} {{\n' + ''.join(f'  header "{h}"\n' for h in hdrs) + '  export *\n}\n')
             link_result['swift_flags'] += ['-I', inc]
 
+        self.run_script_phases(target, s, 'resources', kind, path)
+
         # resources, Info.plist
         if wrapper:
             localizations = set()
             for res in target.resources():
                 if res.rstrip('/').endswith(('.xcdatamodeld', '.xcdatamodel')):
                     continue                                   # compiled above
+                if res.startswith('$(BUILT_PRODUCTS_DIR)/'):   # another target's product (e.g. a pod's resource bundle)
+                    t = self.find_product_target(os.path.basename(res))
+                    prod = self.build(t) if t else None
+                    if not prod:
+                        log(f'{name}: {os.path.basename(res)} is not built by this build (not copied)')
+                        continue
+                    res = prod['path']
                 localizations.update(self.install_resource(res, path))
             info = make_info_plist(target, s, path, localizations, pkgtype)
             if kind == 'app':
@@ -1328,6 +1719,7 @@ class Builder:
                 shutil.copy2(gc, os.path.join(path, 'isim-GameCenter.json'))
                 log(f'{name}: local Game Center configuration {os.path.relpath(gc, os.path.dirname(target.p.xcodeproj))}')
 
+        self.run_script_phases(target, s, 'embed', kind, path)
         # embedding: copy-files phases, plus dynamic frameworks of packages / xcframeworks (Xcode embeds those itself)
         self.copy_phases(target, s, path, before_link=False)
         if kind in ('app', 'appex', 'xctest', 'uitest'):
@@ -1346,7 +1738,7 @@ class Builder:
             dst = os.path.join(plugins, os.path.basename(path))
             shutil.rmtree(dst, ignore_errors=True)
             shutil.copytree(path, dst)
-        self.run_script_phases(target, s)
+        self.run_script_phases(target, s, 'end', kind, path)
         return {'kind': kind, 'path': path, 'exe': exe, 'module': module, 'target': name, 'settings': s,
                 'link_result': link_result, 'test_host': test_host}
 
@@ -1432,30 +1824,195 @@ class Builder:
                 if not before_link:
                     log(f'{target.name}: embedded {os.path.basename(src)} in {os.path.relpath(dest, os.path.dirname(path)) if spec != "16" else os.path.relpath(dest, self.outdir)}/')
 
-    def run_script_phases(self, target, s):
-        phases = target.script_phases()
-        if not phases:
-            return
-        for ph in phases:
-            if ph['name'].startswith('[CP]'):
-                log(f'{target.name}: "{ph["name"]}" skipped: isim embeds and checks CocoaPods products itself')
+    def run_script_phases(self, target, s, stage=None, kind=None, path=None):
+        """Shell script phases of the given stage (None: all, e.g. an aggregate target), like Xcode: in their place
+        among the build phases, with Xcode's environment (build settings, SCRIPT_INPUT_FILE_n / _LIST_n,
+        SCRIPT_OUTPUT_FILE_n / _LIST_n), skipped when every output is newer than every input (unless "Based on
+        dependency analysis" is off or there are no outputs), deployment-only phases only with
+        DEPLOYMENT_POSTPROCESSING=YES. Returns the outputs of the phases that ran or were up to date."""
+        produced = []
+        for ph in target.script_phases():
+            if stage is not None and ph['stage'] != stage:
+                continue
+            title = f'{target.name}: script phase "{ph["name"]}"'
+            if ph['name'].startswith('[CP] '):
+                self.cocoapods_phase(target, s, ph, path)
                 continue
             if not self.run_scripts:
-                log(f'{target.name}: script phase "{ph["name"]}" skipped (pass -run-script-phases to run it)')
+                log(f'{title} skipped (-skip-script-phases)')
                 continue
-            env = dict(os.environ)
-            env.update({k: str(v) for k, v in s.items()})
-            env['SCRIPT_INPUT_FILE_COUNT'] = str(len(ph['inputs']))
-            for i, p in enumerate(ph['inputs']):
-                env[f'SCRIPT_INPUT_FILE_{i}'] = expand(p, s)
-            env['SCRIPT_OUTPUT_FILE_COUNT'] = str(len(ph['outputs']))
-            for i, p in enumerate(ph['outputs']):
-                env[f'SCRIPT_OUTPUT_FILE_{i}'] = expand(p, s)
-            log(f'{target.name}: running script phase "{ph["name"]}"')
-            shell = ph['shell'] if os.path.exists(ph['shell']) else '/bin/sh'
-            r = subprocess.run([shell, '-c', ph['script']], env=env, cwd=target.p.root)
-            if r.returncode:
-                fail(f'{target.name}: script phase "{ph["name"]}" failed ({r.returncode})')
+            if ph['deployment_only'] and str(s.get('DEPLOYMENT_POSTPROCESSING', 'NO')).upper() != 'YES':
+                log(f'{title} skipped: runs only when installing (DEPLOYMENT_POSTPROCESSING=YES)')
+                continue
+            produced += self.run_script_phase(target, s, ph, title, kind)
+        return produced
+
+    def cocoapods_phase(self, target, s, ph, path):
+        """CocoaPods' generated "[CP]" phases call macOS tools (rsync, lipo, codesign); isim does what they do itself:
+        checks Manifest.lock against Podfile.lock, embeds the frameworks and copies the resources their file lists
+        name (products of the Pods project, or vendored frameworks / XCFrameworks), and copies vendored XCFramework
+        slices where the Pods xcconfigs look for them."""
+        name = ph['name'][5:]
+        root = target.p.root
+
+        def resolve(p):
+            p = expand(p, s).strip()
+            return p if os.path.isabs(p) else os.path.normpath(os.path.join(root, p))
+        entries = [resolve(p) for p in ph['inputs']]
+        for lp in ph['input_lists']:
+            lf = resolve(lp)
+            if os.path.exists(lf):
+                with open(lf, encoding='utf-8') as f:
+                    entries += [resolve(l) for l in (x.strip() for x in f) if l and not l.startswith('#')]
+            else:
+                log(f'{target.name}: "{ph["name"]}": {lf} not found')
+        entries = [e for e in entries if not e.endswith('.sh')]
+        if name == 'Check Pods Manifest.lock':
+            locks = [e for e in entries if e.endswith(('Podfile.lock', 'Manifest.lock'))]
+            if len(locks) == 2 and all(os.path.exists(l) for l in locks):
+                if open(locks[0], 'rb').read() != open(locks[1], 'rb').read():
+                    fail(f'{target.name}: "{ph["name"]}": The sandbox is not in sync with the Podfile.lock. Run \'pod install\' '
+                         'or update your CocoaPods installation.')
+                log(f'{target.name}: "{ph["name"]}": Podfile.lock matches Pods/Manifest.lock (checked by isim)')
+            else:
+                log(f'{target.name}: "{ph["name"]}" skipped: no Podfile.lock / Manifest.lock')
+            return
+
+        def product_of(e):
+            t = self.find_product_target(os.path.basename(e))
+            prod = self.build(t) if t else None
+            if prod:
+                return prod['path']
+            if os.path.exists(e):
+                return e
+            pods_root = expand('$(PODS_ROOT)', s) or os.path.join(root, 'Pods')
+            stem = os.path.splitext(os.path.basename(e))[0]
+            for dp, dn, _ in os.walk(pods_root):
+                if stem + '.xcframework' in dn:
+                    return xcframework_slice(os.path.join(dp, stem + '.xcframework'))[0]
+            return None
+        if name in ('Embed Pods Frameworks', 'Copy Pods Resources'):
+            if not path:
+                return
+            for e in entries:
+                src = product_of(e)
+                if not src:
+                    log(f'{target.name}: "{ph["name"]}": {os.path.basename(e)} not found (skipped)')
+                    continue
+                if name == 'Embed Pods Frameworks':
+                    self.embed(src, os.path.join(path, 'Frameworks'))
+                    log(f'{target.name}: embedded {os.path.basename(src)} in Frameworks/ (isim\'s "{ph["name"]}")')
+                else:
+                    self.install_resource(src, path)
+                    log(f'{target.name}: copied {os.path.basename(src)} into the bundle (isim\'s "{ph["name"]}")')
+            return
+        if name == 'Copy XCFrameworks':
+            dest_root = expand('$(PODS_XCFRAMEWORKS_BUILD_DIR)', s)
+            for e in entries:
+                if e.endswith('.xcframework') and os.path.isdir(e) and dest_root:
+                    lib, headers = xcframework_slice(e)
+                    dest = os.path.join(dest_root, os.path.basename(e)[:-len('.xcframework')])
+                    os.makedirs(dest, exist_ok=True)
+                    self.embed(lib, dest) if os.path.isdir(lib) else shutil.copy2(lib, dest)
+                    if headers and os.path.isdir(headers):
+                        shutil.copytree(headers, os.path.join(dest, 'Headers'), dirs_exist_ok=True)
+                    log(f'{target.name}: {os.path.basename(e)}: x86_64 simulator slice -> {dest} (isim\'s "{ph["name"]}")')
+            return
+        log(f'{target.name}: "{ph["name"]}" skipped: a CocoaPods phase isim does not replace')
+
+    def run_script_phase(self, target, s, ph, title, kind):
+        root = target.p.root
+        tmp = s.get('TARGET_TEMP_DIR') or os.path.join(self.outdir, 'obj', target.name)
+        os.makedirs(tmp, exist_ok=True)
+
+        def resolve(p):
+            p = expand(p, s).strip()
+            return p if os.path.isabs(p) else os.path.normpath(os.path.join(root, p))
+
+        def file_lists(paths, what):
+            lists, files = [], []
+            for i, lp in enumerate(paths):
+                src = resolve(lp)
+                if not os.path.exists(src):
+                    fail(f'{title}: {what} file list {src} not found')
+                with open(src, encoding='utf-8') as f:
+                    entries = [resolve(l) for l in (x.strip() for x in f) if l and not l.startswith('#')]
+                # Xcode hands the script a resolved copy of each .xcfilelist (variables expanded)
+                copy = os.path.join(tmp, f'{what.capitalize()}FileList-{ph["id"]}-{i}-{os.path.basename(src)}')
+                with open(copy, 'w', encoding='utf-8') as f:
+                    f.write(''.join(e + '\n' for e in entries))
+                lists.append((src, copy))
+                files += entries
+            return lists, files
+        inputs = [resolve(p) for p in ph['inputs'] if expand(p, s).strip()]
+        outputs = [resolve(p) for p in ph['outputs'] if expand(p, s).strip()]
+        in_lists, in_listed = file_lists(ph['input_lists'], 'input')
+        out_lists, out_listed = file_lists(ph['output_lists'], 'output')
+        all_in = inputs + in_listed + [src for src, _ in in_lists]
+        all_out = outputs + out_listed
+        env = dict(os.environ)
+        env.update({k: str(v) for k, v in s.items()})
+        env.setdefault('ACTION', 'install' if str(s.get('DEPLOYMENT_POSTPROCESSING', 'NO')).upper() == 'YES' else 'build')
+        env.setdefault('BUILD_DIR', self.outdir)
+        env.setdefault('BUILD_ROOT', self.outdir)
+        if kind not in ('static', 'dylib', None):
+            env.setdefault('INFOPLIST_PATH', s['CONTENTS_FOLDER_PATH'] + '/Info.plist')
+        env['SCRIPT_INPUT_FILE_COUNT'] = str(len(inputs))
+        env['SCRIPT_OUTPUT_FILE_COUNT'] = str(len(outputs))
+        for i, p in enumerate(inputs):
+            env[f'SCRIPT_INPUT_FILE_{i}'] = p
+        for i, p in enumerate(outputs):
+            env[f'SCRIPT_OUTPUT_FILE_{i}'] = p
+        env['SCRIPT_INPUT_FILE_LIST_COUNT'] = str(len(in_lists))
+        env['SCRIPT_OUTPUT_FILE_LIST_COUNT'] = str(len(out_lists))
+        for i, (_, copy) in enumerate(in_lists):
+            env[f'SCRIPT_INPUT_FILE_LIST_{i}'] = copy
+        for i, (_, copy) in enumerate(out_lists):
+            env[f'SCRIPT_OUTPUT_FILE_LIST_{i}'] = copy
+        # dependency analysis: what Xcode compares (inputs vs outputs), plus the phase itself (script, file lists)
+        import hashlib
+        stamp = os.path.join(tmp, f'Script-{ph["id"]}.stamp')
+        digest = hashlib.sha256(json.dumps([ph['shell'], ph['script'], all_in, all_out]).encode()).hexdigest()
+        reason = None
+        if ph['always']:
+            reason = 'always'
+        elif not all_out:
+            log(f'{title}: warning: will be run during every build because it does not specify any outputs. To address '
+                'this warning, either add output dependencies to the script phase, or configure it to run in every build '
+                'by unchecking "Based on dependency analysis" in the script phase.')
+            reason = 'no outputs'
+        else:
+            missing_in = [p for p in all_in if not os.path.exists(p)]
+            if missing_in:
+                fail(f'{title}: Build input file cannot be found: \'{missing_in[0]}\'. Did you forget to declare this file '
+                     'as an output of a script phase or custom build rule which produces it?')
+            prev = open(stamp).read().strip() if os.path.exists(stamp) else None
+            if prev != digest:
+                reason = 'changed' if prev else 'first build'
+            elif any(not os.path.exists(p) for p in all_out):
+                reason = 'outputs missing'
+            elif all_in and max(os.path.getmtime(p) for p in all_in) > min(os.path.getmtime(p) for p in all_out):
+                reason = 'inputs changed'
+        if reason is None:
+            log(f'{title} skipped: outputs are up to date (dependency analysis)')
+            return all_out
+        shell = shlex.split(ph['shell'] or '/bin/sh') or ['/bin/sh']
+        if not os.path.exists(shell[0]):
+            log(f'{title}: {shell[0]} is not on this system; running it with /bin/sh')
+            shell = ['/bin/sh']
+        script = os.path.join(tmp, f'Script-{ph["id"]}.sh')
+        with open(script, 'w', encoding='utf-8') as f:
+            f.write(ph['script'])
+        log(f'{title} ({reason})')
+        sys.stdout.flush()
+        r = subprocess.run(shell + [script], env=env, cwd=root)
+        if r.returncode:
+            if os.path.exists(stamp):
+                os.remove(stamp)
+            fail(f'{title}: Command PhaseScriptExecution failed with a nonzero exit code ({r.returncode})')
+        with open(stamp, 'w') as f:
+            f.write(digest + '\n')
+        return all_out
 
 
 def open_container(project=None, workspace=None):
@@ -1486,6 +2043,140 @@ def parse_overrides(rest):
     return out
 
 
+# ---------------- project view (xcodebuild -list / -showBuildSettings, isim project) ----------------
+def list_info(projects, containers, workspace, as_json):
+    """xcodebuild -list: targets, build configurations and schemes of the project (or the schemes of a workspace)."""
+    schemes = sorted(scheme_files(containers))
+    if workspace:
+        if not schemes:                              # Xcode autocreates a scheme per target
+            schemes = sorted({t for p in projects for t in Project(p).targets()})
+        name = os.path.splitext(os.path.basename(workspace))[0]
+        if as_json:
+            print(json.dumps({'workspace': {'name': name, 'schemes': schemes}}, indent=2))
+            return
+        print(f'Information about workspace "{name}":')
+        print('    Schemes:')
+        for n in schemes:
+            print(f'        {n}')
+        return
+    proj = Project(projects[0])
+    targets = list(proj.targets())
+    configs = proj.configurations()
+    schemes = schemes or targets
+    name = os.path.splitext(os.path.basename(proj.xcodeproj))[0]
+    if as_json:
+        print(json.dumps({'project': {'configurations': configs, 'name': name, 'schemes': schemes, 'targets': targets}}, indent=2))
+        return
+    print(f'Information about project "{name}":')
+    print('    Targets:')
+    for t in targets:
+        print(f'        {t}')
+    print('\n    Build Configurations:')
+    for c in configs:
+        print(f'        {c}')
+    print('\n    If no build configuration is specified and -scheme is not passed then "Debug" is used (isim build).')
+    print('\n    Schemes:')
+    for n in schemes:
+        print(f'        {n}')
+
+
+def show_build_settings(b, targets, as_json):
+    """xcodebuild -showBuildSettings: the resolved build settings of each target, as isim build uses them."""
+    out = []
+    for t in targets:
+        st = b.settings(t)
+        st.setdefault('ACTION', 'build')
+        out.append({'action': 'build', 'target': t.name, 'buildSettings': {k: str(v) for k, v in sorted(st.items())}})
+    if as_json:
+        print(json.dumps(out, indent=2))
+        return
+    for e in out:
+        print(f'Build settings for action build and target {e["target"]}:')
+        for k, v in e['buildSettings'].items():
+            print(f'    {k} = {v}')
+        print()
+
+
+def print_tree(projects, workspace=None):
+    """isim project: a tree of the projects' targets -> build phases -> files (Xcode's project navigator, as text)."""
+    def rel(p, root):
+        if not isinstance(p, str) or p.startswith('$('):
+            return p
+        r = os.path.relpath(p, root)
+        return p if r.startswith('../../') else r
+    lines = [os.path.basename(workspace)] if workspace else []
+    for pi, path in enumerate(projects):
+        proj = Project(path)
+        root = proj.root
+        last_p = pi == len(projects) - 1
+        pre = ('└── ' if last_p else '├── ') if workspace else ''
+        ind = ('    ' if last_p else '│   ') if workspace else ''
+        lines.append(f'{pre}{os.path.basename(proj.xcodeproj)}  (configurations: {", ".join(proj.configurations())})')
+        names = list(proj.targets())
+        pkgs = [proj.objects[r] for r in proj.project.get('packageReferences', [])]
+        for ti, tname in enumerate(names):
+            t = proj.target(tname)
+            last_t = ti == len(names) - 1 and not pkgs
+            lines.append(f'{ind}{"└── " if last_t else "├── "}{tname} ({(t.product_type or "aggregate").split(".")[-1]})')
+            tind = ind + ('    ' if last_t else '│   ')
+            entries = []
+            deps = t.dependencies() + [f'{os.path.basename(pp)}:{n}' for pp, n in cross_dependencies(t)]
+            if deps:
+                entries.append(('Dependencies', deps))
+            prods = [n for n, _ in t.package_products()]
+            if prods:
+                entries.append(('Swift package products', prods))
+            sync = [rel(t.p.path_of(g), root) + '/' for g in t.obj.get('fileSystemSynchronizedGroups', [])]
+            if sync:
+                entries.append(('Synchronized folders', sync))
+            for phid in t.obj.get('buildPhases', []):
+                ph = proj.objects[phid]
+                isa = ph['isa']
+                title = ph.get('name') or PHASE_NAMES.get(isa, isa)
+                if isa == 'PBXShellScriptBuildPhase':
+                    title = f'Run Script "{ph.get("name", "Run Script")}"'
+                    files = [f'in: {x}' for x in ph.get('inputPaths', []) + ph.get('inputFileListPaths', [])]
+                    files += [f'out: {x}' for x in ph.get('outputPaths', []) + ph.get('outputFileListPaths', [])]
+                    flags = (['always'] if str(ph.get('alwaysOutOfDate', '0')) == '1' else []) + \
+                        (['install only'] if str(ph.get('runOnlyForDeploymentPostprocessing', '0')) == '1' else [])
+                    if flags:
+                        title += f' ({", ".join(flags)})'
+                else:
+                    if isa == 'PBXCopyFilesBuildPhase':
+                        title += f' (dstSubfolderSpec {ph.get("dstSubfolderSpec", "")}' + (f', {ph["dstPath"]}' if ph.get('dstPath') else '') + ')'
+                    files = []
+                    for bf in ph.get('files', []):
+                        b = proj.objects[bf]
+                        if b.get('productRef'):
+                            files.append(f'{proj.objects[b["productRef"]].get("productName")} (package product)')
+                            continue
+                        ref = b.get('fileRef')
+                        if not ref:
+                            continue
+                        obj = proj.objects[ref]
+                        owner = proj.product_owner(ref)
+                        built = owner or obj.get('isa') == 'PBXReferenceProxy' or obj.get('sourceTree') == 'BUILT_PRODUCTS_DIR'
+                        shown = os.path.basename(obj.get('path') or obj.get('name', '')) if built else rel(proj.path_of(ref), root)
+                        if built and not owner:
+                            shown += ' (built product)'
+                        attrs = b.get('settings', {}).get('ATTRIBUTES', [])
+                        files.append(shown + (f' (product of {owner})' if owner else '') + (f' [{", ".join(attrs)}]' if attrs else ''))
+                entries.append((title, files))
+            for ei, (title, files) in enumerate(entries):
+                last_e = ei == len(entries) - 1
+                lines.append(f'{tind}{"└── " if last_e else "├── "}{title}' + (f' ({len(files)})' if files and not title.startswith('Run Script') else ''))
+                find = tind + ('    ' if last_e else '│   ')
+                for fi, f in enumerate(files):
+                    lines.append(f'{find}{"└── " if fi == len(files) - 1 else "├── "}{f}')
+        for ki, r in enumerate(pkgs):
+            what = r.get('repositoryURL') or r.get('relativePath', '')
+            req = r.get('requirement') or {}
+            reqs = ' '.join(f'{k}={v}' for k, v in req.items() if k != 'kind')
+            lines.append(f'{ind}{"└── " if ki == len(pkgs) - 1 else "├── "}package {what}'
+                         + (f' ({req.get("kind")} {reqs})' if req else ' (local)'))
+    print('\n'.join(lines))
+
+
 def main():
     ap = argparse.ArgumentParser(prog='isim build')
     ap.add_argument('-project')
@@ -1496,21 +2187,35 @@ def main():
     ap.add_argument('-sdk')                        # accepted for xcodebuild compatibility: always the isim simulator SDK
     ap.add_argument('-destination')
     ap.add_argument('-package-cache', action='append', default=[])
-    ap.add_argument('-run-script-phases', action='store_true')
+    ap.add_argument('-run-script-phases', action='store_true')    # the default now; accepted for older scripts
+    ap.add_argument('-skip-script-phases', action='store_true')
+    ap.add_argument('-list', action='store_true')
+    ap.add_argument('-showBuildSettings', action='store_true')
+    ap.add_argument('-json', action='store_true')
+    ap.add_argument('-tree', action='store_true')                 # isim project: the project as a tree
+    ap.add_argument('-resolvePackageDependencies', action='store_true')
+    ap.add_argument('-disableAutomaticPackageResolution', action='store_true')
+    ap.add_argument('-onlyUsePackageVersionsFromResolvedFile', action='store_true')
     ap.add_argument('-o', '--output', '-derivedDataPath', dest='output', default=None)
     a, rest = ap.parse_known_args()
     projects, containers = open_container(a.project, a.workspace)
+    workspace = os.path.abspath(a.workspace) if a.workspace else (containers[0] if containers[0].endswith('.xcworkspace') else None)
+    if a.list:
+        return list_info(projects, containers, workspace, a.json)
+    if a.tree:
+        return print_tree(projects, workspace)
     overrides = parse_overrides(rest)
-    name0 = os.path.splitext(os.path.basename(a.workspace or projects[0]))[0]
+    name0 = os.path.splitext(os.path.basename(workspace or projects[0]))[0]
     outdir = os.path.abspath(a.output or os.path.join(BIN, '..', 'projects', name0))
-    os.makedirs(outdir, exist_ok=True)
     scheme = None
     if a.scheme:
         schemes = scheme_files(containers)
         if a.scheme in schemes:
             scheme = Scheme(*schemes[a.scheme])
     configuration = a.configuration or (scheme.configuration('LaunchAction') if scheme else 'Debug')
-    b = Builder(projects, configuration, outdir, overrides, a.package_cache, a.run_script_phases)
+    b = Builder(projects, configuration, outdir, overrides, a.package_cache, not a.skip_script_phases)
+    b.packages.resolved_file = resolved_file_path(workspace, projects)
+    b.packages.automatic = not (a.disableAutomaticPackageResolution or a.onlyUsePackageVersionsFromResolvedFile)
     targets = []
     if a.target:
         targets = [b.find_target(t) for t in a.target]
@@ -1528,6 +2233,13 @@ def main():
                 break
         if not targets:
             targets = [b.projects[0].target(next(iter(b.projects[0].targets())))]
+    if a.showBuildSettings:
+        return show_build_settings(b, targets, a.json)
+    os.makedirs(outdir, exist_ok=True)
+    if a.resolvePackageDependencies:
+        b.packages.resolve_all(b.projects)
+        log('resolved package dependencies' + (f' ({b.packages.resolved_file})' if b.packages.resolved_file else ''))
+        return
     product = None
     for t in targets:
         product = b.build(t) or product
