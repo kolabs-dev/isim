@@ -278,8 +278,8 @@ def _(a):
 @app("samples/HelloSharedData")
 def _(a):
     b = a.swift_app()
-    for d in ("en.lproj", "ru.lproj"):
-        shutil.copytree(os.path.join(a.d, d), os.path.join(b, d))
+    for d in ("en.lproj", "ru.lproj", "sl.lproj", "lt.lproj", "cy.lproj", "ar.lproj", "fr.lproj"):
+        shutil.copytree(os.path.join(a.d, d), os.path.join(b, d), dirs_exist_ok=True)
     os.chdir(a.d)
     print("localizations:", a.isim_build().compile_xcstrings("Localizable.xcstrings", b))
 
