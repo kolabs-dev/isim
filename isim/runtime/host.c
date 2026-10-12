@@ -1229,7 +1229,7 @@ static int script_step(struct isim_event *ev) {
     }
     if (sdrag.on && !npending) {
         double t = now();
-        if (t - sdrag.last >= 0.016) {
+        if (t >= sdrag.t0 && t - sdrag.last >= 0.016) {      /* (before t0: pressed at the start, not moving yet) */
             double p = fmin(1, (t - sdrag.t0) / sdrag.dur);
             sdrag.last = t;
             int was_holding = sdrag.hold_end > 0;
@@ -1261,7 +1261,8 @@ static int script_step(struct isim_event *ev) {
     char *cmd_start = script_pos;
     sscanf(script_pos, "%15[^;\n ]%n", cmd, &n);
     char *args = script_pos + n;
-    char *end = strpbrk(script_pos, ";\n");
+    char *end = script_pos;                 /* the separator: ';' or a newline; "\;" is a literal ';' (in `type`) */
+    while ((end = strpbrk(end, ";\n")) && *end == ';' && end > script_pos && end[-1] == '\\') end++;
     if (end) *end = 0;                      /* arguments end at the separator */
     script_pos = end ? end + 1 : script_pos + strlen(script_pos);
     if (!strcmp(cmd, "wait") && sscanf(args, "%lf", &a) == 1) {
@@ -1275,11 +1276,13 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = a, .y = b };
         script_resume = now() + 0.05;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &sdrag.dur) == 5 && sdrag.dur > 0) {
-        /* "drag x1 y1 x2 y2 secs [hold]": a timed drag, optionally held at the end for hold seconds before lifting */
-        double h = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf", &h);
+        /* "drag x1 y1 x2 y2 secs [hold [press]]": a timed drag, optionally held at the end for hold seconds before
+           lifting, and pressed at the start for press seconds before moving (XCUITest's press(forDuration:thenDragTo:)) */
+        double h = 0, pr = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf %lf", &h, &pr);
+        if (pr < 0) pr = 0;
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
-        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.p = 0; sdrag.t0 = sdrag.last = now(); sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
-        script_resume = now() + sdrag.dur + sdrag.hold + 0.02;
+        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.p = 0; sdrag.t0 = sdrag.last = now() + pr; sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
+        script_resume = now() + pr + sdrag.dur + sdrag.hold + 0.02;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };
@@ -1296,7 +1299,11 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "holdid") && sscanf(args, " %63[^; ] %lf", arg, &a) == 2) {
         pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         snprintf(held_id, sizeof held_id, "%s", arg); held_until = now() + a; script_resume = held_until + 0.05;
-    } else if (!strcmp(cmd, "type") && sscanf(args, " %511[^;]", arg) == 1) {
+    } else if (!strcmp(cmd, "type") && (args += strspn(args, " \t"), *args)) {
+        /* "type TEXT": the rest of the command; "\;" types ';' (a bare ';' ends the command) */
+        size_t k = 0;
+        for (const char *s = args; *s && k < sizeof arg - 1; s++) { if (s[0] == '\\' && s[1] == ';') s++; arg[k++] = *s; }
+        arg[k] = 0;
         for (char *t = arg; *t && npending < 8; t += strlen(pending[npending - 1].text)) {
             pending[npending++] = (struct isim_event){ .type = EV_TEXT };
             snprintf(pending[npending - 1].text, 32, "%s", t);       /* 31-byte chunks (ASCII-safe) */
@@ -1370,7 +1377,13 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.05;
-    } else if (!strcmp(cmd, "home")) { pending[npending++] = (struct isim_event){ .type = EV_HOME }; script_resume = now() + 0.3; }
+    } else if (!strcmp(cmd, "home")) {
+        /* under the shell (isim boot): the home screen. The app alone (isim run, XCUITest): it goes to the
+           background (no home screen to show); `activate` brings it back, like tapping its icon */
+        pending[npending++] = (struct isim_event){ .type = shell_mode ? EV_HOME : EV_BACKGROUND }; script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "activate") && !shell_mode) {
+        pending[npending++] = (struct isim_event){ .type = EV_FOREGROUND }; script_resume = now() + 0.3;
+    }
     else if (!strcmp(cmd, "launch") && sscanf(args, " %63[^; ]", arg) == 1) {
         pending[npending++] = (struct isim_event){ .type = EV_LAUNCH_ID }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.5;

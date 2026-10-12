@@ -99,6 +99,9 @@ isim test -project MyApp.xcodeproj -scheme MyApp [-only-testing:MyAppTests/Login
 XCTest, Swift Testing and XCUITest run as with `xcodebuild test`: the output follows Xcode's format, ends with
 `** TEST SUCCEEDED **` or `** TEST FAILED **`, and the exit status is 65 when a test fails.
 `-resultBundlePath DIR` keeps the results.
+In UI tests, permission prompts are system alerts as on iOS: find them under
+`XCUIApplication(bundleIdentifier: "com.apple.springboard")` (or answer them with `addUIInterruptionMonitor`), not
+`app.alerts`; `XCUIDevice.shared.press(.home)` sends the app to the background and `app.activate()` brings it back.
 
 ## Answering system prompts without a person
 

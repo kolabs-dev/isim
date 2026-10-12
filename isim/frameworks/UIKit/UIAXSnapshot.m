@@ -2,7 +2,11 @@
  * line, tab-separated:  depth  type  x  y  w  h  identifier  label  value  placeholder  flags
  * Frames are in screen points. Types follow XCUIElement.ElementType names (button, staticText, textField, ...),
  * derived from the view class and accessibility traits. Controls are leaves (their labels fold into the control's
- * label, as in the iOS accessibility tree). flags: e enabled, s selected, f has keyboard focus, h hittable. */
+ * label, as in the iOS accessibility tree). flags: e enabled, s selected, f has keyboard focus, h hittable,
+ * y a system (SpringBoard) alert, b (the application row) in the background. The application row has a 12th field:
+ * the device orientation (UIDeviceOrientation), which XCUIDevice.orientation reads.
+ * The system keyboard's window holds a `keyboard` element with its keys (`key`, labelled like iOS: "q", "shift",
+ * "delete", "more", "space"; the return key is a `button` "Return" titled by returnKeyType). */
 #import "UIKitPrivate.h"
 
 static NSString *esc(NSString *s) {
@@ -13,6 +17,23 @@ static NSString *esc(NSString *s) {
     return [s stringByReplacingOccurrencesOfString:@"\r" withString:@"\\r"];
 }
 static BOOL class_named_like(UIView *v, const char *frag) { return strstr(class_getName(object_getClass(v)), frag) != NULL; }
+
+/* a key of the system keyboard (UIKeyboard.m: buttons with the keyboard-key trait, identifiers isim-kb-...):
+   its iOS element type, identifier and label */
+static BOOL keyboard_key(UIView *v, NSString **type, NSString **ident, NSString **label) {
+    if (![v isKindOfClass:[UIButton class]] || !(v.accessibilityTraits & UIAccessibilityTraitKeyboardKey)) return NO;
+    NSString *i = v.accessibilityIdentifier;
+    if (![i hasPrefix:@"isim-kb-"]) return NO;
+    NSString *k = [i substringFromIndex:8], *title = ((UIButton *)v).currentTitle ?: @"";
+    NSDictionary *named = @{ @"shift": @[@"shift", @"shift"], @"delete": @[@"delete", @"delete"], @"123": @[@"more", @"numbers"],
+                             @"abc": @[@"more", @"letters"], @"space": @[@"space", @"space"], @"dotcom": @[@".com", @".com"] };
+    *type = @"key";
+    if ([k isEqualToString:@"return"]) { *type = @"button"; *ident = @"Return"; *label = title.length ? title : @"return"; }
+    else if ([k isEqualToString:@"globe"]) { *type = @"button"; *ident = @"Next keyboard"; *label = @"Next keyboard"; }
+    else if (named[k]) { *ident = named[k][0]; *label = named[k][1]; }
+    else { *ident = title; *label = title; }
+    return YES;
+}
 
 static NSString *ax_type(UIView *v, BOOL *leaf) {
     *leaf = NO;
@@ -63,6 +84,7 @@ static void emit(NSMutableString *out, UIView *v, int depth, CGRect screen) {
     CGRect r = [v convertRect:v.bounds toView:nil];
     UIWindow *w = [v isKindOfClass:[UIWindow class]] ? (UIWindow *)v : v.window;
     if (w && v != w) r.origin = CGPointMake(r.origin.x + w.frame.origin.x, r.origin.y + w.frame.origin.y);
+    else if (w) r = w.frame;                                  /* a window: where it is on the screen (the keyboard's) */
     BOOL leaf = NO;
     NSString *type = ax_type(v, &leaf);
     NSString *ident = v.accessibilityIdentifier, *label = trimmed_nonempty(v.accessibilityLabel), *value = v.accessibilityValue, *placeholder = nil;
@@ -95,6 +117,10 @@ static void emit(NSMutableString *out, UIView *v, int depth, CGRect screen) {
         if (!title) { NSMutableArray *texts = [NSMutableArray array]; for (UIView *s in v.subviews) if ([s isKindOfClass:[UILabel class]] && !s.hidden && ((UILabel *)s).text.length) [texts addObject:((UILabel *)s).text]; title = texts.firstObject; }
         ident = ident ?: title; label = label ?: title;              /* like iOS: the bar is identified by its title */
     }
+    NSString *kt = nil, *ki = nil, *kl = nil;
+    if (keyboard_key(v, &kt, &ki, &kl)) { type = kt; ident = ki; label = kl; }
+    BOOL systemAlert = NO;
+    if ([type isEqualToString:@"alert"] || [type isEqualToString:@"sheet"]) systemAlert = [(UIAlertController *)v.nextResponder _isim_isSystemAlert];
     if (![value isKindOfClass:[NSString class]]) value = value ? [NSString stringWithFormat:@"%@", value] : nil;
     BOOL focused = focused_in(v);
     CGPoint c = CGPointMake(CGRectGetMidX(r), CGRectGetMidY(r));
@@ -103,8 +129,14 @@ static void emit(NSMutableString *out, UIView *v, int depth, CGRect screen) {
         UIView *hit = [w hitTest:[w convertPoint:CGPointMake(c.x - w.frame.origin.x, c.y - w.frame.origin.y) fromView:nil] withEvent:nil];
         hittable = hit && (hit == v || [hit isDescendantOfView:v] || [v isDescendantOfView:hit]);
     }
-    [out appendFormat:@"%d\t%@\t%g\t%g\t%g\t%g\t%@\t%@\t%@\t%@\t%@%@%@%@\n", depth, type, r.origin.x, r.origin.y, r.size.width, r.size.height,
-        esc(ident), esc(label), esc(value), esc(placeholder), enabled ? @"e" : @"", selected ? @"s" : @"", focused ? @"f" : @"", hittable ? @"h" : @""];
+    [out appendFormat:@"%d\t%@\t%g\t%g\t%g\t%g\t%@\t%@\t%@\t%@\t%@%@%@%@%@\n", depth, type, r.origin.x, r.origin.y, r.size.width, r.size.height,
+        esc(ident), esc(label), esc(value), esc(placeholder), enabled ? @"e" : @"", selected ? @"s" : @"", focused ? @"f" : @"", hittable ? @"h" : @"",
+        systemAlert ? @"y" : @""];
+    if (v == w && class_named_like(v, "IsimKeyboardWindow")) {        /* the system keyboard: a keyboard element with its keys */
+        [out appendFormat:@"%d\tkeyboard\t%g\t%g\t%g\t%g\t\t\t\t\te%@\n", depth + 1, r.origin.x, r.origin.y, r.size.width, r.size.height, hittable ? @"h" : @""];
+        for (UIView *s in v.subviews) emit(out, s, depth + 2, screen);
+        return;
+    }
     if ([v isKindOfClass:[UISegmentedControl class]]) {                /* segments are buttons */
         UISegmentedControl *sc = (UISegmentedControl *)v;
         NSInteger n = sc.numberOfSegments;
@@ -125,8 +157,9 @@ void isim_ui_write_ax_snapshot(const char *path) {
     NSString *name = [b objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: [b objectForInfoDictionaryKey:@"CFBundleName"] ?: @"";
     CGRect screen = UIScreen.mainScreen.bounds;
     NSMutableString *out = [NSMutableString string];
-    [out appendFormat:@"0\tapplication\t0\t0\t%g\t%g\t%@\t%@\t\t\te%@\n", screen.size.width, screen.size.height,
-        esc(b.bundleIdentifier), esc(name), app.applicationState == UIApplicationStateActive ? @"h" : @""];
+    [out appendFormat:@"0\tapplication\t0\t0\t%g\t%g\t%@\t%@\t\t\te%@%@\t%ld\n", screen.size.width, screen.size.height,
+        esc(b.bundleIdentifier), esc(name), app.applicationState == UIApplicationStateActive ? @"h" : @"",
+        app.applicationState == UIApplicationStateBackground ? @"b" : @"", (long)UIDevice.currentDevice.orientation];
     (void)d;
     NSArray *ws = [app.windows sortedArrayUsingComparator:^NSComparisonResult(UIWindow *a, UIWindow *c) {
         return a.windowLevel < c.windowLevel ? NSOrderedAscending : a.windowLevel > c.windowLevel ? NSOrderedDescending : NSOrderedSame; }];
