@@ -10,6 +10,7 @@ NSString *isim_data_dir(void);
 @property (nonatomic, copy) NSString *path, *executable, *name, *bundleID, *iconPath, *category;
 @property (nonatomic, copy) NSDictionary *info;
 @property (nonatomic) BOOL system;
+@property (nonatomic) BOOL appClip;                            /* an App Clip (Info.plist NSAppClip): not on the home screen */
 @property (nonatomic, readonly) NSString *containerPath;       /* <isim data>/Containers/<bundle id> */
 @end
 
@@ -119,6 +120,14 @@ NSString *HSCategoryName(NSString *category);
 @end
 @interface HomeViewController (Notifications)
 - (void)installNotificationObservers;    /* remote notifications (push routing), badges, expanded notifications */
+@end
+@interface HomeViewController (AppClips)                    /* SBAppClips.m */
+- (void)setInstalledAppClips:(NSArray<HSApp *> *)clips;     /* from reload: App Clips are kept off the home screen */
+- (NSArray<HSApp *> *)recentAppClips;                       /* the App Library's Recently Added (most recent first) */
+- (BOOL)openAppClipURL:(NSURL *)url source:(NSString *)source;   /* an App Clip invocation; NO: no App Clip has the URL */
+- (void)appClipCommand:(NSString *)args;                    /* script `appclip ...` */
+- (void)appClipCardAnswer:(NSString *)verb args:(NSString *)args;   /* the shell's card: appclip-open / appclip-dismissed */
+- (NSString *)appClipRelaunchURL:(HSApp *)clip;             /* launching a clip from the App Library: its last invocation */
 @end
 @interface HomeViewController (Spotlight)
 - (void)showSpotlight;

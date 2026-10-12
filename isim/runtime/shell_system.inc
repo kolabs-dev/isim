@@ -14,6 +14,7 @@
  *                  "push-deliver PATH EXE\x1fSIDECAR"   the home screen routed a remote notification (see sys_push_deliver)
  *                  "ext-run EXE REQUEST"         run a notification extension (like widget-run; "ext-done" to the home screen)
  *                  "nc-expanded RECORD SIDECAR"  the home screen's answer to "nc-expand" (expanded notifications)
+ *                  "appclip-card SIDECAR"        show the App Clip card (shell_appclip.inc; "appclip-open" / "appclip-dismissed")
  *   shell -> app   "openurl URL", "launchtask BUNDLE TASK", "reload" (to the home screen), "bgtask TASK" (to the app),
  *                  "push BUNDLE FILE" / "push-drop FILE" / "badge PATH N" / "nc-expand ..." (to the home screen),
  *                  "remote-notification FILE", "nc-action RECORD\x1fID\x1fACTION\x1fTEXT" (to the app)
@@ -52,7 +53,7 @@ static void sys_launch_background(const char *bundle, const char *exe, const cha
 /* ======================= system UI drawn by the shell =======================
  * lock screen, app switcher, Notification Center, Control Center. Each is drawn into `comp` over the current screen;
  * its parts are registered as elements (id, text, rect) so scripts can `tapid` / `swipeid` them and `dump` lists them. */
-enum { OV_NONE, OV_SWITCHER, OV_LOCK, OV_NC, OV_CC, OV_NX /* an expanded notification */ };
+enum { OV_NONE, OV_SWITCHER, OV_LOCK, OV_NC, OV_CC, OV_NX /* an expanded notification */, OV_CLIP /* the App Clip card */ };
 static int ov, locked;
 static double ov_t0;                                  /* when the overlay opened (slide-in) */
 static double last_active_t[32];                      /* app switcher order (most recent first) */
@@ -786,6 +787,8 @@ static void nb_thumb(cairo_t *c, const char *path, double x, double y, double s)
     isim_image_free(hd);
 }
 
+#include "shell_appclip.inc"
+
 /* What the overlays leave of the device: the status bar (system UI drawn over them; alpha: Control Center's fade-in),
    the Dynamic Island or notch, the home indicator (lock screen, Notification Center) and the display's rounded
    corners. Over apps host.c draws these in isim_frame_end. */
@@ -826,6 +829,14 @@ static void sys_draw(void) {
         sys_paint_blurred(c, under, uw, uh, 0.3);
         cairo_scale(c, px_scale, px_scale);
         nx_draw(c);
+    } else if (ov == OV_CLIP) {                                       /* the App Clip card over the dimmed screen */
+        cairo_save(c); cairo_identity_matrix(c);
+        cairo_scale(c, (double)surf_w / bw, (double)surf_h / bh);
+        cairo_set_source_surface(c, bs, 0, 0); cairo_paint(c);
+        cairo_restore(c);
+        cairo_set_source_rgba(c, 0, 0, 0, 0.32 * fmin(1, (now() - ov_t0) / 0.25)); cairo_paint(c);
+        cairo_scale(c, px_scale, px_scale);
+        ac_draw(c);
     } else if (ov == OV_LOCK) {
         cairo_scale(c, px_scale, px_scale);
         lock_draw(c, home, hw, hh);
@@ -898,6 +909,7 @@ static void sys_open(int which) {
 }
 static void sys_close(void) {
     if (ov == OV_NX) { nx_close(); return; }
+    if (ov == OV_CLIP) { ac_close(0); return; }
     int was = ov; ov = OV_NONE;
     if (was == OV_SWITCHER) {                      /* back to the home screen */
         int app = active; active = 0;
@@ -1015,19 +1027,20 @@ static void el_tap(struct sys_el *e, double y) {
         fprintf(stderr, "isim shell: Control Center %s %d%%\n", e->arg ? "volume" : "brightness", (int)lround(v * 100));
         sys_draw(); break; }
     case EL_BG:
+        if (ov == OV_CLIP) { ac_close(0); break; }
         if (ov == OV_NX) { if (nx.dismiss) nx_respond("com.apple.UNNotificationDismissActionIdentifier", NULL, 0); else nx_close(); break; }
         if (ov == OV_LOCK) break;
         sys_close(); break;
-    default: break;
+    default: ac_tap(e); break;
     }
 }
 static void sys_dump(void) {
-    static const char *const names[] = { "", "IsimAppSwitcher", "IsimLockScreen", "IsimNotificationCenter", "IsimControlCenter", "IsimExpandedNotification" };
+    static const char *const names[] = { "", "IsimAppSwitcher", "IsimLockScreen", "IsimNotificationCenter", "IsimControlCenter", "IsimExpandedNotification", "IsimAppClipCard" };
     fprintf(stderr, "%s (0 0; %g x %g)\n", names[ov], dev.width, dev.height);
     for (int k = 0; k < nels; k++)
         fprintf(stderr, "  %s (%g %g; %g x %g) id=%s%s%s\n", els[k].kind == EL_CARD ? "IsimAppCard" : els[k].kind == EL_NC_ITEM ? "IsimNotification" :
                 els[k].kind == EL_NX_ACTION ? "IsimNotificationAction" : els[k].kind == EL_NX_CONTENT ? "IsimNotificationContent" :
-                els[k].kind == EL_CC_TOGGLE ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : "IsimSystemView",
+                els[k].kind == EL_CC_TOGGLE ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : els[k].kind >= EL_AC_OPEN ? "IsimAppClipButton" : "IsimSystemView",
                 els[k].r.x, els[k].r.y, els[k].r.w, els[k].r.h, els[k].id, els[k].text[0] ? " text=" : "", els[k].text);
 }
 
@@ -1199,6 +1212,8 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
         sys_push_deliver(m->b, exe, side);
     } else if (!strcmp(verb, "ext-run")) {                 /* the home screen runs a notification extension */
         sys_run_helper_kind(m->b, m->c, 1);
+    } else if (!strcmp(verb, "appclip-card")) {             /* the home screen resolved an App Clip invocation */
+        ac_show(m->b);
     } else if (!strcmp(verb, "nc-expanded")) {
         nx_loaded(m->b, m->c);
     } else if (!strcmp(verb, "nc-remove")) {                /* removeDeliveredNotifications: c = ids (empty: all) */
@@ -1281,6 +1296,7 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "terminate")) { sys_send_text(0, "terminate %s", args); return 1; }
     if (!strcmp(verb, "openurl")) { sys_send_text(0, "openurl %s", args); return 1; }
     if (!strcmp(verb, "handoff")) { sys_send_text(0, "handoff %s", args); return 1; }   /* an activity from another device */
+    if (!strcmp(verb, "appclip")) { sys_send_text(0, "appclip %s", args); return 1; }   /* App Clips: the home screen resolves them */
     if (!strcmp(verb, "push") || !strcmp(verb, "push-drop")) {   /* remote notifications: the home screen routes them */
         char a[1000]; snprintf(a, sizeof a, "%s", args);
         if (!strcmp(verb, "push")) {                             /* make the file path absolute: the home screen's cwd differs */

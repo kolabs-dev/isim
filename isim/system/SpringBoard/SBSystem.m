@@ -115,6 +115,8 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
         else if ([verb isEqualToString:@"terminate"]) [self terminateApp:args];
         else if ([verb isEqualToString:@"app-exited"]) [self appExited:args];
         else if ([verb isEqualToString:@"handoff"]) [self handoff:args];
+        else if ([verb isEqualToString:@"appclip"]) [self appClipCommand:args];
+        else if ([verb hasPrefix:@"appclip-"]) [self appClipCardAnswer:verb args:args];
         else if ([verb isEqualToString:@"set-appearance"]) {          /* Control Center's Dark Mode: the same setting as Settings */
             NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
             if ([args isEqualToString:@"dark"]) [g setObject:@"Dark" forKey:@"AppleInterfaceStyle"]; else [g removeObjectForKey:@"AppleInterfaceStyle"];
@@ -128,6 +130,7 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
     if (!url) { NSLog(@"SpringBoard: not a URL: %@", s); return; }
     BOOL universal = NO;
     HSApp *a = HSAppForURL(self.apps, url, &universal);
+    if (!a && [self openAppClipURL:url source:@"link"]) return;          /* an App Clip's URL: the App Clip card (SBAppClips.m) */
     if (!a && [@[@"http", @"https"] containsObject:url.scheme.lowercaseString ?: @""]) a = [self appWithIdentifier:@"dev.isim.safari"];   /* web pages: Safari */
     if (!a) {
         BOOL host = isim_open_url(s.UTF8String);

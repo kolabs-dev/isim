@@ -337,6 +337,11 @@ def _(a):
     a.xcode_project("-project", "HelloStoryboards.xcodeproj", targets=["HelloStoryboards", "HelloStoryboardsClassic"])
 
 
+@app("samples/HelloAppClip")
+def _(a):   # the full app with its App Clip embedded in AppClips/ (the App Clip target is a dependency)
+    a.xcode_project("-project", "HelloAppClip.xcodeproj", targets=["HelloAppClip"])
+
+
 @app("samples/HelloCoreData")
 def _(a):
     a.xcode_project("-project", "HelloCoreData.xcodeproj", targets=["HelloCoreData"])

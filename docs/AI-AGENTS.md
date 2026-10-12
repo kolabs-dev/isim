@@ -86,6 +86,12 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/isim/MyApp.app --head
   waits can be short. `ISIM_WAIT_SCALE=2` doubles every `wait` on a slow machine.
 - End the script with `quit`.
 
+An App Clip runs alone like Xcode runs it, with its invocation URL in `_XCAppClipURL` (it is launched with an
+`NSUserActivity` of type `NSUserActivityTypeBrowsingWeb` for it, no App Clip card):
+`_XCAppClipURL=https://example.com/shop/1 isim run build/isim/MyApp.app/AppClips/MyAppClip.app --headless --script "…"`.
+To see the App Clip card and the whole invocation, `isim install` the App Clip and `isim boot`, then send
+`appclip https://example.com/shop/1` and `tapid appclip-open` (see [SCRIPTING.md](SCRIPTING.md)).
+
 Choose the device and iOS version like a person would: `--device iphonese` (Home button), `--device iphone16pro`
 (Dynamic Island), `--device ipadair11`; `--os 17|18|26|27` (Liquid Glass from 26). Checking a screen on a small
 iPhone, a large one and an iPad catches most layout bugs. `isim devices` lists the presets.

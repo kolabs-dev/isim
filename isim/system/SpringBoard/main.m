@@ -131,6 +131,7 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
         a.name = [b objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: [b objectForInfoDictionaryKey:@"CFBundleName"] ?: n.stringByDeletingPathExtension;
         a.bundleID = info[@"CFBundleIdentifier"] ?: n;
         a.info = info;
+        a.appClip = info[@"NSAppClip"] != nil;
         a.category = system ? @"public.app-category.utilities" : info[@"LSApplicationCategoryType"];
         a.iconPath = HSIconPath(path, info, a.bundleID);
         [out addObject:a];
@@ -309,6 +310,8 @@ static NSString *icon_state_file(void) {
     NSMutableArray *apps = [NSMutableArray array];
     [apps addObjectsFromArray:scan(isim_ui_system_apps_dir(), YES)];
     [apps addObjectsFromArray:scan(isim_ui_installed_apps_dir(), NO)];
+    [self setInstalledAppClips:[apps filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"appClip == YES"]]];
+    [apps filterUsingPredicate:[NSPredicate predicateWithFormat:@"appClip == NO"]];
     _apps = apps;
     NSMutableArray *names = [NSMutableArray array]; for (HSApp *a in apps) [names addObject:a.name];
     if (apps.count <= 12) NSLog(@"SpringBoard: %lu app(s): %@", (unsigned long)apps.count, [names componentsJoinedByString:@", "]);
@@ -598,6 +601,7 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
 
 - (void)launch:(HSApp *)a { [self launch:a url:nil]; }
 - (void)launch:(HSApp *)a url:(NSString *)url {
+    if (a.appClip && !url) url = [self appClipRelaunchURL:a];        /* from the App Library: the last invocation */
     NSLog(@"SpringBoard: launching %@ (%@)%@%@", a.name, a.bundleID, url ? @" with " : @"", url ?: @"");
     isim_shell_request(ISIM_SHELL_LAUNCH, a.path.UTF8String, a.executable.UTF8String, url.UTF8String);
 }

@@ -693,9 +693,29 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
 
 static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), b); }
 
-- (UNAuthorizationStatus)status { return (UNAuthorizationStatus)[NSUserDefaults.standardUserDefaults integerForKey:kAuthKey]; }
-- (UNAuthorizationOptions)grantedOptions { return (UNAuthorizationOptions)[NSUserDefaults.standardUserDefaults integerForKey:kOptsKey]; }
-- (BOOL)authorized { UNAuthorizationStatus s = [self status]; return s == UNAuthorizationStatusAuthorized || s == UNAuthorizationStatusProvisional; }
+/* App Clips (Info.plist NSAppClip > NSAppClipRequestEphemeralUserNotification): notifications are allowed for 8 hours
+   after each launch, without a prompt, unless the person turned the note off on the App Clip card or answered an explicit
+   request. The home screen records the launch and the card's choice in the container (Library/isim/AppClip.plist);
+   ISIM_APPCLIP_EPHEMERAL_SECONDS shortens the 8 hours (28800 s) for tests. */
+static BOOL appclip_ephemeral(void) {
+    NSDictionary *clip = NSBundle.mainBundle.infoDictionary[@"NSAppClip"];
+    if (![clip isKindOfClass:[NSDictionary class]] || ![clip[@"NSAppClipRequestEphemeralUserNotification"] boolValue]) return NO;
+    NSDictionary *st = [NSDictionary dictionaryWithContentsOfFile:[NSHomeDirectory() stringByAppendingPathComponent:@"Library/isim/AppClip.plist"]];
+    if (st[@"notifications"] && ![st[@"notifications"] boolValue]) return NO;
+    double launched = [st[@"lastLaunch"] doubleValue];
+    const char *e = getenv("ISIM_APPCLIP_EPHEMERAL_SECONDS");
+    double window = e && atof(e) > 0 ? atof(e) : 8 * 3600;
+    return launched > 0 && [NSDate date].timeIntervalSince1970 - launched < window;
+}
+- (UNAuthorizationStatus)status {
+    UNAuthorizationStatus s = (UNAuthorizationStatus)[NSUserDefaults.standardUserDefaults integerForKey:kAuthKey];
+    return s == UNAuthorizationStatusNotDetermined && appclip_ephemeral() ? UNAuthorizationStatusEphemeral : s;
+}
+- (UNAuthorizationOptions)grantedOptions {
+    UNAuthorizationOptions o = (UNAuthorizationOptions)[NSUserDefaults.standardUserDefaults integerForKey:kOptsKey];
+    return !o && [self status] == UNAuthorizationStatusEphemeral ? UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge : o;
+}
+- (BOOL)authorized { UNAuthorizationStatus s = [self status]; return s == UNAuthorizationStatusAuthorized || s == UNAuthorizationStatusProvisional || s == UNAuthorizationStatusEphemeral; }
 - (void)setStatus:(UNAuthorizationStatus)s options:(UNAuthorizationOptions)o {
     [NSUserDefaults.standardUserDefaults setInteger:s forKey:kAuthKey];
     [NSUserDefaults.standardUserDefaults setInteger:o forKey:kOptsKey];

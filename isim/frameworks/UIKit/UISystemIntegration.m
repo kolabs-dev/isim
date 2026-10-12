@@ -578,10 +578,30 @@ static NSString *launch_url;
 static UIApplicationShortcutItem *launch_shortcut;
 static NSUserActivity *launch_activity;
 static BOOL launch_parsed, scene_based, launch_finished_yes = YES;
+/* App Clips (Info.plist NSAppClip): each launch is recorded in Library/isim/AppClip.plist (UserNotifications' 8 hours of
+   ephemeral notifications count from it; the home screen adds the invocation). Like Xcode, the _XCAppClipURL variable of
+   a launch without another payload (`isim run Clip.app` with it set) is the invocation URL: the clip is launched with a
+   web-browsing NSUserActivity for it, no App Clip card. */
+static void appclip_launch(BOOL has_payload) {
+    if (!NSBundle.mainBundle.infoDictionary[@"NSAppClip"]) return;
+    NSString *f = [isim_dir() stringByAppendingPathComponent:@"AppClip.plist"];
+    NSMutableDictionary *st = [[NSDictionary dictionaryWithContentsOfFile:f] mutableCopy] ?: [NSMutableDictionary dictionary];
+    st[@"lastLaunch"] = @([NSDate date].timeIntervalSince1970);
+    const char *x = getenv("_XCAppClipURL");
+    NSURL *url = !has_payload && x && *x ? [NSURL URLWithString:@(x)] : nil;
+    if (url) {
+        launch_activity = [[NSUserActivity alloc] initWithActivityType:NSUserActivityTypeBrowsingWeb];
+        launch_activity.webpageURL = url;
+        st[@"invocationURL"] = url.absoluteString; st[@"source"] = @"xcode"; st[@"registered"] = @NO;
+        NSLog(@"isim: App Clip launched with _XCAppClipURL %@ (no App Clip card, like Xcode)", url.absoluteString);
+    }
+    [st writeToFile:f atomically:YES];
+}
 static void parse_launch(void) {
     if (launch_parsed) return;
     launch_parsed = YES;
     const char *u = getenv("ISIM_LAUNCH_URL");
+    appclip_launch(u && *u);
     if (!u || !*u) return;
     NSString *s = @(u);
     if ([s hasPrefix:@"isim-shortcut:"]) launch_shortcut = shortcut_item_of_type([s substringFromIndex:14]);

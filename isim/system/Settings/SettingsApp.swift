@@ -31,6 +31,7 @@ struct KeyboardExtension: Hashable { let id: String, name: String, appName: Stri
     for name in ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted() where name.hasSuffix(".app") {
         let path = (dir as NSString).appendingPathComponent(name)
         guard let info = NSDictionary(contentsOfFile: (path as NSString).appendingPathComponent("Info.plist")) as? [String: Any] else { continue }
+        if info["NSAppClip"] != nil { continue }                  // App Clips are not listed with the apps (iOS: Settings > App Clips)
         let b = Bundle(path: path)
         let display = b?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? b?.object(forInfoDictionaryKey: "CFBundleName") as? String
             ?? (name as NSString).deletingPathExtension
@@ -71,6 +72,7 @@ enum Route: Hashable {
     case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter, homeScreen
     case app(String), appKeyboards(String), appPaste(String)
     case passwords, pencil
+    case developer, localExperiences, registerExperience                                   // DeveloperSettings.swift
     case privacy, privacyService(String), appPermission(String, String), notifications, appNotifications(String)   // PrivacySettings.swift
     case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
 }
@@ -136,6 +138,10 @@ struct RootView: View {
                             .accessibilityIdentifier("settings-pencil")
                     }
                 }
+                Section {
+                    NavigationLink(value: Route.developer) { Label { Text("Developer") } icon: { SettingsIcon(symbol: "hammer.fill", color: .gray) } }
+                        .accessibilityIdentifier("settings-developer")
+                }
                 let apps = installedApps()
                 if !apps.isEmpty {
                     Section("Apps") {
@@ -184,6 +190,9 @@ struct RootView: View {
         case .appPaste(let id): PasteAccessView(id: id)
         case .passwords: PasswordsView()
         case .pencil: PencilView()
+        case .developer: DeveloperView()
+        case .localExperiences: LocalExperiencesView()
+        case .registerExperience: RegisterExperienceView()
         case .privacy: PrivacyView()
         case .privacyService(let id): PrivacyServiceView(id: id)
         case .appPermission(let app, let service): AppPermissionView(appID: app, serviceID: service)
