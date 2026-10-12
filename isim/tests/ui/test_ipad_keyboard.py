@@ -124,7 +124,7 @@ def test_ipad_keyboard_typing(launch, ios):
 
 @pytest.mark.os_matrix
 def test_ipad_status_bar_date(launch, ios):
-    """iPadOS shows the date right of the time ("9:41 Mon Jun 10"); iPhones only the time."""
+    """iPadOS shows the date right of the time ("9:41 AM Mon Jun 10" with the 12-hour clock); iPhones only the time."""
     app = launch("HelloKeyboardTypes", device="ipadpro11", os_version=ipad_os(ios))
     ink = lambda c: max(c) < 120                           # the dark status bar text over the white app
     img = app.wait_shot(lambda s: count_px(s, (20, 4, 30, 16), ink) > 10, "the time drawn")

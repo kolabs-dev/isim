@@ -1024,8 +1024,9 @@ static void draw_status_bar(int style, const double *fg) {
         load_clock_prefs();
         time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
         if (clock_prefs.hour24) snprintf(left, sizeof left, "%02d:%02d", tm.tm_hour, tm.tm_min);
-        else snprintf(left, sizeof left, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
-        if (pad) {                         /* "9:41  Mon Jun 10": short weekday, short month, day (English names) */
+        else snprintf(left, sizeof left, "%d:%02d%s", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min,
+                      pad ? (tm.tm_hour < 12 ? " AM" : " PM") : "");   /* iPadOS keeps AM / PM; iPhones drop it */
+        if (pad) {                         /* "9:41 AM  Mon Jun 10": short weekday, short month, day (English names) */
             static const char *wd[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
             static const char *mo[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
             snprintf(date, sizeof date, "%s %s %d", wd[tm.tm_wday % 7], mo[tm.tm_mon % 12], tm.tm_mday);
