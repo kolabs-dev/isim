@@ -37,9 +37,8 @@ static void unref(int b) {
 struct astream { int used, paused; double volume; float *ring; long rd, wr; /* frame counters */ };
 static struct astream streams[MAX_STREAMS];
 
-static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total) {
-    int frames = additional / (int)(2 * sizeof(float));
-    if (frames <= 0) return;
+/* mixes `frames` frames of every stream and voice into mixbuf (device volume and soft clip applied) */
+static void mix(int frames) {
     if (frames * 2 > mixcap) { mixcap = frames * 2; mixbuf = realloc(mixbuf, mixcap * sizeof(float)); }
     memset(mixbuf, 0, frames * 2 * sizeof(float));
     SDL_LockMutex(mtx);
@@ -90,8 +89,31 @@ static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total
         if (x > 1.f) x = 1.f; else if (x < -1.f) x = -1.f;
         mixbuf[i] = x;
     }
+}
+static void SDLCALL feed(void *ud, SDL_AudioStream *s, int additional, int total) {
+    int frames = additional / (int)(2 * sizeof(float));
+    if (frames <= 0) return;
+    mix(frames);
     SDL_PutAudioStreamData(s, mixbuf, frames * 2 * (int)sizeof(float));
     if (tap) fwrite(mixbuf, sizeof(float), (size_t)frames * 2, tap);
+}
+
+/* Without an audio device (headless runs, ISIM_MUTE, no sound card) voices still play in time, silently: a clock
+   thread mixes into nothing, so players advance, finish and call back as they would with sound. */
+static int clock_on;
+static int SDLCALL clock_thread(void *ud) {
+    Uint64 t0 = SDL_GetTicksNS(), done = 0;
+    for (;;) {
+        SDL_Delay(10);
+        Uint64 due = (SDL_GetTicksNS() - t0) * OUT_RATE / 1000000000ull;
+        if (due > done) { mix((int)(due - done)); done = due; }
+    }
+    return 0;
+}
+static int ensure_clock(void) {
+    if (!mtx) mtx = SDL_CreateMutex();
+    if (!clock_on) { clock_on = 1; SDL_DetachThread(SDL_CreateThread(clock_thread, "isim-audio-clock", NULL)); }
+    return 1;
 }
 
 double isim_device_volume(void);
@@ -139,7 +161,7 @@ void isim_audio_buffer_release(int b) { if (!mtx) return; SDL_LockMutex(mtx); un
 
 /* Returns a voice handle (> 0): index + generation, so stale handles are ignored. loops: 0 = once, n = n extra, -1 = forever. */
 long isim_audio_play(int b, double volume, int loops) {
-    if (!ensure_open() || b <= 0 || b >= MAX_BUFS) return 0;
+    if (b <= 0 || b >= MAX_BUFS || (!ensure_open() && !ensure_clock())) return 0;
     SDL_LockMutex(mtx);
     long h = 0;
     if (bufs[b].pcm) {
