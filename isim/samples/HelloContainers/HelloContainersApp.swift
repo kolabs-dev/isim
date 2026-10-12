@@ -25,7 +25,7 @@ struct Root: View {
         case "scroll": ScrollPage()
         case "spacing": SpacingPage()
         case "spaces": SpacesPage()
-        case "subviews": SubviewsPage()
+        case "subviews": if #available(iOS 18.0, *) { SubviewsPage() } else { Text("iOS 18") }
         case "insets": InsetsPage()
         case "crf": RelativeFramePage()
         case "reorder": if #available(iOS 27.0, *) { ReorderPage() } else { Text("iOS 27") }
@@ -251,11 +251,13 @@ struct SpacesPage: View {
 
 // MARK: - Custom containers (iOS 18): Group(subviews:), ForEach(sections:), container values, @Entry
 
+@available(iOS 18.0, *)
 extension ContainerValues { @Entry var cardTint: Color = .gray }
 extension EnvironmentValues { @Entry var greeting: String = "Hello" }
 extension Transaction { @Entry var origin: String = "unknown" }
 
 /// Lays its content out as cards: a count, each view on a tinted card (its cardTint), the first one again in big type.
+@available(iOS 18.0, *)
 struct CardStack<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
@@ -273,6 +275,7 @@ struct CardStack<Content: View>: View {
     }
 }
 /// Each section of its content: the header in bold, the items, how many there were.
+@available(iOS 18.0, *)
 struct SectionSummary<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
@@ -304,6 +307,7 @@ struct Ring: Shape {
     }
 }
 
+@available(iOS 18.0, *)
 struct SubviewsPage: View {
     @State private var flag = false
     var body: some View {

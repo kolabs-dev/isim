@@ -56,7 +56,8 @@ extension Product {
             public static let introductory = OfferType(rawValue: 1)
             public static let promotional = OfferType(rawValue: 2)
             public static let code = OfferType(rawValue: 3)
-            public static let winBack = OfferType(rawValue: 4)
+            @available(iOS 18.0, *) public static let winBack = OfferType(rawValue: 4)
+            static let _winBack = OfferType(rawValue: 4)     // winBack, for isim's own code
             public var localizedDescription: String { ["", "Introductory", "Promotional", "Offer Code", "Win-Back"][min(max(rawValue, 0), 4)] }
         }
         public struct PaymentMode: RawRepresentable, Hashable, Sendable {
@@ -234,7 +235,7 @@ struct _SKConfig {
                         it.period = Product.SubscriptionPeriod(iso: p["recurringSubscriptionPeriod"] as? String) ?? .monthly
                         it.intro = (p["introductoryOffer"] as? [String: Any]).flatMap { offer($0, .introductory) }
                         it.promos = (p["adHocOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, .promotional) }
-                        it.winBacks = (p["winbackOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, .winBack) }
+                        it.winBacks = (p["winbackOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, ._winBack) }
                         it.codes = (p["codeOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, .code) }
                     } else {
                         it.codes = (p["codeOffers"] as? [[String: Any]] ?? []).compactMap { offer($0, .code, oneTime: true) }
@@ -723,7 +724,8 @@ public struct Product: Identifiable, Hashable, Sendable {
             PurchaseOption(kind: .promo(offerID, keyID: keyID, nonce: nonce, signature: signature, timestamp: timestamp))
         }
         public static func promotionalOffer(_ offerID: String, compactJWS: String) -> PurchaseOption { PurchaseOption(kind: .promoJWS(offerID, compactJWS)) }
-        public static func winBackOffer(_ offer: Product.SubscriptionOffer) -> PurchaseOption { PurchaseOption(kind: .winBack(offer.id ?? "")) }
+        @available(iOS 18.0, *) public static func winBackOffer(_ offer: Product.SubscriptionOffer) -> PurchaseOption { _winBackOffer(offer) }
+        static func _winBackOffer(_ offer: Product.SubscriptionOffer) -> PurchaseOption { PurchaseOption(kind: .winBack(offer.id ?? "")) }
         public static func introductoryOfferEligibility(compactJWS: String) -> PurchaseOption { PurchaseOption(kind: .introEligibility) }
         public static func simulatesAskToBuyInSandbox(_ value: Bool) -> PurchaseOption { PurchaseOption(kind: .simulatesAskToBuy(value)) }
         public static func custom(key: String, value: String) -> PurchaseOption { PurchaseOption(kind: .custom(key)) }
@@ -745,7 +747,7 @@ public struct Product: Identifiable, Hashable, Sendable {
         id = i.id; type = i.type; displayName = i.name; description = i.description; price = i.price; displayPrice = i.displayPrice
         isFamilyShareable = i.familyShareable
         if let g = i.groupID, let p = i.period {
-            subscription = SubscriptionInfo(introductoryOffer: i.intro?.offer, promotionalOffers: i.promos.map { $0.offer }, winBackOffers: i.winBacks.map { $0.offer },
+            subscription = SubscriptionInfo(introductoryOffer: i.intro?.offer, promotionalOffers: i.promos.map { $0.offer }, _winBackOffers: i.winBacks.map { $0.offer },
                                             subscriptionGroupID: g, subscriptionPeriod: p, groupLevel: i.groupLevel, groupDisplayName: i.groupName ?? g)
         } else { subscription = nil }
     }
@@ -837,7 +839,8 @@ public struct Product: Identifiable, Hashable, Sendable {
     public struct SubscriptionInfo: Hashable, Sendable {
         public let introductoryOffer: SubscriptionOffer?
         public let promotionalOffers: [SubscriptionOffer]
-        public let winBackOffers: [SubscriptionOffer]
+        let _winBackOffers: [SubscriptionOffer]
+        @available(iOS 18.0, *) public var winBackOffers: [SubscriptionOffer] { _winBackOffers }
         public let subscriptionGroupID: String
         public let subscriptionPeriod: SubscriptionPeriod
         public let groupLevel: Int
@@ -1004,7 +1007,7 @@ public struct Transaction: Identifiable, Hashable, Sendable {
         public static let introductory = OfferType(rawValue: 1)
         public static let promotional = OfferType(rawValue: 2)
         public static let code = OfferType(rawValue: 3)
-        public static let winBack = OfferType(rawValue: 4)
+        @available(iOS 18.0, *) public static let winBack = OfferType(rawValue: 4)
     }
     public struct RevocationReason: RawRepresentable, Hashable, Sendable {
         public let rawValue: Int
@@ -1105,7 +1108,7 @@ public struct Transaction: Identifiable, Hashable, Sendable {
         _SKUpdates.start(); _SKLedger.shared.tick()
         return Transactions(_SKLedger.shared.entitlements())
     }
-    public static func currentEntitlements(for productID: String) -> Transactions {
+    @available(iOS 18.4, *) public static func currentEntitlements(for productID: String) -> Transactions {
         _SKUpdates.start(); _SKLedger.shared.tick()
         return Transactions(_SKLedger.shared.entitlements().filter { $0.productID == productID })
     }
