@@ -81,13 +81,13 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Data & persistence | 23 | 0 | 0 | 0 | 23 | 100% |
 | Identity & security | 9 | 2 | 2 | 0 | 13 | 77% |
 | Notifications & background work | 8 | 3 | 0 | 1 | 12 | 79% |
-| App extensions & system integration | 3 | 3 | 0 | 3 | 9 | 50% |
+| App extensions & system integration | 9 | 0 | 0 | 0 | 9 | 100% |
 | Location & maps | 2 | 5 | 0 | 0 | 7 | 64% |
 | Personal data & device sensors | 6 | 0 | 0 | 0 | 6 | 100% |
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **903** | **84** | **18** | **88** | **1093** | **86%** |
+| **All areas** | **909** | **81** | **18** | **85** | **1093** | **87%** |
 
 ### Per iOS version
 
@@ -115,13 +115,13 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Data & persistence | 100% (23) | 100% (23) | 100% (23) | 100% (23) |
 | Identity & security | 77% (13) | 77% (13) | 77% (13) | 77% (13) |
 | Notifications & background work | 79% (12) | 79% (12) | 79% (12) | 79% (12) |
-| App extensions & system integration | 50% (9) | 50% (9) | 50% (9) | 50% (9) |
+| App extensions & system integration | 100% (9) | 100% (9) | 100% (9) | 100% (9) |
 | Location & maps | 64% (7) | 64% (7) | 64% (7) | 64% (7) |
 | Personal data & device sensors | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
-| **All areas** | **86%** (1030) | **86%** (1045) | **86%** (1072) | **86%** (1093) |
+| **All areas** | **87%** (1030) | **87%** (1045) | **87%** (1072) | **87%** (1093) |
 
 ---
 
