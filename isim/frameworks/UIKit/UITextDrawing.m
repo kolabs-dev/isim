@@ -23,6 +23,13 @@ NSAttributedStringKey const NSUnderlineColorAttributeName = @"NSUnderlineColor";
 NSAttributedStringKey const NSStrikethroughColorAttributeName = @"NSStrikethroughColor";
 NSAttributedStringKey const NSObliquenessAttributeName = @"NSObliqueness";
 NSAttributedStringKey const NSExpansionAttributeName = @"NSExpansion";
+NSAttributedStringKey const NSTextHighlightStyleAttributeName = @"NSTextHighlightStyle";
+NSAttributedStringKey const NSTextHighlightColorSchemeAttributeName = @"NSTextHighlightColorScheme";
+NSAttributedStringTextHighlightStyle const NSTextHighlightStyleDefault = @"NSTextHighlightStyleDefault";
+NSAttributedStringTextHighlightColorScheme const NSTextHighlightColorSchemeDefault = @"NSTextHighlightColorSchemeDefault",
+    NSTextHighlightColorSchemePurple = @"NSTextHighlightColorSchemePurple", NSTextHighlightColorSchemePink = @"NSTextHighlightColorSchemePink",
+    NSTextHighlightColorSchemeOrange = @"NSTextHighlightColorSchemeOrange", NSTextHighlightColorSchemeMint = @"NSTextHighlightColorSchemeMint",
+    NSTextHighlightColorSchemeBlue = @"NSTextHighlightColorSchemeBlue";
 
 /* ================= paragraph style, shadow ================= */
 @interface NSParagraphStyle () {

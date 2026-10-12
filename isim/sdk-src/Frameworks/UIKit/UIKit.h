@@ -112,3 +112,5 @@
 #import <UIKit/UIConfigurationExtras.h>
 #import <UIKit/UIMenuSystem.h>
 #import <UIKit/UIFocus.h>
+#import <UIKit/UIResponderExtras.h>
+#import <UIKit/UIKeyboardExtras.h>

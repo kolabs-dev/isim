@@ -82,7 +82,7 @@ __attribute__((constructor)) static void watch_power(void) {
 - (BOOL)isProtectedDataAvailable { return !protected_unavailable; }
 - (BOOL)applicationSupportsShakeToEdit { return !shake_to_edit_off; }
 - (void)setApplicationSupportsShakeToEdit:(BOOL)b { shake_to_edit_off = !b; }
-- (void)beginReceivingRemoteControlEvents { if (!remote_events) NSLog(@"isim: receiving remote control events"); remote_events = YES; }
+- (void)beginReceivingRemoteControlEvents { if (!remote_events) NSLog(@"isim: receiving remote control events"); remote_events = YES; isim_ui_remote_events_started(); }
 - (void)endReceivingRemoteControlEvents { if (remote_events) NSLog(@"isim: no longer receiving remote control events"); remote_events = NO; }
 /* adapted: the system prefers reduced resource usage in Low Power Mode */
 - (BOOL)systemPrefersReducedResourceUsage { return NSProcessInfo.processInfo.lowPowerModeEnabled; }
@@ -445,3 +445,4 @@ static char k_aspect, k_resize;
 - (BOOL)canResizeToFitContent { return [objc_getAssociatedObject(self, &k_resize) boolValue]; }
 - (void)setCanResizeToFitContent:(BOOL)b { objc_setAssociatedObject(self, &k_resize, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end
+BOOL isim_ui_receiving_remote_events(void) { return remote_events; }

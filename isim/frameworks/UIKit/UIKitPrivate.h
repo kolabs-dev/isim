@@ -284,7 +284,16 @@ BOOL isim_ui_main_menu_key(NSString *base, NSString *characters, UIKeyModifierFl
 void isim_ui_main_menu_modifier(UIKeyModifierFlags flag, BOOL down, BOOL otherKey);
 void isim_ui_main_menu_event(NSString *args);
 UIResponder *_Nullable isim_ui_focus_responder(void);
-BOOL isim_ui_focus_key(int hid, UIKeyModifierFlags mods);        /* UIFocus.m: Tab, arrows, Return / Space on iPad */
+BOOL isim_ui_focus_key(int hid, UIKeyModifierFlags mods);
+/* responder members (UIResponderExtras.m) and the keyboard (UIKeyboard.m) */
+id _Nullable isim_ui_keyboard_target(void);
+NSString *isim_ui_keyboard_current_language(void);
+void isim_ui_keyboard_reload(id responder);
+void isim_ui_keyboard_assistant_changed(void);
+NSString *_Nullable isim_ui_keyboard_for_context(NSString *_Nullable identifier);
+void isim_ui_keyboard_remember_context(NSString *_Nullable identifier, NSString *_Nullable keyboard);
+BOOL isim_ui_receiving_remote_events(void);
+void isim_ui_remote_events_started(void);        /* UIFocus.m: Tab, arrows, Return / Space on iPad */
 UIView *_Nullable isim_ui_focused_view(void);
 @interface UICommand (IsimPrivate)
 - (void)_isim_setAction:(SEL)action propertyList:(nullable id)plist alternates:(nullable NSArray *)alternates;

@@ -1314,7 +1314,7 @@ static int script_step(struct isim_event *ev) {
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
     } else if ((!strcmp(cmd, "keydown") || !strcmp(cmd, "keyup")) && sscanf(args, " %63[^; ]", arg) == 1) {
         /* hardware key press/release by name (GameController's GCKeyboard): a-z, 0-9, space, return, escape, tab,
-           backspace, up, down, left, right, home, end, pageup, pagedown, shift, ctrl, alt, cmd. pad = USB HID usage, key = SDL keycode */
+           backspace, up, down, left, right, home, end, pageup, pagedown, f1-f12, shift, ctrl, alt, cmd. pad = USB HID usage, key = SDL keycode */
         static const struct { const char *n; int hid, key; } names[] = {
             { "space", 44, ' ' }, { "return", 40, 13 }, { "escape", 41, 27 }, { "tab", 43, 9 }, { "backspace", 42, 8 },
             { "right", 79, 0x4000004f }, { "left", 80, 0x40000050 }, { "down", 81, 0x40000051 }, { "up", 82, 0x40000052 },
@@ -1324,6 +1324,7 @@ static int script_step(struct isim_event *ev) {
         if (!arg[1] && arg[0] >= 'a' && arg[0] <= 'z') { hid = 4 + arg[0] - 'a'; key = arg[0]; }
         else if (!arg[1] && arg[0] >= '1' && arg[0] <= '9') { hid = 30 + arg[0] - '1'; key = arg[0]; }
         else if (!strcmp(arg, "0")) { hid = 39; key = '0'; }
+        else if ((arg[0] == 'f' || arg[0] == 'F') && atoi(arg + 1) >= 1 && atoi(arg + 1) <= 12) { hid = 0x3A + atoi(arg + 1) - 1; key = 0x4000003A + atoi(arg + 1) - 1; }
         else for (size_t i = 0; i < sizeof names / sizeof *names; i++) if (!strcmp(arg, names[i].n)) { hid = names[i].hid; key = names[i].key; }
         if (hid) pending[npending++] = (struct isim_event){ .type = cmd[3] == 'd' ? EV_KEY : EV_KEY_UP, .pad = hid, .key = key };
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);

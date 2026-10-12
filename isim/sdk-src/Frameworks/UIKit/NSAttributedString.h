@@ -26,6 +26,14 @@ UIKIT_EXTERN NSAttributedStringKey const NSUnderlineColorAttributeName;
 UIKIT_EXTERN NSAttributedStringKey const NSStrikethroughColorAttributeName;
 UIKIT_EXTERN NSAttributedStringKey const NSObliquenessAttributeName;
 UIKIT_EXTERN NSAttributedStringKey const NSExpansionAttributeName;
+/* text highlights (iOS 18): text views draw a rounded background behind the range, in the colour scheme's colour */
+UIKIT_EXTERN NSAttributedStringKey const NSTextHighlightStyleAttributeName API_AVAILABLE(ios(18.0));
+UIKIT_EXTERN NSAttributedStringKey const NSTextHighlightColorSchemeAttributeName API_AVAILABLE(ios(18.0));
+typedef NSString *NSAttributedStringTextHighlightStyle NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(NSAttributedString.TextHighlightStyle) API_AVAILABLE(ios(18.0));
+typedef NSString *NSAttributedStringTextHighlightColorScheme NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(NSAttributedString.TextHighlightColorScheme) API_AVAILABLE(ios(18.0));
+UIKIT_EXTERN NSAttributedStringTextHighlightStyle const NSTextHighlightStyleDefault API_AVAILABLE(ios(18.0));
+UIKIT_EXTERN NSAttributedStringTextHighlightColorScheme const NSTextHighlightColorSchemeDefault, NSTextHighlightColorSchemePurple, NSTextHighlightColorSchemePink,
+    NSTextHighlightColorSchemeOrange, NSTextHighlightColorSchemeMint, NSTextHighlightColorSchemeBlue API_AVAILABLE(ios(18.0));
 
 typedef NS_OPTIONS(NSInteger, NSUnderlineStyle) {
     NSUnderlineStyleNone = 0x00, NSUnderlineStyleSingle = 0x01, NSUnderlineStyleThick = 0x02, NSUnderlineStyleDouble = 0x09,

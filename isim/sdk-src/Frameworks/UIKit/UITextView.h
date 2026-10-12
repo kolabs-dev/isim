@@ -14,6 +14,7 @@ typedef NS_OPTIONS(NSUInteger, UIDataDetectorTypes) {
     UIDataDetectorTypePhoneNumber = 1 << 0, UIDataDetectorTypeLink = 1 << 1, UIDataDetectorTypeAddress = 1 << 2,
     UIDataDetectorTypeCalendarEvent = 1 << 3, UIDataDetectorTypeShipmentTrackingNumber = 1 << 4,
     UIDataDetectorTypeFlightNumber = 1 << 5, UIDataDetectorTypeLookupSuggestion = 1 << 6,
+    UIDataDetectorTypeMoney API_AVAILABLE(ios(16.0)) = 1 << 7, UIDataDetectorTypePhysicalValue API_AVAILABLE(ios(16.0)) = 1 << 8,
     UIDataDetectorTypeNone = 0, UIDataDetectorTypeAll = NSUIntegerMax
 };
 
@@ -55,6 +56,7 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)textView:(UITextView *)textView shouldInteractWithURL:(NSURL *)URL inRange:(NSRange)characterRange;
 @end
 
+typedef NS_ENUM(NSInteger, UITextViewBorderStyle) { UITextViewBorderStyleNone = 0, UITextViewBorderStyleRoundedRect } NS_SWIFT_NAME(UITextView.BorderStyle) API_AVAILABLE(ios(17.0));
 NS_SWIFT_UI_ACTOR
 @interface UITextView : UIScrollView <UITextInput, UILetterformAwareAdjusting>
 - (instancetype)initWithFrame:(CGRect)frame;
@@ -96,6 +98,14 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly, strong) NSTextStorage *textStorage;
 @property (nullable, nonatomic, readonly) NSTextLayoutManager *textLayoutManager API_AVAILABLE(ios(16.0));
 @property (nonatomic) BOOL usesStandardTextScaling API_AVAILABLE(ios(13.0));   /* stored (a Mac idiom setting) */
+/* a rounded border like a text field's */
+@property (nonatomic) UITextViewBorderStyle borderStyle API_AVAILABLE(ios(17.0));
+/* text highlights (NSTextHighlightStyleAttributeName): the attributes they are drawn with (a background colour; nil:
+   the colour scheme's), and the drawing of one highlighted range, which subclasses may change */
+@property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *textHighlightAttributes API_AVAILABLE(ios(18.0));
+- (void)drawTextHighlightBackgroundForTextRange:(UITextRange *)textRange origin:(CGPoint)origin API_AVAILABLE(ios(18.0));
+/* iOS 26 multiple selection (adapted: isim's text views keep one selection, the first range) */
+@property (nonatomic, copy) NSArray<NSValue *> *selectedRanges NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(26.0));
 @end
 
 /* iOS 27: keep attachment view providers (and their views) instead of recreating them when they scroll out of the

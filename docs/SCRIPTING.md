@@ -97,7 +97,7 @@ extension's view is drawn at the top of the card.
 |---|---|
 | `type TEXT` | type text into the focused field |
 | `key NAME` | press a key: `backspace`, `return`, `tab`, `escape`, arrows, letters, digits, … |
-| `keydown NAME` / `keyup NAME` | press or release a hardware key (for `pressesBegan`, `GCKeyboard`): letters, digits, `space`, `return`, `escape`, `tab`, `backspace`, arrows (`up`, `down`, `left`, `right`), `home`, `end`, `pageup`, `pagedown`, modifiers (`shift`, `ctrl`, `alt`, `cmd`). A key nobody handles scrolls the main scroll view (`allowsKeyboardScrolling`) |
+| `keydown NAME` / `keyup NAME` | press or release a hardware key (for `pressesBegan`, `GCKeyboard`): letters, digits, `space`, `return`, `escape`, `tab`, `backspace`, arrows (`up`, `down`, `left`, `right`), `home`, `end`, `pageup`, `pagedown`, `f1`…`f12`, modifiers (`shift`, `ctrl`, `alt`, `cmd`). A key nobody handles scrolls the main scroll view (`allowsKeyboardScrolling`) |
 | `compose TEXT` | marked (composing) text, as from an input method |
 | `dictate TEXT` · `dictate fail` | dictation: TEXT is what was said into the keyboard's mic (it starts listening if needed; "comma", "period", "new line", … become punctuation); `fail` reports a recognition failure |
 | `scribble X Y TEXT` | Scribble (iPad): handwrite TEXT with Apple Pencil at (X, Y), into the text input there |

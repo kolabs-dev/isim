@@ -57,7 +57,8 @@ UITextContentType const UITextContentTypeName = @"name", UITextContentTypeNamePr
     UITextContentTypeCreditCardGivenName = @"cc-given-name", UITextContentTypeCreditCardMiddleName = @"cc-additional-name",
     UITextContentTypeCreditCardFamilyName = @"cc-family-name", UITextContentTypeCreditCardExpiration = @"cc-exp",
     UITextContentTypeCreditCardExpirationMonth = @"cc-exp-month", UITextContentTypeCreditCardExpirationYear = @"cc-exp-year",
-    UITextContentTypeCreditCardType = @"cc-type", UITextContentTypeCellularEID = @"cellular-eid", UITextContentTypeCellularIMEI = @"cellular-imei";
+    UITextContentTypeCreditCardType = @"cc-type", UITextContentTypeCellularEID = @"cellular-eid", UITextContentTypeCellularIMEI = @"cellular-imei",
+    UITextContentTypeCellularIMEI1 = @"cellular-imei1", UITextContentTypeCellularIMEI2 = @"cellular-imei2", UITextContentTypeCellularNAL = @"cellular-nal";
 
 @implementation UITextInputPasswordRules
 + (instancetype)passwordRulesWithDescriptor:(NSString *)d {
@@ -544,6 +545,7 @@ void isim_ui_text_service(NSString *command) {
 + (instancetype)configurationWithMenu:(UIMenu *)menu { UITextItemMenuConfiguration *c = [super new]; c->_menu = menu; return c; }
 @end
 
+static NSString *query_escape(NSString *s);
 NSArray<NSTextCheckingResult *> *isim_ui_detect_items(NSString *text, UIDataDetectorTypes types) {
     NSTextCheckingTypes t = 0;
     if (types & UIDataDetectorTypeLink) t |= NSTextCheckingTypeLink;
@@ -561,6 +563,18 @@ NSArray<NSTextCheckingResult *> *isim_ui_detect_items(NSString *text, UIDataDete
             for (NSTextCheckingResult *m in [[NSRegularExpression regularExpressionWithPattern:pattern options:0 error:NULL] matchesInString:text options:0 range:NSMakeRange(0, text.length)])
                 [found addObject:[NSTextCheckingResult linkCheckingResultWithRange:m.range URL:[NSURL URLWithString:[carriers[pattern] stringByAppendingString:[text substringWithRange:m.range]]]]];
     }
+    /* money (a currency sign or code next to an amount) and physical values (an amount and a unit); iOS offers
+       conversions in their menu: isim opens a data detector URL with the value */
+    NSDictionary *kinds = @{};
+    if (types & UIDataDetectorTypeMoney) kinds = @{ @"money": @"(?:[$€£¥₹]\\s?\\d[\\d,]*(?:\\.\\d+)?|\\b\\d[\\d,]*(?:\\.\\d+)?\\s?(?:USD|EUR|GBP|JPY|CHF|CAD|AUD|dollars?|euros?)\\b)" };
+    if (types & UIDataDetectorTypePhysicalValue) {
+        NSMutableDictionary *k = [kinds mutableCopy];
+        k[@"physical-value"] = @"\\b\\d+(?:\\.\\d+)?\\s?(?:°[CF]|km|mi|miles?|m|cm|mm|ft|feet|in|inches|kg|g|lbs?|oz|L|ml|mph|km/h)(?![A-Za-z])";
+        kinds = k;
+    }
+    for (NSString *kind in kinds)
+        for (NSTextCheckingResult *m in [[NSRegularExpression regularExpressionWithPattern:kinds[kind] options:0 error:NULL] matchesInString:text options:0 range:NSMakeRange(0, text.length)])
+            [found addObject:[NSTextCheckingResult linkCheckingResultWithRange:m.range URL:[NSURL URLWithString:[NSString stringWithFormat:@"x-apple-data-detectors://%@/%@", kind, query_escape([text substringWithRange:m.range])]]]];
     /* (.lookupSuggestion: isim has no Look Up service, so nothing is suggested) */
     [found sortUsingComparator:^NSComparisonResult(NSTextCheckingResult *a, NSTextCheckingResult *b) {
         return a.range.location < b.range.location ? NSOrderedAscending : a.range.location > b.range.location ? NSOrderedDescending : NSOrderedSame; }];

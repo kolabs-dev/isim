@@ -1250,3 +1250,27 @@ public struct UIConfigurationStateCustomKey: Hashable, RawRepresentable, Sendabl
     public init(rawValue: String) { self.rawValue = rawValue }
     public init(_ rawValue: String) { self.rawValue = rawValue }
 }
+
+// MARK: - UITextView multiple selection (iOS 26; isim keeps one range)
+@available(iOS 26.0, *)
+extension UITextView {
+    public var selectedRanges: [NSRange] {
+        get { __selectedRanges.map { $0.rangeValue } }
+        set { __selectedRanges = newValue.map { NSValue(range: $0) } }
+    }
+}
+
+// MARK: - Text highlights (iOS 18): the style and colour scheme values (nested in NSAttributedString's types)
+@available(iOS 18.0, *)
+extension NSAttributedString.TextHighlightStyle {
+    public static var `default`: Self { Self(rawValue: "NSTextHighlightStyleDefault") }
+}
+@available(iOS 18.0, *)
+extension NSAttributedString.TextHighlightColorScheme {
+    public static var `default`: Self { Self(rawValue: "NSTextHighlightColorSchemeDefault") }
+    public static var purple: Self { Self(rawValue: "NSTextHighlightColorSchemePurple") }
+    public static var pink: Self { Self(rawValue: "NSTextHighlightColorSchemePink") }
+    public static var orange: Self { Self(rawValue: "NSTextHighlightColorSchemeOrange") }
+    public static var mint: Self { Self(rawValue: "NSTextHighlightColorSchemeMint") }
+    public static var blue: Self { Self(rawValue: "NSTextHighlightColorSchemeBlue") }
+}

@@ -34,7 +34,88 @@ typedef NS_ENUM(NSInteger, UIKeyboardHIDUsage) {
     UIKeyboardHIDUsageKeyboardLeftArrow = 0x50, UIKeyboardHIDUsageKeyboardDownArrow = 0x51, UIKeyboardHIDUsageKeyboardUpArrow = 0x52,
     UIKeyboardHIDUsageKeyboardLeftControl = 0xE0, UIKeyboardHIDUsageKeyboardLeftShift = 0xE1, UIKeyboardHIDUsageKeyboardLeftAlt = 0xE2,
     UIKeyboardHIDUsageKeyboardLeftGUI = 0xE3, UIKeyboardHIDUsageKeyboardRightControl = 0xE4, UIKeyboardHIDUsageKeyboardRightShift = 0xE5,
-    UIKeyboardHIDUsageKeyboardRightAlt = 0xE6, UIKeyboardHIDUsageKeyboardRightGUI = 0xE7 };
+    UIKeyboardHIDUsageKeyboardRightAlt = 0xE6, UIKeyboardHIDUsageKeyboardRightGUI = 0xE7,
+    /* the rest of the USB HID keyboard page (hardware key events carry their usage) */
+    UIKeyboardHIDUsageKeyboardNonUSBackslash = 0x64,
+    UIKeyboardHIDUsageKeyboardNonUSPound = 0x32,
+    UIKeyboardHIDUsageKeyboardSeparator = 0x9F,
+    UIKeyboardHIDUsageKeyboardLockingCapsLock = 0x82,
+    UIKeyboardHIDUsageKeyboardLockingNumLock = 0x83,
+    UIKeyboardHIDUsageKeyboardLockingScrollLock = 0x84,
+    UIKeyboardHIDUsageKeyboardScrollLock = 0x47,
+    UIKeyboardHIDUsageKeyboardInsert = 0x49,
+    UIKeyboardHIDUsageKeyboardReturn = 0x9E,
+    UIKeyboardHIDUsageKeyboardF13 = 0x68,
+    UIKeyboardHIDUsageKeyboardF14 = 0x69,
+    UIKeyboardHIDUsageKeyboardF15 = 0x6A,
+    UIKeyboardHIDUsageKeyboardF16 = 0x6B,
+    UIKeyboardHIDUsageKeyboardF17 = 0x6C,
+    UIKeyboardHIDUsageKeyboardF18 = 0x6D,
+    UIKeyboardHIDUsageKeyboardF19 = 0x6E,
+    UIKeyboardHIDUsageKeyboardF20 = 0x6F,
+    UIKeyboardHIDUsageKeyboardF21 = 0x70,
+    UIKeyboardHIDUsageKeyboardF22 = 0x71,
+    UIKeyboardHIDUsageKeyboardF23 = 0x72,
+    UIKeyboardHIDUsageKeyboardF24 = 0x73,
+    UIKeyboardHIDUsageKeypadComma = 0x85,
+    UIKeyboardHIDUsageKeypadEqualSignAS400 = 0x86,
+    UIKeyboardHIDUsageKeyboardPause = 0x48,
+    UIKeyboardHIDUsageKeyboardStop = 0x78,
+    UIKeyboardHIDUsageKeyboardMute = 0x7F,
+    UIKeyboardHIDUsageKeyboardVolumeUp = 0x80,
+    UIKeyboardHIDUsageKeyboardVolumeDown = 0x81,
+    UIKeyboardHIDUsageKeyboardLANG1 = 0x90,
+    UIKeyboardHIDUsageKeyboardLANG2 = 0x91,
+    UIKeyboardHIDUsageKeyboardLANG3 = 0x92,
+    UIKeyboardHIDUsageKeyboardLANG4 = 0x93,
+    UIKeyboardHIDUsageKeyboardLANG5 = 0x94,
+    UIKeyboardHIDUsageKeyboardLANG6 = 0x95,
+    UIKeyboardHIDUsageKeyboardLANG7 = 0x96,
+    UIKeyboardHIDUsageKeyboardLANG8 = 0x97,
+    UIKeyboardHIDUsageKeyboardLANG9 = 0x98,
+    UIKeyboardHIDUsageKeyboardInternational1 = 0x87,
+    UIKeyboardHIDUsageKeyboardInternational2 = 0x88,
+    UIKeyboardHIDUsageKeyboardInternational3 = 0x89,
+    UIKeyboardHIDUsageKeyboardInternational4 = 0x8A,
+    UIKeyboardHIDUsageKeyboardInternational5 = 0x8B,
+    UIKeyboardHIDUsageKeyboardInternational6 = 0x8C,
+    UIKeyboardHIDUsageKeyboardInternational7 = 0x8D,
+    UIKeyboardHIDUsageKeyboardInternational8 = 0x8E,
+    UIKeyboardHIDUsageKeyboardInternational9 = 0x8F,
+    UIKeyboardHIDUsageKeyboardErrorRollOver = 0x01,
+    UIKeyboardHIDUsageKeyboardErrorUndefined = 0x03,
+    UIKeyboardHIDUsageKeyboardAgain = 0x79,
+    UIKeyboardHIDUsageKeyboardAlternateErase = 0x99,
+    UIKeyboardHIDUsageKeyboardApplication = 0x65,
+    UIKeyboardHIDUsageKeyboardCancel = 0x9B,
+    UIKeyboardHIDUsageKeyboardClear = 0x9C,
+    UIKeyboardHIDUsageKeyboardClearOrAgain = 0xA2,
+    UIKeyboardHIDUsageKeyboardCopy = 0x7C,
+    UIKeyboardHIDUsageKeyboardCrSelOrProps = 0xA3,
+    UIKeyboardHIDUsageKeyboardCut = 0x7B,
+    UIKeyboardHIDUsageKeyboardExSel = 0xA4,
+    UIKeyboardHIDUsageKeyboardExecute = 0x74,
+    UIKeyboardHIDUsageKeyboardFind = 0x7E,
+    UIKeyboardHIDUsageKeyboardHelp = 0x75,
+    UIKeyboardHIDUsageKeyboardMenu = 0x76,
+    UIKeyboardHIDUsageKeyboardOper = 0xA1,
+    UIKeyboardHIDUsageKeyboardOut = 0xA0,
+    UIKeyboardHIDUsageKeyboardPOSTFail = 0x02,
+    UIKeyboardHIDUsageKeyboardPaste = 0x7D,
+    UIKeyboardHIDUsageKeyboardPower = 0x66,
+    UIKeyboardHIDUsageKeyboardPrintScreen = 0x46,
+    UIKeyboardHIDUsageKeyboardPrior = 0x9D,
+    UIKeyboardHIDUsageKeyboardSelect = 0x77,
+    UIKeyboardHIDUsageKeyboardSysReqOrAttention = 0x9A,
+    UIKeyboardHIDUsageKeyboardUndo = 0x7A,
+    UIKeyboardHIDUsageKeyboard_Reserved = 0xFFFF,
+    UIKeyboardHIDUsageKeyboardKanaSwitch = UIKeyboardHIDUsageKeyboardLANG1,
+    UIKeyboardHIDUsageKeyboardHangul = UIKeyboardHIDUsageKeyboardLANG1,
+    UIKeyboardHIDUsageKeyboardAlphanumericSwitch = UIKeyboardHIDUsageKeyboardLANG2,
+    UIKeyboardHIDUsageKeyboardHanja = UIKeyboardHIDUsageKeyboardLANG2,
+    UIKeyboardHIDUsageKeyboardKatakana = UIKeyboardHIDUsageKeyboardLANG3,
+    UIKeyboardHIDUsageKeyboardHiragana = UIKeyboardHIDUsageKeyboardLANG4,
+    UIKeyboardHIDUsageKeyboardZenkakuHankakuKanji = UIKeyboardHIDUsageKeyboardLANG5 };
 
 NS_SWIFT_UI_ACTOR
 @interface UIKey : NSObject <NSCopying>
@@ -71,6 +152,8 @@ UIKIT_EXTERN NSString *const UIKeyInputPageDown;
 UIKIT_EXTERN NSString *const UIKeyInputHome;
 UIKIT_EXTERN NSString *const UIKeyInputEnd;
 UIKIT_EXTERN NSString *const UIKeyInputDelete;
+UIKIT_EXTERN NSString *const UIKeyInputF1, *const UIKeyInputF2, *const UIKeyInputF3, *const UIKeyInputF4, *const UIKeyInputF5, *const UIKeyInputF6,
+    *const UIKeyInputF7, *const UIKeyInputF8, *const UIKeyInputF9, *const UIKeyInputF10, *const UIKeyInputF11, *const UIKeyInputF12 API_AVAILABLE(ios(13.4));
 
 /* how a menu leaf behaves while its keyboard shortcut is held (iOS 16) */
 typedef NS_ENUM(NSInteger, UIMenuElementRepeatBehavior) {
@@ -140,6 +223,10 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, copy) NSString *title;
 @property (nullable, nonatomic, copy) NSString *discoverabilityTitle;
 @property (nonatomic) BOOL wantsPriorityOverSystemBehavior;
+/* the shortcut follows the keyboard layout and right-to-left mirroring (isim's hardware keyboard is US English: no
+   change) */
+@property (nonatomic) BOOL allowsAutomaticLocalization API_AVAILABLE(ios(15.0));
+@property (nonatomic) BOOL allowsAutomaticMirroring API_AVAILABLE(ios(15.0));
 @end
 
 @interface UIResponder (UIKeyboardAndMotion)

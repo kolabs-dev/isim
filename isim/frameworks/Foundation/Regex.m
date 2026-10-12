@@ -3,6 +3,7 @@
  * converted to UTF-16 indices like the rest of NSString. PCRE2's syntax is close to ICU's (which Apple
  * uses): Unicode classes (\w \d \b are Unicode-aware), lookaround, atomic groups, possessive quantifiers,
  * named groups (?<name>...), \uhhhh / \x{hhhh} escapes, (?i) inline flags. */
+#import <objc/runtime.h>
 #import <Foundation/Foundation.h>
 #include <ctype.h>
 #include <string.h>
@@ -38,6 +39,7 @@ static NSUInteger cursor_u16(u16cursor *c, NSUInteger byte) {
     return c->u16;
 }
 
+NSString *const NSGrammarRange = @"NSGrammarRange", *const NSGrammarUserDescription = @"NSGrammarUserDescription", *const NSGrammarCorrections = @"NSGrammarCorrections";
 /* ================= NSTextCheckingResult ================= */
 @implementation NSTextCheckingResult {
     @public NSTextCheckingType _type; NSRange *_ranges; NSUInteger _count;
@@ -57,6 +59,13 @@ static NSTextCheckingResult *make_result(NSTextCheckingType type, const NSRange 
 + (NSTextCheckingResult *)phoneNumberCheckingResultWithRange:(NSRange)range phoneNumber:(NSString *)p { NSTextCheckingResult *r = make_result(NSTextCheckingTypePhoneNumber, &range, 1); r->_phone = [p copy]; return r; }
 + (NSTextCheckingResult *)dateCheckingResultWithRange:(NSRange)range date:(NSDate *)d { NSTextCheckingResult *r = make_result(NSTextCheckingTypeDate, &range, 1); r->_date = d; return r; }
 + (NSTextCheckingResult *)replacementCheckingResultWithRange:(NSRange)range replacementString:(NSString *)s { NSTextCheckingResult *r = make_result(NSTextCheckingTypeReplacement, &range, 1); r->_replacement = [s copy]; return r; }
+static char kGrammarDetails;
++ (NSTextCheckingResult *)grammarCheckingResultWithRange:(NSRange)range details:(NSArray *)details {
+    NSTextCheckingResult *r = make_result(NSTextCheckingTypeGrammar, &range, 1);
+    objc_setAssociatedObject(r, &kGrammarDetails, [details copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return r;
+}
+- (NSArray *)grammarDetails { return objc_getAssociatedObject(self, &kGrammarDetails); }
 + (BOOL)supportsSecureCoding { return YES; }
 - (void)dealloc { free(_ranges); }
 - (id)copyWithZone:(NSZone *)z { return self; }

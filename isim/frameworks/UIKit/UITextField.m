@@ -4,6 +4,7 @@
  * A private multi-line mode (_isim_minLines/_isim_maxLines) backs SwiftUI's TextField(axis: .vertical) and
  * TextEditor. The caret does not blink (stable screenshots). */
 #import "UITextInputImpl.h"
+#import <objc/runtime.h>
 #include <math.h>
 
 NSNotificationName const UITextFieldTextDidBeginEditingNotification = @"UITextFieldTextDidBeginEditingNotification";
@@ -51,7 +52,105 @@ NSString *const UITextFieldDidEndEditingReasonKey = @"UITextFieldDidEndEditingRe
 - (void)setFont:(UIFont *)f { _font = f ?: [UIFont systemFontOfSize:17]; [self _changed]; }
 - (void)setTextColor:(UIColor *)c { _textColor = c ?: UIColor.labelColor; isim_ui_set_needs_display(); }
 - (void)setBorderStyle:(UITextBorderStyle)b { _borderStyle = b; [self _changed]; }
-- (void)_changed { [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
+- (void)_changed { [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; isim_ui_set_needs_display(); }
+
+/* ---- attributed text, backgrounds (stored outside the instance: apps' subclasses keep their size) ---- */
+static char kAttrPlaceholder, kAllowsAttrs, kTyping, kBackground, kDisabledBackground, kParagraph;
+static id tf_get(id o, const void *k) { return objc_getAssociatedObject(o, k); }
+static void tf_put(id o, const void *k, id v) { objc_setAssociatedObject(o, k, v, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (NSDictionary *)defaultTextAttributes {
+    NSMutableDictionary *d = [NSMutableDictionary dictionaryWithObjectsAndKeys:_font, NSFontAttributeName, _textColor, NSForegroundColorAttributeName, nil];
+    NSMutableParagraphStyle *ps = [tf_get(self, &kParagraph) mutableCopy] ?: [NSMutableParagraphStyle new];
+    ps.alignment = _textAlignment;
+    d[NSParagraphStyleAttributeName] = ps;
+    return d;
+}
+- (void)setDefaultTextAttributes:(NSDictionary *)a {
+    if ([a[NSFontAttributeName] isKindOfClass:[UIFont class]]) _font = a[NSFontAttributeName];
+    if ([a[NSForegroundColorAttributeName] isKindOfClass:[UIColor class]]) _textColor = a[NSForegroundColorAttributeName];
+    NSParagraphStyle *ps = a[NSParagraphStyleAttributeName];
+    if ([ps isKindOfClass:[NSParagraphStyle class]]) { _textAlignment = ps.alignment; tf_put(self, &kParagraph, [ps copy]); }
+    [self _changed];
+}
+- (NSAttributedString *)attributedText { return [[NSAttributedString alloc] initWithString:_storage attributes:self.defaultTextAttributes]; }
+- (void)setAttributedText:(NSAttributedString *)t {
+    if (t.length) {                                     /* one style: the first character's */
+        NSMutableDictionary *a = [self.defaultTextAttributes mutableCopy];
+        [a addEntriesFromDictionary:[t attributesAtIndex:0 effectiveRange:NULL]];
+        self.defaultTextAttributes = a;
+    }
+    self.text = t.string;
+}
+- (NSAttributedString *)attributedPlaceholder {
+    NSAttributedString *a = tf_get(self, &kAttrPlaceholder);
+    if (a) return a;
+    return _placeholder ? [[NSAttributedString alloc] initWithString:_placeholder attributes:@{ NSFontAttributeName: _font, NSForegroundColorAttributeName: UIColor.placeholderTextColor }] : nil;
+}
+- (void)setAttributedPlaceholder:(NSAttributedString *)a { tf_put(self, &kAttrPlaceholder, [a copy]); _placeholder = [a.string copy]; [self _changed]; }
+- (BOOL)allowsEditingTextAttributes { return [tf_get(self, &kAllowsAttrs) boolValue]; }
+- (void)setAllowsEditingTextAttributes:(BOOL)b { tf_put(self, &kAllowsAttrs, @(b)); }
+- (NSDictionary *)typingAttributes { return _editing ? (tf_get(self, &kTyping) ?: self.defaultTextAttributes) : nil; }
+- (void)setTypingAttributes:(NSDictionary *)a { tf_put(self, &kTyping, [a copy]); }
+- (UIImage *)background { return tf_get(self, &kBackground); }
+- (void)setBackground:(UIImage *)i { tf_put(self, &kBackground, i); isim_ui_set_needs_display(); }
+- (UIImage *)disabledBackground { return tf_get(self, &kDisabledBackground); }
+- (void)setDisabledBackground:(UIImage *)i { tf_put(self, &kDisabledBackground, i); isim_ui_set_needs_display(); }
+
+/* ---- overlay views ---- */
+- (BOOL)_shows:(UITextFieldViewMode)m {
+    switch (m) {
+    case UITextFieldViewModeAlways: return YES;
+    case UITextFieldViewModeWhileEditing: return _editing;
+    case UITextFieldViewModeUnlessEditing: return !_editing;
+    default: return NO;
+    }
+}
+- (BOOL)_showsLeft { return _leftView && [self _shows:_leftViewMode]; }
+- (BOOL)_showsRight { return _rightView && [self _shows:_rightViewMode] && ![self _showsClear]; }   /* the clear button wins */
+- (void)setLeftView:(UIView *)v { if (_leftView != v) { [_leftView removeFromSuperview]; _leftView = v; } [self _changed]; }
+- (void)setRightView:(UIView *)v { if (_rightView != v) { [_rightView removeFromSuperview]; _rightView = v; } [self _changed]; }
+- (void)setLeftViewMode:(UITextFieldViewMode)m { _leftViewMode = m; [self _changed]; }
+- (void)setRightViewMode:(UITextFieldViewMode)m { _rightViewMode = m; [self _changed]; }
+static CGSize overlay_size(UIView *v) {
+    CGSize s = v.bounds.size;
+    if (s.width <= 0 || s.height <= 0) { CGSize i = v.intrinsicContentSize; s = CGSizeMake(fmax(i.width, 0), fmax(i.height, 0)); }
+    return s;
+}
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGRect b = self.bounds;
+    if ([self _showsLeft]) { if (_leftView.superview != self) [self addSubview:_leftView]; _leftView.frame = [self leftViewRectForBounds:b]; }
+    else [_leftView removeFromSuperview];
+    if ([self _showsRight]) { if (_rightView.superview != self) [self addSubview:_rightView]; _rightView.frame = [self rightViewRectForBounds:b]; }
+    else [_rightView removeFromSuperview];
+}
+
+/* ---- the layout rects (subclasses may change them) ---- */
+- (CGRect)borderRectForBounds:(CGRect)b { return b; }
+- (CGRect)leftViewRectForBounds:(CGRect)b {
+    if (!_leftView) return CGRectZero;
+    CGSize s = overlay_size(_leftView);
+    return CGRectMake(b.origin.x, b.origin.y + floor((b.size.height - s.height) / 2), s.width, s.height);
+}
+- (CGRect)rightViewRectForBounds:(CGRect)b {
+    if (!_rightView) return CGRectZero;
+    CGSize s = overlay_size(_rightView);
+    return CGRectMake(CGRectGetMaxX(b) - s.width, b.origin.y + floor((b.size.height - s.height) / 2), s.width, s.height);
+}
+- (CGRect)clearButtonRectForBounds:(CGRect)b {
+    UIEdgeInsets in = [self _insets];
+    return CGRectMake(CGRectGetMaxX(b) - in.right - 19, b.origin.y + floor((b.size.height - 19) / 2), 19, 19);
+}
+- (CGRect)textRectForBounds:(CGRect)b {
+    CGRect r = UIEdgeInsetsInsetRect(b, [self _insets]);
+    if ([self _showsLeft]) { CGFloat x = CGRectGetMaxX([self leftViewRectForBounds:b]); if (x > r.origin.x) { r.size.width -= x - r.origin.x; r.origin.x = x; } }
+    if ([self _showsClear]) r.size.width = fmin(r.size.width, CGRectGetMinX([self clearButtonRectForBounds:b]) - 7 - r.origin.x);
+    else if ([self _showsRight]) r.size.width = fmin(r.size.width, CGRectGetMinX([self rightViewRectForBounds:b]) - r.origin.x);
+    r.size.width = fmax(r.size.width, 0);
+    return r;
+}
+- (CGRect)editingRectForBounds:(CGRect)b { return [self textRectForBounds:b]; }
+- (CGRect)placeholderRectForBounds:(CGRect)b { return [self textRectForBounds:b]; }
 - (BOOL)isEditing { return _editing; }
 - (BOOL)hasText { return _storage.length > 0; }
 - (BOOL)canBecomeFirstResponder { return self.enabled; }
@@ -72,7 +171,7 @@ NSString *const UITextFieldDidEndEditingReasonKey = @"UITextFieldDidEndEditingRe
     id<UITextFieldDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(textFieldShouldBeginEditing:)] && ![d textFieldShouldBeginEditing:self]) return NO;
     if (![super becomeFirstResponder]) return NO;
-    _editing = YES;
+    _editing = YES; [self setNeedsLayout];
     if (_clearsOnBeginEditing) _storage = @"";
     _sel = NSMakeRange(_storage.length, 0);
     if ([d respondsToSelector:@selector(textFieldDidBeginEditing:)]) [d textFieldDidBeginEditing:self];
@@ -86,7 +185,7 @@ NSString *const UITextFieldDidEndEditingReasonKey = @"UITextFieldDidEndEditingRe
     id<UITextFieldDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(textFieldShouldEndEditing:)] && ![d textFieldShouldEndEditing:self]) return NO;
     [super resignFirstResponder];
-    _editing = NO;
+    _editing = NO; [self setNeedsLayout];
     isim_ui_text_did_end_editing(self);
     _sel = NSMakeRange(_storage.length, 0); _scrollX = 0;
     if ([d respondsToSelector:@selector(textFieldDidEndEditing:)]) [d textFieldDidEndEditing:self];
@@ -140,7 +239,7 @@ ISIM_TEXT_INPUT_METHODS
     UITouch *t = touches.anyObject;
     CGPoint p = [t locationInView:self];
     if (!CGRectContainsPoint(self.bounds, p)) return;
-    if (_editing && [self _showsClear] && p.x > self.bounds.size.width - 30) {
+    if (_editing && [self _showsClear] && p.x > CGRectGetMinX([self clearButtonRectForBounds:self.bounds]) - 8) {
         id<UITextFieldDelegate> d = _delegate;
         if (![d respondsToSelector:@selector(textFieldShouldClear:)] || [d textFieldShouldClear:self]) [self _isim_replaceRange:NSMakeRange(0, _storage.length) withText:@""];
         return;
@@ -194,11 +293,7 @@ ISIM_TEXT_INPUT_METHODS
 - (CGSize)sizeThatFits:(CGSize)size { return [self _isim_intrinsicSizeForWidth:size.width]; }
 
 /* text layout: the text area, and where character index i sits (top-left of its caret) */
-- (CGRect)_textArea {
-    CGRect r = UIEdgeInsetsInsetRect(self.bounds, [self _insets]);
-    if ([self _showsClear]) r.size.width -= 26;
-    return r;
-}
+- (CGRect)_textArea { return _editing ? [self editingRectForBounds:self.bounds] : [self textRectForBounds:self.bounds]; }
 - (CGFloat)_lineTop {          /* single line: vertically centred */
     CGRect r = [self _textArea];
     CGSize ts = isim_ui_measure(@" ", _font, 0, 1);
@@ -277,7 +372,9 @@ ISIM_TEXT_INPUT_METHODS
 /* ---- drawing ---- */
 - (void)_isim_drawContent {
     CGRect b = self.bounds;
-    if (_borderStyle == UITextBorderStyleRoundedRect) {
+    UIImage *bgImage = _borderStyle == UITextBorderStyleRoundedRect ? nil : (!self.enabled && self.disabledBackground ? self.disabledBackground : self.background);
+    if (bgImage) [bgImage drawInRect:[self borderRectForBounds:b]];
+    else if (_borderStyle == UITextBorderStyleRoundedRect) {
         double bg[4], line[4];
         isim_ui_rgba(self.backgroundColor ? UIColor.clearColor : UIColor.systemBackgroundColor, bg);
         isim_ui_rgba(UIColor.separatorColor, line);
@@ -302,15 +399,8 @@ ISIM_TEXT_INPUT_METHODS
     isim_gfx_clip_rounded(r.origin.x - 1, 0, r.size.width + 3, b.size.height, 0);
     if (!placeholder) isim_ui_text_draw_selection_rects(self);
     if (text.length) {
-        CGRect dr;
-        if (multi) dr = r;
-        else {
-            CGSize ts = isim_ui_measure(text, _font, 0, 1);
-            CGFloat x = placeholder ? r.origin.x + [self _alignOffset:ts.width area:r.size.width] : [self _caretPointFor:0].x;
-            dr = CGRectMake(x, [self _lineTop], MAX(ts.width, r.size.width) + 4, ts.height);
-        }
-        UIColor *c = placeholder ? UIColor.placeholderTextColor : _textColor;
-        isim_ui_draw_text(text, _font, c, dr, multi ? [self _isim_alignment] : NSTextAlignmentLeft, multi ? _isim_maxLines : 1, self.enabled ? 1 : 0.5);
+        if (placeholder) [self drawPlaceholderInRect:[self placeholderRectForBounds:b]];
+        else [self drawTextInRect:r];
     }
     if (_editing) {
         if (placeholder) {
@@ -325,13 +415,34 @@ ISIM_TEXT_INPUT_METHODS
     }
     isim_gfx_restore();
     if ([self _showsClear]) {
-        UIEdgeInsets in = [self _insets];
         double c[4]; isim_ui_rgba(UIColor.tertiaryLabelColor, c);
-        CGFloat x = b.size.width - in.right - 19, y = floor((b.size.height - 19) / 2);
+        CGRect cr = [self clearButtonRectForBounds:b];
+        CGFloat x = cr.origin.x, y = cr.origin.y;
         isim_gfx_fill_ellipse(x, y, 19, 19, c);
         double w[4]; isim_ui_rgba(UIColor.systemBackgroundColor, w);
         isim_path_begin(); isim_path_move(x + 6, y + 6); isim_path_line(x + 13, y + 13); isim_path_move(x + 13, y + 6); isim_path_line(x + 6, y + 13);
         isim_path_stroke(1.6, w);
     }
+}
+/* the text (scrolled to the caret) and the placeholder in their rects; subclasses may draw them differently */
+- (void)drawTextInRect:(CGRect)r {
+    NSString *text = [self _shown];
+    BOOL multi = [self _multiline];
+    CGRect dr = r;
+    if (!multi) {
+        CGSize ts = isim_ui_measure(text, _font, 0, 1);
+        dr = CGRectMake([self _caretPointFor:0].x, [self _lineTop], MAX(ts.width, r.size.width) + 4, ts.height);
+    }
+    isim_ui_draw_text(text, _font, _textColor, dr, multi ? [self _isim_alignment] : NSTextAlignmentLeft, multi ? _isim_maxLines : 1, self.enabled ? 1 : 0.5);
+}
+- (void)drawPlaceholderInRect:(CGRect)r {
+    NSAttributedString *ap = tf_get(self, &kAttrPlaceholder);
+    BOOL multi = [self _multiline];
+    UIFont *f = [ap attribute:NSFontAttributeName atIndex:0 effectiveRange:NULL] ?: _font;
+    UIColor *c = [ap attribute:NSForegroundColorAttributeName atIndex:0 effectiveRange:NULL] ?: UIColor.placeholderTextColor;
+    NSString *text = _placeholder ?: @"";
+    CGSize ts = isim_ui_measure(text, f, 0, 1);
+    CGRect dr = multi ? r : CGRectMake(r.origin.x + [self _alignOffset:ts.width area:r.size.width], r.origin.y + floor((r.size.height - ts.height) / 2), MAX(ts.width, r.size.width) + 4, ts.height);
+    isim_ui_draw_text(text, f, c, dr, multi ? [self _isim_alignment] : NSTextAlignmentLeft, multi ? _isim_maxLines : 1, self.enabled ? 1 : 0.5);
 }
 @end

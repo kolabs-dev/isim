@@ -71,6 +71,9 @@ NSString *const UIKeyInputPageDown = @"UIKeyInputPageDown";
 NSString *const UIKeyInputHome = @"UIKeyInputHome";
 NSString *const UIKeyInputEnd = @"UIKeyInputEnd";
 NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
+NSString *const UIKeyInputF1 = @"UIKeyInputF1", *const UIKeyInputF2 = @"UIKeyInputF2", *const UIKeyInputF3 = @"UIKeyInputF3", *const UIKeyInputF4 = @"UIKeyInputF4",
+    *const UIKeyInputF5 = @"UIKeyInputF5", *const UIKeyInputF6 = @"UIKeyInputF6", *const UIKeyInputF7 = @"UIKeyInputF7", *const UIKeyInputF8 = @"UIKeyInputF8",
+    *const UIKeyInputF9 = @"UIKeyInputF9", *const UIKeyInputF10 = @"UIKeyInputF10", *const UIKeyInputF11 = @"UIKeyInputF11", *const UIKeyInputF12 = @"UIKeyInputF12";
 
 @interface UIKey ()
 @property (nonatomic, readwrite, copy) NSString *characters, *charactersIgnoringModifiers;
@@ -111,7 +114,9 @@ NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
 @implementation UIKeyCommand
 @dynamic title, discoverabilityTitle;
 + (instancetype)keyCommandWithInput:(NSString *)input modifierFlags:(UIKeyModifierFlags)flags action:(SEL)action {
-    UIKeyCommand *c = [self new]; c->_input = [input copy]; c->_modifierFlags = flags; [c _isim_setAction:action propertyList:nil alternates:nil]; return c;
+    UIKeyCommand *c = [self new]; c->_input = [input copy]; c->_modifierFlags = flags; [c _isim_setAction:action propertyList:nil alternates:nil];
+    c->_allowsAutomaticLocalization = YES; c->_allowsAutomaticMirroring = YES;
+    return c;
 }
 + (instancetype)commandWithTitle:(NSString *)title image:(UIImage *)image action:(SEL)action input:(NSString *)input modifierFlags:(UIKeyModifierFlags)flags propertyList:(id)plist {
     return [self commandWithTitle:title image:image action:action input:input modifierFlags:flags propertyList:plist alternates:@[]];
@@ -200,6 +205,9 @@ static NSString *special_input(int hid) {
     switch (hid) {
     case 0x52: return UIKeyInputUpArrow; case 0x51: return UIKeyInputDownArrow; case 0x50: return UIKeyInputLeftArrow; case 0x4F: return UIKeyInputRightArrow;
     case 0x29: return UIKeyInputEscape; case 0x4B: return UIKeyInputPageUp; case 0x4E: return UIKeyInputPageDown; case 0x4A: return UIKeyInputHome;
+    case 0x3A: return UIKeyInputF1; case 0x3B: return UIKeyInputF2; case 0x3C: return UIKeyInputF3; case 0x3D: return UIKeyInputF4;
+    case 0x3E: return UIKeyInputF5; case 0x3F: return UIKeyInputF6; case 0x40: return UIKeyInputF7; case 0x41: return UIKeyInputF8;
+    case 0x42: return UIKeyInputF9; case 0x43: return UIKeyInputF10; case 0x44: return UIKeyInputF11; case 0x45: return UIKeyInputF12;
     case 0x4D: return UIKeyInputEnd; case 0x4C: return UIKeyInputDelete; case 0x28: return @"\r"; case 0x2B: return @"\t"; case 0x2C: return @" "; case 0x2A: return @"\b";
     default: return nil;
     }

@@ -137,7 +137,7 @@ static BOOL battery_monitoring;
 - (BOOL)isProximityMonitoringEnabled { return NO; }          /* no proximity sensor (like an iPad / the Simulator) */
 - (void)setProximityMonitoringEnabled:(BOOL)e {}
 - (BOOL)proximityState { return NO; }
-- (void)playInputClick {}
+- (void)playInputClick { extern BOOL isim_ui_input_clicks_enabled(void); if (isim_ui_input_clicks_enabled()) NSLog(@"isim: input click"); }
 @end
 NSNotificationName const UIDeviceBatteryStateDidChangeNotification = @"UIDeviceBatteryStateDidChangeNotification",
     UIDeviceBatteryLevelDidChangeNotification = @"UIDeviceBatteryLevelDidChangeNotification",

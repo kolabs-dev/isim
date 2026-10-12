@@ -597,6 +597,12 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
         UIMenu *m = ((UIMenu *(*)(id, SEL, id, NSRange, id))objc_msgSend)(d, dsel, view, sel, suggested);
         if (m) items = m.children;
     }
+    /* a subclass's UITextInput editMenu(for:suggestedActions:) (iOS 16) */
+    SEL own = @selector(editMenuForTextRange:suggestedActions:);
+    if ([view respondsToSelector:own] && [view methodForSelector:own] != [UIView instanceMethodForSelector:own]) {
+        UIMenu *m = [(id<UITextInput>)view editMenuForTextRange:isim_ti_range(sel) suggestedActions:items];
+        if (m) items = m.children;
+    }
     /* UIMenuController items added by the app */
     for (UIMenuItem *mi in UIMenuController.sharedMenuController.menuItems) {
         if (![(UIResponder *)v canPerformAction:mi.action withSender:UIMenuController.sharedMenuController] &&
@@ -608,7 +614,19 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
             if (t) ((void (*)(id, SEL, id))[t methodForSelector:s])(t, s, UIMenuController.sharedMenuController);
         }]];
     }
-    isim_ui_show_edit_menu(r, items, nil);
+    /* willPresentEditMenu(animator:) / willDismissEditMenu(animator:) */
+    id<UITextInput> ti = (id<UITextInput>)view;
+    if ([view respondsToSelector:@selector(willPresentEditMenuWithAnimator:)]) {
+        id a = [NSClassFromString(@"__IsimEditMenuAnimator") new];
+        [ti willPresentEditMenuWithAnimator:a]; [a performSelector:@selector(_run)];
+    }
+    __weak UIView *wv = view;
+    isim_ui_show_edit_menu(r, items, ^{
+        UIView *v2 = wv;
+        if (![v2 respondsToSelector:@selector(willDismissEditMenuWithAnimator:)]) return;
+        id a = [NSClassFromString(@"__IsimEditMenuAnimator") new];
+        [(id<UITextInput>)v2 willDismissEditMenuWithAnimator:a]; [a performSelector:@selector(_run)];
+    });
 }
 
 /* ================= UIEditMenuInteraction ================= */
@@ -1009,4 +1027,48 @@ BOOL isim_ui_text_handle_key(id<IsimEditableText> v, int hid, int hostmods) {
     if (shift) isim_ti_set_selection(v, n < anchor ? NSMakeRange(n, anchor - n) : NSMakeRange(anchor, n - anchor));
     else { isim_ti_set_selection(v, NSMakeRange(n, 0)); anchor = n; }
     return YES;
+}
+
+/* ================= text attribute edits (allowsEditingTextAttributes) ================= */
+BOOL isim_ti_can_style(id<IsimEditableText> v) {
+    return [v _isim_isEditable] && [(id)v respondsToSelector:@selector(allowsEditingTextAttributes)] && [(id)v allowsEditingTextAttributes];
+}
+/* a text view's selected paragraphs (all of them without a selection in an empty text: the typing attributes) */
+void isim_ti_align(id<IsimEditableText> v, NSTextAlignment al) {
+    if ([(id)v isKindOfClass:[UITextView class]]) {
+        UITextView *tv = (UITextView *)v;
+        NSTextStorage *ts = tv.textStorage;
+        NSRange pr = [ts.string paragraphRangeForRange:tv.selectedRange];
+        if (pr.length) {
+            [ts beginEditing];
+            [ts enumerateAttribute:NSParagraphStyleAttributeName inRange:pr options:0 usingBlock:^(NSParagraphStyle *ps, NSRange r, BOOL *stop) {
+                NSMutableParagraphStyle *m = [ps mutableCopy] ?: [NSMutableParagraphStyle new]; m.alignment = al;
+                [ts addAttribute:NSParagraphStyleAttributeName value:m range:r];
+            }];
+            [ts endEditing];
+        }
+        NSMutableDictionary *t = [tv.typingAttributes mutableCopy];
+        NSMutableParagraphStyle *m = [t[NSParagraphStyleAttributeName] mutableCopy] ?: [NSMutableParagraphStyle new]; m.alignment = al;
+        t[NSParagraphStyleAttributeName] = m; tv.typingAttributes = t;
+    } else if ([(id)v isKindOfClass:[UITextField class]]) ((UITextField *)v).textAlignment = al;
+    NSLog(@"isim: text aligned %ld", (long)al);
+    isim_ui_set_needs_display();
+}
+void isim_ti_update_attributes(id<IsimEditableText> v, UITextAttributesConversionHandler h) {
+    if (!h) return;
+    if ([(id)v isKindOfClass:[UITextView class]]) {
+        UITextView *tv = (UITextView *)v;
+        NSTextStorage *ts = tv.textStorage;
+        NSRange sel = tv.selectedRange;
+        if (sel.length && NSMaxRange(sel) <= ts.length) {
+            [ts beginEditing];
+            [ts enumerateAttributesInRange:sel options:0 usingBlock:^(NSDictionary *attrs, NSRange r, BOOL *stop) { [ts setAttributes:h(attrs) range:r]; }];
+            [ts endEditing];
+        }
+        tv.typingAttributes = h(tv.typingAttributes ?: @{});
+    } else if ([(id)v isKindOfClass:[UITextField class]]) {
+        UITextField *tf = (UITextField *)v;
+        tf.defaultTextAttributes = h(tf.defaultTextAttributes);
+    }
+    isim_ui_set_needs_display();
 }
