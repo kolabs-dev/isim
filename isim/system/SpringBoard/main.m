@@ -474,8 +474,9 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
         [_visible addObject:@(m)];
         [_pageViews addObject:[self makePageView:m]];
     }
-    NSMutableArray<HSApp *> *docked = [NSMutableArray array];   /* system apps live in the dock, Settings first (leftmost) */
-    for (HSApp *a in _apps) if (a.system) [docked insertObject:a atIndex:[a.bundleID isEqualToString:@"dev.isim.settings"] ? 0 : docked.count];
+    NSMutableArray<HSApp *> *docked = [NSMutableArray array];   /* system apps live in the dock, Settings last (rightmost) */
+    for (HSApp *a in _apps) if (a.system && ![a.bundleID isEqualToString:@"dev.isim.settings"]) [docked addObject:a];
+    for (HSApp *a in _apps) if (a.system && [a.bundleID isEqualToString:@"dev.isim.settings"]) [docked addObject:a];
     for (HSApp *a in docked) {
         HSIcon *icon = [[HSIcon alloc] initWithApp:a size:self.iconSize label:NO];
         [icon addTarget:self action:@selector(tapped:) forControlEvents:UIControlEventTouchUpInside];
