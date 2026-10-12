@@ -62,7 +62,7 @@ struct nc_item { char path[512], id[256], title[256], body[512], icon[512], reco
 static struct nc_item ncl[64]; static int nnc;
 
 struct sys_el { char id[128], text[192]; struct rectf r; int kind, arg; };
-enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND };
+enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW };
 static struct sys_el els[96]; static int nels;
 
 /* Control Center state */
@@ -376,6 +376,7 @@ static void cc_draw(cairo_t *c) {
 
 /* ---- lock screen ---- */
 static double la_draw_lock(cairo_t *c, double top);
+static void lw_draw_date(cairo_t *c, double top, const char *dstr); static double lw_draw_row(cairo_t *c);
 static cairo_surface_t *wallpaper;
 static void wallpaper_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     if (!wallpaper && shell_springboard) {                     /* the home screen's wallpaper image */
@@ -394,7 +395,7 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     char t[16], dstr[64]; sys_time_strings(t, sizeof t, dstr, sizeof dstr);
     double top = fmax(dev.safe_top, 20);
     sys_symbol(c, "lock.fill", dev.width / 2, top + 12, 18, 1, 1, 1);
-    sys_text(c, dstr, 0, top + 30, dev.width, 19, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 0.9);
+    lw_draw_date(c, top, dstr);                                    /* the date, with the inline widget */
     const char *fixed = getenv("ISIM_LOCK_TIME");                 /* tests: a fixed "H:MM" */
     if (fixed && *fixed) snprintf(t, sizeof t, "%s", fixed);
     if (sys_os() >= 26) {                                          /* iOS 26: tall glass numerals */
@@ -420,7 +421,8 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
         cairo_path_destroy(glyphs); cairo_restore(c);
     } else sys_text(c, t, 0, top + 50, dev.width, 92, PANGO_WEIGHT_BOLD, 1, 1, 1, 1, 1, 0.95);
     el_add("lock-clock", t, (struct rectf){ 0, top + 50, dev.width, 100 }, EL_NONE, 0);
-    double lt = dev.height * 0.30;
+    double row = lw_draw_row(c);                                   /* the widgets under the clock */
+    double lt = fmax(dev.height * 0.30, row ? row + 14 : 0);
     lt += la_draw_lock(c, lt);
     nc_draw_list(c, fmax(lt, dev.height * 0.42), 1);
     cairo_set_source_rgba(c, 1, 1, 1, 0.9);
@@ -437,34 +439,111 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
 }
 
 
+static void sys_lock(void); static void sys_unlock(void);
 /* ---- Live Activities: drawn on the lock screen and around the Dynamic Island (images rendered by the app's widget
-   extension; the home screen sends "la-show APP DIR" with lock.png, leading.png, trailing.png, minimal.png, expanded.png) ---- */
-static struct { int on, expanded; char app[512]; cairo_surface_t *lock, *leading, *trailing, *minimal, *exp; } la;
+   extension; the home screen sends "la-set APP SIDECAR": id=, dir= (lock.png, leading.png, trailing.png, minimal.png,
+   expanded.png), relevance=, seq=, ended=, dismiss=, alert=, stale=, url=; "la-end APP ID\x1fDISMISS" when it ends).
+   One activity: compact (leading / trailing around the island). Two or more: the two most relevant minimal, one
+   attached to the island's leading side and one detached on the trailing side (estimated: a 37 pt circle 8 pt from
+   the island). Ended activities leave the island at once and stay on the lock screen until their dismissal time.
+   Alerts (AlertConfiguration, a push's "alert"): the island expands for 4 s (no island: a banner with the lock-screen
+   view); on the lock screen the activity lights up (moves to the top, outlined) for 4 s. ---- */
+#define LA_MAX 8
+#define LA_ALERT_SECONDS 4.0
+struct la_item { int on, ended, stale; char id[80], app[512], url[512]; double relevance, dismiss_at, seq, started;
+                 cairo_surface_t *lock, *leading, *trailing, *minimal, *exp; };
+static struct la_item las[LA_MAX];
+static struct { char exp_id[80], alert_id[80]; double alert_until; int alert_expand, alert_banner; } la;
+static double wall_now(void);
 static cairo_surface_t *la_png(const char *dir, const char *name) {
     char p[1100]; snprintf(p, sizeof p, "%s/%s.png", dir, name);
     cairo_surface_t *s = cairo_image_surface_create_from_png(p);
     if (cairo_surface_status(s) != CAIRO_STATUS_SUCCESS) { cairo_surface_destroy(s); return NULL; }
     return s;
 }
-static void la_clear(void) {
-    cairo_surface_t **ss[5] = { &la.lock, &la.leading, &la.trailing, &la.minimal, &la.exp };
+static void la_free_images(struct la_item *it) {
+    cairo_surface_t **ss[5] = { &it->lock, &it->leading, &it->trailing, &it->minimal, &it->exp };
     for (int i = 0; i < 5; i++) if (*ss[i]) { cairo_surface_destroy(*ss[i]); *ss[i] = NULL; }
-    la.on = la.expanded = 0;
 }
-static void la_set(const char *app, const char *dir) {
-    la_clear();
-    snprintf(la.app, sizeof la.app, "%s", app);
-    la.lock = la_png(dir, "lock"); la.leading = la_png(dir, "leading"); la.trailing = la_png(dir, "trailing");
-    la.minimal = la_png(dir, "minimal"); la.exp = la_png(dir, "expanded");
-    la.on = la.lock != NULL;
-    fprintf(stderr, "isim shell: Live Activity from %s %s\n", app, la.on ? "shown" : "(no images)");
+static void la_remove(int i) {
+    la_free_images(&las[i]);
+    if (!strcmp(la.exp_id, las[i].id)) la.exp_id[0] = 0;
+    memset(&las[i], 0, sizeof las[i]);
 }
+static int la_find(const char *id) { for (int i = 0; i < LA_MAX; i++) if (las[i].on && !strcmp(las[i].id, id)) return i; return -1; }
+/* the activities around the island: not ended, their app not in front; the most relevant (then the newest) first */
+static int la_island_list(int *out) {
+    int n = 0;
+    for (int i = 0; i < LA_MAX; i++) if (las[i].on && !las[i].ended && active != shell_find(las[i].app)) out[n++] = i;
+    for (int a = 1; a < n; a++) for (int b = a; b > 0; b--) {
+        struct la_item *x = &las[out[b - 1]], *y = &las[out[b]];
+        if (y->relevance > x->relevance || (y->relevance == x->relevance && y->started > x->started)) { int t = out[b]; out[b] = out[b - 1]; out[b - 1] = t; }
+    }
+    return n;
+}
+static int la_expanded(void) { return la.exp_id[0] ? la_find(la.exp_id) : -1; }
+static void la_alert(int i);
+static void la_set(const char *app, const char *sidecar) {
+    char line[1200], id[80] = "", dir[600] = "", url[512] = "";
+    double relevance = 0, seq = 0, dismiss = 0; int ended = 0, alert = 0, stale = 0;
+    FILE *f = fopen(sidecar, "r");
+    if (!f) return;
+    while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\n")] = 0;
+        char *v = strchr(line, '='); if (!v) continue; *v++ = 0;
+        if (!strcmp(line, "id")) snprintf(id, sizeof id, "%s", v); else if (!strcmp(line, "dir")) snprintf(dir, sizeof dir, "%s", v);
+        else if (!strcmp(line, "url")) snprintf(url, sizeof url, "%s", v); else if (!strcmp(line, "relevance")) relevance = atof(v);
+        else if (!strcmp(line, "seq")) seq = atof(v); else if (!strcmp(line, "dismiss")) dismiss = atof(v);
+        else if (!strcmp(line, "ended")) ended = atoi(v); else if (!strcmp(line, "alert")) alert = atoi(v); else if (!strcmp(line, "stale")) stale = atoi(v);
+    }
+    fclose(f);
+    int i = la_find(id);
+    if (ended && dismiss <= wall_now()) { if (i >= 0) la_remove(i); return; }           /* already dismissed */
+    if (i >= 0 && seq < las[i].seq) { fprintf(stderr, "isim shell: Live Activity %s: an older render ignored\n", id); return; }
+    if (i < 0) {
+        if (ended) return;                                               /* ended before it was shown */
+        for (int k = 0; k < LA_MAX && i < 0; k++) if (!las[k].on) i = k;
+        if (i < 0) { fprintf(stderr, "isim shell: too many Live Activities\n"); return; }
+        las[i].started = wall_now();
+    }
+    struct la_item *it = &las[i];
+    la_free_images(it);
+    it->lock = la_png(dir, "lock"); it->leading = la_png(dir, "leading"); it->trailing = la_png(dir, "trailing");
+    it->minimal = la_png(dir, "minimal"); it->exp = la_png(dir, "expanded");
+    int was = it->on;
+    it->on = it->lock != NULL;
+    snprintf(it->id, sizeof it->id, "%s", id); snprintf(it->app, sizeof it->app, "%s", app); snprintf(it->url, sizeof it->url, "%s", url);
+    it->relevance = relevance; it->seq = seq; it->stale = stale;
+    if (ended && !it->ended) { it->ended = 1; it->dismiss_at = dismiss; }
+    if (!was) fprintf(stderr, "isim shell: Live Activity from %s %s (%s)\n", app, it->on ? "shown" : "(no images)", id);
+    else fprintf(stderr, "isim shell: Live Activity %s updated%s\n", id, stale ? " (stale)" : "");
+    if (it->on && alert) la_alert(i);
+}
+static void la_end(const char *app, const char *args) {
+    char id[80]; double dismiss = 0;
+    const char *sep = strchr(args, '\x1f');
+    snprintf(id, sizeof id, "%.*s", sep ? (int)(sep - args) : (int)strlen(args), args);
+    if (sep) dismiss = atof(sep + 1);
+    int i = la_find(id);
+    if (i < 0) return;
+    las[i].ended = 1; las[i].dismiss_at = dismiss;
+    if (!strcmp(la.exp_id, id)) la.exp_id[0] = 0;
+    fprintf(stderr, "isim shell: Live Activity ended (%s; %s)\n", id, dismiss <= wall_now() ? "dismissed" : "stays on the lock screen");
+    if (dismiss <= wall_now()) la_remove(i);
+    (void)app;
+}
+static int la_banner_visible(void) { return la.alert_banner && la.alert_until > now() && !locked && ov == OV_NONE && anim.kind == ANIM_NONE; }
 static int la_island_visible(void) {
-    if (!la.on || dev.has_island != 1 || locked || ov != OV_NONE || anim.kind != ANIM_NONE) return 0;
-    return la.expanded || active != shell_find(la.app);           /* compact while the app is not in the foreground */
+    if (la_banner_visible()) return 1;
+    if (dev.has_island != 1 || locked || ov != OV_NONE || anim.kind != ANIM_NONE) return 0;
+    int idx[LA_MAX];
+    return la_island_list(idx) > 0 || la_expanded() >= 0;
 }
 static struct rectf la_compact_rect(void) { return (struct rectf){ dev.width / 2 - 62.5 - 64, 11, 125 + 128, 37 }; }
+static struct rectf la_attached_rect(void) { return (struct rectf){ dev.width / 2 - 62.5 - 44, 11, 125 + 44, 37 }; }
+static struct rectf la_detached_rect(void) { return (struct rectf){ dev.width / 2 + 62.5 + 8, 11, 37, 37 }; }
 static struct rectf la_expanded_rect(void) { return (struct rectf){ 8, 8, dev.width - 16, 176 }; }
+static struct rectf la_banner_rect(void) { double w = fmin(dev.width - 16, 400); return (struct rectf){ (dev.width - w) / 2, fmax(dev.safe_top, 20) + 4, w, w * 160 / 370 }; }
 static void la_img(cairo_t *c, cairo_surface_t *s, double x, double y, double w, double h) {
     if (!s) return;
     double iw = cairo_image_surface_get_width(s), ih = cairo_image_surface_get_height(s);
@@ -473,30 +552,290 @@ static void la_img(cairo_t *c, cairo_surface_t *s, double x, double y, double w,
     cairo_restore(c);
 }
 static void la_draw_island(cairo_t *c) {
-    if (la.expanded) {
+    if (la_banner_visible()) {                             /* no Dynamic Island: an alert shows the lock-screen view as a banner */
+        int i = la_find(la.alert_id);
+        if (i >= 0) {
+            struct rectf r = la_banner_rect();
+            cairo_save(c); sys_round(c, r.x, r.y, r.w, r.h, 22); cairo_clip_preserve(c);
+            cairo_set_source_rgba(c, 0.95, 0.95, 0.97, 0.95); cairo_fill(c);
+            la_img(c, las[i].lock, r.x, r.y, r.w, r.h); cairo_restore(c);
+            el_add("live-activity-banner", las[i].id, r, EL_LA, i);
+        }
+        return;
+    }
+    if (dev.has_island != 1) return;
+    int e = la_expanded();
+    if (e >= 0) {
         struct rectf r = la_expanded_rect();
         sys_round(c, r.x, r.y, r.w, r.h, 44); cairo_set_source_rgb(c, 0, 0, 0); cairo_fill(c);
         double w = fmin(370, r.w - 8);
-        la_img(c, la.exp, r.x + (r.w - w) / 2, r.y + 10, w, w * 160 / 370);
-        el_add("dynamic-island", "expanded", r, EL_NONE, 1);
-    } else {
+        la_img(c, las[e].exp, r.x + (r.w - w) / 2, r.y + 10, w, w * 160 / 370);
+        el_add("dynamic-island", "expanded", r, EL_NONE, e);
+        return;
+    }
+    int idx[LA_MAX], n = la_island_list(idx);
+    if (n == 1) {
         struct rectf r = la_compact_rect();
         sys_round(c, r.x, r.y, r.w, r.h, 18.5); cairo_set_source_rgb(c, 0, 0, 0); cairo_fill(c);
-        la_img(c, la.leading, r.x + 2, r.y, 64, 37);
-        la_img(c, la.trailing, r.x + r.w - 66, r.y, 64, 37);
-        el_add("dynamic-island", "compact", r, EL_NONE, 1);
+        la_img(c, las[idx[0]].leading, r.x + 2, r.y, 64, 37);
+        la_img(c, las[idx[0]].trailing, r.x + r.w - 66, r.y, 64, 37);
+        el_add("dynamic-island", "compact", r, EL_NONE, idx[0]);
+    } else if (n >= 2) {                                   /* minimal: one attached (leading), one detached (trailing) */
+        struct rectf a = la_attached_rect(), d = la_detached_rect();
+        sys_round(c, a.x, a.y, a.w, a.h, 18.5); cairo_set_source_rgb(c, 0, 0, 0); cairo_fill(c);
+        la_img(c, las[idx[0]].minimal, a.x + 2, a.y, 37, 37);
+        cairo_new_path(c); cairo_arc(c, d.x + d.w / 2, d.y + d.h / 2, d.h / 2, 0, 2 * M_PI); cairo_set_source_rgb(c, 0, 0, 0); cairo_fill(c);
+        la_img(c, las[idx[1]].minimal, d.x, d.y, 37, 37);
+        el_add("dynamic-island", "minimal", a, EL_NONE, idx[0]);
+        el_add("dynamic-island-detached", "minimal", d, EL_NONE, idx[1]);
     }
 }
+/* the island as `dump` lists it */
+static void la_dump_island(void) {
+    if (la_banner_visible()) { struct rectf r = la_banner_rect(); fprintf(stderr, "IsimLiveActivityBanner (%g %g; %g x %g) id=live-activity-banner text=%s\n", r.x, r.y, r.w, r.h, la.alert_id); return; }
+    int e = la_expanded(), idx[LA_MAX], n = la_island_list(idx);
+    if (e >= 0) { struct rectf r = la_expanded_rect(); fprintf(stderr, "IsimDynamicIsland (%g %g; %g x %g) id=dynamic-island text=expanded\n", r.x, r.y, r.w, r.h); return; }
+    if (n == 1) { struct rectf r = la_compact_rect(); fprintf(stderr, "IsimDynamicIsland (%g %g; %g x %g) id=dynamic-island text=compact\n", r.x, r.y, r.w, r.h); }
+    if (n >= 2) {
+        struct rectf a = la_attached_rect(), d = la_detached_rect();
+        fprintf(stderr, "IsimDynamicIsland (%g %g; %g x %g) id=dynamic-island text=minimal activity=%s\n", a.x, a.y, a.w, a.h, las[idx[0]].id);
+        fprintf(stderr, "IsimDynamicIsland (%g %g; %g x %g) id=dynamic-island-detached text=minimal activity=%s\n", d.x, d.y, d.w, d.h, las[idx[1]].id);
+    }
+}
+/* expand / collapse: which = 0 the attached (or only) activity, 1 the detached one */
+static void la_toggle(int which) {
+    int idx[LA_MAX], n = la_island_list(idx);
+    la.alert_expand = 0;
+    if (la_expanded() >= 0) la.exp_id[0] = 0;
+    else if (n > which) snprintf(la.exp_id, sizeof la.exp_id, "%s", las[idx[which]].id);
+    fprintf(stderr, "isim shell: Dynamic Island %s\n", la_expanded() >= 0 ? "expanded" : n >= 2 ? "minimal" : "compact");
+}
+static void la_alert(int i) {
+    struct la_item *it = &las[i];
+    snprintf(la.alert_id, sizeof la.alert_id, "%s", it->id);
+    la.alert_until = now() + LA_ALERT_SECONDS; la.alert_expand = la.alert_banner = 0;
+    it->started = wall_now();                               /* the alerting activity comes first on the lock screen */
+    if (locked) { fprintf(stderr, "isim shell: Live Activity alert %s: the lock screen lights up\n", it->id); if (ov == OV_LOCK) sys_draw(); return; }
+    if (active == shell_find(it->app)) { fprintf(stderr, "isim shell: Live Activity alert %s: the app is in the foreground\n", it->id); return; }
+    if (dev.has_island == 1) {
+        snprintf(la.exp_id, sizeof la.exp_id, "%s", it->id); la.alert_expand = 1;
+        fprintf(stderr, "isim shell: Live Activity alert %s: Dynamic Island expanded (alert)\n", it->id);
+    } else {
+        la.alert_banner = 1;
+        fprintf(stderr, "isim shell: Live Activity alert %s: banner\n", it->id);
+    }
+}
+/* alerts ending, ended activities reaching their dismissal time */
+static void la_tick(void) {
+    int redraw = 0;
+    if (la.alert_until && now() >= la.alert_until) {
+        if (la.alert_expand && !strcmp(la.exp_id, la.alert_id)) { la.exp_id[0] = 0; fprintf(stderr, "isim shell: Dynamic Island compact (alert ended)\n"); }
+        la.alert_until = 0; la.alert_expand = la.alert_banner = 0; la.alert_id[0] = 0; redraw = 1;
+    }
+    double w = wall_now();
+    for (int i = 0; i < LA_MAX; i++) if (las[i].on && las[i].ended && las[i].dismiss_at <= w) {
+        fprintf(stderr, "isim shell: Live Activity %s dismissed\n", las[i].id);
+        la_remove(i); redraw = 1;
+    }
+    if (!redraw) return;
+    if (ov != OV_NONE) sys_draw(); else shell_show(active >= 0 ? active : 0);
+}
 static double la_draw_lock(cairo_t *c, double top) {           /* returns the height used */
-    if (!la.on || !la.lock) return 0;
-    double w = fmin(dev.width - 16, 400), x = (dev.width - w) / 2, h = w * 160 / 370;
-    cairo_save(c);
-    sys_round(c, x, top, w, h, 22); cairo_clip_preserve(c);
-    cairo_set_source_rgba(c, 0.95, 0.95, 0.97, 0.88); cairo_fill(c);
-    la_img(c, la.lock, x, top, w, h);
-    cairo_restore(c);
-    el_add("live-activity", "Live Activity", (struct rectf){ x, top, w, h }, EL_NONE, 0);
-    return h + 10;
+    int order[LA_MAX], n = 0;
+    for (int i = 0; i < LA_MAX; i++) if (las[i].on && las[i].lock) order[n++] = i;
+    for (int a = 1; a < n; a++) for (int b = a; b > 0; b--) {   /* alerting first, then the most relevant, then the newest */
+        struct la_item *x = &las[order[b - 1]], *y = &las[order[b]];
+        int ya = la.alert_until > now() && !strcmp(y->id, la.alert_id), xa = la.alert_until > now() && !strcmp(x->id, la.alert_id);
+        if (ya > xa || (ya == xa && (y->relevance > x->relevance || (y->relevance == x->relevance && y->started > x->started)))) { int t = order[b]; order[b] = order[b - 1]; order[b - 1] = t; }
+    }
+    double w = fmin(dev.width - 16, 400), x = (dev.width - w) / 2, h = w * 160 / 370, y = top;
+    for (int k = 0; k < n && k < 3; k++) {
+        struct la_item *it = &las[order[k]];
+        cairo_save(c);
+        sys_round(c, x, y, w, h, 22); cairo_clip_preserve(c);
+        cairo_set_source_rgba(c, 0.95, 0.95, 0.97, 0.88); cairo_fill(c);
+        la_img(c, it->lock, x, y, w, h);
+        cairo_restore(c);
+        if (la.alert_until > now() && !strcmp(it->id, la.alert_id)) {     /* lit up by an alert */
+            cairo_new_path(c); sys_round(c, x - 2, y - 2, w + 4, h + 4, 24); cairo_set_source_rgba(c, 1, 1, 1, 0.95); cairo_set_line_width(c, 3); cairo_stroke(c);
+        }
+        char eid[32]; if (k) snprintf(eid, sizeof eid, "live-activity-%d", k + 1); else snprintf(eid, sizeof eid, "live-activity");
+        el_add(eid, it->id, (struct rectf){ x, y, w, h }, EL_LA, order[k]);
+        y += h + 10;
+    }
+    return y - top;
+}
+/* a tap on a Live Activity (lock screen, banner): the app opens, with its widgetURL */
+static void la_open(int i) {
+    if (i < 0 || i >= LA_MAX || !las[i].on) return;
+    fprintf(stderr, "isim shell: Live Activity %s opens its app%s%s\n", las[i].id, las[i].url[0] ? " with " : "", las[i].url);
+    if (locked) sys_unlock();
+    la.alert_banner = 0;
+    sys_send_text(0, "la-open %s\x1f%s", las[i].app, las[i].url);
+}
+
+/* ---- Lock Screen widgets (WidgetKit accessory families, rendered vibrant by the app's widget extension; the home
+   screen sends "lw-set SIDECAR": inline=FILE\x1fAPP\x1fKIND and widget=FAMILY\x1fFILE\x1fAPP\x1fKIND lines). The
+   inline widget sits next to the (shortened) date above the clock; up to four units of circular (one unit, 72 pt) and
+   rectangular (two units, 160 x 72) widgets in a row under the clock, 16 pt apart (estimated from iPhone 15/16 Pro
+   screenshots). A long press on the Lock Screen (or `lockscreen customize`) opens the home screen's editor. ---- */
+struct lw_item { int family; cairo_surface_t *img; char app[256], kind[128]; double cx0, cx1; };   /* family: 0 inline, 1 circular, 2 rectangular */
+static struct lw_item lws[5]; static int nlw;
+static int lock_editing, lock_edit_active;
+static void lw_clear(void) { for (int i = 0; i < nlw; i++) if (lws[i].img) cairo_surface_destroy(lws[i].img); memset(lws, 0, sizeof lws); nlw = 0; }
+static void lw_set(const char *sidecar) {
+    FILE *f = fopen(sidecar, "r");
+    if (!f) return;
+    lw_clear();
+    char line[1400];
+    while (fgets(line, sizeof line, f) && nlw < 5) {
+        line[strcspn(line, "\n")] = 0;
+        char *v = strchr(line, '='); if (!v) continue; *v++ = 0;
+        char fam[32] = "", file[900] = "";
+        struct lw_item *it = &lws[nlw];
+        if (!strcmp(line, "inline")) { it->family = 0; field(v, 0, file, sizeof file); field(v, 1, it->app, sizeof it->app); field(v, 2, it->kind, sizeof it->kind); }
+        else if (!strcmp(line, "widget")) {
+            field(v, 0, fam, sizeof fam); field(v, 1, file, sizeof file); field(v, 2, it->app, sizeof it->app); field(v, 3, it->kind, sizeof it->kind);
+            it->family = !strcmp(fam, "accessoryRectangular") ? 2 : 1;
+        } else continue;
+        if (file[0]) {
+            it->img = cairo_image_surface_create_from_png(file);
+            if (cairo_surface_status(it->img) != CAIRO_STATUS_SUCCESS) { cairo_surface_destroy(it->img); it->img = NULL; }
+        }
+        if (it->img && it->family == 0) {                  /* the inline content's horizontal extent (it is centred in its frame) */
+            cairo_surface_flush(it->img);
+            int w = cairo_image_surface_get_width(it->img), h = cairo_image_surface_get_height(it->img), st = cairo_image_surface_get_stride(it->img);
+            unsigned char *px = cairo_image_surface_get_data(it->img); int x0 = w, x1 = -1;
+            for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) if (px[y * st + x * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+            it->cx0 = x1 >= x0 ? (double)x0 / w : 0; it->cx1 = x1 >= x0 ? (double)(x1 + 1) / w : 1;
+        }
+        nlw++;
+    }
+    fclose(f);
+    fprintf(stderr, "isim shell: Lock Screen widgets: %d\n", nlw);
+    if (ov == OV_LOCK) sys_draw();
+}
+static double lw_row_top(void) { double top = fmax(dev.safe_top, 20); return sys_os() >= 26 ? top + 206 : top + 162; }
+/* the date line (with the inline widget) */
+static void lw_draw_date(cairo_t *c, double top, const char *dstr) {
+    struct lw_item *in = NULL;
+    for (int i = 0; i < nlw; i++) if (lws[i].family == 0) in = &lws[i];
+    if (!in) { sys_text(c, dstr, 0, top + 30, dev.width, 19, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 0.9); return; }
+    char shortd[32]; time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm); strftime(shortd, sizeof shortd, "%a %e", &tm);
+    char *dbl = strstr(shortd, "  "); if (dbl) memmove(dbl, dbl + 1, strlen(dbl));
+    PangoLayout *l = pango_cairo_create_layout(c);
+    PangoFontDescription *fd = pango_font_description_new();
+    pango_font_description_set_family(fd, SYSTEM_SANS); pango_font_description_set_absolute_size(fd, 19 * PANGO_SCALE); pango_font_description_set_weight(fd, PANGO_WEIGHT_SEMIBOLD);
+    pango_layout_set_font_description(l, fd); pango_font_description_free(fd); pango_layout_set_text(l, shortd, -1);
+    int dw, dh; pango_layout_get_pixel_size(l, &dw, &dh); g_object_unref(l);
+    double iw = 234, ih = 26, cw = in->img ? (in->cx1 - in->cx0) * iw : 0, gap = 8, total = dw + (cw > 0 ? gap + cw : 0), x = (dev.width - total) / 2;
+    sys_text(c, shortd, x, top + 30, 0, 19, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 0.9);
+    double iy = top + 30 + (dh - ih) / 2;
+    if (in->img) {
+        cairo_save(c); cairo_rectangle(c, x + dw + gap, iy, cw, ih); cairo_clip(c);
+        la_img(c, in->img, x + dw + gap - in->cx0 * iw, iy, iw, ih); cairo_restore(c);
+    }
+    el_add("lock-widget-inline", in->kind, (struct rectf){ x + dw + gap, iy, cw, ih }, EL_LW, (int)(in - lws));
+}
+/* the row under the clock; returns its bottom (0: no widgets) */
+static double lw_draw_row(cairo_t *c) {
+    double total = 0; int n = 0;
+    for (int i = 0; i < nlw; i++) if (lws[i].family) { total += lws[i].family == 2 ? 160 : 72; n++; }
+    if (!n) return 0;
+    total += 16 * (n - 1);
+    double x = (dev.width - total) / 2, y = lw_row_top(); int k = 0;
+    for (int i = 0; i < nlw; i++) {
+        if (!lws[i].family) continue;
+        double w = lws[i].family == 2 ? 160 : 72;
+        la_img(c, lws[i].img, x, y, w, 72);
+        char id[32]; snprintf(id, sizeof id, "lock-widget-%d", ++k);
+        el_add(id, lws[i].kind, (struct rectf){ x, y, w, 72 }, EL_LW, i);
+        x += w + 16;
+    }
+    return y + 72;
+}
+static void lw_open(int i) {
+    if (i < 0 || i >= nlw) return;
+    fprintf(stderr, "isim shell: Lock Screen widget %s opens its app\n", lws[i].kind);
+    sys_unlock();
+    sys_send_text(0, "lw-open %d", i);
+}
+/* the Lock Screen editor (a long press on the Lock Screen > Customize): the home screen draws it while the device
+   stays locked; "lock-edit-done" brings the Lock Screen back */
+static void lock_customize(void) {
+    if (!locked || lock_editing || ov != OV_LOCK) return;
+    lock_editing = 1; lock_edit_active = active;
+    ov = OV_NONE; active = 0;
+    fprintf(stderr, "isim shell: Lock Screen customization\n");
+    shell_send(0, EV_FOREGROUND);
+    sys_send_text(0, "lock-customize");
+    shell_show(0);
+}
+static void lock_customize_done(void) {
+    if (!lock_editing) return;
+    lock_editing = 0;
+    shell_send(0, EV_BACKGROUND);
+    active = lock_edit_active; ov = OV_LOCK; ov_t0 = now() - 1;
+    fprintf(stderr, "isim shell: Lock Screen customization done\n");
+    sys_draw();
+}
+
+/* ---- StandBy (iOS 17+: an iPhone on its side while charging): `standby on` locks the device, turns it to landscape
+   and shows two widgets side by side, full colour, without their container backgrounds, on black (the home screen
+   renders the first two small home-screen widgets, "sb-set SIDECAR": left= / right=FILE\x1fAPP\x1fKIND); an empty
+   side shows the system's clock (adapted: isim's digital clock). ---- */
+static int standby;
+static struct { cairo_surface_t *img; char app[256], kind[128]; } sbw[2];
+static void sb_clear(void) { for (int i = 0; i < 2; i++) { if (sbw[i].img) cairo_surface_destroy(sbw[i].img); memset(&sbw[i], 0, sizeof sbw[i]); } }
+static void sb_set(const char *sidecar) {
+    FILE *f = fopen(sidecar, "r");
+    if (!f) return;
+    sb_clear();
+    char line[1400]; int n = 0;
+    while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\n")] = 0;
+        char *v = strchr(line, '='); if (!v) continue; *v++ = 0;
+        int i = !strcmp(line, "left") ? 0 : !strcmp(line, "right") ? 1 : -1;
+        if (i < 0) continue;
+        char file[900]; field(v, 0, file, sizeof file); field(v, 1, sbw[i].app, sizeof sbw[i].app); field(v, 2, sbw[i].kind, sizeof sbw[i].kind);
+        sbw[i].img = cairo_image_surface_create_from_png(file);
+        if (cairo_surface_status(sbw[i].img) != CAIRO_STATUS_SUCCESS) { cairo_surface_destroy(sbw[i].img); sbw[i].img = NULL; } else n++;
+    }
+    fclose(f);
+    fprintf(stderr, "isim shell: StandBy widgets: %d\n", n);
+    if (standby && ov == OV_LOCK) sys_draw();
+}
+static void standby_draw(cairo_t *c) {
+    cairo_set_source_rgb(c, 0, 0, 0); cairo_paint(c);
+    double l = fmax(dev.safe_left, 20), r = fmax(dev.safe_right, 20), gap = 24, avail = dev.width - l - r;
+    double side = fmin(dev.height - 40, (avail - gap) / 2), x0 = l + (avail - 2 * side - gap) / 2, y = (dev.height - side) / 2;
+    for (int i = 0; i < 2; i++) {
+        struct rectf s = { x0 + i * (side + gap), y, side, side };
+        if (sbw[i].img) la_img(c, sbw[i].img, s.x, s.y, s.w, s.h);
+        else {                                              /* the system's clock */
+            char t[16], d[64]; sys_time_strings(t, sizeof t, d, sizeof d);
+            const char *fixed = getenv("ISIM_LOCK_TIME"); if (fixed && *fixed) snprintf(t, sizeof t, "%s", fixed);
+            sys_text(c, t, s.x, s.y + side * 0.22, s.w, side * 0.42, PANGO_WEIGHT_HEAVY, 1, 1, 1, 1, 1, 0.95);
+            sys_text(c, d, s.x, s.y + side * 0.78, s.w, 20, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 0.7);
+        }
+        el_add(i ? "standby-widget-right" : "standby-widget-left", sbw[i].img ? sbw[i].kind : "Clock", s, EL_NONE, i);
+    }
+}
+static void standby_set(int on) {
+    if (on == standby) return;
+    if (on) {
+        if (!locked) sys_lock();
+        standby = 1;
+        shell_apply_orient(3);
+        fprintf(stderr, "isim shell: StandBy on (charging, landscape)\n");
+        sys_send_text(0, "standby on");
+    } else {
+        standby = 0; sb_clear();
+        shell_apply_orient(1);
+        fprintf(stderr, "isim shell: StandBy off\n");
+        sys_send_text(0, "standby off");
+    }
+    if (ov == OV_LOCK) sys_draw();
 }
 
 /* ---- widget extension helpers (WidgetKit): short-lived processes the home screen asks for ---- */
@@ -828,7 +1167,7 @@ static void sys_draw(void) {
         nx_draw(c);
     } else if (ov == OV_LOCK) {
         cairo_scale(c, px_scale, px_scale);
-        lock_draw(c, home, hw, hh);
+        if (standby) standby_draw(c); else lock_draw(c, home, hw, hh);
     } else if (ov == OV_SWITCHER) {
         sys_paint_blurred(c, home, hw, hh, 0.35);
         cairo_scale(c, px_scale, px_scale);
@@ -877,7 +1216,7 @@ static void sys_draw(void) {
         cairo_paint_with_alpha(c, ov == OV_CC ? e : 1);
     }
     cairo_surface_destroy(bs); cairo_surface_destroy(home);
-    if (ov != OV_NONE) sys_chrome(c, ov == OV_CC ? e : 1);
+    if (ov != OV_NONE && !(standby && ov == OV_LOCK)) sys_chrome(c, ov == OV_CC ? e : 1);   /* StandBy: no status bar */
     if (cc_brightness < 0.999) { cairo_identity_matrix(c); cairo_set_source_rgba(c, 0, 0, 0, (1 - cc_brightness) * 0.7); cairo_paint(c); }
     cairo_destroy(c);
     present_comp();
@@ -916,6 +1255,8 @@ static void sys_lock(void) {
 }
 static void sys_unlock(void) {
     if (!locked) return;
+    if (lock_editing) { lock_editing = 0; active = lock_edit_active; sys_send_text(0, "lock-customize-cancel"); }
+    if (standby) { standby = 0; sb_clear(); shell_apply_orient(1); fprintf(stderr, "isim shell: StandBy off\n"); sys_send_text(0, "standby off"); }
     locked = 0; ov = OV_NONE;
     fprintf(stderr, "isim shell: unlocked\n");
     if (active >= 0) shell_send(active, EV_FOREGROUND);
@@ -1009,6 +1350,8 @@ static void el_tap(struct sys_el *e, double y) {
     case EL_NX_SEND: if (nx.reply) { struct nx_action *a = &nx.act[nx.reply - 1]; char t[512]; snprintf(t, sizeof t, "%s", nx.text); nx_respond(a->id, t, (a->opts & 4) != 0); } break;
     case EL_NC_CLEAR: fprintf(stderr, "isim shell: cleared %d notification(s)\n", nnc); nnc = 0; sys_draw(); break;
     case EL_CC_TOGGLE: cc_toggle(e->arg); break;
+    case EL_LA: la_open(e->arg); break;                          /* a Live Activity: its app (with its widgetURL) */
+    case EL_LW: lw_open(e->arg); break;                          /* a Lock Screen widget: its app */
     case EL_CC_SLIDER: {
         double v = fmin(1, fmax(0, 1 - (y - e->r.y) / e->r.h));
         if (e->arg == 0) cc_brightness = fmax(0.05, v); else cc_volume = v;
@@ -1027,7 +1370,8 @@ static void sys_dump(void) {
     for (int k = 0; k < nels; k++)
         fprintf(stderr, "  %s (%g %g; %g x %g) id=%s%s%s\n", els[k].kind == EL_CARD ? "IsimAppCard" : els[k].kind == EL_NC_ITEM ? "IsimNotification" :
                 els[k].kind == EL_NX_ACTION ? "IsimNotificationAction" : els[k].kind == EL_NX_CONTENT ? "IsimNotificationContent" :
-                els[k].kind == EL_CC_TOGGLE ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : "IsimSystemView",
+                els[k].kind == EL_CC_TOGGLE ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" :
+                els[k].kind == EL_LA ? "IsimLiveActivity" : els[k].kind == EL_LW ? "IsimLockScreenWidget" : "IsimSystemView",
                 els[k].r.x, els[k].r.y, els[k].r.w, els[k].r.h, els[k].id, els[k].text[0] ? " text=" : "", els[k].text);
 }
 
@@ -1058,20 +1402,32 @@ static int sys_input(const struct isim_event *ev) {
         if (ev->type == EV_TOUCH_DOWN && inside) return 1;
         if (ev->type == EV_TOUCH_UP && inside && app > 0) { shell_launch(clients[app].bundle, clients[app].exe, NULL); return 1; }
     }
-    if (ov == OV_NONE && la_island_visible()) {                 /* the Dynamic Island: tap expands / collapses */
-        struct rectf r = la.expanded ? la_expanded_rect() : la_compact_rect();
-        if ((ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) && !strcmp(ev->text, "dynamic-island")) {
-            if (ev->type == EV_ID_UP) { la.expanded = !la.expanded; fprintf(stderr, "isim shell: Dynamic Island %s\n", la.expanded ? "expanded" : "compact"); shell_show(active); }
-            return 1;
+    if (ov == OV_NONE && la_island_visible()) {                 /* the Dynamic Island: tap expands / collapses; a banner opens the app */
+        int e = la_expanded(), idx[LA_MAX], n = la_island_list(idx);
+        struct rectf r = la_banner_visible() ? la_banner_rect() : e >= 0 ? la_expanded_rect() : n >= 2 ? la_attached_rect() : la_compact_rect();
+        struct rectf d = la_detached_rect();
+        if (ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) {
+            if (!strcmp(ev->text, "live-activity-banner")) { if (ev->type == EV_ID_UP) la_open(la_find(la.alert_id)); return 1; }
+            if (!strcmp(ev->text, "dynamic-island") || (!strcmp(ev->text, "dynamic-island-detached") && n >= 2 && e < 0)) {
+                if (ev->type == EV_ID_UP) { la_toggle(!strcmp(ev->text, "dynamic-island-detached")); shell_show(active); }
+                return 1;
+            }
         }
-        if (ev->type == EV_DUMP) {
-            fprintf(stderr, "IsimDynamicIsland (%g %g; %g x %g) id=dynamic-island text=%s\n", r.x, r.y, r.w, r.h, la.expanded ? "expanded" : "compact");
-            return 0;
-        }
+        if (ev->type == EV_DUMP) { la_dump_island(); return 0; }
         int inside = ev->x >= r.x && ev->x <= r.x + r.w && ev->y >= r.y && ev->y <= r.y + r.h;
-        if (ev->type == EV_TOUCH_DOWN && (inside || la.expanded)) { top_drag.on = 0; return 1; }
-        if (ev->type == EV_TOUCH_UP && (inside || la.expanded)) { la.expanded = inside ? !la.expanded : 0; shell_show(active); return 1; }
-        if (ev->type == EV_TOUCH_MOVE && la.expanded) return 1;
+        int in_d = n >= 2 && e < 0 && !la_banner_visible() && ev->x >= d.x && ev->x <= d.x + d.w && ev->y >= d.y && ev->y <= d.y + d.h;
+        if (la_banner_visible()) {
+            if (ev->type == EV_TOUCH_DOWN && inside) return 1;
+            if (ev->type == EV_TOUCH_UP && inside) { la_open(la_find(la.alert_id)); return 1; }
+        } else {
+            if (ev->type == EV_TOUCH_DOWN && (inside || in_d || e >= 0)) { top_drag.on = 0; return 1; }
+            if (ev->type == EV_TOUCH_UP && (inside || in_d || e >= 0)) {
+                if (e >= 0 && !inside) { la.exp_id[0] = 0; fprintf(stderr, "isim shell: Dynamic Island %s\n", n >= 2 ? "minimal" : "compact"); }
+                else la_toggle(in_d);
+                shell_show(active); return 1;
+            }
+            if (ev->type == EV_TOUCH_MOVE && e >= 0) return 1;
+        }
     }
     if (ov == OV_NONE) {
         /* pull down from the top edge: Notification Center (left / middle) or Control Center (right corner) */
@@ -1099,6 +1455,9 @@ static int sys_input(const struct isim_event *ev) {
         if (ev->type == EV_ID_DOWN && ev->mods != 1) { id_down_t = now(); snprintf(id_down, sizeof id_down, "%s", ev->text); }
         if (ev->type == EV_ID_UP && e->kind == EL_NC_ITEM && !strcmp(id_down, ev->text) && now() - id_down_t >= 0.5) {   /* holdid: expand */
             id_down[0] = 0; nx_open_item(e->arg); return 1;
+        }
+        if (ev->type == EV_ID_UP && ov == OV_LOCK && !standby && !strcmp(ev->text, "lock-clock") && !strcmp(id_down, ev->text) && now() - id_down_t >= 0.5) {
+            id_down[0] = 0; lock_customize(); return 1;                    /* holdid lock-clock: customize */
         }
         if (ev->type == EV_ID_DOWN && ev->mods == 1) {                 /* swipeid ID dx dy s */
             if (e->kind == EL_CARD && ev->y < -50) sw_kill(e->arg);
@@ -1137,6 +1496,7 @@ static int sys_input(const struct isim_event *ev) {
         if ((ov == OV_NC || ov == OV_CC) && dy < -60) { sys_close(); return 1; }
         struct sys_el *te = moved ? NULL : el_at(ev->x, ev->y);
         if (te && te->kind == EL_NC_ITEM && now() - sw_drag.t0 >= 0.5) { nx_open_item(te->arg); return 1; }   /* long press: expand */
+        if (ov == OV_LOCK && !standby && !moved && now() - sw_drag.t0 >= 0.6 && (!te || te->kind == EL_NONE)) { lock_customize(); return 1; }   /* long press: customize */
         if (!moved) el_tap(te, ev->y);
         else if (ov == OV_SWITCHER) sys_draw();
         return 1;
@@ -1162,6 +1522,7 @@ static void sys_tick(void) {
     if (active != seen_active) { seen_active = active; if (active > 0) last_active_t[active] = now(); }
     sys_autolock_tick();
     bg_tick();
+    la_tick();
     if (ov == OV_NONE) return;
     static double last_draw;
     double t = now();
@@ -1215,11 +1576,18 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
         sys_send_text(0, "widget-reload %s", m->c);
     } else if (!strcmp(verb, "live-activity")) {            /* ActivityKit: the home screen renders it */
         sys_send_text(0, "live-activity %s %s", m->b, m->c);
-    } else if (!strcmp(verb, "la-show")) {
+    } else if (!strcmp(verb, "la-set")) {                    /* a Live Activity rendered (SBLiveActivities.m) */
         la_set(m->b, m->c);
-        shell_show(active >= 0 ? active : 0);
-    } else if (!strcmp(verb, "la-hide")) {
-        if (!strcmp(la.app, m->b)) { la_clear(); fprintf(stderr, "isim shell: Live Activity ended\n"); shell_show(active >= 0 ? active : 0); }
+        if (ov != OV_NONE) sys_draw(); else shell_show(active >= 0 ? active : 0);
+    } else if (!strcmp(verb, "la-end")) {
+        la_end(m->b, m->c);
+        if (ov != OV_NONE) sys_draw(); else shell_show(active >= 0 ? active : 0);
+    } else if (!strcmp(verb, "lw-set")) {                    /* Lock Screen widgets (SBLockScreen.m) */
+        lw_set(m->c);
+    } else if (!strcmp(verb, "sb-set")) {                    /* StandBy's widgets */
+        sb_set(m->c);
+    } else if (!strcmp(verb, "lock-edit-done")) {
+        lock_customize_done();
     } else if (!strcmp(verb, "openurl")) {
         sys_send_text(0, "openurl %s", m->c);
     } else if (!strcmp(verb, "reload-home")) {
@@ -1294,9 +1662,21 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "switcher")) { if (!locked) sys_open(OV_SWITCHER); return 1; }
     if (!strcmp(verb, "notifications")) { if (!locked) sys_open(OV_NC); return 1; }
     if (!strcmp(verb, "controlcenter")) { if (!locked) sys_open(OV_CC); return 1; }
-    if (!strcmp(verb, "island")) {
-        if (la.on) { la.expanded = !la.expanded; fprintf(stderr, "isim shell: Dynamic Island %s\n", la.expanded ? "expanded" : "compact"); shell_show(active); }
+    if (!strcmp(verb, "island")) {                             /* island [detached]: expand / collapse */
+        int idx[LA_MAX];
+        if (la_island_list(idx) > 0 || la_expanded() >= 0) { la_toggle(!strcmp(args, "detached")); shell_show(active); }
         else fprintf(stderr, "isim shell: no Live Activity\n");
+        return 1;
+    }
+    if (!strcmp(verb, "standby")) {                            /* standby on|off: StandBy (charging, on its side) */
+        if (!strcmp(args, "on") || !strcmp(args, "off")) standby_set(!strcmp(args, "on"));
+        else fprintf(stderr, "isim shell: standby on|off\n");
+        return 1;
+    }
+    if (!strcmp(verb, "lockscreen")) {                         /* lockscreen customize|done: the Lock Screen editor */
+        if (!strcmp(args, "customize")) { if (!locked) sys_lock(); lock_customize(); }
+        else if (!strcmp(args, "done")) sys_send_text(0, "lock-customize-done");
+        else fprintf(stderr, "isim shell: lockscreen customize|done\n");
         return 1;
     }
     if (!strcmp(verb, "homepage")) { if (!locked && active == 0) sys_send_text(0, "homepage %s", args); return 1; }

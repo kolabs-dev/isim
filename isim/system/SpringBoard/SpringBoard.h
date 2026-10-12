@@ -124,3 +124,21 @@ NSString *HSCategoryName(NSString *category);
 - (void)showSpotlight;
 - (void)hideSpotlight;
 @end
+
+/* widget extensions (SBWidgets.m): the app's widget extension { path, exe }, the directory its renders go to, and a
+   request to it (a helper process the shell starts; "widget-done" comes back to -widgetDone:) */
+NSDictionary *HSWidgetExtension(HSApp *app);
+NSString *HSWidgetsDir(NSString *bundle);
+void HSRunWidgetExtension(NSDictionary *ext, NSString *bundle, NSDictionary *request);
+/* the point size of a widget family on this device (WidgetKit renders at these sizes) */
+CGSize HSWidgetFamilySize(NSString *family);
+BOOL HSLockEditorShown(void);                                 /* the Lock Screen editor is up (no status bar) */
+@interface HomeViewController (LockScreen)                    /* SBLockScreen.m: Lock Screen widgets, their editor, StandBy */
+- (void)installLockScreenObservers;
+- (void)lockWidgetRendered:(NSDictionary *)request;           /* a render for the Lock Screen or StandBy finished */
+@end
+@interface HomeViewController (LiveActivities)                /* SBLiveActivities.m: rendering, stale dates, pushes */
+- (void)liveActivity:(NSString *)args;                        /* "update|update-alert|end PATH" from ActivityKit */
+- (void)liveActivityRendered:(NSDictionary *)request;
+- (BOOL)deliverLiveActivityPush:(NSDictionary *)payload app:(HSApp *)app;   /* aps.event payloads (YES: handled) */
+@end

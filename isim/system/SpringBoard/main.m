@@ -256,7 +256,7 @@ static NSString *icon_state_file(void) {
 }
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleLightContent; }
 /* edit mode: the status bar makes way for the + / Edit and Done buttons, as on iOS */
-- (BOOL)prefersStatusBarHidden { return _editing; }
+- (BOOL)prefersStatusBarHidden { return _editing || HSLockEditorShown(); }   /* the Lock Screen editor: SBLockScreen.m */
 - (CGFloat)iconSize { CGFloat s = self.view.bounds.size.width >= 700 ? 74 : 60; return HSLargeIcons() ? round(s * 1.2) : s; }   /* large: names hidden, icons bigger */
 - (void)viewDidLoad {
     [super viewDidLoad];

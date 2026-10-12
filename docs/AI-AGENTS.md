@@ -149,7 +149,13 @@ rm -f /tmp/v.txt; isim send "dump views /tmp/v.txt"     # then wait until /tmp/v
 isim send "shot /tmp/s.png"
 isim openurl myapp://settings
 isim push dev.example.myapp payload.apns
+isim send "lockscreen customize"                       # widgets: the Lock Screen editor; "standby on" for StandBy
 ```
+
+Widgets and Live Activities can be checked the same way: the log says what the widget extension rendered
+(`isim WidgetKit: rendered KIND (FAMILY…)`), `dump` lists the widgets and the Dynamic Island, and a Live Activity's
+push token is in the log (`isim ActivityKit: push token for ID: HEX`) for `isim push` liveactivity payloads (see
+[SCRIPTING.md](SCRIPTING.md), Widgets and Live Activities).
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
 works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file

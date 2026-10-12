@@ -52,7 +52,9 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
 | `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes) |
 | `spotlight` | Spotlight on the home screen |
-| `island` | expand / collapse the Dynamic Island's Live Activity |
+| `island` / `island detached` | expand / collapse the Dynamic Island's Live Activity (with two activities: the attached one, or the detached one) |
+| `lockscreen customize` / `lockscreen done` | the Lock Screen editor (what a long press on the Lock Screen opens; locks first): `tapid lock-edit-widgets` opens the Add Widgets sheet for the row under the clock, `tapid lock-edit-inline` the one for the inline widget next to the date; `tapid lock-add-KIND-FAMILY` adds a widget (`accessoryCircular` takes one of the four units, `accessoryRectangular` two), `tapid lock-edit-remove-N` / `lock-edit-remove-inline` removes one, `tapid lock-gallery-close` closes the sheet, `tapid lock-edit-done` / `lock-edit-cancel` (or `lockscreen done`) saves / discards |
+| `standby on\|off` | StandBy (iOS 17+: the iPhone charging on its side): locks the device, turns it to landscape and shows the first two small home-screen widgets side by side without their container backgrounds (an empty side shows the clock); `dump` lists `standby-widget-left` / `standby-widget-right`. Off: the portrait Lock Screen (unlocking also ends it) |
 | `homepage N` / `homepage library` | show home-screen page N (1-based) or the App Library |
 | `iconstyle STYLE [#RRGGBB] [small\|large]` | Home Screen icon appearance, as chosen in edit mode › Edit › Customize: `automatic`, `light`, `dark`, `tinted` (with the tint) or, iOS 26+, `clear`; small or large icons (saved; logs `SpringBoard: icon appearance …`) |
 | `swipehome left\|right` | swipe across the home screen (left: the next page) |
@@ -69,6 +71,24 @@ extension's view is drawn at the top of the card.
 `dump` lists it before the app's view tree:
 `IsimNotificationBanner … id=isim-notification-banner notification=ID text=TITLE body=BODY` (line breaks become spaces).
 `tapid isim-notification-banner` opens it and `holdid isim-notification-banner 0.8` expands it.
+
+**Widgets** (WidgetKit): a long press on a home-screen widget (`holdid widget-KIND-FAMILY 0.8`) opens its menu:
+`menu-widget-edit` (configurable widgets: Edit Widget), `menu-edit` (Edit Home Screen), `menu-widget-remove`. Edit Widget
+shows the configuration intent's parameters: `tapid widget-param-NAME` toggles a Bool switch, opens an enum's choices
+(`tapid widget-choice-RAWVALUE`) or focuses a text / number field (`type`, `key return`); `tapid widget-config-done`
+(outside the card) applies them and the timeline reloads. A tap on a widget outside its buttons opens the app with its
+`widgetURL` (on a `Link`: the Link's URL); the log says `SpringBoard: widget KIND opens APP with URL`. In the widget
+gallery each row shows the widget's snapshot (`widget-preview-KIND`). On the Lock Screen `dump` lists
+`IsimLockScreenWidget … id=lock-widget-N` (and `lock-widget-inline`); `tapid` on one unlocks and opens its app.
+
+**Live Activities**: `dump` lists `IsimDynamicIsland … id=dynamic-island text=compact|minimal|expanded` (with two
+activities also `id=dynamic-island-detached`), on the lock screen `IsimLiveActivity … id=live-activity` (then
+`live-activity-2`, …; text: the activity's id; `tapid` opens the app with the activity's `widgetURL`) and, on devices
+without a Dynamic Island while an alert shows, `id=live-activity-banner`. Push updates go through `push BUNDLE_ID FILE`
+(or `isim push`) with a liveactivity payload: `"aps": { "event": "update" | "end" | "start", "timestamp",
+"content-state", "stale-date", "dismissal-date", "relevance-score", "alert", "attributes-type", "attributes" }`; a
+top-level `"apns-push-token"` (the token the app logs from `pushTokenUpdates`) picks the activity, else the app's newest
+activity with a push token. `start` needs the push-to-start token the app read from `pushToStartTokenUpdates`.
 
 **Location indicator**: while an app uses location in the background, the status bar's time sits on a blue capsule
 (`dump`: `IsimLocationIndicator … id=location-indicator`); `tapid location-indicator` opens that app.

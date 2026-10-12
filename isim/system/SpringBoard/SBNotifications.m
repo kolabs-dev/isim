@@ -123,6 +123,7 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     HSApp *a = nil;
     for (HSApp *x in self.apps) if ([x.bundleID isEqualToString:bundle]) a = x;
     if (!a) { NSLog(@"SpringBoard: push: no installed app '%@'", bundle); return; }
+    if ([self deliverLiveActivityPush:payload app:a]) return;         /* a liveactivity payload (aps.event): SBLiveActivities.m */
     NSDictionary *aps = payload[@"aps"];
     /* the APNs apns-collapse-id header becomes the request identifier on iOS; a payload file has no headers, so isim reads
        it from a top-level "apns-collapse-id" key */
