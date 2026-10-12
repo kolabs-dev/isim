@@ -805,6 +805,10 @@ void isim_sys_event(const char *text) {
         isim_dispatch_memory_pressure(level);
         if (level != 1) isim_ui_memory_warning();
     }
+    else if ([verb isEqualToString:@"power-state"]) {               /* Control Center's Low Power Mode */
+        NSLog(@"isim: Low Power Mode %@", [args isEqualToString:@"low"] ? @"on" : @"off");
+        [NSNotificationCenter.defaultCenter postNotificationName:NSProcessInfoPowerStateDidChangeNotification object:NSProcessInfo.processInfo];
+    }
     else if ([verb isEqualToString:@"display"]) { extern void isim_ui_display_event(NSString *args); isim_ui_display_event(args); }   /* UISceneAccessories.m */
     else if ([verb isEqualToString:@"closescene"]) { extern void isim_ui_close_scene(NSString *ident); isim_ui_close_scene(args); }
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */

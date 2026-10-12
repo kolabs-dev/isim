@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Focus Lamp</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloFocusControls</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloFocusControls</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>NSFocusStatusUsageDescription</key>
+	<string>Focus Lamp dims itself while you are focused.</string>
+</dict>
+</plist>

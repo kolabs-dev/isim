@@ -571,6 +571,27 @@ static NSString *thumbnail_path(UNNotificationContent *c) {
     return nil;
 }
 
+/* what the system needs for Focus: t = time sensitive (the interruption level and the Time Sensitive Notifications
+   entitlement), q = quiet (the app's Focus filter predicate, AppIntents' FocusFilterAppContext, does not match the
+   notification's filterCriteria) */
+static NSString *focus_flags(UNNotificationContent *c) {
+    NSMutableString *f = [NSMutableString string];
+    if (c.interruptionLevel == UNNotificationInterruptionLevelTimeSensitive) {
+        NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
+        if ([ent[@"com.apple.developer.usernotifications.time-sensitive"] boolValue]) [f appendString:@"t"];
+        else NSLog(@"isim UserNotifications: time-sensitive without the com.apple.developer.usernotifications.time-sensitive entitlement (delivered as active)");
+    }
+    NSString *format = [NSUserDefaults.standardUserDefaults stringForKey:@"_ISIMFocusNotificationFilter"];
+    if (format.length) {
+        NSPredicate *p = nil;
+        @try { p = [NSPredicate predicateWithFormat:format]; } @catch (NSException *e) { p = nil; }
+        BOOL match = NO;
+        @try { match = p && c.filterCriteria && [p evaluateWithObject:c.filterCriteria]; } @catch (NSException *e) { match = NO; }
+        if (p && !match) [f appendString:@"q"];
+    }
+    return f;
+}
+
 @interface ISIMNotificationBanner : NSObject
 + (void)show:(UNNotification *)n onTap:(void (^)(void))tap;
 @end
@@ -851,7 +872,7 @@ static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_
         if (r.content.badge && (granted0 & UNAuthorizationOptionBadge)) app.applicationIconBadgeNumber = r.content.badge.integerValue;
         if (r.content.sound && (granted0 & UNAuthorizationOptionSound)) NSLog(@"isim UserNotifications: sound “%@” (not played)", r.content.sound.isimName ?: @"default");
         if (isim_shell_present() && ((granted0 & UNAuthorizationOptionAlert) || [self status] == UNAuthorizationStatusProvisional)) {
-            NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@", r.identifier, app_icon_path() ?: @"", record ?: @"", thumb];
+            NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@\x1f%@", r.identifier, app_icon_path() ?: @"", record ?: @"", thumb, focus_flags(r.content)];
             NSString *body = r.content.subtitle.length ? [NSString stringWithFormat:@"%@\n%@", r.content.subtitle, r.content.body] : r.content.body;
             isim_shell_request(ISIM_SHELL_NOTIFY, a.UTF8String, (r.content.title.length ? r.content.title : app_name()).UTF8String, body.UTF8String);
         }

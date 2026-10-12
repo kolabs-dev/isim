@@ -1755,6 +1755,9 @@ void isim_ui_run_until(BOOL (^done)(void)) {
 @end
 
 int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName) {
+    /* the AppIntents overlay (Focus filters): 0 before launching (non-zero: a headless request was answered), 1 after */
+    int (*appintents)(int) = (int (*)(int))dlsym(RTLD_DEFAULT, "isim_appintents_launch");
+    if (appintents && appintents(0)) { fflush(NULL); exit(0); }
     @autoreleasepool {
         NSBundle *bundle = NSBundle.mainBundle;
         NSDictionary *info = bundle.infoDictionary;
@@ -1830,6 +1833,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         }
         if (background) isim_sys_after_background_launch();
         else if (!isim_sys_deliver_launch() && getenv("ISIM_LAUNCH_URL")) { NSString *u = @(getenv("ISIM_LAUNCH_URL")); dispatch_async(dispatch_get_main_queue(), ^{ deliver_url(u); }); }
+        if (appintents) appintents(1);
         if (!background) {
             if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
             [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:app];

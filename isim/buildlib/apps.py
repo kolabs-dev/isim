@@ -247,6 +247,14 @@ def _(a):
         a.copy("HelloWidgets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
 
 
+@app("samples/HelloFocusControls")
+def _(a):
+    b = a.swift_app(srcs=["HelloFocusControlsApp.swift", "Shared.swift"])
+    x = a.appex(b, "HelloFocusControlsExtension", ["Extension/Controls.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    for d in (b, x):                                           # the app group (and, for the app, time-sensitive notifications)
+        a.copy("HelloFocusControls.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+
+
 @app("samples/HelloKeyboard", products=["HelloKeyboard.appex"])
 def _(a):
     a.swift_app(srcs=a.files("HelloKeyboard/*.swift"), plist="HelloKeyboard/Info.plist", ext=".appex", extension=True)

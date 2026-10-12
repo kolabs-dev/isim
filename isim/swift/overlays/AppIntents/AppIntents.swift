@@ -2,7 +2,7 @@
 // Intents run in-process: in the app, or in a widget extension for interactive widgets (WidgetKit runs the
 // intent of the tapped button, then reloads the widget's timeline, like iOS 17).
 // Not on isim: Siri, the Shortcuts app, App Shortcuts surfaced in Spotlight (AppShortcutsProvider compiles; its
-// shortcuts are not listed anywhere), Focus filters, entity queries from the system.
+// shortcuts are not listed anywhere), entity queries from the system. Focus filters: Focus.swift.
 import Foundation
 import SwiftUI
 

@@ -382,6 +382,7 @@ public final class WidgetCenter: @unchecked Sendable {
             }
             (files as NSDictionary).write(toFile: (out as NSString).appendingPathComponent("activity.plist"), atomically: true)
             NSLog("isim WidgetKit: rendered Live Activity %@ (lock screen, Dynamic Island)", rec.type)
+        case "controls", "control-run": await _CWHost.handle(mode: mode, request: req, out: out)     /* Controls.swift */
         default: break
         }
     }

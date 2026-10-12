@@ -29,7 +29,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 |---|---|
 | `wait S` | wait S seconds (fractions allowed; `ISIM_WAIT_SCALE=2` doubles every wait, for slow machines) |
 | `quit` | stop the device |
-| `focus` | bring the device window to the front (what `isim open` sends to a running device; the desktop may only highlight it, Wayland compositors decide) |
+| `focus` | bring the device window to the front (what `isim open` sends to a running device; the desktop may only highlight it, Wayland compositors decide). With an argument it is the Focus mode (System UI below) |
 | `home` | go to the home screen. With `isim run` (the app alone, also XCUITest's app) there is no home screen: the app goes to the background |
 | `activate` | `isim run` only: bring the app back from the background (like tapping its icon after `home`) |
 | `launch BUNDLE_ID` | open an installed app |
@@ -50,7 +50,10 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock |
 | `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
 | `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
-| `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes) |
+| `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes). `cc-focus` toggles the last Focus, `cc-focus-modes` opens the Focus list (`cc-focus-dnd`, `cc-focus-personal`, `cc-focus-work`, `cc-focus-sleep`; `cc-page-background` goes back). iOS 18+: `cc-edit` is edit mode (`cc-remove-NAME`, `cc-resize-KIND` for app controls, `cc-add-control` opens the gallery: `cc-gallery-KIND` adds an app's ControlWidget, `cc-gallery-system-NAME` a system control, `cc-gallery-close`; `cc-edit-background` ends edit mode); added controls are `cc-control-KIND` (text: title and value) and run their intent when tapped |
+| `focus dnd\|personal\|work\|sleep\|off` | turn a Focus on (or off), like Control Center's Focus list (logs `isim shell: Focus Work on`): banners of apps the Focus does not allow (Settings › Focus › the Focus › Apps) are silenced, time-sensitive ones break through, apps' Focus filters run (`SetFocusFilterIntent.perform()`) |
+| `lockcontrol left\|right CONTROL` | the Lock Screen's bottom buttons (iOS 18 lets you replace the flashlight and camera): `flashlight`, `camera`, `timer`, `dark`, `lowpower`, `focus`, `none`, or an app control's kind; on the lock screen `tapid lock-control-left` / `lock-control-right` runs it |
+| `actionbutton [assign CONTROL]` | press the Action button (iPhone 15 Pro and later, iPhone 16 and 17 presets; default: Silent Mode), or assign it a control (`silent`, `focus`, `flashlight`, …, or an app control's kind). Devices without one log that they have none |
 | `spotlight` | Spotlight on the home screen |
 | `island` | expand / collapse the Dynamic Island's Live Activity |
 | `homepage N` / `homepage library` | show home-screen page N (1-based) or the App Library |

@@ -112,6 +112,10 @@ NSString *HSCategoryName(NSString *category);
 - (void)showWidgetGallery;
 - (void)discoverWidgets;
 @end
+@interface HomeViewController (Controls)
+- (void)installControlObservers;         /* Control Center controls, Focus filters (SBControls.m) */
+- (void)discoverControls;
+@end
 @interface HomeViewController (Layout)
 - (NSMutableArray *)_layoutItems;
 - (void)_layoutChanged;
