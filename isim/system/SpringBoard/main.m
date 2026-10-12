@@ -131,6 +131,7 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
         a.name = [b objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: [b objectForInfoDictionaryKey:@"CFBundleName"] ?: n.stringByDeletingPathExtension;
         a.bundleID = info[@"CFBundleIdentifier"] ?: n;
         a.info = info;
+        a.appClip = info[@"NSAppClip"] != nil;
         a.category = system ? @"public.app-category.utilities" : info[@"LSApplicationCategoryType"];
         a.iconPath = HSIconPath(path, info, a.bundleID);
         [out addObject:a];
@@ -256,7 +257,7 @@ static NSString *icon_state_file(void) {
 }
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleLightContent; }
 /* edit mode: the status bar makes way for the + / Edit and Done buttons, as on iOS */
-- (BOOL)prefersStatusBarHidden { return _editing; }
+- (BOOL)prefersStatusBarHidden { return _editing || HSLockEditorShown(); }   /* the Lock Screen editor: SBLockScreen.m */
 - (CGFloat)iconSize { CGFloat s = self.view.bounds.size.width >= 700 ? 74 : 60; return HSLargeIcons() ? round(s * 1.2) : s; }   /* large: names hidden, icons bigger */
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -302,6 +303,8 @@ static NSString *icon_state_file(void) {
     [self installSystemObservers];
     [self installWidgetObservers];
     [self installNotificationObservers];
+    [self installControlObservers];
+    [self installSiriObservers];
     [self reload];
 }
 - (void)pagerPulledDown:(HSPager *)pager { if (!_editing) [self showSpotlight]; }
@@ -309,6 +312,8 @@ static NSString *icon_state_file(void) {
     NSMutableArray *apps = [NSMutableArray array];
     [apps addObjectsFromArray:scan(isim_ui_system_apps_dir(), YES)];
     [apps addObjectsFromArray:scan(isim_ui_installed_apps_dir(), NO)];
+    [self setInstalledAppClips:[apps filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"appClip == YES"]]];
+    [apps filterUsingPredicate:[NSPredicate predicateWithFormat:@"appClip == NO"]];
     _apps = apps;
     NSMutableArray *names = [NSMutableArray array]; for (HSApp *a in apps) [names addObject:a.name];
     if (apps.count <= 12) NSLog(@"SpringBoard: %lu app(s): %@", (unsigned long)apps.count, [names componentsJoinedByString:@", "]);
@@ -318,6 +323,7 @@ static NSString *icon_state_file(void) {
     [self rebuild];
     [self publishAppInfo];
     [self discoverWidgets];
+    [self discoverControls];
 }
 - (NSArray<HSApp *> *)apps { return _apps; }
 - (HSApp *)appWithIdentifier:(NSString *)ident {
@@ -598,6 +604,7 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
 
 - (void)launch:(HSApp *)a { [self launch:a url:nil]; }
 - (void)launch:(HSApp *)a url:(NSString *)url {
+    if (a.appClip && !url) url = [self appClipRelaunchURL:a];        /* from the App Library: the last invocation */
     NSLog(@"SpringBoard: launching %@ (%@)%@%@", a.name, a.bundleID, url ? @" with " : @"", url ?: @"");
     isim_shell_request(ISIM_SHELL_LAUNCH, a.path.UTF8String, a.executable.UTF8String, url.UTF8String);
 }

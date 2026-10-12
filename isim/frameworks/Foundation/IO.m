@@ -340,7 +340,11 @@ NSNotificationName const NSProcessInfoThermalStateDidChangeNotification = @"NSPr
     NSProcessInfoPowerStateDidChangeNotification = @"NSProcessInfoPowerStateDidChangeNotification";
 @implementation NSProcessInfo (IsimDevice)
 - (NSProcessInfoThermalState)thermalState { return NSProcessInfoThermalStateNominal; }
-- (BOOL)isLowPowerModeEnabled { return NO; }
+/* Low Power Mode: Control Center's control (the shell writes <ISIM_DATA>/Library/isim/LowPowerMode) */
+- (BOOL)isLowPowerModeEnabled {
+    const char *d = getenv("ISIM_DATA");
+    return d && *d && [NSFileManager.defaultManager fileExistsAtPath:[@(d) stringByAppendingPathComponent:@"Library/isim/LowPowerMode"]];
+}
 - (BOOL)isiOSAppOnMac { return NO; }
 - (BOOL)isMacCatalystApp { return NO; }
 - (NSUInteger)activeProcessorCount { return self.processorCount; }

@@ -13,6 +13,9 @@
  * - Remote notifications: registration (device token), payloads from the shell ("push FILE", or a launch for one),
  *   responses chosen under expanded notifications ("nc-action ..."), the app icon badge.
  * - Alternate app icons (Library/isim/AlternateIcon.plist), with the system alert.
+ * - Intents: "isim-intent:<run dir>/request.plist" (the simulated Siri, Shortcuts, Spotlight) runs an App Intent
+ *   (AppIntents overlay) or a SiriKit intent (Intents framework) in the app; a helper launch with
+ *   ISIM_EXTENSION_REQUEST { mode = appintents-list } writes the app's App Shortcuts metadata instead of launching.
  * UIApplication.m calls the isim_sys_* hooks at launch, on URL/system events and on lifecycle changes. */
 #import "UIKitPrivate.h"
 #import <objc/runtime.h>
@@ -573,15 +576,61 @@ static NSUserActivity *activity_from_marker(NSString *s) {
     return nil;
 }
 
+/* ---- intents (the intent run protocol: INSiriRunner.m, the AppIntents overlay, SBSiri.m) ---- */
+static void run_intent_marker(NSString *path) {
+    NSDictionary *req = [NSDictionary dictionaryWithContentsOfFile:path];
+    BOOL sirikit = [req[@"kind"] isEqual:@"sirikit"];
+    const char *sym = sirikit ? "isim_in_run_request" : "isim_appintents_run_request";
+    void (*f)(const char *) = (void (*)(const char *))dlsym((void *)-2, sym);
+    if (!f && sirikit && dlopen("/System/Library/Frameworks/Intents.framework/Intents", RTLD_NOW)) f = (void (*)(const char *))dlsym((void *)-2, sym);
+    NSLog(@"isim: running %@ intent request %@", sirikit ? @"a SiriKit" : @"an App Intents", path.stringByDeletingLastPathComponent.lastPathComponent);
+    if (f) { f(path.fileSystemRepresentation); return; }
+    NSLog(@"isim: this app cannot run the intent (it does not link %@)", sirikit ? @"Intents" : @"AppIntents");
+    NSString *step = [req[@"dir"] ?: path.stringByDeletingLastPathComponent stringByAppendingPathComponent:@"step-1.plist"];
+    [@{ @"type": @"result", @"outcome": @"failure", @"dialog": @"" } writeToFile:step atomically:YES];
+}
+/* the helper launch the home screen uses to read an app's App Shortcuts (Apple extracts them at build time) */
+int isim_sys_intents_metadata_main(void) {
+    const char *rp = getenv("ISIM_EXTENSION_REQUEST");
+    if (!rp || !*rp) return -1;
+    NSDictionary *req = [NSDictionary dictionaryWithContentsOfFile:@(rp)];
+    if (![req[@"mode"] isEqual:@"appintents-list"]) return -1;
+    int (*f)(const char *) = (int (*)(const char *))dlsym((void *)-2, "isim_appintents_list_main");
+    if (f) return f(rp);
+    [@{ @"shortcuts": @[], @"intents": @{}, @"linksAppIntents": @NO } writeToFile:req[@"out"] atomically:YES];
+    return 0;
+}
+
 /* the launch payload (ISIM_LAUNCH_URL), parsed once */
+static NSString *launch_intent;
 static NSString *launch_url;
 static UIApplicationShortcutItem *launch_shortcut;
 static NSUserActivity *launch_activity;
 static BOOL launch_parsed, scene_based, launch_finished_yes = YES;
+/* App Clips (Info.plist NSAppClip): each launch is recorded in Library/isim/AppClip.plist (UserNotifications' 8 hours of
+   ephemeral notifications count from it; the home screen adds the invocation). Like Xcode, the _XCAppClipURL variable of
+   a launch without another payload (`isim run Clip.app` with it set) is the invocation URL: the clip is launched with a
+   web-browsing NSUserActivity for it, no App Clip card. */
+static void appclip_launch(BOOL has_payload) {
+    if (!NSBundle.mainBundle.infoDictionary[@"NSAppClip"]) return;
+    NSString *f = [isim_dir() stringByAppendingPathComponent:@"AppClip.plist"];
+    NSMutableDictionary *st = [[NSDictionary dictionaryWithContentsOfFile:f] mutableCopy] ?: [NSMutableDictionary dictionary];
+    st[@"lastLaunch"] = @([NSDate date].timeIntervalSince1970);
+    const char *x = getenv("_XCAppClipURL");
+    NSURL *url = !has_payload && x && *x ? [NSURL URLWithString:@(x)] : nil;
+    if (url) {
+        launch_activity = [[NSUserActivity alloc] initWithActivityType:NSUserActivityTypeBrowsingWeb];
+        launch_activity.webpageURL = url;
+        st[@"invocationURL"] = url.absoluteString; st[@"source"] = @"xcode"; st[@"registered"] = @NO;
+        NSLog(@"isim: App Clip launched with _XCAppClipURL %@ (no App Clip card, like Xcode)", url.absoluteString);
+    }
+    [st writeToFile:f atomically:YES];
+}
 static void parse_launch(void) {
     if (launch_parsed) return;
     launch_parsed = YES;
     const char *u = getenv("ISIM_LAUNCH_URL");
+    appclip_launch(u && *u);
     if (!u || !*u) return;
     NSString *s = @(u);
     if ([s hasPrefix:@"isim-shortcut:"]) launch_shortcut = shortcut_item_of_type([s substringFromIndex:14]);
@@ -589,6 +638,7 @@ static void parse_launch(void) {
     else if ([s hasPrefix:@"isim-push:"]) launch_push = read_push([s substringFromIndex:10]);
     else if ([s hasPrefix:@"isim-push-open:"]) { launch_push = read_push([s substringFromIndex:15]); launch_push_open = YES; }
     else if ([s hasPrefix:@"isim-nc-action:"]) launch_action = [s substringFromIndex:15];
+    else if ([s hasPrefix:@"isim-intent:"]) launch_intent = [s substringFromIndex:12];
     else if ([s hasPrefix:@"isim-"]) {}                          /* isim-bgtask:... (background launch) */
     else launch_url = s;
 }
@@ -685,6 +735,7 @@ BOOL isim_sys_deliver_launch(void) {
     if (launch_activity) { NSUserActivity *a = launch_activity; dispatch_async(dispatch_get_main_queue(), ^{ continue_activity(a, YES); }); return YES; }
     if (launch_push) { NSDictionary *w = launch_push; int m = launch_push_open ? 2 : 0; dispatch_async(dispatch_get_main_queue(), ^{ deliver_remote(w, m); }); return YES; }
     if (launch_action) { NSString *a = launch_action; dispatch_async(dispatch_get_main_queue(), ^{ notification_action(a); }); return YES; }
+    if (launch_intent) { NSString *p = launch_intent; dispatch_async(dispatch_get_main_queue(), ^{ run_intent_marker(p); }); return YES; }
     if (launch_url && scene_based) {      /* scene apps get the URL in the connection options (scene(_:willConnectTo:options:)) */
         NSURL *url = [NSURL URLWithString:launch_url];
         dispatch_async(dispatch_get_main_queue(), ^{ NSLog(@"isim: opening URL %@ in the app", url); [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimOpenURL" object:url]; });
@@ -698,6 +749,7 @@ BOOL isim_sys_deliver_launch(void) {
 BOOL isim_sys_open_url(NSString *s) {
     if ([s hasPrefix:@"isim-shortcut:"]) { perform_shortcut(shortcut_item_of_type([s substringFromIndex:14]), NO); return YES; }
     if ([s hasPrefix:@"isim-activity:"] || [s hasPrefix:@"isim-universal:"]) { continue_activity(activity_from_marker(s), NO); return YES; }
+    if ([s hasPrefix:@"isim-intent:"]) { run_intent_marker([s substringFromIndex:12]); return YES; }
     if ([s hasPrefix:@"isim-bgtask:"] || [s hasPrefix:@"isim-urlsession:"] || [s hasPrefix:@"isim-push"] || [s hasPrefix:@"isim-nc-action:"]) return YES;
     NSURL *url = [NSURL URLWithString:s];
     if (!url) return NO;
@@ -749,6 +801,7 @@ void isim_sys_after_background_launch(void) {
     if (u && !strncmp(u, "isim-urlsession:", 16)) { NSString *ids = @(u + 16); dispatch_async(dispatch_get_main_queue(), ^{ relaunched_for_sessions(ids); }); }
     if (launch_push) { NSDictionary *w = launch_push; dispatch_async(dispatch_get_main_queue(), ^{ deliver_remote(w, 1); }); }
     if (launch_action) { NSString *a = launch_action; dispatch_async(dispatch_get_main_queue(), ^{ notification_action(a); }); }
+    if (launch_intent) { NSString *p = launch_intent; dispatch_async(dispatch_get_main_queue(), ^{ run_intent_marker(p); }); }
     dispatch_async(dispatch_get_main_queue(), ^{ reasons_start(); });
 }
 
@@ -813,6 +866,10 @@ void isim_sys_event(const char *text) {
     else if ([verb isEqualToString:@"remote"]) {                   /* Now Playing controls: MPRemoteCommandCenter polls the queue */
         extern void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(args.UTF8String);
+    }
+    else if ([verb isEqualToString:@"power-state"]) {               /* Control Center's Low Power Mode */
+        NSLog(@"isim: Low Power Mode %@", [args isEqualToString:@"low"] ? @"on" : @"off");
+        [NSNotificationCenter.defaultCenter postNotificationName:NSProcessInfoPowerStateDidChangeNotification object:NSProcessInfo.processInfo];
     }
     else if ([verb isEqualToString:@"display"]) { extern void isim_ui_display_event(NSString *args); isim_ui_display_event(args); }   /* UISceneAccessories.m */
     else if ([verb isEqualToString:@"closescene"]) { extern void isim_ui_close_scene(NSString *ident); isim_ui_close_scene(args); }

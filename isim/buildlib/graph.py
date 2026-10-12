@@ -157,6 +157,8 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("QuickLook", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("CoreData", "-framework Foundation -lsqlite3"),
     ("XCTest", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
+    ("Intents", "-framework Foundation -framework UIKit -framework CoreGraphics"),
+    ("IntentsUI", "-framework Foundation -framework UIKit -framework CoreGraphics -framework Intents"),
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",

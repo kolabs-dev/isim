@@ -26,7 +26,8 @@ What it does per target (dependencies first, also across the projects of a works
     nibs; see isim/tools/ibtool.py), Settings.bundle and other folders copied, .xcprivacy and other files copied
   * Core Data models: .xcdatamodeld/.xcdatamodel -> <Name>.momd (isim's own model format, NOT Apple's binary
     .mom; see isim/tools/momc.py) plus the Swift classes Xcode's Class Definition / Category codegen makes
-  * embeds app extensions into <App>.app/PlugIns/ and frameworks into <App>.app/Frameworks/ (copy-files phases)
+  * embeds app extensions into <App>.app/PlugIns/, App Clips (product type ...application.on-demand-install-capable)
+    into <App>.app/AppClips/ and frameworks into <App>.app/Frameworks/ (copy-files phases)
   * Swift packages: local packages are built from source (Swift and C/ObjC targets, dependencies between
     packages, resources with Bundle.module, binary targets with a local .xcframework); manifests are read with
     `swift package dump-package`. Remote packages: a local checkout in -package-cache DIR / $ISIM_PACKAGE_CACHE
@@ -1224,6 +1225,7 @@ def make_info_plist(target, settings, bundle, extra_localizations, package_type=
 
 # ---------------- targets ----------------
 PRODUCT_KINDS = [   # productType suffix -> (kind, wrapper extension, CFBundlePackageType)
+    ('.application.on-demand-install-capable', 'app', '.app', 'APPL'),   # App Clips
     ('.application', 'app', '.app', 'APPL'),
     ('.app-extension', 'appex', '.appex', 'XPC!'),
     ('.extensionkit-extension', 'appex', '.appex', 'XPC!'),
@@ -1797,6 +1799,7 @@ class Builder:
             if before_link != (spec == '16' and only_files):
                 continue                                       # header copies run before compiling, embedding after
             for kind, item in items:
+                t = prod = None
                 if kind == 'target':
                     t = target.p.target(item)
                     prod = self.build(t)
@@ -1825,6 +1828,33 @@ class Builder:
                     shutil.copy2(src, dest)
                 if not before_link:
                     log(f'{target.name}: embedded {os.path.basename(src)} in {os.path.relpath(dest, os.path.dirname(path)) if spec != "16" else os.path.relpath(dest, self.outdir)}/')
+                if t is not None and prod and t.product_type.endswith('.on-demand-install-capable'):
+                    self.check_app_clip(target, s, prod, os.path.join(dest, os.path.basename(src)))
+
+    @staticmethod
+    def check_app_clip(parent, ps, clip, embedded):
+        """An App Clip embedded in its full app (Xcode's "Embed App Clips" phase, <App>.app/AppClips/): the checks
+        Xcode and App Store Connect make that matter on isim, as warnings. isim does not enforce the App Store's App Clip
+        size limits."""
+        cs = clip['settings']
+        pid, cid = ps.get('PRODUCT_BUNDLE_IDENTIFIER', ''), cs.get('PRODUCT_BUNDLE_IDENTIFIER', '')
+        where = os.path.relpath(embedded, os.path.dirname(os.path.dirname(os.path.dirname(embedded))))
+        if os.path.basename(os.path.dirname(embedded)) != 'AppClips':
+            log(f'{parent.name}: warning: App Clip {os.path.basename(embedded)} is embedded outside AppClips/ (iOS looks for it in <App>.app/AppClips)')
+        if pid and not cid.startswith(pid + '.'):
+            log(f'{parent.name}: warning: the App Clip\'s bundle identifier {cid!r} must start with the full app\'s {pid!r} followed by a dot')
+        ent = {}
+        xcent = os.path.join(clip['path'], 'archived-expanded-entitlements.xcent')
+        if os.path.exists(xcent):
+            with open(xcent, 'rb') as f:
+                ent = plistlib.load(f)
+        parents = [p.split('.', 1)[1] if re.match(r'^[A-Z0-9]{10}\.', p) else p for p in ent.get('com.apple.developer.parent-application-identifiers', [])]
+        if pid not in parents:
+            log(f'{parent.name}: warning: the App Clip\'s com.apple.developer.parent-application-identifiers entitlement does not name {pid!r}')
+        if ent.get('com.apple.developer.on-demand-install-capable') is not True:
+            log(f'{parent.name}: warning: the App Clip has no com.apple.developer.on-demand-install-capable entitlement')
+        size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(clip['path']) for f in fs if not os.path.islink(os.path.join(d, f)))
+        log(f'{parent.name}: App Clip {cid or clip["target"]} in {where} ({size / 1e6:.1f} MB uncompressed; isim does not check the App Store size limits)')
 
     def run_script_phases(self, target, s, stage=None, kind=None, path=None):
         """Shell script phases of the given stage (None: all, e.g. an aggregate target), like Xcode: in their place

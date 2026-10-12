@@ -82,9 +82,20 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless 
 - `tapid`, `taptext`, `type`, `key`, `drag`, `swipeid` act like a finger and a keyboard; `appearance dark`,
   `rotate landscapeleft`, `location LAT LON`, `push …`, `openurl …` change the device. The full list is in
   [SCRIPTING.md](SCRIPTING.md).
+- App Intents and SiriKit are tried under `isim boot` (the home screen is the system): `siri "Order a latte in
+  MyApp"` says an App Shortcut phrase, `siri intent SendMessage recipients=Anna content=Hi` builds a SiriKit intent,
+  and `siri ANSWER` / `tapid siri-option-N` / `tapid siri-confirm` answer Siri's questions; `dump` shows what Siri
+  says (`siri-card`) and the output logs it (`SpringBoard: Siri says “…”`). `launch dev.isim.shortcuts` lists and runs
+  the app's App Shortcuts. `ISIM_SIRI_PERMISSION=allow` answers `INPreferences.requestSiriAuthorization`.
 - `ISIM_ANIMATIONS=0` finishes animations at once and `ISIM_SKIP_LAUNCH_SCREEN=1` skips the launch screen, so the
   waits can be short. `ISIM_WAIT_SCALE=2` doubles every `wait` on a slow machine.
 - End the script with `quit`.
+
+An App Clip runs alone like Xcode runs it, with its invocation URL in `_XCAppClipURL` (it is launched with an
+`NSUserActivity` of type `NSUserActivityTypeBrowsingWeb` for it, no App Clip card):
+`_XCAppClipURL=https://example.com/shop/1 isim run build/isim/MyApp.app/AppClips/MyAppClip.app --headless --script "…"`.
+To see the App Clip card and the whole invocation, `isim install` the App Clip and `isim boot`, then send
+`appclip https://example.com/shop/1` and `tapid appclip-open` (see [SCRIPTING.md](SCRIPTING.md)).
 
 Choose the device and iOS version like a person would: `--device iphonese` (Home button), `--device iphone16pro`
 (Dynamic Island), `--device ipadair11`; `--os 17|18|26|27` (Liquid Glass from 26). Checking a screen on a small
@@ -150,7 +161,13 @@ rm -f /tmp/v.txt; isim send "dump views /tmp/v.txt"     # then wait until /tmp/v
 isim send "shot /tmp/s.png"
 isim openurl myapp://settings
 isim push dev.example.myapp payload.apns
+isim send "lockscreen customize"                       # widgets: the Lock Screen editor; "standby on" for StandBy
 ```
+
+Widgets and Live Activities can be checked the same way: the log says what the widget extension rendered
+(`isim WidgetKit: rendered KIND (FAMILY…)`), `dump` lists the widgets and the Dynamic Island, and a Live Activity's
+push token is in the log (`isim ActivityKit: push token for ID: HEX`) for `isim push` liveactivity payloads (see
+[SCRIPTING.md](SCRIPTING.md), Widgets and Live Activities).
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
 works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file

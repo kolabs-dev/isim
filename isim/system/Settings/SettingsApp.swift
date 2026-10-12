@@ -31,6 +31,7 @@ struct KeyboardExtension: Hashable { let id: String, name: String, appName: Stri
     for name in ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted() where name.hasSuffix(".app") {
         let path = (dir as NSString).appendingPathComponent(name)
         guard let info = NSDictionary(contentsOfFile: (path as NSString).appendingPathComponent("Info.plist")) as? [String: Any] else { continue }
+        if info["NSAppClip"] != nil { continue }                  // App Clips are not listed with the apps (iOS: Settings > App Clips)
         let b = Bundle(path: path)
         let display = b?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? b?.object(forInfoDictionaryKey: "CFBundleName") as? String
             ?? (name as NSString).deletingPathExtension
@@ -71,8 +72,10 @@ enum Route: Hashable {
     case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter, homeScreen
     case app(String), appKeyboards(String), appPaste(String)
     case passwords, pencil
+    case developer, localExperiences, registerExperience                                   // DeveloperSettings.swift
     case privacy, privacyService(String), appPermission(String, String), notifications, appNotifications(String)   // PrivacySettings.swift
     case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
+    case focus(FocusRoute)                                                          // FocusSettings.swift
 }
 
 struct SettingsIcon: View {
@@ -119,6 +122,8 @@ struct RootView: View {
                 Section {
                     NavigationLink(value: Route.notifications) { Label { Text("Notifications") } icon: { SettingsIcon(symbol: "bell.badge.fill", color: .red) } }
                         .accessibilityIdentifier("settings-notifications")
+                    NavigationLink(value: Route.focus(.list)) { Label { Text("Focus") } icon: { SettingsIcon(symbol: "moon.fill", color: .indigo) } }
+                        .accessibilityIdentifier("settings-focus")
                 }
                 Section {
                     NavigationLink(value: Route.privacy) { Label { Text("Privacy & Security") } icon: { SettingsIcon(symbol: "hand.raised.fill", color: .blue) } }
@@ -135,6 +140,10 @@ struct RootView: View {
                         NavigationLink(value: Route.pencil) { Label { Text("Apple Pencil") } icon: { SettingsIcon(symbol: "pencil.tip", color: .gray) } }
                             .accessibilityIdentifier("settings-pencil")
                     }
+                }
+                Section {
+                    NavigationLink(value: Route.developer) { Label { Text("Developer") } icon: { SettingsIcon(symbol: "hammer.fill", color: .gray) } }
+                        .accessibilityIdentifier("settings-developer")
                 }
                 let apps = installedApps()
                 if !apps.isEmpty {
@@ -184,6 +193,9 @@ struct RootView: View {
         case .appPaste(let id): PasteAccessView(id: id)
         case .passwords: PasswordsView()
         case .pencil: PencilView()
+        case .developer: DeveloperView()
+        case .localExperiences: LocalExperiencesView()
+        case .registerExperience: RegisterExperienceView()
         case .privacy: PrivacyView()
         case .privacyService(let id): PrivacyServiceView(id: id)
         case .appPermission(let app, let service): AppPermissionView(appID: app, serviceID: service)
@@ -191,6 +203,7 @@ struct RootView: View {
         case .appNotifications(let id): AppNotificationsView(id: id)
         case .appPane(let bundle, let file, let id): ChildPaneView(bundlePath: bundle, file: file, appID: id)
         case .appMultiValue(let bundle, let file, let key): MultiValueRouteView(bundlePath: bundle, file: file, key: key)
+        case .focus(let r): FocusDestination(route: r)
         }
     }
 }
