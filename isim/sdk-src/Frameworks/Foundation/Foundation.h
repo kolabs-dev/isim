@@ -33,6 +33,7 @@
 #import <Foundation/NSURLCredentialStorage.h>
 #import <Foundation/NSURLSession.h>
 #import <Foundation/NSFileManager.h>
+#import <Foundation/NSFileWrapper.h>
 #import <Foundation/NSTimeZone.h>
 #import <Foundation/NSFormatter.h>
 #import <Foundation/NSTimer.h>

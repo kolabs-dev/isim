@@ -46,6 +46,12 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIEventButtonMask buttonMask API_AVAILABLE(ios(13.4));
 /* asks the delegate's gestureRecognizer(_:shouldReceive:) (event) */
 - (BOOL)shouldReceiveEvent:(UIEvent *)event NS_SWIFT_NAME(shouldReceive(_:)) API_AVAILABLE(ios(13.4));
+/* isim (SwiftUI high-priority and simultaneous gestures): a tap recognizer that still takes taps on the controls
+   inside its view (UIKit's rule lets a control's tap win over its superviews' tap recognizers) */
+@property (nonatomic, setter=_isim_setTakesControlTaps:) BOOL _isim_takesControlTaps;
+/* isim (SwiftUI reordering): once it begins, the other recognizers still deciding (a scroll view's pan) drop out */
+- (BOOL)_isim_exclusive;
+- (void)_isim_setExclusive:(BOOL)exclusive;
 @end
 
 @interface UIView (UIGestureRecognizerShouldBegin)

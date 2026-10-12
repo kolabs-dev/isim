@@ -287,14 +287,29 @@ extension View {
         }
     }
     public func onTapGesture(count: Int = 1, perform action: @escaping () -> Void) -> some View {
-        _modify { ctx, c in _ButtonNode(path: ctx.path, child: _resolve(c, ctx.child("tap")), action: action, inList: ctx.environment._inList, enabled: true) }
+        _modify { ctx, c in
+            // inside a gesture whose mask turns the subviews' gestures off: no tap
+            if ctx.environment._gesturesOff { return _resolve(c, ctx.child("tap")) }
+            if count != 1 { return _resolve(_TapGestureContent(content: AnyView(c), count: count, action: action), ctx) }
+            return _ButtonNode(path: ctx.path, child: _resolve(c, ctx.child("tap")), action: action, inList: ctx.environment._inList, enabled: true)
+        }
     }
-    public func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> some View { self }
+    /// How the scroll views inside dismiss the keyboard while they scroll (Scroll+Paging.swift).
+    public func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> some View { _env { $0._scrollOptions.keyboard = mode.id } }
     // labelStyle, textFieldStyle, toggleStyle: Styles.swift
 }
+/// `onTapGesture(count:)` with several taps: a TapGesture.
+struct _TapGestureContent: View {
+    let content: AnyView, count: Int, action: () -> Void
+    var body: some View { content.gesture(TapGesture(count: count).onEnded { action() }) }
+}
+/// How scrolling dismisses the keyboard: `automatic` (a TextEditor interactively, other scroll views as soon as a
+/// drag starts, like iOS 16 and later), `immediately`, `interactively` (when the drag reaches the keyboard; isim's
+/// keyboard does not follow the finger) or `never`.
 public struct ScrollDismissesKeyboardMode: Sendable {
-    public static let automatic = ScrollDismissesKeyboardMode(), immediately = ScrollDismissesKeyboardMode()
-    public static let interactively = ScrollDismissesKeyboardMode(), never = ScrollDismissesKeyboardMode()
+    let id: Int
+    public static let automatic = ScrollDismissesKeyboardMode(id: 0), immediately = ScrollDismissesKeyboardMode(id: 1)
+    public static let interactively = ScrollDismissesKeyboardMode(id: 2), never = ScrollDismissesKeyboardMode(id: 3)
 }
 
 public struct SafeAreaRegions: OptionSet, Sendable {

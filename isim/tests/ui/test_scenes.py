@@ -1,7 +1,9 @@
 """HelloScenes under `isim boot` (SwiftUI): @UIApplicationDelegateAdaptor (launch + forwarded callbacks, its scene
 delegate class gets the quick action), @SceneStorage restored after a restart, .userActivity indexed for Spotlight and
 .onContinueUserActivity, .backgroundTask(.appRefresh) launched in the background, openWindow on iPhone (ignored) and
-on iPad (the detail WindowGroup; dismissWindow goes back). Port of tests/ui/scenes.sh."""
+on iPad (windows are scenes: openWindow opens one beside the current one, dismissWindow closes it, value windows).
+Port of tests/ui/scenes.sh. test_open_url: a Link in HelloScenes opens HelloSwiftUIControls' URL scheme, which gets
+it in .onOpenURL (cold launch, then running)."""
 import re
 
 APP = "dev.isim.samples.HelloScenes"
@@ -57,14 +59,33 @@ def test_scenes(launch):
     assert "adaptor didFinishLaunching (background)" in dev.log and "no launch handler" not in dev.log, \
         ".backgroundTask(.appRefresh) runs in a background launch"
 
-    dev = launch(None, device="ipadpro11")                             # iPad: the detail WindowGroup
+    dev = launch(None, device="ipadpro11")                             # iPad: windows are scenes
     dev.send(f"launch {APP}")
     dev.wait_tap_id("openDetail")
-    dev.wait_view(r"id=detailTitle")
+    two = dev.wait_view(lambda d: d.count("\nUIWindow (") + d.startswith("UIWindow (") >= 2 and "id=detailTitle" in d and "id=openDetail" in d,
+                        what="the detail window beside the main one (split view)")
     dev.wait_still()
     dev.screenshot("ipad-detail")
     dev.tap_id("closeDetail")
-    dev.wait_log(r"dismissWindow -> main")
-    dev.view_dump()
+    dev.wait_log(r"dismissWindow detail")
+    dev.wait_view(r"UIWindow \(422 0; 412 x 1210\) hidden")             # its scene went away
+    dev.tap_id("openItem")                                             # a value window: WindowGroup(for: Int.self)
+    dev.wait_view(r"id=itemTitle text=Item 7")
+    dev.tap_id("nextItem")
+    dev.wait_view(r"id=itemTitle text=Item 8")                         # its binding changes the value
+    dev.tap_id("openItem")                                             # another 7: a new window again (the value is 8 now)
+    dev.wait_log(r"openWindow\(id: #type:Swift.Int\): a new window", count=2)
     assert dev.quit() == 0, "exits cleanly"
-    assert "supportsMultipleWindows true" in dev.log, "iPad: openWindow shows the detail WindowGroup; dismissWindow"
+    assert "supportsMultipleWindows true" in dev.log, "iPad: openWindow opens the WindowGroup in a new window; dismissWindow closes it"
+
+
+def test_open_url(launch):
+    dev = launch(None, install=["HelloScenes", "HelloSwiftUIControls"])
+    dev.send(f"launch {APP}")
+    dev.wait_tap_id("openControls")                                    # another app's scheme: it launches
+    dev.wait_log(r"HelloSwiftUIControls\[.*\] isim: launching|isim: launching Controls\+")
+    dev.wait_log(r"^opened controlsplus://item/42\?from=scenes$")        # .onOpenURL on a cold launch
+    dev.send(f"launch {APP}")
+    dev.wait_tap_id("openControls")
+    dev.wait_log(r"^opened controlsplus://item/42\?from=scenes$", count=2)   # and while running
+    assert dev.quit() == 0, "exits cleanly"

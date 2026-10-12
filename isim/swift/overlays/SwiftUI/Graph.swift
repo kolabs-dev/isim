@@ -36,6 +36,14 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var disappearActions: [String: () -> Void] = [:]
     var rendering = false, pending = false
     var urlHandlers: [String: (URL) -> Void] = [:]
+    /// Every view is gone (the presentation hosting them was dismissed): disappear actions run, tasks are cancelled.
+    func disappearAll() {
+        let actions = disappearActions
+        disappearActions = [:]; appeared = []
+        for (_, t) in tasks { t.cancel() }
+        tasks = [:]
+        for a in actions.values { a() }
+    }
     var urlObserver: NSObjectProtocol?
     var pendingURLs: [URL] = []
     func installURLObserver() {
@@ -97,8 +105,12 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var transitions: [String: AnyTransition] = [:]         // view key -> its .transition (for removal)
     var fresh: Set<ObjectIdentifier> = []                   // views created during this render
     var mountedViews: Set<ObjectIdentifier> = []
-    var matchedFrames: [String: CGRect] = [:]               // matchedGeometryEffect id -> window frame (last render)
+    var matchedFrames: [String: CGRect] = [:]               // matchedGeometryEffect id -> frame in the host view (last render)
     var newMatched: [String: CGRect] = [:]
+    /// in an animated update: how far each moved view (with its ancestors) starts from where it ends, in window
+    /// points — inserted views start shifted by their parent's so they appear where they belong, not riding along
+    var originShift: [ObjectIdentifier: CGPoint] = [:]
+    var oldSizes: [ObjectIdentifier: CGSize] = [:]
     var matchedKeys: [String: String] = [:]                 // view key -> matched id
     var appStorageObserver: NSObjectProtocol?                 // @AppStorage: re-render when a key changes
     var focusLinks: [(String, _FocusLink)] = []
@@ -110,6 +122,12 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     func submitAction(for path: String) -> (() -> Void)? {
         submitActions.filter { path.hasPrefix($0.key) }.max { $0.key.count < $1.key.count }?.value
     }
+
+    // GeometryReader / onGeometryChange frames measured from the views (Geometry+Spaces.swift)
+    var geometryReads: [String: (String, CoordinateSpace)] = [:]
+    var geometryCache: [String: CGRect] = [:]
+    var geometryPasses = 0, geometryPass = false
+    var scrollGeometryObserver: NSObjectProtocol?
 
     init(root: @escaping () -> any View) { self.root = root; installURLObserver(); installActivityObserver(); installAppObservers() }
 
@@ -133,13 +151,15 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         defer { rendering = false }
         self.safeArea = safeArea
         usedKeys = []; mountedKeys = []; usedChanges = []; usedTasks = []; usedAppear = []; postRender = []; focusLinks = []; submitActions = [:]; urlHandlers = [:]
-        usedSubscriptions = []; idViews = [:]
+        usedSubscriptions = []; idViews = [:]; geometryReads = [:]
+        if !geometryPass { geometryPasses = 0 }
+        geometryPass = false
         var env = EnvironmentValues()
         env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
         _systemEnvironment(&env, traits: traits)
         _rootEnvironment(&env, self)                              // edit mode (Lists+Editing.swift)
         let animation = hostView?.window != nil ? _AnimationContext.take() : nil
-        env._transactionAnimation = animation
+        env._transaction = _AnimationContext.takeTransaction(animation)       // (Transaction.swift)
         let ctx = _Context(graph: self, path: "root", environment: env, nav: nil)
         // @Observable: properties read while the views evaluate are tracked; a change re-renders
         var resolved: _Node?
@@ -154,7 +174,9 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         node.place(CGRect(origin: origin, size: node.ignoresSafeArea ? area.size : size))
         _containerSizes = []
         extendIntoSafeArea(node, offset: .zero, safe: bounds.inset(by: safeArea), bounds: bounds)
-        fresh = []; mountedViews = []; newMatched = [:]
+        matchTargets(node)
+        mirrorRTL(node, rtl: false, width: bounds.width)
+        fresh = []; mountedViews = []; newMatched = [:]; originShift = [:]; oldSizes = [:]
         let oldTransitions = transitions, oldMatchedKeys = matchedKeys
         transitions = [:]; matchedKeys = [:]
         let update = {
@@ -171,6 +193,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         let work = postRender
         postRender = []
         for w in work { w() }
+        verifyGeometry()
         if pending { pending = false; hostView?.setNeedsLayout() }
     }
 
@@ -210,6 +233,38 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         for c in n.children { extendIntoSafeArea(c, offset: base, safe: safe, bounds: bounds) }
     }
 
+    /// Right to left: SwiftUI lays out in the leading-to-trailing direction, so in a right-to-left environment each
+    /// container's children are mirrored within it (stacks run right to left, leading alignment and padding are on
+    /// the right, offsets mirror); content drawn by a view (text, images, shapes) is not mirrored.
+    func mirrorRTL(_ n: _Node, rtl parentRTL: Bool, width: CGFloat) {
+        if parentRTL { n.frame.origin.x = width - n.frame.maxX }
+        let w = n.transparent ? width : n.frame.width
+        for c in n.children { mirrorRTL(c, rtl: n.isRTL, width: w) }
+        if let b = (n as? _BackgroundNode)?.background { mirrorRTL(b, rtl: n.isRTL, width: n.frame.width) }
+    }
+
+    /// matchedGeometryEffect(isSource: false): such views take their source's geometry (both laid out in the host's
+    /// coordinates; scroll offsets are not counted) and lay their content out again at the new size.
+    func matchTargets(_ root: _Node) {
+        var sources: [String: CGRect] = [:], targets: [(_MatchedNode, CGPoint)] = []
+        func walk(_ n: _Node, _ offset: CGPoint) {
+            let abs = n.frame.offsetBy(dx: offset.x, dy: offset.y)
+            if let m = n as? _MatchedNode {
+                if m.isSource { if sources[m.matchKey] == nil { sources[m.matchKey] = abs } } else { targets.append((m, offset)) }
+            }
+            let base = n.transparent ? offset : abs.origin
+            for c in n.children { walk(c, base) }
+            if let b = (n as? _BackgroundNode)?.background { walk(b, base) }
+        }
+        walk(root, .zero)
+        for (m, offset) in targets {
+            guard let src = sources[m.matchKey] else { continue }
+            let f = m.matched(m.frame, to: src.offsetBy(dx: -offset.x, dy: -offset.y))
+            if f.size != m.frame.size { m.child.place(CGRect(origin: .zero, size: f.size)) }
+            m.frame = f
+        }
+    }
+
     /// Reuses the UIKit view for a node position (same class), or creates it.
     func view<T: UIView>(_ key: String, _ make: () -> T) -> T {
         mountedKeys.insert(key)
@@ -230,13 +285,28 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         var leaving: [UIView] = []
         for (k, v) in gone {
             guard let sup = v.superview, mountedViews.contains(ObjectIdentifier(sup)) || sup === hostView else { continue }
-            if let m = oldMatchedKeys[k], newMatched[m] != nil { continue }          // its match took over
+            if let m = oldMatchedKeys[k], let to = newMatched[m] {
+                // its match took over: it moves to the new frame as it fades (the new one moves from its frame)
+                guard animating else { continue }
+                v.isUserInteractionEnabled = false
+                let shift = originShift[ObjectIdentifier(sup)] ?? .zero
+                let r = sup.convert(to, from: hostView).offsetBy(dx: shift.x, dy: shift.y), b = v.bounds.size
+                v.center = CGPoint(x: r.midX, y: r.midY)
+                v.transform = v.transform.concatenating(CGAffineTransform(scaleX: max(0.01, r.width / max(1, b.width)), y: max(0.01, r.height / max(1, b.height))))
+                v.alpha = 0
+                let d = UIView.inheritedAnimationDuration
+                DispatchQueue.main.asyncAfter(deadline: .now() + d + 0.05) { v.removeFromSuperview() }
+                leaving.append(v)
+                continue
+            }
             let t = oldTransitions[k]
             guard animating || t?.animation != nil else { continue }
             if case .identity? = t?.kind { continue }
             v.isUserInteractionEnabled = false
-            let container = sup.bounds
-            let out = { v.frame = AnyTransition.apply(t?.kind ?? .opacity, insertion: false, to: v, frame: v.frame, container: container) }
+            let container = CGRect(origin: sup.bounds.origin, size: oldSizes[ObjectIdentifier(sup)] ?? sup.bounds.size)   // (its size before the update)
+            // (shifted by its container's move, so it leaves from where it was rather than riding along)
+            let shift = originShift[ObjectIdentifier(sup)] ?? .zero
+            let out = { v._setFrameKeepingTransform(AnyTransition.apply(t?.kind ?? .opacity, insertion: false, to: v, frame: v._untransformedFrame, container: container).offsetBy(dx: shift.x, dy: shift.y)) }
             if let a = t?.animation { a._run(out, completion: { v.removeFromSuperview() }) }
             else {
                 out()
@@ -257,30 +327,53 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         let v = node.mountView(self)
         mountedViews.insert(ObjectIdentifier(v))
         if v.superview !== parent { parent.addSubview(v) } else { parent.bringSubviewToFront(v) }
+        let shift = originShift[ObjectIdentifier(parent)] ?? .zero
         if fresh.contains(ObjectIdentifier(v)) {
             // a new view: no animation from its initial (zero) state; the outermost new view plays its transition
             v._isim_removeAllAnimations()
-            let matched = (node as? _MatchedNode).flatMap { matchedFrames[$0.matchKey] }.map { parent.convert($0, from: nil) }
+            let matched = (node as? _MatchedNode).flatMap { matchedFrames[$0.matchKey] }.map { parent.convert($0, from: hostView).offsetBy(dx: shift.x, dy: shift.y) }
             let t = (node as? _TransitionNode)?.transition
-            if !fresh.contains(ObjectIdentifier(parent)), UIView.inheritedAnimationDuration > 0 || t?.animation != nil {
+            // (a matched view moves from its match even inside a view inserted with it, which fades in around it)
+            if !fresh.contains(ObjectIdentifier(parent)) || matched != nil, UIView.inheritedAnimationDuration > 0 || t?.animation != nil {
                 let alpha = v.alpha, transform = v.transform
                 var skip = false
                 UIView.performWithoutAnimation {
-                    if let matched { v.frame = matched }
+                    if let matched {
+                        // from the match's frame: its own size scaled to it (the content keeps its layout)
+                        v.frame = node.frame
+                        v.center = CGPoint(x: matched.midX, y: matched.midY)
+                        v.transform = transform.concatenating(CGAffineTransform(scaleX: max(0.01, matched.width / max(1, node.frame.width)),
+                                                                                y: max(0.01, matched.height / max(1, node.frame.height))))
+                    }
                     else if case .identity? = t?.kind { v.frame = node.frame; skip = true }
-                    else { v.frame = AnyTransition.apply(t?.kind ?? .opacity, insertion: true, to: v, frame: node.frame, container: parent.bounds) }
+                    else {
+                        let f = AnyTransition.apply(t?.kind ?? .opacity, insertion: true, to: v, frame: node.frame, container: parent.bounds)
+                        v._setFrameKeepingTransform(f.offsetBy(dx: -shift.x, dy: -shift.y))
+                    }
                 }
                 if !skip {
-                    let settle = { v.frame = node.frame; v.alpha = alpha; v.transform = transform }
+                    let settle = { v.alpha = alpha; v.transform = transform; v.frame = node.frame }
                     if let a = t?.animation { a._run(settle) } else { settle() }
                 }
             } else {
                 UIView.performWithoutAnimation { v.frame = node.frame }
             }
-        } else if v.frame != node.frame { v.frame = node.frame }
-        if let m = node as? _MatchedNode {
+        } else if v.frame != node.frame {
+            if UIView.inheritedAnimationDuration > 0 {
+                let old = v.frame
+                originShift[ObjectIdentifier(v)] = CGPoint(x: shift.x + old.minX - node.frame.minX, y: shift.y + old.minY - node.frame.minY)
+                oldSizes[ObjectIdentifier(v)] = old.size
+            }
+            v.frame = node.frame
+        } else if shift != .zero { originShift[ObjectIdentifier(v)] = shift }
+        if let m = node as? _MatchedNode, m.isSource {
             matchedKeys[m.viewKey] = m.matchKey
-            if v.window != nil { newMatched[m.matchKey] = parent.convert(node.frame, to: nil) }
+            newMatched[m.matchKey] = parent.convert(node.frame, to: hostView)
+        }
+        if node.isRTL != (UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft) {
+            v.semanticContentAttribute = node.isRTL ? .forceRightToLeft : .forceLeftToRight     // UIKit controls inside follow
+        } else if v.semanticContentAttribute == .forceRightToLeft || v.semanticContentAttribute == .forceLeftToRight {
+            v.semanticContentAttribute = .unspecified
         }
         if let id = node.accessibilityIdentifier { v.accessibilityIdentifier = id }
         if let label = node.accessibilityLabel { v.accessibilityLabel = label }
@@ -289,12 +382,26 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     }
 }
 
+extension UIView {
+    /// The frame the view has without its transform (its center and bounds size).
+    var _untransformedFrame: CGRect { CGRect(x: center.x - bounds.width / 2, y: center.y - bounds.height / 2, width: bounds.width, height: bounds.height) }
+    /// Moves and sizes the view through its center and bounds, so a transform (a scale transition) stays about it.
+    func _setFrameKeepingTransform(_ f: CGRect) {
+        bounds = CGRect(origin: bounds.origin, size: f.size)
+        center = CGPoint(x: f.midX, y: f.midY)
+    }
+}
+
 // MARK: - Nodes
 
 @MainActor class _Node {
     let path: String
     var children: [_Node]
+    /// the view this node was resolved from, and where (a Subview resolves it again under another environment)
+    var source: (view: any View, path: String)?
     var frame: CGRect = .zero
+    /// in a right-to-left environment: its children are mirrored, leading text aligns right
+    var isRTL = false
     var accessibilityIdentifier: String?
     var accessibilityLabel: String?
     var accessibilityApply: [(UIView) -> Void] = []
@@ -307,6 +414,13 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var tabRole = 0
     /// TabSection title (TabView sidebar), toolbar item priority (visibilityPriority) and spacer width (ToolbarSpacer)
     var tabSection: String?
+    /// tab customization (TabView+More.swift): the tab's and its section's customizationID, default visibilities
+    /// (tab bar, sidebar), customization behavior (0 automatic, 1 disabled, 2 reorderable)
+    var tabCustomID: String?, tabSectionID: String?
+    var tabDefaultHidden = (bar: false, sidebar: false)
+    var tabBehavior = 0
+    /// ArrangementView sizing preferences (Arrangement.swift)
+    var arrangementSizing: _ArrangementSizing?
     var toolbarPriority = 0
     var toolbarSpacer: CGFloat?
     /// action when this node is a whole list row (Button, NavigationLink, Link)
@@ -344,9 +458,11 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
 
 /// A plain container that does not intercept touches outside its children.
 final class _PassthroughView: UIView {
+    var hovers: Bool { gestureRecognizers?.contains { $0 is UIHoverGestureRecognizer || $0 is _SUIGlassPressRecognizer } ?? false }   // hover, interactive glass
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
-        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self && interactions.isEmpty ? nil : v }   // (drag/drop interactions make it a target)
+        // (drag/drop interactions and hover recognizers make it a target)
+        if v != nil || clipsToBounds || isHidden || !isUserInteractionEnabled || alpha <= 0.01 { return v === self && interactions.isEmpty && !hovers ? nil : v }
         // like SwiftUI, content outside a container's frame (offset, overflowing) still takes touches
         for s in subviews.reversed() { if let h = s.hitTest(s.convert(point, from: self), with: event) { return h } }
         return nil
@@ -365,9 +481,21 @@ final class _GroupNode: _Node {
     override func mountView(_ g: _Graph) -> UIView { g.view(viewKey) { _PassthroughView() } }
 }
 
+/// The views of a container: groups (TupleView, ForEach, ...) and sections (outside a List: header, rows, footer)
+/// are spliced in.
 @MainActor func _flatten(_ nodes: [_Node]) -> [_Node] {
     var out: [_Node] = []
-    for n in nodes { if n is _GroupNode { out += _flatten(n.children) } else { out.append(n) } }
+    for n in nodes {
+        if n is _GroupNode { out += _flatten(n.children) }
+        else if let s = n as? _SectionNode { out += s.spliced }
+        else { out.append(n) }
+    }
+    return out
+}
+/// Like _flatten, but sections stay whole (List and Form content).
+@MainActor func _flattenGroups(_ nodes: [_Node]) -> [_Node] {
+    var out: [_Node] = []
+    for n in nodes { if n is _GroupNode { out += _flattenGroups(n.children) } else { out.append(n) } }
     return out
 }
 
@@ -455,6 +583,8 @@ final class _GroupNode: _Node {
 
 final class _StackNode: _Node {
     let axis: Axis, spacing: CGFloat, alignment: Alignment
+    var pinned: PinnedScrollableViews = []          // LazyVStack / LazyHStack (Lazy+Pinned.swift)
+    var lazy = false
     init(path: String, axis: Axis, spacing: CGFloat?, alignment: Alignment, children: [_Node]) {
         self.axis = axis; self.alignment = alignment
         self.spacing = spacing ?? 8
@@ -468,6 +598,7 @@ final class _StackNode: _Node {
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {
         for (i, c) in _flatten(children).enumerated() { g.mount(c, in: view, order: i) }
+        if !pinned.isEmpty { _registerPins(_sectionPins(children, pinned, axis: axis, host: view, g), from: view, horizontal: axis == .horizontal, g) }
     }
 }
 

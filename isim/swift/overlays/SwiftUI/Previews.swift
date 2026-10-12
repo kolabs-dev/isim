@@ -1,5 +1,6 @@
 // isim SwiftUI: previews. `#Preview` (isim's PreviewsMacros plugin) and `PreviewProvider` compile and type-check like in
-// Xcode; isim has no preview canvas, so the preview modifiers record nothing and change nothing (adapted).
+// Xcode; `isim preview APP [NAME]` renders a `#Preview` to a screenshot (UIKit's preview mode); the PreviewProvider
+// modifiers record nothing and change nothing (adapted: isim has no canvas).
 
 @freestanding(declaration)
 public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTraits>..., body: @escaping @MainActor () -> any View) =
@@ -8,6 +9,7 @@ public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTra
 extension Preview {
     public init(_isimView name: String?, traits: [PreviewTrait<ViewTraits>], body: @escaping @MainActor () -> any View) {
         self.init(_isimName: name, traits: traits, content: body)
+        _isimController = { _SUIHostingController(root: body) }
     }
 }
 

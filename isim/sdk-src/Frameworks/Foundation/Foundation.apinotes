@@ -74,6 +74,8 @@ Classes:
   SwiftName: UndoManager
 - Name: NSFileHandle
   SwiftName: FileHandle
+- Name: NSFileWrapper
+  SwiftName: FileWrapper
 - Name: NSScanner
   SwiftName: Scanner
 - Name: NSProgress

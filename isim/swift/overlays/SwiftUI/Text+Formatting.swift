@@ -24,6 +24,7 @@ struct _TextExtras {
     var link: URL? = nil
     var markdown = true
     var image: Image? = nil          // Text(Image(...)): an inline image (SF Symbols scale with the font)
+    var paint: AnyShapeStyle? = nil  // Text.foregroundStyle(gradient / image paint): drawn through the text's glyphs
 }
 struct _TextLine { let active: Bool; let color: Color? }
 
@@ -382,8 +383,37 @@ extension Text {
     }
 }
 
-/// Builds the node for a Text: a plain label when the whole text has one style, else a rich (word-laid-out) text.
+/// Builds the node for a Text: a plain label when the whole text has one style, else a rich (word-laid-out) text;
+/// a gradient (or other paint) foreground style fills the glyphs.
 @MainActor func _makeTextNode(_ t: Text, _ ctx: _Context) -> _Node {
+    let node = _makeTextNode0(t, ctx)
+    let env = ctx.environment
+    var paint: (any ShapeStyle)? = t._x.parts == nil ? t._x.paint?.base : nil
+    if paint == nil, t.color == nil, let b = env._foregroundPaint, b.fallback == env._foreground { paint = b.style }
+    guard let p = paint, _unwrapStyle(p, env) is _PaintStyle else { return node }
+    let fill = _resolve(Rectangle().fill(AnyShapeStyle(p)), ctx.child("textpaint"))
+    return _PaintedTextNode(path: ctx.path + "/painted", text: node, fill: fill)
+}
+/// Text drawn with a paint: the paint fills the text's frame, masked by the glyphs.
+final class _PaintedTextNode: _Node {
+    let text: _Node, fill: _Node
+    init(path: String, text: _Node, fill: _Node) { self.text = text; self.fill = fill; super.init(path: path, children: [fill]) }
+    override var layoutPriority: Double { text.layoutPriority }
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { text.sizeThatFits(p) }
+    override func place(_ rect: CGRect) {
+        frame = rect
+        fill.place(CGRect(origin: .zero, size: rect.size))
+        text.place(CGRect(origin: .zero, size: rect.size))
+    }
+    override func mountChildren(_ g: _Graph, in view: UIView) {
+        g.mount(fill, in: view, order: 0)
+        let holder = g.view(path + "|glyphs") { _PassthroughView() }
+        holder.frame = CGRect(origin: .zero, size: frame.size)
+        g.mount(text, in: holder, order: 0)
+        if view.mask !== holder { view.mask = holder }
+    }
+}
+@MainActor func _makeTextNode0(_ t: Text, _ ctx: _Context) -> _Node {
     let env = ctx.environment
     if t._hasLive {
         let key = ctx.path + "#tick"
@@ -403,7 +433,7 @@ extension Text {
     if let first = runs.first, runs.allSatisfy({ $0.plain && $0.sameStyle(first) }) {
         let n = _TextNode(path: ctx.path, text: runs.map(\.text).joined(), font: first.font, color: first.color, minLines: lines.0, maxLines: lines.1,
                           alignment: env.multilineTextAlignment)
-        n.truncation = style.truncation; n.minimumScale = style.minimumScale
+        n.truncation = style.truncation; n.minimumScale = style.minimumScale; n.tightening = style.tightening
         n.contentTransition = env._contentTransition
         return n
     }
@@ -652,7 +682,39 @@ extension View {
     public func symbolRenderingMode(_ mode: SymbolRenderingMode?) -> some View { _env { $0.symbolRenderingMode = mode } }
 }
 extension Image {
-    public func symbolRenderingMode(_ mode: SymbolRenderingMode?) -> Image { self }
+    public func symbolRenderingMode(_ mode: SymbolRenderingMode?) -> Image { var i = self; i.symbolMode = mode; return i }
+}
+struct _PaletteKey: EnvironmentKey { static var defaultValue: [Color]? { nil } }
+extension EnvironmentValues { var _palette: [Color]? { get { self[_PaletteKey.self] } set { self[_PaletteKey.self] = newValue } } }
+extension View {
+    /// Primary and secondary styles: the palette of `.palette` symbols (and the primary foreground).
+    public func foregroundStyle<S1: ShapeStyle, S2: ShapeStyle>(_ primary: S1, _ secondary: S2) -> some View {
+        _modify { ctx, c in
+            let env = ctx.environment
+            return _resolve(c, ctx.child("e").with { $0._foreground = _color(of: primary, env); $0._palette = [_color(of: primary, env), _color(of: secondary, env)] })
+        }
+    }
+    public func foregroundStyle<S1: ShapeStyle, S2: ShapeStyle, S3: ShapeStyle>(_ primary: S1, _ secondary: S2, _ tertiary: S3) -> some View {
+        _modify { ctx, c in
+            let env = ctx.environment
+            return _resolve(c, ctx.child("e").with {
+                $0._foreground = _color(of: primary, env); $0._palette = [_color(of: primary, env), _color(of: secondary, env), _color(of: tertiary, env)]
+            })
+        }
+    }
+}
+/// A symbol configuration with the rendering mode; true when the symbol carries its own colours (not a template).
+@MainActor func _symbolRendering(_ base: UIImage.SymbolConfiguration, _ mode: SymbolRenderingMode?, _ env: EnvironmentValues) -> (UIImage.SymbolConfiguration, Bool) {
+    let fg = (env._foreground ?? .primary).uiColor
+    switch mode?.id {
+    case 1: return (base.applying(UIImage.SymbolConfiguration.preferringMulticolor()), true)
+    case 2: return (base.applying(UIImage.SymbolConfiguration(hierarchicalColor: fg)), true)
+    case 3:
+        // palette: the foreground styles' colours (one style: its colour for every layer)
+        let colors = env._palette?.map(\.uiColor) ?? [fg]
+        return (base.applying(UIImage.SymbolConfiguration(paletteColors: colors)), true)
+    default: return (base, false)
+    }
 }
 /// The symbol name with the environment's variants ("heart" + .fill -> "heart.fill") when such a symbol exists.
 @MainActor func _symbolName(_ name: String, _ env: EnvironmentValues) -> String {

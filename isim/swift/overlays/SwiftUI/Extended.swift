@@ -146,8 +146,8 @@ extension EnvironmentValues {
     case .inactive: env.scenePhase = .inactive
     default: env.scenePhase = .background
     }
-    let lang = Bundle.main.preferredLocalizations.first ?? "en"
-    env.layoutDirection = Locale.Language(identifier: lang).characterDirection == .rightToLeft ? .rightToLeft : .leftToRight
+    // the app's direction (its localization, Xcode's right-to-left pseudolanguage, ISIM_LAYOUT_DIRECTION), like UIKit's
+    env.layoutDirection = UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
 }
 
 public struct UnitPoint: Hashable, Sendable {
@@ -177,12 +177,20 @@ public struct Angle: Hashable, Comparable, Sendable {
 }
 
 @propertyWrapper
-public struct Namespace: DynamicProperty, Sendable {
+/// A namespace for matched geometry: the same ID on every update of the view that declares it (kept in its state).
+public struct Namespace: DynamicProperty, Sendable, _DynamicProperty {
     public struct ID: Hashable, Sendable { let value: Int }
     nonisolated(unsafe) static var next = 0
+    final class Box: @unchecked Sendable { var id: ID; init(_ id: ID) { self.id = id } }
     let id: ID
-    public init() { Namespace.next += 1; id = ID(value: Namespace.next) }
-    public var wrappedValue: ID { id }
+    let box: Box
+    public init() { Namespace.next += 1; id = ID(value: Namespace.next); box = Box(id) }
+    public var wrappedValue: ID { box.id }
+    func _install(_ ctx: _Context, label: String) {
+        let key = ctx.path + "#" + label
+        ctx.graph.usedKeys.insert(key)
+        if let kept = ctx.graph.storage[key] as? Box { box.id = kept.id } else { ctx.graph.storage[key] = Box(box.id) }
+    }
 }
 
 extension View {
@@ -433,22 +441,34 @@ public struct FillStyle: Equatable, Sendable {
 
 public struct GeometryProxy {
     public let size: CGSize
-    public let safeAreaInsets: EdgeInsets
+    let _safe: EdgeInsets
     let globalFrame: CGRect
-    /// live frames from the view (visualEffect / scrollTransition); nil: computed from `globalFrame`
+    /// live frames from the view (visualEffect / scrollTransition, Geometry+Spaces.swift); nil: from `globalFrame`
     var _space: ((CoordinateSpace) -> CGRect?)? = nil
+    init(size: CGSize, safeAreaInsets: EdgeInsets, globalFrame: CGRect, _space: ((CoordinateSpace) -> CGRect?)? = nil) {
+        self.size = size; _safe = safeAreaInsets; self.globalFrame = globalFrame; self._space = _space
+    }
     public func frame(in space: CoordinateSpace) -> CGRect {
         if let f = _space, let r = f(space) { return r }
         switch space { case .local: return CGRect(origin: .zero, size: size); default: return globalFrame }
     }
+    /// How far the view reaches into the window's unsafe area (0 for views inside the safe area).
+    public var safeAreaInsets: EdgeInsets {
+        guard let f = _space?(.global), let s = MainActor.assumeIsolated({ _windowSafeRect() }) else { return _safe }
+        return EdgeInsets(top: max(0, min(f.height, s.minY - f.minY)), leading: max(0, min(f.width, s.minX - f.minX)),
+                          bottom: max(0, min(f.height, f.maxY - s.maxY)), trailing: max(0, min(f.width, f.maxX - s.maxX)))
+    }
+}
+/// The key window's safe area, in window coordinates.
+@MainActor func _windowSafeRect() -> CGRect? {
+    guard let w = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) ?? UIApplication.shared.windows.first else { return nil }
+    return w.bounds.inset(by: w.safeAreaInsets)
 }
 public enum CoordinateSpace: Hashable, @unchecked Sendable {     /* (AnyHashable is not Sendable) */
     case global, local
     case named(AnyHashable)
 }
-extension View {
-    public func coordinateSpace<T: Hashable>(name: T) -> some View { self }
-}
+// coordinateSpace(name:): Geometry+Spaces.swift
 
 public struct GeometryReader<Content: View>: View, _PrimitiveView {
     let content: (GeometryProxy) -> Content
@@ -471,7 +491,9 @@ final class _GeometryNode: _Node {
     override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: min(p.width ?? 10, 1e6), height: min(p.height ?? 10, 1e6)) }
     override func place(_ rect: CGRect) {
         frame = rect
-        let proxy = GeometryProxy(size: rect.size, safeAreaInsets: EdgeInsets(), globalFrame: rect)
+        let g = ctx.graph, key = viewKey, local = CGRect(origin: .zero, size: rect.size)
+        let proxy = GeometryProxy(size: rect.size, safeAreaInsets: EdgeInsets(), globalFrame: rect,
+                                  _space: { [weak g] s in g?.geometryFrame(key, s, fallback: { if case .local = s { return local }; return rect }()) })
         let node = build(proxy, ctx)
         children = [node]
         // content is placed at the top-leading corner, like SwiftUI's GeometryReader
@@ -496,6 +518,8 @@ public struct ScrollView<Content: View>: View, _PrimitiveView {
 final class _ScrollNode: _WrapperNode {
     let axes: Axis.Set, indicators: Bool
     var contentSize = CGSize.zero
+    /// content insets from an enclosing safeAreaInset / safeAreaPadding, indicator insets from contentMargins
+    var extraInsets = UIEdgeInsets.zero, indicatorMargins = UIEdgeInsets.zero
     init(path: String, axes: Axis.Set, indicators: Bool, child: _Node) { self.axes = axes; self.indicators = indicators; super.init(path: path, child: child) }
     func contentProposal(_ p: _Proposal) -> _Proposal {
         _Proposal(width: axes.contains(.horizontal) ? nil : p.width, height: axes.contains(.vertical) ? nil : p.height)
@@ -526,12 +550,20 @@ final class _ScrollNode: _WrapperNode {
         v.alwaysBounceVertical = axes.contains(.vertical)
         v.alwaysBounceHorizontal = axes.contains(.horizontal)
         if v.contentSize != contentSize { v.contentSize = contentSize }
+        var ci = extraInsets
+        if v.behavior?.refresher?.refreshing == true { ci.top += 50 }          // (the pull-to-refresh spinner's room)
+        if v.contentInset != ci { v.contentInset = ci }
+        let ind = indicatorMargins.adding(extraInsets)
+        if v.verticalScrollIndicatorInsets != ind { v.verticalScrollIndicatorInsets = ind; v.horizontalScrollIndicatorInsets = ind }
         _applyScrollOptions(self, v, g)
         return v
     }
 }
 final class _SUIScrollView: UIScrollView {
     var behavior: _ScrollBehavior?           // paging / view-aligned snapping, scroll position (Scroll+Paging.swift)
+    /// pinned section headers / footers of the lazy stacks and grids inside (Lazy+Pinned.swift)
+    var pinGroups: [ObjectIdentifier: _PinGroup] = [:]
+    override var bounds: CGRect { didSet { if !pinGroups.isEmpty && bounds.origin != oldValue.origin { applyPins() } } }
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; contentInsetAdjustmentBehavior = .never }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
@@ -597,97 +629,7 @@ public struct GridItem: Sendable {
     }
 }
 
-public struct LazyVGrid<Content: View>: View, _PrimitiveView {
-    let columns: [GridItem], alignment: HorizontalAlignment, spacing: CGFloat?, content: Content
-    public init(columns: [GridItem], alignment: HorizontalAlignment = .center, spacing: CGFloat? = nil, pinnedViews: PinnedScrollableViews = [], @ViewBuilder content: () -> Content) {
-        self.columns = columns; self.alignment = alignment; self.spacing = spacing; self.content = content()
-    }
-    public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node { _GridNode(path: ctx.path, columns: columns, spacing: spacing ?? 8, child: _resolve(content, ctx.child("grid"))) }
-}
-public struct PinnedScrollableViews: OptionSet, Sendable {
-    public let rawValue: UInt32
-    public init(rawValue: UInt32) { self.rawValue = rawValue }
-    public static let sectionHeaders = PinnedScrollableViews(rawValue: 1), sectionFooters = PinnedScrollableViews(rawValue: 2)
-}
-public struct LazyVStack<Content: View>: View, _PrimitiveView {
-    let alignment: HorizontalAlignment, spacing: CGFloat?, content: Content
-    public init(alignment: HorizontalAlignment = .center, spacing: CGFloat? = nil, pinnedViews: PinnedScrollableViews = [], @ViewBuilder content: () -> Content) {
-        self.alignment = alignment; self.spacing = spacing; self.content = content()
-    }
-    public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node { VStack(alignment: alignment, spacing: spacing) { content }._makeNode(ctx) }
-}
-public struct LazyHStack<Content: View>: View, _PrimitiveView {
-    let alignment: VerticalAlignment, spacing: CGFloat?, content: Content
-    public init(alignment: VerticalAlignment = .center, spacing: CGFloat? = nil, pinnedViews: PinnedScrollableViews = [], @ViewBuilder content: () -> Content) {
-        self.alignment = alignment; self.spacing = spacing; self.content = content()
-    }
-    public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node { HStack(alignment: alignment, spacing: spacing) { content }._makeNode(ctx) }
-}
-
-final class _GridNode: _Node {
-    let columns: [GridItem], spacing: CGFloat
-    init(path: String, columns: [GridItem], spacing: CGFloat, child: _Node) { self.columns = columns; self.spacing = spacing; super.init(path: path, children: [child]) }
-    var items: [_Node] { _flatten(children) }
-    func columnWidths(_ width: CGFloat) -> [CGFloat] {
-        // adaptive: as many columns as fit; fixed: their size; flexible: share the rest
-        var cols: [(GridItem.Size, CGFloat)] = []
-        for c in columns {
-            if case .adaptive(let mn, _) = c.size {
-                let gap = c.spacing ?? spacing
-                let n = max(1, Int((width + gap) / (mn + gap)))
-                for _ in 0..<n { cols.append((.flexible(minimum: mn), gap)) }
-            } else { cols.append((c.size, c.spacing ?? spacing)) }
-        }
-        let gaps = cols.dropLast().reduce(0) { $0 + $1.1 }
-        var fixed: CGFloat = 0, flex = 0
-        for (s, _) in cols { if case .fixed(let w) = s { fixed += w } else { flex += 1 } }
-        let share = flex > 0 ? max(0, (width - gaps - fixed) / CGFloat(flex)) : 0
-        return cols.map { s, _ in
-            switch s {
-            case .fixed(let w): return w
-            case .flexible(let mn, let mx), .adaptive(let mn, let mx): return min(max(share, mn), mx)
-            }
-        }
-    }
-    var gaps: [CGFloat] { columns.map { $0.spacing ?? spacing } }
-    func layout(_ width: CGFloat) -> (widths: [CGFloat], rows: [CGFloat]) {
-        let widths = columnWidths(width)
-        let n = max(1, widths.count)
-        var rows: [CGFloat] = []
-        for (i, it) in items.enumerated() {
-            if i % n == 0 { rows.append(0) }
-            let s = it.sizeThatFits(_Proposal(width: widths[i % n], height: nil))
-            rows[rows.count - 1] = max(rows[rows.count - 1], s.height)
-        }
-        return (widths, rows)
-    }
-    override func sizeThatFits(_ p: _Proposal) -> CGSize {
-        let w = min(p.width ?? 320, 1e6)
-        let (widths, rows) = layout(w)
-        let totalW = widths.reduce(0, +) + spacing * CGFloat(max(0, widths.count - 1))
-        return CGSize(width: max(w, totalW), height: rows.reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1)))
-    }
-    override func place(_ rect: CGRect) {
-        frame = rect
-        let (widths, rows) = layout(rect.width)
-        let n = max(1, widths.count)
-        let colGap = spacing
-        let totalW = widths.reduce(0, +) + colGap * CGFloat(max(0, n - 1))
-        let x0 = max(0, (rect.width - totalW) / 2)
-        var y: CGFloat = 0
-        for (i, it) in items.enumerated() {
-            let r = i / n, c = i % n
-            if c == 0 && r > 0 { y += rows[r - 1] + spacing }
-            let x = x0 + widths[..<c].reduce(0, +) + colGap * CGFloat(c)
-            let s = it.sizeThatFits(_Proposal(width: widths[c], height: rows[r]))
-            it.place(_align(CGSize(width: min(s.width, widths[c]), height: min(s.height, rows[r])), in: CGRect(x: x, y: y, width: widths[c], height: rows[r]), .center))
-        }
-    }
-    override func mountChildren(_ g: _Graph, in view: UIView) { for (i, c) in items.enumerated() { g.mount(c, in: view, order: i) } }
-}
+// LazyVGrid, LazyVStack, LazyHStack: Lazy+Pinned.swift
 
 // ProgressView: see Controls+More.swift
 
@@ -770,12 +712,7 @@ public struct UIViewRepresentableContext<Representable: UIViewRepresentable> {
     public var environment: EnvironmentValues
     public var transaction = Transaction()
 }
-public struct Transaction: Sendable {
-    public var animation: Animation?
-    public var disablesAnimations = false
-    public init() {}
-    public init(animation: Animation?) { self.animation = animation }
-}
+// Transaction: Transaction.swift
 
 final class _RepresentableState<R: UIViewRepresentable>: _AnyStorage {
     let view: R.UIViewType
@@ -793,7 +730,7 @@ final class _RepresentableNode<R: UIViewRepresentable>: _Node {
         graph.usedKeys.insert(key)
         if let s = graph.storage[key] as? _RepresentableState<R> { return s }
         let coord = rep.makeCoordinator()
-        let v = rep.makeUIView(context: UIViewRepresentableContext(coordinator: coord, environment: env))
+        let v = rep.makeUIView(context: UIViewRepresentableContext(coordinator: coord, environment: env, transaction: env._transaction))
         let s = _RepresentableState<R>(view: v, coordinator: coord)
         graph.storage[key] = s
         return s
@@ -812,7 +749,7 @@ final class _RepresentableNode<R: UIViewRepresentable>: _Node {
         let s = state
         g.mountedKeys.insert(viewKey)
         if g.views[viewKey] !== s.view { g.views[viewKey]?.removeFromSuperview(); g.views[viewKey] = s.view }
-        rep.updateUIView(s.view, context: UIViewRepresentableContext(coordinator: s.coordinator, environment: env))
+        rep.updateUIView(s.view, context: UIViewRepresentableContext(coordinator: s.coordinator, environment: env, transaction: env._transaction))
         return s.view
     }
 }

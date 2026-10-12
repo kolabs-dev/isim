@@ -108,6 +108,7 @@ final class QuartzViewController: UIViewController {
         view.addSubview(effects)
         y += 140
         colorChecks()
+        contextAndFontChecks()
     }
 
     // MARK: bitmap contexts
@@ -164,6 +165,25 @@ final class QuartzViewController: UIViewController {
         pctx.fill(CGRect(x: 0, y: 0, width: 60, height: 60))
         print("pattern cell \(pixel(pctx.data!, pctx.bytesPerRow, 2, 57)) gap \(pixel(pctx.data!, pctx.bytesPerRow, 7, 57))")
         tile(pctx.makeImage(), "pattern", x: 156)
+
+        // Uncolored pattern in a CMYK base space, used for both fill and stroke. The callback supplies geometry;
+        // the caller's components supply the color (cyan here).
+        var monoCB = CGPatternCallbacks(version: 0, drawPattern: { _, c in
+            c.fill(CGRect(x: 0, y: 0, width: 4, height: 8))
+        }, releaseInfo: nil)
+        let mono = CGPattern(info: nil, bounds: CGRect(x: 0, y: 0, width: 8, height: 8), matrix: .identity,
+                             xStep: 8, yStep: 8, tiling: .constantSpacing, isColored: false, callbacks: &monoCB)!
+        let monoSpace = CGColorSpace(patternBaseSpace: CGColorSpace(name: CGColorSpace.genericCMYK)!)!
+        let monoCtx = rgbaContext(32, 32)
+        monoCtx.setFillColorSpace(monoSpace)
+        var cyan: [CGFloat] = [1, 0, 0, 0, 1]
+        monoCtx.setFillPattern(mono, colorComponents: &cyan)
+        monoCtx.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
+        monoCtx.setStrokeColorSpace(monoSpace)
+        monoCtx.setStrokePattern(mono, colorComponents: &cyan)
+        monoCtx.setLineWidth(4)
+        monoCtx.stroke(CGRect(x: 2, y: 2, width: 28, height: 28))
+        print("pattern uncolored fill \(pixel(monoCtx.data!, monoCtx.bytesPerRow, 2, 23)) gap \(pixel(monoCtx.data!, monoCtx.bytesPerRow, 6, 23)) stroke \(pixel(monoCtx.data!, monoCtx.bytesPerRow, 3, 16)) base \(monoSpace.baseColorSpace!.name! as String)")
 
         // clip to a mask: a gray mask image (white circle on black) lets the fill through where it is white
         let maskCtx = CGContext(data: nil, width: 60, height: 60, bitsPerComponent: 8, bytesPerRow: 60, space: CGColorSpaceCreateDeviceGray(),
@@ -244,15 +264,17 @@ final class QuartzViewController: UIViewController {
         var box = CGRect(x: 0, y: 0, width: 50, height: 50)
         let pc = CGContext(consumer: CGDataConsumer(data: out as CFMutableData)!, mediaBox: &box, nil)!
         pc.beginPDFPage(nil)
+        pc.setShadow(offset: CGSize(width: 8, height: 0), blur: 8, color: UIColor.black.cgColor)
         pc.setFillColor(UIColor.blue.cgColor)
-        pc.fill(CGRect(x: 0, y: 0, width: 50, height: 25))
+        pc.fill(CGRect(x: 5, y: 5, width: 20, height: 20))
         pc.endPDFPage()
         pc.closePDF()
         print("cgpdfcontext \(out.length > 200) bytes, %PDF \(String(decoding: (out as Data).prefix(4), as: UTF8.self))")
         if let doc = CGPDFDocument(CGDataProvider(data: out as CFData)!), let page = doc.page(at: 1) {
             let c = rgbaContext(50, 50)
             c.drawPDFPage(page)
-            print("cgpdf roundtrip bottom \(pixel(c.data!, 200, 25, 45)) top \(pixel(c.data!, 200, 25, 5))")
+            let transform = page.getDrawingTransform(.mediaBox, rect: CGRect(x: 0, y: 0, width: 25, height: 25), rotate: 0, preserveAspectRatio: true)
+            print("cgpdf roundtrip fill \(pixel(c.data!, 200, 15, 35)) shadow \(pixel(c.data!, 200, 31, 35)) fade \(pixel(c.data!, 200, 39, 35)) clear \(pixel(c.data!, 200, 48, 35)) page \(page.pageNumber) rotation \(page.rotationAngle) transform \(transform.a)")
             tile(c.makeImage(), "cgpdf", x: 286)
         }
         // Core Text frame: wrapped paragraph in a 120x60 rect
@@ -282,5 +304,39 @@ final class QuartzViewController: UIViewController {
         sw.accessibilityIdentifier = "grayswatch"
         view.addSubview(sw)
         tile(frameImage, "ctframe", x: 70)
+    }
+
+    // MARK: context queries and CGFont
+    func contextAndFontChecks() {
+        let q = rgbaContext(80, 80)
+        q.translateBy(x: 10, y: 12)
+        q.scaleBy(x: 2, y: 3)
+        let device = q.convertToDeviceSpace(CGPoint(x: 4, y: 5))
+        let user = q.convertToUserSpace(device)
+        q.clip(to: CGRect(x: 1, y: 2, width: 20, height: 10))
+        let clip = q.boundingBoxOfClipPath
+        q.beginPath(); q.move(to: CGPoint(x: 5, y: 10)); q.addLine(to: CGPoint(x: 35, y: 10))
+        let before = q.path!.boundingBox
+        q.setLineWidth(10); q.replacePathWithStrokedPath()
+        let stroked = q.path!.boundingBox
+        let contains = q.pathContains(CGPoint(x: 20, y: 13), mode: .fill)
+        q.setFillColor(UIColor.red.cgColor); q.fillPath()
+        print("context ctm \(Int(q.ctm.a)),\(Int(q.ctm.d)) device \(Int(device.x)),\(Int(device.y)) user \(Int(user.x)),\(Int(user.y)) clip \(Int(clip.width.rounded()))x\(Int(clip.height.rounded())) path \(Int(before.width.rounded())) stroked \(Int(stroked.height.rounded())) contains \(contains) empty \(q.isPathEmpty)")
+
+        let named = CGFont("Helvetica" as CFString)!
+        let url = Bundle.main.url(forResource: "AdwaitaSans-Regular", withExtension: "ttf")!
+        let data = try! Data(contentsOf: url)
+        let fromData = CGFont(CGDataProvider(data: data as CFData)!)!
+        print("cgfont named \(named.postScriptName! as String) units \(named.unitsPerEm) provider \(fromData.postScriptName! as String) full \(fromData.fullName! as String) units \(fromData.unitsPerEm)")
+
+        let names: [CFString] = [CGColorSpace.sRGB, CGColorSpace.displayP3, CGColorSpace.linearSRGB,
+                                CGColorSpace.extendedSRGB, CGColorSpace.extendedLinearSRGB, CGColorSpace.genericRGBLinear,
+                                CGColorSpace.genericGrayGamma2_2, CGColorSpace.linearGray, CGColorSpace.extendedGray,
+                                CGColorSpace.genericCMYK, CGColorSpace.itur_709]
+        let spaces = names.map { CGColorSpace(name: $0)! }
+        print("color spaces \(spaces.map { $0.name! as String }.joined(separator: ",")) models \(spaces.map { $0.model.rawValue }) extended \(spaces.filter { CGColorSpaceUsesExtendedRange($0) }.count) p3wide \(spaces[1].isWideGamutRGB)")
+        let linear = CGColor(colorSpace: spaces[2], components: [0.25, 0.25, 0.25, 1])!.converted(to: spaces[0], intent: .defaultIntent, options: nil)!
+        let cmyk = CGColor(colorSpace: spaces[9], components: [1, 0, 0, 0, 1])!.converted(to: spaces[0], intent: .defaultIntent, options: nil)!
+        print("color conversions linear \(linear.components!.map { Int(($0 * 255).rounded()) }) cmyk \(cmyk.components!.map { Int(($0 * 255).rounded()) })")
     }
 }

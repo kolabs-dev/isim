@@ -1,13 +1,17 @@
 """TabView and bars across iOS versions (HelloTabs). Port of tests/ui/tabs.sh and tabs_check.py.
 - iOS 18 (the test device): TabSection tabs flattened into the tab bar, no bottom accessory.
 - iOS 27 on iPhone 17: the bottom accessory above the floating tab bar, minimizing on scroll (accessory inline), tap to
-  expand, merging glass in GlassEffectContainer and glassEffectUnion, backgroundExtensionEffect under the status bar,
+  expand, merging glass in GlassEffectContainer and glassEffectUnion, glassEffectID morphing, interactive glass, backgroundExtensionEffect under the status bar,
   toolbar overflow by visibilityPriority with a pinned trailing item and ToolbarOverflowMenu, bottom bar minimization,
   the hard scroll edge.
 - iOS 26 on iPad: .sidebarAdaptable: the sidebar with the sections; choosing a tab there."""
 import re
 
 from isimtest import count_px, rgb, screen_frames, visible
+
+
+def screen_frame(dump, ident):
+    return screen_frames(dump)[ident]
 
 
 def test_ios18_tab_sections(launch):
@@ -50,6 +54,33 @@ def test_ios27_bars(launch):
     assert abs(widths[0] - 110) < 1 and abs(widths[1] - 180) < 1, \
         f"GlassEffectContainer merges near shapes; glassEffectUnion merges a pair: {u}"
 
+    t = app.view_dump()
+    a, tap = screen_frame(t, "g-morph-a"), screen_frame(t, "g-interactive")
+    y = a[1] + a[3] / 2
+    shot = app.screenshot("glass")
+    bg = rgb(shot, 395, y)
+
+    def extent(img):                                                  # the right end of the glass along the row
+        xs = [x for x in range(int(a[0]), 400) if sum(abs(p - q) for p, q in zip(rgb(img, x, y), bg)) > 40]
+        return max(xs) if xs else 0
+    start, end = a[0] + a[2], a[0] + a[2] + 40 + 50                   # the pencil's right edge; the note's
+    assert abs(extent(shot) - start) <= 3, f"one glass shape before expanding: {extent(shot)} {start}"
+    app.tap_id("g-expand")                                            # withAnimation(.linear(duration: 2.5))
+    app.shot_during(lambda im: start + 12 < extent(im) < end - 12, lambda im: extent(im) >= end - 3,
+                    what="glassEffectID: the note's glass grows out of the pencil's")
+    app.wait_shot(lambda im: abs(extent(im) - end) <= 3, what="the note's glass at its place")
+    app.tap_id("g-expand")
+    app.shot_during(lambda im: start + 12 < extent(im) < end - 12, lambda im: extent(im) <= start + 3,
+                    what="glassEffectID: removed, the note's glass shrinks back into the pencil's")
+    app.wait_shot(lambda im: abs(extent(im) - start) <= 3, what="one glass shape again")
+
+    edge = (tap[0] + tap[2] + 1.5, tap[1] + tap[3] / 2)              # just outside the interactive glass
+    idle = rgb(app.screenshot(), *edge)
+    app.send("holdid g-interactive 1")                                # the sample renders itself mid-press
+    held = tuple(int(c) for c in app.wait_log(r"^glass held edge (\d+) (\d+) (\d+)$").groups())
+    assert sum(held) > sum(idle) + 40, f"interactive glass grows and brightens while touched: {held} {idle}"
+    app.wait_shot(lambda im: abs(sum(rgb(im, *edge)) - sum(idle)) <= 12, what="released, the glass settles back")
+
     app.tap_id("tab-Bars")
     t4 = app.wait_view(r"id=toolbar-overflow\b")
     f4 = screen_frames(t4)
@@ -87,4 +118,62 @@ def test_ipad_sidebar(launch):
         "iPad sidebarAdaptable: the sidebar lists the sections and tabs"
     app.wait_tap_id("sidebar-Glass")
     app.wait_log(r"^tab 2")                                          # choosing a tab in the sidebar
+    # tabViewCustomization: Edit hides a tab (check circle) and moves one within its section (handle)
+    app.tap_id("sidebar-Home")
+    app.wait_log(r"^tab 0")
+    app.tap_id("sidebar-edit")
+    app.wait_tap_id("sidebar-check-Glass")
+    app.wait_log(r"^customization main - glass hidden$")
+    app.wait_view(r"id=sidebar-check-Glass")                          # still listed (unchecked) while editing
+    t = app.view_dump()
+    x, y, w, h = screen_frame(t, "sidebar-handle-Bars")
+    app.drag(x + w / 2, y + h / 2, x + w / 2, y + h / 2 - 46, 0.4)   # Bars above Home
+    app.wait_log(r"^isim: tab order main: bars,home$")
+    app.wait_log(r"^customization main bars,home glass hidden$")
+    app.tap_id("sidebar-edit")                                       # Done
+    t = app.wait_view(lambda d: "id=sidebar-edit" in d and "id=sidebar-check-" not in d, what="done editing")
+    assert "id=sidebar-Glass" not in t, "a hidden tab leaves the sidebar"
+    f = screen_frames(t)
+    assert f["sidebar-Bars"][1] < f["sidebar-Home"][1], "the new order in the sidebar"
+    app.tap_id("isim-tab-sidebar-toggle")                            # the tab bar: the same order, without Glass
+    t = app.wait_view(lambda d: "id=tab-Bars" in d and "hidden id=isim-tabbar" not in d, what="tab bar back")
+    f = screen_frames(t)
+    assert "id=tab-Glass" not in t and f["tab-Bars"][0] < f["tab-Home"][0], "the tab bar follows the customization"
     assert app.quit() == 0
+
+
+def test_ios26_search_tab(launch):
+    """iOS 26: selecting the search tab turns the floating tab bar into a circle with the tab to go back to and the search
+    tab's .searchable field; typing filters, the field rides above the keyboard; the circle goes back."""
+    app = launch("HelloTabs", os_version="26", device="iphone17")
+    app.wait_tap_id("tab-Search")
+    t = app.wait_view(r"id=tab-search-field")
+    f = screen_frames(t)
+    home, field = f["tab-Home"], f["tab-search-field"]
+    assert "id=search-tab" in t and home[0] < field[0], "the back circle (Home) leading, the search field after it"
+    assert "UISearchBar" not in t and "id=search-field" not in t, "the field is in the tab bar, not under the title"
+    bar0 = f["isim-tabbar"]
+    app.tap_id("tab-search-field")
+    app.type("ap")
+    app.wait_log(r"^query ap$")
+    t2 = app.wait_view(lambda d: "id=fruit-Apple" in d and "id=fruit-Apricot" in d and "id=fruit-Banana" not in d, what="filtered")
+    app.screenshot("search-tab")
+    # the field rides above the keyboard: where the bar was, the keyboard now shows (no white glass)
+    bx, by, bw, bh = field
+    app.wait_shot(lambda im: max(im.getpixel((int(bx + bw / 2), int(by + bh / 2)))[:3]) < 235, what="the bar above the keyboard")
+    app.tap_id("tab-Home")
+    app.wait_log(r"^tab 0$")
+    assert app.quit() == 0, "exits cleanly"
+
+
+def test_ios27_prominent_tab(launch):
+    """TabRole.prominent (iOS 27): apart at the trailing end on a tinted glass circle, its icon white."""
+    app = launch("HelloTabs", os_version="27", device="iphone17", env={"PROMINENT": "1"})
+    t = app.wait_view(r"id=tab-New\b")
+    shot = app.screenshot("prominent-tab")
+    x, y, w, h = screen_frames(t)["tab-New"]
+    c = shot.getpixel((int(x + 6), int(y + h / 2)))[:3]
+    assert c[2] > 180 and c[0] < 120, f"the circle is tinted (blue) {c}"
+    app.tap_id("tab-New")
+    app.wait_view(r"id=new-tab")
+    assert app.quit() == 0, "exits cleanly"

@@ -964,7 +964,7 @@ static void handle_touch(const struct isim_event *ev) {
                            [UIControl instanceMethodForSelector:@selector(continueTrackingWithTouch:withEvent:)]);
         for (UIView *v = hit; v; v = v.superview) {
             for (UIGestureRecognizer *g in v.gestureRecognizers) {
-                if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]])) continue;
+                if (!g.enabled || (aboveControl && [g isKindOfClass:[UITapGestureRecognizer class]] && !g._isim_takesControlTaps)) continue;
                 if (aboveControl && dragControl && [g isKindOfClass:[UIPanGestureRecognizer class]]) continue;
                 id<UIGestureRecognizerDelegate> gd = g.delegate;
                 if (![g _isim_allowsTouch:cur_touch]) continue;              /* allowedTouchTypes */
@@ -1053,8 +1053,9 @@ static void dump_view_to(FILE *out, UIView *v, int depth) {
     NSString *ident = v.accessibilityIdentifier, *label = [v respondsToSelector:@selector(_isim_dumpText)] ? [(id)v _isim_dumpText]
         : [v isKindOfClass:[UILabel class]] ? ((UILabel *)v).text : [v isKindOfClass:[UIButton class]] ? ((UIButton *)v).currentTitle
         : [v isKindOfClass:[UITextField class]] ? [NSString stringWithFormat:@"\"%@\"%@", ((UITextField *)v).text, v.isFirstResponder ? @" (editing)" : @""]
-        : [v isKindOfClass:[UIScrollView class]] ? [NSString stringWithFormat:@"offset %g, content %g x %g, inset bottom %g", ((UIScrollView *)v).contentOffset.y,
-              ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom]
+        : [v isKindOfClass:[UIScrollView class]] ? [NSString stringWithFormat:@"offset %g, content %g x %g, inset bottom %g%@", ((UIScrollView *)v).contentOffset.y,
+              ((UIScrollView *)v).contentSize.width, ((UIScrollView *)v).contentSize.height, ((UIScrollView *)v).adjustedContentInset.bottom,
+              !((UIScrollView *)v).showsVerticalScrollIndicator && !((UIScrollView *)v).showsHorizontalScrollIndicator ? @", indicators hidden" : @""]
         : [v isKindOfClass:[UISwitch class]] ? (((UISwitch *)v).on ? @"on" : @"off")
         : [v isKindOfClass:[UISlider class]] ? [NSString stringWithFormat:@"%g", ((UISlider *)v).value]
         : [v isKindOfClass:[UISegmentedControl class]] ? [NSString stringWithFormat:@"segment %ld", (long)((UISegmentedControl *)v).selectedSegmentIndex] : nil;
@@ -1819,6 +1820,29 @@ void isim_ui_run_until(BOOL (^done)(void)) {
     while (!quit_requested && !done()) run_loop_once();
 }
 
+/* `isim preview`: a window with the view controller that a #Preview's entry point (isim_preview_..., made by the
+   PreviewsMacros plugin) returns */
+@interface __IsimPreviewDelegate : UIResponder <UIApplicationDelegate>
+@property (nonatomic, strong) UIWindow *window;
+@end
+@implementation __IsimPreviewDelegate
+- (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)options {
+    const char *name = getenv("ISIM_PREVIEW");
+    void *(*entry)(void) = (void *(*)(void))dlsym(RTLD_DEFAULT, name);
+    UIViewController *vc = entry ? (__bridge_transfer UIViewController *)entry() : nil;
+    if (!vc) {
+        NSLog(@"isim: no preview %s", name);
+        vc = [UIViewController new];
+        UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(20, 200, 300, 40)];
+        l.text = @"No preview"; [vc.view addSubview:l]; vc.view.backgroundColor = UIColor.systemBackgroundColor;
+    }
+    self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
+    self.window.rootViewController = vc;
+    [self.window makeKeyAndVisible];
+    return YES;
+}
+@end
+
 int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName) {
     @autoreleasepool {
         NSBundle *bundle = NSBundle.mainBundle;
@@ -1841,6 +1865,9 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         UIApplication *app = [appClass new];
         shared_app = app;
         Class delegateClass = class_named(delegateClassName);
+        /* isim preview: the app shows one #Preview (its entry point names it) instead of launching as itself */
+        const char *preview = getenv("ISIM_PREVIEW");
+        if (preview && *preview) delegateClass = [__IsimPreviewDelegate class];
         if (delegateClass) { app.strongDelegate = [delegateClass new]; app.delegate = app.strongDelegate; }
         NSString *title = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: info[@"CFBundleExecutable"] ?: @"App";
         isim_display_open(title.UTF8String);
@@ -1869,7 +1896,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
 
         NSDictionary *manifest = info[@"UIApplicationSceneManifest"];
         /* scene-based apps: a scene manifest, or a delegate that configures scenes (SwiftUI apps) */
-        BOOL scenes = manifest || [app.delegate respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)];
+        BOOL scenes = (manifest || [app.delegate respondsToSelector:@selector(application:configurationForConnectingSceneSession:options:)]) && !(preview && *preview);
         if (scenes && background) pending_scene_manifest = manifest ?: @{};
         else if (scenes) isim_ui_scenes_launch(manifest ?: @{});
         else if ([d respondsToSelector:@selector(window)] && d.window && d.window.hidden) [d.window makeKeyAndVisible];

@@ -23,12 +23,11 @@ typedef NS_OPTIONS(NSUInteger, NSLineBreakStrategy) {
 @property (nonatomic) NSInteger numberOfLines;
 @property (nonatomic) BOOL adjustsFontSizeToFitWidth;
 @property (nonatomic) CGFloat minimumScaleFactor;
+@property (nonatomic) BOOL allowsDefaultTighteningForTruncation;
 @property (nonatomic) CGFloat preferredMaxLayoutWidth;
 @property (nonatomic) BOOL adjustsFontForContentSizeCategory;
 /* where shrunk text (adjustsFontSizeToFitWidth) sits: on the original baseline, centred, or at the top */
 @property (nonatomic) UIBaselineAdjustment baselineAdjustment;
-/* isim: stored; Pango tightens nothing before truncating */
-@property (nonatomic) BOOL allowsDefaultTighteningForTruncation API_AVAILABLE(ios(9.0));
 /* isim: stored; Pango breaks lines by its own (Unicode) rules */
 @property (nonatomic) NSLineBreakStrategy lineBreakStrategy API_AVAILABLE(ios(14.0));
 /* iPad pointer: hovering a truncated label shows its full text in a tooltip */

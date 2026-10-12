@@ -6,6 +6,7 @@
 @_exported import Foundation
 @_exported import Combine
 @_exported import Observation
+@_exported import CoreTransferable           // like Apple's: `import SwiftUI` is enough for Transferable types
 
 // MARK: - View
 
@@ -110,13 +111,22 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content> {
     /// For other modules' ForEach conformances (Charts): data, element id and content.
     public init(_data: Data, _id: @escaping (Data.Element) -> ID, _content: @escaping (Data.Element) -> Content) { data = _data; id = _id; content = _content }
 }
+/// The element IDs of a ForEach, in order (reordering: Reorder.swift).
+protocol _IdentifiedContent { @MainActor func _ids(_ ctx: _Context) -> [AnyHashable] }
+extension ForEach: _IdentifiedContent {
+    func _ids(_ ctx: _Context) -> [AnyHashable] {
+        let data = (self.data as? _ContextCollection)?._resolved(ctx) as? Data ?? self.data
+        return data.map { AnyHashable(id($0)) }
+    }
+}
 extension ForEach: View, _PrimitiveView where Content: View {
     public init(_ data: Data, id: KeyPath<Data.Element, ID>, @ViewBuilder content: @escaping (Data.Element) -> Content) {
         self.data = data; self.content = content; self.id = { $0[keyPath: id] }
     }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
-        _GroupNode(path: ctx.path, children: data.map { e in
+        let data = (self.data as? _ContextCollection)?._resolved(ctx) as? Data ?? self.data      // ForEach(subviews:)
+        return _GroupNode(path: ctx.path, children: data.map { e in
             let n = _resolve(content(e), ctx.child("id:\(id(e))"))
             if n.tag == nil { n.tag = AnyHashable(id(e)) }          // implicit tag (Picker, TabView)
             return n
@@ -141,6 +151,12 @@ func _typeName(_ t: Any.Type) -> String { String(describing: t) }
 /// Evaluates a view at a structural position: attaches property-wrapper storage
 /// (@State, @FocusState, @Environment, ...) for that position, then builds its node.
 @MainActor func _resolve(_ view: any View, _ ctx: _Context) -> _Node {
+    let n = _resolveView(view, ctx)
+    n.source = (view, ctx.path)                // the outermost view that made this node (Subviews.swift)
+    n.isRTL = ctx.environment.layoutDirection == .rightToLeft      // (laid out right to left: Graph.mirrorRTL)
+    return n
+}
+@MainActor private func _resolveView(_ view: any View, _ ctx: _Context) -> _Node {
     let view = _animatableHook(view, ctx)          // Animatable views: in-flight values while animating
     if let r = view as? any UIViewRepresentable { _attach(view, ctx); return _representableNode(r, ctx) }
     if let r = view as? any UIViewControllerRepresentable { _attach(view, ctx); return _vcRepresentableNode(r, ctx) }
@@ -271,10 +287,13 @@ public protocol EnvironmentKey {
 
 public struct EnvironmentValues: CustomStringConvertible {
     var values: [ObjectIdentifier: Any] = [:]
+    /// changes with every write: equal revisions are equal environments (Subview placement)
+    var _rev = 0
+    nonisolated(unsafe) static var _nextRev = 0
     public init() {}
     public subscript<K: EnvironmentKey>(key: K.Type) -> K.Value {
         get { values[ObjectIdentifier(key)] as? K.Value ?? K.defaultValue }
-        set { values[ObjectIdentifier(key)] = newValue }
+        set { values[ObjectIdentifier(key)] = newValue; EnvironmentValues._nextRev &+= 1; _rev = EnvironmentValues._nextRev }
     }
     public var description: String { "EnvironmentValues(\(values.count) values)" }
 }

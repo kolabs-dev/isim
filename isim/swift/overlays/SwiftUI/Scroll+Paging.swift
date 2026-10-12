@@ -1,6 +1,7 @@
 // isim SwiftUI: ScrollView behaviours — `scrollTargetBehavior(.paging / .viewAligned / custom)` with
 // `scrollTargetLayout()`, `scrollPosition(id:)` (reports the top/leading item, scrolls when the binding changes),
-// `scrollDisabled`, `scrollIndicators`, `scrollBounceBehavior` and `contentMargins` (CustomLayout.swift).
+// `scrollDisabled`, `scrollIndicators`, `scrollBounceBehavior`, `scrollDismissesKeyboard` and `contentMargins`
+// (CustomLayout.swift).
 // Paging uses UIScrollView.isPagingEnabled; view alignment snaps the drag's target offset to a child's edge.
 import UIKit
 
@@ -13,6 +14,17 @@ struct _ScrollOptions {
     var custom: ((inout ScrollTarget, ScrollTargetBehaviorContext) -> Void)? = nil
     var position: (get: () -> AnyHashable?, set: (AnyHashable?) -> Void)? = nil
     var refresh: RefreshAction? = nil
+    /// scrollDismissesKeyboard: 0 automatic, 1 immediately, 2 interactively, 3 never
+    var keyboard = 0
+}
+/// The UIKit keyboard dismiss mode of a scroll view (`editor`: a TextEditor's text view, interactive by default).
+func _keyboardDismissMode(_ mode: Int, editor: Bool = false) -> UIScrollView.KeyboardDismissMode {
+    switch mode {
+    case 1: return .onDrag
+    case 2: return .interactive
+    case 3: return .none
+    default: return editor ? .interactive : .onDrag
+    }
 }
 struct _ScrollOptionsKey: EnvironmentKey { static var defaultValue: _ScrollOptions { _ScrollOptions() } }
 extension EnvironmentValues { var _scrollOptions: _ScrollOptions { get { self[_ScrollOptionsKey.self] } set { self[_ScrollOptionsKey.self] = newValue } } }
@@ -20,9 +32,10 @@ extension EnvironmentValues { var _scrollOptions: _ScrollOptions { get { self[_S
 @MainActor func _makeScrollNode(axes: Axis.Set, indicators: Bool, _ ctx: _Context, content: (_Context) -> _Node) -> _Node {
     let env = ctx.environment
     let margins = env._contentMargins
-    var child = content(ctx.child("scroll").with { $0._contentMargins = nil; $0._scrollOptions.position = nil })
+    var child = content(ctx.child("scroll").with { $0._contentMargins = nil; $0._indicatorMargins = nil; $0._scrollOptions.position = nil })
     if let m = margins { child = _PaddingNode(path: ctx.path + "/margins", insets: m, child: child) }
     let n = _ScrollNode(path: ctx.path, axes: axes, indicators: indicators && env._scrollOptions.indicators != false, child: child)
+    n.indicatorMargins = env._indicatorMargins.map { UIEdgeInsets(top: $0.top, left: $0.leading, bottom: $0.bottom, right: $0.trailing) } ?? .zero
     n.options = env._scrollOptions
     n.options.refresh = env.refresh            // .refreshable (Lists+Editing.swift)
     return n
@@ -53,6 +66,7 @@ final class _ScrollTargetLayoutNode: _WrapperNode {
 @MainActor func _applyScrollOptions(_ n: _ScrollNode, _ v: _SUIScrollView, _ g: _Graph) {
     let o = n.options
     v.isScrollEnabled = !o.disabled
+    v.keyboardDismissMode = _keyboardDismissMode(o.keyboard)
     if o.bounceBasedOnSize {
         v.alwaysBounceVertical = n.axes.contains(.vertical) && n.contentSize.height > n.frame.height
         v.alwaysBounceHorizontal = n.axes.contains(.horizontal) && n.contentSize.width > n.frame.width

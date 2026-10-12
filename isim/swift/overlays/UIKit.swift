@@ -2,7 +2,7 @@
 @_exported import UIKit
 @_exported import DeveloperToolsSupport
 
-// MARK: - #Preview of UIKit views and view controllers (isim: compiles and type-checks; no preview canvas)
+// MARK: - #Preview of UIKit views and view controllers (isim: compiles and type-checks; `isim preview` renders one)
 @freestanding(declaration)
 public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTraits>..., body: @escaping @MainActor () -> UIView) =
     #externalMacro(module: "PreviewsMacros", type: "UIKitView")
@@ -17,6 +17,67 @@ extension Preview {
         self.init(_isimName: name, traits: traits, content: body)
     }
 }
+
+/// `isim preview`: the view controller showing a `#Preview` (its entry point, made by the macro, returns it retained;
+/// as an address, 0 when the preview failed).
+@MainActor public func _isimPreviewEntry(_ registry: any PreviewRegistry.Type) -> Int {
+    do {
+        let p = try registry.makePreview()
+        NSLog("isim: preview %@ (%@:%ld)", p.name ?? "unnamed", registry.fileID, registry.line)
+        return Int(bitPattern: Unmanaged.passRetained(_isimPreviewController(p)).toOpaque())
+    } catch {
+        NSLog("isim: preview failed: %@", "\(error)")
+        return 0
+    }
+}
+/// The preview's content in a view controller, laid out by its traits: the device (default), its size that fits or a
+/// fixed size (centred on a grey canvas, like Xcode's).
+@MainActor func _isimPreviewController(_ p: Preview) -> UIViewController {
+    let content: UIViewController
+    if let make = p._isimController, let vc = make() as? UIViewController { content = vc }
+    else {
+        let made = p._isimMakeContent()
+        if let vc = made as? UIViewController { content = vc }
+        else {
+            content = UIViewController()
+            if let v = made as? UIView { v.frame = content.view.bounds; v.autoresizingMask = [.flexibleWidth, .flexibleHeight]; content.view.addSubview(v) }
+        }
+    }
+    var layout: PreviewTrait<Preview.ViewTraits>._Kind = .defaultLayout
+    for t in p.traits { if case .orientation = t._kind { continue }; layout = t._kind }
+    guard layout != .defaultLayout else { return content }
+    return _IsimPreviewCanvas(content: content, layout: layout)
+}
+/// A grey canvas with the content at its fitting size or a fixed size in the middle.
+final class _IsimPreviewCanvas: UIViewController {
+    let content: UIViewController, layout: PreviewTrait<Preview.ViewTraits>._Kind
+    init(content: UIViewController, layout: PreviewTrait<Preview.ViewTraits>._Kind) { self.content = content; self.layout = layout; super.init(nibName: nil, bundle: nil) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemGray5
+        addChild(content)
+        view.addSubview(content.view)
+        content.view.accessibilityIdentifier = "preview-content"
+        content.didMove(toParent: self)
+    }
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let b = view.bounds.inset(by: view.safeAreaInsets)
+        var size: CGSize
+        switch layout {
+        case .fixedLayout(let w, let h): size = CGSize(width: w, height: h)
+        default:
+            size = content.view.systemLayoutSizeFitting(CGSize(width: b.width, height: 0))
+            if size.width <= 0 || size.height <= 0 { size = content.preferredContentSize }
+            if let h = content as? _IsimSizing { size = h._isimFittingSize(in: b.size) }
+        }
+        size = CGSize(width: min(size.width, b.width), height: min(size.height, b.height))
+        content.view.frame = CGRect(x: b.midX - size.width / 2, y: b.midY - size.height / 2, width: size.width, height: size.height)
+    }
+}
+/// A view controller that measures its content (SwiftUI's hosting controller).
+@MainActor public protocol _IsimSizing { func _isimFittingSize(in size: CGSize) -> CGSize }
 
 extension UIApplicationDelegate {
   /// Entry point for `@main` app delegates (same contract as Apple's UIKit overlay).

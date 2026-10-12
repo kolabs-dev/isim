@@ -181,7 +181,7 @@ final class _SplitNode: _Node {
             frames.append(f)
             if !floating { x = f.maxX }
         }
-        for (c, f) in zip(columns, frames) { c.node.place(f) }
+        for (c, f) in zip(columns, frames) { _inContainer(f.size) { c.node.place(f) } }       // each column is a container
     }
     override func mountView(_ g: _Graph) -> UIView { g.view(viewKey) { _PassthroughView() } }
     override func mountChildren(_ g: _Graph, in view: UIView) {
