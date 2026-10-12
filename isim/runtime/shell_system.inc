@@ -15,6 +15,7 @@
  *                  "ext-run EXE REQUEST"         run a notification extension (like widget-run; "ext-done" to the home screen)
  *                  "nc-expanded RECORD SIDECAR"  the home screen's answer to "nc-expand" (expanded notifications)
  *                  "appclip-card SIDECAR"        show the App Clip card (shell_appclip.inc; "appclip-open" / "appclip-dismissed")
+ *                  "siri-ui SIDECAR"             what Siri shows (shell_siri.inc); "intent-run ARGS" (the Shortcuts app) to the home screen
  *   shell -> app   "openurl URL", "launchtask BUNDLE TASK", "reload" (to the home screen), "bgtask TASK" (to the app),
  *                  "push BUNDLE FILE" / "push-drop FILE" / "badge PATH N" / "nc-expand ..." (to the home screen),
  *                  "remote-notification FILE", "nc-action RECORD\x1fID\x1fACTION\x1fTEXT" (to the app)
@@ -63,7 +64,7 @@ struct nc_item { char path[512], id[256], title[256], body[512], icon[512], reco
 static struct nc_item ncl[64]; static int nnc;
 
 struct sys_el { char id[128], text[192]; struct rectf r; int kind, arg; };
-enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW, EL_CC_X /* shell_controls.inc */ };
+enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW, EL_SIRI, EL_CC_X /* shell_controls.inc */ };
 static struct sys_el els[96]; static int nels;
 
 /* Control Center state */
@@ -77,7 +78,9 @@ static const char *const cc_symbols[CC_N] = { "airplane", "antenna.radiowaves.le
 static const char *const cc_names[CC_N] = { "Airplane Mode", "Cellular Data", "Wi-Fi", "Bluetooth", "Orientation Lock", "Screen Mirroring", "Focus",
                                            "Flashlight", "Timer", "Dark Mode", "Camera" };
 
-static int sys_visible(void) { return ov != OV_NONE; }
+static int siri_visible(void); static void siri_draw(cairo_t *c); static int siri_input(const struct isim_event *ev); static void siri_tick(void);
+static void siri_load(const char *file);                                       /* shell_siri.inc */
+static int sys_visible(void) { return ov != OV_NONE || siri_visible(); }
 static int sys_hides_banners(void) { return locked || ov != OV_NONE; }      /* Focus: focus_silences (shell_controls.inc) */
 static void shell_launch(const char *bundle, const char *exe, const char *url);
 static void sys_push_deliver(const char *path, const char *exe, const char *sidecar);
@@ -1231,6 +1234,7 @@ static void sys_draw(void) {
     }
     cairo_surface_destroy(bs); cairo_surface_destroy(home);
     if (ov != OV_NONE && !(standby && ov == OV_LOCK)) sys_chrome(c, ov == OV_CC ? e : 1);   /* StandBy: no status bar */
+    if (siri_visible()) { cairo_save(c); cairo_identity_matrix(c); cairo_scale(c, px_scale, px_scale); siri_draw(c); cairo_restore(c); }
     if (cc_brightness < 0.999) { cairo_identity_matrix(c); cairo_set_source_rgba(c, 0, 0, 0, (1 - cc_brightness) * 0.7); cairo_paint(c); }
     cairo_destroy(c);
     present_comp();
@@ -1396,6 +1400,7 @@ static void sys_dump(void) {
 static struct { int on, sys; double x0, y0, t0; } top_drag;     /* a touch that started at the top edge */
 static double last_home_key;
 static int sys_input(const struct isim_event *ev) {
+    if (siri_input(ev)) return 1;
     if (ev->type == EV_KEY && (ev->mods & SDL_KMOD_CTRL) && !(ev->mods & SDL_KMOD_SHIFT) && (ev->key == 'l' || ev->key == 'L')) {
         if (locked) sys_unlock(); else sys_lock(); return 1;
     }
@@ -1540,6 +1545,7 @@ static void sys_tick(void) {
     sys_autolock_tick();
     bg_tick();
     la_tick();
+    siri_tick();
     if (ov == OV_NONE) return;
     static double last_draw;
     double t = now();
@@ -1620,6 +1626,10 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
             kill(clients[k].pid, SIGKILL);
             if (k == active) { active = -1; shell_activate(0); }
         } else fprintf(stderr, "isim shell: terminate: %s is not running\n", m->b);
+    } else if (!strcmp(verb, "siri-ui")) {                  /* the home screen's Siri (shell_siri.inc) */
+        siri_load(m->b);
+    } else if (!strcmp(verb, "intent-run") || !strcmp(verb, "intents-refresh")) {   /* the Shortcuts app runs an intent: the home screen does it */
+        sys_send_text(0, "%s %s", verb, m->b);
     } else if (!strcmp(verb, "launch-bg")) {
         const char *sep = strchr(m->c, '\x1f');
         char exe[512]; snprintf(exe, sizeof exe, "%.*s", sep ? (int)(sep - m->c) : (int)strlen(m->c), m->c);
@@ -1705,6 +1715,7 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "iconstyle")) { sys_send_text(0, "iconstyle %s", args); return 1; }   /* Home Screen > Edit > Customize */
     if (!strcmp(verb, "spotlight")) { if (!locked && active == 0) sys_send_text(0, "spotlight"); return 1; }
     if (ctl_command(verb, args)) return 1;                       /* focus, actionbutton, lockcontrol */
+    if (!strcmp(verb, "siri")) { sys_send_text(0, "siri %d %s", locked, args); return 1; }   /* the simulated Siri (SBSiri.m) */
     fprintf(stderr, "isim shell: '%s' is not available\n", verb);
     return 1;
 }
@@ -1725,3 +1736,5 @@ static void sys_notify(int i, const struct shell_msg *m) {
     if (focus_silences(clients[i].bundle, flags, m->b)) return;
     nb_post(i, m);
 }
+
+#include "shell_siri.inc"

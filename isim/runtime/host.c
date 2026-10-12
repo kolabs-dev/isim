@@ -11,7 +11,7 @@
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
  *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
- *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "iconstyle STYLE [#RRGGBB] [small|large]", "swipehome left|right",
+ *                  "spotlight", "siri [PHRASE]", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "iconstyle STYLE [#RRGGBB] [small|large]", "swipehome left|right",
  *                  "push BUNDLE-ID FILE", "handoff TYPE [URL] [TITLE]", "terminate BUNDLE-ID", "appclip URL|register|unregister|expire|list ...",
  *                  "focus [dnd|personal|work|sleep|off]", "actionbutton [assign CONTROL]", "lockcontrol left|right CONTROL",
  *                  "standby on|off", "lockscreen customize|done"
@@ -1425,7 +1425,7 @@ static int script_step(struct isim_event *ev) {
                || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || (!strcmp(cmd, "appclip") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
                || (!strcmp(cmd, "focus") && shell_mode && args[strspn(args, " ")] && args[strspn(args, " ")] != ';')   /* `focus MODE`; bare `focus`: the window */
                || !strcmp(cmd, "actionbutton") || !strcmp(cmd, "lockcontrol")
-               || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode)) {
+               || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode) || (!strcmp(cmd, "siri") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),
            "push BUNDLE-ID FILE" (a remote notification payload, like `xcrun simctl push`);

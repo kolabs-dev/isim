@@ -155,3 +155,16 @@ BOOL HSLockEditorShown(void);                                 /* the Lock Screen
 - (void)liveActivityRendered:(NSDictionary *)request;
 - (BOOL)deliverLiveActivityPush:(NSDictionary *)payload app:(HSApp *)app;   /* aps.event payloads (YES: handled) */
 @end
+@interface HomeViewController (Siri)
+- (void)installSiriObservers;            /* Siri, App Shortcuts metadata, intent runs (SBSiri.m) */
+- (void)refreshAppIntents:(void (^)(void))done;
+- (NSArray<NSDictionary *> *)allAppShortcuts;                           /* { app, shortcut, phrases, meta } */
+- (NSArray<NSDictionary *> *)appShortcutsMatching:(NSString *)query;
+- (void)runAppShortcut:(NSDictionary *)entry source:(NSString *)source;
+- (void)runAppIntent:(NSString *)intent shortcut:(NSNumber *)shortcut params:(NSDictionary *)params app:(HSApp *)a source:(NSString *)source;
+@end
+/* an app's cached App Intents metadata (nil until it was read from the app); a phrase with the app's name */
+NSDictionary *HSAppIntentsMetadata(HSApp *app);
+NSString *HSPhraseText(NSString *phraseTemplate, HSApp *app);
+/* run an App Intent of an installed app with the system's UI for its questions and result (other system features) */
+void HSRunIntentRequest(HomeViewController *home, NSString *bundleID, NSString *intentType, NSDictionary *params, NSString *source);
