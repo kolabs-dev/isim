@@ -16,7 +16,10 @@ def test_boot(launch, ios, device_data):
 
     dev.wait_view(r"id=app-dev\.isim\.settings")
     dev.wait_still()
-    x, y, w, h = screen_frames(dev.view_dump())["app-dev.isim.settings"]
+    frames = screen_frames(dev.view_dump())
+    dock = sorted((f[0], i) for i, f in frames.items() if i in ("app-dev.isim.settings", "app-dev.isim.safari", "app-dev.isim.shortcuts"))
+    assert [i for _, i in dock][:1] == ["app-dev.isim.settings"], f"Settings is the dock's first (leftmost) app ({dock})"
+    x, y, w, h = frames["app-dev.isim.settings"]
     s = (w - 8) / 2 if h > w else w / 2 - 4                              # the icon square (a label may hang below)
     r, g, b = mean_rgb(dev.screenshot("home"), (x + w / 2 - s / 2, y + 4, s, s))
     assert max(r, g, b) - min(r, g, b) < 16 and 60 < r < 220, f"Settings has its grey gear icon, not a placeholder ({r:.0f}, {g:.0f}, {b:.0f})"
