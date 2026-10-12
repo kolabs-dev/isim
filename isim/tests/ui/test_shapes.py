@@ -141,11 +141,15 @@ def test_curves_and_springs(launch):
         return out
     start = xs(app.screenshot())
     app.tap_id("go")
-    frames, end = [], time.monotonic() + 15
-    while time.monotonic() < end:
+    frames, end = [], time.monotonic() + 60
+
+    def settled(f):                                                   # every box still, at its target
+        dist = (f["linear"] or start["linear"]) - start["linear"]
+        return dist > 200 and None not in f.values() and all(abs((f[k] - start[k]) / dist - 1) < 0.03 for k in COLOURS)
+    while time.monotonic() < end:                                     # the repeating one alone plays for 9 s
         f = xs(app.screenshot())
         frames.append(f)
-        if len(frames) > 8 and all(fr == f for fr in frames[-6:]) and f["linear"] != start["linear"]:
+        if len(frames) > 8 and all(fr == f for fr in frames[-4:]) and settled(f):
             break
     assert app.quit() == 0, "exits cleanly"
     log = app.log
