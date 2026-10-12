@@ -655,11 +655,23 @@ def _(a):   # the web browser (WKWebView)
 def _(a):
     b = a.swift_app("Settings", link=["-lisim_host"])
     xcstrings(a, b, a.files("*.xcstrings"))
-    gear = "/usr/share/icons/Adwaita/symbolic/legacy/emblem-system-symbolic.svg"
-    if shutil.which("magick"):
-        a.run("magick", "-size", "180x180", "gradient:#a6acb6-#6b717c", "(", "-background", "none", "-density", "900", gear,
-              "-resize", "120x120", "-fill", "white", "-colorize", "100", ")", "-gravity", "center", "-compose", "over", "-composite",
-              f"{b}/icon.png", check=False, quiet=True)
+    if shutil.which("magick"):   # iOS's Settings gear, drawn here (no host icon theme): grey, a toothed outer gear ring
+        a.run("magick", "-size", "180x180", "gradient:#c9cdd3-#8a9099", "-draw", settings_gear(), f"{b}/icon.png", check=False, quiet=True)
+
+
+def settings_gear():
+    """ImageMagick -draw primitives for the Settings icon (180 px): a dark gear with 36 fine teeth, a light ring, an inner
+    gear with 12 teeth and six spokes round a hub, like iOS's (isim's own drawing, not Apple artwork)"""
+    dark, light = "#45484d", "#dcdfe3"
+    tooth = lambda n, step, w, r0, r1: [f"push graphic-context translate 90,90 rotate {i * step} rectangle -{w},-{r1} {w},-{r0} "   # noqa: E731
+                                        "pop graphic-context" for i in range(n)]
+    d = [f"fill {dark}"] + tooth(36, 10, 3, 54, 68) + ["circle 90,90 90,30"]               # the outer gear (r 60)
+    d += [f"fill {light}", "circle 90,90 90,38"]                                           # the ring (r 52)
+    d += [f"fill {dark}"] + tooth(12, 30, 4, 36, 47) + ["circle 90,90 90,50"]              # the inner gear (r 40)
+    d += [f"fill {light}", "circle 90,90 90,57"]                                           # its opening (r 33)
+    d += [f"fill {dark}"] + tooth(6, 60, 4, 0, 36) + ["circle 90,90 90,77"]                # spokes, the hub (r 13)
+    d += [f"fill {light}", "circle 90,90 90,85"]                                           # the axle (r 5)
+    return " ".join(d)
 
 
 @app("system/Shortcuts", products=["Shortcuts.app"], dest="out/sdk/Applications")
