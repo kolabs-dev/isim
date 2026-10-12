@@ -323,3 +323,92 @@ def test_project_view(tmp_path):
     rc, out = isim(proj, "project", "HelloToolchain.xcworkspace")
     assert rc == 0 and out.splitlines()[0] == "HelloToolchain.xcworkspace" and \
         "    │   │   └── Units (package product)" in out and "    └── package Packages/Units (local)" in out, out
+
+
+# ---------------- prebuilt dynamic XCFramework (Xcode-style vendor SDK) ----------------
+def run(*cmd, cwd=None):
+    p = subprocess.run([str(c) for c in cmd], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    assert p.returncode == 0, f"{' '.join(map(str, cmd[:4]))} ...\n{p.stdout[-3000:]}"
+    return p.stdout
+
+
+def vendor_xcframework(srcdir, dest, tmp):
+    """Vendor.xcframework the way `xcodebuild archive BUILD_LIBRARY_FOR_DISTRIBUTION=YES` + `-create-xcframework`
+    lay it out: per slice a dynamic Vendor.framework (Info.plist, Headers + module map for the ObjC API,
+    Modules/Vendor.swiftmodule/<triple>.swiftinterface without a binary .swiftmodule) and dSYMs. The simulator
+    slice is fat (x86_64 + arm64); the arm64 code is a placeholder (isim builds x86_64 simulator code only)."""
+    obj = tmp / "vendor-obj"
+    obj.mkdir()
+    sim = dest / "ios-arm64_x86_64-simulator"
+    dev = dest / "ios-arm64"
+    fw = sim / "Vendor.framework"
+    for d in (fw / "Headers", fw / "Modules/Vendor.swiftmodule"):
+        d.mkdir(parents=True)
+    for h in ("Vendor.h", "VNDLegacy.h"):
+        shutil.copy(srcdir / h, fw / "Headers")
+    (obj / "underlying").mkdir()
+    (obj / "underlying/module.modulemap").write_text(f'module Vendor {{\n  umbrella header "{fw}/Headers/Vendor.h"\n  export *\n}}\n')
+    framework_map = 'framework module Vendor {\n  umbrella header "Vendor.h"\n  export *\n  module * { export * }\n}\n'
+    (fw / "Modules/module.modulemap").write_text(framework_map)     # what verifying the emitted interface imports
+    swiftmod = fw / "Modules/Vendor.swiftmodule"
+    run(ISIM, "swiftc", "-parse-as-library", "-module-name", "Vendor", "-enable-library-evolution", "-swift-version", "5",
+        "-emit-module-interface-path", swiftmod / "x86_64-apple-ios-simulator.swiftinterface",
+        "-emit-private-module-interface-path", swiftmod / "x86_64-apple-ios-simulator.private.swiftinterface",
+        "-emit-module", "-emit-module-path", obj / "Vendor.swiftmodule", "-emit-objc-header-path", fw / "Headers/Vendor-Swift.h",
+        "-import-underlying-module", "-Xcc", f"-fmodule-map-file={obj}/underlying/module.modulemap", "-F", sim,
+        "-wmo", "-c", "-o", obj / "Vendor-swift.o", srcdir / "Vendor.swift", cwd=tmp)
+    (fw / "Modules/module.modulemap").write_text(framework_map + '\nmodule Vendor.Swift {\n  header "Vendor-Swift.h"\n  requires objc\n}\n')
+    run(ISIM, "cc", "-c", srcdir / "VNDLegacy.m", "-I", fw / "Headers", "-o", obj / "VNDLegacy.o")
+    run(ISIM, "cc", "-dynamiclib", "-install_name", "@rpath/Vendor.framework/Vendor", obj / "Vendor-swift.o", obj / "VNDLegacy.o",
+        "-framework", "Foundation", "-o", obj / "Vendor-x86_64")
+    for triple, out in (("arm64-apple-ios17.0-simulator", "Vendor-arm64-sim"), ("arm64-apple-ios17.0", "Vendor-arm64")):
+        run("clang", "-target", triple, "-dynamiclib", "-nostdlib", "-install_name", "@rpath/Vendor.framework/Vendor",
+            "-fuse-ld=lld", srcdir / "placeholder.c", "-o", obj / out)
+    run("llvm-lipo", "-create", obj / "Vendor-x86_64", obj / "Vendor-arm64-sim", "-output", fw / "Vendor")
+    for name in ("x86_64-apple-ios-simulator.swiftinterface", "x86_64-apple-ios-simulator.private.swiftinterface"):
+        text = (swiftmod / name).read_text()
+        (swiftmod / name.replace("x86_64", "arm64")).write_text(text.replace("-target x86_64-apple-ios", "-target arm64-apple-ios"))
+    info = {"CFBundleDevelopmentRegion": "en", "CFBundleExecutable": "Vendor", "CFBundleIdentifier": "com.example.Vendor",
+            "CFBundleInfoDictionaryVersion": "6.0", "CFBundleName": "Vendor", "CFBundlePackageType": "FMWK",
+            "CFBundleShortVersionString": "3.2.1", "CFBundleVersion": "1", "MinimumOSVersion": "17.0",
+            "CFBundleSupportedPlatforms": ["iPhoneSimulator"]}
+    (fw / "Info.plist").write_bytes(plistlib.dumps(info))
+    # the device slice: arm64 iPhoneOS (the placeholder), same headers and interfaces
+    shutil.copytree(fw, dev / "Vendor.framework")
+    shutil.copy(obj / "Vendor-arm64", dev / "Vendor.framework/Vendor")
+    dswift = dev / "Vendor.framework/Modules/Vendor.swiftmodule"
+    for f in list(dswift.iterdir()):
+        if "x86_64" in f.name:
+            f.unlink()
+        else:
+            f.rename(dswift / f.name.replace("-simulator", ""))
+    (dev / "Vendor.framework/Info.plist").write_bytes(plistlib.dumps(dict(info, CFBundleSupportedPlatforms=["iPhoneOS"])))
+    for sl, binary in ((sim, fw / "Vendor"), (dev, dev / "Vendor.framework/Vendor")):
+        dsym = sl / "dSYMs/Vendor.framework.dSYM/Contents"
+        (dsym / "Resources/DWARF").mkdir(parents=True)
+        shutil.copy(binary, dsym / "Resources/DWARF/Vendor")
+        (dsym / "Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "com.apple.xcode.dsym.com.example.Vendor",
+                                                          "CFBundlePackageType": "dSYM", "CFBundleInfoDictionaryVersion": "6.0"}))
+    (dest / "Info.plist").write_bytes(plistlib.dumps({"AvailableLibraries": [
+        {"BinaryPath": "Vendor.framework/Vendor", "DebugSymbolsPath": "dSYMs", "LibraryIdentifier": "ios-arm64",
+         "LibraryPath": "Vendor.framework", "SupportedArchitectures": ["arm64"], "SupportedPlatform": "ios"},
+        {"BinaryPath": "Vendor.framework/Vendor", "DebugSymbolsPath": "dSYMs", "LibraryIdentifier": "ios-arm64_x86_64-simulator",
+         "LibraryPath": "Vendor.framework", "SupportedArchitectures": ["arm64", "x86_64"], "SupportedPlatform": "ios",
+         "SupportedPlatformVariant": "simulator"}], "CFBundlePackageType": "XFWK", "XCFrameworkFormatVersion": "1.0"}))
+
+
+def test_binary_dynamic_xcframework(launch, tmp_path, work):
+    src = copy_fixture("VendorSDK", tmp_path)
+    xcf = src / "Frameworks/Vendor.xcframework"
+    vendor_xcframework(src / "VendorSource", xcf, tmp_path)
+    assert not list(xcf.rglob("*.swiftmodule/*.swiftmodule")), "interfaces only, like a distributed XCFramework"
+    assert "x86_64" in run("llvm-lipo", "-archs", xcf / "ios-arm64_x86_64-simulator/Vendor.framework/Vendor")
+    rc, log = isim(src, "build", "-project", "VendorSDK.xcodeproj", "-o", work)
+    assert rc == 0, log[-4000:]
+    emb = work / "VendorApp.app/Frameworks/Vendor.framework"
+    assert run("llvm-lipo", "-archs", emb / "Vendor").split() == ["x86_64"], "embedded thinned to the x86_64 slice"
+    assert (emb / "Info.plist").is_file() and not (emb / "Headers").exists() and not (emb / "Modules").exists()
+    assert not list((work / "VendorApp.app").rglob("*.dSYM")), "dSYMs are not embedded"
+    app = launch(work / "VendorApp.app")
+    app.wait_log(r"VendorSDK: Vendor 3\.2\.1 greets isim \(legacy score 42\) \| VNDLegacy \| app widget")
+    app.quit()
