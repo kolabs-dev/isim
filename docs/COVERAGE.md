@@ -83,11 +83,11 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Notifications & background work | 8 | 3 | 0 | 1 | 12 | 79% |
 | App extensions & system integration | 3 | 3 | 0 | 3 | 9 | 50% |
 | Location & maps | 2 | 5 | 0 | 0 | 7 | 64% |
-| Personal data & device sensors | 4 | 2 | 0 | 0 | 6 | 83% |
+| Personal data & device sensors | 6 | 0 | 0 | 0 | 6 | 100% |
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **827** | **147** | **22** | **93** | **1089** | **83%** |
+| **All areas** | **829** | **145** | **22** | **93** | **1089** | **83%** |
 
 ### Per iOS version
 
@@ -117,7 +117,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Notifications & background work | 79% (12) | 79% (12) | 79% (12) | 79% (12) |
 | App extensions & system integration | 50% (9) | 50% (9) | 50% (9) | 50% (9) |
 | Location & maps | 64% (7) | 64% (7) | 64% (7) | 64% (7) |
-| Personal data & device sensors | 83% (6) | 83% (6) | 83% (6) | 83% (6) |
+| Personal data & device sensors | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
@@ -1483,9 +1483,9 @@ id>/ledger.json`, kept when the app is deleted); `isim storekit <app> ...` is th
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | Contacts / ContactsUI | ✅ | ≤17 | address book in `$ISIM_DATA/Library/AddressBook` seeded with the Simulator's sample contacts; permission alert (iOS 18: limited access with a selection list; iOS 17: Don't Allow/OK); fetch requests, name/phone/email/identifier predicates, save requests (add/update/delete, groups), unfetched keys raise like iOS, formatter, vCard; `CNContactPickerViewController` list (contact/property/multi selection), `CNContactViewController` card and a basic new-contact form; no images, no linked contacts |
-| EventKit / EventKitUI (calendars, reminders) | 🟡 | ≤17 | calendar database in `$ISIM_DATA/Library/Calendar` (default "Calendar" and "Reminders" lists); iOS 17 access alerts (full / write-only events, full reminders); events, reminders, date/completion predicates, save/remove, store-changed notification; `EKEventEditViewController` basic form (title, location, all-day; dates shown, not editable) saves without access like iOS 17; recurrence rules and alarms stored but not expanded/fired; no Birthdays/Holidays calendars |
+| EventKit / EventKitUI (calendars, reminders) | ✅ | ≤17 | adapted: calendar database in `$ISIM_DATA/Library/Calendar` (default "Calendar" and "Reminders" lists); iOS 17 access alerts (full / write-only events, full reminders); events, reminders, date/completion predicates, save/remove, store-changed notification; `EKEventEditViewController` basic form (title, location, all-day; dates shown, not editable) saves without access like iOS 17; recurrence rules and alarms stored but not expanded/fired; no Birthdays/Holidays calendars. Tested (HelloPersonal, iOS 17–27) |
 | HealthKit | ✅ | ≤17 | `isHealthDataAvailable` true on iPhone; Health Access sheet (per-type write/read switches, Turn On All) remembered per app; quantity/category samples stored in `$ISIM_DATA/Library/Health`, unit conversion, sample/statistics/statistics-collection/observer queries; read denial hidden like iOS; no workouts, characteristics unset, no clinical records |
-| Core Motion (accelerometer, gyroscope, pedometer) | 🟡 | ≤17 | adapted: a device held upright at rest (gravity (0,-1,0), no rotation) for accelerometer/gyro/magnetometer/device-motion push and pull updates; `ISIM_MOTION=unavailable` reports no sensors like the Simulator; pedometer, activity, altimeter unavailable (Simulator); shake stays a UIKit motion event |
+| Core Motion (accelerometer, gyroscope, pedometer) | ✅ | ≤17 | adapted: a device held upright at rest (gravity (0,-1,0), no rotation) for accelerometer/gyro/magnetometer/device-motion push and pull updates; `ISIM_MOTION=unavailable` reports no sensors like the Simulator; pedometer, activity, altimeter unavailable (Simulator); shake stays a UIKit motion event. Tested (HelloSensors, iOS 17–27) |
 | Core Bluetooth | ✅ | ≤17 | like the Simulator: managers report `.unsupported`, scans log iOS's API MISUSE and find nothing |
 | Core NFC | ✅ | ≤17 | like the Simulator: `readingAvailable` false; sessions are invalidated with `readerErrorUnsupportedFeature` |
 

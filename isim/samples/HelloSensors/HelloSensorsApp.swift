@@ -24,8 +24,9 @@ final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, N
     var ticks = 0
 
     func startMotion() {
-        print("motion available accel \(motion.isAccelerometerAvailable) gyro \(motion.isGyroAvailable) deviceMotion \(motion.isDeviceMotionAvailable)")
-        print("pedometer steps \(CMPedometer.isStepCountingAvailable()) activity \(CMMotionActivityManager.isActivityAvailable()) altimeter \(CMAltimeter.isRelativeAltitudeAvailable())")
+        print("motion available accel \(motion.isAccelerometerAvailable) gyro \(motion.isGyroAvailable) magnetometer \(motion.isMagnetometerAvailable) deviceMotion \(motion.isDeviceMotionAvailable)")
+        print("motion frames \(CMMotionManager.availableAttitudeReferenceFrames().rawValue)")
+        print("pedometer steps \(CMPedometer.isStepCountingAvailable()) distance \(CMPedometer.isDistanceAvailable()) floors \(CMPedometer.isFloorCountingAvailable()) pace \(CMPedometer.isPaceAvailable()) cadence \(CMPedometer.isCadenceAvailable()) events \(CMPedometer.isPedometerEventTrackingAvailable()) activity \(CMMotionActivityManager.isActivityAvailable()) altimeter \(CMAltimeter.isRelativeAltitudeAvailable())")
         guard motion.isAccelerometerAvailable else { motionText = "No motion sensors"; return }
         motion.accelerometerUpdateInterval = 0.1
         ticks = 0
@@ -33,25 +34,39 @@ final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, N
             guard let a = data?.acceleration else { return }
             self.ticks += 1
             if self.ticks == 3 {
-                print(String(format: "accel %.2f %.2f %.2f after %d updates", a.x, a.y, a.z, self.ticks))
+                let pull = self.motion.accelerometerData?.acceleration ?? CMAcceleration()
+                print(String(format: "accel %.2f %.2f %.2f pull %.2f %.2f %.2f after %d updates", a.x, a.y, a.z, pull.x, pull.y, pull.z, self.ticks))
                 self.motion.stopAccelerometerUpdates()
             }
         }
         motion.deviceMotionUpdateInterval = 0.1
         motion.startDeviceMotionUpdates(using: .xArbitraryZVertical, to: .main) { m, _ in
             guard let m else { return }
-            print(String(format: "deviceMotion gravity %.2f %.2f %.2f user %.2f pitch %.2f roll %.2f", m.gravity.x, m.gravity.y, m.gravity.z,
-                         m.userAcceleration.x + m.userAcceleration.y + m.userAcceleration.z, m.attitude.pitch, m.attitude.roll))
+            let pull = self.motion.deviceMotion
+            print(String(format: "deviceMotion gravity %.2f %.2f %.2f user %.2f pitch %.2f roll %.2f pull %.2f heading %.0f", m.gravity.x, m.gravity.y, m.gravity.z,
+                         m.userAcceleration.x + m.userAcceleration.y + m.userAcceleration.z, m.attitude.pitch, m.attitude.roll, pull?.gravity.y ?? 0, m.heading))
             self.motionText = String(format: "gravity %.0f, %.0f, %.0f", m.gravity.x, m.gravity.y, m.gravity.z)
             self.motion.stopDeviceMotionUpdates()
         }
         motion.startGyroUpdates()
+        motion.magnetometerUpdateInterval = 0.1
+        motion.startMagnetometerUpdates(to: .main) { data, _ in
+            guard let field = data?.magneticField, let pull = self.motion.magnetometerData?.magneticField else { return }
+            print(String(format: "magnetometer %.1f %.1f %.1f pull %.1f %.1f %.1f", field.x, field.y, field.z, pull.x, pull.y, pull.z))
+            self.motion.stopMagnetometerUpdates()
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             if let g = self.motion.gyroData?.rotationRate { print(String(format: "gyro %.2f %.2f %.2f active %@", g.x, g.y, g.z, self.motion.isGyroActive ? "yes" : "no")) }
             self.motion.stopGyroUpdates()
         }
         CMPedometer().queryPedometerData(from: Date().addingTimeInterval(-3600), to: Date()) { data, error in
             print("pedometer query error \((error as? CMError)?.code.rawValue ?? 0)")
+        }
+        CMMotionActivityManager().queryActivityStarting(from: Date().addingTimeInterval(-3600), to: Date(), to: .main) { _, error in
+            print("activity query error \((error as? CMError)?.code.rawValue ?? 0)")
+        }
+        CMAltimeter().startRelativeAltitudeUpdates(to: .main) { _, error in
+            print("altimeter update error \((error as? CMError)?.code.rawValue ?? 0)")
         }
     }
 
