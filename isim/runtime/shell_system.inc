@@ -546,8 +546,28 @@ static int la_island_visible(void) {
     int idx[LA_MAX];
     return la_island_list(idx) > 0 || la_expanded() >= 0;
 }
-static struct rectf la_compact_rect(void) { return (struct rectf){ dev.width / 2 - 62.5 - 64, 11, 125 + 128, 37 }; }
-static struct rectf la_attached_rect(void) { return (struct rectf){ dev.width / 2 - 62.5 - 44, 11, 125 + 44, 37 }; }
+/* how far the island grows sideways: at most 64 pt (compact) / 44 pt (minimal), and never over the status bar's time
+   (centred at x 77 on Dynamic Island iPhones, ~17 pt each side) or its icons, which keep showing as on iOS */
+static double la_side(double most) { return fmax(24, fmin(most, dev.width / 2 - 62.5 - 100)); }
+static struct rectf la_compact_rect(void) { double e = la_side(64); return (struct rectf){ dev.width / 2 - 62.5 - e, 11, 125 + 2 * e, 37 }; }
+static struct rectf la_attached_rect(void) { double e = la_side(44); return (struct rectf){ dev.width / 2 - 62.5 - e, 11, 125 + e, 37 }; }
+/* the island reaches where the cellular bars are (host.c: from width - 105, ~16 pt wide), as the compact presentation and
+   the detached circle do: the status bar leaves them out, like iOS dropping a lower-priority item when space runs out */
+static struct rectf la_detached_rect(void);
+static int la_detached_shown(void) {
+    if (!la_island_visible() || la_banner_visible() || la_expanded() >= 0) return 0;
+    int idx[LA_MAX], n = la_island_list(idx);
+    double right = n >= 2 ? la_detached_rect().x + 37 : n == 1 ? la_compact_rect().x + la_compact_rect().w : 0;
+    return right > dev.width - 105 - 2;
+}
+/* the apps draw their own status bars: tell them when the island starts / stops covering the cellular bars */
+static void la_sync_status_bars(void) {
+    static int told = -1;
+    int now_shown = la_detached_shown();
+    if (now_shown == told) return;
+    told = now_shown;
+    for (int i = 0; i < nclients; i++) if (clients[i].alive) sys_send_text(i, "statusbar-cellular %d", now_shown);
+}
 static struct rectf la_detached_rect(void) { return (struct rectf){ dev.width / 2 + 62.5 + 8, 11, 37, 37 }; }
 static struct rectf la_expanded_rect(void) { return (struct rectf){ 8, 8, dev.width - 16, 176 }; }
 static struct rectf la_banner_rect(void) { double w = fmin(dev.width - 16, 400); return (struct rectf){ (dev.width - w) / 2, fmax(dev.safe_top, 20) + 4, w, w * 160 / 370 }; }
@@ -584,8 +604,11 @@ static void la_draw_island(cairo_t *c) {
     if (n == 1) {
         struct rectf r = la_compact_rect();
         sys_round(c, r.x, r.y, r.w, r.h, 18.5); cairo_set_source_rgb(c, 0, 0, 0); cairo_fill(c);
-        la_img(c, las[idx[0]].leading, r.x + 2, r.y, 64, 37);
-        la_img(c, las[idx[0]].trailing, r.x + r.w - 66, r.y, 64, 37);
+        double e = la_side(64);                                    /* the 64 pt renders, centred in each side, clipped */
+        cairo_save(c); sys_round(c, r.x, r.y, r.w, r.h, 18.5); cairo_clip(c);
+        la_img(c, las[idx[0]].leading, r.x + e / 2 - 32 + 2, r.y, 64, 37);
+        la_img(c, las[idx[0]].trailing, r.x + r.w - e / 2 - 32 - 2, r.y, 64, 37);
+        cairo_restore(c);
         el_add("dynamic-island", "compact", r, EL_NONE, idx[0]);
     } else if (n >= 2) {                                   /* minimal: one attached (leading), one detached (trailing) */
         struct rectf a = la_attached_rect(), d = la_detached_rect();
@@ -635,6 +658,7 @@ static void la_alert(int i) {
 /* alerts ending, ended activities reaching their dismissal time */
 static void la_tick(void) {
     int redraw = 0;
+    la_sync_status_bars();
     if (la.alert_until && now() >= la.alert_until) {
         if (la.alert_expand && !strcmp(la.exp_id, la.alert_id)) { la.exp_id[0] = 0; fprintf(stderr, "isim shell: Dynamic Island compact (alert ended)\n"); }
         la.alert_until = 0; la.alert_expand = la.alert_banner = 0; la.alert_id[0] = 0; redraw = 1;
@@ -746,21 +770,26 @@ static void lw_draw_date(cairo_t *c, double top, const char *dstr) {
     el_add("lock-widget-inline", in->kind, (struct rectf){ x + dw + gap, iy, cw, ih }, EL_LW, (int)(in - lws));
 }
 /* the row under the clock; returns its bottom (0: no widgets) */
+/* WidgetKit's Lock Screen sizes: circular 72 x 72 and rectangular 160 x 72 pt on the 6.1" phones, 76 and 172 x 76 on the
+   6.7" (Plus / Pro Max) class, 16 pt apart; a widget whose render is still on its way shows a placeholder, as on iOS */
+static double lw_h(void) { return dev.width >= 428 ? 76 : 72; }
+static double lw_w(int family) { return family == 2 ? (dev.width >= 428 ? 172 : 160) : lw_h(); }
 static double lw_draw_row(cairo_t *c) {
-    double total = 0; int n = 0;
-    for (int i = 0; i < nlw; i++) if (lws[i].family) { total += lws[i].family == 2 ? 160 : 72; n++; }
+    double total = 0, h = lw_h(); int n = 0;
+    for (int i = 0; i < nlw; i++) if (lws[i].family) { total += lw_w(lws[i].family); n++; }
     if (!n) return 0;
     total += 16 * (n - 1);
     double x = (dev.width - total) / 2, y = lw_row_top(); int k = 0;
     for (int i = 0; i < nlw; i++) {
         if (!lws[i].family) continue;
-        double w = lws[i].family == 2 ? 160 : 72;
-        la_img(c, lws[i].img, x, y, w, 72);
+        double w = lw_w(lws[i].family);
+        if (lws[i].img) la_img(c, lws[i].img, x, y, w, h);
+        else { cairo_new_path(c); sys_round(c, x, y, w, h, lws[i].family == 2 ? 18 : h / 2); cairo_set_source_rgba(c, 1, 1, 1, 0.18); cairo_fill(c); }
         char id[32]; snprintf(id, sizeof id, "lock-widget-%d", ++k);
-        el_add(id, lws[i].kind, (struct rectf){ x, y, w, 72 }, EL_LW, i);
+        el_add(id, lws[i].kind, (struct rectf){ x, y, w, h }, EL_LW, i);
         x += w + 16;
     }
-    return y + 72;
+    return y + h;
 }
 static void lw_open(int i) {
     if (i < 0 || i >= nlw) return;

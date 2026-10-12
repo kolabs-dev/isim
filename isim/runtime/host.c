@@ -1009,6 +1009,8 @@ static void load_clock_prefs(void) {
 enum { SB_APP, SB_LOCK, SB_CC };
 #define SB_CARRIER "Carrier"                                    /* the carrier name Apple's Simulator shows */
 static const double sb_battery = 0.8;                           /* the charge the battery icon shows */
+static int la_detached_shown(void);                       /* shell_system.inc: the island reaches the cellular bars */
+static int sb_cell_covered;                               /* an app under the shell: told by "statusbar-cellular 0|1" */
 static void draw_status_bar(int style, const double *fg) {
     double c = fg[0];
     if ((dev.orientation == 3 || dev.orientation == 4) && portrait_dev.width < 700) return;  /* iPhones hide it in landscape */
@@ -1067,7 +1069,8 @@ static void draw_status_bar(int style, const double *fg) {
     }
     /* cellular bars (not on the Wi-Fi iPads) */
     double cx0 = wx - 30;
-    for (int i = 0; i < 4 && !pad; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
+    int covered = style == SB_APP && dev.has_island == 1 && (sb_cell_covered || la_detached_shown());   /* under the island's compact / detached parts */
+    for (int i = 0; i < 4 && !pad && !covered; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
 }
 
 /* the hardware: the Dynamic Island or the notch, and (home) the home indicator */
@@ -1509,6 +1512,10 @@ static int next_event(struct isim_event *ev, double timeout) {
         ssize_t n = recv(client_sock, &m, sizeof m, 0);
         if (n <= 0) { ev->type = EV_QUIT; return 1; }        /* the shell went away */
         *ev = m.ev; ev->timestamp = isim_time();
+        if (ev->type == EV_SYSTEM && !strncmp(ev->text, "statusbar-cellular ", 19)) {   /* the status bar we draw */
+            sb_cell_covered = atoi(ev->text + 19) != 0;
+            memset(ev, 0, sizeof *ev); ev->type = EV_REDRAW;
+        }
         return 1;
     }
     for (;;) {

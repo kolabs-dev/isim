@@ -262,3 +262,30 @@ def test_tinted_home_screen_widgets(launch, ios):
     assert dev.quit() == 0
     assert re.search(r"counter view \(systemSmall\), rendering mode accented", dev.log)
     assert red_count(shot)
+
+
+def test_lock_screen_widget_sizes(launch):
+    """6.7" class (iPhone 16 Pro Max, 440 pt): Apple's larger accessory sizes (76 pt circles); a single widget is centred
+    under the clock, and a widget whose render is on its way already holds its place (a placeholder)."""
+    dev = launch(None, install=["HelloWidgets"], device="iphone16promax", env={"ISIM_LOCK_TIME": "9:41", "ISIM_SUSPEND": "0"})
+    dev.wait_log(r"isim WidgetKit: \d+ widget kind")
+    dev.wait_view(rf"id=app-{re.escape(APP)}")
+    dev.wait_still()
+    dev.send("lock")
+    dev.wait_log(r"isim shell: locked")
+    dev.send("lockscreen customize")
+    dev.wait_tap_id("lock-edit-widgets")
+    dev.wait_tap_id("lock-add-Counter-accessoryCircular")
+    dev.wait_log(r"Lock Screen editor: added Counter \(accessoryCircular\)")
+    dev.send("lockscreen done")                                          # the editor's Done (also closes the gallery)
+    dev.wait_log(r"isim shell: Lock Screen customization done")
+    dev.wait_log(r"rendered Counter \(accessoryCircular, vibrant\)")
+    dump = dev.wait_dump(r"\(\S+ \S+; \S+ x \S+\) id=lock-widget-1 text=Counter")[0]
+    x, y, w, h = frames(dump, r"lock-widget-1")["lock-widget-1"]
+    assert (w, h) == (76, 76), f"76 pt circle on the 6.7\" class ({w} x {h})"
+    assert abs(x + w / 2 - 220) <= 1, f"a single widget is centred ({x})"
+    dev.screenshot("lock-promax")
+    png = next(p for p in (dev.data / "Library/SpringBoard/Widgets" / APP / "lock").glob("Counter-accessoryCircular-*.png"))
+    from PIL import Image
+    assert Image.open(png).size[0] in (76, 152, 228), f"the extension renders at the 76 pt size ({Image.open(png).size})"
+    assert dev.quit() == 0

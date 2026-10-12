@@ -108,7 +108,9 @@ static void siri_glow(cairo_t *c, double t) {
     cairo_pattern_destroy(g);
 }
 static void siri_card_bg(cairo_t *c, double x, double y, double w, double h, double r) {
-    if (sys_os() >= 26) { sys_glass(c, x, y, w, h, r, NULL, 1 | 2 | 4); cairo_new_path(c); sys_round(c, x, y, w, h, r); cairo_set_source_rgba(c, 0.97, 0.97, 0.98, 0.9); cairo_fill(c); return; }
+    if (sys_os() >= 26) {               /* the card is drawn in a group (it fades in): no backdrop to frost, so the material is
+                                           nearly opaque, or the icons under it would show through as a ghost */
+        sys_glass(c, x, y, w, h, r, NULL, 1 | 2 | 4); cairo_new_path(c); sys_round(c, x, y, w, h, r); cairo_set_source_rgba(c, 0.97, 0.97, 0.98, 0.97); cairo_fill(c); return; }
     cairo_save(c);                                                   /* a soft shadow, then the light material */
     cairo_new_path(c); sys_round(c, x, y + 3, w, h, r); cairo_set_source_rgba(c, 0, 0, 0, 0.12); cairo_fill(c);
     cairo_new_path(c); sys_round(c, x, y, w, h, r); cairo_set_source_rgba(c, 0.975, 0.975, 0.98, 0.97); cairo_fill(c);

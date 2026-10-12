@@ -58,6 +58,14 @@ def test_widgets(launch):
     dev.wait_still()
     widgets = dev.wait_shot(lambda s: (c := mean_rgb(s, (50, 290, 20, 20)))[2] > 0.9 * 255 and c[0] < 0.2 * 255,
                             "widget pixels: blue counter")
+    # the Counter's "+1" button: .background(Color.white).cornerRadius(17) clips the white to a rounded rectangle
+    wx, wy, ww, wh = screen_frames(home)["widget-Counter-systemSmall"]
+    white = lambda c: min(c) > 235                                       # noqa: E731
+    pts = [(x, y) for x in range(int(wx), int(wx + ww)) for y in range(int(wy + wh / 2), int(wy + wh)) if white(widgets.getpixel((x, y)))]
+    assert pts, "the white +1 button"
+    bx0, bx1, by0, by1 = min(p[0] for p in pts), max(p[0] for p in pts), min(p[1] for p in pts), max(p[1] for p in pts)
+    corner, middle = widgets.getpixel((bx0 + 1, by0 + 1)), widgets.getpixel(((bx0 + bx1) // 2, by0 + 2))
+    assert not white(corner) and white(middle), f"rounded button corners (corner {corner}, edge {middle})"
     dev.tap(114, 400)                                                   # the interactive Counter widget
     dev.wait_log(r"counter timeline \(systemSmall\), count 1")
     dev.screenshot("tapped")
@@ -70,7 +78,10 @@ def test_widgets(launch):
     dev.wait_log(r"Live Activity from .*HelloWidgets.app shown")
     dev.send("home")
     dev.wait_dump(r"IsimDynamicIsland .*text=compact")
-    dev.screenshot("island")
+    # compact again (an update's alert expands the island for a moment): wallpaper under the island, the island black
+    shot = dev.wait_shot(lambda s: sum(s.getpixel((201, 120))) > 120 and sum(s.getpixel((201, 15))) < 60, "compact island")
+    bars = sum(1 for x in range(303, 314) for y in range(14, 36) if min(shot.getpixel((x, y))) > 200)
+    assert bars == 0, f"the compact island reaches the cellular bars: the status bar leaves them out ({bars} px)"
     dev.send("island")
     dev.wait_log(r"Dynamic Island expanded")
     expanded = dev.wait_shot(lambda s: sum(mean_rgb(s, (20, 130, 30, 20))) < 0.1 * 255,
@@ -126,9 +137,9 @@ def test_widgets(launch):
         has(r"counter timeline \(systemSmall\), count 2"), "the app sees the app-group count; reloadTimelines"
     assert has(r"requested Live Activity") and has(r"rendered Live Activity DeliveryAttributes") and \
         has(r"Live Activity from .*HelloWidgets.app shown"), "Live Activity rendered by the extension"
-    assert has(r"IsimDynamicIsland \(74.5 11; 253 x 37\) id=dynamic-island text=compact") and \
+    assert has(r"IsimDynamicIsland \(100 11; 202 x 37\) id=dynamic-island text=compact") and \
         has(r"Dynamic Island expanded") and sum(mean_rgb(expanded, (20, 130, 30, 20))) < 0.1 * 255, \
-        "Dynamic Island: compact outside the app, expanded"
+        "Dynamic Island: compact outside the app (clear of the status bar's time: from x 100 on a 402 pt iPhone), expanded"
     assert margins(island), "Dynamic Island: contentMargins for the expanded presentation"
     assert has(r"id=live-activity") and mean_rgb(lock, (30, 280, 30, 20))[0] > 0.9 * 255, \
         "lock screen shows the Live Activity"

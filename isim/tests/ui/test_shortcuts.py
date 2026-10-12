@@ -91,8 +91,17 @@ def test_siri_app_shortcuts(launch, ios):
     siri(dev, r"id=siri-card text=Order 1 cappuccino\?")
     dev.screenshot("siri-confirm")
     dev.send("siri yes")
-    siri(dev, r"id=siri-card text=Your cappuccino is on its way\.")
-    dev.screenshot("siri-result")
+    card = siri(dev, r"id=siri-card text=Your cappuccino is on its way\.")
+    result = dev.screenshot("siri-result")
+    if os_version >= 26:                                                 # frosted glass: no sharp home screen behind it
+        m = re.search(r"\((\S+) (\S+); (\S+) x (\S+)\) id=siri-card\b", card.string)
+        assert m, "the Siri card's frame"
+        if m:
+            x, y, w, h = (float(v) for v in m.groups())
+            # a strip in the card's 18 pt right padding (past the snippet), clear of its 32 pt corners
+            strip = [sum(result.getpixel((int(x + w - 15 + i), int(y + 34 + j)))) for i in range(6) for j in range(int(h - 68))]
+            spread = max(strip) - min(strip)
+            assert spread < 60, f"iOS 26: the card's glass shows no ghost of the icons behind it (spread {spread})"
     dev.send("siri How many coffees did I have in Coffee Club")
     siri(dev, r"id=siri-card text=You’ve ordered 1 cup today\.")
 

@@ -33,15 +33,22 @@ public enum WidgetFamily: String, CaseIterable, Sendable, Hashable, CustomString
         case .systemSmall: return CGSize(width: 170, height: 170)
         case .systemMedium: return CGSize(width: 364, height: 170)
         case .systemLarge, .systemExtraLarge: return CGSize(width: 364, height: 382)
-        /* Lock Screen accessory widgets on 6.1–6.3" iPhones (estimated from Apple's widget size table: 72 pt circles,
-           160 x 72 rectangles, a 234 pt inline line next to the date) */
-        case .accessoryCircular: return CGSize(width: 72, height: 72)
-        case .accessoryRectangular: return CGSize(width: 160, height: 72)
-        case .accessoryInline: return CGSize(width: 234, height: 26)
+        /* Lock Screen accessory widgets, from Apple's widget size table: 72 pt circles, 160 x 72 rectangles and a 234 pt
+           inline line on 6.1–6.3" iPhones; 76, 172 x 76 and 257 pt on the 6.7" (Plus / Pro Max) class */
+        case .accessoryCircular: return _WidgetFamilyLarge ? CGSize(width: 76, height: 76) : CGSize(width: 72, height: 72)
+        case .accessoryRectangular: return _WidgetFamilyLarge ? CGSize(width: 172, height: 76) : CGSize(width: 160, height: 72)
+        case .accessoryInline: return _WidgetFamilyLarge ? CGSize(width: 257, height: 26) : CGSize(width: 234, height: 26)
         }
     }
     var isAccessory: Bool { self == .accessoryCircular || self == .accessoryRectangular || self == .accessoryInline }
 }
+/// the 6.7" class (428 pt wide and wider in portrait): larger Lock Screen accessory widgets
+/// (read through the Objective-C runtime: snapshots render off the main thread, and hopping to it could deadlock)
+let _WidgetFamilyLarge: Bool = {
+    guard let v = (NSClassFromString("UIScreen") as AnyObject?)?.value(forKeyPath: "mainScreen.bounds") as? NSValue else { return false }
+    let b = v.cgRectValue.size
+    return min(b.width, b.height) >= 428
+}()
 struct _WidgetFamilyKey: EnvironmentKey { static var defaultValue: WidgetFamily { .systemSmall } }
 struct _ShowsBackgroundKey: EnvironmentKey { static var defaultValue: Bool { true } }
 public enum WidgetRenderingMode: Sendable, Equatable { case fullColor, accented, vibrant }
