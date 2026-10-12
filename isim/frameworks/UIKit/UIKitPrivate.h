@@ -6,6 +6,13 @@
 #include <isim_host.h>
 #include "Cassowary.h"
 
+/* system (SpringBoard) alerts: permission prompts shown in the app; XCUITest lists them under the springboard
+   application (UIAlertController.m, UIAXSnapshot.m) */
+@interface UIAlertController (IsimSystemAlert)
+- (void)_isim_markSystemAlert;
+- (BOOL)_isim_isSystemAlert;
+@end
+
 /* frame scheduling */
 void isim_ui_set_needs_display(void);
 void isim_ui_set_needs_layout(void);
