@@ -350,11 +350,13 @@ int isim_media_reader_open(const char *url, int kind, double start, double durat
     char ss[32], tt[32], vf[96], ar[32], ac[16];
     snprintf(ss, sizeof ss, "%.6f", start > 0 ? start : 0);
     snprintf(tt, sizeof tt, "%.6f", duration > 0 ? duration : 1e9);
-    snprintf(vf, sizeof vf, "scale=%d:%d,fps=%.6f", w > 0 ? w : 2, h > 0 ? h : 2, rate > 0 ? rate : 30);
+    /* video rate < 0: the source's own frames (no frame-rate conversion; the caller knows their times) */
+    if (kind == 0 && rate < 0) snprintf(vf, sizeof vf, "scale=%d:%d", w > 0 ? w : 2, h > 0 ? h : 2);
+    else snprintf(vf, sizeof vf, "scale=%d:%d,fps=%.6f", w > 0 ? w : 2, h > 0 ? h : 2, rate > 0 ? rate : 30);
     snprintf(ar, sizeof ar, "%d", rate > 0 ? (int)rate : 44100);
     snprintf(ac, sizeof ac, "%d", channels > 0 ? channels : 2);
     char *vargv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-t", tt, "-i", (char *)url, "-an", "-sn", "-vf", vf,
-                      "-pix_fmt", "bgra", "-f", "rawvideo", "-", NULL };
+                      "-pix_fmt", "bgra", "-fps_mode", rate < 0 ? "passthrough" : "auto", "-f", "rawvideo", "-", NULL };
     char *aargv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-t", tt, "-i", (char *)url, "-vn", "-sn",
                       "-f", "f32le", "-ac", ac, "-ar", ar, "-", NULL };
     int fd; pid_t pid = spawn2(kind == 0 ? vargv : aargv, &fd, NULL);

@@ -75,7 +75,7 @@ public final class CMFormatDescription: @unchecked Sendable, Hashable {
     public let mediaType: CMMediaType
     public let mediaSubType: FourCharCode
     let _dimensions: CMVideoDimensions
-    var _asbd: AudioStreamBasicDescription
+    public var _asbd: AudioStreamBasicDescription
     /// isim: format description extensions (kCMFormatDescriptionExtension_*), e.g. the codec configuration atoms
     public var _extensions: [String: Any] = [:]
     /// isim: an audio codec's magic cookie (AAC: the esds payload)

@@ -311,7 +311,8 @@ int isim_camera_source_at(int position, char *_Nullable desc, int len);
 int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h);
 /* runs ffmpeg with args (no shell); progress in seconds of output; *cancel != 0 stops it. 0 ok, -1 no ffmpeg, -2 cancelled */
 int isim_ffmpeg_run(const char *_Nullable const *_Nonnull args, int nargs, double *_Nullable progress, volatile int *_Nullable cancel, char *_Nullable err, long errlen);
-/* decoded media streams: kind 0 video (BGRA w x h at rate fps), 1 audio (float32 interleaved at rate Hz, channels) */
+/* decoded media streams: kind 0 video (BGRA w x h at rate fps; rate < 0: the source's own frames), 1 audio (float32
+   interleaved at rate Hz, channels) */
 int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels);
 long isim_media_reader_read(int reader, void *buf, long n);
 void isim_media_reader_close(int reader);
