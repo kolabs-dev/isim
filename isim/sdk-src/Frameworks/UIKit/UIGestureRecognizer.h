@@ -1,6 +1,7 @@
 #pragma once
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
+#import <UIKit/UIEvent.h>          /* UIKeyModifierFlags, UIEventButtonMask */
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, UIGestureRecognizerState) { UIGestureRecognizerStatePossible, UIGestureRecognizerStateBegan, UIGestureRecognizerStateChanged, UIGestureRecognizerStateEnded, UIGestureRecognizerStateCancelled, UIGestureRecognizerStateFailed, UIGestureRecognizerStateRecognized = UIGestureRecognizerStateEnded };
 @class UIGestureRecognizer, UITouch, UIPress, UIPressesEvent;
