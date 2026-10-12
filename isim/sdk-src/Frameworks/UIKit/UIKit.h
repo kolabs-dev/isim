@@ -114,3 +114,5 @@
 #import <UIKit/UIFocus.h>
 #import <UIKit/UIResponderExtras.h>
 #import <UIKit/UIKeyboardExtras.h>
+#import <UIKit/UITextInteraction.h>
+#import <UIKit/UIFindInteraction.h>

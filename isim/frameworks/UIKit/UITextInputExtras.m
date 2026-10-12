@@ -22,6 +22,7 @@ static char kMath, kGrammar, kNumberPopover, kAffinity, kPlaceholders;
 - (BOOL)containsStart { return YES; }
 - (BOOL)containsEnd { return YES; }
 @end
+UITextSelectionRect *isim_ui_selection_rect(CGRect r) { __IsimPlaceholderRect *x = [__IsimPlaceholderRect new]; x.isimRect = r; return x; }
 
 @implementation UITextInputContext
 + (instancetype)current { static UITextInputContext *c; if (!c) c = [self new]; return c; }

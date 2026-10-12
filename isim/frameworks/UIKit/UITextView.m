@@ -525,6 +525,8 @@ static UIColor *highlight_color(NSString *scheme, UIColor *tint) {
         isim_gfx_stroke_rounded(0.25, 0.25, sz.width - 0.5, sz.height - 0.5, 5, 0.5, line);
     }
     [self _isim_drawHighlights];
+    extern void isim_ui_text_view_draw_find(UITextView *tv);
+    isim_ui_text_view_draw_find(self);                   /* find results (UIFindInteraction.m) */
     isim_gfx_save(); isim_gfx_translate(-off.x, -off.y);
     isim_ui_text_draw_selection_rects(self);
     isim_gfx_restore();

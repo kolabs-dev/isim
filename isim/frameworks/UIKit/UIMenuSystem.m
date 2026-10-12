@@ -484,11 +484,14 @@ UIMenu *isim_ui_main_menu(void) {
     return s.menu;
 }
 
-/* the app's key commands in the main menu (the standard items: isim's own editing shortcuts handle them) */
+/* the app's key commands in the main menu (the standard items: isim's own editing shortcuts handle them, but for Find) */
+static BOOL is_find_action(SEL a) {
+    return a == @selector(find:) || a == @selector(findNext:) || a == @selector(findPrevious:) || a == @selector(findAndReplace:) || a == @selector(useSelectionForFind:);
+}
 static void key_commands(UIMenu *m, NSMutableArray *out) {
     for (UIMenuElement *e in m.children) {
         if ([e isKindOfClass:[UIMenu class]]) key_commands((UIMenu *)e, out);
-        else if ([e isKindOfClass:[UIKeyCommand class]] && !get(e, &kStandard)) [out addObject:e];
+        else if ([e isKindOfClass:[UIKeyCommand class]] && (!get(e, &kStandard) || is_find_action(((UIKeyCommand *)e).action))) [out addObject:e];
     }
 }
 BOOL isim_ui_main_menu_key(NSString *base, NSString *characters, UIKeyModifierFlags mods, BOOL isRepeat) {

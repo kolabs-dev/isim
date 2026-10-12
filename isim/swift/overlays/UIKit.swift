@@ -1274,3 +1274,10 @@ extension NSAttributedString.TextHighlightColorScheme {
     public static var mint: Self { Self(rawValue: "NSTextHighlightColorSchemeMint") }
     public static var blue: Self { Self(rawValue: "NSTextHighlightColorSchemeBlue") }
 }
+
+// MARK: - Find (iOS 16): the searchable protocol and its aggregator under their Swift names (isim: the Objective-C
+// protocols; document identifiers are Any?, not a generic DocumentIdentifier)
+@available(iOS 16.0, *)
+public typealias UITextSearching = __UITextSearching
+@available(iOS 16.0, *)
+public typealias UITextSearchAggregator = __UITextSearchAggregator

@@ -857,6 +857,8 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 @implementation UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g { return YES; }
 @end
+/* a recognizer recognized during (or just before) a touch sequence started at `start` (never recognized: 0) */
+static BOOL recognized_since(UIGestureRecognizer *o, double start);
 @implementation UIGestureRecognizer
 - (instancetype)init { return [self initWithTarget:nil action:NULL]; }
 - (instancetype)initWithTarget:(id)target action:(SEL)action {
@@ -923,11 +925,12 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     }
     return out;
 }
+static BOOL recognized_since(UIGestureRecognizer *o, double start) { return o.isimRecognizedAt > 0 && o.isimRecognizedAt >= start - 0.1; }
 /* 0: nothing to wait for (or they failed), 1: still deciding, 2: one of them recognized (this one fails) */
 - (int)_isim_failureStatusSince:(double)start {
     BOOL pending = NO, down = self.isimTouches.count > 0 || self.isimTracking;      /* while the touch is down, the others still see it */
     for (UIGestureRecognizer *o in [self _isim_failureRequirements]) {
-        if (o.isimRecognizedAt >= start - 0.1 || o.state == UIGestureRecognizerStateBegan || o.state == UIGestureRecognizerStateChanged) return 2;
+        if (recognized_since(o, start) || o.state == UIGestureRecognizerStateBegan || o.state == UIGestureRecognizerStateChanged) return 2;
         if (o.state == UIGestureRecognizerStatePossible && (o.isimTracking || down)) pending = YES;
     }
     return pending ? 1 : 0;
@@ -937,12 +940,12 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     NSArray *waiting = [self _isim_failureRequirements];
     if (!waiting.count) return NO;
     double start = isim_time();
-    for (UIGestureRecognizer *o in waiting) if (o.isimRecognizedAt >= start - 0.1) return YES;      /* it just won: we fail */
+    for (UIGestureRecognizer *o in waiting) if (recognized_since(o, start)) return YES;      /* it just won: we fail */
     __weak UIGestureRecognizer *ws = self;
     __block NSTimer *t = isim_scheduled_common_timer(0.03, YES, ^(NSTimer *timer) {
         BOOL won = NO, pending = NO;
         for (UIGestureRecognizer *o in waiting) {
-            if (o.isimRecognizedAt >= start - 0.1) won = YES;
+            if (recognized_since(o, start)) won = YES;
             else if (o.state == UIGestureRecognizerStateBegan || o.state == UIGestureRecognizerStateChanged || (o.isimTracking && o.state == UIGestureRecognizerStatePossible)) pending = YES;
         }
         if (won) { [timer invalidate]; return; }

@@ -814,6 +814,8 @@ static void show_loupe(UIView *v, CGPoint windowPoint) {
     isim_ui_set_needs_display();
 }
 static void hide_loupe(void) { if (loupe && !loupe.hidden) { loupe.hidden = YES; isim_ui_set_needs_display(); } }
+void isim_ui_show_loupe(UIView *v, CGPoint windowPoint) { show_loupe(v, windowPoint); }
+void isim_ui_hide_loupe(void) { hide_loupe(); }
 
 /* ================= selection interaction ================= */
 enum { TI_NONE, TI_PENDING, TI_LOUPE, TI_HANDLE_START, TI_HANDLE_END };

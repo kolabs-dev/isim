@@ -30,6 +30,7 @@ NS_SWIFT_UI_ACTOR
 - (void)pasteAndMatchStyle:(nullable id)sender API_AVAILABLE(ios(15.0));
 - (void)pasteAndGo:(nullable id)sender API_AVAILABLE(ios(15.0));
 - (void)pasteAndSearch:(nullable id)sender API_AVAILABLE(ios(15.0));
+- (void)find:(nullable id)sender API_AVAILABLE(ios(16.0));
 - (void)findNext:(nullable id)sender API_AVAILABLE(ios(16.0));
 - (void)findPrevious:(nullable id)sender API_AVAILABLE(ios(16.0));
 - (void)findAndReplace:(nullable id)sender API_AVAILABLE(ios(16.0));

@@ -81,6 +81,7 @@ void isim_ui_hide_edit_menu(void);
         return isim_ti_can_perform(self, a); \
     if (a == @selector(pasteAndMatchStyle:)) return isim_ti_can_perform(self, @selector(paste:)); \
     if (a == @selector(alignLeft:) || a == @selector(alignCenter:) || a == @selector(alignRight:) || a == @selector(alignJustified:)) return isim_ti_can_style(self); \
+    if (a == @selector(find:) || a == @selector(findNext:) || a == @selector(findPrevious:) || a == @selector(findAndReplace:) || a == @selector(useSelectionForFind:)) return isim_ti_can_find(self, a); \
     return [super canPerformAction:a withSender:sender]; } \
 - (void)pasteAndMatchStyle:(id)sender { isim_ti_paste(self); } \
 - (void)alignLeft:(id)sender { isim_ti_align(self, NSTextAlignmentLeft); } \
@@ -99,5 +100,6 @@ void isim_ui_hide_edit_menu(void);
 NSArray<UITextSelectionRect *> *isim_ti_selection_rect_objects(id<IsimEditableText> v, NSRange r);
 /* text attribute edits (allowsEditingTextAttributes): paragraph alignment, attribute conversion */
 BOOL isim_ti_can_style(id<IsimEditableText> v);
+BOOL isim_ti_can_find(id v, SEL action);                 /* UIFindInteraction.m */
 void isim_ti_align(id<IsimEditableText> v, NSTextAlignment alignment);
 void isim_ti_update_attributes(id<IsimEditableText> v, UITextAttributesConversionHandler handler);
