@@ -3,8 +3,8 @@
 // - Sounds created from files are decoded by the host (any format ffmpeg/GStreamer reads) and played by the mixer.
 // - Built-in system sound IDs (1000...4094: key clicks, tinks, alerts) are Apple's recordings, which isim does not
 //   ship: they play short synthesized tones instead (adapted).
-// - Vibration (kSystemSoundID_Vibrate, alert sounds) is logged only: the host has no haptics.
-// No Audio Queues, Audio Units or Audio File/Converter services.
+// - Vibration (kSystemSoundID_Vibrate, alert sounds): the host has no haptics; like UIKit's feedback generators, isim
+//   logs it ("isim: haptic vibrate") and shows a large ring in the middle of the screen (adapted).
 @_exported import Foundation
 import isim_host
 
@@ -40,19 +40,40 @@ enum _SystemSounds {
     nonisolated(unsafe) static var completions: [SystemSoundID: (AudioServicesSystemSoundCompletionProc, UnsafeMutableRawPointer?)] = [:]
     nonisolated(unsafe) static var nextID: SystemSoundID = 0x2000_0001
 
-    /// A short tone standing in for an Apple system sound: clicks for keyboard IDs, a two-note chime otherwise.
+    /// A sound standing in for an Apple system sound (adapted: Apple's recordings are not shipped):
+    /// - 1200...1211: the dial pad's DTMF tones (0-9, *, #) at their standard frequency pairs;
+    /// - 1108 (camera shutter): two short noise bursts;
+    /// - 1100...1130 and 1103...1105 style UI sounds: clicks (key press, lock, tock);
+    /// - other IDs: a two-note chime whose pitch depends on the ID (new mail, sent, alerts, ...).
     static func tone(_ id: SystemSoundID) -> Sound? {
         if let s = synthesized[id] { return s }
         let rate = 48000.0
-        let click = (1100...1130).contains(id)
-        let dur = click ? 0.03 : 0.35
+        let dtmf: [(Double, Double)] = [(941, 1336), (697, 1209), (697, 1336), (697, 1477), (770, 1209), (770, 1336), (770, 1477),
+                                        (852, 1209), (852, 1336), (852, 1477), (941, 1209), (941, 1477)]
+        let kind = (1200...1211).contains(id) ? 0 : id == 1108 ? 1 : (1100...1130).contains(id) ? 2 : 3
+        let dur = [0.2, 0.18, 0.03, 0.35][kind]
         let n = Int(rate * dur)
         var pcm = [Float](repeating: 0, count: n)
+        var seed: UInt32 = 0x1234_5678
+        let base = 880 * pow(2, Double(Int(id) % 12) / 12)
         for i in 0..<n {
             let t = Double(i) / rate
-            let f = click ? 1800.0 : (t < dur / 2 ? 1318.5 : 1760.0)
-            let env = click ? exp(-t * 180) : exp(-(t.truncatingRemainder(dividingBy: dur / 2)) * 9)
-            pcm[i] = Float(sin(2 * .pi * f * t) * env * 0.35)
+            var v: Double
+            switch kind {
+            case 0:
+                let (lo, hi) = dtmf[Int(id) - 1200]
+                v = (sin(2 * .pi * lo * t) + sin(2 * .pi * hi * t)) * 0.2 * min(1, (dur - t) * 200)
+            case 1:
+                seed = seed &* 1_664_525 &+ 1_013_904_223
+                let noise = Double(Int32(bitPattern: seed)) / Double(Int32.max)
+                let burst = t < 0.06 ? exp(-t * 60) : t > 0.09 ? exp(-(t - 0.09) * 45) : 0
+                v = noise * burst * 0.4
+            case 2: v = sin(2 * .pi * 1800 * t) * exp(-t * 180) * 0.35
+            default:
+                let f = t < dur / 2 ? base * 1.5 : base * 2
+                v = sin(2 * .pi * f * t) * exp(-(t.truncatingRemainder(dividingBy: dur / 2)) * 9) * 0.35
+            }
+            pcm[i] = Float(v)
         }
         let b = pcm.withUnsafeBufferPointer { isim_audio_buffer_create($0.baseAddress, n, 1, rate) }
         guard b > 0 else { return nil }
@@ -60,10 +81,17 @@ enum _SystemSounds {
         synthesized[id] = s
         return s
     }
+    /// IDs that are vibrations on iOS (peek, pop, nope and the like) rather than sounds
+    static func isHaptic(_ id: SystemSoundID) -> Bool { id == kSystemSoundID_Vibrate || (1519...1521).contains(id) }
     static func play(_ id: SystemSoundID, alert: Bool, completion: (() -> Void)?) {
-        if id == kSystemSoundID_Vibrate || alert { NSLog("isim AudioToolbox: vibrate (no haptics on this host)") }
+        if isHaptic(id) || alert {
+            NSLog("isim AudioToolbox: vibrate (no haptics on this host)")
+            if let f = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "_isim_haptic_vibrate") {      // RTLD_DEFAULT: UIKit, when loaded
+                unsafeBitCast(f, to: (@convention(c) () -> Void).self)()
+            }
+        }
         var duration = 0.0
-        if id != kSystemSoundID_Vibrate {
+        if !isHaptic(id) {
             let s = sounds[id] ?? (id < 0x2000_0000 ? tone(id) : nil)
             if let s { _ = isim_audio_play(s.buffer, 1, 0); duration = s.duration }
         } else { duration = 0.4 }

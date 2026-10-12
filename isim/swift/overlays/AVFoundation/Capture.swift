@@ -603,6 +603,7 @@ open class AVCaptureInput: NSObject, @unchecked Sendable {
         var _device: AVCaptureDevice? { (input as? AVCaptureDeviceInput)?.device }
         public var sourceDeviceType: AVCaptureDevice.DeviceType? { _device?.deviceType }
         public var sourceDevicePosition: AVCaptureDevice.Position { _device?.position ?? .unspecified }
+        public var clock: CMClock? { .hostTimeClock }
         public var formatDescription: CMFormatDescription? {
             guard let d = _device else { return nil }
             return mediaType == .depthData ? d.activeDepthDataFormat?.formatDescription : mediaType == .metadataObject ? nil : d.activeFormat.formatDescription
@@ -755,6 +756,9 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
     }
     deinit { NotificationCenter.default.removeObserver(self) }
     open func canSetSessionPreset(_ preset: Preset) -> Bool { preset != .hd4K3840x2160 }
+    /// the clock of the capture timestamps: the host time clock
+    open var synchronizationClock: CMClock? { .hostTimeClock }
+    @available(*, deprecated, renamed: "synchronizationClock") open var masterClock: CMClock? { .hostTimeClock }
 
     var _maxCameras: Int { 1 }
     var _cameraInputs: [AVCaptureDeviceInput] { inputs.compactMap { $0 as? AVCaptureDeviceInput }.filter { !$0.device._isMicrophone } }

@@ -118,6 +118,7 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
     func systemSounds() {
         AudioServicesPlaySystemSoundWithCompletion(1104) { log("system sound 1104 completed") }
         AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        AudioServicesPlaySystemSoundWithCompletion(1201) { log("system sound 1201 (dial pad 1) completed") }
     }
 
     // MARK: effects, rendered offline

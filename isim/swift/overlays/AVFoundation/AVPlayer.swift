@@ -73,6 +73,11 @@ open class AVPlayerItem: NSObject, @unchecked Sendable {
     }
     @objc open var presentationSize: CGSize { guard let i = _info, i.hasVideo else { return .zero }; return CGSize(width: i.width, height: i.height) }
     open func currentTime() -> CMTime { CMTime(seconds: _player?.currentItem === self ? _player!._now() : _position, preferredTimescale: 600) }
+    /// the item's playback time as a timebase (read-only: it follows the player's time and rate)
+    open lazy var timebase: CMTimebase? = CMTimebase(_isimProvider: { [weak self] in
+        guard let self else { return (0, 0) }
+        return (self.currentTime().seconds, self._player?.currentItem === self ? Double(self._player?.rate ?? 0) : 0)
+    })
     open var currentDate: Date? { nil }
     open var isPlaybackLikelyToKeepUp: Bool { status == .readyToPlay }
     open var isPlaybackBufferFull: Bool { false }

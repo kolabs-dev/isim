@@ -28,7 +28,7 @@ def test_audio(launch, device_data):
     app.wait_view(r"id=spoken text=synthesizer")                   # the word callback updates the UI
     dump = app.view_dump()
     for line in (r"recording plays back", r"input tap ", r"file wav ", r"effects delay", r"custom system sound",
-                 r"system sound 1104 completed"):
+                 r"system sound 1104 completed", r"system sound 1201"):
         app.wait_log(line)
     assert app.quit() == 0, "exits cleanly"
     log = app.log
@@ -49,7 +49,9 @@ def test_audio(launch, device_data):
                    "rising=true inside=true"), "SSML utterance: markers from libespeak-ng (words in the plain text, the bookmark)"
     assert has("personal voice unsupported apple id en-US"), "Personal Voice unsupported; Apple voice identifiers map to eSpeak voices"
     assert has("system sound 1104 completed"), "AudioServicesPlaySystemSound + completion"
-    assert has("vibrate (no haptics on this host)"), "kSystemSoundID_Vibrate is logged"
+    assert has("vibrate (no haptics on this host)") and rx(r"isim: haptic vibrate at \d+,\d+"), \
+        "kSystemSoundID_Vibrate is logged and shown like UIKit's haptics"
+    assert has("system sound 1201 (dial pad 1) completed"), "built-in sound IDs (DTMF dial pad tone)"
     assert has("custom system sound completed (status 0)"), "custom system sound from a WAV file"
     assert has("effects dry rms 0.35 end 0.94 tail 0.00"), "offline rendering (player node -> mixer)"
     assert has("effects eq lowpass true boost true"), "AVAudioUnitEQ low-pass and parametric boost"

@@ -38,6 +38,13 @@ static void show_feedback(UIView *view, const CGPoint *at, CGFloat radius, UICol
     });
 }
 
+/* AudioToolbox's kSystemSoundID_Vibrate / AudioServicesPlayAlertSound (looked up with dlsym): the whole device
+   buzzes, so the ring is a large one in the middle of the screen */
+__attribute__((visibility("default"))) void _isim_haptic_vibrate(void) {
+    dispatch_block_t show = ^{ show_feedback(nil, NULL, 90, UIColor.systemPurpleColor, @"vibrate"); };
+    if ([NSThread isMainThread]) show(); else dispatch_async(dispatch_get_main_queue(), show);
+}
+
 @implementation UIFeedbackGenerator { __weak UIView *_isimView; }
 - (instancetype)init { return [super init]; }
 + (instancetype)feedbackGeneratorForView:(UIView *)v { UIFeedbackGenerator *g = [[self alloc] init]; g->_isimView = v; return g; }
