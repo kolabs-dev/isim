@@ -86,8 +86,8 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Personal data & device sensors | 6 | 0 | 0 | 0 | 6 | 100% |
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
-| Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **892** | **94** | **19** | **88** | **1093** | **86%** |
+| Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
+| **All areas** | **903** | **84** | **18** | **88** | **1093** | **86%** |
 
 ### Per iOS version
 
@@ -120,7 +120,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Personal data & device sensors | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
-| Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
+| Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
 | **All areas** | **86%** (1030) | **86%** (1045) | **86%** (1072) | **86%** (1093) |
 
 ---
