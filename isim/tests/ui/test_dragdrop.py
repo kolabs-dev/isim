@@ -22,8 +22,10 @@ def test_dragdrop(launch):
     app.send("longdrag 95 105 200 354 0.7 0.5")
     app.wait_log(r"^inserted Swift at 3: B C A Swift D")             # drop onto the table inserts a row
 
-    app.send("longdrag 201 481 201 568 0.7 0.5")
+    app.send("longdrag 201 481 201 568 0.7 2")
+    lifted = app.wait_view(r"id=isim-drag-custom-preview")          # draggable(_:preview:): the custom preview lifts
     app.wait_log(r'^swiftui dropped \["SwiftUI tag"\]')              # SwiftUI draggable -> dropDestination
+    assert "text=Moving tag" in lifted, "the preview's content"
     app.wait_view(r"id=row-Swift\b")
 
     app.send("longdrag 95 105 95 700 0.7 0.3")

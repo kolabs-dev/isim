@@ -51,6 +51,7 @@ isim install ~/.local/lib/isim/current/apps/*.app
 | `isim test -project App.xcodeproj -scheme S [-only-testing:Target/Class/test] [-resultBundlePath DIR]` | build and run the scheme's test targets like `xcodebuild test`: XCTest (hosted in the app or standalone), Swift Testing and XCUITest; exits 65 on failures |
 | `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
 | `isim info App.app` | show Mach-O platform and dependencies |
+| `isim preview App.app [NAME\|INDEX\|--list] [-o FILE.png]` | render one of the app's `#Preview`s to a PNG (laid out by its traits) |
 | `isim push [BUNDLE_ID] payload.apns\|-` | send a remote notification to the running device, like `xcrun simctl push` (or drop a `.apns` file on it) |
 | `isim send COMMAND…` | send [script commands](docs/SCRIPTING.md) to the running device, e.g. `isim send "tapid login; shot s.png"` |
 | `isim open [--device D] [--os V] [FILE.apns]` | what the app launcher runs: bring the running device to the front, or boot one; an `.apns` file is sent as a push |

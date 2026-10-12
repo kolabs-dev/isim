@@ -1,8 +1,7 @@
 // isim SwiftUI: DatePicker (compact, graphical and wheel styles; date / hourAndMinute components; date ranges),
-// ColorPicker, and the wheel used by `.pickerStyle(.wheel)`. isim's UIKit has no UIDatePicker / UIPickerView, so
-// these are built here: the wheel is a snapping UIScrollView per column (drag or tap a row), the graphical style is a
-// month grid, the compact style shows date/time pills that open the calendar or the time wheel in a sheet (iOS shows a
-// popover). ColorPicker opens a sheet with a colour grid and an opacity slider.
+// MultiDatePicker, ColorPicker, and the wheel used by `.pickerStyle(.wheel)`. Drawn by isim like iOS's: the wheel is a
+// snapping UIScrollView per column (drag or tap a row), the graphical style a month grid, the compact style date / time
+// pills that open the calendar or the time wheel in a popover. ColorPicker is UIKit's colour well and picker.
 import UIKit
 
 // MARK: - Wheel
@@ -204,7 +203,8 @@ extension DatePicker where Label == Text {
     }
 }
 
-/// Label + date / time pills; each opens its picker in a sheet.
+/// Label + date / time pills; each opens its picker in a popover (the calendar closes when a day is picked; a tap
+/// outside closes either), like iOS.
 struct _CompactDatePicker: View {
     let selection: Binding<Date>, range: ClosedRange<Date>, components: DatePickerComponents, calendar: Calendar, label: AnyView?
     @State private var showing: Int? = nil       // 1: calendar, 2: time
@@ -213,20 +213,22 @@ struct _CompactDatePicker: View {
             if let label { label; Spacer(minLength: 8) }
             if components.contains(.date) {
                 _pill(MainActor.assumeIsolated { _mediumDate.string(from: selection.wrappedValue) }, id: "date-pill", active: showing == 1) { showing = 1 }
+                    .popover(isPresented: Binding(get: { showing == 1 }, set: { if !$0 { showing = nil } }), arrowEdge: .top) {
+                        _GraphicalCalendar(selection: selection, range: range, components: [.date], calendar: calendar, picked: { showing = nil })
+                            .padding(12).frame(width: 320)
+                            .presentationCompactAdaptation(.popover)
+                            .accessibilityIdentifier("date-popover")
+                    }
             }
             if components.contains(.hourAndMinute) {
                 _pill(MainActor.assumeIsolated { _shortTime.string(from: selection.wrappedValue) }, id: "time-pill", active: showing == 2) { showing = 2 }
+                    .popover(isPresented: Binding(get: { showing == 2 }, set: { if !$0 { showing = nil } }), arrowEdge: .top) {
+                        _DateWheel(selection: selection, range: range, components: [.hourAndMinute], calendar: calendar)
+                            .frame(width: 280, height: 216)
+                            .presentationCompactAdaptation(.popover)
+                            .accessibilityIdentifier("time-popover")
+                    }
             }
-        }
-        .sheet(isPresented: Binding(get: { showing != nil }, set: { if !$0 { showing = nil } })) {
-            VStack(spacing: 12) {
-                HStack { Spacer(); Button("Done") { showing = nil }.font(.headline).accessibilityIdentifier("date-done") }
-                if showing == 1 { _GraphicalCalendar(selection: selection, range: range, components: [.date], calendar: calendar) }
-                else { _DateWheel(selection: selection, range: range, components: [.hourAndMinute], calendar: calendar) }
-                Spacer()
-            }
-            .padding()
-            .presentationDetents([.medium])
         }
     }
     func _pill(_ text: String, id: String, active: Bool, action: @escaping () -> Void) -> some View {
@@ -243,6 +245,7 @@ struct _CompactDatePicker: View {
 /// The graphical style: month header with arrows, weekday row, day grid (+ a time row).
 struct _GraphicalCalendar: View {
     let selection: Binding<Date>, range: ClosedRange<Date>, components: DatePickerComponents, calendar: Calendar
+    var picked: (() -> Void)? = nil              // a day was picked (the compact style's popover closes)
     @State private var shownMonth: Date? = nil
     @State private var timeSheet = false
     var body: some View {
@@ -280,6 +283,7 @@ struct _GraphicalCalendar: View {
                                     var d = cal.dateComponents([.year, .month, .day], from: date)
                                     d.hour = t.hour; d.minute = t.minute; d.second = t.second
                                     if let v = cal.date(from: d) { selection.wrappedValue = v }
+                                    picked?()
                                 }
                                 .frame(maxWidth: .infinity)
                             } else {
@@ -324,6 +328,87 @@ struct _DayCell: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .accessibilityIdentifier("day-\(day)")
+    }
+}
+
+// MARK: - MultiDatePicker
+
+/// A month calendar where tapping days adds or removes them from the selection (iOS 16).
+public struct MultiDatePicker<Label: View>: View {
+    let selection: Binding<Set<DateComponents>>, lower: Date?, upper: Date?, label: Label
+    @Environment(\.calendar) var calendar
+    public init(selection: Binding<Set<DateComponents>>, @ViewBuilder label: () -> Label) { self.selection = selection; lower = nil; upper = nil; self.label = label() }
+    public init(selection: Binding<Set<DateComponents>>, in bounds: Range<Date>, @ViewBuilder label: () -> Label) {
+        self.selection = selection; lower = bounds.lowerBound; upper = bounds.upperBound; self.label = label()
+    }
+    public init(selection: Binding<Set<DateComponents>>, in bounds: PartialRangeFrom<Date>, @ViewBuilder label: () -> Label) {
+        self.selection = selection; lower = bounds.lowerBound; upper = nil; self.label = label()
+    }
+    public init(selection: Binding<Set<DateComponents>>, in bounds: PartialRangeUpTo<Date>, @ViewBuilder label: () -> Label) {
+        self.selection = selection; lower = nil; upper = bounds.upperBound; self.label = label()
+    }
+    public var body: some View {
+        _MultiCalendar(selection: selection, lower: lower, upper: upper, calendar: calendar)
+    }
+}
+extension MultiDatePicker where Label == Text {
+    public init(_ titleKey: LocalizedStringKey, selection: Binding<Set<DateComponents>>) { self.init(selection: selection) { Text(titleKey) } }
+    public init(_ titleKey: LocalizedStringKey, selection: Binding<Set<DateComponents>>, in bounds: Range<Date>) { self.init(selection: selection, in: bounds) { Text(titleKey) } }
+    public init(_ titleKey: LocalizedStringKey, selection: Binding<Set<DateComponents>>, in bounds: PartialRangeFrom<Date>) { self.init(selection: selection, in: bounds) { Text(titleKey) } }
+    public init(_ titleKey: LocalizedStringKey, selection: Binding<Set<DateComponents>>, in bounds: PartialRangeUpTo<Date>) { self.init(selection: selection, in: bounds) { Text(titleKey) } }
+    @_disfavoredOverload public init<S: StringProtocol>(_ title: S, selection: Binding<Set<DateComponents>>) { self.init(selection: selection) { Text(title) } }
+}
+struct _MultiCalendar: View {
+    let selection: Binding<Set<DateComponents>>, lower: Date?, upper: Date?, calendar: Calendar
+    @State private var shownMonth: Date? = nil
+    /// the components MultiDatePicker selects with (like iOS: calendar, era, year, month, day)
+    static let units: Set<Calendar.Component> = [.calendar, .era, .year, .month, .day]
+    func key(_ d: DateComponents) -> String { "\(d.year ?? 0)-\(d.month ?? 0)-\(d.day ?? 0)" }
+    var body: some View {
+        let cal = calendar
+        let first = selection.wrappedValue.compactMap { cal.date(from: $0) }.min() ?? lower ?? Date()
+        let month = cal.dateInterval(of: .month, for: shownMonth ?? first)?.start ?? first
+        let days = cal.range(of: .day, in: .month, for: month)?.count ?? 30
+        let lead = (cal.component(.weekday, from: month) - cal.firstWeekday + 7) % 7
+        let comps = cal.dateComponents([.year, .month], from: month)
+        let title = cal.monthSymbols[(comps.month ?? 1) - 1] + " " + String(comps.year ?? 2000)
+        let symbols = (0..<7).map { cal.shortWeekdaySymbols[($0 + cal.firstWeekday - 1) % 7].uppercased() }
+        let chosen = Set(selection.wrappedValue.map(key))
+        return VStack(spacing: 8) {
+            HStack {
+                Text(verbatim: title).font(.headline).accessibilityIdentifier("month-title")
+                Spacer()
+                Button { shownMonth = cal.date(byAdding: .month, value: -1, to: month) } label: { Image(systemName: "chevron.left") }
+                    .accessibilityIdentifier("month-prev")
+                Button { shownMonth = cal.date(byAdding: .month, value: 1, to: month) } label: { Image(systemName: "chevron.right") }
+                    .accessibilityIdentifier("month-next").padding(.leading, 20)
+            }
+            HStack(spacing: 0) {
+                ForEach(0..<7) { i in Text(verbatim: symbols[i]).font(.caption.weight(.semibold)).foregroundStyle(.secondary).frame(maxWidth: .infinity) }
+            }
+            VStack(spacing: 4) {
+                ForEach(0..<((lead + days + 6) / 7)) { week in
+                    HStack(spacing: 0) {
+                        ForEach(0..<7) { col in
+                            let day = week * 7 + col - lead + 1
+                            if day >= 1 && day <= days {
+                                let date = cal.date(byAdding: .day, value: day - 1, to: month) ?? month
+                                let allowed = (lower.map { date >= cal.startOfDay(for: $0) } ?? true) && (upper.map { date < $0 } ?? true)
+                                let dc = cal.dateComponents(Self.units, from: date)
+                                _DayCell(day: day, selected: chosen.contains(key(dc)), today: cal.isDateInToday(date), enabled: allowed) {
+                                    var set = selection.wrappedValue
+                                    if let old = set.first(where: { key($0) == key(dc) }) { set.remove(old) } else { set.insert(dc) }
+                                    selection.wrappedValue = set
+                                }
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                Color.clear.frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -372,10 +457,11 @@ struct _DateWheel: View, _PrimitiveView {
 
 // MARK: - ColorPicker
 
+/// A colour well (UIKit's UIColorWell: a hue ring around the colour) that presents UIKit's colour picker (grid,
+/// spectrum, sliders, opacity, saved colours, eyedropper), like iOS.
 public struct ColorPicker<Label: View>: View {
     let selection: Binding<Color>, supportsOpacity: Bool, label: Label
     @Environment(\._labelsHidden) var labelsHidden
-    @State private var open = false
     public init(selection: Binding<Color>, supportsOpacity: Bool = true, @ViewBuilder label: () -> Label) {
         self.selection = selection; self.supportsOpacity = supportsOpacity; self.label = label()
     }
@@ -386,18 +472,7 @@ public struct ColorPicker<Label: View>: View {
     public var body: some View {
         HStack {
             if !labelsHidden { label; Spacer(minLength: 8) }
-            Button { open = true } label: {
-                ZStack {
-                    Circle().stroke(Color.gray, lineWidth: 3).frame(width: 28, height: 28)
-                    Circle().fill(selection.wrappedValue).frame(width: 20, height: 20)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("color-well")
-        }
-        .sheet(isPresented: $open) {
-            _ColorGrid(selection: selection, supportsOpacity: supportsOpacity, done: { open = false })
-                .presentationDetents([.medium, .large])
+            _ColorWell(selection: selection, supportsOpacity: supportsOpacity, title: labelsHidden ? nil : _labelText(label))
         }
     }
 }
@@ -412,38 +487,41 @@ extension ColorPicker where Label == Text {
         self.init(selection: selection, supportsOpacity: supportsOpacity) { Text(titleKey) }
     }
 }
+/// The text of a label view (Text labels), for titles of system UI.
+func _labelText<L: View>(_ label: L) -> String? { (label as? Text)?.string }
 
-/// iOS's "Grid" colour page: 12 hues x 9 shades plus a grey row, and an opacity slider.
-struct _ColorGrid: View {
-    let selection: Binding<Color>, supportsOpacity: Bool, done: () -> Void
-    @State private var opacity = 1.0
-    static func cell(_ row: Int, _ col: Int) -> Color {
-        if row == 0 { let w = 1 - Double(col) / 11; return Color(red: w, green: w, blue: w) }
-        let hue = Double(col) / 12
-        let shade = Double(row - 1) / 8              // 0 = darkest
-        return Color(hue: hue, saturation: shade < 0.6 ? 1 : 1 - (shade - 0.6) * 2, brightness: shade < 0.6 ? 0.35 + shade : 1)
+struct _ColorWell: View, _PrimitiveView {
+    let selection: Binding<Color>, supportsOpacity: Bool, title: String?
+    var body: Never { fatalError() }
+    func _makeNode(_ ctx: _Context) -> _Node { _ColorWellNode(path: ctx.path, selection: selection, supportsOpacity: supportsOpacity, title: title, enabled: ctx.environment.isEnabled) }
+}
+final class _SUIColorWell: UIColorWell {
+    var binding: Binding<Color>?
+    override init(frame: CGRect) { super.init(frame: frame); addTarget(self, action: #selector(changed), for: .valueChanged) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    @objc func changed() { if let c = selectedColor { binding?.wrappedValue = Color(uiColor: c); print("color changed") } }
+}
+final class _ColorWellNode: _Node {
+    let selection: Binding<Color>, supportsOpacity: Bool, title: String?, enabled: Bool
+    init(path: String, selection: Binding<Color>, supportsOpacity: Bool, title: String?, enabled: Bool) {
+        self.selection = selection; self.supportsOpacity = supportsOpacity; self.title = title; self.enabled = enabled
+        super.init(path: path, children: [])
     }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack { Text("Colors").font(.headline); Spacer(); Button("Done", action: done).accessibilityIdentifier("color-done") }
-            VStack(spacing: 0) {
-                ForEach(0..<10) { r in
-                    HStack(spacing: 0) {
-                        ForEach(0..<12) { c in
-                            Self.cell(r, c).frame(height: 26).frame(maxWidth: .infinity)
-                                .onTapGesture { selection.wrappedValue = Self.cell(r, c).opacity(opacity); print("color picked \(r),\(c)") }
-                                .accessibilityIdentifier("color-\(r)-\(c)")
-                        }
-                    }
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            if supportsOpacity {
-                Text("OPACITY").font(.caption).foregroundStyle(.secondary)
-                Slider(value: $opacity, in: 0...1)
-            }
-            Spacer()
-        }
-        .padding()
+    override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: 28, height: 28) }
+    override func mountView(_ g: _Graph) -> UIView {
+        let w = g.view(viewKey) { _SUIColorWell(frame: .zero) }
+        w.binding = selection
+        w.supportsAlpha = supportsOpacity
+        w.title = title
+        let c = selection.wrappedValue.uiColor
+        if w.selectedColor.map({ !_sameColor($0, c) }) ?? true { w.selectedColor = c }
+        w.isEnabled = enabled
+        w.accessibilityIdentifier = "color-well"
+        return w
     }
+}
+@MainActor func _sameColor(_ a: UIColor, _ b: UIColor) -> Bool {
+    var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0, r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+    a.getRed(&r1, green: &g1, blue: &b1, alpha: &a1); b.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+    return abs(r1 - r2) < 0.002 && abs(g1 - g2) < 0.002 && abs(b1 - b2) < 0.002 && abs(a1 - a2) < 0.002
 }

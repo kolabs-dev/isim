@@ -176,74 +176,7 @@ final class _GridLayoutNode: _Node {
     }
 }
 
-// MARK: - LazyHGrid
-
-/// Rows of items flowing top to bottom, then left to right (put it in a horizontal ScrollView).
-public struct LazyHGrid<Content: View>: View, _PrimitiveView {
-    let rows: [GridItem], alignment: VerticalAlignment, spacing: CGFloat?, content: Content
-    public init(rows: [GridItem], alignment: VerticalAlignment = .center, spacing: CGFloat? = nil, pinnedViews: PinnedScrollableViews = [], @ViewBuilder content: () -> Content) {
-        self.rows = rows; self.alignment = alignment; self.spacing = spacing; self.content = content()
-    }
-    public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node { _HGridNode(path: ctx.path, rows: rows, spacing: spacing ?? 8, child: _resolve(content, ctx.child("hgrid"))) }
-}
-final class _HGridNode: _Node {
-    let rows: [GridItem], spacing: CGFloat
-    init(path: String, rows: [GridItem], spacing: CGFloat, child: _Node) { self.rows = rows; self.spacing = spacing; super.init(path: path, children: [child]) }
-    var items: [_Node] { _flatten(children) }
-    /// Row heights from the GridItem sizes (fixed / flexible / adaptive), like LazyVGrid's columns.
-    func rowHeights(_ height: CGFloat) -> [CGFloat] {
-        var rs: [(GridItem.Size, CGFloat)] = []
-        for r in rows {
-            if case .adaptive(let mn, _) = r.size {
-                let gap = r.spacing ?? spacing
-                for _ in 0..<max(1, Int((height + gap) / (mn + gap))) { rs.append((.flexible(minimum: mn), gap)) }
-            } else { rs.append((r.size, r.spacing ?? spacing)) }
-        }
-        let gaps = rs.dropLast().reduce(0) { $0 + $1.1 }
-        var fixed: CGFloat = 0, flex = 0
-        for (s, _) in rs { if case .fixed(let h) = s { fixed += h } else { flex += 1 } }
-        let share = flex > 0 ? max(0, (height - gaps - fixed) / CGFloat(flex)) : 0
-        return rs.map { s, _ in
-            switch s {
-            case .fixed(let h): return h
-            case .flexible(let mn, let mx), .adaptive(let mn, let mx): return min(max(share, mn), mx)
-            }
-        }
-    }
-    func layout(_ height: CGFloat) -> (heights: [CGFloat], cols: [CGFloat]) {
-        let heights = rowHeights(height)
-        let n = max(1, heights.count)
-        var cols: [CGFloat] = []
-        for (i, it) in items.enumerated() {
-            if i % n == 0 { cols.append(0) }
-            cols[cols.count - 1] = max(cols[cols.count - 1], it.sizeThatFits(_Proposal(width: nil, height: heights[i % n])).width)
-        }
-        return (heights, cols)
-    }
-    override func sizeThatFits(_ p: _Proposal) -> CGSize {
-        let h = min(p.height ?? 300, 1e6)
-        let (heights, cols) = layout(h)
-        return CGSize(width: cols.reduce(0, +) + spacing * CGFloat(max(0, cols.count - 1)),
-                      height: max(h, heights.reduce(0, +) + spacing * CGFloat(max(0, heights.count - 1))))
-    }
-    override func place(_ rect: CGRect) {
-        frame = rect
-        let (heights, cols) = layout(rect.height)
-        let n = max(1, heights.count)
-        let totalH = heights.reduce(0, +) + spacing * CGFloat(max(0, n - 1))
-        let y0 = max(0, (rect.height - totalH) / 2)
-        var x: CGFloat = 0
-        for (i, it) in items.enumerated() {
-            let c = i / n, r = i % n
-            if r == 0 && c > 0 { x += cols[c - 1] + spacing }
-            let y = y0 + heights[..<r].reduce(0, +) + spacing * CGFloat(r)
-            let s = it.sizeThatFits(_Proposal(width: cols[c], height: heights[r]))
-            it.place(_align(CGSize(width: min(s.width, cols[c]), height: min(s.height, heights[r])), in: CGRect(x: x, y: y, width: cols[c], height: heights[r]), .center))
-        }
-    }
-    override func mountChildren(_ g: _Graph, in view: UIView) { for (i, c) in items.enumerated() { g.mount(c, in: view, order: i) } }
-}
+// LazyHGrid: Lazy+Pinned.swift
 
 // MARK: - ViewThatFits
 

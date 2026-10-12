@@ -2,7 +2,7 @@
 /* isim SDK: NSTextAttachment and text attachment view providers (self-authored, API-compatible names).
  * Adapted: an attachment character (U+FFFC with NSAttachmentAttributeName) takes the attachment's bounds in the line
  * (its image's size when the bounds are empty) and draws its image there; with a view provider (TextKit 2 text views)
- * its view sits at that place instead. File wrappers are not supported (isim's Foundation has no NSFileWrapper). */
+ * its view sits at that place instead. File wrappers (fileWrapper) are not supported. */
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <UIKit/UIKitDefines.h>

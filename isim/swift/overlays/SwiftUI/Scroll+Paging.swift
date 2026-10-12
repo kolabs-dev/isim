@@ -20,9 +20,10 @@ extension EnvironmentValues { var _scrollOptions: _ScrollOptions { get { self[_S
 @MainActor func _makeScrollNode(axes: Axis.Set, indicators: Bool, _ ctx: _Context, content: (_Context) -> _Node) -> _Node {
     let env = ctx.environment
     let margins = env._contentMargins
-    var child = content(ctx.child("scroll").with { $0._contentMargins = nil; $0._scrollOptions.position = nil })
+    var child = content(ctx.child("scroll").with { $0._contentMargins = nil; $0._indicatorMargins = nil; $0._scrollOptions.position = nil })
     if let m = margins { child = _PaddingNode(path: ctx.path + "/margins", insets: m, child: child) }
     let n = _ScrollNode(path: ctx.path, axes: axes, indicators: indicators && env._scrollOptions.indicators != false, child: child)
+    n.indicatorMargins = env._indicatorMargins.map { UIEdgeInsets(top: $0.top, left: $0.leading, bottom: $0.bottom, right: $0.trailing) } ?? .zero
     n.options = env._scrollOptions
     n.options.refresh = env.refresh            // .refreshable (Lists+Editing.swift)
     return n

@@ -2,8 +2,9 @@
 // TapGesture, SpatialTapGesture, LongPressGesture, DragGesture, MagnifyGesture (+ MagnificationGesture),
 // RotateGesture (+ RotationGesture) — the two-finger ones get their second finger from isim's multi-touch (Option-drag
 // on the host, script `pinch` / `rotate2`); onChanged / onEnded / updating(@GestureState) / map; composition with
-// simultaneously(with:), sequenced(before:) and exclusively(before:). Recognizers recognize together (like
-// .simultaneousGesture); highPriorityGesture is treated like gesture.
+// simultaneously(with:), sequenced(before:) and exclusively(before:). Nested gestures compete like SwiftUI's: a view's
+// gesture wins over its ancestors' `.gesture`s, `highPriorityGesture` wins over the gestures inside it,
+// `simultaneousGesture` recognizes alongside; `including:` masks turn the gesture or the gestures inside it off.
 import UIKit
 import UIKit.UIGestureRecognizerSubclass
 
@@ -104,12 +105,12 @@ public struct DragGesture: Gesture {
         let e = (c == nil && en == nil) ? e0 : _GestureEvents(changed: { c?($0); e0.changed($0) }, ended: { en?($0); e0.ended($0) }, cancelled: e0.cancelled)
         let g = _SUIDragRecognizer(target: nil, action: nil)
         g.minimumDistance = minimumDistance
-        let global = coordinateSpace == .global
+        let space = coordinateSpace
         _addRecognizer(g, to: view) { r in
             let d = r as! _SUIDragRecognizer
             var v = d.value
-            if global, let w = d.view?.window, let dv = d.view {
-                v.location = dv.convert(v.location, to: w); v.startLocation = dv.convert(v.startLocation, to: w)
+            if space != .local, let dv = d.view {             // .global, .named, .scrollView (Geometry+Spaces.swift)
+                v.location = _livePoint(v.location, in: dv, space); v.startLocation = _livePoint(v.startLocation, in: dv, space)
             }
             switch r.state {
             case .began, .changed: e.changed(v)
@@ -149,10 +150,10 @@ public struct SpatialTapGesture: Gesture {
     public func _install(on view: UIView, _ e: _GestureEvents<Value>) -> [UIGestureRecognizer] {
         let g = UITapGestureRecognizer(target: nil, action: nil)
         g.numberOfTapsRequired = max(1, count)
-        let global = coordinateSpace == .global
+        let space = coordinateSpace
         _addRecognizer(g, to: view) { r in
-            guard r.state == .ended else { return }
-            e.ended(Value(location: r.location(in: global ? r.view?.window : r.view)))
+            guard r.state == .ended, let v = r.view else { return }
+            e.ended(Value(location: _livePoint(r.location(in: v), in: v, space)))
         }
         return [g]
     }
@@ -415,12 +416,19 @@ public struct GestureMask: OptionSet, Sendable {
 
 // MARK: - attaching gestures to views
 extension View {
-    public func gesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View {
-        _modify { ctx, c in _GestureNode(path: ctx.path, install: { v in g._install(on: v, _GestureEvents()) }, child: _resolve(c, ctx.child("gst"))) }
+    public func gesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { _gesture(g, mask, .normal) }
+    public func gesture<G: Gesture>(_ g: G, isEnabled: Bool) -> some View { _gesture(g, isEnabled ? .all : .subviews, .normal) }
+    public func simultaneousGesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { _gesture(g, mask, .simultaneous) }
+    public func highPriorityGesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { _gesture(g, mask, .high) }
+    /// A gesture with its priority; the mask turns it off (no `.gesture`) and the gestures inside off (no `.subviews`).
+    func _gesture<G: Gesture>(_ g: G, _ mask: GestureMask, _ priority: _GesturePriority) -> some View {
+        _modify { ctx, c in
+            let cctx = mask.contains(.subviews) ? ctx.child("gst") : ctx.child("gst").with { $0._gesturesOff = true }
+            let child = _resolve(c, cctx)
+            if !mask.contains(.gesture) || ctx.environment._gesturesOff { return child }
+            return _GestureNode(path: ctx.path, priority: priority, install: { v in g._install(on: v, _GestureEvents()) }, child: child)
+        }
     }
-    public func gesture<G: Gesture>(_ g: G, isEnabled: Bool) -> some View { gesture(g, including: isEnabled ? .all : .none) }
-    public func simultaneousGesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { gesture(g, including: mask) }
-    public func highPriorityGesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { gesture(g, including: mask) }
     public func onLongPressGesture(minimumDuration: Double = 0.5, maximumDistance: CGFloat = 10, perform action: @escaping () -> Void) -> some View {
         gesture(LongPressGesture(minimumDuration: minimumDuration, maximumDistance: maximumDistance).onEnded { _ in action() })
     }
@@ -433,21 +441,60 @@ extension View {
     }
 }
 
+/// How a gesture competes with the gestures of the views around it: like SwiftUI, a view's own gesture wins over its
+/// ancestors' (theirs waits for it to fail); a high-priority one wins over its descendants'; a simultaneous one
+/// recognizes alongside both.
+enum _GesturePriority { case normal, high, simultaneous }
+struct _GesturesOffKey: EnvironmentKey { static var defaultValue: Bool { false } }
+extension EnvironmentValues { var _gesturesOff: Bool { get { self[_GesturesOffKey.self] } set { self[_GesturesOffKey.self] = newValue } } }
+/// The delegate of a `.gesture`'s recognizers: the failure requirements between nested gestures.
+final class _SUIGestureArbiter: NSObject, UIGestureRecognizerDelegate {
+    var priority: _GesturePriority = .normal
+    static func of(_ g: UIGestureRecognizer) -> _SUIGestureArbiter? { g.delegate as? _SUIGestureArbiter }
+    /// `other` is a SwiftUI gesture on a view inside this recognizer's view
+    func inside(_ g: UIGestureRecognizer, _ other: UIGestureRecognizer) -> Bool {
+        guard let v = g.view, let ov = other.view, ov !== v else { return false }
+        return ov.isDescendant(of: v)
+    }
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRequireFailureOf other: UIGestureRecognizer) -> Bool {
+        // a normal gesture waits for the non-simultaneous gestures inside it
+        guard priority == .normal, let o = Self.of(other), o.priority != .simultaneous else { return false }
+        return inside(g, other)
+    }
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+        // the gestures inside a high-priority one wait for it
+        guard priority == .high, let o = Self.of(other), o.priority != .simultaneous else { return false }
+        return inside(g, other)
+    }
+}
+
 final class _GestureNode: _WrapperNode {
     let install: @MainActor (UIView) -> [UIGestureRecognizer]
-    init(path: String, install: @escaping @MainActor (UIView) -> [UIGestureRecognizer], child: _Node) { self.install = install; super.init(path: path, child: child) }
+    let priority: _GesturePriority
+    init(path: String, priority: _GesturePriority = .normal, install: @escaping @MainActor (UIView) -> [UIGestureRecognizer], child: _Node) {
+        self.install = install; self.priority = priority; super.init(path: path, child: child)
+    }
     override var layoutPriority: Double { child.layoutPriority }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { child.sizeThatFits(p) }
     override func place(_ rect: CGRect) { frame = rect; child.place(CGRect(origin: .zero, size: rect.size)) }
     override func mountView(_ g: _Graph) -> UIView {
         let v = g.view(viewKey) { _SUIGestureView(frame: .zero) }
+        v.arbiter.priority = priority
         v.reinstall(install)
         return v
     }
 }
+/// Whether a view or one of its subviews (shown, not transparent containers) covers a point (in its coordinates).
+@MainActor func _drawsAt(_ v: UIView, _ p: CGPoint) -> Bool {
+    if v.isHidden || v.alpha <= 0.01 { return false }
+    if !(v is _PassthroughView || v is _PassthroughViewBase), v.bounds.contains(p) { return true }
+    if v.clipsToBounds && !v.bounds.contains(p) { return false }
+    return v.subviews.contains { _drawsAt($0, $0.convert(p, from: v)) }
+}
 /// The view a `.gesture` wraps: it owns the gesture's recognizers (rebuilt with the latest closures on each update).
 final class _SUIGestureView: UIView {
     var recognizers: [UIGestureRecognizer] = []
+    let arbiter = _SUIGestureArbiter()
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     func reinstall(_ install: @escaping @MainActor (UIView) -> [UIGestureRecognizer]) {
@@ -455,8 +502,22 @@ final class _SUIGestureView: UIView {
         if recognizers.contains(where: { $0.state == .began || $0.state == .changed }) { pending = install; return }
         for r in recognizers { removeGestureRecognizer(r) }
         recognizers = install(self)
+        for r in recognizers where r.delegate == nil {
+            r.delegate = arbiter
+            // (a normal tap leaves the buttons inside it their taps, UIKit's rule; a high-priority one takes them, the
+            // buttons giving way; a simultaneous one fires with them)
+            if arbiter.priority != .normal { r._isim_takesControlTaps = true }
+            if arbiter.priority == .high { r.cancelsTouchesInView = true }
+        }
     }
     var pending: (@MainActor (UIView) -> [UIGestureRecognizer])?
+    /// like SwiftUI, content drawn outside the view's frame (moved by .offset, overflowing) takes the gesture too
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if let v = super.hitTest(point, with: event) { return v }
+        guard !isHidden, alpha > 0.01, isUserInteractionEnabled, !clipsToBounds else { return nil }
+        for s in subviews.reversed() { if let h = s.hitTest(s.convert(point, from: self), with: event) { return h } }
+        return subviews.contains { _drawsAt($0, $0.convert(point, from: self)) } ? self : nil
+    }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
         if let p = pending { pending = nil; DispatchQueue.main.async { MainActor.assumeIsolated { self.reinstall(p) } } }

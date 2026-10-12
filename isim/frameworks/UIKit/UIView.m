@@ -1170,6 +1170,12 @@ static IMP base_drawRect;
     extern void isim_ui_transition_with_view(UIView *, double, UIViewAnimationOptions, void (^)(void), void (^)(BOOL));
     isim_ui_transition_with_view(view, d, o, a, c);       /* UIAnimation.m */
 }
++ (void)_isim_animateWithDuration:(NSTimeInterval)d delay:(NSTimeInterval)delay curve:(NSInteger)curve controlPoints:(CGRect)cp damping:(CGFloat)damping
+                     velocity:(CGFloat)velocity plays:(NSInteger)plays autoreverse:(BOOL)ar animations:(void (^)(void))a completion:(void (^)(BOOL))c {
+    extern void isim_ui_animate_with_curve(double, double, int, const double *, double, double, int, BOOL, void (^)(void), void (^)(BOOL));
+    double bz[4] = { cp.origin.x, cp.origin.y, cp.size.width, cp.size.height };
+    isim_ui_animate_with_curve(d, delay, (int)curve, bz, damping, velocity, (int)plays, ar, a, c);
+}
 + (void)performWithoutAnimation:(void (^)(void))a { isim_ui_without_animation(a); }
 + (void)setAnimationsEnabled:(BOOL)e { isim_ui_set_animations_enabled(e); }
 + (BOOL)areAnimationsEnabled { return isim_ui_animations_enabled(); }
@@ -1199,6 +1205,7 @@ typedef struct {
     double bz[4];
     double damping, velocity;
     BOOL repeat, autoreverse;
+    int plays;                              /* > 0: a finite number of plays (SwiftUI repeatCount) */
     BOOL keyframed, discrete;               /* keyframes: extra segments, and the whole timeline's span */
     int nkf; double kfStart[KF_MAX], kfDur[KF_MAX], kfTo[KF_MAX][6];
     double kfBase, kfTotal;
@@ -1229,6 +1236,7 @@ typedef struct anim_ctx {
     double duration, delay; int curve; double bz[4]; double damping, velocity; BOOL repeat, autoreverse;
     BOOL keyframe, discrete; double kfBase, kfTotal;      /* inside animateKeyframes: delay/duration are relative to kfBase */
     __unsafe_unretained __IsimAnimationGroup *group; struct anim_ctx *prev;
+    int plays;
 } anim_ctx;
 static anim_ctx *cur_ctx;
 static int suppress_depth;
@@ -1276,7 +1284,7 @@ static void anim_set(UIView *v, int key, const double *model_old, const double *
     t->start = (c->keyframe ? c->kfBase : ctx_clock(c)) + c->delay;
     t->dur = c->duration > 0 ? c->duration : 0.0001;
     t->curve = c->curve; memcpy(t->bz, c->bz, sizeof t->bz); t->damping = c->damping; t->velocity = c->velocity;
-    t->repeat = c->repeat; t->autoreverse = c->autoreverse;
+    t->repeat = c->repeat; t->autoreverse = c->autoreverse; t->plays = c->plays;
     t->group = c->group;
     t->active = YES;
     if (c->group) c->group->pending++;
@@ -1381,7 +1389,14 @@ BOOL isim_ui_animations_tick(void) {
                 double el = now - t->start;
                 if (el < 0) { viewActive = YES; continue; }          /* delayed: still at its start value */
                 double cycle = t->dur, p, x;
-                if (t->repeat) {
+                if (t->plays > 0) {                                  /* n plays; with autoreverse every other one backwards */
+                    if (el >= t->plays * cycle) { done = YES; p = 1; }
+                    else {
+                        int k = (int)(el / cycle); double le = el - k * cycle;
+                        p = timing(t, le / cycle, le);
+                        if (t->autoreverse && (k & 1)) p = 1 - p;
+                    }
+                } else if (t->repeat) {
                     double period = t->autoreverse ? 2 * cycle : cycle, ph = fmod(el, period);
                     BOOL back = t->autoreverse && ph >= cycle;
                     double le = back ? ph - cycle : ph;
@@ -1438,6 +1453,13 @@ static void animate_ctx(anim_ctx ctx, void (^animations)(void), void (^completio
 void isim_ui_animate(double duration, double delay, UIViewAnimationOptions o, int springy, double damping, double velocity,
                      void (^animations)(void), void (^completion)(BOOL)) {
     anim_ctx ctx = { duration, delay, springy ? 4 : (int)((o >> 16) & 3), { 0 }, damping, velocity, (o & (1 << 3)) != 0, (o & (1 << 4)) != 0 };
+    animate_ctx(ctx, animations, completion, capture_tl);
+}
+void isim_ui_animate_with_curve(double duration, double delay, int curve, const double *bz, double damping, double velocity, int plays, BOOL autoreverse,
+                                void (^animations)(void), void (^completion)(BOOL)) {
+    anim_ctx ctx = { duration, delay, curve, { bz[0], bz[1], bz[2], bz[3] }, damping, velocity, plays < 0, autoreverse };
+    ctx.plays = plays > 1 ? plays : 0;
+    if (plays == 1) ctx.autoreverse = NO;
     animate_ctx(ctx, animations, completion, capture_tl);
 }
 void isim_ui_without_animation(void (^block)(void)) { suppress_depth++; if (block) block(); suppress_depth--; }

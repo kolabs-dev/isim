@@ -26,14 +26,18 @@ extension LabelStyle where Self == TitleOnlyLabelStyle { public static var title
 extension LabelStyle where Self == TitleAndIconLabelStyle { public static var titleAndIcon: TitleAndIconLabelStyle { .init() } }
 /// nil: the default (title and icon side by side).
 struct _LabelStyleKey: EnvironmentKey { static var defaultValue: (@MainActor (LabelStyleConfiguration) -> any View)? { nil } }
+struct _LabelStyleKindKey: EnvironmentKey { static var defaultValue: Int { 0 } }
 extension EnvironmentValues {
     var _labelStyle: (@MainActor (LabelStyleConfiguration) -> any View)? { get { self[_LabelStyleKey.self] } set { self[_LabelStyleKey.self] = newValue } }
+    /// the stock style for controls that draw their own label (PasteButton): 0 title and icon, 1 title only, 2 icon only
+    var _labelStyleKind: Int { get { self[_LabelStyleKindKey.self] } set { self[_LabelStyleKindKey.self] = newValue } }
 }
 extension View {
     public func labelStyle<S: LabelStyle>(_ style: S) -> some View {
         _env { e in
             if style is DefaultLabelStyle || style is TitleAndIconLabelStyle { e._labelStyle = nil }
             else { e._labelStyle = { style.makeBody(configuration: $0) } }
+            e._labelStyleKind = style is TitleOnlyLabelStyle ? 1 : style is IconOnlyLabelStyle ? 2 : 0
         }
     }
 }

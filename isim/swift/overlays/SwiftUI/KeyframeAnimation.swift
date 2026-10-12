@@ -119,6 +119,25 @@ public struct UnitCurve: Hashable, Sendable {
     public static func bezier(startControlPoint: UnitPoint, endControlPoint: UnitPoint) -> UnitCurve {
         UnitCurve(kind: .bezier(startControlPoint.x, startControlPoint.y, endControlPoint.x, endControlPoint.y))
     }
+    /// The curve's Bézier control points (circular curves: their close cubic approximations, for UIKit's engine).
+    var controlPoints: (CGPoint, CGPoint) {
+        switch kind {
+        case .bezier(let a, let b, let c, let d): return (CGPoint(x: a, y: b), CGPoint(x: c, y: d))
+        case .circularIn: return (CGPoint(x: 0.55, y: 0), CGPoint(x: 1, y: 0.45))
+        case .circularOut: return (CGPoint(x: 0, y: 0.55), CGPoint(x: 0.45, y: 1))
+        case .circularInOut: return (CGPoint(x: 0.85, y: 0), CGPoint(x: 0.15, y: 1))
+        }
+    }
+    /// The curve's slope at a progress.
+    public func velocity(at progress: Double) -> Double {
+        let h = 1e-4, x = min(1 - h, max(0, progress))
+        return (value(at: x + h) - value(at: x)) / h
+    }
+    /// The curve run backwards in time.
+    public var inverse: UnitCurve {
+        let (a, b) = controlPoints
+        return UnitCurve(kind: .bezier(1 - b.x, 1 - b.y, 1 - a.x, 1 - a.y))
+    }
     public func value(at progress: Double) -> Double {
         let x = min(1, max(0, progress))
         switch kind {
