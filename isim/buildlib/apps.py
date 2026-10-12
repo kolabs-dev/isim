@@ -242,7 +242,9 @@ def _(a):
 @app("samples/HelloWidgets")
 def _(a):
     b = a.swift_app(srcs=["HelloWidgetsApp.swift", "Shared.swift"])
-    a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    x = a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    for d in (b, x):                                           # the app group both share
+        a.copy("HelloWidgets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
 
 
 @app("samples/HelloKeyboard", products=["HelloKeyboard.appex"])
@@ -278,6 +280,7 @@ def _(a):
 @app("samples/HelloSharedData")
 def _(a):
     b = a.swift_app()
+    a.copy("HelloSharedData.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # its app group
     for d in ("en.lproj", "ru.lproj"):
         shutil.copytree(os.path.join(a.d, d), os.path.join(b, d))
     os.chdir(a.d)
@@ -525,6 +528,7 @@ def _(a):
 @app("tests/security", products=["SecurityTest.app"])
 def _(a):
     b = a.swift_app("SecurityTest", objc=["OSLogC.m"], link=["-framework", "Foundation"])
+    a.copy("SecurityTest.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # keychain-access-groups
     for f in ("ca.der", "leaf.der", "expired.der", "selfsigned.der", "identity.p12", "ca.key"):   # test PKI (pki/make_fixtures.py)
         a.copy(f"pki/{f}", b)
 

@@ -52,6 +52,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `spotlight` | Spotlight on the home screen |
 | `island` | expand / collapse the Dynamic Island's Live Activity |
 | `homepage N` / `homepage library` | show home-screen page N (1-based) or the App Library |
+| `iconstyle STYLE [#RRGGBB] [small\|large]` | Home Screen icon appearance, as chosen in edit mode › Edit › Customize: `automatic`, `light`, `dark`, `tinted` (with the tint) or, iOS 26+, `clear`; small or large icons (saved; logs `SpringBoard: icon appearance …`) |
 | `swipehome left\|right` | swipe across the home screen (left: the next page) |
 
 While one of these is shown, `dump` lists its parts (ids and text) and `tapid` / `swipeid` act on them.

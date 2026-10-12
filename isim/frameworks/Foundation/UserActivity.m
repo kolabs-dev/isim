@@ -107,16 +107,6 @@ static void spotlight_update(void (^edit)(NSMutableArray *items)) {
 }
 @end
 
-@implementation NSFileManager (NSAppGroupContainers)
-- (NSURL *)containerURLForSecurityApplicationGroupIdentifier:(NSString *)group {
-    if (!group.length) return nil;
-    NSString *dir = [[isim_data_dir() stringByAppendingPathComponent:@"Shared/AppGroup"] stringByAppendingPathComponent:group];
-    for (NSString *sub in @[@"", @"Library/Preferences", @"Library/Caches"])
-        [self createDirectoryAtPath:[dir stringByAppendingPathComponent:sub] withIntermediateDirectories:YES attributes:nil error:NULL];
-    return [NSURL fileURLWithPath:dir isDirectory:YES];
-}
-@end
-
 static BOOL write_plist(id plist, NSString *path, NSError **error) {
     NSData *d = [NSPropertyListSerialization dataWithPropertyList:plist format:NSPropertyListXMLFormat_v1_0 options:0 error:error];
     return d && [d writeToFile:path options:NSDataWritingAtomic error:error];

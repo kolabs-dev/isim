@@ -29,6 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (UIColor *)resolvedColorWithTraitCollection:(UITraitCollection *)traitCollection;
 - (BOOL)getRed:(nullable CGFloat *)red green:(nullable CGFloat *)green blue:(nullable CGFloat *)blue alpha:(nullable CGFloat *)alpha;
 - (BOOL)getWhite:(nullable CGFloat *)white alpha:(nullable CGFloat *)alpha;
+- (BOOL)getHue:(nullable CGFloat *)hue saturation:(nullable CGFloat *)saturation brightness:(nullable CGFloat *)brightness alpha:(nullable CGFloat *)alpha;
 - (void)set;
 - (void)setFill;
 - (void)setStroke;

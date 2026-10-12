@@ -3,25 +3,51 @@
 // under `isim boot`. The arrangement is saved in <isim data>/Library/SpringBoard/IconState.plist.
 // The look follows the emulated iOS version (isim --os):
 //   iOS 17     translucent dock, light icons.
-//   iOS 18+    icon appearance (Home Screen > Customize): ISIM_ICON_STYLE=light|dark|tinted (and, iOS 26+, clear),
-//              ISIM_ICON_TINT=#RRGGBB for tinted. An app's own dark/tinted icon variants are used when it has them;
-//              otherwise isim derives them (adapted: darkened / luminance-tinted / see-through copies of the icon).
+//   iOS 18+    icon appearance (edit mode > Edit > Customize, or the script's `iconstyle`): automatic (follows Dark
+//              Mode), light, dark, tinted (a hue) and, iOS 26+, clear; small or large icons (large: no names). Saved in
+//              the com.apple.springboard defaults (IconAppearance, IconTintColor, IconSize); ISIM_ICON_STYLE,
+//              ISIM_ICON_TINT=#RRGGBB and ISIM_ICON_SIZE override them. An app's own dark/tinted icon variants are used
+//              when it has them; otherwise isim derives them (adapted: darkened / luminance-tinted / see-through copies
+//              of the icon). Dark also dims the wallpaper and darkens the dock and folders.
 //   iOS 26+    Liquid Glass: a glass dock with larger corners, a specular glass rim on every icon.
 #import <UIKit/UIKit.h>
 #import "SpringBoard.h"
 #import <objc/runtime.h>
 
 static int os_major(void) { return isim_os_version() / 10000; }
-/* Home Screen icon appearance (iOS 18+): 0 light, 1 dark, 2 tinted, 3 clear (iOS 26+) */
-static int icon_style(void) {
-    static int s = -1;
-    if (s >= 0) return s;
-    const char *e = getenv("ISIM_ICON_STYLE"); s = 0;
-    if (e && !strcmp(e, "dark")) s = 1; else if (e && !strcmp(e, "tinted")) s = 2; else if (e && !strcmp(e, "clear")) s = 3;
-    if (s && os_major() < 18) { NSLog(@"SpringBoard: icon appearance '%s' needs iOS 18 or later (running iOS %d): light icons", e, os_major()); s = 0; }
-    if (s == 3 && os_major() < 26) { NSLog(@"SpringBoard: clear icons need iOS 26 or later: light icons"); s = 0; }
+static NSUserDefaults *sb_defaults(void) {
+    static NSUserDefaults *d;
+    if (!d) d = [[NSUserDefaults alloc] initWithSuiteName:@"com.apple.springboard"];
+    return d;
+}
+/* the chosen icon appearance: the environment's override, else the saved choice (light by default) */
+NSString *HSIconAppearanceName(void) {
+    const char *e = getenv("ISIM_ICON_STYLE");
+    if (e && *e) return @(e);
+    return [sb_defaults() stringForKey:@"IconAppearance"] ?: @"light";
+}
+NSString *HSIconTintHex(void) {
+    const char *e = getenv("ISIM_ICON_TINT");
+    if (e && *e) return @(e);
+    return [sb_defaults() stringForKey:@"IconTintColor"] ?: @"#5999FF";
+}
+BOOL HSLargeIcons(void) {
+    if (os_major() < 18) return NO;
+    const char *e = getenv("ISIM_ICON_SIZE");
+    if (e && *e) return !strcmp(e, "large");
+    return [[sb_defaults() stringForKey:@"IconSize"] isEqualToString:@"large"];
+}
+/* Home Screen icon appearance (iOS 18+): 0 light, 1 dark, 2 tinted, 3 clear (iOS 26+); automatic: dark in Dark Mode */
+int HSIconStyle(void) {
+    NSString *n = HSIconAppearanceName();
+    int s = [n isEqualToString:@"dark"] ? 1 : [n isEqualToString:@"tinted"] ? 2 : [n isEqualToString:@"clear"] ? 3 : 0;
+    if ([n isEqualToString:@"automatic"]) s = UIScreen.mainScreen.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? 1 : 0;
+    static NSString *warned;
+    if (s && os_major() < 18) { if (![warned isEqual:n]) NSLog(@"SpringBoard: icon appearance '%@' needs iOS 18 or later (running iOS %d): light icons", n, os_major()); warned = n; return 0; }
+    if (s == 3 && os_major() < 26) { if (![warned isEqual:n]) NSLog(@"SpringBoard: clear icons need iOS 26 or later: light icons"); warned = n; return 0; }
     return s;
 }
+static int icon_style(void) { return HSIconStyle(); }
 /* the app's own dark/tinted icon (asset catalog appearance variant), if it has one */
 static NSString *icon_variant(NSString *app, NSDictionary *info, NSString *appearance) {
     NSDictionary *assets = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"isim-assets.plist"]];
@@ -33,7 +59,7 @@ static NSString *icon_variant(NSString *app, NSDictionary *info, NSString *appea
 }
 /* derived icon appearances (no variant in the app): dark = the artwork darkened toward black; tinted = the
    artwork's luminance in the tint colour on black; clear = a faint see-through copy */
-static UIImage *restyle_icon(UIImage *img, int style, BOOL ownVariant) {
+UIImage *HSRestyleIcon(UIImage *img, int style, BOOL ownVariant) {
     if (!img || style == 0 || (ownVariant && style != 3)) return img;
     CGImageRef src = img.CGImage; if (!src) return img;
     size_t w = CGImageGetWidth(src), h = CGImageGetHeight(src);
@@ -45,7 +71,7 @@ static UIImage *restyle_icon(UIImage *img, int style, BOOL ownVariant) {
     CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), src);
     uint8_t *px = CGBitmapContextGetData(ctx);
     double tr = 0.35, tg = 0.6, tb = 1.0;
-    const char *t = getenv("ISIM_ICON_TINT"); unsigned rgb;
+    const char *t = HSIconTintHex().UTF8String; unsigned rgb;
     if (t && sscanf(t[0] == '#' ? t + 1 : t, "%6x", &rgb) == 1) { tr = (rgb >> 16 & 255) / 255.0; tg = (rgb >> 8 & 255) / 255.0; tb = (rgb & 255) / 255.0; }
     for (size_t i = 0; px && i < w * h; i++) {
         uint8_t *p = px + i * 4; double r = p[0], g = p[1], b = p[2], a = p[3];
@@ -59,6 +85,13 @@ static UIImage *restyle_icon(UIImage *img, int style, BOOL ownVariant) {
     UIImage *res = out ? [UIImage imageWithCGImage:out scale:img.scale orientation:UIImageOrientationUp] : img;
     if (out) CGImageRelease(out);
     return res;
+}
+/* an app's icon in an appearance: its own dark / tinted variant when it has one, else derived from its icon */
+UIImage *HSStyledIconImage(HSApp *app, int style) {
+    NSString *variant = style == 1 || style == 2 ? icon_variant(app.path, app.info, style == 1 ? @"dark" : @"tinted") : nil;
+    UIImage *img = (variant ?: app.iconPath) ? [UIImage imageWithContentsOfFile:variant ?: app.iconPath] : nil;
+    if (img && style) img = HSRestyleIcon(img, style, variant != nil);
+    return img;
 }
 /* iOS 26: the dock is a clear glass platter */
 @interface HSDock : UIView
@@ -142,17 +175,20 @@ NSString *HSCategoryName(NSString *c) {
         _image.layer.cornerRadius = s * 0.225; _image.clipsToBounds = YES;
         _image.contentMode = UIViewContentModeScaleToFill;
         _image.userInteractionEnabled = NO;
-        NSString *variant = icon_style() == 1 || icon_style() == 2 ? icon_variant(app.path, app.info, icon_style() == 1 ? @"dark" : @"tinted") : nil;
-        UIImage *img = (variant ?: app.iconPath) ? [UIImage imageWithContentsOfFile:variant ?: app.iconPath] : nil;
-        BOOL ownVariant = variant != nil;
-        if (img && icon_style()) img = restyle_icon(img, icon_style(), ownVariant);
+        UIImage *img = HSStyledIconImage(app, icon_style());
         if (img) _image.image = img;
         else {  /* placeholder: initial on a color derived from the bundle id */
             NSUInteger h = app.bundleID.hash;
-            _image.backgroundColor = [UIColor colorWithRed:0.25 + (h % 7) / 12.0 green:0.35 + (h / 7 % 5) / 10.0 blue:0.55 + (h / 35 % 4) / 10.0 alpha:1];
+            UIColor *bg = [UIColor colorWithRed:0.25 + (h % 7) / 12.0 green:0.35 + (h / 7 % 5) / 10.0 blue:0.55 + (h / 35 % 4) / 10.0 alpha:1], *fg = UIColor.whiteColor;
+            int st = icon_style();                         /* the placeholder follows the appearance too */
+            if (st == 1) { CGFloat r, g, b, a; [bg getRed:&r green:&g blue:&b alpha:&a]; bg = [UIColor colorWithRed:r * 0.35 green:g * 0.35 blue:b * 0.35 alpha:1]; fg = [UIColor colorWithRed:0.25 + (h % 7) / 12.0 green:0.35 + (h / 7 % 5) / 10.0 blue:0.55 + (h / 35 % 4) / 10.0 alpha:1]; }
+            else if (st == 2) { unsigned rgb = 0x5999FF; const char *t = HSIconTintHex().UTF8String; sscanf(t[0] == '#' ? t + 1 : t, "%6x", &rgb);
+                                bg = [UIColor colorWithWhite:0.08 alpha:1]; fg = [UIColor colorWithRed:(rgb >> 16 & 255) / 255.0 green:(rgb >> 8 & 255) / 255.0 blue:(rgb & 255) / 255.0 alpha:1]; }
+            else if (st == 3) { bg = [UIColor colorWithWhite:1 alpha:0.18]; }
+            _image.backgroundColor = bg;
             _letter = [[UILabel alloc] initWithFrame:_image.bounds];
             _letter.text = [app.name substringToIndex:MIN((NSUInteger)1, app.name.length)].uppercaseString;
-            _letter.textAlignment = NSTextAlignmentCenter; _letter.textColor = UIColor.whiteColor;
+            _letter.textAlignment = NSTextAlignmentCenter; _letter.textColor = fg;
             _letter.font = [UIFont systemFontOfSize:s * 0.45 weight:UIFontWeightSemibold];
             [_image addSubview:_letter];
         }
@@ -216,9 +252,10 @@ static NSString *icon_state_file(void) {
     NSMutableDictionary<NSNumber *, NSArray *> *_place;       /* model page -> placements [col, row, cw, ch] */
     UIView *_dragging; NSInteger _dragPage, _dragIndex; CGPoint _dragOffset, _dragPoint; NSTimer *_edgeTimer; double _edgeSince, _lastFlip;
     UIButton *_addWidget;
+    UIView *_dim, *_customize;                                /* dark appearance: the dimmed wallpaper; the Customize sheet */
 }
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleLightContent; }
-- (CGFloat)iconSize { return self.view.bounds.size.width >= 700 ? 74 : 60; }
+- (CGFloat)iconSize { CGFloat s = self.view.bounds.size.width >= 700 ? 74 : 60; return HSLargeIcons() ? round(s * 1.2) : s; }   /* large: names hidden, icons bigger */
 - (void)viewDidLoad {
     [super viewDidLoad];
     _wallpaper = [[UIImageView alloc] initWithFrame:self.view.bounds];
@@ -227,6 +264,11 @@ static NSString *icon_state_file(void) {
     _wallpaper.contentMode = UIViewContentModeScaleAspectFill;
     _wallpaper.backgroundColor = [UIColor colorWithRed:0.16 green:0.2 blue:0.42 alpha:1];
     [self.view addSubview:_wallpaper];
+    _dim = [[UIView alloc] initWithFrame:self.view.bounds];
+    _dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    _dim.backgroundColor = [UIColor colorWithWhite:0 alpha:0.35]; _dim.userInteractionEnabled = NO; _dim.hidden = YES;
+    _dim.accessibilityIdentifier = @"home-wallpaper-dim";
+    [self.view addSubview:_dim];
     _pager = [HSPager new]; _pager.delegate = self; _pager.scrollEnabled = YES;
     _pager.accessibilityIdentifier = @"home-pages";
     [self.view addSubview:_pager];
@@ -253,6 +295,7 @@ static NSString *icon_state_file(void) {
     [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimSystemEvent" object:nil queue:nil usingBlock:^(NSNotification *n) {
         NSString *t = n.object;
         if ([t hasPrefix:@"homepage "]) [self goToPage:[t substringFromIndex:9]];
+        if ([t hasPrefix:@"iconstyle "]) [self scriptIconStyle:[t substringFromIndex:10]];
     }];
     [self installSystemObservers];
     [self installWidgetObservers];
@@ -389,7 +432,7 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
     CGFloat s = self.iconSize; UIControl *icon;
     if ([it isKindOfClass:[NSDictionary class]] && it[@"widget"]) icon = [self makeWidgetView:it];
     else if ([it isKindOfClass:[NSString class]]) {
-        HSIcon *ai = [[HSIcon alloc] initWithApp:[self appForID:it] size:s label:YES];
+        HSIcon *ai = [[HSIcon alloc] initWithApp:[self appForID:it] size:s label:!HSLargeIcons()];
         [ai addTarget:self action:@selector(tapped:) forControlEvents:UIControlEventTouchUpInside];
         [ai addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)]];
         [ai.badge addTarget:self action:@selector(badgeTapped:) forControlEvents:UIControlEventTouchUpInside];
@@ -414,6 +457,7 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
     return pv;
 }
 - (void)rebuild {
+    [self applyAppearance];
     for (UIView *v in _dock.subviews) [v removeFromSuperview];
     _pageViews = [NSMutableArray array]; _visible = [NSMutableArray array]; _place = [NSMutableDictionary dictionary];
     for (NSUInteger m = 0; m < _homePages.count; m++) {
@@ -469,7 +513,7 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
     NSInteger i = 0;
     for (HSIcon *icon in _dock.subviews) { icon.frame = CGRectMake(start + i * dColW + (dColW - s) / 2, (dockH - s) / 2, s, s); i++; }
     _done.frame = CGRectMake(b.size.width - 82, safe.top + 2, 66, 30);
-    _addWidget.frame = CGRectMake(16, safe.top + 2, 40, 30);
+    _addWidget.frame = CGRectMake(16, safe.top + 2, os_major() >= 18 ? 58 : 40, 30);
     [self publishIconRects];
 }
 /* tell the shell where each app's icon is (app open/close animations zoom from/to it; apps in folders: the folder) */
@@ -763,6 +807,115 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
 }
 - (void)menuRemove:(UIButton *)b { HSApp *a = objc_getAssociatedObject(b, "hsapp"); [self dismissMenu]; [self confirmDelete:a]; }
 - (void)badgeTapped:(UIButton *)badge { [self confirmDelete:((HSIcon *)badge.superview).app]; }
+/* ---- icon appearance (Home Screen > Edit > Customize) ---- */
+/* the wallpaper dims and the dock darkens with dark icons */
+- (void)applyAppearance {
+    BOOL dark = HSIconStyle() == 1;
+    _dim.hidden = !dark;
+    if (os_major() < 26) _dock.backgroundColor = dark ? [UIColor colorWithWhite:0 alpha:0.3] : [UIColor colorWithWhite:1 alpha:0.28];
+}
+- (void)traitCollectionDidChange:(UITraitCollection *)previous {
+    [super traitCollectionDidChange:previous];
+    if ([HSIconAppearanceName() isEqualToString:@"automatic"] && previous.userInterfaceStyle != self.traitCollection.userInterfaceStyle) [self rebuild];
+}
+/* a new appearance (nil: keep): saved in the springboard defaults, applied at once (the choice overrides the environment) */
+- (void)setIconAppearance:(NSString *)style tint:(NSString *)tint large:(NSNumber *)large {
+    NSUserDefaults *d = sb_defaults();
+    if (style) { [d setObject:style forKey:@"IconAppearance"]; unsetenv("ISIM_ICON_STYLE"); }
+    if (tint) { [d setObject:tint forKey:@"IconTintColor"]; unsetenv("ISIM_ICON_TINT"); }
+    if (large) { [d setObject:large.boolValue ? @"large" : @"small" forKey:@"IconSize"]; unsetenv("ISIM_ICON_SIZE"); }
+    NSLog(@"SpringBoard: icon appearance %@%@, %@ icons", HSIconAppearanceName(),
+          [HSIconAppearanceName() isEqualToString:@"tinted"] ? [@" " stringByAppendingString:HSIconTintHex()] : @"", HSLargeIcons() ? @"large" : @"small");
+    [self rebuild];
+    if (_customize) [self showCustomize];                     /* the sheet's previews follow */
+}
+/* script: iconstyle automatic|light|dark|tinted|clear [#RRGGBB] [small|large] */
+- (void)scriptIconStyle:(NSString *)args {
+    NSString *style = nil, *tint = nil; NSNumber *large = nil;
+    for (NSString *w in [args componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet]) {
+        if ([w hasPrefix:@"#"]) tint = w;
+        else if ([w isEqualToString:@"small"] || [w isEqualToString:@"large"]) large = @([w isEqualToString:@"large"]);
+        else if (w.length) style = w;
+    }
+    [self setIconAppearance:style tint:tint large:large];
+}
+/* the Customize sheet: icon size (Small / Large), the appearance (iOS 18: Automatic, Dark, Light, Tinted; iOS 26+:
+   Default, Dark, Clear, Tinted) shown on one of the user's icons, and for Tinted a hue slider */
+- (void)showCustomize {
+    [_customize removeFromSuperview];
+    CGRect b = self.view.bounds;
+    UIControl *shade = [[UIControl alloc] initWithFrame:b];                      /* tap outside: close */
+    shade.backgroundColor = [UIColor colorWithWhite:0 alpha:0.15];
+    shade.accessibilityIdentifier = @"customize-dismiss";
+    [shade addTarget:self action:@selector(hideCustomize) forControlEvents:UIControlEventTouchUpInside];
+    BOOL tinted = [HSIconAppearanceName() isEqualToString:@"tinted"];
+    CGFloat w = MIN(b.size.width - 16, 400), h = tinted ? 250 : 206;
+    UIView *sheet = [[UIView alloc] initWithFrame:CGRectMake((b.size.width - w) / 2, b.size.height - h - 8 - self.view.safeAreaInsets.bottom / 2, w, h)];
+    BOOL dark = HSIconStyle() == 1;
+    sheet.backgroundColor = dark ? [UIColor colorWithWhite:0.12 alpha:0.94] : [UIColor colorWithWhite:0.97 alpha:0.94];
+    sheet.layer.cornerRadius = os_major() >= 26 ? 34 : 24;
+    sheet.accessibilityIdentifier = @"customize-sheet";
+    [shade addSubview:sheet];
+    UIColor *ink = dark ? UIColor.whiteColor : UIColor.blackColor;
+    UISegmentedControl *size = [[UISegmentedControl alloc] initWithItems:@[NSLocalizedString(@"Small", nil), NSLocalizedString(@"Large", nil)]];
+    size.frame = CGRectMake(20, 16, w - 40, 32);
+    size.selectedSegmentIndex = HSLargeIcons() ? 1 : 0;
+    size.accessibilityIdentifier = @"customize-size";
+    [size addTarget:self action:@selector(customizeSize:) forControlEvents:UIControlEventValueChanged];
+    [sheet addSubview:size];
+    NSArray *styles = os_major() >= 26 ? @[@[@"light", NSLocalizedString(@"Default", nil)], @[@"dark", NSLocalizedString(@"Dark", nil)],
+                                           @[@"clear", NSLocalizedString(@"Clear", nil)], @[@"tinted", NSLocalizedString(@"Tinted", nil)]]
+                                       : @[@[@"automatic", NSLocalizedString(@"Automatic", nil)], @[@"dark", NSLocalizedString(@"Dark", nil)],
+                                           @[@"light", NSLocalizedString(@"Light", nil)], @[@"tinted", NSLocalizedString(@"Tinted", nil)]];
+    HSApp *sample = nil; for (HSApp *a in _apps) if (!a.system && a.iconPath) { sample = a; break; }
+    CGFloat cw = (w - 40) / styles.count;
+    for (NSUInteger i = 0; i < styles.count; i++) {
+        NSString *name = styles[i][0];
+        int st = [name isEqualToString:@"dark"] ? 1 : [name isEqualToString:@"tinted"] ? 2 : [name isEqualToString:@"clear"] ? 3 : 0;
+        if ([name isEqualToString:@"automatic"]) st = self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? 1 : 0;
+        UIButton *opt = [UIButton buttonWithType:UIButtonTypeCustom];
+        opt.frame = CGRectMake(20 + i * cw, 60, cw, 110);
+        opt.accessibilityIdentifier = [@"customize-style-" stringByAppendingString:name];
+        opt.accessibilityLabel = styles[i][1];
+        BOOL on = [HSIconAppearanceName() isEqualToString:name];
+        opt.selected = on;
+        UIImageView *iv = [[UIImageView alloc] initWithFrame:CGRectMake((cw - 56) / 2, 4, 56, 56)];
+        iv.layer.cornerRadius = 56 * 0.225; iv.clipsToBounds = YES; iv.userInteractionEnabled = NO;
+        iv.image = sample ? HSStyledIconImage(sample, st) : nil;
+        iv.backgroundColor = st == 1 ? [UIColor colorWithWhite:0.15 alpha:1] : [UIColor colorWithWhite:0.85 alpha:1];
+        if (on) { iv.layer.borderWidth = 3; iv.layer.borderColor = [UIColor systemBlueColor].CGColor; }
+        [opt addSubview:iv];
+        UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(0, 68, cw, 18)];
+        l.text = styles[i][1]; l.textAlignment = NSTextAlignmentCenter; l.font = [UIFont systemFontOfSize:13 weight:on ? UIFontWeightSemibold : UIFontWeightRegular];
+        l.textColor = ink; l.userInteractionEnabled = NO;
+        [opt addSubview:l];
+        objc_setAssociatedObject(opt, "hsstyle", name, OBJC_ASSOCIATION_COPY_NONATOMIC);
+        [opt addTarget:self action:@selector(customizeStyle:) forControlEvents:UIControlEventTouchUpInside];
+        [sheet addSubview:opt];
+    }
+    if (tinted) {                                                                  /* the tint: its hue */
+        UISlider *hue = [[UISlider alloc] initWithFrame:CGRectMake(20, 186, w - 40, 30)];
+        CGFloat hh = 0, ss, bb, aa; unsigned rgb = 0;
+        const char *t = HSIconTintHex().UTF8String;
+        if (sscanf(t[0] == '#' ? t + 1 : t, "%6x", &rgb) == 1)
+            [[UIColor colorWithRed:(rgb >> 16 & 255) / 255.0 green:(rgb >> 8 & 255) / 255.0 blue:(rgb & 255) / 255.0 alpha:1] getHue:&hh saturation:&ss brightness:&bb alpha:&aa];
+        hue.value = (float)hh;
+        hue.accessibilityIdentifier = @"customize-tint";
+        [hue addTarget:self action:@selector(customizeHue:) forControlEvents:UIControlEventValueChanged];
+        [sheet addSubview:hue];
+    }
+    [self.view addSubview:shade];
+    _customize = shade;
+    NSLog(@"SpringBoard: Customize (%@, %@ icons)", HSIconAppearanceName(), HSLargeIcons() ? @"large" : @"small");
+}
+- (void)hideCustomize { [_customize removeFromSuperview]; _customize = nil; }
+- (void)customizeStyle:(UIButton *)b { [self setIconAppearance:objc_getAssociatedObject(b, "hsstyle") tint:nil large:nil]; }
+- (void)customizeSize:(UISegmentedControl *)c { [self setIconAppearance:nil tint:nil large:@(c.selectedSegmentIndex == 1)]; }
+- (void)customizeHue:(UISlider *)s {
+    CGFloat r, g, bl, a;
+    [[UIColor colorWithHue:s.value saturation:0.65 brightness:1 alpha:1] getRed:&r green:&g blue:&bl alpha:&a];
+    [self setIconAppearance:nil tint:[NSString stringWithFormat:@"#%02X%02X%02X", (int)lround(r * 255), (int)lround(g * 255), (int)lround(bl * 255)] large:nil];
+}
 - (void)setEditingMode:(BOOL)e {
     _editing = e;
     if (e && !_done) {
@@ -776,17 +929,31 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
         [self.view addSubview:_done];
     }
     _done.hidden = !e;
-    if (e && !_addWidget) {                                  /* + : the widget gallery */
+    if (e && !_addWidget) {
         _addWidget = [UIButton buttonWithType:UIButtonTypeSystem];
-        [_addWidget setTitle:@"+" forState:UIControlStateNormal];
-        _addWidget.titleLabel.font = [UIFont systemFontOfSize:22 weight:UIFontWeightSemibold];
         [_addWidget setTitleColor:UIColor.blackColor forState:UIControlStateNormal];
         _addWidget.backgroundColor = [UIColor colorWithWhite:1 alpha:0.75]; _addWidget.layer.cornerRadius = 15;
-        _addWidget.accessibilityIdentifier = @"home-add-widget";
-        [_addWidget addTarget:self action:@selector(showWidgetGallery) forControlEvents:UIControlEventTouchUpInside];
+        if (os_major() >= 18) {                              /* iOS 18+: Edit, a menu with Add Widget and Customize */
+            [_addWidget setTitle:NSLocalizedString(@"Edit", nil) forState:UIControlStateNormal];
+            _addWidget.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
+            _addWidget.accessibilityIdentifier = @"home-edit";
+            __weak HomeViewController *ws = self;
+            _addWidget.menu = [UIMenu menuWithChildren:@[
+                [UIAction actionWithTitle:NSLocalizedString(@"Add Widget", nil) image:[UIImage systemImageNamed:@"plus.rectangle.on.rectangle"] identifier:nil
+                                  handler:^(UIAction *a) { [ws showWidgetGallery]; }],
+                [UIAction actionWithTitle:NSLocalizedString(@"Customize", nil) image:[UIImage systemImageNamed:@"paintbrush"] identifier:nil
+                                  handler:^(UIAction *a) { [ws showCustomize]; }]]];
+            _addWidget.showsMenuAsPrimaryAction = YES;
+        } else {                                             /* iOS 17: + opens the widget gallery */
+            [_addWidget setTitle:@"+" forState:UIControlStateNormal];
+            _addWidget.titleLabel.font = [UIFont systemFontOfSize:22 weight:UIFontWeightSemibold];
+            _addWidget.accessibilityIdentifier = @"home-add-widget";
+            [_addWidget addTarget:self action:@selector(showWidgetGallery) forControlEvents:UIControlEventTouchUpInside];
+        }
         [self.view addSubview:_addWidget];
     }
     _addWidget.hidden = !e;
+    if (!e) [self hideCustomize];
     NSLog(@"SpringBoard: %@ edit mode", e ? @"entered" : @"left");
     if (!e) [self removeEmptyPages];
     [self rebuild];

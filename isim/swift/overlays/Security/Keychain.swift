@@ -93,8 +93,24 @@ final class _Keychain: @unchecked Sendable {
         var cur = ""
         for part in p.split(separator: "/") { cur += "/" + part; mkdir(cur, 0o755) }
     }
-    /// access groups an app can read without naming one: its default group and groups it stored items in
-    func groups() -> [String] { [defaultGroup] + (load(defaultGroup).groups ?? []) }
+    /// the access groups the app is entitled to (as on iOS): its own, keychain-access-groups and application-groups of
+    /// <App>.app/archived-expanded-entitlements.xcent (isim build writes it from CODE_SIGN_ENTITLEMENTS)
+    let entitledGroups: [String] = {
+        let path = (Bundle.main.bundlePath as NSString).appendingPathComponent("archived-expanded-entitlements.xcent")
+        let ent = NSDictionary(contentsOfFile: path) as? [String: Any] ?? [:]
+        var gs = [Bundle.main.bundleIdentifier ?? "isim.unknown"]
+        for key in ["keychain-access-groups", "com.apple.security.application-groups"] {
+            for g in ent[key] as? [String] ?? [] where !gs.contains(g) { gs.append(g) }
+        }
+        return gs
+    }()
+    func entitled(_ group: String) -> Bool {
+        if entitledGroups.contains(group) { return true }
+        FileHandle.standardError.write(Data("isim: keychain access group '\(group)' is not in the app's keychain-access-groups or application-groups entitlement: errSecMissingEntitlement\n".utf8))
+        return false
+    }
+    /// access groups an app searches without naming one: its entitled groups (and groups it stored items in, still entitled)
+    func groups() -> [String] { entitledGroups + (load(defaultGroup).groups ?? []).filter { !entitledGroups.contains($0) && entitled($0) } }
     func remember(group: String) {
         guard group != defaultGroup else { return }
         var f = load(defaultGroup)
@@ -196,6 +212,7 @@ final class _Keychain: @unchecked Sendable {
         }
         let group: String
         if case .string(let g) = item.attrs["agrp"] ?? .string(defaultGroup) { group = g } else { return errSecParam }
+        guard entitled(group) else { return errSecMissingEntitlement }
         let now = Date().timeIntervalSince1970
         item.attrs["agrp"] = .string(group)
         item.attrs["cdat"] = item.attrs["cdat"] ?? .date(now)
@@ -218,6 +235,7 @@ final class _Keychain: @unchecked Sendable {
         out?.pointee = nil
         let (cls, st) = classOf(q)
         guard let cls else { return st }
+        if let g = q["agrp"] as? String, !entitled(g) { return errSecMissingEntitlement }
         lock.lock(); defer { lock.unlock() }
         var found: [(String, _KCItem)] = []
         for g in searchGroups(q) { for item in load(g).items where matches(item, group: g, q, cls: cls) { found.append((g, item)) } }
@@ -230,7 +248,9 @@ final class _Keychain: @unchecked Sendable {
     func update(_ q: [String: Any], _ changes: [String: Any]) -> OSStatus {
         let (cls, st) = classOf(q)
         guard let cls else { return st }
+        if let g = q["agrp"] as? String, !entitled(g) { return errSecMissingEntitlement }
         if changes["class"] != nil { return errSecParam }
+        if let g = changes["agrp"] as? String, !entitled(g) { return errSecMissingEntitlement }
         var newData: [UInt8]?
         if let v = changes["v_Data"] { guard let d = v as? Data else { return errSecParam }; newData = Array(d) }
         var newAttrs: [String: _KCValue] = [:]
@@ -276,6 +296,7 @@ final class _Keychain: @unchecked Sendable {
     func delete(_ q: [String: Any]) -> OSStatus {
         let (cls, st) = classOf(q)
         guard let cls else { return st }
+        if let g = q["agrp"] as? String, !entitled(g) { return errSecMissingEntitlement }
         lock.lock(); defer { lock.unlock() }
         var removed = 0
         for g in searchGroups(q) {

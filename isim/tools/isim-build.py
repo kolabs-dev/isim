@@ -809,7 +809,8 @@ def apply_alternate_icons(s, bundle, info, name):
         log(f'{name}: alternate app icons {", ".join(sorted(alt))}')
 
 
-# entitlements (associated domains, app groups) as Xcode's simulator builds have them: archived-expanded-entitlements.xcent
+# entitlements (associated domains, app groups, keychain groups) as Xcode's simulator builds have them: archived-expanded-entitlements.xcent
+# (isim enforces app groups and keychain access groups from it; nothing is signed)
 def apply_entitlements(target, s, bundle):
     if not s.get('CODE_SIGN_ENTITLEMENTS'):
         return
@@ -817,8 +818,21 @@ def apply_entitlements(target, s, bundle):
     if os.path.exists(ent):
         with open(ent, 'rb') as f:
             ent_plist = plistlib.load(f)
+        # $(AppIdentifierPrefix) / $(TeamIdentifierPrefix) are "TEAM." with DEVELOPMENT_TEAM (Xcode gets them from the
+        # provisioning profile); isim signs nothing, so without a team they are empty
+        team = s.get('DEVELOPMENT_TEAM', '')
+        vs = dict(s, AppIdentifierPrefix=f'{team}.' if team else '', TeamIdentifierPrefix=f'{team}.' if team else '')
+
+        def exp(v):
+            if isinstance(v, str):
+                return expand(v, vs)
+            if isinstance(v, list):
+                return [exp(x) for x in v]
+            if isinstance(v, dict):
+                return {k: exp(x) for k, x in v.items()}
+            return v
         with open(os.path.join(bundle, 'archived-expanded-entitlements.xcent'), 'wb') as f:
-            plistlib.dump(ent_plist, f)
+            plistlib.dump(exp(ent_plist), f)
 
 
 def make_info_plist(target, settings, bundle, extra_localizations, package_type='APPL'):
