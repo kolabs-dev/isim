@@ -38,7 +38,7 @@ NS_SWIFT_UI_ACTOR
 - (void)notificationOccurred:(UINotificationFeedbackType)notificationType atLocation:(CGPoint)location API_AVAILABLE(ios(17.5)) NS_SWIFT_NAME(notificationOccurred(_:at:));
 @end
 /* iOS 17.5: drawing canvases (snapping, finished paths) */
-NS_SWIFT_UI_ACTOR
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.5))
 @interface UICanvasFeedbackGenerator : UIFeedbackGenerator
 - (void)alignmentOccurredAtLocation:(CGPoint)location NS_SWIFT_NAME(alignmentOccurred(at:));
 - (void)pathCompletedAtLocation:(CGPoint)location NS_SWIFT_NAME(pathCompleted(at:));

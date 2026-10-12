@@ -35,7 +35,7 @@ public struct PHPickerFilter: Hashable, Sendable {
     public static let slomoVideos = PHPickerFilter(["slomo"])
     public static let timelapseVideos = PHPickerFilter(["timelapse"])
     public static let cinematicVideos = PHPickerFilter(["cinematic"])
-    public static let spatialMedia = PHPickerFilter(["spatial"])
+    @available(iOS 18.0, *) public static let spatialMedia = PHPickerFilter(["spatial"])
     public static func any(of subfilters: [PHPickerFilter]) -> PHPickerFilter { PHPickerFilter(subfilters.reduce(into: Set()) { $0.formUnion($1.negated ? [] : $1.kinds) }) }
     public static func all(of subfilters: [PHPickerFilter]) -> PHPickerFilter { any(of: subfilters) }
     public static func not(_ filter: PHPickerFilter) -> PHPickerFilter { PHPickerFilter(filter.kinds, negated: !filter.negated) }

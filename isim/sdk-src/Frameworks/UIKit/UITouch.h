@@ -27,7 +27,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) CGFloat altitudeAngle;
 - (CGFloat)azimuthAngleInView:(nullable UIView *)view;
 - (CGVector)azimuthUnitVectorInView:(nullable UIView *)view;
-@property (nonatomic, readonly) CGFloat rollAngle;
+@property (nonatomic, readonly) CGFloat rollAngle API_AVAILABLE(ios(17.5));
 @property (nonatomic, readonly) UITouchProperties estimatedProperties;
 @property (nonatomic, readonly) UITouchProperties estimatedPropertiesExpectingUpdates;
 @property (nonatomic, readonly, nullable) NSNumber *estimationUpdateIndex;
