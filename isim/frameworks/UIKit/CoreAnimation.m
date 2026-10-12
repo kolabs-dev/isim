@@ -391,6 +391,8 @@ static int key_counter;
     _contentsScale = o->_contentsScale; _magnificationFilter = o->_magnificationFilter; _minificationFilter = o->_minificationFilter;
     _name = o->_name; _delegate = o->_delegate; _speed = o->_speed; _beginTime = o->_beginTime; _timeOffset = o->_timeOffset;
     _geometryFlipped = o->_geometryFlipped; _doubleSided = o->_doubleSided;
+    _shouldRasterize = o->_shouldRasterize; _rasterizationScale = o->_rasterizationScale;
+    _filters = o->_filters; _backgroundFilters = o->_backgroundFilters; _compositingFilter = o->_compositingFilter;
     if (o->_extra) _extra = [o->_extra mutableCopy];
     return self;
 }
@@ -612,6 +614,8 @@ static CATransform3D to_root(CALayer *l) {
 - (void)setShadowOffset:(CGSize)o { CA_SET(@"shadowOffset", _shadowOffset = o); }
 - (void)setContentsRect:(CGRect)r { CA_SET(@"contentsRect", _contentsRect = r); }
 - (void)setMasksToBounds:(BOOL)m { _masksToBounds = m; isim_ui_set_needs_display(); }
+- (void)setShouldRasterize:(BOOL)r { _shouldRasterize = r; isim_ui_set_needs_display(); }
+- (void)setRasterizationScale:(CGFloat)s { _rasterizationScale = s; isim_ui_set_needs_display(); }
 - (void)setHidden:(BOOL)h { _hidden = h; isim_ui_set_needs_display(); }
 - (void)setMaskedCorners:(CACornerMask)m { _maskedCorners = m; isim_ui_set_needs_display(); }
 - (void)setContents:(id)c { _contents = c; isim_ui_set_needs_display(); }
@@ -985,7 +989,7 @@ void ca_render_sublayer_list(CALayer *model, CALayer *p) {
     for (CALayer *l in subs) ca_render_layer(l, hasSub ? &sm : NULL);
 }
 
-/* contents (CGImage / UIImage) with gravity, contentsRect and contentsScale */
+/* contents (CGImage / UIImage) with gravity, contentsRect, contentsScale and contentsCenter */
 void ca_draw_contents(CALayer *p, CGRect B) {
     id c = p.contents;
     if (!c) return;
@@ -1016,7 +1020,29 @@ void ca_draw_contents(CALayer *p, CGRect B) {
         d.origin = CGPointMake(x, y);
     }
     BOOL nearest = [p.magnificationFilter isEqual:kCAFilterNearest];
-    isim_image_draw_part(h, sx, sy, sw, sh, d.origin.x, d.origin.y, d.size.width, d.size.height, nearest, NULL, 0, 1);
+    /* contentsCenter (9-slice): when the contents are scaled, the corners keep their natural size, the edges stretch
+       along one axis and the centre in both (fractions of the contentsRect part of the image) */
+    CGRect cc = p.contentsCenter;
+    BOOL scaled = fabs(d.size.width - iw) > 0.01 || fabs(d.size.height - ih) > 0.01;
+    BOOL unit = cc.origin.x <= 0 && cc.origin.y <= 0 && cc.origin.x + cc.size.width >= 1 && cc.origin.y + cc.size.height >= 1;
+    if (!scaled || unit || cc.size.width < 0 || cc.size.height < 0) {
+        isim_image_draw_part(h, sx, sy, sw, sh, d.origin.x, d.origin.y, d.size.width, d.size.height, nearest, NULL, 0, 1);
+        return;
+    }
+    double fx[4] = { 0, fmax(0, cc.origin.x), fmin(1, cc.origin.x + cc.size.width), 1 };
+    double fy[4] = { 0, fmax(0, cc.origin.y), fmin(1, cc.origin.y + cc.size.height), 1 };
+    /* destination: the fixed parts at natural size, shrunk together when the layer is smaller than they are */
+    double dx[4], dy[4];
+    double left = fx[1] * iw, right = (1 - fx[2]) * iw, top = fy[1] * ih, bottom = (1 - fy[2]) * ih;
+    double kx = left + right > d.size.width && left + right > 0 ? d.size.width / (left + right) : 1;
+    double ky = top + bottom > d.size.height && top + bottom > 0 ? d.size.height / (top + bottom) : 1;
+    dx[0] = d.origin.x; dx[1] = dx[0] + left * kx; dx[3] = CGRectGetMaxX(d); dx[2] = dx[3] - right * kx;
+    dy[0] = d.origin.y; dy[1] = dy[0] + top * ky; dy[3] = CGRectGetMaxY(d); dy[2] = dy[3] - bottom * ky;
+    for (int j = 0; j < 3; j++) for (int i = 0; i < 3; i++) {
+        double w = dx[i + 1] - dx[i], hh = dy[j + 1] - dy[j], srcw = (fx[i + 1] - fx[i]) * sw, srch = (fy[j + 1] - fy[j]) * sh;
+        if (w <= 0 || hh <= 0 || srcw <= 0 || srch <= 0) continue;
+        isim_image_draw_part(h, sx + fx[i] * sw, sy + fy[j] * sh, srcw, srch, dx[i], dy[j], w, hh, nearest, NULL, 0, 1);
+    }
 }
 
 /* the layer's own appearance in its bounds coordinates; silhouette: no shadow (drawn for the shadow's shape) */
@@ -1088,13 +1114,32 @@ static void transition_end(CGRect b, tr_state *st) {
     double pw, ph; isim_image_pixel_size(st->img, &pw, &ph);
     isim_image_draw_part(st->img, 0, 0, pw, ph, b.origin.x + st->odx, b.origin.y + st->ody, b.size.width, b.size.height, 0, NULL, 0, st->oldAlpha);
 }
+/* shouldRasterize: the layer (with its shadow and sublayers) drawn into a bitmap of rasterizationScale pixels per
+   point, then composited (opacity is applied to the bitmap, not rasterized: render_layer_in_bounds) */
+static void render_rasterized(CALayer *m, CALayer *p) {
+    CGRect b = p.bounds; double pad = 0;
+    if (p.shadowOpacity > 0 && p.shadowColor) pad = p.shadowRadius * 3 + fmax(fabs(p.shadowOffset.width), fabs(p.shadowOffset.height));
+    CGRect r = CGRectInset(b, -pad, -pad);
+    double s = p.rasterizationScale > 0 ? p.rasterizationScale : 1;
+    if (r.size.width <= 0 || r.size.height <= 0 || r.size.width * s > 8192 || r.size.height * s > 8192 ||
+        !isim_gfx_offscreen_begin(r.size.width, r.size.height, s, 0)) { render_body(m, p, NO); return; }
+    isim_gfx_translate(-r.origin.x, -r.origin.y);
+    render_body(m, p, NO);
+    int img = isim_gfx_offscreen_snapshot();
+    isim_gfx_offscreen_end();
+    if (!img) return;
+    double pw, ph; isim_image_pixel_size(img, &pw, &ph);
+    isim_image_draw_part(img, 0, 0, pw, ph, r.origin.x, r.origin.y, r.size.width, r.size.height,
+                         [p.magnificationFilter isEqual:kCAFilterNearest], NULL, 0, 1);
+    isim_image_free(img);
+}
 static void render_layer_in_bounds(CALayer *m, CALayer *p) {
     double a = p.opacity;
     CALayer *mask = p.mask;
     BOOL group = a < 0.999 || mask;
     if (group) isim_gfx_push_group();
     tr_state trs; BOOL tr = transition_begin(m, p.bounds, &trs);
-    render_body(m, p, NO);
+    if (p.shouldRasterize) render_rasterized(m, p); else render_body(m, p, NO);
     if (tr) transition_end(p.bounds, &trs);
     if (group) {
         if (mask) { isim_gfx_push_group(); ca_render_layer(mask, NULL); isim_gfx_pop_group_masked(a); }
@@ -1112,6 +1157,30 @@ void ca_render_layer(CALayer *m, const CATransform3D *parentSub) {
     CATransform3D mx = layer_matrix(p);
     if (parentSub) mx = ca_mul(mx, *parentSub);
     CGRect b = p.bounds;
+    if ([m isKindOfClass:[CATransformLayer class]]) {
+        /* a transform layer does not flatten: its sublayers get its full (3D) matrix and are drawn back to front */
+        CATransform3D t = ca_mul(sublayer_matrix(p), mx);
+        NSArray<CALayer *> *subs = [m _isim_subsRaw];
+        NSUInteger n = subs.count;
+        double *depth = malloc(sizeof(double) * (n ? n : 1)); NSUInteger *order = malloc(sizeof(NSUInteger) * (n ? n : 1));
+        for (NSUInteger i = 0; i < n; i++) {
+            CALayer *sp = [subs[i] _isim_presentationAt:CACurrentMediaTime()];
+            CATransform3D cm = ca_mul(layer_matrix(sp), t);
+            CGRect sb = sp.bounds;
+            double x = CGRectGetMidX(sb), y = CGRectGetMidY(sb);
+            double z = x * cm.m13 + y * cm.m23 + cm.m43, w = x * cm.m14 + y * cm.m24 + cm.m44;
+            depth[i] = fabs(w) > 1e-9 ? z / w : z;                          /* +z is toward the viewer */
+            order[i] = i;
+        }
+        for (NSUInteger i = 1; i < n; i++) {                              /* stable: equal depths keep sublayer order */
+            NSUInteger k = order[i]; NSInteger j = (NSInteger)i - 1;
+            while (j >= 0 && depth[order[j]] > depth[k]) { order[j + 1] = order[j]; j--; }
+            order[j + 1] = k;
+        }
+        for (NSUInteger i = 0; i < n; i++) ca_render_layer(subs[order[i]], &t);
+        free(depth); free(order);
+        return;
+    }
     if (ca_is_affine2d(mx)) {
         isim_gfx_save();
         isim_gfx_concat(mx.m11, mx.m12, mx.m21, mx.m22, mx.m41, mx.m42);

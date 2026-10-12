@@ -69,7 +69,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Objective-C runtime & C library | 18 | 0 | 0 | 0 | 18 | 100% |
 | Core Graphics | 22 | 0 | 0 | 0 | 22 | 100% |
 | Core Text | 7 | 0 | 0 | 0 | 7 | 100% |
-| QuartzCore / Core Animation | 15 | 5 | 1 | 0 | 21 | 83% |
+| QuartzCore / Core Animation | 21 | 0 | 0 | 0 | 21 | 100% |
 | Core Image, ImageIO & Metal | 2 | 1 | 0 | 2 | 5 | 50% |
 | SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
 | GameKit (Game Center) | 18 | 0 | 0 | 0 | 18 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 31 | 15 | 1 | 3 | 50 | 77% |
-| **All areas** | **886** | **99** | **20** | **88** | **1093** | **86%** |
+| **All areas** | **892** | **94** | **19** | **88** | **1093** | **86%** |
 
 ### Per iOS version
 
@@ -103,7 +103,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
 | Core Graphics | 100% (22) | 100% (22) | 100% (22) | 100% (22) |
 | Core Text | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
-| QuartzCore / Core Animation | 83% (21) | 83% (21) | 83% (21) | 83% (21) |
+| QuartzCore / Core Animation | 100% (21) | 100% (21) | 100% (21) | 100% (21) |
 | Core Image, ImageIO & Metal | 50% (5) | 50% (5) | 50% (5) | 50% (5) |
 | SpriteKit | 67% (46) | 67% (46) | 67% (46) | 67% (46) |
 | GameKit (Game Center) | 100% (17) | 100% (17) | 100% (18) | 100% (18) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 78% (48) | 78% (49) | 77% (50) | 77% (50) |
-| **All areas** | **85%** (1030) | **85%** (1045) | **85%** (1072) | **86%** (1093) |
+| **All areas** | **86%** (1030) | **86%** (1045) | **86%** (1072) | **86%** (1093) |
 
 ---
 
@@ -1116,21 +1116,21 @@ their presentation copies (model + running animations); there is no separate ren
 | `mask` | ✅ | ≤17 | see UIKit |
 | `magnificationFilter` / `minificationFilter` | ✅ | ≤17 | nearest affects image drawing |
 | Sublayers, custom drawing (`draw(in:)`, delegate `draw(_:in:)`/`display(_:)`/`layoutSublayers(of:)`), `setNeedsDisplay`/`setNeedsLayout` | ✅ | ≤17 | content is redrawn every frame; display/layout run when flagged. Tested (sublayers, AVPlayerLayer in HelloVideo) |
-| `contents` (CGImage / UIImage), `contentsGravity`, `contentsRect`, `contentsScale` | 🟡 | ≤17 | all gravities; `contentsCenter` (9-slice) stored, not applied; unverified |
+| `contents` (CGImage / UIImage), `contentsGravity`, `contentsRect`, `contentsScale`, `contentsCenter` | ✅ | ≤17 | every gravity (top / bottom are y-up, as on iOS: `bottomLeft` is the top left), `contentsRect` (no bleeding from the pixels around the part), `contentsScale` (the natural size), `contentsCenter` 9-slice when the contents are scaled (corners at natural size, edges stretched along one axis, the centre in both; shrunk together when the layer is smaller). Tested (HelloCALayers) |
 | `CAShapeLayer` | ✅ | ≤17 | path fill (rules) and stroke (width, caps, joins, miter, dashes + phase), `strokeStart`/`strokeEnd` trimming along the path length, animatable path (same-structure paths morph, others switch half-way). Tested (strokeEnd half-way pixels) |
 | `CAGradientLayer` | ✅ | ≤17 | axial, radial (ellipse from startPoint reaching endPoint), conic; `locations`; animatable colours/locations/points. Tested (axial pixels); radial/conic unverified |
-| `CATextLayer` | 🟡 | ≤17 | NSString/NSAttributedString, font (UIFont, name), size, colour, alignment, wrapping; truncation modes stored |
+| `CATextLayer` | ✅ | ≤17 | NSString / NSAttributedString, font (UIFont, CTFont, name), size, colour, alignment, wrapping; `truncationMode` start / middle / end with an ellipsis (one line in the width, or wrapped, the lines that fit the height); `.none` draws the whole string, cut off at the bounds. Tested (HelloCALayers) |
 | `CAReplicatorLayer` | ✅ | ≤17 | `instanceCount`, `instanceTransform` (perspective too), `instanceDelay`, `instanceColor` + RGBA offsets. Tested (5 copies) |
-| `CAEmitterLayer`, `CAEmitterCell` | 🟡 | ≤17 | adapted: 2D particle simulation (point/line/rectangle/circle shapes, birth rate, lifetime, velocity, emission angle/range, acceleration, scale/spin/colour speeds and ranges, additive render mode); nested `emitterCells` and 3D emission stored only. Tested (particles spawn) |
-| `CATransformLayer`, `CAScrollLayer` | 🟡 | ≤17 | transform layer renders like a plain layer (no shared 3D space); scroll layer scrolls its bounds. Unverified |
+| `CAEmitterLayer`, `CAEmitterCell` | ✅ | ≤17 | adapted: particle simulation (point / line / rectangle / circle / cuboid / sphere shapes, birth rate, lifetime, velocity, emission angle / range, acceleration, scale / spin / colour speeds and ranges; render modes: oldest first / last, back to front, additive); a cell's `emitterCells` are emitted by each of its particles, from its position, at angles relative to its direction, inheriting its scale and colour; 3D emission (`emissionLatitude`, `zAcceleration`, `emitterZPosition` / `emitterDepth`) moves particles in z, drawn projected onto the layer's plane (orthographic). Tested (HelloCALayers: sub-cell trails, latitude) |
+| `CATransformLayer`, `CAScrollLayer` | ✅ | ≤17 | adapted: a transform layer's sublayers share its 3D space (not flattened into its plane), each drawn in perspective, back to front by the depth of its centre (no per-pixel depth buffer: intersecting layers are not split); it draws no content of its own. Scroll layer: `scroll(to:)` (point / rect), `scrollMode`, and CALayer `scroll(_:)` / `scrollRectToVisible(_:)` / `visibleRect` through the nearest scroll layer. Tested (HelloCALayers) |
 | `CABasicAnimation`, `CAKeyframeAnimation`, `CASpringAnimation`, `CAAnimationGroup` | ✅ | ≤17 | from/to/by (missing end = current presentation value), additive, cumulative, keyframe values or path, keyTimes, timingFunctions, linear/discrete/paced/cubic modes, rotationMode; damped-spring physics with settlingDuration and perceptual duration/bounce; groups; key paths incl. `transform.rotation.z`, `position.x`, `bounds.size`, custom KVC keys. Tested (keyframe positions at times, spring, group, view-layer rotation) |
 | CAMediaTiming (`beginTime`, `duration`, `speed`, `timeOffset`, `repeatCount`/`repeatDuration`, `autoreverses`, `fillMode`, `isRemovedOnCompletion`); layer timing (`speed = 0` pausing, `convertTime`) | ✅ | ≤17 | Tested (paused layer + timeOffset, fillMode forwards) |
 | Animation delegate, `add(_:forKey:)`, `removeAnimation(forKey:)`, `animation(forKey:)`, `animationKeys()`, `presentation()`/`model()` | ✅ | ≤17 | Tested |
-| `CATransition` | 🟡 | ≤17 | fade, push, moveIn, reveal with subtypes: the previous on-screen appearance (a snapshot when added) leaves while the new state comes in; unverified |
+| `CATransition` | ✅ | ≤17 | fade, push, moveIn, reveal with subtypes: the previous on-screen appearance (a snapshot when added) leaves while the new state comes in, on the transition's timing (pausable with the layer's `speed` / `timeOffset`). Tested (HelloCALayers: each kind half-way) |
 | `CATransaction`, implicit animations, `CAMediaTimingFunction` | ✅ | ≤17 | begin/commit, duration, timing function, `setDisableActions`, completion blocks (wait for the transaction's animations), implicit 0.25 s animations for standalone layers only (not a view's layer, as on iOS), `actions`/delegate `action(for:forKey:)`/NSNull; custom control-point curves. Tested |
 | `CADisplayLink` | ✅ | ≤17 | fires once per frame while added; keeps the run loop at 60 fps |
 | `CATransform3D` | ✅ | ≤17 | full 4x4 math (make/translate/scale/rotate/concat/invert/isAffine/affine conversions), NSValue boxing and Swift bridging. Tested |
-| `CAValueFunction`, `filters`/`compositingFilter`, `shouldRasterize` | 🧩 | ≤17 | stored, not applied |
+| `CAValueFunction`, `filters`/`compositingFilter`, `shouldRasterize` | ✅ | ≤17 | value functions (rotate / scale / translate, per axis or 3-vector) in basic, spring and keyframe animations of a transform: the numbers are interpolated, then made into the transform. `shouldRasterize`: the layer (with its shadow and sublayers) drawn into a bitmap of `rasterizationScale` pixels per point, opacity applied to the bitmap. `filters`, `backgroundFilters`, `compositingFilter`: stored, not applied, like iOS ("not supported on layers in iOS"). Tested (HelloCALayers) |
 
 ## Core Image, ImageIO & Metal
 

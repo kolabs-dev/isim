@@ -431,6 +431,15 @@ void isim_image_draw_symbol_layered(int hd, double x, double y, double w, double
 /* Draws the source rectangle (sx, sy, sw, sh in image pixels) of a raster image into (x, y, w, h).
  * nearest: pixel-art filtering. blend: mix the color into the image's opaque pixels by factor (SpriteKit's
  * colorBlendFactor). Vector/procedural images are drawn whole. */
+/* the part (sx, sy, sw, sh) of an image as a source surface, placed at (*ox, *oy) relative to the part's origin: a
+   sub-surface when it is less than the whole image, so that filtering at its edges does not pick up the pixels around
+   it (a sprite in an atlas, one slice of a 9-slice) */
+static cairo_surface_t *part_surface(struct img *im, double sx, double sy, double sw, double sh, double *ox, double *oy) {
+    double x0 = sx < 0 ? 0 : sx, y0 = sy < 0 ? 0 : sy, x1 = sx + sw > im->w ? im->w : sx + sw, y1 = sy + sh > im->h ? im->h : sy + sh;
+    if ((x0 <= 0 && y0 <= 0 && x1 >= im->w && y1 >= im->h) || x1 <= x0 || y1 <= y0) { *ox = -sx; *oy = -sy; return cairo_surface_reference(im->surf); }
+    *ox = x0 - sx; *oy = y0 - sy;
+    return cairo_surface_create_for_rectangle(im->surf, x0, y0, x1 - x0, y1 - y0);
+}
 void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
                           int nearest, const double *blend, double factor, double alpha) {
     struct img *im = get(hd); cairo_t *c = isim_host_cairo();
@@ -438,25 +447,30 @@ void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, do
     if (im->kind != IMG_RASTER) { isim_image_draw(hd, x, y, w, h, NULL, alpha); return; }
     cairo_save(c);
     cairo_translate(c, x, y);
+    cairo_new_path(c);                               /* (not a path left behind by an earlier fill: it would join the clip) */
     cairo_rectangle(c, 0, 0, w, h);
     cairo_clip(c);
     if (!blend || factor <= 0) {                     /* fast path: no group */
         cairo_scale(c, w / sw, h / sh);
-        cairo_set_source_surface(c, im->surf, -sx, -sy);
+        double ox, oy; cairo_surface_t *src = part_surface(im, sx, sy, sw, sh, &ox, &oy);
+        cairo_set_source_surface(c, src, ox, oy);
         cairo_pattern_set_filter(cairo_get_source(c), nearest ? CAIRO_FILTER_NEAREST : CAIRO_FILTER_GOOD);
         cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
         if (alpha >= 0.999) cairo_paint(c); else cairo_paint_with_alpha(c, alpha);
         cairo_restore(c);
+        cairo_surface_destroy(src);
         return;
     }
     cairo_push_group(c);
     cairo_save(c);
     cairo_scale(c, w / sw, h / sh);
-    cairo_set_source_surface(c, im->surf, -sx, -sy);
+    double ox, oy; cairo_surface_t *src = part_surface(im, sx, sy, sw, sh, &ox, &oy);
+    cairo_set_source_surface(c, src, ox, oy);
     cairo_pattern_set_filter(cairo_get_source(c), nearest ? CAIRO_FILTER_NEAREST : CAIRO_FILTER_GOOD);
     cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
     cairo_paint(c);
     cairo_restore(c);
+    cairo_surface_destroy(src);
     if (blend && factor > 0) {
         cairo_set_operator(c, CAIRO_OPERATOR_ATOP);
         cairo_set_source_rgba(c, blend[0], blend[1], blend[2], factor > 1 ? 1 : factor);
