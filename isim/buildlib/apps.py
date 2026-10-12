@@ -663,7 +663,9 @@ def generate(c, have_swift):
         # the compiled module files only: .swiftdoc / .swiftsourceinfo change with comments and line numbers
         paths += [f"{S}/usr/lib/swift/*.swiftmodule/*.swiftmodule", f"{S}/usr/lib/swift/*.swiftmodule/*.swiftinterface",
                   f"{O}/swift/host/plugins/*.so"]          # isim's macro plugins: their expansions are in the apps
-    n.build(iface, c.act("stamp", iface, *paths), implicit=["sdk-c"] + (["swift"] if have_swift else []), desc="SDK interface")
+    # the installed tools too: apps are built with out/bin's copies (isim build imports ibtool / xcodeproj from there)
+    installed = [f"{O}/bin/{t}" for t in ("isim", "isim-build.py", "xcodeproj.py", "ibtool.py")]
+    n.build(iface, c.act("stamp", iface, *paths), implicit=["sdk-c"] + installed + (["swift"] if have_swift else []), desc="SDK interface")
     srcs = [f"samples/HelloToolchain/Vendor/Sum/{f}" for f in ("sum.c", "sum.h", "module.modulemap")]
     n.build([f"{XCF}/{f}" for f in XCF_FILES], ["python3", "-m", "buildlib.apps", "--xcframework"], inputs=srcs,
             implicit=["out/bin/isim", "buildlib/apps.py"], order_only=["sdk-c"], desc="XCFRAMEWORK Sum")
