@@ -20,8 +20,10 @@ public struct DateComponents: Hashable, Sendable, CustomStringConvertible {
     public var weekOfMonth: Int?
     public var weekOfYear: Int?
     public var yearForWeekOfYear: Int?
-    public var dayOfYear: Int?
+    var _dayOfYear: Int?     // dayOfYear (iOS 18)
     public var isLeapMonth: Bool?
+    @available(iOS 18.0, *)
+    public var dayOfYear: Int? { get { _dayOfYear } set { _dayOfYear = newValue } }
 
     public init(calendar: Calendar? = nil, timeZone: TimeZone? = nil, era: Int? = nil, year: Int? = nil, month: Int? = nil,
                 day: Int? = nil, hour: Int? = nil, minute: Int? = nil, second: Int? = nil, nanosecond: Int? = nil,
@@ -49,7 +51,7 @@ public struct DateComponents: Hashable, Sendable, CustomStringConvertible {
         case .weekOfMonth: return weekOfMonth
         case .weekOfYear: return weekOfYear
         case .yearForWeekOfYear: return yearForWeekOfYear
-        case .dayOfYear: return dayOfYear
+        case .dayOfYear: return _dayOfYear
         default: return nil
         }
     }
@@ -69,7 +71,7 @@ public struct DateComponents: Hashable, Sendable, CustomStringConvertible {
         case .weekOfMonth: weekOfMonth = v
         case .weekOfYear: weekOfYear = v
         case .yearForWeekOfYear: yearForWeekOfYear = v
-        case .dayOfYear: dayOfYear = v
+        case .dayOfYear: _dayOfYear = v
         default: break
         }
     }
@@ -114,7 +116,9 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
     }
     public enum Component: Hashable, Sendable {
         case era, year, month, day, hour, minute, second, weekday, weekdayOrdinal, quarter, weekOfMonth, weekOfYear,
-             yearForWeekOfYear, nanosecond, calendar, timeZone, dayOfYear, isLeapMonth
+             yearForWeekOfYear, nanosecond, calendar, timeZone
+        @available(iOS 18.0, *) case dayOfYear
+        case isLeapMonth
     }
     public enum SearchDirection: Sendable { case forward, backward }
     public enum RepeatedTimePolicy: Sendable { case first, last }
@@ -208,7 +212,7 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
         if components.contains(.weekday) { c.weekday = f.wd }
         if components.contains(.weekdayOrdinal) { c.weekdayOrdinal = (f.d - 1) / 7 + 1 }
         if components.contains(.quarter) { c.quarter = (f.m - 1) / 3 + 1 }
-        if components.contains(.dayOfYear) { c.dayOfYear = f.doy }
+        if #available(iOS 18.0, *), components.contains(.dayOfYear) { c._dayOfYear = f.doy }
         if components.contains(.weekOfYear) || components.contains(.yearForWeekOfYear) {
             let w = weekOfYear(f)
             if components.contains(.weekOfYear) { c.weekOfYear = w.week }
@@ -224,7 +228,9 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
     }
     public func dateComponents(in timeZone: TimeZone, from date: Date) -> DateComponents {
         var cal = self; cal.timeZone = timeZone
-        var c = cal.dateComponents([.era, .year, .month, .day, .hour, .minute, .second, .nanosecond, .weekday, .weekdayOrdinal, .quarter, .weekOfMonth, .weekOfYear, .yearForWeekOfYear, .dayOfYear], from: date)
+        var all: Set<Component> = [.era, .year, .month, .day, .hour, .minute, .second, .nanosecond, .weekday, .weekdayOrdinal, .quarter, .weekOfMonth, .weekOfYear, .yearForWeekOfYear]
+        if #available(iOS 18.0, *) { all.insert(.dayOfYear) }
+        var c = cal.dateComponents(all, from: date)
         c.calendar = cal; c.timeZone = timeZone
         return c
     }
@@ -245,7 +251,7 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
             let wd = c.weekday ?? firstWeekday
             let day = start + (w - 1) * 7 + (wd - firstWeekday + 7) % 7
             (y, m, d) = _civil(fromDays: day)
-        } else if let doy = c.dayOfYear, c.month == nil {
+        } else if let doy = c._dayOfYear, c.month == nil {
             (y, m, d) = _civil(fromDays: _days(fromCivil: y, 1, 1) + doy - 1)
         }
         // normalize month overflow

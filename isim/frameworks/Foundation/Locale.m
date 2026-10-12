@@ -1148,7 +1148,21 @@ static void skip_ws_comments(const char **pp, const char *end) {
     *pp = p;
 }
 NSDictionary *isim_parse_strings_file(NSString *path) {
-    NSString *text = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL];
+    NSData *data = [NSData dataWithContentsOfFile:path];
+    if (!data) return nil;
+    const unsigned char *raw = data.bytes;
+    NSString *text;
+    if (data.length >= 2 && ((raw[0] == 0xFF && raw[1] == 0xFE) || (raw[0] == 0xFE && raw[1] == 0xFF))) {
+        /* UTF-16 with a byte order mark (what Apple's ibtool --export-strings-file and many editors write) */
+        NSUInteger n = (data.length - 2) / 2;
+        unichar *u = malloc((n + 1) * sizeof(unichar));
+        for (NSUInteger k = 0; k < n; k++) {
+            unsigned char a = raw[2 + 2 * k], b = raw[3 + 2 * k];
+            u[k] = raw[0] == 0xFF ? (unichar)(a | b << 8) : (unichar)(a << 8 | b);
+        }
+        text = [[NSString alloc] initWithCharacters:u length:n];
+        free(u);
+    } else text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     if (!text) return nil;
     const char *p = text.UTF8String, *end = p + strlen(p);
     if (!strncmp(p, "\xEF\xBB\xBF", 3)) p += 3;

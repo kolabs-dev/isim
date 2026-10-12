@@ -1,7 +1,8 @@
 # Scripting and automation
 
-`isim boot` and `isim run` accept `--headless --script "…"`: a list of commands separated by `;` that drive the
-device like a person (or like Xcode's Simulator menus) and then quit. Tests and CI use this.
+`isim boot` and `isim run` accept `--headless --script "…"`: a list of commands separated by `;` (or newlines; `\;` is
+a literal `;`, e.g. `type a\;b`) that drive the device like a person (or like Xcode's Simulator menus) and then quit.
+Tests and CI use this.
 
 The same commands can be sent to a running device from another terminal (or by an AI agent) with `isim send`:
 
@@ -29,7 +30,8 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `wait S` | wait S seconds (fractions allowed; `ISIM_WAIT_SCALE=2` doubles every wait, for slow machines) |
 | `quit` | stop the device |
 | `focus` | bring the device window to the front (what `isim open` sends to a running device; the desktop may only highlight it, Wayland compositors decide) |
-| `home` | go to the home screen |
+| `home` | go to the home screen. With `isim run` (the app alone, also XCUITest's app) there is no home screen: the app goes to the background |
+| `activate` | `isim run` only: bring the app back from the background (like tapping its icon after `home`) |
 | `launch BUNDLE_ID` | open an installed app |
 | `openurl URL` | open a URL: under `isim boot` the home screen opens it in the app that handles it (its `CFBundleURLTypes` scheme, or an https universal link of its `applinks:` domains); with `isim run` the running app gets it (custom schemes, its own universal links, other web URLs "open in Safari"). Under `isim boot`, web URLs no app claims open in isim's Safari. `isim openurl URL` does the same from another terminal |
 | `handoff TYPE [URL] [TITLE]` | `isim boot` only: an `NSUserActivity` handed off from another device (isim is one device; the script plays the other). The app that lists `TYPE` in `NSUserActivityTypes` continues it (launched with it in `connectionOptions.userActivities` / launch options, or `scene(_:continue:)` / `application(_:continue:restorationHandler:)` when running); `NSUserActivityTypeBrowsingWeb` with a URL goes to the app that claims it as a universal link, else to Safari |
@@ -52,6 +54,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `spotlight` | Spotlight on the home screen |
 | `island` | expand / collapse the Dynamic Island's Live Activity |
 | `homepage N` / `homepage library` | show home-screen page N (1-based) or the App Library |
+| `iconstyle STYLE [#RRGGBB] [small\|large]` | Home Screen icon appearance, as chosen in edit mode › Edit › Customize: `automatic`, `light`, `dark`, `tinted` (with the tint) or, iOS 26+, `clear`; small or large icons (saved; logs `SpringBoard: icon appearance …`) |
 | `swipehome left\|right` | swipe across the home screen (left: the next page) |
 
 While one of these is shown, `dump` lists its parts (ids and text) and `tapid` / `swipeid` act on them.
@@ -78,7 +81,7 @@ extension's view is drawn at the top of the card.
 | `tapid ID` | tap the view whose `accessibilityIdentifier` is ID |
 | `taptext TEXT` | tap the view that shows TEXT |
 | `holdid ID S` | press and hold a view for S seconds |
-| `drag X1 Y1 X2 Y2 [S [HOLD]]` | drag between two points, optionally over S seconds, then held HOLD seconds before lifting (e.g. at the screen edge to turn a home-screen page in edit mode) |
+| `drag X1 Y1 X2 Y2 [S [HOLD [PRESS]]]` | drag between two points, optionally over S seconds, then held HOLD seconds before lifting (e.g. at the screen edge to turn a home-screen page in edit mode); PRESS: pressed that many seconds at the start before moving (XCUITest's `press(forDuration:thenDragTo:)`) |
 | `swipeid ID DX DY S` | drag from a view's centre by (DX, DY) over S seconds |
 | `longdrag X1 Y1 X2 Y2 HOLD S` | press, hold HOLD seconds (to start drag and drop), then move over S seconds |
 | `pointerdrag X1 Y1 X2 Y2 HOLD S` | the same with the iPad pointer: the touches are `UITouch.TouchType.indirectPointer` (a trackpad or mouse click) |
@@ -94,7 +97,7 @@ extension's view is drawn at the top of the card.
 
 | Command | What it does |
 |---|---|
-| `type TEXT` | type text into the focused field |
+| `type TEXT` | type text into the focused field: the rest of the command; write `;` as `\;` (a bare `;` ends the command) |
 | `key NAME` | press a key: `backspace`, `return`, `tab`, `escape`, arrows, letters, digits, … |
 | `keydown NAME` / `keyup NAME` | press or release a hardware key (for `pressesBegan`, `GCKeyboard`) |
 | `compose TEXT` | marked (composing) text, as from an input method |

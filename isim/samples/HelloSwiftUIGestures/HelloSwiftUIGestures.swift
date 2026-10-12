@@ -85,8 +85,13 @@ struct PriorityView: View {
                 .gesture(TapGesture().onEnded { print("own parent") }, including: .gesture)
             parent("subviews") { child("subviews") }
                 .gesture(TapGesture().onEnded { print("subviews parent") }, including: .subviews)
-            parent("off") { child("off") }
-                .gesture(TapGesture().onEnded { print("off parent") }, isEnabled: false)
+            if #available(iOS 18.0, *) {
+                parent("off") { child("off") }
+                    .gesture(TapGesture().onEnded { print("off parent") }, isEnabled: false)
+            } else {     // gesture(_:isEnabled:) is iOS 18
+                parent("off") { child("off") }
+                    .gesture(TapGesture().onEnded { print("off parent") }, including: .subviews)
+            }
             parent("drag") { child("drag") }
                 .gesture(DragGesture(minimumDistance: 10).onEnded { _ in print("drag parent") })
         }

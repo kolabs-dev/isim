@@ -8,8 +8,13 @@
 - controls scene: control actions, gesture recognizer from the storyboard, user defined runtime attributes, Auto
   Layout from IB, xib-backed view controllers, UIFontPickerViewController
 - Settings.bundle: the app's page in Settings writes the app's UserDefaults domain, which the app reads
+- library scene: static table cells, UICollectionViewController and UIPageViewController scenes, a storyboard reference
+- localization: <lang>.lproj/Main.strings and a xib's .strings (base internationalization), a localized storyboard copy,
+  ibtool --export-strings-file
 Port of tests/ui/storyboards.sh."""
 import re
+import subprocess
+import sys
 
 import pytest
 from isimtest import ROOT, rgb
@@ -273,3 +278,128 @@ def test_segue_actions_and_variations(launch):
     app.wait_log(r"more: label font 20, badge not installed", count=2)
     app.wait_view(r"id=more-compact-badge", gone=True)
     assert app.quit() == 0
+
+
+def test_static_cells_collection_and_pages(launch):
+    """A UITableViewController scene with static cells (outlets into them, a switch action, selection segues, overrides
+    that call super), a UICollectionViewController scene (flow layout + prototype cell from the storyboard, data source
+    in code), a UIPageViewController scene (pages instantiated by storyboard ID) and a storyboard reference."""
+    app = launch("HelloStoryboards")
+    app.wait_tap_id("tab-Library")
+    app.wait_log(r"library: viewDidLoad")
+    app.wait_view(r"id=static-tall")
+    app.wait_still()
+    lib = app.view_dump()
+    app.screenshot("static-cells")
+    app.tap_id("library-switch")
+    app.wait_log(r"library: notifications false")
+
+    app.tap_id("static-gallery")
+    app.wait_log(r"gallery: viewDidLoad")
+    app.wait_view(r"id=color-8")
+    app.wait_still()
+    gallery = app.view_dump()
+    app.screenshot("gallery")
+    app.tap_id("color-2")
+    app.wait_log(r"gallery: selected Yellow")
+    app.tap_id("nav-back")
+    app.wait_view(r"id=gallery\b", gone=True)
+    app.wait_still()
+
+    app.wait_tap_id("static-pages")
+    app.wait_log(r"pages: viewDidLoad")
+    first = app.wait_view(r"id=page-label text=First page")
+    app.wait_still()
+    app.screenshot("pages")
+    app.drag(340, 500, 60, 500, 0.3)
+    app.wait_log(r"pages: now page 2 completed=true")
+    second = app.wait_view(r"id=page-label text=Second page")
+    app.wait_still()
+    app.tap_id("nav-back")
+    app.wait_view(r"id=page-label", gone=True)
+    app.wait_still()
+
+    app.wait_tap_id("static-greeting")
+    greeting = app.wait_view(r"id=greeting-label text=Hello from Greeting.storyboard")
+    assert app.quit() == 0
+    log = app.log
+
+    assert "isim: static table: 2 sections, 7 cells" in log, "static cells made once from the storyboard"
+    assert "library: viewDidLoad sections=2 storyboard rows=[3, 4] switch=true tall=true dataSource=true " \
+        "axLabel=Enable notifications header0=Account footer0=These rows are static cells from the storyboard. " \
+        "cell=Version" in log, "UITableViewController's data source serves the static content (super)"
+    assert "id=static-version" in lib and "text=1.0 (7)" in lib, "outlet into a static cell (Value1 detail label)"
+    assert "id=static-hidden" not in lib and "id=static-notify" in lib, "numberOfRowsInSection override calls super"
+    assert re.search(r"\([-\d.]+ [-\d.]+; [\d.]+ x 88\) id=static-tall", lib), "heightForRowAt override calls super"
+    assert re.search(r"\([-\d.]+ [-\d.]+; [\d.]+ x 44\) id=static-gallery", lib), "the storyboard's row height"
+    assert "text=BROWSE (3)" in lib and "text=ACCOUNT" in lib and \
+        "text=These rows are static cells from the storyboard." in lib, "section header/footer titles"
+    assert "library: notifications false" in log, "action from a control in a static cell"
+    assert "library: shouldPerformSegue showGallery sender=static-gallery" in log and \
+        "library: prepare showGallery -> GalleryViewController storyboard=Main" in log, "selection segue from a static cell"
+    assert "gallery: viewDidLoad layout=110x110 spacing=12 inset=16 dataSource=true title=Colors" in log, \
+        "UICollectionViewController scene: flow layout from the storyboard"
+    assert "id=color-0" in gallery and "text=Red" in gallery and \
+        re.search(r"ColorCell \([-\d.]+ [-\d.]+; 110 x 110\) id=color-4", gallery), "prototype collection cells"
+    assert "gallery: selected Yellow" in log, "collection view selection"
+    assert "pages: viewDidLoad style=scroll orientation=horizontal" in log and "text=First page" in first and \
+        "text=Second page" in second, "UIPageViewController scene: transition style + pages from the storyboard"
+    assert "library: prepare showGreeting -> UIViewController storyboard=Greeting" in log and \
+        "text=Hello from Greeting.storyboard" in greeting, "storyboard reference (Greeting.storyboard)"
+
+
+def test_localized_storyboards(launch):
+    """Base internationalization: fr.lproj/Main.strings (keys "<object ID>.<property>": titles, texts, segment titles,
+    button configuration titles, placeholders, section headers/footers, accessibility labels),
+    fr.lproj/ProfileViewController.strings (UTF-16, for the xib), and a full localized copy fr.lproj/Greeting.storyboard."""
+    app = launch("HelloStoryboards", env={"ISIM_LANGUAGES": "fr"})
+    notes = app.wait_view(r"id=bar-Réinitialiser")
+    app.wait_tap_id("tab-Bibliothèque")
+    app.wait_log(r"library: viewDidLoad")
+    app.wait_view(r"id=static-tall")
+    app.wait_still()
+    lib = app.view_dump()
+    app.screenshot("static-cells-fr")
+    app.tap_id("static-greeting")
+    greeting = app.wait_view(r"id=greeting-label text=Bonjour, copie française de Greeting.storyboard")
+    app.wait_still()
+    app.screenshot("greeting-fr")
+    app.tap_id("nav-back")
+    app.wait_view(r"id=greeting-label", gone=True)
+    app.wait_tap_id("tab-Commandes")
+    app.wait_log(r"controls: texts")
+    app.wait_tap_id("apply-button")
+    app.wait_log(r"controls: apply tapped")
+    app.tap_id("open-profile")
+    app.wait_log(r"profile: viewDidLoad")
+    assert app.quit() == 0
+    log = app.log
+    assert "id=tab-Notes" in notes and "id=tab-Commandes" in notes and "id=tab-Bibliothèque" in notes, \
+        "tab bar item titles from Main.strings"
+    assert "library: viewDidLoad sections=2 storyboard rows=[3, 4] switch=true tall=true dataSource=true " \
+        "axLabel=Activer les alertes header0=Compte footer0=Ces lignes sont des cellules statiques du storyboard. " \
+        "cell=Version" in log, "static section titles and an accessibility label from Main.strings"
+    assert all(f"text={t}" in lib for t in ("Alertes", "Couleurs", "Salutation", "PARCOURIR (3)", "COMPTE",
+                                            "Bibliothèque")), \
+        "texts of static cells, navigation title"
+    assert "text=Bonjour, copie française de Greeting.storyboard" in greeting, "fr.lproj/Greeting.storyboard (full copy)"
+    assert "controls: texts title=Commandes segments=Un,Deux,Trois status=Prêt" in log and "field=Votre nom" in log, \
+        "controller title, segment titles, label text, placeholder"
+    assert "controls: apply tapped (Appliquer)" in log, "button configuration title"
+    assert "profile: viewDidLoad nibName=ProfileViewController label=true button=Fermer" in log, \
+        "xib localized by a UTF-16 .strings file"
+
+
+def test_export_strings(tmp_path):
+    """isim's ibtool exports a storyboard's localizable texts keyed like Xcode's ibtool --export-strings-file."""
+    out = tmp_path / "Main.strings"
+    sb = ROOT / "samples/HelloStoryboards/HelloStoryboards/Base.lproj/Main.storyboard"
+    subprocess.run([sys.executable, str(ROOT / "tools/ibtool.py"), "-q", str(sb), "--export-strings-file", str(out)],
+                   check=True)
+    text = out.read_text(encoding="utf-8")
+    for line in ('"lsc-00-001.headerTitle" = "Account";', '"csg-00-001.segmentTitles[2]" = "Three";',
+                 '"cap-00-001.configuration.title" = "Apply";', '"ctf-00-001.placeholder" = "Your name";',
+                 '"dtm-00-001.normalTitle" = "Button";',
+                 '"lns-00-001.accessibilityLabel" = "Enable notifications";', '"tbi-00-003.title" = "Library";'):
+        assert line in text, line
+    assert '/* Class = "UITableViewSection"; headerTitle = "Account"; ObjectID = "lsc-00-001"; */' in text

@@ -3,6 +3,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class XCUIElement;
+
 /* A test case. The runner discovers subclasses through the Objective-C runtime and runs every instance
  * method whose name starts with "test" and takes no arguments (Swift: `func testX()`, `func testX() throws`,
  * `func testX() async throws`; members of XCTestCase subclasses are @objc, like on Apple platforms). */
@@ -42,6 +44,14 @@ __attribute__((swift_attr("@objcMembers")))
     NS_SWIFT_NAME(wait(for:timeout:)) NS_SWIFT_DISABLE_ASYNC;
 - (void)waitForExpectations:(NSArray<XCTestExpectation *> *)expectations timeout:(NSTimeInterval)seconds enforceOrder:(BOOL)enforceOrderOfFulfillment
     NS_SWIFT_NAME(wait(for:timeout:enforceOrder:)) NS_SWIFT_DISABLE_ASYNC;
+@end
+
+@interface XCTestCase (XCUIInterruptionMonitor)
+/* UI interruption monitors (UI tests): when a system alert (isim: a permission prompt, listed under the
+ * "com.apple.springboard" application) is up before an action on the app, the monitors are called with it, the most
+ * recently added first, until one returns YES (it handled the alert). Removed at the end of the test. */
+- (id<NSObject>)addUIInterruptionMonitorWithDescription:(NSString *)handlerDescription handler:(BOOL (^)(XCUIElement *interruptingElement))handler;
+- (void)removeUIInterruptionMonitor:(id<NSObject>)monitor;
 @end
 
 NS_ASSUME_NONNULL_END

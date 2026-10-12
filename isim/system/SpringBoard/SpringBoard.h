@@ -20,6 +20,15 @@ NSArray<NSDictionary *> *HSQuickActions(HSApp *app);
 /* the app that handles a URL (custom scheme, or an https universal link via applinks: associated domains) */
 HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal);
 
+/* the Home Screen icon appearance (main.m): the chosen name (automatic|light|dark|tinted|clear), the resolved style
+   (0 light, 1 dark, 2 tinted, 3 clear), the tint (#RRGGBB), large icons; an app's icon in a style */
+NSString *HSIconAppearanceName(void);
+int HSIconStyle(void);
+NSString *HSIconTintHex(void);
+BOOL HSLargeIcons(void);
+UIImage *HSStyledIconImage(HSApp *app, int style);
+UIImage *HSRestyleIcon(UIImage *img, int style, BOOL ownVariant);
+
 /* an app icon with its label (and the remove badge in edit mode) */
 @interface HSIcon : UIControl
 @property (nonatomic, strong) HSApp *app;

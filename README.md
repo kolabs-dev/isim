@@ -34,7 +34,7 @@ running device to the front. `--no-desktop` (`… | bash -s -- --no-desktop`) sk
 isim install ~/.local/lib/isim/current/apps/*.app
 ```
 
-**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.15.0` for a given one);
+**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.16.0` for a given one);
 `isim versions` lists the installed releases and `isim use VERSION` switches between them. Device data
 (`~/.local/share/isim`) is shared by all versions. You can also download a tarball from
 [Releases](https://github.com/kolabs-dev/isim/releases) and run `bin/isim` from it directly.
@@ -47,7 +47,8 @@ isim install ~/.local/lib/isim/current/apps/*.app
 | `isim install App.app…` · `isim uninstall NAME` · `isim apps` | manage installed apps |
 | `isim run App.app [args…]` | install, boot and open the app over the home screen (headless or `ISIM_STANDALONE=1`: the app alone) |
 | `isim reset` | erase installed apps, app data and settings |
-| `isim build (-project App.xcodeproj \| -workspace App.xcworkspace) [-scheme S \| -target T] [-configuration Release] [-o DIR]` | build an Xcode project or workspace: apps, extensions, frameworks, static libraries, local Swift packages, `.xcframework`s (x86_64 simulator slice), `.xcconfig` files |
+| `isim build (-project App.xcodeproj \| -workspace App.xcworkspace) [-scheme S \| -target T] [-configuration Release] [-o DIR]` | build an Xcode project or workspace: apps, extensions, frameworks, static libraries, Swift packages (remote ones fetched with git, pinned in `Package.resolved`), `.xcframework`s (x86_64 simulator slice), `.xcconfig` files, shell script phases, CocoaPods workspaces; products in `./build` of the current folder (or `-o DIR`), the last line is `done: <path to .app>` |
+| `isim build … -list` · `isim build … -showBuildSettings` (`-json`) · `isim project [App.xcodeproj]` | like `xcodebuild -list` / `-showBuildSettings`: targets, configurations, schemes / resolved build settings; the project as a tree (targets → build phases → files) |
 | `isim test -project App.xcodeproj -scheme S [-only-testing:Target/Class/test] [-resultBundlePath DIR]` | build and run the scheme's test targets like `xcodebuild test`: XCTest (hosted in the app or standalone), Swift Testing and XCUITest; exits 65 on failures |
 | `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
 | `isim info App.app` | show Mach-O platform and dependencies |
@@ -124,7 +125,7 @@ Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (t
 22.04 container):
 
 ```bash
-isim/build.py package 0.15.0
+isim/build.py package 0.16.0
 ```
 
 ## Status
@@ -139,7 +140,7 @@ rows). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 | UIKit · SwiftUI | 🟡 | broad coverage, including storyboards and SwiftUI navigation, presentation and effects; SwiftUI is isim's own implementation |
 | Device | ✅ | home screen (pages, folders, App Library, Spotlight, widgets), lock screen, Notification Center, Control Center, app switcher, Settings; 12 iPhones and 4 iPads; iOS 17, 18, 26 and 27 |
 | Linux releases | ✅ | `install.sh`, `isim update` |
-| Device build, signing, .ipa | 🟡 | arm64 executables link; bundling and signing not done |
+| Device build, signing, .ipa | ❌ | blocked: isim's frameworks are simulator-only and Apple's device SDK cannot be used on Linux ([DISTRIBUTION.md](docs/DISTRIBUTION.md)); arm64 code without frameworks links |
 | Upload + TestFlight | ⛔ | see below |
 
 ## Rules and limits

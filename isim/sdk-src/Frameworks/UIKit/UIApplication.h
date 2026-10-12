@@ -88,6 +88,7 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)canOpenURL:(NSURL *)url;
 - (void)openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenExternalURLOptionsKey, id> *)options completionHandler:(void (^ _Nullable)(BOOL success))completion;
 @property (class, nonatomic, readonly) NSString *openSettingsURLString;
+@property (class, nonatomic, readonly) NSString *openNotificationSettingsURLString API_AVAILABLE(ios(16.0));
 @property (nonatomic, readonly) NSSet<UISceneSession *> *openSessions;
 @property (nonatomic, readonly) BOOL supportsMultipleScenes;
 /* isim: under `isim boot` with ISIM_AUTOLOCK=SECONDS the device locks after that long without input, unless the

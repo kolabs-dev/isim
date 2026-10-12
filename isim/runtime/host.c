@@ -11,7 +11,7 @@
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
  *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
- *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "swipehome left|right",
+ *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "iconstyle STYLE [#RRGGBB] [small|large]", "swipehome left|right",
  *                  "push BUNDLE-ID FILE", "handoff TYPE [URL] [TITLE]", "terminate BUNDLE-ID"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
@@ -1013,18 +1013,34 @@ static void draw_status_bar(int style, const double *fg) {
     double sb = dev.safe_top >= 44 ? 54 : dev.safe_top;   /* status bar band height */
     double cy = dev.has_island ? 18 + 11 : sb / 2;          /* text baseline centre */
     double lx = dev.has_island ? 51 + 26 : -1;               /* centre of the left ear (-1: left-aligned) */
-    double rx = dev.width - (dev.has_island ? 34 : 10), left0 = 8;
+    /* iPads (the 24 pt band): the time and the date at the leading edge, Wi-Fi and the battery at the trailing edge, no
+       cellular bars (the presets are Wi-Fi models). The 20 pt edge insets and the 14 pt text are estimated from iPadOS
+       screenshots, not measured. */
+    int pad = portrait_dev.width >= 700;
+    double rx = dev.width - (dev.has_island ? 34 : pad ? 20 : 10), left0 = pad ? 20 : 8;
     if (style == SB_CC && dev.has_island) { cy = dev.safe_top - 4; lx = -1; left0 = 30; rx = dev.width - 30; }
-    char left[16] = ""; double lsize = 17;
+    char left[16] = "", date[32] = ""; double lsize = 17;
     if (style == SB_APP) {
         load_clock_prefs();
         time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
         if (clock_prefs.hour24) snprintf(left, sizeof left, "%02d:%02d", tm.tm_hour, tm.tm_min);
-        else snprintf(left, sizeof left, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
+        else snprintf(left, sizeof left, "%d:%02d%s", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min,
+                      pad ? (tm.tm_hour < 12 ? " AM" : " PM") : "");   /* iPadOS keeps AM / PM; iPhones drop it */
+        if (pad) {                         /* "9:41 AM  Mon Jun 10": short weekday, short month, day (English names) */
+            static const char *wd[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+            static const char *mo[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+            snprintf(date, sizeof date, "%s %s %d", wd[tm.tm_wday % 7], mo[tm.tm_mon % 12], tm.tm_mday);
+            lsize = 14;
+        }
     } else if (style == SB_CC || isim_os_version() / 10000 <= 18) { snprintf(left, sizeof left, SB_CARRIER); lsize = 15; }
     if (*left) {
         double tw, th; isim_text_measure(left, lsize, 0.3, 0, 0, 1, &tw, &th);
-        isim_text_draw(left, lx >= 0 ? lx - tw / 2 : left0, cy - th / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        double x0 = lx >= 0 ? lx - tw / 2 : left0;
+        isim_text_draw(left, x0, cy - th / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        if (*date) {                                         /* the date after the time, in the same weight */
+            double dw, dh; isim_text_measure(date, lsize, 0.3, 0, 0, 1, &dw, &dh);
+            isim_text_draw(date, x0 + tw + 6, cy - dh / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        }
     }
     /* battery */
     double bw = 25, bh = 12, bx = rx - bw, by = cy - bh / 2;
@@ -1047,9 +1063,9 @@ static void draw_status_bar(int style, const double *fg) {
         cairo_arc(cr, wx, wy, 3 + i * 3.6, -M_PI * 0.75, -M_PI * 0.25);
         cairo_set_line_width(cr, 2.0); cairo_stroke(cr);
     }
-    /* cellular bars */
+    /* cellular bars (not on the Wi-Fi iPads) */
     double cx0 = wx - 30;
-    for (int i = 0; i < 4; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
+    for (int i = 0; i < 4 && !pad; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
 }
 
 /* the hardware: the Dynamic Island or the notch, and (home) the home indicator */
@@ -1229,7 +1245,7 @@ static int script_step(struct isim_event *ev) {
     }
     if (sdrag.on && !npending) {
         double t = now();
-        if (t - sdrag.last >= 0.016) {
+        if (t >= sdrag.t0 && t - sdrag.last >= 0.016) {      /* (before t0: pressed at the start, not moving yet) */
             double p = fmin(1, (t - sdrag.t0) / sdrag.dur);
             sdrag.last = t;
             int was_holding = sdrag.hold_end > 0;
@@ -1261,7 +1277,8 @@ static int script_step(struct isim_event *ev) {
     char *cmd_start = script_pos;
     sscanf(script_pos, "%15[^;\n ]%n", cmd, &n);
     char *args = script_pos + n;
-    char *end = strpbrk(script_pos, ";\n");
+    char *end = script_pos;                 /* the separator: ';' or a newline; "\;" is a literal ';' (in `type`) */
+    while ((end = strpbrk(end, ";\n")) && *end == ';' && end > script_pos && end[-1] == '\\') end++;
     if (end) *end = 0;                      /* arguments end at the separator */
     script_pos = end ? end + 1 : script_pos + strlen(script_pos);
     if (!strcmp(cmd, "wait") && sscanf(args, "%lf", &a) == 1) {
@@ -1275,11 +1292,13 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = a, .y = b };
         script_resume = now() + 0.05;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &sdrag.dur) == 5 && sdrag.dur > 0) {
-        /* "drag x1 y1 x2 y2 secs [hold]": a timed drag, optionally held at the end for hold seconds before lifting */
-        double h = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf", &h);
+        /* "drag x1 y1 x2 y2 secs [hold [press]]": a timed drag, optionally held at the end for hold seconds before
+           lifting, and pressed at the start for press seconds before moving (XCUITest's press(forDuration:thenDragTo:)) */
+        double h = 0, pr = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf %lf", &h, &pr);
+        if (pr < 0) pr = 0;
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
-        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.p = 0; sdrag.t0 = sdrag.last = now(); sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
-        script_resume = now() + sdrag.dur + sdrag.hold + 0.02;
+        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.p = 0; sdrag.t0 = sdrag.last = now() + pr; sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
+        script_resume = now() + pr + sdrag.dur + sdrag.hold + 0.02;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };
@@ -1296,7 +1315,11 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "holdid") && sscanf(args, " %63[^; ] %lf", arg, &a) == 2) {
         pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         snprintf(held_id, sizeof held_id, "%s", arg); held_until = now() + a; script_resume = held_until + 0.05;
-    } else if (!strcmp(cmd, "type") && sscanf(args, " %511[^;]", arg) == 1) {
+    } else if (!strcmp(cmd, "type") && (args += strspn(args, " \t"), *args)) {
+        /* "type TEXT": the rest of the command; "\;" types ';' (a bare ';' ends the command) */
+        size_t k = 0;
+        for (const char *s = args; *s && k < sizeof arg - 1; s++) { if (s[0] == '\\' && s[1] == ';') s++; arg[k++] = *s; }
+        arg[k] = 0;
         for (char *t = arg; *t && npending < 8; t += strlen(pending[npending - 1].text)) {
             pending[npending++] = (struct isim_event){ .type = EV_TEXT };
             snprintf(pending[npending - 1].text, 32, "%s", t);       /* 31-byte chunks (ASCII-safe) */
@@ -1370,7 +1393,13 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.05;
-    } else if (!strcmp(cmd, "home")) { pending[npending++] = (struct isim_event){ .type = EV_HOME }; script_resume = now() + 0.3; }
+    } else if (!strcmp(cmd, "home")) {
+        /* under the shell (isim boot): the home screen. The app alone (isim run, XCUITest): it goes to the
+           background (no home screen to show); `activate` brings it back, like tapping its icon */
+        pending[npending++] = (struct isim_event){ .type = shell_mode ? EV_HOME : EV_BACKGROUND }; script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "activate") && !shell_mode) {
+        pending[npending++] = (struct isim_event){ .type = EV_FOREGROUND }; script_resume = now() + 0.3;
+    }
     else if (!strcmp(cmd, "launch") && sscanf(args, " %63[^; ]", arg) == 1) {
         pending[npending++] = (struct isim_event){ .type = EV_LAUNCH_ID }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.5;
@@ -1391,7 +1420,7 @@ static int script_step(struct isim_event *ev) {
         void isim_audio_session_post(const char *ev);
         isim_audio_session_post(arg);
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
-               || !strcmp(cmd, "remote") || !strcmp(cmd, "volume") || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")
+               || !strcmp(cmd, "remote") || !strcmp(cmd, "volume") || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
                || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),

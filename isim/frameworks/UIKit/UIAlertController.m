@@ -322,3 +322,12 @@ static UIColor *card_color(void) {
     [presenter ?: self dismissViewControllerAnimated:YES completion:^{ if (a.handler) a.handler(a); }];
 }
 @end
+
+/* system alerts (permission prompts: notifications, camera, photos, location, paste, ...): on iOS SpringBoard shows
+ * them, not the app; isim presents them in the app (adapted) and marks them so XCUITest finds them under
+ * XCUIApplication(bundleIdentifier: "com.apple.springboard") instead of the app (UIAXSnapshot.m) */
+@implementation UIAlertController (IsimSystemAlert)
+static char system_alert_key;
+- (void)_isim_markSystemAlert { objc_setAssociatedObject(self, &system_alert_key, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (BOOL)_isim_isSystemAlert { return [objc_getAssociatedObject(self, &system_alert_key) boolValue]; }
+@end

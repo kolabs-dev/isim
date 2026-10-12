@@ -2,7 +2,7 @@
 """isim test: build an Xcode project's test targets and run them in the isim simulator, like `xcodebuild test`.
 
   isim test (-project App.xcodeproj | -workspace App.xcworkspace) [-scheme NAME | -target TESTTARGET ...]
-            [-configuration Debug] [-only-testing:Target[/Class[/test]]] [-skip-testing:...] [-o OUTDIR]
+            [-configuration Debug] [-only-testing:Target[/Class[/test]]] [-skip-testing:...] [-o OUTDIR (default ./build)]
             [-resultBundlePath DIR] [-package-cache DIR] [--device NAME] [--os 17|18|26|27] [--windowed] [SETTING=VALUE ...]
 
 * unit-test bundles with a TEST_HOST run inside the host app (the app launches, then the tests run in it);
@@ -34,7 +34,8 @@ def main():
     argv = sys.argv[1:]
     only, skip, rest = [], [], []
     opts = {'project': None, 'workspace': None, 'scheme': None, 'configuration': None, 'output': None,
-            'result': None, 'device': None, 'os': None, 'windowed': False, 'targets': [], 'package_cache': []}
+            'result': None, 'device': None, 'os': None, 'windowed': False, 'targets': [], 'package_cache': [],
+            'scripts': True}
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -61,6 +62,8 @@ def main():
             opts['os'] = nxt; i += 1
         elif a == '--windowed':
             opts['windowed'] = True
+        elif a in ('-skip-script-phases', '-run-script-phases'):
+            opts['scripts'] = a == '-run-script-phases'
         elif a == '-destination':                     # always the isim simulator; its OS= picks the iOS version
             for kv in (nxt or '').split(','):
                 k, _, v = kv.partition('=')
@@ -80,10 +83,11 @@ def main():
         if opts['scheme'] in schemes:
             scheme = ib.Scheme(*schemes[opts['scheme']])
     configuration = opts['configuration'] or (scheme.configuration('TestAction') if scheme else 'Debug')
-    name0 = os.path.splitext(os.path.basename(opts['workspace'] or projects[0]))[0]
-    outdir = os.path.abspath(opts['output'] or os.path.join(BIN, '..', 'projects', name0))
+    outdir = os.path.abspath(opts['output'] or 'build')          # ./build of the current folder, as isim build
+    os.environ['ISIM_SWIFTC_WRITABLE'] = ':'.join(filter(None, [os.environ.get('ISIM_SWIFTC_WRITABLE'), outdir]))
     os.makedirs(outdir, exist_ok=True)
-    b = ib.Builder(projects, configuration, outdir, overrides, opts['package_cache'])
+    b = ib.Builder(projects, configuration, outdir, overrides, opts['package_cache'], opts['scripts'])
+    b.packages.resolved_file = ib.resolved_file_path(containers[0] if containers[0].endswith('.xcworkspace') else None, projects)
 
     # which test targets
     testables = []                                   # (Target, skipped identifiers from the scheme)

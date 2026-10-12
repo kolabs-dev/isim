@@ -7,6 +7,7 @@ import UIKit
 /// A tick's value (as a Double) and label.
 struct _SliderTickSpec { let value: Double; let label: AnyView? }
 
+@available(iOS 26.0, *)
 public protocol SliderTickContent<ValueType> {
     associatedtype ValueType: BinaryFloatingPoint
     var _ticks: [(ValueType, AnyView?)] { get }
@@ -34,10 +35,12 @@ public struct SliderTickContentForEach<Data: RandomAccessCollection, ID: Hashabl
     public var _ticks: [(ValueType, AnyView?)] { data.flatMap { content($0)._ticks } }
 }
 /// Several ticks (what the builder produces).
+@available(iOS 26.0, *)
 public struct _SliderTickGroup<V: BinaryFloatingPoint>: SliderTickContent {
     public typealias ValueType = V
     public let _ticks: [(V, AnyView?)]
 }
+@available(iOS 26.0, *)
 @resultBuilder
 public struct SliderTickBuilder<V: BinaryFloatingPoint> {
     public static func buildExpression<C: SliderTickContent>(_ c: C) -> _SliderTickGroup<V> where C.ValueType == V { _SliderTickGroup(_ticks: c._ticks) }

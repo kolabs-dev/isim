@@ -417,7 +417,7 @@ public struct GestureMask: OptionSet, Sendable {
 // MARK: - attaching gestures to views
 extension View {
     public func gesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { _gesture(g, mask, .normal) }
-    public func gesture<G: Gesture>(_ g: G, isEnabled: Bool) -> some View { _gesture(g, isEnabled ? .all : .subviews, .normal) }
+    @available(iOS 18.0, *) public func gesture<G: Gesture>(_ g: G, isEnabled: Bool) -> some View { _gesture(g, isEnabled ? .all : .subviews, .normal) }
     public func simultaneousGesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { _gesture(g, mask, .simultaneous) }
     public func highPriorityGesture<G: Gesture>(_ g: G, including mask: GestureMask = .all) -> some View { _gesture(g, mask, .high) }
     /// A gesture with its priority; the mask turns it off (no `.gesture`) and the gestures inside off (no `.subviews`).

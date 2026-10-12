@@ -28,7 +28,7 @@ This page is for people building **their own apps** with an agent. Working on is
    ## Running the app (isim, iOS simulator for Linux)
    - Always `export ISIM_DATA=$PWD/.isim-data` first for your own runs. The default device data is mine: never boot,
      install into or reset it.
-   - Build: `isim build -project MyApp.xcodeproj -scheme MyApp -o build/isim` (last line: `done: <path to .app>`).
+   - Build: `isim build -project MyApp.xcodeproj -scheme MyApp` (products in `./build`, last line: `done: <path to .app>`).
    - Test: `isim test -project MyApp.xcodeproj -scheme MyApp` (exit 65 on failures).
    - Look at it: `ISIM_ANIMATIONS=0 isim run <the .app from the done: line> --headless --script "wait 2; dump; shot /tmp/s.png; quit"`,
      then read the dump and the screenshot. Script commands: docs/SCRIPTING.md in the isim repository.
@@ -45,19 +45,33 @@ This page is for people building **their own apps** with an agent. Working on is
 ### 1. Build
 
 ```bash
-isim build -project MyApp.xcodeproj -scheme MyApp -o build/isim
+isim build -project MyApp.xcodeproj -scheme MyApp            # -> build/MyApp.app
 ```
 
 A failed build exits non-zero and shows the compiler's errors. The last line of a good build is
-`done: /…/MyApp.app`, the bundle to run. Workspaces (`-workspace`), local Swift packages, `.xcconfig` files and
-`.xcframework`s work too; see the README's usage table.
+`done: /…/MyApp.app`, the bundle to run. Workspaces (`-workspace`), Swift packages, `.xcconfig` files,
+`.xcframework`s, shell script phases and CocoaPods workspaces work too; see the README's usage table.
+
+To find your way around a project without Xcode's navigator:
+
+```bash
+isim build -project MyApp.xcodeproj -list -json                  # targets, build configurations, schemes
+isim build -project MyApp.xcodeproj -scheme MyApp -showBuildSettings -json   # the settings isim build resolves
+isim project MyApp.xcodeproj                                      # targets -> build phases -> files, packages
+```
+
+- Shell script build phases run like Xcode's, in their place among the build phases, and are skipped when their
+  outputs are up to date; `-skip-script-phases` skips them (for scripts that need macOS tools).
+- Remote Swift packages are fetched with `git` into `~/.cache/isim/packages` (`-package-cache DIR` changes it) at the
+  versions pinned in `Package.resolved`; unpinned ones are resolved from the repository's tags and pinned.
+  `-onlyUsePackageVersionsFromResolvedFile` refuses to resolve; `-resolvePackageDependencies` only fetches.
 
 ### 2. Run and look
 
 A headless run is the agent's main tool: it starts the app with no window, runs the script and exits.
 
 ```bash
-ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/isim/MyApp.app --headless \
+ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless \
   --script "wait 2; dump; shot /tmp/home.png; tapid loginButton; wait 1; dump; shot /tmp/login.png; quit"
 ```
 
@@ -77,7 +91,7 @@ Choose the device and iOS version like a person would: `--device iphonese` (Home
 iPhone, a large one and an iPad catches most layout bugs. `isim devices` lists the presets.
 
 To look at one view without navigating to it, render its `#Preview` (like Xcode's canvas, one preview at a time):
-`isim preview build/isim/MyApp.app --list` lists the previews, `isim preview build/isim/MyApp.app "Detail" -o
+`isim preview build/MyApp.app --list` lists the previews, `isim preview build/MyApp.app "Detail" -o
 /tmp/detail.png` (a name or an index; `--device`, `--os`, `--dark`) saves a screenshot of it, laid out by its traits
 (the device, `.sizeThatFitsLayout` or `.fixedLayout` on a grey canvas).
 
@@ -99,6 +113,9 @@ isim test -project MyApp.xcodeproj -scheme MyApp [-only-testing:MyAppTests/Login
 XCTest, Swift Testing and XCUITest run as with `xcodebuild test`: the output follows Xcode's format, ends with
 `** TEST SUCCEEDED **` or `** TEST FAILED **`, and the exit status is 65 when a test fails.
 `-resultBundlePath DIR` keeps the results.
+In UI tests, permission prompts are system alerts as on iOS: find them under
+`XCUIApplication(bundleIdentifier: "com.apple.springboard")` (or answer them with `addUIInterruptionMonitor`), not
+`app.alerts`; `XCUIDevice.shared.press(.home)` sends the app to the background and `app.activate()` brings it back.
 
 ## Answering system prompts without a person
 
@@ -121,7 +138,7 @@ A developer often keeps the device window open while the agent works, started fr
 launcher (isim Simulator, see the README):
 
 ```bash
-isim run build/isim/MyApp.app      # a window, on the home screen with MyApp open
+isim run build/MyApp.app      # a window, on the home screen with MyApp open
 ```
 
 The agent (or a terminal) then sends it the same script commands with `isim send`, using the same `ISIM_DATA` as the

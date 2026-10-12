@@ -173,8 +173,9 @@ typedef NS_OPTIONS(unsigned int, CAAutoresizingMask) {
 @property CGFloat rasterizationScale;
 @property CAEdgeAntialiasingMask edgeAntialiasingMask;
 @property CAAutoresizingMask autoresizingMask;
-@property (nullable, strong) id compositingFilter;                 /* isim: stored, not applied */
-@property (nullable, copy) NSArray *filters, *backgroundFilters;   /* isim: stored, not applied */
+/* like iOS ("not supported on layers in iOS"): stored, not applied */
+@property (nullable, strong) id compositingFilter;
+@property (nullable, copy) NSArray *filters, *backgroundFilters;
 @property (copy) CALayerContentsFormat contentsFormat;
 @property BOOL wantsExtendedDynamicRangeContent;
 
@@ -229,6 +230,13 @@ typedef NS_OPTIONS(unsigned int, CAAutoresizingMask) {
 + (nullable id<CAAction>)defaultActionForKey:(NSString *)event;
 - (nullable id<CAAction>)actionForKey:(NSString *)event;
 - (BOOL)shouldArchiveValueForKey:(NSString *)key;
+@end
+
+/* scrolling through the nearest CAScrollLayer ancestor */
+@interface CALayer (CALayerScrolling)
+- (void)scrollPoint:(CGPoint)p NS_SWIFT_NAME(scroll(_:));   /* the ancestor scrolls so that p (in this layer) is at its origin */
+- (void)scrollRectToVisible:(CGRect)r;          /* the ancestor scrolls (the least) so that r (in this layer) is visible */
+@property (readonly) CGRect visibleRect;        /* the part of the bounds an ancestor scroll layer shows (else the bounds) */
 @end
 
 NS_ASSUME_NONNULL_END

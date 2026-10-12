@@ -122,11 +122,13 @@ public struct AutomaticSubscriptionStoreControlStyle: SubscriptionStoreControlSt
 public struct PickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "picker" } }
 public struct ButtonsSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "buttons" } }
 public struct PrefersProminentPickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "prominentPicker" } }
+@available(iOS 18.0, *)
 public struct CompactPickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "compactPicker" } }
 extension SubscriptionStoreControlStyle where Self == AutomaticSubscriptionStoreControlStyle { public static var automatic: Self { .init() } }
 extension SubscriptionStoreControlStyle where Self == PickerSubscriptionStoreControlStyle { public static var picker: Self { .init() } }
 extension SubscriptionStoreControlStyle where Self == ButtonsSubscriptionStoreControlStyle { public static var buttons: Self { .init() } }
 extension SubscriptionStoreControlStyle where Self == PrefersProminentPickerSubscriptionStoreControlStyle { public static var prominentPicker: Self { .init() } }
+@available(iOS 18.0, *)
 extension SubscriptionStoreControlStyle where Self == CompactPickerSubscriptionStoreControlStyle { public static var compactPicker: Self { .init() } }
 
 /// The subscription store's policy links (shown with storeButton(.visible, for: .policies)).
@@ -171,7 +173,7 @@ extension View {
     }
     /// Chooses the offer SubscriptionStoreView and ProductView show and buy for a subscription (iOS 18): from the
     /// customer's eligible offers (introductory, or win-back for a lapsed subscriber); nil shows none.
-    public func preferredSubscriptionOffer(_ offerSelector: @escaping (Product, Product.SubscriptionInfo, [Product.SubscriptionOffer]) -> Product.SubscriptionOffer?) -> some View {
+    @available(iOS 18.0, *) public func preferredSubscriptionOffer(_ offerSelector: @escaping (Product, Product.SubscriptionInfo, [Product.SubscriptionOffer]) -> Product.SubscriptionOffer?) -> some View {
         environment(\._skOfferSelector, offerSelector)
     }
     public func storeProductTask(for id: String, priority: TaskPriority = .medium, action: @escaping (Product?) async -> Void) -> some View {
@@ -488,7 +490,7 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
             guard let info = product.subscription else { return nil }
             return choose(product, info, eligible)
         }
-        return eligible.first { $0.type == .winBack } ?? eligible.first
+        return eligible.first { $0.type == ._winBack } ?? eligible.first
     }
 
     public var body: some View {
@@ -552,7 +554,7 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
 
     /// the subscribe button's label: the action, the plan's name or price, on one line or two
     func buttonText(_ p: _SKItem, offer: Product.SubscriptionOffer?, isCurrent: Bool, current: _SKTxn?) -> (String, String?) {
-        let action = isCurrent ? "Current Plan" : offer?.paymentMode == .freeTrial ? "Try It Free" : offer?.type == .winBack ? "Resubscribe"
+        let action = isCurrent ? "Current Plan" : offer?.paymentMode == .freeTrial ? "Try It Free" : offer?.type == ._winBack ? "Resubscribe"
             : current == nil ? "Subscribe" : "Change Plan"
         let price = offer.map { "\($0.summary), then \(_SKSheets.pricePerPeriod(p))" } ?? _SKSheets.pricePerPeriod(p)
         switch env._skButtonLabel {
@@ -570,7 +572,7 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
         let env = self.env
         return Button {
             Task { @MainActor in
-                let options: Set<Product.PurchaseOption> = offer?.type == .winBack ? [.winBackOffer(offer!)] : []
+                let options: Set<Product.PurchaseOption> = offer?.type == ._winBack ? [._winBackOffer(offer!)] : []
                 await _skBuy(Product(p), env, options: options); version += 1
             }
         } label: {

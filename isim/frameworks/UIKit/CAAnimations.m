@@ -213,9 +213,65 @@ static int timing_state(CAAnimation *a, double t, double *frac, double *iter) {
 }
 static double ease(CAMediaTimingFunction *f, double x) { return f ? [f _isim_solve:(float)x] : x; }
 
+/* CAValueFunction: the animation's values are numbers (rotation angles, a scale, a translation) or 3-number arrays
+   (scale / translate x, y, z), interpolated as such, then turned into the transform */
+static BOOL vf_val(id o, ca_val *out) {
+    memset(out, 0, sizeof *out); out->kind = CAV_NUMS;
+    if ([o isKindOfClass:[NSNumber class]]) { out->n = 1; out->v[0] = [o doubleValue]; return YES; }
+    if ([o isKindOfClass:[NSArray class]]) {
+        for (id x in (NSArray *)o) { if (![x isKindOfClass:[NSNumber class]] || out->n >= 3) return NO; out->v[out->n++] = [x doubleValue]; }
+        return out->n > 0;
+    }
+    return NO;
+}
+static CATransform3D vf_transform(NSString *name, const ca_val *v) {
+    double x = v->n > 0 ? v->v[0] : 0, y = v->n > 1 ? v->v[1] : 0, z = v->n > 2 ? v->v[2] : 0;
+    if ([name isEqual:kCAValueFunctionRotateX]) return CATransform3DMakeRotation(x, 1, 0, 0);
+    if ([name isEqual:kCAValueFunctionRotateY]) return CATransform3DMakeRotation(x, 0, 1, 0);
+    if ([name isEqual:kCAValueFunctionRotateZ]) return CATransform3DMakeRotation(x, 0, 0, 1);
+    if ([name isEqual:kCAValueFunctionScale]) return v->n >= 3 ? CATransform3DMakeScale(x, y, z) : CATransform3DMakeScale(x, x, x);
+    if ([name isEqual:kCAValueFunctionScaleX]) return CATransform3DMakeScale(x, 1, 1);
+    if ([name isEqual:kCAValueFunctionScaleY]) return CATransform3DMakeScale(1, x, 1);
+    if ([name isEqual:kCAValueFunctionScaleZ]) return CATransform3DMakeScale(1, 1, x);
+    if ([name isEqual:kCAValueFunctionTranslate]) return CATransform3DMakeTranslation(x, y, z);
+    if ([name isEqual:kCAValueFunctionTranslateX]) return CATransform3DMakeTranslation(x, 0, 0);
+    if ([name isEqual:kCAValueFunctionTranslateY]) return CATransform3DMakeTranslation(0, x, 0);
+    if ([name isEqual:kCAValueFunctionTranslateZ]) return CATransform3DMakeTranslation(0, 0, x);
+    return CATransform3DIdentity;
+}
+static void vf_lerp(const ca_val *a, const ca_val *b, double t, ca_val *out) {
+    *out = *a; out->n = MAX(a->n, b->n);
+    for (int i = 0; i < out->n; i++) { double x = i < a->n ? a->v[i] : a->v[0], y = i < b->n ? b->v[i] : b->v[0]; out->v[i] = x + (y - x) * t; }
+}
+/* sets the transform made by the value function from v (additive: on top of the layer's own transform) */
+static BOOL vf_set(CAPropertyAnimation *a, CALayer *p, const ca_val *base, const ca_val *v) {
+    CATransform3D m = vf_transform(a.valueFunction.name, v);
+    if (a.additive) { CATransform3D b; memcpy(&b, base->v, sizeof b); m = CATransform3DConcat(m, b); }
+    ca_val out = *base; out.kind = CAV_T3D; out.n = 16; memcpy(out.v, &m, sizeof m);
+    return [p _isim_setAnim:a.keyPath value:&out];
+}
+static BOOL apply_basic_vf(CABasicAnimation *a, CALayer *p, const ca_val *base, double f, double iter) {
+    ca_val from, to, by, zero = { .kind = CAV_NUMS, .n = 1 }, A, B, v;
+    BOOL hf = vf_val(a.fromValue, &from), ht = vf_val(a.toValue, &to), hb = vf_val(a.byValue, &by);
+    /* the value function's identity input (0, or 1 for scales) when a value is missing */
+    if ([a.valueFunction.name hasPrefix:@"scale"]) zero.v[0] = 1;
+    if (hf && ht) { A = from; B = to; }
+    else if (hf && hb) { A = from; vf_lerp(&from, &by, 1, &B); for (int i = 0; i < B.n; i++) B.v[i] = from.v[MIN(i, from.n - 1)] + by.v[MIN(i, by.n - 1)]; }
+    else if (hb && ht) { B = to; A = to; for (int i = 0; i < A.n; i++) A.v[i] = to.v[i] - by.v[MIN(i, by.n - 1)]; }
+    else if (hf) { A = from; B = zero; }
+    else if (ht) { A = zero; B = to; }
+    else if (hb) { A = zero; B = by; for (int i = 0; i < B.n; i++) B.v[i] += zero.v[0]; }
+    else return NO;
+    double x = f;
+    if ([a isKindOfClass:[CASpringAnimation class]]) x = 1 + [(CASpringAnimation *)a _isim_displacement:f * anim_duration(a)];
+    vf_lerp(&A, &B, x, &v);
+    if (a.cumulative && iter > 0) for (int i = 0; i < v.n; i++) v.v[i] += (B.v[MIN(i, B.n - 1)] - A.v[MIN(i, A.n - 1)]) * iter;
+    return vf_set(a, p, base, &v);
+}
 static BOOL apply_basic(CABasicAnimation *a, CALayer *p, double f, double iter) {
     NSString *kp = a.keyPath; ca_val base;
     if (!kp || ![p _isim_getAnim:kp value:&base]) return NO;
+    if (a.valueFunction && base.kind == CAV_T3D) return apply_basic_vf(a, p, &base, f, iter);
     int kind = base.kind;
     ca_val from, to, by, A, B, v;
     BOOL hf = ca_val_from_id(a.fromValue, kind, &from), ht = ca_val_from_id(a.toValue, kind, &to), hb = ca_val_from_id(a.byValue, kind, &by);
@@ -321,6 +377,25 @@ static BOOL apply_keyframe(CAKeyframeAnimation *a, CALayer *p, double f, double 
     NSArray *values = a.values;
     int n = (int)values.count;
     if (n == 0) return NO;
+    if (a.valueFunction && base.kind == CAV_T3D) {        /* values in the value function's terms, linear or discrete */
+        ca_val *vv = calloc((size_t)n, sizeof(ca_val)); BOOL ok = YES;
+        for (int i = 0; i < n; i++) ok = ok && vf_val(values[i], &vv[i]);
+        if (!ok) { free(vv); return NO; }
+        if (n == 1) v = vv[0];
+        else if (discrete) {
+            NSArray<NSNumber *> *kt = a.keyTimes; int idx = 0;
+            if (kt.count >= (NSUInteger)n) { for (int i = 0; i < n; i++) if (f >= kt[i].doubleValue) idx = i; }
+            else { idx = (int)floor(f * n); if (idx >= n) idx = n - 1; }
+            v = vv[idx];
+        } else {
+            double u; int sg = segment_for(a.keyTimes, n - 1, f, &u);
+            NSArray *tfs = a.timingFunctions; if (sg < (int)tfs.count) u = ease(tfs[sg], u);
+            vf_lerp(&vv[sg], &vv[sg + 1], u, &v);
+        }
+        if (a.cumulative && iter > 0 && n > 1) for (int i = 0; i < v.n; i++) v.v[i] += (vv[n - 1].v[MIN(i, vv[n - 1].n - 1)] - vv[0].v[MIN(i, vv[0].n - 1)]) * iter;
+        free(vv);
+        return vf_set(a, p, &base, &v);
+    }
     ca_val *vals = calloc((size_t)n, sizeof(ca_val));
     for (int i = 0; i < n; i++) if (!ca_val_from_id(values[i], base.kind, &vals[i])) vals[i] = base;
     if (n == 1) v = vals[0];

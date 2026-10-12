@@ -74,6 +74,13 @@ def test_scheme(device_data, tmp_path):
     for t in ("testLaunchShowsLibraries", "testTapIncrements", "testTypeText", "testSwitchAndQueries",
               "testRelaunchResetsState"):
         assert has(rf"AppUITests {t}\]. passed"), f"XCUITest: launch args/env, tap, typeText: {t}"
+    for t, what in (("testTypeSemicolon", "typeText with ';'"), ("testKeyboardKeys", "keyboard and key elements"),
+                    ("testSystemAlertOnSpringboard", "a permission alert under com.apple.springboard"),
+                    ("testInterruptionMonitor", "addUIInterruptionMonitor"), ("testHomeAndActivate", "home + activate"),
+                    ("testRotation", "XCUIDevice orientation set + read back"),
+                    ("testGestures", "swipes, press(forDuration:), slider, coordinates, table scrolling")):
+        assert has(rf"AppUITests {t}\]. passed"), f"XCUITest: {what} ({t})"
+    assert has(r"interrupting element .*Would Like to Access the Camera.*Camera permission"), "the monitor is reported"
     junit = (res / "AppTests.junit.xml").read_text()
     assert '<testcase classname="AppTests.ModelTests" name="testAsync"' in junit and \
         "testcase" in (res / "AppSwiftTests.swift-testing.xml").read_text() and \

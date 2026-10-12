@@ -97,6 +97,12 @@ func keychainTests() {
     gq[kSecReturnAttributes as String] = true
     st = SecItemCopyMatching(gq as CFDictionary, &item)
     check(st == errSecSuccess && (item as? [[String: Any]])?.count == 1, "query restricted to an access group")
+    var other = add
+    other[kSecAttrAccessGroup as String] = "group.dev.isim.not-entitled"
+    check(SecItemAdd(other as CFDictionary, nil) == errSecMissingEntitlement, "an access group outside the entitlements: errSecMissingEntitlement")
+    var oq = base
+    oq[kSecAttrAccessGroup as String] = "group.dev.isim.not-entitled"
+    check(SecItemCopyMatching(oq as CFDictionary, &item) == errSecMissingEntitlement, "querying an unentitled access group: errSecMissingEntitlement")
 
     check(SecItemDelete(missing as CFDictionary) == errSecItemNotFound, "SecItemDelete on nothing -> errSecItemNotFound")
     check(SecItemDelete(base as CFDictionary) == errSecSuccess, "SecItemDelete removes all matching items")

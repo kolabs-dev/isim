@@ -170,6 +170,17 @@ void isim_ui_rgba(UIColor *c, double out[4]) {
     if (r) *r = x->_c[0]; if (g) *g = x->_c[1]; if (b) *b = x->_c[2]; if (a) *a = x->_c[3];
     return YES;
 }
+/* HSB of the (resolved) colour's RGB components, like UIKit (hue 0..1, 0 for greys) */
+- (BOOL)getHue:(CGFloat *)h saturation:(CGFloat *)s brightness:(CGFloat *)v alpha:(CGFloat *)a {
+    UIColor *x = [self _resolved];
+    double r = x->_c[0], g = x->_c[1], b = x->_c[2], mx = fmax(r, fmax(g, b)), mn = fmin(r, fmin(g, b)), d = mx - mn, hue = 0;
+    if (d > 1e-9) {
+        if (mx == r) hue = fmod((g - b) / d, 6); else if (mx == g) hue = (b - r) / d + 2; else hue = (r - g) / d + 4;
+        hue /= 6; if (hue < 0) hue += 1;
+    }
+    if (h) *h = hue; if (s) *s = mx > 0 ? d / mx : 0; if (v) *v = mx; if (a) *a = x->_c[3];
+    return YES;
+}
 - (BOOL)getWhite:(CGFloat *)w alpha:(CGFloat *)a { UIColor *x = [self _resolved]; if (w) *w = (x->_c[0] + x->_c[1] + x->_c[2]) / 3; if (a) *a = x->_c[3]; return YES; }
 - (CGColorRef)CGColor {
     UIColor *x = [self _resolved];

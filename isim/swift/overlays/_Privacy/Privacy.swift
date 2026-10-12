@@ -92,6 +92,9 @@ enum _Privacy {
         }
         let a = UIAlertController(title: title, message: message, preferredStyle: .alert)
         for (i, b) in buttons.enumerated() { a.addAction(UIAlertAction(title: b.0, style: b.1) { _ in done(i) }) }
+        // a SpringBoard alert on iOS: XCUITest finds it under XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let mark = NSSelectorFromString("_isim_markSystemAlert")
+        if a.responds(to: mark) { _ = a.perform(mark) }
         vc.present(a, animated: true, completion: nil)
     }
     /// a navigation bar button backed by a real UIButton, so scripts can `taptext` it and `tapid` its identifier

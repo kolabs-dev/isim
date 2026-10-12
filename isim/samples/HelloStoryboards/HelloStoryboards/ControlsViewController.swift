@@ -30,6 +30,8 @@ final class ControlsViewController: UIViewController, UIFontPickerViewController
               + "progress=\(progress.progress) spinning=\(spinner.isAnimating) labels=\(allLabels.count) "
               + "corner=\(roundedView.layer.cornerRadius) tag=\(roundedView.cornerTag) codedInit=\(roundedView.codedInit) "
               + "field=\(nameField.placeholder ?? "nil")")
+        let titles = (0..<segments.numberOfSegments).map { segments.titleForSegment(at: $0) ?? "" }
+        print("controls: texts title=\(title ?? "nil") segments=\(titles.joined(separator: ",")) status=\(statusLabel.text ?? "nil")")
     }
 
     private func status(_ s: String) { statusLabel.text = s; print("controls: \(s)") }

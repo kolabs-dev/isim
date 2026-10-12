@@ -198,6 +198,7 @@ static NSString *paste_setting(void) {
     [a addAction:[UIAlertAction actionWithTitle:@"Allow Paste" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) { answer = 1; }]];
     a.view.accessibilityIdentifier = @"isim-paste-prompt";
     NSLog(@"isim: paste prompt: “%@” would like to paste from “%@”", app_name(), _originName);
+    [a _isim_markSystemAlert];
     [top presentViewController:a animated:YES completion:nil];
     isim_ui_run_until(^BOOL { return answer >= 0; });
     _answeredChange = _changeCount; _answeredAllow = answer == 1;
