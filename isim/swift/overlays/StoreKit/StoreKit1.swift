@@ -533,8 +533,13 @@ open class SKOverlay: NSObject {
         let raised = (app?.position ?? (configuration as? AppClipConfiguration)?.position) == .bottomRaised
         let dismissible = app?.userDismissible ?? true
         let id = app?.appIdentifier
-        // an App Clip's overlay shows its parent app (the clip's bundle ID without its last component)
-        let parent = (Bundle.main.bundleIdentifier ?? "").split(separator: ".").dropLast().joined(separator: ".")
+        // an App Clip's overlay shows its full app: the com.apple.developer.parent-application-identifiers entitlement
+        // (without the team prefix), else the clip's bundle ID without its last component
+        let parent = SKOverlay.parentApplicationIdentifier()
+        if id == nil && Bundle.main.object(forInfoDictionaryKey: "NSAppClip") == nil {
+            NSLog("isim StoreKit: SKOverlay.AppClipConfiguration is for App Clips (this app's Info.plist has no NSAppClip)")
+            delegate?.storeOverlay(self, didFailToLoadWithError: SKError(.overlayInvalidConfiguration)); return
+        }
         Task { @MainActor in
             let listing: _SKAppListing?
             do { listing = try await (id != nil ? _SKAppStore.lookup(id: id) : _SKAppStore.lookup(bundleID: parent)) }
@@ -548,6 +553,18 @@ open class SKOverlay: NSObject {
             }
             show(listing, raised: raised, dismissible: dismissible, scene: scene)
         }
+    }
+
+    static func parentApplicationIdentifier() -> String {
+        let xcent = (Bundle.main.bundlePath as NSString).appendingPathComponent("archived-expanded-entitlements.xcent")
+        if let ent = NSDictionary(contentsOfFile: xcent) as? [String: Any], let ids = ent["com.apple.developer.parent-application-identifiers"] as? [String],
+           let first = ids.first {
+            let parts = first.split(separator: ".", maxSplits: 1)
+            // "TEAMID1234.com.example.app": the 10-character team prefix ($(AppIdentifierPrefix)) is not part of the bundle ID
+            if parts.count == 2, parts[0].count == 10, parts[0].allSatisfy({ $0.isUppercase || $0.isNumber }) { return String(parts[1]) }
+            return first
+        }
+        return (Bundle.main.bundleIdentifier ?? "").split(separator: ".").dropLast().joined(separator: ".")
     }
 
     @MainActor func show(_ listing: _SKAppListing, raised: Bool, dismissible: Bool, scene: UIWindowScene) {

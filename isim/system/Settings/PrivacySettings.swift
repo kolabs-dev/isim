@@ -53,6 +53,12 @@ struct PrivacyService: Identifiable, Hashable {
     ]
 }
 
+extension PrivacyService {
+    /// Siri (INPreferences.requestSiriAuthorization; INSiriAuthorizationStatus: denied 2, authorized 3): on the app's
+    /// page, as iOS shows it there, not under Privacy & Security
+    static let siri = PrivacyService.toggle("siri", "Siri", "waveform", .black, key: "_ISIMPrivacy.siri", off: 2, on: 3)
+}
+
 /// One app's stored permission answers (its defaults file).
 @MainActor func storedPermission(_ app: InstalledApp, _ s: PrivacyService) -> Int? { AppPreferences(appID: app.id).value(s.key) as? Int }
 
@@ -210,6 +216,12 @@ struct AppPrivacyRows: View {
                     LabeledContent { Text("Add Photos Only") } label: { Label { Text("Photos") } icon: { SettingsIcon(symbol: "photo.on.rectangle", color: .purple) } }
                 }
                 .accessibilityIdentifier("settings-app-photos")
+            }
+            if storedPermission(app, .siri) != nil {
+                Toggle(isOn: Binding(get: { storedPermission(app, .siri) == 3 }, set: { setPermission(app, .siri, $0 ? 3 : 2); refresh += 1 })) {
+                    Label { Text("Siri") } icon: { SettingsIcon(symbol: "waveform", color: .black) }
+                }
+                .accessibilityIdentifier("settings-app-siri")
             }
             if appNotificationStatus(app) != nil {
                 NavigationLink(value: Route.appNotifications(app.id)) {

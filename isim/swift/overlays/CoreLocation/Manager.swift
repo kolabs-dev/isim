@@ -474,3 +474,9 @@ open class CLServiceSession: NSObject, @unchecked Sendable {
     public convenience init(authorization: AuthorizationRequirement, fullAccuracyPurposeKey: String) { self.init(authorization: authorization) }
     open func invalidate() {}
 }
+
+extension CLLocationManager {
+    /// isim-private: the device's simulated location right now, without asking for permission (nil: Location ▸ None).
+    /// AppClip's location confirmation uses it: the system checks the location, the App Clip only learns yes or no.
+    @_spi(isim) public static func _isimSimulatedLocation() -> CLLocation? { _CLSim.shared.current() }
+}

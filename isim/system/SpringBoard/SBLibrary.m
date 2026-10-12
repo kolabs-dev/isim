@@ -34,6 +34,8 @@
     NSMutableArray *out = [NSMutableArray array];
     NSArray *apps = _home.apps;
     [out addObject:@[NSLocalizedString(@"Suggestions", nil), [apps subarrayWithRange:NSMakeRange(0, MIN((NSUInteger)4, apps.count))]]];
+    NSArray *clips = [_home recentAppClips];                 /* recently used App Clips (SBAppClips.m) */
+    if (clips.count) [out addObject:@[NSLocalizedString(@"Recently Added", nil), clips, @"recent"]];   /* [2]: the id part */
     for (NSString *c in [byCat.allKeys sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)]) [out addObject:@[c, byCat[c]]];
     return out;
 }
@@ -42,13 +44,14 @@
     for (NSArray *cat in [self categories]) {
         UIView *box = [UIView new];
         box.backgroundColor = [UIColor colorWithWhite:1 alpha:0.22]; box.layer.cornerRadius = 22;
-        box.accessibilityIdentifier = [@"applibrary-" stringByAppendingString:cat[0]];
+        NSString *key = cat.count > 2 ? cat[2] : cat[0];
+        box.accessibilityIdentifier = [@"applibrary-" stringByAppendingString:key];
         NSArray *apps = cat[1];
         for (NSUInteger i = 0; i < MIN((NSUInteger)4, apps.count); i++) {
             CGFloat W = UIScreen.mainScreen.bounds.size.width, s = ((W - 60) / 2 - 42) / 2;
             HSIcon *icon = [[HSIcon alloc] initWithApp:apps[i] size:s label:NO];
             [icon addTarget:_home action:@selector(tapped:) forControlEvents:UIControlEventTouchUpInside];
-            icon.accessibilityIdentifier = [NSString stringWithFormat:@"applibrary-%@-%@", cat[0], ((HSApp *)apps[i]).bundleID];
+            icon.accessibilityIdentifier = [NSString stringWithFormat:@"applibrary-%@-%@", key, ((HSApp *)apps[i]).bundleID];
             [box addSubview:icon];
         }
         UILabel *l = [UILabel new]; l.text = cat[0]; l.textColor = UIColor.whiteColor; l.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
