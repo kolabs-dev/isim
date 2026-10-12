@@ -2,7 +2,8 @@
  * Self-authored. "iCloud" here is a local simulation: nothing leaves the device data directory.
  *   app groups:        $ISIM_DATA/Shared/AppGroup/<group>/  (same place as UserDefaults(suiteName: group)), only for
  *                      groups in the app's com.apple.security.application-groups entitlement (nil otherwise, as on iOS)
- *   ubiquity:          $ISIM_DATA/Mobile Documents/<container id>/Documents
+ *   ubiquity:          $ISIM_DATA/Mobile Documents/<container id>/Documents, only for containers in the app's
+ *                      com.apple.developer.ubiquity-container-identifiers entitlement
  *   key-value store:   $ISIM_DATA/Mobile Documents/KeyValueStore/<store id>.plist, where the store id is the app's
  *                      Info.plist ISIMUbiquityKeyValueStoreIdentifier (isim-private) or its bundle identifier.
  * ISIM_ICLOUD=noAccount signs the simulated iCloud account out (no ubiquity containers, no identity token). */
@@ -58,9 +59,19 @@ BOOL isim_app_group_entitled(NSString *group) {
 }
 - (NSURL *)URLForUbiquityContainerIdentifier:(NSString *)ident {
     if (!icloud_signed_in()) return nil;
-    if (!ident.length) {
-        NSArray *ids = NSBundle.mainBundle.infoDictionary[@"ISIMUbiquityContainerIdentifiers"];
-        ident = [ids isKindOfClass:[NSArray class]] && [ids count] ? ids[0] : [@"iCloud." stringByAppendingString:NSBundle.mainBundle.bundleIdentifier ?: @"app"];
+    /* the app's containers: com.apple.developer.ubiquity-container-identifiers (Xcode's iCloud Documents capability) and
+     * icloud-container-identifiers; nil names the first, as on iOS. ISIMUbiquityContainerIdentifiers (Info.plist) is
+     * isim's older private key, still honoured */
+    NSMutableArray *allowed = [NSMutableArray array];
+    NSDictionary *ent = isim_entitlements();
+    for (id ids in @[ent[@"com.apple.developer.ubiquity-container-identifiers"] ?: @[], ent[@"com.apple.developer.icloud-container-identifiers"] ?: @[],
+                     NSBundle.mainBundle.infoDictionary[@"ISIMUbiquityContainerIdentifiers"] ?: @[]])
+        if ([ids isKindOfClass:[NSArray class]]) for (id i in ids) if ([i isKindOfClass:[NSString class]] && ![allowed containsObject:i]) [allowed addObject:i];
+    if (!ident.length) ident = allowed.firstObject;
+    if (!ident.length || ![allowed containsObject:ident]) {
+        fprintf(stderr, "isim: iCloud container '%s' is not in the app's com.apple.developer.ubiquity-container-identifiers "
+                        "entitlement (CODE_SIGN_ENTITLEMENTS): no ubiquity container\n", ident.length ? ident.UTF8String : "(default)");
+        return nil;
     }
     if ([ident containsString:@"/"]) return nil;
     NSString *root = [[isim_data_dir() stringByAppendingPathComponent:@"Mobile Documents"] stringByAppendingPathComponent:ident];

@@ -140,7 +140,7 @@ rows). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 | UIKit · SwiftUI | 🟡 | broad coverage, including storyboards and SwiftUI navigation, presentation and effects; SwiftUI is isim's own implementation |
 | Device | ✅ | home screen (pages, folders, App Library, Spotlight, widgets), lock screen, Notification Center, Control Center, app switcher, Settings; 12 iPhones and 4 iPads; iOS 17, 18, 26 and 27 |
 | Linux releases | ✅ | `install.sh`, `isim update` |
-| Device build, signing, .ipa | 🟡 | arm64 executables link; bundling and signing not done |
+| Device build, signing, .ipa | ❌ | blocked: isim's frameworks are simulator-only and Apple's device SDK cannot be used on Linux ([DISTRIBUTION.md](docs/DISTRIBUTION.md)); arm64 code without frameworks links |
 | Upload + TestFlight | ⛔ | see below |
 
 ## Rules and limits

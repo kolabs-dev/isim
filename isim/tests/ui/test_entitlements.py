@@ -1,6 +1,7 @@
 """Entitlements are enforced (adapted, like iOS): an app group is shared only when it is in the app's
 com.apple.security.application-groups entitlement (<App>.app/archived-expanded-entitlements.xcent) — otherwise
 containerURL(forSecurityApplicationGroupIdentifier:) is nil and UserDefaults(suiteName:) is a domain of the app's own;
+iCloud containers need com.apple.developer.ubiquity-container-identifiers;
 `isim build` expands $(AppIdentifierPrefix) / $(TeamIdentifierPrefix) in CODE_SIGN_ENTITLEMENTS. Keychain access groups:
 tests/security (KeychainTests.swift, errSecMissingEntitlement)."""
 import plistlib
@@ -26,6 +27,8 @@ def test_app_group_needs_entitlement(launch, device_data, tmp_path):
         "a hint names the missing entitlement"
     assert "group container " not in app.log, "containerURL(forSecurityApplicationGroupIdentifier:) is nil"
     assert not (device_data / "Shared/AppGroup" / GROUP).exists(), "nothing in the shared group container"
+    assert "iCloud container '(default)' is not in the app's com.apple.developer.ubiquity-container-identifiers" in app.log \
+        and "ubiquity no iCloud account" in app.log, "no iCloud entitlement: no ubiquity container"
     own = [p for p in device_data.rglob(f"{GROUP}.plist") if "Shared/AppGroup" not in str(p)]
     assert own and "/Library/Preferences/" in str(own[0]), "UserDefaults(suiteName:) is the app's own domain"
 
@@ -33,6 +36,7 @@ def test_app_group_needs_entitlement(launch, device_data, tmp_path):
     app.wait_log(r"group defaults opens 1")
     assert app.quit() == 0
     assert "group container " in app.log and (device_data / "Shared/AppGroup" / GROUP / "shared.txt").is_file()
+    assert "ubiquity iCloud iCloud.dev.isim.samples.HelloSharedData" in app.log, "the entitled iCloud container"
 
 
 def test_entitlement_variables(tmp_path):

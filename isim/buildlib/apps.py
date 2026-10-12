@@ -397,7 +397,8 @@ def _(a):
 # ---- self-test apps (tests/*) ----
 @app("tests/foundation", products=["FoundationTest.app"], swift=False)
 def _(a):
-    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="FoundationTest")
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="FoundationTest")
+    a.copy("FoundationTest.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # its iCloud container
 
 
 @app("tests/objc-runtime", products=["ObjCRuntimeTest.app", "ObjCUncaught.app", "SwiftUncaught.app"])
@@ -563,6 +564,8 @@ def selftest(d, name, *flags):
         obj = os.path.join(OUT, "swift", f"{os.path.basename(d)}-test.o")
         a.run(ISIM, "swiftc", *SWIFT_WERROR, "-parse-as-library", *flags, "-c", "main.swift", "-o", obj)
         a.cc(obj, "-o", f"{b}/{name}")
+        if os.path.exists(os.path.join(a.d, f"{name}.entitlements")):
+            a.copy(f"{name}.entitlements", f"{b}/archived-expanded-entitlements.xcent")
 
 
 selftest("tests/swift-full", "SwiftFullTest")
