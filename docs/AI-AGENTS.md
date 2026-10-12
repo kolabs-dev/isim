@@ -49,8 +49,22 @@ isim build -project MyApp.xcodeproj -scheme MyApp -o build/isim
 ```
 
 A failed build exits non-zero and shows the compiler's errors. The last line of a good build is
-`done: /…/MyApp.app`, the bundle to run. Workspaces (`-workspace`), local Swift packages, `.xcconfig` files and
-`.xcframework`s work too; see the README's usage table.
+`done: /…/MyApp.app`, the bundle to run. Workspaces (`-workspace`), Swift packages, `.xcconfig` files,
+`.xcframework`s, shell script phases and CocoaPods workspaces work too; see the README's usage table.
+
+To find your way around a project without Xcode's navigator:
+
+```bash
+isim build -project MyApp.xcodeproj -list -json                  # targets, build configurations, schemes
+isim build -project MyApp.xcodeproj -scheme MyApp -showBuildSettings -json   # the settings isim build resolves
+isim project MyApp.xcodeproj                                      # targets -> build phases -> files, packages
+```
+
+- Shell script build phases run like Xcode's, in their place among the build phases, and are skipped when their
+  outputs are up to date; `-skip-script-phases` skips them (for scripts that need macOS tools).
+- Remote Swift packages are fetched with `git` into `~/.cache/isim/packages` (`-package-cache DIR` changes it) at the
+  versions pinned in `Package.resolved`; unpinned ones are resolved from the repository's tags and pinned.
+  `-onlyUsePackageVersionsFromResolvedFile` refuses to resolve; `-resolvePackageDependencies` only fetches.
 
 ### 2. Run and look
 
