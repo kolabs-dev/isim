@@ -240,6 +240,15 @@ static __thread __unsafe_unretained NSManagedObjectContext *cd_current;
     if (![_inserted containsObject:o]) { [_updated addObject:o]; [_pUpdated addObject:o]; }
     [self _cd_schedule];
 }
+- (void)_cd_registerUndoForObject:(NSManagedObject *)object key:(NSString *)key oldValue:(id)value {
+    NSUndoManager *manager = self.undoManager;
+    if (!manager || !manager.undoRegistrationEnabled || !object || !key.length) return;
+    id old = value;
+    if ([old isKindOfClass:[NSSet class]] || [old isKindOfClass:[NSOrderedSet class]] || [old isKindOfClass:[NSArray class]] || [old isKindOfClass:[NSDictionary class]]) old = [old copy];
+    [manager registerUndoWithTarget:object handler:^(NSManagedObject *target) {
+        [target setValue:old == [NSNull null] ? nil : old forKey:key];
+    }];
+}
 - (void)insertObject:(NSManagedObject *)o {
     if (!o) return;
     if ([_deleted containsObject:o]) { [_deleted removeObject:o]; [_pDeleted removeObject:o]; [self _cd_schedule]; return; }
@@ -541,9 +550,9 @@ static id aggregate(NSExpression *e, NSArray *objects) {
 - (NSArray *)executeFetchRequest:(NSFetchRequest *)request error:(NSError **)error { return [self _cd_executeFetch:request error:error]; }
 - (NSUInteger)countForFetchRequest:(NSFetchRequest *)request error:(NSError **)error { return [self _cd_count:request error:error]; }
 - (NSPersistentStoreResult *)executeRequest:(NSPersistentStoreRequest *)request error:(NSError **)error {
-    if ([request isKindOfClass:[NSBatchDeleteRequest class]] || [request isKindOfClass:[NSBatchUpdateRequest class]])
+    if ([request isKindOfClass:[NSBatchInsertRequest class]] || [request isKindOfClass:[NSBatchDeleteRequest class]] || [request isKindOfClass:[NSBatchUpdateRequest class]] || [request isKindOfClass:[NSPersistentHistoryChangeRequest class]])
         return [self.persistentStoreCoordinator executeRequest:request withContext:self error:error];
-    if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, @"executeRequest: supports NSBatchDeleteRequest and NSBatchUpdateRequest on isim (use executeFetchRequest:error: for fetches)", nil);
+    if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, @"executeRequest: supports batch insert/delete/update requests on isim (use executeFetchRequest:error: for fetches)", nil);
     return nil;
 }
 
@@ -555,6 +564,7 @@ static id aggregate(NSExpression *e, NSArray *objects) {
     _registered[nid] = o;
     _tempToPermanent[old] = nid;
 }
+- (void)_cd_replaceObject:(NSManagedObject *)object withPermanentID:(NSManagedObjectID *)objectID { [self _cd_replaceID:object with:objectID]; }
 - (NSPersistentStoreCoordinator *)_cd_rootCoordinator {
     NSManagedObjectContext *c = self;
     while (c->_parent) c = c->_parent;
@@ -586,7 +596,7 @@ static NSSet *ids_of(NSArray *objects) { NSMutableSet *s = [NSMutableSet set]; f
     if (![self _cd_assignPermanentIDs:ins error:error]) return NO;
     NSMergePolicy *mp = [self.mergePolicy isKindOfClass:[NSMergePolicy class]] ? self.mergePolicy : NSErrorMergePolicy;
     [c lock];
-    BOOL ok = [store _cd_saveInserted:ins updated:upd deleted:del mergePolicy:mp error:error];
+    BOOL ok = [store _cd_saveInserted:ins updated:upd deleted:del mergePolicy:mp author:self.transactionAuthor contextName:self.name error:error];
     [c unlock];
     return ok;
 }
@@ -645,6 +655,13 @@ static NSSet *ids_of(NSArray *objects) { NSMutableSet *s = [NSMutableSet set]; f
 - (BOOL)save:(NSError **)error {
     [self processPendingChanges];
     if (!self.hasChanges) return YES;
+    /* Derived attributes are adapted: evaluate their NSExpression immediately before validation/save. */
+    NSArray *deriveObjects = [_inserted.allObjects arrayByAddingObjectsFromArray:_updated.allObjects];
+    for (NSManagedObject *o in deriveObjects) for (NSAttributeDescription *a in o.entity.attributesByName.allValues) {
+        if (!a.derivationExpression || a.transient) continue;
+        id value = [a.derivationExpression expressionValueWithObject:o context:nil];
+        [o _cd_setRaw:value == [NSNull null] ? nil : value forKey:a.name];
+    }
     NSMutableArray *errs = [NSMutableArray array];
     void (^addErr)(NSError *) = ^(NSError *e) {
         if (!e) return;

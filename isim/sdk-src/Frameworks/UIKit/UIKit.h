@@ -74,6 +74,7 @@
 #import <UIKit/UIPresentationController.h>
 #import <UIKit/UISplitViewController.h>
 #import <UIKit/UIActivityViewController.h>
+#import <UIKit/UICloudSharingController.h>
 #import <UIKit/UIContentUnavailableConfiguration.h>
 #import <UIKit/UIStoryboard.h>
 #import <UIKit/UIFontPickerViewController.h>

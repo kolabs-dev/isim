@@ -416,8 +416,8 @@ class Swift:
     def host_plugins(self):
         """Swift macros on the compiler's side (Linux, the swift:6.2 toolchain's host, against its swift-syntax
         libraries in /usr/lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
-        compiles their macro targets against it), isim's PreviewsMacros plugin (`#Preview`) and SwiftUIMacros plugin
-        (`@Entry`, `@Animatable`), in out/swift/host
+        compiles their macro targets against it), isim's PreviewsMacros plugin (`#Preview`), SwiftUIMacros plugin
+        (`@Entry`, `@Animatable`) and SwiftDataMacros plugin (`@Model`), in out/swift/host
         (`isim swiftc` passes -plugin-path out/swift/host/plugins)"""
         H = f"{SW}/host"
         os.makedirs(os.path.join(self.c.root, H, "plugins"), exist_ok=True)
@@ -437,7 +437,12 @@ class Swift:
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libSwiftUIMacros.so"],
                          ["swift/macro-support/SwiftUIMacros.swift"], implicit=cp, docker=True, desc="SWIFT SwiftUIMacros (host)")
-        return cp + pm + um
+        sm = self.swiftc([f"{H}/plugins/libSwiftDataMacros.so"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "SwiftDataMacros", *WERROR, *host, "-I", H, "-L", H,
+                          "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
+                          "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libSwiftDataMacros.so"],
+                         ["swift/macro-support/SwiftDataMacros.swift"], implicit=cp, docker=True, desc="SWIFT SwiftDataMacros (host)")
+        return cp + pm + um + sm
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"
@@ -657,6 +662,7 @@ VisionKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrenc
 AVKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftAVFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCoreGraphics -lswiftCombine -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 MediaPlayer -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftCoreMedia -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 CoreData -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreData
+SwiftData -lswiftObjectiveC -lswiftFoundation -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation
 StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCryptoKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
@@ -693,13 +699,13 @@ CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concur
 EVOLUTION = set("""ObjectiveC Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication
-DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
+DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit WebKit SafariServices MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
-MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"]}
+MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"]}
 
 STANDINS = """{
   "https://github.com/googleads/swift-package-manager-google-mobile-ads.git": {

@@ -102,7 +102,7 @@ int isim_cg_pattern_cell(CGPatternRef p, const CGFloat *comps, double *cw, doubl
     if (!c) return 0;
     CGContextScaleCTM(c, k, k);
     CGContextTranslateCTM(c, -p->bounds.origin.x, -p->bounds.origin.y);
-    if (!p->colored && comps) { CGContextSetRGBFillColor(c, comps[0], comps[1], comps[2], comps[3] ? comps[3] : 1); CGContextSetRGBStrokeColor(c, comps[0], comps[1], comps[2], comps[3] ? comps[3] : 1); }
+    if (!p->colored && comps) { CGContextSetRGBFillColor(c, comps[0], comps[1], comps[2], comps[3]); CGContextSetRGBStrokeColor(c, comps[0], comps[1], comps[2], comps[3]); }
     p->cb.drawPattern(p->info, c);
     struct CGContext *x = c;
     p->cell = isim_cg_target_image(x->target);

@@ -12,3 +12,5 @@
 #import <CoreData/NSManagedObjectContext.h>
 #import <CoreData/NSPersistentStoreCoordinator.h>
 #import <CoreData/NSFetchedResultsController.h>
+#import <CoreData/NSPersistentHistory.h>
+#import <CoreData/NSMigrationManager.h>

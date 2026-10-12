@@ -22,9 +22,13 @@ STEPS = [   # (button, log lines it leads to)
     ("subscribe", [r"subscriptions: everything,urgent-notes",
                    r"push: query subscription=urgent-notes reason=created record=u1 title=Urgent: call back "
                    r"alert=An urgent note changed", r"push: database subscription=everything"]),
-    ("zone", [r"zones: _defaultZone,Work", r"atomic batch: CKError 22,CKError 16", r"zone changes: w1,w3",
+    ("zone", [r"zones: _defaultZone,Work", r"atomic batch: CKError 22,CKError 16", r"database changes: Work,_defaultZone more=false", r"zone changes: w1,w3",
               r"zone changes since token: changed=0 deleted=w3:Note"]),
-    ("coredata", [r"coredata store: loaded=true options=iCloud\.dev\.isim\.samples\.HelloCloudKit",
+    ("share", [r"sharing: saved=true participants=2 permission=2 discovered=true sheet=true"]),
+    ("sync", [r"sync engine: saved=1 failed=0 pending=0"]),
+    ("swiftdata", [r"swiftdata: models=1 title=Local model changes=false"]),
+    ("coredata", [r"coredata event: setup succeeded=true", r"coredata store: loaded=true options=iCloud\.dev\.isim\.samples\.HelloCloudKit",
+                  r"coredata event: export succeeded=true",
                   r"coredata: items=1 isContainer=true", r"keeps its store on the device \(local, no iCloud sync\)"]),
 ]
 
@@ -34,6 +38,7 @@ def test_cloudkit(launch, device_data):
     app.wait_log(r"container: iCloud\.dev\.isim\.samples\.HelloCloudKit account=available")
     app.wait_log(r"user record: true")
     app.wait_view(r"text=account: available")                            # default container, account available
+    app.screenshot("data-persistence")                                  # PR visual evidence: the added sharing/sync/SwiftData controls
     app.wait_log(r"metrickit: subscribed, past payloads 0")              # MetricKit: nothing by itself
     for button, lines in STEPS:
         app.wait_tap_id(button)
@@ -47,14 +52,14 @@ def test_cloudkit(launch, device_data):
     app.tap_id("delete")
     app.wait_log(r"deleted n1 \(cascade\): n1=CKError 11 n2=CKError 11")  # delete cascades (.deleteSelf reference)
     app.tap_id("list")
-    app.wait_log(r"records: n3,p1,u1")
+    app.wait_log(r"records: n3,p1,sync1,u1")
     assert app.count(r"push: query") == 1, "one query subscription push"
     assert app.count(r"metrickit: metric payload") == 1, "MetricKit: one payload, from the script command"
     assert app.quit() == 0
 
     app = launch("HelloCloudKit")                                        # relaunch: the records persist
     app.wait_tap_id("list")
-    app.wait_log(r"records: n3,p1,u1")
+    app.wait_log(r"records: n3,p1,sync1,u1")
     mk = subprocess.run([str(ISIM), "metrickit"], env=dict(os.environ, ISIM_DATA=str(device_data)),
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout
     assert "simulated MetricKit payloads requested" in mk, mk

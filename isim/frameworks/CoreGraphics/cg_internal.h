@@ -19,11 +19,15 @@ extern void objc_release(void *o);
 extern void *objc_autorelease(void *o);
 
 /* color spaces (index into a table of shared objects) */
-enum { CS_SRGB, CS_GRAY, CS_P3, CS_LINEAR_SRGB, CS_EXT_SRGB, CS_LINEAR_GRAY, CS_PATTERN, CS_CMYK, CS_DEVICE_RGB, CS_DEVICE_GRAY, CS_COUNT };
+enum {
+    CS_SRGB, CS_GRAY, CS_P3, CS_LINEAR_SRGB, CS_EXT_SRGB, CS_LINEAR_GRAY, CS_PATTERN, CS_CMYK,
+    CS_DEVICE_RGB, CS_DEVICE_GRAY, CS_EXT_LINEAR_SRGB, CS_GENERIC_RGB_LINEAR, CS_EXT_GRAY, CS_ITUR_709,
+    CS_COUNT
+};
 
 struct pel { int type; CGPoint p[3]; };
 struct CGPath { void *isa; struct pel *els; long count, cap; };
-struct CGColor { void *isa; CGFloat c[4]; int refs; int space; CGFloat comp[5]; void *pattern; };
+struct CGColor { void *isa; CGFloat c[4]; int refs; int space; CGFloat comp[5]; void *pattern, *colorSpace; };
 
 /* generic objects: __NSCGObject (isa, finalizer, kind name) + payload */
 struct cgobj { void *isa; void (*fin)(void *); const char *kind; };
@@ -38,7 +42,7 @@ struct CGShading { struct cgobj hdr; int radial; CGPoint p0, p1; CGFloat r0, r1;
 struct CGPattern { struct cgobj hdr; void *info; CGRect bounds; CGAffineTransform matrix; CGFloat xstep, ystep; CGPatternTiling tiling; bool colored; CGPatternCallbacks cb; int cell; double cw, ch; };
 struct CGPDFDocument { struct cgobj hdr; void *doc; int pages; CFDataRef data; struct CGPDFPage **cache; };
 struct CGPDFPage { struct cgobj hdr; struct CGPDFDocument *doc; int index; double w, h; };
-struct CGFont { struct cgobj hdr; CFStringRef name; };
+struct CGFont { struct cgobj hdr; CFStringRef name, fullName; int unitsPerEm; };
 
 /* CGImage: host image handle + pixel rect (+ optional layout info in `ext`) */
 struct imgext { struct cgobj hdr; size_t bpc, bpp, bpr; uint32_t info; CGColorSpaceRef cs; CGDataProviderRef prov; bool mask, interp; int intent; CGFloat decode[8]; int ndecode; CFStringRef ut; };

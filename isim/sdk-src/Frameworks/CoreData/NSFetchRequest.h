@@ -2,7 +2,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreData/CoreDataDefines.h>
 NS_ASSUME_NONNULL_BEGIN
-@class NSEntityDescription, NSPersistentStore, NSManagedObjectID;
+@class NSEntityDescription, NSPersistentStore, NSManagedObjectID, NSManagedObject;
 
 typedef NS_ENUM(NSUInteger, NSPersistentStoreRequestType) {
     NSFetchRequestType NS_SWIFT_NAME(fetchRequestType) = 1,
@@ -65,6 +65,27 @@ typedef NS_ENUM(NSUInteger, NSBatchUpdateRequestResultType) {
     NSUpdatedObjectIDsResultType NS_SWIFT_NAME(updatedObjectIDsResultType) = 0x1,
     NSUpdatedObjectsCountResultType NS_SWIFT_NAME(updatedObjectsCountResultType) = 0x2
 };
+typedef NS_ENUM(NSUInteger, NSBatchInsertRequestResultType) {
+    NSBatchInsertRequestResultTypeStatusOnly NS_SWIFT_NAME(statusOnly) = 0x0,
+    NSBatchInsertRequestResultTypeObjectIDs NS_SWIFT_NAME(objectIDs) = 0x1,
+    NSBatchInsertRequestResultTypeCount NS_SWIFT_NAME(count) = 0x2
+};
+
+@interface NSBatchInsertRequest : NSPersistentStoreRequest
+- (instancetype)init NS_UNAVAILABLE;
+- (instancetype)initWithEntityName:(NSString *)entityName objects:(nullable NSArray<NSDictionary<NSString *, id> *> *)dictionaries;
+- (instancetype)initWithEntity:(NSEntityDescription *)entity objects:(nullable NSArray<NSDictionary<NSString *, id> *> *)dictionaries;
+- (instancetype)initWithEntityName:(NSString *)entityName dictionaryHandler:(BOOL (^)(NSMutableDictionary<NSString *, id> *dictionary))handler;
+- (instancetype)initWithEntity:(NSEntityDescription *)entity dictionaryHandler:(BOOL (^)(NSMutableDictionary<NSString *, id> *dictionary))handler;
+- (instancetype)initWithEntityName:(NSString *)entityName managedObjectHandler:(BOOL (^)(NSManagedObject *object))handler;
+- (instancetype)initWithEntity:(NSEntityDescription *)entity managedObjectHandler:(BOOL (^)(NSManagedObject *object))handler;
+@property (copy, readonly) NSString *entityName;
+@property (strong, readonly) NSEntityDescription *entity;
+@property (nullable, copy, readonly) NSArray<NSDictionary<NSString *, id> *> *objectsToInsert;
+@property (nullable, copy, readonly) BOOL (^dictionaryHandler)(NSMutableDictionary<NSString *, id> *dictionary);
+@property (nullable, copy, readonly) BOOL (^managedObjectHandler)(NSManagedObject *object);
+@property NSBatchInsertRequestResultType resultType;
+@end
 
 /// isim: deletes rows directly in the store (no delete rules run; to-one keys and join rows that point at
 /// deleted rows are cleared). Contexts are not updated: merge the result's object IDs with
@@ -96,6 +117,10 @@ typedef NS_ENUM(NSUInteger, NSBatchUpdateRequestResultType) {
 @interface NSBatchUpdateResult : NSPersistentStoreResult
 @property (nullable, strong, readonly) id result;
 @property (readonly) NSBatchUpdateRequestResultType resultType;
+@end
+@interface NSBatchInsertResult : NSPersistentStoreResult
+@property (nullable, strong, readonly) id result;
+@property (readonly) NSBatchInsertRequestResultType resultType;
 @end
 
 NS_ASSUME_NONNULL_END

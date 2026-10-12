@@ -47,14 +47,16 @@ CGColorSpaceRef isim_cg_space(int kind) {
         struct CGColorSpace *s = isim_cg_obj_new("CGColorSpace", sizeof *s, NULL);
         s->kind = kind;
         switch (kind) {
-        case CS_GRAY: case CS_LINEAR_GRAY: case CS_DEVICE_GRAY: s->model = kCGColorSpaceModelMonochrome; s->ncomp = 1; break;
+        case CS_GRAY: case CS_LINEAR_GRAY: case CS_DEVICE_GRAY: case CS_EXT_GRAY: s->model = kCGColorSpaceModelMonochrome; s->ncomp = 1; break;
         case CS_PATTERN: s->model = kCGColorSpaceModelPattern; s->ncomp = 0; break;
         case CS_CMYK: s->model = kCGColorSpaceModelCMYK; s->ncomp = 4; break;
         default: s->model = kCGColorSpaceModelRGB; s->ncomp = 3;
         }
         s->name = kind == CS_SRGB ? kCGColorSpaceSRGB : kind == CS_P3 ? kCGColorSpaceDisplayP3 : kind == CS_LINEAR_SRGB ? kCGColorSpaceLinearSRGB
-                : kind == CS_EXT_SRGB ? kCGColorSpaceExtendedSRGB : kind == CS_GRAY ? kCGColorSpaceGenericGrayGamma2_2
-                : kind == CS_LINEAR_GRAY ? kCGColorSpaceLinearGray : kind == CS_CMYK ? kCGColorSpaceGenericCMYK : NULL;
+                : kind == CS_EXT_SRGB ? kCGColorSpaceExtendedSRGB : kind == CS_EXT_LINEAR_SRGB ? kCGColorSpaceExtendedLinearSRGB
+                : kind == CS_GENERIC_RGB_LINEAR ? kCGColorSpaceGenericRGBLinear : kind == CS_GRAY ? kCGColorSpaceGenericGrayGamma2_2
+                : kind == CS_LINEAR_GRAY ? kCGColorSpaceLinearGray : kind == CS_EXT_GRAY ? kCGColorSpaceExtendedGray
+                : kind == CS_CMYK ? kCGColorSpaceGenericCMYK : kind == CS_ITUR_709 ? kCGColorSpaceITUR_709 : NULL;
         spaces[kind] = s;
     }
     return spaces[kind];
@@ -70,15 +72,17 @@ static int eq(CFStringRef a, CFStringRef b) {
 }
 CGColorSpaceRef CGColorSpaceCreateWithName(CFStringRef n) {
     if (!n) return NULL;
-    int k = eq(n, kCGColorSpaceSRGB) || eq(n, kCGColorSpaceITUR_709) ? CS_SRGB : eq(n, kCGColorSpaceDisplayP3) ? CS_P3
-          : eq(n, kCGColorSpaceLinearSRGB) || eq(n, kCGColorSpaceGenericRGBLinear) || eq(n, kCGColorSpaceExtendedLinearSRGB) ? CS_LINEAR_SRGB
-          : eq(n, kCGColorSpaceExtendedSRGB) ? CS_EXT_SRGB : eq(n, kCGColorSpaceGenericGrayGamma2_2) || eq(n, kCGColorSpaceExtendedGray) ? CS_GRAY
+    int k = eq(n, kCGColorSpaceSRGB) ? CS_SRGB : eq(n, kCGColorSpaceITUR_709) ? CS_ITUR_709 : eq(n, kCGColorSpaceDisplayP3) ? CS_P3
+          : eq(n, kCGColorSpaceLinearSRGB) ? CS_LINEAR_SRGB : eq(n, kCGColorSpaceGenericRGBLinear) ? CS_GENERIC_RGB_LINEAR
+          : eq(n, kCGColorSpaceExtendedLinearSRGB) ? CS_EXT_LINEAR_SRGB : eq(n, kCGColorSpaceExtendedSRGB) ? CS_EXT_SRGB
+          : eq(n, kCGColorSpaceGenericGrayGamma2_2) ? CS_GRAY : eq(n, kCGColorSpaceExtendedGray) ? CS_EXT_GRAY
           : eq(n, kCGColorSpaceLinearGray) ? CS_LINEAR_GRAY : eq(n, kCGColorSpaceGenericCMYK) ? CS_CMYK : -1;
     return k < 0 ? NULL : retained(isim_cg_space(k));
 }
+static void space_fin(void *o) { struct CGColorSpace *s = o; if (s->base) objc_release(s->base); }
 CGColorSpaceRef CGColorSpaceCreatePattern(CGColorSpaceRef base) {
-    struct CGColorSpace *s = isim_cg_obj_new("CGColorSpace", sizeof *s, NULL);
-    s->kind = CS_PATTERN; s->model = kCGColorSpaceModelPattern; s->base = base ? objc_retain(base) : NULL;
+    struct CGColorSpace *s = isim_cg_obj_new("CGColorSpace", sizeof *s, space_fin);
+    s->kind = CS_PATTERN; s->model = kCGColorSpaceModelPattern; s->base = base ? objc_retain(base) : NULL; s->ncomp = base ? base->ncomp : 0;
     return s;
 }
 CGColorSpaceRef CGColorSpaceRetain(CGColorSpaceRef s) { return retained(s); }
@@ -88,9 +92,9 @@ size_t CGColorSpaceGetNumberOfComponents(CGColorSpaceRef s) { return s ? s->ncom
 CFStringRef CGColorSpaceCopyName(CGColorSpaceRef s) { return s && s->name ? (CFStringRef)objc_retain((void *)s->name) : NULL; }
 CFStringRef CGColorSpaceGetName(CGColorSpaceRef s) { return s ? s->name : NULL; }
 CGColorSpaceRef CGColorSpaceGetBaseColorSpace(CGColorSpaceRef s) { return s ? s->base : NULL; }
-bool CGColorSpaceIsWideGamutRGB(CGColorSpaceRef s) { return s && (s->kind == CS_P3 || s->kind == CS_EXT_SRGB); }
+bool CGColorSpaceIsWideGamutRGB(CGColorSpaceRef s) { return s && s->kind == CS_P3; }
 bool CGColorSpaceSupportsOutput(CGColorSpaceRef s) { return s && s->model != kCGColorSpaceModelPattern; }
-bool CGColorSpaceUsesExtendedRange(CGColorSpaceRef s) { return s && s->kind == CS_EXT_SRGB; }
+bool CGColorSpaceUsesExtendedRange(CGColorSpaceRef s) { return s && (s->kind == CS_EXT_SRGB || s->kind == CS_EXT_LINEAR_SRGB || s->kind == CS_EXT_GRAY); }
 
 /* ---------------- conversions to sRGB ---------------- */
 static double lin(double v) { double a = fabs(v); double r = a <= 0.04045 ? a / 12.92 : pow((a + 0.055) / 1.055, 2.4); return v < 0 ? -r : r; }
@@ -99,9 +103,10 @@ static double clamp01(double v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 void isim_cg_to_rgba(CGColorSpaceRef space, const CGFloat *c, CGFloat out[4]) {
     int kind = space ? space->kind : CS_SRGB;
     switch (kind) {
-    case CS_GRAY: case CS_DEVICE_GRAY: out[0] = out[1] = out[2] = clamp01(c[0]); out[3] = c[1]; break;
+    case CS_GRAY: case CS_DEVICE_GRAY: case CS_EXT_GRAY: out[0] = out[1] = out[2] = clamp01(c[0]); out[3] = c[1]; break;
     case CS_LINEAR_GRAY: out[0] = out[1] = out[2] = clamp01(enc(c[0])); out[3] = c[1]; break;
-    case CS_LINEAR_SRGB: for (int i = 0; i < 3; i++) out[i] = clamp01(enc(c[i])); out[3] = c[3]; break;
+    case CS_LINEAR_SRGB: case CS_EXT_LINEAR_SRGB: case CS_GENERIC_RGB_LINEAR:
+        for (int i = 0; i < 3; i++) out[i] = clamp01(enc(c[i])); out[3] = c[3]; break;
     case CS_P3: {           /* Display P3 (D65, sRGB transfer) -> linear -> sRGB primaries */
         double r = lin(c[0]), g = lin(c[1]), b = lin(c[2]);
         double R = 1.2249401 * r - 0.2249404 * g + 0.0000000 * b;
@@ -122,7 +127,7 @@ static struct CGColor *color_new(int space) {
     static Class k; static int looked;
     if (!looked) { k = objc_getClass("__NSCGColor"); looked = k != NULL; }
     struct CGColor *col = k ? class_createInstance(k, 0) : calloc(1, sizeof *col);
-    col->refs = 1; col->space = space; col->pattern = NULL;
+    col->refs = 1; col->space = space; col->pattern = NULL; col->colorSpace = objc_retain(isim_cg_space(space));
     return col;
 }
 static CGColorRef make(int space, const CGFloat *comps, int n) {
@@ -141,14 +146,17 @@ CGColorRef CGColorCreate(CGColorSpaceRef space, const CGFloat *comps) {
     int kind = space ? space->kind : CS_SRGB;
     if (kind == CS_DEVICE_RGB) kind = CS_SRGB;
     if (kind == CS_DEVICE_GRAY) kind = CS_GRAY;
-    if (kind == CS_PATTERN) return make(kind, comps, 0);
+    if (kind == CS_PATTERN) { struct CGColor *col = make(kind, comps, 0); objc_release(col->colorSpace); col->colorSpace = space ? objc_retain(space) : NULL; return col; }
     size_t n = (space ? space->ncomp : 3) + 1;
-    return make(kind, comps, (int)n);
+    struct CGColor *col = make(kind, comps, (int)n);
+    if (space) { objc_release(col->colorSpace); col->colorSpace = objc_retain(space); }
+    return col;
 }
 CGColorRef CGColorCreateWithPattern(CGColorSpaceRef space, CGPatternRef pattern, const CGFloat *comps) {
     if (!pattern) return NULL;
     struct CGColor *col = color_new(CS_PATTERN);
     col->pattern = objc_retain(pattern);
+    objc_release(col->colorSpace); col->colorSpace = space ? objc_retain(space) : objc_retain(isim_cg_space(CS_PATTERN));
     size_t n = space && space->base ? space->base->ncomp + 1 : 0;
     for (size_t i = 0; i < n && comps; i++) col->comp[i] = comps[i];
     if (n && comps) isim_cg_to_rgba(space->base, col->comp, col->c); else { col->c[3] = 1; }
@@ -165,15 +173,15 @@ CGColorRef CGColorRetain(CGColorRef c) {
 }
 void CGColorRelease(CGColorRef c) {
     if (c && c->isa) objc_release(c);
-    else if (c && __atomic_sub_fetch(&c->refs, 1, __ATOMIC_ACQ_REL) == 0) free(c);
+    else if (c && __atomic_sub_fetch(&c->refs, 1, __ATOMIC_ACQ_REL) == 0) { if (c->pattern) objc_release(c->pattern); if (c->colorSpace) objc_release(c->colorSpace); free(c); }
 }
 const CGFloat *CGColorGetComponents(CGColorRef c) { return c ? c->comp : NULL; }
 size_t CGColorGetNumberOfComponents(CGColorRef c) {
     if (!c) return 0;
-    CGColorSpaceRef s = isim_cg_space(c->space);
-    return c->space == CS_PATTERN ? 1 : s->ncomp + 1;
+    CGColorSpaceRef s = c->colorSpace ? c->colorSpace : isim_cg_space(c->space);
+    return c->space == CS_PATTERN ? (s && s->base ? s->base->ncomp + 1 : 1) : s->ncomp + 1;
 }
-CGColorSpaceRef CGColorGetColorSpace(CGColorRef c) { return c ? isim_cg_space(c->space) : NULL; }
+CGColorSpaceRef CGColorGetColorSpace(CGColorRef c) { return c ? c->colorSpace : NULL; }
 CGPatternRef CGColorGetPattern(CGColorRef c) { return c ? c->pattern : NULL; }
 bool CGColorEqualToColor(CGColorRef a, CGColorRef b) {
     return a == b || (a && b && a->space == b->space && a->pattern == b->pattern && !memcmp(a->comp, b->comp, sizeof a->comp));
@@ -183,6 +191,7 @@ CGColorRef CGColorCreateCopy(CGColorRef c) {
     struct CGColor *n = color_new(c->space);
     memcpy(n->c, c->c, sizeof c->c); memcpy(n->comp, c->comp, sizeof c->comp);
     n->pattern = c->pattern ? objc_retain(c->pattern) : NULL;
+    if (n->colorSpace) objc_release(n->colorSpace); n->colorSpace = c->colorSpace ? objc_retain(c->colorSpace) : NULL;
     return n;
 }
 CGColorRef CGColorCreateCopyWithAlpha(CGColorRef c, CGFloat alpha) {
@@ -197,7 +206,7 @@ CGFloat CGColorGetAlpha(CGColorRef c) { return c ? c->c[3] : 0; }
 CGColorRef CGColorCreateCopyByMatchingToColorSpace(CGColorSpaceRef space, CGColorRenderingIntent intent, CGColorRef c, CFDictionaryRef opts) {
     if (!c || !space || space->kind == CS_PATTERN || c->space == CS_PATTERN) return NULL;
     int k = space->kind;
-    if (k == CS_GRAY || k == CS_DEVICE_GRAY || k == CS_LINEAR_GRAY) {
+    if (k == CS_GRAY || k == CS_DEVICE_GRAY || k == CS_LINEAR_GRAY || k == CS_EXT_GRAY) {
         double y = 0.2126 * lin(c->c[0]) + 0.7152 * lin(c->c[1]) + 0.0722 * lin(c->c[2]);
         CGFloat v[2] = { k == CS_LINEAR_GRAY ? y : enc(y), c->c[3] };
         return make(k == CS_DEVICE_GRAY ? CS_GRAY : k, v, 2);
@@ -207,7 +216,9 @@ CGColorRef CGColorCreateCopyByMatchingToColorSpace(CGColorSpaceRef space, CGColo
         CGFloat v[4] = { enc(0.8224621 * r + 0.1775380 * g), enc(0.0331941 * r + 0.9668058 * g), enc(0.0170827 * r + 0.0723974 * g + 0.9105199 * b), c->c[3] };
         return make(CS_P3, v, 4);
     }
-    if (k == CS_LINEAR_SRGB) { CGFloat v[4] = { lin(c->c[0]), lin(c->c[1]), lin(c->c[2]), c->c[3] }; return make(CS_LINEAR_SRGB, v, 4); }
+    if (k == CS_LINEAR_SRGB || k == CS_EXT_LINEAR_SRGB || k == CS_GENERIC_RGB_LINEAR) {
+        CGFloat v[4] = { lin(c->c[0]), lin(c->c[1]), lin(c->c[2]), c->c[3] }; return make(k, v, 4);
+    }
     if (k == CS_CMYK) {
         double K = 1 - fmax(c->c[0], fmax(c->c[1], c->c[2]));
         CGFloat v[5] = { K < 1 ? (1 - c->c[0] - K) / (1 - K) : 0, K < 1 ? (1 - c->c[1] - K) / (1 - K) : 0, K < 1 ? (1 - c->c[2] - K) / (1 - K) : 0, K, c->c[3] };
@@ -299,16 +310,34 @@ const char *isim_cg_consumer_path(CGDataConsumerRef c) { return c ? c->path : NU
 
 /* ---------------- CGFont (a name) ---------------- */
 CFTypeID CGFontGetTypeID(void) { return 0x4366; }
-static void font_fin(void *o) { struct CGFont *f = o; if (f->name) CFRelease(f->name); }
+static void font_fin(void *o) {
+    struct CGFont *f = o;
+    if (f->name) CFRelease(f->name);
+    if (f->fullName) CFRelease(f->fullName);
+}
+static CFStringRef string_from_utf8(const char *s) {
+    Class cls = objc_getClass("NSString");
+    void *v = cls && s ? ((void *(*)(void *, SEL, const char *))objc_msgSend)(cls, sel_registerName("stringWithUTF8String:"), s) : NULL;
+    return v ? objc_retain(v) : NULL;
+}
 CGFontRef CGFontCreateWithFontName(CFStringRef name) {
     if (!name) return NULL;
     struct CGFont *f = isim_cg_obj_new("CGFont", sizeof *f, font_fin);
-    f->name = CFRetain(name);
+    f->name = CFRetain(name); f->fullName = CFRetain(name); f->unitsPerEm = 2048;
     return f;
 }
-CGFontRef CGFontCreateWithDataProvider(CGDataProviderRef p) { return NULL; }
+CGFontRef CGFontCreateWithDataProvider(CGDataProviderRef p) {
+    size_t n = 0; const void *bytes = isim_cg_provider_bytes(p, &n);
+    char ps[128] = "", full[256] = ""; int units = 0;
+    if (!bytes || !isim_cg_font_data_info(bytes, (long)n, ps, sizeof ps, full, sizeof full, &units)) return NULL;
+    struct CGFont *f = isim_cg_obj_new("CGFont", sizeof *f, font_fin);
+    f->name = string_from_utf8(ps);
+    f->fullName = string_from_utf8(full[0] ? full : ps);
+    f->unitsPerEm = units;
+    return f;
+}
 CGFontRef CGFontRetain(CGFontRef f) { return f ? objc_retain(f) : NULL; }
 void CGFontRelease(CGFontRef f) { if (f) objc_release(f); }
 CFStringRef CGFontCopyPostScriptName(CGFontRef f) { return f && f->name ? CFRetain(f->name) : NULL; }
-CFStringRef CGFontCopyFullName(CGFontRef f) { return f && f->name ? CFRetain(f->name) : NULL; }
-int CGFontGetUnitsPerEm(CGFontRef f) { return 2048; }
+CFStringRef CGFontCopyFullName(CGFontRef f) { return f && f->fullName ? CFRetain(f->fullName) : NULL; }
+int CGFontGetUnitsPerEm(CGFontRef f) { return f ? f->unitsPerEm : 0; }

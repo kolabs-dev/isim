@@ -3,17 +3,23 @@ motion / gyro updates; pedometer, activity and altimeter unavailable like the Si
 Core Bluetooth (.unsupported + API MISUSE log), Core NFC (no reader), HealthKit (the Health Access sheet: Turn On All +
 Allow, saving with unit conversion, statistics sum, sample query, answers remembered after a relaunch,
 ISIM_HEALTH_PERMISSION=deny makes saving fail with errorAuthorizationDenied). Port of tests/ui/sensors.sh."""
+import pytest
 
 
+@pytest.mark.os_matrix
 def test_sensors_and_health(launch):
     app = launch("HelloSensors")
     app.wait_tap_id("motion")
-    app.wait_log(r"^motion available accel true gyro true deviceMotion true")       # motion sensors (simulated)
-    app.wait_log(r"^accel 0\.00 -1\.00 0\.00 after 3 updates")                      # accelerometer reads gravity
-    app.wait_log(r"^deviceMotion gravity 0\.00 -1\.00 0\.00 user 0\.00 pitch 1\.57 roll 0\.00")
+    app.wait_log(r"^motion available accel true gyro true magnetometer true deviceMotion true")
+    app.wait_log(r"^motion frames 15$")
+    app.wait_log(r"^accel 0\.00 -1\.00 0\.00 pull 0\.00 -1\.00 0\.00 after 3 updates")
+    app.wait_log(r"^deviceMotion gravity 0\.00 -1\.00 0\.00 user 0\.00 pitch 1\.57 roll 0\.00 pull -1\.00 heading -1")
     app.wait_log(r"^gyro 0\.00 0\.00 0\.00 active yes")                             # gyro pull mode at rest
-    app.wait_log(r"^pedometer steps false activity false altimeter false")
+    app.wait_log(r"^magnetometer 18\.4 -9\.2 -41\.7 pull 18\.4 -9\.2 -41\.7")
+    app.wait_log(r"^pedometer steps false distance false floors false pace false cadence false events false activity false altimeter false")
     app.wait_log(r"^pedometer query error 104")                                     # pedometer/activity/altimeter n/a
+    app.wait_log(r"^activity query error 104")
+    app.wait_log(r"^altimeter update error 109")
     app.tap_id("bluetooth")
     app.wait_log(r"^bluetooth state unsupported")
     app.wait_log(r"API MISUSE: <CBCentralManager")
@@ -43,7 +49,8 @@ def test_sensors_and_health(launch):
     # relaunch on the same device data, motion unavailable (Simulator-exact)
     app = launch("HelloSensors", env={"ISIM_MOTION": "unavailable"})
     app.wait_tap_id("motion")
-    app.wait_log(r"^motion available accel false gyro false deviceMotion false")
+    app.wait_log(r"^motion available accel false gyro false magnetometer false deviceMotion false")
+    app.wait_log(r"^motion frames 0$")
     app.tap_id("healthAuth")
     app.wait_log(r"^health auth true steps 2 weight 1")                             # answers remembered (no sheet)
     app.tap_id("healthSave")

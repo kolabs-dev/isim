@@ -688,10 +688,10 @@ static NSMutableDictionary *error_providers;
 
 /* CGColor objects (CoreGraphics allocates these so CGColorRef is retainable by ARC/Swift).
  * Layout must match struct CGColor in CoreGraphics.c: isa, 4 components, refs. */
-@interface __NSCGColor : NSObject { @public CGFloat _c[4]; int _refs; int _space; CGFloat _comp[5]; void *_pattern; }
+@interface __NSCGColor : NSObject { @public CGFloat _c[4]; int _refs; int _space; CGFloat _comp[5]; void *_pattern, *_colorSpace; }
 @end
 @implementation __NSCGColor
-- (void)dealloc { if (_pattern) CFRelease(_pattern); }
+- (void)dealloc { if (_pattern) CFRelease(_pattern); if (_colorSpace) CFRelease(_colorSpace); }
 - (NSString *)description { return [NSString stringWithFormat:@"<CGColor %p> [%g %g %g %g]", self, _c[0], _c[1], _c[2], _c[3]]; }
 - (BOOL)isEqual:(id)o { return o == self || ([o isKindOfClass:[__NSCGColor class]] && !memcmp(_c, ((__NSCGColor *)o)->_c, sizeof _c)); }
 - (NSUInteger)hash { return (NSUInteger)(_c[0] * 255) << 24 ^ (NSUInteger)(_c[1] * 255) << 16 ^ (NSUInteger)(_c[2] * 255) << 8 ^ (NSUInteger)(_c[3] * 255); }

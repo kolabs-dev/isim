@@ -72,6 +72,18 @@ select_os() {   # validates the device + iOS version pairing; remembers an expli
   fi
 }
 plist_get() { python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb")).get(sys.argv[2],""))' "$1" "$2"; }
+app_device_families() {
+  python3 -c 'import plistlib,sys; v=plistlib.load(open(sys.argv[1],"rb")).get("UIDeviceFamily"); print(" ".join(map(str,v)) if isinstance(v,list) else "")' "$1/Info.plist"
+}
+validate_app_device() {
+  local app=$1 families device=${ISIM_DEVICE:-iphone15}
+  [ -d "$app" ] && [ -f "$app/Info.plist" ] || return 0
+  families=$(app_device_families "$app")
+  case "$device" in ipad*) return 0 ;; esac
+  case " $families " in *" 1 "*|"  ") return 0 ;; esac
+  echo "isim: cannot install $(basename "$app"): UIDeviceFamily [$families] does not support iPhone ($device)" >&2
+  return 1
+}
 # The running device's control FIFO: every device reads script commands from one, --control FIFO or else a default
 # FIFO of its own, and `$CTLREC` names it with the device's pid (this script execs the runtime, so the pid stays) for
 # isim send / open / openurl.
@@ -214,6 +226,7 @@ case "$cmd" in
     mkdir -p "$DATA/Applications"
     for app in "$@"; do
       [ -f "$app/Info.plist" ] || { echo "isim install: $app is not an app bundle" >&2; exit 1; }
+      validate_app_device "$app" || exit 1
       dst=$DATA/Applications/$(basename "$app")
       rm -rf "$dst"; cp -a "$app" "$dst"
       echo "installed $(plist_get "$app/Info.plist" CFBundleDisplayName || true) ($(plist_get "$app/Info.plist" CFBundleIdentifier)) -> $dst"
@@ -250,6 +263,7 @@ case "$cmd" in
         *) break ;;
       esac
     done
+    validate_app_device "$app" || exit 1
     select_os
     control_setup
     exe=$app

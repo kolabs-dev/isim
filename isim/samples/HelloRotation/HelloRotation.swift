@@ -69,6 +69,7 @@ final class RotationViewController: UIViewController {
     }
     func refresh() {
         let s = UIScreen.main.bounds.size
-        info.text = "screen \(Int(s.width))x\(Int(s.height))\nlandscape \(s.width > s.height)"
+        let idiom = UIDevice.current.userInterfaceIdiom == .pad ? "pad" : "phone"
+        info.text = "screen \(Int(s.width))x\(Int(s.height))\nidiom \(idiom)\nlandscape \(s.width > s.height)"
     }
 }
