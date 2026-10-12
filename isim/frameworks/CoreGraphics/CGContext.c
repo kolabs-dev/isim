@@ -8,7 +8,8 @@
 void isim_cg_gstate_reset(struct gstate *g) {
     memset(g, 0, sizeof *g);
     g->fill[3] = g->stroke[3] = 1; g->lw = 1; g->alpha = 1; g->miter = 10; g->fontSize = 12;
-    g->fillSpace = g->strokeSpace = isim_cg_space(CS_SRGB);
+    g->fillSpace = objc_retain(isim_cg_space(CS_SRGB));
+    g->strokeSpace = objc_retain(isim_cg_space(CS_SRGB));
 }
 static void ctx_fin(void *o);
 struct CGContext *isim_cg_ctx_new(int kind) {
@@ -26,13 +27,17 @@ static void gstate_retain(struct gstate *g) {
     if (g->fillPat) objc_retain(g->fillPat);
     if (g->strokePat) objc_retain(g->strokePat);
     if (g->font) objc_retain(g->font);
+    if (g->fillSpace) objc_retain(g->fillSpace);
+    if (g->strokeSpace) objc_retain(g->strokeSpace);
 }
 static void gstate_release(struct gstate *g) {
     if (g->mask) objc_release(g->mask);
     if (g->fillPat) objc_release(g->fillPat);
     if (g->strokePat) objc_release(g->strokePat);
     if (g->font) objc_release(g->font);
-    g->mask = NULL; g->fillPat = g->strokePat = NULL; g->font = NULL;
+    if (g->fillSpace) objc_release(g->fillSpace);
+    if (g->strokeSpace) objc_release(g->strokeSpace);
+    g->mask = NULL; g->fillPat = g->strokePat = NULL; g->font = NULL; g->fillSpace = g->strokeSpace = NULL;
 }
 static void ctx_fin(void *o) {
     struct CGContext *x = o;
@@ -154,6 +159,7 @@ static void set_color(CGContextRef c, CGColorRef col, int stroke) {
     struct CGContext *x = c ? c : (struct CGContext *)isim_cg_current_context();
     struct gstate *g = G(x);
     if (col->pattern) {
+        if (stroke) CGContextSetStrokeColorSpace(x, col->colorSpace); else CGContextSetFillColorSpace(x, col->colorSpace);
         CGPatternRef *p = stroke ? &g->strokePat : &g->fillPat;
         clear_pat(p); *p = objc_retain(col->pattern);
         memcpy(stroke ? g->strokePatComps : g->fillPatComps, col->comp, sizeof col->comp);
@@ -167,13 +173,15 @@ void CGContextSetFillColorWithColor(CGContextRef c, CGColorRef col) { set_color(
 void CGContextSetStrokeColorWithColor(CGContextRef c, CGColorRef col) { set_color(c, col, 1); }
 void CGContextSetFillColorSpace(CGContextRef c, CGColorSpaceRef s) {
     struct CGContext *x = c ? c : (struct CGContext *)isim_cg_current_context();
-    G(x)->fillSpace = s ? s : isim_cg_space(CS_SRGB);
+    if (G(x)->fillSpace) objc_release(G(x)->fillSpace);
+    G(x)->fillSpace = objc_retain(s ? s : isim_cg_space(CS_SRGB));
     CGFloat z[5] = { 0, 0, 0, 0, 1 }; if (s && s->ncomp < 4) z[s->ncomp] = 1;
     if (s && s->model != kCGColorSpaceModelPattern) { CGFloat o[4]; isim_cg_to_rgba(s, z, o); memcpy(G(x)->fill, o, sizeof o); }
 }
 void CGContextSetStrokeColorSpace(CGContextRef c, CGColorSpaceRef s) {
     struct CGContext *x = c ? c : (struct CGContext *)isim_cg_current_context();
-    G(x)->strokeSpace = s ? s : isim_cg_space(CS_SRGB);
+    if (G(x)->strokeSpace) objc_release(G(x)->strokeSpace);
+    G(x)->strokeSpace = objc_retain(s ? s : isim_cg_space(CS_SRGB));
     CGFloat z[5] = { 0, 0, 0, 0, 1 }; if (s && s->ncomp < 4) z[s->ncomp] = 1;
     if (s && s->model != kCGColorSpaceModelPattern) { CGFloat o[4]; isim_cg_to_rgba(s, z, o); memcpy(G(x)->stroke, o, sizeof o); }
 }
@@ -191,13 +199,15 @@ void CGContextSetFillPattern(CGContextRef c, CGPatternRef p, const CGFloat *comp
     struct CGContext *x = c ? c : (struct CGContext *)isim_cg_current_context();
     clear_pat(&G(x)->fillPat); if (p) G(x)->fillPat = objc_retain(p);
     memset(G(x)->fillPatComps, 0, sizeof G(x)->fillPatComps);
-    if (comps) for (int i = 0; i < 4; i++) G(x)->fillPatComps[i] = comps[i];
+    size_t n = p && !p->colored && G(x)->fillSpace && G(x)->fillSpace->base ? G(x)->fillSpace->base->ncomp + 1 : 1;
+    if (comps) for (size_t i = 0; i < n && i < 5; i++) G(x)->fillPatComps[i] = comps[i];
 }
 void CGContextSetStrokePattern(CGContextRef c, CGPatternRef p, const CGFloat *comps) {
     struct CGContext *x = c ? c : (struct CGContext *)isim_cg_current_context();
     clear_pat(&G(x)->strokePat); if (p) G(x)->strokePat = objc_retain(p);
     memset(G(x)->strokePatComps, 0, sizeof G(x)->strokePatComps);
-    if (comps) for (int i = 0; i < 4; i++) G(x)->strokePatComps[i] = comps[i];
+    size_t n = p && !p->colored && G(x)->strokeSpace && G(x)->strokeSpace->base ? G(x)->strokeSpace->base->ncomp + 1 : 1;
+    if (comps) for (size_t i = 0; i < n && i < 5; i++) G(x)->strokePatComps[i] = comps[i];
 }
 void CGContextSetPatternPhase(CGContextRef c, CGSize phase) { struct CGContext *x = c ? c : (struct CGContext *)isim_cg_current_context(); x->patternPhase = phase; }
 void isim_cg_context_fill_rgba(CGContextRef c, double *rgba) {
@@ -353,7 +363,9 @@ CGPathRef CGContextCopyPath(CGContextRef c) {
     free(els);
     return p;
 }
-void CGContextReplacePathWithStrokedPath(CGContextRef c) {}
+void CGContextReplacePathWithStrokedPath(CGContextRef c) {
+    struct CGContext *x = enter(c); line_style(x); isim_cg_replace_path_with_stroke(G(x)->lw); leave(x);
+}
 bool CGContextIsPathEmpty(CGContextRef c) { struct CGContext *x = enter(c); int n = isim_cg_copy_path(NULL, 0); leave(x); return n == 0; }
 CGPoint CGContextGetPathCurrentPoint(CGContextRef c) { struct CGContext *x = enter(c); CGPoint p = current_point(); leave(x); return p; }
 CGRect CGContextGetPathBoundingBox(CGContextRef c) {
@@ -376,14 +388,18 @@ bool CGContextPathContainsPoint(CGContextRef c, CGPoint p, CGPathDrawingMode mod
 static void paint_pattern(struct CGContext *x, int stroke, int mode) {
     struct gstate *g = G(x);
     CGPatternRef pat = stroke ? g->strokePat : g->fillPat;
-    double cw, ch; int hd = isim_cg_pattern_cell(pat, stroke ? g->strokePatComps : g->fillPatComps, &cw, &ch);
+    CGFloat *comps = stroke ? g->strokePatComps : g->fillPatComps, rgba[4] = { 0, 0, 0, 1 };
+    CGColorSpaceRef space = stroke ? g->strokeSpace : g->fillSpace;
+    if (pat && !pat->colored) isim_cg_to_rgba(space && space->model == kCGColorSpaceModelPattern ? space->base : space, comps, rgba);
+    double cw, ch; int hd = isim_cg_pattern_cell(pat, rgba, &cw, &ch);
     if (!hd) return;
     double iw, ih; isim_image_pixel_size(hd, &iw, &ih);
     /* pixels -> pattern space (the cell is drawn y-up) -> user space (pattern matrix + phase) */
     CGAffineTransform px = CGAffineTransformMake(cw / iw, 0, 0, -ch / ih, pat->bounds.origin.x, pat->bounds.origin.y + ch);
     CGAffineTransform m = CGAffineTransformConcat(CGAffineTransformConcat(px, pat->matrix), CGAffineTransformMakeTranslation(x->patternPhase.width, x->patternPhase.height));
     double mm[6] = { m.a, m.b, m.c, m.d, m.tx, m.ty };
-    isim_cg_fill_pattern(hd, iw, ih, mm, mode, g->lw, g->alpha);
+    CGFloat patternAlpha = pat->colored ? comps[0] : rgba[3];
+    isim_cg_fill_pattern(hd, iw, ih, mm, mode, g->lw, g->alpha * patternAlpha);
 }
 static void do_fill(struct CGContext *x) {
     double a[4];
