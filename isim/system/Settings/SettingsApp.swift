@@ -75,6 +75,7 @@ enum Route: Hashable {
     case developer, localExperiences, registerExperience                                   // DeveloperSettings.swift
     case privacy, privacyService(String), appPermission(String, String), notifications, appNotifications(String)   // PrivacySettings.swift
     case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
+    case focus(FocusRoute)                                                          // FocusSettings.swift
 }
 
 struct SettingsIcon: View {
@@ -121,6 +122,8 @@ struct RootView: View {
                 Section {
                     NavigationLink(value: Route.notifications) { Label { Text("Notifications") } icon: { SettingsIcon(symbol: "bell.badge.fill", color: .red) } }
                         .accessibilityIdentifier("settings-notifications")
+                    NavigationLink(value: Route.focus(.list)) { Label { Text("Focus") } icon: { SettingsIcon(symbol: "moon.fill", color: .indigo) } }
+                        .accessibilityIdentifier("settings-focus")
                 }
                 Section {
                     NavigationLink(value: Route.privacy) { Label { Text("Privacy & Security") } icon: { SettingsIcon(symbol: "hand.raised.fill", color: .blue) } }
@@ -200,6 +203,7 @@ struct RootView: View {
         case .appNotifications(let id): AppNotificationsView(id: id)
         case .appPane(let bundle, let file, let id): ChildPaneView(bundlePath: bundle, file: file, appID: id)
         case .appMultiValue(let bundle, let file, let key): MultiValueRouteView(bundlePath: bundle, file: file, key: key)
+        case .focus(let r): FocusDestination(route: r)
         }
     }
 }

@@ -63,7 +63,7 @@ struct nc_item { char path[512], id[256], title[256], body[512], icon[512], reco
 static struct nc_item ncl[64]; static int nnc;
 
 struct sys_el { char id[128], text[192]; struct rectf r; int kind, arg; };
-enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND };
+enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_CC_X /* shell_controls.inc */ };
 static struct sys_el els[96]; static int nels;
 
 /* Control Center state */
@@ -78,7 +78,7 @@ static const char *const cc_names[CC_N] = { "Airplane Mode", "Cellular Data", "W
                                            "Flashlight", "Timer", "Dark Mode", "Camera" };
 
 static int sys_visible(void) { return ov != OV_NONE; }
-static int sys_hides_banners(void) { return locked || ov != OV_NONE || cc_on[CC_FOCUS]; }
+static int sys_hides_banners(void) { return locked || ov != OV_NONE; }      /* Focus: focus_silences (shell_controls.inc) */
 static void shell_launch(const char *bundle, const char *exe, const char *url);
 static void sys_push_deliver(const char *path, const char *exe, const char *sidecar);
 static void nx_close(void);
@@ -287,13 +287,16 @@ static void nc_draw_list(cairo_t *c, double top, int lock_style) {
     }
 }
 
+static void cc_button(cairo_t *c, int k, struct rectf r, int circle);
+#include "shell_controls.inc"
+
 /* ---- Control Center ---- */
 static void cc_button(cairo_t *c, int k, struct rectf r, int circle) {
     int on = cc_on[k];
     double bg_on[3] = { 0, 0.48, 1 };
     if (k == CC_AIRPLANE) { bg_on[0] = 1; bg_on[1] = 0.58; bg_on[2] = 0; }
     if (k == CC_CELLULAR) { bg_on[0] = 0.2; bg_on[1] = 0.78; bg_on[2] = 0.35; }
-    if (k == CC_FOCUS) { bg_on[0] = 0.37; bg_on[1] = 0.36; bg_on[2] = 0.9; }
+    if (k == CC_FOCUS) { focus_load(); for (int q = 0; q < 3; q++) bg_on[q] = focus_rgb[focus_mode][q]; }
     if (k == CC_ORIENT || k == CC_FLASHLIGHT || k == CC_DARK) { bg_on[0] = bg_on[1] = bg_on[2] = 1; }
     int os = sys_os();
     if (os >= 18 && fabs(r.w - r.h) < 1) circle = 1;               /* iOS 18: round toggles */
@@ -308,11 +311,10 @@ static void cc_button(cairo_t *c, int k, struct rectf r, int circle) {
     }
     int dark_glyph = on && bg_on[0] == 1 && bg_on[1] == 1;
     double fg = dark_glyph ? 0.1 : 1;
-    if (k == CC_FOCUS) {
-        sys_symbol(c, cc_symbols[k], r.x + 26, r.y + r.h / 2, 20, fg, fg, fg);
-        sys_text(c, on ? "Do Not Disturb" : "Focus", r.x + 46, r.y + r.h / 2 - 10, r.w - 52, 15, PANGO_WEIGHT_SEMIBOLD, 0, 1, fg, fg, fg, 1);
-    } else sys_symbol(c, cc_symbols[k], r.x + r.w / 2, r.y + r.h / 2, circle ? 22 : 24, fg, fg, fg);
-    el_add(cc_ids[k], on ? "on" : "off", r, EL_CC_TOGGLE, k);
+    if (k == CC_FOCUS) focus_draw_module(c, r, fg);
+    else sys_symbol(c, cc_symbols[k], r.x + r.w / 2, r.y + r.h / 2, circle ? 22 : 24, fg, fg, fg);
+    el_add(cc_ids[k], k == CC_FOCUS && on ? focus_names[focus_mode] : on ? "on" : "off", r, EL_CC_TOGGLE, k);
+    if (k == CC_FOCUS) focus_register_module(r);
 }
 static void cc_slider(cairo_t *c, const char *id, const char *sym, double v, struct rectf r, int arg) {
     double rad = sys_os() >= 18 ? r.w * 0.46 : 22;
@@ -327,6 +329,7 @@ static void cc_slider(cairo_t *c, const char *id, const char *sym, double v, str
 static void cc_draw(cairo_t *c) {
     double m = dev.width >= 700 ? (dev.width - 420) / 2 : 30, gap = 14;
     int os = sys_os();
+    if (cc_page == CC_PAGE_FOCUS) { focus_draw_list(c); return; }        /* the expanded Focus module */
     double u = (dev.width - 2 * m - 3 * gap) / 4, top = fmax(dev.safe_top, 20) + (os >= 18 ? 64 : 36);
     double big = 2 * u + gap, prad = os >= 26 ? 34 : os >= 18 ? 30 : 24;
     if (os >= 18) {                                   /* iOS 18: edit (+) and power at the top, the page column */
@@ -344,7 +347,7 @@ static void cc_draw(cairo_t *c) {
         cairo_new_path(c); cairo_arc(c, px, py + 1, 6.5, -M_PI / 2 + 0.75, 1.5 * M_PI - 0.75);
         cairo_move_to(c, px, py - 7.5); cairo_line_to(c, px, py); cairo_stroke(c);
         cairo_restore(c);
-        el_add("cc-edit", "Edit", edit, EL_NONE, 0); el_add("cc-power", "Power", power, EL_NONE, 0);
+        el_add("cc-edit", "Edit", edit, EL_CC_X, XARG(X_EDIT, 0)); el_add("cc-power", "Power", power, EL_NONE, 0);
         const char *pages[4] = { "star.fill", "play.fill", "house", "wifi" };
         for (int i = 0; i < 4; i++) sys_symbol(c, pages[i], dev.width - m / 2, top + big * 0.55 + i * 28, 13, 1, 1, 1);
     }
@@ -369,10 +372,9 @@ static void cc_draw(cairo_t *c) {
     cc_button(c, CC_FOCUS, (struct rectf){ m, y2 + u + gap, big, u }, 0);
     cc_slider(c, "cc-brightness", "sun.max.fill", cc_brightness, (struct rectf){ m + big + gap, y2, u, big }, 0);
     cc_slider(c, "cc-volume", "speaker.wave.2.fill", cc_volume, (struct rectf){ m + big + gap + u + gap, y2, u, big }, 1);
-    /* row 4 */
-    double y4 = y2 + big + gap;
-    int r4[4] = { CC_FLASHLIGHT, CC_TIMER, CC_DARK, CC_CAMERA };
-    for (int i = 0; i < 4; i++) cc_button(c, r4[i], (struct rectf){ m + i * (u + gap), y4, u, u }, 0);
+    /* row 4 on: flashlight, timer, dark mode, camera and the controls added in edit mode (iOS 18+) */
+    ctl_draw_flow(c, m, y2 + big + gap, u, gap);
+    if (cc_page == CC_PAGE_GALLERY) ctl_draw_gallery(c);
 }
 
 /* ---- lock screen ---- */
@@ -421,6 +423,7 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
         cairo_path_destroy(glyphs); cairo_restore(c);
     } else sys_text(c, t, 0, top + 50, dev.width, 92, PANGO_WEIGHT_BOLD, 1, 1, 1, 1, 1, 0.95);
     el_add("lock-clock", t, (struct rectf){ 0, top + 50, dev.width, 100 }, EL_NONE, 0);
+    focus_draw_lock(c, top + 156);
     double lt = dev.height * 0.30;
     lt += la_draw_lock(c, lt);
     nc_draw_list(c, fmax(lt, dev.height * 0.42), 1);
@@ -433,8 +436,7 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
         cairo_set_source_rgba(c, 0, 0, 0, 0.32); cairo_arc(c, bl.x + 25, bl.y + 25, 25, 0, 2 * M_PI); cairo_fill(c);
         cairo_arc(c, br.x + 25, br.y + 25, 25, 0, 2 * M_PI); cairo_fill(c);
     }
-    sys_symbol(c, "flashlight.off.fill", bl.x + 25, bl.y + 25, 20, 1, 1, 1);
-    sys_symbol(c, "camera.fill", br.x + 25, br.y + 25, 20, 1, 1, 1);
+    lockctl_draw(c, bl, br);                                       /* flashlight / camera, or controls (shell_controls.inc) */
 }
 
 
@@ -904,7 +906,7 @@ static void sys_open(int which) {
         if (active > 0) shell_send(active, EV_BACKGROUND);
         fprintf(stderr, "isim shell: app switcher (%d app%s)\n", sw_n, sw_n == 1 ? "" : "s");
     } else if (which == OV_NC) fprintf(stderr, "isim shell: Notification Center (%d notification%s)\n", nnc, nnc == 1 ? "" : "s");
-    else if (which == OV_CC) fprintf(stderr, "isim shell: Control Center (iOS %d look)\n", sys_os());
+    else if (which == OV_CC) { cc_page = CC_PAGE_MAIN; fprintf(stderr, "isim shell: Control Center (iOS %d look)\n", sys_os()); }
     sys_draw();
 }
 static void sys_close(void) {
@@ -987,6 +989,7 @@ static void cc_set_network(void) {
     fprintf(stderr, "isim shell: network %s\n", off ? "offline (Control Center)" : "online");
 }
 static void cc_toggle(int k) {
+    if (k == CC_FOCUS) { focus_load(); focus_set(focus_mode ? FOCUS_OFF : focus_last); return; }
     cc_on[k] = !cc_on[k];
     fprintf(stderr, "isim shell: Control Center %s %s\n", cc_names[k], cc_on[k] ? "on" : "off");
     if (k == CC_AIRPLANE) { if (cc_on[k]) cc_on[CC_CELLULAR] = cc_on[CC_WIFI] = cc_on[CC_BLUETOOTH] = 0; else cc_on[CC_CELLULAR] = cc_on[CC_WIFI] = cc_on[CC_BLUETOOTH] = 1; cc_set_network(); }
@@ -1021,6 +1024,7 @@ static void el_tap(struct sys_el *e, double y) {
     case EL_NX_SEND: if (nx.reply) { struct nx_action *a = &nx.act[nx.reply - 1]; char t[512]; snprintf(t, sizeof t, "%s", nx.text); nx_respond(a->id, t, (a->opts & 4) != 0); } break;
     case EL_NC_CLEAR: fprintf(stderr, "isim shell: cleared %d notification(s)\n", nnc); nnc = 0; sys_draw(); break;
     case EL_CC_TOGGLE: cc_toggle(e->arg); break;
+    case EL_CC_X: ctl_tap(e); break;
     case EL_CC_SLIDER: {
         double v = fmin(1, fmax(0, 1 - (y - e->r.y) / e->r.h));
         if (e->arg == 0) cc_brightness = fmax(0.05, v); else cc_volume = v;
@@ -1040,7 +1044,7 @@ static void sys_dump(void) {
     for (int k = 0; k < nels; k++)
         fprintf(stderr, "  %s (%g %g; %g x %g) id=%s%s%s\n", els[k].kind == EL_CARD ? "IsimAppCard" : els[k].kind == EL_NC_ITEM ? "IsimNotification" :
                 els[k].kind == EL_NX_ACTION ? "IsimNotificationAction" : els[k].kind == EL_NX_CONTENT ? "IsimNotificationContent" :
-                els[k].kind == EL_CC_TOGGLE ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : els[k].kind >= EL_AC_OPEN ? "IsimAppClipButton" : "IsimSystemView",
+                els[k].kind == EL_CC_TOGGLE || (els[k].kind == EL_CC_X && els[k].arg / 1000 == X_MODULE) ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : els[k].kind >= EL_AC_OPEN ? "IsimAppClipButton" : "IsimSystemView",
                 els[k].r.x, els[k].r.y, els[k].r.w, els[k].r.h, els[k].id, els[k].text[0] ? " text=" : "", els[k].text);
 }
 
@@ -1183,6 +1187,7 @@ static void sys_tick(void) {
 
 static void sys_handle_msg(int from, const struct shell_msg *m) {
     const char *verb = m->a;
+    if (ctl_handle_msg(from, m)) return;                         /* Focus and controls (shell_controls.inc) */
     if (!strcmp(verb, "appinfo")) {
         struct sys_appinfo *ai = sys_info(m->b);
         if (!ai) { if (nappinfo >= 128) return; ai = &appinfo[nappinfo++]; snprintf(ai->path, sizeof ai->path, "%s", m->b); }
@@ -1284,6 +1289,7 @@ static void sys_push_deliver(const char *path, const char *exe, const char *side
     snprintf(n->record, sizeof n->record, "%s", record); snprintf(n->thumb, sizeof n->thumb, "%s", thumb);
     snprintf(n->exe, sizeof n->exe, "%s", exe); snprintf(n->file, sizeof n->file, "%s", file);
     if (sys_hides_banners()) { fprintf(stderr, "isim shell: notification from %s listed%s: %s\n", path, locked ? " on the lock screen" : "", title); if (ov != OV_NONE) sys_draw(); return; }
+    if (focus_silences(path, flags, title)) return;
     nb_show(-1, path, id, icon, title, body, thumb);
 }
 
@@ -1318,6 +1324,7 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "homepage")) { if (!locked && active == 0) sys_send_text(0, "homepage %s", args); return 1; }
     if (!strcmp(verb, "iconstyle")) { sys_send_text(0, "iconstyle %s", args); return 1; }   /* Home Screen > Edit > Customize */
     if (!strcmp(verb, "spotlight")) { if (!locked && active == 0) sys_send_text(0, "spotlight"); return 1; }
+    if (ctl_command(verb, args)) return 1;                       /* focus, actionbutton, lockcontrol */
     fprintf(stderr, "isim shell: '%s' is not available\n", verb);
     return 1;
 }
@@ -1334,5 +1341,7 @@ static void sys_notify(int i, const struct shell_msg *m) {
         if (ov != OV_NONE) sys_draw();
         return;
     }
+    char flags[16]; field(m->a, 4, flags, sizeof flags);
+    if (focus_silences(clients[i].bundle, flags, m->b)) return;
     nb_post(i, m);
 }
