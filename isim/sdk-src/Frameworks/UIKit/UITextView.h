@@ -54,6 +54,9 @@ NS_SWIFT_UI_ACTOR
 - (nullable UITextItemMenuConfiguration *)textView:(UITextView *)textView menuConfigurationForTextItem:(UITextItem *)textItem defaultMenu:(UIMenu *)defaultMenu;
 - (BOOL)textView:(UITextView *)textView shouldInteractWithURL:(NSURL *)URL inRange:(NSRange)characterRange interaction:(UITextItemInteraction)interaction;
 - (BOOL)textView:(UITextView *)textView shouldInteractWithURL:(NSURL *)URL inRange:(NSRange)characterRange;
+/* Writing Tools (isim: never shown, so never called) */
+- (void)textViewWritingToolsWillBegin:(UITextView *)textView API_AVAILABLE(ios(18.0));
+- (void)textViewWritingToolsDidEnd:(UITextView *)textView API_AVAILABLE(ios(18.0));
 @end
 
 typedef NS_ENUM(NSInteger, UITextViewBorderStyle) { UITextViewBorderStyleNone = 0, UITextViewBorderStyleRoundedRect } NS_SWIFT_NAME(UITextView.BorderStyle) API_AVAILABLE(ios(17.0));

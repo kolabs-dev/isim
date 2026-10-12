@@ -103,3 +103,4 @@ BOOL isim_ti_can_style(id<IsimEditableText> v);
 BOOL isim_ti_can_find(id v, SEL action);                 /* UIFindInteraction.m */
 void isim_ti_align(id<IsimEditableText> v, NSTextAlignment alignment);
 void isim_ti_update_attributes(id<IsimEditableText> v, UITextAttributesConversionHandler handler);
+void isim_ui_present_text_formatting(UITextView *tv);     /* UITextFormattingViewController.m */

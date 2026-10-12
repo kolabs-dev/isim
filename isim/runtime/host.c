@@ -1645,6 +1645,20 @@ void *isim_tl_create(const char *markup, double maxw, int align, double spacing,
     }
     return l;
 }
+/* tab stops (NSTextTab): n positions from the layout's left edge, each aligned 0 left, 1 right, 2 center, 3 decimal;
+   Pango spaces the stops after the last one like the last two */
+void isim_tl_set_tabs(void *t, int n, const double *pos, const int *align) {
+    if (n <= 0) return;
+    PangoTabArray *ta = pango_tab_array_new(n, FALSE);
+    for (int i = 0; i < n; i++) {
+        int a = align[i];
+        pango_tab_array_set_tab(ta, i, a == 1 ? PANGO_TAB_RIGHT : a == 2 ? PANGO_TAB_CENTER : a == 3 ? PANGO_TAB_DECIMAL : PANGO_TAB_LEFT,
+                                (int)(fmax(0, pos[i]) * PANGO_SCALE));
+        if (a == 3) pango_tab_array_set_decimal_point(ta, i, '.');
+    }
+    pango_layout_set_tabs((PangoLayout *)t, ta);
+    pango_tab_array_free(ta);
+}
 void isim_tl_free(void *t) { if (t) g_object_unref((PangoLayout *)t); }
 void isim_tl_size(void *t, double *w, double *h) {
     PangoRectangle log; pango_layout_get_extents((PangoLayout *)t, NULL, &log);
@@ -1888,7 +1902,7 @@ static const struct shim isim_table[] = {
     H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_key_der), H(isim_pki_trust), H(isim_pki_pkcs12),
     H(isim_set_orientation), H(isim_device_orientation),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
-    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_text_draw_markup),
+    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
     H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),

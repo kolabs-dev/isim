@@ -36,9 +36,31 @@ NSAttributedStringTextHighlightColorScheme const NSTextHighlightColorSchemeDefau
 @public
     CGFloat _ls, _ps, _hi, _ti, _fhi, _minLH, _maxLH, _lhm, _psb; NSTextAlignment _al; NSLineBreakMode _lbm; NSWritingDirection _wd; float _hy;
     NSArray<NSTextBlock *> *_tb;
+    NSArray<NSTextTab *> *_tabs; NSArray<NSTextList *> *_lists; CGFloat _dti; NSLineBreakStrategy _lbs; BOOL _tighten, _hyphen;
 }
+- (id)_isim_copyAs:(Class)c;
 @end
+/* Apple's default stops: 12 left tabs 28 points apart */
+static NSArray<NSTextTab *> *default_tabs(void) {
+    static NSArray *tabs;
+    if (!tabs) {
+        NSMutableArray *a = [NSMutableArray array];
+        for (int i = 1; i <= 12; i++) [a addObject:[[NSTextTab alloc] initWithTextAlignment:NSTextAlignmentLeft location:28 * i options:@{}]];
+        tabs = a;
+    }
+    return tabs;
+}
 @implementation NSParagraphStyle
++ (NSWritingDirection)defaultWritingDirectionForLanguage:(NSString *)language {
+    if (!language.length) return NSWritingDirectionNatural;
+    return [NSLocale characterDirectionForLanguage:language] == NSLocaleLanguageDirectionRightToLeft ? NSWritingDirectionRightToLeft : NSWritingDirectionLeftToRight;
+}
+- (NSArray<NSTextTab *> *)tabStops { return _tabs ?: default_tabs(); }
+- (CGFloat)defaultTabInterval { return _dti; }
+- (NSArray<NSTextList *> *)textLists { return _lists ?: @[]; }
+- (NSLineBreakStrategy)lineBreakStrategy { return _lbs; }
+- (BOOL)allowsDefaultTighteningForTruncation { return _tighten; }
+- (BOOL)usesDefaultHyphenation { return _hyphen; }
 + (NSParagraphStyle *)defaultParagraphStyle { static NSParagraphStyle *d; if (!d) d = [NSParagraphStyle new]; return d; }
 - (instancetype)init { if ((self = [super init])) { _al = NSTextAlignmentNatural; _lbm = NSLineBreakByWordWrapping; _wd = NSWritingDirectionNatural; } return self; }
 - (CGFloat)lineSpacing { return _ls; }
@@ -59,19 +81,22 @@ NSAttributedStringTextHighlightColorScheme const NSTextHighlightColorSchemeDefau
     NSParagraphStyle *p = [c new];
     p->_ls = _ls; p->_ps = _ps; p->_hi = _hi; p->_ti = _ti; p->_fhi = _fhi; p->_minLH = _minLH; p->_maxLH = _maxLH; p->_lhm = _lhm; p->_psb = _psb;
     p->_al = _al; p->_lbm = _lbm; p->_wd = _wd; p->_hy = _hy; p->_tb = _tb;
+    p->_tabs = _tabs; p->_lists = _lists; p->_dti = _dti; p->_lbs = _lbs; p->_tighten = _tighten; p->_hyphen = _hyphen;
     return p;
 }
 - (id)copyWithZone:(NSZone *)z { return [self _isim_copyAs:[NSParagraphStyle class]]; }
 - (id)mutableCopyWithZone:(NSZone *)z { return [self _isim_copyAs:[NSMutableParagraphStyle class]]; }
 - (BOOL)isEqual:(NSParagraphStyle *)o {
     return [o isKindOfClass:[NSParagraphStyle class]] && o->_ls == _ls && o->_ps == _ps && o->_al == _al && o->_lbm == _lbm && o->_hi == _hi && o->_fhi == _fhi && o->_ti == _ti
-        && (o->_tb == _tb || [o.textBlocks isEqualToArray:self.textBlocks]);     /* blocks compare by identity (a cell is not another cell) */
+        && (o->_tb == _tb || [o.textBlocks isEqualToArray:self.textBlocks]) && [o.tabStops isEqualToArray:self.tabStops] && o->_dti == _dti
+        && [o.textLists isEqualToArray:self.textLists] && o->_lbs == _lbs;     /* blocks compare by identity (a cell is not another cell) */
 }
 - (NSUInteger)hash { return (NSUInteger)_al * 31 + (NSUInteger)_lbm + (NSUInteger)(_ls * 7); }
 @end
 @implementation NSMutableParagraphStyle
 @dynamic lineSpacing, paragraphSpacing, alignment, firstLineHeadIndent, headIndent, tailIndent, lineBreakMode, minimumLineHeight, maximumLineHeight,
-         baseWritingDirection, lineHeightMultiple, paragraphSpacingBefore, hyphenationFactor, textBlocks;
+         baseWritingDirection, lineHeightMultiple, paragraphSpacingBefore, hyphenationFactor, textBlocks, tabStops, defaultTabInterval, textLists,
+         lineBreakStrategy, allowsDefaultTighteningForTruncation, usesDefaultHyphenation;
 - (void)setLineSpacing:(CGFloat)v { _ls = v; }
 - (void)setParagraphSpacing:(CGFloat)v { _ps = v; }
 - (void)setAlignment:(NSTextAlignment)v { _al = v; }
@@ -86,6 +111,28 @@ NSAttributedStringTextHighlightColorScheme const NSTextHighlightColorSchemeDefau
 - (void)setParagraphSpacingBefore:(CGFloat)v { _psb = v; }
 - (void)setHyphenationFactor:(float)v { _hy = v; }
 - (void)setTextBlocks:(NSArray<NSTextBlock *> *)v { _tb = v.count ? [v copy] : nil; }
+/* nil resets the default stops; stops are kept in location order */
+- (void)setTabStops:(NSArray<NSTextTab *> *)v {
+    _tabs = v ? [v sortedArrayUsingComparator:^NSComparisonResult(NSTextTab *a, NSTextTab *b) { return a.location < b.location ? NSOrderedAscending : a.location > b.location ? NSOrderedDescending : NSOrderedSame; }] : nil;
+}
+- (void)setDefaultTabInterval:(CGFloat)v { _dti = MAX(0, v); }
+- (void)setTextLists:(NSArray<NSTextList *> *)v { _lists = v.count ? [v copy] : nil; }
+- (void)setLineBreakStrategy:(NSLineBreakStrategy)v { _lbs = v; }
+- (void)setAllowsDefaultTighteningForTruncation:(BOOL)v { _tighten = v; }
+- (void)setUsesDefaultHyphenation:(BOOL)v { _hyphen = v; }
+- (void)addTabStop:(NSTextTab *)t { self.tabStops = [self.tabStops arrayByAddingObject:t]; }
+- (void)removeTabStop:(NSTextTab *)t {
+    NSMutableArray *a = [self.tabStops mutableCopy];
+    for (NSUInteger i = 0; i < a.count; i++)
+        if (((NSTextTab *)a[i]).location == t.location && ((NSTextTab *)a[i]).alignment == t.alignment) { [a removeObjectAtIndex:i]; break; }
+    _tabs = a;
+}
+- (void)setParagraphStyle:(NSParagraphStyle *)o {
+    NSParagraphStyle *c = [o _isim_copyAs:[NSParagraphStyle class]];
+    _ls = c->_ls; _ps = c->_ps; _hi = c->_hi; _ti = c->_ti; _fhi = c->_fhi; _minLH = c->_minLH; _maxLH = c->_maxLH; _lhm = c->_lhm; _psb = c->_psb;
+    _al = c->_al; _lbm = c->_lbm; _wd = c->_wd; _hy = c->_hy; _tb = c->_tb;
+    _tabs = c->_tabs; _lists = c->_lists; _dti = c->_dti; _lbs = c->_lbs; _tighten = c->_tighten; _hyphen = c->_hyphen;
+}
 @end
 @implementation NSShadow
 - (instancetype)init { if ((self = [super init])) { _shadowOffset = CGSizeMake(0, -3); } return self; }

@@ -543,6 +543,8 @@ static void move_edit_menu(CGRect rect, BOOL animated) {
     if (animated) [UIView animateWithDuration:0.2 animations:^{ menu_build(); }]; else menu_build();
 }
 
+BOOL isim_ti_can_style(id<IsimEditableText> v);
+void isim_ui_present_text_formatting(UITextView *tv);     /* UITextFormattingViewController.m */
 /* the standard edit menu of a text view: its suggested actions (and the delegate's say) */
 static NSString *loc(NSString *s) { return [[NSBundle bundleForClass:[UIView class]] localizedStringForKey:s value:s table:nil]; }
 static UIAction *edit_action(id<IsimEditableText> v, NSString *title, SEL sel) {
@@ -560,6 +562,13 @@ NSArray<UIMenuElement *> *isim_ui_text_suggested_actions(id<IsimEditableText> v)
     for (size_t i = 0; i < sizeof std / sizeof *std; i++) {
         if (std[i].s == @selector(delete:)) continue;            /* (iOS shows Delete only for some selections) */
         if ([r canPerformAction:std[i].s withSender:nil]) [a addObject:edit_action(v, std[i].t, std[i].s)];
+    }
+    /* iOS 18: Format opens the text formatting panel for text views that allow editing attributes */
+    if ([(id)v isKindOfClass:[UITextView class]] && isim_ti_can_style(v) && isim_ui_os_major() >= 18) {
+        __weak UITextView *wt = (UITextView *)v;
+        [a addObject:[UIAction actionWithTitle:loc(@"Format") image:nil identifier:@"isim-format" handler:^(UIAction *x) {
+            UITextView *t = wt; if (t) isim_ui_present_text_formatting(t);
+        }]];
     }
     SEL rep = NSSelectorFromString(@"_isim_promptForReplace:");
     if ([r canPerformAction:rep withSender:nil]) {

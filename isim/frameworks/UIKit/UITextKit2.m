@@ -5,8 +5,8 @@
  * storage's elements are its paragraphs (NSTextParagraph, or what its delegate makes), and the layout manager lays
  * each out as one layout fragment with isim's TextKit engine (Pango), stacking them down the text container. The
  * whole document is laid out when a fragment is needed (no estimated layout); rendering attributes and link
- * rendering attributes are applied when fragments are laid out. Selection navigation (moving and extending
- * selections) is not implemented: NSTextSelectionNavigation holds its data source only. */
+ * rendering attributes are applied when fragments are laid out. Selection navigation moves, extends and deletes
+ * selections in logical order (one container, left to right lines), through its data source. */
 #import "UITextKitPrivate.h"
 
 /* ================= locations and ranges ================= */
@@ -80,7 +80,7 @@ NSRange isim_tk_nsrange(NSTextRange *r) {
 - (NSAttributedString *)attributedString { return _attributedString; }
 /* the content (and separator) within the element range */
 - (NSUInteger)_isimContentLength {
-    NSString *s = _attributedString.string; NSUInteger n = s.length;
+    NSString *s = self.attributedString.string; NSUInteger n = s.length;
     while (n > 0) { unichar c = [s characterAtIndex:n - 1]; if (c == '\n' || c == '\r' || c == 0x2029 || c == 0x2028) n--; else break; }
     return n;
 }
@@ -405,6 +405,31 @@ NSRange isim_tk_nsrange(NSTextRange *r) {
 @end
 
 static NSDictionary *link_rendering;
+/* the layout manager as the navigation's data source: its laid-out string and lines */
+static NSString *tlm_string(NSTextLayoutManager *m) { return [m _isim_engine].string.string ?: @""; }
+static NSRange granularity_range(NSString *str, NSTextSelectionGranularity g, NSUInteger i, __IsimTextEngine *engine) {
+    NSUInteger n = str.length;
+    if (!n) return NSMakeRange(0, 0);
+    NSUInteger at = MIN(i, n - 1);
+    switch (g) {
+    case NSTextSelectionGranularityCharacter: return [str rangeOfComposedCharacterSequenceAtIndex:at];
+    case NSTextSelectionGranularityParagraph: return [str paragraphRangeForRange:NSMakeRange(at, 0)];
+    case NSTextSelectionGranularityLine: {
+        __IsimTextLine *l = [engine lineForIndex:at];
+        return l ? l->range : [str lineRangeForRange:NSMakeRange(at, 0)];
+    }
+    case NSTextSelectionGranularityWord: case NSTextSelectionGranularitySentence: {
+        NSRange para = [str paragraphRangeForRange:NSMakeRange(at, 0)];
+        __block NSRange found = NSMakeRange(NSNotFound, 0);
+        NSStringEnumerationOptions o = g == NSTextSelectionGranularityWord ? NSStringEnumerationByWords : NSStringEnumerationBySentences;
+        [str enumerateSubstringsInRange:para options:o | NSStringEnumerationSubstringNotRequired usingBlock:^(NSString *sub, NSRange r, NSRange enc, BOOL *stop) {
+            if (at >= r.location && at < NSMaxRange(r)) { found = g == NSTextSelectionGranularitySentence ? enc : r; *stop = YES; }
+        }];
+        return found.location != NSNotFound ? found : [str rangeOfComposedCharacterSequenceAtIndex:at];   /* between words: the character */
+    }
+    }
+    return NSMakeRange(at, 1);
+}
 @implementation NSTextLayoutManager {
     NSArray<NSTextLayoutFragment *> *_fragments;
     NSMutableArray<__IsimRenderingRun *> *_rendering;
@@ -645,6 +670,63 @@ static NSDictionary *link_rendering;
     [f->_providers removeAllObjects];
 }
 - (void)_isimDropProviderCache { _providerCache = [NSMutableDictionary dictionary]; }
+/* NSTextSelectionDataSource */
+- (void)enumerateSubstringsFromLocation:(id<NSTextLocation>)l options:(NSStringEnumerationOptions)o
+                             usingBlock:(void (NS_NOESCAPE ^)(NSString *, NSTextRange *, NSTextRange *, BOOL *))block {
+    NSString *str = tlm_string(self); NSUInteger at = (NSUInteger)MIN(MAX(0, isim_tk_offset(l)), (NSInteger)str.length);
+    NSRange r = (o & NSStringEnumerationReverse) ? NSMakeRange(0, at) : NSMakeRange(at, str.length - at);
+    [str enumerateSubstringsInRange:r options:o usingBlock:^(NSString *sub, NSRange sr, NSRange enc, BOOL *stop) {
+        block(sub, isim_tk_range(sr), isim_tk_range(enc), stop);
+    }];
+}
+- (NSTextRange *)textRangeForSelectionGranularity:(NSTextSelectionGranularity)g enclosingLocation:(id<NSTextLocation>)l {
+    NSString *str = tlm_string(self);
+    if (!str.length) return isim_tk_range(NSMakeRange(0, 0));
+    return isim_tk_range(granularity_range(str, g, (NSUInteger)MAX(0, isim_tk_offset(l)), [self _isim_engine]));
+}
+- (id<NSTextLocation>)locationFromLocation:(id<NSTextLocation>)l withOffset:(NSInteger)offset {
+    NSInteger o = isim_tk_offset(l) + offset;
+    return o < 0 || o > (NSInteger)tlm_string(self).length ? nil : [__IsimTextLocation at:o];
+}
+- (NSInteger)offsetFromLocation:(id<NSTextLocation>)from toLocation:(id<NSTextLocation>)to { return isim_tk_offset(to) - isim_tk_offset(from); }
+/* the paragraph style's direction, else the paragraph's first strong character's (Hebrew, Arabic and the like: right to left) */
+- (NSTextSelectionNavigationWritingDirection)baseWritingDirectionAtLocation:(id<NSTextLocation>)l {
+    NSAttributedString *as = [self _isim_engine].string; NSString *str = as.string;
+    if (!str.length) return NSTextSelectionNavigationWritingDirectionLeftToRight;
+    NSUInteger at = (NSUInteger)MIN(MAX(0, isim_tk_offset(l)), (NSInteger)str.length - 1);
+    NSParagraphStyle *ps = [as attribute:NSParagraphStyleAttributeName atIndex:at effectiveRange:NULL];
+    if (ps.baseWritingDirection != NSWritingDirectionNatural)
+        return ps.baseWritingDirection == NSWritingDirectionRightToLeft ? NSTextSelectionNavigationWritingDirectionRightToLeft : NSTextSelectionNavigationWritingDirectionLeftToRight;
+    NSRange para = [str paragraphRangeForRange:NSMakeRange(at, 0)];
+    for (NSUInteger i = para.location; i < NSMaxRange(para); i++) {
+        unichar c = [str characterAtIndex:i];
+        if ((c >= 0x0590 && c <= 0x08FF) || (c >= 0xFB1D && c <= 0xFDFF) || (c >= 0xFE70 && c <= 0xFEFF)) return NSTextSelectionNavigationWritingDirectionRightToLeft;
+        if ([[NSCharacterSet letterCharacterSet] characterIsMember:c]) break;
+    }
+    return NSTextSelectionNavigationWritingDirectionLeftToRight;
+}
+/* every insertion point of the line, left to right, at its caret's x */
+- (void)enumerateCaretOffsetsInLineFragmentAtLocation:(id<NSTextLocation>)l usingBlock:(void (NS_NOESCAPE ^)(CGFloat, id<NSTextLocation>, BOOL, BOOL *))block {
+    __IsimTextEngine *e = [self _isim_engine]; NSString *str = e.string.string;
+    NSUInteger at = (NSUInteger)MIN(MAX(0, isim_tk_offset(l)), (NSInteger)str.length);
+    __IsimTextLine *line = [e lineForIndex:at];
+    NSRange r = line ? line->range : NSMakeRange(at, 0);
+    NSUInteger end = NSMaxRange(r);
+    while (end > r.location && end <= str.length && (([str characterAtIndex:end - 1] == '\n') || [str characterAtIndex:end - 1] == '\r')) end--;
+    BOOL stop = NO;
+    for (NSUInteger i = r.location; i <= end && !stop; i = i < end ? NSMaxRange([str rangeOfComposedCharacterSequenceAtIndex:i]) : end + 1)
+        block([e caretRectForIndex:i].origin.x, [__IsimTextLocation at:(NSInteger)i], YES, &stop);
+}
+- (NSTextRange *)lineFragmentRangeForPoint:(CGPoint)p inContainerAtLocation:(id<NSTextLocation>)l {
+    __IsimTextEngine *e = [self _isim_engine];
+    __IsimTextLine *line = [e lineForIndex:[e insertionIndexForPoint:p]];
+    return line ? isim_tk_range(line->range) : isim_tk_range(NSMakeRange(0, 0));
+}
+- (void)enumerateContainerBoundariesFromLocation:(id<NSTextLocation>)l reverse:(BOOL)reverse usingBlock:(void (NS_NOESCAPE ^)(id<NSTextLocation>, BOOL *))block {
+    BOOL stop = NO;     /* one container: the document's ends */
+    block([__IsimTextLocation at:reverse ? 0 : (NSInteger)tlm_string(self).length], &stop);
+}
+- (NSTextSelectionNavigationLayoutOrientation)textLayoutOrientationAtLocation:(id<NSTextLocation>)l { return NSTextSelectionNavigationLayoutOrientationHorizontal; }
 @end
 
 /* ================= the viewport ================= */
@@ -697,7 +779,189 @@ static NSDictionary *link_rendering;
     return s;
 }
 @end
+/* ================= selection navigation ================= */
+
 @implementation NSTextSelectionNavigation
 - (instancetype)initWithDataSource:(id<NSTextSelectionDataSource>)ds { if ((self = [super init])) _textSelectionDataSource = ds; return self; }
 - (void)flushLayoutCache {}
+- (NSInteger)_length { return [_textSelectionDataSource offsetFromLocation:_textSelectionDataSource.documentRange.location toLocation:_textSelectionDataSource.documentRange.endLocation]; }
+- (NSInteger)_offset:(id<NSTextLocation>)l { return [_textSelectionDataSource offsetFromLocation:_textSelectionDataSource.documentRange.location toLocation:l]; }
+- (id<NSTextLocation>)_at:(NSInteger)o {
+    NSInteger n = [self _length]; o = MAX(0, MIN(n, o));
+    return [_textSelectionDataSource locationFromLocation:_textSelectionDataSource.documentRange.location withOffset:o];
+}
+- (NSRange)_unit:(NSTextSelectionGranularity)g at:(NSInteger)o {
+    NSTextRange *r = [_textSelectionDataSource textRangeForSelectionGranularity:g enclosingLocation:[self _at:o]];
+    if (!r) return NSMakeRange((NSUInteger)o, 0);
+    NSInteger a = [self _offset:r.location], b = [self _offset:r.endLocation];
+    return NSMakeRange((NSUInteger)a, (NSUInteger)(b - a));
+}
+/* the next (forward) or previous boundary of a unit (word, sentence ...) from an offset: word ends going forward, word
+   starts going backward, skipping the spaces between */
+- (NSInteger)_boundaryFrom:(NSInteger)o forward:(BOOL)fwd options:(NSStringEnumerationOptions)opt {
+    __block NSInteger found = fwd ? [self _length] : 0;
+    [_textSelectionDataSource enumerateSubstringsFromLocation:[self _at:o] options:opt | (fwd ? 0 : NSStringEnumerationReverse)
+                                                   usingBlock:^(NSString *sub, NSTextRange *r, NSTextRange *enc, BOOL *stop) {
+        NSInteger a = [self _offset:r.location], b = [self _offset:r.endLocation];
+        if (fwd && b > o) { found = b; *stop = YES; }
+        if (!fwd && a < o) { found = a; *stop = YES; }
+    }];
+    return found;
+}
+- (NSInteger)_lineEdge:(NSInteger)o forward:(BOOL)fwd {
+    NSRange line = [self _unit:NSTextSelectionGranularityLine at:fwd || o == 0 ? o : o];
+    if (!fwd) return (NSInteger)line.location;
+    __block NSInteger last = (NSInteger)NSMaxRange(line);           /* before the line's separator / trailing space */
+    [_textSelectionDataSource enumerateCaretOffsetsInLineFragmentAtLocation:[self _at:o] usingBlock:^(CGFloat x, id<NSTextLocation> l, BOOL lead, BOOL *stop) {
+        last = [self _offset:l];
+    }];
+    return last;
+}
+/* the insertion point one line up or down at about the same x (nil: none) */
+- (NSInteger)_vertical:(NSInteger)o down:(BOOL)down x:(CGFloat *)x {
+    id<NSTextSelectionDataSource> ds = _textSelectionDataSource;
+    if ([(id)ds isKindOfClass:[NSTextLayoutManager class]]) {
+        __IsimTextEngine *e = [(NSTextLayoutManager *)ds _isim_engine];
+        CGRect c = [e caretRectForIndex:(NSUInteger)o];
+        if (isnan(*x)) *x = c.origin.x;
+        __IsimTextLine *line = [e lineForIndex:(NSUInteger)o];
+        CGRect lr = line ? line->rect : c;
+        CGFloat y = down ? CGRectGetMaxY(lr) + 1 : CGRectGetMinY(lr) - 1;
+        if (y < 0) return 0;
+        if (y > e.height) return [self _length];
+        return (NSInteger)[e insertionIndexForPoint:CGPointMake(*x, y)];
+    }
+    return down ? [self _lineEdge:MIN([self _length], [self _lineEdge:o forward:YES] + 1) forward:YES] : [self _lineEdge:MAX(0, [self _lineEdge:o forward:NO] - 1) forward:NO];
+}
+- (NSInteger)_move:(NSInteger)o direction:(NSTextSelectionNavigationDirection)dir destination:(NSTextSelectionNavigationDestination)dest x:(CGFloat *)x {
+    BOOL rtl = [_textSelectionDataSource baseWritingDirectionAtLocation:[self _at:o]] == NSTextSelectionNavigationWritingDirectionRightToLeft;
+    BOOL up = dir == NSTextSelectionNavigationDirectionUp, down = dir == NSTextSelectionNavigationDirectionDown;
+    BOOL fwd = dir == NSTextSelectionNavigationDirectionForward || down || (dir == NSTextSelectionNavigationDirectionRight) != rtl;
+    if (dir == NSTextSelectionNavigationDirectionLeft) fwd = rtl;
+    NSInteger n = [self _length];
+    if ((up || down) && (dest == NSTextSelectionNavigationDestinationCharacter || dest == NSTextSelectionNavigationDestinationLine)) return [self _vertical:o down:down x:x];
+    switch (dest) {
+    case NSTextSelectionNavigationDestinationCharacter: {
+        if (fwd) return o >= n ? n : (NSInteger)NSMaxRange([self _unit:NSTextSelectionGranularityCharacter at:o]);
+        return o <= 0 ? 0 : (NSInteger)[self _unit:NSTextSelectionGranularityCharacter at:o - 1].location;
+    }
+    case NSTextSelectionNavigationDestinationWord: return [self _boundaryFrom:o forward:fwd options:NSStringEnumerationByWords | NSStringEnumerationSubstringNotRequired];
+    case NSTextSelectionNavigationDestinationSentence: return [self _boundaryFrom:o forward:fwd options:NSStringEnumerationBySentences | NSStringEnumerationSubstringNotRequired];
+    case NSTextSelectionNavigationDestinationLine: return [self _lineEdge:o forward:fwd];
+    case NSTextSelectionNavigationDestinationParagraph: {
+        if (fwd) {      /* the paragraph's end (before its separator), else the next one's */
+            NSInteger end = [self _paragraphEnd:o];
+            if (end > o) return end;
+            NSInteger next = (NSInteger)NSMaxRange([self _unit:NSTextSelectionGranularityParagraph at:o]);
+            return next >= n ? n : [self _paragraphEnd:next];
+        }
+        return o <= 0 ? 0 : (NSInteger)[self _unit:NSTextSelectionGranularityParagraph at:o - 1].location;
+    }
+    case NSTextSelectionNavigationDestinationContainer: case NSTextSelectionNavigationDestinationDocument: return fwd ? n : 0;
+    }
+    return o;
+}
+/* the last composed character before an offset ("" at the start) */
+- (NSString *)_characterBefore:(NSInteger)o {
+    __block NSString *c = @"";
+    if (o > 0) [_textSelectionDataSource enumerateSubstringsFromLocation:[self _at:o] options:NSStringEnumerationByComposedCharacterSequences | NSStringEnumerationReverse
+                                                             usingBlock:^(NSString *sub, NSTextRange *r, NSTextRange *enc, BOOL *stop) { c = sub ?: @""; *stop = YES; }];
+    return c;
+}
+/* a paragraph's end before its separator */
+- (NSInteger)_paragraphEnd:(NSInteger)o {
+    NSInteger end = (NSInteger)NSMaxRange([self _unit:NSTextSelectionGranularityParagraph at:o]);
+    NSString *last = [self _characterBefore:end];
+    return [last isEqualToString:@"\n"] || [last isEqualToString:@"\r"] || [last isEqualToString:@"\r\n"] || [last isEqualToString:@"\u2029"] ? end - (NSInteger)last.length : end;
+}
+- (NSTextSelection *)_selectionFrom:(NSInteger)a to:(NSInteger)b affinity:(NSTextSelectionAffinity)aff granularity:(NSTextSelectionGranularity)g {
+    NSTextRange *r = [[NSTextRange alloc] initWithLocation:[self _at:MIN(a, b)] endLocation:[self _at:MAX(a, b)]];
+    return [[NSTextSelection alloc] initWithRange:r affinity:aff granularity:g];
+}
+- (NSTextSelection *)destinationSelectionForTextSelection:(NSTextSelection *)sel direction:(NSTextSelectionNavigationDirection)dir
+                                              destination:(NSTextSelectionNavigationDestination)dest extending:(BOOL)extending confined:(BOOL)confined {
+    NSTextRange *r = sel.textRanges.firstObject;
+    if (!r) return nil;
+    NSInteger a = [self _offset:r.location], b = [self _offset:sel.textRanges.lastObject.endLocation];
+    BOOL vertical = dir == NSTextSelectionNavigationDirectionUp || dir == NSTextSelectionNavigationDirectionDown;
+    CGFloat x = vertical && sel.anchorPositionOffset > 0 ? sel.anchorPositionOffset : NAN;
+    BOOL movingStart = sel.affinity == NSTextSelectionAffinityUpstream && a != b;
+    NSTextSelection *out;
+    if (extending) {
+        NSInteger anchor = movingStart ? b : a, moving = movingStart ? a : b;
+        if (a == b) {
+            BOOL back = dir == NSTextSelectionNavigationDirectionBackward || dir == NSTextSelectionNavigationDirectionUp
+                     || dir == NSTextSelectionNavigationDirectionLeft;
+            movingStart = back;
+        }
+        NSInteger to = [self _move:moving direction:dir destination:dest x:&x];
+        if (to == moving) return nil;
+        out = [self _selectionFrom:anchor to:to affinity:to < anchor ? NSTextSelectionAffinityUpstream : NSTextSelectionAffinityDownstream granularity:NSTextSelectionGranularityCharacter];
+    } else {
+        NSInteger to;
+        if (a != b && dest == NSTextSelectionNavigationDestinationCharacter && !vertical) {      /* collapses to the side it moves to */
+            CGFloat ignored = NAN;
+            BOOL fwd = [self _move:a direction:dir destination:dest x:&ignored] > a || (a == 0 && dir != NSTextSelectionNavigationDirectionBackward
+                       && dir != NSTextSelectionNavigationDirectionLeft);
+            to = fwd ? b : a;
+        } else {
+            NSInteger from = vertical ? (dir == NSTextSelectionNavigationDirectionDown ? b : a) : a == b ? a : [self _move:a direction:dir destination:dest x:&x] > a ? b : a;
+            to = [self _move:from direction:dir destination:dest x:&x];
+            if (to == a && a == b) return nil;
+        }
+        out = [self _selectionFrom:to to:to affinity:NSTextSelectionAffinityDownstream granularity:NSTextSelectionGranularityCharacter];
+    }
+    if (vertical && !isnan(x)) out.anchorPositionOffset = x;
+    out.typingAttributes = sel.typingAttributes;
+    return out;
+}
+- (NSArray<NSTextSelection *> *)textSelectionsInteractingAtPoint:(CGPoint)p inContainerAtLocation:(id<NSTextLocation>)container anchors:(NSArray<NSTextSelection *> *)anchors
+                                                       modifiers:(NSTextSelectionNavigationModifier)mods selecting:(BOOL)selecting bounds:(CGRect)bounds {
+    NSTextRange *line = [_textSelectionDataSource lineFragmentRangeForPoint:p inContainerAtLocation:container];
+    __block NSInteger best = line ? [self _offset:line.location] : 0; __block CGFloat dist = INFINITY;
+    if (line) [_textSelectionDataSource enumerateCaretOffsetsInLineFragmentAtLocation:line.location usingBlock:^(CGFloat x, id<NSTextLocation> l, BOOL lead, BOOL *stop) {
+        if (fabs(x - p.x) < dist) { dist = fabs(x - p.x); best = [self _offset:l]; }
+    }];
+    NSTextRange *anchor = anchors.firstObject.textRanges.firstObject;
+    if (anchor && (selecting || (mods & NSTextSelectionNavigationModifierExtend))) {
+        NSInteger a = [self _offset:anchor.location], b = [self _offset:anchor.endLocation];
+        NSTextSelection *s = best >= a ? [self _selectionFrom:a to:best affinity:NSTextSelectionAffinityDownstream granularity:anchors.firstObject.granularity]
+                                       : [self _selectionFrom:best to:b affinity:NSTextSelectionAffinityUpstream granularity:anchors.firstObject.granularity];
+        return @[ s ];
+    }
+    return @[ [self _selectionFrom:best to:best affinity:NSTextSelectionAffinityDownstream granularity:NSTextSelectionGranularityCharacter] ];
+}
+- (NSTextSelection *)textSelectionForSelectionGranularity:(NSTextSelectionGranularity)g enclosingTextSelection:(NSTextSelection *)sel {
+    NSTextRange *r = sel.textRanges.firstObject;
+    if (!r) return nil;
+    NSInteger a = [self _offset:r.location], b = [self _offset:sel.textRanges.lastObject.endLocation];
+    NSRange first = [self _unit:g at:a], last = b > a ? [self _unit:g at:b - 1] : first;
+    return [self _selectionFrom:(NSInteger)first.location to:(NSInteger)MAX(NSMaxRange(first), NSMaxRange(last)) affinity:sel.affinity granularity:g];
+}
+- (NSTextSelection *)textSelectionForSelectionGranularity:(NSTextSelectionGranularity)g enclosingPoint:(CGPoint)p inContainerAtLocation:(id<NSTextLocation>)l {
+    NSArray *at = [self textSelectionsInteractingAtPoint:p inContainerAtLocation:l anchors:@[] modifiers:0 selecting:NO bounds:CGRectNull];
+    return [self textSelectionForSelectionGranularity:g enclosingTextSelection:at.firstObject];
+}
+- (id<NSTextLocation>)resolvedInsertionLocationForTextSelection:(NSTextSelection *)sel writingDirection:(NSTextSelectionNavigationWritingDirection)dir {
+    NSTextRange *r = sel.textRanges.firstObject;
+    return r.isEmpty ? r.location : nil;       /* a range is replaced, not inserted into */
+}
+- (NSArray<NSTextRange *> *)deletionRangesForTextSelection:(NSTextSelection *)sel direction:(NSTextSelectionNavigationDirection)dir
+                                               destination:(NSTextSelectionNavigationDestination)dest allowsDecomposition:(BOOL)decompose {
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSTextRange *r in sel.textRanges) if (!r.isEmpty) [out addObject:r];
+    if (out.count) return out;
+    NSTextRange *r = sel.textRanges.firstObject;
+    if (!r) return @[];
+    NSInteger o = [self _offset:r.location]; CGFloat x = NAN;
+    BOOL back = dir == NSTextSelectionNavigationDirectionBackward || dir == NSTextSelectionNavigationDirectionLeft || dir == NSTextSelectionNavigationDirectionUp;
+    NSInteger to = [self _move:o direction:back ? NSTextSelectionNavigationDirectionBackward : NSTextSelectionNavigationDirectionForward destination:dest x:&x];
+    if (decompose && back && dest == NSTextSelectionNavigationDestinationCharacter && o > 0) {     /* the character's last scalar */
+        NSString *c = [self _characterBefore:o];
+        unichar u = c.length ? [c characterAtIndex:c.length - 1] : 0;
+        to = o - (u >= 0xDC00 && u <= 0xDFFF && c.length >= 2 ? 2 : 1);
+    }
+    if (to == o) return @[];
+    return @[ [[NSTextRange alloc] initWithLocation:[self _at:MIN(o, to)] endLocation:[self _at:MAX(o, to)]] ];
+}
 @end

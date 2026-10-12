@@ -174,6 +174,13 @@ static const struct glyph glyphs[] = {
     { "speaker", G_SPEAKER }, { "speaker.wave.1", G_SPEAKER "|S:A 52 50 16 -45 45" },
     { "speaker.wave.2", G_SPEAKER "|S:A 52 50 16 -45 45|S:A 52 50 30 -45 45" },
     { "speaker.wave.3", G_SPEAKER "|S:A 52 50 16 -45 45|S:A 52 50 30 -45 45|S:A 52 50 44 -45 45" },
+    /* text formatting */
+    { "textformat.size.smaller", "S:M 30 78 L 50 30 L 70 78|S:M 37 62 L 63 62" },
+    { "textformat.size.larger", "S1.1:M 12 92 L 50 8 L 88 92|S1.1:M 25 64 L 75 64" },
+    { "textformat.size", "S1.1:M 6 88 L 36 14 L 66 88|S1.1:M 16 64 L 56 64|S:M 62 88 L 78 50 L 94 88|S:M 67 76 L 89 76" },
+    { "highlighter", "B:M 26 66 L 60 14 L 82 28 L 48 80 Z|B:M 26 66 L 16 84 L 36 86 L 48 80|S:M 8 94 L 92 94" },
+    { "arrow.down.and.line.horizontal.and.arrow.up", "S:M 8 50 L 92 50|S:M 50 6 L 50 36|S:K 50 36 90 16|S:M 50 94 L 50 64|S:K 50 64 270 16" },
+    { "arrow.up.and.line.horizontal.and.arrow.down", "S:M 8 50 L 92 50|S:M 50 38 L 50 8|S:K 50 8 270 16|S:M 50 62 L 50 92|S:K 50 92 90 16" },
 };
 
 #pragma GCC diagnostic pop

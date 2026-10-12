@@ -5,6 +5,7 @@
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UILabel.h>
 #include <CoreGraphics/CGGeometry.h>
+#include <CoreText/CTTextTab.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIFont, UIColor, NSTextBlock;
 UIKIT_EXTERN NSAttributedStringKey const NSFontAttributeName;
@@ -41,8 +42,29 @@ typedef NS_OPTIONS(NSInteger, NSUnderlineStyle) {
     NSUnderlineStylePatternDashDot = 0x0300, NSUnderlineStylePatternDashDotDot = 0x0400, NSUnderlineStyleByWord = 0x8000 };
 
 typedef NS_ENUM(NSInteger, NSWritingDirection) { NSWritingDirectionNatural = -1, NSWritingDirectionLeftToRight = 0, NSWritingDirectionRightToLeft = 1 };
+/* NSTextAlignment <-> Core Text's (their values differ: right and center are swapped) */
+UIKIT_EXTERN CTTextAlignment NSTextAlignmentToCTTextAlignment(NSTextAlignment nsTextAlignment) API_AVAILABLE(ios(6.0));
+UIKIT_EXTERN NSTextAlignment NSTextAlignmentFromCTTextAlignment(CTTextAlignment ctTextAlignment) NS_SWIFT_NAME(NSTextAlignment.init(_:)) API_AVAILABLE(ios(6.0));
+/* tab stops: text after a tab starts at the next stop (from the line fragment's leading edge), aligned to it */
+@class NSTextList;
+typedef NSString *NSTextTabOptionKey NS_TYPED_ENUM NS_SWIFT_NAME(NSTextTab.OptionKey);
+/* an NSCharacterSet: a right-aligned tab with column terminators aligns at them (decimal tabs) */
+UIKIT_EXTERN NSTextTabOptionKey const NSTabColumnTerminatorsAttributeName NS_SWIFT_NAME(columnTerminators);
+API_AVAILABLE(ios(7.0))
+@interface NSTextTab : NSObject <NSCopying, NSSecureCoding>
+/* the decimal separator of the locale (the current one when nil) */
++ (NSCharacterSet *)columnTerminatorsForLocale:(nullable NSLocale *)aLocale;
+- (instancetype)initWithTextAlignment:(NSTextAlignment)alignment location:(CGFloat)loc options:(NSDictionary<NSTextTabOptionKey, id> *)options NS_DESIGNATED_INITIALIZER;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
+@property (readonly) NSTextAlignment alignment;
+@property (readonly) CGFloat location;
+@property (readonly) NSDictionary<NSTextTabOptionKey, id> *options;
+@end
+
 NS_SWIFT_UI_ACTOR
 @interface NSParagraphStyle : NSObject <NSCopying, NSMutableCopying>
+/* the base direction of a language's script (right to left for Arabic, Hebrew, Persian, Urdu ...); nil: natural */
++ (NSWritingDirection)defaultWritingDirectionForLanguage:(nullable NSString *)languageName;
 @property (class, readonly, copy) NSParagraphStyle *defaultParagraphStyle;
 @property (readonly) CGFloat lineSpacing;
 @property (readonly) CGFloat paragraphSpacing;
@@ -59,6 +81,14 @@ NS_SWIFT_UI_ACTOR
 @property (readonly) float hyphenationFactor;
 /* the blocks (NSTextTable.h) holding the paragraph, outermost first */
 @property (readonly, copy) NSArray<NSTextBlock *> *textBlocks;
+/* tab stops (default: 12 left tabs 28 points apart) and the interval of the stops after them (0: none) */
+@property (readonly, copy) NSArray<NSTextTab *> *tabStops API_AVAILABLE(ios(7.0));
+@property (readonly) CGFloat defaultTabInterval API_AVAILABLE(ios(7.0));
+/* the lists (NSTextList.h) holding the paragraph, outermost first */
+@property (readonly, copy) NSArray<NSTextList *> *textLists API_AVAILABLE(ios(7.0));
+@property (readonly) NSLineBreakStrategy lineBreakStrategy API_AVAILABLE(ios(9.0));
+@property (readonly) BOOL allowsDefaultTighteningForTruncation API_AVAILABLE(ios(9.0));
+@property (readonly) BOOL usesDefaultHyphenation API_AVAILABLE(ios(15.0));
 @end
 NS_SWIFT_UI_ACTOR
 @interface NSMutableParagraphStyle : NSParagraphStyle
@@ -76,6 +106,16 @@ NS_SWIFT_UI_ACTOR
 @property CGFloat paragraphSpacingBefore;
 @property float hyphenationFactor;
 @property (copy) NSArray<NSTextBlock *> *textBlocks;
+@property (null_resettable, copy) NSArray<NSTextTab *> *tabStops API_AVAILABLE(ios(7.0));
+@property CGFloat defaultTabInterval API_AVAILABLE(ios(7.0));
+@property (copy) NSArray<NSTextList *> *textLists API_AVAILABLE(ios(7.0));
+@property NSLineBreakStrategy lineBreakStrategy API_AVAILABLE(ios(9.0));
+@property BOOL allowsDefaultTighteningForTruncation API_AVAILABLE(ios(9.0));
+@property BOOL usesDefaultHyphenation API_AVAILABLE(ios(15.0));
+- (void)addTabStop:(NSTextTab *)anObject API_AVAILABLE(ios(9.0));
+/* removes the first tab stop with the same location and alignment */
+- (void)removeTabStop:(NSTextTab *)anObject API_AVAILABLE(ios(9.0));
+- (void)setParagraphStyle:(NSParagraphStyle *)obj API_AVAILABLE(ios(9.0));
 @end
 NS_SWIFT_UI_ACTOR
 @interface NSShadow : NSObject <NSCopying>
@@ -86,7 +126,8 @@ NS_SWIFT_UI_ACTOR
 
 typedef NS_OPTIONS(NSInteger, NSStringDrawingOptions) {
     NSStringDrawingUsesLineFragmentOrigin = 1 << 0, NSStringDrawingUsesFontLeading = 1 << 1,
-    NSStringDrawingUsesDeviceMetrics = 1 << 3, NSStringDrawingTruncatesLastVisibleLine = 1 << 5 };
+    NSStringDrawingUsesDeviceMetrics = 1 << 3, NSStringDrawingTruncatesLastVisibleLine = 1 << 5,
+    NSStringDrawingOptionsResolvesNaturalAlignmentWithBaseWritingDirection API_AVAILABLE(ios(18.0)) = 1 << 9 };
 NS_SWIFT_UI_ACTOR
 @interface NSStringDrawingContext : NSObject
 @property (nonatomic) CGFloat minimumScaleFactor;

@@ -74,6 +74,29 @@ static BOOL is_separator(unichar c) { return c == '\n' || c == '\r' || c == 0x20
 - (CGFloat)padding { return _padding; }
 - (BOOL)_wraps { return _width > 0 && _width < 1e6; }
 
+/* tab stops (from the line fragment's leading edge; the layout starts at the head indent): the paragraph's stops, then
+   every defaultTabInterval (none: Pango spaces them like the last two). A right-aligned stop with column terminators
+   is a decimal tab. */
+static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
+    NSArray<NSTextTab *> *tabs = ps.tabStops;
+    double pos[64]; int align[64], n = 0;
+    for (NSTextTab *t in tabs) {
+        if (n >= 48) break;
+        if (t.location - head <= 0) continue;
+        pos[n] = t.location - head;
+        align[n] = t.options[NSTabColumnTerminatorsAttributeName] && t.alignment == NSTextAlignmentRight ? 3
+                 : t.alignment == NSTextAlignmentRight ? 1 : t.alignment == NSTextAlignmentCenter ? 2 : 0;
+        n++;
+    }
+    CGFloat interval = ps.defaultTabInterval;
+    if (interval > 0) {
+        CGFloat x = n ? pos[n - 1] + head : 0;
+        x = (floor(x / interval) + 1) * interval;
+        for (; n < 64; x += interval) { if (x - head <= 0) continue; pos[n] = x - head; align[n] = 0; n++; }
+    }
+    if (n) isim_tl_set_tabs(tl, n, pos, align);
+}
+
 /* a paragraph's Pango layout: its text (or a zero-width space for an empty paragraph, in the attributes there) */
 - (void)_layoutParagraph:(__IsimTextPara *)p style:(NSParagraphStyle *)ps attrs:(NSDictionary *)emptyAttrs {
     NSAttributedString *s = p.string;
@@ -117,6 +140,7 @@ static BOOL is_separator(unichar c) { return c == '\n' || c == '\r' || c == 0x20
         }
     }];
     p->tl = isim_tl_create(mk.UTF8String, textW, pango_align_for(al), spacing, first - head, (int)slots.count, bytes.bytes, boxes.bytes);
+    if (!empty && [str rangeOfString:@"\t"].location != NSNotFound) set_tabs(p->tl, ps ?: [NSParagraphStyle defaultParagraphStyle], head);
     p->textX = _padding + head;
     p.attachments = slots;
 }
@@ -305,6 +329,30 @@ static BOOL is_separator(unichar c) { return c == '\n' || c == '\r' || c == 0x20
 }
 
 /* ---- drawing ---- */
+/* a list paragraph's marker (NSParagraphStyle.textLists: its innermost list), right-aligned before the first line's
+   text on its baseline; items count the paragraphs before it in the same list (nested items do not count) */
+- (void)_drawListMarker:(__IsimTextPara *)p at:(CGPoint)o {
+    NSDictionary *at = [_string attributesAtIndex:p->content.location effectiveRange:NULL];
+    NSParagraphStyle *ps = at[NSParagraphStyleAttributeName];
+    NSTextList *list = ps.textLists.lastObject;
+    __IsimTextLine *first = p.lines.firstObject;
+    if (!list || !first) return;
+    NSInteger n = list.startingItemNumber;
+    NSUInteger i = [_paras indexOfObjectIdenticalTo:p];
+    while (i-- > 0) {
+        __IsimTextPara *q = _paras[i];
+        NSParagraphStyle *qs = q->content.length ? [_string attribute:NSParagraphStyleAttributeName atIndex:q->content.location effectiveRange:NULL] : nil;
+        if ([qs.textLists indexOfObjectIdenticalTo:list] == NSNotFound) break;
+        if (qs.textLists.lastObject == list) n++;
+    }
+    UIFont *font = at[NSFontAttributeName] ?: _font ?: [UIFont systemFontOfSize:12];
+    NSDictionary *ma = @{ NSFontAttributeName: font, NSForegroundColorAttributeName: at[NSForegroundColorAttributeName] ?: _color ?: [UIColor blackColor] };
+    NSString *marker = [list markerForItemNumber:n];
+    CGSize sz = [marker sizeWithAttributes:ma];
+    CGFloat right = o.x + _padding + ps.firstLineHeadIndent - 8;
+    CGFloat baseline = o.y + first->rect.origin.y + first->baseline;
+    [marker drawAtPoint:CGPointMake(right - sz.width, baseline - font.ascender) withAttributes:ma];
+}
 - (void)drawRange:(NSRange)range atPoint:(CGPoint)o skipAttachmentViews:(BOOL)skip {
     double black[4] = { 0, 0, 0, 1 };
     for (__IsimTextPara *p in _paras) {
@@ -320,6 +368,7 @@ static BOOL is_separator(unichar c) { return c == '\n' || c == '\r' || c == 0x20
             isim_gfx_clip_path();
         }
         isim_tl_draw(p->tl, o.x + p->textX, o.y + p->textY, black);
+        [self _drawListMarker:p at:o];
         for (__IsimTextAttachmentSlot *sl in p.attachments) {
             if (skip && sl.attachment.usesTextAttachmentView) continue;
             CGRect f = CGRectOffset(sl->frame, o.x, o.y);

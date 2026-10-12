@@ -4,7 +4,7 @@
 #include <CoreGraphics/CoreGraphics.h>
 #import <UIKit/NSAttributedString.h>     /* NSWritingDirection */
 NS_ASSUME_NONNULL_BEGIN
-@class UIResponder, UIView;
+@class UIResponder, UIView, UIConversationContext;
 typedef NS_ENUM(NSInteger, UITextAutocapitalizationType) { UITextAutocapitalizationTypeNone, UITextAutocapitalizationTypeWords, UITextAutocapitalizationTypeSentences, UITextAutocapitalizationTypeAllCharacters };
 typedef NS_ENUM(NSInteger, UITextAutocorrectionType) { UITextAutocorrectionTypeDefault, UITextAutocorrectionTypeNo, UITextAutocorrectionTypeYes };
 typedef NS_ENUM(NSInteger, UITextSpellCheckingType) { UITextSpellCheckingTypeDefault, UITextSpellCheckingTypeNo, UITextSpellCheckingTypeYes };
@@ -20,6 +20,16 @@ typedef NS_ENUM(NSInteger, UIKeyboardType) {
 };
 typedef NS_ENUM(NSInteger, UIKeyboardAppearance) { UIKeyboardAppearanceDefault, UIKeyboardAppearanceDark, UIKeyboardAppearanceLight,
     UIKeyboardAppearanceAlert = UIKeyboardAppearanceDark };
+/* Writing Tools (UIWritingToolsCoordinator.h; isim has no Apple Intelligence: never shown) */
+typedef NS_ENUM(NSInteger, UIWritingToolsBehavior) {
+    UIWritingToolsBehaviorNone = -1, UIWritingToolsBehaviorDefault = 0, UIWritingToolsBehaviorComplete, UIWritingToolsBehaviorLimited,
+} API_AVAILABLE(ios(18.0));
+typedef NS_OPTIONS(NSUInteger, UIWritingToolsResultOptions) {
+    UIWritingToolsResultDefault = 0, UIWritingToolsResultPlainText = 1 << 0, UIWritingToolsResultRichText = 1 << 1,
+    UIWritingToolsResultList = 1 << 2, UIWritingToolsResultTable = 1 << 3,
+    UIWritingToolsResultPresentationIntent API_AVAILABLE(ios(26.0)) = 1 << 4,
+} API_AVAILABLE(ios(18.0));
+
 /* grammar checking (isim checks spelling only: stored) and math completion (iOS 18: "12*3=" offers its result in
    the predictions bar) */
 typedef NS_ENUM(NSInteger, UITextGrammarCheckingType) { UITextGrammarCheckingTypeDefault = 0, UITextGrammarCheckingTypeNo, UITextGrammarCheckingTypeYes } API_AVAILABLE(ios(26.0));
@@ -107,6 +117,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UITextGrammarCheckingType grammarCheckingType API_AVAILABLE(ios(26.0));
 /* iPad: a number pad shown as a popover keyboard (isim shows the number pad keyboard: stored) */
 @property (nonatomic) BOOL allowsNumberPadPopover API_AVAILABLE(ios(18.0));
+@property (nonatomic) UIWritingToolsBehavior writingToolsBehavior API_AVAILABLE(ios(18.0));
+@property (nonatomic) UIWritingToolsResultOptions allowedWritingToolsResultOptions API_AVAILABLE(ios(18.0));
+@property (nullable, nonatomic, strong) UIConversationContext *conversationContext API_AVAILABLE(ios(18.4));
 @end
 NS_SWIFT_UI_ACTOR
 @protocol UIKeyInput <UITextInputTraits>
@@ -140,7 +153,7 @@ NS_SWIFT_UI_ACTOR
 @end
 
 @protocol UITextInput, UITextInputTokenizer, UIEditMenuInteractionAnimating;
-@class UITextPlaceholder, UIInputSuggestion, NSAdaptiveImageGlyph, UIMenu, UIMenuElement;
+@class UITextPlaceholder, UIInputSuggestion, NSAdaptiveImageGlyph, UIMenu, UIMenuElement, UIConversationContext;
 /* Dictation (isim: the text comes from the script command `dictate TEXT`; there is no speech recognition) */
 NS_SWIFT_UI_ACTOR
 @interface UIDictationPhrase : NSObject
@@ -153,6 +166,9 @@ NS_SWIFT_UI_ACTOR
 - (void)selectionDidChange:(nullable id <UITextInput>)textInput;
 - (void)textWillChange:(nullable id <UITextInput>)textInput;
 - (void)textDidChange:(nullable id <UITextInput>)textInput;
+@optional
+/* the text input's conversationContext changed (the keyboard re-reads it) */
+- (void)conversationContext:(nullable UIConversationContext *)context didChange:(nullable id <UITextInput>)textInput API_AVAILABLE(ios(18.4));
 @end
 
 /* isim: UITextField and UITextView implement UITextInput over character offsets; the host IME's composition

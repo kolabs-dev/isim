@@ -55,6 +55,8 @@
 #import <UIKit/UIKeyCommand.h>
 #import <UIKit/NSAttributedString.h>
 #import <UIKit/NSTextTable.h>
+#import <UIKit/NSTextList.h>
+#import <UIKit/NSAdaptiveImageGlyph.h>
 #import <UIKit/UIArrangementViewController.h>
 #import <UIKit/UIHingeInteraction.h>
 #import <UIKit/UIViewLayoutRegion.h>
@@ -116,3 +118,6 @@
 #import <UIKit/UIKeyboardExtras.h>
 #import <UIKit/UITextInteraction.h>
 #import <UIKit/UIFindInteraction.h>
+#import <UIKit/UIWritingToolsCoordinator.h>
+#import <UIKit/UIConversationContext.h>
+#import <UIKit/UITextFormattingViewController.h>

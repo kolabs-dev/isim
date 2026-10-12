@@ -136,6 +136,7 @@ void isim_tl_line(void *t, int i, int *start, int *len, double *rect, double *ba
 void isim_tl_index_rect(void *t, int byte, double *rect);
 int isim_tl_index_at(void *t, double x, double y, int *trailing);
 void isim_tl_draw(void *t, double x, double y, const double *rgba);
+void isim_tl_set_tabs(void *t, int n, const double *pos, const int *align);
 /* audio: PCM buffers (float, interleaved) played as mixed voices. Voice handles are longs (> 0). */
 int isim_audio_available(void);
 int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate);
