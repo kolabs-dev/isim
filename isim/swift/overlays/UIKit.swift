@@ -175,6 +175,7 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
     var _sections: [SectionIdentifierType] = []
     var _items: [SectionIdentifierType: [ItemIdentifierType]] = [:]
     var _reloaded: Set<ItemIdentifierType> = []
+    var _reloadedSections: [SectionIdentifierType] = []
     public init() {}
     public var numberOfSections: Int { _sections.count }
     public var numberOfItems: Int { _sections.reduce(0) { $0 + (_items[$1]?.count ?? 0) } }
@@ -182,6 +183,8 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
     public var itemIdentifiers: [ItemIdentifierType] { _sections.flatMap { _items[$0] ?? [] } }
     public var reloadedItemIdentifiers: [ItemIdentifierType] { Array(_reloaded) }
     public var reconfiguredItemIdentifiers: [ItemIdentifierType] { Array(_reloaded) }
+    /// the sections reloadSections(_:) / reconfigureSections(_:) marked
+    public var reloadedSectionIdentifiers: [SectionIdentifierType] { _reloadedSections }
     public func numberOfItems(inSection id: SectionIdentifierType) -> Int { _items[id]?.count ?? 0 }
     public func itemIdentifiers(inSection id: SectionIdentifierType) -> [ItemIdentifierType] { _items[id] ?? [] }
     public func sectionIdentifier(containingItem item: ItemIdentifierType) -> SectionIdentifierType? { _sections.first { _items[$0]?.contains(item) == true } }
@@ -204,7 +207,9 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
     public mutating func moveSection(_ id: SectionIdentifierType, afterSection to: SectionIdentifierType) {
         _sections.removeAll { $0 == id }; _sections.insert(id, at: _sections.firstIndex(of: to)! + 1)
     }
-    public mutating func reloadSections(_ ids: [SectionIdentifierType]) { for s in ids { _reloaded.formUnion(_items[s] ?? []) } }
+    public mutating func reloadSections(_ ids: [SectionIdentifierType]) {
+        for s in ids { _reloaded.formUnion(_items[s] ?? []); if !_reloadedSections.contains(s) { _reloadedSections.append(s) } }
+    }
     public mutating func reconfigureSections(_ ids: [SectionIdentifierType]) { reloadSections(ids) }
 
     public mutating func appendItems(_ items: [ItemIdentifierType], toSection id: SectionIdentifierType? = nil) {
@@ -225,7 +230,7 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
         for s in _sections { _items[s]!.removeAll { gone.contains($0) } }
         _reloaded.subtract(gone)
     }
-    public mutating func deleteAllItems() { _sections = []; _items = [:]; _reloaded = [] }
+    public mutating func deleteAllItems() { _sections = []; _items = [:]; _reloaded = []; _reloadedSections = [] }
     public mutating func moveItem(_ item: ItemIdentifierType, beforeItem to: ItemIdentifierType) {
         deleteItems([item]); insertItems([item], beforeItem: to)
     }
@@ -372,7 +377,32 @@ public struct UICellAccessory {
         public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil, backgroundColor: UIColor? = nil, font: UIFont? = nil) {
             self.isHidden = isHidden; self.reservedLayoutWidth = reservedLayoutWidth; self.tintColor = tintColor; self.backgroundColor = backgroundColor; self.font = font
         }
+        /// the reorder grip's line next to the content (isim: stored)
+        public var showsVerticalSeparator: Bool = true
     }
+    public typealias InsertOptions = _Options
+    public typealias MultiselectOptions = _Options
+    public typealias PopUpMenuOptions = _Options
+    public typealias ActionHandler = () -> Void
+    public typealias MenuSelectedElementDidChangeHandler = (UIMenu) -> Void
+    /// what kind of accessory it is
+    public enum AccessoryType: Hashable { case disclosureIndicator, outlineDisclosure, checkmark, delete, insert, reorder, multiselect, detail, popUpMenu, label, customView }
+    public var accessoryType: AccessoryType {
+        switch object {
+        case is __UICellAccessoryDisclosureIndicator: return .disclosureIndicator
+        case is __UICellAccessoryOutlineDisclosure: return .outlineDisclosure
+        case is __UICellAccessoryCheckmark: return .checkmark
+        case is __UICellAccessoryDelete: return .delete
+        case is __UICellAccessoryInsert: return .insert
+        case is __UICellAccessoryReorder: return .reorder
+        case is __UICellAccessoryMultiselect: return .multiselect
+        case is __UICellAccessoryDetail: return .detail
+        case is __UICellAccessoryPopUpMenu: return .popUpMenu
+        case is __UICellAccessoryLabel: return .label
+        default: return .customView
+        }
+    }
+    public var displayedState: DisplayedState { object.displayedState }
     public typealias DisclosureIndicatorOptions = _Options
     public typealias CheckmarkOptions = _Options
     public typealias DetailOptions = _Options
@@ -419,6 +449,17 @@ public struct UICellAccessory {
     }
     public static func outlineDisclosure(displayed: DisplayedState = .always, options: OutlineDisclosureOptions = .init(), actionHandler: (() -> Void)? = nil) -> UICellAccessory {
         let o = __UICellAccessoryOutlineDisclosure(); o.actionHandler = actionHandler; return make(o, displayed, options)
+    }
+    public static func insert(displayed: DisplayedState = .whenEditing, options: InsertOptions = .init(), actionHandler: ActionHandler? = nil) -> UICellAccessory {
+        let o = __UICellAccessoryInsert(); o.actionHandler = actionHandler; o.backgroundColor = options.backgroundColor; return make(o, displayed, options)
+    }
+    public static func multiselect(displayed: DisplayedState = .whenEditing, options: MultiselectOptions = .init()) -> UICellAccessory {
+        let o = __UICellAccessoryMultiselect(); o.backgroundColor = options.backgroundColor; return make(o, displayed, options)
+    }
+    /// the selected item of a menu, with up / down chevrons; a tap shows the menu, choosing an item selects it
+    public static func popUpMenu(_ menu: UIMenu, displayed: DisplayedState = .always, options: PopUpMenuOptions = .init(),
+                                 selectedElementDidChangeHandler: MenuSelectedElementDidChangeHandler? = nil) -> UICellAccessory {
+        let o = __UICellAccessoryPopUpMenu(menu: menu); o.selectedElementDidChangeHandler = selectedElementDidChangeHandler; return make(o, displayed, options)
     }
     public static func label(text: String, displayed: DisplayedState = .always, options: LabelOptions = .init()) -> UICellAccessory {
         make(__UICellAccessoryLabel(text: text), displayed, options)
@@ -1115,4 +1156,45 @@ extension UIControl {
 extension UICalendarView.Decoration {
     public class func `default`(color: UIColor? = nil, size: UICalendarView.DecorationSize = .medium) -> Self { __default(color: color, size: size) }
     public class func image(_ image: UIImage?, color: UIColor? = nil, size: UICalendarView.DecorationSize = .medium) -> Self { __image(image, color: color, size: size) }
+}
+
+
+// MARK: - Configuration colour transformers and states (Apple's Swift spellings)
+extension UIListContentConfiguration.TextProperties {
+    public var colorTransformer: UIConfigurationColorTransformer? {
+        get { __colorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __colorTransformer = newValue.map { t in { t($0) } } }
+    }
+}
+extension UIListContentConfiguration.ImageProperties {
+    public var tintColorTransformer: UIConfigurationColorTransformer? {
+        get { __tintColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __tintColorTransformer = newValue.map { t in { t($0) } } }
+    }
+    @available(iOS 18.0, *)
+    public var strokeColorTransformer: UIConfigurationColorTransformer? {
+        get { __strokeColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __strokeColorTransformer = newValue.map { t in { t($0) } } }
+    }
+}
+extension UIBackgroundConfiguration {
+    public var backgroundColorTransformer: UIConfigurationColorTransformer? {
+        get { __backgroundColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __backgroundColorTransformer = newValue.map { t in { t($0) } } }
+    }
+    public var strokeColorTransformer: UIConfigurationColorTransformer? {
+        get { __strokeColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __strokeColorTransformer = newValue.map { t in { t($0) } } }
+    }
+}
+extension UIContentUnavailableConfiguration {
+    public typealias ButtonProperties = UIContentUnavailableButtonProperties
+    public typealias TextProperties = UIContentUnavailableTextProperties
+    public typealias ImageProperties = UIContentUnavailableImageProperties
+}
+/// a key for an app's own values in a configuration state (`state[key]`)
+public struct UIConfigurationStateCustomKey: Hashable, RawRepresentable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public init(_ rawValue: String) { self.rawValue = rawValue }
 }

@@ -55,13 +55,15 @@ static NSString *supp_key(NSString *kind, NSIndexPath *ip) { return [NSString st
 @end
 /* lays out text/secondary text/image of a list content configuration in `content`; returns the height it needs */
 static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NSMutableDictionary *views, CGFloat W, BOOL apply, CGFloat leading, CGFloat trailing, CGFloat *textX) {
-    NSString *text = cfg.text, *detail = cfg.secondaryText; UIImage *img = cfg.image;
+    NSString *text = [cfg _isim_shownText], *detail = [cfg _isim_shownSecondaryText]; UIImage *img = cfg.image;
+    NSAttributedString *atext = cfg.attributedText, *adetail = cfg.secondaryAttributedText;
     BOOL side = cfg.prefersSideBySideTextAndSecondaryText;
     CGFloat x = leading, right = W - trailing, imgW = 0;
     if (img) { CGSize is = img.size; CGFloat k = img.isSymbolImage ? 22 / fmax(1, is.height) : fmin(1, 29 / fmax(1, fmax(is.width, is.height))); imgW = fmax(29, is.width * k); x += imgW + 16; }
     CGFloat avail = fmax(10, right - x);
-    CGSize ts = text.length ? isim_ui_measure(text, cfg.textProperties.font, side && detail.length ? avail * 0.6 : avail, cfg.textProperties.numberOfLines) : CGSizeZero;
-    CGSize ds = detail.length ? isim_ui_measure(detail, cfg.secondaryTextProperties.font, side ? fmax(10, avail - ts.width - 8) : avail, side ? 1 : cfg.secondaryTextProperties.numberOfLines) : CGSizeZero;
+    CGFloat hpad = cfg.textToSecondaryTextHorizontalPadding;
+    CGSize ts = isim_ui_list_measure(atext, text, cfg.textProperties.font, side && detail.length ? avail * 0.6 : avail, cfg.textProperties.numberOfLines);
+    CGSize ds = isim_ui_list_measure(adetail, detail, cfg.secondaryTextProperties.font, side ? fmax(10, avail - ts.width - hpad) : avail, side ? 1 : cfg.secondaryTextProperties.numberOfLines);
     CGFloat pad = cfg.textToSecondaryTextVerticalPadding;
     CGFloat h = side || !detail.length ? fmax(ts.height, ds.height) : ts.height + pad + ds.height;
     NSDirectionalEdgeInsets m = cfg.directionalLayoutMargins;
@@ -69,14 +71,14 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
     if (apply) {
         CGFloat H = content.bounds.size.height, y = (H - (h + m.top + m.bottom)) / 2 + m.top;
         UILabel *tl = views[@"t"]; if (!tl) { tl = [UILabel new]; views[@"t"] = tl; [content addSubview:tl]; }
-        tl.text = text; tl.font = cfg.textProperties.font; tl.textColor = cfg.textProperties.color; tl.numberOfLines = cfg.textProperties.numberOfLines; tl.textAlignment = cfg.textProperties.alignment;
+        isim_ui_list_label(tl, atext, text, cfg.textProperties); tl.numberOfLines = cfg.textProperties.numberOfLines; tl.textAlignment = cfg.textProperties.alignment;
         tl.frame = CGRectMake(x, side ? y + (h - ts.height) / 2 : y, ts.width, ts.height); tl.hidden = !text.length;
         UILabel *dl = views[@"d"]; if (!dl && detail.length) { dl = [UILabel new]; views[@"d"] = dl; [content addSubview:dl]; }
-        dl.text = detail; dl.font = cfg.secondaryTextProperties.font; dl.textColor = cfg.secondaryTextProperties.color; dl.numberOfLines = side ? 1 : 0;
+        isim_ui_list_label(dl, adetail, detail, cfg.secondaryTextProperties); dl.numberOfLines = side ? 1 : 0;
         dl.frame = side ? CGRectMake(right - ds.width, y + (h - ds.height) / 2, ds.width, ds.height) : CGRectMake(x, y + ts.height + pad, ds.width, ds.height);
         dl.hidden = !detail.length;
         UIImageView *iv = views[@"i"]; if (!iv && img) { iv = [UIImageView new]; iv.contentMode = UIViewContentModeScaleAspectFit; views[@"i"] = iv; [content addSubview:iv]; }
-        iv.image = img; iv.tintColor = cfg.imageProperties.tintColor; iv.hidden = !img;
+        iv.image = img; iv.tintColor = cfg.imageProperties.tintColor || cfg.imageProperties.tintColorTransformer ? [cfg.imageProperties resolvedTintColorForTintColor:content.tintColor] : nil; iv.hidden = !img;
         if (img) { CGSize is = img.size; CGFloat k = img.isSymbolImage ? 22 / fmax(1, is.height) : fmin(1, 29 / fmax(1, fmax(is.width, is.height)));
                    iv.frame = CGRectMake(leading + (imgW - is.width * k) / 2, (H - is.height * k) / 2, is.width * k, is.height * k);
                    if (cfg.imageProperties.cornerRadius > 0) { iv.layer.cornerRadius = cfg.imageProperties.cornerRadius; iv.clipsToBounds = YES; } }
@@ -91,6 +93,7 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
 - (UIListContentConfiguration *)configuration { return [_cfg copy]; }
 - (void)setConfiguration:(UIListContentConfiguration *)c { _cfg = [c copy]; [self setNeedsLayout]; [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display(); }
 - (void)layoutSubviews { [super layoutSubviews]; if (_cfg) list_content(self, _cfg, _views, self.bounds.size.width, YES, _cfg.directionalLayoutMargins.leading, _cfg.directionalLayoutMargins.trailing, NULL); }
+- (UIView *)_isim_contentPart:(NSString *)name { return _views[name]; }
 - (CGSize)sizeThatFits:(CGSize)size {
     CGFloat W = size.width > 0 ? size.width : 320;
     return CGSizeMake(W, _cfg ? list_content(self, _cfg, [NSMutableDictionary dictionary], W, NO, _cfg.directionalLayoutMargins.leading, _cfg.directionalLayoutMargins.trailing, NULL) : 44);
@@ -236,8 +239,7 @@ id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, 
     }
 }
 - (void)_isim_drawContent {
-    UIColor *bg = _backgroundConfiguration.backgroundColor;
-    if (bg && !self.backgroundColor) { double c[4]; isim_ui_rgba(bg, c); CGSize s = self.bounds.size; isim_gfx_fill_rounded(0, 0, s.width, s.height, _backgroundConfiguration.cornerRadius, c); }
+    if (_backgroundConfiguration && !self.backgroundColor) isim_ui_draw_background_configuration(_backgroundConfiguration, self, nil);
 }
 /* touches: highlight, select on touch up; a scroll pan cancels them */
 - (void)touchesBegan:(NSSet *)t withEvent:(UIEvent *)e { [self._isim_cv _isim_cellTouched:self phase:0]; }
@@ -418,7 +420,20 @@ id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, 
     BOOL e = [self _isim_editing];
     return a.displayedState == UICellAccessoryDisplayedAlways || (e && a.displayedState == UICellAccessoryDisplayedWhenEditing) || (!e && a.displayedState == UICellAccessoryDisplayedWhenNotEditing);
 }
+static NSString *popup_title(UICellAccessoryPopUpMenu *a) {       /* the pop-up menu accessory shows the selected item */
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:a.menu]; UIAction *first = nil;
+    while (stack.count) {
+        UIMenu *m = stack.firstObject; [stack removeObjectAtIndex:0];
+        for (UIMenuElement *e in m.children) {
+            if ([e isKindOfClass:[UIMenu class]]) [stack addObject:e];
+            else if ([e isKindOfClass:[UIAction class]]) { if (((UIAction *)e).state == UIMenuElementStateOn) return e.title; if (!first) first = (UIAction *)e; }
+        }
+    }
+    return first.title ?: @"";
+}
 static CGFloat acc_width(UICellAccessory *a) {
+    if ([a isKindOfClass:[UICellAccessoryInsert class]] || [a isKindOfClass:[UICellAccessoryMultiselect class]]) return 22 + 16;
+    if ([a isKindOfClass:[UICellAccessoryPopUpMenu class]]) return ceil(isim_ui_measure(popup_title((UICellAccessoryPopUpMenu *)a), [UIFont systemFontOfSize:17], 300, 1).width) + 6 + 12 + 12;
     if ([a isKindOfClass:[UICellAccessoryDisclosureIndicator class]]) return 9 + 12;
     if ([a isKindOfClass:[UICellAccessoryCheckmark class]]) return 16 + 12;
     if ([a isKindOfClass:[UICellAccessoryDetail class]]) return 22 + 12;
@@ -430,7 +445,7 @@ static CGFloat acc_width(UICellAccessory *a) {
     return 0;
 }
 static BOOL acc_leading(UICellAccessory *a) {
-    return [a isKindOfClass:[UICellAccessoryDelete class]] || ([a isKindOfClass:[UICellAccessoryCustomView class]] && ((UICellAccessoryCustomView *)a).placement == 0);
+    return [a isKindOfClass:[UICellAccessoryDelete class]] || [a isKindOfClass:[UICellAccessoryInsert class]] || [a isKindOfClass:[UICellAccessoryMultiselect class]] || ([a isKindOfClass:[UICellAccessoryCustomView class]] && ((UICellAccessoryCustomView *)a).placement == 0);
 }
 - (CGFloat)_isim_accessoryWidth { CGFloat w = 0; for (UICellAccessory *a in _accessories) if ([self _isim_shown:a] && !acc_leading(a)) w += acc_width(a); return w; }
 - (CGFloat)_isim_leadingAccessoryWidth { CGFloat w = 0; for (UICellAccessory *a in _accessories) if ([self _isim_shown:a] && acc_leading(a)) w += acc_width(a); return w; }
@@ -457,6 +472,10 @@ static BOOL acc_leading(UICellAccessory *a) {
         if (!h && [a isKindOfClass:[UICellAccessoryOutlineDisclosure class]]) {   /* no handler: the data source expands / collapses the row */
             __weak UICollectionViewListCell *ws = self;
             h = ^{ [ws _isim_toggleOutline]; };
+        }
+        if (!h && [a isKindOfClass:[UICellAccessoryPopUpMenu class]]) {      /* a tap shows the menu */
+            __weak UICollectionViewListCell *ws = self; UIMenu *menu = ((UICellAccessoryPopUpMenu *)a).menu; CGRect r = CGRectMake(right - w, 0, w, b.size.height);
+            h = ^{ [ws _isim_presentMenu:menu fromRect:r]; };
         }
         if (h) [self _isim_button:CGRectMake(right - w, 0, w, b.size.height) handler:h name:a];
         if ([a isKindOfClass:[UICellAccessoryReorder class]]) {                 /* the grip: drag the row to reorder */
@@ -488,9 +507,10 @@ static BOOL acc_leading(UICellAccessory *a) {
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size;
     int st = self._isim_style;
-    UIColor *bg = self.backgroundConfiguration.backgroundColor ?: st == 1 ? UIColor.secondarySystemGroupedBackgroundColor : st == 0 ? UIColor.systemBackgroundColor : nil;
+    UIColor *bg = st == 1 ? UIColor.secondarySystemGroupedBackgroundColor : st == 0 ? UIColor.systemBackgroundColor : nil;
     double c[4];
-    if (!self.backgroundColor && bg) { isim_ui_rgba(bg, c); isim_gfx_fill_rounded(0, 0, s.width, s.height, 0, c); }
+    if (!self.backgroundColor && self.backgroundConfiguration) isim_ui_draw_background_configuration(self.backgroundConfiguration, self, bg);
+    else if (!self.backgroundColor && bg) { isim_ui_rgba(bg, c); isim_gfx_fill_rounded(0, 0, s.width, s.height, 0, c); }
     if (self.highlighted || self.selected) { isim_ui_rgba(UIColor.systemGray4Color, c); isim_gfx_fill_rounded(0, 0, s.width, s.height, 0, c); }
 }
 - (void)_isim_drawOverlay {
@@ -508,6 +528,11 @@ static BOOL acc_leading(UICellAccessory *a) {
         if (sym) {
             UIImage *im = [UIImage systemImageNamed:sym]; CGSize i = im.size; double k = h / fmax(1, i.height);
             [im _isim_drawInRect:CGRectMake(right - 12 - i.width * k + 4, (s.height - h) / 2, i.width * k, h) tint:tint ?: def alpha:1];
+        } else if ([a isKindOfClass:[UICellAccessoryPopUpMenu class]]) {
+            NSString *t = popup_title((UICellAccessoryPopUpMenu *)a); UIFont *f = [UIFont systemFontOfSize:17]; CGSize ts = isim_ui_measure(t, f, 300, 1);
+            UIImage *ch = [UIImage systemImageNamed:@"chevron.up.chevron.down"]; CGSize ci = ch.size; double k = 14 / fmax(1, ci.height);
+            [ch _isim_drawInRect:CGRectMake(right - 12 - ci.width * k + 4, (s.height - 14) / 2, ci.width * k, 14) tint:tint ?: UIColor.secondaryLabelColor alpha:1];
+            isim_ui_draw_text(t, f, tint ?: UIColor.secondaryLabelColor, CGRectMake(right - 12 - ci.width * k - 2 - ts.width, (s.height - ts.height) / 2, ts.width, ts.height), NSTextAlignmentLeft, 1, 1);
         } else if ([a isKindOfClass:[UICellAccessoryLabel class]]) {
             NSString *t = ((UICellAccessoryLabel *)a).text; UIFont *f = [UIFont systemFontOfSize:17]; CGSize ts = isim_ui_measure(t, f, 300, 1);
             isim_ui_draw_text(t, f, tint ?: UIColor.secondaryLabelColor, CGRectMake(right - ts.width - 4, (s.height - ts.height) / 2, ts.width, ts.height), NSTextAlignmentLeft, 1, 1);
@@ -519,15 +544,31 @@ static BOOL acc_leading(UICellAccessory *a) {
         if ([a isKindOfClass:[UICellAccessoryDelete class]]) {
             UIImage *minus = [UIImage systemImageNamed:@"minus.circle.fill"];
             [minus _isim_drawInRect:CGRectMake(left + 16, (s.height - 22) / 2, 22, 22) tint:a.tintColor ?: UIColor.systemRedColor alpha:1];
+        } else if ([a isKindOfClass:[UICellAccessoryInsert class]]) {          /* a green plus */
+            UIImage *plus = [UIImage systemImageNamed:@"plus.circle.fill"];
+            [plus _isim_drawInRect:CGRectMake(left + 16, (s.height - 22) / 2, 22, 22) tint:a.tintColor ?: UIColor.systemGreenColor alpha:1];
+        } else if ([a isKindOfClass:[UICellAccessoryMultiselect class]]) {     /* an empty circle, checked while selected */
+            UIImage *mark = [UIImage systemImageNamed:self.selected ? @"checkmark.circle.fill" : @"circle"];
+            [mark _isim_drawInRect:CGRectMake(left + 16, (s.height - 22) / 2, 22, 22) tint:self.selected ? (a.tintColor ?: self.tintColor ?: UIColor.systemBlueColor) : UIColor.tertiaryLabelColor alpha:1];
         }
         left += acc_width(a);
     }
-    if (self._isim_separator) {
-        double sep[4]; isim_ui_rgba(UIColor.separatorColor, sep);
+    NSIndexPath *myPath = [self._isim_cv indexPathForCell:self];
+    UIListSeparatorConfiguration *sc = isim_ui_row_separator(myPath ? [self._isim_cv _isim_listConfigForSection:myPath.section] : nil, myPath);
+    BOOL showSep = self._isim_separator;
+    if (sc.bottomSeparatorVisibility == UIListSeparatorVisibilityHidden) showSep = NO;
+    else if (sc.bottomSeparatorVisibility == UIListSeparatorVisibilityVisible) showSep = YES;
+    if (showSep) {
+        double sep[4]; isim_ui_rgba(sc ? (self.selected && self._isim_cv.allowsMultipleSelection ? sc.multipleSelectionColor : sc.color) : UIColor.separatorColor, sep);
         CGFloat x = [self _isim_leadingAccessoryWidth] + [self _isim_leading];
         UIListContentConfiguration *cfg = (id)self.contentConfiguration;
         if ([cfg isKindOfClass:[UIListContentConfiguration class]] && cfg.image) { CGFloat tx = 0; list_content(self.contentView, cfg, [NSMutableDictionary dictionary], self.contentView.bounds.size.width, NO, [self _isim_leading], 0, &tx); x = [self _isim_leadingAccessoryWidth] + tx; }
-        isim_gfx_fill_rounded(x, s.height - 1.0 / 3, s.width - x, 1.0 / 3, 0, sep);
+        CGFloat gx = isim_ui_separator_guide_x(self), endX = s.width;
+        if (!isnan(gx)) x = gx;                                          /* separatorLayoutGuide moved it */
+        NSDirectionalEdgeInsets bi = sc ? sc.bottomSeparatorInsets : UIListSeparatorAutomaticInsets;
+        if (bi.leading != UIListSeparatorAutomaticInsets.leading) x = bi.leading;
+        if (bi.trailing != UIListSeparatorAutomaticInsets.trailing) endX = s.width - bi.trailing;
+        isim_gfx_fill_rounded(x, s.height - 1.0 / 3, fmax(0, endX - x), 1.0 / 3, 0, sep);
     }
 }
 @end
@@ -606,7 +647,8 @@ static NSString *attr_key(UICollectionViewLayoutAttributes *a) {
 - (instancetype)init { return [super init]; }
 - (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
 - (void)encodeWithCoder:(NSCoder *)c {}
-- (void)invalidateLayout { self._isim_valid = NO; [self.collectionView setNeedsLayout]; }
+- (void)invalidateLayout { [self invalidateLayoutWithContext:isim_ui_everything_context(self)]; }   /* UICollectionLayoutExtras.m */
+- (void)_isim_invalidate { self._isim_valid = NO; [self.collectionView setNeedsLayout]; }
 - (void)prepareLayout {}
 - (CGSize)collectionViewContentSize { return CGSizeZero; }
 - (NSArray *)layoutAttributesForElementsInRect:(CGRect)r { return @[]; }
@@ -670,7 +712,7 @@ static NSString *attr_key(UICollectionViewLayoutAttributes *a) {
     __block CGFloat pos = 0;                                    /* along the scroll axis */
     NSInteger ns = cv.numberOfSections;
     for (NSInteger s = 0; s < ns; s++) {
-        UIEdgeInsets in = [d respondsToSelector:@selector(collectionView:layout:insetForSectionAtIndex:)] ? [d collectionView:cv layout:self insetForSectionAtIndex:s] : _sectionInset;
+        UIEdgeInsets in = isim_ui_flow_reference_insets([d respondsToSelector:@selector(collectionView:layout:insetForSectionAtIndex:)] ? [d collectionView:cv layout:self insetForSectionAtIndex:s] : _sectionInset, self, cv);
         CGFloat line = [d respondsToSelector:@selector(collectionView:layout:minimumLineSpacingForSectionAtIndex:)] ? [d collectionView:cv layout:self minimumLineSpacingForSectionAtIndex:s] : _minimumLineSpacing;
         CGFloat inter = [d respondsToSelector:@selector(collectionView:layout:minimumInteritemSpacingForSectionAtIndex:)] ? [d collectionView:cv layout:self minimumInteritemSpacingForSectionAtIndex:s] : _minimumInteritemSpacing;
         CGSize hs = [d respondsToSelector:@selector(collectionView:layout:referenceSizeForHeaderInSection:)] ? [d collectionView:cv layout:self referenceSizeForHeaderInSection:s] : _headerReferenceSize;
@@ -678,7 +720,7 @@ static NSString *attr_key(UICollectionViewLayoutAttributes *a) {
         CGFloat hlen = vertical ? hs.height : hs.width, flen = vertical ? fs.height : fs.width;
         NSIndexPath *sip = [NSIndexPath indexPathForItem:0 inSection:s];
         if (hlen > 0) {
-            UICollectionViewLayoutAttributes *h = [UICollectionViewLayoutAttributes layoutAttributesForSupplementaryViewOfKind:UICollectionElementKindSectionHeader withIndexPath:sip];
+            UICollectionViewLayoutAttributes *h = [[[self class] layoutAttributesClass] layoutAttributesForSupplementaryViewOfKind:UICollectionElementKindSectionHeader withIndexPath:sip];
             h.frame = vertical ? CGRectMake(0, pos, B.width - ai.left - ai.right, hlen) : CGRectMake(pos, 0, hlen, cross);
             [_headers addObject:h]; pos += hlen;
         } else [_headers addObject:NSNull.null];
@@ -703,7 +745,7 @@ static NSString *attr_key(UICollectionViewLayoutAttributes *a) {
             CGSize sz = [self _sizeFor:ip];
             CGFloat len = vertical ? sz.width : sz.height, th = vertical ? sz.height : sz.width;
             if (lineItems.count && used + inter + len > avail + 0.01) { flush(); pos += thick + line; [lineItems removeAllObjects]; used = 0; thick = 0; }
-            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForCellWithIndexPath:ip];
+            UICollectionViewLayoutAttributes *a = [[[self class] layoutAttributesClass] layoutAttributesForCellWithIndexPath:ip];
             a.frame = CGRectMake(0, 0, sz.width, sz.height);
             if ([self _estimating] && !_preferred[ip]) a._isim_estimatedAxes = 3;
             [lineItems addObject:a]; [sec addObject:a];
@@ -712,7 +754,7 @@ static NSString *attr_key(UICollectionViewLayoutAttributes *a) {
         flush(); if (lineItems.count) pos += thick;
         pos += vertical ? in.bottom : in.right;
         if (flen > 0) {
-            UICollectionViewLayoutAttributes *f = [UICollectionViewLayoutAttributes layoutAttributesForSupplementaryViewOfKind:UICollectionElementKindSectionFooter withIndexPath:sip];
+            UICollectionViewLayoutAttributes *f = [[[self class] layoutAttributesClass] layoutAttributesForSupplementaryViewOfKind:UICollectionElementKindSectionFooter withIndexPath:sip];
             f.frame = vertical ? CGRectMake(0, pos, B.width - ai.left - ai.right, flen) : CGRectMake(pos, 0, flen, cross);
             [_footers addObject:f]; pos += flen;
         } else [_footers addObject:NSNull.null];
@@ -776,6 +818,7 @@ static NSString *attr_key(UICollectionViewLayoutAttributes *a) {
 - (BOOL)isFractionalHeight { return _kind == 1; }
 - (BOOL)isAbsolute { return _kind == 2; }
 - (BOOL)isEstimated { return _kind == 3 || _kind == 4; }
+- (int)_isim_kind { return _kind; }
 - (id)copyWithZone:(NSZone *)z { return self; }
 /* resolved against the container */
 - (CGFloat)_isim_resolveW:(CGFloat)w H:(CGFloat)h { return _kind == 0 ? w * _dimension : _kind == 1 ? h * _dimension : _dimension; }
@@ -915,6 +958,7 @@ static char kCustomProvider;
     UICollectionLayoutListConfiguration *c = [[[self class] alloc] initWithAppearance:_appearance];
     c.showsSeparators = _showsSeparators; c.backgroundColor = _backgroundColor; c.headerMode = _headerMode; c.footerMode = _footerMode; c.headerTopPadding = _headerTopPadding;
     c.leadingSwipeActionsConfigurationProvider = _leadingSwipeActionsConfigurationProvider; c.trailingSwipeActionsConfigurationProvider = _trailingSwipeActionsConfigurationProvider;
+    isim_ui_copy_extras(self, c);
     return c;
 }
 @end
@@ -969,7 +1013,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         genv.container = box; genv.traitCollection = _env.traitCollection;
         for (NSCollectionLayoutGroupCustomItem *ci in custom(genv)) {
             if (*next >= n) break;
-            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForCellWithIndexPath:[NSIndexPath indexPathForItem:(*next)++ inSection:s]];
+            UICollectionViewLayoutAttributes *a = [[[self class] layoutAttributesClass] layoutAttributesForCellWithIndexPath:[NSIndexPath indexPathForItem:(*next)++ inSection:s]];
             a.frame = CGRectOffset(ci.frame, o.x, o.y); a.zIndex = ci.zIndex;
             [out addObject:a];
         }
@@ -1017,10 +1061,11 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
             int axes = (is.widthDimension.isEstimated ? 1 : 0) | (is.heightDimension.isEstimated ? 2 : 0);
             if (pref) { CGSize p = pref.CGSizeValue; if (axes & 1) w = p.width; if (axes & 2) h = p.height; }
             NSDirectionalEdgeInsets ci = it.contentInsets;
-            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForCellWithIndexPath:ip];
+            UICollectionViewLayoutAttributes *a = [[[self class] layoutAttributesClass] layoutAttributesForCellWithIndexPath:ip];
             a.frame = CGRectMake(io.x + ci.leading, io.y + ci.top, fmax(0, w - ci.leading - ci.trailing), fmax(0, h - ci.top - ci.bottom));
             if (axes && !pref) a._isim_estimatedAxes = axes;
             [out addObject:a];
+            isim_ui_add_item_supplementaries(it, a.frame, ip, [[self class] layoutAttributesClass], out);   /* badges (UICollectionLayoutExtras.m) */
             used = CGSizeMake(w, h);
         }
         along += vertical ? used.height : used.width;
@@ -1033,6 +1078,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         if (extra > 0 && made > 1) for (NSUInteger k = 1; k < made; k++) { UICollectionViewLayoutAttributes *a = out[first + k]; CGRect f = a.frame; if (vertical) f.origin.y += extra * k / (made - 1); else f.origin.x += extra * k / (made - 1); a.frame = f; }
     }
     CGFloat W = estW && !vertical ? along : estW ? thick : gw, H = estH && vertical ? along : estH ? thick : gh;
+    if (out.count > first) isim_ui_add_item_supplementaries(g, CGRectMake(o.x, o.y, W, H), [out[first] indexPath], [[self class] layoutAttributesClass], out);
     return CGSizeMake(W, H);
 }
 - (NSCollectionLayoutSection *)_sectionAt:(NSInteger)s env:(id<NSCollectionLayoutEnvironment>)env {
@@ -1058,7 +1104,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         if (!sec) [NSException raise:NSInternalInconsistencyException format:@"UICollectionViewCompositionalLayout: the section provider returned nil for section %ld", (long)s];
         [_sections addObject:sec];
         if (s > 0) y += _configuration.interSectionSpacing;
-        NSDirectionalEdgeInsets in = sec.contentInsets;
+        NSDirectionalEdgeInsets in = isim_ui_reference_insets(sec.contentInsets, sec, _configuration, cv);   /* contentInsetsReference */
         NSMutableArray *cells = [NSMutableArray array], *supps = [NSMutableArray array];
         NSIndexPath *sip = [NSIndexPath indexPathForItem:0 inSection:s];
         CGFloat secTop = y;
@@ -1068,7 +1114,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
             if (b.alignment != NSRectAlignmentTop && b.alignment != NSRectAlignmentTopLeading && b.alignment != NSRectAlignmentTopTrailing) continue;
             CGFloat w = [(id)b.layoutSize.widthDimension _isim_resolveW:suppW H:Hc], h = [(id)b.layoutSize.heightDimension _isim_resolveW:suppW H:Hc];
             NSValue *p = _preferred[pkey(b.elementKind, s, 0)]; if (p && b.layoutSize.heightDimension.isEstimated) h = p.CGSizeValue.height;
-            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
+            UICollectionViewLayoutAttributes *a = [[[self class] layoutAttributesClass] layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
             CGFloat x = b.alignment == NSRectAlignmentTopTrailing ? suppX + suppW - w : b.alignment == NSRectAlignmentTop ? suppX + (suppW - w) / 2 : suppX;
             a.frame = CGRectMake(x, y, w, h); a.zIndex = b.zIndex;
             if (b.layoutSize.heightDimension.isEstimated && !p) a._isim_estimatedAxes = 2;
@@ -1103,7 +1149,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
             if (b.alignment != NSRectAlignmentBottom && b.alignment != NSRectAlignmentBottomLeading && b.alignment != NSRectAlignmentBottomTrailing) continue;
             CGFloat w = [(id)b.layoutSize.widthDimension _isim_resolveW:suppW H:Hc], h = [(id)b.layoutSize.heightDimension _isim_resolveW:suppW H:Hc];
             NSValue *p = _preferred[pkey(b.elementKind, s, 0)]; if (p && b.layoutSize.heightDimension.isEstimated) h = p.CGSizeValue.height;
-            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
+            UICollectionViewLayoutAttributes *a = [[[self class] layoutAttributesClass] layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
             CGFloat x2 = b.alignment == NSRectAlignmentBottomTrailing ? suppX + suppW - w : b.alignment == NSRectAlignmentBottom ? suppX + (suppW - w) / 2 : suppX;
             a.frame = CGRectMake(x2, y, w, h); a.zIndex = b.zIndex;
             if (b.layoutSize.heightDimension.isEstimated && !p) a._isim_estimatedAxes = 2;
@@ -1111,7 +1157,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
             if (b.extendsBoundary) y += h;
         }
         (void)secTop;
-        [_cells addObject:cells]; [_supps addObject:supps];
+        isim_ui_split_supplementaries(cells, supps); [_cells addObject:cells]; [_supps addObject:supps];
     }
     _content = CGSizeMake(W, y);
     self._isim_valid = YES;
@@ -1121,7 +1167,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     NSMutableArray *a = [NSMutableArray array];
     for (NSCollectionLayoutDecorationItem *d in sec.decorationItems) {
         NSDirectionalEdgeInsets ci = d.contentInsets;
-        UICollectionViewLayoutAttributes *x = [UICollectionViewLayoutAttributes layoutAttributesForDecorationViewOfKind:d.elementKind withIndexPath:[NSIndexPath indexPathForItem:0 inSection:s]];
+        UICollectionViewLayoutAttributes *x = [[[self class] layoutAttributesClass] layoutAttributesForDecorationViewOfKind:d.elementKind withIndexPath:[NSIndexPath indexPathForItem:0 inSection:s]];
         x.frame = CGRectMake(r.origin.x + ci.leading, r.origin.y + ci.top, fmax(0, r.size.width - ci.leading - ci.trailing), fmax(0, r.size.height - ci.top - ci.bottom));
         x.zIndex = d.zIndex;
         [a addObject:x];
@@ -1150,7 +1196,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         for (NSCollectionLayoutBoundarySupplementaryItem *b in sec.boundarySupplementaryItems) {
             NSRectAlignment al = b.alignment;
             CGFloat w = [(id)b.layoutSize.widthDimension _isim_resolveW:W H:H], h = [(id)b.layoutSize.heightDimension _isim_resolveW:W H:H];
-            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
+            UICollectionViewLayoutAttributes *a = [[[self class] layoutAttributesClass] layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
             a.zIndex = b.zIndex;
             if (al == NSRectAlignmentLeading) { a.frame = CGRectMake(x, 0, w, H); x += w; [supps addObject:a]; }
             else if (al == NSRectAlignmentTop || al == NSRectAlignmentTopLeading || al == NSRectAlignmentTopTrailing) { a.frame = CGRectMake(0, top, w, h); top += h; [topBottom addObject:a]; [supps addObject:a]; }
@@ -1171,12 +1217,12 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         for (NSCollectionLayoutBoundarySupplementaryItem *b in sec.boundarySupplementaryItems) {
             if (b.alignment != NSRectAlignmentTrailing) continue;
             CGFloat w = [(id)b.layoutSize.widthDimension _isim_resolveW:W H:H];
-            UICollectionViewLayoutAttributes *a = [UICollectionViewLayoutAttributes layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
+            UICollectionViewLayoutAttributes *a = [[[self class] layoutAttributesClass] layoutAttributesForSupplementaryViewOfKind:b.elementKind withIndexPath:sip];
             a.frame = CGRectMake(x, 0, w, H); a.zIndex = b.zIndex; x += w; [supps addObject:a];
         }
         _cs[s].items = CGRectMake(start + in.leading, top + in.top, x - start - in.leading - in.trailing, container.height);
         [_decos addObject:[self _isim_decorations:sec section:s rect:CGRectMake(start, top, x - start, H - top - bottom)]];
-        [_cells addObject:cells]; [_supps addObject:supps];
+        isim_ui_split_supplementaries(cells, supps); [_cells addObject:cells]; [_supps addObject:supps];
     }
     _content = CGSizeMake(x, H);
     self._isim_valid = YES;
@@ -1238,6 +1284,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     if (s >= _ncs || !_cs[s].ortho) return NO;
     *band = _cs[s].band; *w = _cs[s].contentW; return YES;
 }
+- (NSCollectionLayoutSection *)_isim_sectionObject:(NSInteger)s { return s >= 0 && s < (NSInteger)_sections.count ? _sections[s] : nil; }
 - (UICollectionLayoutListConfiguration *)_isim_listConfigForSection:(NSInteger)s { return s < (NSInteger)_sections.count ? _sections[s]._isim_list : nil; }
 /* where an orthogonal section's scrolling should come to rest */
 - (CGFloat)_isim_orthoTarget:(NSInteger)s from:(CGFloat)start proposed:(CGFloat)proposed velocity:(CGFloat)v width:(CGFloat)W {
@@ -1336,8 +1383,14 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 - (void)setCollectionViewLayout:(UICollectionViewLayout *)l animated:(BOOL)a completion:(void (^)(BOOL))done {
     UICollectionViewLayout *old = _collectionViewLayout;
     [old prepareForTransitionToLayout:l]; [l prepareForTransitionFromLayout:old];
+    NSArray *views = [(NSArray *)_cells.allValues arrayByAddingObjectsFromArray:_supps.allValues];
+    for (UICollectionReusableView *v in views) [v willTransitionFromLayout:old toLayout:l];
     self.collectionViewLayout = l;
-    void (^fin)(BOOL) = ^(BOOL f) { [old finalizeLayoutTransition]; [l finalizeLayoutTransition]; if (done) done(f); };
+    void (^fin)(BOOL) = ^(BOOL f) {
+        [old finalizeLayoutTransition]; [l finalizeLayoutTransition];
+        for (UICollectionReusableView *v in views) [v didTransitionFromLayout:old toLayout:l];
+        if (done) done(f);
+    };
     if (a && self.window) [UIView animateWithDuration:0.3 animations:^{ [self _isim_cvLayoutPass]; } completion:fin];
     else { [self _isim_cvLayoutPass]; fin(YES); }
 }
@@ -1376,8 +1429,10 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 - (void)setBackgroundView:(UIView *)v { [_backgroundView removeFromSuperview]; _backgroundView = v; if (v) [self insertSubview:v atIndex:0]; [self setNeedsLayout]; }
 - (void)setBounds:(CGRect)b {
     CGRect old = self.bounds;
-    if (!CGSizeEqualToSize(old.size, b.size) && [_collectionViewLayout shouldInvalidateLayoutForBoundsChange:b]) _collectionViewLayout._isim_valid = NO;
+    BOOL inval = !CGRectEqualToRect(old, b) && [_collectionViewLayout shouldInvalidateLayoutForBoundsChange:b];
+    UICollectionViewLayoutInvalidationContext *ctx = inval ? [_collectionViewLayout invalidationContextForBoundsChange:b] : nil;
     [super setBounds:b];
+    if (ctx) [_collectionViewLayout invalidateLayoutWithContext:ctx];
     if (!CGRectEqualToRect(old, b)) [self setNeedsLayout];
 }
 - (void)setFrame:(CGRect)f { [super setFrame:f]; [self setNeedsLayout]; }
@@ -1499,9 +1554,13 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         attrs = all;
     }
     NSMutableSet *keepDecos = [NSMutableSet set];
+    UICollectionViewLayout *lay = _collectionViewLayout;
+    BOOL flip = lay.flipsHorizontallyInOppositeLayoutDirection && self.effectiveUserInterfaceLayoutDirection != lay.developmentLayoutDirection;
+    CGFloat flipW = flip ? lay.collectionViewContentSize.width : 0;
     for (UICollectionViewLayoutAttributes *a in attrs) {
         NSIndexPath *ip = a.indexPath;
         CGRect f = CGRectOffset(a.frame, ai.left, 0);
+        if (flip) f.origin.x = ai.left + flipW - CGRectGetMaxX(a.frame);       /* a left-to-right layout, mirrored */
         if (a.representedElementCategory == UICollectionElementCategoryDecorationView) {   /* layout-owned views (section backgrounds) */
             NSString *kind = a.representedElementKind ?: @"", *key = [@"deco|" stringByAppendingString:supp_key(kind, ip)];
             UICollectionReusableView *v = _decos[key];
@@ -1568,6 +1627,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
             if (fresh) [UIView performWithoutAnimation:place]; else place();
             c.hidden = a.hidden;
             [c applyLayoutAttributes:a];
+            isim_ui_collection_place_moving(self, c, ip);           /* interactive movement (UIListExtras.m) */
             if (fresh && [self.delegate respondsToSelector:@selector(collectionView:willDisplayCell:forItemAtIndexPath:)]) [self.delegate collectionView:self willDisplayCell:c forItemAtIndexPath:ip];
             [keepCells addObject:ip];
         } else if (a.representedElementCategory == UICollectionElementCategorySupplementaryView) {
@@ -1645,12 +1705,14 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         _orthos[@(s)] = sv;
     }
     if (sv.superview != self) [self addSubview:sv];
+    if ([_collectionViewLayout respondsToSelector:@selector(_isim_sectionObject:)]) isim_ui_apply_ortho_properties(sv, [(id)_collectionViewLayout _isim_sectionObject:s]);
     if (!CGRectEqualToRect(sv.frame, band)) sv.frame = band;
     CGSize cs = CGSizeMake(w, band.size.height);
     if (!CGSizeEqualToSize(sv.contentSize, cs)) sv.contentSize = cs;
     return sv;
 }
 - (void)_ensureCells { [self _isim_cvLayoutPass]; }
+- (NSDictionary *)_isim_supplementaryViews { return _supps; }
 
 /* ---- queries ---- */
 - (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)ip { [self _prepareIfNeeded]; return [_collectionViewLayout layoutAttributesForItemAtIndexPath:ip]; }
@@ -1799,16 +1861,29 @@ static NSIndexPath *map_path(NSIndexPath *ip, NSArray<NSIndexPath *> *dels, NSAr
     _collectionViewLayout._isim_valid = NO;
     for (NSIndexPath *ip in _cells.allKeys) if (ip.section >= (NSInteger)_counts.count || ip.item >= _counts[ip.section].integerValue) { [self _recycleCell:_cells[ip] at:ip]; [_cells removeObjectForKey:ip]; }
     if (!self.window) { for (NSArray *g in gone) [self _recycleCell:g[0] at:g[1]]; [self setNeedsLayout]; return; }
+    UICollectionViewLayout *layout = _collectionViewLayout;
     [UIView animateWithDuration:0.3 animations:^{
-        for (NSArray *g in gone) ((UIView *)g[0]).alpha = 0;
+        /* disappearing items end at the layout's final attributes (default: they fade) */
+        for (NSArray *g in gone) {
+            UIView *v = g[0]; UICollectionViewLayoutAttributes *fa = [layout finalLayoutAttributesForDisappearingItemAtIndexPath:g[1]];
+            if (fa) { v.center = fa.center; v.transform = fa.transform; v.alpha = fa.alpha; } else v.alpha = 0;
+        }
         [self _isim_cvLayoutPass];
     } completion:^(BOOL f) {
-        for (NSArray *g in gone) { ((UIView *)g[0]).alpha = 1; [self _recycleCell:g[0] at:g[1]]; }
+        for (NSArray *g in gone) { UIView *v = g[0]; v.alpha = 1; v.transform = CGAffineTransformIdentity; [self _recycleCell:g[0] at:g[1]]; }
     }];
     for (NSIndexPath *ip in _cells) if (![before containsObject:ip]) {
+        /* appearing items start at the layout's initial attributes (default: transparent) */
         UICollectionViewCell *c = _cells[ip];
-        [UIView performWithoutAnimation:^{ c.alpha = 0; }];
-        [UIView animateWithDuration:0.3 animations:^{ c.alpha = 1; }];
+        UICollectionViewLayoutAttributes *ia = [layout initialLayoutAttributesForAppearingItemAtIndexPath:ip];
+        CGPoint center = c.center; CGAffineTransform t = c.transform; CGFloat alpha = c.alpha;
+        if (ia) {
+            [UIView performWithoutAnimation:^{ c.center = ia.center; c.transform = ia.transform; c.alpha = ia.alpha; }];
+            [UIView animateWithDuration:0.3 animations:^{ c.center = center; c.transform = t; c.alpha = alpha; }];
+        } else {
+            [UIView performWithoutAnimation:^{ c.alpha = 0; }];
+            [UIView animateWithDuration:0.3 animations:^{ c.alpha = 1; }];
+        }
     }
 }
 static NSArray *index_set_array(id set) {
@@ -1831,7 +1906,18 @@ static NSArray *index_set_array(id set) {
         else if ([k isEqualToString:@"rel"]) [rel addObjectsFromArray:op[1]];
         else if ([k isEqualToString:@"mv"]) { [mv addObject:op[1]]; [dels addObject:op[1][0]]; [ins addObject:op[1][1]]; }
     }
+    NSMutableArray<UICollectionViewUpdateItem *> *items = [NSMutableArray array];        /* what the layout's prepareForCollectionViewUpdates: sees */
+    #define UPD(act, b, a) [items addObject:[[UICollectionViewUpdateItem alloc] initWithIsimAction:(act) before:(b) after:(a)]]
+    NSMutableSet *movedPaths = [NSMutableSet set]; for (NSArray *m in mv) { [movedPaths addObject:m[0]]; [movedPaths addObject:m[1]]; UPD(UICollectionUpdateActionMove, m[0], m[1]); }
+    for (NSNumber *x in ds) UPD(UICollectionUpdateActionDelete, [NSIndexPath indexPathForItem:NSNotFound inSection:x.integerValue], nil);
+    for (NSNumber *x in is) UPD(UICollectionUpdateActionInsert, nil, [NSIndexPath indexPathForItem:NSNotFound inSection:x.integerValue]);
+    for (NSIndexPath *x in dels) if (![movedPaths containsObject:x]) UPD(UICollectionUpdateActionDelete, x, nil);
+    for (NSIndexPath *x in ins) if (![movedPaths containsObject:x]) UPD(UICollectionUpdateActionInsert, nil, x);
+    for (NSIndexPath *x in rel) UPD(UICollectionUpdateActionReload, x, x);
+    #undef UPD
+    [_collectionViewLayout prepareForCollectionViewUpdates:items];
     [self _applyDeletes:dels inserts:ins deletedSections:ds insertedSections:is reloads:rel moves:mv];
+    [_collectionViewLayout finalizeCollectionViewUpdates];
 }
 - (void)insertItemsAtIndexPaths:(NSArray *)ips { [self _op:@"ins" items:ips]; }
 - (void)deleteItemsAtIndexPaths:(NSArray *)ips { [self _op:@"del" items:ips]; }
@@ -1883,6 +1969,7 @@ static NSArray *index_set_array(id set) {
     cv.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     cv.dataSource = self; cv.delegate = self;
     self.view = cv;
+    isim_ui_collection_controller_movement(self);                   /* the standard reorder gesture (UIListExtras.m) */
 }
 - (UICollectionView *)collectionView { return (UICollectionView *)self.view; }
 - (void)setCollectionView:(UICollectionView *)cv { self.view = cv; }
@@ -1895,3 +1982,20 @@ static NSArray *index_set_array(id set) {
 - (NSInteger)collectionView:(UICollectionView *)cv numberOfItemsInSection:(NSInteger)s { return 0; }
 - (UICollectionViewCell *)collectionView:(UICollectionView *)cv cellForItemAtIndexPath:(NSIndexPath *)ip { return nil; }
 @end
+
+/* a pop-up menu accessory's item chosen: it becomes the selected one, and the handler gets the menu */
+void isim_ui_list_popup_chose(UICollectionViewListCell *cell, UIAction *a) {
+    for (UICellAccessory *acc in cell.accessories) {
+        if (![acc isKindOfClass:[UICellAccessoryPopUpMenu class]]) continue;
+        UICellAccessoryPopUpMenu *p = (UICellAccessoryPopUpMenu *)acc;
+        NSMutableArray *stack = [NSMutableArray arrayWithObject:p.menu], *leaves = [NSMutableArray array];
+        while (stack.count) { UIMenu *m = stack.firstObject; [stack removeObjectAtIndex:0];
+            for (UIMenuElement *e in m.children) { if ([e isKindOfClass:[UIMenu class]]) [stack addObject:e]; else if ([e isKindOfClass:[UIAction class]]) [leaves addObject:e]; } }
+        if (![leaves containsObject:a]) continue;
+        for (UIAction *x in leaves) x.state = x == a ? UIMenuElementStateOn : UIMenuElementStateOff;
+        NSLog(@"isim: pop-up menu accessory shows %@", a.title);
+        if (p.selectedElementDidChangeHandler) p.selectedElementDidChangeHandler(p.menu);
+        [cell setNeedsLayout]; isim_ui_set_needs_display();
+        return;
+    }
+}

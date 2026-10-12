@@ -205,6 +205,9 @@ UIKIT_EXTERN NSString *const UITableViewIndexSearch NS_SWIFT_NAME(UITableView.in
 - (void)tableView:(UITableView *)tableView willPerformPreviewActionForMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(id<UIContextMenuInteractionCommitAnimating>)animator;
 - (void)tableView:(UITableView *)tableView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
 - (void)tableView:(UITableView *)tableView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
+/* multiple selection with a two-finger pan (isim: not called) and the focus engine's preferred row (isim: no focus engine) */
+- (void)tableViewDidEndMultipleSelectionInteraction:(UITableView *)tableView API_AVAILABLE(ios(13.0));
+- (nullable NSIndexPath *)indexPathForPreferredFocusedViewInTableView:(UITableView *)tableView;
 @end
 
 NS_SWIFT_UI_ACTOR

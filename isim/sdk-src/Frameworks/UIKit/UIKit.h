@@ -106,3 +106,7 @@
 #import <UIKit/UIViewExtras.h>
 #import <UIKit/UIControlExtras.h>
 #import <UIKit/UICalendarView.h>
+#import <UIKit/UIListExtras.h>
+#import <UIKit/UICollectionLayoutExtras.h>
+#import <UIKit/UIDiffableDataSourceReference.h>
+#import <UIKit/UIConfigurationExtras.h>

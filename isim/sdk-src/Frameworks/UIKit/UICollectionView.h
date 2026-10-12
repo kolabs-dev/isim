@@ -336,6 +336,9 @@ NS_SWIFT_UI_ACTOR
 - (UICollectionReusableView *)collectionView:(UICollectionView *)collectionView viewForSupplementaryElementOfKind:(NSString *)kind atIndexPath:(NSIndexPath *)indexPath;
 - (BOOL)collectionView:(UICollectionView *)collectionView canMoveItemAtIndexPath:(NSIndexPath *)indexPath;
 - (void)collectionView:(UICollectionView *)collectionView moveItemAtIndexPath:(NSIndexPath *)sourceIndexPath toIndexPath:(NSIndexPath *)destinationIndexPath;
+/* index titles (tvOS shows them; isim: asked for, not drawn) */
+- (nullable NSArray<NSString *> *)indexTitlesForCollectionView:(UICollectionView *)collectionView API_AVAILABLE(ios(14.0));
+- (NSIndexPath *)collectionView:(UICollectionView *)collectionView indexPathForIndexTitle:(NSString *)title atIndex:(NSInteger)index API_AVAILABLE(ios(14.0));
 @end
 @class UIContextMenuConfiguration;
 @protocol UIContextMenuInteractionAnimating, UIContextMenuInteractionCommitAnimating;
@@ -359,6 +362,9 @@ NS_SWIFT_UI_ACTOR
 - (void)collectionView:(UICollectionView *)collectionView willPerformPreviewActionForMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(id<UIContextMenuInteractionCommitAnimating>)animator;
 - (void)collectionView:(UICollectionView *)collectionView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
 - (void)collectionView:(UICollectionView *)collectionView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
+/* multiple selection with a two-finger pan (isim: not called) and the focus engine's preferred item (isim: no focus engine) */
+- (void)collectionViewDidEndMultipleSelectionInteraction:(UICollectionView *)collectionView API_AVAILABLE(ios(13.0));
+- (nullable NSIndexPath *)indexPathForPreferredFocusedViewInCollectionView:(UICollectionView *)collectionView;
 @end
 /* prefetching (iOS 10): the items about to scroll into view, before their cells are asked for */
 @protocol UICollectionViewDataSourcePrefetching <NSObject>

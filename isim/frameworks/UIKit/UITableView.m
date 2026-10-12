@@ -22,10 +22,10 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 
 /* ================= content configurations ================= */
 @implementation UIListContentTextProperties
-- (id)copyWithZone:(NSZone *)z { UIListContentTextProperties *c = [[self class] new]; c.font = _font; c.color = _color; c.alignment = _alignment; c.numberOfLines = _numberOfLines; return c; }
+- (id)copyWithZone:(NSZone *)z { UIListContentTextProperties *c = [[self class] new]; c.font = _font; c.color = _color; c.alignment = _alignment; c.numberOfLines = _numberOfLines; isim_ui_copy_extras(self, c); return c; }
 @end
 @implementation UIListContentImageProperties
-- (id)copyWithZone:(NSZone *)z { UIListContentImageProperties *c = [[self class] new]; c.tintColor = _tintColor; c.reservedLayoutSize = _reservedLayoutSize; c.maximumSize = _maximumSize; c.cornerRadius = _cornerRadius; return c; }
+- (id)copyWithZone:(NSZone *)z { UIListContentImageProperties *c = [[self class] new]; c.tintColor = _tintColor; c.reservedLayoutSize = _reservedLayoutSize; c.maximumSize = _maximumSize; c.cornerRadius = _cornerRadius; isim_ui_copy_extras(self, c); return c; }
 @end
 @interface UIListContentConfiguration ()
 @property (nonatomic) int _isim_kind;     /* 0 cell, 1 subtitle, 2 value, 3 header, 4 footer */
@@ -67,6 +67,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     c.text = self.text; c.secondaryText = self.secondaryText; c.image = self.image;
     c.prefersSideBySideTextAndSecondaryText = self.prefersSideBySideTextAndSecondaryText;
     c.textToSecondaryTextVerticalPadding = self.textToSecondaryTextVerticalPadding; c.directionalLayoutMargins = self.directionalLayoutMargins;
+    isim_ui_copy_extras(self, c);
     return c;
 }
 @end
@@ -74,7 +75,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 + (instancetype)listPlainCellConfiguration { UIBackgroundConfiguration *b = [self new]; b.backgroundColor = UIColor.systemBackgroundColor; return b; }
 + (instancetype)listGroupedCellConfiguration { UIBackgroundConfiguration *b = [self new]; b.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor; return b; }
 + (instancetype)clearConfiguration { UIBackgroundConfiguration *b = [self new]; b.backgroundColor = UIColor.clearColor; return b; }
-- (id)copyWithZone:(NSZone *)z { UIBackgroundConfiguration *b = [[self class] new]; b.backgroundColor = _backgroundColor; b.cornerRadius = _cornerRadius; return b; }
+- (id)copyWithZone:(NSZone *)z { UIBackgroundConfiguration *b = [[self class] new]; b.backgroundColor = _backgroundColor; b.cornerRadius = _cornerRadius; isim_ui_copy_extras(self, b); return b; }
 @end
 
 /* ================= swipe actions ================= */
@@ -174,8 +175,18 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 - (void)setHighlighted:(BOOL)h { [self setHighlighted:h animated:NO]; }
 - (void)setHighlighted:(BOOL)h animated:(BOOL)a { BOOL changed = _highlighted != h; _highlighted = h; isim_ui_set_needs_display(); if (changed) [self _isim_stateChanged]; }
 - (void)setEditing:(BOOL)e { [self setEditing:e animated:NO]; }
+/* the edit control and delete confirmation states (willTransitionToState: / didTransitionToState:) */
+- (UITableViewCellStateMask)_isim_stateMask { return (_editing ? UITableViewCellStateShowingEditControlMask : 0) | (self._isim_swipe < 0 ? UITableViewCellStateShowingDeleteConfirmationMask : 0); }
+- (void)_isim_changeState:(void (NS_NOESCAPE ^)(void))change {
+    UITableViewCellStateMask was = [self _isim_stateMask];
+    change();
+    UITableViewCellStateMask now = (_editing ? UITableViewCellStateShowingEditControlMask : 0) | (self._isim_swipe < 0 ? UITableViewCellStateShowingDeleteConfirmationMask : 0);
+    if (now == was) return;
+    [self willTransitionToState:now];
+    dispatch_async(dispatch_get_main_queue(), ^{ [self didTransitionToState:now]; });
+}
 - (void)setEditing:(BOOL)e animated:(BOOL)a {
-    _editing = e;
+    [self _isim_changeState:^{ self->_editing = e; }];
     if (a && self.window) [UIView animateWithDuration:0.3 animations:^{ [self setNeedsLayout]; [self layoutIfNeeded]; }];
     else [self setNeedsLayout];
 }
@@ -183,8 +194,11 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 - (void)setAccessoryView:(UIView *)v { [_accessoryView removeFromSuperview]; _accessoryView = v; if (v) [self addSubview:v]; [self setNeedsLayout]; }
 
 - (CGFloat)_margin { return self.bounds.size.width > 400 && [self._isim_table style] == UITableViewStylePlain ? 20 : ([self._isim_table style] == UITableViewStyleInsetGrouped ? 16 : 20); }
+/* the accessory view shown: the editing one while editing (when there is one) */
+- (UIView *)_isim_shownAccessoryView { UIView *e = self.editingAccessoryView; return _editing && e ? e : _accessoryView; }
 - (CGFloat)_accessoryWidth {
-    if (_accessoryView) return _accessoryView.bounds.size.width + 12;
+    UIView *shown = [self _isim_shownAccessoryView];
+    if (shown) return shown.bounds.size.width + 12;
     switch (_editing ? _editingAccessoryType : _accessoryType) {
     case UITableViewCellAccessoryDisclosureIndicator: return 22;
     case UITableViewCellAccessoryCheckmark: return 26;
@@ -193,7 +207,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     default: return 0;
     }
 }
-- (CGFloat)_editInset { return _editing && [self._isim_table respondsToSelector:@selector(style)] ? 38 : 0; }
+- (CGFloat)_editInset { return _editing && self.shouldIndentWhileEditing && [self._isim_table respondsToSelector:@selector(style)] ? 38 : 0; }
 /* the content configuration (or the cell style's labels) laid out in contentView; returns the needed height */
 - (CGFloat)_layoutContentForWidth:(CGFloat)W apply:(BOOL)apply {
     UIListContentConfiguration *cfg = [(id)_contentConfiguration isKindOfClass:[UIListContentConfiguration class]] ? (UIListContentConfiguration *)_contentConfiguration : nil;
@@ -201,7 +215,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
         CGSize fit = [self.contentView systemLayoutSizeFittingSize:CGSizeMake(W, 0) withHorizontalFittingPriority:UILayoutPriorityRequired verticalFittingPriority:UILayoutPriorityFittingSizeLevel];
         return fmax(44, ceil(fit.height));
     }
-    NSString *text = cfg ? cfg.text : (_usedText ? _text.text : nil), *detail = cfg ? cfg.secondaryText : (_usedDetail ? _detail.text : nil);
+    NSString *text = cfg ? [cfg _isim_shownText] : (_usedText ? _text.text : nil), *detail = cfg ? [cfg _isim_shownSecondaryText] : (_usedDetail ? _detail.text : nil);
     UIImage *img = cfg ? cfg.image : (_usedImage ? _image.image : nil);
     UIFont *tf = cfg ? cfg.textProperties.font : (_text.font ?: [UIFont systemFontOfSize:17]);
     UIFont *df = cfg ? cfg.secondaryTextProperties.font : (_detail.font ?: [UIFont systemFontOfSize:15]);
@@ -212,28 +226,28 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     if (img) x += imgW + 16;
     NSInteger tl = cfg ? cfg.textProperties.numberOfLines : (_text ? _text.numberOfLines : 1);
     CGFloat avail = fmax(10, right - x);
-    CGSize ts = text.length ? isim_ui_measure(text, tf, side && detail.length ? avail * 0.6 : avail, tl) : CGSizeZero;
-    CGSize ds = detail.length ? isim_ui_measure(detail, df, side ? fmax(10, avail - ts.width - 8) : avail, side ? 1 : 0) : CGSizeZero;
+    CGSize ts = isim_ui_list_measure(cfg.attributedText, text, tf, side && detail.length ? avail * 0.6 : avail, tl);
+    CGSize ds = isim_ui_list_measure(cfg.secondaryAttributedText, detail, df, side ? fmax(10, avail - ts.width - (cfg ? cfg.textToSecondaryTextHorizontalPadding : 8)) : avail, side ? 1 : 0);
     CGFloat h = side || !detail.length ? fmax(ts.height, ds.height) : ts.height + (detail.length ? (cfg ? cfg.textToSecondaryTextVerticalPadding : 3) + ds.height : 0);
     CGFloat height = fmax(44, h + 22);
     if (apply) {
         CGFloat H = self.contentView.bounds.size.height, y = (H - h) / 2;
         UILabel *tl2 = text.length || _usedText ? self.textLabel : nil;
         tl2.text = text; tl2.font = tf; tl2.numberOfLines = tl;
-        if (cfg) { tl2.textColor = cfg.textProperties.color; tl2.textAlignment = cfg.textProperties.alignment; }
+        if (cfg) { isim_ui_list_label(tl2, cfg.attributedText, text, cfg.textProperties); tl2.textAlignment = cfg.textProperties.alignment; }
         else if (!tl2.textColor) tl2.textColor = UIColor.labelColor;
         tl2.frame = CGRectMake(x, side ? (H - ts.height) / 2 : y, ts.width, ts.height);
         if (detail.length || _usedDetail) {
             UILabel *dl = _cellStyle != UITableViewCellStyleDefault || cfg ? (_detail ?: ({ _detail = [UILabel new]; [_content addSubview:_detail]; _detail; })) : nil;
             dl.text = detail; dl.font = df; dl.numberOfLines = side ? 1 : 0;
-            if (cfg) dl.textColor = cfg.secondaryTextProperties.color;
+            if (cfg) isim_ui_list_label(dl, cfg.secondaryAttributedText, detail, cfg.secondaryTextProperties);
             dl.frame = side ? CGRectMake(right - ds.width, (H - ds.height) / 2, ds.width, ds.height)
                             : CGRectMake(x, y + ts.height + (cfg ? cfg.textToSecondaryTextVerticalPadding : 3), ds.width, ds.height);
             dl.hidden = !detail.length;
         }
         if (img || _usedImage) {
             UIImageView *iv = self.imageView; iv.image = img;
-            if (cfg.imageProperties.tintColor) iv.tintColor = cfg.imageProperties.tintColor;
+            if (cfg.imageProperties.tintColor || cfg.imageProperties.tintColorTransformer) iv.tintColor = [cfg.imageProperties resolvedTintColorForTintColor:self.tintColor];
             CGSize is = img.size; CGFloat k = img.isSymbolImage ? 22 / fmax(1, is.height) : fmin(1, 29 / fmax(1, fmax(is.width, is.height)));
             iv.frame = CGRectMake(m + (imgW - is.width * k) / 2, (H - is.height * k) / 2, is.width * k, is.height * k);
             iv.hidden = !img;
@@ -260,9 +274,13 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     _content.frame = CGRectMake(ed + self._isim_swipe, 0, b.size.width - acc - ed, b.size.height);
     if (_contentConfiguration || [self _usesStyleLabelsOnly]) [self _layoutContentForWidth:_content.bounds.size.width apply:YES];
     else self._isim_separatorLeft = [self _margin];
-    if (_accessoryView) {
-        CGSize s = _accessoryView.bounds.size;
-        _accessoryView.frame = CGRectMake(b.size.width - [self _margin] - s.width + self._isim_swipe, (b.size.height - s.height) / 2, s.width, s.height);
+    UIView *shownAcc = [self _isim_shownAccessoryView], *editAcc = self.editingAccessoryView;
+    if (editAcc && editAcc.superview != self && shownAcc == editAcc) [self addSubview:editAcc];
+    if (editAcc) editAcc.hidden = shownAcc != editAcc;
+    _accessoryView.hidden = shownAcc != _accessoryView;
+    if (shownAcc) {
+        CGSize s = shownAcc.bounds.size;
+        shownAcc.frame = CGRectMake(b.size.width - [self _margin] - s.width + self._isim_swipe, (b.size.height - s.height) / 2, s.width, s.height);
     }
     UITableViewCellAccessoryType at = _editing ? _editingAccessoryType : _accessoryType;
     BOOL detailButton = at == UITableViewCellAccessoryDetailButton || at == UITableViewCellAccessoryDetailDisclosureButton;
@@ -277,7 +295,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
         BOOL styled = _contentConfiguration || [self _usesStyleLabelsOnly];
         _content.frame = isim_ui_mirror_rect(_content.frame, b.size.width);
         if (styled) for (UIView *v in _content.subviews) v.frame = isim_ui_mirror_rect(v.frame, _content.bounds.size.width);
-        if (_accessoryView) _accessoryView.frame = isim_ui_mirror_rect(_accessoryView.frame, b.size.width);
+        if (shownAcc) shownAcc.frame = isim_ui_mirror_rect(shownAcc.frame, b.size.width);
         _accessoryButton.frame = isim_ui_mirror_rect(_accessoryButton.frame, b.size.width);
     }
     [self bringSubviewToFront:self._isim_actionsView];
@@ -286,9 +304,9 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size;
-    UIColor *bg = self.backgroundColor ?: _backgroundConfiguration.backgroundColor ?:
-        ([self._isim_table style] == UITableViewStylePlain ? UIColor.systemBackgroundColor : UIColor.secondarySystemGroupedBackgroundColor);
-    double c[4]; isim_ui_rgba(bg, c); if (c[3] > 0 && !self.backgroundColor) isim_gfx_fill_rounded(0, 0, s.width, s.height, 0, c);
+    UIColor *def = [self._isim_table style] == UITableViewStylePlain ? UIColor.systemBackgroundColor : UIColor.secondarySystemGroupedBackgroundColor;
+    if (_backgroundConfiguration && !self.backgroundColor) isim_ui_draw_background_configuration(_backgroundConfiguration, self, def);
+    else { UIColor *bg = self.backgroundColor ?: def; double c[4]; isim_ui_rgba(bg, c); if (c[3] > 0 && !self.backgroundColor) isim_gfx_fill_rounded(0, 0, s.width, s.height, 0, c); }
     if ((_highlighted || _selected) && _selectionStyle != UITableViewCellSelectionStyleNone) {
         double h[4]; isim_ui_rgba(UIColor.systemGray4Color, h); isim_gfx_fill_rounded(self._isim_swipe, 0, s.width, s.height, 0, h);
     }
@@ -299,7 +317,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     CGFloat m = [self _margin];
     BOOL rtl = [self _isim_isRTL];
     #define MX(r) (rtl ? isim_ui_mirror_rect((r), s.width) : (r))         /* right to left: drawn mirrored */
-    if (!_accessoryView && at != UITableViewCellAccessoryNone) {
+    if (![self _isim_shownAccessoryView] && at != UITableViewCellAccessoryNone) {
         if (at == UITableViewCellAccessoryDisclosureIndicator || at == UITableViewCellAccessoryDetailDisclosureButton) {
             UIImage *chev = [UIImage systemImageNamed:@"chevron.right"]; CGSize i = chev.size; double k = 13 / fmax(1, i.height);
             if (rtl) chev = [chev imageWithHorizontallyFlippedOrientation];
@@ -324,7 +342,8 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     }
     if (self._isim_separator) {
         double sep[4]; isim_ui_rgba(self._isim_table.separatorColor ?: UIColor.separatorColor, sep);
-        CGFloat left = self._isim_separatorLeft + [self _editInset];
+        UITableView *tv = self._isim_table;
+        CGFloat left = (tv && tv.separatorInsetReference == UITableViewSeparatorInsetFromCellEdges ? tv.separatorInset.left : self._isim_separatorLeft) + [self _editInset];
         CGRect line = MX(CGRectMake(left, s.height - 1.0 / 3, s.width - left, 1.0 / 3));
         isim_gfx_fill_rounded(line.origin.x, line.origin.y, line.size.width, line.size.height, 0, sep);
     }
@@ -406,7 +425,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     [self addSubview:v];
 }
 - (void)_isim_setSwipe:(CGFloat)x {
-    self._isim_swipe = x;
+    [self _isim_changeState:^{ self._isim_swipe = x; }];
     CGRect b = self.bounds; CGFloat w = fabs(x); BOOL leading = x > 0;
     self._isim_actionsView.frame = leading ? CGRectMake(0, 0, w, b.size.height) : CGRectMake(b.size.width - w, 0, w, b.size.height);
     CGFloat total = [self _isim_actionsWidth], left = w;       /* the first action sits at the edge the row moved away from */

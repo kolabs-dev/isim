@@ -294,6 +294,7 @@ static UIMenu *menu_holding(UIMenu *m, UIAction *a) {
 static void leaves(UIMenu *m, NSMutableArray *out) { for (UIMenuElement *e in m.children) { if ([e isKindOfClass:[UIMenu class]]) leaves((UIMenu *)e, out); else if ([e isKindOfClass:[UIAction class]]) [out addObject:e]; } }
 /* an action chosen from a menu: in a single-selection menu (or a pop-up button's menu) it becomes the checked one */
 void isim_ui_menu_chose(UIView *source, UIAction *a) {
+    if ([source isKindOfClass:[UICollectionViewListCell class]]) { isim_ui_list_popup_chose((UICollectionViewListCell *)source, a); return; }
     if (![source isKindOfClass:[UIButton class]]) return;
     UIButton *b = (UIButton *)source;
     UIMenu *holder = menu_holding(b.menu, a);

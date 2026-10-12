@@ -160,6 +160,43 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UICo
 @end
 void isim_ui_set_hovered_view(UIView *_Nullable v);
 void isim_ui_menu_chose(UIView *_Nullable source, UIAction *action);
+/* table and collection view extras (UIListExtras.m, UICollectionLayoutExtras.m) */
+@interface UICollectionView (IsimListPrivate)
+- (NSDictionary<NSString *, UICollectionReusableView *> *)_isim_supplementaryViews;
+- (void)_isim_interactiveMoveFrom:(NSIndexPath *)from to:(NSIndexPath *)to;
+@end
+@interface UICollectionViewUpdateItem (IsimPrivate)
+- (instancetype)initWithIsimAction:(UICollectionUpdateAction)action before:(nullable NSIndexPath *)before after:(nullable NSIndexPath *)after;
+@end
+@interface UICollectionViewLayout (IsimListPrivate)
+- (void)_isim_invalidate;
+@end
+void isim_ui_collection_place_moving(UICollectionView *cv, UICollectionViewCell *cell, NSIndexPath *ip);
+void isim_ui_collection_controller_movement(UICollectionViewController *vc);
+UICollectionViewLayoutInvalidationContext *isim_ui_everything_context(UICollectionViewLayout *layout);
+void isim_ui_add_item_supplementaries(NSCollectionLayoutItem *item, CGRect frame, NSIndexPath *ip, Class attributesClass, NSMutableArray *out);
+void isim_ui_split_supplementaries(NSMutableArray *cells, NSMutableArray *supps);
+NSDirectionalEdgeInsets isim_ui_reference_insets(NSDirectionalEdgeInsets in, NSCollectionLayoutSection *sec, UICollectionViewCompositionalLayoutConfiguration *config, UICollectionView *cv);
+UIEdgeInsets isim_ui_flow_reference_insets(UIEdgeInsets in, UICollectionViewFlowLayout *layout, UICollectionView *cv);
+void isim_ui_apply_ortho_properties(UIScrollView *band, NSCollectionLayoutSection *_Nullable sec);
+/* configuration extras (UIConfigurationExtras.m) */
+void isim_ui_copy_extras(id from, id to);
+void isim_ui_list_label(UILabel *label, NSAttributedString *_Nullable attributed, NSString *_Nullable shown, UIListContentTextProperties *properties);
+CGSize isim_ui_list_measure(NSAttributedString *_Nullable attributed, NSString *_Nullable shown, UIFont *font, CGFloat width, NSInteger lines);
+BOOL isim_ui_draw_background_configuration(UIBackgroundConfiguration *cfg, UIView *view, UIColor *_Nullable fallback);
+UIListSeparatorConfiguration *_Nullable isim_ui_row_separator(UICollectionLayoutListConfiguration *_Nullable lc, NSIndexPath *_Nullable ip);
+CGFloat isim_ui_separator_guide_x(UICollectionViewListCell *cell);
+void isim_ui_list_popup_chose(UICollectionViewListCell *cell, UIAction *action);
+@interface UIListContentConfiguration (IsimShown)
+- (nullable NSString *)_isim_shownText;
+- (nullable NSString *)_isim_shownSecondaryText;
+@end
+@interface UIListContentView (IsimParts)
+- (nullable UIView *)_isim_contentPart:(NSString *)name;
+@end
+@interface UICellAccessoryPopUpMenu (IsimPrivate)
+- (void)_isim_setMenu:(UIMenu *)menu;
+@end
 @interface UIPageControl (IsimExtrasPrivate)
 - (void)_isim_setInteractionState:(UIPageControlInteractionState)state;
 @end
