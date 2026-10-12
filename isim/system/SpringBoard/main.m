@@ -255,6 +255,8 @@ static NSString *icon_state_file(void) {
     UIView *_dim, *_customize;                                /* dark appearance: the dimmed wallpaper; the Customize sheet */
 }
 - (UIStatusBarStyle)preferredStatusBarStyle { return UIStatusBarStyleLightContent; }
+/* edit mode: the status bar makes way for the + / Edit and Done buttons, as on iOS */
+- (BOOL)prefersStatusBarHidden { return _editing; }
 - (CGFloat)iconSize { CGFloat s = self.view.bounds.size.width >= 700 ? 74 : 60; return HSLargeIcons() ? round(s * 1.2) : s; }   /* large: names hidden, icons bigger */
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -512,8 +514,10 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
     CGFloat start = (_dock.bounds.size.width - dColW * n) / 2;
     NSInteger i = 0;
     for (HSIcon *icon in _dock.subviews) { icon.frame = CGRectMake(start + i * dColW + (dColW - s) / 2, (dockH - s) / 2, s, s); i++; }
-    _done.frame = CGRectMake(b.size.width - 82, safe.top + 2, 66, 30);
-    _addWidget.frame = CGRectMake(16, safe.top + 2, os_major() >= 18 ? 58 : 40, 30);
+    /* in the status bar's place: centred on its row (beside the Dynamic Island / notch; at the top with a 20 pt status bar) */
+    CGFloat by = safe.top >= 44 ? round(safe.top / 2) - 15 : 2;
+    _done.frame = CGRectMake(b.size.width - 82, by, 66, 30);
+    _addWidget.frame = CGRectMake(16, by, os_major() >= 18 ? 58 : 40, 30);
     [self publishIconRects];
 }
 /* tell the shell where each app's icon is (app open/close animations zoom from/to it; apps in folders: the folder) */

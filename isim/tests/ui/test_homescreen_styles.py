@@ -5,9 +5,13 @@ script's `iconstyle`; iOS 26 offers clear icons on the glass dock; iOS 17 has no
 import re
 
 import pytest
-from isimtest import mean_rgb, screen_frames
+from isimtest import count_px, mean_rgb, screen_frames
 
 SYSTEM, COUNTER = "dev.isim.samples.HelloSystem", "dev.kolabs.isim.HelloCounter"
+
+
+BLUE = lambda c: c[2] > c[0] + 80                                       # noqa: E731
+RED = lambda c: c[0] > c[2] + 80                                        # noqa: E731
 
 
 def icon_box(dump, bundle):
@@ -29,8 +33,9 @@ def lum(img, box):
 
 def customize(dev):
     """edit mode > Edit > Customize"""
-    dev.send(f"holdid app-{SYSTEM} 0.8")
-    dev.wait_tap_id("menu-edit")
+    if not re.search(r"^(?!.* hidden id=).* id=home-edit\b", dev.view_dump(), re.M):   # not in edit mode yet
+        dev.send(f"holdid app-{SYSTEM} 0.8")
+        dev.wait_tap_id("menu-edit")
     dev.wait_tap_id("home-edit")
     dev.wait_tap_id("menu-Customize")
     dev.wait_view(r"id=customize-sheet")
@@ -64,11 +69,16 @@ def test_icon_appearance(launch, device_data):
     dev.wait_log(r"SpringBoard: icon appearance tinted #5999FF, small icons")
     dev.wait_view(r"id=customize-tint")
     dev.wait_still()
+    dev.screenshot("customize-tinted")
+    dev.tap_id("customize-dismiss")
+    dev.wait_view(r"id=customize-sheet", gone=True)
+    dev.wait_still()
     tinted = dev.screenshot("tinted")
-    c = mean_rgb(tinted, inner(counter_box, 0.1))
-    assert c[2] > c[0] + 15, f"tinted: the icon in the tint (blue) on black ({c})"
+    assert count_px(tinted, inner(counter_box, 0.1), BLUE) > 60 and count_px(tinted, inner(counter_box, 0.1), RED) == 0, \
+        "tinted: the glyph in the tint (blue) on a dark tile"
+    customize(dev)
     x, y, w, h = screen_frames(dev.view_dump())["customize-tint"]
-    dev.drag(x + w * 0.06, y + h / 2, x + w * 0.02, y + h / 2, 0.3)   # hue toward 0: red
+    dev.drag(x + w * 0.6, y + h / 2, x, y + h / 2, 0.3)                # the thumb (hue 0.6: blue) to 0: red
     dev.wait_log(r"SpringBoard: icon appearance tinted #FF[0-9A-F]{4}, small icons")
     x, y, w, h = screen_frames(dev.view_dump())["customize-size"]
     dev.tap(x + w * 0.75, y + h / 2)                                     # Large
@@ -91,8 +101,9 @@ def test_icon_appearance(launch, device_data):
     dev.wait_still()
     again = dev.view_dump()
     restored = dev.screenshot("restored")
-    c = mean_rgb(restored, inner(icon_box(again, COUNTER), 0.1))
-    assert icon_box(again, SYSTEM)[2] == 72 and c[0] > c[2] + 15, f"tinted (red) large icons after a restart ({c})"
+    box = icon_box(again, COUNTER)
+    assert box[2] == 72 and count_px(restored, inner(box, 0.1), RED) > 60 and count_px(restored, inner(box, 0.1), BLUE) == 0, \
+        "tinted (red) large icons after a restart"
     dev.send("iconstyle automatic small")                                # the script command
     dev.wait_log(r"SpringBoard: icon appearance automatic, small icons")
     dev.wait_view(lambda d: icon_box(d, SYSTEM)[2] == 60, what="small icons again")

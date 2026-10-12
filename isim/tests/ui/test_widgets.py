@@ -5,7 +5,7 @@ WidgetCenter.reloadTimelines reloads it; a Live Activity in the Dynamic Island (
 contentMargins) and on the lock screen, updated and ended by the app. Port of tests/ui/widgets.sh."""
 import re
 
-from isimtest import mean_rgb
+from isimtest import mean_rgb, screen_frames
 
 APP = "dev.isim.samples.HelloWidgets"
 
@@ -26,7 +26,9 @@ def open_gallery(dev):
     if "id=home-edit" in tree:
         dev.tap_id("home-edit")
         dev.wait_view(r"id=menu-Customize")
-        dev.send("taptext Add Widget")
+        dev.wait_still()
+        x, y, w, h = screen_frames(dev.view_dump())["menu-Customize"]
+        dev.tap(x + w / 2, y - h / 2)                                   # Add Widget, the row above
     else:
         dev.tap_id("home-add-widget")
 

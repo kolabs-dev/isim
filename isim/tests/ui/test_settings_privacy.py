@@ -57,8 +57,7 @@ def test_privacy_and_notifications(launch, device_data):
     assert prefs(device_data, PUSH).get("_ISIMNotificationOptions") == 6, "badges off: alert + sound"
 
     settings(dev)                                                        # the app's own page: its permissions
-    dev.wait_view(rf"text=HelloCamera")
-    dev.send("taptext HelloCamera")
+    dev.wait_tap_id(f"settings-app-{CAMERA}")
     page = dev.wait_view(r"id=settings-app-camera")
     assert "id=settings-app-camera text=off" in page, "the app's page shows its camera access"
     dev.tap_id("settings-app-camera")
