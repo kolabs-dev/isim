@@ -48,7 +48,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock |
 | `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
 | `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
-| `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; `tapid cc-background` closes) |
+| `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; Now Playing: `cc-nowplaying` (its text is the title — artist), `cc-np-previous`, `cc-np-play`, `cc-np-next`; `tapid cc-background` closes). The lock screen's player has `lock-nowplaying`, `lock-np-previous`, `lock-np-play`, `lock-np-next` |
 | `spotlight` | Spotlight on the home screen |
 | `island` | expand / collapse the Dynamic Island's Live Activity |
 | `homepage N` / `homepage library` | show home-screen page N (1-based) or the App Library |
@@ -109,7 +109,8 @@ extension's view is drawn at the top of the card.
 | `rotate portrait\|upsidedown\|landscapeleft\|landscaperight\|left\|right` | turn the device |
 | `shake` | Device ▸ Shake |
 | `location LAT LON` / `location none` | Features ▸ Location |
-| `remote NAME [ARG]` | `MPRemoteCommandCenter` command: `play`, `pause`, `toggle`, `next`, `previous`, `skipforward`, `skipback`, `seek S`, `rate R` |
+| `remote NAME [ARG]` | `MPRemoteCommandCenter` command: `play`, `pause`, `toggle`, `next`, `previous`, `skipforward`, `skipback`, `seek S`, `rate R`; with `isim boot` it goes to the app that publishes Now Playing, like Control Center's controls |
+| `volume up\|down\|V` | the device volume (the side buttons: steps of 1/16; or V from 0 to 1): `AVAudioSession.outputVolume`, `MPVolumeView`, the mixer's master gain; remembered in the device data |
 | `audio interrupt begin` · `audio interrupt end [resume]` · `audio route NAME` · `audio silence begin\|end` · `audio reset` | `AVAudioSession` events: an interruption (like a phone call; it pauses `AVAudioPlayer`s, `resume` sets `.shouldResume`), a route change to `headphones`, `headset`, `bluetooth`, `carplay`, `airplay`, `usb`, `hdmi`, `receiver` or `speaker`, the secondary-audio hint, media services reset |
 | `gamepad connect [NAME]` · `gamepad button NAME 0\|1` · `gamepad axis NAME VALUE` · `gamepad disconnect` | a virtual game controller |
 | `display connect [WxH]` · `display shot PATH` · `display disconnect` | a simulated external display (default 1920x1080): the app's external display scene (a scene accessory, or the manifest's `UIWindowSceneSessionRoleExternalDisplayNonInteractive` configuration) or the mirrored device; `display shot` saves what it shows as a PNG |
@@ -119,6 +120,14 @@ extension's view is drawn at the top of the card.
 | `voiceover rotor [prev]`, `voiceover up\|down` | turn the VoiceOver rotor (custom rotors, Headings, Actions, Adjust Value) / move by its item (like swiping up / down) |
 | `switchcontrol on\|off\|next\|select\|autoSECS\|stop` | simulated Switch Control: item scanning (`auto0.5` moves the highlight every 0.5 s), select activates |
 | `voicecontrol PHRASE` | simulated Voice Control: `tap NAME` (label or `accessibilityUserInputLabels`), `show numbers` / `show names` / `hide numbers`, `tap N`, `scroll down\|up\|left\|right`, `go back` |
+
+**Picture in Picture**: while an app shows a video in Picture in Picture (`isim boot`), the shell's floating window is
+`pip-window` (its text is the title and `playing` / `paused`); `tapid pip-window` shows its controls: `pip-close`,
+`pip-restore` (back to the app), `pip-play`, `pip-skip-back`, `pip-skip-forward`. **Route picker** (`AVRoutePickerView`,
+`MPVolumeView`, the AirPlay button of `AVPlayerViewController`): `route-iphone`, `route-headphones` (when plugged in with
+`audio route headphones`), `route-airplay`, `route-picker-background` (closes). `AVPlayerViewController` controls:
+`avkit-pip`, `avkit-airplay`, `avkit-speed` (a menu: `menu-1×`, `menu-2×`, …), `avkit-fullscreen`. Media picker
+(`MPMediaPickerController`): `media-picker-TITLE` (spaces as dashes), `media-picker-done`, `media-picker-cancel`.
 
 ## Inspecting
 

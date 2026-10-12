@@ -110,7 +110,8 @@ ISIM_LOCATION_PERMISSION=wheninuse ISIM_NOTIFICATION_PERMISSION=allow ISIM_PHOTO
 ISIM_BIOMETRY=match ISIM_LOCATION=-23.55,-46.63 isim run MyApp.app --headless --script "…"
 ```
 
-The simulated camera (`ISIM_CAMERA=picture.png`), microphone (`ISIM_AUDIO_INPUT=file.wav`), network
+The simulated camera (`ISIM_CAMERA=picture.png`, with `ISIM_CAMERA_FRONT`, `ISIM_CAMERA_DEPTH` and
+`ISIM_CAMERA_OBJECTS` describing the scene), microphone (`ISIM_AUDIO_INPUT=file.wav`), network
 (`ISIM_NETWORK=offline`), language (`ISIM_LANGUAGES=pt-BR`), Dynamic Type (`ISIM_CONTENT_SIZE=…`) and dark mode
 (`--dark`) are set the same way.
 
