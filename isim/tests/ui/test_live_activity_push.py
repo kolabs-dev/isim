@@ -131,6 +131,11 @@ def test_live_activity_push(launch, ios, tmp_path):
     a = re.search(r"\((\S+) 11; (\S+) x 37\) id=dynamic-island text=minimal", two)
     d = re.search(r"\((\S+) 11; 37 x 37\) id=dynamic-island-detached", two)
     assert a and d and float(d[1]) > float(a[1]) + float(a[2]), "the detached one is on the trailing side"
+    assert float(a[1]) >= 98, f"the attached island stays clear of the status bar's time ({a[1]})"
+    dx = float(d[1]) + 37
+    white = lambda c: min(c) > 200                                                          # noqa: E731
+    ink = sum(1 for x in range(int(dx) + 1, int(dx) + 5) for y in range(14, 36) if white(minimal.getpixel((x, y))))
+    assert ink == 0, f"no cellular bars peeking out beside the detached circle ({ink} px)"
     assert minimal.size[0] < minimal.size[1]
     assert "id=live-activity-2 " in ended, "the ended activity stays on the lock screen until its dismissal date"
     assert re.search(r"HelloWidgets: state 42: ended[\s\S]*HelloWidgets: state 42: dismissed", log)

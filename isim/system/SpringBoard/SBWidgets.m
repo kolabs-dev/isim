@@ -47,6 +47,9 @@ static void run_extension(NSDictionary *ext, NSString *bundle, NSDictionary *req
 CGSize HSWidgetFamilySize(NSString *f) {
     NSDictionary *sizes = @{ @"systemSmall": @[@170, @170], @"systemMedium": @[@364, @170], @"systemLarge": @[@364, @382],
                              @"accessoryCircular": @[@72, @72], @"accessoryRectangular": @[@160, @72], @"accessoryInline": @[@234, @26] };
+    CGSize screen = UIScreen.mainScreen.bounds.size;                 /* the 6.7" class: Apple's larger accessory sizes */
+    if (MIN(screen.width, screen.height) >= 428 && [f hasPrefix:@"accessory"])
+        sizes = @{ @"accessoryCircular": @[@76, @76], @"accessoryRectangular": @[@172, @76], @"accessoryInline": @[@257, @26] };
     NSArray *s = sizes[f] ?: @[@170, @170];
     return CGSizeMake([s[0] doubleValue], [s[1] doubleValue]);
 }

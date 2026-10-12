@@ -728,6 +728,7 @@ final class _BackgroundNode: _WrapperNode {
         let v = g.view(viewKey) { _PassthroughView() }
         v.backgroundColor = color?.uiColor
         v.layer.cornerRadius = cornerRadius
+        v.clipsToBounds = cornerRadius > 0                         /* .cornerRadius clips its content, like SwiftUI */
         return v
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {
