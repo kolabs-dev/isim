@@ -1,0 +1,2 @@
+# inputs of the Generate Constants phase
+$(SRCROOT)/Config/greeting.txt

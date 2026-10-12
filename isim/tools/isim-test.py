@@ -34,7 +34,8 @@ def main():
     argv = sys.argv[1:]
     only, skip, rest = [], [], []
     opts = {'project': None, 'workspace': None, 'scheme': None, 'configuration': None, 'output': None,
-            'result': None, 'device': None, 'os': None, 'windowed': False, 'targets': [], 'package_cache': []}
+            'result': None, 'device': None, 'os': None, 'windowed': False, 'targets': [], 'package_cache': [],
+            'scripts': True}
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -61,6 +62,8 @@ def main():
             opts['os'] = nxt; i += 1
         elif a == '--windowed':
             opts['windowed'] = True
+        elif a in ('-skip-script-phases', '-run-script-phases'):
+            opts['scripts'] = a == '-run-script-phases'
         elif a == '-destination':                     # always the isim simulator; its OS= picks the iOS version
             for kv in (nxt or '').split(','):
                 k, _, v = kv.partition('=')
@@ -83,7 +86,8 @@ def main():
     name0 = os.path.splitext(os.path.basename(opts['workspace'] or projects[0]))[0]
     outdir = os.path.abspath(opts['output'] or os.path.join(BIN, '..', 'projects', name0))
     os.makedirs(outdir, exist_ok=True)
-    b = ib.Builder(projects, configuration, outdir, overrides, opts['package_cache'])
+    b = ib.Builder(projects, configuration, outdir, overrides, opts['package_cache'], opts['scripts'])
+    b.packages.resolved_file = ib.resolved_file_path(containers[0] if containers[0].endswith('.xcworkspace') else None, projects)
 
     # which test targets
     testables = []                                   # (Target, skipped identifiers from the scheme)
