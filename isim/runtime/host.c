@@ -1760,6 +1760,12 @@ int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out)
 /* host_capture.c */
 int isim_camera_source(char *desc, int len);
 int isim_camera_open(int max_side, double fps, int *w, int *h);
+void isim_camera_set_effects(int h, double zoom, double gain);
+int isim_camera_source_at(int position, char *desc, int len);
+int isim_heif_can_encode(void);
+long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out);
+int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba);
+int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h);
 long isim_camera_frame(int h, unsigned char *out, long seq, double timeout);
 int isim_camera_preview(int h);
 void isim_camera_close(int h);
@@ -1769,6 +1775,7 @@ long isim_media_reader_read(int hd, void *buf, long n);
 void isim_media_reader_close(int hd);
 int isim_vision_available(int kind);
 char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
+char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended);
 char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs);
 char *isim_vision_text_languages(void);
 int isim_speech_available(void);
@@ -1881,7 +1888,7 @@ static const struct shim isim_table[] = {
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_audio_set_pan), H(isim_image_read_bgra),
-    H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close),
+    H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close), H(isim_camera_source_at), H(isim_camera_open_at), H(isim_camera_set_effects), H(isim_vision_barcodes_ex), H(isim_heif_can_encode), H(isim_heif_encode_bgra), H(isim_heif_decode),
     H(isim_ffmpeg_run), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
     H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages),
     H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),

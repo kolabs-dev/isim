@@ -115,13 +115,17 @@ void isim_image_draw_part(int handle, double sx, double sy, double sw, double sh
                           int nearest, const double *blend_rgba, double blend_factor, double alpha);
 void isim_image_pixel_size(int handle, double *w, double *h);
 /* offscreen drawing: begin pushes an image surface (w x h points at scale) as the drawing target; snapshot copies
-   it into a new image handle; end pops it. encode: fmt 0 PNG, 1 JPEG; returns the length, *out freed with bytes_free */
+   it into a new image handle; end pops it. encode: fmt 0 PNG, 1 JPEG, 3 HEIC (0 bytes without ffmpeg's libx265); returns the length, *out freed with bytes_free */
 int isim_gfx_offscreen_begin(double w, double h, double scale, int opaque);
 int isim_gfx_offscreen_snapshot(void);
 void isim_gfx_offscreen_end(void);
 int isim_gfx_offscreen_depth(void);
 long isim_image_encode(int handle, int fmt, double quality, unsigned char *_Nullable *_Nonnull out);
 void isim_image_bytes_free(unsigned char *_Nullable bytes);
+/* HEIF (host_heif.c): whether HEIC can be written (ffmpeg with libx265); decode gives straight RGBA (free with free) */
+int isim_heif_can_encode(void);
+long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char *_Nullable *_Nonnull out);
+int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char *_Nullable *_Nonnull rgba);
 /* attributed text as Pango markup (<span font_family= size= weight= foreground= ...>); align 0 left 1 center 2 right */
 void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h);
 void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba);
@@ -300,6 +304,11 @@ int isim_camera_open(int max_side, double fps, int *w, int *h);
 long isim_camera_frame(int camera, unsigned char *_Nullable out, long seq, double timeout);
 int isim_camera_preview(int camera);
 void isim_camera_close(int camera);
+/* digital zoom (centre crop, >= 1) and brightness gain applied to the frames that follow */
+void isim_camera_set_effects(int camera, double zoom, double gain);
+/* position 0: the back camera (ISIM_CAMERA); 1: the front camera (ISIM_CAMERA_FRONT when set, else ISIM_CAMERA) */
+int isim_camera_source_at(int position, char *_Nullable desc, int len);
+int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h);
 /* runs ffmpeg with args (no shell); progress in seconds of output; *cancel != 0 stops it. 0 ok, -1 no ffmpeg, -2 cancelled */
 int isim_ffmpeg_run(const char *_Nullable const *_Nonnull args, int nargs, double *_Nullable progress, volatile int *_Nullable cancel, char *_Nullable err, long errlen);
 /* decoded media streams: kind 0 video (BGRA w x h at rate fps), 1 audio (float32 interleaved at rate Hz, channels) */
@@ -310,6 +319,8 @@ void isim_media_reader_close(int reader);
    text (free with isim_media_free), NULL when the backend is missing */
 int isim_vision_available(int kind);
 char *_Nullable isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
+/* extended: also Aztec, Data Matrix and Micro QR through zxing-cpp's ZXingReader (isim_vision_available(3)) */
+char *_Nullable isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended);
 char *_Nullable isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *_Nullable langs);
 char *_Nullable isim_vision_text_languages(void);
 /* speech recognition: 1 whisper.cpp (ISIM_WHISPER_MODEL), 2 vosk (ISIM_VOSK_MODEL), 0 none; transcribe takes 16 kHz mono */

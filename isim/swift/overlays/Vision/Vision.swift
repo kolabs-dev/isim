@@ -149,24 +149,31 @@ public struct VNBarcodeSymbology: RawRepresentable, Hashable, Sendable {
     /// zbar symbology name -> Vision
     static let zbar: [String: VNBarcodeSymbology] = ["QR-Code": .qr, "EAN-13": .ean13, "EAN-8": .ean8, "UPC-E": .upce, "UPC-A": .ean13,
         "ISBN-13": .ean13, "ISBN-10": .ean13, "CODE-128": .code128, "CODE-39": .code39, "CODE-93": .code93, "I2/5": .i2of5,
-        "Codabar": .codabar, "DataBar": .gs1DataBar, "DataBar-Exp": .gs1DataBarExpanded, "PDF417": .pdf417]
-    static let hostSupported: [VNBarcodeSymbology] = [.qr, .ean13, .ean8, .upce, .code128, .code39, .code39Checksum, .code39FullASCII, .code93,
+        "Codabar": .codabar, "DataBar": .gs1DataBar, "DataBar-Exp": .gs1DataBarExpanded, "PDF417": .pdf417,
+        "Aztec": .aztec, "DataMatrix": .dataMatrix, "MicroQR": .microQR]       // the last three: zxing-cpp's ZXingReader
+    static let zbarSupported: [VNBarcodeSymbology] = [.qr, .ean13, .ean8, .upce, .code128, .code39, .code39Checksum, .code39FullASCII, .code93,
         .i2of5, .i2of5Checksum, .itf14, .codabar, .gs1DataBar, .gs1DataBarExpanded, .pdf417]
+    static let zxingSupported: [VNBarcodeSymbology] = [.aztec, .dataMatrix, .microQR]
+    static var hostSupported: [VNBarcodeSymbology] {
+        (isim_vision_available(1) != 0 ? zbarSupported : []) + (isim_vision_available(3) != 0 ? zxingSupported : [])
+    }
+    static var available: Bool { isim_vision_available(1) != 0 || isim_vision_available(3) != 0 }
 }
 
 open class VNDetectBarcodesRequest: VNImageBasedRequest, @unchecked Sendable {
     open var symbologies: [VNBarcodeSymbology] = VNBarcodeSymbology.hostSupported
     open var coalesceCompositeSymbologies = false
-    open class var supportedSymbologies: [VNBarcodeSymbology] { isim_vision_available(1) != 0 ? VNBarcodeSymbology.hostSupported : [] }
+    open class var supportedSymbologies: [VNBarcodeSymbology] { VNBarcodeSymbology.hostSupported }
     open func supportedSymbologies() throws -> [VNBarcodeSymbology] {
-        guard isim_vision_available(1) != 0 else { throw _vnError(.unsupportedRequest, "barcode detection on isim needs the host's zbar library (libzbar.so.0)") }
+        guard VNBarcodeSymbology.available else { throw _vnError(.unsupportedRequest, "barcode detection on isim needs the host's zbar library (libzbar.so.0) or zxing-cpp's ZXingReader") }
         return VNBarcodeSymbology.hostSupported
     }
     open override class var supportedRevisions: IndexSet { IndexSet(1...4) }
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
-        guard isim_vision_available(1) != 0 else { throw _vnError(.unsupportedRequest, "barcode detection on isim needs the host's zbar library (libzbar.so.0)") }
+        guard VNBarcodeSymbology.available else { throw _vnError(.unsupportedRequest, "barcode detection on isim needs the host's zbar library (libzbar.so.0) or zxing-cpp's ZXingReader") }
         let gray = img.bgra
-        guard let raw = gray.withUnsafeBufferPointer({ isim_vision_barcodes($0.baseAddress!, Int32(img.width), Int32(img.height), Int32(img.width * 4)) }) else { return [] }
+        let extended: Int32 = symbologies.contains { VNBarcodeSymbology.zxingSupported.contains($0) } ? 1 : 0
+        guard let raw = gray.withUnsafeBufferPointer({ isim_vision_barcodes_ex($0.baseAddress!, Int32(img.width), Int32(img.height), Int32(img.width * 4), extended) }) else { return [] }
         defer { isim_media_free(raw) }
         var out: [VNObservation] = []
         let w = Double(img.width), h = Double(img.height)
@@ -187,7 +194,9 @@ open class VNDetectBarcodesRequest: VNImageBasedRequest, @unchecked Sendable {
             let xs = pts.map(\.x), ys = pts.map(\.y)
             let box = CGRect(x: xs.min()!, y: ys.min()!, width: max(1 / w, xs.max()! - xs.min()!), height: max(1 / h, ys.max()! - ys.min()!))
             let o = VNBarcodeObservation(symbology: sym, payload: Data(bytes), boundingBox: box)
-            if pts.count == 4 {        // zbar QR corners: top-left, bottom-left, bottom-right, top-right (image space)
+            if pts.count == 4 && VNBarcodeSymbology.zxingSupported.contains(sym) {    // zxing: clockwise from the top-left
+                o._topLeft = pts[0]; o._topRight = pts[1]; o._bottomRight = pts[2]; o._bottomLeft = pts[3]
+            } else if pts.count == 4 {        // zbar QR corners: top-left, bottom-left, bottom-right, top-right (image space)
                 o._topLeft = pts[0]; o._bottomLeft = pts[1]; o._bottomRight = pts[2]; o._topRight = pts[3]
             }
             out.append(o)

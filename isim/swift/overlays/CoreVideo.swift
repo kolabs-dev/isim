@@ -1,7 +1,8 @@
 // isim CoreVideo (subset, self-authored with iOS API names): CVPixelBuffer (CVImageBuffer, CVBuffer) in main memory,
 // pixel buffer pools and the C accessor functions apps use with AVFoundation capture, AVAssetReader/Writer and Vision.
 // Adapted: buffers are plain memory (no IOSurface, no Metal/OpenGL texture caches); locking only counts.
-// Formats: 32BGRA, 32ARGB, 32RGBA, 24RGB, OneComponent8 (single plane) and 420YpCbCr8BiPlanar video/full range.
+// Formats: 32BGRA, 32ARGB, 32RGBA, 24RGB, OneComponent8/16/16Half/32Float, depth and disparity (16/32-bit float),
+// 14-bit Bayer (single plane) and 420YpCbCr8BiPlanar video/full range.
 @_exported import Foundation
 @_exported import CoreGraphics
 
@@ -26,6 +27,17 @@ public let kCVPixelFormatType_24RGB: OSType = 0x0000_0018
 public let kCVPixelFormatType_OneComponent8: OSType = 0x4C30_3038             // 'L008'
 public let kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange: OSType = 0x3432_3076   // '420v'
 public let kCVPixelFormatType_420YpCbCr8BiPlanarFullRange: OSType = 0x3432_3066    // '420f'
+public let kCVPixelFormatType_OneComponent16: OSType = 0x4C30_3136            // 'L016'
+public let kCVPixelFormatType_OneComponent16Half: OSType = 0x4C30_3068        // 'L00h'
+public let kCVPixelFormatType_OneComponent32Float: OSType = 0x4C30_3066       // 'L00f'
+public let kCVPixelFormatType_DepthFloat16: OSType = 0x6864_6570              // 'hdep'
+public let kCVPixelFormatType_DepthFloat32: OSType = 0x6664_6570              // 'fdep'
+public let kCVPixelFormatType_DisparityFloat16: OSType = 0x6864_6973          // 'hdis'
+public let kCVPixelFormatType_DisparityFloat32: OSType = 0x6664_6973          // 'fdis'
+public let kCVPixelFormatType_14Bayer_RGGB: OSType = 0x7267_6734              // 'rgg4'
+public let kCVPixelFormatType_14Bayer_GRBG: OSType = 0x6772_6234              // 'grb4'
+public let kCVPixelFormatType_14Bayer_GBRG: OSType = 0x6762_7234              // 'gbr4'
+public let kCVPixelFormatType_14Bayer_BGGR: OSType = 0x6267_6734              // 'bgg4'
 
 public let kCVPixelBufferPixelFormatTypeKey: CFString = "PixelFormatType" as CFString
 public let kCVPixelBufferWidthKey: CFString = "Width" as CFString
@@ -36,6 +48,38 @@ public let kCVPixelBufferCGBitmapContextCompatibilityKey: CFString = "CGBitmapCo
 public let kCVPixelBufferIOSurfacePropertiesKey: CFString = "IOSurfaceProperties" as CFString
 public let kCVPixelBufferMetalCompatibilityKey: CFString = "MetalCompatibility" as CFString
 public let kCVPixelBufferPoolMinimumBufferCountKey: CFString = "MinimumBufferCount" as CFString
+
+/// isim: IEEE half-precision conversions for the 16-bit float formats (bit operations, no Float16 runtime support needed)
+public func _isimHalf(_ v: Float) -> UInt16 {
+    let b = v.bitPattern
+    let sign = UInt16((b >> 16) & 0x8000)
+    let exp = Int((b >> 23) & 0xff) - 127 + 15
+    var mant = b & 0x7f_ffff
+    if (b >> 23) & 0xff == 0xff { return sign | 0x7c00 | (mant != 0 ? 0x200 : 0) }
+    if exp >= 31 { return sign | 0x7c00 }
+    if exp <= 0 {
+        if exp < -10 { return sign }
+        mant |= 0x80_0000
+        let shift = UInt32(14 - exp)
+        var h = UInt16(mant >> shift)
+        if (mant >> (shift - 1)) & 1 != 0 { h += 1 }
+        return sign | h
+    }
+    var h = sign | UInt16(exp << 10) | UInt16(mant >> 13)
+    if mant & 0x1000 != 0 { h &+= 1 }
+    return h
+}
+public func _isimFloat(_ h: UInt16) -> Float {
+    let sign = UInt32(h & 0x8000) << 16, exp = Int((h >> 10) & 0x1f), mant = UInt32(h & 0x3ff)
+    if exp == 0 {
+        if mant == 0 { return Float(bitPattern: sign) }
+        var e = -1, m = mant
+        repeat { e += 1; m <<= 1 } while m & 0x400 == 0
+        return Float(bitPattern: sign | UInt32(127 - 15 - e) << 23 | (m & 0x3ff) << 13)
+    }
+    if exp == 31 { return Float(bitPattern: sign | 0x7f80_0000 | mant << 13) }
+    return Float(bitPattern: sign | UInt32(exp - 15 + 127) << 23 | mant << 13)
+}
 
 public struct CVPixelBufferLockFlags: OptionSet, Sendable {
     public let rawValue: CVOptionFlags
@@ -60,6 +104,9 @@ public final class CVBuffer: @unchecked Sendable, Hashable {
         case kCVPixelFormatType_32BGRA, kCVPixelFormatType_32ARGB, kCVPixelFormatType_32RGBA: return 4
         case kCVPixelFormatType_24RGB: return 3
         case kCVPixelFormatType_OneComponent8: return 1
+        case kCVPixelFormatType_OneComponent32Float, kCVPixelFormatType_DepthFloat32, kCVPixelFormatType_DisparityFloat32: return 4
+        case kCVPixelFormatType_OneComponent16, kCVPixelFormatType_OneComponent16Half, kCVPixelFormatType_DepthFloat16, kCVPixelFormatType_DisparityFloat16,
+             kCVPixelFormatType_14Bayer_RGGB, kCVPixelFormatType_14Bayer_GRBG, kCVPixelFormatType_14Bayer_GBRG, kCVPixelFormatType_14Bayer_BGGR: return 2
         default: return nil
         }
     }
@@ -110,6 +157,15 @@ public final class CVBuffer: @unchecked Sendable, Hashable {
                     case kCVPixelFormatType_32RGBA: o[d] = row[4 * x + 2]; o[d + 1] = row[4 * x + 1]; o[d + 2] = row[4 * x]; o[d + 3] = row[4 * x + 3]
                     case kCVPixelFormatType_24RGB: o[d] = row[3 * x + 2]; o[d + 1] = row[3 * x + 1]; o[d + 2] = row[3 * x]
                     case kCVPixelFormatType_OneComponent8: o[d] = row[x]; o[d + 1] = row[x]; o[d + 2] = row[x]
+                    case kCVPixelFormatType_OneComponent32Float, kCVPixelFormatType_DepthFloat32, kCVPixelFormatType_DisparityFloat32:
+                        var f: Float = 0; memcpy(&f, row + 4 * x, 4)
+                        let v = UInt8(max(0, min(255, (f * 255).rounded()))); o[d] = v; o[d + 1] = v; o[d + 2] = v
+                    case kCVPixelFormatType_OneComponent16Half, kCVPixelFormatType_DepthFloat16, kCVPixelFormatType_DisparityFloat16:
+                        var h: UInt16 = 0; memcpy(&h, row + 2 * x, 2)
+                        let v = UInt8(max(0, min(255, (_isimFloat(h) * 255).rounded()))); o[d] = v; o[d + 1] = v; o[d + 2] = v
+                    case kCVPixelFormatType_OneComponent16, kCVPixelFormatType_14Bayer_RGGB, kCVPixelFormatType_14Bayer_GRBG, kCVPixelFormatType_14Bayer_GBRG, kCVPixelFormatType_14Bayer_BGGR:
+                        var h: UInt16 = 0; memcpy(&h, row + 2 * x, 2)
+                        let v = UInt8(_format == kCVPixelFormatType_OneComponent16 ? h >> 8 : min(255, h >> 6)); o[d] = v; o[d + 1] = v; o[d + 2] = v
                     default:   // bi-planar 4:2:0 (BT.601)
                         let full = _format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
                         let c = _planes[1].base.assumingMemoryBound(to: UInt8.self) + (y / 2) * _planes[1].bytesPerRow + (x / 2) * 2
@@ -127,7 +183,7 @@ public final class CVBuffer: @unchecked Sendable, Hashable {
 public typealias CVImageBuffer = CVBuffer
 public typealias CVPixelBuffer = CVBuffer
 
-public func CVPixelBufferCreate(_ allocator: CFAllocator?, _ width: Int, _ height: Int, _ pixelFormatType: OSType,
+@discardableResult public func CVPixelBufferCreate(_ allocator: CFAllocator?, _ width: Int, _ height: Int, _ pixelFormatType: OSType,
                                 _ pixelBufferAttributes: CFDictionary?, _ pixelBufferOut: UnsafeMutablePointer<CVPixelBuffer?>) -> CVReturn {
     guard width > 0, height > 0 else { return kCVReturnInvalidSize }
     guard let b = CVBuffer(_width: width, height: height, format: pixelFormatType) else { return kCVReturnInvalidPixelFormat }
@@ -135,7 +191,7 @@ public func CVPixelBufferCreate(_ allocator: CFAllocator?, _ width: Int, _ heigh
     return kCVReturnSuccess
 }
 public typealias CVPixelBufferReleaseBytesCallback = @convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer?) -> Void
-public func CVPixelBufferCreateWithBytes(_ allocator: CFAllocator?, _ width: Int, _ height: Int, _ pixelFormatType: OSType,
+@discardableResult public func CVPixelBufferCreateWithBytes(_ allocator: CFAllocator?, _ width: Int, _ height: Int, _ pixelFormatType: OSType,
                                          _ baseAddress: UnsafeMutableRawPointer, _ bytesPerRow: Int,
                                          _ releaseCallback: CVPixelBufferReleaseBytesCallback?, _ releaseRefCon: UnsafeMutableRawPointer?,
                                          _ pixelBufferAttributes: CFDictionary?, _ pixelBufferOut: UnsafeMutablePointer<CVPixelBuffer?>) -> CVReturn {
@@ -146,8 +202,8 @@ public func CVPixelBufferCreateWithBytes(_ allocator: CFAllocator?, _ width: Int
                                       release: releaseCallback.map { cb in { cb(releaseRefCon, base) } })
     return kCVReturnSuccess
 }
-public func CVPixelBufferLockBaseAddress(_ pixelBuffer: CVPixelBuffer, _ lockFlags: CVPixelBufferLockFlags) -> CVReturn { pixelBuffer._locks += 1; return kCVReturnSuccess }
-public func CVPixelBufferUnlockBaseAddress(_ pixelBuffer: CVPixelBuffer, _ unlockFlags: CVPixelBufferLockFlags) -> CVReturn {
+@discardableResult public func CVPixelBufferLockBaseAddress(_ pixelBuffer: CVPixelBuffer, _ lockFlags: CVPixelBufferLockFlags) -> CVReturn { pixelBuffer._locks += 1; return kCVReturnSuccess }
+@discardableResult public func CVPixelBufferUnlockBaseAddress(_ pixelBuffer: CVPixelBuffer, _ unlockFlags: CVPixelBufferLockFlags) -> CVReturn {
     guard pixelBuffer._locks > 0 else { return kCVReturnError }
     pixelBuffer._locks -= 1; return kCVReturnSuccess
 }
@@ -184,7 +240,7 @@ func _cvInt(_ d: [String: Any], _ k: CFString) -> Int? {
     if let u = v as? UInt32 { return Int(u) }
     return nil
 }
-public func CVPixelBufferPoolCreate(_ allocator: CFAllocator?, _ poolAttributes: CFDictionary?, _ pixelBufferAttributes: CFDictionary?,
+@discardableResult public func CVPixelBufferPoolCreate(_ allocator: CFAllocator?, _ poolAttributes: CFDictionary?, _ pixelBufferAttributes: CFDictionary?,
                                     _ poolOut: UnsafeMutablePointer<CVPixelBufferPool?>) -> CVReturn {
     let a = (pixelBufferAttributes as NSDictionary? as? [String: Any]) ?? [:]
     guard let w = _cvInt(a, kCVPixelBufferWidthKey), let h = _cvInt(a, kCVPixelBufferHeightKey) else { return kCVReturnInvalidArgument }
@@ -197,7 +253,7 @@ public func _CVPixelBufferPoolMake(width: Int, height: Int, format: OSType) -> C
     CVPixelBufferPool(width: width, height: height, format: format, attributes: [kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
                                                                                   kCVPixelBufferPixelFormatTypeKey as String: Int(format)])
 }
-public func CVPixelBufferPoolCreatePixelBuffer(_ allocator: CFAllocator?, _ pool: CVPixelBufferPool, _ out: UnsafeMutablePointer<CVPixelBuffer?>) -> CVReturn {
+@discardableResult public func CVPixelBufferPoolCreatePixelBuffer(_ allocator: CFAllocator?, _ pool: CVPixelBufferPool, _ out: UnsafeMutablePointer<CVPixelBuffer?>) -> CVReturn {
     guard let b = CVBuffer(_width: pool.width, height: pool.height, format: pool.format) else { return kCVReturnPoolAllocationFailed }
     out.pointee = b
     return kCVReturnSuccess

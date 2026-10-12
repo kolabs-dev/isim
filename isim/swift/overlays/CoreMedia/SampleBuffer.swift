@@ -108,12 +108,12 @@ public func CMSampleBufferGetDataBuffer(_ sbuf: CMSampleBuffer) -> CMBlockBuffer
 public func CMSampleBufferGetTotalSampleSize(_ sbuf: CMSampleBuffer) -> Int { sbuf.totalSampleSize }
 public func CMSampleBufferIsValid(_ sbuf: CMSampleBuffer) -> Bool { true }
 public func CMSampleBufferDataIsReady(_ sbuf: CMSampleBuffer) -> Bool { true }
-public func CMSampleBufferInvalidate(_ sbuf: CMSampleBuffer) -> OSStatus { noErr }
-public func CMSampleBufferGetSampleTimingInfo(_ sbuf: CMSampleBuffer, at index: CMItemCount, timingInfoOut: UnsafeMutablePointer<CMSampleTimingInfo>) -> OSStatus {
+@discardableResult public func CMSampleBufferInvalidate(_ sbuf: CMSampleBuffer) -> OSStatus { noErr }
+@discardableResult public func CMSampleBufferGetSampleTimingInfo(_ sbuf: CMSampleBuffer, at index: CMItemCount, timingInfoOut: UnsafeMutablePointer<CMSampleTimingInfo>) -> OSStatus {
     timingInfoOut.pointee = sbuf._timing; return noErr
 }
 /// Copies interleaved PCM frames into the buffer list (one interleaved buffer, or one buffer per channel).
-public func CMSampleBufferCopyPCMDataIntoAudioBufferList(_ sbuf: CMSampleBuffer, at frameOffset: Int32, frameCount: Int32,
+@discardableResult public func CMSampleBufferCopyPCMDataIntoAudioBufferList(_ sbuf: CMSampleBuffer, at frameOffset: Int32, frameCount: Int32,
                                                         into bufferList: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
     guard let asbd = sbuf._format?._asbd, let block = sbuf._block, asbd._isPCM else { return kCMSampleBufferError_InvalidMediaFormat }
     let fb = asbd._frameBytes, ch = Int(max(1, asbd.mChannelsPerFrame)), bs = asbd._bytesPerSample
@@ -136,23 +136,23 @@ public func CMSampleBufferCopyPCMDataIntoAudioBufferList(_ sbuf: CMSampleBuffer,
     }
     return noErr
 }
-public func CMSampleBufferCreateForImageBuffer(allocator: CFAllocator?, imageBuffer: CVImageBuffer, dataReady: Bool,
+@discardableResult public func CMSampleBufferCreateForImageBuffer(allocator: CFAllocator?, imageBuffer: CVImageBuffer, dataReady: Bool,
                                                makeDataReadyCallback: Any?, refcon: UnsafeMutableRawPointer?, formatDescription: CMVideoFormatDescription,
                                                sampleTiming: UnsafePointer<CMSampleTimingInfo>, sampleBufferOut: UnsafeMutablePointer<CMSampleBuffer?>) -> OSStatus {
     sampleBufferOut.pointee = CMSampleBuffer(_imageBuffer: imageBuffer, presentationTime: sampleTiming.pointee.presentationTimeStamp, duration: sampleTiming.pointee.duration)
     return noErr
 }
-public func CMSampleBufferCreateReadyWithImageBuffer(allocator: CFAllocator?, imageBuffer: CVImageBuffer, formatDescription: CMVideoFormatDescription,
+@discardableResult public func CMSampleBufferCreateReadyWithImageBuffer(allocator: CFAllocator?, imageBuffer: CVImageBuffer, formatDescription: CMVideoFormatDescription,
                                                      sampleTiming: UnsafePointer<CMSampleTimingInfo>, sampleBufferOut: UnsafeMutablePointer<CMSampleBuffer?>) -> OSStatus {
     sampleBufferOut.pointee = CMSampleBuffer(_imageBuffer: imageBuffer, presentationTime: sampleTiming.pointee.presentationTimeStamp, duration: sampleTiming.pointee.duration)
     return noErr
 }
-public func CMVideoFormatDescriptionCreateForImageBuffer(allocator: CFAllocator?, imageBuffer: CVImageBuffer,
+@discardableResult public func CMVideoFormatDescriptionCreateForImageBuffer(allocator: CFAllocator?, imageBuffer: CVImageBuffer,
                                                          formatDescriptionOut: UnsafeMutablePointer<CMVideoFormatDescription?>) -> OSStatus {
     formatDescriptionOut.pointee = CMFormatDescription(_video: imageBuffer._width, height: imageBuffer._height, pixelFormat: imageBuffer._format)
     return noErr
 }
-public func CMAudioFormatDescriptionCreate(allocator: CFAllocator?, asbd: UnsafePointer<AudioStreamBasicDescription>, layoutSize: Int, layout: UnsafeRawPointer?,
+@discardableResult public func CMAudioFormatDescriptionCreate(allocator: CFAllocator?, asbd: UnsafePointer<AudioStreamBasicDescription>, layoutSize: Int, layout: UnsafeRawPointer?,
                                            magicCookieSize: Int, magicCookie: UnsafeRawPointer?, extensions: CFDictionary?,
                                            formatDescriptionOut: UnsafeMutablePointer<CMAudioFormatDescription?>) -> OSStatus {
     formatDescriptionOut.pointee = CMFormatDescription(_audio: asbd.pointee)
@@ -167,13 +167,13 @@ public func CMAudioFormatDescriptionGetStreamBasicDescription(_ desc: CMAudioFor
 }
 public func CMBlockBufferGetDataLength(_ b: CMBlockBuffer) -> Int { b._bytes.count }
 public func CMBlockBufferIsEmpty(_ b: CMBlockBuffer) -> Bool { b._bytes.isEmpty }
-public func CMBlockBufferCopyDataBytes(_ b: CMBlockBuffer, atOffset offset: Int, dataLength: Int, destination: UnsafeMutableRawPointer) -> OSStatus {
+@discardableResult public func CMBlockBufferCopyDataBytes(_ b: CMBlockBuffer, atOffset offset: Int, dataLength: Int, destination: UnsafeMutableRawPointer) -> OSStatus {
     guard offset >= 0, offset <= b._bytes.count else { return kCMBlockBufferBadOffsetParameterErr }
     guard dataLength >= 0, offset + dataLength <= b._bytes.count else { return kCMBlockBufferBadLengthParameterErr }
     b._bytes.withUnsafeBytes { destination.copyMemory(from: $0.baseAddress! + offset, byteCount: dataLength) }
     return noErr
 }
-public func CMBlockBufferGetDataPointer(_ b: CMBlockBuffer, atOffset offset: Int, lengthAtOffsetOut: UnsafeMutablePointer<Int>?,
+@discardableResult public func CMBlockBufferGetDataPointer(_ b: CMBlockBuffer, atOffset offset: Int, lengthAtOffsetOut: UnsafeMutablePointer<Int>?,
                                         totalLengthOut: UnsafeMutablePointer<Int>?, dataPointerOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> OSStatus {
     guard offset >= 0, offset <= b._bytes.count else { return kCMBlockBufferBadOffsetParameterErr }
     lengthAtOffsetOut?.pointee = b._bytes.count - offset
