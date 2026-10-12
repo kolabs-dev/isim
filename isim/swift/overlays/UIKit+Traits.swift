@@ -45,6 +45,8 @@ extension UITraitActiveAppearance: UITraitDefinition { public static var default
 extension UITraitListEnvironment: UITraitDefinition { public static var defaultValue: UIListEnvironment { .unspecified } }
 @available(iOS 26.0, *)
 extension UITraitTabAccessoryEnvironment: UITraitDefinition { public static var defaultValue: UITabAccessory.Environment { .unspecified } }
+@available(iOS 17.0, *)
+extension UITraitSplitViewControllerLayoutEnvironment: UITraitDefinition { public static var defaultValue: UISplitViewController.LayoutEnvironment { .none } }
 
 // MARK: - Bridging trait keys and values
 /// the key Objective-C stores a trait under: the class's identifier for trait classes, the Swift identifier otherwise

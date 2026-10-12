@@ -4,6 +4,7 @@
    collapses and expands when the size class changes) and UIPageViewController (scroll style with paging; page curl
    is shown as scroll). */
 #import <UIKit/UIViewController.h>
+#import <UIKit/UIDevice.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UISplitViewController, UIPageViewController, UIBarButtonItem, UIGestureRecognizer;
 
@@ -11,8 +12,14 @@ typedef NS_ENUM(NSInteger, UISplitViewControllerStyle) {
     UISplitViewControllerStyleUnspecified, UISplitViewControllerStyleDoubleColumn, UISplitViewControllerStyleTripleColumn
 } NS_SWIFT_NAME(UISplitViewController.Style);
 typedef NS_ENUM(NSInteger, UISplitViewControllerColumn) {
-    UISplitViewControllerColumnPrimary, UISplitViewControllerColumnSupplementary, UISplitViewControllerColumnSecondary, UISplitViewControllerColumnCompact
+    UISplitViewControllerColumnPrimary, UISplitViewControllerColumnSupplementary, UISplitViewControllerColumnSecondary, UISplitViewControllerColumnCompact,
+    UISplitViewControllerColumnInspector API_AVAILABLE(ios(26.0)),   /* trailing, shown with showColumn: (compact: a sheet) */
 } NS_SWIFT_NAME(UISplitViewController.Column);
+typedef NS_ENUM(NSInteger, UISplitViewControllerPrimaryEdge) { UISplitViewControllerPrimaryEdgeLeading, UISplitViewControllerPrimaryEdgeTrailing }
+    NS_SWIFT_NAME(UISplitViewController.PrimaryEdge) API_AVAILABLE(ios(11.0));
+typedef NS_ENUM(NSInteger, UISplitViewControllerBackgroundStyle) { UISplitViewControllerBackgroundStyleNone, UISplitViewControllerBackgroundStyleSidebar }
+    NS_SWIFT_NAME(UISplitViewController.BackgroundStyle) API_AVAILABLE(ios(14.0));
+UIKIT_EXTERN CGFloat const UISplitViewControllerAutomaticDimension NS_SWIFT_NAME(UISplitViewController.automaticDimension) API_AVAILABLE(ios(8.0));
 typedef NS_ENUM(NSInteger, UISplitViewControllerDisplayMode) {
     UISplitViewControllerDisplayModeAutomatic, UISplitViewControllerDisplayModeSecondaryOnly, UISplitViewControllerDisplayModeOneBesideSecondary,
     UISplitViewControllerDisplayModeOneOverSecondary, UISplitViewControllerDisplayModeTwoBesideSecondary, UISplitViewControllerDisplayModeTwoOverSecondary,
@@ -43,6 +50,14 @@ NS_SWIFT_UI_ACTOR
 - (nullable UIViewController *)splitViewController:(UISplitViewController *)splitViewController separateSecondaryViewControllerFromPrimaryViewController:(UIViewController *)primaryViewController
     NS_SWIFT_NAME(splitViewController(_:separateSecondaryFrom:));
 - (UISplitViewControllerDisplayMode)targetDisplayModeForActionInSplitViewController:(UISplitViewController *)svc;
+- (UIInterfaceOrientationMask)splitViewControllerSupportedInterfaceOrientations:(UISplitViewController *)splitViewController;
+- (UIInterfaceOrientation)splitViewControllerPreferredInterfaceOrientationForPresentation:(UISplitViewController *)splitViewController;
+/* the edge swipe that shows the hidden columns */
+- (void)splitViewControllerInteractivePresentationGestureWillBegin:(UISplitViewController *)svc API_AVAILABLE(ios(14.5));
+- (void)splitViewControllerInteractivePresentationGestureDidEnd:(UISplitViewController *)svc API_AVAILABLE(ios(14.5));
+/* classic (unspecified style) split views: the controller to use as the primary after collapsing / expanding */
+- (nullable UIViewController *)primaryViewControllerForCollapsingSplitViewController:(UISplitViewController *)splitViewController NS_SWIFT_NAME(primaryViewController(forCollapsing:));
+- (nullable UIViewController *)primaryViewControllerForExpandingSplitViewController:(UISplitViewController *)splitViewController NS_SWIFT_NAME(primaryViewController(forExpanding:));
 @end
 
 NS_SWIFT_UI_ACTOR
@@ -75,6 +90,26 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIBarButtonItem *displayModeButtonItem;
 @end
 
+/* members from the documentation sweep (#9); categories: the class's size must not change */
+@interface UISplitViewController (UISplitViewControllerExtras)
+/* the column shows: by the display mode (expanded), on top of the stack (collapsed), or (inspector) shown */
+- (BOOL)isShowingColumn:(UISplitViewControllerColumn)column NS_SWIFT_NAME(isShowing(_:)) API_AVAILABLE(ios(17.0));
+@property (nonatomic) CGFloat minimumSupplementaryColumnWidth API_AVAILABLE(ios(14.0));
+@property (nonatomic) CGFloat maximumSupplementaryColumnWidth API_AVAILABLE(ios(14.0));
+/* the secondary column keeps at least its minimum width (the leading columns give way); the preferred secondary
+   width is stored (the secondary takes the rest of the width) */
+@property (nonatomic) CGFloat preferredSecondaryColumnWidth API_AVAILABLE(ios(26.0));
+@property (nonatomic) CGFloat preferredSecondaryColumnWidthFraction API_AVAILABLE(ios(26.0));
+@property (nonatomic) CGFloat minimumSecondaryColumnWidth API_AVAILABLE(ios(26.0));
+@property (nonatomic) CGFloat preferredInspectorColumnWidth API_AVAILABLE(ios(26.0));
+@property (nonatomic) CGFloat preferredInspectorColumnWidthFraction API_AVAILABLE(ios(26.0));
+@property (nonatomic) CGFloat minimumInspectorColumnWidth API_AVAILABLE(ios(26.0));
+@property (nonatomic) CGFloat maximumInspectorColumnWidth API_AVAILABLE(ios(26.0));
+/* trailing: the primary (and supplementary) columns on the trailing side, the edge swipe from that side */
+@property (nonatomic) UISplitViewControllerPrimaryEdge primaryEdge API_AVAILABLE(ios(11.0));
+/* the sidebar style gives the primary column the sidebar's background (isim: stored) */
+@property (nonatomic) UISplitViewControllerBackgroundStyle primaryBackgroundStyle API_AVAILABLE(ios(13.0));
+@end
 @interface UIViewController (UISplitViewController)
 @property (nullable, nonatomic, readonly, strong) UISplitViewController *splitViewController;
 @end
@@ -112,6 +147,8 @@ NS_SWIFT_UI_ACTOR
 - (void)pageViewController:(UIPageViewController *)pageViewController willTransitionToViewControllers:(NSArray<UIViewController *> *)pendingViewControllers;
 - (void)pageViewController:(UIPageViewController *)pageViewController didFinishAnimating:(BOOL)finished
    previousViewControllers:(NSArray<UIViewController *> *)previousViewControllers transitionCompleted:(BOOL)completed;
+- (UIInterfaceOrientationMask)pageViewControllerSupportedInterfaceOrientations:(UIPageViewController *)pageViewController;
+- (UIInterfaceOrientation)pageViewControllerPreferredInterfaceOrientationForPresentation:(UIPageViewController *)pageViewController;
 @end
 
 NS_SWIFT_UI_ACTOR

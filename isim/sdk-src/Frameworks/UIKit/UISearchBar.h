@@ -21,6 +21,9 @@ NS_SWIFT_UI_ACTOR
 - (void)searchBarSearchButtonClicked:(UISearchBar *)searchBar;
 - (void)searchBarCancelButtonClicked:(UISearchBar *)searchBar;
 - (void)searchBar:(UISearchBar *)searchBar selectedScopeButtonIndexDidChange:(NSInteger)selectedScope;
+/* the bookmark and results list buttons (showsBookmarkButton / showsSearchResultsButton) in an empty field */
+- (void)searchBarBookmarkButtonClicked:(UISearchBar *)searchBar;
+- (void)searchBarResultsListButtonClicked:(UISearchBar *)searchBar;
 @end
 
 /* the rounded field inside a search bar (magnifying glass, placeholder, clear button) */
@@ -46,7 +49,6 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) NSArray<NSString *> *scopeButtonTitles;
 @property (nonatomic) NSInteger selectedScopeButtonIndex;
 @property (nonatomic) BOOL showsScopeBar;
-- (void)setShowsScope:(BOOL)show animated:(BOOL)animated;
 @property (nonatomic, getter=isEnabled) BOOL enabled;
 @property (nonatomic) UITextAutocapitalizationType autocapitalizationType;
 @property (nonatomic) UITextAutocorrectionType autocorrectionType;
@@ -65,6 +67,7 @@ NS_SWIFT_UI_ACTOR
 @protocol UISearchSuggestion <NSObject>
 @property (nullable, nonatomic, readonly) NSString *localizedSuggestion;
 @optional
+@property (nullable, nonatomic, readonly) NSAttributedString *localizedAttributedSuggestion API_AVAILABLE(ios(16.0));
 @property (nullable, nonatomic, readonly) NSString *localizedDescription;
 @property (nullable, nonatomic, readonly) UIImage *iconImage;
 @property (nullable, nonatomic, strong) id representedObject;

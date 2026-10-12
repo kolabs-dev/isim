@@ -117,6 +117,7 @@ typedef NS_ENUM(int, IsimFilesMode) { IsimFilesPick, IsimFilesPickFolder, IsimFi
 @property (nonatomic, copy) void (^onFolder)(NSString *path);
 @property (nonatomic, copy, nullable) void (^onCancel)(void);
 @property (nonatomic, copy, nullable) void (^decorate)(__IsimFilesList *list);   /* the browser's bar buttons */
+@property (nonatomic, copy, nullable) NSArray<UIMenuElement *> *(^menuElements)(NSString *path);   /* the browser's custom actions */
 - (NSString *)folder;
 - (void)reload;
 @end
@@ -198,7 +199,7 @@ typedef NS_ENUM(int, IsimFilesMode) { IsimFilesPick, IsimFilesPickFolder, IsimFi
         __IsimFilesList *next = [__IsimFilesList new];
         next.path = it[@"path"]; next.title = it[@"name"]; next.types = _types; next.mode = _mode; next.multiple = _multiple;
         next.showExtensions = _showExtensions; next.exportTitle = _exportTitle; next.selecting = _selecting;
-        next.onFiles = _onFiles; next.onFolder = _onFolder; next.onCancel = _onCancel; next.decorate = _decorate;
+        next.onFiles = _onFiles; next.onFolder = _onFolder; next.onCancel = _onCancel; next.decorate = _decorate; next.menuElements = _menuElements;
         [self.navigationController pushViewController:next animated:YES];
         return;
     }
@@ -210,6 +211,14 @@ typedef NS_ENUM(int, IsimFilesMode) { IsimFilesPick, IsimFilesPickFolder, IsimFi
         return;
     }
     if (self.onFiles) self.onFiles(@[it[@"path"]]);
+}
+/* a document's menu: the browser's custom actions for it */
+- (UIContextMenuConfiguration *)tableView:(UITableView *)tv contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)ip point:(CGPoint)p {
+    NSDictionary *it = (NSUInteger)ip.row < _items.count ? _items[ip.row] : nil;
+    if (!it || [it[@"dir"] boolValue] || !_menuElements) return nil;
+    NSArray *els = _menuElements(it[@"path"]);
+    if (!els.count) return nil;
+    return [UIContextMenuConfiguration configurationWithIdentifier:nil previewProvider:nil actionProvider:^UIMenu *(NSArray *suggested) { return [UIMenu menuWithChildren:els]; }];
 }
 - (void)isimCancel { if (self.onCancel) self.onCancel(); }
 - (void)isimDone {
@@ -384,11 +393,20 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
     __IsimFilesList *l = [__IsimFilesList new];
     l.types = self.types; l.mode = self.mode; l.multiple = self.multiple; l.showExtensions = self.showExtensions; l.exportTitle = self.exportTitle;
     l.onFiles = self.onFiles; l.onFolder = self.onFolder; l.onCancel = self.onCancel; l.decorate = self.decorate; l.selecting = self.selecting;
+    l.menuElements = self.menuElements;
     return l;
 }
 @end
 
 /* ---------------- UIDocumentBrowserViewController ---------------- */
+@interface UIDocumentBrowserViewController ()
+- (__IsimFilesList *)_top;
+- (void)_isimRedecorate;
+@end
+@interface UIDocumentBrowserViewController (IsimActions)
+- (NSArray<UIMenuElement *> *)_isim_menuForPath:(NSString *)path;
+- (NSArray<UIBarButtonItem *> *)_isim_barActions;
+@end
 @implementation UIDocumentBrowserViewController { UINavigationController *_nav; __IsimFilesList *_template; }
 - (instancetype)initForIsimOpeningTypeIdentifiers:(NSArray<NSString *> *)ids {
     if ((self = [super initWithNibName:nil bundle:nil])) {
@@ -408,6 +426,7 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
     _template.types = _allowedContentTypes; _template.mode = IsimFilesBrowse; _template.showExtensions = _shouldShowFileExtensions;
     _template.onFiles = ^(NSArray<NSString *> *paths) { [w _isimPicked:paths]; };
     _template.decorate = ^(__IsimFilesList *l) { [w _isimDecorate:l]; };
+    _template.menuElements = ^NSArray *(NSString *path) { return [w _isim_menuForPath:path]; };
     __IsimFilesBrowse *browse = [__IsimFilesBrowse new];
     browse.open = ^{ UIDocumentBrowserViewController *s = w; [s->_nav pushViewController:[s->_template copyForRoot] animated:YES]; };
     browse.decorate = ^(UIViewController *vc) { [w _isimDecorate:vc]; };
@@ -441,6 +460,13 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
         [right addObject:sel];
     }
     [right addObjectsFromArray:_additionalTrailingNavigationBarButtonItems];
+    /* custom actions: in the toolbar while selecting (like the Files selection toolbar) */
+    NSArray *actions = [vc isKindOfClass:[__IsimFilesList class]] && ((__IsimFilesList *)vc).selecting ? [self _isim_barActions] : @[];
+    NSMutableArray *bar = [NSMutableArray array];
+    for (UIBarButtonItem *b in actions) { [bar addObject:[UIBarButtonItem flexibleSpaceItem]]; [bar addObject:b]; }
+    if (bar.count) [bar addObject:[UIBarButtonItem flexibleSpaceItem]];
+    vc.toolbarItems = bar;
+    if (vc == _nav.topViewController) [_nav setToolbarHidden:!bar.count animated:NO];
     vc.navigationItem.rightBarButtonItems = right;
     vc.navigationItem.leftBarButtonItems = left;
     vc.navigationItem.leftItemsSupplementBackButton = YES;
@@ -522,4 +548,78 @@ static char kActiveIntent;
     objc_setAssociatedObject(self, &kActiveIntent, nil, OBJC_ASSOCIATION_COPY_NONATOMIC);
 }
 - (void)_isimCreateDefault { [self _isimCreateWithIntent:UIDocumentCreationIntentDefault]; }
+@end
+
+/* ---- custom actions, renaming, the transition controller (#9) ---- */
+@implementation UIDocumentBrowserAction { void (^_handler)(NSArray<NSURL *> *); }
+- (instancetype)initWithIdentifier:(NSString *)identifier localizedTitle:(NSString *)title availability:(UIDocumentBrowserActionAvailability)availability
+                           handler:(void (^)(NSArray<NSURL *> *))handler {
+    if ((self = [super init])) {
+        _identifier = [identifier copy]; _localizedTitle = [title copy]; _availability = availability; _handler = [handler copy];
+        _supportedContentTypes = @[@"public.content"]; _supportsMultipleItems = YES;
+    }
+    return self;
+}
+- (void)_isim_runWith:(NSArray<NSURL *> *)urls {
+    NSLog(@"isim UIKit: document browser action %@ on %@", _identifier, [[urls valueForKey:@"lastPathComponent"] componentsJoinedByString:@", "]);
+    if (_handler) _handler(urls);
+}
+@end
+@interface UIDocumentBrowserTransitionController ()
+- (instancetype)initIsim NS_DESIGNATED_INITIALIZER;
+@end
+@implementation UIDocumentBrowserTransitionController
+- (instancetype)initIsim { return [super init]; }
+- (NSTimeInterval)transitionDuration:(id<UIViewControllerContextTransitioning>)ctx { return 0.3; }
+- (void)animateTransition:(id<UIViewControllerContextTransitioning>)ctx {
+    UIView *to = [ctx viewForKey:UITransitionContextToViewKey], *from = [ctx viewForKey:UITransitionContextFromViewKey];
+    if (to) { [ctx.containerView addSubview:to]; to.alpha = 0; }
+    [UIView animateWithDuration:[self transitionDuration:ctx] animations:^{ to.alpha = 1; if (!to) from.alpha = 0; }
+                     completion:^(BOOL f) { [ctx completeTransition:![ctx transitionWasCancelled]]; }];
+}
+@end
+static char kCustomActions;
+@implementation UIDocumentBrowserViewController (IsimActions)
+/* menu actions for one document */
+- (NSArray<UIMenuElement *> *)_isim_menuForPath:(NSString *)path {
+    NSMutableArray *els = [NSMutableArray array];
+    for (UIDocumentBrowserAction *a in self.customActions) {
+        if (!(a.availability & UIDocumentBrowserActionAvailabilityMenu) || !conforms(path, a.supportedContentTypes)) continue;
+        UIAction *x = [UIAction actionWithTitle:a.localizedTitle image:a.image identifier:a.identifier handler:^(UIAction *u) { [a _isim_runWith:@[[NSURL fileURLWithPath:path]]]; }];
+        [els addObject:x];
+    }
+    return els;
+}
+/* bar buttons while selecting: run on the chosen documents */
+- (NSArray<UIBarButtonItem *> *)_isim_barActions {
+    NSMutableArray *items = [NSMutableArray array];
+    for (UIDocumentBrowserAction *a in self.customActions) {
+        if (!(a.availability & UIDocumentBrowserActionAvailabilityNavigationBar)) continue;
+        __weak UIDocumentBrowserViewController *w = self;
+        UIBarButtonItem *b = [[UIBarButtonItem alloc] initWithPrimaryAction:[UIAction actionWithTitle:a.localizedTitle image:a.image identifier:nil handler:^(UIAction *u) {
+            __IsimFilesList *l = [w _top];
+            NSMutableArray *urls = [NSMutableArray array];
+            for (NSString *p in [l performSelector:@selector(isimChosen)]) if (conforms(p, a.supportedContentTypes)) [urls addObject:[NSURL fileURLWithPath:p]];
+            if (urls.count && (a.supportsMultipleItems || urls.count == 1)) [a _isim_runWith:urls];
+        }]];
+        b.accessibilityIdentifier = [@"docs-action-" stringByAppendingString:a.identifier];
+        [items addObject:b];
+    }
+    return items;
+}
+@end
+@implementation UIDocumentBrowserViewController (UIDocumentBrowserExtras)
+- (NSArray<UIDocumentBrowserAction *> *)customActions { return objc_getAssociatedObject(self, &kCustomActions) ?: @[]; }
+- (void)setCustomActions:(NSArray<UIDocumentBrowserAction *> *)a { objc_setAssociatedObject(self, &kCustomActions, [a copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self _isimRedecorate]; }
+- (void)renameDocumentAtURL:(NSURL *)url proposedName:(NSString *)name completionHandler:(void (^)(NSURL *, NSError *))done {
+    NSString *ext = url.pathExtension, *base = name.pathExtension.length ? name : (ext.length ? [name stringByAppendingPathExtension:ext] : name);
+    NSString *dir = url.path.stringByDeletingLastPathComponent;
+    NSString *dst = [base isEqualToString:url.lastPathComponent] ? url.path : unique_path(dir, base);
+    NSError *err = nil;
+    BOOL ok = [dst isEqualToString:url.path] || [NSFileManager.defaultManager moveItemAtPath:url.path toPath:dst error:&err];
+    NSLog(@"isim UIKit: document browser renamed %@ to %@", url.lastPathComponent, ok ? dst.lastPathComponent : @"(failed)");
+    [[self _top] reload];
+    if (done) done(ok ? [NSURL fileURLWithPath:dst] : nil, ok ? nil : err ?: [NSError errorWithDomain:UIDocumentBrowserErrorDomain code:UIDocumentBrowserErrorGeneric userInfo:nil]);
+}
+- (UIDocumentBrowserTransitionController *)transitionControllerForDocumentAtURL:(NSURL *)url { return [[UIDocumentBrowserTransitionController alloc] initIsim]; }
 @end

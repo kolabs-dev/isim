@@ -197,6 +197,20 @@ NSNotificationName const UIScreenReferenceDisplayModeStatusDidChangeNotification
 }
 @end
 
+/* manual appearance forwarding (UIViewControllerExtras.h) */
+@implementation UIViewController (UIViewControllerAppearance)
+- (void)viewIsAppearing:(BOOL)animated {}
+- (BOOL)shouldAutomaticallyForwardAppearanceMethods { return YES; }
+- (void)beginAppearanceTransition:(BOOL)appearing animated:(BOOL)animated {
+    if (appearing && _appearance == 0) { _appearance = 1; [self viewWillAppear:animated]; }
+    else if (!appearing && _appearance) { _appearance = -1; [self viewWillDisappear:animated]; }
+}
+- (void)endAppearanceTransition {
+    if (_appearance == 1) { _appearance = 2; [self viewIsAppearing:NO]; [self viewDidAppear:NO]; }
+    else if (_appearance == -1) { _appearance = 0; [self viewDidDisappear:NO]; }
+}
+@end
+
 /* iPhone page sheet: a card below the status bar; the presenter shrinks behind it (iOS 13+ card stack).
    Dragging the sheet's top area down dismisses it, unless isModalInPresentation. */
 @interface __IsimSheetPan : UIPanGestureRecognizer
@@ -307,11 +321,21 @@ static UIViewController *system_gesture_owner(BOOL home) {
 /* containers (navigation/tab controllers) forward appearance only to the children on screen */
 - (NSArray<UIViewController *> *)_isim_visibleChildren { return _children; }
 - (BOOL)_isim_isVisible { return _appearance != 0; }
+/* a container whose shouldAutomaticallyForwardAppearanceMethods is NO forwards them itself (begin/endAppearanceTransition) */
 - (void)_isim_appear:(BOOL)visible {
-    if (visible && _appearance == 0) { _appearance = 1; [self viewWillAppear:NO]; for (UIViewController *c in [self _isim_visibleChildren]) [c _isim_appear:YES]; }
-    else if (!visible && _appearance) { [self viewWillDisappear:NO]; _appearance = 0; for (UIViewController *c in _children) [c _isim_appear:NO]; [self viewDidDisappear:NO]; }
+    BOOL forward = self.shouldAutomaticallyForwardAppearanceMethods;
+    if (visible && _appearance == 0) { _appearance = 1; [self viewWillAppear:NO]; if (forward) for (UIViewController *c in [self _isim_visibleChildren]) [c _isim_appear:YES]; }
+    else if (!visible && _appearance) { [self viewWillDisappear:NO]; _appearance = 0; if (forward) for (UIViewController *c in _children) [c _isim_appear:NO]; [self viewDidDisappear:NO]; }
 }
-- (void)_isim_didAppear { if (_appearance == 1) { _appearance = 2; [self viewDidAppear:NO]; for (UIViewController *c in [self _isim_visibleChildren]) [c _isim_didAppear]; } [_presented _isim_didAppear]; }
+- (void)_isim_didAppear {
+    if (_appearance == 1) {
+        _appearance = 2;
+        [self viewIsAppearing:NO];                /* in the window, laid out: before the appearance completes */
+        [self viewDidAppear:NO];
+        if (self.shouldAutomaticallyForwardAppearanceMethods) for (UIViewController *c in [self _isim_visibleChildren]) [c _isim_didAppear];
+    }
+    [_presented _isim_didAppear];
+}
 
 /* containment */
 - (UIViewController *)parentViewController { return _parent; }
@@ -1120,14 +1144,14 @@ static void render_frame(void) {
     { extern void isim_ui_update_links_stage(int); isim_ui_update_links_stage(1); }   /* after them, before the commit */
     isim_ui_animations_tick();
     UIWindow *key = top_window();
-    UIViewController *vc = key.rootViewController;
-    while (vc.presentedViewController) vc = vc.presentedViewController;
+    extern UIViewController *isim_ui_status_bar_owner(UIViewController *, BOOL);   /* UIViewControllerExtras.m */
+    UIViewController *vc = isim_ui_status_bar_owner(key.rootViewController, NO), *hider = isim_ui_status_bar_owner(key.rootViewController, YES);
     UIStatusBarStyle st = vc ? vc.preferredStatusBarStyle : UIStatusBarStyleDefault;
     /* view-controller-based status bar hiding (UIViewControllerBasedStatusBarAppearance, default YES) */
     static int vc_based = -1;
     if (vc_based < 0) { id k = NSBundle.mainBundle.infoDictionary[@"UIViewControllerBasedStatusBarAppearance"]; vc_based = k ? [k boolValue] : 1; }
     if (vc_based && vc) {
-        BOOL hide = vc.prefersStatusBarHidden || status_bar_hidden;
+        BOOL hide = hider.prefersStatusBarHidden || status_bar_hidden;
         static int shown_hidden = -1;
         if (hide != shown_hidden) { shown_hidden = hide; isim_set_status_bar_hidden(hide); }
     }

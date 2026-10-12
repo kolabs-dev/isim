@@ -190,11 +190,15 @@ UIScene *isim_ui_scene_for_target(NSString *ident) {
 /* the status bar of a scene: its style and visibility follow the top view controller (UIApplication.m draws it) */
 @implementation UIStatusBarManager { __weak UIWindowScene *_scene; }
 - (UIViewController *)_top { UIWindowScene *s = _scene; return top_controller(s.keyWindow ?: s.windows.firstObject); }
-- (UIStatusBarStyle)statusBarStyle { UIViewController *vc = [self _top]; return vc ? vc.preferredStatusBarStyle : UIStatusBarStyleDefault; }
+- (UIViewController *)_owner:(BOOL)hidden {
+    extern UIViewController *isim_ui_status_bar_owner(UIViewController *, BOOL);
+    UIWindowScene *s = _scene; UIWindow *w = s.keyWindow ?: s.windows.firstObject;
+    return isim_ui_status_bar_owner(w.rootViewController, hidden);
+}
+- (UIStatusBarStyle)statusBarStyle { UIViewController *vc = [self _owner:NO]; return vc ? vc.preferredStatusBarStyle : UIStatusBarStyleDefault; }
 - (BOOL)isStatusBarHidden {
     if (UIApplication.sharedApplication.isStatusBarHidden) return YES;
-    UIViewController *vc = [self _top];
-    if (vc.prefersStatusBarHidden) return YES;
+    if ([self _owner:YES].prefersStatusBarHidden) return YES;
     UIWindowScene *s = _scene;
     return !is_pad() && UIInterfaceOrientationIsLandscape(s.interfaceOrientation);   /* iPhone landscape: no status bar */
 }
@@ -221,7 +225,7 @@ UIScene *isim_ui_scene_for_target(NSString *ident) {
 }
 @end
 @implementation UIWindowSceneGeometry (UISceneExtras)
-- (BOOL)isInterfaceOrientationLocked { return top_controller(nil).prefersInterfaceOrientationLocked; }
+- (BOOL)isInterfaceOrientationLocked { UIViewController *v = top_controller(nil); while (v.childViewControllerForInterfaceOrientationLock) v = v.childViewControllerForInterfaceOrientationLock; return v.prefersInterfaceOrientationLocked; }
 @end
 @implementation UIWindowSceneGeometryPreferencesMac
 - (instancetype)initWithSystemFrame:(CGRect)f { if ((self = [super init])) _systemFrame = f; return self; }

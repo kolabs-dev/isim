@@ -103,6 +103,11 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(13.0))
 @property (nonatomic, readonly) CGRect statusBarFrame;
 @end
 typedef NS_ENUM(NSInteger, UIStatusBarAnimation) { UIStatusBarAnimationNone, UIStatusBarAnimationFade, UIStatusBarAnimationSlide };
+@protocol UIActivityItemsConfigurationProviding;
+@interface UIWindowScene (UIActivityItemsConfiguration)
+/* where the scene's items come from when the scene is shared (the share menu, sharing a window; isim: stored) */
+@property (nullable, nonatomic, weak) id<UIActivityItemsConfigurationProviding> activityItemsConfigurationSource API_AVAILABLE(ios(15.0));
+@end
 @interface UIWindowScene (UISceneExtras)
 @property (nonatomic, readonly, nullable) UISceneWindowingBehaviors *windowingBehaviors API_AVAILABLE(ios(16.0));
 @property (nonatomic, readonly, nullable) UIStatusBarManager *statusBarManager;

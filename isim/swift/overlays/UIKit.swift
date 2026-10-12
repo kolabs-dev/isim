@@ -831,3 +831,87 @@ extension UIWindowScene {
         return link
     }
 }
+
+// MARK: - UIViewController.ViewLoading and the content scroll view for all edges
+extension UIViewController {
+    /// A property loaded with the view: reading or writing it loads the view first (`@ViewLoading var label: UILabel`).
+    @propertyWrapper
+    public struct ViewLoading<Value> {
+        private var stored: Value?
+        public init() { stored = nil }
+        @available(*, unavailable, message: "@ViewLoading is only available on UIViewController properties")
+        public var wrappedValue: Value {
+            get { fatalError() }
+            set { fatalError() }
+        }
+        @MainActor public static subscript<T: UIViewController>(
+            _enclosingInstance instance: T,
+            wrapped wrappedKeyPath: ReferenceWritableKeyPath<T, Value>,
+            storage storageKeyPath: ReferenceWritableKeyPath<T, ViewLoading<Value>>
+        ) -> Value {
+            get {
+                instance.loadViewIfNeeded()
+                guard let v = instance[keyPath: storageKeyPath].stored else {
+                    fatalError("@ViewLoading property read before it was set while loading the view")
+                }
+                return v
+            }
+            set {
+                instance.loadViewIfNeeded()
+                instance[keyPath: storageKeyPath].stored = newValue
+            }
+        }
+    }
+    /// the scroll view the bars follow at every edge
+    @available(iOS 15.0, *)
+    public func setContentScrollView(_ scrollView: UIScrollView?) { setContentScrollView(scrollView, for: .all) }
+}
+
+// Customizable bar button item groups (iOS 16): the defaults of Apple's Swift signatures
+@available(iOS 16.0, *)
+extension UIBarButtonItem {
+    public func creatingOptionalGroup(customizationIdentifier: String, isInDefaultCustomization: Bool = true) -> UIBarButtonItemGroup {
+        __creatingOptionalGroup(customizationIdentifier: customizationIdentifier, isInDefaultCustomization: isInDefaultCustomization)
+    }
+}
+@available(iOS 16.0, *)
+extension UIBarButtonItemGroup {
+    public class func fixedGroup(representativeItem: UIBarButtonItem? = nil, items: [UIBarButtonItem]) -> UIBarButtonItemGroup {
+        __fixedGroup(representativeItem: representativeItem, items: items)
+    }
+    public class func movableGroup(customizationIdentifier: String, representativeItem: UIBarButtonItem? = nil, items: [UIBarButtonItem]) -> UIBarButtonItemGroup {
+        __movableGroup(customizationIdentifier: customizationIdentifier, representativeItem: representativeItem, items: items)
+    }
+    public class func optionalGroup(customizationIdentifier: String, isInDefaultCustomization: Bool = true, representativeItem: UIBarButtonItem? = nil,
+                                    items: [UIBarButtonItem]) -> UIBarButtonItemGroup {
+        __optionalGroup(customizationIdentifier: customizationIdentifier, isInDefaultCustomization: isInDefaultCustomization,
+                        representativeItem: representativeItem, items: items)
+    }
+}
+
+// UIFontPickerViewController.Configuration.languageFilter (iOS 18): the families whose languages match
+@available(iOS 18.0, *)
+extension UIFontPickerViewController.Configuration {
+    public var languageFilter: Predicate<[String]>? {
+        get { __isimLanguageFilterValue as? Predicate<[String]> }
+        set {
+            __isimLanguageFilterValue = newValue
+            __isimLanguageFilter = newValue.map { p in { languages in (try? p.evaluate(languages)) ?? false } }
+        }
+    }
+}
+
+/// the document browser's errors as a Swift error type (`catch let e as UIDocumentBrowserError`)
+public struct UIDocumentBrowserError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+    public typealias Code = UIDocumentBrowserErrorCode
+    public let code: Code
+    public init(_ code: Code) { self.code = code }
+    public init?(_bridgedNSError e: __shared NSError) {
+        guard e.domain == UIDocumentBrowserErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+        self.init(c)
+    }
+    public static var errorDomain: String { UIDocumentBrowserErrorDomain }
+    public var errorCode: Int { code.rawValue }
+    public static var generic: Code { .generic }
+    public static var noLocationAvailable: Code { .noLocationAvailable }
+}

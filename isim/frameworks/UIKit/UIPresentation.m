@@ -68,6 +68,7 @@ static BOOL compact_width(UIView *v) { CGFloat w = v.window ? v.window.bounds.si
 - (BOOL)isInterruptible { return NO; }
 - (CGFloat)percentComplete { return _completed ? 1 : 0; }
 - (CGFloat)completionVelocity { return 1; }
+- (void)notifyWhenInteractionChangesUsingBlock:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))handler {}
 - (BOOL)animateAlongsideTransitionInView:(UIView *)v animation:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))a completion:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))c {
     return [self animateAlongsideTransition:a completion:c];
 }
@@ -212,6 +213,7 @@ static BOOL _isim_animating;
 @end
 
 /* ---- popovers ---- */
+static char kPopoverMargins, kSourceItem, kBackgroundClass, kAdaptiveSheet;
 @interface UIPopoverPresentationController ()
 @property (nonatomic, readwrite) UIPopoverArrowDirection arrowDirection;
 @end
@@ -224,17 +226,56 @@ static BOOL _isim_animating;
     return self;
 }
 - (UIModalPresentationStyle)adaptivePresentationStyleForTraitCollection:(UITraitCollection *)t { return compact_width(self.presentingViewController.viewIfLoaded) ? UIModalPresentationPageSheet : UIModalPresentationPopover; }
+- (UIEdgeInsets)popoverLayoutMargins { NSValue *v = objc_getAssociatedObject(self, &kPopoverMargins); return v ? v.UIEdgeInsetsValue : UIEdgeInsetsMake(10, 10, 10, 10); }
+- (void)setPopoverLayoutMargins:(UIEdgeInsets)m { objc_setAssociatedObject(self, &kPopoverMargins, [NSValue valueWithUIEdgeInsets:m], OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (id<UIPopoverPresentationControllerSourceItem>)sourceItem { return objc_getAssociatedObject(self, &kSourceItem); }
+- (void)setSourceItem:(id<UIPopoverPresentationControllerSourceItem>)i { objc_setAssociatedObject(self, &kSourceItem, i, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (Class)popoverBackgroundViewClass { return objc_getAssociatedObject(self, &kBackgroundClass); }
+- (void)setPopoverBackgroundViewClass:(Class)c { objc_setAssociatedObject(self, &kBackgroundClass, c, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+/* the sheet an adapted popover uses (made once, for the same presented controller) */
+- (UISheetPresentationController *)adaptiveSheetPresentationController {
+    UISheetPresentationController *s = objc_getAssociatedObject(self, &kAdaptiveSheet);
+    if (!s) {
+        s = [[UISheetPresentationController alloc] initWithPresentedViewController:self.presentedViewController presentingViewController:self.presentingViewController];
+        objc_setAssociatedObject(self, &kAdaptiveSheet, s, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return s;
+}
+@end
+static char kSheetPlacement;
+@implementation UISheetPresentationController (UISheetPresentationControllerPlacement)
+- (UISheetPresentationControllerPlacement)preferredPlacement { return [objc_getAssociatedObject(self, &kSheetPlacement) integerValue]; }
+- (void)setPreferredPlacement:(UISheetPresentationControllerPlacement)p { objc_setAssociatedObject(self, &kSheetPlacement, @(p), OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self.containerView setNeedsLayout]; }
+@end
+@implementation UIPopoverBackgroundView
++ (CGFloat)arrowBase { return 26; }
++ (CGFloat)arrowHeight { return 13; }
++ (UIEdgeInsets)contentViewInsets { return UIEdgeInsetsZero; }
++ (BOOL)wantsDefaultContentAppearance { return YES; }
+@end
+@implementation UIView (UIPopoverPresentationControllerSourceItem)
+- (CGRect)frameInView:(UIView *)v { return [self convertRect:self.bounds toView:v]; }
 @end
 
 /* the popover card: background with an arrow towards the source */
 @interface __IsimPopoverView : UIView
+@property (nonatomic, strong) UIPopoverBackgroundView *background;   /* the app's popoverBackgroundViewClass: drawn instead */
 @property (nonatomic) UIPopoverArrowDirection arrow;
 @property (nonatomic) CGFloat arrowOffset;                /* along the edge, from the card's origin */
 @property (nonatomic, strong) UIColor *fill;
 @end
 @implementation __IsimPopoverView
 #define ARROW 13.0
+- (void)_isim_layoutBackground {
+    if (!_background) return;
+    _background.frame = self.bounds;
+    _background.arrowDirection = _arrow;
+    BOOL vertical = _arrow == UIPopoverArrowDirectionUp || _arrow == UIPopoverArrowDirectionDown;
+    _background.arrowOffset = _arrowOffset - (vertical ? self.bounds.size.width : self.bounds.size.height) / 2;   /* from the edge's centre */
+    [_background setNeedsLayout];
+}
 - (void)_isim_drawContent {
+    if (_background) return;
     CGSize s = self.bounds.size;
     CGRect body = CGRectMake(0, 0, s.width, s.height);
     if (_arrow == UIPopoverArrowDirectionUp) { body.origin.y += ARROW; body.size.height -= ARROW; }
@@ -382,6 +423,13 @@ UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewControll
         const struct isim_device *d = isim_ui_device();
         CGFloat w = form ? (pref.width > 0 ? pref.width : 540) : MIN(b.size.width - 80, 704);
         CGFloat h = form ? (pref.height > 0 ? pref.height : MIN(620, b.size.height - 80)) : b.size.height - 2 * (d->safe_top + 24);
+        UISheetPresentationControllerPlacement place = [_pc isKindOfClass:[UISheetPresentationController class]] ? ((UISheetPresentationController *)_pc).preferredPlacement : 0;
+        BOOL rtl = _container.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft;
+        if (place == UISheetPresentationControllerPlacementLeading || place == UISheetPresentationControllerPlacementTrailing) {   /* iOS 27 */
+            w = MIN(w, 440);
+            BOOL left = (place == UISheetPresentationControllerPlacementLeading) != rtl;
+            return CGRectMake(left ? 20 : b.size.width - w - 20, floor((b.size.height - h) / 2), w, h);
+        }
         return CGRectMake(floor((b.size.width - w) / 2), floor((b.size.height - h) / 2), w, h);
     }
     case P_POPOVER: return [self popoverContentFrame];
@@ -537,12 +585,20 @@ UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewControll
 /* ---- popover geometry ---- */
 - (CGRect)anchorRect {
     UIPopoverPresentationController *pop = (UIPopoverPresentationController *)_pc;
-    if (pop.barButtonItem) {
+    id item = pop.sourceItem;
+    UIBarButtonItem *barItem = pop.barButtonItem ?: [item isKindOfClass:[UIBarButtonItem class]] ? item : nil;
+    if (item && !barItem && ![item isKindOfClass:[UIView class]] && [item respondsToSelector:@selector(frameInView:)]) {
+        CGRect r = [item frameInView:_container];
+        if (!CGRectIsNull(r)) return r;
+    }
+    if ([item isKindOfClass:[UIView class]] && !pop.barButtonItem) return [(UIView *)item convertRect:((UIView *)item).bounds toView:_container];
+    if (barItem) {
         Class bb = NSClassFromString(@"__IsimBarButton");
         NSMutableArray *stack = [NSMutableArray arrayWithObject:_container.window ?: (UIView *)_presenter.view.window];
         while (stack.count) {
             UIView *v = stack.lastObject; [stack removeLastObject];
-            if ([v isKindOfClass:bb] && [v respondsToSelector:@selector(item)] && [v performSelector:@selector(item)] == pop.barButtonItem) return [v convertRect:v.bounds toView:_container];
+            if ([v isKindOfClass:bb] && [v respondsToSelector:@selector(item)] && [v performSelector:@selector(item)] == barItem) return [v convertRect:v.bounds toView:_container];
+            if (barItem.customView == v) return [v convertRect:v.bounds toView:_container];
             [stack addObjectsFromArray:v.subviews];
         }
     }
@@ -554,7 +610,8 @@ UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewControll
     UIPopoverPresentationController *pop = (UIPopoverPresentationController *)_pc;
     CGRect b = _container.bounds, a = [self anchorRect];
     const struct isim_device *d = isim_ui_device();
-    CGRect safe = CGRectMake(10, d->safe_top + 6, b.size.width - 20, b.size.height - d->safe_top - d->safe_bottom - 12);
+    UIEdgeInsets m = pop.popoverLayoutMargins;
+    CGRect safe = CGRectMake(m.left, d->safe_top + m.top - 4, b.size.width - m.left - m.right, b.size.height - d->safe_top - d->safe_bottom - m.top - m.bottom + 8);
     CGSize want = _presented.preferredContentSize;
     if (want.width <= 0) want.width = 320;
     if (want.height <= 0) want.height = 400;
@@ -586,6 +643,8 @@ UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewControll
 }
 - (CGRect)popoverContentFrame {
     CGRect f = _popoverCard.frame;
+    Class bg = ((UIPopoverPresentationController *)_pc).popoverBackgroundViewClass;
+    if (bg) f = UIEdgeInsetsInsetRect(f, [bg contentViewInsets]);       /* a custom background: its content insets */
     switch (_popoverCard.arrow) {
     case UIPopoverArrowDirectionUp: return CGRectMake(f.origin.x, f.origin.y + ARROW, f.size.width, f.size.height - ARROW);
     case UIPopoverArrowDirectionDown: return CGRectMake(f.origin.x, f.origin.y, f.size.width, f.size.height - ARROW);
@@ -596,7 +655,7 @@ UITraitCollection *isim_ui_presented_traits(UIViewController *vc, UIViewControll
 }
 - (void)layoutContainer {
     if (_presentingNow || _dismissing) return;
-    if (_kind == P_POPOVER) { _popoverCard.frame = [self popoverCardFrame]; _presented.view.frame = [self popoverContentFrame]; [_popoverCard setNeedsDisplay]; }
+    if (_kind == P_POPOVER) { _popoverCard.frame = [self popoverCardFrame]; _presented.view.frame = [self popoverContentFrame]; [_popoverCard setNeedsDisplay]; [_popoverCard _isim_layoutBackground]; }
     else if (_kind == P_SHEET) [UIView performWithoutAnimation:^{ [self applySheetTop:self.sheetTop]; }];
     else if (!_context.animator) _presented.view.frame = [self presentedFrame];
 }
@@ -784,10 +843,12 @@ static UIViewController *context_root(UIViewController *vc, BOOL contextStyle) {
         [NSException raise:NSGenericException format:@"Your application has presented a UIAlertController (%@) of style UIAlertControllerStyleActionSheet from %@ (%@). The modalPresentationStyle of a UIAlertController with this style is UIModalPresentationPopover. You must provide location information for this popover through the alert controller's popoverPresentationController. You must provide either a sourceView and sourceRect or a barButtonItem. If this information is not known when you present the alert controller, you may provide it in the UIPopoverPresentationControllerDelegate method -prepareForPopoverPresentation.", _presented, _presenter.class, _presenter];
     _popoverCard = [__IsimPopoverView new];
     _popoverCard.fill = pop.backgroundColor ?: v.backgroundColor ?: UIColor.systemBackgroundColor;
+    if (pop.popoverBackgroundViewClass) { _popoverCard.background = [(Class)pop.popoverBackgroundViewClass new]; [_popoverCard addSubview:_popoverCard.background]; }
     _popoverCard.userInteractionEnabled = NO;
     _popoverCard.accessibilityIdentifier = @"isim-popover";
     [c addSubview:_popoverCard];
     _popoverCard.frame = [self popoverCardFrame];
+    [_popoverCard _isim_layoutBackground];
     v.frame = [self popoverContentFrame];
     v.autoresizingMask = UIViewAutoresizingNone;
     if (!v.backgroundColor) v.backgroundColor = _popoverCard.fill;
@@ -979,8 +1040,10 @@ BOOL isim_ui_present(UIViewController *presenter, UIViewController *vc, BOOL ani
     else if (style == UIModalPresentationPageSheet || style == UIModalPresentationFormSheet) p.kind = compact ? P_SHEET : P_FORMCARD;
     else p.kind = P_FULL;
     if (p.kind == P_SHEET && ![pc isKindOfClass:[UISheetPresentationController class]]) {    /* an adapted popover: its sheet */
-        UISheetPresentationController *s = [[UISheetPresentationController alloc] initWithPresentedViewController:vc presentingViewController:presenter];
-        s.delegate = (id)pc.delegate;
+        UISheetPresentationController *s = [pc isKindOfClass:[UIPopoverPresentationController class]] ? [(UIPopoverPresentationController *)pc adaptiveSheetPresentationController]
+                                         : [[UISheetPresentationController alloc] initWithPresentedViewController:vc presentingViewController:presenter];
+        [s _isim_setPresentingVC:presenter];
+        if (!s.delegate) s.delegate = (id)pc.delegate;
         pc = s;
     }
     if (p.kind == P_FULL && ([pc isKindOfClass:[UISheetPresentationController class]] || [pc isKindOfClass:[UIPopoverPresentationController class]])) {

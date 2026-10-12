@@ -25,4 +25,9 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) NSString *message;
 @property (nonatomic, readonly) UIAlertControllerStyle preferredStyle;
 @end
+/* Mac Catalyst alert severity (iOS: stored) */
+typedef NS_ENUM(NSInteger, UIAlertControllerSeverity) { UIAlertControllerSeverityDefault = 0, UIAlertControllerSeverityCritical } API_AVAILABLE(ios(16.0));
+@interface UIAlertController (UIAlertControllerSeverity)
+@property (nonatomic) UIAlertControllerSeverity severity API_AVAILABLE(ios(16.0));
+@end
 NS_ASSUME_NONNULL_END

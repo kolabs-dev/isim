@@ -122,6 +122,7 @@ static const struct { const char *sf, *adw; } symbol_map[] = {
     { "house", "places/user-home-symbolic" }, { "person", "status/avatar-default-symbolic" },
     { "person.crop.circle", "status/avatar-default-symbolic" }, { "doc.on.doc", "actions/edit-copy-symbolic" }, { "square.stack", "actions/edit-copy-symbolic" }, { "rectangle.stack", "actions/edit-copy-symbolic" },
     { "pencil", "actions/document-edit-symbolic" }, { "square.and.pencil", "actions/document-edit-symbolic" },
+    { "apple.writing.tools", "actions/document-edit-symbolic" },
     { "bell", "legacy/preferences-system-notifications-symbolic" }, { "envelope", "status/mail-unread-symbolic" },
     { "camera", "devices/camera-photo-symbolic" }, { "photo", "mimetypes/image-x-generic-symbolic" },
     { "play", "actions/media-playback-start-symbolic" }, { "pause", "actions/media-playback-pause-symbolic" },

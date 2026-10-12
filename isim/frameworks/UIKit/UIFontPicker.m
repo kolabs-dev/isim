@@ -4,6 +4,7 @@
  * family with several faces has a chevron that opens its faces below it (each in its face). filteredTraits and
  * filteredLanguagesPredicate narrow the list (see the header). */
 #import "UIKitPrivate.h"
+#import <objc/runtime.h>
 #import <UIKit/UIFontPickerViewController.h>
 
 static UIFont *font_for_family(NSString *family, CGFloat size) {
@@ -43,8 +44,14 @@ static NSArray<NSString *> *family_languages(NSString *family) {
     UIFontPickerViewControllerConfiguration *c = [UIFontPickerViewControllerConfiguration new];
     c.includeFaces = _includeFaces; c.displayUsingSystemFont = _displayUsingSystemFont;
     c.filteredTraits = _filteredTraits; c.filteredLanguagesPredicate = _filteredLanguagesPredicate;
+    c._isimLanguageFilter = self._isimLanguageFilter; c._isimLanguageFilterValue = self._isimLanguageFilterValue;
     return c;
 }
+/* (stored outside the instance: the class's size stays as it was) */
+- (BOOL (^)(NSArray<NSString *> *))_isimLanguageFilter { return objc_getAssociatedObject(self, @selector(_isimLanguageFilter)); }
+- (void)set_isimLanguageFilter:(BOOL (^)(NSArray<NSString *> *))f { objc_setAssociatedObject(self, @selector(_isimLanguageFilter), f, OBJC_ASSOCIATION_COPY_NONATOMIC); }
+- (id)_isimLanguageFilterValue { return objc_getAssociatedObject(self, @selector(_isimLanguageFilterValue)); }
+- (void)set_isimLanguageFilterValue:(id)v { objc_setAssociatedObject(self, @selector(_isimLanguageFilterValue), v, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 /* evaluated against a font's languages: any of them in the list */
 + (NSPredicate *)filterPredicateForFilteredLanguages:(NSArray<NSString *> *)langs {
     NSSet *want = [NSSet setWithArray:langs ?: @[]];
@@ -84,6 +91,7 @@ static NSArray<NSString *> *family_languages(NSString *family) {
     for (NSString *f in UIFont.familyNames) {
         if ([f hasPrefix:@"."] || ![self _isim_facesOf:f].count) continue;
         if (_config.filteredLanguagesPredicate && ![_config.filteredLanguagesPredicate evaluateWithObject:family_languages(f)]) continue;
+        if (_config._isimLanguageFilter && !_config._isimLanguageFilter(family_languages(f))) continue;       /* iOS 18 languageFilter */
         [a addObject:f];
     }
     return a;

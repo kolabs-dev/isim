@@ -98,3 +98,8 @@
 #import <UIKit/UIBandSelectionInteraction.h>
 #import <UIKit/UIMotionEffect.h>
 #import <UIKit/UIWindowSceneExtras.h>
+#import <UIKit/UIViewControllerExtras.h>
+#import <UIKit/UINavigationExtras.h>
+#import <UIKit/UITabBarExtras.h>
+#import <UIKit/UISearchExtras.h>
+#import <UIKit/UIDocumentInteractionController.h>
