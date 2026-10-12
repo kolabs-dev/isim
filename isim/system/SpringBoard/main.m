@@ -906,6 +906,18 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
         hue.value = (float)hh;
         hue.accessibilityIdentifier = @"customize-tint";
         [hue addTarget:self action:@selector(customizeHue:) forControlEvents:UIControlEventValueChanged];
+        /* the hue track: a rainbow under a clear track, as iOS 18's tint slider */
+        CGRect tr = [hue trackRectForBounds:hue.bounds];
+        UIView *rainbow = [[UIView alloc] initWithFrame:CGRectMake(hue.frame.origin.x + tr.origin.x, hue.frame.origin.y + CGRectGetMidY(tr) - 4, tr.size.width, 8)];
+        CAGradientLayer *g = [CAGradientLayer layer];
+        g.frame = rainbow.bounds; g.cornerRadius = 4; g.startPoint = CGPointMake(0, 0.5); g.endPoint = CGPointMake(1, 0.5);
+        NSMutableArray *colors = [NSMutableArray array];
+        for (int i = 0; i <= 6; i++) [colors addObject:(id)[UIColor colorWithHue:i / 6.0 saturation:0.65 brightness:1 alpha:1].CGColor];
+        g.colors = colors;
+        [rainbow.layer addSublayer:g];
+        rainbow.userInteractionEnabled = NO;
+        hue.minimumTrackTintColor = UIColor.clearColor; hue.maximumTrackTintColor = UIColor.clearColor;
+        [sheet addSubview:rainbow];
         [sheet addSubview:hue];
     }
     [self.view addSubview:shade];
