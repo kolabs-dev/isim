@@ -6,6 +6,8 @@
              [-onlyUsePackageVersionsFromResolvedFile] [-resolvePackageDependencies] [-list | -showBuildSettings [-json]]
              [SETTING=VALUE ...]
 
+  Products (the .app, frameworks, intermediates in obj/) go to OUTDIR, by default ./build in the current folder.
+
 What it does per target (dependencies first, also across the projects of a workspace):
   * product types: applications, app extensions, frameworks (dynamic, embedded in <App>.app/Frameworks and
     loaded through @rpath), static libraries (.a) and static frameworks, dynamic libraries, resource bundles,
@@ -2205,8 +2207,9 @@ def main():
     if a.tree:
         return print_tree(projects, workspace)
     overrides = parse_overrides(rest)
-    name0 = os.path.splitext(os.path.basename(workspace or projects[0]))[0]
-    outdir = os.path.abspath(a.output or os.path.join(BIN, '..', 'projects', name0))
+    outdir = os.path.abspath(a.output or 'build')                 # like xcodebuild: products next to the project, not in isim
+    # isim swiftc runs in a container that sees only isim's own tree writable: let it write the products
+    os.environ['ISIM_SWIFTC_WRITABLE'] = ':'.join(filter(None, [os.environ.get('ISIM_SWIFTC_WRITABLE'), outdir]))
     scheme = None
     if a.scheme:
         schemes = scheme_files(containers)
