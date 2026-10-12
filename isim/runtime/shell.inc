@@ -12,6 +12,7 @@
  *   go home, or terminate the other apps (language changes). */
 
 struct shell_client { pid_t pid; int sock; unsigned char *pixels; char bundle[512]; int alive, has_frame; char exe[512]; int relaunch, sysquit, forcequit; int orient; int defer_edges; double defer_armed;
+                      int phone_compat; double compat_width, compat_height;
                       int bg, bg_seen, suspended; double bg_t, wake_at; char reasons[128];   /* background execution (shell_system.inc) */
                       int idle_disabled; };                                                    /* UIApplication.isIdleTimerDisabled (auto-lock) */
 static struct shell_client clients[32];
@@ -22,7 +23,16 @@ static size_t surface_bytes;
 /* the window takes the shape of the foreground client's interface orientation (the home screen is portrait) */
 static int win_orient = 1;
 static cairo_surface_t *comp;          /* composited frame (device pixels) */
+struct rectf { double x, y, w, h; };
+static cairo_surface_t *client_surface(int i);
+static void present_comp(void);
+static struct rectf client_rect(int i);
 static void client_dims(int i, int *w, int *h) {
+    if (clients[i].phone_compat) {
+        double cw = clients[i].compat_width, ch = clients[i].compat_height;
+        if (clients[i].orient == 3 || clients[i].orient == 4) { double t = cw; cw = ch; ch = t; }
+        *w = (int)lround(cw * px_scale); *h = (int)lround(ch * px_scale); return;
+    }
     struct isim_device d = oriented(clients[i].orient > 0 ? clients[i].orient : 1);
     *w = (int)lround(d.width * px_scale); *h = (int)lround(d.height * px_scale);
 }
@@ -46,16 +56,38 @@ static void shell_forward(int i, const struct isim_event *ev) {
     if (i < 0 || i >= nclients || !clients[i].alive) return;
     bg_track(i, ev->type);
     struct shell_msg m = { .type = SM_EVENT }; m.ev = *ev;
+    if (clients[i].phone_compat && (ev->type == EV_TOUCH_DOWN || ev->type == EV_TOUCH_MOVE || ev->type == EV_TOUCH_UP)) {
+        struct rectf r = client_rect(i); int w, h; client_dims(i, &w, &h);
+        m.ev.x = (ev->x - r.x) * (w / px_scale) / r.w; m.ev.y = (ev->y - r.y) * (h / px_scale) / r.h;
+    }
     send(clients[i].sock, &m, sizeof m, MSG_NOSIGNAL | (clients[i].suspended ? MSG_DONTWAIT : 0));
 }
 static int nb_visible(void); static void nb_draw(void);
 static int sys_visible(void); static void sys_draw(void); static int sys_hides_banners(void);   /* shell_system.inc */
 static int la_island_visible(void); static int pill_visible(void);
+static struct rectf client_rect(int i) {
+    if (i < 0 || !clients[i].phone_compat) return (struct rectf){ 0, 0, dev.width, dev.height };
+    int pw, ph; client_dims(i, &pw, &ph);
+    double w = pw / px_scale, h = ph / px_scale, s = fmin(dev.width / w, dev.height / h);
+    return (struct rectf){ (dev.width - w * s) / 2, (dev.height - h * s) / 2, w * s, h * s };
+}
+static void paint_client(cairo_t *c, int i) {
+    cairo_set_source_rgb(c, 0, 0, 0); cairo_paint(c);
+    if (!clients[i].has_frame) return;
+    cairo_surface_t *s = client_surface(i); int w, h; client_dims(i, &w, &h); struct rectf r = client_rect(i);
+    cairo_save(c); cairo_translate(c, r.x * px_scale, r.y * px_scale); cairo_scale(c, r.w * px_scale / w, r.h * px_scale / h);
+    cairo_set_source_surface(c, s, 0, 0); cairo_pattern_set_filter(cairo_get_source(c), CAIRO_FILTER_BILINEAR); cairo_paint(c);
+    cairo_restore(c); cairo_surface_destroy(s);
+}
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
     if (sys_visible() || la_island_visible() || pill_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island, location indicator */
     shell_apply_orient(clients[i].orient);
     if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
+    if (clients[i].phone_compat) {
+        if (!comp) comp = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
+        cairo_t *cc = cairo_create(comp); paint_client(cc, i); cairo_destroy(cc); present_comp(); return;
+    }
     /* the screenshot / blit source is the foreground client's surface */
     if (cr) { cairo_destroy(cr); cr = NULL; }
     if (surf) cairo_surface_destroy(surf);
@@ -73,7 +105,6 @@ static void shell_show(int i) {
 }
 
 /* ---- app open / close animations (like iOS: apps zoom out of and back into their icons) ---- */
-struct rectf { double x, y, w, h; };
 struct icon_rect { char path[512]; struct rectf r; double radius; };
 static struct icon_rect icons[256]; static int nicons;
 enum { ANIM_NONE, ANIM_OPEN, ANIM_CLOSE, ANIM_BACK };
@@ -217,9 +248,7 @@ static void nb_text(cairo_t *c, const char *utf8, double x, double y, double w, 
 static void nb_draw(void) {
     if (!comp) comp = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
     cairo_t *c = cairo_create(comp);
-    cairo_surface_t *s = client_surface(active);
-    cairo_set_operator(c, CAIRO_OPERATOR_SOURCE); cairo_set_source_surface(c, s, 0, 0); cairo_paint(c);
-    cairo_surface_destroy(s);
+    cairo_set_operator(c, CAIRO_OPERATOR_SOURCE); paint_client(c, active);
     cairo_set_operator(c, CAIRO_OPERATOR_OVER);
     cairo_scale(c, px_scale, px_scale);
     double t = now() - nb.t0, off;                                   /* slide in, stay, slide out */
@@ -281,7 +310,7 @@ static void nb_open(void) {
     struct isim_event e = { .type = EV_NOTIFICATION_RESPONSE }; snprintf(e.text, sizeof e.text, "%s", nb.id);
     shell_forward(i, &e);
     double r0; struct rectf from = icon_target(i, &r0);
-    if (from_home) start_anim(ANIM_OPEN, i, from, full_rect(), r0, dev.corner_radius, 0.5);
+    if (from_home) start_anim(ANIM_OPEN, i, from, client_rect(i), r0, clients[i].phone_compat ? 0 : dev.corner_radius, 0.5);
     else shell_show(i);
 }
 /* input over the banner: tap opens, swipe up dismisses; returns 1 when the event was the banner's */
@@ -426,7 +455,7 @@ static void shell_launch(const char *bundle, const char *exe, const char *url) {
         active = i;
     }
     double r0; struct rectf from = icon_target(i, &r0);
-    if (from_home || icon_for(bundle)) start_anim(ANIM_OPEN, i, from, full_rect(), r0, dev.corner_radius, 0.5);
+    if (from_home || icon_for(bundle)) start_anim(ANIM_OPEN, i, from, client_rect(i), r0, clients[i].phone_compat ? 0 : dev.corner_radius, 0.5);
     else shell_show(i);
 }
 /* go home, shrinking the app card from `from` into its icon */
@@ -441,7 +470,7 @@ static void shell_home_from(struct rectf from, double radius) {
     double r1; struct rectf to = icon_target(app, &r1);
     start_anim(ANIM_CLOSE, app, from, to, radius, r1, 0.42);
 }
-static void shell_home(void) { shell_home_from(full_rect(), dev.corner_radius); }
+static void shell_home(void) { shell_home_from(active > 0 ? client_rect(active) : full_rect(), active > 0 && clients[active].phone_compat ? 0 : dev.corner_radius); }
 static void shell_quit(void) {
     for (int i = 0; i < nclients; i++) shell_send(i, EV_QUIT);
     double until = now() + 2;
@@ -467,6 +496,10 @@ static void shell_handle(int i, const struct shell_msg *m) {
     case SM_ORIENT:
         clients[i].orient = atoi(m->a);
         if (i == active && anim.kind == ANIM_NONE && !drag_active) shell_show(i);
+        break;
+    case SM_PHONE_COMPAT:
+        clients[i].phone_compat = 1; clients[i].compat_width = atof(m->a); clients[i].compat_height = atof(m->b);
+        if (anim.client == i && anim.kind == ANIM_OPEN) { anim.to = client_rect(i); anim.rto = 0; }
         break;
     case SM_NOTIFY: sys_notify(i, m); break;
     case SM_DEFER_EDGES: clients[i].defer_edges = atoi(m->a); clients[i].defer_armed = 0; break;
@@ -604,7 +637,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
                     double rad; struct rectf r = drag_rect(&rad);
                     if (drag_y0 - drag_y > 90 && now() - drag_moved_t > 0.3) sys_open(OV_SWITCHER);     /* swipe up and hold */
                     else if (drag_y0 - drag_y > 110 || drag_vy < -700) shell_home_from(r, rad);
-                    else start_anim(ANIM_BACK, active, r, full_rect(), rad, dev.corner_radius, 0.28);
+                    else start_anim(ANIM_BACK, active, r, client_rect(active), rad, clients[active].phone_compat ? 0 : dev.corner_radius, 0.28);
                 }
             }
             continue;

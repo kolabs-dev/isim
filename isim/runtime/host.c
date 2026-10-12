@@ -69,12 +69,14 @@ enum { EV_NONE, EV_TOUCH_DOWN, EV_TOUCH_MOVE, EV_TOUCH_UP, EV_QUIT, EV_KEY, EV_T
 struct shell_msg { int type; struct isim_event ev; char a[1536], b[1536], c[1536]; };
 enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTHERS, SM_TERMINATE_APP, SM_ICON, SM_RESTART_SYSTEM, SM_NOTIFY, SM_ORIENT /* a = UIInterfaceOrientation of the client's screen */,
        SM_DEFER_EDGES /* a = screen edges (UIRectEdge bits) whose system gestures the app defers */,
+       SM_PHONE_COMPAT /* this client uses the iPhone compatibility canvas on an iPad */,
        SM_SYSTEM = 40 /* a = verb, b/c = arguments (shell_system.inc) */ };
 static int client_sock = -1, client_wake[2] = { -1, -1 };
 static unsigned char *client_pixels;
 
 static struct isim_device dev;
 static struct isim_device portrait_dev;             /* the preset, upright */
+static int phone_compat;
 static int device_orient = 1;                       /* UIDeviceOrientation: 1 portrait, 2 upside down, 3 landscape left, 4 landscape right */
 static double zoom = 1, px_scale = 1;
 static int headless;
@@ -84,6 +86,7 @@ static cairo_t *cr;
 static PangoContext *pctx;
 static int surf_w, surf_h;
 static double t0;
+static struct isim_device oriented(int o);
 
 /* ---------------- script ---------------- */
 static char *script, *script_pos;
@@ -237,6 +240,19 @@ int isim_os_version(void) {
 
 void isim_device_metrics(struct isim_device *out) { if (!dev.width) device_from_env(); *out = dev; }
 
+/* iPadOS presents an iPhone-only app on an iPhone-sized compatibility canvas. Keep the physical device's name for
+   diagnostics, but use iPhone SE geometry and scale for every guest UIKit decision. The shell retains the physical
+   iPad geometry and composites this smaller client surface into it. */
+void isim_set_phone_compatibility_mode(void) {
+    if (!dev.width) device_from_env();
+    if (fmin(portrait_dev.width, portrait_dev.height) < 700 || phone_compat) return;
+    char physical_name[sizeof portrait_dev.name]; snprintf(physical_name, sizeof physical_name, "%s", portrait_dev.name);
+    portrait_dev = devices[0].d;                    /* 375 x 667 pt, scale 2: the classic compatibility size */
+    snprintf(portrait_dev.name, sizeof portrait_dev.name, "%s", physical_name);
+    phone_compat = 1;
+    dev = oriented(dev.orientation ? dev.orientation : 1);
+}
+
 /* ---- orientation. The device (portrait geometry from the preset) can be turned (Ctrl+Left/Right, script
    `rotate`); each app then picks its interface orientation and the screen takes that shape: landscape swaps
    width/height, moves the sensor housing to a side (left/right safe areas), and hides the iPhone status bar. ---- */
@@ -346,6 +362,11 @@ int isim_display_open(const char *title) {
         if (client_pixels == MAP_FAILED) { perror("isim client: mmap surface"); exit(1); }
         if (pipe2(client_wake, O_NONBLOCK | O_CLOEXEC)) perror("isim client: pipe");
         make_surface();
+        if (phone_compat) {
+            struct shell_msg m = { .type = SM_PHONE_COMPAT };
+            snprintf(m.a, sizeof m.a, "%g", portrait_dev.width); snprintf(m.b, sizeof m.b, "%g", portrait_dev.height);
+            send(client_sock, &m, sizeof m, MSG_NOSIGNAL);
+        }
         return 0;
     }
     headless = getenv("ISIM_HEADLESS") && atoi(getenv("ISIM_HEADLESS"));
@@ -1840,7 +1861,7 @@ int isim_fs_stats(const char *path, unsigned long long out[4]) {
 
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
-    H(isim_device_metrics), H(isim_os_version), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
+    H(isim_device_metrics), H(isim_set_phone_compatibility_mode), H(isim_os_version), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
     H(isim_gfx_save), H(isim_gfx_restore), H(isim_gfx_translate), H(isim_gfx_scale), H(isim_gfx_clip_rounded),
     H(isim_gfx_fill_rounded), H(isim_gfx_stroke_rounded), H(isim_gfx_fill_ellipse), H(isim_gfx_push_group), H(isim_gfx_pop_group),
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),

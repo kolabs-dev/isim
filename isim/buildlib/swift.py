@@ -431,7 +431,12 @@ class Swift:
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libPreviewsMacros.so"],
                          ["swift/macro-support/PreviewsMacros.swift"], implicit=cp, docker=True, desc="SWIFT PreviewsMacros (host)")
-        return cp + pm
+        sm = self.swiftc([f"{H}/plugins/libSwiftDataMacros.so"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "SwiftDataMacros", *WERROR, *host, "-I", H, "-L", H,
+                          "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
+                          "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libSwiftDataMacros.so"],
+                         ["swift/macro-support/SwiftDataMacros.swift"], implicit=cp, docker=True, desc="SWIFT SwiftDataMacros (host)")
+        return cp + pm + sm
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"
@@ -650,6 +655,7 @@ VisionKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrenc
 AVKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftAVFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCoreGraphics -lswiftCombine -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 MediaPlayer -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftCoreMedia -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 CoreData -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreData
+SwiftData -lswiftObjectiveC -lswiftFoundation -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation
 StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCryptoKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
@@ -686,7 +692,7 @@ CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concur
 EVOLUTION = set("""ObjectiveC Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication
-DeviceCheck UserNotifications AVKit AudioToolbox CoreData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
+DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit WebKit SafariServices MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)

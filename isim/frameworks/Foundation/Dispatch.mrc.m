@@ -41,10 +41,10 @@ typedef struct specific { const void *key; void *ctx; dispatch_function_t dtor; 
 
 struct dispatch_queue_s {
     dobj h;
-    int qkind;                         /* 0 main, 1 global, 2 serial */
+    int qkind;                         /* 0 main, 1 concurrent, 2 serial */
     const char *label;
     pthread_mutex_t lock;
-    job *head, *tail; int draining;
+    job *head, *tail; int draining, suspended;
     specific *specifics;
     struct dispatch_queue_s *target;
 };
@@ -71,7 +71,7 @@ struct dispatch_source_s {
 struct dispatch_semaphore_s { dobj h; long value; pthread_mutex_t lock; pthread_cond_t cond; };
 struct dispatch_group_s { dobj h; long count; pthread_mutex_t lock; pthread_cond_t cond; job *notify; dispatch_queue_t *notify_q; int nnotify; };
 
-struct dispatch_queue_s _dispatch_main_q = { { K_QUEUE, 1 << 30, NULL, NULL }, 0, "com.apple.main-thread", PTHREAD_MUTEX_INITIALIZER, NULL, NULL, 0, NULL, NULL };
+struct dispatch_queue_s _dispatch_main_q = { { K_QUEUE, 1 << 30, NULL, NULL }, 0, "com.apple.main-thread", PTHREAD_MUTEX_INITIALIZER, NULL, NULL, 0, 0, NULL, NULL };
 struct dispatch_queue_attr_s _dispatch_queue_attr_concurrent = { { K_ATTR, 1 << 30, NULL, NULL }, 1 };
 enum { ST_TIMER = 1, ST_DATA_ADD, ST_DATA_OR, ST_DATA_REPLACE, ST_READ, ST_WRITE, ST_SIGNAL, ST_PROC, ST_VNODE, ST_MEMORYPRESSURE, ST_MACH_SEND, ST_MACH_RECV };
 const struct dispatch_source_type_s _dispatch_source_type_timer = { ST_TIMER };
@@ -256,10 +256,15 @@ static void run_on(dispatch_queue_t q, dispatch_function_t f, void *ctx) {
     current_queue = saved;
 }
 static void global_trampoline(void *p) { qjob *j = p; run_on(j->q, j->f, j->ctx); free(j); }
+static void concurrent_submit(dispatch_queue_t q, dispatch_function_t f, void *ctx) {
+    qjob *j = malloc(sizeof *j); *j = (qjob){ q, f, ctx };
+    pool_submit(global_trampoline, j);
+}
 static void serial_drain(void *p) {
     dispatch_queue_t q = p;
     for (;;) {
         pthread_mutex_lock(&q->lock);
+        if (q->suspended) { q->draining = 0; pthread_mutex_unlock(&q->lock); return; }
         job *j = q->head;
         if (!j) { q->draining = 0; pthread_mutex_unlock(&q->lock); return; }
         q->head = j->next; if (!q->head) q->tail = NULL;
@@ -276,15 +281,25 @@ void dispatch_async_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) {
         return;
     }
     if (q->qkind == 1) {   /* concurrent */
-        qjob *j = malloc(sizeof *j); *j = (qjob){ q, f, ctx };
-        pool_submit(global_trampoline, j);
+        if (q->h.refs >= (1 << 29)) { concurrent_submit(q, f, ctx); return; }   /* global queues are not suspendable */
+        pthread_mutex_lock(&q->lock);
+        if (q->suspended) {
+            job *j = malloc(sizeof *j); *j = (job){ f, ctx, NULL };
+            if (q->tail) q->tail->next = j; else q->head = j;
+            q->tail = j;
+            pthread_mutex_unlock(&q->lock);
+            return;
+        }
+        pthread_mutex_unlock(&q->lock);
+        concurrent_submit(q, f, ctx);
         return;
     }
     job *j = malloc(sizeof *j); j->f = f; j->ctx = ctx; j->next = NULL;
     pthread_mutex_lock(&q->lock);
     if (q->tail) q->tail->next = j; else q->head = j;
     q->tail = j;
-    int start = !q->draining; q->draining = 1;
+    int start = !q->draining && !q->suspended;
+    if (start) q->draining = 1;
     pthread_mutex_unlock(&q->lock);
     if (start) pool_submit(serial_drain, q);
 }
@@ -296,8 +311,9 @@ static void sync_trampoline(void *p) {
     pthread_mutex_lock(&s->m); s->done = 1; pthread_cond_signal(&s->c); pthread_mutex_unlock(&s->m);
 }
 void dispatch_sync_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) {
-    /* concurrent queues, and the queue we're already on (UIKit code calling sync on main from main), run inline */
-    if (q->qkind == 1 || on_queue(q)) { run_on(q, f, ctx); return; }
+    /* The queue we're already on, and non-suspendable global queues, run inline. A custom concurrent queue
+       enqueues synchronous work too so suspension applies to it. */
+    if (on_queue(q) || (q->qkind == 1 && q->h.refs >= (1 << 29))) { run_on(q, f, ctx); return; }
     syncjob s = { f, ctx, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0 };
     dispatch_async_f(q, &s, sync_trampoline);
     pthread_mutex_lock(&s.m); while (!s.done) pthread_cond_wait(&s.c, &s.m); pthread_mutex_unlock(&s.m);
@@ -725,7 +741,22 @@ void dispatch_activate(dispatch_object_t o) {
 }
 void dispatch_resume(dispatch_object_t o) {
     dobj *d = o;
-    if (!d || d->kind != K_SOURCE) return;
+    if (!d) return;
+    if (d->kind == K_QUEUE) {
+        dispatch_queue_t q = o;
+        if (!q->qkind || q->h.refs >= (1 << 29)) return;   /* main and global queues are not suspendable */
+        pthread_mutex_lock(&q->lock);
+        if (q->suspended > 0) q->suspended--;
+        int start = q->qkind == 2 && !q->suspended && q->head && !q->draining;
+        if (start) q->draining = 1;
+        job *held = NULL;
+        if (q->qkind == 1 && !q->suspended) { held = q->head; q->head = q->tail = NULL; }
+        pthread_mutex_unlock(&q->lock);
+        if (start) pool_submit(serial_drain, q);
+        while (held) { job *next = held->next; concurrent_submit(q, held->f, held->ctx); free(held); held = next; }
+        return;
+    }
+    if (d->kind != K_SOURCE) return;
     struct dispatch_source_s *s = o;
     if (!s->activated) { dispatch_activate(o); return; }
     pthread_mutex_lock(&s->lock);
@@ -737,7 +768,14 @@ void dispatch_resume(dispatch_object_t o) {
 }
 void dispatch_suspend(dispatch_object_t o) {
     dobj *d = o;
-    if (d && d->kind == K_SOURCE) { struct dispatch_source_s *s = o; pthread_mutex_lock(&s->lock); s->suspended++; pthread_mutex_unlock(&s->lock); }
+    if (!d) return;
+    if (d->kind == K_QUEUE) {
+        dispatch_queue_t q = o;
+        if (q->qkind && q->h.refs < (1 << 29)) { pthread_mutex_lock(&q->lock); q->suspended++; pthread_mutex_unlock(&q->lock); }
+    } else if (d->kind == K_SOURCE) {
+        struct dispatch_source_s *s = o;
+        pthread_mutex_lock(&s->lock); s->suspended++; pthread_mutex_unlock(&s->lock);
+    }
 }
 
 /* ---------------- semaphores & groups ---------------- */

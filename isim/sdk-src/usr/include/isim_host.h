@@ -19,6 +19,7 @@ enum { ISIM_EV_NONE, ISIM_EV_TOUCH_DOWN, ISIM_EV_TOUCH_MOVE, ISIM_EV_TOUCH_UP, I
        , ISIM_EV_TEXT_SERVICE = 43 /* text: dictate:TEXT | dictate-fail | scribble:X Y TEXT | sms:TEXT (script `dictate`, `scribble`, `sms`) */
        , ISIM_EV_SYSTEM = 50 /* text: a system message from the shell ("bgtask ID", "discard-scenes", ...; shell_system.inc) */ };
 void isim_device_metrics(struct isim_device *out);
+void isim_set_phone_compatibility_mode(void);         /* iPhone-only app on an iPad: use the compatibility canvas */
 int isim_os_version(void);                            /* the iOS version isim emulates (--os): major*10000 + minor*100 + patch */
 void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags);   /* Liquid Glass; flags 1 dark, 2 clear, 4 no shadow, 8 pressed */
 /* several glass shapes (5 doubles each: x y w h corner) that merge when closer than `spacing`; tints 4 each or NULL,

@@ -25,6 +25,7 @@ final class PersonalModel: NSObject, ObservableObject, CNContactPickerDelegate, 
     @Published var contactText = "—"
     @Published var picked = "Nobody picked"
     @Published var calendarText = "—"
+    var eventStoreChange: NSObjectProtocol?
 
     // MARK: Contacts
     func requestContacts() {
@@ -103,6 +104,18 @@ final class PersonalModel: NSObject, ObservableObject, CNContactPickerDelegate, 
             DispatchQueue.main.async { self.listEvents() }
         }
     }
+    func requestWriteOnlyCalendar() {
+        events.requestWriteOnlyAccessToEvents { ok, _ in
+            DispatchQueue.main.async {
+                let e = EKEvent(eventStore: self.events)
+                e.title = "Write-only event"
+                e.startDate = Date().addingTimeInterval(7200); e.endDate = e.startDate.addingTimeInterval(1800)
+                e.calendar = self.events.defaultCalendarForNewEvents
+                let saved = (try? self.events.save(e, span: .thisEvent)) != nil
+                print("calendar write-only \(ok) status \(EKEventStore.authorizationStatus(for: .event).rawValue) read \(self.events.calendars(for: .event).count) saved \(saved)")
+            }
+        }
+    }
     func requestReminders() {
         events.requestFullAccessToReminders { ok, _ in
             print("reminders access \(ok)")
@@ -114,17 +127,43 @@ final class PersonalModel: NSObject, ObservableObject, CNContactPickerDelegate, 
                 do { try self.events.save(r, commit: true) } catch { print("reminder error \(error)") }
                 self.events.fetchReminders(matching: self.events.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: nil)) { rs in
                     print("reminders \(rs?.map { $0.title ?? "" } ?? []) in \(list.title)")
+                    guard let saved = rs?.first else { return }
+                    saved.completionDate = Date()
+                    try? self.events.save(saved, commit: true)
+                    let completed = self.events.predicateForCompletedReminders(withCompletionDateStarting: Date().addingTimeInterval(-60), ending: Date().addingTimeInterval(60), calendars: [list])
+                    self.events.fetchReminders(matching: completed) { done in
+                        print("completed reminders \(done?.map { $0.title ?? "" } ?? [])")
+                        try? self.events.remove(saved, commit: true)
+                        self.events.fetchReminders(matching: self.events.predicateForReminders(in: nil)) { left in
+                            print("reminders after remove \(left?.count ?? -1)")
+                        }
+                    }
                 }
             }
         }
     }
     func addEvent() {
+        eventStoreChange = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: events, queue: .main) { _ in
+            print("event store changed")
+        }
         let e = EKEvent(eventStore: events)
         e.title = "Team lunch"; e.location = "Caffè Macs"
         e.startDate = Date().addingTimeInterval(3600); e.endDate = e.startDate.addingTimeInterval(3600)
         e.calendar = events.defaultCalendarForNewEvents
+        e.addAlarm(EKAlarm(relativeOffset: -300))
+        e.addRecurrenceRule(EKRecurrenceRule(recurrenceWith: .weekly, interval: 2, end: nil))
         do { try events.save(e, span: .thisEvent); print("saved event \(e.eventIdentifier != nil) in \(e.calendar?.title ?? "-")") }
         catch { print("save event error \((error as? EKError)?.code.rawValue ?? -1)") }
+        if let stored = events.event(withIdentifier: e.eventIdentifier) {
+            print("event metadata alarms \(stored.alarms?.first?.relativeOffset ?? 0) recurrence \(stored.recurrenceRules?.first?.frequency.rawValue ?? -1)/\(stored.recurrenceRules?.first?.interval ?? 0)")
+        }
+        let removed = EKEvent(eventStore: events)
+        removed.title = "Remove me"; removed.startDate = e.startDate; removed.endDate = e.endDate; removed.calendar = e.calendar
+        do {
+            try events.save(removed, span: .thisEvent)
+            try events.remove(removed, span: .thisEvent)
+            print("event removed \(events.event(withIdentifier: removed.eventIdentifier) == nil)")
+        } catch { print("remove event error \(error)") }
         listEvents()
     }
     func listEvents() {
@@ -140,7 +179,7 @@ final class PersonalModel: NSObject, ObservableObject, CNContactPickerDelegate, 
         topController()?.present(vc, animated: true)
     }
     func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
-        print("edit \(action == .saved ? "saved" : "canceled") \(controller.event?.title ?? "")")
+        print("edit \(action == .saved ? "saved" : "canceled") \(controller.event?.title ?? "") location \(controller.event?.location ?? "-") allDay \(controller.event?.isAllDay ?? false)")
         controller.dismiss(animated: true)
         listEvents()
     }
@@ -162,6 +201,7 @@ struct ContentView: View {
                 Section("Calendar") {
                     Text(model.calendarText).accessibilityIdentifier("calendarText")
                     Button("Access Calendar") { model.requestCalendar() }.accessibilityIdentifier("calendarAccess")
+                    Button("Write-only Calendar") { model.requestWriteOnlyCalendar() }.accessibilityIdentifier("calendarWriteOnly")
                     Button("Add Lunch") { model.addEvent() }.accessibilityIdentifier("addEvent")
                     Button("New Event Form") { model.editEvent() }.accessibilityIdentifier("editEvent")
                     Button("Reminders") { model.requestReminders() }.accessibilityIdentifier("reminders")
