@@ -89,6 +89,7 @@ def test_seek_rate_queue_looper_avkit_swiftui(launch):
     assert app.quit() == 0
 
 
+@pytest.mark.os_matrix
 def test_avkit_speed_airplay_pip_inline(launch):
     """AVPlayerViewController's playback speed menu, AirPlay route picker and Picture in Picture with `isim run` (no
     system UI: the video floats in a window over the app)."""
@@ -118,6 +119,7 @@ def test_avkit_speed_airplay_pip_inline(launch):
     assert "id=route-iphone" in picker and "AirPlay Speaker" in picker, "route picker lists the device and an AirPlay speaker"
 
 
+@pytest.mark.os_matrix
 def test_avkit_pip_system(launch):
     """Picture in Picture on a booted device: the system floats the video over the app and over the home screen; its
     controls pause the app's player and bring the app back (the controller is presented again)."""

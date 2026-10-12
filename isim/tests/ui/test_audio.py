@@ -113,6 +113,7 @@ exec {real} "$@"
     assert re.search(r"input tap true frames, 48000 Hz 1 ch, peak 0\.3[3-7]", app.log), "the input node taps it"
 
 
+@pytest.mark.os_matrix
 def test_audio_now_playing(launch):
     """On a booted device: the app's Now Playing info in Control Center and on the lock screen (title, artist, artwork,
     transport buttons that send remote commands: toggle reaches pause or play, a disabled command fails), and the device
