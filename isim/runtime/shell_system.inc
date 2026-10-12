@@ -722,7 +722,8 @@ static void lw_set(const char *sidecar) {
     fprintf(stderr, "isim shell: Lock Screen widgets: %d\n", nlw);
     if (ov == OV_LOCK) sys_draw();
 }
-static double lw_row_top(void) { double top = fmax(dev.safe_top, 20); return sys_os() >= 26 ? top + 206 : top + 162; }
+/* under the clock: iOS 26's tall numerals (lock_draw: dev.width * 0.40 from top + 40, the layout's line ~1.18 of it) */
+static double lw_row_top(void) { double top = fmax(dev.safe_top, 20); return sys_os() >= 26 ? round(top + 40 + dev.width * 0.40 * 1.18 + 8) : top + 162; }
 /* the date line (with the inline widget) */
 static void lw_draw_date(cairo_t *c, double top, const char *dstr) {
     struct lw_item *in = NULL;

@@ -43,22 +43,18 @@ extension SetFocusFilterIntent {
 // MARK: - parameters, type-erased
 
 protocol _IsimParameter: AnyObject {
-    var _isimTitle: String { get }
-    var _isimValue: Any { get }
-    var _isimValueType: Any.Type { get }
-    func _isimSet(_ v: Any) -> Bool
+    var _isimFocusTitle: String { get }
+    var _isimFocusValue: Any { get }
+    var _isimFocusValueType: Any.Type { get }
+    func _isimFocusSet(_ v: Any) -> Bool
 }
 extension IntentParameter: _IsimParameter {
-    var _isimTitle: String { title.description }
-    var _isimValue: Any { wrappedValue }
-    var _isimValueType: Any.Type { Value.self }
-    func _isimSet(_ v: Any) -> Bool { if let x = v as? Value { wrappedValue = x; return true }; return false }
+    var _isimFocusTitle: String { title.description }
+    var _isimFocusValue: Any { wrappedValue }
+    var _isimFocusValueType: Any.Type { Value.self }
+    func _isimFocusSet(_ v: Any) -> Bool { if let x = v as? Value { wrappedValue = x; return true }; return false }
 }
-protocol _IsimOptional { static var _isimWrapped: Any.Type { get }; var _isimUnwrapped: Any? { get } }
-extension Optional: _IsimOptional {
-    static var _isimWrapped: Any.Type { Wrapped.self }
-    var _isimUnwrapped: Any? { self.map { $0 as Any } }
-}
+// _IsimOptional: AppIntents.swift
 
 enum _IsimFocus {
     static let protocolSymbol = "$s10AppIntents20SetFocusFilterIntentMp"
@@ -133,17 +129,17 @@ enum _IsimFocus {
         E.allCases.map { [$0.rawValue, E.caseDisplayRepresentations[$0]?.title.description ?? $0.rawValue] }
     }
     static func set(_ p: _IsimParameter, _ plist: Any) {
-        var t = p._isimValueType
+        var t = p._isimFocusValueType
         if let o = t as? _IsimOptional.Type { t = o._isimWrapped }
         var v: Any? = plist
         if let e = t as? any AppEnum.Type, let raw = plist as? String { v = enumValue(e, raw) }
         else if t == Int.self, let n = plist as? NSNumber { v = n.intValue }
         else if t == Double.self, let n = plist as? NSNumber { v = n.doubleValue }
         else if t == Bool.self, let n = plist as? NSNumber { v = n.boolValue }
-        if let v, !p._isimSet(v) { NSLog("isim AppIntents: Focus filter parameter: cannot set %@", "\(v)") }
+        if let v, !p._isimFocusSet(v) { NSLog("isim AppIntents: Focus filter parameter: cannot set %@", "\(v)") }
     }
     static func kind(_ p: _IsimParameter) -> (String, [[String]]) {
-        var t = p._isimValueType
+        var t = p._isimFocusValueType
         if let o = t as? _IsimOptional.Type { t = o._isimWrapped }
         if let e = t as? any AppEnum.Type { return ("enum", enumCases(e)) }
         if t == Bool.self { return ("bool", []) }
@@ -170,9 +166,9 @@ enum _IsimFocus {
             var params: [[String: Any]] = []
             for (n, p) in parameters(inst) {
                 let (k, cases) = kind(p)
-                var d: [String: Any] = ["name": n, "title": p._isimTitle, "kind": k]
+                var d: [String: Any] = ["name": n, "title": p._isimFocusTitle, "kind": k]
                 if !cases.isEmpty { d["cases"] = cases }
-                if let v = plistValue(p._isimValue) { d["default"] = v }
+                if let v = plistValue(p._isimFocusValue) { d["default"] = v }
                 params.append(d)
             }
             filters.append(["type": name(t), "title": t.title.description, "description": t.description?.text ?? "", "params": params])

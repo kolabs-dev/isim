@@ -1039,6 +1039,22 @@ static void handle_id_touch(const struct isim_event *ev) {
     for (UIWindow *w in windows.reverseObjectEnumerator)
         if (!w.hidden && !isim_ui_window_external(w) && (found = byText ? find_text(w, ident, w.bounds) : find_identified(w, ident))) break;
     if (!found) { NSLog(byText ? @"isim: no visible view showing text '%@'" : @"isim: no visible view with accessibilityIdentifier '%@'", ident); return; }
+    if ((ev->type == ISIM_EV_ID_DOWN || ev->type == ISIM_EV_TEXT_DOWN) && ev->mods != 1) {
+        /* like XCUITest before a tap: scroll the enclosing scroll views (innermost first) until the view is visible, so
+           `tapid` reaches a row below the fold (a no-op for a view already on screen) */
+        BOOL scrolled = NO;
+        for (UIView *v = found.superview; v; v = v.superview) {
+            if (![v isKindOfClass:[UIScrollView class]] || !((UIScrollView *)v).scrollEnabled) continue;
+            UIScrollView *sv = (UIScrollView *)v;
+            CGRect r = [found convertRect:found.bounds toView:sv];
+            UIEdgeInsets in = sv.adjustedContentInset;
+            CGRect visible = UIEdgeInsetsInsetRect(sv.bounds, in);
+            if (CGRectContainsRect(visible, r)) continue;
+            [sv scrollRectToVisible:r animated:NO];
+            scrolled = YES;
+        }
+        if (scrolled) { [found.window layoutIfNeeded]; NSLog(@"isim: scrolled '%@' into view", ident); }
+    }
     CGRect b = found.bounds;
     CGPoint p = [found convertPoint:CGPointMake(CGRectGetMidX(b), CGRectGetMidY(b)) toView:nil];
     p = [found.window convertPoint:p toView:nil];

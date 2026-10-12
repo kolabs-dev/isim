@@ -145,7 +145,7 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | Command | What it does |
 |---|---|
 | `tap X Y` | tap a point |
-| `tapid ID` | tap the view whose `accessibilityIdentifier` is ID |
+| `tapid ID` | tap the view whose `accessibilityIdentifier` is ID; a view below the fold of a scroll view (a long list) is scrolled into view first, like XCUITest (logs `isim: scrolled 'ID' into view`) |
 | `taptext TEXT` | tap the view that shows TEXT |
 | `holdid ID S` | press and hold a view for S seconds |
 | `drag X1 Y1 X2 Y2 [S [HOLD [PRESS]]]` | drag between two points, optionally over S seconds, then held HOLD seconds before lifting (e.g. at the screen edge to turn a home-screen page in edit mode); PRESS: pressed that many seconds at the start before moving (XCUITest's `press(forDuration:thenDragTo:)`) |

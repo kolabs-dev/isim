@@ -417,7 +417,10 @@ static void ctl_draw_gallery(cairo_t *c) {
     int os = sys_os();
     el_add("cc-page-background", "", (struct rectf){ 0, 0, dev.width, dev.height }, EL_CC_X, XARG(X_GALLERY_CLOSE, 0));
     struct rectf sheet = { x, top, w, dev.height - top + 40 };
-    if (os >= 26) sys_glass(c, sheet.x + 8, sheet.y, sheet.w - 16, sheet.h, 38, NULL, 1 | 2 | 4);
+    if (os >= 26) {                                                /* glass, frosted dark enough to read over Control Center */
+        sys_glass(c, sheet.x + 8, sheet.y, sheet.w - 16, sheet.h, 38, NULL, 1 | 2 | 4);
+        cairo_new_path(c); sys_round(c, sheet.x + 8, sheet.y, sheet.w - 16, sheet.h, 38); cairo_set_source_rgba(c, 0.07, 0.07, 0.08, 0.78); cairo_fill(c);
+    }
     else { cairo_new_path(c); sys_round(c, sheet.x, sheet.y, sheet.w, sheet.h, 38); cairo_set_source_rgba(c, 0.11, 0.11, 0.12, 0.97); cairo_fill(c); }
     el_add("cc-gallery", "Controls", sheet, EL_NONE, 0);
     cairo_set_source_rgba(c, 1, 1, 1, 0.3); sys_round(c, dev.width / 2 - 18, top + 6, 36, 5, 2.5); cairo_fill(c);
