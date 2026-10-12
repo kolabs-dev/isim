@@ -51,7 +51,8 @@ def test_shortcuts_app(launch):
     dev.screenshot("shortcuts-confirm")
     dev.tap_id("siri-confirm")
     siri(dev, r"id=siri-card text=Your latte is on its way\.")
-    dev.wait_dump(r"id=siri-snippet")
+    sm = dev.wait_dump(r"\(([0-9.]+) ([0-9.]+); ([0-9.]+) x ([0-9.]+)\) id=siri-snippet")
+    sx, sy, sw, sh = (float(v) for v in sm.groups())
     result = dev.screenshot("shortcuts-result")
     dev.wait_log(r"HelloSiri: ordered 1 latte")
 
@@ -65,13 +66,13 @@ def test_shortcuts_app(launch):
     assert re.search(r"SpringBoard: Siri asks “Order 1 latte\?” \(Order / Cancel\)", log), "requestConfirmation with the action name"
     assert re.search(r"isim AppIntents: snippet view 3\d\d x \d+", log), "snippet views drawn by the app"
     assert re.search(r"HelloSiri: orders cleared", log)
-    green = mean_rgb(result, (40, 150, 40, 10))
+    green = mean_rgb(result, (sx + sw - 50, sy + sh / 2 - 4, 30, 8))
     assert green[1] > green[0] and green[1] > green[2], f"the result's snippet (green) is shown on the card {green}"
 
 
 @pytest.mark.os_matrix
 def test_siri_app_shortcuts(launch, ios):
-    os_version = int(str(ios[0]).split(".")[0])
+    os_version = int(str(ios[0] or 18).split(".")[0])
     dev = boot(launch)
     dev.send("siri")                                                     # listening (the side button held)
     ui = siri(dev, r"IsimSiri .*mode=listening")

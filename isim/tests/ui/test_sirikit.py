@@ -20,7 +20,8 @@ def allow_siri(dev):
     dev.send(f"launch {APP}")
     dev.wait_tap_id("allowSiri")
     dev.wait_log(r"isim Intents: asking for Siri access")
-    dev.wait_for(label="Allow").tap()
+    dev.wait_view(r"text=“Coffee Club” Would Like to Use Siri")
+    dev.send("taptext Allow")
     dev.wait_log(r"HelloSiri: Siri authorization 3")
     dev.send("home")
 

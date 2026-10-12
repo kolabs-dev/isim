@@ -628,7 +628,7 @@ static BOOL locked_out(NSString *auth) { return siri_locked && auth.length && ![
     NSString *opts = [step[@"options"] count] ? [NSString stringWithFormat:@" [%@]", [[step[@"options"] valueForKey:@"title"] componentsJoinedByString:@", "]] : @"";
     NSLog(@"SpringBoard: Siri asks “%@”%@%@", ui[@"text"], opts, [type isEqualToString:@"confirm"] ? [NSString stringWithFormat:@" (%@ / %@)", ui[@"action"], ui[@"cancel"]] : @"");
     if ([type isEqualToString:@"confirm"] && r.uiExtension && step[@"interaction"]) {
-        [self runUIExtension:r interaction:step[@"interaction"] confirm:YES done:^(NSString *png) { if (png) ui[@"snippet"] = png; siri_ui(ui); }];
+        [self runUIExtension:r interaction:step[@"interaction"] confirm:YES done:^(NSString *png) { if (png) { ui[@"snippet"] = png; [ui removeObjectForKey:@"detail"]; } siri_ui(ui); }];
         return;
     }
     siri_ui(ui);
@@ -685,7 +685,7 @@ static BOOL locked_out(NSString *auth) { return siri_locked && auth.length && ![
     if (step[@"snippet"]) ui[@"snippet"] = step[@"snippet"];
     NSLog(@"SpringBoard: Siri says “%@”%@", dialog, step[@"snippet"] ? @" (with a snippet view)" : @"");
     if (r.uiExtension && step[@"interaction"] && ![outcome isEqualToString:@"cancelled"]) {
-        [self runUIExtension:r interaction:step[@"interaction"] confirm:NO done:^(NSString *png) { if (png) ui[@"snippet"] = png; siri_ui(ui); }];
+        [self runUIExtension:r interaction:step[@"interaction"] confirm:NO done:^(NSString *png) { if (png) { ui[@"snippet"] = png; [ui removeObjectForKey:@"detail"]; } siri_ui(ui); }];
         return;
     }
     siri_ui(ui);
