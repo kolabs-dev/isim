@@ -1,11 +1,16 @@
+import AVFoundation
 import Core           // macros from the local package's macro target (CoreMacros)
 import UIKit
+import UserNotifications
 
 final class ViewController: UIViewController, UITextFieldDelegate {
     private var model = Model()
     private let countLabel = UILabel()
     private let echoLabel = UILabel()
     private let field = UITextField()
+    private let permissionLabel = UILabel()
+    private let lifecycleLabel = UILabel()
+    private var backgroundCount = 0
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -36,7 +41,30 @@ final class ViewController: UIViewController, UITextFieldDelegate {
         field.delegate = self
         let toggle = UISwitch()
         toggle.accessibilityIdentifier = "toggle"
-        let stack = UIStackView(arrangedSubviews: [greeting, sums, flavor, modeLabel, countLabel, button, field, echoLabel, toggle])
+        // UI tests: system permission alerts (SpringBoard's on iOS), app lifecycle, a screen of gestures
+        func action(_ title: String, _ id: String, _ handler: @escaping () -> Void) -> UIButton {
+            let b = UIButton(type: .system, primaryAction: UIAction(title: title) { _ in handler() })
+            b.accessibilityIdentifier = id
+            return b
+        }
+        permissionLabel.accessibilityIdentifier = "permission"
+        permissionLabel.text = "permission: -"
+        lifecycleLabel.accessibilityIdentifier = "lifecycle"
+        lifecycleLabel.text = "background: 0"
+        let notify = action("Notify Me", "notify") { [weak self] in self?.requestNotifications() }
+        let camera = action("Use Camera", "camera") { [weak self] in self?.requestCamera() }
+        let gestures = action("Gestures", "gestures") { [weak self] in
+            self?.navigationController?.pushViewController(GesturesViewController(), animated: true)
+        }
+        NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.backgroundCount += 1
+                self.lifecycleLabel.text = "background: \(self.backgroundCount)"
+            }
+        }
+        let stack = UIStackView(arrangedSubviews: [greeting, sums, flavor, modeLabel, countLabel, button, field, echoLabel, toggle,
+                                                   notify, camera, gestures, permissionLabel, lifecycleLabel])
         stack.axis = .vertical
         stack.spacing = 12
         stack.alignment = .leading
@@ -55,12 +83,108 @@ final class ViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func add() { model.increment(); refresh() }
+
+    private func requestNotifications() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            DispatchQueue.main.async { self.permissionLabel.text = "notifications: \(granted ? "allowed" : "denied")" }
+        }
+    }
+    private func requestCamera() {
+        AVCaptureDevice.requestAccess(for: .video) { granted in
+            DispatchQueue.main.async { self.permissionLabel.text = "camera: \(granted ? "allowed" : "denied")" }
+        }
+    }
     private func refresh() { countLabel.text = "Count: \(model.count)" }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         echoLabel.text = "echo: \(textField.text ?? "")"
         textField.resignFirstResponder()
         return true
+    }
+}
+
+/// UI tests' gestures: swipes, long press, a slider, taps and drags at coordinates, a scrolling table.
+final class GesturesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
+    private let status = UILabel()
+    private let slider = UISlider()
+    private let table = UITableView()
+    private let topRow = UILabel()
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Gestures"
+        view.backgroundColor = .systemBackground
+        status.accessibilityIdentifier = "status"
+        status.text = "status: -"
+        slider.accessibilityIdentifier = "slider"
+        slider.minimumValue = 0
+        slider.maximumValue = 100
+        slider.value = 50
+        slider.addTarget(self, action: #selector(slid), for: .valueChanged)
+        let hold = UIButton(type: .system)
+        hold.setTitle("Hold Me", for: .normal)
+        hold.accessibilityIdentifier = "hold"
+        let press = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
+        press.minimumPressDuration = 0.5
+        hold.addGestureRecognizer(press)
+        let swipeArea = UIView()
+        swipeArea.accessibilityIdentifier = "swipeArea"
+        swipeArea.backgroundColor = .secondarySystemBackground
+        for d: UISwipeGestureRecognizer.Direction in [.up, .down, .left, .right] {
+            let g = UISwipeGestureRecognizer(target: self, action: #selector(swiped(_:)))
+            g.direction = d
+            swipeArea.addGestureRecognizer(g)
+        }
+        let pad = UIView()
+        pad.accessibilityIdentifier = "pad"
+        pad.backgroundColor = .tertiarySystemBackground
+        pad.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(padTapped(_:))))
+        pad.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(padDragged(_:))))
+        topRow.accessibilityIdentifier = "topRow"
+        topRow.text = "top row: 0"
+        table.accessibilityIdentifier = "list"
+        table.dataSource = self
+        table.delegate = self
+        table.register(UITableViewCell.self, forCellReuseIdentifier: "row")
+        let stack = UIStackView(arrangedSubviews: [status, slider, hold, swipeArea, pad, topRow, table])
+        stack.axis = .vertical
+        stack.spacing = 10
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
+            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
+            swipeArea.heightAnchor.constraint(equalToConstant: 110),
+            pad.heightAnchor.constraint(equalToConstant: 110),
+        ])
+    }
+
+    @objc private func slid() { status.text = "slider: \(Int(slider.value.rounded()))" }
+    @objc private func held(_ g: UILongPressGestureRecognizer) { if g.state == .began { status.text = "long press" } }
+    @objc private func swiped(_ g: UISwipeGestureRecognizer) {
+        let name = g.direction == .up ? "up" : g.direction == .down ? "down" : g.direction == .left ? "left" : "right"
+        status.text = "swipe \(name)"
+    }
+    @objc private func padTapped(_ g: UITapGestureRecognizer) {
+        let p = g.location(in: g.view)
+        status.text = "tap \(Int(p.x / 10)) \(Int(p.y / 10))"            // in tens of points
+    }
+    @objc private func padDragged(_ g: UIPanGestureRecognizer) {
+        guard g.state == .ended else { return }
+        let t = g.translation(in: g.view)
+        status.text = "drag \(Int((t.x / 10).rounded())) \(Int((t.y / 10).rounded()))"
+    }
+
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { 60 }
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let c = tableView.dequeueReusableCell(withIdentifier: "row", for: indexPath)
+        c.textLabel?.text = "Row \(indexPath.row)"
+        return c
+    }
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        topRow.text = "top row: \(table.indexPathsForVisibleRows?.first?.row ?? 0)"
     }
 }
 
