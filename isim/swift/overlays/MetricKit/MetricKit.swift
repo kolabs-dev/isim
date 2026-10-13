@@ -671,7 +671,16 @@ public func mxSignpost(_ type: OSSignpostType, dso: UnsafeRawPointer = #dsohandl
 }
 public func mxSignpost(_ type: OSSignpostType, dso: UnsafeRawPointer = #dsohandle, log: OSLog, name: StaticString, signpostID: OSSignpostID = .exclusive,
                        _ format: StaticString, _ arguments: CVarArg...) {
-    os_signpost(type, dso: dso, log: log, name: name, signpostID: signpostID, format, arguments)
+    // the message formatted here (privacy decorations dropped: signpost messages are kept as written) and recorded
+    // through OSSignposter
+    let plain = format.description.replacingOccurrences(of: "%\\{[a-z, ]*\\}", with: "%", options: .regularExpression)
+    let msg = OSLogMessage(stringLiteral: String(format: plain, arguments: arguments))
+    let sp = OSSignposter(logHandle: log)
+    switch type {
+    case .begin: _ = sp.beginInterval(name, id: signpostID, msg)
+    case .end: sp.endInterval(name, .beginState(id: signpostID), msg)
+    default: sp.emitEvent(name, id: signpostID, msg)
+    }
 }
 public func mxSignpostAnimationIntervalBegin(log: OSLog, name: StaticString, signpostID: OSSignpostID = .exclusive) {
     os_signpost(.begin, log: log, name: name, signpostID: signpostID)
@@ -958,7 +967,7 @@ final class _MXRecorder: @unchecked Sendable {
         } else { cur.fg += dt }
         cur.hitch = u[7]
         cur.up = isim_metric_get("net.up"); cur.down = isim_metric_get("net.down")
-        cur.loc = ["loc.nav", "loc.best", "loc.10", "loc.100", "loc.1k", "loc.3k"].map { isim_metric_get($0) }
+        cur.loc = ["loc.nav", "loc.best", "loc.10", "loc.100", "loc.1k", "loc.3k"].map { k in k.withCString { isim_metric_get($0) } }
         cur.bgLocation = isim_metric_get("loc.bg")
         cur.aplSum = isim_metric_get("apl.sum"); cur.aplN = isim_metric_get("apl.n")
         lock.unlock()
