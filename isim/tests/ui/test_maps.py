@@ -141,3 +141,34 @@ def test_swiftui_map(launch, tmp_path):
     app.wait_view(r"id=swiftui-map text=map center 37.8199", what="SwiftUI position binding + onMapCameraChange")
     assert app.quit() == 0, "exits cleanly"
     assert shot and first and selected
+
+
+WATER = frac(lambda r, g, b: 0.55 < r < 0.7 and 0.74 < g < 0.86 and b > 0.92)
+
+
+def test_map_camera(launch, tmp_path):
+    """MKMapView in 3D: an animated MKMapCamera with heading and pitch (the plane tilted in perspective, markers kept
+    on their spots), the compass while turned (a tap turns back to north), pinch to zoom, two-finger rotate and tilt,
+    and the coastlines of the offline basemap (water and land from Natural Earth)."""
+    app = maps(launch, tmp_path, "camera")
+    app.wait_log(r"HelloMaps: added 3 annotation views")
+    app.tap_id("camera")
+    m = app.wait_log(r"HelloMaps: camera heading 90 pitch 45 distance 2500 animated yes after (\d+) visible-region updates")
+    assert int(m.group(1)) >= 3, "an animated camera change moves over several frames"
+    dump = app.wait_view(r"id=map text=map center .* heading 90 pitch 45")
+    assert "id=map-compass" in dump, "the compass shows while the map is turned"
+    tilted = app.wait_shot(lambda s: count_px(s, (176, 300, 40, 80), RED) > 150, "Apple Park's marker stays on its spot")
+    app.screenshot("camera")
+    app.tap_id("map-compass")
+    app.wait_log(r"HelloMaps: camera heading 0 pitch 45 distance 2500 animated yes")
+    app.wait_view(r"id=map-compass", gone=True)
+    app.send("pinch 196 374 0.03 0.6")
+    m = app.wait_log(r"HelloMaps: camera heading 0 pitch 45 distance (\d+) animated no")
+    assert int(m.group(1)) > 50000, "pinching in zooms out"
+    coast = app.wait_shot(lambda s: count_px(s, (0, 60, 393, 600), WATER) > 3000, "San Francisco Bay drawn as water")
+    app.send("rotate2 196 374 40 0.6")
+    app.wait_log(r"HelloMaps: camera heading 3[12]\d pitch 45 distance \d+ animated no")
+    app.send("twofinger 196 374 0 80 0.6")
+    app.wait_log(r"HelloMaps: camera heading 3[12]\d pitch [0-2]?\d distance \d+ animated no")
+    assert app.quit() == 0, "exits cleanly"
+    assert count_px(tilted, (176, 300, 40, 80), RED) > 150 and count_px(coast, (0, 60, 393, 600), WATER) > 3000

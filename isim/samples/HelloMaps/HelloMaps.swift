@@ -1,8 +1,9 @@
 // Sample: MapKit on isim — MKMapView (region, markers, a custom image annotation view, callout with an accessory
 // button, polyline/circle/polygon overlays with renderers, user location from the simulated Core Location,
-// selection, map types, coordinate conversion), MKLocalSearch, MKDirections (offline: not available),
-// MKMapSnapshotter, and the SwiftUI Map (iOS 17: Marker, Annotation, MapPolyline, MapCircle, UserAnnotation,
-// MapCameraPosition, selection, mapStyle, onMapCameraChange). Launch with -swiftui for the SwiftUI screen.
+// selection, map types, coordinate conversion, a 3D camera with heading and pitch (animated), pinch / rotate /
+// two-finger tilt), MKLocalSearch, MKDirections (offline: not available), MKMapSnapshotter, and the SwiftUI Map
+// (iOS 17: Marker, Annotation, MapPolyline, MapCircle, UserAnnotation, MapCameraPosition, selection, mapStyle,
+// onMapCameraChange). Launch with -swiftui for the SwiftUI screen.
 import UIKit
 import MapKit
 import SwiftUI
@@ -58,7 +59,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         bar.backgroundColor = .systemBackground
         bar.translatesAutoresizingMaskIntoConstraints = false
         for (t, id, sel) in [("Search", "search", #selector(search)), ("Route", "route", #selector(route)), ("Snap", "snapshot", #selector(snapshot)),
-                             ("Zoom", "zoom", #selector(zoomIn)), ("Type", "maptype", #selector(toggleType))] as [(String, String, Selector)] {
+                             ("Zoom", "zoom", #selector(zoomIn)), ("3D", "camera", #selector(tilt)), ("Type", "maptype", #selector(toggleType))] as [(String, String, Selector)] {
             let b = UIButton(type: .system); b.setTitle(t, for: .normal); b.accessibilityIdentifier = id
             b.addTarget(self, action: sel, for: .touchUpInside); bar.addArrangedSubview(b)
         }
@@ -122,7 +123,13 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         default: return MKOverlayRenderer(overlay: overlay)
         }
     }
+    var visibleChanges = 0
+    func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) { visibleChanges = 0 }
+    func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) { visibleChanges += 1 }
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+        let c = mapView.camera
+        log(String(format: "camera heading %.0f pitch %.0f distance %.0f animated %@ after %d visible-region updates", c.heading, Double(c.pitch),
+                   c.centerCoordinateDistance, animated ? "yes" : "no", visibleChanges))
         let r = mapView.region
         log(String(format: "region center %.4f,%.4f span %.4f", r.center.latitude, r.center.longitude, r.span.latitudeDelta))
     }
@@ -173,6 +180,10 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
     }
     @objc func zoomIn() {
         map.setRegion(MKCoordinateRegion(center: applePark, latitudinalMeters: 1200, longitudinalMeters: 1200), animated: true)
+    }
+    /// a 3D camera: looking east over Apple Park, tilted 45° (animated)
+    @objc func tilt() {
+        map.setCamera(MKMapCamera(lookingAtCenter: applePark, fromDistance: 2500, pitch: 45, heading: 90), animated: true)
     }
     @objc func toggleType() {
         map.mapType = map.mapType == .standard ? .satellite : .standard

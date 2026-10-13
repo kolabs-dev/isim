@@ -359,8 +359,51 @@ open class MKCompassButton: UIView {
     open weak var mapView: MKMapView?
     public enum Visibility: Int, Sendable { case adaptive = 0, hidden, visible }
     open var compassVisibility: Visibility = .adaptive
-    public init(mapView: MKMapView?) { self.mapView = mapView; super.init(frame: CGRect(x: 0, y: 0, width: 40, height: 40)); isHidden = true }
+    public init(mapView: MKMapView?) {
+        self.mapView = mapView
+        super.init(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+        backgroundColor = .clear
+        accessibilityIdentifier = "map-compass"
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(_tapped)))
+    }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
+    /// adapted from iOS: a round translucent dial, the red needle pointing north, "N" on the dial; shown while the
+    /// map is turned (.adaptive), tapping it turns the map back to north
+    var _heading: Double { mapView?._heading ?? 0 }
+    open override var isHidden: Bool {
+        get { super.isHidden || (compassVisibility == .hidden) || (compassVisibility == .adaptive && mapView != nil && (abs(_heading) < 0.5 || abs(_heading - 360) < 0.5)) }
+        set { super.isHidden = newValue }
+    }
+    @objc func _tapped() {
+        guard let m = mapView else { return }
+        let c = m.camera; c.heading = 0
+        m.setCamera(c, animated: true)
+    }
+    open override func draw(_ rect: CGRect) {
+        let b = bounds.insetBy(dx: 1, dy: 1), mid = CGPoint(x: bounds.midX, y: bounds.midY)
+        let dark = traitCollection.userInterfaceStyle == .dark
+        (dark ? UIColor(white: 0.18, alpha: 0.92) : UIColor(white: 1, alpha: 0.92)).setFill()
+        UIBezierPath(ovalIn: b).fill()
+        UIColor(white: dark ? 1 : 0, alpha: 0.10).setStroke()
+        let ring = UIBezierPath(ovalIn: b.insetBy(dx: 0.25, dy: 0.25)); ring.lineWidth = 0.5; ring.stroke()
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        ctx.saveGState()
+        ctx.translateBy(x: mid.x, y: mid.y)
+        ctx.rotate(by: CGFloat(-_heading * Double.pi / 180))   /* north as it lies on the map */
+        let r = b.width / 2
+        UIColor(white: dark ? 1 : 0, alpha: 0.35).setFill()
+        for i in 0..<12 where i % 3 != 0 {
+            let a = CGFloat(i) * .pi / 6
+            UIBezierPath(ovalIn: CGRect(x: sin(a) * (r - 4) - 0.75, y: -cos(a) * (r - 4) - 0.75, width: 1.5, height: 1.5)).fill()
+        }
+        let needle = UIBezierPath()
+        needle.move(to: CGPoint(x: 0, y: -r + 3)); needle.addLine(to: CGPoint(x: 4, y: -r + 11)); needle.addLine(to: CGPoint(x: -4, y: -r + 11)); needle.close()
+        UIColor.systemRed.setFill(); needle.fill()
+        let n = "N" as NSString, font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        let sz = n.size(withAttributes: [.font: font])
+        n.draw(at: CGPoint(x: -sz.width / 2, y: -sz.height / 2 + 2), withAttributes: [.font: font, .foregroundColor: dark ? UIColor.white : UIColor.black])
+        ctx.restoreGState()
+    }
 }
 open class MKScaleView: UIView {
     open weak var mapView: MKMapView?

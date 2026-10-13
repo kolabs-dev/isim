@@ -17,13 +17,26 @@ open class MKMapCamera: NSObject, NSCopying, @unchecked Sendable {
     open var centerCoordinateDistance: CLLocationDistance = 1000
     open var heading: CLLocationDirection = 0
     open var pitch: CGFloat = 0
-    open var altitude: CLLocationDistance { get { centerCoordinateDistance } set { centerCoordinateDistance = newValue } }
+    /// the eye's height above the ground (the distance to the centre, foreshortened by the pitch)
+    open var altitude: CLLocationDistance {
+        get { centerCoordinateDistance * cos(Double(pitch) * Double.pi / 180) }
+        set { centerCoordinateDistance = newValue / max(0.05, cos(Double(pitch) * Double.pi / 180)) }
+    }
     public override init() { super.init() }
     public convenience init(lookingAtCenter centerCoordinate: CLLocationCoordinate2D, fromDistance distance: CLLocationDistance, pitch: CGFloat, heading: CLLocationDirection) {
         self.init(); self.centerCoordinate = centerCoordinate; centerCoordinateDistance = distance; self.pitch = pitch; self.heading = heading
     }
     public convenience init(lookingAtCenter centerCoordinate: CLLocationCoordinate2D, fromEyeCoordinate eye: CLLocationCoordinate2D, eyeAltitude: CLLocationDistance) {
-        self.init(); self.centerCoordinate = centerCoordinate; centerCoordinateDistance = eyeAltitude
+        // the eye looks down at the centre: the pitch from the ground distance and altitude, the heading from eye to centre
+        self.init(); self.centerCoordinate = centerCoordinate
+        let ground = _MKGeo.distance(eye, centerCoordinate)
+        centerCoordinateDistance = (ground * ground + eyeAltitude * eyeAltitude).squareRoot()
+        pitch = CGFloat(atan2(ground, max(0, eyeAltitude)) * 180 / Double.pi)
+        if ground > 0.01 {
+            let r = Double.pi / 180, la1 = eye.latitude * r, la2 = centerCoordinate.latitude * r, dl = (centerCoordinate.longitude - eye.longitude) * r
+            let b = atan2(sin(dl) * cos(la2), cos(la1) * sin(la2) - sin(la1) * cos(la2) * cos(dl)) / r
+            heading = (b + 360).truncatingRemainder(dividingBy: 360)
+        }
     }
     public convenience init(lookingAt mapItem: MKMapItem, forViewSize viewSize: CGSize, allowPitch: Bool) {
         self.init(); centerCoordinate = mapItem.placemark.coordinate; centerCoordinateDistance = 1000
@@ -127,30 +140,61 @@ extension MKMapViewDelegate {
     public func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {}
 }
 
-/// the basemap layer
+/// the basemap layer: the map plane, drawn unrotated around `MKMapView._baseAnchor` (the view's centre) and turned
+/// to the heading in its context; MKMapView tilts it in perspective for pitch
 final class _MKBaseView: UIView {
     weak var map: MKMapView?
     override func draw(_ rect: CGRect) {
-        guard let m = map else { return }
+        guard let m = map, let ctx = UIGraphicsGetCurrentContext() else { return }
         let dark = traitCollection.userInterfaceStyle == .dark
-        _MKBasemap.draw(visible: m.visibleMapRect, scale: m._scale, rect: bounds, type: m._effectiveType, dark: dark,
-                        showsLabels: m.pointOfInterestFilter.map { $0.includes(.landmark) } ?? true, toView: m._toView)
+        let a = m._baseAnchor, h = m._heading * Double.pi / 180, s = m._scale, c = m._center
+        // this view's area in map-aligned view points from the centre (the bounding box of the rotated bounds)
+        let corners = [CGPoint(x: 0, y: 0), CGPoint(x: bounds.width, y: 0), CGPoint(x: 0, y: bounds.height), CGPoint(x: bounds.width, y: bounds.height)]
+            .map { MKMapView._rotate(Double($0.x - a.x), Double($0.y - a.y), h) }
+        let area = CGRect(x: corners.map(\.0).min()!, y: corners.map(\.1).min()!, width: 0, height: 0)
+            .union(CGRect(x: corners.map(\.0).max()!, y: corners.map(\.1).max()!, width: 0, height: 0))
+        let visible = MKMapRect(x: c.x + Double(area.minX) * s, y: c.y + Double(area.minY) * s, width: Double(area.width) * s, height: Double(area.height) * s)
+        let flat: (MKMapPoint) -> CGPoint = { p in
+            var dx = p.x - c.x
+            if dx < -_MKWorld / 2 { dx += _MKWorld } else if dx > _MKWorld / 2 { dx -= _MKWorld }   /* the copy nearest the centre */
+            return CGPoint(x: dx / s, y: (p.y - c.y) / s)
+        }
+        ctx.saveGState()
+        ctx.translateBy(x: a.x, y: a.y)
+        ctx.rotate(by: CGFloat(-h))
+        _MKBasemap.draw(visible: visible, scale: s, rect: area, type: m._effectiveType, dark: dark, showsLabels: false,
+                        gridLabels: m._heading == 0 && m._pitch == 0, toView: flat)
         // overlays (above the basemap, below annotations)
-        for (o, r) in m._overlayRenderers() where o.intersects(m.visibleMapRect.insetBy(dx: -m.visibleMapRect.width, dy: -m.visibleMapRect.height)) {
-            r._draw(toView: m._toView, scale: CGFloat(m._scale), visible: m.visibleMapRect)
+        for (o, r) in m._overlayRenderers() where o.intersects(visible.insetBy(dx: -visible.width, dy: -visible.height)) {
+            r._draw(toView: flat, scale: CGFloat(s), visible: visible)
         }
         if m.showsUserLocation, let loc = m.userLocation.location, loc.horizontalAccuracy > 0 {
-            let c = m._toView(MKMapPoint(loc.coordinate))
-            let r = CGFloat(loc.horizontalAccuracy * MKMapPointsPerMeterAtLatitude(loc.coordinate.latitude) / m._scale)
+            let p = flat(MKMapPoint(loc.coordinate))
+            let r = CGFloat(loc.horizontalAccuracy * MKMapPointsPerMeterAtLatitude(loc.coordinate.latitude) / s)
             if r > 14 {
                 UIColor.systemBlue.withAlphaComponent(0.12).setFill()
-                UIBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
+                UIBezierPath(ovalIn: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)).fill()
             }
         }
-        // attribution (isim has no map data provider)
+        ctx.restoreGState()
+        // place names stay upright
+        if m.pointOfInterestFilter.map({ $0.includes(.landmark) }) ?? true, !_MKBasemap.usesTiles {
+            _MKBasemap.drawPlaces(visible: visible, scale: s, rect: bounds, st: _MKBasemap.style(m._effectiveType, dark: dark)) { p in
+                let q = flat(p), r = MKMapView._rotate(Double(q.x), Double(q.y), -h)
+                return CGPoint(x: a.x + CGFloat(r.0), y: a.y + CGFloat(r.1))
+            }
+        }
+    }
+}
+
+/// the "isim map" note in the bottom-left corner (isim has no map data provider)
+final class _MKAttributionView: UIView {
+    weak var map: MKMapView?
+    override func draw(_ rect: CGRect) {
+        guard let m = map else { return }
         let note = _MKBasemap.usesTiles ? "isim map · tiles from local cache" : "isim map · offline basemap"
-        _MKBasemap._text(note, at: CGPoint(x: 10, y: bounds.maxY - 18 - m.layoutMargins.bottom * 0), font: .systemFont(ofSize: 10, weight: .medium),
-                         color: UIColor.secondaryLabel, halo: m._effectiveType == .standard || m._effectiveType == .mutedStandard ? UIColor.systemBackground : nil)
+        _MKBasemap._text(note, at: CGPoint(x: 1, y: 1), font: .systemFont(ofSize: 10, weight: .medium), color: UIColor.secondaryLabel,
+                         halo: m._effectiveType == .standard || m._effectiveType == .mutedStandard ? UIColor.systemBackground : nil)
     }
 }
 
@@ -163,8 +207,8 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     open var isScrollEnabled = true
     open var isRotateEnabled = true
     open var isPitchEnabled = true
-    open var showsCompass = true
-    open var showsScale = false
+    open var showsCompass = true { didSet { setNeedsLayout() } }
+    open var showsScale = false { didSet { setNeedsLayout() } }
     open var showsBuildings = true
     open var showsTraffic = false
     open var showsPointsOfInterest = true
@@ -196,7 +240,9 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     var _selected: MKAnnotation?
     var _callout: _MKCalloutView?
     var _location: CLLocationManager?
-    let _compass = UIView()
+    lazy var _compass: MKCompassButton = MKCompassButton(mapView: self)
+    lazy var _scaleView: MKScaleView = MKScaleView(mapView: self)
+    let _attribution = _MKAttributionView()
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
@@ -209,10 +255,21 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
         _base.map = self
         _base.isUserInteractionEnabled = false
         _annotationLayer.backgroundColor = .clear
+        _attribution.map = self
+        _attribution.isUserInteractionEnabled = false
+        _attribution.backgroundColor = .clear
         addSubview(_base)
         addSubview(_annotationLayer)
+        addSubview(_attribution)
         let pan = UIPanGestureRecognizer(target: self, action: #selector(_pan(_:)))
+        pan.maximumNumberOfTouches = 1
         addGestureRecognizer(pan)
+        // two fingers: pinch to zoom, rotate, drag up or down to tilt (all at once, as on iOS)
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(_pinch(_:)))
+        let rotate = UIRotationGestureRecognizer(target: self, action: #selector(_rotate(_:)))
+        let tilt = UIPanGestureRecognizer(target: self, action: #selector(_tilt(_:)))
+        tilt.minimumNumberOfTouches = 2
+        for g in [pinch, rotate, tilt] as [UIGestureRecognizer] { g.delegate = _MKGestureFriend.shared; addGestureRecognizer(g) }
         let dbl = UITapGestureRecognizer(target: self, action: #selector(_doubleTap(_:)))
         dbl.numberOfTapsRequired = 2
         addGestureRecognizer(dbl)
@@ -226,7 +283,11 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
         get {
             let sz = _sizeForFit()
             let w = Double(sz.width) * _scale, h = Double(sz.height) * _scale
-            return MKMapRect(x: _center.x - w / 2, y: _center.y - h / 2, width: w, height: h)
+            if _heading == 0 && _pitch == 0 { return MKMapRect(x: _center.x - w / 2, y: _center.y - h / 2, width: w, height: h) }
+            // rotated or tilted: the bounding rect of what the view shows
+            let ps = [CGPoint(x: 0, y: 0), CGPoint(x: sz.width, y: 0), CGPoint(x: 0, y: sz.height), CGPoint(x: sz.width, y: sz.height)].map { _toMap($0) }
+            let x0 = ps.map(\.x).min()!, y0 = ps.map(\.y).min()!
+            return MKMapRect(x: x0, y: y0, width: ps.map(\.x).max()! - x0, height: ps.map(\.y).max()! - y0)
         }
         set { setVisibleMapRect(newValue, animated: false) }
     }
@@ -280,13 +341,15 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
         }
         set { setCamera(newValue, animated: false) }
     }
+    /// heading: degrees clockwise from north at the top of the view; pitch: degrees from looking straight down
     var _heading: CLLocationDirection = 0, _pitch: CGFloat = 0
+    /// the steepest tilt drawn (adapted: iOS allows more when zoomed in to a street, less when zoomed out)
+    static let _maxPitch: CGFloat = 60
     open func setCamera(_ camera: MKMapCamera, animated: Bool) {
         if bounds.width < 1 || bounds.height < 1 { _pendingFit = { [weak self] in self?.setCamera(camera, animated: animated) } } else { _pendingFit = nil }
-        _heading = camera.heading; _pitch = camera.pitch
         let metersTall = camera.centerCoordinateDistance * 2 * tan(15 * Double.pi / 180)
         let s = metersTall * MKMapPointsPerMeterAtLatitude(camera.centerCoordinate.latitude) / Double(_sizeForFit().height)
-        _apply(center: MKMapPoint(camera.centerCoordinate), scale: s, animated: animated)
+        _apply(center: MKMapPoint(camera.centerCoordinate), scale: s, heading: camera.heading, pitch: camera.pitch, animated: animated)
     }
     open func setCameraZoomRange(_ range: MKMapCameraZoomRange?, animated: Bool) { cameraZoomRange = range }
     open func setCameraBoundary(_ boundary: MKMapCameraBoundary?, animated: Bool) { cameraBoundary = boundary }
@@ -294,7 +357,7 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     /// a camera change made before the view has a size: redone once it has one (the fit depends on the size)
     var _pendingFit: (() -> Void)?
     var _gesturing = false, _gestureMoved = false
-    func _apply(center: MKMapPoint, scale: Double, animated: Bool) {
+    func _apply(center: MKMapPoint, scale: Double, heading: CLLocationDirection? = nil, pitch: CGFloat? = nil, animated: Bool) {
         var s = scale, c = center
         let maxScale = _MKWorld / Double(max(64, _sizeForFit().width)) * 1.2
         s = max(0.05, min(maxScale, s.isFinite && s > 0 ? s : _scale))
@@ -307,29 +370,78 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
         if let b = cameraBoundary?.mapRect, !b.isNull { c = MKMapPoint(x: min(max(c.x, b.minX), b.maxX), y: min(max(c.y, b.minY), b.maxY)) }
         c.y = min(max(c.y, 0), _MKWorld)
         c.x = (c.x.truncatingRemainder(dividingBy: _MKWorld) + _MKWorld).truncatingRemainder(dividingBy: _MKWorld)
+        var h = heading.map { $0.isFinite ? $0 : 0 } ?? _heading
+        h = (h.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+        let t = min(max(pitch.map { $0.isFinite ? $0 : 0 } ?? _pitch, 0), Self._maxPitch)
         _initialRegionSet = true
-        let changed = abs(c.x - _center.x) > 1e-6 || abs(c.y - _center.y) > 1e-6 || abs(s - _scale) > 1e-9
+        _animation?.stop(); _animation = nil
+        let changed = abs(c.x - _center.x) > 1e-6 || abs(c.y - _center.y) > 1e-6 || abs(s - _scale) > 1e-9 || abs(h - _heading) > 1e-9 || abs(t - _pitch) > 1e-9
         guard changed else { return }
         if !_gesturing || !_gestureMoved { delegate?.mapView(self, regionWillChangeAnimated: animated) }
         if _gesturing { _gestureMoved = true }
-        _center = c; _scale = s
+        if animated && window != nil && !_gesturing {
+            // adapted: a 0.35 s ease-in-out from the current camera (zoom changes at a constant rate, the heading turns
+            // the short way); the visible region is reported on each frame, regionDidChange at the end
+            _animation = _MKCameraAnimation(map: self, from: (_center, _scale, _heading, _pitch), to: (c, s, h, t))
+            return
+        }
+        _set(center: c, scale: s, heading: h, pitch: t)
+        if !_gesturing { delegate?.mapView(self, regionDidChangeAnimated: animated) }   /* a drag reports it once, at the end */
+    }
+    var _animation: _MKCameraAnimation?
+    /// moves the camera now (no checks, no will/did-change calls)
+    func _set(center: MKMapPoint, scale: Double, heading: CLLocationDirection, pitch: CGFloat) {
+        let tilted = (pitch != 0) != (_pitch != 0) || abs(pitch - _pitch) > 1e-9
+        _center = center; _scale = scale; _heading = heading; _pitch = pitch
+        if tilted { _layoutBase() }
         _regionChanged()
         delegate?.mapViewDidChangeVisibleRegion(self)
-        if !_gesturing { delegate?.mapView(self, regionDidChangeAnimated: animated) }   /* a drag reports it once, at the end */
     }
     func _regionChanged() {
         _base.setNeedsDisplay()
+        _compass.setNeedsDisplay(); _scaleView.setNeedsDisplay()
         setNeedsLayout()
         _layoutAnnotations()
     }
+    // MARK: projection
+    // The map is a plane: map point p lies at R(-heading)·(p - center) / scale view points from the view's centre
+    // (east turns up for heading 90°). Pitch tilts the plane back about the view's horizontal centre line, seen in
+    // perspective by the camera (30° vertical field of view, eye distance d): a plane point (x, y) is drawn at
+    // centre + (x, y·cos θ) / (1 − y·sin θ / d). _MKBaseView draws the plane; its layer carries the same tilt.
+    static func _rotate(_ x: Double, _ y: Double, _ a: Double) -> (Double, Double) {
+        let c = cos(a), s = sin(a)
+        return (x * c - y * s, x * s + y * c)
+    }
+    var _eye: Double { Double(_sizeForFit().height) / 2 / tan(15 * Double.pi / 180) }
+    /// where the base view's (unrotated) plane origin, the view's centre, is in the base view's own coordinates
+    var _baseAnchor = CGPoint.zero
     var _toView: (MKMapPoint) -> CGPoint {
-        let vr = visibleMapRect, s = _scale
+        let c = _center, s = _scale, h = _heading * Double.pi / 180, t = Double(_pitch) * Double.pi / 180, d = _eye
+        let sz = _sizeForFit(), mx = Double(sz.width) / 2, my = Double(sz.height) / 2
         return { p in
-            var dx = p.x - vr.minX
+            var dx = p.x - c.x
             // wrap around the 180th meridian to the copy nearest the view
-            if dx < -_MKWorld / 2 { dx += _MKWorld } else if dx > _MKWorld / 2 + vr.width { dx -= _MKWorld }
-            return CGPoint(x: dx / s, y: (p.y - vr.minY) / s)
+            if dx < -_MKWorld / 2 { dx += _MKWorld } else if dx > _MKWorld / 2 { dx -= _MKWorld }
+            var (x, y) = h == 0 ? (dx / s, (p.y - c.y) / s) : Self._rotate(dx / s, (p.y - c.y) / s, -h)
+            if t != 0 {
+                let w = max(1e-3, 1 - y * sin(t) / d)
+                x /= w; y = y * cos(t) / w
+            }
+            return CGPoint(x: mx + x, y: my + y)
         }
+    }
+    /// the map point under a view point (on a tilted map, a point above the horizon gives the farthest point drawn)
+    func _toMap(_ v: CGPoint) -> MKMapPoint {
+        let sz = _sizeForFit(), h = _heading * Double.pi / 180, t = Double(_pitch) * Double.pi / 180, d = _eye
+        var x = Double(v.x - sz.width / 2), y = Double(v.y - sz.height / 2)
+        if t != 0 {
+            let horizon = -d / tan(t) * 0.98
+            y = max(y, horizon)
+            let py = y / (cos(t) + y * sin(t) / d)
+            x *= 1 - py * sin(t) / d; y = py
+        }
+        let (dx, dy) = h == 0 ? (x, y) : Self._rotate(x, y, h)
+        return MKMapPoint(x: _center.x + dx * _scale, y: _center.y + dy * _scale)
     }
     open func convert(_ coordinate: CLLocationCoordinate2D, toPointTo view: UIView?) -> CGPoint {
         let p = _toView(MKMapPoint(coordinate))
@@ -337,28 +449,68 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     }
     open func convert(_ point: CGPoint, toCoordinateFrom view: UIView?) -> CLLocationCoordinate2D {
         let p = view.map { convert(point, from: $0) } ?? point
-        let vr = visibleMapRect
-        return MKMapPoint(x: vr.minX + Double(p.x) * _scale, y: vr.minY + Double(p.y) * _scale).coordinate
+        return _toMap(p).coordinate
     }
     open func convert(_ region: MKCoordinateRegion, toRectTo view: UIView?) -> CGRect {
-        let r = _MKMapRect(for: region)
-        let a = _toView(r.origin)
-        let rect = CGRect(x: a.x, y: a.y, width: r.width / _scale, height: r.height / _scale)
+        let r = _MKMapRect(for: region), f = _toView
+        let ps = [MKMapPoint(x: r.minX, y: r.minY), MKMapPoint(x: r.maxX, y: r.minY), MKMapPoint(x: r.minX, y: r.maxY), MKMapPoint(x: r.maxX, y: r.maxY)].map(f)
+        let x0 = ps.map(\.x).min()!, y0 = ps.map(\.y).min()!
+        let rect = CGRect(x: x0, y: y0, width: ps.map(\.x).max()! - x0, height: ps.map(\.y).max()! - y0)
         return view.map { convert(rect, to: $0) } ?? rect
     }
     open func convert(_ rect: CGRect, toRegionFrom view: UIView?) -> MKCoordinateRegion {
         let r = view.map { convert(rect, from: $0) } ?? rect
-        let vr = visibleMapRect
-        return MKCoordinateRegionForMapRect(MKMapRect(x: vr.minX + Double(r.minX) * _scale, y: vr.minY + Double(r.minY) * _scale,
-                                                      width: Double(r.width) * _scale, height: Double(r.height) * _scale))
+        let ps = [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY), CGPoint(x: r.minX, y: r.maxY), CGPoint(x: r.maxX, y: r.maxY)].map { _toMap($0) }
+        let x0 = ps.map(\.x).min()!, y0 = ps.map(\.y).min()!
+        return MKCoordinateRegionForMapRect(MKMapRect(x: x0, y: y0, width: ps.map(\.x).max()! - x0, height: ps.map(\.y).max()! - y0))
     }
 
     // MARK: layout
     open override func layoutSubviews() {
         super.layoutSubviews()
-        if _base.frame != bounds { _base.frame = bounds; _annotationLayer.frame = bounds; _base.setNeedsDisplay() }
+        if _annotationLayer.frame != bounds { _annotationLayer.frame = bounds; _layoutBase() }
         if bounds.width >= 1, bounds.height >= 1, let f = _pendingFit { _pendingFit = nil; f() }
+        _attribution.frame = CGRect(x: 9, y: bounds.maxY - 19, width: 200, height: 16)
+        // the compass shows while the map is turned (adapted from iOS 17: top right, below the safe area)
+        let showCompass = showsCompass && (abs(_heading) > 0.5 && abs(_heading - 360) > 0.5)
+        if showCompass {
+            if _compass.superview !== self { addSubview(_compass) }
+            _compass.frame = CGRect(x: bounds.maxX - safeAreaInsets.right - 8 - 40, y: safeAreaInsets.top + 8, width: 40, height: 40)
+            _compass.isHidden = false
+        } else if _compass.superview === self { _compass.removeFromSuperview() }
+        if showsScale {
+            if _scaleView.superview !== self { addSubview(_scaleView) }
+            _scaleView.frame = CGRect(x: safeAreaInsets.left + 12, y: safeAreaInsets.top + 8, width: 150, height: 20)
+        } else if _scaleView.superview === self { _scaleView.removeFromSuperview() }
         _layoutAnnotations()
+    }
+    /// sizes the base view: the view's bounds, or when tilted the stretch of plane that perspective brings into view
+    /// (taller, reaching toward the horizon, and wider at the far edge), tilted by its layer's 3D transform
+    func _layoutBase() {
+        let size = bounds.size, mid = CGPoint(x: bounds.midX, y: bounds.midY)
+        let t = Double(_pitch) * Double.pi / 180
+        if t == 0 || size.height < 1 {
+            _base.layer.transform = CATransform3DIdentity
+            _base.bounds = CGRect(origin: .zero, size: size)
+            _base.center = mid
+            _baseAnchor = CGPoint(x: size.width / 2, y: size.height / 2)
+        } else {
+            let d = _eye, h2 = Double(size.height) / 2
+            let top = h2 / (cos(t) - h2 * sin(t) / d)           /* the plane distance shown at the view's top edge */
+            let far = 1 + top * sin(t) / d                       /* how much smaller the plane is drawn there */
+            let bottom = h2 / (cos(t) + h2 * sin(t) / d)        /* and at its bottom edge (nearer: drawn larger) */
+            let w = CGFloat(Double(size.width) * far + 4), above = CGFloat(top + 2), below = CGFloat(bottom + 2)
+            _base.layer.transform = CATransform3DIdentity
+            _base.bounds = CGRect(x: 0, y: 0, width: w, height: above + below)
+            _base.center = mid
+            // about the plane origin (not the base's middle): shift it there, then tilt in perspective
+            var m = CATransform3DIdentity
+            m.m22 = CGFloat(cos(t)); m.m23 = CGFloat(sin(t)); m.m24 = CGFloat(-sin(t) / d)
+            m.m32 = CGFloat(-sin(t)); m.m33 = CGFloat(cos(t)); m.m34 = CGFloat(-cos(t) / d)
+            _base.layer.transform = CATransform3DConcat(CATransform3DMakeTranslation(0, (above + below) / 2 - above, 0), m)
+            _baseAnchor = CGPoint(x: w / 2, y: above)
+        }
+        _base.setNeedsDisplay()
     }
     open override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
@@ -372,7 +524,7 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
             let p = toView(MKMapPoint(a.coordinate))
             let anchor = v._anchor
             v.frame.origin = CGPoint(x: p.x - anchor.x, y: p.y - anchor.y)
-            v.isHidden = !bounds.insetBy(dx: -120, dy: -120).contains(p)
+            v.isHidden = !bounds.insetBy(dx: -120, dy: -120).contains(p) || (_pitch != 0 && _behindHorizon(a.coordinate))
             if let m = v as? MKMarkerAnnotationView {   /* titles: dark on the map, light on imagery */
                 let imagery = [.satellite, .hybrid, .satelliteFlyover, .hybridFlyover].contains(_effectiveType)
                 m.titleLabel.textColor = imagery ? .white : .label
@@ -580,22 +732,74 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     @objc func _pan(_ g: UIPanGestureRecognizer) {
         guard isScrollEnabled else { return }
         switch g.state {
-        case .began: _panStart = _center; _gesturing = true; _gestureMoved = false; if userTrackingMode != .none { userTrackingMode = .none }
+        case .began: _panStart = _center; _gestureBegan()
         case .changed, .ended:
-            let t = g.translation(in: self)
-            _apply(center: MKMapPoint(x: _panStart.x - Double(t.x) * _scale, y: _panStart.y - Double(t.y) * _scale), scale: _scale, animated: false)
-            if g.state == .ended { _gesturing = false; if _gestureMoved { delegate?.mapView(self, regionDidChangeAnimated: false) } }
-        default: _gesturing = false
+            // the map point under the finger stays under it
+            let t = g.translation(in: self), p = g.location(in: self)
+            let grabbed = _toMapAt(CGPoint(x: p.x - t.x, y: p.y - t.y), center: _panStart)
+            _apply(center: _centerKeeping(grabbed, at: p, scale: _scale), scale: _scale, animated: false)
+            if g.state == .ended { _gestureEnded() }
+        default: _gestureEnded()
         }
+    }
+    /// two-finger gestures: what was under the fingers when they came down, and the camera then
+    var _twoStart: (point: MKMapPoint, scale: Double, heading: Double, pitch: CGFloat)?
+    @objc func _pinch(_ g: UIPinchGestureRecognizer) {
+        guard isZoomEnabled else { return }
+        _twoFinger(g) { st in (st.scale / Double(max(0.01, g.scale)), nil, nil) }
+    }
+    @objc func _rotate(_ g: UIRotationGestureRecognizer) {
+        guard isRotateEnabled else { return }
+        _twoFinger(g) { st in (nil, st.heading - Double(g.rotation) * 180 / Double.pi, nil) }   /* fingers turn clockwise: so does the map */
+    }
+    @objc func _tilt(_ g: UIPanGestureRecognizer) {
+        guard isPitchEnabled else { return }
+        _twoFinger(g) { st in (nil, nil, st.pitch - g.translation(in: self).y / 2) }   /* two fingers up tilt the map back */
+    }
+    func _twoFinger(_ g: UIGestureRecognizer, _ change: ((point: MKMapPoint, scale: Double, heading: Double, pitch: CGFloat)) -> (Double?, Double?, CGFloat?)) {
+        switch g.state {
+        case .began:
+            if _twoStart == nil || !_gesturing { _twoStart = (_toMap(g.location(in: self)), _scale, _heading, _pitch); _gestureBegan() }
+        case .changed, .ended:
+            guard let st = _twoStart else { return }
+            let (sc, hd, pt) = change(st)
+            let s = sc ?? _scale, h = hd ?? _heading, t = pt ?? _pitch
+            // pinching and turning keep the map point between the fingers where it is
+            let c = pt == nil ? _centerKeeping(st.point, at: g.location(in: self), scale: s, heading: h) : _center
+            _apply(center: c, scale: s, heading: h, pitch: t, animated: false)
+            if g.state == .ended { _gestureEnded() }
+        default: _gestureEnded()
+        }
+    }
+    func _gestureBegan() {
+        _gesturing = true; _gestureMoved = false
+        if userTrackingMode != .none { userTrackingMode = .none }
+    }
+    func _gestureEnded() {
+        guard _gesturing else { return }
+        _gesturing = false; _twoStart = nil
+        if _gestureMoved { delegate?.mapView(self, regionDidChangeAnimated: false) }
+    }
+    /// the map point at view point v were the map centred on `center`
+    func _toMapAt(_ v: CGPoint, center: MKMapPoint) -> MKMapPoint {
+        let p = _toMap(v)
+        return MKMapPoint(x: p.x - _center.x + center.x, y: p.y - _center.y + center.y)
+    }
+    /// the centre that puts map point m at view point v, at this scale and heading (and the current pitch)
+    func _centerKeeping(_ m: MKMapPoint, at v: CGPoint, scale: Double, heading: Double? = nil) -> MKMapPoint {
+        let (s0, h0) = (_scale, _heading)
+        _scale = scale; _heading = heading ?? _heading
+        let p = _toMap(v)
+        let c = MKMapPoint(x: m.x - (p.x - _center.x), y: m.y - (p.y - _center.y))
+        _scale = s0; _heading = h0
+        return c
     }
     @objc func _doubleTap(_ g: UITapGestureRecognizer) {
         guard isZoomEnabled else { return }
         let p = g.location(in: self)
-        let target = convert(p, toCoordinateFrom: self)
         // zoom in 2x keeping the tapped point under the finger
-        let tp = MKMapPoint(target), s = _scale / 2
-        let c = MKMapPoint(x: tp.x - Double(p.x - bounds.midX) * s, y: tp.y - Double(p.y - bounds.midY) * s)
-        _apply(center: c, scale: s, animated: true)
+        let s = _scale / 2
+        _apply(center: _centerKeeping(_toMap(p), at: p, scale: s), scale: s, animated: true)
     }
     @objc func _tap(_ g: UITapGestureRecognizer) {
         let p = g.location(in: _annotationLayer)
@@ -609,9 +813,63 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
         if let s = _selected { deselectAnnotation(s, animated: true) }
     }
 
+    func _behindHorizon(_ c: CLLocationCoordinate2D) -> Bool {
+        var dx = MKMapPoint(c).x - _center.x
+        if dx < -_MKWorld / 2 { dx += _MKWorld } else if dx > _MKWorld / 2 { dx -= _MKWorld }
+        let y = Self._rotate(dx / _scale, (MKMapPoint(c).y - _center.y) / _scale, -_heading * Double.pi / 180).1
+        return 1 - y * sin(Double(_pitch) * Double.pi / 180) / _eye < 0.05
+    }
+
     @objc func _isim_dumpText() -> String {
         let r = region
         return String(format: "map center %.5f,%.5f span %.4f,%.4f annotations %d overlays %d type %@", r.center.latitude, r.center.longitude,
                       r.span.latitudeDelta, r.span.longitudeDelta, _annotations.count, _overlays.count, "\(_effectiveType)")
+            + (_heading != 0 || _pitch != 0 ? String(format: " heading %.0f pitch %.0f", _heading, Double(_pitch)) : "")
+    }
+}
+
+/// the map's two-finger gestures recognise together (pinch, rotate and tilt at once)
+final class _MKGestureFriend: NSObject, UIGestureRecognizerDelegate {
+    @MainActor static let shared = _MKGestureFriend()
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        g.view === other.view && g.view is MKMapView
+    }
+}
+
+/// an animated camera change, stepped by a display link
+@MainActor
+final class _MKCameraAnimation: NSObject {
+    typealias Camera = (center: MKMapPoint, scale: Double, heading: Double, pitch: CGFloat)
+    weak var map: MKMapView?
+    let from: Camera, to: Camera
+    let start = CACurrentMediaTime(), duration = 0.35
+    var link: CADisplayLink?
+    init(map: MKMapView, from: Camera, to: Camera) {
+        self.map = map; self.from = from; self.to = to
+        super.init()
+        let l = CADisplayLink(target: self, selector: #selector(step(_:)))
+        l.add(to: .main, forMode: .common)
+        link = l
+    }
+    func stop() { link?.invalidate(); link = nil }
+    @objc func step(_ l: CADisplayLink) {
+        guard let m = map else { stop(); return }
+        let u = min(1, (CACurrentMediaTime() - start) / duration)
+        let e = u < 0.5 ? 2 * u * u : 1 - pow(-2 * u + 2, 2) / 2   /* ease in-out */
+        var dx = to.center.x - from.center.x
+        if dx > _MKWorld / 2 { dx -= _MKWorld } else if dx < -_MKWorld / 2 { dx += _MKWorld }   /* the short way round */
+        var dh = to.heading - from.heading
+        if dh > 180 { dh -= 360 } else if dh < -180 { dh += 360 }
+        var x = from.center.x + dx * e
+        x = (x.truncatingRemainder(dividingBy: _MKWorld) + _MKWorld).truncatingRemainder(dividingBy: _MKWorld)
+        let c = u >= 1 ? to.center : MKMapPoint(x: x, y: from.center.y + (to.center.y - from.center.y) * e)
+        let s = u >= 1 ? to.scale : from.scale * pow(to.scale / from.scale, e)
+        let h = u >= 1 ? to.heading : ((from.heading + dh * e).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+        m._set(center: c, scale: s, heading: h, pitch: from.pitch + (to.pitch - from.pitch) * CGFloat(e))
+        if u >= 1 {
+            stop()
+            if m._animation === self { m._animation = nil }
+            m.delegate?.mapView(m, regionDidChangeAnimated: true)
+        }
     }
 }
