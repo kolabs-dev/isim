@@ -232,12 +232,15 @@ open class CLBeaconRegion: CLRegion, @unchecked Sendable {
     public init(beaconIdentityConstraint: CLBeaconIdentityConstraint, identifier: String) {
         self.beaconIdentityConstraint = beaconIdentityConstraint; super.init(identifier: identifier)
     }
-    public convenience init(uuid: UUID, identifier: String) { self.init(beaconIdentityConstraint: CLBeaconIdentityConstraint(uuid: uuid), identifier: identifier) }
-    public convenience init(uuid: UUID, major: CLBeaconMajorValue, identifier: String) {
-        self.init(beaconIdentityConstraint: CLBeaconIdentityConstraint(uuid: uuid, major: major), identifier: identifier)
+    // designated, as in earlier isim releases (ABI)
+    public init(uuid: UUID, identifier: String) {
+        beaconIdentityConstraint = CLBeaconIdentityConstraint(uuid: uuid); super.init(identifier: identifier)
     }
-    public convenience init(uuid: UUID, major: CLBeaconMajorValue, minor: CLBeaconMinorValue, identifier: String) {
-        self.init(beaconIdentityConstraint: CLBeaconIdentityConstraint(uuid: uuid, major: major, minor: minor), identifier: identifier)
+    public init(uuid: UUID, major: CLBeaconMajorValue, identifier: String) {
+        beaconIdentityConstraint = CLBeaconIdentityConstraint(uuid: uuid, major: major); super.init(identifier: identifier)
+    }
+    public init(uuid: UUID, major: CLBeaconMajorValue, minor: CLBeaconMinorValue, identifier: String) {
+        beaconIdentityConstraint = CLBeaconIdentityConstraint(uuid: uuid, major: major, minor: minor); super.init(identifier: identifier)
     }
     @available(*, deprecated, renamed: "init(uuid:identifier:)")
     public convenience init(proximityUUID: UUID, identifier: String) { self.init(uuid: proximityUUID, identifier: identifier) }
