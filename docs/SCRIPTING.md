@@ -40,7 +40,7 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `appclip expire BUNDLE_ID` | iOS removing an App Clip that was not used for a while: its container, the app group containers no installed app still uses and its App Library entry are deleted (the bundle stays, as the App Store's copy) |
 | `bgtask BUNDLE_ID TASK_ID` | launch a submitted BackgroundTasks request (like Xcode's `_simulateLaunchForTaskWithIdentifier`); a closed app is started in the background (a suspended one is resumed). `TASK_ID` `--fetch` runs a background fetch (with `UIBackgroundModes` `fetch` and a minimum fetch interval other than never, like iOS) |
 | `terminate BUNDLE_ID` | the system ends the app without notice (as iOS does to reclaim memory), unlike closing it in the app switcher; an app with unfinished background `URLSession` transfers is relaunched in the background to finish them |
-| `push BUNDLE_ID FILE` | deliver a remote notification payload (JSON with an `aps` dictionary), like `xcrun simctl push`: the Notification Service extension runs for `mutable-content`, then the running app gets it, or the system shows it (app not running), or `content-available` launches the app in the background. With `isim run` (the app alone) the payload goes straight to the app. Outside scripts: `isim push [BUNDLE_ID] payload.apns\|-`, or drop a `.apns` file (with a `"Simulator Target Bundle"` key) on the device window. A top-level `"apns-collapse-id"` key becomes the notification's identifier |
+| `push BUNDLE_ID FILE` | deliver a remote notification payload (JSON with an `aps` dictionary), like `xcrun simctl push`: the Notification Service extension runs for `mutable-content`, then the running app gets it, or the system shows it (app not running), or `content-available` launches the app in the background. With `isim run` (the app alone) the payload goes straight to the app. Outside scripts: `isim push [BUNDLE_ID] payload.apns\|-`, or drop a `.apns` file (with a `"Simulator Target Bundle"` key) on the device window. A top-level `"apns-collapse-id"` key becomes the notification's identifier; a top-level `"apns-push-type": "voip"` makes it a PushKit VoIP push (no `aps` needed; apps with `UIBackgroundModes` `voip`, launched in the background when not running) |
 | `appearance light\|dark` | switch the device appearance (like Settings > Display & Brightness); running apps get a trait change (`traitCollectionDidChange`, `registerForTraitChanges`) |
 | `contrast on\|off` | Increase Contrast (`accessibilityContrast`): high-contrast system and asset colors |
 | `boldtext on\|off` | Bold Text (`legibilityWeight`) |
@@ -53,10 +53,11 @@ Coordinates are in points of the device screen, with the origin at the top left.
 |---|---|
 | `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock (apps lose protected data while locked: `isProtectedDataAvailable`, the delegate calls and notifications) |
 | `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
-| `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
+| `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears). An app's notifications of one thread are a stack, `nc-group-ID` (ID: the newest; text: its title and the summary, e.g. `Ann (2 more messages from Ann)`): `tapid` expands it into `nc-item-…` items under `nc-less-ID` (Show Less) |
 | `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; Now Playing: `cc-nowplaying` (its text is the title — artist), `cc-np-previous`, `cc-np-play`, `cc-np-next`; `tapid cc-background` closes). `cc-focus` toggles the last Focus, `cc-focus-modes` opens the Focus list (`cc-focus-dnd`, `cc-focus-personal`, `cc-focus-work`, `cc-focus-sleep`; `cc-page-background` goes back). iOS 18+: `cc-edit` is edit mode (`cc-remove-NAME`, `cc-resize-KIND` for app controls, `cc-add-control` opens the gallery: `cc-gallery-KIND` adds an app's ControlWidget, `cc-gallery-system-NAME` a system control, `cc-gallery-close`; `cc-edit-background` ends edit mode); added controls are `cc-control-KIND` (text: title and value) and run their intent when tapped. The lock screen's player has `lock-nowplaying`, `lock-np-previous`, `lock-np-play`, `lock-np-next` |
 | `focus dnd\|personal\|work\|sleep\|off` | turn a Focus on (or off), like Control Center's Focus list (logs `isim shell: Focus Work on`): banners of apps the Focus does not allow (Settings › Focus › the Focus › Apps) are silenced, time-sensitive ones break through, apps' Focus filters run (`SetFocusFilterIntent.perform()`) |
 | `lockcontrol left\|right CONTROL` | the Lock Screen's bottom buttons (iOS 18 lets you replace the flashlight and camera): `flashlight`, `camera`, `timer`, `dark`, `lowpower`, `focus`, `none`, or an app control's kind; on the lock screen `tapid lock-control-left` / `lock-control-right` runs it |
+| `silent on\|off` | Silent Mode (the Ring/Silent switch): notification sounds and ringtones are not played (critical alerts still are) |
 | `actionbutton [assign CONTROL]` | press the Action button (iPhone 15 Pro and later, iPhone 16 and 17 presets; default: Silent Mode), or assign it a control (`silent`, `focus`, `flashlight`, …, or an app control's kind). Devices without one log that they have none |
 | `spotlight` | Spotlight on the home screen (it also lists the apps' App Shortcuts: `spotlight-shortcut-BUNDLE-N`) |
 | `siri` · `siri PHRASE` · `siri intent CLASS KEY=VALUE …` · `siri dismiss` | the simulated Siri (see below): `siri` alone starts listening (like holding the side button); `siri PHRASE` is what you say, or the answer to Siri's question; `siri intent` builds a SiriKit intent directly |
@@ -73,7 +74,17 @@ While one of these is shown, `dump` lists its parts (ids and text) and `tapid` /
 `dump` lists `nx-content` (tap: open the app), `nx-action-ID` for each action of the notification's category and
 `nx-background` (tap: close; categories with `.customDismissAction` send the dismiss action). A text input action
 opens `nx-reply-field`: `type TEXT` then `key return` (or `tapid nx-reply-send`) sends the reply. A Notification Content
-extension's view is drawn at the top of the card.
+extension's view is drawn at the top of the card, `nx-extension` (with `UNNotificationExtensionUserInteractionEnabled`,
+`tap X Y` inside it reaches the extension's views), with its media button `nx-media` (text `Play` / `Pause`); the
+actions are the extension's `notificationActions` when it sets them, answered by its `didReceive(_:completionHandler:)`.
+
+**Calls** (CallKit; the shell draws iOS's call UI for the apps' VoIP calls): an incoming call is a banner while the
+device is in use (`call-banner`: tap for the full-screen call; `call-decline`, `call-accept`) or the full-screen call
+on the Lock Screen (`call-accept`: slide to answer). The call screen has `call-caller`, `call-status` (duration, "on
+hold"), `call-speaker`, `call-video`, `call-mute`, `call-hold` (calls that support holding; else `call-add`),
+`call-app` (opens the app), `call-keypad` (then `call-key-0` … `call-key-9`, `call-key-star`, `call-key-hash`,
+`call-keypad-hide`) and `call-end`. `home` hides it; the call then shows as `call-pill` (the green indicator, or the
+Dynamic Island's phone and duration), which brings it back. `dump` lists them as `IsimCallButton`.
 
 **Siri** (adapted; isim has no speech recognition, so Siri understands text): `siri PHRASE` is matched, in this
 order, against the installed apps' App Shortcut phrases (case and trailing punctuation ignored; `\(.applicationName)`
@@ -215,6 +226,7 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | `dump` | print the foreground app's view tree (frames, text, identifiers; `ISIM_DUMP_ACCESSIBILITY=1` adds accessibility descriptions) |
 | `dump FILE` | write an accessibility snapshot to FILE (used by XCUITest and the Python tests) |
 | `dump views FILE` | write the view tree (as `dump` prints it) to FILE |
+| `sysevent TEXT` | hand the app a system event as the shell would (`remote-notification FILE`, `nx-media play`, …); the shell drives extension helpers this way, through their control channel |
 
 ## Interactive shortcuts
 
