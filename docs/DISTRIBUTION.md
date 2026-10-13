@@ -43,11 +43,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: kolabs-dev/mobile-actions/ios-upload@v1
         with:
-          workspace: MyApp.xcodeproj/project.xcworkspace   # or your .xcworkspace
+          project: MyApp.xcodeproj          # or workspace: MyApp.xcworkspace; auto-detected if omitted
           scheme: MyApp
           bundle-id: com.example.myapp
           team-id: ${{ secrets.APPLE_TEAM_ID }}
-          xcode-version: '26.0'             # App Store Connect requires Xcode 26 or later
           certificate: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
           certificate-password: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
           provisioning-profile: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
@@ -59,10 +58,9 @@ jobs:
 
 Notes:
 
-- The action builds a workspace. A project without one can point `workspace` at the one inside the project
-  (`MyApp.xcodeproj/project.xcworkspace`, which Xcode creates and most repositories commit).
-- Set `xcode-version` and `runs-on` to an Xcode that meets Apple's current
-  [upload requirements](https://developer.apple.com/news/upcoming-requirements/); the action's default may be older.
+- The action uses the runner's default Xcode (or `xcode-version`, when set) and stops early if it is older than Apple's
+  current [upload requirements](https://developer.apple.com/news/upcoming-requirements/) allow, so pick a `runs-on`
+  image that has a current Xcode.
 - Keys and certificates go into GitHub Actions secrets, never into the repository. mobile-actions'
   [iOS setup guide](https://github.com/kolabs-dev/mobile-actions/blob/main/docs/setup/ios-upload.md) walks through
   the certificate, the provisioning profile and the App Store Connect API key.
