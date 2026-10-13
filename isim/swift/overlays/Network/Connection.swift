@@ -6,7 +6,7 @@
 // store and host-name check, or the app's sec_protocol_options verify block. Adapted: Bonjour is a local
 // registry shared by the apps of this isim device ($ISIM_DATA/Library/isim/Bonjour), not multicast DNS — services
 // are found by apps on the same simulated device only. Not provided: TLS listeners (server identities), DTLS,
-// QUIC, NWProtocolWebSocket/NWProtocolFramer, multicast groups.
+// QUIC. WebSocket and framer message protocols: Protocols.swift; multicast and connection groups: Group.swift.
 @_exported import Foundation
 import isim_host
 
@@ -17,6 +17,7 @@ public enum POSIXErrorCode: Int32, Sendable {
     case EPERM = 1, ENOENT = 2, EINTR = 4, EIO = 5, EBADF = 9, EAGAIN = 35, ENOMEM = 12, EACCES = 13, EINVAL = 22, EPIPE = 32
     case EADDRINUSE = 48, EADDRNOTAVAIL = 49, ENETDOWN = 50, ENETUNREACH = 51, ECONNABORTED = 53, ECONNRESET = 54, ENOBUFS = 55
     case EISCONN = 56, ENOTCONN = 57, ETIMEDOUT = 60, ECONNREFUSED = 61, EHOSTUNREACH = 65, ECANCELED = 89, EMSGSIZE = 40, ENOTSUP = 45
+    case EPROTO = 100
 }
 
 public enum NWError: Error, Equatable, CustomDebugStringConvertible, Sendable {
@@ -143,7 +144,11 @@ public class NWProtocolDefinition: Equatable, CustomDebugStringConvertible, @unc
     public var debugDescription: String { name }
 }
 public class NWProtocolOptions: @unchecked Sendable { init() {} }
-public class NWProtocolMetadata: @unchecked Sendable { init() {} }
+public class NWProtocolMetadata: @unchecked Sendable {
+    /// the protocol this metadata belongs to (ContentContext.protocolMetadata(definition:))
+    var _definition: NWProtocolDefinition?
+    init() {}
+}
 public enum NWProtocolIP {
     public static let definition = NWProtocolDefinition("ip")
     public final class Options: NWProtocolOptions, @unchecked Sendable {
@@ -292,6 +297,7 @@ public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendab
                       : NWParameters(tls: tls, tcp: (defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options) ?? NWProtocolTCP.Options())
         p.allowLocalEndpointReuse = allowLocalEndpointReuse; p.requiredLocalEndpoint = requiredLocalEndpoint; p.includePeerToPeer = includePeerToPeer
         p.acceptLocalOnly = acceptLocalOnly; p.serviceClass = serviceClass
+        p.defaultProtocolStack.applicationProtocols = defaultProtocolStack.applicationProtocols
         return p
     }
     var tcpOptions: NWProtocolTCP.Options? { defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options }
@@ -330,7 +336,7 @@ enum _NWSock {
             guard let s = _NWBonjour.lookup(name: name, type: type) else { return .failure(.dns(-65554)) }
             return resolve(.hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: s.port) ?? .any), udp: udp)
         case .url(let u):
-            let port = u.port.map { UInt16($0) } ?? (u.scheme == "https" ? 443 : 80)
+            let port = u.port.map { UInt16($0) } ?? (u.scheme == "https" || u.scheme == "wss" ? 443 : 80)
             return resolve(.hostPort(host: NWEndpoint.Host(u.host ?? "localhost"), port: NWEndpoint.Port(rawValue: port)!), udp: udp)
         default:
             return .failure(.posix(.EINVAL))
@@ -388,7 +394,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         public static let defaultMessage = ContentContext(identifier: "default_message")
         public static let finalMessage = ContentContext(identifier: "final_message", isFinal: true)
         public static let defaultStream = ContentContext(identifier: "default_stream")
-        public func protocolMetadata(definition: NWProtocolDefinition) -> NWProtocolMetadata? { nil }
+        public func protocolMetadata(definition: NWProtocolDefinition) -> NWProtocolMetadata? { protocolMetadata.first { $0._definition == definition } }
     }
 
     public let endpoint: NWEndpoint
@@ -424,6 +430,8 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
     /// datagram connections from an NWListener (UDP): sends go through the listener's socket
     var udpPeer: (send: (Data) -> Int, inbox: _NWInbox)?
     var acceptedFD: Int32 = -1
+    /// a message protocol over the byte stream (WebSocket, a framer): Protocols.swift
+    var layer: _NWMessageLayer?
 
     public init(to endpoint: NWEndpoint, using parameters: NWParameters) {
         NWConnection.counter += 1; id = NWConnection.counter
@@ -457,7 +465,12 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         lock.unlock()
         setState(.preparing)
         if udpPeer != nil { setState(.ready); return }
-        if acceptedFD >= 0 { fd = acceptedFD; setState(.ready); return }
+        if acceptedFD >= 0 {
+            fd = acceptedFD
+            layer = NWConnection._messageLayer(parameters, server: true)
+            ioQueue.async { self.transportReady() }
+            return
+        }
         ioQueue.async { self.connect() }
     }
     public func restart() {
@@ -487,7 +500,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
                     lock.lock(); let cancelled = _state == .cancelled; if !cancelled { fd = s }; lock.unlock()
                     if cancelled { close(s); return }
                     if let tlsOpts = parameters.tls { startTLS(tlsOpts.securityProtocolOptions); return }
-                    setState(.ready)
+                    transportReady()
                     return
                 }
                 lastErr = errno
@@ -523,11 +536,51 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
             sem.wait()
             guard ok else { setState(.failed(.tls(-9807))); return }
         }
+        transportReady()
+    }
+
+    /// the byte stream is up: run the message protocol's handshake, if there is one, then the connection is ready
+    func transportReady() {
+        if layer == nil && acceptedFD < 0 { layer = NWConnection._messageLayer(parameters, server: false) }
+        if let l = layer, let e = l.start(self) { setState(.failed(e)); return }
         setState(.ready)
+    }
+    /// writes all of d to the transport (TLS or the socket)
+    func _transportWrite(_ d: Data) -> NWError? {
+        guard !d.isEmpty else { return nil }
+        var off = 0
+        let ok: Bool = d.withUnsafeBytes { raw in
+            while off < d.count {
+                let n: Int
+                if let t = tls { n = isim_tls_write(t, raw.baseAddress! + off, d.count - off) }
+                else { n = Darwin_send(fd, raw.baseAddress! + off, d.count - off) }
+                if n <= 0 { return false }
+                off += n
+            }
+            return true
+        }
+        return ok ? nil : _NWErrno.posix(errno == 0 ? EPIPE : errno)
+    }
+    /// one read from the transport, whatever the connection's state: (data, end of stream, error)
+    func _transportRead(max: Int) -> (Data?, Bool, NWError?) {
+        var buf = [UInt8](repeating: 0, count: max)
+        while true {
+            let n: Int = buf.withUnsafeMutableBytes { b in
+                if let t = tls { return isim_tls_read(t, b.baseAddress!, max) }
+                return Darwin_recv(fd, b.baseAddress!, max)
+            }
+            if n > 0 { return (Data(buf[0..<n]), false, nil) }
+            if n == 0 { return (nil, true, nil) }
+            if state == .cancelled { return (nil, false, .posix(.ECANCELED)) }
+            let e = errno
+            if e == EINTR || e == EAGAIN { continue }
+            return (nil, false, _NWErrno.posix(e == 0 ? ECONNRESET : e))
+        }
     }
 
     public func metadata(definition: NWProtocolDefinition) -> NWProtocolMetadata? {
         if definition == NWProtocolTLS.definition, let m = tlsMeta { return NWProtocolTLS.Metadata(m) }
+        if let l = layer, definition == l.definition { return l.metadata() }
         if definition == NWProtocolTCP.definition, !parameters.isUDP { return NWProtocolTCP.Metadata() }
         return nil
     }
@@ -539,6 +592,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         }
         ioQueue.async { [self] in
             guard state == .ready else { done(.posix(state == .cancelled ? .ECANCELED : .ENOTCONN)); return }
+            if let l = layer { done(l.send(self, content, contentContext, isComplete)); return }
             if let d = content, !d.isEmpty {
                 if let peer = udpPeer {
                     done(peer.send(d) < 0 ? _NWErrno.posix(errno) : nil); return
@@ -567,12 +621,14 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
     public func receive(minimumIncompleteLength: Int, maximumLength: Int,
                         completion: @escaping @Sendable (Data?, ContentContext?, Bool, NWError?) -> Void) {
         readQueue.async { [self] in
+            if let r = layerReceive() { (queue ?? .main).async { completion(r.0, r.1, r.2, r.3) }; return }
             let r = readSome(min: max(1, minimumIncompleteLength), max: max(1, maximumLength))
             (queue ?? .main).async { completion(r.0, r.0 == nil && !r.1 ? nil : .defaultStream, r.1, r.2) }
         }
     }
     public func receiveMessage(completion: @escaping @Sendable (Data?, ContentContext?, Bool, NWError?) -> Void) {
         readQueue.async { [self] in
+            if let r = layerReceive() { (queue ?? .main).async { completion(r.0, r.1, r.2, r.3) }; return }
             if parameters.isUDP {
                 let r = readSome(min: 1, max: 65536)
                 (queue ?? .main).async { completion(r.0, .defaultMessage, true, r.2) }
@@ -586,6 +642,13 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
                 if r.1 { (queue ?? .main).async { completion(all.isEmpty ? nil : all, .finalMessage, true, nil) }; return }
             }
         }
+    }
+    /// a whole message from the message protocol (nil when the connection has none)
+    func layerReceive() -> (Data?, ContentContext?, Bool, NWError?)? {
+        guard let l = layer else { return nil }
+        while state == .preparing || state == .setup { usleep(5000) }
+        guard state == .ready else { return (nil, nil, false, .posix(state == .cancelled ? .ECANCELED : .ENOTCONN)) }
+        return l.receive(self)
     }
     /// blocking read: (data, complete (EOF / datagram), error)
     func readSome(min: Int, max: Int) -> (Data?, Bool, NWError?) {
@@ -621,9 +684,11 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         lock.lock()
         if _state == .cancelled { lock.unlock(); return }
         let h = _stateHandler, q = queue
+        let prior = _state
         _state = .cancelled
         let f = fd, t = tls
         lock.unlock()
+        if let l = layer, f >= 0, case .ready = prior { l.stop(self) }   /* a close frame, the framer's stop */
         if f >= 0 { shutdown(f, SHUT_RDWR) }
         udpPeer?.inbox.close()
         ioQueue.async {

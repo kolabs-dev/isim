@@ -618,12 +618,17 @@ func tlsChecks(env: [String: String]) async {
         let env = ProcessInfo.processInfo.environment
         if let port = env["ISIM_TEST_WS_PORT"] {
             await webSocketChecks(base: "ws://127.0.0.1:\(port)", what: "ws")
+            nwWebSocketClientChecks(port: port)
         } else { check(false, "WebSocket server port (ISIM_TEST_WS_PORT; run through test_swift_network.py)") }
         if let port = env["ISIM_TEST_WSS_PORT"] {                  // TLS: a throwaway certificate for localhost (SSL_CERT_FILE)
             await webSocketChecks(base: "wss://localhost:\(port)", what: "wss")
             await tlsChecks(env: env)
         }
         if let port = env["ISIM_TEST_WSS_PORT"], let p = Int(port) { tlsStreamCheck(port: p) }
+        // MARK: Network framework message protocols and groups (NWProtocols.swift)
+        nwWebSocketServerChecks()
+        nwFramerChecks()
+        nwConnectionGroupChecks()
 
         print("network test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
