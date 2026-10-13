@@ -139,8 +139,38 @@ def test_swiftui_map(launch, tmp_path):
     app.tap_id("goto-gg")
     app.wait_log(r"HelloMaps: swiftui camera 37.8199,-122.4783")
     app.wait_view(r"id=swiftui-map text=map center 37.8199", what="SwiftUI position binding + onMapCameraChange")
+    # .mapControls { MapUserLocationButton(); MapPitchToggle(); MapCompass(); MapScaleView() } drawn by the map
+    controls = app.wait_view(r"id=map-pitch text=3D")
+    assert "id=map-user-location text=location arrow" in controls and "id=map-scale" in controls, "map controls drawn"
+    app.tap_id("map-pitch")
+    app.wait_view(r"id=map-pitch text=2D", what="MapPitchToggle tilts the map")
+    app.wait_view(r"id=swiftui-map text=map center .* pitch 60")
+    app.tap_id("map-pitch")
+    app.wait_view(r"id=map-pitch text=3D", what="and lays it flat again")
+    app.tap_id("map-user-location")
+    app.wait_view(r"id=map-user-location text=location arrow \(following\)", what="MapUserLocationButton follows the user")
+    app.wait_log(r"HelloMaps: swiftui camera 37.3349,-122.0090")
     assert app.quit() == 0, "exits cleanly"
     assert shot and first and selected
+
+
+def test_swiftui_map_legacy(launch, tmp_path):
+    """The iOS 14 SwiftUI Map: Map(coordinateRegion:showsUserLocation:userTrackingMode:annotationItems:) with MapMarker
+    (a marker balloon), MapPin (a pin) and MapAnnotation (SwiftUI content); the tracking-mode binding follows the user."""
+    app = maps(launch, tmp_path, "legacy", args=["-swiftui-legacy"])
+    dump = app.wait_view(lambda d: "MKMarkerAnnotationView  @ 37.33490,-122.00902" in d and "MKPinAnnotationView  @ 37.33182,-122.03118" in d
+                         and "_MapHostingAnnotationView  @ 37.33020,-122.02850" in d and "MKUserLocationView" in d,
+                         what="MapMarker, MapPin, MapAnnotation and the user location")
+    shot = app.wait_shot(lambda s: count_px(s, (0, 260, 402, 230), GREEN) > 20 and count_px(s, (0, 500, 402, 240), YELLOW) > 200,
+                         "the green pin and the yellow SwiftUI annotation")
+    app.screenshot("legacy")
+    app.tap_id("follow")
+    app.wait_log(r"HelloMaps: legacy tracking follow")
+    app.wait_view(r"id=legacy-marker text=map center 37.3349\d,-122.0090\d", what="userTrackingMode .follow centres on the user")
+    app.drag(200, 120, 260, 180, 0.4)
+    app.wait_log(r"HelloMaps: legacy tracking none")   # panning stops following, and the binding hears it
+    assert app.quit() == 0, "exits cleanly"
+    assert dump and shot
 
 
 WATER = frac(lambda r, g, b: 0.55 < r < 0.7 and 0.74 < g < 0.86 and b > 0.92)

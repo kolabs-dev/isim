@@ -619,13 +619,21 @@ open class MKMapSnapshotter: NSObject, @unchecked Sendable {
 /// MKUserTrackingButton: toggles the map's user tracking mode (location arrow).
 open class MKUserTrackingButton: UIView {
     open weak var mapView: MKMapView?
-    public init(mapView: MKMapView?) { self.mapView = mapView; super.init(frame: CGRect(x: 0, y: 0, width: 44, height: 44)); backgroundColor = .systemBackground; layer.cornerRadius = 8 }
+    public init(mapView: MKMapView?) {
+        self.mapView = mapView
+        super.init(frame: CGRect(x: 0, y: 0, width: 44, height: 44))
+        backgroundColor = .clear
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(_tapped)))
+    }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
-    open override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    @objc func _tapped() {
         guard let m = mapView else { return }
         m.setUserTrackingMode(m.userTrackingMode == .none ? .follow : .none, animated: true); setNeedsDisplay()
+        if m.userTrackingMode != .none && !m.showsUserLocation { m.showsUserLocation = true }
     }
+    @objc func _isim_dumpText() -> String { mapView?.userTrackingMode == MKUserTrackingMode.none ? "location arrow" : "location arrow (following)" }
     open override func draw(_ rect: CGRect) {
+        _MKControlPanel.draw(in: bounds, top: true, bottom: mapView?._showsPitchButton != true || superview !== mapView, traits: traitCollection)
         let c = CGPoint(x: bounds.midX, y: bounds.midY)
         let p = UIBezierPath()
         p.move(to: CGPoint(x: c.x + 8, y: c.y - 8)); p.addLine(to: CGPoint(x: c.x - 9, y: c.y - 1)); p.addLine(to: CGPoint(x: c.x - 1, y: c.y + 1))

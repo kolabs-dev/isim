@@ -213,14 +213,16 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     open var showsTraffic = false
     open var showsPointsOfInterest = true
     open var pointOfInterestFilter: MKPointOfInterestFilter?
-    open var showsUserTrackingButton = false
+    open var showsUserTrackingButton = false { didSet { setNeedsLayout() } }
+    /// the SwiftUI Map's MapPitchToggle
+    var _showsPitchButton = false { didSet { setNeedsLayout() } }
     open var cameraZoomRange: MKMapCameraZoomRange! = MKMapCameraZoomRange(minCenterCoordinateDistance: 0)
     open var cameraBoundary: MKMapCameraBoundary?
     open var selectableMapFeatures: Int = 0
     open private(set) var userLocation = MKUserLocation()
     open var isUserLocationVisible: Bool { showsUserLocation && userLocation.location.map { visibleMapRect.contains(MKMapPoint($0.coordinate)) } ?? false }
     open var userTrackingMode: MKUserTrackingMode = .none {
-        didSet { if oldValue != userTrackingMode { delegate?.mapView(self, didChange: userTrackingMode, animated: false); _follow() } }
+        didSet { if oldValue != userTrackingMode { delegate?.mapView(self, didChange: userTrackingMode, animated: false); _trackingButton.setNeedsDisplay(); _follow() } }
     }
     open func setUserTrackingMode(_ mode: MKUserTrackingMode, animated: Bool) { userTrackingMode = mode }
     open var showsUserLocation = false { didSet { if oldValue != showsUserLocation { _locating(showsUserLocation) } } }
@@ -241,7 +243,9 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     var _callout: _MKCalloutView?
     var _location: CLLocationManager?
     lazy var _compass: MKCompassButton = MKCompassButton(mapView: self)
-    lazy var _scaleView: MKScaleView = MKScaleView(mapView: self)
+    lazy var _scaleView: MKScaleView = { let v = MKScaleView(mapView: self); v.accessibilityIdentifier = "map-scale"; return v }()
+    lazy var _trackingButton: MKUserTrackingButton = { let b = MKUserTrackingButton(mapView: self); b.accessibilityIdentifier = "map-user-location"; return b }()
+    lazy var _pitchButton: _MKPitchButton = { let b = _MKPitchButton(); b.map = self; b.accessibilityIdentifier = "map-pitch"; return b }()
     let _attribution = _MKAttributionView()
 
     public override init(frame: CGRect) {
@@ -399,7 +403,7 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     }
     func _regionChanged() {
         _base.setNeedsDisplay()
-        _compass.setNeedsDisplay(); _scaleView.setNeedsDisplay()
+        _compass.setNeedsDisplay(); _scaleView.setNeedsDisplay(); _pitchButton.setNeedsDisplay()
         setNeedsLayout()
         _layoutAnnotations()
     }
@@ -471,13 +475,26 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
         if _annotationLayer.frame != bounds { _annotationLayer.frame = bounds; _layoutBase() }
         if bounds.width >= 1, bounds.height >= 1, let f = _pendingFit { _pendingFit = nil; f() }
         _attribution.frame = CGRect(x: 9, y: bounds.maxY - 19, width: 200, height: 16)
-        // the compass shows while the map is turned (adapted from iOS 17: top right, below the safe area)
+        // adapted from iOS 17: the controls in a column at the top right, below the safe area: the user-location and
+        // pitch buttons on one rounded panel, then the compass (shown while the map is turned)
+        func place(_ v: UIView, _ on: Bool) -> Bool {
+            if on { if v.superview !== self { addSubview(v) } } else if v.superview === self { v.removeFromSuperview() }
+            return on
+        }
+        let right = bounds.maxX - safeAreaInsets.right - 8
+        var y = safeAreaInsets.top + 8
+        if place(_trackingButton, showsUserTrackingButton) {
+            _trackingButton.frame = CGRect(x: right - 44, y: y, width: 44, height: 44); y += 44
+        }
+        if place(_pitchButton, _showsPitchButton) {
+            _pitchButton.frame = CGRect(x: right - 44, y: y, width: 44, height: 44); y += 44
+        }
+        if showsUserTrackingButton || _showsPitchButton { y += 8 }
         let showCompass = showsCompass && (abs(_heading) > 0.5 && abs(_heading - 360) > 0.5)
-        if showCompass {
-            if _compass.superview !== self { addSubview(_compass) }
-            _compass.frame = CGRect(x: bounds.maxX - safeAreaInsets.right - 8 - 40, y: safeAreaInsets.top + 8, width: 40, height: 40)
+        if place(_compass, showCompass) {
+            _compass.frame = CGRect(x: right - 42, y: y, width: 40, height: 40)
             _compass.isHidden = false
-        } else if _compass.superview === self { _compass.removeFromSuperview() }
+        }
         if showsScale {
             if _scaleView.superview !== self { addSubview(_scaleView) }
             _scaleView.frame = CGRect(x: safeAreaInsets.left + 12, y: safeAreaInsets.top + 8, width: 150, height: 20)
@@ -870,6 +887,47 @@ final class _MKCameraAnimation: NSObject {
             stop()
             if m._animation === self { m._animation = nil }
             m.delegate?.mapView(m, regionDidChangeAnimated: true)
+        }
+    }
+}
+
+/// the SwiftUI Map's pitch toggle: "3D" tilts the map, "2D" lays it flat (adapted from iOS 17's button)
+final class _MKPitchButton: UIView {
+    weak var map: MKMapView?
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped)))
+    }
+    required init?(coder: NSCoder) { super.init(coder: coder) }
+    @objc func tapped() {
+        guard let m = map else { return }
+        let c = m.camera
+        c.pitch = m._pitch > 0 ? 0 : MKMapView._maxPitch
+        m.setCamera(c, animated: true)
+    }
+    override func draw(_ rect: CGRect) {
+        _MKControlPanel.draw(in: bounds, top: map?.showsUserTrackingButton != true, bottom: true, traits: traitCollection)
+        let t = (map?._pitch ?? 0) > 0 ? "2D" : "3D"
+        let f = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        let sz = (t as NSString).size(withAttributes: [.font: f])
+        (t as NSString).draw(at: CGPoint(x: bounds.midX - sz.width / 2, y: bounds.midY - sz.height / 2), withAttributes: [.font: f, .foregroundColor: UIColor.systemBlue])
+    }
+    @objc func _isim_dumpText() -> String { (map?._pitch ?? 0) > 0 ? "2D" : "3D" }
+}
+
+/// the rounded panel behind the map's buttons (rounded at the ends of a group, a hairline between buttons)
+enum _MKControlPanel {
+    static func draw(in b: CGRect, top: Bool, bottom: Bool, traits: UITraitCollection) {
+        let dark = traits.userInterfaceStyle == .dark
+        var corners: UIRectCorner = []
+        if top { corners.formUnion([.topLeft, .topRight]) }
+        if bottom { corners.formUnion([.bottomLeft, .bottomRight]) }
+        (dark ? UIColor(white: 0.18, alpha: 0.94) : UIColor(white: 1, alpha: 0.94)).setFill()
+        UIBezierPath(roundedRect: b, byRoundingCorners: corners, cornerRadii: CGSize(width: 8, height: 8)).fill()
+        if !top {
+            UIColor.separator.setFill()
+            UIBezierPath(rect: CGRect(x: b.minX, y: b.minY, width: b.width, height: 0.5)).fill()
         }
     }
 }

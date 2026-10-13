@@ -20,7 +20,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        if ProcessInfo.processInfo.arguments.contains("-swiftui") {
+        if ProcessInfo.processInfo.arguments.contains("-swiftui-legacy") {
+            window?.rootViewController = UIHostingController(rootView: LegacyMapScreen())
+        } else if ProcessInfo.processInfo.arguments.contains("-swiftui") {
             window?.rootViewController = UIHostingController(rootView: SwiftUIMapScreen())
         } else {
             window?.rootViewController = MapViewController()
@@ -300,6 +302,12 @@ struct SwiftUIMapScreen: View {
                 UserAnnotation()
             }
             .mapStyle(.standard)
+            .mapControls {
+                MapUserLocationButton()
+                MapPitchToggle()
+                MapCompass()
+                MapScaleView()
+            }
             .onMapCameraChange { ctx in
                 cameraText = String(format: "camera %.4f,%.4f", ctx.region.center.latitude, ctx.region.center.longitude)
                 log("swiftui camera \(fmt(ctx.region.center))")
@@ -313,6 +321,33 @@ struct SwiftUIMapScreen: View {
             }.padding(.bottom, 8)
         }
         .onChange(of: selection) { _, s in log("swiftui selection \(s ?? "nil")") }
+        .onAppear { locationManager.requestWhenInUseAuthorization() }
+    }
+}
+
+/// the iOS 14 SwiftUI Map: Map(coordinateRegion:showsUserLocation:userTrackingMode:annotationItems:) with MapMarker,
+/// MapPin and MapAnnotation (one map each: an annotation closure returns one kind)
+struct LegacyMapScreen: View {
+    @State private var region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 37.3335, longitude: -122.0180),
+                                                   latitudinalMeters: 4000, longitudinalMeters: 4000)
+    @State private var tracking: MapUserTrackingMode = .none
+    let park = [Spot(id: "Apple Park", coordinate: applePark)]
+    let loop = [Spot(id: "Infinite Loop", coordinate: infiniteLoop)]
+    let cafe = [Spot(id: "Cafe", coordinate: CLLocationCoordinate2D(latitude: 37.3302, longitude: -122.0285))]
+    var body: some View {
+        VStack(spacing: 2) {
+            Map(coordinateRegion: $region, showsUserLocation: true, userTrackingMode: $tracking, annotationItems: park) { s in
+                MapMarker(coordinate: s.coordinate, tint: .purple)
+            }.accessibilityIdentifier("legacy-marker")
+            Map(coordinateRegion: $region, annotationItems: loop) { s in MapPin(coordinate: s.coordinate, tint: .green) }
+                .accessibilityIdentifier("legacy-pin")
+            Map(coordinateRegion: $region, annotationItems: cafe) { s in
+                MapAnnotation(coordinate: s.coordinate) { Text("Cafe").font(.caption).bold().padding(6).background(Color.yellow).cornerRadius(8) }
+            }.accessibilityIdentifier("legacy-annotation")
+            Button("Follow") { tracking = .follow }.accessibilityIdentifier("follow").padding(.bottom, 8)
+        }
+        .onChange(of: tracking) { _, t in log("legacy tracking \(t == .follow ? "follow" : "none")") }
+        .onChange(of: region.center.latitude) { _, _ in log("legacy region \(fmt(region.center))") }
         .onAppear { locationManager.requestWhenInUseAuthorization() }
     }
 }
