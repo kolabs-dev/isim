@@ -84,10 +84,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | App extensions & system integration | 9 | 1 | 0 | 0 | 10 | 95% |
 | Location & maps | 7 | 0 | 0 | 0 | 7 | 100% |
 | Personal data & device sensors | 6 | 0 | 0 | 0 | 6 | 100% |
-| Web & communication | 16 | 0 | 1 | 0 | 17 | 94% |
+| Web & communication | 16 | 0 | 1 | 1 | 18 | 89% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **1055** | **36** | **9** | **13** | **1113** | **96%** |
+| **All areas** | **1055** | **36** | **9** | **14** | **1114** | **96%** |
 
 ### Per iOS version
 
@@ -118,10 +118,10 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | App extensions & system integration | 95% (10) | 95% (10) | 95% (10) | 95% (10) |
 | Location & maps | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | Personal data & device sensors | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
-| Web & communication | 94% (16) | 94% (16) | 94% (17) | 94% (17) |
+| Web & communication | 88% (17) | 88% (17) | 89% (18) | 89% (18) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
-| **All areas** | **96%** (1047) | **96%** (1063) | **96%** (1092) | **96%** (1113) |
+| **All areas** | **96%** (1048) | **96%** (1064) | **96%** (1093) | **96%** (1114) |
 
 ---
 
@@ -1529,6 +1529,7 @@ are not part of isim. Apps get them from their own packages, which `isim build` 
 | WebKit JavaScript bridge (`evaluateJavaScript`, `callAsyncJavaScript`, content worlds, `WKUserScript`, `WKScriptMessageHandler`(`WithReply`), `WKURLSchemeHandler`) | ✅ | ≤17 | results converted like iOS (dictionaries, arrays, numbers, `WKError.javaScriptExceptionOccurred`, unsupported types); isolated worlds; replies to page promises. Tested |
 | WebKit input, selection, scrolling, zoom, menus, find, PDF, web archives, website data (`WKWebsiteDataStore`, `WKHTTPCookieStore`), snapshots | ✅ | ≤17 | adapted input: taps, typing (system keyboard on focused fields) and scrolling become DOM events from an isolated world (`isTrusted` false); `scrollView` mirrors page scrolling. A long press selects a word (selection tint and handles, edit menu with Copy / Select All / Share…, `copy:` / `selectAll:`); a long press on a link or image opens a context menu with a live preview (`WKUIDelegate` `contextMenuConfigurationFor`, will-present, did-end, commit; else Open / Copy Link / Share…); `<select>` and `<select multiple>` become UIKit menus (option groups, disabled options, change events); pinch zoom within the viewport meta's scales (`user-scalable=no` honoured), `scrollView.zoomScale` follows; `isFindInteractionEnabled` / `findInteraction` (find navigator, highlights, n of m); `createPDF` (whole page or `WKPDFConfiguration.rect`, WebKit's print backend at CSS size, cropped with poppler) and `createWebArchiveData` (WebKit's MHTML as a webarchive plist: main resource and subresources). Cookies get/set/delete and data removal; `takeSnapshot`. Tested (test_web, test_web_interact) |
 | SwiftUI `WebView` / `WebPage` (iOS 26) | ✅ | 26.0 | on WKWebView: `WebPage` is `@Observable` (`title`, `url`, `isLoading`, `estimatedProgress`, `currentNavigationEvent`), `load` (request, HTML, data) returning the navigation events as an `AsyncSequence`, `reload`, `callJavaScript` with arguments, `pdf`, `snapshot`, `webArchiveData`, `find`, `URLSchemeHandler`; `WebView(page)` / `WebView(url:)` with `webViewBackForwardNavigationGestures`, `webViewLinkPreviews`, `webViewMagnificationGestures`, `webViewContentBackground`. Tested (HelloWeb -webpage, test_web_webpage) |
+| WebKit from Objective-C (`#import <WebKit/WebKit.h>`, `WKWebView` by its Objective-C name) | ❌ | ≤17 | isim's WebKit is a Swift overlay: no Objective-C headers or class names yet, so Objective-C apps and binary SDKs that use WKWebView (e.g. Google Mobile Ads) do not build or run ([#200](https://github.com/kolabs-dev/isim/issues/200)) |
 | SafariServices (`SFSafariViewController`) | ✅ | ≤17 | iOS 17-style chrome (Done/Close/Cancel, domain + lock, “aA” button (cosmetic), back/forward/share/Open in Safari toolbar) on isim's WKWebView; delegate initial load / redirect / finish; tint colors; `DataStore.clearWebsiteData`. Adapted: its own in-memory website data (not Safari's), Reader and bar collapsing not real, Open in Safari logged. Tested (HelloSafari) |
 | MessageUI (`MFMailComposeViewController`, `MFMessageComposeViewController`) | ✅ | ≤17 | like the Simulator `canSendMail()`/`canSendText()` are false (presenting shows nothing); `ISIM_MAIL=1` / `ISIM_MESSAGES=1` give the device accounts: iOS 17-style composers prefilled from the API, Send / Cancel → Delete or Save Draft, results to the delegates; nothing is sent — mails become `.eml` files in `$ISIM_DATA/Library/Mail/{Outbox,Drafts}`, messages JSON in `Library/SMS/Outbox`. Tested |
 | Network framework `NWPathMonitor` (`pathUpdateHandler`, `currentPath`, `for await`) | ✅ | ≤17 | mirrors the host's connectivity (Wi-Fi/Ethernet), polled every 2 s; tested |
